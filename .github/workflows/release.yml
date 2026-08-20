@@ -448,9 +448,471 @@ jobs:
           compression-level: 0
           retention-days: 14
 
+  # -------------------------------------------------------------------- linux
+  # Two jobs: x86_64 (AppImage) and arm64 (tar.gz). Both are blocking.
+  #
+  # The vendored libSDL3.so.0 that libretro_godot links on Linux wants glibc
+  # 2.43 / xkbcommon 1.10 (built on a rolling-release box), so ubuntu-24.04
+  # cannot load it — but that only matters at runtime, not at build time: the
+  # editor and the exported binary link against the vendored linux-x64 copy
+  # (x86_64) or an SDL3 we build from source (arm64), and the exported app
+  # dlopens the host's own libSDL3 at runtime. libvlc comes from the system too
+  # (vlc-libs), so the AppImage/tarball must not bundle it.
+  linux:
+    needs: preflight
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: linux-x86_64
+            arch: x86_64
+            runner: ubuntu-24.04
+            ext: AppImage
+          - id: linux-arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            ext: tar.gz
+    name: ${{ matrix.id }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: true, fetch-depth: 0 }
+
+      - run: pip install scons
+
+      # libvlc-dev for the vlc-godot GDExtension. Retry: apt on a fresh runner
+      # can 503.
+      - name: Install libvlc-dev
+        shell: bash
+        run: |
+          set -euo pipefail
+          if pkg-config --exists libvlc 2>/dev/null; then
+            echo "libvlc already available; skipping apt install"; exit 0
+          fi
+          for attempt in 1 2 3; do
+            echo "Installing libvlc-dev (attempt ${attempt}/3)"
+            if timeout 600 sudo apt-get update -qq && \
+               timeout 600 sudo apt-get install -y -qq --no-install-recommends libvlc-dev; then
+              echo "libvlc-dev installed successfully"; exit 0
+            fi
+            [ "$attempt" -lt 3 ] && echo "apt attempt $attempt failed, retrying..."
+          done
+          echo "Failed to install libvlc-dev after 3 attempts" >&2
+          exit 1
+
+      # arm64: the vendored libpdfium is x86_64-only. Fetch the arm64 build from
+      # bblanchon/pdfium-binaries (the same source godot-pdfium's own
+      # download_pdfium.sh uses).
+      - name: Fetch arm64 libpdfium
+        if: matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="godot-pdfium/external/pdfium/lib/linux-arm64"
+          mkdir -p "$dest"
+          curl -fSL --retry 5 --retry-delay 15 -o /tmp/pdfium-arm64.tgz \
+            "https://github.com/bblanchon/pdfium-binaries/releases/latest/download/pdfium-linux-arm64.tgz"
+          mkdir -p /tmp/pdfium-arm64
+          tar -xzf /tmp/pdfium-arm64.tgz -C /tmp/pdfium-arm64
+          cp /tmp/pdfium-arm64/lib/libpdfium.so "$dest/libpdfium.so"
+          rm -rf /tmp/pdfium-arm64 /tmp/pdfium-arm64.tgz
+          file "$dest/libpdfium.so"
+
+      # arm64: the vendored SDL3 is a Windows dev package (headers + prebuilt
+      # libs only, no source), and no prebuilt Linux arm64 SDL3 exists anywhere.
+      # Build the matching 3.2.16 source and drop libSDL3.so.0 into the
+      # arch-aware dir the libretro-godot SConscript links against.
+      - name: Build arm64 SDL3
+        if: matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq --no-install-recommends cmake ninja-build
+          curl -fSL --retry 5 --retry-delay 15 -o /tmp/sdl3.tar.gz \
+            "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.2.16.tar.gz"
+          tar -xzf /tmp/sdl3.tar.gz -C /tmp
+          cd /tmp/SDL-release-3.2.16
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF
+          cmake --build build -j
+          sdl3_lib=$(find build -maxdepth 1 -name 'libSDL3.so.*' -type f | head -1)
+          [ -n "$sdl3_lib" ] || { echo "::error::SDL3 build produced no libSDL3.so"; exit 1; }
+          mkdir -p "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/linux-arm64"
+          cp "$sdl3_lib" "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/linux-arm64/libSDL3.so.0"
+          file "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/linux-arm64/libSDL3.so.0"
+
+      # arm64: the committed libretro-godot SConscript hardcodes the SDL3
+      # linux-x64 LIBPATH, which is x86_64-only. Patch the submodule's working
+      # tree (never committed) to pick the arch-aware dir.
+      - name: Patch libretro-godot SConscript for arm64 SDL3
+        if: matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          import sys
+          p = "libretro-godot/Temp/SConscript"
+          text = open(p).read()
+          old = 'env.Append(LIBPATH=["external/SDL3/lib/linux-x64"])'
+          new = ('sdl3_dir = "linux-arm64" if env["arch"] == "arm64" else "linux-x64"\n'
+                 'env.Append(LIBPATH=["external/SDL3/lib/" + sdl3_dir])')
+          if old not in text:
+              print("SDL3 patch: anchor not found, continuing")
+          else:
+              text = text.replace(old, new, 1)
+              open(p, "w").write(text)
+              print("SDL3 patch: applied")
+          PY
+          grep -n "sdl3_dir" libretro-godot/Temp/SConscript || true
+
+      # arm64: godot-pdfium's SConscript hardcodes linux-x64 in three places
+      # (LIBPATH, the $ORIGIN rpath, and the install dir). Patch all three to be
+      # arch-aware so it links the arm64 libpdfium we just fetched and installs
+      # it under linux-arm64/.
+      - name: Patch godot-pdfium SConscript for arm64
+        if: matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          p = "godot-pdfium/SConscript"
+          text = open(p).read()
+          if 'pdfium_dir' in text:
+              print("pdfium patch: already present")
+          else:
+              anchor = 'is_macos = env["platform"] == "macos"'
+              if anchor not in text:
+                  print("pdfium patch: anchor not found, continuing")
+              else:
+                  text = text.replace(anchor, anchor + '\npdfium_dir = "linux-arm64" if env["arch"] == "arm64" else "linux-x64"', 1)
+                  text = text.replace(
+                      'env.Append(LIBPATH=["external/pdfium/lib/linux-x64"])',
+                      'env.Append(LIBPATH=["external/pdfium/lib/" + pdfium_dir])', 1)
+                  text = text.replace(
+                      "env.Append(LINKFLAGS=[\"-Wl,-R,'$$ORIGIN/linux-x64'\"])",
+                      "env.Append(LINKFLAGS=[\"-Wl,-R,'$$ORIGIN/{}'\".format(pdfium_dir)])", 1)
+                  text = text.replace(
+                      'env.InstallAs("{}/linux-x64/libpdfium.so".format(output_dir), "external/pdfium/lib/linux-x64/libpdfium.so")',
+                      'env.InstallAs("{}/{}/libpdfium.so".format(output_dir, pdfium_dir), "external/pdfium/lib/{}/libpdfium.so".format(pdfium_dir))', 1)
+                  open(p, "w").write(text)
+                  print("pdfium patch: applied")
+          PY
+          grep -n "pdfium_dir" godot-pdfium/SConscript || true
+
+      # godot-cpp links 1000+ object files into one static archive; on Linux
+      # that command can exceed ARG_MAX. Keep SCons' MAXLINELENGTH low so its
+      # $TEMPFILE response-file munging kicks in, and make the ar command use
+      # it (GNU ar reads @response-file natively).
+      - name: Patch godot-cpp for long ar command lines
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          p = "libretro-godot/godot-cpp/SConstruct"
+          text = open(p).read()
+          if "SCons.Util.MAXLINELENGTH" not in text:
+              text = "import SCons.Util\nSCons.Util.MAXLINELENGTH = 128072\n" + text
+          anchor = 'env.PrependENVPath("PATH", os.getenv("PATH"))'
+          if anchor in text and 'env["MAXLINELENGTH"]' not in text:
+              insert = (anchor + "\n"
+                        "import os\n"
+                        'if "AR" in os.environ:\n'
+                        '    env["AR"] = os.environ["AR"]\n'
+                        'if "RANLIB" in os.environ:\n'
+                        '    env["RANLIB"] = os.environ["RANLIB"]\n'
+                        'env["MAXLINELENGTH"] = 128072\n')
+              text = text.replace(anchor, insert, 1)
+          open(p, "w").write(text)
+          print("SConstruct patch: applied")
+
+          p = "libretro-godot/godot-cpp/tools/linux.py"
+          text = open(p).read()
+          if "ARCOM_POSIX" in text:
+              print("linux.py patch: already present")
+          else:
+              anchor = "env.Append(LINKFLAGS=[\"-Wl,-R,'$$ORIGIN'\"])"
+              if anchor not in text:
+                  print("linux.py patch: anchor not found, continuing")
+              else:
+                  insert = (anchor + "\n"
+                            "    # Use TempFileMunge for large archive commands when linking godot-cpp.\n"
+                            '    env["ARCOM_POSIX"] = env["ARCOM"].replace("$TARGET", "$TARGET.posix").replace("$SOURCES", "$SOURCES.posix")\n'
+                            '    env["ARCOM"] = "${TEMPFILE(ARCOM_POSIX)}"\n')
+                  text = text.replace(anchor, insert, 1)
+                  open(p, "w").write(text)
+                  print("linux.py patch: applied")
+          PY
+          echo "--- SConstruct (first 3 lines) ---"
+          head -3 libretro-godot/godot-cpp/SConstruct
+          echo "--- linux.py ARCOM ---"
+          grep -n "ARCOM" libretro-godot/godot-cpp/tools/linux.py || true
+
+      # Both targets, and both are needed: the exported binary loads
+      # linux.release.<arch>, while the editor doing the exporting is itself
+      # debug-tagged and loads linux.debug.<arch> to register the classes the
+      # project's scenes and scripts name. Only the release ones ship.
+      - name: Build the GDExtensions (linux ${{ matrix.arch }}, debug + release)
+        env:
+          SCONS_CACHE: ${{ github.workspace }}/.scons-cache
+        run: python3 Tools/build.py linux --target both --arch ${{ matrix.arch }}
+
+      - name: Install Godot ${{ env.GODOT_VERSION }} and its export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/$GODOT_VERSION"
+          # Retries because a bare curl does not, and a 503 from the release CDN
+          # has already thrown away a long build.
+          curl -fSL --retry 5 --retry-delay 15 -o godot.zip \
+            "$base/Godot_v${GODOT_VERSION}_linux.${{ matrix.arch }}.zip"
+          curl -fSL --retry 5 --retry-delay 15 -o templates.tpz \
+            "$base/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q godot.zip -d godot-bin
+          BIN=$(find godot-bin -type f -name "Godot*" | head -1)
+          [ -n "$BIN" ] || { echo "::error::Godot binary not found"; ls -la godot-bin; exit 1; }
+          chmod +x "$BIN"
+          echo "GODOT=$PWD/$BIN" >> "$GITHUB_ENV"
+          mkdir -p tpz && unzip -q templates.tpz -d tpz
+          dest="$HOME/.local/share/godot/export_templates/$GODOT_TEMPLATE_DIR"
+          mkdir -p "$dest"
+          cp -r tpz/templates/* "$dest"
+          rm -f godot.zip templates.tpz
+
+      # The Linux preset is hardcoded to x86_64; switch it for the arm64 export
+      # so Godot emits an arm64 binary. Scope the substitution to the block of
+      # the preset named "Linux" — a bare s/// would hit the Windows preset's
+      # x86_64 line first and corrupt it.
+      - name: Point the Linux preset at ${{ matrix.arch }}
+        if: matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          awk '
+            /^\[preset\./ { in_linux = 0 }
+            /^name="Linux"/ { in_linux = 1 }
+            in_linux && /binary_format\/architecture="x86_64"/ { sub(/x86_64/, "arm64") }
+            { print }
+          ' RetroXR/export_presets.cfg > /tmp/presets.cfg && mv /tmp/presets.cfg RetroXR/export_presets.cfg
+          grep -n 'binary_format/architecture' RetroXR/export_presets.cfg
+
+      - name: Import, and fail on any script or shader error
+        shell: bash
+        run: |
+          set -euo pipefail
+          # See the quest job: .import sidecars are gitignored, --import is the
+          # only mode that waits for the scan, and only the last pass is an oracle.
+          pass() {
+            local label=$1; shift
+            "$GODOT" --headless --path RetroXR "$@" > "import-$label.log" 2>&1 || true
+            echo "$label: $(grep -acE 'SCRIPT ERROR|Parse Error|SHADER ERROR' "import-$label.log") script/shader errors"
+          }
+          pass import --import
+          pass editor1 --editor --quit
+          pass editor2 --editor --quit
+          grep -aE "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load|Failed to instantiate" import-editor2.log \
+            | grep -avE "xrCreateInstance|\.NET Sdk|xr_staging_shim" > errors.log || true
+          if [ -s errors.log ]; then cat errors.log; echo "::error::import reported errors"; exit 1; fi
+          echo "import clean"
+
+      - name: Export the Linux build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build_out
+          "$GODOT" --headless --path RetroXR --export-release "Linux" "$PWD/build_out/RetroXR.${{ matrix.arch }}"
+          ls -la build_out
+
+      - name: Package AppImage (x86_64)
+        if: matrix.arch == 'x86_64'
+        shell: bash
+        env: { VER: "${{ needs.preflight.outputs.version_name }}" }
+        run: |
+          set -euo pipefail
+          ARTIFACT="RetroXR-linux-x86_64-v$VER.AppImage"
+          curl -fSL --retry 5 --retry-delay 15 \
+            https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -o appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract >/dev/null
+          mv squashfs-root appimagetool-extracted
+          mkdir -p AppDir/usr/bin
+          cp -r build_out/* AppDir/usr/bin/
+          BINARY=$(find AppDir/usr/bin -maxdepth 1 -name "*.x86_64" -type f | head -1)
+          [ -n "$BINARY" ] || { echo "::error::no .x86_64 binary found"; find AppDir/usr/bin -type f -ls; exit 1; }
+          BIN_NAME=$(basename "$BINARY")
+          cat > AppDir/retroXR.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=RetroXR
+          Exec=AppRun
+          Type=Application
+          Categories=Game;Emulator;
+          Icon=retroXR
+          DESKTOP
+          cat > AppDir/AppRun << APPRUNEOF
+          #!/bin/bash
+          HERE="\$(dirname "\$(readlink -f "\$0")")"
+          cd "\$HERE/usr/bin"
+          exec "./${BIN_NAME}" "\$@"
+          APPRUNEOF
+          chmod +x AppDir/AppRun
+          python3 -c "
+          import struct, zlib
+          def chunk(ctype, data):
+              c = ctype + data
+              return struct.pack('>I', len(data)) + c + struct.pack('>I', zlib.crc32(c) & 0xffffffff)
+          w = h = 48
+          raw = b''
+          for _ in range(h):
+              raw += b'\x00' + bytes([32, 32, 32]) * w
+          ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
+          png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+          open('AppDir/retroXR.png', 'wb').write(png)
+          "
+          ARCH=x86_64 ./appimagetool-extracted/AppRun AppDir "$ARTIFACT"
+          echo "AppImage: $ARTIFACT ($(stat -c%s "$ARTIFACT") bytes)"
+
+      - name: Package Linux arm64 tarball
+        if: matrix.arch == 'arm64'
+        shell: bash
+        env: { VER: "${{ needs.preflight.outputs.version_name }}" }
+        run: |
+          set -euo pipefail
+          ARTIFACT="RetroXR-linux-arm64-v$VER.tar.gz"
+          tar -C build_out -czf "$ARTIFACT" .
+          echo "Tarball: $ARTIFACT ($(stat -c%s "$ARTIFACT") bytes)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.id }}
+          path: RetroXR-linux-${{ matrix.arch }}-v${{ needs.preflight.outputs.version_name }}.${{ matrix.ext }}
+          if-no-files-found: error
+          retention-days: 14
+
+  # -------------------------------------------------------------------- macos
+  # Experimental (continue-on-error): builds both arm64 and x86_64 dylibs and
+  # lipos them into universal binaries, then exports a universal .app, ad-hoc
+  # codesigned with the entitlements that let it load unsigned downloaded cores
+  # and JIT. vlc-godot and metaxr-audio are skipped by build.py (no macOS
+  # runtime for either).
+  macos:
+    needs: preflight
+    runs-on: macos-14
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: recursive, lfs: true, fetch-depth: 0 }
+
+      - run: pip install scons
+
+      # Both architectures and both targets: the editor (universal, running as
+      # arm64) loads macos.debug.universal, and the exported app ships
+      # macos.release.universal. lipo needs the per-arch dylibs for both.
+      - name: Build the GDExtensions (macos arm64, debug + release)
+        env:
+          SCONS_CACHE: ${{ github.workspace }}/.scons-cache
+        run: python3 Tools/build.py macos --target both --arch arm64
+
+      - name: Build the GDExtensions (macos x86_64, debug + release)
+        env:
+          SCONS_CACHE: ${{ github.workspace }}/.scons-cache
+        run: python3 Tools/build.py macos --target both --arch x86_64
+
+      - name: lipo the dylibs into universal binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          for arm in RetroXR/*/lib*.macos.template_debug.arm64.dylib; do
+            base="${arm%.arm64.dylib}"
+            x64="${base}.x86_64.dylib"
+            [ -f "$x64" ] || { echo "::error::missing $x64"; exit 1; }
+            lipo -create "$arm" "$x64" -output "${base}.universal.dylib"
+            echo "lipo: ${base}.universal.dylib"
+          done
+          for arm in RetroXR/*/lib*.macos.template_release.arm64.dylib; do
+            base="${arm%.arm64.dylib}"
+            x64="${base}.x86_64.dylib"
+            [ -f "$x64" ] || { echo "::error::missing $x64"; exit 1; }
+            lipo -create "$arm" "$x64" -output "${base}.universal.dylib"
+            echo "lipo: ${base}.universal.dylib"
+          done
+          file RetroXR/*/lib*.macos.template_release.universal.dylib
+
+      - name: Install Godot ${{ env.GODOT_VERSION }} and its export templates
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot/releases/download/$GODOT_VERSION"
+          curl -fSL --retry 5 --retry-delay 15 -o godot.zip \
+            "$base/Godot_v${GODOT_VERSION}_macos.universal.zip"
+          curl -fSL --retry 5 --retry-delay 15 -o templates.tpz \
+            "$base/Godot_v${GODOT_VERSION}_export_templates.tpz"
+          unzip -q godot.zip -d godot-bin
+          BIN=$(find godot-bin -type f -path "*Contents/MacOS/Godot" | head -1)
+          [ -n "$BIN" ] || { echo "::error::Godot binary not found"; find godot-bin -type f; exit 1; }
+          chmod +x "$BIN"
+          echo "GODOT=$PWD/$BIN" >> "$GITHUB_ENV"
+          mkdir -p tpz && unzip -q templates.tpz -d tpz
+          dest="$HOME/Library/Application Support/Godot/export_templates/$GODOT_TEMPLATE_DIR"
+          mkdir -p "$dest"
+          cp -r tpz/templates/* "$dest"
+          rm -f godot.zip templates.tpz
+
+      - name: Import, and fail on any script or shader error
+        shell: bash
+        run: |
+          set -euo pipefail
+          pass() {
+            local label=$1; shift
+            "$GODOT" --headless --path RetroXR "$@" > "import-$label.log" 2>&1 || true
+            echo "$label: $(grep -acE 'SCRIPT ERROR|Parse Error|SHADER ERROR' "import-$label.log") script/shader errors"
+          }
+          pass import --import
+          pass editor1 --editor --quit
+          pass editor2 --editor --quit
+          grep -aE "SCRIPT ERROR|Parse Error|SHADER ERROR|Failed to load|Failed to instantiate" import-editor2.log \
+            | grep -avE "xrCreateInstance|\.NET Sdk|xr_staging_shim" > errors.log || true
+          if [ -s errors.log ]; then cat errors.log; echo "::error::import reported errors"; exit 1; fi
+          echo "import clean"
+
+      - name: Export the macOS build
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build_out
+          "$GODOT" --headless --path RetroXR --export-release "macOS" "$PWD/build_out/RetroXR.app"
+          ls -la build_out
+
+      # Godot codesigns during export (codesign/enable=true with the
+      # entitlements file), but re-sign ad-hoc here so the .app is verifiably
+      # signed even if the export's signing step was skipped.
+      - name: Ad-hoc codesign the app bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          codesign --force --deep --sign - \
+            --entitlements RetroXR/entitlements/macos.entitlements \
+            build_out/RetroXR.app
+          codesign -dv build_out/RetroXR.app 2>&1 | head -20
+
+      - name: Package macOS zip
+        shell: bash
+        env: { VER: "${{ needs.preflight.outputs.version_name }}" }
+        run: |
+          set -euo pipefail
+          ARTIFACT="RetroXR-macos-universal-v$VER.zip"
+          ditto -c -k --keepParent build_out/RetroXR.app "$ARTIFACT"
+          echo "macOS zip: $ARTIFACT ($(stat -f%z "$ARTIFACT") bytes)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: RetroXR-macos-universal-v${{ needs.preflight.outputs.version_name }}.zip
+          if-no-files-found: error
+          retention-days: 14
+
   # ------------------------------------------------------------------ release
   release:
-    needs: [preflight, quest, windows]
+    needs: [preflight, quest, windows, linux, macos]
     if: github.ref_type == 'tag' || inputs.publish
     runs-on: ubuntu-latest
     steps:
