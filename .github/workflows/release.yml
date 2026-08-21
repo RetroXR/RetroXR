@@ -296,8 +296,12 @@ jobs:
           APK: ${{ needs.preflight.outputs.apk_name }}
         run: |
           set -euo pipefail
-          # A release must be signed, so a missing keystore kills a tag/publish
-          # run. A plain dispatch is a pipeline test: warn and export unsigned.
+          # A release must be signed with the real keystore, so a missing
+          # secret kills a tag/publish run. A plain dispatch is a pipeline
+          # test: --export-release refuses to run with NO keystore at all
+          # ("Code Signing: Could not find release keystore"), so mint a
+          # throwaway one and sign with that - the APK is installable, just
+          # not upgrade-compatible with any real release.
           if [ -n "$KEYSTORE_B64" ]; then
             # Never written to the tree: RetroXR/.godot/export_credentials.cfg
             # stays absent and the keystore lives only in the runner temp dir.
@@ -308,7 +312,18 @@ jobs:
           elif [ "$PUBLISHING" = "true" ]; then
             echo "::error::secret ANDROID_KEYSTORE_BASE64 is unset"; exit 1
           else
-            echo "::warning::ANDROID_KEYSTORE_BASE64 is unset - exporting an UNSIGNED APK (fine for a test run, useless for a release)"
+            ks=$(cygpath -u "$RUNNER_TEMP")/release.keystore
+            keytool -genkeypair -keystore "$(cygpath -w "$ks")" \
+              -storepass retroxr-ci -keypass retroxr-ci -alias retroxr-ci \
+              -keyalg RSA -keysize 2048 -validity 30 \
+              -dname "CN=RetroXR CI Test, OU=CI, O=RetroXR, C=IT"
+            GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$(cygpath -w "$ks")
+            export GODOT_ANDROID_KEYSTORE_RELEASE_PATH
+            GODOT_ANDROID_KEYSTORE_RELEASE_USER=retroxr-ci
+            export GODOT_ANDROID_KEYSTORE_RELEASE_USER
+            GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=retroxr-ci
+            export GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is unset - signed with a THROWAWAY CI keystore (fine for a test run, useless for a release)"
           fi
           mkdir -p build_out
           "$GODOT" --headless --path RetroXR --export-release "Quest" "$PWD/build_out/$APK"
@@ -501,7 +516,7 @@ jobs:
             echo "Installing apt deps (attempt ${attempt}/3)"
             if timeout 600 sudo apt-get update -qq && \
                timeout 600 sudo apt-get install -y -qq --no-install-recommends \
-                 libvlc-dev libgl1 libvulkan1; then
+                 libvlc-dev libgl1 libvulkan1 patchelf; then
               echo "apt deps installed successfully"; break
             fi
             [ "$attempt" -lt 3 ] || { echo "Failed to install apt deps after 3 attempts" >&2; exit 1; }
@@ -678,6 +693,27 @@ jobs:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache
         run: python3 Tools/build.py linux --target both --arch ${{ matrix.arch }}
 
+      # The arm64-built extensions come out with an unversioned DT_NEEDED
+      # libdl.so, which no modern distro ships (glibc merged dl into libc and
+      # kept only the libdl.so.2 compat stub) - dlopen of godot-pdfium then
+      # fails during export with "libdl.so: cannot open shared object file".
+      # Rewrite it to the versioned name; --replace-needed is a no-op when the
+      # name is absent, and libdl.so.2 exists everywhere either way.
+      - name: Fix unversioned libdl dependency (arm64)
+        if: matrix.arch == 'arm64'
+        shell: bash
+        run: |
+          set -euo pipefail
+          found=0
+          while IFS= read -r so; do
+            if patchelf --print-needed "$so" | grep -qx 'libdl.so'; then
+              patchelf --replace-needed libdl.so libdl.so.2 "$so"
+              echo "patched: $so"
+              found=1
+            fi
+          done < <(find RetroXR -name '*.linux.template_*.arm64.so' -type f)
+          [ "$found" = 1 ] || echo "no unversioned libdl needed - nothing to do"
+
       # libretro-godot links SDL3 by soname with no rpath: at runtime the
       # extension expects the host to provide libSDL3.so.0, which a bare
       # runner does not have - its dlopen then fails and every script naming
@@ -720,19 +756,22 @@ jobs:
       # The Linux preset is hardcoded to x86_64; switch it for the arm64 export
       # so Godot emits an arm64 binary. Scope the substitution to the block of
       # the preset named "Linux" — a bare s/// would hit the Windows preset's
-      # x86_64 line first and corrupt it.
+      # x86_64 line first and corrupt it. The header regex must match ONLY
+      # [preset.N], not [preset.N.options]: architecture lives in the options
+      # block, and resetting the flag there was why the substitution silently
+      # missed.
       - name: Point the Linux preset at ${{ matrix.arch }}
         if: matrix.arch == 'arm64'
         shell: bash
         run: |
           set -euo pipefail
           awk '
-            /^\[preset\./ { in_linux = 0 }
+            /^\[preset\.[0-9]+\]$/ { in_linux = 0 }
             /^name="Linux"/ { in_linux = 1 }
             in_linux && /binary_format\/architecture="x86_64"/ { sub(/x86_64/, "arm64") }
             { print }
           ' RetroXR/export_presets.cfg > /tmp/presets.cfg && mv /tmp/presets.cfg RetroXR/export_presets.cfg
-          grep -n 'binary_format/architecture' RetroXR/export_presets.cfg
+          grep -A45 '^name="Linux"' RetroXR/export_presets.cfg | grep 'binary_format/architecture'
 
       - name: Import, and fail on any script or shader error
         shell: bash
