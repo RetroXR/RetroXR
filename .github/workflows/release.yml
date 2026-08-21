@@ -35,7 +35,7 @@ jobs:
       version_code: ${{ steps.v.outputs.code }}
       apk_name: ${{ steps.v.outputs.apk }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
 
       - name: Read and check the preset versions
@@ -103,7 +103,7 @@ jobs:
     needs: preflight
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: recursive
           lfs: true
@@ -111,7 +111,7 @@ jobs:
           # clone silently stamps an empty build_info.json.
           fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: '17' }
 
       - run: pip install 'scons==4.10.*'   # pinned: an unpinned build tool drifts under CI
@@ -163,7 +163,7 @@ jobs:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache
         run: python Tools/build.py android --target release
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: ~/.gradle/caches
           key: gradle-${{ hashFiles('RetroXR/export_presets.cfg') }}
@@ -292,16 +292,24 @@ jobs:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          PUBLISHING: ${{ github.ref_type == 'tag' || inputs.publish }}
           APK: ${{ needs.preflight.outputs.apk_name }}
         run: |
           set -euo pipefail
-          [ -n "$KEYSTORE_B64" ] || { echo "::error::secret ANDROID_KEYSTORE_BASE64 is unset"; exit 1; }
-          # Never written to the tree: RetroXR/.godot/export_credentials.cfg
-          # stays absent and the keystore lives only in the runner temp dir.
-          ks=$(cygpath -u "$RUNNER_TEMP")/release.keystore
-          echo "$KEYSTORE_B64" | base64 -d > "$ks"
-          GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$(cygpath -w "$ks")
-          export GODOT_ANDROID_KEYSTORE_RELEASE_PATH
+          # A release must be signed, so a missing keystore kills a tag/publish
+          # run. A plain dispatch is a pipeline test: warn and export unsigned.
+          if [ -n "$KEYSTORE_B64" ]; then
+            # Never written to the tree: RetroXR/.godot/export_credentials.cfg
+            # stays absent and the keystore lives only in the runner temp dir.
+            ks=$(cygpath -u "$RUNNER_TEMP")/release.keystore
+            echo "$KEYSTORE_B64" | base64 -d > "$ks"
+            GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$(cygpath -w "$ks")
+            export GODOT_ANDROID_KEYSTORE_RELEASE_PATH
+          elif [ "$PUBLISHING" = "true" ]; then
+            echo "::error::secret ANDROID_KEYSTORE_BASE64 is unset"; exit 1
+          else
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is unset - exporting an UNSIGNED APK (fine for a test run, useless for a release)"
+          fi
           mkdir -p build_out
           "$GODOT" --headless --path RetroXR --export-release "Quest" "$PWD/build_out/$APK"
           ls -la "build_out/$APK"
@@ -341,7 +349,7 @@ jobs:
           done
           echo "all expected natives present"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: quest-apk
           path: build_out/${{ needs.preflight.outputs.apk_name }}
@@ -353,7 +361,7 @@ jobs:
     needs: preflight
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive, lfs: true, fetch-depth: 0 }
 
       - run: pip install 'scons==4.10.*'   # pinned: an unpinned build tool drifts under CI
@@ -441,7 +449,7 @@ jobs:
           python -c "import shutil; shutil.make_archive('RetroXR-win-v$VER', 'zip', 'build_out')"
           ls -la "RetroXR-win-v$VER.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-build
           path: RetroXR-win-v${{ needs.preflight.outputs.version_name }}.zip
@@ -475,7 +483,7 @@ jobs:
             ext: tar.gz
     name: ${{ matrix.id }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive, lfs: true, fetch-depth: 0 }
 
       - run: pip install scons
@@ -781,7 +789,7 @@ jobs:
           tar -C build_out -czf "$ARTIFACT" .
           echo "Tarball: $ARTIFACT ($(stat -c%s "$ARTIFACT") bytes)"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.id }}
           path: RetroXR-linux-${{ matrix.arch }}-v${{ needs.preflight.outputs.version_name }}.${{ matrix.ext }}
@@ -799,7 +807,7 @@ jobs:
     runs-on: macos-14
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive, lfs: true, fetch-depth: 0 }
 
       - run: pip install scons
@@ -903,7 +911,7 @@ jobs:
           ditto -c -k --keepParent build_out/RetroXR.app "$ARTIFACT"
           echo "macOS zip: $ARTIFACT ($(stat -f%z "$ARTIFACT") bytes)"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-universal
           path: RetroXR-macos-universal-v${{ needs.preflight.outputs.version_name }}.zip
@@ -916,9 +924,9 @@ jobs:
     if: github.ref_type == 'tag' || inputs.publish
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { path: dist, merge-multiple: true }
 
       - name: Publish the release
