@@ -529,13 +529,24 @@ jobs:
       # arm64: the vendored SDL3 is a Windows dev package (headers + prebuilt
       # libs only, no source), and no prebuilt Linux arm64 SDL3 exists anywhere.
       # Build the matching 3.2.16 source and drop libSDL3.so.0 into the
-      # arch-aware dir the libretro-godot SConscript links against.
+      # arch-aware dir the libretro-godot SConscript links against. SDL3's
+      # CMake hard-errors when neither X11 nor Wayland dev headers are present,
+      # so install the usual desktop dev set first (the extension only opens a
+      # hidden GL window through SDL, but a feature-complete lib costs nothing
+      # here and matches what distros ship).
       - name: Build arm64 SDL3
         if: matrix.arch == 'arm64'
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get install -y -qq --no-install-recommends cmake ninja-build
+          sudo apt-get install -y -qq --no-install-recommends \
+            cmake ninja-build \
+            libasound2-dev libpulse-dev libpipewire-0.3-dev \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev \
+            libxfixes-dev libxi-dev libxss-dev libxkbcommon-dev \
+            libwayland-dev wayland-protocols \
+            libegl1-mesa-dev libgl1-mesa-dev libdrm-dev libgbm-dev \
+            libudev-dev libusb-1.0-0-dev
           curl -fSL --retry 5 --retry-delay 15 -o /tmp/sdl3.tar.gz \
             "https://github.com/libsdl-org/SDL/archive/refs/tags/release-3.2.16.tar.gz"
           tar -xzf /tmp/sdl3.tar.gz -C /tmp
