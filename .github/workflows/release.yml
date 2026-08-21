@@ -488,25 +488,25 @@ jobs:
 
       - run: pip install scons
 
-      # libvlc-dev for the vlc-godot GDExtension. Retry: apt on a fresh runner
-      # can 503.
-      - name: Install libvlc-dev
+      # libvlc-dev for the vlc-godot GDExtension, plus the GL and Vulkan
+      # runtime libs libretro-godot records as DT_NEEDED - a bare runner has
+      # none of them, and without them its dlopen fails and every script
+      # naming Libretro dies with "could not find type". Retry: apt on a
+      # fresh runner can 503.
+      - name: Install libvlc-dev and the GL/Vulkan runtime
         shell: bash
         run: |
           set -euo pipefail
-          if pkg-config --exists libvlc 2>/dev/null; then
-            echo "libvlc already available; skipping apt install"; exit 0
-          fi
           for attempt in 1 2 3; do
-            echo "Installing libvlc-dev (attempt ${attempt}/3)"
+            echo "Installing apt deps (attempt ${attempt}/3)"
             if timeout 600 sudo apt-get update -qq && \
-               timeout 600 sudo apt-get install -y -qq --no-install-recommends libvlc-dev; then
-              echo "libvlc-dev installed successfully"; exit 0
+               timeout 600 sudo apt-get install -y -qq --no-install-recommends \
+                 libvlc-dev libgl1 libvulkan1; then
+              echo "apt deps installed successfully"; break
             fi
-            [ "$attempt" -lt 3 ] && echo "apt attempt $attempt failed, retrying..."
+            [ "$attempt" -lt 3 ] || { echo "Failed to install apt deps after 3 attempts" >&2; exit 1; }
+            echo "apt attempt $attempt failed, retrying..."
           done
-          echo "Failed to install libvlc-dev after 3 attempts" >&2
-          exit 1
 
       # arm64: the vendored libpdfium is x86_64-only. Fetch the arm64 build from
       # bblanchon/pdfium-binaries (the same source godot-pdfium's own
@@ -526,16 +526,17 @@ jobs:
           rm -rf /tmp/pdfium-arm64 /tmp/pdfium-arm64.tgz
           file "$dest/libpdfium.so"
 
-      # arm64: the vendored SDL3 is a Windows dev package (headers + prebuilt
-      # libs only, no source), and no prebuilt Linux arm64 SDL3 exists anywhere.
-      # Build the matching 3.2.16 source and drop libSDL3.so.0 into the
-      # arch-aware dir the libretro-godot SConscript links against. SDL3's
-      # CMake hard-errors when neither X11 nor Wayland dev headers are present,
-      # so install the usual desktop dev set first (the extension only opens a
-      # hidden GL window through SDL, but a feature-complete lib costs nothing
-      # here and matches what distros ship).
-      - name: Build arm64 SDL3
-        if: matrix.arch == 'arm64'
+      # Both arches build SDL3 3.2.16 from source: there is no prebuilt Linux
+      # arm64 SDL3 anywhere, and the committed x86_64 stand-in wants GLIBC_2.43
+      # - newer than ubuntu-24.04's own 2.39, so bundling it would break the
+      # artifacts on most distros. Building here lands a glibc-2.39-floor lib
+      # in the same path the SConscript links from (overwriting the vendored
+      # file in the working tree, never committed). SDL3's CMake hard-errors
+      # when neither X11 nor Wayland dev headers are present, so install the
+      # usual desktop dev set first (the extension only opens a hidden GL
+      # window through SDL, but a feature-complete lib costs nothing here and
+      # matches what distros ship).
+      - name: Build SDL3 (${{ matrix.arch }}) from source
         shell: bash
         run: |
           set -euo pipefail
@@ -557,9 +558,10 @@ jobs:
           cmake --build build -j
           sdl3_lib=$(find build -maxdepth 1 -name 'libSDL3.so.*' -type f | head -1)
           [ -n "$sdl3_lib" ] || { echo "::error::SDL3 build produced no libSDL3.so"; exit 1; }
-          mkdir -p "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/linux-arm64"
-          cp "$sdl3_lib" "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/linux-arm64/libSDL3.so.0"
-          file "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/linux-arm64/libSDL3.so.0"
+          sdl3_dir=${{ matrix.arch == 'arm64' && 'linux-arm64' || 'linux-x64' }}
+          mkdir -p "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/$sdl3_dir"
+          cp "$sdl3_lib" "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0"
+          file "$GITHUB_WORKSPACE/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0"
 
       # arm64: the committed libretro-godot SConscript hardcodes the SDL3
       # linux-x64 LIBPATH, which is x86_64-only. Patch the submodule's working
@@ -675,6 +677,22 @@ jobs:
         env:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache
         run: python3 Tools/build.py linux --target both --arch ${{ matrix.arch }}
+
+      # libretro-godot links SDL3 by soname with no rpath: at runtime the
+      # extension expects the host to provide libSDL3.so.0, which a bare
+      # runner does not have - its dlopen then fails and every script naming
+      # Libretro dies with "could not find type". godot-cpp gives every Linux
+      # extension RUNPATH=$ORIGIN, so copying the built copy next to the .so
+      # lets the editor load it during import; the [dependencies] entries in
+      # libretro_godot.gdextension bundle it into the exported artifacts.
+      - name: Stage SDL3 next to the extension
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdl3_dir=${{ matrix.arch == 'arm64' && 'linux-arm64' || 'linux-x64' }}
+          cp "RetroXR/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" \
+            RetroXR/libretro-godot/
+          ls -la RetroXR/libretro-godot/libSDL3.so.0
 
       - name: Install Godot ${{ env.GODOT_VERSION }} and its export templates
         shell: bash
@@ -822,6 +840,28 @@ jobs:
         with: { submodules: recursive, lfs: true, fetch-depth: 0 }
 
       - run: pip install scons
+
+      # Apple clang's libc++ construct_at lacks C++20 P0960 parenthesized
+      # aggregate initialization, and OptionsHandler.cpp emplace_back()s the
+      # aggregate OptionValue - libretro-godot then fails to compile with "no
+      # matching function for call to 'construct_at'". Patch it to brace init
+      # until the fix lands in the submodule (this account cannot push there).
+      # A no-op once upstream has it.
+      - name: Patch OptionsHandler.cpp for Apple libc++
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - << 'PY'
+          p = "libretro-godot/src/OptionsHandler.cpp"
+          text = open(p).read()
+          old = 'values.emplace_back(value_list[v].utf8().get_data(), "");'
+          new = 'values.push_back({value_list[v].utf8().get_data(), ""});'
+          if old in text:
+              open(p, "w").write(text.replace(old, new, 1))
+              print("OptionsHandler patch: applied")
+          else:
+              print("OptionsHandler patch: anchor not found (already fixed upstream?)")
+          PY
 
       # Both architectures and both targets: the editor (universal, running as
       # arm64) loads macos.debug.universal, and the exported app ships
