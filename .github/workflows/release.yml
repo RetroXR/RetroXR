@@ -683,14 +683,15 @@ jobs:
       # runner does not have - its dlopen then fails and every script naming
       # Libretro dies with "could not find type". godot-cpp gives every Linux
       # extension RUNPATH=$ORIGIN, so copying the built copy next to the .so
-      # lets the editor load it during import; the [dependencies] entries in
-      # libretro_godot.gdextension bundle it into the exported artifacts.
+      # lets the editor load it during import; the export step bundles it
+      # into the artifacts the same way. The source is the repo-root
+      # submodule tree, where the SDL3 build step wrote it.
       - name: Stage SDL3 next to the extension
         shell: bash
         run: |
           set -euo pipefail
           sdl3_dir=${{ matrix.arch == 'arm64' && 'linux-arm64' || 'linux-x64' }}
-          cp "RetroXR/libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" \
+          cp "libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" \
             RetroXR/libretro-godot/
           ls -la RetroXR/libretro-godot/libSDL3.so.0
 
@@ -758,6 +759,13 @@ jobs:
           set -euo pipefail
           mkdir -p build_out
           "$GODOT" --headless --path RetroXR --export-release "Linux" "$PWD/build_out/RetroXR.${{ matrix.arch }}"
+          # Bundle SDL3 next to the binary. The extension links it by soname
+          # with no rpath, and SDL3 is new enough that many distros package it
+          # nowhere at all - $ORIGIN finds it sitting beside the executable.
+          # (Not a [dependencies] entry: that would demand the file in every
+          # working tree, including local exports whose hosts have SDL3.)
+          sdl3_dir=${{ matrix.arch == 'arm64' && 'linux-arm64' || 'linux-x64' }}
+          cp "libretro-godot/external/SDL3/lib/$sdl3_dir/libSDL3.so.0" build_out/
           ls -la build_out
 
       - name: Package AppImage (x86_64)
@@ -842,20 +850,24 @@ jobs:
       - run: pip install scons
 
       # Apple clang's libc++ construct_at lacks C++20 P0960 parenthesized
-      # aggregate initialization, and OptionsHandler.cpp emplace_back()s the
-      # aggregate OptionValue - libretro-godot then fails to compile with "no
-      # matching function for call to 'construct_at'". Patch it to brace init
-      # until the fix lands in the submodule (this account cannot push there).
-      # A no-op once upstream has it.
-      - name: Patch OptionsHandler.cpp for Apple libc++
+      # aggregate initialization, so vector<OptionValue>::emplace_back(...)
+      # fails to compile - libretro-godot dies with "no matching function for
+      # call to 'construct_at'". Give the aggregate real constructors until the
+      # fix lands in the submodule (this account cannot push there). A no-op
+      # once upstream has it.
+      - name: Patch OptionsHandler.hpp for Apple libc++
         shell: bash
         run: |
           set -euo pipefail
           python3 - << 'PY'
-          p = "libretro-godot/src/OptionsHandler.cpp"
+          p = "libretro-godot/src/OptionsHandler.hpp"
           text = open(p).read()
-          old = 'values.emplace_back(value_list[v].utf8().get_data(), "");'
-          new = 'values.push_back({value_list[v].utf8().get_data(), ""});'
+          old = "struct OptionValue\n{\n    std::string value;\n    std::string label;\n};"
+          new = ("struct OptionValue\n{\n"
+                 "    OptionValue() = default;\n"
+                 "    OptionValue(const std::string &v, const std::string &l) : value(v), label(l) {}\n"
+                 "    std::string value;\n"
+                 "    std::string label;\n};")
           if old in text:
               open(p, "w").write(text.replace(old, new, 1))
               print("OptionsHandler patch: applied")
