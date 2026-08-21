@@ -25,3 +25,12 @@ macos.release.x86_64 = "libretro_godot.macos.template_release.x86_64.dylib"
 
 windows.debug.x86_64 = {"SDL3.dll": ""}
 windows.release.x86_64 = {"SDL3.dll": ""}
+# SDL3 is linked by soname with no rpath, and it is new enough that many
+# distros package it nowhere at all - so the export bundles a copy next to
+# the executable, where the extension's $ORIGIN RUNPATH finds it. The x86_64
+# file is the committed vendored one; CI overwrites both with fresh builds
+# (the vendored x86_64 lib wants GLIBC_2.43).
+linux.debug.x86_64 = {"external/SDL3/lib/linux-x64/libSDL3.so.0": ""}
+linux.release.x86_64 = {"external/SDL3/lib/linux-x64/libSDL3.so.0": ""}
+linux.debug.arm64 = {"external/SDL3/lib/linux-arm64/libSDL3.so.0": ""}
+linux.release.arm64 = {"external/SDL3/lib/linux-arm64/libSDL3.so.0": ""}
