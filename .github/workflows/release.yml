@@ -1018,14 +1018,14 @@ jobs:
         env: { VER: "${{ needs.preflight.outputs.version_name }}" }
         run: |
           set -euo pipefail
-          ARTIFACT="RetroXR-macos-universal-v$VER.zip"
+          ARTIFACT="RetroXR-macos-arm64-v$VER.zip"
           ditto -c -k --keepParent build_out/RetroXR.app "$ARTIFACT"
           echo "macOS zip: $ARTIFACT ($(stat -f%z "$ARTIFACT") bytes)"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: macos-universal
-          path: RetroXR-macos-universal-v${{ needs.preflight.outputs.version_name }}.zip
+          name: macos-arm64
+          path: RetroXR-macos-arm64-v${{ needs.preflight.outputs.version_name }}.zip
           if-no-files-found: error
           retention-days: 14
 
