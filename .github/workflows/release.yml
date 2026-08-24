@@ -1055,12 +1055,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', needs.preflight.outputs.version_name) }}
+          VER: ${{ needs.preflight.outputs.version_name }}
         run: |
           set -euo pipefail
           ls -la dist
-          gh release create "$TAG" --title "RetroXR $TAG" --generate-notes dist/* \
-            || gh release upload "$TAG" dist/* --clobber
-          gh release view "$TAG" --json assets --jq '.assets[] | "\(.name): \(.size) bytes"'
+          cat > notes.md << 'NOTES'
+          ## Downloads
+
+          | Platform | File | Status |
+          |---|---|---|
+          | **Meta Quest** (2 / 3 / Pro) | `RetroXR-v$VER.apk` | ✅ Supported |
+          | **Windows** (desktop mode & PCVR) | `RetroXR-win-v$VER.zip` | ✅ Supported |
+          | Linux x86_64 | `RetroXR-linux-x86_64-v$VER.AppImage` | 🧪 Experimental |
+          | Linux arm64 | `RetroXR-linux-arm64-v$VER.tar.gz` | 🧪 Experimental |
+          | macOS (universal) | `RetroXR-macos-arm64-v$VER.zip` | 🧪 Experimental |
+
+          **Meta Quest**: sideload the APK with SideQuest or Meta Quest Developer Hub.
+          **Windows**: unzip and run `RetroXR.exe`. With an OpenXR runtime (SteamVR / Oculus PC app) and a headset attached it runs in PCVR; otherwise it falls back to desktop mode (WASD + mouse).
+          **Linux**: needs the distro's `vlc-libs` for DVD/VHS playback. SDL3 ships beside the binary.
+          **macOS**: ad-hoc signed - right-click > Open on first launch. Emulator cores download unsigned by design.
+          NOTES
+          sed -i "s/\$VER/$VER/g" notes.md
+          if ! gh release view "$TAG" > /dev/null 2>&1; then
+            gh release create "$TAG" --draft --title "RetroXR $TAG" --notes-file notes.md dist/*
+            echo "::notice::release $TAG created as a DRAFT - review and publish it"
+          else
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" --notes-file notes.md
+            echo "existing release $TAG refreshed"
+          fi
+          gh release view "$TAG" --json isDraft,assets --jq '"draft: \(.isDraft)", (.assets[] | "\(.name): \(.size) bytes")'
 
       # SideQuest's GitHub integration no longer takes a push from CI, so this
       # step reports rather than acts. version-webhook answers 410 Gone to every
