@@ -1063,7 +1063,7 @@ jobs:
           PREV=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
           [ -z "$PREV" ] && PREV=$(git rev-list --max-parents=0 HEAD)
           cat > notes.md << 'NOTES'
-          **Full Changelog**: [$PREV...$TAG](https://github.com/$REPO/compare/$PREV...$TAG)
+          **[Full Changelog](https://github.com/$REPO/compare/$PREV...$TAG)**
 
           SidequestVR: [https://sidequestvr.com/app/61366/retroxr](https://sidequestvr.com/app/61366/retroxr)
           Discord: [https://discord.gg/mdjdBDTdW](https://discord.gg/mdjdBDTdW)
