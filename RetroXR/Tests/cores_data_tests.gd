@@ -22,7 +22,7 @@ extends Node
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 65
+const EXPECTED_CASES := 69
 
 var _passed := 0
 var _failed := 0
@@ -244,6 +244,22 @@ func _group_forced() -> void:
 	_eq(ForcedCoreOptions.all("flycast", "dreamcast", "", [], "", [], "")
 			.get("reicast_detect_vsync_swap_interval"), "enabled",
 		"forced/and it reaches the set a machine actually pins")
+
+	# The VMU is a platform because an override gives vemulator a systemid.
+	# Upstream's entry has none, and everything that lists cores groups by that
+	# -- so the core sat in the database belonging to no platform: no row in the
+	# menu, no roms dir, and nothing offering to install it, while the card said
+	# "the vemulator core is not installed". These three are what make it exist.
+	var vemu: Dictionary = CoreInfoDatabase.shared().get_by_core_name("vemulator")
+	_ok(not vemu.is_empty(), "vmu/the vemulator entry is in the database")
+	_ok("vmu" in CoreInfoDatabase.systemids_of(vemu),
+		"vmu/and the override gives it a systemid to be grouped under")
+	_eq(str(vemu.get("categories", "")), "Emulator",
+		"vmu/it is an emulator rather than a game that ships its own content")
+	# The extensions a VMU file actually has, so roms/vmu lists them.
+	var vmu_exts: Array = CoreInfoDatabase.extensions_for_systemid("vmu")
+	_ok("vms" in vmu_exts and "dci" in vmu_exts,
+		"vmu/and the platform claims the extensions a VMU file has")
 
 
 # ── manifest/ ─────────────────────────────────────────────────────────────────

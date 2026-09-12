@@ -147,6 +147,7 @@ doukutsu-rs-content.svg             Cave Story-content.svg
 doukutsu-rs.svg                     Cave Story.svg
 dreamcast-content.svg               Sega - Dreamcast-content.svg
 dreamcast.svg                       Sega - Dreamcast.svg
+vmu.svg                             Sega - Dreamcast (Visual Memory Unit).svg
 ep128-content.svg                   Intelligent Software - Enterprise-content.svg
 ep128.svg                           Enterprise - 128.svg
 epochcv-content.svg                 Epoch - Cassette Vision-content.svg

@@ -4,7 +4,7 @@
 ## core lands in this table when we maintain a fork of it, because then the
 ## buildbot's build is not the one we want the player to have.
 ##
-## Eight of them, and four are here for the same reason: this room has cables in
+## Nine of them, and four are here for the same reason: this room has cables in
 ## it, and libretro has nowhere to put the far end of one. Dolphin, mGBA,
 ## gambatte and pcsx_rearmed each reach a link bus the frontend hosts.
 ##
@@ -194,6 +194,29 @@ const SOURCES := {
 	#
 	# snes9x is non-commercial rather than GPL, so the tag beside the binary is
 	# not an obligation here; it is where the build comes from all the same.
+	# VeMUlator, so the VMU can be a machine rather than only a card.
+	#
+	# The buildbot's build cannot be unloaded. VE_VMS_FLASH::flashWriter is the
+	# one member its constructor never initialises, and the destructor closes it
+	# behind a guard that therefore tests garbage — and retro_unload_game calls
+	# reset(), which builds a FRESH flash object, so even a session that opened a
+	# real writer dies on the way out. Powering a minigame down took the whole app
+	# with it, every time.
+	#
+	# Its extension check also took the FIRST dot in the path. On Android that is
+	# inside the package name, so nothing matched, no ROM was loaded, and the CPU
+	# was started anyway. A path with no dot handed NULL to strcmp.
+	#
+	# VeMUlator is GPLv3, so the source for these binaries sits on the tag.
+	"vemulator": {
+		"repo":  "XenuIsWatching/vemulator-libretro",
+		"known_tag": "retroxr-vemulator-libretro-v1",
+		"label": "VeMUlator (retroXR build)",
+		"assets": {
+			"Windows": "vemulator_libretro.dll.zip",
+			"Android": "vemulator_libretro_android.so.zip",
+		},
+	},
 	# flycast, so a VMU's screen can be on the VMU.
 	#
 	# Stock flycast has no second video output. Its only way of showing a VMU

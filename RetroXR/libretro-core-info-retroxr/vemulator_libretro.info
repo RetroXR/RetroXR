@@ -1,0 +1,70 @@
+# SEGA Visual Memory Unit (VeMUlator), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too — an edit there would be
+# lost the next time, silently.
+#
+# THREE fields differ from the vendored file, and the first is why this override
+# exists at all.
+#
+# systemid was ABSENT upstream. Everything that lists cores groups them by
+# systemid (CoreInfoDatabase.systemids_of), so a core without one belongs to no
+# platform: vemulator was in the database and unreachable from the menu, there
+# was no roms/vmu for it to read, and nothing offered to install it. The VMU
+# work had been starting it by name and telling the player "the vemulator core
+# is not installed" with no way to fix that. `vmu` is the id, matching the
+# card's own family name.
+#
+# categories was "Game", which is what a core shipping its own content says.
+# This one emulates a machine and runs files off a card, so it is an Emulator
+# like every other row.
+#
+# And the naming fields say which build this is, as the other vendored forks do.
+# The binary is built from XenuIsWatching/vemulator-libretro at the tag
+# retroxr-vemulator-libretro-v1 and published on that repository's releases
+# page, which is also where its source is — an obligation here rather than
+# merely good manners, since VeMUlator is GPLv3.
+#
+# What our build fixes is three faults on the load/unload path, each of which
+# took the process down: an uninitialised flashWriter closed by the destructor
+# behind a guard that therefore tested garbage (so every unload died, and
+# retro_unload_game calls reset(), which builds a fresh flash object); an
+# extension check that took the FIRST dot in the path, which on Android is
+# inside the package name; and a path with no dot handing NULL to strcmp.
+#
+# The rest is a VERBATIM copy and has to be: the overlay REPLACES an entry
+# rather than merging into it, so a file carrying only the changed lines would
+# delete everything else with them. Re-copy from the vendored file and re-apply
+# these whenever that file is refreshed.
+
+# Software Information
+display_name = "SEGA - Visual Memory Unit (VeMUlator, retroXR)"
+authors = "Mahmoud Jaoune"
+supported_extensions = "vms|dci|bin"
+corename = "VeMUlator (retroXR)"
+license = "GPL v3"
+permissions = ""
+display_version = "retroXR build"
+
+# Hardware Information
+manufacturer = "Sega"
+categories = "Emulator"
+systemname = "SEGA Visual Memory Unit"
+systemid = "vmu"
+
+# Libretro Features
+supports_no_game = "false"
+savestate = "false"
+cheats = "false"
+input_descriptors = "false"
+memory_descriptors = "false"
+libretro_saves = "false"
+core_options = "true"
+load_subsystem = "false"
+hw_render = "false"
+needs_fullpath = "false"
+disk_control = "false"
+is_experimental = "false"
+
+description = "A port of VeMUlator, a SEGA Dreamcast VMU emulator originally developed for Android, to libretro."
