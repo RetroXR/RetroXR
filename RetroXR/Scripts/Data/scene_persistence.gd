@@ -190,6 +190,7 @@ const MOTION_PLUS_SCENE      := preload("res://Scenes/Objects/controllers/wii/mo
 const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
+const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
 const TRANSFER_PAK_SCENE     := preload("res://Scenes/Objects/controllers/n64/transfer_pak.tscn")
 const SENSOR_BAR_SCENE       := preload("res://Scenes/Objects/system_models/wii/sensor_bar.tscn")
 const RF_SWITCH_SCENE        := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
@@ -269,6 +270,9 @@ const PLAIN_SCENES := {
 	# card that seats in a controller — so it carries card fields on top of the
 	# pose and has a serialize branch of its own too.
 	"vmu": VMU_SCENE,
+	# Pose only, like the Rumble Pak: which slot it is in is saved on the
+	# controller holding it, not here.
+	"jump_pack": JUMP_PACK_SCENE,
 	# The bar's own entry is a pose; which console it is plugged into is applied
 	# afterwards by _apply_references, like the remote's pairing.
 	"sensor_bar": SENSOR_BAR_SCENE,
@@ -1761,6 +1765,11 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		})
 	elif node is RumblePak:
 		return _base(id, "rumble_pak", n3d)
+	elif node is JumpPack:
+		# Pose only, for the Rumble Pak's reason: it carries no state of its
+		# own. It needs a branch here all the same, because PLAIN_SCENES is
+		# only read when LOADING -- without this it saves as nothing.
+		return _base(id, "jump_pack", n3d)
 	elif node is MotionPlus:
 		# Pose only, for the reason the Nunchuk above gives: which remote it is
 		# seated in is saved on that remote. It needs a branch here all the same,

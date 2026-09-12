@@ -58,6 +58,10 @@ const _PERIPHERALS: Dictionary = {
 	# takes two, and only the one in the front slot has its screen showing.
 	"dreamcast": [
 		{"kind": "peripheral", "label": "Visual Memory Unit", "spawn": "vmu"},
+		# The other thing those two sockets take. A pad with a card in slot 1
+		# and a pack in slot 2 is the arrangement most players ran, and is
+		# flycast's own default for slot 2.
+		{"kind": "peripheral", "label": "Jump Pack", "spawn": "jump_pack"},
 	],
 	# The pad is named here because it is the only one with an expansion port, and
 	# all three paks are useless without it. The paks themselves are listed rather

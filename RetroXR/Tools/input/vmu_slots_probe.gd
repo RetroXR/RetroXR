@@ -25,6 +25,7 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const DONGLE_SCENE := preload("res://Scenes/Objects/controllers/pad_receiver.tscn")
 const VMU_SCENE := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
+const JUMP_PACK_SCENE := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
 
 var _fail := 0
 
@@ -96,6 +97,26 @@ func _run() -> void:
 		pad_dc.vmu_slot_option_value(0))
 	_ok(pad_dc.get_vmu(1) == null, "slot 2 is still empty")
 	_ok(pad_dc.vmu_slot_option_value(1) == "None", "and still reads None")
+
+	# The other thing those sockets take. A Jump Pack is not a VmuCard, so the
+	# slot has to hold it without casting it to one -- that cast turned a seated
+	# pack into null, which the port read as an EMPTY slot and reported to
+	# flycast as "None", so no vibration device was created and a game's rumble
+	# went nowhere. Counting sockets cannot see that; the option value can.
+	var pack := JUMP_PACK_SCENE.instantiate() as JumpPack
+	add_child(pack)
+	await get_tree().process_frame
+	pad_dc.restore_vmu(pack, 1)
+	for i in range(3):
+		await get_tree().process_frame
+	_ok(pad_dc.vmu_slot_option_value(1) == "Purupuru",
+		"a Jump Pack in slot 2 asks flycast for a Purupuru",
+		pad_dc.vmu_slot_option_value(1))
+	# And it is NOT a card: anything asking a slot for somewhere to read saves
+	# from must get nothing rather than a pack it cannot read.
+	_ok(pad_dc.get_vmu(1) == null, "and is not offered as a card to read saves from")
+	_ok(pad_dc.vmu_slot_option_value(0) == "VMU",
+		"while the card in slot 1 still asks for a VMU")
 
 	# Unplugging the pad takes its sockets with it, so a pad moved to another
 	# console does not carry a Dreamcast's slots around.

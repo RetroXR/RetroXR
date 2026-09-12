@@ -40,7 +40,14 @@ const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.
 ## Objects in this group, and nothing else, seat here. snap_require alone would
 ## also take a cable plug, because every ControllerPlug is in the
 ## "controller_plug" group the zone requires.
-const VMU_GROUP := &"vmu"
+##
+## The group is the SLOT's, not the card's. Two different things go in these
+## sockets — a VMU and a Jump Pack — and they compete for the same two, which is
+## the arrangement the hardware has: a card in slot 1 and a pack in slot 2 is
+## what most players ran, and is flycast's own default for slot 2. Filtering on
+## "vmu" would have made the pack unseatable, and filtering on "controller_plug"
+## alone would take a cable end.
+const SLOT_GROUP := &"dc_slot_device"
 
 ## The console whose pads have these.
 const HOST_SYSTEMID := "dreamcast"
@@ -184,18 +191,21 @@ func _teardown() -> void:
 ## The systemid sentinel is what narrows a socket that would otherwise take any
 ## cable plug in the room to this one object.
 func _accepts(obj: Node3D) -> bool:
-	return obj != null and obj.is_in_group(VMU_GROUP)
+	return obj != null and obj.is_in_group(SLOT_GROUP)
 
 
 func _on_seated(obj: Node3D, slot: int) -> void:
 	if slot < 0 or slot >= _cards.size():
 		return
-	_cards[slot] = obj as VmuCard
+	# Whatever it is, not `as VmuCard`: a Jump Pack is not one, and the cast
+	# turned it into null -- a seated pack that the port believed was an empty
+	# slot, so flycast was told "None" and no rumble device was ever created.
+	_cards[slot] = obj
 	if _cards[slot] != null:
 		if _owner is CollisionObject3D:
-			(_owner as CollisionObject3D).add_collision_exception_with(_cards[slot])
-		# The card cannot work out which slot took it, or reach the machine on
-		# the far side of this pad, so it is told. Only slot 1 drives a screen.
+			(_owner as CollisionObject3D).add_collision_exception_with(obj)
+		# It cannot work out which slot took it, or reach the machine on the far
+		# side of this pad, so it is told. Only slot 1 drives a screen.
 		_cards[slot].seated_in(_owner, slot)
 	announce()
 
@@ -231,18 +241,29 @@ func announce(system: Node = null) -> void:
 		_on_change.call()
 
 
-## The card in one slot, or null.
+## The CARD in one slot, or null -- including when that slot holds a Jump Pack,
+## which is not a card and has no image, no icons and no panel. Callers asking
+## this want somewhere to read saves from.
 func get_card(slot: int) -> VmuCard:
+	return get_device(slot) as VmuCard
+
+
+## Whatever is in one slot, card or pack, or null.
+func get_device(slot: int) -> Node3D:
 	if slot < 0 or slot >= _cards.size():
 		return null
 	return _cards[slot] if is_instance_valid(_cards[slot]) else null
 
 
-## Put a card back into a slot after a load.
-func restore_card(card: VmuCard, slot: int) -> void:
-	if slot < 0 or slot >= _zones.size() or not is_instance_valid(card):
+## Put a card or a pack back into a slot after a load.
+##
+## Node3D rather than VmuCard: a Jump Pack goes in the same sockets and is not
+## one, and a signature that says VmuCard refuses it at PARSE time -- which is a
+## broken build rather than a bug you find in the room.
+func restore_card(device: Node3D, slot: int) -> void:
+	if slot < 0 or slot >= _zones.size() or not is_instance_valid(device):
 		return
-	_zones[slot].pick_up_object(card)
+	_zones[slot].pick_up_object(device)
 
 
 ## What flycast's `reicast_device_port<N>_slot<S>` should be set to.
@@ -255,7 +276,9 @@ func restore_card(card: VmuCard, slot: int) -> void:
 func slot_option_value(slot: int) -> String:
 	if slot < 0 or slot >= _zones.size():
 		return ""
-	var card := get_card(slot)
-	if card == null:
+	var device := get_device(slot)
+	if device == null:
 		return "None"
-	return card.slot_option_value()
+	# Asked of whatever is seated, so a card answers "VMU" and a pack answers
+	# "Purupuru" without this having to know which it is holding.
+	return str(device.call("slot_option_value"))

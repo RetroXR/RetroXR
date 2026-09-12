@@ -157,6 +157,9 @@ func _ready() -> void:
 	# what then narrows the socket to this one thing.
 	add_to_group("controller_plug")
 	add_to_group("vmu")
+	# What the SLOT filters on. A Jump Pack is in it too, because the two
+	# compete for the same two sockets -- see VmuPort.SLOT_GROUP.
+	add_to_group(VmuPort.SLOT_GROUP)
 	# Numbering and the in-use check both sweep this group, and a VMU held by a
 	# controller is exactly as much "in use" as a card in a console.
 	add_to_group("memory_card")

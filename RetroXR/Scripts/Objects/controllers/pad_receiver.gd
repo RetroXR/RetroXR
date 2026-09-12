@@ -123,8 +123,8 @@ func vmu_slot_option_value(slot: int) -> String:
 
 
 ## Put a card back into a slot after a load.
-func restore_vmu(card: VmuCard, slot: int) -> void:
-	_vmu_port.restore_card(card, slot)
+func restore_vmu(device: Node3D, slot: int) -> void:
+	_vmu_port.restore_card(device, slot)
 
 
 func receiver_glyph() -> String:

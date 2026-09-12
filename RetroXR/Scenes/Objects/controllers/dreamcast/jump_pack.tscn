@@ -1,0 +1,110 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/jump_pack.gd" id="1_jpscript"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="4_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_jplhand"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_jp"]
+friction = 0.8
+
+; 47 x 55 x 22 mm and 60 g. The pack shares the VMU's 47 mm width because it
+; goes into the same socket, is SHORTER because it carries no screen and no
+; controls, and is half again as thick because it carries a motor and an
+; off-centre weight. Those two differences are the whole of its silhouette, and
+; are what make it recognisable beside a card in the other slot.
+;
+; Axes match the card's, and have to: the slot's seat transform is authored for
+; that convention and is shared. +Y is the length, with the connector on that
+; end, and +Z is the face that a player holding it sees.
+[sub_resource type="BoxShape3D" id="Box_jp_body"]
+size = Vector3(0.047, 0.055, 0.022)
+
+[sub_resource type="BoxMesh" id="Mesh_jp_body"]
+size = Vector3(0.047, 0.055, 0.022)
+
+[sub_resource type="StandardMaterial3D" id="Mat_jp_shell"]
+albedo_color = Color(0.898039, 0.890196, 0.870588, 1)
+roughness = 0.55
+
+; The same connector the card has, to the millimetre, because it is the same
+; socket. Its own y puts it proud of the body's +Y end exactly as the card's is.
+[sub_resource type="BoxMesh" id="Mesh_jp_connector"]
+size = Vector3(0.0305, 0.007, 0.011)
+
+[sub_resource type="StandardMaterial3D" id="Mat_jp_connector"]
+albedo_color = Color(0.16, 0.16, 0.18, 1)
+roughness = 0.6
+
+; A shallow moulded recess across the face, which is what the real pack has
+; where a VMU has its screen. It is also the quickest way to tell the two apart
+; in a hand at arm's length.
+[sub_resource type="BoxMesh" id="Mesh_jp_recess"]
+size = Vector3(0.034, 0.02, 0.0016)
+
+[sub_resource type="StandardMaterial3D" id="Mat_jp_recess"]
+albedo_color = Color(0.317647, 0.32549, 0.333333, 1)
+roughness = 0.45
+
+[sub_resource type="BoxShape3D" id="Box_jp_pointer"]
+size = Vector3(0.057, 0.065, 0.034)
+
+[node name="JumpPack" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.06
+physics_material_override = SubResource("PhysMat_jp")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_jpscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("Box_jp_body")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+mesh = SubResource("Mesh_jp_body")
+surface_material_override/0 = SubResource("Mat_jp_shell")
+
+[node name="Connector" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+mesh = SubResource("Mesh_jp_connector")
+surface_material_override/0 = SubResource("Mat_jp_connector")
+
+[node name="Recess" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.002, 0.0111)
+mesh = SubResource("Mesh_jp_recess")
+surface_material_override/0 = SubResource("Mat_jp_recess")
+
+[node name="Legend" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.018, 0.0111)
+pixel_size = 0.00016
+alpha_cut = 1
+text = "JUMP PACK"
+font_size = 24
+width = 220
+autowrap_mode = 3
+
+; IDENTITY, as the card's is. A snap zone seats an object by composing its grab
+; point, so this being the origin is what makes the slot's own transform the
+; whole of the seating geometry -- and what lets one seat serve both.
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("Box_jp_pointer")
+
+[node name="HandRight" parent="." instance=ExtResource("4_rhand")]
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("5_jplhand")]
+visible = false
