@@ -135,7 +135,33 @@ static func screen_rect(frame: Vector2i) -> Rect2:
 	return Rect2(float(x) / frame.x, float(y) / frame.y,
 		float(w) / frame.x, float(h) / frame.y)
 
+## How often a seated card is written back while the machine is on.
+##
+## flycast flushes each maple block write straight into its own file as the
+## game makes it, so its copy is live from the first byte. Ours was not: the
+## card's own image was written only at power-off, and a Chao Adventure
+## downloaded onto a VMU lived solely in flycast's scratch file until then. A
+## hard kill — a crash, a force-stop, the headset's battery — left the card
+## looking untouched. Five seconds matches the poller the other card formats
+## use, and a drain that finds nothing changed costs one file read and a
+## comparison.
+const DRAIN_POLL_SEC := 5.0
+
+## How long to keep draining after power-off. StopContent is deliberately
+## non-blocking: the join, retro_unload_game and the core's own final write all
+## happen on the emulation thread afterwards, so the file is NOT final when the
+## machine reports itself off. The same reasoning, and the same number, as
+## MemoryCardController's CARD_POLL_AFTER_OFF_SEC.
+const DRAIN_AFTER_OFF_SEC := 12.0
+
 var _host: RetroSystem = null
+var _drain_timer: Timer = null
+## Where the staged files are, remembered from stage_before_start so the tick
+## needs nothing from the host to write a card back.
+var _drain_dir := ""
+var _drain_core := ""
+## Wall-clock deadline the post-power-off drains run to, or 0 while running.
+var _drain_until := 0.0
 ## Which card id was staged into which "<Port><Slot>" name this run, so a drain
 ## knows where to put the bytes back even if the card has since been pulled.
 var _staged: Dictionary = {}
@@ -208,6 +234,8 @@ func _seated() -> Array:
 ## is told to run.
 func stage_before_start(dir: String, core: String) -> void:
 	_staged.clear()
+	_drain_dir = dir
+	_drain_core = core
 	if not _uses_vmus() or not core.begins_with("flycast"):
 		return
 
@@ -328,6 +356,40 @@ func drain(dir: String, core: String) -> void:
 			continue
 		if _read(card_path) != data:
 			_write(card_path, data)
+
+
+## Start writing seated cards back while the machine runs.
+##
+## Called once the core is up rather than at stage time, for the same reason
+## the slot nudge is: nothing is worth draining until the core has fitted the
+## cards and a game has had a chance to write to one.
+func start_draining() -> void:
+	if _staged.is_empty() or _drain_dir.is_empty():
+		return
+	_drain_until = 0.0
+	if _drain_timer == null:
+		_drain_timer = Timer.new()
+		_drain_timer.name = "VmuDrainTimer"
+		_drain_timer.wait_time = DRAIN_POLL_SEC
+		_drain_timer.timeout.connect(_on_drain_tick)
+		add_child(_drain_timer)
+	_drain_timer.start()
+	print("[VmuStorage] writing seated cards back every %.0f s" % DRAIN_POLL_SEC)
+
+
+## Keep draining for a while after power-off, then stop. The core's last write
+## lands after StopContent returns and nothing here can observe when.
+func stop_draining_soon() -> void:
+	if _drain_timer == null or _drain_timer.is_stopped():
+		return
+	_drain_until = Time.get_unix_time_from_system() + DRAIN_AFTER_OFF_SEC
+
+
+func _on_drain_tick() -> void:
+	drain(_drain_dir, _drain_core)
+	if _drain_until > 0.0 and Time.get_unix_time_from_system() >= _drain_until:
+		_drain_timer.stop()
+		_drain_until = 0.0
 
 
 ## Re-announce the slots on one controller. Called when a VMU is pushed into or

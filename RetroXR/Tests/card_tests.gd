@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 397
+const EXPECTED_CASES := 401
 
 var _pass := 0
 var _fail := 0
@@ -721,6 +721,51 @@ func _test_vmu_play() -> void:
 	var btn := _find_glyph(ui, MenuIcons.PLAY)
 	_ok(btn != null and btn.disabled, "vmu_play/a blocked play is shown and cannot be pressed")
 	ui.free()
+
+	# Writing a card back WHILE the machine runs, not only at power-off.
+	#
+	# flycast flushes each maple block write straight into its own file, so its
+	# copy is live from the first byte; ours was written once, on the way down.
+	# Anything a game put on a VMU therefore lived in flycast's scratch file
+	# until the console was powered off, and a hard kill lost it with the card
+	# looking untouched. This drives the drain the timer calls.
+	var store := VmuStorage.new()
+	add_child(store)
+	var root := "user://__vmu_drain_selftest"
+	var staged := VmuStorage.core_vmu_path(root, "flycast", 0, 0)
+	DirAccess.make_dir_recursive_absolute(
+		ProjectSettings.globalize_path(staged.get_base_dir()))
+	# What the core would have left behind: a card with a game written onto it.
+	var written := VMUCard.insert_save(VMUCard.blank_image(),
+		_vmu_dci(VMUCard.TYPE_GAME, 1, 4, "CHAO____ADV", "CHAO ADVENTURE", 1))
+	var wf := FileAccess.open(staged, FileAccess.WRITE)
+	wf.store_buffer(written)
+	wf.close()
+	# And a card of our own for it to land in, starting out blank.
+	var drain_id := "__vmu_drain_selftest"
+	var card_path := SramPaths.ensure_card(VmuCard.FAMILY, drain_id)
+	var cf := FileAccess.open(card_path, FileAccess.WRITE)
+	cf.store_buffer(VMUCard.blank_image())
+	cf.close()
+	_eq(VMUCard.list_saves(FileAccess.get_file_as_bytes(card_path), false).size(), 0,
+		"vmu_drain/the card starts with nothing on it")
+	store.set("_staged", {"0:0": drain_id})
+	store.set("_drain_dir", root)
+	store.set("_drain_core", "flycast")
+	store.call("_on_drain_tick")
+	var after := VMUCard.list_saves(FileAccess.get_file_as_bytes(card_path), false)
+	_eq(after.size(), 1, "vmu_drain/a tick writes what the core wrote back onto it")
+	# The deadline is what stops it. Set in the past, one more tick must stop the
+	# timer rather than leave it running for the life of the room.
+	store.call("start_draining")
+	var timer: Timer = store.get_node_or_null("VmuDrainTimer")
+	_ok(timer != null and not timer.is_stopped(), "vmu_drain/and the tick is on a timer")
+	store.set("_drain_until", Time.get_unix_time_from_system() - 1.0)
+	store.call("_on_drain_tick")
+	_ok(timer.is_stopped(), "vmu_drain/which stops once the post-power-off window closes")
+	store.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(staged))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(card_path))
 
 
 func _find_glyph(root: Node, glyph: int) -> Button:

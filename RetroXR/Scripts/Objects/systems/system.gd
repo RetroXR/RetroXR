@@ -2313,6 +2313,9 @@ func _stop_core() -> void:
 	# written during the teardown that follows. Keep watching for a while.
 	stop_card_polling_soon()
 	_vmu.drain(_resolve_dir(), _resolve_core())
+	# The core's final VMU write lands on the emulation thread after
+	# StopContent returns, so one drain here is not the last word.
+	_vmu.stop_draining_soon()
 	_has_disk_control = false
 	_disc_index = 0
 	_disc_ejected = false
@@ -3658,6 +3661,10 @@ func _ensure_port_devices_bound() -> void:
 	# its first retro_run. Nudged earlier the re-read is consumed while that flag
 	# is still set, and the card never appears. See VmuStorage.
 	_vmu.nudge_slots_after_start()
+	# And start writing them back. Until this, a card's own image was written
+	# only at power-off, so anything a game put on a VMU lived in flycast's
+	# scratch file until then and a hard kill lost it.
+	_vmu.start_draining()
 
 
 ## Re-apply every plugged pad's preferred pad type. Called when the option set
