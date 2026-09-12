@@ -184,13 +184,22 @@ static func list_saves(data: PackedByteArray, with_icons := true) -> Array[Dicti
 			# listed as "ij" — so they go through the same decoder the Sony
 			# cards use, which carries the full-width forms and drops what
 			# ASCII cannot hold, leaving the on-card name to stand in.
-			var desc := _sjis_title(body.slice(hdr + V_DESC, hdr + V_DESC + 16))
-			if not desc.is_empty():
-				title = desc
+			# The DREAMCAST's description first, not the VMU's own. A VMS carries
+			# two: sixteen characters for the file list on the card's 48 x 32
+			# screen, and thirty-two for the console's memory card manager. The
+			# short one has to say something useful on a display that narrow, so
+			# games put terse things in it — Goin' Quackers writes "0.0" there and
+			# "Donald Duck" in the long one, which is a version number standing
+			# where a player expects a name. This panel is the console's list
+			# rather than the card's, so it shows what the console shows, and
+			# falls back to the short one only when the long one is empty.
+			var dc := _sjis_title(body.slice(hdr + V_DC_DESC, hdr + V_DC_DESC + 32))
+			if not dc.is_empty():
+				title = dc
 			else:
-				var dc := _sjis_title(body.slice(hdr + V_DC_DESC, hdr + V_DC_DESC + 32))
-				if not dc.is_empty():
-					title = dc
+				var desc := _sjis_title(body.slice(hdr + V_DESC, hdr + V_DESC + 16))
+				if not desc.is_empty():
+					title = desc
 			if with_icons:
 				icons = _decode_icons(body, hdr)
 

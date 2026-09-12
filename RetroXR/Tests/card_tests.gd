@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 395
+const EXPECTED_CASES := 397
 
 var _pass := 0
 var _fail := 0
@@ -649,6 +649,34 @@ func _test_vmu_play() -> void:
 		sj[at + VMUCard.V_DESC + i] = 0
 	_eq(str(VMUCard.list_saves(sj, false)[0]["title"]), "SJIS____VMU",
 		"vmu_play/and kana fall back to the on-card name, never to mojibake or bare brackets")
+
+	# WHICH description wins, taken from a real card. A VMS carries two: sixteen
+	# characters for the file list on the VMU's own 48 x 32 screen, and thirty-two
+	# for the console's memory card manager. Goin' Quackers writes "0.0" in the
+	# short one and "Donald Duck" in the long one, so preferring the short one put
+	# a version number where the player expects a name. This panel is the
+	# console's list, so it shows what the console shows.
+	var two := VMUCard.insert_save(VMUCard.blank_image(),
+		_vmu_dci(VMUCard.TYPE_DATA, 0, 2, "DONALD_Q.AAA", "PLACEHOLDER", 1))
+	var two_at := VMUCard.block_of(two, "DONALD_Q.AAA") * VMUCard.BLOCK_SIZE
+	for i in range(16):
+		two[two_at + VMUCard.V_DESC + i] = 0
+	for i in range(32):
+		two[two_at + VMUCard.V_DC_DESC + i] = 0
+	var short_desc := "0.0".to_ascii_buffer()
+	for i in range(short_desc.size()):
+		two[two_at + VMUCard.V_DESC + i] = short_desc[i]
+	var long_desc := "Donald Duck".to_ascii_buffer()
+	for i in range(long_desc.size()):
+		two[two_at + VMUCard.V_DC_DESC + i] = long_desc[i]
+	_eq(str(VMUCard.list_saves(two, false)[0]["title"]), "Donald Duck",
+		"vmu_play/the console's description wins over the card's own short one")
+	# And the short one is still the fallback, not dead weight: a save with only
+	# the sixteen-character field filled must still read as itself.
+	for i in range(32):
+		two[two_at + VMUCard.V_DC_DESC + i] = 0
+	_eq(str(VMUCard.list_saves(two, false)[0]["title"]), "0.0",
+		"vmu_play/and stands in when the console's is empty")
 
 	# The card's own answers.
 	var scene: PackedScene = load("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
@@ -1510,7 +1538,11 @@ func _test_vmu_header_offset() -> void:
 	_ok(not card.is_empty(), "vmu/header/a game inserts")
 	var saves := VMUCard.list_saves(card, false)
 	_eq(saves.size(), 1, "vmu/header/and lists")
-	_eq(str(saves[0]["title"]), "REAL GAME NAME",
+	# "MENU LINE FOR " is the prefix _vmu_dci writes into the 32-character
+	# console description, which is the one a listing prefers. What this case is
+	# really about is WHERE the header was found, and both descriptions live in
+	# it -- reading either proves the offset.
+	_eq(str(saves[0]["title"]), "MENU LINE FOR REAL GAME NAME",
 		"vmu/header/its title comes from the header one block in")
 	_ok(bool(saves[0]["is_game"]), "vmu/header/and it reads as a game")
 
@@ -1519,7 +1551,7 @@ func _test_vmu_header_offset() -> void:
 	var card2 := VMUCard.insert_save(VMUCard.blank_image(), data)
 	var saves2 := VMUCard.list_saves(card2, false)
 	_eq(saves2.size(), 1, "vmu/header/a data file lists too")
-	_eq(str(saves2[0]["title"]), "REAL DATA NAME",
+	_eq(str(saves2[0]["title"]), "MENU LINE FOR REAL DATA NAME",
 		"vmu/header/its title comes from the start of the file")
 	_ok(not bool(saves2[0]["is_game"]), "vmu/header/and it does not read as a game")
 
