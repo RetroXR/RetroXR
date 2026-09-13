@@ -153,6 +153,8 @@ var _game_title := ""
 ## What the running core published through options_ready, for the card menu.
 var _opt_defs: Dictionary = {}
 var _opt_values: Dictionary = {}
+## Set on power-off until the core has unloaded and closed its scratch image.
+var _carry_pending := false
 ## The hand's buttons reaching the core — see VmuInput.
 var _input: VmuInput = null
 
@@ -191,6 +193,8 @@ func _ready() -> void:
 	_bind_controls()
 	_input = VmuInput.attach(self)
 	set_process(false)
+	# Progress left by a game that was still running when the app last closed.
+	_carry_progress_back.call_deferred()
 
 
 # --- The controls -------------------------------------------------------------
@@ -267,6 +271,8 @@ func unseated() -> void:
 	if not _running:
 		set_process(false)
 		_show_off()
+	# Refused while a console held the card; free to go back now.
+	_carry_progress_back()
 
 
 ## The machine this card is plugged into, through the pad holding it, or null.
@@ -345,6 +351,11 @@ func _boot(image: PackedByteArray, title: String) -> bool:
 		push_warning("[VmuCard] cannot run %s: %s" % [title, why])
 		return false
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(PLAY_DIR))
+	# The scratch image is about to be replaced, so anything a previous game on
+	# this card left in it goes back first.
+	_carry_pending = false
+	_carry_progress_back()
+	_remove_play_note()
 	var scratch := play_scratch_path()
 	var f := FileAccess.open(scratch, FileAccess.WRITE)
 	if f == null:
@@ -406,12 +417,82 @@ func play_save(block: int, title := "") -> bool:
 	if image.is_empty():
 		push_warning("[VmuCard] the game at block %d would not go onto a blank card" % block)
 		return false
-	return _boot(image, title)
+	if not _boot(image, title):
+		return false
+	JsonStore.write_dict(_play_note_path(), {"card_id": card_id}, "VmuCard")
+	return true
 
 
 ## Where the image the core boots from is written. A .bin, see _boot.
 func play_scratch_path() -> String:
 	return PLAY_DIR.path_join("%s.bin" % card_id)
+
+
+## Beside the scratch image: marks it as a game played from this card, whose
+## writes belong back on the card.
+func _play_note_path() -> String:
+	return PLAY_DIR.path_join("%s.json" % card_id)
+
+
+func _remove_play_note() -> void:
+	if FileAccess.file_exists(_play_note_path()):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_play_note_path()))
+
+
+## Whether the core has unloaded, which is when vemulator closes the scratch image.
+func _core_unloaded() -> bool:
+	if _lib == null:
+		return true
+	var identity: Dictionary = _lib.call("GetCoreIdentity")
+	return identity.is_empty()
+
+
+## Put what a minigame played from this card wrote back onto the card. Each file
+## in the scratch image replaces the card's copy of the same name, or is added;
+## one that no longer fits leaves the card's copy. Left pending, note and all,
+## while a console holds the card.
+func _carry_progress_back() -> void:
+	if not is_inside_tree() or _running or card_id.is_empty() \
+			or not FileAccess.file_exists(_play_note_path()):
+		return
+	var path := SramPaths.find_card(card_id, FAMILY)
+	var scratch := FileAccess.get_file_as_bytes(play_scratch_path())
+	if path.is_empty() or not VMUCard.is_card_image(scratch):
+		_remove_play_note()
+		return
+	if not CardSaveOps.in_use_reason(get_tree(), card_id).is_empty():
+		return
+	var out := FileAccess.get_file_as_bytes(path)
+	var carried: Array[String] = []
+	for s: Dictionary in VMUCard.list_saves(scratch, false):
+		var file_name := str(s["name"])
+		var file := VMUCard.extract_save(scratch, int(s["block"]))
+		if file.is_empty():
+			continue
+		var base := out
+		var at := VMUCard.block_of(out, file_name)
+		if at >= 0:
+			# Past the 32-byte directory entry, whose first-block field differs
+			# between the two images whatever the game did.
+			if VMUCard.extract_save(out, at).slice(32) == file.slice(32):
+				continue
+			base = VMUCard.delete_save(out, at)
+		var merged := VMUCard.insert_save(base, file) if not base.is_empty() \
+			else PackedByteArray()
+		if merged.is_empty():
+			push_warning("[VmuCard] %s did not fit back on %s; the card keeps its copy"
+				% [file_name, card_label])
+			continue
+		out = merged
+		carried.append(file_name)
+	if not carried.is_empty():
+		if not CardSaveOps.write_card(get_tree(), CardFormats.for_family(FAMILY), path,
+				card_id, out):
+			push_warning("[VmuCard] %s did not verify; progress stays in %s"
+				% [card_label, play_scratch_path()])
+			return
+		print("[VmuCard] carried %s back to %s" % [", ".join(carried), card_label])
+	_remove_play_note()
 
 
 ## Why this card cannot run a minigame right now, or "" when it can.
@@ -446,12 +527,13 @@ func power_off() -> void:
 	# QUIT rather than on free and is fixed with frames on the caller's side.
 	if _lib != null and _lib.has_method("StopContent"):
 		_lib.StopContent()
+	_carry_pending = FileAccess.file_exists(_play_note_path())
 	_btn = 0
 	_game_title = ""
 	if _hint != null:
 		_hint.remove_row(&"vmu_ab")
 		_hint.remove_row(&"vmu_mode")
-	set_process(_slot == 0)
+	set_process(_slot == 0 or _carry_pending)
 	_show_off()
 
 
@@ -551,12 +633,16 @@ func _picture() -> Dictionary:
 
 
 func _process(_delta: float) -> void:
+	if _carry_pending and not _running and _core_unloaded():
+		_carry_pending = false
+		_carry_progress_back()
+
 	if _anim != null and not _anim.is_empty():
 		_anim.animate(_btn, Vector2.ZERO, Vector2.ZERO, ANIM_WEIGHT)
 
 	# Stop ticking once there is nothing left to do: no screen to fill, nothing
-	# held, and the controls given long enough to settle back.
-	var wants_screen := _running or _slot == 0
+	# held, a carry-back not waiting, and the controls given long enough to settle.
+	var wants_screen := _running or _slot == 0 or _carry_pending
 	if not wants_screen and _btn == 0:
 		_idle_frames += 1
 		if _idle_frames > IDLE_FRAMES_TO_STOP:

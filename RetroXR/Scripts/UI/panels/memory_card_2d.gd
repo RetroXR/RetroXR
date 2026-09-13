@@ -422,10 +422,7 @@ func _playing_row() -> Control:
 	col.add_child(t)
 
 	var sub := Label.new()
-	# The core's own limits, said where a player would otherwise look for a
-	# menu or expect progress to come back: vemulator writes nothing to the
-	# card and has no VMU shell.
-	sub.text = "on the card's own screen   ·   progress is not saved back"
+	sub.text = "on the card's own screen   ·   progress goes back to the card when it stops"
 	sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	sub.add_theme_font_size_override("font_size", 15)
 	sub.add_theme_color_override("font_color", COLOR_DIM)
