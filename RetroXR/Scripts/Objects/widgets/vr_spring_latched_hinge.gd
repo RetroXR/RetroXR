@@ -124,13 +124,14 @@ func is_latched_closed() -> bool:
 ## Restore/network application needs both the visible angle and the mechanism's
 ## latch state. An open-looking lid that still thinks it is latched cannot be
 ## grabbed and will not spring; an unlatched closed-looking one pops open again.
-func set_state_remote(degrees: float, latched: bool) -> void:
+## `emit` false is for a host that has already posed its own geometry and machine.
+func set_state_remote(degrees: float, latched: bool, emit: bool = true) -> void:
 	_latched_closed = latched
 	_latch_rebound = false
 	_latch_feedback_ctrl = null
 	_set_interactive(push_push or not latched)
 	_spring_logged_open = latched or is_equal_approx(degrees, max_deg)
-	_apply(degrees, true)
+	_apply(degrees, emit)
 
 
 # The hand can only grab an OPEN (unlatched) lid — button-only opening. A

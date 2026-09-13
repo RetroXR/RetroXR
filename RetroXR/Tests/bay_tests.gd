@@ -673,11 +673,12 @@ const LID_ROOM := "__bay_tests_lid"
 const LID_SLOT := "lid"
 
 
-func _saved_lid_room(model_id: String, systemid: String) -> Node3D:
+func _saved_lid_room(model_id: String, systemid: String, open := true) -> Node3D:
 	var sp := ScenePersistence.new(LID_ROOM)
 	var sys := await _console(model_id, systemid)
-	sys._on_eject_pressed()
-	await _wait(80)
+	if open:
+		sys._on_eject_pressed()
+		await _wait(80)
 	sp.save_slot(self, LID_SLOT)
 	ScenePersistence.flush_pending_writes()
 	await _wait(10)
@@ -722,27 +723,44 @@ func _group_lid() -> void:
 			"lid/a bespoke lid comes back standing open")
 		_ok(ps._tray_open, "lid/and that machine says it is open too")
 		_ok(ps._tray.is_open(), "lid/well included")
+		# The pose and the machine are not the whole lid: the hinge that booted
+		# latched shut has to be let go too, or the lid is drawn open with a dead
+		# grab box — no glyph, and no wheel to close it.
+		var lid: VRSpringLatchedHinge = ps._model._lid_hinge
+		_ok(not lid.is_latched_closed(), "lid/and its hinge is unlatched")
+		var live := false
+		for c in lid.get_children():
+			if c is CollisionShape3D and not (c as CollisionShape3D).disabled:
+				live = true
+		_ok(live, "lid/so its grab box is live")
+		var at := lid.global_position
+		lid.pointer_event(XRToolsPointerEvent.new(
+			XRToolsPointerEvent.Type.ENTERED, null, lid, at, at))
+		_ok(lid._icon.visible, "lid/pointing at it shows the hand glyph")
+		lid.pointer_event(XRToolsPointerEvent.new(
+			XRToolsPointerEvent.Type.PRESSED, null, lid, at, at))
+		var before := lid.get_rotation_deg()
+		var wheel := InputEventMouseButton.new()
+		wheel.button_index = MOUSE_BUTTON_WHEEL_DOWN
+		wheel.pressed = true
+		lid._unhandled_input(wheel)
+		_ok(lid.get_rotation_deg() < before - 1.0, "lid/and the wheel rolls it toward shut")
+		lid.pointer_event(XRToolsPointerEvent.new(
+			XRToolsPointerEvent.Type.RELEASED, null, lid, at, at))
 	await _clear()
 
-	# The control. Without it every check above passes on a machine that simply
+	# The controls. Without them every check above passes on a machine that simply
 	# always reports open, which would be a worse bug than the one being tested.
-	var sp := ScenePersistence.new(LID_ROOM)
-	var shut := await _console("gamecube_primitive", "gamecube")
-	sp.save_slot(self, LID_SLOT)
-	ScenePersistence.flush_pending_writes()
-	await _wait(10)
-	sp.load_slot_async(self, LID_SLOT)
-	await _wait(150)
-	var back: Node3D = null
-	for n in get_tree().get_nodes_in_group("spawned"):
-		if n is RetroSystem:
-			back = n
-			_spawned.append(n)
-			break
+	var back := await _saved_lid_room("gamecube_primitive", "gamecube", false)
 	if back != null:
 		_ok(not back._tray_open, "lid/a lid saved SHUT comes back shut")
 		_ok(not (back.get_node("CartridgeSlot") as XRToolsSnapZone).enabled,
 			"lid/with its bay closed")
+	await _clear()
+	var ps_shut := await _saved_lid_room("playstation", "playstation", false)
+	if ps_shut != null:
+		_ok(ps_shut._model._lid_hinge.is_latched_closed(),
+			"lid/a bespoke lid saved SHUT comes back latched")
 	await _clear()
 	_drop_lid_room()
 

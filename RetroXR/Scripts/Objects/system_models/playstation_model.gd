@@ -396,13 +396,17 @@ func get_lid_angle_deg() -> float:
 
 ## Restore a saved lid pose with no animation — a restore is a state the room was
 ## already in, not something the player just did.
+##
+## The LATCH comes back with the pose. The hinge boots latched shut, and a lid
+## posed open over a latched hinge has its grab box disabled: no glyph, no grab,
+## no wheel, so the player could never close it again.
 func set_lid_angle_deg(open_deg: float) -> void:
 	if _lid_tween != null and _lid_tween.is_valid():
 		_lid_tween.kill()
 	var amount := clampf(open_deg / _LID_OPEN_DEG, 0.0, 1.0)
 	_set_lid(amount)
 	if _lid_hinge != null:
-		_lid_hinge.set_rotation_deg_no_signal(_LID_OPEN_DEG * amount)
+		_lid_hinge.set_state_remote(_LID_OPEN_DEG * amount, amount <= 0.5, false)
 	if _disc_slot != null:
 		_disc_slot.enabled = amount > 0.5
 
