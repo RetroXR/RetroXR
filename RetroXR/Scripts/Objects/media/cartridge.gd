@@ -50,13 +50,17 @@ const _CART_MODELS := {
 ## calls it Label. First match wins.
 const _LABEL_MESHES := ["media_label", "Label"]
 
-## Where the scraped art goes on a model whose label face is not the flat
-## quad the art should cover, as a rect on the +Z face in cart space. The
-## 64DD disk's label mesh is a strip round the hub window; the paper label
-## the art stands for is the lower half of the top face.
-const _LABEL_RECTS := {
-	"nintendo_64dd": Rect2(-0.044, -0.049, 0.088, 0.044),
-}
+## Models whose label mesh is paper the art is laid on, rather than a
+## placeholder the art replaces. The 64DD disk's covers the front recess and a
+## strip on the trailing edge: the sticker goes in the recess, the spine image
+## on the strip, and the title on the strip when there is no sticker.
+const _SPINE_LABELS := {"nintendo_64dd": true}
+
+const _LABEL_PAPER := Color(0.93, 0.92, 0.89)
+
+## Lays a quad's +Z along -Y with its image top toward +Z, so art on a -Y edge
+## reads upright on a medium lying label-up.
+const _EDGE_BASIS := Basis(Vector3.RIGHT, Vector3.BACK, Vector3.DOWN)
 
 ## The model's own label face, when a real cart model is in use.
 var _model_label: MeshInstance3D = null
@@ -227,7 +231,9 @@ func _cart_model_aabb(root: Node3D) -> AABB:
 ## along the label normal leaves the flat front the sticker actually lives on.
 ## Either sign counts: some models have the quad's winding inverted, and the
 ## polygon lies in the label plane either way.
-func _label_face_bounds(mi: MeshInstance3D) -> AABB:
+##
+## `axis` picks the face: 2 for the front, 1 for an edge strip.
+func _label_face_bounds(mi: MeshInstance3D, axis: int = 2) -> AABB:
 	var xf := global_transform.affine_inverse() * mi.global_transform
 	var full: AABB = xf * mi.get_aabb()
 	var mesh := mi.mesh
@@ -246,7 +252,7 @@ func _label_face_bounds(mi: MeshInstance3D) -> AABB:
 		if norms.size() != verts.size():
 			continue
 		for i in verts.size():
-			if absf((xf.basis * norms[i]).normalized().z) < 0.95:
+			if absf((xf.basis * norms[i]).normalized()[axis]) < 0.95:
 				continue
 			var p := xf * verts[i]
 			if first:
@@ -254,7 +260,12 @@ func _label_face_bounds(mi: MeshInstance3D) -> AABB:
 				first = false
 			else:
 				acc = acc.expand(p)
-	if first or acc.size.x < 0.0001 or acc.size.y < 0.0001:
+	if first:
+		return full
+	# Flat along `axis` by construction; degenerate only in the other two.
+	var span := acc.size
+	span[axis] = 1.0
+	if span.x < 0.0001 or span.y < 0.0001 or span.z < 0.0001:
 		return full
 	return acc
 
@@ -263,6 +274,9 @@ func _update_label() -> void:
 	var lbl := get_node_or_null("GameLabel") as Label3D
 	if lbl:
 		lbl.text = game_label
+	var spine := get_node_or_null("SpineTitle") as Label3D
+	if spine:
+		spine.text = game_label
 
 
 ## Resize the generic cartridge to this system's real-world dimensions
@@ -530,11 +544,94 @@ func _title_on_model_face() -> void:
 	lbl.visible = true
 
 
+## A quad of `tex` fitted inside `area`, a flat patch of the model's label in
+## cart space, standing 0.3 mm proud of it. `edge` lays it on a -Y strip instead
+## of the +Z face.
+func _lay_label_art(node_name: String, tex: Texture2D, area: AABB, edge := false) -> MeshInstance3D:
+	# Fit-within, so art of any aspect is never stretched to the recess.
+	var fit := Vector2(area.size.x, area.size.z if edge else area.size.y)
+	var ar := float(tex.get_width()) / maxf(float(tex.get_height()), 1.0)
+	if fit.x / maxf(fit.y, 0.0001) > ar:
+		fit.x = fit.y * ar
+	else:
+		fit.y = fit.x / ar
+	var art := MeshInstance3D.new()
+	art.name = node_name
+	var quad := QuadMesh.new()
+	quad.size = fit
+	art.mesh = quad
+	add_child(art)
+	var c := area.get_center()
+	if edge:
+		art.transform = Transform3D(_EDGE_BASIS, Vector3(c.x, area.position.y - 0.0003, c.z))
+	else:
+		art.position = Vector3(c.x, c.y, area.position.z + area.size.z + 0.0003)
+	var lm := StandardMaterial3D.new()
+	lm.albedo_color = Color.WHITE
+	lm.albedo_texture = tex
+	# A sticker cut to its own silhouette carries transparent corners.
+	var img := tex.get_image()
+	if img != null and img.detect_alpha() != Image.ALPHA_NONE:
+		lm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+		lm.alpha_scissor_threshold = 0.5
+	art.set_surface_override_material(0, lm)
+	return art
+
+
+## A paper label mesh: the sticker in the front recess, the spine image on the
+## edge strip, and the title on the strip when no sticker names the game.
+func _dress_spine_label(sticker: Texture2D) -> void:
+	var paper := StandardMaterial3D.new()
+	paper.albedo_color = _LABEL_PAPER
+	paper.roughness = 0.85
+	for s in _model_label.mesh.get_surface_count():
+		_model_label.set_surface_override_material(s, paper)
+	_model_label.visible = true
+	var glbl := get_node_or_null("GameLabel") as Label3D
+	if glbl != null:
+		glbl.visible = false
+	var face := _label_face_bounds(_model_label)
+	if sticker != null and face.size.x > 0.0001 and face.size.y > 0.0001:
+		_lay_label_art("ModelLabelArt", sticker, face)
+	var strip := _label_face_bounds(_model_label, 1)
+	if strip.size.x <= 0.0001 or strip.size.z <= 0.0001 or strip.size.y > 0.001:
+		return
+	var spine := MediaDimensions.load_spine_texture(systemid, rom_path)
+	if spine != null:
+		_lay_label_art("ModelSpineArt", spine, strip, true)
+	elif sticker == null:
+		_title_on_spine(strip)
+
+
+## The game's title along the edge strip, sized to fit it.
+func _title_on_spine(strip: AABB) -> void:
+	if game_label.is_empty():
+		return
+	var lbl := Label3D.new()
+	lbl.name = "SpineTitle"
+	lbl.text = game_label
+	lbl.modulate = Color.BLACK
+	lbl.outline_size = 0
+	lbl.double_sided = false
+	lbl.font_size = 48
+	# Glyph height is font_size x pixel_size: half the strip's height, or less
+	# when the title would run past 90% of its length at ~0.55 em a character.
+	var glyph := minf(strip.size.z * 0.5,
+		strip.size.x * 0.9 / (0.55 * float(maxi(game_label.length(), 1))))
+	lbl.pixel_size = glyph / float(lbl.font_size)
+	add_child(lbl)
+	var c := strip.get_center()
+	lbl.transform = Transform3D(_EDGE_BASIS, Vector3(c.x, strip.position.y - 0.0003, c.z))
+
+
 ## Apply the scraped "support" label art onto the label face. Missing art keeps
 ## the existing generic label + title text fallback. Fresh material every time —
 ## never mutate the shared Mat_label sub_resource.
 func _apply_label_art() -> void:
 	var tex := MediaDimensions.load_label_texture(systemid, rom_path)
+	if _model_label != null and _SPINE_LABELS.has(systemid):
+		_dress_spine_label(tex)
+		return
 	if tex == null:
 		_title_on_model_face()
 		return
@@ -549,33 +646,9 @@ func _apply_label_art() -> void:
 	# right for models not imported yet.
 	if _model_label != null:
 		var ab := _label_face_bounds(_model_label)
-		var placed := _LABEL_RECTS.has(systemid)
-		if placed:
-			var r: Rect2 = _LABEL_RECTS[systemid]
-			var model := get_node_or_null("CartModel") as Node3D
-			var top := _cart_model_aabb(model).end.z if model != null else ab.end.z
-			ab = AABB(Vector3(r.position.x, r.position.y, top), Vector3(r.size.x, r.size.y, 0.0))
 		if ab.size.x > 0.0001 and ab.size.y > 0.0001:
 			_model_label.visible = false
-			var art := MeshInstance3D.new()
-			art.name = "ModelLabelArt"
-			add_child(art)
-			# Fit-within, so art of any aspect is never stretched to the recess.
-			var recess_fit := Vector2(ab.size.x, ab.size.y)
-			var ar := float(tex.get_width()) / maxf(float(tex.get_height()), 1.0)
-			if recess_fit.x / maxf(recess_fit.y, 0.0001) > ar:
-				recess_fit.x = recess_fit.y * ar
-			else:
-				recess_fit.y = recess_fit.x / ar
-			var quad := QuadMesh.new()
-			quad.size = recess_fit
-			art.mesh = quad
-			var c := ab.get_center()
-			art.position = Vector3(c.x, c.y, ab.position.z + ab.size.z + 0.0003)
-			var lm := StandardMaterial3D.new()
-			lm.albedo_color = Color.WHITE
-			lm.albedo_texture = tex
-			art.set_surface_override_material(0, lm)
+			_lay_label_art("ModelLabelArt", tex, ab)
 		var glbl := get_node_or_null("GameLabel") as Label3D
 		if glbl != null:
 			glbl.visible = false

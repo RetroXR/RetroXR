@@ -407,12 +407,23 @@ static func disc_loader(systemid: String) -> int:
 ## <roms_root>/<systemid>/media/label/<rom_basename>.<ext> (screenscraper_client
 ## download_all_media), named after the ROM file — mirror _load_wheel_texture.
 static func load_label_texture(systemid: String, rom_path: String) -> Texture2D:
+	return load_media_texture(systemid, rom_path, "label")
+
+
+## The image for a medium's edge label (a 64DD disk's spine), from
+## <roms_root>/<systemid>/media/spine/<rom_basename>.<ext>, or null.
+static func load_spine_texture(systemid: String, rom_path: String) -> Texture2D:
+	return load_media_texture(systemid, rom_path, "spine")
+
+
+## A ROM's image from one of its media folders, named after the ROM file.
+static func load_media_texture(systemid: String, rom_path: String, folder: String) -> Texture2D:
 	if systemid.is_empty() or rom_path.is_empty():
 		return null
 	var base := rom_path.get_file().get_basename()
 	if base.is_empty():
 		return null
-	var media_dir := RomLibrary.rom_dir_for_system(systemid).path_join("media/label")
+	var media_dir := RomLibrary.rom_dir_for_system(systemid).path_join("media").path_join(folder)
 	for ext in [".png", ".jpg", ".jpeg", ".webp"]:
 		var path := media_dir.path_join(base + ext)
 		if FileAccess.file_exists(path):

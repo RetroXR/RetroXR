@@ -109,10 +109,11 @@ func _unit(expansion_id: String) -> RetroExpansion:
 	return unit
 
 
-func _cart(systemid: String, path: String) -> Node3D:
+func _cart(systemid: String, path: String, title := "") -> Node3D:
 	var cart := CART_SCENE.instantiate() as Node3D
 	cart.systemid = systemid
 	cart.rom_path = path
+	cart.game_label = title
 	cart.position = Vector3(0, 3, 0)
 	cart.freeze = true
 	add_child(cart)
@@ -1391,17 +1392,49 @@ func _beam_at(unit: RetroExpansion, button: VRButton, hand: Node3D) -> Interacti
 		unit.to_global(button.position - Vector3(0.0, 0.0, 0.2)), hand)
 
 
-## A 64DD disk in the library that has scraped label art, or the retail stem
-## when none has (the placement cases then report themselves skipped).
-func _labelled_disk_path() -> String:
-	var root := RomLibrary.rom_dir_for_system("nintendo_64dd")
-	var labels := root.path_join("media").path_join("label")
-	var d := DirAccess.open(labels)
-	if d != null:
-		for f in d.get_files():
-			if f.get_extension().to_lower() in ["png", "jpg", "jpeg", "webp"]:
-				return root.path_join(f.get_basename() + ".ndd")
-	return "/roms/nintendo_64dd/Mario Artist - Paint Studio (Japan).ndd"
+## Scratch disk stems whose sticker and spine images this suite writes under the
+## real roms root (the media path is derived from the systemid and cannot be
+## pointed elsewhere), and removes at both ends.
+const _LABEL_FIXTURE := "__64dd_label_selftest"
+var _made_spine_dir := false
+
+
+func _label_fixture_files() -> Array[String]:
+	var media := RomLibrary.rom_dir_for_system("nintendo_64dd").path_join("media")
+	return [
+		media.path_join("label").path_join(_LABEL_FIXTURE + ".png"),
+		media.path_join("label").path_join(_LABEL_FIXTURE + "_spine.png"),
+		media.path_join("spine").path_join(_LABEL_FIXTURE + "_spine.png"),
+	]
+
+
+func _write_label_fixture() -> void:
+	_clear_label_fixture()
+	var files := _label_fixture_files()
+	_made_spine_dir = not DirAccess.dir_exists_absolute(files[2].get_base_dir())
+	for f in files:
+		DirAccess.make_dir_recursive_absolute(f.get_base_dir())
+	var sticker := Image.create(171, 100, false, Image.FORMAT_RGBA8)
+	sticker.fill(Color(0.8, 0.1, 0.1, 1.0))
+	sticker.fill_rect(Rect2i(0, 0, 14, 14), Color(0, 0, 0, 0))
+	sticker.save_png(files[0])
+	sticker.save_png(files[1])
+	var spine := Image.create(200, 18, false, Image.FORMAT_RGBA8)
+	spine.fill(Color(0.1, 0.2, 0.8, 1.0))
+	spine.save_png(files[2])
+
+
+func _clear_label_fixture() -> void:
+	var files := _label_fixture_files()
+	for f in files:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(f)
+	var spine_dir := files[2].get_base_dir()
+	if _made_spine_dir and DirAccess.dir_exists_absolute(spine_dir):
+		var d := DirAccess.open(spine_dir)
+		if d != null and d.get_files().is_empty() and d.get_directories().is_empty():
+			DirAccess.remove_absolute(spine_dir)
+		_made_spine_dir = false
 
 
 func _group_disk() -> void:
@@ -1510,19 +1543,58 @@ func _group_disk() -> void:
 	_ok(retail_mat != null and retail_mat.albedo_texture != null
 			and retail_mat.albedo_texture.resource_path.ends_with("n64dd_disk_color.png"),
 		"disk/ a retail disk is grey")
-	# The scraped art covers the lower half of the top face -- where the paper
-	# label is -- not the model's placeholder plate over the hub window.
-	var art_disk := await _cart("nintendo_64dd", _labelled_disk_path())
-	var art := art_disk.get_node_or_null("ModelLabelArt") as MeshInstance3D
-	if art != null:
-		var q := art.mesh as QuadMesh
-		_ok(art.position.y + q.size.y * 0.5 < -0.004 and art.position.y - q.size.y * 0.5 > -0.05,
-			"disk/ the label art sits in the lower half of the top face")
-		_ok(art.position.z > 0.005, "disk/ on top of the shell")
-		_ok(not (art_disk._model_label as MeshInstance3D).visible,
-			"disk/ and the model's placeholder label plate stays hidden")
-	else:
-		print("[exp] (no scraped label on disk for this machine; art placement not exercised)")
+	# The label: a sticker in the front recess, a spine image on the edge strip,
+	# and the title on the strip when there is no sticker. All on plain paper.
+	_write_label_fixture()
+	var media_root := RomLibrary.rom_dir_for_system("nintendo_64dd")
+	var stuck := await _cart("nintendo_64dd", media_root.path_join(_LABEL_FIXTURE + ".ndd"))
+	var recess: AABB = stuck._label_face_bounds(stuck._model_label)
+	var sticker_art := stuck.get_node_or_null("ModelLabelArt") as MeshInstance3D
+	_ok(sticker_art != null, "disk/ a sticker is laid on the disk")
+	if sticker_art != null:
+		var sq := sticker_art.mesh as QuadMesh
+		_ok(absf(sticker_art.position.x - recess.get_center().x) < 0.001
+				and absf(sticker_art.position.y - recess.get_center().y) < 0.001
+				and sticker_art.position.z > recess.position.z,
+			"disk/ centred on the label recess")
+		_ok(sq.size.x <= recess.size.x + 0.0001 and sq.size.y <= recess.size.y + 0.0001
+				and sq.size.x > recess.size.x * 0.9,
+			"disk/ filling it without running past it")
+		var art_mat := sticker_art.get_active_material(0) as BaseMaterial3D
+		_ok(art_mat != null and art_mat.transparency == BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR,
+			"disk/ with the sticker's cut-out corners transparent")
+	var paper_mi := stuck._model_label as MeshInstance3D
+	var paper_mat: BaseMaterial3D = paper_mi.get_active_material(0) as BaseMaterial3D if paper_mi != null else null
+	_ok(paper_mi != null and paper_mi.visible and paper_mat != null and paper_mat.albedo_texture == null,
+		"disk/ over plain paper, not the model's placeholder art")
+	_ok(stuck.get_node_or_null("ModelSpineArt") == null and stuck.get_node_or_null("SpineTitle") == null,
+		"disk/ a sticker with no spine image leaves the edge strip blank")
+
+	var spined := await _cart("nintendo_64dd", media_root.path_join(_LABEL_FIXTURE + "_spine.ndd"))
+	var edge: AABB = spined._label_face_bounds(spined._model_label, 1)
+	_ok(edge.get_center().y < -0.04 and edge.size.y < 0.001,
+		"disk/ the edge strip is the trailing edge, opposite the shutter")
+	var spine_art := spined.get_node_or_null("ModelSpineArt") as MeshInstance3D
+	_ok(spine_art != null, "disk/ a spine image is laid on the edge strip")
+	if spine_art != null:
+		var sb := spine_art.transform.basis
+		_ok(sb.z.y < -0.9 and sb.y.z > 0.9, "disk/ facing out of the edge, top toward the label side")
+		_ok(absf(spine_art.position.y - edge.position.y) < 0.001
+				and absf(spine_art.position.x - edge.get_center().x) < 0.001,
+			"disk/ on the strip itself")
+	_ok(spined.get_node_or_null("SpineTitle") == null, "disk/ with no title printed over it")
+
+	var bare_disk := await _cart("nintendo_64dd", media_root.path_join(_LABEL_FIXTURE + "_bare.ndd"),
+		"SimCity 64")
+	_ok(bare_disk.get_node_or_null("ModelLabelArt") == null,
+		"disk/ no sticker leaves the recess blank paper")
+	var spine_title := bare_disk.get_node_or_null("SpineTitle") as Label3D
+	_ok(spine_title != null and spine_title.visible and spine_title.text == "SimCity 64",
+		"disk/ and prints the title on the edge strip instead")
+	_ok(spine_title != null and spine_title.transform.basis.z.y < -0.9, "disk/ facing out of the edge")
+	var face_title := bare_disk.get_node_or_null("GameLabel") as Label3D
+	_ok(face_title == null or not face_title.visible, "disk/ and not on the face")
+	_clear_label_fixture()
 	var devdisk := await _cart("nintendo_64dd", "/roms/nintendo_64dd/NUD-TEST-JPN.ndd")
 	var dev_mi := devdisk.find_child("Shell", true, false) as MeshInstance3D
 	var dev_mat: BaseMaterial3D = dev_mi.get_active_material(0) as BaseMaterial3D if dev_mi != null else null
