@@ -40,16 +40,10 @@ func _enable_passthrough() -> void:
 		push_warning("PassthroughInit: no primary XR interface")
 		return
 
-	var modes := xr_interface.get_supported_environment_blend_modes()
-	if XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND in modes:
-		xr_interface.environment_blend_mode = XRInterface.XR_ENV_BLEND_MODE_ALPHA_BLEND
-	elif XRInterface.XR_ENV_BLEND_MODE_ADDITIVE in modes:
-		xr_interface.environment_blend_mode = XRInterface.XR_ENV_BLEND_MODE_ADDITIVE
-	else:
-		push_warning("PassthroughInit: no passthrough blend mode supported — modes: %s" % str(modes))
+	if not XrPassthrough.enable(_viewport):
+		push_warning("PassthroughInit: no passthrough blend mode supported — modes: %s"
+			% str(xr_interface.get_supported_environment_blend_modes()))
 		return
-
-	_viewport.transparent_bg = true
 
 	# BG_COLOR with fully transparent black so the passthrough layer shows through.
 	_environment.background_mode = Environment.BG_COLOR

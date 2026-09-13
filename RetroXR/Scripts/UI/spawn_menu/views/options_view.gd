@@ -442,6 +442,28 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 				passthrough_locomotion_changed.emit(on)
 		))
 
+		var fpt_row := HBoxContainer.new()
+		fpt_row.add_theme_constant_override("separation", 10)
+		fpt_row.custom_minimum_size = Vector2(0, 68)
+		vbox.add_child(fpt_row)
+
+		var fpt_lbl := Label.new()
+		fpt_lbl.text = "Passthrough in Focus Mode"
+		fpt_lbl.add_theme_font_size_override("font_size", 22)
+		fpt_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+		fpt_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		fpt_row.add_child(fpt_lbl)
+
+		fpt_row.add_child(VRToggle.create(AppPrefs.focus_passthrough,
+			func(on: bool) -> void:
+				AppPrefs.focus_passthrough = on
+				AppPrefs.save_prefs()
+		))
+
+		vbox.add_child(MenuStyle.hint("Point your right hand at a TV or handheld and press the "
+			+ "right stick to play it on a floating screen with the room hidden. On, your real "
+			+ "surroundings show around the screen instead of black."))
+
 		vbox.add_child(HSeparator.new())
 
 	# Light Gun crosshair option

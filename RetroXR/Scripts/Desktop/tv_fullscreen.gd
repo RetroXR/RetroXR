@@ -89,12 +89,19 @@ static func device_from_target(target: InteractionTarget) -> Node3D:
 	if target == null:
 		return null
 	for start: Node3D in [target.hit_node, target.action_node]:
-		var node: Node = start
-		while is_instance_valid(node):
-			if node is RetroTV or node is RetroSystem \
-					or (node is Node3D and node.has_method("fullscreen_panels")):
-				return node
-			node = node.get_parent()
+		var device := device_from_node(start)
+		if device != null:
+			return device
+	return null
+
+
+## The television or handheld `node` is part of, or null.
+static func device_from_node(node: Node) -> Node3D:
+	while is_instance_valid(node):
+		if node is RetroTV or node is RetroSystem \
+				or (node is Node3D and node.has_method("fullscreen_panels")):
+			return node
+		node = node.get_parent()
 	return null
 
 
@@ -237,9 +244,13 @@ func _feed(panel: Dictionary) -> void:
 ## carrying. Re-asked every frame, because the input can be changed while the
 ## overlay is up and the sound has to follow the picture that is showing.
 func audio_source() -> Node:
-	var device: Node3D = _device.get_ref() if _device != null else null
+	return audio_source_for(_device.get_ref() if _device != null else null)
+
+
+## What makes the sound behind `device`'s picture, or null. See audio_source.
+static func audio_source_for(device: Object) -> Node:
 	if device is RetroSystem:
-		return device
+		return device as Node
 	if device is RetroTV:
 		return (device as RetroTV).panel().selected_system()
 	return null

@@ -68,6 +68,9 @@ var locomotion_teleport: bool = false
 ## the size of the one you are furnishing, so walking alone is not enough to reach
 ## everything and the default is to leave locomotion working.
 var passthrough_locomotion: bool = true
+## Whether VR focus mode shows the real room through passthrough around its screen
+## instead of black. Falls back to black where passthrough is unavailable.
+var focus_passthrough: bool = false
 ## Systemids the player has hidden from the Systems and Cartridges grids. One
 ## list for both: hiding a machine means "I don't care about this", not "not in
 ## this tab". Distinct from SystemFilter, which is our own opinion about which
@@ -229,6 +232,7 @@ func _load_prefs() -> void:
 	spatial_audio_sdk = JsonStore.get_bool(data, "spatial_audio_sdk", spatial_audio_sdk)
 	locomotion_teleport = JsonStore.get_bool(data, "locomotion_teleport", locomotion_teleport)
 	passthrough_locomotion = JsonStore.get_bool(data, "passthrough_locomotion", passthrough_locomotion)
+	focus_passthrough = JsonStore.get_bool(data, "focus_passthrough", focus_passthrough)
 	hidden_systems      = JsonStore.get_strings(data, "hidden_systems")
 	show_hidden_systems = JsonStore.get_bool(data, "show_hidden_systems", show_hidden_systems)
 	compact_tiles       = JsonStore.get_bool(data, "compact_tiles",       compact_tiles)
@@ -255,6 +259,7 @@ func save_prefs() -> bool:
 		"spatial_audio_sdk": spatial_audio_sdk,
 		"locomotion_teleport": locomotion_teleport,
 		"passthrough_locomotion": passthrough_locomotion,
+		"focus_passthrough": focus_passthrough,
 		"hidden_systems":    hidden_systems,
 		"show_hidden_systems": show_hidden_systems,
 		"compact_tiles":     compact_tiles,

@@ -202,6 +202,16 @@ it is FPS-snapped — dropping it requires **`Ctrl` + Left-click** (plain click 
 
 <img src="docs/images/obj_remote.png" width="310" alt="The TV remote, held in a hand, with its floating command menu popped up above it: eject, a D-pad with a centre OK, transport buttons, a menu button, and audio/subtitle cells." />
 
+### Focus mode (VR)
+
+Point your right hand at a TV or a handheld and click the right stick: its picture moves to a
+floating screen in front of you and the room stops being drawn, so the headset's time goes to
+the game. Whatever you are holding stays in your hands, and the pads and link leads plugged
+into that machine stay where they are. Grip with the laser on the screen to carry it (stick
+up/down for distance, left/right for size), or trigger-drag its corner handle. Click the right
+stick on the screen to bring the room back. **Passthrough in Focus Mode** in OPTIONS shows your
+real surroundings around the screen instead of black.
+
 ## Development
 
 ### Building

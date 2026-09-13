@@ -26,6 +26,7 @@
 [ext_resource type="Script" path="res://Scripts/Desktop/desktop_pickup.gd" id="21_desktoppickup"]
 [ext_resource type="PackedScene" path="res://Scenes/UI/desktop_reticle.tscn" id="22_reticle"]
 [ext_resource type="PackedScene" path="res://Scenes/UI/tv_fullscreen.tscn" id="31_fullscreen"]
+[ext_resource type="Script" path="res://Scripts/XR/focus_mode.gd" id="32_focusmode"]
 [ext_resource type="PackedScene" uid="uid://d2iqcc25yvk61" path="res://addons/godot-xr-tools/desktop-support/movement_desktop_crouch.tscn" id="23_desktopcrouch"]
 [ext_resource type="PackedScene" uid="uid://dgm5op1hausw5" path="res://addons/godot-xr-tools/desktop-support/movement_desktop_sprint.tscn" id="24_desktopwalk"]
 [ext_resource type="Script" path="res://Scripts/XR/capsense_hand.gd" id="25_capsense"]
@@ -205,6 +206,9 @@ script = ExtResource("30_curvedpanel")
 [node name="DesktopReticle" parent="." instance=ExtResource("22_reticle")]
 
 [node name="TvFullscreen" parent="." instance=ExtResource("31_fullscreen")]
+
+[node name="FocusMode" type="Node3D" parent="."]
+script = ExtResource("32_focusmode")
 
 [node name="LocomotionManager" type="Node" parent="."]
 script = ExtResource("13_locomotionmgr")
