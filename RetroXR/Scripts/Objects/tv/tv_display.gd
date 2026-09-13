@@ -654,7 +654,7 @@ func screen_texture() -> Texture2D:
 ## The tube is whatever shape the shell gave it — not necessarily 4:3 — so the
 ## fit is computed against the real glass rather than assumed. Whichever axis is
 ## too generous gets shrunk about the centre and the rest becomes bar.
-func _aspect_fit() -> Vector2:
+func aspect_fit() -> Vector2:
 	if _tv.screen_size_m().x <= 0.0 or _tv.screen_size_m().y <= 0.0:
 		return Vector2.ONE
 	var glass := _tv.screen_size_m().x / _tv.screen_size_m().y
@@ -670,7 +670,7 @@ func _aspect_fit() -> Vector2:
 ## on every material change as well as on the button, because the display path
 ## swaps materials underneath us (raw source, CRT wrapper, window shader).
 func apply_aspect() -> void:
-	var fit := _aspect_fit()
+	var fit := aspect_fit()
 	for mat in [_crt_material, _stereo_material]:
 		if mat != null:
 			(mat as ShaderMaterial).set_shader_parameter("fit_scale", fit)
@@ -684,7 +684,7 @@ func apply_aspect() -> void:
 ## with the tube effect switched off — otherwise turning CRT off would silently
 ## stretch the picture back out again.
 func aspect_needs_fit() -> bool:
-	return not _aspect_fit().is_equal_approx(Vector2.ONE)
+	return not aspect_fit().is_equal_approx(Vector2.ONE)
 
 ## Returns the screen MeshInstance3D so Libretro can render onto it
 func get_screen_mesh() -> MeshInstance3D:

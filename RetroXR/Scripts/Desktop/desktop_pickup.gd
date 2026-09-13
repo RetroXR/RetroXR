@@ -418,6 +418,11 @@ func _grab_target(target: Node3D) -> void:
 	_held_object = pickable
 
 
+## What the crosshair is on right now, freshly cast.
+func aimed_target() -> InteractionTarget:
+	return _resolve_interaction_target(true)
+
+
 func _resolve_interaction_target(refresh: bool) -> InteractionTarget:
 	if not is_instance_valid(_desktop_pointer):
 		return InteractionTargetType.none()

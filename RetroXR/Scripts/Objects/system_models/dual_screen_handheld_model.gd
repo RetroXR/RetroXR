@@ -427,6 +427,14 @@ func get_builtin_screen() -> MeshInstance3D:
 	return _proxy   # hidden and now unpainted: it answers "this machine has a panel" and nothing else
 
 
+func channel_screens() -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	for screen: MeshInstance3D in [_screen, _bottom_screen]:
+		if screen != null:
+			out.append(screen)
+	return out
+
+
 ## TWO video-out cables: TOP (plain) and BOTTOM (carries touch back to the
 ## core — tapping the TV showing the bottom screen is tapping the touch screen).
 func get_video_channels() -> Array:

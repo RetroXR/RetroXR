@@ -60,6 +60,7 @@ func _ready() -> void:
 		print("  Left-click = grab/shoot")
 		print("  Shift+Left-click = drop (held gun)")
 		print("  Tab = spawn menu")
+		print("  F11 = picture on the screen you look at fills the window")
 		print("=====================================")
 		# Ensure the window starts with a sensible resolution for desktop play
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)

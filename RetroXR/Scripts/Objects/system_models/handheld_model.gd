@@ -304,6 +304,14 @@ func get_builtin_screen() -> MeshInstance3D:
 	return _screen
 
 
+## The live picture quad behind each entry of get_video_channels(), in order.
+func channel_screens() -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	if _screen != null:
+		out.append(_screen)
+	return out
+
+
 ## How much of the seated cartridge pokes out of the back for grabbing.
 func _cart_protrude() -> float:
 	return clampf(cart_size.y * 0.28, 0.008, 0.02)
