@@ -74,7 +74,8 @@ func _ready() -> void:
 	_card.grabbed.connect(_on_grabbed)
 	_card.released.connect(_on_released)
 	_card.dropped.connect(_on_dropped)
-	_capture = ScrollLockCapture.attach(_card, _can_capture, ICON_CAPTURE, ICON_SIZE)
+	# Below the card: its +Z face is the screen, and the glyph floated over it.
+	_capture = ScrollLockCapture.attach(_card, _can_capture, ICON_CAPTURE, ICON_SIZE, true)
 	call_deferred("_find_rig")
 
 

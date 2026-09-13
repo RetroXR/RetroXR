@@ -40,17 +40,22 @@ var _host: Node3D = null
 var _eligible: Callable = Callable()
 var _icon: Label3D = null
 var _icon_size := 0.035
+## Sit the glyph under the device's bottom edge instead of off its +Z face.
+var _below := false
 var _loco: LocomotionManager = null
 var _active := false
 
 
 ## `glyph` is a Nerd Font codepoint; `size` is the glyph's height in metres. Where
 ## it sits comes from the host's own shapes, so no caller measures its device.
+## `below` puts it under the device's -Y edge rather than off its +Z face, for a
+## device whose +Z face is a screen the glyph would cover.
 static func attach(host: Node3D, eligible: Callable, glyph: int,
-		size := 0.035) -> ScrollLockCapture:
+		size := 0.035, below := false) -> ScrollLockCapture:
 	var cap := ScrollLockCapture.new()
 	cap._host = host
 	cap._eligible = eligible
+	cap._below = below
 	cap._build_icon(glyph, size)
 	cap._find_locomotion_manager.call_deferred()
 	return cap
@@ -147,20 +152,40 @@ func _find_locomotion_manager() -> void:
 	_apply()
 
 
-## Sit the glyph just past the +Z face of the device, measured on every show: a
-## shell model can resize the body long after attach.
+## Sit the glyph just past the +Z face of the device, or under its -Y edge,
+## measured on every show: a shell model can resize the body long after attach.
 func _place_icon() -> void:
-	_icon.position = Vector3(0.0, 0.0, _body_reach_z() + _icon_size * 0.5 + ICON_GAP)
+	var clear := _icon_size * 0.5 + ICON_GAP
+	if _below:
+		_icon.position = Vector3(0.0, _body_bottom_y() - clear, 0.0)
+	else:
+		_icon.position = Vector3(0.0, 0.0, _body_reach_z() + clear)
 
 
 ## How far the host's own body reaches along its local +Z. Only the shapes that
 ## body owns count — an Area3D button, a pointer volume and the hands wrapped
 ## round the device are all children of the host, and none of them is its edge.
 func _body_reach_z() -> float:
+	var reach := 0.0
+	for box: AABB in _body_boxes():
+		reach = maxf(reach, box.end.z)
+	return reach
+
+
+## How far down the host's own body reaches along its local -Y, as a y value.
+func _body_bottom_y() -> float:
+	var bottom := 0.0
+	for box: AABB in _body_boxes():
+		bottom = minf(bottom, box.position.y)
+	return bottom
+
+
+## Each enabled shape the host's own body owns, as a box in the host's space.
+func _body_boxes() -> Array[AABB]:
+	var out: Array[AABB] = []
 	var body := _host as CollisionObject3D
 	if body == null:
-		return 0.0
-	var reach := 0.0
+		return out
 	for owner_id: int in body.get_shape_owners():
 		if body.is_shape_owner_disabled(owner_id):
 			continue
@@ -169,8 +194,8 @@ func _body_reach_z() -> float:
 			var shape: Shape3D = body.shape_owner_get_shape(owner_id, i)
 			if shape == null:
 				continue
-			reach = maxf(reach, (xf * shape.get_debug_mesh().get_aabb()).end.z)
-	return reach
+			out.append(xf * shape.get_debug_mesh().get_aabb())
+	return out
 
 
 ## Same recipe as vr_hinge.gd's _build_icon: billboarded Label3D with the Symbols
