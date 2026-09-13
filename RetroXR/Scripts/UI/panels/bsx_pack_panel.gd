@@ -25,6 +25,13 @@ var _pack: Node3D = null
 @onready var _viewport_node: XRToolsViewport2DIn3D = $BsxPackViewport
 
 
+func _ready() -> void:
+	super._ready()
+	# The same shape of panel as a memory card's, with the same list that runs out
+	# of room, so it takes the same corner grip.
+	enable_resize_grip()
+
+
 func show_for(pack: Node3D, camera: Node3D) -> void:
 	_pack = pack
 	_camera = camera

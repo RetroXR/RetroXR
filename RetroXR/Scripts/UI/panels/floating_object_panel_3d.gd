@@ -51,9 +51,11 @@ func _process(_delta: float) -> void:
 	if is_instance_valid(_camera):
 		look_at(_camera.global_position, Vector3.UP)
 		rotate_object_local(Vector3.UP, PI)
+	_update_resize_drag()
 
 
 func hide_panel() -> void:
+	resize_end()
 	visible = false
 
 
@@ -193,13 +195,218 @@ func _grow_for_lock_row() -> void:
 	var screen := v.get_node_or_null("Screen") as MeshInstance3D
 	if screen == null or not (screen.mesh is QuadMesh):
 		return
-	screen.mesh = screen.mesh.duplicate()
-	var shape := v.get_node_or_null("StaticBody3D/CollisionShape3D") as CollisionShape3D
-	if shape != null and shape.shape != null:
-		shape.shape = shape.shape.duplicate()
+	_own_screen_resources(v)
 	var vp: Vector2 = v.viewport_size
 	if vp.y <= 0.0:
 		return
 	var grown := vp.y + LOCK_ROW_PX
 	v.screen_size = Vector2(v.screen_size.x, v.screen_size.y * grown / vp.y)
 	v.viewport_size = Vector2(vp.x, grown)
+	_resize_place_grip()
+
+
+## The quad and the collision box come out of the packed scene SHARED between
+## every panel instance, so they are made unique before anything writes a size.
+## Writing screen_size without that resizes every other open menu's screen too.
+func _own_screen_resources(v: XRToolsViewport2DIn3D) -> void:
+	if _screen_owned:
+		return
+	_screen_owned = true
+	var screen := v.get_node_or_null("Screen") as MeshInstance3D
+	if screen != null and screen.mesh != null:
+		screen.mesh = screen.mesh.duplicate()
+	var shape := v.get_node_or_null("StaticBody3D/CollisionShape3D") as CollisionShape3D
+	if shape != null and shape.shape != null:
+		shape.shape = shape.shape.duplicate()
+
+
+# ── Resize grip ───────────────────────────────────────────────────────────────
+#
+# Opt-in, through enable_resize_grip(), for a panel whose list outgrows the size
+# it was authored at. The spawn menu's grip belongs to CurvedPanel and assumes
+# its arc and its 1600 px floor, so a small flat panel gets this one. Both use
+# PanelResizeGrip as the collider, which calls resize_begin and resize_end on
+# whatever it was created for.
+#
+# It resizes the PAGE, not the magnification. Pixels and metres grow together at
+# a fixed density, so the text keeps its size and the extra pixels become more
+# rows in the list.
+#
+# The mark sits on the TOP-right corner, and the bottom edge stays where it is.
+# A floating panel hangs just above the thing it belongs to, so growing about its
+# centre would lower that edge into the object. With the bottom pinned the top
+# edge follows the pointer, and the right edge follows it too, because the width
+# grows about the centre by twice what the pointer moved.
+
+## Arm length of the corner mark, its bar thickness, and its hit box.
+const RESIZE_GRIP_ARM := 0.03
+const RESIZE_GRIP_BAR := 0.006
+const RESIZE_GRIP_HIT := 0.04
+## How far past the corner the mark sits: its bar plus a hair, so it traces the
+## outside of the corner rather than covering the page.
+const RESIZE_GRIP_OUT := RESIZE_GRIP_BAR + 0.003
+## The largest page, as a multiple of the size it had when first resized.
+const RESIZE_MAX_SCALE := 2.5
+## Every size change reallocates the SubViewport's render target, so a drag is
+## quantised to this rather than doing it every frame.
+const RESIZE_STEP_PX := 16.0
+const _COLOR_GRIP_IDLE := Color(0.42, 0.45, 0.55)
+const _COLOR_GRIP_DRAG := Color(1.0, 0.78, 0.30)
+
+var _screen_owned := false
+var _resize_grip: PanelResizeGrip = null
+var _resize_grip_mat: StandardMaterial3D = null
+## The smallest page, taken the first time it is resized: the authored size plus
+## any lock row, which is as small as the layout inside was made to go.
+var _resize_min_px := Vector2.ZERO
+## How far the page has been raised to keep its bottom edge still.
+var _resize_lift := 0.0
+var _resize_rest_y := 0.0
+var _resize_pointer: Node3D = null
+var _resize_from := Vector3.ZERO
+var _resize_from_screen := Vector2.ZERO
+
+
+## Give this panel a corner grip. Called from a subclass's _ready.
+func enable_resize_grip() -> void:
+	var v := _viewport_2d()
+	if v == null or _resize_grip != null:
+		return
+	_resize_rest_y = v.position.y
+	_resize_grip = PanelResizeGrip.create(self,
+		Vector3(RESIZE_GRIP_HIT, RESIZE_GRIP_HIT, 0.02))
+	var mark := MeshInstance3D.new()
+	mark.name = "GripMesh"
+	mark.mesh = _resize_grip_mesh()
+	_resize_grip_mat = StandardMaterial3D.new()
+	_resize_grip_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_resize_grip_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_resize_grip_mat.albedo_color = _COLOR_GRIP_IDLE
+	mark.set_surface_override_material(0, _resize_grip_mat)
+	_resize_grip.add_child(mark)
+	# On the page rather than on the panel, so it rises with the page as it grows.
+	v.add_child(_resize_grip)
+	_resize_place_grip()
+	visibility_changed.connect(_resize_sync_grip)
+	_resize_sync_grip()
+
+
+## Two bars meeting at the corner: one back along the top edge, one down the side.
+func _resize_grip_mesh() -> ArrayMesh:
+	var a := RESIZE_GRIP_ARM
+	var b := RESIZE_GRIP_BAR
+	var verts := PackedVector3Array()
+	var idx := PackedInt32Array()
+	for r: Array in [[-a, -b], [-b, -a]]:
+		# r = the far corner of one bar, as an offset from the mark's own corner.
+		var x0: float = r[0]
+		var y0: float = r[1]
+		var n := verts.size()
+		verts.append(Vector3(x0, y0, 0.0))
+		verts.append(Vector3(0.0, y0, 0.0))
+		verts.append(Vector3(0.0, 0.0, 0.0))
+		verts.append(Vector3(x0, 0.0, 0.0))
+		idx.append_array([n, n + 1, n + 2, n, n + 2, n + 3])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_INDEX] = idx
+	var m := ArrayMesh.new()
+	m.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return m
+
+
+func _resize_place_grip() -> void:
+	var v := _viewport_2d()
+	if _resize_grip == null or v == null:
+		return
+	_resize_grip.position = Vector3(v.screen_size.x * 0.5 + RESIZE_GRIP_OUT,
+		v.screen_size.y * 0.5 + RESIZE_GRIP_OUT, 0.001)
+
+
+## A hidden panel's grip must not catch the laser: visible governs drawing only.
+func _resize_sync_grip() -> void:
+	if _resize_grip == null:
+		return
+	var on := is_visible_in_tree()
+	_resize_grip.collision_layer = VRSlider.POINTABLE_LAYER if on else 0
+	for c in _resize_grip.get_children():
+		if c is CollisionShape3D:
+			(c as CollisionShape3D).disabled = not on
+	if not on:
+		resize_end()
+
+
+## Called by the grip on PRESSED. Remembers which pointer owns the drag.
+func resize_begin(pointer: Node3D) -> void:
+	var v := _viewport_2d()
+	if (v == null or not is_instance_valid(pointer)
+			or v.screen_size.x <= 0.0 or v.screen_size.y <= 0.0):
+		return
+	if _resize_min_px == Vector2.ZERO:
+		_resize_min_px = v.viewport_size
+	_resize_pointer = pointer
+	_resize_from = _resize_pointer_on_plane(pointer)
+	_resize_from_screen = v.screen_size
+	if _resize_grip_mat != null:
+		_resize_grip_mat.albedo_color = _COLOR_GRIP_DRAG
+
+
+func resize_end() -> void:
+	_resize_pointer = null
+	if _resize_grip_mat != null:
+		_resize_grip_mat.albedo_color = _COLOR_GRIP_IDLE
+
+
+## Follow the pointer that started the drag. Its own ray is projected onto the
+## panel every frame, rather than following pointer MOVED events, which stop the
+## moment the cursor leaves the little grip -- immediately, for a resize.
+func _update_resize_drag() -> void:
+	if _resize_pointer == null:
+		return
+	if not is_instance_valid(_resize_pointer):
+		resize_end()
+		return
+	var v := _viewport_2d()
+	if v == null or v.screen_size.x <= 0.0:
+		return
+	var d := _resize_pointer_on_plane(_resize_pointer) - _resize_from
+	var density := v.viewport_size / v.screen_size
+	resize_page(Vector2(_resize_from_screen.x + d.x * 2.0,
+		_resize_from_screen.y + d.y) * density)
+
+
+## Where a pointer is aiming, on the panel's own z = 0 plane, in panel space. The
+## panel itself does not move as the page grows -- the page rises inside it --
+## so this frame holds still for the whole drag.
+func _resize_pointer_on_plane(pointer: Node3D) -> Vector3:
+	var inv := global_transform.affine_inverse()
+	var origin := inv * pointer.global_position
+	var dir := (inv.basis * (-pointer.global_transform.basis.z)).normalized()
+	if absf(dir.z) < 0.0001:
+		return Vector3(origin.x, origin.y, 0.0)
+	return origin + dir * (-origin.z / dir.z)
+
+
+## Make the page this many viewport pixels, clamped and quantised, at the density
+## it already has and with its bottom edge where it was.
+func resize_page(want_px: Vector2) -> void:
+	var v := _viewport_2d()
+	if v == null or v.viewport_size.x <= 0.0 or v.screen_size.x <= 0.0:
+		return
+	if _resize_min_px == Vector2.ZERO:
+		_resize_min_px = v.viewport_size
+	var hi := _resize_min_px * RESIZE_MAX_SCALE
+	var px := (want_px / RESIZE_STEP_PX).round() * RESIZE_STEP_PX
+	px = px.clamp(_resize_min_px, hi)
+	if px.is_equal_approx(v.viewport_size):
+		return
+	var density := v.viewport_size / v.screen_size
+	var old_height := v.screen_size.y
+	_own_screen_resources(v)
+	var screen := px / density
+	v.viewport_size = px
+	v.screen_size = screen
+	_resize_lift += (screen.y - old_height) * 0.5
+	v.position.y = _resize_rest_y + _resize_lift
+	_resize_place_grip()
