@@ -83,6 +83,10 @@ var _pad: Node = null
 var _lcd: MeshInstance3D = null
 var _lcd_off_mat: Material = null
 var _lcd_mat: ShaderMaterial = null
+## The authored quad, and a copy of it with U reversed for a handed-over panel.
+## See _mirrored_lcd_mesh() for why a seated card needs the second.
+var _lcd_mesh: Mesh = null
+var _lcd_mesh_mirrored: ArrayMesh = null
 var _last_tex: Texture2D = null
 var _last_frame := Vector2i.ZERO
 
@@ -178,6 +182,7 @@ func _ready() -> void:
 		# is kept rather than rebuilt so an unseated card looks the same as it
 		# does on a shelf.
 		_lcd_off_mat = _lcd.get_surface_override_material(0)
+		_lcd_mesh = _lcd.mesh
 	_bind_controls()
 	_input = VmuInput.attach(self)
 	set_process(false)
@@ -270,6 +275,8 @@ func host_system() -> Node:
 # --- The screen ---------------------------------------------------------------
 
 func _show_off() -> void:
+	if _lcd != null and _lcd_mesh != null and _lcd.mesh != _lcd_mesh:
+		_lcd.mesh = _lcd_mesh
 	if _lcd != null and _lcd.get_surface_override_material(0) != _lcd_off_mat:
 		_lcd.set_surface_override_material(0, _lcd_off_mat)
 	_last_tex = null
@@ -458,7 +465,7 @@ func _picture() -> Dictionary:
 	if _running and _lib != null:
 		var own: Texture2D = _lib.GetVideoTexture()
 		if own != null:
-			return {"tex": own, "whole": true}
+			return {"tex": own, "whole": true, "mirror": false}
 		return {}
 	var sys := host_system()
 	if sys == null or not sys.has_method("vmu_screen_texture"):
@@ -469,7 +476,7 @@ func _picture() -> Dictionary:
 	# neither does this room. With it off there is nothing in that corner but the
 	# game, so cropping would put the game on the card.
 	var panel: Texture2D = sys.call("vmu_screen_texture", _pad, _slot)
-	return {"tex": panel, "whole": true} if panel != null else {}
+	return {"tex": panel, "whole": true, "mirror": true} if panel != null else {}
 
 
 func _process(_delta: float) -> void:
@@ -514,8 +521,39 @@ func _process(_delta: float) -> void:
 		_last_frame = frame_i
 		_lcd_mat.set_shader_parameter("source_rect", Vector4(0.0, 0.0, 1.0, 1.0))
 
+	var quad: Mesh = _mirrored_lcd_mesh() if bool(pic.get("mirror", false)) else _lcd_mesh
+	if quad != null and _lcd.mesh != quad:
+		_lcd.mesh = quad
 	if _lcd.get_surface_override_material(0) != _lcd_mat:
 		_lcd.set_surface_override_material(0, _lcd_mat)
+
+
+## The screen quad with U reversed, for the panel flycast hands over.
+##
+## flycast stores a VMU's panel the way its own overlay draws it: the GL overlay
+## puts row 0 at the BOTTOM of the TV (texture v=0 on the lower edge), so the
+## stored rows are the readable picture upside down. A card in a controller sits
+## turned half round in the plane of its face, exactly as it does in a real pad,
+## so that half turn plus the stored row order leaves a seated card showing the
+## picture mirrored left to right. Reversing U undoes it.
+##
+## The quad rather than source_rect: the shader clamps its taps between the
+## rect's two edges, and a negative width puts the low edge above the high one.
+## A card running its own game keeps the authored quad, because vemulator's
+## frame is already in the card's own orientation.
+func _mirrored_lcd_mesh() -> Mesh:
+	if _lcd_mesh_mirrored == null and _lcd_mesh != null:
+		var arrays := _lcd_mesh.surface_get_arrays(0)
+		var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+		for i in range(uvs.size()):
+			uvs[i].x = 1.0 - uvs[i].x
+		arrays[Mesh.ARRAY_TEX_UV] = uvs
+		# Tangents would point the wrong way along the reversed U. Nothing on the
+		# screen material reads them, so they are dropped rather than recomputed.
+		arrays[Mesh.ARRAY_TANGENT] = null
+		_lcd_mesh_mirrored = ArrayMesh.new()
+		_lcd_mesh_mirrored.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return _lcd_mesh_mirrored
 
 
 ## What flycast's per-slot device option should be set to while this is seated.
