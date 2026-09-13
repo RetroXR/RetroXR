@@ -715,6 +715,7 @@ func _build_bios_tab() -> Control:
 	_firmware_installer.name = "FirmwareInstaller"
 	_firmware_installer.job_started.connect(_on_firmware_started)
 	_firmware_installer.job_progress.connect(_on_firmware_progress)
+	_firmware_installer.job_unpacking.connect(_on_firmware_unpacking)
 	_firmware_installer.job_retrying.connect(_on_firmware_retrying)
 	_firmware_installer.job_finished.connect(_on_firmware_finished)
 	_firmware_installer.job_cancelled.connect(_on_firmware_cancelled)
@@ -761,6 +762,15 @@ func _on_firmware_progress(key: String, received: int, total: int) -> void:
 		btn.text = "%d%%" % int(frac * 100.0)
 	_romm_notify_or_queue(key, String.chr(MenuIcons.BUSY),
 		_job_text(key, total), 0.0, frac)
+
+
+func _on_firmware_unpacking(key: String, done: int, total: int) -> void:
+	var frac := 0.0 if total <= 0 else clampf(float(done) / float(total), 0.0, 1.0)
+	var btn := _bios_job_buttons.get(key) as Button
+	if is_instance_valid(btn):
+		btn.text = "%d%%" % int(frac * 100.0)
+	_romm_notify_or_queue(key, String.chr(MenuIcons.BUSY),
+		"Unpacking %s  (%d of %d files)" % [_job_label(key), done, total], 0.0, frac)
 
 
 func _on_firmware_retrying(key: String, attempt: int, total: int, reason: String) -> void:

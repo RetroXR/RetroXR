@@ -43,6 +43,7 @@ func _ready() -> void:
 	_group_plan()
 	_group_corrupt()
 	_group_cancel()
+	await _group_firmware()
 
 	_clean()
 	print("[archive] %d checks, %d failed" % [_passed + _failed, _failed])
@@ -76,14 +77,19 @@ func _wanted(what: String) -> bool:
 
 
 func _clean() -> void:
-	if not DirAccess.dir_exists_absolute(WORK):
-		return
-	var dir := DirAccess.open(WORK)
+	_remove_tree(WORK)
+
+
+## Recursive, because firmware/ unpacks a directory tree.
+func _remove_tree(path: String) -> void:
+	var dir := DirAccess.open(path)
 	if dir == null:
 		return
 	for f: String in dir.get_files():
-		DirAccess.remove_absolute(WORK.path_join(f))
-	DirAccess.remove_absolute(WORK)
+		DirAccess.remove_absolute(path.path_join(f))
+	for d: String in dir.get_directories():
+		_remove_tree(path.path_join(d))
+	DirAccess.remove_absolute(path)
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -389,3 +395,76 @@ func _group_cancel() -> void:
 
 	var seen: Dictionary = ex.inspect(zip, _plan("rom.nes", "cancelled.nes"))
 	_ok(bool(seen["cancelled"]), "cancel/inspect reports the cancellation too")
+
+
+# ── firmware/ — FirmwareInstaller unpacking a support archive ─────────────────
+# The BIOS / Extras tab's archive button used ZIPReader.read_file per member,
+# which walks the central directory from the top each time. Dolphin.zip, the
+# Wii's required download, is 2,720 members and took 26 s on a desktop that way
+# with nothing moving on screen.
+
+const FW_DIRS := 60
+const FW_PER_DIR := 50
+## Measured 2026-09-12 on a Windows desktop at this size: 4.1 s for the
+## extractor, 19.6 s for the old read_file loop. The fixture is this large
+## because the gap is quadratic; at half the size the old loop took 5.5 s,
+## too close to any budget a slow runner could also meet.
+const FW_BUDGET_MS := 10000
+
+
+func _group_firmware() -> void:
+	var members := {"sys/top.txt": _text("fresh")}
+	for d in range(FW_DIRS):
+		for i in range(FW_PER_DIR):
+			members["sys/d%02d/f%03d.bin" % [d, i]] = _text("member %d/%d" % [d, i])
+	var zip := _write_zip("fw.zip", members)
+	var dest := WORK.path_join("system")
+	DirAccess.make_dir_recursive_absolute(dest.path_join("sys"))
+	_write_bytes(dest.path_join("sys/top.txt"), _text("stale"))
+
+	var fw := FirmwareInstaller.new()
+	var reports: Array[Vector2i] = []
+	fw.job_unpacking.connect(func(_k: String, done: int, total: int) -> void:
+		reports.append(Vector2i(done, total)))
+
+	var started := Time.get_ticks_msec()
+	var res: Dictionary = fw._extract_preserving_paths("fw", zip, dest)
+	var elapsed := Time.get_ticks_msec() - started
+	_ok(bool(res["ok"]), "firmware/a many-member archive unpacks", str(res.get("error", "")))
+	_ok(elapsed < FW_BUDGET_MS, "firmware/and in time linear in its members",
+		"%d members took %d ms" % [members.size(), elapsed])
+
+	var missing := 0
+	for m: String in members:
+		if _read_bytes(dest.path_join(m)) != members[m]:
+			missing += 1
+	_eq(missing, 0, "firmware/every member arrives at its own path, intact")
+	_eq(_read_bytes(dest.path_join("sys/top.txt")), _text("fresh"),
+		"firmware/a file already installed is replaced, which is how a repair works")
+	_ok(not DirAccess.dir_exists_absolute(WORK.path_join("fw.unpack")),
+		"firmware/no scratch tree is left behind")
+
+	await get_tree().process_frame
+	_ok(reports.size() > 2, "firmware/progress is reported during the unpack, not only at the end",
+		"%d reports" % reports.size())
+	_eq(reports.back() if not reports.is_empty() else Vector2i(), Vector2i(members.size(), members.size()),
+		"firmware/and the last report is every member")
+
+	# A cancel raised while the download was finishing must not install anything.
+	var cancel_zip := _write_zip("fw_cancel.zip", {"sys/cancelled.txt": _text("no")})
+	fw._abort = true
+	var cancelled: Dictionary = fw._extract_preserving_paths("fw", cancel_zip, dest)
+	fw._abort = false
+	_ok(bool(cancelled.get("cancelled", false)), "firmware/a cancelled unpack says so")
+	_ok(not FileAccess.file_exists(dest.path_join("sys/cancelled.txt")),
+		"firmware/and installs nothing")
+	_ok(not DirAccess.dir_exists_absolute(WORK.path_join("fw_cancel.unpack")),
+		"firmware/and leaves no scratch tree")
+
+	var evil_zip := _write_zip("fw_evil.zip", {"../escaped.txt": _text("out")})
+	var evil: Dictionary = fw._extract_preserving_paths("fw", evil_zip, dest)
+	_ok(not bool(evil["ok"]), "firmware/a member naming a path outside the system dir is refused")
+	_ok(not FileAccess.file_exists(WORK.path_join("escaped.txt")),
+		"firmware/and writes nothing outside it")
+
+	fw.free()

@@ -24,11 +24,19 @@ extends Node
 ## key identifies the job for the UI and the toast; it is the caller's to choose.
 signal job_started(key: String, label: String, total_bytes: int)
 signal job_progress(key: String, received: int, total: int)
+## An archive's second phase, counted in files: Dolphin.zip is 3 MB to fetch and
+## 2,720 files to write, and the bar sat at 100% for all of the second part.
+signal job_unpacking(key: String, done: int, total: int)
 signal job_retrying(key: String, attempt: int, max_attempts: int, reason: String)
 signal job_finished(key: String, ok: bool, error: String)
 signal job_cancelled(key: String)
 
 const MAX_RETRIES := 3
+
+## Members per RommArchiveExtractor call. Each call re-reads the central
+## directory, so this trades that cost against how often progress and a cancel
+## get a word in.
+const UNPACK_BATCH := 250
 
 enum Kind { FILE, ARCHIVE }
 
@@ -183,6 +191,9 @@ func _worker(job: Dictionary) -> void:
 		if status == "ok":
 			var placed := _place(job, staging)
 			DirAccess.remove_absolute(staging)
+			if bool(placed.get("cancelled", false)):
+				_emit_cancelled.call_deferred(key)
+				return
 			_emit_finished.call_deferred(key, bool(placed["ok"]), str(placed.get("error", "")))
 			return
 		if status == "cancelled":
@@ -303,7 +314,7 @@ func _attempt(job: Dictionary, staging: String) -> Dictionary:
 func _place(job: Dictionary, staging: String) -> Dictionary:
 	if int(job["kind"]) == Kind.ARCHIVE:
 		var dir := CoreDownloadManager.default_system_dir(str(job["core_name"]))
-		return _extract_preserving_paths(staging, dir)
+		return _extract_preserving_paths(str(job["key"]), staging, dir)
 
 	var written := 0
 	for dest: String in job["dests"]:
@@ -329,14 +340,27 @@ func _place(job: Dictionary, staging: String) -> Dictionary:
 ## into one directory. That is right for a core zip (a single .dll) and wrong
 ## here: PPSSPP.zip's ppge_atlas.zim has to land in PPSSPP/, and ScummVM.zip
 ## carries a two-level theme/extra tree.
-func _extract_preserving_paths(zip_path: String, dest_dir: String) -> Dictionary:
+##
+## Not ZIPReader.read_file either: it finds a member by walking the central
+## directory from the top, so an archive costs the square of its member count.
+## Dolphin.zip's 2,720 files took 26 s that way on a desktop, and minutes on a
+## headset. RommArchiveExtractor indexes the directory once and streams.
+##
+## That extractor refuses to overwrite, and re-running an archive is how a bad
+## file gets repaired, so the members land in a scratch tree beside the download
+## and are then moved over the system dir.
+func _extract_preserving_paths(key: String, zip_path: String, dest_dir: String) -> Dictionary:
 	var reader := ZIPReader.new()
 	if reader.open(zip_path) != OK:
 		return {"ok": false, "error": "Could not open the downloaded archive"}
+	var members := reader.get_files()
+	reader.close()
 
-	DirAccess.make_dir_recursive_absolute(dest_dir)
-	var count := 0
-	for entry: String in reader.get_files():
+	var scratch := zip_path.get_basename() + ".unpack"
+	_remove_tree(scratch)
+
+	var plan: Array[Dictionary] = []
+	for entry: String in members:
 		if entry.ends_with("/"):
 			continue
 		# The member names come from the server that built the archive, not from
@@ -344,26 +368,54 @@ func _extract_preserving_paths(zip_path: String, dest_dir: String) -> Dictionary
 		# ../../../x walks straight out of the firmware folder.
 		var relative := ArchiveSafety.safe_member(entry)
 		if relative.is_empty():
-			reader.close()
 			return {"ok": false, "error": "Unsafe path in archive: %s" % entry}
-		if ArchiveSafety.parent_is_link(dest_dir, relative):
-			reader.close()
-			return {"ok": false, "error": "Archive path crosses a link: %s" % entry}
+		plan.append({"entry": entry, "relative": relative, "path": scratch.path_join(relative)})
+	if plan.is_empty():
+		return {"ok": false, "error": "The archive was empty"}
+
+	var result := _unpack_batches(key, zip_path, plan)
+	if bool(result["ok"]):
+		result = _move_into(plan, dest_dir)
+	_remove_tree(scratch)
+	return result
+
+
+func _unpack_batches(key: String, zip_path: String, plan: Array[Dictionary]) -> Dictionary:
+	var extractor := RommArchiveExtractor.new()
+	var done := 0
+	_emit_unpacking.call_deferred(key, 0, plan.size())
+	while done < plan.size():
+		if _abort:
+			return {"ok": false, "cancelled": true, "error": ""}
+		var batch := plan.slice(done, done + UNPACK_BATCH)
+		var out: Dictionary = extractor.extract(zip_path, batch)
+		if not bool(out.get("ok", false)):
+			return {"ok": false, "error": str(out.get("error", "Could not unpack the archive"))}
+		done += batch.size()
+		_emit_unpacking.call_deferred(key, done, plan.size())
+	return {"ok": true, "error": ""}
+
+
+## Not cancellable: by now every member has been verified, and stopping part way
+## would leave the system dir holding half of one archive and half of another.
+func _move_into(plan: Array[Dictionary], dest_dir: String) -> Dictionary:
+	# A link check per directory rather than per file. Once a parent has passed
+	# and been created here it stays a real directory for the rest of the move.
+	var checked := {}
+	for item: Dictionary in plan:
+		var relative := str(item["relative"])
+		var parent := relative.get_base_dir()
+		if not checked.has(parent):
+			if ArchiveSafety.parent_is_link(dest_dir, relative):
+				return {"ok": false, "error": "Archive path crosses a link: %s" % relative}
+			checked[parent] = true
 		var out_path := dest_dir.path_join(relative)
 		DirAccess.make_dir_recursive_absolute(out_path.get_base_dir())
-		var f := FileAccess.open(out_path, FileAccess.WRITE)
-		if f == null:
-			reader.close()
-			return {"ok": false, "error": "Cannot write %s" % entry}
-		f.store_buffer(reader.read_file(entry))
-		var err := f.get_error()
-		f.close()
-		if err != OK:
-			reader.close()
-			return {"ok": false, "error": "Write failed for %s" % entry}
-		count += 1
-	reader.close()
-	return {"ok": count > 0, "error": "" if count > 0 else "The archive was empty"}
+		if FileAccess.file_exists(out_path) and DirAccess.remove_absolute(out_path) != OK:
+			return {"ok": false, "error": "Cannot replace %s" % relative}
+		if DirAccess.rename_absolute(str(item["path"]), out_path) != OK:
+			return {"ok": false, "error": "Cannot write %s" % relative}
+	return {"ok": true, "error": ""}
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -375,6 +427,17 @@ static func _staging_path(key: String) -> String:
 	return CoreDownloadManager.default_core_root().path_join("temp").path_join(safe + ".part")
 
 
+static func _remove_tree(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	dir.include_hidden = true
+	for f: String in dir.get_files():
+		DirAccess.remove_absolute(path.path_join(f))
+	for d: String in dir.get_directories():
+		_remove_tree(path.path_join(d))
+	DirAccess.remove_absolute(path)
+
 
 # ── Main-thread emitters ──────────────────────────────────────────────────────
 
@@ -384,6 +447,10 @@ func _emit_started(key: String, label: String, total: int) -> void:
 
 func _emit_progress(key: String, received: int, total: int) -> void:
 	job_progress.emit(key, received, total)
+
+
+func _emit_unpacking(key: String, done: int, total: int) -> void:
+	job_unpacking.emit(key, done, total)
 
 
 func _emit_retrying(key: String, attempt: int, total: int, reason: String) -> void:
