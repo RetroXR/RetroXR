@@ -1437,6 +1437,7 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		if obj is PadReceiver:
 			(obj as PadReceiver).restore_pak(
 				_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
+			_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
 		var rx_port := int(d.get("port_index", -1))
 		if rx_port < 0:
 			return
@@ -1463,6 +1464,7 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 			# re-seats its own cartridge from its own entry, so this is one call.
 			(obj as RetroController).restore_pak(
 				_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
+			_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
 		var port_idx := int(d.get("port_index", -1))
 		if port_idx < 0:
 			return
@@ -1920,6 +1922,9 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		var pr_pak: Node = pr.get_pak()
 		if pr_pak != null:
 			pr_entry["pak"] = _ref(node_to_id, pr_pak)
+		var pr_vmus := _vmu_slot_refs(pr, node_to_id)
+		if not pr_vmus.is_empty():
+			pr_entry["vmus"] = pr_vmus
 		return pr_entry
 	elif node is CompositeCable:
 		return _serialize_cable(node as CompositeCable, id, n3d, node_to_id)
@@ -2007,7 +2012,42 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 		var pak: Node = (node as RetroController).get_pak()
 		if pak != null:
 			entry["pak"] = _ref(node_to_id, pak)
+		var vmus := _vmu_slot_refs(node, node_to_id)
+		if not vmus.is_empty():
+			entry["vmus"] = vmus
 	return entry
+
+
+## What is in each of a host's Dreamcast slots, one reference per slot and null
+## for an empty one, or [] when every slot is empty.
+##
+## Saved on the HOST for the reason its pak is: the slot is the end that means
+## something, and a card's own entry is only where it is lying. Every device
+## rather than get_vmu(), which answers only for a card, so a Jump Pack is kept
+## too.
+func _vmu_slot_refs(host: Node, node_to_id: Dictionary) -> Array:
+	if not host.has_method("get_vmu_device"):
+		return []
+	var out: Array = []
+	var any := false
+	for slot in range(int(host.call("vmu_slot_count"))):
+		var device: Node = host.call("get_vmu_device", slot)
+		out.append(_ref(node_to_id, device))
+		any = any or device != null
+	return out if any else []
+
+
+## Seat a host's cards and packs back in the slots they were saved in. Before
+## the host's port connection, as its pak is, so a machine is told once what is
+## in the slots.
+func _restore_vmu_slots(host: Node, root: Node, spawned: Dictionary, refs: Variant) -> void:
+	if not (refs is Array) or not host.has_method("restore_vmu"):
+		return
+	var list := refs as Array
+	for slot in range(list.size()):
+		var device := _resolve_ref(root, spawned, list[slot]) as Node3D
+		if device != null:
+			host.call("restore_vmu", device, slot)
 
 
 ## Six independent ends, so the lead is saved as six plugs rather than as one

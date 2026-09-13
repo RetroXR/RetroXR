@@ -51,10 +51,9 @@ var _device: int = -1
 # authors an ExpansionPort node -- see N64PakPort.
 var _pak_port := N64PakPort.new()
 
-# And the Dreamcast VMU slot in the same boss, for the same player. Unlike the
-# pak port this one comes and goes with the console: it is built when the dongle
-# is plugged into a Dreamcast and removed when it is unplugged, so the seat is
-# authored in the scene (VmuSeat1) and the socket is not -- see VmuPort.
+# And the Dreamcast VMU slots in the same boss, for the same player. The seats
+# are authored in the scene (VmuSeat1, VmuSeat2) and the sockets are built on
+# them when the dongle is, whatever it is later plugged into -- see VmuPort.
 var _vmu_port := VmuPort.new()
 
 
@@ -105,8 +104,8 @@ func pak_option_value() -> String:
 ## whole of the wiring on the system side.
 
 
-## How many VMU slots this dongle has right now: two on a Dreamcast, as a
-## controller has, and none anywhere else.
+## How many VMU slots this dongle has: two, as a controller has, whatever it
+## is plugged into.
 func vmu_slot_count() -> int:
 	return _vmu_port.slot_count()
 
@@ -114,6 +113,11 @@ func vmu_slot_count() -> int:
 ## The card in one slot, or null.
 func get_vmu(slot: int) -> VmuCard:
 	return _vmu_port.get_card(slot)
+
+
+## Whatever is in one slot, a VMU or a Jump Pack, or null. What a save records.
+func get_vmu_device(slot: int) -> Node3D:
+	return _vmu_port.get_device(slot)
 
 
 ## What flycast's per-slot device option should take. "" would mean no slot at
@@ -203,13 +207,9 @@ func reload_bindings() -> void:
 func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 	super.on_plugged_in(system, port_index)
 	reload_bindings()
-	# The VMU slot grows here rather than in _ready, so a dongle moved between
-	# machines never carries a Dreamcast's socket onto a NES.
-	_vmu_port.sync_to_system(system)
 
 
 func on_unplugged() -> void:
-	_vmu_port.sync_to_system(null)
 	super.on_unplugged()
 	reload_bindings()
 

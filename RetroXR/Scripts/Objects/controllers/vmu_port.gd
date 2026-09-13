@@ -23,9 +23,14 @@
 ##
 ## Unlike the N64's, these zones are BUILT rather than authored, because the
 ## Dreamcast has no controller scene — it wears the primitive box, as its console
-## does — so there is no shell to hang an authored node off. They appear when the
-## host is plugged into a Dreamcast and go when it is unplugged, which also means
-## a pad moved between machines never carries another console's sockets around.
+## does — so there is no shell to hang an authored node off.
+##
+## They are built when the host is, and stay whatever the host is plugged into.
+## A card goes into a pad on a desk, or a pad on another console, and is simply
+## there when that pad reaches a Dreamcast, which is what a real one allows. They
+## used to appear only while the host was on a Dreamcast, which refused a card
+## put in ahead of time, and also left nowhere for a load to seat one before the
+## pad's own port connection was restored.
 ##
 ## A host that DOES have a scene says where its seats are in that scene, as
 ## "VmuSeat1", "VmuSeat2", ... markers — see authored_seats(). The pad receiver is
@@ -49,7 +54,8 @@ const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.
 ## alone would take a cable end.
 const SLOT_GROUP := &"dc_slot_device"
 
-## The console whose pads have these.
+## The console whose pads have these. A pad made for some other console, with a
+## shell and a systemid of its own, has none.
 const HOST_SYSTEMID := "dreamcast"
 
 ## Where the two sockets sit on the primitive pad, in its local space.
@@ -98,14 +104,30 @@ var _seats: Array[Transform3D] = []
 var _cards: Array = []
 
 
-## Bind to a host. No sockets exist yet — they appear when the host is plugged
-## into a Dreamcast, see sync_to_system().
+## Bind to a host, and build its sockets if it is one that has them.
 func attach(owner: Node, on_change: Callable = Callable()) -> void:
 	_owner = owner
 	_on_change = on_change
 	_seats = authored_seats(owner)
 	if _seats.is_empty():
 		_seats = PAD_SEATS.duplicate()
+	if hosts_slots(owner):
+		_build()
+
+
+## Whether a host carries these sockets at all.
+##
+## A host that authors seats in its scene does, whatever it is: the pad receiver
+## is the one such host. Otherwise it is the primitive pad, whose systemid is
+## empty because it stands in for every console, or a pad made for a Dreamcast. A
+## NES or N64 pad has its own shell and its own systemid and no VMU slot.
+static func hosts_slots(owner: Node) -> bool:
+	if not is_instance_valid(owner):
+		return false
+	if not authored_seats(owner).is_empty():
+		return true
+	var sid := str(owner.get("systemid")) if "systemid" in owner else ""
+	return sid.is_empty() or sid == HOST_SYSTEMID
 
 
 ## The seats a host's SCENE authors, as "VmuSeat1", "VmuSeat2", ... taken in
@@ -128,19 +150,6 @@ static func authored_seats(owner: Node) -> Array[Transform3D]:
 		seat = owner.get_node_or_null(
 			NodePath("VmuSeat%d" % (out.size() + 1))) as Node3D
 	return out
-
-
-## Build the sockets when this pad is on a Dreamcast, tear them down otherwise.
-## Called on plug-in and unplug, and idempotent either way.
-func sync_to_system(system: Node) -> void:
-	var wanted := is_instance_valid(system) \
-		and str(system.get("systemid")) == HOST_SYSTEMID
-	if wanted == has_ports():
-		return
-	if wanted:
-		_build()
-	else:
-		_teardown()
 
 
 func has_ports() -> bool:
@@ -170,22 +179,6 @@ func _build() -> void:
 		_zones.append(zone)
 	_cards.resize(_seats.size())
 	_cards.fill(null)
-
-
-func _teardown() -> void:
-	# Unseat explicitly rather than trusting drop_object's signal to arrive: the
-	# zone is freed on the same pass, and a card left thinking it is still seated
-	# would keep driving a screen for a machine it is no longer plugged into.
-	for card in _cards:
-		if is_instance_valid(card):
-			card.unseated()
-	for zone in _zones:
-		if is_instance_valid(zone):
-			if zone.has_snapped_object():
-				zone.drop_object()
-			zone.queue_free()
-	_zones.clear()
-	_cards.clear()
 
 
 ## The systemid sentinel is what narrows a socket that would otherwise take any

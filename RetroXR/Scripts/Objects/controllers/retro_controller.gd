@@ -219,7 +219,8 @@ func pak_option_value() -> String:
 # Reached by RetroSystem through duck typing, the same way the N64's pak is: it
 # asks a port controller for these and does not care what class answers.
 
-## How many VMU slots this pad has. 0 unless it is on a Dreamcast.
+## How many VMU slots this pad has: two on the primitive pad, whatever it is
+## plugged into, and none on a pad with a shell made for another console.
 func vmu_slot_count() -> int:
 	return _vmu_port.slot_count()
 
@@ -227,6 +228,11 @@ func vmu_slot_count() -> int:
 ## The VMU in one slot, or null.
 func get_vmu(slot: int) -> VmuCard:
 	return _vmu_port.get_card(slot)
+
+
+## Whatever is in one slot, a VMU or a Jump Pack, or null. What a save records.
+func get_vmu_device(slot: int) -> Node3D:
+	return _vmu_port.get_device(slot)
 
 
 ## What flycast's per-slot device option should take — see VmuPort.
@@ -541,16 +547,11 @@ func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 	_connected_system = system
 	_port_index = port_index
 	_load_bindings()
-	# A Dreamcast pad grows its two VMU slots here, because there is no authored
-	# shell to hang them off. Doing it on connect also means a pad moved between
-	# machines never carries another console's sockets around.
-	_vmu_port.sync_to_system(system)
 	print("[RetroController] plugged into system port %d" % port_index)
 
 
 func on_unplugged() -> void:
 	print("[RetroController] unplugged from port %d" % _port_index)
-	_vmu_port.sync_to_system(null)
 	_connected_system = null
 	_port_index = -1
 	# Back to the global map. Keeping the last console's profile would mean a pad

@@ -1,28 +1,33 @@
-## VMU slots probe — do a Dreamcast pad's two slots appear, and take a card?
+## VMU slots probe — do a Dreamcast pad's two slots exist, take a card, and
+## survive a save?
 ##
-## The slots are BUILT rather than authored: the Dreamcast has no controller
-## scene, so VmuPort creates them when a pad is plugged into one and removes them
-## when it is unplugged. That makes "are they there" a runtime question rather
-## than something a scene file can be read for, which is what this answers.
+## The slots are BUILT rather than authored on the primitive pad, which has no
+## scene of its own to hold them, so "are they there" is a runtime question
+## rather than something a scene file can be read for.
 ##
 ##     "$godot" --headless --path RetroXR res://Tools/input/vmu_slots_probe.tscn
 ##
-## No core, no ROM, no headset. It builds a Dreamcast and a NES, plugs the same
-## kind of pad into each, and checks that only the Dreamcast grows slots — a pad
-## that carried another console's sockets around would be the obvious bug.
+## No core, no ROM, no headset. The slots are there from the start and stay
+## whatever the pad is plugged into: a card seated in a loose pad, or a pad on a
+## NES, is still in it when that pad reaches a Dreamcast. A NES pad with its own
+## shell has none.
 ##
 ## A PAD RECEIVER is driven through the same route, because the player using a
 ## real gamepad holds no virtual pad and reaches a card only through the dongle.
-## Its seat is authored in its scene rather than built from VmuPort's constants,
+## Its seats are authored in its scene rather than built from VmuPort's constants,
 ## so the probe reads the seated card's BASIS back as well as counting sockets:
 ## a .tscn transform is written by rows and constructed by columns, and a card
 ## seated upside down would still count as one card.
+##
+## Both hosts are then saved through ScenePersistence and the entry restored onto
+## a fresh host with fresh devices, through a JSON round trip as a save file does.
 ##
 ## Exits non-zero on failure.
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
+const NES_PAD_SCENE := preload("res://Scenes/Objects/controllers/nes/nes_controller.tscn")
 const DONGLE_SCENE := preload("res://Scenes/Objects/controllers/pad_receiver.tscn")
 const VMU_SCENE := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
@@ -58,31 +63,46 @@ func _run() -> void:
 	var nes := _make_system("nes")
 	var pad_dc := PAD_SCENE.instantiate() as RetroController
 	var pad_nes := PAD_SCENE.instantiate() as RetroController
+	var nes_pad := NES_PAD_SCENE.instantiate() as RetroController
 	add_child(pad_dc)
 	add_child(pad_nes)
+	add_child(nes_pad)
 	for i in range(4):
 		await get_tree().process_frame
 
-	_ok(pad_dc.vmu_slot_count() == 0, "a loose pad has no VMU slots")
+	_ok(pad_dc.vmu_slot_count() == 2, "a loose primitive pad already has two VMU slots",
+		"got %d" % pad_dc.vmu_slot_count())
+	_ok(nes_pad.vmu_slot_count() == 0, "a NES pad, with a shell of its own, has none",
+		"got %d" % nes_pad.vmu_slot_count())
+	# "" means no slot at all, which is not the same as an empty one: flycast
+	# would keep its own default VMU fitted to a slot the player just emptied.
+	_ok(nes_pad.vmu_slot_option_value(0) == "", "and reads empty rather than None",
+		"'%s'" % nes_pad.vmu_slot_option_value(0))
+
+	# The case that used to be refused: a card put in before the pad is plugged in.
+	var early := VMU_SCENE.instantiate() as VmuCard
+	add_child(early)
+	await get_tree().process_frame
+	pad_nes.restore_vmu(early, 0)
+	for i in range(3):
+		await get_tree().process_frame
+	_ok(pad_nes.get_vmu(0) == early, "a VMU seats in a loose pad")
 
 	pad_dc.on_plugged_in(dc, 0)
 	pad_nes.on_plugged_in(nes, 0)
 	await get_tree().process_frame
 
-	_ok(pad_dc.vmu_slot_count() == 2, "a pad on a Dreamcast grows two",
+	_ok(pad_dc.vmu_slot_count() == 2, "a pad on a Dreamcast has two",
 		"got %d" % pad_dc.vmu_slot_count())
-	_ok(pad_nes.vmu_slot_count() == 0, "a pad on a NES grows none",
+	_ok(pad_nes.vmu_slot_count() == 2, "and so does one on a NES",
 		"got %d" % pad_nes.vmu_slot_count())
+	_ok(pad_nes.get_vmu(0) == early, "which keeps the card it was given while loose")
 	_ok(pad_dc.get_node_or_null("VmuSlot1") != null, "slot 1 exists by name")
 	_ok(pad_dc.get_node_or_null("VmuSlot2") != null, "slot 2 exists by name")
 
-	# An empty slot must say "None" and not "" — "" means the pad has no slot at
-	# all, and answering it for an empty one would leave flycast's default VMU
-	# fitted to a slot the player just emptied.
+	# An empty slot must say "None" and not "".
 	_ok(pad_dc.vmu_slot_option_value(0) == "None", "an empty slot reads None",
 		pad_dc.vmu_slot_option_value(0))
-	_ok(pad_nes.vmu_slot_option_value(0) == "", "a pad with no slots reads empty",
-		"'%s'" % pad_nes.vmu_slot_option_value(0))
 
 	# Seat one.
 	var card := VMU_SCENE.instantiate() as VmuCard
@@ -118,13 +138,17 @@ func _run() -> void:
 	_ok(pad_dc.vmu_slot_option_value(0) == "VMU",
 		"while the card in slot 1 still asks for a VMU")
 
-	# Unplugging the pad takes its sockets with it, so a pad moved to another
-	# console does not carry a Dreamcast's slots around.
+	# Unplugging keeps the sockets and what is in them, so a card is still in the
+	# pad when it is plugged into the next machine.
 	pad_dc.on_unplugged()
 	await get_tree().process_frame
-	_ok(pad_dc.vmu_slot_count() == 0, "unplugging removes the slots",
+	_ok(pad_dc.vmu_slot_count() == 2, "unplugging keeps the slots",
 		"got %d" % pad_dc.vmu_slot_count())
-	_ok(pad_dc.get_node_or_null("VmuSlot1") == null, "and the nodes with them")
+	_ok(pad_dc.get_vmu(0) == card, "and the card in slot 1")
+	_ok(pad_dc.vmu_slot_option_value(1) == "Purupuru", "and the pack in slot 2",
+		pad_dc.vmu_slot_option_value(1))
+
+	await _check_persistence(pad_dc, card, pack, PAD_SCENE, "pad")
 
 	# Where the storage layer would put this card's bytes, and what flycast reads.
 	print("[probe] card image  : %s" % card.image_path())
@@ -149,13 +173,14 @@ func _run() -> void:
 	for i in range(4):
 		await get_tree().process_frame
 
-	_ok(rx_dc.vmu_slot_count() == 0, "a loose dongle has no VMU slot")
+	_ok(rx_dc.vmu_slot_count() == 2, "a loose dongle already has two VMU slots",
+		"got %d" % rx_dc.vmu_slot_count())
 	rx_dc.on_plugged_in(dc, 1)
 	rx_nes.on_plugged_in(nes, 1)
 	await get_tree().process_frame
-	_ok(rx_dc.vmu_slot_count() == 2, "a dongle on a Dreamcast grows two, as a pad does",
+	_ok(rx_dc.vmu_slot_count() == 2, "a dongle on a Dreamcast has two, as a pad does",
 		"got %d" % rx_dc.vmu_slot_count())
-	_ok(rx_nes.vmu_slot_count() == 0, "a dongle on a NES grows none",
+	_ok(rx_nes.vmu_slot_count() == 2, "and so does one on a NES",
 		"got %d" % rx_nes.vmu_slot_count())
 	_ok(rx_dc.vmu_slot_option_value(0) == "None", "its empty slot reads None",
 		rx_dc.vmu_slot_option_value(0))
@@ -231,5 +256,49 @@ func _run() -> void:
 
 	rx_dc.on_unplugged()
 	await get_tree().process_frame
-	_ok(rx_dc.vmu_slot_count() == 0, "unplugging the dongle removes its slot",
+	_ok(rx_dc.vmu_slot_count() == 2, "unplugging the dongle keeps its slots",
 		"got %d" % rx_dc.vmu_slot_count())
+	_ok(rx_dc.get_vmu(0) == rx_card, "and the card in them")
+
+	await _check_persistence(rx_dc, rx_card, rx_pack, DONGLE_SCENE, "dongle")
+
+
+## Save a host through ScenePersistence, restore that entry onto a FRESH host and
+## fresh devices under the ids the save gave them, and check both slots came back.
+##
+## The entry goes through JSON on the way, as a save file does, because an id
+## parses back as a float and a reference that only resolved as an int would pass
+## here and fail on a real load.
+func _check_persistence(host: Node3D, card: VmuCard, pack: JumpPack,
+		scene: PackedScene, what: String) -> void:
+	var sp := ScenePersistence.new()
+	var nodes := get_tree().get_nodes_in_group("spawned")
+	var node_to_id: Dictionary = {}
+	for i in range(nodes.size()):
+		node_to_id[nodes[i]] = i
+	var entry: Dictionary = sp._serialize_node(host, int(node_to_id[host]), node_to_id)
+	var refs: Variant = entry.get("vmus")
+	var recorded := (refs is Array and (refs as Array).size() == 2
+		and refs[0] != null and int(refs[0]) == int(node_to_id[card])
+		and refs[1] != null and int(refs[1]) == int(node_to_id[pack]))
+	_ok(recorded, "a save records the %s's card and pack by slot" % what, str(refs))
+
+	var parsed: Variant = JSON.parse_string(JSON.stringify(entry))
+	var host2 := scene.instantiate() as Node3D
+	var card2 := VMU_SCENE.instantiate() as VmuCard
+	var pack2 := JUMP_PACK_SCENE.instantiate() as JumpPack
+	add_child(host2)
+	add_child(card2)
+	add_child(pack2)
+	if host2 is RigidBody3D:
+		(host2 as RigidBody3D).freeze = true
+	for i in range(3):
+		await get_tree().process_frame
+	var hid := int(node_to_id[host])
+	var spawned := {hid: host2, int(node_to_id[card]): card2, int(node_to_id[pack]): pack2}
+	sp._restore_entry(self, hid, spawned, {hid: parsed})
+	for i in range(3):
+		await get_tree().process_frame
+	_ok(host2.call("get_vmu", 0) == card2, "a load puts the card back in the %s's slot 1" % what)
+	_ok(str(host2.call("vmu_slot_option_value", 1)) == "Purupuru",
+		"and the pack back in slot 2", str(host2.call("vmu_slot_option_value", 1)))
