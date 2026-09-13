@@ -459,6 +459,27 @@ func is_running_standalone() -> bool:
 	return _running
 
 
+## This card's screen for the desktop fullscreen overlay, in the panel shape
+## TvFullscreen.panels_for builds for a handheld. Empty while the screen is dark.
+## `flip_h` is set for a panel handed over by flycast, which is stored mirrored.
+func fullscreen_panels() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var pic := _picture()
+	if _lcd == null or pic.is_empty():
+		return out
+	out.append({
+		"mesh": _lcd,
+		"texture_fn": func() -> Texture2D:
+			var now := _picture()
+			return now["tex"] as Texture2D if not now.is_empty() else null,
+		"region": Rect2(0, 0, 1, 1),
+		"aspect_fn": func() -> float: return 48.0 / 32.0,
+		"fit_fn": func() -> Vector2: return Vector2.ONE,
+		"flip_h": bool(pic.get("mirror", false)),
+	})
+	return out
+
+
 func _on_options_ready(_categories: Dictionary, definitions: Dictionary,
 		values: Dictionary) -> void:
 	_opt_defs = definitions
