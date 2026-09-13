@@ -39,11 +39,14 @@ vec2 pixel_aa_uv(sampler2D tex, vec2 uv) {
 	vec2 tuv = uv * tsize;                       // uv in texels
 	// fwidth = how many texels this screen pixel covers. >1 minifying, <1 magnifying.
 	vec2 fw = max(fwidth(tuv), vec2(1e-5));
-	// Distance from the texel centre, remapped so the transition is exactly one
-	// screen pixel wide and clamped to the texel's own half-width: magnifying hard
-	// (fw << 1) clamps to +/-0.5 and lands on texel centres, i.e. crisp like nearest.
-	vec2 ramp = clamp((fract(tuv) - 0.5) / fw, -0.5, 0.5);
-	return (floor(tuv) + 0.5 + ramp) / tsize;
+	// Anchor on the nearest texel BOUNDARY and ramp across it over one screen
+	// pixel, clamped to half a texel either side. Away from a boundary the clamp
+	// lands the sample on a texel centre, so a magnified picture stays crisp.
+	// Anchoring on the centre instead pushed every magnified sample onto a texel
+	// edge, where bilinear returns a 50/50 blend of two neighbouring dots.
+	vec2 seam = floor(tuv + 0.5);
+	vec2 ramp = clamp((tuv - seam) / fw, -0.5, 0.5);
+	return (seam + ramp) / tsize;
 }
 
 // The same filter, with every hardware tap confined to [lo, hi]. Bounds are
