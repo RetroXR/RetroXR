@@ -143,7 +143,11 @@ func _run() -> void:
 		"reicast_device_port1_slot2": "None",
 		"reicast_per_content_vmus": "disabled",
 	}
-	opts.merge(VmuStorage.screen_options(0, true), true)
+	opts.merge(VmuStorage.screen_options(0), true)
+	# This probe MEASURES the overlay, so it asks for it by name. The room
+	# never does -- screen_options pins it off on every port, because a
+	# Dreamcast does not draw a VMU onto the television.
+	opts[VmuStorage.SCREEN_DISPLAY_KEY % 1] = "enabled"
 	CoreOptionsStore.merge_values(_root, core, opts)
 	print("[vmuscr] pinned %d options; screen rect for 640x480 = %s"
 		% [opts.size(), str(VmuStorage.screen_rect(Vector2i(640, 480)))])

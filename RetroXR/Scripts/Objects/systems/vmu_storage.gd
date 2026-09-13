@@ -67,9 +67,21 @@ const SLOT_EMPTY := "None"
 #
 # Which one is in play cannot be known at staging time: the symbol is resolved
 # when the core loads, which is after the options are written. So the overlay is
-# staged ON as it always was, and switched off in nudge_slots_after_start once
-# the core has answered. A player on the buildbot's build keeps the crop and
-# notices nothing.
+# staged OFF regardless, and put BACK in nudge_slots_after_start only if the
+# core turns out not to hand its panels over.
+#
+# That is the way round it is for a measured reason. Staging it ON and switching
+# it off after the answer put the good outcome behind a runtime check, and the
+# check is not reliable: across two content starts in one session HasVmuScreens()
+# answered true on the first and false on the second, so the badge stayed burned
+# into the picture for the whole of the second game. The default is now the
+# outcome we want, and only the fallback has to ask.
+#
+# ALL FOUR PORTS work with the handover, and only one can with the crop. The
+# core's screen options are per port and its overlay has four corners, but
+# screen_rect below is a single Upper Left 1x window — so a second card in
+# another port has nowhere of its own to be cropped from. Handed over, each
+# port's panel is fetched by index and four cards are no harder than one.
 #
 # The screen options are indexed per PORT, not per slot, and flycast gates them
 # on MapleExpansionDevices[i][0] — so only the card in SLOT 1 has a screen. That
@@ -84,6 +96,10 @@ const SCREEN_OPACITY_KEY  := "reicast_vmu%d_screen_opacity"
 ## Gates every option above, defaults to disabled, and is NOT merely a
 ## menu-visibility toggle: with it off the screen options do nothing at all.
 const SHOW_SCREEN_KEY := "reicast_show_vmu_screen_settings"
+
+## How many controller ports a Dreamcast has, and therefore how many per-port
+## screen options the core carries.
+const PORTS := 4
 
 ## The LCD's true resolution.
 const LCD_SIZE := Vector2i(48, 32)
@@ -105,11 +121,17 @@ const SCREEN_POSITION := "Upper Left"
 
 
 ## The options that put one port's VMU screen where screen_rect expects it.
-static func screen_options(port: int, enabled: bool) -> Dictionary:
+## Always DISABLED. There is no argument and no path that turns it on.
+##
+## A Dreamcast never puts a VMU's screen on the television, and neither does
+## this room: the card's own face is where that picture belongs. The position,
+## size and opacity keys are still pinned because they also colour the panel the
+## fork hands over — they are not about the overlay.
+static func screen_options(port: int) -> Dictionary:
 	var n := port + 1
 	return {
 		SHOW_SCREEN_KEY: "enabled",
-		SCREEN_DISPLAY_KEY % n: "enabled" if enabled else "disabled",
+		SCREEN_DISPLAY_KEY % n: "disabled",
 		SCREEN_POSITION_KEY % n: SCREEN_POSITION,
 		SCREEN_SIZE_KEY % n: "%dx" % SCREEN_MULT,
 		SCREEN_OPACITY_KEY % n: "100%",
@@ -240,13 +262,16 @@ func stage_before_start(dir: String, core: String) -> void:
 		return
 
 	var opts := {PER_CONTENT_KEY: "disabled"}
+	# Every port, not only the ones with a card in them. The core's screen
+	# options persist in its own .opt, so a port left alone keeps whatever it was
+	# last set to -- and one of them having been on once is enough to burn a badge
+	# into the picture on a machine that has no card in that port at all.
+	for port in range(PORTS):
+		opts.merge(screen_options(port), true)
 	for entry: Dictionary in _seated():
 		var port: int = entry["port"]
 		var slot: int = entry["slot"]
 		opts[SLOT_KEY % [port + 1, slot + 1]] = str(entry["value"])
-		# Only slot 1 has a screen, in the hardware and in the core.
-		if slot == 0:
-			opts.merge(screen_options(port, is_instance_valid(entry["card"])), true)
 
 		var path := core_vmu_path(dir, core, port, slot)
 		var card: Node = entry["card"]
@@ -287,28 +312,6 @@ func nudge_slots_after_start() -> void:
 		var key := SLOT_KEY % [int(entry["port"]) + 1, int(entry["slot"]) + 1]
 		lib.SetCoreOption(key, str(entry["value"]))
 	print("[VmuStorage] re-asserted the slot options so the core reads them")
-	_stop_burning_in_the_screen(lib)
-
-
-## Take the VMU panel off the television, on a core that can hand it over.
-##
-## Here rather than in stage_before_start because the answer is not known until
-## the core has loaded: the symbol is resolved at load, and the options are
-## written before it. The badge is therefore on for the first frames of a boot,
-## where a Dreamcast is showing its own swirl and nobody is looking at a corner.
-##
-## Only the display key is cleared. Position, size and opacity are left as they
-## were, because they also colour vmu_lcd_data, which is what the fork hands over
-## — turning the overlay off must not turn the card's picture monochrome.
-func _stop_burning_in_the_screen(lib: Node) -> void:
-	if not lib.has_method("HasVmuScreens") or not lib.HasVmuScreens():
-		return
-	for entry: Dictionary in _seated():
-		if int(entry["slot"]) != 0:
-			continue
-		lib.SetCoreOption(SCREEN_DISPLAY_KEY % (int(entry["port"]) + 1), "disabled")
-	print("[VmuStorage] the core hands its VMU screens over, so the overlay is off"
-		+ " and the television keeps the whole picture")
 
 
 ## One card's image, creating it only for a card this session invented.

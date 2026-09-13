@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 401
+const EXPECTED_CASES := 403
 
 var _pass := 0
 var _fail := 0
@@ -747,6 +747,17 @@ func _test_vmu_play() -> void:
 	var cf := FileAccess.open(card_path, FileAccess.WRITE)
 	cf.store_buffer(VMUCard.blank_image())
 	cf.close()
+	# The overlay is OFF, on every port, always. A Dreamcast never draws a VMU
+	# onto the television and neither does this room. It used to be staged ON and
+	# switched off once the core answered HasVmuScreens() -- which answered true
+	# on one content start and false on the next in the same session, leaving the
+	# badge burned into the game for the whole of the second one. There is no
+	# runtime check left to get this wrong.
+	_eq(str(VmuStorage.screen_options(0).get("reicast_vmu1_screen_display")), "disabled",
+		"vmu_drain/the overlay is staged off, so a clean picture needs no runtime check")
+	_eq(str(VmuStorage.screen_options(2).get("reicast_vmu3_screen_display")), "disabled",
+		"vmu_drain/every port, not only the one with a card in it")
+
 	_eq(VMUCard.list_saves(FileAccess.get_file_as_bytes(card_path), false).size(), 0,
 		"vmu_drain/the card starts with nothing on it")
 	store.set("_staged", {"0:0": drain_id})

@@ -85,7 +85,6 @@ var _lcd_off_mat: Material = null
 var _lcd_mat: ShaderMaterial = null
 var _last_tex: Texture2D = null
 var _last_frame := Vector2i.ZERO
-var _last_whole := false
 
 # --- The controls -------------------------------------------------------------
 #
@@ -447,12 +446,14 @@ func is_running_standalone() -> bool:
 
 ## Whichever picture belongs on this card's face, and the window into it.
 ##
-## Three sources, and they crop differently. Standalone, the core IS a VMU and
-## its frame is the whole 48 x 32 screen, so the window is everything. Seated on
-## a core that publishes its VMU panels separately, the same holds for the
-## opposite reason: the panel arrives as a texture of its own. Seated on a core
-## that cannot, the picture is a Dreamcast frame with the LCD burned into one
-## corner, and the window is that corner — see VmuStorage.screen_rect.
+## Two sources, and both are whole. Standalone, the core IS a VMU and its frame
+## is the entire 48 x 32 screen. Seated, the Dreamcast core hands that port's
+## panel over as a texture of its own.
+##
+## There is no third. A core that cannot hand panels over leaves this card dark,
+## which is the honest picture: the overlay it would otherwise be cropped from
+## is pinned off on every port, so that corner of the frame holds nothing but
+## the game.
 func _picture() -> Dictionary:
 	if _running and _lib != null:
 		var own: Texture2D = _lib.GetVideoTexture()
@@ -460,27 +461,15 @@ func _picture() -> Dictionary:
 			return {"tex": own, "whole": true}
 		return {}
 	var sys := host_system()
-	if sys == null or not sys.has_method("get_video_texture"):
+	if sys == null or not sys.has_method("vmu_screen_texture"):
 		return {}
-	# The core's own panel, when the core will hand one over. Then this is a
-	# texture in its own right rather than a corner of somebody else's, and the
-	# television keeps every pixel of the game — nothing was drawn over it.
-	if sys.has_method("vmu_screen_texture"):
-		var panel: Texture2D = sys.call("vmu_screen_texture", _pad, _slot)
-		if panel != null:
-			return {"tex": panel, "whole": true}
-		# Nothing yet, and on a core that hands panels over that means the card
-		# has not drawn rather than that the picture holds one. There is no
-		# overlay in the frame to fall back to — it was switched off the moment
-		# the core said it could do without it — so cropping here would put the
-		# game's top-left corner on the card. Dark is the honest answer, and it is
-		# what an untouched VMU looks like.
-		var dark: bool = sys.has_method("vmu_hands_screens_over") and bool(
-			sys.call("vmu_hands_screens_over"))
-		if dark:
-			return {}
-	var tex: Texture2D = sys.call("get_video_texture")
-	return {"tex": tex, "whole": false} if tex != null else {}
+	# The core's own panel, or nothing. There is no second source any more: the
+	# overlay that used to be cropped out of the television's picture is pinned
+	# OFF on every port, because a Dreamcast never draws a VMU onto the TV and
+	# neither does this room. With it off there is nothing in that corner but the
+	# game, so cropping would put the game on the card.
+	var panel: Texture2D = sys.call("vmu_screen_texture", _pad, _slot)
+	return {"tex": panel, "whole": true} if panel != null else {}
 
 
 func _process(_delta: float) -> void:
@@ -504,30 +493,26 @@ func _process(_delta: float) -> void:
 		_show_off()
 		return
 	var tex: Texture2D = pic["tex"]
-	var whole: bool = pic["whole"]
 
 	if _lcd_mat == null:
 		_lcd_mat = ShaderMaterial.new()
 		_lcd_mat.shader = SCREEN_WINDOW_SHADER
 
 	# The texture is a NEW object whenever the core changes resolution, so it is
-	# read every frame and only pushed when it differs. The rect has to be
-	# recomputed with it: flycast places the panel relative to the output size,
-	# so a rect worked out once goes wrong the moment the core resizes.
+	# read every frame and only pushed when it differs.
 	if tex != _last_tex:
 		_last_tex = tex
 		_lcd_mat.set_shader_parameter("source_tex", tex)
 	var frame := tex.get_size()
 	var frame_i := Vector2i(int(frame.x), int(frame.y))
-	# The KIND of source counts as a change too, not only its size: a whole
-	# panel and a window onto a frame can be the same number of pixels, and the
-	# rect for one is wrong for the other.
-	if frame_i != _last_frame or whole != _last_whole:
+	# The WHOLE texture, always. Both sources are a 48 x 32 panel in their own
+	# right now — the core's own frame when this card is the machine, and the
+	# handed-over panel when it is seated — so there is no window to work out.
+	# This used to crop a rect out of the television's picture, which is gone with
+	# the overlay it cropped.
+	if frame_i != _last_frame:
 		_last_frame = frame_i
-		_last_whole = whole
-		var r := Rect2(0, 0, 1, 1) if whole else VmuStorage.screen_rect(frame_i)
-		_lcd_mat.set_shader_parameter("source_rect",
-			Vector4(r.position.x, r.position.y, r.size.x, r.size.y))
+		_lcd_mat.set_shader_parameter("source_rect", Vector4(0.0, 0.0, 1.0, 1.0))
 
 	if _lcd.get_surface_override_material(0) != _lcd_mat:
 		_lcd.set_surface_override_material(0, _lcd_mat)
