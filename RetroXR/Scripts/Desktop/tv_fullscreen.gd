@@ -84,14 +84,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## The television or handheld behind a crosshair hit, or null. Walks up from the
 ## hit node: a DS bottom screen resolves as a pointer target, so the action node
-## alone would miss it.
+## alone would miss it. A node with fullscreen_panels() counts too.
 static func device_from_target(target: InteractionTarget) -> Node3D:
 	if target == null:
 		return null
 	for start: Node3D in [target.hit_node, target.action_node]:
 		var node: Node = start
 		while is_instance_valid(node):
-			if node is RetroTV or node is RetroSystem:
+			if node is RetroTV or node is RetroSystem \
+					or (node is Node3D and node.has_method("fullscreen_panels")):
 				return node
 			node = node.get_parent()
 	return null
@@ -100,6 +101,10 @@ static func device_from_target(target: InteractionTarget) -> Node3D:
 ## One panel per picture quad on the device, or none when it has nothing to show.
 static func panels_for(device: Node) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
+	# A device that describes its own screens, in this same panel shape.
+	if device.has_method("fullscreen_panels"):
+		out.assign(device.call("fullscreen_panels"))
+		return out
 	if device is RetroTV:
 		var tv := device as RetroTV
 		out.append({
@@ -161,6 +166,8 @@ func open(device: Node3D) -> bool:
 		rect.stretch_mode = TextureRect.STRETCH_SCALE
 		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		# Optional: a panel whose texture is stored mirrored.
+		rect.flip_h = bool(panel.get("flip_h", false))
 		add_child(rect)
 		panel["node"] = rect
 		panel["atlas"] = AtlasTexture.new()
