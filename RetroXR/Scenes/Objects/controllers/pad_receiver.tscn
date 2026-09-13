@@ -150,20 +150,21 @@ snap_require = "controller_plug"
 ; screen faces the front -- the face with the LED and the name on it, which is
 ; the side you stand on.
 ;
-; y=68: the card's origin is its body centre and its body is 80 mm long, so the
-; end carrying the connector lands at y=28, twelve millimetres down inside the
-; boss's 40 mm top face, with the connector itself reaching y=22. Deep enough to
-; read as seated rather than perched on the lid, and shallow enough that the
-; screen clears the boss: the LCD spans y=42..73 and the lid is at 40. Six
-; millimetres lower and the boss eats the bottom of the picture.
+; y=81 is measured off the CONNECTOR, not the body, which is the same rule the
+; pad's seats follow. The connector spans the card's own y=39..46, so with the
+; card upside down its tip lands at 81-46 = 35, five millimetres inside the
+; boss's 40 mm lid, and the body's end stops at 81-40 = 41, a millimetre clear of
+; it. So the black connector is the only part that goes in, and it goes most of
+; the way. It was y=68 before, which buried twelve millimetres of body -- the
+; card looked pushed in too far, because it was.
 [node name="VmuSeat1" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.0245, 0.068, 0.0105)
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.0245, 0.081, 0.0105)
 
 ; Same seat, mirrored across the boss. Slot 2 has no window on real hardware
 ; and none here: the core never drives it, so this is where a Jump Pack
 ; usually goes -- which is also flycast's own default for the second slot.
 [node name="VmuSeat2" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.0245, 0.068, 0.0105)
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.0245, 0.081, 0.0105)
 
 [node name="Led" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.026, 0.014, -0.0228)

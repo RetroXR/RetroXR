@@ -18,6 +18,16 @@ friction = 0.8
 ; Axes match the card's, and have to: the slot's seat transform is authored for
 ; that convention and is shared. +Y is the length, with the connector on that
 ; end, and +Z is the face that a player holding it sees.
+;
+; And so does the ORIGIN, which is the part that is easy to get wrong. A seat
+; places an object's origin, and a VMU's origin is 40 mm below the end its
+; connector is on. The pack is 55 long, so with its origin at its own centre
+; that end was only 27.5 mm away -- and seated in a slot authored for the card,
+; it floated 12.5 mm short: above the dongle's lid with its connector in the
+; open, and behind the pad's rear face. Every mesh and shape below is lifted
+; +12.5 mm so the body spans -15..+40 and the connector sits at +42.5, exactly
+; where the card's does. The origin is no longer the middle of the pack; it is
+; the card's reference point, which is the thing a shared seat needs.
 [sub_resource type="BoxShape3D" id="Box_jp_body"]
 size = Vector3(0.047, 0.055, 0.022)
 
@@ -61,24 +71,26 @@ angular_damp = 8.0
 script = ExtResource("1_jpscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, 0)
 shape = SubResource("Box_jp_body")
 
 [node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, 0)
 mesh = SubResource("Mesh_jp_body")
 surface_material_override/0 = SubResource("Mat_jp_shell")
 
 [node name="Connector" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0425, 0)
 mesh = SubResource("Mesh_jp_connector")
 surface_material_override/0 = SubResource("Mat_jp_connector")
 
 [node name="Recess" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.002, 0.0111)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0145, 0.0111)
 mesh = SubResource("Mesh_jp_recess")
 surface_material_override/0 = SubResource("Mat_jp_recess")
 
 [node name="Legend" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.018, 0.0111)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0055, 0.0111)
 pixel_size = 0.00016
 alpha_cut = 1
 text = "JUMP PACK"
@@ -88,7 +100,9 @@ autowrap_mode = 3
 
 ; IDENTITY, as the card's is. A snap zone seats an object by composing its grab
 ; point, so this being the origin is what makes the slot's own transform the
-; whole of the seating geometry -- and what lets one seat serve both.
+; whole of the seating geometry. One seat serves both only because the origin
+; is the same distance from the connector end on both -- see the note on the
+; body above; the matching axes alone were not enough.
 [node name="GrabPoint" type="Marker3D" parent="."]
 visible = false
 script = ExtResource("3_grabpoint")
@@ -101,6 +115,7 @@ collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0125, 0)
 shape = SubResource("Box_jp_pointer")
 
 [node name="HandRight" parent="." instance=ExtResource("4_rhand")]

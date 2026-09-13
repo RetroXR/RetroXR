@@ -186,6 +186,23 @@ func _run() -> void:
 		"a Jump Pack goes in its second slot", rx_dc.vmu_slot_option_value(1))
 	_ok(rx_dc.vmu_slot_option_value(0) == "VMU",
 		"with the card still in the first")
+	# And the pack has to seat as deep as the card, measured off its ACTUAL
+	# connector and body meshes rather than a local point. That distinction is the
+	# check: the pack is 25 mm shorter than a card, and with its origin at its own
+	# centre it floated 12.5 mm above the lid with its connector in the open -- while
+	# a fixed local point, transformed by the same seat, read exactly as deep as
+	# the card's and passed.
+	var inv := rx_dc.global_transform.affine_inverse()
+	var pconn := rx_pack.get_node("Connector") as MeshInstance3D
+	var pbody := rx_pack.get_node("Body") as MeshInstance3D
+	var ptip: Vector3 = inv * (pconn.global_transform
+		* Vector3(0, (pconn.mesh as BoxMesh).size.y * 0.5, 0))
+	var pend: Vector3 = inv * (pbody.global_transform
+		* Vector3(0, (pbody.mesh as BoxMesh).size.y * 0.5, 0))
+	_ok(ptip.y > 0.020 and ptip.y < 0.040, "the pack's connector is inside the boss too",
+		"connector tip at y=%.1f mm, boss is 20.0..40.0" % (ptip.y * 1000.0))
+	_ok(pend.y >= 0.040, "and the pack's body stops at the lid",
+		"body ends at y=%.1f mm, lid at 40.0" % (pend.y * 1000.0))
 
 	# Which way up it went in. The card's +Y is its connector and its +Z is the
 	# screen; seated, the connector must point DOWN into the boss and the screen
@@ -200,13 +217,17 @@ func _run() -> void:
 		"y=%s" % str(rel.basis.y.snappedf(0.001)))
 	_ok(rel.basis.z.dot(Vector3.FORWARD) > 0.99, "and its screen facing the dongle's front",
 		"z=%s" % str(rel.basis.z.snappedf(0.001)))
-	# And how deep. The end of the card that carries the connector has to finish
-	# INSIDE the boss -- below its 40 mm lid, above the 20 mm case top -- or the
-	# card is either perched on the lid or swallowed. "It is in the slot" cannot
-	# tell those apart; the card counts as seated in all three.
-	var tip: Vector3 = rel * Vector3(0, 0.040, 0)
-	_ok(tip.y > 0.020 and tip.y < 0.040, "up to its connector in the boss",
-		"card ends at y=%.1f mm, boss is 20.0..40.0" % (tip.y * 1000.0))
+	# And how deep. Only the black connector goes in, most of the way: its tip
+	# (the card's own y=46) must be inside the boss, below the 40 mm lid, while
+	# the body's end (y=40) stays OUTSIDE it. "It is in the slot" cannot tell a
+	# card perched on the lid from one pushed in too far; these two can, and the
+	# second is the one a player saw.
+	var tip: Vector3 = rel * Vector3(0, 0.046, 0)
+	var body_end: Vector3 = rel * Vector3(0, 0.040, 0)
+	_ok(tip.y > 0.020 and tip.y < 0.040, "its connector is inside the boss",
+		"connector tip at y=%.1f mm, boss is 20.0..40.0" % (tip.y * 1000.0))
+	_ok(body_end.y >= 0.040, "and the body stops at the lid rather than going in",
+		"body ends at y=%.1f mm, lid at 40.0" % (body_end.y * 1000.0))
 
 	rx_dc.on_unplugged()
 	await get_tree().process_frame
