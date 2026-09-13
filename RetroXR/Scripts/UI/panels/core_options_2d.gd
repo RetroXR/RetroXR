@@ -27,6 +27,8 @@ signal ignore_gravity_toggled(enabled: bool)
 signal close_requested
 
 # ── Palette ────────────────────────────────────────────────────────────────────
+const CoreOptionRow := preload("res://Scripts/UI/widgets/core_option_row.gd")
+
 const COLOR_BG    := Color(0.08, 0.08, 0.16, 0.96)
 const COLOR_TITLE := Color(0.9,  0.9,  1.0)
 const COLOR_ROW   := Color(0.65, 0.65, 0.80)
@@ -425,12 +427,7 @@ func _matches_filter(key: String, defn) -> bool:
 
 ## The description the row shows, falling back the same way the row itself does.
 func _option_desc(key: String, defn) -> String:
-	var desc: String = defn.GetDescriptionCategorized()
-	if desc.is_empty():
-		desc = defn.GetDescription()
-	if desc.is_empty():
-		desc = key
-	return desc
+	return CoreOptionRow.description(key, defn)
 
 
 func _refresh_options() -> void:
@@ -563,102 +560,18 @@ func _add_reset_row() -> void:
 ## defn is a LibretroOptionDefinition (untyped to allow dynamic ClassDB dispatch).
 func _add_option_row(key: String, defn, current_val: String) -> void:
 	# A pinned option shows what the SYSTEM enforces, not what happens to be
-	# sitting in the .opt. The stored value can be stale — a core that renamed
-	# its values leaves one that matches nothing, and the index search below
-	# then falls back to entry 0, so the row would advertise a setting the
-	# system is actively overriding.
+	# sitting in the .opt, which can be stale.
 	if _forced.has(key):
 		current_val = str(_forced[key])
-
-	var desc := _option_desc(key, defn)
-
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 52)
-	row.add_theme_constant_override("separation", 4)
-	_options_rows.add_child(row)
-
-	var label := Label.new()
-	label.text = desc
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.add_theme_font_size_override("font_size", 14)
-	label.add_theme_color_override("font_color", COLOR_ROW)
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.clip_text = true
-	row.add_child(label)
-
-	# values_arr elements are LibretroOptionValue objects (RefCounted from C++).
-	# Kept untyped so GDScript uses dynamic ClassDB dispatch for GetValue/GetLabel.
-	var values_arr: Array = defn.GetValues()
-	if values_arr.is_empty():
-		return
-
-	var cur_idx := 0
-	for i in range(values_arr.size()):
-		if values_arr[i].GetValue() == current_val:
-			cur_idx = i
-			break
-
-	# A pinned option shows its value but no way to move it, and says so. The
-	# hardware depends on it (the 3DS's side-by-side framebuffer, the Virtual Boy's
-	# stereo split), so an editable control here would only offer a broken screen.
-	# Its own Label rather than appended to the description: the note is the part
-	# that needs to stand out, and a single Label can only carry one colour.
-	var is_forced := _forced.has(key)
-	if is_forced:
-		var note := Label.new()
-		note.text = "(fixed by this system)"
-		note.add_theme_font_size_override("font_size", 13)
-		note.add_theme_color_override("font_color", COLOR_LOCKED)
-		note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		row.add_child(note)
-
-	var prev_btn := Button.new()
-	prev_btn.text = " < "
-	prev_btn.custom_minimum_size = Vector2(48, 48)
-	prev_btn.disabled = is_forced
-	row.add_child(prev_btn)
-
-	var val_lbl := Label.new()
-	val_lbl.custom_minimum_size = Vector2(140, 0)
-	val_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	val_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	val_lbl.add_theme_font_size_override("font_size", 13)
-	val_lbl.add_theme_color_override("font_color", COLOR_TITLE)
-	val_lbl.clip_text = true
-	var initial_v = values_arr[cur_idx]
-	val_lbl.text = _value_label(initial_v)
-	row.add_child(val_lbl)
-
-	var next_btn := Button.new()
-	next_btn.text = " > "
-	next_btn.custom_minimum_size = Vector2(48, 48)
-	next_btn.disabled = is_forced
-	row.add_child(next_btn)
-
-	var idx_ref := [cur_idx]
-	prev_btn.pressed.connect(func():
-		idx_ref[0] = (idx_ref[0] - 1 + values_arr.size()) % values_arr.size()
-		var v = values_arr[idx_ref[0]]
-		val_lbl.text = _value_label(v)
-		var new_val: String = v.GetValue()
-		print("[CoreOptions2D] '%s' → '%s' (prev)" % [key, new_val])
-		option_changed.emit(key, new_val)
-	)
-	next_btn.pressed.connect(func():
-		idx_ref[0] = (idx_ref[0] + 1) % values_arr.size()
-		var v = values_arr[idx_ref[0]]
-		val_lbl.text = _value_label(v)
-		var new_val: String = v.GetValue()
-		print("[CoreOptions2D] '%s' → '%s' (next)" % [key, new_val])
-		option_changed.emit(key, new_val)
-	)
+	CoreOptionRow.add(_options_rows, key, defn, current_val, _forced.has(key),
+		"(fixed by this system)", func(k: String, v: String) -> void:
+			print("[CoreOptions2D] '%s' -> '%s'" % [k, v])
+			option_changed.emit(k, v))
 
 
-## Return a LibretroOptionValue's display label, falling back to the raw value.
-## Parameter intentionally untyped — see _add_option_row note.
+## Parameter intentionally untyped — see CoreOptionRow.add.
 func _value_label(v) -> String:
-	var lbl: String = v.GetLabel()
-	return lbl if not lbl.is_empty() else v.GetValue()
+	return CoreOptionRow.value_label(v)
 
 
 # ── Controllers tab ────────────────────────────────────────────────────────────

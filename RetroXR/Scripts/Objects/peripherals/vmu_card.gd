@@ -139,6 +139,8 @@ const IDLE_FRAMES_TO_STOP := 24
 # is seated. What it grows instead is a Libretro node of its own.
 
 const STANDALONE_CORE := "vemulator"
+## Pinned for every standalone run: see _boot() for why writing must be on.
+const FORCED_OPTIONS := {"enable_flash_write": "enabled"}
 
 ## Where a game lifted off a card is written for the core to boot from.
 const PLAY_DIR := "user://vmu_play"
@@ -148,6 +150,9 @@ var _running := false
 ## What the running game is called, for the panel's "playing" row. Empty when
 ## nothing runs.
 var _game_title := ""
+## What the running core published through options_ready, for the card menu.
+var _opt_defs: Dictionary = {}
+var _opt_values: Dictionary = {}
 ## The hand's buttons reaching the core — see VmuInput.
 var _input: VmuInput = null
 
@@ -348,7 +353,7 @@ func _boot(image: PackedByteArray, title: String) -> bool:
 	f.store_buffer(image)
 	f.close()
 	var root := CoreDownloadManager.default_core_root()
-	CoreOptionsStore.merge_values(root, STANDALONE_CORE, {"enable_flash_write": "enabled"})
+	CoreOptionsStore.merge_values(root, STANDALONE_CORE, FORCED_OPTIONS)
 
 	# Made once and KEPT. Freeing a Libretro node whose emulation thread is still
 	# unwinding is how a clean run ends in an access violation on the way out —
@@ -363,6 +368,7 @@ func _boot(image: PackedByteArray, title: String) -> bool:
 			return false
 		_lib.name = "VmuLibretro"
 		add_child(_lib)
+		_lib.connect("options_ready", _on_options_ready)
 	_lib.StartContent(root, STANDALONE_CORE, ProjectSettings.globalize_path(scratch))
 	_running = true
 	_game_title = title
@@ -426,6 +432,8 @@ func power_off() -> void:
 	if not _running:
 		return
 	_running = false
+	_opt_defs = {}
+	_opt_values = {}
 	# StopContent, and the node is KEPT rather than freed.
 	#
 	# Measured, both ways round. Freeing it here crashes the process with an
@@ -449,6 +457,48 @@ func power_off() -> void:
 
 func is_running_standalone() -> bool:
 	return _running
+
+
+func _on_options_ready(_categories: Dictionary, definitions: Dictionary,
+		values: Dictionary) -> void:
+	_opt_defs = definitions
+	_opt_values = values
+
+
+## vemulator's options for the card menu: {definitions, values, forced, note}.
+## From the running core when there is one, otherwise read from the core without
+## starting it.
+func core_options() -> Dictionary:
+	var out := {"definitions": {}, "values": {}, "forced": FORCED_OPTIONS, "note": ""}
+	if _running and not _opt_defs.is_empty():
+		out["definitions"] = _opt_defs
+		out["values"] = _opt_values
+		return out
+	if CoreDownloadManager.installed_core_lib(STANDALONE_CORE).is_empty():
+		out["note"] = "The %s core is not installed." % STANDALONE_CORE
+		return out
+	var root := CoreDownloadManager.default_core_root()
+	var peeked := CoreOptionsStore.peek(root, STANDALONE_CORE)
+	if peeked.is_empty():
+		out["note"] = CoreOptionsStore.peek_failure_reason(root, STANDALONE_CORE)
+		return out
+	out["definitions"] = peeked["definitions"]
+	out["values"] = CoreOptionsStore.effective_values(peeked,
+		CoreOptionsStore.load_values(root, STANDALONE_CORE))
+	return out
+
+
+## Change one vemulator option: live while a game runs, otherwise in the option
+## file the core reads at start. Pinned keys are refused.
+func set_core_option(key: String, value: String) -> void:
+	if FORCED_OPTIONS.has(key):
+		return
+	if _running and _lib != null:
+		_lib.call("SetCoreOption", key, value)
+		_opt_values[key] = value
+	else:
+		CoreOptionsStore.set_value(CoreDownloadManager.default_core_root(),
+			STANDALONE_CORE, key, value)
 
 
 ## Whichever picture belongs on this card's face, and the window into it.

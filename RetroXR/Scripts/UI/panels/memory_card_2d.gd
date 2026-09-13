@@ -36,6 +36,10 @@ signal save_play_requested(save: Dictionary)
 ## Power the running minigame off.
 signal play_stop_requested
 signal close_requested
+## The player stepped a core option on the Options tab.
+signal option_changed(key: String, value: String)
+
+const CoreOptionRow := preload("res://Scripts/UI/widgets/core_option_row.gd")
 
 const COLOR_BG := Color(0.08, 0.08, 0.16, 0.96)
 const COLOR_TITLE := Color(0.9, 0.9, 1.0)
@@ -100,6 +104,10 @@ var _name_edit: LineEdit = null
 var _usage: Label = null
 var _title: Label = null
 var _restore_btn: Button = null
+var _tabs: TabContainer = null
+var _options_scroll: ScrollContainer = null
+var _options_rows: VBoxContainer = null
+var _options_note: Label = null
 
 # Each entry: {rect: TextureRect, frames: Array[ImageTexture]}
 var _animated: Array[Dictionary] = []
@@ -181,6 +189,18 @@ func _build_ui() -> void:
 	var sep := HSeparator.new()
 	vbox.add_child(sep)
 
+	# Saves, and the options of a core the card runs itself. The bar stays hidden
+	# until populate_options() has something for the second tab.
+	_tabs = TabContainer.new()
+	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_tabs.add_theme_font_size_override("font_size", 18)
+	_tabs.tabs_visible = false
+	vbox.add_child(_tabs)
+	var saves_page := VBoxContainer.new()
+	saves_page.name = "Saves"
+	saves_page.add_theme_constant_override("separation", 8)
+	_tabs.add_child(saves_page)
+
 	# A card holds up to 15 saves and about four rows are in view, so this list
 	# scrolls on any well-used card. The bar is widened like every other panel's:
 	# the default 8 px is under 6 mm on a panel this size, which a laser cannot
@@ -189,7 +209,7 @@ func _build_ui() -> void:
 	var scroll := _scroll
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	vbox.add_child(scroll)
+	saves_page.add_child(scroll)
 	MenuStyle.fat_vscroll_bar(scroll, 22, 40)
 	_list = VBoxContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -201,7 +221,53 @@ func _build_ui() -> void:
 	_restore_btn.custom_minimum_size = Vector2(0, 44)
 	_restore_btn.visible = false
 	_restore_btn.pressed.connect(func() -> void: restore_requested.emit())
-	vbox.add_child(_restore_btn)
+	saves_page.add_child(_restore_btn)
+
+	var options_page := VBoxContainer.new()
+	options_page.name = "Options"
+	options_page.add_theme_constant_override("separation", 6)
+	_tabs.add_child(options_page)
+	_options_note = Label.new()
+	_options_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_options_note.add_theme_font_size_override("font_size", 16)
+	_options_note.add_theme_color_override("font_color", COLOR_DIM)
+	_options_note.visible = false
+	options_page.add_child(_options_note)
+	_options_scroll = ScrollContainer.new()
+	_options_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_options_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	options_page.add_child(_options_scroll)
+	MenuStyle.fat_vscroll_bar(_options_scroll, 22, 40)
+	_options_rows = VBoxContainer.new()
+	_options_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_options_rows.add_theme_constant_override("separation", 2)
+	_options_scroll.add_child(_options_rows)
+	_tabs.set_tab_hidden(1, true)
+
+
+## Offer a core's options on the Options tab. `definitions` and `values` take the
+## shape of the Libretro node's options_ready signal; keys in `forced` show
+## locked at their pinned value. `note` explains an empty list. With no options
+## and no note, the tab and its bar stay hidden.
+func populate_options(definitions: Dictionary, values: Dictionary, forced: Dictionary,
+		note: String) -> void:
+	var shown := not definitions.is_empty() or not note.is_empty()
+	_tabs.set_tab_hidden(1, not shown)
+	_tabs.tabs_visible = shown
+	if not shown:
+		_tabs.current_tab = 0
+		return
+	for c in _options_rows.get_children():
+		c.queue_free()
+	_options_note.text = note
+	_options_note.visible = not note.is_empty()
+	var keys: Array = definitions.keys()
+	keys.sort()
+	for key: String in keys:
+		var current := str(forced.get(key, values.get(key, "")))
+		CoreOptionRow.add(_options_rows, key, definitions[key], current,
+			forced.has(key), "(fixed by this card)",
+			func(k: String, v: String) -> void: option_changed.emit(k, v), true)
 
 
 ## Fill from a parsed card. `saves` is CardFormat.list_saves() output; `total` is
@@ -259,8 +325,10 @@ func populate(card_name: String, saves: Array, free: int, total: int,
 ## other options panel does — SpawnMenuController finds this by name on whatever
 ## panel a pointer is aimed at.
 func scroll_active(pixels: float) -> void:
-	if _scroll != null:
-		_scroll.scroll_vertical += int(pixels)
+	var target: ScrollContainer = _options_scroll \
+		if _tabs != null and _tabs.current_tab == 1 else _scroll
+	if target != null:
+		target.scroll_vertical += int(pixels)
 
 
 ## Show what RomM holds for this card in place of the card's own saves.

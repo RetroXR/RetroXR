@@ -77,6 +77,7 @@ func _ensure_ui_connected() -> void:
 	ui.restore_closed.connect(_populate)
 	ui.save_play_requested.connect(_on_play_requested)
 	ui.play_stop_requested.connect(_on_stop_requested)
+	ui.option_changed.connect(_on_core_option_changed)
 	# The stack lifts itself onto its own quad in front of whichever Viewport2Din3D
 	# hosts it — this panel's, here — so it needs to live in the 2D tree.
 	_toasts = MenuToasts.create()
@@ -153,6 +154,18 @@ func _populate() -> void:
 	ui.play_blocked = str(_card.call("standalone_blocker")) if playable else ""
 	ui.playing_title = str(_card.call("playing_title")) if playable else ""
 	ui.populate(_card.card_label, saves, free, total, fmt)
+	# A card that runs a core of its own offers that core's options on a tab.
+	if _card.has_method("core_options"):
+		var opts: Dictionary = _card.call("core_options")
+		ui.populate_options(opts["definitions"], opts["values"], opts["forced"],
+			str(opts["note"]))
+	else:
+		ui.populate_options({}, {}, {}, "")
+
+
+func _on_core_option_changed(key: String, value: String) -> void:
+	if _card and is_instance_valid(_card) and _card.has_method("set_core_option"):
+		_card.call("set_core_option", key, value)
 
 
 ## Delete one save, armed on the first press and done on the second, because
