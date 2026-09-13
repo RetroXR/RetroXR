@@ -6,12 +6,10 @@
 ## netplay session -- has a name, a hash and no artwork, and nobody is going to
 ## go and press that button for it.
 ##
-## Why this is a QUEUE and not a call:
-##
-## ScreenScraper rate-limits per account and ScreenscraperClient serialises
-## requests behind _wait_for_rate_limit(), so firing one scrape per resolved ROM
-## would stack requests the server will refuse. One at a time, in arrival order,
-## is the only shape that works.
+## It is a gate in front of the shared ScrapeQueue rather than a queue of its
+## own: the queue owns the account's thread allowance and the request spacing,
+## so every scrape in the app has to go through it or the server sees a burst.
+## What lives here is the decision to scrape at all.
 ##
 ## It is also deliberately quiet about failure. A scrape is decoration: the game
 ## runs, the session starts, the file is already correct. A missing cover must
@@ -23,25 +21,22 @@ extends Node
 ## it; nothing depends on it having succeeded.
 signal scraped(rom_path: String, systemid: String)
 
+## A bound rather than an unbounded backlog: a first run over a large library
+## would otherwise queue thousands and scrape for hours.
 const MAX_QUEUE := 64
 
-var _client: ScreenscraperClient = null
+var _queue: ScrapeQueue = null
 var _gamelist: GamelistManager = null
 var _config: ScraperConfig = null
 
-var _queue: Array[Dictionary] = []
-var _busy := false
-var _current: Dictionary = {}
 
-
-func setup(client: ScreenscraperClient, gamelist: GamelistManager,
+func setup(queue: ScrapeQueue, gamelist: GamelistManager,
 		config: ScraperConfig) -> void:
-	_client = client
+	_queue = queue
 	_gamelist = gamelist
 	_config = config
-	if _client != null:
-		_client.scrape_completed.connect(_on_completed)
-		_client.scrape_failed.connect(_on_failed)
+	if _queue != null:
+		_queue.completed.connect(_on_completed)
 
 
 ## True when auto-scraping can run at all.
@@ -51,7 +46,7 @@ func setup(client: ScreenscraperClient, gamelist: GamelistManager,
 ## not opted into anything. Checked per request rather than cached because the
 ## account can be entered while the app is running.
 func is_enabled() -> bool:
-	return _config != null and _client != null \
+	return _config != null and _queue != null \
 		and not _config.ssid.is_empty() and not _config.sspassword.is_empty()
 
 
@@ -79,68 +74,32 @@ func request(rom_path: String, systemid: String) -> void:
 		return
 	if already_scraped(rom_path, systemid):
 		return
-	for q: Dictionary in _queue:
-		if str(q["rom"]) == rom_path:
-			return
-	if str(_current.get("rom", "")) == rom_path:
+	if _queue.is_queued(rom_path):
 		return
-	# A bound rather than an unbounded backlog: a first run over a large library
-	# would otherwise queue thousands and scrape for hours.
-	if _queue.size() >= MAX_QUEUE:
+	if _queue.waiting_count(ScrapeQueue.TAG_AUTO) >= MAX_QUEUE:
 		return
-	_queue.append({"rom": rom_path, "systemid": systemid})
-	_pump()
+	_queue.enqueue(rom_path, systemid, {"tag": ScrapeQueue.TAG_AUTO})
 
 
 ## True when this ROM already has metadata, so scraping it again would spend a
 ## request to learn nothing.
 func already_scraped(rom_path: String, systemid: String) -> bool:
-	if _gamelist == null:
-		return false
-	var game := _gamelist.get_game_for_rom(systemid, rom_path)
-	return not game.is_empty() and not str(game.get("name", "")).is_empty()
+	return not ScrapeQueue.needs_scrape(_gamelist, systemid, rom_path)
 
 
 func queued_count() -> int:
-	return _queue.size() + (1 if _busy else 0)
+	if _queue == null:
+		return 0
+	return _queue.waiting_count(ScrapeQueue.TAG_AUTO) + _queue.active_count(ScrapeQueue.TAG_AUTO)
 
 
 func cancel_all() -> void:
-	_queue.clear()
+	if _queue != null:
+		_queue.cancel_all(ScrapeQueue.TAG_AUTO)
 
 
-func _pump() -> void:
-	if _busy or _queue.is_empty() or _client == null:
-		return
-	_current = _queue.pop_front()
-	_busy = true
-	# checksums_of is the cached pass, so a ROM the netplay layer just hashed
-	# costs nothing here.
-	var sums := NetFileTransfer.checksums_of(str(_current["rom"]))
-	_client.scrape_rom(str(_current["rom"]), str(_current["systemid"]), sums)
-
-
-func _on_completed(result: Dictionary) -> void:
-	if not _busy:
-		return
-	var rom := str(_current.get("rom", ""))
-	var systemid := str(_current.get("systemid", ""))
-	if _gamelist != null and not result.is_empty() and not rom.is_empty():
-		_gamelist.add_or_merge_rom(systemid, result, {"path": rom})
-		if _client != null:
-			_client.download_all_media(result, systemid, rom.get_file().get_basename())
-	_finish()
-	if not rom.is_empty():
-		scraped.emit(rom, systemid)
-
-
-func _on_failed(_error: String) -> void:
-	if not _busy:
-		return
-	_finish()
-
-
-func _finish() -> void:
-	_busy = false
-	_current = {}
-	_pump()
+## Every accepted result is announced, whoever queued it: a scraped game is a
+## scraped game to the library that refreshes on this.
+func _on_completed(rom_path: String, systemid: String, _result: Dictionary, accepted: bool) -> void:
+	if accepted:
+		scraped.emit(rom_path, systemid)

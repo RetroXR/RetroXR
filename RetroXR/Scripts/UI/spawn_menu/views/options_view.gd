@@ -43,6 +43,8 @@ var romm_catalog: RommCatalog = null
 var romm_cache: RommCacheManifest = null
 var romm_art: RommArtCache = null
 var scraper_config: ScraperConfig = null
+var _scrape_queue: ScrapeQueue = null
+var _scrape_threads_label: Label = null
 var web_server: WebFileServer = null
 ## Read here like its siblings; this one was fetched off the menu at the point
 ## of use instead, which is the drift the others avoid.
@@ -123,6 +125,7 @@ static func create(menu: Node) -> SpawnMenuOptionsView:
 	v.romm_cache     = menu.romm_cache
 	v.romm_art       = menu.romm_art
 	v.scraper_config = menu.scraper_config
+	v._scrape_queue = menu.scrape_queue
 	v.web_server     = menu.web_server
 	v.romm_downloader = menu.romm_downloader
 	v._build()
@@ -1344,11 +1347,40 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 	_add_options_text_field(vbox, "Username (ssid)", scraper_config.ssid, func(text: String):
 		scraper_config.ssid = text
 		scraper_config.save_config()
+		_refresh_scrape_threads()
 	)
 	_add_options_text_field(vbox, "Password", scraper_config.sspassword, func(text: String):
 		scraper_config.sspassword = text
 		scraper_config.save_config()
+		_refresh_scrape_threads()
 	, true)
+
+	# How many scrapes run at once is the account's to say, so the number is
+	# shown: it is the one visible sign that signing in changed anything.
+	var threads_row := HBoxContainer.new()
+	threads_row.add_theme_constant_override("separation", 10)
+	threads_row.custom_minimum_size = Vector2(0, 40)
+	vbox.add_child(threads_row)
+	_scrape_threads_label = MenuStyle.label("Scrape threads: 1", 18, MenuStyle.COLOR_DESC)
+	threads_row.add_child(_scrape_threads_label)
+	if _scrape_queue != null:
+		_scrape_threads_label.text = "Scrape threads: %d" % _scrape_queue.thread_count()
+		if not _scrape_queue.threads_changed.is_connected(_on_scrape_threads_changed):
+			_scrape_queue.threads_changed.connect(_on_scrape_threads_changed)
+
+	# Off by default: a queued batch would otherwise stop at a popup after
+	# every game. On, each result is shown before anything is written.
+	var approve_row := HBoxContainer.new()
+	approve_row.add_theme_constant_override("separation", 10)
+	approve_row.custom_minimum_size = Vector2(0, 56)
+	vbox.add_child(approve_row)
+	var approve_lbl := MenuStyle.label("Approve scrapes before saving", 18, MenuStyle.COLOR_TITLE)
+	approve_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	approve_row.add_child(approve_lbl)
+	approve_row.add_child(VRToggle.create(scraper_config.approve_scrapes, func(on: bool) -> void:
+		scraper_config.approve_scrapes = on
+		scraper_config.save_config()
+	))
 
 	# Region priorities
 	_add_options_text_field(vbox, "Region Priority", ", ".join(scraper_config.region_priorities), func(text: String):
@@ -1373,6 +1405,17 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 			scraper_config.language_priorities = parts
 			scraper_config.save_config()
 	)
+
+
+func _on_scrape_threads_changed(threads: int) -> void:
+	if is_instance_valid(_scrape_threads_label):
+		_scrape_threads_label.text = "Scrape threads: %d" % threads
+
+
+## Credentials changed: ask the account again, and reflect the answer.
+func _refresh_scrape_threads() -> void:
+	if _scrape_queue != null:
+		_scrape_queue.refresh_threads()
 
 
 ## Show or hide the unencrypted-connection note under the URL field.

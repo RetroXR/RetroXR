@@ -6,6 +6,7 @@ extends Node
 
 
 const API_BASE := "https://www.screenscraper.fr/api2/jeuInfos.php"
+const USER_INFO_URL := "https://www.screenscraper.fr/api2/ssuserInfos.php"
 const MIN_REQUEST_INTERVAL_MS := 1200
 const MAX_RETRIES := 3
 const REQUEST_TIMEOUT := 75.0
@@ -42,12 +43,17 @@ signal scrape_status(message: String)
 signal media_download_started(media_type: String)
 signal media_download_completed(media_type: String, path: String)
 signal media_download_failed(media_type: String, error: String)
+## The account's limits, as parse_user_info shapes them. An anonymous client
+## answers at once without a request.
+signal user_info_received(info: Dictionary)
+signal user_info_failed(error: String)
 
 
 var config: ScraperConfig = null
 
 var _last_request_time_ms: int = 0
 var _scrape_http: HTTPRequest = null
+var _user_info_http: HTTPRequest = null
 var _media_downloads: Dictionary = {}  # media_type -> HTTPRequest
 
 
@@ -191,8 +197,102 @@ func _on_scrape_completed(result: int, response_code: int, body: PackedByteArray
 		return
 
 	var parsed := _parse_jeu(jeu)
+	# Every answer carries the account's limits beside the game, so a queue can
+	# read its thread allowance and today's usage without a second request.
+	if response.get("ssuser", null) is Dictionary:
+		parsed["ssuser"] = parse_user_info(response["ssuser"])
 	print("[ScreenscraperClient] Scrape success: game_id=%s name=%s" % [parsed.get("game_id", "?"), parsed.get("name", "?")])
 	scrape_completed.emit(parsed)
+
+
+# ── Account ───────────────────────────────────────────────────────────────────
+
+## Ask screenscraper what this account may do. Emits user_info_received or
+## user_info_failed. Without credentials there is nothing to ask: the anonymous
+## allowance is one thread, and that answer is given at once.
+func fetch_user_info() -> void:
+	if config == null or config.ssid.is_empty() or config.sspassword.is_empty():
+		user_info_received.emit(parse_user_info({}))
+		return
+
+	var params := PackedStringArray()
+	params.append("devid=%s" % ScraperConfig.DEV_ID)
+	params.append("devpassword=%s" % ScraperConfig.DEV_PASSWORD)
+	params.append("softname=%s" % ScraperConfig.SOFT_NAME)
+	params.append("ssid=%s" % config.ssid.uri_encode())
+	params.append("sspassword=%s" % config.sspassword.uri_encode())
+	params.append("output=json")
+	var url := USER_INFO_URL + "?" + "&".join(params)
+
+	if is_instance_valid(_user_info_http):
+		_user_info_http.queue_free()
+	_user_info_http = HTTPRequest.new()
+	_user_info_http.use_threads = true
+	_user_info_http.timeout = REQUEST_TIMEOUT
+	add_child(_user_info_http)
+	_user_info_http.request_completed.connect(_on_user_info_completed)
+
+	await _wait_for_rate_limit()
+	_last_request_time_ms = Time.get_ticks_msec()
+	var err := _user_info_http.request(url)
+	if err != OK:
+		_cleanup_user_info_http()
+		user_info_failed.emit("Failed to start HTTP request (err %d)" % err)
+
+
+func _on_user_info_completed(result: int, response_code: int,
+		_headers: PackedStringArray, body: PackedByteArray) -> void:
+	_cleanup_user_info_http()
+	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
+		user_info_failed.emit(_describe_failure(result, response_code, body))
+		return
+	var text := body.get_string_from_utf8()
+	var refusal := _known_api_error(text)
+	if not refusal.is_empty():
+		user_info_failed.emit(refusal)
+		return
+	var json := JSON.new()
+	if json.parse(text) != OK or not json.data is Dictionary:
+		user_info_failed.emit("Invalid JSON response")
+		return
+	var data: Dictionary = json.data
+	var header: Dictionary = data.get("header", {})
+	if str(header.get("success", "")) != "true":
+		user_info_failed.emit(_clean_error_text(str(header.get("error", "Unknown error"))))
+		return
+	var response: Dictionary = data.get("response", {})
+	var ssuser: Variant = response.get("ssuser", {})
+	var info := parse_user_info(ssuser if ssuser is Dictionary else {})
+	print("[ScreenscraperClient] Account: level %d, %d threads, %d/%d requests today" % [
+		info["niveau"], info["maxthreads"], info["requeststoday"], info["maxrequestsperday"]])
+	user_info_received.emit(info)
+
+
+## The ssuser object as ints. The API writes every number as a string, and a
+## missing or nonsensical maxthreads reads as one: the anonymous allowance, and
+## the only value that is safe to be wrong by.
+static func parse_user_info(ssuser: Dictionary) -> Dictionary:
+	var info := {
+		"id": str(ssuser.get("id", "")),
+		"niveau": _int_field(ssuser, "niveau"),
+		"maxthreads": maxi(1, _int_field(ssuser, "maxthreads")),
+		"requeststoday": _int_field(ssuser, "requeststoday"),
+		"maxrequestsperday": _int_field(ssuser, "maxrequestsperday"),
+		"maxrequestspermin": _int_field(ssuser, "maxrequestspermin"),
+		"anonymous": ssuser.is_empty(),
+	}
+	return info
+
+
+static func _int_field(d: Dictionary, key: String) -> int:
+	var raw := str(d.get(key, "")).strip_edges()
+	return int(raw) if raw.is_valid_int() else 0
+
+
+func _cleanup_user_info_http() -> void:
+	if is_instance_valid(_user_info_http):
+		_user_info_http.queue_free()
+	_user_info_http = null
 
 
 # ── Failure text ──────────────────────────────────────────────────────────────
@@ -569,6 +669,13 @@ func download_all_media(scrape_result: Dictionary, systemid: String, rom_basenam
 		var dir_name: String = type_map[mtype]["dir"]
 		var dest := media_root.path_join(dir_name).path_join(rom_basename + ext)
 		await download_media(mtype, url, dest)
+
+
+## Media transfers still in flight. download_all_media returns once the last
+## one has STARTED, so a caller that must not overlap two games' downloads —
+## _media_downloads is keyed by media type — polls this to zero first.
+func pending_media_count() -> int:
+	return _media_downloads.size()
 
 
 func _wait_for_rate_limit() -> void:

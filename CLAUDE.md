@@ -301,6 +301,7 @@ debug build, 2026-08-27 — all passing):
 | `tv_resize_tests` | — | — | the TV's own geometry |
 | `web_server_tests` | — | — | the built-in file server |
 | `prop_lighting_tests` | 17 | 1 s | which of a room's meshes go on the baked prop shader, late spawns and despawns included |
+| `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
 so re-measure rather than trusting this table, and treat an unexplained DROP as a signal.

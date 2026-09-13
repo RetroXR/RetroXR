@@ -58,6 +58,9 @@ var scraper_config: ScraperConfig = null
 ## Scrapes a ROM that arrived without anyone browsing for it -- a RomM download,
 ## or a file matched by hash to join a session.
 var auto_scraper: AutoScraper = null
+## The one queue every scrape goes through; runs as many at once as the
+## ScreenScraper account allows.
+var scrape_queue: ScrapeQueue = null
 
 ## Web file server (HTTP file manager accessible from a PC browser).
 var web_server: WebFileServer = null
@@ -224,20 +227,22 @@ func _init_scraper() -> void:
 	scraper_client.media_download_completed.connect(_on_media_download_notice)
 	scraper_client.media_download_failed.connect(_on_media_download_notice_failed)
 
-	# Auto-scraping gets its OWN ScreenscraperClient rather than sharing the one
-	# above. The signals are the reason: scrape_completed carries a result and
-	# not the request it answers, so a manual scrape finishing while the queue
-	# was working would be consumed as the queue's own. Two clients cost one
-	# node; the account's rate limit is shared either way, and each client
-	# serialises its own requests.
-	var auto_client := ScreenscraperClient.new()
-	auto_client.name = "AutoScrapeClient"
-	auto_client.config = scraper_config
-	add_child(auto_client)
+	# One queue for every scrape in the app. It owns the account's thread
+	# allowance and one client per thread; the client above stays for the
+	# review popup's own media downloads and their toasts.
+	scrape_queue = ScrapeQueue.new()
+	scrape_queue.name = "ScrapeQueue"
+	add_child(scrape_queue)
+	scrape_queue.setup(scraper_config, gamelist_manager)
+	scrape_queue.progress.connect(_on_scrape_progress)
+	scrape_queue.failed.connect(_on_scrape_item_failed)
+	scrape_queue.drained.connect(_on_scrape_drained)
+	scrape_queue.stopped.connect(_on_scrape_stopped)
+
 	auto_scraper = AutoScraper.new()
 	auto_scraper.name = "AutoScraper"
 	add_child(auto_scraper)
-	auto_scraper.setup(auto_client, gamelist_manager, scraper_config)
+	auto_scraper.setup(scrape_queue, gamelist_manager, scraper_config)
 
 
 ## RomM: config + client + catalog + downloader + art cache, all wired to the
@@ -626,6 +631,42 @@ func _update_scrape_status(msg: String) -> void:
 func hide_scrape_status() -> void:
 	if _toasts:
 		_toasts.status_clear()
+
+
+## The queue's own line in the status slot. Only while something is running:
+## the review popup's hashing message and a plain notice share the slot, and an
+## idle queue must not hold it.
+func _on_scrape_progress(active: int, waiting: int, done: int, failed_count: int, threads: int) -> void:
+	if not _toasts:
+		return
+	if active == 0 and waiting == 0:
+		return
+	var msg := "Scraping — %d running, %d waiting, %d done" % [active, waiting, done]
+	if failed_count > 0:
+		msg += ", %d failed" % failed_count
+	msg += " (%d thread%s)" % [threads, "" if threads == 1 else "s"]
+	_toasts.status(msg)
+
+
+## One coalesced toast for the failures, not one each: a batch that cannot find
+## forty games must not stack forty bars.
+func _on_scrape_item_failed(rom_path: String, _systemid: String, error: String) -> void:
+	notify("scrape:failed", "❌", "%s — %s" % [rom_path.get_file().get_basename(), error],
+		-1.0, MenuToasts.DWELL_FAIL)
+
+
+func _on_scrape_drained(done: int, failed_count: int) -> void:
+	hide_scrape_status()
+	if done == 0 and failed_count == 0:
+		return
+	var msg := "Scraped %d game%s" % [done, "" if done == 1 else "s"]
+	if failed_count > 0:
+		msg += ", %d failed" % failed_count
+	show_notice(msg, 4.0)
+
+
+func _on_scrape_stopped(reason: String) -> void:
+	notify("scrape:stopped", "⚠️", "Scraping stopped — %s" % reason, -1.0, MenuToasts.DWELL_FAIL)
 
 
 func _on_media_download_started(media_type: String) -> void:

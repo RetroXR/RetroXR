@@ -50,6 +50,9 @@ var core_db: CoreInfoDatabase = null
 var core_defaults: CoreDefaults = null
 var gamelist_manager: GamelistManager = null
 var scraper_client: ScreenscraperClient = null
+var scraper_config: ScraperConfig = null
+## Every scrape goes through the menu's queue; this view only asks and listens.
+var scrape_queue: ScrapeQueue = null
 var romm_config: RommConfig = null
 var romm_client: RommClient = null
 var romm_catalog: RommCatalog = null
@@ -141,7 +144,9 @@ var _posters_vbox: VBoxContainer = null
 
 # ── Scraper / detail panels ───────────────────────────────────────────────────
 var _scrape_popup: PanelContainer = null
-var _scrape_in_progress: bool = false
+## Coalesces the repopulate a batch of accepted scrapes asks for: forty
+## results landing in a second must not rebuild the page forty times.
+var _scrape_refresh_timer: SceneTreeTimer = null
 var _game_detail_panel: PanelContainer = null
 var _rom_variants_panel: PanelContainer = null
 ## The saves-and-achievements page for one ROM, and the CartridgeOptionsPanel
@@ -164,6 +169,8 @@ static func create(menu: Node) -> SpawnMenuSpawnView:
 	v.core_defaults    = menu.core_defaults
 	v.gamelist_manager = menu.gamelist_manager
 	v.scraper_client   = menu.scraper_client
+	v.scraper_config   = menu.scraper_config
+	v.scrape_queue     = menu.scrape_queue
 	v.romm_config      = menu.romm_config
 	v.romm_client      = menu.romm_client
 	v.romm_catalog     = menu.romm_catalog
@@ -200,6 +207,11 @@ func _connect_romm() -> void:
 	romm_art.art_ready.connect(_on_romm_art_ready)
 	if scraped_art != null:
 		scraped_art.art_ready.connect(_on_scraped_art_ready)
+	if scrape_queue != null:
+		scrape_queue.started.connect(_on_scrape_row_changed)
+		scrape_queue.completed.connect(_on_scrape_completed)
+		scrape_queue.failed.connect(_on_scrape_failed)
+		scrape_queue.media_downloaded.connect(_on_scrape_media_downloaded)
 	# Show last run's platforms immediately; a refresh only corrects it.
 	for sid: String in romm_config.cached_platforms:
 		var p: Variant = romm_config.cached_platforms[sid]
@@ -923,6 +935,16 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 	_romm_resync_btn = resync
 	_romm_update_resync_btn()
 
+	var scrape_all := Button.new()
+	scrape_all.text = String.chr(MenuIcons.SCRAPE_ALL)
+	scrape_all.add_theme_font_override("font", MenuIcons.symbols())
+	scrape_all.add_theme_font_size_override("font_size", 22)
+	scrape_all.custom_minimum_size = Vector2(64, 52)
+	scrape_all.size_flags_horizontal = Control.SIZE_SHRINK_END
+	scrape_all.tooltip_text = "Scrape every game on this page that has no details yet"
+	scrape_all.pressed.connect(_on_scrape_all_pressed.bind(systemid))
+	toolbar.add_child(scrape_all)
+
 	# A blank 8M Memory Pack is a thing you BUY, not a thing that exists: the
 	# Satellaview downloads onto a pack and there is nowhere to put a programme
 	# without one. Every other platform's media arrives as a dump, so this is the
@@ -1560,12 +1582,13 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	# time the player downloads onto it, so there is nothing stable to match.
 	# disabled is reset here or a mid-scrape scroll leaves it stuck on whichever
 	# row later reuses this pooled button.
-	scrape.text = String.chr(MenuIcons.SCRAPE)
-	scrape.disabled = false
 	scrape.visible = not local_path.is_empty() and not is_pack
-	scrape.tooltip_text = "Scrape artwork and details from ScreenScraper"
-	if scrape.visible:
-		scrape.pressed.connect(_on_scrape_pressed.bind(local_path, systemid, scrape))
+	var queued := scrape.visible and scrape_queue != null and scrape_queue.is_queued(local_path)
+	scrape.text = "⏳" if queued else String.chr(MenuIcons.SCRAPE)
+	scrape.disabled = queued
+	scrape.tooltip_text = "Waiting in the scrape queue" if queued 		else "Scrape artwork and details from ScreenScraper"
+	if scrape.visible and not queued:
+		scrape.pressed.connect(_on_scrape_pressed.bind(local_path, systemid))
 
 
 ## Two-stage delete: the first press arms it, the second within 3 s commits.
@@ -1833,67 +1856,104 @@ func _spawn_row(label: String, token: String) -> Button:
 
 # ── Scraper ──────────────────────────────────────────────────────────────────
 
-func _on_scrape_pressed(rom_path: String, systemid: String, btn: Button) -> void:
-	if _scrape_in_progress:
-		print("[SpawnView] Scrape already in progress, ignoring request for: %s" % rom_path.get_file())
-		# A toast, not a notice: the status slot is showing the running scrape's
-		# own progress, and a notice would replace that text.
-		notify("scrape:busy", "⚠️", "Scrape Already In Progress",
-			-1.0, MenuToasts.DWELL_INFO)
+func _on_scrape_pressed(rom_path: String, systemid: String) -> void:
+	if scrape_queue == null:
 		return
-	_scrape_in_progress = true
-	btn.text = "⏳"
-	btn.disabled = true
-	_show_scrape_status("Hashing ROM...")
-
-	# Compute checksums on a background thread to avoid UI freeze.
-	# Thread.wait_to_finish() returns the callable's return value directly,
-	# avoiding the WorkerThreadPool lambda-environment copy issue where
-	# variable reassignment inside add_task() doesn't propagate back.
-	var thread := Thread.new()
-	thread.start(func() -> Dictionary: return RomHasher.compute_checksums(rom_path))
-	while thread.is_alive():
-		await get_tree().process_frame
-	var checksums: Dictionary = thread.wait_to_finish()
-	print("[SpawnView] Checksums done: ", checksums)
-
-	if checksums.is_empty():
-		_scrape_in_progress = false
-		btn.text = String.chr(MenuIcons.SCRAPE)
-		btn.disabled = false
-		_hide_scrape_status()
-		push_warning("[SpawnView] Failed to compute checksums for: %s" % rom_path)
+	# Review mode hands the result back for the popup; otherwise the queue
+	# writes it and fetches the art, and the row repaints when it lands.
+	var review := scraper_config != null and scraper_config.approve_scrapes
+	if not scrape_queue.enqueue(rom_path, systemid,
+			{"tag": ScrapeQueue.TAG_MANUAL, "review": review}):
+		show_notice("Already in the scrape queue")
 		return
+	var ahead := scrape_queue.waiting_count()
+	if ahead > 0:
+		show_notice("Queued: %s (%d waiting)" % [rom_path.get_file().get_basename(), ahead])
+	_on_scrape_row_changed(rom_path, systemid)
 
-	# Connect one-shot signals for this scrape
-	var completed_cb: Callable
-	var failed_cb: Callable
 
-	completed_cb = func(result: Dictionary):
-		scraper_client.scrape_completed.disconnect(completed_cb)
-		scraper_client.scrape_failed.disconnect(failed_cb)
-		_scrape_in_progress = false
-		if is_instance_valid(btn):
-			btn.text = String.chr(MenuIcons.SCRAPE)
-			btn.disabled = false
-		_hide_scrape_status()
-		print("[SpawnView] Scrape completed for: %s" % rom_path.get_file())
+## Queue every game on this page that has no details yet. The filtered view is
+## the page: a search or a region filter narrows what is queued, the way it
+## narrows what is shown. A game already scraped is skipped -- re-scraping one
+## stays a per-row action -- and so is one already waiting.
+func _on_scrape_all_pressed(systemid: String) -> void:
+	if scrape_queue == null:
+		return
+	var review := scraper_config != null and scraper_config.approve_scrapes
+	var candidates: Array = []
+	for model: Dictionary in _romm_rows:
+		var local_path := str(model.get("path", ""))
+		if local_path.is_empty():
+			continue
+		if systemid == "satellaview" and BsxPack.is_pack_path(local_path):
+			continue
+		candidates.append(local_path)
+	var pick := scrape_queue.select_unscraped(systemid, candidates)
+	var skipped := int(pick["skipped"])
+	var queued := 0
+	for local_path: String in pick["paths"]:
+		if scrape_queue.enqueue(local_path, systemid,
+				{"tag": ScrapeQueue.TAG_MANUAL, "review": review}):
+			queued += 1
+	var msg := "Queued %d game%s" % [queued, "" if queued == 1 else "s"]
+	if skipped > 0:
+		msg += " (%d already scraped)" % skipped
+	if queued == 0 and skipped == 0:
+		msg = "Nothing on this page to scrape"
+	show_notice(msg, 3.0)
+	if is_instance_valid(_romm_list):
+		_romm_list.rebind_visible()
+
+
+## A row's button reads the queue at bind time, so a change of state is a
+## repaint of what is on screen and nothing more.
+func _on_scrape_row_changed(_rom_path: String, _systemid: String) -> void:
+	if is_instance_valid(_romm_list):
+		_romm_list.rebind_visible()
+
+
+func _on_scrape_completed(rom_path: String, systemid: String, result: Dictionary,
+		accepted: bool) -> void:
+	print("[SpawnView] Scrape completed for: %s" % rom_path.get_file())
+	if not accepted:
 		_show_scrape_popup(rom_path, systemid, result)
+		_on_scrape_row_changed(rom_path, systemid)
+		return
+	# The name and metadata a row draws changed: repopulate, once per burst.
+	_romm_meta_cache.erase(rom_path)
+	if systemid == _romm_detail_systemid:
+		_schedule_scrape_refresh()
+	else:
+		_on_scrape_row_changed(rom_path, systemid)
 
-	failed_cb = func(error: String):
-		scraper_client.scrape_completed.disconnect(completed_cb)
-		scraper_client.scrape_failed.disconnect(failed_cb)
-		_scrape_in_progress = false
-		if is_instance_valid(btn):
-			btn.text = String.chr(MenuIcons.SCRAPE)
-			btn.disabled = false
-		_hide_scrape_status()
-		push_warning("[SpawnView] Scrape failed: %s" % error)
-		_show_scrape_error_popup(error)
 
-	scraper_client.scrape_completed.connect(completed_cb)
-	scraper_client.scrape_failed.connect(failed_cb)
-	scraper_client.scrape_rom(rom_path, systemid, checksums)
+func _on_scrape_failed(rom_path: String, systemid: String, error: String) -> void:
+	push_warning("[SpawnView] Scrape failed for %s: %s" % [rom_path.get_file(), error])
+	_on_scrape_row_changed(rom_path, systemid)
+
+
+## Same as the accept path's refresh: drop what cached a miss for this ROM
+## before the art existed, then repaint the rows on screen. Wheel, label and
+## manual are what a row draws; no row draws the box.
+func _on_scrape_media_downloaded(rom_path: String, systemid: String, media_type: String,
+		_path: String) -> void:
+	if media_type != "wheel" and media_type != "label" and media_type != "manual":
+		return
+	if scraped_art != null:
+		scraped_art.forget(systemid, rom_path)
+	_romm_meta_cache.erase(rom_path)
+	_on_scrape_row_changed(rom_path, systemid)
+
+
+func _schedule_scrape_refresh() -> void:
+	if _scrape_refresh_timer != null:
+		return
+	_scrape_refresh_timer = get_tree().create_timer(0.5)
+	_scrape_refresh_timer.timeout.connect(func() -> void:
+		_scrape_refresh_timer = null
+		if is_instance_valid(_romm_list):
+			_populate_cartridges_tab()
+	)
 
 
 func _show_scrape_popup(rom_path: String, systemid: String, result: Dictionary) -> void:

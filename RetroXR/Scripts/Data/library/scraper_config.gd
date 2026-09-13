@@ -20,6 +20,10 @@ var region_priorities: Array[String] = ["us", "eu", "wor", "jp", "ss"]
 ## Language priority for selecting localized text (first match wins).
 var language_priorities: Array[String] = ["en", "fr"]
 
+## Show each scrape result for approval before it is written. Off by default:
+## a queued batch would otherwise stop at a popup after every game.
+var approve_scrapes: bool = false
+
 ## Whether the web file server should auto-start on launch.
 var web_server_enabled: bool = false
 
@@ -82,6 +86,7 @@ func load_config() -> void:
 		for l in data["language_priorities"]:
 			language_priorities.append(str(l))
 
+	approve_scrapes = bool(data.get("approve_scrapes", false))
 	web_server_enabled = bool(data.get("web_server_enabled", false))
 	web_server_pin = str(data.get("web_server_pin", ""))
 
@@ -98,6 +103,7 @@ func save_config() -> bool:
 		"sspassword": sspassword,
 		"region_priorities": region_priorities,
 		"language_priorities": language_priorities,
+		"approve_scrapes": approve_scrapes,
 		"web_server_enabled": web_server_enabled,
 		"web_server_pin": web_server_pin,
 	}
