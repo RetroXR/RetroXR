@@ -350,6 +350,16 @@ const DPAD_THRESHOLD := 0.35
 @onready var _trigger_pivot: Node3D = $TriggerPivot
 @onready var _dpad: Node3D = $DPad
 @onready var _leds: Node3D = $PlayerLEDs
+## The middle of the speaker grille, on the face between Home and 1.
+@onready var _speaker: Node3D = $Speaker
+
+## The Meta XR mixer and listener the speaker's voice is placed against, resolved
+## on first use.
+var _mx: Object = null
+var _listener: Node = null
+## The core's voice for this remote's speaker, and the gain last sent to it.
+var _speaker_voice := -1
+var _speaker_gain := -1.0
 
 
 ## The remote is aimed and fired from the hand holding it, so the push-out
@@ -1485,6 +1495,44 @@ func _process(delta: float) -> void:
 		libretro.SetJoypadState(_port_index, joy.btn, joy.alx, joy.aly, 0, 0)
 
 	_update_aim(libretro)
+	_update_speaker(libretro)
+
+
+## Put the core's voice for this remote's speaker on the grille, facing out of the
+## face. The core creates that voice the first time a game plays something through
+## the speaker, so until then there is nothing to place. Every frame, because the
+## remote is carried.
+##
+## Loudness is the distance law alone. A game sets the speaker's own volume, as it
+## does on the real remote, so the television's level has no say in it.
+func _update_speaker(libretro: Node) -> void:
+	var voice: int = libretro.GetControllerAudioVoiceId(_port_index)
+	if voice != _speaker_voice:
+		_speaker_voice = voice
+		_speaker_gain = -1.0
+		if voice >= 0:
+			if _mx == null and Engine.has_singleton("MetaXRAudio"):
+				_mx = Engine.get_singleton("MetaXRAudio")
+			if _mx != null:
+				_mx.set_voice_directivity(voice, SpatialAudioEmitter.SPEAKER_DIRECTIVITY)
+	if voice < 0 or _mx == null:
+		return
+	if _listener == null or not is_instance_valid(_listener):
+		_listener = get_node_or_null("/root/SpatialAudioListener")
+		if _listener == null:
+			return
+	var listener_pos: Vector3 = _listener.get_listener_position()
+	var pos := _speaker.global_position
+	var basis := _speaker.global_transform.basis
+	# Held off the face like a handheld's voices: the SDK's HRTF goes dull inside
+	# a quarter metre. The gain below still measures the true distance.
+	_mx.set_voice_pose(voice, SpatialAudioEmitter.hold_off_head(pos, listener_pos),
+		basis.y.normalized(), -basis.z.normalized())
+	var gain := SpatialAudioEmitter.distance_gain(pos, listener_pos,
+		_connected_system.audio_unit_size, _connected_system.audio_max_distance)
+	if not is_equal_approx(gain, _speaker_gain):
+		_speaker_gain = gain
+		_mx.set_voice_gain(voice, gain)
 
 
 ## Both sensors ride the PHYSICS clock, not the render one, and that is not a
