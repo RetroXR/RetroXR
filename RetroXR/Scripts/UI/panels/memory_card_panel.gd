@@ -309,6 +309,9 @@ func _on_stop_requested() -> void:
 func _on_renamed(text: String) -> void:
 	if not (_card and is_instance_valid(_card)) or text.strip_edges().is_empty():
 		return
+	# The field commits on focus loss too, so Tab past it arrives here unchanged.
+	if text == _card.card_id:
+		return
 	var new_id := SramPaths.rename_card(_card.card_id, text)
 	if new_id.is_empty():
 		_notice("A card named %s already exists" % text, MenuToasts.DWELL_FAIL)
@@ -321,7 +324,7 @@ func _on_renamed(text: String) -> void:
 
 
 ## Tell whichever console is holding this card that its image moved.
-func _host_system_for(card: MemoryCard) -> void:
+func _host_system_for(card: Node3D) -> void:
 	for sys: Node in _card.get_tree().get_nodes_in_group("retro_system"):
 		if sys.has_method("get_snapped_memcard") and sys.get_snapped_memcard() == card:
 			if sys.has_method("refresh_memcard_path"):
