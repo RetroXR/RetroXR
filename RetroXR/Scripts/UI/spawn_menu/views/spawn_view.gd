@@ -88,7 +88,7 @@ var _romm_rows: Array[Dictionary] = []
 var _romm_detail_systemid: String = ""
 var _romm_detail_exts: Array[String] = []
 var _romm_filter: String = ""
-## "all" | "downloaded" | "server" | "local", and a region name or "" for any.
+## "all" | "downloaded" | "on_disk" | "server" | "local", and a region name or "" for any.
 var _romm_source_filter: String = "all"
 var _romm_region_filter: String = ""
 var _romm_region_drop: VRDropdown = null
@@ -899,6 +899,7 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 	var source_drop := VRDropdown.create("", [
 		["All", "all"],
 		["Downloaded", "downloaded"],
+		["Downloaded + local", "on_disk"],
 		["Not downloaded", "server"],
 		["Local only", "local"],
 	], _romm_source_filter, 1, Vector2(210, 52), 18)
@@ -1238,6 +1239,9 @@ func _invalidate_local_scan(systemid: String = "") -> void:
 func _romm_row_passes(source: String, regions: PackedStringArray) -> bool:
 	match _romm_source_filter:
 		"downloaded":
+			if source != "both":
+				return false
+		"on_disk":
 			if source == "server":
 				return false
 		"server":
