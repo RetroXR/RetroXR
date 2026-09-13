@@ -46,9 +46,12 @@ func _ready() -> void:
 	add_child(_backdrop)
 	visible = false
 	set_process(false)
+	# By path, not rig.camera: a child is ready before its parent, so the rig's
+	# @onready vars are still null here.
 	var rig := get_parent() as PlayerRig
 	if rig != null:
-		configure(rig.camera, rig.camera,
+		var camera := rig.get_node_or_null("Staging/XROrigin3D/XRCamera3D") as Camera3D
+		configure(camera, camera,
 			rig.get_node_or_null("Staging/XROrigin3D/MovementDesktopTurn"),
 			rig.get_node_or_null("DesktopReticle"),
 			rig.get_node_or_null("LocomotionManager"))
