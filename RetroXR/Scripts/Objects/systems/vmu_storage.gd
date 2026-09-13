@@ -59,23 +59,8 @@ const SLOT_EMPTY := "None"
 # television a 48 x 32 badge in the corner of every picture — those pixels are
 # overwritten before the frame ever reaches us, so no crop can give them back.
 #
-# Our fork exports flycast_get_vmu_screen and hands the panels over instead, out
-# of band. The data was always there — push_vmu_screen fills vmu_lcd_data from
-# MapleConfigMap::SetImage whether or not an overlay is drawn — so the fork adds
-# no emulation work, only a way to ask. Then every screen option stays off, the
-# core draws nothing over the game, and the card gets a texture of its own.
-#
-# Which one is in play cannot be known at staging time: the symbol is resolved
-# when the core loads, which is after the options are written. So the overlay is
-# staged OFF regardless, and put BACK in nudge_slots_after_start only if the
-# core turns out not to hand its panels over.
-#
-# That is the way round it is for a measured reason. Staging it ON and switching
-# it off after the answer put the good outcome behind a runtime check, and the
-# check is not reliable: across two content starts in one session HasVmuScreens()
-# answered true on the first and false on the second, so the badge stayed burned
-# into the picture for the whole of the second game. The default is now the
-# outcome we want, and only the fallback has to ask.
+# Our fork hands the panels over through the controller display interface
+# instead, so every screen option stays off and each card gets its own texture.
 #
 # ALL FOUR PORTS work with the handover, and only one can with the crop. The
 # core's screen options are per port and its overlay has four corners, but

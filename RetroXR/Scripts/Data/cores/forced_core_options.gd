@@ -30,6 +30,7 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(fm_sound_unit(core, systemid, expansions), true)
 	out.merge(bios_pinned(core, systemid, rom_path), true)
 	out.merge(declared_frame_rate(core), true)
+	out.merge(vmu_sound(core), true)
 	return out
 
 
@@ -223,3 +224,11 @@ static func declared_frame_rate(core: String) -> Dictionary:
 	if not core.begins_with("flycast"):
 		return {}
 	return {"reicast_detect_vsync_swap_interval": "enabled"}
+
+
+## flycast sounds VMU beeps only with this on. Our fork hands each card's beep to
+## the controller audio interface, so it plays from the card.
+static func vmu_sound(core: String) -> Dictionary:
+	if not core.begins_with("flycast"):
+		return {}
+	return {"reicast_vmu_sound": "enabled"}

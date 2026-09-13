@@ -3547,40 +3547,40 @@ func reapply_vmu(ctrl: Node) -> void:
 	_vmu.reapply(ctrl)
 
 
-## One seated VMU's own screen, when the core hands its panels over rather than
-## drawing them into the picture the television shows.
-##
-## Null on a core that cannot — every build but our flycast fork — and the card
-## then falls back to cropping the overlay back out of the frame. See VmuStorage
-## for both halves of that; this is only the lookup, which has to happen here
-## because the card knows which pad it is in and nothing else does.
-## Whether this machine's core hands its VMU panels over rather than drawing
-## them into the picture.
-##
-## Load-bearing for the card, not a convenience. When this is true VmuStorage
-## has switched the core's overlay off, so there is no panel in the frame to
-## crop — and a card whose own panel has not arrived yet must go DARK rather
-## than fall back to that crop, which would show it the game's top-left corner.
+## Whether this machine's core hands device screens over through the controller
+## display interface, rather than drawing them into the picture.
 func vmu_hands_screens_over() -> bool:
-	if not is_instance_valid(_libretro) or not _libretro.has_method("HasVmuScreens"):
+	if not is_instance_valid(_libretro) or not _libretro.has_method("HasControllerScreens"):
 		return false
-	return bool(_libretro.HasVmuScreens())
+	return bool(_libretro.HasControllerScreens())
 
 
-func vmu_screen_texture(ctrl: Node, slot: int) -> Texture2D:
-	if slot < 0 or not is_instance_valid(_libretro) 			or not _libretro.has_method("HasVmuScreens") or not _libretro.HasVmuScreens():
-		return null
+## The libretro port a pad plugged into this machine occupies, or -1.
+func _pad_libretro_port(ctrl: Node) -> int:
 	for i in range(_port_controllers.size()):
 		if _port_controllers[i] != ctrl:
 			continue
 		var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-		var port := _libretro_port_for(dev, i)
-		if port < 0:
-			return null
-		# The core indexes its eight panels bus * 2 + port, the same arithmetic
-		# the vmu_save_<Port><Slot>.bin names use.
-		return _libretro.GetVmuScreenTexture(port * 2 + slot)
-	return null
+		return _libretro_port_for(dev, i)
+	return -1
+
+
+## The screen of the card in `slot` of this pad, or null until the core has
+## pushed one.
+func vmu_screen_texture(ctrl: Node, slot: int) -> Texture2D:
+	if slot < 0 or not vmu_hands_screens_over():
+		return null
+	var port := _pad_libretro_port(ctrl)
+	return _libretro.GetControllerScreenTexture(port, slot) if port >= 0 else null
+
+
+## The voice the beep of the card in `slot` of this pad plays on, or -1 until
+## that card has beeped.
+func vmu_beep_voice(ctrl: Node, slot: int) -> int:
+	if slot < 0 or not is_instance_valid(_libretro) or not _libretro.has_method("GetControllerAudioVoiceId"):
+		return -1
+	var port := _pad_libretro_port(ctrl)
+	return int(_libretro.GetControllerAudioVoiceId(port, slot)) if port >= 0 else -1
 
 
 ## Re-announce the pak on one controller's port. Called when a pak is pushed into

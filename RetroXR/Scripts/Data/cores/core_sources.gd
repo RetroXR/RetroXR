@@ -223,9 +223,9 @@ const SOURCES := {
 	# screen is to composite the 48 x 32 panel into the finished frame at a
 	# corner, so a frontend that wants that screen on the card in the room has to
 	# crop it back out — and the game's pixels underneath it are gone before the
-	# frame is ever handed over. Our build exports flycast_get_vmu_screen and
-	# gives the panel up directly, which costs no emulation work at all: the data
-	# was already maintained whether or not an overlay was drawn.
+	# frame is ever handed over. Our build hands the panel over through the
+	# controller display interface instead, and each card's beep through the
+	# controller audio interface.
 	#
 	# It also carries the reason flycast has never run on a Quest. posix_vmem.cpp
 	# asks for ASharedMemory_create and falls back to /dev/ashmem when the symbol
@@ -237,7 +237,7 @@ const SOURCES := {
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
 		"repo":  "XenuIsWatching/flycast",
-		"known_tag": "retroxr-flycast-libretro-v1",
+		"known_tag": "retroxr-flycast-libretro-v2",
 		"label": "Flycast (retroXR build)",
 		"assets": {
 			"Windows": "flycast_libretro.dll.zip",

@@ -166,8 +166,9 @@ func open(device: Node3D) -> bool:
 		rect.stretch_mode = TextureRect.STRETCH_SCALE
 		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Optional: a panel whose texture is stored mirrored.
+		# Optional: a panel shown turned or mirrored.
 		rect.flip_h = bool(panel.get("flip_h", false))
+		rect.flip_v = bool(panel.get("flip_v", false))
 		add_child(rect)
 		panel["node"] = rect
 		panel["atlas"] = AtlasTexture.new()

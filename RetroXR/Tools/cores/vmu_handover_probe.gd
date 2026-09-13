@@ -4,9 +4,9 @@
 ## Stock flycast can publish a VMU screen only by compositing it into the
 ## finished frame, so putting that screen on the card in the room meant cropping
 ## it back out and leaving a 48 x 32 badge burned into the corner of the picture
-## for good. Our fork exports `flycast_get_vmu_screen` and hands the panel over
-## out of band instead; the extension binds that symbol optionally and publishes
-## it as a texture of its own. This measures both halves of that.
+## for good. Our fork hands the panel over through the controller display
+## interface instead, and the extension publishes it as a texture of its own.
+## This measures both halves of that.
 ##
 ##     "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
 ##         res://Tools/cores/vmu_handover_probe.tscn -- \
@@ -208,9 +208,9 @@ func _run() -> void:
 		return
 
 	# --- Can the core hand a screen over at all? -----------------------------
-	var handed: bool = bool(_lib.HasVmuScreens())
+	var handed: bool = bool(_lib.HasControllerScreens())
 	_ok(handed, "the core publishes its VMU screens out of band",
-		"HasVmuScreens()=%s" % str(handed))
+		"HasControllerScreens()=%s" % str(handed))
 
 	# --- The television's picture --------------------------------------------
 	var tv: Texture2D = _lib.GetVideoTexture()
@@ -242,7 +242,7 @@ func _run() -> void:
 		+ " over the game", "%d LCD pixels found" % in_frame)
 
 	# --- The card's own panel -------------------------------------------------
-	var panel: Texture2D = _lib.GetVmuScreenTexture(0)
+	var panel: Texture2D = _lib.GetControllerScreenTexture(0, 0)
 	_ok(panel != null, "the core hands slot 1's panel over as its own texture")
 	if panel == null:
 		return
