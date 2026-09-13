@@ -58,6 +58,12 @@ var _half_sep: float = 0.0
 ## The listener autoload, resolved once.
 var _listener: Node = null
 
+## Set while the desktop overlay has this machine's picture in the window: the
+## two channels sit at these points rather than on the set or the shell.
+var _head_lock := false
+var _head_l := Vector3.ZERO
+var _head_r := Vector3.ZERO
+
 ## Last values actually pushed to the mixer, so an unchanged frame costs no call.
 var _sent_gain_l: float = -1.0
 var _sent_gain_r: float = -1.0
@@ -333,6 +339,39 @@ func _apply_player_volume() -> void:
 	_player.volume_db = linear_to_db(v) if v > 0.001 else -80.0
 
 
+## Put this machine's two channels at a fixed pair of points instead of on the
+## thing showing its picture. Expected every frame, like the rest of the
+## positioning here, because the points are given in the listener's frame and the
+## head moves.
+##
+## The desktop fullscreen overlay is the caller: once a machine's picture has
+## left the room for the window, its sound coming from a cabinet off to one side
+## is the thing that gives the illusion away. See SpatialAudioEmitter.head_lock_positions.
+func set_head_lock(left: Vector3, right: Vector3) -> void:
+	_head_lock = true
+	_head_l = left
+	_head_r = right
+
+
+func clear_head_lock() -> void:
+	_head_lock = false
+
+
+## Where the two channels actually radiate from, given where the cabling above
+## would have put them. The head lock is the last word over every route: a
+## machine whose picture is filling the window is not heard from across the room.
+##
+## Split out from update_position because it is the whole of the rule and the
+## only part of it a headless test can reach -- the two backends that consume it
+## both need a running core to exist at all.
+func resolve_emission(left: Vector3, right: Vector3, forward: Vector3) -> Dictionary:
+	if not _head_lock:
+		return {"left": left, "right": right, "forward": forward}
+	# Omnidirectional with it: a source still aimed along the screen normal of a
+	# set the player has stopped facing would be quietened for facing away.
+	return {"left": _head_l, "right": _head_r, "forward": Vector3.ZERO}
+
+
 ## Sound comes from whatever is showing the picture: a connected TV takes the
 ## audio, and the hardware takes it back when the cable is pulled. Driven every
 ## frame because both the system and the TV can be picked up and carried.
@@ -406,6 +445,10 @@ func update_position() -> void:
 		# a quarter metre, and a handheld raised to look at lands well inside it.
 		# The gain still uses the true centre, since holding off is about keeping
 		# the model usable, not about making a close source quieter.
+		var emission := resolve_emission(left_pos, right_pos, emit_forward)
+		left_pos = emission["left"]
+		right_pos = emission["right"]
+		emit_forward = emission["forward"]
 		var centre_true := (left_pos + right_pos) * 0.5
 		var ln := _listener_node()
 		if ln != null:
@@ -426,7 +469,9 @@ func update_position() -> void:
 
 	if _player == null or not is_instance_valid(_player):
 		return
-	if tv != null:
+	if _head_lock:
+		_player.global_position = (_head_l + _head_r) * 0.5
+	elif tv != null:
 		_player.global_position = tv.global_position
 	elif not _player.position.is_zero_approx():
 		_player.position = Vector3.ZERO

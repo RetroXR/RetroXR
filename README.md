@@ -376,7 +376,8 @@ When no VR headset is detected, RetroXR falls back to a desktop mode with mouse/
 - Scroll wheel — push/pull held object along view ray (disabled while FPS-snapped)
 - Middle-mouse drag — rotate held object in place
 - `Tab` — toggle spawn menu
-- `F11` — while looking at a TV or a handheld, its picture fills the window; press again to put it back
+- `F11` — while looking at a TV or a handheld, its picture fills the window and its sound
+  moves in front of you; press again to put both back in the room
 
 **Retro joypad** (when a Libretro node has input focus)
 - D-pad: `W`/`A`/`S`/`D`

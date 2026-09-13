@@ -9,7 +9,11 @@
 ##
 ## It reads the picture, it never paints it: the texture the glass samples is
 ## re-read every frame, so snow, the blue screen, a source change and power-off
-## all follow the device. Movement is blocked through LocomotionManager while
+## all follow the device. The SOUND does move, because a picture in the window
+## whose audio still arrives from a cabinet off to one side, quieter the further
+## away it stands, is the thing that gives the illusion away -- the source feeding
+## the shown picture is held at a fixed pair of points in front of the listener
+## for as long as the overlay is up. Movement is blocked through LocomotionManager while
 ## the picture is up; mouse-look is outside that channel on purpose, so the turn
 ## provider is switched off here as well.
 class_name TvFullscreen
@@ -30,6 +34,7 @@ var _device: WeakRef = null
 var _panels: Array[Dictionary] = []
 var _t := 0.0
 var _opening := false
+var _audio_locked: WeakRef = null
 
 
 func _ready() -> void:
@@ -196,6 +201,7 @@ func _step(delta: float) -> void:
 		node.position = start.position.lerp(target.position, e)
 		node.size = start.size.lerp(target.size, e)
 		_feed(panel)
+	_hold_audio()
 
 
 func _feed(panel: Dictionary) -> void:
@@ -215,6 +221,40 @@ func _feed(panel: Dictionary) -> void:
 	node.texture = atlas
 
 
+## Whatever is making the sound behind the picture on screen: the machine itself
+## for a handheld, and for a television whichever source its selected input is
+## carrying. Re-asked every frame, because the input can be changed while the
+## overlay is up and the sound has to follow the picture that is showing.
+func audio_source() -> Node:
+	var device: Node3D = _device.get_ref() if _device != null else null
+	if device is RetroSystem:
+		return device
+	if device is RetroTV:
+		return (device as RetroTV).panel().selected_system()
+	return null
+
+
+## Keep the shown source's two channels in front of the listener, and hand the
+## room back to anything that stops being the source.
+func _hold_audio() -> void:
+	var want := audio_source()
+	var held: Node = _audio_locked.get_ref() if _audio_locked != null else null
+	if held != want:
+		_release_audio()
+		_audio_locked = weakref(want) if want != null else null
+	if want == null or not want.has_method("set_audio_head_lock"):
+		return
+	var at := SpatialAudioEmitter.head_lock_positions(_camera.global_transform)
+	want.set_audio_head_lock(at[0], at[1])
+
+
+func _release_audio() -> void:
+	var held: Node = _audio_locked.get_ref() if _audio_locked != null else null
+	if is_instance_valid(held) and held.has_method("clear_audio_head_lock"):
+		held.clear_audio_head_lock()
+	_audio_locked = null
+
+
 func _aspects() -> Array[float]:
 	var out: Array[float] = []
 	for panel: Dictionary in _panels:
@@ -223,6 +263,7 @@ func _aspects() -> Array[float]:
 
 
 func _teardown() -> void:
+	_release_audio()
 	for panel: Dictionary in _panels:
 		var node := panel.get("node") as TextureRect
 		if node != null:

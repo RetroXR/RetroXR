@@ -1000,6 +1000,23 @@ func set_input_enabled(on: bool) -> void:
 var _audio: SystemAudio = null
 
 
+## Hold this machine's sound at a fixed pair of points in the listener's frame.
+##
+## Part of the same duck-typed contract as set_audio_volume, so the desktop
+## fullscreen overlay can say this to a machine and to a deck without knowing
+## which it has.
+func set_audio_head_lock(left: Vector3, right: Vector3) -> void:
+	if _audio != null:
+		_audio.set_head_lock(left, right)
+		_audio.update_position()
+
+
+func clear_audio_head_lock() -> void:
+	if _audio != null:
+		_audio.clear_head_lock()
+		_audio.update_position()
+
+
 ## Set the audio volume for the running libretro instance (0.0 = silent, 1.0 = 100%).
 ##
 ## Stays on RetroSystem rather than moving to the component with its body: every

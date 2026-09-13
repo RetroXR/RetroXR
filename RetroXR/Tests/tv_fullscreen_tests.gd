@@ -6,6 +6,8 @@ extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
+const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
+const VCR_SCENE := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const FULL := Rect2(0, 0, 1, 1)
 
 var _checks := 0
@@ -129,6 +131,8 @@ func _run() -> void:
 		await _handheld_cases()
 	if _want("dual"):
 		await _dual_cases()
+	if _want("audio"):
+		await _audio_cases()
 	if _want("lifetime"):
 		await _lifetime_cases()
 
@@ -328,6 +332,140 @@ func _dual_cases() -> void:
 		"dual/a stereo top screen shows the left eye as its channel already describes")
 	n3ds.free()
 	await _wait(2)
+
+
+## The sound follows the picture. A machine is the thing that makes noise, so a
+## television's audio case is about the machine on its selected input.
+func _audio_cases() -> void:
+	var cam := _camera.global_transform
+	var at := SpatialAudioEmitter.head_lock_positions(cam)
+	var centre := (at[0] + at[1]) * 0.5
+	_ok(at.size() == 2, "audio/two points, one per channel")
+	_ok(absf(centre.distance_to(cam.origin) - SpatialAudioEmitter.HEAD_LOCK_AHEAD) < 0.001,
+		"audio/the pair sits a fixed step in front of the head")
+	_ok(absf(at[0].distance_to(at[1]) - SpatialAudioEmitter.HEAD_LOCK_SEPARATION) < 0.001,
+		"audio/the two channels keep their separation")
+	_ok((at[1] - at[0]).normalized().dot(cam.basis.x.normalized()) > 0.99,
+		"audio/right channel is on the head's right")
+	_ok(centre.distance_to(cam.origin) > SpatialAudioEmitter.MIN_LISTENER_DISTANCE,
+		"audio/clear of the hold-off distance, so nothing pushes the pair about")
+	# The falloff has to be gone by construction rather than by a second switch:
+	# inside unit_size the shared law is a flat 1.0, so a machine's own numbers
+	# are what this is asserted against.
+	var sys := await _handheld("game_boy")
+	_ok(is_equal_approx(SpatialAudioEmitter.distance_gain(
+		centre, cam.origin, sys.audio_unit_size, sys.audio_max_distance), 1.0),
+		"audio/held at the head, the distance law stops attenuating")
+
+	var spy := _spy()
+	add_child(spy)
+	_ok(_fs.open(sys), "audio/open on a handheld")
+	_ok(_fs.audio_source() == sys, "audio/a handheld makes its own sound")
+	_fs._step(0.0)
+	_ok(sys._audio._head_lock, "audio/the machine is holding its sound at the head")
+	# What the two backends are actually handed. Neither exists without a running
+	# core, so the rule is asserted where it is decided.
+	var route_l := Vector3(9, 9, 9)
+	var route_r := Vector3(9, 9, 8)
+	var normal := Vector3(0, 0, -1)
+	var held: Dictionary = sys._audio.resolve_emission(route_l, route_r, normal)
+	_ok(held["left"].distance_to(at[0]) < 0.001 and held["right"].distance_to(at[1]) < 0.001,
+		"audio/the cabling's speaker positions are discarded for the pair at the head")
+	_ok(held["forward"] == Vector3.ZERO,
+		"audio/and the sound stops being aimed, so looking away cannot quieten it")
+	sys._audio.clear_head_lock()
+	var free_route: Dictionary = sys._audio.resolve_emission(route_l, route_r, normal)
+	_ok(free_route["left"] == route_l and free_route["right"] == route_r
+		and free_route["forward"] == normal,
+		"audio/released, the cabling decides again")
+	sys._audio.set_head_lock(at[0], at[1])
+	_fs._audio_locked = weakref(spy)
+	_fs._step(0.0)
+	_ok(spy.cleared == 1, "audio/a source that stops being the source is handed back")
+	_fs.close()
+	_settle()
+	_ok(not sys._audio._head_lock, "audio/closing gives the machine back to the room")
+	sys.free()
+	await _wait(2)
+
+	# A television makes no sound of its own, so this needs a real machine on a
+	# real lead: with nothing cabled the answer is null either way and the case
+	# could not fail.
+	var tv := await _tv()
+	var console := await _handheld("nes")
+	await _cable(console, tv)
+	_ok(_fs.open(tv), "audio/open on the set")
+	_ok(_fs.audio_source() == console,
+		"audio/a set speaks for the machine on the input it is showing")
+	_fs._step(0.0)
+	_ok(console._audio._head_lock, "audio/the machine behind the picture is held, not the set")
+	_fs._teardown()
+	_ok(not console._audio._head_lock, "audio/closing hands the room back")
+	spy.free()
+
+	# A deck answers the same two names, so a fullscreened tape or disc moves its
+	# sound too. It needs media to make any, but where it radiates from does not.
+	var deck := VCR_SCENE.instantiate() as VCRPlayer
+	deck.freeze = true
+	deck.position = Vector3(0, 1.2, 0.6)
+	add_child(deck)
+	await _wait(20)
+	deck.set_audio_head_lock(at[0], at[1])
+	_ok(deck._emitter._speaker_override
+		and deck._emitter._speaker_l_pos.distance_to(at[0]) < 0.001,
+		"audio/a deck takes the hold as a machine does")
+	deck._emit_through(tv)
+	_ok(deck._emitter._speaker_l_pos.distance_to(at[0]) < 0.001,
+		"audio/and keeps it when its routing is rewritten the next frame")
+	deck.clear_audio_head_lock()
+	deck._emit_through(tv)
+	var sp: PackedVector3Array = tv.get_speaker_positions()
+	_ok(deck._emitter._speaker_l_pos.distance_to(sp[0]) < 0.001,
+		"audio/released, the deck goes back to the set's own speakers")
+	deck.free()
+	# The set first: it holds the cabled machine in its input list, and freeing
+	# that machine while the set is still reading the list is a dangling entry
+	# no room produces (a real despawn goes through source_lost).
+	tv.free()
+	await _wait(2)
+	console.free()
+	await _wait(2)
+
+
+## The lead a player plugs in: video out of the machine into the set's first
+## composite socket, which is what makes the set speak for it.
+func _cable(sys: RetroSystem, tv: RetroTV) -> void:
+	var cable := CABLE_SCENE.instantiate() as Node3D
+	cable.position = Vector3(0, 1.5, 0.8)
+	add_child(cable)
+	await _wait(20)
+	var from := sys.get_node_or_null("VideoOut") as RcaPort
+	var to := tv.get_node_or_null("CompositePort") as RcaPort
+	if from == null or to == null:
+		return
+	from.pick_up_object(cable.get_node("PlugA0") as RcaPlug)
+	to.pick_up_object(cable.get_node("PlugB0") as RcaPlug)
+	await _wait(30)
+
+
+## Stands in for a machine or a deck: anything answering the two names the
+## overlay calls is enough, and a real one needs a core to make a sound.
+func _spy() -> Node:
+	var script := GDScript.new()
+	script.source_code = """extends Node
+var cleared := 0
+var locked := 0
+var at_l := Vector3.ZERO
+func set_audio_head_lock(l: Vector3, r: Vector3) -> void:
+	locked += 1
+	at_l = l
+func clear_audio_head_lock() -> void:
+	cleared += 1
+"""
+	script.reload()
+	var node := Node.new()
+	node.set_script(script)
+	return node
 
 
 func _lifetime_cases() -> void:

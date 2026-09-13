@@ -325,6 +325,28 @@ static func distance_gain(origin: Vector3, listener: Vector3,
 	return p_unit_size / d
 
 
+## Where a source's two channels go when the picture it belongs to has been
+## taken to the window, and the room it stands in is no longer what the player
+## is looking at.
+##
+## In the LISTENER's frame, so the pair turns with the head and the sound stops
+## swinging when the player looks around -- the picture is nailed to the window,
+## and audio that slides off it is the mismatch this exists to remove. Just
+## ahead rather than inside the head: HEAD_LOCK_AHEAD clears MIN_LISTENER_DISTANCE,
+## so hold_off_head never moves these, and it sits well inside every caller's
+## unit_size, where distance_gain returns a flat 1.0. The falloff is therefore
+## gone by construction rather than by a second switch that could disagree.
+const HEAD_LOCK_AHEAD := 0.45
+const HEAD_LOCK_SEPARATION := 0.30
+
+
+static func head_lock_positions(cam: Transform3D) -> PackedVector3Array:
+	var ahead := -cam.basis.z.normalized() * HEAD_LOCK_AHEAD
+	var side := cam.basis.x.normalized() * (HEAD_LOCK_SEPARATION * 0.5)
+	var centre := cam.origin + ahead
+	return PackedVector3Array([centre - side, centre + side])
+
+
 func _speaker_offset(sign_x: float) -> Vector3:
 	if _voice_r < 0 or speaker_separation <= 0.0:
 		return Vector3.ZERO

@@ -35,6 +35,11 @@ var connected_tv: RetroTV = null
 var _vlc: Object = null
 
 var _emitter: SpatialAudioEmitter = null
+
+## Set while the desktop fullscreen overlay holds this deck's picture.
+var _head_lock := false
+var _head_l := Vector3.ZERO
+var _head_r := Vector3.ZERO
 var _volume_linear: float = 1.0
 var _paused: bool = false
 
@@ -69,7 +74,30 @@ func _setup_audio() -> void:
 	add_child(_emitter)
 
 
+## The same contract RetroSystem answers: hold this deck's two channels at a
+## fixed pair of points in the listener's frame while its picture is filling the
+## window. Re-applied on the next _process tick, which is already where the
+## routing below is written, so clearing it restores the set's speakers by itself.
+func set_audio_head_lock(left: Vector3, right: Vector3) -> void:
+	_head_lock = true
+	_head_l = left
+	_head_r = right
+	if _emitter:
+		_emitter.set_speaker_positions(left, right)
+		_emitter.clear_emit_direction()
+
+
+func clear_audio_head_lock() -> void:
+	_head_lock = false
+
+
 func _emit_through(tv: Node3D) -> void:
+	if _head_lock:
+		_emitter.set_speaker_positions(_head_l, _head_r)
+		# Omnidirectional: a deck aimed along a screen normal the player is no
+		# longer facing would be quietened for facing the wrong way.
+		_emitter.clear_emit_direction()
+		return
 	if tv.has_method("get_speaker_positions"):
 		var sp: PackedVector3Array = tv.get_speaker_positions()
 		# The two voices carry the deck's own left and right, so a crossed pair is
