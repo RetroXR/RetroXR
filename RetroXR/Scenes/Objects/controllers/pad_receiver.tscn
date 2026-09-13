@@ -4,13 +4,21 @@
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="3_snapzone"]
 
-; 70 x 20 x 45 mm — a wireless dongle, small enough to sit unnoticed beside a
-; console and large enough to grab without a laser.
+; 100 x 20 x 45 mm — a wireless dongle, small enough to sit unnoticed beside
+; a console and large enough to grab without a laser.
+;
+; It was 70 wide, which fitted ONE VMU. That made a player on a real gamepad
+; choose between a memory card and rumble, while a player on a virtual pad
+; got both from its two slots — the exact second-class treatment this dongle
+; exists to prevent, and the reason N64PakPort was lifted out of
+; RetroController in the first place. A VMU is 47 across and two of them with
+; a gap want 96, so the case is 100: wide enough that neither card hangs over
+; an end, and nothing else about the prop has to move.
 [sub_resource type="BoxShape3D" id="BoxShape3D_pr"]
-size = Vector3(0.07, 0.02, 0.045)
+size = Vector3(0.1, 0.02, 0.045)
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
-size = Vector3(0.07, 0.02, 0.045)
+size = Vector3(0.1, 0.02, 0.045)
 
 [sub_resource type="StandardMaterial3D" id="Mat_body"]
 albedo_color = Color(0.13, 0.13, 0.15, 1)
@@ -41,15 +49,15 @@ size = Vector3(0.004, 0.002, 0.004)
 ; millimetres clear of the underside. A flush slot in the 20 mm body alone would
 ; put fifteen millimetres of prong out through the bottom and into the table.
 ;
-; 57 x 20 in plan. The prong is only 14 mm deep, so the boss needs no more than
+; 90 x 20 in plan, widened with the case. The prong is only 14 mm deep, so the boss needs no more than
 ; that plus walls -- and keeping it shallow is what leaves the front of the top
 ; face free for the name and glyph, which is where they have to stay: they are
 ; how you tell one receiver from another.
 [sub_resource type="BoxShape3D" id="BoxShape3D_boss"]
-size = Vector3(0.057, 0.02, 0.02)
+size = Vector3(0.09, 0.02, 0.02)
 
 [sub_resource type="BoxMesh" id="BoxMesh_boss"]
-size = Vector3(0.057, 0.02, 0.02)
+size = Vector3(0.09, 0.02, 0.02)
 
 ; The socket itself, set a hair below the boss's top face so it reads as an
 ; opening rather than a painted panel. A seated pak's 57 x 26 lip covers it.
@@ -58,7 +66,7 @@ albedo_color = Color(0.05, 0.05, 0.055, 1)
 roughness = 0.85
 
 [sub_resource type="BoxMesh" id="BoxMesh_socket"]
-size = Vector3(0.053, 0.002, 0.016)
+size = Vector3(0.086, 0.002, 0.016)
 
 [node name="PadReceiver" type="RigidBody3D"]
 collision_layer = 4
@@ -120,13 +128,15 @@ snap_require = "controller_plug"
 ; is built and torn down with the console, so a dongle on a NES carries no
 ; Dreamcast socket around, and only the SEAT is a property of this shell.
 ;
-; ONE, where a controller has two, and the reason is width. A VMU is 47 mm
-; across and this case is 70, so a second one beside it would hang 13 mm over
-; each end; the boss is 20 mm deep, so a second one behind it would have no boss
-; under its connector either. Slot 1 is the half that matters -- it is the one
-; with the window on real hardware, and the one flycast fits a VMU to by
-; default. VmuPort already allowed for a host with one (a Light Gun and a Twin
-; Stick each create only [0]), so a short count needs nothing on the system side.
+; TWO, as a controller has, at -24.5 and +24.5. A VMU is 47 mm across, so the
+; pair spans 96 with three millimetres between them and sits inside the 100 mm
+; case with two to spare at each end. The case was widened FOR this: at 70 only
+; one fitted, and one meant a player on a real gamepad had to choose between a
+; memory card and rumble while a player on a virtual pad got both.
+;
+; Slot 1 is still the half with the window -- flycast gates its screen options on
+; MapleExpansionDevices[i][0] alone -- so the card in the left seat is the one
+; whose LCD is live, exactly as on a controller.
 ;
 ; It shares the pak boss, which is what a boss is: the block with the expansion
 ; socket in it. The two can never both matter -- a pak is an N64's and a VMU is a
@@ -147,7 +157,13 @@ snap_require = "controller_plug"
 ; screen clears the boss: the LCD spans y=42..73 and the lid is at 40. Six
 ; millimetres lower and the boss eats the bottom of the picture.
 [node name="VmuSeat1" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0.068, 0.0105)
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, -0.0245, 0.068, 0.0105)
+
+; Same seat, mirrored across the boss. Slot 2 has no window on real hardware
+; and none here: the core never drives it, so this is where a Jump Pack
+; usually goes -- which is also flycast's own default for the second slot.
+[node name="VmuSeat2" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0.0245, 0.068, 0.0105)
 
 [node name="Led" type="MeshInstance3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.026, 0.014, -0.0228)

@@ -153,15 +153,16 @@ func _run() -> void:
 	rx_dc.on_plugged_in(dc, 1)
 	rx_nes.on_plugged_in(nes, 1)
 	await get_tree().process_frame
-	_ok(rx_dc.vmu_slot_count() == 1, "a dongle on a Dreamcast grows one",
+	_ok(rx_dc.vmu_slot_count() == 2, "a dongle on a Dreamcast grows two, as a pad does",
 		"got %d" % rx_dc.vmu_slot_count())
 	_ok(rx_nes.vmu_slot_count() == 0, "a dongle on a NES grows none",
 		"got %d" % rx_nes.vmu_slot_count())
 	_ok(rx_dc.vmu_slot_option_value(0) == "None", "its empty slot reads None",
 		rx_dc.vmu_slot_option_value(0))
-	# There is no slot 2, which is not the same as an empty one: "" is what tells
-	# flycast to leave its own default alone rather than pulling a card out.
-	_ok(rx_dc.vmu_slot_option_value(1) == "", "and it has no slot 2 at all",
+	# Slot 2 is EMPTY, not absent. "" would tell flycast this host has no such
+	# slot and to leave its own default fitted; "None" says the slot is there and
+	# nothing is in it. The dongle used to answer "" here because it had one seat.
+	_ok(rx_dc.vmu_slot_option_value(1) == "None", "and its second slot reads empty, not absent",
 		"'%s'" % rx_dc.vmu_slot_option_value(1))
 
 	var rx_card := VMU_SCENE.instantiate() as VmuCard
@@ -173,6 +174,18 @@ func _run() -> void:
 	_ok(rx_dc.get_vmu(0) == rx_card, "a VMU seats in the dongle")
 	_ok(rx_dc.vmu_slot_option_value(0) == "VMU", "and the slot then reads VMU",
 		rx_dc.vmu_slot_option_value(0))
+	# And the reason the case was widened: a card AND a pack at once, so a player
+	# on a real gamepad is not choosing between saving and rumble.
+	var rx_pack := JUMP_PACK_SCENE.instantiate() as JumpPack
+	add_child(rx_pack)
+	await get_tree().process_frame
+	rx_dc.restore_vmu(rx_pack, 1)
+	for i in range(3):
+		await get_tree().process_frame
+	_ok(rx_dc.vmu_slot_option_value(1) == "Purupuru",
+		"a Jump Pack goes in its second slot", rx_dc.vmu_slot_option_value(1))
+	_ok(rx_dc.vmu_slot_option_value(0) == "VMU",
+		"with the card still in the first")
 
 	# Which way up it went in. The card's +Y is its connector and its +Z is the
 	# screen; seated, the connector must point DOWN into the boss and the screen

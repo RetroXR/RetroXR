@@ -114,10 +114,10 @@ func attach(owner: Node, on_change: Callable = Callable()) -> void:
 ## The primitive pad has no scene, which is the whole reason PAD_SEATS exists; a
 ## host that does have one authors its seats there instead, so the numbers sit
 ## beside the geometry they were measured against rather than in a script that
-## cannot see it. The slot COUNT comes from the same place — a pad receiver is
-## 70 mm wide and a VMU is 47, so it seats one where a pad seats two, and that is
-## a shape this already had to allow for: a Light Gun, Twin Stick, Ascii Stick
-## and Racing Controller each create only [0].
+## cannot see it. The slot COUNT comes from the same place, which is why a host
+## with fewer than two needs nothing here: a Light Gun, Twin Stick, Ascii Stick
+## and Racing Controller each create only [0] on real hardware, and this counts
+## markers rather than assuming a pair.
 static func authored_seats(owner: Node) -> Array[Transform3D]:
 	var out: Array[Transform3D] = []
 	if not is_instance_valid(owner):

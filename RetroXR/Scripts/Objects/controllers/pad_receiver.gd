@@ -105,8 +105,8 @@ func pak_option_value() -> String:
 ## whole of the wiring on the system side.
 
 
-## How many VMU slots this dongle has right now: one on a Dreamcast, none
-## anywhere else.
+## How many VMU slots this dongle has right now: two on a Dreamcast, as a
+## controller has, and none anywhere else.
 func vmu_slot_count() -> int:
 	return _vmu_port.slot_count()
 
