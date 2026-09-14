@@ -305,14 +305,18 @@ jobs:
           GODOT_ANDROID_KEYSTORE_RELEASE_USER: ${{ secrets.ANDROID_KEYSTORE_USER }}
           GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           APK: ${{ needs.preflight.outputs.apk_name }}
+          PUBLISHING: ${{ github.ref_type == 'tag' || inputs.publish }}
         run: |
           set -euo pipefail
           # --export-release refuses to run with NO keystore at all ("Code
-          # Signing: Could not find release keystore"), so when the secret is
-          # unset a throwaway one is minted and used, whatever the run kind -
-          # the pipeline must not die here. The ::warning and the Summary tab
-          # entry say so; upstream (where the secrets exist) never takes this
-          # branch, so a PR of this file changes nothing there.
+          # Signing: Could not find release keystore"), so on a run that ships
+          # nothing a throwaway one is minted and used rather than killing the
+          # pipeline. A publishing run may not take that branch: an APK under a
+          # different key will not install over a player's existing one.
+          if [ -z "$KEYSTORE_B64" ] && [ "$PUBLISHING" = true ]; then
+            echo "::error::secret ANDROID_KEYSTORE_BASE64 is unset - a publishing run must sign with the real keystore"
+            exit 1
+          fi
           if [ -n "$KEYSTORE_B64" ]; then
             # Never written to the tree: RetroXR/.godot/export_credentials.cfg
             # stays absent and the keystore lives only in the runner temp dir.
