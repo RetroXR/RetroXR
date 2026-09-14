@@ -404,25 +404,36 @@ func _group_cancel() -> void:
 # with nothing moving on screen.
 
 const FW_DIRS := 60
+const FW_HALF_DIRS := 30
 const FW_PER_DIR := 50
-## Measured 2026-09-12 on a Windows desktop at this size: 4.1 s for the
-## extractor, 19.6 s for the old read_file loop. The fixture is this large
-## because the gap is quadratic; at half the size the old loop took 5.5 s,
-## too close to any budget a slow runner could also meet.
-const FW_BUDGET_MS := 10000
+## Full-fixture unpack time over half-fixture time. The extractor measures 2.0;
+## a ZIPReader.read_file loop measures 3.2-3.6.
+const FW_MAX_SCALING := 2.5
+
+
+func _fw_members(dirs: int) -> Dictionary:
+	var members := {"sys/top.txt": _text("fresh")}
+	for d in range(dirs):
+		for i in range(FW_PER_DIR):
+			members["sys/d%02d/f%03d.bin" % [d, i]] = _text("member %d/%d" % [d, i])
+	return members
 
 
 func _group_firmware() -> void:
-	var members := {"sys/top.txt": _text("fresh")}
-	for d in range(FW_DIRS):
-		for i in range(FW_PER_DIR):
-			members["sys/d%02d/f%03d.bin" % [d, i]] = _text("member %d/%d" % [d, i])
+	var members := _fw_members(FW_DIRS)
 	var zip := _write_zip("fw.zip", members)
+	var half_members := _fw_members(FW_HALF_DIRS)
+	var half_zip := _write_zip("fw_half.zip", half_members)
 	var dest := WORK.path_join("system")
 	DirAccess.make_dir_recursive_absolute(dest.path_join("sys"))
 	_write_bytes(dest.path_join("sys/top.txt"), _text("stale"))
 
 	var fw := FirmwareInstaller.new()
+	var half_started := Time.get_ticks_msec()
+	fw._extract_preserving_paths("fw", half_zip, WORK.path_join("system_half"))
+	var half_elapsed := maxi(Time.get_ticks_msec() - half_started, 1)
+	await get_tree().process_frame
+
 	var reports: Array[Vector2i] = []
 	fw.job_unpacking.connect(func(_k: String, done: int, total: int) -> void:
 		reports.append(Vector2i(done, total)))
@@ -431,8 +442,8 @@ func _group_firmware() -> void:
 	var res: Dictionary = fw._extract_preserving_paths("fw", zip, dest)
 	var elapsed := Time.get_ticks_msec() - started
 	_ok(bool(res["ok"]), "firmware/a many-member archive unpacks", str(res.get("error", "")))
-	_ok(elapsed < FW_BUDGET_MS, "firmware/and in time linear in its members",
-		"%d members took %d ms" % [members.size(), elapsed])
+	_ok(float(elapsed) / half_elapsed < FW_MAX_SCALING, "firmware/and in time linear in its members",
+		"%d members took %d ms, %d took %d ms" % [members.size(), elapsed, half_members.size(), half_elapsed])
 
 	var missing := 0
 	for m: String in members:
