@@ -313,6 +313,29 @@ static func is_dci(bytes: PackedByteArray) -> bool:
 	return _get_u16(bytes, E_HDROFF) < blocks
 
 
+## The icon frames of a file as it sits in a library folder: a .vms, a .dci, or
+## a whole card image, where the first file carrying icons speaks for it. Empty
+## when there are none.
+static func icons_of_file(bytes: PackedByteArray) -> Array:
+	if is_card_image(bytes):
+		for s: Dictionary in list_saves(bytes):
+			if not (s["icons"] as Array).is_empty():
+				return s["icons"]
+		return []
+	if is_dci(bytes):
+		var hdr: int = _get_u16(bytes, E_HDROFF) * BLOCK_SIZE
+		return _decode_icons(_word_swap(bytes.slice(DCI_HEADER)), hdr)
+	# A bare .vms has no directory entry to say where its header is. A game's
+	# follows its first block of code and a data file's opens it; the library
+	# holds games, so that reading goes first.
+	for hdr in [BLOCK_SIZE, 0]:
+		if bytes.size() >= hdr + V_ICON_DATA:
+			var icons := _decode_icons(bytes, hdr)
+			if not icons.is_empty():
+				return icons
+	return []
+
+
 ## Splice a save into a card, returning a NEW image. Empty when it will not fit,
 ## is malformed, or a save of that name is already there.
 static func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArray:
@@ -490,30 +513,40 @@ static func _decode_icons(body: PackedByteArray, hdr: int) -> Array:
 	if count <= 0 or count > 3:
 		return out
 
-	var palette: Array[Color] = []
+	# RGBA8 bytes per entry, four to a colour.
+	var palette := PackedByteArray()
+	palette.resize(64)
 	for i in range(16):
 		var at := hdr + V_PALETTE + i * 2
 		if at + 1 >= body.size():
 			return out
 		var v := _get_u16(body, at)
 		# ARGB4444, one nibble each, scaled to 0-255 by x17.
-		palette.append(Color8(
-			((v >> 8) & 0xF) * 17,
-			((v >> 4) & 0xF) * 17,
-			(v & 0xF) * 17,
-			((v >> 12) & 0xF) * 17))
+		palette[i * 4] = ((v >> 8) & 0xF) * 17
+		palette[i * 4 + 1] = ((v >> 4) & 0xF) * 17
+		palette[i * 4 + 2] = (v & 0xF) * 17
+		palette[i * 4 + 3] = ((v >> 12) & 0xF) * 17
 
+	# Filled as one buffer rather than pixel by pixel: a library folder decodes a
+	# hundred of these at once, and set_pixel made that a visible stall.
 	for frame in range(count):
 		var at := hdr + V_ICON_DATA + frame * ICON_BYTES
 		if at + ICON_BYTES > body.size():
 			break
-		var img := Image.create_empty(ICON_W, ICON_H, false, Image.FORMAT_RGBA8)
+		var px := PackedByteArray()
+		px.resize(ICON_W * ICON_H * 4)
 		for i in range(ICON_BYTES):
 			var byte := body[at + i]
-			var x := (i * 2) % ICON_W
-			@warning_ignore("integer_division")
-			var y := (i * 2) / ICON_W
-			img.set_pixel(x, y, palette[(byte >> 4) & 0xF])
-			img.set_pixel(x + 1, y, palette[byte & 0xF])
-		out.append(img)
+			var hi := (byte >> 4) * 4
+			var lo := (byte & 0xF) * 4
+			var o := i * 8
+			px[o] = palette[hi]
+			px[o + 1] = palette[hi + 1]
+			px[o + 2] = palette[hi + 2]
+			px[o + 3] = palette[hi + 3]
+			px[o + 4] = palette[lo]
+			px[o + 5] = palette[lo + 1]
+			px[o + 6] = palette[lo + 2]
+			px[o + 7] = palette[lo + 3]
+		out.append(Image.create_from_data(ICON_W, ICON_H, false, Image.FORMAT_RGBA8, px))
 	return out

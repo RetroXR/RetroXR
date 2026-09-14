@@ -116,6 +116,8 @@ var _games_note: Label = null
 
 # Each entry: {rect: TextureRect, frames: Array[ImageTexture]}
 var _animated: Array[Dictionary] = []
+## The same, for the Games tab, which is redrawn apart from the saves list.
+var _games_animated: Array[Dictionary] = []
 var _clock := 0.0
 var _frame := -1
 
@@ -138,7 +140,7 @@ func _units(n: int) -> String:
 
 
 func _process(delta: float) -> void:
-	if _animated.is_empty():
+	if _animated.is_empty() and _games_animated.is_empty():
 		return
 	_clock += delta
 	var f := int(_clock * (_fmt.icon_fps() if _fmt != null else ICON_FPS))
@@ -147,7 +149,7 @@ func _process(delta: float) -> void:
 	if f == _frame:
 		return
 	_frame = f
-	for a in _animated:
+	for a in _animated + _games_animated:
 		var frames: Array = a["frames"]
 		var rect: TextureRect = a["rect"]
 		rect.texture = frames[f % frames.size()]
@@ -291,6 +293,7 @@ func populate_games(games: Array, note: String, blocked: String) -> void:
 		return
 	for c in _games_rows.get_children():
 		c.queue_free()
+	_games_animated.clear()
 	var text := blocked if not blocked.is_empty() else note
 	_games_note.text = text
 	_games_note.visible = not text.is_empty()
@@ -298,6 +301,21 @@ func populate_games(games: Array, note: String, blocked: String) -> void:
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		_games_rows.add_child(row)
+		# The file's own icon, set like a save row's. A game with none, or one
+		# still on a server, keeps the empty slot so the titles line up.
+		var icon := TextureRect.new()
+		icon.custom_minimum_size = Vector2(ICON_PX, ICON_PX)
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		row.add_child(icon)
+		var frames: Array = []
+		for img: Image in game.get("icons", []):
+			frames.append(ImageTexture.create_from_image(img))
+		if not frames.is_empty():
+			icon.texture = frames[0]
+			if frames.size() > 1:
+				_games_animated.append({"rect": icon, "frames": frames})
 		var btn := Button.new()
 		btn.text = str(game.get("label", ""))
 		btn.custom_minimum_size = Vector2(0, 48)

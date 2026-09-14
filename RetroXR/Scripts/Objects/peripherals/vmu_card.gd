@@ -144,6 +144,8 @@ const STANDALONE_CORE := "vemulator"
 const LIBRARY_SYSTEMID := "vmu"
 ## What vemulator loads: a minigame, a game with its directory entry, or a card.
 const LIBRARY_EXTENSIONS: Array[String] = ["vms", "dci", "bin"]
+## path -> {mtime, icons}, for library_games.
+static var _icon_cache := {}
 ## Pinned for every standalone run: see _boot() for why writing must be on.
 const FORCED_OPTIONS := {"enable_flash_write": "enabled"}
 
@@ -497,14 +499,30 @@ func _carry_progress_back() -> void:
 	_remove_play_note()
 
 
-## The minigames in the library's VMU folder, as [{path, label}] sorted by label.
-## A firmware dump kept beside them is a .bin too, and is not a game.
+## The minigames in the library's VMU folder, as [{path, label, icons}] sorted by
+## label, `icons` being the file's own frames as Images. A firmware dump kept
+## beside them is a .bin too, and is not a game.
 func library_games() -> Array[Dictionary]:
 	var games: Array[Dictionary] = []
 	for g: Dictionary in RomLibrary.scan_roms(LIBRARY_SYSTEMID, LIBRARY_EXTENSIONS):
-		if not str(g["path"]).get_file().to_lower().contains("bios"):
-			games.append(g)
+		var path := str(g["path"])
+		if path.get_file().to_lower().contains("bios"):
+			continue
+		g["icons"] = _library_icons(path)
+		games.append(g)
 	return games
+
+
+## A file's icon frames, decoded once per change to the file. Every card shares
+## the cache, so opening a second card's menu reads nothing.
+static func _library_icons(path: String) -> Array:
+	var mtime := FileAccess.get_modified_time(path)
+	var hit: Dictionary = _icon_cache.get(path, {})
+	if hit.get("mtime", -1) == mtime:
+		return hit["icons"]
+	var icons := VMUCard.icons_of_file(FileAccess.get_file_as_bytes(path))
+	_icon_cache[path] = {"mtime": mtime, "icons": icons}
+	return icons
 
 
 ## The systemid those games are filed under, locally and on a RomM server.
