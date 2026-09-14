@@ -1048,6 +1048,7 @@ jobs:
   # ------------------------------------------------------------------ release
   release:
     needs: [preflight, quest, windows, linux, macos]
+    if: github.ref_type == 'tag' || inputs.publish
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -1055,10 +1056,8 @@ jobs:
       - uses: actions/download-artifact@v8
         with: { path: dist, merge-multiple: true }
 
-      # Runs on every completed build. A tag or a publish dispatch creates the
-      # release; a plain dispatch refreshes the existing one's assets instead
-      # of failing on "tag already exists" - everything was built either way,
-      # so skipping would throw the artifacts away.
+      # A rerun finds the release already there and refreshes its assets
+      # instead of failing on "tag already exists".
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
