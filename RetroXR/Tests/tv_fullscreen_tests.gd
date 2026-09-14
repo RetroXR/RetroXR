@@ -28,6 +28,9 @@ func _ready() -> void:
 		print("[test] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
+	# A freed emitter's Meta XR playback is handed back by later AudioServer
+	# updates; quitting before then faults at exit.
+	await _wait(60)
 	print("[test] %d checks, %d failures" % [_checks, _failed])
 	print("[test] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
 	get_tree().quit(1 if _failed > 0 else 0)
