@@ -1111,13 +1111,15 @@ jobs:
           **macOS**: ad-hoc signed - right-click > Open on first launch. Emulator cores download unsigned by design.
           NOTES
           sed -i -e "s/\$VER/$VER/g" -e "s/\$PREV/$PREV/g" -e "s/\$TAG/$TAG/g" -e "s|\$REPO|$REPO|g" notes.md
+          # notes.md is a template for a human to fill in, so it is written on
+          # creation only. A rerun refreshes the assets and leaves the notes -
+          # by then they are usually the real ones.
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --draft --title "RetroXR $TAG" --notes-file notes.md dist/*
-            echo "::notice::release $TAG created as a DRAFT - review and publish it"
+            gh release create "$TAG" --title "RetroXR $TAG" --notes-file notes.md dist/*
+            echo "::notice::release $TAG created - fill in the notes template"
           else
             gh release upload "$TAG" dist/* --clobber
-            gh release edit "$TAG" --notes-file notes.md
-            echo "existing release $TAG refreshed"
+            echo "existing release $TAG refreshed, notes left alone"
           fi
           gh release view "$TAG" --json isDraft,assets --jq '"draft: \(.isDraft)", (.assets[] | "\(.name): \(.size) bytes")'
 
