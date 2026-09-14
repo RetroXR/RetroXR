@@ -198,6 +198,8 @@ func _ready() -> void:
 		_lcd_off_mat = _lcd.get_surface_override_material(0)
 	_bind_controls()
 	_input = VmuInput.attach(self)
+	grabbed.connect(_on_hand_grab_changed)
+	released.connect(_on_hand_grab_changed)
 	set_process(false)
 	# Progress left by a game that was still running when the app last closed.
 	_carry_progress_back.call_deferred()
@@ -528,6 +530,21 @@ static func _library_icons(path: String) -> Array:
 ## The systemid those games are filed under, locally and on a RomM server.
 func library_systemid() -> String:
 	return LIBRARY_SYSTEMID
+
+
+## A VR hand taking or letting go of the card re-anchors every hand still on it.
+## Only a hand: a snap zone's pick-up emits grabbed too, and re-anchoring that
+## would pin the card where it was instead of seating it.
+func _on_hand_grab_changed(_pickable: Node3D, by: Node3D) -> void:
+	if by is XRToolsFunctionPickup:
+		GripAnchor.refresh(self, self)
+
+
+## Where a VR hand grips the card, in card space: the authored HandLeft/HandRight
+## nodes, which place the drawn hands too. See GripAnchor.
+func grip_anchor(is_left: bool) -> Variant:
+	var hand := get_node_or_null(^"HandLeft" if is_left else ^"HandRight") as Node3D
+	return hand.transform if hand != null else null
 
 
 ## Why this card cannot run a minigame right now, or "" when it can.

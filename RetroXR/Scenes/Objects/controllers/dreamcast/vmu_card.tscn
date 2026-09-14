@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://Scripts/Objects/peripherals/vmu_card.gd" id="1_vmuscript"]
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
-[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/vmu_grab_point.gd" id="3_grabpoint"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="4_rhand"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_lhand"]
 
@@ -266,7 +266,7 @@ autowrap_mode = 3
 
 ; IDENTITY. A snap zone seats an object by composing its grab point, so this
 ; being the origin is what makes the slot's own transform the whole of the
-; seating geometry.
+; seating geometry. A VR hand is refused here and grips by HandLeft/HandRight.
 [node name="GrabPoint" type="Marker3D" parent="."]
 visible = false
 script = ExtResource("3_grabpoint")
@@ -281,8 +281,13 @@ collision_mask = 0
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
 shape = SubResource("Box_pointer")
 
+; The grip a VR hand takes, which also places the drawn hands: the card pitched
+; down 90 degrees about X, so its top edge points forward and its screen up.
+; Rows, not columns: this is Rx(+90) as the hand frame in card space.
 [node name="HandRight" parent="." instance=ExtResource("4_rhand")]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 visible = false
 
 [node name="HandLeft" parent="." instance=ExtResource("5_lhand")]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
 visible = false
