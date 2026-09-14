@@ -207,10 +207,15 @@ const SOURCES := {
 	# inside the package name, so nothing matched, no ROM was loaded, and the CPU
 	# was started anyway. A path with no dot handed NULL to strcmp.
 	#
+	# v2: each XRAM bank is 0x7C bytes, but every access adds the game's STAD to
+	# the index and reaches up to 0xFF past the end. Chao Adventure 2 sets STAD
+	# and writes there constantly, so the heap was corrupt by the time a stop
+	# freed it, and stopping the game crashed.
+	#
 	# VeMUlator is GPLv3, so the source for these binaries sits on the tag.
 	"vemulator": {
 		"repo":  "XenuIsWatching/vemulator-libretro",
-		"known_tag": "retroxr-vemulator-libretro-v1",
+		"known_tag": "retroxr-vemulator-libretro-v2",
 		"label": "VeMUlator (retroXR build)",
 		"assets": {
 			"Windows": "vemulator_libretro.dll.zip",

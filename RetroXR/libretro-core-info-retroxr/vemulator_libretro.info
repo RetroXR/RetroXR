@@ -22,7 +22,7 @@
 #
 # And the naming fields say which build this is, as the other vendored forks do.
 # The binary is built from XenuIsWatching/vemulator-libretro at the tag
-# retroxr-vemulator-libretro-v1 and published on that repository's releases
+# retroxr-vemulator-libretro-v2 and published on that repository's releases
 # page, which is also where its source is — an obligation here rather than
 # merely good manners, since VeMUlator is GPLv3.
 #
@@ -31,7 +31,9 @@
 # behind a guard that therefore tested garbage (so every unload died, and
 # retro_unload_game calls reset(), which builds a fresh flash object); an
 # extension check that took the FIRST dot in the path, which on Android is
-# inside the package name; and a path with no dot handing NULL to strcmp.
+# inside the package name; and a path with no dot handing NULL to strcmp. v2
+# adds a fourth: XRAM accesses add STAD to their index and ran past the end of
+# each bank, corrupting the heap until a stop crashed freeing it.
 #
 # The rest is a VERBATIM copy and has to be: the overlay REPLACES an entry
 # rather than merging into it, so a file carrying only the changed lines would
