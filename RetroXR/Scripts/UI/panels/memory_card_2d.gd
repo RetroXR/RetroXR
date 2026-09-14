@@ -38,6 +38,8 @@ signal play_stop_requested
 signal close_requested
 ## The player stepped a core option on the Options tab.
 signal option_changed(key: String, value: String)
+## The player picked a game on the Games tab. See populate_games for its shape.
+signal game_picked(game: Dictionary)
 
 const CoreOptionRow := preload("res://Scripts/UI/widgets/core_option_row.gd")
 
@@ -108,6 +110,9 @@ var _tabs: TabContainer = null
 var _options_scroll: ScrollContainer = null
 var _options_rows: VBoxContainer = null
 var _options_note: Label = null
+var _games_scroll: ScrollContainer = null
+var _games_rows: VBoxContainer = null
+var _games_note: Label = null
 
 # Each entry: {rect: TextureRect, frames: Array[ImageTexture]}
 var _animated: Array[Dictionary] = []
@@ -244,6 +249,77 @@ func _build_ui() -> void:
 	_options_scroll.add_child(_options_rows)
 	_tabs.set_tab_hidden(1, true)
 
+	var games_page := VBoxContainer.new()
+	games_page.name = "Games"
+	games_page.add_theme_constant_override("separation", 6)
+	_tabs.add_child(games_page)
+	_games_note = Label.new()
+	_games_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_games_note.add_theme_font_size_override("font_size", 16)
+	_games_note.add_theme_color_override("font_color", COLOR_DIM)
+	_games_note.visible = false
+	games_page.add_child(_games_note)
+	_games_scroll = ScrollContainer.new()
+	_games_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_games_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	games_page.add_child(_games_scroll)
+	MenuStyle.fat_vscroll_bar(_games_scroll, 22, 40)
+	_games_rows = VBoxContainer.new()
+	_games_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_games_rows.add_theme_constant_override("separation", 6)
+	_games_scroll.add_child(_games_rows)
+	_tabs.set_tab_hidden(2, true)
+
+
+## The tab bar shows while any tab beyond Saves has something in it.
+func _refresh_tab_bar() -> void:
+	var extra := not _tabs.is_tab_hidden(1) or not _tabs.is_tab_hidden(2)
+	_tabs.tabs_visible = extra
+	if _tabs.is_tab_hidden(_tabs.current_tab):
+		_tabs.current_tab = 0
+
+
+## Offer games the card can run on the Games tab. Each game is a Dictionary with
+## a `label`, an optional `tag` shown beside it, and whatever the owner needs to
+## start it; picking one emits game_picked with it. `blocked` disables every row
+## and says why. With no games and no note, the tab stays hidden.
+func populate_games(games: Array, note: String, blocked: String) -> void:
+	var shown := not games.is_empty() or not note.is_empty()
+	_tabs.set_tab_hidden(2, not shown)
+	_refresh_tab_bar()
+	if not shown:
+		return
+	for c in _games_rows.get_children():
+		c.queue_free()
+	var text := blocked if not blocked.is_empty() else note
+	_games_note.text = text
+	_games_note.visible = not text.is_empty()
+	for game: Dictionary in games:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 8)
+		_games_rows.add_child(row)
+		var btn := Button.new()
+		btn.text = str(game.get("label", ""))
+		btn.custom_minimum_size = Vector2(0, 48)
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		btn.clip_text = true
+		btn.disabled = not blocked.is_empty() or bool(game.get("busy", false))
+		btn.pressed.connect(func() -> void: game_picked.emit(game))
+		row.add_child(btn)
+		var tag := str(game.get("tag", ""))
+		if not tag.is_empty():
+			var tag_lbl := Label.new()
+			tag_lbl.text = tag
+			tag_lbl.add_theme_font_size_override("font_size", 14)
+			tag_lbl.add_theme_color_override("font_color", COLOR_DIM)
+			tag_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+			row.add_child(tag_lbl)
+			# Clear of the scroll bar, which is drawn over the list's right edge.
+			var gutter := Control.new()
+			gutter.custom_minimum_size = Vector2(24, 0)
+			row.add_child(gutter)
+
 
 ## Offer a core's options on the Options tab. `definitions` and `values` take the
 ## shape of the Libretro node's options_ready signal; keys in `forced` show
@@ -253,9 +329,8 @@ func populate_options(definitions: Dictionary, values: Dictionary, forced: Dicti
 		note: String) -> void:
 	var shown := not definitions.is_empty() or not note.is_empty()
 	_tabs.set_tab_hidden(1, not shown)
-	_tabs.tabs_visible = shown
+	_refresh_tab_bar()
 	if not shown:
-		_tabs.current_tab = 0
 		return
 	for c in _options_rows.get_children():
 		c.queue_free()
@@ -325,8 +400,11 @@ func populate(card_name: String, saves: Array, free: int, total: int,
 ## other options panel does — SpawnMenuController finds this by name on whatever
 ## panel a pointer is aimed at.
 func scroll_active(pixels: float) -> void:
-	var target: ScrollContainer = _options_scroll \
-		if _tabs != null and _tabs.current_tab == 1 else _scroll
+	var target: ScrollContainer = _scroll
+	if _tabs != null and _tabs.current_tab == 1:
+		target = _options_scroll
+	elif _tabs != null and _tabs.current_tab == 2:
+		target = _games_scroll
 	if target != null:
 		target.scroll_vertical += int(pixels)
 

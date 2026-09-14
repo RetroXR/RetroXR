@@ -690,6 +690,12 @@ func _get_menu() -> SpawnMenu2D:
 	return null
 
 
+## The menu, for a panel that borrows what it owns (the RomM downloader, say).
+## Null until its scene has loaded.
+func menu() -> SpawnMenu2D:
+	return _get_menu()
+
+
 # ── Visibility ────────────────────────────────────────────────────────────────
 
 func _toggle_menu() -> void:

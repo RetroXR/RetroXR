@@ -29,6 +29,12 @@ var _armed_slot := ""
 ## here. Results are transient and belong over the page, not inside a list that
 ## is about to be redrawn under them.
 var _toasts: MenuToasts = null
+## A RomM game picked on the Games tab, booted when its download lands. One at a
+## time: picking another while one downloads leaves the first to finish unbooted.
+var _pending_rom_id := 0
+var _pending_title := ""
+## The spawn menu whose RomM signals this panel is listening to.
+var _romm_menu: SpawnMenu2D = null
 
 @onready var _viewport_node: XRToolsViewport2DIn3D = $MemoryCardViewport
 
@@ -78,6 +84,7 @@ func _ensure_ui_connected() -> void:
 	ui.save_play_requested.connect(_on_play_requested)
 	ui.play_stop_requested.connect(_on_stop_requested)
 	ui.option_changed.connect(_on_core_option_changed)
+	ui.game_picked.connect(_on_game_picked)
 	# The stack lifts itself onto its own quad in front of whichever Viewport2Din3D
 	# hosts it — this panel's, here — so it needs to live in the 2D tree.
 	_toasts = MenuToasts.create()
@@ -161,6 +168,148 @@ func _populate() -> void:
 			str(opts["note"]))
 	else:
 		ui.populate_options({}, {}, {}, "")
+	# And the games it can run from the library.
+	_populate_games(ui)
+
+
+## The Games tab: the card's library folder, then what its RomM platform holds
+## that is not on disk yet.
+func _populate_games(ui: MemoryCard2D) -> void:
+	if not _card.has_method("library_games"):
+		ui.populate_games([], "", "")
+		return
+	var sid := str(_card.call("library_systemid"))
+	var games: Array = []
+	var on_disk := {}
+	for g: Dictionary in _card.call("library_games"):
+		games.append(g)
+		on_disk[str(g["path"]).get_file().to_lower()] = true
+	var note := ""
+	var menu := _menu()
+	if menu != null and menu.romm_config != null and menu.romm_config.is_configured():
+		_listen_to_romm(menu)
+		if RommCatalog.has_index(sid):
+			var fetching := menu.romm_downloader.current_rom_id()
+			for row: Dictionary in RommCatalog.read_rows(sid):
+				if on_disk.has(str(row.get("fs_name", "")).to_lower()):
+					continue
+				var id := int(row.get("id", 0))
+				var busy := id == fetching or id == _pending_rom_id
+				games.append({"label": str(row.get("name", "")), "romm": row,
+					"tag": "downloading" if busy else "RomM", "busy": busy})
+		elif menu.romm_catalog.syncing_systemid() == sid:
+			note = "Fetching the RomM list…"
+		else:
+			var platform: Variant = menu.romm_platforms().get(sid,
+				menu.romm_config.cached_platforms.get(sid, {}))
+			var pid := int((platform as Dictionary).get("id", 0)) if platform is Dictionary else 0
+			if pid > 0 and menu.romm_catalog.sync_platform(sid, pid, true):
+				note = "Fetching the RomM list…"
+	games.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return str(a["label"]).naturalnocasecmp_to(str(b["label"])) < 0)
+	ui.populate_games(games, note, str(_card.call("standalone_blocker")))
+
+
+## The spawn menu owns the RomM client, catalog and downloader. Null before its
+## scene has loaded.
+func _menu() -> SpawnMenu2D:
+	var ctrl := get_tree().root.find_child("SpawnMenuController", true, false)
+	if ctrl == null or not ctrl.has_method("menu"):
+		return null
+	var menu: Variant = ctrl.call("menu")
+	return menu as SpawnMenu2D if is_instance_valid(menu) else null
+
+
+func _listen_to_romm(menu: SpawnMenu2D) -> void:
+	if _romm_menu == menu:
+		return
+	_romm_menu = menu
+	menu.romm_catalog.sync_finished.connect(_on_romm_sync_finished)
+	menu.romm_downloader.download_finished.connect(_on_romm_download_finished)
+	menu.romm_downloader.download_cancelled.connect(_on_romm_download_cancelled)
+
+
+func _on_romm_sync_finished(systemid: String, _ok: bool, _added: int, _removed: int,
+		_error: String) -> void:
+	if (visible and _card and is_instance_valid(_card)
+			and _card.has_method("library_systemid")
+			and systemid == str(_card.call("library_systemid"))):
+		_populate()
+
+
+func _on_romm_download_finished(rom_id: int, ok: bool, path: String, error: String) -> void:
+	if rom_id == 0 or rom_id != _pending_rom_id:
+		return
+	var title := _pending_title
+	_pending_rom_id = 0
+	_pending_title = ""
+	if not ok:
+		_notice("Could not download %s — %s" % [title, error], MenuToasts.DWELL_FAIL)
+		if visible:
+			_populate()
+		return
+	_boot_game(path, title)
+
+
+func _on_romm_download_cancelled(rom_id: int) -> void:
+	if rom_id == 0 or rom_id != _pending_rom_id:
+		return
+	_pending_rom_id = 0
+	_pending_title = ""
+	if visible:
+		_populate()
+
+
+## Boot a game picked on the Games tab, downloading it from RomM first when it is
+## not on disk.
+func _on_game_picked(game: Dictionary) -> void:
+	if not (_card and is_instance_valid(_card) and _card.has_method("power_on")):
+		return
+	var title := str(game.get("label", ""))
+	if not _can_boot(title):
+		return
+	if not game.has("romm"):
+		_boot_game(str(game.get("path", "")), title)
+		return
+	var menu := _menu()
+	if menu == null or menu.romm_downloader == null:
+		_notice("RomM is not available right now", MenuToasts.DWELL_FAIL)
+		return
+	if menu.romm_client != null and not menu.romm_client.is_reachable():
+		_notice("The RomM server is unreachable", MenuToasts.DWELL_FAIL)
+		return
+	var row: Dictionary = game["romm"]
+	_pending_rom_id = int(row.get("id", 0))
+	_pending_title = title
+	menu.romm_downloader.enqueue(row, str(_card.call("library_systemid")))
+	_notice("Downloading %s" % title)
+	_populate()
+
+
+## A card already running a game is refused rather than switched: its core stops
+## asynchronously, and a start queued behind that stop is not something to race.
+func _can_boot(title: String) -> bool:
+	var why := str(_card.call("standalone_blocker"))
+	if not why.is_empty():
+		_notice("Cannot play %s — %s" % [title, why], MenuToasts.DWELL_FAIL)
+		return false
+	if bool(_card.call("is_running_standalone")):
+		_notice("Stop %s first" % str(_card.call("playing_title")), MenuToasts.DWELL_FAIL)
+		return false
+	return true
+
+
+func _boot_game(path: String, title: String) -> void:
+	# Asked again: a download can land long after the pick, and the card may have
+	# been seated or started something in the meantime.
+	if path.is_empty() or not (_card and is_instance_valid(_card)) or not _can_boot(title):
+		return
+	if not bool(_card.call("power_on", path, title)):
+		_notice("%s would not start" % title, MenuToasts.DWELL_FAIL)
+	else:
+		_notice("Playing %s on the card" % title)
+	if visible:
+		_populate()
 
 
 func _on_core_option_changed(key: String, value: String) -> void:

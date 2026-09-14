@@ -155,6 +155,18 @@ static func has_index(systemid: String) -> bool:
 	return FileAccess.file_exists(index_path(systemid))
 
 
+## Every row of a platform's index, in server order, read straight from disk.
+## For a caller that wants a small platform's list without load_index, which
+## would swap out whichever platform the spawn menu has loaded.
+static func read_rows(systemid: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for line: String in _read_existing_rows(index_path(systemid)).values():
+		var parsed: Variant = JSON.parse_string(line)
+		if parsed is Dictionary:
+			out.append(parsed)
+	return out
+
+
 static func read_meta(systemid: String) -> Dictionary:
 	var path := meta_path(systemid)
 	if not FileAccess.file_exists(path):

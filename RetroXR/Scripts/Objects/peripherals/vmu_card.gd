@@ -140,6 +140,10 @@ const IDLE_FRAMES_TO_STOP := 24
 # is seated. What it grows instead is a Libretro node of its own.
 
 const STANDALONE_CORE := "vemulator"
+## The library folder the card's Games tab lists, roms/<this>.
+const LIBRARY_SYSTEMID := "vmu"
+## What vemulator loads: a minigame, a game with its directory entry, or a card.
+const LIBRARY_EXTENSIONS: Array[String] = ["vms", "dci", "bin"]
 ## Pinned for every standalone run: see _boot() for why writing must be on.
 const FORCED_OPTIONS := {"enable_flash_write": "enabled"}
 
@@ -491,6 +495,21 @@ func _carry_progress_back() -> void:
 			return
 		print("[VmuCard] carried %s back to %s" % [", ".join(carried), card_label])
 	_remove_play_note()
+
+
+## The minigames in the library's VMU folder, as [{path, label}] sorted by label.
+## A firmware dump kept beside them is a .bin too, and is not a game.
+func library_games() -> Array[Dictionary]:
+	var games: Array[Dictionary] = []
+	for g: Dictionary in RomLibrary.scan_roms(LIBRARY_SYSTEMID, LIBRARY_EXTENSIONS):
+		if not str(g["path"]).get_file().to_lower().contains("bios"):
+			games.append(g)
+	return games
+
+
+## The systemid those games are filed under, locally and on a RomM server.
+func library_systemid() -> String:
+	return LIBRARY_SYSTEMID
 
 
 ## Why this card cannot run a minigame right now, or "" when it can.

@@ -95,6 +95,7 @@ const SLUG_MAP := {
 	"sega-saturn": "sega_saturn",
 	"dreamcast": "dreamcast",
 	"dc": "dreamcast",
+	"vmu": "vmu",
 
 	# Atari
 	"atari2600": "atari_2600",
