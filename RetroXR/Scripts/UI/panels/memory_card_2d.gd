@@ -201,8 +201,8 @@ func _build_ui() -> void:
 	saves_page.add_theme_constant_override("separation", 8)
 	_tabs.add_child(saves_page)
 
-	# A card holds up to 15 saves and about four rows are in view, so this list
-	# scrolls on any well-used card. The bar is widened like every other panel's:
+	# A card holds more saves than the panel shows at once, so this list scrolls
+	# on any well-used card. The bar is widened like every other panel's:
 	# the default 8 px is under 6 mm on a panel this size, which a laser cannot
 	# hold. 22 px matches the ~15 mm the menu's own bars present.
 	_scroll = ScrollContainer.new()

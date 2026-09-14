@@ -4,15 +4,19 @@
 [ext_resource type="PackedScene" uid="uid://clujaf3u776a3" path="res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn" id="2_viewport2d3d"]
 [ext_resource type="PackedScene" uid="uid://memcard_2d_0001" path="res://Scenes/UI/memory_card_2d.tscn" id="3_memcard2d"]
 
-; screen_size must match viewport_size's aspect (420:480) or pointer clicks land
+; screen_size must match viewport_size's aspect (600:720) or pointer clicks land
 ; off-target, and it is authored here rather than set at runtime because the
 ; XRToolsViewport2DIn3D setter throws before it assigns.
+;
+; The page is raised by half of what its height adds over 0.32 m, so its bottom
+; edge sits 0.16 m above the card and clears a console the card is seated in.
 [node name="MemoryCardPanel" type="Node3D"]
 script = ExtResource("1_panelscript")
 
 [node name="MemoryCardViewport" parent="." instance=ExtResource("2_viewport2d3d")]
-screen_size = Vector2(0.28, 0.32)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.08, 0)
+screen_size = Vector2(0.4, 0.48)
 scene = ExtResource("3_memcard2d")
-viewport_size = Vector2(420, 480)
+viewport_size = Vector2(600, 720)
 transparent = 1
 unshaded = true

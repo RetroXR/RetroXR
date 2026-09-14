@@ -35,7 +35,7 @@ var _toasts: MenuToasts = null
 
 func _ready() -> void:
 	super._ready()
-	# A card's list outgrows 480 px fast -- a PS2 card holds dozens of saves -- so
+	# A card's list outgrows 720 px fast -- a PS2 card holds dozens of saves -- so
 	# every card family's panel can be dragged bigger from its corner.
 	enable_resize_grip()
 
