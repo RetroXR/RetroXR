@@ -4,9 +4,10 @@
 ##
 ## The room is hidden, not unloaded. Every direct child of the current scene except
 ## the player rig goes invisible and gets back the visibility it had. Kept drawn:
-## whatever a hand has held since focus began, the focused handheld, and every device
-## and lead wired to the focused machine. Hidden things keep their bodies, so their
-## pickables and poke widgets are switched off and the lasers see only the screen.
+## whatever a hand has held since focus began, the focused handheld, every device and
+## lead wired to the focused machine, and whatever is seated in a socket on any of
+## those. Hidden things keep their bodies, so their pickables and poke widgets are
+## switched off and the lasers see only the screen.
 class_name FocusMode
 extends Node3D
 
@@ -297,8 +298,15 @@ func _keep_set() -> Dictionary:
 	if device is RetroSystem:
 		_keep(keep, device)
 	var machine := _focused_machine()
-	if machine == null:
-		return keep
+	if machine != null:
+		_keep_wired(keep, machine)
+	_keep_seated(keep)
+	return keep
+
+
+## The devices in `machine`'s ports, their cords, and every lead on its bus with the
+## machine at the far end.
+func _keep_wired(keep: Dictionary, machine: RetroSystem) -> void:
 	var controllers := machine.get_port_controllers()
 	for ctrl: Variant in controllers:
 		if is_instance_valid(ctrl):
@@ -317,7 +325,23 @@ func _keep_set() -> Dictionary:
 		_keep(keep, cable)
 		for entry: Dictionary in bus:
 			_keep(keep, entry.get("machine"))
-	return keep
+
+
+## Adds whatever sits in a socket on something kept, however deep: a VMU in a pad,
+## a Transfer Pak and the cartridge in it. A snapped object is never reparented under
+## its socket, so it is a room child of its own and the tree cannot say what holds it.
+func _keep_seated(keep: Dictionary) -> void:
+	var seats: Array[Array] = []
+	for zone: XRToolsSnapZone in XRToolsSnapZone.live_zones():
+		if is_instance_valid(zone) and is_instance_valid(zone.picked_up_object):
+			seats.append([_top_level(zone), _top_level(zone.picked_up_object)])
+	var grew := true
+	while grew:
+		grew = false
+		for seat: Array in seats:
+			if seat[1] != null and keep.has(seat[0]) and not keep.has(seat[1]):
+				keep[seat[1]] = true
+				grew = true
 
 
 func _keep(into: Dictionary, node: Variant) -> void:

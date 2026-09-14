@@ -10,6 +10,7 @@ extends Node
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
+const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
 
 const HAND_SRC := """extends Node3D
 var inputs := {}
@@ -157,6 +158,25 @@ func _prop(prop_name: String) -> Node3D:
 	return prop
 
 
+## A pickable room child, the shape a card, pak or cartridge has.
+func _pickable(prop_name: String) -> XRToolsPickable:
+	var pickable := XRToolsPickable.new()
+	pickable.name = prop_name
+	pickable.position = Vector3(-3, 1, 1)
+	var mesh := MeshInstance3D.new()
+	mesh.mesh = BoxMesh.new()
+	pickable.add_child(mesh)
+	add_child(pickable)
+	return pickable
+
+
+## `obj` seated in a real socket on `host`.
+func _seat(host: Node3D, obj: Node3D) -> void:
+	var zone := SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
+	host.add_child(zone)
+	zone.pick_up_object(obj)
+
+
 func _tv() -> RetroTV:
 	var tv := TV_SCENE.instantiate() as RetroTV
 	tv.position = Vector3(3, 1.5, 0)
@@ -270,10 +290,27 @@ func _keep_cases() -> void:
 	gb._port_controllers[1] = pad
 	lead.set("bus", [{"machine": gb, "port": 0}, {"machine": far, "port": 0}])
 
+	var card := _pickable("Card")
+	var pak := _pickable("Pak")
+	var cart := _pickable("Cart")
+	var shelf := _prop("Shelf")
+	var shelved := _pickable("Shelved")
+	# Inner socket first, so one pass over the sockets in order would miss the cartridge.
+	_seat(pak, cart)
+	_seat(pad, card)
+	_seat(pad, pak)
+	_seat(shelf, shelved)
+	await _wait(2)
+
 	_fm.enter(gb)
 	_ok(gb.visible, "keep/the focused handheld stays in view")
 	_ok(pad.visible, "keep/a pad in the machine's port stays in view")
 	_ok(pad_cable.visible, "keep/and the cord its plug hangs on")
+	_ok(card.visible, "keep/a card seated in that pad stays in view with it")
+	_ok(card.enabled, "keep/and can still be pulled out")
+	_ok(pak.visible and cart.visible, "keep/a pak in the pad, and the cartridge in the pak")
+	_ok(not shelf.visible and not shelved.visible,
+		"keep/something seated in a hidden thing is hidden with it")
 	_ok(lead_root.visible and far.visible,
 		"keep/a link lead to the machine, and the machine at its far end")
 	_ok(not other_root.visible, "keep/a lead between two other machines is hidden")
@@ -288,8 +325,17 @@ func _keep_cases() -> void:
 	_fm._refresh_room()
 	_ok(not pad.visible and not pad_cable.visible,
 		"keep/a pad no longer in the port is hidden with its cord")
+	_ok(not card.visible and not cart.visible, "keep/and with what is seated in it")
 	_fm.leave()
-	for node: Node in [pad, pad_cable, lead_root, far, other_root, loose]:
+	_ok(card.visible and cart.visible and shelved.visible, "keep/leaving draws the seated things again")
+	# Sockets before what they hold, a frame apart: a release defers an escape check
+	# on the body, and a body freed in the same frame reaches it as a freed object.
+	for node: Node in [pad, shelf, pad_cable, lead_root, far, other_root, loose]:
+		node.free()
+	await _wait(2)
+	pak.free()
+	await _wait(2)
+	for node: Node in [card, cart, shelved]:
 		node.free()
 	gb.free()
 	await _wait(2)
