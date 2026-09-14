@@ -69,9 +69,9 @@ jobs:
           # SideQuest refuses a published build whose versionCode is not higher
           # than the one already listed. Non-publishing workflow_dispatch runs
           # deliberately rebuild the current version and must remain testable.
-          # Like the keystore and SideQuest steps: advisory only - the ::warning
-          # and the Summary tab entry say what a real release needs, and the
-          # pipeline goes on either way.
+          # A tag is the real release and fails here, in seconds, rather than
+          # after the half-hour build. A publishing dispatch only warns: it cuts
+          # no tag, so the listing is not at stake yet.
           if [ "$CHECK_RELEASE_VERSION" = true ]; then
             prev=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
             if [ -n "$prev" ]; then
@@ -80,6 +80,10 @@ jobs:
               prev_code=$(git show "$prev:$cfg" 2>/dev/null | sed -n 's/^version\/code=\([0-9]*\)$/\1/p' | head -1 || true)
               echo "previous tag $prev had code=${prev_code:-<not tracked>}"
               if [ -n "$prev_code" ] && [ "$code" -le "$prev_code" ]; then
+                if [ "${GITHUB_REF_TYPE:-}" = tag ]; then
+                  echo "::error::version/code=$code is not greater than $prev_code (tag $prev) - SideQuest would reject it"
+                  exit 1
+                fi
                 echo "::warning::version/code=$code is not greater than $prev_code (tag $prev) - SideQuest would reject it"
                 {
                   echo "### ⚠️ version/code=$code is not greater than $prev_code (tag $prev)"
