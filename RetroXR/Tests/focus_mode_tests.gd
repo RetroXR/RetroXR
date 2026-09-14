@@ -11,6 +11,7 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
+const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
 
 const HAND_SRC := """extends Node3D
 var inputs := {}
@@ -343,16 +344,28 @@ func _keep_cases() -> void:
 	# On a set, the machine on its selected input is the one whose ports count.
 	var tv := await _tv()
 	var console := await _handheld("nes")
+	var fds := EXPANSION_SCENE.instantiate() as RetroExpansion
+	fds.expansion_id = "fds"
+	fds.position = Vector3(3, 1.2, 1.5)
+	fds.freeze = true
+	add_child(fds)
+	await _wait(10)
+	fds.get_socket().pick_up_object(console)
+	await _wait(5)
 	var cable := await _cable(console, tv)
 	var nes_pad := _prop("NesPad")
 	console._port_controllers[0] = nes_pad
 	_fm.enter(tv)
 	_ok(nes_pad.visible, "keep/on a set, the pad in the machine it is showing stays in view")
-	_ok(not console.visible, "keep/while that machine itself is hidden")
+	_ok(console.visible, "keep/and so does that machine")
+	_ok(fds.visible, "keep/and the unit it stands on, which holds it in its socket")
+	_ok(not tv.visible, "keep/while the set itself stays hidden")
 	_fm.leave()
 	console._port_controllers[0] = null
 	nes_pad.free()
 	tv.free()
+	await _wait(2)
+	fds.free()
 	await _wait(2)
 	console.free()
 	await _wait(2)

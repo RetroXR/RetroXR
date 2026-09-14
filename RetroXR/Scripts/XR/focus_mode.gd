@@ -4,8 +4,9 @@
 ##
 ## The room is hidden, not unloaded. Every direct child of the current scene except
 ## the player rig goes invisible and gets back the visibility it had. Kept drawn:
-## whatever a hand has held since focus began, the focused handheld, every device and
-## lead wired to the focused machine, and whatever is seated in a socket on any of
+## whatever a hand has held since focus began, the focused machine (the handheld
+## itself, or the source on a TV's selected input) with the units bolted to it, every
+## device and lead wired to that machine, and whatever is seated in a socket on any of
 ## those. Hidden things keep their bodies, so their pickables and poke widgets are
 ## switched off and the lasers see only the screen.
 class_name FocusMode
@@ -294,11 +295,9 @@ func _keep_set() -> Dictionary:
 			keep[node] = true
 		else:
 			_held.erase(node)
-	var device: Variant = _device.get_ref() if _device != null else null
-	if device is RetroSystem:
-		_keep(keep, device)
 	var machine := _focused_machine()
 	if machine != null:
+		_keep_machine(keep, machine)
 		_keep_wired(keep, machine)
 	_keep_seated(keep)
 	return keep
@@ -324,7 +323,18 @@ func _keep_wired(keep: Dictionary, machine: RetroSystem) -> void:
 			continue
 		_keep(keep, cable)
 		for entry: Dictionary in bus:
-			_keep(keep, entry.get("machine"))
+			_keep_machine(keep, entry.get("machine"))
+
+
+## A machine and the expansion units bolted to it. A unit the console stands on holds
+## the console in its own socket, so the seated rule alone would leave it floating.
+func _keep_machine(keep: Dictionary, machine: Variant) -> void:
+	if not is_instance_valid(machine):
+		return
+	_keep(keep, machine)
+	if machine is RetroSystem:
+		for unit: RetroExpansion in (machine as RetroSystem).get_expansions():
+			_keep(keep, unit)
 
 
 ## Adds whatever sits in a socket on something kept, however deep: a VMU in a pad,
