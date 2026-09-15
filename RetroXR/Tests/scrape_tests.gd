@@ -87,6 +87,7 @@ func _ready() -> void:
 	await _run_group("queue", _group_queue)
 	await _run_group("threads", _group_threads)
 	await _run_group("results", _group_results)
+	await _run_group("scraped", _group_scraped)
 	await _run_group("media", _group_media)
 	await _run_group("quota", _group_quota)
 	await _run_group("auto", _group_auto)
@@ -358,7 +359,7 @@ func _group_results() -> void:
 	var fresh := GamelistManager.new()
 	var game := fresh.get_game_for_rom(TEST_SYSTEM, a)
 	_check(str(game.get("name", "")) == "Accepted Game", "accepted result is in the gamelist on disk")
-	_check(not ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, a), "needs_scrape is false once named")
+	_check(not ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, a), "needs_scrape is false once scraped")
 	_check(drained == [[1, 0]], "drained reports one done")
 
 	q.enqueue(b, TEST_SYSTEM, {"review": true})
@@ -391,6 +392,75 @@ func _group_results() -> void:
 	await _frames(6)
 	_check(failures.size() == 1 and failures[0][0] == missing, "a file that cannot be hashed fails")
 	_check(drained.size() == 4 and drained.back() == [0, 1], "drained reports the failure")
+	q.free()
+
+
+# ── scraped ───────────────────────────────────────────────────────────────────
+
+func _group_scraped() -> void:
+	var q := _queue(false)
+	var rom := _rom("s_romm.bin")
+	var download := {"game_id": "romm:41", "name": "Server Name", "desc": ""}
+	_gamelist.add_or_merge_rom(TEST_SYSTEM, download.duplicate(),
+		{"path": "./s_romm.bin", "romname": "s_romm.bin"})
+	_check(ScrapeQueue.needs_scrape(_gamelist, TEST_SYSTEM, rom),
+		"a game only the RomM downloader has named still needs a scrape")
+
+	q.enqueue(rom, TEST_SYSTEM)
+	await _until_held(1)
+	_client_for(rom).resolve(rom, _result("Scraped Name"))
+	await _frames(4)
+	var fresh := GamelistManager.new()
+	var game := fresh.get_game_for_rom(TEST_SYSTEM, rom)
+	_check(str(game.get("game_id", "")) == "romm:41" and bool(game.get("scraped", false)),
+		"a scrape over a RomM entry keeps the RomM id and flags it scraped")
+	_check(not ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, rom),
+		"a scraped RomM entry needs no scrape though the answer had no description")
+	fresh.add_or_merge_rom(TEST_SYSTEM, download.duplicate(),
+		{"path": "./s_romm.bin", "romname": "s_romm.bin"})
+	_check(ScrapeQueue.is_scraped(fresh.get_game_for_rom(TEST_SYSTEM, rom)),
+		"downloading it again leaves it scraped")
+
+	_check(ScrapeQueue.is_scraped({"game_id": "5405", "name": "Banjo-Kazooie"}),
+		"an unflagged entry with a ScreenScraper id counts as scraped")
+	_check(ScrapeQueue.is_scraped({"game_id": "romm:79835", "name": "Rayman 2",
+		"desc": "Enter a massive 3-D action adventure."}),
+		"an unflagged RomM entry with a description counts as scraped")
+	_check(not ScrapeQueue.is_scraped({"game_id": "9", "name": ""}), "an unnamed entry is not scraped")
+	_check(not ScrapeQueue.is_scraped({}), "no entry is not scraped")
+
+	var split := _rom("s_split.bin")
+	var gl := GamelistManager.new()
+	var games: Array = gl.load_gamelist(TEST_SYSTEM)["games"]
+	games.append({"game_id": "romm:88", "name": "Split", "desc": "",
+		"roms": [{"path": "./s_split.bin", "romname": "s_split.bin"}]})
+	games.append({"game_id": "88", "name": "Split", "desc": "", "scraped": true,
+		"roms": [{"path": "./s_split.bin", "romname": "s_split.bin"}]})
+	gl.dedupe(TEST_SYSTEM)
+	var folded := gl.get_game_for_rom(TEST_SYSTEM, split)
+	_check(str(folded.get("game_id", "")) == "romm:88" and bool(folded.get("scraped", false)),
+		"dedupe keeps the scraped flag of the entry it folds away")
+
+	var first := _rom("s_first.bin")
+	q.enqueue(first, TEST_SYSTEM)
+	await _until_held(1)
+	_client_for(first).resolve(first, _result("Scraped First"))
+	await _frames(4)
+	var later := GamelistManager.new()
+	later.add_or_merge_rom(TEST_SYSTEM, {"game_id": "romm:42", "name": "Server Name", "desc": ""},
+		{"path": "./s_first.bin", "romname": "s_first.bin"})
+	var adopted := later.get_game_for_rom(TEST_SYSTEM, first)
+	_check(str(adopted.get("game_id", "")) == "romm:42" and ScrapeQueue.is_scraped(adopted),
+		"a game scraped before RomM downloads it stays scraped under the RomM id")
+
+	var twice := _rom("s_twice.bin")
+	var pick := q.select_unscraped(TEST_SYSTEM, [rom, rom, twice, twice])
+	_check(pick["paths"] == [twice] and pick["skipped"] == 1,
+		"select_unscraped takes or skips a path several rows share once")
+
+	var symbols: Font = load(MenuIcons.FONT_PATH)
+	_check(symbols != null and symbols.has_char(MenuIcons.RESCRAPE),
+		"the rescrape glyph is in the bundled symbol font")
 	q.free()
 
 

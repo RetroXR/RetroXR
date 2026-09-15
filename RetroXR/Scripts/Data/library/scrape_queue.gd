@@ -64,24 +64,39 @@ func setup(config: ScraperConfig, gamelist: GamelistManager,
 # ── Public ────────────────────────────────────────────────────────────────────
 
 ## True when scraping this ROM would learn something: no game in the gamelist
-## holds it, or the one that does has no name.
+## holds it, or the one that does was never scraped.
 static func needs_scrape(gamelist: GamelistManager, systemid: String, rom_path: String) -> bool:
 	if gamelist == null:
 		return true
-	var game := gamelist.get_game_for_rom(systemid, rom_path)
-	return game.is_empty() or str(game.get("name", "")).is_empty()
+	return not is_scraped(gamelist.get_game_for_rom(systemid, rom_path))
+
+
+## Whether ScreenScraper has written this gamelist entry. A name alone is not
+## enough: the RomM downloader names every game it fetches. An entry without
+## the `scraped` flag counts by what only the scraper writes, a non-RomM id or
+## a description.
+static func is_scraped(game: Dictionary) -> bool:
+	if str(game.get("name", "")).is_empty():
+		return false
+	if bool(game.get("scraped", false)):
+		return true
+	return not str(game.get("game_id", "")).begins_with("romm:") \
+		or not str(game.get("desc", "")).is_empty()
 
 
 ## What "Scrape all" takes from a page: the paths that need a scrape and are not
 ## already waiting or running. The second value is how many were passed over
-## as already scraped, for the notice.
+## as already scraped, for the notice. A path counts once however many rows
+## list it: several server entries can share one local file.
 func select_unscraped(systemid: String, paths: Array) -> Dictionary:
 	var take: Array[String] = []
+	var seen: Dictionary = {}
 	var skipped := 0
 	for p in paths:
 		var path := str(p)
-		if path.is_empty():
+		if path.is_empty() or seen.has(path):
 			continue
+		seen[path] = true
 		if not needs_scrape(_gamelist, systemid, path):
 			skipped += 1
 			continue
@@ -324,6 +339,7 @@ func _write_result(rom: String, systemid: String, result: Dictionary) -> void:
 		"developer": result.get("developer", ""),
 		"publisher": result.get("publisher", ""),
 		"genre": result.get("genre", ""),
+		"scraped": true,
 	}
 	var rom_data := {
 		"path": "./" + rom.get_file(),

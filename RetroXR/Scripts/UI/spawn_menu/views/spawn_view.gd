@@ -942,7 +942,7 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 	scrape_all.add_theme_font_size_override("font_size", 22)
 	scrape_all.custom_minimum_size = Vector2(64, 52)
 	scrape_all.size_flags_horizontal = Control.SIZE_SHRINK_END
-	scrape_all.tooltip_text = "Scrape every game on this page that has no details yet"
+	scrape_all.tooltip_text = "Scrape every game on this page that has not been scraped yet"
 	scrape_all.pressed.connect(_on_scrape_all_pressed.bind(systemid))
 	toolbar.add_child(scrape_all)
 
@@ -1588,9 +1588,16 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	# row later reuses this pooled button.
 	scrape.visible = not local_path.is_empty() and not is_pack
 	var queued := scrape.visible and scrape_queue != null and scrape_queue.is_queued(local_path)
-	scrape.text = "⏳" if queued else String.chr(MenuIcons.SCRAPE)
+	if queued:
+		scrape.text = "⏳"
+		scrape.tooltip_text = "Waiting in the scrape queue"
+	elif ScrapeQueue.is_scraped(meta["game"]):
+		scrape.text = String.chr(MenuIcons.RESCRAPE)
+		scrape.tooltip_text = "Scraped already. Scrape again from ScreenScraper"
+	else:
+		scrape.text = String.chr(MenuIcons.SCRAPE)
+		scrape.tooltip_text = "Scrape artwork and details from ScreenScraper"
 	scrape.disabled = queued
-	scrape.tooltip_text = "Waiting in the scrape queue" if queued 		else "Scrape artwork and details from ScreenScraper"
 	if scrape.visible and not queued:
 		scrape.pressed.connect(_on_scrape_pressed.bind(local_path, systemid))
 
@@ -1876,7 +1883,7 @@ func _on_scrape_pressed(rom_path: String, systemid: String) -> void:
 	_on_scrape_row_changed(rom_path, systemid)
 
 
-## Queue every game on this page that has no details yet. The filtered view is
+## Queue every game on this page not scraped yet. The filtered view is
 ## the page: a search or a region filter narrows what is queued, the way it
 ## narrows what is shown. A game already scraped is skipped -- re-scraping one
 ## stays a per-row action -- and so is one already waiting.
@@ -2485,6 +2492,7 @@ func _on_scrape_accepted(rom_path: String, systemid: String, result: Dictionary)
 		"developer": result.get("developer", ""),
 		"publisher": result.get("publisher", ""),
 		"genre": result.get("genre", ""),
+		"scraped": true,
 	}
 	var rom_data := {
 		"path": "./" + rom_path.get_file(),

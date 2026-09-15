@@ -66,7 +66,8 @@ func save_gamelist(systemid: String) -> void:
 ## order — a ROM scraped BEFORE it was downloaded reported no RomM id at all,
 ## which silently switched off save sync and save-state backup for it.
 ##
-## game_data: {game_id, name, desc, developer, publisher, genre}
+## game_data: {game_id, name, desc, developer, publisher, genre}, and from the
+## scraper `scraped: true`, which no later merge clears.
 ## rom_data: {path, romname, releasedate, region}
 func add_or_merge_rom(systemid: String, game_data: Dictionary, rom_data: Dictionary) -> void:
 	print("[GamelistManager] add_or_merge_rom: system=%s game_id=%s rom=%s" % [systemid, game_data.get("game_id", "?"), rom_data.get("path", "?")])
@@ -98,6 +99,8 @@ func add_or_merge_rom(systemid: String, game_data: Dictionary, rom_data: Diction
 			"genre": game_data.get("genre", ""),
 			"roms": [rom_data],
 		}
+		if bool(game_data.get("scraped", false)):
+			new_game["scraped"] = true
 		games.append(new_game)
 	else:
 		existing_game["game_id"] = _best_game_id(
@@ -109,6 +112,8 @@ func add_or_merge_rom(systemid: String, game_data: Dictionary, rom_data: Diction
 		for field: String in ["name", "desc", "developer", "publisher", "genre"]:
 			existing_game[field] = _keep_better(
 				str(game_data.get(field, "")), str(existing_game.get(field, "")))
+		if bool(game_data.get("scraped", false)):
+			existing_game["scraped"] = true
 
 		# Find existing ROM by path or add new
 		var roms: Array = existing_game.get("roms", [])
@@ -196,6 +201,8 @@ func dedupe(systemid: String) -> int:
 		for field: String in ["name", "desc", "developer", "publisher", "genre"]:
 			target[field] = _keep_better(
 				str(target.get(field, "")), str(g.get(field, "")))
+		if bool(g.get("scraped", false)):
+			target["scraped"] = true
 		var into: Array = target.get("roms", [])
 		for r: Dictionary in g.get("roms", []):
 			if _game_holding_rom([target], str(r.get("path", ""))).is_empty():
