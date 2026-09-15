@@ -27,6 +27,11 @@ static func holder_of(tree: SceneTree, card_id: String) -> Node:
 			var seated: Node = sys.get_snapped_memcard(slot)
 			if seated != null and str(seated.get("card_id")) == card_id:
 				return sys
+		# Memory kept by a unit bolted to the console, like a Sega CD's.
+		if sys.has_method("get_expansions"):
+			for unit: Node in sys.get_expansions():
+				if is_instance_valid(unit) and str(unit.get("card_id")) == card_id:
+					return sys
 	return null
 
 

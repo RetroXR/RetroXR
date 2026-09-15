@@ -59,6 +59,9 @@ var _tabs: TabContainer = null
 ## CartridgeOptionsPanel, which owns all the save/sync/achievement logic.
 var _cart_ui: CartridgeOptions2D = null
 var _cart_tab_idx: int = -1
+## The backup memory a unit keeps on the machine itself, e.g. a Sega CD's.
+var _saves_ui: MemoryCard2D = null
+var _saves_tab_idx: int = -1
 var _system_tab_idx := -1
 ## The resolved core's declared firmware and whether each file is on disk.
 ## Hidden when the core declares none (see populate_firmware).
@@ -211,6 +214,20 @@ func _build_ui() -> void:
 	_cart_ui = CartridgeOptions2D.create_embedded()
 	cart_outer.add_child(_cart_ui)
 
+	# Saves tab — backup memory kept on the machine itself (a Sega CD's), listed
+	# with the page a memory card shows and driven by that unit's MemoryCardPanel.
+	# Hidden unless something attached keeps memory (see set_saves_tab_visible).
+	var saves_outer := VBoxContainer.new()
+	saves_outer.name = "Saves"
+	tabs.add_child(saves_outer)
+	_saves_tab_idx = tabs.get_tab_count() - 1
+	tabs.set_tab_hidden(_saves_tab_idx, true)
+	_saves_ui = MemoryCard2D.new()
+	# The tab names the page and the menu has its own ✕.
+	_saves_ui.show_name_field = false
+	_saves_ui.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	saves_outer.add_child(_saves_ui)
+
 	_system_scroll = ScrollContainer.new()
 	_system_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_system_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -317,6 +334,17 @@ func set_cartridge_tab_visible(shown: bool) -> void:
 	_tabs.set_tab_hidden(_cart_tab_idx, not shown)
 
 
+## The Saves tab's page, driven by the attached unit's MemoryCardPanel.
+func saves_ui() -> MemoryCard2D:
+	return _saves_ui
+
+
+func set_saves_tab_visible(shown: bool) -> void:
+	if _tabs == null or _saves_tab_idx < 0:
+		return
+	_tabs.set_tab_hidden(_saves_tab_idx, not shown)
+
+
 ## Fill the BIOS tab from FirmwareState.evaluate() rows for `core_name`. A core
 ## that declares no firmware gets no tab at all — an empty list would read as
 ## "nothing installed" when it means "nothing needed".
@@ -385,6 +413,8 @@ func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 func scroll_active(pixels: float) -> void:
 	if _active_scroll:
 		_active_scroll.scroll_vertical += int(pixels)
+	elif _tabs != null and _tabs.current_tab == _saves_tab_idx and is_instance_valid(_saves_ui):
+		_saves_ui.scroll_active(pixels)
 	elif is_instance_valid(_cart_ui):
 		# The Cartridge tab: its own ribbon strip decides which list scrolls.
 		_cart_ui.scroll_active(pixels)

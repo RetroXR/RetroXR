@@ -504,6 +504,11 @@ func _compose_sram_path(resolved_core: String, slot := 0) -> String:
 	# all -- a battery-backed disk that silently never saved.
 	var seated := _expansion_media()
 	if seated != null and "save_id" in seated:
+		# A unit that keeps its own backup memory is where its discs save. On
+		# genesis_plus_gx the core writes that memory itself and exposes no
+		# SAVE_RAM for CD content, so a per-disc file would never be filled.
+		if resolved_core.begins_with("genesis_plus_gx") and _unit_keeps_memory(seated):
+			return ""
 		return SramPaths.cart_save_path(resolved_core, _host.rom_path,
 			str(seated.get("save_id")))
 	return ""
@@ -521,6 +526,17 @@ func _expansion_holding_battery() -> RetroExpansion:
 				== ExpansionCatalog.SAVE_OWNER_UNIT:
 			return unit
 	return null
+
+
+## Does the unit whose bay holds `media` keep backup memory of its own?
+func _unit_keeps_memory(media: Node3D) -> bool:
+	for unit: RetroExpansion in _host.get_expansions():
+		if unit == null or not is_instance_valid(unit):
+			continue
+		for s in unit.get_bay_count():
+			if unit.get_media(s) == media:
+				return not ExpansionCatalog.memory_of(unit.expansion_id).is_empty()
+	return false
 
 
 ## The medium in an attached expansion's own bay, or null. First one wins: a

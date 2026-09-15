@@ -1363,6 +1363,69 @@ func _run() -> void:
 		await _group_slot2()
 	if _want("disk"):
 		await _group_disk()
+	if _want("memory"):
+		await _group_memory()
+
+
+# ── memory/ — a unit that keeps backup memory of its own ─────────────────────
+
+func _group_memory() -> void:
+	var a := await _unit("sega_cd")
+	var b := await _unit("sega_cd")
+	_ok(a.family == "sega_cd_memory", "memory/ a Sega CD keeps backup memory of its own")
+	_ok(not a.card_id.is_empty() and a.card_label == a.card_id, "memory/ named for its image")
+	_ok(a.card_id != b.card_id, "memory/ and two units spawned together keep two")
+	_ok(a.minted and b.minted, "memory/ a new unit's memory is this session's to create")
+	var dd := await _unit("nintendo_64dd")
+	_ok(dd.family.is_empty() and dd.card_id.is_empty(),
+		"memory/ a unit that keeps no memory has no identity for it")
+
+	# A restore sets the id before the unit enters the tree, as scene_persistence does.
+	var restored := EXPANSION_SCENE.instantiate() as RetroExpansion
+	restored.expansion_id = "sega_cd"
+	restored.card_id = "MY SEGA CD"
+	add_child(restored)
+	_spawned.append(restored)
+	await _wait(5)
+	_ok(restored.card_id == "MY SEGA CD" and not restored.minted,
+		"memory/ a restored unit keeps the memory it was saved with")
+
+	var md := await _console("mega_drive")
+	await _bolt(md, a)
+	_ok(CardSaveOps.holder_of(get_tree(), a.card_id) == md,
+		"memory/ the console a unit is bolted to holds its memory")
+	_ok(CardSaveOps.holder_of(get_tree(), b.card_id) == null,
+		"memory/ and a loose unit's is held by nobody")
+
+	var disc := await _cart("sega_cd", "/roms/sega_cd/game.chd")
+	a.restore_media(disc)
+	await _wait(5)
+	md.rom_path = "/roms/sega_cd/game.chd"
+	_ok(md._memcards._compose_sram_path("genesis_plus_gx").is_empty(),
+		"memory/ a disc in it binds no save file of its own on genesis_plus_gx")
+	_ok(not md._memcards._compose_sram_path("picodrive").is_empty(),
+		"memory/ while picodrive's route is left as it was")
+
+	# The console menu's Saves tab, driven by the unit's own panel.
+	var ui := (load("res://Scenes/UI/core_options_2d.tscn") as PackedScene).instantiate() as CoreOptions2D
+	add_child(ui)
+	_spawned.append(ui)
+	await _wait(5)
+	var driver := CoreOptionsPanel.new()
+	driver._system = md
+	driver._populate_saves_tab(ui)
+	_ok(not ui._tabs.is_tab_hidden(ui._saves_tab_idx), "memory/ the console's menu shows a Saves tab")
+	var panel := a.ensure_saves_panel()
+	_ok(panel != null and panel == a.ensure_saves_panel(), "memory/ driven by the unit's one panel")
+	_ok(panel != null and ui.saves_ui().restore_requested.is_connected(panel._on_restore_requested),
+		"memory/ which answers the tab's buttons")
+	await _unbolt(a.get_socket(), md)
+	driver._populate_saves_tab(ui)
+	_ok(ui._tabs.is_tab_hidden(ui._saves_tab_idx), "memory/ and hides the tab once the unit comes off")
+	_ok(panel != null and not ui.saves_ui().restore_requested.is_connected(panel._on_restore_requested),
+		"memory/ letting go of its buttons")
+	driver.free()
+	await _clear()
 
 
 # ── disk/ — the 64DD's real shells: the drive, the development unit, the disk ─

@@ -84,6 +84,15 @@ func device_home() -> String:
 	return "console"
 
 
+## What a game's Saves menu says when the game saves here instead of to itself.
+## `medium` is "disc" or "cartridge".
+func save_device_note(game: String, medium: String) -> String:
+	var noun := device_noun()
+	var home := "the console" if device_home() == "console" else "a controller"
+	return "%s saves to a %s, not the %s.\n\nPut a %s in %s before you play. Its saves are managed from the %s itself." \
+		% [game, noun, medium, noun, home, noun]
+
+
 # --- Vocabulary ---------------------------------------------------------------
 
 ## What one unit of card space is called, singular ("block").

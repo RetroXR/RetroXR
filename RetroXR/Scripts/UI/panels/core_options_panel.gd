@@ -23,6 +23,8 @@ const UI_SCENE := preload("res://Scenes/UI/core_options_2d.tscn")
 var _system: RetroSystem = null
 ## The slotted cartridge's panel while it is driving our Cartridge tab.
 var _cart_panel: CartridgeOptionsPanel = null
+## The attached unit's panel while it is driving our Saves tab.
+var _saves_panel: MemoryCardPanel = null
 
 @onready var _viewport_node: XRToolsViewport2DIn3D = $CoreOptionsViewport
 
@@ -112,6 +114,31 @@ func _populate() -> void:
 	ui.populate_firmware(core,
 		FirmwareState.shared().evaluate(core, FirmwareRequirements.for_core(core)))
 	_populate_cartridge_tab(ui)
+	_populate_saves_tab(ui)
+
+
+## Hand the Saves tab to the attached unit that keeps memory of its own -- a Sega
+## CD -- so its saves are managed on the machine they belong to, by the memory
+## card panel's own code. Hidden when nothing attached keeps any.
+func _populate_saves_tab(ui: CoreOptions2D) -> void:
+	var unit := _memory_unit()
+	ui.set_saves_tab_visible(unit != null)
+	var panel: MemoryCardPanel = unit.ensure_saves_panel() if unit != null else null
+	if is_instance_valid(_saves_panel) and _saves_panel != panel:
+		_saves_panel.release_external_ui()
+	_saves_panel = panel
+	if panel != null:
+		panel.adopt_external_ui(ui.saves_ui(), unit)
+
+
+## The first attached unit that keeps memory, or null.
+func _memory_unit() -> RetroExpansion:
+	if _system == null or not _system.has_method("get_expansions"):
+		return null
+	for unit: RetroExpansion in _system.get_expansions():
+		if is_instance_valid(unit) and not unit.family.is_empty():
+			return unit
+	return null
 
 
 ## Hand the Cartridge tab to the slotted cartridge's own options panel, which

@@ -278,6 +278,12 @@ static func panel_of(id: String) -> String:
 	return str(row(id).get("panel", ""))
 
 
+## The card family this unit keeps saves of its own in -- a Sega CD's backup
+## memory -- or "" for a unit that keeps none.
+static func memory_of(id: String) -> String:
+	return str(row(id).get("memory", ""))
+
+
 ## The GLB this unit wears, or "" for the primitive box.
 static func shell_of(id: String) -> String:
 	return str(row(id).get("shell", ""))

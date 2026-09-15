@@ -28,8 +28,4 @@ static func note_for(systemid: String, rom_path: String, game_label: String) -> 
 	var info := SystemInfo.for_system(systemid)
 	var medium := "cartridge" if info == null \
 		or info.media_type == SystemInfo.MediaType.CARTRIDGE else "disc"
-	var noun := fmt.device_noun()
-	var home := "the console" if fmt.device_home() == "console" else "a controller"
-	var game := game_label if not game_label.is_empty() else "This game"
-	return "%s saves to a %s, not the %s.\n\nPut a %s in %s before you play. Its saves are managed from the %s itself." \
-		% [game, noun, medium, noun, home, noun]
+	return fmt.save_device_note(game_label if not game_label.is_empty() else "This game", medium)

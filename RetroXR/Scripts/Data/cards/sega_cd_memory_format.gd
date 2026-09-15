@@ -16,3 +16,9 @@ func extension() -> String:
 
 func device_noun() -> String:
 	return "Backup Memory"
+
+
+## Nothing to fit: the memory is inside the unit, and a cartridge is optional.
+func save_device_note(game: String, medium: String) -> String:
+	return "%s saves to the Sega CD's backup memory or a Backup RAM Cartridge, not the %s.\n\nIts saves are managed from the console's Saves tab." \
+		% [game, medium]

@@ -15,6 +15,8 @@ const ROW := {
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.32, 0.08, 0.28),
 	"loader": MediaDimensions.LOADER_TRAY,
+	# The 8 KB of backup RAM inside the unit, which every Sega CD game saves to.
+	"memory": "sega_cd_memory",
 }
 
 

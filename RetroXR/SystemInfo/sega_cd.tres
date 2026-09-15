@@ -10,3 +10,4 @@ native_ports = 2
 media_type = 1
 supports_multitap = false
 multitap_ports = 0
+save_device = "sega_cd_memory"

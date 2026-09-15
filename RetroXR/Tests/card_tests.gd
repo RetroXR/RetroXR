@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 526
+const EXPECTED_CASES := 528
 
 var _pass := 0
 var _fail := 0
@@ -1053,6 +1053,11 @@ func _test_save_device() -> void:
 			["gamecube", "gamecube"], ["dreamcast", "vmu"]]:
 		var fmt := SaveDevice.format_for(str(pair[0]), "")
 		_eq(fmt.id() if fmt != null else "", pair[1], "save_device/a %s disc saves to its %s" % pair)
+	var scd := SaveDevice.format_for("sega_cd", "")
+	_eq(scd.id() if scd != null else "", "sega_cd_memory",
+		"save_device/a Sega CD disc saves to the unit's backup memory")
+	_ok(SaveDevice.note_for("sega_cd", "", "Sonic CD").contains("console's Saves tab"),
+		"save_device/and its note points at the console's Saves tab, not a device to fit")
 	_ok(SaveDevice.format_for("wii", "") == null,
 		"save_device/a Wii game saves to the console, though a Wii takes GameCube cards")
 	_ok(SaveDevice.format_for("super_nes", "") == null,

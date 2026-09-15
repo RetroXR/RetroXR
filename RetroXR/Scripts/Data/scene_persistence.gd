@@ -1803,6 +1803,10 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			# the same reason the second memory card is: an array would not load
 			# in any room file saved before there was a second slot.
 			"media_b": _ref(node_to_id, unit.get_media(1)),
+			# The unit's own memory, so its saves come back with it and are not
+			# minted afresh under a new name.
+			"card_id": unit.card_id,
+			"card_label": unit.card_label,
 		})
 	elif node is RetroDisc:
 		# MUST precede the RetroCartridge branch — RetroDisc extends it.
@@ -2238,6 +2242,8 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				# arrives without one builds none of them.
 				unit.expansion_id = str(data.get("expansion_id", ""))
 				unit.rom_path = str(data.get("rom_path", ""))
+				unit.card_id = str(data.get("card_id", ""))
+				unit.card_label = str(data.get("card_label", ""))
 				obj = unit
 			"cartridge":
 				var cart := CART_SCENE.instantiate() as RetroCartridge

@@ -35,6 +35,11 @@ var _pending_rom_id := 0
 var _pending_title := ""
 ## The spawn menu whose RomM signals this panel is listening to.
 var _romm_menu: SpawnMenu2D = null
+## A MemoryCard2D living in someone else's panel -- the console menu's Saves tab
+## -- that this panel drives instead of its own page. See adopt_external_ui.
+var _external_ui: MemoryCard2D = null
+## The one UI whose signals this panel is connected to right now.
+var _connected_ui: MemoryCard2D = null
 
 @onready var _viewport_node: XRToolsViewport2DIn3D = $MemoryCardViewport
 
@@ -60,36 +65,87 @@ func show_for(card: Node3D, camera: Node3D) -> void:
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
+## This panel's own page while it is open, and otherwise the external UI it was
+## handed, if any.
 func _get_ui() -> MemoryCard2D:
+	if not visible and is_instance_valid(_external_ui):
+		return _external_ui
 	var vp := _viewport_node.get_node_or_null("Viewport") as SubViewport
 	if not vp or vp.get_child_count() == 0:
 		return null
 	return vp.get_child(0) as MemoryCard2D
 
 
+## Open, or driving an external UI: either way there is a page to keep current.
+func _shown() -> bool:
+	return visible or is_instance_valid(_external_ui)
+
+
+## Drive a MemoryCard2D that lives in someone else's panel -- the console menu's
+## Saves tab -- for `card`. The same code as this panel's own page, so a save
+## deleted there and one deleted here are the same act.
+func adopt_external_ui(ui: MemoryCard2D, card: Node3D) -> void:
+	if ui != _external_ui:
+		release_external_ui()
+		_external_ui = ui
+	_card = card
+	_ensure_ui_connected()
+	_populate()
+
+
+## Let go of the external UI, so whichever panel adopts it next is the only one
+## answering its buttons.
+func release_external_ui() -> void:
+	if _connected_ui != null and _connected_ui == _external_ui:
+		_disconnect_ui()
+	_external_ui = null
+
+
 func _ensure_ui_connected() -> void:
-	if _ui_connected:
-		return
 	var ui := _get_ui()
 	if not ui:
 		call_deferred("_ensure_ui_connected")
 		return
-	ui.name_committed.connect(_on_renamed)
-	ui.close_requested.connect(hide_panel)
-	ui.save_delete_requested.connect(_on_delete_requested)
-	ui.save_sync_toggled.connect(_on_sync_toggled)
-	ui.restore_requested.connect(_on_restore_requested)
-	ui.restore_picked.connect(_on_restore_picked)
-	ui.restore_closed.connect(_populate)
-	ui.save_play_requested.connect(_on_play_requested)
-	ui.play_stop_requested.connect(_on_stop_requested)
-	ui.option_changed.connect(_on_core_option_changed)
-	ui.game_picked.connect(_on_game_picked)
+	if ui == _connected_ui:
+		return
+	_disconnect_ui()
+	for pair: Array in _ui_signals(ui):
+		(pair[0] as Signal).connect(pair[1])
 	# The stack lifts itself onto its own quad in front of whichever Viewport2Din3D
-	# hosts it — this panel's, here — so it needs to live in the 2D tree.
+	# hosts the page -- this panel's, or the console menu's for a tab -- so it
+	# needs to live in the 2D tree.
 	_toasts = MenuToasts.create()
 	ui.add_child(_toasts)
+	_connected_ui = ui
 	_ui_connected = true
+
+
+func _disconnect_ui() -> void:
+	if is_instance_valid(_connected_ui):
+		for pair: Array in _ui_signals(_connected_ui):
+			if (pair[0] as Signal).is_connected(pair[1]):
+				(pair[0] as Signal).disconnect(pair[1])
+	if is_instance_valid(_toasts):
+		_toasts.queue_free()
+	_toasts = null
+	_connected_ui = null
+	_ui_connected = false
+
+
+func _ui_signals(ui: MemoryCard2D) -> Array:
+	return [
+		[ui.name_committed, _on_renamed],
+		[ui.close_requested, hide_panel],
+		[ui.save_delete_requested, _on_delete_requested],
+		[ui.save_sync_toggled, _on_sync_toggled],
+		[ui.restore_requested, _on_restore_requested],
+		[ui.restore_picked, _on_restore_picked],
+		[ui.restore_closed, _populate],
+		[ui.save_play_requested, _on_play_requested],
+		[ui.play_stop_requested, _on_stop_requested],
+		[ui.option_changed, _on_core_option_changed],
+		[ui.game_picked, _on_game_picked],
+	]
 
 
 ## Say what just happened, in front of the panel rather than inside it.
@@ -231,7 +287,7 @@ func _listen_to_romm(menu: SpawnMenu2D) -> void:
 
 func _on_romm_sync_finished(systemid: String, _ok: bool, _added: int, _removed: int,
 		_error: String) -> void:
-	if (visible and _card and is_instance_valid(_card)
+	if (_shown() and _card and is_instance_valid(_card)
 			and _card.has_method("library_systemid")
 			and systemid == str(_card.call("library_systemid"))):
 		_populate()
@@ -245,7 +301,7 @@ func _on_romm_download_finished(rom_id: int, ok: bool, path: String, error: Stri
 	_pending_title = ""
 	if not ok:
 		_notice("Could not download %s — %s" % [title, error], MenuToasts.DWELL_FAIL)
-		if visible:
+		if _shown():
 			_populate()
 		return
 	_boot_game(path, title)
@@ -256,7 +312,7 @@ func _on_romm_download_cancelled(rom_id: int) -> void:
 		return
 	_pending_rom_id = 0
 	_pending_title = ""
-	if visible:
+	if _shown():
 		_populate()
 
 
@@ -308,7 +364,7 @@ func _boot_game(path: String, title: String) -> void:
 		_notice("%s would not start" % title, MenuToasts.DWELL_FAIL)
 	else:
 		_notice("Playing %s on the card" % title)
-	if visible:
+	if _shown():
 		_populate()
 
 
@@ -362,7 +418,7 @@ func _on_sync_toggled(s: Dictionary, on: bool) -> void:
 		return
 	_notice("Uploading %s…" % CardSaveOps.title_of(s), 8.0)
 	CardSaveOps.backup_save(_fmt(), path, s, func(ok: bool, message: String) -> void:
-		if not (is_instance_valid(self) and visible):
+		if not (is_instance_valid(self) and _shown()):
 			return
 		_notice(message, MenuToasts.DWELL_OK if ok else MenuToasts.DWELL_FAIL)
 		_populate())
@@ -376,7 +432,7 @@ func _on_restore_requested() -> void:
 	ui.show_restore([], "Asking RomM…")
 	SaveSync.list_card_saves(_fmt().romm_systemid(), _fmt().romm_save_extensions(),
 			func(ok: bool, saves: Array) -> void:
-		if not (is_instance_valid(self) and visible and is_instance_valid(ui)):
+		if not (is_instance_valid(self) and _shown() and is_instance_valid(ui)):
 			return
 		if not ok:
 			ui.show_restore([], SaveSync.card_list_problem(_fmt().romm_systemid(), _fmt().label()))
@@ -428,7 +484,7 @@ func _on_restore_picked(s: Dictionary) -> void:
 	_notice("Downloading %s…" % str(s.get("rom_name", s.get("slot", ""))), 8.0)
 	CardSaveOps.restore_save(get_tree(), _fmt(), path, _card.card_id, s,
 		func(problem: String) -> void:
-			if not (is_instance_valid(self) and visible):
+			if not (is_instance_valid(self) and _shown()):
 				return
 			if problem.is_empty():
 				_notice("Restored %s — kept backed up to RomM"

@@ -37,6 +37,23 @@ const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.
 ## hardware does -- an empty BS-X cart still boots the town.
 @export var rom_path: String = ""
 
+## The card family this unit keeps its own saves in, or "" -- see
+## ExpansionCatalog.memory_of. Read from the row in _ready.
+var family: String = ""
+
+## Identity of that memory, and literally its image's filename, the way a memory
+## card's is. A restore sets it before the unit enters the tree; otherwise it is
+## minted in _ready. Empty on a unit that keeps no memory.
+@export var card_id: String = ""
+@export var card_label: String = ""
+
+## True only for memory this session invented -- see MemoryCard.minted. Only such
+## memory may have its image created.
+var minted := false
+
+const SAVES_PANEL_SCENE_PATH := "res://Scenes/UI/memory_card_panel.tscn"
+var _saves_panel: MemoryCardPanel = null
+
 ## Emitted when a console is bolted on or taken off, with the console (or null).
 ## The room's persistence and any future cable art listen to these rather than
 ## polling the socket.
@@ -101,11 +118,50 @@ func _ready() -> void:
 	if not ExpansionCatalog.has(expansion_id):
 		push_warning("RetroExpansion: unknown expansion_id '%s'" % expansion_id)
 		return
+	_init_memory()
 	_build_body()
 	_build_connector()
 	_build_media_bay()
 	_update_label()
 	_build_panel()
+
+
+# ── its own memory ────────────────────────────────────────────────────────────
+
+
+## Give a unit that keeps memory its identity. Unique against the images on disk
+## and against every unit in the room, because two units spawned before either has
+## an image would otherwise both be handed the same free name.
+func _init_memory() -> void:
+	family = ExpansionCatalog.memory_of(expansion_id)
+	if family.is_empty():
+		return
+	if card_id.is_empty():
+		var taken := {}
+		for unit: Node in get_tree().get_nodes_in_group(ExpansionPort.GROUP_EXPANSION):
+			if unit != self:
+				taken[str(unit.get("card_id"))] = true
+		var base := "%s MEMORY" % ExpansionCatalog.label_of(expansion_id).to_upper()
+		var id := SramPaths.unique_card_id(base)
+		var n := 1
+		while taken.has(id):
+			n += 1
+			id = SramPaths.unique_card_id("%s %d" % [base, n])
+		card_id = id
+		minted = true
+	if card_label.is_empty():
+		card_label = card_id
+
+
+## The panel that manages this unit's memory. It has no quad of its own here: it
+## drives the console menu's Saves tab. Null on a unit that keeps no memory.
+func ensure_saves_panel() -> MemoryCardPanel:
+	if family.is_empty():
+		return null
+	if _saves_panel == null:
+		_saves_panel = (load(SAVES_PANEL_SCENE_PATH) as PackedScene).instantiate()
+		add_child(_saves_panel)
+	return _saves_panel
 
 
 # ── the box ───────────────────────────────────────────────────────────────────
