@@ -24,6 +24,8 @@ const HARDWARE_PINNED := {
 	"melonds_touch_mode": true,
 	"melonds_screen_layout": true,
 	"melonds_screen_gap": true,
+	"melonds_mic_input": true,
+	"melonds_mic_input_active": true,
 	"desmume_pointer_type": true,
 	"desmume_screens_layout": true,
 	"vb_3dmode": true,

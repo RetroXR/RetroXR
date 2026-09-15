@@ -57,6 +57,8 @@ func _ready() -> void:
 		_test_fanout()
 	if _wants("binding"):
 		_test_binding()
+	if _wants("ds"):
+		_test_ds_pins()
 	AppPrefs.microphone_enabled = saved_pref
 
 	print("[microphone] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -178,4 +180,15 @@ func _test_binding() -> void:
 	lib.SetJoypadExtraButtons(0, 1 << 15)
 	_ok(not lib.IsMicrophoneActive(), "binding/a push and extra buttons with no core change nothing")
 	lib.free()
+
+
+func _test_ds_pins() -> void:
+	var ds := RetroSystemModelNDS.new()
+	var pins: Dictionary = ds.get_forced_core_options()
+	_ok(str(pins.get("melonds_mic_input", "")) == "microphone", "ds/melonDS DS takes the real microphone")
+	_ok(str(pins.get("melonds_mic_input_active", "")) == "always", "ds/and listens without a button")
+	_ok(CoreOptionsStore.HARDWARE_PINNED.has("melonds_mic_input")
+			and CoreOptionsStore.HARDWARE_PINNED.has("melonds_mic_input_active"),
+		"ds/both keys are hardware-pinned for the core manager")
+	ds.free()
 

@@ -17,11 +17,16 @@ extends RetroSystemModelDualScreen
 ## MOUSE-style pointer that ignores it (melonDS "Mouse" mode, DeSmuME
 ## pointer_type "mouse"). Force touch mode on both; each core ignores the
 ## other's keys.
+##
+## A DS has no microphone button, and melonDS DS gates its mic on L3, which is
+## masked below; "always" leaves the listening to the game.
 func get_forced_core_options() -> Dictionary:
 	return {
 		"melonds_touch_mode": "Touch",
 		"melonds_screen_layout": "Top/Bottom",
 		"melonds_screen_gap": "0",
+		"melonds_mic_input": "microphone",
+		"melonds_mic_input_active": "always",
 		"desmume_pointer_type": "touch",
 		"desmume_screens_layout": "top/bottom",
 	}
