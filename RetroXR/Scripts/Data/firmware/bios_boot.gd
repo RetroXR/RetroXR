@@ -15,8 +15,8 @@
 ## for the same reason. Reading `optional` there would conclude a machine with
 ## no BIOS at all is fully provisioned.
 ##
-## PROVENANCE. Every row was measured on 2026-08-20 by Tools/bios_boot_probe,
-## run one core per process by Tools/bios_boot_survey.sh. Nothing here is
+## PROVENANCE. Every row was measured by Tools/bios_boot_probe, run one core
+## per process by Tools/bios_boot_survey.sh. Nothing here is
 ## inferred from the .info files, and in particular nothing is inferred from
 ## `supports_no_game`: all sixteen candidates declare it false, including
 ## pcsx_rearmed, whose BIOS this feature demonstrably reaches.
@@ -24,15 +24,19 @@
 ## What the survey ruled OUT, so nobody re-derives these rows from the tables in
 ## the original request:
 ##
-##   * NO core starts with no content at all. Sixteen were tried both ways the
+##   * Few cores start with no content at all. Sixteen were tried both ways the
 ##     libretro API allows (a null retro_game_info and a zeroed one) and six
 ##     crash the process outright: mgba and parallel_n64 dereference a null,
 ##     while mednafen_saturn, neocd, dolphin and same_cdi die on a zeroed one.
-##     That is why the mechanism here is empty MEDIA -- a real file, taking the
-##     ordinary content path -- and not an empty path.
-##   * Only pcsx_rearmed accepts an empty image. flycast (gdi/cdi/chd),
-##     mednafen_saturn, mednafen_pce and neocd all refuse a zero-byte file, so
-##     Dreamcast, Saturn, PC Engine CD and Neo Geo CD have no `empty_media`.
+##     flycast and pcsx2 start on a null one and draw their BIOS menus; the
+##     installed pcee2 does not declare SET_SUPPORT_NO_GAME, so it is refused.
+##     That is why the usual mechanism here is empty MEDIA -- a real file,
+##     taking the ordinary content path -- and not an empty path.
+##   * Only pcsx_rearmed accepts a zero-byte image. flycast (gdi/cdi/chd),
+##     mednafen_saturn, mednafen_pce and neocd all refuse one. mednafen_saturn
+##     takes a cue sheet over one silent audio track (`empty_media_track`),
+##     which lands in the Saturn's CD player; a blank data track is "Disc
+##     unsuitable for this system".
 ##   * mgba, flycast, mednafen_pce and pcsx_rearmed already ship with their
 ##     boot-ROM options set the way this feature wants them. mgba's and
 ##     pcsx_rearmed's measured keys carry a `splash` anyway: these values are
@@ -100,6 +104,8 @@ const _ROWS := {
 	"pcsx2/playstation2": {
 		"boot_rom": ["pcsx2/bios"],
 		"empty_media": "",
+		"no_content": true,
+		"empty_options": {"pcsx2_fastboot": "disabled"},
 		"splash": {"pcsx2_fastboot": "disabled"},
 		"why": "Same switch as pcee2 under a different key",
 	},
@@ -157,6 +163,19 @@ const _ROWS := {
 		# A Sega CD disc will not start without one: the core opens the BIOS for
 		# the disc's region and refuses the game when it is not there.
 		"media_needs_boot_rom": true,
+	},
+	"flycast/dreamcast": {
+		"boot_rom": ["dc/dc_boot.bin"],
+		"empty_media": "",
+		"no_content": true,
+		"empty_options": {"reicast_hle_bios": "disabled"},
+		"why": "Boots the Dreamcast menu with no disc in it",
+	},
+	"mednafen_saturn/sega_saturn": {
+		"boot_rom": ["sega_101.bin", "mpr-17933.bin"],
+		"empty_media": "cue",
+		"empty_media_track": "audio",
+		"why": "A silent audio CD gives the Saturn's CD player and memory manager",
 	},
 }
 
@@ -355,28 +374,84 @@ static func _firmware_rows(core_name: String) -> Array[Dictionary]:
 
 # ── Empty media ───────────────────────────────────────────────────────────────
 
-## A zero-byte image for a machine switched on with an empty slot.
+## A 4 s track, the shortest a CD may carry.
+const _SILENT_TRACK_SECTORS := 300
+const _RAW_SECTOR_BYTES := 2352
+
+
+## What the empty image holds: "" for a zero-byte file, "audio" for a cue sheet
+## over one silent audio track.
+static func empty_media_track(core_name: String, systemid: String) -> String:
+	return str(entry(core_name, systemid).get("empty_media_track", ""))
+
+
+## This machine's empty image, created if it is not already there; "" when the
+## machine has none or it could not be written.
+static func empty_media_for(core_name: String, systemid: String) -> String:
+	return empty_media_path(empty_media_extension(core_name, systemid),
+		empty_media_track(core_name, systemid))
+
+
+## Where the empty image for `extension` and `track` lives, without creating it.
+static func empty_media_file(extension: String, track := "") -> String:
+	if extension.is_empty():
+		return ""
+	var stem := "no_disc" if track.is_empty() else "no_disc_" + track
+	return _empty_media_dir().path_join(stem + "." + extension)
+
+
+## Is `path` one of the empty images rather than a game?
+static func is_empty_media(path: String) -> bool:
+	return not path.is_empty() \
+		and path.simplify_path().get_base_dir() == _empty_media_dir().simplify_path() \
+		and path.get_file().begins_with("no_disc")
+
+
+static func _empty_media_dir() -> String:
+	return CoreDownloadManager.default_core_root().path_join("temp")
+
+
+## A blank image for a machine switched on with an empty slot.
 ##
 ## Kept in the libretro temp dir rather than the ROM library: it is not a game,
 ## nothing should index it, and a player browsing their PlayStation folder must
-## never be offered it. One file per extension, reused -- it is read-only to the
-## core, so two machines can share it.
+## never be offered it. One file per extension and track, reused -- it is
+## read-only to the core, so two machines can share it.
 ##
 ## Returns "" if it could not be written, which the caller must treat as "this
 ## machine cannot show its BIOS" rather than pressing on with an empty path.
-static func empty_media_path(extension: String) -> String:
-	if extension.is_empty():
+static func empty_media_path(extension: String, track := "") -> String:
+	var path := empty_media_file(extension, track)
+	if path.is_empty():
 		return ""
-	var dir := CoreDownloadManager.default_core_root().path_join("temp")
+	var dir := path.get_base_dir()
 	if DirAccess.make_dir_recursive_absolute(dir) != OK and not DirAccess.dir_exists_absolute(dir):
 		push_warning("[BiosBoot] cannot create %s" % dir)
 		return ""
-	var path := dir.path_join("no_disc." + extension)
-	if FileAccess.file_exists(path):
-		return path
+	if track == "audio":
+		var bin := path.get_basename() + ".bin"
+		var silence := PackedByteArray()
+		silence.resize(_SILENT_TRACK_SECTORS * _RAW_SECTOR_BYTES)
+		silence.fill(0)
+		if not _write_once(bin, silence):
+			return ""
+		var sheet := 'FILE "%s" BINARY\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n' % bin.get_file()
+		return path if _write_once(path, sheet.to_utf8_buffer()) else ""
+	return path if _write_once(path, PackedByteArray()) else ""
+
+
+## Write `bytes` to `path` unless a file of that size is already there.
+static func _write_once(path: String, bytes: PackedByteArray) -> bool:
+	var existing := FileAccess.open(path, FileAccess.READ)
+	if existing != null:
+		var size := existing.get_length()
+		existing.close()
+		if size == bytes.size():
+			return true
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
 		push_error("[BiosBoot] cannot write %s" % path)
-		return ""
+		return false
+	f.store_buffer(bytes)
 	f.close()
-	return path
+	return true

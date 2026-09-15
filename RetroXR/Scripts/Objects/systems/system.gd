@@ -272,6 +272,13 @@ const SLOT_INSET := 0.10       # slot-load: how far inside the console a disc ri
 # How this system loads discs (MediaDimensions.LOADER_*), cached at model load.
 var _disc_loader := MediaDimensions.LOADER_NONE
 var _tray_open := false        # LOADER_TRAY: lid state (starts closed)
+# The disc left the drive while its core kept running it, so rom_path still names
+# that image; the next power-on must not boot it.
+var _disc_left_running := false
+# This run started with no content, so its core has no disc list to swap into.
+var _started_without_content := false
+# This run is the BIOS with no disc in it; a disc shut into it restarts the machine.
+var _bios_run := false
 var _disc_spin := 0.0          # current disc angular speed (rad/s)
 # LOADER_SLOT front-loading bay (insert ride / eject / grab hand-off / collision),
 # owned by the shared MediaSlot; created in _load_system_model for slot consoles.
@@ -2008,6 +2015,8 @@ func power_on() -> void:
 	# Before the core is resolved and before the verdict is taken: an assembled
 	# machine boots from the stack, not from the console's own slot, and both of
 	# those read rom_path.
+	rom_path = _boot_disc_path()
+	_disc_left_running = false
 	var stack_spec := _expansion_launch.apply_expansion_launch()
 	var resolved_core := _resolve_core()
 	var resolved_dir := _resolve_dir()
@@ -2020,12 +2029,11 @@ func power_on() -> void:
 	var slot_empty := rom_path.is_empty() \
 		and BiosBoot.can_boot_empty(resolved_core, systemid)
 
-	# Only when the slot is empty: empty_media_path CREATES the blank image, and
+	# Only when the slot is empty: empty_media_for CREATES the blank image, and
 	# a machine with a game in it must not leave one behind.
 	var blank := ""
 	if slot_empty:
-		blank = BiosBoot.empty_media_path(
-			BiosBoot.empty_media_extension(resolved_core, systemid))
+		blank = BiosBoot.empty_media_for(resolved_core, systemid)
 
 	var missing := BiosBoot.missing_required(resolved_core)
 	# And what the game needs that the core's .info calls optional: a Sega CD disc
@@ -2035,7 +2043,8 @@ func power_on() -> void:
 		missing, blank,
 		slot_empty and BiosBoot.boots_with_no_content(resolved_core, systemid),
 		resolved_core.is_empty()
-			or not CoreDownloadManager.installed_core_lib(resolved_core).is_empty())
+			or not CoreDownloadManager.installed_core_lib(resolved_core).is_empty(),
+		_open_over_disc())
 	if not bool(verdict["start"]):
 		push_error("RetroSystem: Cannot power on - %s" % verdict["log"])
 		# Over the hardware rather than the picture: every one of these is a
@@ -2117,7 +2126,13 @@ func power_on() -> void:
 		_libretro.StartContent(resolved_dir, resolved_core, rom_path)
 	if no_content:
 		ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", false)
+	_started_without_content = no_content
+	_bios_run = no_content or BiosBoot.is_empty_media(rom_path)
 	_after_core_started()
+	# Started with the lid up: the core's drive is opened to match, so shutting
+	# the lid is a whole tray cycle rather than a swap under a closed tray.
+	if _tray_open:
+		_sync_core_tray()
 
 
 ## Everything a machine does once its core is up, whichever way it was started.
@@ -2172,11 +2187,13 @@ func _after_core_started() -> void:
 ## Three refusals and one substitution, in the order they can be answered:
 ##   * no core resolved — used to be a bare push_error with nothing shown at all
 ##   * a required BIOS is missing — used to be a black screen and no explanation
-##   * an empty slot the machine cannot boot from — the long-standing card
+##   * an empty slot the machine cannot boot from — the long-standing card, or,
+##     when `open_over_disc` names a "lid" or "tray" standing open over a disc,
+##     a card saying to close it
 ##   * an empty slot it CAN boot from — hand it a blank disc and start
 static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 		missing: Array[Dictionary], blank: String, empty_ok := false,
-		core_installed := true) -> Dictionary:
+		core_installed := true, open_over_disc := "") -> Dictionary:
 	var waiting := AchievementToast.ACCENT_WAITING
 	var fault := AchievementToast.ACCENT_NOTICE
 
@@ -2263,6 +2280,14 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 
 	# Orange rather than the red of a fault: nothing is broken, the machine is
 	# just waiting for something the player can put in from where they stand.
+	if not open_over_disc.is_empty():
+		return {
+			"start": false, "rom": "",
+			"log": "%s open over a disc" % open_over_disc,
+			"title": "%s open" % open_over_disc.capitalize(),
+			"description": "Close the %s, then switch it on." % open_over_disc,
+			"accent": waiting,
+		}
 	var medium := "disc" if MediaDimensions.is_disc_system(sysid) else "cartridge"
 	return {
 		"start": false, "rom": "",
@@ -2372,6 +2397,8 @@ func _stop_core() -> void:
 	_has_disk_control = false
 	_disc_index = 0
 	_disc_ejected = false
+	_started_without_content = false
+	_bios_run = false
 	_options_panel.hide_panel()
 	_update_power_button_visual()
 	_model.on_power_off()
@@ -2510,10 +2537,8 @@ var net_boot_failure: String = ""
 ## hash or transfer. Empty media is regenerated locally from its extension.
 func net_boot_spec(core: String) -> Dictionary:
 	var empty_extension := BiosBoot.empty_media_extension(core, systemid)
-	var generated_empty := ""
-	if not empty_extension.is_empty():
-		generated_empty = CoreDownloadManager.default_core_root().path_join("temp") \
-			.path_join("no_disc." + empty_extension)
+	var generated_empty := BiosBoot.empty_media_file(empty_extension,
+		BiosBoot.empty_media_track(core, systemid))
 	var has_real_media := not rom_path.is_empty() and rom_path != generated_empty
 	if has_real_media:
 		var md5 := net_rom_md5()
@@ -2584,7 +2609,7 @@ func net_prepare_boot(spec: Dictionary) -> bool:
 					or BiosBoot.boots_with_no_content(core, systemid) \
 					or extension != BiosBoot.empty_media_extension(core, systemid):
 				return false
-			rom_path = BiosBoot.empty_media_path(extension)
+			rom_path = BiosBoot.empty_media_for(core, systemid)
 			_net_no_content_override = false
 			return not rom_path.is_empty()
 	return false
@@ -4524,6 +4549,7 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 		add_collision_exception_with(cartridge)
 	if cartridge.has_method("get_rom_path"):
 		rom_path = cartridge.get_rom_path()
+		_disc_left_running = false
 	# Back-fill the cartridge's systemid (save-recovery list needs it to
 	# resolve the core) — a cart inserted into an NES is an NES cart.
 	if "systemid" in cartridge and str(cartridge.get("systemid")).is_empty():
@@ -4584,6 +4610,7 @@ func _on_cartridge_removed() -> void:
 		# the disc leaving IS the event. rom_path stays mounted either way — that
 		# image is still what the core is running.
 		print("[RetroSystem] Media out: game keeps running (%s)" % rom_path)
+		_disc_left_running = true
 		if _tray == null and _supports_disk_control() \
 				and not NetworkManager.is_event_applying():
 			_request_disk_op(DISK_OP_EJECT, "")
@@ -4627,6 +4654,48 @@ func _supports_disk_control() -> bool:
 func _media_survives_removal() -> bool:
 	return _disc_loader != MediaDimensions.LOADER_NONE \
 		or MediaDimensions.uses_floppy(systemid)
+
+
+## The path of the disc seated in this drive, whatever its lid is doing; "" with
+## none.
+func _seated_disc_path() -> String:
+	if _snapped_cartridge == null or not _snapped_cartridge.has_method("get_rom_path"):
+		return ""
+	return str(_snapped_cartridge.get_rom_path())
+
+
+## What a disc drive reads at power-on: nothing while its lid is open, else the
+## disc seated in it. With none seated, rom_path stands only if the room did not
+## put it there: a disc pulled out mid-game leaves the image the core was
+## running, and a BIOS run leaves its blank one.
+func _boot_disc_path() -> String:
+	if _disc_loader == MediaDimensions.LOADER_NONE:
+		return rom_path
+	if _disc_loader == MediaDimensions.LOADER_TRAY and _tray_open:
+		return ""
+	var seated := _seated_disc_path()
+	if not seated.is_empty():
+		return seated
+	if _disc_left_running or BiosBoot.is_empty_media(rom_path):
+		return ""
+	return rom_path
+
+
+## "lid" or "tray" when this drive stands open over a disc, which it will not
+## read; "" otherwise.
+func _open_over_disc() -> String:
+	if _disc_loader != MediaDimensions.LOADER_TRAY or not _tray_open \
+			or _seated_disc_path().is_empty():
+		return ""
+	return "tray" if _front_tray else "lid"
+
+
+## A disc shut into a BIOS run: switch the machine off and on, so it boots it.
+func _restart_on_disc() -> void:
+	if not is_powered_on or _tray_open:
+		return
+	power_off()
+	power_on()
 
 
 ## Disc ops, as `_request_disk_op` takes them. NONE is not an op — it is the
@@ -4759,23 +4828,35 @@ func _set_tray_open(open: bool, restoring: bool = false) -> void:
 ## A slot drive has no lid to read, so its insert and eject are the events; they
 ## stay where they are, in _on_cartridge_inserted/_removed.
 func _sync_core_tray() -> void:
-	if _tray == null or not is_powered_on or not _supports_disk_control():
+	if _tray == null or not is_powered_on:
 		return
 	# A remote peer's lid arrives through net_set_tray_open; the machine's owner
 	# schedules the op for everyone, so applying one here would double it.
 	if NetworkManager.is_event_applying():
 		return
-	var has_disc := _snapped_cartridge != null and not rom_path.is_empty()
-	var op := _tray_op_for(_tray_open, _disc_ejected, has_disc)
+	var disc := _seated_disc_path()
+	# A BIOS does not boot a disc swapped in under it (measured on pcsx_rearmed and
+	# mednafen_saturn), so a disc shut into a BIOS run starts the machine again.
+	if _bios_run and not _tray_open and not disc.is_empty():
+		print("[RetroSystem] Lid shut on %s over a BIOS run: restarting on it" % disc.get_file())
+		_restart_on_disc.call_deferred()
+		return
+	# No disc list to swap into, and flycast indexes that empty list when its
+	# tray shuts.
+	if _started_without_content or not _supports_disk_control():
+		return
+	var op := _tray_op_for(_tray_open, _disc_ejected, not disc.is_empty())
 	# Logged either way. When a machine will not boot what is plainly sitting in
 	# its bay, this line is the difference between the room and the core — and
 	# the one thing that cannot be read off the screen.
 	print("[RetroSystem] Lid %s: disc=%s core_ejected=%s -> %s"
-		% ["open" if _tray_open else "shut", has_disc, _disc_ejected,
-			["nothing", "eject", "close on " + rom_path.get_file()][op + 1]])
+		% ["open" if _tray_open else "shut", not disc.is_empty(), _disc_ejected,
+			["nothing", "eject", "close on " + disc.get_file()][op + 1]])
 	if op == DISK_OP_NONE:
 		return
-	_request_disk_op(op, rom_path if op == DISK_OP_CLOSE else "")
+	if op == DISK_OP_CLOSE:
+		rom_path = disc
+	_request_disk_op(op, disc if op == DISK_OP_CLOSE else "")
 	if op == DISK_OP_CLOSE:
 		_protect_active_rom()
 

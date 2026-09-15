@@ -1221,10 +1221,36 @@ func _test_bios_boot_table() -> void:
 	_ok((BiosBoot.entry("pcsx2", "playstation2").get("splash", {}) as Dictionary) .has("pcsx2_fastboot"),
 		"table/pcsx2 uses fastboot")
 
-	# Only the PlayStation reaches a BIOS from an empty slot; measured over
-	# sixteen cores, and the rest refuse a blank image or crash on one.
+	# Measured per core: a zero-byte image, a silent audio track, or nothing.
 	_eq(BiosBoot.empty_media_extension("pcsx_rearmed", "playstation"),
 		"cue", "table/a PlayStation takes a blank disc")
+	_eq(BiosBoot.empty_media_track("pcsx_rearmed", "playstation"),
+		"", "table/a zero-byte one")
+	_eq(BiosBoot.empty_media_extension("mednafen_saturn", "sega_saturn"),
+		"cue", "table/a Saturn takes a disc image")
+	_eq(BiosBoot.empty_media_track("mednafen_saturn", "sega_saturn"),
+		"audio", "table/holding one silent audio track")
+	_ok(BiosBoot.boots_with_no_content("flycast", "dreamcast"),
+		"table/a Dreamcast starts with nothing at all")
+	_ok(BiosBoot.boots_with_no_content("pcsx2", "playstation2"),
+		"table/so does a PS2 on LRPS2")
+	_ok(not BiosBoot.boots_with_no_content("pcee2", "playstation2"),
+		"table/but not on pcee2, which refuses a no-content start")
+	_eq(BiosBoot.empty_media_file("cue").get_file(), "no_disc.cue",
+		"table/the zero-byte image keeps its name")
+	var sheet_path := BiosBoot.empty_media_for("mednafen_saturn", "sega_saturn")
+	_eq(sheet_path.get_file(), "no_disc_audio.cue", "table/the Saturn's image is its own file")
+	var bin_path := sheet_path.get_basename() + ".bin"
+	_ok(FileAccess.file_exists(bin_path)
+		and FileAccess.open(bin_path, FileAccess.READ).get_length() == 300 * 2352,
+		"table/over four seconds of silence")
+	_ok(FileAccess.get_file_as_string(sheet_path).contains(
+		'FILE "no_disc_audio.bin" BINARY\n  TRACK 01 AUDIO'),
+		"table/as one audio track of that file")
+	_ok(BiosBoot.is_empty_media(sheet_path) and BiosBoot.is_empty_media(BiosBoot.empty_media_file("cue")),
+		"table/both images are recognized as blank")
+	_ok(not BiosBoot.is_empty_media("/roms/playstation/no_disc_game.cue"),
+		"table/a game in the library is not, whatever it is called")
 	_eq(BiosBoot.empty_boot_options("mgba", "game_boy_advance").get("mgba_skip_bios"),
 		"OFF",
 		"table/a cartridge-less GBA pins its real BIOS path")
@@ -1374,6 +1400,20 @@ func _test_power_on_verdict() -> void:
 		"pcsx_rearmed", "playstation", "", none, "/tmp/no_disc.cue")
 	_ok(bios["start"], "verdict/an empty slot with a blank disc starts")
 	_eq(bios["rom"], "/tmp/no_disc.cue", "verdict/on the blank disc")
+
+	# A disc lying under an open lid is not read, and the card says what to do.
+	var lid := RetroSystem._power_on_verdict("dolphin", "gamecube", "", none, "", false, true, "lid")
+	_ok(not lid["start"], "verdict/a disc under an open lid refuses")
+	_eq(lid["title"], "Lid open", "verdict/and says the lid is open")
+	_eq(lid["description"], "Close the lid, then switch it on.", "verdict/and to close it")
+	_eq(RetroSystem._power_on_verdict("pcsx2", "playstation2", "", none, "", false, true,
+		"tray")["title"], "Tray open", "verdict/a front tray is called a tray")
+	var open_bios := RetroSystem._power_on_verdict(
+		"pcsx_rearmed", "playstation", "", none, "/tmp/no_disc.cue", false, true, "lid")
+	_ok(open_bios["start"] and open_bios["rom"] == "/tmp/no_disc.cue",
+		"verdict/a machine that can show its BIOS does so with its lid open")
+	_ok(RetroSystem._power_on_verdict("flycast", "dreamcast", "", none, "", true, true,
+		"lid")["start"], "verdict/and so does one that starts with no content")
 
 	# A required BIOS blocks the run whether or not a game is in — the core
 	# cannot start either way, and a black screen explains neither.

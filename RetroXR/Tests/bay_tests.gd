@@ -17,6 +17,8 @@
 ##   restore/ a save comes back latched, without the slide
 ##   lid/     a room saved with a disc lid UP comes back with the machine agreeing
 ##   seat/    the heading a disc keeps from the hand that put it in the well
+##   boot/    what a disc drive boots at power-on: the disc under a shut lid, else
+##            nothing
 ##   other/   a deck with no push tray is untouched by any of it
 ##   pak/     the expansion port on an N64 controller, and what each pak asks the
 ##            running core to fit to that port
@@ -931,6 +933,55 @@ func _group_seat() -> void:
 	_drop_lid_room()
 
 
+# --- boot -------------------------------------------------------------------------
+
+func _group_boot() -> void:
+	const GAME := "/roms/gamecube/game.rvz"
+	var gc := await _console("gamecube_primitive", "gamecube")
+	var disc: Node3D = DISC_SCENE.instantiate()
+	disc.systemid = gc.systemid
+	disc.rom_path = GAME
+	add_child(disc)
+	_spawned.append(disc)
+	await _wait(5)
+	gc.restore_cartridge(disc)
+	await _wait(10)
+	_ok(gc._boot_disc_path() == GAME, "boot/a disc under a shut lid boots")
+	_ok(gc._open_over_disc().is_empty(), "boot/and nothing stands open over it")
+
+	gc._on_eject_pressed()
+	await _wait(80)
+	_ok(gc._tray_open and gc._boot_disc_path().is_empty(),
+		"boot/the same disc under an open lid does not")
+	_ok(gc._open_over_disc() == "lid", "boot/and the refusal names the lid")
+	gc.request_tray_state(false)
+	await _wait(80)
+	_ok(not gc._tray_open and gc._boot_disc_path() == GAME,
+		"boot/shutting the lid boots it again")
+
+	# Taken out while its core runs it: rom_path keeps naming the running image.
+	gc.is_powered_on = true
+	gc._on_eject_pressed()
+	await _wait(80)
+	gc._tray.release()
+	await _wait(10)
+	gc.request_tray_state(false)
+	await _wait(80)
+	gc.is_powered_on = false
+	_ok(gc.get_snapped_cartridge() == null and gc.rom_path == GAME,
+		"boot/a disc taken out mid-game leaves the running image mounted")
+	_ok(gc._boot_disc_path().is_empty(), "boot/but the next power-on does not boot it")
+	await _clear()
+
+	var ps := await _console("playstation", "playstation")
+	ps.rom_path = BiosBoot.empty_media_file("cue")
+	_ok(ps._boot_disc_path().is_empty(), "boot/a BIOS run's blank image is not booted again")
+	ps.rom_path = "/roms/playstation/game.cue"
+	_ok(ps._boot_disc_path() == "/roms/playstation/game.cue",
+		"boot/a path set with no disc in the room stands")
+	await _clear()
+
+
 func _run() -> void:
 	if _want("perch"):
 		await _group_perch()
@@ -944,6 +995,8 @@ func _run() -> void:
 		await _group_lid()
 	if _want("seat"):
 		await _group_seat()
+	if _want("boot"):
+		await _group_boot()
 	if _want("other"):
 		await _group_other()
 	if _want("pak"):
