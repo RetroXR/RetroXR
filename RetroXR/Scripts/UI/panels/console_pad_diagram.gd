@@ -20,7 +20,8 @@
 ##
 ## Two row kinds. DROPDOWN picks from a fixed list of sources. BIND waits for the
 ## player to press what they want, which is the only workable shape for a
-## keyboard: the list of choices is every key on it, plus the mouse.
+## keyboard: the list of choices is every key on it, plus the mouse. A key the
+## art row lists under `fixed` is a label in either kind, not a row.
 ##
 ## A DROPDOWN row carries no words: the glyph on its left names the control and
 ## the one on its toggle names whatever drives it. The four d-pad glyphs are the
@@ -120,9 +121,17 @@ func setup(systemid: String, options: Array, current: Dictionary,
 	_tint = ConsolePadArt.tints(systemid)
 
 	# Rows are children, so they draw over the art either way.
-	for control: String in controls():
-		var label: String = GamepadBindings.TARGET_LABELS.get(control, control)
+	var fixed: Dictionary = _row.get("fixed", {})
+	for control: String in _order(true) + _order(false):
+		if control.is_empty():
+			continue
 		var glyph := _control_glyph(control)
+		if fixed.has(control):
+			var info := _fixed_row(String(fixed[control]), glyph)
+			add_child(info)
+			_rows[control] = info
+			continue
+		var label: String = GamepadBindings.TARGET_LABELS.get(control, control)
 		var node: Control
 		if kind == RowKind.BIND:
 			node = _bind_row(control, String(current.get(control, "(none)")), glyph)
@@ -143,6 +152,32 @@ func setup(systemid: String, options: Array, current: Dictionary,
 	_relayout()
 
 
+func _glyph_rect(glyph: Texture2D) -> TextureRect:
+	var ico := TextureRect.new()
+	ico.texture = glyph
+	ico.custom_minimum_size = Vector2(GLYPH_PX, GLYPH_PX)
+	ico.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	ico.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	ico.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	ico.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return ico
+
+
+## A row that names what drives a control this page cannot rebind.
+func _fixed_row(text: String, glyph: Texture2D) -> Control:
+	var box := HBoxContainer.new()
+	box.add_theme_constant_override("separation", 8)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if glyph:
+		box.add_child(_glyph_rect(glyph))
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	box.add_child(lbl)
+	return box
+
+
 ## A BIND row: the control's glyph, then a button naming its binding. Built by
 ## hand rather than from VRDropdown, because press-to-bind has no list to open.
 func _bind_row(control: String, text: String, glyph: Texture2D) -> Control:
@@ -150,14 +185,7 @@ func _bind_row(control: String, text: String, glyph: Texture2D) -> Control:
 	box.add_theme_constant_override("separation", 8)
 
 	if glyph:
-		var ico := TextureRect.new()
-		ico.texture = glyph
-		ico.custom_minimum_size = Vector2(GLYPH_PX, GLYPH_PX)
-		ico.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		ico.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		ico.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-		ico.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		box.add_child(ico)
+		box.add_child(_glyph_rect(glyph))
 
 	var btn := Button.new()
 	btn.text = text
@@ -212,9 +240,11 @@ func _order(first: bool) -> Array:
 	return _row["top"] if first else _row["bottom"]
 
 
-## Every control this pad carries, in row order.
+## Every control this pad binds, in row order. A fixed row is not one.
 func controls() -> Array:
-	return _order(true) + _order(false)
+	var fixed: Dictionary = _row.get("fixed", {})
+	return (_order(true) + _order(false)).filter(
+		func(c: String) -> bool: return not c.is_empty() and not fixed.has(c))
 
 
 ## The VRDropdown driving `control`, so the owning panel can register it.

@@ -62,6 +62,7 @@ func _ready() -> void:
 	_test_wii_target_table_matches_the_remote()
 	_test_pad_art_variants()
 	_test_wii_pad_art()
+	_test_n64_pad_art()
 	_test_desktop_layers()
 	_test_desktop_legacy_file()
 	_test_xr_identity()
@@ -722,7 +723,7 @@ func _test_wii_pad_art() -> void:
 		all_names.append(v)
 	for v: String in ControllerDiagram.RETROPAD_GLYPHS.values():
 		all_names.append(v)
-	for sysid: String in ["wii"]:
+	for sysid: String in ["wii", "nintendo_64"]:
 		for v: String in (ConsolePadArt.row(sysid).get("glyphs", {}) as Dictionary).values():
 			all_names.append(v)
 	var absent: Array = []
@@ -744,6 +745,86 @@ func _test_wii_pad_art() -> void:
 	_eq(_glyph_stem(nes_diagram, "start"),
 		"playstation3_button_start_outline", "art/a pad with no glyphs of its own falls back to the shared map")
 	nes_diagram.queue_free()
+
+
+## Targets as mupen64plus-next and parallel-n64 read them with Independent
+## C-button Controls off. The C buttons are the right stick in that scheme.
+func _test_n64_pad_art() -> void:
+	const SYS := "nintendo_64"
+	_ok(ConsolePadArt.has(SYS), "n64/has a pad")
+	var row := ConsolePadArt.row(SYS)
+	_ok(ResourceLoader.exists(String(row["art"])), "n64/the art loads")
+	_ok(String(row.get("layout", "rows")) == "columns", "n64/lays its rows in columns")
+	_ok(row.get("tint", true) == false, "n64/the colour art is not tinted")
+
+	var controls := ConsolePadArt.controls(SYS)
+	var want := ["up", "down", "left", "right", "b", "y", "start", "l2", "l", "r"]
+	want.sort()
+	var got := controls.duplicate()
+	got.sort()
+	_eq(got, want, "n64/binds the ten controls the core reads as bits")
+	_ok(not controls.has("a") and not controls.has("x") and not controls.has("r2"),
+		"n64/no C button is offered as a face bit")
+
+	var fixed: Dictionary = row.get("fixed", {})
+	var fixed_keys: Array = fixed.keys()
+	fixed_keys.sort()
+	_eq(fixed_keys, ["c", "stick"], "n64/the C buttons and the stick are labels")
+
+	var every: Array = want + ["c", "stick"]
+	every.sort()
+	var listed: Array = ((row["left"] as Array) + (row["right"] as Array)).filter(
+		func(c: String) -> bool: return not c.is_empty())
+	listed.sort()
+	_eq(listed, every, "n64/every control and label appears in exactly one column")
+	var anchor_keys: Array = (row["anchors"] as Dictionary).keys()
+	anchor_keys.sort()
+	_eq(anchor_keys, every, "n64/every row has an anchor")
+	var glyph_keys: Array = (row.get("glyphs", {}) as Dictionary).keys()
+	glyph_keys.sort()
+	_eq(glyph_keys, every, "n64/every row has a glyph of its own")
+
+	var anchors: Dictionary = row["anchors"]
+	var in_range := true
+	for key: String in anchors:
+		var v: Vector2 = anchors[key]
+		if v.x < 0.0 or v.x > 1.0 or v.y < 0.0 or v.y > 1.0:
+			in_range = false
+	_ok(in_range, "n64/every anchor is inside the picture")
+	var a_cap: Vector2 = anchors["b"]
+	var b_cap: Vector2 = anchors["y"]
+	_ok(a_cap.x > b_cap.x and a_cap.y > b_cap.y, "n64/b points at A, below and right of B")
+	_ok((anchors["c"] as Vector2).x > a_cap.x, "n64/the C cluster is right of A")
+	_ok((anchors["l"] as Vector2).x < 0.5 and (anchors["r"] as Vector2).x > 0.5,
+		"n64/L is on the left, R on the right")
+	_ok((anchors["up"] as Vector2).y < (anchors["down"] as Vector2).y, "n64/the d-pad is upright")
+
+	var diagram := ConsolePadDiagram.new()
+	add_child(diagram)
+	diagram.setup(SYS, [], {})
+	_eq(diagram.controls(), controls, "n64/the diagram binds the table's controls")
+	_ok(diagram._rows.has("c") and diagram.get_dropdown("c") == null,
+		"n64/the C row is drawn and is not a dropdown")
+	_eq(_glyph_stem(diagram, "b"), "gamecube_button_a_outline", "n64/b wears an A chip")
+	_eq(_glyph_stem(diagram, "l2"), "gamecube_button_z_outline", "n64/l2 wears a Z chip")
+	diagram.queue_free()
+
+	var ed := ControlsBindingEditor.new()
+	add_child(ed)
+	ed._systemid = SYS
+	ed._build_desktop_controls(ed)
+	_ok(ed._rebind_buttons.has("RETRO_ANALOG_LEFT_X_NEGATIVE")
+			and ed._rebind_buttons.has("RETRO_ANALOG_RIGHT_Y_POSITIVE"),
+		"n64-desktop/the stick keys stay on the page")
+	_ok(not ed._rebind_buttons.has("trigger_left"), "n64-desktop/and no light gun trigger")
+	_ok(ed._desktop_control_of.has("RETRO_JOYPAD_L2")
+			and not ed._desktop_control_of.has("RETRO_JOYPAD_C"),
+		"n64-desktop/the diagram binds Z and not the C label")
+	ed._systemid = "nes"
+	ed._build_desktop_controls(ed)
+	_ok(not ed._rebind_buttons.has("RETRO_ANALOG_LEFT_X_NEGATIVE"),
+		"n64-desktop/a pad without sticks still gets no stick keys")
+	ed.queue_free()
 
 
 # ---------------------------------------------------------------------------

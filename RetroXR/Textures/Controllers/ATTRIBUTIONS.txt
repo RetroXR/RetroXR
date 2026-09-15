@@ -67,6 +67,24 @@ nes_pad_colour.svg
              file is ever replaced.
 
 
+n64_pad.svg
+-----------
+  TRIMMED by Tools/art/gen_n64_pad_art.py from one CC0 source. Re-run that
+  script rather than editing this file; it also prints the anchors.
+
+  Source   : MilkToastRat Pack, SVG/n64.svg
+             https://github.com/milktoastrat/milktoastrat-pack
+  Licence  : CC0-1.0 (LICENSE file in that repo)
+  SHA-256 of the file as downloaded:
+             f77b120d6ebaabad86068d0a945705253d1466e4d12a6c2b8635027604e7c26b
+
+  Modified : the "Rattendo" lettering in the badge at the top of the shell is
+             removed (eight paths); the badge outline is kept. The viewBox is
+             cropped from the source's 1000 square to the drawing.
+
+  Branding : none remains.
+
+
 wii_remote.svg
 --------------
   COMPOSED by Tools/gen_wii_remote_art.py from two CC0 sources. Re-run that

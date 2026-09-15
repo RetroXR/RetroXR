@@ -14,6 +14,13 @@
 ## Art must be redistributable and free of anyone's branding — see the
 ## ATTRIBUTIONS file beside the SVGs. Anchors are measured from a render rather
 ## than chosen (Tools/art/nes_pad_anchors.py), because the drawing is not ours.
+##
+## Optional row fields:
+##   fixed   control key -> text. Drawn with a lead and a label but not bound:
+##           a control the core reads from an analog stick rather than a bit.
+##   sticks  true when the hardware has analog sticks, so the desktop page keeps
+##           their keys.
+## A "columns" row may put "" in a column for a blank slot.
 class_name ConsolePadArt
 extends RefCounted
 
@@ -102,6 +109,49 @@ const _ROWS: Dictionary = {
 		# with `up`, because from the top its lead would run through the cross.
 		"top": ["left", "up", "right"],
 		"bottom": ["down", "select", "start", "b", "a"],
+	},
+	"nintendo_64": {
+		"label": "N64 Controller",
+		"art": "res://Textures/Controllers/n64_pad.svg",
+		"tint": false,
+		"layout": "columns",
+		"sticks": true,
+		# From Tools/art/gen_n64_pad_art.py, which also checks the leads for
+		# crossings. N64 A is RetroPad b, N64 B is y, Z is l2.
+		"anchors": {
+			"l": Vector2(0.1900, 0.1044),
+			"up": Vector2(0.1961, 0.2541),
+			"left": Vector2(0.1312, 0.3217),
+			"right": Vector2(0.2609, 0.3217),
+			"down": Vector2(0.1961, 0.3892),
+			"start": Vector2(0.5010, 0.3542),
+			"l2": Vector2(0.5000, 0.7765),
+			"r": Vector2(0.8111, 0.1052),
+			"c": Vector2(0.8301, 0.2857),
+			"y": Vector2(0.6860, 0.3476),
+			"b": Vector2(0.7550, 0.4203),
+			"stick": Vector2(0.5000, 0.5592),
+		},
+		"left": ["l", "up", "left", "right", "down", "start", "l2"],
+		"right": ["r", "c", "", "y", "b", "stick"],
+		"fixed": {
+			"c": "Right stick",
+			"stick": "Left stick",
+		},
+		"glyphs": {
+			"up": "gamecube_dpad_up_outline",
+			"down": "gamecube_dpad_down_outline",
+			"left": "gamecube_dpad_left_outline",
+			"right": "gamecube_dpad_right_outline",
+			"b": "gamecube_button_a_outline",
+			"y": "gamecube_button_b_outline",
+			"start": "gamecube_button_start_outline",
+			"l2": "gamecube_button_z_outline",
+			"l": "gamecube_trigger_l_outline",
+			"r": "gamecube_trigger_r_outline",
+			"c": "gamecube_stick_c",
+			"stick": "gamecube_stick",
+		},
 	},
 	"wii": {
 		"label": "Wii Remote",
@@ -322,9 +372,13 @@ static func controls(systemid: String) -> Array:
 	# null, and `null as Array` is [], so a columns pad reported NO controls at all
 	# rather than failing. ConsolePadDiagram._order() has always split the same two
 	# ways; this is the half of the pair that did not.
+	var listed: Array
 	if String(r.get("layout", "rows")) == "columns":
-		return (r["left"] as Array) + (r["right"] as Array)
-	return (r["top"] as Array) + (r["bottom"] as Array)
+		listed = (r["left"] as Array) + (r["right"] as Array)
+	else:
+		listed = (r["top"] as Array) + (r["bottom"] as Array)
+	var fixed: Dictionary = r.get("fixed", {})
+	return listed.filter(func(c: String) -> bool: return not c.is_empty() and not fixed.has(c))
 
 
 ## The RetroPad bit a control drives. Control keys are GamepadBindings targets,

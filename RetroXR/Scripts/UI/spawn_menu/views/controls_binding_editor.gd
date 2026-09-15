@@ -457,18 +457,20 @@ func _build_desktop_controls(vbox: VBoxContainer) -> void:
 	# Anything the generic pad has no anchor for — the analog stick directions and
 	# the light-gun trigger — still has to be bindable, so it stays a list.
 	#
-	# ONLY under the generic pad. A console's own page must not offer the buttons
-	# its hardware never had: a NES has no X, no shoulders and no sticks, and
-	# listing them there would put back exactly the noise this whole feature
-	# exists to remove.
+	# A console's own page offers only what its hardware has: a NES has no X, no
+	# shoulders and no sticks. A pad whose row declares sticks keeps their keys.
 	var rest: Array = []
+	var rest_title := "Analog Sticks & Trigger"
 	if pad_id == ConsolePadArt.RETROPAD:
 		for action: String in DesktopBindings.managed_actions():
 			if not _desktop_control_of.has(action):
 				rest.append(action)
+	elif bool(ConsolePadArt.row(pad_id).get("sticks", false)):
+		rest.append_array(DesktopBindings.ANALOG_ACTIONS)
+		rest_title = "Analog Sticks"
 	if not rest.is_empty():
 		vbox.add_child(HSeparator.new())
-		vbox.add_child(MenuStyle.label("Analog Sticks & Trigger", 18, MenuStyle.COLOR_LICENSE))
+		vbox.add_child(MenuStyle.label(rest_title, 18, MenuStyle.COLOR_LICENSE))
 		for action: String in rest:
 			vbox.add_child(_make_rebind_row(action))
 
@@ -502,8 +504,7 @@ func _desktop_action_for(control: String) -> String:
 
 func _desktop_current_by_control(pad_id: String) -> Dictionary:
 	var out: Dictionary = {}
-	var anchors: Dictionary = ConsolePadArt.row(pad_id).get("anchors", {})
-	for control: String in anchors:
+	for control: String in ConsolePadArt.controls(pad_id):
 		out[control] = DesktopBindings.event_display_name(_desktop_action_for(control))
 	return out
 
