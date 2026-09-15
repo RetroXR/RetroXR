@@ -73,11 +73,10 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Controller Pak", "spawn": "controller_pak"},
 		{"kind": "peripheral", "label": "Transfer Pak", "spawn": "transfer_pak"},
 		# An AV MULTI OUT at the machine and three phonos at the set, so a plain
-		# composite lead fits the television and nothing at this end. The SNS number
-		# is Nintendo's, not a typo: one stereo AV cable served the Super Nintendo,
-		# the N64 and the GameCube, so it kept the first one's code. (The console's
-		# own NUS-004 is the Controller Pak, two rows up.)
-		{"kind": "peripheral", "label": "SNS-008", "spawn": "n64_av_cable"},
+		# composite lead fits the television and nothing at this end. Nintendo's
+		# SNS-008, shared by the Super Nintendo, the N64 and the GameCube.
+		{"kind": "peripheral", "label": "Stereo Composite Cable",
+			"spawn": "n64_av_cable"},
 	],
 	# The remote is named here even though it fits no socket: it is the Wii's
 	# controller, and a player who spawns a Wii should be offered one without
@@ -104,7 +103,8 @@ const _PERIPHERALS: Dictionary = {
 		# moved the signals on the last of them, so the SNS-008 serves three consoles
 		# and the RVL-009 serves one. The two ports declare different plug groups for
 		# exactly that reason.
-		{"kind": "peripheral", "label": "RVL-009", "spawn": "wii_av_cable"},
+		{"kind": "peripheral", "label": "Wii Composite Cable",
+			"spawn": "wii_av_cable"},
 	],
 	"virtual_boy": [
 		{"kind": "peripheral", "label": "Controller", "spawn": "vb_controller"},
