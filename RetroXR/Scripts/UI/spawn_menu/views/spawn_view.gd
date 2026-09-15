@@ -1153,6 +1153,12 @@ func _rebuild_romm_rows() -> void:
 			"label": label,
 		})
 
+	# 4. A downloaded game's variants are one row, the starred copy's. A disc not
+	# downloaded yet is in no gamelist, so it keeps a row of its own.
+	if gamelist_manager != null:
+		_romm_rows.assign(GamelistManager.collapse_variant_rows(
+			systemid, _romm_rows, gamelist_manager.games_with_variants(systemid)))
+
 	_romm_refresh_region_options(regions_seen)
 
 	if is_instance_valid(_romm_list):
@@ -1417,6 +1423,21 @@ func _build_blank_rom_row() -> Control:
 	region_flag.visible = false
 	main.add_child(region_flag)
 
+	# How many variants a folded row stands for, top-right.
+	var variants := Label.new()
+	variants.name = "Variants"
+	variants.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	variants.add_theme_font_size_override("font_size", 17)
+	variants.add_theme_color_override("font_color", MenuStyle.COLOR_DESC)
+	variants.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	variants.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	variants.offset_left = -12
+	variants.offset_right = -12
+	variants.offset_top = 8
+	variants.offset_bottom = 8
+	variants.visible = false
+	main.add_child(variants)
+
 	# "Pack" is last and shows only for a .bs: what is written on a Satellaview
 	# memory pack, which the row itself can only summarise.
 	for n: String in ["Detail", "Saves", "Manual", "Scrape", "Pack"]:
@@ -1487,6 +1508,11 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	var region_flag := main.get_node("RegionFlag") as Label
 	region_flag.text = MenuIcons.region_flags(_row_regions(cat_index, systemid, local_path))
 	region_flag.visible = not region_flag.text.is_empty()
+
+	var variants := main.get_node("Variants") as Label
+	var variant_count := int(model.get("variants", 0))
+	variants.text = "%d variants" % variant_count
+	variants.visible = variant_count > 1
 
 	# A scraped wheel logo replaces the title text entirely; otherwise the title
 	# scrolls. MarqueeButton extends Button, so it carries the icon itself.
@@ -2486,6 +2512,9 @@ func _on_romm_dl_finished(rom_id: int, ok: bool, path: String, error: String) ->
 	notify_clear("romm:dl:%d:why" % rom_id)
 	_romm_dl_row_index = -1
 	_romm_meta_cache.clear()
+	# The download merged its game into gamelist.json through its own manager.
+	if ok and gamelist_manager != null:
+		gamelist_manager.invalidate(AutoScraper.systemid_for_path(path))
 	_invalidate_local_scan()
 	_rebuild_romm_rows()
 

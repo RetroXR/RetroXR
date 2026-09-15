@@ -81,6 +81,7 @@ func _ready() -> void:
 	await _test_rom_id_resolve()
 	_test_gamelist_one_entry_per_rom()
 	_test_gamelist_dedupe()
+	_test_collapse_variants()
 	_test_ghost_rows()
 	_test_index_rewrite()
 	await _test_http_stalls()
@@ -1820,6 +1821,59 @@ func _test_gamelist_dedupe() -> void:
 
 	# Idempotent: running it again changes nothing.
 	_eq(gl.dedupe(sysid), 0, "dedupe/a clean list folds nothing")
+	gl._gamelists.clear()
+
+
+## One row per downloaded game in the ROM list: its variants fold behind the
+## preferred copy. Shaped like the Sega CD page that asked for it, where Mickey
+## Mania's full game, two magazine demos and the USA disc were four rows.
+func _test_collapse_variants() -> void:
+	var sysid := TEST_SYSTEM
+	var gl := GamelistManager.new()
+	gl._gamelists[sysid] = {"games": [
+		{"game_id": "12707", "name": "Mickey Mania", "roms": [
+			{"path": "./Mickey Mania (Europe).chd"},
+			{"path": "./Mickey Mania (Europe) (Demo) (Mega Sega).chd", "preferred": true},
+			{"path": "./Mickey Mania (USA).chd"}]},
+		{"game_id": "romm:1", "name": "Sonic CD", "roms": [
+			{"path": "./Sonic CD (USA).cue", "preferred": true}]},
+	]}
+	var dir := RomLibrary.rom_dir_for_system(sysid)
+	var row := func(file: String) -> Dictionary:
+		return {"source": "both", "index": -1, "path": dir.path_join(file), "label": file}
+	var games := gl.games_with_variants(sysid)
+	_ok(games.has(GamelistManager.rom_path_key(dir.path_join("Mickey Mania (USA).chd")))
+		and not games.has(GamelistManager.rom_path_key(dir.path_join("Sonic CD (USA).cue"))),
+		"variants/only a game holding more than one ROM is in the map")
+
+	var out := GamelistManager.collapse_variant_rows(sysid, [
+		{"source": "server", "index": 3, "path": "", "label": "Mickey Mania"},
+		row.call("Mickey Mania (Europe).chd"),
+		row.call("Mickey Mania (Europe) (Demo) (Mega Sega).chd"),
+		row.call("Mickey Mania (USA).chd"),
+		row.call("Sonic CD (USA).cue"),
+	], games)
+	_eq(out.size(), 3, "variants/three downloaded discs of one game are one row")
+	_eq(str(_at(out, 0).get("path", "x")), "", "variants/a server-only row is never folded")
+	_eq(str(_at(out, 1).get("path", "")).get_file(), "Mickey Mania (Europe) (Demo) (Mega Sega).chd",
+		"variants/the preferred copy stands for the game, where its first row was")
+	_eq(int(_at(out, 1).get("variants", 0)), 3, "variants/and carries how many the game holds")
+	_eq(str(_at(out, 2).get("path", "")).get_file(), "Sonic CD (USA).cue",
+		"variants/a one-ROM game keeps its row")
+	_ok(not _at(out, 2).has("variants"), "variants/with no count")
+
+	var filtered := GamelistManager.collapse_variant_rows(sysid, [
+		row.call("Mickey Mania (USA).chd"),
+		row.call("Mickey Mania (Europe).chd"),
+	], games)
+	_eq(filtered.size(), 1, "variants/a filtered page still folds")
+	_eq(str(_at(filtered, 0).get("path", "")).get_file(), "Mickey Mania (USA).chd",
+		"variants/with the preferred copy off the page, the first listed stands in")
+
+	var same := GamelistManager.rom_path_key("C:/Roms/Game.CHD") \
+		== GamelistManager.rom_path_key("c:/roms/game.chd")
+	_eq(same, OS.get_name() in ["Windows", "macOS"],
+		"variants/a path key ignores case exactly where the filesystem does")
 	gl._gamelists.clear()
 
 

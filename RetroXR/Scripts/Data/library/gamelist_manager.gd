@@ -354,6 +354,62 @@ func get_game_for_rom(systemid: String, rom_path: String) -> Dictionary:
 	return fallback
 
 
+## A ROM path as a dictionary key: one key per file, case-insensitive where the
+## filesystem is, the same as _same_rom_path.
+static func rom_path_key(path: String) -> String:
+	var p := path.simplify_path()
+	return p.to_lower() if OS.get_name() in ["Windows", "macOS"] else p
+
+
+## Each game holding more than one ROM, keyed by rom_path_key of every one of its
+## ROMs' absolute paths. Where two entries list one file, the "romm:" one wins,
+## as in get_game_for_rom.
+func games_with_variants(systemid: String) -> Dictionary:
+	var out := {}
+	for g: Dictionary in load_gamelist(systemid).get("games", []):
+		var roms: Array = g.get("roms", [])
+		if roms.size() < 2:
+			continue
+		for r: Dictionary in roms:
+			var abs_path := to_absolute_path(systemid, str(r.get("path", "")))
+			if abs_path.is_empty():
+				continue
+			var key := rom_path_key(abs_path)
+			if out.has(key) and not str(g.get("game_id", "")).begins_with("romm:"):
+				continue
+			out[key] = g
+	return out
+
+
+## A page of ROM rows with each game's variants folded into one row.
+##
+## `games` is games_with_variants. A game keeps one row, where the first of its
+## rows was, and it is the preferred ROM's row when that one is on the page; the
+## row gains `variants`, the number of ROMs the game holds. A row with no local
+## path is never folded: only a downloaded file is in the gamelist.
+static func collapse_variant_rows(systemid: String, rows: Array, games: Dictionary) -> Array:
+	if games.is_empty():
+		return rows
+	var out: Array = []
+	var slot := {}
+	for row: Dictionary in rows:
+		var path := str(row.get("path", ""))
+		var game: Dictionary = games.get(rom_path_key(path), {}) if not path.is_empty() else {}
+		if game.is_empty():
+			out.append(row)
+			continue
+		var group := rom_path_key(to_absolute_path(systemid,
+			str(get_preferred_rom(game).get("path", ""))))
+		if not slot.has(group):
+			row["variants"] = (game["roms"] as Array).size()
+			slot[group] = out.size()
+			out.append(row)
+		elif rom_path_key(path) == group:
+			row["variants"] = (game["roms"] as Array).size()
+			out[slot[group]] = row
+	return out
+
+
 ## Get the preferred ROM dict from a game entry. Returns empty dict if none found.
 static func get_preferred_rom(game: Dictionary) -> Dictionary:
 	for r: Dictionary in game.get("roms", []):
