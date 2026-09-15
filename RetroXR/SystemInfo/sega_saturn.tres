@@ -10,3 +10,5 @@ native_ports = 2
 media_type = 1
 supports_multitap = true
 multitap_ports = 6
+save_device = "sega_saturn_memory"
+console_memory = "sega_saturn_memory"

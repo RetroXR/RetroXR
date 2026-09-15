@@ -1593,6 +1593,73 @@ writes, because nothing reaches disk until then; and the four options that
 rebuild the machine (`system_hw`, `bios`, `region_detect`, `vdp_mode`) zero both
 memories mid-game, so they are held while a Sega CD runs.
 
+### 2n. Sega Saturn backup memory — in the console, on a cartridge behind the lid
+
+A Saturn saves to 32 KB of System Memory on its board or to a 512 KB Backup RAM
+Cartridge. The System Memory belongs to the console: `SystemInfo.console_memory`
+names its family (`sega_saturn_memory`), `RetroSystem` builds a `ConsoleMemory`
+child whose `card_id` is saved with the room (`console_memory` in the system
+entry), and it is managed from the console's **Saves** tab by the card panel's own
+code. The cartridge is the `sega_saturn_ram_cart` unit, MOUNT_ABOVE because the
+Saturn's CartridgeSlot is its disc well: the console grows an ExpansionSocket, and
+`RetroSystemModelDefault.configure_expansion_socket` moves it into a slot behind
+the lid (`ProceduralDiscBay.seat_rear_slot`). The unit's size and the slot's depth
+are estimates, not measurements. Both images are `SaturnBram`, the layout of
+Yabause's HLE BIOS calls (`src/bios.c`).
+
+**Beetle Saturn keeps the two differently**, read at source (`libretro.cpp`):
+
+- The System Memory goes through SAVE_RAM in the "libretro"
+  `beetle_saturn_save_method`; in "mednafen" the core writes a `.bkr` itself and
+  exposes no SAVE_RAM. So `MemoryCardController._compose_sram_path` points every
+  `mednafen_saturn` run at the console's image, disc or no disc. Other Saturn
+  cores keep the per-disc route.
+- The cartridge is a file the core owns in its save dir: `<disc>.bcr`, or
+  `mednafen_saturn_libretro_shared.bcr` with `beetle_saturn_shared_ext` on. It is
+  read at load and flushed ~180 frames after a write and again at unload.
+  `SaturnStorage` pins shared_ext, stages the seated cartridge's image into that
+  file, drains it while running and for 12 s after stop, and keeps a manifest for
+  a crash, as SegaCdStorage does. One Saturn with a cartridge runs at a time.
+- `beetle_saturn_cart` is pinned "Backup Memory" with a cartridge seated and
+  "None" without. **That takes Auto Detect away**, and Auto Detect is what gives
+  the Japanese titles that need a 1 MB or 4 MB Extended RAM cartridge their RAM:
+  they will not run until there is a unit for that cartridge.
+
+The first System Memory image made takes the saves games kept in per-disc `.srm`
+files, which stay where they are. A new cartridge takes the saves in the per-disc
+`.bcr` files Beetle made while it gave every disc a cartridge of its own; those
+are moved to `legacy/` and renamed `.imported` once taken.
+
+**Measured 2026-09-15** with `Tools/cores/saturn_bram_probe`, Beetle Saturn
+v1.32.1 and BIOS NTSC-4-V1.01a, on the empty-media cue:
+
+- A blank cartridge Beetle formatted itself hashes the same as
+  `SaturnBram.blank_image(CART_SIZE)`; `card_tests` pins that digest.
+- The BIOS Memory Manager lists `RETROXR_MEM RetroXR 4` from the image handed over
+  through SAVE_RAM. Its "Memory available: 458" is Yabause's
+  ((64 − 6) × free − 30) / 64 over SaturnBram's 506 free blocks, a different unit
+  from the card panel's count.
+- The BIOS's own copy to the cartridge leaves a `.bcr` that SaturnBram reads back
+  byte-exact.
+- Its copy of a 1500-byte cartridge save into System Memory comes back through
+  SAVE_RAM as 27 blocks whose block list crosses a block, also byte-exact.
+
+```bash
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 \
+  res://Tools/cores/saturn_bram_probe.tscn -- --root=<throwaway root with system/mednafen_saturn and cores/> \
+  --cart --at=28,31,34 --press=17:up,18:b,20:down,21:down,22:b,24:b,26.5:b,29.5:b --shot=C:/tmp/sat.png
+```
+
+The BIOS goes straight to its CD player on the empty-media cue. That press list
+takes the top-middle icon (System Settings), then Memory Manager, and copies the
+System Memory's first item to the cartridge; RetroPad B confirms and "OK to copy?"
+defaults to Yes. Three downs inside Memory Manager reach "Copy Item to System".
+Point `--root` at a throwaway root: the probe writes its `save/` and
+`core_options/`.
+
+Still owed: netplay and savestates carry no cartridge; no game has been run saving
+to either memory; and the Extended RAM cartridge above.
+
 ### 3. Capturing a real screenshot on Linux (for visual validation)
 `--headless` uses the dummy renderer — it **cannot** produce a screenshot (a probe that awaits
 `RenderingServer.frame_post_draw` just hangs; `get_image()` is blank). To actually render a

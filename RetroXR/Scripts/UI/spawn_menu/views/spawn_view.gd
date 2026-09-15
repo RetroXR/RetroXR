@@ -622,13 +622,13 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 	vbox.add_child(MenuStyle.spacer(8))
 
 
-## The card family of a spawn token naming a cartridge that is memory, or "".
+## The card family of a spawn token naming a unit that is only memory -- a Backup
+## RAM Cartridge, with no bay of its own -- or "".
 static func memory_cart_family(token: String) -> String:
 	if not token.begins_with("expansion:"):
 		return ""
 	var id := token.substr("expansion:".length())
-	if not ExpansionCatalog.has(id) \
-			or ExpansionCatalog.mount_of(id) != ExpansionCatalog.MOUNT_CARTRIDGE:
+	if not ExpansionCatalog.has(id) or not ExpansionCatalog.media_of(id).is_empty():
 		return ""
 	return ExpansionCatalog.memory_of(id)
 

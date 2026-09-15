@@ -10,6 +10,8 @@ const SERIAL_PORT_SCENE := preload("res://Scenes/Objects/cables/psx_link_port.ts
 
 var _power_btn: VRButton = null
 var _reset_btn: VRButton = null
+## The hinged disc well, on a console that has one.
+var _lid_bay: ProceduralDiscBay = null
 
 
 ## Nothing here draws a console — this model dresses the box system.tscn already
@@ -24,7 +26,23 @@ func brings_own_body() -> bool:
 ## ProceduralDiscBay.
 func build_disc_bay(host: Node3D, slot: Node3D, systemid: String, front: bool,
 		on_lid_swung: Callable) -> ProceduralDiscBay:
-	return ProceduralDiscBay.build_tray(host, slot, systemid, front, on_lid_swung)
+	var bay := ProceduralDiscBay.build_tray(host, slot, systemid, front, on_lid_swung)
+	if not front:
+		_lid_bay = bay
+	return bay
+
+
+## A lid over the middle of the roof leaves nowhere there to bolt a unit on, so
+## the socket goes into the cartridge slot behind the lid, where a Sega Saturn
+## takes its Backup RAM Cartridge. Sized to the largest unit that mounts there.
+func configure_expansion_socket(socket: Node3D) -> void:
+	if _lid_bay == null or not (socket is XRToolsSnapZone):
+		return
+	var card := Vector3.ZERO
+	for id: String in ExpansionCatalog.ids_for_host(str(socket.get_parent().get("systemid"))):
+		if ExpansionCatalog.mount_of(id) == ExpansionCatalog.MOUNT_ABOVE:
+			card = card.max(ExpansionCatalog.size_of(id))
+	_lid_bay.seat_rear_slot(socket as XRToolsSnapZone, card)
 
 
 func build_disc_slit(host: Node3D, systemid: String) -> void:

@@ -488,6 +488,11 @@ func _compose_sram_path(resolved_core: String, slot := 0) -> String:
 			return SramPaths.card_save_path(card_family(),
 				str(card.get("card_id")))
 		return ""
+	# Memory built into the console is where every disc saves, and what the BIOS
+	# reads with nothing in the drive.
+	var own := _console_memory_for(resolved_core)
+	if own != null:
+		return SramPaths.card_save_path(own.family, own.card_id)
 	if _host.rom_path.is_empty():
 		return ""
 	# A unit with its own battery answers before anything in its bay, and before
@@ -516,6 +521,14 @@ func _compose_sram_path(resolved_core: String, slot := 0) -> String:
 		return SramPaths.cart_save_path(resolved_core, _host.rom_path,
 			str(seated.get("save_id")))
 	return ""
+
+
+## The console's built-in memory when this core hands it over through SAVE_RAM,
+## or null, which leaves every other core on the route it always had.
+func _console_memory_for(resolved_core: String) -> ConsoleMemory:
+	if _host == null or not ConsoleMemory.hands_over(resolved_core):
+		return null
+	return _host.console_memory()
 
 
 ## An attached unit that owns its own save, or null. Independent of whether a
@@ -608,7 +621,8 @@ func sram_path_for_run(resolved_core: String) -> String:
 	var cards := _uses_memory_cards()
 	_host.get_libretro_node().SetRemovableStorage(cards)
 	if not cards:
-		return _compose_sram_path(resolved_core)
+		var own := _console_memory_for(resolved_core)
+		return own.ensure_image(resolved_core) if own != null else _compose_sram_path(resolved_core)
 	var paths: Array[String] = []
 	for slot in card_slot_count():
 		paths.append(_card_path_for_run(resolved_core, slot))

@@ -36,6 +36,8 @@ const _STRING_FIELDS := [
 	"pad_guid", "pad_name", "image_path",
 	# Which expansion a unit is -- a key in ExpansionCatalog.ROWS.
 	"expansion_id",
+	# The image of the memory built into a console -- see ConsoleMemory.
+	"console_memory",
 ]
 const _NUMBER_FIELDS := [
 	"lid_angle", "scale_factor", "stereo_mode", "size_scale", "page_state",
@@ -1653,6 +1655,10 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		"video_out": sys.video_out_enabled,
 		"ignore_gravity": sys.ignore_gravity,
 	})
+	# Which image the memory built into it is. Omitted on a machine with none, so
+	# no room without a Saturn in it changes at all.
+	if sys.console_memory() != null:
+		result["console_memory"] = sys.console_memory().card_id
 	# What is bolted to this machine. Written from the CONSOLE rather than
 	# from each unit because that is the side which seats them -- one
 	# restore_expansion call per unit, whichever way round a given pair
@@ -2211,6 +2217,7 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				sys.pad_guid = str(data.get("pad_guid", ""))
 				sys.pad_ordinal = int(data.get("pad_ordinal", 0))
 				sys.ignore_gravity = bool(data.get("ignore_gravity", false))
+				sys.console_memory_id = str(data.get("console_memory", ""))
 				# Before the caller adds it to the tree, like the fields above:
 				# _build_expansion_hardware runs from _ready and seeds a bay's
 				# default pak and its lid on a FRESH console. This save's own

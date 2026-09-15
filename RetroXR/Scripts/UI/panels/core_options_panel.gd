@@ -120,19 +120,19 @@ func _populate() -> void:
 	_populate_saves_tab(ui)
 
 
-## Hand the Saves tab to the attached unit that keeps memory of its own -- a Sega
-## CD -- so its saves are managed on the machine they belong to, by the memory
-## card panel's own code. Hidden when nothing attached keeps any.
+## Hand the Saves tab to the memory this machine keeps -- a Saturn's own, a Sega
+## CD's -- so its saves are managed on the machine they belong to, by the memory
+## card panel's own code. Hidden when it keeps none.
 func _populate_saves_tab(ui: CoreOptions2D) -> void:
 	var units := _memory_units()
 	ui.set_saves_tab_visible(not units.is_empty())
 	_saves_index = clampi(_saves_index, 0, maxi(units.size() - 1, 0))
 	var labels := PackedStringArray()
-	for unit: RetroExpansion in units:
-		labels.append(CardFormats.for_family(unit.family).device_noun())
+	for unit: Node3D in units:
+		labels.append(CardFormats.for_family(str(unit.get("family"))).device_noun())
 	ui.set_saves_sources(labels, _saves_index)
-	var shown: RetroExpansion = units[_saves_index] if not units.is_empty() else null
-	var panel: MemoryCardPanel = shown.ensure_saves_panel() if shown != null else null
+	var shown: Node3D = units[_saves_index] if not units.is_empty() else null
+	var panel: MemoryCardPanel = shown.call("ensure_saves_panel") if shown != null else null
 	if is_instance_valid(_saves_panel) and _saves_panel != panel:
 		_saves_panel.release_external_ui()
 	_saves_panel = panel
@@ -145,20 +145,24 @@ func _on_saves_source_picked(index: int) -> void:
 	_populate()
 
 
-## Every attached unit that keeps memory: the machine's own first (a Sega CD's),
-## then any cartridge that is memory, so the switch reads the same way whichever
-## was attached first.
-func _memory_units() -> Array[RetroExpansion]:
-	var out: Array[RetroExpansion] = []
-	if _system == null or not _system.has_method("get_expansions"):
+## Every memory the machine keeps: what is built into it first (a Saturn's), then
+## a unit's that has a drive of its own (a Sega CD's), then any unit that is only
+## memory, so the switch reads the same way whichever was attached first.
+func _memory_units() -> Array[Node3D]:
+	var out: Array[Node3D] = []
+	if _system == null:
 		return out
+	if _system.console_memory() != null:
+		out.append(_system.console_memory())
+	var units: Array[RetroExpansion] = []
 	for unit: RetroExpansion in _system.get_expansions():
 		if is_instance_valid(unit) and not unit.family.is_empty():
-			out.append(unit)
-	out.sort_custom(func(a: RetroExpansion, b: RetroExpansion) -> bool:
-		var cart := ExpansionCatalog.MOUNT_CARTRIDGE
-		return ExpansionCatalog.mount_of(a.expansion_id) != cart \
-			and ExpansionCatalog.mount_of(b.expansion_id) == cart)
+			units.append(unit)
+	units.sort_custom(func(a: RetroExpansion, b: RetroExpansion) -> bool:
+		return not ExpansionCatalog.media_of(a.expansion_id).is_empty() \
+			and ExpansionCatalog.media_of(b.expansion_id).is_empty())
+	for unit: RetroExpansion in units:
+		out.append(unit)
 	return out
 
 

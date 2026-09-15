@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 528
+const EXPECTED_CASES := 595
 
 var _pass := 0
 var _fail := 0
@@ -58,6 +58,7 @@ func _ready() -> void:
 	_test_vmu_icons()
 	_test_vmu_play()
 	_test_sega_cd()
+	_test_saturn()
 	_test_shared_contract()
 	_test_ops()
 	_test_save_device()
@@ -890,6 +891,9 @@ func _smallest_save_size(fmt: CardFormat) -> int:
 		# A .scds is a header and whole blocks; the smallest is one raw block.
 		"sega_cd_memory", "sega_cd_ram_cart":
 			return SegaCdBram.SCDS_HEADER + SegaCdBram.RAW_BLOCK_DATA
+		# A .ssav is a header and the data; a byte of data fits in a first block.
+		"sega_saturn_memory", "sega_saturn_ram_cart":
+			return SaturnBram.SAVE_HEADER + 1
 	return 0
 
 
@@ -989,6 +993,12 @@ func _test_format_registry() -> void:
 	# memory from a cartridge when all there is to go on is a filename.
 	_eq(CardFormats.for_path("/x/y/Backup RAM.crm").id(), "sega_cd_ram_cart",
 		"registry/a .crm is the cartridge, not the unit's .brm")
+	_ok(CardFormats.for_family("sega_saturn_memory") is SaturnMemoryFormat,
+		"registry/the sega_saturn_memory family is a SaturnMemoryFormat")
+	_ok(CardFormats.for_family("sega_saturn_ram_cart") is SaturnCartFormat,
+		"registry/the sega_saturn_ram_cart family is a SaturnCartFormat")
+	_eq(CardFormats.for_path("/x/y/mednafen_saturn_libretro_shared.bcr").id(), "sega_saturn_ram_cart",
+		"registry/a .bcr is the Saturn's cartridge, not its System Memory")
 
 	# for_path lowercases before matching, so a card named by a tool that shouts
 	# still resolves. Nothing else covers the fold.
@@ -1058,6 +1068,11 @@ func _test_save_device() -> void:
 		"save_device/a Sega CD disc saves to the unit's backup memory")
 	_ok(SaveDevice.note_for("sega_cd", "", "Sonic CD").contains("console's Saves tab"),
 		"save_device/and its note points at the console's Saves tab, not a device to fit")
+	var saturn := SaveDevice.format_for("sega_saturn", "")
+	_eq(saturn.id() if saturn != null else "", "sega_saturn_memory",
+		"save_device/a Saturn disc saves to the console's System Memory")
+	_ok(SaveDevice.note_for("sega_saturn", "", "NiGHTS").contains("console's Saves tab"),
+		"save_device/and its note points at the console's Saves tab too")
 	_ok(SaveDevice.format_for("wii", "") == null,
 		"save_device/a Wii game saves to the console, though a Wii takes GameCube cards")
 	_ok(SaveDevice.format_for("super_nes", "") == null,
@@ -1228,6 +1243,87 @@ func _test_sega_cd() -> void:
 	_ok(SegaCdBram.write_file(blank, "TOOBIG_____".to_ascii_buffer(), SegaCdBram.MODE_RAW,
 		too_big).is_empty(), "scd/a save larger than the free space is refused")
 	_ok(not SegaCdBram.is_save(PackedByteArray([1, 2, 3])), "scd/bytes that are no .scds are not a save")
+
+
+## The Saturn's backup RAM, laid out as Yabause's HLE BIOS lays it out. A blank
+## cartridge is pinned by the digest of one Beetle Saturn formatted itself, the
+## one image here that did not come from SaturnBram; what the real BIOS makes of
+## the rest is Tools/cores/saturn_bram_probe's to show.
+func _test_saturn() -> void:
+	var blank := SaturnBram.blank_image(SaturnBram.INTERNAL_SIZE)
+	_ok(SaturnBram.is_card_image(blank), "saturn/a blank System Memory parses")
+	_eq(SaturnBram.free_blocks(blank), 510, "saturn/with 510 of its 512 blocks free")
+	var blank_cart := SaturnBram.blank_image(SaturnBram.CART_SIZE)
+	_eq(_sha256(blank_cart), "4f8250fcab72ad2941f2e3d7410f90d1d1be55b6f3dead9dfced86f2c1063037",
+		"saturn/a blank cartridge matches the one Beetle Saturn formats, byte for byte")
+	_eq(SaturnBram.free_blocks(blank_cart), 1022, "saturn/with 1022 blocks free")
+	_ok(SaturnBram.blank_image(0x10000).is_empty(), "saturn/a size no Saturn memory has is refused")
+
+	# One block, and one long enough that its block list runs off its first block
+	# into the next: a 64-byte first block has room for 15 entries.
+	var small := _scd_pattern(20, 3, 1, 1)
+	var big := _scd_pattern(1500, 7, 5, 1)
+	var img := SaturnBram.write_file(blank, "SMALLSAVE01".to_ascii_buffer(), 1,
+		"Small".to_ascii_buffer(), 0x12345678, small)
+	img = SaturnBram.write_file(img, "BIGSAVE__01".to_ascii_buffer(), 0,
+		"Big one".to_ascii_buffer(), 42, big)
+	var files := SaturnBram.list_files(img)
+	_eq(_saturn_listing(files), "SMALLSAVE01 Small 1 2 20 1|BIGSAVE__01 Big one 0 3 1500 27",
+		"saturn/listed in block order with comment, language, place, size and blocks")
+	_eq(int(files[0]["date"]) if not files.is_empty() else 0, 0x12345678, "saturn/keeping the date")
+	_eq(SaturnBram.free_blocks(img), 482, "saturn/leaving 482 free")
+	_ok(SaturnBram.read_file(img, 2) == small, "saturn/a one-block save reads back")
+	_ok(SaturnBram.read_file(img, 3) == big, "saturn/and one whose block list crosses a block")
+
+	var deleted := SaturnBram.delete_file(img, 2)
+	_eq(_saturn_listing(SaturnBram.list_files(deleted)), "BIGSAVE__01 Big one 0 3 1500 27",
+		"saturn/deleting a save leaves the other where it was")
+	_ok(SaturnBram.read_file(deleted, 3) == big, "saturn/with its data")
+	_eq(SaturnBram.free_blocks(deleted), 483, "saturn/and the block comes back")
+	var reused := SaturnBram.write_file(deleted, "AGAIN____01".to_ascii_buffer(), 0,
+		PackedByteArray(), 0, small)
+	_eq(SaturnBram.index_of(reused, "AGAIN____01"), 2, "saturn/a new save takes the lowest free block")
+	_ok(SaturnBram.write_file(img, "SMALLSAVE01".to_ascii_buffer(), 0, PackedByteArray(), 0,
+		small).is_empty(), "saturn/the same name twice is refused")
+	var too_big := PackedByteArray()
+	too_big.resize(483 * 58)
+	_ok(SaturnBram.write_file(img, "TOOBIG___01".to_ascii_buffer(), 0, PackedByteArray(), 0,
+		too_big).is_empty(), "saturn/a save larger than the free space is refused")
+
+	var table := 3 * SaturnBram.INTERNAL_BLOCK + SaturnBram.OFF_TABLE
+	var looped := img.duplicate()
+	looped[table] = 0
+	looped[table + 1] = 3
+	_eq(_saturn_listing(SaturnBram.list_files(looped)), "SMALLSAVE01 Small 1 2 20 1",
+		"saturn/a save whose block list names itself is not listed")
+	var reserved := img.duplicate()
+	reserved[table] = 0
+	reserved[table + 1] = 1
+	_eq(SaturnBram.list_files(reserved).size(), 1, "saturn/nor one whose list names a reserved block")
+
+	var memory := CardFormats.for_family("sega_saturn_memory")
+	var cart_fmt := CardFormats.for_family("sega_saturn_ram_cart")
+	var lifted := memory.extract_save(img, 3)
+	_ok(SaturnBram.is_save(lifted), "saturn/a lifted save is a .ssav")
+	_eq(cart_fmt.save_name(lifted), "BIGSAVE__01", "saturn/carrying its name")
+	var on_cart := cart_fmt.insert_save(cart_fmt.blank_image(), lifted)
+	_ok(SaturnBram.read_file(on_cart, 2) == big, "saturn/put on a cartridge it reads back")
+	var saves := cart_fmt.list_saves(on_cart, false)
+	_ok(saves.size() == 1 and int(saves[0]["blocks"]) == 4 and str(saves[0]["title"]) == "Big one",
+		"saturn/in the cartridge's larger blocks, titled by its comment")
+	_eq(memory.saves_in_download(img).size(), 2, "saturn/a whole uploaded image yields every save")
+	var merged := SaturnBram.merge(blank_cart, img)
+	_eq(SaturnBram.list_files(merged).size(), 2, "saturn/merging one image into another brings every save")
+	_ok(SaturnBram.merge(merged, img) == merged, "saturn/and merging it again brings none twice")
+	_ok(not SaturnBram.is_save(PackedByteArray([1, 2, 3])), "saturn/bytes that are no .ssav are not a save")
+
+
+func _saturn_listing(files: Array[Dictionary]) -> String:
+	var parts: PackedStringArray = []
+	for e: Dictionary in files:
+		parts.append("%s %s %d %d %d %d"
+			% [e["name"], e["comment"], e["language"], e["block"], e["size"], e["blocks"]])
+	return "|".join(parts)
 
 
 func _sha256(bytes: PackedByteArray) -> String:

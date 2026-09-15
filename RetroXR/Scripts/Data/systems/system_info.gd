@@ -56,6 +56,11 @@ enum MediaType { CARTRIDGE = 0, DISC_TRAY = 1, DISC_INSERT = 2 }
 ## the controller rather than a console slot.
 @export var save_device: String = ""
 
+## The card family of backup memory built into the console itself, or "". A
+## Saturn's System Memory: one image per console, managed from its Saves tab. See
+## ConsoleMemory.
+@export var console_memory: String = ""
+
 ## True when this hardware has a serial port on the back for a link cable
 ## between two consoles -- the PlayStation's SIO1, not the controller bus.
 ##

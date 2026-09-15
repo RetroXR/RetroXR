@@ -37,6 +37,10 @@ static func has_primitive_model(sysid: String) -> bool:
 ## way in by ScenePersistence, so nothing here needs to know about variants.
 @export var model_id: String = ""
 
+## The id of the memory built into this console, set by a restore before the
+## machine enters the tree. Empty mints a new one -- see ConsoleMemory.
+var console_memory_id := ""
+
 ## Spatial audio settings for the AudioStreamPlayer3D created at runtime.
 @export_group("Spatial Audio")
 @export var audio_unit_size: float = 3.0        ## Reference distance (m) for full volume
@@ -435,6 +439,10 @@ func _init() -> void:
 	_sega_cd.name = "SegaCdStorage"
 	add_child(_sega_cd)
 	_sega_cd.setup(self)
+	_saturn = SaturnStorage.new()
+	_saturn.name = "SaturnStorage"
+	add_child(_saturn)
+	_saturn.setup(self)
 	_audio = SystemAudio.new()
 	_audio.name = "SystemAudio"
 	add_child(_audio)
@@ -490,6 +498,7 @@ func _ready() -> void:
 		_port_zones[i].snap_filter = _accepts_plug
 	# Load system-specific model (falls back to default placeholder model)
 	_load_system_model()
+	_build_console_memory()
 	# Hardware with real sockets (the NES) gets those instead of a captive lead —
 	# nothing plays until a lead is run to the set, as it did on the real thing.
 	if _model.uses_av_ports():
@@ -2066,6 +2075,15 @@ func power_on() -> void:
 			busy_toast.show_notice(_display_name(), "Sega CD in use", scd_busy,
 				Color(1.0, 0.72, 0.2))
 		return
+	# One Saturn with a Backup RAM Cartridge at a time, for the same reason.
+	var saturn_busy := _saturn.busy_elsewhere(resolved_core)
+	if not saturn_busy.is_empty():
+		push_error("RetroSystem: Cannot power on - %s" % saturn_busy)
+		var cart_toast := _machine_toast()
+		if cart_toast != null:
+			cart_toast.show_notice(_display_name(), "Cartridge in use", saturn_busy,
+				Color(1.0, 0.72, 0.2))
+		return
 
 	# May be empty media: a machine with nothing in it whose BIOS is installed is
 	# handed a blank disc, which is what a console with a closed empty tray is.
@@ -2097,6 +2115,7 @@ func power_on() -> void:
 	# Before the forced options: the cartridge size they pin is read off an image
 	# that staging may only now have created.
 	_sega_cd.stage_before_start(resolved_dir, resolved_core)
+	_saturn.stage_before_start(resolved_dir, resolved_core)
 	_apply_forced_core_options(resolved_dir, resolved_core)
 	_persist_pak_options(resolved_dir, resolved_core)
 	_vmu.stage_before_start(resolved_dir, resolved_core)
@@ -2394,6 +2413,8 @@ func _stop_core() -> void:
 	_vmu.stop_draining_soon()
 	# genesis_plus_gx writes a Sega CD's memory only as it unloads.
 	_sega_cd.drain_after_stop()
+	# Beetle Saturn flushes a cartridge once more as it unloads.
+	_saturn.drain_after_stop()
 	_has_disk_control = false
 	_disc_index = 0
 	_disc_ejected = false
@@ -2691,6 +2712,7 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	if not _memcards.apply_netplay_sram():
 		_libretro.SetSramPath(sram_path_for_run(resolved_core))
 	_sega_cd.stage_before_start(_resolve_dir(), resolved_core)
+	_saturn.stage_before_start(_resolve_dir(), resolved_core)
 	_apply_forced_core_options(_resolve_dir(), resolved_core)
 	_persist_pak_options(_resolve_dir(), resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
@@ -2916,6 +2938,8 @@ func _all_forced_options(core: String) -> Dictionary:
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
 	if _sega_cd != null:
 		out.merge(_sega_cd.forced_options_for(core), true)
+	if _saturn != null:
+		out.merge(_saturn.forced_options_for(core), true)
 	return out
 
 
@@ -3628,6 +3652,30 @@ func reapply_vmu(ctrl: Node) -> void:
 ## free.
 func sega_cd_storage() -> SegaCdStorage:
 	return _sega_cd
+
+
+## Read by another machine's SaturnStorage, deciding whether the shared folder is
+## free.
+func saturn_storage() -> SaturnStorage:
+	return _saturn
+
+
+## The memory built into this console, or null on one with none -- see
+## ConsoleMemory.
+func console_memory() -> ConsoleMemory:
+	return _console_memory
+
+
+## Built once systemid is known, which the spawner and a restore both set before
+## the machine enters the tree; a restore sets console_memory_id then too.
+func _build_console_memory() -> void:
+	var info := SystemInfo.for_system(systemid)
+	if info == null or info.console_memory.is_empty() or _console_memory != null:
+		return
+	_console_memory = ConsoleMemory.new()
+	_console_memory.name = "ConsoleMemory"
+	add_child(_console_memory)
+	_console_memory.setup(self, info.console_memory, console_memory_id)
 
 
 ## Whether this machine's core hands device screens over through the controller
@@ -5019,6 +5067,11 @@ var _vmu: VmuStorage = null
 ## A Sega CD's backup memory and a Backup RAM Cartridge. Inert on every other
 ## machine -- see SegaCdStorage.
 var _sega_cd: SegaCdStorage = null
+## A Saturn's Backup RAM Cartridge, and the options Beetle Saturn keeps its
+## memories by. Inert on every other machine -- see SaturnStorage.
+var _saturn: SaturnStorage = null
+## The memory built into the console, on one with any -- see ConsoleMemory.
+var _console_memory: ConsoleMemory = null
 ## What a stacked expansion hands the core at boot - see ExpansionLaunch.
 var _expansion_launch: ExpansionLaunch = null
 

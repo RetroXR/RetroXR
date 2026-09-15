@@ -21,6 +21,12 @@ const WELL_DEPTH := 0.006
 ## How far the front-loading shelf runs out, and how long it takes.
 const SLIDE_TRAVEL := 0.19
 const SLIDE_TIME := 0.9
+## The cartridge slot behind a hinged lid: how far in from the back face it is,
+## how deep a cartridge goes into it, and how much wider its mouth is than the
+## cartridge. None of the three is a measurement of the hardware.
+const REAR_SLOT_BACK_WALL := 0.010
+const REAR_SLOT_SINK := 0.040
+const REAR_SLOT_CLEARANCE := 0.004
 
 ## The placeholder console box every measurement in here was taken from. Passed
 ## as `box` by default so the consoles are unchanged; an expansion unit is a
@@ -242,6 +248,34 @@ func _build_lid_tray(slot: Node3D, systemid: String, on_lid_swung: Callable) -> 
 	lid_hinge = VRSpringLatchedHinge.mount(_host, lid, LID_OPEN_DEG)
 	if lid_hinge != null and on_lid_swung.is_valid():
 		lid_hinge.rotation_changed.connect(on_lid_swung)
+
+
+## Move an expansion socket into a slot in the roof behind the lid and draw the
+## slot's mouth. The slot runs across the box, and a cartridge of size `card`
+## stands in it on edge with its face to the front, REAR_SLOT_SINK of it inside the
+## box. The connector plate the socket drew for a roof would be inside the box
+## too, so it is hidden.
+func seat_rear_slot(socket: XRToolsSnapZone, card: Vector3, box: Vector3 = PLACEHOLDER_BOX) -> void:
+	var top := box.y * 0.5
+	var z := -box.z * 0.5 + REAR_SLOT_BACK_WALL + card.z * 0.5
+	socket.position = Vector3(0.0, top - REAR_SLOT_SINK, z)
+	# A cartridge is pushed into a slot, not a console lowered onto a base.
+	socket.grab_distance = 0.08
+	for part: String in ["ConnectorPlate", "ConnectorPins"]:
+		var n := socket.get_node_or_null(part) as Node3D
+		if n != null:
+			n.visible = false
+
+	var mouth := MeshInstance3D.new()
+	mouth.name = "RearSlotMouth"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(card.x + REAR_SLOT_CLEARANCE, 0.001, card.z + REAR_SLOT_CLEARANCE)
+	mouth.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.08, 0.08, 0.1)
+	mouth.set_surface_override_material(0, mat)
+	mouth.position = Vector3(0.0, top + 0.0005, z)
+	_host.add_child(mouth)
 
 
 ## A flat ring in the XZ plane at y = 0, facing up. Godot has no annulus

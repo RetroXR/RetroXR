@@ -114,6 +114,7 @@ const _UNITS: Array = [
 	preload("res://Scripts/Data/systems/expansions/sega_32x.gd"),
 	preload("res://Scripts/Data/systems/expansions/power_base_converter.gd"),
 	preload("res://Scripts/Data/systems/expansions/fm_sound_unit.gd"),
+	preload("res://Scripts/Data/systems/expansions/sega_saturn_ram_cart.gd"),
 	preload("res://Scripts/Data/systems/expansions/pc_engine_cd.gd"),
 	preload("res://Scripts/Data/systems/expansions/jaguar_cd.gd"),
 	preload("res://Scripts/Data/systems/expansions/ereader.gd"),
@@ -130,7 +131,7 @@ const _ORDER: Array = [
 	"nintendo_64dd", "nintendo_64dd_dev", "expansion_pak", "jumper_pak", "fds", "satellaview",
 	"bsx_cart", "sufami_turbo", "super_game_boy", "super_game_boy_2",
 	"sega_cd", "sega_cd_ram_cart", "sega_32x", "power_base_converter", "fm_sound_unit",
-	"pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
+	"sega_saturn_ram_cart", "pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
 ]
 
 
@@ -289,6 +290,12 @@ static func memory_of(id: String) -> String:
 ## rather than the one a console's slot turns away. See RetroExpansion._build_body.
 static func label_front_of(id: String) -> bool:
 	return bool(row(id).get("label_front", false))
+
+
+## Whether a unit wears its name along the top of its face, for one stood in a slot
+## that swallows the lower half. See RetroExpansion._build_body.
+static func label_top_of(id: String) -> bool:
+	return bool(row(id).get("label_top", false))
 
 
 ## The unit whose memory is this card family, or "" -- how a card shelf listing

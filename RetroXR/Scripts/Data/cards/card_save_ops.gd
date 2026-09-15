@@ -27,6 +27,11 @@ static func holder_of(tree: SceneTree, card_id: String) -> Node:
 			var seated: Node = sys.get_snapped_memcard(slot)
 			if seated != null and str(seated.get("card_id")) == card_id:
 				return sys
+		# Memory built into the console, like a Saturn's.
+		if sys.has_method("console_memory"):
+			var own: Node = sys.call("console_memory")
+			if own != null and str(own.get("card_id")) == card_id:
+				return sys
 		# Memory kept by a unit bolted to the console, like a Sega CD's.
 		if sys.has_method("get_expansions"):
 			for unit: Node in sys.get_expansions():

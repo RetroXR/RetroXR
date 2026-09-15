@@ -153,13 +153,12 @@ func _init_memory() -> void:
 		card_label = card_id
 
 
-## The menu verb. A cartridge that IS memory -- the Backup RAM Cartridge -- opens
-## its card panel, as a memory card in the hand does. Every other unit keeps the
-## generic panel it always had; a Sega CD's own memory is on its console's Saves
-## tab rather than on a panel of the unit's.
+## The menu verb. A unit that IS memory -- a Backup RAM Cartridge, with no bay of
+## its own -- opens its card panel, as a memory card in the hand does. Every other
+## unit keeps the generic panel it always had; a Sega CD's own memory is on its
+## console's Saves tab rather than on a panel of the unit's.
 func toggle_options_ui(camera: Node3D) -> void:
-	if family.is_empty() \
-			or ExpansionCatalog.mount_of(expansion_id) != ExpansionCatalog.MOUNT_CARTRIDGE:
+	if family.is_empty() or not ExpansionCatalog.media_of(expansion_id).is_empty():
 		ObjectOptionsPanel.toggle_for(self, camera)
 		return
 	var panel := ensure_saves_panel()
@@ -219,9 +218,12 @@ func _build_body() -> void:
 	# Above the slit on a front-loading unit and below the join on a top-mounting
 	# one, so the name never lands on the mouth the media goes into (it did: the
 	# 64DD's plate sat across its own slit) and never on the console it stands on.
+	# High too on a unit that stands in a slot (label_top), which the foot of its
+	# face is inside.
 	var mount := ExpansionCatalog.mount_of(expansion_id)
 	var front_loading := mount == ExpansionCatalog.MOUNT_BELOW
-	var label_y := (s.y * 0.5 - 0.014) if front_loading else (-s.y * 0.5 + 0.010)
+	var label_y := (s.y * 0.5 - 0.014) \
+		if front_loading or ExpansionCatalog.label_top_of(expansion_id) else (-s.y * 0.5 + 0.010)
 	# A unit that stands in the room is read from +Z, but a unit that IS a
 	# cartridge is swallowed by a console and read from the other side: the
 	# console's slot seats it facing away, so a name on +Z is the face nobody can

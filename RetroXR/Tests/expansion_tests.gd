@@ -22,6 +22,8 @@
 ##            with the holes cut for them, and the Multi-Cart Link pairing
 ##   disk/    the 64DD's real shells: drive, development unit and disk, and which
 ##            dumps get the blue development shell
+##   saturn/  a Saturn's own System Memory, its Backup RAM Cartridge, the slot
+##            behind the lid, and staging the cartridge into Beetle Saturn
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -1369,6 +1371,8 @@ func _run() -> void:
 		await _group_scd_storage()
 	if _want("scd_boot"):
 		await _group_scd_boot()
+	if _want("saturn"):
+		await _group_saturn()
 
 
 # ── scd_boot/ — what a Sega CD hands the core ─────────────────────────────────
@@ -1568,6 +1572,182 @@ func _scd_payload(bytes: int) -> PackedByteArray:
 	for i in bytes:
 		out.append((i * 29 + 11) & 0xFF)
 	return out
+
+
+# ── saturn/ — a Saturn's own memory, its cartridge, and the slot for it ──────
+
+func _saturn_cleanup(root: String, ids: Array) -> void:
+	for id: String in ids:
+		for family: String in ["sega_saturn_memory", SaturnStorage.CART_FAMILY]:
+			var path := SramPaths.find_card(id, family)
+			if not path.is_empty():
+				DirAccess.remove_absolute(path)
+	_remove_tree(root)
+
+
+## An image of `size` holding one save called `name` of `bytes` bytes.
+func _saturn_image(size: int, name: String, bytes: int) -> PackedByteArray:
+	return SaturnBram.write_file(SaturnBram.blank_image(size), name.to_ascii_buffer(), 0,
+		"SELFTEST".to_ascii_buffer(), 0, _scd_payload(bytes))
+
+
+func _group_saturn() -> void:
+	var core := "mednafen_saturn"
+	_ok(ExpansionCatalog.memory_of("sega_saturn_ram_cart") == SaturnStorage.CART_FAMILY,
+		"saturn/ the Backup RAM Cartridge is memory")
+	_ok(ExpansionCatalog.ids_carded_on("sega_saturn").has("sega_saturn_ram_cart"),
+		"saturn/ offered on the Saturn's card")
+	_ok(SpawnMenuSpawnView.memory_cart_family("expansion:sega_saturn_ram_cart") == SaturnStorage.CART_FAMILY,
+		"saturn/ its spawn row opens a card shelf")
+	_ok(ExpansionCatalog.boot_for("sega_saturn", ["sega_saturn_ram_cart"]).is_empty(),
+		"saturn/ seated, it changes nothing about what boots")
+
+	var o := SaturnStorage.forced_options(core, false)
+	_ok(o.get("beetle_saturn_save_method") == "libretro" and o.get("beetle_saturn_shared_ext") == "enabled",
+		"saturn/ the core hands the System Memory over and keeps one cartridge file")
+	_ok(o.get("beetle_saturn_cart") == "None", "saturn/ with no cartridge seated, none is fitted")
+	_ok(SaturnStorage.forced_options(core, true).get("beetle_saturn_cart") == "Backup Memory",
+		"saturn/ with one seated, a Backup Memory cartridge is")
+	_ok(SaturnStorage.forced_options("yabasanshiro", true).is_empty(),
+		"saturn/ nothing is pinned on another core")
+
+	var root := ProjectSettings.globalize_path("user://__saturn_selftest")
+	var ids := ["__SATURN SELFTEST MEMORY", "__SATURN SELFTEST CART", "__SATURN SELFTEST CART B",
+		"__SATURN SELFTEST RESTORED"]
+	_saturn_cleanup(root, ids)
+
+	# The System Memory is the console's.
+	var saturn := await _console("sega_saturn")
+	var other := await _console("sega_saturn")
+	var own := saturn.console_memory()
+	_ok(own != null and own.family == "sega_saturn_memory" and not own.card_id.is_empty(),
+		"saturn/ a Saturn has System Memory of its own")
+	_ok(own != null and other.console_memory() != null and own.card_id != other.console_memory().card_id,
+		"saturn/ and two Saturns spawned together keep two")
+	var genesis := await _console("mega_drive")
+	_ok(genesis.console_memory() == null, "saturn/ a console with none built in has none")
+	_ok(CardSaveOps.holder_of(get_tree(), own.card_id) == saturn, "saturn/ the console holds its own memory")
+
+	var restored := SYSTEM_SCENE.instantiate() as RetroSystem
+	restored.systemid = "sega_saturn"
+	restored.console_memory_id = ids[3]
+	restored.begin_restore()
+	restored.position = Vector3(_spawned.size() * 2.0, 1, 0)
+	restored.freeze = true
+	add_child(restored)
+	_spawned.append(restored)
+	await _wait(30)
+	_ok(restored.console_memory().card_id == ids[3],
+		"saturn/ a restored Saturn keeps the memory it was saved with")
+
+	own.card_id = ids[0]
+	var image_path := SramPaths.card_save_path("sega_saturn_memory", ids[0])
+	saturn.rom_path = ""
+	_ok(saturn._memcards._compose_sram_path(core) == image_path,
+		"saturn/ with nothing in the drive, Beetle Saturn saves to the System Memory")
+	saturn.rom_path = "/roms/sega_saturn/game.chd"
+	_ok(saturn._memcards._compose_sram_path(core) == image_path,
+		"saturn/ and with a disc in it, too")
+	_ok(saturn._memcards._compose_sram_path("yabasanshiro") != image_path,
+		"saturn/ while another core keeps the route it had")
+	var made := own.ensure_image(core)
+	var made_bytes := FileAccess.get_file_as_bytes(made)
+	_ok(made == image_path and made_bytes.size() == SaturnBram.INTERNAL_SIZE
+		and SaturnBram.is_card_image(made_bytes), "saturn/ the image is made formatted at power-on")
+
+	var disc_saves := root.path_join("discsaves")
+	DirAccess.make_dir_recursive_absolute(disc_saves.path_join("Game A"))
+	FileAccess.open(disc_saves.path_join("Game A").path_join("GAMEA.srm"), FileAccess.WRITE) \
+		.store_buffer(_saturn_image(SaturnBram.INTERNAL_SIZE, "GAMEA_01", 100))
+	var adopted := ConsoleMemory.adopt_disc_saves(disc_saves, SaturnBram.blank_image())
+	_ok(SaturnBram.index_of(adopted, "GAMEA_01") >= 0
+		and FileAccess.file_exists(disc_saves.path_join("Game A").path_join("GAMEA.srm")),
+		"saturn/ a first System Memory takes the saves games kept per disc, and leaves them")
+
+	# The slot behind the lid. The lid reaches z = -0.088 on this box, and its roof is y = 0.05.
+	var socket := saturn.get_node_or_null("ExpansionSocket") as XRToolsSnapZone
+	_ok(socket != null, "saturn/ a Saturn grows a socket for the cartridge")
+	_ok(socket != null and socket.position.z < -0.095 and socket.position.y < 0.05,
+		"saturn/ in a slot behind the lid, below the roof (at %s)"
+			% (socket.position if socket != null else Vector3.ZERO))
+	_ok(saturn.get_node_or_null("RearSlotMouth") != null, "saturn/ with the slot's mouth drawn")
+	var cart := await _scd_unit("sega_saturn_ram_cart", ids[1])
+	saturn.restore_expansion(cart)
+	await _wait(10)
+	_ok(saturn.expansion_ids().has("sega_saturn_ram_cart"), "saturn/ the cartridge seats in it")
+	var at := saturn.to_local(cart.global_position)
+	_ok(at.y - cart.size().y * 0.5 < 0.05 and at.y + cart.size().y * 0.5 > 0.05 and at.z < -0.095,
+		"saturn/ standing in the slot, partly inside the box (centre %s)" % at)
+	_ok(cart.global_transform.basis.z.dot(saturn.global_transform.basis.z) > 0.99,
+		"saturn/ with its face to the front of the console")
+	_ok(cart._label.position.y > 0.0, "saturn/ and its name on the half that is out")
+	_ok(CardSaveOps.holder_of(get_tree(), cart.card_id) == saturn,
+		"saturn/ its console holds the cartridge's memory")
+	_ok(saturn._all_forced_options(core).get("beetle_saturn_cart") == "Backup Memory",
+		"saturn/ and pins a Backup Memory cartridge")
+	var driver := CoreOptionsPanel.new()
+	driver._system = saturn
+	var units := driver._memory_units()
+	_ok(units.size() == 2 and units[0] == own and units[1] == cart,
+		"saturn/ its Saves tab lists the System Memory first, then the cartridge")
+	driver.free()
+
+	# Staging the cartridge into the core's file.
+	var save_dir := root.path_join("save").path_join(core)
+	DirAccess.make_dir_recursive_absolute(save_dir)
+	FileAccess.open(save_dir.path_join("Game A.bcr"), FileAccess.WRITE) \
+		.store_buffer(_saturn_image(SaturnBram.CART_SIZE, "OLDCART_01", 700))
+	other.saturn_storage().stage_before_start(root, core)
+	_ok(FileAccess.file_exists(save_dir.path_join("Game A.bcr"))
+		and not FileAccess.file_exists(save_dir.path_join(SaturnStorage.CART_FILE)),
+		"saturn/ a Saturn with no cartridge leaves the folder alone")
+
+	var storage := saturn.saturn_storage()
+	storage.stage_before_start(root, core)
+	var cart_image := SramPaths.find_card(ids[1], SaturnStorage.CART_FAMILY)
+	var cart_bytes := FileAccess.get_file_as_bytes(cart_image)
+	_ok(not cart_image.is_empty() and SaturnBram.index_of(cart_bytes, "OLDCART_01") >= 0,
+		"saturn/ a new cartridge starts with the saves an unclaimed cartridge file held")
+	_ok(FileAccess.file_exists(save_dir.path_join(SaturnStorage.LEGACY_DIR).path_join("Game A.bcr.imported")),
+		"saturn/ which is set aside, not written over")
+	_ok(FileAccess.get_file_as_bytes(save_dir.path_join(SaturnStorage.CART_FILE)) == cart_bytes
+		and FileAccess.file_exists(save_dir.path_join(SaturnStorage.MANIFEST)),
+		"saturn/ staged into the core's one cartridge file, with a manifest")
+
+	var cart_b := await _scd_unit("sega_saturn_ram_cart", ids[2])
+	other.restore_expansion(cart_b)
+	await _wait(10)
+	_ok(not other.saturn_storage().busy_elsewhere(core).is_empty(),
+		"saturn/ a second Saturn with a cartridge cannot start while the file is in use")
+
+	# The core's write goes home to the cartridge that filled the file, even once
+	# that cartridge has been swapped for another.
+	var written := SaturnBram.write_file(cart_bytes, "NEWSAVE_01".to_ascii_buffer(), 0,
+		"SELFTEST".to_ascii_buffer(), 0, _scd_payload(300))
+	await _unbolt(socket, cart)
+	FileAccess.open(save_dir.path_join(SaturnStorage.CART_FILE), FileAccess.WRITE).store_buffer(written)
+	_ok(storage.drain() and FileAccess.get_file_as_bytes(cart_image) == written,
+		"saturn/ the core's write goes back to the cartridge that filled the file")
+	storage._finish()
+	_ok(not FileAccess.file_exists(save_dir.path_join(SaturnStorage.CART_FILE))
+		and not FileAccess.file_exists(save_dir.path_join(SaturnStorage.MANIFEST)),
+		"saturn/ and the folder is cleared once it is done")
+	_ok(other.saturn_storage().busy_elsewhere(core).is_empty(),
+		"saturn/ which frees it for the other Saturn")
+
+	# A run that never drained -- a crash -- is put right by the next start.
+	saturn.restore_expansion(cart)
+	await _wait(10)
+	storage.stage_before_start(root, core)
+	var more := SaturnBram.write_file(written, "NEWSAVE_02".to_ascii_buffer(), 0,
+		"SELFTEST".to_ascii_buffer(), 0, _scd_payload(40))
+	FileAccess.open(save_dir.path_join(SaturnStorage.CART_FILE), FileAccess.WRITE).store_buffer(more)
+	storage._staged.clear()
+	_ok(SaturnStorage.recover(save_dir) and FileAccess.get_file_as_bytes(cart_image) == more,
+		"saturn/ a crashed run's write is recovered from its manifest")
+
+	await _clear()
+	_saturn_cleanup(root, ids)
 
 
 # ── memory/ — a unit that keeps backup memory of its own ─────────────────────
