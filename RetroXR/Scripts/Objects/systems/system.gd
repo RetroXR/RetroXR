@@ -2027,8 +2027,12 @@ func power_on() -> void:
 		blank = BiosBoot.empty_media_path(
 			BiosBoot.empty_media_extension(resolved_core, systemid))
 
+	var missing := BiosBoot.missing_required(resolved_core)
+	# And what the game needs that the core's .info calls optional: a Sega CD disc
+	# cannot start without a Sega CD BIOS, though the same core runs cartridges.
+	missing.append_array(BiosBoot.missing_for_media(resolved_core, _media_systemid()))
 	var verdict := _power_on_verdict(resolved_core, systemid, rom_path,
-		BiosBoot.missing_required(resolved_core), blank,
+		missing, blank,
 		slot_empty and BiosBoot.boots_with_no_content(resolved_core, systemid),
 		resolved_core.is_empty()
 			or not CoreDownloadManager.installed_core_lib(resolved_core).is_empty())
@@ -2214,6 +2218,18 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 	if not missing.is_empty():
 		var first: Dictionary = missing[0]
 		var path := str(first.get("path", ""))
+		# Any one of a regional set would do, so it is not counted up as several
+		# missing files.
+		var any_of: Array = first.get("any_of", [])
+		if not any_of.is_empty():
+			return {
+				"start": false, "rom": rom,
+				"log": "core '%s' needs one of %s and has none" % [core_name, ", ".join(any_of)],
+				"title": "BIOS required",
+				"description": "No %s is installed (%s).\nAdd it in OPTIONS > Cores > BIOS / Extras."
+					% [str(first.get("desc", "BIOS")), path],
+				"accent": fault,
+			}
 		var more := "" if missing.size() == 1 else " (+%d more)" % (missing.size() - 1)
 		return {
 			"start": false, "rom": rom,
@@ -3320,10 +3336,23 @@ func _on_content_load_failed(reason: String) -> void:
 	push_error("RetroSystem: content load failed — %s" % reason)
 	if is_powered_on:
 		_stop_core()
+	var absent := BiosBoot.absent_media_boot_roms(_resolve_core(), _media_systemid())
 	var toast := _machine_toast()
 	if toast != null:
-		toast.show_notice(_display_name(), "Could not start", reason,
-			AchievementToast.ACCENT_NOTICE)
+		toast.show_notice(_display_name(), "Could not start",
+			_load_failed_detail(reason, absent), AchievementToast.ACCENT_NOTICE)
+
+
+## What a refused load says. A game that needs a regional BIOS some of which is
+## not installed was most likely refused for that -- the core picks the file by
+## the disc's region, which is not known here -- so the notice names it rather
+## than the core's bare refusal.
+static func _load_failed_detail(reason: String, absent_boot_roms: Array[String]) -> String:
+	if absent_boot_roms.is_empty():
+		return reason
+	var more := "" if absent_boot_roms.size() == 1 else " (+%d)" % (absent_boot_roms.size() - 1)
+	return "Its region's BIOS may be missing: %s%s\nAdd it in OPTIONS > Cores > BIOS / Extras." \
+		% [absent_boot_roms[0], more]
 
 
 ## Fired by the Libretro node (via options_ready signal) once the emulation core
@@ -4241,6 +4270,15 @@ func game_media() -> RetroCartridge:
 			if m is RetroCartridge:
 				return m as RetroCartridge
 	return null
+
+
+## The systemid of the game this machine is about to run. A disc in a stacked
+## unit's bay is a sega_cd game on a mega_drive machine, and it is the game that
+## decides which BIOS is needed.
+func _media_systemid() -> String:
+	var media := game_media()
+	var sid := str(media.get("systemid")) if media != null else ""
+	return sid if not sid.is_empty() else systemid
 
 
 ## Restore a cable→TV connection after loading from a save file.

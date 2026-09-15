@@ -154,6 +154,9 @@ const _ROWS := {
 		"empty_media": "",
 		"splash": {"genesis_plus_gx_bios": "enabled"},
 		"why": "Plays the Sega CD boot ROM; the CD BIOS is required for the system anyway",
+		# A Sega CD disc will not start without one: the core opens the BIOS for
+		# the disc's region and refuses the game when it is not there.
+		"media_needs_boot_rom": true,
 	},
 }
 
@@ -163,6 +166,54 @@ static func entry(core_name: String, systemid: String) -> Dictionary:
 	if core_name.is_empty() or systemid.is_empty():
 		return {}
 	return _ROWS.get(core_name + "/" + systemid, {})
+
+
+## Does a game of this systemid need one of the row's boot ROMs to start at all,
+## rather than only for a splash? The .info cannot say: genesis_plus_gx marks
+## every Sega CD BIOS optional, because the same core runs Genesis cartridges
+## without one.
+static func media_needs_boot_rom(core_name: String, systemid: String) -> bool:
+	return bool(entry(core_name, systemid).get("media_needs_boot_rom", false))
+
+
+## The row power_on reports when such a game has none of its boot ROMs, in the
+## shape missing_required returns plus `any_of`: the regional files, any one of
+## which would do.
+static func media_boot_rom_row(core_name: String, systemid: String) -> Dictionary:
+	var wanted: Array = entry(core_name, systemid).get("boot_rom", [])
+	if wanted.is_empty():
+		return {}
+	var info := SystemInfo.for_system(systemid)
+	var name := info.display_name if info != null else systemid
+	return {"path": str(wanted[0]), "desc": "%s BIOS" % name, "dest": "", "any_of": wanted}
+
+
+## [media_boot_rom_row] when this game needs a boot ROM and none is installed,
+## otherwise [].
+static func missing_for_media(core_name: String, systemid: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if media_needs_boot_rom(core_name, systemid) and not boot_rom_present(core_name, systemid):
+		var row := media_boot_rom_row(core_name, systemid)
+		if not row.is_empty():
+			out.append(row)
+	return out
+
+
+## The regional boot ROMs such a game needs that are not installed. The core
+## wants the one for the disc's region, which nothing here can read before the
+## core does, so a refused load with some of these missing is most likely that.
+static func absent_media_boot_roms(core_name: String, systemid: String) -> Array[String]:
+	var out: Array[String] = []
+	if not media_needs_boot_rom(core_name, systemid):
+		return out
+	var present := {}
+	for status_row: Dictionary in _firmware_rows(core_name):
+		if int(status_row.get("status", -1)) == FirmwareState.Status.PRESENT:
+			present[str(status_row.get("path", ""))] = true
+	for file: Variant in entry(core_name, systemid).get("boot_rom", []):
+		if not present.has(str(file)):
+			out.append(str(file))
+	return out
 
 
 ## Is this machine's boot ROM actually on disk?

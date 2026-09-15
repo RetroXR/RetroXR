@@ -1410,6 +1410,38 @@ func _test_power_on_verdict() -> void:
 		"BIOS required",
 		"verdict/a missing bios outranks an empty slot")
 
+	# A Sega CD disc needs a Sega CD BIOS the core's .info calls optional, and
+	# without this the player saw only "This core refused the game".
+	_ok(BiosBoot.media_needs_boot_rom("genesis_plus_gx", "sega_cd"),
+		"verdict/a Sega CD game needs its BIOS to start")
+	_ok(not BiosBoot.media_needs_boot_rom("genesis_plus_gx", "mega_drive"),
+		"verdict/a Genesis cartridge on the same core does not")
+	var scd_row := BiosBoot.media_boot_rom_row("genesis_plus_gx", "sega_cd")
+	_eq((scd_row.get("any_of", []) as Array).size(), 3, "verdict/any of the three regions would do")
+	var scd_missing: Array[Dictionary] = [scd_row]
+	var no_scd := RetroSystem._power_on_verdict("genesis_plus_gx", "mega_drive",
+		"/roms/sega_cd/game.chd", scd_missing, "")
+	_ok(not no_scd["start"], "verdict/with none installed the disc is refused before the core")
+	_eq(no_scd["title"], "BIOS required", "verdict/as a missing BIOS")
+	_ok(str(no_scd["description"]).contains("Sega CD BIOS")
+		and str(no_scd["description"]).contains("bios_CD_U.bin"),
+		"verdict/naming the Sega CD BIOS and a file")
+	_ok(not str(no_scd["description"]).contains("more"),
+		"verdict/not counting the regions as several missing files")
+	for line: String in str(no_scd["description"]).split("\n"):
+		_ok(line.length() <= 52, "verdict/line fits the card: %s" % line)
+
+	var refused := "This core refused the game."
+	_eq(RetroSystem._load_failed_detail(refused, [] as Array[String]), refused,
+		"verdict/a refusal with every BIOS present says what the core said")
+	var one_region := RetroSystem._load_failed_detail(refused, ["bios_CD_J.bin"] as Array[String])
+	_ok(one_region.contains("bios_CD_J.bin") and one_region.contains("BIOS / Extras"),
+		"verdict/one with a region's BIOS missing names it")
+	for line: String in one_region.split("\n"):
+		_ok(line.length() <= 52, "verdict/line fits the card: %s" % line)
+	_ok(RetroSystem._load_failed_detail(refused, ["bios_CD_E.bin", "bios_CD_J.bin"] as Array[String])
+		.contains("(+1)"), "verdict/and counts the rest")
+
 
 # ---------------------------------------------------------------------------
 # Which machines belong to one replicated linked session.
