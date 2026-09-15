@@ -33,6 +33,10 @@ const ORIGIN_PATH := "Staging/XROrigin3D"
 var current_scene_id: String = "bedroom"
 var auto_save_on_switch: bool = true
 
+## The room a transition last brought the player to, once its contents were in
+## place, and the one a launch opens in.
+var last_room_id: String = ""
+
 ## room id -> the slot that room is currently standing on. Absent means "clean".
 ## Per room because the slots are: see ScenePersistence.
 var active_slots: Dictionary = {}
@@ -67,10 +71,15 @@ var _content_ready_scene_id: String = ""
 var _parked_player: PlayerRig = null
 var _failed_loading_rig: LoadingRig = null
 var _last_load_failed: bool = false
+## The room the last transition installed. Only it is remembered, so a room run
+## directly (F6, a suite, a probe) leaves the player's boot room alone.
+var _installed_room_id: String = ""
 
 
 func _ready() -> void:
 	load_prefs()
+	# BootScene enters whatever this names.
+	current_scene_id = boot_room()
 	# Cold boot has no LoadingRig — the engine loads the room directly — so the
 	# curtain is claimed here, before anything expensive starts. Both owners are
 	# registered together so the warm finishing first cannot flash the room at a
@@ -150,13 +159,17 @@ func load_prefs() -> void:
 	if slots is Dictionary:
 		for room: Variant in (slots as Dictionary):
 			active_slots[str(room)] = str((slots as Dictionary)[room])
+	last_room_id = str(data.get("room", ""))
 
 
 ## Returns false when the write did not land. This file records which slot each
-## room is standing on, so losing it silently sends the player back to a clean
-## room on the next launch.
+## room is standing on and which room to open in, so losing it silently sends the
+## player back to a clean room on the next launch.
 func save_prefs() -> bool:
-	return JsonStore.write_dict(PREFS_FILE, {"slots": active_slots}, "SceneManager")
+	var data := {"slots": active_slots}
+	if not last_room_id.is_empty():
+		data["room"] = last_room_id
+	return JsonStore.write_dict(PREFS_FILE, data, "SceneManager")
 
 
 ## The slot `room_id` is standing on, "clean" if it has never been given one.
@@ -167,6 +180,19 @@ func active_slot(room_id: String) -> String:
 ## Whether a room keeps save slots at all.
 func room_has_slots(scene_id: String) -> bool:
 	return RoomCatalog.has_slots(scene_id)
+
+
+## The room a launch opens in: the last one the player stood in while it can still
+## be entered here, else the platform's default.
+func boot_room() -> String:
+	if RoomCatalog.has(last_room_id) \
+			and (last_room_id != "passthrough" or is_passthrough_supported()):
+		return last_room_id
+	return default_room()
+
+
+func default_room() -> String:
+	return "arcade" if OS.has_feature("android") else "bedroom"
 
 
 ## True only when `room_id` names a live room that can safely be read or saved.
@@ -188,6 +214,9 @@ func notify_scene_content_ready(scene_id: String) -> void:
 	if not is_room_ready(scene_id):
 		return
 	_content_ready_scene_id = scene_id
+	if scene_id == _installed_room_id and scene_id != last_room_id:
+		last_room_id = scene_id
+		save_prefs()
 	# Ended here rather than from a scene_content_ready listener: this boundary
 	# has several listeners now, and which of them ran first would otherwise
 	# decide whether the curtain was still up when they looked. Only one of these
@@ -371,6 +400,7 @@ func _run_transition(scene_id: String, path: String, title: String) -> void:
 		LoadingOverlay.resume()
 		LoadingOverlay.begin(&"transition", "LOADING  %s" % title, 1.0)
 		LoadingOverlay.set_phase(&"transition", "RESTORING OBJECTS", 0.0)
+	_installed_room_id = scene_id
 	# Keep the transition claimed while listeners run. If one of them requests
 	# another room it is coalesced, rather than re-entering this coroutine while
 	# it is still returning from the ready signal.

@@ -18,7 +18,7 @@ extends Node
 ## set_active_slot() writes user://scenes/prefs.json. Both are snapshotted at the
 ## start and put back at the end, so a red run cannot cost anyone their room.
 
-const GROUPS := ["slots", "ready", "transition", "autosave", "reload", "overlap", "fixture", "switch", "power", "cords", "vlc", "manifest", "stack"]
+const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "overlap", "fixture", "switch", "power", "cords", "vlc", "manifest", "stack"]
 ## Scratch slot ids, in the arcade's real directory — slot_dir() is derived from
 ## the room id and cannot be pointed somewhere safer.
 const SLOT_A := "__scene_selftest_a"
@@ -31,6 +31,7 @@ var _only := ""
 
 var _saved_slots: Dictionary = {}
 var _saved_scene_id := ""
+var _saved_last_room := ""
 var _saved_prefs_json := ""
 var _had_prefs := false
 var _saved_manifest_json := ""
@@ -128,6 +129,8 @@ func _ready() -> void:
 		_test_controller_scene_allowlist()
 	if _want_group("slots"):
 		_test_slots()
+	if _want_group("boot"):
+		_test_boot()
 	if _want_group("ready"):
 		_test_ready()
 	if _want_group("transition"):
@@ -209,6 +212,60 @@ func _test_slots() -> void:
 	SceneManager.active_slots.clear()
 	SceneManager.load_prefs()
 	_eq(SceneManager.active_slot("arcade"), "legacy_id", "slots/legacy key migrates to arcade")
+
+
+# ── Which room a launch opens in ──────────────────────────────────────────────
+
+func _test_boot() -> void:
+	var platform_default := "arcade" if OS.has_feature("android") else "bedroom"
+	SceneManager.last_room_id = ""
+	_eq(SceneManager.boot_room(), platform_default, "boot/nothing remembered opens the platform default")
+	SceneManager.last_room_id = "den"
+	_eq(SceneManager.boot_room(), "den", "boot/the remembered room opens")
+	SceneManager.last_room_id = "nonesuch"
+	_eq(SceneManager.boot_room(), platform_default, "boot/an unknown room opens the default")
+	SceneManager.last_room_id = "passthrough"
+	_eq(SceneManager.boot_room(),
+		"passthrough" if SceneManager.is_passthrough_supported() else platform_default,
+		"boot/passthrough opens only where it is supported")
+
+	# Remembered when a room a transition installed stands with its contents in
+	# place, not when it is asked for.
+	SceneManager.last_room_id = "arcade"
+	SceneManager.current_scene_id = "den"
+	SceneManager._content_ready_scene_id = ""
+	SceneManager._installed_room_id = ""
+	SceneManager.notify_scene_content_ready("den")
+	_eq(SceneManager.last_room_id, "arcade", "boot/a room run directly is not remembered")
+	SceneManager._installed_room_id = "den"
+	SceneManager._transitioning = true
+	SceneManager.notify_scene_content_ready("den")
+	_eq(SceneManager.last_room_id, "arcade", "boot/a room still arriving is not remembered")
+	SceneManager._transitioning = false
+	SceneManager.notify_scene_content_ready("den")
+	_eq(SceneManager.last_room_id, "den", "boot/an arrived room is remembered")
+
+	# Room and slots share prefs.json; writing either keeps the other.
+	SceneManager.set_active_slot(SLOT_A, "arcade")
+	SceneManager.active_slots.clear()
+	SceneManager.last_room_id = ""
+	SceneManager.load_prefs()
+	_eq(SceneManager.last_room_id, "den", "boot/writing a slot keeps the room")
+	SceneManager.current_scene_id = "bedroom"
+	SceneManager._installed_room_id = "bedroom"
+	SceneManager.notify_scene_content_ready("bedroom")
+	SceneManager.active_slots.clear()
+	SceneManager.last_room_id = ""
+	SceneManager.load_prefs()
+	_eq(SceneManager.last_room_id, "bedroom", "boot/the arrived room is persisted")
+	_eq(SceneManager.active_slot("arcade"), SLOT_A, "boot/remembering a room keeps the slots")
+
+	var f := FileAccess.open(SceneManager.PREFS_FILE, FileAccess.WRITE)
+	f.store_string(JSON.stringify({"slots": {"arcade": SLOT_A}}))
+	f = null
+	SceneManager.last_room_id = "den"
+	SceneManager.load_prefs()
+	_eq(SceneManager.boot_room(), platform_default, "boot/prefs without a room open the default")
 
 
 # ── The readiness gates every save is hung on ─────────────────────────────────
@@ -905,6 +962,7 @@ func _want_group(name: String) -> bool:
 func _snapshot() -> void:
 	_saved_slots = SceneManager.active_slots.duplicate(true)
 	_saved_scene_id = SceneManager.current_scene_id
+	_saved_last_room = SceneManager.last_room_id
 	_had_prefs = FileAccess.file_exists(SceneManager.PREFS_FILE)
 	if _had_prefs:
 		_saved_prefs_json = FileAccess.get_file_as_string(SceneManager.PREFS_FILE)
@@ -921,6 +979,8 @@ func _restore() -> void:
 	ScenePersistence.flush_pending_writes()
 	SceneManager.active_slots = _saved_slots
 	SceneManager.current_scene_id = _saved_scene_id
+	SceneManager.last_room_id = _saved_last_room
+	SceneManager._installed_room_id = ""
 	SceneManager._transitioning = false
 	SceneManager._pending_scene_id = ""
 	SceneManager._content_ready_scene_id = ""

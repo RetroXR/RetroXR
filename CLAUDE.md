@@ -394,7 +394,7 @@ the systemid and cannot be pointed elsewhere) and removes it at both ends.
 
 `RetroXR/Tests/scene_tests.tscn` covers SceneManager and the save gates around it — which
 rooms keep slots, the per-room active slot and its prefs round-trip (including the legacy
-single-room key), the `is_room_ready` / `is_scene_content_ready` boundaries, the transition
+single-room key), which room a launch opens in, the `is_room_ready` / `is_scene_content_ready` boundaries, the transition
 state machine's coalescing, the periodic autosave, clearing and reloading the room you are
 standing in, two restores racing into one room, a machine's core outliving its machine, the room's own
 movable furniture, the video decks' teardown contract, and slot-manifest CRUD.
@@ -1945,6 +1945,13 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
 (libretro/RetroArch#19280).
 
 ### GDScript Side
+- `RetroXR/Scenes/BootScene.tscn` is `run/main_scene` on every platform. It enters
+  `SceneManager.boot_room()`: the last room a transition brought the player to, recorded
+  once its contents finished arriving (`room` in `user://scenes/prefs.json`), else the
+  arcade on Android and the bedroom elsewhere. A room run directly (F6, a suite, a probe)
+  is never recorded. The root is still readying its children when the boot
+  scene's `_ready` runs, so the swap is deferred: a room's `_ready` runs inside the first
+  `SceneTree.process`, after that frame's `xrWaitFrame`, not inside `SceneTree.initialize`.
 - `RetroXR/Scripts/Objects/systems/system.gd` — Per-arcade-cabinet controller. Has `@onready var _libretro: Libretro = $Libretro` wired to a child `Libretro` node in the scene tree.
 - `RetroXR/Scenes/Objects/system.tscn` — Cabinet scene. Contains a `Libretro` child node. Its `unique_id` is the value 4000000010, but Godot writes it SIGNED, so the file reads `unique_id=-294967286` — grep for that, not for the decimal above.
 - GDExtension registration at `MODULE_INITIALIZATION_LEVEL_SCENE`.
