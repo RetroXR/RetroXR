@@ -61,6 +61,7 @@ func _ready() -> void:
 	_test_launch_path()
 	_test_scan_roms()
 	_test_index_by_basename()
+	_test_saves_beside_games()
 	_test_gamelist_removal()
 	_test_media_and_cleanup()
 	_test_cleanup_gate()
@@ -678,6 +679,35 @@ func _test_index_by_basename() -> void:
 		"stem/two real games still yield a row")
 
 	_eq(idx.size(), 1, "stem/a shared stem collapses to one row")
+
+
+## The server-side twin of the stem rule. A RomM library scanned out of a front
+## end's folder lists every save and savestate as a ROM, and each one's name
+## matched the downloaded game's file: Banjo-Tooie (USA) showed five times, all
+## five rows pointing at one .z64.
+func _test_saves_beside_games() -> void:
+	var bases := PackedStringArray([
+		"banjo-tooie (usa)", "banjo-tooie (usa)", "banjo-tooie (usa)",
+		"banjo-tooie (usa)", "banjo-tooie (usa)",
+		"kazooie (usa) (rev a).state", "kazooie (usa) (rev a)",
+		"lonely (usa)",
+		"zipped (usa)", "zipped (usa)",
+		"disc (usa)", "disc (usa)"])
+	var exts := PackedStringArray([
+		"srm", "state", "z64", "state1", "state2",
+		"auto", "z64",
+		"srm",
+		"srm", "zip",
+		"cue", "bin"])
+	var flags := RommCatalog.compute_hidden_flags(bases, exts)
+	_eq(flags[2], 0, "saves/the game keeps its row")
+	_eq([flags[0], flags[1], flags[3], flags[4]], [1, 1, 1, 1],
+		"saves/its .srm and savestates do not")
+	_eq(flags[5], 1, "saves/a .state.auto pairs with its game past the .state in its stem")
+	_eq(flags[7], 0, "saves/a save with no game of its name stays visible")
+	_eq([flags[8], flags[9]], [1, 0], "saves/a .zip game hides its save and keeps its row")
+	_eq([flags[10], flags[11]], [0, 1], "saves/a disc track is still hidden beside its cue")
+	_eq(RommCatalog.count_shown(bases, exts), 5, "saves/the tile count agrees with the list")
 
 
 # ---------------------------------------------------------------------------

@@ -79,9 +79,9 @@ var _names := PackedStringArray()
 var _fs_names := PackedStringArray()
 var _regions := PackedStringArray()
 var _exts := PackedStringArray()
-## 1 where the row is a track belonging to another row's disc manifest. Built on
-## first use because most platforms never ask.
-var _track_flags := PackedByteArray()
+## 1 where the row is not a game of its own: a disc track, or a save beside its
+## game. Built on first use because most platforms never ask.
+var _hidden_flags := PackedByteArray()
 var _index_file: FileAccess = null
 
 ## Platforms whose sidecars have been pulled into the file cache this session.
@@ -394,7 +394,7 @@ func unload_index() -> void:
 	_fs_names = PackedStringArray()
 	_regions = PackedStringArray()
 	_exts = PackedStringArray()
-	_track_flags = PackedByteArray()
+	_hidden_flags = PackedByteArray()
 
 
 func loaded_systemid() -> String:
@@ -451,33 +451,81 @@ func has_fast_sidecars() -> bool:
 ## Extensions that name other files, and the extensions those files carry.
 const MANIFEST_EXTS := ["cue", "gdi", "m3u", "ccd"]
 const TRACK_EXTS := ["bin", "img", "sub", "raw", "iso", "wav", "ape", "flac", "mp3"]
+## What a front end writes beside a game: battery saves, savestates and the N64
+## and DS cores' per-chip saves. `auto` is the tail of `Game.state.auto`, whose
+## stem still ends in `.state`; `state1`, `state2`… are matched by pattern.
+const SAVE_EXTS := ["srm", "sav", "rtc", "eep", "sra", "fla", "mpk", "dsv", "state", "auto"]
 
 
-## True when row i is a track belonging to some other row's disc manifest — the
-## `.bin` half of a cue/bin pair, or one of the audio tracks a Neo Geo CD cue
-## lists. A library that stores discs as loose files gives each of those its own
-## ROM id, so they arrive as browsable rows that are not games: on this server
-## PlayStation is 39,603 tracks against 9,856 cues.
+## True when row i is not a game of its own. Either a track belonging to some
+## other row's disc manifest — the `.bin` half of a cue/bin pair, or one of the
+## audio tracks a Neo Geo CD cue lists — or a save or savestate kept beside its
+## game. A library that stores discs as loose files gives each track its own ROM
+## id, and one scanned out of a front end's folder does the same for each save:
+## on this server PlayStation is 39,603 tracks against 9,856 cues.
 ##
 ## Pairing is by name, never by extension alone. `.bin` is a legitimate ROM
 ## format on Atari Jaguar, Intellivision and Odyssey², and those platforms carry
-## no matching manifest, so their rows stay visible. A track whose manifest names
-## it in some other way also stays visible — showing a spare row is the safe way
-## to be wrong.
-func is_track_at(i: int) -> bool:
+## no matching manifest, so their rows stay visible; a save with no game of its
+## name stays visible too. A track whose manifest names it in some other way also
+## stays visible — showing a spare row is the safe way to be wrong.
+func is_hidden_at(i: int) -> bool:
 	if i < 0 or i >= _offsets.size():
 		return false
-	if _track_flags.size() != _offsets.size():
-		_build_track_flags()
-	return _track_flags[i] == 1
+	if _hidden_flags.size() != _offsets.size():
+		_build_hidden_flags()
+	return _hidden_flags[i] == 1
 
 
-func _build_track_flags() -> void:
+func _build_hidden_flags() -> void:
 	if _exts.size() != _offsets.size() or _fs_names.size() != _offsets.size():
-		_track_flags = PackedByteArray()
-		_track_flags.resize(_offsets.size())
+		_hidden_flags = PackedByteArray()
+		_hidden_flags.resize(_offsets.size())
 		return
-	_track_flags = compute_track_flags(_fs_names, _exts)
+	_hidden_flags = compute_hidden_flags(_fs_names, _exts)
+
+
+## The one verdict the list and the badge count share: tracks and saves.
+static func compute_hidden_flags(fs_bases: PackedStringArray,
+								 exts: PackedStringArray) -> PackedByteArray:
+	var flags := compute_track_flags(fs_bases, exts)
+	var saves := compute_save_flags(fs_bases, exts)
+	for i in flags.size():
+		flags[i] = flags[i] | saves[i]
+	return flags
+
+
+## A save or savestate row whose stem some other, non-save row also carries.
+## Returns early on a platform with no saves at all, which is most of them.
+static func compute_save_flags(fs_bases: PackedStringArray,
+							   exts: PackedStringArray) -> PackedByteArray:
+	var flags := PackedByteArray()
+	flags.resize(exts.size())
+	if fs_bases.size() != exts.size():
+		return flags
+
+	var saves_by_stem := {}
+	for i in exts.size():
+		if not _is_save_ext(exts[i]):
+			continue
+		var stem: String = fs_bases[i].trim_suffix(".state") if exts[i] == "auto" else fs_bases[i]
+		if not saves_by_stem.has(stem):
+			saves_by_stem[stem] = []
+		(saves_by_stem[stem] as Array).append(i)
+	if saves_by_stem.is_empty():
+		return flags
+
+	for i in exts.size():
+		if saves_by_stem.has(fs_bases[i]) and not _is_save_ext(exts[i]):
+			for j: int in saves_by_stem[fs_bases[i]]:
+				flags[j] = 1
+	return flags
+
+
+static func _is_save_ext(ext: String) -> bool:
+	if ext in SAVE_EXTS:
+		return true
+	return ext.begins_with("state") and ext.substr(5).is_valid_int()
 
 
 ## One pass over the two sidecars, which is all the pairing needs — no seeks and
@@ -513,9 +561,9 @@ static func compute_track_flags(fs_bases: PackedStringArray,
 	return flags
 
 
-## Rows the browse list will actually show: every row that is not a disc track.
+## Rows the browse list will actually show: every row compute_hidden_flags keeps.
 static func count_shown(fs_bases: PackedStringArray, exts: PackedStringArray) -> int:
-	var flags := compute_track_flags(fs_bases, exts)
+	var flags := compute_hidden_flags(fs_bases, exts)
 	var n := 0
 	for f: int in flags:
 		if f == 0:

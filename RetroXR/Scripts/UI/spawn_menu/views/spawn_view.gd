@@ -1052,11 +1052,11 @@ func _rebuild_romm_rows() -> void:
 			indices = romm_catalog.search(_romm_filter)
 
 		for i: int in indices:
-			# The tracks of a disc are rows in their own right when the library
-			# keeps them as loose files. They are not games and downloading one
-			# alone gets you nothing — RommDownloader pulls them in behind their
-			# cue — so they never reach the list.
-			if romm_catalog.is_track_at(i):
+			# Not games, so never in the list: a disc's loose tracks, which
+			# RommDownloader pulls in behind their cue, and a save or savestate
+			# kept beside its game, which would otherwise claim that game's local
+			# file as a row of its own.
+			if romm_catalog.is_hidden_at(i):
 				continue
 			var key := ""
 			var label := ""
@@ -1543,7 +1543,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	# different thing than the medium in front of you.
 	detail.visible = not game.is_empty() and not is_pack
 	if detail.visible:
-		detail.pressed.connect(_show_game_detail_panel.bind(game, systemid))
+		detail.pressed.connect(_show_game_detail_panel.bind(game, systemid, local_path))
 
 	# The game's saves and achievements, the same page the cartridge's own menu
 	# shows — reachable here so you can look before you spawn anything. Needs a
@@ -2575,7 +2575,7 @@ func _add_scrape_info_row(parent: VBoxContainer, key: String, value: String) -> 
 	row.add_child(v_lbl)
 
 
-func _show_game_detail_panel(game: Dictionary, systemid: String) -> void:
+func _show_game_detail_panel(game: Dictionary, systemid: String, local_path: String) -> void:
 	_close_game_detail_panel()
 
 	_game_detail_panel = PanelContainer.new()
@@ -2616,6 +2616,7 @@ func _show_game_detail_panel(game: Dictionary, systemid: String) -> void:
 	_add_scrape_info_row(vbox, "Developer", game.get("developer", ""))
 	_add_scrape_info_row(vbox, "Publisher", game.get("publisher", ""))
 	_add_scrape_info_row(vbox, "Genre", game.get("genre", ""))
+	_add_scrape_info_row(vbox, "File", local_path)
 
 	vbox.add_child(HSeparator.new())
 
