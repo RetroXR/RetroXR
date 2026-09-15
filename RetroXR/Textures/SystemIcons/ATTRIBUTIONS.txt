@@ -61,8 +61,14 @@ verified by opening the file rather than trusting the suffix:
                  "MK-1631-4102 (U)" is the Model 2, equally North American; the
                  Model 1 is picked because its front-loading tray is the motion
                  MediaDimensions.FRONT_TRAY_SYSTEMS gives this system.
+  wiiu           console: the untagged file — the black console framed
+                 portrait, like the Wii beside it. "WUP-001 W" is the same
+                 drawing in white; "WUP-001 KT" and "WT" are the black and
+                 white consoles framed landscape on their feet. These are
+                 finishes, not regions: both colors sold in North America.
 
-Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30.
+Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30;
+Wii U 2026-09-15.
 
 file map
 -------------------------------------------------------------------------------
@@ -294,6 +300,8 @@ wasm4-content.svg                   WASM-4-content.svg
 wasm4.svg                           WASM-4.svg
 wii-content.svg                     Nintendo - Wii-content.svg
 wii.svg                             Nintendo - Wii.svg
+wiiu-content.svg                    Nintendo - Wii U-content.svg
+wiiu.svg                            Nintendo - Wii U.svg
 wolfenstein3d-content.svg           Wolfenstein 3D-content.svg
 wolfenstein3d.svg                   Wolfenstein 3D.svg
 wonderswan-content.svg              Bandai - WonderSwan-content.svg
