@@ -49,6 +49,13 @@ enum MediaType { CARTRIDGE = 0, DISC_TRAY = 1, DISC_INSERT = 2 }
 ## which is why this is a family and not the systemid.
 @export var card_family: String = ""
 
+## The card family this system's games keep their saves on, when that is all
+## they save to: the game itself has no save, so the Saves menu points at the
+## card instead of offering one. Distinct from card_family: a Wii takes GameCube
+## cards but its own games save to the console, and a Dreamcast's VMU plugs into
+## the controller rather than a console slot.
+@export var save_device: String = ""
+
 ## True when this hardware has a serial port on the back for a link cable
 ## between two consoles -- the PlayStation's SIO1, not the controller bus.
 ##

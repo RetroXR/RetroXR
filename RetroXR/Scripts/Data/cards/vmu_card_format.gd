@@ -24,6 +24,10 @@ func device_noun() -> String:
 	return "Visual Memory Unit"
 
 
+func device_home() -> String:
+	return "controller"
+
+
 func extension() -> String:
 	return "vmu"
 

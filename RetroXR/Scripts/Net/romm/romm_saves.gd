@@ -63,12 +63,18 @@ static func list_all(http: RommHttp, headers: PackedStringArray,
 
 
 ## A ROM's display name, or "" — used to say which game a save belongs to.
-static func rom_name(http: RommHttp, headers: PackedStringArray, rom_id: int,
-					 abort: Callable = Callable()) -> String:
+static func rom_info(http: RommHttp, headers: PackedStringArray, rom_id: int,
+					 abort: Callable = Callable()) -> Dictionary:
+	var info := {"name": "", "md5": ""}
 	var out: Dictionary = http.get_json("/api/roms/%d" % rom_id, headers, abort)
 	if int(out["result"]) != RommHttp.Result.OK or not (out["data"] is Dictionary):
-		return ""
-	return str((out["data"] as Dictionary).get("name", ""))
+		return info
+	var data := out["data"] as Dictionary
+	info["name"] = str(data.get("name", ""))
+	# Null when the server has not hashed the ROM.
+	var md5: Variant = data.get("md5_hash")
+	info["md5"] = (md5 as String).to_lower() if md5 is String else ""
+	return info
 
 
 ## Every save the server holds for one ROM, newest first.

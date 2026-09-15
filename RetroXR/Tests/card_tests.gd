@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 426
+const EXPECTED_CASES := 460
 
 var _pass := 0
 var _fail := 0
@@ -59,6 +59,7 @@ func _ready() -> void:
 	_test_vmu_play()
 	_test_shared_contract()
 	_test_ops()
+	_test_save_device()
 	_test_format_registry()
 	_test_format_contract()
 	_test_ps1_disc()
@@ -996,6 +997,137 @@ func _test_format_registry() -> void:
 ## The two adapters are thin forwards, so what is worth pinning is where they
 ## deliberately DIFFER -- the places a caller would get wrong by assuming both
 ## machines behave like the one it was written against.
+## Where a game keeps its saves when it keeps none of its own, and the N64 half
+## of that, which is decided game by game from the core's ROM database.
+func _test_save_device() -> void:
+	# Rayman 2 (U) is SaveType=None, Mempak=Yes; Majora's Mask (U) saves to Flash
+	# RAM and is not known to use a pak.
+	var rayman := _n64_header(0xF3C5BF9B, 0x160F33E2)
+	var majora := _n64_header(0x5354631C, 0x03A2DEF0)
+	_eq(N64SaveDb.header_crc_key(rayman), "F3C5BF9B-160F33E2",
+		"save_device/n64/a .z64 header reads its CRC pair")
+	_eq(N64SaveDb.header_crc_key(_n64_reorder(rayman, [1, 0, 3, 2])), "F3C5BF9B-160F33E2",
+		"save_device/n64/so does the same header byte-swapped (.v64)")
+	_eq(N64SaveDb.header_crc_key(_n64_reorder(rayman, [3, 2, 1, 0])), "F3C5BF9B-160F33E2",
+		"save_device/n64/and word-reversed (.n64)")
+	_eq(N64SaveDb.header_crc_key(PS1Card.blank_image()), "",
+		"save_device/n64/bytes that are no N64 header read as nothing")
+
+	_ok(N64SaveDb.pak_only_md5("03AA4D09FDE77EED9B95BE68E603D233"),
+		"save_device/n64/Rayman 2 saves to a pak alone")
+	_ok(N64SaveDb.uses_pak_md5("3a67d9986f54eb282924fca4cd5f6dff")
+		and not N64SaveDb.pak_only_md5("3a67d9986f54eb282924fca4cd5f6dff"),
+		"save_device/n64/Mario Kart 64 uses a pak beside its cartridge save")
+	_ok(N64SaveDb.uses_pak_md5("753437d0d8ada1d12f3f9cf0f0a5171f"),
+		"save_device/n64/F-Zero X, which the core's database misses, is added")
+	_ok(not N64SaveDb.uses_pak_md5("2a0a8acb61538235bc1094d297fb6556"),
+		"save_device/n64/Majora's Mask is not known to use one")
+
+	var dir := "user://__save_device_selftest"
+	DirAccess.make_dir_recursive_absolute(dir)
+	var rayman_path := dir + "/rayman.v64"
+	var majora_path := dir + "/majora.z64"
+	_write_bytes(rayman_path, _n64_reorder(rayman, [1, 0, 3, 2]))
+	_write_bytes(majora_path, majora)
+
+	var pak := SaveDevice.format_for("nintendo_64", rayman_path)
+	_eq(pak.id() if pak != null else "", "controller_pak",
+		"save_device/a pak-only N64 cartridge points at the Controller Pak")
+	_ok(SaveDevice.format_for("nintendo_64", majora_path) == null,
+		"save_device/one with a save of its own keeps it")
+	_ok(SaveDevice.format_for("nintendo_64", dir + "/absent.z64") == null,
+		"save_device/as does a ROM that cannot be read")
+	for pair: Array in [["playstation", "playstation"], ["playstation2", "playstation2"],
+			["gamecube", "gamecube"], ["dreamcast", "vmu"]]:
+		var fmt := SaveDevice.format_for(str(pair[0]), "")
+		_eq(fmt.id() if fmt != null else "", pair[1], "save_device/a %s disc saves to its %s" % pair)
+	_ok(SaveDevice.format_for("wii", "") == null,
+		"save_device/a Wii game saves to the console, though a Wii takes GameCube cards")
+	_ok(SaveDevice.format_for("super_nes", "") == null,
+		"save_device/a cartridge with a battery of its own keeps its save")
+
+	var vmu_note := SaveDevice.note_for("dreamcast", "", "Crazy Taxi 2 (USA)")
+	_ok(vmu_note.begins_with("Crazy Taxi 2 (USA) saves to a Visual Memory Unit, not the disc."),
+		"save_device/the note names the game, the device and the disc", vmu_note)
+	_ok(vmu_note.contains("in a controller"), "save_device/and puts a VMU in a controller", vmu_note)
+	_ok(SaveDevice.note_for("playstation", "", "").contains("in the console"),
+		"save_device/and a memory card in the console")
+	_ok(SaveDevice.note_for("nintendo_64", rayman_path, "Rayman 2").contains(
+		"Controller Pak, not the cartridge"), "save_device/an N64 game's note says cartridge")
+	_eq(SaveDevice.note_for("super_nes", "", "Zelda"), "",
+		"save_device/a game with a save of its own has no note")
+
+	DirAccess.remove_absolute(rayman_path)
+	DirAccess.remove_absolute(majora_path)
+	DirAccess.remove_absolute(dir)
+
+	var n64 := CardFormats.for_family("controller_pak")
+	var note_row := {"file_name": "MARIO KART.note", "rom_id": 2}
+	var rayman_row := {"file_name": "Rayman 2.srm", "rom_id": 3,
+		"rom_md5": "03aa4d09fde77eed9b95be68e603d233"}
+	var majora_row := {"file_name": "Majora.srm", "rom_id": 1,
+		"rom_md5": "2a0a8acb61538235bc1094d297fb6556"}
+	_eq(n64.restore_group(note_row), CardFormat.RESTORE_ONE_SAVE,
+		"save_device/restore/a note is one pak save")
+	_eq(n64.restore_group(rayman_row), CardFormat.RESTORE_MAY_HOLD,
+		"save_device/restore/a pak game's .srm may hold notes")
+	_eq(n64.restore_group(majora_row), CardFormat.RESTORE_UNLIKELY,
+		"save_device/restore/one from a game not known to use a pak is unlikely to")
+	_eq(n64.restore_group({"file_name": "Unknown.srm", "rom_id": 4, "rom_md5": ""}),
+		CardFormat.RESTORE_UNLIKELY, "save_device/restore/as is one RomM has not hashed")
+	_eq(CardFormats.for_family("playstation").restore_group({"file_name": "BASCUS.mcs"}),
+		CardFormat.RESTORE_ONE_SAVE, "save_device/restore/other families list their saves as before")
+
+	var rows := [majora_row, rayman_row, note_row]
+	var idle := CardSaveOps.arrange_restore_rows(n64, rows, 0)
+	_eq(_rom_ids(idle["shown"]), [2, 3], "save_device/restore/notes lead, then files that may hold them")
+	_eq(_rom_ids(idle["hidden"]), [1], "save_device/restore/and the unlikely wait behind show-all")
+	var playing := CardSaveOps.arrange_restore_rows(n64, rows, 1)
+	_eq(_rom_ids(playing["shown"]), [1, 2, 3],
+		"save_device/restore/the game being played comes first, even an unlikely one")
+	_eq((playing["hidden"] as Array).size(), 0, "save_device/restore/leaving nothing hidden")
+	_eq(n64.container_row_label(rayman_row), "may hold Controller Pak saves",
+		"save_device/restore/a pak game's .srm row says what it may hold")
+	_eq(n64.container_row_label(majora_row), "game not known to use a Controller Pak",
+		"save_device/restore/and an unlikely one does not claim to")
+	_eq(CardSaveOps.show_all_label(n64, 3), "Show all Nintendo 64 save files (3 more)",
+		"save_device/restore/show-all counts what it reveals")
+
+
+## A .z64 header carrying this CRC pair, and nothing else.
+func _n64_header(crc1: int, crc2: int) -> PackedByteArray:
+	var h := PackedByteArray()
+	h.resize(0x40)
+	for i in 4:
+		h[i] = N64SaveDb.MAGIC_Z64[i]
+		h[0x10 + i] = (crc1 >> (24 - 8 * i)) & 0xFF
+		h[0x14 + i] = (crc2 >> (24 - 8 * i)) & 0xFF
+	return h
+
+
+## A .z64 image in another byte order: byte i of each word is the .z64 word's
+## byte order[i].
+func _n64_reorder(z64: PackedByteArray, order: Array) -> PackedByteArray:
+	var out := z64.duplicate()
+	for w in range(0, z64.size() - 3, 4):
+		for i in 4:
+			out[w + i] = z64[w + int(order[i])]
+	return out
+
+
+func _write_bytes(path: String, bytes: PackedByteArray) -> void:
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_buffer(bytes)
+	f.close()
+
+
+func _rom_ids(rows: Array) -> Array:
+	var out := []
+	for r: Dictionary in rows:
+		out.append(int(r["rom_id"]))
+	return out
+
+
 func _test_format_contract() -> void:
 	if not _group("contract"):
 		return

@@ -38,6 +38,26 @@ func romm_save_extensions() -> PackedStringArray:
 	return PackedStringArray([save_extension(), "srm"])
 
 
+## A cartridge .srm always has room for four paks, so what says whether it holds
+## notes is whether its game saves to one, by the ROM's MD5 on the row.
+func restore_group(row: Dictionary) -> int:
+	var group := super(row)
+	if group == RESTORE_ONE_SAVE:
+		return group
+	return RESTORE_MAY_HOLD if N64SaveDb.uses_pak_md5(str(row.get("rom_md5", ""))) \
+		else RESTORE_UNLIKELY
+
+
+func container_row_label(row: Dictionary) -> String:
+	if restore_group(row) == RESTORE_UNLIKELY:
+		return "game not known to use a Controller Pak"
+	return "may hold Controller Pak saves"
+
+
+func device_home() -> String:
+	return "controller"
+
+
 ## The N64 counted its pak in pages, and every game says so on screen.
 func unit_noun() -> String:
 	return "page"

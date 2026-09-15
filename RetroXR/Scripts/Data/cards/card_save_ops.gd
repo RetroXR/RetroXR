@@ -30,6 +30,72 @@ static func holder_of(tree: SceneTree, card_id: String) -> Node:
 	return null
 
 
+## The console this card is working for, or null: the one it is seated in, or
+## the one the controller holding it is plugged into — a Controller Pak or a VMU
+## sits in a pad, not a console slot.
+static func console_of(tree: SceneTree, card_id: String) -> Node:
+	var sys := holder_of(tree, card_id)
+	if sys != null:
+		return sys
+	for ctrl: Node in tree.get_nodes_in_group(ControllerBindings.CONSUMER_GROUP):
+		if ctrl.has_method("get_connected_system") and _pad_holds(ctrl, card_id):
+			return ctrl.call("get_connected_system")
+	return null
+
+
+static func _pad_holds(ctrl: Node, card_id: String) -> bool:
+	if ctrl.has_method("get_pak"):
+		var pak: Node = ctrl.call("get_pak")
+		if is_instance_valid(pak) and str(pak.get("card_id")) == card_id:
+			return true
+	if ctrl.has_method("vmu_slot_count"):
+		for slot in int(ctrl.call("vmu_slot_count")):
+			var vmu: Node = ctrl.call("get_vmu", slot)
+			if is_instance_valid(vmu) and str(vmu.get("card_id")) == card_id:
+				return true
+	return false
+
+
+## RomM's id for the game in the console this card is working for, or 0.
+static func running_rom_id(tree: SceneTree, card_id: String) -> int:
+	var sys := console_of(tree, card_id)
+	if sys == null:
+		return 0
+	return SaveSync.rom_id_for(str(sys.get("systemid")), str(sys.get("rom_path")))
+
+
+## RomM's rows for a card's restore list, as {shown, hidden}. The game the card's
+## console is running comes first, then CardFormat.restore_group's order, keeping
+## the server's order within each. Rows unlikely to hold a save for this card wait
+## in hidden, except the running game's, which is what the player came for.
+static func arrange_restore_rows(fmt: CardFormat, rows: Array, playing_rom_id: int) -> Dictionary:
+	var keyed: Array = []
+	for i in rows.size():
+		var row: Dictionary = rows[i]
+		var group := fmt.restore_group(row) if fmt != null else CardFormat.RESTORE_ONE_SAVE
+		var playing := playing_rom_id > 0 and int(row.get("rom_id", 0)) == playing_rom_id
+		keyed.append({"lead": 0 if playing else 1, "group": group, "at": i, "row": row})
+	keyed.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if a["lead"] != b["lead"]:
+			return a["lead"] < b["lead"]
+		if a["group"] != b["group"]:
+			return a["group"] < b["group"]
+		return a["at"] < b["at"])
+	var shown: Array = []
+	var hidden: Array = []
+	for k: Dictionary in keyed:
+		if k["group"] == CardFormat.RESTORE_UNLIKELY and k["lead"] != 0:
+			hidden.append(k["row"])
+		else:
+			shown.append(k["row"])
+	return {"shown": shown, "hidden": hidden}
+
+
+## The button that lists a restore list's hidden rows.
+static func show_all_label(fmt: CardFormat, hidden: int) -> String:
+	return "Show all %s save files (%d more)" % [fmt.label(), hidden]
+
+
 ## Tell whichever console holds this card that its image changed underneath.
 static func refresh_holder(tree: SceneTree, card_id: String) -> void:
 	var sys := holder_of(tree, card_id)

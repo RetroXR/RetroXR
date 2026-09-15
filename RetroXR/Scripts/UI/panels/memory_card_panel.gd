@@ -398,8 +398,13 @@ func _on_restore_requested() -> void:
 			var row := s.duplicate()
 			row["blocks"] = CardSaveOps.blocks_of(fmt, s)
 			row["reason"] = CardSaveOps.restore_blocker(fmt, s, present, free)
+			row["container_label"] = fmt.container_row_label(s)
 			rows.append(row)
-		ui.show_restore(rows, ""))
+		var arranged := CardSaveOps.arrange_restore_rows(fmt, rows,
+			CardSaveOps.running_rom_id(get_tree(), _card.card_id))
+		var hidden: Array = arranged["hidden"]
+		ui.show_restore(arranged["shown"], "", hidden,
+			CardSaveOps.show_all_label(fmt, hidden.size())))
 
 
 ## Pull one save down onto this card.

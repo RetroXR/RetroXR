@@ -433,7 +433,10 @@ func scroll_active(pixels: float) -> void:
 ## none — so the page always says why it is blank instead of showing an empty
 ## box. Each save carries the "blocks" it needs and the "reason" it cannot be
 ## taken, worked out by the owner against this card.
-func show_restore(saves: Array, note: String) -> void:
+##
+## `more` are rows unlikely to hold anything for this card, listed after the rest
+## only once `more_label`'s button is pressed.
+func show_restore(saves: Array, note: String, more: Array = [], more_label := "") -> void:
 	_clear_list()
 	_usage.text = "Saves on RomM"
 	_restore_btn.visible = false
@@ -457,6 +460,13 @@ func show_restore(saves: Array, note: String) -> void:
 
 	for s: Dictionary in saves:
 		_list.add_child(_restore_row(s))
+
+	if not more.is_empty():
+		var all := Button.new()
+		all.text = more_label
+		all.custom_minimum_size = Vector2(0, 44)
+		all.pressed.connect(func() -> void: show_restore(saves + more, note))
+		_list.add_child(all)
 
 
 ## Built like the card's own rows rather than as one wide button: a Button draws
@@ -484,7 +494,8 @@ func _restore_row(s: Dictionary) -> Control:
 
 	var blocks: int = int(s.get("blocks", 1))
 	var sub := Label.new()
-	var size_text := "whole save file" if blocks <= 0 else "%d %s" % [blocks, _units(blocks)]
+	var size_text := str(s.get("container_label", "whole save file")) if blocks <= 0 \
+		else "%d %s" % [blocks, _units(blocks)]
 	sub.text = size_text + ("" if reason.is_empty() else "   ·   " + reason)
 	sub.add_theme_font_size_override("font_size", 15)
 	sub.add_theme_color_override("font_color", COLOR_DIM)

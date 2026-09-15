@@ -10,5 +10,6 @@ native_ports = 4
 media_type = 1
 card_slots = 2
 card_family = "gamecube"
+save_device = "gamecube"
 supports_multitap = false
 multitap_ports = 0

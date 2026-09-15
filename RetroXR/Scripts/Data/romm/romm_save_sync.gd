@@ -399,15 +399,17 @@ func _card_list_worker(platform_id: int, save_exts: PackedStringArray, callback:
 	if bool(out["ok"]):
 		# One name lookup per distinct ROM, not per save: a card's worth of
 		# saves for one game would otherwise be a dozen round trips.
-		var names: Dictionary = {}
+		var roms: Dictionary = {}
 		for s: Dictionary in out["saves"]:
 			if not save_exts.has(str(s["file_name"]).get_extension().to_lower()):
 				continue
 			var rid := int(s["rom_id"])
-			if not names.has(rid):
-				names[rid] = RommSaves.rom_name(http, headers, rid, _aborting)
+			if not roms.has(rid):
+				roms[rid] = RommSaves.rom_info(http, headers, rid, _aborting)
+			var rom := roms[rid] as Dictionary
 			var row := s.duplicate()
-			row["rom_name"] = str(names[rid])
+			row["rom_name"] = str(rom["name"])
+			row["rom_md5"] = str(rom["md5"])
 			rows.append(row)
 	http.close()
 	_list_done.call_deferred(callback, bool(out["ok"]), rows)

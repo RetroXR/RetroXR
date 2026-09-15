@@ -218,6 +218,7 @@ func _populate() -> void:
 		ui.backed_up = backed
 		ui.armed_id = _armed_id
 		ui.delete_blocked = _in_use_reason()
+		ui.save_device_note = SaveDevice.note_for(_sysid(), _rom(), _label())
 		ui.populate(_label(), _rom(), saves, _save_id(),
 			not core.is_empty(), states, _server_only(saves), _romm_ready())
 		_populate_states(ui)

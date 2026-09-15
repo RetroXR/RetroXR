@@ -89,6 +89,11 @@ var embedded := false
 ## offered as a choice that would quietly do nothing.
 var selectable := true
 
+## Where this game saves when it keeps no save of its own, or "" — see
+## SaveDevice.note_for. Shown in place of starting a save, which would make a
+## file the game never reads.
+var save_device_note := ""
+
 ## save_ids RomM is known to hold, as a set. Decides which trash can a row
 ## shows — the plain one when a copy survives the delete, the crossed-out one
 ## when this is the last one. Same rule and same glyphs as a memory card's saves.
@@ -278,7 +283,14 @@ func populate(game_label: String, rom_path: String, saves: Array, current_id: St
 		_rows_box.add_child(note)
 		return
 
-	if selectable:
+	if not save_device_note.is_empty():
+		var device := Label.new()
+		device.text = save_device_note
+		device.add_theme_font_size_override("font_size", 18)
+		device.add_theme_color_override("font_color", COLOR_ROW)
+		device.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_rows_box.add_child(device)
+	elif selectable:
 		_add_new_row(current_id.is_empty() or not _has_id(saves, current_id), romm_available)
 	else:
 		# Starting a save needs something to start it on. Say so once, above the

@@ -17,6 +17,11 @@
 class_name CardFormat
 extends RefCounted
 
+## restore_group() answers, in the order the restore list shows them.
+const RESTORE_ONE_SAVE := 0
+const RESTORE_MAY_HOLD := 1
+const RESTORE_UNLIKELY := 2
+
 
 # --- Identity -----------------------------------------------------------------
 
@@ -52,6 +57,31 @@ func romm_systemid() -> String:
 ## single-save file, plus any file that carries saves inside it.
 func romm_save_extensions() -> PackedStringArray:
 	return PackedStringArray([save_extension()])
+
+
+## How likely one of RomM's save rows is to hold a save for this family, for
+## ordering the restore list:
+##   RESTORE_ONE_SAVE  one save in this family's own format
+##   RESTORE_MAY_HOLD  a file that may carry saves inside it
+##   RESTORE_UNLIKELY  such a file from a game not known to save here; listed
+##                     only when asked for
+## Decided from the listing alone. Opening every file to find out is not an
+## option on a library of any size.
+func restore_group(row: Dictionary) -> int:
+	var ext := str(row.get("file_name", "")).get_extension().to_lower()
+	return RESTORE_ONE_SAVE if ext.is_empty() or ext == save_extension() else RESTORE_MAY_HOLD
+
+
+## The size line of a restore row that is not one save: its size in units is
+## unknown until it is downloaded.
+func container_row_label(_row: Dictionary) -> String:
+	return "whole save file"
+
+
+## Where the device is plugged in, for telling a player to fit one: "console" or
+## "controller".
+func device_home() -> String:
+	return "console"
 
 
 # --- Vocabulary ---------------------------------------------------------------

@@ -233,8 +233,24 @@ func _build_restore(card: Dictionary) -> void:
 		var data := FileAccess.get_file_as_bytes(str(card["path"]))
 		var free := _fmt().free_blocks(data)
 		var present := CardSaveOps.present_slots(_fmt(), data)
-		for s: Dictionary in saves:
-			add_child(_restore_row(card, s, present, free)))
+		var arranged := CardSaveOps.arrange_restore_rows(_fmt(), saves,
+			CardSaveOps.running_rom_id(get_tree(), str(card["card_id"])))
+		for s: Dictionary in arranged["shown"]:
+			add_child(_restore_row(card, s, present, free))
+		var hidden: Array = arranged["hidden"]
+		if hidden.is_empty():
+			return
+		var all := MenuStyle.row_button(CardSaveOps.show_all_label(_fmt(), hidden.size()),
+			22, 0, 68, false)
+		all.pressed.connect(func() -> void:
+			var at := all.get_index()
+			all.queue_free()
+			for s: Dictionary in hidden:
+				var row := _restore_row(card, s, present, free)
+				add_child(row)
+				move_child(row, at)
+				at += 1)
+		add_child(all))
 
 
 func _restore_row(card: Dictionary, s: Dictionary, present: Dictionary, free: int) -> Control:
@@ -245,7 +261,7 @@ func _restore_row(card: Dictionary, s: Dictionary, present: Dictionary, free: in
 
 	var btn := MenuStyle.row_button("", 24)
 	var rom_name := str(s.get("rom_name", ""))
-	var size_text := "whole save file" if blocks <= 0 \
+	var size_text := _fmt().container_row_label(s) if blocks <= 0 \
 		else "%d block%s" % [blocks, "" if blocks == 1 else "s"]
 	btn.text = "    %s      %s%s" % [
 		rom_name if not rom_name.is_empty() else slot,
