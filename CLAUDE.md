@@ -302,6 +302,7 @@ debug build, 2026-08-27 — all passing):
 | `web_server_tests` | — | — | the built-in file server |
 | `prop_lighting_tests` | 17 | 1 s | which of a room's meshes go on the baked prop shader, late spawns and despawns included |
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
+| `microphone_tests` | 42 | 6 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
 so re-measure rather than trusting this table, and treat an unexplained DROP as a signal.
@@ -1659,6 +1660,269 @@ Point `--root` at a throwaway root: the probe writes its `save/` and
 
 Still owed: netplay and savestates carry no cartridge; no game has been run saving
 to either memory; and the Extended RAM cartridge above.
+
+### 2o. Microphones — one reader, and every machine that asked
+
+libretro's microphone interface (`RETRO_ENVIRONMENT_GET_MICROPHONE_INTERFACE`, 75 |
+EXPERIMENTAL) is answered by `libretro-godot/src/MicrophoneHandler.cpp`, and the real
+microphone is read by exactly one thing in the app: the `Microphone` autoload,
+`Scripts/Audio/microphone_input.gd`.
+
+**One reader, because Godot keeps one cursor.** `AudioServer.get_input_frames()` (Godot 4.6+)
+advances a single process-wide read offset, so two readers would each get part of the audio
+and neither would know. The service drains it once a frame and hands the same frames to every
+machine that wants them. It must drain EVERY frame while the device is on: the ring is only
+four driver buffers long — 2048 × 4 frames on Android, about 186 ms at OpenSL's hardcoded
+44100 Hz with the mono input duplicated into both channels, and a 1 s buffer × 4 on WASAPI,
+which rate-adjusts capture to the output mix rate. Nothing captures without
+`audio/driver/enable_input=true`; `set_input_device_active` warns and fails.
+
+**The device opens only while a core is listening.** Each frame the service collects the
+powered-on `retro_system` machines whose `Libretro.IsMicrophoneActive()` is true — a handle
+open and enabled, the machine running and not in netplay — and turns the device on only while
+that list is non-empty and Options → Microphone (`AppPrefs.microphone_enabled`, default on)
+allows it. Every transition prints a `[Microphone]` line.
+
+**Every open microphone hears the player, fading with distance.** Gain is
+`SpatialAudioEmitter.distance_gain(mic, head, 0.5, audio_max_distance)`: full level within arm's
+reach, 1/d beyond, nothing past the machine's own `audio_max_distance`. The reference distance
+is the microphone's, not the speaker's `audio_unit_size` (3 m), under which a DS across the
+room would get the player's voice at full level. `RetroSystem.microphone_position()` is a
+seated microphone's body when there is one, otherwise the machine.
+
+**How the extension answers.**
+- **`open_mic` is a callback trampoline**, the eighth in `CallbackTrampolines`. Dolphin calls
+  it from its CPU thread (`EXI_DeviceMic.cpp` `StreamStart`, reached from `TransferByte`),
+  where the thread-local Wrapper was never set. Every later call carries the handle and may
+  arrive on any thread.
+- **Handles come from a process-wide pool of 32 that is never freed.** Each slot has its own
+  mutex, and a handle is validated by address rather than dereferenced, so a Dolphin CPU thread
+  reading during teardown gets -1 or silence, never freed memory. Four per core.
+- **`read_mic` returns silence and the FULL count** whenever the mic is off, the machine is
+  stopped or in netplay, or the ring runs dry; -1 only for a pointer that is not a handle.
+  NooDS stores the result in a `size_t` and virtualjaguar assumes all-or-nothing reads.
+  RetroArch answers the same way.
+- **`get_params` reports the rate the core asked for,** and each handle resamples to it: linear,
+  and pass-through when the rates match.
+- **Latency is bounded per handle.** A 150 ms cap drops the oldest samples. 40 ms of silence is
+  served after an enable, a flush or an underflow. A read that leaves more than 100 ms trims
+  back to 60 ms. The trim is what keeps Dolphin's GameCube mic — it reads at most 64 samples a
+  frame and never catches up — from sitting at the cap.
+- **Silent in netplay.** An `NpFrame` is 128 ints, 735 samples a frame have nowhere to ride, and
+  a microphone is not the same on two peers anyway.
+- **Not silenced by `SetAudioPlaying(false)`.** That follows display cabling ("a machine wired to
+  nothing is silent"), and a console with no television still hears its microphone.
+
+**Permissions.**
+- **Android.** `input_start()` requests `RECORD_AUDIO` itself, and the grant callback restarts
+  capture (`platform/android/java_godot_lib_jni.cpp`), so switching the device on is the whole
+  request. The Quest preset declares `permissions/record_audio=true`. With nobody wearing the
+  headset, grant it before launch — there is no one to tap the dialog:
+  ```bash
+  adb shell pm grant com.xenu.retroxr android.permission.RECORD_AUDIO
+  ```
+- **macOS.** Needs `privacy/microphone_usage_description` and `codesign/entitlements/audio_input`
+  in the preset AND `com.apple.security.device.audio-input` in `entitlements/macos.entitlements`,
+  because `release.yml` signs with that file rather than the preset's.
+
+**Which cores hear a microphone**, read at source:
+
+| core | hardware | asks for | switched by | calls from |
+|---|---|---|---|---|
+| melondsds | DS / DSi mic | 44100, 735 a frame | `melonds_mic_input` (default `microphone`), `melonds_mic_input_active` (default `hold`, on L3) | emulation thread |
+| noods | DS mic | 44100 | `noods_micInputMode`, `noods_micButtonMode` (L2) | emulation thread |
+| dolphin (fork) | GameCube DOL-022, Wii Speak, Logitech USB | the game's rate; GameCube at most 64 a frame | see below; `dolphin_wiispeak_enable`, `dolphin_wii_logi_microphone_enable` | open and state on its CPU thread, reads in `retro_run` |
+| azahar (buildbot) | 3DS mic | opens at 48000 and resamples itself | `citra_input_type` (`auto`, `none`, `static_noise`, `frontend`) | emulation thread |
+| virtualjaguar | Jaguar voice modem | 8000 | — | emulation thread |
+
+A mic that is only a BUTTON, with no audio behind it: DeSmuME (`desmume_mic_mode`, L3 "Make
+Microphone Noise"), legacy melonDS (L2), and Nestopia and Mesen for the Famicom (below). No
+libretro core hears the Dreamcast microphone, the N64 VRU, a PS2 SingStar mic (LRPS2 has no
+USB microphone) or PSP Talkman (PPSSPP's libretro build reports no recording).
+
+**The DS listens the whole time, because a DS has no mic button.** melonDS DS gates its mic on
+L3 with a default of `hold`, and the DS model masks L3 (`nds_model.gd`
+`get_unsupported_button_mask`), so out of the box nothing could switch the mic on. The model
+pins `melonds_mic_input=microphone` and `melonds_mic_input_active=always`, and the game decides
+when it listens, as on the hardware. The host device therefore stays open for as long as a DS
+runs on melonDS DS. DeSmuME has no audio path at all: its `physical` mode reads a buffer the
+libretro frontend never fills.
+
+**Measured 2026-09-15** with `Tools/cores/mic_probe`: melonDS DS 1.3.1 opened its microphone at
+44100 Hz while loading Super Mario 64 DS and switched it on 4 frames in; over 6 s the service
+opened the desktop device and pushed 279,343 host frames at 48000 Hz in 553 pushes. The probe
+cannot run against a build without the interface, which has no `IsMicrophoneActive`.
+
+**The GameCube Microphone (DOL-022) seats like a memory card, live.** The hardware:
+- A 21 × 140 mm gray stick with an aqua push-to-talk button about 43 mm from the tip, 2 m of
+  cord, and a memory-card-shaped plug unit 35.6 × 63 × 13.7 mm.
+- It fits either memory card slot; Mario Party 6 and 7 ask for B.
+- The button is ON THE MICROPHONE — the EXI status word carries it (`EXI_DeviceMic.h`: "The
+  actual button on the mic") — and Mario Party 6 ignores speech until it is held. Odama talks on
+  the controller's X instead, with the stick clipped to the pad.
+
+In the Dolphin fork (v11):
+- **`dolphin_memcard_a_path` / `_b_path` accept `mic`,** which `Memcard::Resolve` turns into the
+  Microphone EXI device. `CheckForUpdates` already `ChangeDevice`s a slot whose answer changed —
+  one emulated second of nothing, then the new device — so seating or pulling a microphone is a
+  real eject and insert, exactly like a card.
+- **`poll_microphone` polls every GameCube microphone that exists.** A `CEXIMic` adds itself to
+  `g_gc_microphones` when it is built and removes itself first thing when it is destroyed, under
+  `g_gc_microphones_lock`, so a swap on the CPU thread can never hand the libretro thread a
+  device that is gone or not yet a microphone. It used to latch `dolphin_enable_gamecube_mic` on
+  `IsUpdated`, which never fires for a value that arrived in the `.opt`: a microphone enabled at
+  boot was never polled, and nothing said so.
+- **The button is read whenever a microphone exists.** In the libretro build
+  `GCPad::GetMicButton` ignores the pad number and ORs the button mapped by
+  `dolphin_hotkey_activate_microphone` across all four ports (`GCPadEmu.cpp`). Standalone
+  Dolphin reads slot A's button from pad 1 and slot B's from pad 2, which is what its forum
+  answers describe, and does not apply here.
+- **`GetRetroButtonId` did not know `L1` or `R1`,** though the option offers both. Its `L` ↔ `L2`
+  swap is deliberate: a GameCube's analog L is libretro L2.
+- **The older `dolphin_enable_gamecube_mic` still works,** and still loses slot B to a named card.
+- **Seating or pulling a microphone says so,** as `Memory Card B: microphone seated` / `pulled`,
+  a warning under BOOT.
+
+In RetroXR:
+- **Objects.** `GcMicrophone` is the stick. `GcMicrophonePlug` is in group `memory_card` with
+  `family = "gamecube"`, `is_microphone = true` and no `card_id`, so the shared `_accepts_card`
+  seats it in either slot and `_mount_core_cards` writes `mic` for that slot, live through
+  `set_core_option`.
+- **The button.** The trigger of the hand holding the stick is the aqua button. Every controller
+  writes its whole button mask each frame, so a bit set by another object is gone by the next
+  one. The stick uses `Libretro.SetJoypadExtraButtons(0, 1 << R3)`, ORed in when the core reads,
+  and the machine pins `dolphin_hotkey_activate_microphone=R3` — no GameCube pad maps R3.
+- **Saves.** The plug is on the cord rather than an entry of its own, so the stick's entry
+  records `system` and `slot`, and `_apply_references` seats it again.
+- **Group sweeps.** Anything that sweeps the `memory_card` group must not assume a card: the card
+  poller skips an object with no `card_id`, and card numbering counts only `MemoryCard`s.
+
+**Measured 2026-09-15** with `Tools/input/gc_mic_probe` on the GameCube IPL, no disc. With the
+DOL-022 in slot B the options file read `dolphin_memcard_b_path=mic` and
+`dolphin_hotkey_activate_microphone=R3`, and v11 logged `Memory Card B: microphone seated` at
+boot, `microphone pulled` when the plug came out mid-run and `microphone seated` when it went
+back, with the IPL running through both. The same run against the previous build
+(`+40a25ffd80`) passes every frontend check and prints none of the three lines: it refuses `mic`
+as a card path, in a log category no frontend sees. That is why the line is a warning under
+BOOT — the libretro listener leaves EXPANSIONINTERFACE disabled, and libretro-godot passes
+nothing below a warning. The IPL never samples the microphone, so no handle was opened.
+
+Shut BOTH card slots to pull the plug in a probe: slot A sits beside B and catches it, and the
+mount log then reads `0=microphone`. `Tools/models/gc_microphone_render_probe` renders the stick
+seated and prints the plug's axes — its +Z matches slot B's and the cord end points out of the
+console.
+
+```bash
+"$godot" --headless --path RetroXR res://Tests/microphone_tests.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/cores/mic_probe.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 \
+  res://Tools/input/gc_mic_probe.tscn -- --root=<throwaway root with cores/dolphin_libretro.dll and system/dolphin/dolphin-emu/Sys>
+```
+
+**The N64 Voice Recognition Unit is not built, and it is a speech recognizer, not a
+microphone.**
+
+The hardware:
+- NUS-020 goes in controller socket 4, and its NUS-021 microphone hangs on a cord (clipped to
+  the pad by NUS-025 in Hey You, Pikachu!), with an ordinary pad in socket 1.
+- Both VRU games need socket 4. RMG offers the VRU on its last port alone and says why
+  (`RMG-Input/UserInterface/MainDialog.cpp`), and simple64's config does the same — though
+  `osVoiceInit` takes any channel and mupen64plus-core attaches a VRU wherever the input plugin
+  reports `CONT_TYPE_VRU`.
+- Hey You, Pikachu! wants Z (or L) held on the socket-1 pad while the player speaks.
+
+No libretro N64 core has a backend:
+- **mupen64plus-next** compiles `vru_controller.c` unconditionally, then `plugin.c` forces every
+  port to `CONT_TYPE_STANDARD` and points the five recognition calls at the no-ops in
+  `dummy_input.c`.
+- **parallel_n64** removed the hook itself ("no voice-recognition backend").
+- **The emulation that remains is complete:** the core decodes the game's word list into
+  `SendVRUWord`, switches `SetMicState` on the game's configuration writes, and fills the
+  results the game reads from `ReadVRUResults`.
+
+What a build takes:
+- **The fork.** A port-4 device, `RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 0)` so the pad path
+  still delivers Z, and `CONT_TYPE_VRU` set inside `inputInitiateControllers`, because `plugin.c`
+  overwrites the type before that. The five calls are backed by a recognizer, either in the core
+  over `read_mic` or behind a private frontend interface shaped like the Transfer Pak's.
+- **A recognizer.** RMG's `VRU.cpp` is the reference. A 717-entry table maps the game's words to
+  text, the grammar is the game's current list plus `[unk]`, Vosk returns up to three
+  alternatives, and a word matches when an alternative contains it. The table is GPLv3; Vosk is
+  Apache-2.0.
+- **What it costs a Quest.** `libvosk.so` for arm64 is 8.9 MB (vosk-android 0.3.47); a small
+  model is 40 MB (en-us) or 48 MB (ja) per language; a loaded model takes about 300 MB of RAM.
+- **Power-on only.** The core reads the device type when it builds the controller channels, so a
+  VRU plugged in mid-session takes effect at the next power-on.
+- **In RetroXR.** A cable-less box in `controller_plug`, shaped like `N64Pak`, with its own
+  `device_type`, announced only when `_controller_info[3]` lists a VRU. An id the core does not
+  know falls through to a pad.
+
+**The Dreamcast Microphone (HKT-7200) is not built.** It fits either expansion socket on the
+pad and has no button: each game talks on a controller button, A in Seaman and Y in Alien Front
+Online. Seaman will not start unless the pad is in port A with the VMU in socket 1 and the
+microphone in socket 2.
+
+flycast emulates it — `maple_microphone`, recording at the game's choice of 8000 or 11025 Hz
+and polled 240 samples at a time — but the libretro build cannot hear anything:
+- `StartAudioRecording`, `RecordAudio` and `StopAudioRecording` in `shell/libretro/audiostream.cpp`
+  are stubs, and `RecordAudio` returns 0.
+- `reicast_device_portN_slotM` offers VMU, Purupuru and None (and DreamPotato in slot 1), not
+  Microphone, though `maple_Create(MDT_Microphone)` exists and `createDreamcastDevices` builds
+  whatever the option maps to.
+- Recording runs on flycast's CPU thread, which with threaded rendering — the default — is
+  "Flycast-emu", not the thread calling `retro_run`.
+
+A build:
+- **In the fork.**
+  - Map `Microphone` to `MDT_Microphone` in both slot options.
+  - Add the microphone structs to the fork's bundled `libretro.h`.
+  - Make the three audio functions set flags that `retro_run` acts on: open at the game's rate,
+    `set_mic_state`, and `read_mic` every frame into the `RingBuffer` that `audiostream.h`
+    already has. `RecordAudio` pops from it.
+- **In RetroXR.** A `jump_pack.gd` clone whose `slot_option_value()` is `Microphone`, with the
+  card connector at +42.5 mm. `VmuPort` and `VmuStorage` need nothing, because they ask the
+  seated device.
+- **Power-on only, like every slot device.** A live reconnect looks possible in source
+  (`devices_need_refresh` → `maple_ReconnectDevices`), but it rebuilds every maple device, VMUs
+  included, and `vmu_slot_probe.gd` says its own measurement is confounded.
+
+**The Famicom Controller II microphone is not built.** It is part of player 2's pad, in place of
+Start and Select, and reaches the console at `$4016` bit 2 as an instantaneous 1-bit threshold
+on the waveform:
+- **The bit flickers between 0 and 1 while there is sound** and is a steady 0 in silence; the
+  volume slider turns it off at far left.
+- **Games look for the flicker** (Bokosuka Wars is strict about it). Zelda's Pols Voice, Hikari
+  Shinwa's haggling (with A held on pad 2) and Takeshi no Chousenjou's karaoke use it.
+- **The AV Famicom's second pad and the NES have no microphone.**
+
+| core | where the mic is | when | the bit |
+|---|---|---|---|
+| nestopia | port 0, L3 | always | steady while held — a frontend must toggle it |
+| mesen | port 0, L3 (mapped to player 2's mic) | only when Mesen decides the game is a Famicom: its database tag, FDS, Dendy, or an expansion device | pulsed one frame in three by the core |
+| fceumm | none (libretro-fceumm issue #521) | — | — |
+
+fceumm is the Android default, the only netplay-verified NES core and the FDS boot core, so a
+Famicom microphone that works everywhere is an fceumm fork: an option that turns a player-2 bit
+into the microphone and toggles `0x04` in `JPRead`, with the toggle savestated.
+
+RetroXR has no Famicom to put it in — `famicom` maps to `nes`, and the NES-001 has sockets and
+two pads with Start and Select. A build needs:
+- an HVC-001 model with captive Controller I and II;
+- a loudness measure in C++ (a high-pass, then RMS and peak), since GDScript cannot visit every
+  sample;
+- a flickering L3 through `SetJoypadExtraButtons` on port 0.
+
+**Others.**
+- **Wii Speak and the Logitech USB microphone** are Dolphin options: `dolphin_wiispeak_enable`
+  (with `dolphin_wiispeak_muted`, muted by default) and `dolphin_wii_logi_microphone_enable`.
+  No source names a particular USB port.
+- **The 3DS** listens through `citra_input_type=auto` or `frontend`.
+
+**Still owed.**
+- **A game answering the player.** There is no microphone-reading ROM here for any of these
+  machines, so the probes prove the device, the handles and the hot swap — not Pikachu, a Pols
+  Voice or a Mario Party minigame.
+- **Netplay carries no microphone.**
 
 ### 3. Capturing a real screenshot on Linux (for visual validation)
 `--headless` uses the dummy renderer — it **cannot** produce a screenshot (a probe that awaits
