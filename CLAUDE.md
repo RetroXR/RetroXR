@@ -1935,6 +1935,15 @@ GDScript UI → Libretro Node (instance) → Wrapper (per-node) → Core + Handl
                                          Main thread (_process drains queue)
 ```
 
+### Heap pointer tagging (Android)
+`RegisterTypes.cpp` turns off Android's native heap pointer tagging when the extension
+loads (`mallopt(M_BIONIC_SET_HEAP_TAGGING_LEVEL, M_HEAP_TAGGING_LEVEL_NONE)`, API 31+).
+With it on, `malloc` pointers carry a tag in the top byte but a signal handler receives
+fault addresses without it, so a core that matches faults against its own memory never
+claims them: flycast without nvmem died on its first write to a protected RAM page
+(flyinghead/flycast#2498). RetroArch opts out in its manifest instead
+(libretro/RetroArch#19280).
+
 ### GDScript Side
 - `RetroXR/Scripts/Objects/systems/system.gd` — Per-arcade-cabinet controller. Has `@onready var _libretro: Libretro = $Libretro` wired to a child `Libretro` node in the scene tree.
 - `RetroXR/Scenes/Objects/system.tscn` — Cabinet scene. Contains a `Libretro` child node. Its `unique_id` is the value 4000000010, but Godot writes it SIGNED, so the file reads `unique_id=-294967286` — grep for that, not for the decimal above.
