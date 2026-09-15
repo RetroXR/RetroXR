@@ -25,6 +25,17 @@
 class_name BindingStore
 extends RefCounted
 
+## Platforms played on another platform's controller, which read that platform's
+## profile: a 64DD disk runs on the Nintendo 64 it sits under.
+const _SHARES_BINDINGS: Dictionary = {
+	"nintendo_64dd": "nintendo_64",
+}
+
+
+## The systemid whose profile `systemid` reads.
+static func scope_of(systemid: String) -> String:
+	return String(_SHARES_BINDINGS.get(systemid, systemid))
+
 
 ## Read the whole store. `owner` is the class name used in a warning, so a
 ## complaint in the log says which store could not be read.

@@ -135,7 +135,7 @@ static func get_for_system(systemid: String) -> Dictionary:
 	var sys_data: Dictionary = {}
 	if not systemid.is_empty():
 		var per_sys: Dictionary = data.get("per_system", {}) as Dictionary
-		sys_data = per_sys.get(systemid, {}) as Dictionary
+		sys_data = per_sys.get(BindingStore.scope_of(systemid), {}) as Dictionary
 	return {
 		"buttons": _merge(DEFAULT_BUTTON_MAP, global_data.get("buttons", {}), sys_data.get("buttons", {})),
 		"sticks":  _merge(DEFAULT_STICK_MAP,  global_data.get("sticks",  {}), sys_data.get("sticks",  {})),

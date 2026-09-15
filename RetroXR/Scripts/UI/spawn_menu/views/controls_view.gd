@@ -134,7 +134,10 @@ func refresh_platforms() -> void:
 	var ids: Array[String] = []
 	if core_defaults != null:
 		for sid: String in core_defaults.all_defaults():
-			ids.append(sid)
+			# A platform that reads another's profile is set on that one's page.
+			var scope := BindingStore.scope_of(sid)
+			if not ids.has(scope):
+				ids.append(scope)
 	ids.sort_custom(func(a: String, b: String) -> bool:
 		return _display_name(a).naturalnocasecmp_to(_display_name(b)) < 0)
 

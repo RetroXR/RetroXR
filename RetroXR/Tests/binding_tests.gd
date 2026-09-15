@@ -63,6 +63,7 @@ func _ready() -> void:
 	_test_pad_art_variants()
 	_test_wii_pad_art()
 	_test_n64_pad_art()
+	_test_64dd_reads_the_n64_profile()
 	_test_desktop_layers()
 	_test_desktop_legacy_file()
 	_test_xr_identity()
@@ -973,6 +974,42 @@ func _bind_key(action: String, code: Key) -> void:
 	ev.keycode = code
 	InputMap.action_erase_events(action)
 	InputMap.action_add_event(action, ev)
+
+
+## A 64DD disk is played on the Nintendo 64's controller, so every store reads
+## the N64's profile for it, and no other platform picks that profile up.
+func _test_64dd_reads_the_n64_profile() -> void:
+	_clear()
+	_eq(BindingStore.scope_of("nintendo_64dd"), "nintendo_64", "64dd/scope is the N64")
+	_eq(BindingStore.scope_of(SYS_A), SYS_A, "64dd/any other platform is its own scope")
+
+	var xr := _xr_profile("right_grip", ControllerBindings.JOYPAD_R2)
+	ControllerBindings.save_for_system("nintendo_64", xr[0], xr[1], xr[2])
+	_eq(int((ControllerBindings.get_for_system("nintendo_64dd")["buttons"] as Dictionary)
+			.get("right_grip", -99)),
+		ControllerBindings.JOYPAD_R2, "64dd/xr bindings follow the N64's profile")
+	_eq(int((ControllerBindings.get_for_system(SYS_A)["buttons"] as Dictionary)
+			.get("right_grip", -99)),
+		int((ControllerBindings.DEFAULT_BUTTON_MAP as Dictionary).get("right_grip", -99)),
+		"64dd/while another platform keeps the default")
+
+	var pad_buttons := (GamepadBindings.DEFAULT_BUTTON_MAP as Dictionary).duplicate()
+	pad_buttons["b"] = "btn:3"
+	GamepadBindings.save_for_system("nintendo_64", pad_buttons,
+		(GamepadBindings.DEFAULT_STICK_MAP as Dictionary).duplicate())
+	_eq(String((GamepadBindings.get_for_system("nintendo_64dd")["buttons"] as Dictionary)
+			.get("b", "")),
+		"btn:3", "64dd/gamepad bindings follow the N64's profile")
+
+	InputMap.load_from_project_settings()
+	var shipped := _bound_key(_DESK_ACTION)
+	_bind_key(_DESK_ACTION, KEY_K)
+	DesktopBindings.save_for_system("nintendo_64")
+	DesktopBindings.apply_for_system("nintendo_64dd")
+	_eq(_bound_key(_DESK_ACTION), KEY_K, "64dd/desktop keys follow the N64's profile")
+	DesktopBindings.apply_for_system(SYS_A)
+	_eq(_bound_key(_DESK_ACTION), shipped, "64dd/while another platform keeps the default key")
+	DesktopBindings.apply_for_system("")
 
 
 func _test_desktop_layers() -> void:

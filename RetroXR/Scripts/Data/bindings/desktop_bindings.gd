@@ -104,7 +104,7 @@ static func apply_for_system(systemid: String) -> void:
 	_apply_layer(data.get("global", {}) as Dictionary)
 	if not systemid.is_empty():
 		var per_sys: Dictionary = data.get("per_system", {}) as Dictionary
-		_apply_layer(per_sys.get(systemid, {}) as Dictionary)
+		_apply_layer(per_sys.get(BindingStore.scope_of(systemid), {}) as Dictionary)
 
 
 ## Load saved bindings and apply the global scope. Safe with no file present.

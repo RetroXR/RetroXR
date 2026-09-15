@@ -319,7 +319,7 @@ static func get_for_system(systemid: String) -> Dictionary:
 	var sys_data: Dictionary = {}
 	if not systemid.is_empty():
 		var per_sys: Dictionary = data.get("per_system", {}) as Dictionary
-		sys_data = per_sys.get(systemid, {}) as Dictionary
+		sys_data = per_sys.get(BindingStore.scope_of(systemid), {}) as Dictionary
 
 	# All hardware-specific layers use the same default → global → system merge.
 	return {
