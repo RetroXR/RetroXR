@@ -1234,6 +1234,8 @@ func _test_bios_boot_table() -> void:
 		"table/a Dreamcast starts with nothing at all")
 	_ok(BiosBoot.boots_with_no_content("pcsx2", "playstation2"),
 		"table/so does a PS2 on LRPS2")
+	_ok(BiosBoot.boots_with_no_content("dolphin", "gamecube"),
+		"table/and a GameCube, into its IPL")
 	_ok(not BiosBoot.boots_with_no_content("pcee2", "playstation2"),
 		"table/but not on pcee2, which refuses a no-content start")
 	_eq(BiosBoot.empty_media_file("cue").get_file(), "no_disc.cue",

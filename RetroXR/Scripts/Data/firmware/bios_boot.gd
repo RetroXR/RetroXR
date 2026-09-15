@@ -27,8 +27,9 @@
 ##   * Few cores start with no content at all. Sixteen were tried both ways the
 ##     libretro API allows (a null retro_game_info and a zeroed one) and six
 ##     crash the process outright: mgba and parallel_n64 dereference a null,
-##     while mednafen_saturn, neocd, dolphin and same_cdi die on a zeroed one.
-##     flycast and pcsx2 start on a null one and draw their BIOS menus; the
+##     while mednafen_saturn, neocd, same_cdi and upstream dolphin die on a
+##     zeroed one. flycast, pcsx2 and RetroXR's dolphin fork start on a null one
+##     and draw their BIOS menus; the
 ##     installed pcee2 does not declare SET_SUPPORT_NO_GAME, so it is refused.
 ##     That is why the usual mechanism here is empty MEDIA -- a real file,
 ##     taking the ordinary content path -- and not an empty path.
@@ -121,6 +122,7 @@ const _ROWS := {
 			"dolphin-emu/Sys/GC/JAP/IPL.bin",
 		],
 		"empty_media": "",
+		"no_content": true,
 		"splash": {"dolphin_skip_gc_bios": "disabled"},
 		"why": "Plays the GameCube IPL animation before the disc",
 	},

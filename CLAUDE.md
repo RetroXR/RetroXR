@@ -695,8 +695,10 @@ is what makes a casualty cost one table row instead of the run.
 Two things the survey settled that are easy to re-derive wrongly:
 
 - **`supports_no_game` in the `.info` is useless here** — all sixteen candidates declare
-  it `false`, yet flycast and pcsx2 (LRPS2) start with no content and draw their BIOS
-  menus (measured 2026-09-15). The flag is not consulted anywhere; the table records what
+  it `false`, yet flycast, pcsx2 (LRPS2) and the Dolphin fork's `retroxr` branch start
+  with no content and draw their BIOS menus (measured 2026-09-15). Dolphin's core option
+  `dolphin_gc_bios_region` picks which GameCube IPL: `auto` boots the first installed,
+  USA then EUR then JAP. Upstream libretro Dolphin cannot start empty at all. The flag is not consulted anywhere; the table records what
   was measured. The installed pcee2 is refused before it is asked, because it does not
   declare `SET_SUPPORT_NO_GAME` to the bridge.
 - **The usual mechanism is empty MEDIA, not an empty path.** Only pcsx_rearmed accepts a
