@@ -26,6 +26,7 @@ const SECTIONS: Array = [
 		["libVLC",           "VideoLAN",        "LGPL v2.1"],
 		["Nerd Fonts",       "Ryan L McIntyre", "MIT"],
 		["RomM",             "RomM contributors", "AGPL v3"],
+		["buram (Sega CD backup RAM)", "Ian Karlsson", "MIT"],
 	], "libretro-godot began as a fork of SK.Libretro.Godot by SKurdt (MIT)."],
 
 	# Deliberately not folded into the list above: the Meta XR Audio SDK is not

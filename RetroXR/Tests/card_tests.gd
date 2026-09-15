@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 460
+const EXPECTED_CASES := 526
 
 var _pass := 0
 var _fail := 0
@@ -57,6 +57,7 @@ func _ready() -> void:
 	_test_vmu_roundtrip()
 	_test_vmu_icons()
 	_test_vmu_play()
+	_test_sega_cd()
 	_test_shared_contract()
 	_test_ops()
 	_test_save_device()
@@ -886,6 +887,9 @@ func _smallest_save_size(fmt: CardFormat) -> int:
 		# A .dci is one directory entry followed by whole blocks, so the smallest
 		# is that entry plus a single block.
 		"vmu":            return VMUCard.DCI_HEADER + VMUCard.BLOCK_SIZE
+		# A .scds is a header and whole blocks; the smallest is one raw block.
+		"sega_cd_memory", "sega_cd_ram_cart":
+			return SegaCdBram.SCDS_HEADER + SegaCdBram.RAW_BLOCK_DATA
 	return 0
 
 
@@ -977,6 +981,14 @@ func _test_format_registry() -> void:
 		"registry/the playstation family is a PS1CardFormat")
 	_ok(CardFormats.for_family("gamecube") is GCCardFormat,
 		"registry/the gamecube family is a GCCardFormat")
+	_ok(CardFormats.for_family("sega_cd_memory") is SegaCdMemoryFormat,
+		"registry/the sega_cd_memory family is a SegaCdMemoryFormat")
+	_ok(CardFormats.for_family("sega_cd_ram_cart") is SegaCdCartFormat,
+		"registry/the sega_cd_ram_cart family is a SegaCdCartFormat")
+	# Both Sega CD families are one layout, so only the extension tells a unit's
+	# memory from a cartridge when all there is to go on is a filename.
+	_eq(CardFormats.for_path("/x/y/Backup RAM.crm").id(), "sega_cd_ram_cart",
+		"registry/a .crm is the cartridge, not the unit's .brm")
 
 	# for_path lowercases before matching, so a card named by a tool that shouts
 	# still resolves. Nothing else covers the fold.
@@ -1126,6 +1138,116 @@ func _rom_ids(rows: Array) -> Array:
 	for r: Dictionary in rows:
 		out.append(int(r["rom_id"]))
 	return out
+
+
+# --- scd/ ---------------------------------------------------------------------
+
+## The Sega CD's backup RAM, against images buram wrote for the same operations
+## (buram -c, then -n RAWSAVE -p ECCSAVE -n THIRD, then -d ECCSAVE; and a 16 KB
+## image with -p ECCSAVE). A digest match covers the format block, the
+## directory's error correction, the protected data and the counters at once, and
+## no image has to be committed.
+func _test_sega_cd() -> void:
+	var blank := SegaCdBram.blank_image(SegaCdBram.INTERNAL_SIZE)
+	_eq(_sha256(blank), "92e9da5c5773baa515ca0f87742eaa8ba8f89167e2d83da4e06fde8dbedf5652",
+		"scd/a blank 8 KB image matches buram's format byte for byte")
+	_ok(SegaCdBram.is_card_image(blank), "scd/and parses")
+	_eq(SegaCdBram.free_blocks(blank), 125, "scd/with 125 blocks free")
+
+	var raw := _scd_pattern(100, 7, 3, SegaCdBram.RAW_BLOCK_DATA)
+	var ecc := _scd_pattern(40, 13, 5, SegaCdBram.PROTECTED_BLOCK_DATA)
+	var third := PackedByteArray()
+	for i in 64:
+		third.append(255 - i)
+	var img := SegaCdBram.write_file(blank, "RAWSAVE____".to_ascii_buffer(), SegaCdBram.MODE_RAW, raw)
+	img = SegaCdBram.write_file(img, "ECCSAVE____".to_ascii_buffer(), SegaCdBram.MODE_PROTECTED, ecc)
+	img = SegaCdBram.write_file(img, "THIRD______".to_ascii_buffer(), SegaCdBram.MODE_RAW, third)
+	_eq(_sha256(img), "c584ba4e9d8f3a65e0dafd002bd89fecee9ecebea30c5db78551319977977630",
+		"scd/three saves, one protected, match buram byte for byte")
+	var files := SegaCdBram.list_files(img)
+	_eq(_scd_listing(files), "RAWSAVE____ 0 1 2|ECCSAVE____ 255 3 2|THIRD______ 0 5 1",
+		"scd/listed in directory order with their modes and places")
+	_eq(SegaCdBram.free_blocks(img), 119, "scd/leaving 119 free")
+	_ok(SegaCdBram.read_file(img, 1) == ecc, "scd/a protected save reads back through its correction")
+	_ok(SegaCdBram.read_file(img, 0) == raw, "scd/and a raw one straight off its blocks")
+
+	var deleted := SegaCdBram.delete_file(img, 1)
+	_eq(_sha256(deleted), "96e311aa4694a9e464138430519de5cf1d0279fc122da188ad354755e6b8e6ae",
+		"scd/deleting the middle save compacts exactly as buram does")
+	_eq(_scd_listing(SegaCdBram.list_files(deleted)), "RAWSAVE____ 0 1 2|THIRD______ 0 3 1",
+		"scd/the later save moves down")
+	_ok(SegaCdBram.read_file(deleted, 1) == third, "scd/with its data")
+	_eq(SegaCdBram.free_blocks(deleted), 121, "scd/and the space comes back")
+
+	var cart := SegaCdBram.write_file(SegaCdBram.blank_image(SegaCdBram.CART_SIZE),
+		"ECCSAVE____".to_ascii_buffer(), SegaCdBram.MODE_PROTECTED, ecc)
+	_eq(_sha256(cart), "ed8f1869ed1a14426ccdbe13f1ca00b032da6bfcdc6c1d52ca2645d121404cc5",
+		"scd/a 128 Kbit cartridge matches too")
+	_eq(SegaCdBram.free_blocks(cart), 251, "scd/with 251 blocks free")
+
+	# Through the card formats: lift a save off the unit and put it on a cartridge.
+	var memory := CardFormats.for_family("sega_cd_memory")
+	var cart_fmt := CardFormats.for_family("sega_cd_ram_cart")
+	var lifted := memory.extract_save(img, 1)
+	_ok(SegaCdBram.is_save(lifted), "scd/a lifted save is a .scds")
+	_eq(cart_fmt.save_name(lifted), "ECCSAVE____", "scd/carrying its name")
+	_eq(_sha256(cart_fmt.insert_save(cart_fmt.blank_image(), lifted)),
+		"ed8f1869ed1a14426ccdbe13f1ca00b032da6bfcdc6c1d52ca2645d121404cc5",
+		"scd/and put on a blank cartridge it gives buram's image")
+	_ok(cart_fmt.insert_save(cart, lifted).is_empty(), "scd/the same name twice is refused")
+	_eq(memory.saves_in_download(img).size(), 3, "scd/a whole uploaded image yields every save")
+
+	# The error correction does its job.
+	var one_bad := img.duplicate()
+	one_bad[img.size() - 0x80 + 5] ^= 0x10
+	_eq(_scd_listing(SegaCdBram.list_files(one_bad)), _scd_listing(files),
+		"scd/a flipped bit in the directory is corrected")
+	var data_bad := img.duplicate()
+	data_bad[3 * SegaCdBram.BLOCK_SIZE + 9] ^= 0x04
+	_ok(SegaCdBram.read_file(data_bad, 1) == ecc, "scd/and one in a protected data block")
+	var ruined := img.duplicate()
+	for i in SegaCdBram.BLOCK_SIZE:
+		ruined[3 * SegaCdBram.BLOCK_SIZE + i] ^= 0xA5
+	_ok(SegaCdBram.read_file(ruined, 1).is_empty(), "scd/a block past correcting reads nothing")
+
+	var counts := img.duplicate()
+	counts[img.size() - SegaCdBram.BLOCK_SIZE + 0x18] = 0x7F
+	_eq(SegaCdBram.file_count(counts), 3, "scd/a count survives one bad copy of four")
+	counts[img.size() - SegaCdBram.BLOCK_SIZE + 0x1A] = 0x7F
+	_ok(not SegaCdBram.is_card_image(counts), "scd/but not two")
+	var tail := blank.duplicate()
+	tail[tail.size() - 1] = 0
+	_ok(not SegaCdBram.is_card_image(tail), "scd/an image whose format block is off is not one")
+	var too_big := PackedByteArray()
+	too_big.resize(126 * SegaCdBram.RAW_BLOCK_DATA)
+	_ok(SegaCdBram.write_file(blank, "TOOBIG_____".to_ascii_buffer(), SegaCdBram.MODE_RAW,
+		too_big).is_empty(), "scd/a save larger than the free space is refused")
+	_ok(not SegaCdBram.is_save(PackedByteArray([1, 2, 3])), "scd/bytes that are no .scds are not a save")
+
+
+func _sha256(bytes: PackedByteArray) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_SHA256)
+	ctx.update(bytes)
+	return ctx.finish().hex_encode()
+
+
+## The payload buram was given: `count` bytes of (i*mul + add), padded with zeros
+## to whole blocks of `per_block`, which is what buram does to a file it adds.
+func _scd_pattern(count: int, mul: int, add: int, per_block: int) -> PackedByteArray:
+	var out := PackedByteArray()
+	for i in count:
+		out.append((i * mul + add) & 0xFF)
+	while out.size() % per_block != 0:
+		out.append(0)
+	return out
+
+
+func _scd_listing(files: Array[Dictionary]) -> String:
+	var parts: PackedStringArray = []
+	for e: Dictionary in files:
+		parts.append("%s %d %d %d" % [e["name"], e["mode"], e["start"], e["size"]])
+	return "|".join(parts)
 
 
 func _test_format_contract() -> void:
