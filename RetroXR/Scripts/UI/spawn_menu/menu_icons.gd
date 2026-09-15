@@ -135,17 +135,27 @@ static var _romm_mark: Texture2D = null
 static var _flags_font: FontFile = null
 
 
-## The theme font with the Nerd Font behind it as a fallback, so a Label can
-## carry both ordinary text and an ICON_* codepoint.
+## The theme font with the flag font and the Nerd Font behind it as fallbacks,
+## so a Label can carry ordinary text, a region flag and an ICON_* codepoint.
 static func symbols() -> FontVariation:
 	if _font != null:
 		return _font
 	_font = FontVariation.new()
 	_font.base_font = ThemeDB.fallback_font
+	_font.fallbacks = _glyph_fallbacks()
+	return _font
+
+
+## Flags first: that font holds nothing but flags, so it cannot shadow a glyph.
+static func _glyph_fallbacks() -> Array[Font]:
+	var out: Array[Font] = []
+	var flags := flags_font()
+	if flags != null:
+		out.append(flags)
 	var glyphs: Font = load(FONT_PATH)
 	if glyphs != null:
-		_font.fallbacks = [glyphs]
-	return _font
+		out.append(glyphs)
+	return out
 
 
 ## A caller that already has a font of its own still needs the glyph table
@@ -159,9 +169,7 @@ static func with_symbols(base: Font) -> Font:
 		return _wrapped[key]
 	var fv := FontVariation.new()
 	fv.base_font = base
-	var glyphs: Font = load(FONT_PATH)
-	if glyphs != null:
-		fv.fallbacks = [glyphs]
+	fv.fallbacks = _glyph_fallbacks()
 	_wrapped[key] = fv
 	return fv
 

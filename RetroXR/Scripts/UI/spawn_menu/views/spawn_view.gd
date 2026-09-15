@@ -1313,7 +1313,8 @@ func _romm_refresh_region_options(seen: Dictionary) -> void:
 		return
 	var opts: Array = [["All regions", ""]]
 	for r: String in names:
-		opts.append([r, r])
+		var flag := MenuIcons.region_flag(r)
+		opts.append([r if flag.is_empty() else "%s %s" % [flag, r], r])
 	_romm_region_drop.set_options(opts, _romm_region_filter)
 
 

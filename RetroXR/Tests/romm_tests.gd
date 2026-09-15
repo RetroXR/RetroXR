@@ -752,6 +752,18 @@ func _test_region_flags() -> void:
 			wrong.append(key)
 	_eq(wrong, [], "flags/every flag shapes to one glyph of the bundled font")
 
+	# A region filter option is "<flag> <name>" in whatever font the dropdown was
+	# handed, so both symbol chains have to reach the flag font.
+	var chains := {"symbols()": MenuIcons.symbols(),
+		"with_symbols()": MenuIcons.with_symbols(ThemeDB.fallback_font)}
+	for chain_name: String in chains:
+		var option := TextLine.new()
+		option.add_string(MenuIcons.region_flag("Brazil") + " Brazil", chains[chain_name], 32)
+		var shaped: Array = ts.shaped_text_get_glyphs(option.get_rid())
+		var first: Dictionary = shaped[0] if not shaped.is_empty() else {}
+		_ok(font.get_rids().has(first.get("font_rid", RID())) and int(first.get("end", 0)) == 2,
+			"flags/%s draws a region option's flag from the flag font" % chain_name)
+
 
 # ---------------------------------------------------------------------------
 # Deleting a game — what goes with it, and what must not.
