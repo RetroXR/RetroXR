@@ -4278,7 +4278,15 @@ func game_media() -> RetroCartridge:
 func _media_systemid() -> String:
 	var media := game_media()
 	var sid := str(media.get("systemid")) if media != null else ""
-	return sid if not sid.is_empty() else systemid
+	if not sid.is_empty():
+		return sid
+	# Nothing inserted: an attached drive with an empty bay is still that drive's
+	# machine, which boots its own BIOS and needs one.
+	for unit in get_expansions():
+		var unit_media := ExpansionCatalog.media_of(unit.expansion_id)
+		if not unit_media.is_empty() and unit.get_bay_count() > 0:
+			return unit_media
+	return systemid
 
 
 ## Restore a cable→TV connection after loading from a save file.

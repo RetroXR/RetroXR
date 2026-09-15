@@ -873,6 +873,18 @@ func get_media_path(slot := 0) -> String:
 	return str(m.call("get_rom_path"))
 
 
+## Is this unit's tray standing open? A disc lying in an open tray is not loaded.
+func is_tray_open() -> bool:
+	return _tray != null and _tray.is_open()
+
+
+## The path of the media the drive would actually read: "" while its tray is
+## open, whatever is lying in it. What a boot asks; saves and menus still want
+## get_media_path.
+func get_loaded_media_path(slot := 0) -> String:
+	return "" if is_tray_open() else get_media_path(slot)
+
+
 ## Seat media after a save restore, bypassing the insert ride and its noise.
 func restore_media(media: Node3D, slot := 0) -> void:
 	if _slot != null:

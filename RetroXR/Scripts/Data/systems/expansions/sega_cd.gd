@@ -17,14 +17,22 @@ const ROW := {
 	"loader": MediaDimensions.LOADER_TRAY,
 	# The 8 KB of backup RAM inside the unit, which every Sega CD game saves to.
 	"memory": "sega_cd_memory",
+	# Switched on with no disc, a Sega CD runs its BIOS: the CD player and the
+	# backup memory manager. genesis_plus_gx takes the BIOS file itself as the
+	# content for that. Any one region serves, so the one installed is the one
+	# handed over.
+	"firmware": ["bios_CD_U.bin", "bios_CD_E.bin", "bios_CD_J.bin"],
+	"rom_from_firmware": true,
+	"firmware_first_present": true,
 }
 
 
 const BOOT := {
-	# UNVERIFIED. The CD is the game; the cartridge slot is empty on a Mega-CD
-	# title.
+	# A loaded disc boots; with none, a cartridge in the Mega Drive; with neither,
+	# the Sega CD's own BIOS. The first form never falls back, which is what lets
+	# the console's cartridge come before the BIOS.
 	"mega_drive|sega_cd": {
 		"core": "genesis_plus_gx",
-		"roms": ["expansion:sega_cd"],
+		"roms": ["expansion_media:sega_cd", "host", "expansion:sega_cd"],
 	},
 }

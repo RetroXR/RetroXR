@@ -25,9 +25,10 @@ const BOOT := {
 		"core": "picodrive",
 		"roms": ["expansion:sega_32x"],
 	},
-	# UNVERIFIED. The full tower, where the disc is still what boots.
+	# UNVERIFIED. The full tower, where the disc is still what boots. The disc
+	# alone: the plain form would fall back to genesis_plus_gx's BIOS file.
 	"mega_drive|sega_cd|sega_32x": {
 		"core": "picodrive",
-		"roms": ["expansion:sega_cd"],
+		"roms": ["expansion_media:sega_cd"],
 	},
 }

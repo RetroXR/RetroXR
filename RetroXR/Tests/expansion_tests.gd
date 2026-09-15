@@ -1367,6 +1367,61 @@ func _run() -> void:
 		await _group_memory()
 	if _want("scd_storage"):
 		await _group_scd_storage()
+	if _want("scd_boot"):
+		await _group_scd_boot()
+
+
+# ── scd_boot/ — what a Sega CD hands the core ─────────────────────────────────
+
+func _group_scd_boot() -> void:
+	var regions := ["bios_CD_U.bin", "bios_CD_E.bin", "bios_CD_J.bin"]
+	_ok(ExpansionCatalog.pick_firmware(regions, {"bios_CD_J.bin": true}) == "bios_CD_J.bin",
+		"scd_boot/ the BIOS handed over is a region that is installed")
+	_ok(ExpansionCatalog.pick_firmware(regions, {}) == "bios_CD_U.bin",
+		"scd_boot/ with none installed, the first, so a refusal still names one")
+
+	var cd := await _unit("sega_cd")
+	var md := await _console("mega_drive")
+	await _bolt(md, cd)
+	var bios := ExpansionCatalog.firmware_rom_path("sega_cd")
+	_ok(bios.get_file().begins_with("bios_CD_"), "scd_boot/ a Sega CD's own program is its BIOS")
+	md._expansion_launch.apply_expansion_launch()
+	_ok(md.rom_path == bios, "scd_boot/ an empty tray boots the BIOS")
+	_ok(md._media_systemid() == "sega_cd", "scd_boot/ and is checked for a Sega CD BIOS")
+
+	var disc := await _cart("sega_cd", "/roms/sega_cd/game.chd")
+	cd.restore_media(disc)
+	await _wait(5)
+	md._expansion_launch.apply_expansion_launch()
+	_ok(md.rom_path == "/roms/sega_cd/game.chd", "scd_boot/ a disc in a shut tray boots")
+	cd._tray.set_open(true, false)
+	_ok(cd.is_tray_open() and cd.get_loaded_media_path().is_empty(),
+		"scd_boot/ a disc lying in an open tray is not loaded")
+	md._expansion_launch.apply_expansion_launch()
+	_ok(md.rom_path == bios, "scd_boot/ so the BIOS boots instead")
+
+	var game := await _cart("mega_drive", "/roms/mega_drive/game.md")
+	md.restore_cartridge(game)
+	await _wait(5)
+	md._expansion_launch.apply_expansion_launch()
+	_ok(md.rom_path == "/roms/mega_drive/game.md",
+		"scd_boot/ a cartridge in the console boots before the BIOS")
+	cd._tray.set_open(false, false)
+	md._expansion_launch.apply_expansion_launch()
+	_ok(md.rom_path == "/roms/sega_cd/game.chd",
+		"scd_boot/ and a loaded disc still boots before the cartridge")
+	await _clear()
+
+	var tower_cd := await _unit("sega_cd")
+	var x32 := await _unit("sega_32x")
+	var tower := await _console("mega_drive")
+	await _bolt(tower, tower_cd)
+	tower.restore_expansion(x32)
+	await _wait(10)
+	_ok(tower.expansion_ids() == ["sega_cd", "sega_32x"]
+		and tower._expansion_launch.expansion_roms(tower.expansion_boot()).is_empty(),
+		"scd_boot/ the 32X tower on picodrive is not handed genesis_plus_gx's BIOS")
+	await _clear()
 
 
 # ── scd_storage/ — staging a Sega CD's memory into the core and back ──────────

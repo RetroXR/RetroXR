@@ -127,15 +127,15 @@ func expansion_roms(spec: Dictionary, core := "") -> Array[String]:
 						if path.is_empty():
 							path = ExpansionCatalog.firmware_rom_path(id)
 					"expansion_media":
-						path = unit.get_media_path()
+						path = unit.get_loaded_media_path()
 					# The second cartridge of a unit that takes two. No fallback,
 					# for the same reason the first has none: a pairing needs its
 					# halves kept apart, and a unit with only one bay filled must
 					# come up SHORT so the count check sends it to the plain load.
 					"expansion_media_b":
-						path = unit.get_media_path(1)
+						path = unit.get_loaded_media_path(1)
 					_:
-						path = unit.get_media_path()
+						path = unit.get_loaded_media_path()
 						if path.is_empty():
 							path = unit.rom_path
 							if path.is_empty():

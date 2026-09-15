@@ -529,7 +529,26 @@ static func firmware_rom_path(id: String) -> String:
 	var core := str(boot_for(host_of(id), [id]).get("core", ""))
 	if core.is_empty():
 		return ""
+	# The exception, by row: regional alternatives of one program, where any
+	# installed one is the right one. A Sega CD's BIOS is.
+	if bool(row(id).get("firmware_first_present", false)):
+		var present := {}
+		for status_row: Dictionary in FirmwareState.shared().evaluate(
+				core, FirmwareRequirements.for_core(core)):
+			var status := int(status_row.get("status", -1))
+			if status == FirmwareState.Status.PRESENT or status == FirmwareState.Status.MISMATCH:
+				present[str(status_row.get("path", ""))] = true
+		return FirmwareRequirements.destination(core, pick_firmware(wanted, present))
 	return FirmwareRequirements.destination(core, str(wanted[0]))
+
+
+## The first of `wanted` that is in `present`, or the first of `wanted` when none
+## is, so a refusal still names a file.
+static func pick_firmware(wanted: Array, present: Dictionary) -> String:
+	for name: Variant in wanted:
+		if present.has(str(name)):
+			return str(name)
+	return str(wanted[0]) if not wanted.is_empty() else ""
 
 
 ## Can this unit actually be built -- is the program it runs on this machine?
