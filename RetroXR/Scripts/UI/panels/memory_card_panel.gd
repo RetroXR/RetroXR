@@ -76,6 +76,15 @@ func _get_ui() -> MemoryCard2D:
 	return vp.get_child(0) as MemoryCard2D
 
 
+## Closing this panel's own page hands the buttons back to the external UI, if a
+## console menu's Saves tab is also showing this card.
+func hide_panel() -> void:
+	super()
+	if is_instance_valid(_external_ui):
+		_ensure_ui_connected()
+		_populate()
+
+
 ## Open, or driving an external UI: either way there is a page to keep current.
 func _shown() -> bool:
 	return visible or is_instance_valid(_external_ui)

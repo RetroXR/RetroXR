@@ -153,8 +153,25 @@ func _init_memory() -> void:
 		card_label = card_id
 
 
-## The panel that manages this unit's memory. It has no quad of its own here: it
-## drives the console menu's Saves tab. Null on a unit that keeps no memory.
+## The menu verb. A cartridge that IS memory -- the Backup RAM Cartridge -- opens
+## its card panel, as a memory card in the hand does. Every other unit keeps the
+## generic panel it always had; a Sega CD's own memory is on its console's Saves
+## tab rather than on a panel of the unit's.
+func toggle_options_ui(camera: Node3D) -> void:
+	if family.is_empty() \
+			or ExpansionCatalog.mount_of(expansion_id) != ExpansionCatalog.MOUNT_CARTRIDGE:
+		ObjectOptionsPanel.toggle_for(self, camera)
+		return
+	var panel := ensure_saves_panel()
+	if panel.visible:
+		panel.hide_panel()
+	else:
+		panel.show_for(self, camera)
+
+
+## The panel that manages this unit's memory: the console menu's Saves tab drives
+## it, and a Backup RAM Cartridge also opens it in the room. Null on a unit that
+## keeps no memory.
 func ensure_saves_panel() -> MemoryCardPanel:
 	if family.is_empty():
 		return null

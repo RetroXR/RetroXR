@@ -25,6 +25,8 @@ var _system: RetroSystem = null
 var _cart_panel: CartridgeOptionsPanel = null
 ## The attached unit's panel while it is driving our Saves tab.
 var _saves_panel: MemoryCardPanel = null
+## Which of the machine's memories the Saves tab is showing.
+var _saves_index := 0
 
 @onready var _viewport_node: XRToolsViewport2DIn3D = $CoreOptionsViewport
 
@@ -87,6 +89,7 @@ func _ensure_ui_connected() -> void:
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	ui.close_requested.connect(hide_panel)
+	ui.saves_source_picked.connect(_on_saves_source_picked)
 	_ui_connected = true
 	print("[CoreOptionsPanel] 2D UI signals connected")
 
@@ -121,24 +124,42 @@ func _populate() -> void:
 ## CD -- so its saves are managed on the machine they belong to, by the memory
 ## card panel's own code. Hidden when nothing attached keeps any.
 func _populate_saves_tab(ui: CoreOptions2D) -> void:
-	var unit := _memory_unit()
-	ui.set_saves_tab_visible(unit != null)
-	var panel: MemoryCardPanel = unit.ensure_saves_panel() if unit != null else null
+	var units := _memory_units()
+	ui.set_saves_tab_visible(not units.is_empty())
+	_saves_index = clampi(_saves_index, 0, maxi(units.size() - 1, 0))
+	var labels := PackedStringArray()
+	for unit: RetroExpansion in units:
+		labels.append(CardFormats.for_family(unit.family).device_noun())
+	ui.set_saves_sources(labels, _saves_index)
+	var shown: RetroExpansion = units[_saves_index] if not units.is_empty() else null
+	var panel: MemoryCardPanel = shown.ensure_saves_panel() if shown != null else null
 	if is_instance_valid(_saves_panel) and _saves_panel != panel:
 		_saves_panel.release_external_ui()
 	_saves_panel = panel
 	if panel != null:
-		panel.adopt_external_ui(ui.saves_ui(), unit)
+		panel.adopt_external_ui(ui.saves_ui(), shown)
 
 
-## The first attached unit that keeps memory, or null.
-func _memory_unit() -> RetroExpansion:
+func _on_saves_source_picked(index: int) -> void:
+	_saves_index = index
+	_populate()
+
+
+## Every attached unit that keeps memory: the machine's own first (a Sega CD's),
+## then any cartridge that is memory, so the switch reads the same way whichever
+## was attached first.
+func _memory_units() -> Array[RetroExpansion]:
+	var out: Array[RetroExpansion] = []
 	if _system == null or not _system.has_method("get_expansions"):
-		return null
+		return out
 	for unit: RetroExpansion in _system.get_expansions():
 		if is_instance_valid(unit) and not unit.family.is_empty():
-			return unit
-	return null
+			out.append(unit)
+	out.sort_custom(func(a: RetroExpansion, b: RetroExpansion) -> bool:
+		var cart := ExpansionCatalog.MOUNT_CARTRIDGE
+		return ExpansionCatalog.mount_of(a.expansion_id) != cart \
+			and ExpansionCatalog.mount_of(b.expansion_id) == cart)
+	return out
 
 
 ## Hand the Cartridge tab to the slotted cartridge's own options panel, which

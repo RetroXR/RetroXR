@@ -1427,6 +1427,57 @@ func _group_memory() -> void:
 	driver.free()
 	await _clear()
 
+	# The Backup RAM Cartridge: memory that goes in the Mega Drive's own slot.
+	_ok(ExpansionCatalog.memory_of("sega_cd_ram_cart") == "sega_cd_ram_cart",
+		"memory/ the Backup RAM Cartridge is memory")
+	_ok(ExpansionCatalog.card_systemid("sega_cd_ram_cart") == "sega_cd",
+		"memory/ offered on the Sega CD's card")
+	_ok(ExpansionCatalog.unit_for_memory("sega_cd_ram_cart") == "sega_cd_ram_cart",
+		"memory/ and found again from its card family")
+	_ok(SpawnMenuSpawnView.memory_cart_family("expansion:sega_cd_ram_cart") == "sega_cd_ram_cart"
+		and SpawnMenuSpawnView.memory_cart_family("expansion:sega_cd").is_empty(),
+		"memory/ its spawn row opens a card shelf, and the Sega CD's does not")
+	var disc_boot := ExpansionCatalog.boot_for("mega_drive", ["sega_cd"])
+	_ok(not disc_boot.is_empty()
+		and ExpansionCatalog.boot_for("mega_drive", ["sega_cd", "sega_cd_ram_cart"]) == disc_boot,
+		"memory/ seated, it leaves the disc as what boots")
+
+	var drive := await _unit("sega_cd")
+	var ram := await _unit("sega_cd_ram_cart")
+	var genesis := await _console("mega_drive")
+	await _bolt(genesis, drive)
+	genesis.restore_expansion(ram)
+	await _wait(10)
+	_ok(genesis.expansion_ids().has("sega_cd_ram_cart"), "memory/ the cartridge seats in the Mega Drive's slot")
+	_ok(CardSaveOps.holder_of(get_tree(), ram.card_id) == genesis,
+		"memory/ and its console holds its memory")
+
+	var ui2 := (load("res://Scenes/UI/core_options_2d.tscn") as PackedScene).instantiate() as CoreOptions2D
+	add_child(ui2)
+	_spawned.append(ui2)
+	await _wait(5)
+	var driver2 := CoreOptionsPanel.new()
+	driver2._system = genesis
+	driver2._populate_saves_tab(ui2)
+	_ok(ui2._saves_switch.visible and ui2._saves_switch.get_child_count() == 2,
+		"memory/ with both, the Saves tab offers a switch")
+	var drive_panel := drive.ensure_saves_panel()
+	var ram_panel := ram.ensure_saves_panel()
+	_ok(ui2.saves_ui().restore_requested.is_connected(drive_panel._on_restore_requested),
+		"memory/ showing the unit's own memory first")
+	driver2._saves_index = 1
+	driver2._populate_saves_tab(ui2)
+	_ok(ui2.saves_ui().restore_requested.is_connected(ram_panel._on_restore_requested)
+		and not ui2.saves_ui().restore_requested.is_connected(drive_panel._on_restore_requested),
+		"memory/ and the cartridge's once picked, answering for it alone")
+
+	genesis.is_powered_on = true
+	genesis._on_cartridge_removed()
+	_ok(genesis.is_powered_on, "memory/ pulling the cartridge does not stop the machine")
+	genesis.is_powered_on = false
+	driver2.free()
+	await _clear()
+
 
 # ── disk/ — the 64DD's real shells: the drive, the development unit, the disk ─
 

@@ -62,6 +62,11 @@ var _cart_tab_idx: int = -1
 ## The backup memory a unit keeps on the machine itself, e.g. a Sega CD's.
 var _saves_ui: MemoryCard2D = null
 var _saves_tab_idx: int = -1
+## Picks which memory the Saves tab shows when the machine has more than one.
+var _saves_switch: HBoxContainer = null
+
+## A memory on the Saves tab's switch was picked, by its index.
+signal saves_source_picked(index: int)
 var _system_tab_idx := -1
 ## The resolved core's declared firmware and whether each file is on disk.
 ## Hidden when the core declares none (see populate_firmware).
@@ -222,6 +227,12 @@ func _build_ui() -> void:
 	tabs.add_child(saves_outer)
 	_saves_tab_idx = tabs.get_tab_count() - 1
 	tabs.set_tab_hidden(_saves_tab_idx, true)
+	# Which memory the page shows, when there is more than one: the unit's own and
+	# a Backup RAM Cartridge in the slot.
+	_saves_switch = HBoxContainer.new()
+	_saves_switch.add_theme_constant_override("separation", 8)
+	_saves_switch.visible = false
+	saves_outer.add_child(_saves_switch)
 	_saves_ui = MemoryCard2D.new()
 	# The tab names the page and the menu has its own ✕.
 	_saves_ui.show_name_field = false
@@ -343,6 +354,28 @@ func set_saves_tab_visible(shown: bool) -> void:
 	if _tabs == null or _saves_tab_idx < 0:
 		return
 	_tabs.set_tab_hidden(_saves_tab_idx, not shown)
+
+
+## The memories the Saves tab can show and the one it is showing. The switch only
+## appears with more than one. Deferred emit: the handler rebuilds these buttons,
+## including the one being pressed.
+func set_saves_sources(labels: PackedStringArray, current: int) -> void:
+	if _saves_switch == null:
+		return
+	for c in _saves_switch.get_children():
+		_saves_switch.remove_child(c)
+		c.queue_free()
+	_saves_switch.visible = labels.size() > 1
+	for i in labels.size():
+		var b := Button.new()
+		b.text = labels[i]
+		b.toggle_mode = true
+		b.button_pressed = i == current
+		b.custom_minimum_size = Vector2(0, 44)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 18)
+		b.pressed.connect(func() -> void: saves_source_picked.emit.call_deferred(i))
+		_saves_switch.add_child(b)
 
 
 ## Fill the BIOS tab from FirmwareState.evaluate() rows for `core_name`. A core

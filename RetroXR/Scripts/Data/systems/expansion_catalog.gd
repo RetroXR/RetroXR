@@ -110,6 +110,7 @@ const _UNITS: Array = [
 	preload("res://Scripts/Data/systems/expansions/super_game_boy.gd"),
 	preload("res://Scripts/Data/systems/expansions/super_game_boy_2.gd"),
 	preload("res://Scripts/Data/systems/expansions/sega_cd.gd"),
+	preload("res://Scripts/Data/systems/expansions/sega_cd_ram_cart.gd"),
 	preload("res://Scripts/Data/systems/expansions/sega_32x.gd"),
 	preload("res://Scripts/Data/systems/expansions/power_base_converter.gd"),
 	preload("res://Scripts/Data/systems/expansions/fm_sound_unit.gd"),
@@ -128,7 +129,7 @@ const _UNITS: Array = [
 const _ORDER: Array = [
 	"nintendo_64dd", "nintendo_64dd_dev", "expansion_pak", "jumper_pak", "fds", "satellaview",
 	"bsx_cart", "sufami_turbo", "super_game_boy", "super_game_boy_2",
-	"sega_cd", "sega_32x", "power_base_converter", "fm_sound_unit",
+	"sega_cd", "sega_cd_ram_cart", "sega_32x", "power_base_converter", "fm_sound_unit",
 	"pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
 ]
 
@@ -282,6 +283,17 @@ static func panel_of(id: String) -> String:
 ## memory -- or "" for a unit that keeps none.
 static func memory_of(id: String) -> String:
 	return str(row(id).get("memory", ""))
+
+
+## The unit whose memory is this card family, or "" -- how a card shelf listing
+## that memory knows what to put in the room.
+static func unit_for_memory(family: String) -> String:
+	if family.is_empty():
+		return ""
+	for id: String in ROWS:
+		if memory_of(id) == family:
+			return id
+	return ""
 
 
 ## The GLB this unit wears, or "" for the primitive box.

@@ -1098,10 +1098,20 @@ func _on_spawn_requested(type: String) -> void:
 		var rest := type.substr("memcard:".length())
 		var sep := rest.find(":")
 		var family := rest.substr(0, sep) if sep >= 0 else "playstation"
+		var card_id := rest.substr(sep + 1) if sep >= 0 else rest
+		# Memory that is a unit -- a Backup RAM Cartridge -- comes back as that
+		# unit, its id set before it enters the tree the way a restore sets it.
+		var memory_unit := ExpansionCatalog.unit_for_memory(family)
+		if not memory_unit.is_empty():
+			var held := EXPANSION_SCENE.instantiate() as RetroExpansion
+			held.expansion_id = memory_unit
+			held.card_id = card_id
+			held.card_label = card_id
+			_place_spawned(held, "expansion:%s" % memory_unit)
+			return
 		# By property rather than by class: this shelf serves both a MemoryCard
 		# and an N64 ControllerPak, which share these three fields and no ancestor.
 		var card := _card_scene_for(family).instantiate() as Node3D
-		var card_id := rest.substr(sep + 1) if sep >= 0 else rest
 		card.set("family", family)
 		card.set("card_id", card_id)
 		card.set("card_label", card_id)
@@ -1110,6 +1120,12 @@ func _on_spawn_requested(type: String) -> void:
 	# "<family>_memory_card" — a new blank card of that family.
 	if type.ends_with("_memory_card"):
 		var family := type.substr(0, type.length() - "_memory_card".length())
+		var memory_unit := ExpansionCatalog.unit_for_memory(family)
+		if not memory_unit.is_empty():
+			var fresh := EXPANSION_SCENE.instantiate() as RetroExpansion
+			fresh.expansion_id = memory_unit
+			_place_spawned(fresh, "expansion:%s" % memory_unit)
+			return
 		var card := _card_scene_for(family).instantiate() as Node3D
 		card.set("family", family)
 		_place_spawned(card, type)

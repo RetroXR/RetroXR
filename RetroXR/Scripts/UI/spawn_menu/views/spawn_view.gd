@@ -596,8 +596,13 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 		# And the Dreamcast's VMU, for exactly the same reason.
 		elif token == "vmu":
 			card_fmt = CardFormats.for_family(VmuCard.FAMILY)
+		# And a cartridge that is memory -- the Sega CD's Backup RAM Cartridge --
+		# resolved from the unit its row names.
+		var cart_memory := memory_cart_family(token)
+		if not cart_memory.is_empty():
+			card_fmt = CardFormats.for_family(cart_memory)
 		if (token.ends_with("memory_card") or token == "controller_pak"
-				or token == "vmu") and card_fmt != null:
+				or token == "vmu" or not cart_memory.is_empty()) and card_fmt != null:
 			# This row does one of two different things, so it says which. With
 			# cards saved it opens the shelf and drops the +, because every other
 			# + on this page puts something in the room on the first press.
@@ -611,6 +616,17 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 			btn.pressed.connect(spawn_requested.emit.bind(token))
 		vbox.add_child(btn)
 	vbox.add_child(MenuStyle.spacer(8))
+
+
+## The card family of a spawn token naming a cartridge that is memory, or "".
+static func memory_cart_family(token: String) -> String:
+	if not token.begins_with("expansion:"):
+		return ""
+	var id := token.substr("expansion:".length())
+	if not ExpansionCatalog.has(id) \
+			or ExpansionCatalog.mount_of(id) != ExpansionCatalog.MOUNT_CARTRIDGE:
+		return ""
+	return ExpansionCatalog.memory_of(id)
 
 
 ## A console's card shelf, opened from its own page. It takes that page over, so

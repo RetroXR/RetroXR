@@ -85,7 +85,7 @@ func _page(title_text: String, on_back: Callable) -> void:
 
 func _build_list() -> void:
 	_clear()
-	_page("%s Memory Cards" % _fmt().label(), func() -> void: closed.emit())
+	_page("%s %ss" % [_fmt().label(), _fmt().device_noun()], func() -> void: closed.emit())
 
 	# Where the cards actually are. They are ordinary card images that any tool
 	# for that console opens, so saying where they live is the difference between
@@ -96,7 +96,7 @@ func _build_list() -> void:
 		add_child(_card_row(card))
 
 	add_child(MenuStyle.spacer(6))
-	var new_btn := MenuStyle.row_button("  +  New Memory Card", 26, 0, 80, false)
+	var new_btn := MenuStyle.row_button("  +  New %s" % _fmt().device_noun(), 26, 0, 80, false)
 	new_btn.pressed.connect(
 		func() -> void: spawn_requested.emit("%s_memory_card" % family))
 	add_child(new_btn)
@@ -201,6 +201,13 @@ func _adopt_rename_in_room(old_id: String, new_id: String) -> void:
 		card.card_label = new_id
 		CardSaveOps.refresh_holder(get_tree(), new_id)
 		return
+	# Memory that is a unit, like a Backup RAM Cartridge, keys off the same name.
+	for n: Node in get_tree().get_nodes_in_group(ExpansionPort.GROUP_EXPANSION):
+		if str(n.get("card_id")) == old_id:
+			n.set("card_id", new_id)
+			n.set("card_label", new_id)
+			CardSaveOps.refresh_holder(get_tree(), new_id)
+			return
 
 
 ## The saves RomM holds, and which of them will fit on this card.
