@@ -62,6 +62,7 @@ func _ready() -> void:
 	_test_scan_roms()
 	_test_index_by_basename()
 	_test_saves_beside_games()
+	_test_region_flags()
 	_test_gamelist_removal()
 	_test_media_and_cleanup()
 	_test_cleanup_gate()
@@ -708,6 +709,46 @@ func _test_saves_beside_games() -> void:
 	_eq([flags[8], flags[9]], [1, 0], "saves/a .zip game hides its save and keeps its row")
 	_eq([flags[10], flags[11]], [0, 1], "saves/a disc track is still hidden beside its cue")
 	_eq(RommCatalog.count_shown(bases, exts), 5, "saves/the tile count agrees with the list")
+
+
+## The flag on a ROM row and in the variants list. The region values are the
+## ones RomM and the gamelists hold on the library this was written against.
+func _test_region_flags() -> void:
+	_eq(MenuIcons.region_flag("USA"), String.chr(0x1F1FA) + String.chr(0x1F1F8),
+		"flags/USA is the US flag")
+	_eq(MenuIcons.region_flag("us"), MenuIcons.region_flag("USA"),
+		"flags/a region code draws the same flag as its name")
+	_eq(MenuIcons.region_flag(" Europe "), MenuIcons.region_flag("eu"),
+		"flags/case and padding do not matter")
+	for r: String in ["Unknown", "Unlicensed", "Public Domain", ""]:
+		_eq(MenuIcons.region_flag(r), "", "flags/'%s' has no flag" % r)
+	_eq(MenuIcons.region_flags(PackedStringArray(["USA", "us", "Europe"])),
+		MenuIcons.region_flag("USA") + MenuIcons.region_flag("Europe"),
+		"flags/a region named twice draws once")
+
+	var held := ["Japan", "Europe", "USA", "Germany", "France", "Italy", "Spain",
+		"Asia", "jp", "Korea", "Australia", "World", "Netherlands", "Taiwan",
+		"Russia", "England", "Brazil", "Sweden", "us", "China", "Finland", "Canada",
+		"Norway", "eu", "kr", "Greece", "br", "Hong Kong", "cn"]
+	var unmapped := held.filter(func(r: String) -> bool: return MenuIcons.region_flag(r).is_empty())
+	_eq(unmapped, [], "flags/every country region the library holds has a flag")
+
+	# A flag the subset lacks still draws: as two letter boxes, or a system
+	# font's glyph.
+	var font := MenuIcons.flags_font()
+	_ok(font != null, "flags/the flag font loads")
+	if font == null:
+		return
+	var ts := TextServerManager.get_primary_interface()
+	var wrong: Array = []
+	for key: String in MenuIcons.REGION_FLAGS.keys() + MenuIcons.REGION_GLYPHS.keys():
+		var line := TextLine.new()
+		line.add_string(MenuIcons.region_flag(key), font, 32)
+		var glyphs: Array = ts.shaped_text_get_glyphs(line.get_rid())
+		if glyphs.size() != 1 or not font.get_rids().has(glyphs[0]["font_rid"]) \
+				or int(glyphs[0]["index"]) == 0:
+			wrong.append(key)
+	_eq(wrong, [], "flags/every flag shapes to one glyph of the bundled font")
 
 
 # ---------------------------------------------------------------------------

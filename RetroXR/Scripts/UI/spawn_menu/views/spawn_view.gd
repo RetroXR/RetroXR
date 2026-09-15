@@ -1401,6 +1401,22 @@ func _build_blank_rom_row() -> Control:
 	strips.visible = false
 	main.add_child(strips)
 
+	# The region's flag, in the title's bottom-right corner for the same reason.
+	var region_flag := Label.new()
+	region_flag.name = "RegionFlag"
+	region_flag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	region_flag.add_theme_font_override("font", MenuIcons.flags_font())
+	region_flag.add_theme_font_size_override("font_size", 30)
+	region_flag.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	region_flag.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	region_flag.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	region_flag.offset_left = -12
+	region_flag.offset_right = -12
+	region_flag.offset_top = -8
+	region_flag.offset_bottom = -8
+	region_flag.visible = false
+	main.add_child(region_flag)
+
 	# "Pack" is last and shows only for a .bs: what is written on a Satellaview
 	# memory pack, which the row itself can only summarise.
 	for n: String in ["Detail", "Saves", "Manual", "Scrape", "Pack"]:
@@ -1467,6 +1483,10 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	if systemid == EReaderCards.SYSTEMID and not local_path.is_empty():
 		strips.text = EReaderCards.strip_summary(EReaderCards.card_for_path(local_path))
 	strips.visible = not strips.text.is_empty()
+
+	var region_flag := main.get_node("RegionFlag") as Label
+	region_flag.text = MenuIcons.region_flags(_row_regions(cat_index, systemid, local_path))
+	region_flag.visible = not region_flag.text.is_empty()
 
 	# A scraped wheel logo replaces the title text entirely; otherwise the title
 	# scrolls. MarqueeButton extends Button, so it carries the icon itself.
@@ -1703,6 +1723,23 @@ func _romm_row_meta(systemid: String, local_path: String) -> Dictionary:
 	}
 	_romm_meta_cache[local_path] = meta
 	return meta
+
+
+## A row's regions: RomM's for a server row, else the region the gamelist holds
+## for that file — the only source a local-only file has.
+func _row_regions(cat_index: int, systemid: String, local_path: String) -> PackedStringArray:
+	var regions: PackedStringArray = romm_catalog.regions_at(cat_index) \
+		if cat_index >= 0 else PackedStringArray()
+	if not regions.is_empty() or local_path.is_empty():
+		return regions
+	var game: Dictionary = _romm_row_meta(systemid, local_path)["game"]
+	for rom: Dictionary in game.get("roms", []):
+		if str(rom.get("path", "")).get_file() == local_path.get_file():
+			var region := str(rom.get("region", ""))
+			if not region.is_empty():
+				regions.append(region)
+			break
+	return regions
 
 
 ## Rows are recycled, so every connection from the previous bind must go.
@@ -2881,14 +2918,22 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 
 		row.add_child(rom_btn)
 
-		# Region label
+		# Region: its flag, or the word for a region that has none
 		var region_str: String = rom.get("region", "")
 		if not region_str.is_empty():
 			var region_lbl := Label.new()
-			region_lbl.text = region_str
-			region_lbl.add_theme_font_size_override("font_size", 14)
-			region_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+			var flag := MenuIcons.region_flag(region_str)
+			if flag.is_empty():
+				region_lbl.text = region_str
+				region_lbl.add_theme_font_size_override("font_size", 14)
+				region_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+			else:
+				region_lbl.text = flag
+				region_lbl.add_theme_font_override("font", MenuIcons.flags_font())
+				region_lbl.add_theme_font_size_override("font_size", 30)
 			region_lbl.custom_minimum_size = Vector2(50, 0)
+			region_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			region_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 			row.add_child(region_lbl)
 
 		# Manual button

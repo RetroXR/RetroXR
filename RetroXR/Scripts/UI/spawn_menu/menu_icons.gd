@@ -12,6 +12,64 @@ extends RefCounted
 
 const FONT_PATH := "res://fonts/SymbolsNerdFont-Regular.ttf"
 const ROMM_MARK_PATH := "res://Textures/RomM/romm_logo.svg"
+## A subset of Noto Color Emoji holding only the flags below. No platform font
+## can be trusted for them: Windows' emoji font has no flags at all.
+const FLAGS_FONT_PATH := "res://fonts/NotoColorEmoji-Flags.ttf"
+
+## Region name or code, lowercased, to the ISO 3166 country whose flag it draws.
+const REGION_FLAGS := {
+	"usa": "US", "us": "US",
+	"europe": "EU", "eu": "EU",
+	"japan": "JP", "jp": "JP",
+	"germany": "DE", "de": "DE",
+	"france": "FR", "fr": "FR",
+	"italy": "IT", "it": "IT",
+	"spain": "ES", "es": "ES",
+	"korea": "KR", "kr": "KR",
+	"australia": "AU", "au": "AU",
+	"netherlands": "NL", "nl": "NL",
+	"taiwan": "TW", "tw": "TW",
+	"russia": "RU", "ru": "RU",
+	"uk": "GB", "united kingdom": "GB", "england": "GB",
+	"brazil": "BR", "br": "BR",
+	"sweden": "SE", "se": "SE",
+	"china": "CN", "cn": "CN",
+	"finland": "FI", "fi": "FI",
+	"canada": "CA", "ca": "CA",
+	"norway": "NO", "no": "NO",
+	"greece": "GR", "gr": "GR",
+	"hong kong": "HK", "hk": "HK",
+	"denmark": "DK", "dk": "DK",
+	"portugal": "PT", "pt": "PT",
+	"poland": "PL", "pl": "PL",
+	"mexico": "MX", "mx": "MX",
+	"argentina": "AR", "ar": "AR",
+	"india": "IN", "in": "IN",
+	"belgium": "BE", "be": "BE",
+	"switzerland": "CH", "ch": "CH",
+	"austria": "AT", "at": "AT",
+	"new zealand": "NZ", "nz": "NZ",
+	"israel": "IL", "il": "IL",
+	"czech": "CZ", "cz": "CZ",
+	"croatia": "HR", "hr": "HR",
+	"turkey": "TR", "tr": "TR",
+	"south africa": "ZA", "za": "ZA",
+	"ireland": "IE", "ie": "IE",
+	"singapore": "SG", "sg": "SG",
+	"thailand": "TH", "th": "TH",
+	"indonesia": "ID", "id": "ID",
+	"malaysia": "MY", "my": "MY",
+	"philippines": "PH", "ph": "PH",
+	"vietnam": "VN", "vn": "VN",
+	"ukraine": "UA", "ua": "UA",
+	"hungary": "HU", "hu": "HU",
+	"romania": "RO", "ro": "RO",
+}
+## Regions drawn by something other than a two-letter country flag.
+const REGION_GLYPHS := {
+	"world": [0x1F310], "wor": [0x1F310],
+	"asia": [0x1F30F], "asi": [0x1F30F],
+}
 
 # Two different delete glyphs is deliberate: the pictogram encodes whether the
 # file can be got back. (At row size the two trash cans look near-identical, so
@@ -74,6 +132,7 @@ static var _font: FontVariation = null
 ## base font instance id -> the same font with the glyphs behind it.
 static var _wrapped: Dictionary = {}
 static var _romm_mark: Texture2D = null
+static var _flags_font: FontFile = null
 
 
 ## The theme font with the Nerd Font behind it as a fallback, so a Label can
@@ -105,6 +164,43 @@ static func with_symbols(base: Font) -> Font:
 		fv.fallbacks = [glyphs]
 	_wrapped[key] = fv
 	return fv
+
+
+## The font region_flag() strings must be drawn in. Its glyphs are colour
+## bitmaps at one embedded size, scaled to the label's font size — which is why
+## its import keeps embedded bitmaps and generates mipmaps.
+static func flags_font() -> FontFile:
+	if _flags_font == null:
+		_flags_font = load(FLAGS_FONT_PATH) as FontFile
+		if _flags_font != null:
+			_flags_font.fixed_size_scale_mode = TextServer.FIXED_SIZE_SCALE_ENABLED
+	return _flags_font
+
+
+## The flag for one region as RomM or ScreenScraper names it, or "" for a region
+## with none (Unknown, Unlicensed, Public Domain).
+static func region_flag(region: String) -> String:
+	var key := region.strip_edges().to_lower()
+	if REGION_GLYPHS.has(key):
+		var glyphs := ""
+		for cp: int in REGION_GLYPHS[key]:
+			glyphs += String.chr(cp)
+		return glyphs
+	var iso := str(REGION_FLAGS.get(key, ""))
+	if iso.length() != 2:
+		return ""
+	return String.chr(0x1F1E6 + iso.unicode_at(0) - 65) \
+		+ String.chr(0x1F1E6 + iso.unicode_at(1) - 65)
+
+
+## Each distinct flag for a row's regions, in order.
+static func region_flags(regions: PackedStringArray) -> String:
+	var out := PackedStringArray()
+	for r: String in regions:
+		var flag := region_flag(r)
+		if not flag.is_empty() and flag not in out:
+			out.append(flag)
+	return "".join(out)
 
 
 ## The RomM logo, for marking rows that came from the server. Null if absent.
