@@ -378,7 +378,7 @@ func _poll_cards() -> void:
 		return
 	for slot in card_slot_count():
 		var card := get_snapped_memcard(slot)
-		if card == null:
+		if card == null or not ("card_id" in card):
 			continue
 		var path := SramPaths.find_card(str(card.get("card_id")), card_family())
 		if path.is_empty():
@@ -648,6 +648,9 @@ func _slot_summary(paths: Array[String]) -> String:
 		if card == null:
 			out.append("%d=empty" % slot)
 			continue
+		if card.get("is_microphone") == true:
+			out.append("%d=microphone" % slot)
+			continue
 		var path := paths[slot] if slot < paths.size() else ""
 		out.append("%d=%s" % [slot,
 			path.get_file() if not path.is_empty() else "UNRESOLVED"])
@@ -700,7 +703,17 @@ func _mount_core_cards(resolved_core: String, paths: Array[String]) -> void:
 	const KEYS := ["dolphin_memcard_a_path", "dolphin_memcard_b_path"]
 	for slot in KEYS.size():
 		var path := paths[slot] if slot < paths.size() else ""
-		_host.set_core_option(KEYS[slot], path if not path.is_empty() else "none")
+		_host.set_core_option(KEYS[slot], dolphin_slot_value(path, get_snapped_memcard(slot)))
+
+
+## What Dolphin's per-slot option says: the card's image, "mic" for a seated
+## GameCube Microphone, or "none".
+static func dolphin_slot_value(path: String, seated: Node3D) -> String:
+	if not path.is_empty():
+		return path
+	if seated != null and seated.get("is_microphone") == true:
+		return "mic"
+	return "none"
 
 
 ## Copy every seated card into the directory the core will look in, and point it

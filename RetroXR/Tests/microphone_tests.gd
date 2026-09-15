@@ -59,6 +59,10 @@ func _ready() -> void:
 		_test_binding()
 	if _wants("ds"):
 		_test_ds_pins()
+	if _wants("gc"):
+		await _test_gc()
+	if _wants("persist"):
+		await _test_gc_persist()
 	AppPrefs.microphone_enabled = saved_pref
 
 	print("[microphone] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -192,3 +196,100 @@ func _test_ds_pins() -> void:
 		"ds/both keys are hardware-pinned for the core manager")
 	ds.free()
 
+
+func _test_gc() -> void:
+	var loose := GcMicrophonePlug.new()
+	_ok(MemoryCardController.dolphin_slot_value("C:/cards/a.raw", null) == "C:/cards/a.raw",
+		"gc/a card's image is passed through")
+	_ok(MemoryCardController.dolphin_slot_value("", loose) == "mic", "gc/a seated microphone mounts as mic")
+	_ok(MemoryCardController.dolphin_slot_value("", null) == "none", "gc/an empty slot is none")
+	loose.free()
+
+	_ok(str(ForcedCoreOptions.microphone_hotkey("dolphin", "gamecube")
+			.get("dolphin_hotkey_activate_microphone", "")) == "R3",
+		"gc/the microphone button is pinned to R3")
+	_ok(ForcedCoreOptions.microphone_hotkey("dolphin", "wii").is_empty(), "gc/not on a Wii")
+	_ok(ForcedCoreOptions.microphone_hotkey("snes9x", "gamecube").is_empty(), "gc/not on another core")
+	_ok(CoreOptionsStore.HARDWARE_PINNED.has("dolphin_hotkey_activate_microphone"),
+		"gc/the hotkey is hardware-pinned for the core manager")
+
+	var gc := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+	gc.systemid = "gamecube"
+	add_child(gc)
+	var mic := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn").instantiate() as GcMicrophone
+	add_child(mic)
+	mic.global_position = gc.global_position + Vector3(0, 0, 3.0)
+	for i in range(3):
+		await get_tree().process_frame
+	var plug := mic.get_plug()
+	_ok(plug != null, "gc/the stick grows its cord and plug")
+	if plug == null:
+		gc.queue_free()
+		mic.queue_free()
+		return
+
+	var slots := gc.memcard_slots()
+	_ok(slots.size() == 2 and slots[0].can_preview(plug) and slots[1].can_preview(plug),
+		"gc/the plug is offered by both card slots")
+	gc.restore_memory_card(plug, 1)
+	await get_tree().process_frame
+	_ok(gc.get_snapped_memcard(1) == plug, "gc/seated in slot B")
+	_ok(plug.seated_system() == gc and plug.seated_slot() == 1, "gc/and knows where it is")
+	_ok(gc.microphone_position().is_equal_approx(mic.global_position),
+		"gc/the machine hears from the stick, not the slot")
+
+	gc.queue_free()
+	mic.drop_and_free()
+	for i in range(30):
+		await get_tree().process_frame
+
+
+func _test_gc_persist() -> void:
+	const SLOT := "__microphone_selftest"
+	var slot_file := "user://scenes/arcade/%s.json" % SLOT
+	get_tree().current_scene = self
+
+	var gc := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+	gc.systemid = "gamecube"
+	add_child(gc)
+	gc.add_to_group("spawned")
+	var mic := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn").instantiate() as GcMicrophone
+	add_child(mic)
+	for i in range(3):
+		await get_tree().process_frame
+	gc.restore_memory_card(mic.get_plug(), 1)
+	await get_tree().process_frame
+
+	var sp := ScenePersistence.new("arcade")
+	_ok(sp.save_slot(self, SLOT), "persist/the room saves")
+	var raw: Variant = JSON.parse_string(FileAccess.get_file_as_string(slot_file))
+	var entry: Dictionary = {}
+	if raw is Dictionary:
+		for o: Variant in (raw as Dictionary).get("objects", []):
+			if str((o as Dictionary).get("type", "")) == "gc_microphone":
+				entry = o as Dictionary
+	_ok(int(entry.get("slot", -1)) == 1 and entry.get("system") != null,
+		"persist/the stick records slot B of its console")
+
+	sp.clear_scene(self)
+	for i in range(20):
+		await get_tree().physics_frame
+	await sp.load_slot_async(self, SLOT)
+	for i in range(40):
+		await get_tree().physics_frame
+
+	var back_mic: GcMicrophone = null
+	var back_sys: RetroSystem = null
+	for n in get_tree().get_nodes_in_group("spawned"):
+		if n is GcMicrophone:
+			back_mic = n as GcMicrophone
+		elif n is RetroSystem:
+			back_sys = n as RetroSystem
+	_ok(back_mic != null and back_sys != null and back_mic.seated_system() == back_sys
+			and back_mic.seated_slot() == 1,
+		"persist/and comes back seated there")
+
+	sp.clear_scene(self)
+	for i in range(10):
+		await get_tree().physics_frame
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(slot_file))

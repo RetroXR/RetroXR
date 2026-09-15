@@ -193,6 +193,7 @@ const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/ru
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
+const GC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn")
 const TRANSFER_PAK_SCENE     := preload("res://Scenes/Objects/controllers/n64/transfer_pak.tscn")
 const SENSOR_BAR_SCENE       := preload("res://Scenes/Objects/system_models/wii/sensor_bar.tscn")
 const RF_SWITCH_SCENE        := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
@@ -275,6 +276,8 @@ const PLAIN_SCENES := {
 	# Pose only, like the Rumble Pak: which slot it is in is saved on the
 	# controller holding it, not here.
 	"jump_pack": JUMP_PACK_SCENE,
+	# A pose here; which card slot its plug is in is applied by _apply_references.
+	"gc_microphone": GC_MICROPHONE_SCENE,
 	# The bar's own entry is a pose; which console it is plugged into is applied
 	# afterwards by _apply_references, like the remote's pairing.
 	"sensor_bar": SENSOR_BAR_SCENE,
@@ -1431,6 +1434,11 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	elif obj is SensorBar:
 		(obj as SensorBar).restore_connection(
 			_resolve_ref(root, spawned, d.get("system")) as RetroSystem)
+	elif obj is GcMicrophone:
+		var mic_slot := int(d.get("slot", -1))
+		var mic_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+		if mic_slot >= 0 and mic_sys != null:
+			(obj as GcMicrophone).restore_seat(mic_sys, mic_slot)
 	elif obj is InputReceiver:
 		# A pak goes back whether or not the receiver was plugged into anything —
 		# a loose dongle can still have one on it, exactly as a loose N64 pad can.
@@ -1646,8 +1654,10 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		# The DS's GBA slot. Its own key, as memcard_b is, so a room saved before
 		# there was a second slot still loads.
 		"cartridge_b": _ref(node_to_id, sys.get_slot2_cartridge()),
-		"memcard": _ref(node_to_id, sys.get_snapped_memcard(0)),
-		"memcard_b": _ref(node_to_id, sys.get_snapped_memcard(1)),
+		# Cards only: a GameCube Microphone's plug is seated here too, and it is
+		# restored from the stick's own entry.
+		"memcard": _ref(node_to_id, sys.get_snapped_memcard(0) as MemoryCard),
+		"memcard_b": _ref(node_to_id, sys.get_snapped_memcard(1) as MemoryCard),
 		# Null once a player has pulled the lid off and put it down — a
 		# state worth keeping, since the pak under it is only reachable
 		# while the lid stays off.
@@ -1778,6 +1788,14 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# own. It needs a branch here all the same, because PLAIN_SCENES is
 		# only read when LOADING -- without this it saves as nothing.
 		return _base(id, "jump_pack", n3d)
+	elif node is GcMicrophone:
+		# The plug is on the cord rather than an entry of its own, so the stick
+		# records where it is seated.
+		var mic := node as GcMicrophone
+		return _base(id, "gc_microphone", n3d).merged({
+			"system": _ref(node_to_id, mic.seated_system()),
+			"slot": mic.seated_slot(),
+		})
 	elif node is MotionPlus:
 		# Pose only, for the reason the Nunchuk above gives: which remote it is
 		# seated in is saved on that remote. It needs a branch here all the same,

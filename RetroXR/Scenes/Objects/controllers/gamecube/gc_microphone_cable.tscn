@@ -1,0 +1,82 @@
+[gd_scene format=3]
+
+; The GameCube Microphone's 2 m cord and its plug. Rope as nunchuk_cable.tscn,
+; 56 x 36 mm, black. The plug is 35.6 x 13.7 x 63 mm: a card-thick tongue that
+; enters the slot and a housing that stays out of it. Long axis Z, connector end
+; at -Z where a memory card's is, so a seated plug sits as deep as a card.
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/gc_microphone_plug.gd" id="1_plug"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.0356, 0.0137, 0.063)
+
+[sub_resource type="BoxMesh" id="BoxMesh_tongue"]
+size = Vector3(0.0356, 0.006, 0.04)
+
+[sub_resource type="BoxMesh" id="BoxMesh_housing"]
+size = Vector3(0.0356, 0.0137, 0.023)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug"]
+albedo_color = Color(0.7, 0.71, 0.73, 1)
+roughness = 0.6
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.0556, 0.0337, 0.083)
+
+[node name="GcMicrophoneCable" type="Node3D"]
+
+[node name="MicPlug" type="RigidBody3D" parent="." groups=["memory_card"]]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.03
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_plug")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MicPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.006)
+shape = SubResource("BoxShape3D_plug")
+
+[node name="Tongue" type="MeshInstance3D" parent="MicPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0055)
+mesh = SubResource("BoxMesh_tongue")
+surface_material_override/0 = SubResource("Mat_plug")
+
+[node name="Housing" type="MeshInstance3D" parent="MicPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.026)
+mesh = SubResource("BoxMesh_housing")
+surface_material_override/0 = SubResource("Mat_plug")
+
+[node name="PickableHighlight" type="Node3D" parent="MicPlug"]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="MicPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MicPlug/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.006)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 56
+segment_length = 0.036
+constraint_iterations = 8
+bend_stiffness = 0.15
+tube_radius = 0.0015
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.07, 0.07, 0.08, 1.0)
+surface_collision_mask = 7
+collision_radius = 0.0036
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.3
+end_stiff_segments = 2

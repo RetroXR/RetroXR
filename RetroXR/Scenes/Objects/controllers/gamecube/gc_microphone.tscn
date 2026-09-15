@@ -1,0 +1,113 @@
+[gd_scene format=3]
+
+; The GameCube Microphone (DOL-022). 21 x 140 mm stick, long axis Z, grille end
+; at -Z and the cord leaving the flat rear end at +Z. Aqua push-to-talk button
+; on +Y, its centre 43 mm from the tip. Every cylinder here is rotated Y -> Z.
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/gc_microphone.gd" id="1_mic"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_stick"]
+height = 0.14
+radius = 0.0105
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_stick"]
+top_radius = 0.0105
+bottom_radius = 0.0105
+height = 0.14
+radial_segments = 24
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_stick"]
+albedo_color = Color(0.7, 0.71, 0.73, 1)
+roughness = 0.55
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_cap"]
+top_radius = 0.0102
+bottom_radius = 0.0106
+height = 0.0045
+radial_segments = 24
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_grille"]
+top_radius = 0.0107
+bottom_radius = 0.0107
+height = 0.008
+radial_segments = 24
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_grille"]
+albedo_color = Color(0.2, 0.2, 0.22, 1)
+roughness = 0.8
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_button"]
+top_radius = 0.0055
+bottom_radius = 0.0057
+height = 0.003
+radial_segments = 20
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_button"]
+albedo_color = Color(0.25, 0.74, 0.78, 1)
+roughness = 0.45
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_stick"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_pointer"]
+height = 0.16
+radius = 0.025
+
+[node name="GcMicrophone" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_stick")
+mass = 0.07
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_mic")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+shape = SubResource("CylinderShape3D_stick")
+
+[node name="Stick" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CylinderMesh_stick")
+surface_material_override/0 = SubResource("Mat_stick")
+
+[node name="TipCap" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.0678)
+mesh = SubResource("CylinderMesh_cap")
+surface_material_override/0 = SubResource("Mat_stick")
+
+[node name="GrilleFront" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.061)
+mesh = SubResource("CylinderMesh_grille")
+surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="GrilleRear" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.047)
+mesh = SubResource("CylinderMesh_grille")
+surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="Button" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0117, -0.027)
+mesh = SubResource("CylinderMesh_button")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="CableAttachPoint" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.07)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+shape = SubResource("CylinderShape3D_pointer")

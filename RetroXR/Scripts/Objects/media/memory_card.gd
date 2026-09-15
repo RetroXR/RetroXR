@@ -42,7 +42,10 @@ func _ready() -> void:
 	# of saves. Number them in the order they appear so two can be told apart on
 	# sight. A restored card arrives with its name already set and keeps it.
 	if card_label == "MEMORY CARD":
-		card_label = "MEMORY CARD %d" % get_tree().get_nodes_in_group("memory_card").size()
+		# The group also holds GameCube Microphone plugs, which are not numbered.
+		var cards := get_tree().get_nodes_in_group("memory_card").filter(
+			func(n: Node) -> bool: return n is MemoryCard)
+		card_label = "MEMORY CARD %d" % cards.size()
 	# Name before id: the id is the name, made unique against what is on disk so
 	# two cards can never end up sharing one image.
 	if card_id.is_empty():

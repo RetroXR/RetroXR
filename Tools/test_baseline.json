@@ -18,6 +18,7 @@
     "link_tests": 190,
     "loading_overlay_tests": 39,
     "locomotion_tests": 24,
+    "microphone_tests": 42,
     "mod_tests": 165,
     "motion_tests": 55,
     "netplay_tests": 685,

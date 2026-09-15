@@ -51,6 +51,7 @@ const _PERIPHERALS: Dictionary = {
 	],
 	"gamecube": [
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
+		{"kind": "peripheral", "label": "Microphone", "spawn": "gc_microphone"},
 	],
 	# Listed here rather than left to the console's own card row, for the same
 	# reason the N64's paks are: a VMU goes into a CONTROLLER, and none of the

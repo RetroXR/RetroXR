@@ -31,7 +31,16 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(bios_pinned(core, systemid, rom_path), true)
 	out.merge(declared_frame_rate(core), true)
 	out.merge(vmu_sound(core), true)
+	out.merge(microphone_hotkey(core, systemid), true)
 	return out
+
+
+## The GameCube Microphone's button. Dolphin reads it from the joypad bit this
+## option names, on any port; GcMicrophone holds R3, which no GameCube pad sends.
+static func microphone_hotkey(core: String, systemid: String) -> Dictionary:
+	if not core.begins_with("dolphin") or systemid != "gamecube":
+		return {}
+	return {"dolphin_hotkey_activate_microphone": "R3"}
 
 
 ## Make the console report an EMPTY slot when no card is seated.
