@@ -75,6 +75,8 @@ var _loaded_systemid: String = ""
 var _offsets := PackedInt64Array()
 var _ids := PackedInt32Array()
 var _names := PackedStringArray()
+## _names through SearchFold, built on the first search().
+var _search_names := PackedStringArray()
 ## Parallel sidecars, so filtering and dedupe never parse JSON.
 var _fs_names := PackedStringArray()
 var _regions := PackedStringArray()
@@ -388,6 +390,7 @@ func unload_index() -> void:
 	_offsets = PackedInt64Array()
 	_ids = PackedInt32Array()
 	_names = PackedStringArray()
+	_search_names = PackedStringArray()
 	# Cleared too, or has_fast_sidecars() compares the previous platform's
 	# arrays against the new one's offsets and can claim a fast path that is
 	# not there.
@@ -577,16 +580,20 @@ func rom_id_at(i: int) -> int:
 	return _ids[i]
 
 
-## Case-insensitive substring search over the cached names — no server round
-## trip, works offline, and instant even at 100k rows. Returns row indices.
+## Case- and accent-insensitive substring search over the cached names (see
+## SearchFold) — no server round trip, works offline, and instant even at 100k
+## rows. Returns row indices.
 ## `limit` caps the result so a one-letter query can't build a huge array.
 func search(term: String, limit: int = 5000) -> PackedInt32Array:
 	var out := PackedInt32Array()
-	var needle := term.strip_edges()
-	if needle.is_empty():
+	var needle := SearchFold.fold(term.strip_edges())
+	if needle.is_empty() or _names.is_empty():
 		return out
-	for i in _names.size():
-		if _names[i].containsn(needle):
+	# Folded once per loaded platform, on the first search.
+	if _search_names.size() != _names.size():
+		_search_names = SearchFold.fold("\n".join(_names)).split("\n")
+	for i in _search_names.size():
+		if _search_names[i].contains(needle):
 			out.append(i)
 			if out.size() >= limit:
 				break

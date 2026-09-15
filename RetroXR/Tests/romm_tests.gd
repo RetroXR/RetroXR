@@ -84,6 +84,7 @@ func _ready() -> void:
 	_test_collapse_variants()
 	_test_ghost_rows()
 	_test_index_rewrite()
+	_test_accent_search()
 	await _test_http_stalls()
 	_test_rom_hasher()
 
@@ -2166,6 +2167,71 @@ func _test_index_rewrite() -> void:
 	_eq(str(meta.get("updated_after", "")),
 		"2026-08-26T22:43:21+00:00", "rewrite/meta watermark preserved")
 	_eq(int(meta.get("platform_id", 0)), 143, "rewrite/meta platform preserved")
+
+	cat.unload_index()
+	cat.free()
+	_rm_rf(dir)
+
+
+## "pokemon" found no "Pokémon": the search compared accents literally.
+func _test_accent_search() -> void:
+	_eq(SearchFold.fold("Pokémon"), "pokemon", "accents/fold drops the accent")
+	_eq(SearchFold.fold("POKÉMON"), "pokemon", "accents/fold lowers an accented capital")
+	_eq(SearchFold.fold("Pokémon"), "pokemon", "accents/fold drops a combining mark")
+	_eq(SearchFold.fold("Straße"), "strasse", "accents/ß folds to ss")
+	_eq(SearchFold.fold("Ærøskøbing"), "aeroskobing", "accents/æ and ø fold")
+	_eq(SearchFold.fold("ŁÓDŹ"), "lodz", "accents/Latin Extended-A capitals fold")
+	_eq(SearchFold.fold("ポケモン"), "ポケモン", "accents/kana passes through")
+	_eq(SearchFold.fold("Mega Man 2"), "mega man 2", "accents/ASCII is only lowercased")
+
+	var dir := RommCatalog.index_dir(TEST_SYSTEM)
+	_rm_rf(dir)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var write := func(names: Array) -> void:
+		var lines := {}
+		for i in names.size():
+			var id := (i + 1) * 11
+			lines[id] = JSON.stringify({"id": id, "name": names[i],
+				"sort_name": str(names[i]).to_lower(), "fs_name": "%d.gb" % id, "regions": []})
+		var written := RommCatalog._write_index(dir, RommCatalog._rows_from_lines(lines))
+		_eq(str(written["error"]), "", "accents/index written")
+
+	var blue := "Pokémon Blue Version (France)"
+	var puzzle := "Pokemon Puzzle League"
+	var yellow := "POKÉMON YELLOW"
+	var gold := "Pokémon Gold"
+	var poko := "Peke to Poko no Daruman Busters"
+	write.call([blue, puzzle, yellow, gold, poko])
+
+	var cat := RommCatalog.new()
+	var found := func(term: String) -> Array:
+		var got: Array = []
+		for i: int in cat.search(term):
+			got.append(cat.name_at(i))
+		got.sort()
+		return got
+	var sorted := func(names: Array) -> Array:
+		var s := names.duplicate()
+		s.sort()
+		return s
+
+	_ok(cat.load_index(TEST_SYSTEM), "accents/index loads")
+	_eq(found.call("pokemon"), sorted.call([blue, puzzle, yellow, gold]),
+		"accents/pokemon finds every spelling")
+	_eq(found.call("Pokémon"), sorted.call([blue, puzzle, yellow, gold]),
+		"accents/an accented query finds the plain spelling")
+	_eq(found.call("émon gold"), [gold], "accents/a composed query finds a decomposed name")
+	_eq(found.call("pok"), sorted.call([blue, puzzle, yellow, gold, poko]),
+		"accents/a prefix still matches")
+	_ok(blue in found.call("pokemon"), "accents/the row keeps its accented name")
+
+	# Same row count, different names: a fold kept from the last platform would
+	# still answer for the old one.
+	cat.unload_index()
+	write.call(["Alpha", "Beta", "Gamma", "Delta", "Epsilon"])
+	_ok(cat.load_index(TEST_SYSTEM), "accents/replacement index loads")
+	_eq(found.call("pokemon"), [], "accents/a reloaded index is folded afresh")
+	_eq(found.call("gamma"), ["Gamma"], "accents/the replacement is searchable")
 
 	cat.unload_index()
 	cat.free()

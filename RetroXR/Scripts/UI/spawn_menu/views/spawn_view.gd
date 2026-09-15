@@ -1126,6 +1126,7 @@ func _rebuild_romm_rows() -> void:
 
 	# 3. Local-only files the server doesn't know about. The extension filter
 	# skipped in step 1 applies here, or gamelist.json lists itself as a ROM.
+	var needle := SearchFold.fold(_romm_filter)
 	for key: String in local_by_name:
 		if matched.has(key):
 			continue
@@ -1141,7 +1142,7 @@ func _rebuild_romm_rows() -> void:
 		if not _romm_detail_exts.is_empty() and ext not in _romm_detail_exts:
 			continue
 		var label := str(rom["label"])
-		if not _romm_filter.is_empty() and not label.containsn(_romm_filter):
+		if not needle.is_empty() and not SearchFold.fold(label).contains(needle):
 			continue
 		# A local-only file has no server metadata, so it has no region to match.
 		if not _romm_row_passes("local", PackedStringArray()):
