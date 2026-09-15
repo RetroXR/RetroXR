@@ -182,6 +182,10 @@ const RECOMMENDED := {
 		"core": "flycast",
 		"why":  "The only maintained Dreamcast core, and it runs well on both platforms",
 	},
+	"vmu": {
+		"core": "vemulator",
+		"why":  "The only VMU core here, and the retroXR build is the one that loads a game on Quest and survives being powered off",
+	},
 	"model3": {
 		"core": "supermodel",
 		"why":  "The only Model 3 core here",
