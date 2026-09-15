@@ -19,6 +19,10 @@ const ROW := {
 	"loader": MediaDimensions.LOADER_NONE,
 	"card": "sega_cd",
 	"memory": "sega_cd_ram_cart",
+	# Its name on the face that looks out of the slot. On the back face, where
+	# the other cartridge-mounted units wear theirs, it was the side that could
+	# not be read.
+	"label_front": true,
 }
 
 

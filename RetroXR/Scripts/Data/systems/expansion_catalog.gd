@@ -285,6 +285,12 @@ static func memory_of(id: String) -> String:
 	return str(row(id).get("memory", ""))
 
 
+## Whether a unit that mounts as a cartridge wears its name on its front face
+## rather than the one a console's slot turns away. See RetroExpansion._build_body.
+static func label_front_of(id: String) -> bool:
+	return bool(row(id).get("label_front", false))
+
+
 ## The unit whose memory is this card family, or "" -- how a card shelf listing
 ## that memory knows what to put in the room.
 static func unit_for_memory(family: String) -> String:

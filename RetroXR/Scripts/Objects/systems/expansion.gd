@@ -226,7 +226,9 @@ func _build_body() -> void:
 	# cartridge is swallowed by a console and read from the other side: the
 	# console's slot seats it facing away, so a name on +Z is the face nobody can
 	# see, printed backwards through the shell.
-	var cartridge := mount == ExpansionCatalog.MOUNT_CARTRIDGE
+	# A row can say otherwise (label_front).
+	var cartridge := mount == ExpansionCatalog.MOUNT_CARTRIDGE \
+		and not ExpansionCatalog.label_front_of(expansion_id)
 	var label_z := (-s.z * 0.5 - 0.001) if cartridge else (s.z * 0.5 + 0.001)
 	_label.position = Vector3(0.0, label_y, label_z)
 	_label.rotation = Vector3(0.0, PI, 0.0) if cartridge else Vector3.ZERO
