@@ -1517,6 +1517,67 @@ off even with the library loaded, printing `not available ()` with an empty erro
 The probe enables it for its own run. A desktop player with that option off hears
 the remote from the television, which is the fallback working, not a bug.
 
+### 2m. Sega CD backup memory — on the unit, on a cartridge, written at unload
+
+A Sega CD game saves to the 8 KB of backup RAM inside the unit or to a Backup RAM
+Cartridge in the Mega Drive's slot. Both are modelled: the `sega_cd` unit's row
+declares `"memory": "sega_cd_memory"`, so the RetroExpansion carries a card id
+saved with the room, and `sega_cd_ram_cart` is a MOUNT_CARTRIDGE unit with no BOOT
+key whose memory family is `sega_cd_ram_cart`. The unit's memory is managed from
+the console's System Settings **Saves** tab (a switch appears when a cartridge is
+seated too); the cartridge also opens its own card panel and lives on the card
+shelf, offered from the Sega CD's card.
+
+**genesis_plus_gx never hands either over.** Read at source: both live in files in
+`<root>/save/<core>`, read in `retro_load_game` (`bram_load`) and written only in
+`retro_unload_game` (`bram_save`) — no SAVE_RAM, no memory map, not in savestates,
+no periodic flush. `SegaCdStorage` pins the names for the run
+(`genesis_plus_gx_system_bram` per bios, `_cart_bram` per cart, `_cart_size` from the
+seated cartridge's image or disabled), stages the unit's image into all three
+`scd_U/E/J.brm` (the region is the disc's, unknown until load) and the cartridge's
+into `<size>_cart.brm`, then drains the file the core rewrote back to the image
+that filled it for 12 s after StopContent, and clears the folder. A manifest on
+disk lets a crash between the two recover at the next start. Files nobody's
+manifest claims are older saves: moved into `legacy/`, never over, and a new unit
+or cartridge starts from the most recent that fits. The folder is shared by every
+machine on the core, so a second Sega CD is refused while it is in use.
+
+The format is `SegaCdBram`, whose error correction is transliterated from buram
+(Ian Karlsson, MIT); `card_tests` pins buram's own output for the same operations
+by SHA-256, and `expansion_tests` covers staging (`scd_storage/`) and the units
+and tab (`memory/`).
+
+**Measured 2026-09-14** with `Tools/cores/sega_cd_bram_probe`, US BIOS 1.10:
+
+- Its DATA STORAGE INFORMATION screen reports the staged images' own counts — 1
+  item, 124 free built-in; 1 item, 252 free on a 128 Kbit cartridge.
+- ERASE ITEM lists `RETROXR_MEM` by name, so the BIOS decodes the directory
+  SegaCdBram writes, not just its counters.
+- The BIOS's own COPY built-in → RAM, confirmed, leaves a cartridge file that
+  SegaCdBram reads back as `RETROXR_CRT` + `RETROXR_MEM`, 250 free: a write by the
+  real BIOS, through the core's unload, read by ours.
+- With the cartridge **disabled**, the stock core's BIOS says the cartridge memory
+  "IS NOT PRESENT". The source reads as if "disabled" (0xFF) still maps a cartridge,
+  and a patched core behaves identically, so no fork is needed for it.
+
+```bash
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 \
+  res://Tools/cores/sega_cd_bram_probe.tscn -- --root=<root with system/bios_CD_U.bin and cores/> \
+  --cart=128k --at=11 --press=4:start,6:down,6.8:right,7.6:b --shot=C:/tmp/scd.png
+```
+
+That press list reaches the storage screen; B there opens the MENU (FORMAT, ERASE
+ITEM and COPY for each memory, cursor on EXIT). A copy's confirmation defaults to
+NO, so LEFT before B. Point `--root` at a throwaway root: the probe writes its
+`save/` and `core_options/`.
+
+Still owed, and why: picodrive (the Tower of Power runs on it) has its own route
+and is not covered; netplay and savestates carry no backup memory, because the
+core keeps it outside both; a crash before the core unloads loses that session's
+writes, because nothing reaches disk until then; and the four options that
+rebuild the machine (`system_hw`, `bios`, `region_detect`, `vdp_mode`) zero both
+memories mid-game, so they are held while a Sega CD runs.
+
 ### 3. Capturing a real screenshot on Linux (for visual validation)
 `--headless` uses the dummy renderer — it **cannot** produce a screenshot (a probe that awaits
 `RenderingServer.frame_post_draw` just hangs; `get_image()` is blank). To actually render a
