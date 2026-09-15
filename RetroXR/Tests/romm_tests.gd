@@ -709,8 +709,8 @@ func _test_saves_beside_games() -> void:
 	_eq(flags[5], 1, "saves/a .state.auto pairs with its game past the .state in its stem")
 	_eq(flags[7], 0, "saves/a save with no game of its name stays visible")
 	_eq([flags[8], flags[9]], [1, 0], "saves/a .zip game hides its save and keeps its row")
-	_eq([flags[10], flags[11]], [0, 1], "saves/a disc track is still hidden beside its cue")
-	_eq(RommCatalog.count_shown(bases, exts), 5, "saves/the tile count agrees with the list")
+	_eq([flags[10], flags[11]], [0, 0], "saves/a disc's cue and track are not saves")
+	_eq(RommCatalog.count_shown(bases, exts), 6, "saves/the tile count agrees with the list")
 
 
 ## The flag on a ROM row and in the variants list. The region values are the

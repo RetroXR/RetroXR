@@ -704,11 +704,11 @@ func _populate_cartridges_tab() -> void:
 
 	# Mark tiles backed by the server with the RomM isotipo and its ROM count.
 	#
-	# The server's own rom_count counts every row it holds, disc tracks included
-	# — 59,346 for a PlayStation library whose list shows 9,927. Once a platform
-	# is synced its index knows what the list will show, so that wins; the server
-	# count is the fallback for a platform never synced, where a number that is
-	# too big still beats no number at all.
+	# The server's own rom_count counts every row it holds, saves kept beside
+	# their games included. Once a platform is synced its index knows what the
+	# list will show, so that wins; the server count is the fallback for a
+	# platform never synced, where a number that is too big still beats no
+	# number at all.
 	var mark: Texture2D = MenuIcons.romm_mark()
 	for s: Dictionary in systems:
 		var sid: String = s["systemid"]
@@ -1076,10 +1076,9 @@ func _rebuild_romm_rows() -> void:
 			indices = romm_catalog.search(_romm_filter)
 
 		for i: int in indices:
-			# Not games, so never in the list: a disc's loose tracks, which
-			# RommDownloader pulls in behind their cue, and a save or savestate
-			# kept beside its game, which would otherwise claim that game's local
-			# file as a row of its own.
+			# Not a game, so never in the list: a save or savestate kept beside
+			# its game, which would otherwise claim that game's local file as a
+			# row of its own.
 			if romm_catalog.is_hidden_at(i):
 				continue
 			var key := ""

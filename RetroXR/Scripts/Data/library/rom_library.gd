@@ -137,6 +137,10 @@ static func _scan_ereader_cards(dir_path: String) -> Array[Dictionary]:
 	return results
 
 
+## Disc descriptors a core is handed in place of the tracks they name.
+const MANIFEST_EXTS := ["cue", "gdi", "m3u", "ccd"]
+
+
 ## Index scan results by lowercase basename, resolving same-stem collisions.
 ##
 ## The library keys on the stem rather than the filename so a row survives its
@@ -163,7 +167,7 @@ static func index_by_basename(roms: Array[Dictionary], rom_exts: Array[String]) 
 		var key := path.get_file().get_basename().to_lower()
 		var ext := path.get_extension().to_lower()
 		var rank := 0
-		if ext in RommCatalog.MANIFEST_EXTS:
+		if ext in MANIFEST_EXTS:
 			rank = 2
 		elif ext in rom_exts:
 			rank = 1

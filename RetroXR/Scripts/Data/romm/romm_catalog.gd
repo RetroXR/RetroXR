@@ -81,8 +81,8 @@ var _search_names := PackedStringArray()
 var _fs_names := PackedStringArray()
 var _regions := PackedStringArray()
 var _exts := PackedStringArray()
-## 1 where the row is not a game of its own: a disc track, or a save beside its
-## game. Built on first use because most platforms never ask.
+## 1 where the row is a save beside its game rather than a game of its own.
+## Built on first use because most platforms never ask.
 var _hidden_flags := PackedByteArray()
 var _index_file: FileAccess = null
 
@@ -185,7 +185,7 @@ static func read_meta(systemid: String) -> Dictionary:
 ## Rows the list will show for a synced platform, or -1 when that is not known
 ## yet — never synced, or synced before the count was recorded and not warmed
 ## since. Callers fall back to the server's own count, which is every row it
-## holds including the disc tracks the list hides.
+## holds including the saves the list hides.
 static func shown_count(systemid: String) -> int:
 	var meta := read_meta(systemid)
 	return int(meta.get("shown", -1)) if meta.has("shown") else -1
@@ -448,30 +448,21 @@ func has_fast_sidecars() -> bool:
 
 
 # ---------------------------------------------------------------------------
-# Disc tracks
+# Saves beside games
 # ---------------------------------------------------------------------------
 
-## Extensions that name other files, and the extensions those files carry.
-const MANIFEST_EXTS := ["cue", "gdi", "m3u", "ccd"]
-const TRACK_EXTS := ["bin", "img", "sub", "raw", "iso", "wav", "ape", "flac", "mp3"]
 ## What a front end writes beside a game: battery saves, savestates and the N64
 ## and DS cores' per-chip saves. `auto` is the tail of `Game.state.auto`, whose
 ## stem still ends in `.state`; `state1`, `state2`… are matched by pattern.
 const SAVE_EXTS := ["srm", "sav", "rtc", "eep", "sra", "fla", "mpk", "dsv", "state", "auto"]
 
 
-## True when row i is not a game of its own. Either a track belonging to some
-## other row's disc manifest — the `.bin` half of a cue/bin pair, or one of the
-## audio tracks a Neo Geo CD cue lists — or a save or savestate kept beside its
-## game. A library that stores discs as loose files gives each track its own ROM
-## id, and one scanned out of a front end's folder does the same for each save:
-## on this server PlayStation is 39,603 tracks against 9,856 cues.
+## True when row i is not a game of its own but a save or savestate kept beside
+## its game. A library scanned out of a front end's folder gives each save its
+## own ROM id.
 ##
-## Pairing is by name, never by extension alone. `.bin` is a legitimate ROM
-## format on Atari Jaguar, Intellivision and Odyssey², and those platforms carry
-## no matching manifest, so their rows stay visible; a save with no game of its
-## name stays visible too. A track whose manifest names it in some other way also
-## stays visible — showing a spare row is the safe way to be wrong.
+## Pairing is by name, never by extension alone: a save with no game of its
+## name stays visible — showing a spare row is the safe way to be wrong.
 func is_hidden_at(i: int) -> bool:
 	if i < 0 or i >= _offsets.size():
 		return false
@@ -488,20 +479,12 @@ func _build_hidden_flags() -> void:
 	_hidden_flags = compute_hidden_flags(_fs_names, _exts)
 
 
-## The one verdict the list and the badge count share: tracks and saves.
+## A save or savestate row whose stem some other, non-save row also carries.
+## Static so the sync and the badge count reach the same verdict as the list
+## does; a second implementation would drift. Returns early on a platform with
+## no saves at all, which is most of them.
 static func compute_hidden_flags(fs_bases: PackedStringArray,
 								 exts: PackedStringArray) -> PackedByteArray:
-	var flags := compute_track_flags(fs_bases, exts)
-	var saves := compute_save_flags(fs_bases, exts)
-	for i in flags.size():
-		flags[i] = flags[i] | saves[i]
-	return flags
-
-
-## A save or savestate row whose stem some other, non-save row also carries.
-## Returns early on a platform with no saves at all, which is most of them.
-static func compute_save_flags(fs_bases: PackedStringArray,
-							   exts: PackedStringArray) -> PackedByteArray:
 	var flags := PackedByteArray()
 	flags.resize(exts.size())
 	if fs_bases.size() != exts.size():
@@ -529,39 +512,6 @@ static func _is_save_ext(ext: String) -> bool:
 	if ext in SAVE_EXTS:
 		return true
 	return ext.begins_with("state") and ext.substr(5).is_valid_int()
-
-
-## One pass over the two sidecars, which is all the pairing needs — no seeks and
-## no JSON. Skipped entirely on a platform with no manifest rows at all, which is
-## most of them. Static so the sync and the badge count reach the same verdict as
-## the list does; a second implementation would drift.
-static func compute_track_flags(fs_bases: PackedStringArray,
-								exts: PackedStringArray) -> PackedByteArray:
-	var flags := PackedByteArray()
-	flags.resize(exts.size())
-	if fs_bases.size() != exts.size():
-		return flags
-
-	var stems := {}
-	for i in exts.size():
-		if exts[i] in MANIFEST_EXTS:
-			stems[fs_bases[i]] = true
-	if stems.is_empty():
-		return flags
-
-	var track_no := RegEx.create_from_string("\\s*\\(track\\s*\\d+\\)$")
-	for i in exts.size():
-		if exts[i] not in TRACK_EXTS:
-			continue
-		var stem := fs_bases[i]
-		if stems.has(stem):
-			flags[i] = 1
-			continue
-		# Redump names the tracks of one disc "<game> (Track 07).bin".
-		var trimmed := track_no.sub(stem, "")
-		if trimmed != stem and stems.has(trimmed):
-			flags[i] = 1
-	return flags
 
 
 ## Rows the browse list will actually show: every row compute_hidden_flags keeps.
