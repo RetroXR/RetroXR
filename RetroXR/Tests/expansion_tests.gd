@@ -1365,6 +1365,154 @@ func _run() -> void:
 		await _group_disk()
 	if _want("memory"):
 		await _group_memory()
+	if _want("scd_storage"):
+		await _group_scd_storage()
+
+
+# ── scd_storage/ — staging a Sega CD's memory into the core and back ──────────
+
+## A unit with a fixed test id, minted, so its image is created in the real card
+## folder under a name nobody else uses; _scd_cleanup removes it.
+func _scd_unit(expansion_id: String, card_id: String) -> RetroExpansion:
+	var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
+	unit.expansion_id = expansion_id
+	unit.card_id = card_id
+	unit.position = Vector3(_spawned.size() * 2.0, 1, 0)
+	unit.freeze = true
+	add_child(unit)
+	unit.add_to_group("spawned")
+	_spawned.append(unit)
+	unit.minted = true
+	await _wait(10)
+	return unit
+
+
+func _scd_cleanup(root: String, ids: Array) -> void:
+	for id: String in ids:
+		for family: String in [SegaCdStorage.MEMORY_FAMILY, SegaCdStorage.CART_FAMILY]:
+			var path := SramPaths.find_card(id, family)
+			if not path.is_empty():
+				DirAccess.remove_absolute(path)
+	_remove_tree(root)
+
+
+func _remove_tree(dir: String) -> void:
+	if not DirAccess.dir_exists_absolute(dir):
+		return
+	for f: String in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(f))
+	for d: String in DirAccess.get_directories_at(dir):
+		_remove_tree(dir.path_join(d))
+	DirAccess.remove_absolute(dir)
+
+
+func _group_scd_storage() -> void:
+	var core := "genesis_plus_gx"
+	var o := SegaCdStorage.forced_options(core, true, 0)
+	_ok(o.get("genesis_plus_gx_system_bram") == "per bios" and o.get("genesis_plus_gx_cart_bram") == "per cart",
+		"scd_storage/ the core is pointed at one memory file per region and one per cartridge size")
+	_ok(o.get("genesis_plus_gx_cart_size") == "disabled", "scd_storage/ with no cartridge, none is fitted")
+	_ok(SegaCdStorage.forced_options(core, true, 0x4000).get("genesis_plus_gx_cart_size") == "128k"
+		and SegaCdStorage.forced_options(core, true, 0x80000).get("genesis_plus_gx_cart_size") == "4meg",
+		"scd_storage/ a seated cartridge's own size is the one fitted")
+	_ok(SegaCdStorage.forced_options("picodrive", true, 0).is_empty()
+		and SegaCdStorage.forced_options(core, false, 0).is_empty(),
+		"scd_storage/ nothing is pinned on another core or without a Sega CD")
+	var held := SegaCdStorage.held_while_running(core, true,
+		{"genesis_plus_gx_bios": "enabled", "genesis_plus_gx_vdp_mode": "auto", "genesis_plus_gx_ym2413": "auto"})
+	_ok(held.size() == 2 and held.has("genesis_plus_gx_bios") and not held.has("genesis_plus_gx_ym2413"),
+		"scd_storage/ while running, the options that would wipe its memory are held")
+
+	var root := ProjectSettings.globalize_path("user://__scd_storage_selftest")
+	var ids := ["__SCD SELFTEST A", "__SCD SELFTEST B", "__SCD SELFTEST CART", "__SCD SELFTEST NEW"]
+	_scd_cleanup(root, ids)
+	var save_dir := root.path_join("save").path_join(core)
+
+	var drive := await _scd_unit("sega_cd", ids[0])
+	var genesis := await _console("mega_drive")
+	await _bolt(genesis, drive)
+	var storage := genesis.sega_cd_storage()
+	storage.stage_before_start(root, core)
+	var image_a := SramPaths.find_card(ids[0], SegaCdStorage.MEMORY_FAMILY)
+	_ok(not image_a.is_empty() and SegaCdBram.is_card_image(FileAccess.get_file_as_bytes(image_a)),
+		"scd_storage/ a new unit's memory is created, formatted")
+	var staged_all := true
+	for name: String in SegaCdStorage.REGION_FILES:
+		staged_all = staged_all and FileAccess.get_file_as_bytes(save_dir.path_join(name)) \
+			== FileAccess.get_file_as_bytes(image_a)
+	_ok(staged_all, "scd_storage/ and staged into every region's file")
+	_ok(FileAccess.file_exists(save_dir.path_join(SegaCdStorage.MANIFEST)),
+		"scd_storage/ with a manifest saying whose it is")
+
+	# The core writes its region's file as it unloads. The unit is swapped out
+	# first: the write must still go home to the unit that filled the file.
+	var saved := SegaCdBram.write_file(SegaCdBram.blank_image(), "SONICCD____".to_ascii_buffer(),
+		SegaCdBram.MODE_RAW, _scd_payload(64))
+	await _unbolt(drive.get_socket(), genesis)
+	var other := await _scd_unit("sega_cd", ids[1])
+	await _bolt(genesis, other)
+	FileAccess.open(save_dir.path_join("scd_U.brm"), FileAccess.WRITE).store_buffer(saved)
+	storage.drain_after_stop()
+	_ok(FileAccess.get_file_as_bytes(image_a) == saved,
+		"scd_storage/ the core's write goes back to the unit that filled the file")
+	_ok(SramPaths.find_card(ids[1], SegaCdStorage.MEMORY_FAMILY).is_empty(),
+		"scd_storage/ not to the unit seated now")
+	storage._finish()
+	_ok(not FileAccess.file_exists(save_dir.path_join("scd_U.brm"))
+		and not FileAccess.file_exists(save_dir.path_join(SegaCdStorage.MANIFEST)),
+		"scd_storage/ and the folder is cleared once it is done")
+
+	# A run that never drained -- a crash -- is put right by the next start.
+	await _unbolt(other.get_socket(), genesis)
+	await _bolt(genesis, drive)
+	storage.stage_before_start(root, core)
+	var more := SegaCdBram.write_file(saved, "SONICCD__01".to_ascii_buffer(),
+		SegaCdBram.MODE_PROTECTED, _scd_payload(32))
+	FileAccess.open(save_dir.path_join("scd_J.brm"), FileAccess.WRITE).store_buffer(more)
+	storage._staged.clear()
+	_ok(SegaCdStorage.recover(save_dir) == 1 and FileAccess.get_file_as_bytes(image_a) == more,
+		"scd_storage/ a crashed run's write is recovered from its manifest")
+
+	# Saves from before a unit kept its own are kept, and a new unit starts from them.
+	FileAccess.open(save_dir.path_join("scd_J.brm"), FileAccess.WRITE).store_buffer(more)
+	var fresh := await _scd_unit("sega_cd", ids[3])
+	await _unbolt(drive.get_socket(), genesis)
+	await _bolt(genesis, fresh)
+	storage.stage_before_start(root, core)
+	var image_new := SramPaths.find_card(ids[3], SegaCdStorage.MEMORY_FAMILY)
+	_ok(not image_new.is_empty() and FileAccess.get_file_as_bytes(image_new) == more,
+		"scd_storage/ unclaimed saves become a new unit's memory")
+	_ok(FileAccess.file_exists(save_dir.path_join(SegaCdStorage.LEGACY_DIR).path_join("scd_J.brm.imported")),
+		"scd_storage/ and are set aside, not written over")
+
+	# A cartridge is staged under its size's name, and pinned at that size.
+	var cart := await _scd_unit("sega_cd_ram_cart", ids[2])
+	genesis.restore_expansion(cart)
+	await _wait(10)
+	storage.stage_before_start(root, core)
+	_ok(FileAccess.file_exists(save_dir.path_join("128Kbit_cart.brm")),
+		"scd_storage/ a new cartridge is staged as Sega's 128 Kbit one")
+	_ok(genesis._all_forced_options(core).get("genesis_plus_gx_cart_size") == "128k",
+		"scd_storage/ and the machine pins that size")
+
+	var second := await _console("mega_drive")
+	var second_drive := await _scd_unit("sega_cd", ids[1])
+	await _bolt(second, second_drive)
+	_ok(not second.sega_cd_storage().busy_elsewhere(core).is_empty(),
+		"scd_storage/ a second Sega CD cannot start while the folder is in use")
+	storage._finish()
+	_ok(second.sega_cd_storage().busy_elsewhere(core).is_empty(),
+		"scd_storage/ and can once it is free")
+
+	await _clear()
+	_scd_cleanup(root, ids)
+
+
+func _scd_payload(bytes: int) -> PackedByteArray:
+	var out := PackedByteArray()
+	for i in bytes:
+		out.append((i * 29 + 11) & 0xFF)
+	return out
 
 
 # ── memory/ — a unit that keeps backup memory of its own ─────────────────────

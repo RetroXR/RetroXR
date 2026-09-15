@@ -424,6 +424,10 @@ func _init() -> void:
 	_vmu.name = "VmuStorage"
 	add_child(_vmu)
 	_vmu.setup(self)
+	_sega_cd = SegaCdStorage.new()
+	_sega_cd.name = "SegaCdStorage"
+	add_child(_sega_cd)
+	_sega_cd.setup(self)
 	_audio = SystemAudio.new()
 	_audio.name = "SystemAudio"
 	add_child(_audio)
@@ -2039,6 +2043,17 @@ func power_on() -> void:
 				str(verdict["description"]), Color(verdict["accent"]))
 		return
 
+	# One Sega CD at a time: its memory is staged into a folder every machine on
+	# that core shares.
+	var scd_busy := _sega_cd.busy_elsewhere(resolved_core)
+	if not scd_busy.is_empty():
+		push_error("RetroSystem: Cannot power on - %s" % scd_busy)
+		var busy_toast := _machine_toast()
+		if busy_toast != null:
+			busy_toast.show_notice(_display_name(), "Sega CD in use", scd_busy,
+				Color(1.0, 0.72, 0.2))
+		return
+
 	# May be empty media: a machine with nothing in it whose BIOS is installed is
 	# handed a blank disc, which is what a console with a closed empty tray is.
 	rom_path = str(verdict["rom"])
@@ -2066,6 +2081,9 @@ func power_on() -> void:
 	if AppPrefs.bios_boot_override:
 		CoreOptionsStore.seed_values(resolved_dir, resolved_core,
 			BiosBoot.pinned_options(resolved_core, systemid, still_empty))
+	# Before the forced options: the cartridge size they pin is read off an image
+	# that staging may only now have created.
+	_sega_cd.stage_before_start(resolved_dir, resolved_core)
 	_apply_forced_core_options(resolved_dir, resolved_core)
 	_persist_pak_options(resolved_dir, resolved_core)
 	_vmu.stage_before_start(resolved_dir, resolved_core)
@@ -2333,6 +2351,8 @@ func _stop_core() -> void:
 	# The core's final VMU write lands on the emulation thread after
 	# StopContent returns, so one drain here is not the last word.
 	_vmu.stop_draining_soon()
+	# genesis_plus_gx writes a Sega CD's memory only as it unloads.
+	_sega_cd.drain_after_stop()
 	_has_disk_control = false
 	_disc_index = 0
 	_disc_ejected = false
@@ -2629,6 +2649,7 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	# local composition when the session didn't set one (offline-like start).
 	if not _memcards.apply_netplay_sram():
 		_libretro.SetSramPath(sram_path_for_run(resolved_core))
+	_sega_cd.stage_before_start(_resolve_dir(), resolved_core)
 	_apply_forced_core_options(_resolve_dir(), resolved_core)
 	_persist_pak_options(_resolve_dir(), resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
@@ -2852,6 +2873,8 @@ func _all_forced_options(core: String) -> Dictionary:
 	var out: Dictionary = _model.get_forced_core_options() if _model != null else {}
 	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, expansion_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
+	if _sega_cd != null:
+		out.merge(_sega_cd.forced_options_for(core), true)
 	return out
 
 
@@ -3545,6 +3568,12 @@ func get_port_controllers() -> Array:
 ## content start.
 func reapply_vmu(ctrl: Node) -> void:
 	_vmu.reapply(ctrl)
+
+
+## Read by another machine's SegaCdStorage, deciding whether the shared folder is
+## free.
+func sega_cd_storage() -> SegaCdStorage:
+	return _sega_cd
 
 
 ## Whether this machine's core hands device screens over through the controller
@@ -4860,6 +4889,9 @@ var _memcards: MemoryCardController = null
 
 ## The Dreamcast's VMUs. Inert on every other console -- see VmuStorage.
 var _vmu: VmuStorage = null
+## A Sega CD's backup memory and a Backup RAM Cartridge. Inert on every other
+## machine -- see SegaCdStorage.
+var _sega_cd: SegaCdStorage = null
 ## What a stacked expansion hands the core at boot - see ExpansionLaunch.
 var _expansion_launch: ExpansionLaunch = null
 
