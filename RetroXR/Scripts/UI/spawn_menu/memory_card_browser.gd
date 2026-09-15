@@ -215,16 +215,18 @@ func _build_restore(card: Dictionary) -> void:
 	var status := MenuStyle.label("Asking RomM…", 20, MenuStyle.COLOR_DESC)
 	add_child(status)
 
-	SaveSync.list_card_saves(family, _fmt().save_extension(),
+	SaveSync.list_card_saves(_fmt().romm_systemid(), _fmt().romm_save_extensions(),
 			func(ok: bool, saves: Array) -> void:
 		if not is_inside_tree():
 			return
 		status.queue_free()
 		if not ok:
-			add_child(MenuStyle.label("Could not reach RomM.", 20, Color(0.85, 0.5, 0.5)))
+			add_child(MenuStyle.label(
+				SaveSync.card_list_problem(_fmt().romm_systemid(), _fmt().label()),
+				20, Color(0.85, 0.5, 0.5)))
 			return
 		if saves.is_empty():
-			add_child(MenuStyle.label("RomM holds no memory-card saves yet.",
+			add_child(MenuStyle.label("RomM holds no %s saves yet." % _fmt().label(),
 				20, MenuStyle.COLOR_DESC))
 			return
 
@@ -243,9 +245,11 @@ func _restore_row(card: Dictionary, s: Dictionary, present: Dictionary, free: in
 
 	var btn := MenuStyle.row_button("", 24)
 	var rom_name := str(s.get("rom_name", ""))
-	btn.text = "    %s      %d block%s%s" % [
+	var size_text := "whole save file" if blocks <= 0 \
+		else "%d block%s" % [blocks, "" if blocks == 1 else "s"]
+	btn.text = "    %s      %s%s" % [
 		rom_name if not rom_name.is_empty() else slot,
-		blocks, "" if blocks == 1 else "s",
+		size_text,
 		"" if reason.is_empty() else "   ·   " + reason]
 	btn.disabled = not reason.is_empty()
 	btn.pressed.connect(func() -> void: _restore(card, s))

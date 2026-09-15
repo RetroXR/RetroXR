@@ -347,6 +347,16 @@ func platform_id_for(systemid: String) -> int:
 	return int((p as Dictionary).get("id", 0)) if p is Dictionary else 0
 
 
+## Why list_card_saves() answered not-ok for this systemid, worded for a menu.
+## `label` names the console ("Nintendo 64").
+func card_list_problem(systemid: String, label: String) -> String:
+	if config == null or not config.is_configured():
+		return "RomM is not set up."
+	if platform_id_for(systemid) <= 0:
+		return "RomM has no %s platform to look in." % label
+	return "Could not reach RomM."
+
+
 ## Every memory-card save the server holds FOR ONE PLATFORM, with the game each
 ## belongs to, delivered to `callback(ok, saves)` on the main thread. Entries add
 ## "rom_name" to the usual save fields.
@@ -356,9 +366,9 @@ func platform_id_for(systemid: String) -> int:
 ## could carry it. The restore path writes into a card, so what it offers has to
 ## be the platform's own saves.
 ##
-## `save_ext` is the card family's own single-save extension — "mcs" for a
-## PlayStation, "gci" for a GameCube.
-func list_card_saves(systemid: String, save_ext: String, callback: Callable) -> void:
+## `save_exts` are CardFormat.romm_save_extensions() — "mcs" for a PlayStation,
+## "note" and "srm" for a Controller Pak.
+func list_card_saves(systemid: String, save_exts: PackedStringArray, callback: Callable) -> void:
 	if config == null or not config.is_configured():
 		callback.call(false, [])
 		return
@@ -374,11 +384,11 @@ func list_card_saves(systemid: String, save_ext: String, callback: Callable) -> 
 		_list_thread.wait_to_finish()
 	_list_busy = true
 	_list_thread = Thread.new()
-	_list_thread.start(_card_list_worker.bind(platform_id, save_ext, callback,
+	_list_thread.start(_card_list_worker.bind(platform_id, save_exts, callback,
 		config.base_url, config.auth_headers()))
 
 
-func _card_list_worker(platform_id: int, save_ext: String, callback: Callable,
+func _card_list_worker(platform_id: int, save_exts: PackedStringArray, callback: Callable,
 					   base_url: String, headers: PackedStringArray) -> void:
 	var http := RommHttp.new()
 	if http.open(base_url, _aborting) != RommHttp.Result.OK:
@@ -391,7 +401,7 @@ func _card_list_worker(platform_id: int, save_ext: String, callback: Callable,
 		# saves for one game would otherwise be a dozen round trips.
 		var names: Dictionary = {}
 		for s: Dictionary in out["saves"]:
-			if str(s["file_name"]).get_extension().to_lower() != save_ext:
+			if not save_exts.has(str(s["file_name"]).get_extension().to_lower()):
 				continue
 			var rid := int(s["rom_id"])
 			if not names.has(rid):

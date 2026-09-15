@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 403
+const EXPECTED_CASES := 426
 
 var _pass := 0
 var _fail := 0
@@ -561,6 +561,25 @@ func _test_n64_contract() -> void:
 	_ok(not N64Card.has_notes(N64Card.slice_srm(srm, 1)), "n64/nor is a port that was never formatted at all")
 	_ok(N64Card.slice_srm(PackedByteArray(), 0).is_empty(), "n64/a save file too short to hold a pak yields nothing")
 
+	# Restoring from RomM. A frontend that keeps the paks inside the cartridge
+	# save uploads that whole .srm, filed under the console rather than the pak.
+	var pak := CardFormats.for_family("controller_pak")
+	_eq(pak.romm_systemid(), "nintendo_64", "n64/RomM is asked under the Nintendo 64 platform")
+	_ok(pak.romm_save_extensions().has("srm"), "n64/and a cartridge .srm is accepted from it")
+	_eq(pak.saves_in_download(note).size(), 1, "n64/a downloaded note is itself one save")
+	var lifted := pak.saves_in_download(srm)
+	_eq(lifted.size(), 1, "n64/a downloaded .srm yields the note on its one used pak")
+	_ok(lifted.size() == 1 and lifted[0] == note, "n64/byte-for-byte")
+	_eq(pak.save_name(note), "MARIO KART", "n64/and names it for the duplicate check")
+	_ok(lifted.size() == 1 and not pak.insert_save(pak.blank_image(), lifted[0]).is_empty(),
+		"n64/which goes onto a blank pak")
+	var untouched := PackedByteArray()
+	untouched.resize(0x48800)
+	for i in N64Card.CARD_SIZE:
+		untouched[N64Card.srm_offset(0) + i] = img[i]
+	_eq(pak.saves_in_download(untouched).size(), 0, "n64/a .srm holding only formatted paks yields nothing")
+	_eq(pak.saves_in_download(PackedByteArray()).size(), 0, "n64/nor does an empty download")
+
 
 # --- What every format must do ------------------------------------------------
 
@@ -846,6 +865,12 @@ func _test_shared_contract() -> void:
 			blank.size() if n == "" else _smallest_save_size(fmt))
 		_ok(one_block == 1, "shared/%s/a smallest save is one block" % n, "got %d" % one_block)
 
+		# The card listing narrows RomM by this platform and these extensions, and
+		# a family whose own single-save file is not among them could never restore.
+		_ok(not fmt.romm_systemid().is_empty(), "shared/%s/names a RomM platform" % n)
+		_ok(fmt.romm_save_extensions().has(fmt.save_extension()),
+			"shared/%s/and accepts its own save files from it" % n)
+
 
 ## The byte size of the smallest save this format can produce — one block plus
 ## whatever header its single-save file carries.
@@ -914,6 +939,17 @@ func _test_ops() -> void:
 	# "needs 1 block, 0 free" would be a confusing thing to say about it.
 	_eq(CardSaveOps.restore_blocker(gc, row, {"GAFE01": true}, 0), "already on this card",
 		"ops/presence is reported ahead of a size refusal")
+
+	# A cartridge .srm on RomM is not one note: its byte size says nothing about
+	# pages, so the row costs nothing up front and is sized once it is lifted.
+	var pak := CardFormats.for_family("controller_pak")
+	var srm_row := {"slot": "autosave", "size": 0x48800, "file_name": "Wonder Project J2.srm"}
+	_ok(not CardSaveOps.holds_one_save(pak, srm_row), "ops/a cartridge save is a file of saves, not one")
+	_eq(CardSaveOps.blocks_of(pak, srm_row), 0, "ops/which costs nothing until its notes are known")
+	_eq(CardSaveOps.restore_blocker(pak, srm_row, {}, 0), "",
+		"ops/and is not refused for space before it has been read")
+	_ok(CardSaveOps.holds_one_save(gc, {"file_name": "GAFE01.gci"}),
+		"ops/a family's own save extension is one save")
 
 
 ## ── registry/ (additions) ──────────────────────────────────────

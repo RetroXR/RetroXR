@@ -374,15 +374,15 @@ func _on_restore_requested() -> void:
 	if ui == null:
 		return
 	ui.show_restore([], "Asking RomM…")
-	SaveSync.list_card_saves(_fmt().id(), _fmt().save_extension(),
+	SaveSync.list_card_saves(_fmt().romm_systemid(), _fmt().romm_save_extensions(),
 			func(ok: bool, saves: Array) -> void:
 		if not (is_instance_valid(self) and visible and is_instance_valid(ui)):
 			return
 		if not ok:
-			ui.show_restore([], "Could not reach RomM.")
+			ui.show_restore([], SaveSync.card_list_problem(_fmt().romm_systemid(), _fmt().label()))
 			return
 		if saves.is_empty():
-			ui.show_restore([], "RomM holds no memory-card saves yet.")
+			ui.show_restore([], "RomM holds no %s saves yet." % _fmt().label())
 			return
 
 		# A card with no image yet is empty with everything free, which is exactly

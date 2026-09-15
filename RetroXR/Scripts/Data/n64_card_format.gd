@@ -28,6 +28,16 @@ func save_extension() -> String:
 	return "note"
 
 
+## A Controller Pak belongs to the Nintendo 64, and a frontend that keeps its
+## paks inside the cartridge save uploads that whole .srm.
+func romm_systemid() -> String:
+	return "nintendo_64"
+
+
+func romm_save_extensions() -> PackedStringArray:
+	return PackedStringArray([save_extension(), "srm"])
+
+
 ## The N64 counted its pak in pages, and every game says so on screen.
 func unit_noun() -> String:
 	return "page"
@@ -78,6 +88,17 @@ func extract_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
 
 func is_save_file(bytes: PackedByteArray) -> bool:
 	return N64Card.is_note(bytes)
+
+
+func saves_in_download(bytes: PackedByteArray) -> Array[PackedByteArray]:
+	if N64Card.is_note(bytes):
+		var one: Array[PackedByteArray] = [bytes]
+		return one
+	return N64Card.notes_in_srm(bytes)
+
+
+func save_name(save: PackedByteArray) -> String:
+	return N64Card.note_name(save)
 
 
 func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArray:

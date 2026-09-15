@@ -484,8 +484,8 @@ func _restore_row(s: Dictionary) -> Control:
 
 	var blocks: int = int(s.get("blocks", 1))
 	var sub := Label.new()
-	sub.text = "%d %s%s" % [blocks, _units(blocks),
-		"" if reason.is_empty() else "   ·   " + reason]
+	var size_text := "whole save file" if blocks <= 0 else "%d %s" % [blocks, _units(blocks)]
+	sub.text = size_text + ("" if reason.is_empty() else "   ·   " + reason)
 	sub.add_theme_font_size_override("font_size", 15)
 	sub.add_theme_color_override("font_color", COLOR_DIM)
 	col.add_child(sub)

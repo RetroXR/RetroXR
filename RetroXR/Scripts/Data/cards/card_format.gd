@@ -21,7 +21,7 @@ extends RefCounted
 # --- Identity -----------------------------------------------------------------
 
 ## The folder under save/memcards/, and the value a MemoryCard carries as its
-## `family`. Also the RomM platform saves from this family are filed under.
+## `family`.
 func id() -> String:
 	return ""
 
@@ -37,9 +37,21 @@ func extension() -> String:
 
 
 ## Extension of ONE save lifted off a card ("mcs"). Uploaded to RomM under it,
-## and what the card listing filters the server's saves by.
+## and one of the extensions the card listing accepts from the server.
 func save_extension() -> String:
 	return ""
+
+
+## The systemid whose RomM platform holds this family's saves. The family id
+## serves when it names a console; a family named for a device has to name one.
+func romm_systemid() -> String:
+	return id()
+
+
+## Every extension a RomM save for this family may arrive under: its own
+## single-save file, plus any file that carries saves inside it.
+func romm_save_extensions() -> PackedStringArray:
+	return PackedStringArray([save_extension()])
 
 
 # --- Vocabulary ---------------------------------------------------------------
@@ -130,6 +142,21 @@ func extract_save(_data: PackedByteArray, _first_block: int) -> PackedByteArray:
 ## name, and splicing a foreign one into a card corrupts the card.
 func is_save_file(_bytes: PackedByteArray) -> bool:
 	return false
+
+
+## Every single save a downloaded file holds, each ready for insert_save(). A
+## file that is itself one save of this family comes back as itself; anything
+## this family does not recognise yields nothing.
+func saves_in_download(bytes: PackedByteArray) -> Array[PackedByteArray]:
+	var out: Array[PackedByteArray] = []
+	if is_save_file(bytes):
+		out.append(bytes)
+	return out
+
+
+## A single save file's own name on the card, or "" when the format cannot say.
+func save_name(_save: PackedByteArray) -> String:
+	return ""
 
 
 ## Splice a save into a card, returning a NEW image. Empty when it will not fit,

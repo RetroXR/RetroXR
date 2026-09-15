@@ -353,6 +353,11 @@ static func is_note(bytes: PackedByteArray) -> bool:
 	return not _note_name(bytes, 0).is_empty()
 
 
+## A lifted note's own name, or "" when the bytes are not a note.
+static func note_name(bytes: PackedByteArray) -> String:
+	return _note_name(bytes, 0) if is_note(bytes) else ""
+
+
 static func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArray:
 	var empty := PackedByteArray()
 	if data.size() != CARD_SIZE or not is_note(save):
@@ -440,6 +445,21 @@ static func slice_srm(srm: PackedByteArray, port: int) -> PackedByteArray:
 ## is a note on it.
 static func has_notes(data: PackedByteArray) -> bool:
 	return is_card_image(data) and not list_saves(data, false).is_empty()
+
+
+## Every note on every port's pak inside a cartridge .srm, each lifted out as a
+## note file. A port whose pak is unformatted or empty contributes nothing.
+static func notes_in_srm(srm: PackedByteArray) -> Array[PackedByteArray]:
+	var out: Array[PackedByteArray] = []
+	for port in SRM_PORTS:
+		var pak := slice_srm(srm, port)
+		if not has_notes(pak):
+			continue
+		for s: Dictionary in list_saves(pak, false):
+			var note := extract_save(pak, int(s["block"]))
+			if not note.is_empty():
+				out.append(note)
+	return out
 
 
 ## Build a note file from raw contents, for tests and for anything that wants to

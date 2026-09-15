@@ -117,8 +117,22 @@ static func delete_is_forever(path: String, slot: String) -> bool:
 
 
 ## How many of a card's blocks one of RomM's saves will take, from its byte size.
+## A file that carries saves inside it costs 0 here: what it holds is only known
+## once it is downloaded, and restore_save sizes that then.
 static func blocks_of(fmt: CardFormat, s: Dictionary) -> int:
-	return fmt.blocks_for_size(int(s["size"])) if fmt != null else 1
+	if fmt == null:
+		return 1
+	if not holds_one_save(fmt, s):
+		return 0
+	return fmt.blocks_for_size(int(s["size"]))
+
+
+## Is this RomM row one save in the family's own single-save format, rather than
+## a file that carries saves inside it (a cartridge .srm holding the paks)? A row
+## that names no file is taken to be one save.
+static func holds_one_save(fmt: CardFormat, s: Dictionary) -> bool:
+	var ext := str(s.get("file_name", "")).get_extension().to_lower()
+	return fmt == null or ext.is_empty() or ext == fmt.save_extension()
 
 
 ## Why one of RomM's saves cannot be put on this card, or "".
@@ -129,6 +143,8 @@ static func restore_blocker(fmt: CardFormat, s: Dictionary,
 		present: Dictionary, free: int) -> String:
 	if present.has(str(s["slot"])):
 		return "already on this card"
+	if not holds_one_save(fmt, s):
+		return ""
 	var blocks := blocks_of(fmt, s)
 	if blocks > free:
 		var unit := fmt.unit_noun() if blocks == 1 else fmt.unit_plural()
@@ -158,12 +174,26 @@ static func restore_save(tree: SceneTree, fmt: CardFormat, path: String,
 		# Never splice what has not been shown to be a save of THIS family. The
 		# platform filter should already have ruled this out; this is the check
 		# that does not depend on the server labelling things correctly.
-		if not fmt.is_save_file(bytes):
-			on_done.call("That file is not a %s save." % fmt.label())
+		var saves := fmt.saves_in_download(bytes)
+		if saves.is_empty():
+			on_done.call("That file holds no %s save." % fmt.label())
 			return
-		var merged := fmt.insert_save(FileAccess.get_file_as_bytes(path), bytes)
-		if merged.is_empty():
-			on_done.call("That save will not fit on this card.")
+		# Every save goes on or none does: the card is only written once all of
+		# them have been spliced into one checked image.
+		var merged := FileAccess.get_file_as_bytes(path)
+		var added: Array[String] = []
+		for save: PackedByteArray in saves:
+			var slot_name := fmt.save_name(save)
+			if not slot_name.is_empty() and fmt.block_of(merged, slot_name) >= 0:
+				continue
+			var next := fmt.insert_save(merged, save)
+			if next.is_empty():
+				on_done.call("That save will not fit on this card.")
+				return
+			merged = next
+			added.append(slot_name if not slot_name.is_empty() else str(s["slot"]))
+		if added.is_empty():
+			on_done.call("Everything in that save is already on this card.")
 			return
 		if not write_card(tree, fmt, path, card_id, merged):
 			on_done.call("The card did not verify — nothing was written.")
@@ -177,9 +207,10 @@ static func restore_save(tree: SceneTree, fmt: CardFormat, path: String,
 		# this device could not otherwise work out for a save it never watched
 		# being written — recorded now so a later local change uploads at once
 		# instead of falling back to sweeping the disc library for its serial.
-		var key := RommSaveSync.card_save_key(path, str(s["slot"]))
-		SaveSync.set_key_enabled(key, true)
-		SaveSync.note_card_save_owner(key, int(s["rom_id"]))
+		for slot_name: String in added:
+			var key := RommSaveSync.card_save_key(path, slot_name)
+			SaveSync.set_key_enabled(key, true)
+			SaveSync.note_card_save_owner(key, int(s["rom_id"]))
 		on_done.call(""))
 
 
