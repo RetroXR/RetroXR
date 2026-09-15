@@ -478,13 +478,17 @@ func card_family() -> String:
 ## Cartridge systems resolve to the cart's own save_id file — each physical cart
 ## holds its own save.
 func _compose_sram_path(resolved_core: String, slot := 0) -> String:
-	if resolved_core.is_empty() or _host.rom_path.is_empty():
+	if resolved_core.is_empty():
 		return ""
+	# Before the game is asked for: a card belongs to the console, so a BIOS run
+	# with nothing in the drive reads and writes the seated card too.
 	if _uses_memory_cards():
 		var card := get_snapped_memcard(slot)
 		if card and "card_id" in card:
 			return SramPaths.card_save_path(card_family(),
 				str(card.get("card_id")))
+		return ""
+	if _host.rom_path.is_empty():
 		return ""
 	# A unit with its own battery answers before anything in its bay, and before
 	# the console's slot: the BS-X cartridge IS what sits in that slot, and the

@@ -1962,11 +1962,11 @@ func _test_sram_paths() -> void:
 	for i in range(20):
 		await get_tree().process_frame
 
-	# Neither half of the pair is optional: a core with no game, or a game with
-	# no core, has nowhere to put a save and must say so rather than guess.
+	# A core with no game and no card, or a game with no core, has nowhere to put
+	# a save and must say so rather than guess.
 	psx.rom_path = ""
 	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
-		"", "sram/no game means no save file")
+		"", "sram/no game and no card means no save file")
 	psx.rom_path = "/nonexistent/__sram_selftest.bin"
 	_eq(psx._memcards._compose_sram_path(""),
 		"", "sram/no core means no save file either")
@@ -1992,6 +1992,14 @@ func _test_sram_paths() -> void:
 	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
 		SramPaths.card_save_path("playstation", "__sram_selftest_card"),
 		"sram/the same card backs a different game")
+	# Or no game at all: a BIOS run with an empty drive still has the card in its
+	# slot, and the BIOS's own card manager reads it.
+	psx.rom_path = ""
+	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
+		SramPaths.card_save_path("playstation", "__sram_selftest_card"),
+		"sram/and backs a BIOS run with nothing in the drive")
+	_eq(psx._memcards._compose_sram_path(""),
+		"", "sram/but still not a run with no core")
 
 	psx._memcards._snapped_memcards[0] = null
 	card.queue_free()
