@@ -46,6 +46,10 @@ const SEARCH_DEBOUNCE_SEC := 0.18
 ## decoration rather than as "none of this does anything".
 const UNREACHABLE_DIM := Color(1.0, 1.0, 1.0, 0.45)
 
+## Library systems with no Cartridges tile: their games are picked on an object's
+## own panel, a VMU's on the card's Games tab.
+const NOT_CARTRIDGE_SYSTEMS: Array[String] = [VmuCard.LIBRARY_SYSTEMID]
+
 var core_db: CoreInfoDatabase = null
 var core_defaults: CoreDefaults = null
 var gamelist_manager: GamelistManager = null
@@ -682,8 +686,12 @@ func _populate_cartridges_tab() -> void:
 		return
 
 	var seen: Dictionary = {}
+	for systemid: String in NOT_CARTRIDGE_SYSTEMS:
+		seen[systemid] = true
 	var systems: Array = []
 	for systemid: String in core_defaults.all_defaults():
+		if seen.has(systemid):
+			continue
 		seen[systemid] = true
 		systems.append({"systemid": systemid, "name": core_db.get_systemname_for_id(systemid)})
 

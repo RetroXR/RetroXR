@@ -8,8 +8,9 @@
 ## transition.
 ##
 ## What IS covered is the part that decides what the player is shown: the
-## drill-down browser's filter, and the four formatters whose output is read off
-## a panel and whose boundaries are easy to get wrong by one.
+## drill-down browser's filter, which systems get a Cartridges tile, and the four
+## formatters whose output is read off a panel and whose boundaries are easy to
+## get wrong by one.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/spawn_menu_tests.tscn
 ##   "$godot" --headless --path RetroXR res://Tests/spawn_menu_tests.tscn -- --only=filter
@@ -30,6 +31,7 @@ func _ready() -> void:
 		get_tree().quit(1))
 
 	await _group_filter()
+	await _group_cartridges()
 	_group_counts()
 	_group_formats()
 	_group_fit()
@@ -114,6 +116,42 @@ func _visible_names(browser: SystemGridBrowser) -> Array:
 		if tile is Button and (tile as Button).visible:
 			out.append(str(tile.get_meta("filter_name", "")))
 	return out
+
+
+# ── cartridges/ — which systems the Cartridges grid has a tile for ────────────
+
+## The view's own populator over a view that is never added to the tree, so none
+## of its widget assembly runs. A tile comes from a default core or a RomM
+## platform, and the VMU has both.
+func _group_cartridges() -> void:
+	var browser := SystemGridBrowser.new()
+	add_child(browser)
+	_spawned.append(browser)
+	await get_tree().process_frame
+
+	var view := SpawnMenuSpawnView.new()
+	view._cartridges_browser = browser
+	view.core_db = CoreInfoDatabase.new()
+	view.core_defaults = CoreDefaults.new()
+	view.core_defaults.set_default_core("dreamcast", "flycast")
+	view.core_defaults.set_default_core("vmu", "vemulator")
+	view._romm_platforms = {
+		"nes": {"id": 1, "rom_count": 3, "systemid": "nes"},
+		"vmu": {"id": 2, "rom_count": 3, "systemid": "vmu"},
+	}
+	view._populate_cartridges_tab()
+	var ids: Array = []
+	for s: Dictionary in browser._systems:
+		ids.append(str(s["systemid"]))
+
+	_ok(ids.has("dreamcast"), "cartridges/a system with a default core has a tile", str(ids))
+	_ok(ids.has("nes"), "cartridges/a RomM platform has a tile", str(ids))
+	_ok(not ids.has("vmu"),
+		"cartridges/the VMU has no tile from its default core or its RomM platform", str(ids))
+	# The card's Games tab finds the platform to sync through this dictionary.
+	_ok(view._romm_platforms.has("vmu"),
+		"cartridges/the VMU's RomM platform is still known to the menu")
+	view.free()
 
 
 # ── counts/ — the badge on a tile ─────────────────────────────────────────────
