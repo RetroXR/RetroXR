@@ -397,6 +397,28 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 
 		vbox.add_child(HSeparator.new())
 
+	var mic_row := HBoxContainer.new()
+	mic_row.add_theme_constant_override("separation", 10)
+	mic_row.custom_minimum_size = Vector2(0, 68)
+	vbox.add_child(mic_row)
+
+	var mic_lbl := Label.new()
+	mic_lbl.text = "Microphone"
+	mic_lbl.add_theme_font_size_override("font_size", 22)
+	mic_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+	mic_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mic_row.add_child(mic_lbl)
+
+	mic_row.add_child(VRToggle.create(AppPrefs.microphone_enabled, func(on: bool) -> void:
+		AppPrefs.microphone_enabled = on
+		AppPrefs.save_prefs()
+		if on and OS.get_name() == "Android" \
+				and not ("android.permission.RECORD_AUDIO" in OS.get_granted_permissions()):
+			OS.request_permission("android.permission.RECORD_AUDIO")
+	))
+
+	vbox.add_child(HSeparator.new())
+
 	# Movement style. Both verbs are on the left stick and only one can be live,
 	# so this is a choice, not a switch — hence a dropdown rather than a toggle.
 	# VRDropdown, never OptionButton: every Viewport2Din3D click fires twice.

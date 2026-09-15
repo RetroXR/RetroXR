@@ -57,6 +57,9 @@ var hint_uses:        Dictionary = {}
 ## over speakers the HRTF is working against the room, and a surround rig gets no
 ## centre channel out of it, because the SDK renders two channels by design.
 var spatial_audio_sdk: bool = true
+## Whether a running core's microphone hears the real one. The device opens only
+## while some core has its microphone switched on.
+var microphone_enabled: bool = true
 ## How the player gets around. Both verbs are on the LEFT stick and exactly one
 ## is live at a time — pushing the stick forward cannot mean "walk" and "aim a
 ## teleport" at once. False (smooth walking) is the default because it is the
@@ -230,6 +233,7 @@ func _load_prefs() -> void:
 	show_hints       = JsonStore.get_bool(data, "show_hints",       show_hints)
 	hint_uses        = JsonStore.get_dict(data, "hint_uses",        hint_uses)
 	spatial_audio_sdk = JsonStore.get_bool(data, "spatial_audio_sdk", spatial_audio_sdk)
+	microphone_enabled = JsonStore.get_bool(data, "microphone_enabled", microphone_enabled)
 	locomotion_teleport = JsonStore.get_bool(data, "locomotion_teleport", locomotion_teleport)
 	passthrough_locomotion = JsonStore.get_bool(data, "passthrough_locomotion", passthrough_locomotion)
 	focus_passthrough = JsonStore.get_bool(data, "focus_passthrough", focus_passthrough)
@@ -257,6 +261,7 @@ func save_prefs() -> bool:
 		"show_hints":       show_hints,
 		"hint_uses":        hint_uses,
 		"spatial_audio_sdk": spatial_audio_sdk,
+		"microphone_enabled": microphone_enabled,
 		"locomotion_teleport": locomotion_teleport,
 		"passthrough_locomotion": passthrough_locomotion,
 		"focus_passthrough": focus_passthrough,

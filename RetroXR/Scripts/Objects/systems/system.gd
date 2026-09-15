@@ -4037,6 +4037,17 @@ func get_libretro_node() -> Libretro:
 	return _libretro
 
 
+## Where this machine hears from, for the Microphone autoload's distance law: a
+## seated microphone's stick, otherwise the machine.
+func microphone_position() -> Vector3:
+	if _memcards != null:
+		for slot in _memcards.card_slot_count():
+			var seated := _memcards.get_snapped_memcard(slot)
+			if seated != null and seated.has_method("microphone_position"):
+				return seated.microphone_position()
+	return global_position
+
+
 # --- Controller port snap handlers ---
 
 func _on_port_snapped(port_index: int, controller: Node3D) -> void:

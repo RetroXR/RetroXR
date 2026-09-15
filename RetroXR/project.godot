@@ -24,6 +24,7 @@ run/main_scene.flycastprobe="res://Tools/cores/flycast_quest_probe.tscn"
 [audio]
 
 driver/mix_rate=48000
+driver/enable_input=true
 
 [autoload]
 
@@ -36,6 +37,7 @@ LoadingOverlay="*res://Scripts/UI/loading_overlay.gd"
 SceneManager="*res://Scripts/Data/scene_manager.gd"
 NetworkManager="*res://Scripts/Net/network_manager.gd"
 SpatialAudioListener="*res://Scripts/Audio/spatial_audio_listener.gd"
+Microphone="*res://Scripts/Audio/microphone_input.gd"
 VRKeyboard="*res://Scripts/UI/widgets/vr_keyboard_fix.gd"
 Typing="*res://Scripts/UI/widgets/typing_guard.gd"
 SaveSync="*res://Scripts/Data/romm/romm_save_sync.gd"
