@@ -41,6 +41,10 @@ const ROW := {
 	"size": Vector3(0.137, 0.088, 0.024),
 	"loader": MediaDimensions.LOADER_NONE,
 	"firmware": ["BS-X.bin"],
+	# Its name on the face that looks out of the Super Famicom's slot. On the back
+	# face, where the other cartridge-mounted units wear theirs, it read only from
+	# behind the console.
+	"label_front": true,
 }
 
 
