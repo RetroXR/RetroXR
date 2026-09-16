@@ -2108,7 +2108,19 @@ starts from rest, so a tone already running when a block opens overshoots its am
   reads the same in a save on either machine. Listing a channel at all is also what stops the
   cabinet spawning a captive composite lead, which this console has none of. `configure_av_legend`
   hides the generic plate: it reads "AV OUT" over a "VIDEO" jack, which is the one thing this
-  panel is not, and the scene prints the machine's own strip.
+  panel is not, and the scene prints "RF OUT" on the panel's own black strip above the socket,
+  where the real machine silk-screens its four labels.
+- **An RF cord carries the SOUND as well**, which is what makes this machine audible at all.
+  `RcaPort.rf_feed` marks a modulator output — one coax, picture and sound — against a baseband
+  composite jack, which carries nothing an amplifier can use. `AvSource.resolve` applies that
+  sink **after every link has been walked**, and only if no dedicated audio cord claimed the
+  sound: a machine wired both ways is still heard through its phono pair, whichever order
+  `AvGraph` returns the links in, and RF is what a machine with no audio socket has instead. A
+  set demodulates it onto BOTH its speakers, unlike a mono phono cord, which is heard from the
+  one speaker its input drives. The NES's own RF OUT is marked too, so an NES reached ONLY over
+  RF gains sound it never had — the same latent gap, invisible for as long as every machine with
+  a coax also wore a phono pair. `av_tests` `wiring/an RF cord carries the sound as well` pins
+  both halves, and goes red if the RF feed is allowed to outrank an audio cord.
 - **`FamicomControllerII` holds port 1's Start** through `SetJoypadExtraButtons` while the room
   is louder than the volume slider allows, and **does not flicker** — that is the core's job,
   and a pad that flickered too would only alias against the core's own toggle. It holds nothing
