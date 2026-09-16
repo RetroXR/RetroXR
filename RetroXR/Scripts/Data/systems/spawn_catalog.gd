@@ -73,6 +73,7 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Rumble Pak", "spawn": "rumble_pak"},
 		{"kind": "peripheral", "label": "Controller Pak", "spawn": "controller_pak"},
 		{"kind": "peripheral", "label": "Transfer Pak", "spawn": "transfer_pak"},
+		{"kind": "peripheral", "label": "Voice Recognition Unit", "spawn": "n64_vru"},
 		# An AV MULTI OUT at the machine and three phonos at the set, so a plain
 		# composite lead fits the television and nothing at this end. Nintendo's
 		# SNS-008, shared by the Super Nintendo, the N64 and the GameCube.

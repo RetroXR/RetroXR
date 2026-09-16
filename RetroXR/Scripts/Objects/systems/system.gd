@@ -4045,6 +4045,12 @@ func microphone_position() -> Vector3:
 			var seated := _memcards.get_snapped_memcard(slot)
 			if seated != null and seated.has_method("microphone_position"):
 				return seated.microphone_position()
+	# A microphone can be a controller-port device too: the N64's Voice
+	# Recognition Unit goes in a socket and keeps its microphone on a cord.
+	for ctrl: Variant in _port_controllers:
+		var node := ctrl as Node
+		if node != null and node.has_method("microphone_position"):
+			return node.microphone_position()
 	return global_position
 
 
@@ -4447,7 +4453,10 @@ func net_release_memory_card(slot: int) -> void:
 
 
 ## Restore a controller plug into a port after loading from a save file.
-func restore_controller_plug(port_index: int, plug: ControllerPlug) -> void:
+## Node3D rather than ControllerPlug: a socket takes anything in the
+## "controller_plug" group, and the N64's Voice Recognition Unit is a box with
+## no cable behind it rather than the end of one.
+func restore_controller_plug(port_index: int, plug: Node3D) -> void:
 	if port_index < 0 or port_index >= _port_zones.size():
 		return
 	# Never evict. XRToolsSnapZone.pick_up_object drops whatever a zone is already

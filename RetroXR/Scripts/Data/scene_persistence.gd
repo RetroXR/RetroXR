@@ -194,6 +194,7 @@ const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/co
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
 const GC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn")
+const N64_VRU_SCENE          := preload("res://Scenes/Objects/controllers/n64/n64_vru.tscn")
 const TRANSFER_PAK_SCENE     := preload("res://Scenes/Objects/controllers/n64/transfer_pak.tscn")
 const SENSOR_BAR_SCENE       := preload("res://Scenes/Objects/system_models/wii/sensor_bar.tscn")
 const RF_SWITCH_SCENE        := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
@@ -278,6 +279,9 @@ const PLAIN_SCENES := {
 	"jump_pack": JUMP_PACK_SCENE,
 	# A pose here; which card slot its plug is in is applied by _apply_references.
 	"gc_microphone": GC_MICROPHONE_SCENE,
+	# A pose here; which controller socket it is in is applied by
+	# _apply_references, and its microphone rides the cord.
+	"n64_vru": N64_VRU_SCENE,
 	# The bar's own entry is a pose; which console it is plugged into is applied
 	# afterwards by _apply_references, like the remote's pairing.
 	"sensor_bar": SENSOR_BAR_SCENE,
@@ -1439,6 +1443,11 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		var mic_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
 		if mic_slot >= 0 and mic_sys != null:
 			(obj as GcMicrophone).restore_seat(mic_sys, mic_slot)
+	elif obj is N64Vru:
+		var vru_port := int(d.get("port", -1))
+		var vru_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+		if vru_port >= 0 and vru_sys != null:
+			(obj as N64Vru).restore_seat(vru_sys, vru_port)
 	elif obj is InputReceiver:
 		# A pak goes back whether or not the receiver was plugged into anything —
 		# a loose dongle can still have one on it, exactly as a loose N64 pad can.
@@ -1795,6 +1804,14 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		return _base(id, "gc_microphone", n3d).merged({
 			"system": _ref(node_to_id, mic.seated_system()),
 			"slot": mic.seated_slot(),
+		})
+	elif node is N64Vru:
+		# The microphone rides the cord and has no entry of its own, so the unit
+		# records the socket it is in.
+		var vru := node as N64Vru
+		return _base(id, "n64_vru", n3d).merged({
+			"system": _ref(node_to_id, vru.seated_system),
+			"port": vru.seated_port_index,
 		})
 	elif node is MotionPlus:
 		# Pose only, for the reason the Nunchuk above gives: which remote it is

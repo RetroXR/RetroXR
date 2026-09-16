@@ -1,0 +1,109 @@
+[gd_scene format=3]
+
+; The Voice Recognition Unit's 1.5 m cord and the NUS-021 microphone on the end
+; of it. The microphone's long axis is Z, the grille at -Z and the cord leaving
+; the flat rear end at +Z; every cylinder here is rotated Y -> Z.
+;
+; Sizes are estimated from photographs -- no dimensioned drawing was found.
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/n64_vru_mic.gd" id="1_mic"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_mic"]
+height = 0.095
+radius = 0.011
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_body"]
+top_radius = 0.011
+bottom_radius = 0.011
+height = 0.095
+radial_segments = 24
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
+albedo_color = Color(0.73, 0.73, 0.71, 1)
+roughness = 0.55
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_grille"]
+top_radius = 0.0112
+bottom_radius = 0.0112
+height = 0.012
+radial_segments = 24
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_grille"]
+albedo_color = Color(0.18, 0.18, 0.2, 1)
+roughness = 0.85
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_boot"]
+top_radius = 0.004
+bottom_radius = 0.0065
+height = 0.012
+radial_segments = 16
+rings = 1
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_mic"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_pointer"]
+height = 0.115
+radius = 0.026
+
+[node name="N64VruCable" type="Node3D"]
+
+[node name="Nus021Mic" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_mic")
+mass = 0.04
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_mic")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+shape = SubResource("CylinderShape3D_mic")
+
+[node name="Body" type="MeshInstance3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+mesh = SubResource("CylinderMesh_body")
+surface_material_override/0 = SubResource("Mat_body")
+
+[node name="Grille" type="MeshInstance3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.0415)
+mesh = SubResource("CylinderMesh_grille")
+surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="CordBoot" type="MeshInstance3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0535)
+mesh = SubResource("CylinderMesh_boot")
+surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="PickableHighlight" type="Node3D" parent="Nus021Mic"]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="Nus021Mic"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Nus021Mic/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+shape = SubResource("CylinderShape3D_pointer")
+
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 42
+segment_length = 0.036
+constraint_iterations = 8
+bend_stiffness = 0.15
+tube_radius = 0.0015
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.09, 0.09, 0.1, 1.0)
+surface_collision_mask = 7
+collision_radius = 0.0036
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.3
+end_stiff_segments = 2
