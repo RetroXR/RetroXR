@@ -353,6 +353,9 @@ const MEMPAK_SIZE := N64Card.CARD_SIZE
 @onready var _sync_button: VRButton = $SyncButton
 @onready var _options_panel: CoreOptionsPanel = $CoreOptionsPanel
 @onready var _system_name_label: Label3D = $SystemNameLabel
+## Pads this console is wired to, built by _spawn_captive_controllers.
+var _captive_controllers: Array = []
+
 @onready var _port_zones: Array = [
 	$ControllerPort1,
 	$ControllerPort2,
@@ -712,6 +715,7 @@ func _load_system_model() -> void:
 	_model.build_serial_port(self, systemid)
 	_model.configure_collision(self)
 	_build_port_zones()
+	_spawn_captive_controllers()
 	_build_memcard_slots()
 	_build_disc_loader(is_bespoke)
 	_build_handheld()
@@ -782,6 +786,71 @@ func _build_port_zones() -> void:
 		var active := i < port_count
 		_port_zones[i].visible = active
 		_port_zones[i].enabled = active
+
+
+## Pads this hardware is wired to rather than socketed for, built with the
+## machine and seated at once.
+##
+## They are deliberately NOT in the "spawned" group, so nothing saves them and
+## nothing syncs them as objects: the console rebuilds them every time it is
+## built, the way it rebuilds its captive A/V lead, and _exit_tree takes them
+## away again. A captive pad that persistence could see would come back as a
+## second pad on every load.
+##
+## The port is locked afterwards, and its recess and number hidden. A hand that
+## could pull the plug would be pulling out a lead the machine has no socket for,
+## leaving a pad with a cord running into a console that cannot take it.
+func _spawn_captive_controllers() -> void:
+	var paths: Array = _model.captive_controllers()
+	if paths.is_empty():
+		return
+	var rests: Array = _model.captive_controller_rests()
+	var parent: Node = get_tree().current_scene
+	if parent == null:
+		parent = get_parent()
+	for i in paths.size():
+		if i >= _port_zones.size():
+			break
+		var scene: PackedScene = load(str(paths[i]))
+		if scene == null:
+			push_warning("RetroSystem: captive controller scene missing: %s" % str(paths[i]))
+			continue
+		var pad: Node3D = scene.instantiate()
+		pad.set("captive", true)
+		parent.add_child(pad)
+		if i < rests.size():
+			pad.global_transform = global_transform * (rests[i] as Transform3D)
+		_captive_controllers.append(pad)
+		# The cord is built one deferred call later, so this may be a pending
+		# restore rather than a seat; either way the pad ends up in the port.
+		pad.restore_port_connection(self, i)
+		_port_zones[i].enabled = false
+		for hidden in ["PortRecess", "PortLabel"]:
+			var node := _port_zones[i].get_node_or_null(hidden) as Node3D
+			if node != null:
+				node.hide()
+
+
+## The pads built above. Handed out so a teardown or a test can ask what came
+## with the machine rather than searching the room for it.
+func captive_controllers() -> Array:
+	return _captive_controllers
+
+
+func _free_captive_controllers() -> void:
+	for entry: Variant in _captive_controllers:
+		var pad := entry as Node
+		if not is_instance_valid(pad):
+			continue
+		# The cord is a sibling rather than a child -- a rope between two bodies
+		# cannot be parented to either -- so freeing the pad alone would leave it
+		# standing in the room. storage_box does the same pair.
+		if pad.has_method("cable_instance"):
+			var cord: Node = pad.cable_instance()
+			if is_instance_valid(cord):
+				cord.queue_free()
+		pad.queue_free()
+	_captive_controllers.clear()
 
 
 ## Show the memory-card slots this console takes, and let the model place
@@ -1377,6 +1446,7 @@ static func _live(v: Variant) -> Object:
 func _exit_tree() -> void:
 	if is_powered_on:
 		power_off()
+	_free_captive_controllers()
 	_release_cache_protection()
 	for i in _channels.size():
 		_remove_touch_surface(i)

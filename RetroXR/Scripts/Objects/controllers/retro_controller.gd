@@ -96,6 +96,15 @@ var _max_rope_length: float = 0.0
 # Pending port restore (set before cable is ready)
 var _pending_port_restore: Dictionary = {}
 
+## True for a pad the console is WIRED to rather than socketed for -- a Famicom's
+## Controller I and II are moulded onto cords that leave the back of the machine.
+## It is built with the console and freed with it, so it stays out of the
+## "spawned" group that persistence and object sync sweep, exactly as the
+## console's own captive A/V lead does: a captive pad that a save could see would
+## come back as a SECOND pad every time the room was loaded. Set before add_child,
+## so this pad's own _ready never joins the group in the first place.
+var captive := false
+
 # Toggle-hold state
 var _allow_drop := false
 var _saved_by: Node3D = null
@@ -162,7 +171,8 @@ func _ready() -> void:
 	super._ready()
 	press_to_hold = false
 	second_hand_grab = SecondHandGrab.SECOND
-	add_to_group("spawned")
+	if not captive:
+		add_to_group("spawned")
 	add_to_group(ControllerBindings.CONSUMER_GROUP)
 	grabbed.connect(_on_grabbed_signal)
 	dropped.connect(_on_dropped_signal)
@@ -334,10 +344,17 @@ func _resize_cable() -> void:
 
 func _add_cable_to_scene() -> void:
 	get_tree().current_scene.add_child(_cable_instance)
-	_cable_instance.add_to_group("spawned")
+	if not captive:
+		_cable_instance.add_to_group("spawned")
 	_cable_plug = _cable_instance.get_node("ControllerPlug") as ControllerPlug
 	_cable_rope = _cable_instance.get_node("VerletRope") as VerletRope
 	_cable_plug.set_plug_mesh(plug_mesh_path)
+	# A hardwired cord has no connector: it disappears into a grommet in the
+	# console's back panel. Hiding the plug leaves the rope ending exactly there
+	# and takes the plug out of reach at the same time, which is the whole point
+	# of a lead that cannot be unplugged.
+	if captive:
+		_cable_plug.hide()
 	_cable_plug.set_controller(self)
 	_cable_plug.add_collision_exception_with(self)
 	_cable_plug.global_position = _cable_attach_point.global_position + Vector3(0, 0, -0.12)

@@ -200,6 +200,22 @@ func get_controller_port_count() -> int:
 	return 2
 
 
+## Controller scenes this hardware is WIRED to, one per port in order, or [].
+##
+## A Famicom's two pads are moulded onto cords that come out of the back of the
+## machine; there is no socket and nothing to unplug. Listing them here is what
+## makes RetroSystem build them with the console, seat them, and lock those ports.
+func captive_controllers() -> Array[String]:
+	return []
+
+
+## Where each of those pads rests, in this model's own frame -- a Famicom's two
+## wells. One entry per captive controller; a short list leaves the rest where
+## they spawn.
+func captive_controller_rests() -> Array[Transform3D]:
+	return []
+
+
 ## How many removable card slots this SHELL has, or -1 for "no opinion, ask the
 ## system descriptor". Enables that many card snap zones.
 ##
