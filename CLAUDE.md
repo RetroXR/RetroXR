@@ -600,9 +600,10 @@ link coordinator and sensor-id encoding.
 
 **`RetroXR/Tests/archive_tests.tscn` is the one GDExtension with a self-checking
 suite**, because `RommArchiveExtractor` is the one that needs no display, codec,
-core or server. 34 checks over a well-formed archive, the plan validation, a
-damaged/truncated/non-ZIP/missing one, and cancellation; every fixture is built
-under `user://` at run time, so it carries no binary.
+core or server. 83 checks over a well-formed archive, the plan validation, a
+damaged/truncated/non-ZIP/missing one, cancellation, `FirmwareInstaller`'s unpack of
+a support archive (`firmware/`) and of a speech pack's remapped parts (`pack/`); every
+fixture is built under `user://` at run time, so it carries no binary.
 
 Two of its cases are hand-built STORED archives, and that is not fussiness.
 **For a DEFLATED member the declared CRC is handed to `StreamPeerGZIP` as a gzip
@@ -1941,9 +1942,29 @@ In RetroXR:
   `<libretro>/system/mupen64plus_next/vru/`, holding `libvosk` (`.dll` with its MinGW
   runtime DLLs, `.so`, or `.dylib`, from the same Vosk 0.3.45 release as the header) and
   `model-en-us` / `model-ja` (`vosk-model-small-ja-0.22`, needed for the Japanese games).
-  That directory is per core name, so the Windows and Android builds never collide. On
-  Android it must stay on internal storage: `dlopen` outside the app's own namespace is
-  refused.
+  That directory is per core name, so the Quest's `mupen64plus_next_gles3` has one of its
+  own. On Android it must stay on internal storage: `dlopen` outside the app's own
+  namespace is refused.
+- **It is downloaded from OPTIONS > Cores > BIOS / Extras**, on the Nintendo 64 page: one
+  row per language, "Voice Recognition Unit speech: English" and "…: Japanese". A row is
+  a **pack** (`SystemAssetCatalog.PACKS`), the kind of download libretro does not host:
+  each part is a zip from its own author -- the library from Vosk's GitHub release
+  (`vosk-win64` / `vosk-linux-x86_64` / `vosk-android` 0.3.45, `vosk-osx` 0.3.42, the
+  last universal build Vosk published) and the models from alphacephei.com -- with the
+  folder inside the zip to take (`from`), the folder of the system dir it goes to (`into`)
+  and which files to keep (`only`, so the library zip leaves its headers and import
+  library behind). A part already on disk is skipped, so the second language downloads
+  only its model; a row reads Installed when every part's marker exists, and pressing it
+  again re-fetches everything as a repair.
+  - **GitHub answers a release asset with a 302 to a signed link that expires within the
+    hour**, and `RommHttp` follows no redirects, so `FirmwareInstaller` resolves the URL
+    with HEAD requests at the start of every attempt, not once.
+  - **Measured 2026-09-16** against the real hosts into a scratch system dir: Japanese
+    fetched the library (4 files) and its model (16), English then fetched only its model
+    (14), 13 s in all; `vru_selftest` pointed at the result passes every English and
+    Japanese case. `archive_tests` `pack/` covers the remapping, the `only` list, a zip
+    missing a listed file or renamed underneath us, a member climbing out of `into`, URL
+    splitting, the per-platform library name the core opens, and installed-means-every-part.
 - **Every platform builds it.** `vosk_api.h` is vendored in the fork under
   `custom/dependencies/vosk/` with its Apache-2.0 licence. It was a git submodule, which
   the release workflow cannot check out (this repository vendors by subrepo, and a leftover
@@ -2025,12 +2046,15 @@ real voice is untested. Nobody has watched Pikachu obey on screen, in either lan
 probe speaks during the opening, and what is proven is that the game asked for a word list
 and got answers back. Densha de GO! 64 has not reached a word upload in a probe run: it wants
 menu navigation first, so its table path is covered by the English selftest and not by the
-game. The macOS jobs in `retroxr-release.yml` have not run, since the fork has not been pushed
-with them, and a macOS RetroXR runs software-rendered cores only, so whether this core runs
-there at all is untried. `core_sources.gd` names no Linux or macOS asset for this fork yet. The speech pack has no
-in-app download, so it is installed by hand into the directory above. Quest is built -- the
-arm64 library carries the recognizer and resolves dlopen -- but unmeasured: libvosk is
-8.9 MB and a loaded model about 300 MB, `model-ja` included.
+game. The macOS jobs in `retroxr-release.yml` have not run -- the workflow runs on a tag or
+by hand -- and a macOS RetroXR runs software-rendered cores only, so whether this core runs
+there at all is untried. `core_sources.gd` names no Linux or macOS asset for this fork yet.
+The speech pack download is measured on Windows only; the Android, Linux and macOS
+libraries are chosen by `SystemAssetCatalog.library_part_id` from their zips' listings and
+have not been installed through the app. Quest is built -- the arm64 library carries the
+recognizer and resolves dlopen -- but unmeasured: libvosk is 8.9 MB and a loaded model about
+300 MB, `model-ja` included. A pack installed while an N64 is running is not heard until
+that machine is powered on again, because the recognizer tries the library once per load.
 
 **The Dreamcast Microphone (HKT-7200) is built.** It fits either expansion socket on the pad
 and has no button of its own: each game talks on a controller button, A in Seaman and Y in
