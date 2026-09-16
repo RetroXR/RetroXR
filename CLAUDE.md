@@ -303,6 +303,7 @@ debug build, 2026-08-27 — all passing):
 | `prop_lighting_tests` | 17 | 1 s | which of a room's meshes go on the baked prop shader, late spawns and despawns included |
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
 | `microphone_tests` | 42 | 6 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip |
+| `n64_vru_tests` | 20 | 25 s | the Voice Recognition Unit: the device id a socket announces, seating in socket 4, the machine hearing from the NUS-021, the talk button's bit, and the save round trip |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
 so re-measure rather than trusting this table, and treat an unexplained DROP as a signal.
@@ -1734,11 +1735,12 @@ seated microphone's body when there is one, otherwise the machine.
 | dolphin (fork) | GameCube DOL-022, Wii Speak, Logitech USB | the game's rate; GameCube at most 64 a frame | see below; `dolphin_wiispeak_enable`, `dolphin_wii_logi_microphone_enable` | open and state on its CPU thread, reads in `retro_run` |
 | azahar (buildbot) | 3DS mic | opens at 48000 and resamples itself | `citra_input_type` (`auto`, `none`, `static_noise`, `frontend`) | emulation thread |
 | virtualjaguar | Jaguar voice modem | 8000 | — | emulation thread |
+| mupen64plus-next (fork) | N64 Voice Recognition Unit | 48000, decoded by Vosk | the port's device id, or `mupen64plus-next-vru-port` | opens and reads in `retro_run`, decodes on its own worker |
 
 A mic that is only a BUTTON, with no audio behind it: DeSmuME (`desmume_mic_mode`, L3 "Make
 Microphone Noise"), legacy melonDS (L2), and Nestopia and Mesen for the Famicom (below). No
-libretro core hears the Dreamcast microphone, the N64 VRU, a PS2 SingStar mic (LRPS2 has no
-USB microphone) or PSP Talkman (PPSSPP's libretro build reports no recording).
+libretro core hears the Dreamcast microphone, a PS2 SingStar mic (LRPS2 has no USB
+microphone) or PSP Talkman (PPSSPP's libretro build reports no recording).
 
 **The DS listens the whole time, because a DS has no mic button.** melonDS DS gates its mic on
 L3 with a default of `hold`, and the DS model masks L3 (`nds_model.gd`
@@ -1819,43 +1821,106 @@ console.
   res://Tools/input/gc_mic_probe.tscn -- --root=<throwaway root with cores/dolphin_libretro.dll and system/dolphin/dolphin-emu/Sys>
 ```
 
-**The N64 Voice Recognition Unit is not built, and it is a speech recognizer, not a
-microphone.**
+**The N64 Voice Recognition Unit is built, and it is a speech recognizer rather than
+a microphone.** The hardware: NUS-020 goes in controller socket 4, and its NUS-021
+microphone hangs on a cord (clipped to the pad by NUS-025 in Hey You, Pikachu!), with an
+ordinary pad in socket 1. Both VRU games want socket 4 — RMG offers the VRU on its last
+port alone and says why (`RMG-Input/UserInterface/MainDialog.cpp`) — though `osVoiceInit`
+takes any channel and the core attaches a VRU wherever the input plugin reports
+`CONT_TYPE_VRU`.
 
-The hardware:
-- NUS-020 goes in controller socket 4, and its NUS-021 microphone hangs on a cord (clipped to
-  the pad by NUS-025 in Hey You, Pikachu!), with an ordinary pad in socket 1.
-- Both VRU games need socket 4. RMG offers the VRU on its last port alone and says why
-  (`RMG-Input/UserInterface/MainDialog.cpp`), and simple64's config does the same — though
-  `osVoiceInit` takes any channel and mupen64plus-core attaches a VRU wherever the input plugin
-  reports `CONT_TYPE_VRU`.
-- Hey You, Pikachu! wants Z (or L) held on the socket-1 pad while the player speaks.
+**The emulation was already complete and unreachable.** `vru_controller.c` speaks the whole
+joybus protocol, but `plugin.c:317` stamps every port `CONT_TYPE_STANDARD` and the five
+recognition calls pointed at the no-ops in `dummy_input.c`, so no frontend could get at it.
 
-No libretro N64 core has a backend:
-- **mupen64plus-next** compiles `vru_controller.c` unconditionally, then `plugin.c` forces every
-  port to `CONT_TYPE_STANDARD` and points the five recognition calls at the no-ops in
-  `dummy_input.c`.
-- **parallel_n64** removed the hook itself ("no voice-recognition backend").
-- **The emulation that remains is complete:** the core decodes the game's word list into
-  `SendVRUWord`, switches `SetMicState` on the game's configuration writes, and fills the
-  results the game reads from `ReadVRUResults`.
+In the fork (`retroxr-mupen64plus-next-libretro-v4`):
+- **`RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 0)` on a port makes it a VRU**, kept in
+  `pad_types[]` beside the existing `pad_present[]` idiom and applied in
+  `inputInitiateControllers` — which runs after `plugin_start_input`'s blanket overwrite and
+  before the joybus channels are built, and is therefore the only window in which a VRU can
+  be asked for. An id the core does not know still falls through to a pad.
+- **It attaches at content load, not at reset.** `retro_reset` never re-enters the channel
+  build, so a unit pushed in mid-game is heard at the next load; the core says so once, as a
+  warning and an on-screen line naming a reload rather than a reset.
+- **Five plugin calls, not three.** `ClearVRUWords` is the only signal that a new word list
+  is starting — without it the grammar grows for ever. `SetVRUWordMask` really is unused.
+  All five arrive on the emulation thread, so they only touch flags under a lock: Vosk lives
+  on a worker of its own, and every microphone call belongs to the thread that runs
+  `retro_run`.
+- **Vosk is opened at run time, never linked.** A `DT_NEEDED` on `libvosk` would make the
+  N64 core everyone installs fail to load when the speech pack is absent. Missing library,
+  missing symbol or missing model costs the recognition and nothing else: the VRU still
+  attaches, the game still boots, and it simply never understands you.
+- **A word is looked up, not guessed.** `vru_word_table.h` is generated by
+  `tools/gen_vru_word_table.py` from RMG's `VRUwords.cpp` (GPLv3, so the recognizer is
+  GPLv3): 677 unique keys out of 717 rows, first spelling winning, exactly as RMG's own
+  lookup does. The table maps the big-endian phoneme codes a game sends to the text a
+  recognizer listens for — including Densha de GO!'s Shift-JIS words, which RMG maps to
+  English, which is why one English model serves both games.
+- **The model is chosen by what the grammar contains**, not by the ROM's country code: a
+  grammar with a byte over 0x7F wants `model-ja`, anything else `model-en-us`.
+  `mupen64plus-next-vru-language` overrides it.
+- **The reply is RMG's**, transcribed rather than invented: five (slot, distance) pairs
+  defaulting to `0x7FFF`/0, distance = alternative rank × 256, matches sorted longest-first,
+  `mic_level`/`voice_level` `0x0BB8` and `voice_length` `0x8004`. `error_flags` is `0x8000`
+  when the decoder refuses the audio and **`0x4000` when something was heard that matched
+  nothing** — that flag is the whole difference between "understood" and "did not", because
+  the no-match reply also reports slot 0.
+- **Every core log level now reaches the frontend.** `n64DebugCallback` mapped every
+  `M64MSG_*` to `RETRO_LOG_INFO`, which frontends drop, so no warning the core raised was
+  ever visible. It carries the real level across now, which is what makes the line below an
+  oracle.
+- **A real out-of-bounds read was fixed on the way past**: `vru_controller.c` tested
+  `word[offset]` before the bound, reading two bytes past the controller struct.
 
-What a build takes:
-- **The fork.** A port-4 device, `RETRO_DEVICE_SUBCLASS(RETRO_DEVICE_JOYPAD, 0)` so the pad path
-  still delivers Z, and `CONT_TYPE_VRU` set inside `inputInitiateControllers`, because `plugin.c`
-  overwrites the type before that. The five calls are backed by a recognizer, either in the core
-  over `read_mic` or behind a private frontend interface shaped like the Transfer Pak's.
-- **A recognizer.** RMG's `VRU.cpp` is the reference. A 717-entry table maps the game's words to
-  text, the grammar is the game's current list plus `[unk]`, Vosk returns up to three
-  alternatives, and a word matches when an alternative contains it. The table is GPLv3; Vosk is
-  Apache-2.0.
-- **What it costs a Quest.** `libvosk.so` for arm64 is 8.9 MB (vosk-android 0.3.47); a small
-  model is 40 MB (en-us) or 48 MB (ja) per language; a loaded model takes about 300 MB of RAM.
-- **Power-on only.** The core reads the device type when it builds the controller channels, so a
-  VRU plugged in mid-session takes effect at the next power-on.
-- **In RetroXR.** A cable-less box in `controller_plug`, shaped like `N64Pak`, with its own
-  `device_type`, announced only when `_controller_info[3]` lists a VRU. An id the core does not
-  know falls through to a pad.
+In RetroXR:
+- **`N64Vru` is the box and `N64VruMic` is the microphone on its cord.** The box is in the
+  `controller_plug` group with `systemid = "nintendo_64"` and its own `device_type`, which
+  is the whole of how the console finds out — the same route `gc_link_plug.gd` takes.
+- **The microphone's trigger is the talk button.** A game reads the VRU port's Z line to
+  know someone is speaking and times the utterance by how long it is held, so the hand
+  holding the NUS-021 raises Z on that port through `SetJoypadExtraButtons` — the per-port
+  mask the GameCube microphone introduced, which a controller's own writes cannot clear.
+  Hey You, Pikachu! also wants Z held on the socket-1 pad, which is the player's own
+  controller and nothing to do with this.
+- **`RetroSystem.microphone_position()` walks the controller ports** as well as the card
+  slots, so the distance law follows the NUS-021 in the player's hand rather than the
+  console.
+- **The speech pack lives under the core's own system directory**,
+  `<libretro>/system/mupen64plus_next/vru/`, holding `libvosk` and `model-en-us` /
+  `model-ja`. That directory is per core name, so the Windows and Android builds never
+  collide. On Android it must stay on internal storage: `dlopen` outside the app's own
+  namespace is refused.
+
+**Measured 2026-09-15.** `tools/vru_selftest` loads the same library and model the core
+loads, sends the word list the way a game sends it, and pushes a recorded utterance through
+the same entry point the microphone feeds: a spoken "pikachu" comes back as slot 0 with no
+error flags, and a control utterance the game is not listening for comes back `0x4000`,
+refused. Swapping the two makes both checks fail, which is what makes them checks. Vosk's
+own answers are `{"text": "pikachu"}` and `{"text": "[unk]"}`.
+
+`Tools/input/vru_probe` then proves the device reaches a real core: with a NUS-020 in socket
+4 and Mario Kart 64 running, mupen64plus logs
+
+```
+Game controller 3 (VRU controller) attached
+```
+
+which names `g_vru_controller_flavor` and so proves the joybus device was selected rather
+than inferred. **One leg per process** — `--leg=control` runs the same game with an empty
+socket and prints no such line.
+
+```bash
+"$godot" --headless --path RetroXR res://Tests/n64_vru_tests.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 \
+  res://Tools/input/vru_probe.tscn -- --root=<throwaway root> --rom=<n64 rom> --leg=seated
+```
+
+**Still owed.** No game has understood a word yet: Hey You, Pikachu! is the only title that
+listens and there is no copy here, so what is proven is the recognizer, the device and the
+attach — not Pikachu answering. The Japanese model is wired but untested. The speech pack
+has no in-app download yet, so it is installed by hand into the directory above. Quest is
+built but unmeasured: `libvosk` for arm64 is 8.9 MB and a loaded model is about 300 MB.
 
 **The Dreamcast Microphone (HKT-7200) is not built.** It fits either expansion socket on the
 pad and has no button: each game talks on a controller button, A in Seaman and Y in Alien Front
