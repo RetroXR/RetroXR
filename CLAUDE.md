@@ -302,7 +302,7 @@ debug build, 2026-08-27 — all passing):
 | `web_server_tests` | — | — | the built-in file server |
 | `prop_lighting_tests` | 17 | 1 s | which of a room's meshes go on the baked prop shader, late spawns and despawns included |
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
-| `microphone_tests` | 42 | 6 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip |
+| `microphone_tests` | 55 | 25 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip, and the HKT-7200 in a pad's slot |
 | `n64_vru_tests` | 20 | 25 s | the Voice Recognition Unit: the device id a socket announces, seating in socket 4, the machine hearing from the NUS-021, the talk button's bit, and the save round trip |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
@@ -1736,11 +1736,12 @@ seated microphone's body when there is one, otherwise the machine.
 | azahar (buildbot) | 3DS mic | opens at 48000 and resamples itself | `citra_input_type` (`auto`, `none`, `static_noise`, `frontend`) | emulation thread |
 | virtualjaguar | Jaguar voice modem | 8000 | — | emulation thread |
 | mupen64plus-next (fork) | N64 Voice Recognition Unit | 48000, decoded by Vosk | the port's device id, or `mupen64plus-vru-port` | opens and reads in `retro_run`, decodes on its own worker |
+| flycast (fork) | Dreamcast HKT-7200 | 48000, decimated to the device's 8000 or 11025 | `reicast_device_port<N>_slot<M>` = `Microphone` | opens and reads in `retro_run`, drained on the emulation thread |
 
 A mic that is only a BUTTON, with no audio behind it: DeSmuME (`desmume_mic_mode`, L3 "Make
 Microphone Noise"), legacy melonDS (L2), and Nestopia and Mesen for the Famicom (below). No
-libretro core hears the Dreamcast microphone, a PS2 SingStar mic (LRPS2 has no USB
-microphone) or PSP Talkman (PPSSPP's libretro build reports no recording).
+libretro core hears a PS2 SingStar mic (LRPS2 has no USB microphone) or PSP Talkman
+(PPSSPP's libretro build reports no recording).
 
 **The DS listens the whole time, because a DS has no mic button.** melonDS DS gates its mic on
 L3 with a default of `hold`, and the DS model masks L3 (`nds_model.gd`
@@ -1934,34 +1935,84 @@ installed by hand into the directory above. Quest is built -- the arm64 library 
 recognizer and resolves dlopen -- but unmeasured: libvosk is 8.9 MB and a loaded model about
 300 MB.
 
-**The Dreamcast Microphone (HKT-7200) is not built.** It fits either expansion socket on the
-pad and has no button: each game talks on a controller button, A in Seaman and Y in Alien Front
-Online. Seaman will not start unless the pad is in port A with the VMU in socket 1 and the
-microphone in socket 2.
+**The Dreamcast Microphone (HKT-7200) is built.** It fits either expansion socket on the pad
+and has no button of its own: each game talks on a controller button, A in Seaman and Y in
+Alien Front Online. Seaman will not start unless the pad is in port A with the VMU in socket 1
+and the microphone in socket 2, which is why the core offers it in both.
 
-flycast emulates it — `maple_microphone`, recording at the game's choice of 8000 or 11025 Hz
-and polled 240 samples at a time — but the libretro build cannot hear anything:
-- `StartAudioRecording`, `RecordAudio` and `StopAudioRecording` in `shell/libretro/audiostream.cpp`
-  are stubs, and `RecordAudio` returns 0.
-- `reicast_device_portN_slotM` offers VMU, Purupuru and None (and DreamPotato in slot 1), not
-  Microphone, though `maple_Create(MDT_Microphone)` exists and `createDreamcastDevices` builds
-  whatever the option maps to.
-- Recording runs on flycast's CPU thread, which with threaded rendering — the default — is
-  "Flycast-emu", not the thread calling `retro_run`.
+**The device was already emulated and unreachable.** `maple_microphone` in
+`core/hw/maple/maple_devs.cpp` speaks the whole protocol — 8000 or 11025 Hz, mono, read 240
+samples at a time — but `StartAudioRecording`, `RecordAudio` and `StopAudioRecording` in
+`shell/libretro/audiostream.cpp` were empty and `RecordAudio` returned 0, so the device
+reported no samples for ever.
 
-A build:
-- **In the fork.**
-  - Map `Microphone` to `MDT_Microphone` in both slot options.
-  - Add the microphone structs to the fork's bundled `libretro.h`.
-  - Make the three audio functions set flags that `retro_run` acts on: open at the game's rate,
-    `set_mic_state`, and `read_mic` every frame into the `RingBuffer` that `audiostream.h`
-    already has. `RecordAudio` pops from it.
-- **In RetroXR.** A `jump_pack.gd` clone whose `slot_option_value()` is `Microphone`, with the
-  card connector at +42.5 mm. `VmuPort` and `VmuStorage` need nothing, because they ask the
-  seated device.
-- **Power-on only, like every slot device.** A live reconnect looks possible in source
-  (`devices_need_refresh` → `maple_ReconnectDevices`), but it rebuilds every maple device, VMUs
-  included, and `vmu_slot_probe.gd` says its own measurement is confounded.
+In the fork (`retroxr` branch):
+- **One rule makes it safe:** the emulation thread never calls the frontend, takes a lock or
+  waits. The three functions arrive there from inside maple DMA and only move atomics or drain
+  a single-producer queue; every libretro microphone call belongs to the thread that runs
+  `retro_run`, which is where the pump lives — outside the `retro_audio_upload()` branch,
+  because that branch is skipped whenever the renderer is threaded and the rate unlimited.
+- **Short reads are normal, not degraded.** 240 samples at 11025 Hz is 21.8 ms, longer than a
+  frame, so a game polling once a frame structurally cannot get a full read. That is what the
+  protocol's count byte is for, and it is why nothing here ever waits for more.
+- **The frontend is asked for 48000 and the rate conversion happens in the core.** Asked for
+  11025 it would decimate with no filter at all, folding a 9 kHz component back to 2025 Hz at
+  full amplitude — onto the formants of the only two games that use this device.
+  `MicrophoneResampler.h` is a windowed-sinc low-pass then interpolation between filtered
+  samples: 95 taps for 11025 Hz, 133 for 8000.
+- **The vendored `libretro.h` stops at environment call 74**, so `MicrophoneInterface.h`
+  backports the definitions verbatim, guarded so the file empties itself the day
+  `core/deps/libretro-common` is updated. The probe writes `interface_version` **going in**: a
+  zero-initialised struct is refused, so the `probe_controller_interfaces()` pattern beside it
+  would have failed silently.
+- **`"Microphone"` joins both slot options**, across the table and all 43 translations. Those
+  translated rows are generated from Crowdin upstream, so a future rebase onto master will drop
+  them — the option keeps working, translated frontends lose the label.
+
+In RetroXR:
+- **`DcMicrophone` is a `JumpPack` clone.** A slot device costs no edits at all in `VmuPort`,
+  `VmuStorage` or `system.gd`: those ask by method, so answering `slot_option_value()` with
+  `"Microphone"` is the whole of the wiring. It carries the same origin rule as the card and
+  the pack — a seat places an object's ORIGIN, so the connector sits at +42.5 mm.
+- **The pads answer `seated_microphone()`, not `microphone_position()`**, and that distinction
+  is load-bearing: `RetroSystem.microphone_position()` walks its port controllers for the first
+  thing that can say where it hears from, so a pad that always answered would shadow a device
+  that really is one — an N64 VRU in a later socket.
+- **Power-on only**, like every slot device; the binding is read when the machine starts.
+
+**Measured 2026-09-15** with `Tools/cores/dc_mic_probe` against Seaman (Japan, 2001 edition),
+the pad in port A with a VMU in slot 1 and the microphone in slot 2. The game reaches its
+microphone and switches it on, and the core says so:
+
+```
+[AUDIO] microphone: open, 48000 Hz from the frontend -> 11025 Hz for the game, 95 taps
+```
+
+with `maple_microphone::dma MDCF_MICControl` traffic either side of it and
+`IsMicrophoneActive` true. **One leg per process**: `--leg=control` runs the same disc with
+slot 2 empty, and the core neither opens a microphone nor prints that line.
+
+That line is a WARNING rather than info on purpose — frontends drop everything below warn, and
+it is the only way to tell a microphone a game is really using from one it was merely offered.
+
+The core's own tests cover the two decisions that are easiest to undo later: a 9 kHz tone must
+come out ≥40 dB down, which a filterless decimator fails at 1 dB, and the queue must never
+hang, must bound its own latency and must drop what was queued before a savestate. The last of
+those already caught a real defect — a drain that left a part-block behind, which would have
+replayed pre-savestate audio into the game.
+
+```bash
+"$godot" --headless --path RetroXR res://Tests/microphone_tests.tscn -- --only=dreamcast
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 \
+  res://Tools/cores/dc_mic_probe.tscn -- --root=<throwaway root> --rom=<a disc> --leg=seated
+```
+
+**Still owed.** Nobody has confirmed Seaman *understands* what is said to it — the game does
+its own recognition, in Japanese, and what is proven here is that it opens the device and
+receives audio at the rate it asked for. Alien Front Online is untested. Two microphones share
+one stream, because `RecordAudio` carries no device identity: right for Seaman, wrong for a
+multi-microphone game, and fixing it means changing shared core API. Quest is unbuilt for this
+fork so far.
 
 **The Famicom Controller II microphone is not built.** It is part of player 2's pad, in place of
 Start and Select, and reaches the console at `$4016` bit 2 as an instantaneous 1-bit threshold
