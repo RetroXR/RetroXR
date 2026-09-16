@@ -303,7 +303,7 @@ debug build, 2026-08-27 — all passing):
 | `prop_lighting_tests` | 17 | 1 s | which of a room's meshes go on the baked prop shader, late spawns and despawns included |
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
 | `microphone_tests` | 55 | 25 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip, and the HKT-7200 in a pad's slot |
-| `famicom_tests` | 61 | 13 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, and the `famicom` systemid's table rows |
+| `famicom_tests` | 72 | 15 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, and the `famicom` systemid's table rows |
 | `n64_vru_tests` | 20 | 25 s | the Voice Recognition Unit: the device id a socket announces, seating in socket 4, the machine hearing from the NUS-021, the talk button's bit, and the save round trip |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
@@ -2083,12 +2083,32 @@ starts from rest, so a tone already running when a block opens overshoots its am
   either side as the controller wells. 114 + 53 + 53 is the whole width, which is why the
   machine has almost no wall between a cartridge and a controller, and why the cartridge mouth
   is simply the gap between the deck's front and rear blocks.
-- **The pads are detachable here and hardwired on the hardware.** A deliberate concession: it
-  reuses the controller-port snap zones every other console has, and the ports sit on the front
-  face under each well, where the real cords emerge.
-- **`av_port_channels()` is empty.** An HVC-001 wears no A/V sockets at all, only a hardwired RF
-  pigtail, so the cabinet keeps its captive lead AND keeps that lead's plug visual shown. It is
-  the one CONSOLE in `_NO_AV_SOCKETS`; the other entry is the Virtual Boy.
+- **The pads are HARDWIRED, as they are on the machine.** Both cords leave the back through a
+  grommet at each rear corner and there is no socket to unplug. `RetroSystemModel.captive_
+  controllers()` names the two scenes and `captive_controller_rests()` says where they lie;
+  `RetroSystem._spawn_captive_controllers` builds them with the console, seats each in a port
+  and then LOCKS that port, hiding its recess and number. Everything downstream is unchanged —
+  bindings, netplay and the core still see two ordinary port controllers.
+  - **`RetroController.captive` keeps them out of the `"spawned"` group**, which is the whole
+    reason the flag exists rather than a hidden port: persistence and object sync both sweep
+    that group, so a captive pad a save could see would come back as a SECOND pad on every load.
+    `RetroSystem._exit_tree` frees them and their cords instead, the way it frees its own
+    captive A/V lead. Set the flag BEFORE `add_child`, or the pad's own `_ready` joins the group
+    first.
+  - **The plug mesh is hidden too.** A hardwired cord has no connector: the rope ends inside the
+    grommet, and hiding the plug is also what puts it out of a hand's reach.
+  - **The order is load-bearing.** Controller I is port 1 and Controller II port 2, because the
+    core reads the microphone off `joy[1]` alone — a Controller II built into player one's port
+    would have no microphone at all.
+- **One socket, and it is not composite.** The HVC-001's rear panel carries AC ADAPTER,
+  TV/GAME, CH1/CH2 and RF SWITCH, and nothing else; everything the machine puts out goes down
+  that one coax to the RXR-003 switch box and into the set's aerial socket. So
+  `av_port_channels()` is `[VIDEO]` — the channel an RF feed resolves as everywhere in this room,
+  the same thing the NES's own RF OUT says — and the built port is renamed `RfOut`, so a cord
+  reads the same in a save on either machine. Listing a channel at all is also what stops the
+  cabinet spawning a captive composite lead, which this console has none of. `configure_av_legend`
+  hides the generic plate: it reads "AV OUT" over a "VIDEO" jack, which is the one thing this
+  panel is not, and the scene prints the machine's own strip.
 - **`FamicomControllerII` holds port 1's Start** through `SetJoypadExtraButtons` while the room
   is louder than the volume slider allows, and **does not flicker** — that is the core's job,
   and a pad that flickered too would only alias against the core's own toggle. It holds nothing
@@ -2107,6 +2127,11 @@ starts from rest, so a tone already running when a block opens overshoots its am
   --rom="Z:/roms/nes/Bokosuka Wars (Japan).nes" --leg=mic
 ```
 
+`Tools/models/famicom_render_probe` renders the machine front, top and rear and prints the
+pads' ports and groups — windowed, never `--headless`, which returns a correctly sized blank. It
+spawns no pads of its own: both arrive with the console, and a probe that made its own would put
+four in the room.
+
 **Measured 2026-09-15** against Bokosuka Wars (Japan) on the forked core: the option reached
 `fceumm.opt` and the core logged `Famicom Controller II microphone on -- player 2's Start is now
 the noise you make`. The same ROM on an NES machine (`--leg=nes`) prints nothing and gets no
@@ -2123,11 +2148,11 @@ own bit has not been driven into a game by a hand**, only through the same call 
 And **the Disk System still hosts on `nes`**: `ExpansionCatalog`'s `host` is single-valued, so
 the Famicom Disk System is on the NES's card despite the name.
 
-**`famicom_tests`** is 61 headless cases over the threshold curve, the gate and its hysteresis,
+**`famicom_tests`** is 72 headless cases over the threshold curve, the gate and its hysteresis,
 the C++ measure read back from GDScript, the service's one-measurement fan-out, the port rule,
-both pads and every table row. Mutation-tested: making the microphone drive any port, ignoring
-the slider's off position, or dropping the distance scaling each fails exactly the cases that
-name them. It also waits for `ModelWarmer.is_warmed()` before quitting — SceneManager's boot
+both pads, the captive pair the console builds, and every table row. Mutation-tested: making the
+microphone drive any port, ignoring the slider's off position, dropping the distance scaling, or
+letting a captive pad join the `"spawned"` group each fails exactly the cases that name them. It also waits for `ModelWarmer.is_warmed()` before quitting — SceneManager's boot
 warm fires four process frames in, and a suite short enough to quit mid-warm prints a screenful
 of parse errors from a loader thread as the class cache goes away.
 
