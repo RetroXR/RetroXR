@@ -129,12 +129,12 @@ const _PERIPHERALS: Dictionary = {
 		# panel wears an RF SWITCH socket and a CH3/CH4 slide beside it.
 		{"kind": "peripheral", "label": "RF Switch (RXR-003)", "spawn": "rf_switch"},
 	],
-	# Controller I and Controller II are different objects, which is the whole
-	# point of this machine: II has a microphone and a volume slider where I has
-	# Select and Start. Both are listed, because either can be lost.
+	# No pads: both are moulded onto cords that come out of the back of the
+	# machine and arrive with it, so there is no such thing as a spare. What IS
+	# offered is the way a Famicom reached a television, since its only output is
+	# the RF socket beside the channel switch.
 	"famicom": [
-		{"kind": "peripheral", "label": "Controller I", "spawn": "famicom_controller_i"},
-		{"kind": "peripheral", "label": "Controller II", "spawn": "famicom_controller_ii"},
+		{"kind": "peripheral", "label": "RF Switch (RXR-003)", "spawn": "rf_switch"},
 	],
 	# Same reasoning as the NES: the console moulds its own DE-9 sockets and the
 	# stick wears the matching plug, so the two only look right together. Named
@@ -163,7 +163,10 @@ const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari_2600", "playstatio
 ## second cable doing the same job. The NES puts out one audio channel and lists the
 ## mono lead its console shipped with; the Wii and the N64 have no phono sockets at
 ## all, so the generic lead would fit their television and nothing on the console.
-const _OWN_AV_LEAD: Array[String] = ["nes", "wii", "nintendo_64"]
+## The Famicom is here for a stronger reason than the other three: it has no
+## composite socket at all, so the generic lead would fit its television and
+## nothing on the console. Its card lists the RF switch instead.
+const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "nintendo_64"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets
 ## (av_port_channels() is empty), so a spawned lead has nothing to enter at that
@@ -174,10 +177,7 @@ const _OWN_AV_LEAD: Array[String] = ["nes", "wii", "nintendo_64"]
 ## A platform with no model of its own is NOT one of these: it spawns the
 ## primitive box, which does wear the three sockets, and the lead is how its
 ## picture reaches the set.
-## The Famicom is the one CONSOLE here: an HVC-001 wears no A/V sockets, only a
-## hardwired RF pigtail, so a spawned lead would have nothing to enter at the
-## console end.
-const _NO_AV_SOCKETS: Array[String] = ["virtual_boy", "famicom"]
+const _NO_AV_SOCKETS: Array[String] = ["virtual_boy"]
 
 ## The lead every other platform reaches the TV with. Consoles spawn wearing a
 ## captive one, so this row is a spare — for a lead thrown in the trash, or a

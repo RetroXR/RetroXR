@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/famicom_model.gd" id="1_fc"]
 
@@ -40,6 +40,23 @@ size = Vector3(0.004, 0.008, 0.15)
 
 [sub_resource type="BoxMesh" id="Mesh_expansion"]
 size = Vector3(0.04, 0.01, 0.002)
+
+; The rear panel, read off a photograph of the real machine: a black legend
+; strip, then AC ADAPTER, TV/GAME, CH1/CH2 and the RF SWITCH socket across it,
+; with a cord grommet at each corner.
+[sub_resource type="BoxMesh" id="Mesh_legend"]
+size = Vector3(0.15, 0.006, 0.0012)
+
+[sub_resource type="BoxMesh" id="Mesh_dc_jack"]
+size = Vector3(0.012, 0.012, 0.002)
+
+[sub_resource type="BoxMesh" id="Mesh_slide"]
+size = Vector3(0.011, 0.007, 0.002)
+
+[sub_resource type="CylinderMesh" id="Mesh_grommet"]
+top_radius = 0.005
+bottom_radius = 0.005
+height = 0.007
 
 ; Cream above, dark red below -- the two colours the machine is known by. Both
 ; are matte mouldings, so neither is shiny.
@@ -110,16 +127,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0.0755)
 mesh = SubResource("Mesh_expansion")
 surface_material_override/0 = SubResource("Mat_dark")
 
-; Identity basis: a plug arrives from +Z, which is the front. No socket mesh is
-; drawn here: the cabinet's own PortRecess is a child of the snap zone and rides
-; it onto these markers, so drawing a second hole would only fight it for the
-; same face.
-[node name="PortSeat1" type="Marker3D" parent="Front"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0835, 0.015, 0.0765)
-
-[node name="PortSeat2" type="Marker3D" parent="Front"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0835, 0.015, 0.0765)
-
 ; The machine's own printing, on the front wall of the deck between the wells.
 ; The wordmark beside it on the hardware is deliberately not drawn -- see the
 ; note in Textures/Controllers/ATTRIBUTIONS.txt about the NES pad.
@@ -143,9 +150,54 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028, 0.06, 0.055)
 
 [node name="Rear" type="Node3D" parent="."]
 
-; Where the captive lead leaves the machine. An HVC-001 has no A/V sockets at
-; all: its picture and sound go out on a hardwired RF pigtail, so the cabinet's
-; own captive lead is the whole of this console's output and its plug visual
-; stays shown rather than being hidden behind a jack.
-[node name="CableSeat" type="Marker3D" parent="Rear"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.075, 0.018, -0.076)
+; AC ADAPTER, TV/GAME, CH1/CH2, RF SWITCH -- the whole of the real panel, left to
+; right as you look AT the back, which is the mirror of the x order here. There
+; is no composite: the machine's one output is the RF socket, and a picture
+; reaches a television through the RXR-003 switch box, as it did on the hardware.
+[node name="Legend" type="MeshInstance3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0285, -0.0757)
+mesh = SubResource("Mesh_legend")
+surface_material_override/0 = SubResource("Mat_dark")
+
+[node name="AcJack" type="MeshInstance3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.045, 0.019, -0.0755)
+mesh = SubResource("Mesh_dc_jack")
+surface_material_override/0 = SubResource("Mat_dark")
+
+[node name="TvGameSwitch" type="MeshInstance3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.012, 0.019, -0.0755)
+mesh = SubResource("Mesh_slide")
+surface_material_override/0 = SubResource("Mat_dark")
+
+[node name="ChannelSwitch" type="MeshInstance3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.016, 0.019, -0.0755)
+mesh = SubResource("Mesh_slide")
+surface_material_override/0 = SubResource("Mat_dark")
+
+; R_y(180), so the socket receives along the model's -Z -- out of the back, which
+; is where a plug arrives from. Pushed 10 mm proud of the panel because that is
+; where a seated phono plug's ORIGIN belongs; rca_port.tscn pulls its own jack
+; back by the same 10 mm to land the flange on the case.
+[node name="RfSeat" type="Marker3D" parent="Rear"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.04, 0.02, -0.085)
+
+; The two cord grommets, one at each rear corner. A CylinderMesh stands on +Y,
+; so R_x(-90) lays it along -Z and out through the panel.
+[node name="GrommetLeft" type="MeshInstance3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.1, 0.018, -0.0765)
+mesh = SubResource("Mesh_grommet")
+surface_material_override/0 = SubResource("Mat_dark")
+
+[node name="GrommetRight" type="MeshInstance3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0.1, 0.018, -0.0765)
+mesh = SubResource("Mesh_grommet")
+surface_material_override/0 = SubResource("Mat_dark")
+
+; Where each hardwired cord meets the machine. The pads are moulded onto these,
+; so the zones here are locked the moment RetroSystem seats them -- they exist to
+; place a cord's end, not to be plugged into.
+[node name="PortSeat1" type="Marker3D" parent="Rear"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.1, 0.018, -0.082)
+
+[node name="PortSeat2" type="Marker3D" parent="Rear"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.1, 0.018, -0.082)

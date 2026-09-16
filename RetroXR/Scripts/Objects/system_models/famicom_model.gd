@@ -8,10 +8,12 @@
 ## for it is one thing: Controller II carries a microphone, and the NES has none.
 ## Everything else about the two machines is the same core running the same ROMs.
 ##
-## The pads are DETACHABLE here and hardwired on the hardware. That concession is
-## what lets the existing controller-port snap zones serve, and it is why the two
-## ports are on the front face under the wells -- where the real cords emerge --
-## rather than being no ports at all.
+## The pads are HARDWIRED, as they are on the machine: both cords leave the back
+## through a grommet at each rear corner and there is no socket to unplug. The
+## port snap zones still exist and still carry the input -- RetroSystem seats each
+## pad in one and then locks it -- so nothing about bindings, netplay or the core
+## changes; what changes is that a hand cannot pull a lead the console has no
+## socket for.
 class_name RetroSystemModelFamicom
 extends RetroSystemModelDefault
 
@@ -58,14 +60,39 @@ func _add_deck_box(body: CollisionObject3D) -> void:
 
 ## The cabinet authors its ports at z 0.125, which is 50 mm off the front of this
 ## case. Both hooks below put its furniture back onto real faces.
+##
+## On the REAR, at the grommets, because that is where a Famicom's cords come out.
 func configure_controller_ports(port_zones: Array) -> void:
 	for i in port_zones.size():
 		var zone := port_zones[i] as Node3D
 		if zone == null:
 			continue
-		var seat := get_node_or_null("Front/PortSeat%d" % (i + 1)) as Node3D
+		var seat := get_node_or_null("Rear/PortSeat%d" % (i + 1)) as Node3D
 		if seat != null:
 			zone.global_transform = seat.global_transform
+
+
+const _PADS := "res://Scenes/Objects/controllers/famicom/"
+
+
+## Controller I in port 1, Controller II -- the one with the microphone -- in
+## port 2. The order is the hardware's and it is load-bearing: the core reads the
+## microphone off joy[1] alone, so a Controller II built into player one's port
+## would have no microphone at all.
+func captive_controllers() -> Array[String]:
+	return [_PADS + "famicom_controller_i.tscn", _PADS + "famicom_controller_ii.tscn"]
+
+
+## Lying in the two wells, face up and turned lengthways: a pad is 118 mm long
+## and a well 53 mm wide, so it only fits the long way round. R_y(90) sends the
+## pad's own +Z out along the console's +X. 41 mm is the well floor at 30 mm plus
+## half the pad's 22 mm thickness.
+func captive_controller_rests() -> Array[Transform3D]:
+	var turned := Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0))
+	return [
+		Transform3D(turned, Vector3(-0.0835, 0.041, 0.0)),
+		Transform3D(turned, Vector3(0.0835, 0.041, 0.0)),
+	]
 
 
 ## POWER on the left, RESET on the right, on the front of the deck's top face.
@@ -101,25 +128,42 @@ func get_cartridge_insert_direction() -> Vector3:
 	return Vector3.DOWN
 
 
-## No A/V sockets at all, which is the difference from the NES beside it: an
-## HVC-001's picture and sound leave on a hardwired RF pigtail. Returning nothing
-## is what makes the cabinet keep its captive lead AND keep that lead's plug
-## visual shown, since there is no jack for it to be blocking.
+## ONE socket, and it is not composite: an HVC-001's rear panel carries AC
+## ADAPTER, TV/GAME, CH1/CH2 and RF SWITCH, and nothing else. Everything the
+## machine puts out goes down that one coax to the RXR-003 switch box and into
+## the set's aerial socket.
 ##
-## The lead the cabinet gives is a composite one and the real pigtail ends in an
-## RF plug that goes to a modulator box. That is not modelled: what is being said
-## here is that this machine has no socket a player could plug anything into.
+## Declared as VIDEO because that is the channel an RF feed resolves as
+## throughout the room -- the NES's own RF OUT says the same thing, and what a
+## television treats it as is decided by the SOCKET the far end lands in. Listing
+## a channel at all is also what stops the cabinet spawning a captive composite
+## lead, which this machine has none of.
 func av_port_channels() -> Array:
-	return []
+	return [RcaPort.Channel.VIDEO]
 
 
-## Out of the back, on the left. The cord leaves an attach point stiffly along
-## its local -Z, so the rear normal is what aims it.
-func configure_cable_attach(attach_point: Node3D) -> void:
-	var seat := get_node_or_null("Rear/CableSeat") as Node3D
-	if seat != null:
-		attach_point.global_position = seat.global_position
-	aim_cable_exit(attach_point, Vector3(0, 0, -1))
+## Seated on the marker the scene authors, which carries its basis as well as its
+## place, and renamed: a save records a cord by the socket's NAME, and this hole
+## is the RF out rather than a composite video jack. The NES calls its own the
+## same thing, so a lead reads the same on either machine.
+func configure_av_ports(ports: Array) -> void:
+	if ports.is_empty():
+		return
+	var port := ports[0] as Node3D
+	var seat := get_node_or_null("Rear/RfSeat") as Node3D
+	if port == null or seat == null:
+		return
+	port.name = "RfOut"
+	port.global_transform = seat.global_transform
+
+
+## No plate. The generic legend reads "AV OUT" over a "VIDEO" jack, which is the
+## one thing this panel is not: the scene prints the machine's own strip -- AC
+## ADAPTER, TV/GAME, CH1/CH2, RF SWITCH -- and a second sign contradicting it
+## would be worse than none.
+func configure_av_legend(legend: AvLegend) -> void:
+	if legend != null:
+		legend.hide()
 
 
 ## The scene prints FAMILY COMPUTER on the front of the deck, so the cabinet's

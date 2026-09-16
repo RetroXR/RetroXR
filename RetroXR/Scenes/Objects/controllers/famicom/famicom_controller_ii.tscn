@@ -64,14 +64,16 @@ top_radius = 0.0045
 bottom_radius = 0.0045
 height = 0.0018
 
+; Flatter and shorter than a first pass, which stood 4 mm proud of a 1 mm track
+; and read as a tiny lever rather than as a thumb slider.
 [sub_resource type="BoxMesh" id="BoxMesh_knob"]
-size = Vector3(0.005, 0.004, 0.009)
+size = Vector3(0.004, 0.0025, 0.007)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_knob"]
 size = Vector3(0.006, 0.006, 0.011)
 
 [sub_resource type="BoxMesh" id="BoxMesh_track"]
-size = Vector3(0.02, 0.001, 0.004)
+size = Vector3(0.018, 0.001, 0.0035)
 
 [sub_resource type="StandardMaterial3D" id="Mat_grille"]
 albedo_color = Color(0.11, 0.1, 0.09, 1)
@@ -138,8 +140,10 @@ surface_material_override/0 = SubResource("Mat_button")
 ; this pad rather than a capture device -- and the slider decides how loud the
 ; room has to be before that bit is set, switching the microphone off at its far
 ; left the way the real one does.
+; x 0.002, not 0.014. A 7 mm grille there reached x 0.021 and ran into button B,
+; whose 5.5 mm disc starts at 0.0165 -- the two read as one lozenge in a render.
 [node name="MicGrille" type="MeshInstance3D" parent="Model/Face"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.014, 0.0133, 0.013)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.002, 0.0133, 0.0145)
 mesh = SubResource("CylinderMesh_grille")
 surface_material_override/0 = SubResource("Mat_grille")
 
@@ -148,13 +152,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0002, 0)
 mesh = SubResource("CylinderMesh_grille_inner")
 surface_material_override/0 = SubResource("Mat_grille_holes")
 
+; Clear of the D-pad's upright arm, which reaches x -0.030 and z 0.013.
 [node name="VolumeTrack" type="MeshInstance3D" parent="Model/Face"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.017, 0.0128, 0.013)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.019, 0.0126, 0.0155)
 mesh = SubResource("BoxMesh_track")
 surface_material_override/0 = SubResource("Mat_grille_holes")
 
 [node name="LabelMic" type="Label3D" parent="Model/Face"]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0.014, 0.0126, 0.0225)
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0.002, 0.0126, 0.0215)
 pixel_size = 5e-05
 modulate = Color(0.2, 0.17, 0.1, 1)
 text = "MIC"
@@ -163,7 +168,7 @@ outline_size = 0
 alpha_cut = 1
 
 [node name="LabelVol" type="Label3D" parent="Model/Face"]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.017, 0.0126, 0.0225)
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.019, 0.0126, 0.0215)
 pixel_size = 5e-05
 modulate = Color(0.2, 0.17, 0.1, 1)
 text = "VOL"
@@ -175,15 +180,15 @@ alpha_cut = 1
 ; where the real slider silences the microphone. It starts open, because a pad
 ; that arrived silent would read as broken rather than as turned down.
 [node name="VolumeSlider" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.017, 0.0145, 0.013)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.019, 0.014, 0.0155)
 collision_layer = 1048577
 script = ExtResource("5_slider")
-travel = 0.016
+travel = 0.014
 engage_radius = 0.022
 value = 0.65
 
 [node name="KnobMesh" type="MeshInstance3D" parent="VolumeSlider"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0024, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0)
 mesh = SubResource("BoxMesh_knob")
 surface_material_override/0 = SubResource("Mat_knob")
 
