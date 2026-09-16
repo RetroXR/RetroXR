@@ -5,7 +5,7 @@
 # libretro's repository and is refreshed wholesale too — an edit there would be
 # lost the next time, silently.
 #
-# The binary this describes is built from XenuIsWatching/mupen64plus-libretro-nx
+# The binary this describes is built from RetroXR/mupen64plus-libretro-nx
 # at the tag retroxr-mupen64plus-next-libretro-v3 and published on that
 # repository's releases page, which is also where its source is: mupen64plus is
 # GPLv2, so the two travel together.

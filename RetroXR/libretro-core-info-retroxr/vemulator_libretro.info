@@ -21,7 +21,7 @@
 # like every other row.
 #
 # And the naming fields say which build this is, as the other vendored forks do.
-# The binary is built from XenuIsWatching/vemulator-libretro at the tag
+# The binary is built from RetroXR/vemulator-libretro at the tag
 # retroxr-vemulator-libretro-v2 and published on that repository's releases
 # page, which is also where its source is — an obligation here rather than
 # merely good manners, since VeMUlator is GPLv3.

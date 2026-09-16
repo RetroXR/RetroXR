@@ -131,7 +131,7 @@ re-armed, 28 ms instead of 13); and every frame going through a 10-bit scene
 buffer plus a tonemap subpass even when that subpass is a copy. The fixes are
 `docs/godot-4.7.2-*.patch`, applied on the engine branch `retroxr-4.7.2`
 (4.7.2-stable + all of them) in `~/godot`, pushed to
-https://github.com/XenuIsWatching/godot/tree/retroxr-4.7.2. The prebuilt arm64
+https://github.com/RetroXR/godot/tree/retroxr-4.7.2. The prebuilt arm64
 libraries from that branch live under `Tools/engine/` (Git LFS) and
 `Tools/place_engine.py` swaps one into the Android build template's AAR:
 

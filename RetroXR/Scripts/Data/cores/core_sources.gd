@@ -53,7 +53,7 @@ extends RefCounted
 
 const SOURCES := {
 	"dolphin": {
-		"repo":  "XenuIsWatching/dolphin",
+		"repo":  "RetroXR/dolphin",
 		# The release this app was built knowing about. NOT part of the download
 		# URL — see base_url. It is only the version to show when GitHub cannot be
 		# reached, so an offline player still sees something truthful rather than
@@ -87,7 +87,7 @@ const SOURCES := {
 	# saying because the two sit next to each other in this file and the wrong
 	# name here fails silently, as a core that simply never downloads.
 	"mgba": {
-		"repo":  "XenuIsWatching/mgba",
+		"repo":  "RetroXR/mgba",
 		"known_tag": "retroxr-mgba-libretro-v6",
 		"label": "mGBA (retroXR build)",
 		"assets": {
@@ -108,7 +108,7 @@ const SOURCES := {
 	# Play! is BSD, so unlike Dolphin the binary carries no source obligation;
 	# the fork is where it is built from all the same.
 	"play": {
-		"repo":  "XenuIsWatching/Play-",
+		"repo":  "RetroXR/Play-",
 		"known_tag": "retroxr-play-libretro-v1",
 		"label": "Play! (retroXR build)",
 		"assets": {
@@ -141,7 +141,7 @@ const SOURCES := {
 	# gambatte is GPLv2, so the source obligation is Dolphin's, not mGBA's — the
 	# tag beside the binary is what meets it.
 	"gambatte": {
-		"repo":  "XenuIsWatching/gambatte-libretro",
+		"repo":  "RetroXR/gambatte-libretro",
 		"known_tag": "retroxr-gambatte-libretro-v2",
 		"label": "gambatte (retroXR build)",
 		"assets": {
@@ -164,7 +164,7 @@ const SOURCES := {
 	# pcsx_rearmed is GPLv2, so the source has to sit on the tag beside the
 	# binary — same arrangement as Dolphin and gambatte.
 	"pcsx_rearmed": {
-		"repo":  "XenuIsWatching/pcsx_rearmed",
+		"repo":  "RetroXR/pcsx_rearmed",
 		"known_tag": "retroxr-pcsx-rearmed-libretro-v3",
 		"label": "PCSX-ReARMed (retroXR build)",
 		"assets": {
@@ -214,7 +214,7 @@ const SOURCES := {
 	#
 	# VeMUlator is GPLv3, so the source for these binaries sits on the tag.
 	"vemulator": {
-		"repo":  "XenuIsWatching/vemulator-libretro",
+		"repo":  "RetroXR/vemulator-libretro",
 		"known_tag": "retroxr-vemulator-libretro-v2",
 		"label": "VeMUlator (retroXR build)",
 		"assets": {
@@ -241,7 +241,7 @@ const SOURCES := {
 	#
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
-		"repo":  "XenuIsWatching/flycast",
+		"repo":  "RetroXR/flycast",
 		"known_tag": "retroxr-flycast-libretro-v2",
 		"label": "Flycast (retroXR build)",
 		"assets": {
@@ -250,7 +250,7 @@ const SOURCES := {
 		},
 	},
 	"snes9x": {
-		"repo":  "XenuIsWatching/snes9x",
+		"repo":  "RetroXR/snes9x",
 		"known_tag": "retroxr-snes9x-libretro-v1",
 		"label": "Snes9x (retroXR build)",
 		"assets": {
@@ -274,7 +274,7 @@ const SOURCES := {
 	# mupen64plus is GPLv2, so the source has to sit on the tag beside the
 	# binary — same arrangement as Dolphin, gambatte and pcsx_rearmed.
 	"mupen64plus_next": {
-		"repo":  "XenuIsWatching/mupen64plus-libretro-nx",
+		"repo":  "RetroXR/mupen64plus-libretro-nx",
 		"known_tag": "retroxr-mupen64plus-next-libretro-v3",
 		"label": "Mupen64Plus-Next (retroXR build)",
 		"assets": {
@@ -291,7 +291,7 @@ const SOURCES := {
 	# same core renders the same ROM correctly. It is also the build
 	# CoreRecommendations already names for nintendo_64 on Android.
 	"mupen64plus_next_gles3": {
-		"repo":  "XenuIsWatching/mupen64plus-libretro-nx",
+		"repo":  "RetroXR/mupen64plus-libretro-nx",
 		"known_tag": "retroxr-mupen64plus-next-libretro-v3",
 		"label": "Mupen64Plus-Next GLES3 (retroXR build)",
 		"assets": {
