@@ -127,6 +127,7 @@ func _run() -> void:
 		["wiring/two machines on one set keep their own inputs", _w_two_machines],
 		["wiring/unplugging a machine takes it off both displays", _w_unplug_all],
 		["wiring/an NES feeds composite and RF at the same time", _w_nes_rf],
+		["wiring/an RF cord carries the sound as well", _w_rf_audio],
 		["display/the selected input is shown", _d_selected],
 		["display/another input is blue, not the last picture", _d_away],
 		["display/coming back shows it again", _d_back],
@@ -963,6 +964,76 @@ func _w_nes_rf() -> void:
 		tv_rf.rf_channel = 4 if ch != 4 else 3
 		await _wait(5)
 		_ok(not tv_rf.can_paint(nes), "on the other channel it may not")
+
+
+## An RF feed is one coax carrying the picture AND the sound, which is the whole
+## difference between it and a composite video cord. It had carried neither
+## before -- AvSource only took an audio sink from an AUDIO_L/R cord -- and that
+## was invisible for as long as every machine with an RF socket also wore a phono
+## pair. A Famicom does not: the coax is its only output, so without this it is
+## silent however it is wired.
+##
+## The second half is the guard, and it is why the RF sink is applied after every
+## link has been walked rather than inside the loop. A machine wired BOTH ways
+## must still be heard through the set its audio cord goes to, whichever order
+## the links happen to come back in.
+func _w_rf_audio() -> void:
+	var fc_set := _tv()
+	var fc := SYSTEM_SCENE.instantiate() as Node3D
+	fc.systemid = "famicom"
+	fc.freeze = true
+	fc.position = Vector3(9.0, 1, 0)
+	add_child(fc)
+	fc.add_to_group("spawned")
+	_spawned.append(fc)
+	await _wait(60)
+
+	var fc_rf := fc.find_child("RfOut", true, false) as RcaPort
+	_ok(fc_rf != null and fc_rf.rf_feed, "a Famicom's only socket is an RF feed")
+	if fc_rf == null:
+		return
+	await _single_lead(RF_SWITCH, fc, "RfOut", fc_set, "RfPort")
+
+	var feed: AvSource.Feed = AvSource.resolve(fc, false)
+	_check_eq(feed.primary_sink(), fc_set, "the picture reaches the set")
+	_check_eq(feed.audio_sink, fc_set, "and so does the sound, down the same coax")
+	# Both speakers, because the SET demodulates it. That is what makes this
+	# different from the mono phono cord, which lands in one input and is heard
+	# from the one speaker that input drives.
+	_ok(feed.left == 0 and feed.right == 1, "heard from both of its speakers")
+
+	# The guard: an NES wears a phono pair as well, and that cord decides.
+	var comp_set := _tv()
+	comp_set.position = Vector3(12.0, 1, 0)
+	var rf_set := _tv()
+	rf_set.position = Vector3(15.0, 1, 0)
+	var nes := SYSTEM_SCENE.instantiate() as Node3D
+	nes.systemid = "nes"
+	nes.model_id = "nes"
+	nes.freeze = true
+	nes.position = Vector3(18.0, 1, 0)
+	add_child(nes)
+	nes.add_to_group("spawned")
+	_spawned.append(nes)
+	await _wait(180)
+	if nes.find_child("RfOut", true, false) == null:
+		_skip("this build's NES has no RF panel")
+		return
+	# BOTH cords, and cord 1 is the point: _w_nes_rf above runs the picture alone,
+	# which is exactly the case where the RF feed SHOULD take the sound. Without
+	# an audio cord here this guard would assert the opposite of what it means.
+	var comp_in: Array[RcaPort] = _input_ports(comp_set, RetroTV.Source.COMPOSITE_1)
+	await _lead([
+		[0, _out_ports(nes)[0], comp_in[0]],
+		[1, _out_ports(nes)[1], comp_in[1]],
+	])
+	await _single_lead(RF_SWITCH, nes, "RfOut", rf_set, "RfPort")
+
+	var nes_feed: AvSource.Feed = AvSource.resolve(nes, false)
+	_check_eq(nes_feed.audio_sink, comp_set,
+		"a machine wired both ways is still heard through its audio cord")
+	_ok(nes_feed.video_sinks.has(rf_set) and nes_feed.video_sinks.has(comp_set),
+		"while both sets still get the picture")
 
 
 # ── Display ───────────────────────────────────────────────────────────────────

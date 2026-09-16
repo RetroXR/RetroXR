@@ -57,6 +57,8 @@ class Feed:
 ## the sound: both channels go wherever it lands, and two coincident sources sum.
 static func resolve(dev: Node3D, stereo: bool) -> Feed:
 	var feed := Feed.new()
+	## The sink an RF cord reaches, held back until every link has been walked.
+	var rf_sink: Node3D = null
 	for link in AvGraph.links_for(dev):
 		var out_port: RcaPort = link["out"]
 		if out_port.get_device() != dev:
@@ -91,6 +93,9 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 					var set_ := target as RetroTV
 					if set_ != null and not feed.video_sinks.has(set_):
 						feed.video_sinks.append(set_)
+				# An RF cord carries the sound as well, so remember where it went.
+				if out_port.rf_feed and rf_sink == null:
+					rf_sink = target
 			RcaPort.Channel.AUDIO_L:
 				if feed.audio_sink != null and feed.audio_sink != target:
 					continue
@@ -114,4 +119,19 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 					feed.audio_sink = target
 					feed.left = 0
 					feed.right = 1
+	# The RF feed last, and only if nothing else claimed the sound. A machine with
+	# phono audio run to a set is being heard through that, and RF is what a
+	# machine with no audio socket at all has instead — so an NES wired both ways
+	# keeps sounding out of its composite set exactly as it did, while a Famicom,
+	# which has only the coax, is heard at all.
+	#
+	# Applied after the loop rather than decided inside it so the answer cannot
+	# depend on which link AvGraph happened to walk first.
+	if feed.audio_sink == null and rf_sink != null:
+		feed.audio_sink = rf_sink
+		# A set demodulates the sound itself and plays it on both its own
+		# speakers. There is no crossed case and no single input to land in, which
+		# is what makes this different from the mono phono cord above.
+		feed.left = 0
+		feed.right = 1
 	return feed

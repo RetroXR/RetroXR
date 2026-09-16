@@ -45,6 +45,18 @@ enum Direction { OUT, IN }
 		if jack != null:
 			jack.visible = show_jack
 
+## True for a modulator output rather than a baseband one: the coax on the back of
+## an NES or a Famicom, which carries the PICTURE AND THE SOUND down a single
+## cord. That is the whole difference between it and a composite video jack, and
+## the only place it shows is AvSource.resolve — a composite VIDEO cord has
+## nothing an amplifier can use, and this one does.
+##
+## It matters far more on some machines than others. An NES also wears a phono
+## pair, so a player who never touches the RF socket loses nothing; an HVC-001
+## has no audio socket at all, and without this a Famicom is silent however it is
+## wired.
+@export var rf_feed: bool = false
+
 ## Short label for the OSD and for debugging — "VIDEO", "L", "R".
 const CHANNEL_NAMES := ["VIDEO", "L", "R", "STEREO"]
 

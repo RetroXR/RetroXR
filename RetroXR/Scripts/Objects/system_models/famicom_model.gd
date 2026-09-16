@@ -154,13 +154,16 @@ func configure_av_ports(ports: Array) -> void:
 	if port == null or seat == null:
 		return
 	port.name = "RfOut"
+	# The machine's whole output: an HVC-001 has no audio socket, so without this
+	# it would be silent however it was wired.
+	(port as RcaPort).rf_feed = true
 	port.global_transform = seat.global_transform
 
 
-## No plate. The generic legend reads "AV OUT" over a "VIDEO" jack, which is the
-## one thing this panel is not: the scene prints the machine's own strip -- AC
-## ADAPTER, TV/GAME, CH1/CH2, RF SWITCH -- and a second sign contradicting it
-## would be worse than none.
+## No derived plate. It reads "AV OUT" over a jack it calls "VIDEO", and this
+## machine has neither: there is no composite socket to be a VIDEO one, and what
+## leaves here is an RF feed. The scene prints "RF OUT" on the panel's own black
+## strip instead, above the socket, where the real one is silk-screened.
 func configure_av_legend(legend: AvLegend) -> void:
 	if legend != null:
 		legend.hide()

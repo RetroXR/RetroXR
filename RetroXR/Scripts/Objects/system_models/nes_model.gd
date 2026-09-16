@@ -754,6 +754,10 @@ func _build_rf_out() -> void:
 	# is decided by the SOCKET it lands in at the far end. See CoaxPort.
 	port.channel = RcaPort.Channel.VIDEO
 	port.direction = RcaPort.Direction.OUT
+	# One coax, picture and sound. It changes nothing for a console also wired up
+	# over composite, because a dedicated audio cord wins; it is what a machine
+	# reached ONLY through its RF socket is heard by.
+	port.rf_feed = true
 	# The shell moulds this jack, so the port must not draw a second one on top of
 	# it — the same call the AUDIO/VIDEO pair makes, and for the same reason.
 	port.show_jack = false
