@@ -91,6 +91,12 @@ func slide(open: bool) -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
+## True while the shelf is still travelling. The disc rides the shelf, so nothing
+## may turn it until it stops — see RetroSystem._update_disc_spin.
+func is_moving() -> bool:
+	return _slide_tween != null and _slide_tween.is_valid() and _slide_tween.is_running()
+
+
 ## The front-loading shelf: a bay mouth in the front face and a tray that carries
 ## the disc out through it. The placeholder box is 0.3 x 0.1 x 0.25, so the front
 ## face is z = 0.125 and the shelf hides inside at rest.

@@ -107,6 +107,7 @@ func _ready() -> void:
 	_test_port_device_cache()
 	_test_cabinet_lookup()
 	_test_seated_content()
+	await _test_front_tray_spin()
 	_test_media_removal()
 	_test_expanded_port_binding()
 	_test_belongs_here()
@@ -665,6 +666,80 @@ func _test_seated_content() -> void:
 
 	cart.free()
 	sys.free()
+
+
+# ---------------------------------------------------------------------------
+# When the motor catches on a machine whose tray SLIDES.
+# ---------------------------------------------------------------------------
+
+## A front tray takes most of a second to travel, and the disc is bolted to the
+## shelf that carries it. MediaTray's gates flip the instant the button is
+## pressed — that is what they are for, the well seals and the disc stops being
+## liftable there and then — so a spin keyed off `can_spin()` alone had the disc
+## turning in the open air the whole way back into the machine.
+##
+## Driven through `_update_disc_spin` by hand rather than by letting `_process`
+## run: this is the one decision under test, and the rest of that frame wants a
+## core, a network and an audio route this run has none of.
+func _test_front_tray_spin() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	var disc_scene := load("res://Scenes/Objects/media/disc.tscn") as PackedScene
+	if sys_scene == null or disc_scene == null:
+		return
+	var sys: Node3D = sys_scene.instantiate()
+	# A PS2 has no model_registry row, so it wears the placeholder box, and
+	# MediaDimensions.has_front_tray puts a sliding shelf on it.
+	sys.systemid = "playstation2"
+	add_child(sys)
+	for i in range(20):
+		await get_tree().process_frame
+
+	var bay: ProceduralDiscBay = sys.get("_disc_bay")
+	var tray: MediaTray = sys.get("_tray")
+	_ok(bay != null and bay.slide_pivot != null and tray != null,
+		"tray/a PS2 gets a sliding shelf")
+	if bay == null or bay.slide_pivot == null or tray == null:
+		sys.queue_free()
+		return
+
+	# Seated with the power OFF, so the insert cannot reach for a core.
+	var disc: Node3D = disc_scene.instantiate()
+	add_child(disc)
+	await get_tree().process_frame
+	tray.set_open(true, false)
+	tray.restore(disc)
+	await get_tree().process_frame
+	_ok(tray.has_media(), "tray/...and a disc goes in it")
+	sys.is_powered_on = true
+
+	# Shut it the way the OPEN button does.
+	sys.call("_request_tray_state", false)
+	_ok(sys.call("_tray_is_moving"), "tray/the button sets the shelf travelling")
+	_ok(tray.can_spin(), "tray/...and seals the well there and then")
+	var before := disc.transform.basis
+
+	# Two seconds of drive, every step inside ONE frame. A tween only advances
+	# between frames, so the shelf is still travelling for all of them and the
+	# loop's length is not borrowed from the thing under test — a loop that ran
+	# WHILE _tray_is_moving() would stop on its first pass with the gate removed
+	# and report a motionless disc either way.
+	for i in range(120):
+		sys.call("_update_disc_spin", 1.0 / 60.0)
+	_ok(disc.transform.basis.is_equal_approx(before),
+		"tray/a disc still on its way in does not turn")
+
+	# Home: the motor catches, and the same 120 steps turn it.
+	await get_tree().create_timer(ProceduralDiscBay.SLIDE_TIME + 0.3).timeout
+	_ok(not sys.call("_tray_is_moving"), "tray/the shelf arrives")
+	for i in range(120):
+		sys.call("_update_disc_spin", 1.0 / 60.0)
+	_ok(not disc.transform.basis.is_equal_approx(before),
+		"tray/...and a disc that is home does turn")
+
+	disc.queue_free()
+	sys.queue_free()
+	for i in range(4):
+		await get_tree().process_frame
 
 
 # ---------------------------------------------------------------------------

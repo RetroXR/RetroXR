@@ -145,6 +145,12 @@ func _slide_to(target: Vector3) -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
+## The shelf carries the disc out with it, so the drive cannot have caught while
+## it is moving.
+func is_tray_moving() -> bool:
+	return _tray_tween != null and _tray_tween.is_valid() and _tray_tween.is_running()
+
+
 # --- hardware description ---------------------------------------------------
 
 ## A PC takes keyboard and mouse rather than joypads, but RetroSystem's ports are

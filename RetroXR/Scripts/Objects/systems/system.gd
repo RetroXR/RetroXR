@@ -1998,6 +1998,11 @@ func _update_disc_spin(delta: float) -> void:
 		shut = _tray.can_spin()
 	elif _slot != null:
 		shut = _slot.is_media_seated()
+	# ...and home. A front tray takes most of a second to travel and the disc is
+	# bolted to it, so a spin keyed off the gates alone turned the disc in the open
+	# air the whole way back into the machine.
+	if shut and _tray_is_moving():
+		shut = false
 	var target := DISC_SPIN_MAX if (is_powered_on and shut) else 0.0
 	var rate := DISC_SPIN_UP if target > _disc_spin else DISC_SPIN_DOWN
 	_disc_spin = move_toward(_disc_spin, target, rate * delta)
@@ -2010,6 +2015,16 @@ func _update_disc_spin(delta: float) -> void:
 	# without a modelled mechanism ignore this.
 	if _disc_spin > 0.0 and _model != null:
 		_model.spin_disc_mechanism(_disc_spin * delta)
+
+
+## True while the tray is still travelling between open and shut. The two things
+## that can be moving it are the placeholder box's own shelf and a bespoke model's
+## authored one; a spring-latched lid is not one of them, because a hand closes it
+## and it reports only once it is home.
+func _tray_is_moving() -> bool:
+	if _disc_bay != null and _disc_bay.is_moving():
+		return true
+	return _model != null and _model.is_tray_moving()
 
 
 ## Touch-screen feed (dual-screen handhelds): uv is a point in the COMPOSITE

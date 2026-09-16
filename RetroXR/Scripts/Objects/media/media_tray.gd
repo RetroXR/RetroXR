@@ -100,8 +100,14 @@ func is_open() -> bool:
 
 
 ## Spins only while sealed shut over a disc (purely visual, host-driven).
+##
+## A lid still swinging down is not shut yet. `_open` goes false the moment the
+## button is pressed, because that is when the GATES change, and a disc keyed off
+## it alone started turning while the lid was still coming down over it.
 func can_spin() -> bool:
-	return not _open and _media != null
+	if _open or _media == null:
+		return false
+	return _lid_tween == null or not (_lid_tween.is_valid() and _lid_tween.is_running())
 
 
 ## Keep the two access gates in sync with the lid + load state: the well accepts a

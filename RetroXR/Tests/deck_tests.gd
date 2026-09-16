@@ -202,6 +202,39 @@ func _test_gate_matrix() -> void:
 	_ok(not tray.has_media(), "gate/remove_media unseats a tray deck")
 	_ok(tray.is_open(), "gate/...leaving the platter open again")
 
+	await _test_lid_travel()
+
+
+## The CD deck's lid ANIMATES, which the turntable's never does, and the gates and
+## the spin part company while it is moving: `_open` goes false the instant the
+## button is pressed, because that is when the well seals and the disc stops being
+## liftable. A spin keyed off that alone started the disc turning while the lid was
+## still coming down over it. `set_open(false, false)` — the restore path the cases
+## above take — creates no tween and so cannot see this.
+func _test_lid_travel() -> void:
+	var cd := await _deck(CD_PLAYER)
+	var tray: MediaTray = cd._tray
+	_ok(tray != null and tray.lid_pivot != null, "gate/the CD deck's lid animates")
+	tray.lid_time = 0.2
+
+	tray.set_open(true, false)
+	var disc := AUDIO_DISC.instantiate() as AudioDisc
+	disc.album_path = "/nowhere/Some Album"
+	add_child(disc)
+	_spawned.append(disc)
+	await get_tree().process_frame
+	cd.restore_media(disc)
+	await get_tree().process_frame
+	_ok(tray.has_media(), "gate/a disc is in the CD deck's well")
+	_ok(not tray.can_spin(), "gate/lid up over a disc: no spin")
+
+	tray.set_open(false)
+	await get_tree().process_frame
+	_ok(not tray.is_open(), "gate/the button seals the well at once")
+	_ok(not tray.can_spin(), "gate/...but a lid still coming down does not spin")
+	await get_tree().create_timer(tray.lid_time + 0.1).timeout
+	_ok(tray.can_spin(), "gate/...and it does once the lid is home")
+
 
 # ── arm/ ──────────────────────────────────────────────────────────────────────
 

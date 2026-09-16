@@ -174,6 +174,18 @@ func play_close() -> void:
 	pass
 
 
+## True while this model is driving its own tray between open and shut. Asked by
+## RetroSystem._update_disc_spin, which will not turn a disc that is still on its
+## way in.
+##
+## A SPRING-LATCHED lid leaves this false on purpose rather than by omission: that
+## lid is shut by the player's hand and only reports once it is already home, so
+## it is never in motion by the time the machine hears about it. Only a tray that
+## moves UNDER THE BUTTON has a gap to cover.
+func is_tray_moving() -> bool:
+	return false
+
+
 ## True when this model's lid is a spring-loaded VRSpringLatchedHinge: the OPEN
 ## button only ever OPENS it (pressing it again while open does nothing — as on
 ## the real hardware, where the button is a latch release), and the lid is shut
