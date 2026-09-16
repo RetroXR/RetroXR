@@ -20,6 +20,7 @@ class_name RaConsoles
 const CONSOLE_MAP := {
 	# Nintendo
 	"nes": 7,                     # RC_CONSOLE_NINTENDO
+	"famicom": 7,                 # the same console to RetroAchievements
 	"fds": 81,                    # RC_CONSOLE_FAMICOM_DISK_SYSTEM
 	"super_nes": 3,               # RC_CONSOLE_SUPER_NINTENDO
 	"nintendo_64": 2,             # RC_CONSOLE_NINTENDO_64

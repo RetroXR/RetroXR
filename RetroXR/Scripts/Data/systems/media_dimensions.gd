@@ -21,6 +21,10 @@ const CARD_SIZE_EREADER := Vector3(0.063, 0.088, 0.0008)
 ## the generic scene size via cart_size().
 const CART_SIZES: Dictionary = {
 	"nes":              Vector3(0.120, 0.133, 0.017),   # measured off a real cart
+	# The HVC cartridge is much squatter than the NES-005 beside it. Estimated
+	# from photographs scaled against the console's 150 mm depth; no dimensioned
+	# drawing was found.
+	"famicom":          Vector3(0.110, 0.070, 0.017),
 	"super_nes":        Vector3(0.137, 0.088, 0.020),
 	"nintendo_64":      Vector3(0.116, 0.075, 0.020),
 	"game_boy":         Vector3(0.057, 0.065, 0.008),

@@ -114,6 +114,10 @@ const RECOMMENDED := {
 		"android": "fceumm",
 		"why_android": "Mesen's accuracy is not free; FCEUmm has the widest mapper coverage of the light cores",
 	},
+	"famicom": {
+		"core": "fceumm",
+		"why":  "The only core here that reads the Controller II microphone, through RetroXR's own build; Mesen offers one but gates it on its own database deciding the game is Japanese",
+	},
 	"super_nes": {
 		"core": "snes9x",
 		"why":  "Drives the SNES Mouse, and runs full speed on Quest where bsnes does not — measured here. Kept on desktop too so saves and core options are the same file on both platforms",

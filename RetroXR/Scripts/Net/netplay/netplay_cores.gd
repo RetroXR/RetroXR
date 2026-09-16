@@ -42,7 +42,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": true,
-		"systems": ["nes"],
+		"systems": ["nes", "famicom"],
 		"options": {},
 	},
 	"gambatte": {

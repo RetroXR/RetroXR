@@ -69,6 +69,8 @@ const SYSTEM_MAP := {
 	"neo_geo_pocket": 25,
 	"neogeo": 142,
 	"nes": 3,
+	# ScreenScraper does not split the two: one platform, both regions.
+	"famicom": 3,
 	"nintendo_64": 14,
 	"nintendo_64dd": 122,
 	"odyssey2": 104,

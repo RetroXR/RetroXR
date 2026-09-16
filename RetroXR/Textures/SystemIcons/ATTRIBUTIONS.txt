@@ -48,6 +48,12 @@ verified by opening the file rather than trusting the suffix:
                  square lift-up lid is the motion this system loads discs
                  with. "Tray" is the front-loading drawer model and "CDZ"
                  the 1996 revision; neither matches the lid.
+  famicom        console: "HVC-001", which is the Famicom's own model number
+                 despite the file being filed under Nintendo Entertainment
+                 System; it draws the cream-and-dark-red machine with its two
+                 captive pads, against the grey #ccc box in nes.svg.
+                 content: the NES's "(J)" file — the red-and-white Famicom
+                 cartridge, which is the one nes's own row turns down.
   nes            content: the untagged file — the grey 72-pin NES cartridge.
                  "(J)" is the red-and-white Famicom cartridge.
   pc_engine      content: "(U)" — orange, against blue for "(E)" and red for
@@ -68,7 +74,7 @@ verified by opening the file rather than trusting the suffix:
                  finishes, not regions: both colors sold in North America.
 
 Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30;
-Wii U 2026-09-15.
+Wii U and Famicom 2026-09-15.
 
 file map
 -------------------------------------------------------------------------------
@@ -160,6 +166,8 @@ epochcv-content.svg                 Epoch - Cassette Vision-content.svg
 epochcv.svg                         Epoch - Cassette Vision.svg
 ereader-content.svg                 Nintendo - e-Reader-content.svg
 ereader.svg                         Nintendo - e-Reader.svg
+famicom-content.svg                 Nintendo - Nintendo Entertainment System-content (J).svg
+famicom.svg                         Nintendo - Nintendo Entertainment System HVC-001.svg
 fb_alpha-content.svg                FBNeo - Arcade Games-content.svg
 fb_alpha.svg                        FBNeo - Arcade Games.svg
 fds-content.svg                     Nintendo - Family Computer Disk System-content.svg

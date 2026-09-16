@@ -19,7 +19,8 @@ extends RefCounted
 const SLUG_MAP := {
 	# Nintendo
 	"nes": "nes",
-	"famicom": "nes",
+	"famicom": "famicom",
+	"fc": "famicom",
 	"fds": "fds",
 	"snes": "super_nes",
 	"sfc": "super_nes",
