@@ -549,7 +549,46 @@ func _extra_systemids(seen: Dictionary) -> Array[String]:
 		if not ExpansionCatalog.firmware_rom_path(id).is_empty():
 			out.append(id)
 			seen[id] = true
+	# And every platform an INSTALLED core serves, for exactly the same reason.
+	#
+	# On a settled install this adds nothing: the Cores panel adopts a default the
+	# first time it lists a core, so all_defaults() already names everything. What
+	# it catches is a platform that appeared since that page was last opened —
+	# `famicom` was one. fceumm had been installed here for months and only began
+	# declaring famicom when the Famicom shipped, so the machine existed, its core
+	# was present, and it had no tile at all until the player happened to visit
+	# Cores. A platform you can play should not be waiting on a page visit.
+	for core_name: String in _installed_core_names():
+		var info: Dictionary = core_db.get_by_core_name(core_name) if core_db != null else {}
+		if info.is_empty():
+			continue
+		for id: String in CoreInfoDatabase.systemids_of(info):
+			# "unknown" is what a core with no systemid at all is filed under; it
+			# names no machine and would open on an empty shelf.
+			if id.is_empty() or id == "unknown" or seen.has(id):
+				continue
+			out.append(id)
+			seen[id] = true
 	return out
+
+
+## The core_name of every library in the cores directory — the same sweep the
+## Cores panel makes to build its own list, and the same cost.
+func _installed_core_names() -> Array[String]:
+	var names: Array[String] = []
+	var dir := DirAccess.open(CoreDownloadManager.default_cores_dir())
+	if dir == null:
+		return names
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		var cn := "" if dir.current_is_dir() \
+			else CoreDownloadManager.core_name_from_lib_filename(fname)
+		if not cn.is_empty() and not (cn in names):
+			names.append(cn)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	return names
 
 
 func _populate_systems_tab() -> void:
