@@ -83,8 +83,8 @@ func _ready() -> void:
 	if pack_rom.is_empty():
 		pack_rom = sat_dir + "/MEMORY PACK.bs"
 	if srm.is_empty():
-		srm = root_dir.path_join("save").path_join(core).path_join("bsx_cart") \
-			.path_join("bsx_cart.srm")
+		srm = root_dir.path_join("save").path_join("carts").path_join("super_nes") \
+			.path_join("bsx_cart").path_join("bsx_cart.srm")
 
 	get_tree().create_timer(600.0).timeout.connect(func() -> void:
 		print("[bsx] TIMEOUT")

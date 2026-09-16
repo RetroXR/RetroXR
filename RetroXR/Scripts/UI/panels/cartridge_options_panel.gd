@@ -104,6 +104,17 @@ func _save_id() -> String:
 	return str(_cart.get("save_id")) if _cart != null else ""
 
 
+## The core of the machine this cartridge is seated in, else the system's default.
+## It names the save's folder on SramPaths.PER_CORE_SYSTEMS and the emulator a RomM
+## upload is filed under.
+func _save_core() -> String:
+	if _cart != null and is_inside_tree():
+		for sys: Node in get_tree().get_nodes_in_group("retro_system"):
+			if sys.has_method("get_snapped_cartridge") and sys.call("get_snapped_cartridge") == _cart:
+				return str(sys.call("resolve_core_name"))
+	return SramPaths.core_for_systemid(_sysid())
+
+
 func _bind_save(save_id: String) -> void:
 	if _cart != null:
 		_cart.set("save_id", save_id)
@@ -187,13 +198,13 @@ func _populate() -> void:
 	var uis := _uis()
 	if uis.is_empty():
 		return
-	var core := SramPaths.core_for_systemid(_sysid())
-	var saves: Array = SramPaths.list_saves(core, _rom()) if not core.is_empty() else []
+	var core := _save_core()
+	var saves: Array = SramPaths.list_saves(_sysid(), core, _rom()) if not core.is_empty() else []
 
 	var states: Dictionary = {}
 	for s: Variant in saves:
 		var sid := str((s as Dictionary).get("save_id", ""))
-		var path := SramPaths.cart_save_path(core, _rom(), sid)
+		var path := SramPaths.cart_save_path(_sysid(), core, _rom(), sid)
 		if _conflicted.has(sid):
 			states[sid] = "conflict"
 		elif SaveSync.current_key() == RommSaveSync.key_for(path):
@@ -210,7 +221,7 @@ func _populate() -> void:
 	for s: Variant in saves:
 		var sid := str((s as Dictionary).get("save_id", ""))
 		if SaveSync.key_backed_up(
-				RommSaveSync.key_for(SramPaths.cart_save_path(core, _rom(), sid))):
+				RommSaveSync.key_for(SramPaths.cart_save_path(_sysid(), core, _rom(), sid))):
 			backed[sid] = true
 
 	for ui: CartridgeOptions2D in uis:
@@ -395,13 +406,13 @@ func _on_save_selected(save_id: String) -> void:
 func _on_new_synced_save() -> void:
 	if _cart == null or not is_instance_valid(_cart) or not _bindable():
 		return
-	var core := SramPaths.core_for_systemid(_sysid())
+	var core := _save_core()
 	var rid := _rom_id()
 	if core.is_empty() or rid <= 0:
 		return
 	var new_id := "%08x%08x" % [randi(), randi()]
 	_bind_save(new_id)
-	SaveSync.set_enabled(SramPaths.cart_save_path(core, _rom(), new_id), true, rid)
+	SaveSync.set_enabled(SramPaths.cart_save_path(_sysid(), core, _rom(), new_id), true, rid)
 	print("[CartridgeOptions] %s bound to new synced save %s" % [_label(), new_id])
 	_populate()
 
@@ -444,8 +455,7 @@ func _on_delete_requested(save_id: String) -> void:
 					_populate())
 		return
 	_armed_id = ""
-	var core := SramPaths.core_for_systemid(_sysid())
-	if not SramPaths.delete_save(core, _rom(), save_id):
+	if not SramPaths.delete_save(_sysid(), _save_core(), _rom(), save_id):
 		push_warning("[CartridgeOptions] could not delete save '%s'" % save_id)
 	# The cartridge was using the file that just went: leave it pointing there and
 	# the next flush writes it back. A fresh identity is what "no save" means.
@@ -460,10 +470,10 @@ func _on_delete_requested(save_id: String) -> void:
 func _on_sync_toggled(save_id: String, on: bool) -> void:
 	if _cart == null or not is_instance_valid(_cart):
 		return
-	var core := SramPaths.core_for_systemid(_sysid())
+	var core := _save_core()
 	if core.is_empty():
 		return
-	var path := SramPaths.cart_save_path(core, _rom(), save_id)
+	var path := SramPaths.cart_save_path(_sysid(), core, _rom(), save_id)
 	var rid := _rom_id()
 	SaveSync.set_enabled(path, on, rid)
 	if on and rid > 0:
@@ -478,11 +488,11 @@ func _on_sync_toggled(save_id: String, on: bool) -> void:
 func _on_server_save_requested(slot: String) -> void:
 	if _cart == null or not is_instance_valid(_cart):
 		return
-	var core := SramPaths.core_for_systemid(_sysid())
+	var core := _save_core()
 	var rid := _rom_id()
 	if core.is_empty() or rid <= 0:
 		return
-	var path := SramPaths.cart_save_path(core, _rom(), slot)
+	var path := SramPaths.cart_save_path(_sysid(), core, _rom(), slot)
 	SaveSync.set_enabled(path, true, rid)
 	SaveSync.enqueue(path, rid, core, slot, _label())
 	# Harmless on a stand-in, which nothing reads back — the download is the point

@@ -103,6 +103,7 @@ func _ready() -> void:
 	await _test_power_led()
 	await _test_save_state_gates()
 	await _test_sram_paths()
+	await _test_save_migration()
 	_test_libretro_port_routing()
 	_test_port_device_cache()
 	_test_cabinet_lookup()
@@ -2081,7 +2082,7 @@ func _test_sram_paths() -> void:
 	psx.queue_free()
 
 	# A cartridge machine is the other rule: the save belongs to the CARTRIDGE,
-	# keyed on the core and the ROM as well, so two copies of one game on two
+	# keyed on its system and the ROM as well, so two copies of one game on two
 	# carts keep separate saves.
 	var nes: Node3D = sys_scene.instantiate()
 	nes.systemid = "nes"
@@ -2097,17 +2098,200 @@ func _test_sram_paths() -> void:
 	add_child(cart)
 	nes._snapped_cartridge = cart
 	_eq(nes._memcards._compose_sram_path("fceumm"),
-		SramPaths.cart_save_path("fceumm", "/nonexistent/__sram_selftest.nes",
+		SramPaths.cart_save_path("nes", "fceumm", "/nonexistent/__sram_selftest.nes",
 			"__sram_selftest_cart"),
-		"sram/a seated cartridge saves against core and rom")
+		"sram/a seated cartridge saves against its system and rom")
 	# Unlike a card, this one DOES move with the game.
-	_ok(nes._memcards._compose_sram_path("fceumm") != SramPaths.cart_save_path("fceumm", "/other.nes", "__sram_selftest_cart"),
+	_ok(nes._memcards._compose_sram_path("fceumm")
+			!= SramPaths.cart_save_path("nes", "fceumm", "/other.nes", "__sram_selftest_cart"),
 		"sram/and a different rom is a different file")
+	# SAVE_RAM is the cartridge's battery on every core that runs the system, so a
+	# change of core must not strand it.
+	_eq(nes._memcards._compose_sram_path("mesen"), nes._memcards._compose_sram_path("fceumm"),
+		"sram/one cartridge is one save file on every core")
+	_ok(nes._memcards._compose_sram_path("fceumm").begins_with(SramPaths.carts_root().path_join("nes")),
+		"sram/filed under save/carts/<systemid>")
+
+	# Read-only fallback: a battery the migration left at its per-core path is
+	# still the one the machine is handed, and it is not moved.
+	var legacy := SramPaths.core_save_dir("fceumm").path_join("__sram_selftest") \
+		.path_join("__sram_selftest_legacy.srm")
+	_write_scratch(legacy)
+	cart.save_id = "__sram_selftest_legacy"
+	_eq(nes._memcards._compose_sram_path("fceumm"), legacy,
+		"sram/a save left at its per-core path is still found")
+	_ok(FileAccess.file_exists(legacy), "sram/and finding it moves nothing")
+	_remove_scratch(legacy)
+	# And a save filed under another system's folder is found by its save_id.
+	var elsewhere := SramPaths.carts_root().path_join("__sram_selftest_sys") \
+		.path_join("__sram_selftest").path_join("__sram_selftest_elsewhere.srm")
+	_write_scratch(elsewhere)
+	cart.save_id = "__sram_selftest_elsewhere"
+	_eq(nes._memcards._compose_sram_path("fceumm"), elsewhere,
+		"sram/a save filed under another system is found by its save_id")
+	_remove_scratch(elsewhere, 2)
 
 	nes._snapped_cartridge = null
 	cart.queue_free()
 	nes.queue_free()
+
+	# An N64 cartridge's SAVE_RAM is a struct each core lays out its own way, so
+	# it stays keyed by core.
+	var n64: Node3D = sys_scene.instantiate()
+	n64.systemid = "nintendo_64"
+	add_child(n64)
+	for i in range(20):
+		await get_tree().process_frame
+	n64.rom_path = "/nonexistent/__sram_selftest.z64"
+	var n64_cart := _StubCart.new()
+	n64_cart.save_id = "__sram_selftest_n64"
+	add_child(n64_cart)
+	n64._snapped_cartridge = n64_cart
+	_ok(n64._memcards._compose_sram_path("parallel_n64")
+			!= n64._memcards._compose_sram_path("mupen64plus_next"),
+		"sram/an N64 cartridge keeps a save per core")
+	_ok(n64._memcards._compose_sram_path("mupen64plus_next")
+			.begins_with(SramPaths.core_save_dir("mupen64plus_next")),
+		"sram/under that core's own save directory")
+	n64._snapped_cartridge = null
+	n64_cart.queue_free()
+	n64.queue_free()
+
+	# A Game Boy cartridge read through a Transfer Pak is the same battery a Game
+	# Boy playing it reads: the pak files it under the cartridge's system, not the
+	# N64's core.
+	var gb: Node3D = sys_scene.instantiate()
+	gb.systemid = "game_boy"
+	add_child(gb)
+	for i in range(20):
+		await get_tree().process_frame
+	var gb_cart := _StubRomCart.new()
+	gb_cart.save_id = "__sram_selftest_gb"
+	gb_cart.rom_path = "/nonexistent/__sram_selftest.gb"
+	add_child(gb_cart)
+	gb.rom_path = gb_cart.rom_path
+	gb._snapped_cartridge = gb_cart
+	var pak := TransferPak.new()
+	pak._cart = gb_cart
+	_eq(pak.cart_save_path("mupen64plus_next"), gb._memcards._compose_sram_path("sameboy"),
+		"sram/a Transfer Pak reads the save a Game Boy wrote")
+	pak.free()
+	gb._snapped_cartridge = null
+	gb_cart.queue_free()
+	gb.queue_free()
 	await get_tree().process_frame
+
+
+## SaveMigration over a scratch tree: never the player's own saves.
+func _test_save_migration() -> void:
+	var base := ProjectSettings.globalize_path("user://__save_migration_selftest")
+	_rmtree(base)
+	var save := base.path_join("save")
+	var rooms := base.path_join("scenes")
+	var roms := base.path_join("roms")
+	var carts := save.path_join("carts")
+
+	var by_room := save.path_join("sameboy/Pokemon Red/aaaaaaaaaaaaaaaa.srm")
+	_write_scratch(by_room, PackedByteArray([1, 2, 3]))
+	var by_stem := save.path_join("mesen/Zelda/bbbbbbbbbbbbbbbb.srm")
+	_write_scratch(by_stem)
+	_write_scratch(roms.path_join("nes/Zelda.nes"))
+	var nowhere := save.path_join("fceumm/Nowhere/cccccccccccccccc.srm")
+	_write_scratch(nowhere)
+	var ambiguous := save.path_join("fceumm/Dup/ffffffffffffffff.srm")
+	_write_scratch(ambiguous)
+	_write_scratch(roms.path_join("nes/Dup.nes"))
+	_write_scratch(roms.path_join("famicom/Dup.nes"))
+	var n64 := save.path_join("mupen64plus_next/Stadium/dddddddddddddddd.srm")
+	_write_scratch(n64)
+	var flat := save.path_join("bsnes/Mario Paint.srm")
+	_write_scratch(flat)
+	var probe := save.path_join("fceumm/sram_probe/probe_1.srm")
+	_write_scratch(probe)
+	var card := save.path_join("memcards/playstation/card.mcr")
+	_write_scratch(card)
+	var unit := save.path_join("snes9x/bsx_cart/bsx_cart.srm")
+	_write_scratch(unit)
+	var older := save.path_join("sameboy/Tetris/eeeeeeeeeeeeeeee.srm")
+	_write_scratch(older, PackedByteArray([10]))
+	# Modified times are whole seconds.
+	await get_tree().create_timer(1.1).timeout
+	var newer := save.path_join("gambatte/Tetris/eeeeeeeeeeeeeeee.srm")
+	_write_scratch(newer, PackedByteArray([20]))
+	JsonStore.write_dict(rooms.path_join("bedroom/slot.json"), {"objects": [
+		{"type": "cartridge", "save_id": "aaaaaaaaaaaaaaaa", "cart_systemid": "game_boy"},
+		{"type": "cartridge", "save_id": "dddddddddddddddd", "cart_systemid": "nintendo_64"},
+		{"type": "transfer_pak", "cart": {"save_id": "eeeeeeeeeeeeeeee", "cart_systemid": "game_boy"}},
+	]})
+
+	var ledger := _StubLedger.new()
+	var report := SaveMigration.run(save, rooms, roms, ledger)
+
+	var moved_room := carts.path_join("game_boy/Pokemon Red/aaaaaaaaaaaaaaaa.srm")
+	_ok(FileAccess.file_exists(moved_room) and not FileAccess.file_exists(by_room),
+		"migrate/ a save its room names moves under that system")
+	_eq(FileAccess.get_file_as_bytes(moved_room), PackedByteArray([1, 2, 3]),
+		"migrate/ with its bytes")
+	_ok(FileAccess.file_exists(carts.path_join("nes/Zelda/bbbbbbbbbbbbbbbb.srm")),
+		"migrate/ a save no room names moves by its ROM's folder")
+	_ok(FileAccess.file_exists(nowhere) and nowhere in report["left"],
+		"migrate/ a save nothing names stays where it is")
+	_ok(FileAccess.file_exists(ambiguous) and ambiguous in report["left"],
+		"migrate/ a ROM name two systems share decides nothing")
+	_ok(FileAccess.file_exists(n64), "migrate/ an N64 save stays keyed by core")
+	_ok(FileAccess.file_exists(flat) and FileAccess.file_exists(probe)
+			and FileAccess.file_exists(card),
+		"migrate/ files that are not a cartridge save are not touched")
+	_ok(not probe in report["left"], "migrate/ and are not reported as unresolved")
+	_ok(FileAccess.file_exists(carts.path_join("super_nes/bsx_cart/bsx_cart.srm")),
+		"migrate/ a unit's battery moves under its host")
+	_eq(FileAccess.get_file_as_bytes(carts.path_join("game_boy/Tetris/eeeeeeeeeeeeeeee.srm")),
+		PackedByteArray([20]), "migrate/ of two cores' copies of one save, the newer takes its name")
+	_eq(FileAccess.get_file_as_bytes(carts.path_join("game_boy/Tetris/eeeeeeeeeeeeeeee.sameboy.srm")),
+		PackedByteArray([10]), "migrate/ and the older is kept beside it")
+	_ok([by_room, moved_room] in ledger.moves, "migrate/ the sync record follows the file")
+	_ok(ledger.saved, "migrate/ and the ledger is written")
+	_ok(report["failed"].is_empty(), "migrate/ nothing failed")
+	_rmtree(base)
+
+	# RommSaveSync.rekey itself, never persisted.
+	var sync := RommSaveSync.new()
+	var real_save := CoreDownloadManager.default_core_root().path_join("save")
+	var from := real_save.path_join("sameboy/G/aaaaaaaaaaaaaaaa.srm")
+	var to := real_save.path_join("carts/game_boy/G/aaaaaaaaaaaaaaaa.srm")
+	var record := {"last_hash": "abc", "rom_id": 7, "server_save_id": 9, "slot": "aaaaaaaaaaaaaaaa"}
+	sync._state[RommSaveSync.key_for(from)] = record.duplicate()
+	_ok(sync.rekey(from, to), "migrate/ the RomM ledger re-keys a moved save")
+	_eq(sync.record_for(to), record, "migrate/ keeping its hash, rom, server save and slot")
+	_ok(sync.record_for(from).is_empty(), "migrate/ and dropping the old path")
+	_ok(not sync.rekey(from, to), "migrate/ a path with no record re-keys nothing")
+	sync.free()
+
+
+func _write_scratch(path: String, bytes := PackedByteArray([0])) -> void:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_buffer(bytes)
+	f.close()
+
+
+## The file, then `levels` of the directories above it, each only if empty.
+func _remove_scratch(path: String, levels := 1) -> void:
+	DirAccess.remove_absolute(path)
+	var dir := path.get_base_dir()
+	for i in levels:
+		DirAccess.remove_absolute(dir)
+		dir = dir.get_base_dir()
+
+
+func _rmtree(path: String) -> void:
+	if not DirAccess.dir_exists_absolute(path):
+		return
+	for d: String in DirAccess.get_directories_at(path):
+		_rmtree(path.path_join(d))
+	for f: String in DirAccess.get_files_at(path):
+		DirAccess.remove_absolute(path.path_join(f))
+	DirAccess.remove_absolute(path)
 
 
 ## The cabling gate SystemAudio applies: whether a machine can be heard at all
@@ -2160,3 +2344,21 @@ func _test_audio_cabling_gate() -> void:
 
 class _StubCart extends Node3D:
 	var save_id := ""
+
+
+class _StubRomCart extends _StubCart:
+	var rom_path := ""
+	var systemid := ""
+
+
+class _StubLedger extends RefCounted:
+	var moves: Array = []
+	var saved := false
+
+	func rekey(old_path: String, new_path: String) -> bool:
+		moves.append([old_path, new_path])
+		return true
+
+	func save_state() -> bool:
+		saved = true
+		return true

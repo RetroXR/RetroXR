@@ -502,10 +502,11 @@ func _compose_sram_path(resolved_core: String, slot := 0) -> String:
 	# new pack read as a different BS-X and the shell asked for a name again.
 	var battery := _expansion_holding_battery()
 	if battery != null:
-		return SramPaths.unit_save_path(resolved_core, battery.expansion_id)
-	if _host.get_snapped_cartridge() and "save_id" in _host.get_snapped_cartridge():
-		return SramPaths.cart_save_path(resolved_core, _host.rom_path,
-			str(_host.get_snapped_cartridge().get("save_id")))
+		return SramPaths.resolve_unit_save(_host.systemid, resolved_core, battery.expansion_id)
+	var cart: Node3D = _host.get_snapped_cartridge()
+	if cart and "save_id" in cart:
+		return SramPaths.resolve_cart_save(SramPaths.media_systemid(cart, _host.systemid),
+			resolved_core, _host.rom_path, str(cart.get("save_id")))
 	# Nothing in the console's own slot, but the machine may still be running
 	# something: a 64DD disk or a Mega-CD disc sits in the EXPANSION's bay, and
 	# that stack is what _apply_expansion_launch booted from. Read the medium from
@@ -518,8 +519,8 @@ func _compose_sram_path(resolved_core: String, slot := 0) -> String:
 		# SAVE_RAM for CD content, so a per-disc file would never be filled.
 		if resolved_core.begins_with("genesis_plus_gx") and _unit_keeps_memory(seated):
 			return ""
-		return SramPaths.cart_save_path(resolved_core, _host.rom_path,
-			str(seated.get("save_id")))
+		return SramPaths.resolve_cart_save(SramPaths.media_systemid(seated, _host.systemid),
+			resolved_core, _host.rom_path, str(seated.get("save_id")))
 	return ""
 
 
@@ -622,7 +623,8 @@ func sram_path_for_run(resolved_core: String) -> String:
 	_host.get_libretro_node().SetRemovableStorage(cards)
 	if not cards:
 		var own := _console_memory_for(resolved_core)
-		return own.ensure_image(resolved_core) if own != null else _compose_sram_path(resolved_core)
+		return own.ensure_image(resolved_core, _host.systemid) if own != null \
+			else _compose_sram_path(resolved_core)
 	var paths: Array[String] = []
 	for slot in card_slot_count():
 		paths.append(_card_path_for_run(resolved_core, slot))

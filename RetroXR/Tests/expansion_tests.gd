@@ -1249,7 +1249,7 @@ func _group_sufami() -> void:
 	# Two cartridges, two batteries. snes9x answers RETRO_MEMORY_SAVE_RAM with
 	# slot A's SRAM alone, so slot B needs a file of its own or a linked pair
 	# keeps half its progress and loses the rest without saying so.
-	var path_a := SramPaths.cart_save_path("snes9x", sfc.rom_path,
+	var path_a := SramPaths.cart_save_path("sufami_turbo", "snes9x", sfc.rom_path,
 		str(cart_a.get("save_id")))
 	var path_b := sfc.slot_b_save_path("snes9x")
 	_ok(path_b.get_file() == str(cart_b.get("save_id")) + ".srm",
@@ -1650,7 +1650,7 @@ func _group_saturn() -> void:
 		"saturn/ and with a disc in it, too")
 	_ok(saturn._memcards._compose_sram_path("yabasanshiro") != image_path,
 		"saturn/ while another core keeps the route it had")
-	var made := own.ensure_image(core)
+	var made := own.ensure_image(core, saturn.systemid)
 	var made_bytes := FileAccess.get_file_as_bytes(made)
 	_ok(made == image_path and made_bytes.size() == SaturnBram.INTERNAL_SIZE
 		and SaturnBram.is_card_image(made_bytes), "saturn/ the image is made formatted at power-on")
@@ -2229,9 +2229,10 @@ func _group_slot2() -> void:
 		"slot2/ and third the GBA cartridge's own save, keyed off its save_id")
 	# The two stems differ on purpose, so this can go red: keyed off the DS card
 	# the path would read .../dsgame/gbagame.srm.
-	_ok(save.contains("melondsds") and SramPaths.game_stem(save.get_base_dir()) == "game"
+	_ok(save.get_base_dir().get_base_dir() == SramPaths.carts_root().path_join("game_boy_advance")
+			and SramPaths.game_stem(save.get_base_dir()) == "game"
 			and not save.contains("dsgame"),
-		"slot2/ under the core's save dir for the GBA game, not the DS game's")
+		"slot2/ under the GBA's own save dir for the GBA game, not the DS game's")
 	# The core opens that path itself and refuses the load when it is missing,
 	# so resolving the recipe is what brings the file into existence.
 	_ok(FileAccess.file_exists(save), "slot2/ and the save file exists once resolved")
@@ -2241,6 +2242,7 @@ func _group_slot2() -> void:
 	if FileAccess.file_exists(save):
 		DirAccess.remove_absolute(save)
 		DirAccess.remove_absolute(save.get_base_dir())
+		DirAccess.remove_absolute(save.get_base_dir().get_base_dir())
 
 	# Pulling the GBA cartridge: the pairing comes up short, the plain load is
 	# taken, and the pin is gone with it.

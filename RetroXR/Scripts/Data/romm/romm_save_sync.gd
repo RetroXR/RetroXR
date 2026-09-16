@@ -188,6 +188,17 @@ func record_for(sram_path: String) -> Dictionary:
 	return _state.get(key_for(sram_path), {})
 
 
+## Carry a save's record to the path its file moved to. Not persisted until
+## save_state().
+func rekey(old_path: String, new_path: String) -> bool:
+	var old_key := key_for(old_path)
+	if not _state.has(old_key):
+		return false
+	_state[key_for(new_path)] = _state[old_key]
+	_state.erase(old_key)
+	return true
+
+
 ## The state key for one save INSIDE a memory card.
 ##
 ## A card is one file holding many games' saves, and each backs up as its own

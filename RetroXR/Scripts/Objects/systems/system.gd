@@ -3378,7 +3378,9 @@ func slot_b_save_path(core: String) -> String:
 		var save_id := str(m.get("save_id"))
 		if save_id.is_empty():
 			continue
-		return SramPaths.cart_save_path(core, rom_path, save_id)
+		return SramPaths.resolve_cart_save(
+			SramPaths.media_systemid(m, ExpansionCatalog.media_of(unit.expansion_id)),
+			core, rom_path, save_id)
 	return ""
 
 
@@ -4378,7 +4380,8 @@ func slot2_save_path(core: String) -> String:
 	var path := slot2_media_path()
 	if save_id.is_empty() or path.is_empty():
 		return ""
-	return SramPaths.cart_save_path(core, path, save_id)
+	return SramPaths.resolve_cart_save(
+		SramPaths.media_systemid(m, Slot2Catalog.media_of(systemid)), core, path, save_id)
 
 
 ## Seat a Slot-2 cartridge after a save restore or from a remote peer.

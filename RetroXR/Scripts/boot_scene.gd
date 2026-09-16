@@ -4,6 +4,8 @@ extends Node
 
 
 func _ready() -> void:
+	# Before any room is built: nothing may compose a save path until saves have moved.
+	SaveMigration.run_once(SaveSync)
 	var room_id: String = SceneManager.current_scene_id
 	var room := _instantiate(room_id)
 	if room == null and room_id != SceneManager.default_room():

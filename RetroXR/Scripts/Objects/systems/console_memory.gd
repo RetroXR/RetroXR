@@ -62,13 +62,16 @@ func _unique_id(host: RetroSystem) -> String:
 ## whose battery ran out, not a card left somewhere else, so the console runs with
 ## a formatted one rather than with none. The first image of the family ever made
 ## also takes the saves games kept per disc before the console kept them.
-func ensure_image(core: String) -> String:
+func ensure_image(core: String, systemid: String) -> String:
 	var path := SramPaths.card_save_path(family, card_id)
 	if path.is_empty() or FileAccess.file_exists(path):
 		return path
 	var image := CardFormats.for_family(family).blank_image()
 	if SramPaths.list_cards(family).is_empty():
-		image = adopt_disc_saves(SramPaths.core_save_dir(core), image)
+		var system_dir := SramPaths.system_save_dir(systemid, core)
+		image = adopt_disc_saves(system_dir, image)
+		if system_dir != SramPaths.core_save_dir(core):
+			image = adopt_disc_saves(SramPaths.core_save_dir(core), image)
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
@@ -80,7 +83,7 @@ func ensure_image(core: String) -> String:
 
 
 ## `image` with the saves from every per-disc System Memory file under
-## save/<core>/<game>/, newest first, as far as they fit. The files stay where they
+## <save_dir>/<game>/, newest first, as far as they fit. The files stay where they
 ## are: they are also the games' own saves to anything else that reads them.
 static func adopt_disc_saves(save_dir: String, image: PackedByteArray) -> PackedByteArray:
 	if not DirAccess.dir_exists_absolute(save_dir):

@@ -456,7 +456,7 @@ func _group_catalog() -> void:
 	for rid: String in ["ereader", "ereader_plus", "ereader_usa"]:
 		_eq(ExpansionCatalog.save_owner_of(rid), ExpansionCatalog.SAVE_OWNER_UNIT,
 			"catalog/ %s owns its own flash" % rid)
-		var save := SramPaths.unit_save_path("mgba", rid)
+		var save := SramPaths.unit_save_path(ExpansionCatalog.host_of(rid), "mgba", rid)
 		_ok(not save.is_empty(), "catalog/ %s resolves to a save file" % rid)
 		seen_save[save] = true
 	# One file each: the three are different hardware, and a + reader restored

@@ -93,12 +93,14 @@ func cart_rom_path() -> String:
 ##
 ## Keyed off the CARTRIDGE, the same way the Super Game Boy's Game Boy cartridge
 ## is: the battery is in the cartridge, not in the pak, so a save follows the
-## cartridge from pak to pak and does not follow the pak from game to game.
+## cartridge from pak to pak and does not follow the pak from game to game. Filed
+## under MEDIA_SYSTEMID, so it is the same file a Game Boy playing that cartridge
+## reads.
 func cart_save_path(core_name: String) -> String:
 	var rom := cart_rom_path()
-	if rom.is_empty() or core_name.is_empty():
+	if rom.is_empty():
 		return ""
 	var save_id := str(_cart.get("save_id")) if "save_id" in _cart else ""
 	if save_id.is_empty():
 		save_id = rom.get_file().get_basename()
-	return SramPaths.cart_save_path(core_name, rom, save_id)
+	return SramPaths.resolve_cart_save(MEDIA_SYSTEMID, core_name, rom, save_id)
