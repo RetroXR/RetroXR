@@ -2205,6 +2205,7 @@ core, and a Transfer Pak reads the same file a Game Boy playing that cartridge d
 
 ```
 save/carts/<systemid>/<game stem>/<save_id>.srm          a cartridge's battery
+save/carts/<systemid>/<game stem>/<save_id>.<core>.rtc   its real-time clock, one per core
 save/carts/<systemid>/<expansion_id>/<expansion_id>.srm  a unit's own battery (BS-X, e-Reader)
 save/<core>/<game stem>/<save_id>.srm                    on SramPaths.PER_CORE_SYSTEMS
 save/memcards/<family>/<card_id>.<ext>                   memory cards
@@ -2243,9 +2244,57 @@ incompatibility rather than a precaution:
 - fceumm answers SAVE_RAM for an FDS game with `FDSROM_ptr()` — the whole disk image. Mesen
   answers with the mapper's save RAM.
 
-**No core's clock is saved.** sameboy, gambatte and mGBA expose an MBC3 real-time clock as
-`RETRO_MEMORY_RTC`, which the bridge never reads, so Pokémon Gold, Silver and Crystal lose
-their clock on every core. That predates this layout.
+**A cartridge's clock is kept per core, beside its battery.** Cores expose an MBC3 real-time
+clock as `RETRO_MEMORY_RTC`, and each lays it out its own way, so unlike the battery a clock
+cannot be shared:
+
+| core | clock |
+|---|---|
+| gambatte | 8 bytes, `uint64_t baseTime_`: when the clock read zero |
+| sameboy | 32 bytes, its `rtc` section: `rtc_real`, `rtc_latched`, `last_rtc_second`, `rtc_cycles` |
+| mGBA | 48 bytes, `GBMBCRTCSaveBuffer`: live and latched counters and a Unix time |
+| snes9x | 20 bytes of S-RTC or SPC7110 registers; unmeasured |
+
+`Libretro.SetRtcPath` hands the bridge the file; `SramPaths.rtc_path` names it
+`<save_id>.<core>.rtc` beside whichever file the battery resolved to, and
+`MemoryCardController.rtc_path_for_run` answers `""` for a card machine, a console's own memory
+and a machine with nothing seated. The netplay start always passes `""`: a clock read from
+each peer's own file is a different time on every peer. `delete_save` removes every core's
+clock for that `save_id`, and not the clock of `<save_id>.<core>.srm`, the older copy a
+migration kept.
+
+In the bridge (`WrapperStorage.cpp`): the path is taken from a mutex-guarded "next" copy at
+content load, not hot-swapped, because a cartridge cannot change under a running machine. It
+is loaded with the battery, after `retro_load_game` and before the first `retro_run` — **mGBA
+copies its whole save buffer, clock included, into the machine on that first run**, so later is
+too late. It loads only a file of exactly the core's size, since part of a struct is not a time.
+It is flushed with the battery and never announced through `sram_flushed`, which would have
+RomM upload it as a save. **A clock with no file yet is written even when unchanged**: gambatte's
+value is a start time that only moves when a game sets the clock, so writing only on change
+restarted the clock at zero every power-on.
+
+**The Transfer Pak's clock is not kept**, by the core rather than RetroXR: the mupen64plus fork
+zeroes the MBC3 clock in `init_gb_cart` and reads the host clock, with nothing persisted. A clock
+also does not follow a cartridge between cores — desktop runs a Game Boy on sameboy and the Quest
+on gambatte — which would take a converter between the three layouts above.
+
+**Measured 2026-09-16** with `Tools/cores/rtc_probe`, which builds its own cartridge (MBC3 +
+TIMER + RAM + BATTERY) whose program sets the clock to day 100 on the first boot and copies the
+day it reads back into battery RAM on the next, in a NEW process. The oracle is what the game
+saw. gambatte, sameboy and mGBA all read day 100; with the bridge's restore skipped they read
+0, 0 and 242.
+
+**Latch before writing the clock.** The probe's first program wrote the day without latching
+first; gambatte and sameboy took it, but mGBA filed the write under its latched copy while its
+live clock ran from host time, saved a Unix time of `-1`, and read back day 87. Real games latch
+first, and so does the probe now.
+
+```bash
+"$godot" --headless --path RetroXR res://Tools/cores/rtc_probe.tscn -- \
+  --root=<throwaway root with cores/gambatte_libretro.dll> --core=gambatte --leg=set
+"$godot" --headless --path RetroXR res://Tools/cores/rtc_probe.tscn -- \
+  --root=<same root> --core=gambatte --leg=read
+```
 
 mGBA reports `GBA_SIZE_FLASH1M` for SAVE_RAM until its save-type autodetect settles. The first
 flush comes after that, so a file lands at the game's real size.
@@ -2282,9 +2331,10 @@ retried next launch.
 library: 24 moved, 1 left (`BS F-Zero (flash-mode test)`, which nothing names), 0 failed, in
 540 ms, with the 12 N64 saves left in place.
 
-`system_tests` `sram/` and `migrate/` cover it, the migration over a scratch tree and never the
-player's saves. Mutation-tested: filing the Transfer Pak under no system, dropping
-`nintendo_64` from the table, or reversing the collision order each fails exactly its own cases.
+`system_tests` `sram/`, `rtc/` and `migrate/` cover it, the migration over a scratch tree and
+never the player's saves. Mutation-tested: filing the Transfer Pak under no system, dropping
+`nintendo_64` from the table, reversing the collision order, dropping the core from a clock's
+name, or letting a delete take a lookalike save's clock each fails exactly its own cases.
 
 ### 3. Capturing a real screenshot on Linux (for visual validation)
 `--headless` uses the dummy renderer — it **cannot** produce a screenshot (a probe that awaits
