@@ -303,6 +303,7 @@ debug build, 2026-08-27 — all passing):
 | `prop_lighting_tests` | 17 | 1 s | which of a room's meshes go on the baked prop shader, late spawns and despawns included |
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
 | `microphone_tests` | 55 | 25 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip, and the HKT-7200 in a pad's slot |
+| `famicom_tests` | 61 | 13 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, and the `famicom` systemid's table rows |
 | `n64_vru_tests` | 20 | 25 s | the Voice Recognition Unit: the device id a socket announces, seating in socket 4, the machine hearing from the NUS-021, the talk button's bit, and the save round trip |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
@@ -2014,9 +2015,10 @@ one stream, because `RecordAudio` carries no device identity: right for Seaman, 
 multi-microphone game, and fixing it means changing shared core API. Quest is unbuilt for this
 fork so far.
 
-**The Famicom Controller II microphone is not built.** It is part of player 2's pad, in place of
-Start and Select, and reaches the console at `$4016` bit 2 as an instantaneous 1-bit threshold
-on the waveform:
+**The Famicom Controller II microphone is a BIT, not a capture device**, and that one fact
+decides everything below. It is part of player 2's pad, where Start and Select are on Controller
+I, and reaches the console at `$4016` bit 2 as an instantaneous one-bit threshold detector
+sitting on the waveform:
 - **The bit flickers between 0 and 1 while there is sound** and is a steady 0 in silence; the
   volume slider turns it off at far left.
 - **Games look for the flicker** (Bokosuka Wars is strict about it). Zelda's Pols Voice, Hikari
@@ -2027,18 +2029,107 @@ on the waveform:
 |---|---|---|---|
 | nestopia | port 0, L3 | always | steady while held — a frontend must toggle it |
 | mesen | port 0, L3 (mapped to player 2's mic) | only when Mesen decides the game is a Famicom: its database tag, FDS, Dendy, or an expansion device | pulsed one frame in three by the core |
-| fceumm | none (libretro-fceumm issue #521) | — | — |
+| fceumm (fork) | **port 1's Start** | `fceumm_famicom_microphone` | toggled by the core on every `$4016` read while held |
 
-fceumm is the Android default, the only netplay-verified NES core and the FDS boot core, so a
-Famicom microphone that works everywhere is an fceumm fork: an option that turns a player-2 bit
-into the microphone and toggles `0x04` in `JPRead`, with the toggle savestated.
+**Why the fork, and why Start.** fceumm had no microphone at all (libretro-fceumm#521), and it
+is the core that matters most here: the Android default, the only netplay-verified NES core and
+the FDS boot core. Nestopia and Mesen both put the microphone on port 0's L3, which is
+unavailable in fceumm — `bindmap[]` already gives L3 to A+B and R3 to Turbo A+B. Port 1's Start
+is free AND hardware-correct, because a Controller II has no Start to lose.
 
-RetroXR has no Famicom to put it in — `famicom` maps to `nes`, and the NES-001 has sockets and
-two pads with Start and Select. A build needs:
-- an HVC-001 model with captive Controller I and II;
-- a loudness measure in C++ (a high-pass, then RMS and peak), since GDScript cannot visit every
-  sample;
-- a flickering L3 through `SetJoypadExtraButtons` on port 0.
+In `C:\Users\rymcc\libretro-fceumm`, branch `retroxr`:
+- `JPRead` nullifies player 2's Start at `$4017` while the option is on, and toggles bit 2 at
+  `$4016` while the frontend holds the button. Two fixes against fceux, which fceumm forked
+  from: the bit is set at `$4016` ONLY (fceux reports a microphone to `$4017` as well), and
+  `MicBit` is in `FCEUCTRL_STATEINFO`, so a state restored mid-flicker does not resume on the
+  opposite phase.
+- `joy_readbit` is post-incremented, so the read that just delivered Start (bit 3, `JOY_START`
+  is `0x08`) leaves the counter at **4** — that is why the nullify tests `== 4` and not `== 3`.
+- The engage line is `log_cb` at **WARN** and only on a change. `FCEUD_Message` logs at info,
+  which libretro-godot drops, and this is the only way to tell a microphone that is really live
+  from one merely offered.
+- Not guarded against a Four Score, which reassigns what `joy_readbit` counts. A Famicom
+  microphone and an NES four-player adapter are not a combination any game asks for.
+
+**The level is measured in C++ and is deliberately STATIC.** `Libretro.MeasureMicrophoneLevel`
+(`libretro-godot/src/MicrophoneLevel.hpp`) returns the `(rms, peak)` of a block of host frames,
+high-passed at 80 Hz and mixed to mono. GDScript cannot visit 800 frames a tick. It is not a
+method on a running machine because **fceumm opens no microphone**: there is no handle to hang a
+level off, and `IsMicrophoneActive()` never goes true for a Famicom, so a capture service that
+asked only the core would never switch the device on for one. `RetroSystem.hears_microphone()`
+answers that question instead, and `microphone_input.gd` measures **once per tick** and scales
+per machine — rms and peak are both linear in the gain, which `tests/microphone_level_test.cpp`
+pins, and that is what keeps the one-reader rule.
+
+Two properties of the measure worth knowing. The high-pass is **seeded from the block's own
+first sample**, so it starts matched to the signal and a block boundary contributes no step of
+its own — that is what makes a stateless per-block measurement correct, and removing the seed
+makes a tone measured over a DC offset read several per cent loud. The filter's OUTPUT still
+starts from rest, so a tone already running when a block opens overshoots its amplitude by about
+5% in `peak`, once; removing that would mean carrying state between blocks.
+
+**In RetroXR:** `famicom` is a systemid of its own now, where it used to collapse into `nes`.
+- `SystemInfo/famicom.tres`, a `model_registry` row, both icons (the theme's `HVC-001` file and
+  the NES's `(J)` cartridge — see `Textures/SystemIcons/ATTRIBUTIONS.txt`), and rows in
+  `romm_platforms`, `screenscraper_systems`, `ra_consoles`, `core_recommendations`,
+  `media_dimensions`, `netplay_cores` and `spawn_catalog`.
+- **The tile comes from the core-info overlay**, not from any of those: a systemid reaches the
+  browser through `CoreInfoDatabase`, so `libretro-core-info-retroxr/fceumm_libretro.info` adds
+  `famicom` to `secondary_systemids`. That same declaration is what gives a spawned Famicom a
+  core at all — the Cores panel walks `systemids_of()` and adopts a first default for every
+  platform an installed core serves.
+- **`famicom_primitive.tscn`** is the HVC-001 at 220 x 150 x 60 mm: a dark red base the full
+  width, a cream deck 114 mm wide on the middle of it, and the two 53 mm strips of base left
+  either side as the controller wells. 114 + 53 + 53 is the whole width, which is why the
+  machine has almost no wall between a cartridge and a controller, and why the cartridge mouth
+  is simply the gap between the deck's front and rear blocks.
+- **The pads are detachable here and hardwired on the hardware.** A deliberate concession: it
+  reuses the controller-port snap zones every other console has, and the ports sit on the front
+  face under each well, where the real cords emerge.
+- **`av_port_channels()` is empty.** An HVC-001 wears no A/V sockets at all, only a hardwired RF
+  pigtail, so the cabinet keeps its captive lead AND keeps that lead's plug visual shown. It is
+  the one CONSOLE in `_NO_AV_SOCKETS`; the other entry is the Virtual Boy.
+- **`FamicomControllerII` holds port 1's Start** through `SetJoypadExtraButtons` while the room
+  is louder than the volume slider allows, and **does not flicker** — that is the core's job,
+  and a pad that flickered too would only alias against the core's own toggle. It holds nothing
+  at all when seated in port 1 (`drives_port`), because the core reads `joy[1]` alone: a
+  Controller II in player one's port that held the bit anyway would have every noise in the room
+  pressing Start and pausing the game.
+- The slider's threshold falls **logarithmically** from a shout to near-silence so its travel is
+  even in decibels, with hysteresis at `RELEASE` so a voice sitting on the threshold does not
+  chatter, and its far left switches the microphone off as the real one does.
+
+```bash
+"$godot" --headless --path RetroXR res://Tests/famicom_tests.tscn
+"$godot" --headless --path RetroXR res://Tests/famicom_tests.tscn -- --only=gate
+"$godot" --headless --path RetroXR res://Tools/cores/famicom_mic_probe.tscn -- \
+  --root=<throwaway root with cores/fceumm_libretro.dll> \
+  --rom="Z:/roms/nes/Bokosuka Wars (Japan).nes" --leg=mic
+```
+
+**Measured 2026-09-15** against Bokosuka Wars (Japan) on the forked core: the option reached
+`fceumm.opt` and the core logged `Famicom Controller II microphone on -- player 2's Start is now
+the noise you make`. The same ROM on an NES machine (`--leg=nes`) prints nothing and gets no
+`enabled` key, which is the leg that makes the first one mean something. **Wipe
+`<root>/core_options` between legs** — a core serialises its whole option set on shutdown, so
+the Famicom leg leaves the key behind for the NES leg to read.
+
+Three things this does NOT show, and one trap. **`SnapshotMappedRam()` is not an oracle here**:
+it is read on the main thread while emulation runs on its own, so the frame it catches varies —
+the same leg run three times gave two different digests, and the mic and quiet legs gave the
+SAME one. A "the game reacted" check needs the emulation gated to an exact frame AND a ROM
+driven to the moment it listens; 1800 frames of Bokosuka Wars is its title screen. **The pad's
+own bit has not been driven into a game by a hand**, only through the same call the pad makes.
+And **the Disk System still hosts on `nes`**: `ExpansionCatalog`'s `host` is single-valued, so
+the Famicom Disk System is on the NES's card despite the name.
+
+**`famicom_tests`** is 61 headless cases over the threshold curve, the gate and its hysteresis,
+the C++ measure read back from GDScript, the service's one-measurement fan-out, the port rule,
+both pads and every table row. Mutation-tested: making the microphone drive any port, ignoring
+the slider's off position, or dropping the distance scaling each fails exactly the cases that
+name them. It also waits for `ModelWarmer.is_warmed()` before quitting — SceneManager's boot
+warm fires four process frames in, and a suite short enough to quit mid-warm prints a screenful
+of parse errors from a loader thread as the class cache goes away.
 
 **Others.**
 - **Wii Speak and the Logitech USB microphone** are Dolphin options: `dolphin_wiispeak_enable`
