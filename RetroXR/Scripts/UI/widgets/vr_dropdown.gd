@@ -169,6 +169,13 @@ func set_options(options: Array, current_id: Variant) -> void:
 		btn.focus_mode = Control.FOCUS_NONE
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		# A label longer than the panel is trimmed with an ellipsis rather than
+		# sliced off at the border. The panel cannot grow past the page it is on,
+		# so something has to give with a long name -- an audio input on Windows
+		# is called things like "Microphone (HD Pro Webcam C920)" -- and a word
+		# cut mid-glyph reads as a broken menu rather than as a long name.
+		btn.clip_text = true
+		btn.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		var captured: Variant = opt_id
 		btn.pressed.connect(func() -> void: _on_item_pressed(captured))
 		_list.add_child(btn)

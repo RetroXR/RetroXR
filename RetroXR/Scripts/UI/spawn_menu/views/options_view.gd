@@ -362,6 +362,36 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 ## The spatial-audio backend and how the player moves. Two unrelated
 ## settings that share one separated block on the page; kept together
 ## rather than cut mid-block to make the names tidier.
+## What to CALL an audio input in the list. The stored value is always the full
+## name AudioServer knows it by -- this is the label only.
+##
+## Windows names an input after its driver and then repeats itself: "Microphone
+## (HD Pro Webcam C920)", "Headset Microphone (Oculus Virtual Audio Device)".
+## The words outside the brackets are the same on nearly every row and the part
+## that identifies the hardware is inside them, so a list of those names is a
+## column of the word "Microphone" with the useful half pushed off the panel.
+##
+## The bracketed part is preferred, and only when it is unambiguous: two inputs
+## that would shorten to the same label both keep their full names, because a
+## menu with two identical rows is worse than a wide one.
+static func _input_label(device: String, all_inputs: PackedStringArray) -> String:
+	var short := _input_label_short(device)
+	if short == device:
+		return device
+	for other: String in all_inputs:
+		if other != device and _input_label_short(other) == short:
+			return device
+	return short
+
+
+static func _input_label_short(device: String) -> String:
+	var open_at := device.find("(")
+	if open_at < 0 or not device.ends_with(")"):
+		return device
+	var inner := device.substr(open_at + 1, device.length() - open_at - 2).strip_edges()
+	return inner if not inner.is_empty() else device
+
+
 func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(HSeparator.new())
 
@@ -429,13 +459,13 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 	var mic_items: Array = [["Default", ""]]
 	for dev_name: String in inputs:
 		if dev_name != Microphone.DEFAULT_DEVICE:
-			mic_items.append([dev_name, dev_name])
+			mic_items.append([_input_label(dev_name, inputs), dev_name])
 	var saved_mic: String = AppPrefs.microphone_device
 	# A saved microphone that is not plugged in right now KEEPS its row and keeps
 	# the selection, so this says what the player chose rather than quietly
 	# reading Default and throwing the setting away the moment they touch it.
 	if not saved_mic.is_empty() and not (saved_mic in inputs):
-		mic_items.append(["%s (not connected)" % saved_mic, saved_mic])
+		mic_items.append(["%s (not connected)" % _input_label(saved_mic, inputs), saved_mic])
 	var mic_drop := VRDropdown.create("Input", mic_items, saved_mic,
 		1, Vector2(340, 52), 16)
 	mic_drop.item_selected.connect(func(id: Variant) -> void:
