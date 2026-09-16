@@ -141,7 +141,9 @@ func _speak_to_the_game(lib: Libretro, unit: N64Vru) -> void:
 	if frames.is_empty():
 		return
 
-	# The room's own capture must not talk over it.
+	# The room's own capture must not talk over it. In memory only -- nothing
+	# here calls save_prefs -- and put back before leaving all the same.
+	var player_setting: bool = AppPrefs.microphone_enabled
 	AppPrefs.microphone_enabled = false
 
 	print("[vru] letting the game settle for %.0f s before speaking" % settle_seconds)
@@ -162,6 +164,8 @@ func _speak_to_the_game(lib: Libretro, unit: N64Vru) -> void:
 			await get_tree().process_frame
 		lib.SetJoypadExtraButtons(unit.seated_port_index, 0)
 		await _advance(lib, 180)
+
+	AppPrefs.microphone_enabled = player_setting
 
 
 ## Mono or stereo 16-bit PCM, as PushMicrophoneFrames wants it.
