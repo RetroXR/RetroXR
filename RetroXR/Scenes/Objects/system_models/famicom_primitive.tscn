@@ -159,6 +159,24 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0285, -0.0757)
 mesh = SubResource("Mesh_legend")
 surface_material_override/0 = SubResource("Mat_dark")
 
+; Printed ON the strip, above the socket it names, which is where the real panel
+; silk-screens its four labels. R_y(180) -- the same turn the socket seat takes --
+; puts the text's +Z out of the back AND keeps its +Y up; R_x(180) would do the
+; first and hang the words upside down and mirrored, because a viewer standing
+; behind the machine has world -X on their right.
+;
+; This replaces the cabinet's derived plate, which printed VIDEO over AV OUT: a
+; Famicom has no composite jack to call VIDEO and nothing on it is an AV OUT.
+; famicom_model.configure_av_legend hides that one.
+[node name="RfLabel" type="Label3D" parent="Rear"]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.04, 0.0285, -0.0763)
+pixel_size = 5e-05
+modulate = Color(0.9, 0.9, 0.87, 1)
+text = "RF OUT"
+font_size = 40
+outline_size = 0
+alpha_cut = 1
+
 [node name="AcJack" type="MeshInstance3D" parent="Rear"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.045, 0.019, -0.0755)
 mesh = SubResource("Mesh_dc_jack")
