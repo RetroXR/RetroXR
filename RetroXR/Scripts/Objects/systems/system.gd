@@ -3716,9 +3716,15 @@ func _bind_pak_storage(lib_port: int, ctrl: Node) -> void:
 	if _libretro.has_method("SetTransferPak"):
 		var rom := ""
 		var ram := ""
+		var rtc := ""
 		if is_instance_valid(pak) and pak is TransferPak:
 			rom = str(pak.call("cart_rom_path"))
 			ram = str(pak.call("cart_save_path", _resolve_core()))
+			rtc = str(pak.call("cart_rtc_path", _resolve_core()))
+		# Before SetTransferPak: its generation bump is what has the core read the
+		# cartridge again, and it asks for the clock then.
+		if _libretro.has_method("SetTransferPakClock"):
+			_libretro.SetTransferPakClock(lib_port, rtc)
 		_libretro.SetTransferPak(lib_port, rom, ram)
 
 

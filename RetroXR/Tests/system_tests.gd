@@ -2178,6 +2178,12 @@ func _test_sram_paths() -> void:
 	pak._cart = gb_cart
 	_eq(pak.cart_save_path("mupen64plus_next"), gb._memcards._compose_sram_path("sameboy"),
 		"sram/a Transfer Pak reads the save a Game Boy wrote")
+	# But the clock is the N64 core's own: its layout is not sameboy's.
+	_eq(pak.cart_rtc_path("mupen64plus_next"),
+		SramPaths.rtc_path(pak.cart_save_path("mupen64plus_next"), "mupen64plus_next"),
+		"rtc/a Transfer Pak keeps the cartridge's clock beside its battery")
+	_ok(pak.cart_rtc_path("mupen64plus_next") != gb._memcards.rtc_path_for_run("sameboy"),
+		"rtc/under the N64 core, apart from a Game Boy's clock")
 	pak.free()
 
 	# The battery is one file for every core; the clock is one per core, because

@@ -104,3 +104,9 @@ func cart_save_path(core_name: String) -> String:
 	if save_id.is_empty():
 		save_id = rom.get_file().get_basename()
 	return SramPaths.resolve_cart_save(MEDIA_SYSTEMID, core_name, rom, save_id)
+
+
+## Where that cartridge's real-time clock is kept: beside its battery, and keyed
+## by the N64 core, whose clock layout is its own.
+func cart_rtc_path(core_name: String) -> String:
+	return SramPaths.rtc_path(cart_save_path(core_name), core_name)
