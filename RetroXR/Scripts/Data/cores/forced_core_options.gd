@@ -38,9 +38,15 @@ static func all(core: String, systemid: String, rom_path: String,
 ## The GameCube Microphone's button. Dolphin reads it from the joypad bit this
 ## option names, on any port; GcMicrophone holds R3, which no GameCube pad sends.
 static func microphone_hotkey(core: String, systemid: String) -> Dictionary:
-	if not core.begins_with("dolphin") or systemid != "gamecube":
-		return {}
-	return {"dolphin_hotkey_activate_microphone": "R3"}
+	if core.begins_with("dolphin") and systemid == "gamecube":
+		return {"dolphin_hotkey_activate_microphone": "R3"}
+	# The Famicom's Controller II microphone, which RetroXR's build of fceumm
+	# reads as player 2's Start. An upstream build never declares the key and
+	# OptionsHandler drops one the core did not declare without failing, so the
+	# machine simply plays as an NES with a second pad.
+	if core.begins_with("fceumm") and systemid == "famicom":
+		return {"fceumm_famicom_microphone": "enabled"}
+	return {}
 
 
 ## Make the console report an EMPTY slot when no card is seated.

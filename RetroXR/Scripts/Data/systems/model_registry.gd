@@ -80,6 +80,11 @@ const _ROWS: Dictionary = {
 	"nes":                  {"platform": "nes", "label": "Nintendo Entertainment System",
 		"scene": _SCENES + "nes.tscn",
 		"requires": ["res://imported-assets/consoles/nes/nes_console.glb"]},
+	# Primitive geometry, no GLB, so no `requires`. A separate platform from the
+	# NES rather than a second shell for it, because Controller II carries a
+	# microphone and an NES pad has none.
+	"famicom":              {"platform": "famicom", "label": "Family Computer",
+		"scene": _SCENES + "famicom_primitive.tscn"},
 	"playstation":          {"platform": "playstation", "label": "PlayStation",
 		"script": "res://Scripts/Objects/system_models/playstation_model.gd",
 		"requires": ["res://imported-assets/consoles/playstation/ps1_console.glb"]},

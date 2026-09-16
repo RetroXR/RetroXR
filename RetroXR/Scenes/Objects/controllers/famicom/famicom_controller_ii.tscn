@@ -1,0 +1,213 @@
+[gd_scene load_steps=25 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/controllers/famicom_controller_ii.gd" id="1_fcpad"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="3_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="4_lhand"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="5_slider"]
+
+; FamicomControllerII -- player 2's pad, with the microphone and its volume slider where Controller I has START and SELECT.
+;
+; 118 x 54 x 22 mm, held across the hands with the cord leaving the far edge
+; (-Z). It sits in one of the console's side wells turned lengthways, which is
+; what a 53 mm well is for.
+;
+; Colours are read off photographs: a dark red shell, a gold face plate, a black
+; cross and red buttons. No dimensioned drawing or paint reference was found.
+[sub_resource type="PhysicsMaterial" id="PhysMat_fc"]
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.118, 0.022, 0.054)
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.118, 0.022, 0.054)
+
+[sub_resource type="BoxMesh" id="BoxMesh_plate"]
+size = Vector3(0.108, 0.002, 0.044)
+
+[sub_resource type="BoxMesh" id="BoxMesh_dpad_v"]
+size = Vector3(0.008, 0.004, 0.026)
+
+[sub_resource type="BoxMesh" id="BoxMesh_dpad_h"]
+size = Vector3(0.026, 0.004, 0.008)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_button"]
+top_radius = 0.0055
+bottom_radius = 0.0055
+height = 0.004
+
+[sub_resource type="StandardMaterial3D" id="Mat_shell"]
+albedo_color = Color(0.47, 0.09, 0.09, 1)
+roughness = 0.55
+
+[sub_resource type="StandardMaterial3D" id="Mat_plate"]
+albedo_color = Color(0.72, 0.6, 0.31, 1)
+roughness = 0.45
+metallic = 0.25
+
+[sub_resource type="StandardMaterial3D" id="Mat_cross"]
+albedo_color = Color(0.07, 0.07, 0.07, 1)
+roughness = 0.7
+
+[sub_resource type="StandardMaterial3D" id="Mat_button"]
+albedo_color = Color(0.74, 0.1, 0.1, 1)
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_grille"]
+top_radius = 0.007
+bottom_radius = 0.007
+height = 0.0015
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_grille_inner"]
+top_radius = 0.0045
+bottom_radius = 0.0045
+height = 0.0018
+
+[sub_resource type="BoxMesh" id="BoxMesh_knob"]
+size = Vector3(0.005, 0.004, 0.009)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_knob"]
+size = Vector3(0.006, 0.006, 0.011)
+
+[sub_resource type="BoxMesh" id="BoxMesh_track"]
+size = Vector3(0.02, 0.001, 0.004)
+
+[sub_resource type="StandardMaterial3D" id="Mat_grille"]
+albedo_color = Color(0.11, 0.1, 0.09, 1)
+roughness = 0.8
+
+[sub_resource type="StandardMaterial3D" id="Mat_grille_holes"]
+albedo_color = Color(0.03, 0.03, 0.03, 1)
+roughness = 0.95
+
+[sub_resource type="StandardMaterial3D" id="Mat_knob"]
+albedo_color = Color(0.2, 0.19, 0.18, 1)
+roughness = 0.6
+
+[node name="FamicomControllerII" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.2
+physics_material_override = SubResource("PhysMat_fc")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_fcpad")
+systemid = "famicom"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_body")
+
+[node name="Model" type="Node3D" parent="."]
+
+[node name="Shell" type="MeshInstance3D" parent="Model"]
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("Mat_shell")
+
+[node name="Face" type="Node3D" parent="Model"]
+
+[node name="Plate" type="MeshInstance3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0115, 0)
+mesh = SubResource("BoxMesh_plate")
+surface_material_override/0 = SubResource("Mat_plate")
+
+; The vertical arm is the node the rocker turns; the horizontal one rides it.
+[node name="DPad" type="MeshInstance3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.034, 0.0145, 0)
+mesh = SubResource("BoxMesh_dpad_v")
+surface_material_override/0 = SubResource("Mat_cross")
+
+[node name="DPadCross" type="MeshInstance3D" parent="Model/Face/DPad"]
+mesh = SubResource("BoxMesh_dpad_h")
+surface_material_override/0 = SubResource("Mat_cross")
+
+; B left of A along +X, the order every Nintendo pad wears.
+[node name="ButtonB" type="MeshInstance3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.022, 0.0145, 0.004)
+mesh = SubResource("CylinderMesh_button")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="ButtonA" type="MeshInstance3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.042, 0.0145, 0.004)
+mesh = SubResource("CylinderMesh_button")
+surface_material_override/0 = SubResource("Mat_button")
+
+; The microphone and its volume slider, moulded where Controller I has START and
+; SELECT. The grille is geometry only -- what the console reads is one bit of
+; this pad rather than a capture device -- and the slider decides how loud the
+; room has to be before that bit is set, switching the microphone off at its far
+; left the way the real one does.
+[node name="MicGrille" type="MeshInstance3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.014, 0.0133, 0.013)
+mesh = SubResource("CylinderMesh_grille")
+surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="Holes" type="MeshInstance3D" parent="Model/Face/MicGrille"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0002, 0)
+mesh = SubResource("CylinderMesh_grille_inner")
+surface_material_override/0 = SubResource("Mat_grille_holes")
+
+[node name="VolumeTrack" type="MeshInstance3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.017, 0.0128, 0.013)
+mesh = SubResource("BoxMesh_track")
+surface_material_override/0 = SubResource("Mat_grille_holes")
+
+[node name="LabelMic" type="Label3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0.014, 0.0126, 0.0225)
+pixel_size = 5e-05
+modulate = Color(0.2, 0.17, 0.1, 1)
+text = "MIC"
+font_size = 26
+outline_size = 0
+alpha_cut = 1
+
+[node name="LabelVol" type="Label3D" parent="Model/Face"]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.017, 0.0126, 0.0225)
+pixel_size = 5e-05
+modulate = Color(0.2, 0.17, 0.1, 1)
+text = "VOL"
+font_size = 26
+outline_size = 0
+alpha_cut = 1
+
+; Travel along the pad's +X, so the far LEFT of the track is off -- which is
+; where the real slider silences the microphone. It starts open, because a pad
+; that arrived silent would read as broken rather than as turned down.
+[node name="VolumeSlider" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.017, 0.0145, 0.013)
+collision_layer = 1048577
+script = ExtResource("5_slider")
+travel = 0.016
+engage_radius = 0.022
+value = 0.65
+
+[node name="KnobMesh" type="MeshInstance3D" parent="VolumeSlider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0024, 0, 0)
+mesh = SubResource("BoxMesh_knob")
+surface_material_override/0 = SubResource("Mat_knob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VolumeSlider"]
+shape = SubResource("BoxShape3D_knob")
+
+; The cord leaves the far edge (-Z), away from the holder's wrists.
+[node name="CableAttachPoint" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.027)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_body")
+
+[node name="HandRight" parent="." instance=ExtResource("3_rhand")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.045, 0, 0)
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("4_lhand")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.045, 0, 0)
+visible = false

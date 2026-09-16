@@ -1,0 +1,151 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/system_models/famicom_model.gd" id="1_fc"]
+
+; The HVC-001: 220 x 150 mm on the table, 60 mm to the top of the deck. Those are
+; the figures Nintendo published for the machine; no dimensioned drawing was
+; found, and everything below is laid out against them rather than measured off
+; hardware.
+;
+; The shape is one fact and it settles most of the rest: a dark red base the full
+; 220 mm across, with a cream deck only 114 mm wide standing on the middle of it.
+; The two 53 mm strips of base left either side ARE the controller wells -- their
+; floor is the base's own top face -- and 114 + 53 + 53 is the whole width, which
+; is why the machine has almost no wall between a cartridge and a controller.
+;
+; The cartridge mouth is the full width of that deck for the same reason. A
+; Famicom cartridge is 110 x 70 x 17 mm (MediaDimensions), so a mouth sized to it
+; would leave 2 mm of deck either side and two extra boxes to draw it; the gap
+; between the deck's front and rear blocks is the mouth instead, 20 mm front to
+; back for a 17 mm cartridge.
+;
+; The pads are DETACHABLE here, against the hardware, where both are hardwired.
+; That is a deliberate concession: it reuses the controller-port snap zones every
+; other console has instead of inventing captive pads, and the ports are on the
+; front face under each well, which is where the real cords come out.
+[sub_resource type="BoxMesh" id="Mesh_base"]
+size = Vector3(0.22, 0.03, 0.15)
+
+[sub_resource type="BoxMesh" id="Mesh_deck_front"]
+size = Vector3(0.114, 0.03, 0.075)
+
+[sub_resource type="BoxMesh" id="Mesh_deck_rear"]
+size = Vector3(0.114, 0.03, 0.055)
+
+[sub_resource type="BoxMesh" id="Mesh_cart_floor"]
+size = Vector3(0.114, 0.002, 0.02)
+
+[sub_resource type="BoxMesh" id="Mesh_lip"]
+size = Vector3(0.004, 0.008, 0.15)
+
+[sub_resource type="BoxMesh" id="Mesh_expansion"]
+size = Vector3(0.04, 0.01, 0.002)
+
+; Cream above, dark red below -- the two colours the machine is known by. Both
+; are matte mouldings, so neither is shiny.
+[sub_resource type="StandardMaterial3D" id="Mat_cream"]
+albedo_color = Color(0.89, 0.86, 0.77, 1)
+roughness = 0.65
+
+[sub_resource type="StandardMaterial3D" id="Mat_red"]
+albedo_color = Color(0.47, 0.09, 0.09, 1)
+roughness = 0.6
+
+[sub_resource type="StandardMaterial3D" id="Mat_dark"]
+albedo_color = Color(0.08, 0.08, 0.08, 1)
+roughness = 0.9
+
+[node name="FamicomModel" type="Node3D"]
+script = ExtResource("1_fc")
+
+[node name="Body" type="Node3D" parent="."]
+
+[node name="Base" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("Mesh_base")
+surface_material_override/0 = SubResource("Mat_red")
+
+; z 0.000 .. 0.075, so the mouth opens behind it.
+[node name="DeckFront" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.045, 0.0375)
+mesh = SubResource("Mesh_deck_front")
+surface_material_override/0 = SubResource("Mat_cream")
+
+; z -0.075 .. -0.020.
+[node name="DeckRear" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.045, -0.0475)
+mesh = SubResource("Mesh_deck_rear")
+surface_material_override/0 = SubResource("Mat_cream")
+
+; The bottom of the slot, 1 mm above the deck's floor so the cartridge's own
+; edge is what a player sees resting on it.
+[node name="CartFloor" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.031, -0.01)
+mesh = SubResource("Mesh_cart_floor")
+surface_material_override/0 = SubResource("Mat_dark")
+
+; The outer edge of each well stands 8 mm proud, which is what keeps a pad in it.
+[node name="WellLipLeft" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.108, 0.034, 0)
+mesh = SubResource("Mesh_lip")
+surface_material_override/0 = SubResource("Mat_cream")
+
+[node name="WellLipRight" type="MeshInstance3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.108, 0.034, 0)
+mesh = SubResource("Mesh_lip")
+surface_material_override/0 = SubResource("Mat_cream")
+
+; The top of the deck, centred on the mouth. A cartridge goes in label-forward
+; and stands up out of the machine.
+[node name="CartSeat" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.06, -0.01)
+
+[node name="Front" type="Node3D" parent="."]
+
+; The 15-pin expansion connector, centred on the front face. Geometry only: no
+; ExpansionCatalog unit names famicom as its host, so nothing can be seated in
+; it -- the Disk System's row still says nes, and host is single-valued.
+[node name="ExpansionRecess" type="MeshInstance3D" parent="Front"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0.0755)
+mesh = SubResource("Mesh_expansion")
+surface_material_override/0 = SubResource("Mat_dark")
+
+; Identity basis: a plug arrives from +Z, which is the front. No socket mesh is
+; drawn here: the cabinet's own PortRecess is a child of the snap zone and rides
+; it onto these markers, so drawing a second hole would only fight it for the
+; same face.
+[node name="PortSeat1" type="Marker3D" parent="Front"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0835, 0.015, 0.0765)
+
+[node name="PortSeat2" type="Marker3D" parent="Front"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0835, 0.015, 0.0765)
+
+; The machine's own printing, on the front wall of the deck between the wells.
+; The wordmark beside it on the hardware is deliberately not drawn -- see the
+; note in Textures/Controllers/ATTRIBUTIONS.txt about the NES pad.
+[node name="NameLabel" type="Label3D" parent="Front"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0415, 0.0755)
+pixel_size = 5e-05
+modulate = Color(0.32, 0.3, 0.28, 1)
+text = "FAMILY COMPUTER"
+font_size = 48
+
+[node name="Top" type="Node3D" parent="."]
+
+; POWER and RESET sit side by side on the front of the deck's top face, POWER on
+; the left. Read off photographs; the real POWER is a slide switch and RESET a
+; round button, and both are drawn here with the cabinet's own button caps.
+[node name="PowerSeat" type="Marker3D" parent="Top"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.028, 0.06, 0.055)
+
+[node name="ResetSeat" type="Marker3D" parent="Top"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.028, 0.06, 0.055)
+
+[node name="Rear" type="Node3D" parent="."]
+
+; Where the captive lead leaves the machine. An HVC-001 has no A/V sockets at
+; all: its picture and sound go out on a hardwired RF pigtail, so the cabinet's
+; own captive lead is the whole of this console's output and its plug visual
+; stays shown rather than being hidden behind a jack.
+[node name="CableSeat" type="Marker3D" parent="Rear"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.075, 0.018, -0.076)

@@ -2188,6 +2188,8 @@ func _plug_records(seats: Array, node_to_id: Dictionary) -> Array:
 const CONTROLLER_SCENES := [
 	"res://Scenes/Objects/controllers/retro_controller.tscn",
 	"res://Scenes/Objects/controllers/nes/nes_controller.tscn",
+	"res://Scenes/Objects/controllers/famicom/famicom_controller_i.tscn",
+	"res://Scenes/Objects/controllers/famicom/famicom_controller_ii.tscn",
 	"res://Scenes/Objects/controllers/vb/vb_controller.tscn",
 	"res://Scenes/Objects/controllers/atari/atari_2600_cx40.tscn",
 	"res://Scenes/Objects/controllers/playstation/ps1_controller.tscn",

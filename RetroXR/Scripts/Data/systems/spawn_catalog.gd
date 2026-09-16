@@ -129,6 +129,13 @@ const _PERIPHERALS: Dictionary = {
 		# panel wears an RF SWITCH socket and a CH3/CH4 slide beside it.
 		{"kind": "peripheral", "label": "RF Switch (RXR-003)", "spawn": "rf_switch"},
 	],
+	# Controller I and Controller II are different objects, which is the whole
+	# point of this machine: II has a microphone and a volume slider where I has
+	# Select and Start. Both are listed, because either can be lost.
+	"famicom": [
+		{"kind": "peripheral", "label": "Controller I", "spawn": "famicom_controller_i"},
+		{"kind": "peripheral", "label": "Controller II", "spawn": "famicom_controller_ii"},
+	],
 	# Same reasoning as the NES: the console moulds its own DE-9 sockets and the
 	# stick wears the matching plug, so the two only look right together. Named
 	# CX40 because the 2600 shipped two quite different controllers and the
@@ -149,7 +156,7 @@ const _PERIPHERALS: Dictionary = {
 ## Platforms that model their own console AND their own pad, so the generic
 ## stand-ins are only clutter on their card. Everything else keeps them: for a
 ## platform with no hardware of its own they are the whole way to play it.
-const _NO_STANDINS: Array[String] = ["nes", "atari_2600", "playstation"]
+const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari_2600", "playstation"]
 
 
 ## Platforms that name their own A/V lead above, so the generic one would be a
@@ -167,7 +174,10 @@ const _OWN_AV_LEAD: Array[String] = ["nes", "wii", "nintendo_64"]
 ## A platform with no model of its own is NOT one of these: it spawns the
 ## primitive box, which does wear the three sockets, and the lead is how its
 ## picture reaches the set.
-const _NO_AV_SOCKETS: Array[String] = ["virtual_boy"]
+## The Famicom is the one CONSOLE here: an HVC-001 wears no A/V sockets, only a
+## hardwired RF pigtail, so a spawned lead would have nothing to enter at the
+## console end.
+const _NO_AV_SOCKETS: Array[String] = ["virtual_boy", "famicom"]
 
 ## The lead every other platform reaches the TV with. Consoles spawn wearing a
 ## captive one, so this row is a spare — for a lead thrown in the trash, or a
