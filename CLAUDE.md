@@ -2273,12 +2273,10 @@ RomM upload it as a save. **A clock with no file yet is written even when unchan
 value is a start time that only moves when a game sets the clock, so writing only on change
 restarted the clock at zero every power-on.
 
-**The Transfer Pak keeps the cartridge's clock too**, through its own private call:
-`RETRO_ENVIRONMENT_GET_TRANSFER_PAK_CLOCK_INTERFACE` (97 | EXPERIMENTAL), a struct of
-`frontend_data` and `get_rtc(port)`, declared in `TransferPakInterface.hpp` and in the fork's
-`libretro/transferpak_interface.h`. It is a call of its own rather than a member of the call-95
-struct because that struct has no version field: a new extension filling a longer struct than
-an older installed core allocated would write past its end. `TransferPak.cart_rtc_path` names
+**The Transfer Pak keeps the cartridge's clock too**, through `get_rtc(port)`, the last member
+of `retro_transfer_pak_interface` (call 95), declared in `TransferPakInterface.hpp` and in the
+fork's `libretro/transferpak_interface.h`. The interface is experimental and RetroXR ships both
+ends, so it grows in place rather than by a second call. `TransferPak.cart_rtc_path` names
 `<save_id>.<n64 core>.rtc` beside the battery — the battery is shared with a Game Boy, the clock
 is the N64 core's own layout — and `RetroSystem` sets it with `SetTransferPakClock` BEFORE
 `SetTransferPak`, whose generation bump is what makes the core read the cartridge and ask.
