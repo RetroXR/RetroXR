@@ -1735,7 +1735,7 @@ seated microphone's body when there is one, otherwise the machine.
 | dolphin (fork) | GameCube DOL-022, Wii Speak, Logitech USB | the game's rate; GameCube at most 64 a frame | see below; `dolphin_wiispeak_enable`, `dolphin_wii_logi_microphone_enable` | open and state on its CPU thread, reads in `retro_run` |
 | azahar (buildbot) | 3DS mic | opens at 48000 and resamples itself | `citra_input_type` (`auto`, `none`, `static_noise`, `frontend`) | emulation thread |
 | virtualjaguar | Jaguar voice modem | 8000 | — | emulation thread |
-| mupen64plus-next (fork) | N64 Voice Recognition Unit | 48000, decoded by Vosk | the port's device id, or `mupen64plus-next-vru-port` | opens and reads in `retro_run`, decodes on its own worker |
+| mupen64plus-next (fork) | N64 Voice Recognition Unit | 48000, decoded by Vosk | the port's device id, or `mupen64plus-vru-port` | opens and reads in `retro_run`, decodes on its own worker |
 
 A mic that is only a BUTTON, with no audio behind it: DeSmuME (`desmume_mic_mode`, L3 "Make
 Microphone Noise"), legacy melonDS (L2), and Nestopia and Mesen for the Famicom (below). No
@@ -1859,7 +1859,7 @@ In the fork (`retroxr-mupen64plus-next-libretro-v4`):
   English, which is why one English model serves both games.
 - **The model is chosen by what the grammar contains**, not by the ROM's country code: a
   grammar with a byte over 0x7F wants `model-ja`, anything else `model-en-us`.
-  `mupen64plus-next-vru-language` overrides it.
+  `mupen64plus-vru-language` overrides it.
 - **The reply is RMG's**, transcribed rather than invented: five (slot, distance) pairs
   defaulting to `0x7FFF`/0, distance = alternative rank × 256, matches sorted longest-first,
   `mic_level`/`voice_level` `0x0BB8` and `voice_length` `0x8004`. `error_flags` is `0x8000`
@@ -1899,28 +1899,40 @@ error flags, and a control utterance the game is not listening for comes back `0
 refused. Swapping the two makes both checks fail, which is what makes them checks. Vosk's
 own answers are `{"text": "pikachu"}` and `{"text": "[unk]"}`.
 
-`Tools/input/vru_probe` then proves the device reaches a real core: with a NUS-020 in socket
-4 and Mario Kart 64 running, mupen64plus logs
+`Tools/input/vru_probe` then proves it against the game itself. With a NUS-020 in socket 4,
+**Hey You, Pikachu! loads its vocabulary into the unit** -- the core logs the grammar it built
+from the phoneme codes the game sent, which is also what proves the word table was transcribed
+correctly:
 
 ```
-Game controller 3 (VRU controller) attached
+["pikachu", ... , "hey", "come here", "this way", "good bye", "see you later", "bye bye",
+ "start", "lets play", "hello", "open sesame", "go away", "good morning", "im sorry",
+ "i choose you", "hey you pikachu", "pika pikachu", "pika pika pi", "pi ka ka pi",
+ "bring that here", "go get it", "give it to me", ...]
 ```
 
-which names `g_vru_controller_flavor` and so proves the joybus device was selected rather
-than inferred. **One leg per process** — `--leg=control` runs the same game with an empty
-socket and prints no such line.
+and `Game controller 3 (VRU controller) attached` names `g_vru_controller_flavor`, so the joybus
+device was selected rather than inferred. Speaking into it -- Z held on the VRU's own port, the
+utterance pushed through the frontend's microphone interface -- the recognizer answers the game:
+`heard "pikachu"`, `heard "pika"`. **One leg per process**: `--leg=control` runs the same game
+with an empty socket and prints none of those lines.
 
 ```bash
 "$godot" --headless --path RetroXR res://Tests/n64_vru_tests.tscn
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-  res://Tools/input/vru_probe.tscn -- --root=<throwaway root> --rom=<n64 rom> --leg=seated
+  res://Tools/input/vru_probe.tscn -- --root=<throwaway root> \
+  --rom="<Hey You, Pikachu!>" --leg=seated --speak=<48 kHz mono wav>
 ```
 
-**Still owed.** No game has understood a word yet: Hey You, Pikachu! is the only title that
-listens and there is no copy here, so what is proven is the recognizer, the device and the
-attach — not Pikachu answering. The Japanese model is wired but untested. The speech pack
-has no in-app download yet, so it is installed by hand into the directory above. Quest is
-built but unmeasured: `libvosk` for arm64 is 8.9 MB and a loaded model is about 300 MB.
+**Still owed.** The utterances measured so far are synthesized speech, and the game's list
+carries "pika", "pika pika" and "pikachu" together, so a match lands on the short entry as
+often as the long one; how well it hears a real voice is untested. Nobody has watched Pikachu
+obey on screen -- the probe speaks during the opening, and what is proven is that the game
+asked for a word list and got answers back. The Japanese titles (Pikachuu Genki de Chuu,
+Densha de GO! 64) are wired but unrun. The speech pack has no in-app download yet, so it is
+installed by hand into the directory above. Quest is built -- the arm64 library carries the
+recognizer and resolves dlopen -- but unmeasured: libvosk is 8.9 MB and a loaded model about
+300 MB.
 
 **The Dreamcast Microphone (HKT-7200) is not built.** It fits either expansion socket on the
 pad and has no button: each game talks on a controller button, A in Seaman and Y in Alien Front
