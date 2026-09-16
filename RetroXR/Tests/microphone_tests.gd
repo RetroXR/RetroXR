@@ -173,6 +173,25 @@ func _test_input_device() -> void:
 
 	AppPrefs.microphone_device = saved_device
 
+	# What the list CALLS each one. Windows names an input after its driver and
+	# then repeats itself, so a column of these is the word "Microphone" with the
+	# half that identifies the hardware pushed off the panel.
+	var OV := preload("res://Scripts/UI/spawn_menu/views/options_view.gd")
+	var windows := PackedStringArray([
+		"Microphone (HD Pro Webcam C920)",
+		"Headset Microphone (Oculus Virtual Audio Device)"])
+	_ok(OV._input_label("Microphone (HD Pro Webcam C920)", windows) == "HD Pro Webcam C920",
+		"input/the label is the part that names the hardware")
+	_ok(OV._input_label("Headset Microphone (Oculus Virtual Audio Device)", windows)
+			== "Oculus Virtual Audio Device",
+		"input/whatever the driver called itself in front of it")
+	_ok(OV._input_label("Some Plain Name", windows) == "Some Plain Name",
+		"input/a name with no brackets is left alone")
+	# Two rows reading the same thing would be worse than two wide ones.
+	var clash := PackedStringArray(["Rear (Line In)", "Front (Line In)"])
+	_ok(OV._input_label("Rear (Line In)", clash) == "Rear (Line In)",
+		"input/and names that would collide keep theirs in full")
+
 
 func _test_device() -> void:
 	AppPrefs.microphone_enabled = true
@@ -259,6 +278,24 @@ func _test_ds_pins() -> void:
 	ds.free()
 
 
+
+## Which way the cord leaves the body, which is not something a look settles:
+## a rope exits a directional endpoint along its local -Z BY DEFAULT, and both
+## microphones are built nose-at-minus-Z with the cord boss at plus-Z. Left at
+## the default the cord came out of the grille and doubled back through the
+## body, and the only honest oracle is the sign of this dot.
+func _check_cord(what: String, rope: VerletRope, host: Node3D,
+		nose_local: Vector3, boss_local: Vector3) -> void:
+	var basis := host.global_transform.basis.orthonormalized()
+	var exit: Vector3 = (basis * Vector3(rope.start_exit_axis)).normalized()
+	var body_dir: Vector3 = (basis * (boss_local - nose_local)).normalized()
+	var d := exit.dot(body_dir)
+	_ok(d > 0.5, "%s the cord leaves away from the nose, not back through it" % what,
+		"dot %+.2f" % d)
+	var end_exit: Vector3 = Vector3(rope.end_exit_axis).normalized()
+	_ok(end_exit.dot(Vector3(0, 0, 1)) > 0.5,
+		"%s and so does the end a hand is holding" % what, str(end_exit))
+
 func _test_gc() -> void:
 	var loose := GcMicrophonePlug.new()
 	_ok(MemoryCardController.dolphin_slot_value("C:/cards/a.raw", null) == "C:/cards/a.raw",
@@ -272,6 +309,25 @@ func _test_gc() -> void:
 		"gc/the microphone button is pinned to R3")
 	_ok(ForcedCoreOptions.microphone_hotkey("dolphin", "wii").is_empty(), "gc/not on a Wii")
 	_ok(ForcedCoreOptions.microphone_hotkey("snes9x", "gamecube").is_empty(), "gc/not on another core")
+
+	# The stick: grille and aqua button at -Z, cord boss at +Z.
+	var stick: GcMicrophone = preload(
+		"res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn").instantiate()
+	add_child(stick)
+	stick.freeze = true
+	for i in range(30):
+		await get_tree().physics_frame
+	var stick_rope: VerletRope = null
+	for n: Node in get_tree().current_scene.find_children("*", "VerletRope", true, false):
+		stick_rope = n as VerletRope
+	if stick_rope != null:
+		_check_cord("gc/", stick_rope, stick.get_node("CableAttachPoint"),
+			Vector3(0, 0, -0.068), Vector3(0, 0, 0.07))
+	else:
+		_ok(false, "gc/the stick built its cord")
+	stick.drop_and_free() if stick.has_method("drop_and_free") else stick.queue_free()
+	for i in range(6):
+		await get_tree().process_frame
 	_ok(CoreOptionsStore.HARDWARE_PINNED.has("dolphin_hotkey_activate_microphone"),
 		"gc/the hotkey is hardware-pinned for the core manager")
 

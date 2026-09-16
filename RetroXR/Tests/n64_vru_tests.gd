@@ -71,6 +71,24 @@ func _spawn_n64() -> RetroSystem:
 	return sys
 
 
+## Which way the cord leaves the body, which is not something a look settles:
+## a rope exits a directional endpoint along its local -Z BY DEFAULT, and both
+## microphones are built nose-at-minus-Z with the cord boss at plus-Z. Left at
+## the default the cord came out of the grille and doubled back through the
+## body, and the only honest oracle is the sign of this dot.
+func _check_cord(what: String, rope: VerletRope, host: Node3D,
+		nose_local: Vector3, boss_local: Vector3) -> void:
+	var basis := host.global_transform.basis.orthonormalized()
+	var exit: Vector3 = (basis * Vector3(rope.start_exit_axis)).normalized()
+	var body_dir: Vector3 = (basis * (boss_local - nose_local)).normalized()
+	var d := exit.dot(body_dir)
+	_ok(d > 0.5, "%s the cord leaves away from the nose, not back through it" % what,
+		"dot %+.2f" % d)
+	var end_exit: Vector3 = Vector3(rope.end_exit_axis).normalized()
+	_ok(end_exit.dot(Vector3(0, 0, 1)) > 0.5,
+		"%s and so does the end a hand is holding" % what, str(end_exit))
+
+
 func _test_device() -> void:
 	var unit := await _spawn_unit()
 
@@ -124,6 +142,17 @@ func _test_mic() -> void:
 	_ok(sys.microphone_position().is_equal_approx(mic.global_position),
 		"mic/and so does the machine it is seated in",
 		"%s vs %s" % [sys.microphone_position(), mic.global_position])
+
+	# The box: its connector tongue is at -Z and its cord boss at +Z.
+	var rope: VerletRope = null
+	for n: Node in get_tree().current_scene.find_children("*", "VerletRope", true, false):
+		if n.get_parent() != null and String(n.get_parent().name).contains("Vru"):
+			rope = n as VerletRope
+	if rope != null:
+		_check_cord("mic/", rope, unit.get_node("CableAttachPoint"),
+			Vector3(0, 0, -0.023), Vector3(0, 0, 0.041))
+	else:
+		_ok(false, "mic/the unit built its cord")
 
 	sys.queue_free()
 	unit.drop_and_free()

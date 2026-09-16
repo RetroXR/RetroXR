@@ -97,8 +97,15 @@ func _add_cable_to_scene() -> void:
 	_rope.set_rope_length(LEAD_LENGTH)
 	_rope.start_node = _cable_attach_point
 	_rope.end_node = _mic
+	# Both ends leave along +Z, which has to be said rather than assumed: a rope
+	# exits a directional endpoint along its local -Z by default, and BOTH bodies
+	# here are built the other way round -- the grille and the connector are at
+	# -Z and the cord boss at +Z. Left at the default the cord came out of the
+	# nose and doubled back through the body.
 	_rope.start_endpoint_role = VerletRope.ENDPOINT_HOST
 	_rope.end_endpoint_role = VerletRope.ENDPOINT_AUTO
+	_rope.start_exit_axis = Vector3(0, 0, 1)
+	_rope.end_exit_axis = Vector3(0, 0, 1)
 	_rope.end_anchor_offset = N64VruMic.CORD_EXIT
 	_rope._init_points()
 	_max_rope_length = _rope.segment_count * _rope.segment_length

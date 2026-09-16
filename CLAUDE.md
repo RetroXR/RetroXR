@@ -1811,6 +1811,13 @@ In RetroXR:
 - **Group sweeps.** Anything that sweeps the `memory_card` group must not assume a card: the card
   poller skips an object with no `card_id`, and card numbering counts only `MemoryCard`s.
 
+**A cord leaves a body along the anchor's local -Z**, which both of these are built against:
+the DOL-022's grille and the NUS-021's are at -Z with the cord boss at +Z, so left at the
+default each cord came out of the nose and doubled back through its own body. Both ropes now say
+`start_exit_axis` and `end_exit_axis` explicitly. The oracle is a SIGN, not a look --
+`microphone_tests` and `n64_vru_tests` dot the exit direction against the body's nose-to-boss
+vector and want it positive; the default reads exactly -1.00.
+
 **Measured 2026-09-15** with `Tools/input/gc_mic_probe` on the GameCube IPL, no disc. With the
 DOL-022 in slot B the options file read `dolphin_memcard_b_path=mic` and
 `dolphin_hotkey_activate_microphone=R3`, and v11 logged `Memory Card B: microphone seated` at
