@@ -2273,10 +2273,44 @@ RomM upload it as a save. **A clock with no file yet is written even when unchan
 value is a start time that only moves when a game sets the clock, so writing only on change
 restarted the clock at zero every power-on.
 
-**The Transfer Pak's clock is not kept**, by the core rather than RetroXR: the mupen64plus fork
-zeroes the MBC3 clock in `init_gb_cart` and reads the host clock, with nothing persisted. A clock
-also does not follow a cartridge between cores — desktop runs a Game Boy on sameboy and the Quest
-on gambatte — which would take a converter between the three layouts above.
+**The Transfer Pak keeps the cartridge's clock too**, through its own private call:
+`RETRO_ENVIRONMENT_GET_TRANSFER_PAK_CLOCK_INTERFACE` (97 | EXPERIMENTAL), a struct of
+`frontend_data` and `get_rtc(port)`, declared in `TransferPakInterface.hpp` and in the fork's
+`libretro/transferpak_interface.h`. It is a call of its own rather than a member of the call-95
+struct because that struct has no version field: a new extension filling a longer struct than
+an older installed core allocated would write past its end. `TransferPak.cart_rtc_path` names
+`<save_id>.<n64 core>.rtc` beside the battery — the battery is shared with a Game Boy, the clock
+is the N64 core's own layout — and `RetroSystem` sets it with `SetTransferPakClock` BEFORE
+`SetTransferPak`, whose generation bump is what makes the core read the cartridge and ask.
+
+In the fork (`retroxr-mupen64plus-next-libretro`), the MBC3 clock gained a storage backend,
+attached in `main.c` after `init_gb_cart` and before power-on; `poweron_mbc3_rtc` loads a kept
+clock and a register write saves one, in the same 48-byte layout mGBA uses. Saving on writes
+alone is enough: counters plus the host time they were last brought up to date at stay valid
+however much time passes. Four bugs came out of the same code, each with a selftest case:
+
+- **Power-on set `last_time = 0`**, so the first read added the whole Unix time: a day count
+  wrapped past 511 with the overflow carry set, before a game had touched it.
+- **`(days & 0x100)` was ORed into a `uint8_t`**, which truncates it: the counter never reached
+  day 256.
+- **The hour rollover did `++DAYS_L`**, which wraps at 255 without carrying into bit 8.
+- **A write did not commit the time elapsed first**, so a restored clock a game then set gained
+  the gap since the last update. The halt bit, a TODO, is honored now as well.
+
+`tools/mbc3_rtc_selftest.c` in the fork runs the real `mbc3_rtc.c` over a hand-moved clock and a
+fake storage (the build line is in its header); each of the six fixes, reverted, fails exactly
+its own cases. `Tools/cores/transferpak_clock_probe` is the end-to-end check, against Pokémon
+Stadium (USA) and `rtc_probe`'s cartridge in port 0. **Its oracle is the savestate**, which
+writes per port the 28 fingerprint bytes, five `uint32`s, the clock's `int64 last_time` at +48
+and its counters at +56. Measured 2026-09-16: `fresh` holds the current time and writes a
+48-byte file of it; `kept` holds day 100 from a clock written five hours earlier. The core from
+before the change fails both, with `last_time=0` and day 0. **Still owed:** no game has been run
+reading a clock through the pak — Pokémon Stadium 2 with a Gold, Silver or Crystal cartridge is
+the case — and the fork change reaches players only with a new release and a `known_tag` bump.
+
+**A clock does not follow a cartridge between cores** — desktop runs a Game Boy on sameboy, the
+Quest on gambatte, and the pak on mupen64plus — which would take a converter between the
+layouts above.
 
 **Measured 2026-09-16** with `Tools/cores/rtc_probe`, which builds its own cartridge (MBC3 +
 TIMER + RAM + BATTERY) whose program sets the clock to day 100 on the first boot and copies the
