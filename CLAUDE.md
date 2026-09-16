@@ -1875,10 +1875,42 @@ In the fork (`retroxr-mupen64plus-next-libretro-v4`):
   GPLv3): 677 unique keys out of 717 rows, first spelling winning, exactly as RMG's own
   lookup does. The table maps the big-endian phoneme codes a game sends to the text a
   recognizer listens for — including Densha de GO!'s Shift-JIS words, which RMG maps to
-  English, which is why one English model serves both games.
+  English, so Densha de GO! 64 is played by speaking **English**. Pikachuu Genki de Chuu
+  has no rows at all: it sends text, below. The lookup still runs first for every word,
+  which is what keeps Densha de GO! on its English table text.
 - **The model is chosen by what the grammar contains**, not by the ROM's country code: a
-  grammar with a byte over 0x7F wants `model-ja`, anything else `model-en-us`.
-  `mupen64plus-vru-language` overrides it.
+  word that decoded to kana wants `model-ja`, an all-ASCII list `model-en-us`.
+  `mupen64plus-vru-language` overrides it, and forcing either one against its game hears
+  nothing — Densha de GO!'s English text is not in `model-ja`, and Pikachuu Genki de Chuu's
+  kana are not in `model-en-us`.
+- **A Japanese title sends its words as Shift-JIS text**, one character to each uint16,
+  and the unknown-word path used to copy those bytes straight into the grammar. Vosk reads
+  and answers in UTF-8, so the grammar and the answers were in two encodings and no Japanese
+  word could ever match. Four steps now:
+  - **Decoded at the door** (`vru_recognizer_decode_word`) through a built-in kana table —
+    hiragana `0x829F–0x82F1`, katakana `0x8340–0x8396` stepping over `0x837F`, `ー` `0x815B`,
+    the full-width space — checked against Python's codec for all 171 codes. No iconv, since
+    the core builds for MinGW and the NDK. A character outside it refuses the word, which
+    still holds its slot, empty.
+  - **Folded to katakana** (`vru_recognizer_fold_kana`). A game spells in hiragana; the
+    model's lexicon spells ピカチュウ only in katakana and こんにちわ in both.
+  - **Split into lexicon words** (`vru_segment_words`). Vosk 0.3.45's `UpdateGrammarFst`
+    turns the list into a bigram model and DROPS each token its lexicon lacks, and most of
+    what this game sends is not a lexicon word: it sends the ways a child might say one,
+    ぴかっちゅう and ぴかてう beside ぴかちゅう. Each word goes to Vosk as the fewest
+    `model-ja/graph/words.txt` words that spell it once folded — `ゲーム スタート`,
+    `ピカ っちゅう`. When a stretch has both spellings the katakana one is given, because a
+    hiragana entry can be a particle and は read as a particle is "wa". The 200,000-line
+    lexicon is scanned once per list and not kept.
+  - **Matched a whole folded word at a time.** Vosk's answer is folded the same way and a
+    word matches when its folded phrase appears in it between spaces, so ぴかってう is not
+    also heard as the かって inside it. English matching is unchanged.
+- **Lists are bigger than they looked.** Pikachuu Genki de Chuu sends **84** words, where
+  the recognizer held 64 and its grammar loop read past the array for the rest. It holds 256
+  now (the count is a uint8) at 128 bytes each (40 uint16s of kana). A result is matched
+  against the worker's own copy of the list the recognizer was built from, and an unreadable
+  word's slot is held empty rather than keeping the last list's word, which used to match
+  every utterance.
 - **The reply is RMG's**, transcribed rather than invented: five (slot, distance) pairs
   defaulting to `0x7FFF`/0, distance = alternative rank × 256, matches sorted longest-first,
   `mic_level`/`voice_level` `0x0BB8` and `voice_length` `0x8004`. `error_flags` is `0x8000`
@@ -1906,10 +1938,19 @@ In RetroXR:
   slots, so the distance law follows the NUS-021 in the player's hand rather than the
   console.
 - **The speech pack lives under the core's own system directory**,
-  `<libretro>/system/mupen64plus_next/vru/`, holding `libvosk` and `model-en-us` /
-  `model-ja`. That directory is per core name, so the Windows and Android builds never
-  collide. On Android it must stay on internal storage: `dlopen` outside the app's own
-  namespace is refused.
+  `<libretro>/system/mupen64plus_next/vru/`, holding `libvosk` (`.dll` with its MinGW
+  runtime DLLs, `.so`, or `.dylib`, from the same Vosk 0.3.45 release as the header) and
+  `model-en-us` / `model-ja` (`vosk-model-small-ja-0.22`, needed for the Japanese games).
+  That directory is per core name, so the Windows and Android builds never collide. On
+  Android it must stay on internal storage: `dlopen` outside the app's own namespace is
+  refused.
+- **Every platform builds it.** `vosk_api.h` is vendored in the fork under
+  `custom/dependencies/vosk/` with its Apache-2.0 licence. It was a git submodule, which
+  the release workflow cannot check out (this repository vendors by subrepo, and a leftover
+  gitlink makes `submodules: recursive` fail), so a build from the committed tree stopped at
+  `vosk_api.h: No such file or directory` on every platform. `retroxr-release.yml` now has
+  Linux x86_64 and macOS arm64/x86_64 jobs beside Windows and Android, and fails a Linux or
+  macOS build that links libvosk.
 
 **Measured 2026-09-15.** `tools/vru_selftest` loads the same library and model the core
 loads, sends the word list the way a game sends it, and pushes a recorded utterance through
@@ -1936,22 +1977,60 @@ utterance pushed through the frontend's microphone interface -- the recognizer a
 `heard "pikachu"`, `heard "pika"`. **One leg per process**: `--leg=control` runs the same game
 with an empty socket and prints none of those lines.
 
+**Measured 2026-09-16, the Japanese half.** Pikachuu Genki de Chuu, same probe, a NUS-020 in
+socket 4: the game sends 84 words, every one of them spelled by `model-ja`'s lexicon
+(`ぴかっつう` as `ピカ っつう`, `きみにきめた` as `キミ ニキ メタ`, `つぎのすてーじへれっつごー` as
+`つぎ のす テー ジヘ レッツゴー`), and an Open JTalk ぴかちゅう pushed through the microphone
+interface comes back four times out of four as
+
+```
+VRU: heard "ピ カッ ちゅ" as word 9 "ぴかっちゅ"
+```
+
+-- one of the misheard spellings the game lists so that a child's "pikachu" still counts.
+`--leg=control` with socket 4 empty prints no VRU line and loads no model. The selftest's
+`engine-ja` group does the same offline: ぴかちゅう (whole in the lexicon) and げーむすたーと
+(only as `ゲーム スタート`) each return their slot with no error, ばなな returns `0x4000`. Each
+of five mutations fails exactly its own cases -- no Shift-JIS conversion, no fold, no katakana
+preference, the English match rule, no segmentation. **The same selftest passes on Linux**
+(WSL Ubuntu 24.04, gcc 13, Vosk 0.3.45's `libvosk.so` through `dlopen`), where
+`make platform=unix` builds a core with no `libvosk` among its NEEDED entries.
+
+Two traps from getting there. **A test that speaks the moment it sends the list is timing the
+model load**, not the recognizer: `model-ja` takes seconds to open, `ReadVRUResults` waits
+250 ms, and the reply comes back empty. `vru_recognizer_grammar_ready()` is what the selftest
+waits on, the way a game has sent its list long before anyone talks. And **Japanese in a core
+log arrives mangled twice**: libretro-godot widens each byte to a code point, and `ゅ` is UTF-8
+`E3 82 85`, so its last byte becomes U+0085, a line break -- the line is cut there, and a
+Python `splitlines()` cuts it again. Rebuild the bytes (code points below 256, plus cp1252 for
+0x80-0x9F) and split on `\n` only.
+
 ```bash
 "$godot" --headless --path RetroXR res://Tests/n64_vru_tests.tscn
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
   res://Tools/input/vru_probe.tscn -- --root=<throwaway root> \
-  --rom="<Hey You, Pikachu!>" --leg=seated --speak=<48 kHz mono wav>
+  --rom="<Hey You, Pikachu! or Pikachuu Genki de Chuu>" --leg=seated --speak=<48 kHz mono wav>
+# in the fork
+uv run tools/vru_render_ja_clips.py <clip dir>      # Open JTalk, pinned in the script
+gcc -std=gnu99 -O1 -o vru_selftest tools/vru_selftest.c \
+  custom/mupen64plus-core/plugin/vru_recognizer.c -Icustom -Icustom/mupen64plus-core \
+  -Imupen64plus-core/src -Imupen64plus-core/src/api -Ilibretro-common/include \
+  -Icustom/dependencies/vosk -Ilibretro -lpthread -ldl        # no -ldl on Windows
+./vru_selftest <system dir> <english wav> <control wav> --ja-clips=<clip dir>
 ```
 
-**Still owed.** The utterances measured so far are synthesized speech, and the game's list
-carries "pika", "pika pika" and "pikachu" together, so a match lands on the short entry as
-often as the long one; how well it hears a real voice is untested. Nobody has watched Pikachu
-obey on screen -- the probe speaks during the opening, and what is proven is that the game
-asked for a word list and got answers back. The Japanese titles (Pikachuu Genki de Chuu,
-Densha de GO! 64) are wired but unrun. The speech pack has no in-app download yet, so it is
-installed by hand into the directory above. Quest is built -- the arm64 library carries the
-recognizer and resolves dlopen -- but unmeasured: libvosk is 8.9 MB and a loaded model about
-300 MB.
+**Still owed.** Every utterance measured is synthesized speech, English from SAPI and
+Japanese from Open JTalk, which is cleaner than any player; how well either model hears a
+real voice is untested. Nobody has watched Pikachu obey on screen, in either language -- the
+probe speaks during the opening, and what is proven is that the game asked for a word list
+and got answers back. Densha de GO! 64 has not reached a word upload in a probe run: it wants
+menu navigation first, so its table path is covered by the English selftest and not by the
+game. The macOS jobs in `retroxr-release.yml` have not run, since the fork has not been pushed
+with them, and a macOS RetroXR runs software-rendered cores only, so whether this core runs
+there at all is untried. `core_sources.gd` names no Linux or macOS asset for this fork yet. The speech pack has no
+in-app download, so it is installed by hand into the directory above. Quest is built -- the
+arm64 library carries the recognizer and resolves dlopen -- but unmeasured: libvosk is
+8.9 MB and a loaded model about 300 MB, `model-ja` included.
 
 **The Dreamcast Microphone (HKT-7200) is built.** It fits either expansion socket on the pad
 and has no button of its own: each game talks on a controller button, A in Seaman and Y in
