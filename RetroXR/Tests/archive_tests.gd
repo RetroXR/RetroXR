@@ -44,6 +44,7 @@ func _ready() -> void:
 	_group_corrupt()
 	_group_cancel()
 	await _group_firmware()
+	_group_pack()
 
 	_clean()
 	print("[archive] %d checks, %d failed" % [_passed + _failed, _failed])
@@ -477,5 +478,126 @@ func _group_firmware() -> void:
 	_ok(not bool(evil["ok"]), "firmware/a member naming a path outside the system dir is refused")
 	_ok(not FileAccess.file_exists(WORK.path_join("escaped.txt")),
 		"firmware/and writes nothing outside it")
+
+	fw.free()
+
+
+# ── pack/ — a download from its own host, unpacked to where the core reads ─────
+# The Voice Recognition Unit's speech pack: Vosk publishes each zip with its own
+# top folder, and the mupen64plus_next fork reads <system>/vru/libvosk.* and
+# vru/model-en-us / vru/model-ja. A remap that went wrong would install every
+# file and leave the core finding none of them, so these check the landing path.
+
+func _group_pack() -> void:
+	var fw := FirmwareInstaller.new()
+	var dest := WORK.path_join("pack_system")
+
+	var lib_zip := _write_zip("pack_lib.zip", {
+		"vosk-win64-0.3.45/libvosk.dll": _text("dll"),
+		"vosk-win64-0.3.45/libstdc++-6.dll": _text("stdc++"),
+		"vosk-win64-0.3.45/libvosk.lib": _text("import library"),
+		"vosk-win64-0.3.45/vosk_api.h": _text("header"),
+	})
+	var lib: Dictionary = fw._extract("pack", lib_zip, dest, "vosk-win64-0.3.45/", "vru/",
+		PackedStringArray(["libvosk.dll", "libstdc++-6.dll"]))
+	_ok(bool(lib["ok"]), "pack/a library zip unpacks", str(lib.get("error", "")))
+	_eq(_read_bytes(dest.path_join("vru/libvosk.dll")), _text("dll"),
+		"pack/its library lands in vru/, out of the zip's own folder")
+	_ok(FileAccess.file_exists(dest.path_join("vru/libstdc++-6.dll")),
+		"pack/and so does the runtime it needs")
+	_ok(not FileAccess.file_exists(dest.path_join("vru/libvosk.lib"))
+		and not FileAccess.file_exists(dest.path_join("vru/vosk_api.h")),
+		"pack/and nothing the list leaves out")
+	_ok(not DirAccess.dir_exists_absolute(dest.path_join("vosk-win64-0.3.45")),
+		"pack/and the zip's folder name never reaches the system dir")
+
+	var model_zip := _write_zip("pack_model.zip", {
+		"vosk-model-small-ja-0.22/graph/words.txt": _text("ピカチュウ 1"),
+		"vosk-model-small-ja-0.22/am/final.mdl": _text("model"),
+		"README.md": _text("outside the folder"),
+	})
+	var model: Dictionary = fw._extract("pack", model_zip, dest, "vosk-model-small-ja-0.22/",
+		"vru/model-ja/", PackedStringArray())
+	_ok(bool(model["ok"]), "pack/a model zip unpacks", str(model.get("error", "")))
+	_eq(_read_bytes(dest.path_join("vru/model-ja/graph/words.txt")), _text("ピカチュウ 1"),
+		"pack/a model keeps its own tree below the renamed folder")
+	_ok(not FileAccess.file_exists(dest.path_join("README.md"))
+		and not FileAccess.file_exists(dest.path_join("vru/model-ja/README.md")),
+		"pack/a member outside the named folder is not unpacked")
+
+	var short_zip := _write_zip("pack_short.zip", {"vosk-win64-0.3.45/libvosk.dll": _text("dll")})
+	var short: Dictionary = fw._extract("pack", short_zip, WORK.path_join("pack_short"),
+		"vosk-win64-0.3.45/", "vru/", PackedStringArray(["libvosk.dll", "libgcc_s_seh-1.dll"]))
+	_ok(not bool(short["ok"]), "pack/a zip missing a file the list names is refused")
+	_ok(not FileAccess.file_exists(WORK.path_join("pack_short/vru/libvosk.dll")),
+		"pack/and installs none of it, since a library without its runtime will not load")
+
+	var moved_zip := _write_zip("pack_moved.zip", {"vosk-win64-0.3.46/libvosk.dll": _text("dll")})
+	var moved: Dictionary = fw._extract("pack", moved_zip, WORK.path_join("pack_moved"),
+		"vosk-win64-0.3.45/", "vru/", PackedStringArray(["libvosk.dll"]))
+	_ok(not bool(moved["ok"]) and str(moved["error"]).contains("vosk-win64-0.3.45/"),
+		"pack/a zip whose folder was renamed says which folder it lacks", str(moved.get("error", "")))
+
+	var evil_zip := _write_zip("pack_evil.zip", {"vosk-model-small-ja-0.22/../../escaped.txt": _text("out")})
+	var evil: Dictionary = fw._extract("pack", evil_zip, dest, "vosk-model-small-ja-0.22/",
+		"vru/model-ja/", PackedStringArray())
+	_ok(not bool(evil["ok"]), "pack/a member climbing out of the renamed folder is refused")
+	_ok(not FileAccess.file_exists(dest.path_join("vru/escaped.txt"))
+		and not FileAccess.file_exists(dest.path_join("escaped.txt")),
+		"pack/and writes nothing")
+
+	# GitHub hands a release asset over as a redirect to a signed link, and the
+	# client opens a host and requests a path, so a URL has to come apart cleanly.
+	_eq(FirmwareInstaller.split_url("https://release-assets.githubusercontent.com/a/b?sig=x%2F&se=1"),
+		{"base_url": "https://release-assets.githubusercontent.com", "path": "/a/b?sig=x%2F&se=1"},
+		"pack/a signed link splits into host and path, query kept")
+	_eq(FirmwareInstaller.split_url("http://192.168.0.106:8080/x.zip"),
+		{"base_url": "http://192.168.0.106:8080", "path": "/x.zip"}, "pack/and a port stays with the host")
+	_eq(FirmwareInstaller.split_url("https://alphacephei.com"),
+		{"base_url": "https://alphacephei.com", "path": "/"}, "pack/a bare host asks for /")
+	_eq(FirmwareInstaller.split_url("ftp://example.com/x.zip"), {}, "pack/and anything but HTTP is refused")
+
+	# The library the core opens is named per platform in vru_recognizer.c.
+	var expect_lib := {
+		"Windows": ["x86_64", "libvosk.dll"], "Linux": ["x86_64", "libvosk.so"],
+		"macOS": ["arm64", "libvosk.dylib"], "Android": ["arm64", "libvosk.so"],
+	}
+	for os_name: String in expect_lib:
+		var arch: String = expect_lib[os_name][0]
+		for pack: Dictionary in SystemAssetCatalog.packs_for("mupen64plus_next", os_name, arch):
+			var parts := SystemAssetCatalog.pack_parts(pack, os_name, arch)
+			_eq(str(parts[0]["marker"]), "vru/" + str(expect_lib[os_name][1]),
+				"pack/%s %s installs the library the core opens there" % [os_name, pack["id"]])
+	_eq(SystemAssetCatalog.packs_for("mupen64plus_next", "Android", "x86_64").size(), 0,
+		"pack/a platform Vosk publishes no library for is offered no pack")
+	_eq(SystemAssetCatalog.packs_for("mupen64plus_next_gles3", "Android", "arm64").size(), 2,
+		"pack/the Quest's gles3 core, a system dir of its own, is offered both")
+
+	var models := {}
+	for pack: Dictionary in SystemAssetCatalog.packs_for("mupen64plus_next", "Windows", "x86_64"):
+		for part: Dictionary in SystemAssetCatalog.pack_parts(pack, "Windows", "x86_64"):
+			if str(part["id"]).begins_with("vosk_model_"):
+				models[str(part["into"])] = pack["id"]
+	_eq(models, {"vru/model-en-us/": "vru_en", "vru/model-ja/": "vru_ja"},
+		"pack/each language unpacks to the folder name the core chooses between")
+	for id: String in SystemAssetCatalog.PARTS:
+		var part: Dictionary = SystemAssetCatalog.PARTS[id]
+		_ok(str(part["marker"]).begins_with(str(part["into"])),
+			"pack/%s's marker is a file it installs" % id, str(part["marker"]))
+
+	# Installed means every part: the library alone, which both packs share,
+	# must not make either language read as there.
+	var sys := WORK.path_join("pack_installed")
+	var ja := SystemAssetCatalog.pack_for("mupen64plus_next", "vru_ja")
+	var parts_here := SystemAssetCatalog.pack_parts(ja)
+	_ok(not SystemAssetCatalog.pack_installed(sys, ja), "pack/nothing on disk is not installed")
+	if not parts_here.is_empty():
+		DirAccess.make_dir_recursive_absolute(sys.path_join(str(parts_here[0]["marker"])).get_base_dir())
+		_write_bytes(sys.path_join(str(parts_here[0]["marker"])), _text("lib"))
+		_ok(not SystemAssetCatalog.pack_installed(sys, ja),
+			"pack/the shared library alone does not install a language")
+		DirAccess.make_dir_recursive_absolute(sys.path_join(str(parts_here[1]["marker"])).get_base_dir())
+		_write_bytes(sys.path_join(str(parts_here[1]["marker"])), _text("words"))
+		_ok(SystemAssetCatalog.pack_installed(sys, ja), "pack/the library and its model do")
 
 	fw.free()

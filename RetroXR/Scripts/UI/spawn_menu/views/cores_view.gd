@@ -939,6 +939,8 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 
 		if SystemAssetCatalog.has_archive(cn):
 			vbox.add_child(_build_bios_archive_row(cn, rows))
+		for pack: Dictionary in SystemAssetCatalog.packs_for(cn):
+			vbox.add_child(_build_bios_pack_row(cn, pack))
 
 		for r: Dictionary in rows:
 			vbox.add_child(_build_bios_row(r, systemid))
@@ -952,23 +954,6 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 ## An archive unpacks straight over the declared paths, so it fills in every row
 ## it covers at once — for ScummVM that is all 39.
 func _build_bios_archive_row(core_name: String, rows: Array[Dictionary]) -> Control:
-	var key := "bios:zip:%s" % core_name
-
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
-	row.custom_minimum_size = Vector2(0, 60)
-
-	var lbl := Label.new()
-	lbl.text = SystemAssetCatalog.button_label(core_name)
-	lbl.add_theme_font_size_override("font_size", 17)
-	lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
-	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	lbl.size_flags_vertical = Control.SIZE_SHRINK_CENTER
-	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.add_child(lbl)
-
-	var running := _firmware_installer != null and _firmware_installer.is_queued(key)
-
 	# "Every row present" is not a usable test for whether the archive ran:
 	# Dolphin.zip carries one of the four files dolphin declares and never the
 	# three GameCube IPL dumps, so it can never reach zero outstanding. The
@@ -979,6 +964,57 @@ func _build_bios_archive_row(core_name: String, rows: Array[Dictionary]) -> Cont
 		if int(r.get("status", 0)) != FirmwareState.Status.PRESENT:
 			outstanding += 1
 	var installed := SystemAssetCatalog.is_installed(core_name) or outstanding == 0
+
+	return _build_bios_download_row("bios:zip:%s" % core_name,
+		SystemAssetCatalog.button_label(core_name), "", installed,
+		"Download and unpack into this core's system folder",
+		func(key: String) -> void: _firmware_installer.enqueue_archive(key, core_name))
+
+
+## A pack's row: what it is for, and one button for all of its downloads. Parts
+## another pack already installed are not fetched again, so the second language
+## costs only its model.
+func _build_bios_pack_row(core_name: String, pack: Dictionary) -> Control:
+	var pack_id := str(pack["id"])
+	var installed := SystemAssetCatalog.pack_installed(
+		CoreDownloadManager.default_system_dir(core_name), pack)
+	return _build_bios_download_row("bios:pack:%s:%s" % [core_name, pack_id],
+		str(pack["label"]), str(pack.get("desc", "")), installed,
+		"Download and install into this core's system folder",
+		func(key: String) -> void: _firmware_installer.enqueue_pack(key, core_name, pack_id, installed))
+
+
+## One download that fills in something at once: a title, an optional line under
+## it, "Installed" once it is there, and a button that downloads, repairs or
+## cancels.
+func _build_bios_download_row(key: String, title: String, desc: String, installed: bool,
+		download_tooltip: String, enqueue: Callable) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.custom_minimum_size = Vector2(0, 60)
+
+	var text := VBoxContainer.new()
+	text.add_theme_constant_override("separation", 2)
+	text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	text.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(text)
+
+	var lbl := Label.new()
+	lbl.text = title
+	lbl.add_theme_font_size_override("font_size", 17)
+	lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	text.add_child(lbl)
+
+	if not desc.is_empty():
+		var sub := Label.new()
+		sub.text = desc
+		sub.add_theme_font_size_override("font_size", 14)
+		sub.add_theme_color_override("font_color", MenuStyle.COLOR_DESC)
+		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		text.add_child(sub)
+
+	var running := _firmware_installer != null and _firmware_installer.is_queued(key)
 
 	if installed and not running:
 		var done := Label.new()
@@ -1005,15 +1041,19 @@ func _build_bios_archive_row(core_name: String, rows: Array[Dictionary]) -> Cont
 	else:
 		btn.text = String.chr(MenuIcons.DOWNLOAD)
 		btn.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
-		btn.tooltip_text = "Download and unpack into this core's system folder"
+		btn.tooltip_text = download_tooltip
 	btn.pressed.connect(func() -> void:
 		if _firmware_installer == null:
 			return
 		if _firmware_installer.is_queued(key):
-			_firmware_installer.cancel_current()
+			# By key: a job still waiting its turn is not the current one, and
+			# cancel_current would stop somebody else's download.
+			_firmware_installer.cancel(key)
+			return
+		enqueue.call(key)
+		if not _firmware_installer.is_queued(key):
 			return
 		_bios_job_buttons[key] = btn
-		_firmware_installer.enqueue_archive(key, core_name)
 		btn.text = "0%"
 		btn.add_theme_color_override("font_color", MenuIcons.TINT_BUSY)
 	)

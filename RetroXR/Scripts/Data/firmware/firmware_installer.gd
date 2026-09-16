@@ -1,12 +1,15 @@
 ## FirmwareInstaller — fetches BIOS files and core support archives into the
 ## per-core libretro system directories.
 ##
-## Two job kinds:
+## Three job kinds:
 ##   FILE    one firmware file written to N destinations. A BIOS is often
 ##           declared by several cores for the same machine, and the system dir
 ##           is per-core, so one download fans out to every core that wants it.
 ##   ARCHIVE a buildbot support zip, unpacked into one core's system dir with
 ##           its internal paths preserved.
+##   PACK    several zips from their own hosts, each unpacked from a folder
+##           inside it into a folder of one core's system dir
+##           (SystemAssetCatalog.PACKS).
 ##
 ## Deliberately not built on RommDownloader: that class keys everything on a
 ## rom_id, writes into the ROM dir, merges gamelist.json and takes part in LRU
@@ -38,7 +41,10 @@ const MAX_RETRIES := 3
 ## get a word in.
 const UNPACK_BATCH := 250
 
-enum Kind { FILE, ARCHIVE }
+## GitHub answers a release asset with one hop to a signed link; the rest is slack.
+const MAX_REDIRECTS := 5
+
+enum Kind { FILE, ARCHIVE, PACK }
 
 var _queue: Array[Dictionary] = []
 var _thread: Thread = null
@@ -109,6 +115,27 @@ func enqueue_archive(key: String, core_name: String) -> void:
 	_pump()
 
 
+## Fetch a pack into `core_name`'s system dir. Parts already installed are
+## skipped, so the library two packs share is downloaded once; `repair` fetches
+## every part again, which is how a damaged file is replaced.
+func enqueue_pack(key: String, core_name: String, pack_id: String, repair: bool = false) -> void:
+	if key.is_empty() or is_queued(key):
+		return
+	var pack := SystemAssetCatalog.pack_for(core_name, pack_id)
+	var dir := CoreDownloadManager.default_system_dir(core_name)
+	var parts: Array[Dictionary] = []
+	for part: Dictionary in SystemAssetCatalog.pack_parts(pack):
+		if repair or not SystemAssetCatalog.part_installed(dir, part):
+			parts.append(part)
+	if parts.is_empty():
+		return
+	_queue.append({
+		"kind": Kind.PACK, "key": key, "label": str(pack["label"]),
+		"dir": dir, "parts": parts,
+	})
+	_pump()
+
+
 ## Stop the running job. Its partial file is kept, so a retry resumes.
 func cancel_current() -> void:
 	_abort = true
@@ -155,6 +182,10 @@ func _pump() -> void:
 
 
 func _worker(job: Dictionary) -> void:
+	if int(job["kind"]) == Kind.PACK:
+		_run_pack(job)
+		return
+
 	var key := str(job["key"])
 	var staging := _staging_path(key)
 	DirAccess.make_dir_recursive_absolute(staging.get_base_dir())
@@ -165,12 +196,71 @@ func _worker(job: Dictionary) -> void:
 	job["size"] = _probe_size(job)
 	_emit_started.call_deferred(key, str(job["label"]), int(job["size"]))
 
+	var fetched := _transfer(job, staging)
+	if str(fetched["state"]) == "cancelled":
+		_emit_cancelled.call_deferred(key)
+		return
+	if str(fetched["state"]) == "failed":
+		_emit_finished.call_deferred(key, false, str(fetched["error"]))
+		return
+
+	var placed := _place(job, staging)
+	DirAccess.remove_absolute(staging)
+	if bool(placed.get("cancelled", false)):
+		_emit_cancelled.call_deferred(key)
+		return
+	_emit_finished.call_deferred(key, bool(placed["ok"]), str(placed.get("error", "")))
+
+
+## Each part is its own download and its own bar, announced under the part's
+## label, so a toast says which of the pack's zips is moving. The job finishes
+## once, after the last part, or at the first part that fails.
+func _run_pack(job: Dictionary) -> void:
+	var key := str(job["key"])
+	var parts: Array = job["parts"]
+	for i in range(parts.size()):
+		var part: Dictionary = parts[i]
+		var sub := {
+			"kind": Kind.PACK, "key": key, "url": str(part["url"]),
+			"headers": PackedStringArray(), "size": 0,
+		}
+		var staging := _staging_path("%s-%s" % [key, str(part.get("id", i))])
+		DirAccess.make_dir_recursive_absolute(staging.get_base_dir())
+
+		sub["size"] = _probe_size(sub)
+		_emit_started.call_deferred(key, str(part["label"]), int(sub["size"]))
+
+		var fetched := _transfer(sub, staging)
+		if str(fetched["state"]) == "cancelled":
+			_emit_cancelled.call_deferred(key)
+			return
+		if str(fetched["state"]) == "failed":
+			_emit_finished.call_deferred(key, false, str(fetched["error"]))
+			return
+
+		var placed := _extract(key, staging, str(job["dir"]),
+			str(part.get("from", "")), str(part.get("into", "")),
+			PackedStringArray(part.get("only", [])))
+		DirAccess.remove_absolute(staging)
+		if bool(placed.get("cancelled", false)):
+			_emit_cancelled.call_deferred(key)
+			return
+		if not bool(placed["ok"]):
+			_emit_finished.call_deferred(key, false, str(placed.get("error", "")))
+			return
+
+	_emit_finished.call_deferred(key, true, "")
+
+
+## Download into `staging`, retrying what is worth retrying.
+## Returns {state: "ok" | "cancelled" | "failed", error: String}.
+func _transfer(job: Dictionary, staging: String) -> Dictionary:
+	var key := str(job["key"])
 	var attempt := 0
 	var last_error := ""
 	while attempt < MAX_RETRIES:
 		if _abort:
-			_emit_cancelled.call_deferred(key)
-			return
+			return {"state": "cancelled", "error": ""}
 
 		if attempt > 0:
 			_emit_retrying.call_deferred(key, attempt + 1, MAX_RETRIES, last_error)
@@ -181,32 +271,23 @@ func _worker(job: Dictionary) -> void:
 				OS.delay_msec(100)
 				waited += 100
 			if _abort:
-				_emit_cancelled.call_deferred(key)
-				return
+				return {"state": "cancelled", "error": ""}
 
 		var res := _attempt(job, staging)
 		var status := str(res["status"])
 		last_error = str(res.get("error", ""))
 
 		if status == "ok":
-			var placed := _place(job, staging)
-			DirAccess.remove_absolute(staging)
-			if bool(placed.get("cancelled", false)):
-				_emit_cancelled.call_deferred(key)
-				return
-			_emit_finished.call_deferred(key, bool(placed["ok"]), str(placed.get("error", "")))
-			return
+			return {"state": "ok", "error": ""}
 		if status == "cancelled":
-			_emit_cancelled.call_deferred(key)
-			return
+			return {"state": "cancelled", "error": ""}
 		if status == "terminal":
-			_emit_finished.call_deferred(key, false, last_error)
-			return
+			return {"state": "failed", "error": last_error}
 		if status == "restart":
 			DirAccess.remove_absolute(staging)
 		attempt += 1
 
-	_emit_finished.call_deferred(key, false, last_error)
+	return {"state": "failed", "error": last_error}
 
 
 ## Ask the server how big the download is, for the toast and the progress bar.
@@ -216,6 +297,9 @@ func _probe_size(job: Dictionary) -> int:
 	var declared := int(job.get("size", 0))
 	if declared > 0:
 		return declared
+	if job.has("url"):
+		var where := _resolve(str(job["url"]))
+		return int(where.get("total", 0)) if str(where["status"]) == "ok" else 0
 
 	var http := RommHttp.new()
 	if http.open(str(job["base_url"])) != RommHttp.Result.OK:
@@ -232,6 +316,14 @@ func _probe_size(job: Dictionary) -> int:
 ## One transfer into the staging file. Resumes when a partial is already there.
 func _attempt(job: Dictionary, staging: String) -> Dictionary:
 	var key := str(job["key"])
+	# Resolved on every attempt, not once: GitHub's signed link expires within
+	# the hour, and a retry after a long stall would otherwise ask for a dead one.
+	if job.has("url"):
+		var where := _resolve(str(job["url"]))
+		if str(where["status"]) != "ok":
+			return where
+		job["base_url"] = where["base_url"]
+		job["path"] = where["path"]
 	var expected := int(job.get("size", 0))
 
 	var have := 0
@@ -277,6 +369,8 @@ func _attempt(job: Dictionary, staging: String) -> Dictionary:
 		return {"status": "transient", "error": "The server took too long to answer"}
 	if result == RommHttp.Result.HTTP_ERROR:
 		if code == 401 or code == 403:
+			if job.has("url"):
+				return {"status": "terminal", "error": "The server refused the download (%d)" % code}
 			return {"status": "terminal", "error": "Sign in to RomM again"}
 		if code == 404:
 			DirAccess.remove_absolute(staging)
@@ -350,6 +444,17 @@ func _place(job: Dictionary, staging: String) -> Dictionary:
 ## file gets repaired, so the members land in a scratch tree beside the download
 ## and are then moved over the system dir.
 func _extract_preserving_paths(key: String, zip_path: String, dest_dir: String) -> Dictionary:
+	return _extract(key, zip_path, dest_dir, "", "", PackedStringArray())
+
+
+## Unpack the members under `from` to `into` inside dest_dir, keeping their
+## paths below it: `vosk-model-small-ja-0.22/graph/words.txt` with from
+## `vosk-model-small-ja-0.22/` and into `vru/model-ja/` lands at
+## `vru/model-ja/graph/words.txt`. A non-empty `only` keeps just those paths
+## below `from`, which is how a library zip leaves its headers and import
+## library behind. Members outside `from` are not unpacked at all.
+func _extract(key: String, zip_path: String, dest_dir: String,
+		from: String, into: String, only: PackedStringArray) -> Dictionary:
 	var reader := ZIPReader.new()
 	if reader.open(zip_path) != OK:
 		return {"ok": false, "error": "Could not open the downloaded archive"}
@@ -363,15 +468,27 @@ func _extract_preserving_paths(key: String, zip_path: String, dest_dir: String) 
 	for entry: String in members:
 		if entry.ends_with("/"):
 			continue
+		if not from.is_empty() and not entry.begins_with(from):
+			continue
+		var inner := entry.substr(from.length())
+		if not only.is_empty() and not only.has(inner):
+			continue
 		# The member names come from the server that built the archive, not from
 		# the player. Joining a raw one to dest_dir is zip-slip: an entry named
-		# ../../../x walks straight out of the firmware folder.
-		var relative := ArchiveSafety.safe_member(entry)
+		# ../../../x walks straight out of the firmware folder. `into` is ours,
+		# but checked joined, since `inner` can still climb out of it.
+		var relative := ArchiveSafety.safe_member(into + inner)
 		if relative.is_empty():
+			return {"ok": false, "error": "Unsafe path in archive: %s" % entry}
+		if not into.is_empty() and not relative.begins_with(into):
 			return {"ok": false, "error": "Unsafe path in archive: %s" % entry}
 		plan.append({"entry": entry, "relative": relative, "path": scratch.path_join(relative)})
 	if plan.is_empty():
-		return {"ok": false, "error": "The archive was empty"}
+		if from.is_empty():
+			return {"ok": false, "error": "The archive was empty"}
+		return {"ok": false, "error": "The archive has nothing under %s" % from}
+	if not only.is_empty() and plan.size() != only.size():
+		return {"ok": false, "error": "The archive is missing files it should carry"}
 
 	var result := _unpack_batches(key, zip_path, plan)
 	if bool(result["ok"]):
@@ -419,6 +536,64 @@ func _move_into(plan: Array[Dictionary], dest_dir: String) -> Dictionary:
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
+## Follow a URL to where the file really is, with HEAD requests.
+## Returns {status: "ok", base_url, path, total} or {status, error} with the
+## same status words `_attempt` uses.
+func _resolve(url: String) -> Dictionary:
+	var current := url
+	for hop in range(MAX_REDIRECTS + 1):
+		var split := split_url(current)
+		if split.is_empty():
+			return {"status": "terminal", "error": "Bad download address"}
+		var http := RommHttp.new()
+		var opened := http.open(str(split["base_url"]), func() -> bool: return _abort)
+		if opened == RommHttp.Result.ABORTED:
+			return {"status": "cancelled"}
+		if opened != RommHttp.Result.OK:
+			return {"status": "transient", "error": "Cannot reach %s" % str(split["base_url"]).get_slice("//", 1)}
+		var out := http.head(str(split["path"]), PackedStringArray())
+		http.close()
+
+		var code := int(out.get("code", 0))
+		if int(out["result"]) == RommHttp.Result.TIMED_OUT:
+			return {"status": "transient", "error": "The server took too long to answer"}
+		if int(out["result"]) != RommHttp.Result.OK:
+			return {"status": "transient", "error": "Connection lost"}
+		if code in [301, 302, 303, 307, 308]:
+			var location := RommHttp.header_value(out["headers"], "location")
+			if location.is_empty():
+				return {"status": "terminal", "error": "The server redirected nowhere"}
+			current = location if location.contains("://") \
+				else str(split["base_url"]) + ("" if location.begins_with("/") else "/") + location
+			continue
+		if code >= 200 and code < 300:
+			return {"status": "ok", "base_url": split["base_url"], "path": split["path"],
+				"total": int(out["total"])}
+		if code == 404:
+			return {"status": "terminal", "error": "Not available on the server"}
+		if code >= 500:
+			return {"status": "transient", "error": "Server error (%d)" % code}
+		return {"status": "terminal", "error": "The server refused the download (%d)" % code}
+	return {"status": "terminal", "error": "Too many redirects"}
+
+
+## "https://host:8443/a/b?x=1" -> {base_url: "https://host:8443", path: "/a/b?x=1"}.
+## RommHttp.open takes the first and a request the second.
+static func split_url(url: String) -> Dictionary:
+	var scheme_end := url.find("://")
+	if scheme_end <= 0:
+		return {}
+	var scheme := url.substr(0, scheme_end).to_lower()
+	if scheme != "http" and scheme != "https":
+		return {}
+	var slash := url.find("/", scheme_end + 3)
+	var base := url if slash < 0 else url.substr(0, slash)
+	var path := "/" if slash < 0 else url.substr(slash)
+	if base.length() <= scheme_end + 3:
+		return {}
+	return {"base_url": base, "path": path}
+
 
 ## Staged outside the system dir so a half-finished transfer is never mistaken
 ## for an installed file by the status scan.

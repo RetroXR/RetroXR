@@ -371,16 +371,25 @@ func download_to_file(path: String, headers: PackedStringArray, file: FileAccess
 
 
 ## HEAD — size/existence probe without pulling the body.
-## Returns {result: Result, code: int, total: int}.
+## Returns {result: Result, code: int, total: int, headers: Dictionary}.
 func head(path: String, headers: PackedStringArray) -> Dictionary:
 	var sent := _send(HTTPClient.METHOD_HEAD, path, headers)
 	if int(sent["result"]) != Result.OK:
-		return {"result": sent["result"], "code": sent["code"], "total": 0}
+		return {"result": sent["result"], "code": sent["code"], "total": 0, "headers": {}}
 	return {
 		"result": Result.OK,
 		"code": int(sent["code"]),
 		"total": _content_length(sent["headers"]),
+		"headers": sent["headers"],
 	}
+
+
+## A response header by name, whatever case the server sent it in.
+static func header_value(headers: Dictionary, name: String) -> String:
+	for key: String in headers:
+		if key.to_lower() == name.to_lower():
+			return str(headers[key])
+	return ""
 
 
 ## `stall_sec` bounds SILENCE, not total transfer: the deadline resets on every
