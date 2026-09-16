@@ -72,6 +72,8 @@ func _ready() -> void:
 		_test_port()
 	if _wants("pads"):
 		await _test_pads()
+	if _wants("captive"):
+		await _test_captive()
 	if _wants("platform"):
 		_test_platform()
 
@@ -292,6 +294,53 @@ func _test_pads() -> void:
 	await get_tree().process_frame
 
 
+## The pads come WITH the console, as they do on the hardware.
+func _test_captive() -> void:
+	var sys: RetroSystem = preload("res://Scenes/Objects/system.tscn").instantiate()
+	sys.systemid = "famicom"
+	add_child(sys)
+	# The cord is built one deferred call after its pad, and the seat is pending
+	# until then, so the port index is not readable on the first frame.
+	for i in range(40):
+		await get_tree().physics_frame
+
+	var pads: Array = sys.captive_controllers()
+	_ok(pads.size() == 2, "captive/the console built two pads", str(pads.size()))
+	if pads.size() != 2:
+		sys.queue_free()
+		return
+	var one: Node3D = pads[0]
+	var two: Node3D = pads[1]
+	_ok(one is FamicomController and not (one is FamicomControllerII),
+		"captive/Controller I first")
+	_ok(two is FamicomControllerII, "captive/and Controller II second")
+	# Load-bearing rather than tidy: the core reads the microphone off joy[1]
+	# alone, so a Controller II built into player one's port would have none.
+	_ok(two.get_port_index() == FamicomControllerII.MIC_PORT,
+		"captive/the microphone pad is in player two's port", str(two.get_port_index()))
+	_ok(one.get_port_index() == 0, "captive/and the plain pad in player one's",
+		str(one.get_port_index()))
+	_ok(one.get_connected_system() == sys and two.get_connected_system() == sys,
+		"captive/both are plugged into this console")
+
+	# The whole reason `captive` exists: a pad a save could see would come back as
+	# a second pad every time the room was loaded.
+	_ok(not one.is_in_group("spawned") and not two.is_in_group("spawned"),
+		"captive/neither is a spawned object")
+	var cords: Array = [one.cable_instance(), two.cable_instance()]
+	_ok(cords[0] != null and not (cords[0] as Node).is_in_group("spawned"),
+		"captive/nor is either cord")
+
+	# And the console takes them away with it, since nothing else would.
+	sys.queue_free()
+	for i in range(6):
+		await get_tree().process_frame
+	_ok(not is_instance_valid(one) and not is_instance_valid(two),
+		"captive/freeing the console frees both pads")
+	_ok(not is_instance_valid(cords[0]) and not is_instance_valid(cords[1]),
+		"captive/and both cords")
+
+
 ## The platform itself: famicom used to collapse into nes everywhere.
 func _test_platform() -> void:
 	var info := SystemInfo.for_system("famicom")
@@ -334,10 +383,13 @@ func _test_platform() -> void:
 
 	var spawns: Array = SpawnCatalog.items_for("famicom")
 	var labels: Array = spawns.map(func(item: Dictionary) -> String: return str(item.get("spawn", "")))
-	_ok("famicom_controller_i" in labels and "famicom_controller_ii" in labels,
-		"platform/its card offers both pads")
+	# No pads on the card: both are moulded onto cords out of the back of the
+	# machine and arrive with it, so there is no such thing as a spare.
+	_ok(not ("famicom_controller_i" in labels or "famicom_controller_ii" in labels),
+		"platform/its card offers no pads, because they cannot be lost")
+	_ok("rf_switch" in labels, "platform/it offers the way a Famicom reached a set")
 	_ok(not ("composite_cable" in labels),
-		"platform/and no A/V lead, because the machine has no socket for one")
+		"platform/and no composite lead, which fits nothing on this machine")
 
 	# The tile itself. A systemid reaches the browser through the core-info
 	# database, so the overlay entry is what makes the platform visible at all.
