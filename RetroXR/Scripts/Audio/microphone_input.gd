@@ -5,6 +5,11 @@
 ## a microphone switched on, keeps the device open only while there is one and
 ## the player allows it, and hands the same frames to every one of them, scaled
 ## by how far that machine's microphone is from the player's head.
+##
+## Two kinds of listener, not one. A core with a handle open is handed the frames
+## themselves; a peripheral that only needs to know how LOUD the room is -- a
+## Famicom's Controller II, whose microphone reaches the console as one bit of
+## player 2's pad -- is handed a level measured once for all of them.
 extends Node
 
 ## Full level inside this distance from the head, 1/d beyond it.
@@ -66,9 +71,20 @@ func tick() -> void:
 		return
 	var rate := float(capture.get("rate", 0.0))
 	var head: Vector3 = head_source.call()
+	# Measured at most once, and only if somebody wants it. rms and peak are both
+	# linear in the gain -- MicrophoneLevel.hpp's cases pin that -- so one
+	# measurement at unity serves every listener, which is the same one-reader
+	# rule that makes this service the only thing draining AudioServer.
+	var level := Vector2.ZERO
+	var measured := false
 	for machine in consumers:
 		var gain := gain_for(machine.microphone_position(), head, float(machine.audio_max_distance))
 		machine.get_libretro_node().PushMicrophoneFrames(frames, rate, gain)
+		if machine.hears_microphone_level():
+			if not measured:
+				level = Libretro.MeasureMicrophoneLevel(frames, rate)
+				measured = true
+			machine.push_microphone_level(level * gain)
 
 
 func _read_audio_server() -> Dictionary:
@@ -87,8 +103,9 @@ func _running_machines() -> Array:
 		var machine := node as RetroSystem
 		if machine == null or not machine.is_powered_on:
 			continue
-		var lib := machine.get_libretro_node()
-		if lib != null and lib.IsMicrophoneActive():
+		# Not IsMicrophoneActive() directly: a Famicom's Controller II wants the
+		# device open although fceumm never opens a microphone of its own.
+		if machine.hears_microphone():
 			out.append(machine)
 	return out
 

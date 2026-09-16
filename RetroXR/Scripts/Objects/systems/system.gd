@@ -4037,6 +4037,50 @@ func get_libretro_node() -> Libretro:
 	return _libretro
 
 
+## True while anything on this machine wants the host microphone open.
+##
+## Not simply IsMicrophoneActive(), and the Famicom is why. fceumm opens no
+## microphone at all: a Controller II's grille reaches the console as ONE BIT of
+## player 2's pad, so there is no handle for the core to have open and a machine
+## that asked only its core would never get the device switched on. A peripheral
+## that measures the level itself counts too.
+func hears_microphone() -> bool:
+	var lib := get_libretro_node()
+	if lib != null and lib.IsMicrophoneActive():
+		return true
+	return hears_microphone_level()
+
+
+## True when a peripheral on one of this machine's ports wants the measured
+## loudness rather than the samples.
+func hears_microphone_level() -> bool:
+	return not _microphone_level_listeners().is_empty()
+
+
+## Hand one tick's measured level to each of them. (rms, peak), already scaled
+## for this machine's distance from the player.
+func push_microphone_level(level: Vector2) -> void:
+	for node in _microphone_level_listeners():
+		node.on_microphone_level(level)
+
+
+## Silent while the machine is off or this is the netplay session's machine, for
+## the same two reasons the C++ side answers silence: a stopped core has nothing
+## to hear, and a microphone driving an input bit would desync a lockstep peer
+## that cannot hear the same room.
+func _microphone_level_listeners() -> Array:
+	var out: Array = []
+	if not is_powered_on:
+		return out
+	if NetworkManager.netplay_running() and NetworkManager.netplay_system() == self:
+		return out
+	for ctrl: Variant in _port_controllers:
+		var node := ctrl as Node
+		if node != null and node.has_method("on_microphone_level"):
+			out.append(node)
+	return out
+
+
 ## Where this machine hears from, for the Microphone autoload's distance law: a
 ## seated microphone's stick, otherwise the machine.
 func microphone_position() -> Vector3:

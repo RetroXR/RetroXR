@@ -37,6 +37,15 @@ class FakeMachine:
 	func get_libretro_node() -> FakeLibretro:
 		return lib
 
+	## The level route, which only a Famicom's Controller II takes. Answered here
+	## so the ordinary cases below drive the service through the same contract a
+	## real machine offers it.
+	func hears_microphone_level() -> bool:
+		return false
+
+	func push_microphone_level(_level: Vector2) -> void:
+		pass
+
 
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
