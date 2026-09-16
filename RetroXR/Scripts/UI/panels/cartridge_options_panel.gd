@@ -104,14 +104,14 @@ func _save_id() -> String:
 	return str(_cart.get("save_id")) if _cart != null else ""
 
 
-## The core of the machine this cartridge is seated in, else the system's default.
-## It names the save's folder on SramPaths.PER_CORE_SYSTEMS and the emulator a RomM
-## upload is filed under.
+## The core of _live_machine(), else the system's default. That machine captures
+## and loads this game's save states under its own core, so the list, delete and
+## backup of them use the same one; it also names the battery's folder on
+## SramPaths.PER_CORE_SYSTEMS and the emulator a RomM upload is filed under.
 func _save_core() -> String:
-	if _cart != null and is_inside_tree():
-		for sys: Node in get_tree().get_nodes_in_group("retro_system"):
-			if sys.has_method("get_snapped_cartridge") and sys.call("get_snapped_cartridge") == _cart:
-				return str(sys.call("resolve_core_name"))
+	var sys := _live_machine()
+	if sys != null and sys.has_method("resolve_core_name"):
+		return str(sys.call("resolve_core_name"))
 	return SramPaths.core_for_systemid(_sysid())
 
 
@@ -591,7 +591,7 @@ func _capture_blocked() -> String:
 
 
 func _populate_states(ui: CartridgeOptions2D) -> void:
-	var core := SramPaths.core_for_systemid(_sysid())
+	var core := _save_core()
 	if core.is_empty():
 		ui.capture_blocked = "insert this cartridge into a console once first"
 		ui.populate_states([], 0)
@@ -709,7 +709,7 @@ func _on_state_load_requested(state_id: String) -> void:
 func _on_state_delete_requested(state_id: String) -> void:
 	if not _arm_state(state_id, "delete"):
 		return
-	var core := SramPaths.core_for_systemid(_sysid())
+	var core := _save_core()
 	# Forget the picture first: the path is reused if this id is ever minted
 	# again, and a cache keyed on it would serve the dead one.
 	for ui: CartridgeOptions2D in _uis():
@@ -739,11 +739,11 @@ func _on_state_captured(state_id: String, ok: bool, reason: String) -> void:
 	# Every state uploads as it is made — that is what "Back up saves and states"
 	# means. An overwrite PUTs over the copy this row already has on the server
 	# rather than uploading its name twice.
+	var core := _save_core()
 	if ok:
-		StateSync.enqueue(SramPaths.core_for_systemid(_sysid()), _rom(), state_id, _rom_id())
+		StateSync.enqueue(core, _rom(), state_id, _rom_id())
 	# An overwrite writes a NEW picture to the SAME path, so the cache has to be
 	# told or the row keeps showing the frame it replaced.
-	var core := SramPaths.core_for_systemid(_sysid())
 	for ui: CartridgeOptions2D in _uis():
 		ui.forget_thumb(StatePaths.shot_path(core, _rom(), state_id))
 	if not ok:
@@ -797,7 +797,7 @@ func _on_states_listed(rom_id: int, ok: bool, states: Array, _detail: String) ->
 ## Pull a state the server has and this device does not. It arrives in the
 ## normal local layout, after which it is an ordinary row.
 func _on_server_state_requested(state_id: String) -> void:
-	var core := SramPaths.core_for_systemid(_sysid())
+	var core := _save_core()
 	for e: Variant in StateSync.server_only(core, _rom(), _server_states):
 		if str((e as Dictionary)["state_id"]) == state_id:
 			StateSync.download(core, _rom(), e as Dictionary)

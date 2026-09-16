@@ -40,6 +40,7 @@ func _ready() -> void:
 	_test_arm_ladder()
 	_test_thumb_cache()
 	_test_backup_notice()
+	_test_states_follow_the_machine()
 	_test_panel_chrome()
 	await _test_floating_panels()
 	_test_panels_with_their_own_anchor()
@@ -328,6 +329,63 @@ func _test_backup_notice() -> void:
 	SaveSync.config = saved_save_cfg
 	StateSync.config = saved_state_cfg
 	panel.free()
+
+
+## A machine captures a game's states under ITS core, so the tab lists, deletes and
+## backs them up under that core too. Listing them under the system's default core
+## showed an empty tab for any machine set to another one.
+func _test_states_follow_the_machine() -> void:
+	var panel := CartridgeOptionsPanel.new()
+	add_child(panel)
+	var cart := FakeCart.new()
+	panel._cart = cart
+	var default_core := SramPaths.core_for_systemid(cart.systemid)
+	_eq(panel._save_core(), default_core, "core/on a shelf, the system's default core")
+
+	var core := "__state_tests_core"
+	var state_id := StatePaths.mint_id()
+	var state := StatePaths.state_path(core, cart.rom_path, state_id)
+	DirAccess.make_dir_recursive_absolute(state.get_base_dir())
+	var f := FileAccess.open(state, FileAccess.WRITE)
+	f.store_buffer(PackedByteArray([1, 2, 3, 4]))
+	f.close()
+
+	var seated := FakeSeated.new()
+	seated.rom_path = cart.rom_path
+	var machine := FakeMachine.new()
+	machine.core = core
+	machine.seated = seated
+	add_child(machine)
+	machine.add_to_group("retro_system")
+	_eq(panel._save_core(), core, "core/a machine running the game decides")
+
+	var ui := _ui()
+	panel._populate_states(ui)
+	_ok(ui._state_total_lbl.text.begins_with("1 state "),
+		"core/and the tab lists the states that machine took", ui._state_total_lbl.text)
+
+	ui.free()
+	machine.free()
+	seated.free()
+	panel.free()
+	DirAccess.remove_absolute(state)
+	DirAccess.remove_absolute(state.get_base_dir())
+	DirAccess.remove_absolute(state.get_base_dir().get_base_dir())
+
+
+class FakeMachine extends Node:
+	var core := ""
+	var seated: Node = null
+
+	func get_snapped_cartridge() -> Node:
+		return seated
+
+	func resolve_core_name() -> String:
+		return core
+
+
+class FakeSeated extends Node:
+	var rom_path := ""
 
 
 ## The panel reads its target through named properties only, so a bare object
