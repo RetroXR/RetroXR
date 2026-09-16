@@ -193,6 +193,7 @@ const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/ru
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
+const DC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/dreamcast/dc_microphone.tscn")
 const GC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn")
 const N64_VRU_SCENE          := preload("res://Scenes/Objects/controllers/n64/n64_vru.tscn")
 const TRANSFER_PAK_SCENE     := preload("res://Scenes/Objects/controllers/n64/transfer_pak.tscn")
@@ -277,6 +278,9 @@ const PLAIN_SCENES := {
 	# Pose only, like the Rumble Pak: which slot it is in is saved on the
 	# controller holding it, not here.
 	"jump_pack": JUMP_PACK_SCENE,
+	# Pose only, like the pack: which slot it is in is saved on the pad holding
+	# it, not here.
+	"dc_microphone": DC_MICROPHONE_SCENE,
 	# A pose here; which card slot its plug is in is applied by _apply_references.
 	"gc_microphone": GC_MICROPHONE_SCENE,
 	# A pose here; which controller socket it is in is applied by
@@ -1797,6 +1801,10 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# own. It needs a branch here all the same, because PLAIN_SCENES is
 		# only read when LOADING -- without this it saves as nothing.
 		return _base(id, "jump_pack", n3d)
+	elif node is DcMicrophone:
+		# Pose only, and it needs a branch for the same reason: which slot it is
+		# in is recorded by the pad holding it.
+		return _base(id, "dc_microphone", n3d)
 	elif node is GcMicrophone:
 		# The plug is on the cord rather than an entry of its own, so the stick
 		# records where it is seated.

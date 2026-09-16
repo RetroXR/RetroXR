@@ -42,7 +42,7 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
-	get_tree().create_timer(30.0).timeout.connect(func() -> void:
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		print("[microphone] TIMEOUT")
 		get_tree().quit(1))
 
@@ -63,6 +63,8 @@ func _ready() -> void:
 		await _test_gc()
 	if _wants("persist"):
 		await _test_gc_persist()
+	if _wants("dreamcast"):
+		await _test_dreamcast()
 	AppPrefs.microphone_enabled = saved_pref
 
 	print("[microphone] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -293,3 +295,53 @@ func _test_gc_persist() -> void:
 	for i in range(10):
 		await get_tree().physics_frame
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(slot_file))
+
+
+## The Dreamcast Microphone (HKT-7200), which goes in a pad's expansion slot
+## rather than into the console.
+func _test_dreamcast() -> void:
+	var mic := preload("res://Scenes/Objects/controllers/dreamcast/dc_microphone.tscn") \
+		.instantiate() as DcMicrophone
+	add_child(mic)
+	await get_tree().process_frame
+
+	_ok(DcMicrophone.OPTION_VALUE == "Microphone",
+		"dreamcast/the core's own spelling for the slot", DcMicrophone.OPTION_VALUE)
+	_ok(mic.slot_option_value() == "Microphone", "dreamcast/and that is what it answers")
+	_ok(mic.is_in_group("controller_plug") and mic.is_in_group(DcMicrophone.SLOT_GROUP),
+		"dreamcast/seatable, and only in a VMU slot")
+	_ok(mic.seated_slot() == -1, "dreamcast/loose, it is in no slot")
+
+	var pad: Node3D = preload("res://Scenes/Objects/controllers/retro_controller.tscn").instantiate()
+	add_child(pad)
+	for i in range(3):
+		await get_tree().process_frame
+
+	_ok(pad.vmu_slot_count() == 2, "dreamcast/a pad has two slots", str(pad.vmu_slot_count()))
+	pad.restore_vmu(mic, 1)
+	await get_tree().process_frame
+
+	# Seaman's arrangement: the card in slot 1, the microphone in slot 2.
+	_ok(pad.vmu_slot_option_value(1) == "Microphone",
+		"dreamcast/the pad tells the core what is in slot 2", pad.vmu_slot_option_value(1))
+	_ok(pad.vmu_slot_option_value(0) == "None",
+		"dreamcast/and that slot 1 is empty", pad.vmu_slot_option_value(0))
+	_ok(mic.seated_slot() == 1, "dreamcast/the microphone knows where it is")
+	_ok(pad.seated_microphone() == mic, "dreamcast/and the pad knows it is one")
+	_ok(pad.get_vmu_device(1) == mic, "dreamcast/a save would keep it")
+
+	mic.global_position = pad.global_position + Vector3(0, 0.3, 0)
+	_ok(mic.microphone_position().is_equal_approx(mic.global_position),
+		"dreamcast/it hears from where it is")
+
+	_ok(ScenePersistence.PLAIN_SCENES.has("dc_microphone"),
+		"dreamcast/a saved room knows how to build one")
+	var listed := false
+	for row: Variant in SpawnCatalog.items_for("dreamcast"):
+		if SpawnCatalog.spawn_token("dreamcast", row as Dictionary) == "dc_microphone":
+			listed = true
+	_ok(listed, "dreamcast/the Dreamcast card offers one")
+
+	pad.queue_free()
+	mic.queue_free()
+	await get_tree().process_frame

@@ -1,0 +1,135 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/dc_microphone.gd" id="1_dcmic"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="4_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_lhand"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_dcmic"]
+friction = 0.8
+
+; The Dreamcast Microphone (HKT-7200). 47 mm wide because it goes into the same
+; socket as a VMU, shorter in the body than either card or pack, and with a
+; grille head standing off the far end -- which is the whole of its silhouette
+; and what tells it apart from the other two in a slot at arm's length.
+;
+; Sizes are estimated from photographs scaled against the VMU's 47 mm width; no
+; dimensioned drawing of this unit was found.
+;
+; Axes and ORIGIN match the card's, and have to: the slot's seat transform is
+; authored for that convention and is shared by all three. +Y is the length with
+; the connector on that end, +Z the face a player holding it sees, and the origin
+; sits 40 mm below the connector end rather than in the middle of the body --
+; see the note in jump_pack.tscn, which this follows exactly. The body is 40 mm
+; long, so it spans 0..40 and the connector lands at +42.5 mm, where the card's
+; is.
+[sub_resource type="BoxShape3D" id="Box_dcmic_body"]
+size = Vector3(0.047, 0.04, 0.02)
+
+[sub_resource type="BoxMesh" id="Mesh_dcmic_body"]
+size = Vector3(0.047, 0.04, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dcmic_shell"]
+albedo_color = Color(0.898039, 0.890196, 0.870588, 1)
+roughness = 0.55
+
+; The same connector the card and the pack have, to the millimetre, because it
+; is the same socket.
+[sub_resource type="BoxMesh" id="Mesh_dcmic_connector"]
+size = Vector3(0.0305, 0.007, 0.011)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dcmic_connector"]
+albedo_color = Color(0.16, 0.16, 0.18, 1)
+roughness = 0.6
+
+; The head, on the end away from the connector: a short neck and the grille the
+; player speaks into. A cylinder's own axis is +Y, which is the length here, so
+; nothing is rotated.
+[sub_resource type="CylinderMesh" id="Mesh_dcmic_neck"]
+top_radius = 0.008
+bottom_radius = 0.0105
+height = 0.01
+radial_segments = 20
+rings = 1
+
+[sub_resource type="CylinderMesh" id="Mesh_dcmic_head"]
+top_radius = 0.009
+bottom_radius = 0.009
+height = 0.018
+radial_segments = 20
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_dcmic_grille"]
+albedo_color = Color(0.18, 0.18, 0.2, 1)
+roughness = 0.85
+
+[sub_resource type="BoxShape3D" id="Box_dcmic_pointer"]
+size = Vector3(0.057, 0.075, 0.032)
+
+[node name="DcMicrophone" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.045
+physics_material_override = SubResource("PhysMat_dcmic")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_dcmic")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+shape = SubResource("Box_dcmic_body")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+mesh = SubResource("Mesh_dcmic_body")
+surface_material_override/0 = SubResource("Mat_dcmic_shell")
+
+[node name="Connector" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0425, 0)
+mesh = SubResource("Mesh_dcmic_connector")
+surface_material_override/0 = SubResource("Mat_dcmic_connector")
+
+[node name="Neck" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005, 0)
+mesh = SubResource("Mesh_dcmic_neck")
+surface_material_override/0 = SubResource("Mat_dcmic_shell")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.019, 0)
+mesh = SubResource("Mesh_dcmic_head")
+surface_material_override/0 = SubResource("Mat_dcmic_grille")
+
+[node name="Legend" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0115, 0.0101)
+pixel_size = 0.00016
+alpha_cut = 1
+text = "MICROPHONE"
+font_size = 22
+width = 240
+autowrap_mode = 3
+
+; IDENTITY, as the card's and the pack's are: a snap zone seats an object by
+; composing its grab point, so the slot's own transform is the whole of the
+; seating geometry.
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.012, 0)
+shape = SubResource("Box_dcmic_pointer")
+
+[node name="HandRight" parent="." instance=ExtResource("4_rhand")]
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("5_lhand")]
+visible = false

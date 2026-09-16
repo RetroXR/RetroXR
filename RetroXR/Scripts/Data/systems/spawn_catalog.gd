@@ -63,6 +63,9 @@ const _PERIPHERALS: Dictionary = {
 		# and a pack in slot 2 is the arrangement most players ran, and is
 		# flycast's own default for slot 2.
 		{"kind": "peripheral", "label": "Jump Pack", "spawn": "jump_pack"},
+		# Seaman wants the card in slot 1 and this in slot 2, which is why the
+		# core offers it in either.
+		{"kind": "peripheral", "label": "Microphone", "spawn": "dc_microphone"},
 	],
 	# The pad is named here because it is the only one with an expansion port, and
 	# all three paks are useless without it. The paks themselves are listed rather

@@ -245,6 +245,18 @@ func restore_vmu(device: Node3D, slot: int) -> void:
 	_vmu_port.restore_card(device, slot)
 
 
+## A microphone seated in one of this pad's slots, or null. Deliberately not
+## microphone_position(): RetroSystem walks its port controllers looking for
+## something that can say where it hears from, and a pad that always answered
+## would shadow a device that really is one -- an N64 VRU in a later socket.
+func seated_microphone() -> Node3D:
+	for slot in _vmu_port.slot_count():
+		var device := _vmu_port.get_device(slot)
+		if device != null and device.has_method("microphone_position"):
+			return device
+	return null
+
+
 func _find_vr_nodes() -> void:
 	var rig := PadInputShared.find_rig(get_tree())
 	_locomotion_manager = rig["locomotion"]

@@ -131,6 +131,17 @@ func restore_vmu(device: Node3D, slot: int) -> void:
 	_vmu_port.restore_card(device, slot)
 
 
+## A microphone seated in one of this dongle's slots, or null -- the same
+## question RetroController answers, and not called microphone_position() for
+## the same reason.
+func seated_microphone() -> Node3D:
+	for slot in _vmu_port.slot_count():
+		var device := _vmu_port.get_device(slot)
+		if device != null and device.has_method("microphone_position"):
+			return device
+	return null
+
+
 func receiver_glyph() -> String:
 	return TransportGlyphs.glyph("gamepad")
 

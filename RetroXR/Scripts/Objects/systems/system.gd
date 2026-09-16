@@ -4046,11 +4046,18 @@ func microphone_position() -> Vector3:
 			if seated != null and seated.has_method("microphone_position"):
 				return seated.microphone_position()
 	# A microphone can be a controller-port device too: the N64's Voice
-	# Recognition Unit goes in a socket and keeps its microphone on a cord.
+	# Recognition Unit goes in a socket and keeps its microphone on a cord, and
+	# the Dreamcast's goes in a slot on the pad rather than into the console.
 	for ctrl: Variant in _port_controllers:
 		var node := ctrl as Node
-		if node != null and node.has_method("microphone_position"):
+		if node == null:
+			continue
+		if node.has_method("microphone_position"):
 			return node.microphone_position()
+		if node.has_method("seated_microphone"):
+			var seated: Node3D = node.seated_microphone()
+			if seated != null:
+				return seated.microphone_position()
 	return global_position
 
 
