@@ -2197,6 +2197,95 @@ of parse errors from a loader thread as the class cache goes away.
   Voice or a Mario Party minigame.
 - **Netplay carries no microphone.**
 
+### 2p. Where a save lives — per system, not per core
+
+A cartridge's battery is filed under the system it belongs to, so it survives a change of
+core, and a Transfer Pak reads the same file a Game Boy playing that cartridge does.
+`Scripts/Data/sram_paths.gd` composes every path:
+
+```
+save/carts/<systemid>/<game stem>/<save_id>.srm          a cartridge's battery
+save/carts/<systemid>/<expansion_id>/<expansion_id>.srm  a unit's own battery (BS-X, e-Reader)
+save/<core>/<game stem>/<save_id>.srm                    on SramPaths.PER_CORE_SYSTEMS
+save/memcards/<family>/<card_id>.<ext>                   memory cards
+states/<core>/<game stem>/…                              savestates
+```
+
+**`save/<core>/` is the core's own directory and cannot be renamed.** `Wrapper.cpp` hands it
+to the core as `RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY`, and the cores that write their own files
+keep them there — bsnes's `<rom>.srm`, genesis_plus_gx's `.brm`, mednafen_saturn's `.bcr`,
+desmume's `.dsv`, opera's `nvram`. RetroXR's own tree is therefore a sibling, like `memcards/`.
+
+**Savestates stay per core.** A libretro savestate is the core's own struct dump.
+
+**Sharing a file across cores is safe because the file is SAVE_RAM and nothing else.**
+`WrapperStorage.cpp` persists only `RETRO_MEMORY_SAVE_RAM` and writes the file itself; no core
+names it. Read at source:
+
+| core | SAVE_RAM |
+|---|---|
+| sameboy | `mbc_ram` / `mbc_ram_size` |
+| gambatte | `savedata_ptr()` / `savedata_size()` |
+| fceumm, cartridge | `iNESCart.SaveGame[0]` / `SaveGameLen[0]` |
+| mesen | `mapper->GetSaveRam()` |
+| snes9x | the SRAM, capped at `0x20000` |
+
+**`PER_CORE_SYSTEMS` is `nintendo_64`, `nintendo_64dd` and `fds`**, and each is a measured
+incompatibility rather than a precaution:
+
+- Both N64 cores return a `save_memory_data` struct with **no magic and no version**.
+  mupen64plus-next's is `eeprom[0x800]`, `mempack[0x8000 * 4]`, `sram[0x8000]`,
+  `flashram[0x20000]`, 296,960 bytes. parallel-n64's has the same four fields in the same order
+  and then `disk[0x0435B0C0]`, 70,924,480 bytes in all. **The matching prefix is the trap.** The
+  desktop default is parallel_n64 and the Quest's is mupen64plus_next, and the bridge reads
+  `min(region, file)` but writes the whole region, so one shared file would be 70 MB on the
+  desktop and every Quest flush would truncate it, taking the 64DD disk with it.
+- fceumm answers SAVE_RAM for an FDS game with `FDSROM_ptr()` — the whole disk image. Mesen
+  answers with the mapper's save RAM.
+
+**No core's clock is saved.** sameboy, gambatte and mGBA expose an MBC3 real-time clock as
+`RETRO_MEMORY_RTC`, which the bridge never reads, so Pokémon Gold, Silver and Crystal lose
+their clock on every core. That predates this layout.
+
+mGBA reports `GBA_SIZE_FLASH1M` for SAVE_RAM until its save-type autodetect settles. The first
+flush comes after that, so a file lands at the game's real size.
+
+**Which system a save is filed under** is the medium's own `systemid`
+(`SramPaths.media_systemid`), else the host's. The Transfer Pak passes its `MEDIA_SYSTEMID`
+instead, because it is the one bay that never back-fills a blank cartridge's `systemid`.
+
+**Compose, then resolve.** `cart_save_path` composes the canonical path. `resolve_cart_save`
+returns it when it exists, else wherever that `save_id` already has a file — the per-core
+layout, or another system's folder — else the canonical path. It **moves nothing**, which is
+what lets `_compose_sram_path` and `net_sram_file_bytes` call it while a core runs: the bridge
+keeps the path it was handed at power-on and writes to that string on every flush, so a file
+renamed underneath a running core silently stops persisting.
+
+**`SaveMigration` moves the old tree once**, from `boot_scene.gd` before any room is built,
+guarded by `save/.retroxr_save_layout.json`. Every file is resolved on its own, because one
+core's folder holds several systems' saves — Pokémon Stadium and a Transfer Pak's Pokémon Red
+both sat under `mupen64plus_next`:
+
+1. the saved room holding that `save_id` (its `cart_systemid`);
+2. else the ROM library folder holding a ROM of that stem — unless two folders do;
+3. else it stays where it is, and `resolve_cart_save` still finds it.
+
+Only `<core>/<stem>/<save_id>.srm` (a 16-hex id, or one a room names) and
+`<core>/<expansion_id>/<expansion_id>.srm` move; anything else under `save/<core>/` is the
+core's. When two cores hold a copy of one `save_id`, the newer keeps the name and the older
+becomes `<save_id>.<core>.srm` beside it, where the Saves panel lists it. Each move carries its
+RomM ledger record (`RommSaveSync.rekey`), so the next sync compares against the same
+`last_hash` instead of forking a conflict. A failed move leaves the marker unwritten, so it is
+retried next launch.
+
+**Measured 2026-09-16** on a copy of this desk's save tree against its real rooms and ROM
+library: 24 moved, 1 left (`BS F-Zero (flash-mode test)`, which nothing names), 0 failed, in
+540 ms, with the 12 N64 saves left in place.
+
+`system_tests` `sram/` and `migrate/` cover it, the migration over a scratch tree and never the
+player's saves. Mutation-tested: filing the Transfer Pak under no system, dropping
+`nintendo_64` from the table, or reversing the collision order each fails exactly its own cases.
+
 ### 3. Capturing a real screenshot on Linux (for visual validation)
 `--headless` uses the dummy renderer — it **cannot** produce a screenshot (a probe that awaits
 `RenderingServer.frame_post_draw` just hangs; `get_image()` is blank). To actually render a
