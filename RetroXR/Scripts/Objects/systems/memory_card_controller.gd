@@ -898,6 +898,14 @@ func _drain_scratch(slot: int) -> void:
 			fmt.list_saves(data, false).size()])
 
 
+## The clock file for a run about to start, beside the cartridge's battery. "" when
+## the run saves to a card, to the console's own memory, or to nothing.
+func rtc_path_for_run(resolved_core: String) -> String:
+	if _uses_memory_cards() or _console_memory_for(resolved_core) != null:
+		return ""
+	return SramPaths.rtc_path(_compose_sram_path(resolved_core), resolved_core)
+
+
 ## Re-resolve every card slot and re-point the running core at the result. The
 ## one path a card being seated, pulled or renamed goes through, so the two
 ## families cannot drift apart over what a swap means.

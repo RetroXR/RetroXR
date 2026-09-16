@@ -93,6 +93,15 @@ static func resolve_cart_save(systemid: String, core_name: String, rom_path: Str
 ## looked like a different BS-X and the shell asked for a new name each time one
 ## was swapped in. Deliberately independent of rom_path for the same reason --
 ## the pack IS the rom_path here.
+## The real-time clock kept beside a battery file: <save_id>.<core>.rtc. Keyed by
+## core, unlike the battery, because each core lays its clock out its own way.
+## "" when there is no battery.
+static func rtc_path(sram_path: String, core_name: String) -> String:
+	if sram_path.is_empty() or core_name.is_empty():
+		return ""
+	return "%s.%s.rtc" % [sram_path.get_basename(), core_name]
+
+
 static func unit_save_path(systemid: String, core_name: String, expansion_id: String) -> String:
 	var dir := system_save_dir(systemid, core_name)
 	return "" if dir.is_empty() else dir.path_join(expansion_id).path_join(expansion_id + ".srm")
@@ -308,7 +317,16 @@ static func delete_save(systemid: String, core_name: String, rom_path: String,
 	var path := resolve_cart_save(systemid, core_name, rom_path, save_id)
 	if path.is_empty() or not FileAccess.file_exists(path):
 		return false
-	return DirAccess.remove_absolute(path) == OK
+	if DirAccess.remove_absolute(path) != OK:
+		return false
+	# Its clocks go with it: <save_id>.<core>.rtc, one per core that ran it.
+	var dir := path.get_base_dir()
+	var prefix := path.get_file().get_basename() + "."
+	for fname: String in DirAccess.get_files_at(dir):
+		if fname.get_extension() == "rtc" and fname.begins_with(prefix) \
+				and not fname.trim_prefix(prefix).get_basename().contains("."):
+			DirAccess.remove_absolute(dir.path_join(fname))
+	return true
 
 
 ## Every existing .srm for this game (save recovery list). Entries:

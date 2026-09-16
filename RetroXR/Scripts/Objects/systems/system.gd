@@ -2206,6 +2206,8 @@ func power_on() -> void:
 	_vmu.stage_before_start(resolved_dir, resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
 	_libretro.SetSramPath(sram_path_for_run(resolved_core))
+	if _libretro.has_method("SetRtcPath"):
+		_libretro.SetRtcPath(_memcards.rtc_path_for_run(resolved_core))
 	# Before StartContent: identification happens as the core comes up, so the
 	# claim has to be in place by then. Returns false when another cabinet already
 	# holds the session, nobody is signed in, or the system has no RA console —
@@ -2796,6 +2798,9 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	# local composition when the session didn't set one (offline-like start).
 	if not _memcards.apply_netplay_sram():
 		_libretro.SetSramPath(sram_path_for_run(resolved_core))
+	# A clock read from each peer's own file is a different time on every peer.
+	if _libretro.has_method("SetRtcPath"):
+		_libretro.SetRtcPath("")
 	_sega_cd.stage_before_start(_resolve_dir(), resolved_core)
 	_saturn.stage_before_start(_resolve_dir(), resolved_core)
 	_apply_forced_core_options(_resolve_dir(), resolved_core)

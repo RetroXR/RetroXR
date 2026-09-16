@@ -104,6 +104,7 @@ func _ready() -> void:
 	await _test_save_state_gates()
 	await _test_sram_paths()
 	await _test_save_migration()
+	_test_delete_save_clocks()
 	_test_libretro_port_routing()
 	_test_port_device_cache()
 	_test_cabinet_lookup()
@@ -2062,6 +2063,8 @@ func _test_sram_paths() -> void:
 	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
 		SramPaths.card_save_path("playstation", "__sram_selftest_card"),
 		"sram/a seated card is where the save goes")
+	_eq(psx._memcards.rtc_path_for_run("pcsx_rearmed"), "",
+		"rtc/a card machine keeps no clock")
 	# And it does not depend on the game: the same card under a different ROM
 	# is the same file, which is the whole point of a memory card.
 	psx.rom_path = "/nonexistent/__a_different_game.bin"
@@ -2176,10 +2179,42 @@ func _test_sram_paths() -> void:
 	_eq(pak.cart_save_path("mupen64plus_next"), gb._memcards._compose_sram_path("sameboy"),
 		"sram/a Transfer Pak reads the save a Game Boy wrote")
 	pak.free()
+
+	# The battery is one file for every core; the clock is one per core, because
+	# each core lays its clock out its own way.
+	var battery: String = gb._memcards._compose_sram_path("sameboy")
+	_eq(gb._memcards.rtc_path_for_run("sameboy"), SramPaths.rtc_path(battery, "sameboy"),
+		"rtc/a cartridge's clock sits beside its battery")
+	_ok(gb._memcards.rtc_path_for_run("sameboy").ends_with("__sram_selftest_gb.sameboy.rtc"),
+		"rtc/named <save_id>.<core>.rtc")
+	_ok(gb._memcards.rtc_path_for_run("sameboy") != gb._memcards.rtc_path_for_run("gambatte"),
+		"rtc/and each core keeps its own")
+	_eq(SramPaths.rtc_path("", "sameboy"), "", "rtc/no battery, no clock")
 	gb._snapped_cartridge = null
 	gb_cart.queue_free()
 	gb.queue_free()
 	await get_tree().process_frame
+
+
+## Deleting a save takes its clocks, and nobody else's.
+func _test_delete_save_clocks() -> void:
+	var dir := SramPaths.cart_save_dir("__rtc_selftest", "", "/nonexistent/__rtc_selftest.gb")
+	var battery := dir.path_join("aaaaaaaaaaaaaaaa.srm")
+	var clocks := [dir.path_join("aaaaaaaaaaaaaaaa.gambatte.rtc"),
+		dir.path_join("aaaaaaaaaaaaaaaa.sameboy.rtc")]
+	var other := dir.path_join("aaaaaaaaaaaaaaaa.sameboy.srm")
+	var other_clock := dir.path_join("aaaaaaaaaaaaaaaa.sameboy.gambatte.rtc")
+	for p: String in [battery, other, other_clock] + clocks:
+		_write_scratch(p)
+	_ok(SramPaths.delete_save("__rtc_selftest", "gambatte", "/nonexistent/__rtc_selftest.gb",
+			"aaaaaaaaaaaaaaaa"), "rtc/delete_save succeeds")
+	_ok(not FileAccess.file_exists(battery), "rtc/the battery is gone")
+	_ok(not FileAccess.file_exists(clocks[0]) and not FileAccess.file_exists(clocks[1]),
+		"rtc/and every core's clock for it")
+	_ok(FileAccess.file_exists(other) and FileAccess.file_exists(other_clock),
+		"rtc/but not a save whose id only starts the same")
+	_remove_scratch(other_clock)
+	_remove_scratch(other, 2)
 
 
 ## SaveMigration over a scratch tree: never the player's own saves.
