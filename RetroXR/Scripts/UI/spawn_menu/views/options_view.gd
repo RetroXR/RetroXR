@@ -417,6 +417,33 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 			OS.request_permission("android.permission.RECORD_AUDIO")
 	))
 
+	# Which microphone, when the machine has more than one. Built from what the
+	# platform is offering AS THE PAGE OPENS: a microphone plugged in since last
+	# time appears the next time this page is opened, and the list is not watched,
+	# because nothing here is on screen while a player is round the back of their
+	# PC. Android offers one entry and the row simply reads Default there.
+	#
+	# The NAME is stored, never the index — an index means a different microphone
+	# the moment one is unplugged.
+	var inputs: PackedStringArray = AudioServer.get_input_device_list()
+	var mic_items: Array = [["Default", ""]]
+	for dev_name: String in inputs:
+		if dev_name != Microphone.DEFAULT_DEVICE:
+			mic_items.append([dev_name, dev_name])
+	var saved_mic: String = AppPrefs.microphone_device
+	# A saved microphone that is not plugged in right now KEEPS its row and keeps
+	# the selection, so this says what the player chose rather than quietly
+	# reading Default and throwing the setting away the moment they touch it.
+	if not saved_mic.is_empty() and not (saved_mic in inputs):
+		mic_items.append(["%s (not connected)" % saved_mic, saved_mic])
+	var mic_drop := VRDropdown.create("Input", mic_items, saved_mic,
+		1, Vector2(340, 52), 16)
+	mic_drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.microphone_device = str(id)
+		AppPrefs.save_prefs()
+	)
+	vbox.add_child(mic_drop)
+
 	vbox.add_child(HSeparator.new())
 
 	# Movement style. Both verbs are on the left stick and only one can be live,

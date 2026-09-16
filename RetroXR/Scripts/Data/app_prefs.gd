@@ -60,6 +60,15 @@ var spatial_audio_sdk: bool = true
 ## Whether a running core's microphone hears the real one. The device opens only
 ## while some core has its microphone switched on.
 var microphone_enabled: bool = true
+## Which input the microphone is read from, by the name AudioServer knows it by,
+## or "" to follow whatever the system calls default.
+##
+## The NAME is stored rather than an index, because an index means a different
+## device the moment one is unplugged. A name that is not currently present is
+## KEPT rather than cleared: a USB microphone that is plugged back in should be
+## used again, and a player who unplugged one for an afternoon has not changed
+## their mind about which microphone is theirs.
+var microphone_device: String = ""
 ## How the player gets around. Both verbs are on the LEFT stick and exactly one
 ## is live at a time — pushing the stick forward cannot mean "walk" and "aim a
 ## teleport" at once. False (smooth walking) is the default because it is the
@@ -234,6 +243,7 @@ func _load_prefs() -> void:
 	hint_uses        = JsonStore.get_dict(data, "hint_uses",        hint_uses)
 	spatial_audio_sdk = JsonStore.get_bool(data, "spatial_audio_sdk", spatial_audio_sdk)
 	microphone_enabled = JsonStore.get_bool(data, "microphone_enabled", microphone_enabled)
+	microphone_device = JsonStore.get_string(data, "microphone_device", microphone_device)
 	locomotion_teleport = JsonStore.get_bool(data, "locomotion_teleport", locomotion_teleport)
 	passthrough_locomotion = JsonStore.get_bool(data, "passthrough_locomotion", passthrough_locomotion)
 	focus_passthrough = JsonStore.get_bool(data, "focus_passthrough", focus_passthrough)
@@ -262,6 +272,7 @@ func save_prefs() -> bool:
 		"hint_uses":        hint_uses,
 		"spatial_audio_sdk": spatial_audio_sdk,
 		"microphone_enabled": microphone_enabled,
+		"microphone_device": microphone_device,
 		"locomotion_teleport": locomotion_teleport,
 		"passthrough_locomotion": passthrough_locomotion,
 		"focus_passthrough": focus_passthrough,

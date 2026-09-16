@@ -62,6 +62,8 @@ func _ready() -> void:
 		_test_decision()
 	if _wants("device"):
 		_test_device()
+	if _wants("input"):
+		_test_input_device()
 	if _wants("fanout"):
 		_test_fanout()
 	if _wants("binding"):
@@ -121,6 +123,55 @@ func _test_decision() -> void:
 	_ok(not SERVICE.should_capture(true, []), "decision/no machine listening, no capture")
 	_ok(not SERVICE.should_capture(false, one), "decision/the player turned it off, no capture")
 	_ok(SERVICE.should_capture(true, one), "decision/a listening machine and the pref on, capture")
+
+
+## Which input the service opens, and when it re-opens one.
+func _test_input_device() -> void:
+	var available := PackedStringArray(["Default", "Webcam", "Headset"])
+	var R := SERVICE.resolve_device
+
+	_ok(R.call("", available) == SERVICE.DEFAULT_DEVICE,
+		"input/no preference follows the system")
+	_ok(R.call("Default", available) == SERVICE.DEFAULT_DEVICE,
+		"input/and so does the word Default, which is not a device name")
+	_ok(R.call("Headset", available) == "Headset",
+		"input/a microphone that is plugged in is the one opened")
+	# The case a player actually hits: a USB microphone chosen last week and not
+	# plugged in today. Capturing from nothing would read as a broken microphone
+	# rather than a missing one.
+	_ok(R.call("Studio USB", available) == SERVICE.DEFAULT_DEVICE,
+		"input/one that is not falls back rather than capturing silence")
+	_ok(R.call("Headset", PackedStringArray()) == SERVICE.DEFAULT_DEVICE,
+		"input/and a platform offering no list at all falls back too")
+
+	# End to end through the service, with the platform faked.
+	var saved_device: String = AppPrefs.microphone_device
+	AppPrefs.microphone_enabled = true
+	var consumers: Array = [FakeMachine.new()]
+	var switches: Array = []
+	var chosen: Array = []
+	var svc := _service(consumers, {}, switches)
+	svc.device_list_source = func() -> PackedStringArray: return available
+	svc.device_select = func(name: String) -> void: chosen.append(name)
+
+	AppPrefs.microphone_device = "Webcam"
+	svc.tick()
+	# Selected BEFORE the switch: a driver opens the device it was pointed at, so
+	# choosing one afterwards would leave the old input feeding the ring.
+	_ok(chosen == ["Webcam"] and switches == [true],
+		"input/the input is chosen before the device is opened",
+		"%s / %s" % [str(chosen), str(switches)])
+	svc.tick()
+	_ok(chosen == ["Webcam"], "input/and is not re-chosen every frame")
+
+	AppPrefs.microphone_device = "Headset"
+	svc.tick()
+	_ok(chosen == ["Webcam", "Headset"], "input/changing it picks the new one up")
+	_ok(switches == [true, false, true],
+		"input/closing and re-opening, because a live device keeps the one it opened",
+		str(switches))
+
+	AppPrefs.microphone_device = saved_device
 
 
 func _test_device() -> void:

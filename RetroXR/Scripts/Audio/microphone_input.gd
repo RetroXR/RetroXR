@@ -23,8 +23,18 @@ var consumer_source: Callable = _running_machines
 var device_switch: Callable = _switch_audio_server
 ## () -> Vector3.
 var head_source: Callable = _camera_position
+## () -> PackedStringArray of the input names the platform offers.
+var device_list_source: Callable = _audio_server_devices
+## (name: String) -> void, selects the input the next open will use.
+var device_select: Callable = _select_audio_server_device
 
 var _device_active := false
+## The input name in force, so a preference changed mid-run re-opens the device
+## rather than leaving capture on the one it started with.
+var _device_in_use := ""
+## The saved name last reported missing, so an unplugged microphone says so once
+## rather than every frame.
+var _missing_reported := ""
 
 
 static func gain_for(mic_position: Vector3, head_position: Vector3, max_distance: float) -> float:
@@ -33,6 +43,24 @@ static func gain_for(mic_position: Vector3, head_position: Vector3, max_distance
 
 static func should_capture(enabled: bool, consumers: Array) -> bool:
 	return enabled and not consumers.is_empty()
+
+
+## Which input to actually open, given what the player asked for and what the
+## platform is offering right now.
+##
+## "" means follow the system, and so does a saved name the platform is not
+## offering — a microphone can be unplugged between sessions, and refusing to
+## capture at all because the named one is absent would read as a broken
+## microphone rather than as a missing one. The preference itself is left alone,
+## so plugging it back in picks it up again.
+static func resolve_device(saved: String, available: PackedStringArray) -> String:
+	if saved.is_empty() or saved == DEFAULT_DEVICE:
+		return DEFAULT_DEVICE
+	return saved if saved in available else DEFAULT_DEVICE
+
+
+## What AudioServer calls "whatever the system is set to". Not a device name.
+const DEFAULT_DEVICE := "Default"
 
 
 func is_capturing() -> bool:
@@ -53,6 +81,26 @@ func _process(_delta: float) -> void:
 func tick() -> void:
 	var consumers: Array = consumer_source.call()
 	var wanted := should_capture(AppPrefs.microphone_enabled, consumers)
+	# Chosen before the switch, because a driver opens the device it was pointed
+	# at: selecting one while capture is already running leaves the old input
+	# feeding the ring. A change while live therefore closes and re-opens.
+	var device := resolve_device(AppPrefs.microphone_device, device_list_source.call())
+	if wanted and _device_active and device != _device_in_use:
+		device_switch.call(false)
+		_device_active = false
+	if wanted and device != _device_in_use:
+		device_select.call(device)
+		_device_in_use = device
+		print("[Microphone] input: %s" % device)
+		if device == DEFAULT_DEVICE and not AppPrefs.microphone_device.is_empty() \
+				and AppPrefs.microphone_device != DEFAULT_DEVICE \
+				and _missing_reported != AppPrefs.microphone_device:
+			_missing_reported = AppPrefs.microphone_device
+			print("[Microphone] '%s' is not plugged in; using the system default"
+				% AppPrefs.microphone_device)
+	if wanted and not AppPrefs.microphone_device.is_empty() \
+			and AppPrefs.microphone_device == device:
+		_missing_reported = ""
 	if wanted != _device_active:
 		var took: bool = device_switch.call(wanted)
 		_device_active = wanted
@@ -112,6 +160,14 @@ func _running_machines() -> Array:
 
 func _switch_audio_server(on: bool) -> bool:
 	return AudioServer.set_input_device_active(on) == OK
+
+
+func _audio_server_devices() -> PackedStringArray:
+	return AudioServer.get_input_device_list()
+
+
+func _select_audio_server_device(name: String) -> void:
+	AudioServer.input_device = name
 
 
 func _camera_position() -> Vector3:

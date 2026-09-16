@@ -118,6 +118,14 @@ static func get_int(data: Dictionary, key: String, fallback: int) -> int:
 	return fallback
 
 
+## `fallback` unless `key` holds a string. An empty string IS a value here and is
+## returned as one -- for a name, "" usually means "follow the default", which is
+## a different answer from "the key was never written".
+static func get_string(data: Dictionary, key: String, fallback: String) -> String:
+	var value: Variant = data.get(key)
+	return value if typeof(value) == TYPE_STRING else fallback
+
+
 ## `fallback` unless `key` holds an object.
 static func get_dict(data: Dictionary, key: String, fallback: Dictionary) -> Dictionary:
 	var value: Variant = data.get(key)

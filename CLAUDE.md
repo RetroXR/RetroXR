@@ -1679,6 +1679,16 @@ four driver buffers long — 2048 × 4 frames on Android, about 186 ms at OpenSL
 which rate-adjusts capture to the output mix rate. Nothing captures without
 `audio/driver/enable_input=true`; `set_input_device_active` warns and fails.
 
+**Which input, when the machine has more than one.** Options -> Microphone carries an **Input**
+dropdown built from `AudioServer.get_input_device_list()` as the page opens (this desk offers
+five; a Quest offers one and the row reads Default). `AppPrefs.microphone_device` stores the
+NAME, never the index -- an index means a different microphone the moment one is unplugged --
+and `Microphone.resolve_device` falls back to `Default` for a name the platform is not currently
+offering, while KEEPING the preference: a USB microphone plugged back in is used again, and
+capturing from nothing would read as a broken microphone rather than a missing one. The input is
+selected BEFORE the device is switched on, because a driver opens the one it was pointed at, so
+a preference changed mid-run closes and re-opens rather than leaving capture on the old input.
+
 **The device opens only while a core is listening.** Each frame the service collects the
 powered-on `retro_system` machines whose `Libretro.IsMicrophoneActive()` is true — a handle
 open and enabled, the machine running and not in netplay — and turns the device on only while
