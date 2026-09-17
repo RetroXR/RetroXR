@@ -304,7 +304,7 @@ debug build, 2026-08-27 — all passing):
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
 | `microphone_tests` | 55 | 25 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip, and the HKT-7200 in a pad's slot |
 | `famicom_tests` | 72 | 15 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, and the `famicom` systemid's table rows |
-| `n64_vru_tests` | 20 | 25 s | the Voice Recognition Unit: the device id a socket announces, seating in socket 4, the machine hearing from the NUS-021, the talk button's bit, and the save round trip |
+| `n64_vru_tests` | 18 | 25 s | the Voice Recognition Unit: the device id a socket announces, seating in socket 4, the machine hearing from the NUS-021, which way its cords leave, and the save round trip |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
 so re-measure rather than trusting this table, and treat an unexplained DROP as a signal.
@@ -1747,7 +1747,7 @@ seated microphone's body when there is one, otherwise the machine.
 | dolphin (fork) | GameCube DOL-022, Wii Speak, Logitech USB | the game's rate; GameCube at most 64 a frame | see below; `dolphin_wiispeak_enable`, `dolphin_wii_logi_microphone_enable` | open and state on its CPU thread, reads in `retro_run` |
 | azahar (buildbot) | 3DS mic | opens at 48000 and resamples itself | `citra_input_type` (`auto`, `none`, `static_noise`, `frontend`) | emulation thread |
 | virtualjaguar | Jaguar voice modem | 8000 | — | emulation thread |
-| mupen64plus-next (fork) | N64 Voice Recognition Unit | 48000, decoded by Vosk | the port's device id, or `mupen64plus-vru-port` | opens and reads in `retro_run`, decodes on its own worker |
+| mupen64plus-next (fork) | N64 Voice Recognition Unit | 48000, decoded by Vosk | the port's device id; captures while the game listens | opens and reads in `retro_run`, decodes on its own worker |
 | flycast (fork) | Dreamcast HKT-7200 | 48000, decimated to the device's 8000 or 11025 | `reicast_device_port<N>_slot<M>` = `Microphone` | opens and reads in `retro_run`, drained on the emulation thread |
 
 A mic that is only a BUTTON, with no audio behind it: DeSmuME (`desmume_mic_mode`, L3 "Make
@@ -1867,6 +1867,22 @@ In the fork (`retroxr-mupen64plus-next-libretro-v4`):
   All five arrive on the emulation thread, so they only touch flags under a lock: Vosk lives
   on a worker of its own, and every microphone call belongs to the thread that runs
   `retro_run`.
+- **The game decides when the unit listens, and nothing the player holds does.** The real
+  VRU has no button: a game sends it "listen" and "stop" (`JCMD_VRU_WRITE_CONFIG` 0x4E /
+  0xEF, arriving as `SetMicState(1)` / `(0)`), and the chip inside reports "busy" while
+  someone talks and "ready" when they stop. `vru_controller.c` cannot hear, so it fakes that
+  status from Z on the VRU's own port (its comment says HACK). Both working plugins raise that
+  line from the game's own mic state — RMG-Input's `GetVRUMicState()` sets `Keys->Value =
+  0x0020`, simple64-input-qt does the same with a 2 s timer — and so does
+  `vru_recognizer_talking` now. Capture runs from the game's "listen" to its "stop", the stop
+  queues the decode, and `ReadVRUResults`, which the game sends straight after, waits for that
+  utterance's result (the references decode inside it, so the game is held either way).
+  **The first build took the line from the player instead** — the NUS-021's trigger — and
+  words were recognised, logged and never reached the game at the moment it asked. In Hey
+  You, Pikachu! the player holds Z on their own controller; that is the game's business, and
+  the "listen"/"stop" it sends is the only thing the core follows. `mupen64plus-vru-mic-mode`
+  is gone with the button, and `mupen64plus-vru-port` with it: which socket holds a VRU is the
+  port's device, "Voice Recognition Unit" in the controller list.
 - **Vosk is opened at run time, never linked.** A `DT_NEEDED` on `libvosk` would make the
   N64 core everyone installs fail to load when the speech pack is absent. Missing library,
   missing symbol or missing model costs the recognition and nothing else: the VRU still
@@ -1917,7 +1933,11 @@ In the fork (`retroxr-mupen64plus-next-libretro-v4`):
   `mic_level`/`voice_level` `0x0BB8` and `voice_length` `0x8004`. `error_flags` is `0x8000`
   when the decoder refuses the audio and **`0x4000` when something was heard that matched
   nothing** — that flag is the whole difference between "understood" and "did not", because
-  the no-match reply also reports slot 0.
+  the no-match reply also reports slot 0. **Every field is written on every read**, the error
+  word included: they point into the joybus reply, which still holds old bytes, and the error
+  word used to be written only on an error — a clean match reached Hey You, Pikachu! as
+  `0xFE78`, both the decode-failed and the no-match bit. The selftest now starts that word at
+  `0xFE78`, which a missed write reads straight back.
 - **Every core log level now reaches the frontend.** `n64DebugCallback` mapped every
   `M64MSG_*` to `RETRO_LOG_INFO`, which frontends drop, so no warning the core raised was
   ever visible. It carries the real level across now, which is what makes the line below an
@@ -1929,12 +1949,8 @@ In RetroXR:
 - **`N64Vru` is the box and `N64VruMic` is the microphone on its cord.** The box is in the
   `controller_plug` group with `systemid = "nintendo_64"` and its own `device_type`, which
   is the whole of how the console finds out — the same route `gc_link_plug.gd` takes.
-- **The microphone's trigger is the talk button.** A game reads the VRU port's Z line to
-  know someone is speaking and times the utterance by how long it is held, so the hand
-  holding the NUS-021 raises Z on that port through `SetJoypadExtraButtons` — the per-port
-  mask the GameCube microphone introduced, which a controller's own writes cannot clear.
-  Hey You, Pikachu! also wants Z held on the socket-1 pad, which is the player's own
-  controller and nothing to do with this.
+- **The NUS-021 has no button.** It is what the player speaks into and where the distance
+  law measures from; when the unit listens is the game's decision, above.
 - **`RetroSystem.microphone_position()` walks the controller ports** as well as the card
   slots, so the distance law follows the NUS-021 in the player's hand rather than the
   console.
@@ -1993,10 +2009,27 @@ correctly:
 ```
 
 and `Game controller 3 (VRU controller) attached` names `g_vru_controller_flavor`, so the joybus
-device was selected rather than inferred. Speaking into it -- Z held on the VRU's own port, the
-utterance pushed through the frontend's microphone interface -- the recognizer answers the game:
-`heard "pikachu"`, `heard "pika"`. **One leg per process**: `--leg=control` runs the same game
-with an empty socket and prints none of those lines.
+device was selected rather than inferred. **One leg per process**: `--leg=control` runs the
+same game with an empty socket and prints none of those lines. The probe speaks with Z held on
+the socket-1 controller, but only a scene where Pikachu listens starts the unit, and its opening
+is not one; the log says `VRU: the game started listening` when a scene does.
+
+**Measured 2026-09-16 in a player's session**, Hey You, Pikachu! in gameplay, a real voice
+through a C920 webcam, VRU Logging on: holding Z brackets each utterance with `the game started
+listening` / `stopped listening`, and the game reads its answer 10 ms after the stop:
+
+```
+VRU: heard "hello" as word 14 "hello"
+VRU: the game read 1 result(s), first slot 14, flags FE78 (10 ms)
+VRU: heard "throw it" as word 41 "throw it"
+```
+
+and the player reported it working. `FE78` there is the unwritten error word above; the build
+after that run writes 0, and has not yet been played. A scene loads its own list —
+two grammars in that session held "stay at my house" and "throw it" in one and not the other.
+**The log shows a blank line after every core line**: mupen ends each message in `\n`, the
+libretro convention, and libretro-godot's `LogHandler` prints it with `print_line_rich`,
+which adds another. Every core that follows the convention does the same there.
 
 **Measured 2026-09-16, the Japanese half.** Pikachuu Genki de Chuu, same probe, a NUS-020 in
 socket 4: the game sends 84 words, every one of them spelled by `model-ja`'s lexicon
