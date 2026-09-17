@@ -26,7 +26,7 @@ const CART_SIZES: Dictionary = {
 	# drawing was found.
 	"famicom":          Vector3(0.110, 0.070, 0.017),
 	"super_nes":        Vector3(0.137, 0.088, 0.020),
-	"nintendo_64":      Vector3(0.116, 0.075, 0.020),
+	"nintendo_64":      Vector3(0.116, 0.0766, 0.0185),  # the cartridge model's shell
 	"game_boy":         Vector3(0.057, 0.065, 0.008),
 	"game_boy_advance": Vector3(0.058, 0.036, 0.007),
 	"mega_drive":       Vector3(0.110, 0.070, 0.017),

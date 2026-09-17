@@ -1,0 +1,116 @@
+[gd_resource type="Resource" script_class="CartridgeShellPalette" format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_palette.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_preset.gd" id="2"]
+
+[sub_resource type="Resource" id="grey"]
+script = ExtResource("2")
+id = &"grey"
+display_name = "Grey (standard)"
+availability = 0
+color = Color(0.643, 0.647, 0.667, 1)
+
+[sub_resource type="Resource" id="black"]
+script = ExtResource("2")
+id = &"black"
+display_name = "Black"
+color = Color(0.18, 0.196, 0.196, 1)
+
+[sub_resource type="Resource" id="blue"]
+script = ExtResource("2")
+id = &"blue"
+display_name = "Blue"
+color = Color(0.141, 0.278, 0.604, 1)
+
+[sub_resource type="Resource" id="red"]
+script = ExtResource("2")
+id = &"red"
+display_name = "Red"
+color = Color(0.851, 0.165, 0.157, 1)
+
+[sub_resource type="Resource" id="green"]
+script = ExtResource("2")
+id = &"green"
+display_name = "Green"
+color = Color(0.102, 0.557, 0.396, 1)
+
+[sub_resource type="Resource" id="yellow"]
+script = ExtResource("2")
+id = &"yellow"
+display_name = "Yellow"
+color = Color(0.894, 0.698, 0.125, 1)
+
+[sub_resource type="Resource" id="gold"]
+script = ExtResource("2")
+id = &"gold"
+display_name = "Gold"
+finish = 1
+color = Color(0.573, 0.463, 0.267, 1)
+roughness = 0.45
+flake_color = Color(0.878, 0.761, 0.486, 1)
+flake_density = 0.25
+flake_size_mm = 0.35
+flake_intensity = 0.8
+flake_roughness = 0.22
+flake_tilt = 0.4
+
+[sub_resource type="Resource" id="silver"]
+script = ExtResource("2")
+id = &"silver"
+display_name = "Silver"
+finish = 1
+color = Color(0.529, 0.545, 0.561, 1)
+roughness = 0.42
+flake_color = Color(0.839, 0.855, 0.878, 1)
+flake_density = 0.28
+flake_size_mm = 0.35
+flake_intensity = 0.8
+flake_roughness = 0.2
+flake_tilt = 0.4
+
+[sub_resource type="Resource" id="gold_silver"]
+script = ExtResource("2")
+id = &"gold_silver"
+display_name = "Gold front, silver back"
+front = &"gold"
+back = &"silver"
+
+[sub_resource type="Resource" id="emerald_green"]
+script = ExtResource("2")
+id = &"emerald_green"
+display_name = "Emerald Green"
+availability = 2
+color = Color(0.059, 0.616, 0.345, 1)
+
+[sub_resource type="Resource" id="pink"]
+script = ExtResource("2")
+id = &"pink"
+display_name = "Pink"
+availability = 2
+color = Color(0.898, 0.561, 0.702, 1)
+
+[sub_resource type="Resource" id="beige"]
+script = ExtResource("2")
+id = &"beige"
+display_name = "Beige"
+availability = 2
+color = Color(0.839, 0.78, 0.643, 1)
+
+[sub_resource type="Resource" id="dark_grey"]
+script = ExtResource("2")
+id = &"dark_grey"
+display_name = "Dark Grey"
+availability = 2
+color = Color(0.333, 0.345, 0.365, 1)
+
+[sub_resource type="Resource" id="medium_grey"]
+script = ExtResource("2")
+id = &"medium_grey"
+display_name = "Medium Grey"
+availability = 2
+color = Color(0.482, 0.494, 0.514, 1)
+
+[resource]
+script = ExtResource("1")
+source = "Colour options Nintendo offered N64 publishers, per micro-64 (http://micro-64.com/database/colouredcarts.shtml). The source gives names, not calibrated colours: every value here is a VISUAL APPROXIMATION. Released colours were sampled from micro-64's cartridge photographs, white-balanced against the backdrop; OFFERED_ONLY colours were never used commercially and have no photograph, so they are estimates. Edit freely."
+presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("black"), SubResource("blue"), SubResource("red"), SubResource("green"), SubResource("yellow"), SubResource("gold"), SubResource("silver"), SubResource("gold_silver"), SubResource("emerald_green"), SubResource("pink"), SubResource("beige"), SubResource("dark_grey"), SubResource("medium_grey")])

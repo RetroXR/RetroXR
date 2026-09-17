@@ -45,6 +45,14 @@ const _CART_MODELS := {
 	"game_boy_advance": "res://imported-assets/carts/game_boy_advance/gba_cart.glb",
 }
 
+## Models authored with real PBR values, which ModelMaterialFix must leave alone:
+## the N64 cart's contacts and screws are metal.
+const _AUTHORED_MATERIALS := {"nintendo_64": true}
+
+## Models whose label mesh is UV-mapped as the sticker itself, so the art is
+## painted onto it rather than laid over it on a quad.
+const _UV_LABELS := {"nintendo_64": true}
+
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
 ## calls it Label. First match wins.
@@ -160,7 +168,10 @@ func get_card_size() -> Vector3:
 func _apply_cart_model() -> void:
 	if _model_label != null or has_node("CartModel"):
 		return
-	var path: String = _CART_MODELS.get(systemid, "")
+	# An N64 cartridge's body is regional: N64CartShell picks it per ROM.
+	var market := N64CartShell.market(systemid, rom_path) if systemid == "nintendo_64" else ""
+	var path: String = N64CartShell.body_model(market) if systemid == "nintendo_64" \
+		else _CART_MODELS.get(systemid, "")
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var scene := load(path) as PackedScene
@@ -185,9 +196,12 @@ func _apply_cart_model() -> void:
 	glb.position = -(ab.position + ab.size * 0.5) * k
 	# Moulded plastic exported with a high metallicFactor reads as a dark mirror
 	# rather than a grey shell — the NES cart ships metallic 0.76.
-	ModelMaterialFix.demetal(glb)
+	if not _AUTHORED_MATERIALS.has(systemid):
+		ModelMaterialFix.demetal(glb)
 	if systemid == "nintendo_64dd" and Nintendo64DD.is_dev_disk(rom_path):
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
+	if systemid == "nintendo_64":
+		CartridgeColor.apply_preset(glb, N64CartShell.preset_for_rom(rom_path, market))
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:
@@ -603,6 +617,18 @@ func _dress_spine_label(sticker: Texture2D) -> void:
 		_title_on_spine(strip)
 
 
+## The art painted onto a UV-mapped label mesh, or the title on the blank sticker
+## when there is no art.
+func _dress_uv_label(tex: Texture2D) -> void:
+	var model := get_node_or_null("CartModel")
+	if tex == null or model == null or CartridgeLabel.apply_texture(model, tex) != OK:
+		_title_on_model_face()
+		return
+	var glbl := get_node_or_null("GameLabel") as Label3D
+	if glbl != null:
+		glbl.visible = false
+
+
 ## The game's title along the edge strip, sized to fit it.
 func _title_on_spine(strip: AABB) -> void:
 	if game_label.is_empty():
@@ -631,6 +657,9 @@ func _apply_label_art() -> void:
 	var tex := MediaDimensions.load_label_texture(systemid, rom_path)
 	if _model_label != null and _SPINE_LABELS.has(systemid):
 		_dress_spine_label(tex)
+		return
+	if _model_label != null and _UV_LABELS.has(systemid):
+		_dress_uv_label(tex)
 		return
 	if tex == null:
 		_title_on_model_face()
