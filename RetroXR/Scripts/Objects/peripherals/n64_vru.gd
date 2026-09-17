@@ -72,8 +72,6 @@ func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 
 
 func on_unplugged() -> void:
-	if is_instance_valid(_mic):
-		_mic.release_button()
 	seated_system = null
 	seated_port_index = -1
 
@@ -136,7 +134,6 @@ func _physics_process(_delta: float) -> void:
 ## The microphone and its cord go with the unit.
 func drop_and_free() -> void:
 	if is_instance_valid(_mic):
-		_mic.release_button()
 		_mic.drop()
 	if is_instance_valid(_cable_instance):
 		_cable_instance.queue_free()

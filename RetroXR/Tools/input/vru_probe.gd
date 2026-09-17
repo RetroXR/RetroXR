@@ -131,11 +131,14 @@ func _run() -> void:
 		await get_tree().process_frame
 
 
-## Say a word into the game, the way a player does: hold the microphone's Z on
-## the VRU's own port, push the utterance through the frontend's microphone
-## interface, then let go. The core's log is the oracle -- it prints what the
-## recognizer heard when mupen64plus-next-vru-log is on.
+## Say a word into the game, the way a player does: hold Z on the controller in
+## socket 1, push the utterance through the frontend's microphone interface, then
+## let go. Nothing presses anything on the unit -- the game decides when it
+## listens, and the core's log says when it did ("the game started listening"),
+## what it heard and what the game read back, with mupen64plus-vru-log on.
 func _speak_to_the_game(lib: Libretro, unit: N64Vru) -> void:
+	const PLAYER_PORT := 0
+	const Z_BITS := 1 << ControllerBindings.JOYPAD_L2
 	var frames := _load_wav(speak_path)
 	_ok("the utterance loaded", frames.size() > 0, "%d frames" % frames.size())
 	if frames.is_empty():
@@ -150,9 +153,9 @@ func _speak_to_the_game(lib: Libretro, unit: N64Vru) -> void:
 	await _advance(lib, int(settle_seconds * 60.0))
 
 	for attempt in range(attempts):
-		print("[vru] attempt %d: holding Z on port %d and speaking"
+		print("[vru] attempt %d: holding Z on the socket-1 controller and speaking (unit in socket %d)"
 			% [attempt + 1, unit.seated_port_index + 1])
-		lib.SetJoypadExtraButtons(unit.seated_port_index, N64VruMic.TALK_BITS)
+		lib.SetJoypadExtraButtons(PLAYER_PORT, Z_BITS)
 		var at := 0
 		while at < frames.size():
 			var take: int = mini(800, frames.size() - at)
@@ -162,7 +165,7 @@ func _speak_to_the_game(lib: Libretro, unit: N64Vru) -> void:
 		# A moment of held silence, so the decoder sees the end of the word.
 		for i in range(12):
 			await get_tree().process_frame
-		lib.SetJoypadExtraButtons(unit.seated_port_index, 0)
+		lib.SetJoypadExtraButtons(PLAYER_PORT, 0)
 		await _advance(lib, 180)
 
 	AppPrefs.microphone_enabled = player_setting

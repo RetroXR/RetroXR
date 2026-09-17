@@ -30,8 +30,6 @@ func _ready() -> void:
 		await _test_seat()
 	if _wants("mic"):
 		await _test_mic()
-	if _wants("talk"):
-		await _test_talk()
 	if _wants("catalog"):
 		_test_catalog()
 	if _wants("persist"):
@@ -153,32 +151,6 @@ func _test_mic() -> void:
 			Vector3(0, 0, -0.023), Vector3(0, 0, 0.041))
 	else:
 		_ok(false, "mic/the unit built its cord")
-
-	sys.queue_free()
-	unit.drop_and_free()
-	await get_tree().process_frame
-
-
-func _test_talk() -> void:
-	var unit := await _spawn_unit()
-	var mic := unit.get_mic()
-
-	# The N64's Z is libretro's L2, and Z is what a game watches to know
-	# someone is talking.
-	_ok(N64VruMic.TALK_BITS == 1 << ControllerBindings.JOYPAD_L2,
-		"talk/the microphone holds Z", str(N64VruMic.TALK_BITS))
-
-	_ok(mic.call("_seated_libretro") == null,
-		"talk/a microphone on a loose unit has nothing to talk to")
-
-	var sys := await _spawn_n64()
-	sys.restore_controller_plug(3, unit)
-	await get_tree().process_frame
-	_ok(not sys.is_powered_on and mic.call("_seated_libretro") == null,
-		"talk/nor one seated in a machine that is switched off")
-
-	mic.release_button()
-	_ok(mic.get("_pressed_on") == null, "talk/letting go of a button never held is harmless")
 
 	sys.queue_free()
 	unit.drop_and_free()

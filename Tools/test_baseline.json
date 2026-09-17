@@ -21,7 +21,7 @@
     "microphone_tests": 55,
     "mod_tests": 165,
     "motion_tests": 55,
-    "n64_vru_tests": 20,
+    "n64_vru_tests": 18,
     "netplay_tests": 685,
     "object_sync_tests": 139,
     "poster_tests": 112,
