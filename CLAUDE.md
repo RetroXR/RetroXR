@@ -1719,8 +1719,8 @@ seated microphone's body when there is one, otherwise the machine.
   and pass-through when the rates match.
 - **Latency is bounded per handle.** A 150 ms cap drops the oldest samples. 40 ms of silence is
   served after an enable, a flush or an underflow. A read that leaves more than 100 ms trims
-  back to 60 ms. The trim is what keeps Dolphin's GameCube mic — it reads at most 64 samples a
-  frame and never catches up — from sitting at the cap.
+  back to 60 ms. The trim is what keeps a core that reads less than it is sent from sitting at
+  the cap.
 - **Silent in netplay.** An `NpFrame` is 128 ints, 735 samples a frame have nowhere to ride, and
   a microphone is not the same on two peers anyway.
 - **Not silenced by `SetAudioPlaying(false)`.** That follows display cabling ("a machine wired to
@@ -1744,7 +1744,7 @@ seated microphone's body when there is one, otherwise the machine.
 |---|---|---|---|---|
 | melondsds | DS / DSi mic | 44100, 735 a frame | `melonds_mic_input` (default `microphone`), `melonds_mic_input_active` (default `hold`, on L3) | emulation thread |
 | noods | DS mic | 44100 | `noods_micInputMode`, `noods_micButtonMode` (L2) | emulation thread |
-| dolphin (fork) | GameCube DOL-022, Wii Speak, Logitech USB | the game's rate; GameCube at most 64 a frame | see below; `dolphin_wiispeak_enable`, `dolphin_wii_logi_microphone_enable` | open and state on its CPU thread, reads in `retro_run` |
+| dolphin (fork) | GameCube DOL-022, Wii Speak, Logitech USB | the game's rate, a frame's worth at a time | see below; `dolphin_wiispeak_enable`, `dolphin_wii_logi_microphone_enable` | open and state on its CPU thread, reads in `retro_run` |
 | azahar (buildbot) | 3DS mic | opens at 48000 and resamples itself | `citra_input_type` (`auto`, `none`, `static_noise`, `frontend`) | emulation thread |
 | virtualjaguar | Jaguar voice modem | 8000 | — | emulation thread |
 | mupen64plus-next (fork) | N64 Voice Recognition Unit | 48000, decoded by Vosk | the port's device id; captures while the game listens | opens and reads in `retro_run`, decodes on its own worker |
@@ -1797,13 +1797,22 @@ In the Dolphin fork (v11):
 - **The older `dolphin_enable_gamecube_mic` still works,** and still loses slot B to a named card.
 - **Seating or pulling a microphone says so,** as `Memory Card B: microphone seated` / `pulled`,
   a warning under BOOT.
+- **Each poll reads a frame's worth**, `sample_rate` over the target refresh rate with the
+  fraction carried (fork `9a2b37e`, after v11). v11 read one `buff_size_samples` buffer, 16 to
+  64 samples, against the ~184 a frame an 11025 Hz game takes; the ring ran dry and
+  `StreamReadOne` re-served the previous buffer several times a frame, a buzz no game could hear
+  a word in. Measured 2026-09-16 in a player's session: Mario Party 6 answers speech through a
+  DOL-022 in slot B with the fix, and did not with v11. It reaches players only with a v12
+  release and a `known_tag` bump.
 
 In RetroXR:
 - **Objects.** `GcMicrophone` is the stick. `GcMicrophonePlug` is in group `memory_card` with
   `family = "gamecube"`, `is_microphone = true` and no `card_id`, so the shared `_accepts_card`
   seats it in either slot and `_mount_core_cards` writes `mic` for that slot, live through
   `set_core_option`.
-- **The button.** The trigger of the hand holding the stick is the aqua button. Every controller
+- **The button.** The trigger of the hand holding the stick is the aqua button; on desktop it is
+  the left mouse button, and the stick sets `desktop_shift_drop` so that click does not put it
+  down (Shift+click does), which `microphone_tests` `gc/` pins. Every controller
   writes its whole button mask each frame, so a bit set by another object is gone by the next
   one. The stick uses `Libretro.SetJoypadExtraButtons(0, 1 << R3)`, ORed in when the core reads,
   and the machine pins `dolphin_hotkey_activate_microphone=R3` — no GameCube pad maps R3.
