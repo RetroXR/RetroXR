@@ -304,7 +304,7 @@ debug build, 2026-08-27 — all passing):
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
 | `microphone_tests` | 55 | 25 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip, and the HKT-7200 in a pad's slot |
 | `famicom_tests` | 72 | 15 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, and the `famicom` systemid's table rows |
-| `n64_vru_tests` | 18 | 25 s | the Voice Recognition Unit: the device id a socket announces, seating in socket 4, the machine hearing from the NUS-021, which way its cords leave, and the save round trip |
+| `n64_vru_tests` | 37 | 30 s | the Voice Recognition Unit: no two coplanar faces on the dongle or the microphone, the device id a socket announces through the unit's own plug, seating in socket 4, the microphone in and out of the 3.5 mm jack, which way both cords leave, and the save round trip |
 | `n64_cart_tests` | 103 | 10 s | the N64 cartridge: regional bodies, which half each moulded part belongs to, per-instance and per-half shell materials, flake parameters and normal maps, repeated switch and reset, the label helper, the coloured-cartridge lookup by header and MD5, the scraped region, and a spawned cartridge |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
@@ -1956,11 +1956,37 @@ In the fork (`retroxr-mupen64plus-next-libretro-v4`):
   `word[offset]` before the bound, reading two bytes past the controller struct.
 
 In RetroXR:
-- **`N64Vru` is the box and `N64VruMic` is the microphone on its cord.** The box is in the
-  `controller_plug` group with `systemid = "nintendo_64"` and its own `device_type`, which
-  is the whole of how the console finds out — the same route `gc_link_plug.gd` takes.
+- **It is three objects, as the hardware is three parts.** `N64Vru` is the dongle,
+  `N64VruMic` the microphone, and `N64VruMicPlug` the 3.5 mm plug on the microphone's cord.
+  The dongle hangs off a second cord that ends in an ordinary `ControllerPlug` — the same
+  generic moulding every N64 pad wears, since `n64_controller.tscn` declares no
+  `plug_mesh_path` of its own.
+- **The PLUG is what a socket takes, not the box**, which is why this needed no new plug
+  class. `ControllerPlug.set_controller(unit)` copies `device_type` and `systemid` off the
+  dongle, the plug is the one in the `controller_plug` group, and `_bind_port` unwraps it
+  with `get_controller()` before filing it in `_port_controllers` — so the console still
+  sees a VRU and the unit still answers `microphone_position()`. The box was in that group
+  until 2026-09-17 and its front end was moulded as a connector tongue to suit.
+- **The microphone plugs in and pulls out.** The dongle carries a `MicJack` snap zone
+  filtered on `N64VruMicPlug.GROUP` — its own group, because `snap_require` on
+  `controller_plug` would take a console controller's plug, the trap `n64_pak_port.gd`
+  names for the pad's expansion bay. It spawns plugged in, and the unit's entry records
+  `mic` so a save remembers. **Out of the jack the unit reports ITS OWN position**, not the
+  microphone's: `microphone_position()` is a total function with no way to say "nothing"
+  (`system.gd:4182-4203` falls back to the console), so a microphone left on a table across
+  the room must stop setting the gain. Whether the machine hears at all is not decided
+  there and gets no N64-special case — the unit keeps announcing `DEVICE_VRU` while seated,
+  because the NUS-020 is on the joybus with or without a microphone in it.
 - **The NUS-021 has no button.** It is what the player speaks into and where the distance
   law measures from; when the unit listens is the game's decision, above.
+- **No two faces may share a plane.** The microphone's grille used to be a flat collar
+  ending on exactly the body's front cap at z −0.0475, one albedo 0.73 and one 0.18: the two
+  cap triangle-fans interleaved and the nose drew as a flickering pinwheel. It is a ball
+  head sunk into a tapered body now, and `n64_vru_tests` `faces/` walks both scenes'
+  meshes and fails on any two coplanar faces **that point the same way** — a butt joint,
+  where the normals oppose, is safe because culling draws only one of them. Reverted, it
+  reports `Body|Grille at 0.0475`. `Tools/models/n64_vru_render_probe` renders the set
+  (windowed, never `--headless`) and prints the facings.
 - **`RetroSystem.microphone_position()` walks the controller ports** as well as the card
   slots, so the distance law follows the NUS-021 in the player's hand rather than the
   console.
@@ -2071,6 +2097,9 @@ Python `splitlines()` cuts it again. Rebuild the bytes (code points below 256, p
 
 ```bash
 "$godot" --headless --path RetroXR res://Tests/n64_vru_tests.tscn
+"$godot" --headless --path RetroXR res://Tests/n64_vru_tests.tscn -- --only=faces
+"$godot" --path RetroXR --resolution 900x700 --position 20,20 \
+  res://Tools/models/n64_vru_render_probe.tscn -- --out=<dir>
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
   res://Tools/input/vru_probe.tscn -- --root=<throwaway root> \
   --rom="<Hey You, Pikachu! or Pikachuu Genki de Chuu>" --leg=seated --speak=<48 kHz mono wav>
