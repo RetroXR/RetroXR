@@ -1,10 +1,11 @@
 ## GcMicrophone — the GameCube Microphone (DOL-022): a held stick on a 2 m cord
 ## whose plug seats in a memory card slot.
 ##
-## The aqua button is the trigger of the hand holding the stick. Dolphin reads the
-## microphone's button from the joypad bit its hotkey option names, on any port,
-## and ForcedCoreOptions pins that bit to R3; a press holds R3 on port 0 through
-## Libretro.SetJoypadExtraButtons, which the controller's own writes do not clear.
+## The aqua button is the trigger of the hand holding the stick, or the left mouse
+## button on desktop. Dolphin reads the microphone's button from the joypad bit its
+## hotkey option names, on any port, and ForcedCoreOptions pins that bit to R3; a
+## press holds R3 on port 0 through Libretro.SetJoypadExtraButtons, which the
+## controller's own writes do not clear.
 class_name GcMicrophone
 extends XRToolsPickable
 
@@ -13,6 +14,10 @@ const CABLE_SCENE := preload("res://Scenes/Objects/controllers/gamecube/gc_micro
 const LEAD_LENGTH := 2.0
 const BUTTON_BITS := 1 << ControllerBindings.JOYPAD_R3
 const BUTTON_TRAVEL := 0.0015
+
+## Desktop: plain left-click is the aqua button while held, so dropping requires
+## Shift+click (same rule as the mouse and the light gun's trigger).
+var desktop_shift_drop := true
 
 var _cable_instance: Node3D = null
 var _plug: GcMicrophonePlug = null

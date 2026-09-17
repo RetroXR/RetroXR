@@ -356,6 +356,31 @@ func _test_gc() -> void:
 	_ok(gc.microphone_position().is_equal_approx(mic.global_position),
 		"gc/the machine hears from the stick, not the slot")
 
+	# On desktop the aqua button is the left mouse button, which is also the click
+	# that puts a held object down.
+	var desktop := Node3D.new()
+	desktop.set_script(load("res://Scripts/Desktop/desktop_pickup.gd"))
+	add_child(desktop)
+	desktop.grab_spawned(mic)
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	desktop._unhandled_input(click)
+	_ok(mic.is_picked_up(), "gc/on desktop a left click keeps the stick in hand")
+	gc.is_powered_on = true
+	Input.action_press("trigger_left")
+	for i in range(2):
+		await get_tree().process_frame
+	_ok(mic._pressed_on == gc.get_libretro_node(), "gc/and holds its button on the machine")
+	Input.action_release("trigger_left")
+	await get_tree().process_frame
+	_ok(mic._pressed_on == null, "gc/and lets the button go")
+	gc.is_powered_on = false
+	click.shift_pressed = true
+	desktop._unhandled_input(click)
+	_ok(not mic.is_picked_up(), "gc/Shift+click puts it down")
+	desktop.queue_free()
+
 	gc.queue_free()
 	mic.drop_and_free()
 	for i in range(30):
