@@ -101,7 +101,9 @@ func _add_cable_to_scene() -> void:
 	# -Z and the cord boss at +Z. Left at the default the cord came out of the
 	# nose and doubled back through the body.
 	_rope.start_endpoint_role = VerletRope.ENDPOINT_HOST
-	_rope.end_endpoint_role = VerletRope.ENDPOINT_AUTO
+	# Not AUTO: the rope turns a free-plug end to face its cord every tick, and on
+	# a floor that walks the microphone forward without end.
+	_rope.end_endpoint_role = VerletRope.ENDPOINT_HOST
 	_rope.start_exit_axis = Vector3(0, 0, 1)
 	_rope.end_exit_axis = Vector3(0, 0, 1)
 	_rope.end_anchor_offset = N64VruMic.CORD_EXIT

@@ -30,6 +30,8 @@ func _ready() -> void:
 		await _test_seat()
 	if _wants("mic"):
 		await _test_mic()
+	if _wants("drop"):
+		await _test_drop()
 	if _wants("catalog"):
 		_test_catalog()
 	if _wants("persist"):
@@ -154,6 +156,46 @@ func _test_mic() -> void:
 
 	sys.queue_free()
 	unit.drop_and_free()
+	await get_tree().process_frame
+
+
+func _physics_seconds(seconds: float) -> void:
+	for i in range(int(seconds * Engine.physics_ticks_per_second)):
+		await get_tree().physics_frame
+
+
+## A rope turns a free-plug end to face its cord every tick; on a floor that
+## walks the microphone grille-first for as long as the cord reaches.
+func _test_drop() -> void:
+	var floor_body := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(4, 0.1, 4)
+	shape.shape = box
+	floor_body.add_child(shape)
+	floor_body.position = Vector3(0, -0.05, 0)
+	add_child(floor_body)
+
+	var unit := await _spawn_unit()
+	unit.freeze = true
+	unit.global_position = Vector3(0, 0.03, 0)
+	var mic := unit.get_mic()
+	mic.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(10.0)),
+		Vector3(0.05, 0.25, -0.45))
+	unit._rope._init_points()
+
+	await _physics_seconds(2.5)
+	var landed := mic.global_position
+	await _physics_seconds(1.5)
+	var d := mic.global_position - landed
+	var moved := Vector2(d.x, d.z).length()
+	_ok(landed.y > 0.005 and landed.y < 0.02, "drop/the microphone lands on the floor",
+		"y %.1f mm" % (landed.y * 1000.0))
+	_ok(moved < 0.005, "drop/and stays where it landed",
+		"%.1f mm in 1.5 s" % (moved * 1000.0))
+
+	unit.drop_and_free()
+	floor_body.queue_free()
 	await get_tree().process_frame
 
 
