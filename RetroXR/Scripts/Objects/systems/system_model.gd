@@ -228,6 +228,20 @@ func captive_controller_rests() -> Array[Transform3D]:
 	return []
 
 
+## The path each of those cords takes while its pad is at rest, in this model's
+## own frame, as a PackedVector3Array running from the pad's cable boss to the
+## console's cord exit. One entry per captive controller; [] leaves every cord to
+## the straight line VerletRope lays between its two anchors.
+##
+## Worth having because that straight line is wrong for exactly this case: a
+## stowed pad sits a few centimetres from the hole its metre of cord leaves by,
+## so the lay starts compressed several times over and the solver answers with
+## standing arches rather than a cord. `length` is the rope's rest length, so a
+## route can spend it.
+func captive_cord_routes(_length: float) -> Array:
+	return []
+
+
 ## How many removable card slots this SHELL has, or -1 for "no opinion, ask the
 ## system descriptor". Enables that many card snap zones.
 ##

@@ -79,20 +79,142 @@ const _PADS := "res://Scenes/Objects/controllers/famicom/"
 ## port 2. The order is the hardware's and it is load-bearing: the core reads the
 ## microphone off joy[1] alone, so a Controller II built into player one's port
 ## would have no microphone at all.
+##
+## Both scenes carry `cable_length = 1.0` rather than the 1.80 m every other pad
+## inherits from controller_cable.tscn. No dimensioned figure for an HVC-001 cord
+## was found; what every source agrees on is that these hardwired cords are
+## famously short -- short enough that the usual answer is to cut them off and
+## fit longer ones -- so a metre is an estimate made from that and from the reach
+## a player needs to a console standing on a table.
 func captive_controllers() -> Array[String]:
 	return [_PADS + "famicom_controller_i.tscn", _PADS + "famicom_controller_ii.tscn"]
 
 
 ## Lying in the two wells, face up and turned lengthways: a pad is 118 mm long
-## and a well 53 mm wide, so it only fits the long way round. R_y(90) sends the
-## pad's own +Z out along the console's +X. 41 mm is the well floor at 30 mm plus
-## half the pad's 22 mm thickness.
+## and a well 53 mm wide, so it only fits the long way round. 41 mm is the well
+## floor at 30 mm plus half the pad's 22 mm thickness.
+##
+## The two turns are OPPOSITE, and that is the cord rather than a flourish. A
+## Famicom pad's cord leaves the far long edge, its own -Z; turned lengthways
+## that edge can only face the console's +X or -X, and the grommet each cord has
+## to reach is at its own rear CORNER. R_y(90) sends the left pad's edge out
+## along -X and R_y(-90) sends the right pad's out along +X, so each cord leaves
+## over the outer wall of the well it is lying in and runs back along that side.
+## Both pads turned the same way -- which is what shipped -- left Controller II's
+## cord climbing inboard over the cartridge deck to reach the far side.
+##
+## The price is that the two pads face opposite ways lengthways, which is what a
+## mirrored pair of wells does to a flat object.
 func captive_controller_rests() -> Array[Transform3D]:
-	var turned := Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0))
+	var left := Basis(Vector3(0, 0, -1), Vector3(0, 1, 0), Vector3(1, 0, 0))
+	var right := Basis(Vector3(0, 0, 1), Vector3(0, 1, 0), Vector3(-1, 0, 0))
 	return [
-		Transform3D(turned, Vector3(-0.0835, 0.041, 0.0)),
-		Transform3D(turned, Vector3(0.0835, 0.041, 0.0)),
+		Transform3D(left, Vector3(-0.0835, 0.041, 0.0)),
+		Transform3D(right, Vector3(0.0835, 0.041, 0.0)),
 	]
+
+
+## A cord's own radius above whatever the console is standing on. The base box
+## bottom is this model's y = 0, so that surface is too.
+const _CORD_Y := 0.006
+
+## Which way the coil lies from where the cord reaches the surface: inboard and
+## back, so the spare sits behind the rear face (-0.075) rather than beside the
+## machine, which is where a hand would put it.
+const _COIL_BEARING := Vector2(-0.625, -0.781)
+
+## How wide a turn to aim for, and the most turns to spend a long cord on. The
+## count falls out of the length left over, so a cord of any length coils at
+## about the same size rather than as one enormous loop or a dozen tight ones.
+##
+## The cap is not tidiness. A turn of this coil ends up (r0 - r1) / turns from
+## its neighbour, and controller_cable.tscn's rope is self-colliding at
+## collision_radius 0.0036 -- so turns laid closer than 7.2 mm push each other
+## apart for ever and the cord never sleeps. Three turns of a metre of cord sit
+## 15 mm apart; four sat 7.4 mm apart and crept across the desk all session at
+## 0.13 mm a tick.
+const _COIL_RADIUS := 0.045
+const _COIL_MAX_TURNS := 3
+
+## A first guess at what the tail from the coil back up into the grommet costs.
+## The coil has to be sized before that tail exists, so the route is built twice
+## and the second pass is told what the first one's tail really measured.
+const _TAIL_ESTIMATE := 0.05
+
+
+## The two hardwired cords at rest, as polylines from each pad's cable boss to
+## its grommet.
+##
+## This has to be authored. A stowed pad's boss is about 130 mm from the grommet
+## it leaves by and the cord is a metre long, so the straight line VerletRope
+## lays between two anchors packs every particle into a seventh of its rest
+## length; the solver then buckles that into standing arches over the machine and
+## sleeps in them. That is the "never initialise a cord in a state no hand can
+## produce" trap, and a hand can produce this one: over the side of the well,
+## down to the table, round the rear corner, the spare coiled behind the machine,
+## and back into the grommet.
+func captive_cord_routes(length: float) -> Array:
+	return [_sized_route(-1.0, length), _sized_route(1.0, length)]
+
+
+## The route, laid twice. A cord that comes out longer than the rope starts it
+## stretched and a short one starts it slack, and both are avoidable here for the
+## cost of measuring the first attempt's tail and spending the difference on the
+## coil.
+func _sized_route(s: float, length: float) -> PackedVector3Array:
+	var first := _cord_route(s, length, _TAIL_ESTIMATE)
+	var tail: float = _TAIL_ESTIMATE + _polyline_length(first) - length
+	return _cord_route(s, length, maxf(tail, 0.0))
+
+
+func _cord_route(s: float, length: float, tail_cost: float) -> PackedVector3Array:
+	# Out of the well over the console's own side wall -- the boss sits flush
+	# with it -- down to the surface, and round the rear corner.
+	var head := PackedVector3Array([
+		Vector3(s * 0.1105, 0.041, 0.0),
+		Vector3(s * 0.120, 0.034, -0.008),
+		Vector3(s * 0.124, 0.016, -0.030),
+		Vector3(s * 0.122, _CORD_Y, -0.062),
+		Vector3(s * 0.112, _CORD_Y, -0.098),
+	])
+	var route := PackedVector3Array(head)
+	var entry: Vector3 = head[head.size() - 1]
+	var end := entry
+	# A flat spiral of n turns between radii r0 and r1 is pi * n * (r0 + r1)
+	# long, so what is left of the cord buys the turns: enough of them at about
+	# _COIL_RADIUS to spend it, then the radii either side of whatever that comes
+	# to, winding inward. A cord with nothing spare skips the coil and runs
+	# straight in.
+	var spare: float = length - _polyline_length(head) - tail_cost
+	var turns: int = clampi(int(round(spare / (TAU * _COIL_RADIUS))), 0, _COIL_MAX_TURNS)
+	if turns >= 1:
+		var mean: float = spare / (TAU * float(turns))
+		var r0: float = mean * 1.5
+		var r1: float = mean * 0.5
+		var centre := Vector3(entry.x + s * _COIL_BEARING.x * r0, _CORD_Y,
+			entry.z + _COIL_BEARING.y * r0)
+		var theta0 := atan2(entry.z - centre.z, entry.x - centre.x)
+		# 12 points a turn: the rope is resampled onto this by arc length
+		# afterwards, so this only has to describe the curve, not carry it.
+		var steps := turns * 12
+		for i in range(1, steps + 1):
+			var t := float(i) / float(steps)
+			var r: float = lerpf(r0, r1, t)
+			var a: float = theta0 + TAU * float(turns) * t
+			end = Vector3(centre.x + cos(a) * r, _CORD_Y, centre.z + sin(a) * r)
+			route.append(end)
+	# Up off the surface and into the grommet, approached from behind it, which
+	# is the way the cord leaves the plug's own exit axis.
+	route.append(Vector3(lerpf(end.x, s * 0.1, 0.5), 0.010, -0.105))
+	route.append(Vector3(s * 0.1, 0.018, -0.082))
+	return route
+
+
+static func _polyline_length(points: PackedVector3Array) -> float:
+	var total := 0.0
+	for i in range(1, points.size()):
+		total += points[i].distance_to(points[i - 1])
+	return total
 
 
 ## POWER on the left, RESET on the right, on the front of the deck's top face.

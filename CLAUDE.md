@@ -303,7 +303,7 @@ debug build, 2026-08-27 — all passing):
 | `prop_lighting_tests` | 17 | 1 s | which of a room's meshes go on the baked prop shader, late spawns and despawns included |
 | `scrape_tests` | 76 | 10 s | the ScreenScraper queue over a fake client: thread allowance, accept vs review, media wait, quota stop, the AutoScraper gate |
 | `microphone_tests` | 55 | 25 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip, and the HKT-7200 in a pad's slot |
-| `famicom_tests` | 72 | 15 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, and the `famicom` systemid's table rows |
+| `famicom_tests` | 101 | 16 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, the captive pair's cords and wells, and the `famicom` systemid's table rows |
 | `n64_vru_tests` | 37 | 30 s | the Voice Recognition Unit: no two coplanar faces on the dongle or the microphone, the device id a socket announces through the unit's own plug, seating in socket 4, the microphone in and out of the 3.5 mm jack, which way both cords leave, and the save round trip |
 | `n64_cart_tests` | 103 | 10 s | the N64 cartridge: regional bodies, which half each moulded part belongs to, per-instance and per-half shell materials, flake parameters and normal maps, repeated switch and reset, the label helper, the coloured-cartridge lookup by header and MD5, the scraped region, and a spawned cartridge |
 
@@ -2288,7 +2288,47 @@ starts from rest, so a tone already running when a block opens overshoots its am
     captive A/V lead. Set the flag BEFORE `add_child`, or the pad's own `_ready` joins the group
     first.
   - **The plug mesh is hidden too.** A hardwired cord has no connector: the rope ends inside the
-    grommet, and hiding the plug is also what puts it out of a hand's reach.
+    grommet, and hiding the plug is also what puts it out of a hand's reach. A hidden plug has
+    no moulding for the cord to leave BY, either, so `retro_controller.gd` gives a captive cord
+    `end_anchor_offset = Vector3.ZERO` rather than the generic plug's `cable_anchor`: that boot
+    offset is 40 mm of nothing here, and the cord ended in mid-air behind the machine.
+  - **The two wells hold the pads MIRRORED, and the cord decides that.** A Famicom pad's cord
+    leaves its far long edge (local -Z); turned lengthways into a 53 mm well that edge can only
+    face the console's +X or -X, and the grommet each cord must reach is at its own rear corner.
+    So the left rest is R_y(90) and the right R_y(-90), and each cord leaves over the OUTER wall
+    of the well it lies in. Both turned the same way — which is what shipped — sent Controller
+    II's lead inboard across the cartridge deck. The price is that the two pads face opposite
+    ways lengthways, which is what a mirrored pair of wells does to a flat object.
+  - **A stowed cord has to be LAID, not left to the rope.** `VerletRope._init_points` draws a
+    straight line between its two anchors, and a stowed pad's boss is ~130 mm from its grommet
+    while the cord is a metre long — so every particle starts at a seventh of its rest length
+    and the solver spends the rest putting it somewhere. In a void it stands the cord up in
+    arches over the machine and sleeps in them; on a desk it flings the spare out sideways and
+    it comes to rest sprawled round the FRONT of the console, 120–180 mm past a front face at
+    75 mm. `RetroSystemModel.captive_cord_routes(length)` answers with a polyline per cord —
+    over the side of the well, down to the surface, round the rear corner, the spare coiled
+    behind the machine, back into the grommet — which `RetroController._lay_captive_cord`
+    resamples at equal arc length onto the particles and hands to `restore_points`.
+    - **The coil's turns must clear `collision_radius` × 2, or the cord never sleeps.**
+      controller_cable.tscn self-collides at 0.0036, so turns laid closer than 7.2 mm push each
+      other apart for ever: four turns of a metre of cord sat 7.4 mm apart and crept across the
+      desk all session at 0.13 mm a tick. Three turns sit 15 mm apart and the pair is asleep
+      about 800 ticks after the lay. `_COIL_MAX_TURNS` is that cap.
+    - **Measure the ROUTE for anything the route decides.** Where the spare ends up is decided
+      by gravity and the desk, so a coil authored at deck height reads as flat a second later
+      and a settled-height assertion cannot fail. `famicom_tests` asks the model for its routes
+      and checks those; the settled cord is only asked the things settling cannot fix (it ends
+      at the grommet, it is laid at about its own length, it never comes round the front).
+  - **Each well is a snap zone, so a pad goes back in.** `RetroSystem._build_controller_well`
+    puts one at each rest — the transform IS the rest, measured: a pad carries no snap grab
+    point, so a zone seats one at its own basis. `snap_require = "hand_held_device"` (a zone
+    with none never lights a ghost and no ray grab can reach it) plus a filter bound to the ONE
+    pad that came out of that well, because a cord reaches its own rear corner and no other.
+  - **Both scenes carry `cable_length = 1.0`** rather than the 1.80 m every other pad inherits
+    from controller_cable.tscn. No dimensioned figure for an HVC-001 cord was found in a
+    primary source; the Famicom's hardwired cords are famously short (Old School Gamer says
+    18 in, against an NES lead "three times that length"), so a metre is an estimate made from
+    that and from the reach a player needs to a console standing on a table. One constant.
   - **The order is load-bearing.** Controller I is port 1 and Controller II port 2, because the
     core reads the microphone off `joy[1]` alone — a Controller II built into player one's port
     would have no microphone at all.

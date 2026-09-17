@@ -355,6 +355,8 @@ const MEMPAK_SIZE := N64Card.CARD_SIZE
 @onready var _system_name_label: Label3D = $SystemNameLabel
 ## Pads this console is wired to, built by _spawn_captive_controllers.
 var _captive_controllers: Array = []
+## The recesses those pads lie in, one per pad -- a Famicom's two wells.
+var _controller_wells: Array = []
 
 @onready var _port_zones: Array = [
 	$ControllerPort1,
@@ -820,6 +822,16 @@ func _spawn_captive_controllers() -> void:
 		parent.add_child(pad)
 		if i < rests.size():
 			pad.global_transform = global_transform * (rests[i] as Transform3D)
+		# The route is authored in the model's frame and the rope lives in world
+		# space, so it is carried over here. Asked for per pad rather than once,
+		# because it is spent against that pad's own cord length.
+		var routes: Array = _model.captive_cord_routes(_captive_cord_length(pad))
+		if i < routes.size():
+			var route: PackedVector3Array = routes[i]
+			var world: PackedVector3Array = PackedVector3Array()
+			for point in route:
+				world.append(global_transform * point)
+			pad.set("captive_cord_route", world)
 		_captive_controllers.append(pad)
 		# The cord is built one deferred call later, so this may be a pending
 		# restore rather than a seat; either way the pad ends up in the port.
@@ -829,6 +841,49 @@ func _spawn_captive_controllers() -> void:
 			var node := _port_zones[i].get_node_or_null(hidden) as Node3D
 			if node != null:
 				node.hide()
+		if i < rests.size():
+			_build_controller_well(i, rests[i] as Transform3D, pad)
+
+
+## The rest length of a captive pad's cord. `cable_length` 0 means the pad keeps
+## whatever controller_cable.tscn ships, which is 1.80 m.
+func _captive_cord_length(pad: Node3D) -> float:
+	var declared := float(pad.get("cable_length"))
+	return declared if declared > 0.0 else 1.8
+
+
+## The recess a captive pad lies in, as a snap zone, so it can be put back where
+## it came from. Its transform IS the rest: a pad carries no snap grab point, so
+## a zone seats one at its own basis (measured, not assumed).
+##
+## It takes this console's own captive pads and nothing else. The group alone
+## would offer the well to every hand-held device in the room, and `snap_require`
+## cannot be left empty or the zone never lights a ghost and no ray grab can
+## reach it.
+func _build_controller_well(index: int, rest: Transform3D, pad: Node3D) -> void:
+	var well: XRToolsSnapZone = SNAP_ZONE_SCENE.instantiate()
+	well.name = "ControllerWell%d" % (index + 1)
+	well.snap_require = "hand_held_device"
+	well.snap_filter = _accepts_captive_pad.bind(index)
+	well.grab_distance = 0.06
+	add_child(well)
+	well.transform = rest
+	_controller_wells.append(well)
+	well.pick_up_object(pad)
+
+
+## A well's gate: the ONE pad that came out of it. A captive pad is moulded onto
+## a cord out of the back of this console, and its cord reaches its own rear
+## corner and no other -- so Controller II in Controller I's well is not a tidier
+## arrangement, it is a cord across the cartridge deck.
+##
+## Read through the array into a Variant rather than comparing against a captured
+## node: a well outlives its pad by a frame during teardown.
+func _accepts_captive_pad(obj: Node3D, index: int) -> bool:
+	if obj == null or index < 0 or index >= _captive_controllers.size():
+		return false
+	var pad: Variant = _captive_controllers[index]
+	return is_instance_valid(pad) and obj == pad
 
 
 ## The pads built above. Handed out so a teardown or a test can ask what came
@@ -838,6 +893,14 @@ func captive_controllers() -> Array:
 
 
 func _free_captive_controllers() -> void:
+	# Let the wells go first. A snap zone never clears picked_up_object when what
+	# it holds is freed, and these outlive the pads by a frame.
+	for held: Variant in _controller_wells:
+		var well := held as XRToolsSnapZone
+		if is_instance_valid(well):
+			well.enabled = false
+			well.queue_free()
+	_controller_wells.clear()
 	for entry: Variant in _captive_controllers:
 		var pad := entry as Node
 		if not is_instance_valid(pad):

@@ -296,12 +296,26 @@ func _test_pads() -> void:
 
 ## The pads come WITH the console, as they do on the hardware.
 func _test_captive() -> void:
+	# A surface under it, because where a hardwired cord's spare ends up is
+	# decided by what the console is standing on. Without one the cords fall
+	# through the world and every measurement below is of a cord in free fall.
+	var desk := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.6, 0.06, 1.2)
+	shape.shape = box
+	desk.add_child(shape)
+	add_child(desk)
+	desk.global_position = Vector3(0, -0.03, 0)
+
 	var sys: RetroSystem = preload("res://Scenes/Objects/system.tscn").instantiate()
 	sys.systemid = "famicom"
 	add_child(sys)
+	sys.freeze = true
 	# The cord is built one deferred call after its pad, and the seat is pending
-	# until then, so the port index is not readable on the first frame.
-	for i in range(40):
+	# until then, so the port index is not readable on the first frame. The lay
+	# also needs a moment on the surface before it is worth measuring.
+	for i in range(90):
 		await get_tree().physics_frame
 
 	var pads: Array = sys.captive_controllers()
@@ -331,6 +345,10 @@ func _test_captive() -> void:
 	_ok(cords[0] != null and not (cords[0] as Node).is_in_group("spawned"),
 		"captive/nor is either cord")
 
+	await _check_cords(sys, pads)
+	_check_route()
+	await _check_wells(sys, pads)
+
 	# And the console takes them away with it, since nothing else would.
 	sys.queue_free()
 	for i in range(6):
@@ -339,6 +357,153 @@ func _test_captive() -> void:
 		"captive/freeing the console frees both pads")
 	_ok(not is_instance_valid(cords[0]) and not is_instance_valid(cords[1]),
 		"captive/and both cords")
+	desk.queue_free()
+
+
+## Where each hardwired cord goes while its pad is stowed. Every case here is a
+## way the cord was wrong before: both pads turned the same way sent Controller
+## II's lead inboard across the cartridge deck; the hidden plug's strain-relief
+## offset ended the cord 40 mm out in the air behind the machine; and the
+## straight lay VerletRope draws between two anchors 130 mm apart packed a metre
+## of cord into that gap and buckled it into arches over the console.
+func _check_cords(sys: RetroSystem, pads: Array) -> void:
+	var inv := sys.global_transform.affine_inverse()
+	for i in pads.size():
+		var pad: Node3D = pads[i]
+		var side := signf((inv * pad.global_position).x)
+		var boss: Node3D = pad.get_node("CableAttachPoint")
+		var out := signf((inv * boss.global_position).x - (inv * pad.global_position).x)
+		_ok(out == side, "captive/cord %d leaves over the well's outer wall" % (i + 1),
+			"boss %s, pad %s" % [inv * boss.global_position, inv * pad.global_position])
+
+		var rope: VerletRope = pad.cable_instance().get_node("VerletRope")
+		var count: int = rope.point_count()
+		var last: Vector3 = inv * rope.point_position(count - 1)
+		# The grommet the model authors, 5 mm of cylinder proud of a rear face at
+		# z -0.075. Anything past -0.09 is a cord ending in mid-air.
+		_ok(last.z > -0.09 and absf(absf(last.x) - 0.1) < 0.005,
+			"captive/cord %d ends at its own grommet" % (i + 1), str(last))
+
+		var laid := 0.0
+		var deepest := 1e9
+		var nearest := -1e9
+		for k in count:
+			var p: Vector3 = inv * rope.point_position(k)
+			deepest = minf(deepest, p.z)
+			nearest = maxf(nearest, p.z)
+			if k > 0:
+				laid += rope.point_position(k).distance_to(rope.point_position(k - 1))
+		# A compressed lay is the whole failure: the rope is a metre long and its
+		# two anchors are 130 mm apart, so a straight lay measures a seventh of this
+		# and the solver spends the rest standing the cord up.
+		var rest: float = rope.segment_count * rope.segment_length
+		_ok(absf(laid - rest) < rest * 0.2,
+			"captive/cord %d is laid at about its own length" % (i + 1),
+			"%.3f of %.3f m" % [laid, rest])
+		# And the spare goes out the BACK.
+		_ok(deepest < -0.09, "captive/cord %d puts its spare behind the machine" % (i + 1),
+			"%.4f m" % deepest)
+		# Nothing in FRONT of the pad, which is the tell for a lay the solver
+		# had to invent. Left to the straight one it resolves the compression by
+		# flinging the spare out sideways, and it comes to rest sprawled round
+		# the front of the machine across the desk the player stands at -- 120
+		# to 180 mm past a front face at 75 mm, where the authored route holds
+		# every particle at or behind the boss it starts from.
+		_ok(nearest < 0.03, "captive/cord %d never comes round the front" % (i + 1),
+			"%.4f m" % nearest)
+
+
+## The authored lay itself, asked of the model rather than measured off a settled
+## cord. Where the spare ENDS UP is decided by gravity and the desk, so a route
+## drawn at deck height still reads as flat a second later; what the route says
+## is the only place that can be checked.
+func _check_route() -> void:
+	var model: Node3D = preload(
+		"res://Scenes/Objects/system_models/famicom_primitive.tscn").instantiate()
+	add_child(model)
+	var routes: Array = model.captive_cord_routes(1.0)
+	_ok(routes.size() == 2, "captive/the model draws a route for each cord", str(routes.size()))
+	if routes.size() == 2:
+		for i in 2:
+			var route: PackedVector3Array = routes[i]
+			var s := -1.0 if i == 0 else 1.0
+			var total := 0.0
+			var highest := -1e9
+			var nearest := -1e9
+			for k in route.size():
+				highest = maxf(highest, route[k].y)
+				nearest = maxf(nearest, route[k].z)
+				if k > 0:
+					total += route[k].distance_to(route[k - 1])
+			_ok(absf(total - 1.0) < 0.05,
+				"captive/route %d spends the cord it was given" % (i + 1), "%.3f m" % total)
+			_ok(route[0].is_equal_approx(Vector3(s * 0.1105, 0.041, 0.0)),
+				"captive/route %d starts at the pad's boss" % (i + 1), str(route[0]))
+			_ok(route[route.size() - 1].is_equal_approx(Vector3(s * 0.1, 0.018, -0.082)),
+				"captive/route %d ends at the grommet" % (i + 1), str(route[route.size() - 1]))
+			# The deck's top face is 60 mm up and the boss the route starts from is
+			# 41 mm. A cord lies on what the console stands on; nothing about it is
+			# drawn over the machine.
+			_ok(highest < 0.045, "captive/route %d is laid on the surface" % (i + 1),
+				"%.4f m" % highest)
+			_ok(nearest < 0.001, "captive/route %d goes nowhere in front of the pad" % (i + 1),
+				"%.4f m" % nearest)
+	model.queue_free()
+
+
+## The recesses the pads came out of, which are also how they go back.
+func _check_wells(sys: RetroSystem, pads: Array) -> void:
+	var wells: Array = []
+	for i in pads.size():
+		wells.append(sys.get_node_or_null("ControllerWell%d" % (i + 1)))
+	_ok(wells[0] != null and wells[1] != null, "captive/the console has a well per pad")
+	if wells[0] == null or wells[1] == null:
+		return
+	for i in pads.size():
+		var zone := wells[i] as XRToolsSnapZone
+		var held: Variant = zone.picked_up_object
+		_ok(is_instance_valid(held) and held == pads[i],
+			"captive/well %d arrives holding its own pad" % (i + 1))
+
+	# Take Controller I out the way a hand does and put it back the way a hand
+	# does. can_preview is the oracle rather than pick_up_object, which is the
+	# restore path and skips every acceptance test on purpose.
+	var pad: RetroController = pads[0]
+	var well := wells[0] as XRToolsSnapZone
+	var rest := pad.global_transform
+	pad._allow_drop = true
+	well.enabled = false
+	well.drop_object()
+	pad.global_position = rest.origin + Vector3(0.0, 0.30, 0.45)
+	PhysicsServer3D.body_set_state(pad.get_rid(),
+		PhysicsServer3D.BODY_STATE_TRANSFORM, pad.global_transform)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	well.enabled = true
+	for i in range(10):
+		await get_tree().physics_frame
+	_ok(not is_instance_valid(well.picked_up_object),
+		"captive/a pad carried off leaves its well empty")
+
+	pad.freeze = true
+	pad.global_transform = Transform3D(rest.basis, rest.origin + Vector3(0, 0.03, 0))
+	PhysicsServer3D.body_set_state(pad.get_rid(),
+		PhysicsServer3D.BODY_STATE_TRANSFORM, pad.global_transform)
+	for i in range(3):
+		await get_tree().physics_frame
+	_ok(well.can_preview(pad), "captive/the empty well offers itself to its own pad")
+	_ok(not well.can_preview(pads[1]),
+		"captive/and not to the other one, whose cord reaches the far corner")
+	pad.freeze = false
+	pad.emit_signal("dropped", pad)
+	for i in range(12):
+		await get_tree().physics_frame
+	var back: Variant = well.picked_up_object
+	_ok(is_instance_valid(back) and back == pad,
+		"captive/letting go over it puts the pad back")
+	_ok(pad.global_position.distance_to(rest.origin) < 0.002,
+		"captive/seated where it came from",
+		"%.4f m" % pad.global_position.distance_to(rest.origin))
 
 
 ## The platform itself: famicom used to collapse into nes everywhere.

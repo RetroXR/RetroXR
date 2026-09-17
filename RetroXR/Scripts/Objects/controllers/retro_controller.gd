@@ -105,6 +105,12 @@ var _pending_port_restore: Dictionary = {}
 ## so this pad's own _ready never joins the group in the first place.
 var captive := false
 
+## The path this pad's cord takes at rest, in WORLD space, from its cable boss to
+## the console's cord exit. RetroSystem hands one to a captive pad before the
+## cable exists; empty everywhere else, which leaves the rope its own straight
+## lay. See RetroSystemModel.captive_cord_routes for why a stowed cord needs one.
+var captive_cord_route: PackedVector3Array = PackedVector3Array()
+
 # Toggle-hold state
 var _allow_drop := false
 var _saved_by: Node3D = null
@@ -363,7 +369,10 @@ func _add_cable_to_scene() -> void:
 	# End the cable AT the connector's cable boss. A bespoke plug model's origin
 	# is its seating reference, which sits inside the shell, so without this the
 	# rope terminates in the middle of the plug and the tube runs through it.
-	_cable_rope.end_anchor_offset = _cable_plug.cable_anchor
+	# A hidden plug has no moulding for the cord to leave, so its boot offset is
+	# 40 mm of nothing: the cord would end in mid-air behind the machine instead
+	# of at the grommet the seat marks.
+	_cable_rope.end_anchor_offset = Vector3.ZERO if captive else _cable_plug.cable_anchor
 	_resize_cable()
 	_cable_rope._init_points()
 	_max_rope_length = _cable_rope.segment_count * _cable_rope.segment_length
@@ -374,6 +383,41 @@ func _add_cable_to_scene() -> void:
 		_pending_port_restore = {}
 		if is_instance_valid(sys) and idx >= 0:
 			sys.restore_controller_plug(idx, _cable_plug)
+	# After the seat, not before: the lay ends at the socket, and until the plug
+	# is in it the rope's own end anchor is somewhere else entirely.
+	_lay_captive_cord()
+
+
+## Put the cord on `captive_cord_route` instead of the straight line _init_points
+## drew. The route is resampled at equal arc length onto the particles the rope
+## already has, so a route about as long as the rope starts it a rest length
+## apart -- which is the whole point, and what the straight lay could not do.
+func _lay_captive_cord() -> void:
+	if captive_cord_route.size() < 2 or _cable_rope == null:
+		return
+	var count: int = _cable_rope.point_count()
+	if count < 2:
+		return
+	var spans: PackedFloat32Array = PackedFloat32Array()
+	var total := 0.0
+	for i in range(1, captive_cord_route.size()):
+		var d: float = captive_cord_route[i].distance_to(captive_cord_route[i - 1])
+		spans.append(d)
+		total += d
+	if total <= 0.0:
+		return
+	var points: PackedVector3Array = PackedVector3Array()
+	var span := 0
+	var walked := 0.0
+	for k in count:
+		var want: float = total * float(k) / float(count - 1)
+		while span < spans.size() - 1 and walked + spans[span] < want:
+			walked += spans[span]
+			span += 1
+		var t: float = 0.0 if spans[span] <= 0.0 else clampf((want - walked) / spans[span], 0.0, 1.0)
+		points.append(captive_cord_route[span].lerp(captive_cord_route[span + 1], t))
+	if not _cable_rope.restore_points(points):
+		push_warning("RetroController: captive cord route refused by the rope")
 
 
 func _physics_process(_delta: float) -> void:

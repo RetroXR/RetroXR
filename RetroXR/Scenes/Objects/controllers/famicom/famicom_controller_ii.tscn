@@ -97,6 +97,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 script = ExtResource("1_fcpad")
 systemid = "famicom"
+cable_length = 1.0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 shape = SubResource("BoxShape3D_body")
