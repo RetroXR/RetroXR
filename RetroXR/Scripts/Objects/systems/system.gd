@@ -4604,8 +4604,8 @@ func net_release_memory_card(slot: int) -> void:
 
 ## Restore a controller plug into a port after loading from a save file.
 ## Node3D rather than ControllerPlug: a socket takes anything in the
-## "controller_plug" group, and the N64's Voice Recognition Unit is a box with
-## no cable behind it rather than the end of one.
+## "controller_plug" group, and several things in it are not that class — a VMU,
+## an N64 pak, the GameCube-to-GBA lead's console end.
 func restore_controller_plug(port_index: int, plug: Node3D) -> void:
 	if port_index < 0 or port_index >= _port_zones.size():
 		return

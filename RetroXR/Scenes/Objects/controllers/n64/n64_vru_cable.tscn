@@ -1,54 +1,117 @@
-[gd_scene format=3]
+[gd_scene load_steps=19 format=3]
 
-; The Voice Recognition Unit's 1.5 m cord and the NUS-021 microphone on the end
-; of it. The microphone's long axis is Z, the grille at -Z and the cord leaving
-; the flat rear end at +Z; every cylinder here is rotated Y -> Z.
+; The NUS-021 microphone and the cord that ends in its 3.5 mm plug. The
+; microphone's long axis is Z, the grille head at -Z and the cord leaving the tail
+; at +Z; every cylinder on the microphone is rotated so its local +Y is +Z, which
+; makes top_radius the TAIL end and bottom_radius the head end. The plug is built
+; the other way up, the way every plug in this project is: connector on +Z, cord
+; trailing -Z.
+;
+; NOTHING HERE MAY SHARE A PLANE WITH ITS NEIGHBOUR. Two faces at one depth facing
+; the same way trade pixels, and on a microphone's nose that is a black disc and a
+; white disc doing it across 22 mm -- which is what this scene used to do, a flat
+; grille collar ending on exactly the body's front cap at z -0.0475. Every part
+; below is sunk into the next by millimetres, and n64_vru_tests "faces/" fails if
+; that ever stops being true.
 ;
 ; Sizes are estimated from photographs -- no dimensioned drawing was found.
 
 [ext_resource type="Script" path="res://Scripts/Objects/peripherals/n64_vru_mic.gd" id="1_mic"]
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Material" path="res://Scenes/Objects/controllers/n64/n64_pak_plastic.tres" id="3_plastic"]
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/n64_vru_mic_plug.gd" id="4_micplug"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 
-[sub_resource type="CylinderShape3D" id="CylinderShape3D_mic"]
-height = 0.095
-radius = 0.011
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_body"]
-top_radius = 0.011
-bottom_radius = 0.011
-height = 0.095
+; The ball of mesh at the speaking end. A sphere has no flat face at all, so the
+; body can be driven straight into it with nothing to fight over.
+[sub_resource type="SphereMesh" id="SphereMesh_head"]
+radius = 0.013
+height = 0.026
 radial_segments = 24
-rings = 1
+rings = 12
 
-[sub_resource type="StandardMaterial3D" id="Mat_body"]
-albedo_color = Color(0.73, 0.73, 0.71, 1)
-roughness = 0.55
-
-[sub_resource type="CylinderMesh" id="CylinderMesh_grille"]
-top_radius = 0.0112
-bottom_radius = 0.0112
-height = 0.012
-radial_segments = 24
-rings = 1
-
+; Metal mesh, not the matte black plastic this wore before: a grille is woven wire
+; and catches a highlight the shell does not.
 [sub_resource type="StandardMaterial3D" id="Mat_grille"]
-albedo_color = Color(0.18, 0.18, 0.2, 1)
-roughness = 0.85
+albedo_color = Color(0.16, 0.16, 0.17, 1)
+metallic = 0.35
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_collar"]
+top_radius = 0.0105
+bottom_radius = 0.0115
+height = 0.008
+radial_segments = 24
+rings = 1
+
+; The handle, tapering to the tail the way a hand-held microphone does.
+[sub_resource type="CylinderMesh" id="CylinderMesh_body"]
+top_radius = 0.0085
+bottom_radius = 0.01
+height = 0.082
+radial_segments = 24
+rings = 1
+
+[sub_resource type="SphereMesh" id="SphereMesh_tail"]
+radius = 0.0085
+height = 0.017
+radial_segments = 20
+rings = 10
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_boot"]
-top_radius = 0.004
-bottom_radius = 0.0065
-height = 0.012
+top_radius = 0.0035
+bottom_radius = 0.0055
+height = 0.014
 radial_segments = 16
 rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_boot"]
+albedo_color = Color(0.11, 0.11, 0.12, 1)
+roughness = 0.9
+
+[sub_resource type="CylinderShape3D" id="CylinderShape3D_mic"]
+height = 0.082
+radius = 0.0105
+
+; The head carries its own shape, or the microphone lies on a floor with its ball
+; 2.5 mm inside it.
+[sub_resource type="SphereShape3D" id="SphereShape3D_head"]
+radius = 0.013
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_mic"]
 bounce = 0.0
 friction = 0.8
 
 [sub_resource type="CylinderShape3D" id="CylinderShape3D_pointer"]
-height = 0.115
-radius = 0.026
+height = 0.13
+radius = 0.028
+
+; The 3.5 mm shaft. It runs back past the boot's front face so the two solids
+; overlap rather than meet.
+[sub_resource type="CylinderMesh" id="CylinderMesh_shaft"]
+top_radius = 0.00175
+bottom_radius = 0.00175
+height = 0.019
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_shaft"]
+albedo_color = Color(0.55, 0.55, 0.57, 1)
+metallic = 0.8
+roughness = 0.35
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_plugboot"]
+top_radius = 0.0035
+bottom_radius = 0.0055
+height = 0.024
+radial_segments = 16
+rings = 1
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.012, 0.012, 0.045)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugpointer"]
+size = Vector3(0.032, 0.032, 0.06)
 
 [node name="N64VruCable" type="Node3D"]
 
@@ -63,23 +126,37 @@ freeze_mode = 1
 script = ExtResource("1_mic")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Nus021Mic"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0025)
 shape = SubResource("CylinderShape3D_mic")
 
-[node name="Body" type="MeshInstance3D" parent="Nus021Mic"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
-mesh = SubResource("CylinderMesh_body")
-surface_material_override/0 = SubResource("Mat_body")
+[node name="HeadShape" type="CollisionShape3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0455)
+shape = SubResource("SphereShape3D_head")
 
-[node name="Grille" type="MeshInstance3D" parent="Nus021Mic"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.0415)
-mesh = SubResource("CylinderMesh_grille")
+[node name="Head" type="MeshInstance3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0455)
+mesh = SubResource("SphereMesh_head")
 surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="Collar" type="MeshInstance3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.0335)
+mesh = SubResource("CylinderMesh_collar")
+surface_material_override/0 = SubResource("Mat_grille")
+
+[node name="Body" type="MeshInstance3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0025)
+mesh = SubResource("CylinderMesh_body")
+surface_material_override/0 = ExtResource("3_plastic")
+
+[node name="TailCap" type="MeshInstance3D" parent="Nus021Mic"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0435)
+mesh = SubResource("SphereMesh_tail")
+surface_material_override/0 = ExtResource("3_plastic")
 
 [node name="CordBoot" type="MeshInstance3D" parent="Nus021Mic"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0535)
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0525)
 mesh = SubResource("CylinderMesh_boot")
-surface_material_override/0 = SubResource("Mat_grille")
+surface_material_override/0 = SubResource("Mat_boot")
 
 [node name="PickableHighlight" type="Node3D" parent="Nus021Mic"]
 script = ExtResource("2_pickhigh")
@@ -89,12 +166,55 @@ collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Nus021Mic/PointerArea"]
-transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0005)
 shape = SubResource("CylinderShape3D_pointer")
 
+[node name="MicPlug" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_mic")
+mass = 0.02
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("4_micplug")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MicPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.005)
+shape = SubResource("BoxShape3D_plug")
+
+[node name="Shaft" type="MeshInstance3D" parent="MicPlug"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0.0055)
+mesh = SubResource("CylinderMesh_shaft")
+surface_material_override/0 = SubResource("Mat_shaft")
+
+[node name="Boot" type="MeshInstance3D" parent="MicPlug"]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, -0.012)
+mesh = SubResource("CylinderMesh_plugboot")
+surface_material_override/0 = ExtResource("3_plastic")
+
+; Where the cord leaves the plug: the outer end of the boot, the same answer
+; PlugExit derives for every converted connector.
+[node name="CordExit" type="Marker3D" parent="MicPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.026)
+
+[node name="PointerArea" type="StaticBody3D" parent="MicPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="MicPlug/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.005)
+shape = SubResource("BoxShape3D_plugpointer")
+
+[node name="PickableHighlight" type="Node3D" parent="MicPlug"]
+script = ExtResource("2_pickhigh")
+
+[node name="SnapGrabPoint" parent="MicPlug" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
 [node name="VerletRope" type="VerletRope" parent="."]
-segment_count = 42
-segment_length = 0.036
+segment_count = 32
+segment_length = 0.034
 constraint_iterations = 8
 bend_stiffness = 0.15
 tube_radius = 0.0015

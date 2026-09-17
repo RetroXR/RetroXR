@@ -86,10 +86,13 @@ func _run() -> void:
 		unit.global_position = _sys.global_position + Vector3(0.4, 0.0, 0.0)
 		for i in range(3):
 			await get_tree().process_frame
-		_sys.restore_controller_plug(3, unit)
+		# Through the unit, which hands its own plug over: the box is not what a
+		# socket takes any more, the plug on its cord is.
+		unit.restore_seat(_sys, 3)
 		await get_tree().process_frame
 		_ok("the unit is in socket 4", unit.seated_port_index == 3,
 			str(unit.seated_port_index))
+		_ok("and its microphone is in its jack", unit.mic_plugged())
 		_ok("and it announces a VRU", unit.device_type == N64Vru.DEVICE_VRU,
 			str(unit.device_type))
 	else:

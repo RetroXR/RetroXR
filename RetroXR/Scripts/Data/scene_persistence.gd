@@ -1450,8 +1450,12 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	elif obj is N64Vru:
 		var vru_port := int(d.get("port", -1))
 		var vru_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+		var vru := obj as N64Vru
 		if vru_port >= 0 and vru_sys != null:
-			(obj as N64Vru).restore_seat(vru_sys, vru_port)
+			vru.restore_seat(vru_sys, vru_port)
+		# A save written before the jack existed has no key, and a unit from one
+		# came with its microphone attached — so the default is plugged in.
+		vru.restore_mic_plugged(bool(d.get("mic", true)))
 	elif obj is InputReceiver:
 		# A pak goes back whether or not the receiver was plugged into anything —
 		# a loose dongle can still have one on it, exactly as a loose N64 pad can.
@@ -1814,12 +1818,14 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"slot": mic.seated_slot(),
 		})
 	elif node is N64Vru:
-		# The microphone rides the cord and has no entry of its own, so the unit
-		# records the socket it is in.
+		# The microphone and both cords ride with the unit and have no entries of
+		# their own, so the unit records the socket it is in — and whether its
+		# microphone is in its jack, which is a thing a player can undo.
 		var vru := node as N64Vru
 		return _base(id, "n64_vru", n3d).merged({
 			"system": _ref(node_to_id, vru.seated_system),
 			"port": vru.seated_port_index,
+			"mic": vru.mic_plugged(),
 		})
 	elif node is MotionPlus:
 		# Pose only, for the reason the Nunchuk above gives: which remote it is

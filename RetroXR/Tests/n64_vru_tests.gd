@@ -24,10 +24,14 @@ func _ready() -> void:
 		print("[vru] TIMEOUT")
 		get_tree().quit(1))
 
+	if _wants("faces"):
+		_test_faces()
 	if _wants("device"):
 		await _test_device()
 	if _wants("seat"):
 		await _test_seat()
+	if _wants("jack"):
+		await _test_jack()
 	if _wants("mic"):
 		await _test_mic()
 	if _wants("drop"):
@@ -84,9 +88,97 @@ func _check_cord(what: String, rope: VerletRope, host: Node3D,
 	var d := exit.dot(body_dir)
 	_ok(d > 0.5, "%s the cord leaves away from the nose, not back through it" % what,
 		"dot %+.2f" % d)
-	var end_exit: Vector3 = Vector3(rope.end_exit_axis).normalized()
-	_ok(end_exit.dot(Vector3(0, 0, 1)) > 0.5,
-		"%s and so does the end a hand is holding" % what, str(end_exit))
+
+
+## Where a mesh's FLAT faces are, in `root`'s own frame: a box's six, a cylinder's
+## two caps. A sphere or a capsule has none, which is the whole reason a microphone
+## head is built out of one.
+##
+## Read off the packed scene rather than a live object, and composed from local
+## transforms rather than global ones: an object in the tree has grown a
+## PickableHighlight overlay per mesh by now, and those carry copies of the very
+## geometry this is comparing.
+func _flat_faces(root: Node3D) -> Array:
+	var out: Array = []
+	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var planes: Array = []
+		if mi.mesh is BoxMesh:
+			var half: Vector3 = (mi.mesh as BoxMesh).size * 0.5
+			planes = [[Vector3.RIGHT, half.x], [Vector3.LEFT, half.x],
+				[Vector3.UP, half.y], [Vector3.DOWN, half.y],
+				[Vector3.BACK, half.z], [Vector3.FORWARD, half.z]]
+		elif mi.mesh is CylinderMesh:
+			var cyl := mi.mesh as CylinderMesh
+			if not cyl.cap_top and not cyl.cap_bottom:
+				continue
+			planes = [[Vector3.UP, cyl.height * 0.5], [Vector3.DOWN, cyl.height * 0.5]]
+		else:
+			continue
+		var t := _to_root(root, mi)
+		var box: AABB = t * mi.mesh.get_aabb()
+		for plane: Array in planes:
+			var axis: Vector3 = plane[0]
+			var normal: Vector3 = (t.basis * axis).normalized()
+			var point: Vector3 = t * (axis * float(plane[1]))
+			out.append({"node": String(mi.name), "normal": normal,
+				"d": normal.dot(point), "box": box})
+	return out
+
+
+## A node's transform in `root`'s frame, walked up by hand so this works on a scene
+## that was never added to the tree.
+func _to_root(root: Node3D, node: Node3D) -> Transform3D:
+	var t := Transform3D.IDENTITY
+	var n: Node3D = node
+	while n != null and n != root:
+		t = n.transform * t
+		n = n.get_parent() as Node3D
+	return t
+
+
+## Two faces in one plane FACING THE SAME WAY fight for the same depth values, and
+## the loser flickers through the winner — on the microphone's nose that is a black
+## grille disc and a white body disc trading pixels, which draws as a pinwheel
+## because a cylinder cap is a triangle fan.
+##
+## Two faces in a plane facing OPPOSITE ways are a butt joint and are left alone:
+## back-face culling draws one of them and the other never competes.
+func _coplanar_pairs(root: Node3D) -> Array:
+	var faces := _flat_faces(root)
+	var hits: Array = []
+	for i in range(faces.size()):
+		for j in range(i + 1, faces.size()):
+			var a: Dictionary = faces[i]
+			var b: Dictionary = faces[j]
+			if str(a["node"]) == str(b["node"]):
+				continue
+			if (a["normal"] as Vector3).dot(b["normal"] as Vector3) < 0.999:
+				continue
+			if absf(float(a["d"]) - float(b["d"])) > 0.00005:
+				continue
+			if not (a["box"] as AABB).grow(0.0005).intersects(b["box"] as AABB):
+				continue
+			hits.append("%s|%s at %.4f" % [a["node"], b["node"], float(a["d"])])
+	return hits
+
+
+func _test_faces() -> void:
+	var unit := VRU_SCENE.instantiate() as N64Vru
+	var unit_hits := _coplanar_pairs(unit)
+	_ok(unit_hits.is_empty(), "faces/no two faces of the unit share a plane",
+		", ".join(PackedStringArray(unit_hits)))
+	unit.free()
+
+	var lead := preload(
+		"res://Scenes/Objects/controllers/n64/n64_vru_cable.tscn").instantiate()
+	var mic := lead.get_node("Nus021Mic") as Node3D
+	var mic_hits := _coplanar_pairs(mic)
+	_ok(mic_hits.is_empty(), "faces/nor two of the microphone's",
+		", ".join(PackedStringArray(mic_hits)))
+	lead.free()
 
 
 func _test_device() -> void:
@@ -98,7 +190,18 @@ func _test_device() -> void:
 		str(N64Vru.DEVICE_VRU))
 	_ok(unit.device_type == N64Vru.DEVICE_VRU, "device/the unit announces it")
 	_ok(unit.systemid == "nintendo_64", "device/it only fits an N64")
-	_ok(unit.is_in_group("controller_plug"), "device/it is what a socket filters on")
+	# The box is NOT what a socket takes any more; the plug on its cord is, and it
+	# reads the device off the unit the way every controller's plug does.
+	_ok(not unit.is_in_group("controller_plug"), "device/the box is not itself a plug")
+	var plug := unit.get_plug()
+	_ok(plug != null and plug.is_in_group("controller_plug"),
+		"device/its plug is what a socket filters on")
+	_ok(plug != null and plug.device_type == N64Vru.DEVICE_VRU,
+		"device/and the plug carries the unit's device", str(plug.device_type))
+	_ok(plug != null and plug.systemid == "nintendo_64",
+		"device/and its console", plug.systemid)
+	_ok(plug != null and plug.get_controller() == unit,
+		"device/the console unwraps the plug back to the unit")
 	_ok(unit.is_in_group("n64_vru"), "device/and has its own group")
 	_ok(unit.get_mic() != null, "device/the cord and microphone grew")
 
@@ -110,7 +213,7 @@ func _test_seat() -> void:
 	var sys := await _spawn_n64()
 	var unit := await _spawn_unit()
 
-	sys.restore_controller_plug(3, unit)
+	unit.restore_seat(sys, 3)
 	await get_tree().process_frame
 
 	_ok(unit.seated_system == sys and unit.seated_port_index == 3,
@@ -127,10 +230,54 @@ func _test_seat() -> void:
 	await get_tree().process_frame
 
 
+## The microphone plugs into the unit, and comes out of it again. Out of the jack
+## it is an object lying somewhere, which is exactly why the unit stops reporting
+## its position — a microphone on a table across the room must not go on setting
+## the gain as though the player were speaking into it.
+func _test_jack() -> void:
+	var sys := await _spawn_n64()
+	var unit := await _spawn_unit()
+	unit.restore_seat(sys, 3)
+	await get_tree().process_frame
+
+	var mic := unit.get_mic()
+	var mic_plug := unit.get_mic_plug()
+	_ok(mic_plug != null and mic_plug.is_in_group(String(N64VruMicPlug.GROUP)),
+		"jack/the microphone's plug has a group of its own")
+	_ok(mic_plug != null and not mic_plug.is_in_group("controller_plug"),
+		"jack/and is not one a console socket would take")
+	_ok(unit.mic_plugged(), "jack/it comes out of the box plugged in")
+	_ok(mic_plug != null and mic_plug.seated_unit == unit,
+		"jack/and the plug knows which unit holds it")
+	_ok(unit.microphone_position().is_equal_approx(mic.global_position),
+		"jack/plugged in, the unit hears from the microphone")
+
+	unit.restore_mic_plugged(false)
+	await get_tree().process_frame
+	_ok(not unit.mic_plugged(), "jack/it can be pulled out")
+	_ok(mic_plug != null and mic_plug.seated_unit == null,
+		"jack/and the plug knows it is out")
+	mic.global_position = sys.global_position + Vector3(2.5, 0, 0)
+	await get_tree().process_frame
+	_ok(unit.microphone_position().is_equal_approx(unit.global_position),
+		"jack/out of the jack, the unit hears from itself",
+		"%s vs %s" % [unit.microphone_position(), unit.global_position])
+	_ok(sys.microphone_position().is_equal_approx(unit.global_position),
+		"jack/and so does the machine it is seated in")
+
+	unit.restore_mic_plugged(true)
+	await get_tree().process_frame
+	_ok(unit.mic_plugged(), "jack/and it goes back in")
+
+	sys.queue_free()
+	unit.drop_and_free()
+	await get_tree().process_frame
+
+
 func _test_mic() -> void:
 	var sys := await _spawn_n64()
 	var unit := await _spawn_unit()
-	sys.restore_controller_plug(3, unit)
+	unit.restore_seat(sys, 3)
 	await get_tree().process_frame
 
 	var mic := unit.get_mic()
@@ -143,16 +290,25 @@ func _test_mic() -> void:
 		"mic/and so does the machine it is seated in",
 		"%s vs %s" % [sys.microphone_position(), mic.global_position])
 
-	# The box: its connector tongue is at -Z and its cord boss at +Z.
-	var rope: VerletRope = null
-	for n: Node in get_tree().current_scene.find_children("*", "VerletRope", true, false):
-		if n.get_parent() != null and String(n.get_parent().name).contains("Vru"):
-			rope = n as VerletRope
-	if rope != null:
-		_check_cord("mic/", rope, unit.get_node("CableAttachPoint"),
-			Vector3(0, 0, -0.023), Vector3(0, 0, 0.041))
+	# Which way each cord leaves the body it is tied to, by the sign of a dot rather
+	# than by a look. Two cords now: the microphone's grille is at -Z and its boss at
+	# +Z, and the unit's jack is at -Z with its own boss at +Z.
+	var mic_rope := unit.get_mic_rope()
+	if mic_rope != null:
+		_check_cord("mic/", mic_rope, mic, Vector3(0, 0, -0.0585), Vector3(0, 0, 0.06))
+		# The far end is a plug, and a plug's cord trails BEHIND its connector.
+		var mic_end: Vector3 = Vector3(mic_rope.end_exit_axis).normalized()
+		_ok(mic_end.dot(Vector3(0, 0, -1)) > 0.5,
+			"mic/and leaves the 3.5 mm plug behind its connector", str(mic_end))
 	else:
-		_ok(false, "mic/the unit built its cord")
+		_ok(false, "mic/the microphone has a cord")
+
+	var console_rope := unit.get_console_rope()
+	if console_rope != null:
+		_check_cord("mic/console ", console_rope, unit.get_node("CableAttachPoint"),
+			Vector3(0, 0, -0.029), Vector3(0, 0, 0.039))
+	else:
+		_ok(false, "mic/the unit has a cord to the console")
 
 	sys.queue_free()
 	unit.drop_and_free()
@@ -182,7 +338,7 @@ func _test_drop() -> void:
 	var mic := unit.get_mic()
 	mic.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(10.0)),
 		Vector3(0.05, 0.25, -0.45))
-	unit._rope._init_points()
+	unit.get_mic_rope()._init_points()
 
 	await _physics_seconds(2.5)
 	var landed := mic.global_position
