@@ -400,10 +400,9 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 	# to make it worse. On a desk it is a real choice -- over speakers the HRTF
 	# fights the room, and a surround rig gets no centre channel from a renderer
 	# that produces two channels by design.
-	var meta_audio: Object = (Engine.get_singleton("MetaXRAudio")
-		if Engine.has_singleton("MetaXRAudio") else null)
-	if (QualityManager.is_desktop() and meta_audio != null
-			and bool(meta_audio.call("is_available"))):
+	# Installed, not available: is_available() answers false while the SDK is
+	# switched off, so gating on it hid this switch the moment it was turned off.
+	if QualityManager.is_desktop() and SpatialAudioListener.sdk_installed():
 		var spatial_row := HBoxContainer.new()
 		spatial_row.add_theme_constant_override("separation", 10)
 		spatial_row.custom_minimum_size = Vector2(0, 68)

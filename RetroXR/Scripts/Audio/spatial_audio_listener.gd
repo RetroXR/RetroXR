@@ -87,3 +87,16 @@ func _process(_delta: float) -> void:
 ## this rather than poking the singleton directly.
 func is_spatialised() -> bool:
 	return _active
+
+
+## True when the SDK's library loaded on this machine, whether or not the player has
+## it switched on — which is what decides whether there is a choice to offer.
+##
+## NOT is_available(): that answers false while the SDK is disabled, so a settings
+## row gated on it hid itself the moment the player turned it off and could never
+## be turned back on. The version is recorded as the library loads, before anything
+## that can fail later, so reporting one means installed.
+func sdk_installed() -> bool:
+	if not Engine.has_singleton("MetaXRAudio"):
+		return false
+	return not str(Engine.get_singleton("MetaXRAudio").call("get_version")).is_empty()
