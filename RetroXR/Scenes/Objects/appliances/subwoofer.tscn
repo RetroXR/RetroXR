@@ -1,0 +1,72 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/media/loudspeaker.gd" id="1_spk"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/speaker_sub.res" id="3_submesh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="4_rcaport"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_box"]
+bounce = 0.0
+friction = 0.9
+
+; The cabinet above the feet: 260 x 286 x 280 mm centred 157 mm up.
+[sub_resource type="BoxShape3D" id="Shape_box"]
+size = Vector3(0.26, 0.286, 0.28)
+
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.29, 0.31, 0.31)
+
+; The subwoofer: a front-firing 165 mm driver over a front port, on four feet.
+;
+; Same script as the satellite — a cabinet with one cone and one phono input is
+; the whole of being a loudspeaker here, and what it carries is decided by the
+; television socket its lead sits in, not by the cabinet.
+;
+; Heavier and higher-friction than the satellite: a sub gets nudged by a foot
+; rather than picked up, and should stay where it is put.
+[node name="Subwoofer" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_box")
+mass = 6.5
+linear_damp = 6.0
+angular_damp = 9.0
+freeze_mode = 1
+script = ExtResource("1_spk")
+speaker_label = "LFE IN"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.157, 0)
+shape = SubResource("Shape_box")
+
+[node name="Cabinet" type="MeshInstance3D" parent="."]
+mesh = ExtResource("3_submesh")
+
+; The driver's face, 190 mm up the baffle.
+[node name="ConeFront" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.19, 0.145)
+
+; Rx(180), so the socket's +Z leaves the back panel. Listed by ROWS.
+[node name="SpeakerIn" parent="." instance=ExtResource("4_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, -8.74228e-08, 0, 8.74228e-08, -1, 0, 0.075, -0.1505)
+channel = 8
+direction = 1
+
+[node name="BackLabel" type="Label3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.115, -0.1402)
+pixel_size = 0.001
+text = "LFE IN"
+font_size = 8
+outline_size = 0
+modulate = Color(0.55, 0.55, 0.58, 1)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.157, 0)
+shape = SubResource("Shape_pointer")

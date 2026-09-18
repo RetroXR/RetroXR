@@ -1,0 +1,80 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/media/loudspeaker.gd" id="1_spk"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/speaker_satellite.res" id="3_satmesh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="4_rcaport"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_box"]
+bounce = 0.0
+friction = 0.8
+
+; The cabinet, not the plinth: 95 x 153 x 110 mm centred 88.5 mm up. The baked
+; mesh's origin is the BASE centre, so every shape and marker here is offset up.
+[sub_resource type="BoxShape3D" id="Shape_box"]
+size = Vector3(0.095, 0.153, 0.11)
+
+; Laser target, one size up. Only the pointer answers this shape (mask 0), so
+; nothing else notices it is generous.
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.115, 0.175, 0.13)
+
+; A surround satellite: one cabinet, one cone, one phono input on the back.
+;
+; The mesh is baked by Tools/gen/gen_speaker.gd with its origin at the base centre
+; and the baffle on +Z, so this scene stands it on a shelf by placing the node on
+; the surface rather than solving an offset.
+[node name="Loudspeaker" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_box")
+mass = 1.1
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_spk")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0885, 0)
+shape = SubResource("Shape_box")
+
+[node name="Cabinet" type="MeshInstance3D" parent="."]
+mesh = ExtResource("3_satmesh")
+
+; What get_speaker_positions() publishes — the driver's face, 62 mm up the baffle,
+; not the cabinet origin, so the sound comes from where the cone is.
+[node name="ConeFront" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.062, 0.057)
+
+; The phono input, low on the back panel and clear of the bass port at y = 0.138.
+;
+; Rx(180) turns the socket's +Z out of the BACK of the cabinet: a .tscn lists the
+; basis by ROWS, so the two -1 rows here are that rotation and not a mirror. The
+; facing is checked by the render probe, which prints this node's axes and draws a
+; seated lead — an empty recess is symmetric and reads the same either way round.
+[node name="SpeakerIn" parent="." instance=ExtResource("4_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, -8.74228e-08, 0, 8.74228e-08, -1, 0, 0.042, -0.0655)
+channel = 8
+direction = 1
+
+; Turned 180 about Y so it reads the right way round from behind the cabinet.
+; outline_size 0: Label3D outlines by default, and a dark outline on dark text
+; printed flat on a panel fuses into a blob.
+[node name="BackLabel" type="Label3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.075, -0.0552)
+pixel_size = 0.001
+text = "SURROUND"
+font_size = 7
+outline_size = 0
+modulate = Color(0.55, 0.55, 0.58, 1)
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0885, 0)
+shape = SubResource("Shape_pointer")
