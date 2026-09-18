@@ -101,6 +101,14 @@ RetroXR/archive-godot/*.pdb
 archive-godot/Temp/
 vlc-godot/Temp/
 
+# surround-godot build artifacts
+RetroXR/surround-godot/~*
+RetroXR/surround-godot/*.exp
+RetroXR/surround-godot/*.ilk
+RetroXR/surround-godot/*.lib
+RetroXR/surround-godot/*.pdb
+surround-godot/Temp/
+
 # ── Compiled GDExtensions ─────────────────────────────────────────────────────
 # Our own six libraries are BUILD OUTPUT and are not carried in the repo — run
 # `python Tools/build.py <platform>` to produce them. They were tracked until
@@ -132,6 +140,9 @@ RetroXR/godot-pdfium/*godot-pdfium.*.so
 RetroXR/godot-pdfium/*godot-pdfium.*.dylib
 RetroXR/metaxr-audio/*metaxr-audio.*.dll
 RetroXR/metaxr-audio/*metaxr-audio.*.so
+RetroXR/surround-godot/*surround_godot.*.dll
+RetroXR/surround-godot/*surround_godot.*.so
+RetroXR/surround-godot/*surround_godot.*.dylib
 
 # Windows ReplaceFile() backups. The Win32 call that swaps a file in place leaves
 # the old copy behind as `~<name>~RF<hex>.TMP`, and something re-writes the OpenXR

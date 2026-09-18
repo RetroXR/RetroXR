@@ -1,0 +1,49 @@
+# type: ignore
+
+Import('env', 'output_dir')
+
+env = env.Clone()
+
+from SCons.Script import ARGUMENTS
+if ARGUMENTS.get("platform") == "macos":
+    ARGUMENTS.setdefault("macos_deployment_target", "13.0")
+if ARGUMENTS.get("target", "template_debug") != "template_release":
+    ARGUMENTS.setdefault("debug_symbols", "yes")
+
+env = SConscript("../../libretro-godot/godot-cpp/SConstruct")
+
+env["CXXFLAGS"] = [f for f in env["CXXFLAGS"]
+                   if not str(f).startswith(("/std:c++", "-std=c++"))]
+
+is_windows = env["platform"] == "windows"
+is_android = env["platform"] == "android"
+is_linux = env["platform"] == "linux"
+is_macos = env["platform"] == "macos"
+
+if is_windows:
+    env.Append(CXXFLAGS=["/std:c++latest"])
+    env.Append(LINKFLAGS=['/IGNORE:4099'])
+
+if is_android or is_linux or is_macos:
+    env.Append(CXXFLAGS=["-std=c++20"])
+
+env.Append(CPPPATH=["external/freesurround/include/"])
+
+# The vendored decoder is third-party and warns (an enumerator at 1 << 31, and
+# KissFFT's C idioms compiled as C++). Build it with warnings off so ours stay
+# visible.
+env_vendor = env.Clone()
+env_vendor.Append(CXXFLAGS=["/w"] if is_windows else ["-w"])
+
+sources = Glob("src/*.cpp")
+sources += [env_vendor.SharedObject(f)
+            for f in Glob("external/freesurround/source/*.cpp")]
+
+lib_prefix = "lib" if (is_android or is_linux) else ""
+library = env.SharedLibrary(
+    "{}/{}surround_godot.{}.{}.{}{}".format(
+        output_dir, lib_prefix, env["platform"], env["target"],
+        env["arch"], env["SHLIBSUFFIX"]),
+    source=sources)
+
+Default(library)

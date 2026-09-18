@@ -1,0 +1,18 @@
+# type: ignore
+#
+# Standalone GDExtension for Dolby Surround / Pro Logic II matrix decoding. It
+# lives outside libretro-godot because the vendored decoder is GPLv2+ and that
+# submodule is published separately under MIT.
+#
+#   scons platform=windows arch=x86_64 target=template_debug
+#   scons platform=linux   arch=x86_64 target=template_release
+#   scons platform=macos   arch=arm64  target=template_debug macos_deployment_target=13.0
+#   scons platform=android arch=arm64  target=template_debug ANDROID_HOME=
+
+VariantDir('Temp', '.', duplicate=0)
+env = Environment()
+
+import os
+output_dir = os.environ.get('SURROUND_GODOT_OUTPUT_DIR', '#../RetroXR/surround-godot')
+
+SConscript('Temp/SConscript', exports=['env', 'output_dir'])

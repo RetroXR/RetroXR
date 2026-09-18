@@ -6,7 +6,7 @@
     python Tools/build.py linux --only vlc-godot
     python Tools/build.py macos --target debug
 
-Six extensions live in this workspace and each needs its OWN scons invocation.
+Seven extensions live in this workspace and each needs its OWN scons invocation.
 They share one profiled `godot-cpp` static library, which this script builds once
 per platform/target before linking the extensions with `build_library=no`. Each
 extension also has its own `VariantDir('Temp')`, so it still builds from its own
@@ -55,6 +55,7 @@ EXTENSIONS = [
     ("vlc-godot", "vlc-godot", "RetroXR/vlc-godot", ("windows", "linux", "android")),
     ("godot-pdfium", "godot-pdfium", "RetroXR/godot-pdfium", ALL_PLATFORMS),
     ("metaxr-audio", "metaxr-audio", "RetroXR/metaxr-audio", ("windows", "android")),
+    ("surround-godot", "surround-godot", "RetroXR/surround-godot", ALL_PLATFORMS),
 ]
 
 ARCH = {
@@ -256,7 +257,7 @@ def main() -> int:
     results: list[tuple[str, str, bool, float]] = []
     for target in TARGETS[args.target]:
         # All extensions use the same godot-cpp ABI and build profile. Build its
-        # static library once from a canonical working directory; otherwise six
+        # static library once from a canonical working directory; otherwise seven
         # independent SCons databases repeatedly compile/archive the same ~1,000
         # generated wrappers. Extension-only flags also cannot leak back into
         # this library when the later invocations use build_library=no.

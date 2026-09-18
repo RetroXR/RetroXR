@@ -1,0 +1,29 @@
+FreeSurround
+    Christian Kothe, 2007-2010
+    GNU General Public License v2 or later (see LICENSE)
+
+    Taken from dolphin-emu/dolphin, Externals/FreeSurround/, which is the only
+    copy that is built and exercised. Upstream — the foobar2000 DSP component
+    foo_dsp_fsurround — is abandoned and publishes no releases, so every
+    surviving copy is a fork.
+
+    Vendored rather than depended on because no packaged form of it exists.
+
+    Includes KissFFT (Mark Borgerding, BSD 3-Clause), which Dolphin's copy
+    inlines as KissFFT.cpp / KissFFTR.cpp / _KissFFTGuts.h.
+
+    Not taken from github.com/tygyh/FreeSurround despite that being the
+    standalone-library form: it sets kiss_fft_scalar to float while leaving the
+    decoder's cplx at std::complex<double>, so its FFT writes 8-byte complexes
+    into a buffer read as 16-byte ones. Its CMakeLists and exports.props restore
+    nothing, and the latter still references a Dolphin path, so it has not been
+    built.
+
+    Dolphin's copy declares lt/rt/dst as std::vector<double> rather than
+    std::vector<kiss_fft_scalar>. That is load-bearing: it makes the precision
+    invariant a compile error rather than silent corruption. Any change to
+    kiss_fft_scalar must change cplx and those three vectors together.
+
+    "Dolby", "Dolby Surround", "Pro Logic" and "Pro Logic II" are trademarks of
+    Dolby Laboratories. This is an independent implementation of expired art and
+    carries no certification or endorsement.
