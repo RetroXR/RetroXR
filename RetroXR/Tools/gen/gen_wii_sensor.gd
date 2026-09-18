@@ -197,6 +197,9 @@ func _boot_profile() -> PackedVector2Array:
 		p.append(Vector2(z, base + RELIEF_RIB_AMP * bump))
 	p.append(Vector2(Z_CORD, CORD_D * 0.5))
 	p.append(Vector2(Z_CORD, 0.0))
+	# Written hood-to-cord and handed over cord-to-hood: _lathe, like _loft, faces
+	# outward only when z INCREASES along the profile. gen_wii_av.gd has the long note.
+	p.reverse()
 	return p
 
 
@@ -374,6 +377,25 @@ func _lathe(st: SurfaceTool, profile: PackedVector2Array) -> void:
 				st.add_vertex(p00); st.add_vertex(p11); st.add_vertex(p10)
 
 
+## gen_wii_av.gd's guard, for gen_wii_av.gd's reason: everything behind the hood is the
+## boot, and an inside-out bake fails every vertex of it.
+func _boot_faces_out(mesh: ArrayMesh) -> bool:
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var mid := Vector3(0.0, 0.0, (Z_HOOD_BACK + Z_CORD) * 0.5)
+	var out := 0
+	var total := 0
+	for i in verts.size():
+		if verts[i].z > Z_HOOD_BACK - 0.0001:
+			continue
+		total += 1
+		if normals[i].dot(verts[i] - mid) > 0.0:
+			out += 1
+	print("[gen] boot faces outward: %d of %d" % [out, total])
+	return total > 0 and out * 2 > total
+
+
 func _save(mesh: ArrayMesh, path: String, want_cord: bool) -> void:
 	var ab: AABB = mesh.get_aabb()
 	if ab.end.z <= 0.0:
@@ -381,6 +403,9 @@ func _save(mesh: ArrayMesh, path: String, want_cord: bool) -> void:
 		return
 	if want_cord and ab.position.z >= 0.0:
 		push_error("[gen] %s REFUSING: cable must trail -Z" % path)
+		return
+	if want_cord and not _boot_faces_out(mesh):
+		push_error("[gen] %s REFUSING: the strain relief is wound inside out" % path)
 		return
 	var err := ResourceSaver.save(mesh, path)
 	var tris := 0

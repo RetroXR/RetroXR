@@ -230,6 +230,11 @@ func _boot_profile() -> PackedVector2Array:
 		p.append(Vector2(z, base + RELIEF_RIB_AMP * bump))
 	p.append(Vector2(Z_CORD, CORD_R))
 	p.append(Vector2(Z_CORD, 0.0))
+	# Written shroud-to-cord because that is how a boot is described, and handed over
+	# cord-to-shroud because that is how _lathe winds: like _loft, it faces outward only
+	# when z INCREASES along the profile. Left as written, every face of the boot
+	# pointed at its own axis and culling showed the far wall through the near one.
+	p.reverse()
 	return p
 
 
@@ -481,6 +486,28 @@ func _lathe(st: SurfaceTool, profile: PackedVector2Array) -> void:
 				st.add_vertex(p00); st.add_vertex(p11); st.add_vertex(p10)
 
 
+## Whether the boot behind the shroud faces outward. Everything at z below the shroud's
+## back is the boot and nothing else, and it is star-shaped about the middle of its own
+## axis, so an outward normal points away from that middle. Counted rather than required
+## of every vertex: a rib's flank tilts a normal by 24 degrees, and an inside-out bake
+## fails ALL of them, which is the only case this is here to catch.
+func _boot_faces_out(mesh: ArrayMesh) -> bool:
+	var arrays: Array = mesh.surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var mid := Vector3(0.0, 0.0, (Z_SHROUD_BACK + Z_CORD) * 0.5)
+	var out := 0
+	var total := 0
+	for i in verts.size():
+		if verts[i].z > Z_SHROUD_BACK - 0.0001:
+			continue
+		total += 1
+		if normals[i].dot(verts[i] - mid) > 0.0:
+			out += 1
+	print("[gen] boot faces outward: %d of %d" % [out, total])
+	return total > 0 and out * 2 > total
+
+
 ## Save, and REFUSE a bake whose frame is wrong. gen_vga.gd's guard, for gen_vga.gd's
 ## reason: a mirrored plug seats backwards and trails its cord through the case, which
 ## is a bug that shows up three files away.
@@ -491,6 +518,9 @@ func _save(mesh: ArrayMesh, path: String, want_cord: bool) -> void:
 		return
 	if want_cord and ab.position.z >= 0.0:
 		push_error("[gen] %s REFUSING: cable must trail -Z" % path)
+		return
+	if want_cord and not _boot_faces_out(mesh):
+		push_error("[gen] %s REFUSING: the strain relief is wound inside out" % path)
 		return
 	var err := ResourceSaver.save(mesh, path)
 	var tris := 0
