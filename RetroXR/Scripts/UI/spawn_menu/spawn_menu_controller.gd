@@ -1086,6 +1086,16 @@ func _on_spawn_requested(type: String) -> void:
 		_place_spawned(unit, type)
 		return
 
+	# "speaker_cable:<color>" — a lead whose plugs the hold sub-menu asked for in
+	# a colour, a key of RcaJack.PLUG_COLORS. Set before the lead enters the tree,
+	# which is when it tints its plugs.
+	if type.begins_with("speaker_cable:"):
+		var lead := ScenePersistence.instantiate("speaker_cable") as CompositeCable
+		if lead != null:
+			lead.plug_color_id = StringName(type.substr("speaker_cable:".length()))
+			_place_spawned(lead, "speaker_cable")
+		return
+
 	# "memcard:<family>:<card_id>" — bring an EXISTING card back into the room
 	# rather than minting a blank one. The id is the card's filename, so the
 	# object lands already pointing at the saves it left behind. Same reason as
@@ -1219,7 +1229,8 @@ func _on_spawn_requested(type: String) -> void:
 		_place_spawned(obj, type)
 
 
-func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemid := "") -> void:
+func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemid := "",
+		options := {}) -> void:
 	# The BS-X shell is not a bare cartridge, it is THE BS-X cartridge -- a shell
 	# with a well in its roof that a memory pack goes into. Spawning it as a plain
 	# cart gave a slab with nowhere to put a pack, so the one object the whole
@@ -1259,6 +1270,9 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 	cart.rom_path = rom_path
 	cart.game_label = game_label
 	cart.systemid = systemid
+	# What the hold sub-menu forced; empty for a plain click.
+	cart.shell_preset = StringName(str(options.get("shell_preset", "")))
+	cart.body_region = str(options.get("body_region", ""))
 	_place_spawned(cart, "disc" if is_disc else "cartridge")
 
 

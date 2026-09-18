@@ -35,6 +35,7 @@ func _ready() -> void:
 	_group_counts()
 	_group_formats()
 	_group_fit()
+	await _group_hold()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -212,3 +213,73 @@ func _group_fit() -> void:
 	_ok(sliver.get_width() >= 1 and sliver.get_height() >= 1,
 		"fit/an extreme aspect never rounds a side to zero",
 		"%dx%d" % [sliver.get_width(), sliver.get_height()])
+
+
+# ── hold/ — a press held for two seconds opens a sub-menu instead ─────────────
+
+## HoldPress is driven through the button's own signals and its public advance(),
+## so two seconds cost nothing. Every case counts BOTH signals: a hold that also
+## clicks spawns the thing the player was trying to choose a colour for.
+func _group_hold() -> void:
+	var btn := Button.new()
+	add_child(btn)
+	_spawned.append(btn)
+	var hold := HoldPress.attach(btn)
+	var seen := {"clicked": 0, "held": 0}
+	hold.clicked.connect(func() -> void: seen["clicked"] += 1)
+	hold.held.connect(func() -> void: seen["held"] += 1)
+	await get_tree().process_frame
+
+	btn.button_down.emit()
+	hold.advance(0.3)
+	btn.pressed.emit()
+	btn.button_up.emit()
+	_eq([seen["clicked"], seen["held"]], [1, 0], "hold/a short press clicks and opens nothing")
+
+	seen["clicked"] = 0
+	btn.button_down.emit()
+	hold.advance(1.9)
+	_eq(seen["held"], 0, "hold/nothing opens before two seconds")
+	hold.advance(0.2)
+	_eq(seen["held"], 1, "hold/two seconds opens the sub-menu, pointer still down")
+	hold.advance(5.0)
+	_eq(seen["held"], 1, "hold/and only once however long it stays down")
+	btn.pressed.emit()
+	btn.button_up.emit()
+	_eq(seen["clicked"], 0, "hold/the release after a hold does not click")
+
+	btn.button_down.emit()
+	btn.pressed.emit()
+	btn.button_up.emit()
+	_eq(seen["clicked"], 1, "hold/the next press clicks again")
+
+	seen["clicked"] = 0
+	seen["held"] = 0
+	btn.button_down.emit()
+	hold.advance(1.5)
+	btn.mouse_exited.emit()
+	hold.advance(1.5)
+	_eq(seen["held"], 0, "hold/leaving the button gives the hold up")
+
+	hold.hold_enabled = false
+	btn.button_down.emit()
+	hold.advance(3.0)
+	btn.pressed.emit()
+	btn.button_up.emit()
+	_eq([seen["clicked"], seen["held"]], [1, 0], "hold/switched off, a long press is a click")
+
+	# A pooled row: every listener swept off `pressed`, then rebound mid-hold.
+	hold.hold_enabled = true
+	btn.button_down.emit()
+	hold.advance(2.5)
+	for c: Dictionary in btn.pressed.get_connections():
+		btn.pressed.disconnect(c["callable"])
+	hold.reset()
+	hold.ensure_connected()
+	seen["clicked"] = 0
+	btn.pressed.emit()
+	_eq(seen["clicked"], 1, "hold/a rebound row forgets the last entry's hold")
+
+	_ok(SpawnMenuSpawnView._has_spawn_options("nintendo_64")
+		and not SpawnMenuSpawnView._has_spawn_options("nes"),
+		"hold/only an N64 ROM row opens one")

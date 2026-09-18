@@ -30,6 +30,20 @@ const AUDIO_GREY := Color(0.48, 0.48, 0.50)
 ## was named and so has no colour of its own.
 const AUDIO_BLACK := Color(0.09, 0.09, 0.10)
 
+## The colours a player may ask a lead's plugs to be moulded in at spawn, in menu
+## order: id -> [name, colour]. CompositeCable.plug_color_id is a key of this,
+## and the id is what a save records, so an entry here is never renamed.
+const PLUG_COLORS := {
+	&"grey": ["Grey", AUDIO_GREY],
+	&"white": ["White", AUDIO_WHITE],
+	&"red": ["Red", AUDIO_RED],
+	&"green": ["Green", AUDIO_GREEN],
+	&"purple": ["Purple", AUDIO_PURPLE],
+	&"blue": ["Blue", AUDIO_BLUE],
+	&"yellow": ["Yellow", COMPOSITE_YELLOW],
+	&"black": ["Black", AUDIO_BLACK],
+}
+
 ## The jacket every wire in the room wears. The colour code above belongs to
 ## CONNECTORS; a lead is black whatever it carries, on the spawnable composite
 ## leads and on the pigtail fixed to a handheld alike. Kept beside them so the two

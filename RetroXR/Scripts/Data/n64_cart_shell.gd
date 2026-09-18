@@ -17,6 +17,10 @@ const BODY_USA := "res://imported-assets/carts/nintendo_64/n64_cartridge_usa.glb
 const BODY_JPN := "res://imported-assets/carts/nintendo_64/n64_cartridge_jpn.glb"
 const DEFAULT_PRESET := &"grey"
 
+## RetroCartridge.body_region values. North America and PAL share a body.
+const REGION_USA := "usa"
+const REGION_JPN := "jpn"
+
 const HEADER_BYTES := 0x40
 const COUNTRY_AT := 0x3E
 
@@ -50,6 +54,16 @@ static func market(systemid: String, rom_path: String) -> String:
 
 static func body_model(market_name: String) -> String:
 	return BODY_JPN if market_name == "jp" else BODY_USA
+
+
+## The body for a region the player forced, else the market's own.
+static func body_model_for_region(region: String, market_name: String) -> String:
+	match region:
+		REGION_USA:
+			return BODY_USA
+		REGION_JPN:
+			return BODY_JPN
+	return body_model(market_name)
 
 
 static func preset_for_rom(rom_path: String, market_name: String = "") -> StringName:

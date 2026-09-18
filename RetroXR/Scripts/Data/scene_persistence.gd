@@ -38,6 +38,9 @@ const _STRING_FIELDS := [
 	"expansion_id",
 	# The image of the memory built into a console -- see ConsoleMemory.
 	"console_memory",
+	# What a player forced at spawn: an N64 cartridge's shell and regional body,
+	# and the colour of a lead's plugs. Absent means the object's own.
+	"shell_preset", "body_region", "plug_color",
 ]
 const _NUMBER_FIELDS := [
 	"lid_angle", "scale_factor", "stereo_mode", "size_scale", "page_state",
@@ -2042,12 +2045,18 @@ func _receiver_entry(rx: InputReceiver, id: int, type_name: String, n3d: Node3D,
 
 
 func _media_fields(cart: RetroCartridge) -> Dictionary:
-	return {
+	var fields := {
 		"rom_path": cart.rom_path,
 		"game_label": cart.game_label,
 		"save_id": cart.save_id,
 		"cart_systemid": cart.systemid,
 	}
+	# Only what was forced: a cartridge left alone derives both from its ROM.
+	if not cart.shell_preset.is_empty():
+		fields["shell_preset"] = String(cart.shell_preset)
+	if not cart.body_region.is_empty():
+		fields["body_region"] = cart.body_region
+	return fields
 
 
 func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
@@ -2160,6 +2169,8 @@ func _serialize_cable(cable: CompositeCable, id: int, n3d: Node3D,
 		var body_pose: Dictionary = cable.call("carried_body_pose")
 		if not body_pose.is_empty():
 			extra["body"] = body_pose
+	if not cable.plug_color_id.is_empty():
+		extra["plug_color"] = String(cable.plug_color_id)
 	return _base(id, "composite_cable", n3d).merged(extra).merged({
 		# 2 = the mono lead, 3 = the full one. Both are CompositeCable; only
 		# the scene differs, so the count is what picks it back up.
@@ -2432,6 +2443,8 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 					# what an old save holding one would have been.
 					lead = MONO_CABLE_SCENE if int(data.get("cords", 3)) == 2 						else COMPOSITE_CABLE_SCENE
 				obj = lead.instantiate() as Node3D
+				if obj is CompositeCable:
+					(obj as CompositeCable).plug_color_id = StringName(str(data.get("plug_color", "")))
 			"audio_disc":
 				var adisc := AUDIO_DISC_SCENE.instantiate() as AudioDisc
 				adisc.album_path = data.get("album_path", "")
@@ -2476,3 +2489,5 @@ func _apply_media_fields(cart: RetroCartridge, data: Dictionary) -> void:
 	cart.game_label = data.get("game_label", "")
 	cart.save_id = data.get("save_id", "")
 	cart.systemid = data.get("cart_systemid", "")
+	cart.shell_preset = StringName(str(data.get("shell_preset", "")))
+	cart.body_region = str(data.get("body_region", ""))

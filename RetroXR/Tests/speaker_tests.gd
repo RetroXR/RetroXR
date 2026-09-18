@@ -87,6 +87,7 @@ func _run() -> void:
 		["output/the spatial audio switch survives being turned off", _o_switch_offered],
 		["save/both cabinets and the lead are registered", _s_registered],
 		["save/a cabinet round-trips through a save entry", _s_round_trip],
+		["save/a lead keeps the plug colour it was spawned in", _s_plug_color],
 	]
 
 	for entry in cases:
@@ -837,6 +838,45 @@ func _s_registered() -> void:
 	_ok(persistence.LEAD_SCENES.has("speaker_cable"), "LEAD_SCENES carries speaker_cable")
 	for token in ["loudspeaker", "subwoofer", "speaker_cable"]:
 		_ok(persistence.instantiate(token) != null, "and %s instantiates" % token)
+
+
+## The spawn menu's hold sub-menu asks for a lead's plugs in a colour. Blue is the
+## fixture because the scene's own is grey: a lead that ignored the id reads grey.
+func _s_plug_color() -> void:
+	var lead := SPEAKER_CABLE.instantiate() as CompositeCable
+	lead.plug_color_id = &"blue"
+	add_child(_hold(lead))
+	await _wait(4)
+	for plug_name in ["PlugA0", "PlugB0"]:
+		var tip := lead.get_node("%s/PlugTip" % plug_name) as MeshInstance3D
+		_check_eq(tip.get_instance_shader_parameter(&"tint"), RcaJack.AUDIO_BLUE,
+			"%s is moulded in the colour asked for" % plug_name)
+
+	var persistence := ScenePersistence.new()
+	var entry: Dictionary = persistence._serialize_node(lead, 1, {})
+	_check_eq(entry.get("plug_color", ""), "blue", "the save entry records it")
+	_check_eq(ScenePersistence._entry_validation_error(entry, {}), "", "and validates")
+	var back := persistence._deserialize_object(entry) as CompositeCable
+	_ok(back != null and back.plug_color_id == &"blue",
+		"and it is read back before the lead enters the tree")
+	if back != null:
+		add_child(_hold(back))
+		await _wait(4)
+		_check_eq((back.get_node("PlugB0/PlugTip") as MeshInstance3D) 			.get_instance_shader_parameter(&"tint"), RcaJack.AUDIO_BLUE,
+			"a restored lead wears it")
+
+	var plain := SPEAKER_CABLE.instantiate() as CompositeCable
+	add_child(_hold(plain))
+	await _wait(4)
+	var plain_entry: Dictionary = persistence._serialize_node(plain, 2, {})
+	_ok(not plain_entry.has("plug_color"), "a lead left alone writes no colour")
+
+	var odd := SPEAKER_CABLE.instantiate() as CompositeCable
+	odd.plug_color_id = &"no_such_colour"
+	add_child(_hold(odd))
+	await _wait(4)
+	_check_eq((odd.get_node("PlugA0/PlugTip") as MeshInstance3D) 		.get_instance_shader_parameter(&"tint"), RcaJack.AUDIO_GREY,
+		"a colour the table does not hold leaves the scene's own")
 
 
 func _s_round_trip() -> void:

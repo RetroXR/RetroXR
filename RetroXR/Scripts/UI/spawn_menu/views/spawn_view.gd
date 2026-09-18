@@ -17,7 +17,10 @@ class_name SpawnMenuSpawnView
 extends Control
 
 signal spawn_requested(type: String)
-signal spawn_cartridge_requested(rom_path: String, game_label: String, systemid: String)
+## `options` is what the hold sub-menu forced -- "shell_preset", "body_region" --
+## and empty for a plain click.
+signal spawn_cartridge_requested(rom_path: String, game_label: String, systemid: String,
+		options: Dictionary)
 signal spawn_manual_requested(pdf_path: String)
 signal spawn_poster_requested(image_path: String)
 signal spawn_video_requested(video_path: String)
@@ -152,6 +155,8 @@ var _scrape_popup: PanelContainer = null
 ## results landing in a second must not rebuild the page forty times.
 var _scrape_refresh_timer: SceneTreeTimer = null
 var _game_detail_panel: PanelContainer = null
+# The hold sub-menu: what to spawn an entry AS. One at a time.
+var _spawn_options_panel: PanelContainer = null
 var _rom_variants_panel: PanelContainer = null
 ## The saves-and-achievements page for one ROM, and the CartridgeOptionsPanel
 ## driving it — both live only as long as the page is open.
@@ -1435,6 +1440,7 @@ func _build_blank_rom_row() -> Control:
 
 	var main := MarqueeButton.create("", 22)
 	main.name = "Main"
+	HoldPress.attach(main)
 	main.custom_minimum_size = Vector2(0, 100)
 	main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(main)
@@ -1528,6 +1534,13 @@ func _bind_rom_row(row: Control, index: int) -> void:
 
 	_disconnect_all(state.pressed)
 	_disconnect_all(main.pressed)
+	# The pool's sweep above took HoldPress's own listener with it.
+	var hold := main.get_node("HoldPress") as HoldPress
+	hold.reset()
+	hold.ensure_connected()
+	hold.hold_enabled = false
+	_disconnect_all(hold.clicked)
+	_disconnect_all(hold.held)
 	_disconnect_all(detail.pressed)
 	_disconnect_all(saves.pressed)
 	_disconnect_all(manual.pressed)
@@ -1635,12 +1648,15 @@ func _bind_rom_row(row: Control, index: int) -> void:
 
 	# ── Launch ──────────────────────────────────────────────────────────────
 	if not local_path.is_empty():
-		main.pressed.connect(func() -> void:
+		var spawn := func(options: Dictionary) -> void:
 			if romm_cache != null:
 				romm_cache.touch(systemid,
 					RommCacheManifest.relative_path(systemid, local_path))
-			spawn_cartridge_requested.emit(local_path, label, systemid)
-		)
+			spawn_cartridge_requested.emit(local_path, label, systemid, options)
+		hold.clicked.connect(spawn.bind({}))
+		# Held for two seconds: choose the shell and the body before it spawns.
+		hold.hold_enabled = _has_spawn_options(systemid)
+		hold.held.connect(_show_n64_spawn_options.bind(label, spawn))
 	elif romm_client.is_reachable():
 		# Not downloaded yet — tapping the title fetches it, same as the icon.
 		main.pressed.connect(func() -> void: romm_downloader.enqueue(entry, systemid))
@@ -1943,7 +1959,13 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 		btn.text = "  +  " + item[0]
 		btn.custom_minimum_size = Vector2(0, 80)
 		btn.add_theme_font_size_override("font_size", 26)
-		btn.pressed.connect(spawn_requested.emit.bind(item[1]))
+		if item[1] == "speaker_cable":
+			# Held for two seconds: choose the colour of its plugs.
+			var hold := HoldPress.attach(btn)
+			hold.clicked.connect(spawn_requested.emit.bind(item[1]))
+			hold.held.connect(_show_plug_color_options.bind(item[0], item[1]))
+		else:
+			btn.pressed.connect(spawn_requested.emit.bind(item[1]))
 		vbox.add_child(btn)
 	return vbox
 
@@ -2798,6 +2820,156 @@ func _close_game_detail_panel() -> void:
 	_game_detail_panel = null
 
 
+# ── Hold sub-menu: what to spawn an entry AS ─────────────────────────────────
+#
+# A press held for two seconds (HoldPress) opens one of these instead of
+# spawning. A full-rect overlay like the panels above and for the same reason:
+# a PopupMenu is an embedded Window, and the second VR press dismisses it.
+
+
+## Whether this platform's ROM rows open a sub-menu when held.
+static func _has_spawn_options(systemid: String) -> bool:
+	return systemid == "nintendo_64"
+
+
+## The overlay's shell: a title with a close button, and the column to fill.
+func _open_spawn_options_panel(title: String) -> VBoxContainer:
+	_close_spawn_options_panel()
+	_spawn_options_panel = PanelContainer.new()
+	var bg := MenuStyle.rounded(Color(0.1, 0.1, 0.2, 1.0), 8)
+	_spawn_options_panel.add_theme_stylebox_override("panel", bg)
+	_spawn_options_panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+
+	var margin := MarginContainer.new()
+	for side in ["margin_top", "margin_bottom", "margin_left", "margin_right"]:
+		margin.add_theme_constant_override(side, 14)
+	_spawn_options_panel.add_child(margin)
+
+	var scroll := ScrollContainer.new()
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	margin.add_child(scroll)
+	MenuStyle.fat_vscroll_bar(scroll)
+
+	var vbox := MenuStyle.vbox(10)
+	scroll.add_child(vbox)
+	var row := MenuStyle.title_row(vbox, title, 24)
+	MenuStyle.close_button(row, _close_spawn_options_panel)
+	vbox.add_child(HSeparator.new())
+
+	get_parent().add_child(_spawn_options_panel)
+	return vbox
+
+
+func _close_spawn_options_panel() -> void:
+	if _spawn_options_panel and is_instance_valid(_spawn_options_panel):
+		_spawn_options_panel.queue_free()
+	_spawn_options_panel = null
+
+
+## A button painted in the colour it stands for. `group` makes it one of a set
+## of which the chosen one wears a bright border.
+static func _swatch_button(text: String, color: Color, group: ButtonGroup = null) -> Button:
+	var btn := Button.new()
+	btn.text = text
+	btn.custom_minimum_size = Vector2(0, 72)
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.add_theme_font_size_override("font_size", 20)
+	btn.clip_text = true
+	var ink := Color.BLACK if color.get_luminance() > 0.45 else Color.WHITE
+	for state in ["font_color", "font_hover_color", "font_pressed_color",
+			"font_hover_pressed_color", "font_focus_color"]:
+		btn.add_theme_color_override(state, ink)
+	var chosen := MenuStyle.rounded(color, 8)
+	chosen.set_border_width_all(5)
+	chosen.border_color = Color(0.55, 0.75, 1.0)
+	for state in ["normal", "hover", "focus"]:
+		btn.add_theme_stylebox_override(state, MenuStyle.rounded(color, 8))
+	for state in ["pressed", "hover_pressed"]:
+		btn.add_theme_stylebox_override(state, chosen)
+	if group != null:
+		btn.toggle_mode = true
+		btn.button_group = group
+	return btn
+
+
+## Shell and body for an N64 cartridge. Two choices, so they are picked and then
+## SPAWN is pressed; `spawn` takes the options dictionary.
+func _show_n64_spawn_options(label: String, spawn: Callable) -> void:
+	var vbox := _open_spawn_options_panel(label)
+	var chosen := {"shell_preset": "", "body_region": ""}
+	var auto_color := Color(0.18, 0.18, 0.35)
+
+	vbox.add_child(MenuStyle.header("Body"))
+	var bodies := MenuStyle.hbox(10)
+	vbox.add_child(bodies)
+	var body_group := ButtonGroup.new()
+	for body: Array in [["Auto (from the ROM)", ""],
+			["USA / PAL", N64CartShell.REGION_USA], ["Japan", N64CartShell.REGION_JPN]]:
+		var body_btn := _swatch_button(body[0], auto_color, body_group)
+		body_btn.button_pressed = body[1] == ""
+		body_btn.pressed.connect(func() -> void: chosen["body_region"] = body[1])
+		bodies.add_child(body_btn)
+
+	vbox.add_child(MenuStyle.header("Shell"))
+	var shell_group := ButtonGroup.new()
+	var auto_btn := _swatch_button("Auto (from the ROM)", auto_color, shell_group)
+	auto_btn.button_pressed = true
+	auto_btn.pressed.connect(func() -> void: chosen["shell_preset"] = "")
+	vbox.add_child(auto_btn)
+	var palette := CartridgeColor.get_palette()
+	for section: Array in [
+			["Standard", CartridgeShellPreset.Availability.STANDARD],
+			["Released", CartridgeShellPreset.Availability.RELEASED],
+			["Offered by Nintendo, never used", CartridgeShellPreset.Availability.OFFERED_ONLY]]:
+		var presets := palette.with_availability(section[1])
+		if presets.is_empty():
+			continue
+		vbox.add_child(MenuStyle.hint(section[0]))
+		var grid := GridContainer.new()
+		grid.columns = 4
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		grid.add_theme_constant_override("h_separation", 10)
+		grid.add_theme_constant_override("v_separation", 10)
+		vbox.add_child(grid)
+		for preset: CartridgeShellPreset in presets:
+			# A two-tone shell is shown by its front half, the one facing the player.
+			var shown := palette.find(preset.front) if preset.is_two_tone() else preset
+			var swatch := _swatch_button(preset.display_name,
+				(shown if shown != null else preset).color, shell_group)
+			swatch.pressed.connect(func() -> void: chosen["shell_preset"] = String(preset.id))
+			grid.add_child(swatch)
+
+	vbox.add_child(MenuStyle.spacer(6))
+	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
+	go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
+	go.pressed.connect(func() -> void:
+		var options := {}
+		for key: String in chosen:
+			if not str(chosen[key]).is_empty():
+				options[key] = chosen[key]
+		_close_spawn_options_panel()
+		spawn.call(options))
+	vbox.add_child(go)
+
+
+## Plug colour for a lead. One choice, so a tap on a colour spawns it.
+func _show_plug_color_options(label: String, token: String) -> void:
+	var vbox := _open_spawn_options_panel(label)
+	vbox.add_child(MenuStyle.header("Plug colour"))
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	vbox.add_child(grid)
+	for id: StringName in RcaJack.PLUG_COLORS:
+		var swatch := _swatch_button(RcaJack.PLUG_COLORS[id][0], RcaJack.PLUG_COLORS[id][1])
+		swatch.pressed.connect(func() -> void:
+			_close_spawn_options_panel()
+			spawn_requested.emit("%s:%s" % [token, id]))
+		grid.add_child(swatch)
+
+
 ## A game's saves and achievements, without going and finding the cartridge.
 ##
 ## The page IS the cartridge menu's — an embedded CartridgeOptions2D driven by a
@@ -2992,7 +3164,13 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 			rom_btn.text = romname.get_basename()
 
 		var abs_path := GamelistManager.to_absolute_path(systemid, rom.get("path", ""))
-		rom_btn.pressed.connect(spawn_cartridge_requested.emit.bind(abs_path, romname.get_basename(), systemid))
+		var rom_label := romname.get_basename()
+		var rom_spawn := func(options: Dictionary) -> void:
+			spawn_cartridge_requested.emit(abs_path, rom_label, systemid, options)
+		var rom_hold := HoldPress.attach(rom_btn)
+		rom_hold.hold_enabled = _has_spawn_options(systemid)
+		rom_hold.clicked.connect(rom_spawn.bind({}))
+		rom_hold.held.connect(_show_n64_spawn_options.bind(rom_label, rom_spawn))
 
 		row.add_child(rom_btn)
 

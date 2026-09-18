@@ -76,6 +76,8 @@ func _ready() -> void:
 		await _test_region()
 	if _wants("cartridge"):
 		await _test_cartridge()
+	if _wants("forced"):
+		await _test_forced()
 
 	_clear_fixtures()
 	await _settle_warm()
@@ -589,10 +591,72 @@ func _test_cartridge() -> void:
 	await get_tree().process_frame
 
 
-func _spawn(rom: String) -> RetroCartridge:
+## What the spawn menu's hold sub-menu forces: a shell and a body that are not
+## the ROM's own. Ocarina of Time USA is the fixture because its own answer is
+## gold on a USA body, so neither forced value can pass by being the default.
+func _test_forced() -> void:
+	var rom := _write_rom("forced.z64", _header(OOT_USA, "E"))
+	var blue := await _spawn(rom, &"blue")
+	var blue_model := blue.get_node_or_null("CartModel")
+	_ok(blue_model != null and _albedo(blue_model, "Front_Shell") == _preset(&"blue").color,
+		"forced/a forced shell beats the one the ROM shipped in")
+	_ok(blue_model != null and blue_model.scene_file_path == N64CartShell.BODY_USA,
+		"forced/and leaves the body the ROM's own")
+
+	var unknown := await _spawn(rom, &"no_such_shell")
+	var unknown_model := unknown.get_node_or_null("CartModel")
+	var flake := _part(unknown_model, "Front_Shell").get_active_material(0) as ShaderMaterial 		if unknown_model != null else null
+	_ok(flake != null and flake.get_shader_parameter("albedo") == _preset(&"gold").color,
+		"forced/a shell the palette does not hold falls back to the ROM's")
+
+	var jpn := await _spawn(rom, &"", N64CartShell.REGION_JPN)
+	var jpn_model := jpn.get_node_or_null("CartModel")
+	_ok(jpn_model != null and jpn_model.scene_file_path == N64CartShell.BODY_JPN,
+		"forced/a forced Japanese body on a USA ROM")
+	var jpn_flake := _part(jpn_model, "Front_Shell").get_active_material(0) as ShaderMaterial 		if jpn_model != null else null
+	_ok(jpn_flake != null and jpn_flake.get_shader_parameter("albedo") == _preset(&"gold").color,
+		"forced/keeps the colour of the market the ROM really has")
+	var usa := await _spawn(_write_rom("forced_j.z64", _header(OOT_USA, "J")), &"",
+		N64CartShell.REGION_USA)
+	var usa_model := usa.get_node_or_null("CartModel")
+	_ok(usa_model != null and usa_model.scene_file_path == N64CartShell.BODY_USA,
+		"forced/a forced USA body on a Japanese ROM")
+
+	var persistence := ScenePersistence.new()
+	var both := await _spawn(rom, &"red", N64CartShell.REGION_JPN)
+	var entry: Dictionary = persistence._serialize_node(both, 1, {})
+	_ok(entry.get("shell_preset", "") == "red" and entry.get("body_region", "") == "jpn",
+		"forced/both are written to the save entry", str(entry))
+	_ok(ScenePersistence._entry_validation_error(entry, {}).is_empty(),
+		"forced/and the entry validates", ScenePersistence._entry_validation_error(entry, {}))
+	var back := persistence._deserialize_object(entry) as RetroCartridge
+	_ok(back != null and back.shell_preset == &"red" and back.body_region == "jpn",
+		"forced/and read back before the cartridge enters the tree")
+	if back != null:
+		back.freeze = true
+		add_child(back)
+		for i in 4:
+			await get_tree().physics_frame
+		var back_model := back.get_node_or_null("CartModel")
+		_ok(back_model != null and back_model.scene_file_path == N64CartShell.BODY_JPN
+			and _albedo(back_model, "Front_Shell") == _preset(&"red").color,
+			"forced/a restored cartridge wears them")
+		back.queue_free()
+	var auto := await _spawn(rom)
+	var auto_entry: Dictionary = persistence._serialize_node(auto, 3, {})
+	_ok(not auto_entry.has("shell_preset") and not auto_entry.has("body_region"),
+		"forced/an untouched cartridge writes neither key")
+	for cart: Node in [blue, unknown, jpn, usa, both, auto]:
+		cart.queue_free()
+	await get_tree().process_frame
+
+
+func _spawn(rom: String, shell: StringName = &"", body := "") -> RetroCartridge:
 	var cart := CART_SCENE.instantiate() as RetroCartridge
 	cart.systemid = "nintendo_64"
 	cart.rom_path = rom
+	cart.shell_preset = shell
+	cart.body_region = body
 	cart.game_label = "Selftest"
 	cart.freeze = true
 	add_child(cart)

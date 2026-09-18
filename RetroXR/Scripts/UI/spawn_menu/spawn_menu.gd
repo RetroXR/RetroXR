@@ -15,7 +15,8 @@ signal close_requested
 ## Emitted when the user changes a default core in the Manager tab.
 signal default_core_changed(systemid: String, core_name: String)
 ## Emitted when the user clicks a ROM in the Cartridges tab.
-signal spawn_cartridge_requested(rom_path: String, game_label: String, systemid: String)
+signal spawn_cartridge_requested(rom_path: String, game_label: String, systemid: String,
+		options: Dictionary)
 
 ## Emitted when the user clicks a room card that maps directly to a scene (e.g. passthrough).
 signal scene_change_requested(scene_id: String)
@@ -380,8 +381,8 @@ func _build_ui() -> void:
 	_spawn_view = SpawnMenuSpawnView.create(self)
 	_spawn_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_spawn_view.spawn_cartridge_requested.connect(
-		func(p: String, l: String, sid: String) -> void:
-			spawn_cartridge_requested.emit(p, l, sid))
+		func(p: String, l: String, sid: String, options: Dictionary) -> void:
+			spawn_cartridge_requested.emit(p, l, sid, options))
 	_spawn_view.default_core_changed.connect(
 		func(sid: String, cn: String) -> void: default_core_changed.emit(sid, cn))
 	_spawn_view.scroll_changed.connect(func(sc: ScrollContainer) -> void:

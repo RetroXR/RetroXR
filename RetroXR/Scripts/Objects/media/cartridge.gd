@@ -33,6 +33,16 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 ## the core name for the save-recovery list.
 @export var systemid: String = ""
 
+## A shell the player asked for at spawn, overriding the one the ROM shipped in.
+## A CartridgeShellPalette id; empty, or an id the palette does not hold, is the
+## ROM's own. N64 only, and read once, in _ready.
+@export var shell_preset: StringName = &""
+
+## A regional body the player asked for at spawn: N64CartShell.REGION_USA or
+## REGION_JPN, empty for the ROM's own market. It picks the SHAPE only — the
+## shell colour is still looked up under the market the ROM really has.
+@export var body_region: String = ""
+
 var _options_panel: Node3D = null
 var _pack_panel: BsxPackPanel = null
 
@@ -170,8 +180,8 @@ func _apply_cart_model() -> void:
 		return
 	# An N64 cartridge's body is regional: N64CartShell picks it per ROM.
 	var market := N64CartShell.market(systemid, rom_path) if systemid == "nintendo_64" else ""
-	var path: String = N64CartShell.body_model(market) if systemid == "nintendo_64" \
-		else _CART_MODELS.get(systemid, "")
+	var path: String = N64CartShell.body_model_for_region(body_region, market) \
+		if systemid == "nintendo_64" else _CART_MODELS.get(systemid, "")
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var scene := load(path) as PackedScene
@@ -201,7 +211,10 @@ func _apply_cart_model() -> void:
 	if systemid == "nintendo_64dd" and Nintendo64DD.is_dev_disk(rom_path):
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
 	if systemid == "nintendo_64":
-		CartridgeColor.apply_preset(glb, N64CartShell.preset_for_rom(rom_path, market))
+		var preset := N64CartShell.preset_for_rom(rom_path, market)
+		if CartridgeColor.get_palette().find(shell_preset) != null:
+			preset = shell_preset
+		CartridgeColor.apply_preset(glb, preset)
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:

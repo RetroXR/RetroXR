@@ -2708,8 +2708,23 @@ python Tools/glb/fix_unmapped_uvs.py <body.glb>            # rewrites in place
 
 **Still owed:** the flake shader has not been measured on a Quest; the extracted
 textures import lossless, 4096 x 2000 rear stickers included, and the grain and
-blank-label maps are stored once per region; and neither the colour nor the region is
-saved with a cartridge, because both are derived from its ROM.
+blank-label maps are stored once per region.
+
+**A player can force both at spawn.** A ROM row in the spawn menu held for two
+seconds opens a sub-menu instead of spawning (`HoldPress`,
+`Scripts/UI/widgets/hold_press.gd`; a short press still spawns as before): Body is
+Auto / USA-PAL / Japan, Shell is Auto or any palette preset grouped by
+`availability`. The choice lands on `RetroCartridge.shell_preset` and
+`body_region`, set before the cartridge enters the tree. A forced body changes the
+SHAPE only -- the colour is still looked up under the ROM's real market, so a
+Japanese body on Ocarina of Time USA stays gold -- and a preset id the palette does
+not hold falls back to the ROM's own. Neither is saved for a cartridge left alone,
+because both are derived from its ROM; a forced one writes `shell_preset` /
+`body_region` into its entry, which is also what object sync sends.
+`n64_cart_tests` `forced/` and `spawn_menu_tests` `hold/` cover it. **`HoldPress`
+listens to the button's own `pressed`, and a pooled ROM row sweeps every listener
+off that signal on each bind** -- `_bind_rom_row` calls `ensure_connected()` after
+the sweep, and `reset()` so a row rebound mid-hold forgets the last entry's press.
 
 ### 2r. Surround sound — a matrix decoder, six mono voices, and a phono row
 
@@ -2932,6 +2947,17 @@ clear, and `av_tests` `wiring/no two legend plates on the back panel overlap` me
 plates the legend actually built — it went red on all three composite seams at 60 mm.
 **Measure a printed width; never read one off a comment.** The divider stays gone: it
 added nothing the plates' own borders do not already say.
+
+**A speaker cable's plugs can be spawned in a colour.** The lead is neutral grey
+because its channel belongs to the socket, not to it -- but six grey plugs behind a
+set are hard to tell apart, so holding the Speaker Cable row for two seconds
+(`HoldPress`, §2q) offers `RcaJack.PLUG_COLORS`. The menu sends
+`speaker_cable:<id>`, the controller sets `CompositeCable.plug_color_id` before the
+lead enters the tree, and `_cord_color` answers with it for every cord. Plugs only:
+the jacket stays `wire_color`. The id is saved as `plug_color`, absent for a lead
+left alone, and an id the table does not hold leaves the scene's grey. It changes
+nothing about routing. `speaker_tests` `save/a lead keeps the plug colour it was
+spawned in`.
 
 **Binning a lead re-seated its plugs.** `CompositeCable.drop_and_free` releases every plug
 IN PLACE, still standing in the panel, and every empty socket whose grab sphere the plug

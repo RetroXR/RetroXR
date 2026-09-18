@@ -125,6 +125,11 @@ signal topology_changed
 	RcaJack.AUDIO_RED,
 ])
 
+## A plug colour the player asked for at spawn: a key of RcaJack.PLUG_COLORS that
+## every cord's plugs take instead of cord_colors. Empty, or an id the table does
+## not hold, leaves the scene's own. Read once, in _ready, and saved with the lead.
+@export var plug_color_id: StringName = &""
+
 ## The jacket every cord wears. Deliberately NOT cord_colors: a real composite
 ## lead is black sheath with colour-coded CONNECTORS, and the connector is what a
 ## player matches to a socket. Both used to be drawn from cord_colors, which made
@@ -233,6 +238,8 @@ func _end_plugs(e: int) -> Array:
 ## Colour for one cord, falling back to the palette's last entry if a scene ships
 ## more cords than colours.
 func _cord_color(c: int) -> Color:
+	if RcaJack.PLUG_COLORS.has(plug_color_id):
+		return RcaJack.PLUG_COLORS[plug_color_id][1]
 	if cord_colors.is_empty():
 		return RcaJack.COMPOSITE_YELLOW
 	return cord_colors[mini(c, cord_colors.size() - 1)]
