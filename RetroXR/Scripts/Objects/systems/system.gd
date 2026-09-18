@@ -1185,6 +1185,12 @@ func set_audio_channel_mode(mode: int) -> void:
 	_audio.set_channel_mode(mode)
 
 
+## Part of the TV contract: where the set is sending its sound, which decides
+## whether this machine's stereo pair is decoded into six placed channels.
+func set_audio_out_mode(mode: int) -> void:
+	_audio.set_audio_out_mode(mode)
+
+
 ## The TV this system's sound should come out of: whichever channel is plugged
 ## in, channel 0 first (a dual-screen handheld can be wired up by its BOTTOM
 ## cable alone). Null when nothing is connected.

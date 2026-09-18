@@ -50,6 +50,24 @@ var _last_volume: float = 1.0
 ## The set's mono switch, remembered for the same reason. See set_channel_mode.
 var _channel_mode: int = 0
 
+## Where the set is sending its sound — RetroTV.AudioOut. Remembered for the same
+## reason as the mono switch: a core started later has to come up on it.
+var _audio_out: int = 0
+
+## Whether the extension really engaged the decoder. Asking for surround is not
+## the same as getting it: the mixer can be out of voices, the decoder extension
+## can be absent, and the fallback backend has no voices to place at all — in
+## every case SetSurroundEnabled answers false and this stays on the stereo pair.
+var _surround := false
+
+## Per-channel trim the set last reported, in the decoder's order. A folded
+## surround is 3 dB down; everything else is 1.0. Cached because _send_voice_gain
+## is also reached from set_volume, which has no set to ask.
+var _surround_gains := PackedFloat32Array()
+
+## The base gain last fanned across the six, so an unchanged frame costs no call.
+var _sent_surround_gain: float = -1.0
+
 ## Cached body measurement, keyed on the model instance it was taken from.
 var _geom_model_id: int = 0
 var _centre_local: Vector3 = Vector3.ZERO
@@ -106,6 +124,38 @@ func set_channel_mode(mode: int) -> void:
 		_host.get_libretro_node().SetAudioChannelMode(_channel_mode)
 
 
+## Part of the TV contract: where the set is sending its sound.
+##
+## SURROUND asks the extension to decode; anything else asks it to stop. The
+## voice list changes with it — six while decoding, two otherwise — so it is
+## re-read and the voices re-placed, which is also what releases the four extra
+## ones back to a mixer that only has 32.
+func set_audio_out_mode(mode: int) -> void:
+	_audio_out = mode
+	_apply_audio_out()
+
+
+func _apply_audio_out() -> void:
+	var node: Libretro = _host.get_libretro_node()
+	if node == null:
+		return
+	var want: bool = _audio_out == RetroTV.AudioOut.SURROUND
+	var got: bool = node.SetSurroundEnabled(want)
+	if got == _surround:
+		return
+	_surround = got
+	# The ids change wholesale, so re-read rather than patch: the front pair gets
+	# voices of its own while decoding and hands them back afterwards.
+	_voices = node.GetAudioVoiceIds()
+	_sent_directivity = -1.0
+	_sent_gain_l = -1.0
+	_sent_gain_r = -1.0
+	_sent_surround_gain = -1.0
+	_surround_gains = PackedFloat32Array()
+	update_position()
+	_apply_bound_volume()
+
+
 # ---------------------------------------------------------------------------
 # Core lifecycle
 # ---------------------------------------------------------------------------
@@ -122,8 +172,12 @@ func rebind() -> void:
 ## handler has already created a pair of voices and only needs them placed;
 ## otherwise it made an AudioStreamPlayer3D that needs this system's tuning.
 func bind() -> void:
-	# A fresh handler starts on stereo, so a set left on mono has to say so again.
+	# A fresh handler starts on stereo, so a set left on mono has to say so again —
+	# and a set left on surround, likewise. Before GetAudioVoiceIds, because that
+	# is what decides whether the list is two ids or six.
 	_host.get_libretro_node().SetAudioChannelMode(_channel_mode)
+	_surround = _host.get_libretro_node().SetSurroundEnabled(
+		_audio_out == RetroTV.AudioOut.SURROUND)
 	_voices = _host.get_libretro_node().GetAudioVoiceIds()
 	if not _voices.is_empty():
 		if Engine.has_singleton("MetaXRAudio"):
@@ -234,6 +288,47 @@ func route_changed() -> void:
 ## The body centre matters as much as the gap. A model's origin is not
 ## necessarily in the middle of it — the GBA's sits 1.6 cm off in Z — and at the
 ## distance a handheld is held that is an audible angle.
+## Put the six decoded voices on the six points the set reports, in the decoder's
+## own order — FL, FR, C, LFE, SL, SR.
+##
+## OMNIDIRECTIONAL, always. update_position aims the stereo pair along the set's
+## screen normal, which is right for a sound leaving one cabinet; a rig scattered
+## round a room has no single baffle to point along, and two of the six are behind
+## the listener. Same judgement speaker_pair.gd made.
+##
+## The LFE is placed but NOT spatialised any differently — Meta's own guidance is
+## that a predominantly low-frequency source wants pan and attenuation rather than
+## the HRTF, and a matrix source carries no discrete LFE anyway: ours is a
+## synthesised sub-120 Hz band. It costs a voice either way, so it rides with the
+## rest rather than earning a special case that buys nothing.
+func _place_surround(tv: Node3D) -> void:
+	var pos: PackedVector3Array = tv.get_surround_positions()
+	if pos.size() != _voices.size():
+		return
+	var gains := PackedFloat32Array()
+	if tv.has_method("get_surround_gains"):
+		gains = tv.get_surround_gains()
+	var ln := _listener_node()
+	var lp := Vector3.ZERO
+	if ln != null:
+		lp = ln.get_listener_position()
+	var centre := Vector3.ZERO
+	for i in pos.size():
+		var p: Vector3 = pos[i]
+		centre += p
+		if ln != null:
+			p = SpatialAudioEmitter.hold_off_head(p, lp)
+		_mx.set_voice_position(_voices[i], p)
+	_apply_voice_directivity(Vector3.ZERO)
+	# Cached rather than applied here, so the ONE gain path fans it — set_volume
+	# reaches _send_voice_gain directly and has no set to ask for these.
+	_surround_gains = gains
+	# The distance law measures from the middle of the rig rather than from each
+	# cabinet: a player standing beside the sub must not have the whole mix follow
+	# them, and the per-voice HRTF already carries the individual distances.
+	_apply_voice_distance_gain(centre / float(pos.size()))
+
+
 func _refresh_hardware_geometry() -> void:
 	var mid := _host.get_model().get_instance_id() if _host.get_model() != null else 0
 	if mid == _geom_model_id:
@@ -296,6 +391,18 @@ func _apply_voice_distance_gain(centre: Vector3) -> void:
 ## voices are separate sample streams, so silencing one is a gain of zero on it —
 ## the same trick SpatialAudioEmitter.set_channel_gains uses on the decks.
 func _send_voice_gain(g: float) -> void:
+	# Six decoded channels, each with its own trim. The stereo rule below does not
+	# apply: there is no half-connected pair to silence — a channel with no cabinet
+	# FOLDS onto one that has, which is a position, not a mute — and fanning "voice
+	# 0 left, the rest right" across six would put the base gain on all of them and
+	# lose the 3 dB on a folded surround.
+	if _surround and _voices.size() == 6 and _surround_gains.size() == 6:
+		if is_equal_approx(g, _sent_surround_gain):
+			return
+		_sent_surround_gain = g
+		for i in _voices.size():
+			_mx.set_voice_gain(_voices[i], g * _surround_gains[i])
+		return
 	var route: Dictionary = _host.audio_speakers()
 	var gl := g
 	var gr := g
@@ -384,6 +491,14 @@ func update_position() -> void:
 
 	if not _voices.is_empty():
 		if _mx == null:
+			return
+		# Six decoded channels go where the SET says, which is a cabled cabinet's
+		# cone or the fold-down point for a channel with no cabinet. Handled before
+		# the stereo geometry below rather than inside it: none of that applies —
+		# there is no left/right pair to cross, no hardware fallback (a machine
+		# with no set is not decoding), and no baffle to aim along.
+		if _surround and _voices.size() == 6 and tv != null 				and tv.has_method("get_surround_positions"):
+			_place_surround(tv)
 			return
 		# A TV radiates from two speakers on its front baffle, so ask the set
 		# where they are -- it knows its own geometry, and a shell can move or
