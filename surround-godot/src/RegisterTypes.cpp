@@ -1,5 +1,6 @@
 #include "SurroundAudio.hpp"
 #include "SurroundDecoder.hpp"
+#include "SurroundOutput.hpp"
 
 #include <gdextension_interface.h>
 #include <godot_cpp/core/class_db.hpp>
@@ -18,6 +19,9 @@ void initialize_surround(ModuleInitializationLevel p_level)
 
     ClassDB::register_class<Xenu::SurroundDecoder>();
     ClassDB::register_class<Xenu::SurroundAudio>();
+    ClassDB::register_class<Xenu::SurroundOutput>();
+    ClassDB::register_class<Xenu::SurroundOutputInstance>();
+    ClassDB::register_class<Xenu::SurroundOutputEffect>();
 
     // The factory is a singleton so another extension can reach a decoder through
     // Engine alone -- see SurroundAudio.hpp. Leaked on purpose in the sense that
@@ -30,6 +34,9 @@ void uninitialize_surround(ModuleInitializationLevel p_level)
 {
     if (p_level != ModuleInitializationLevel::MODULE_INITIALIZATION_LEVEL_SCENE)
         return;
+    // Before the classes are unregistered: the output bus holds this extension's
+    // effect, and releasing it after that goes through freed class records.
+    Xenu::DiscreteSink::Get().Teardown();
     if (s_singleton != nullptr)
     {
         Engine::get_singleton()->unregister_singleton("SurroundAudio");

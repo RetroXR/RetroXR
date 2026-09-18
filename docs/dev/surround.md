@@ -259,8 +259,8 @@ cd surround-godot && python tests/run_tests.py     # 24 assertions, no Godot
   res://Tools/av/surround_probe.tscn -- --root=<libretro root> --core=fceumm --rom=<a ROM>
 ```
 
-`speaker_tests` is 130 headless checks: `faces/`, `jack/`, `routing/`, `fold/`, `output/`,
-`stand/`, `save/`. Mutation-tested — folding the surrounds to the midpoint, dropping the
+`speaker_tests` is 205 headless checks: `faces/`, `jack/`, `routing/`, `fold/`, `output/`,
+`stand/`, `save/`, `held/`. Mutation-tested — folding the surrounds to the midpoint, dropping the
 3 dB, and a panel that never resolves each fail exactly the cases that name them.
 
 **Latency and level are measured, not assumed.** After the feed check the probe takes the
@@ -289,7 +289,103 @@ scene, and the machine's OWN routing field is the load-bearing half — without 
 `update_position` has no set, the voices are never posed, and `AdmitOnFirstPose` drops the
 backlog of a voice that has never been placed.
 
+**The picture in the window: a PC's own speakers, or a room drawn round the head.**
+When the desktop fullscreen (or VR focus mode) takes a machine's picture, its sound
+is head-locked, and `_place_surround` used to return before the lock was even read,
+so a decoding machine went on playing from the room's speakers off to one side.
+`SystemAudio._place_surround_held` handles the six under the lock, keeping the
+ROOM's layout: a channel with a speaker plugged in keeps it, a fold keeps its fold
+(`TvFit.surround_targets()` names which speaker each channel landed on, as
+`surround_positions()` says where), and nothing plugged in is still silence. Where
+they then go depends on what the player is listening through:
+- **A PC wired for 3.1, 5.1 or 7.1 gets them on its own speakers.** The voices cannot
+  do it: the Meta mixer renders binaural stereo only, which on a 5.1 PC plays out of
+  the front pair and leaves the centre and surrounds silent. So `surround-godot` grew
+  a second road, `SurroundOutput`: a bus of its own, `SurroundOut`, whose one effect
+  writes each speaker pair from per-source rings through a 6 x 8 matrix
+  (`SystemAudio.discrete_matrix`). The surrounds are the fifth and sixth channels of a
+  5.1 device and the SIDE pair of a 7.1 one; a 3.1 device folds them onto the fronts
+  3 dB down; a channel between a pair of room speakers plays from both, 3 dB down
+  each; anything reaching the LFE output is 10 dB down (`DISCRETE_LFE_TRIM`) — by the
+  5.1 convention the playback chain adds that back, and Dolphin, which sends it at
+  unity, is the reference if players find the sub thin.
+- **Headphones, stereo speakers and every headset get a 5.1 room round the head**
+  (`SpatialAudioEmitter.surround_ring`): ITU angles (C 0°, fronts ±30°, surrounds
+  ±110°, the LFE with the centre) at `HEAD_LOCK_AHEAD`, centred on the line from the
+  listener to the head-locked pair — the picture, on the desktop and in focus mode
+  alike — turning with the head, and with no distance law.
+
+**The device road keeps the voices running, silent.** The brake and the rate trim
+read `m_voice_l`, and a sink they cannot see is the bug the front-pair rule above
+records. So the six voices are still pushed and posed, at gain zero, and the ring is
+stood at the front voice's depth before its first push — both queues are then the
+same delay and drain at the same rate, so the voices keep pacing the core. It costs
+six HRTF renders of silence while held; `ReleaseSurroundVoices` drops the output with
+the decode.
+
+**Godot's players cannot address one speaker pair**, which is why this is a bus
+effect: `MIX_TARGET_STEREO` is the front pair, `SURROUND` every pair at once and
+`CENTER` the centre and LFE together, while the AudioServer runs a separate effect
+instance per pair of a bus. The instance for pair 0 drains every ring into eight
+planes and each writes its own pair. Four traps, all met:
+- **An instance must FIND its pair, never count it.** The first build numbered them
+  in the order they were made. The bus was built while the AudioServer still had
+  one pair and remade at three once the driver's count arrived, and the count the
+  device reported was already the new one — every pair rotated by one on a 5.1
+  device: FL and FR out of the surrounds, the centre out of the fronts.
+  `GetPair()` looks itself up in `get_bus_effect_instance` instead.
+- **A bus only sends a pair while it is ACTIVE**, and only a playback mixing into it
+  makes it so; an effect that processes silence has its output dropped. A player of
+  a never-fed `AudioStreamGenerator` keeps every pair awake — a BUILT-IN stream, for
+  the exit fault `MetaXRAudioMixer` documents.
+- **A generator's playback points at its generator RAW** (`AudioStreamGeneratorPlayback
+  ::generator`), and the tree frees the keep-awake player at quit while the audio
+  thread still has to mix its playback once to fade it out. Held by the player alone,
+  the generator was read after free on the audio thread, where Godot installs no
+  crash handler: `speaker_tests --only=held/` died silently at exit in 4 of 25 runs,
+  before PDFium's deinit line, with no backtrace. `DiscreteSink` holds the generator
+  too and lets it go in `Teardown` after a 100 ms wait, the tenth of a second
+  `MetaXRAudioServer::PrepareForQuit` pays for the same reason. 24 of 24 clean since.
+- **The bus holds this extension's effect**, so `uninitialize_surround` removes it
+  before the class records go. Never made in the editor, whose bus panel would save
+  it into `default_bus_layout.tres`.
+
+**Measured by the AudioServer's own per-pair meters, not a recording.** Nothing
+headless has more than one pair, and in 4.7.2 the movie writer's multichannel WAV is
+scrambled before it is written: `AudioDriverDummy` keeps the channel count it was
+initialised with, and its table gives 5.1 eight channels. The movie writer is still
+what puts the dummy driver into 3.1/5.1/7.1 — a project setting read before any
+script runs — so `Tools/surround_output_check.py` writes a temporary
+`RetroXR/override.cfg`, runs `Tools/av/surround_output_probe.tscn` (one tone per
+decoded channel, the Master meter read on every pair) and removes it. It caught the
+rotation above at all three layouts, and passes now: every channel on its own
+output at its own level (-14 dB for a 0.2 tone, the LFE -24, the 3.1 surrounds -17)
+and -200 dB everywhere else. `speaker_tests` `held/` covers the matrix, the ring, the
+targets and the extension's queue draining through the bus headless; the ring and
+the matrix ramp have Godot-free cases in `surround-godot/tests/discrete_ring_test.cpp`.
+
+With a core, `surround_probe --held` alternates held and released windows, three of
+each, judged on their loudest, with the released voices as the control: its first
+version read one window, which landed on a quiet stretch of 1943 at -99.5 dB and
+looked exactly like a route carrying nothing. Measured 2026-09-18 with fceumm, both
+under the movie writer at 5.1 and on this PC's own WASAPI 5.1 device: held, the game
+on the device's centre at -10.7 dB and -200 on every other output; released, -13.0 on
+the fronts (the voices, binaural) and -200 on the centre; the voices' depth steady
+while silent.
+
+```bash
+python Tools/surround_output_check.py                      # 3.1, 5.1, 7.1, no core
+python Tools/surround_output_check.py --mode 5.1 --rom <a ROM>   # + a real core, held
+```
+
 **Still owed.**
+- **Nobody has LISTENED to the device road either**, on any PC's real speakers: the
+  meters prove which output each channel reaches and at what level, not how it
+  sounds, and whether the LFE's -10 dB suits real PC speaker systems is a guess.
+- **It is fullscreen only.** Walking the room on a 5.1 PC still hears everything as
+  the voices' binaural stereo out of the front pair, surround or not; and the device
+  road needs the spatial audio SDK on, because engaging surround needs its voices,
+  though the road itself uses none of the HRTF.
 - **Nobody has LISTENED to it**, on a Quest or anywhere. That is the acceptance test for
   the whole feature: Wind Waker or Metroid Prime (GC, PLII), one of the 16 N64 titles, DK64
   (which offers surround in its own options menu), Donkey Kong Country (SNES Dolby

@@ -24,10 +24,11 @@ VENDOR = os.path.join(ROOT, "external", "freesurround")
 
 # test source -> extra sources it needs
 TESTS = {
+    "discrete_ring_test.cpp": [],
     "matrix_decode_test.cpp": sorted(glob.glob(os.path.join(VENDOR, "source", "*.cpp"))),
 }
 
-INCLUDES = [os.path.join(VENDOR, "include")]
+INCLUDES = [os.path.join(VENDOR, "include"), os.path.join(ROOT, "src")]
 
 
 def find_vcvars():
@@ -55,13 +56,16 @@ def build_windows(test_src, extra, out_exe, workdir):
     # The vendored decoder is compiled at /W0 and ours at /W4, so third-party
     # noise cannot hide a warning in the test itself.
     script = os.path.join(workdir, "build.bat")
+    # A test with no vendored sources compiles alone: cl refuses an empty /c,
+    # and *.obj would link in whatever an earlier test left in the directory.
     lines = [
         "@echo off",
         'call "%s" >nul 2>&1 || exit /b 1' % vcvars,
-        'cl /nologo /EHsc /std:c++17 /W0 /c %s %s || exit /b 1' % (incs, vendored),
-        'cl /nologo /EHsc /std:c++17 /W4 %s "%s" *.obj /Fe:"%s" || exit /b 1'
-        % (incs, test_src, out_exe),
     ]
+    if extra:
+        lines.append('cl /nologo /EHsc /std:c++17 /W0 /c %s %s || exit /b 1' % (incs, vendored))
+    lines.append('cl /nologo /EHsc /std:c++17 /W4 %s "%s" %s /Fe:"%s" || exit /b 1'
+                 % (incs, test_src, "*.obj" if extra else "", out_exe))
     with open(script, "w") as handle:
         handle.write(chr(10).join(lines) + chr(10))
     return subprocess.run([script], capture_output=True, text=True, cwd=workdir)
@@ -103,11 +107,15 @@ def main():
                 continue
             name = os.path.splitext(src)[0]
             test_src = os.path.join(HERE, src)
-            out_exe = os.path.join(workdir, name + (".exe" if windows else ""))
+            # A directory each: cl leaves every object beside the build, and the
+            # link takes *.obj, so a second test would link the first one's main.
+            test_dir = os.path.join(workdir, name)
+            os.makedirs(test_dir)
+            out_exe = os.path.join(test_dir, name + (".exe" if windows else ""))
 
             print("=== %s ===" % name, flush=True)
-            build = build_windows(test_src, extra, out_exe, workdir) if windows \
-                else build_posix(test_src, extra, out_exe, workdir)
+            build = build_windows(test_src, extra, out_exe, test_dir) if windows \
+                else build_posix(test_src, extra, out_exe, test_dir)
             if build.returncode != 0:
                 sys.stdout.write(build.stdout or "")
                 sys.stdout.write(build.stderr or "")

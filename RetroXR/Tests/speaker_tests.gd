@@ -88,6 +88,15 @@ func _run() -> void:
 		["save/both cabinets and the lead are registered", _s_registered],
 		["save/a cabinet round-trips through a save entry", _s_round_trip],
 		["save/a lead keeps the plug colour it was spawned in", _s_plug_color],
+		["held/the targets name the speakers the positions came from", _h_targets],
+		["held/the ring stands round the head facing the picture", _h_ring],
+		["held/a fold keeps its fold round the head", _h_ring_fold],
+		["held/a 5.1 PC takes each channel on its own speaker", _h_discrete_51],
+		["held/a 7.1 PC takes the surrounds on its side pair", _h_discrete_71],
+		["held/a 3.1 PC folds the surrounds onto its fronts", _h_discrete_31],
+		["held/the PC gets the room's folds, not its own centre", _h_discrete_folds],
+		["held/nothing plugged in reaches no PC speaker", _h_discrete_silent],
+		["held/the device queue is drained by the output bus", _h_device_queue],
 	]
 
 	for entry in cases:
@@ -897,3 +906,183 @@ func _s_round_trip() -> void:
 	var sub_entry: Dictionary = persistence._serialize_node(sub, 2, {})
 	# Both scenes share one script, so the token cannot come from the type.
 	_check_eq(sub_entry.get("type", ""), "subwoofer", "and the subwoofer under its own")
+
+
+# ── held: the six while the picture is in the window ─────────────────────────
+
+
+## The positions say where in the room; the targets say which speaker, and the
+## layouts away from the room -- round the head, or the PC's own speakers -- are
+## built from those alone, so they have to name the same speakers the positions do.
+func _h_targets() -> void:
+	var bare := await _set_with_outs()
+	var none: Array = bare.get_surround_targets()
+	_check_eq(none.size(), 6, "a target list per channel")
+	var empty := 0
+	for t: PackedInt32Array in none:
+		if t.is_empty():
+			empty += 1
+	_check_eq(empty, 6, "with nothing plugged in, every channel lands nowhere")
+
+	var tv := await _set_with_outs()
+	var outs := tv.panel().speaker_outs()
+	await _cable_up(outs[CH_FL], tv.position + Vector3(-1.2, 0.0, 1.5))
+	await _cable_up(outs[CH_FR], tv.position + Vector3(1.2, 0.0, 1.5))
+	tv.on_av_topology_changed([])
+	var t: Array = tv.get_surround_targets()
+	_check_eq(t[CH_FL], PackedInt32Array([CH_FL]), "front left lands on its own speaker")
+	_check_eq(t[CH_C], PackedInt32Array([CH_FL, CH_FR]), "the centre between the two fronts")
+	_check_eq(t[CH_SL], PackedInt32Array([CH_FL]), "surround left on the front on its side")
+	_check_eq(t[CH_SR], PackedInt32Array([CH_FR]), "surround right on the other")
+
+
+## Around the listener, with the centre on the line to the picture. Turned a
+## quarter away from -Z, so a sign slip on either axis puts a speaker on the wrong
+## side rather than passing on a symmetric layout.
+func _h_ring() -> void:
+	var at := Vector3(1.0, 1.6, 3.0)
+	var lead := SpatialAudioEmitter.HEAD_LOCK_AHEAD
+	var ring := SpatialAudioEmitter.surround_ring(at,
+		at + Vector3(lead, 0.0, -0.15), at + Vector3(lead, 0.0, 0.15))
+	_check_eq(ring.size(), 6, "six points")
+	for i in ring.size():
+		_ok(is_equal_approx(ring[i].distance_to(at), lead),
+			"channel %d stands %.2f m from the head" % [i, lead])
+	var ahead := Vector3(1.0, 0.0, 0.0)
+	var right := Vector3(0.0, 0.0, 1.0)
+	_ok((ring[CH_C] - at).normalized().is_equal_approx(ahead), "the centre is toward the picture")
+	var fl := (ring[CH_FL] - at).normalized()
+	_ok(fl.dot(right) < 0.0 and is_equal_approx(fl.dot(ahead), cos(deg_to_rad(30.0))),
+		"front left is 30 degrees to the left")
+	var sr := (ring[CH_SR] - at).normalized()
+	_ok(sr.dot(right) > 0.0 and sr.dot(ahead) < 0.0, "surround right is behind and to the right")
+	_ok(is_equal_approx(sr.dot(ahead), cos(deg_to_rad(110.0))), "at 110 degrees")
+
+
+func _h_ring_fold() -> void:
+	var at := Vector3.ZERO
+	var ring := SpatialAudioEmitter.surround_ring(at, Vector3(-0.15, 0.0, -0.45), Vector3(0.15, 0.0, -0.45))
+	var targets: Array = [PackedInt32Array([0]), PackedInt32Array([1]), PackedInt32Array([0, 1]),
+		PackedInt32Array([0, 1]), PackedInt32Array([0]), PackedInt32Array([1])]
+	var pos := SystemAudio.ring_positions(ring, at, targets)
+	_ok(pos[CH_C].is_equal_approx(ring[CH_C]), "a centre between the fronts is dead ahead, on the ring")
+	_ok(pos[CH_SL].is_equal_approx(ring[CH_FL]), "a surround folded to the front plays from that front")
+	_ok(pos[CH_FR].is_equal_approx(ring[CH_FR]), "a channel on its own speaker keeps its own point")
+
+
+func _own_targets() -> Array:
+	var t: Array = []
+	for ch in 6:
+		t.append(PackedInt32Array([ch]))
+	return t
+
+
+func _unit_gains() -> PackedFloat32Array:
+	return PackedFloat32Array([1.0, 1.0, 1.0, 1.0, 1.0, 1.0])
+
+
+## Only the named cells are non-zero, so a channel leaking onto a second output
+## fails as surely as one missing from its own.
+func _matrix_is(m: PackedFloat32Array, want: Dictionary, what: String) -> void:
+	_check_eq(m.size(), 48, "%s: a 6 x 8 matrix" % what)
+	var wrong: Array = []
+	for i in m.size():
+		var expect: float = want.get(i, 0.0)
+		if not is_equal_approx(m[i], expect):
+			wrong.append("[in %d, out %d] %.3f" % [i / 8, i % 8, m[i]])
+	_ok(wrong.is_empty(), "%s %s" % [what, "" if wrong.is_empty() else str(wrong)])
+
+
+func _h_discrete_51() -> void:
+	var m := SystemAudio.discrete_matrix(_own_targets(), _unit_gains(), AudioServer.SPEAKER_SURROUND_51)
+	_matrix_is(m, {0 * 8 + 0: 1.0, 1 * 8 + 1: 1.0, 2 * 8 + 2: 1.0,
+		3 * 8 + 3: SystemAudio.DISCRETE_LFE_TRIM, 4 * 8 + 4: 1.0, 5 * 8 + 5: 1.0},
+		"each channel on its own output, the LFE 10 dB down")
+
+
+func _h_discrete_71() -> void:
+	var m := SystemAudio.discrete_matrix(_own_targets(), _unit_gains(), AudioServer.SPEAKER_SURROUND_71)
+	_matrix_is(m, {0 * 8 + 0: 1.0, 1 * 8 + 1: 1.0, 2 * 8 + 2: 1.0,
+		3 * 8 + 3: SystemAudio.DISCRETE_LFE_TRIM, 4 * 8 + 6: 1.0, 5 * 8 + 7: 1.0},
+		"the surrounds on the side pair, the back pair left alone")
+
+
+func _h_discrete_31() -> void:
+	var m := SystemAudio.discrete_matrix(_own_targets(), _unit_gains(), AudioServer.SPEAKER_SURROUND_31)
+	_matrix_is(m, {0 * 8 + 0: 1.0, 1 * 8 + 1: 1.0, 2 * 8 + 2: 1.0,
+		3 * 8 + 3: SystemAudio.DISCRETE_LFE_TRIM,
+		4 * 8 + 0: TvFit.FOLD_GAIN, 5 * 8 + 1: TvFit.FOLD_GAIN},
+		"the surrounds onto the fronts 3 dB down, having nowhere else")
+
+
+## The room's layout, not the PC's: a room with only its fronts plugged in sends
+## nothing to the PC's centre, as it plays nothing from a centre of its own.
+func _h_discrete_folds() -> void:
+	var targets: Array = [PackedInt32Array([0]), PackedInt32Array([1]), PackedInt32Array([0, 1]),
+		PackedInt32Array([0, 1]), PackedInt32Array([0]), PackedInt32Array([1])]
+	var gains := PackedFloat32Array([1.0, 1.0, 1.0, 1.0, TvFit.FOLD_GAIN, TvFit.FOLD_GAIN])
+	var m := SystemAudio.discrete_matrix(targets, gains, AudioServer.SPEAKER_SURROUND_51)
+	var h := TvFit.FOLD_GAIN
+	_matrix_is(m, {0 * 8 + 0: 1.0, 1 * 8 + 1: 1.0,
+		2 * 8 + 0: h, 2 * 8 + 1: h, 3 * 8 + 0: h, 3 * 8 + 1: h,
+		4 * 8 + 0: h, 5 * 8 + 1: h},
+		"a phantom channel plays from both fronts 3 dB down, a fold from one")
+
+
+func _h_discrete_silent() -> void:
+	var none: Array = []
+	for ch in 6:
+		none.append(PackedInt32Array())
+	var m := SystemAudio.discrete_matrix(none, PackedFloat32Array([0, 0, 0, 0, 0, 0]),
+		AudioServer.SPEAKER_SURROUND_51)
+	_matrix_is(m, {}, "with nothing plugged in, no output hears anything")
+	_ok(SystemAudio.discrete_matrix(_own_targets(), _unit_gains(),
+		AudioServer.SPEAKER_MODE_STEREO).is_empty(),
+		"a stereo device is offered no matrix at all")
+
+
+## The extension end: a queue that fills when pushed and EMPTIES on its own, which
+## only happens if the bus, its effect and the pair-0 instance are all really there
+## -- the dummy driver mixes headless as the real one does.
+func _h_device_queue() -> void:
+	_ok(Engine.has_singleton("SurroundAudio"), "the surround extension is loaded")
+	if not Engine.has_singleton("SurroundAudio"):
+		return
+	var out: Object = Engine.get_singleton("SurroundAudio").create_output()
+	_ok(out != null, "it makes a device output")
+	if out == null:
+		return
+	var bus := AudioServer.get_bus_index("SurroundOut")
+	_ok(bus > 0, "on a bus of its own")
+	_check_eq(String(AudioServer.get_bus_send(bus)), "Master", "sending to Master")
+	_check_eq(AudioServer.get_bus_effect_count(bus), 1, "with one effect on it")
+	var pairs := AudioServer.get_bus_channels(bus)
+	var numbered := 0
+	for k in pairs:
+		var inst: Object = AudioServer.get_bus_effect_instance(bus, 0, k)
+		if inst != null and inst.has_method("get_pair") and int(inst.get_pair()) == k:
+			numbered += 1
+	_check_eq(numbered, pairs, "every speaker pair's instance knows which pair it writes")
+
+	var m := PackedFloat32Array()
+	m.resize(48)
+	m.fill(0.0)
+	m[2 * 8 + 2] = 0.5
+	out.set_matrix(m)
+	_ok(is_equal_approx(out.get_gain(2, 2), 0.5) and is_zero_approx(out.get_gain(2, 0)),
+		"the matrix it was given is the matrix it holds")
+
+	var planes: Array = []
+	for ch in 6:
+		var p := PackedFloat32Array()
+		p.resize(9600)
+		p.fill(0.1)
+		planes.append(p)
+	_check_eq(int(out.push(planes)), 9600, "a push is taken whole")
+	var before: int = out.queued()
+	await get_tree().create_timer(0.3).timeout
+	var after: int = out.queued()
+	_ok(after < before, "and the device drains it (%d -> %d frames)" % [before, after])
+	out.flush()
+	await get_tree().create_timer(0.1).timeout
+	_check_eq(int(out.queued()), 0, "a flush empties it")

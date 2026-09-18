@@ -678,6 +678,15 @@ func get_surround_gains() -> PackedFloat32Array:
 	return _fit.surround_gains()
 
 
+## Which of the six speakers each channel lands on, same order: one index for a
+## speaker, two for the phantom point between a pair, none when nothing is plugged
+## in. The positions above say WHERE in the room; this says WHICH speaker, which is
+## what a layout that is not this room's -- the one around a player's head, or the
+## speakers wired to their PC -- has to be told.
+func get_surround_targets() -> Array:
+	return _fit.surround_targets()
+
+
 ## Which way the picture faces. Sound leaves a set the same way it does, so
 ## anything giving these speakers a directivity aims them along this. Normalised,
 ## unlike the offsets above, because it is a direction rather than a distance.

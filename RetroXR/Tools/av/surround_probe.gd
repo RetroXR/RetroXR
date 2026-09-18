@@ -3,7 +3,12 @@
 ##
 ##   godot --path RetroXR --resolution 320x240 --position 20,20 \
 ##     res://Tools/av/surround_probe.tscn -- \
-##     --root=<libretro root> --core=fceumm --rom=<a ROM>
+##     --root=<libretro root> --core=fceumm --rom=<a ROM> [--held]
+##
+## --held adds the picture taken to the window, the way the desktop fullscreen
+## holds a machine's sound. On a stereo device the six stay on the voices; on a
+## 3.1/5.1/7.1 one they leave through the device's own speakers and the voices go
+## quiet. Tools/surround_output_check.py --rom=... runs it that way at 5.1.
 ##
 ## A probe rather than a suite for two reasons, and both are hard requirements:
 ## it wants a core and a ROM, and it wants the Meta XR Audio SDK — the voices ARE
@@ -30,6 +35,7 @@ var _failures: Array[String] = []
 ## Seconds to keep measuring the surround depth after the checks, for a creep too
 ## slow for the 10-second sample to show. 0 skips it.
 var _soak := 0.0
+var _held := false
 
 
 func _ready() -> void:
@@ -42,6 +48,8 @@ func _ready() -> void:
 			_rom = arg.split("=", true, 1)[1]
 		elif arg.begins_with("--soak="):
 			_soak = float(arg.split("=", true, 1)[1])
+		elif arg == "--held":
+			_held = true
 	get_tree().create_timer(120.0 + _soak).timeout.connect(func() -> void:
 		print("[surround] TIMEOUT")
 		get_tree().quit(2))
@@ -242,6 +250,9 @@ func _run() -> void:
 	_ok(is_equal_approx(gains[4], 0.7071068) and is_equal_approx(gains[5], 0.7071068),
 		"and the two uncabled surrounds are 3 dB down")
 
+	if _held:
+		await _check_held(sys, node, ids)
+
 	# Back off, which is what releases the four extra voices to a mixer with 32.
 	tv.set_audio_out(RetroTV.AudioOut.TV_SPEAKERS)
 	await _wait(20)
@@ -253,6 +264,95 @@ func _run() -> void:
 	for f in _failures:
 		print("[surround]   failed: %s" % f)
 	get_tree().quit(1 if not _failures.is_empty() else 0)
+
+
+## --held. The oracle on a multichannel device is the Master bus's own meter per
+## speaker pair, which is where the device output and the voices' binaural stereo
+## meet -- the voices are a player on the front pair, so a front pair that stays
+## quiet is the voices being silent, and a lit centre is the device output.
+##
+## Only the centre cabinet is plugged in, so every channel folds onto it and the
+## whole game belongs on the device's centre. A binaural render would have put it
+## on the fronts.
+##
+## Held and released windows ALTERNATE, three of each, and are judged on their
+## loudest: a game has quiet stretches, and one window that happened to land on a
+## pause read exactly like a route carrying nothing. The released windows are the
+## control -- if the voices are never heard either, the run cannot tell.
+func _check_held(sys: RetroSystem, node: Libretro, ids: PackedInt32Array) -> void:
+	var at := SpatialAudioEmitter.head_lock_positions(Transform3D(Basis(), Vector3(0.0, 1.6, 2.5)))
+	var audio: SystemAudio = sys._audio
+	if AudioServer.get_speaker_mode() == AudioServer.SPEAKER_MODE_STEREO:
+		sys.set_audio_head_lock(at[0], at[1])
+		await _wait(60)
+		_ok(not audio._discrete, "held on a stereo device, the six stay on the voices")
+		_ok(node.GetAudioVoiceIds().size() == 6, "all six of them, drawn round the head")
+		sys.clear_audio_head_lock()
+		await _wait(30)
+		return
+	var pairs := AudioServer.get_bus_channels(0)
+	var held := PackedFloat32Array()
+	var free := PackedFloat32Array()
+	var engaged := 0
+	var released := 0
+	for round in 3:
+		sys.set_audio_head_lock(at[0], at[1])
+		await _wait(30)
+		if audio._discrete:
+			engaged += 1
+		held = _louder(held, await _pair_peaks(90))
+		if round == 1:
+			# The voices still pace the core: silent, but drained with the device.
+			var first: int = _peak_of(await _measure(ids, "held, voices"))
+			await _wait(240)
+			var second: int = _peak_of(await _measure(ids, "held, voices later"))
+			_ok(second - first < 1024, "held, the voices' depth holds still, so the brake still holds the core")
+		sys.clear_audio_head_lock()
+		await _wait(30)
+		if not audio._discrete:
+			released += 1
+		free = _louder(free, await _pair_peaks(90))
+	_ok(engaged == 3, "held on a %d-pair device, the six go to its own speakers (%d/3)" % [pairs, engaged])
+	_ok(released == 3, "and letting go hands them back to the voices (%d/3)" % released)
+	var voices := maxf(free[0], free[1])
+	if voices < -45.0:
+		print("[surround] SKIP the level checks: the voices were never heard released either (%.1f dB)" % voices)
+		return
+	_ok(held[2] > -45.0 and held[2] > voices - 20.0,
+		"held, the game reaches the device's centre (%.1f dB, against %.1f released)" % [held[2], voices])
+	_ok(held[0] < -70.0 and held[1] < -70.0,
+		"and nothing reaches its fronts, so the voices are silent (%.1f / %.1f dB)" % [held[0], held[1]])
+	if pairs >= 3:
+		_ok(held[4] < -70.0 and held[5] < -70.0, "nor its surrounds, with no surround cabinet in the room")
+	_ok(free[2] < -70.0, "released, the device's centre is silent (%.1f dB)" % free[2])
+
+
+func _louder(a: PackedFloat32Array, b: PackedFloat32Array) -> PackedFloat32Array:
+	if a.is_empty():
+		return b
+	var out := a.duplicate()
+	for i in mini(a.size(), b.size()):
+		out[i] = maxf(a[i], b[i])
+	return out
+
+
+## The loudest the Master bus's meter read on each of the device's outputs over
+## `frames` frames, in dB, in pair order: FL, FR, C, LFE, then the surrounds.
+func _pair_peaks(frames: int) -> PackedFloat32Array:
+	var pairs := AudioServer.get_bus_channels(0)
+	var peak := PackedFloat32Array()
+	peak.resize(pairs * 2)
+	peak.fill(-200.0)
+	for _f in frames:
+		await get_tree().process_frame
+		for k in pairs:
+			peak[k * 2] = maxf(peak[k * 2], AudioServer.get_bus_peak_volume_left_db(0, k))
+			peak[k * 2 + 1] = maxf(peak[k * 2 + 1], AudioServer.get_bus_peak_volume_right_db(0, k))
+	var row := ""
+	for i in peak.size():
+		row += " %.1f" % peak[i]
+	print("[surround] Master per output (dB):%s" % row)
+	return peak
 
 
 ## Is a voice list actually receiving audio? Reported rather than asserted, so the

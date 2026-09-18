@@ -1,6 +1,7 @@
 #include "SurroundAudio.hpp"
 
 #include "SurroundDecoder.hpp"
+#include "SurroundOutput.hpp"
 
 #include <godot_cpp/core/class_db.hpp>
 
@@ -28,10 +29,20 @@ Ref<RefCounted> SurroundAudio::CreateDecoder(int block_frames, int sample_rate)
     return dec;
 }
 
+Ref<RefCounted> SurroundAudio::CreateOutput()
+{
+    if (!DiscreteSink::Get().EnsureBus())
+        return Ref<RefCounted>();
+    Ref<SurroundOutput> out;
+    out.instantiate();
+    return out;
+}
+
 void SurroundAudio::_bind_methods()
 {
     ClassDB::bind_method(D_METHOD("create_decoder", "block_frames", "sample_rate"),
                          &SurroundAudio::CreateDecoder);
+    ClassDB::bind_method(D_METHOD("create_output"), &SurroundAudio::CreateOutput);
     ClassDB::bind_static_method("SurroundAudio", D_METHOD("block_is_usable", "block_frames"),
                                 &SurroundAudio::BlockIsUsable);
 }

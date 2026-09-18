@@ -230,6 +230,13 @@ func surround_gains() -> PackedFloat32Array:
 	return _route()[1]
 
 
+## Which speakers each channel landed on, same order: a PackedInt32Array of one
+## speaker index, of the two whose midpoint it plays at, or empty with nothing
+## plugged in.
+func surround_targets() -> Array:
+	return _route()[2]
+
+
 ## Whether any of the six outputs reaches a speaker.
 func has_cabled_speakers() -> bool:
 	var dest := _tv.panel().speaker_destinations()
@@ -257,6 +264,7 @@ func _route() -> Array:
 	var rest: Vector3 = (pair[0] + pair[1]) * 0.5
 	var positions := PackedVector3Array()
 	var gains := PackedFloat32Array()
+	var targets: Array = []
 	for i in _FOLD_CHAINS.size():
 		var placed := false
 		for target: Variant in _FOLD_CHAINS[i]:
@@ -266,17 +274,20 @@ func _route() -> Array:
 				if a != null and b != null:
 					positions.push_back(((a as Vector3) + (b as Vector3)) * 0.5)
 					gains.push_back(1.0)
+					targets.append(PackedInt32Array([target[0], target[1]]))
 					placed = true
 					break
 			elif cones[target] != null:
 				positions.push_back(cones[target] as Vector3)
 				gains.push_back(1.0 if target == i else FOLD_GAIN)
+				targets.append(PackedInt32Array([target]))
 				placed = true
 				break
 		if not placed:
 			positions.push_back(rest)
 			gains.push_back(0.0)
-	return [positions, gains]
+			targets.append(PackedInt32Array())
+	return [positions, gains, targets]
 
 
 ## The cabinet an audio_dest entry names, or null for a channel with none — and for

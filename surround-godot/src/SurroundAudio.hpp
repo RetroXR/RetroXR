@@ -40,6 +40,12 @@ public:
     /// What Configure would refuse, so a caller can check before asking.
     static bool BlockIsUsable(int block_frames);
 
+    /// A handle on the output device's own speakers, for a source whose six
+    /// channels should leave as six channels rather than as binaural stereo --
+    /// see SurroundOutput.hpp. One per source, like a decoder: each carries its
+    /// own queue. Null in the editor, and wherever there is no AudioServer.
+    godot::Ref<godot::RefCounted> CreateOutput();
+
 protected:
     static void _bind_methods();
 };

@@ -347,6 +347,31 @@ static func head_lock_positions(cam: Transform3D) -> PackedVector3Array:
 	return PackedVector3Array([centre - side, centre + side])
 
 
+## The six speakers of a standard 5.1 room, in degrees off straight ahead with the
+## right positive, in the decoder's order: FL, FR, C, LFE, SL, SR. ITU-R BS.775 for
+## the five; the LFE has no place of its own there, and bass tells the ear nothing
+## about direction, so it stands with the centre.
+const SURROUND_RING_DEGREES := [-30.0, 30.0, 0.0, 0.0, -110.0, 110.0]
+
+
+## Where a head-locked source's six channels go: a 5.1 room around the listener,
+## at HEAD_LOCK_AHEAD, with its centre on the line to the middle of the head-locked
+## pair -- which is the picture, on the desktop and in focus mode alike. Built from
+## the pair rather than from a camera so every caller of the head lock gets it
+## without saying more than it already does.
+static func surround_ring(listener: Vector3, left: Vector3, right: Vector3) -> PackedVector3Array:
+	var ahead := (left + right) * 0.5 - listener
+	var forward := ahead.normalized() if ahead.length() > 0.0001 else Vector3.FORWARD
+	var side := right - left
+	side -= forward * side.dot(forward)
+	var across := side.normalized() if side.length() > 0.0001 else forward.cross(Vector3.UP).normalized()
+	var out := PackedVector3Array()
+	for deg: float in SURROUND_RING_DEGREES:
+		var a := deg_to_rad(deg)
+		out.push_back(listener + (forward * cos(a) + across * sin(a)) * HEAD_LOCK_AHEAD)
+	return out
+
+
 func _speaker_offset(sign_x: float) -> Vector3:
 	if _voice_r < 0 or speaker_separation <= 0.0:
 		return Vector3.ZERO
