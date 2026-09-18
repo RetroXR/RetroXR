@@ -4,7 +4,7 @@
 ## core lands in this table when we maintain a fork of it, because then the
 ## buildbot's build is not the one we want the player to have.
 ##
-## Nine of them, and four are here for the same reason: this room has cables in
+## Ten of them, and four are here for the same reason: this room has cables in
 ## it, and libretro has nowhere to put the far end of one. Dolphin, mGBA,
 ## gambatte and pcsx_rearmed each reach a link bus the frontend hosts.
 ##
@@ -58,7 +58,7 @@ const SOURCES := {
 		# URL — see base_url. It is only the version to show when GitHub cannot be
 		# reached, so an offline player still sees something truthful rather than
 		# a blank.
-		"known_tag": "retroxr-dolphin-libretro-v11",
+		"known_tag": "retroxr-dolphin-libretro-v12",
 		"label": "Dolphin (retroXR build)",
 		# Per platform, because we only publish what we build. A platform absent
 		# here is not an error — the manager falls back to the buildbot for it,
@@ -242,7 +242,7 @@ const SOURCES := {
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
 		"repo":  "RetroXR/flycast",
-		"known_tag": "retroxr-flycast-libretro-v2",
+		"known_tag": "retroxr-flycast-libretro-v3",
 		"label": "Flycast (retroXR build)",
 		"assets": {
 			"Windows": "flycast_libretro.dll.zip",
@@ -256,6 +256,29 @@ const SOURCES := {
 		"assets": {
 			"Windows": "snes9x_libretro.dll.zip",
 			"Android": "snes9x_libretro_android.so.zip",
+		},
+	},
+	# FCEUmm, for the microphone in a Famicom's second controller.
+	#
+	# The Controller II microphone is a one-bit threshold detector at $4016 bit 2,
+	# and FCEUmm had no microphone at all. Nestopia and Mesen put theirs on port
+	# 0's L3, which this core already gives to A+B. Our build puts it on player
+	# 2's Start instead -- a button a Controller II does not have -- behind
+	# fceumm_famicom_microphone: the core toggles the bit on every $4016 read
+	# while the frontend holds it, which is the flicker games look for, nullifies
+	# Start at $4017, and keeps the bit's phase in the savestate.
+	#
+	# This is the Android default NES core and the only netplay-verified one, so
+	# the fork has to stay a drop-in: with the option off it is the stock core.
+	#
+	# FCEUmm is GPLv2, so the source for these binaries sits on the tag.
+	"fceumm": {
+		"repo":  "RetroXR/libretro-fceumm",
+		"known_tag": "retroxr-fceumm-libretro-v1",
+		"label": "FCEUmm (retroXR build)",
+		"assets": {
+			"Windows": "fceumm_libretro.dll.zip",
+			"Android": "fceumm_libretro_android.so.zip",
 		},
 	},
 	# mupen64plus_next, for a 64DD disk with no cartridge behind it.
@@ -275,7 +298,7 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin, gambatte and pcsx_rearmed.
 	"mupen64plus_next": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v3",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v4",
 		"label": "Mupen64Plus-Next (retroXR build)",
 		"assets": {
 			"Windows": "mupen64plus_next_libretro.dll.zip",
@@ -292,7 +315,7 @@ const SOURCES := {
 	# CoreRecommendations already names for nintendo_64 on Android.
 	"mupen64plus_next_gles3": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v3",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v4",
 		"label": "Mupen64Plus-Next GLES3 (retroXR build)",
 		"assets": {
 			"Android": "mupen64plus_next_gles3_libretro_android.so.zip",

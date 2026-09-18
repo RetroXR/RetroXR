@@ -1,11 +1,26 @@
+# Nintendo - NES / Famicom (FCEUmm), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too — an edit there would be
+# lost the next time, silently.
+#
+# The binary this describes is built from RetroXR/libretro-fceumm at the tag
+# retroxr-fceumm-libretro-v1 and published on that repository's releases page,
+# which is also where its source is: FCEUmm is GPLv2, so the two travel
+# together.
+#
+# It also adds `famicom` to secondary_systemids, which is what puts the Famicom
+# on the browser and gives a spawned one a core at all.
+
 # Software Information
-display_name = "Nintendo - NES / Famicom (FCEUmm)"
+display_name = "Nintendo - NES / Famicom (FCEUmm, retroXR)"
 authors = "FCEU Team|CaH4e3"
 supported_extensions = "fds|nes|unif|unf"
-corename = "FCEUmm"
+corename = "FCEUmm (retroXR)"
 license = "GPLv2"
 permissions = ""
-display_version = "SVN"
+display_version = "retroXR build"
 categories = "Emulator"
 
 # Hardware Information

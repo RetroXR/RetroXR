@@ -138,12 +138,12 @@ func _group_parser() -> void:
 ## that is not in the table, because the download manager decides between our
 ## release and the buildbot by asking exactly that.
 func _group_sources() -> void:
-	_ok(not CoreSources.has("fceumm"),
+	_ok(not CoreSources.has("nestopia"),
 		"sources/an ordinary buildbot core is not ours")
-	_eq(CoreSources.base_url("fceumm"), "", "sources/and has no release URL")
-	_eq(CoreSources.api_url("fceumm"), "", "sources/nor an API URL")
-	_eq(CoreSources.asset_for("fceumm"), "", "sources/nor an asset")
-	_eq(CoreSources.version_of("fceumm"), "", "sources/nor a known tag")
+	_eq(CoreSources.base_url("nestopia"), "", "sources/and has no release URL")
+	_eq(CoreSources.api_url("nestopia"), "", "sources/nor an API URL")
+	_eq(CoreSources.asset_for("nestopia"), "", "sources/nor an asset")
+	_eq(CoreSources.version_of("nestopia"), "", "sources/nor a known tag")
 
 	# dolphin is one of ours on every desktop platform.
 	_ok(CoreSources.base_url("dolphin").begins_with("https://github.com/"),
