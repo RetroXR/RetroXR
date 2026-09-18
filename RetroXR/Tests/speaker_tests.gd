@@ -19,6 +19,7 @@ const SATELLITE := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUBWOOFER := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
 const SPEAKER_CABLE := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const RCA_PORT := preload("res://Scenes/Objects/cables/rca_port.tscn")
+const COMPOSITE_CABLE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const STAND_120 := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
 const STAND_100 := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
@@ -64,6 +65,7 @@ func _run() -> void:
 		["routing/a cabinet on each output takes that channel", _r_each_output],
 		["routing/two cabinets on one output do not merge", _r_two_on_one],
 		["routing/pulling the lead takes the channel away", _r_pull],
+		["routing/binning a lead seats none of its plugs anywhere", _r_bin_lead],
 		["fold/a set with no cabinets folds every channel onto its own pair", _d_all_folded],
 		["fold/a cabled channel comes off its own cabinet", _d_cabled],
 		["fold/a folded surround is 3 dB down and a folded centre is not", _d_gains],
@@ -328,6 +330,41 @@ func _r_two_on_one() -> void:
 	_check_eq(feed.audio_dest.size(), 1, "and only that one channel resolves")
 	var loser: Node3D = second if sink == first else first
 	_ok(loser != sink, "the other cabinet is not also on the centre")
+
+
+## A lead binned while it is patched into the set has every plug released IN
+## PLACE, standing in the panel — and every empty socket whose grab sphere the plug
+## body reaches takes it on the deferred `dropped`. Composite 2's trio sits 60.3 mm
+## below SUB/SL/SR, just inside a 60 mm sphere once the plug body is counted, so
+## all three speaker outputs seated a plug that was freed at the end of the frame.
+##
+## Counted off has_picked_up rather than read off picked_up_object afterwards: by
+## then the lead is freed, and a socket holding a freed plug and an empty one both
+## answer is_instance_valid() false, so a check that read the state could not fail.
+func _r_bin_lead() -> void:
+	var tv := await _set_with_outs()
+	var seats := {"n": 0}
+	var ports: Array[RcaPort] = []
+	for group: Array in tv.panel()._av_ports:
+		for p: RcaPort in group:
+			ports.append(p)
+	ports.append_array(tv.panel().speaker_outs())
+	var lead := COMPOSITE_CABLE.instantiate() as Node3D
+	add_child(_hold(lead))
+	await _wait(4)
+	var trio: Array = tv.panel()._av_ports[RetroTV.Source.COMPOSITE_2]
+	for c in 3:
+		(trio[c] as RcaPort).pick_up_object(lead.get_node("PlugA%d" % c) as Node3D)
+	# Long enough for the neighbouring zones' areas to see the seated plug bodies,
+	# which is the state the room is in by the time anyone reaches for the bin.
+	await _wait(20)
+	_ok((trio[0] as RcaPort).picked_up_object == lead.get_node("PlugA0"),
+		"the lead is patched into Composite 2")
+	for p in ports:
+		p.has_picked_up.connect(func(_what: Node3D) -> void: seats["n"] += 1)
+	lead.call("drop_and_free")
+	await _wait(12)
+	_check_eq(int(seats["n"]), 0, "no socket took a plug from the lead being freed")
 
 
 func _r_pull() -> void:

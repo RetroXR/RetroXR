@@ -774,7 +774,18 @@ func _reopen_port(port: RcaPort) -> void:
 ## the far end has to hear the unplug: the sockets do announce as they release, but
 ## they announce DEFERRED, and this node is deleted at the end of the frame — ahead
 ## of the next message flush — so that resolve never runs. Hence the direct call.
+##
+## Every plug is disabled BEFORE it is dropped. A plug released here is released in
+## place, still standing in the panel, and every empty socket whose grab sphere its
+## body reaches takes it on the deferred `dropped` — net_release_plug records the
+## same handler. Binning a lead from Composite 2 seated its three plugs into SUB, SL
+## and SR, 60.3 mm above, and the lead was freed at the end of the frame, leaving
+## three sockets holding freed plugs. can_pick_up refuses a disabled pickable, and
+## let_go does not ask.
 func drop_and_free() -> void:
+	for e in [End.A, End.B]:
+		for plug: RcaPlug in _end_plugs(e):
+			plug.enabled = false
 	for e in [End.A, End.B]:
 		for plug: RcaPlug in _end_plugs(e):
 			var port := plug.seated_port()
