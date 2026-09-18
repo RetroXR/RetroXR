@@ -26,6 +26,9 @@ const VIEWS := [
 	# a thin baked rule breaking up.
 	["divider_raking", Vector3(-0.9, 0.18, -0.45), 0.22],
 	["divider_raking_far", Vector3(-0.9, 0.18, -0.45), 0.6],
+	# The FRONT, for the bezel row. A twelfth cap changes the row's layout, and
+	# nothing in Tests/ counts caps or asserts a row width.
+	["bezel", Vector3(0.0, 0.35, 1.0), 0.45],
 ]
 
 var _out_dir := "res://probe_out"
@@ -67,6 +70,10 @@ func _report(tv: RetroTV) -> void:
 		print("[panel]   %-14s at %.3v  channel=%d %-7s direction=%d  +Z -> %.3v" % [
 			out.name, out.position, out.channel, out.channel_name(), out.direction,
 			out.transform.basis.z])
+	for cap in tv.find_children("*Button", "Node3D", false, false):
+		var c := cap as Node3D
+		print("[panel] cap %-20s x=%+.3f y=%+.3f visible=%s" % [
+			c.name, c.position.x, c.position.y, c.visible])
 	for legend in tv.find_children("AvLegend*", "Node3D", true, false):
 		print("[panel] legend %s at %.3v" % [legend.name, (legend as Node3D).position])
 
@@ -126,6 +133,9 @@ func _shoot(tv: RetroTV, label: String, from: Vector3, dist: float) -> void:
 
 	var wide := is_zero_approx(dist)
 	var box := _aabb_of(tv) if wide else _row_aabb(tv)
+	if label.begins_with("bezel"):
+		box = AABB(tv.global_position + Vector3(-0.18, -0.20, 0.10),
+			Vector3(0.36, 0.12, 0.10))
 	var target := box.get_center()
 	var cam := Camera3D.new()
 	cam.position = target + from.normalized() * (box.size.length() * 1.25 if wide else dist)

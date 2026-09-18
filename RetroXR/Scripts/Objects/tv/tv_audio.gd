@@ -117,13 +117,18 @@ func update_audio_out_button() -> void:
 		TransportGlyphs.TV_SIZE)
 	if _tv.audio_out_btn() == null:
 		return
+	# Deliberately NOT audio_mode's palette, though both keys wear a speaker. The
+	# two sit in the same bezel row, and at mode 0 / TV SPEAKERS they were the same
+	# blue on the same symbol — rendered side by side they read as one control
+	# pressed twice. Grey is the resting state here, and violet is unused
+	# elsewhere on this row.
 	match _tv.audio_out:
 		RetroTV.AudioOut.TV_SPEAKERS:
-			_tv.audio_out_btn().set_color(Color(0.35, 0.55, 0.9))
+			_tv.audio_out_btn().set_color(Color(0.55, 0.58, 0.62))
 		RetroTV.AudioOut.STEREO:
 			_tv.audio_out_btn().set_color(Color(0.35, 0.8, 0.6))
 		RetroTV.AudioOut.SURROUND:
-			_tv.audio_out_btn().set_color(Color(0.95, 0.6, 0.2))
+			_tv.audio_out_btn().set_color(Color(0.75, 0.45, 0.95))
 
 
 ## The routing itself belongs to whoever owns the samples, so it is handed to the
