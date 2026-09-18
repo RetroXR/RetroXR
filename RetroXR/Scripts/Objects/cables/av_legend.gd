@@ -39,11 +39,6 @@ const INK := Color(0.90, 0.90, 0.87)
 const PLATE := Color(0.055, 0.055, 0.065)
 const BORDER := Color(0.72, 0.72, 0.69)
 
-## The rule between adjacent groups. Brighter than BORDER on purpose: the border
-## outlines the whole bank and should sit back, while this is the line that has to
-## say which three sockets belong together.
-const DIVIDER := Color(0.95, 0.95, 0.92)
-
 ## Worn only when the plate is off, where the cabinet behind the words could be any
 ## colour — a white monitor back or a black one. Light ink inside a dark outline
 ## reads on both. On the plate it is the plate that supplies the contrast, and an
@@ -103,16 +98,6 @@ const Z_TEXT := 0.0006
 ## authored text size, so three of the six would print over their neighbours. A real
 ## 5.1 panel prints FL / FR / C / SUB / SL / SR for the same reason.
 @export var word_override: Dictionary = {}
-
-## Rule up the LEFT edge of the plate, dividing this group from the one printed
-## beside it. Set on every group but the first, so a bank of four gets three rules
-## and no line hangs off either end.
-##
-## Drawn by the group to its right rather than centred in the gap, because a legend
-## knows its own extent and nothing about its neighbour's — and the plates all but
-## touch (2.4 mm apart at the 60 mm group pitch, closer than their own borders), so
-## an edge rule lands where the seam reads anyway.
-@export var divider_left: bool = false
 
 ## Clear space between the outermost thing printed and the edge of the plate.
 @export var plate_margin: float = 0.006
@@ -234,9 +219,6 @@ func rebuild() -> void:
 	if show_plate:
 		_add_quad(size + Vector2(border_width, border_width) * 2.0, mid, Z_BORDER, BORDER)
 		_add_quad(size, mid, Z_PLATE, PLATE)
-		if divider_left:
-			# Above the plate in the stack, or the plate it divides covers it.
-			_add_quad(Vector2(border_width, size.y), mid, Z_TEXT, DIVIDER, -half)
 	for row_l: Array in labels:
 		_add_label(row_l[0], row_l[1], row_l[2], row_l[3])
 
@@ -256,7 +238,7 @@ static var _bakes: Dictionary = {}
 
 
 func _bake(labels: Array, size: Vector2, mid: float) -> void:
-	var key := "%s|%s|%s|%s|%s|%s" % [show_plate, divider_left, border_width,
+	var key := "%s|%s|%s|%s|%s" % [show_plate, border_width,
 		plate_margin, var_to_str(size), var_to_str(labels)]
 	# The border sits outside the plate, so the quad is the border's rect;
 	# without a plate the texture covers the same footprint, transparent.
@@ -286,8 +268,6 @@ func _bake(labels: Array, size: Vector2, mid: float) -> void:
 		_bake_rect(sv, Rect2(Vector2.ZERO, Vector2(px)), BORDER)
 		var inset := border_width * ppm
 		_bake_rect(sv, Rect2(Vector2(inset, inset), Vector2(px) - Vector2(inset, inset) * 2.0), PLATE)
-		if divider_left:
-			_bake_rect(sv, Rect2(Vector2(inset, inset), Vector2(inset, float(px.y) - inset * 2.0)), DIVIDER)
 	for row_l: Array in labels:
 		var text: String = row_l[0]
 		var height: float = row_l[3]
