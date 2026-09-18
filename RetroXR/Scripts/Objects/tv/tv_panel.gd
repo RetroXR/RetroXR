@@ -48,6 +48,37 @@ var _snapped_plugs: Array = []
 ## directly to assert what the set thinks is cabled to it.
 var _connected_systems: Array = []
 
+## The six speaker outputs, in RcaPort.SPEAKER_OUT_CHANNELS order.
+##
+## An array of its own rather than another entry in _av_ports, which is indexed by
+## RetroTV.Source over its whole range and walked by _input_for_device: a
+## loudspeaker filed there would be read as a device arriving on an input.
+var _speaker_outs: Array[RcaPort] = []
+
+## Node names, in the same order. The scene authors them; a shell re-seats them.
+const SPEAKER_OUT_NAMES := ["SpeakerOutL", "SpeakerOutR", "SpeakerOutC",
+	"SpeakerOutLfe", "SpeakerOutSl", "SpeakerOutSr"]
+
+## Centre-to-centre up the back panel, from the input row to the speaker row.
+##
+## Up rather than down, and by more than a legend plate is tall: the stock body's floor
+## is at -0.2 against an input row at -0.15, so there are 50 mm below and 350 mm above.
+const SPEAKER_ROW_RISE := 0.06
+
+## What the panel silk-screens under each speaker output, keyed by channel.
+##
+## Not RcaPort.CHANNEL_NAMES: those name a channel for the cord log and a suite pins
+## them, while these have to fit an 18 mm socket pitch. A real 5.1 panel prints the
+## same abbreviations for the same reason.
+const SPEAKER_WORDS := {
+	RcaPort.Channel.AUDIO_L: "FL",
+	RcaPort.Channel.AUDIO_R: "FR",
+	RcaPort.Channel.AUDIO_C: "C",
+	RcaPort.Channel.AUDIO_LFE: "SUB",
+	RcaPort.Channel.AUDIO_SL: "SL",
+	RcaPort.Channel.AUDIO_SR: "SR",
+}
+
 
 func setup(tv: RetroTV) -> void:
 	_tv = tv
@@ -107,6 +138,14 @@ func collect() -> void:
 	_connected_systems.append(null)
 	_snapped_plugs.append(null)
 
+	_speaker_outs = []
+	for out_name in SPEAKER_OUT_NAMES:
+		var out := _tv.get_node_or_null(out_name) as RcaPort
+		if out == null:
+			push_warning("[RetroTV] missing speaker output %s" % out_name)
+			continue
+		_speaker_outs.append(out)
+
 
 ## How many composite inputs this cabinet actually carries sockets for. The stock
 ## body and both televisions take all four; a shell with a smaller back panel says so.
@@ -124,6 +163,26 @@ func has_aerial() -> bool:
 	return _tv.shell() == null or _tv.shell().has_aerial
 
 
+## Whether this cabinet carries the six speaker outputs.
+##
+## The stock body does — it is a flat box with 350 mm of clear back above the input
+## row. A shell claims them the way it claims the DE-15, by saying so: a row of 5.1
+## phono outputs on a wood-cabinet 70s set or a VGA monitor is the same anachronism
+## as a coax tuner input on the latter.
+## The marker is the switch, as VgaPortSeat is for the DE-15 — one fact rather than a
+## boolean beside a seat that could disagree with it.
+func has_speaker_outs() -> bool:
+	if _speaker_outs.size() != SPEAKER_OUT_NAMES.size():
+		return false
+	return _tv.shell() == null or _tv.shell().speaker_out_seat() is Transform3D
+
+
+## The speaker outputs, in RcaPort.SPEAKER_OUT_CHANNELS order. Empty when this
+## cabinet has none, so a caller can ask rather than test the shell itself.
+func speaker_outs() -> Array[RcaPort]:
+	return _speaker_outs if has_speaker_outs() else ([] as Array[RcaPort])
+
+
 ## Turn off the inputs this cabinet has no room for: no socket, and nothing printed.
 ##
 ## `enabled` as well as `visible`, for the reason seat_vga_port gives — hiding a
@@ -138,6 +197,12 @@ func disable_absent_inputs() -> void:
 		for port: RcaPort in _av_ports[RetroTV.Source.RF]:
 			port.visible = false
 			port.enabled = false
+	if not has_speaker_outs():
+		# `enabled` as well as `visible`, for the reason above: an invisible socket
+		# left enabled goes on catching plugs out of the air.
+		for out: RcaPort in _speaker_outs:
+			out.visible = false
+			out.enabled = false
 
 
 ## The VIDEO socket of one input — the one that decides what is on the glass, and
@@ -169,6 +234,8 @@ func print_legends() -> void:
 		legend.rebuild()
 	if has_aerial():
 		_print_rf_legend(plate)
+	if has_speaker_outs():
+		_print_speaker_legend(plate)
 
 
 ## The aerial socket's legend — the same printing as a composite group so the one
@@ -189,6 +256,24 @@ func _print_rf_legend(plate: bool) -> void:
 	legend.title = "Antenna"
 	legend.heading_override = "RF IN"
 	legend.show_words = false
+	legend.show_plate = plate
+	legend.rebuild()
+
+
+## The speaker row's legend. One plate over all six, not six plates: the channel a
+## socket carries is the only thing that distinguishes them, and that is what the
+## words under the jacks say.
+##
+## No `title` — SPEAKERS above and the channels below is the whole of it, and a title
+## row would only repeat the heading. No divider either: the row stands alone on the
+## panel rather than beside a bank.
+func _print_speaker_legend(plate: bool) -> void:
+	var legend := AvLegend.attach(_tv, _speaker_outs)
+	if legend == null:
+		return
+	legend.name = "AvLegendSpeakers"
+	legend.heading_override = "SPEAKERS"
+	legend.word_override = SPEAKER_WORDS
 	legend.show_plate = plate
 	legend.rebuild()
 
@@ -231,6 +316,26 @@ func seat_av_row(at: Variant) -> void:
 	if _tv._rf_port != null:
 		TvFit.seat(_tv._rf_port, Transform3D(base.basis,
 			base * (group_step * float(RetroTV.COMPOSITE_INPUTS) + socket_step)))
+
+
+## Seat the six speaker outputs off the shell's SpeakerOutSeat.
+##
+## That marker names the FIRST socket, FRONT L, and the other five step off it by the
+## shell's own av_socket_step — the same contract PortSeat has, so a cabinet that
+## stands its printing on end carries this row the same way round as its inputs.
+##
+## Absent leaves them where tv.tscn authored them, which with the stock body hidden
+## would be six live sockets floating beside the cabinet — so it is also the switch
+## has_speaker_outs reads, and disable_absent_inputs turns them off straight after.
+func seat_speaker_row(at: Variant) -> void:
+	if not at is Transform3D or _speaker_outs.size() != SPEAKER_OUT_NAMES.size():
+		return
+	var base: Transform3D = at
+	var step := Vector3(-AV_ROW_PITCH, 0.0, 0.0)
+	if _tv.shell() != null:
+		step = _tv.shell().av_socket_step
+	for i in _speaker_outs.size():
+		TvFit.seat(_speaker_outs[i], Transform3D(base.basis, base * (step * float(i))))
 
 
 ## Turn the VGA input on, but only for a shell that asked for it.
@@ -292,6 +397,9 @@ func socket_holding(plug: Node3D) -> XRToolsSnapZone:
 		for port: RcaPort in group:
 			if port.picked_up_object == plug:
 				return port
+	for out: RcaPort in _speaker_outs:
+		if out.picked_up_object == plug:
+			return out
 	if _tv.vga_port() != null and _tv.vga_port().picked_up_object == plug:
 		return _tv.vga_port()
 	return null

@@ -16,6 +16,8 @@
 ##                    are children of ScreenMesh and ride that scale for free.
 ##   PortSeat       — pose for CompositePort, the VIDEO socket of Composite 1. The
 ##                    other eleven step off it by av_socket_step / av_group_step.
+##   SpeakerOutSeat — pose for the FRONT L speaker output; the other five step off it
+##                    by av_socket_step. Absent turns the whole row off.
 ##   AmbilightSeat  — pose for the Ambilight SpotLight3D.
 ##   ButtonRow      — pose of the FIRST bezel button (volume-down). The rest step
 ##                    along the marker's local +X by `button_pitch`.
@@ -115,6 +117,10 @@ func port_seat() -> Variant:        return _seat("PortSeat")
 ## Absent on every shell but the computer monitor, and that absence is the switch:
 ## RetroTV leaves its VgaPort disabled and hidden unless a shell asks for one.
 func vga_port_seat() -> Variant:    return _seat("VgaPortSeat")
+## Pose for the FRONT L speaker output; the other five step off it by av_socket_step.
+## Absent on every shell so far, and that absence is the switch, as above — a row of
+## 5.1 phono outputs on a wood-cabinet 70s set is the same anachronism as a DE-15.
+func speaker_out_seat() -> Variant: return _seat("SpeakerOutSeat")
 func ambilight_seat() -> Variant:   return _seat("AmbilightSeat")
 func button_row_seat() -> Variant:  return _seat("ButtonRow")
 func speaker_l_seat() -> Variant:   return _seat("SpeakerLSeat")

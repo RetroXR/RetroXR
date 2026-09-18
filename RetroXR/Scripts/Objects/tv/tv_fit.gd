@@ -83,6 +83,7 @@ func load_shell() -> void:
 	seat(_tv._tube_collar, shell.screen_seat())
 	_tv.panel().seat_av_row(shell.port_seat())
 	_tv.panel().seat_vga_port(shell.vga_port_seat())
+	_tv.panel().seat_speaker_row(shell.speaker_out_seat())
 	seat(_tv.ambilight(), shell.ambilight_seat())
 
 	# Both or neither: one seated speaker and one still on the stock tube's edge

@@ -91,6 +91,19 @@ const Z_TEXT := 0.0006
 ## one. The aerial hole reads RF IN.
 @export var heading_override: String = ""
 
+## What to print under each socket, keyed by RcaPort.Channel. Covering every socket in
+## the group replaces the derived words below outright — no "AUDIO " prefix, and no
+## L/R bracketing.
+##
+## Keyed by CHANNEL rather than by position because the row is sorted by x here, which
+## a caller handing over a channel-ordered array cannot know.
+##
+## The television's SPEAKERS row is what needs it: six sockets at 18 mm centres, where
+## the derived word for the centre channel would be "AUDIO CENTER" — 29 mm at the
+## authored text size, so three of the six would print over their neighbours. A real
+## 5.1 panel prints FL / FR / C / SUB / SL / SR for the same reason.
+@export var word_override: Dictionary = {}
+
 ## Rule up the LEFT edge of the plate, dividing this group from the one printed
 ## beside it. Set on every group but the first, so a bank of four gets three rules
 ## and no line hangs off either end.
@@ -348,6 +361,18 @@ func _show_baked(tex: Texture2D, quad_size: Vector2, mid: float) -> void:
 ## with a single audio jack (mono hardware) gets the bare word.
 func _lay_out_words(row: Array[RcaPort], xs: PackedFloat32Array,
 		out_text: PackedStringArray, out_x: PackedFloat32Array) -> void:
+	# All or nothing: a partial override would print a named socket beside a derived
+	# one and mix two conventions on one plate.
+	var named := true
+	for port in row:
+		if not word_override.has(port.channel):
+			named = false
+			break
+	if named and not row.is_empty():
+		for i in row.size():
+			out_text.append(str(word_override[row[i].channel]))
+			out_x.append(xs[i])
+		return
 	var audio: PackedInt32Array = []
 	for i in row.size():
 		if row[i].channel == RcaPort.Channel.VIDEO:

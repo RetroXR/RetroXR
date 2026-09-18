@@ -224,6 +224,55 @@ visible = false
 enabled = false
 direction = 1
 
+; ── Speaker outputs ─────────────────────────────────────────────────────────
+; What a loudspeaker cabinet is cabled to. direction = 0 is OUT: these are the
+; only sockets on the set that SOURCE a signal, which is what stops AvSource
+; pairing two of them together (a cord between two OUTs carries nothing).
+;
+; Gathered by TvPanel.collect() into an array of their own rather than into
+; _av_ports. That array is indexed by RetroTV.Source and walked by
+; _input_for_device, so a loudspeaker filed there would be read as a device
+; arriving on an input.
+;
+; Channels are the appended surround values: 1 L, 2 R, 4 CENTER, 5 SUB, 6 SL,
+; 7 SR. Same 18 mm pitch as the input row, so a lead reaches these exactly as
+; it reaches those.
+
+; FRONT L
+[node name="SpeakerOutL" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.150, -0.09, -0.16002099)
+channel = 1
+direction = 0
+
+; FRONT R
+[node name="SpeakerOutR" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.132, -0.09, -0.16002099)
+channel = 2
+direction = 0
+
+; CENTER
+[node name="SpeakerOutC" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.114, -0.09, -0.16002099)
+channel = 4
+direction = 0
+
+; SUB
+[node name="SpeakerOutLfe" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.096, -0.09, -0.16002099)
+channel = 5
+direction = 0
+
+; SURROUND L
+[node name="SpeakerOutSl" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.078, -0.09, -0.16002099)
+channel = 6
+direction = 0
+
+; SURROUND R
+[node name="SpeakerOutSr" parent="." instance=ExtResource("10_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.060, -0.09, -0.16002099)
+channel = 7
+direction = 0
 [node name="Ambilight" type="SpotLight3D" parent="." unique_id=603587175]
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0.05, 0.162)
 light_color = Color(0.5, 0.5, 0.5, 1)
