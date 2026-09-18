@@ -458,6 +458,11 @@ func _build() -> void:
 		["GC-GBA Cable",   "gc_gba_cable"],
 		["PS Link Cable",  "psx_link_cable"],
 		["Speakers",       "speaker_pair"],
+		# A surround rig: a satellite per channel and one subwoofer, each cabled to
+		# a socket on the back of the set with a speaker lead.
+		["Loudspeaker",    "loudspeaker"],
+		["Subwoofer",      "subwoofer"],
+		["Speaker Cable",  "speaker_cable"],
 		# Not under Controllers: nobody holds it, and it is no more a controller
 		# than the aerial is. It plugs into the Wii and stands on the television.
 		["Sensor Bar",     "sensor_bar"],

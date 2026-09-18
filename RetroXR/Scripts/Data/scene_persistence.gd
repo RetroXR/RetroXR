@@ -181,6 +181,9 @@ const NEMA_1_15_C7_CORD_SCENE := preload(
 const NEMA_1_15_C7P_CORD_SCENE := preload(
 	"res://Scenes/Objects/cables/nema_1_15_polarized_to_c7_polarized_cord.tscn")
 const SPEAKER_PAIR_SCENE     := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
+const LOUDSPEAKER_SCENE      := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
+const SUBWOOFER_SCENE        := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
+const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const STORAGE_BOX_SCENE      := preload("res://Scenes/Objects/appliances/storage_box.tscn")
 const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.tscn")
 const RETRO_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/retro_mouse.tscn")
@@ -236,6 +239,7 @@ const LEAD_SCENES := {
 	"power_cord": POWER_CORD_SCENE,
 	"nema_1_15_to_c7_cord": NEMA_1_15_C7_CORD_SCENE,
 	"nema_1_15_polarized_to_c7_polarized_cord": NEMA_1_15_C7P_CORD_SCENE,
+	"speaker_cable": SPEAKER_CABLE_SCENE,
 	"mono_composite_cable": MONO_CABLE_SCENE,
 	"composite_cable": COMPOSITE_CABLE_SCENE,
 }
@@ -243,6 +247,8 @@ const LEAD_SCENES := {
 
 const PLAIN_SCENES := {
 	"tv_remote": TV_REMOTE_SCENE,
+	"loudspeaker": LOUDSPEAKER_SCENE,
+	"subwoofer": SUBWOOFER_SCENE,
 	"trash_can": STORAGE_BOX_SCENE,
 	"table": TABLE_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
@@ -1953,6 +1959,14 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	elif node is RetroController or node is LightGun or node is RetroMouse \
 			or node is RetroKeyboard or node is Wiimote:
 		return _serialize_peripheral(node, id, n3d, node_to_id)
+	elif node is Loudspeaker:
+		# Pose only: one cabinet, and which channel it carries is not its own
+		# state — it is decided by the television socket its lead sits in, and the
+		# lead records that itself. Two scenes share the class, so the token comes
+		# off the scene file rather than the type.
+		var token := "subwoofer" if node.scene_file_path.ends_with("subwoofer.tscn") \
+			else "loudspeaker"
+		return _base(id, token, n3d)
 	elif node is SpeakerPair:
 		# Deliberately not a PLAIN_SCENES pose-only object. The root never moves —
 		# the two cabinets are separate bodies the player carries around one at a

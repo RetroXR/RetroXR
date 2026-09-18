@@ -1,0 +1,122 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
+radius = 0.028
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+; Laser target, wider than the physics sphere — a plug is a small thing to hit
+; with a beam. Roomier than the composite lead's, since this one has a single
+; cord and no neighbours to pick between.
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.036
+
+; One cord, one channel. The lead a loudspeaker is cabled with: which channel it
+; carries is not a property of the lead but of the television socket its far end
+; sits in, so both plugs are neutral grey rather than taking a colour from the
+; consumer 5.1 code.
+;
+; CompositeCable reads its cord count off the node names, so PlugA0/PlugB0 alone
+; makes this a one-cord lead with no script of its own.
+;
+; 3 m rather than the 1.5 m the composite leads carry: a surround pair goes BEHIND
+; the player, and a 1.5 m lead cannot reach from a television to the back of a
+; room. 100 segments at 30 mm.
+[node name="SpeakerCable" type="Node3D"]
+script = ExtResource("1_cablescript")
+cord_colors = PackedColorArray(0.48, 0.48, 0.5, 1)
+
+; ── End A ────────────────────────────────────────────────────────────────────
+; Turned about Y so the cord trails toward the far end: the plug mesh is authored
+; connector-on-+Z with the cord leaving -Z, which is also VerletRope's
+; plug_exit_axis, so an unturned plug would leave its tail with a hairpin.
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -1.5)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── End B ────────────────────────────────────────────────────────────────────
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1.5)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 100
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0022
+tube_sides = 6
+smoothing = 2
+surface_collision_mask = 7
+collision_radius = 0.0066
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2
+fray_segments_start = 5
+fray_segments_end = 5
+fray_taper_segments = 3
