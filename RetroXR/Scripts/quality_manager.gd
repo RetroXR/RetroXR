@@ -805,30 +805,56 @@ func adjust_lights(desktop: bool = _desktop) -> void:
 ## same backend, so only the headset catches it. The knob is therefore not
 ## offered there — 1.0 is the only safe value, and the way to spend resolution
 ## on that headset is the eye-buffer multiplier in xr_init.gd instead.
+##
+## Forward+ breaks the same way on a stereo viewport, and it is the defect
+## supports_smaa() describes reached by another row. Any scaling pass — FSR below
+## 1.0, or bilinear with FXAA/SMAA above it — sends the tonemapper to an
+## intermediate texture wrapped by FramebufferCacheRD::get_cache(), which asks for
+## a single-view framebuffer against the two-layer eye buffer
+## (renderer_scene_render_rd.cpp, 4.7.2). The tonemap and the final copy both fail
+## every frame with "Layers of our texture doesn't match view count for this
+## framebuffer", so nothing reaches the swapchain: chosen mid-session the headset
+## holds its last frame while the audio plays on, and the next launch is black.
+## Measured 2026-09-18 over SteamVR 2.17.10 at 1.5x with FXAA, 2520 failures in
+## the session. Asked of the interface for supports_smaa()'s reason.
 func supports_render_scale() -> bool:
-	return _is_forward_plus()
+	if not _is_forward_plus():
+		return false
+	var xr := XRServer.find_interface("OpenXR")
+	return xr == null or not xr.is_initialized()
 
 
 func set_render_scale(scale: float) -> void:
-	render_scale = clampf(scale, RENDER_SCALE_MIN, RENDER_SCALE_MAX) \
-		if supports_render_scale() else 1.0
+	if not supports_render_scale():
+		return
+	render_scale = clampf(scale, RENDER_SCALE_MIN, RENDER_SCALE_MAX)
 	apply_render_scale()
 	save_prefs()
 
 
+## What `render_scale` resolves to in this session. The stored preference is left
+## alone for effective_post_aa()'s reason: flat and PCVR play share one prefs
+## file, and a headset session must not strip the flat one's setting out of it.
+func effective_render_scale() -> float:
+	return render_scale if supports_render_scale() else 1.0
+
+
 func apply_render_scale() -> void:
 	var root := get_tree().root
-	root.scaling_3d_scale = render_scale
+	var scale := effective_render_scale()
+	root.scaling_3d_scale = scale
 	# FSR1 is a spatial upscaler, so it has none of the temporal ghosting that
 	# rules FSR2 out for a head-tracked view. At 1.0 and above it would only cost
 	# a pass for nothing, so bilinear takes over there.
-	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if render_scale < 1.0 \
+	root.scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 1.0 \
 		else Viewport.SCALING_3D_MODE_BILINEAR
 
 
 ## Whether the eye-buffer knob means anything in this session. PCVR is left out
-## on purpose: those runtimes size and supersample their own swapchains, and a
-## desktop session already has the render-scale row for the same job.
+## on purpose: those runtimes size and supersample their own swapchains (SteamVR's
+## per-application resolution slider, Link's render resolution), which is where a
+## PCVR player raises it — the render-scale row cannot do that job on a stereo
+## viewport, see supports_render_scale().
 ##
 ## Asked of the interface rather than get_viewport().use_xr for the same reason
 ## supports_smaa() is — this autoload runs before xr_init.gd sets that flag,
@@ -1448,12 +1474,14 @@ func _load_prefs() -> void:
 		ShadowQuality.OFF, ShadowQuality.HIGH) as ShadowQuality
 	ao_quality = clampi(JsonStore.get_int(data, "ao_quality", ao_quality),
 		AOQuality.OFF, AOQuality.HIGH) as AOQuality
-	# Forced to 1.0 where scaling is unsupported, so a value saved on desktop and
-	# synced to a headset cannot bring the broken path back with it.
 	window_mode = str(data.get("window_mode", window_mode))
 	resolution = str(data.get("resolution", resolution))
+	# Forced to 1.0 on the mobile backend, so a value saved on desktop and synced
+	# to a headset cannot bring the broken path back with it. On Forward+ it is
+	# kept even when this session is PCVR and cannot use it:
+	# effective_render_scale() is what stands it down there.
 	render_scale = clampf(JsonStore.get_float(data, "render_scale", render_scale),
-		RENDER_SCALE_MIN, RENDER_SCALE_MAX) if supports_render_scale() else 1.0
+		RENDER_SCALE_MIN, RENDER_SCALE_MAX) if _is_forward_plus() else 1.0
 	# Kept whatever the platform, unlike render_scale above: where it is not
 	# supported it is inert rather than harmful, and one desktop session writing
 	# the file back must not strip the headset's setting out of it.
