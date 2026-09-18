@@ -105,12 +105,56 @@ func _view() -> Rect2:
 
 
 func _rect_of(i: int) -> Rect2:
-	var node := _fs._panels[i]["node"] as TextureRect
-	return Rect2(node.position, node.size)
+	return _bounds(_fs._panels[i]["points"])
+
+
+## Panel `i`'s picture corners on the window: top left, top right, bottom right,
+## bottom left.
+func _corners(i: int) -> PackedVector2Array:
+	var p: PackedVector2Array = _fs._panels[i]["points"]
+	var n := TvFullscreen.GRID
+	return PackedVector2Array([p[0], p[n], p[(n + 1) * (n + 1) - 1], p[(n + 1) * n]])
+
+
+## Where the camera sees the corners of the picture on `mesh`, in _corners order:
+## the face's extent at the middle of its depth, cut down about the center by the fit.
+func _glass_corners(mesh: MeshInstance3D, fit: Vector2) -> PackedVector2Array:
+	var aabb := mesh.mesh.get_aabb()
+	var c := aabb.get_center()
+	var h := Vector2(aabb.size.x, aabb.size.y) * 0.5 * fit
+	var out := PackedVector2Array()
+	for k: Vector2 in [Vector2(-1, 1), Vector2(1, 1), Vector2(1, -1), Vector2(-1, -1)]:
+		var p := mesh.global_transform * (c + Vector3(k.x * h.x, k.y * h.y, 0.0))
+		out.append(_camera.unproject_position(p))
+	return out
+
+
+func _bounds(points: PackedVector2Array) -> Rect2:
+	var rect := Rect2(points[0], Vector2.ZERO)
+	for p: Vector2 in points:
+		rect = rect.expand(p)
+	return rect
 
 
 func _near(a: Rect2, b: Rect2, tol := 0.5) -> bool:
 	return a.position.distance_to(b.position) <= tol and a.size.distance_to(b.size) <= tol
+
+
+func _near_corners(a: PackedVector2Array, b: PackedVector2Array, tol := 0.5) -> bool:
+	for k in 4:
+		if a[k].distance_to(b[k]) > tol:
+			return false
+	return true
+
+
+func _rect_corners(r: Rect2) -> PackedVector2Array:
+	return PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end,
+		Vector2(r.position.x, r.end.y)])
+
+
+## Left edge height over right edge height: 1 for a picture square to the camera.
+func _edge_ratio(c: PackedVector2Array) -> float:
+	return c[3].distance_to(c[0]) / maxf(c[2].distance_to(c[1]), 0.001)
 
 
 func _settle() -> void:
@@ -126,6 +170,8 @@ func _run() -> void:
 	_build_rig()
 	if _want("layout"):
 		await _layout()
+	if _want("turn"):
+		await _turn_cases()
 	if _want("tv"):
 		await _tv_cases()
 	if _want("freeze"):
@@ -163,18 +209,107 @@ func _layout() -> void:
 	mesh.mesh = quad
 	mesh.position = Vector3(0, 1.5, 0)
 	add_child(mesh)
-	var whole := TvFullscreen.projected_rect(_camera, mesh, Vector2.ONE)
-	var centre := _camera.unproject_position(mesh.global_position)
-	_ok(_near(Rect2(whole.get_center(), Vector2.ZERO), Rect2(centre, Vector2.ZERO), 0.01),
-		"layout/a projected quad is centred on its projected origin")
-	_ok(absf(whole.size.x / whole.size.y - 4.0 / 3.0) < 0.01,
-		"layout/a projected face-on quad keeps its aspect")
-	var fitted := TvFullscreen.projected_rect(_camera, mesh, Vector2(1.0, 0.5))
-	_ok(_near(Rect2(fitted.get_center(), Vector2.ZERO), Rect2(centre, Vector2.ZERO), 0.01)
-		and is_equal_approx(fitted.size.y, whole.size.y * 0.5)
-		and is_equal_approx(fitted.size.x, whole.size.x),
-		"layout/the letterbox fit shrinks about the centre")
+	var whole := TvFullscreen.picture_frame(mesh, Vector2.ONE)
+	_ok(whole.origin.is_equal_approx(mesh.global_position),
+		"layout/the picture frame is centered on the quad")
+	_ok(whole.basis.x.is_equal_approx(Vector3(0.2, 0, 0))
+		and whole.basis.y.is_equal_approx(Vector3(0, 0.15, 0))
+		and whole.basis.z.is_equal_approx(Vector3(0, 0, 1)),
+		"layout/its axes are the half width to the right, the half height up and the normal")
+	var fitted := TvFullscreen.picture_frame(mesh, Vector2(1.0, 0.5))
+	_ok(fitted.origin.is_equal_approx(whole.origin)
+		and fitted.basis.x.is_equal_approx(whole.basis.x)
+		and fitted.basis.y.is_equal_approx(whole.basis.y * 0.5),
+		"layout/the letterbox fit shrinks about the center")
+	var flipped := TvFullscreen.picture_frame(mesh, Vector2.ONE, true, true)
+	_ok(flipped.basis.x.is_equal_approx(-whole.basis.x)
+		and flipped.basis.y.is_equal_approx(-whole.basis.y)
+		and flipped.basis.z.is_equal_approx(whole.basis.z),
+		"layout/a panel flipped both ways is turned half round and still faces out")
 	mesh.free()
+
+
+## A device with one 0.4 x 0.3 picture quad at 1.5 m, answering fullscreen_panels()
+## as a VMU does: `flip` shows its picture turned half round.
+func _quad_device(flip: bool) -> Node3D:
+	var script := GDScript.new()
+	script.source_code = """extends Node3D
+var flip := false
+var tex := ImageTexture.create_from_image(Image.create(4, 3, false, Image.FORMAT_RGB8))
+func fullscreen_panels() -> Array:
+	return [{
+		"mesh": get_node("Glass"),
+		"texture_fn": func() -> Texture2D: return tex,
+		"region": Rect2(0, 0, 1, 1),
+		"aspect_fn": func() -> float: return 4.0 / 3.0,
+		"fit_fn": func() -> Vector2: return Vector2.ONE,
+		"flip_h": flip,
+		"flip_v": flip,
+	}]
+"""
+	script.reload()
+	var device := Node3D.new()
+	device.set_script(script)
+	device.set("flip", flip)
+	device.position = Vector3(0, 1.5, 0)
+	var glass := MeshInstance3D.new()
+	glass.name = "Glass"
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.4, 0.3)
+	glass.mesh = quad
+	device.add_child(glass)
+	add_child(device)
+	return device
+
+
+func _turn_cases() -> void:
+	var device := _quad_device(false)
+	var glass := device.get_node("Glass") as MeshInstance3D
+	device.rotation_degrees.y = 60.0
+	_ok(_fs.open(device), "turn/open on a screen seen at 60 degrees")
+	var start := _glass_corners(glass, Vector2.ONE)
+	_ok(_near_corners(_corners(0), start),
+		"turn/the first frame is the glass at its own angle, not squared up")
+	_ok(_edge_ratio(_corners(0)) > 1.1, "turn/and so its near edge is the taller")
+	_fs._step(TvFullscreen.DURATION * 0.1)
+	var early := _edge_ratio(_corners(0))
+	_ok(early > 1.05 and not _near_corners(_corners(0), start),
+		"turn/early in the lerp it has moved and is still turning")
+	_fs._step(TvFullscreen.DURATION * (TvFullscreen.TURN_SHARE - 0.1))
+	var full := TvFullscreen.full_rects([4.0 / 3.0], _view())[0]
+	_ok(absf(_edge_ratio(_corners(0)) - 1.0) < 0.001 and not _near(_rect_of(0), full),
+		"turn/it faces the camera before it has finished growing")
+	_settle()
+	_ok(_near_corners(_corners(0), _rect_corners(full)),
+		"turn/settled, it is square in the window")
+	_fs.close()
+	_fs._step(TvFullscreen.DURATION * 0.999)
+	_ok(_fs.is_active() and _near_corners(_corners(0), start),
+		"turn/on the way back it lands on the glass at its own angle")
+	_settle()
+	device.free()
+
+	# A seated VMU is upside down and its panel says so with both flips: the picture
+	# reads the right way up on the card and in the window, and never spins between.
+	var card := _quad_device(true)
+	card.rotation_degrees.z = 180.0
+	_fs.open(card)
+	var mid := _bounds(_fs._panels[0]["points"]).get_center()
+	var first: Vector2 = _fs._panels[0]["points"][0]
+	_ok(first.x < mid.x and first.y < mid.y, "turn/a flipped panel starts with its top left up and left")
+	_ok(_fs._panels[0]["uvs"][0] == Vector2(1, 1),
+		"turn/and that corner shows the texture's far corner, as a flipped rect would")
+	var held := true
+	for i in 10:
+		_fs._step(TvFullscreen.DURATION * 0.1)
+		mid = _bounds(_fs._panels[0]["points"]).get_center()
+		first = _fs._panels[0]["points"][0]
+		held = held and first.x < mid.x and first.y < mid.y
+	_ok(held, "turn/and keeps it there through the lerp")
+	_fs.close()
+	_settle()
+	card.free()
+	await _wait(2)
 
 
 func _tv_cases() -> void:
@@ -183,10 +318,12 @@ func _tv_cases() -> void:
 	_ok(TvFullscreen.panels_for(tv).size() == 1, "tv/one panel")
 	_ok(_fs.open(tv), "tv/open on a television")
 	_ok(_fs.is_active() and _fs.visible, "tv/overlay shown")
-	var start := TvFullscreen.projected_rect(_camera, tv.screen_mesh(), tv.display().aspect_fit())
-	_ok(_near(_rect_of(0), start), "tv/first frame sits on the glass, letterboxed like the picture")
+	var glass := _glass_corners(tv.screen_mesh(), tv.display().aspect_fit())
+	var start := _bounds(glass)
+	_ok(_near_corners(_corners(0), glass),
+		"tv/first frame sits on the glass, letterboxed like the picture")
 	_ok(_fs._backdrop.color.a == 0.0, "tv/backdrop clear at the start")
-	_ok(_fs._panels[0]["node"].texture == tv.display().screen_texture(),
+	_ok(_fs._panels[0]["tex"] == tv.display().screen_texture(),
 		"tv/the overlay samples what the glass samples")
 	_settle()
 	var full := TvFullscreen.full_rects([RetroTV.ASPECT_4_3], _view())[0]
@@ -251,9 +388,9 @@ func _handheld_cases() -> void:
 		"handheld/aspect is the authored quad's, no letterbox")
 	_ok(panels[0]["fit_fn"].call() == Vector2.ONE, "handheld/no letterbox fit")
 	_ok(_fs.open(gb), "handheld/open on a Game Boy")
-	_ok(_near(_rect_of(0), TvFullscreen.projected_rect(_camera, screen, Vector2.ONE)),
+	_ok(_near_corners(_corners(0), _glass_corners(screen, Vector2.ONE)),
 		"handheld/starts on the panel")
-	_ok(_fs._panels[0]["node"].texture == null, "handheld/nothing running, nothing drawn")
+	_ok(_fs._panels[0]["tex"] == null, "handheld/nothing running, nothing drawn")
 	_settle()
 	_ok(_near(_rect_of(0), TvFullscreen.full_rects([want], _view())[0]),
 		"handheld/fills the window at the panel's aspect")
@@ -307,8 +444,8 @@ func _dual_cases() -> void:
 	_ok(panels[0]["region"] == Rect2(0, 0, 1, 0.5) and panels[1]["region"] == Rect2(0, 0.5, 1, 0.5),
 		"dual/each panel shows its half of the composite")
 	_ok(_fs.open(ds), "dual/open on a DS")
-	_ok(_near(_rect_of(0), TvFullscreen.projected_rect(_camera, screens[0], Vector2.ONE))
-		and _near(_rect_of(1), TvFullscreen.projected_rect(_camera, screens[1], Vector2.ONE)),
+	_ok(_near_corners(_corners(0), _glass_corners(screens[0], Vector2.ONE))
+		and _near_corners(_corners(1), _glass_corners(screens[1], Vector2.ONE)),
 		"dual/each panel starts on its own quad")
 	_settle()
 	var aspects: Array[float] = [panels[0]["aspect_fn"].call(), panels[1]["aspect_fn"].call()]
@@ -317,13 +454,13 @@ func _dual_cases() -> void:
 		"dual/top over bottom, both inside the window")
 	_ok(_rect_of(0).end.y <= _rect_of(1).position.y + 0.5, "dual/top panel sits above the bottom")
 
-	# Region cropping goes through an atlas over the live texture.
+	# Region cropping is in the texture coordinates over the live texture.
 	var tex := ImageTexture.create_from_image(Image.create(256, 384, false, Image.FORMAT_RGB8))
 	_fs._panels[1]["texture_fn"] = func() -> Texture2D: return tex
 	_fs._step(0.0)
-	var atlas := _fs._panels[1]["node"].texture as AtlasTexture
-	_ok(atlas != null and atlas.atlas == tex and atlas.region == Rect2(0, 192, 256, 192),
-		"dual/the bottom panel is the lower half of the frame, in pixels")
+	var uvs: PackedVector2Array = _fs._panels[1]["uvs"]
+	_ok(_fs._panels[1]["tex"] == tex and uvs[0] == Vector2(0, 0.5) and uvs[-1] == Vector2(1, 1),
+		"dual/the bottom panel is the lower half of the frame")
 	_fs.close()
 	_settle()
 	ds.free()

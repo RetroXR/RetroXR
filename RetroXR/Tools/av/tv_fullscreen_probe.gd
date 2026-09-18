@@ -37,6 +37,7 @@ func _ready() -> void:
 
 	var tv := TV_SCENE.instantiate() as RetroTV
 	tv.position = Vector3(-0.3, 1.3, 0)
+	tv.rotation_degrees.y = 35.0
 	tv.freeze = true
 	add_child(tv)
 	var ds := SYSTEM_SCENE.instantiate() as RetroSystem

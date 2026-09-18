@@ -1,5 +1,7 @@
 ## TvFullscreen — desktop only: the picture on the screen you are looking at
-## lerps out to fill the application window, and back on the same key.
+## lerps out to fill the application window, and back on the same key. It moves
+## as the glass itself, turning to face the camera as it grows, so a screen seen
+## at an angle starts at that angle.
 ##
 ## Works for a television and for a handheld. The overlay never knows either
 ## class; it works over PANELS — one per picture quad — each carrying the mesh
@@ -22,6 +24,12 @@ extends CanvasLayer
 const ACTION := &"desktop_tv_fullscreen"
 const BLOCK_OWNER := &"tv_fullscreen"
 const DURATION := 0.35
+## The share of the lerp the turn to face the camera takes. Done before the
+## picture is large, or its near edge swings out at the viewer.
+const TURN_SHARE := 0.6
+## Cells per side of a drawn picture. The canvas maps each triangle affinely, so
+## a turned picture is cut fine enough that the perspective shows no seam.
+const GRID := 8
 
 var _camera: Camera3D = null
 var _pickup: Node = null
@@ -30,6 +38,8 @@ var _reticle: Node = null
 var _loco: LocomotionManager = null
 
 var _backdrop: ColorRect = null
+var _picture: Control = null
+var _indices := PackedInt32Array()
 var _device: WeakRef = null
 var _panels: Array[Dictionary] = []
 var _t := 0.0
@@ -44,6 +54,12 @@ func _ready() -> void:
 	_backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
 	_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(_backdrop)
+	_picture = Control.new()
+	_picture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_picture.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_picture.draw.connect(_draw_panels)
+	add_child(_picture)
+	_indices = _grid_indices(GRID)
 	visible = false
 	set_process(false)
 	# By path, not rig.camera: a child is ready before its parent, so the rig's
@@ -169,16 +185,7 @@ func open(device: Node3D) -> bool:
 	_device = weakref(device)
 	_panels = panels
 	for panel: Dictionary in _panels:
-		var rect := TextureRect.new()
-		rect.stretch_mode = TextureRect.STRETCH_SCALE
-		rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		# Optional: a panel shown turned or mirrored.
-		rect.flip_h = bool(panel.get("flip_h", false))
-		rect.flip_v = bool(panel.get("flip_v", false))
-		add_child(rect)
-		panel["node"] = rect
-		panel["atlas"] = AtlasTexture.new()
+		panel["uvs"] = _grid_uvs(panel)
 	_t = 0.0
 	_opening = true
 	visible = true
@@ -209,34 +216,92 @@ func _step(delta: float) -> void:
 		_teardown()
 		return
 	var e := smoothstep(0.0, 1.0, _t)
+	var turn := smoothstep(0.0, 1.0, minf(_t / TURN_SHARE, 1.0))
 	_backdrop.color.a = e
 	var full := full_rects(_aspects(), get_viewport().get_visible_rect())
 	for i in _panels.size():
 		var panel := _panels[i]
-		var node := panel["node"] as TextureRect
-		var start := projected_rect(_camera, panel["mesh"], panel["fit_fn"].call())
-		var target := full[i]
-		node.position = start.position.lerp(target.position, e)
-		node.size = start.size.lerp(target.size, e)
-		_feed(panel)
+		var glass := picture_frame(panel["mesh"], panel["fit_fn"].call(),
+			bool(panel.get("flip_h", false)), bool(panel.get("flip_v", false)))
+		panel["points"] = _project(_between(glass, full[i], e, turn))
+		panel["tex"] = panel["texture_fn"].call()
+	_picture.queue_redraw()
 	_hold_audio()
 
 
-func _feed(panel: Dictionary) -> void:
-	var node := panel["node"] as TextureRect
-	var tex: Texture2D = panel["texture_fn"].call()
-	var region: Rect2 = panel["region"]
-	if tex == null:
-		node.texture = null
-		return
-	if region == Rect2(0, 0, 1, 1):
-		node.texture = tex
-		return
-	var atlas := panel["atlas"] as AtlasTexture
-	atlas.atlas = tex
-	var px := tex.get_size()
-	atlas.region = Rect2(region.position * px, region.size * px)
-	node.texture = atlas
+## The picture `e` of the way from `glass` to `target` and `turn` of the way to
+## facing the camera, in the frame shape picture_frame returns. It slides and
+## grows at the glass's own depth, so at 1 and 1 it projects onto `target` exactly.
+func _between(glass: Transform3D, target: Rect2, e: float, turn: float) -> Transform3D:
+	var eye := _camera.global_transform
+	var from := eye.affine_inverse() * glass
+	var depth := maxf(-from.origin.z, _camera.near * 2.0)
+	var a := eye.affine_inverse() * _camera.project_position(target.position, depth)
+	var b := eye.affine_inverse() * _camera.project_position(target.end, depth)
+	var half := Vector2(from.basis.x.length(), from.basis.y.length()).lerp(
+		Vector2(b.x - a.x, a.y - b.y) * 0.5, e)
+	var facing := Quaternion.IDENTITY
+	var x := from.basis.x.normalized()
+	var y := from.basis.y.normalized()
+	if not x.cross(y).is_zero_approx():
+		facing = Basis(x, y, x.cross(y)).orthonormalized().get_rotation_quaternion()
+	var basis := Basis(facing.slerp(Quaternion.IDENTITY, turn))
+	return eye * Transform3D(basis.x * half.x, basis.y * half.y, basis.z,
+		from.origin.lerp((a + b) * 0.5, e))
+
+
+## `frame`'s grid on the window, row by row from the picture's top left. A point
+## behind the camera is held on the near plane.
+func _project(frame: Transform3D) -> PackedVector2Array:
+	var eye := _camera.global_transform
+	var local := eye.affine_inverse() * frame
+	var out := PackedVector2Array()
+	out.resize((GRID + 1) * (GRID + 1))
+	for row in GRID + 1:
+		for col in GRID + 1:
+			var p := local * Vector3(2.0 * col / GRID - 1.0, 1.0 - 2.0 * row / GRID, 0.0)
+			p.z = minf(p.z, -_camera.near)
+			out[row * (GRID + 1) + col] = _camera.unproject_position(eye * p)
+	return out
+
+
+func _draw_panels() -> void:
+	for panel: Dictionary in _panels:
+		var tex: Texture2D = panel.get("tex")
+		var points: PackedVector2Array = panel.get("points", PackedVector2Array())
+		if tex == null or points.is_empty():
+			continue
+		RenderingServer.canvas_item_add_triangle_array(_picture.get_canvas_item(), _indices,
+			points, PackedColorArray([Color.WHITE]), panel["uvs"], PackedInt32Array(),
+			PackedFloat32Array(), tex.get_rid())
+
+
+## Texture coordinates for the grid _project lays out: the panel's region, with a
+## flipped panel read from the far edge, as a flipped TextureRect would show it.
+static func _grid_uvs(panel: Dictionary) -> PackedVector2Array:
+	var region: Rect2 = panel.get("region", Rect2(0, 0, 1, 1))
+	var flip_h := bool(panel.get("flip_h", false))
+	var flip_v := bool(panel.get("flip_v", false))
+	var out := PackedVector2Array()
+	for row in GRID + 1:
+		for col in GRID + 1:
+			var uv := Vector2(float(col) / GRID, float(row) / GRID)
+			if flip_h:
+				uv.x = 1.0 - uv.x
+			if flip_v:
+				uv.y = 1.0 - uv.y
+			out.append(region.position + uv * region.size)
+	return out
+
+
+static func _grid_indices(cells: int) -> PackedInt32Array:
+	var out := PackedInt32Array()
+	for row in cells:
+		for col in cells:
+			var a := row * (cells + 1) + col
+			var c := a + cells + 1
+			out.append_array([a, a + 1, c + 1, a, c + 1, c])
+	return out
 
 
 ## Whatever is making the sound behind the picture on screen: the machine itself
@@ -286,11 +351,8 @@ func _aspects() -> Array[float]:
 
 func _teardown() -> void:
 	_release_audio()
-	for panel: Dictionary in _panels:
-		var node := panel.get("node") as TextureRect
-		if node != null:
-			node.free()
 	_panels.clear()
+	_picture.queue_redraw()
 	_device = null
 	_backdrop.color.a = 0.0
 	visible = false
@@ -307,19 +369,19 @@ func _block(active: bool) -> void:
 		_reticle.set("visible", not active)
 
 
-## Where a quad's picture sits on the window: the bounding rect of its mesh's
-## projected corners, shrunk about its centre by the letterbox fit.
-static func projected_rect(camera: Camera3D, mesh: MeshInstance3D, fit: Vector2) -> Rect2:
+## The picture on `mesh` in world space: origin at its center, x and y its half
+## width and half height toward the picture's right and top, z its normal. The
+## picture is the mesh's +Z face shrunk about its center by the letterbox fit; a
+## flipped panel's axis is reversed, so the frame points the way its picture reads.
+static func picture_frame(mesh: MeshInstance3D, fit: Vector2, flip_h := false,
+		flip_v := false) -> Transform3D:
 	if mesh == null or mesh.mesh == null:
-		return Rect2()
+		return Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO)
 	var aabb := mesh.mesh.get_aabb()
 	var xf := mesh.global_transform
-	var rect := Rect2()
-	for i in 8:
-		var p := camera.unproject_position(xf * aabb.get_endpoint(i))
-		rect = Rect2(p, Vector2.ZERO) if i == 0 else rect.expand(p)
-	var shrunk := rect.size * fit
-	return Rect2(rect.position + (rect.size - shrunk) * 0.5, shrunk)
+	var right := xf.basis.x * (aabb.size.x * 0.5 * fit.x * (-1.0 if flip_h else 1.0))
+	var up := xf.basis.y * (aabb.size.y * 0.5 * fit.y * (-1.0 if flip_v else 1.0))
+	return Transform3D(right, up, right.cross(up).normalized(), xf * aabb.get_center())
 
 
 ## The panels stacked top to bottom at their own aspects, scaled as one so the
