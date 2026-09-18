@@ -595,6 +595,18 @@ func get_speaker_positions() -> PackedVector3Array:
 	return _fit.speaker_positions()
 
 
+## World positions for the six decoded channels, FL, FR, C, LFE, SL, SR. A channel
+## with no cabinet on it folds onto the set's own pair rather than falling silent;
+## get_surround_gains() carries the level that goes with each. Two entries stay the
+## contract of get_speaker_positions above, which every stereo caller still uses.
+func get_surround_positions() -> PackedVector3Array:
+	return _fit.surround_positions()
+
+
+func get_surround_gains() -> PackedFloat32Array:
+	return _fit.surround_gains()
+
+
 ## Which way the picture faces. Sound leaves a set the same way it does, so
 ## anything giving these speakers a directivity aims them along this. Normalised,
 ## unlike the offsets above, because it is a direction rather than a distance.
@@ -675,11 +687,11 @@ func on_av_source_lost(source: Node3D) -> void:
 	_panel.source_lost(source)
 
 
-## Nothing to do here: a set is a sink, and every routing decision is the source's.
-## It exists so RcaPort.get_device() recognises a television as a device at all —
-## that is the whole of the interface.
+## A set is a sink for its inputs, and every routing decision there is the source's.
+## But its speaker outputs make it a SOURCE, so it has its own wiring to re-read when
+## a plug moves — which cabinet is on which channel.
 func on_av_topology_changed(_links: Array) -> void:
-	pass
+	_panel.on_av_topology_changed()
 
 
 # Remote-control entry points (TVRemote): identical to pressing the bezel

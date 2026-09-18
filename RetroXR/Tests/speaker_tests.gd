@@ -19,6 +19,7 @@ const SATELLITE := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUBWOOFER := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
 const SPEAKER_CABLE := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const RCA_PORT := preload("res://Scenes/Objects/cables/rca_port.tscn")
+const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 
 const MESHES := {
 	"satellite": "res://Scenes/Objects/appliances/speaker_satellite.res",
@@ -61,6 +62,11 @@ func _run() -> void:
 		["routing/a cabinet on each output takes that channel", _r_each_output],
 		["routing/two cabinets on one output do not merge", _r_two_on_one],
 		["routing/pulling the lead takes the channel away", _r_pull],
+		["fold/a set with no cabinets folds every channel onto its own pair", _d_all_folded],
+		["fold/a cabled channel comes off its own cabinet", _d_cabled],
+		["fold/a folded surround is 3 dB down and a folded centre is not", _d_gains],
+		["fold/pulling a lead folds that channel back", _d_pull_folds_back],
+		["fold/the panel prints a word under every speaker socket", _d_legend],
 		["save/both cabinets and the lead are registered", _s_registered],
 		["save/a cabinet round-trips through a save entry", _s_round_trip],
 	]
@@ -331,6 +337,120 @@ func _r_pull() -> void:
 
 
 # ── save ──────────────────────────────────────────────────────────────────────
+
+# ── fold/ ────────────────────────────────────────────────────────────────────
+# A real television, not the stand-in set the routing group uses: the fold-down
+# rule lives in TvFit and is measured off the set's own SpeakerL/SpeakerR markers,
+# so a stand-in with no cabinet could not answer it.
+
+## The set, and the index of each channel in the decoder's order.
+const CH_FL := 0
+const CH_FR := 1
+const CH_C := 2
+const CH_LFE := 3
+const CH_SL := 4
+const CH_SR := 5
+
+
+func _set_with_outs() -> RetroTV:
+	var tv := TV_SCENE.instantiate() as RetroTV
+	tv.freeze = true
+	tv.position = Vector3(_spawned.size() * 3.0, 1.0, 0.0)
+	add_child(_hold(tv))
+	await _wait(6)
+	return tv
+
+
+func _d_all_folded() -> void:
+	var tv := await _set_with_outs()
+	_ok(tv.panel().has_speaker_outs(), "the stock body carries the six outputs")
+	var pair := tv.get_speaker_positions()
+	var pos := tv.get_surround_positions()
+	_check_eq(pos.size(), 6, "six channels are reported")
+	_ok(pos[CH_FL].is_equal_approx(pair[0]), "front left folds onto the set's left")
+	_ok(pos[CH_FR].is_equal_approx(pair[1]), "front right onto the set's right")
+	# Its own SIDE, not the middle: a rig with only rear cabinets must still image
+	# left-right, which folding both surrounds to one point would destroy.
+	_ok(pos[CH_SL].is_equal_approx(pair[0]), "surround left onto the set's left")
+	_ok(pos[CH_SR].is_equal_approx(pair[1]), "surround right onto the set's right")
+	var mid: Vector3 = (pair[0] + pair[1]) * 0.5
+	_ok(pos[CH_C].is_equal_approx(mid), "the centre onto the phantom centre")
+	_ok(pos[CH_LFE].is_equal_approx(mid), "and the sub there too")
+
+
+func _d_cabled() -> void:
+	var tv := await _set_with_outs()
+	var outs := tv.panel().speaker_outs()
+	# The surrounds, because they are the two channels whose FOLDED position is also
+	# a real speaker's — so a case on the fronts could pass with the cabinet ignored.
+	var sl := await _cable_up(outs[CH_SL], tv.position + Vector3(-1.5, 0.0, -2.0))
+	var sr := await _cable_up(outs[CH_SR], tv.position + Vector3(1.5, 0.0, -2.0))
+	tv.on_av_topology_changed([])
+	var pos := tv.get_surround_positions()
+	_ok(pos[CH_SL].is_equal_approx(sl.get_speaker_positions()[0]),
+		"surround left comes off its own cabinet's cone")
+	_ok(pos[CH_SR].is_equal_approx(sr.get_speaker_positions()[0]),
+		"and surround right off its own")
+	var pair := tv.get_speaker_positions()
+	_ok(not pos[CH_SL].is_equal_approx(pair[0]), "so it is no longer on the set")
+	_ok(pos[CH_FL].is_equal_approx(pair[0]), "while an uncabled front still is")
+
+
+func _d_gains() -> void:
+	var tv := await _set_with_outs()
+	var gains := tv.get_surround_gains()
+	_check_eq(gains.size(), 6, "a gain per channel")
+	_ok(is_equal_approx(gains[CH_SL], 0.7071068), "a folded surround is 3 dB down")
+	_ok(is_equal_approx(gains[CH_SR], 0.7071068), "both of them")
+	# Not attenuated: one channel landing where nothing else is playing, unlike a
+	# surround folded onto a front that is already carrying its own channel.
+	_ok(is_equal_approx(gains[CH_C], 1.0), "a folded centre is not")
+	_ok(is_equal_approx(gains[CH_FL], 1.0), "nor a front")
+
+	var outs := tv.panel().speaker_outs()
+	await _cable_up(outs[CH_SL], tv.position + Vector3(-1.5, 0.0, -2.0))
+	tv.on_av_topology_changed([])
+	var cabled := tv.get_surround_gains()
+	_ok(is_equal_approx(cabled[CH_SL], 1.0), "a cabled surround is at full level")
+	_ok(is_equal_approx(cabled[CH_SR], 0.7071068), "and its uncabled partner still down")
+
+
+func _d_pull_folds_back() -> void:
+	var tv := await _set_with_outs()
+	var outs := tv.panel().speaker_outs()
+	var cab := await _cable_up(outs[CH_C], tv.position + Vector3(0.0, 0.0, -2.0))
+	tv.on_av_topology_changed([])
+	_ok(not tv.get_surround_positions()[CH_C].is_equal_approx(
+		(tv.get_speaker_positions()[0] + tv.get_speaker_positions()[1]) * 0.5),
+		"a cabled centre is off the set")
+	_check_eq(tv.panel().speaker_destinations().size(), 1, "one channel is cabled")
+
+	outs[CH_C].drop_object()
+	(cab.get_node("SpeakerIn") as RcaPort).drop_object()
+	await _wait(6)
+	tv.on_av_topology_changed([])
+	_check_eq(tv.panel().speaker_destinations().size(), 0, "and none after the pull")
+	var pair := tv.get_speaker_positions()
+	_ok(tv.get_surround_positions()[CH_C].is_equal_approx((pair[0] + pair[1]) * 0.5),
+		"the centre is back on the phantom centre")
+
+
+## Every socket printed, and printed with a word SHORT enough for the 18 mm pitch —
+## the derived word for the centre channel is "AUDIO CENTER", nearly twice the pitch
+## wide, which would print over both neighbours.
+func _d_legend() -> void:
+	var tv := await _set_with_outs()
+	var legend := tv.get_node_or_null("AvLegendSpeakers") as AvLegend
+	_ok(legend != null, "the speaker row gets a legend of its own")
+	if legend == null:
+		return
+	_check_eq(legend.heading_override, "SPEAKERS", "headed SPEAKERS")
+	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
+		var word: String = str(legend.word_override.get(ch, ""))
+		_ok(not word.is_empty(), "%s prints a word" % RcaPort.CHANNEL_NAMES[ch])
+		_ok(AvLegend._text_width(word, legend.word_height) < TvPanel.AV_ROW_PITCH,
+			"and %s fits the socket pitch" % word)
+
 
 ## PLAIN_SCENES is read only when LOADING, so a token missing here is a prop that
 ## spawns and then saves as nothing. deck_tests asserts the same way.

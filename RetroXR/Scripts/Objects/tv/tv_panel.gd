@@ -59,6 +59,13 @@ var _speaker_outs: Array[RcaPort] = []
 const SPEAKER_OUT_NAMES := ["SpeakerOutL", "SpeakerOutR", "SpeakerOutC",
 	"SpeakerOutLfe", "SpeakerOutSl", "SpeakerOutSr"]
 
+## Where each speaker channel currently goes, keyed by RcaPort.Channel:
+## `{"sink": Node3D, "speaker": int}`. A missing key is a channel with no cabinet on
+## it, which folds rather than falling silent — see TvFit.surround_positions.
+##
+## Resolved when a plug moves and cached, never walked per frame.
+var _speaker_dest: Dictionary = {}
+
 ## Centre-to-centre up the back panel, from the input row to the speaker row.
 ##
 ## Up rather than down, and by more than a legend plate is tall: the stock body's floor
@@ -258,6 +265,27 @@ func _print_rf_legend(plate: bool) -> void:
 	legend.show_words = false
 	legend.show_plate = plate
 	legend.rebuild()
+
+
+## Re-resolve which cabinet is on each speaker output. Called when any plug in the
+## room moves, so it must be cheap and must not assume the move was ours.
+##
+## Resolved from the set's OWN sockets rather than from the lead that reported, for
+## the reason AvSource.resolve states: a cable reports only its own cords, so with
+## six leads on one panel whichever moved last would cancel the other five.
+##
+## Asking the set resolves its OUTPUTS only. A link where the television's socket is
+## the IN end belongs to the console driving it, and resolve() skips it.
+func on_av_topology_changed() -> void:
+	if not has_speaker_outs():
+		_speaker_dest = {}
+		return
+	_speaker_dest = AvSource.resolve(_tv, true).audio_dest
+
+
+## Where each speaker channel goes, keyed by RcaPort.Channel. See _speaker_dest.
+func speaker_destinations() -> Dictionary:
+	return _speaker_dest
 
 
 ## The speaker row's legend. One plate over all six, not six plates: the channel a

@@ -189,6 +189,67 @@ func speaker_positions() -> PackedVector3Array:
 	return out
 
 
+## -3 dB, for a surround channel folded onto the front speaker on its own side. Two
+## channels arriving at one point is twice the power, so each comes in at half of it.
+## A folded centre is NOT attenuated: it is one channel landing on the phantom-centre
+## point, where no other channel is already playing.
+const FOLD_SURROUND_GAIN := 0.7071068
+
+
+## World positions for the six decoded channels, in the decoder's order —
+## FL, FR, C, LFE, SL, SR, which is RcaPort.SPEAKER_OUT_CHANNELS.
+##
+## A channel with a cabinet on it radiates from that cabinet's cone. One without FOLDS
+## to where the set itself already plays, which is what a receiver does when told a
+## channel is absent, and here costs nothing: folding is placing a voice where another
+## voice already is, so there is no downmix and not a sample is touched.
+##
+## The fronts and surrounds fold to their own SIDE, so a rig with only rear cabinets
+## still images left-right. The centre folds to the midpoint of the set's own pair,
+## which under HRTF is a phantom centre — the thing a passive matrix would have given
+## at 3 dB separation, except here the decoder has already steered the channel out.
+## LFE folds there too and is not spatialised anyway.
+func surround_positions() -> PackedVector3Array:
+	var pair := speaker_positions()
+	var mid: Vector3 = (pair[0] + pair[1]) * 0.5
+	var fold := [pair[0], pair[1], mid, mid, pair[0], pair[1]]
+	var dest := _tv.panel().speaker_destinations()
+	var out := PackedVector3Array()
+	for i in RcaPort.SPEAKER_OUT_CHANNELS.size():
+		out.push_back(_cabinet_cone(dest.get(RcaPort.SPEAKER_OUT_CHANNELS[i]), fold[i]))
+	return out
+
+
+## Per-channel gain to go with surround_positions(), same order.
+func surround_gains() -> PackedFloat32Array:
+	var dest := _tv.panel().speaker_destinations()
+	var out := PackedFloat32Array()
+	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
+		var folded_surround: bool = (ch == RcaPort.Channel.AUDIO_SL
+			or ch == RcaPort.Channel.AUDIO_SR) and _cabinet_of(dest.get(ch)) == null
+		out.push_back(FOLD_SURROUND_GAIN if folded_surround else 1.0)
+	return out
+
+
+## The cabinet an audio_dest entry names, or null for a channel with none — and for
+## one whose cabinet has since been freed, which a room where anything can be picked
+## up and put in a box has to expect.
+func _cabinet_of(entry: Variant) -> Node3D:
+	if not entry is Dictionary:
+		return null
+	var sink := (entry as Dictionary).get("sink") as Node3D
+	return sink if is_instance_valid(sink) else null
+
+
+func _cabinet_cone(entry: Variant, folded: Vector3) -> Vector3:
+	var sink := _cabinet_of(entry)
+	if sink == null:
+		return folded
+	var cones: PackedVector3Array = sink.get_speaker_positions()
+	var idx: int = int((entry as Dictionary).get("speaker", 0))
+	return cones[idx] if idx >= 0 and idx < cones.size() else folded
+
+
 ## Put the speaker markers where a set of this size wears them: flanking the tube
 ## 5.5 cm outboard of its edges, a little below its centre, and just proud of the
 ## glass -- which is where a CRT of this vintage puts them.
