@@ -62,7 +62,9 @@ func _run() -> void:
 	_ok(Engine.has_singleton("MetaXRAudio"), "the Meta XR Audio extension is present")
 	if Engine.has_singleton("MetaXRAudio"):
 		var mx: Object = Engine.get_singleton("MetaXRAudio")
-		mx.call("set_enabled", true)
+		# Through the listener, not the singleton: poking set_enabled directly left
+		# its is_spatialised() flag stale, and the set read that flag.
+		SpatialAudioListener.set_sdk_enabled(true)
 		_ok(bool(mx.call("is_available")), "and the SDK is available (windowed run)")
 	_ok(Engine.has_singleton("SurroundAudio"), "the decoder extension is present")
 

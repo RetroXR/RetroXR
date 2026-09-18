@@ -216,6 +216,20 @@ const AUDIO_OUT_NAMES := ["TV SPEAKERS", "STEREO OUT", "SURROUND"]
 ## decodes it. Referential use of the name; nothing here claims certification.
 const AUDIO_OUT_OSD := ["TV SPEAKERS", "STEREO OUT", "SURROUND — DOLBY PRO LOGIC II"]
 
+## What SURROUND says instead when the spatial audio SDK is off. See
+## TvAudio.audio_out_osd.
+const AUDIO_OUT_NEEDS_SPATIAL := "SURROUND NEEDS SPATIAL AUDIO"
+
+## What each bezel cap is called in the log. The names the player reads on the set,
+## not the node names.
+const _BUTTON_LOG_NAMES := {
+	"TVToggleButton": "POWER", "SourceButton": "SOURCE",
+	"ChannelDownButton": "CH-", "ChannelUpButton": "CH+",
+	"VolumeDownButton": "VOL-", "VolumeUpButton": "VOL+", "MuteButton": "MUTE",
+	"AudioModeButton": "SPEAKER SWITCH", "CRTButton": "CRT", "AspectButton": "ASPECT",
+	"AudioOutButton": "AUDIO OUTPUT", "StereoButton": "3D",
+}
+
 var audio_out: int = 0
 
 # Phosphor persistence ping-pong (Shaders/phosphor_decay.gdshader). A viewport
@@ -426,6 +440,13 @@ func _ready() -> void:
 	# gate.
 	_vga_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.VGA))
 	_vga_port.has_dropped.connect(_panel.on_plug_released.bind(Source.VGA))
+	# Every press is logged, and connected FIRST so the line lands ahead of whatever
+	# the button then does — signals call in connection order. A press the set
+	# ignored and a press that never arrived look the same from the room.
+	for btn: VRButton in [_tv_toggle_btn, _source_btn, _ch_down_btn, _ch_up_btn,
+			_vol_down_btn, _vol_up_btn, _mute_btn, _audio_mode_btn, _crt_btn,
+			_aspect_btn, _audio_out_btn, _stereo_btn]:
+		btn.button_pressed.connect(_log_press.bind(btn.name))
 	_mute_btn.button_pressed.connect(_audio.on_mute_toggle)
 	_audio_mode_btn.button_pressed.connect(_audio.on_mode_toggle)
 	_vol_down_btn.button_pressed.connect(_audio.on_volume_down)
@@ -737,6 +758,11 @@ func remote_volume_down() -> void:
 
 func remote_mute_toggle() -> void:
 	_audio.on_mute_toggle()
+
+
+func _log_press(button_name: StringName) -> void:
+	print("[RetroTV] %s: pressed %s" % [name,
+		_BUTTON_LOG_NAMES.get(String(button_name), String(button_name))])
 
 
 func remote_source_cycle() -> void:

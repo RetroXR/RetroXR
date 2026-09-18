@@ -2839,6 +2839,21 @@ is a synthesised sub-120 Hz band), so it costs a voice either way.
 **Linux and macOS get no surround**, by the same line HRTF already falls on: `metaxr-audio`
 does not ship there, so there are no voices to place.
 
+**With Meta XR Spatial Audio switched off, the key says `SURROUND NEEDS SPATIAL AUDIO`**
+and the set still holds SURROUND, so a machine powered on later takes it up. It used to
+name the format regardless — a player pressed it, read "PRO LOGIC II" and heard nothing
+change. The message trusts a machine that is decoding over `SpatialAudioListener`'s flag,
+which goes stale if anything switches the SDK behind the listener's back. **The Options
+switch used to hide itself once turned off**: it was gated on `is_available()`, which
+answers false while the SDK is disabled, so it vanished on the next build of the page. It
+is gated on `SpatialAudioListener.sdk_installed()` now — the library reported a version.
+A machine keeps the backend it booted with, so turning the SDK on needs a power cycle.
+
+Every TV button logs a line, `[RetroTV] TV: pressed AUDIO OUTPUT`, connected ahead of the
+button's own handler so it lands first; the remote prints `[TVRemote] TV: pressed <key>`.
+AUDIO OUTPUT then reports the outcome, and each machine its own verdict: `[SystemAudio]
+<machine>: surround on, 6 voices` or `declined — spatial audio is off`.
+
 **The cabinets and their stands.** `Tools/gen/gen_speaker.gd` bakes a satellite
 (95 x 165 x 110 mm) and a subwoofer (260 mm cube); `Tools/gen/gen_speaker_stand.gd` bakes
 1.2 m and 1 m floor stands, the height being to the top plate's upper FACE, which is where

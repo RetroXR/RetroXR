@@ -1016,6 +1016,9 @@ func _toggle_playpause(p: Node) -> void:
 func _activate(id: String) -> void:
 	if _target is RetroTV:
 		var tv := _target as RetroTV
+		# The same line the bezel prints, so a key pressed from across the room
+		# shows up in the log beside one pressed on the set.
+		print("[TVRemote] %s: pressed %s" % [tv.name, id])
 		match id:
 			"power": tv.remote_power_toggle()
 			"vol_up": tv.remote_volume_up()

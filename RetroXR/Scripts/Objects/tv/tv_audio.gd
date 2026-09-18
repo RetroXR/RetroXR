@@ -65,11 +65,37 @@ func on_mode_toggle() -> void:
 ## full surround decode. Called by the front-panel key, the remote and object_sync.
 func set_audio_out(mode: int) -> void:
 	_tv.audio_out = clampi(mode, 0, RetroTV.AUDIO_OUT_NAMES.size() - 1)
-	apply_audio_out()
+	var decoding := apply_audio_out()
 	update_audio_out_button()
-	_tv.show_osd_timed(RetroTV.AUDIO_OUT_OSD[_tv.audio_out], 2.0)
+	# A machine that is decoding proves the SDK is on, whatever the listener's flag
+	# says. The flag is only as fresh as the last set_sdk_enabled, and something that
+	# switches the SDK on behind the listener's back leaves it stale — which put
+	# "spatial audio is off" in the log beside a machine reporting six voices.
+	var spatialised := SpatialAudioListener.is_spatialised() or decoding > 0
+	_tv.show_osd_timed(audio_out_osd(_tv.audio_out, spatialised), 2.0)
+	var result := ""
+	if _tv.audio_out == RetroTV.AudioOut.SURROUND:
+		result = ("  (decoding on %d machine(s))" % decoding) if spatialised 			else "  (spatial audio is off, so every machine stays in stereo)"
+	print("[RetroTV] %s: audio output -> %s%s" % [_tv.name,
+		RetroTV.AUDIO_OUT_NAMES[_tv.audio_out], result])
 	NetworkManager.report_event(NetEvents.Event.EV_TV_AUDIO_OUT,
 		{"tv": _tv, "mode": _tv.audio_out})
+
+
+## What the OSD says for a position.
+##
+## SURROUND needs the six voices the Meta XR Audio SDK hands out, and with the SDK
+## off every machine plays through Godot's stereo player instead — the decoder
+## declines and the sound stays in stereo. Saying the format there would claim a
+## decode that is not happening, which is how a player once pressed the key, read
+## "PRO LOGIC II" and heard nothing change.
+##
+## Static so the two answers can be checked without an SDK: a headless run never
+## has one.
+static func audio_out_osd(mode: int, spatialised: bool) -> String:
+	if mode == RetroTV.AudioOut.SURROUND and not spatialised:
+		return RetroTV.AUDIO_OUT_NEEDS_SPATIAL
+	return RetroTV.AUDIO_OUT_OSD[mode]
 
 
 ## Step to the next position that is DISTINGUISHABLE from the one it is on.
@@ -102,12 +128,17 @@ func _audio_out_available(mode: int) -> bool:
 ## Tell every connected host where the sound is going, the way apply_channel_mode
 ## does and for the same reason: the route is a property of the SET, so an input
 ## selected later must already be on it rather than reverting for one press.
-func apply_audio_out() -> void:
+##
+## Returns how many of them are really decoding, which is what the log reports.
+func apply_audio_out() -> int:
+	var decoding := 0
 	for system in _tv.panel()._connected_systems:
 		if is_instance_valid(system) and system.has_method("set_audio_out_mode"):
-			system.set_audio_out_mode(_tv.audio_out)
+			if system.set_audio_out_mode(_tv.audio_out):
+				decoding += 1
 	if _tv.tuner() and _tv.tuner().has_method("set_audio_out_mode"):
 		_tv.tuner().set_audio_out_mode(_tv.audio_out)
+	return decoding
 
 
 ## One fixed glyph, like SourceButton: what the key is doing is reported by the OSD

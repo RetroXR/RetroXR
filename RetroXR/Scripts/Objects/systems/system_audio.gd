@@ -130,9 +130,13 @@ func set_channel_mode(mode: int) -> void:
 ## voice list changes with it — six while decoding, two otherwise — so it is
 ## re-read and the voices re-placed, which is also what releases the four extra
 ## ones back to a mixer that only has 32.
-func set_audio_out_mode(mode: int) -> void:
+##
+## Returns whether this machine is really decoding, which is not the same as having
+## been asked to.
+func set_audio_out_mode(mode: int) -> bool:
 	_audio_out = mode
 	_apply_audio_out()
+	return _surround
 
 
 func _apply_audio_out() -> void:
@@ -141,19 +145,21 @@ func _apply_audio_out() -> void:
 		return
 	var want: bool = _audio_out == RetroTV.AudioOut.SURROUND
 	var got: bool = node.SetSurroundEnabled(want)
-	if got == _surround:
-		return
-	_surround = got
-	# The ids change wholesale, so re-read rather than patch: the front pair gets
-	# voices of its own while decoding and hands them back afterwards.
-	_voices = node.GetAudioVoiceIds()
-	_sent_directivity = -1.0
-	_sent_gain_l = -1.0
-	_sent_gain_r = -1.0
-	_sent_surround_gain = -1.0
-	_surround_gains = PackedFloat32Array()
-	update_position()
-	_apply_bound_volume()
+	if got != _surround:
+		_surround = got
+		# The ids change wholesale, so re-read rather than patch: the front pair gets
+		# voices of its own while decoding and hands them back afterwards.
+		_voices = node.GetAudioVoiceIds()
+		_sent_directivity = -1.0
+		_sent_gain_l = -1.0
+		_sent_gain_r = -1.0
+		_sent_surround_gain = -1.0
+		_surround_gains = PackedFloat32Array()
+		update_position()
+		_apply_bound_volume()
+	# After the re-read, so an engaged machine reports the six it now has.
+	if want:
+		print("[SystemAudio] %s: surround %s" % [_host.name, _surround_verdict(got)])
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +307,19 @@ func route_changed() -> void:
 ## the HRTF, and a matrix source carries no discrete LFE anyway: ours is a
 ## synthesised sub-120 Hz band. It costs a voice either way, so it rides with the
 ## rest rather than earning a special case that buys nothing.
+## Why a machine is or is not decoding, for the log. The voices are what decide it:
+## an empty list means the core came up on Godot's own stereo player, which is what
+## the spatial audio SDK being off looks like from here.
+func _surround_verdict(engaged: bool) -> String:
+	if engaged:
+		return "on, %d voices" % _voices.size()
+	if not _host.is_powered_on:
+		return "waiting — the machine is off, and takes it up when it starts"
+	if _voices.is_empty() or _mx == null:
+		return "declined — spatial audio is off, so this core plays through Godot's stereo player"
+	return "declined — the decoder extension or the mixer's voices are unavailable"
+
+
 func _place_surround(tv: Node3D) -> void:
 	var pos: PackedVector3Array = tv.get_surround_positions()
 	if pos.size() != _voices.size():

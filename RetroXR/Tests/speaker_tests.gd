@@ -80,6 +80,8 @@ func _run() -> void:
 		["output/the audio-output key has a real glyph", _o_glyph],
 		["output/the key names the format it decodes", _o_names],
 		["output/cycling skips a position that sounds the same", _o_cycle],
+		["output/with spatial audio off the key says so", _o_needs_spatial],
+		["output/the spatial audio switch survives being turned off", _o_switch_offered],
 		["save/both cabinets and the lead are registered", _s_registered],
 		["save/a cabinet round-trips through a save entry", _s_round_trip],
 	]
@@ -704,6 +706,44 @@ func _o_cycle() -> void:
 	await _wait(2)
 	_check_eq(tv.audio_out, RetroTV.AudioOut.STEREO,
 		"a cabinet on a front socket makes STEREO OUT reachable")
+
+
+## Surround is six Meta XR Audio voices, so with the SDK off every machine stays in
+## stereo — and the OSD used to say "SURROUND — DOLBY PRO LOGIC II" anyway, so a
+## player pressed the key, read the format and heard nothing change.
+func _o_needs_spatial() -> void:
+	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.SURROUND, false),
+		"SURROUND NEEDS SPATIAL AUDIO", "surround with the SDK off names what it needs")
+	_ok(TvAudio.audio_out_osd(RetroTV.AudioOut.SURROUND, true).contains("PRO LOGIC"),
+		"and with it on, names the format")
+	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.STEREO, false), "STEREO OUT",
+		"the other positions do not depend on it")
+	# Through the set, with the SDK forced off rather than assumed off, so the case
+	# does not hang on whether this run happens to have one.
+	var prior: bool = AppPrefs.spatial_audio_sdk
+	SpatialAudioListener.set_sdk_enabled(false)
+	var tv := await _set_with_outs()
+	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
+	await _wait(2)
+	_check_eq(tv._osd_label.text, "SURROUND NEEDS SPATIAL AUDIO", "the set's own OSD says it")
+	_check_eq(tv.audio_out, RetroTV.AudioOut.SURROUND,
+		"and still holds SURROUND, so a machine started later takes it up")
+	SpatialAudioListener.set_sdk_enabled(prior)
+
+
+## The Options switch was gated on is_available(), which answers false while the SDK
+## is disabled — so turning it off hid the switch that turns it back on, and it
+## never came back. It is gated on the library being installed now.
+func _o_switch_offered() -> void:
+	var has_sdk := Engine.has_singleton("MetaXRAudio") 		and not str(Engine.get_singleton("MetaXRAudio").call("get_version")).is_empty()
+	if not has_sdk:
+		_ok(not SpatialAudioListener.sdk_installed(), "no SDK here, and none is claimed")
+		return
+	var prior: bool = AppPrefs.spatial_audio_sdk
+	SpatialAudioListener.set_sdk_enabled(false)
+	_ok(not SpatialAudioListener.is_spatialised(), "switched off, nothing is spatialised")
+	_ok(SpatialAudioListener.sdk_installed(), "but the SDK still counts as installed")
+	SpatialAudioListener.set_sdk_enabled(prior)
 
 
 ## PLAIN_SCENES is read only when LOADING, so a token missing here is a prop that
