@@ -66,63 +66,57 @@ func on_mode_toggle() -> void:
 func set_audio_out(mode: int) -> void:
 	_tv.audio_out = clampi(mode, 0, RetroTV.AUDIO_OUT_NAMES.size() - 1)
 	var decoding := apply_audio_out()
+	# The external positions are silent with nothing plugged in, and that is a volume.
+	apply_volume()
 	update_audio_out_button()
 	# A machine that is decoding proves the SDK is on, whatever the listener's flag
 	# says. The flag is only as fresh as the last set_sdk_enabled, and something that
 	# switches the SDK on behind the listener's back leaves it stale — which put
 	# "spatial audio is off" in the log beside a machine reporting six voices.
 	var spatialised := SpatialAudioListener.is_spatialised() or decoding > 0
-	_tv.show_osd_timed(audio_out_osd(_tv.audio_out, spatialised), 2.0)
+	var speakers := _tv.has_cabled_speakers()
+	_tv.show_osd_timed(audio_out_osd(_tv.audio_out, spatialised, speakers), 2.0)
 	var result := ""
-	if _tv.audio_out == RetroTV.AudioOut.SURROUND:
-		result = ("  (decoding on %d machine(s))" % decoding) if spatialised 			else "  (spatial audio is off, so every machine stays in stereo)"
+	if _tv.is_sound_external() and not speakers:
+		result = "  (no speakers connected, so the set is silent)"
+	elif _tv.audio_out == RetroTV.AudioOut.SURROUND:
+		if spatialised:
+			result = "  (decoding on %d machine(s))" % decoding
+		else:
+			result = "  (spatial audio is off, so every machine stays in stereo)"
 	print("[RetroTV] %s: audio output -> %s%s" % [_tv.name,
 		RetroTV.AUDIO_OUT_NAMES[_tv.audio_out], result])
 	NetworkManager.report_event(NetEvents.Event.EV_TV_AUDIO_OUT,
 		{"tv": _tv, "mode": _tv.audio_out})
 
 
-## What the OSD says for a position.
+## What the OSD says for a position, most urgent reason first.
 ##
-## SURROUND needs the six voices the Meta XR Audio SDK hands out, and with the SDK
-## off every machine plays through Godot's stereo player instead — the decoder
-## declines and the sound stays in stereo. Saying the format there would claim a
-## decode that is not happening, which is how a player once pressed the key, read
-## "PRO LOGIC II" and heard nothing change.
+## No speakers comes first because it is why nothing can be heard at all: STEREO OUT
+## and SURROUND send the sound to the speakers plugged into the back and leave the
+## set silent, so with none plugged in the set goes quiet, and the OSD is the only
+## thing that says why. The position is named with it, or two presses in a row read
+## the same.
 ##
-## Static so the two answers can be checked without an SDK: a headless run never
-## has one.
-static func audio_out_osd(mode: int, spatialised: bool) -> String:
+## Then SURROUND with the spatial audio SDK off: surround needs the six voices the SDK
+## hands out, and without it every machine plays through Godot's stereo player and
+## the decoder declines. Naming the format there claimed a decode that was not
+## happening — a player pressed the key, read "PRO LOGIC II" and heard nothing change.
+##
+## Static so every answer can be checked without an SDK or a rig.
+static func audio_out_osd(mode: int, spatialised: bool, speakers: bool) -> String:
+	if mode != RetroTV.AudioOut.TV_SPEAKERS and not speakers:
+		return "%s — %s" % [RetroTV.AUDIO_OUT_NAMES[mode], RetroTV.AUDIO_OUT_NO_SPEAKERS]
 	if mode == RetroTV.AudioOut.SURROUND and not spatialised:
 		return RetroTV.AUDIO_OUT_NEEDS_SPATIAL
 	return RetroTV.AUDIO_OUT_OSD[mode]
 
 
-## Step to the next position that is DISTINGUISHABLE from the one it is on.
-##
-## With nothing cabled, STEREO OUT plays out of the same two speakers TV SPEAKERS
-## does, so stopping there would be a press that changes the OSD and nothing else —
-## the cycle_source / _source_available pattern, for the same reason.
+## Step to the next position, all three always. Every one is now distinguishable
+## from the others: TV SPEAKERS plays from the set, and the other two play from the
+## speakers plugged in or, with none, go silent and say so.
 func on_audio_out_toggle() -> void:
-	var n: int = RetroTV.AUDIO_OUT_NAMES.size()
-	for step in range(1, n + 1):
-		var next: int = (_tv.audio_out + step) % n
-		if _audio_out_available(next):
-			set_audio_out(next)
-			return
-
-
-## Whether a position does something this rig can hear.
-##
-## TV SPEAKERS and SURROUND always do — SURROUND because a decode folded onto the
-## set's own pair is still a decode, and a centre-panned voice pulling to the middle
-## is audible with no cabinet in the room. STEREO OUT needs a cabinet on a front
-## socket, since without one it is bit-for-bit what TV SPEAKERS already gives.
-func _audio_out_available(mode: int) -> bool:
-	if mode != RetroTV.AudioOut.STEREO:
-		return true
-	var dest := _tv.panel().speaker_destinations()
-	return dest.has(RcaPort.Channel.AUDIO_L) or dest.has(RcaPort.Channel.AUDIO_R)
+	set_audio_out((_tv.audio_out + 1) % RetroTV.AUDIO_OUT_NAMES.size())
 
 
 ## Tell every connected host where the sound is going, the way apply_channel_mode
@@ -196,9 +190,14 @@ func update_mode_button() -> void:
 			else Color(0.9, 0.65, 0.25))
 
 
-## What the set's own amplifier is passing: silence while off or muted.
+## What the set's own amplifier is passing: silence while off or muted, and while it
+## is switched to external speakers with none plugged in — a real set does the same.
 func _effective_volume() -> float:
-	return 0.0 if (not _tv.is_on() or _muted) else _volume
+	if not _tv.is_on() or _muted:
+		return 0.0
+	if _tv.is_sound_external() and not _tv.has_cabled_speakers():
+		return 0.0
+	return _volume
 
 
 ## …and what reaches one input, which is nothing at all unless that input is the

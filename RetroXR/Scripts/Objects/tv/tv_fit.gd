@@ -190,46 +190,93 @@ func speaker_positions() -> PackedVector3Array:
 	return out
 
 
-## -3 dB, for a surround channel folded onto the front speaker on its own side. Two
+## -3 dB, for a channel folded onto a speaker that is already playing its own. Two
 ## channels arriving at one point is twice the power, so each comes in at half of it.
-## A folded centre is NOT attenuated: it is one channel landing on the phantom-centre
-## point, where no other channel is already playing.
-const FOLD_SURROUND_GAIN := 0.7071068
+## A channel folded onto the MIDPOINT of a pair is not attenuated: nothing else is
+## playing there, and two speakers carrying it is what puts it there.
+const FOLD_GAIN := 0.7071068
+
+## Where each channel goes when its own speaker is missing, in decoder order (FL, FR,
+## C, LFE, SL, SR = 0..5). The first CABLED target wins; an int is one speaker, a pair
+## is the phantom point between two. The set's own speakers are on no chain: in
+## STEREO OUT and SURROUND the set is silent, as a real one switched to external
+## speakers is, so a channel folds onto the speakers that ARE plugged in and nothing
+## plugged in means nothing heard.
+##
+## Own side first, so a rig of rear speakers alone still images left-right. Every
+## chain names all six, so one cabled speaker gives every channel somewhere to go.
+const _FOLD_CHAINS := [
+	[0, 4, 2, 1, 5, 3],
+	[1, 5, 2, 0, 4, 3],
+	[2, [0, 1], 0, 1, [4, 5], 4, 5, 3],
+	[3, [0, 1], 0, 1, 2, [4, 5], 4, 5],
+	[4, 0, 2, 5, 1, 3],
+	[5, 1, 2, 4, 0, 3],
+]
 
 
 ## World positions for the six decoded channels, in the decoder's order —
-## FL, FR, C, LFE, SL, SR, which is RcaPort.SPEAKER_OUT_CHANNELS.
-##
-## A channel with a cabinet on it radiates from that cabinet's cone. One without FOLDS
-## to where the set itself already plays, which is what a receiver does when told a
-## channel is absent, and here costs nothing: folding is placing a voice where another
-## voice already is, so there is no downmix and not a sample is touched.
-##
-## The fronts and surrounds fold to their own SIDE, so a rig with only rear cabinets
-## still images left-right. The centre folds to the midpoint of the set's own pair,
-## which under HRTF is a phantom centre — the thing a passive matrix would have given
-## at 3 dB separation, except here the decoder has already steered the channel out.
-## LFE folds there too and is not spatialised anyway.
+## FL, FR, C, LFE, SL, SR, which is RcaPort.SPEAKER_OUT_CHANNELS. A channel with a
+## speaker plays from its cone; one without folds along _FOLD_CHAINS. Folding is
+## placing a voice where a speaker already is, so not a sample is touched.
 func surround_positions() -> PackedVector3Array:
-	var pair := speaker_positions()
-	var mid: Vector3 = (pair[0] + pair[1]) * 0.5
-	var fold := [pair[0], pair[1], mid, mid, pair[0], pair[1]]
-	var dest := _tv.panel().speaker_destinations()
-	var out := PackedVector3Array()
-	for i in RcaPort.SPEAKER_OUT_CHANNELS.size():
-		out.push_back(_cabinet_cone(dest.get(RcaPort.SPEAKER_OUT_CHANNELS[i]), fold[i]))
-	return out
+	return _route()[0]
 
 
-## Per-channel gain to go with surround_positions(), same order.
+## Per-channel gain to go with surround_positions(), same order: 1 for a channel on
+## its own speaker or on a phantom midpoint, FOLD_GAIN on another speaker, 0 when
+## nothing is plugged in at all.
 func surround_gains() -> PackedFloat32Array:
+	return _route()[1]
+
+
+## Whether any of the six outputs reaches a speaker.
+func has_cabled_speakers() -> bool:
 	var dest := _tv.panel().speaker_destinations()
-	var out := PackedFloat32Array()
 	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
-		var folded_surround: bool = (ch == RcaPort.Channel.AUDIO_SL
-			or ch == RcaPort.Channel.AUDIO_SR) and _cabinet_of(dest.get(ch)) == null
-		out.push_back(FOLD_SURROUND_GAIN if folded_surround else 1.0)
-	return out
+		if _cabinet_of(dest.get(ch)) != null:
+			return true
+	return false
+
+
+## The front pair of _route, for a source that plays stereo through a set switched
+## to external speakers: its left and right go where FL and FR go.
+func external_pair() -> PackedVector3Array:
+	var pos: PackedVector3Array = _route()[0]
+	return PackedVector3Array([pos[0], pos[1]])
+
+
+func _route() -> Array:
+	var dest := _tv.panel().speaker_destinations()
+	var cones: Array = []
+	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
+		cones.append(_cabinet_cone(dest.get(ch)))
+	# Where a silent voice waits. Its gain is 0, so this is never heard; it only
+	# keeps the voice somewhere sane rather than at the origin.
+	var pair := speaker_positions()
+	var rest: Vector3 = (pair[0] + pair[1]) * 0.5
+	var positions := PackedVector3Array()
+	var gains := PackedFloat32Array()
+	for i in _FOLD_CHAINS.size():
+		var placed := false
+		for target: Variant in _FOLD_CHAINS[i]:
+			if target is Array:
+				var a: Variant = cones[target[0]]
+				var b: Variant = cones[target[1]]
+				if a != null and b != null:
+					positions.push_back(((a as Vector3) + (b as Vector3)) * 0.5)
+					gains.push_back(1.0)
+					placed = true
+					break
+			elif cones[target] != null:
+				positions.push_back(cones[target] as Vector3)
+				gains.push_back(1.0 if target == i else FOLD_GAIN)
+				placed = true
+				break
+		if not placed:
+			positions.push_back(rest)
+			gains.push_back(0.0)
+	return [positions, gains]
 
 
 ## The cabinet an audio_dest entry names, or null for a channel with none — and for
@@ -242,13 +289,14 @@ func _cabinet_of(entry: Variant) -> Node3D:
 	return sink if is_instance_valid(sink) else null
 
 
-func _cabinet_cone(entry: Variant, folded: Vector3) -> Vector3:
+## The cone an audio_dest entry reaches, or null.
+func _cabinet_cone(entry: Variant) -> Variant:
 	var sink := _cabinet_of(entry)
 	if sink == null:
-		return folded
+		return null
 	var cones: PackedVector3Array = sink.get_speaker_positions()
 	var idx: int = int((entry as Dictionary).get("speaker", 0))
-	return cones[idx] if idx >= 0 and idx < cones.size() else folded
+	return cones[idx] if idx >= 0 and idx < cones.size() else null
 
 
 ## Put the speaker markers where a set of this size wears them: flanking the tube

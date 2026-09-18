@@ -66,10 +66,11 @@ func _run() -> void:
 		["routing/two cabinets on one output do not merge", _r_two_on_one],
 		["routing/pulling the lead takes the channel away", _r_pull],
 		["routing/binning a lead seats none of its plugs anywhere", _r_bin_lead],
-		["fold/a set with no cabinets folds every channel onto its own pair", _d_all_folded],
+		["fold/with no speakers every channel is silent", _d_none],
 		["fold/a cabled channel comes off its own cabinet", _d_cabled],
-		["fold/a folded surround is 3 dB down and a folded centre is not", _d_gains],
-		["fold/pulling a lead folds that channel back", _d_pull_folds_back],
+		["fold/a missing centre plays between the cabled fronts", _d_centre],
+		["fold/nothing ever folds onto the set's own speakers", _d_never_the_set],
+		["fold/pulling the last speaker silences every channel", _d_pull],
 		["fold/the panel prints a word under every speaker socket", _d_legend],
 		["stand/each stand is as tall as its name", _t_height],
 		["stand/a cabinet seats on the plate at that height", _t_seat],
@@ -79,7 +80,9 @@ func _run() -> void:
 		["stand/a seated cabinet round-trips through a save", _t_round_trip],
 		["output/the audio-output key has a real glyph", _o_glyph],
 		["output/the key names the format it decodes", _o_names],
-		["output/cycling skips a position that sounds the same", _o_cycle],
+		["output/the key steps through all three positions", _o_cycle],
+		["output/with no speakers the set goes silent and says so", _o_silent],
+		["output/STEREO OUT plays from the front speakers", _o_stereo_out],
 		["output/with spatial audio off the key says so", _o_needs_spatial],
 		["output/the spatial audio switch survives being turned off", _o_switch_offered],
 		["save/both cabinets and the lead are registered", _s_registered],
@@ -411,78 +414,106 @@ func _set_with_outs() -> RetroTV:
 	return tv
 
 
-func _d_all_folded() -> void:
+func _d_none() -> void:
 	var tv := await _set_with_outs()
 	_ok(tv.panel().has_speaker_outs(), "the stock body carries the six outputs")
-	var pair := tv.get_speaker_positions()
-	var pos := tv.get_surround_positions()
-	_check_eq(pos.size(), 6, "six channels are reported")
-	_ok(pos[CH_FL].is_equal_approx(pair[0]), "front left folds onto the set's left")
-	_ok(pos[CH_FR].is_equal_approx(pair[1]), "front right onto the set's right")
-	# Its own SIDE, not the middle: a rig with only rear cabinets must still image
-	# left-right, which folding both surrounds to one point would destroy.
-	_ok(pos[CH_SL].is_equal_approx(pair[0]), "surround left onto the set's left")
-	_ok(pos[CH_SR].is_equal_approx(pair[1]), "surround right onto the set's right")
-	var mid: Vector3 = (pair[0] + pair[1]) * 0.5
-	_ok(pos[CH_C].is_equal_approx(mid), "the centre onto the phantom centre")
-	_ok(pos[CH_LFE].is_equal_approx(mid), "and the sub there too")
+	_ok(not tv.has_cabled_speakers(), "and nothing is plugged into them")
+	var gains := tv.get_surround_gains()
+	_check_eq(gains.size(), 6, "a gain per channel")
+	for i in gains.size():
+		_ok(is_zero_approx(gains[i]), "channel %d has nowhere to go and is silent" % i)
 
 
+## Rear speakers only. The surrounds are the channels whose own cone and a folded
+## position could coincide, so a case on the fronts could pass with a cabinet ignored.
 func _d_cabled() -> void:
 	var tv := await _set_with_outs()
 	var outs := tv.panel().speaker_outs()
-	# The surrounds, because they are the two channels whose FOLDED position is also
-	# a real speaker's — so a case on the fronts could pass with the cabinet ignored.
-	var sl := await _cable_up(outs[CH_SL], tv.position + Vector3(-1.5, 0.0, -2.0))
-	var sr := await _cable_up(outs[CH_SR], tv.position + Vector3(1.5, 0.0, -2.0))
+	var sl := (await _cable_up(outs[CH_SL], tv.position + Vector3(-1.5, 0.0, -2.0))) \
+		.get_speaker_positions()[0]
+	var sr := (await _cable_up(outs[CH_SR], tv.position + Vector3(1.5, 0.0, -2.0))) \
+		.get_speaker_positions()[0]
 	tv.on_av_topology_changed([])
 	var pos := tv.get_surround_positions()
-	_ok(pos[CH_SL].is_equal_approx(sl.get_speaker_positions()[0]),
-		"surround left comes off its own cabinet's cone")
-	_ok(pos[CH_SR].is_equal_approx(sr.get_speaker_positions()[0]),
-		"and surround right off its own")
-	var pair := tv.get_speaker_positions()
-	_ok(not pos[CH_SL].is_equal_approx(pair[0]), "so it is no longer on the set")
-	_ok(pos[CH_FL].is_equal_approx(pair[0]), "while an uncabled front still is")
-
-
-func _d_gains() -> void:
-	var tv := await _set_with_outs()
 	var gains := tv.get_surround_gains()
-	_check_eq(gains.size(), 6, "a gain per channel")
-	_ok(is_equal_approx(gains[CH_SL], 0.7071068), "a folded surround is 3 dB down")
-	_ok(is_equal_approx(gains[CH_SR], 0.7071068), "both of them")
-	# Not attenuated: one channel landing where nothing else is playing, unlike a
-	# surround folded onto a front that is already carrying its own channel.
-	_ok(is_equal_approx(gains[CH_C], 1.0), "a folded centre is not")
-	_ok(is_equal_approx(gains[CH_FL], 1.0), "nor a front")
+	_ok(pos[CH_SL].is_equal_approx(sl) and is_equal_approx(gains[CH_SL], 1.0),
+		"surround left comes off its own cabinet at full level")
+	_ok(pos[CH_SR].is_equal_approx(sr) and is_equal_approx(gains[CH_SR], 1.0),
+		"and surround right off its own")
+	# Own side first, so a rig of rear speakers alone still images left-right.
+	_ok(pos[CH_FL].is_equal_approx(sl), "front left folds onto the rear on its own side")
+	_ok(pos[CH_FR].is_equal_approx(sr), "front right onto its own")
+	_ok(is_equal_approx(gains[CH_FL], TvFit.FOLD_GAIN),
+		"3 dB down, sharing a speaker with the channel it already plays")
+	# Two speakers carrying a channel put it between them, where nothing else plays.
+	_ok(pos[CH_C].is_equal_approx((sl + sr) * 0.5) and is_equal_approx(gains[CH_C], 1.0),
+		"the centre plays between the two rears, not attenuated")
 
+
+func _d_centre() -> void:
+	var tv := await _set_with_outs()
 	var outs := tv.panel().speaker_outs()
-	await _cable_up(outs[CH_SL], tv.position + Vector3(-1.5, 0.0, -2.0))
+	var fl := (await _cable_up(outs[CH_FL], tv.position + Vector3(-1.2, 0.0, 1.5))) \
+		.get_speaker_positions()[0]
+	var fr := (await _cable_up(outs[CH_FR], tv.position + Vector3(1.2, 0.0, 1.5))) \
+		.get_speaker_positions()[0]
 	tv.on_av_topology_changed([])
-	var cabled := tv.get_surround_gains()
-	_ok(is_equal_approx(cabled[CH_SL], 1.0), "a cabled surround is at full level")
-	_ok(is_equal_approx(cabled[CH_SR], 0.7071068), "and its uncabled partner still down")
+	var pos := tv.get_surround_positions()
+	var gains := tv.get_surround_gains()
+	_ok(pos[CH_C].is_equal_approx((fl + fr) * 0.5) and is_equal_approx(gains[CH_C], 1.0),
+		"the centre is the phantom point between the fronts, full level")
+	_ok(pos[CH_LFE].is_equal_approx((fl + fr) * 0.5), "and the bass goes to the fronts")
+	_ok(pos[CH_SL].is_equal_approx(fl) and is_equal_approx(gains[CH_SL], TvFit.FOLD_GAIN),
+		"a missing surround folds onto the front on its side, 3 dB down")
+	_ok(pos[CH_SR].is_equal_approx(fr), "both sides")
 
 
-func _d_pull_folds_back() -> void:
+## The rule this group exists for. On STEREO OUT and SURROUND the set is silent, so a
+## channel with no speaker of its own must never land back on it — which is what the
+## first fold did, and why a player with nothing plugged in heard SURROUND at all.
+func _d_never_the_set() -> void:
+	for rig: Array in [[CH_C], [CH_SL], [CH_FL, CH_FR], [CH_LFE]]:
+		var tv := await _set_with_outs()
+		var outs := tv.panel().speaker_outs()
+		for ch: int in rig:
+			await _cable_up(outs[ch], tv.position + Vector3(float(ch) - 2.5, 0.0, -2.0))
+		tv.on_av_topology_changed([])
+		var own: PackedVector3Array = tv._fit.speaker_positions()
+		var pos := tv.get_surround_positions()
+		var gains := tv.get_surround_gains()
+		var on_set := 0
+		for i in pos.size():
+			if gains[i] > 0.0 and (pos[i].distance_to(own[0]) < 0.1
+					or pos[i].distance_to(own[1]) < 0.1
+					or pos[i].distance_to((own[0] + own[1]) * 0.5) < 0.1):
+				on_set += 1
+		_check_eq(on_set, 0, "with speakers %s, no audible channel is on the set" % str(rig))
+
+
+func _d_pull() -> void:
 	var tv := await _set_with_outs()
 	var outs := tv.panel().speaker_outs()
 	var cab := await _cable_up(outs[CH_C], tv.position + Vector3(0.0, 0.0, -2.0))
 	tv.on_av_topology_changed([])
-	_ok(not tv.get_surround_positions()[CH_C].is_equal_approx(
-		(tv.get_speaker_positions()[0] + tv.get_speaker_positions()[1]) * 0.5),
-		"a cabled centre is off the set")
-	_check_eq(tv.panel().speaker_destinations().size(), 1, "one channel is cabled")
+	_ok(tv.has_cabled_speakers(), "one speaker plugged in")
+	var gains := tv.get_surround_gains()
+	var audible := 0
+	for g in gains:
+		if g > 0.0:
+			audible += 1
+	_check_eq(audible, 6, "and every channel reaches it")
 
 	outs[CH_C].drop_object()
 	(cab.get_node("SpeakerIn") as RcaPort).drop_object()
 	await _wait(6)
 	tv.on_av_topology_changed([])
-	_check_eq(tv.panel().speaker_destinations().size(), 0, "and none after the pull")
-	var pair := tv.get_speaker_positions()
-	_ok(tv.get_surround_positions()[CH_C].is_equal_approx((pair[0] + pair[1]) * 0.5),
-		"the centre is back on the phantom centre")
+	_ok(not tv.has_cabled_speakers(), "none after the pull")
+	var after := tv.get_surround_gains()
+	var still := 0
+	for g in after:
+		if g > 0.0:
+			still += 1
+	_check_eq(still, 0, "and every channel falls silent rather than onto the set")
 
 
 ## Every socket printed, and printed with a word SHORT enough for the 18 mm pitch —
@@ -691,38 +722,88 @@ func _o_names() -> void:
 func _o_cycle() -> void:
 	var tv := await _set_with_outs()
 	_check_eq(tv.audio_out, RetroTV.AudioOut.TV_SPEAKERS, "a set starts on its own speakers")
-	tv.remote_audio_out_cycle()
-	await _wait(2)
-	_check_eq(tv.audio_out, RetroTV.AudioOut.SURROUND,
-		"with nothing cabled it steps straight past STEREO OUT")
-	tv.remote_audio_out_cycle()
-	await _wait(2)
-	_check_eq(tv.audio_out, RetroTV.AudioOut.TV_SPEAKERS, "and back round")
+	# Nothing is plugged in, and every position is still offered: the external ones
+	# go silent and say so, which a player can tell apart from the set's own sound.
+	for want: int in [RetroTV.AudioOut.STEREO, RetroTV.AudioOut.SURROUND,
+			RetroTV.AudioOut.TV_SPEAKERS]:
+		tv.remote_audio_out_cycle()
+		await _wait(2)
+		_check_eq(tv.audio_out, want, "the key steps to %s" % RetroTV.AUDIO_OUT_NAMES[want])
 
-	var outs := tv.panel().speaker_outs()
-	await _cable_up(outs[CH_FL], tv.position + Vector3(-1.5, 0.0, -2.0))
-	tv.on_av_topology_changed([])
-	tv.remote_audio_out_cycle()
+
+## A set switched to external speakers with none plugged in is silent — a real one is
+## too — and the OSD is the only thing that says why. The position is named with it,
+## or two presses in a row read the same.
+func _o_silent() -> void:
+	var tv := await _set_with_outs()
+	if not tv.is_on():
+		tv.remote_power_toggle()
+		await _wait(2)
+	var source: int = tv.current_source
+	_ok(tv._audio.volume_for(source) > 0.0, "on its own speakers the set is heard")
+	tv.set_audio_out(RetroTV.AudioOut.STEREO)
 	await _wait(2)
-	_check_eq(tv.audio_out, RetroTV.AudioOut.STEREO,
-		"a cabinet on a front socket makes STEREO OUT reachable")
+	_check_eq(tv._osd_label.text, "STEREO OUT — NO SPEAKERS CONNECTED", "STEREO OUT says why")
+	_ok(is_zero_approx(tv._audio.volume_for(source)), "and the set is silent")
+	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
+	await _wait(2)
+	_check_eq(tv._osd_label.text, "SURROUND — NO SPEAKERS CONNECTED", "so does SURROUND")
+	_ok(is_zero_approx(tv._audio.volume_for(source)), "silent there too")
+	# The silence lifts as a speaker goes in, without another press.
+	var outs := tv.panel().speaker_outs()
+	await _cable_up(outs[CH_FL], tv.position + Vector3(-1.5, 0.0, 1.5))
+	tv.on_av_topology_changed([])
+	_ok(tv._audio.volume_for(source) > 0.0, "plugging a speaker in is heard at once")
+	tv.set_audio_out(RetroTV.AudioOut.TV_SPEAKERS)
+	await _wait(2)
+	_ok(tv._audio.volume_for(source) > 0.0, "and the set's own speakers are always heard")
+
+
+## STEREO OUT was chosen and changed nothing: the stereo pair went on playing from
+## the set. The set answers get_speaker_positions by mode now, so a console, a deck
+## and the tuner all follow it.
+func _o_stereo_out() -> void:
+	var tv := await _set_with_outs()
+	var own: PackedVector3Array = tv._fit.speaker_positions()
+	var outs := tv.panel().speaker_outs()
+	var fl_cab := await _cable_up(outs[CH_FL], tv.position + Vector3(-1.2, 0.0, 1.5))
+	var fr_cab := await _cable_up(outs[CH_FR], tv.position + Vector3(1.2, 0.0, 1.5))
+	var fl: Vector3 = fl_cab.get_speaker_positions()[0]
+	var fr: Vector3 = fr_cab.get_speaker_positions()[0]
+	tv.on_av_topology_changed([])
+	var home := tv.get_speaker_positions()
+	_ok(home[0].is_equal_approx(own[0]) and home[1].is_equal_approx(own[1]),
+		"on TV SPEAKERS the stereo pair is the set's own")
+	_ok(not tv.is_sound_external(), "and the set says its sound is its own")
+	tv.set_audio_out(RetroTV.AudioOut.STEREO)
+	await _wait(2)
+	var pair := tv.get_speaker_positions()
+	_ok(pair[0].is_equal_approx(fl), "on STEREO OUT the left comes from the front left speaker")
+	_ok(pair[1].is_equal_approx(fr), "and the right from the front right")
+	_ok(tv.is_sound_external(), "and the set says its sound has left it")
 
 
 ## Surround is six Meta XR Audio voices, so with the SDK off every machine stays in
 ## stereo — and the OSD used to say "SURROUND — DOLBY PRO LOGIC II" anyway, so a
 ## player pressed the key, read the format and heard nothing change.
 func _o_needs_spatial() -> void:
-	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.SURROUND, false),
+	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.SURROUND, false, true),
 		"SURROUND NEEDS SPATIAL AUDIO", "surround with the SDK off names what it needs")
-	_ok(TvAudio.audio_out_osd(RetroTV.AudioOut.SURROUND, true).contains("PRO LOGIC"),
+	_ok(TvAudio.audio_out_osd(RetroTV.AudioOut.SURROUND, true, true).contains("PRO LOGIC"),
 		"and with it on, names the format")
-	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.STEREO, false), "STEREO OUT",
+	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.STEREO, false, true), "STEREO OUT",
 		"the other positions do not depend on it")
+	# No speakers outranks the SDK: it is why nothing at all can be heard.
+	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.SURROUND, false, false),
+		"SURROUND — NO SPEAKERS CONNECTED", "and no speakers outranks it")
 	# Through the set, with the SDK forced off rather than assumed off, so the case
 	# does not hang on whether this run happens to have one.
 	var prior: bool = AppPrefs.spatial_audio_sdk
 	SpatialAudioListener.set_sdk_enabled(false)
 	var tv := await _set_with_outs()
+	# A speaker plugged in, or "no speakers" is the answer instead.
+	await _cable_up(tv.panel().speaker_outs()[CH_FL], tv.position + Vector3(-1.5, 0.0, 1.5))
+	tv.on_av_topology_changed([])
 	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
 	await _wait(2)
 	_check_eq(tv._osd_label.text, "SURROUND NEEDS SPATIAL AUDIO", "the set's own OSD says it")
@@ -735,7 +816,8 @@ func _o_needs_spatial() -> void:
 ## is disabled — so turning it off hid the switch that turns it back on, and it
 ## never came back. It is gated on the library being installed now.
 func _o_switch_offered() -> void:
-	var has_sdk := Engine.has_singleton("MetaXRAudio") 		and not str(Engine.get_singleton("MetaXRAudio").call("get_version")).is_empty()
+	var has_sdk := Engine.has_singleton("MetaXRAudio") \
+		and not str(Engine.get_singleton("MetaXRAudio").call("get_version")).is_empty()
 	if not has_sdk:
 		_ok(not SpatialAudioListener.sdk_installed(), "no SDK here, and none is claimed")
 		return

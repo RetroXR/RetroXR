@@ -220,6 +220,10 @@ const AUDIO_OUT_OSD := ["TV SPEAKERS", "STEREO OUT", "SURROUND — DOLBY PRO LOG
 ## TvAudio.audio_out_osd.
 const AUDIO_OUT_NEEDS_SPATIAL := "SURROUND NEEDS SPATIAL AUDIO"
 
+## Said beside STEREO OUT or SURROUND when no speaker is plugged into the back, which
+## leaves the set silent. See TvAudio.audio_out_osd.
+const AUDIO_OUT_NO_SPEAKERS := "NO SPEAKERS CONNECTED"
+
 ## What each bezel cap is called in the log. The names the player reads on the set,
 ## not the node names.
 const _BUTTON_LOG_NAMES := {
@@ -636,16 +640,36 @@ func _update_stereo_button_glyph() -> void:
 
 
 
-## World positions of the set's left and right speakers, in that order. See
-## tv_fit.gd; speaker_pair.gd and the spatial emitters call this by name.
+## Where a stereo source's left and right come out, in that order. See tv_fit.gd;
+## speaker_pair.gd and the spatial emitters call this by name.
+##
+## Answered BY MODE, which is what makes AUDIO OUTPUT a property of the set rather
+## than of one machine: on TV SPEAKERS it is the set's own pair, and on STEREO OUT or
+## SURROUND it is where the external FL and FR go, so a deck and the tuner, which do
+## not decode, still come out of the speakers the set is switched to.
 func get_speaker_positions() -> PackedVector3Array:
+	if is_sound_external():
+		return _fit.external_pair()
 	return _fit.speaker_positions()
 
 
+## True while the set sends its sound to external speakers. The set is then silent,
+## and nothing should be aimed along its screen normal: sound leaving speakers
+## scattered round a room does not leave the way the picture does.
+func is_sound_external() -> bool:
+	return audio_out != AudioOut.TV_SPEAKERS
+
+
+## Whether any speaker output reaches a speaker. Without one, STEREO OUT and SURROUND
+## are silent, as a real set switched to external speakers with none plugged in is.
+func has_cabled_speakers() -> bool:
+	return _fit.has_cabled_speakers()
+
+
 ## World positions for the six decoded channels, FL, FR, C, LFE, SL, SR. A channel
-## with no cabinet on it folds onto the set's own pair rather than falling silent;
-## get_surround_gains() carries the level that goes with each. Two entries stay the
-## contract of get_speaker_positions above, which every stereo caller still uses.
+## with no speaker of its own folds onto the speakers that are plugged in, never onto
+## the set; get_surround_gains() carries the level that goes with each, 0 when there
+## is nowhere to go.
 func get_surround_positions() -> PackedVector3Array:
 	return _fit.surround_positions()
 
@@ -739,6 +763,9 @@ func on_av_source_lost(source: Node3D) -> void:
 ## a plug moves — which cabinet is on which channel.
 func on_av_topology_changed(_links: Array) -> void:
 	_panel.on_av_topology_changed()
+	# Plugging the first speaker in, or pulling the last, is what lifts or brings
+	# back the silence of STEREO OUT and SURROUND, and volume is not per-frame.
+	_audio.apply_volume()
 
 
 # Remote-control entry points (TVRemote): identical to pressing the bezel

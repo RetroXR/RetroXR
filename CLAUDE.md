@@ -2806,20 +2806,32 @@ was retired for an explicit `CHANNEL_SPEAKER` lookup, which only worked because
 `AUDIO_L`/`AUDIO_R` happen to be 1 and 2. A cabinet's own input is `AUDIO_SPEAKER`, the
 generic end that takes whatever the far socket was named.
 
-**A channel with no cabinet FOLDS onto the set's own pair rather than falling silent** —
-what a receiver does when told a channel is absent, and here it costs nothing, because
-folding is placing a voice where another voice already is. Not a sample is touched and
-there is no downmix. The fronts and surrounds fold to their own SIDE, so a rig with only
-rear cabinets still images left-right; the centre folds to the midpoint of the set's pair,
-which under HRTF is a phantom centre. **A folded surround is 3 dB down** because two
-channels then arrive at one point; a folded centre is not, because nothing else is playing
-there.
+**STEREO OUT and SURROUND send the sound to the speakers and leave the set silent**, as a
+real set switched to external speakers does — so with nothing plugged in, nothing is
+heard. The first build folded a missing channel back onto the set's own pair, and a player
+with no speakers plugged in heard SURROUND perfectly well out of the television and took
+it for broken. A missing channel folds onto the speakers that ARE plugged in, walking a
+fixed chain per channel (`TvFit._FOLD_CHAINS`): its own side first, so a rig of rear
+speakers alone still images left-right; the centre and the sub to the phantom midpoint
+between a cabled pair; and every chain names all six outputs, so one speaker plugged in
+gives every channel somewhere to go. A channel landing on a speaker already playing its
+own comes in **3 dB down**; one landing on a midpoint does not, since nothing else plays
+there. Folding is placing a voice where a speaker is, so not a sample is touched. `speaker_tests`
+`fold/nothing ever folds onto the set's own speakers` is the case that goes red if the old
+rule returns.
 
-**The AUDIO OUTPUT key** on the bezel and the remote chooses between TV SPEAKERS, STEREO
-OUT and SURROUND. Cabling a cabinet makes a position *available*; the key selects it, and
-TV SPEAKERS silences a cabled cabinet so the key really is a switch. **Cycling skips a
-position that would sound the same as the one it is on** — with nothing cabled, STEREO OUT
-plays out of the two speakers TV SPEAKERS already uses. Glyph `0xF1120`
+**`RetroTV.get_speaker_positions()` answers by mode**, which is what makes AUDIO OUTPUT a
+property of the set: on TV SPEAKERS it is the set's own pair, on STEREO OUT and SURROUND
+the pair FL and FR resolve to. A deck and the tuner, which do not decode, follow it with no
+code of their own, and nothing aims along the screen normal while `is_sound_external()`.
+**STEREO OUT was not wired at all before this** — choosing it changed nothing, and the
+stereo pair went on playing from the set.
+
+**The AUDIO OUTPUT key** on the bezel and the remote steps through TV SPEAKERS, STEREO OUT
+and SURROUND, all three always: with no speaker plugged in the external two go silent and
+the OSD says `STEREO OUT — NO SPEAKERS CONNECTED` or `SURROUND — NO SPEAKERS CONNECTED`,
+naming the position so two presses do not read the same. That outranks `SURROUND NEEDS
+SPATIAL AUDIO`, because it is why nothing can be heard at all. Glyph `0xF1120`
 (`md-volume_source`), checked against the shipped font's cmap by a case of its own, because
 `transport_glyphs.gd` records having shipped a guessed codepoint that rendered as a
 clapperboard. Its cap is deliberately NOT `audio_mode`'s palette: the two sit in the same

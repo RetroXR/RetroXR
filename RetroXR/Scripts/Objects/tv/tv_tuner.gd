@@ -494,5 +494,9 @@ func emit_through(tv: Node3D) -> void:
 			_emitter.set_speaker_positions(sp[0], sp[1])
 	else:
 		_emitter.set_emit_position(tv.global_position)
-	if tv.has_method("get_screen_normal"):
+	# Omnidirectional once the set has sent its sound to external speakers: they
+	# point wherever a hand put them, not the way the picture faces.
+	if tv.has_method("is_sound_external") and tv.is_sound_external():
+		_emitter.clear_emit_direction()
+	elif tv.has_method("get_screen_normal"):
 		_emitter.set_emit_direction(tv.get_screen_normal(), tv.get_screen_up())

@@ -65,8 +65,12 @@ var _surround := false
 ## is also reached from set_volume, which has no set to ask.
 var _surround_gains := PackedFloat32Array()
 
-## The base gain last fanned across the six, so an unchanged frame costs no call.
+## The base gain and the per-channel trims last fanned across the six, so an
+## unchanged frame costs no call. The trims are memoised too, not only the base: a
+## speaker plugged in mid-game moves a channel from 0 to full while the base stays
+## put, and a memo on the base alone never sent it.
 var _sent_surround_gain: float = -1.0
+var _sent_surround_trims := PackedFloat32Array()
 
 ## Cached body measurement, keyed on the model instance it was taken from.
 var _geom_model_id: int = 0
@@ -154,12 +158,13 @@ func _apply_audio_out() -> void:
 		_sent_gain_l = -1.0
 		_sent_gain_r = -1.0
 		_sent_surround_gain = -1.0
+		_sent_surround_trims = PackedFloat32Array()
 		_surround_gains = PackedFloat32Array()
 		update_position()
 		_apply_bound_volume()
 	# After the re-read, so an engaged machine reports the six it now has.
 	if want:
-		print("[SystemAudio] %s: surround %s" % [_host.name, _surround_verdict(got)])
+		print("[SystemAudio] %s: surround %s" % [_log_label(), _surround_verdict(got)])
 
 
 # ---------------------------------------------------------------------------
@@ -310,6 +315,17 @@ func route_changed() -> void:
 ## Why a machine is or is not decoding, for the log. The voices are what decide it:
 ## an empty list means the core came up on Godot's own stereo player, which is what
 ## the spatial audio SDK being off looks like from here.
+## A spawned machine's node is called "@RigidBody3D@4765", which names nothing a
+## player can find in the room; its platform and game do.
+func _log_label() -> String:
+	var label := String(_host.name)
+	if label.begins_with("@"):
+		label = _host.systemid if not _host.systemid.is_empty() else "machine"
+	if not _host.rom_path.is_empty():
+		label += " (%s)" % _host.rom_path.get_file().get_basename()
+	return label
+
+
 func _surround_verdict(engaged: bool) -> String:
 	if engaged:
 		return "on, %d voices" % _voices.size()
@@ -416,9 +432,10 @@ func _send_voice_gain(g: float) -> void:
 	# 0 left, the rest right" across six would put the base gain on all of them and
 	# lose the 3 dB on a folded surround.
 	if _surround and _voices.size() == 6 and _surround_gains.size() == 6:
-		if is_equal_approx(g, _sent_surround_gain):
+		if is_equal_approx(g, _sent_surround_gain) and _surround_gains == _sent_surround_trims:
 			return
 		_sent_surround_gain = g
+		_sent_surround_trims = _surround_gains.duplicate()
 		for i in _voices.size():
 			_mx.set_voice_gain(_voices[i], g * _surround_gains[i])
 		return
@@ -516,7 +533,8 @@ func update_position() -> void:
 		# the stereo geometry below rather than inside it: none of that applies —
 		# there is no left/right pair to cross, no hardware fallback (a machine
 		# with no set is not decoding), and no baffle to aim along.
-		if _surround and _voices.size() == 6 and tv != null 				and tv.has_method("get_surround_positions"):
+		if _surround and _voices.size() == 6 and tv != null \
+				and tv.has_method("get_surround_positions"):
 			_place_surround(tv)
 			return
 		# A TV radiates from two speakers on its front baffle, so ask the set
@@ -544,8 +562,10 @@ func update_position() -> void:
 					left_pos = sp[spk_l]
 				if spk_r >= 0:
 					right_pos = sp[spk_r]
-			# Sound leaves a set the way the picture does.
-			if tv.has_method("get_screen_normal"):
+			# Sound leaves a set the way the picture does — unless the set has sent
+			# it to external speakers, which point wherever a hand put them.
+			if tv.has_method("get_screen_normal") and not (tv.has_method("is_sound_external")
+					and tv.is_sound_external()):
 				emit_forward = tv.get_screen_normal()
 				emit_up = tv.get_screen_up()
 		elif tv != null:
@@ -605,6 +625,11 @@ func update_position() -> void:
 		return
 	if _head_lock:
 		_player.global_position = (_head_l + _head_r) * 0.5
+	elif tv != null and tv.has_method("get_speaker_positions"):
+		# Between the speakers the set is using, which on external speakers is not
+		# the set.
+		var pair: PackedVector3Array = tv.get_speaker_positions()
+		_player.global_position = (pair[0] + pair[1]) * 0.5
 	elif tv != null:
 		_player.global_position = tv.global_position
 	elif not _player.position.is_zero_approx():
