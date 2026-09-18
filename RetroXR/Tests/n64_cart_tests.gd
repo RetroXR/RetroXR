@@ -52,6 +52,8 @@ func _ready() -> void:
 		_test_model()
 	if _wants("branding"):
 		_test_branding()
+	if _wants("uv"):
+		_test_uv()
 	if _wants("surfaces"):
 		_test_surfaces()
 	if _wants("color"):
@@ -254,6 +256,40 @@ func _test_branding() -> void:
 		_ok(marks.is_empty(), "branding/%s has no logo mesh or material" % region, str(marks))
 		_ok(maps.keys() == ["n64_cartridge_%s_plastic_normal.png" % region],
 			"branding/%s has no normal map but the plastic grain" % region, str(maps.keys()))
+		body.free()
+
+
+## Every triangle of a normal-mapped surface has area in UV space. One with none
+## gets no tangent, and on a face whose normal runs along X the fallback tangent is
+## parallel to it: the face takes ambient light only, a dark band down the side.
+## Tools/glb/fix_unmapped_uvs.py repairs a body that fails this.
+func _test_uv() -> void:
+	for region in ["usa", "jpn"]:
+		var body := _body(region)
+		var unmapped := {}
+		for n in body.find_children("*", "MeshInstance3D", true, false):
+			var mi := n as MeshInstance3D
+			for s in mi.mesh.get_surface_count():
+				var m := mi.mesh.surface_get_material(s) as BaseMaterial3D
+				if m == null or not m.normal_enabled:
+					continue
+				var arrays := mi.mesh.surface_get_arrays(s)
+				var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+				var uvs: PackedVector2Array = arrays[Mesh.ARRAY_TEX_UV]
+				var idx: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+				var count := 0
+				for t in range(0, idx.size(), 3):
+					var a := idx[t]
+					var b := idx[t + 1]
+					var c := idx[t + 2]
+					if (verts[b] - verts[a]).cross(verts[c] - verts[a]).length_squared() < 1e-24:
+						continue
+					if absf((uvs[b] - uvs[a]).cross(uvs[c] - uvs[a])) < 1e-12:
+						count += 1
+				if count > 0:
+					unmapped[String(mi.name)] = count
+		_ok(unmapped.is_empty(), "uv/%s has no unmapped triangle on a normal-mapped surface" % region,
+			str(unmapped))
 		body.free()
 
 

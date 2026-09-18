@@ -318,7 +318,7 @@ debug build, 2026-08-27 — all passing):
 | `microphone_tests` | 55 | 25 s | the capture service: when the device opens, one read fanned out, the distance gain, a seated microphone's position, the DS pins, the DOL-022's slot value and its save round trip, and the HKT-7200 in a pad's slot |
 | `famicom_tests` | 101 | 16 s | the Controller II microphone: the volume slider's threshold curve, the gate and its hysteresis, the level measured in C++, the service's one-measurement fan-out, which port the bit may reach, both pads, the captive pair's cords and wells, and the `famicom` systemid's table rows |
 | `n64_vru_tests` | 37 | 30 s | the Voice Recognition Unit: no two coplanar faces on the dongle or the microphone, the device id a socket announces through the unit's own plug, seating in socket 4, the microphone in and out of the 3.5 mm jack, which way both cords leave, and the save round trip |
-| `n64_cart_tests` | 103 | 10 s | the N64 cartridge: regional bodies, which half each moulded part belongs to, per-instance and per-half shell materials, flake parameters and normal maps, repeated switch and reset, the label helper, the coloured-cartridge lookup by header and MD5, the scraped region, and a spawned cartridge |
+| `n64_cart_tests` | 107 | 10 s | the N64 cartridge: regional bodies, that they carry no mark and no unmapped normal-mapped triangle, which half each moulded part belongs to, per-instance and per-half shell materials, flake parameters and normal maps, repeated switch and reset, the label helper, the coloured-cartridge lookup by header and MD5, the scraped region, and a spawned cartridge |
 | `speaker_tests` | 130 | 38 s | the surround rig (§2r): both cabinets' facing, the cabinet's own socket, a lead on each of the set's six outputs, the fold-down and its gains, the AUDIO OUTPUT key, the 1.2 m and 1 m stands, and the save round trip |
 
 Counts are what the suite printed, not a target — they drift upward as cases are added,
@@ -2684,6 +2684,26 @@ python Tools/gen_n64_cart_colors.py --check Z:/roms/n64   # prove it against rea
 "$godot" --path RetroXR res://Tools/models/n64_cart_color_demo.tscn    # interactive
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
   res://Tools/models/n64_cart_color_demo.tscn -- --out=<dir> [--stills] [--rom=<file.z64> ...]
+```
+
+**A normal-mapped triangle with no UV area shades black, and only on some faces.** As
+exported, 96% of the front shell's area had every UV at (0, 1), so the plastic grain
+had never shown on the front half, and a 2.4 mm strip down each side drew as a dark
+band, navy in the bedroom and black in the arcade. With no UV area there is no
+tangent; Godot falls back to one along +X, and on a face whose normal is also along X
+the two are parallel, orthogonalising leaves nothing, and the face takes ambient light
+only. Every other unmapped face pointed somewhere the fallback still works, which is
+why it was one strip and not the whole shell. `Tools/glb/fix_unmapped_uvs.py`
+box-projects such triangles at the rear shell's 12 mm tile, splitting a vertex shared
+between projections, and moves no position, normal or already-mapped UV;
+`n64_cart_tests` `uv/` fails on a body that needs it (the unpatched one names
+`Front_Shell: 4914`). **Run it on any re-exported body.** Three reads of that band
+were wrong first: the connector mouth, a shadow, and the generated LODs. What found it
+was toggling `normal_enabled` on one shell in a macro render.
+
+```bash
+python Tools/glb/fix_unmapped_uvs.py <body.glb> --check    # exits 1 if it needs fixing
+python Tools/glb/fix_unmapped_uvs.py <body.glb>            # rewrites in place
 ```
 
 **Still owed:** the flake shader has not been measured on a Quest; the extracted
