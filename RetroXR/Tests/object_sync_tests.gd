@@ -183,6 +183,7 @@ class MockEventObject extends Node3D:
 	var crt := false
 	var stereo_mode := 0
 	var audio_mode := 0
+	var audio_out := 0
 	var widescreen := false
 	var source := 0
 	var rf_channel := 3
@@ -267,6 +268,7 @@ class MockEventObject extends Node3D:
 	func set_crt_enabled(on: bool) -> void: crt = on
 	func set_stereo_mode(mode: int) -> void: stereo_mode = mode
 	func set_audio_mode(mode: int) -> void: audio_mode = mode
+	func set_audio_out(mode: int) -> void: audio_out = mode
 	func set_widescreen(on: bool) -> void: widescreen = on
 	func set_source(which: int) -> void: source = which
 	func net_set_channel_state(which: int, rf: int, index: int) -> void:
@@ -484,6 +486,7 @@ func _make_pair() -> Pair:
 	tv.restore_control_state({
 		"volume": 0.4, "muted": true, "enabled": false, "widescreen": true,
 		"source": RetroTV.Source.RF, "rf_channel": 4, "audio_mode": 2,
+		"audio_out": RetroTV.AudioOut.SURROUND,
 	})
 	tv.add_to_group("spawned")
 
@@ -567,6 +570,7 @@ func _test_snapshot(p: Pair) -> void:
 		and bool(tv_state["muted"]) and bool(tv_state["widescreen"])
 		and int(tv_state["source"]) == RetroTV.Source.RF
 		and int(tv_state["rf_channel"]) == 4 and int(tv_state["audio_mode"]) == 2
+		and int(tv_state["audio_out"]) == RetroTV.AudioOut.SURROUND
 		and client_tv.stereo_mode == 1,
 		"snapshot/a TV's power, volume, mute, ratio, source, channel and modes survive")
 	_ok((p.client_root.get_node("StringLight") as MockRoomLight).lights_on
@@ -1076,6 +1080,8 @@ func _test_events(p: Pair) -> void:
 	p.host_os.report_event(NetEvents.Event.EV_TV_CRT, {"tv": host_obj, "on": true})
 	p.host_os.report_event(NetEvents.Event.EV_TV_STEREO, {"tv": host_obj, "mode": 2})
 	p.host_os.report_event(NetEvents.Event.EV_TV_AUDIO_MODE, {"tv": host_obj, "mode": 1})
+	p.host_os.report_event(NetEvents.Event.EV_TV_AUDIO_OUT,
+		{"tv": host_obj, "mode": RetroTV.AudioOut.SURROUND})
 	p.host_os.report_event(NetEvents.Event.EV_TV_ASPECT, {"tv": host_obj, "on": true})
 	p.host_os.report_event(NetEvents.Event.EV_TV_SOURCE, {"tv": host_obj, "source": 5})
 	p.host_os.report_event(NetEvents.Event.EV_TV_CHANNEL,
@@ -1084,6 +1090,7 @@ func _test_events(p: Pair) -> void:
 	_ok(await _until(func() -> bool:
 		return client_obj.crt and client_obj.stereo_mode == 2 \
 			and client_obj.audio_mode == 1 and client_obj.widescreen \
+			and client_obj.audio_out == RetroTV.AudioOut.SURROUND \
 			and client_obj.source == 1 and client_obj.rf_channel == 4 \
 			and client_obj.channel_index == 2 \
 			and is_equal_approx(client_obj.scale_factor, 1.35)),

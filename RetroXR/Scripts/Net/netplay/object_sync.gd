@@ -1002,6 +1002,7 @@ const EV_NODE_KEYS := {
 	NetEvents.Event.EV_TV_CRT:          ["tv"],
 	NetEvents.Event.EV_TV_STEREO:       ["tv"],
 	NetEvents.Event.EV_TV_AUDIO_MODE:   ["tv"],
+	NetEvents.Event.EV_TV_AUDIO_OUT:    ["tv"],
 	NetEvents.Event.EV_TV_ASPECT:       ["tv"],
 	NetEvents.Event.EV_TV_SOURCE:       ["tv"],
 	NetEvents.Event.EV_TV_CHANNEL:      ["tv"],
@@ -1188,6 +1189,8 @@ func _dispatch_event(kind: NetEvents.Event, a: Dictionary) -> void:
 			a["tv"].set_stereo_mode(int(a.get("mode", 0)))
 		NetEvents.Event.EV_TV_AUDIO_MODE:
 			a["tv"].set_audio_mode(int(a.get("mode", 0)))
+		NetEvents.Event.EV_TV_AUDIO_OUT:
+			a["tv"].set_audio_out(int(a.get("mode", 0)))
 		NetEvents.Event.EV_TV_ASPECT:
 			a["tv"].set_widescreen(bool(a.get("on", false)))
 		NetEvents.Event.EV_TV_SOURCE:

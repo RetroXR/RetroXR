@@ -68,4 +68,6 @@ enum Event {
 	# Appended, not slotted beside EV_CART_*: the ordinal is the wire id.
 	EV_SLOT2_INSERT,     # {sys, cart}   the DS's GBA slot
 	EV_SLOT2_REMOVE,     # {sys}
+	EV_TV_AUDIO_OUT,     # {tv, mode}    where the set sends its sound
+	                     #               (0 its own speakers / 1 stereo out / 2 surround)
 }

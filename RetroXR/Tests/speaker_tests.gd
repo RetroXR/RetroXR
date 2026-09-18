@@ -75,6 +75,9 @@ func _run() -> void:
 		["stand/a raised cabinet radiates from its raised cone", _t_cone],
 		["stand/putting a stand away leaves the cabinet behind", _t_drop],
 		["stand/a seated cabinet round-trips through a save", _t_round_trip],
+		["output/the audio-output key has a real glyph", _o_glyph],
+		["output/the key names the format it decodes", _o_names],
+		["output/cycling skips a position that sounds the same", _o_cycle],
 		["save/both cabinets and the lead are registered", _s_registered],
 		["save/a cabinet round-trips through a save entry", _s_round_trip],
 	]
@@ -612,6 +615,58 @@ func _t_round_trip() -> void:
 	for token in STANDS:
 		_ok(persistence.PLAIN_SCENES.has(token), "PLAIN_SCENES carries %s" % token)
 		_ok(persistence.instantiate(token) != null, "and %s instantiates" % token)
+
+
+# ── output/ ──────────────────────────────────────────────────────────────────
+
+## A codepoint guessed rather than checked renders as a clapperboard or a
+## multiplication sign, which is a thing transport_glyphs.gd's own table records
+## having shipped. One line so it can never come back.
+func _o_glyph() -> void:
+	var f: Font = load(TransportGlyphs.FONT_PATH)
+	_ok(f != null, "the symbols font loads")
+	if f == null:
+		return
+	_ok(TransportGlyphs.CODES.has("audio_out"), "audio_out has a codepoint")
+	_ok(f.has_char(TransportGlyphs.CODES["audio_out"]),
+		"and 0x%X is in the font" % TransportGlyphs.CODES["audio_out"])
+
+
+## The SURROUND position names the format, because a game's own options menu says
+## "Dolby Surround" or "Pro Logic II" and there is otherwise nothing to tell a
+## player that this is the switch that decodes it.
+func _o_names() -> void:
+	_check_eq(RetroTV.AUDIO_OUT_NAMES.size(), RetroTV.AUDIO_OUT_OSD.size(),
+		"a name and an OSD line per position")
+	# Two lists rather than one widened, because AUDIO_OUT_NAMES is indexed by
+	# object_sync and by the save file and wants to stay short and stable.
+	_ok(RetroTV.AUDIO_OUT_OSD[RetroTV.AudioOut.SURROUND].contains("PRO LOGIC"),
+		"the surround position names Pro Logic")
+	_ok(not RetroTV.AUDIO_OUT_NAMES[RetroTV.AudioOut.SURROUND].contains("PRO LOGIC"),
+		"and the short name does not")
+
+
+## With nothing cabled, STEREO OUT plays out of the two speakers TV SPEAKERS
+## already uses, so stopping there is a press that changes the OSD and nothing
+## else — the cycle_source / _source_available rule.
+func _o_cycle() -> void:
+	var tv := await _set_with_outs()
+	_check_eq(tv.audio_out, RetroTV.AudioOut.TV_SPEAKERS, "a set starts on its own speakers")
+	tv.remote_audio_out_cycle()
+	await _wait(2)
+	_check_eq(tv.audio_out, RetroTV.AudioOut.SURROUND,
+		"with nothing cabled it steps straight past STEREO OUT")
+	tv.remote_audio_out_cycle()
+	await _wait(2)
+	_check_eq(tv.audio_out, RetroTV.AudioOut.TV_SPEAKERS, "and back round")
+
+	var outs := tv.panel().speaker_outs()
+	await _cable_up(outs[CH_FL], tv.position + Vector3(-1.5, 0.0, -2.0))
+	tv.on_av_topology_changed([])
+	tv.remote_audio_out_cycle()
+	await _wait(2)
+	_check_eq(tv.audio_out, RetroTV.AudioOut.STEREO,
+		"a cabinet on a front socket makes STEREO OUT reachable")
 
 
 ## PLAIN_SCENES is read only when LOADING, so a token missing here is a prop that

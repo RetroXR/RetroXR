@@ -21,6 +21,11 @@ const VIEWS := [
 	["rows", Vector3(0.0, 0.0, -1.0), 0.30],
 	["speaker_row", Vector3(0.0, 0.0, -1.0), 0.17],
 	["speaker_row_angled", Vector3(-0.35, 0.22, -1.0), 0.20],
+	# Raking and close, along the row rather than across it. The angle a player
+	# reads the panel from when they are reaching into it, and the one that shows
+	# a thin baked rule breaking up.
+	["divider_raking", Vector3(-0.9, 0.18, -0.45), 0.22],
+	["divider_raking_far", Vector3(-0.9, 0.18, -0.45), 0.6],
 ]
 
 var _out_dir := "res://probe_out"

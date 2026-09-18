@@ -136,7 +136,8 @@ func _bezel_buttons() -> Array[Node3D]:
 	return [
 		_tv._tv_toggle_btn, _tv._source_btn, _tv._ch_down_btn, _tv._ch_up_btn,
 		_tv._vol_down_btn, _tv._vol_up_btn, _tv.mute_btn(),
-		_tv.audio_mode_btn(), _tv._crt_btn, _tv._aspect_btn, _tv.stereo_btn(),
+		_tv.audio_mode_btn(), _tv._crt_btn, _tv._aspect_btn,
+		_tv.audio_out_btn(), _tv.stereo_btn(),
 	]
 
 

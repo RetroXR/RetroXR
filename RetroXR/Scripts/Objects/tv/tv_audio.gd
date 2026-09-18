@@ -61,6 +61,71 @@ func on_mode_toggle() -> void:
 	set_mode((_tv.audio_mode + 1) % 3)
 
 
+## Choose where the sound goes: the set's own pair, a stereo pair outside it, or the
+## full surround decode. Called by the front-panel key, the remote and object_sync.
+func set_audio_out(mode: int) -> void:
+	_tv.audio_out = clampi(mode, 0, RetroTV.AUDIO_OUT_NAMES.size() - 1)
+	apply_audio_out()
+	update_audio_out_button()
+	_tv.show_osd_timed(RetroTV.AUDIO_OUT_OSD[_tv.audio_out], 2.0)
+	NetworkManager.report_event(NetEvents.Event.EV_TV_AUDIO_OUT,
+		{"tv": _tv, "mode": _tv.audio_out})
+
+
+## Step to the next position that is DISTINGUISHABLE from the one it is on.
+##
+## With nothing cabled, STEREO OUT plays out of the same two speakers TV SPEAKERS
+## does, so stopping there would be a press that changes the OSD and nothing else —
+## the cycle_source / _source_available pattern, for the same reason.
+func on_audio_out_toggle() -> void:
+	var n: int = RetroTV.AUDIO_OUT_NAMES.size()
+	for step in range(1, n + 1):
+		var next: int = (_tv.audio_out + step) % n
+		if _audio_out_available(next):
+			set_audio_out(next)
+			return
+
+
+## Whether a position does something this rig can hear.
+##
+## TV SPEAKERS and SURROUND always do — SURROUND because a decode folded onto the
+## set's own pair is still a decode, and a centre-panned voice pulling to the middle
+## is audible with no cabinet in the room. STEREO OUT needs a cabinet on a front
+## socket, since without one it is bit-for-bit what TV SPEAKERS already gives.
+func _audio_out_available(mode: int) -> bool:
+	if mode != RetroTV.AudioOut.STEREO:
+		return true
+	var dest := _tv.panel().speaker_destinations()
+	return dest.has(RcaPort.Channel.AUDIO_L) or dest.has(RcaPort.Channel.AUDIO_R)
+
+
+## Tell every connected host where the sound is going, the way apply_channel_mode
+## does and for the same reason: the route is a property of the SET, so an input
+## selected later must already be on it rather than reverting for one press.
+func apply_audio_out() -> void:
+	for system in _tv.panel()._connected_systems:
+		if is_instance_valid(system) and system.has_method("set_audio_out_mode"):
+			system.set_audio_out_mode(_tv.audio_out)
+	if _tv.tuner() and _tv.tuner().has_method("set_audio_out_mode"):
+		_tv.tuner().set_audio_out_mode(_tv.audio_out)
+
+
+## One fixed glyph, like SourceButton: what the key is doing is reported by the OSD
+## and by the cap's colour, so there is nothing for the symbol to track.
+func update_audio_out_button() -> void:
+	TransportGlyphs.set_glyph(_tv, "AudioOutButton", "audio_out",
+		TransportGlyphs.TV_SIZE)
+	if _tv.audio_out_btn() == null:
+		return
+	match _tv.audio_out:
+		RetroTV.AudioOut.TV_SPEAKERS:
+			_tv.audio_out_btn().set_color(Color(0.35, 0.55, 0.9))
+		RetroTV.AudioOut.STEREO:
+			_tv.audio_out_btn().set_color(Color(0.35, 0.8, 0.6))
+		RetroTV.AudioOut.SURROUND:
+			_tv.audio_out_btn().set_color(Color(0.95, 0.6, 0.2))
+
+
 ## The routing itself belongs to whoever owns the samples, so it is handed to the
 ## connected deck rather than done here — the set has no emitter of its own.
 func apply_channel_mode() -> void:

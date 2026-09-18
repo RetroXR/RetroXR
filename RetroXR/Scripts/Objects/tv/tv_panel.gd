@@ -235,9 +235,6 @@ func print_legends() -> void:
 		legend.name = "AvLegend%d" % (i + 1)
 		legend.title = RetroTV.AV_INPUT_NAMES[i]
 		legend.show_plate = plate
-		# Every group but the first rules off the one to its left, so four inputs get
-		# three lines and neither end of the bank carries a stray one.
-		legend.divider_left = i > 0
 		legend.rebuild()
 	if has_aerial():
 		_print_rf_legend(plate)

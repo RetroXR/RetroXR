@@ -469,6 +469,14 @@ func _layout_for_target() -> Array:
 				"col": 0, "row": next_row})
 			cells.append({"id": "aspect", "text": _tv_aspect_text(tv),
 				"col": 2, "row": next_row})
+		# Where the sound goes, on a row of its own. One FIXED glyph, unlike the two
+		# state keys above: which position it is in is reported by the OSD and by
+		# the bezel cap's colour, so there is nothing for the symbol to track and no
+		# _live_text or _sizing_faces arm to add. Follows "source", which is the
+		# other key built that way.
+		next_row += 1
+		cells.append({"id": "audio_out", "glyph": "audio_out",
+			"col": 0, "row": next_row})
 		return cells
 	if _target is VCRPlayer:
 		# Eject on its own top row, then the transport grid.
@@ -1014,6 +1022,9 @@ func _activate(id: String) -> void:
 			"vol_down": tv.remote_volume_down()
 			"mute": tv.remote_mute_toggle()
 			"audio_mode": tv.set_audio_mode((tv.audio_mode + 1) % 3)
+			# Not a modulo here: the set skips a position that would sound identical
+			# to the one it is on, which this file cannot know about.
+			"audio_out": tv.remote_audio_out_cycle()
 			"stereo3d": tv.set_stereo_mode((tv.stereo_mode + 1) % 3)
 			"aspect": tv.toggle_aspect()
 			"source": tv.remote_source_cycle()

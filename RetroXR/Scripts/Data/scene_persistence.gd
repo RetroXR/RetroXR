@@ -966,7 +966,8 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 				return "controls.%s is not a boolean" % field
 		if controls.has("volume") and not _is_finite_number(controls["volume"]):
 			return "controls.volume is not a finite number"
-		for field: String in ["source", "rf_channel", "channel_index", "audio_mode"]:
+		for field: String in ["source", "rf_channel", "channel_index",
+				"audio_mode", "audio_out"]:
 			if controls.has(field) and not _is_integer(controls[field]):
 				return "controls.%s is not an integer" % field
 	if entry.has("boxes"):

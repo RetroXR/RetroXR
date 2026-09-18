@@ -158,6 +158,7 @@ var _fit: TvFit = null
 @onready var _source_btn: VRButton = $SourceButton
 @onready var _ch_down_btn: VRButton = $ChannelDownButton
 @onready var _ch_up_btn: VRButton = $ChannelUpButton
+@onready var _audio_out_btn: VRButton = $AudioOutButton
 @onready var _stereo_btn: VRButton = $StereoButton
 @onready var _aspect_btn: VRButton = $AspectButton
 @onready var _speaker_l: Marker3D = get_node_or_null("SpeakerL")
@@ -197,6 +198,25 @@ const STEREO_MODE_NAMES := ["3D: STEREO", "3D: LEFT EYE", "3D: RIGHT EYE"]
 const AUDIO_MODE_NAMES := ["STEREO", "MONO LEFT", "MONO RIGHT"]
 ## 0 stereo, 1 the left channel from both speakers, 2 the right from both.
 var audio_mode: int = 0
+
+## Where the set sends its sound.
+##
+## TV_SPEAKERS is the baffle pair, and cabled cabinets are then silent — so the key
+## really is a switch rather than an enable. STEREO sends the front pair out to their
+## cabinets and nothing to the centre, sub or surrounds. SURROUND runs the matrix
+## decoder and places all six.
+enum AudioOut { TV_SPEAKERS, STEREO, SURROUND }
+
+## Indexed by object_sync and by the save file, so short and stable.
+const AUDIO_OUT_NAMES := ["TV SPEAKERS", "STEREO OUT", "SURROUND"]
+
+## What the OSD says, which is not the same list. The SURROUND position names the
+## FORMAT, because a game's own options menu says "Dolby Surround" or "Pro Logic II"
+## and there is otherwise no way for a player to tell that this is the switch that
+## decodes it. Referential use of the name; nothing here claims certification.
+const AUDIO_OUT_OSD := ["TV SPEAKERS", "STEREO OUT", "SURROUND — DOLBY PRO LOGIC II"]
+
+var audio_out: int = 0
 
 # Phosphor persistence ping-pong (Shaders/phosphor_decay.gdshader). A viewport
 # can't sample itself, so one renders while the other is read as "last frame".
@@ -249,6 +269,10 @@ func mute_btn() -> VRButton:
 
 func audio_mode_btn() -> VRButton:
 	return _audio_mode_btn
+
+
+func audio_out_btn() -> VRButton:
+	return _audio_out_btn
 
 
 func stereo_btn() -> VRButton:
@@ -408,6 +432,7 @@ func _ready() -> void:
 	_vol_up_btn.button_pressed.connect(_audio.on_volume_up)
 	_tv_toggle_btn.button_pressed.connect(_on_tv_toggle)
 	_crt_btn.button_pressed.connect(_on_crt_toggle)
+	_audio_out_btn.button_pressed.connect(_audio.on_audio_out_toggle)
 	_stereo_btn.button_pressed.connect(_on_stereo_toggle)
 	_aspect_btn.button_pressed.connect(toggle_aspect)
 	_source_btn.button_pressed.connect(cycle_source)
@@ -419,6 +444,7 @@ func _ready() -> void:
 		else Color(1.0, 0.1, 0.1))
 	_audio.update_mute_button()
 	_audio.update_mode_button()
+	_audio.update_audio_out_button()
 	# Hidden until a stereo source is connected (see TvDisplay.update_stereo_button).
 	# VRButton._ready adds the pointable layer — strip it while hidden so the
 	# invisible button can't eat pokes or laser clicks (deferred: our _ready
@@ -717,6 +743,12 @@ func remote_source_cycle() -> void:
 	cycle_source()
 
 
+## Step the audio route, skipping a position that would sound the same as the one
+## it is on — the same rule the bezel key follows, because it is the same call.
+func remote_audio_out_cycle() -> void:
+	_audio.on_audio_out_toggle()
+
+
 func remote_channel_up() -> void:
 	if _tuner and current_source == Source.TV:
 		_tuner.channel_up()
@@ -949,6 +981,7 @@ func get_control_state() -> Dictionary:
 		"rf_channel": rf_channel,
 		"channel_index": _tuner.current_index if _tuner != null else -1,
 		"audio_mode": audio_mode,
+		"audio_out": audio_out,
 	}
 
 
@@ -960,6 +993,8 @@ func restore_control_state(state: Dictionary) -> void:
 	_tv_enabled = bool(state.get("enabled", _tv_enabled))
 	widescreen = bool(state.get("widescreen", widescreen))
 	audio_mode = clampi(int(state.get("audio_mode", audio_mode)), 0, 2)
+	audio_out = clampi(int(state.get("audio_out", audio_out)), 0,
+		AUDIO_OUT_NAMES.size() - 1)
 	rf_channel = int(state.get("rf_channel", rf_channel))
 	if not RF_CHANNELS.has(rf_channel):
 		rf_channel = RF_CHANNELS[0]
@@ -971,6 +1006,8 @@ func restore_control_state(state: Dictionary) -> void:
 		else Color(1.0, 0.1, 0.1))
 	_audio.update_mute_button()
 	_audio.update_mode_button()
+	_audio.apply_audio_out()
+	_audio.update_audio_out_button()
 	_update_aspect_button()
 	_display.apply_aspect()
 	if _tuner != null:
@@ -1047,6 +1084,12 @@ func volume() -> float:
 ## name on a peer and the remote's own key calls it. See tv_audio.gd.
 func set_audio_mode(mode: int) -> void:
 	_audio.set_mode(mode)
+
+
+## Choose where the sound goes. On the set rather than on TvAudio for the same
+## reason: object_sync replays it by name on a peer, and the remote calls it.
+func set_audio_out(mode: int) -> void:
+	_audio.set_audio_out(mode)
 
 
 
