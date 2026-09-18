@@ -2774,10 +2774,20 @@ to silence.**
 
 Four things in that path are load-bearing rather than tidy:
 
-- **The front pair gets voices of its OWN.** `m_voice_l`/`m_voice_r` stay exactly what they
-  were, so the stereo path is byte-identical and `QueuedFrames()` goes on measuring the one
-  voice it always did — the emulation brake is built on that sink's depth and a second
-  reference would fight it.
+- **The front pair IS `m_voice_l`/`m_voice_r`.** The emulation brake and the rate trim both
+  read the depth of `m_voice_l` (`QueuedFrames`, `MsUntilSinkWantsFrames`), so it has to be
+  a voice surround actually feeds. The first build gave the fronts voices of their own and
+  left `m_voice_l` unpushed: it read empty for ever, the brake never held the core, the
+  trim leant fast, and the six crept toward their 32768-frame rings — a player heard the
+  game most of a second late. (The two idle voices also underran every block, which
+  doubled the probe's underrun count; that was the evidence, and it was explained away.)
+  All six are pushed the same frames, so FL's depth is every channel's. Four new voices.
+- **The six are kept LEVEL.** A queue is a delay, and the fronts carry the stereo backlog
+  across the switch while the four new voices start empty: FL and FR played 12–18 ms
+  behind the centre for the whole session. `LevelSurroundVoices` tops an EMPTY channel voice
+  up with silence to the fronts' depth — which is also the state `AdmitOnFirstPose` leaves
+  a voice in when it drops a backlog pushed before the pose arrived, so a discarded top-up
+  is simply made again.
 - **The decode is in `PushFrames`**, which is already past the resampler and the DRC rate
   trim. Dolphin found a block decoder and time-stretching together "produces bad sound".
 - **A new controller voice is pre-filled to the main voice's depth PLUS the decoder's
@@ -2930,6 +2940,17 @@ cd surround-godot && python tests/run_tests.py     # 24 assertions, no Godot
 `speaker_tests` is 130 headless checks: `faces/`, `jack/`, `routing/`, `fold/`, `output/`,
 `stand/`, `save/`. Mutation-tested — folding the surrounds to the midpoint, dropping the
 3 dB, and a panel that never resolves each fail exactly the cases that name them.
+
+**Latency and level are measured, not assumed.** After the feed check the probe takes the
+surround depth twice and fails if it GREW by a decoder block or more — a snapshot cannot
+see a creep, and the first latency check passed with the brake broken because five seconds
+in the depth was still under any threshold. It then fails on more than one mixer block of
+skew between the six. `--soak=<seconds>` samples the front voice every frame by the CLOCK
+and fails on an upward trend between the first and last quarter. Frame counts are no clock
+here: sharing the machine with a running game, the probe ran at 6 fps, so its "5 s" wait
+was fifty. Measured 2026-09-18 after the fix: 55 ms stereo against 68 ms surround, 0 frames
+of skew, and a 90 s soak at 54 ms then 53. Pass `--log-file` to a probe run while the
+player is in a session, or it rotates their logs away.
 
 **`surround_probe` is WINDOWED, never `--headless`**, and it carries a **stereo positive
 control in the same run**, which is the only reason its numbers mean anything: an earlier

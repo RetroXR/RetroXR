@@ -27,6 +27,9 @@ var _root := ""
 var _core := "fceumm"
 var _rom := ""
 var _failures: Array[String] = []
+## Seconds to keep measuring the surround depth after the checks, for a creep too
+## slow for the 10-second sample to show. 0 skips it.
+var _soak := 0.0
 
 
 func _ready() -> void:
@@ -37,7 +40,9 @@ func _ready() -> void:
 			_core = arg.split("=", true, 1)[1]
 		elif arg.begins_with("--rom="):
 			_rom = arg.split("=", true, 1)[1]
-	get_tree().create_timer(120.0).timeout.connect(func() -> void:
+		elif arg.begins_with("--soak="):
+			_soak = float(arg.split("=", true, 1)[1])
+	get_tree().create_timer(120.0 + _soak).timeout.connect(func() -> void:
 		print("[surround] TIMEOUT")
 		get_tree().quit(2))
 	_run.call_deferred()
@@ -169,6 +174,64 @@ func _run() -> void:
 		print("[surround] SKIP the feed check: the stereo control was not fed either,")
 		print("[surround]      so this run cannot tell a broken decode from a silent machine")
 
+	# LATENCY, which the feed check above cannot see: it watches 90 frames straight
+	# after engaging, long before a ring fills. The emulation brake reads the depth of
+	# ONE voice, and while it read a voice surround no longer pushed to, it never
+	# braked — rate control leant the wrong way and the six crept toward their
+	# 32768-frame rings, a player hearing the game most of a second late after a few
+	# minutes. A snapshot cannot see that: five seconds in, the depth was still under
+	# any sane threshold. What it cannot hide is GROWTH, so the depth is taken twice,
+	# five seconds apart, and must hold still to within one decoder block.
+	if stereo_feed.get("fed", false):
+		await _wait(300)
+		var first: int = _peak_of(await _measure(ids, "surround, 5 s in"))
+		await _wait(300)
+		var second: int = _peak_of(await _measure(ids, "surround, 10 s in"))
+		var stereo_peak: int = _peak_of(stereo_feed)
+		var rate := AudioServer.get_mix_rate()
+		print("[surround] depth: stereo %.0f ms, surround %.0f ms at 5 s, %.0f ms at 10 s" % [
+			1000.0 * stereo_peak / rate, 1000.0 * first / rate, 1000.0 * second / rate])
+		_ok(second - first < 1024, "surround depth holds still rather than creeping up")
+		_ok(second <= stereo_peak + 2 * 1024,
+			"and settles within two decoder blocks of stereo's")
+		# The six must stay LEVEL with each other, not only still: a channel whose
+		# queue is deeper plays later. The fronts are the stereo pair and carry its
+		# backlog across the switch while the four new voices start empty, and a
+		# 593-frame gap put FL and FR 12 ms behind the centre for the whole session.
+		var level: PackedInt32Array = (await _measure(ids, "surround, level")).get("peak",
+			PackedInt32Array())
+		var lo := level[0]
+		var hi := level[0]
+		for d in level:
+			lo = mini(lo, d)
+			hi = maxi(hi, d)
+		print("[surround] channel skew: %d frames (%.1f ms)" % [hi - lo, 1000.0 * (hi - lo) / rate])
+		_ok(hi - lo <= 256, "and the six stay level, within one mixer block of each other")
+		# --soak: the decoder emits 1024-frame lumps, so any two samples can differ by
+		# most of a block with nothing wrong. A creep is a TREND, so the soak samples
+		# the front voice every frame against the clock — frame counts are no clock
+		# when the probe shares the machine with a running game — and compares the
+		# mean of the first quarter with the mean of the last.
+		if _soak > 0.0:
+			var mx: Object = Engine.get_singleton("MetaXRAudio")
+			var depths := PackedInt32Array()
+			var t0 := Time.get_ticks_msec()
+			while Time.get_ticks_msec() - t0 < int(_soak * 1000.0):
+				await get_tree().process_frame
+				depths.append(int(mx.call("voice_frames_available", ids[0])))
+			var q := maxi(1, depths.size() / 4)
+			var head := 0.0
+			var tail := 0.0
+			for i in q:
+				head += depths[i]
+				tail += depths[depths.size() - 1 - i]
+			head /= q
+			tail /= q
+			var secs := float(Time.get_ticks_msec() - t0) / 1000.0
+			print("[surround] soak %.0f s, %d samples (%.0f fps): first quarter %.0f ms, last %.0f ms" % [
+				secs, depths.size(), depths.size() / secs, 1000.0 * head / rate, 1000.0 * tail / rate])
+			_ok(tail - head < 1024, "over the soak the depth shows no upward trend")
+
 	var pos: PackedVector3Array = tv.get_surround_positions()
 	var gains: PackedFloat32Array = tv.get_surround_gains()
 	var names := ["FL", "FR", "C", "LFE", "SL", "SR"]
@@ -219,6 +282,13 @@ func _measure(ids: PackedInt32Array, label: String) -> Dictionary:
 	print("[surround] %s: peak depth %s, %d underruns over 90 frames, %d/%d fed"
 		% [label, str(peak), runs, fed, ids.size()])
 	return {"fed": fed == ids.size(), "peak": peak, "underruns": runs}
+
+
+func _peak_of(feed: Dictionary) -> int:
+	var peak := 0
+	for d in feed.get("peak", PackedInt32Array()):
+		peak = maxi(peak, d)
+	return peak
 
 
 func _wait(frames: int) -> void:
