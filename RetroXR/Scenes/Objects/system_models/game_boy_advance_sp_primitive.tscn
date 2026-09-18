@@ -232,3 +232,4 @@ link_port = 0
 channel = 0
 direction = 1
 show_jack = true
+rf_feed = false

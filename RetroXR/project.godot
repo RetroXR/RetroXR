@@ -23,8 +23,8 @@ run/main_scene.flycastprobe="res://Tools/cores/flycast_quest_probe.tscn"
 
 [audio]
 
-driver/mix_rate=48000
 driver/enable_input=true
+driver/mix_rate=48000
 
 [autoload]
 
