@@ -28,6 +28,14 @@ class Feed:
 	## right-hand speaker if that is where the cord went.
 	var left := -1
 	var right := -1
+	## Where each audio channel landed, keyed by RcaPort.Channel:
+	## `{"sink": Node3D, "speaker": int}`, the index being into THAT sink's own
+	## get_speaker_positions(). A missing key is a channel that reaches nothing.
+	##
+	## Six cabinets are six different sinks, which is what `audio_sink` on its own
+	## cannot express. left/right stay as they were so existing readers are
+	## untouched.
+	var audio_dest: Dictionary = {}
 	## One entry per cord, "OUT->IN", marked "(!)" when the two ends sit on
 	## different channels. A phono plug fits any phono socket — that is the
 	## hardware, not an oversight — so this is the commonest wiring mistake in the
@@ -81,10 +89,16 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 		var target := in_port.get_device()
 		if target == null or not target.has_method("get_speaker_positions"):
 			continue
-		# Which of the sink's speakers this cord lands on. Channel order is VIDEO,
-		# L, R, so an audio input gives 0 or 1; the video input carries nothing an
-		# amplifier can use.
-		var dest := -1 if in_ch == RcaPort.Channel.VIDEO else int(in_ch) - 1
+		# Which of the sink's speakers this cord lands on.
+		var dest: int = RcaPort.CHANNEL_SPEAKER[in_ch]
+		# A loudspeaker cabinet's input carries whatever the socket at the far end
+		# was named, so the OUT channel decides — and a cabinet has one cone, so
+		# the index into it is always 0. Settled here rather than in the match
+		# below, because it is the IN channel that identifies this route.
+		if in_ch == RcaPort.Channel.AUDIO_SPEAKER:
+			if RcaPort.SPEAKER_OUT_CHANNELS.has(out_ch):
+				feed.audio_dest[out_ch] = {"sink": target, "speaker": 0}
+			continue
 		match out_ch:
 			RcaPort.Channel.VIDEO:
 				# A picture needs a screen, so this sink has to be a television —
@@ -101,13 +115,16 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 					continue
 				feed.audio_sink = target
 				feed.left = dest
+				feed.audio_dest[RcaPort.Channel.AUDIO_L] = {"sink": target, "speaker": dest}
 				if not stereo:
 					feed.right = dest
+					feed.audio_dest[RcaPort.Channel.AUDIO_R] = {"sink": target, "speaker": dest}
 			RcaPort.Channel.AUDIO_R:
 				if feed.audio_sink != null and feed.audio_sink != target:
 					continue
 				feed.audio_sink = target
 				feed.right = dest
+				feed.audio_dest[RcaPort.Channel.AUDIO_R] = {"sink": target, "speaker": dest}
 			RcaPort.Channel.AUDIO_STEREO:
 				# One cord, both channels — which is what a 3.5 mm TRS lead is. Left
 				# goes to the sink's left speaker and right to its right, and there
@@ -119,6 +136,8 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 					feed.audio_sink = target
 					feed.left = 0
 					feed.right = 1
+					feed.audio_dest[RcaPort.Channel.AUDIO_L] = {"sink": target, "speaker": 0}
+					feed.audio_dest[RcaPort.Channel.AUDIO_R] = {"sink": target, "speaker": 1}
 	# The RF feed last, and only if nothing else claimed the sound. A machine with
 	# phono audio run to a set is being heard through that, and RF is what a
 	# machine with no audio socket at all has instead — so an NES wired both ways
@@ -134,4 +153,6 @@ static func resolve(dev: Node3D, stereo: bool) -> Feed:
 		# is what makes this different from the mono phono cord above.
 		feed.left = 0
 		feed.right = 1
+		feed.audio_dest[RcaPort.Channel.AUDIO_L] = {"sink": rf_sink, "speaker": 0}
+		feed.audio_dest[RcaPort.Channel.AUDIO_R] = {"sink": rf_sink, "speaker": 1}
 	return feed

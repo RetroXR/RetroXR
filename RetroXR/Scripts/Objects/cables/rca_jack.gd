@@ -19,6 +19,17 @@ const COMPOSITE_YELLOW := Color(0.95, 0.74, 0.02)
 const AUDIO_WHITE := Color(0.87, 0.87, 0.84)
 const AUDIO_RED := Color(0.72, 0.08, 0.08)
 
+## The rest of the consumer analog-5.1 colour code, as printed on a DVD player's
+## back panel: white and red are the front pair above, then these.
+const AUDIO_GREEN := Color(0.16, 0.55, 0.24)
+const AUDIO_PURPLE := Color(0.42, 0.20, 0.56)
+const AUDIO_BLUE := Color(0.14, 0.30, 0.68)
+const AUDIO_GREY := Color(0.48, 0.48, 0.50)
+
+## A loudspeaker's own input, which carries whatever the socket at the other end
+## was named and so has no colour of its own.
+const AUDIO_BLACK := Color(0.09, 0.09, 0.10)
+
 ## The jacket every wire in the room wears. The colour code above belongs to
 ## CONNECTORS; a lead is black whatever it carries, on the spawnable composite
 ## leads and on the pigtail fixed to a handheld alike. Kept beside them so the two

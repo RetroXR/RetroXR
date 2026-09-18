@@ -14,12 +14,31 @@ extends XRToolsSnapZone
 ## What this socket carries. The order matches RcaJack's colour code and is used
 ## as an index into per-channel arrays, so do not reorder it.
 ##
-## AUDIO_STEREO is APPENDED for that reason. It is what a 3.5 mm TRS socket carries —
-## both channels down one connector — which no phono socket can express, since a
-## phono lead needs a cord per channel. Nothing indexes an array with it: the two
-## places that turn a channel into a speaker number (`int(channel) - 1`) are only
-## ever reached from an AUDIO_L or AUDIO_R port, so appending leaves them alone.
-enum Channel { VIDEO, AUDIO_L, AUDIO_R, AUDIO_STEREO }
+## Everything after AUDIO_R is APPENDED for that reason, and the int is written
+## into save files and onto the netplay wire, so this list only ever grows at the
+## end.
+##
+## AUDIO_STEREO is what a 3.5 mm TRS socket carries — both channels down one
+## connector — which no phono socket can express, since a phono lead needs a cord
+## per channel.
+##
+## AUDIO_C through AUDIO_SR are a television's surround speaker outputs.
+## AUDIO_SPEAKER is a loudspeaker cabinet's own input: a phono jack is generic, so
+## what a cabinet carries is decided by the socket at the far end of its lead.
+##
+## Turning a channel into a speaker number goes through CHANNEL_SPEAKER, never
+## through arithmetic on the enum value.
+enum Channel {
+	VIDEO,
+	AUDIO_L,
+	AUDIO_R,
+	AUDIO_STEREO,
+	AUDIO_C,
+	AUDIO_LFE,
+	AUDIO_SL,
+	AUDIO_SR,
+	AUDIO_SPEAKER,
+}
 
 ## Which way the signal flows through this socket. A deck's sockets are OUT, a
 ## television's are IN. A cord between two OUTs (or two INs) carries nothing,
@@ -58,7 +77,22 @@ enum Direction { OUT, IN }
 @export var rf_feed: bool = false
 
 ## Short label for the OSD and for debugging — "VIDEO", "L", "R".
-const CHANNEL_NAMES := ["VIDEO", "L", "R", "STEREO"]
+const CHANNEL_NAMES := ["VIDEO", "L", "R", "STEREO", "CENTER", "SUB", "SL", "SR", "SPEAKER"]
+
+## Which of a sink's speakers a channel lands on, indexed by Channel. The order
+## matches the decoder's output — FL, FR, C, LFE, SL, SR — so a surround rig's
+## channel IS its index into RetroTV.get_surround_positions().
+##
+## -1 for the three that name no single speaker: VIDEO carries nothing an
+## amplifier can use, AUDIO_STEREO is both channels at once, and AUDIO_SPEAKER is
+## a cabinet's generic input, whose channel is whatever the far socket says.
+const CHANNEL_SPEAKER := [-1, 0, 1, -1, 2, 3, 4, 5, -1]
+
+## The television outputs a loudspeaker can be cabled to, in decoder order.
+const SPEAKER_OUT_CHANNELS := [
+	Channel.AUDIO_L, Channel.AUDIO_R, Channel.AUDIO_C,
+	Channel.AUDIO_LFE, Channel.AUDIO_SL, Channel.AUDIO_SR,
+]
 
 ## Every socket in the room, so a plug can find the one holding it and a cable can
 ## re-resolve without knowing what devices exist.
@@ -155,6 +189,11 @@ func _tint_jack() -> void:
 		Channel.VIDEO: jack.jack_color = RcaJack.COMPOSITE_YELLOW
 		Channel.AUDIO_L: jack.jack_color = RcaJack.AUDIO_WHITE
 		Channel.AUDIO_R: jack.jack_color = RcaJack.AUDIO_RED
+		Channel.AUDIO_C: jack.jack_color = RcaJack.AUDIO_GREEN
+		Channel.AUDIO_LFE: jack.jack_color = RcaJack.AUDIO_PURPLE
+		Channel.AUDIO_SL: jack.jack_color = RcaJack.AUDIO_BLUE
+		Channel.AUDIO_SR: jack.jack_color = RcaJack.AUDIO_GREY
+		Channel.AUDIO_SPEAKER: jack.jack_color = RcaJack.AUDIO_BLACK
 
 
 func channel_name() -> String:

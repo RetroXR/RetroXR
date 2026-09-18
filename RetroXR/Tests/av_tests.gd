@@ -128,6 +128,8 @@ func _run() -> void:
 		["wiring/unplugging a machine takes it off both displays", _w_unplug_all],
 		["wiring/an NES feeds composite and RF at the same time", _w_nes_rf],
 		["wiring/an RF cord carries the sound as well", _w_rf_audio],
+		["wiring/the channel enum's shipped values never move", _w_channel_values],
+		["wiring/every channel has a name and a speaker index", _w_channel_tables],
 		["display/the selected input is shown", _d_selected],
 		["display/another input is blue, not the last picture", _d_away],
 		["display/coming back shows it again", _d_back],
@@ -1034,6 +1036,35 @@ func _w_rf_audio() -> void:
 		"a machine wired both ways is still heard through its audio cord")
 	_ok(nes_feed.video_sinks.has(rf_set) and nes_feed.video_sinks.has(comp_set),
 		"while both sets still get the picture")
+
+
+## A Channel int is written into save files and onto the netplay wire, so the four
+## that shipped have to keep the values they shipped with. Spelled out rather than
+## compared to a copy of the enum, which would move with it.
+func _w_channel_values() -> void:
+	_check_eq(int(RcaPort.Channel.VIDEO), 0, "VIDEO is 0")
+	_check_eq(int(RcaPort.Channel.AUDIO_L), 1, "AUDIO_L is 1")
+	_check_eq(int(RcaPort.Channel.AUDIO_R), 2, "AUDIO_R is 2")
+	_check_eq(int(RcaPort.Channel.AUDIO_STEREO), 3, "AUDIO_STEREO is 3")
+
+
+func _w_channel_tables() -> void:
+	var count := RcaPort.Channel.keys().size()
+	_check_eq(RcaPort.CHANNEL_NAMES.size(), count, "a name per channel")
+	_check_eq(RcaPort.CHANNEL_SPEAKER.size(), count, "a speaker index per channel")
+
+	# The six a loudspeaker can be cabled to, in the decoder's own output order.
+	_check_eq(RcaPort.SPEAKER_OUT_CHANNELS.size(), 6, "six speaker outputs")
+	for i in RcaPort.SPEAKER_OUT_CHANNELS.size():
+		var ch: int = RcaPort.SPEAKER_OUT_CHANNELS[i]
+		_check_eq(RcaPort.CHANNEL_SPEAKER[ch], i,
+			"%s is speaker %d" % [RcaPort.CHANNEL_NAMES[ch], i])
+
+	# The three that name no single speaker.
+	for ch in [RcaPort.Channel.VIDEO, RcaPort.Channel.AUDIO_STEREO,
+			RcaPort.Channel.AUDIO_SPEAKER]:
+		_check_eq(RcaPort.CHANNEL_SPEAKER[ch], -1,
+			"%s lands on no one speaker" % RcaPort.CHANNEL_NAMES[ch])
 
 
 # ── Display ───────────────────────────────────────────────────────────────────
