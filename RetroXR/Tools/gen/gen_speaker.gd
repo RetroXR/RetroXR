@@ -168,19 +168,26 @@ func _commit(path: String, shell: SurfaceTool, cone: SurfaceTool, dark: SurfaceT
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, dark.commit_to_arrays())
 	mesh.surface_set_material(2, PlugMats.matte(Color(0.022, 0.022, 0.026), 0.92))
 
-	# Surface 0 is the only closed one, so it is the only one this can judge: an
-	# open funnel or a bore reads -1 on an axis it is edge-on to whichever way it
-	# is wound. Refuse to save an inside-out shell rather than leave it to a render.
+	# Two oracles, because the two surfaces are different shapes. Surface 0 is the
+	# closed solid, judged by whether its extreme vertex on each axis faces that
+	# way. Surface 1 is an open funnel, which reads -1 on an axis it is edge-on to
+	# whichever way it is wound — so it is judged by the one thing that IS true of
+	# a driver: no part of it may face backwards. Refuse to save either way round
+	# rather than leave it to a render.
 	var verdict := _check_outward(mesh, 0)
+	var driver := _check_forward(mesh, 1)
 	var tris := 0
 	for s in mesh.get_surface_count():
 		tris += (mesh.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
 	if verdict != "outward":
 		print("[gen] %s NOT SAVED: shell %s" % [path, verdict])
 		return FAILED
+	if driver.begins_with("<--"):
+		print("[gen] %s NOT SAVED: driver %s" % [path, driver])
+		return FAILED
 	var err := ResourceSaver.save(mesh, path)
-	print("[gen] %s err=%d size=%s tris=%d shell=%s"
-		% [path, err, mesh.get_aabb().size, tris, verdict])
+	print("[gen] %s err=%d size=%s tris=%d shell=%s driver=%s"
+		% [path, err, mesh.get_aabb().size, tris, verdict, driver])
 	return err
 
 
@@ -207,6 +214,31 @@ func _check_outward(mesh: ArrayMesh, surface: int) -> String:
 		if n[best].dot(axis) < -0.0001:
 			bad.append(label)
 	return "outward" if bad.is_empty() else "<-- INSIDE OUT on %s" % ", ".join(bad)
+
+
+## The driver surface is an open funnel, so _check_outward cannot judge it — a
+## funnel reads -1 on an axis it is edge-on to whichever way it is wound, which is
+## why surface 1 went unchecked and shipped inside out.
+##
+## What IS true of it: a cone, its surround and its dust cap are only ever seen from
+## in FRONT of the baffle, so not one face of them may point backwards. An
+## inside-out cone fails on nearly every face at once.
+##
+## The tolerance is for the tweeter dome, whose equator faces are edge-on at z = 0.
+func _check_forward(mesh: ArrayMesh, surface: int) -> String:
+	var arrays := mesh.surface_get_arrays(surface)
+	var v: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var n: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+	var worst := 0.0
+	var backward := 0
+	for i in v.size():
+		if n[i].z < -0.001:
+			backward += 1
+			worst = minf(worst, n[i].z)
+	if backward == 0:
+		return "facing out of the baffle"
+	return "<-- %d/%d vertices FACE BACKWARDS (worst z = %.3f)" % [backward,
+		v.size(), worst]
 
 
 # ── parts ─────────────────────────────────────────────────────────────────────
@@ -276,9 +308,11 @@ func _driver(cone: SurfaceTool, dark: SurfaceTool, cy: float, z: float,
 	var roll := _circle(cone_r, centre + Vector3(0.0, 0.0, 0.0020))
 	var apex := _circle(cap_r, centre - Vector3(0.0, 0.0, depth))
 	_loft(cone, rim, roll, 10)
-	# Cone wall: from the surround's inner edge back to the dust cap's rim. Lofted
-	# front-to-back, so the ring order reverses to keep it facing outward.
-	_loft(cone, apex, roll, 11)
+	# Cone wall, and it takes the OPPOSITE order to the surround above even though
+	# both run front-to-back. The surround is a convex bead, seen from outside; the
+	# cone is a concave funnel, and what a player sees is its INSIDE. So its faces
+	# must point back toward the axis, which is the reverse winding.
+	_loft(cone, roll, apex, 11)
 	_cap_ring(dark, apex, centre - Vector3(0.0, 0.0, depth - 0.0060), true, 12)
 
 
