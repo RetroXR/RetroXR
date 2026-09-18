@@ -23,7 +23,7 @@ var autosave_periodic: bool = true
 var autosave_interval: float = 60.0
 const AUTOSAVE_INTERVAL_MIN := 15.0
 const AUTOSAVE_INTERVAL_MAX := 300.0
-var aim_crosshair:    bool = true
+var aim_crosshair:    bool = false
 enum XRDisplayMode {
 	CONTROLLERS,
 	HANDS,

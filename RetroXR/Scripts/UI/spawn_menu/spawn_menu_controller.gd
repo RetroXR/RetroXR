@@ -70,7 +70,6 @@ var _left_ctrl:   XRController3D = null
 var _right_ctrl:  XRController3D = null
 var _desktop_pointer: XRToolsDesktopFunctionPointer = null
 var _menu_connected := false
-var _aim_crosshair_enabled := true
 var _connect_retry_count: int = 0
 
 # Scroll state — driven by whichever stick whose controller points at the menu
@@ -1213,9 +1212,7 @@ func _on_spawn_requested(type: String) -> void:
 		"mouse_receiver":
 			obj = MOUSE_RECEIVER_SCENE.instantiate() as Node3D
 		"light_gun":
-			var gun := LIGHT_GUN_SCENE.instantiate() as LightGun
-			gun.show_laser_dot = _aim_crosshair_enabled
-			obj = gun
+			obj = LIGHT_GUN_SCENE.instantiate() as Node3D
 		_:
 			# Everything ScenePersistence can restore is spawned from that same
 			# table, so a new prop is one row there rather than a row and an arm.
@@ -1394,9 +1391,9 @@ func _on_passthrough_locomotion_changed(_enabled: bool) -> void:
 
 
 func _on_aim_crosshair_changed(enabled: bool) -> void:
-	_aim_crosshair_enabled = enabled
 	# Anything that paints a dot where it is aiming follows this switch — the ray
-	# gun and the Wii Remote both do, and for the same reason.
+	# gun and the Wii Remote both do, and for the same reason. This is only the
+	# live half: each reads AppPrefs.aim_crosshair itself as it enters the room.
 	for node in get_tree().get_nodes_in_group("spawned"):
 		if "show_laser_dot" in node:
 			node.set("show_laser_dot", enabled)

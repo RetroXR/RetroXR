@@ -46,7 +46,7 @@ var _hint: HeldHint = null
 var device_type: int = RETRO_DEVICE_LIGHTGUN
 
 ## Whether to show the laser-dot aim indicator on the screen.
-var show_laser_dot: bool = true
+var show_laser_dot: bool = false
 
 # Active bindings (loaded from ControllerBindings on plug-in)
 var _lightgun_map: Dictionary = ControllerBindings.DEFAULT_LIGHTGUN_MAP.duplicate()
@@ -149,6 +149,9 @@ func _ready() -> void:
 	grabbed.connect(_on_grabbed_signal)
 	dropped.connect(_on_dropped_signal)
 	_hint = HeldHint.attach(self, true, HINT_HEIGHT)
+	# Read here rather than pushed in by whoever spawned the gun: a gun also
+	# arrives by save restore and object sync, and those never set it.
+	show_laser_dot = AppPrefs.aim_crosshair
 	_laser_dot.visible = false
 	_cache_controls()
 	_spawn_cable()
@@ -418,7 +421,7 @@ func _physics_process(_delta: float) -> void:
 func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 	_connected_system = system
 	_port_index = port_index
-	_laser_dot.visible = true
+	_laser_dot.visible = show_laser_dot
 	_load_bindings()
 	print("[LightGun] plugged into system port %d" % port_index)
 	_cache_screen_geometry()

@@ -170,7 +170,7 @@ const GYRO_MIN_ANGLE := 0.00001
 var device_type: int = RETRO_DEVICE_WIIMOTE
 
 ## Whether to show the aim dot on the screen.
-var show_laser_dot: bool = true
+var show_laser_dot: bool = false
 
 ## Desktop: park the remote in the lower-right of the view instead of floating it
 ## on the grab ray, and aim from the camera centre — the same FPS-weapon handling
@@ -395,6 +395,9 @@ func _ready() -> void:
 	_hint.add_row(&"poke_buttons", HeldHint.PLATFORM_VR,
 		["generic_button_finger"], "Press its buttons with your other hand",
 		HeldHint.WHEN_HELD)
+	# Read here rather than pushed in by whoever spawned the remote: one also
+	# arrives by save restore and object sync, and those never set it.
+	show_laser_dot = AppPrefs.aim_crosshair
 	_laser_dot.visible = false
 	var tan_y := tan(deg_to_rad(CAMERA_FOV_X_DEG / CAMERA_AR) * 0.5)
 	_tan_half_fov = Vector2(CAMERA_AR * tan_y, tan_y)
