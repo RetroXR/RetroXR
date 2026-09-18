@@ -106,6 +106,31 @@ func _test_base() -> void:
 	rp.remote_rewind()
 	_eq(rp._scan_dir, 0, "base/remote ff/rew cannot scan a deck with no scan")
 
+	# THE LASER CAN PICK EVERY DECK UP. The turntable shipped without a PointerArea:
+	# a hand could lift it and the ray went straight through, because the pointer's
+	# RayCast masks the pointable layers and a deck's own body is on neither. A real
+	# ray on the pointer's own mask, from the side so no button is in the way, resolved
+	# the way function_pickup._resolve_pickable does — the collider or its parent.
+	var lane := 0
+	for spec: Array in [[rp, "the turntable"], [cd, "the CD deck"], [tape, "the cassette deck"]]:
+		var deck: RigidBody3D = spec[0]
+		lane += 1
+		deck.global_position = Vector3(40.0, 50.0, 5.0 * lane)   # clear of each other
+		deck.freeze = true
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var q := PhysicsRayQueryParameters3D.create(
+			deck.global_position + Vector3(2.0, 0.0, 0.0), deck.global_position,
+			XRToolsFunctionPointer.DEFAULT_MASK)
+		var hit := deck.get_world_3d().direct_space_state.intersect_ray(q)
+		var collider := hit.get("collider") as Node3D
+		var resolved: XRToolsPickable = null
+		if collider != null:
+			resolved = collider as XRToolsPickable
+			if resolved == null:
+				resolved = collider.get_parent() as XRToolsPickable
+		_ok(resolved == deck, "base/the laser finds %s and resolves it to the deck" % spec[1])
+
 
 # ── save/ ─────────────────────────────────────────────────────────────────────
 

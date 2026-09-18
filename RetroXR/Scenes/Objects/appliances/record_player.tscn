@@ -1,4 +1,4 @@
-[gd_scene load_steps=26 format=3 uid="uid://recordplayer_0001"]
+[gd_scene load_steps=27 format=3 uid="uid://recordplayer_0001"]
 
 [ext_resource type="Script" path="res://Scripts/Objects/media/record_player.gd" id="1_rpscript"]
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="2_snapzone"]
@@ -13,6 +13,14 @@ friction = 0.8
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
 size = Vector3(0.46, 0.06, 0.4)
+
+; What the laser hits. A pickable is ray-grabbed through a PointerArea child on the
+; pointable layer (function_pickup._resolve_pickable), never through its own body,
+; which the pointer's RayCast does not mask. The plinth plus 20 mm in X and Z, as on
+; the CD and cassette decks; the buttons, arm and switch stand proud of it, so a ray
+; aimed at one of those still reaches it first.
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.48, 0.06, 0.42)
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
 size = Vector3(0.46, 0.06, 0.4)
@@ -348,3 +356,10 @@ transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.012, 0.028)
 pixel_size = 0.001
 text = "33 / 45"
 font_size = 8
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_pointer")
