@@ -1654,7 +1654,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 					RommCacheManifest.relative_path(systemid, local_path))
 			spawn_cartridge_requested.emit(local_path, label, systemid, options)
 		hold.clicked.connect(spawn.bind({}))
-		# Held for two seconds: choose the shell and the body before it spawns.
+		# Held for a second: choose the shell and the body before it spawns.
 		hold.hold_enabled = _has_spawn_options(systemid)
 		hold.held.connect(_show_n64_spawn_options.bind(label, spawn))
 	elif romm_client.is_reachable():
@@ -1960,7 +1960,7 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 		btn.custom_minimum_size = Vector2(0, 80)
 		btn.add_theme_font_size_override("font_size", 26)
 		if item[1] == "speaker_cable":
-			# Held for two seconds: choose the colour of its plugs.
+			# Held for a second: choose the colour of its plugs.
 			var hold := HoldPress.attach(btn)
 			hold.clicked.connect(spawn_requested.emit.bind(item[1]))
 			hold.held.connect(_show_plug_color_options.bind(item[0], item[1]))
@@ -2822,7 +2822,7 @@ func _close_game_detail_panel() -> void:
 
 # ── Hold sub-menu: what to spawn an entry AS ─────────────────────────────────
 #
-# A press held for two seconds (HoldPress) opens one of these instead of
+# A press held for a second (HoldPress) opens one of these instead of
 # spawning. A full-rect overlay like the panels above and for the same reason:
 # a PopupMenu is an embedded Window, and the second VR press dismisses it.
 

@@ -2710,8 +2710,8 @@ python Tools/glb/fix_unmapped_uvs.py <body.glb>            # rewrites in place
 textures import lossless, 4096 x 2000 rear stickers included, and the grain and
 blank-label maps are stored once per region.
 
-**A player can force both at spawn.** A ROM row in the spawn menu held for two
-seconds opens a sub-menu instead of spawning (`HoldPress`,
+**A player can force both at spawn.** A ROM row in the spawn menu held for a
+second opens a sub-menu instead of spawning (`HoldPress`,
 `Scripts/UI/widgets/hold_press.gd`; a short press still spawns as before): Body is
 Auto / USA-PAL / Japan, Shell is Auto or any palette preset grouped by
 `availability`. The choice lands on `RetroCartridge.shell_preset` and
@@ -2950,7 +2950,7 @@ added nothing the plates' own borders do not already say.
 
 **A speaker cable's plugs can be spawned in a colour.** The lead is neutral grey
 because its channel belongs to the socket, not to it -- but six grey plugs behind a
-set are hard to tell apart, so holding the Speaker Cable row for two seconds
+set are hard to tell apart, so holding the Speaker Cable row for a second
 (`HoldPress`, §2q) offers `RcaJack.PLUG_COLORS`. The menu sends
 `speaker_cable:<id>`, the controller sets `CompositeCable.plug_color_id` before the
 lead enters the tree, and `_cord_color` answers with it for every cord. Plugs only:

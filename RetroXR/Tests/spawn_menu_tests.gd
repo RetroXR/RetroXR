@@ -215,10 +215,10 @@ func _group_fit() -> void:
 		"%dx%d" % [sliver.get_width(), sliver.get_height()])
 
 
-# ── hold/ — a press held for two seconds opens a sub-menu instead ─────────────
+# ── hold/ — a press held for a second opens a sub-menu instead ─────────────
 
 ## HoldPress is driven through the button's own signals and its public advance(),
-## so two seconds cost nothing. Every case counts BOTH signals: a hold that also
+## so the wait costs nothing. Every case counts BOTH signals: a hold that also
 ## clicks spawns the thing the player was trying to choose a colour for.
 func _group_hold() -> void:
 	var btn := Button.new()
@@ -238,10 +238,10 @@ func _group_hold() -> void:
 
 	seen["clicked"] = 0
 	btn.button_down.emit()
-	hold.advance(1.9)
-	_eq(seen["held"], 0, "hold/nothing opens before two seconds")
+	hold.advance(HoldPress.HOLD_SECONDS - 0.1)
+	_eq(seen["held"], 0, "hold/nothing opens before the hold time")
 	hold.advance(0.2)
-	_eq(seen["held"], 1, "hold/two seconds opens the sub-menu, pointer still down")
+	_eq(seen["held"], 1, "hold/the hold time opens the sub-menu, pointer still down")
 	hold.advance(5.0)
 	_eq(seen["held"], 1, "hold/and only once however long it stays down")
 	btn.pressed.emit()
@@ -256,14 +256,14 @@ func _group_hold() -> void:
 	seen["clicked"] = 0
 	seen["held"] = 0
 	btn.button_down.emit()
-	hold.advance(1.5)
+	hold.advance(HoldPress.HOLD_SECONDS * 0.6)
 	btn.mouse_exited.emit()
-	hold.advance(1.5)
+	hold.advance(HoldPress.HOLD_SECONDS * 0.6)
 	_eq(seen["held"], 0, "hold/leaving the button gives the hold up")
 
 	hold.hold_enabled = false
 	btn.button_down.emit()
-	hold.advance(3.0)
+	hold.advance(HoldPress.HOLD_SECONDS * 2.0)
 	btn.pressed.emit()
 	btn.button_up.emit()
 	_eq([seen["clicked"], seen["held"]], [1, 0], "hold/switched off, a long press is a click")
@@ -271,7 +271,7 @@ func _group_hold() -> void:
 	# A pooled row: every listener swept off `pressed`, then rebound mid-hold.
 	hold.hold_enabled = true
 	btn.button_down.emit()
-	hold.advance(2.5)
+	hold.advance(HoldPress.HOLD_SECONDS + 0.5)
 	for c: Dictionary in btn.pressed.get_connections():
 		btn.pressed.disconnect(c["callable"])
 	hold.reset()
