@@ -130,6 +130,7 @@ func _run() -> void:
 		["wiring/an RF cord carries the sound as well", _w_rf_audio],
 		["wiring/the channel enum's shipped values never move", _w_channel_values],
 		["wiring/every channel has a name and a speaker index", _w_channel_tables],
+		["wiring/no two legend plates on the back panel overlap", _w_legend_gaps],
 		["display/the selected input is shown", _d_selected],
 		["display/another input is blue, not the last picture", _d_away],
 		["display/coming back shows it again", _d_back],
@@ -1046,6 +1047,43 @@ func _w_channel_values() -> void:
 	_check_eq(int(RcaPort.Channel.AUDIO_L), 1, "AUDIO_L is 1")
 	_check_eq(int(RcaPort.Channel.AUDIO_R), 2, "AUDIO_R is 2")
 	_check_eq(int(RcaPort.Channel.AUDIO_STEREO), 3, "AUDIO_STEREO is 3")
+
+
+## Every legend plate on the stock set, as a rect in the panel plane, must stand
+## clear of every other by at least LEGEND_MIN_GAP. They are coplanar by design —
+## one standoff for every plate — so any overlap is z-fighting, and at a 60 mm group
+## pitch the 63.1 mm composite plates overlapped their neighbours by 3.1 mm.
+##
+## Measured off the plate the legend actually built, not off a width written in a
+## comment: tv_panel.gd said 57.6 mm for as long as the plates were 63.1. Headless
+## builds the plate from quads rather than one baked texture, and the first quad IS
+## the border rect, so its size is the full footprint either way.
+const LEGEND_MIN_GAP := 0.002
+
+func _w_legend_gaps() -> void:
+	var tv := _tv()
+	await _wait(8)
+	var plates: Array = []
+	for n in tv.find_children("AvLegend*", "Node3D", false, false):
+		var lg := n as Node3D
+		for c in lg.get_children():
+			var mi := c as MeshInstance3D
+			if mi == null or not mi.mesh is QuadMesh:
+				continue
+			var half: Vector2 = (mi.mesh as QuadMesh).size * 0.5
+			var a: Vector3 = lg.transform * (mi.position + Vector3(-half.x, -half.y, 0.0))
+			var b: Vector3 = lg.transform * (mi.position + Vector3(half.x, half.y, 0.0))
+			var r := Rect2(Vector2(minf(a.x, b.x), minf(a.y, b.y)),
+				Vector2(absf(b.x - a.x), absf(b.y - a.y)))
+			plates.append([String(lg.name), r])
+			break
+	_ok(plates.size() >= 6, "the stock set prints its four inputs, the aerial and the speaker row")
+	for i in plates.size():
+		for j in range(i + 1, plates.size()):
+			var ri: Rect2 = (plates[i][1] as Rect2).grow(LEGEND_MIN_GAP * 0.5)
+			var rj: Rect2 = (plates[j][1] as Rect2).grow(LEGEND_MIN_GAP * 0.5)
+			_ok(not ri.intersects(rj), "%s and %s stand at least %.0f mm apart" % [
+				plates[i][0], plates[j][0], LEGEND_MIN_GAP * 1000.0])
 
 
 func _w_channel_tables() -> void:

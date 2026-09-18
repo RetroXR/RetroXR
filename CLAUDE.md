@@ -2864,13 +2864,28 @@ axis extreme false-positives on a tapered column, whose side wall legitimately f
 slightly upward at its bottom; the stand's copy takes the best-facing of every vertex at
 the extreme.
 
-**The legend's group divider is gone, and that was a real defect.** At a raking angle the
-rule between two socket groups read as a doubled line with a dark hairline down the middle
-— it looked like z-fighting, though nothing there is coplanar: the divider is baked into
-the same texture as the plate. It is two white strips 0.8 mm apart, the plate's own border
-and the divider immediately inside it, minified into one band whose middle drops out. The
-plates sit 2.4 mm apart at the 60 mm group pitch, so their own borders read as the seam
-anyway.
+**The composite legend plates OVERLAPPED, and it was z-fighting.** A plate measures
+63.1 mm and the group pitch was 60, so each neighbour overlapped the next by 3.1 mm — and
+every plate sits at the same standoff, so the overlap was two coplanar quads fighting. A
+comment in `tv_panel.gd` said the plate was 57.6 mm with 2.4 mm to spare, and that figure
+was believed, twice: once when the pitch was chosen, and once when the seam was first
+diagnosed here as two white strips minified together, which removed the group divider and
+left the overlap standing. The stock body's groups now sit at a **68 mm** pitch, 4.9 mm
+clear, and `av_tests` `wiring/no two legend plates on the back panel overlap` measures the
+plates the legend actually built — it went red on all three composite seams at 60 mm.
+**Measure a printed width; never read one off a comment.** The divider stays gone: it
+added nothing the plates' own borders do not already say.
+
+**Binning a lead re-seated its plugs.** `CompositeCable.drop_and_free` releases every plug
+IN PLACE, still standing in the panel, and every empty socket whose grab sphere the plug
+body reaches takes it on the deferred `dropped` — the lead is freed at the end of the
+frame, so those sockets end up holding freed plugs. Binning a lead from Composite 2 seated
+its trio into SUB, SL and SR, 60.3 mm above; headless, the same case seats three input
+sockets instead, so the speaker row exposed it rather than caused it. Every plug is now
+disabled before the drop: `can_pick_up` refuses a disabled pickable and `let_go` does not
+ask. `speaker_tests` `routing/binning a lead seats none of its plugs anywhere` counts
+`has_picked_up` rather than reading state afterwards, because once the lead is freed a
+socket holding a freed plug and an empty one both answer `is_instance_valid` false.
 
 ```bash
 "$godot" --headless --path RetroXR res://Tests/speaker_tests.tscn

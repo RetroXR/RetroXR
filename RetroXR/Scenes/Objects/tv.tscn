@@ -145,47 +145,47 @@ channel = 2
 direction = 1
 
 [node name="CompositePort2" parent="." unique_id=771000201 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.09, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.082, -0.15, -0.16002099)
 channel = 0
 direction = 1
 
 [node name="AudioLIn2" parent="." unique_id=771000202 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.072, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.064, -0.15, -0.16002099)
 channel = 1
 direction = 1
 
 [node name="AudioRIn2" parent="." unique_id=771000203 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.054, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.046, -0.15, -0.16002099)
 channel = 2
 direction = 1
 
 [node name="CompositePort3" parent="." unique_id=771000204 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.03, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.014, -0.15, -0.16002099)
 channel = 0
 direction = 1
 
 [node name="AudioLIn3" parent="." unique_id=771000205 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.012, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.004, -0.15, -0.16002099)
 channel = 1
 direction = 1
 
 [node name="AudioRIn3" parent="." unique_id=771000206 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.006, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.022, -0.15, -0.16002099)
 channel = 2
 direction = 1
 
 [node name="CompositePort4" parent="." unique_id=771000207 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.03, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.054, -0.15, -0.16002099)
 channel = 0
 direction = 1
 
 [node name="AudioLIn4" parent="." unique_id=771000208 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.048, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.072, -0.15, -0.16002099)
 channel = 1
 direction = 1
 
 [node name="AudioRIn4" parent="." unique_id=771000209 instance=ExtResource("10_rcaport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.066, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.09, -0.15, -0.16002099)
 channel = 2
 direction = 1
 
@@ -206,7 +206,7 @@ direction = 1
 ; its own text, and a hand-placed label the plate knows nothing about either hangs
 ; off the top of one or forces it to be sized by hand.
 [node name="RfPort" parent="." unique_id=771000210 instance=ExtResource("12_coaxport")]
-transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.108, -0.15, -0.16002099)
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.14, -0.15, -0.16002099)
 direction = 1
 
 ; VGA in — a computer monitor's input, not a television's. OFF as authored: a shell

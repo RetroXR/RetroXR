@@ -30,12 +30,14 @@ var _tv: RetroTV = null
 ## it reaches a deck's.
 const AV_ROW_PITCH := 0.018
 
-## Centre-to-centre between one input group and the next. Wider than AV_ROW_PITCH by
-## more than the printed legend is wide (57.6 mm at the authored text sizes), so the
-## four plates stand clear of each other instead of overlapping — and wide enough
-## that no socket sits closer to its neighbour in the next group than to the ones in
-## its own, which is what makes the grouping readable at arm's length.
-const AV_GROUP_PITCH := 0.06
+## Centre-to-centre between one input group and the next. Wider than the printed
+## legend plate, so the four plates stand clear of each other: they are coplanar by
+## design, one standoff for all of them, so any overlap z-fights. A composite plate
+## measures 63.1 mm, which at the old 60 mm pitch overlapped each neighbour by 3.1 mm;
+## 68 leaves 4.9 mm of cabinet between them. av_tests `wiring/` measures the built
+## plates rather than trusting a width — this comment said 57.6 mm while they were
+## 63.1. tv.tscn authors the stock body's sockets at this pitch.
+const AV_GROUP_PITCH := 0.068
 
 ## The A/V sockets, [input][VIDEO, L, R].
 var _av_ports: Array = []
