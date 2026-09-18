@@ -183,6 +183,8 @@ const NEMA_1_15_C7P_CORD_SCENE := preload(
 const SPEAKER_PAIR_SCENE     := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 const LOUDSPEAKER_SCENE      := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUBWOOFER_SCENE        := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
+const SPEAKER_STAND_120      := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
+const SPEAKER_STAND_100      := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
 const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const STORAGE_BOX_SCENE      := preload("res://Scenes/Objects/appliances/storage_box.tscn")
 const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.tscn")
@@ -249,6 +251,10 @@ const PLAIN_SCENES := {
 	"tv_remote": TV_REMOTE_SCENE,
 	"loudspeaker": LOUDSPEAKER_SCENE,
 	"subwoofer": SUBWOOFER_SCENE,
+	# Tokens name the height in centimetres, so a third stand is a third row
+	# rather than a rename of these two.
+	"speaker_stand_120": SPEAKER_STAND_120,
+	"speaker_stand_100": SPEAKER_STAND_100,
 	"trash_can": STORAGE_BOX_SCENE,
 	"table": TABLE_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
@@ -1445,6 +1451,9 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		if obj.has_method("restore_carried_body"):
 			obj.call("restore_carried_body", d.get("body", {}))
 		obj.call("restore_seating", seats)
+	elif obj is SpeakerStand:
+		(obj as SpeakerStand).restore_seat(
+			_resolve_ref(root, spawned, d.get("speaker")) as Loudspeaker)
 	elif obj is SensorBar:
 		(obj as SensorBar).restore_connection(
 			_resolve_ref(root, spawned, d.get("system")) as RetroSystem)
@@ -1967,6 +1976,16 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		var token := "subwoofer" if node.scene_file_path.ends_with("subwoofer.tscn") \
 			else "loudspeaker"
 		return _base(id, token, n3d)
+	elif node is SpeakerStand:
+		# The STAND records the cabinet on it, not the other way round: the seat is
+		# the stand's, and Loudspeaker knows nothing about stands. Without it a
+		# restored cabinet would come back at the right height but unseated, so it
+		# would merely REST on the plate — stable, but knocked off by a lead.
+		var stand := node as SpeakerStand
+		var stand_token := "speaker_stand_100" 			if node.scene_file_path.ends_with("speaker_stand_100.tscn") 			else "speaker_stand_120"
+		return _base(id, stand_token, n3d).merged({
+			"speaker": _ref(node_to_id, stand.seated_speaker()),
+		})
 	elif node is SpeakerPair:
 		# Deliberately not a PLAIN_SCENES pose-only object. The root never moves —
 		# the two cabinets are separate bodies the player carries around one at a

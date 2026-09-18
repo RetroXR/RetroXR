@@ -462,6 +462,10 @@ func _build() -> void:
 		# a socket on the back of the set with a speaker lead.
 		["Loudspeaker",    "loudspeaker"],
 		["Subwoofer",      "subwoofer"],
+		# Floor stands, so a satellite is at ear height instead of on the carpet.
+		# The height named is to the plate a cabinet stands on.
+		["Speaker Stand 1.2m", "speaker_stand_120"],
+		["Speaker Stand 1m",   "speaker_stand_100"],
 		["Speaker Cable",  "speaker_cable"],
 		# Not under Controllers: nobody holds it, and it is no more a controller
 		# than the aerial is. It plugs into the Wii and stands on the television.

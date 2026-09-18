@@ -25,6 +25,12 @@
 class_name Loudspeaker
 extends XRToolsPickable
 
+## Every cabinet joins this, and a speaker stand's plate names it as its
+## snap_require. Load-bearing rather than tidy: XRToolsSnapZone.can_preview
+## refuses to draw the snap ghost for a zone with no snap_require, so without the
+## group a cabinet could still be dropped on a stand but never previewed onto one.
+const GROUP := "loudspeaker"
+
 ## Scene-authored so the satellite and the subwoofer share this script.
 @export var speaker_label: String = "SURROUND"
 
@@ -38,6 +44,7 @@ var _source: Node3D = null
 func _ready() -> void:
 	super()
 	add_to_group("spawned")
+	add_to_group(GROUP)
 
 
 # ── the sink contract ────────────────────────────────────────────────────────

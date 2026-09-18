@@ -13,6 +13,8 @@ extends Node3D
 
 const SAT := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUB := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
+const STAND_120 := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
+const STAND_100 := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
 
 ## Unit directions to look FROM. The distance is derived from the subject so both
 ## cabinets fill the frame, rather than being a constant that suits one of them.
@@ -38,6 +40,8 @@ func _ready() -> void:
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_out_dir))
 
+	await _shoot_stands()
+
 	for spec in [["satellite", SAT], ["sub", SUB]]:
 		var name: String = spec[0]
 		var scene: PackedScene = spec[1]
@@ -56,6 +60,45 @@ func _run() -> void:
 		await get_tree().process_frame
 
 	get_tree().quit(0)
+
+
+## Both stands with a cabinet seated, side by side — the only view that shows
+## whether a cabinet lands ON the plate or sunk into it. Seated through the real
+## snap zone rather than posed, because the zone is what decides that.
+func _shoot_stands() -> void:
+	# Everything under ONE group from the start, cabinets included. A snap zone
+	# holds what it took WITHOUT reparenting it — it drives the transform each
+	# frame instead — so a cabinet added to the scene root stays there, and the
+	# first run of this reparented only the stands and photographed them bare.
+	var group := Node3D.new()
+	add_child(group)
+	var made: Array[Node3D] = []
+	for i in [0, 1]:
+		var stand := (STAND_120 if i == 0 else STAND_100).instantiate() as Node3D
+		stand.position = Vector3(float(i) * 0.6 - 0.3, 0.0, 0.0)
+		stand.set("freeze", true)
+		group.add_child(stand)
+		var cab := SAT.instantiate() as Node3D
+		cab.set("freeze", true)
+		group.add_child(cab)
+		await get_tree().process_frame
+		(stand.get_node("SpeakerSeat") as XRToolsSnapZone).pick_up_object(cab)
+		made.append(stand)
+	for _i in range(10):
+		await get_tree().process_frame
+	for stand in made:
+		var seated := (stand.get_node("SpeakerSeat") as XRToolsSnapZone).picked_up_object
+		print("[speaker] %s: plate seat y=%.3f, cabinet base y=%.3f" % [
+			stand.scene_file_path.get_file(),
+			(stand.get_node("SpeakerSeat") as Node3D).global_position.y,
+			(seated as Node3D).global_position.y])
+	for h in group.find_children("SnapHighlight", "Node3D", true, false):
+		(h as Node3D).visible = false
+	for spec in [["stands_front", Vector3(0.0, 0.10, 1.0)],
+			["stands_threequarter", Vector3(0.7, 0.22, 1.0)]]:
+		await _shoot("%s" % spec[0], group, spec[1])
+	group.queue_free()
+	await get_tree().process_frame
 
 
 ## What a socket and a cone announce, printed rather than eyeballed: a recess is

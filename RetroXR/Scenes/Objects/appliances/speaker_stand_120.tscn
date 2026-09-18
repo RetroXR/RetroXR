@@ -1,0 +1,71 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/media/speaker_stand.gd" id="1_stand"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/speaker_stand_120.res" id="3_standmesh"]
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="4_snapzone"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_stand"]
+bounce = 0.0
+friction = 0.9
+
+; Three shapes, not one box. A single 1.2 m x 220 mm box would make the whole
+; column's worth of empty air solid, so a cabinet could not be lowered past it
+; onto the plate and a hand would collide with nothing visible.
+[sub_resource type="BoxShape3D" id="Shape_base"]
+size = Vector3(0.22, 0.014, 0.22)
+
+[sub_resource type="CylinderShape3D" id="Shape_column"]
+height = 1.182
+radius = 0.026
+
+[sub_resource type="BoxShape3D" id="Shape_top"]
+size = Vector3(0.13, 0.01, 0.13)
+
+; A 1.2 m loudspeaker stand.
+;
+; The mesh is baked by Tools/gen/gen_speaker_stand.gd with its origin at the BASE
+; centre, so this scene stands it on the floor by placing the node on the floor.
+; 1.2 m is to the top plate's upper face, which is where a cabinet's own origin
+; lands — see speaker_stand.gd.
+;
+; Heavier and more damped than a cabinet: a stand is furniture, and one that
+; skitters when a lead brushes it reads as a prop rather than a cast base.
+[node name="SpeakerStand" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_stand")
+mass = 4.5
+linear_damp = 6.0
+angular_damp = 9.0
+freeze_mode = 1
+script = ExtResource("1_stand")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.007, 0)
+shape = SubResource("Shape_base")
+
+[node name="ColumnShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.602, 0)
+shape = SubResource("Shape_column")
+
+[node name="TopShape" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.195, 0)
+shape = SubResource("Shape_top")
+
+[node name="Stand" type="MeshInstance3D" parent="."]
+mesh = ExtResource("3_standmesh")
+
+; The plate's top face. A loudspeaker carries no snap grab point, so the zone
+; seats the cabinet's ORIGIN here — and that origin is its base centre, so the
+; cabinet ends up standing on the plate rather than sunk into it.
+;
+; Generous grab_distance: what comes in here is a whole cabinet lowered by an
+; outstretched arm, not a cartridge pushed into a slot.
+[node name="SpeakerSeat" parent="." instance=ExtResource("4_snapzone")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
+grab_distance = 0.14
+snap_require = "loudspeaker"
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")

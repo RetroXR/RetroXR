@@ -20,6 +20,8 @@ const SUBWOOFER := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
 const SPEAKER_CABLE := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const RCA_PORT := preload("res://Scenes/Objects/cables/rca_port.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
+const STAND_120 := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
+const STAND_100 := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
 
 const MESHES := {
 	"satellite": "res://Scenes/Objects/appliances/speaker_satellite.res",
@@ -67,6 +69,12 @@ func _run() -> void:
 		["fold/a folded surround is 3 dB down and a folded centre is not", _d_gains],
 		["fold/pulling a lead folds that channel back", _d_pull_folds_back],
 		["fold/the panel prints a word under every speaker socket", _d_legend],
+		["stand/each stand is as tall as its name", _t_height],
+		["stand/a cabinet seats on the plate at that height", _t_seat],
+		["stand/the plate takes a cabinet and nothing else", _t_filter],
+		["stand/a raised cabinet radiates from its raised cone", _t_cone],
+		["stand/putting a stand away leaves the cabinet behind", _t_drop],
+		["stand/a seated cabinet round-trips through a save", _t_round_trip],
 		["save/both cabinets and the lead are registered", _s_registered],
 		["save/a cabinet round-trips through a save entry", _s_round_trip],
 	]
@@ -450,6 +458,160 @@ func _d_legend() -> void:
 		_ok(not word.is_empty(), "%s prints a word" % RcaPort.CHANNEL_NAMES[ch])
 		_ok(AvLegend._text_width(word, legend.word_height) < TvPanel.AV_ROW_PITCH,
 			"and %s fits the socket pitch" % word)
+
+
+# ── stand/ ───────────────────────────────────────────────────────────────────
+
+## World AABB of every visible mesh under `root`. Only the mesh, so a stand whose
+## column was baked to the wrong length fails on its own geometry rather than on a
+## collision shape or a marker that happens to agree with the name.
+func _aabb_of(root: Node) -> AABB:
+	var out := AABB()
+	var first := true
+	for m in root.find_children("*", "MeshInstance3D", true, false):
+		var mi := m as MeshInstance3D
+		if mi.mesh == null or not mi.visible:
+			continue
+		var box := mi.global_transform * mi.mesh.get_aabb()
+		out = box if first else out.merge(box)
+		first = false
+	return out
+
+
+## Name -> the height of the plate a cabinet stands on, which is what the number
+## in the name means.
+const STANDS := {"speaker_stand_120": 1.2, "speaker_stand_100": 1.0}
+
+
+func _t_height() -> void:
+	for spec in [[STAND_120, "speaker_stand_120"], [STAND_100, "speaker_stand_100"]]:
+		var stand := _hold((spec[0] as PackedScene).instantiate()) as SpeakerStand
+		stand.freeze = true
+		add_child(stand)
+		await _wait(4)
+		var want: float = STANDS[spec[1]]
+		# The MESH's own extent, so a stand whose column was baked to the wrong
+		# length fails here rather than at the seat, which is authored separately.
+		var top := _aabb_of(stand).end.y - stand.global_position.y
+		_ok(absf(top - want) < 0.001,
+			"%s stands %.3f m tall (mesh reaches %.3f)" % [spec[1], want, top])
+		_ok(absf(stand.seat().position.y - want) < 0.0001,
+			"and its plate's seat is at %.3f" % want)
+
+
+func _t_seat() -> void:
+	var stand := _hold(STAND_120.instantiate()) as SpeakerStand
+	stand.freeze = true
+	stand.position = Vector3(2.0, 0.0, 0.0)
+	add_child(stand)
+	var cab := _hold(SATELLITE.instantiate()) as Loudspeaker
+	cab.freeze = true
+	add_child(cab)
+	await _wait(4)
+	_ok(stand.seated_speaker() == null, "an empty stand reports no cabinet")
+	stand.seat().pick_up_object(cab)
+	await _wait(6)
+	_ok(stand.seated_speaker() == cab, "the plate holds the cabinet put on it")
+	# A loudspeaker carries no snap grab point, so the zone seats its ORIGIN — and
+	# that origin is the cabinet's base centre, which is what makes the cabinet
+	# stand ON the plate rather than sunk half into it.
+	_ok(absf(cab.global_position.y - 1.2) < 0.005,
+		"its base lands at 1.2 m (%.3f)" % cab.global_position.y)
+
+
+func _t_filter() -> void:
+	var stand := _hold(STAND_100.instantiate()) as SpeakerStand
+	stand.freeze = true
+	add_child(stand)
+	await _wait(4)
+	# The group, not the class: XRToolsSnapZone.can_preview refuses to draw the
+	# snap ghost for a zone with no snap_require, so a plate that accepted
+	# anything would cost the preview a player aims with.
+	_check_eq(stand.seat().snap_require, Loudspeaker.GROUP,
+		"the plate requires a loudspeaker")
+	var cab := _hold(SATELLITE.instantiate()) as Loudspeaker
+	add_child(cab)
+	await _wait(4)
+	_ok(cab.is_in_group(Loudspeaker.GROUP), "and a cabinet is in that group")
+	var sub := _hold(SUBWOOFER.instantiate()) as Loudspeaker
+	add_child(sub)
+	await _wait(4)
+	_ok(sub.is_in_group(Loudspeaker.GROUP), "as is the subwoofer")
+
+
+## The point of a stand. Nothing in the stand publishes a cone — the cabinet does,
+## from wherever it happens to be — so raising it has to move the sound with no
+## code on either side.
+func _t_cone() -> void:
+	var stand := _hold(STAND_120.instantiate()) as SpeakerStand
+	stand.freeze = true
+	stand.position = Vector3(-2.0, 0.0, 0.0)
+	add_child(stand)
+	var cab := _hold(SATELLITE.instantiate()) as Loudspeaker
+	cab.freeze = true
+	cab.position = Vector3(-2.0, 0.0, 0.5)
+	add_child(cab)
+	await _wait(4)
+	var floor_cone: float = cab.get_speaker_positions()[0].y
+	stand.seat().pick_up_object(cab)
+	await _wait(6)
+	var raised_cone: float = cab.get_speaker_positions()[0].y
+	_ok(raised_cone - floor_cone > 1.1,
+		"the cone rises with the cabinet (%.3f -> %.3f)" % [floor_cone, raised_cone])
+	_ok(absf(raised_cone - (1.2 + 0.062)) < 0.01,
+		"landing 62 mm up the baffle above the plate")
+
+
+func _t_drop() -> void:
+	var stand := _hold(STAND_100.instantiate()) as SpeakerStand
+	stand.freeze = true
+	add_child(stand)
+	var cab := SATELLITE.instantiate() as Loudspeaker
+	cab.freeze = true
+	add_child(_hold(cab))
+	await _wait(4)
+	stand.seat().pick_up_object(cab)
+	await _wait(6)
+	stand.drop_and_free()
+	await _wait(6)
+	# A stand put away is not allowed to take a speaker with it: the cabinet is a
+	# separate prop the player owns.
+	_ok(is_instance_valid(cab), "the cabinet outlives the stand")
+	_ok(not is_instance_valid(stand), "and the stand is gone")
+
+
+func _t_round_trip() -> void:
+	var stand := _hold(STAND_120.instantiate()) as SpeakerStand
+	stand.freeze = true
+	stand.position = Vector3(3.0, 0.0, -1.0)
+	add_child(stand)
+	var cab := _hold(SATELLITE.instantiate()) as Loudspeaker
+	cab.freeze = true
+	add_child(cab)
+	await _wait(4)
+	stand.seat().pick_up_object(cab)
+	await _wait(6)
+
+	var persistence := ScenePersistence.new()
+	var entry: Dictionary = persistence._serialize_node(stand, 7, {cab: 9})
+	_check_eq(entry.get("type", ""), "speaker_stand_120", "the tall stand's own token")
+	# The STAND records the cabinet, not the reverse. Without it a restored cabinet
+	# comes back at the right height but unseated — it would merely rest on the
+	# plate, and a lead brushing it would take it off.
+	_check_eq(entry.get("speaker", -1), 9, "and names the cabinet on it")
+
+	var short := _hold(STAND_100.instantiate()) as SpeakerStand
+	short.freeze = true
+	add_child(short)
+	await _wait(4)
+	var short_entry: Dictionary = persistence._serialize_node(short, 8, {})
+	# One script, two scenes, so the token cannot come from the type.
+	_check_eq(short_entry.get("type", ""), "speaker_stand_100", "the short one's own")
+	_ok(not short_entry.has("speaker") or short_entry.get("speaker") == null,
+		"an empty stand names nobody")
+	for token in STANDS:
+		_ok(persistence.PLAIN_SCENES.has(token), "PLAIN_SCENES carries %s" % token)
+		_ok(persistence.instantiate(token) != null, "and %s instantiates" % token)
 
 
 ## PLAIN_SCENES is read only when LOADING, so a token missing here is a prop that
