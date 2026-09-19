@@ -2392,7 +2392,9 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				var book := BOOK_SCENE.instantiate() as PDFBook
 				book.half_page_mode = data.get("half_pages", false)
 				book.size_scale = data.get("size_scale", 1.0)
-				book.pdf_path = data.get("pdf_path", "")
+				# A scraped manual lives under roms/<systemid>/media/, so it moves
+				# with the folder exactly as a ROM does.
+				book.pdf_path = RomLibrary.relocate(str(data.get("pdf_path", "")))
 				# Applied after the PDF loads (stashed while _page_count == 0).
 				book.set_page(int(data.get("page_state", 0)), int(data.get("page_leaf", 0)))
 				obj = book

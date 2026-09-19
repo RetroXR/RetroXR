@@ -164,6 +164,7 @@ const STACK_BASE_DEPTH := 0.005     # BoxMesh baseline depth used as scale divis
 const ZFIGHT_MARGIN := 0.0005       # tiny margin to prevent Z-fighting on coplanar faces
 const HINT_LABEL_OFFSET := 0.02     # distance outside the book edge for hint labels
 const MIN_COLLISION_DEPTH := 0.04   # minimum collision shape Z — keeps thin books stable on surfaces
+const POINTER_MARGIN := 0.02        # how far the pointer target stands out past the book's edge, per side
 
 # ── Paper rendering ───────────────────────────────────────────────────────────
 
@@ -205,6 +206,10 @@ const REST_GUTTER_FALLOFF := 12.0
 # Async page rendering
 var _render_mutex := Mutex.new()
 var _pending_renders: Dictionary = {}  # page_index -> true
+## Worker tasks nobody has waited on yet. The pool keeps a finished task, and the
+## lambda it ran, until somebody does; left to engine shutdown that lambda is
+## destroyed after GDScript is, and the process segfaults on quit.
+var _render_tasks: Array[int] = []
 
 # Loading placeholder texture
 var _loading_texture: ImageTexture = null
@@ -603,13 +608,13 @@ func _request_page_render(page_index: int) -> void:
 	var cache_dir := _cache_dir
 
 	if _format == _Format.CBZ:
-		WorkerThreadPool.add_task(func():
+		_render_tasks.append(WorkerThreadPool.add_task(func():
 			var img := _decode_cbz_page(src_index)
 			img = _crop_to_half(img, page_index)
 			if img:
 				img.save_png(cache_dir + "page_%03d.png" % page_index)
 			call_deferred("_on_page_rendered", page_index, img)
-		)
+		))
 		return
 
 	# PDF path
@@ -618,7 +623,7 @@ func _request_page_render(page_index: int) -> void:
 		return
 	var renderer_ref := _renderer
 	var dpi := render_dpi
-	WorkerThreadPool.add_task(func():
+	_render_tasks.append(WorkerThreadPool.add_task(func():
 		_render_mutex.lock()
 		var img: Image = null
 		if renderer_ref and renderer_ref.is_open():
@@ -628,12 +633,30 @@ func _request_page_render(page_index: int) -> void:
 		if img:
 			img.save_png(cache_dir + "page_%03d.png" % page_index)
 		call_deferred("_on_page_rendered", page_index, img)
-	)
+	))
+
+
+## Hand finished render tasks back to the pool. `block` waits for the running
+## ones too: their lambdas call back into this book, so it cannot go first.
+func _reap_render_tasks(block: bool = false) -> void:
+	var running: Array[int] = []
+	for id: int in _render_tasks:
+		if block or WorkerThreadPool.is_task_completed(id):
+			WorkerThreadPool.wait_for_task_completion(id)
+		else:
+			running.append(id)
+	_render_tasks = running
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_reap_render_tasks(true)
 
 
 ## Called on main thread when a background page render completes.
 func _on_page_rendered(page_index: int, img: Image) -> void:
 	_pending_renders.erase(page_index)
+	_reap_render_tasks()
 	if not img:
 		return
 	var tex := ImageTexture.create_from_image(img)
@@ -688,6 +711,9 @@ func _configure_meshes() -> void:
 	var col_shape := $CollisionShape3D as CollisionShape3D
 	if col_shape and col_shape.shape:
 		col_shape.shape = col_shape.shape.duplicate()
+	var pointer_shape := $PointerArea/CollisionShape3D as CollisionShape3D
+	if pointer_shape and pointer_shape.shape:
+		pointer_shape.shape = pointer_shape.shape.duplicate()
 
 	# Duplicate all shared meshes before resizing so instances don't affect each other
 	if _cover_mesh.mesh:
@@ -1049,6 +1075,17 @@ func _update_collision_shape() -> void:
 			# Only the left stack + spine + back cover is visible
 			(col_shape.shape as BoxShape3D).size = Vector3(_book_width + SPINE_WIDTH, book_height, depth)
 			col_shape.position = Vector3(-half_w, 0, 0)
+	# The pointer target follows the same outline. Left at its authored size it
+	# is an open spread centred on the spine whatever the state, so a closed
+	# book answered the laser from a page-width of empty air beside it and
+	# took the click meant for whatever was there.
+	var pointer_shape := $PointerArea/CollisionShape3D as CollisionShape3D
+	if pointer_shape and pointer_shape.shape is BoxShape3D:
+		var body_size := (col_shape.shape as BoxShape3D).size
+		var pointer_box := pointer_shape.shape as BoxShape3D
+		pointer_box.size = Vector3(body_size.x + POINTER_MARGIN * 2.0,
+			body_size.y + POINTER_MARGIN * 2.0, pointer_box.size.z)
+		pointer_shape.position = col_shape.position
 
 
 ## Closed book: the spine is the outward binding, flush with the two covers.
@@ -1823,3 +1860,8 @@ func _cleanup() -> void:
 	_page_count = 0
 	_leaf_count = 0
 	_current_leaf = 0
+	# No pages, nothing to grab — and the load that follows can fail, in which
+	# case _layout_page_grabs() never runs to say so.
+	if _grab_right != null:
+		_grab_right.set_enabled(false)
+		_grab_left.set_enabled(false)

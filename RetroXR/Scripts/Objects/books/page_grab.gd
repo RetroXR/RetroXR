@@ -54,6 +54,7 @@ func _ready() -> void:
 	collision_mask = 0
 	monitoring = false
 	monitorable = false
+	_sync_shapes()
 	await get_tree().process_frame
 	for node in get_tree().root.find_children("*", "XRController3D", true, false):
 		_controllers.append(node as XRController3D)
@@ -65,8 +66,21 @@ func set_enabled(on: bool) -> void:
 	if _enabled == on:
 		return
 	_enabled = on
+	_sync_shapes()
 	if not on:
 		_release()
+
+
+## A zone that is off must not be in the way either. Ignoring pointer_event is
+## not enough: the shape still stops the ray, and this layer outranks everything,
+## so a dead zone swallowed every click meant for whatever was behind it. A book
+## whose file failed to open never reaches _layout_page_grabs(), which left both
+## zones as BoxShape3D's default 1 m cube around the book, the things beside it
+## and its own options panel.
+func _sync_shapes() -> void:
+	for child in get_children():
+		if child is CollisionShape3D:
+			(child as CollisionShape3D).set_deferred("disabled", not _enabled)
 
 
 func is_enabled() -> bool:

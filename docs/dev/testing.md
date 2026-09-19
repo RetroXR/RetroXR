@@ -55,6 +55,7 @@ debug build, 2026-08-27 — all passing):
 | `card_tests` / `deck_tests` | — | — | memory cards; the video decks |
 | `motion_tests` | — | — | accel/gyro/IR device frames |
 | `screen_cast_light_tests` | — | — | light the screen throws into the room |
+| `book_tests` | 22 | 3 s | a book answers the pointer only where it IS: dead page-grab zones and the `PointerArea` outline are checked per state (unloadable, closed, open, last page, failed reload) with a real ray on the pointer layer (the `disabled` flag is what the fix sets, the ray is what the reticle does). Builds its own CBZ, so no PDF or godot-pdfium. Writes one file under the REAL roms root for the manual-follows-its-folder case and removes exactly what it made. **Its exit code is a case too**: a book whose `WorkerThreadPool` render tasks are never waited on segfaults the process at quit, after every case has passed |
 | `time_of_day_tests` | — | — | the day/night cycle |
 | `tv_resize_tests` | — | — | the TV's own geometry |
 | `web_server_tests` | — | — | the built-in file server |
