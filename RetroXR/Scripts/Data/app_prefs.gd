@@ -247,7 +247,10 @@ func _load_prefs() -> void:
 	locomotion_teleport = JsonStore.get_bool(data, "locomotion_teleport", locomotion_teleport)
 	passthrough_locomotion = JsonStore.get_bool(data, "passthrough_locomotion", passthrough_locomotion)
 	focus_passthrough = JsonStore.get_bool(data, "focus_passthrough", focus_passthrough)
-	hidden_systems      = JsonStore.get_strings(data, "hidden_systems")
+	hidden_systems      = PackedStringArray()
+	for hidden: String in JsonStore.get_strings(data, "hidden_systems"):
+		if SystemIds.canonical(hidden) not in hidden_systems:
+			hidden_systems.append(SystemIds.canonical(hidden))
 	show_hidden_systems = JsonStore.get_bool(data, "show_hidden_systems", show_hidden_systems)
 	compact_tiles       = JsonStore.get_bool(data, "compact_tiles",       compact_tiles)
 	bedroom_time_of_day = clampf(JsonStore.get_float(data, "bedroom_time_of_day",

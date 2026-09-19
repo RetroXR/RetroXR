@@ -20,7 +20,7 @@ const HIGHLIGHT := Color(1.0, 1.0, 1.0)
 ## framings. `focus` is relative to the console's own origin, which sits at y = 1.
 const SHOTS := [
 	{
-		"model": "virtual_boy_primitive", "platform": "virtual_boy",
+		"model": "virtual_boy_primitive", "platform": "virtualboy",
 		"controls": ["PowerButton", "ResetButton", "VolumeSlider"],
 		"caption": "VIRTUAL BOY — pointer body is visor + column + base, not one slab",
 		"close_caption": "START/STOP sat 12 mm inside it, beside the column",
@@ -31,7 +31,7 @@ const SHOTS := [
 		"side_caption": "SIDE ELEVATION — orthographic, so the silhouettes compare directly",
 	},
 	{
-		"model": "atari_2600", "platform": "atari_2600",
+		"model": "atari_2600", "platform": "atari2600",
 		"controls": ["PowerSwitch", "ResetSwitch"],
 		"caption": "ATARI 2600 — deck box, plateau box, and a wedge for the slope",
 		"close_caption": "The levers stand in the open trough at their own size",

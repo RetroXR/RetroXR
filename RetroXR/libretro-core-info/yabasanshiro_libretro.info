@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Sega"
 systemname = "Saturn"
-systemid = "sega_saturn"
+systemid = "saturn"
 
 # Libretro Features
 supports_no_game = "false"

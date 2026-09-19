@@ -50,7 +50,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["game_boy", "game_boy_color"],
+		"systems": ["gb", "game_boy_color"],
 		"options": {"gambatte_frame_dupe": "disabled"},
 	},
 	"tgbdual": {
@@ -58,7 +58,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["game_boy", "game_boy_color"],
+		"systems": ["gb", "game_boy_color"],
 		"options": {"tgbdual_gblink_enable": "disabled"},
 	},
 	"mgba": {
@@ -66,7 +66,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP, Strategy.DETERMINISM],
 		"cross_play": false,
-		"systems": ["game_boy_advance", "game_boy", "game_boy_color"],
+		"systems": ["gba", "gb", "game_boy_color"],
 		"options": {},
 	},
 	"gpsp": {
@@ -74,7 +74,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["game_boy_advance"],
+		"systems": ["gba"],
 		"options": {"gpsp_rtc_time_source": "deterministic"},
 	},
 	"dolphin": {
@@ -84,7 +84,7 @@ const CORES: Dictionary = {
 		"cross_play": false,
 		"crc_interval": 900,
 		"scratch_saves": true,
-		"systems": ["gamecube", "wii"],
+		"systems": ["gc", "wii"],
 		"options": {
 			"dolphin_determinism": "enabled",
 			"dolphin_main_cpu_thread": "enabled",
@@ -100,7 +100,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["super_nes"],
+		"systems": ["snes"],
 		"options": {},
 	},
 	"genesis_plus_gx": {
@@ -116,7 +116,7 @@ const CORES: Dictionary = {
 		"state_transfer": false,
 		"strategies": [Strategy.DETERMINISM],
 		"cross_play": false,
-		"systems": ["playstation"],
+		"systems": ["psx"],
 		"options": {},
 	},
 }

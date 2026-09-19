@@ -23,7 +23,7 @@ const SAMPLE_AT := [4.0, 8.0, 14.0, 20.0, 26.0]
 
 var root_dir := ""
 var shot := ""
-var host_id := "nintendo_64"
+var host_id := "n64"
 var unit_id := "nintendo_64dd"
 ## A second unit, for a tower: Mega Drive + Mega-CD + 32X is its own combination
 ## with its own core, not the two-unit recipes added together.

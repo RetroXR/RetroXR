@@ -11,12 +11,12 @@ extends Node
 ## must leave alone can be picked by name.
 ##
 ##   godot --headless --path RetroXR res://Tools/perf/draw_census.tscn
-##   ... -- --systems=wii,playstation --detail=3
+##   ... -- --systems=wii,psx --detail=3
 
 const DEFAULT_SYSTEMS := [
-	"wii", "gamecube", "playstation", "super_nes", "nes", "game_boy",
-	"game_boy_advance", "nintendo_ds", "playstation_portable", "n3ds",
-	"atari_2600", "virtual_boy", "dos",
+	"wii", "gc", "psx", "snes", "nes", "gb",
+	"gba", "nintendo_ds", "psp", "n3ds",
+	"atari2600", "virtualboy", "dos",
 ]
 const SCENES := {
 	"tv": "res://Scenes/Objects/tv.tscn",

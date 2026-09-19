@@ -181,7 +181,7 @@ func _ready() -> void:
 	var x32 := _spawn("sega_32x")
 	await get_tree().physics_frame
 	var mouth := x32.get_node_or_null("Body/WellMouth") as MeshInstance3D
-	var m := MediaDimensions.cart_size("sega_32x")
+	var m := MediaDimensions.cart_size("sega32x")
 	if mouth != null and mouth.mesh is BoxMesh:
 		var box: Vector3 = (mouth.mesh as BoxMesh).size
 		# A slot, not a pit: as wide as the cart and only as deep as it is thick.
@@ -195,7 +195,7 @@ func _ready() -> void:
 	# Both directions of the same fault: seated by its centre it sank into the
 	# console far enough to bury its own button, and lifted by a cartridge's
 	# height instead it hung in the air above it.
-	var pairs := [["atari_jaguar", "jaguar_cd"], ["mega_drive", "sega_32x"]]
+	var pairs := [["atarijaguar", "jaguar_cd"], ["genesis", "sega_32x"]]
 	for pair: Array in pairs:
 		var host_id: String = pair[0]
 		var unit_id: String = pair[1]

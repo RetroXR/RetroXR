@@ -351,7 +351,7 @@ static func host_slot_media(host: String) -> Array[String]:
 ## precisely what having a card means.
 ##
 ## The Jaguar CD used to be an exception for a reason that was fixable: nothing
-## named its discs, so it ran under "atari_jaguar" and had to be offered from the
+## named its discs, so it ran under "atarijaguar" and had to be offered from the
 ## console's card. It names itself now, through virtualjaguar's
 ## secondary_systemids, so it has a tile like the rest.
 ##

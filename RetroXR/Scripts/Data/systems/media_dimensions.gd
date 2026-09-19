@@ -25,26 +25,26 @@ const CART_SIZES: Dictionary = {
 	# from photographs scaled against the console's 150 mm depth; no dimensioned
 	# drawing was found.
 	"famicom":          Vector3(0.110, 0.070, 0.017),
-	"super_nes":        Vector3(0.137, 0.088, 0.020),
-	"nintendo_64":      Vector3(0.116, 0.0766, 0.0185),  # the cartridge model's shell
-	"game_boy":         Vector3(0.057, 0.065, 0.008),
-	"game_boy_advance": Vector3(0.058, 0.036, 0.007),
-	"mega_drive":       Vector3(0.110, 0.070, 0.017),
+	"snes":        Vector3(0.137, 0.088, 0.020),
+	"n64":      Vector3(0.116, 0.0766, 0.0185),  # the cartridge model's shell
+	"gb":         Vector3(0.057, 0.065, 0.008),
+	"gba": Vector3(0.058, 0.036, 0.007),
+	"genesis":       Vector3(0.110, 0.070, 0.017),
 	# A 32X game is a Mega Drive cartridge -- same shell, same slot, and it goes
 	# into the 32X's own slot the way a plain cart goes into the console's. Listed
 	# so it is not handed CART_SIZE_DEFAULT, which is a different shape entirely
 	# and made the 32X's slot the wrong size for what stands in it.
-	"sega_32x":         Vector3(0.110, 0.070, 0.017),
-	"atari_2600":       Vector3(0.079, 0.104, 0.021),
-	"atari_5200":       Vector3(0.108, 0.104, 0.021),   # squarer, wider shell than the 2600 cart
-	"virtual_boy":      Vector3(0.065, 0.054, 0.006),   # VB cart, measured off the model
+	"sega32x":         Vector3(0.110, 0.070, 0.017),
+	"atari2600":       Vector3(0.079, 0.104, 0.021),
+	"atari5200":       Vector3(0.108, 0.104, 0.021),   # squarer, wider shell than the 2600 cart
+	"virtualboy":      Vector3(0.065, 0.054, 0.006),   # VB cart, measured off the model
 	"nds":              Vector3(0.033, 0.035, 0.004),
-	"3ds":              Vector3(0.033, 0.035, 0.004),   # 3DS Game Card = DS footprint
-	"atari_lynx":       Vector3(0.073, 0.086, 0.006),   # Lynx card
-	"game_gear":        Vector3(0.068, 0.047, 0.012),
+	"n3ds":              Vector3(0.033, 0.035, 0.004),   # 3DS Game Card = DS footprint
+	"atarilynx":       Vector3(0.073, 0.086, 0.006),   # Lynx card
+	"gamegear":        Vector3(0.068, 0.047, 0.012),
 	"wonderswan":       Vector3(0.048, 0.052, 0.008),
-	"neo_geo_pocket":   Vector3(0.048, 0.052, 0.008),
-	"nintendo_64dd":    Vector3(0.101, 0.104, 0.0103),  # 64DD magnetic disk
+	"ngp":   Vector3(0.048, 0.052, 0.008),
+	"n64dd":    Vector3(0.101, 0.104, 0.0103),  # 64DD magnetic disk
 	# The 8M Memory Pack, which is NOT a Super Famicom cartridge -- it is a small
 	# pack that goes into a well in the top of the BS-X cart and stands proud of
 	# it. Approximate: proportioned from photographs against the SFC shell it
@@ -56,14 +56,14 @@ const CART_SIZES: Dictionary = {
 	# CART_SIZE_DEFAULT, a 100 mm slab, and the adapter has to hold TWO side by
 	# side: at that size they do not fit in the unit at all, so the fallback was
 	# not merely untuned here, it was load-bearing geometry.
-	"sufami_turbo":     Vector3(0.055, 0.045, 0.012),
-	"pokemon_mini":     Vector3(0.022, 0.033, 0.007),
+	"sufami":     Vector3(0.055, 0.045, 0.012),
+	"pokemini":     Vector3(0.022, 0.033, 0.007),
 	"supervision":      Vector3(0.066, 0.070, 0.009),
 	# UMD caddy — square footprint, thin. RetroUMD builds its shell straight off
 	# this; without an entry it would fall back to CART_SIZE_DEFAULT (10x8 cm) and
 	# hand out a caddy ~40% too big. Note the PSP appears in DISC_DIAMETERS too:
 	# that is the bare platter sealed inside, this is the caddy you actually hold.
-	"playstation_portable": Vector3(0.064, 0.064, 0.0042),
+	"psp": Vector3(0.064, 0.064, 0.0042),
 	# A dotcode card, which is a trading card: every e-Reader card is the same
 	# portrait 63 x 88 mm stock, Nintendo's own series and the Pokemon-e TCG
 	# cards alike. Nominal, not measured off a card.
@@ -100,47 +100,47 @@ const FLOPPY_SYSTEMS: Dictionary = {
 	# are loaded label-up with the shutter leading. Without an entry here they
 	# spawn as moulded cartridges with a connector edge, and a drive that pulls
 	# the shutter in first would appear to be swallowing them backwards.
-	"nintendo_64dd": true,
+	"n64dd": true,
 	"fds": true,
-	"apple_ii": true,
-	"atari_8bit": true,
-	"atari_st": true,
-	"commodore_amiga": true,
+	"apple2": true,
+	"atari800": true,
+	"atarist": true,
+	"amiga": true,
 	"commodore_c128": true,
-	"commodore_c64": true,
-	"commodore_vic20": true,
-	"cpc": true,
+	"c64": true,
+	"vic20": true,
+	"amstradcpc": true,
 	"dos": true,
 	"msx": true,
-	"pc_88": true,
-	"pc_98": true,
-	"sharp_x1": true,
-	"sharp_x68000": true,
-	"svi": true,
+	"pc88": true,
+	"pc98": true,
+	"x1": true,
+	"x68000": true,
+	"spectravideo": true,
 	"zx81": true,
-	"zx_spectrum": true,
+	"zxspectrum": true,
 }
 
 ## Disc diameters: systemid -> diameter in metres. Doubles as the disc-system
 ## set — a systemid present here spawns a RetroDisc instead of a cartridge.
-## (pc_engine stays a cartridge: its HuCard — the CD add-on is pc_engine_cd.)
+## (tg16 stays a cartridge: its HuCard — the CD add-on is tg-cd.)
 const DISC_DIAMETERS: Dictionary = {
-	"playstation":           0.12,
-	"playstation2":          0.12,
-	"sega_saturn":           0.12,
-	"sega_cd":               0.12,
-	"pc_engine_cd":          0.12,
-	"jaguar_cd":             0.12,
-	"neo_geo_cd":            0.12,
-	"amiga_cd32":            0.12,
-	"amiga_cdtv":            0.12,
+	"psx":           0.12,
+	"ps2":          0.12,
+	"saturn":           0.12,
+	"segacd":               0.12,
+	"tg-cd":          0.12,
+	"atarijaguarcd":             0.12,
+	"neogeocd":            0.12,
+	"amigacd32":            0.12,
+	"cdtv":            0.12,
 	"wii":                   0.12,
 	"dreamcast":             0.12,
 	"3do":                   0.12,
 	"cdi":                   0.12,
-	"pc_fx":                 0.12,
-	"gamecube":              0.08,   # mini-DVD
-	"playstation_portable":  0.064,  # UMD (bare disc, no caddy)
+	"pcfx":                 0.12,
+	"gc":              0.08,   # mini-DVD
+	"psp":  0.064,  # UMD (bare disc, no caddy)
 	# ScummVM is not console hardware — it stands in for a 90s PC, whose adventure
 	# games shipped on CD-ROM. Listing it here is what makes the spawn menu hand
 	# out a disc and RetroSystem take the tray path; the PC tower model then slides
@@ -185,11 +185,11 @@ const FINISH_PS2_CD := {"data": Color(0.10, 0.20, 0.48), "poly": Color(0.04, 0.0
 
 ## systemid -> finish. Unlisted disc systems are silver CDs, which is most of them.
 const DISC_FINISHES: Dictionary = {
-	"playstation":  FINISH_PS1,
+	"psx":  FINISH_PS1,
 	"dreamcast":    FINISH_GD,
-	"gamecube":     FINISH_DVD,   # mini-DVD
+	"gc":     FINISH_DVD,   # mini-DVD
 	"wii":          FINISH_DVD,
-	"playstation_portable": FINISH_DVD,   # UMD is DVD-derived, not a CD
+	"psp": FINISH_DVD,   # UMD is DVD-derived, not a CD
 	# playstation2 is resolved per-title in disc_finish(): CD-ROM or DVD.
 }
 
@@ -236,10 +236,10 @@ const SLOT_LOAD_SYSTEMS: Dictionary = {
 ## LOADER_TRAY and makes play_open/play_close a slide — so a system opting in here
 ## gets that motion built procedurally on the placeholder box instead.
 const FRONT_TRAY_SYSTEMS: Dictionary = {
-	"playstation2": true,
+	"ps2": true,
 	# Model 1, the machine our icon draws — a motorised tray out of the front.
 	# Model 2 is a hinged top lid, which is the other branch.
-	"sega_cd": true,
+	"segacd": true,
 }
 
 
@@ -293,7 +293,7 @@ static func cart_size(systemid: String, rom_path := "") -> Vector3:
 	if systemid == "satellaview" and not rom_path.is_empty():
 		var ext := rom_path.get_extension().to_lower()
 		if ext == "sfc" or ext == "smc":
-			return CART_SIZES["super_nes"]
+			return CART_SIZES["snes"]
 	return CART_SIZES.get(systemid, CART_SIZE_DEFAULT)
 
 
@@ -339,7 +339,7 @@ static func _is_dual_layer(rom_path: String) -> bool:
 ## system can be dual-layer, which is gold rather than silver — the image size is
 ## the tell for both.
 static func disc_finish(systemid: String, rom_path: String = "") -> Dictionary:
-	if systemid == "playstation2":
+	if systemid == "ps2":
 		if _is_cd_image(rom_path):
 			return FINISH_PS2_CD
 		return FINISH_DVD9 if _is_dual_layer(rom_path) else FINISH_DVD

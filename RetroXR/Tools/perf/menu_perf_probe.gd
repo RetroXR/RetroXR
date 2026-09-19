@@ -7,7 +7,7 @@
 ## Prints [perf] lines and quits. Delete the .cfg after a run.
 extends Node
 
-const BIG := "game_boy_advance"
+const BIG := "gba"
 
 var _lines: PackedStringArray = PackedStringArray()
 
@@ -43,7 +43,7 @@ func _run() -> void:
 	# ---- 1. Raw index cost, cold vs warm ----------------------------------
 	# The single biggest desktop cost, and the one most likely to be worse here.
 	var synced: Array[String] = []
-	for sid: String in ["game_boy_advance", "nds", "nes", "mega_drive", "3ds"]:
+	for sid: String in ["gba", "nds", "nes", "genesis", "n3ds"]:
 		if RommCatalog.has_index(sid):
 			synced.append(sid)
 	_say("platforms with an index on device: %s", [str(synced)])

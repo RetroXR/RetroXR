@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Atari"
 systemname = "Atari 7800"
-systemid = "atari_7800"
+systemid = "atari7800"
 
 # Libretro Features
 supports_no_game = "false"

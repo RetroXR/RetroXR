@@ -724,7 +724,7 @@ func _test_wii_pad_art() -> void:
 		all_names.append(v)
 	for v: String in ControllerDiagram.RETROPAD_GLYPHS.values():
 		all_names.append(v)
-	for sysid: String in ["wii", "nintendo_64"]:
+	for sysid: String in ["wii", "n64"]:
 		for v: String in (ConsolePadArt.row(sysid).get("glyphs", {}) as Dictionary).values():
 			all_names.append(v)
 	var absent: Array = []
@@ -751,7 +751,7 @@ func _test_wii_pad_art() -> void:
 ## Targets as mupen64plus-next and parallel-n64 read them with Independent
 ## C-button Controls off. The C buttons are the right stick in that scheme.
 func _test_n64_pad_art() -> void:
-	const SYS := "nintendo_64"
+	const SYS := "n64"
 	_ok(ConsolePadArt.has(SYS), "n64/has a pad")
 	var row := ConsolePadArt.row(SYS)
 	_ok(ResourceLoader.exists(String(row["art"])), "n64/the art loads")
@@ -895,7 +895,7 @@ func _test_wii_layers_survive_a_save() -> void:
 
 func _test_console_pad_art() -> void:
 	_ok(ConsolePadArt.has("nes"), "art/nes has a pad")
-	_ok(not ConsolePadArt.has("super_nes"), "art/a platform without one says so")
+	_ok(not ConsolePadArt.has("snes"), "art/a platform without one says so")
 	# The global page passes "" as its systemid, and it must never draw a console.
 	_ok(not ConsolePadArt.has(""), "art/the global scope has no pad")
 
@@ -945,7 +945,7 @@ func _test_console_pad_art() -> void:
 	_ok(in_range, "art/anchors are normalized to the art")
 
 	_ok(ConsolePadArt.texture("nes") != null, "art/the texture loads")
-	_ok(ConsolePadArt.texture("super_nes") == null, "art/an uncovered platform has no texture")
+	_ok(ConsolePadArt.texture("snes") == null, "art/an uncovered platform has no texture")
 
 
 # ---------------------------------------------------------------------------
@@ -980,12 +980,12 @@ func _bind_key(action: String, code: Key) -> void:
 ## the N64's profile for it, and no other platform picks that profile up.
 func _test_64dd_reads_the_n64_profile() -> void:
 	_clear()
-	_eq(BindingStore.scope_of("nintendo_64dd"), "nintendo_64", "64dd/scope is the N64")
+	_eq(BindingStore.scope_of("n64dd"), "n64", "64dd/scope is the N64")
 	_eq(BindingStore.scope_of(SYS_A), SYS_A, "64dd/any other platform is its own scope")
 
 	var xr := _xr_profile("right_grip", ControllerBindings.JOYPAD_R2)
-	ControllerBindings.save_for_system("nintendo_64", xr[0], xr[1], xr[2])
-	_eq(int((ControllerBindings.get_for_system("nintendo_64dd")["buttons"] as Dictionary)
+	ControllerBindings.save_for_system("n64", xr[0], xr[1], xr[2])
+	_eq(int((ControllerBindings.get_for_system("n64dd")["buttons"] as Dictionary)
 			.get("right_grip", -99)),
 		ControllerBindings.JOYPAD_R2, "64dd/xr bindings follow the N64's profile")
 	_eq(int((ControllerBindings.get_for_system(SYS_A)["buttons"] as Dictionary)
@@ -995,17 +995,17 @@ func _test_64dd_reads_the_n64_profile() -> void:
 
 	var pad_buttons := (GamepadBindings.DEFAULT_BUTTON_MAP as Dictionary).duplicate()
 	pad_buttons["b"] = "btn:3"
-	GamepadBindings.save_for_system("nintendo_64", pad_buttons,
+	GamepadBindings.save_for_system("n64", pad_buttons,
 		(GamepadBindings.DEFAULT_STICK_MAP as Dictionary).duplicate())
-	_eq(String((GamepadBindings.get_for_system("nintendo_64dd")["buttons"] as Dictionary)
+	_eq(String((GamepadBindings.get_for_system("n64dd")["buttons"] as Dictionary)
 			.get("b", "")),
 		"btn:3", "64dd/gamepad bindings follow the N64's profile")
 
 	InputMap.load_from_project_settings()
 	var shipped := _bound_key(_DESK_ACTION)
 	_bind_key(_DESK_ACTION, KEY_K)
-	DesktopBindings.save_for_system("nintendo_64")
-	DesktopBindings.apply_for_system("nintendo_64dd")
+	DesktopBindings.save_for_system("n64")
+	DesktopBindings.apply_for_system("n64dd")
 	_eq(_bound_key(_DESK_ACTION), KEY_K, "64dd/desktop keys follow the N64's profile")
 	DesktopBindings.apply_for_system(SYS_A)
 	_eq(_bound_key(_DESK_ACTION), shipped, "64dd/while another platform keeps the default key")

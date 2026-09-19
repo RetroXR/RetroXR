@@ -10,8 +10,8 @@ const ID := "sega_cd"
 # ends up in the middle of the tower rather than at the bottom of it.
 const ROW := {
 	"label": "Sega CD",
-	"host": "mega_drive",
-	"media": "sega_cd",
+	"host": "genesis",
+	"media": "segacd",
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.32, 0.08, 0.28),
 	"loader": MediaDimensions.LOADER_TRAY,
@@ -31,7 +31,7 @@ const BOOT := {
 	# A loaded disc boots; with none, a cartridge in the Mega Drive; with neither,
 	# the Sega CD's own BIOS. The first form never falls back, which is what lets
 	# the console's cartridge come before the BIOS.
-	"mega_drive|sega_cd": {
+	"genesis|sega_cd": {
 		"core": "genesis_plus_gx",
 		"roms": ["expansion_media:sega_cd", "host", "expansion:sega_cd"],
 	},

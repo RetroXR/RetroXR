@@ -29,7 +29,7 @@ static func has_primitive_model(sysid: String) -> bool:
 ## Human-readable label shown in UI
 @export var system_label: String = ""
 
-## libretro systemid (e.g. "nes", "super_nes"). Used for dynamic core lookup.
+## libretro systemid (e.g. "nes", "snes"). Used for dynamic core lookup.
 @export var systemid: String = ""
 
 ## Which model in SystemModelRegistry this system wears. Empty means "this
@@ -385,8 +385,8 @@ var _port_plugs: Array = [null, null, null, null]
 ## IsWii() goes false, and that changes how the whole cabinet is wired — see
 ## _wii_mode().
 const _MEDIA_COMPAT: Dictionary = {
-	"game_boy_advance": ["game_boy"],
-	"wii":              ["gamecube"],
+	"gba": ["gb"],
+	"wii": ["gc"],
 }
 
 ## The same idea for connectors: controllers of these systemids ALSO fit this
@@ -400,12 +400,12 @@ const _MEDIA_COMPAT: Dictionary = {
 ## an object simply does nothing.
 ##
 ## Real hardware is looser still, and each of these is one line if wanted:
-##   "playstation2": ["playstation"]   PS2 takes PS1 pads (identical connector)
-##   "mega_drive":   ["atari_2600"]    the DE-9 is shared, and vice versa
+##   "ps2":     ["psx"]         PS2 takes PS1 pads (identical connector)
+##   "genesis": ["atari2600"]   the DE-9 is shared, and vice versa
 ## Physical fit only — a plug that cannot enter the socket does not belong here
 ## however well its buttons would map.
 const _CONTROLLER_COMPAT: Dictionary = {
-	"wii": ["gamecube"],
+	"wii": ["gc"],
 }
 
 # RETRO_DEVICE_* types relevant to port routing (libretro.h).
@@ -4583,7 +4583,7 @@ func game_media() -> RetroCartridge:
 
 
 ## The systemid of the game this machine is about to run. A disc in a stacked
-## unit's bay is a sega_cd game on a mega_drive machine, and it is the game that
+## unit's bay is a segacd game on a genesis machine, and it is the game that
 ## decides which BIOS is needed.
 func _media_systemid() -> String:
 	var media := game_media()

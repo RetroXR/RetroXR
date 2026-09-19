@@ -1148,7 +1148,8 @@ func _acquire_entry_assets(entry: Variant) -> void:
 	var d := entry as Dictionary
 	if str(d.get("type", "")) != "system":
 		return
-	var row := SystemModelRegistry.resolve(str(d.get("model_id", "")), str(d.get("systemid", "")))
+	var row := SystemModelRegistry.resolve(str(d.get("model_id", "")),
+		SystemIds.canonical(str(d.get("systemid", ""))))
 	for path: String in row.get("requires", []):
 		await ModelWarmer.acquire(path)
 
@@ -2308,7 +2309,7 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 		match obj_type:
 			"system":
 				var sys := SYSTEM_SCENE.instantiate() as RetroSystem
-				sys.systemid = data.get("systemid", "")
+				sys.systemid = SystemIds.canonical(str(data.get("systemid", "")))
 				sys.model_id = str(data.get("model_id", ""))
 				sys.pad_guid = str(data.get("pad_guid", ""))
 				sys.pad_ordinal = int(data.get("pad_ordinal", 0))
@@ -2344,7 +2345,7 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				# connector and its bay from this id in _ready, and a unit that
 				# arrives without one builds none of them.
 				unit.expansion_id = str(data.get("expansion_id", ""))
-				unit.rom_path = str(data.get("rom_path", ""))
+				unit.rom_path = RomLibrary.relocate(str(data.get("rom_path", "")))
 				unit.card_id = str(data.get("card_id", ""))
 				unit.card_label = str(data.get("card_label", ""))
 				obj = unit
@@ -2353,8 +2354,8 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				_apply_media_fields(cart, data)
 				obj = cart
 			"disc":
-				var disc_systemid: String = data.get("cart_systemid", "")
-				var disc_scene := UMD_DISC_SCENE if disc_systemid == "playstation_portable" else DISC_SCENE
+				var disc_systemid := SystemIds.canonical(str(data.get("cart_systemid", "")))
+				var disc_scene := UMD_DISC_SCENE if disc_systemid == "psp" else DISC_SCENE
 				var disc := disc_scene.instantiate() as RetroDisc
 				_apply_media_fields(disc, data)
 				obj = disc
@@ -2485,9 +2486,12 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 
 
 func _apply_media_fields(cart: RetroCartridge, data: Dictionary) -> void:
-	cart.rom_path = data.get("rom_path", "")
+	# A room saved before the systemids were renamed holds the old id, and a ROM
+	# path through a folder that may since have been renamed with it. Read here
+	# rather than by bumping VERSION, which drops the whole slot.
+	cart.rom_path = RomLibrary.relocate(str(data.get("rom_path", "")))
 	cart.game_label = data.get("game_label", "")
 	cart.save_id = data.get("save_id", "")
-	cart.systemid = data.get("cart_systemid", "")
+	cart.systemid = SystemIds.canonical(str(data.get("cart_systemid", "")))
 	cart.shell_preset = StringName(str(data.get("shell_preset", "")))
 	cart.body_region = str(data.get("body_region", ""))

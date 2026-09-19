@@ -47,6 +47,7 @@ func register_model(row: Dictionary) -> bool:
 	var model_id := str(row.get("id", ""))
 	if not _namespaced(model_id, "model id"):
 		return false
+	row = _current_platform(row)
 	var err := SystemModelRegistry.register_mod_row(model_id, row, id)
 	if not err.is_empty():
 		return _fail("model %s: %s" % [model_id, err])
@@ -58,6 +59,7 @@ func register_model(row: Dictionary) -> bool:
 ## hardware: no file replacement, no claim, and the row keeps its original id so
 ## existing saves still resolve to it.
 func override_model(model_id: String, row: Dictionary) -> bool:
+	row = _current_platform(row)
 	var err := SystemModelRegistry.override_mod_row(model_id, row, id)
 	if not err.is_empty():
 		return _fail("override %s: %s" % [model_id, err])
@@ -69,6 +71,7 @@ func override_model(model_id: String, row: Dictionary) -> bool:
 func register_system_info(info: SystemInfo) -> bool:
 	if info == null or info.systemid.is_empty():
 		return _fail("register_system_info needs a SystemInfo carrying a systemid")
+	info.systemid = SystemIds.canonical(info.systemid)
 	var err := SystemInfo.register_mod_info(info, id)
 	if not err.is_empty():
 		return _fail("descriptor %s: %s" % [info.systemid, err])
@@ -86,7 +89,7 @@ func register_system_info(info: SystemInfo) -> bool:
 ##
 ## Keys: systemid, system_info, models, pad_art, media, scraper_id.
 func register_platform(d: Dictionary) -> bool:
-	var systemid := str(d.get("systemid", ""))
+	var systemid := SystemIds.canonical(str(d.get("systemid", "")))
 	if systemid.is_empty():
 		return _fail("register_platform needs a systemid")
 	var missing := PackedStringArray()
@@ -126,6 +129,7 @@ func register_platform(d: Dictionary) -> bool:
 
 ## The pad drawing behind this platform's Controls remap page.
 func register_pad_art(systemid: String, row: Dictionary) -> bool:
+	systemid = SystemIds.canonical(systemid)
 	var err := ConsolePadArt.register_mod_row(systemid, row, id)
 	if not err.is_empty():
 		return _fail("pad art %s: %s" % [systemid, err])
@@ -136,6 +140,7 @@ func register_pad_art(systemid: String, row: Dictionary) -> bool:
 ## Cartridge and disc sizing. Without it a platform's carts come out the wrong
 ## size, and its discs do not exist at all.
 func register_media(systemid: String, dims: Dictionary) -> bool:
+	systemid = SystemIds.canonical(systemid)
 	var err := MediaDimensions.register_mod_media(systemid, dims, id)
 	if not err.is_empty():
 		return _fail("media %s: %s" % [systemid, err])
@@ -146,6 +151,7 @@ func register_media(systemid: String, dims: Dictionary) -> bool:
 ## Map this platform to a screenscraper.fr system id so its ROMs can be scraped
 ## at all. A platform absent from that table gets no art, ever.
 func register_scraper_system(systemid: String, systemeid: int) -> bool:
+	systemid = SystemIds.canonical(systemid)
 	var err := ScreenscraperSystems.register_mod_system(systemid, systemeid, id)
 	if not err.is_empty():
 		return _fail("scraper %s: %s" % [systemid, err])
@@ -201,6 +207,7 @@ func register_tv_shell(shell_id: String, scene_path: String, label: String) -> b
 ## already records and restores its scene path, and falls back to the generic pad
 ## when the mod is gone, with no help needed from here.
 func add_peripherals(systemid: String, items: Array) -> bool:
+	systemid = SystemIds.canonical(systemid)
 	var err := SpawnCatalog.register_mod_peripherals(systemid, items, id)
 	if not err.is_empty():
 		return _fail("peripherals %s: %s" % [systemid, err])
@@ -331,6 +338,25 @@ func _warn(msg: String) -> void:
 
 
 ## A mod-introduced id must carry its own mod's prefix.
+## A mod written before the systemids were renamed names its platform the old
+## way ("super_nes"). It is a file the player chose and nobody here can rewrite,
+## so every systemid a mod hands over is read through SystemIds. A model row's
+## OWN id is not one and is left alone.
+func _current_platform(row: Dictionary) -> Dictionary:
+	if not row.has("platform"):
+		return row
+	var out := row.duplicate()
+	var platform: Variant = row["platform"]
+	if platform is Array:
+		var ids: Array = []
+		for p: Variant in platform:
+			ids.append(SystemIds.canonical(str(p)))
+		out["platform"] = ids
+	else:
+		out["platform"] = SystemIds.canonical(str(platform))
+	return out
+
+
 func _namespaced(value: String, what: String) -> bool:
 	if value.begins_with(id + ":") and value.length() > id.length() + 1:
 		return true

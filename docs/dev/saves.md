@@ -36,7 +36,7 @@ names it. Read at source:
 | mesen | `mapper->GetSaveRam()` |
 | snes9x | the SRAM, capped at `0x20000` |
 
-**`PER_CORE_SYSTEMS` is `nintendo_64`, `nintendo_64dd` and `fds`**, and each is a measured
+**`PER_CORE_SYSTEMS` is `n64`, `n64dd` and `fds`**, and each is a measured
 incompatibility rather than a precaution:
 
 - Both N64 cores return a `save_memory_data` struct with **no magic and no version**.
@@ -170,5 +170,5 @@ library: 24 moved, 1 left (`BS F-Zero (flash-mode test)`, which nothing names), 
 
 `system_tests` `sram/`, `rtc/` and `migrate/` cover it, the migration over a scratch tree and
 never the player's saves. Mutation-tested: filing the Transfer Pak under no system, dropping
-`nintendo_64` from the table, reversing the collision order, dropping the core from a clock's
+`n64` from the table, reversing the collision order, dropping the core from a clock's
 name, or letting a delete take a lookalike save's clock each fails exactly its own cases.

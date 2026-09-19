@@ -261,7 +261,7 @@ func _room_cases() -> void:
 
 
 func _keep_cases() -> void:
-	var gb := await _handheld("game_boy")
+	var gb := await _handheld("gb")
 	var pad := _prop("Pad")
 	var pad_cable := _prop("PadCable")
 	var plug := _stub(PLUG_SRC, Node3D.new()) as Node3D
@@ -621,7 +621,7 @@ func _screen_cases() -> void:
 
 
 func _audio_cases() -> void:
-	var gb := await _handheld("game_boy")
+	var gb := await _handheld("gb")
 	_fm.enter(gb)
 	_fm._process(0.0)
 	var at := _fm.screen().speaker_positions()

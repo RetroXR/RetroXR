@@ -11,7 +11,7 @@ permissions = ""
 # Hardware Information
 manufacturer = "Welback Holdings"
 systemname = "Mega Duck"
-systemid = "mega_duck"
+systemid = "megaduck"
 
 # Libretro Features
 supports_no_game = "false"

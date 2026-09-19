@@ -1262,7 +1262,7 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 	# Disc-based systems get a RetroDisc (same contract, disc-shaped body).
 	# The PSP UMD is the one non-round disc — its own RetroUMD subclass/scene.
 	var is_disc := MediaDimensions.is_disc_system(systemid)
-	var disc_scene := UMD_DISC_SCENE if systemid == "playstation_portable" else DISC_SCENE
+	var disc_scene := UMD_DISC_SCENE if systemid == "psp" else DISC_SCENE
 	var cart := (disc_scene if is_disc else CART_SCENE).instantiate() as RetroCartridge
 	cart.rom_path = rom_path
 	cart.game_label = game_label

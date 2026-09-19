@@ -11,8 +11,8 @@ display_version = "v1.7.4"
 # Hardware Information
 manufacturer = "Sega"
 systemname = "Sega Genesis"
-systemid = "mega_drive"
-secondary_systemids = "game_gear:gg|master_system:sms,bms|sega_cd:cue,iso,chd,m3u|sega_pico:md,bin|sg1000:sg"
+systemid = "genesis"
+secondary_systemids = "gamegear:gg|mastersystem:sms,bms|segacd:cue,iso,chd,m3u|sega_pico:md,bin|sg-1000:sg"
 
 # Libretro Features
 supports_no_game = "false"

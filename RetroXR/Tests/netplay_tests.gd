@@ -2710,7 +2710,7 @@ func _until(cond: Callable, ticks := 600) -> bool:
 # fail if an entry's system list is wrong.
 
 func _test_substitute() -> void:
-	var gb := NetplayCores.cores_for_system("game_boy")
+	var gb := NetplayCores.cores_for_system("gb")
 	_ok(gb.has("gambatte") and gb.has("mgba") and gb.has("tgbdual"),
 		"substitute/every vetted Game Boy core is offered")
 	_ok(not gb.has("fceumm"), "substitute/a core for another system is not")
@@ -2724,27 +2724,27 @@ func _test_substitute() -> void:
 
 	# dolphin is verified:false, so it must never be recommended even though it
 	# is the only entry naming the GameCube.
-	_ok(not NetplayCores.cores_for_system("gamecube").has("dolphin"),
+	_ok(not NetplayCores.cores_for_system("gc").has("dolphin"),
 		"substitute/an unverified core is never a candidate")
-	_ok(NetplayCores.suggest_substitute("dolphin", "gamecube").is_empty(),
+	_ok(NetplayCores.suggest_substitute("dolphin", "gc").is_empty(),
 		"substitute/nothing to offer for the GameCube yet")
 
-	_ok(NetplayCores.suggest_substitute("vba_next", "game_boy_advance") != "",
+	_ok(NetplayCores.suggest_substitute("vba_next", "gba") != "",
 		"substitute/an unvetted GBA core gets an offer")
-	_ok(NetplayCores.suggest_substitute("vba_next", "game_boy_advance") != "vba_next",
+	_ok(NetplayCores.suggest_substitute("vba_next", "gba") != "vba_next",
 		"substitute/never offers the core it was asked about")
-	_ok(NetplayCores.suggest_substitute("mgba", "game_boy_advance") != "mgba",
+	_ok(NetplayCores.suggest_substitute("mgba", "gba") != "mgba",
 		"substitute/nor when that core is itself vetted")
 
 	# Ranking: rollback beats determinism-only, and state_transfer breaks a tie.
-	var gba := NetplayCores.cores_for_system("game_boy_advance")
+	var gba := NetplayCores.cores_for_system("gba")
 	_ok(gba[0] == "gpsp" or gba[0] == "mgba",
 		"substitute/a rollback core leads the GBA list")
 
 	# The debug switch opens the session gate; it must not invent evidence.
-	var before := NetplayCores.cores_for_system("game_boy_advance")
+	var before := NetplayCores.cores_for_system("gba")
 	NetplayCores.debug_allow_unverified = true
-	_ok(NetplayCores.cores_for_system("game_boy_advance") == before,
+	_ok(NetplayCores.cores_for_system("gba") == before,
 		"substitute/the debug switch does not add candidates")
 	_ok(NetplayCores.why_not_capable("vba_next") != "",
 		"substitute/nor does it blank the explainer")
@@ -3096,14 +3096,14 @@ func _test_readiness() -> void:
 	_ok((good["remedy"] as Dictionary).is_empty(),
 		"readiness/a ready machine needs no remedy")
 
-	var bad := R.machine_row(2, "GBA", "vba_next", "game_boy_advance")
+	var bad := R.machine_row(2, "GBA", "vba_next", "gba")
 	_ok(int(bad["verdict"]) == R.Verdict.BLOCKED, "readiness/an unvetted core blocks")
 	_ok(str((bad["remedy"] as Dictionary).get("kind", "")) == "swap_core",
 		"readiness/and offers a swap")
 	_ok(not str((bad["remedy"] as Dictionary).get("core", "")).is_empty(),
 		"readiness/naming a real core")
 
-	var hopeless := R.machine_row(3, "GameCube", "dolphin", "gamecube")
+	var hopeless := R.machine_row(3, "GameCube", "dolphin", "gc")
 	_ok(int(hopeless["verdict"]) == R.Verdict.BLOCKED,
 		"readiness/an unverified core blocks too")
 	_ok((hopeless["remedy"] as Dictionary).is_empty(),
@@ -3116,7 +3116,7 @@ func _test_readiness() -> void:
 		if str(d["name"]) == "Forced option":
 			forced += 1
 	_ok(forced == 0, "readiness/an unvetted core lists no strategy detail")
-	var det := R.machine_row(4, "GameCube", "dolphin", "gamecube")
+	var det := R.machine_row(4, "GameCube", "dolphin", "gc")
 	_ok(int(det["verdict"]) == R.Verdict.BLOCKED, "readiness/dolphin stays blocked")
 
 	# Identity: both halves, and the 0 case.

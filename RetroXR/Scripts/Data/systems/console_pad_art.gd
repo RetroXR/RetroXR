@@ -110,7 +110,7 @@ const _ROWS: Dictionary = {
 		"top": ["left", "up", "right"],
 		"bottom": ["down", "select", "start", "b", "a"],
 	},
-	"nintendo_64": {
+	"n64": {
 		"label": "N64 Controller",
 		"art": "res://Textures/Controllers/n64_pad.svg",
 		"tint": false,

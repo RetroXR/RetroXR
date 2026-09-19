@@ -85,7 +85,7 @@ still gets the adapter's default frame — so a generated test ROM answers it.
 ```bash
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
   res://Tools/cores/sgb_probe.tscn -- --core=bsnes \
-  --rom="$HOME/retroxr/roms/game_boy/game.gb" --leg=subsystem --shot=res://sgb.png
+  --rom="$HOME/retroxr/roms/gb/game.gb" --leg=subsystem --shot=res://sgb.png
 ```
 
 One core AND one leg per process.
@@ -216,7 +216,7 @@ pairing does not overwrite it.
 
 **Every dump is named `.sfc`, not `.st`.** `libretro-core-info-retroxr/snes9x_libretro.info`
 overrides `sufami_turbo:st,sfc` for that reason — otherwise the library files them
-under `super_nes` and the adapter's bay refuses them. That override is a WHOLE
+under `snes` and the adapter's bay refuses them. That override is a WHOLE
 copy of the vendored file: the overlay replaces an entry rather than merging, so
 a one-line file would delete snes9x's firmware declarations with it.
 
@@ -236,7 +236,7 @@ size, which is how the save limit above was measured.
 A Nintendo DS has a GBA cartridge slot moulded into its front edge, and some DS
 games read it (the Pokémon dual-slot transfer, Mega Man ZX, Portrait of Ruin).
 It is the one console with a second NATIVE slot, so it is not an
-`ExpansionCatalog` unit: `Slot2Catalog` (one row, `nds` → `game_boy_advance`)
+`ExpansionCatalog` unit: `Slot2Catalog` (one row, `nds` → `gba`)
 tells `RetroSystem` to build a `Slot2` snap zone, `handheld_model.configure_slot2`
 poses it on the front edge (an authored `Slot2Seat` marker wins, as `CartSeat`
 does), and `ExpansionLaunch` reads the row as a launch recipe with two new tokens,

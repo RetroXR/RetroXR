@@ -14,8 +14,8 @@ const ID := "fm_sound_unit"
 
 const ROW := {
 	"label": "FM Sound Unit",
-	"host": "master_system",
-	"media": "master_system",
+	"host": "mastersystem",
+	"media": "mastersystem",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	"size": Vector3(0.13, 0.035, 0.11),
 	"loader": MediaDimensions.LOADER_NONE,
@@ -26,7 +26,7 @@ const BOOT := {
 	# UNVERIFIED. Same shape as the converter: the unit passes the cartridge
 	# through, and the FM chip it adds is a forced option, not a different core
 	# or a different rom to hand over.
-	"master_system|fm_sound_unit": {
+	"mastersystem|fm_sound_unit": {
 		"core": "genesis_plus_gx",
 		"roms": ["expansion:fm_sound_unit"],
 	},

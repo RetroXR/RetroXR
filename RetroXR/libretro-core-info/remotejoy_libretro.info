@@ -10,7 +10,7 @@ categories = "Streaming"
 
 # Hardware Information
 systemname = "PSP"
-systemid = "playstation_portable"
+systemid = "psp"
 
 # Libretro Features
 supports_no_game = "true"

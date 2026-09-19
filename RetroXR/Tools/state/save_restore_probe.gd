@@ -14,9 +14,9 @@ func _ready() -> void:
 	get_tree().current_scene = self
 
 	var entries := [
-		{"id": 0, "type": "system", "systemid": "3ds", "model_id": "n3ds_primitive",
+		{"id": 0, "type": "system", "systemid": "n3ds", "model_id": "n3ds_primitive",
 			"position": [0, 0, 0], "rotation": [0, 0, 0]},
-		{"id": 1, "type": "system", "systemid": "game_boy", "model_id": "game_boy_primitive",
+		{"id": 1, "type": "system", "systemid": "gb", "model_id": "game_boy_primitive",
 			"position": [1, 0, 0], "rotation": [0, 0, 0]},
 		# No model_id at all: the platform's default. The NES has no model since
 		# the imported shells were dropped, so its default is the procedural box —

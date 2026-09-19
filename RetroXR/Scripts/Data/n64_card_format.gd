@@ -31,7 +31,7 @@ func save_extension() -> String:
 ## A Controller Pak belongs to the Nintendo 64, and a frontend that keeps its
 ## paks inside the cartridge save uploads that whole .srm.
 func romm_systemid() -> String:
-	return "nintendo_64"
+	return "n64"
 
 
 func romm_save_extensions() -> PackedStringArray:

@@ -24,7 +24,7 @@ var device_type: int = DEVICE_GBA_LINK
 ## Which console's ports will take it. RetroSystem's port filter reads this off
 ## the plug: a GameCube lead is not a Wii lead and not a PlayStation lead, and
 ## the socket says so before anything electrical is decided.
-var systemid: String = "gamecube"
+var systemid: String = "gc"
 
 ## The console and port this end is sitting in, or null and -1. Set by the
 ## console itself, which is the only thing that knows: a controller socket is a

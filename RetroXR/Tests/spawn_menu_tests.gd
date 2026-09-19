@@ -76,9 +76,9 @@ func _group_filter() -> void:
 	await get_tree().process_frame
 	browser.set_systems([
 		{"systemid": "nes", "name": "Nintendo (NES)", "badge": "3 cores"},
-		{"systemid": "super_nes", "name": "Super Nintendo", "badge": "2 cores"},
-		{"systemid": "game_boy", "name": "Game Boy", "badge": "4 cores"},
-		{"systemid": "mega_drive", "name": "Mega Drive", "badge": "1 core"},
+		{"systemid": "snes", "name": "Super Nintendo", "badge": "2 cores"},
+		{"systemid": "gb", "name": "Game Boy", "badge": "4 cores"},
+		{"systemid": "genesis", "name": "Mega Drive", "badge": "1 core"},
 	])
 	await get_tree().process_frame
 
@@ -280,6 +280,6 @@ func _group_hold() -> void:
 	btn.pressed.emit()
 	_eq(seen["clicked"], 1, "hold/a rebound row forgets the last entry's hold")
 
-	_ok(SpawnMenuSpawnView._has_spawn_options("nintendo_64")
+	_ok(SpawnMenuSpawnView._has_spawn_options("n64")
 		and not SpawnMenuSpawnView._has_spawn_options("nes"),
 		"hold/only an N64 ROM row opens one")

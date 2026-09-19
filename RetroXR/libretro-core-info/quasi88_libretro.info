@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "NEC"
 systemname = "PC-88 series"
-systemid = "pc_88"
+systemid = "pc88"
 
 # Libretro Features
 database = "NEC - PC-88"

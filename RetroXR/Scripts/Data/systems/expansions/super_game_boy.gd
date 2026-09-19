@@ -16,7 +16,7 @@ const ID := "super_game_boy"
 # BIOS the core reads from its system directory, which is what
 # `rom_from_firmware` is for.
 #
-# `media` is game_boy, an existing system, so the handheld library already
+# `media` is gb, an existing system, so the handheld library already
 # fills this bay: no new roms folder and no new content routing, and a Game
 # Boy cartridge a player already owns is the same object either way.
 #
@@ -29,12 +29,12 @@ const ID := "super_game_boy"
 # cartridge above.
 const ROW := {
 	"label": "Super Game Boy",
-	"host": "super_nes",
-	"media": "game_boy",
+	"host": "snes",
+	"media": "gb",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	"size": Vector3(0.137, 0.088, 0.024),
 	"loader": MediaDimensions.LOADER_NONE,
-	"card": "super_nes",
+	"card": "snes",
 	"rom_title": "Super GAMEBOY",
 	"firmware": ["SGB1.sfc"],
 	"rom_from_firmware": true,
@@ -63,7 +63,7 @@ const BOOT := {
 	# writes a download back onto, and SetPackPath is bound to the SNES pack memory
 	# region specifically. A Game Boy cartridge's save is an ordinary SRAM and
 	# belongs on the ordinary path.
-	"super_nes|super_game_boy": {
+	"snes|super_game_boy": {
 		"core": "bsnes",
 		"roms": ["expansion:super_game_boy"],
 		"subsystem": {"ident": "sgb",

@@ -58,7 +58,7 @@ adb shell monkey -p com.xenu.retroxr 1                           # GodotApp isn'
   - `adb` creates directories `0770` — other `---`. The app cannot create anything inside
     one, so a system folder made by push gets no `.romm/` index. `romm_catalog.gd` ignores
     the return of `make_dir_recursive_absolute`, so this surfaces one line later and one
-    level down as "Cannot write to …/nintendo_64/.romm".
+    level down as "Cannot write to …/n64/.romm".
   - Granting the app access through the bits alone would mean `0666` on files and `0777`
     on directories, because the group is useless to it. Don't. Let the app own what it
     writes: delete the pushed copy and let it be recreated in-app.

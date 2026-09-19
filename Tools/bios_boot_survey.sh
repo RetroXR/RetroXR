@@ -41,22 +41,22 @@ fi
 # the option key both differ per machine, which is the whole reason the BiosBoot
 # table is keyed on the pair.
 CANDIDATES=(
-  pcsx_rearmed:playstation
-  mednafen_saturn:sega_saturn
+  pcsx_rearmed:psx
+  mednafen_saturn:saturn
   flycast:dreamcast
-  genesis_plus_gx:sega_cd
-  mednafen_pce:pc_engine_cd
-  neocd:neo_geo_cd
-  pcee2:playstation2
-  pcsx2:playstation2
-  dolphin:gamecube
-  mgba:game_boy_advance
-  mgba:game_boy
-  gambatte:game_boy
-  sameboy:game_boy
+  genesis_plus_gx:segacd
+  mednafen_pce:tg-cd
+  neocd:neogeocd
+  pcee2:ps2
+  pcsx2:ps2
+  dolphin:gc
+  mgba:gba
+  mgba:gb
+  gambatte:gb
+  sameboy:gb
   opera:3do
   same_cdi:cdi
-  parallel_n64:nintendo_64dd
+  parallel_n64:n64dd
 )
 
 if [[ $# -gt 0 ]]; then

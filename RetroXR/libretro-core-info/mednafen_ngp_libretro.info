@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "SNK"
 systemname = "Neo Geo Pocket (Color)"
-systemid = "neo_geo_pocket"
+systemid = "ngp"
 
 # Libretro Features
 supports_no_game = "false"

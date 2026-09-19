@@ -10,7 +10,7 @@ categories = "Emulator"
 
 # Hardware Information
 manufacturer = "Sega"
-systemid = "mega_drive"
+systemid = "genesis"
 systemname = "Sega Genesis"
 
 # Libretro Features

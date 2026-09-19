@@ -141,7 +141,7 @@ func _test_gc_gba_cable() -> void:
 
 	# Which console's ports will take it. A GameCube lead is not a Wii lead, and
 	# the socket says so before anything electrical is decided.
-	_eq(gc_end.systemid, "gamecube", "the console end fits a GameCube")
+	_eq(gc_end.systemid, "gc", "the console end fits a GameCube")
 
 	# Seating it announces a handheld to the core, the same way any pad announces
 	# itself: there is no separate step and nothing else to configure.
@@ -560,7 +560,7 @@ func _test_cable_is_spawnable() -> void:
 	# The lead existed for a while as a scene nobody could get hold of: built,
 	# tested, rendered, and offered by no menu. A cable that cannot be spawned is
 	# not a feature, so this asserts the catalogue actually lists it.
-	var items: Array = SpawnCatalog.items_for("game_boy_advance")
+	var items: Array = SpawnCatalog.items_for("gba")
 	var found := false
 	for item: Dictionary in items:
 		if str(item.get("spawn", "")) == "link_cable":
@@ -573,7 +573,7 @@ func _test_cable_is_spawnable() -> void:
 
 	# Offered only where there is a socket to put it in. A console with no EXT
 	# port listing a link lead would be an invitation to nothing.
-	var console: Array = SpawnCatalog.items_for("playstation")
+	var console: Array = SpawnCatalog.items_for("psx")
 	var stray := false
 	for item: Dictionary in console:
 		if str(item.get("spawn", "")) == "link_cable":
@@ -831,10 +831,10 @@ func _test_the_lead_will_seat() -> void:
 		return
 
 	var console: Node3D = sys_scene.instantiate()
-	console.systemid = "gamecube"
+	console.systemid = "gc"
 	add_child(console)
 	var handheld: Node3D = sys_scene.instantiate()
-	handheld.systemid = "game_boy_advance"
+	handheld.systemid = "gba"
 	add_child(handheld)
 	var lead: Node3D = load(GC_GBA_SCENE).instantiate()
 	add_child(lead)
@@ -1125,7 +1125,7 @@ func _test_a_machine_takes_a_plug_the_same_way() -> void:
 	# unusual in being small enough to notice.
 	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
 	var handheld: Node3D = sys_scene.instantiate()
-	handheld.systemid = "game_boy_advance"
+	handheld.systemid = "gba"
 	add_child(handheld)
 	var lead: LinkCable = load(CABLE_SCENE).instantiate()
 	add_child(lead)
@@ -1216,11 +1216,11 @@ func _test_each_end_says_what_it_is() -> void:
 func _test_every_socket_can_be_saved() -> void:
 	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
 	var console: Node3D = sys_scene.instantiate()
-	console.systemid = "gamecube"
+	console.systemid = "gc"
 	console.name = "GameCube"
 	add_child(console)
 	var handheld: Node3D = sys_scene.instantiate()
-	handheld.systemid = "game_boy_advance"
+	handheld.systemid = "gba"
 	handheld.name = "Handheld"
 	add_child(handheld)
 	var lead: Node3D = load(GC_GBA_SCENE).instantiate()
@@ -1345,7 +1345,7 @@ func _test_psx_cable_is_not_av() -> void:
 
 
 func _test_psx_cable_is_spawnable() -> void:
-	var items: Array = SpawnCatalog.items_for("playstation")
+	var items: Array = SpawnCatalog.items_for("psx")
 	var found := false
 	for item: Dictionary in items:
 		if str(item.get("spawn", "")) == "psx_link_cable":
@@ -1355,7 +1355,7 @@ func _test_psx_cable_is_spawnable() -> void:
 		"it is offered under the PlayStation", "%d items, none of them the PlayStation link cable" % items.size())
 
 	# Offered only where there is a socket to put it in.
-	var handheld: Array = SpawnCatalog.items_for("game_boy_advance")
+	var handheld: Array = SpawnCatalog.items_for("gba")
 	var stray := false
 	for item: Dictionary in handheld:
 		if str(item.get("spawn", "")) == "psx_link_cable":
@@ -1373,7 +1373,7 @@ func _test_psx_socket_follows_the_hardware() -> void:
 		return
 
 	var psx: Node3D = sys_scene.instantiate()
-	psx.systemid = "playstation"
+	psx.systemid = "psx"
 	add_child(psx)
 	# A Dreamcast, NOT a NES. The gate being tested lives on the primitive body,
 	# and a console with a model scene of its own never reaches it -- a negative
@@ -1421,10 +1421,10 @@ func _test_psx_lead_will_seat() -> void:
 	if sys_scene == null:
 		return
 	var a: Node3D = sys_scene.instantiate()
-	a.systemid = "playstation"
+	a.systemid = "psx"
 	add_child(a)
 	var handheld: Node3D = sys_scene.instantiate()
-	handheld.systemid = "game_boy_advance"
+	handheld.systemid = "gba"
 	add_child(handheld)
 	var lead: Node3D = load(PSX_CABLE_SCENE).instantiate()
 	add_child(lead)
@@ -1533,7 +1533,7 @@ func _test_psx_socket_is_in_the_panel() -> void:
 	if sys_scene == null:
 		return
 	var psx: Node3D = sys_scene.instantiate()
-	psx.systemid = "playstation"
+	psx.systemid = "psx"
 	add_child(psx)
 	var lead: Node3D = load(PSX_CABLE_SCENE).instantiate()
 	add_child(lead)
@@ -1584,7 +1584,7 @@ func _test_psx_socket_is_in_the_panel() -> void:
 	# Turning a console already standing proves nothing, because the port is a
 	# child and rides along either way.
 	var angled: Node3D = sys_scene.instantiate()
-	angled.systemid = "playstation"
+	angled.systemid = "psx"
 	angled.rotation = Vector3(0.0, deg_to_rad(37.0), 0.0)
 	add_child(angled)
 	for i in range(4):

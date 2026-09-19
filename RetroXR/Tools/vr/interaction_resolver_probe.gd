@@ -34,7 +34,7 @@ func _run() -> void:
 	add_child(_hand)
 
 	_nes = _spawn("nes", "nes", Vector3(0, 1, 0))
-	_atari = _spawn("atari_2600", "atari_2600", Vector3(4, 1, 0))
+	_atari = _spawn("atari2600", "atari_2600", Vector3(4, 1, 0))
 	await _wait(40)
 
 	var cart := CART_SCENE.instantiate() as RetroCartridge

@@ -74,7 +74,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	_sys = preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	_sys.systemid = "nintendo_64"
+	_sys.systemid = "n64"
 	_sys.core_directory = root_dir
 	add_child(_sys)
 	await get_tree().process_frame

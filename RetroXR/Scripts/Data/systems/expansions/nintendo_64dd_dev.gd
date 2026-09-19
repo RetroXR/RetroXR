@@ -11,8 +11,8 @@ const _RETAIL := preload("res://Scripts/Data/systems/expansions/nintendo_64dd.gd
 
 const ROW := {
 	"label": "Nintendo 64DD (Development Unit)",
-	"host": "nintendo_64",
-	"media": "nintendo_64dd",
+	"host": "n64",
+	"media": "n64dd",
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.26, 0.0787, 0.19),
 	"loader": MediaDimensions.LOADER_SLOT,
@@ -21,5 +21,5 @@ const ROW := {
 }
 
 const BOOT := {
-	"nintendo_64|nintendo_64dd_dev": _RETAIL.BOOT["nintendo_64|nintendo_64dd"],
+	"n64|nintendo_64dd_dev": _RETAIL.BOOT["n64|nintendo_64dd"],
 }

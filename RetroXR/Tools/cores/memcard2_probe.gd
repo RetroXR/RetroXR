@@ -53,7 +53,7 @@ func _run() -> void:
 		return
 
 	_sys = preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	_sys.systemid = "playstation"
+	_sys.systemid = "psx"
 	add_child(_sys)
 	await get_tree().process_frame
 

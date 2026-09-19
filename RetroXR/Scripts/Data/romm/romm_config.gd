@@ -212,12 +212,14 @@ func load_config() -> void:
 
 	if data.get("platform_overrides") is Dictionary:
 		platform_overrides = data["platform_overrides"]
+	# Both are keyed by systemid, and a config from before the rename by the old one.
+	# An override's VALUE is read through SystemIds where it is used.
 	if data.get("sync_state") is Dictionary:
-		sync_state = data["sync_state"]
+		sync_state = SystemIds.rekeyed(data["sync_state"] as Dictionary)
 	if data.get("last_stats") is Dictionary:
 		last_stats = data["last_stats"]
 	if data.get("cached_platforms") is Dictionary:
-		cached_platforms = data["cached_platforms"]
+		cached_platforms = SystemIds.rekeyed(data["cached_platforms"] as Dictionary)
 	if data.get("scopes") is Array:
 		scopes = PackedStringArray(data["scopes"])
 	scopes_checked_at = str(data.get("scopes_checked_at", ""))

@@ -21,7 +21,7 @@ func save_extension() -> String:
 
 
 func romm_systemid() -> String:
-	return "sega_cd"
+	return "segacd"
 
 
 ## Other frontends upload the whole image rather than one save.

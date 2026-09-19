@@ -11,7 +11,7 @@ display_version = "1.30.21.0"
 # Hardware Information
 manufacturer = "Apple"
 systemname = "II"
-systemid = "apple_ii"
+systemid = "apple2"
 
 # Libretro Features
 supports_no_game = "true"

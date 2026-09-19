@@ -46,8 +46,8 @@ const ID := "sufami_turbo"
 # No save_owner: a Sufami Turbo has no battery. The cartridges do.
 const ROW := {
 	"label": "Sufami Turbo",
-	"host": "super_nes",
-	"media": "sufami_turbo",
+	"host": "snes",
+	"media": "sufami",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	"size": Vector3(0.14, 0.03, 0.038),
 	"loader": MediaDimensions.LOADER_NONE,
@@ -98,7 +98,7 @@ const BOOT := {
 	# It is keyed off the CARTRIDGE, not the slot: a game carries its save between
 	# the two wells, and lending it to a different pairing does not overwrite it.
 	# See RetroSystem._slot_b_save_path.
-	"super_nes|sufami_turbo": {
+	"snes|sufami_turbo": {
 		"core": "snes9x",
 		"roms": ["expansion_media:sufami_turbo", "expansion_media_b:sufami_turbo"],
 		"subsystem": {"ident": "multicart_addon",

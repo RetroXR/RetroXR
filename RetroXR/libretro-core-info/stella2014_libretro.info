@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Atari"
 systemname = "Atari 2600"
-systemid = "atari_2600"
+systemid = "atari2600"
 
 # Libretro Features
 supports_no_game = "false"

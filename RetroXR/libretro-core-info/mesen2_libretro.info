@@ -12,7 +12,7 @@ categories = "Emulator"
 manufacturer = "Nintendo, Sega, Bandai, and NEC"
 systemname = "Nintendo Entertainment System"
 systemid = "nes"
-secondary_systemids = "fds:fds|game_boy:gb,gbc|game_boy_advance:gba|pc_engine:pce|pc_engine_cd:cue|satellaview:bs|super_nes:sfc,smc,fig,swc,bs|wonderswan:ws,wsc,pc2,pcv2"
+secondary_systemids = "fds:fds|gb:gb,gbc|gba:gba|tg16:pce|tg-cd:cue|satellaview:bs|snes:sfc,smc,fig,swc,bs|wonderswan:ws,wsc,pc2,pcv2"
 
 # Libretro Features
 supports_no_game = "false"

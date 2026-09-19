@@ -378,7 +378,7 @@ func _group_geom() -> void:
 func _group_catalog() -> void:
 	const ID := "ereader"
 	_ok(ExpansionCatalog.ROWS.has(ID), "catalog/ the e-Reader has a row")
-	_eq(ExpansionCatalog.host_of(ID), "game_boy_advance", "catalog/ it bolts to a GBA")
+	_eq(ExpansionCatalog.host_of(ID), "gba", "catalog/ it bolts to a GBA")
 	_eq(ExpansionCatalog.media_of(ID), "ereader", "catalog/ its media is the card")
 	_eq(ExpansionCatalog.loader_of(ID), MediaDimensions.LOADER_SWIPE, "catalog/ it is a swipe loader")
 	_eq(ExpansionCatalog.mount_of(ID), ExpansionCatalog.MOUNT_CARTRIDGE, "catalog/ it is a cartridge")
@@ -426,7 +426,7 @@ func _group_catalog() -> void:
 		_eq(ExpansionCatalog.media_of(rid), "ereader", "catalog/ %s reads the same cards" % rid)
 		_eq(ExpansionCatalog.card_systemid(rid), "ereader",
 			"catalog/ %s is offered from the e-Reader tile" % rid)
-		_eq(str(ExpansionCatalog.boot_for("game_boy_advance", [rid]).get("core", "")), "mgba",
+		_eq(str(ExpansionCatalog.boot_for("gba", [rid]).get("core", "")), "mgba",
 			"catalog/ %s boots on mgba" % rid)
 
 	# A dump in the GBA library IS the reader, recognised by the game code at 0xAC
@@ -478,7 +478,7 @@ func _group_catalog() -> void:
 		and MediaDimensions.LOADER_SWIPE != MediaDimensions.LOADER_TRAY,
 		"catalog/ LOADER_SWIPE is distinct from every other loader")
 
-	var boot := ExpansionCatalog.boot_for("game_boy_advance", [ID])
+	var boot := ExpansionCatalog.boot_for("gba", [ID])
 	_eq(str(boot.get("core", "")), "mgba", "catalog/ it boots on mgba")
 	_ok(not boot.has("subsystem"),
 		"catalog/ no subsystem — mgba's retro_load_game_special is a stub")
@@ -555,7 +555,7 @@ func _offered(deg: float, size: Vector3) -> Transform3D:
 ## three real reader dumps on it, and a case that only passes on a bare library
 ## is a case that fails for the person most likely to run it.
 func _group_program() -> void:
-	const GBA := "game_boy_advance"
+	const GBA := "gba"
 	const PLANTED := "__ereader_selftest PEAJ.gba"
 	const ORDINARY := "__ereader_selftest ordinary.gba"
 

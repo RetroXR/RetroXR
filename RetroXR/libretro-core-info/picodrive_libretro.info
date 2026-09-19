@@ -11,8 +11,8 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Sega"
 systemname = "Sega Genesis"
-systemid = "mega_drive"
-secondary_systemids = "game_gear:gg|master_system:sms|sega_32x:32x|sega_cd:cue,iso,chd,m3u|sega_pico:pco"
+systemid = "genesis"
+secondary_systemids = "gamegear:gg|mastersystem:sms|sega32x:32x|segacd:cue,iso,chd,m3u|sega_pico:pco"
 
 # Libretro Features
 database = "Sega - Master System - Mark III|Sega - Game Gear|Sega - Mega-CD - Sega CD|Sega - Mega Drive - Genesis|Sega - PICO|Sega - 32X"

@@ -33,7 +33,7 @@ const MOUSE_BTN_MIDDLE := 1 << 6
 const PLUG_MESH := "res://Scenes/Objects/cables/ps2_plug_mouse.res"
 @export var plug_mesh_path: String = PLUG_MESH
 
-## The systemid this mouse physically belongs to, e.g. "super_nes". A port only
+## The systemid this mouse physically belongs to, e.g. "snes". A port only
 ## accepts a plug whose systemid matches — the same filter RetroController uses.
 ##
 ## Empty means UNIVERSAL and fits anything, which is what the generic mouse wants:

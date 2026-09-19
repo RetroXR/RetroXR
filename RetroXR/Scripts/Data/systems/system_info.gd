@@ -145,6 +145,7 @@ static func drop_mod(owner_id: String) -> void:
 static func for_system(a_systemid: String) -> SystemInfo:
 	if a_systemid.is_empty():
 		return null
+	a_systemid = SystemIds.canonical(a_systemid)
 	if _mod_infos.has(a_systemid):
 		return _mod_infos[a_systemid]
 	if _cache.has(a_systemid):

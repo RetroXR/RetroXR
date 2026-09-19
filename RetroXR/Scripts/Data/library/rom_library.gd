@@ -12,9 +12,78 @@ static func default_roms_root() -> String:
 	return DataPaths.media_root("roms")
 
 
-## Absolute path for a single system's ROM folder.
+static var _resolved_dirs: Dictionary = {}
+
+
+## Absolute path for a single system's ROM folder: where its gamelist, its
+## scraped media and its RomM index live, and where a download lands.
+##
+## Composed, then resolved. The folder is named for the systemid, which is
+## ES-DE's name for the machine -- but a library from before the rename still
+## says "super_nes", and one laid out for ES-DE may say "sfc". So the first of
+## SystemIds.folder_names() that EXISTS is the folder, and the systemid's own
+## name is the answer when none does. SystemIdMigration moves an old folder to
+## its new name, and cannot always: a folder adb created on a Quest is not the
+## app's to rename. Nothing is lost when it fails, which is the point of asking
+## the disk rather than the table.
 static func rom_dir_for_system(systemid: String) -> String:
-	return default_roms_root().path_join(systemid)
+	var root := default_roms_root()
+	var key := root + "|" + systemid
+	if _resolved_dirs.has(key):
+		return _resolved_dirs[key]
+	_resolved_dirs[key] = resolve_rom_dir(root, systemid)
+	return _resolved_dirs[key]
+
+
+## The resolution itself, with nothing remembered and the root an argument.
+static func resolve_rom_dir(root: String, systemid: String) -> String:
+	for folder: String in SystemIds.folder_names(systemid):
+		var candidate := root.path_join(folder)
+		if DirAccess.dir_exists_absolute(candidate):
+			return candidate
+	return root.path_join(systemid)
+
+
+## Every folder holding this system's ROMs: rom_dir_for_system() first, then any
+## other name for the same machine that exists beside it (a `snes` and an `sfc`
+## are one tile). Only the first is ever written to.
+static func rom_dirs_for_system(systemid: String) -> PackedStringArray:
+	var primary := rom_dir_for_system(systemid)
+	var dirs := PackedStringArray([primary])
+	var root := default_roms_root()
+	for folder: String in SystemIds.folder_names(systemid):
+		var candidate := root.path_join(folder)
+		if candidate != primary and DirAccess.dir_exists_absolute(candidate):
+			dirs.append(candidate)
+	return dirs
+
+
+## Forget which folder each system resolved to. For whoever renames one.
+static func forget_rom_dirs() -> void:
+	_resolved_dirs.clear()
+
+
+## Where a ROM recorded under another name for its folder is now. A saved room
+## and a netplay peer both hold absolute paths, and the folder in one may since
+## have been renamed (roms/super_nes/ to roms/snes/). Returns the path unchanged
+## when it exists, when it is not under the ROM root, or when no folder has it.
+static func relocate(rom_path: String) -> String:
+	if rom_path.is_empty() or FileAccess.file_exists(rom_path) 			or DirAccess.dir_exists_absolute(rom_path):
+		return rom_path
+	var root := default_roms_root().simplify_path()
+	var full := rom_path.simplify_path()
+	if not full.begins_with(root + "/"):
+		return rom_path
+	var rest := full.substr(root.length() + 1)
+	var cut := rest.find("/")
+	if cut < 0:
+		return rom_path
+	var systemid := SystemIds.systemid_for_folder(rest.substr(0, cut))
+	for dir: String in rom_dirs_for_system(systemid):
+		var candidate := dir.path_join(rest.substr(cut + 1))
+		if FileAccess.file_exists(candidate) or DirAccess.dir_exists_absolute(candidate):
+			return candidate
+	return rom_path
 
 
 ## Create just the top-level roms/ root (no systemid). Safe to call any time.
@@ -43,7 +112,17 @@ static func ensure_rom_dir(systemid: String) -> void:
 ## Multi-file disc images (bin/cue, img/ccd, mdf/mds) are collapsed to their
 ## descriptor file — the data-only companion is hidden when its descriptor exists.
 static func scan_roms(systemid: String, extensions: Array[String]) -> Array[Dictionary]:
-	var dir_path := rom_dir_for_system(systemid)
+	var results: Array[Dictionary] = []
+	for dir_path: String in rom_dirs_for_system(systemid):
+		results.append_array(_scan_dir(systemid, dir_path, extensions))
+	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return (a["label"] as String).naturalnocasecmp_to(b["label"] as String) < 0
+	)
+	return results
+
+
+static func _scan_dir(systemid: String, dir_path: String,
+		extensions: Array[String]) -> Array[Dictionary]:
 	var dir := DirAccess.open(dir_path)
 	if not dir:
 		return []
@@ -109,10 +188,6 @@ static func scan_roms(systemid: String, extensions: Array[String]) -> Array[Dict
 		results.append_array(_scan_content_folders(
 			dir_path, subdirs, CoreInfoDatabase.extensions_for_systemid(systemid),
 			extensions))
-
-	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		return (a["label"] as String).naturalnocasecmp_to(b["label"] as String) < 0
-	)
 	return results
 
 

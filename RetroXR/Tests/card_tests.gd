@@ -122,7 +122,7 @@ func _test_registry() -> void:
 
 	# A console reaches its family through its own descriptor, and a Wii must
 	# reach the GAMECUBE's — that is the whole reason a family is not a systemid.
-	_eq(CardFormats.for_system("playstation").id(),
+	_eq(CardFormats.for_system("psx").id(),
 		"playstation", "registry/a PlayStation resolves its family")
 	_ok(CardFormats.for_system("nes") == null, "registry/a cartridge console has none")
 
@@ -567,7 +567,7 @@ func _test_n64_contract() -> void:
 	# Restoring from RomM. A frontend that keeps the paks inside the cartridge
 	# save uploads that whole .srm, filed under the console rather than the pak.
 	var pak := CardFormats.for_family("controller_pak")
-	_eq(pak.romm_systemid(), "nintendo_64", "n64/RomM is asked under the Nintendo 64 platform")
+	_eq(pak.romm_systemid(), "n64", "n64/RomM is asked under the Nintendo 64 platform")
 	_ok(pak.romm_save_extensions().has("srm"), "n64/and a cartridge .srm is accepted from it")
 	_eq(pak.saves_in_download(note).size(), 1, "n64/a downloaded note is itself one save")
 	var lifted := pak.saves_in_download(srm)
@@ -1052,41 +1052,41 @@ func _test_save_device() -> void:
 	_write_bytes(rayman_path, _n64_reorder(rayman, [1, 0, 3, 2]))
 	_write_bytes(majora_path, majora)
 
-	var pak := SaveDevice.format_for("nintendo_64", rayman_path)
+	var pak := SaveDevice.format_for("n64", rayman_path)
 	_eq(pak.id() if pak != null else "", "controller_pak",
 		"save_device/a pak-only N64 cartridge points at the Controller Pak")
-	_ok(SaveDevice.format_for("nintendo_64", majora_path) == null,
+	_ok(SaveDevice.format_for("n64", majora_path) == null,
 		"save_device/one with a save of its own keeps it")
-	_ok(SaveDevice.format_for("nintendo_64", dir + "/absent.z64") == null,
+	_ok(SaveDevice.format_for("n64", dir + "/absent.z64") == null,
 		"save_device/as does a ROM that cannot be read")
-	for pair: Array in [["playstation", "playstation"], ["playstation2", "playstation2"],
-			["gamecube", "gamecube"], ["dreamcast", "vmu"]]:
+	for pair: Array in [["psx", "playstation"], ["ps2", "playstation2"],
+			["gc", "gamecube"], ["dreamcast", "vmu"]]:
 		var fmt := SaveDevice.format_for(str(pair[0]), "")
 		_eq(fmt.id() if fmt != null else "", pair[1], "save_device/a %s disc saves to its %s" % pair)
-	var scd := SaveDevice.format_for("sega_cd", "")
+	var scd := SaveDevice.format_for("segacd", "")
 	_eq(scd.id() if scd != null else "", "sega_cd_memory",
 		"save_device/a Sega CD disc saves to the unit's backup memory")
-	_ok(SaveDevice.note_for("sega_cd", "", "Sonic CD").contains("console's Saves tab"),
+	_ok(SaveDevice.note_for("segacd", "", "Sonic CD").contains("console's Saves tab"),
 		"save_device/and its note points at the console's Saves tab, not a device to fit")
-	var saturn := SaveDevice.format_for("sega_saturn", "")
+	var saturn := SaveDevice.format_for("saturn", "")
 	_eq(saturn.id() if saturn != null else "", "sega_saturn_memory",
 		"save_device/a Saturn disc saves to the console's System Memory")
-	_ok(SaveDevice.note_for("sega_saturn", "", "NiGHTS").contains("console's Saves tab"),
+	_ok(SaveDevice.note_for("saturn", "", "NiGHTS").contains("console's Saves tab"),
 		"save_device/and its note points at the console's Saves tab too")
 	_ok(SaveDevice.format_for("wii", "") == null,
 		"save_device/a Wii game saves to the console, though a Wii takes GameCube cards")
-	_ok(SaveDevice.format_for("super_nes", "") == null,
+	_ok(SaveDevice.format_for("snes", "") == null,
 		"save_device/a cartridge with a battery of its own keeps its save")
 
 	var vmu_note := SaveDevice.note_for("dreamcast", "", "Crazy Taxi 2 (USA)")
 	_ok(vmu_note.begins_with("Crazy Taxi 2 (USA) saves to a Visual Memory Unit, not the disc."),
 		"save_device/the note names the game, the device and the disc", vmu_note)
 	_ok(vmu_note.contains("in a controller"), "save_device/and puts a VMU in a controller", vmu_note)
-	_ok(SaveDevice.note_for("playstation", "", "").contains("in the console"),
+	_ok(SaveDevice.note_for("psx", "", "").contains("in the console"),
 		"save_device/and a memory card in the console")
-	_ok(SaveDevice.note_for("nintendo_64", rayman_path, "Rayman 2").contains(
+	_ok(SaveDevice.note_for("n64", rayman_path, "Rayman 2").contains(
 		"Controller Pak, not the cartridge"), "save_device/an N64 game's note says cartridge")
-	_eq(SaveDevice.note_for("super_nes", "", "Zelda"), "",
+	_eq(SaveDevice.note_for("snes", "", "Zelda"), "",
 		"save_device/a game with a save of its own has no note")
 
 	DirAccess.remove_absolute(rayman_path)

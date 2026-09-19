@@ -11,8 +11,8 @@ display_version = "Git"
 # Hardware Information
 manufacturer = "Sega"
 systemname = "Sega Genesis"
-systemid = "mega_drive"
-secondary_systemids = "sega_cd:cue,iso,chd"
+systemid = "genesis"
+secondary_systemids = "segacd:cue,iso,chd"
 
 # BIOS / Firmware
 firmware_count = 0

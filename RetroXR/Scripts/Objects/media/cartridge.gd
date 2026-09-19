@@ -50,18 +50,18 @@ var _pack_panel: BsxPackPanel = null
 ## stripped from the build — silently keeps the procedural box.
 const _CART_MODELS := {
 	"nes": "res://imported-assets/carts/nes/nes_cart.glb",
-	"atari_2600": "res://imported-assets/carts/atari_2600/atari_2600_cart.glb",
-	"nintendo_64dd": Nintendo64DD.DISK_MODEL,
-	"game_boy_advance": "res://imported-assets/carts/game_boy_advance/gba_cart.glb",
+	"atari2600": "res://imported-assets/carts/atari_2600/atari_2600_cart.glb",
+	"n64dd": Nintendo64DD.DISK_MODEL,
+	"gba": "res://imported-assets/carts/game_boy_advance/gba_cart.glb",
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
 ## the N64 cart's contacts and screws are metal.
-const _AUTHORED_MATERIALS := {"nintendo_64": true}
+const _AUTHORED_MATERIALS := {"n64": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
-const _UV_LABELS := {"nintendo_64": true}
+const _UV_LABELS := {"n64": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
@@ -72,7 +72,7 @@ const _LABEL_MESHES := ["media_label", "Label"]
 ## placeholder the art replaces. The 64DD disk's covers the front recess and a
 ## strip on the trailing edge: the sticker goes in the recess, the spine image
 ## on the strip, and the title on the strip when there is no sticker.
-const _SPINE_LABELS := {"nintendo_64dd": true}
+const _SPINE_LABELS := {"n64dd": true}
 
 const _LABEL_PAPER := Color(0.93, 0.92, 0.89)
 
@@ -179,9 +179,9 @@ func _apply_cart_model() -> void:
 	if _model_label != null or has_node("CartModel"):
 		return
 	# An N64 cartridge's body is regional: N64CartShell picks it per ROM.
-	var market := N64CartShell.market(systemid, rom_path) if systemid == "nintendo_64" else ""
+	var market := N64CartShell.market(systemid, rom_path) if systemid == "n64" else ""
 	var path: String = N64CartShell.body_model_for_region(body_region, market) \
-		if systemid == "nintendo_64" else _CART_MODELS.get(systemid, "")
+		if systemid == "n64" else _CART_MODELS.get(systemid, "")
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var scene := load(path) as PackedScene
@@ -208,9 +208,9 @@ func _apply_cart_model() -> void:
 	# rather than a grey shell — the NES cart ships metallic 0.76.
 	if not _AUTHORED_MATERIALS.has(systemid):
 		ModelMaterialFix.demetal(glb)
-	if systemid == "nintendo_64dd" and Nintendo64DD.is_dev_disk(rom_path):
+	if systemid == "n64dd" and Nintendo64DD.is_dev_disk(rom_path):
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
-	if systemid == "nintendo_64":
+	if systemid == "n64":
 		var preset := N64CartShell.preset_for_rom(rom_path, market)
 		if CartridgeColor.get_palette().find(shell_preset) != null:
 			preset = shell_preset

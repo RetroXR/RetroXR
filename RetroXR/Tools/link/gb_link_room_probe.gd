@@ -65,7 +65,7 @@ func _run() -> void:
 	var order := ["master", "slave"]
 	for i in range(2):
 		var sys := (load(SYS_SCENE) as PackedScene).instantiate() as RetroSystem
-		sys.systemid = "game_boy"
+		sys.systemid = "gb"
 		sys.core_name = CORE
 		sys.name = "GB%d" % i
 		add_child(sys)

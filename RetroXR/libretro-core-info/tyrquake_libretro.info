@@ -11,7 +11,7 @@ categories = "Game"
 # Hardware Information
 manufacturer = "Id Software"
 systemname = "Quake Game Engine"
-systemid = "quake_1"
+systemid = "quake"
 
 # Libretro Features
 supports_no_game = "false"

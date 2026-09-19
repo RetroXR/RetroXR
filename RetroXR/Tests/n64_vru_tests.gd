@@ -69,7 +69,7 @@ func _spawn_unit() -> N64Vru:
 
 func _spawn_n64() -> RetroSystem:
 	var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	sys.systemid = "nintendo_64"
+	sys.systemid = "n64"
 	add_child(sys)
 	await get_tree().process_frame
 	return sys
@@ -189,7 +189,7 @@ func _test_device() -> void:
 	_ok(N64Vru.DEVICE_VRU == (1 << 8) | 1, "device/the id is a joypad subclass",
 		str(N64Vru.DEVICE_VRU))
 	_ok(unit.device_type == N64Vru.DEVICE_VRU, "device/the unit announces it")
-	_ok(unit.systemid == "nintendo_64", "device/it only fits an N64")
+	_ok(unit.systemid == "n64", "device/it only fits an N64")
 	# The box is NOT what a socket takes any more; the plug on its cord is, and it
 	# reads the device off the unit the way every controller's plug does.
 	_ok(not unit.is_in_group("controller_plug"), "device/the box is not itself a plug")
@@ -198,7 +198,7 @@ func _test_device() -> void:
 		"device/its plug is what a socket filters on")
 	_ok(plug != null and plug.device_type == N64Vru.DEVICE_VRU,
 		"device/and the plug carries the unit's device", str(plug.device_type))
-	_ok(plug != null and plug.systemid == "nintendo_64",
+	_ok(plug != null and plug.systemid == "n64",
 		"device/and its console", plug.systemid)
 	_ok(plug != null and plug.get_controller() == unit,
 		"device/the console unwraps the plug back to the unit")
@@ -356,10 +356,10 @@ func _test_drop() -> void:
 
 
 func _test_catalog() -> void:
-	var rows: Array = SpawnCatalog.items_for("nintendo_64")
+	var rows: Array = SpawnCatalog.items_for("n64")
 	var found := false
 	for row: Variant in rows:
-		if SpawnCatalog.spawn_token("nintendo_64", row as Dictionary) == "n64_vru":
+		if SpawnCatalog.spawn_token("n64", row as Dictionary) == "n64_vru":
 			found = true
 	_ok(found, "catalog/the N64 card offers a Voice Recognition Unit")
 	_ok(ScenePersistence.PLAIN_SCENES.has("n64_vru"),

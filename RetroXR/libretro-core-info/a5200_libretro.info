@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Atari"
 systemname = "Atari 5200"
-systemid = "atari_5200"
+systemid = "atari5200"
 
 # Libretro Features
 supports_no_game = "false"

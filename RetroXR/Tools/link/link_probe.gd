@@ -128,7 +128,7 @@ func _find_rom() -> String:
 	# RomLibrary owns where ROMs live on each platform, so ask it rather than
 	# rebuilding the path here and getting it subtly wrong.
 	var root := RomLibrary.default_roms_root()
-	for systemid in ["game_boy_advance", "gba"]:
+	for systemid in ["gba", "gba"]:
 		var dir_path: String = root.path_join(systemid)
 		var dir := DirAccess.open(dir_path)
 		if dir == null:

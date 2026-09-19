@@ -180,25 +180,25 @@ func _test_pair_url() -> void:
 
 func _test_systemid_for() -> void:
 	_eq(RommPlatforms.systemid_for({"slug": "n64", "fs_slug": "n64"}),
-		"nintendo_64", "slug/plain n64")
+		"n64", "slug/plain n64")
 
 	# The one that shipped wrong: 64DD is its own system, not N64.
 	_eq(RommPlatforms.systemid_for({"slug": "64dd", "fs_slug": "n64dd"}),
-		"nintendo_64dd", "slug/64dd is not n64")
+		"n64dd", "slug/64dd is not n64")
 
 	# The same shape as 64DD: Neo Geo CD used to map to "neogeo", a CARTRIDGE
 	# system, so 105 discs spawned as cartridges and neocd — which declares
 	# neo_geo_cd as its own systemid — could never be selected for the folder.
 	_eq(RommPlatforms.systemid_for({"slug": "neogeocd", "fs_slug": "neogeocd"}),
-		"neo_geo_cd", "slug/neogeocd is not neogeo")
+		"neogeocd", "slug/neogeocd is not neogeo")
 	_eq(RommPlatforms.systemid_for({"slug": "neo-geo-cd", "fs_slug": "neo-geo-cd"}),
-		"neo_geo_cd", "slug/the hyphenated RomM form too")
+		"neogeocd", "slug/the hyphenated RomM form too")
 	_eq(RommPlatforms.systemid_for({"slug": "neogeo", "fs_slug": "neogeo"}),
 		"neogeo", "slug/the cartridge Neo Geo is untouched")
 
 	# fs_slug beats slug — it is the folder the user named themselves.
 	_eq(RommPlatforms.systemid_for({"slug": "unknown-thing", "fs_slug": "snes"}),
-		"super_nes", "slug/fs_slug wins")
+		"snes", "slug/fs_slug wins")
 
 	# An explicit override beats both, by either key.
 	_eq(RommPlatforms.systemid_for({"slug": "weird", "fs_slug": "alsoweird"}, {"weird": "nes"}),
@@ -226,16 +226,16 @@ func _test_partition() -> void:
 func _test_collapse_by_systemid() -> void:
 	# snes/sfc/sgb all map to super_nes. Before the fix the dict build kept
 	# whichever came last, so the winner depended on the server's array order.
-	var a := {"slug": "snes", "systemid": "super_nes", "rom_count": 3512}
-	var b := {"slug": "sgb", "systemid": "super_nes", "rom_count": 42}
+	var a := {"slug": "snes", "systemid": "snes", "rom_count": 3512}
+	var b := {"slug": "sgb", "systemid": "snes", "rom_count": 42}
 
 	var forward := RommPlatforms.collapse_by_systemid([a, b])
 	var reverse := RommPlatforms.collapse_by_systemid([b, a])
 
 	_eq((forward["platforms"] as Dictionary).size(), 1, "collapse/one tile per systemid")
-	_eq(str(((forward["platforms"] as Dictionary)["super_nes"] as Dictionary)["slug"]),
+	_eq(str(((forward["platforms"] as Dictionary)["snes"] as Dictionary)["slug"]),
 		"snes", "collapse/biggest wins")
-	_eq(str(((reverse["platforms"] as Dictionary)["super_nes"] as Dictionary)["slug"]),
+	_eq(str(((reverse["platforms"] as Dictionary)["snes"] as Dictionary)["slug"]),
 		"snes", "collapse/order independent")
 
 	# The loser is reported, not dropped on the floor.
@@ -247,7 +247,7 @@ func _test_collapse_by_systemid() -> void:
 	# Distinct systemids never contend.
 	var many := RommPlatforms.collapse_by_systemid([
 		{"slug": "nes", "systemid": "nes", "rom_count": 1},
-		{"slug": "gb", "systemid": "game_boy", "rom_count": 1},
+		{"slug": "gb", "systemid": "gb", "rom_count": 1},
 	])
 	_eq((many["platforms"] as Dictionary).size(), 2, "collapse/distinct kept")
 	_eq((many["shadowed"] as Array).size(), 0, "collapse/no false shadow")
@@ -292,17 +292,17 @@ func _test_firmware_index() -> void:
 	])
 	fw._loaded = true
 
-	var ps2: Array = fw.find_for_system("playstation2")
+	var ps2: Array = fw.find_for_system("ps2")
 	_eq(ps2.size(), 2, "fw/platform index size")
 	_eq(str(_at(ps2, 0).get("file_name", "")), "ps2-0100j-20000117.bin", "fw/name sorted")
-	_eq(fw.find_for_system("playstation").size(), 1, "fw/other platform")
+	_eq(fw.find_for_system("psx").size(), 1, "fw/other platform")
 	_eq(fw.find_for_system("").size(), 0, "fw/unmapped is not a bucket")
-	_eq(fw.find_for_system("gamecube").size(), 0, "fw/no such system")
+	_eq(fw.find_for_system("gc").size(), 0, "fw/no such system")
 
 	# The by-name index still works, and now carries the system with it.
 	var hit := fw.find("scph5500.bin")
 	_eq(int(hit.get("id", 0)), 9, "fw/by name id")
-	_eq(str(hit.get("systemid", "")), "playstation", "fw/by name stamps systemid")
+	_eq(str(hit.get("systemid", "")), "psx", "fw/by name stamps systemid")
 	# Declared nested and stored flat, cased differently — the shipped case.
 	_eq(int(fw.find("Machines/PS2-0120A-20000902.BIN").get("id", 0)),
 		7, "fw/by name is basename+caseless")
@@ -322,8 +322,8 @@ func _test_firmware_index() -> void:
 		{"id": 3, "file_name": "ps2-0100j-20000117.bin", "file_path": "bios/ps2",
 			"file_size_bytes": 4194304},
 	])
-	_eq(fw.find_for_system("playstation2").size(), 1, "fw/reindex replaces")
-	_eq(fw.find_for_system("playstation").size(), 0, "fw/reindex clears other platforms")
+	_eq(fw.find_for_system("ps2").size(), 1, "fw/reindex replaces")
+	_eq(fw.find_for_system("psx").size(), 0, "fw/reindex clears other platforms")
 
 	fw.free()
 

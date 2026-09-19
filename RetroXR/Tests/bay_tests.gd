@@ -707,7 +707,7 @@ func _drop_lid_room() -> void:
 
 func _group_lid() -> void:
 	# A procedural spring lid: the saved HINGE carries the pose home.
-	var gc := await _saved_lid_room("gamecube_primitive", "gamecube")
+	var gc := await _saved_lid_room("gamecube_primitive", "gc")
 	_ok(gc != null, "lid/the saved room comes back")
 	if gc != null:
 		_ok(gc._disc_bay.lid_hinge.get_rotation_deg() > 1.0,
@@ -719,7 +719,7 @@ func _group_lid() -> void:
 	await _clear()
 
 	# A bespoke lid: the saved lid_angle carries the pose home instead.
-	var ps := await _saved_lid_room("playstation", "playstation")
+	var ps := await _saved_lid_room("playstation", "psx")
 	if ps != null:
 		_ok(ps.get_lid_angle_deg() > 1.0,
 			"lid/a bespoke lid comes back standing open")
@@ -753,13 +753,13 @@ func _group_lid() -> void:
 
 	# The controls. Without them every check above passes on a machine that simply
 	# always reports open, which would be a worse bug than the one being tested.
-	var back := await _saved_lid_room("gamecube_primitive", "gamecube", false)
+	var back := await _saved_lid_room("gamecube_primitive", "gc", false)
 	if back != null:
 		_ok(not back._tray_open, "lid/a lid saved SHUT comes back shut")
 		_ok(not (back.get_node("CartridgeSlot") as XRToolsSnapZone).enabled,
 			"lid/with its bay closed")
 	await _clear()
-	var ps_shut := await _saved_lid_room("playstation", "playstation", false)
+	var ps_shut := await _saved_lid_room("playstation", "psx", false)
 	if ps_shut != null:
 		_ok(ps_shut._model._lid_hinge.is_latched_closed(),
 			"lid/a bespoke lid saved SHUT comes back latched")
@@ -857,7 +857,7 @@ func _group_seat() -> void:
 		- deg_to_rad(-10.0)) < 0.001,
 		"seat/spin_of wraps: 350 degrees round is -10")
 
-	var gc := await _console("gamecube_primitive", "gamecube")
+	var gc := await _console("gamecube_primitive", "gc")
 	gc._on_eject_pressed()
 	await _wait(80)
 	_ok(gc._tray != null and gc._tray.is_open(), "seat/the well is open")
@@ -936,8 +936,8 @@ func _group_seat() -> void:
 # --- boot -------------------------------------------------------------------------
 
 func _group_boot() -> void:
-	const GAME := "/roms/gamecube/game.rvz"
-	var gc := await _console("gamecube_primitive", "gamecube")
+	const GAME := "/roms/gc/game.rvz"
+	var gc := await _console("gamecube_primitive", "gc")
 	var disc: Node3D = DISC_SCENE.instantiate()
 	disc.systemid = gc.systemid
 	disc.rom_path = GAME
@@ -973,11 +973,11 @@ func _group_boot() -> void:
 	_ok(gc._boot_disc_path().is_empty(), "boot/but the next power-on does not boot it")
 	await _clear()
 
-	var ps := await _console("playstation", "playstation")
+	var ps := await _console("playstation", "psx")
 	ps.rom_path = BiosBoot.empty_media_file("cue")
 	_ok(ps._boot_disc_path().is_empty(), "boot/a BIOS run's blank image is not booted again")
-	ps.rom_path = "/roms/playstation/game.cue"
-	_ok(ps._boot_disc_path() == "/roms/playstation/game.cue",
+	ps.rom_path = "/roms/psx/game.cue"
+	_ok(ps._boot_disc_path() == "/roms/psx/game.cue",
 		"boot/a path set with no disc in the room stands")
 	await _clear()
 
@@ -1052,7 +1052,7 @@ func _group_pak() -> void:
 	# same group. The pak group is what makes this socket the paks' and nothing
 	# else's.
 	var cart := CART_SCENE.instantiate() as Node3D
-	cart.systemid = "nintendo_64"
+	cart.systemid = "n64"
 	add_child(cart)
 	_spawned.append(cart)
 	await _wait(4)
@@ -1083,11 +1083,11 @@ func _group_pak() -> void:
 	_ok(bay != null, "pak/the Transfer Pak has a cartridge bay")
 	if bay != null:
 		var gb := CART_SCENE.instantiate() as Node3D
-		gb.systemid = "game_boy"
+		gb.systemid = "gb"
 		add_child(gb)
 		_spawned.append(gb)
 		var snes := CART_SCENE.instantiate() as Node3D
-		snes.systemid = "super_nes"
+		snes.systemid = "snes"
 		add_child(snes)
 		_spawned.append(snes)
 		await _wait(4)

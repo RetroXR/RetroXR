@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Game Boy Advance"
-systemid = "game_boy_advance"
+systemid = "gba"
 
 # Libretro Features
 supports_no_game = "false"

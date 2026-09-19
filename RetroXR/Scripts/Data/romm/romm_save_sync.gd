@@ -792,7 +792,7 @@ func load_state() -> void:
 	if parsed.get("saves") is Dictionary:
 		_state = parsed["saves"]
 	if parsed.get("rom_ids") is Dictionary:
-		_hash_ids = parsed["rom_ids"]
+		_hash_ids = SystemIds.rekeyed_paths(parsed["rom_ids"] as Dictionary)
 
 
 ## Returns false when the ledger did not reach disk. Losing it means every save

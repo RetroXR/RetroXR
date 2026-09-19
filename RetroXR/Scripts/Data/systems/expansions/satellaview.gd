@@ -24,7 +24,7 @@ const ID := "satellaview"
 # plane with half of it inside a 70 mm box.
 const ROW := {
 	"label": "Satellaview",
-	"host": "super_nes",
+	"host": "snes",
 	"media": "satellaview",
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.29, 0.07, 0.24),
@@ -50,7 +50,7 @@ const BOOT := {
 	# "host", not "expansion:satellaview": the Satellaview has no bay (see
 	# media_in_host on its ROWS entry), so the .bs is in the Super Famicom's own
 	# slot. Same file either way — this row exists to pin the core, not to find it.
-	"super_nes|satellaview": {
+	"snes|satellaview": {
 		"core": "snes9x",
 		"roms": ["host"],
 	},

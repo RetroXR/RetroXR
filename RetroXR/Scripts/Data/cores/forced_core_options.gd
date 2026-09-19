@@ -38,7 +38,7 @@ static func all(core: String, systemid: String, rom_path: String,
 ## The GameCube Microphone's button. Dolphin reads it from the joypad bit this
 ## option names, on any port; GcMicrophone holds R3, which no GameCube pad sends.
 static func microphone_hotkey(core: String, systemid: String) -> Dictionary:
-	if core.begins_with("dolphin") and systemid == "gamecube":
+	if core.begins_with("dolphin") and systemid == "gc":
 		return {"dolphin_hotkey_activate_microphone": "R3"}
 	# The Famicom's Controller II microphone, which RetroXR's build of fceumm
 	# reads as player 2's Start. An upstream build never declares the key and
@@ -88,7 +88,7 @@ static func removable_media(core: String, card_family: String,
 ## Any unit whose bay takes 64DD disks: the retail drive or the development unit.
 static func _has_disk_drive(expansions: Array) -> bool:
 	for id in expansions:
-		if ExpansionCatalog.media_of(str(id)) == "nintendo_64dd":
+		if ExpansionCatalog.media_of(str(id)) == "n64dd":
 			return true
 	return false
 
@@ -101,7 +101,7 @@ static func disk_drive(core: String, systemid: String, expansions: Array,
 	# expansion, and asking only about the systemid misses it entirely -- which
 	# left the assembled machine running with its drive switched off, on the one
 	# machine that visibly has one.
-	if systemid != "nintendo_64dd" and not _has_disk_drive(expansions):
+	if systemid != "n64dd" and not _has_disk_drive(expansions):
 		return {}
 	if core == "parallel_n64":
 		return {"parallel-n64-64dd-hardware": "enabled"}
@@ -139,7 +139,7 @@ static func disk_drive(core: String, systemid: String, expansions: Array,
 	# and the disk in the drive underneath. Reading the slot alone got this
 	# backwards for the standalone machine -- the case the pin was written for --
 	# and it went black again.
-	var cartridge_less := systemid == "nintendo_64dd" or media_path.is_empty()
+	var cartridge_less := systemid == "n64dd" or media_path.is_empty()
 	if core == "mupen64plus_next" and cartridge_less:
 		var api := AppPrefs.hw_render_for(core)
 		return {"mupen64plus-rdp-plugin": "parallel" if api == "vulkan" else "angrylion"}
@@ -182,7 +182,7 @@ static func expansion_pak(core: String, expansions: Array) -> Dictionary:
 ## means anything for, and expansions is empty on all of them regardless --
 ## without the gate every one of those machines would be pinned "disabled" too.
 static func fm_sound_unit(core: String, systemid: String, expansions: Array) -> Dictionary:
-	if systemid != "master_system" or core != "genesis_plus_gx":
+	if systemid != "mastersystem" or core != "genesis_plus_gx":
 		return {}
 	return {"genesis_plus_gx_ym2413": "enabled" if expansions.has("fm_sound_unit") else "disabled"}
 

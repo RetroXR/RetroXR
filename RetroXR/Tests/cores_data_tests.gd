@@ -181,18 +181,18 @@ func _group_forced() -> void:
 	# a disk from the library makes a nintendo_64dd machine, while bolting the
 	# drive under a console leaves it a nintendo_64 with an expansion. Asking
 	# only about the systemid left the assembled machine's drive switched off.
-	var by_system := ForcedCoreOptions.disk_drive("parallel_n64", "nintendo_64dd", [], "")
+	var by_system := ForcedCoreOptions.disk_drive("parallel_n64", "n64dd", [], "")
 	_eq(by_system.get("parallel-n64-64dd-hardware"), "enabled",
 		"forced/a 64DD machine switches the drive on")
 	var by_expansion := ForcedCoreOptions.disk_drive(
-		"parallel_n64", "nintendo_64", ["nintendo_64dd"], "")
+		"parallel_n64", "n64", ["nintendo_64dd"], "")
 	_eq(by_expansion.get("parallel-n64-64dd-hardware"), "enabled",
 		"forced/and so does a console with the drive bolted under it")
 	var by_dev := ForcedCoreOptions.disk_drive(
-		"parallel_n64", "nintendo_64", ["nintendo_64dd_dev"], "")
+		"parallel_n64", "n64", ["nintendo_64dd_dev"], "")
 	_eq(by_dev.get("parallel-n64-64dd-hardware"), "enabled",
 		"forced/the development unit is the same drive")
-	_eq(ForcedCoreOptions.disk_drive("parallel_n64", "nintendo_64", [], ""), {},
+	_eq(ForcedCoreOptions.disk_drive("parallel_n64", "n64", [], ""), {},
 		"forced/a plain N64 is left alone")
 
 	# The Expansion Pak is pinned in BOTH directions: the core's own default is
@@ -219,13 +219,13 @@ func _group_forced() -> void:
 	# The FM Sound Unit is gated on the SYSTEM as well, unlike the Pak: the same
 	# core runs the Mega Drive, Game Gear and SG-1000, and without the gate every
 	# one of those would be pinned "disabled" for a chip they never had.
-	_eq(ForcedCoreOptions.fm_sound_unit("genesis_plus_gx", "master_system",
+	_eq(ForcedCoreOptions.fm_sound_unit("genesis_plus_gx", "mastersystem",
 			["fm_sound_unit"]).get("genesis_plus_gx_ym2413"), "enabled",
 		"forced/a Master System with the unit enables the YM2413")
-	_eq(ForcedCoreOptions.fm_sound_unit("genesis_plus_gx", "master_system", [])
+	_eq(ForcedCoreOptions.fm_sound_unit("genesis_plus_gx", "mastersystem", [])
 			.get("genesis_plus_gx_ym2413"), "disabled",
 		"forced/without it the chip is pinned off, not left on auto")
-	_eq(ForcedCoreOptions.fm_sound_unit("genesis_plus_gx", "mega_drive",
+	_eq(ForcedCoreOptions.fm_sound_unit("genesis_plus_gx", "genesis",
 			["fm_sound_unit"]), {},
 		"forced/a Mega Drive on the same core is untouched")
 

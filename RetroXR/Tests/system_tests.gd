@@ -104,6 +104,7 @@ func _ready() -> void:
 	await _test_save_state_gates()
 	await _test_sram_paths()
 	await _test_save_migration()
+	await _test_systemid_migration()
 	_test_delete_save_clocks()
 	_test_libretro_port_routing()
 	_test_port_device_cache()
@@ -248,18 +249,18 @@ func _test_core_device_id() -> void:
 ## for that reason -- a test that only checks the platforms in the list would
 ## still pass if the row were appended to every card.
 func _test_light_gun_cards() -> void:
-	var with_gun: Array = ["nes", "super_nes", "master_system", "mega_drive",
-		"sega_saturn", "dreamcast", "playstation", "playstation2",
-		"atari_2600", "atari_7800", "atari_8bit", "commodore_c64", "zx_spectrum",
-		"cpc", "3do", "cdi"]
+	var with_gun: Array = ["nes", "snes", "mastersystem", "genesis",
+		"saturn", "dreamcast", "psx", "ps2",
+		"atari2600", "atari7800", "atari800", "c64", "zxspectrum",
+		"amstradcpc", "3do", "cdi"]
 	# sega_cd moved across deliberately: light-gun games were sold for it, but
 	# its card spawns the Mega-CD UNIT and a gun goes into the Mega Drive
 	# standing on it. mega_drive is in the list above and still offers the row,
 	# so the hardware is still reachable -- from the machine it plugs into.
-	var without_gun: Array = ["nintendo_64", "gamecube", "wii", "virtual_boy",
-		"game_boy", "game_boy_advance", "neogeo", "atari_5200", "colecovision",
-		"intellivision", "vectrex", "pc_engine", "sg1000", "nds", "dos",
-		"sega_cd"]
+	var without_gun: Array = ["n64", "gc", "wii", "virtualboy",
+		"gb", "gba", "neogeo", "atari5200", "colecovision",
+		"intellivision", "vectrex", "tg16", "sg-1000", "nds", "dos",
+		"segacd"]
 
 	for sysid: String in with_gun:
 		_ok(not _gun_row(sysid).is_empty(), "gun/%s offers one" % sysid)
@@ -276,9 +277,9 @@ func _test_light_gun_cards() -> void:
 
 	# The row has to carry a token SpawnMenuController already handles, or the
 	# button is drawn and does nothing.
-	var row := _gun_row("super_nes")
+	var row := _gun_row("snes")
 	_eq(String(row.get("kind", "")), "peripheral", "gun/is a peripheral")
-	_eq(SpawnCatalog.spawn_token("super_nes", row), "light_gun", "gun/token")
+	_eq(SpawnCatalog.spawn_token("snes", row), "light_gun", "gun/token")
 	_ok((load("res://Scenes/Objects/peripherals/light_gun.tscn") as PackedScene) .can_instantiate(),
 		"gun/the token's scene loads a LightGun")
 
@@ -300,7 +301,7 @@ func _test_bsx_card() -> void:
 	_eq(ExpansionCatalog.card_systemid("bsx_cart"),
 		"satellaview", "bsx/filed on the Satellaview card")
 	_ok(ExpansionCatalog.ids_carded_on("satellaview").has("bsx_cart"), "bsx/and listed there")
-	_ok(not ExpansionCatalog.ids_carded_on("super_nes").has("bsx_cart"),
+	_ok(not ExpansionCatalog.ids_carded_on("snes").has("bsx_cart"),
 		"bsx/not on the Super Famicom's")
 	# The Jaguar CD used to be the case this rule did NOT move: its discs were
 	# filed as the Jaguar's own media, so it had no tile and the console's card
@@ -308,13 +309,13 @@ func _test_bsx_card() -> void:
 	# in secondary_systemids now, so the CD half is a system, and the unit is
 	# spawned from its own card like every other expansion.
 	_eq(ExpansionCatalog.card_systemid("jaguar_cd"),
-		"jaguar_cd", "bsx/the Jaguar CD is filed on its own card")
-	_ok(not ExpansionCatalog.ids_carded_on("atari_jaguar").has("jaguar_cd"),
+		"atarijaguarcd", "bsx/the Jaguar CD is filed on its own card")
+	_ok(not ExpansionCatalog.ids_carded_on("atarijaguar").has("jaguar_cd"),
 		"bsx/the Jaguar CD no longer sits on the console's")
-	_ok(not _spawn_row("jaguar_cd", "expansion:jaguar_cd").is_empty(),
+	_ok(not _spawn_row("atarijaguarcd", "expansion:jaguar_cd").is_empty(),
 		"bsx/and is offered from its own spawn menu")
 
-	_ok(_spawn_row("super_nes", "expansion:bsx_cart").is_empty(),
+	_ok(_spawn_row("snes", "expansion:bsx_cart").is_empty(),
 		"bsx/never on the SNES spawn list")
 	var installed := ExpansionCatalog.firmware_present("bsx_cart")
 	var offered := not _spawn_row("satellaview", "expansion:bsx_cart").is_empty()
@@ -354,7 +355,7 @@ func _gun_row(sysid: String) -> Dictionary:
 ## the next press is correctly ignored, and the button reads as dead.
 func _test_playstation_hardware() -> void:
 	var labels: Array = []
-	for it in SpawnCatalog.items_for("playstation"):
+	for it in SpawnCatalog.items_for("psx"):
 		labels.append(String((it as Dictionary).get("label", "")))
 	# A platform that models its own console AND its own pads has no use for the
 	# generic box or the generic pad; they are clutter on its card.
@@ -368,7 +369,7 @@ func _test_playstation_hardware() -> void:
 	if sys_scene == null or card_scene == null:
 		return
 	var psx: Node3D = sys_scene.instantiate()
-	psx.systemid = "playstation"
+	psx.systemid = "psx"
 	add_child(psx)
 	var card: Node3D = card_scene.instantiate()
 	add_child(card)
@@ -442,7 +443,7 @@ func _test_analog_mode_switch() -> void:
 	if sys_scene == null or pad_scene == null:
 		return
 	var psx: Node3D = sys_scene.instantiate()
-	psx.systemid = "playstation"
+	psx.systemid = "psx"
 	add_child(psx)
 	var pad: Node3D = pad_scene.instantiate()
 	add_child(pad)
@@ -691,7 +692,7 @@ func _test_front_tray_spin() -> void:
 	var sys: Node3D = sys_scene.instantiate()
 	# A PS2 has no model_registry row, so it wears the placeholder box, and
 	# MediaDimensions.has_front_tray puts a sliding shelf on it.
-	sys.systemid = "playstation2"
+	sys.systemid = "ps2"
 	add_child(sys)
 	for i in range(20):
 		await get_tree().process_frame
@@ -752,7 +753,7 @@ func _test_front_tray_spin() -> void:
 # ---------------------------------------------------------------------------
 
 func _test_media_removal() -> void:
-	var tray := _system("playstation")
+	var tray := _system("psx")
 	tray._disc_loader = MediaDimensions.LOADER_TRAY
 	_ok(tray._media_survives_removal(), "media/a tray console keeps running")
 	tray.free()
@@ -765,8 +766,8 @@ func _test_media_removal() -> void:
 	# A Neo Geo CD loads under a lift-up lid, the same motion as the PlayStation
 	# above. Without a DISC_DIAMETERS row it was not a disc system at all and its
 	# discs were moulded as cartridges.
-	_ok(MediaDimensions.is_disc_system("neo_geo_cd"), "media/the Neo Geo CD is a disc system")
-	_eq(MediaDimensions.disc_loader("neo_geo_cd"), MediaDimensions.LOADER_TRAY,
+	_ok(MediaDimensions.is_disc_system("neogeocd"), "media/the Neo Geo CD is a disc system")
+	_eq(MediaDimensions.disc_loader("neogeocd"), MediaDimensions.LOADER_TRAY,
 		"media/and loads under a lid")
 
 	# No disc loader at all, but the media is a floppy — the drive is a slot in
@@ -786,12 +787,12 @@ func _test_media_removal() -> void:
 	# before the core is even loaded. The live disk_control_ready signal lands
 	# some frames into the run, and a disc pulled before it did used to take the
 	# no-disk-control path and power the machine off.
-	var psx := _system("playstation")
+	var psx := _system("psx")
 	psx.core_name = "pcsx_rearmed"
 	_ok(psx._supports_disk_control(), "disk control/declared by a PS1 core")
 	psx.free()
 
-	var amiga := _system("commodore_amiga")
+	var amiga := _system("amiga")
 	amiga.core_name = "puae"
 	_ok(amiga._supports_disk_control(), "disk control/declared by a floppy core")
 	amiga.free()
@@ -805,7 +806,7 @@ func _test_media_removal() -> void:
 	_ok(nes._supports_disk_control(), "disk control/the live answer wins")
 	nes.free()
 
-	var unknown := _system("playstation")
+	var unknown := _system("psx")
 	unknown.core_name = "not_a_real_core"
 	_ok(not unknown._supports_disk_control(), "disk control/an unknown core claims nothing")
 	unknown.free()
@@ -910,7 +911,7 @@ func _test_belongs_here() -> void:
 	# The media table is the console's, and it is not symmetric: a Wii takes a
 	# GameCube disc, a GameCube does not take a Wii one.
 	var wii := _system("wii")
-	cart.systemid = "gamecube"
+	cart.systemid = "gc"
 	_ok(wii._accepts_media(cart), "belongs/a Wii takes a GameCube disc")
 	# ...and the front of the machine agrees with the tray. This case used to
 	# read the other way, pinning an empty port table, and the cost of that
@@ -919,13 +920,13 @@ func _test_belongs_here() -> void:
 	_ok(wii._accepts_plug(cart), "belongs/and a GameCube plug in its front sockets")
 	wii.free()
 
-	var cube := _system("gamecube")
+	var cube := _system("gc")
 	cart.systemid = "wii"
 	_ok(not cube._accepts_media(cart), "belongs/a GameCube refuses a Wii disc")
 	cube.free()
 
-	var gba := _system("game_boy_advance")
-	cart.systemid = "game_boy"
+	var gba := _system("gba")
+	cart.systemid = "gb"
 	_ok(gba._accepts_media(cart), "belongs/a GBA takes a Game Boy cart")
 	gba.free()
 
@@ -1224,7 +1225,7 @@ func _test_neo_geo_cd_cores() -> void:
 
 	# neocd owns the id outright, so it needs nothing declared to be found.
 	var owners: Array[String] = []
-	for entry: Dictionary in db.get_by_systemid("neo_geo_cd"):
+	for entry: Dictionary in db.get_by_systemid("neogeocd"):
 		owners.append(str(entry.get("corename", "")))
 	_ok(owners.has("NeoCD"), "neogeocd/neocd serves it")
 
@@ -1237,7 +1238,7 @@ func _test_neo_geo_cd_cores() -> void:
 
 	# A CHD is the point of the whole platform: the library stores these discs
 	# converted, so an extension list without chd files none of them.
-	var exts := CoreInfoDatabase.extensions_for_systemid("neo_geo_cd")
+	var exts := CoreInfoDatabase.extensions_for_systemid("neogeocd")
 	_ok(exts.has("cue"), "neogeocd/reads cue")
 	_ok(exts.has("chd"), "neogeocd/reads chd")
 	# Geolith contributes only its declared subset, never its whole list.
@@ -1286,38 +1287,38 @@ func _test_bios_boot_table() -> void:
 
 	# Keyed on the PAIR. One core, five Sega machines, five different boot ROMs
 	# — read by core alone this would offer a Game Gear the Mega Drive's.
-	_eq(BiosBoot.entry("genesis_plus_gx", "mega_drive").get("boot_rom", []),
+	_eq(BiosBoot.entry("genesis_plus_gx", "genesis").get("boot_rom", []),
 		["bios_MD.bin"], "table/a Mega Drive wants its own boot rom")
-	_eq(BiosBoot.entry("genesis_plus_gx", "game_gear").get("boot_rom", []),
+	_eq(BiosBoot.entry("genesis_plus_gx", "gamegear").get("boot_rom", []),
 		["bios.gg"], "table/a Game Gear wants its own")
 
 	# Measured, and the natural guess is the wrong way round: pcee2 says
 	# pcsx2_fast_boot where LRPS2 says pcsx2_fastboot.
-	_ok((BiosBoot.entry("pcee2", "playstation2").get("splash", {}) as Dictionary) .has("pcsx2_fast_boot"),
+	_ok((BiosBoot.entry("pcee2", "ps2").get("splash", {}) as Dictionary) .has("pcsx2_fast_boot"),
 		"table/pcee2 uses fast_boot")
-	_ok((BiosBoot.entry("pcsx2", "playstation2").get("splash", {}) as Dictionary) .has("pcsx2_fastboot"),
+	_ok((BiosBoot.entry("pcsx2", "ps2").get("splash", {}) as Dictionary) .has("pcsx2_fastboot"),
 		"table/pcsx2 uses fastboot")
 
 	# Measured per core: a zero-byte image, a silent audio track, or nothing.
-	_eq(BiosBoot.empty_media_extension("pcsx_rearmed", "playstation"),
+	_eq(BiosBoot.empty_media_extension("pcsx_rearmed", "psx"),
 		"cue", "table/a PlayStation takes a blank disc")
-	_eq(BiosBoot.empty_media_track("pcsx_rearmed", "playstation"),
+	_eq(BiosBoot.empty_media_track("pcsx_rearmed", "psx"),
 		"", "table/a zero-byte one")
-	_eq(BiosBoot.empty_media_extension("mednafen_saturn", "sega_saturn"),
+	_eq(BiosBoot.empty_media_extension("mednafen_saturn", "saturn"),
 		"cue", "table/a Saturn takes a disc image")
-	_eq(BiosBoot.empty_media_track("mednafen_saturn", "sega_saturn"),
+	_eq(BiosBoot.empty_media_track("mednafen_saturn", "saturn"),
 		"audio", "table/holding one silent audio track")
 	_ok(BiosBoot.boots_with_no_content("flycast", "dreamcast"),
 		"table/a Dreamcast starts with nothing at all")
-	_ok(BiosBoot.boots_with_no_content("pcsx2", "playstation2"),
+	_ok(BiosBoot.boots_with_no_content("pcsx2", "ps2"),
 		"table/so does a PS2 on LRPS2")
-	_ok(BiosBoot.boots_with_no_content("dolphin", "gamecube"),
+	_ok(BiosBoot.boots_with_no_content("dolphin", "gc"),
 		"table/and a GameCube, into its IPL")
-	_ok(not BiosBoot.boots_with_no_content("pcee2", "playstation2"),
+	_ok(not BiosBoot.boots_with_no_content("pcee2", "ps2"),
 		"table/but not on pcee2, which refuses a no-content start")
 	_eq(BiosBoot.empty_media_file("cue").get_file(), "no_disc.cue",
 		"table/the zero-byte image keeps its name")
-	var sheet_path := BiosBoot.empty_media_for("mednafen_saturn", "sega_saturn")
+	var sheet_path := BiosBoot.empty_media_for("mednafen_saturn", "saturn")
 	_eq(sheet_path.get_file(), "no_disc_audio.cue", "table/the Saturn's image is its own file")
 	var bin_path := sheet_path.get_basename() + ".bin"
 	_ok(FileAccess.file_exists(bin_path)
@@ -1328,17 +1329,17 @@ func _test_bios_boot_table() -> void:
 		"table/as one audio track of that file")
 	_ok(BiosBoot.is_empty_media(sheet_path) and BiosBoot.is_empty_media(BiosBoot.empty_media_file("cue")),
 		"table/both images are recognized as blank")
-	_ok(not BiosBoot.is_empty_media("/roms/playstation/no_disc_game.cue"),
+	_ok(not BiosBoot.is_empty_media("/roms/psx/no_disc_game.cue"),
 		"table/a game in the library is not, whatever it is called")
-	_eq(BiosBoot.empty_boot_options("mgba", "game_boy_advance").get("mgba_skip_bios"),
+	_eq(BiosBoot.empty_boot_options("mgba", "gba").get("mgba_skip_bios"),
 		"OFF",
 		"table/a cartridge-less GBA pins its real BIOS path")
-	_eq(BiosBoot.empty_boot_options("pcsx_rearmed", "playstation").get("pcsx_rearmed_bios"),
+	_eq(BiosBoot.empty_boot_options("pcsx_rearmed", "psx").get("pcsx_rearmed_bios"),
 		"auto",
 		"table/an empty PlayStation pins automatic real BIOS selection")
-	_eq(BiosBoot.boot_rom_paths("mgba", "game_boy_advance"),
+	_eq(BiosBoot.boot_rom_paths("mgba", "gba"),
 		["gba_bios.bin"], "table/the GBA fingerprint names its boot ROM")
-	_eq(BiosBoot.empty_media_extension("dolphin", "gamecube"),
+	_eq(BiosBoot.empty_media_extension("dolphin", "gc"),
 		"", "table/a GameCube does not")
 	_eq(BiosBoot.empty_media_extension("fceumm", "nes"),
 		"", "table/nor does a machine with no row")
@@ -1363,10 +1364,10 @@ func _test_bios_pinned_options() -> void:
 	# The empty-slot half. This is the case that used to reach netplay and
 	# nothing else: net_boot_spec read it, the local power-on path never did, so
 	# a saved mgba_skip_bios = ON skipped the BIOS with nothing to put it back.
-	_eq(BiosBoot.pinned_options("mgba", "game_boy_advance", true).get("mgba_skip_bios", ""),
+	_eq(BiosBoot.pinned_options("mgba", "gba", true).get("mgba_skip_bios", ""),
 		"OFF",
 		"pin/an empty slot pins the boot ROM on")
-	_eq(BiosBoot.pinned_options("mgba", "game_boy_advance", true).get("mgba_use_bios", ""),
+	_eq(BiosBoot.pinned_options("mgba", "gba", true).get("mgba_use_bios", ""),
 		"ON",
 		"pin/and the BIOS itself in use")
 
@@ -1406,7 +1407,7 @@ func _test_bios_pinned_options() -> void:
 ## it was not already there and removes exactly what it made.
 func _test_bios_pins_reach_the_opt_file() -> void:
 	var core := "pcsx2"
-	var systemid := "playstation2"
+	var systemid := "ps2"
 	var key := "pcsx2_fastboot"
 	var dest := FirmwareRequirements.destination(core, "pcsx2/bios")
 	var made_dir := not DirAccess.dir_exists_absolute(dest)
@@ -1471,24 +1472,24 @@ func _test_power_on_verdict() -> void:
 	_eq(empty["rom"], "", "verdict/and nothing in the slot")
 
 	# The wording follows the machine, not the core. Untested before this.
-	var disc := RetroSystem._power_on_verdict("pcsx_rearmed", "playstation", "", none, "")
+	var disc := RetroSystem._power_on_verdict("pcsx_rearmed", "psx", "", none, "")
 	_ok(str(disc["description"]).contains("disc"), "verdict/worded for a disc")
 
 	# The substitution: a blank image was resolved, so the machine starts on it.
 	var bios := RetroSystem._power_on_verdict(
-		"pcsx_rearmed", "playstation", "", none, "/tmp/no_disc.cue")
+		"pcsx_rearmed", "psx", "", none, "/tmp/no_disc.cue")
 	_ok(bios["start"], "verdict/an empty slot with a blank disc starts")
 	_eq(bios["rom"], "/tmp/no_disc.cue", "verdict/on the blank disc")
 
 	# A disc lying under an open lid is not read, and the card says what to do.
-	var lid := RetroSystem._power_on_verdict("dolphin", "gamecube", "", none, "", false, true, "lid")
+	var lid := RetroSystem._power_on_verdict("dolphin", "gc", "", none, "", false, true, "lid")
 	_ok(not lid["start"], "verdict/a disc under an open lid refuses")
 	_eq(lid["title"], "Lid open", "verdict/and says the lid is open")
 	_eq(lid["description"], "Close the lid, then switch it on.", "verdict/and to close it")
-	_eq(RetroSystem._power_on_verdict("pcsx2", "playstation2", "", none, "", false, true,
+	_eq(RetroSystem._power_on_verdict("pcsx2", "ps2", "", none, "", false, true,
 		"tray")["title"], "Tray open", "verdict/a front tray is called a tray")
 	var open_bios := RetroSystem._power_on_verdict(
-		"pcsx_rearmed", "playstation", "", none, "/tmp/no_disc.cue", false, true, "lid")
+		"pcsx_rearmed", "psx", "", none, "/tmp/no_disc.cue", false, true, "lid")
 	_ok(open_bios["start"] and open_bios["rom"] == "/tmp/no_disc.cue",
 		"verdict/a machine that can show its BIOS does so with its lid open")
 	_ok(RetroSystem._power_on_verdict("flycast", "dreamcast", "", none, "", true, true,
@@ -1501,7 +1502,7 @@ func _test_power_on_verdict() -> void:
 		"dest": "/root/system/pcee2/pcsx2/bios",
 	}]
 	var no_bios := RetroSystem._power_on_verdict(
-		"pcee2", "playstation2", "/roms/g.iso", missing, "")
+		"pcee2", "ps2", "/roms/g.iso", missing, "")
 	_ok(not no_bios["start"], "verdict/a missing required bios refuses")
 	_eq(no_bios["title"], "BIOS required", "verdict/and names the fault")
 	_ok(str(no_bios["description"]).contains("pcsx2/bios"), "verdict/names the file")
@@ -1519,27 +1520,27 @@ func _test_power_on_verdict() -> void:
 		"path": "pcsx2/resources", "desc": "'pcsx2/resources' folder",
 		"dest": "/root/system/pcee2/pcsx2/resources",
 	}]
-	var counted := RetroSystem._power_on_verdict("pcee2", "playstation2", "/roms/g.iso", two, "")
+	var counted := RetroSystem._power_on_verdict("pcee2", "ps2", "/roms/g.iso", two, "")
 	_ok(str(counted["description"]).contains("(+1 more)"), "verdict/two missing files are counted")
 
 	# Order matters: a machine that is both empty AND missing its BIOS is told
 	# about the BIOS, which is the one the player cannot fix from where they
 	# stand by reaching for a cartridge.
-	_eq(RetroSystem._power_on_verdict("pcee2", "playstation2", "", missing, "")["title"],
+	_eq(RetroSystem._power_on_verdict("pcee2", "ps2", "", missing, "")["title"],
 		"BIOS required",
 		"verdict/a missing bios outranks an empty slot")
 
 	# A Sega CD disc needs a Sega CD BIOS the core's .info calls optional, and
 	# without this the player saw only "This core refused the game".
-	_ok(BiosBoot.media_needs_boot_rom("genesis_plus_gx", "sega_cd"),
+	_ok(BiosBoot.media_needs_boot_rom("genesis_plus_gx", "segacd"),
 		"verdict/a Sega CD game needs its BIOS to start")
-	_ok(not BiosBoot.media_needs_boot_rom("genesis_plus_gx", "mega_drive"),
+	_ok(not BiosBoot.media_needs_boot_rom("genesis_plus_gx", "genesis"),
 		"verdict/a Genesis cartridge on the same core does not")
-	var scd_row := BiosBoot.media_boot_rom_row("genesis_plus_gx", "sega_cd")
+	var scd_row := BiosBoot.media_boot_rom_row("genesis_plus_gx", "segacd")
 	_eq((scd_row.get("any_of", []) as Array).size(), 3, "verdict/any of the three regions would do")
 	var scd_missing: Array[Dictionary] = [scd_row]
-	var no_scd := RetroSystem._power_on_verdict("genesis_plus_gx", "mega_drive",
-		"/roms/sega_cd/game.chd", scd_missing, "")
+	var no_scd := RetroSystem._power_on_verdict("genesis_plus_gx", "genesis",
+		"/roms/segacd/game.chd", scd_missing, "")
 	_ok(not no_scd["start"], "verdict/with none installed the disc is refused before the core")
 	_eq(no_scd["title"], "BIOS required", "verdict/as a missing BIOS")
 	_ok(str(no_scd["description"]).contains("Sega CD BIOS")
@@ -1609,7 +1610,7 @@ func _test_memcard_presence() -> void:
 	# takes cards is asked of the MODEL first, and a bare RetroSystem has none, so
 	# it answers no to everything. Adding it runs _ready, which loads one.
 	var psx := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	psx.systemid = "playstation"
+	psx.systemid = "psx"
 	add_child(psx)
 
 	# Nothing seated: the slot is typed absent AND reported empty. Both, because
@@ -1676,7 +1677,7 @@ func _test_memcard_presence() -> void:
 	# group, which scene persistence and the netplay sync both rely on, so
 	# splitting the group was never an option.
 	var gc := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	gc.systemid = "gamecube"
+	gc.systemid = "gc"
 	add_child(gc)
 	_eq(gc.card_slot_count(), 2, "memcard/a GameCube has two slots")
 	_eq(gc.card_family(), "gamecube", "memcard/of the GameCube family")
@@ -1714,10 +1715,10 @@ func _test_memcard_presence() -> void:
 		"memcard/which is not the PlayStation's")
 
 	# The PlayStation 2, asked of the descriptor for the same reason the Wii is.
-	var ps2_info := SystemInfo.for_system("playstation2")
+	var ps2_info := SystemInfo.for_system("ps2")
 	_eq(ps2_info.card_slots, 2, "memcard/a PlayStation 2 has two slots")
 	_eq(ps2_info.card_family, "playstation2", "memcard/of its own family")
-	_ok(CardFormats.for_system("playstation2") != null,
+	_ok(CardFormats.for_system("ps2") != null,
 		"memcard/which resolves to a format")
 	_ok(SramPaths.cards_dir("playstation2") != SramPaths.cards_dir("playstation"),
 		"memcard/and a folder the PlayStation's cards are not in")
@@ -1862,7 +1863,7 @@ func _test_power_led() -> void:
 	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
 	if sys_scene == null:
 		return
-	for spec in [["playstation", 1.0], ["nes", 3.0]]:
+	for spec in [["psx", 1.0], ["nes", 3.0]]:
 		var systemid: String = spec[0]
 		var want_energy: float = spec[1]
 		var sys: Node3D = sys_scene.instantiate()
@@ -2034,7 +2035,7 @@ func _test_sram_paths() -> void:
 	if sys_scene == null:
 		return
 	var psx: Node3D = sys_scene.instantiate()
-	psx.systemid = "playstation"
+	psx.systemid = "psx"
 	add_child(psx)
 	for i in range(20):
 		await get_tree().process_frame
@@ -2141,7 +2142,7 @@ func _test_sram_paths() -> void:
 	# An N64 cartridge's SAVE_RAM is a struct each core lays out its own way, so
 	# it stays keyed by core.
 	var n64: Node3D = sys_scene.instantiate()
-	n64.systemid = "nintendo_64"
+	n64.systemid = "n64"
 	add_child(n64)
 	for i in range(20):
 		await get_tree().process_frame
@@ -2164,7 +2165,7 @@ func _test_sram_paths() -> void:
 	# Boy playing it reads: the pak files it under the cartridge's system, not the
 	# N64's core.
 	var gb: Node3D = sys_scene.instantiate()
-	gb.systemid = "game_boy"
+	gb.systemid = "gb"
 	add_child(gb)
 	for i in range(20):
 		await get_tree().process_frame
@@ -2260,15 +2261,15 @@ func _test_save_migration() -> void:
 	var newer := save.path_join("gambatte/Tetris/eeeeeeeeeeeeeeee.srm")
 	_write_scratch(newer, PackedByteArray([20]))
 	JsonStore.write_dict(rooms.path_join("bedroom/slot.json"), {"objects": [
-		{"type": "cartridge", "save_id": "aaaaaaaaaaaaaaaa", "cart_systemid": "game_boy"},
-		{"type": "cartridge", "save_id": "dddddddddddddddd", "cart_systemid": "nintendo_64"},
-		{"type": "transfer_pak", "cart": {"save_id": "eeeeeeeeeeeeeeee", "cart_systemid": "game_boy"}},
+		{"type": "cartridge", "save_id": "aaaaaaaaaaaaaaaa", "cart_systemid": "gb"},
+		{"type": "cartridge", "save_id": "dddddddddddddddd", "cart_systemid": "n64"},
+		{"type": "transfer_pak", "cart": {"save_id": "eeeeeeeeeeeeeeee", "cart_systemid": "gb"}},
 	]})
 
 	var ledger := _StubLedger.new()
 	var report := SaveMigration.run(save, rooms, roms, ledger)
 
-	var moved_room := carts.path_join("game_boy/Pokemon Red/aaaaaaaaaaaaaaaa.srm")
+	var moved_room := carts.path_join("gb/Pokemon Red/aaaaaaaaaaaaaaaa.srm")
 	_ok(FileAccess.file_exists(moved_room) and not FileAccess.file_exists(by_room),
 		"migrate/ a save its room names moves under that system")
 	_eq(FileAccess.get_file_as_bytes(moved_room), PackedByteArray([1, 2, 3]),
@@ -2284,11 +2285,11 @@ func _test_save_migration() -> void:
 			and FileAccess.file_exists(card),
 		"migrate/ files that are not a cartridge save are not touched")
 	_ok(not probe in report["left"], "migrate/ and are not reported as unresolved")
-	_ok(FileAccess.file_exists(carts.path_join("super_nes/bsx_cart/bsx_cart.srm")),
+	_ok(FileAccess.file_exists(carts.path_join("snes/bsx_cart/bsx_cart.srm")),
 		"migrate/ a unit's battery moves under its host")
-	_eq(FileAccess.get_file_as_bytes(carts.path_join("game_boy/Tetris/eeeeeeeeeeeeeeee.srm")),
+	_eq(FileAccess.get_file_as_bytes(carts.path_join("gb/Tetris/eeeeeeeeeeeeeeee.srm")),
 		PackedByteArray([20]), "migrate/ of two cores' copies of one save, the newer takes its name")
-	_eq(FileAccess.get_file_as_bytes(carts.path_join("game_boy/Tetris/eeeeeeeeeeeeeeee.sameboy.srm")),
+	_eq(FileAccess.get_file_as_bytes(carts.path_join("gb/Tetris/eeeeeeeeeeeeeeee.sameboy.srm")),
 		PackedByteArray([10]), "migrate/ and the older is kept beside it")
 	_ok([by_room, moved_room] in ledger.moves, "migrate/ the sync record follows the file")
 	_ok(ledger.saved, "migrate/ and the ledger is written")
@@ -2299,7 +2300,7 @@ func _test_save_migration() -> void:
 	var sync := RommSaveSync.new()
 	var real_save := CoreDownloadManager.default_core_root().path_join("save")
 	var from := real_save.path_join("sameboy/G/aaaaaaaaaaaaaaaa.srm")
-	var to := real_save.path_join("carts/game_boy/G/aaaaaaaaaaaaaaaa.srm")
+	var to := real_save.path_join("carts/gb/G/aaaaaaaaaaaaaaaa.srm")
 	var record := {"last_hash": "abc", "rom_id": 7, "server_save_id": 9, "slot": "aaaaaaaaaaaaaaaa"}
 	sync._state[RommSaveSync.key_for(from)] = record.duplicate()
 	_ok(sync.rekey(from, to), "migrate/ the RomM ledger re-keys a moved save")
@@ -2307,6 +2308,85 @@ func _test_save_migration() -> void:
 	_ok(sync.record_for(from).is_empty(), "migrate/ and dropping the old path")
 	_ok(not sync.rekey(from, to), "migrate/ a path with no record re-keys nothing")
 	sync.free()
+
+
+## The folders named for a systemid, moved to the name it has now. Over a scratch
+## tree, never the player's.
+func _test_systemid_migration() -> void:
+	var base := ProjectSettings.globalize_path("user://__systemid_migration_selftest")
+	_rmtree(base)
+	var save := base.path_join("save")
+	var roms := base.path_join("roms")
+	var carts := save.path_join("carts")
+
+	var battery := carts.path_join("game_boy/Pokemon Red/aaaaaaaaaaaaaaaa.srm")
+	_write_scratch(battery, PackedByteArray([1, 2, 3]))
+	var clock := carts.path_join("game_boy/Pokemon Red/aaaaaaaaaaaaaaaa.gambatte.rtc")
+	_write_scratch(clock, PackedByteArray([4]))
+	var unit := carts.path_join("super_nes/bsx_cart/bsx_cart.srm")
+	_write_scratch(unit)
+	var unchanged := carts.path_join("nes/Zelda/bbbbbbbbbbbbbbbb.srm")
+	_write_scratch(unchanged)
+	var card := save.path_join("memcards/playstation/card.mcr")
+	_write_scratch(card)
+	var by_core := save.path_join("mupen64plus_next/Stadium/dddddddddddddddd.srm")
+	_write_scratch(by_core)
+	# The same save under both names: the old folder's copy is the older one.
+	var old_copy := carts.path_join("mega_drive/Sonic/eeeeeeeeeeeeeeee.srm")
+	_write_scratch(old_copy, PackedByteArray([10]))
+	await get_tree().create_timer(1.1).timeout
+	var new_copy := carts.path_join("genesis/Sonic/eeeeeeeeeeeeeeee.srm")
+	_write_scratch(new_copy, PackedByteArray([20]))
+
+	_write_scratch(roms.path_join("super_nes/Game.sfc"))
+	_write_scratch(roms.path_join("super_nes/media/box/Game.png"))
+	_write_scratch(roms.path_join("nintendo_64/Old.z64"))
+	_write_scratch(roms.path_join("n64/New.z64"))
+	_write_scratch(roms.path_join("sfc/Famicom Game.sfc"))
+
+	_eq(RomLibrary.resolve_rom_dir(roms, "snes"), roms.path_join("super_nes"),
+		"sysid/ before the move a library is read from the folder it has")
+
+	var ledger := _StubLedger.new()
+	var report := SystemIdMigration.run(save, roms, ledger)
+
+	var moved := carts.path_join("gb/Pokemon Red/aaaaaaaaaaaaaaaa.srm")
+	_ok(FileAccess.file_exists(moved) and not FileAccess.file_exists(battery),
+		"sysid/ a battery moves to its system's new name")
+	_eq(FileAccess.get_file_as_bytes(moved), PackedByteArray([1, 2, 3]), "sysid/ with its bytes")
+	_ok(FileAccess.file_exists(carts.path_join("gb/Pokemon Red/aaaaaaaaaaaaaaaa.gambatte.rtc")),
+		"sysid/ and its clock goes with it")
+	_ok(not DirAccess.dir_exists_absolute(carts.path_join("game_boy")),
+		"sysid/ leaving no empty folder behind")
+	_ok(FileAccess.file_exists(carts.path_join("snes/bsx_cart/bsx_cart.srm")),
+		"sysid/ a unit's battery moves under its host's new name, its own id unchanged")
+	_ok(FileAccess.file_exists(unchanged), "sysid/ a system whose id did not change is not touched")
+	_ok(FileAccess.file_exists(card),
+		"sysid/ a memory card's family is not a systemid and does not move")
+	_ok(FileAccess.file_exists(by_core), "sysid/ nor does a save keyed by core")
+	_eq(FileAccess.get_file_as_bytes(new_copy), PackedByteArray([20]),
+		"sysid/ of one save under both names, the newer keeps the name")
+	_eq(FileAccess.get_file_as_bytes(carts.path_join("genesis/Sonic/eeeeeeeeeeeeeeee.mega_drive.srm")),
+		PackedByteArray([10]), "sysid/ and the older is kept beside it")
+	_ok([battery, moved] in ledger.moves and ledger.saved, "sysid/ the sync record follows the file")
+	_ok(report["failed"].is_empty(), "sysid/ nothing failed")
+
+	_ok(FileAccess.file_exists(roms.path_join("snes/Game.sfc"))
+			and FileAccess.file_exists(roms.path_join("snes/media/box/Game.png"))
+			and not DirAccess.dir_exists_absolute(roms.path_join("super_nes")),
+		"sysid/ a ROM folder moves whole, scraped media and all")
+	_ok(FileAccess.file_exists(roms.path_join("nintendo_64/Old.z64"))
+			and roms.path_join("nintendo_64") in report["folders_left"],
+		"sysid/ a ROM folder whose new name is taken stays, and is reported")
+	_eq(RomLibrary.resolve_rom_dir(roms, "snes"), roms.path_join("snes"),
+		"sysid/ after the move the new folder is the library")
+	_eq(RomLibrary.resolve_rom_dir(roms, "genesis"), roms.path_join("genesis"),
+		"sysid/ a system with no folder at all resolves to its own name")
+	DirAccess.remove_absolute(roms.path_join("snes/media/box/Game.png"))
+	_rmtree(roms.path_join("snes"))
+	_eq(RomLibrary.resolve_rom_dir(roms, "snes"), roms.path_join("sfc"),
+		"sysid/ ES-DE's other folder for a machine is read when it is the only one")
+	_rmtree(base)
 
 
 func _write_scratch(path: String, bytes := PackedByteArray([0])) -> void:

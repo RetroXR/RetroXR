@@ -371,7 +371,7 @@ func _freeze_cases() -> void:
 
 
 func _handheld_cases() -> void:
-	var gb := await _handheld("game_boy")
+	var gb := await _handheld("gb")
 	var model := gb.get_model()
 	_ok(model != null and model.is_handheld(), "handheld/the Game Boy is a handheld")
 	var panels := TvFullscreen.panels_for(gb)
@@ -415,7 +415,7 @@ func _handheld_cases() -> void:
 	var away := RetroSystemModel.new()
 	away.set_script(script)
 	var host := SYSTEM_SCENE.instantiate() as RetroSystem
-	host.systemid = "game_boy"
+	host.systemid = "gb"
 	host.freeze = true
 	add_child(host)
 	await _wait(30)
@@ -466,7 +466,7 @@ func _dual_cases() -> void:
 	ds.free()
 	await _wait(2)
 
-	var n3ds := await _handheld("3ds")
+	var n3ds := await _handheld("n3ds")
 	var stereo := TvFullscreen.panels_for(n3ds)
 	_ok(stereo.size() == 2 and stereo[0]["region"] == Rect2(0, 0, 0.5, 0.5),
 		"dual/a stereo top screen shows the left eye as its channel already describes")
@@ -492,7 +492,7 @@ func _audio_cases() -> void:
 	# The falloff has to be gone by construction rather than by a second switch:
 	# inside unit_size the shared law is a flat 1.0, so a machine's own numbers
 	# are what this is asserted against.
-	var sys := await _handheld("game_boy")
+	var sys := await _handheld("gb")
 	_ok(is_equal_approx(SpatialAudioEmitter.distance_gain(
 		centre, cam.origin, sys.audio_unit_size, sys.audio_max_distance), 1.0),
 		"audio/held at the head, the distance law stops attenuating")

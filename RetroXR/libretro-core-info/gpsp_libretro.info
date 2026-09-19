@@ -11,7 +11,7 @@ display_version = "Git"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Game Boy Advance"
-systemid = "game_boy_advance"
+systemid = "gba"
 
 # Libretro Features
 database = "Nintendo - Game Boy Advance"

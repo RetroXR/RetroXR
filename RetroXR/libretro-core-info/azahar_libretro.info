@@ -11,7 +11,7 @@ display_version = "Git"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "3DS"
-systemid = "3ds"
+systemid = "n3ds"
 
 # Libretro Information
 database = "Nintendo - Nintendo 3DS"

@@ -11,8 +11,8 @@ display_version = "v094 (Mercury Accuracy)"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Super Nintendo Entertainment System"
-systemid = "super_nes"
-secondary_systemids = "satellaview:bs|sufami_turbo:st"
+systemid = "snes"
+secondary_systemids = "satellaview:bs|sufami:st"
 
 # BIOS / Firmware
 firmware_count = 18

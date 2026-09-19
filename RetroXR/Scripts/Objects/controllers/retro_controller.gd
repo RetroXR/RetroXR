@@ -39,7 +39,7 @@ var device_type: int = RETRO_DEVICE_JOYPAD
 ## back to the generic plug, so an export-excluded model never breaks a build.
 @export var plug_mesh_path: String = ""
 
-## The systemid this controller physically belongs to, e.g. "super_nes". A port
+## The systemid this controller physically belongs to, e.g. "snes". A port
 ## only accepts a plug whose controller matches (see RetroSystem._accepts_plug),
 ## the same way the cartridge slot only accepts media for its own system.
 ##

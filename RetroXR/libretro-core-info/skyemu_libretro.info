@@ -9,7 +9,7 @@ display_version = "Git"
 manufacturer = "Nintendo"
 systemname = "Nintendo DS"
 systemid = "nds"
-secondary_systemids = "game_boy:gb,gbx|game_boy_advance:gba"
+secondary_systemids = "gb:gb,gbx|gba:gba"
 
 firmware_count = 10
 firmware0_desc = "cgb_boot.bin (GBC BIOS)"

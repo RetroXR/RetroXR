@@ -22,7 +22,7 @@ const ID := "bsx_cart"
 # .bs as content and sources BS-X.bin itself from the system directory.
 #
 # Sized as a Super Famicom cartridge, because that is what it is -- the same
-# footprint CART_SIZES gives super_nes, thickened to 24 mm so the pack's well
+# footprint CART_SIZES gives snes, thickened to 24 mm so the pack's well
 # has a wall either side of it. A cartridge-mounting unit stands upright in
 # the slot (Y is the insert axis), so a flat slab here read as a low box lying
 # on the console rather than a cart standing in it.
@@ -34,7 +34,7 @@ const ID := "bsx_cart"
 # so the menu does not offer it until the file is installed.
 const ROW := {
 	"label": "BS-X",
-	"host": "super_nes",
+	"host": "snes",
 	"media": "satellaview",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	"save_owner": ExpansionDefs.SAVE_OWNER_UNIT,
@@ -52,7 +52,7 @@ const BOOT := {
 	# The BS-X cartridge, with or without the base station under the console. Both
 	# boot from the pack in the CARTRIDGE's own slot, because that is the medium:
 	# snes9x is handed the .bs and finds BS-X.bin in the system directory itself.
-	"super_nes|bsx_cart": {
+	"snes|bsx_cart": {
 		"core": "snes9x",
 		"roms": ["expansion:bsx_cart"],
 		# Shell + pack as a PAIR. Without it the core sources the shell from
@@ -67,7 +67,7 @@ const BOOT := {
 			# file beside it.
 			"writable": 1},
 	},
-	"super_nes|satellaview|bsx_cart": {
+	"snes|satellaview|bsx_cart": {
 		"core": "snes9x",
 		"roms": ["expansion:bsx_cart"],
 		# Shell + pack as a PAIR. Without it the core sources the shell from

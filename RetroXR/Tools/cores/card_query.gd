@@ -11,6 +11,6 @@ func _init() -> void:
 			ExpansionCatalog.host_of(id),
 			ExpansionCatalog.media_of(id),
 			ExpansionCatalog.card_systemid(id)])
-	for sysid in ["super_nes", "game_boy"]:
+	for sysid in ["snes", "gb"]:
 		print("[on] %s -> %s" % [sysid, str(ExpansionCatalog.ids_carded_on(sysid))])
 	quit(0)

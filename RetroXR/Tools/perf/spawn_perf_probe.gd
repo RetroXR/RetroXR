@@ -12,10 +12,10 @@ extends Node3D
 
 ## [model_id, systemid]
 const CASES := [
-	["n3ds_primitive", "3ds"],
-	["game_boy_primitive", "game_boy"],
-	["placeholder", "playstation2"],
-	["virtual_boy_primitive", "virtual_boy"],
+	["n3ds_primitive", "n3ds"],
+	["game_boy_primitive", "gb"],
+	["placeholder", "ps2"],
+	["virtual_boy_primitive", "virtualboy"],
 ]
 const REPEATS := 3
 
@@ -59,7 +59,7 @@ func _ready() -> void:
 ## and warm in FRESH processes; comparing within one process is useless because
 ## the first spawn warms everything the second would have measured.
 const WARM_MODEL := "n3ds_primitive"
-const WARM_SYSTEM := "3ds"
+const WARM_SYSTEM := "n3ds"
 
 
 func _warm_mode() -> String:

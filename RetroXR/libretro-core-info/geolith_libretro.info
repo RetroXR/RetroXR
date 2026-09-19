@@ -12,7 +12,7 @@ display_version = "0.4.0"
 manufacturer = "SNK"
 systemname = "Neo Geo"
 systemid = "neogeo"
-secondary_systemids = "neo_geo_cd:cue,chd"
+secondary_systemids = "neogeocd:cue,chd"
 
 # Libretro Features
 supports_no_game = "false"

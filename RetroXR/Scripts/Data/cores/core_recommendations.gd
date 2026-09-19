@@ -26,31 +26,31 @@ extends RefCounted
 
 const RECOMMENDED := {
 	# ── Atari ────────────────────────────────────────────────────────────────
-	"atari_2600": {
+	"atari2600": {
 		"core": "stella",
 		"why":  "Upstream Stella, still maintained; stella2014 is a fork of a decade-old snapshot",
 	},
-	"atari_5200": {
+	"atari5200": {
 		"core": "atari800",
 		"why":  "Covers the 5200 and the 8-bit line from one core, and is the maintained option",
 	},
-	"atari_7800": {
+	"atari7800": {
 		"core": "prosystem",
 		"why":  "The only 7800 core here",
 	},
-	"atari_lynx": {
+	"atarilynx": {
 		"core": "mednafen_lynx",
 		"why":  "The most complete Lynx core; Handy is its unmaintained ancestor",
 	},
-	"atari_jaguar": {
+	"atarijaguar": {
 		"core": "virtualjaguar",
 		"why":  "The only Jaguar core here",
 	},
-	"jaguar_cd": {
+	"atarijaguarcd": {
 		"core": "virtualjaguar",
 		"why":  "Same core as the Jaguar — one download covers cartridge and CD games",
 	},
-	"atari_st": {
+	"atarist": {
 		"core": "hatari",
 		"why":  "The only ST core here",
 	},
@@ -68,7 +68,7 @@ const RECOMMENDED := {
 		"core": "o2em",
 		"why":  "The only Odyssey² core here",
 	},
-	"channel_f": {
+	"channelf": {
 		"core": "freechaf",
 		"why":  "The only Channel F core here",
 	},
@@ -88,21 +88,21 @@ const RECOMMENDED := {
 	# ── Nintendo handhelds ───────────────────────────────────────────────────
 	# One entry covers Game Boy and Game Boy Color: no core in this database
 	# declares a separate `game_boy_color` systemid, so the two share a tile.
-	"game_boy": {
+	"gb": {
 		"core":    "sameboy",
 		"why":     "The most accurate GB/GBC core, and cheap enough to spend the accuracy on desktop",
 		"android": "gambatte",
 		"why_android": "SameBoy's sub-frame accuracy costs more than it shows on a handheld screen; Gambatte is mature and much lighter",
 	},
-	"game_boy_advance": {
+	"gba": {
 		"core": "mgba",
 		"why":  "Accurate, fast, and the only GBA core still actively developed",
 	},
-	"virtual_boy": {
+	"virtualboy": {
 		"core": "mednafen_vb",
 		"why":  "The only Virtual Boy core here",
 	},
-	"pokemon_mini": {
+	"pokemini": {
 		"core": "pokemini",
 		"why":  "The only Pokémon Mini core here",
 	},
@@ -118,11 +118,11 @@ const RECOMMENDED := {
 		"core": "fceumm",
 		"why":  "The only core here that reads the Controller II microphone, through RetroXR's own build; Mesen offers one but gates it on its own database deciding the game is Japanese",
 	},
-	"super_nes": {
+	"snes": {
 		"core": "snes9x",
 		"why":  "Drives the SNES Mouse, and runs full speed on Quest where bsnes does not — measured here. Kept on desktop too so saves and core options are the same file on both platforms",
 	},
-	"nintendo_64": {
+	"n64": {
 		"core":    "parallel_n64",
 		"why":     "The Angrylion/ParaLLEl RDP path is the accurate one, and desktop can afford it",
 		"android": "mupen64plus_next_gles3",
@@ -132,7 +132,7 @@ const RECOMMENDED := {
 		"core": "melondsds",
 		"why":  "The maintained melonDS port, and the one whose dual-screen layout the DS model's screen rects are cut against",
 	},
-	"3ds": {
+	"n3ds": {
 		"core": "azahar",
 		"why":  "The only 3DS core that emits side-by-side stereo, which the n3ds model's screen rects rely on",
 	},
@@ -140,7 +140,7 @@ const RECOMMENDED := {
 	# really about WHICH BUILD: CoreSources replaces the buildbot's Dolphin with
 	# our fork, which is the only one that can do Wiimote IR passthrough. On the
 	# stock build a Wii Remote still points, but by a constant fitted per game.
-	"gamecube": {
+	"gc": {
 		"core": "dolphin",
 		"why":  "The only GameCube core here, and the retroXR build adds the Wiimote IR passthrough a Wii disc in this cabinet needs",
 	},
@@ -152,31 +152,31 @@ const RECOMMENDED := {
 	# ── Sega ─────────────────────────────────────────────────────────────────
 	# Genesis Plus GX serves five of these machines, so one core covers the whole
 	# 8/16-bit line and the download-all button fetches it once.
-	"master_system": {
+	"mastersystem": {
 		"core": "genesis_plus_gx",
 		"why":  "Accurate across the whole Sega 8/16-bit line, so one core covers five systems",
 	},
-	"game_gear": {
+	"gamegear": {
 		"core": "genesis_plus_gx",
 		"why":  "Accurate across the whole Sega 8/16-bit line, so one core covers five systems",
 	},
-	"sg1000": {
+	"sg-1000": {
 		"core": "genesis_plus_gx",
 		"why":  "Accurate across the whole Sega 8/16-bit line, so one core covers five systems",
 	},
-	"mega_drive": {
+	"genesis": {
 		"core": "genesis_plus_gx",
 		"why":  "The accuracy reference for Mega Drive, and cheap enough to run everywhere",
 	},
-	"sega_cd": {
+	"segacd": {
 		"core": "genesis_plus_gx",
 		"why":  "Best Sega CD compatibility, and shares its saves with the Mega Drive library",
 	},
-	"sega_32x": {
+	"sega32x": {
 		"core": "picodrive",
 		"why":  "The only core here that emulates the 32X at all",
 	},
-	"sega_saturn": {
+	"saturn": {
 		"core":    "mednafen_saturn",
 		"why":     "The accurate Saturn core; it needs a fast CPU and desktop has one",
 		"android": "yabasanshiro",
@@ -196,13 +196,13 @@ const RECOMMENDED := {
 	},
 
 	# ── NEC ──────────────────────────────────────────────────────────────────
-	"pc_engine": {
+	"tg16": {
 		"core":    "mednafen_pce",
 		"why":     "The accurate PC Engine core, superseding the split PCE/SuperGrafx builds",
 		"android": "mednafen_pce_fast",
 		"why_android": "The accuracy the full core adds is not visible on this hardware, and Fast leaves headroom for the room around it",
 	},
-	"pc_engine_cd": {
+	"tg-cd": {
 		"core":    "mednafen_pce",
 		"why":     "Same core as PC Engine — one download covers card and CD games",
 		"android": "mednafen_pce_fast",
@@ -212,7 +212,7 @@ const RECOMMENDED := {
 		"core": "mednafen_supergrafx",
 		"why":  "Beetle PCE Fast does not declare SuperGrafx, so this is the light option as well as the accurate one",
 	},
-	"pc_fx": {
+	"pcfx": {
 		"core": "mednafen_pcfx",
 		"why":  "The only PC-FX core here",
 	},
@@ -222,31 +222,31 @@ const RECOMMENDED := {
 		"core": "opera",
 		"why":  "The only 3DO core here",
 	},
-	"playstation": {
+	"psx": {
 		"core": "pcsx_rearmed",
 		"why":  "Best speed-to-accuracy balance on Quest hardware, and kept on desktop too so saves, memory cards and core options are the same files on both platforms",
 	},
-	"playstation_portable": {
+	"psp": {
 		"core": "ppsspp",
 		"why":  "The only PSP core here, and it scales from Quest to desktop on its own settings",
 	},
-	"playstation2": {
+	"ps2": {
 		"core": "pcsx2",
 		"why":  "The only PS2 core here",
 	},
 
 	# ── SNK ──────────────────────────────────────────────────────────────────
-	# Keyed on fb_alpha rather than neogeo: FinalBurn Neo files itself under
-	# fb_alpha, and the neogeo tile holds only Geolith.
-	"fb_alpha": {
+	# Keyed on fbneo rather than neogeo: FinalBurn Neo files itself under
+	# fbneo, and the neogeo tile holds only Geolith.
+	"fbneo": {
 		"core": "fbneo",
 		"why":  "The maintained FinalBurn line, and where Neo Geo AES/MVS support actually lives",
 	},
-	"neo_geo_cd": {
+	"neogeocd": {
 		"core": "neocd",
 		"why":  "The only Neo Geo CD core here",
 	},
-	"neo_geo_pocket": {
+	"ngp": {
 		"core": "mednafen_ngp",
 		"why":  "More complete than RACE, and cheap on both platforms",
 	},
@@ -260,31 +260,31 @@ const RECOMMENDED := {
 		"core": "bluemsx",
 		"why":  "The widest machine coverage of the MSX cores, and it reaches ColecoVision, SG-1000 and SVI too",
 	},
-	"pc_98": {
+	"pc98": {
 		"core": "np2kai",
 		"why":  "The maintained Neko Project fork",
 	},
-	"pc_88": {
+	"pc88": {
 		"core": "quasi88",
 		"why":  "The only PC-88 core here",
 	},
-	"sharp_x68000": {
+	"x68000": {
 		"core": "px68k",
 		"why":  "The only X68000 core here",
 	},
-	"cpc": {
+	"amstradcpc": {
 		"core": "cap32",
 		"why":  "More complete and better maintained than CrocoDS",
 	},
-	"zx_spectrum": {
+	"zxspectrum": {
 		"core": "fuse",
 		"why":  "The only ZX Spectrum core here",
 	},
-	"commodore_c64": {
+	"c64": {
 		"core": "vice_x64sc",
 		"why":  "The cycle-accurate VICE build; plain x64 trades that accuracy for speed neither platform needs",
 	},
-	"commodore_amiga": {
+	"amiga": {
 		"core": "puae",
 		"why":  "The maintained UAE port, and it covers CD32 and CDTV from the same download",
 	},

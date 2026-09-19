@@ -10,8 +10,8 @@ permissions = ""
 # Hardware Information
 manufacturer = "Atari"
 systemname = "Atari 5200"
-systemid = "atari_5200"
-secondary_systemids = "atari_8bit:xex,atr,xfd,dcm,atx,cas,com,car,rom"
+systemid = "atari5200"
+secondary_systemids = "atari800:xex,atr,xfd,dcm,atx,cas,com,car,rom"
 display_version = "7.0.0"
 
 # Libretro Features

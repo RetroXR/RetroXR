@@ -23,7 +23,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Sony"
 systemname = "Sony PlayStation 2"
-systemid = "playstation2"
+systemid = "ps2"
 
 # Libretro Features
 display_version = "retroXR build"

@@ -11,7 +11,7 @@ display_version = "Git"
 # Hardware Information
 manufacturer = "Various"
 systemname = "Handheld Electronic"
-systemid = "handheld_electronic"
+systemid = "gameandwatch"
 
 # Libretro Features
 supports_no_game = "false"

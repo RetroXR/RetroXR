@@ -14,7 +14,7 @@ const ID := "sega_saturn_ram_cart"
 # measurement.
 const ROW := {
 	"label": "Backup RAM Cartridge",
-	"host": "sega_saturn",
+	"host": "saturn",
 	"mount": ExpansionDefs.MOUNT_ABOVE,
 	"size": Vector3(0.113, 0.080, 0.014),
 	"loader": MediaDimensions.LOADER_NONE,

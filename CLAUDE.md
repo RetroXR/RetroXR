@@ -187,6 +187,7 @@ can kill the process (extension is `-fno-exceptions`, no sandbox).
 | 2p | `saves.md` | `SramPaths`: batteries per SYSTEM, clocks and savestates per CORE; `PER_CORE_SYSTEMS` = N64, 64DD, FDS (measured incompatibilities). `resolve_cart_save` moves NOTHING; `SaveMigration` runs once at boot. `save/<core>/` is the core's own dir. |
 | 2q | `n64-cartridges.md` | `N64CartShell` (header CRC + market, never hashed), `CartridgeColor`, flake shader. Bodies carry no marks. Run `Tools/glb/fix_unmapped_uvs.py` on any re-exported body; never `demetal` this model. `HoldPress` spawn sub-menu. |
 | 2r | `surround.md` | FreeSurround from DOLPHIN's copy; surround is six mono VOICES, per-machine opt-in; the fronts ARE `m_voice_l/r`; external modes silence the set and nothing ever folds onto its own speakers; degrade to stereo, never silence. `surround_probe` is windowed with a stereo control. Nobody has listened to it yet. |
+| 2s | `systemids.md` | A systemid is ES-DE's folder name (`n64`, `snes`, `psx`); `SystemIds.LEGACY` reads the old ones. **Card `family`, expansion ids and `model_id`s look like systemids, are persisted, and did NOT move.** Run `Tools/rename_systemids.py` after any `.info` refresh. Prefs are re-keyed as they LOAD, never rewritten at boot. |
 
 Probes for Meta XR Audio features (`2l`, `2r`, mics) need the SDK enabled in the probe via
 `mx.set_enabled(true)`; under `--headless` it reports unavailable and there are no voices.

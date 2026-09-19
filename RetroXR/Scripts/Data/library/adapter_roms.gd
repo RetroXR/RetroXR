@@ -26,7 +26,7 @@ extends RefCounted
 ## Keyed by the HOST systemid, since that is the shelf the dump sits on: an
 ## e-Reader dump is a Game Boy Advance ROM.
 const CANDIDATES: Dictionary = {
-	"game_boy_advance": ["gba"],
+	"gba": ["gba"],
 }
 
 ## systemid -> {"units": {unit_id: path}, "paths": {path: unit_id}}

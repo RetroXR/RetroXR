@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Sony"
 systemname = "PSP"
-systemid = "playstation_portable"
+systemid = "psp"
 
 # Libretro Features
 supports_no_game = "false"

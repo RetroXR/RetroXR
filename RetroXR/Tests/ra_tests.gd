@@ -105,7 +105,7 @@ func _read_raw() -> String:
 
 func _group_consoles() -> void:
 	_eq(RaConsoles.for_systemid("nes"), 7, "consoles/a mapped system resolves")
-	_eq(RaConsoles.for_systemid("super_nes"), 3, "consoles/and so does another")
+	_eq(RaConsoles.for_systemid("snes"), 3, "consoles/and so does another")
 	_eq(RaConsoles.for_systemid(""), 0, "consoles/an empty systemid is not a console")
 	_eq(RaConsoles.for_systemid("no_such_machine"), 0,
 		"consoles/an unknown systemid is not a console")

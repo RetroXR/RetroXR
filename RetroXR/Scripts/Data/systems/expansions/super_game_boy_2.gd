@@ -34,12 +34,12 @@ const ID := "super_game_boy_2"
 # offered exactly the machine they can build.
 const ROW := {
 	"label": "Super Game Boy 2",
-	"host": "super_nes",
-	"media": "game_boy",
+	"host": "snes",
+	"media": "gb",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	"size": Vector3(0.137, 0.088, 0.024),
 	"loader": MediaDimensions.LOADER_NONE,
-	"card": "super_nes",
+	"card": "snes",
 	"rom_title": "Super GAMEBOY2",
 	"firmware": ["SGB2.sfc"],
 	"rom_from_firmware": true,
@@ -52,7 +52,7 @@ const BOOT := {
 	# not gated at all -- which would offer a Super Game Boy 2 to a player who has no
 	# dump of one. Both are MOUNT_CARTRIDGE and a Super Famicom has one slot, so no
 	# combined row can arise.
-	"super_nes|super_game_boy_2": {
+	"snes|super_game_boy_2": {
 		"core": "bsnes",
 		"roms": ["expansion:super_game_boy_2"],
 		"subsystem": {"ident": "sgb",

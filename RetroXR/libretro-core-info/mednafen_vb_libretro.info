@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Virtual Boy"
-systemid = "virtual_boy"
+systemid = "virtualboy"
 
 # Libretro Features
 supports_no_game = "false"

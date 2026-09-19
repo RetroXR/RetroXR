@@ -100,7 +100,7 @@ func _run() -> void:
 func _spawn_system(id: String, pos: Vector3) -> void:
 	var sys_scene := load(SYSTEM_PATH) as PackedScene
 	var sys := sys_scene.instantiate() as RetroSystem
-	sys.systemid = id
+	sys.systemid = SystemIds.canonical(id)   # the two models named here are named as their platform was
 	sys.model_id = id
 	sys.ignore_gravity = true
 	sys.position = pos

@@ -10,7 +10,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Nintendo 64"
-systemid = "nintendo_64"
+systemid = "n64"
 
 # Libretro Features
 supports_no_game = "false"

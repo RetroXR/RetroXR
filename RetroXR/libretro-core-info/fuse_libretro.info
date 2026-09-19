@@ -11,7 +11,7 @@ display_version = "1.6.0"
 # Hardware Information
 manufacturer = "Sinclair|Amstrad"
 systemname = "ZX Spectrum (various)"
-systemid = "zx_spectrum"
+systemid = "zxspectrum"
 
 # Libretro Features
 supports_no_game = "true"

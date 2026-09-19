@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Amstrad"
 systemname = "CPC/GX4000"
-systemid = "cpc"
+systemid = "amstradcpc"
 
 # Libretro Features
 database = "Amstrad - CPC|Amstrad - GX4000"

@@ -11,7 +11,7 @@ display_version = "0.86"
 manufacturer = "NEC"
 categories = "Emulator"
 systemname = "PC-98"
-systemid = "pc_98"
+systemid = "pc98"
 
 # Libretro Features
 supports_no_game = "false"

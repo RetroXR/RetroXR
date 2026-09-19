@@ -119,7 +119,7 @@ func _film() -> void:
 	await _wait(30)
 
 	var host := SYSTEM_SCENE.instantiate() as RetroSystem
-	host.systemid = "game_boy_advance"
+	host.systemid = "gba"
 	host.freeze = true
 	add_child(host)
 	host.global_position = STAGE + Vector3(0.34, -0.22, 0.0)

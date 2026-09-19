@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Pokemon Mini"
-systemid = "pokemon_mini"
+systemid = "pokemini"
 
 # Libretro Features
 supports_no_game = "false"

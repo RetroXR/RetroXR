@@ -536,7 +536,7 @@ func _load_cartridge(sv: SubViewport, stage: Node3D, pak: Node3D, dir: String,
 	if bay == null or packed == null:
 		return n
 	var cart: Node3D = packed.instantiate()
-	cart.systemid = "game_boy"
+	cart.systemid = "gb"
 	if cart is RigidBody3D:
 		(cart as RigidBody3D).freeze = true
 	stage.add_child(cart)

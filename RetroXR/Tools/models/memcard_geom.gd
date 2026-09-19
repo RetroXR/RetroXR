@@ -32,7 +32,7 @@ func _run() -> void:
 	_build_world()
 
 	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
-	sys.systemid = "playstation"
+	sys.systemid = "psx"
 	sys.position = Vector3(0, 1, 0)
 	sys.ignore_gravity = true
 	add_child(sys)

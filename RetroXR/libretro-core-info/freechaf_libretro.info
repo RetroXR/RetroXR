@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Fairchild"
 systemname = "Channel F"
-systemid = "channel_f"
+systemid = "channelf"
 
 # Libretro Features
 database = "Fairchild - Channel F"

@@ -104,10 +104,13 @@ static func stem_index(roms_root: String) -> Dictionary:
 	var out := {}
 	if not DirAccess.dir_exists_absolute(roms_root):
 		return out
-	for systemid: String in DirAccess.get_directories_at(roms_root):
+	for folder: String in DirAccess.get_directories_at(roms_root):
+		# The folder may still carry the id from before the rename, or be another
+		# of ES-DE's names for the machine.
+		var systemid := SystemIds.systemid_for_folder(folder)
 		if SystemInfo.for_system(systemid) == null:
 			continue
-		var sys_dir := roms_root.path_join(systemid)
+		var sys_dir := roms_root.path_join(folder)
 		var dirs: Array[String] = [sys_dir]
 		for game: String in DirAccess.get_directories_at(sys_dir):
 			dirs.append(sys_dir.path_join(game))
@@ -132,7 +135,7 @@ static func _collect(value: Variant, out: Dictionary) -> void:
 	if value is Dictionary:
 		var d: Dictionary = value
 		var save_id := str(d.get("save_id", ""))
-		var systemid := str(d.get("cart_systemid", ""))
+		var systemid := SystemIds.canonical(str(d.get("cart_systemid", "")))
 		if not save_id.is_empty() and not systemid.is_empty():
 			out[save_id] = systemid
 		for v: Variant in d.values():

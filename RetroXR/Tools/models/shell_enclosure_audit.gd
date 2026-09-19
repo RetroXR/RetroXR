@@ -37,7 +37,7 @@ func _ready() -> void:
 ## Platforms with no bespoke model, so they wear the procedural console. Not in
 ## all_ids() — placeholder_row() sits outside the registry — and it is the shell
 ## the great majority of the room's hardware actually uses, one loader each.
-const PLAIN_PLATFORMS := ["genesis", "snes", "n64", "playstation", "ps2"]
+const PLAIN_PLATFORMS := ["genesis", "snes", "n64", "psx", "ps2"]
 
 
 func _run() -> void:

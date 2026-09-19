@@ -16,7 +16,7 @@ const ID := "jumper_pak"
 # and _restoring_from_save in system.gd).
 const ROW := {
 	"label": "Jumper Pak",
-	"host": "nintendo_64",
+	"host": "n64",
 	"media": "",
 	"mount": ExpansionDefs.MOUNT_ABOVE,
 	# The Expansion Pak's shell (see expansion_pak.gd): the two swap into one

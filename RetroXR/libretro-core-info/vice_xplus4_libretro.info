@@ -11,7 +11,7 @@ display_version = "3.10"
 # Hardware Information
 manufacturer = "Commodore"
 systemname = "PLUS/4"
-systemid = "commodore_plus4"
+systemid = "plus4"
 
 # Libretro Features
 database = "Commodore - Plus-4"

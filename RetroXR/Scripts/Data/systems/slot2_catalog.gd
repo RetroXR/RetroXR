@@ -39,7 +39,7 @@ extends RefCounted
 
 const ROWS: Dictionary = {
 	"nds": {
-		"media": "game_boy_advance",
+		"media": "gba",
 		"core": "melondsds",
 		"roms": ["host"],
 		"subsystem": {"ident": "gba", "roms": ["host", "slot2", "slot2_save"]},

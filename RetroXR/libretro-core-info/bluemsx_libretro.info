@@ -12,7 +12,7 @@ display_version = "SVN"
 manufacturer = "Spectravideo|Philips|Al Alamiah|Sony|Sanyo|Mitsubishi|Toshiba|Hitachi|Panasonic|Canon|Casio|Pioneer|Fujitsu|Yamaha|JVC|Kyocera|GoldStar|Samsung|Daewoo|Gradiente|Sharp|Talent|NTT|ACVS/CIEL|DDX|AGE Labs"
 systemname = "MSX"
 systemid = "msx"
-secondary_systemids = "colecovision:col|sg1000:sg,sc|svi:sf"
+secondary_systemids = "colecovision:col|sg-1000:sg,sc|spectravideo:sf"
 
 # Libretro Features
 database = "Microsoft - MSX|Microsoft - MSX2|Coleco - ColecoVision|Sega - SG-1000|Spectravideo - SVI-318 - SVI-328"

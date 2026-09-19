@@ -48,8 +48,8 @@ display_version = "retroXR build"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Super Nintendo Entertainment System"
-systemid = "super_nes"
-secondary_systemids = "satellaview:sfc,bs|sufami_turbo:st,sfc"
+systemid = "snes"
+secondary_systemids = "satellaview:sfc,bs|sufami:st,sfc"
 
 # Firmware / BIOS
 firmware_count = 2

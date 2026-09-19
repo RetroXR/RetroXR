@@ -21,8 +21,8 @@ const ID := "nintendo_64dd"
 # was suddenly 40 mm wider and 70 mm deeper than the thing standing on it.
 const ROW := {
 	"label": "Nintendo 64DD",
-	"host": "nintendo_64",
-	"media": "nintendo_64dd",
+	"host": "n64",
+	"media": "n64dd",
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.26, 0.0787, 0.19),
 	"loader": MediaDimensions.LOADER_SLOT,
@@ -85,7 +85,7 @@ static func is_dev_disk(rom_path: String) -> bool:
 # Either way the IPL is the core's business: it ignores any path handed to it
 # and reads <system>/Mupen64plus/IPL.n64 unconditionally.
 const BOOT := {
-	"nintendo_64|nintendo_64dd": {
+	"n64|nintendo_64dd": {
 	"core": "mupen64plus_next",
 	# The buildbot names this core differently per platform -- plain for Windows,
 	# only _gles2/_gles3 for Android -- so the desktop name does not exist on a

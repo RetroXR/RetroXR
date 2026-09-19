@@ -15,7 +15,7 @@ static func format_for(systemid: String, rom_path: String) -> CardFormat:
 		return CardFormats.for_family(info.save_device)
 	# The one system that decides game by game: an N64 cartridge may keep its own
 	# save, a pak's, or both.
-	if systemid == "nintendo_64" and N64SaveDb.pak_only_rom(rom_path):
+	if systemid == "n64" and N64SaveDb.pak_only_rom(rom_path):
 		return CardFormats.for_family(ControllerPak.FAMILY)
 	return null
 

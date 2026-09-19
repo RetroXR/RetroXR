@@ -54,7 +54,7 @@ func _ready() -> void:
 	_base.global_position = Vector3(0.0, 1.0, 0.0)
 
 	_console = SYSTEM_SCENE.instantiate() as RetroSystem
-	_console.systemid = "mega_drive"
+	_console.systemid = "genesis"
 	add_child(_console)
 	_console.freeze = true
 	_console.global_position = Vector3(0.9, 1.0, 0.0)
@@ -66,8 +66,8 @@ func _ready() -> void:
 	_x32.global_position = Vector3(0.9, 1.4, 0.0)
 
 	_cart = CART_SCENE.instantiate()
-	_cart.systemid = "sega_32x"
-	_cart.rom_path = "Z:/roms/sega_32x/demo.32x"
+	_cart.systemid = "sega32x"
+	_cart.rom_path = "Z:/roms/sega32x/demo.32x"
 	add_child(_cart)
 	_cart.freeze = true
 	_cart.global_position = Vector3(0.9, 1.8, 0.0)

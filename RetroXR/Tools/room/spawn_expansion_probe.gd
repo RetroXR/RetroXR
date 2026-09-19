@@ -55,14 +55,14 @@ func _ready() -> void:
 
 	# 3. The host's card must not list a unit that has a tile -- that is the
 	# duplication the tile placement is meant to remove.
-	for host: String in ["nintendo_64", "nes", "super_nes", "mega_drive", "pc_engine"]:
+	for host: String in ["n64", "nes", "snes", "genesis", "tg16"]:
 		_check(_units_on(host).is_empty(),
 			"the %s card lists no unit that has its own tile" % host)
 
 	# 4. But a unit with NO tile has nowhere else to go, so the console keeps it.
 	# The Jaguar CD runs the Jaguar's own media and names no systemid of its own.
 	var jag: Array[String] = ["jaguar_cd"]
-	_check(_units_on("atari_jaguar") == jag,
+	_check(_units_on("atarijaguar") == jag,
 		"the Atari Jaguar card still offers the Jaguar CD, which has no tile")
 	_check(not ExpansionCatalog.has_own_card("jaguar_cd"),
 		"...because that is exactly the unit with no card of its own")
@@ -83,7 +83,7 @@ func _ready() -> void:
 		_check(seen == 1, "%s is reachable from exactly one card (%d)" % [id, seen])
 
 	# 6. A console with nothing made for it must not grow rows it cannot use.
-	_check(_units_on("playstation").is_empty(), "a PlayStation is offered no expansions")
+	_check(_units_on("psx").is_empty(), "a PlayStation is offered no expansions")
 
 	# 7. And the thing that comes back is the unit, carrying its id -- the
 	# failure this is really guarding is spawning a primitive console instead.

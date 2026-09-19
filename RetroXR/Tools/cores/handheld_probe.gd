@@ -78,7 +78,7 @@ func _wait_frames(n: int) -> void:
 func _run() -> void:
 	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
 	_sys = sys_scene.instantiate() as RetroSystem
-	_sys.systemid = "game_boy_advance"
+	_sys.systemid = "gba"
 	_sys.core_name = core
 	add_child(_sys)
 	await get_tree().process_frame

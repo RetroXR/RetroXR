@@ -11,7 +11,7 @@ display_version = "v0.3.3"
 # Hardware Information
 manufacturer = "Sega"
 systemname = "Saturn"
-systemid = "sega_saturn"
+systemid = "saturn"
 database = "Sega - Saturn"
 
 # Libretro Features

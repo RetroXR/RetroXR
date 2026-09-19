@@ -1,7 +1,7 @@
 ## CoreDefaults — persists the user-chosen default core per systemid.
 ##
 ## Schema of core_defaults.json:
-##   { "defaults": { "nes": "fceumm", "super_nes": "snes9x", ... } }
+##   { "defaults": { "nes": "fceumm", "snes": "snes9x", ... } }
 ##
 ## Usage:
 ##   var cd := CoreDefaults.new()
@@ -54,7 +54,7 @@ func load_defaults() -> void:
 		return
 	var d: Variant = JsonStore.read_dict(_path, "CoreDefaults").get("defaults")
 	if d is Dictionary:
-		_defaults = d as Dictionary
+		_defaults = SystemIds.rekeyed(d as Dictionary)
 		# Ensure a roms/ folder exists for every configured system
 		for sid: String in _defaults:
 			RomLibrary.ensure_rom_dir(sid)

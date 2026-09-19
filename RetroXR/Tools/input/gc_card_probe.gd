@@ -47,9 +47,9 @@ func _run() -> void:
 	sun.light_energy = 1.5
 	sv.add_child(sun)
 
-	var gc := _system("gamecube", Vector3(-0.20, 0, 0))
+	var gc := _system("gc", Vector3(-0.20, 0, 0))
 	sv.add_child(gc)
-	var psx := _system("playstation", Vector3(0.20, 0, 0))
+	var psx := _system("psx", Vector3(0.20, 0, 0))
 	sv.add_child(psx)
 
 	# Let the models load and RetroSystem run its slot setup.

@@ -11,7 +11,7 @@ display_version = "3.10"
 # Hardware Information
 manufacturer = "Commodore"
 systemname = "C64"
-systemid = "commodore_c64"
+systemid = "c64"
 
 # Libretro Features
 database = "Commodore - 64"

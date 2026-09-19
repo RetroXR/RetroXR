@@ -50,10 +50,10 @@ const _SCENES := "res://Scenes/Objects/system_models/"
 ## sense the procedural box was, just a far better one: it has the sockets their
 ## keyboard, mouse, monitor and speakers actually plug into.
 const _COMPUTER_PLATFORMS: Array[String] = [
-	"apple_ii", "atari_8bit", "atari_st", "commodore_amiga",
-	"commodore_c128", "commodore_c64", "commodore_vic20", "cpc", "dos", "msx",
-	"pc_88", "pc_98", "scummvm", "sharp_x1", "sharp_x68000", "svi", "zx81",
-	"zx_spectrum",
+	"apple2", "atari800", "atarist", "amiga",
+	"commodore_c128", "c64", "vic20", "amstradcpc", "dos", "msx",
+	"pc88", "pc98", "scummvm", "x1", "x68000", "spectravideo", "zx81",
+	"zxspectrum",
 ]
 
 
@@ -74,7 +74,7 @@ const _ROWS: Dictionary = {
 	# --- consoles -------------------------------------------------------------
 	# `requires` names each detailed model's GLB, so a build without the asset lists
 	# the platform's stand-in instead of a row that cannot spawn.
-	"atari_2600":           {"platform": "atari_2600", "label": "Atari 2600",
+	"atari_2600":           {"platform": "atari2600", "label": "Atari 2600",
 		"script": "res://Scripts/Objects/system_models/atari_2600_model.gd",
 		"requires": ["res://imported-assets/consoles/atari_2600/atari_2600_console.glb"]},
 	"nes":                  {"platform": "nes", "label": "Nintendo Entertainment System",
@@ -85,7 +85,7 @@ const _ROWS: Dictionary = {
 	# microphone and an NES pad has none.
 	"famicom":              {"platform": "famicom", "label": "Family Computer",
 		"scene": _SCENES + "famicom_primitive.tscn"},
-	"playstation":          {"platform": "playstation", "label": "PlayStation",
+	"playstation":          {"platform": "psx", "label": "PlayStation",
 		"script": "res://Scripts/Objects/system_models/playstation_model.gd",
 		"requires": ["res://imported-assets/consoles/playstation/ps1_console.glb"]},
 	# A scene row with the model script on its root: primitive geometry, no GLB, so
@@ -93,7 +93,7 @@ const _ROWS: Dictionary = {
 	# Wii cannot run correctly without.
 	"wii":                  {"platform": "wii", "label": "Wii",
 		"scene": _SCENES + "wii_primitive.tscn"},
-	"nintendo_64":          {"platform": "nintendo_64", "label": "Nintendo 64",
+	"nintendo_64":          {"platform": "n64", "label": "Nintendo 64",
 		"scene": _SCENES + "nintendo_64_primitive.tscn"},
 	# --- computers ------------------------------------------------------------
 	# One row across every computer platform rather than eighteen near-identical
@@ -105,27 +105,27 @@ const _ROWS: Dictionary = {
 	# --- handhelds ------------------------------------------------------------
 	# The "(primitive)" suffix is now redundant — these are the only models their
 	# platforms have — but the ids are what saves and peers name, so they stay.
-	"game_boy_primitive":   {"platform": "game_boy", "label": "Game Boy", "handheld": true,
+	"game_boy_primitive":   {"platform": "gb", "label": "Game Boy", "handheld": true,
 		"scene": _SCENES + "game_boy_primitive.tscn"},
-	"game_boy_advance_primitive": {"platform": "game_boy_advance", "label": "Game Boy Advance", "handheld": true,
+	"game_boy_advance_primitive": {"platform": "gba", "label": "Game Boy Advance", "handheld": true,
 		"scene": _SCENES + "game_boy_advance_primitive.tscn"},
-	"game_boy_advance_sp_primitive": {"platform": "game_boy_advance", "label": "Game Boy Advance SP", "handheld": true,
+	"game_boy_advance_sp_primitive": {"platform": "gba", "label": "Game Boy Advance SP", "handheld": true,
 		"scene": _SCENES + "game_boy_advance_sp_primitive.tscn"},
 	"nds_primitive":        {"platform": "nds", "label": "DS", "handheld": true,
 		"scene": _SCENES + "nds_primitive.tscn"},
-	"n3ds_primitive":       {"platform": "3ds", "label": "3DS", "handheld": true,
+	"n3ds_primitive":       {"platform": "n3ds", "label": "3DS", "handheld": true,
 		"scene": _SCENES + "n3ds_primitive.tscn"},
-	"psp_primitive":        {"platform": "playstation_portable", "label": "PSP", "handheld": true,
+	"psp_primitive":        {"platform": "psp", "label": "PSP", "handheld": true,
 		"scene": _SCENES + "psp_primitive.tscn"},
-	"virtual_boy_primitive": {"platform": "virtual_boy", "label": "Virtual Boy",
+	"virtual_boy_primitive": {"platform": "virtualboy", "label": "Virtual Boy",
 		"scene": _SCENES + "virtual_boy_primitive.tscn"},
-	"atari_lynx":           {"platform": "atari_lynx", "label": "Atari Lynx", "handheld": true,
+	"atari_lynx":           {"platform": "atarilynx", "label": "Atari Lynx", "handheld": true,
 		"scene": _SCENES + "atari_lynx.tscn"},
 	"wonderswan":           {"platform": "wonderswan", "label": "WonderSwan", "handheld": true,
 		"scene": _SCENES + "wonderswan.tscn"},
-	"neo_geo_pocket":       {"platform": "neo_geo_pocket", "label": "Neo Geo Pocket", "handheld": true,
+	"neo_geo_pocket":       {"platform": "ngp", "label": "Neo Geo Pocket", "handheld": true,
 		"scene": _SCENES + "neo_geo_pocket.tscn"},
-	"pokemon_mini":         {"platform": "pokemon_mini", "label": "Pokemon Mini", "handheld": true,
+	"pokemon_mini":         {"platform": "pokemini", "label": "Pokemon Mini", "handheld": true,
 		"scene": _SCENES + "pokemon_mini.tscn"},
 	"supervision":          {"platform": "supervision", "label": "Supervision", "handheld": true,
 		"scene": _SCENES + "supervision.tscn"},

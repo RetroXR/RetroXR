@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Atari"
 systemname = "Lynx"
-systemid = "atari_lynx"
+systemid = "atarilynx"
 
 # Libretro Features
 database = "Atari - Lynx"

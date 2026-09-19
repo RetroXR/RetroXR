@@ -11,7 +11,7 @@ display_version = "115"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Super Nintendo Entertainment System"
-systemid = "super_nes"
+systemid = "snes"
 secondary_systemids = "satellaview:bs"
 
 # BIOS / Firmware

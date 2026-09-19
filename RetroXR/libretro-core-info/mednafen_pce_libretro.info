@@ -11,8 +11,8 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "NEC"
 systemname = "PC Engine"
-systemid = "pc_engine"
-secondary_systemids = "pc_engine_cd:cue,ccd,chd,toc,m3u|supergrafx:sgx"
+systemid = "tg16"
+secondary_systemids = "tg-cd:cue,ccd,chd,toc,m3u|supergrafx:sgx"
 
 # Libretro Features
 database = "NEC - PC Engine SuperGrafx|NEC - PC Engine - TurboGrafx 16|NEC - PC Engine CD - TurboGrafx-CD"

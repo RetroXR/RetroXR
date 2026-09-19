@@ -263,7 +263,7 @@ func _find_rom() -> String:
 		if arg.begins_with("--roms="):
 			roots.append(arg.substr(7))
 	for root in roots:
-		for systemid in ["game_boy", "gb"]:
+		for systemid in ["gb", "gb"]:
 			var dir_path: String = root.path_join(systemid)
 			var dir := DirAccess.open(dir_path)
 			if dir == null:

@@ -22,135 +22,135 @@ const SLUG_MAP := {
 	"famicom": "famicom",
 	"fc": "famicom",
 	"fds": "fds",
-	"snes": "super_nes",
-	"sfc": "super_nes",
-	"superfamicom": "super_nes",
-	"snes-msu1": "super_nes",
+	"snes": "snes",
+	"sfc": "snes",
+	"superfamicom": "snes",
+	"snes-msu1": "snes",
 	"satellaview": "satellaview",
-	"sufami": "sufami_turbo",
-	"sufamiturbo": "sufami_turbo",
+	"sufami": "sufami",
+	"sufamiturbo": "sufami",
 	# A Super Game Boy release is a GAME BOY cartridge that happens to light up
 	# extra colours and a border in the adapter. The file is a .gb, so filing it
-	# under super_nes put it in a folder whose extensions do not include it and
+	# under snes put it in a folder whose extensions do not include it and
 	# nothing scanned it -- and it belongs in the handheld library anyway, which
 	# is what fills a Super Game Boy's bay.
-	"sgb": "game_boy",
+	"sgb": "gb",
 	# The MSU-1 variant is a Game Boy cartridge too, despite sitting beside
 	# snes-msu1 in every platform list. Checked against a real library rather than
 	# reasoned from the name: the folder declares ".gb .gbc .zip .7z .squashfs",
 	# so what is filed there is handheld ROMs with streamed audio beside them, not
 	# the .sfc that snes-msu1 holds.
-	"sgb-msu1": "game_boy",
-	"n64": "nintendo_64",
-	"n64dd": "nintendo_64dd",
-	"gb": "game_boy",
-	"gb2players": "game_boy",
+	"sgb-msu1": "gb",
+	"n64": "n64",
+	"n64dd": "n64dd",
+	"gb": "gb",
+	"gb2players": "gb",
 	# The project has no separate Game Boy Color systemid — gambatte reports
-	# "game_boy" for both, and the cart shell is the same.
-	"gbc": "game_boy",
-	"gbc2players": "game_boy",
-	"gba": "game_boy_advance",
+	# "gb" for both, and the cart shell is the same.
+	"gbc": "gb",
+	"gbc2players": "gb",
+	"gba": "gba",
 	"nds": "nds",
-	"3ds": "3ds",
-	"gc": "gamecube",
+	"3ds": "n3ds",
+	"gc": "gc",
 	"wii": "wii",
 	"wiiware": "wii",
-	"gamecube": "gamecube",
-	"triforce": "gamecube",
-	"virtualboy": "virtual_boy",
-	"pokemini": "pokemon_mini",
+	"gamecube": "gc",
+	"triforce": "gc",
+	"virtualboy": "virtualboy",
+	"pokemini": "pokemini",
 
 	# Sony
-	"psx": "playstation",
-	"ps": "playstation",
-	"ps1": "playstation",
-	"playstation": "playstation",
-	"ps2": "playstation2",
-	"playstation-2": "playstation2",
-	"psp": "playstation_portable",
+	"psx": "psx",
+	"ps": "psx",
+	"ps1": "psx",
+	"playstation": "psx",
+	"ps2": "ps2",
+	"playstation-2": "ps2",
+	"psp": "psp",
 
 	# Sega
-	"megadrive": "mega_drive",
-	"megadrive-msu": "mega_drive",
-	"msu-md": "mega_drive",
-	"genesis": "mega_drive",
-	"genesis-slash-megadrive": "mega_drive",
-	"md": "mega_drive",
-	"mastersystem": "master_system",
-	"sms": "master_system",
-	"gamegear": "game_gear",
-	"segacd": "sega_cd",
-	"megacd": "sega_cd",
-	"mega-cd": "sega_cd",
-	"sega-cd": "sega_cd",
-	"sega32": "sega_32x",
-	"sega32x": "sega_32x",
-	"32x": "sega_32x",
-	"sg1000": "sg1000",
-	"sg-1000": "sg1000",
+	"megadrive": "genesis",
+	"megadrive-msu": "genesis",
+	"msu-md": "genesis",
+	"genesis": "genesis",
+	"genesis-slash-megadrive": "genesis",
+	"md": "genesis",
+	"mastersystem": "mastersystem",
+	"sms": "mastersystem",
+	"gamegear": "gamegear",
+	"segacd": "segacd",
+	"megacd": "segacd",
+	"mega-cd": "segacd",
+	"sega-cd": "segacd",
+	"sega32": "sega32x",
+	"sega32x": "sega32x",
+	"32x": "sega32x",
+	"sg1000": "sg-1000",
+	"sg-1000": "sg-1000",
 	# No bare "pico": that is PICO-8's folder name as often as it is this
 	# machine's, and the two are unrelated.
 	"sega-pico": "sega_pico",
 	"segapico": "sega_pico",
-	"saturn": "sega_saturn",
-	"sega-saturn": "sega_saturn",
+	"saturn": "saturn",
+	"sega-saturn": "saturn",
 	"dreamcast": "dreamcast",
 	"dc": "dreamcast",
 	"vmu": "vmu",
 
 	# Atari
-	"atari2600": "atari_2600",
-	"atari5200": "atari_5200",
-	"atari7800": "atari_7800",
-	"atarilynx": "atari_lynx",
-	"lynx": "atari_lynx",
-	"atarijaguar": "atari_jaguar",
-	"jaguar": "atari_jaguar",
-	"atarijaguarcd": "jaguar_cd",
-	"jaguarcd": "jaguar_cd",
-	"atari-jaguar-cd": "jaguar_cd",
-	"atarist": "atari_st",
+	"atari2600": "atari2600",
+	"atari5200": "atari5200",
+	"atari7800": "atari7800",
+	"atarilynx": "atarilynx",
+	"lynx": "atarilynx",
+	"atarijaguar": "atarijaguar",
+	"jaguar": "atarijaguar",
+	"atarijaguarcd": "atarijaguarcd",
+	"jaguarcd": "atarijaguarcd",
+	"atari-jaguar-cd": "atarijaguarcd",
+	"atarist": "atarist",
 
 	# NEC
-	"pcengine": "pc_engine",
-	"pce": "pc_engine",
-	"pcenginecd": "pc_engine_cd",
-	"pcecd": "pc_engine_cd",
-	"turbografx-cd": "pc_engine_cd",
+	"pcengine": "tg16",
+	"pce": "tg16",
+	"pcenginecd": "tg-cd",
+	"pcecd": "tg-cd",
+	"turbografx-cd": "tg-cd",
 	"supergrafx": "supergrafx",
-	"turbografx-16-slash-pc-engine": "pc_engine",
-	"pcfx": "pc_fx",
-	"pc88": "pc_88",
-	"pc80": "pc_88",
-	"pc98": "pc_98",
+	"turbografx-16-slash-pc-engine": "tg16",
+	"pcfx": "pcfx",
+	"pc88": "pc88",
+	"pc80": "pc88",
+	"pc98": "pc98",
 
 	# SNK
 	"neogeo": "neogeo",
-	"neogeocd": "neo_geo_cd",
-	"neo-geo-cd": "neo_geo_cd",
-	"ngp": "neo_geo_pocket",
-	"ngpc": "neo_geo_pocket",
+	"neogeocd": "neogeocd",
+	"neo-geo-cd": "neogeocd",
+	"ngp": "ngp",
+	"ngpc": "ngp",
 
 	# Bandai / Watara / other handhelds
 	#
-	# Game & Watch resolves to handheld_electronic, not an id of its own: `gw` is
+	# Game & Watch resolves to gameandwatch, not an id of its own: `gw` is
 	# the only core that plays these, and it covers Tiger and Acclaim LCD games
 	# under the same id.
-	"g-and-w": "handheld_electronic",
-	"gameandwatch": "handheld_electronic",
+	"g-and-w": "gameandwatch",
+	"gameandwatch": "gameandwatch",
 	"wonderswan": "wonderswan",
 	"wswan": "wonderswan",
 	"wonderswancolor": "wonderswan",
 	"wswanc": "wonderswan",
 	"supervision": "supervision",
-	"megaduck": "mega_duck",
+	"megaduck": "megaduck",
 
 	# Consoles, misc
 	"3do": "3do",
 	"cdi": "cdi",
 	"cdimono1": "cdi",
-	"channelf": "channel_f",
-	"fairchild-channel-f": "channel_f",
+	"channelf": "channelf",
+	"fairchild-channel-f": "channelf",
 	"colecovision": "colecovision",
 	"coleco": "colecovision",
 	"intellivision": "intellivision",
@@ -172,40 +172,40 @@ const SLUG_MAP := {
 	"naomi2": "mame",
 	"atomiswave": "mame",
 	"model3": "mame",
-	"fba": "fb_alpha",
-	"fbneo": "fb_alpha",
+	"fba": "fbneo",
+	"fbneo": "fbneo",
 
 	# Computers
-	"c64": "commodore_c64",
-	"commodore-64": "commodore_c64",
+	"c64": "c64",
+	"commodore-64": "c64",
 	"c128": "commodore_c128",
-	"c20": "commodore_vic20",
-	"amiga": "commodore_amiga",
-	"amiga500": "commodore_amiga",
-	"amiga1200": "commodore_amiga",
-	"amigacd32": "amiga_cd32",
-	"cd32": "amiga_cd32",
-	"amigacdtv": "amiga_cdtv",
-	"cdtv": "amiga_cdtv",
-	"amstradcpc": "cpc",
-	"cpc": "cpc",
-	"gx4000": "cpc",
-	"zxspectrum": "zx_spectrum",
-	"zx-spectrum": "zx_spectrum",
-	"spectrum": "zx_spectrum",
+	"c20": "vic20",
+	"amiga": "amiga",
+	"amiga500": "amiga",
+	"amiga1200": "amiga",
+	"amigacd32": "amigacd32",
+	"cd32": "amigacd32",
+	"amigacdtv": "cdtv",
+	"cdtv": "cdtv",
+	"amstradcpc": "amstradcpc",
+	"cpc": "amstradcpc",
+	"gx4000": "amstradcpc",
+	"zxspectrum": "zxspectrum",
+	"zx-spectrum": "zxspectrum",
+	"spectrum": "zxspectrum",
 	"zx81": "zx81",
 	"msx": "msx",
 	"msx1": "msx",
 	"msx2": "msx",
 	"msx2+": "msx",
 	"msxturbor": "msx",
-	"x68000": "sharp_x68000",
-	"x1": "sharp_x1",
-	"apple2": "apple_ii",
-	"atari8bit": "atari_8bit",
-	"atari800": "atari_8bit",
-	"svi": "svi",
-	"spectravideo": "svi",
+	"x68000": "x68000",
+	"x1": "x1",
+	"apple2": "apple2",
+	"atari8bit": "atari800",
+	"atari800": "atari800",
+	"svi": "spectravideo",
+	"spectravideo": "spectravideo",
 	"dos": "dos",
 	"pc": "dos",
 
@@ -220,7 +220,10 @@ const SLUG_MAP := {
 ##
 ## Precedence: explicit user override (by either slug), then fs_slug, then slug.
 ## fs_slug beats slug because it's the folder the user named themselves — it may
-## already BE our systemid (e.g. a folder literally called "super_nes").
+## already BE our systemid (e.g. a folder literally called "snes"), one of
+## ES-DE's other names for it ("sfc"), or the id it had before the rename
+## ("super_nes"), which SystemIds reads. An override saved before the rename
+## holds an old id too.
 static func systemid_for(platform: Dictionary, overrides: Dictionary = {}) -> String:
 	var slug_v: Variant = platform.get("slug")
 	var fs_v: Variant = platform.get("fs_slug")
@@ -229,13 +232,20 @@ static func systemid_for(platform: Dictionary, overrides: Dictionary = {}) -> St
 
 	for key: String in [slug, fs_slug]:
 		if not key.is_empty() and overrides.has(key):
-			return str(overrides[key])
+			return SystemIds.canonical(str(overrides[key]))
 
 	for key: String in [fs_slug, slug]:
 		if key.is_empty():
 			continue
 		if SLUG_MAP.has(key):
 			return str(SLUG_MAP[key])
+
+	for key: String in [fs_slug, slug]:
+		if key.is_empty():
+			continue
+		var folder_owner := SystemIds.systemid_for_folder(key)
+		if SystemInfo.for_system(folder_owner) != null:
+			return folder_owner
 
 	return ""
 

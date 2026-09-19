@@ -13,11 +13,11 @@ const ID := "sega_cd_ram_cart"
 # sized as a Mega Drive cartridge.
 const ROW := {
 	"label": "Backup RAM Cartridge",
-	"host": "mega_drive",
+	"host": "genesis",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	"size": Vector3(0.110, 0.070, 0.017),
 	"loader": MediaDimensions.LOADER_NONE,
-	"card": "sega_cd",
+	"card": "segacd",
 	"memory": "sega_cd_ram_cart",
 	# Its name on the face that looks out of the slot. On the back face, where
 	# the other cartridge-mounted units wear theirs, it was the side that could

@@ -534,7 +534,7 @@ func _r_vga() -> void:
 ## keeps the two Nintendo multi-outs apart.
 func _n64() -> Node3D:
 	var sys := SYSTEM_SCENE.instantiate() as Node3D
-	sys.systemid = "nintendo_64"
+	sys.systemid = "n64"
 	sys.model_id = "nintendo_64"
 	sys.freeze = true
 	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)

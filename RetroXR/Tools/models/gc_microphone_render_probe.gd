@@ -36,7 +36,7 @@ func _run() -> void:
 	add_child(sun)
 
 	var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	sys.systemid = "gamecube"
+	sys.systemid = "gc"
 	add_child(sys)
 	sys.freeze = true
 	var mic := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn").instantiate() as GcMicrophone

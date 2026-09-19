@@ -12,8 +12,8 @@ const ID := "jaguar_cd"
 # is a system in its own right and the unit is spawned from its own card.
 const ROW := {
 	"label": "Jaguar CD",
-	"host": "atari_jaguar",
-	"media": "jaguar_cd",
+	"host": "atarijaguar",
+	"media": "atarijaguarcd",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	"size": Vector3(0.20, 0.09, 0.18),
 	"loader": MediaDimensions.LOADER_TRAY,
@@ -25,7 +25,7 @@ const ROW := {
 
 const BOOT := {
 	# UNVERIFIED.
-	"atari_jaguar|jaguar_cd": {
+	"atarijaguar|jaguar_cd": {
 		"core": "virtualjaguar",
 		"roms": ["expansion:jaguar_cd"],
 	},

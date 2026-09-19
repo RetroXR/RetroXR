@@ -79,7 +79,7 @@ func _run() -> void:
 
 	# ── the console ─────────────────────────────────────────────────────────
 	_sys = SYSTEM_SCENE.instantiate() as RetroSystem
-	_sys.systemid = "super_nes"
+	_sys.systemid = "snes"
 	add_child(_sys)
 	_sys.freeze = true
 	_sys.global_position = Vector3(-0.28, 0.0, -0.10)

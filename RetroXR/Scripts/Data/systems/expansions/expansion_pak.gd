@@ -28,7 +28,7 @@ const ID := "expansion_pak"
 # the only thing that tells a seated Expansion Pak from a Jumper Pak.
 const ROW := {
 	"label": "Expansion Pak",
-	"host": "nintendo_64",
+	"host": "n64",
 	"media": "",
 	"mount": ExpansionDefs.MOUNT_ABOVE,
 	"size": Vector3(0.0515, 0.046, 0.023),

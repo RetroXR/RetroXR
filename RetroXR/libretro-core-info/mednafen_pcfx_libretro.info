@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "NEC"
 systemname = "PC-FX"
-systemid = "pc_fx"
+systemid = "pcfx"
 
 # Libretro Features
 database = "NEC - PC-FX"

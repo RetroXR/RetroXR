@@ -241,7 +241,7 @@ func _run() -> void:
 	_check(int((ControllerBindings.get_global()["buttons"] as Dictionary)
 		.get("right_trigger", -1)) != ControllerBindings.JOYPAD_A,
 		"and left the global map alone")
-	_check(int((ControllerBindings.get_for_system("super_nes")["buttons"] as Dictionary)
+	_check(int((ControllerBindings.get_for_system("snes")["buttons"] as Dictionary)
 		.get("right_trigger", -1)) != ControllerBindings.JOYPAD_A,
 		"and left every other platform alone")
 	_check(int((pad.get("_button_map") as Dictionary).get("right_trigger", -1))
@@ -324,7 +324,7 @@ func _run() -> void:
 	# The fallback is the whole reason the registry has a `has()`: 65 of the 66
 	# configured platforms have no art and must still be bindable.
 	var snes_editor: Node = ControlsBindingEditor.new()
-	snes_editor.set("_systemid", "super_nes")
+	snes_editor.set("_systemid", "snes")
 	add_child(snes_editor)
 	snes_editor.call("_build_xr_controls", snes_editor)
 	snes_editor.call("_build_gamepad_controls", snes_editor)

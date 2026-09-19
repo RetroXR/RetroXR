@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Miles Gordon Technology"
 systemname = "SAM coupe"
-systemid = "sam_coupe"
+systemid = "samcoupe"
 
 # Libretro Features
 supports_no_game = "false"

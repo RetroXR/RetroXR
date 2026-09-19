@@ -298,7 +298,7 @@ var _cartridge_slot: Node3D = null
 ## Height a seated cartridge ends up with once the runtime has scaled the model
 ## down to MediaDimensions. This shell is width-bound under that fit rule.
 func _seated_cart_height() -> float:
-	return MediaDimensions.cart_size("atari_2600").x * _CART_ASPECT
+	return MediaDimensions.cart_size("atari2600").x * _CART_ASPECT
 
 
 func cart_seat_transform() -> Transform3D:

@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Sony"
 systemname = "PlayStation"
-systemid = "playstation"
+systemid = "psx"
 
 # Libretro Features
 supports_no_game = "false"

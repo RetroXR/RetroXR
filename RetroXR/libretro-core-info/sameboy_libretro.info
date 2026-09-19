@@ -11,7 +11,7 @@ permissions = ""
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Game Boy/Game Boy Color"
-systemid = "game_boy"
+systemid = "gb"
 
 # Libretro Features
 database = "Nintendo - Game Boy|Nintendo - Game Boy Color"

@@ -15,7 +15,7 @@ const ID := "ereader_usa"
 # tiles for one shelf of cards would be three empty libraries.
 const ROW := {
 	"label": "e-Reader (USA)",
-	"host": "game_boy_advance",
+	"host": "gba",
 	"media": "ereader",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	# See ereader.gd: the battery is in the reader, and each revision keeps its
@@ -29,7 +29,7 @@ const ROW := {
 
 
 const BOOT := {
-	"game_boy_advance|ereader_usa": {
+	"gba|ereader_usa": {
 		"core": "mgba",
 		"roms": ["expansion:ereader_usa"],
 	},

@@ -11,7 +11,7 @@ display_version = "v2.7.x"
 # Hardware Information
 manufacturer = "Sony"
 systemname = "Sony PlayStation 2"
-systemid = "playstation2"
+systemid = "ps2"
 
 # Libretro Features
 database = "Sony - PlayStation 2"

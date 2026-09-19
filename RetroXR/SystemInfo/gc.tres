@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="SystemInfo" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/systems/system_info.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+systemid = "gc"
+display_name = "Nintendo GameCube"
+native_ports = 4
+media_type = 1
+card_slots = 2
+card_family = "gamecube"
+save_device = "gamecube"
+supports_multitap = false
+multitap_ports = 0

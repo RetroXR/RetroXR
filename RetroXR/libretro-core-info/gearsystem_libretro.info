@@ -11,8 +11,8 @@ display_version = "3.2.0"
 # Hardware Information
 manufacturer = "Sega"
 systemname = "Sega Master System"
-systemid = "master_system"
-secondary_systemids = "game_gear:gg|sg1000:sg"
+systemid = "mastersystem"
+secondary_systemids = "gamegear:gg|sg-1000:sg"
 
 # Libretro Features
 supports_no_game = "false"

@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "NEC"
 systemname = "PC-98"
-systemid = "pc_98"
+systemid = "pc98"
 
 # Libretro Features
 supports_no_game = "false"

@@ -106,7 +106,7 @@ func _run() -> void:
 		PS2Card.free_blocks(blank_a) == PS2Card.total_blocks(blank_a))
 
 	_sys = preload("res://Scenes/Objects/system.tscn").instantiate() as Node3D
-	_sys.set("systemid", "playstation2")
+	_sys.set("systemid", "ps2")
 	_sys.set("rom_path", _rom)
 	add_child(_sys)
 	await get_tree().process_frame

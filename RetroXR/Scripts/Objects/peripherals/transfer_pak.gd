@@ -15,7 +15,7 @@ extends N64Pak
 const PLUG_SYSTEMID := "n64_transfer_pak"
 
 ## What this pak's own bay will take, and nothing else.
-const MEDIA_SYSTEMID := "game_boy"
+const MEDIA_SYSTEMID := "gb"
 
 ## The cartridge in the roof changed. The controller cannot watch this bay
 ## itself, being two objects away from it, so the change is announced upward and

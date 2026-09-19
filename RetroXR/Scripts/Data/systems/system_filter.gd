@@ -53,11 +53,11 @@ const SINGLE_GAME: PackedStringArray = [
 ## defensible arcade fixtures in that group — clear this array to show them.
 const FPS_ENGINES: PackedStringArray = [
 	"doom",             # prboom
-	"doom_3",           # boom3, boom3_xp
-	"quake_1",          # tyrquake
+	"doom3",           # boom3, boom3_xp
+	"quake",          # tyrquake
 	"quake_2",
-	"quake_3",
-	"wolfenstein3d",
+	"quake3",
+	"wolfenstein",
 ]
 
 ## When false, is_hidden() always reports false and every systemid is browsable.

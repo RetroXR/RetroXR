@@ -346,7 +346,7 @@ func _rom_shot(sv: SubViewport, cam: Camera3D) -> void:
 	for i in roms.size():
 		var path := roms[i]
 		var cart := CART_SCENE.instantiate() as RetroCartridge
-		cart.systemid = "nintendo_64"
+		cart.systemid = "n64"
 		cart.rom_path = path
 		cart.game_label = path.get_file().get_basename()
 		cart.freeze = true
@@ -355,7 +355,7 @@ func _rom_shot(sv: SubViewport, cam: Camera3D) -> void:
 		cart.position = Vector3((col - (per_row - 1) * 0.5) * 0.15, 0.13 - line * 0.155, 0)
 		add_child(cart)
 		spawned.append(cart)
-		var market := N64CartShell.market("nintendo_64", path)
+		var market := N64CartShell.market("n64", path)
 		var preset := N64CartShell.preset_for_rom(path, market)
 		var caption := Label3D.new()
 		caption.text = "%s\n%s body, %s" % [path.get_file().get_basename().left(34),

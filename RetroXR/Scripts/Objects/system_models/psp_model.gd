@@ -6,7 +6,7 @@
 ## the EJECT latch and the UMD door. The stand-in authors none of those, so those
 ## passes find nothing and no-op.
 ##
-## Media is the UMD (systemid "playstation_portable"), which loads through the
+## Media is the UMD (systemid "psp"), which loads through the
 ## back-edge UMD door rather than a top slot.
 class_name RetroSystemModelPSP
 extends RetroSystemModelHandheld

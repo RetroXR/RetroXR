@@ -108,14 +108,14 @@ func _carry(what: Node3D, to: Vector3, steps: int) -> void:
 ## Paths are only labels here -- nothing is launched, so a file that is not
 ## present still shows the shape of the media going in.
 const REEL := [
-	{"host": "nintendo_64",  "unit": "nintendo_64dd", "media": "nintendo_64dd"},
+	{"host": "n64",  "unit": "nintendo_64dd", "media": "n64dd"},
 	{"host": "nes",          "unit": "fds",           "media": "fds"},
-	{"host": "super_nes",    "unit": "satellaview",   "media": "satellaview"},
-	{"host": "super_nes",    "unit": "sufami_turbo",  "media": "sufami_turbo"},
-	{"host": "mega_drive",   "unit": "sega_cd",       "media": "sega_cd"},
-	{"host": "mega_drive",   "unit": "sega_32x",      "media": "sega_32x"},
-	{"host": "pc_engine",    "unit": "pc_engine_cd",  "media": "pc_engine_cd"},
-	{"host": "atari_jaguar", "unit": "jaguar_cd",     "media": "atari_jaguar"},
+	{"host": "snes",    "unit": "satellaview",   "media": "satellaview"},
+	{"host": "snes",    "unit": "sufami_turbo",  "media": "sufami"},
+	{"host": "genesis",   "unit": "sega_cd",       "media": "segacd"},
+	{"host": "genesis",   "unit": "sega_32x",      "media": "sega32x"},
+	{"host": "tg16",    "unit": "pc_engine_cd",  "media": "tg-cd"},
+	{"host": "atarijaguar", "unit": "jaguar_cd",     "media": "atarijaguar"},
 ]
 
 

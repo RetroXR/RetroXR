@@ -29,7 +29,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 script = ExtResource("1_dsscript")
 plug_mesh_path = "res://Scenes/Objects/controllers/playstation/ps1_plug.res"
-systemid = "playstation"
+systemid = "psx"
 cable_length = 2.0
 pad_type_pref = "dualshock"
 

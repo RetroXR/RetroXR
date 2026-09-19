@@ -11,8 +11,8 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Super Nintendo Entertainment System"
-systemid = "super_nes"
-secondary_systemids = "game_boy:gb,gbc|satellaview:bs"
+systemid = "snes"
+secondary_systemids = "gb:gb,gbc|satellaview:bs"
 
 # Libretro Features
 supports_no_game = "false"

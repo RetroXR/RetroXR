@@ -42,7 +42,7 @@ static func shared() -> CoreInfoDatabase:
 
 
 ## Parse a `secondary_systemids` value into [{id: String, exts: Array[String]}].
-## Format: "game_gear:gg|sega_cd:cue,iso,chd" — pipe between platforms, comma
+## Format: "gamegear:gg|segacd:cue,iso,chd" — pipe between platforms, comma
 ## between that platform's extensions. Malformed entries are skipped.
 static func parse_secondary_systemids(raw: String) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []

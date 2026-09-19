@@ -304,11 +304,11 @@ func _test_gc() -> void:
 	_ok(MemoryCardController.dolphin_slot_value("", null) == "none", "gc/an empty slot is none")
 	loose.free()
 
-	_ok(str(ForcedCoreOptions.microphone_hotkey("dolphin", "gamecube")
+	_ok(str(ForcedCoreOptions.microphone_hotkey("dolphin", "gc")
 			.get("dolphin_hotkey_activate_microphone", "")) == "R3",
 		"gc/the microphone button is pinned to R3")
 	_ok(ForcedCoreOptions.microphone_hotkey("dolphin", "wii").is_empty(), "gc/not on a Wii")
-	_ok(ForcedCoreOptions.microphone_hotkey("snes9x", "gamecube").is_empty(), "gc/not on another core")
+	_ok(ForcedCoreOptions.microphone_hotkey("snes9x", "gc").is_empty(), "gc/not on another core")
 
 	# The stick: grille and aqua button at -Z, cord boss at +Z.
 	var stick: GcMicrophone = preload(
@@ -332,7 +332,7 @@ func _test_gc() -> void:
 		"gc/the hotkey is hardware-pinned for the core manager")
 
 	var gc := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	gc.systemid = "gamecube"
+	gc.systemid = "gc"
 	add_child(gc)
 	var mic := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn").instantiate() as GcMicrophone
 	add_child(mic)
@@ -393,7 +393,7 @@ func _test_gc_persist() -> void:
 	get_tree().current_scene = self
 
 	var gc := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	gc.systemid = "gamecube"
+	gc.systemid = "gc"
 	add_child(gc)
 	gc.add_to_group("spawned")
 	var mic := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn").instantiate() as GcMicrophone

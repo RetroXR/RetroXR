@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Game Boy/Game Boy Color"
-systemid = "game_boy"
+systemid = "gb"
 
 # Libretro Features
 supports_no_game = "false"

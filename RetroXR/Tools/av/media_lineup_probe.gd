@@ -51,7 +51,7 @@ func _build() -> void:
 	var i := 0
 	for sid: String in carts:
 		# The PSP is a UMD caddy, not a cart — it comes in with the discs.
-		if sid == "playstation_portable":
+		if sid == "psp":
 			continue
 		_place(_spawn_for(sid), sid, i, MediaDimensions.cart_size(sid))
 		i += 1
@@ -106,7 +106,7 @@ func _build() -> void:
 func _spawn_for(systemid: String) -> RetroCartridge:
 	var scene := CART_SCENE
 	if MediaDimensions.is_disc_system(systemid):
-		scene = UMD_SCENE if systemid == "playstation_portable" else DISC_SCENE
+		scene = UMD_SCENE if systemid == "psp" else DISC_SCENE
 	var m := scene.instantiate() as RetroCartridge
 	m.systemid = systemid
 	m.game_label = systemid

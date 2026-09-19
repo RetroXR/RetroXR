@@ -28,7 +28,7 @@ extends RefCounted
 ## Platforms played on another platform's controller, which read that platform's
 ## profile: a 64DD disk runs on the Nintendo 64 it sits under.
 const _SHARES_BINDINGS: Dictionary = {
-	"nintendo_64dd": "nintendo_64",
+	"n64dd": "n64",
 }
 
 
@@ -40,7 +40,11 @@ static func scope_of(systemid: String) -> String:
 ## Read the whole store. `owner` is the class name used in a warning, so a
 ## complaint in the log says which store could not be read.
 static func load_file(path: String, owner: String) -> Dictionary:
-	return JsonStore.read_dict(path, owner)
+	var data := JsonStore.read_dict(path, owner)
+	# A profile saved before the systemids were renamed is filed under the old one.
+	if data.get("per_system") is Dictionary:
+		data["per_system"] = SystemIds.rekeyed(data["per_system"] as Dictionary)
+	return data
 
 
 ## Returns false when the write did not land, so a caller can say so rather

@@ -70,7 +70,7 @@ func _run() -> void:
 	var models: Array[String] = ["", "game_boy_advance_sp_primitive", ""]
 	for i in range(3):
 		var sys := (load(SYS_SCENE) as PackedScene).instantiate() as RetroSystem
-		sys.systemid = "game_boy_advance"
+		sys.systemid = "gba"
 		sys.model_id = models[i]
 		sys.core_name = CORE
 		sys.name = "GBA%d" % i
@@ -325,7 +325,7 @@ func _find_rom() -> String:
 		if arg.begins_with("--roms="):
 			roots.append(arg.substr(7))
 	for root in roots:
-		for systemid in ["game_boy_advance", "gba"]:
+		for systemid in ["gba", "gba"]:
 			var dir_path: String = root.path_join(systemid)
 			var dir := DirAccess.open(dir_path)
 			if dir == null:

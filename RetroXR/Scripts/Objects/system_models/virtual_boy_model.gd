@@ -67,7 +67,7 @@ var _vb_light: SpotLight3D = null
 
 ## The systemid whose cart dimensions this console takes (MediaDimensions).
 func _cart_systemid() -> String:
-	return "virtual_boy"
+	return "virtualboy"
 
 
 func get_controller_port_count() -> int:

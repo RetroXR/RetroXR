@@ -11,8 +11,8 @@ display_version = "v105 (Super Famicom Accuracy)"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Super Nintendo Entertainment System"
-systemid = "super_nes"
-secondary_systemids = "game_boy:gb,gbc"
+systemid = "snes"
+secondary_systemids = "gb:gb,gbc"
 
 # Libretro Features
 supports_no_game = "false"

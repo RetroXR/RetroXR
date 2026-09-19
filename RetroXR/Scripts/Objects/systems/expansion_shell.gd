@@ -107,7 +107,7 @@ static func build_through_slot(body: Node3D, s: Vector3, card: Vector3) -> Vecto
 ## is THICK, which is a 104 x 19 mm letterbox rather than a 105 x 77 mm hole.
 ##
 ## A tray unit is sized from the disc instead, and by its LOADER rather than by
-## its media systemid -- the Jaguar CD's media is "atari_jaguar", whose cart_size
+## its media systemid -- the Jaguar CD's media is "atarijaguar", whose cart_size
 ## is a Jaguar CARTRIDGE, so asking the media what shape it is would cut a
 ## cartridge slot in a CD machine.
 ## `x_offset` moves the mouth off centre, for a unit with more than one well. It

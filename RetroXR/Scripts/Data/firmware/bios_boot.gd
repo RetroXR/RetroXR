@@ -71,7 +71,7 @@ const _ROWS := {
 	# receives a program in single-cartridge play: the BIOS draws its screen and
 	# then listens on the link port, which is the whole of how both work.
 	#
-	"mgba/game_boy_advance": {
+	"mgba/gba": {
 		"boot_rom": ["gba_bios.bin"],
 		"empty_media": "",
 		"no_content": true,
@@ -84,7 +84,7 @@ const _ROWS := {
 	# .cue gives the real "Please insert PlayStation CD-ROM" screen, from which
 	# the CD player and memory card manager are reachable. Its four BIOSes are
 	# regional and any one will do.
-	"pcsx_rearmed/playstation": {
+	"pcsx_rearmed/psx": {
 		"boot_rom": ["scph5501.bin", "scph5500.bin", "scph5502.bin", "psxonpsp660.bin"],
 		"empty_media": "cue",
 		"empty_options": {"pcsx_rearmed_show_bios_bootlogo": "enabled",
@@ -96,13 +96,13 @@ const _ROWS := {
 	# Two PS2 cores, and they do NOT share the option key -- pcee2 says
 	# pcsx2_fast_boot where LRPS2 says pcsx2_fastboot. Measured; the natural
 	# guess is the wrong way round.
-	"pcee2/playstation2": {
+	"pcee2/ps2": {
 		"boot_rom": ["pcsx2/bios"],
 		"empty_media": "",
 		"splash": {"pcsx2_fast_boot": "disabled"},
 		"why": "Fast Boot skips the PS2 boot animation and browser",
 	},
-	"pcsx2/playstation2": {
+	"pcsx2/ps2": {
 		"boot_rom": ["pcsx2/bios"],
 		"empty_media": "",
 		"no_content": true,
@@ -115,7 +115,7 @@ const _ROWS := {
 	# GameCube only. A Wii row would need a NAND dump, which dolphin's .info
 	# does not declare a path for, so there is nothing to check the option
 	# against -- and enabling the Wii menu without one gives a black screen.
-	"dolphin/gamecube": {
+	"dolphin/gc": {
 		"boot_rom": [
 			"dolphin-emu/Sys/GC/USA/IPL.bin",
 			"dolphin-emu/Sys/GC/EUR/IPL.bin",
@@ -129,7 +129,7 @@ const _ROWS := {
 	# The 64DD, not the N64. parallel_n64 is the nintendo_64dd core and this is
 	# a genuine boot-to-menu; pointing it at a plain N64 would boot every
 	# cartridge through a disk drive that is not there.
-	"parallel_n64/nintendo_64dd": {
+	"parallel_n64/n64dd": {
 		"boot_rom": ["64DD_IPL.bin"],
 		"empty_media": "",
 		"splash": {"parallel-n64-boot-device": "64DD IPL"},
@@ -139,25 +139,25 @@ const _ROWS := {
 	# ── Sega ─────────────────────────────────────────────────────────────────
 	# One core, five machines, one option key -- but a different boot ROM each
 	# time, which is exactly why these rows cannot be keyed on the core alone.
-	"genesis_plus_gx/mega_drive": {
+	"genesis_plus_gx/genesis": {
 		"boot_rom": ["bios_MD.bin"],
 		"empty_media": "",
 		"splash": {"genesis_plus_gx_bios": "enabled"},
 		"why": "Plays the Mega Drive TMSS startup screen",
 	},
-	"genesis_plus_gx/master_system": {
+	"genesis_plus_gx/mastersystem": {
 		"boot_rom": ["bios_U.sms", "bios_E.sms", "bios_J.sms"],
 		"empty_media": "",
 		"splash": {"genesis_plus_gx_bios": "enabled"},
 		"why": "Plays the Master System boot ROM",
 	},
-	"genesis_plus_gx/game_gear": {
+	"genesis_plus_gx/gamegear": {
 		"boot_rom": ["bios.gg"],
 		"empty_media": "",
 		"splash": {"genesis_plus_gx_bios": "enabled"},
 		"why": "Plays the Game Gear boot ROM",
 	},
-	"genesis_plus_gx/sega_cd": {
+	"genesis_plus_gx/segacd": {
 		"boot_rom": ["bios_CD_U.bin", "bios_CD_E.bin", "bios_CD_J.bin"],
 		"empty_media": "",
 		"splash": {"genesis_plus_gx_bios": "enabled"},
@@ -173,7 +173,7 @@ const _ROWS := {
 		"empty_options": {"reicast_hle_bios": "disabled"},
 		"why": "Boots the Dreamcast menu with no disc in it",
 	},
-	"mednafen_saturn/sega_saturn": {
+	"mednafen_saturn/saturn": {
 		"boot_rom": ["sega_101.bin", "mpr-17933.bin"],
 		"empty_media": "cue",
 		"empty_media_track": "audio",

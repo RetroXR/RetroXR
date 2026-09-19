@@ -46,7 +46,7 @@ func _ready() -> void:
 	cable.position = Vector3(1.5, 0.3, 0)
 	add_child(cable)
 	var psx: Node3D = (load("res://Scenes/Objects/system.tscn") as PackedScene).instantiate()
-	psx.set("systemid", "playstation")
+	psx.set("systemid", "psx")
 	psx.position = Vector3(-1.5, 0.2, 0)
 	add_child(psx)
 

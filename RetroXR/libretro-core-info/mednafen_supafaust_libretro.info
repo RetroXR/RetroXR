@@ -11,7 +11,7 @@ display_version = "1.29.0"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "Super Nintendo Entertainment System"
-systemid = "super_nes"
+systemid = "snes"
 
 # Libretro Features
 savestate = "true"

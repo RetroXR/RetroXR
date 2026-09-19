@@ -63,7 +63,9 @@ static func systemid_for_path(rom_path: String) -> String:
 		return ""
 	var rest := full.substr(root.length()).lstrip("/")
 	var parts := rest.split("/", false)
-	return parts[0] if parts.size() > 1 else ""
+	# The folder is usually the systemid, and may be the name it had before the
+	# rename or another of ES-DE's folders for the same machine.
+	return SystemIds.systemid_for_folder(parts[0]) if parts.size() > 1 else ""
 
 
 ## Queue a ROM for scraping if it needs it. Safe to call on every resolve.

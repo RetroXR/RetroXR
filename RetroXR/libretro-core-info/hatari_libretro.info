@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Atari"
 systemname = "Atari ST/STE/TT/Falcon"
-systemid = "atari_st"
+systemid = "atarist"
 
 # Libretro Features
 database = "Atari - ST"

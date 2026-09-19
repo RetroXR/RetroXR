@@ -62,7 +62,7 @@ func _run() -> void:
 	_ok("blank B is a card", GCCard.is_card_image(FileAccess.get_file_as_bytes(path_b)))
 
 	_sys = preload("res://Scenes/Objects/system.tscn").instantiate() as Node3D
-	_sys.set("systemid", "gamecube")
+	_sys.set("systemid", "gc")
 	_sys.set("rom_path", _rom)
 	add_child(_sys)
 	await get_tree().process_frame

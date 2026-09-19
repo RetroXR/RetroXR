@@ -11,7 +11,7 @@ display_version = "Git"
 # Hardware Information
 manufacturer = "Nintendo"
 systemname = "GameCube"
-systemid = "gamecube"
+systemid = "gc"
 secondary_systemids = "wii:wbfs,rvz,wia,wad"
 
 # Libretro Features

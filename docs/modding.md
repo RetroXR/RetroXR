@@ -102,7 +102,7 @@ extends RetroMod
 func register(api: ModApi) -> void:
     api.register_model({
         "id": "xenu.snes:snes",
-        "platform": "super_nes",
+        "platform": "snes",
         "label": "Super Nintendo",
         "scene": "res://mods/xenu.snes/snes.tscn",
         "requires": ["res://mods/xenu.snes/snes.glb"],

@@ -52,7 +52,12 @@ static func read_entries() -> Dictionary:
 		for key: String in raw:
 			var value: Variant = raw[key]
 			if value is Dictionary:
-				out[key] = _normalise_group(key, value)
+				# Keyed "<systemid>/<file>", by the old id in a manifest from
+				# before the rename. The same download under both keeps the new.
+				var current := SystemIds.canonical_path(key)
+				if current != key and (raw as Dictionary).has(current):
+					continue
+				out[current] = _normalise_group(current, value)
 	return out
 
 
@@ -449,7 +454,8 @@ func _group_exists(group: Dictionary) -> bool:
 
 static func _normalise_group(key: String, raw: Dictionary) -> Dictionary:
 	var slash := key.find("/")
-	var systemid := str(raw.get("systemid", key.left(slash) if slash > 0 else ""))
+	var systemid := SystemIds.canonical(
+		str(raw.get("systemid", key.left(slash) if slash > 0 else "")))
 	var fs_name := str(raw.get("fs_name", key.substr(slash + 1) if slash > 0 else key))
 	var launch := str(raw.get("launch", fs_name))
 	var members: Array = raw.get("members", []) if raw.get("members", []) is Array else []

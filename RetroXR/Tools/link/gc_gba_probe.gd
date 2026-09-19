@@ -274,7 +274,7 @@ func _film(frames: int) -> void:
 func _run_with_cables(root: String, iso: String, count: int) -> void:
 	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
 	var console := sys_scene.instantiate() as RetroSystem
-	console.systemid = "gamecube"
+	console.systemid = "gc"
 	console.core_name = GC_CORE
 	console.name = "GameCube"
 	add_child(console)
@@ -282,7 +282,7 @@ func _run_with_cables(root: String, iso: String, count: int) -> void:
 	var handhelds: Array[RetroSystem] = []
 	for i in range(count):
 		var hh := sys_scene.instantiate() as RetroSystem
-		hh.systemid = "game_boy_advance"
+		hh.systemid = "gba"
 		hh.core_name = GBA_CORE
 		hh.name = "GBA%d" % (i + 1)
 		add_child(hh)

@@ -31,7 +31,7 @@ extends RefCounted
 
 ## Systems whose SAVE_RAM is not the same bytes on every core that runs them, so
 ## their cartridge saves stay keyed by core.
-const PER_CORE_SYSTEMS: Array[String] = ["nintendo_64", "nintendo_64dd", "fds"]
+const PER_CORE_SYSTEMS: Array[String] = ["n64", "n64dd", "fds"]
 
 
 static func game_stem(rom_path: String) -> String:

@@ -42,7 +42,7 @@
 # systemid, so a frontend that groups content by platform has nowhere to file the rest:
 # Game Gear is emulated by five cores and named by none of them. Unrelated to
 # load_subsystem, which is the chained-loading API (optional):
-# secondary_systemids = "game_gear:gg|sega_cd:cue,iso,chd,m3u"
+# secondary_systemids = "gamegear:gg|segacd:cue,iso,chd,m3u"
 # No name is carried here on purpose: several cores usually cover the same secondary
 # platform, and each repeating its name is how they come to disagree about it.
 

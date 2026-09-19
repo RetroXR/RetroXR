@@ -10,8 +10,8 @@ const ID := "pc_engine_cd"
 # for the same reason everything else is: one relation, one direction.
 const ROW := {
 	"label": "CD-ROM²",
-	"host": "pc_engine",
-	"media": "pc_engine_cd",
+	"host": "tg16",
+	"media": "tg-cd",
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.26, 0.09, 0.22),
 	"loader": MediaDimensions.LOADER_TRAY,
@@ -21,7 +21,7 @@ const ROW := {
 const BOOT := {
 	# UNVERIFIED. The System Card goes in the console's own slot and the game is
 	# on the CD.
-	"pc_engine|pc_engine_cd": {
+	"tg16|pc_engine_cd": {
 		"core": "mednafen_pce",
 		"roms": ["expansion:pc_engine_cd"],
 	},

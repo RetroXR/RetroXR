@@ -10,7 +10,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Sony"
 systemname = "PlayStation"
-systemid = "playstation"
+systemid = "psx"
 
 # Libretro Features
 database = "Sony - PlayStation"

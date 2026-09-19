@@ -11,7 +11,7 @@ display_version = "0.60"
 # Hardware Information
 manufacturer = "Sharp"
 systemname = "Sharp X1"
-systemid = "sharp_x1"
+systemid = "x1"
 
 # Libretro Features
 database = "Sharp - X1"

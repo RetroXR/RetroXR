@@ -59,7 +59,7 @@ func _run(root: String) -> void:
 
 	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
 	_sys = sys_scene.instantiate() as RetroSystem
-	_sys.systemid = "virtual_boy"
+	_sys.systemid = "virtualboy"
 	_sys.core_name = core
 	add_child(_sys)
 	await get_tree().process_frame

@@ -172,7 +172,7 @@ func _stack() -> void:
 	await _wait(24)
 
 	var host := SYSTEM_SCENE.instantiate() as RetroSystem
-	host.systemid = "super_nes"
+	host.systemid = "snes"
 	host.freeze = true
 	add_child(host)
 	host.global_position = STAGE + Vector3(0.0, 0.16, 0.0)
@@ -216,7 +216,7 @@ func _stack() -> void:
 ## adapter's two wells -- the only unit in the catalog with more than one bay.
 func _sufami() -> void:
 	var host := SYSTEM_SCENE.instantiate() as RetroSystem
-	host.systemid = "super_nes"
+	host.systemid = "snes"
 	host.freeze = true
 	add_child(host)
 	host.global_position = STAGE
@@ -236,7 +236,7 @@ func _sufami() -> void:
 	# a picture of something that does not exist.
 	for i in 2:
 		var cart := CART_SCENE.instantiate() as RetroCartridge
-		cart.systemid = "sufami_turbo"
+		cart.systemid = "sufami"
 		cart.game_label = ""
 		cart.freeze = true
 		add_child(cart)

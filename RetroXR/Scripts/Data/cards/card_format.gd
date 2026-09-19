@@ -49,8 +49,10 @@ func save_extension() -> String:
 
 ## The systemid whose RomM platform holds this family's saves. The family id
 ## serves when it names a console; a family named for a device has to name one.
+## A family kept the name it had before the systemids were renamed (it names a
+## folder of the player's cards), so "playstation" is read as "psx" here.
 func romm_systemid() -> String:
-	return id()
+	return SystemIds.canonical(id())
 
 
 ## Every extension a RomM save for this family may arrive under: its own

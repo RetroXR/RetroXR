@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SystemInfo" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/systems/system_info.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+systemid = "gameandwatch"
+display_name = "Handheld Electronic"
+native_ports = 1
+media_type = 0
+supports_multitap = false
+multitap_ports = 0

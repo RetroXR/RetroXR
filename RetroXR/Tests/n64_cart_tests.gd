@@ -169,7 +169,7 @@ func _write_rom(file_name: String, header: PackedByteArray) -> String:
 
 
 func _label_dir() -> String:
-	return RomLibrary.rom_dir_for_system("nintendo_64").path_join("media").path_join("label")
+	return RomLibrary.rom_dir_for_system("n64").path_join("media").path_join("label")
 
 
 func _clear_fixtures() -> void:
@@ -653,7 +653,7 @@ func _test_forced() -> void:
 
 func _spawn(rom: String, shell: StringName = &"", body := "") -> RetroCartridge:
 	var cart := CART_SCENE.instantiate() as RetroCartridge
-	cart.systemid = "nintendo_64"
+	cart.systemid = "n64"
 	cart.rom_path = rom
 	cart.shell_preset = shell
 	cart.body_region = body

@@ -11,7 +11,7 @@ display_version = "git"
 manufacturer = "Id Software"
 categories = "Game engine"
 systemname = "Doom 3 Game Engine"
-systemid = "doom_3"
+systemid = "doom3"
 
 # Libretro Features
 supports_no_game = "false"

@@ -12,7 +12,7 @@
 ##
 ## What the caddy build needs, when it comes back:
 ##   * _apply_system_size() to swap DiscMesh for a BoxMesh of
-##     MediaDimensions.cart_size("playstation_portable") — laid out thin along Y,
+##     MediaDimensions.cart_size("psp") — laid out thin along Y,
 ##     footprint in XZ, so the snap poses and insert animation keep working — and
 ##     to override the surface material, since the shader reads a UV2 face class
 ##     and a lathed radius that a box carries neither of.

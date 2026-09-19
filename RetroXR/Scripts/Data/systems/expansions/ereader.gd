@@ -35,7 +35,7 @@ const ID := "ereader"
 # Size is nominal, proportioned against the GBA cart it dwarfs; not measured.
 const ROW := {
 	"label": "Card e-Reader",
-	"host": "game_boy_advance",
+	"host": "gba",
 	"media": "ereader",
 	"mount": ExpansionDefs.MOUNT_CARTRIDGE,
 	# The battery is in the READER, not in anything it reads. Its 128 KiB of
@@ -67,7 +67,7 @@ const BOOT := {
 	# No `subsystem`. mGBA's retro_load_game_special is a stub that returns false
 	# and its .info says load_subsystem = "false", so there is no ident to name and
 	# inventing one would be worse than leaving it blank.
-	"game_boy_advance|ereader": {
+	"gba|ereader": {
 		"core": "mgba",
 		"roms": ["expansion:ereader"],
 	},

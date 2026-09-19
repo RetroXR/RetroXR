@@ -58,7 +58,7 @@ func _run() -> void:
 	add_child(floor_body)
 
 	var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	sys.systemid = "nintendo_64"
+	sys.systemid = "n64"
 	add_child(sys)
 	sys.freeze = true
 	var unit := preload(

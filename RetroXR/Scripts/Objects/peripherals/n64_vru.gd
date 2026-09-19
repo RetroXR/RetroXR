@@ -32,7 +32,7 @@ const DEVICE_VRU := (1 << 8) | 1
 var device_type: int = DEVICE_VRU
 
 ## Which console's ports will take it.
-var systemid: String = "nintendo_64"
+var systemid: String = "n64"
 
 ## Set through the plug, which is what the socket actually holds.
 var seated_system: Node3D = null

@@ -77,7 +77,7 @@ which is an autoload a pack can never add.
 **Two invariants that were documented but unenforced, and both were already
 broken** — `mod_tests` `consistency/` now checks them. `SystemInfo.media_type` is
 read by NOTHING (`MediaDimensions.disc_loader` is what the cabinet uses) and had
-drifted: `playstation2` and `playstation_portable` claimed `DISC_INSERT` though a
+drifted: `ps2` and `psp` claimed `DISC_INSERT` though a
 sliding tray and a hinged UMD door are both `DISC_TRAY`, and `scummvm` claimed
 `CARTRIDGE` though it is deliberately a CD system. `DISC_INSERT` means the Wii and
 only the Wii.

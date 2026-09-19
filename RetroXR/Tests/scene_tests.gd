@@ -368,7 +368,7 @@ func _test_autosave() -> void:
 	sp.instantiate_objects(self, [
 		{"id": 0, "type": "system", "systemid": "nes",
 			"position": [0, 0, 0], "rotation": [0, 0, 0]},
-		{"id": 1, "type": "system", "systemid": "game_boy",
+		{"id": 1, "type": "system", "systemid": "gb",
 			"position": [1, 0, 0], "rotation": [0, 0, 0]},
 	])
 	for i in range(40):
@@ -444,7 +444,7 @@ func _test_reload() -> void:
 	var entries := [
 		{"id": 0, "type": "system", "systemid": "nes",
 			"position": [0, 0, 0], "rotation": [0, 0, 0]},
-		{"id": 1, "type": "system", "systemid": "game_boy",
+		{"id": 1, "type": "system", "systemid": "gb",
 			"position": [1, 0, 0], "rotation": [0, 0, 0]},
 	]
 	sp.instantiate_objects(self, entries)
@@ -512,7 +512,7 @@ func _test_overlap() -> void:
 	sp.instantiate_objects(self, [
 		{"id": 0, "type": "system", "systemid": "nes",
 			"position": [0, 0, 0], "rotation": [0, 0, 0]},
-		{"id": 1, "type": "system", "systemid": "game_boy",
+		{"id": 1, "type": "system", "systemid": "gb",
 			"position": [1, 0, 0], "rotation": [0, 0, 0]},
 	])
 	for i in range(30):
@@ -746,7 +746,7 @@ func _test_power() -> void:
 	# position brought a handheld back with its cap up and nothing running behind
 	# it, having fired value_changed straight into toggle_power on the way.
 	var gb: RetroSystem = preload("res://Scenes/Objects/system.tscn").instantiate()
-	gb.systemid = "game_boy"
+	gb.systemid = "gb"
 	add_child(gb)
 	await get_tree().process_frame
 	var sw := gb.find_child("PowerSwitch", true, false) as VRSlider
@@ -813,15 +813,15 @@ func _test_stack() -> void:
 	unit.global_position = Vector3(0.0, 1.0, 0.0)
 
 	var console := (load("res://Scenes/Objects/system.tscn") as PackedScene) 		.instantiate() as RetroSystem
-	console.systemid = "mega_drive"
+	console.systemid = "genesis"
 	console.add_to_group("spawned")
 	add_child(console)
 	console.freeze = true
 	console.global_position = Vector3(0.4, 1.0, 0.0)
 
 	var disc := (load("res://Scenes/Objects/media/disc.tscn") as PackedScene) 		.instantiate() as RetroDisc
-	disc.systemid = "sega_cd"
-	disc.rom_path = "Z:/roms/sega_cd/selftest.cue"
+	disc.systemid = "segacd"
+	disc.rom_path = "Z:/roms/segacd/selftest.cue"
 	disc.add_to_group("spawned")
 	add_child(disc)
 	disc.freeze = true
@@ -833,7 +833,7 @@ func _test_stack() -> void:
 	for i in range(20):
 		await get_tree().physics_frame
 	_eq(console.expansion_ids().size(), 1, "stack/built: the console carries its unit")
-	_eq(unit.get_media_path(), "Z:/roms/sega_cd/selftest.cue",
+	_eq(unit.get_media_path(), "Z:/roms/segacd/selftest.cue",
 		"stack/built: the drive holds its disc")
 
 	_ok(sp.save_slot(self, SLOT_A), "stack/saved the assembled room")
@@ -863,7 +863,7 @@ func _test_stack() -> void:
 			"stack/still bolted together after the reload")
 		_ok(back_unit.get_host() == back_console,
 			"stack/and the unit knows which console it is under")
-		_eq(back_unit.get_media_path(), "Z:/roms/sega_cd/selftest.cue",
+		_eq(back_unit.get_media_path(), "Z:/roms/segacd/selftest.cue",
 			"stack/the disc is still in the drive")
 
 	sp.clear_scene(self)

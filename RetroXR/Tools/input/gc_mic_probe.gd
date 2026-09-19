@@ -49,7 +49,7 @@ func _ready() -> void:
 
 func _run() -> void:
 	_sys = preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
-	_sys.systemid = "gamecube"
+	_sys.systemid = "gc"
 	_sys.core_directory = root_dir
 	add_child(_sys)
 	var mic := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn").instantiate() as GcMicrophone

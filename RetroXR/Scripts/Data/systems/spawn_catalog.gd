@@ -41,15 +41,15 @@ const _PERIPHERALS: Dictionary = {
 	# because the console moulds its own sockets and each pad wears the matching
 	# connector (plug_mesh_path), so they only look right together. The digital
 	# pad shipped with the console; the DualShock is the later one you bought.
-	"playstation": [
+	"psx": [
 		{"kind": "peripheral", "label": "Controller", "spawn": "ps1_controller"},
 		{"kind": "peripheral", "label": "DualShock", "spawn": "ps1_dualshock"},
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
 	],
-	"playstation2": [
+	"ps2": [
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
 	],
-	"gamecube": [
+	"gc": [
 		{"kind": "peripheral", "label": "Memory Card", "spawn": "memory_card"},
 		{"kind": "peripheral", "label": "Microphone", "spawn": "gc_microphone"},
 	],
@@ -71,7 +71,7 @@ const _PERIPHERALS: Dictionary = {
 	# all three paks are useless without it. The paks themselves are listed rather
 	# than left to the console's own card row: they go into a CONTROLLER, so none
 	# of the console-slot machinery that offers a memory card reaches them.
-	"nintendo_64": [
+	"n64": [
 		{"kind": "peripheral", "label": "Controller", "spawn": "n64_controller"},
 		{"kind": "peripheral", "label": "Rumble Pak", "spawn": "rumble_pak"},
 		{"kind": "peripheral", "label": "Controller Pak", "spawn": "controller_pak"},
@@ -111,7 +111,7 @@ const _PERIPHERALS: Dictionary = {
 		{"kind": "peripheral", "label": "Wii Composite Cable",
 			"spawn": "wii_av_cable"},
 	],
-	"virtual_boy": [
+	"virtualboy": [
 		{"kind": "peripheral", "label": "Controller", "spawn": "vb_controller"},
 	],
 	# The NES pad is named here rather than left to the generic row because the
@@ -140,14 +140,14 @@ const _PERIPHERALS: Dictionary = {
 	# stick wears the matching plug, so the two only look right together. Named
 	# CX40 because the 2600 shipped two quite different controllers and the
 	# paddle is still to come.
-	"atari_2600": [
+	"atari2600": [
 		{"kind": "peripheral", "label": "CX40 Joystick", "spawn": "atari_2600_cx40"},
 	],
 	# The SNES Mouse is here rather than left to the generic Controllers-tab mouse
 	# because it wears its own connector and only fits a Super NES; the generic one
 	# stays universal. The primitives are NOT dropped from this card — there is no
 	# SNES console model or pad yet, so they are still the way to play it.
-	"super_nes": [
+	"snes": [
 		{"kind": "peripheral", "label": "SNES Mouse", "spawn": "snes_mouse"},
 	],
 }
@@ -156,7 +156,7 @@ const _PERIPHERALS: Dictionary = {
 ## Platforms that model their own console AND their own pad, so the generic
 ## stand-ins are only clutter on their card. Everything else keeps them: for a
 ## platform with no hardware of its own they are the whole way to play it.
-const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari_2600", "playstation"]
+const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari2600", "psx"]
 
 
 ## Platforms that name their own A/V lead above, so the generic one would be a
@@ -166,7 +166,7 @@ const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari_2600", "playstatio
 ## The Famicom is here for a stronger reason than the other three: it has no
 ## composite socket at all, so the generic lead would fit its television and
 ## nothing on the console. Its card lists the RF switch instead.
-const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "nintendo_64"]
+const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets
 ## (av_port_channels() is empty), so a spawned lead has nothing to enter at that
@@ -177,7 +177,7 @@ const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "nintendo_64"]
 ## A platform with no model of its own is NOT one of these: it spawns the
 ## primitive box, which does wear the three sockets, and the lead is how its
 ## picture reaches the set.
-const _NO_AV_SOCKETS: Array[String] = ["virtual_boy"]
+const _NO_AV_SOCKETS: Array[String] = ["virtualboy"]
 
 ## The lead every other platform reaches the TV with. Consoles spawn wearing a
 ## captive one, so this row is a spare — for a lead thrown in the trash, or a
@@ -227,15 +227,15 @@ const _PSX_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable"
 ## console: it is one cable and it belongs to neither of them.
 const _GC_GBA_CABLE: Dictionary = {"kind": "peripheral", "label": "GC-GBA Cable",
 	"spawn": "gc_gba_cable"}
-const _GC_GBA_PLATFORMS: Array = ["gamecube", "game_boy_advance"]
+const _GC_GBA_PLATFORMS: Array = ["gc", "gba"]
 
 ## Which lead each platform is offered, keyed on the PLATFORM rather than the
 ## model: the GBA and the SP are two models of one platform and both have the
 ## socket.
 const _LINK_LEADS: Dictionary = {
-	"game_boy_advance": _LINK_CABLE,
-	"game_boy": _GB_LINK_CABLE,
-	"playstation": _PSX_LINK_CABLE,
+	"gba": _LINK_CABLE,
+	"gb": _GB_LINK_CABLE,
+	"psx": _PSX_LINK_CABLE,
 }
 
 
@@ -256,9 +256,9 @@ const _LIGHT_GUN_PLATFORMS: Array = [
 	# Menacer and the Justifier plug into the Mega Drive underneath it -- whose
 	# card is listed here and still offers the row. A gun on a card that spawns a
 	# drive would describe a socket the drive does not have.
-	"nes", "super_nes", "master_system", "mega_drive", "sega_saturn",
-	"dreamcast", "playstation", "playstation2", "atari_2600", "atari_7800",
-	"atari_8bit", "commodore_c64", "zx_spectrum", "cpc", "3do", "cdi",
+	"nes", "snes", "mastersystem", "genesis", "saturn",
+	"dreamcast", "psx", "ps2", "atari2600", "atari7800",
+	"atari800", "c64", "zxspectrum", "amstradcpc", "3do", "cdi",
 ]
 
 
@@ -281,8 +281,8 @@ const _TRS_KIT: Array = [
 static func items_for(systemid: String) -> Array:
 	# An expansion with a card of its own IS this card, and is the whole of it.
 	#
-	# Almost every unit is also a systemid -- a 64DD's disks are "nintendo_64dd",
-	# a Mega-CD's discs are "sega_cd" -- so each already had a tile in the systems
+	# Almost every unit is also a systemid -- a 64DD's disks are "n64dd",
+	# a Mega-CD's discs are "segacd" -- so each already had a tile in the systems
 	# list, sitting beside the console it bolts to. That tile opened on "Primitive
 	# System", because no model registry row serves those ids and the generic box
 	# is the fallback. Pressing it spawned a whole imaginary console: a "Nintendo

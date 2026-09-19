@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Capcom"
 systemname = "CP System II"
-systemid = "fb_alpha"
+systemid = "fbneo"
 
 # Libretro Features
 supports_no_game = "false"

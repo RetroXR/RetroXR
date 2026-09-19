@@ -163,8 +163,8 @@ func _unbolt(zone: XRToolsSnapZone, obj: Node3D) -> void:
 
 func _group_fit() -> void:
 	var dd := await _unit("nintendo_64dd")
-	var n64 := await _console("nintendo_64")
-	var snes := await _console("super_nes")
+	var n64 := await _console("n64")
+	var snes := await _console("snes")
 
 	var socket := dd.get_socket()
 	_ok(socket != null, "fit/ a unit the console stands on wears the socket")
@@ -180,7 +180,7 @@ func _group_fit() -> void:
 	# Drive has no port on its roof, and modelling the 32X as a box that stands
 	# there put one on every console that takes one.
 	var thirty_two_x := await _unit("sega_32x")
-	var md := await _console("mega_drive")
+	var md := await _console("genesis")
 	_ok(thirty_two_x.get_socket() == null, "fit/ a cartridge-shaped unit has no socket")
 	_ok(thirty_two_x.get_node_or_null("ExpansionFoot") == null,
 		"fit/ and no foot either — the console's cartridge slot takes it")
@@ -204,7 +204,7 @@ func _group_fit() -> void:
 	# The FM unit is shaped the same way, but host and media are the same
 	# systemid rather than two different ones.
 	var fm := await _unit("fm_sound_unit")
-	var sms := await _console("master_system")
+	var sms := await _console("mastersystem")
 	_ok(fm.get_socket() == null, "fit/ the FM unit has no socket")
 	_ok(fm.get_node_or_null("ExpansionFoot") == null, "fit/ and no foot")
 	_ok(sms._accepts_media(fm), "fit/ a Master System's slot takes the FM unit")
@@ -288,7 +288,7 @@ func _group_fit() -> void:
 	# restore_expansion call (driven by whatever it actually recorded: a
 	# Jumper Pak, a real Expansion Pak, or nothing) is the only source of
 	# truth there.
-	var restored := await _restored_console("nintendo_64")
+	var restored := await _restored_console("n64")
 	_ok(restored.expansion_ids().is_empty(),
 		"fit/ a console flagged as restoring seeds no default occupant of its own")
 	await _clear()
@@ -299,7 +299,7 @@ func _group_fit() -> void:
 	# passed, because the fixture sets it by hand rather than calling the code
 	# that ships. A lid the player took off came back on every load.
 	var sp := ScenePersistence.new()
-	var rebuilt := sp._deserialize_object({"type": "system", "systemid": "nintendo_64"})
+	var rebuilt := sp._deserialize_object({"type": "system", "systemid": "n64"})
 	_ok(rebuilt != null and bool(rebuilt.get("_restoring_from_save")),
 		"fit/ the deserializer flags a rebuilt system as restoring")
 	if rebuilt != null:
@@ -311,7 +311,7 @@ func _group_fit() -> void:
 
 func _group_join() -> void:
 	var dd := await _unit("nintendo_64dd")
-	var n64 := await _console("nintendo_64")
+	var n64 := await _console("n64")
 	await _bolt(n64, dd)
 
 	# The Jumper Pak seats itself in the roof socket the moment that socket is
@@ -339,7 +339,7 @@ func _group_join() -> void:
 	await _clear()
 
 	# The other direction, driven by the console's own socket.
-	var md := await _console("mega_drive")
+	var md := await _console("genesis")
 	var thirty_two_x := await _unit("sega_32x")
 	await _bolt(md, thirty_two_x)
 	_ok(md.expansion_ids() == ["sega_32x"], "join/ a unit in the cartridge slot is bolted on")
@@ -348,7 +348,7 @@ func _group_join() -> void:
 	_ok(md.expansion_ids().is_empty(), "join/ taking it out of the slot unbolts it")
 	await _clear()
 
-	var md2 := await _console("mega_drive")
+	var md2 := await _console("genesis")
 	var pbc := await _unit("power_base_converter")
 	await _bolt(md2, pbc)
 	_ok(md2.expansion_ids() == ["power_base_converter"],
@@ -358,7 +358,7 @@ func _group_join() -> void:
 	_ok(md2.expansion_ids().is_empty(), "join/ taking it out of the slot unbolts it")
 	await _clear()
 
-	var sms := await _console("master_system")
+	var sms := await _console("mastersystem")
 	var fm := await _unit("fm_sound_unit")
 	await _bolt(sms, fm)
 	_ok(sms.expansion_ids() == ["fm_sound_unit"],
@@ -370,7 +370,7 @@ func _group_join() -> void:
 
 	# The third direction: the console owns the socket, same as a 64DD, but the
 	# UNIT is what stands on top rather than what the console stands on.
-	var n64b := await _console("nintendo_64")
+	var n64b := await _console("n64")
 	var pak := await _unit("expansion_pak")
 	await _bolt(n64b, pak)
 	_ok(n64b.expansion_ids() == ["expansion_pak"], "join/ the pak in the roof socket is bolted on")
@@ -388,7 +388,7 @@ func _group_tower() -> void:
 	# Mega-CD on the floor, Mega Drive on it, 32X on the Mega Drive. Two
 	# independent joins, no code anywhere that knows what a tower is.
 	var cd := await _unit("sega_cd")
-	var md := await _console("mega_drive")
+	var md := await _console("genesis")
 	var x := await _unit("sega_32x")
 	await _bolt(md, cd)
 	await _bolt(md, x)
@@ -404,7 +404,7 @@ func _group_tower() -> void:
 	# Assembled the other way round — 32X first, base second. The reported
 	# combination must not depend on the order a player built it in.
 	var cd2 := await _unit("sega_cd")
-	var md2 := await _console("mega_drive")
+	var md2 := await _console("genesis")
 	var x2 := await _unit("sega_32x")
 	await _bolt(md2, x2)
 	await _bolt(md2, cd2)
@@ -418,10 +418,10 @@ func _group_tower() -> void:
 
 func _group_media() -> void:
 	var dd := await _unit("nintendo_64dd")
-	var n64 := await _console("nintendo_64")
+	var n64 := await _console("n64")
 	await _bolt(n64, dd)
 
-	var disk := await _cart("nintendo_64dd", "/roms/n64dd/disk.ndd")
+	var disk := await _cart("n64dd", "/roms/n64dd/disk.ndd")
 	var wrong := await _cart("nes", "/roms/nes/other.nes")
 	var bay := dd.get_node("MediaBay") as XRToolsSnapZone
 	_ok(bay != null, "media/ a 64DD has a bay of its own")
@@ -451,7 +451,7 @@ func _group_media() -> void:
 	# The cartridge in the CONSOLE and the disk in the DRIVE are two different
 	# pieces of media on one machine, which is the fact this whole feature exists
 	# to represent.
-	var cart := await _cart("nintendo_64", "/roms/n64/game.z64")
+	var cart := await _cart("n64", "/roms/n64/game.z64")
 	n64.restore_cartridge(cart)
 	await _wait(5)
 	var spec := n64.expansion_boot()
@@ -492,7 +492,7 @@ func _group_media() -> void:
 	# build no bay at all -- one on its roof is under the console, and the pack
 	# disappeared into the join between the two machines.
 	var bs := await _unit("satellaview")
-	var sfc := await _console("super_nes")
+	var sfc := await _console("snes")
 	await _bolt(sfc, bs)
 	_ok(bs.get_node_or_null("MediaBay") == null,
 		"media/ a Satellaview has no bay of its own")
@@ -503,7 +503,7 @@ func _group_media() -> void:
 	var slot := sfc._cartridge_slot as XRToolsSnapZone
 	_ok(slot != null and slot.snap_filter.call(pack),
 		"media/ the console's own slot takes the pack instead")
-	_ok(slot != null and slot.snap_filter.call(await _cart("super_nes", "/roms/snes/g.sfc")),
+	_ok(slot != null and slot.snap_filter.call(await _cart("snes", "/roms/snes/g.sfc")),
 		"media/ without losing its own cartridges")
 	_ok(slot != null and not slot.snap_filter.call(not_ours),
 		"media/ and still refuses an NES cart")
@@ -520,7 +520,7 @@ func _group_media() -> void:
 	# here that a player puts a cartridge into and then puts into a console. The
 	# pack goes in its slot, it goes in the Super Famicom's.
 	var nest_bsx := await _unit("bsx_cart")
-	var nest_sfc := await _console("super_nes")
+	var nest_sfc := await _console("snes")
 	_ok(nest_bsx.is_in_group("cartridge"),
 		"nest/ the BS-X cart is itself a cartridge")
 	var nest_slot := nest_sfc._cartridge_slot as XRToolsSnapZone
@@ -545,9 +545,9 @@ func _group_media() -> void:
 		"nest/ and the core is handed the pack, not the cartridge carrying it")
 
 	# It must also run with no base station bolted on, as the hardware does.
-	_ok(not ExpansionCatalog.boot_for("super_nes", ["bsx_cart"]).is_empty(),
+	_ok(not ExpansionCatalog.boot_for("snes", ["bsx_cart"]).is_empty(),
 		"nest/ the cartridge alone is a bootable machine")
-	_ok(not ExpansionCatalog.boot_for("super_nes", ["bsx_cart", "satellaview"]).is_empty(),
+	_ok(not ExpansionCatalog.boot_for("snes", ["bsx_cart", "satellaview"]).is_empty(),
 		"nest/ and so is the full stack")
 
 	# A BS-X cartridge spawned from the shell ROM carries that ROM itself, and an
@@ -655,7 +655,7 @@ func _group_media() -> void:
 		"led/ POWER is dark with no console under it")
 	_ok(access_mat.emission_energy_multiplier == 0.0, "led/ and so is ACCESS")
 
-	var lamp_sfc := await _console("super_nes")
+	var lamp_sfc := await _console("snes")
 	await _bolt(lamp_sfc, lamp)
 	lamp_sfc.is_powered_on = true
 	panel.call("_update_lamps")
@@ -693,7 +693,7 @@ func _group_media() -> void:
 
 	# Unbolted, the same cartridge still fits: a BS-X cart boots its menu in a bare
 	# Super Famicom, and a silent refusal is the worst way to say otherwise.
-	var lone := await _console("super_nes")
+	var lone := await _console("snes")
 	var lone_pack := await _cart("satellaview", "/roms/satellaview/BS-X.bs")
 	_ok(lone._cartridge_slot.snap_filter.call(lone_pack),
 		"media/ and fits a Super Famicom with no base station under it")
@@ -704,11 +704,11 @@ func _group_media() -> void:
 	# through, so the core is handed the converter's bay, not the empty Genesis
 	# slot underneath.
 	var pbc := await _unit("power_base_converter")
-	var genesis := await _console("mega_drive")
+	var genesis := await _console("genesis")
 	await _bolt(genesis, pbc)
 
-	var sms_cart := await _cart("master_system", "/roms/master_system/game.sms")
-	var not_sms := await _cart("mega_drive", "/roms/mega_drive/other.md")
+	var sms_cart := await _cart("mastersystem", "/roms/mastersystem/game.sms")
+	var not_sms := await _cart("genesis", "/roms/genesis/other.md")
 	_ok(pbc.get_node_or_null("MediaBay") != null, "media/ the converter has a bay of its own")
 	_ok(pbc._accepts_media(sms_cart),
 		"media/ which takes a Master System cartridge")
@@ -719,19 +719,19 @@ func _group_media() -> void:
 	var pbc_boot := genesis.expansion_boot()
 	_ok(str(pbc_boot.get("core", "")) == "genesis_plus_gx",
 		"media/ the converter stacks a genesis_plus_gx machine")
-	_ok(genesis._expansion_launch.expansion_roms(pbc_boot) == ["/roms/master_system/game.sms"],
+	_ok(genesis._expansion_launch.expansion_roms(pbc_boot) == ["/roms/mastersystem/game.sms"],
 		"media/ and boots from the converter's bay")
 	await _clear()
 
 	# The FM Sound Unit is the same pass-through, on a console whose own media
 	# systemid is the same as the unit's.
 	var fm := await _unit("fm_sound_unit")
-	var sms := await _console("master_system")
+	var sms := await _console("mastersystem")
 	await _bolt(sms, fm)
 
-	var sms_cart2 := await _cart("master_system", "/roms/master_system/other.sms")
+	var sms_cart2 := await _cart("mastersystem", "/roms/mastersystem/other.sms")
 	_ok(fm._accepts_media(sms_cart2), "media/ the FM unit's bay takes a Master System cartridge")
-	_ok(not fm._accepts_media(await _cart("mega_drive", "/roms/mega_drive/x.md")),
+	_ok(not fm._accepts_media(await _cart("genesis", "/roms/genesis/x.md")),
 		"media/ and refuses a Genesis cartridge")
 
 	fm.restore_media(sms_cart2)
@@ -739,7 +739,7 @@ func _group_media() -> void:
 	var fm_boot := sms.expansion_boot()
 	_ok(str(fm_boot.get("core", "")) == "genesis_plus_gx",
 		"media/ the FM unit stacks a genesis_plus_gx machine")
-	_ok(sms._expansion_launch.expansion_roms(fm_boot) == ["/roms/master_system/other.sms"],
+	_ok(sms._expansion_launch.expansion_roms(fm_boot) == ["/roms/mastersystem/other.sms"],
 		"media/ and boots from the FM unit's bay")
 	await _clear()
 
@@ -750,12 +750,12 @@ func _group_media() -> void:
 func _group_launch() -> void:
 	# A bare console is untouched by any of this: no unit, no recipe, and the
 	# core resolution it always had.
-	var bare := await _console("mega_drive")
+	var bare := await _console("genesis")
 	_ok(bare.expansion_boot().is_empty(), "launch/ a bare console has no recipe")
 	await _clear()
 
 	var cd := await _unit("sega_cd")
-	var md := await _console("mega_drive")
+	var md := await _console("genesis")
 	await _bolt(md, cd)
 	_ok(md.resolve_core_name() == "genesis_plus_gx",
 		"launch/ a Mega Drive on a Sega CD resolves to the combination's core")
@@ -764,7 +764,7 @@ func _group_launch() -> void:
 	await _clear()
 
 	var dd := await _unit("nintendo_64dd")
-	var n64 := await _console("nintendo_64")
+	var n64 := await _console("n64")
 	await _bolt(n64, dd)
 	# With the console's slot empty the recipe names no core, so the machine takes
 	# the player's own -- either N64 core, both of which take a bare disk.
@@ -781,18 +781,18 @@ func _group_launch() -> void:
 	_ok(n64.resolve_core_name() == "mupen64plus_next_gles3",
 		"launch/ and mupen64plus_next_gles3 the same way")
 	n64.core_name = ""
-	var disk := await _cart("nintendo_64dd", "/roms/n64dd/disk.ndd")
+	var disk := await _cart("n64dd", "/roms/n64dd/disk.ndd")
 	dd.restore_media(disk)
 	await _wait(5)
 	n64._expansion_launch.apply_expansion_launch()
 	_ok(n64.rom_path == "/roms/n64dd/disk.ndd", "launch/ and boots from the disk")
 	# An Expansion Pak in the roof does not take the drive away: no recipe names
 	# the pak, so it is left out of the key rather than spoiling the lookup.
-	var dd_recipe := ExpansionCatalog.boot_for("nintendo_64", ["nintendo_64dd"])
-	_ok(ExpansionCatalog.boot_for("nintendo_64", ["nintendo_64dd", "expansion_pak"]) == dd_recipe
+	var dd_recipe := ExpansionCatalog.boot_for("n64", ["nintendo_64dd"])
+	_ok(ExpansionCatalog.boot_for("n64", ["nintendo_64dd", "expansion_pak"]) == dd_recipe
 			and not dd_recipe.is_empty(),
 		"launch/ a 64DD with an Expansion Pak beside it resolves to the drive's recipe")
-	_ok(ExpansionCatalog.boot_for("nintendo_64", ["nintendo_64dd", "jumper_pak", "expansion_pak"]) == dd_recipe,
+	_ok(ExpansionCatalog.boot_for("n64", ["nintendo_64dd", "jumper_pak", "expansion_pak"]) == dd_recipe,
 		"launch/ and with the Jumper Pak too")
 	var pak := await _unit("expansion_pak")
 	await _bolt(n64, pak)
@@ -808,21 +808,21 @@ func _group_launch() -> void:
 	# cannot exercise the Android branch of expansion_boot(), so assert the DATA
 	# the branch reads. Without the override a Quest resolved to a core that
 	# cannot exist there, and the machine reported it missing on power-on.
-	var dd_boot: Dictionary = ExpansionCatalog.BOOT["nintendo_64|nintendo_64dd"]
+	var dd_boot: Dictionary = ExpansionCatalog.BOOT["n64|nintendo_64dd"]
 	_ok(ExpansionCatalog.core_of(dd_boot, false) == "mupen64plus_next",
 		"launch/ the 64DD resolves its desktop core")
 	_ok(ExpansionCatalog.core_of(dd_boot, true) == "mupen64plus_next_gles3",
 		"launch/ and on Android the name the buildbot publishes there")
 	# A row with no override is the same core either way, which is every other
 	# row: the substitution must not fire where nothing asked for it.
-	var tower: Dictionary = ExpansionCatalog.BOOT["mega_drive|sega_cd|sega_32x"]
+	var tower: Dictionary = ExpansionCatalog.BOOT["genesis|sega_cd|sega_32x"]
 	_ok(ExpansionCatalog.core_of(tower, false) == "picodrive"
 		and ExpansionCatalog.core_of(tower, true) == "picodrive",
 		"launch/ while a row with no override is the same core on both")
 
 	# Put a cartridge in and the SAME hardware becomes a different machine: the
 	# core that takes a cart and finds the disk beside it.
-	var cart := await _cart("nintendo_64", "/roms/n64/game.z64")
+	var cart := await _cart("n64", "/roms/n64/game.z64")
 	n64.restore_cartridge(cart)
 	await _wait(5)
 	_ok(n64.resolve_core_name() == "mupen64plus_next",
@@ -835,8 +835,8 @@ func _group_launch() -> void:
 	await _clear()
 
 	var pbc := await _unit("power_base_converter")
-	var pbc_host := await _console("mega_drive")
-	var bare_options := (await _console("mega_drive"))._all_forced_options("genesis_plus_gx")
+	var pbc_host := await _console("genesis")
+	var bare_options := (await _console("genesis"))._all_forced_options("genesis_plus_gx")
 	await _bolt(pbc_host, pbc)
 	_ok(pbc_host.resolve_core_name() == "genesis_plus_gx",
 		"launch/ a Mega Drive with a converter on it is still a genesis_plus_gx machine")
@@ -848,13 +848,13 @@ func _group_launch() -> void:
 	# The FM Sound Unit: genesis_plus_gx_ym2413 defaults to "auto", which follows
 	# the ROM's own region byte and knows nothing about this room, so a bare
 	# Master System is pinned "disabled" rather than left on the core's default.
-	var sms_bare := await _console("master_system")
+	var sms_bare := await _console("mastersystem")
 	_ok(sms_bare._all_forced_options("genesis_plus_gx")
 			.get("genesis_plus_gx_ym2413", "") == "disabled",
 		"launch/ a bare Master System pins FM off rather than trusting auto")
 	await _clear()
 
-	var sms_fm := await _console("master_system")
+	var sms_fm := await _console("mastersystem")
 	var fm := await _unit("fm_sound_unit")
 	await _bolt(sms_fm, fm)
 	_ok(sms_fm.resolve_core_name() == "genesis_plus_gx",
@@ -866,7 +866,7 @@ func _group_launch() -> void:
 	# The key is Master System-specific: a Mega Drive on the very same core must
 	# not be pinned by it, or every Genesis in the room would show a meaningless
 	# "pinned" FM option in its options panel.
-	var md_check := await _console("mega_drive")
+	var md_check := await _console("genesis")
 	_ok(not md_check._all_forced_options("genesis_plus_gx").has("genesis_plus_gx_ym2413"),
 		"launch/ and a Mega Drive on the same core is not pinned at all")
 	await _clear()
@@ -876,8 +876,8 @@ func _group_launch() -> void:
 	# were measured (Tools/cores/core_options_probe.gd) to already emulate WITH
 	# the pak installed by default, so a BARE console is what needs pushing off
 	# the core's own default, not the attached one.
-	var n64_bare := await _console("nintendo_64")
-	_ok(ExpansionCatalog.boot_for("nintendo_64", ["expansion_pak"]).is_empty(),
+	var n64_bare := await _console("n64")
+	_ok(ExpansionCatalog.boot_for("n64", ["expansion_pak"]).is_empty(),
 		"launch/ the pak alone has no launch recipe")
 	_ok(n64_bare._all_forced_options("mupen64plus_next")
 			.get("mupen64plus-ForceDisableExtraMem", "") == "True",
@@ -887,7 +887,7 @@ func _group_launch() -> void:
 		"launch/ and off parallel_n64's own default the same way")
 	await _clear()
 
-	var n64_pak := await _console("nintendo_64")
+	var n64_pak := await _console("n64")
 	var epak := await _unit("expansion_pak")
 	await _bolt(n64_pak, epak)
 	_ok(n64_pak._all_forced_options("mupen64plus_next")
@@ -907,7 +907,7 @@ func _group_launch() -> void:
 ## rather than something spawned out of the library.
 func _group_sgb() -> void:
 	var sgb := await _unit("super_game_boy")
-	var sfc := await _console("super_nes")
+	var sfc := await _console("snes")
 
 	_ok(sgb.is_in_group("cartridge"), "sgb/ the adapter is itself a cartridge")
 	var slot := sfc._cartridge_slot as XRToolsSnapZone
@@ -916,9 +916,9 @@ func _group_sgb() -> void:
 	_ok(sgb.get_node_or_null("MediaBay") != null,
 		"sgb/ while having a slot of its own")
 
-	var gb := await _cart("game_boy", "/roms/game_boy/game.gb")
+	var gb := await _cart("gb", "/roms/gb/game.gb")
 	_ok(sgb._accepts_media(gb), "sgb/ that slot takes a Game Boy cartridge")
-	_ok(not sgb._accepts_media(await _cart("super_nes", "/roms/snes/x.sfc")),
+	_ok(not sgb._accepts_media(await _cart("snes", "/roms/snes/x.sfc")),
 		"sgb/ and refuses a Super Famicom one")
 
 	sfc.restore_cartridge(sgb)
@@ -938,7 +938,7 @@ func _group_sgb() -> void:
 	var sub: Dictionary = boot.get("subsystem", {})
 	_ok(str(sub.get("ident", "")) == "sgb", "sgb/ and declares the sgb pairing")
 	var pair := sfc._expansion_launch.expansion_roms(sub)
-	_ok(pair.size() == 2 and pair[0] == "/roms/game_boy/game.gb",
+	_ok(pair.size() == 2 and pair[0] == "/roms/gb/game.gb",
 		"sgb/ whose FIRST half is the handheld's cartridge")
 	_ok(pair.size() == 2 and pair[1].get_file() == "SGB1.sfc",
 		"sgb/ and whose second is the adapter's own, taken from the BIOS folder")
@@ -1008,7 +1008,7 @@ func _group_sgb() -> void:
 	_ok(ExpansionCatalog.firmware_rom_path("bsx_cart").is_empty(),
 		"sgb/ and a unit spawned from the library keeps its own ROM")
 
-	var boot2 := ExpansionCatalog.boot_for("super_nes", ["super_game_boy_2"])
+	var boot2 := ExpansionCatalog.boot_for("snes", ["super_game_boy_2"])
 	_ok(str(boot2.get("core", "")) == "bsnes"
 			and str((boot2.get("subsystem", {}) as Dictionary).get("ident", "")) == "sgb",
 		"sgb/ the 2 has a recipe of its own, which is what gates it separately")
@@ -1020,12 +1020,12 @@ func _group_sgb() -> void:
 	# appeared on BOTH cards would pass a check that only looked at one.
 	for id: String in ["super_game_boy", "super_game_boy_2"]:
 		var listed := false
-		for item: Dictionary in SpawnCatalog.items_for("super_nes"):
+		for item: Dictionary in SpawnCatalog.items_for("snes"):
 			if str(item.get("spawn", "")) == "expansion:%s" % id:
 				listed = true
 		_ok(listed == ExpansionCatalog.firmware_present(id),
 			"sgb/ the Super Famicom card offers %s exactly when its BIOS is installed" % id)
-		_ok(not _spawn_card_has("game_boy", id),
+		_ok(not _spawn_card_has("gb", id),
 			"sgb/ and the Game Boy card does not also offer it")
 
 	# The claim the comment above _units_carded_here makes. Asked of
@@ -1033,8 +1033,8 @@ func _group_sgb() -> void:
 	# menu itself cannot answer this, because a BS-X cartridge with no BS-X.bin
 	# installed is absent from every card and that says nothing about which one it
 	# belongs to. Getting those two confused is what this case is guarding.
-	var on_sfc: Array[String] = ExpansionCatalog.ids_carded_on("super_nes")
-	var on_gb: Array[String] = ExpansionCatalog.ids_carded_on("game_boy")
+	var on_sfc: Array[String] = ExpansionCatalog.ids_carded_on("snes")
+	var on_gb: Array[String] = ExpansionCatalog.ids_carded_on("gb")
 	var on_sv: Array[String] = ExpansionCatalog.ids_carded_on("satellaview")
 	_ok(on_sfc == ["super_game_boy", "super_game_boy_2"],
 		"sgb/ and the two of them are the whole of what that card carries")
@@ -1134,7 +1134,7 @@ func _sgb_gate_positive() -> void:
 		_refresh_firmware()
 		_ok(not ExpansionCatalog.firmware_present("super_game_boy"),
 			"sgb/ with the dump moved away the adapter is withdrawn")
-		_ok(not _spawn_card_has("super_nes", "super_game_boy"),
+		_ok(not _spawn_card_has("snes", "super_game_boy"),
 			"sgb/ and the Super Famicom card loses its row")
 		DirAccess.rename_absolute(aside, dest)
 		_refresh_firmware()
@@ -1153,7 +1153,7 @@ func _sgb_gate_positive() -> void:
 	_refresh_firmware()
 	_ok(ExpansionCatalog.firmware_present("super_game_boy"),
 		"sgb/ a dump on disk makes the adapter available")
-	_ok(_spawn_card_has("super_nes", "super_game_boy"),
+	_ok(_spawn_card_has("snes", "super_game_boy"),
 		"sgb/ and the Super Famicom card grows a row for it")
 	DirAccess.remove_absolute(dest)
 	_refresh_firmware()
@@ -1182,7 +1182,7 @@ func _spawn_card_has(systemid: String, expansion_id: String) -> bool:
 ## a bay is addressed by index at all.
 func _group_sufami() -> void:
 	var unit := await _unit("sufami_turbo")
-	var sfc := await _console("super_nes")
+	var sfc := await _console("snes")
 
 	_ok(unit.get_bay_count() == 2, "sufami/ the adapter has two bays")
 	var a := unit.get_node_or_null("MediaBay") as XRToolsSnapZone
@@ -1192,7 +1192,7 @@ func _group_sufami() -> void:
 
 	# The geometry, computed rather than eyeballed, so it keeps holding if either
 	# the box or the cartridge is retuned later.
-	var cart := MediaDimensions.cart_size("sufami_turbo")
+	var cart := MediaDimensions.cart_size("sufami")
 	var box := ExpansionCatalog.size_of("sufami_turbo")
 	_ok(a != null and b != null and absf(a.position.x - b.position.x) >= cart.x,
 		"sufami/ far enough apart that two cartridges do not overlap")
@@ -1216,8 +1216,8 @@ func _group_sufami() -> void:
 
 	# The case that catches a missing bind: two zones both writing slot 0 look
 	# perfectly healthy until you ask which cartridge is in which.
-	var cart_a := await _cart("sufami_turbo", "/roms/sufami_turbo/A.sfc")
-	var cart_b := await _cart("sufami_turbo", "/roms/sufami_turbo/B.sfc")
+	var cart_a := await _cart("sufami", "/roms/sufami/A.sfc")
+	var cart_b := await _cart("sufami", "/roms/sufami/B.sfc")
 	_ok(unit._accepts_media(cart_a), "sufami/ a bay takes a Sufami Turbo cart")
 	_ok(not unit._accepts_media(await _cart("nes", "/roms/nes/x.nes")),
 		"sufami/ and refuses what is not one")
@@ -1226,8 +1226,8 @@ func _group_sufami() -> void:
 	await _wait(5)
 	_ok(unit.get_media(0) == cart_a and unit.get_media(1) == cart_b,
 		"sufami/ the two slots hold two different cartridges")
-	_ok(unit.get_media_path(0) == "/roms/sufami_turbo/A.sfc"
-			and unit.get_media_path(1) == "/roms/sufami_turbo/B.sfc",
+	_ok(unit.get_media_path(0) == "/roms/sufami/A.sfc"
+			and unit.get_media_path(1) == "/roms/sufami/B.sfc",
 		"sufami/ and report them apart")
 
 	sfc.restore_cartridge(unit)
@@ -1241,7 +1241,7 @@ func _group_sufami() -> void:
 	_ok(str(sub.get("ident", "")) == "multicart_addon",
 		"sufami/ and pairs the carts through the Multi-Cart Link")
 	var pair := sfc._expansion_launch.expansion_roms(sub)
-	_ok(pair == ["/roms/sufami_turbo/A.sfc", "/roms/sufami_turbo/B.sfc"],
+	_ok(pair == ["/roms/sufami/A.sfc", "/roms/sufami/B.sfc"],
 		"sufami/ handing over slot A first, then slot B")
 	_ok(not sub.has("writable"),
 		"sufami/ with neither cartridge marked writable")
@@ -1249,7 +1249,7 @@ func _group_sufami() -> void:
 	# Two cartridges, two batteries. snes9x answers RETRO_MEMORY_SAVE_RAM with
 	# slot A's SRAM alone, so slot B needs a file of its own or a linked pair
 	# keeps half its progress and loses the rest without saying so.
-	var path_a := SramPaths.cart_save_path("sufami_turbo", "snes9x", sfc.rom_path,
+	var path_a := SramPaths.cart_save_path("sufami", "snes9x", sfc.rom_path,
 		str(cart_a.get("save_id")))
 	var path_b := sfc.slot_b_save_path("snes9x")
 	_ok(path_b.get_file() == str(cart_b.get("save_id")) + ".srm",
@@ -1260,7 +1260,7 @@ func _group_sufami() -> void:
 	# Keyed off the CARTRIDGE and not the well it happens to be in, so a game
 	# lent to a different pairing brings its progress and does not overwrite
 	# whatever was there.
-	var cart_c := await _cart("sufami_turbo", "/roms/sufami_turbo/C.sfc")
+	var cart_c := await _cart("sufami", "/roms/sufami/C.sfc")
 	await _unbolt(b, cart_b)
 	unit.restore_media(cart_c, 1)
 	await _wait(5)
@@ -1279,7 +1279,7 @@ func _group_sufami() -> void:
 	await _unbolt(b, cart_b)
 	_ok(sfc._expansion_launch.expansion_roms(sub).size() == 1,
 		"sufami/ one empty slot leaves the pair incomplete, so the plain load runs")
-	_ok(sfc._expansion_launch.expansion_roms(sfc.expansion_boot()) == ["/roms/sufami_turbo/A.sfc"],
+	_ok(sfc._expansion_launch.expansion_roms(sfc.expansion_boot()) == ["/roms/sufami/A.sfc"],
 		"sufami/ and a single cartridge boots on its own")
 	await _clear()
 
@@ -1289,7 +1289,7 @@ func _group_sufami() -> void:
 	_ok(one_bay.get_bay_count() == 1, "sufami/ a 32X still has one bay")
 	_ok(one_bay.get_media(1) == null and one_bay.get_media_path(1) == "",
 		"sufami/ whose second slot is empty rather than an alias of its first")
-	var md := await _console("mega_drive")
+	var md := await _console("genesis")
 	md.restore_cartridge(one_bay)
 	await _wait(5)
 	_ok(md.slot_b_save_path("picodrive").is_empty(),
@@ -1314,7 +1314,7 @@ func _sufami_gate() -> void:
 		_refresh_snes9x_firmware()
 		_ok(not ExpansionCatalog.firmware_present("sufami_turbo"),
 			"sufami/ with the shell moved away the adapter is withdrawn")
-		_ok(not _spawn_card_has("sufami_turbo", "sufami_turbo"),
+		_ok(not _spawn_card_has("sufami", "sufami_turbo"),
 			"sufami/ and its card stops offering it")
 		DirAccess.rename_absolute(aside, dest)
 		_refresh_snes9x_firmware()
@@ -1333,7 +1333,7 @@ func _sufami_gate() -> void:
 	_refresh_snes9x_firmware()
 	_ok(ExpansionCatalog.firmware_present("sufami_turbo"),
 		"sufami/ a shell on disk makes the adapter available")
-	_ok(_spawn_card_has("sufami_turbo", "sufami_turbo"),
+	_ok(_spawn_card_has("sufami", "sufami_turbo"),
 		"sufami/ and its card offers it")
 	DirAccess.remove_absolute(dest)
 	_refresh_snes9x_firmware()
@@ -1385,40 +1385,40 @@ func _group_scd_boot() -> void:
 		"scd_boot/ with none installed, the first, so a refusal still names one")
 
 	var cd := await _unit("sega_cd")
-	var md := await _console("mega_drive")
+	var md := await _console("genesis")
 	await _bolt(md, cd)
 	var bios := ExpansionCatalog.firmware_rom_path("sega_cd")
 	_ok(bios.get_file().begins_with("bios_CD_"), "scd_boot/ a Sega CD's own program is its BIOS")
 	md._expansion_launch.apply_expansion_launch()
 	_ok(md.rom_path == bios, "scd_boot/ an empty tray boots the BIOS")
-	_ok(md._media_systemid() == "sega_cd", "scd_boot/ and is checked for a Sega CD BIOS")
+	_ok(md._media_systemid() == "segacd", "scd_boot/ and is checked for a Sega CD BIOS")
 
-	var disc := await _cart("sega_cd", "/roms/sega_cd/game.chd")
+	var disc := await _cart("segacd", "/roms/segacd/game.chd")
 	cd.restore_media(disc)
 	await _wait(5)
 	md._expansion_launch.apply_expansion_launch()
-	_ok(md.rom_path == "/roms/sega_cd/game.chd", "scd_boot/ a disc in a shut tray boots")
+	_ok(md.rom_path == "/roms/segacd/game.chd", "scd_boot/ a disc in a shut tray boots")
 	cd._tray.set_open(true, false)
 	_ok(cd.is_tray_open() and cd.get_loaded_media_path().is_empty(),
 		"scd_boot/ a disc lying in an open tray is not loaded")
 	md._expansion_launch.apply_expansion_launch()
 	_ok(md.rom_path == bios, "scd_boot/ so the BIOS boots instead")
 
-	var game := await _cart("mega_drive", "/roms/mega_drive/game.md")
+	var game := await _cart("genesis", "/roms/genesis/game.md")
 	md.restore_cartridge(game)
 	await _wait(5)
 	md._expansion_launch.apply_expansion_launch()
-	_ok(md.rom_path == "/roms/mega_drive/game.md",
+	_ok(md.rom_path == "/roms/genesis/game.md",
 		"scd_boot/ a cartridge in the console boots before the BIOS")
 	cd._tray.set_open(false, false)
 	md._expansion_launch.apply_expansion_launch()
-	_ok(md.rom_path == "/roms/sega_cd/game.chd",
+	_ok(md.rom_path == "/roms/segacd/game.chd",
 		"scd_boot/ and a loaded disc still boots before the cartridge")
 	await _clear()
 
 	var tower_cd := await _unit("sega_cd")
 	var x32 := await _unit("sega_32x")
-	var tower := await _console("mega_drive")
+	var tower := await _console("genesis")
 	await _bolt(tower, tower_cd)
 	tower.restore_expansion(x32)
 	await _wait(10)
@@ -1488,7 +1488,7 @@ func _group_scd_storage() -> void:
 	var save_dir := root.path_join("save").path_join(core)
 
 	var drive := await _scd_unit("sega_cd", ids[0])
-	var genesis := await _console("mega_drive")
+	var genesis := await _console("genesis")
 	await _bolt(genesis, drive)
 	var storage := genesis.sega_cd_storage()
 	storage.stage_before_start(root, core)
@@ -1554,7 +1554,7 @@ func _group_scd_storage() -> void:
 	_ok(genesis._all_forced_options(core).get("genesis_plus_gx_cart_size") == "128k",
 		"scd_storage/ and the machine pins that size")
 
-	var second := await _console("mega_drive")
+	var second := await _console("genesis")
 	var second_drive := await _scd_unit("sega_cd", ids[1])
 	await _bolt(second, second_drive)
 	_ok(not second.sega_cd_storage().busy_elsewhere(core).is_empty(),
@@ -1595,11 +1595,11 @@ func _group_saturn() -> void:
 	var core := "mednafen_saturn"
 	_ok(ExpansionCatalog.memory_of("sega_saturn_ram_cart") == SaturnStorage.CART_FAMILY,
 		"saturn/ the Backup RAM Cartridge is memory")
-	_ok(ExpansionCatalog.ids_carded_on("sega_saturn").has("sega_saturn_ram_cart"),
+	_ok(ExpansionCatalog.ids_carded_on("saturn").has("sega_saturn_ram_cart"),
 		"saturn/ offered on the Saturn's card")
 	_ok(SpawnMenuSpawnView.memory_cart_family("expansion:sega_saturn_ram_cart") == SaturnStorage.CART_FAMILY,
 		"saturn/ its spawn row opens a card shelf")
-	_ok(ExpansionCatalog.boot_for("sega_saturn", ["sega_saturn_ram_cart"]).is_empty(),
+	_ok(ExpansionCatalog.boot_for("saturn", ["sega_saturn_ram_cart"]).is_empty(),
 		"saturn/ seated, it changes nothing about what boots")
 
 	var o := SaturnStorage.forced_options(core, false)
@@ -1617,19 +1617,19 @@ func _group_saturn() -> void:
 	_saturn_cleanup(root, ids)
 
 	# The System Memory is the console's.
-	var saturn := await _console("sega_saturn")
-	var other := await _console("sega_saturn")
+	var saturn := await _console("saturn")
+	var other := await _console("saturn")
 	var own := saturn.console_memory()
 	_ok(own != null and own.family == "sega_saturn_memory" and not own.card_id.is_empty(),
 		"saturn/ a Saturn has System Memory of its own")
 	_ok(own != null and other.console_memory() != null and own.card_id != other.console_memory().card_id,
 		"saturn/ and two Saturns spawned together keep two")
-	var genesis := await _console("mega_drive")
+	var genesis := await _console("genesis")
 	_ok(genesis.console_memory() == null, "saturn/ a console with none built in has none")
 	_ok(CardSaveOps.holder_of(get_tree(), own.card_id) == saturn, "saturn/ the console holds its own memory")
 
 	var restored := SYSTEM_SCENE.instantiate() as RetroSystem
-	restored.systemid = "sega_saturn"
+	restored.systemid = "saturn"
 	restored.console_memory_id = ids[3]
 	restored.begin_restore()
 	restored.position = Vector3(_spawned.size() * 2.0, 1, 0)
@@ -1645,7 +1645,7 @@ func _group_saturn() -> void:
 	saturn.rom_path = ""
 	_ok(saturn._memcards._compose_sram_path(core) == image_path,
 		"saturn/ with nothing in the drive, Beetle Saturn saves to the System Memory")
-	saturn.rom_path = "/roms/sega_saturn/game.chd"
+	saturn.rom_path = "/roms/saturn/game.chd"
 	_ok(saturn._memcards._compose_sram_path(core) == image_path,
 		"saturn/ and with a disc in it, too")
 	_ok(saturn._memcards._compose_sram_path("yabasanshiro") != image_path,
@@ -1773,17 +1773,17 @@ func _group_memory() -> void:
 	_ok(restored.card_id == "MY SEGA CD" and not restored.minted,
 		"memory/ a restored unit keeps the memory it was saved with")
 
-	var md := await _console("mega_drive")
+	var md := await _console("genesis")
 	await _bolt(md, a)
 	_ok(CardSaveOps.holder_of(get_tree(), a.card_id) == md,
 		"memory/ the console a unit is bolted to holds its memory")
 	_ok(CardSaveOps.holder_of(get_tree(), b.card_id) == null,
 		"memory/ and a loose unit's is held by nobody")
 
-	var disc := await _cart("sega_cd", "/roms/sega_cd/game.chd")
+	var disc := await _cart("segacd", "/roms/segacd/game.chd")
 	a.restore_media(disc)
 	await _wait(5)
-	md.rom_path = "/roms/sega_cd/game.chd"
+	md.rom_path = "/roms/segacd/game.chd"
 	_ok(md._memcards._compose_sram_path("genesis_plus_gx").is_empty(),
 		"memory/ a disc in it binds no save file of its own on genesis_plus_gx")
 	_ok(not md._memcards._compose_sram_path("picodrive").is_empty(),
@@ -1813,21 +1813,21 @@ func _group_memory() -> void:
 	# The Backup RAM Cartridge: memory that goes in the Mega Drive's own slot.
 	_ok(ExpansionCatalog.memory_of("sega_cd_ram_cart") == "sega_cd_ram_cart",
 		"memory/ the Backup RAM Cartridge is memory")
-	_ok(ExpansionCatalog.card_systemid("sega_cd_ram_cart") == "sega_cd",
+	_ok(ExpansionCatalog.card_systemid("sega_cd_ram_cart") == "segacd",
 		"memory/ offered on the Sega CD's card")
 	_ok(ExpansionCatalog.unit_for_memory("sega_cd_ram_cart") == "sega_cd_ram_cart",
 		"memory/ and found again from its card family")
 	_ok(SpawnMenuSpawnView.memory_cart_family("expansion:sega_cd_ram_cart") == "sega_cd_ram_cart"
 		and SpawnMenuSpawnView.memory_cart_family("expansion:sega_cd").is_empty(),
 		"memory/ its spawn row opens a card shelf, and the Sega CD's does not")
-	var disc_boot := ExpansionCatalog.boot_for("mega_drive", ["sega_cd"])
+	var disc_boot := ExpansionCatalog.boot_for("genesis", ["sega_cd"])
 	_ok(not disc_boot.is_empty()
-		and ExpansionCatalog.boot_for("mega_drive", ["sega_cd", "sega_cd_ram_cart"]) == disc_boot,
+		and ExpansionCatalog.boot_for("genesis", ["sega_cd", "sega_cd_ram_cart"]) == disc_boot,
 		"memory/ seated, it leaves the disc as what boots")
 
 	var drive := await _unit("sega_cd")
 	var ram := await _unit("sega_cd_ram_cart")
-	var genesis := await _console("mega_drive")
+	var genesis := await _console("genesis")
 	await _bolt(genesis, drive)
 	genesis.restore_expansion(ram)
 	await _wait(10)
@@ -1897,7 +1897,7 @@ var _made_spine_dir := false
 
 
 func _label_fixture_files() -> Array[String]:
-	var media := RomLibrary.rom_dir_for_system("nintendo_64dd").path_join("media")
+	var media := RomLibrary.rom_dir_for_system("n64dd").path_join("media")
 	return [
 		media.path_join("label").path_join(_LABEL_FIXTURE + ".png"),
 		media.path_join("label").path_join(_LABEL_FIXTURE + "_spine.png"),
@@ -1936,16 +1936,16 @@ func _clear_label_fixture() -> void:
 
 func _group_disk() -> void:
 	for stem in _DEV_DISK_STEMS:
-		_ok(Nintendo64DD.is_dev_disk("/roms/nintendo_64dd/%s.ndd" % stem),
+		_ok(Nintendo64DD.is_dev_disk("/roms/n64dd/%s.ndd" % stem),
 			"disk/ a development dump is a dev disk: %s" % stem)
 	for stem in _RETAIL_DISK_STEMS:
-		_ok(not Nintendo64DD.is_dev_disk("/roms/nintendo_64dd/%s.ndd" % stem),
+		_ok(not Nintendo64DD.is_dev_disk("/roms/n64dd/%s.ndd" % stem),
 			"disk/ a retail title is not: %s" % stem)
 
 	# The development unit is the retail drive in another case: same bay, same
 	# media, same recipe, offered from the same tile.
 	_ok(ExpansionCatalog.has("nintendo_64dd_dev"), "disk/ the development unit is a unit")
-	_ok(ExpansionCatalog.card_systemid("nintendo_64dd_dev") == "nintendo_64dd",
+	_ok(ExpansionCatalog.card_systemid("nintendo_64dd_dev") == "n64dd",
 		"disk/ offered from the 64DD tile")
 	_ok(ExpansionCatalog.shell_of("nintendo_64dd") == ExpansionCatalog.shell_of("nintendo_64dd_dev")
 			and not ExpansionCatalog.shell_of("nintendo_64dd").is_empty(),
@@ -1953,12 +1953,12 @@ func _group_disk() -> void:
 	_ok(not ExpansionCatalog.shell_albedo_of("nintendo_64dd_dev").is_empty()
 			and ExpansionCatalog.shell_albedo_of("nintendo_64dd").is_empty(),
 		"disk/ and only the development unit swaps its colour map")
-	_ok(ExpansionCatalog.boot_for("nintendo_64", ["nintendo_64dd_dev"])
-			== ExpansionCatalog.boot_for("nintendo_64", ["nintendo_64dd"])
-			and not ExpansionCatalog.boot_for("nintendo_64", ["nintendo_64dd_dev"]).is_empty(),
+	_ok(ExpansionCatalog.boot_for("n64", ["nintendo_64dd_dev"])
+			== ExpansionCatalog.boot_for("n64", ["nintendo_64dd"])
+			and not ExpansionCatalog.boot_for("n64", ["nintendo_64dd_dev"]).is_empty(),
 		"disk/ a console on the development unit boots by the retail recipe")
 	var spawns: Array = []
-	for item: Dictionary in SpawnCatalog.items_for("nintendo_64dd"):
+	for item: Dictionary in SpawnCatalog.items_for("n64dd"):
 		spawns.append(item.get("spawn", ""))
 	_ok(spawns.has("expansion:nintendo_64dd") and spawns.has("expansion:nintendo_64dd_dev"),
 		"disk/ the 64DD tile offers both units")
@@ -2014,7 +2014,7 @@ func _group_disk() -> void:
 
 	# The disk: a real shell in place of the black floppy dress, blue for a
 	# development dump.
-	var retail := await _cart("nintendo_64dd", "/roms/nintendo_64dd/Mario Artist - Paint Studio (Japan).ndd")
+	var retail := await _cart("n64dd", "/roms/n64dd/Mario Artist - Paint Studio (Japan).ndd")
 	_ok(retail.has_node("CartModel"), "disk/ a disk wears the model")
 	_ok(not retail.has_node("Shutter"), "disk/ and not the floppy dress")
 	# The physics box is what the disk rests on and what a hand closes on, so it
@@ -2033,7 +2033,7 @@ func _group_disk() -> void:
 		"disk/ the collision box is the model's size")
 	_ok(((mlo + mhi) * 0.5 - col.position).length() < 0.0005,
 		"disk/ and sits where the model sits")
-	var size := MediaDimensions.cart_size("nintendo_64dd")
+	var size := MediaDimensions.cart_size("n64dd")
 	_ok(size.is_equal_approx(Vector3(0.101, 0.104, 0.0103)), "disk/ sized as a 64DD disk, not a floppy")
 	var shell_mi := retail.find_child("Shell", true, false) as MeshInstance3D
 	var retail_mat: BaseMaterial3D = shell_mi.get_active_material(0) as BaseMaterial3D if shell_mi != null else null
@@ -2043,8 +2043,8 @@ func _group_disk() -> void:
 	# The label: a sticker in the front recess, a spine image on the edge strip,
 	# and the title on the strip when there is no sticker. All on plain paper.
 	_write_label_fixture()
-	var media_root := RomLibrary.rom_dir_for_system("nintendo_64dd")
-	var stuck := await _cart("nintendo_64dd", media_root.path_join(_LABEL_FIXTURE + ".ndd"))
+	var media_root := RomLibrary.rom_dir_for_system("n64dd")
+	var stuck := await _cart("n64dd", media_root.path_join(_LABEL_FIXTURE + ".ndd"))
 	var recess: AABB = stuck._label_face_bounds(stuck._model_label)
 	var sticker_art := stuck.get_node_or_null("ModelLabelArt") as MeshInstance3D
 	_ok(sticker_art != null, "disk/ a sticker is laid on the disk")
@@ -2067,7 +2067,7 @@ func _group_disk() -> void:
 	_ok(stuck.get_node_or_null("ModelSpineArt") == null and stuck.get_node_or_null("SpineTitle") == null,
 		"disk/ a sticker with no spine image leaves the edge strip blank")
 
-	var spined := await _cart("nintendo_64dd", media_root.path_join(_LABEL_FIXTURE + "_spine.ndd"))
+	var spined := await _cart("n64dd", media_root.path_join(_LABEL_FIXTURE + "_spine.ndd"))
 	var edge: AABB = spined._label_face_bounds(spined._model_label, 1)
 	_ok(edge.get_center().y < -0.04 and edge.size.y < 0.001,
 		"disk/ the edge strip is the trailing edge, opposite the shutter")
@@ -2081,7 +2081,7 @@ func _group_disk() -> void:
 			"disk/ on the strip itself")
 	_ok(spined.get_node_or_null("SpineTitle") == null, "disk/ with no title printed over it")
 
-	var bare_disk := await _cart("nintendo_64dd", media_root.path_join(_LABEL_FIXTURE + "_bare.ndd"),
+	var bare_disk := await _cart("n64dd", media_root.path_join(_LABEL_FIXTURE + "_bare.ndd"),
 		"SimCity 64")
 	_ok(bare_disk.get_node_or_null("ModelLabelArt") == null,
 		"disk/ no sticker leaves the recess blank paper")
@@ -2092,7 +2092,7 @@ func _group_disk() -> void:
 	var face_title := bare_disk.get_node_or_null("GameLabel") as Label3D
 	_ok(face_title == null or not face_title.visible, "disk/ and not on the face")
 	_clear_label_fixture()
-	var devdisk := await _cart("nintendo_64dd", "/roms/nintendo_64dd/NUD-TEST-JPN.ndd")
+	var devdisk := await _cart("n64dd", "/roms/n64dd/NUD-TEST-JPN.ndd")
 	var dev_mi := devdisk.find_child("Shell", true, false) as MeshInstance3D
 	var dev_mat: BaseMaterial3D = dev_mi.get_active_material(0) as BaseMaterial3D if dev_mi != null else null
 	_ok(dev_mat != null and dev_mat.albedo_texture != null
@@ -2135,7 +2135,7 @@ func _group_disk() -> void:
 	var led := dd.get_node_or_null("Shell/AccessLed") as MeshInstance3D
 	var led_mat: BaseMaterial3D = led.get_active_material(0) as BaseMaterial3D if led != null else null
 	_ok(led_mat != null and not led_mat.emission_enabled, "disk/ the lamp is dark with no console")
-	var n64 := await _console("nintendo_64")
+	var n64 := await _console("n64")
 	await _bolt(n64, dd)
 	var core: Libretro = n64.get_libretro_node()
 	_ok(core != null and core.led_state.is_connected(dd._on_core_led),
@@ -2163,15 +2163,15 @@ func _group_disk() -> void:
 # ── slot2/ — the DS's GBA slot, a second slot moulded into the console ─────────
 
 func _group_slot2() -> void:
-	_ok(Slot2Catalog.media_of("nds") == "game_boy_advance",
+	_ok(Slot2Catalog.media_of("nds") == "gba",
 		"slot2/ the DS takes a GBA cartridge in its second slot")
-	_ok(Slot2Catalog.media_of("3ds").is_empty() and Slot2Catalog.media_of("game_boy_advance").is_empty(),
+	_ok(Slot2Catalog.media_of("n3ds").is_empty() and Slot2Catalog.media_of("gba").is_empty(),
 		"slot2/ and no other console has one")
 
 	var ds := await _console("nds")
 	var slot := ds.get_node_or_null("Slot2") as XRToolsSnapZone
 	_ok(slot != null, "slot2/ the console built a second snap zone")
-	var gba := await _console("game_boy_advance")
+	var gba := await _console("gba")
 	_ok(gba.get_node_or_null("Slot2") == null,
 		"slot2/ which a console with one slot does not get")
 	if slot == null:
@@ -2195,9 +2195,9 @@ func _group_slot2() -> void:
 
 	# Gates. A GBA cartridge goes in the front slot and not the back one; a Game
 	# Boy cartridge fits neither, because the DS never played one.
-	var gba_cart := await _cart("game_boy_advance", "/roms/game_boy_advance/game.gba")
+	var gba_cart := await _cart("gba", "/roms/gba/game.gba")
 	gba_cart.save_id = "gbagame"
-	var gb_cart := await _cart("game_boy", "/roms/game_boy/game.gb")
+	var gb_cart := await _cart("gb", "/roms/gb/game.gb")
 	var ds_cart := await _cart("nds", "/roms/nds/dsgame.nds")
 	_ok(ds._accepts_slot2_media(gba_cart), "slot2/ takes a GBA cartridge")
 	_ok(not ds._accepts_slot2_media(gb_cart), "slot2/ refuses a Game Boy cartridge")
@@ -2207,7 +2207,7 @@ func _group_slot2() -> void:
 	slot.pick_up_object(gba_cart)
 	await _wait(5)
 	_ok(ds.get_slot2_cartridge() == gba_cart, "slot2/ a seated GBA cartridge is reported")
-	_ok(ds.slot2_media_path() == "/roms/game_boy_advance/game.gba",
+	_ok(ds.slot2_media_path() == "/roms/gba/game.gba",
 		"slot2/ with its path")
 
 	# The recipe: melonDS DS's `gba` subsystem, in the core's own order -- DS
@@ -2222,14 +2222,14 @@ func _group_slot2() -> void:
 	var paths := ds._expansion_launch.expansion_roms(sub, "melondsds")
 	_ok(paths.size() == 3 and paths[0] == "/roms/nds/dsgame.nds",
 		"slot2/ whose first entry is the DS card")
-	_ok(paths.size() == 3 and paths[1] == "/roms/game_boy_advance/game.gba",
+	_ok(paths.size() == 3 and paths[1] == "/roms/gba/game.gba",
 		"slot2/ second the GBA ROM")
 	var save := ds.slot2_save_path("melondsds")
 	_ok(paths.size() == 3 and paths[2] == save and save.ends_with("gbagame.srm"),
 		"slot2/ and third the GBA cartridge's own save, keyed off its save_id")
 	# The two stems differ on purpose, so this can go red: keyed off the DS card
 	# the path would read .../dsgame/gbagame.srm.
-	_ok(save.get_base_dir().get_base_dir() == SramPaths.carts_root().path_join("game_boy_advance")
+	_ok(save.get_base_dir().get_base_dir() == SramPaths.carts_root().path_join("gba")
 			and SramPaths.game_stem(save.get_base_dir()) == "game"
 			and not save.contains("dsgame"),
 		"slot2/ under the GBA's own save dir for the GBA game, not the DS game's")
