@@ -119,6 +119,14 @@ const STOP      := 0xF04D    # fa-stop            — power that minigame off
 const BSX_MEMORY_PACK := 0xEF5F  # fa-satellite   — a Satellaview pack we minted
 const BSX_PACK_CONTENTS := 0xEF60 # fa-satellite-dish — what is written on a pack
 
+## md-numeric_N_box by disc number. A table, not arithmetic: the font's run is
+## three codepoints a digit EXCEPT 5, which sits one further on (0xF03B0 is the
+## outlined 5), and 10 is nowhere near the rest.
+const DISC_BOXES := {
+	1: 0xF03A4, 2: 0xF03A7, 3: 0xF03AA, 4: 0xF03AD, 5: 0xF03B1,
+	6: 0xF03B3, 7: 0xF03B6, 8: 0xF03B9, 9: 0xF03BC, 10: 0xF0F7D,
+}
+
 const TINT_DOWNLOAD := Color(0.45, 0.70, 1.00)
 const TINT_BUSY     := Color(1.00, 0.75, 0.25)
 const TINT_DELETE   := Color(0.95, 0.40, 0.40)
@@ -133,6 +141,7 @@ static var _font: FontVariation = null
 static var _wrapped: Dictionary = {}
 static var _romm_mark: Texture2D = null
 static var _flags_font: FontFile = null
+static var _disc_re: RegEx = null
 
 
 ## The theme font with the flag font and the Nerd Font behind it as fallbacks,
@@ -209,6 +218,27 @@ static func region_flags(regions: PackedStringArray) -> String:
 		if not flag.is_empty() and flag not in out:
 			out.append(flag)
 	return "".join(out)
+
+
+## Which disc of its game a ROM file is, read off the name the way Redump and
+## No-Intro write it — "(Disc 2)", "(Disk 1 of 4)", "[CD3]" — or 0 for a file
+## that names none. The gamelist keeps no disc number, and the name is there for
+## a game scraped before anything asked.
+static func disc_number(romname: String) -> int:
+	if _disc_re == null:
+		_disc_re = RegEx.create_from_string("(?i)[(\\[]\\s*(?:dis[ck]|cd)\\s*(\\d+)")
+	var m := _disc_re.search(romname)
+	return int(m.get_string(1)) if m != null else 0
+
+
+## The boxed numeral for a disc, the plain number past the last box the font
+## has, or "" for no disc. Must be drawn in symbols().
+static func disc_badge(disc: int) -> String:
+	if disc <= 0:
+		return ""
+	if DISC_BOXES.has(disc):
+		return String.chr(DISC_BOXES[disc])
+	return str(disc)
 
 
 ## The RomM logo, for marking rows that came from the server. Null if absent.

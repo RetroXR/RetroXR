@@ -36,6 +36,8 @@ func _ready() -> void:
 	_group_formats()
 	_group_fit()
 	await _group_hold()
+	_group_discs()
+	await _group_variants()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -283,3 +285,134 @@ func _group_hold() -> void:
 	_ok(SpawnMenuSpawnView._has_spawn_options("n64")
 		and not SpawnMenuSpawnView._has_spawn_options("nes"),
 		"hold/only an N64 ROM row opens one")
+
+
+# ── discs/ — which disc a file is, and the glyph that says so ─────────────────
+
+## The numerals are a TABLE because the font's run is not regular: the filled 5
+## sits one codepoint past where the stride of three puts it, and what IS at the
+## stride is the outlined 5 — a glyph that renders, so has_char cannot tell the
+## two apart and the codepoints are pinned here instead.
+func _group_discs() -> void:
+	_eq(MenuIcons.disc_number("Final Fantasy VII (USA) (Disc 2).cue"), 2,
+		"discs/Redump's (Disc N) is read")
+	_eq(MenuIcons.disc_number("Riven (USA) (Disk 5 of 5).chd"), 5,
+		"discs/so is (Disk N of M), and it is N")
+	_eq(MenuIcons.disc_number("Some Game [CD3].bin"), 3, "discs/and a bracketed [CDN]")
+	_eq(MenuIcons.disc_number("Some Game (Disc 12).chd"), 12, "discs/two digits are one number")
+	_eq(MenuIcons.disc_number("Disc Station 98 (Japan).chd"), 0,
+		"discs/the word in a TITLE names no disc")
+	_eq(MenuIcons.disc_number("Final Fantasy VII (USA).m3u"), 0,
+		"discs/a playlist of every disc is no one disc")
+
+	_eq(MenuIcons.disc_badge(1), String.chr(0xF03A4), "discs/disc 1 is md-numeric_1_box")
+	_eq(MenuIcons.disc_badge(2), String.chr(0xF03A7), "discs/disc 2 is md-numeric_2_box")
+	_eq(MenuIcons.disc_badge(5), String.chr(0xF03B1),
+		"discs/disc 5 is the FILLED box, one past the stride")
+	_eq(MenuIcons.disc_badge(0), "", "discs/no disc draws nothing")
+	_eq(MenuIcons.disc_badge(12), "12", "discs/past the font's last box it is the plain number")
+
+	# The main list reads a row's disc off one of two names.
+	_eq(MenuIcons.disc_number(SpawnMenuSpawnView._row_filename(
+		"C:/roms/psx/Game (USA) (Disc 2).cue", {"fs_name": "Game (USA) (Disc 1).chd"})), 2,
+		"discs/a downloaded row is numbered by its own file, not the server's")
+	_eq(MenuIcons.disc_number(SpawnMenuSpawnView._row_filename(
+		"", {"fs_name": "Game (USA) (Disc 3).chd"})), 3,
+		"discs/a row still on the server is numbered by the name RomM holds")
+	_eq(MenuIcons.disc_number(SpawnMenuSpawnView._row_filename(
+		"C:/roms/psx/Game (USA) (Disc 4)/Game.cue", {})), 4,
+		"discs/a disc nested in a folder is numbered by the folder")
+	_eq(MenuIcons.disc_number(SpawnMenuSpawnView._row_filename(
+		"C:/roms (Disc 9)/psx/Game.cue", {})), 0,
+		"discs/but nothing above that folder is read")
+
+	var font: Font = load(MenuIcons.FONT_PATH)
+	var missing: Array = []
+	for disc: int in MenuIcons.DISC_BOXES:
+		if not font.has_char(MenuIcons.DISC_BOXES[disc]):
+			missing.append(disc)
+	_ok(missing.is_empty(), "discs/the shipped font holds every box in the table", str(missing))
+
+
+# ── variants/ — the game info page and the ROM Variants panel over it ─────────
+
+## The star handler saves and then reloads the list, which would be the player's
+## real gamelist.json. Held in memory instead: the panels are what is under test.
+class _MemoryGamelists extends GamelistManager:
+	func save_gamelist(_systemid: String) -> void:
+		pass
+
+	func invalidate(_systemid: String) -> void:
+		pass
+
+
+## Both panels are plain Controls parented to the view's PARENT, so the real ones
+## can be built under a holder with no viewport anywhere. The view itself has no
+## _ready, which is why it can stand in the tree here without assembling a menu.
+func _group_variants() -> void:
+	const SYS := "zz_variants"
+	var holder := Control.new()
+	add_child(holder)
+	_spawned.append(holder)
+	var browser := SystemGridBrowser.new()
+	holder.add_child(browser)
+	var view := SpawnMenuSpawnView.new()
+	holder.add_child(view)
+	view._cartridges_browser = browser
+	view.core_db = CoreInfoDatabase.new()
+	view.core_defaults = CoreDefaults.new()
+	view.gamelist_manager = _MemoryGamelists.new()
+
+	var disc1 := "Two Discs (USA) (Disc 1).cue"
+	var disc2 := "Two Discs (Japan) (Disc 2).cue"
+	var game := {"game_id": "1", "name": "Two Discs", "roms": [
+		{"path": "./" + disc1, "romname": disc1, "region": "USA", "preferred": true},
+		{"path": "./" + disc2, "romname": disc2, "region": "Japan"},
+	]}
+	view.gamelist_manager._gamelists[SYS] = {"games": [game]}
+	var abs1 := GamelistManager.to_absolute_path(SYS, "./" + disc1)
+	var abs2 := GamelistManager.to_absolute_path(SYS, "./" + disc2)
+	var usa := "%s  USA" % MenuIcons.region_flag("USA")
+	var japan := "%s  Japan" % MenuIcons.region_flag("Japan")
+
+	view._show_game_detail_panel(game, SYS, abs1)
+	var texts := _label_texts(view._game_detail_panel)
+	_ok(texts.has(abs1) and texts.has(usa),
+		"variants/the info page names the file's region beside the file", str(texts))
+
+	view._show_rom_variants_panel(game, SYS)
+	await get_tree().process_frame
+	var discs: Array = []
+	for n: Node in view._rom_variants_panel.find_children("Disc", "Label", true, false):
+		discs.append((n as Label).text)
+	_eq(discs, [MenuIcons.disc_badge(1), MenuIcons.disc_badge(2)],
+		"variants/each row carries its own disc's numeral")
+
+	var spawned: Array = []
+	view.spawn_cartridge_requested.connect(
+		func(path: String, _label: String, _systemid: String, _options: Dictionary) -> void:
+			spawned.append(path))
+	var spawn_btns := view._rom_variants_panel.find_children("Spawn", "Button", true, false)
+	_eq(spawn_btns.size(), 2, "variants/every row has a spawn button")
+	if spawn_btns.size() == 2:
+		(spawn_btns[1] as Button).pressed.emit()
+	_eq(spawned, [abs2], "variants/and it spawns THAT row's file, once")
+
+	# Star the other disc. The page underneath described disc 1.
+	for n: Node in view._rom_variants_panel.find_children("*", "Button", true, false):
+		if (n as Button).text == "☆":
+			(n as Button).pressed.emit()
+			break
+	texts = _label_texts(view._game_detail_panel)
+	_ok(texts.has(abs2) and texts.has(japan) and not texts.has(abs1),
+		"variants/starring a file rewrites the info page under the panel", str(texts))
+	_ok(view._rom_variants_panel != null and view._rom_variants_panel.is_inside_tree()
+		and view._rom_variants_panel.get_index() > view._game_detail_panel.get_index(),
+		"variants/and the variants panel is still open, on top of it")
+
+
+func _label_texts(root: Node) -> Array:
+	var out: Array = []
+	for n: Node in root.find_children("*", "Label", true, false):
+		out.append((n as Label).text)
+	return out

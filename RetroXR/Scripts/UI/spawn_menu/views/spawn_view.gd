@@ -1466,21 +1466,41 @@ func _build_blank_rom_row() -> Control:
 	strips.visible = false
 	main.add_child(strips)
 
-	# The region's flag, in the title's bottom-right corner for the same reason.
+	# The disc's numeral and the region's flag, in the title's bottom-right corner
+	# for the same reason. One box for the pair: a row can carry several flags, so
+	# only a container knows where "left of the flag" is, and a hidden badge
+	# takes no room in one.
+	var badges := HBoxContainer.new()
+	badges.name = "Badges"
+	badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badges.add_theme_constant_override("separation", 8)
+	badges.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+	badges.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	badges.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	badges.offset_left = -12
+	badges.offset_right = -12
+	badges.offset_top = -8
+	badges.offset_bottom = -8
+	main.add_child(badges)
+
+	var disc := Label.new()
+	disc.name = "Disc"
+	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	disc.add_theme_font_override("font", MenuIcons.symbols())
+	disc.add_theme_font_size_override("font_size", 30)
+	disc.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+	disc.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	disc.visible = false
+	badges.add_child(disc)
+
 	var region_flag := Label.new()
 	region_flag.name = "RegionFlag"
 	region_flag.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	region_flag.add_theme_font_override("font", MenuIcons.flags_font())
 	region_flag.add_theme_font_size_override("font_size", 30)
-	region_flag.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	region_flag.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	region_flag.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	region_flag.offset_left = -12
-	region_flag.offset_right = -12
-	region_flag.offset_top = -8
-	region_flag.offset_bottom = -8
+	region_flag.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	region_flag.visible = false
-	main.add_child(region_flag)
+	badges.add_child(region_flag)
 
 	# How many variants a folded row stands for, top-right.
 	var variants := Label.new()
@@ -1571,9 +1591,15 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		strips.text = EReaderCards.strip_summary(EReaderCards.card_for_path(local_path))
 	strips.visible = not strips.text.is_empty()
 
-	var region_flag := main.get_node("RegionFlag") as Label
+	var region_flag := main.get_node("Badges/RegionFlag") as Label
 	region_flag.text = MenuIcons.region_flags(_row_regions(cat_index, systemid, local_path))
 	region_flag.visible = not region_flag.text.is_empty()
+
+	# The file's own name where there is a file, else the name the server holds
+	# it under. A folded row shows its starred copy's, the disc a tap spawns.
+	var disc := main.get_node("Badges/Disc") as Label
+	disc.text = MenuIcons.disc_badge(MenuIcons.disc_number(_row_filename(local_path, entry)))
+	disc.visible = not disc.text.is_empty()
 
 	var variants := main.get_node("Variants") as Label
 	var variant_count := int(model.get("variants", 0))
@@ -1828,13 +1854,27 @@ func _row_regions(cat_index: int, systemid: String, local_path: String) -> Packe
 	if not regions.is_empty() or local_path.is_empty():
 		return regions
 	var game: Dictionary = _romm_row_meta(systemid, local_path)["game"]
+	var region := str(_rom_entry_for(game, local_path).get("region", ""))
+	if not region.is_empty():
+		regions.append(region)
+	return regions
+
+
+## The name a row's disc number is read off: the local file's where there is one,
+## with its folder, since a disc nested as "Game (Disc 1)/Game.cue" is numbered
+## there and not on the leaf; else the name RomM holds the ROM under.
+static func _row_filename(local_path: String, entry: Dictionary) -> String:
+	if local_path.is_empty():
+		return str(entry.get("fs_name", ""))
+	return local_path.get_base_dir().get_file().path_join(local_path.get_file())
+
+
+## The entry in a game's "roms" for one file, or {} when the game does not list it.
+static func _rom_entry_for(game: Dictionary, local_path: String) -> Dictionary:
 	for rom: Dictionary in game.get("roms", []):
 		if str(rom.get("path", "")).get_file() == local_path.get_file():
-			var region := str(rom.get("region", ""))
-			if not region.is_empty():
-				regions.append(region)
-			break
-	return regions
+			return rom
+	return {}
 
 
 ## Rows are recycled, so every connection from the previous bind must go.
@@ -2717,9 +2757,10 @@ func _on_scrape_accepted(rom_path: String, systemid: String, result: Dictionary)
 	_populate_cartridges_tab()
 
 
-func _add_scrape_info_row(parent: VBoxContainer, key: String, value: String) -> void:
+## Returns the value's label, or null for an empty value, which adds no row.
+func _add_scrape_info_row(parent: VBoxContainer, key: String, value: String) -> Label:
 	if value.is_empty():
-		return
+		return null
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	parent.add_child(row)
@@ -2738,6 +2779,7 @@ func _add_scrape_info_row(parent: VBoxContainer, key: String, value: String) -> 
 	v_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	v_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	row.add_child(v_lbl)
+	return v_lbl
 
 
 func _show_game_detail_panel(game: Dictionary, systemid: String, local_path: String) -> void:
@@ -2782,6 +2824,13 @@ func _show_game_detail_panel(game: Dictionary, systemid: String, local_path: Str
 	_add_scrape_info_row(vbox, "Publisher", game.get("publisher", ""))
 	_add_scrape_info_row(vbox, "Genre", game.get("genre", ""))
 	_add_scrape_info_row(vbox, "File", local_path)
+	# The FILE's region, not the game's: a game's variants differ in exactly this.
+	var region := str(_rom_entry_for(game, local_path).get("region", ""))
+	var flag := MenuIcons.region_flag(region)
+	var region_lbl := _add_scrape_info_row(vbox, "Region",
+		region if flag.is_empty() else "%s  %s" % [flag, region])
+	if region_lbl != null:
+		region_lbl.add_theme_font_override("font", MenuIcons.symbols())
 
 	vbox.add_child(HSeparator.new())
 
@@ -3146,6 +3195,12 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 			gamelist_manager.invalidate(systemid)
 			var updated_game := _find_game_by_id(systemid, game_id)
 			if not updated_game.is_empty():
+				# The info page underneath describes the starred FILE, so it is
+				# rebuilt too, and first: showing it closes this panel, and the
+				# later child is the one drawn on top.
+				if _game_detail_panel != null:
+					_show_game_detail_panel(updated_game, systemid,
+						GamelistManager.to_absolute_path(systemid, rom_path_rel))
 				_show_rom_variants_panel(updated_game, systemid)
 			_populate_cartridges_tab()
 		)
@@ -3176,6 +3231,26 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 		rom_hold.clicked.connect(rom_spawn.bind({}))
 		rom_hold.held.connect(_show_n64_spawn_options.bind(rom_label, rom_spawn))
 
+		# Which disc this file is, in the title's bottom-right corner: a game's
+		# discs share one wheel, so the rows are otherwise identical.
+		var disc_text := MenuIcons.disc_badge(MenuIcons.disc_number(romname))
+		if not disc_text.is_empty():
+			var disc_lbl := Label.new()
+			disc_lbl.name = "Disc"
+			disc_lbl.text = disc_text
+			disc_lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			disc_lbl.add_theme_font_override("font", MenuIcons.symbols())
+			disc_lbl.add_theme_font_size_override("font_size", 28)
+			disc_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+			disc_lbl.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+			disc_lbl.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+			disc_lbl.grow_vertical = Control.GROW_DIRECTION_BEGIN
+			disc_lbl.offset_left = -10
+			disc_lbl.offset_right = -10
+			disc_lbl.offset_top = -4
+			disc_lbl.offset_bottom = -4
+			rom_btn.add_child(disc_lbl)
+
 		row.add_child(rom_btn)
 
 		# Region: its flag, or the word for a region that has none
@@ -3205,6 +3280,19 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 			var pdf_path := RomLibrary.scraped_manual_path(systemid, romname)
 			manual_btn.pressed.connect(spawn_manual_requested.emit.bind(pdf_path))
 			row.add_child(manual_btn)
+
+		# Spawn, last so it lines up down the right edge whatever a row lacks.
+		# The title spawns too, but nothing about a logo says so.
+		var spawn_btn := Button.new()
+		spawn_btn.name = "Spawn"
+		spawn_btn.text = " SPAWN "
+		spawn_btn.custom_minimum_size = Vector2(110, 56)
+		spawn_btn.add_theme_font_size_override("font_size", 18)
+		var spawn_hold := HoldPress.attach(spawn_btn)
+		spawn_hold.hold_enabled = _has_spawn_options(systemid)
+		spawn_hold.clicked.connect(rom_spawn.bind({}))
+		spawn_hold.held.connect(_show_n64_spawn_options.bind(rom_label, rom_spawn))
+		row.add_child(spawn_btn)
 
 		vbox.add_child(row)
 
