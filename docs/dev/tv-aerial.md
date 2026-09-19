@@ -11,7 +11,7 @@ is found by changing channel:
 |---|---|---|
 | a Famicom | its RF OUT, through the RXR-003 switch | **1, 2** — the CH1/CH2 slide on its back |
 | an NES | its RF OUT, through the RXR-003 switch | **3, 4** — the CH3/CH4 slide on its back |
-| broadcast television | an **Antenna** (RXR-004) | whatever it receives: `2.1`, `4.1`, `10.2` … |
+| broadcast television | an **Antenna** | whatever it receives: `2.1`, `4.1`, `10.2` … |
 
 `RetroTV.rf_dial()` merges them **numerically** with `TVLineup.number_key` —
 `1, 2, 2.1, 3, 4, 4.1, 10.2` — and the CH keys (bezel and remote) walk that list and wrap.

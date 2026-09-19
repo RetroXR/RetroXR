@@ -1,4 +1,4 @@
-## The RXR-004's base: the part of an aerial a player actually picks up.
+## The antenna's base: the part of an aerial a player actually picks up.
 ##
 ## A pickable and two forwards. Everything the aerial DOES belongs to the Antenna
 ## root above it; this exists because a lead has no body to grab and the aerial

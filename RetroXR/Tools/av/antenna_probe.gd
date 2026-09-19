@@ -1,6 +1,6 @@
 extends Node3D
 
-## Photographs the RXR-004 aerial: standing on a set, its lead in the coax socket,
+## Photographs the antenna: standing on a set, its lead in the coax socket,
 ## and then in the ANT socket of an RF switch whose pigtail is in that socket.
 ##
 ## Windowed, not --headless — the dummy renderer returns a blank image:

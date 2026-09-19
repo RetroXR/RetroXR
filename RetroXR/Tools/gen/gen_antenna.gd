@@ -1,4 +1,4 @@
-## Bakes the RXR-004 set-top aerial's body to
+## Bakes the antenna's body (a set-top aerial) to
 ## Scenes/Objects/appliances/antenna_body.res.
 ##
 ##   godot --headless --path RetroXR --script res://Tools/gen/gen_antenna.gd

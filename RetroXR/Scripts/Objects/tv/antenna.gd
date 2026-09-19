@@ -1,4 +1,4 @@
-## The RXR-004 set-top aerial: rabbit ears on a weighted base, and a coax lead.
+## The antenna, a set-top aerial: rabbit ears on a weighted base, and a coax lead.
 ##
 ## Plug the lead into a set's aerial socket — or into the ANT socket of an RF switch
 ## whose own pigtail is in one — and that set's RF input gains every channel this

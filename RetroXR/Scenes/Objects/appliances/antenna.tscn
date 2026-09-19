@@ -24,7 +24,7 @@ radius = 0.022
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
 radius = 0.038
 
-; ── RXR-004 Set-top Aerial ────────────────────────────────────────────────────
+; ── Antenna: a set-top aerial ─────────────────────────────────────────────────
 ;
 ; A lead with a body on one end. The root is a CompositeCable (see antenna.gd for
 ; why), and End A is CAPTIVE: there is a PlugB0 and deliberately NO PlugA0, which is
@@ -78,7 +78,7 @@ script = ExtResource("6_pickhigh")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.002, 0.0502)
 pixel_size = 5e-05
 modulate = Color(0.62, 0.62, 0.66, 1)
-text = "RXR-004    VHF · UHF"
+text = "VHF · UHF"
 font_size = 64
 outline_size = 0
 alpha_cut = 1

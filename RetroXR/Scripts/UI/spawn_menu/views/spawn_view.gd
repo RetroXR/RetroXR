@@ -481,7 +481,7 @@ func _build() -> void:
 		# Broadcast television: its lead goes in a set's aerial socket, or in the
 		# ANT socket of the switch above so a console and the channels share one
 		# hole. The tuner's settings are on ITS menu, not the television's.
-		["Antenna (RXR-004)", "antenna"],
+		["Antenna", "antenna"],
 	])
 
 	# Mains leads, on their own tab rather than lost among the A/V ones. What
