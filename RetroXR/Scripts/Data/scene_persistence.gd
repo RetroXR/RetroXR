@@ -49,7 +49,7 @@ const _NUMBER_FIELDS := [
 	"pad_ordinal", "fit_mode", "roll",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
-	"locked"]
+	"locked", "hardback"]
 const _REFERENCE_FIELDS := [
 	"tv", "cartridge", "memcard", "tape", "disc", "media", "system",
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
@@ -1919,6 +1919,7 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"pdf_path": book.pdf_path,
 			"half_pages": book.half_page_mode,
 			"size_scale": book.size_scale,
+			"hardback": book.hardback,
 			"page_state": int(page.get("state", 0)),
 			"page_leaf": int(page.get("leaf", 0)),
 		})
@@ -2392,6 +2393,7 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				var book := BOOK_SCENE.instantiate() as PDFBook
 				book.half_page_mode = data.get("half_pages", false)
 				book.size_scale = data.get("size_scale", 1.0)
+				book.hardback = data.get("hardback", false)
 				# A scraped manual lives under roms/<systemid>/media/, so it moves
 				# with the folder exactly as a ROM does.
 				book.pdf_path = RomLibrary.relocate(str(data.get("pdf_path", "")))

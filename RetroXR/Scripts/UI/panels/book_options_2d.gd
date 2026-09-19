@@ -6,6 +6,7 @@
 ##   half_page_toggled(enabled) — user toggled half-page (split spread) mode
 ##   size_changed(scale)        — size slider moved (fires live while dragging)
 ##   size_committed(scale)      — size slider drag finished (for net replication)
+##   hardback_toggled(enabled)  — user toggled hardback physics (stiff boards)
 ##   close_requested            — user pressed ✕
 class_name BookOptions2D
 extends Control
@@ -13,6 +14,7 @@ extends Control
 signal half_page_toggled(enabled: bool)
 signal size_changed(scale: float)
 signal size_committed(scale: float)
+signal hardback_toggled(enabled: bool)
 signal close_requested
 
 # ── Palette (matches CoreOptions2D) ─────────────────────────────────────────────
@@ -21,6 +23,7 @@ const COLOR_TITLE := Color(0.9,  0.9,  1.0)
 const COLOR_ROW   := Color(0.65, 0.65, 0.80)
 
 var _half_check: VRCheck = null
+var _hardback_check: VRCheck = null
 var _size_slider: HSlider = null
 var _size_val: Label = null
 var _active_scroll: ScrollContainer = null
@@ -78,6 +81,28 @@ func _build_ui() -> void:
 	)
 	row.add_child(_half_check)
 
+	# Hardback toggle row: [label] [checkbox]. Off = the book hangs like the
+	# soft-cover manual or magazine most of these are.
+	var hard_row := HBoxContainer.new()
+	hard_row.custom_minimum_size = Vector2(0, 56)
+	hard_row.add_theme_constant_override("separation", 8)
+	rows.add_child(hard_row)
+
+	var hard_label := Label.new()
+	hard_label.text = "Hardback (stiff covers)"
+	hard_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hard_label.add_theme_font_size_override("font_size", 18)
+	hard_label.add_theme_color_override("font_color", COLOR_ROW)
+	hard_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	hard_row.add_child(hard_label)
+
+	_hardback_check = VRCheck.create(false, func(pressed: bool) -> void:
+		if _suppress_signal:
+			return
+		hardback_toggled.emit(pressed)
+	)
+	hard_row.add_child(_hardback_check)
+
 	# Size slider row: [label + value] then a full-width slider under it.
 	var size_row := MenuStyle.slider_row(rows, "Book size", 0.5, 2.5, 0.05, 70, 18, 48)
 	_size_slider = size_row[0]
@@ -101,10 +126,12 @@ func _build_ui() -> void:
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 ## Sync the UI to the book's current state without re-emitting signals.
-func populate(half_pages: bool, size_scale := 1.0) -> void:
+func populate(half_pages: bool, size_scale := 1.0, hardback := false) -> void:
 	_suppress_signal = true
 	if _half_check:
 		_half_check.button_pressed = half_pages
+	if _hardback_check:
+		_hardback_check.button_pressed = hardback
 	if _size_slider:
 		_size_slider.value = size_scale
 		_size_val.text = "%.2f×" % size_scale

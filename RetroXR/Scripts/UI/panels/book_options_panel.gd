@@ -47,6 +47,7 @@ func _ensure_ui_connected() -> void:
 	ui.half_page_toggled.connect(_on_half_page_toggled)
 	ui.size_changed.connect(_on_size_changed)
 	ui.size_committed.connect(_on_size_committed)
+	ui.hardback_toggled.connect(_on_hardback_toggled)
 	ui.close_requested.connect(hide_panel)
 	_ui_connected = true
 
@@ -58,7 +59,7 @@ func _populate() -> void:
 	if not ui:
 		call_deferred("_populate")
 		return
-	ui.populate(_book.half_page_mode, _book.size_scale)
+	ui.populate(_book.half_page_mode, _book.size_scale, _book.hardback)
 
 
 func _on_half_page_toggled(enabled: bool) -> void:
@@ -66,6 +67,13 @@ func _on_half_page_toggled(enabled: bool) -> void:
 		_book.half_page_mode = enabled
 		NetworkManager.report_event(NetEvents.Event.EV_BOOK_HALF,
 			{"book": _book, "on": enabled})
+
+
+## Not replicated, unlike the two above: how a book hangs is cosmetic and each
+## player's own, like the rest of the flop. It is saved with the room.
+func _on_hardback_toggled(enabled: bool) -> void:
+	if _book and is_instance_valid(_book):
+		_book.hardback = enabled
 
 
 ## Live while the slider is dragged — resizes the local book every tick.

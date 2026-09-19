@@ -145,6 +145,43 @@ func _run() -> void:
 	await _wait(50)
 
 	await _run_fold_directions()
+	await _run_on_a_hanging_book()
+
+
+## The same gestures on a book that is drooping in the hand (book_flop.gd). The
+## fold solver works on the FLAT page, so every hand position has to be taken
+## back through the bend first; if it were not, the grip would anchor centimetres
+## from where the hand closed, which is what the first check here measures.
+func _run_on_a_hanging_book() -> void:
+	var flop: BookFlop = _book.get("_flop")
+	var face_up := Vector3(0.0, 0.0, -9.8)
+	for i in 400:
+		flop.step(1.0 / 90.0, face_up, face_up)
+	_book.call("_push_flop", true)
+	_check("the book is hanging (right half at %.0f deg)" % rad_to_deg(flop.tip_angle(1)),
+		absf(flop.tip_angle(1)) > 0.3)
+
+	var w: float = _book.get("_book_width")
+	var plane_z: float = _book.call("_page_plane_z", 1)
+	var flat := Vector3(0.0035 * 0.5 + w * 0.80, -0.03, plane_z)
+	var bent := flop.bend(flat)
+	_check("the gripped spot has really moved (%.0f mm)" % (bent.distance_to(flat) * 1000.0),
+		bent.distance_to(flat) > 0.02)
+
+	_book.call("_despawn_active_leaf")
+	_book.call("_on_page_grab_begin", 1, _book.to_global(bent))
+	var leaf := _book.get("_active_leaf") as Node3D
+	if leaf == null:
+		_check("grab on a hanging page", false)
+	else:
+		var anchor: Vector2 = _book.get("_grab_anchor")
+		var expect: Vector3 = leaf.to_local(_book.to_global(flat))
+		_check("hanging: the anchor lands on the paper the hand gripped (%.4f vs %.4f)" % [anchor.x, expect.x],
+			absf(anchor.x - expect.x) < 0.002 and absf(anchor.y - expect.y) < 0.002)
+	await _run_fold_directions(true)
+
+	flop.reset()
+	_book.call("_push_flop", true)
 
 
 ## How far the furthest corner of the page sits past the fold line — i.e. how
@@ -171,7 +208,12 @@ func _page_material_past_fold() -> float:
 ## A page is bound along its spine edge, so it may only be pulled ACROSS that
 ## edge. Dragging parallel to the binding, or outward away from it, has to leave
 ## the page where it is rather than hinging it over its top or fore edge.
-func _run_fold_directions() -> void:
+func _run_fold_directions(hanging: bool = false) -> void:
+	var flop: BookFlop = _book.get("_flop")
+	# On a hanging book the hand is where the BENT page is; the points below are
+	# written on the flat one.
+	var place := func(flat: Vector3) -> Vector3:
+		return _book.to_global(flop.bend_over(flat, 1) if hanging else flat)
 	var w: float = _book.get("_book_width")
 	var h: float = _book.get("book_height")
 	var spine_half := 0.0035 * 0.5
@@ -188,17 +230,17 @@ func _run_fold_directions() -> void:
 	]
 	for c: Array in cases:
 		_book.call("_despawn_active_leaf")
-		_book.call("_on_page_grab_begin", 1, _book.to_global(anchor))
+		_book.call("_on_page_grab_begin", 1, place.call(anchor))
 		if int(_book.get("_grab_dir")) == 0:
 			_check("fold setup for '%s'" % c[0], false)
 			continue
-		_book.call("_update_fold_from_hand", _book.to_global(c[1] as Vector3))
+		_book.call("_update_fold_from_hand", place.call(c[1] as Vector3))
 		# Measure the fold GEOMETRY, not _turn_progress: progress tracks the fold
 		# line's x, and a fold line parallel to the spine does not move in x at
 		# all, so it reported a harmless-looking 0.10 while the page was in fact
 		# hinging over its own top edge.
 		var lifted := _page_material_past_fold()
-		_check("drag %s %s (%.1f mm of page past the fold)"
-			% [c[0], "folds" if bool(c[2]) else "does NOT fold", lifted * 1000.0],
+		_check("%sdrag %s %s (%.1f mm of page past the fold)"
+			% ["hanging: " if hanging else "", c[0], "folds" if bool(c[2]) else "does NOT fold", lifted * 1000.0],
 			(lifted > 0.002) == bool(c[2]))
 	_book.call("_despawn_active_leaf")

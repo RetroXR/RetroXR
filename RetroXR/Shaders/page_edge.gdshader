@@ -38,8 +38,16 @@ uniform float edge_curl = 0.0;
 const float PAPER_PI = 3.14159265;
 
 #include "res://Shaders/paper_rest.gdshaderinc"
+#include "res://Shaders/paper_flop.gdshaderinc"
 // Peak outward swell at mid-stack, in metres.
 uniform float bulge : hint_range(0.0, 0.01) = 0.0006;
+
+// The half this block belongs to, hanging from the binding. Has to be the very
+// same numbers the sheets on this side are given, or the block comes through
+// them. A block never crosses the gutter, so it has no far half.
+uniform vec4 flop_own = vec4(0.0);
+uniform float flop_gutter_gap = 0.00175;
+uniform float flop_origin_z = 0.0;
 
 varying float v_t;      // 0..1 through the stack
 varying float v_side;   // 1 on the page-edge faces, 0 on the flat top/bottom
@@ -93,6 +101,24 @@ void vertex() {
 		VERTEX.xy += face * (bulge * profile);
 		// Surface is base + face * b(z), so the normal tilts by -b'(z) on Z.
 		NORMAL = normalize(vec3(face, -bulge * dprofile));
+	}
+
+	// The whole half hanging from the binding, last so it carries the rest. The
+	// bend is in book metres and this box is scaled on Z, so go out through
+	// z_scale and come back; the normal goes through its inverse, as the
+	// engine's own normal matrix will on the way to the world.
+	if (flop_own != vec4(0.0)) {
+		float zs = max(z_scale, 1e-4);
+		float s = max(spine_sign * VERTEX.x + 0.5 * page_size.x + flop_gutter_gap, 0.0);
+		float zb = flop_origin_z + VERTEX.z * zs;
+		float ang = paper_flop(s, zb, flop_own, FLOP_HINGE_LEN);
+		VERTEX.x = spine_sign * (s - 0.5 * page_size.x - flop_gutter_gap);
+		VERTEX.z = (zb - flop_origin_z) / zs;
+		float ns = spine_sign * NORMAL.x;
+		float nz = NORMAL.z / zs;
+		float ca = cos(ang);
+		float sa = sin(ang);
+		NORMAL = normalize(vec3(spine_sign * (ns * ca - nz * sa), NORMAL.y, (ns * sa + nz * ca) * zs));
 	}
 }
 

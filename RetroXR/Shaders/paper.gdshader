@@ -38,6 +38,35 @@ uniform vec2 fold_normal = vec2(1.0, 0.0);   // unit
 uniform float curl_radius = 0.01;
 uniform float curl_taper : hint_range(0.0, 4.0) = 1.2;
 
+// How this half of the book hangs from the binding (paper_flop.gdshaderinc):
+// (angle at the gutter, page curvature, support distance, gutter displacement),
+// solved by BookFlop. The far
+// half's is here too because a page being turned lays its flap across the
+// gutter, and that part has to ride the OTHER half.
+uniform vec4 flop_own = vec4(0.0);
+uniform vec4 flop_far = vec4(0.0);
+// The bend is about the book's gutter, not this mesh's origin: how far the page
+// starts from it, where this mesh sits in book-local Z, and whether its own +Z
+// is the book's (the covers are turned 180 degrees about Y).
+uniform float flop_gutter_gap = 0.00175;
+uniform float flop_origin_z = 0.0;
+uniform float flop_z_sign = 1.0;
+// 1 on the leaf being turned, 0 on everything else. A flap lifted over a
+// drooping spine is on the OUTSIDE of the binding's tight bend and was stretched
+// into a flat tongue longer than the page; the turning leaf spreads that turn
+// over an arc that widens with its height (flop_hinge_len). Nothing else may: a
+// sheet lying on its block would then disagree with the block under it.
+uniform float flop_cross = 0.0;
+// The turning leaf's own hinge: a page pulled UP swings about the gutter toward
+// the hand instead of rolling over flat. A RIGID rotation about the gutter line
+// at the leaf's own plane, applied BEFORE the book's droop — a page's hinge at
+// the binding is a true hinge. It was first folded into the droop as one more
+// angle over that widened arc, which gave the high parts of the sheet only a
+// fraction of the lift; the "leaf's frame" was then not a frame, and the solver
+// wanted curls starting 6 cm behind the binding. Solved from the hand by
+// PDFBook._solve_leaf_lift.
+uniform float flop_lift = 0.0;
+
 // Surface.
 uniform float gutter_ao : hint_range(0.0, 1.0) = 0.55;
 uniform float gutter_ao_falloff : hint_range(1.0, 40.0) = 9.0;
@@ -53,6 +82,7 @@ const float PI_ = 3.14159265;
 const float PAPER_PI = 3.14159265;
 
 #include "res://Shaders/paper_rest.gdshaderinc"
+#include "res://Shaders/paper_flop.gdshaderinc"
 
 void vertex() {
 	float w = max(page_size.x, 1e-5);
@@ -71,7 +101,9 @@ void vertex() {
 	paper_rest_slope(u, v, gutter_dive, gutter_falloff, bow_amount, fore_droop, edge_curl,
 		dzdu, dzdv);
 
-	VERTEX.z += gutter + sag + lift;
+	// Along the BOOK's +Z, not this mesh's: a cover turned 180 degrees about Y has
+	// its own +Z pointing down out of the book, and sagged INTO its block.
+	VERTEX.z += flop_z_sign * (gutter + sag + lift);
 
 	// Arc-length conservation: the sheet dipping into the gutter is longer than
 	// the flat span it covers, so a material point sits nearer the spine than
@@ -80,7 +112,7 @@ void vertex() {
 	VERTEX.x -= spine_sign * gutter_dive * exp(-u * gutter_falloff) * 0.5;
 
 	// dz/dx and dz/dy from du/dx = spine_sign/w, dv/dy = 1/h.
-	vec3 n = normalize(vec3(-dzdu * spine_sign / w, -dzdv / h, 1.0));
+	vec3 n = normalize(vec3(-flop_z_sign * dzdu * spine_sign / w, -flop_z_sign * dzdv / h, 1.0));
 
 	if (fold_strength > 0.0) {
 		vec2 fn = normalize(fold_normal);
@@ -110,6 +142,37 @@ void vertex() {
 			float nz2 = nn * sa + nz * ca;
 			n = normalize(vec3(fn * nn2 + ft * nt, nz2));
 		}
+	}
+
+	// Last, because it carries everything above with it: the whole half hanging
+	// from the binding. s is measured out from the book's gutter, so a flap the
+	// fold has laid across it comes out negative and takes the far half's bend.
+	if (flop_own != vec4(0.0) || flop_far != vec4(0.0) || flop_lift != 0.0) {
+		// Signed: positive on this sheet's own half, negative past the gutter —
+		// which only the turning leaf's flap ever is, and there it rides the far
+		// half's bend, mirrored in and out. The two maps meet at the gutter (the
+		// turn starts from zero there), so nothing has to be blended.
+		float s = spine_sign * VERTEX.x + 0.5 * w + flop_gutter_gap;
+		float z_new = flop_z_sign * VERTEX.z;
+		// The leaf's own hinge first, rigidly, about the gutter at its own plane.
+		float lift_c = cos(flop_lift);
+		float lift_s = sin(flop_lift);
+		float s_lifted = s * lift_c - z_new * lift_s;
+		z_new = flop_origin_z + s * lift_s + z_new * lift_c;
+		float side = s_lifted < 0.0 ? -1.0 : 1.0;
+		float s_new = abs(s_lifted);
+		float ang = flop_lift + side * paper_flop(s_new, z_new, side > 0.0 ? flop_own : flop_far,
+			flop_hinge_len(z_new, flop_cross));
+		s_new *= side;
+		VERTEX.x = spine_sign * (s_new - 0.5 * w - flop_gutter_gap);
+		VERTEX.z = (z_new - flop_origin_z) * flop_z_sign;
+		// Turn the normal through the same angle, in the same (s, z) plane.
+		float ns = spine_sign * n.x;
+		float nz = flop_z_sign * n.z;
+		float ca = cos(ang);
+		float sa2 = sin(ang);
+		n.x = spine_sign * (ns * ca - nz * sa2);
+		n.z = flop_z_sign * (ns * sa2 + nz * ca);
 	}
 
 	NORMAL = n;
