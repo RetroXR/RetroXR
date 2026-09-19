@@ -128,6 +128,24 @@ func _run() -> void:
 	# CH1/CH2, RF SWITCH, and a cord grommet at each corner.
 	var rear := sys.global_position + b.y * 0.022
 	await _shot(sv, cam, rear - b.z * 0.30 + up * 0.13, rear, up, "famicom_rear.png")
+	# CH1/CH2, close, in BOTH positions: a slide switch photographed once proves it
+	# was drawn and nothing about whether it moves. The number beside each picture
+	# is the machine's own answer, which is what a television actually reads.
+	var slide := sys.find_child("ChannelSlide", true, false) as VRSlider
+	if slide == null:
+		print("[fcrender] FAIL the rear panel has no ChannelSlide")
+	else:
+		var sw := slide.global_position
+		print("[fcrender] channel slide at %s, axis %s" % [sw,
+			slide.global_transform.basis * slide.axis_local])
+		print("[fcrender] slide at 0 -> CH%d" % sys.get_rf_channel())
+		await _shot(sv, cam, sw - b.z * 0.085 + up * 0.030 - b.x * 0.012, sw - b.x * 0.012, up,
+			"famicom_ch1.png")
+		slide.set_value(1.0)
+		print("[fcrender] slide at 1 -> CH%d" % sys.get_rf_channel())
+		await _shot(sv, cam, sw - b.z * 0.085 + up * 0.030 - b.x * 0.012, sw - b.x * 0.012, up,
+			"famicom_ch2.png")
+		slide.set_value(0.0)
 	var pad_mid := two.global_position + b.y * 0.01
 	await _shot(sv, cam, pad_mid + b.y * 0.17 + b.z * 0.09 + b.x * 0.05, pad_mid, -b.z,
 		"famicom_controller_ii.png")

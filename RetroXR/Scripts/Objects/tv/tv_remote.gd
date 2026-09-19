@@ -591,12 +591,11 @@ func _cell_enabled(id: String) -> bool:
 		return true
 	if _target is RetroTV:
 		# The channel keys are the one TV cell that can be dead: the set may be on
-		# the component input, where there is no channel to change, or the tuner may
-		# have no list yet (no channels.json, tuner still being found). Every other
-		# key on a set works whatever it is showing.
+		# the component input, where there is no channel to change. On the aerial
+		# input they always have CH3 and CH4 to step between, and an Antenna's
+		# channels besides. Every other key on a set works whatever it is showing.
 		if id == "ch_up" or id == "ch_down":
-			var tv := _target as RetroTV
-			return tv.get_source() == RetroTV.Source.TV and tv.has_channels()
+			return (_target as RetroTV).can_change_channel()
 	return true
 
 

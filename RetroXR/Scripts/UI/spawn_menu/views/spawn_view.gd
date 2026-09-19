@@ -478,6 +478,10 @@ func _build() -> void:
 		# The way a console reached a television before anything had a composite
 		# input: phono into the deck, coax into the aerial socket.
 		["RF Switch (RXR-003)", "rf_switch"],
+		# Broadcast television: its lead goes in a set's aerial socket, or in the
+		# ANT socket of the switch above so a console and the channels share one
+		# hole. The tuner's settings are on ITS menu, not the television's.
+		["Antenna (RXR-004)", "antenna"],
 	])
 
 	# Mains leads, on their own tab rather than lost among the A/V ones. What

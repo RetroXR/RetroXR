@@ -27,9 +27,12 @@
 ## point rather than to the other plug — the base clamps the pair to each other,
 ## which here would let the 1.8 m deck lead drag the 25 cm pigtail across the room.
 ##
-## The ANT socket routes nothing today: there is no aerial in the room. It is a real
-## CoaxPort all the same, so the day there is one it seats, reports and carries
-## whatever is on its far end with no change here.
+## ── The ANT socket ──────────────────────────────────────────────────────────
+## Takes an Antenna's lead, and the set on the far end of the pigtail then has that
+## aerial's channels on the same dial as this switch's CH3 and CH4 — see
+## RetroTV.rf_dial. Nothing is routed HERE: the set asks for its aerial by walking
+## its own coax socket to this lead and on to aerial(), and the Antenna tells the set
+## when its connector moves. The box only has to answer the two questions below.
 class_name RfSwitch
 extends CompositeCable
 
@@ -69,6 +72,43 @@ func _ready() -> void:
 ## sink with nothing behind it.
 func on_av_topology_changed(_links: Array) -> void:
 	pass
+
+
+## The ANT socket.
+func ant_port() -> RcaPort:
+	return get_node_or_null("Body/AntPort") as RcaPort
+
+
+## The aerial seated in the ANT socket, or null.
+func aerial() -> Antenna:
+	var port := ant_port()
+	var plug: RcaPlug = (port.seated_plug() as RcaPlug) if port != null else null
+	if plug == null or plug.cable == null or not is_instance_valid(plug.cable):
+		return null
+	return plug.cable as Antenna
+
+
+## The television the TV pigtail is seated in, or null.
+func reached_set() -> RetroTV:
+	var plug := _plug_at(End.B, 0)
+	var port: RcaPort = plug.seated_port() if plug != null else null
+	return (port.get_device() as RetroTV) if port != null else null
+
+
+## Let go of the aerial's lead before the box goes.
+##
+## super drops this lead's own two plugs out of THEIR sockets, but the ANT socket is
+## this lead's and holds somebody else's plug: freed with the box, it would take a
+## live connector's grab driver with it. Dropped first, the aerial's lead falls loose
+## and its own resolve tells the set the channels are gone.
+func drop_and_free() -> void:
+	var port := ant_port()
+	if port != null and port.seated_plug() != null:
+		# Shut first: a plug released in place is still inside the zone's grab sphere,
+		# and the zone takes it back on the deferred `dropped` — see the base's note.
+		port.enabled = false
+		port.drop_object()
+	super.drop_and_free()
 
 
 ## Two leads, one rope each.

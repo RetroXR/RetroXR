@@ -182,7 +182,9 @@ func _ready() -> void:
 	for e in [End.A, End.B]:
 		_shared[e] = _cords > 1 and get_node_or_null("Plug%s1" % "AB"[e]) == null
 		for c in _cords:
-			var plug := get_node("Plug%s%d" % ["AB"[e], 0 if _shared[e] else c]) as RcaPlug
+			var plug := get_node_or_null("Plug%s%d" % ["AB"[e], 0 if _shared[e] else c]) as RcaPlug
+			if plug == null:
+				continue        # a CAPTIVE end: no connector at all — see _plug_at
 			_plugs[e].append(plug)
 			if _shared[e] and c > 0:
 				continue        # same node: wiring it again would double-connect
@@ -226,6 +228,18 @@ func _count_cords() -> int:
 	while get_node_or_null("PlugA%d" % n) != null or get_node_or_null("PlugB%d" % n) != null:
 		n += 1
 	return n
+
+
+## The connector on one end of one cord, or null where that end has none.
+##
+## A CAPTIVE end is one the scene ships no plug for: the cord disappears into a body
+## instead of ending in a connector. An aerial is the case — its lead is moulded into
+## the base at one end and wears an F connector at the other — and it is a lead for
+## every reason RfSwitch gives, so it has to be able to BE one. Everything that walks
+## cords comes through here rather than indexing _plugs, which has no entry to find.
+func _plug_at(e: int, c: int) -> RcaPlug:
+	var row: Array = _plugs[e]
+	return (row[c] as RcaPlug) if c >= 0 and c < row.size() else null
 
 
 ## The distinct plugs on one end — three on an ordinary end, one on a shared one.
@@ -509,8 +523,12 @@ func _resolve() -> void:
 	var resolved: Array[Dictionary] = []
 	var devices: Array[Node3D] = []
 	for c in _cords:
-		var pa: RcaPort = (_plugs[End.A][c] as RcaPlug).seated_port()
-		var pb: RcaPort = (_plugs[End.B][c] as RcaPlug).seated_port()
+		var plug_a := _plug_at(End.A, c)
+		var plug_b := _plug_at(End.B, c)
+		if plug_a == null or plug_b == null:
+			continue        # a captive end joins nothing to anything
+		var pa: RcaPort = plug_a.seated_port()
+		var pb: RcaPort = plug_b.seated_port()
 		if pa == null or pb == null:
 			continue
 		var out_port: RcaPort = null
@@ -593,7 +611,9 @@ func seating() -> Array[Dictionary]:
 		# single socket, and three identical records would restore it three times and
 		# put three netplay events on the wire for one hand movement.
 		for c in (1 if _shared[e] else _cords):
-			var plug: RcaPlug = _plugs[e][c]
+			var plug := _plug_at(e, c)
+			if plug == null:
+				continue
 			var where := _seat_of(plug)
 			out.append({
 				"plug": plug,
@@ -691,7 +711,9 @@ func restore_plug_poses(seats: Array) -> void:
 		var c: int = int(seat.get("cord", 0))
 		if e < 0 or e > 1 or c < 0 or c >= _cords:
 			continue
-		var plug: RcaPlug = _plugs[e][c]
+		var plug := _plug_at(e, c)
+		if plug == null:
+			continue
 		var pos: Array = seat.get("position", [])
 		var rot: Array = seat.get("rotation", [])
 		if pos.size() == 3:
@@ -707,7 +729,9 @@ func _apply_seating(seats: Array) -> void:
 		var c: int = int(seat.get("cord", 0))
 		if e < 0 or e > 1 or c < 0 or c >= _cords:
 			continue
-		var plug: RcaPlug = _plugs[e][c]
+		var plug := _plug_at(e, c)
+		if plug == null:
+			continue
 		var dev: Node3D = seat.get("device")
 		var port_name: String = str(seat.get("port", ""))
 		if is_instance_valid(dev) and not port_name.is_empty():
@@ -725,8 +749,8 @@ func net_seat_plug(end: int, cord: int, device: Node3D, port_name: String) -> vo
 	if end < 0 or end > 1 or cord < 0 or cord >= _cords or device == null:
 		return
 	var port := port_named(device, port_name)
-	if port != null:
-		port.pick_up_object(_plugs[end][cord])
+	if port != null and _plug_at(end, cord) != null:
+		port.pick_up_object(_plug_at(end, cord))
 
 
 ## Pull one end out, wherever it happens to be.
@@ -743,7 +767,9 @@ func net_seat_plug(end: int, cord: int, device: Node3D, port_name: String) -> vo
 func net_release_plug(end: int, cord: int) -> void:
 	if end < 0 or end > 1 or cord < 0 or cord >= _cords:
 		return
-	var plug: RcaPlug = _plugs[end][cord]
+	var plug := _plug_at(end, cord)
+	if plug == null:
+		return
 	var port := plug.seated_port()
 	if port == null:
 		return
@@ -807,8 +833,12 @@ func drop_and_free() -> void:
 func links() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for c in _cords:
-		var pa: RcaPort = (_plugs[End.A][c] as RcaPlug).seated_port()
-		var pb: RcaPort = (_plugs[End.B][c] as RcaPlug).seated_port()
+		var plug_a := _plug_at(End.A, c)
+		var plug_b := _plug_at(End.B, c)
+		if plug_a == null or plug_b == null:
+			continue
+		var pa: RcaPort = plug_a.seated_port()
+		var pb: RcaPort = plug_b.seated_port()
 		if pa == null or pb == null:
 			continue
 		if pa.direction == RcaPort.Direction.OUT and pb.direction == RcaPort.Direction.IN:

@@ -208,7 +208,26 @@ func _effective_volume() -> float:
 ## running, so switching a console to the tuner played the channel over the top
 ## of the game you had just been playing.
 func volume_for(source: RetroTV.Source) -> float:
-	return _effective_volume() if _tv.current_source == source else 0.0
+	if _tv.current_source != source:
+		return 0.0
+	# The aerial socket can carry two sources at once — a console through an RF
+	# switch and an Antenna in the switch's ANT socket — and the DIAL picks between
+	# them, not SOURCE. On a broadcast channel the console is a channel away and
+	# must be as silent as one on another input.
+	if source == RetroTV.Source.RF and _tv.showing_broadcast():
+		return 0.0
+	# ...and so must one the set is simply not tuned to. A Famicom modulating on
+	# CH1 into a set standing on CH3 is snow on the glass, and used to be heard
+	# through it anyway: the picture had a channel and the sound did not.
+	if source == RetroTV.Source.RF and not _tv.panel().rf_tuned():
+		return 0.0
+	return _effective_volume()
+
+
+## What reaches the built-in tuner: the set's volume while the dial is on one of the
+## aerial's channels, and nothing otherwise.
+func tuner_volume() -> float:
+	return _effective_volume() if _tv.showing_broadcast() else 0.0
 
 
 ## Push the current volume to every connected device and to the built-in tuner, so
@@ -221,7 +240,7 @@ func apply_volume() -> void:
 		if is_instance_valid(system):
 			system.set_audio_volume(volume_for(i))
 	if _tv.tuner():
-		_tv.tuner().set_volume(volume_for(RetroTV.Source.TV))
+		_tv.tuner().set_volume(tuner_volume())
 
 
 ## A volume key clears mute (like a real set) so the change is audible.

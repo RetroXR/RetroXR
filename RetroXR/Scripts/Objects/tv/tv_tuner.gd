@@ -1,9 +1,15 @@
-## TVTuner — the set's built-in TV input: a channel list and a libVLC stream.
+## TVTuner — the set's built-in tuner: it plays ONE channel through libVLC.
 ##
 ## Owned by RetroTV, which decides when it is on screen. The tuner never touches
 ## the screen mesh itself, so all screen arbitration stays in one place (tv.gd's
 ## _update_screen_source and _update_crt already fight over that surface and do
 ## not need a third party).
+##
+## What it can tune is not its own. The channel list belongs to the aerial on the
+## far end of the set's coax socket (TVLineup, owned by an Antenna) and is handed
+## over with set_lineup; with no aerial there is no list and nothing to play. This
+## half used to own discovery and channels.json as well, which is how every set in
+## the room had broadcast channels with nothing plugged into it.
 ##
 ## Two states, and which one is current is the whole state machine:
 ##   picture — the decoded frame, offered as a texture for the set to sample
@@ -29,11 +35,16 @@ const TUNE_TIMEOUT := 8.0
 ## still frame in the content.
 const STALL_TIMEOUT := 6.0
 
-var channels: Array[Dictionary] = []
+## The aerial's list, read through rather than copied: discovery replaces it
+## wholesale, and a copy would go on naming channels the box no longer offers.
+var channels: Array[Dictionary]:
+	get:
+		return _lineup.channels if is_instance_valid(_lineup) else _no_channels
 var current_index: int = -1
 
 var _vlc: Object = null
-var _hdhr: HDHomeRun = null
+var _lineup: TVLineup = null
+var _no_channels: Array[Dictionary] = []
 var _emitter: SpatialAudioEmitter = null
 
 var _static_material: ShaderMaterial = null
@@ -43,21 +54,15 @@ var _error := ""
 var _tuning := false
 # A tune waiting on libVLC to finish coming up; see _start_current.
 var _pending_tune := false
+# The stream the viewer asked for, so a re-sorted list can be followed by station
+# rather than by slot. See _on_lineup_changed.
+var _tuned_url := ""
 var _since_tune := 0.0
 var _last_frames := 0
 var _since_frame := 0.0
 var _have_picture := false
 var _volume_linear := 1.0
 var _muted := false
-var _cfg: TVChannels = null
-# What discovery reported, for the options panel's status line. Kept separate
-# from _error: a missing tuner is worth saying in the panel but is not a fault
-# on the glass while a hand-written stream list is playing perfectly well.
-var _tuner_info: Dictionary = {}
-var _tuner_error := ""
-# Whether a look is actually in flight. Without it the status line cannot tell
-# "searching" from "never started", and reports the former for both.
-var _searching := false
 
 
 func _ready() -> void:
@@ -77,12 +82,6 @@ func _ready() -> void:
 	else:
 		push_error("TVTuner: VlcPlayer extension not loaded — TV input unavailable")
 
-	_hdhr = HDHomeRun.new()
-	_hdhr.name = "HDHomeRun"
-	_hdhr.lineup_ready.connect(_on_lineup_ready)
-	_hdhr.discovery_failed.connect(_on_discovery_failed)
-	add_child(_hdhr)
-
 	_emitter = SpatialAudioEmitter.new()
 	_emitter.name = "SpatialAudioEmitter"
 	_emitter.unit_size = 3.0
@@ -97,142 +96,58 @@ func _ready() -> void:
 
 # ── channel list ──────────────────────────────────────────────────────────────
 
-## Read channels.json and, if it names a tuner, go and find it. Safe to call
-## repeatedly; the panel's Refresh button does exactly this.
-func reload_channels() -> void:
-	_cfg = TVChannels.load_config()
-	channels.clear()
-
-	# Show the cached lineup immediately so a list exists before the network
-	# answers -- and so a cold start with the tuner asleep still has channels.
-	var cache := HDHomeRun.load_cache()
-	if cache.has("channels"):
-		for c: Variant in cache["channels"]:
-			if c is Dictionary:
-				channels.append(c as Dictionary)
-
-	for c in _cfg.stream_channels:
-		channels.append(c)
-	_sort_channels()
-	channels_changed.emit()
-
-	# A broken file is worth saying out loud. A MISSING one is not: discovery
-	# needs no configuration at all, so the normal case for a fresh install is
-	# no file and a tuner found anyway.
-	if _cfg.status == TVChannels.Status.PARSE_ERROR:
-		_set_error("CHANNEL LIST ERROR\n%s" % _cfg.error_message)
-
-	# Always go looking. This used to be gated on the file naming a tuner, which
-	# dated from before broadcast discovery worked -- and meant a machine with no
-	# channels.json (every fresh install, and every headset) never even started
-	# looking, then sat on "Looking for a tuner..." forever because nothing ever
-	# reported success or failure.
-	_searching = true
-	_hdhr.find_lineup(_cfg.tuner_host(), _cfg.tuner_auto())
-
-
-# ── tuner configuration (the options panel's Tuner box) ───────────────────────
-
-func tuner_auto() -> bool:
-	return _cfg.tuner_auto() if _cfg else true
-
-
-func tuner_host() -> String:
-	return _cfg.tuner_host() if _cfg else ""
-
-
-## The address discovery actually reached, so the panel can show it even when the
-## user never typed one.
-func discovered_host() -> String:
-	return str(_tuner_info.get("host", ""))
-
-
-## One already-worded line for the panel's status label.
-func tuner_status_line() -> String:
-	if not _tuner_error.is_empty():
-		return _tuner_error
-	if _tuner_info.is_empty():
-		return "Looking for a tuner…" if _searching else "No tuner searched for yet"
-	return "%s — %s — %d tuner(s) — %d channels" % [
-		_tuner_info.get("name", "HDHomeRun"),
-		_tuner_info.get("host", "?"),
-		int(_tuner_info.get("tuners", 0)),
-		_hdhr_channel_count(),
-	]
-
-
-func _hdhr_channel_count() -> int:
-	var n := 0
-	for c in channels:
-		if str(c.get("source", "")) == "hdhomerun":
-			n += 1
-	return n
-
-
-## Persist auto/address to channels.json and go looking again.
-func set_tuner_config(auto: bool, host: String) -> void:
-	if _cfg == null:
-		_cfg = TVChannels.load_config()
-	if _cfg.tuner_auto() == auto and _cfg.tuner_host() == host.strip_edges():
+## Take the list of whatever aerial the set's coax socket now reaches, or null
+## when it reaches none. Called by RetroTV whenever a plug moves at either end.
+func set_lineup(lineup: TVLineup) -> void:
+	if _lineup == lineup:
 		return
-	_cfg.set_tuner(auto, host)
-	_tuner_info = {}
-	_tuner_error = ""
-	_searching = true
-	_hdhr.find_lineup(_cfg.tuner_host(), _cfg.tuner_auto())
-	channels_changed.emit()
+	if is_instance_valid(_lineup) 			and _lineup.channels_changed.is_connected(_on_lineup_changed):
+		_lineup.channels_changed.disconnect(_on_lineup_changed)
+	_lineup = lineup
+	if is_instance_valid(_lineup):
+		_lineup.channels_changed.connect(_on_lineup_changed)
+	_on_lineup_changed()
 
 
-func _on_lineup_ready(found: Array, info: Dictionary) -> void:
-	_searching = false
-	_tuner_info = info
-	_tuner_error = ""
-	# Replace the tuner's channels wholesale; hand-written streams are untouched.
-	var kept: Array[Dictionary] = []
-	for c in channels:
-		if str(c.get("source", "")) != "hdhomerun":
-			kept.append(c)
-	channels = kept
-	for c: Variant in found:
-		if c is Dictionary:
-			channels.append(c as Dictionary)
-	_sort_channels()
-	if _error.begins_with("TUNER") or _error.begins_with("NO CHANNELS"):
+func lineup() -> TVLineup:
+	return _lineup if is_instance_valid(_lineup) else null
+
+
+## The list moved under the tuned channel: discovery answered, the panel refreshed,
+## or the aerial was pulled.
+##
+## Followed by URL, not by index. Discovery replaces the cached lineup wholesale and
+## re-sorts, so the same index is routinely a different station a second later — and
+## a viewer watching 4.1 should go on watching 4.1 rather than be restarted onto
+## whatever slid into its slot.
+func _on_lineup_changed() -> void:
+	var was := _tuned_url
+	var found := -1
+	if not was.is_empty():
+		for i in channels.size():
+			if str(channels[i].get("url", "")) == was:
+				found = i
+				break
+	if found >= 0:
+		current_index = found
+	elif channels.is_empty():
+		current_index = -1
+		_tuned_url = ""
+		if _vlc:
+			_vlc.stop()
+		_have_picture = false
+		_tuning = false
+		_pending_tune = false
+	else:
+		current_index = clampi(current_index, 0, channels.size() - 1)
+		if _active:
+			_start_current()
+	var fault := _lineup.fault_text() if is_instance_valid(_lineup) else ""
+	if not fault.is_empty():
+		_set_error(fault)
+	elif _error.begins_with("TUNER") or _error.begins_with("NO CHANNELS") 			or _error.begins_with("CHANNEL LIST"):
 		_set_error("")
 	channels_changed.emit()
-
-
-func _on_discovery_failed(message: String) -> void:
-	_searching = false
-	_tuner_error = message
-	_tuner_info = {}
-	# Only complain on screen if there is nothing else to watch -- a hand-written
-	# stream list is a perfectly good TV input without any tuner.
-	if channels.is_empty():
-		_set_error("TUNER NOT FOUND\n%s" % message.to_upper())
-	channels_changed.emit()
-
-
-## Broadcast numbering is "4.1", "10.2" — sort on the pair, not the string, or
-## channel 10 lands between 1 and 2.
-func _sort_channels() -> void:
-	channels.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var pa := _number_key(str(a.get("number", "")))
-		var pb := _number_key(str(b.get("number", "")))
-		if pa != pb:
-			return pa < pb
-		return str(a.get("name", "")).naturalnocasecmp_to(str(b.get("name", ""))) < 0)
-
-
-func _number_key(number: String) -> float:
-	if number.is_empty():
-		return 1e9          # unnumbered entries sort last, not first
-	var parts := number.split(".")
-	var major := float(parts[0]) if parts[0].is_valid_float() else 1e8
-	var minor := 0.0
-	if parts.size() > 1 and parts[1].is_valid_float():
-		minor = float(parts[1])
-	return major * 1000.0 + minor
 
 
 # ── tuning ────────────────────────────────────────────────────────────────────
@@ -285,6 +200,7 @@ func _start_current() -> void:
 	if ch.is_empty():
 		return
 	_vlc.stop()
+	_tuned_url = str(ch.get("url", ""))
 	_have_picture = false
 	_tuning = true
 	_since_tune = 0.0
@@ -333,15 +249,15 @@ func _on_vlc_stopped() -> void:
 
 # ── activation ────────────────────────────────────────────────────────────────
 
-## Called by the TV when the SOURCE button selects (or leaves) the TV input.
+## Called by the TV when the dial lands on (or leaves) one of the aerial's channels.
 func set_active(active: bool) -> void:
 	if _active == active:
 		return
 	_active = active
 	set_process(active)
 	if active:
-		if channels.is_empty() and _cfg == null:
-			reload_channels()
+		if is_instance_valid(_lineup) and not _lineup.is_loaded():
+			_lineup.reload_channels()
 		if current_index < 0 and not channels.is_empty():
 			current_index = 0
 		if not channels.is_empty():

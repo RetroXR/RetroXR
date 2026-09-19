@@ -4,8 +4,8 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 
 ### 2c. The A/V suite — the one thing here that is an actual test suite
 
-`RetroXR/Tests/av_tests.tscn` — 41 cases over what reaches a television's inputs and
-what it shows. Headless, ~35 s, **exits non-zero on failure**, so it is the one probe
+`RetroXR/Tests/av_tests.tscn` — 62 cases over what reaches a television's inputs and
+what it shows. Headless, ~90 s, **exits non-zero on failure**, so it is the one probe
 that can be run as a gate rather than read.
 
 ```bash
@@ -14,7 +14,8 @@ that can be run as a gate rather than read.
 ```
 
 Groups: `routing/` (real TV + VCR + composite leads — cords into the wrong sockets, a
-crossed pair, two leads on one deck, a cord pulled), `display/` (which input is shown,
+crossed pair, two leads on one deck, a cord pulled — and, under `wiring/`, the aerial,
+the RF switch's ANT socket and the Famicom's CH1/CH2 slide, see `tv-aerial.md`), `display/` (which input is shown,
 what a blank input paints, a source that stops, a set switched off, snow on an
 untuned aerial channel, a VGA monitor with no phono row, a source's own shader
 stage, two sets sharing one machine), `guard/` (`can_paint` / `paint_screen` /

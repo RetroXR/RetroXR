@@ -172,6 +172,28 @@ func has_aerial() -> bool:
 	return _tv.shell() == null or _tv.shell().has_aerial
 
 
+## The aerial on the far end of the coax socket, or null.
+##
+## Two ways to reach one, and both are one hop: an Antenna's own connector seated in
+## the socket, or an RF switch's pigtail seated in it with an Antenna in the switch's
+## ANT socket — which is what that socket is for, and how a console and broadcast
+## television share one hole. Asked of the socket every time rather than remembered:
+## it runs on a plug move and a key press, never per frame, and a remembered aerial
+## is one more thing a binned lead can leave dangling.
+func aerial() -> Antenna:
+	if not has_aerial():
+		return null
+	var rf := _tv._rf_port as RcaPort
+	var plug: RcaPlug = (rf.seated_plug() as RcaPlug) if rf != null else null
+	if plug == null or plug.cable == null or not is_instance_valid(plug.cable):
+		return null
+	if plug.cable is Antenna:
+		return plug.cable as Antenna
+	if plug.cable is RfSwitch:
+		return (plug.cable as RfSwitch).aerial()
+	return null
+
+
 ## Whether this cabinet carries the six speaker outputs.
 ##
 ## The stock body does — it is a flat box with 350 mm of clear back above the input

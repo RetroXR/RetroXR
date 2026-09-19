@@ -136,7 +136,7 @@ func screen_light_rect(mat: Material) -> Rect2:
 ## backs off automatically; when they blank/restore a textureless material we
 ## take over again next frame.
 func update_screen_source() -> void:
-	# On the TV input the tuner owns the glass outright: it always has something
+	# On one of the aerial's channels the tuner owns the glass outright: it always has something
 	# to show (a picture, or static carrying the reason there isn't one), so the
 	# blue screen below must not get a look in. Nothing else is driving the mesh
 	# either -- the connected host was muted with set_screen_enabled(false) when
@@ -148,7 +148,7 @@ func update_screen_source() -> void:
 	# phosphor all stopped at the TV input while working on composite, and the
 	# aspect button appeared dead. Static is still a material of the tuner's own:
 	# snow fills the whole tube whatever shape the picture would have been.
-	if _tv.is_on() and _tv.current_source == RetroTV.Source.TV and _tv.tuner() != null:
+	if _tv.is_on() and _tv.showing_broadcast() and _tv.tuner() != null:
 		var tex := _tv.tuner().picture_texture()
 		if tex != null:
 			_show_sampled(_crt_screen_material(), tex)
@@ -722,6 +722,13 @@ func can_paint(who: Object) -> bool:
 	if not _tv.is_on() or who == null:
 		return false
 	if _tv.current_source == RetroTV.Source.RF and not _tv.panel().rf_tuned():
+		return false
+	# ...and not at all while the dial is on a broadcast channel. The console is
+	# still on the wire, on CH3; the set is simply not tuned to it. selected_system
+	# already answers null for this, and it is stated here as well because this is
+	# the guard, and a guard that leans on another function's null is one refactor
+	# from letting a console paint over the news.
+	if _tv.showing_broadcast():
 		return false
 	return who == _tv.panel().selected_system()
 

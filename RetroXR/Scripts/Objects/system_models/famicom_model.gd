@@ -280,6 +280,99 @@ func configure_av_ports(ports: Array) -> void:
 	# it would be silent however it was wired.
 	(port as RcaPort).rf_feed = true
 	port.global_transform = seat.global_transform
+	# The panel's other working fitting. Built here for the reason the NES builds
+	# its own from configure_av_ports: this is the one call that says the back of
+	# the machine is being fitted out.
+	_build_channel_switch()
+
+
+# ── CH1 / CH2 ────────────────────────────────────────────────────────────────
+# The HVC-001's RF modulator puts the machine on Japanese VHF channel 1 or 2, and
+# the slide beside the RF socket picks which — the same job the NES's CH3/CH4 slide
+# does, two channels down. It used to be a dark box that never moved, and the
+# machine answered -1 ("no such switch") so it appeared on whatever the set was
+# tuned to. It has a switch; a set now has to be on the channel it says.
+
+## How far the cap travels between the two detents.
+const CH_THROW := 0.005
+## Where the slot the scene draws is centred (Rear/ChannelSwitch), and its front
+## face: the box is 2 mm deep about z = -0.0755.
+const CH_SLOT_POS := Vector3(-0.016, 0.019, -0.0755)
+const CH_SLOT_FACE_Z := -0.0765
+
+var _ch_slider: VRSlider = null
+var _ch_knob: MeshInstance3D = null
+var _rf_channel: int = 1
+
+
+func _build_channel_switch() -> void:
+	if _ch_slider != null:
+		return
+	var rear := get_node_or_null("Rear") as Node3D
+	if rear == null:
+		return
+	# The thumb cap, riding in the slot the scene already draws. Cream, like the
+	# deck: the real one is the case's own plastic, and against the dark slot it is
+	# what makes the switch's position readable from across a room.
+	var cap_mat := StandardMaterial3D.new()
+	cap_mat.albedo_color = Color(0.80, 0.74, 0.60)
+	cap_mat.roughness = 0.6
+	_ch_knob = MeshInstance3D.new()
+	_ch_knob.name = "ChannelKnob"
+	var knob_mesh := BoxMesh.new()
+	knob_mesh.size = Vector3(0.0042, 0.0046, 0.0022)
+	_ch_knob.mesh = knob_mesh
+	_ch_knob.material_override = cap_mat
+	rear.add_child(_ch_knob)
+	# Authored at the CH1 detent, which is slider value 0 — set_knob_mesh anchors the
+	# knob wherever it finds it AT THE CURRENT VALUE. Proud of the slot's face by
+	# half its own depth, so no face of the cap is coplanar with the slot's.
+	_ch_knob.position = Vector3(CH_SLOT_POS.x + CH_THROW * 0.5, CH_SLOT_POS.y,
+		CH_SLOT_FACE_Z - 0.0008)
+
+	var slider := VRSlider.new()
+	slider.name = "ChannelSlide"
+	# -X, not +X: the panel reads "CH1 ◄► CH2" to someone standing BEHIND the
+	# machine, who has the model's -X on their right. So CH1 is the +X end, and
+	# value 0 — the low end of the axis — has to be CH1.
+	slider.axis_local = Vector3(-1.0, 0.0, 0.0)
+	slider.travel = CH_THROW
+	slider.steps = 2
+	slider.value = 0.0
+	slider.collision_layer = 1 | (1 << 20)
+	slider.engage_radius = 0.020
+	var col := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	# Stands 6 mm proud of the panel so a ray from behind reaches it before the
+	# case; it answers the pointer and a fingertip, and collides with nothing.
+	box.size = Vector3(CH_THROW + 0.010, 0.011, 0.012)
+	col.shape = box
+	col.position = Vector3(0.0, 0.0, -0.004)
+	slider.add_child(col)
+	rear.add_child(slider)                # _ready runs here, before adopting
+	slider.position = Vector3(CH_SLOT_POS.x, CH_SLOT_POS.y, CH_SLOT_FACE_Z)
+	slider.set_knob_mesh(_ch_knob)
+	slider.value_changed.connect(_on_channel_slider_changed)
+	_ch_slider = slider
+
+
+func _on_channel_slider_changed(value: float) -> void:
+	var next: int = 1 if value < 0.5 else 2
+	if next == _rf_channel:
+		return
+	_rf_channel = next
+	print("[Famicom] RF channel switch -> CH%d" % _rf_channel)
+	# The set has to re-read it: on the aerial input the picture only appears when
+	# its own tuning matches, and nothing else would tell it this moved.
+	var host := get_parent()
+	if host != null and host.has_method("on_rf_channel_changed"):
+		host.call("on_rf_channel_changed")
+
+
+## Which channel this console's RF switch puts it on — 1 or 2. See the base class:
+## -1 there means "no such switch", which this machine used to claim.
+func get_rf_channel() -> int:
+	return _rf_channel
 
 
 ## No derived plate. It reads "AV OUT" over a jack it calls "VIDEO", and this

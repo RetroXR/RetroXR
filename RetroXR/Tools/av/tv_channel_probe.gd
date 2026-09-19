@@ -1,6 +1,11 @@
 extends Node3D
 
-## Spawns a TV, switches it to the built-in tuner and photographs the glass.
+## Spawns a TV and an Antenna, plugs the aerial's lead into the set's coax socket,
+## tunes one of its channels on the RF dial and photographs the glass.
+##
+## The aerial is not decoration: a set with an empty aerial socket has no channels
+## at all, so this is also the shortest end-to-end check that the lead, the lineup
+## and the tuner are joined up.
 ##
 ## Windowed, not --headless — the dummy renderer returns a blank image:
 ##   godot --path RetroXR --resolution 900x700 --position 20,20 \
@@ -13,10 +18,14 @@ extends Node3D
 ## PNGs land in res://probe_out/ (gitignored).
 
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
+const ANTENNA_SCENE := preload("res://Scenes/Objects/appliances/antenna.tscn")
 
 var _sv: SubViewport = null
 var _tv: RetroTV = null
 var _tuner: TVTuner = null
+var _antenna: Antenna = null
+var _lineup: TVLineup = null
+var _started := false
 var _mode := "live"
 var _shot := 0
 
@@ -66,34 +75,49 @@ func _build() -> void:
 	_sv.add_child(cam)
 	cam.current = true
 
-	_tuner = _tv.ensure_tuner()
-	_tuner.channels_changed.connect(_on_channels)
+	# The aerial, out of shot behind the set, with its lead in the coax socket.
+	_antenna = ANTENNA_SCENE.instantiate() as Antenna
+	_antenna.position = Vector3(0.0, 0.0, -1.0)
+	(_antenna.get_node("Body") as RigidBody3D).freeze = true
+	_sv.add_child(_antenna)
+	for f in 20:
+		await get_tree().process_frame
+	(_tv.get_node("RfPort") as RcaPort).pick_up_object(_antenna.get_node("PlugB0") as RcaPlug)
+	for f in 20:
+		await get_tree().process_frame
+	print("[tvprobe] aerial reaches: %s" % _antenna.reached_set())
+
+	_lineup = _antenna.lineup()
+	_lineup.channels_changed.connect(_on_channels)
 	print("[tvprobe] mode=%s, waiting for channels…" % _mode)
+	_on_channels()
 
 
 func _on_channels() -> void:
-	if _tuner.channels.is_empty():
+	if _started or _lineup.channels.is_empty():
 		return
-	if _tv.get_source() == RetroTV.Source.TV:
-		return                                  # already running
-	# Wait for discovery to settle first. Switching source the moment the CACHED
-	# list arrives races the lineup: _on_lineup_ready re-sorts the channel array
-	# underneath a tune that has already been issued.
-	if _tuner.discovered_host().is_empty() and _tuner.tuner_status_line().begins_with("Looking"):
+	# Wait for discovery to settle first. Tuning the moment the CACHED list arrives
+	# races the lineup: _on_lineup_ready re-sorts the channel array underneath a
+	# tune that has already been issued. (The tuner follows the station by URL now,
+	# so this is about the log line below being true, not about correctness.)
+	if _lineup.discovered_host().is_empty() and _lineup.tuner_status_line().begins_with("Looking"):
 		return
+	_started = true
 	print("[tvprobe] %d channels; first = %s %s"
-		% [_tuner.channels.size(), _tuner.channels[0].get("number", ""),
-		   _tuner.channels[0].get("name", "")])
-	_tv.cycle_source()                          # COMPONENT -> TV
-	print("[tvprobe] source now %s" % RetroTV.SOURCE_NAMES[_tv.get_source()])
+		% [_lineup.channels.size(), _lineup.channels[0].get("number", ""),
+		   _lineup.channels[0].get("name", "")])
 	if _mode == "static" or _mode == "static_frames":
 		# A channel that cannot possibly resolve, to photograph the error screen.
-		_tuner.channels.insert(0, {
+		_lineup.channels.insert(0, {
 			"number": "0.0", "name": "Dead Channel",
 			"url": "http://192.168.0.199:5004/auto/v99.9",
 			"source": "stream", "hd": false,
 		})
-		_tuner.tune(0)
+	_tv.set_channel_index(0)                    # selects RF and lands on the channel
+	_tuner = _tv.tuner()
+	print("[tvprobe] source now %s, dial of %d stops, banner: %s" % [
+		RetroTV.SOURCE_NAMES[_tv.get_source()], _tv.rf_dial().size(),
+		_tuner.status_banner().replace("\n", " / ")])
 	_run()
 
 

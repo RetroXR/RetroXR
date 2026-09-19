@@ -671,7 +671,9 @@ starts from rest, so a tone already running when a block opens overshoots its am
     would have no microphone at all.
 - **One socket, and it is not composite.** The HVC-001's rear panel carries AC ADAPTER,
   TV/GAME, CH1/CH2 and RF SWITCH, and nothing else; everything the machine puts out goes down
-  that one coax to the RXR-003 switch box and into the set's aerial socket. So
+  that one coax to the RXR-003 switch box and into the set's aerial socket. (CH1/CH2 is a
+  WORKING slide — the machine answers `get_rf_channel()` 1 or 2 and a set only shows it on
+  that channel; see `tv-aerial.md`. It used to answer -1 and appear on anything.) So
   `av_port_channels()` is `[VIDEO]` — the channel an RF feed resolves as everywhere in this room,
   the same thing the NES's own RF OUT says — and the built port is renamed `RfOut`, so a cord
   reads the same in a save on either machine. Listing a channel at all is also what stops the

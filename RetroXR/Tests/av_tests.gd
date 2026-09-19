@@ -22,6 +22,7 @@ const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cab
 const TRS_CABLE := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const SPEAKERS := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 const RF_SWITCH := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
+const ANTENNA := preload("res://Scenes/Objects/appliances/antenna.tscn")
 const WINDOW_SHADER := preload("res://Shaders/screen_window.gdshader")
 const TV_OPTIONS_UI := preload("res://Scenes/UI/tv_options_2d.tscn")
 
@@ -56,10 +57,11 @@ class StubSource extends Node3D:
 		return rf_channel
 
 
-## The set's own TV input, reduced to the one thing the glass reads off it.
+## The set's own tuner, reduced to the one thing the glass reads off it.
 ## A TVTuner subclass rather than a StubSource because RetroTV holds its tuner by
-## type — and because none of libVLC, a channel list or a real HDHomeRun is part
-## of the question, which is what route a broadcast takes onto the glass.
+## type — and because neither libVLC nor a real HDHomeRun is part of the question,
+## which is what route a broadcast takes onto the glass. The channel LIST is real:
+## it comes from the aerial through set_lineup, exactly as it does in the room.
 class StubTuner extends TVTuner:
 	var texture: Texture2D = null
 
@@ -69,11 +71,37 @@ class StubTuner extends TVTuner:
 	func set_active(on: bool) -> void:
 		_active = on
 
+	## No libVLC here, and the base would report that as a fault on the glass.
+	func _start_current() -> void:
+		_tuned_url = str(current_channel().get("url", ""))
+
 	func picture_texture() -> Texture2D:
 		return texture
 
 	func status_banner() -> String:
 		return ""
+
+
+## What an aerial receives, with the network taken out: no HDHomeRun node, no
+## channels.json, and a list the case writes itself. Everything downstream of the
+## list — the sort, the signal, the dial the set builds from it — is the real code.
+class StubLineup extends TVLineup:
+	func _ready() -> void:
+		pass
+
+	func is_loaded() -> bool:
+		return true
+
+	func reload_channels() -> void:
+		pass
+
+	func put(numbers: Array) -> void:
+		channels.clear()
+		for n: String in numbers:
+			channels.append({"number": n, "name": "STATION %s" % n,
+				"url": "stub://%s" % n, "source": "stub"})
+		_sort_channels()
+		channels_changed.emit()
 
 
 var _case := ""
@@ -141,11 +169,20 @@ func _run() -> void:
 		["display/a host on the input that sends no picture is blue", _d_no_video_cord],
 		["display/the aerial input on the wrong channel is snow", _d_rf_untuned],
 		["display/the aerial input on the right channel shows the machine", _d_rf_tuned],
+		["wiring/an aerial's lead fits the set's coax socket and a switch's ANT socket", _w_aerial_sockets],
+		["wiring/an aerial wired through a switch survives a save and a load", _w_aerial_round_trip],
+		["wiring/the aerial opens its own menu, and the set's has no channel list", _w_aerial_menu],
+		["display/with no aerial the dial is the consoles' channels and nothing else", _d_dial_bare],
+		["wiring/a Famicom's CH1/CH2 slide decides which channel it is on", _w_famicom_channel],
+		["display/an aerial's channels join the dial in numeric order", _d_dial_merged],
+		["display/a broadcast channel owns the glass, and CH3 gives it back", _d_dial_arbitration],
+		["display/pulling the aerial drops the dial back to the switch's channel", _d_aerial_pulled],
+		["display/a save from before the aerial comes back on RF", _d_legacy_tv_source],
 		["display/the afterglow does not carry over from the last machine", _d_no_ghost],
 		["display/a source's own stage shader is used", _d_stage],
 		["display/glass controls follow sliders, source, power and save", _d_glass_wear],
 		["display/two sets get their own window of one picture", _d_stage_per_tv],
-		["display/the picture shape follows the button on the TV input", _d_tv_aspect],
+		["display/the picture shape follows the button on a broadcast channel", _d_tv_aspect],
 		["display/the CRT button reaches the shader", _d_crt_button],
 		["display/the fast tier wears the mobile shader", _d_crt_fast_tier],
 		["guard/a host that is not shown is refused", _g_refused],
@@ -1316,6 +1353,8 @@ func _d_rf_untuned() -> void:
 	_ok(_shown(tv) != src.texture, "a machine modulating on the other channel is not shown")
 	_check_eq(_glass(tv), tv._display._rf_static_material,
 		"an aerial channel with nothing on it is SNOW, not the blue no-signal screen")
+	_ok(not src.volumes.is_empty() and src.volumes[-1] == 0.0,
+		"and it is not HEARD through the snow either: got %s" % [src.volumes])
 
 
 func _d_rf_tuned() -> void:
@@ -1327,6 +1366,8 @@ func _d_rf_tuned() -> void:
 	await _seat_stub(tv, RetroTV.Source.RF, src)
 	await _wait(6)
 	_check_eq(_shown(tv), src.texture, "tuned to its channel, the machine appears")
+	_ok(not src.volumes.is_empty() and src.volumes[-1] > 0.0,
+		"and is heard: got %s" % [src.volumes])
 	_ok(tv.can_paint(src), "and it counts as the shown input")
 
 
@@ -1527,12 +1568,10 @@ func _d_stage_per_tv() -> void:
 func _d_tv_aspect() -> void:
 	var tv := _tv()
 	await _wait(30)
-	var tuner := StubTuner.new()
-	tuner.name = "TVTuner"
-	tuner.texture = _a_texture()
-	tv.add_child(tuner)
-	tv._tuner = tuner
-	tv.set_source(RetroTV.Source.TV)
+	var tuner := _stub_tuner(tv)
+	var aerial := await _aerial(["4.1"])
+	await _seat_aerial(aerial, tv.get_node("RfPort") as RcaPort)
+	tv.set_channel_index(0)
 	await _wait(6)
 	_check_eq(_shown(tv), tuner.texture, "the set shows the tuner's picture")
 
@@ -1550,6 +1589,381 @@ func _d_tv_aspect() -> void:
 		"a broadcast is sampled into a material that carries the fit")
 	_ok(narrow != wide, "the aspect button changes the picture's shape: %s vs %s"
 		% [narrow, wide])
+
+
+# ── The aerial, and the one dial it shares with the RF switch ─────────────────
+
+## Give a set a tuner with no libVLC behind it, wired the way _ensure_tuner wires
+## the real one.
+func _stub_tuner(tv: RetroTV) -> StubTuner:
+	var tuner := StubTuner.new()
+	tuner.name = "TVTuner"
+	tuner.texture = _a_texture(Color.RED)
+	tv.add_child(tuner)
+	tv._tuner = tuner
+	tuner.channels_changed.connect(tv._on_air_channels_changed)
+	return tuner
+
+
+## An Antenna that receives exactly `numbers`, with its base frozen so the lead's
+## tether has nothing to haul while the case is looking at something else.
+func _aerial(numbers: Array) -> Antenna:
+	var aerial := ANTENNA.instantiate() as Antenna
+	var lineup := StubLineup.new()
+	lineup.name = "TVLineup"
+	aerial._lineup = lineup
+	aerial.add_child(lineup)
+	aerial.position = Vector3(_spawned.size() * 3.0, 1, -1.2)
+	(aerial.get_node("Body") as RigidBody3D).freeze = true
+	add_child(aerial)
+	_spawned.append(aerial)
+	lineup.put(numbers)
+	await _wait(20)
+	return aerial
+
+
+func _seat_aerial(aerial: Antenna, port: RcaPort) -> void:
+	port.pick_up_object(aerial.get_node("PlugB0") as RcaPlug)
+	await _wait(35)
+
+
+## The dial as a viewer would read it off the OSD: "3", "4", and the aerial's own
+## numbers, in stepping order.
+func _dial_labels(tv: RetroTV) -> Array:
+	var air: Array = tv.aerial().lineup().channels if tv.aerial() != null else []
+	var out: Array = []
+	for stop: Dictionary in tv.rf_dial():
+		if stop["kind"] == "rf":
+			out.append(str(stop["ch"]))
+		else:
+			out.append(str(air[int(stop["index"])].get("number", "")))
+	return out
+
+
+## An F connector is keyed to an F socket, and the two of those in the room are the
+## hole on the back of a set and the ANT socket on an RF switch. Either reaches the
+## set — the second by one hop, which is what that socket is for.
+func _w_aerial_sockets() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var aerial := await _aerial(["4.1"])
+	var plug := aerial.get_node("PlugB0") as RcaPlug
+	_ok(plug.is_in_group("coax_plug") and not plug.is_in_group("composite_plug"),
+		"the lead ends in an F connector, which no phono socket will take")
+	_ok(aerial.get_node_or_null("PlugA0") == null and aerial.seating().size() == 1,
+		"and it has ONE connector: the other end is moulded into the base")
+	_check_eq(tv.aerial(), null, "a set with an empty coax socket has no aerial")
+
+	await _seat_aerial(aerial, tv.get_node("RfPort") as RcaPort)
+	_check_eq(tv.aerial(), aerial, "seated in the set's own socket, the set has it")
+	_check_eq(aerial.reached_set(), tv, "and the aerial knows which set it feeds")
+	_ok(not aerial.via_switch(), "directly, not through a switch")
+	_ok(aerial.links().is_empty(), "an aerial is not an A/V source: it links nothing")
+
+	await _unplug(plug)
+	_check_eq(tv.aerial(), null, "pulled, the set has no aerial again")
+
+	var switch := RF_SWITCH.instantiate() as RfSwitch
+	switch.position = Vector3(_spawned.size() * 3.0, 1, -2.0)
+	(switch.get_node("Body") as RigidBody3D).freeze = true
+	add_child(switch)
+	_spawned.append(switch)
+	await _wait(20)
+	# The aerial goes into the switch FIRST, while the switch reaches nothing: the
+	# set then has to find it when the pigtail arrives, and nothing about the
+	# aerial's own lead moves to tell it.
+	await _seat_aerial(aerial, switch.ant_port())
+	_check_eq(aerial.reached_set(), null, "in a switch that is plugged into nothing")
+	(tv.get_node("RfPort") as RcaPort).pick_up_object(switch.get_node("PlugB0") as RcaPlug)
+	await _wait(35)
+	_check_eq(tv.aerial(), aerial, "through the switch's ANT socket, the set has it")
+	_ok(aerial.via_switch(), "and the aerial says a switch is in the way")
+	_check_eq(tv.rf_dial().size(), RetroTV.RF_CHANNELS.size() + 1,
+		"its channel is on the set's dial")
+
+
+## The whole chain through ScenePersistence, the way a slot load runs it: objects in
+## pass 1, plugs seated in pass 2. The aerial is a lead with ONE connector and a
+## body the player carries, and both of those are things a lead's save entry had
+## never had to describe together — the RF switch has the body, nothing had the
+## missing end.
+func _w_aerial_round_trip() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var switch := RF_SWITCH.instantiate() as RfSwitch
+	switch.position = Vector3(0.3, 0.8, -1.0)
+	(switch.get_node("Body") as RigidBody3D).freeze = true
+	add_child(switch)
+	_spawned.append(switch)
+	var aerial := await _aerial(["2.1", "4.1", "10.2"])
+	var body := aerial.get_node("Body") as RigidBody3D
+	body.global_position = Vector3(0.4, 1.6, -0.3)
+	await _wait(4)
+	(tv.get_node("RfPort") as RcaPort).pick_up_object(switch.get_node("PlugB0") as RcaPlug)
+	await _seat_aerial(aerial, switch.ant_port())
+	tv.set_source(RetroTV.Source.RF)
+	_check_eq(tv.aerial(), aerial, "wired up: the set has the aerial through the switch")
+
+	var persistence := ScenePersistence.new()
+	var objects: Array = persistence._collect_objects(self)
+	var entry := {}
+	for o: Dictionary in objects:
+		if str(o.get("kind", "")) == "antenna":
+			entry = o
+	_ok(not entry.is_empty(), "the aerial serialises as a lead of kind 'antenna'")
+	_check_eq(ScenePersistence._objects_validation_error(objects), "", "and the save validates")
+	_check_eq((entry.get("plugs", []) as Array).size(), 1, "with ONE plug record, not two")
+	_ok(entry.has("body"), "and the pose of the base, which is what the player carries")
+	var saved_at := body.global_position
+
+	await _teardown()
+	await _wait(10)
+	# No network on the way back in: a restored aerial builds its own lineup.
+	Antenna.lineup_override = func() -> TVLineup:
+		var lineup := StubLineup.new()
+		lineup.put(["2.1", "4.1", "10.2"])
+		return lineup
+	var spawned: Dictionary = persistence.instantiate_objects(self, objects)
+	var tv2: RetroTV = null
+	var aerial2: Antenna = null
+	for node: Variant in spawned.values():
+		_spawned.append(node)
+		if node is RetroTV:
+			tv2 = node
+		elif node is Antenna:
+			aerial2 = node
+		# Nothing here has a floor under it.
+		for b: Node in (node as Node).find_children("*", "RigidBody3D", true, false) + [node]:
+			if b is RigidBody3D:
+				(b as RigidBody3D).freeze = true
+	_ok(tv2 != null and aerial2 != null, "a set and an aerial come back")
+	if tv2 == null or aerial2 == null:
+		Antenna.lineup_override = Callable()
+		return
+	_ok((aerial2.get_node("Body") as Node3D).global_position.distance_to(saved_at) < 0.001,
+		"the base is where it was left, not at the origin")
+	# The stub stays in until the restore has SETTLED: pass 2 seats plugs deferred,
+	# and it is the seat that makes the aerial go looking. Lifted a line after
+	# instantiate_objects, the restored aerial read the player's real lineup cache
+	# and broadcast for a tuner from inside the suite.
+	await _wait(45)
+	Antenna.lineup_override = Callable()
+	_check_eq(tv2.aerial(), aerial2, "and the set has the aerial again, through the switch")
+	_ok(aerial2.via_switch(), "by the same route")
+	_check_eq(tv2.current_source, RetroTV.Source.RF, "on the aerial input")
+	_check_eq(_dial_labels(tv2), ["1", "2", "2.1", "3", "4", "4.1", "10.2"],
+		"with the whole dial")
+
+
+## An HVC-001 wears a CH1/CH2 slide beside its RF socket, and a set only shows the
+## machine on the channel it says. It used to answer -1 — "no such switch" — which
+## RetroTV treats as a match, so a Famicom appeared whatever the set was tuned to.
+func _w_famicom_channel() -> void:
+	var tv := _tv()
+	var fc := SYSTEM_SCENE.instantiate() as Node3D
+	fc.systemid = "famicom"
+	fc.freeze = true
+	fc.position = Vector3(9.0, 1, 0)
+	add_child(fc)
+	fc.add_to_group("spawned")
+	_spawned.append(fc)
+	await _wait(60)
+	var slide := fc.find_child("ChannelSlide", true, false) as VRSlider
+	_ok(slide != null, "the rear panel has a working channel slide")
+	if slide == null:
+		return
+	_check_eq(slide.steps, 2, "with two detents")
+	_check_eq(fc.get_rf_channel(), 1, "it leaves the factory on CH1")
+	await _single_lead(RF_SWITCH, fc, "RfOut", tv, "RfPort")
+	tv.set_source(RetroTV.Source.RF)
+	await _wait(5)
+
+	_check_eq(tv.rf_channel, 3, "the set is on CH3, where an NES would be")
+	_ok(not tv.can_paint(fc), "so the Famicom, on CH1, is not shown")
+	tv.rf_channel = 1
+	await _wait(3)
+	_ok(tv.can_paint(fc), "tuned to CH1, it is")
+
+	slide.set_value(1.0)
+	await _wait(3)
+	_check_eq(fc.get_rf_channel(), 2, "slid across, the machine is on CH2")
+	_ok(not tv.can_paint(fc), "and a set still on CH1 has lost it")
+	tv.rf_channel = 2
+	await _wait(3)
+	_ok(tv.can_paint(fc), "until it follows to CH2")
+
+	# The slide is a pose, and ScenePersistence saves every VRSlider that is not a
+	# power switch — so where it was left comes back with the room.
+	var controls: Array = ScenePersistence.new()._serialize_articulated_controls(fc)
+	var saved := false
+	for rec: Dictionary in controls:
+		if str(rec.get("path", "")).ends_with("ChannelSlide") and float(rec.get("value", 0.0)) > 0.5:
+			saved = true
+	_ok(saved, "and the slide's position is written into a save")
+
+
+## Tab (or the left stick, in a headset) opens the menu of whatever the pointer
+## finds by walking UP from what it hit to the first pickable or menu owner. On an
+## aerial that is the base — a pickable — so the base has to answer the verb itself,
+## or the aerial opens the lock-only menu and the tuner settings cannot be reached.
+func _w_aerial_menu() -> void:
+	var aerial := await _aerial(["4.1"])
+	var node: Node = aerial.get_node("Body/PointerArea")
+	while node != null and not (node.has_method("toggle_options_ui") or node is XRToolsPickable):
+		node = node.get_parent()
+	_check_eq(node, aerial.get_node("Body"), "the pointer's walk stops at the base")
+	_ok(node != null and node.has_method("toggle_options_ui"),
+		"which opens the aerial's own menu, not the generic one")
+
+	var ui := TV_OPTIONS_UI.instantiate() as TVOptions2D
+	for gone: String in ["channel_selected", "tuner_settings_changed", "channels_refresh_requested"]:
+		_ok(not ui.has_signal(gone), "the television's menu no longer has %s" % gone)
+	ui.free()
+	var mine := AntennaOptions2D.new()
+	for kept: String in ["channel_selected", "tuner_settings_changed", "channels_refresh_requested"]:
+		_ok(mine.has_signal(kept), "the aerial's menu has %s" % kept)
+	mine.free()
+
+
+func _d_dial_bare() -> void:
+	var tv := _tv()
+	await _wait(30)
+	tv.set_source(RetroTV.Source.RF)
+	await _wait(4)
+	_check_eq(_dial_labels(tv), ["1", "2", "3", "4"],
+		"the consoles' four channels — a Famicom's two and an NES's two — and no others")
+	_check_eq(tv.rf_channel, 3, "a set that has never been tuned stands on CH3")
+	var walked: Array = []
+	for i in 4:
+		tv._on_channel_up()
+		walked.append(tv.rf_channel)
+	_check_eq(walked, [4, 1, 2, 3], "CH+ walks them and wraps back")
+	_ok(not tv.showing_broadcast() and tv.rf_air_index == -1,
+		"no broadcast channel is ever reached")
+	_check_eq(tv.tuner(), null, "and no tuner was built to find that out")
+
+
+## 10.2 is in the list to catch a STRING sort, which files it between 1 and 2; "3"
+## and "4" are the switch's, merged in by number rather than bolted on either end.
+func _d_dial_merged() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var tuner := _stub_tuner(tv)
+	var aerial := await _aerial(["10.2", "2.1", "4.1"])
+	await _seat_aerial(aerial, tv.get_node("RfPort") as RcaPort)
+	tv.set_source(RetroTV.Source.RF)
+	await _wait(4)
+	_check_eq(_dial_labels(tv), ["1", "2", "2.1", "3", "4", "4.1", "10.2"],
+		"one dial, in the order the numbers fall")
+
+	tv.rf_channel = 3
+	var walked: Array = []
+	for i in 7:
+		tv._on_channel_up()
+		walked.append(str(tuner.current_channel().get("number", ""))
+			if tv.showing_broadcast() else str(tv.rf_channel))
+	_check_eq(walked, ["4", "4.1", "10.2", "1", "2", "2.1", "3"],
+		"CH+ walks it and wraps, crossing between the consoles' channels and the aerial's")
+	tv._on_channel_down()
+	_ok(tv.showing_broadcast()
+		and str(tuner.current_channel().get("number", "")) == "2.1",
+		"CH- from 3 lands on the broadcast channel below it")
+	_ok(tuner.is_active(), "and the tuner is playing")
+	tv.set_source(RetroTV.Source.COMPOSITE_1)
+	_ok(not tuner.is_active(), "leaving the aerial input stops it")
+	tv.set_source(RetroTV.Source.RF)
+	_ok(tuner.is_active() and str(tuner.current_channel().get("number", "")) == "2.1",
+		"coming back comes back to the channel that was on")
+
+
+## The aerial socket can have a console AND an aerial on it at once, and the dial —
+## not SOURCE — decides between them.
+func _d_dial_arbitration() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var tuner := _stub_tuner(tv)
+	var aerial := await _aerial(["4.1"])
+	await _seat_aerial(aerial, tv.get_node("RfPort") as RcaPort)
+	var console := StubSource.new()
+	console.texture = _a_texture(Color.GREEN)
+	console.rf_channel = 3
+	tv.rf_channel = 3
+	await _seat_stub(tv, RetroTV.Source.RF, console)
+	await _wait(6)
+	_check_eq(_shown(tv), console.texture, "on CH3 the console has the glass")
+	_ok(tv.can_paint(console), "and may paint")
+
+	tv.set_channel_index(0)
+	await _wait(6)
+	_ok(tv.showing_broadcast(), "on 4.1 the set is showing a broadcast")
+	_check_eq(_shown(tv), tuner.texture, "which is the tuner's picture")
+	_ok(not tv.can_paint(console), "the console, a channel away, may NOT paint")
+	_check_eq(tv.selected_input(), -1, "and is not the selected host")
+	_ok(not console.volumes.is_empty() and console.volumes[-1] == 0.0,
+		"nor heard: got %s" % [console.volumes])
+	_ok(tv.audio().tuner_volume() > 0.0, "while the tuner is")
+
+	tv.rf_channel = 4
+	tv._on_channel_down()        # 4.1 -> 4
+	tv._on_channel_down()        # 4 -> 3
+	await _wait(6)
+	_ok(not tv.showing_broadcast() and tv.rf_channel == 3, "back down the dial to CH3")
+	_check_eq(_shown(tv), console.texture, "the console has the glass again")
+	_ok(console.volumes[-1] > 0.0, "and is heard again")
+	_check_eq(tv.audio().tuner_volume(), 0.0, "and the tuner is not")
+
+
+func _d_aerial_pulled() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var tuner := _stub_tuner(tv)
+	var aerial := await _aerial(["4.1", "5.1"])
+	await _seat_aerial(aerial, tv.get_node("RfPort") as RcaPort)
+	tv.set_channel_index(1)
+	await _wait(6)
+	_ok(tv.showing_broadcast() and tv.rf_air_index == 1, "watching 5.1")
+
+	await _unplug(aerial.get_node("PlugB0") as RcaPlug)
+	await _wait(6)
+	_ok(not tv.showing_broadcast(), "with the lead out there is no broadcast to show")
+	_ok(not tuner.is_active(), "the tuner has stopped")
+	_check_eq(_dial_labels(tv), ["1", "2", "3", "4"], "and the dial is the consoles' four again")
+	_check_eq(tv.current_source, RetroTV.Source.RF, "still on the aerial input")
+	_check_eq(_glass(tv), tv._display._rf_static_material, "which is showing snow")
+
+
+## Source.TV was the built-in tuner's input. Its VALUE is in every save written
+## before the aerial and in EV_TV_SOURCE, so it cannot be renumbered away; what it
+## asks for now lives on RF, and the channel it names waits for an aerial.
+func _d_legacy_tv_source() -> void:
+	var tv := _tv()
+	await _wait(30)
+	_stub_tuner(tv)
+	_check_eq(int(RetroTV.Source.RF), 5, "RF keeps the value that is on disk")
+	_check_eq(int(RetroTV.Source.VGA), 6, "and so does VGA")
+
+	tv.restore_control_state({"source": RetroTV.Source.TV, "channel_index": 1})
+	await _wait(4)
+	_check_eq(tv.current_source, RetroTV.Source.RF, "an old save's TV input is RF now")
+	_ok(not tv.showing_broadcast(), "with no aerial there is nothing to tune")
+	_check_eq(_glass(tv), tv._display._rf_static_material, "so it is snow")
+
+	var seen := {}
+	for i in RetroTV.SOURCE_NAMES.size() * 2:
+		tv.cycle_source()
+		seen[tv.current_source] = true
+	_ok(not seen.has(RetroTV.Source.TV), "SOURCE never stops on the retired input")
+	_ok(seen.has(RetroTV.Source.RF), "and still stops on the aerial one")
+
+	# The channel the save named is tuned when an aerial finally arrives — which in
+	# a real restore is one pass later, because the aerial is its own object.
+	tv.restore_control_state({"source": RetroTV.Source.RF, "channel_index": 1})
+	var aerial := await _aerial(["4.1", "5.1"])
+	await _seat_aerial(aerial, tv.get_node("RfPort") as RcaPort)
+	_ok(tv.showing_broadcast() and tv.rf_air_index == 1,
+		"the saved channel is picked up when the lead lands: index %d" % tv.rf_air_index)
+	_check_eq(int(tv.get_control_state().get("channel_index", -9)), 1,
+		"and is what the set writes back")
 
 
 ## The fit the picture on the glass is actually being drawn at, or null when what

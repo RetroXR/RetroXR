@@ -1,0 +1,15 @@
+[gd_scene load_steps=4 format=3 uid="uid://antenna_opts_pnl_1"]
+
+[ext_resource type="Script" path="res://Scripts/UI/panels/antenna_options_panel.gd" id="1_panelscript"]
+[ext_resource type="PackedScene" uid="uid://clujaf3u776a3" path="res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn" id="2_viewport2d3d"]
+[ext_resource type="PackedScene" uid="uid://antenna_opts_2d_01" path="res://Scenes/UI/antenna_options_2d.tscn" id="3_antopts2d"]
+
+[node name="AntennaOptionsPanel" type="Node3D"]
+script = ExtResource("1_panelscript")
+
+[node name="AntennaOptionsViewport" parent="." instance=ExtResource("2_viewport2d3d")]
+screen_size = Vector2(0.55, 0.5)
+scene = ExtResource("3_antopts2d")
+viewport_size = Vector2(550, 500)
+transparent = 1
+unshaded = true

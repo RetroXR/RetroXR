@@ -91,9 +91,6 @@ func _ensure_ui_connected() -> void:
 	ui.scale_committed.connect(_on_scale_committed)
 	ui.crt_param_changed.connect(_on_crt_param_changed)
 	ui.close_requested.connect(hide_panel)
-	ui.channel_selected.connect(_on_channel_selected)
-	ui.tuner_settings_changed.connect(_on_tuner_settings_changed)
-	ui.channels_refresh_requested.connect(_on_channels_refresh)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	_ui_connected = true
 
@@ -107,44 +104,10 @@ func _populate() -> void:
 		return
 	ui.populate(_tv.get_scale_factor(), _tv.get_ignore_gravity())
 	ui.populate_crt(_tv.get_crt_params())
-
-	# Opening the panel is the first thing that legitimately needs a tuner on a
-	# set that has never left COMPONENT — the user is asking to see the channels.
-	var tuner := _tv.ensure_tuner()
-	if tuner and not tuner.channels_changed.is_connected(_refresh_channels):
-		tuner.channels_changed.connect(_refresh_channels)
-	_refresh_channels()
-
-
-func _refresh_channels() -> void:
-	var ui := _get_ui()
-	if not ui or not _tv or not is_instance_valid(_tv):
-		return
-	var tuner := _tv.ensure_tuner()
-	if tuner == null:
-		return
-	ui.populate_channels(tuner.channels, tuner.current_index)
-	ui.populate_tuner(tuner.tuner_auto(), tuner.tuner_host(),
-		tuner.discovered_host(), tuner.tuner_status_line())
-
-
-func _on_channel_selected(index: int) -> void:
-	if not _tv or not is_instance_valid(_tv):
-		return
-	# Picking a channel implies wanting to watch it, and the TV owns replication
-	# of the resulting source + tuner state.
-	_tv.set_channel_index(index)
-	_refresh_channels()
-
-
-func _on_tuner_settings_changed(auto: bool, host: String) -> void:
-	if _tv and is_instance_valid(_tv):
-		_tv.ensure_tuner().set_tuner_config(auto, host)
-
-
-func _on_channels_refresh() -> void:
-	if _tv and is_instance_valid(_tv):
-		_tv.ensure_tuner().reload_channels()
+	# No tuner is built here any more. This used to be the first thing that
+	# legitimately needed one — the panel carried the channel list — and opening a
+	# set's menu to resize it spun up a VlcPlayer as a side effect. The list is on
+	# the aerial's menu now (AntennaOptionsPanel).
 
 
 ## A CRT filter slider/dropdown moved — apply live to the local TV.

@@ -207,6 +207,7 @@ const N64_VRU_SCENE          := preload("res://Scenes/Objects/controllers/n64/n6
 const TRANSFER_PAK_SCENE     := preload("res://Scenes/Objects/controllers/n64/transfer_pak.tscn")
 const SENSOR_BAR_SCENE       := preload("res://Scenes/Objects/system_models/wii/sensor_bar.tscn")
 const RF_SWITCH_SCENE        := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
+const ANTENNA_SCENE          := preload("res://Scenes/Objects/appliances/antenna.tscn")
 const PAD_RECEIVER_SCENE     := preload("res://Scenes/Objects/controllers/pad_receiver.tscn")
 const KEYBOARD_RECEIVER_SCENE := preload("res://Scenes/Objects/controllers/keyboard_receiver.tscn")
 const MOUSE_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/mouse_receiver.tscn")
@@ -230,7 +231,8 @@ const MOUSE_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/mouse
 ## sides used to drift.
 ##
 ## rf_switch is in here despite not being a cord: it is a lead with a box in the
-## middle, and it spawns and restores as one.
+## middle, and it spawns and restores as one. antenna likewise: a lead with a body
+## on one END, whose other end is the only connector it has.
 const LEAD_SCENES := {
 	"wii_av_cable": WII_AV_CABLE_SCENE,
 	"n64_av_cable": N64_AV_CABLE_SCENE,
@@ -241,6 +243,7 @@ const LEAD_SCENES := {
 	"gc_gba_cable": GC_GBA_CABLE_SCENE,
 	"psx_link_cable": PSX_LINK_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
+	"antenna": ANTENNA_SCENE,
 	"power_cord": POWER_CORD_SCENE,
 	"nema_1_15_to_c7_cord": NEMA_1_15_C7_CORD_SCENE,
 	"nema_1_15_polarized_to_c7_polarized_cord": NEMA_1_15_C7P_CORD_SCENE,

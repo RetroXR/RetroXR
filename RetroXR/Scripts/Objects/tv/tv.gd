@@ -39,11 +39,13 @@ static func is_crt_shader(shader: Shader) -> bool:
 ## is its own Source value and every per-input array is indexed by it directly. TV
 ## and RF are appended for the same reason: appending leaves that identity alone.
 ##
-## RF is a real input rather than a flavour of TV even though a set has one aerial
-## hole, because the tuner and an RF switch are two different things arriving at it
-## and the viewer picks between them with SOURCE. The TV slot in the per-input arrays
-## below is therefore always null — the tuner is not a "connected system" — and it is
-## kept only so the arrays stay indexable by Source throughout.
+## TV is a RETIRED input. It was the built-in tuner's, back when a set had broadcast
+## channels with nothing plugged into it; those now arrive down the aerial socket
+## from an Antenna and share RF's one dial with the RF switch's CH3 and CH4 (see
+## rf_dial). The slot stays because the VALUE is on disk and on the wire — saves and
+## EV_TV_SOURCE carry the int, and RF and VGA sit after it — but SOURCE never stops
+## on it, set_source turns it into RF, and its entry in the per-input arrays below
+## is an empty one kept only so they stay indexable by Source throughout.
 ##
 ## Named Source, not Input: `Input` is a native Godot singleton and an enum of
 ## that name shadows it, which fails to parse.
@@ -59,10 +61,15 @@ const COMPOSITE_INPUTS := 4
 const SOURCE_NAMES := ["COMPOSITE 1", "COMPOSITE 2", "COMPOSITE 3", "COMPOSITE 4",
 	"TV", "RF", "VGA"]
 
-## The channels an RF switch can put a console on, and what the set has to be tuned
-## to for it to appear. Two of them because that is what the switch on the back of an
-## NES offers; the set steps between them with the CH keys while RF is selected.
-const RF_CHANNELS := [3, 4]
+## The channels an RF modulator can put a console on, and what the set has to be
+## tuned to for it to appear: 3 and 4 are the slide on the back of an NES, 1 and 2
+## the one on the back of a Famicom (Japanese VHF 1 and 2 — this set is the only
+## television in the world that gets both, because it is the only one that has ever
+## had both machines plugged into it). Always on the dial, aerial or no aerial.
+const RF_CHANNELS := [1, 2, 3, 4]
+## Where a set that has never been tuned is standing: the NES's own default, and
+## what every set was on before there was anything else to be on.
+const RF_DEFAULT_CHANNEL := 3
 
 ## The same four inputs as SILK-SCREENED beside their sockets — title case, because
 ## that is printing rather than shouting. Fed to AvLegend.title.
@@ -259,11 +266,19 @@ var _audio: TvAudio = null
 var _panel: TvPanel = null
 var _tv_enabled: bool = true
 
-# Selected input and the built-in tuner behind Source.TV. The tuner is created on
-# first use rather than in _ready: most sets in a scene never leave the composite
-# inputs, and an idle one should cost nothing (no VlcPlayer, no discovery traffic).
+# Selected input and the built-in tuner. The tuner is created on first use rather
+# than in _ready — the first time the RF dial lands on one of an aerial's channels —
+# because most sets in a scene never leave the composite inputs, and an idle one
+# should cost nothing (no VlcPlayer).
 var current_source: Source = Source.COMPOSITE_1
 var _tuner: TVTuner = null
+# Whether the RF dial is standing on one of the aerial's channels rather than on
+# CH3/CH4. WHICH one is the tuner's own current_index — see rf_air_index.
+var _on_air := false
+# A broadcast channel a save or a peer asked for before there was an aerial to tune
+# it on. A restore applies state in pass 1 and seats plugs in pass 2, so the aerial
+# always arrives second; on_aerial_changed picks this up.
+var _pending_air_index := -1
 
 
 # ── The helpers, and how they reach each other ────────────────────────────────
@@ -334,11 +349,35 @@ func audio() -> TvAudio:
 	return _audio
 
 
-## The built-in tuner, or null while Source.TV has never been selected — it is
-## created on first use, so a set that never leaves the composite inputs costs
-## nothing. Callers must expect null.
+## The built-in tuner, or null while the dial has never stood on a broadcast channel
+## — it is created on first use, so a set that never leaves the composite inputs
+## costs nothing. Callers must expect null.
 func tuner() -> TVTuner:
 	return _tuner
+
+
+## The aerial this set's coax socket reaches — directly, or through the ANT socket
+## of an RF switch — or null.
+func aerial() -> Antenna:
+	return _panel.aerial()
+
+
+## Which of the aerial's channels the dial is on, as an index into its list, or -1
+## while it stands on CH3/CH4 (or there is no aerial at all).
+##
+## Read off the tuner rather than kept here: discovery re-sorts the list under a
+## tuned channel and the tuner follows the STATION (TVTuner._on_lineup_changed), so
+## a copy of the index would go on naming whatever slid into the old slot.
+var rf_air_index: int:
+	get:
+		return _tuner.current_index if _on_air and _tuner != null else -1
+
+
+## True while the glass belongs to the tuner: RF selected, and the dial on one of
+## the aerial's channels. Everything that used to ask "is the TV input selected"
+## asks this.
+func showing_broadcast() -> bool:
+	return current_source == Source.RF and rf_air_index >= 0
 
 
 ## Whether the set is switched on. Read by the display and audio helpers to
@@ -347,10 +386,11 @@ func is_on() -> bool:
 	return _tv_enabled
 
 
-## Which channel the set is tuned to while Source.RF is showing — 3 or 4, stepped by
-## the CH keys. A console fed through an RF switch only appears when this matches the
-## channel its own switch is set to; anything else is static, as it would be.
-var rf_channel: int = RF_CHANNELS[0]
+## Which of the RF switch's two channels the dial last stood on — 3 or 4. A console
+## fed through an RF switch only appears when this matches the channel its own switch
+## is set to; anything else is static, as it would be. While the dial is on one of
+## the aerial's channels instead (see rf_air_index) this is where it comes back to.
+var rf_channel: int = RF_DEFAULT_CHANNEL
 # Snow for an untuned aerial channel; see TvDisplay.rf_static.
 
 # Mute: silences the connected device's audio without changing the volume. A sticky
@@ -444,6 +484,16 @@ func _ready() -> void:
 	# gate.
 	_vga_port.has_picked_up.connect(_panel.on_plug_snapped.bind(Source.VGA))
 	_vga_port.has_dropped.connect(_panel.on_plug_released.bind(Source.VGA))
+	# The aerial socket, for what may be on the far end of whatever sits in it. An
+	# Antenna seated here tells the set itself, but an RF switch with an aerial
+	# already in its ANT socket does not — its cord has one end seated and resolves
+	# to nothing — so the socket is asked directly. Deferred: the zone fires before
+	# picked_up_object is the thing a reader would find.
+	if _rf_port != null:
+		_rf_port.has_picked_up.connect(func(_what: Node3D) -> void:
+			on_aerial_changed.call_deferred())
+		_rf_port.has_dropped.connect(func() -> void:
+			on_aerial_changed.call_deferred())
 	# Every press is logged, and connected FIRST so the line lands ahead of whatever
 	# the button then does — signals call in connection order. A press the set
 	# ignored and a press that never arrived look the same from the room.
@@ -812,22 +862,28 @@ func remote_audio_out_cycle() -> void:
 
 
 func remote_channel_up() -> void:
-	if _tuner and current_source == Source.TV:
-		_tuner.channel_up()
-		_report_channel_state()
+	if _tv_enabled and current_source == Source.RF:
+		_step_rf_dial(true)
 
 
 func remote_channel_down() -> void:
-	if _tuner and current_source == Source.TV:
-		_tuner.channel_down()
-		_report_channel_state()
+	if _tv_enabled and current_source == Source.RF:
+		_step_rf_dial(false)
 
 
-# Bezel channel keys. Unlike the remote's — which only appear once the tuner is
-# the selected input, because the SOURCE key is right beside them — these are
-# moulded into the cabinet and are always there. A physical CH key that does
-# nothing on the wrong input would just read as broken, so pressing one selects
-# the tuner first, exactly as a real set does.
+## Whether the CH keys have anywhere to go: the aerial input is selected and its
+## dial has more than one stop. It always has two — CH3 and CH4 — on a set with the
+## socket at all, so in practice this is "is RF selected"; asked of the dial anyway
+## so the remote greys its keys off the same list the keys step through.
+func can_change_channel() -> bool:
+	return current_source == Source.RF and rf_dial().size() > 1
+
+
+# Bezel channel keys. Unlike the remote's — which only light once the aerial input
+# is selected, because the SOURCE key is right beside them — these are moulded into
+# the cabinet and are always there. A physical CH key that does nothing on the
+# wrong input would just read as broken, so pressing one selects the aerial input
+# first, exactly as a real set does.
 
 func _on_channel_up() -> void:
 	_select_tv_then(true)
@@ -840,36 +896,155 @@ func _on_channel_down() -> void:
 func _select_tv_then(up: bool) -> void:
 	if not _tv_enabled:
 		return
-	# On the aerial input the CH keys do what they would on a real set fed by an RF
-	# switch: step between the two channels the switch can occupy, rather than
-	# abandoning the input the viewer just chose to go and find the tuner.
 	if current_source == Source.RF:
-		var i := RF_CHANNELS.find(rf_channel)
-		var n := RF_CHANNELS.size()
-		rf_channel = RF_CHANNELS[((i if i >= 0 else 0) + (1 if up else n - 1)) % n]
-		_audio.apply_volume()
-		show_osd_timed(_source_banner(), 2.0)
-		_report_channel_state()
+		_step_rf_dial(up)
 		return
-	if current_source != Source.TV:
-		set_source(Source.TV)
-		# set_source already tuned whatever channel was last on, so the press that
-		# switched inputs is not also a channel step -- pressing CH+ from the
-		# component input lands you on the tuner, not one past it.
+	# A cabinet with no coax hole has no channels to go to, and set_source would
+	# answer by falling back to its first input — a CH key that changes the INPUT.
+	if not _source_available(Source.RF):
 		return
-	if up:
-		_ensure_tuner().channel_up()
+	# set_source comes back on whatever the dial was last standing on, so the press
+	# that switched inputs is not also a channel step -- pressing CH+ from the
+	# component input lands you on the aerial input, not one past where it was.
+	set_source(Source.RF)
+
+
+# ── The RF dial ───────────────────────────────────────────────────────────────
+# One aerial socket, one dial. Two things can be on the far end of it — an RF
+# switch putting a console on CH3 or CH4, and an Antenna bringing in whatever it
+# receives — and with the aerial in the switch's ANT socket it is both at once. They
+# are not two inputs: a real set has one tuner, and you find the console by going
+# to channel 3.
+
+## Every stop the CH keys can land on, in the order they step through them.
+##
+## {"kind": "rf", "ch": n} for each of RF_CHANNELS, which are always there, and
+## {"kind": "air", "index": i} for each of the aerial's, i being an index into its
+## list. Merged NUMERICALLY by TVLineup.number_key — 1, 2, 2.1, 3, 4, 4.1, 10.2 —
+## the way the numbers on a real dial fall; a console channel sorts ahead of a
+## broadcast one wearing the same number.
+func rf_dial() -> Array[Dictionary]:
+	var stops: Array[Dictionary] = []
+	for ch: int in RF_CHANNELS:
+		stops.append({"kind": "rf", "ch": ch, "key": float(ch) * 1000.0, "rank": 0})
+	var air := _aerial_channels()
+	for i in air.size():
+		stops.append({"kind": "air", "index": i, "rank": 1,
+			"key": TVLineup.number_key(str(air[i].get("number", "")))})
+	stops.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		if a["key"] != b["key"]:
+			return a["key"] < b["key"]
+		if a["rank"] != b["rank"]:
+			return a["rank"] < b["rank"]
+		return int(a.get("index", 0)) < int(b.get("index", 0)))
+	return stops
+
+
+## What the aerial receives, or nothing when there is no aerial. Asking is what
+## makes a freshly seated one go and look — see Antenna.lineup.
+func _aerial_channels() -> Array[Dictionary]:
+	var antenna := aerial()
+	if antenna == null:
+		return [] as Array[Dictionary]
+	return antenna.lineup().channels
+
+
+## Where the dial is standing, as an index into `stops`.
+func _dial_position(stops: Array[Dictionary]) -> int:
+	var air := rf_air_index
+	for i in stops.size():
+		var stop := stops[i]
+		if air >= 0:
+			if stop["kind"] == "air" and int(stop["index"]) == air:
+				return i
+		elif stop["kind"] == "rf" and int(stop["ch"]) == rf_channel:
+			return i
+	return 0
+
+
+func _step_rf_dial(up: bool) -> void:
+	_pending_air_index = -1
+	var stops := rf_dial()
+	if stops.is_empty():
+		return
+	var n := stops.size()
+	var stop := stops[(_dial_position(stops) + (1 if up else n - 1)) % n]
+	if stop["kind"] == "air":
+		_tune_air(int(stop["index"]))
 	else:
-		_ensure_tuner().channel_down()
+		rf_channel = int(stop["ch"])
+		_leave_air()
+	_audio.apply_volume()
+	show_osd_timed(_source_banner(), 2.0)
 	_report_channel_state()
+
+
+## Put the dial on one of the aerial's channels. With no aerial, or a list that has
+## not arrived yet, the ask is remembered instead — see _pending_air_index.
+func _tune_air(index: int) -> void:
+	var air := _aerial_channels()
+	if index < 0 or air.is_empty():
+		_pending_air_index = index
+		return
+	_pending_air_index = -1
+	_on_air = true
+	_ensure_tuner().tune(clampi(index, 0, air.size() - 1))
+	_sync_tuner()
+
+
+## Bring the dial back to CH3/CH4: the tuner stops and the socket's host, if there
+## is one, may have the glass again.
+func _leave_air() -> void:
+	_on_air = false
+	_sync_tuner()
+
+
+## The tuner plays exactly while the glass is its own.
+func _sync_tuner() -> void:
+	if _tuner != null:
+		_tuner.set_active(_tv_enabled and showing_broadcast())
+
+
+## The aerial on the far end of the coax socket arrived, left, or changed.
+##
+## Called by an Antenna when its connector moves — into this set, into or out of
+## the ANT socket of a switch that is plugged into this set — and by this set's own
+## socket, for a switch arriving with an aerial already in it.
+func on_aerial_changed() -> void:
+	var antenna := aerial()
+	var lineup: TVLineup = antenna.lineup() if antenna != null else null
+	if lineup != null and not lineup.channels_changed.is_connected(_on_air_channels_changed):
+		lineup.channels_changed.connect(_on_air_channels_changed)
+	if _tuner != null:
+		_tuner.set_lineup(lineup)
+	_on_air_channels_changed()
+
+
+## The aerial's list moved: discovery answered, the panel refreshed it, or the
+## aerial itself came or went.
+func _on_air_channels_changed() -> void:
+	var air := _aerial_channels()
+	if _pending_air_index >= 0 and not air.is_empty():
+		_tune_air(_pending_air_index)
+	elif _on_air and rf_air_index < 0:
+		# The channel under the dial is gone — the lead was pulled, or the list
+		# emptied. Back to the switch's channel, which is snow or the console.
+		_leave_air()
+	if current_source != Source.RF:
+		return
+	_audio.apply_volume()
+	show_osd_timed(_source_banner(), 2.0)
 
 
 ## Options-panel channel selection uses the same replicated state as the bezel
 ## and remote buttons instead of mutating the tuner behind ObjectSync's back.
+## `index` is into the aerial's list, which is what its panel shows.
 func set_channel_index(index: int) -> void:
-	if current_source != Source.TV:
-		set_source(Source.TV)
-	_ensure_tuner().tune(index)
+	if current_source != Source.RF:
+		set_source(Source.RF)
+	_tune_air(index)
+	_audio.apply_volume()
+	show_osd_timed(_source_banner(), 2.0)
 	_report_channel_state()
 
 
@@ -878,17 +1053,25 @@ func _report_channel_state() -> void:
 		"tv": self,
 		"source": current_source,
 		"rf": rf_channel,
-		"index": _tuner.current_index if _tuner != null else -1,
+		"index": rf_air_index,
 	})
 
 
 ## Apply one explicit channel state. Sending the result rather than only UP/DOWN
-## makes the operation self-healing if a peer joined with a stale tuner index.
+## makes the operation self-healing if a peer joined with a stale dial.
+##
+## `index` is the broadcast channel, or -1 for "on CH3/CH4". It names a slot in the
+## SENDER's list: every peer's aerial finds its own tuner, so two players on
+## different networks agree that the set is on a broadcast channel and not on which.
 func net_set_channel_state(source: Source, rf: int, index: int) -> void:
 	set_source(source)
-	rf_channel = rf if RF_CHANNELS.has(rf) else RF_CHANNELS[0]
-	if current_source == Source.TV and index >= 0:
-		_ensure_tuner().tune(index)
+	rf_channel = rf if RF_CHANNELS.has(rf) else RF_DEFAULT_CHANNEL
+	if current_source == Source.RF:
+		if index >= 0:
+			_tune_air(index)
+		else:
+			_pending_air_index = -1
+			_leave_air()
 	_audio.apply_volume()
 	show_osd_timed(_source_banner(), 2.0)
 
@@ -914,8 +1097,7 @@ func cycle_source() -> void:
 ## Whether this cabinet can show a given input at all.
 ##
 ## A composite input needs a socket on the back panel; the aerial input needs the
-## coax hole. The tuner needs neither and is always there, which is what makes it
-## the safe fallback in set_source.
+## coax hole. The retired TV input is on no cabinet — see Source.
 func _source_available(source: Source) -> bool:
 	if source < COMPOSITE_INPUTS:
 		return source < _panel.panel_inputs()
@@ -923,25 +1105,29 @@ func _source_available(source: Source) -> bool:
 		return _panel.has_aerial()
 	if source == Source.VGA:
 		return _vga_port != null and _vga_port.enabled
-	return true
+	return false
 
 
 ## The first input this cabinet has, for a set asked to show one it does not.
 ##
-## The tuner is tried LAST despite sitting mid-enum: it is available on every set,
-## so first-hit-in-enum-order would sit a computer monitor on a channel list rather
-## than on the machine cabled to its only socket. Every set with a phono row still
-## lands on Composite 1, which is what it always did.
+## Enum order, so every set with a phono row lands on Composite 1, which is what it
+## always did, and a computer monitor lands on the DE-15 that is its only socket. A
+## cabinet with no input at all is not something the shells can build; Composite 1
+## is the answer for one anyway, because it is the value every field already holds.
 func _first_available_source() -> Source:
 	for i in SOURCE_NAMES.size():
-		if i != Source.TV and _source_available(i as Source):
+		if _source_available(i as Source):
 			return i as Source
-	return Source.TV
+	return Source.COMPOSITE_1
 
 
 ## Select an input. Idempotent, so panels can call it freely.
 func set_source(source: Source) -> void:
 	source = clampi(source, 0, SOURCE_NAMES.size() - 1)
+	# The retired tuner input. A save or a peer from before the aerial still says
+	# it, and what it meant — "show me broadcast television" — now lives on RF.
+	if source == Source.TV:
+		source = Source.RF
 	# A cabinet without the socket cannot show that input. Fall back to the first it
 	# DOES have rather than to Composite 1 — that used to be safe because every
 	# cabinet carried at least one phono input, and the computer monitor carries
@@ -963,11 +1149,9 @@ func set_source(source: Source) -> void:
 	# you just left goes on being heard.
 	_audio.apply_volume()
 
-	if current_source == Source.TV:
-		_ensure_tuner()
-		_tuner.set_active(_tv_enabled)
-	elif _tuner:
-		_tuner.set_active(false)
+	# The dial keeps its place while another input is showing, so coming back to RF
+	# comes back to the channel that was on; the tuner only plays while it is.
+	_sync_tuner()
 
 	show_osd_timed(_source_banner(), 2.0)
 	NetworkManager.report_event(NetEvents.Event.EV_TV_SOURCE,
@@ -975,10 +1159,14 @@ func set_source(source: Source) -> void:
 
 
 func _source_banner() -> String:
-	if current_source == Source.TV and _tuner:
+	if showing_broadcast():
 		var banner := _tuner.status_banner()
 		if not banner.is_empty():
-			return "TV  %s" % banner
+			# A fault is already a sentence ("NO SIGNAL / KXYZ"); a channel is a number
+			# and wants the same "CH" the switch's two get.
+			if not _tuner.error_text().is_empty():
+				return "RF  %s" % banner
+			return "RF  CH %s" % banner
 	if current_source == Source.RF:
 		# The channel is half the state on this input, so it belongs in the banner —
 		# and NO SIGNAL is the difference between "nothing is plugged in" and "you
@@ -988,21 +1176,30 @@ func _source_banner() -> String:
 
 
 ## The tuner is built on first use — a set that never leaves COMPONENT should not
-## pay for a VlcPlayer instance or send discovery traffic.
+## pay for a VlcPlayer instance. What it can tune is the aerial's, handed over here
+## and again whenever the aerial changes (on_aerial_changed).
 func _ensure_tuner() -> TVTuner:
 	if _tuner == null:
 		_tuner = TVTuner.new()
 		_tuner.name = "TVTuner"
 		_tuner.status_changed.connect(_on_tuner_status)
+		# The tuner re-emits the aerial's channels_changed once it has followed the
+		# station to its new slot (or lost it). The set listens to the aerial as
+		# well, for a channel asked for before any tuner exists, but signals call in
+		# connection order and that one can land while the tuner's index is stale.
+		_tuner.channels_changed.connect(_on_air_channels_changed)
 		add_child(_tuner)
-		_tuner.reload_channels()
-		_tuner.set_volume(_audio.volume_for(Source.TV))
+		_tuner.set_volume(_audio.tuner_volume())
 		_tuner.set_channel_mode(audio_mode)
+	if _tuner.lineup() == null:
+		var antenna := aerial()
+		if antenna != null:
+			_tuner.set_lineup(antenna.lineup())
 	return _tuner
 
 
 func _on_tuner_status(banner: String) -> void:
-	if current_source != Source.TV:
+	if not showing_broadcast():
 		return
 	if banner.is_empty():
 		hide_osd()
@@ -1014,18 +1211,20 @@ func _on_tuner_status(banner: String) -> void:
 
 
 ## The tuner, built if this is the first ask -- which is why it is not called
-## get_: it can spin up a VlcPlayer and start channel discovery. has_channels()
-## is the question to ask when you only want to know.
+## get_: it can spin up a VlcPlayer. has_channels() is the question to ask when
+## you only want to know.
 func ensure_tuner() -> TVTuner:
 	return _ensure_tuner()
 
 
-## Whether the tuner exists AND has a channel list — without building one.
-## Callers that merely want to know (the remote, greying its channel keys) must
-## use this: ensure_tuner() would spin up a VlcPlayer and start discovery just
-## because somebody pointed a remote at the set.
+## Whether an aerial reaches this set AND has a channel list — without building a
+## tuner, and without being the reason an aerial goes looking for one.
 func has_channels() -> bool:
-	return _tuner != null and not _tuner.channels.is_empty()
+	var antenna := aerial()
+	if antenna == null:
+		return false
+	var lineup := antenna.lineup_if_built()
+	return lineup != null and not lineup.channels.is_empty()
 
 
 func get_source() -> Source:
@@ -1041,7 +1240,9 @@ func get_control_state() -> Dictionary:
 		"widescreen": widescreen,
 		"source": current_source,
 		"rf_channel": rf_channel,
-		"channel_index": _tuner.current_index if _tuner != null else -1,
+		# The broadcast channel the dial is on, or -1 for CH3/CH4. The key predates
+		# the aerial, when it was the built-in tuner's index; it means the same thing.
+		"channel_index": rf_air_index,
 		"audio_mode": audio_mode,
 		"audio_out": audio_out,
 	}
@@ -1059,11 +1260,19 @@ func restore_control_state(state: Dictionary) -> void:
 		AUDIO_OUT_NAMES.size() - 1)
 	rf_channel = int(state.get("rf_channel", rf_channel))
 	if not RF_CHANNELS.has(rf_channel):
-		rf_channel = RF_CHANNELS[0]
-	set_source(int(state.get("source", current_source)))
+		rf_channel = RF_DEFAULT_CHANNEL
+	var saved_source := int(state.get("source", current_source))
+	set_source(saved_source)
+	# A broadcast channel cannot be tuned yet: the aerial is a separate object whose
+	# plug is seated in the restore's SECOND pass, after this. Remember it, and
+	# on_aerial_changed tunes it when the lead lands. A save from before the aerial
+	# says Source.TV here, and with no aerial in that room the ask simply waits —
+	# the set comes back on RF showing snow until one is plugged in.
 	var index := int(state.get("channel_index", -1))
-	if current_source == Source.TV and index >= 0:
-		_ensure_tuner().tune(index)
+	_on_air = false
+	_pending_air_index = -1
+	if index >= 0 and (saved_source == Source.TV or saved_source == Source.RF):
+		_tune_air(index)
 	_tv_toggle_btn.set_color(Color(0.0, 1.0, 0.0) if _tv_enabled
 		else Color(1.0, 0.1, 0.1))
 	_audio.update_mute_button()
@@ -1072,8 +1281,7 @@ func restore_control_state(state: Dictionary) -> void:
 	_audio.update_audio_out_button()
 	_update_aspect_button()
 	_display.apply_aspect()
-	if _tuner != null:
-		_tuner.set_active(_tv_enabled and current_source == Source.TV)
+	_sync_tuner()
 	_audio.apply_channel_mode()
 	_audio.apply_volume()
 
@@ -1175,12 +1383,13 @@ func set_audio_out(mode: int) -> void:
 
 ## Which socket input is selected, or -1 while the tuner is showing.
 ##
-## Tested against Source.TV rather than against COMPOSITE_INPUTS: RF is past the
-## composite block but it is still an input with a host on it, and a bound of
-## COMPOSITE_INPUTS would hide that host from _selected_system — which is what owns
-## the volume keys and the power button.
+## RF is past the composite block but it is still an input with a host on it, and a
+## bound of COMPOSITE_INPUTS would hide that host from _selected_system — which is
+## what owns the volume keys and the power button. It stops being one while the dial
+## is on a broadcast channel: the console is still on the wire, on CH3, and the set
+## is not watching it.
 func selected_input() -> int:
-	return -1 if current_source == Source.TV else current_source
+	return -1 if showing_broadcast() else current_source
 
 
 
@@ -1217,8 +1426,7 @@ func _on_tv_toggle() -> void:
 		_osd.clear_volume()
 	# Powering back on must not un-mute a composite input while the set is showing
 	# the tuner (or another input) -- it would start repainting the screen underneath.
-	if _tuner:
-		_tuner.set_active(_tv_enabled and current_source == Source.TV)
+	_sync_tuner()
 	_audio.apply_volume()
 	NetworkManager.report_event(NetEvents.Event.EV_TV_POWER, {"tv": self})
 

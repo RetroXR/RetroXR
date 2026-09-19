@@ -1,0 +1,144 @@
+[gd_scene load_steps=11 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/tv/antenna.gd" id="1_antennascript"]
+[ext_resource type="Script" path="res://Scripts/Objects/tv/antenna_body.gd" id="2_bodyscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/antenna_body.res" id="3_shell"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/coax_plug.gd" id="4_coaxplugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/coax_plug.res" id="5_coaxplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="6_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="7_snapgp"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_base"]
+size = Vector3(0.15, 0.032, 0.1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_baseptr"]
+size = Vector3(0.3, 0.42, 0.11)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_antenna"]
+bounce = 0.0
+friction = 0.95
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
+radius = 0.022
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.038
+
+; ── RXR-004 Set-top Aerial ────────────────────────────────────────────────────
+;
+; A lead with a body on one end. The root is a CompositeCable (see antenna.gd for
+; why), and End A is CAPTIVE: there is a PlugB0 and deliberately NO PlugA0, which is
+; what CompositeCable._plug_at exists for. Adding a PlugA0 turns this back into an
+; ordinary two-ended cord and the base into an ornament.
+;
+; The rope is named "VerletRope" because CompositeCable resolves $VerletRope in an
+; @onready; the name is the base class's, not a description.
+[node name="Antenna" type="Node3D"]
+script = ExtResource("1_antennascript")
+
+; ── the base ──────────────────────────────────────────────────────────────────
+; 150 x 32 x 100 mm, origin at its centre; the rods stand 0.39 m over that. Only the
+; BASE collides: two 3 mm rods half a metre apart catch on everything they pass, and
+; a thing that lives on top of a television has to be able to be put there.
+; Heavy for its size (the real ones are weighted) so the lead does not drag it off.
+[node name="Body" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_antenna")
+mass = 0.45
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_bodyscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+shape = SubResource("BoxShape3D_base")
+
+[node name="Shell" type="MeshInstance3D" parent="Body"]
+mesh = ExtResource("3_shell")
+
+; Laser target. Taller than the base so the ears can be pointed at, but narrower
+; than their full 0.48 m span: a box that wide swallows clicks meant for the set
+; underneath. Answers the pointer only (mask 0).
+[node name="PointerArea" type="StaticBody3D" parent="Body"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.18, 0)
+shape = SubResource("BoxShape3D_baseptr")
+
+[node name="PickableHighlight" type="Node3D" parent="Body"]
+script = ExtResource("6_pickhigh")
+
+; Printed on the front wall, which is flat between the two fillets. A Label3D faces
+; +Z unturned, which is the front. alpha_cut = 1 (discard) so the glyphs depth-write
+; instead of sorting as transparency against the case behind them.
+[node name="LabelModel" type="Label3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.002, 0.0502)
+pixel_size = 5e-05
+modulate = Color(0.62, 0.62, 0.66, 1)
+text = "RXR-004    VHF · UHF"
+font_size = 64
+outline_size = 0
+alpha_cut = 1
+
+; ── where the lead leaves ─────────────────────────────────────────────────────
+; A VerletRope leaves its anchor along the anchor's LOCAL -Z, so an unturned marker
+; on the back wall sends the cord out of the back.
+[node name="LeadAttach" type="Marker3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.004, -0.05)
+
+; ── End B: the F connector ────────────────────────────────────────────────────
+; Turned about Y so its cord trails back toward the base: the plug mesh is authored
+; connector-on-+Z with the cord leaving -Z, which is also VerletRope's
+; plug_exit_axis, so an unturned plug behind the base would leave with a hairpin.
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.25)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_antenna")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("4_coaxplugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+shape = SubResource("SphereShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+mesh = ExtResource("5_coaxplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("6_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("7_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── the lead ──────────────────────────────────────────────────────────────────
+; 42 x 36 mm = 1.51 m of coax: long enough to stand the aerial on top of the set
+; and reach round to the back of it, or down to a switch on the floor. Thicker and
+; stiffer than a phono cord, as coax is.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 42
+segment_length = 0.036
+constraint_iterations = 8
+bend_stiffness = 0.3
+tube_radius = 0.0028
+tube_sides = 6
+smoothing = 2
+rope_color = Color(0.07, 0.07, 0.08, 1)
+surface_collision_mask = 7
+collision_radius = 0.005
+self_collision = true
+end_align_stiffness = 0.75
+end_stiffness = 0.45
+end_stiff_segments = 2
