@@ -26,6 +26,7 @@ func _ready() -> void:
 
 	await _test_unloadable_book()
 	await _test_loaded_book()
+	await _test_a_cached_page_never_decodes_on_the_main_thread()
 	_test_saved_manual_follows_its_folder()
 
 	print("[test] %d cases, %s" % [_ran,
@@ -101,6 +102,59 @@ func _test_loaded_book() -> void:
 	await _settle()
 	_ok(not right.is_enabled() and _shape_of(right).disabled, "reload/failed load switches the zone off")
 	_ok(not (_ray_at(zone_x) is PageGrab), "reload/and takes it out of the ray's way")
+
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + cbz.md5_text())
+	DirAccess.remove_absolute(cbz)
+
+
+## A page rendered on some earlier run is sitting in the cache dir, and reading
+## it back is a ~11 ms decode plus a ~3 ms upload — against an 11 ms frame at
+## 90 Hz. _get_page_texture used to do exactly that, inline, because no render
+## was needed: a turn pulls in two pages and prefetches fifteen, so every turn
+## of a book that had ever been read cost 28-34 ms and reopening one cost
+## 150-220, while the FIRST read of the same book (nothing on disk yet, so it
+## had to go to the pool) was smooth. Both paths go to the pool now.
+## Numbers: Tools/perf/page_turn_probe.gd.
+func _test_a_cached_page_never_decodes_on_the_main_thread() -> void:
+	_write_cbz(CBZ_PATH)
+	var cbz := ProjectSettings.globalize_path(CBZ_PATH)
+	var book := _spawn_book(cbz)
+	await _settle()
+	await _drain_renders(book)
+	book.set_page(PDFBook.BookState.OPEN, 0)
+	await _settle()
+	await _drain_renders(book)
+	_ok(FileAccess.file_exists(book._cache_dir + "page_002.png"),
+		"cache/the pages really are on disk")
+
+	# Where a reopened book, and any page the trim has moved past, starts from.
+	book._texture_cache.clear()
+	var got := book._get_page_texture(2)
+	_ok(got == book._loading_texture and not book._texture_cache.has(2),
+		"cache/asking for a page that is on disk hands back the placeholder, not a decode")
+	_ok(book._pending_renders.has(2), "cache/...and queues it for the worker pool")
+	await _drain_renders(book)
+	_ok(book._texture_cache.has(2) and book._get_page_texture(2) == book._texture_cache[2],
+		"cache/...which arrives a frame or two later")
+
+	# The uploads themselves are capped: a whole finished prefetch window is
+	# fifteen pages, and an ImageTexture each would land as one hitch.
+	book._texture_cache.clear()
+	book._upload_queue.clear()
+	var img := Image.create(8, 8, false, Image.FORMAT_RGB8)
+	# Queued furthest-from-the-spread FIRST on purpose: drained in arrival order
+	# this passes whatever the queue does, and the reader would be left looking
+	# at the placeholder while pages they cannot see went up ahead of it.
+	for page in [3, 2, 1, 0]:
+		book._upload_queue.append([page, img])
+	book._drain_uploads()
+	_ok(book._texture_cache.size() == PDFBook.UPLOADS_PER_FRAME,
+		"cache/at most %d pages are uploaded in a frame" % PDFBook.UPLOADS_PER_FRAME)
+	# Nearest the open spread first, or a turn would show the placeholder while
+	# pages nobody is looking at went up the queue ahead of it.
+	_ok(book._texture_cache.has(1), "cache/...the pages being read go first")
 
 	book.queue_free()
 	await _settle()

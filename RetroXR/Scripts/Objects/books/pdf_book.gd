@@ -290,6 +290,9 @@ var _pending_renders: Dictionary = {}  # page_index -> true
 ## lambda it ran, until somebody does; left to engine shutdown that lambda is
 ## destroyed after GDScript is, and the process segfaults on quit.
 var _render_tasks: Array[int] = []
+## Decoded pages waiting for the one step that has to happen on the main thread:
+## [page index, Image]. Drained by _drain_uploads().
+var _upload_queue: Array[Array] = []
 
 # Loading placeholder texture
 var _loading_texture: ImageTexture = null
@@ -655,16 +658,15 @@ func _get_page_texture(page_index: int) -> ImageTexture:
 	if _texture_cache.has(page_index):
 		return _texture_cache[page_index]
 
-	# Check disk cache (fast — no PDF render needed)
-	var cache_path := _cache_dir + "page_%03d.png" % page_index
-	if FileAccess.file_exists(cache_path):
-		var img := Image.load_from_file(cache_path)
-		if img:
-			var tex := ImageTexture.create_from_image(img)
-			_texture_cache[page_index] = tex
-			return tex
-
-	# Queue background render
+	# Not in memory: hand it to the pool and show the placeholder until it
+	# lands. Reading the disk cache HERE looked free — no render needed — and
+	# was the single most expensive thing a page turn did: load_from_file plus
+	# an ImageTexture is 14 ms for a 1200x1600 page, against an 11 ms frame at
+	# 90 Hz. A turn pulls in two of those and prefetches fifteen more, and the
+	# cache dir outlives the app, so a book that had ever been read hitched for
+	# ~30 ms on every turn and ~200 ms when it was reopened — while the FIRST
+	# read of the same book, which has to go to the pool, was smooth.
+	# Tools/perf/page_turn_probe.gd measures both.
 	_request_page_render(page_index)
 	return _loading_texture
 
@@ -694,6 +696,17 @@ func _request_page_render(page_index: int) -> void:
 	var src_index := page_index / 2 if half_page_mode else page_index
 	# Captured for the worker lambda so it never reaches back through `self`.
 	var cache_dir := _cache_dir
+
+	# Rendered on some earlier run: this is only a decode — but a full-size PNG
+	# is ~11 ms of one, which is main-thread time a frame does not have. Same
+	# pool, same landing, so the caller cannot tell the two apart.
+	var cache_path := cache_dir + "page_%03d.png" % page_index
+	if FileAccess.file_exists(cache_path):
+		_render_tasks.append(WorkerThreadPool.add_task(func():
+			var img := Image.load_from_file(cache_path)
+			call_deferred("_on_page_rendered", page_index, img)
+		))
+		return
 
 	if _format == _Format.CBZ:
 		_render_tasks.append(WorkerThreadPool.add_task(func():
@@ -743,12 +756,44 @@ func _notification(what: int) -> void:
 
 ## Called on main thread when a background page render completes.
 func _on_page_rendered(page_index: int, img: Image) -> void:
-	_pending_renders.erase(page_index)
 	_reap_render_tasks()
 	if not img:
+		_pending_renders.erase(page_index)
 		return
-	var tex := ImageTexture.create_from_image(img)
-	_texture_cache[page_index] = tex
+	# NOT uploaded here. A prefetch window is fifteen pages and they can all
+	# finish in the same frame, so the uploads are spent a few per frame in
+	# _drain_uploads(). The page stays PENDING until its texture exists, which
+	# is what lets anyone (a suite's _drain_renders included) read an empty
+	# _pending_renders as "everything asked for is in the cache".
+	_upload_queue.append([page_index, img])
+
+
+## An ImageTexture is a VRAM upload: ~3 ms for a full-size page, and unlike the
+## decode it cannot leave the main thread. A couple per frame is enough to stay
+## ahead of a reader and keeps a burst of finished renders from landing as one
+## hitch.
+const UPLOADS_PER_FRAME := 2
+
+
+func _drain_uploads() -> void:
+	if _upload_queue.is_empty():
+		return
+	var centre := _current_leaf * 2 + 1
+	for _i in mini(UPLOADS_PER_FRAME, _upload_queue.size()):
+		# Nearest the open spread first: a prefetch burst must never leave the
+		# two pages being read queued behind a dozen the reader cannot see.
+		var best := 0
+		for k in range(1, _upload_queue.size()):
+			if absi(int(_upload_queue[k][0]) - centre) < absi(int(_upload_queue[best][0]) - centre):
+				best = k
+		var entry: Array = _upload_queue[best]
+		_upload_queue.remove_at(best)
+		var page_index: int = entry[0]
+		_pending_renders.erase(page_index)
+		# The book can have been reloaded, or have shrunk, while this was in
+		# flight — the cache is keyed by a page this book may no longer have.
+		if page_index < _page_count:
+			_texture_cache[page_index] = ImageTexture.create_from_image(entry[1] as Image)
 	_refresh_visible_textures()
 
 
@@ -2111,6 +2156,7 @@ func _on_page_grab_end(_dir: int) -> void:
 func _process(delta: float) -> void:
 	if _turn_cooldown > 0.0:
 		_turn_cooldown -= delta
+	_drain_uploads()
 	_update_hints_and_detect_grip()
 
 
@@ -2590,6 +2636,7 @@ func _cleanup() -> void:
 	_spine_strip = null
 	_texture_cache.clear()
 	_pending_renders.clear()
+	_upload_queue.clear()
 	_despawn_active_leaf()
 	_page_count = 0
 	_leaf_count = 0

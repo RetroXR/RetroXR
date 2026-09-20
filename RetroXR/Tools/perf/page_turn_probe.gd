@@ -122,12 +122,14 @@ func _measure() -> void:
 	print("[probe]   _prefetch_nearby_pages   %.1f ms   (%d pages, synchronous on a disk hit)"
 			% [(t4 - t3) / 1000.0, _book.prefetch_pages * 2 + 3])
 
-	# One page, cold RAM cache, warm disk: the unit the whole cost is built from.
+	# One page, cold RAM cache, warm disk: the unit the whole cost was built
+	# from. It is the whole 14 ms when _get_page_texture reads the disk itself,
+	# and nothing at all once it only queues the page for the pool.
 	_book._texture_cache.clear()
 	var t5 := Time.get_ticks_usec()
 	_book._get_page_texture(8)
 	var t6 := Time.get_ticks_usec()
-	print("[probe]   ONE _get_page_texture    %.2f ms  (decode %dx%d PNG + upload)"
+	print("[probe]   ONE _get_page_texture    %.2f ms  (%dx%d page)"
 			% [(t6 - t5) / 1000.0, PAGE_W, PAGE_H])
 
 	# Split that unit: a PNG decode can move to a worker thread, a VRAM upload
@@ -138,16 +140,52 @@ func _measure() -> void:
 	var t10 := Time.get_ticks_usec()
 	var _tex := ImageTexture.create_from_image(raw)
 	var t11 := Time.get_ticks_usec()
-	print("[probe]     of which decode      %.2f ms" % [(t10 - t9) / 1000.0])
-	print("[probe]     of which upload      %.2f ms" % [(t11 - t10) / 1000.0])
+	print("[probe]   the work itself: decode  %.2f ms  (on a worker, or not)"
+			% [(t10 - t9) / 1000.0])
+	print("[probe]                    upload  %.2f ms  (main thread either way)"
+			% [(t11 - t10) / 1000.0])
 
 	# And the same page once it is already in RAM, for contrast.
 	var t7 := Time.get_ticks_usec()
 	_book._get_page_texture(8)
 	var t8 := Time.get_ticks_usec()
 	print("[probe]   ...same page cached       %.3f ms" % [(t8 - t7) / 1000.0])
+	# A turn is only allowed to be cheap because the pages ARRIVE anyway. A book
+	# that quietly stopped showing them would post the same numbers, so ask the
+	# spread what it is actually carrying.
+	print("[probe] --- and the pages still turn up ---")
+	_book.set_page(PDFBook.BookState.OPEN, 2)
+	_book._texture_cache.clear()
+	_book.turn_page_forward()
+	var want_left: int = _book._current_leaf * 2 + 1
+	var want_right: int = (_book._current_leaf + 1) * 2
+	var waited := 0
+	var spread_at := -1
+	while waited < 300:
+		await get_tree().process_frame
+		waited += 1
+		if spread_at < 0 and _book._texture_cache.has(want_left) and _book._texture_cache.has(want_right):
+			spread_at = waited
+		if _book._pending_renders.is_empty() and _book._upload_queue.is_empty():
+			break
+	var left_tex: Variant = _mat(_book._left_stack_top).get_shader_parameter("front_texture")
+	var right_tex: Variant = _mat(_book._right_stack_top).get_shader_parameter("front_texture")
+	# The spread is uploaded before the rest of the window, so the pages being
+	# READ come back first; the tail is the pages nobody is looking at yet.
+	print("[probe]   the spread was up after %d frames, the whole %d-page window after %d"
+			% [spread_at, _book.prefetch_pages * 2 + 3, waited])
+	print("[probe]   left  page %d: %s" % [want_left,
+			"the page" if left_tex == _book._texture_cache.get(want_left) and left_tex != null
+			else ("STILL THE PLACEHOLDER" if left_tex == _book._loading_texture else "WRONG")])
+	print("[probe]   right page %d: %s" % [want_right,
+			"the page" if right_tex == _book._texture_cache.get(want_right) and right_tex != null
+			else ("STILL THE PLACEHOLDER" if right_tex == _book._loading_texture else "WRONG")])
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(_cbz))
 	get_tree().quit(0)
+
+
+func _mat(mesh: MeshInstance3D) -> ShaderMaterial:
+	return mesh.get_surface_override_material(0) as ShaderMaterial
 
 
 func _write_cbz(path: String) -> void:

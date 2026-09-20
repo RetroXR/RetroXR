@@ -268,6 +268,48 @@ cable. At most two books are ever held. **Quest is not measured** — expect a s
 of these; run the bench on device before quoting a figure. The GPU side is a sin/cos pair
 per vertex over ~600 vertices (Quest grid) and is not visible to a script.
 
+### What a page TURN costs, and why it used to hitch
+
+The flop above is the cheap part. The expensive thing a book does is produce page textures,
+and until 2026-09-19 a turn did it on the main thread.
+
+`_get_page_texture()` has always had two branches. A page with no PNG in `user://pdf_cache/`
+goes to `WorkerThreadPool` and the caller gets `_loading_texture` until it lands. A page that
+IS on disk looked free — no render needed — so it was read **inline**:
+`Image.load_from_file()` plus `ImageTexture.create_from_image()`. That is 14 ms for a
+1200×1600 page (11 ms decode, 3 ms upload), against an 11 ms frame at 90 Hz. A turn asks for
+the two new pages, every raised fan leaf, and then prefetches a fifteen-page window
+(`prefetch_pages` 6), and `_trim_texture_cache()` drops the pages behind as it goes — so the
+window kept refilling off the disk.
+
+The cache dir outlives the app, which is the trap: **the first read of a book was smooth and
+every read after it hitched**, which is the opposite of what a cache is supposed to do.
+Measured with `Tools/perf/page_turn_probe` (windowed — `--headless` skips the upload and
+shows only the decode), on pages smaller than a 150-DPI Letter page:
+
+| a turn | before | after |
+|---|---|---|
+| reading straight through | 28–34 ms | 0.2–0.3 ms |
+| the book reopened, nothing in RAM | 150–220 ms | 0.3 ms |
+| pages already in RAM | 0.3 ms | 0.3 ms |
+
+Both branches go to the pool now, and the disk branch decodes there instead of re-rendering.
+What is left on the main thread is the upload alone, which cannot move: `_on_page_rendered`
+parks the image in `_upload_queue` and `_drain_uploads()` spends **`UPLOADS_PER_FRAME`** (2)
+of them per frame from `_process`, **nearest the open spread first** — a finished prefetch
+window is fifteen images, and drained in arrival order the reader would watch the placeholder
+while pages they cannot see went up ahead of it. Prioritised, the spread is up **one frame**
+after a cold start; the rest of the window fills in over ~16, invisibly.
+
+A page therefore stays in `_pending_renders` until its texture actually exists, not until its
+worker finishes. That is deliberate: it keeps `_pending_renders.is_empty()` meaning
+"everything asked for is in `_texture_cache`", which is what every suite's `_drain_renders`
+waits on.
+
+The cost that remains is real but off the frame: decoding is ~11 ms of worker time per page,
+so a book whose pages are 3000×3000 spends proportionally more of the pool. Nobody has
+measured this on a Quest, where the storage is slower and the upload is not free.
+
 ### The pick-up outline bends with the book
 
 `PickableHighlight` draws its outline from a flat, smoothed **copy** of each source mesh, kept
