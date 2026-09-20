@@ -768,18 +768,24 @@ func _on_page_rendered(page_index: int, img: Image) -> void:
 	_upload_queue.append([page_index, img])
 
 
-## An ImageTexture is a VRAM upload: ~3 ms for a full-size page, and unlike the
-## decode it cannot leave the main thread. A couple per frame is enough to stay
-## ahead of a reader and keeps a burst of finished renders from landing as one
-## hitch.
-const UPLOADS_PER_FRAME := 2
+## An ImageTexture is a VRAM upload, and unlike the decode it cannot leave the
+## main thread. Measured on a 1200x1600 page: 3 ms on desktop, but **6-7.5 ms on
+## a Quest 3**, against an 11.1 ms frame — so two of them in one frame drops it
+## outright there, and the headset takes one at a time. Two pages enter the
+## window per turn, so this is a couple of frames' work either way.
+const UPLOADS_PER_FRAME_DESKTOP := 2
+const UPLOADS_PER_FRAME_QUEST := 1
+
+
+func _uploads_per_frame() -> int:
+	return UPLOADS_PER_FRAME_DESKTOP if QualityManager.is_desktop() else UPLOADS_PER_FRAME_QUEST
 
 
 func _drain_uploads() -> void:
 	if _upload_queue.is_empty():
 		return
 	var centre := _current_leaf * 2 + 1
-	for _i in mini(UPLOADS_PER_FRAME, _upload_queue.size()):
+	for _i in mini(_uploads_per_frame(), _upload_queue.size()):
 		# Nearest the open spread first: a prefetch burst must never leave the
 		# two pages being read queued behind a dozen the reader cannot see.
 		var best := 0

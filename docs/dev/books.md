@@ -287,28 +287,47 @@ every read after it hitched**, which is the opposite of what a cache is supposed
 Measured with `Tools/perf/page_turn_probe` (windowed — `--headless` skips the upload and
 shows only the decode), on pages smaller than a 150-DPI Letter page:
 
-| a turn | before | after |
-|---|---|---|
-| reading straight through | 28–34 ms | 0.2–0.3 ms |
-| the book reopened, nothing in RAM | 150–220 ms | 0.3 ms |
-| pages already in RAM | 0.3 ms | 0.3 ms |
+| a turn | desktop before | desktop after | **Quest 3** before | **Quest 3** after |
+|---|---|---|---|---|
+| reading straight through | 28–34 ms | 0.2–0.3 ms | 50–112 ms | 0.4–0.6 ms |
+| the book reopened, nothing in RAM | 150–220 ms | 0.3 ms | 256–378 ms | 0.4–0.7 ms |
+| pages already in RAM | 0.3 ms | 0.3 ms | 0.7 ms | 0.5 ms |
+
+The headset was about twice as bad as the desktop — **4.9 dropped frames on an average
+turn**, a third of a second to reopen a book. Measured on device, not scaled from the
+desktop figures: a probe-only APK (`Quest page turn probe` preset, its own package
+`com.xenu.retroxr.ptprobe`, so it never replaces the real app), the "before" leg built by
+putting the inline read back and changing nothing else.
 
 Both branches go to the pool now, and the disk branch decodes there instead of re-rendering.
 What is left on the main thread is the upload alone, which cannot move: `_on_page_rendered`
-parks the image in `_upload_queue` and `_drain_uploads()` spends **`UPLOADS_PER_FRAME`** (2)
-of them per frame from `_process`, **nearest the open spread first** — a finished prefetch
-window is fifteen images, and drained in arrival order the reader would watch the placeholder
-while pages they cannot see went up ahead of it. Prioritised, the spread is up **one frame**
-after a cold start; the rest of the window fills in over ~16, invisibly.
+parks the image in `_upload_queue` and `_drain_uploads()` spends a couple of them per frame
+from `_process`, **nearest the open spread first** — a finished prefetch window is fifteen
+images, and drained in arrival order the reader would watch the placeholder while pages they
+cannot see went up ahead of it. Prioritised, the spread is up in **1 frame** on desktop and
+**3** on a Quest after a cold start; the rest of the window fills in behind it, invisibly.
+
+**The cap is per-platform, and the Quest figure is the reason.** An upload is 3 ms on desktop
+but **6–7.5 ms on a Quest 3**, against an 11.1 ms frame — two in one frame drops it outright,
+which would have moved the stutter rather than removed it. `UPLOADS_PER_FRAME_DESKTOP` 2,
+`UPLOADS_PER_FRAME_QUEST` 1 (`QualityManager.is_desktop()`, the same split as the mesh
+densities). A draining frame then measures **7.5 ms on device** — under budget, but only just,
+and two pages enter the window per turn so two frames carry it. **The remaining lever is
+pixels, not scheduling**: the upload scales with them, and a book of 3000×3000 scans is ~4.7×
+the page measured here. Downscaling page textures on Quest is the open follow-up; nobody has
+decided what that costs in readability.
 
 A page therefore stays in `_pending_renders` until its texture actually exists, not until its
 worker finishes. That is deliberate: it keeps `_pending_renders.is_empty()` meaning
 "everything asked for is in `_texture_cache`", which is what every suite's `_drain_renders`
 waits on.
 
-The cost that remains is real but off the frame: decoding is ~11 ms of worker time per page,
-so a book whose pages are 3000×3000 spends proportionally more of the pool. Nobody has
-measured this on a Quest, where the storage is slower and the upload is not free.
+The cost that remains is real but off the frame: decoding is ~11 ms of worker time per page on
+desktop and ~17.6 ms on a Quest, so a book of big scans spends proportionally more of the pool.
+
+Re-measure with `Tools/perf/page_turn_probe`, windowed on desktop. On device it needs the
+probe-only export (`run/main_scene.pageturnprobe`); the run recipe is in `quest-device.md`,
+and the probe carries a 900 s give-up timer because nothing on a headset would close it.
 
 ### The pick-up outline bends with the book
 

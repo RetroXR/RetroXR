@@ -150,8 +150,8 @@ func _test_a_cached_page_never_decodes_on_the_main_thread() -> void:
 	for page in [3, 2, 1, 0]:
 		book._upload_queue.append([page, img])
 	book._drain_uploads()
-	_ok(book._texture_cache.size() == PDFBook.UPLOADS_PER_FRAME,
-		"cache/at most %d pages are uploaded in a frame" % PDFBook.UPLOADS_PER_FRAME)
+	_ok(book._texture_cache.size() == book._uploads_per_frame(),
+		"cache/at most %d pages are uploaded in a frame" % book._uploads_per_frame())
 	# Nearest the open spread first, or a turn would show the placeholder while
 	# pages nobody is looking at went up the queue ahead of it.
 	_ok(book._texture_cache.has(1), "cache/...the pages being read go first")

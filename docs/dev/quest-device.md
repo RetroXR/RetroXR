@@ -72,12 +72,42 @@ adb shell monkey -p com.xenu.retroxr 1                           # GodotApp isn'
 - Extra cores: same source the app uses (core_download_manager.gd) —
   `buildbot.libretro.com/nightly/android/latest/arm64-v8a/<core>_libretro_android.so.zip`.
 
+### Running a probe scene on device (probe-only export)
+
+A probe is never booted automatically, so it has to BE the launched scene. The pattern, used
+by `Quest flycast probe` and `Quest page turn probe`:
+
+1. `project.godot`: `run/main_scene.<feature>="res://Tools/…/<probe>.tscn"`.
+2. `export_presets.cfg`: clone the Quest preset with `custom_features="<feature>"` and — the
+   part that matters — **its own `package/unique_name`** (`com.xenu.retroxr.fqprobe`,
+   `…ptprobe`). A probe build that keeps `com.xenu.retroxr` REPLACES the real app on the
+   headset; under its own id it installs alongside and is uninstalled afterwards.
+3. `python Tools/place_engine.py --target debug`, then export **debug** (`run-as` and
+   readable logs need it).
+
+```bash
+"$godot" --headless --path RetroXR --export-debug "Quest page turn probe" probe.apk
+adb install -r probe.apk && adb logcat -c && adb logcat -s godot:* > probe.log &
+# …the three launch steps above, with the PROBE's package name…
+adb uninstall com.xenu.retroxr.ptprobe     # when done
+```
+
+- **Quote the preset name.** PowerShell's `Start-Process -ArgumentList` does not quote for
+  you, so `Quest page turn probe` arrives as four arguments: Godot exports the preset named
+  `Quest` into a file called `page` and fails with "Invalid filename".
+- Godot headless does not always exit after a successful export — the APK is complete and a
+  waiting script just sits there. Check for the APK and the `[ DONE ] export` line before
+  assuming a hang, and kill only your own PID (`Get-CimInstance Win32_Process` prints the
+  command lines; an open editor and a `--remote-debug` run look the same in `tasklist`).
+- A probe that runs on a headset needs its own **give-up timer** — there is no console to
+  close it from, and a wedged one sits there until the battery dies.
+
 ### Running the netplay determinism spike on-device
 `Tools/netplay/netplay_spike.tscn` reads its `--spike-*` args from `user://spike.cfg`
 (one per line) when there are no command-line args, and deletes the cfg immediately so
-a crash can't wedge the app. Nothing boots the probe automatically any more — the cfg-file
-hooks in NetworkManager and the `run/main_scene.<feature>` probe presets were removed
-2026-09-09 — so the scene has to be the one launched (a probe-only export, or a desktop run).
+a crash can't wedge the app. Nothing boots this one automatically — its NetworkManager
+cfg-file hook and its own `run/main_scene.<feature>` preset were removed 2026-09-09 — so the
+scene has to be the one launched (the probe-only export above, or a desktop run).
 ```bash
 printf -- '--spike-core=fceumm
 --spike-rom=/sdcard/Android/data/com.xenu.retroxr/files/roms/nes/ROM.nes

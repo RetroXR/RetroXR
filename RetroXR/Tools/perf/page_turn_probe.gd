@@ -23,12 +23,22 @@ const TURNS := 6
 var _cbz := ""
 var _book: PDFBook = null
 var _step := 0
+var _waited := 0
 
 
 func _ready() -> void:
+	# On a Quest this is the whole app, with nobody to close it: a book that
+	# never finishes loading would sit there until the battery ran out.
+	get_tree().create_timer(900.0).timeout.connect(func() -> void:
+		print("[probe] GAVE UP — never got past step %d" % _step)
+		get_tree().quit(1))
+	print("[probe] on %s, renderer %s" % [OS.get_name(),
+		ProjectSettings.get_setting("rendering/renderer/rendering_method", "?")])
 	_cbz = "user://page_turn_probe.cbz"
 	print("[probe] writing %d pages of %dx%d ..." % [PAGES, PAGE_W, PAGE_H])
+	var t0 := Time.get_ticks_msec()
 	_write_cbz(ProjectSettings.globalize_path(_cbz))
+	print("[probe] ...written in %.1f s" % ((Time.get_ticks_msec() - t0) / 1000.0))
 	_spawn_book()
 	print("[probe] pass 1: filling the disk cache (this is the FIRST read of a book)")
 
@@ -43,6 +53,10 @@ func _spawn_book() -> void:
 func _process(_delta: float) -> void:
 	# Wait for every page to reach the disk cache before measuring anything.
 	if _step == 0:
+		_waited += 1
+		if _waited % 300 == 0:
+			print("[probe]   still filling: %d pages cached, %d in flight"
+					% [_book._texture_cache.size(), _book._pending_renders.size()])
 		if _book._pending_renders.is_empty() and _book._page_count > 0:
 			_step = 1
 		else:
@@ -144,6 +158,20 @@ func _measure() -> void:
 			% [(t10 - t9) / 1000.0])
 	print("[probe]                    upload  %.2f ms  (main thread either way)"
 			% [(t11 - t10) / 1000.0])
+
+	# The work the fix took OFF the turn still has to land somewhere: the frames
+	# just after it, a few uploads at a time. That is the honest question — a
+	# stutter moved is not a stutter fixed — and on a Quest one upload alone is
+	# over half an 11.1 ms frame.
+	_book._texture_cache.clear()
+	_book._upload_queue.clear()
+	for page in 6:
+		_book._upload_queue.append([page, raw])
+	var t12 := Time.get_ticks_usec()
+	_book._drain_uploads()
+	var t13 := Time.get_ticks_usec()
+	print("[probe]   a frame that drains      %.2f ms  (%d page(s) per frame, %d left queued)"
+			% [(t13 - t12) / 1000.0, _book._uploads_per_frame(), _book._upload_queue.size()])
 
 	# And the same page once it is already in RAM, for contrast.
 	var t7 := Time.get_ticks_usec()
