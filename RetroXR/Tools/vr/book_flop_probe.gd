@@ -9,7 +9,7 @@
 ## BLANK image, and every frame would "succeed".
 ##
 ##   "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back] [--hide=covers|blocks|tops|fan]
+##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back] [--hide=covers|blocks|tops|fan] [--outline|--hull]
 ##   python Tools/book_flop_video.py <dir>        # frames -> mp4 + contact sheet
 ##
 ## The window stays small; the book is drawn in its own 800x600 SubViewport.
@@ -48,6 +48,11 @@ var _hand_dot: MeshInstance3D
 ## A family of surfaces taken out of the picture (--hide=covers|blocks|tops|fan):
 ## the way to find out what a patch of white actually IS.
 var _hide := ""
+## --outline: film with the pick-up outline up, which has to bend with the book.
+## --hull: the same, with the depth-carved hull a foveated Quest session draws
+## instead of the stencil pair (PickableHighlight.force_hull).
+var _outline := false
+var _hull := false
 ## Print the page-turn solver's state every frame of a flip.
 var _trace := false
 var _grip_dot: MeshInstance3D
@@ -74,6 +79,11 @@ func _ready() -> void:
 			only_back = true
 		elif arg.begins_with("--pages="):
 			_pages = maxi(int(arg.trim_prefix("--pages=")), 8)
+		elif arg == "--outline":
+			_outline = true
+		elif arg == "--hull":
+			_outline = true
+			_hull = true
 		elif arg.begins_with("--hide="):
 			_hide = arg.trim_prefix("--hide=")
 	if _out.is_empty():
@@ -90,6 +100,8 @@ func _ready() -> void:
 	_book.freeze = true
 	_book.floppiness = floppiness
 	_book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
+	if _hull:
+		(_book.get_node("PickableHighlight") as PickableHighlight).force_hull = true
 	_vp.add_child(_book)
 	for i in 6:
 		await get_tree().process_frame
@@ -103,6 +115,13 @@ func _ready() -> void:
 	for i in 10:
 		await get_tree().process_frame
 	_book._refresh_visible_textures()
+	if _outline:
+		# The held-by-ray yellow: hover white does not show against cream paper.
+		var highlight := _book.get_node("PickableHighlight") as PickableHighlight
+		highlight.hover_color = highlight.ray_color
+		highlight.outline_width = 2.0
+		highlight._sync_material_params()
+		_book.highlight_updated.emit(_book, true)
 	print("[probe] book %d pages, width %.3f, floppiness %.2f" % [_book._page_count, _book._book_width, floppiness])
 
 	var above := Vector3(0.22, 0.34, 0.52)

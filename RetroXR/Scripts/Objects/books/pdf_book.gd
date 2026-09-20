@@ -184,6 +184,9 @@ var _leaf_lift: float = 0.0
 ## How far the gripped spot has been carried toward the far side, 0..1 (0.5 = over
 ## the gutter). What decides whether letting go completes the turn.
 var _grip_travel: float = 0.0
+## The dragging hand's distance out from the gutter on the flat book, signed toward
+## the page's own half. Negative once it is over the far one.
+var _hand_across: float = 0.0
 var _leaf_tween: Tween = null
 var _sfx: PageSfx = null
 var _grab_ctrl: XRController3D = null
@@ -1525,6 +1528,7 @@ func _make_page_grab(dir: int) -> PageGrab:
 	shape.shape = BoxShape3D.new()
 	zone.add_child(shape)
 	add_child(zone)
+	zone.drag_point = _page_drag_point
 	zone.grab_begin.connect(_on_page_grab_begin)
 	zone.grab_move.connect(_on_page_grab_move)
 	zone.grab_end.connect(_on_page_grab_end)
@@ -1573,6 +1577,36 @@ func _seat_page_grab(zone: PageGrab, dir: int) -> void:
 		_page_plane_z(dir))
 	zone.position = _flop.bend(flat)
 	zone.rotation = Vector3(0.0, _flop.bend_rotation_y(flat), 0.0)
+
+
+## How high over the page a pointer carries it: barely off the paper at the fore
+## edges, and up over the gutter — a ray has no height of its own, and a page
+## dragged flat across the book rolls tight where a hand would lift it over.
+const POINTER_LIFT_EDGE := 0.012
+const POINTER_LIFT_GUTTER := 0.07
+
+## Where a pointer's ray puts the hand dragging a page (PageGrab.drag_point).
+## The ray meets the plane of the pages; the height is an arch over the gutter.
+## Worked out on the FLAT book and taken through the leaf's bend, so that the
+## fold solver — which takes the hand back through that same bend — sees exactly
+## the point chosen here, hanging book or not. Null while the ray misses the plane.
+func _page_drag_point(origin: Vector3, toward: Vector3) -> Variant:
+	var dir := _turn_direction if _turn_direction != 0 else 1
+	var o := to_local(origin)
+	var d := global_basis.inverse() * toward
+	var plane := _page_plane_z(dir)
+	if absf(d.z) < 1e-5:
+		return null
+	var along := (plane - o.z) / d.z
+	if along <= 0.0:
+		return null
+	var at := o + d * along
+	var reach := _book_width + SPINE_WIDTH * 0.5
+	at.x = clampf(at.x, -reach - 0.05, reach + 0.05)
+	at.y = clampf(at.y, -book_height * 0.6, book_height * 0.6)
+	var over_gutter := smoothstep(0.0, 1.0, clampf(1.0 - absf(at.x) / reach, 0.0, 1.0))
+	at.z = plane + lerpf(POINTER_LIFT_EDGE, POINTER_LIFT_GUTTER, over_gutter)
+	return to_global(_flop.bend_over(at, dir))
 
 
 ## A world point as the turning leaf sees it on the FLAT page. The fold solver
@@ -1745,6 +1779,7 @@ func _solve_leaf_lift(world_pos: Vector3) -> float:
 	var plane := _active_leaf.position.z
 	var flat := _flop.unbend_over(to_local(world_pos), _turn_direction)
 	var across := dir * flat.x
+	_hand_across = across
 	var up := flat.z - plane
 	# Bearings run from -90 (straight below the gutter) round to 270, so that
 	# "over the far half" is a number past 90 and not a wrap to a negative one.
@@ -1891,8 +1926,13 @@ func _update_fold_from_hand(world_pos: Vector3) -> void:
 	# How far the grip has been carried toward the far side: half way is over the
 	# gutter. NOT how far the curl line has travelled — a page lifted by its edge
 	# starts curling from right beside the binding while it has gone nowhere.
+	#
+	# Measured on the FLAT book (_hand_across, from _solve_leaf_lift), not in the
+	# leaf's own frame: over the gutter the leaf is up on its hinge, the hand is
+	# foreshortened across it, and the turn read 0.42 and stalled there for the
+	# whole width of the gutter instead of passing through a half.
 	var paper := dir * _grab_anchor.x + _book_width * 0.5 + SPINE_WIDTH * 0.5
-	_grip_travel = clampf(dir * (_grab_anchor.x - hand.x) / maxf(2.0 * paper, 1e-5), 0.0, 1.0)
+	_grip_travel = clampf((paper - _hand_across) / maxf(2.0 * paper, 1e-5), 0.0, 1.0)
 	var fold := _fold_for(hand)
 	if fold.is_empty():
 		# Straight above the grip: nothing to curl, but the lift still has to reach
@@ -2229,7 +2269,8 @@ func _refresh_flop() -> void:
 		stack.custom_aabb = AABB(
 			Vector3(-_book_width - PAPER_AABB_MARGIN, -book_height * 0.5 - PAPER_AABB_MARGIN, -reach),
 			Vector3((_book_width + PAPER_AABB_MARGIN) * 2.0, book_height + PAPER_AABB_MARGIN * 2.0, reach * 2.0))
-		_flop_blocks.append([edge, dir])
+		_flop_blocks.append([edge, dir, stack])
+		_outline_frame(stack, Vector4(stack.position.z, 1.0, float(dir), stack.scale.z))
 	_seat_fan()
 	_push_flop(true)
 	_snap_layout()
@@ -2258,6 +2299,22 @@ func _snap_layout() -> void:
 			node.reset_physics_interpolation()
 
 
+## The pick-up outline (PickableHighlight) is drawn from a flat COPY of each cover
+## and block, so it has to be told the bend the real ones hang by, or it floats in
+## the air where the flat book would be while the book droops away under it.
+func _outline_param(src: MeshInstance3D, param: StringName, value: Variant) -> void:
+	var highlight := get_node_or_null("PickableHighlight") as PickableHighlight
+	if highlight:
+		highlight.set_source_param(src, param, value)
+
+
+## ...and where that mesh sits in the book: (origin Z, which way its +Z points,
+## which way its +X points away from the gutter, its Z scale).
+func _outline_frame(src: MeshInstance3D, frame: Vector4) -> void:
+	_outline_param(src, &"flop_frame", frame)
+	_outline_param(src, &"flop_page", Vector2(_book_width, SPINE_WIDTH * 0.5))
+
+
 ## Where a node sits relative to the book, without going through global space
 ## (this runs before the book is necessarily in the tree).
 func _book_xform(node: Node3D) -> Transform3D:
@@ -2279,7 +2336,9 @@ func _register_flop_sheet(sheet: MeshInstance3D) -> void:
 	# The covers are turned 180 degrees about Y in most states, which points
 	# their own +Z at the book's -Z.
 	mat.set_shader_parameter("flop_z_sign", -1.0 if xf.basis.z.z < 0.0 else 1.0)
-	_flop_sheets.append([mat, 1 if xf.origin.x >= 0.0 else -1])
+	_flop_sheets.append([mat, 1 if xf.origin.x >= 0.0 else -1, sheet])
+	_outline_frame(sheet, Vector4(xf.origin.z, -1.0 if xf.basis.z.z < 0.0 else 1.0,
+		float(mat.get_shader_parameter("spine_sign")) if mat.get_shader_parameter("spine_sign") != null else 1.0, 1.0))
 
 
 ## Hand the solved bend to every surface. One set of numbers per side, written
@@ -2314,6 +2373,9 @@ func _push_flop(force: bool) -> void:
 		if _grab_right:
 			_seat_page_grab(_grab_right, 1)
 			_seat_page_grab(_grab_left, -1)
+		# The pick-up outline is drawn from flat copies of these same meshes.
+		for entry: Array in _flop_sheets + _flop_blocks:
+			_outline_param(entry[2], &"flop_own", right if int(entry[1]) > 0 else left)
 		# The binding is the one rigid piece, so no shader moves it: when a
 		# spread sags between two hands the gutter drops, and the spine with it.
 		_spine_node.position.z = _spine_rest_z + _flop.sag()

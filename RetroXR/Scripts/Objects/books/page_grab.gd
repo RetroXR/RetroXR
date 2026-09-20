@@ -45,6 +45,21 @@ var _rearmed: Dictionary = {}
 var _ctrl: XRController3D = null
 var _pointer_held := false
 var _pointer_hover := false
+## The pointer that latched (desktop reticle or VR laser), for its ray.
+var _pointer: Node3D = null
+
+## Where along a pointer's ray the dragging "hand" is: (ray origin, ray direction)
+## -> world point. Set by the book, which knows where its pages are. While a page
+## is latched by a pointer it is asked every frame.
+##
+## A latched page used to move on the pointer's MOVED events — and a pointer only
+## reports a position while its ray is on something that takes pointer events.
+## This zone covers the outer 65% of a page (so the laser can still pick the book
+## up by the rest), so dragged across the inner strip, the gutter and the far
+## page's inner strip the ray was on the book's pick-up body, which does not:
+## nothing was reported, and the page stood still across the whole middle of the
+## book until the ray reached the other page's zone.
+var drag_point: Callable = Callable()
 ## Off until the book has pages and a spread on this side to turn.
 var _enabled := false
 
@@ -119,6 +134,9 @@ func _process(_delta: float) -> void:
 		return
 
 	if _pointer_held:
+		var at: Variant = _pointer_drag_point()
+		if at != null:
+			grab_move.emit(at)
 		return
 
 	var ctrl := _hovering_ctrl()
@@ -143,15 +161,34 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.PRESSED:
 			if _ctrl == null:
 				_pointer_held = true
+				_pointer = event.pointer
 				grab_begin.emit(direction, event.position)
 		XRToolsPointerEvent.Type.MOVED:
-			if _pointer_held:
+			# Only when there is no ray to follow (_process does that, every frame,
+			# wherever the ray is): a test, or a pointer with no RayCast.
+			if _pointer_held and _pointer_drag_point() == null:
 				grab_move.emit(event.position)
 		XRToolsPointerEvent.Type.RELEASED:
 			if _pointer_held:
 				_release()
 		XRToolsPointerEvent.Type.EXITED:
 			_pointer_hover = false
+
+
+## Where the latched pointer's ray puts the dragging hand, or null if there is no
+## ray to ask. Both pointers (function_desktop_pointer, function_pointer) cast
+## along a child RayCast3D named RayCast.
+func _pointer_drag_point() -> Variant:
+	if not drag_point.is_valid() or not is_instance_valid(_pointer):
+		return null
+	var ray := _pointer.get_node_or_null("RayCast") as RayCast3D
+	if ray == null:
+		return null
+	var origin := ray.global_transform.origin
+	var toward := ray.to_global(ray.target_position) - origin
+	if toward.length_squared() < 1e-10:
+		return null
+	return drag_point.call(origin, toward.normalized())
 
 
 ## First active, non-holding controller whose poke tip is inside the zone.
@@ -170,4 +207,5 @@ func _release() -> void:
 		return
 	_ctrl = null
 	_pointer_held = false
+	_pointer = null
 	grab_end.emit(direction)

@@ -32,6 +32,15 @@ const OUTLINE_MASK_SHADER := preload("res://Shaders/outline_mask.gdshader")
 const OUTLINE_HULL_SHADER := preload("res://Shaders/outline_hull.gdshader")
 ## Depth pass ahead of the hull, so a transparent source still hides its middle.
 const OUTLINE_HULL_PRIMER_SHADER := preload("res://Shaders/outline_hull_primer.gdshader")
+## The same four with a bend run on the vertex first (outline_flop.gdshaderinc),
+## GENERATED from the ones above by Tools/gen_bent_outline_shaders.py. Only for a
+## parent that asks (bends_with_parent): everything else keeps exactly the
+## shaders it had, which matters — see their headers for what changing their
+## shape has done to a Quest.
+const OUTLINE_BENT_SHADER := preload("res://Shaders/outline_bent.gdshader")
+const OUTLINE_MASK_BENT_SHADER := preload("res://Shaders/outline_mask_bent.gdshader")
+const OUTLINE_HULL_BENT_SHADER := preload("res://Shaders/outline_hull_bent.gdshader")
+const OUTLINE_HULL_PRIMER_BENT_SHADER := preload("res://Shaders/outline_hull_primer_bent.gdshader")
 
 ## Color shown while the pointer ray is hovering over the object.
 @export var hover_color: Color = Color(1.0, 1.0, 1.0, 1.0)
@@ -46,6 +55,16 @@ const OUTLINE_HULL_PRIMER_SHADER := preload("res://Shaders/outline_hull_primer.g
 ## Color shown while the held object is snapping onto a socket (about to slot in).
 @export var snap_preview_color: Color = Color(1.0, 0.5, 0.0, 1.0)
 
+## The parent deforms its meshes in the VERTEX stage (a book hanging from its
+## binding), so a flat copy of them is not where the object is: the outline
+## floated in the air as an empty rectangle while the book drooped away under it.
+## With this on, the overlays run the same bend, fed per source mesh through
+## set_source_param().
+@export var bends_with_parent: bool = false
+## Probes only: draw the depth-carved hull a foveated Quest session gets, on a
+## desktop where the stencil pair would otherwise be chosen.
+@export var force_hull: bool = false
+
 @export_range(0.0, 8.0, 0.1)  var outline_width: float = 1.0
 @export_range(0.0, 8.0, 0.1)  var glow_strength: float = 2.0
 @export_range(0.0, 10.0, 0.1) var fade_start: float = 0.0
@@ -55,6 +74,10 @@ var _overlays: Array[MeshInstance3D] = []
 var _overlay_sources: Array[MeshInstance3D] = []  # parallel to _overlays
 var _outline_material: ShaderMaterial = null      # shared — all overlays use the same instance
 var _mask_material: ShaderMaterial = null         # stencil footprint pass, next_pass = outline
+## Per-instance shader parameters by source mesh: {instance id: {name: value}}.
+## Kept, not just forwarded, because overlays are rebuilt from scratch whenever
+## the parent's meshes change and a rebuilt overlay starts with none.
+var _source_params: Dictionary = {}
 
 # Smoothed-normal outline meshes, keyed by source mesh RID. Static so identical
 # meshes across many pickables (e.g. spawned cartridges) share one copy.
@@ -75,10 +98,10 @@ func _ready() -> void:
 	_outline_material = ShaderMaterial.new()
 	_outline_material.render_priority = 2
 
-	if QualityManager.stencil_safe():
-		_outline_material.shader = OUTLINE_SHADER
+	if QualityManager.stencil_safe() and not force_hull:
+		_outline_material.shader = OUTLINE_BENT_SHADER if bends_with_parent else OUTLINE_SHADER
 		_mask_material = ShaderMaterial.new()
-		_mask_material.shader = OUTLINE_MASK_SHADER
+		_mask_material.shader = OUTLINE_MASK_BENT_SHADER if bends_with_parent else OUTLINE_MASK_SHADER
 		_mask_material.render_priority = 1
 		_mask_material.next_pass = _outline_material
 	else:
@@ -89,9 +112,9 @@ func _ready() -> void:
 		# and the hull then fills the whole object, so a depth primer goes in
 		# front of it — chained, because pass order within one instance is the
 		# only ordering this can rely on.
-		_outline_material.shader = OUTLINE_HULL_SHADER
+		_outline_material.shader = OUTLINE_HULL_BENT_SHADER if bends_with_parent else OUTLINE_HULL_SHADER
 		_mask_material = ShaderMaterial.new()
-		_mask_material.shader = OUTLINE_HULL_PRIMER_SHADER
+		_mask_material.shader = OUTLINE_HULL_PRIMER_BENT_SHADER if bends_with_parent else OUTLINE_HULL_PRIMER_SHADER
 		_mask_material.render_priority = 1
 		_mask_material.next_pass = _outline_material
 	_sync_material_params()
@@ -139,10 +162,35 @@ func _collect_overlays(node: Node) -> void:
 			overlay.visible = false
 			overlay.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 			overlay.extra_cull_margin = 16.0
+			var params: Dictionary = _source_params.get(src.get_instance_id(), {})
+			for param: StringName in params:
+				overlay.set_instance_shader_parameter(param, params[param])
 			add_child(overlay)
 			_overlays.append(overlay)
 			_overlay_sources.append(src)
 		_collect_overlays(child)
+
+
+## A per-instance shader parameter for the overlay drawn from `src` (and for every
+## overlay rebuilt from it later). The highlight shares ONE material across all of
+## an object's overlays, so anything that differs between them — which side of a
+## book a block hangs from — has to be an instance uniform.
+func set_source_param(src: MeshInstance3D, param: StringName, value: Variant) -> void:
+	if src == null:
+		return
+	var key := src.get_instance_id()
+	if not _source_params.has(key):
+		_source_params[key] = {}
+	_source_params[key][param] = value
+	var at := _overlay_sources.find(src)
+	if at >= 0 and at < _overlays.size() and is_instance_valid(_overlays[at]):
+		_overlays[at].set_instance_shader_parameter(param, value)
+
+
+## The overlay drawn from `src`, or null (none yet, or the source is excluded).
+func overlay_of(src: MeshInstance3D) -> MeshInstance3D:
+	var at := _overlay_sources.find(src)
+	return _overlays[at] if at >= 0 and at < _overlays.size() else null
 
 
 func _connect_pickup_nodes() -> void:

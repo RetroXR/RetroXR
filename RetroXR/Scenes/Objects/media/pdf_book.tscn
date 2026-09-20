@@ -97,6 +97,7 @@ surface_material_override/0 = SubResource("Mat_page")
 
 [node name="PickableHighlight" type="Node3D" parent="."]
 script = ExtResource("2_pickhigh")
+bends_with_parent = true
 
 [node name="PointerArea" type="StaticBody3D" parent="."]
 collision_layer = 1048576

@@ -45,6 +45,7 @@ func _ready() -> void:
 	_test_sim_robustness()
 	_test_sim_pose_drive()
 	_test_bend_geometry()
+	_test_bent_outline_shaders()
 	await _test_book()
 	await _test_thick_book()
 
@@ -660,7 +661,9 @@ func _test_book() -> void:
 		plain.free()
 	book.hardback = false
 
+	_test_outline_bends(book)
 	_test_page_bends(book)
+	_test_pointer_drags_across_the_middle(book)
 	await _test_page_follows_hand(book)
 
 	# Shut again AFTER having been open: the covers must give the droop back. (Checked
@@ -797,6 +800,125 @@ func _test_page_follows_hand(book: PDFBook) -> void:
 	await get_tree().create_timer(0.6).timeout
 	_ok(book._active_leaf == null and book._leaf_lift == 0.0 and book._current_leaf == 1,
 		"follow/let go where it started, the page lies back down and nothing turned")
+
+
+## Dragging a page with the desktop reticle (or the VR laser): it stood still all
+## the way across the middle of the book. A latched page moved on the pointer's
+## MOVED events, and a pointer only reports a position while its ray is on
+## something that takes pointer events — which the inner third of each page, left
+## to the book's pick-up body so the laser can still lift the book, is not. So:
+## a pointer that sends NOTHING after the press, swept across the book.
+func _test_pointer_drags_across_the_middle(book: PDFBook) -> void:
+	_drive(book, FACE_UP)
+	var w := book._book_width
+	var plane := book._page_plane_z(1)
+	var zone := book.get_node("PageGrabRight") as PageGrab
+	var pointer := Node3D.new()
+	var ray := RayCast3D.new()
+	ray.name = "RayCast"
+	ray.enabled = false
+	ray.target_position = Vector3(0.0, 0.0, -10.0)
+	pointer.add_child(ray)
+	add_child(pointer)
+	# Half a metre over the book, looking straight down at it.
+	var aim := func(x: float) -> void:
+		pointer.global_transform = Transform3D(book.global_basis, book.to_global(Vector3(x, -0.02, 0.5)))
+	aim.call(w * 0.85)
+	var grip := _hand_at(book, Vector3(w * 0.85, -0.02, plane))
+	book._despawn_active_leaf()
+	zone.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, pointer, zone, grip, grip))
+	_ok(book._grab_dir == 1 and zone.is_held(), "pointer/pressing on the page latches it")
+
+	var travel: Array[float] = []
+	for along: float in [0.6, 0.35, 0.1, 0.0, -0.1, -0.35, -0.6]:
+		aim.call(w * along)
+		zone._process(1.0 / 60.0)      # the pointer itself says nothing at all
+		travel.append(book._grip_travel)
+	var rising := true
+	for i in range(1, travel.size()):
+		rising = rising and travel[i] > travel[i - 1] + 0.01
+	_ok(rising, "pointer/swept across the book with no events, the page follows the RAY all the way (%s)"
+		% ", ".join(travel.map(func(t: float) -> String: return "%.2f" % t)))
+	_ok(absf(travel[3] - 0.5) < 0.08,
+		"pointer/...and it is half turned when the ray is over the gutter (%.2f)" % travel[3])
+	_ok(book._active_leaf != null and float(_mat(book._active_leaf).get_shader_parameter("fold_strength")) > 0.0,
+		"pointer/...curled, not lying flat")
+
+	# Carried back to where it started and let go: nothing turns.
+	aim.call(w * 0.85)
+	zone._process(1.0 / 60.0)
+	zone.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, pointer, zone, grip, grip))
+	_ok(not zone.is_held(), "pointer/releasing lets go")
+	book._despawn_active_leaf()
+	book._set_state(book._state)
+	pointer.queue_free()
+
+
+## The four outline shaders have a history of taking a Quest's GPU down when their
+## shape changes, so the book does not touch them: it gets COPIES with the bend
+## spliced in between two marker lines (Tools/gen_bent_outline_shaders.py). A copy
+## of a fragile file drifts. Strip the marked lines back out of each copy and it
+## must be its original, to the character.
+func _test_bent_outline_shaders() -> void:
+	const BEGIN := "// --- bent (Tools/gen_bent_outline_shaders.py) ---"
+	const END := "// --- end bent ---"
+	for name: String in ["outline", "outline_mask", "outline_hull", "outline_hull_primer"]:
+		var original := FileAccess.get_file_as_string("res://Shaders/%s.gdshader" % name).replace("\r\n", "\n")
+		var copy := FileAccess.get_file_as_string("res://Shaders/%s_bent.gdshader" % name).replace("\r\n", "\n")
+		var kept: PackedStringArray = []
+		var inside := false
+		var blocks := 0
+		for line: String in copy.split("\n").slice(5):     # the 5-line GENERATED header
+			if line.strip_edges() == BEGIN:
+				inside = true
+				blocks += 1
+			elif line.strip_edges() == END:
+				inside = false
+			elif not inside:
+				kept.append(line)
+		_ok(blocks >= 1 and copy.contains("outline_flop(bent_vertex, bent_normal)"),
+			"outline/%s_bent really does run the bend" % name)
+		_ok("\n".join(kept) == original,
+			"outline/%s_bent is its original with nothing but the bend added (regenerate: Tools/gen_bent_outline_shaders.py)" % name)
+
+
+## The pick-up outline is drawn from flat COPIES of the covers and blocks, and the
+## bend exists only in the page shaders: the outline stayed where the flat book
+## would be, an empty rectangle floating in the air, while the book drooped away
+## under it. Each overlay must carry the bend its own source hangs by.
+func _test_outline_bends(book: PDFBook) -> void:
+	var highlight := book.get_node("PickableHighlight") as PickableHighlight
+	_ok(highlight.bends_with_parent and highlight._outline_material.shader != PickableHighlight.OUTLINE_SHADER
+			and highlight._outline_material.shader != PickableHighlight.OUTLINE_HULL_SHADER,
+		"outline/a book's highlight draws with the bend-aware shaders")
+	_drive(book, FACE_UP)
+	var agrees := true
+	var seen := 0
+	for pair: Array in [[book._left_stack, -1], [book._right_stack, 1], [book._cover_mesh, -1], [book._back_cover_mesh, 1]]:
+		var overlay := highlight.overlay_of(pair[0])
+		if overlay == null:
+			continue
+		seen += 1
+		agrees = agrees and overlay.get_instance_shader_parameter("flop_own") == book._flop.params(int(pair[1]))
+	_ok(seen == 4 and agrees and book._flop.params(1) != Vector4.ZERO,
+		"outline/each cover's and block's outline hangs by its own side's bend")
+	var cover_frame: Vector4 = highlight.overlay_of(book._cover_mesh).get_instance_shader_parameter("flop_frame")
+	var block_frame: Vector4 = highlight.overlay_of(book._right_stack).get_instance_shader_parameter("flop_frame")
+	_ok(cover_frame.y == -1.0 and is_equal_approx(cover_frame.x, book._cover_mesh.position.z)
+			and block_frame.y == 1.0 and is_equal_approx(block_frame.w, book._right_stack.scale.z),
+		"outline/...told where its mesh sits: a cover turned over, a block scaled on Z")
+	# Never given one: null, or the shader's all-zero default, which is "no bend".
+	var spine_bend: Variant = null
+	if highlight.overlay_of(book._spine_mesh) != null:
+		spine_bend = highlight.overlay_of(book._spine_mesh).get_instance_shader_parameter("flop_own")
+	_ok(highlight.overlay_of(book._right_stack_top) == null and highlight.overlay_of(book._spine_mesh) != null
+			and (spine_bend == null or spine_bend == Vector4.ZERO),
+		"outline/the rigid binding's outline is given no bend (and the page sheets have no outline)")
+	# Overlays are rebuilt from scratch when the meshes change. A rebuilt one must
+	# not come back flat.
+	highlight.rebuild_overlays()
+	_ok(highlight.overlay_of(book._right_stack).get_instance_shader_parameter("flop_own") == book._flop.params(1),
+		"outline/rebuilt overlays keep the bend they were given")
 
 
 ## The shape a turning page takes. It used to be an origami fold — a 3 mm crease

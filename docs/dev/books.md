@@ -268,6 +268,54 @@ cable. At most two books are ever held. **Quest is not measured** — expect a s
 of these; run the bench on device before quoting a figure. The GPU side is a sin/cos pair
 per vertex over ~600 vertices (Quest grid) and is not visible to a script.
 
+### The pick-up outline bends with the book
+
+`PickableHighlight` draws its outline from a flat, smoothed **copy** of each source mesh, kept
+on the source node's transform. The bend exists only in the page shaders, so the outline
+stayed where the flat book would be — an empty rectangle floating in the air — while the book
+drooped away under it.
+
+- The book's highlight has `bends_with_parent = true` (`pdf_book.tscn`), which swaps in
+  `outline*_bent.gdshader`: the same four shaders with `outline_flop()`
+  (`outline_flop.gdshaderinc`, which calls the very same `paper_flop`) run on the vertex before
+  the hull is inflated.
+- **The four outline shaders are not touched, and not restructured.** Their headers record what
+  changing their *shape* has done to a Quest's GPU (VRS + stencil, a constant-folded fragment
+  output). Every other object keeps byte-for-byte the shader it had; only the book gets copies,
+  **generated** by `Tools/gen_bent_outline_shaders.py` with the additions between two marker
+  lines. A copy of a fragile file drifts, so the suite strips the marked lines back out and
+  compares each copy with its original to the character — edit an `outline*.gdshader`, rerun
+  the tool, or CI goes red. **The copies are untested on a Quest**: filmed on desktop in both
+  variants (`book_flop_probe --outline`, and `--hull` for the depth-carved hull a foveated
+  session draws).
+- The highlight shares ONE material across all of an object's overlays, and each overlay hangs
+  by its own side's bend, so the numbers are **per-instance uniforms** (`flop_own`,
+  `flop_frame`, `flop_page`), set through `PickableHighlight.set_source_param()`. It *keeps*
+  them as well as forwarding them, because overlays are rebuilt from scratch when the meshes
+  change and a rebuilt one would come back flat. `_push_flop` sends `flop_own` with the rest;
+  `_refresh_flop` sends where each mesh sits (a cover turned 180°, a block scaled on Z).
+- The rigid binding's overlay is given nothing (all-zero = no bend) and follows the sag because
+  it follows its node. Page sheets, the turning leaf and the fan are `outline_exclude`.
+
+### A page dragged with a pointer
+
+The desktop reticle and the VR laser latch a page with PRESSED and used to move it on MOVED —
+and a pointer only reports a position while its ray is on something that takes pointer events.
+The grab zone covers the outer 65 % of a page (so the laser can still pick the book up by the
+rest), so across the inner strip, the gutter and the far page's inner strip the ray was on the
+book's pick-up body, which does not: **the page stood still across the whole middle of the
+book**. Now `PageGrab` keeps the latching pointer and, every frame, asks the book where its
+ray puts the hand (`drag_point` → `_page_drag_point`): the ray meets the plane of the pages,
+and the height is an arch over the gutter (`POINTER_LIFT_EDGE` → `POINTER_LIFT_GUTTER`),
+because a ray has no height of its own and a page dragged flat across the book rolls tight
+where a hand would lift it over. Worked out on the flat book and taken through the leaf's
+bend, so the fold solver sees exactly that point. Both pointers cast along a child
+`RayCast3D` named `RayCast`.
+
+Related: turn progress (`_grip_travel`) is measured on the **flat** book (`_hand_across`), not
+in the leaf's tilted frame — over the gutter the leaf is up on its hinge, the hand is
+foreshortened across it, and the turn read 0.42 and stalled for the width of the gutter.
+
 ### Thick books
 
 Everything above was built and filmed on a 24–28 page booklet, a 1.2 mm block, where a
@@ -339,8 +387,6 @@ choice; the angles themselves never are, and a restored book starts flat.
 - Bending **along** the spine axis (a magazine held by its bottom edge folding over at the
   top). Paper cannot bend two ways at once, so this needs a stiffness coupling, not a second
   independent bend.
-- The `PickableHighlight` hull is a flat copy: a book hovered by a second hand while it
-  droops in the first gets a flat outline.
 - A book overhanging a table edge does not droop — not held means supported.
 
 ## Testing
