@@ -118,6 +118,35 @@ adb shell "cat /data/local/tmp/spike.cfg | run-as com.xenu.retroxr sh -c 'cat > 
 ```
 Then compare the `[crc]` lines against a Windows spike run.
 
+### Catching a controller that will not drop
+
+Open since 2026-09-20: a held controller occasionally refuses to fall and hangs where it was
+let go. It clears itself — grab it again, release, and it drops — which is what rules out
+every freeze-based explanation, because those latch. `pick_up()` snapshots
+`restore_freeze = freeze` and `let_go()` hands it back, so a bad snapshot hangs the object
+*every* time thereafter, not once; the same goes for a stale ray grab, a netplay replica
+freeze and a scene restore's `gravity_scale = 0`.
+
+`Tools/vr/pad_drop_probe` drives the real `pick_up`/`let_go` path on a real pad, settled until
+it is genuinely asleep, across five release shapes (one hand, two hands either order, a release
+racing the toggle-hold re-grab, a release mid-lerp) — **all of them fall**, so whatever it is
+needs the real `XRToolsFunctionPickup` (its grip/combo logic, or a ray grab).
+
+So the build reports it instead. `HeldObjectPhysics` photographs any `hand_held_device` that is
+still within 5 mm of its release point 0.75 s later with nothing within 15 cm beneath it:
+
+```bash
+adb logcat -s godot:* | grep -a "\[stuck\]"
+# [stuck] RetroController hung in the air 0.75s after release: freeze=true
+#   restore_freeze=false sleeping=true gravity_scale=1.00 picked_up=false held_by=nobody
+```
+
+Read it as: `freeze=true, picked_up=false` → an owner froze it and never let go;
+`picked_up=true` → a grab survives, and `held_by` names it (or says the grabber was FREED);
+`sleeping=true` with everything else clean → the body slept in mid-air;
+`gravity_scale=0.00` → a scene restore left it weightless. The downward clearance check is what
+keeps a pad resting on a table out of the log.
+
 ### Log capture
 The logcat ring buffer rotates away in **under a minute** (VrApi spam) — poll-grepping
 loses boot output. Stream from before the launch instead:
