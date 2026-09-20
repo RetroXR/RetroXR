@@ -291,6 +291,51 @@ func _on_dropped(pickable: Variant) -> void:
 	var body := pickable as XRToolsPickable
 	if body != null:
 		_escape.call_deferred(body)
+		if body.is_in_group("hand_held_device"):
+			_report_if_stuck(body, body.global_position)
+
+
+## "Sometimes a controller will not drop, it just floats in the air" — reported
+## from a headset 2026-09-20, rare and not reproducible on demand:
+## Tools/vr/pad_drop_probe drives five release shapes (one hand, both hands
+## either order, a release racing the toggle-hold re-grab, a release mid-lerp)
+## and every one of them falls.
+##
+## From inside a headset every cause looks identical — a frozen body, a sleeping
+## one, one whose gravity was left at zero and one a stale grab still owns all
+## just hang there — so rather than guess, the next occurrence is made to say
+## which it was, and who is holding it. WARN because that is the level that
+## survives into logcat.
+##
+## Only hand-held devices, and only with nothing underneath: coming to rest on a
+## table is the ordinary way to stop moving, and photographing that would bury
+## the real thing in noise.
+const STUCK_AFTER := 0.75
+const STUCK_MOVED := 0.005
+const STUCK_CLEARANCE := 0.15
+
+
+func _report_if_stuck(body: XRToolsPickable, from: Vector3) -> void:
+	await get_tree().create_timer(STUCK_AFTER).timeout
+	if not is_instance_valid(body) or not body.is_inside_tree():
+		return
+	if body.global_position.distance_to(from) > STUCK_MOVED:
+		return
+	if not body.freeze and not body.sleeping and body.gravity_scale > 0.0 			and not body.is_picked_up():
+		return
+	var space := body.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		body.global_position, body.global_position + Vector3.DOWN * STUCK_CLEARANCE)
+	query.exclude = [body.get_rid()]
+	if not space.intersect_ray(query).is_empty():
+		return          # resting on something, which is not this bug
+	var held_by := "nobody"
+	if body.is_picked_up() and is_instance_valid(body._grab_driver.primary):
+		var who: Variant = body._grab_driver.primary.by
+		held_by = "%s (%s)" % [who.name, who.get_class()] if is_instance_valid(who) 			else "a FREED grabber"
+	push_warning(("[stuck] %s hung in the air %.2fs after release: freeze=%s " % [body.name, STUCK_AFTER, body.freeze])
+		+ ("restore_freeze=%s sleeping=%s gravity_scale=%.2f " % [body.restore_freeze, body.sleeping, body.gravity_scale])
+		+ ("picked_up=%s held_by=%s" % [body.is_picked_up(), held_by]))
 
 
 func _escape(body: XRToolsPickable) -> void:
