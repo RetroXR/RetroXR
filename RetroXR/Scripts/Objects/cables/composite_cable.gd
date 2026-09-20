@@ -135,14 +135,26 @@ signal topology_changed
 @export var cord_length: float = 0.0
 
 ## The lengths the spawn menu offers, in menu order: metres, then the name on the
-## button. Zero is the scene's own, which is what a lead left alone keeps.
+## button. There is deliberately no "Default" row -- see SHIPPED_LENGTH.
 const SPAWN_LENGTHS := [
-	[0.0, "Default"],
 	[1.5, "1.5 m"],
 	[3.0, "3 m"],
 	[4.5, "4.5 m"],
 	[6.0, "6 m"],
 ]
+
+## What the speaker lead already IS, and so what the menu opens on. Picking it
+## forces nothing: cord_length stays zero and the lead keeps the scene's own.
+##
+## This is why the menu offers no separate "Default" button. It had one, and it
+## sat next to "3 m" doing the identical visible thing -- the only difference
+## being whether the save recorded a field, which is not something a player can
+## see or should be asked about.
+const SHIPPED_LENGTH := 3.0
+
+## The same for the plugs: the lead's are moulded in RcaJack.AUDIO_GREY, which is
+## exactly what the Grey swatch offers, so Grey IS the untouched lead.
+const SHIPPED_PLUG_COLOR := &"grey"
 
 ## The jacket every cord wears. Deliberately NOT cord_colors: a real composite
 ## lead is black sheath with colour-coded CONNECTORS, and the connector is what a

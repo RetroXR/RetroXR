@@ -227,12 +227,21 @@ added nothing the plates' own borders do not already say.
 **A speaker cable's plugs can be spawned in a colour, and its cord cut to a
 length.** The lead is neutral grey because its channel belongs to the socket, not
 to it -- but six grey plugs behind a set are hard to tell apart, so holding the
-Speaker Cable row for a second (`HoldPress`, §2q) offers `RcaJack.PLUG_COLORS` and
-`CompositeCable.SPAWN_LENGTHS`. TWO choices now, so the panel picks and then SPAWNs
-rather than spawning on the first tap -- the shape the cartridge panel already had,
-and the reason the old one-tap-on-a-colour is gone. The menu sends
-`speaker_cable:<id>:<metres>`, either field empty for the scene's own and a token
-carrying no length at all being what it sent before lengths were offered. The
+RCA Speaker Cable row for a second (`HoldPress`, §2q) offers `RcaJack.PLUG_COLORS`
+and `CompositeCable.SPAWN_LENGTHS`. TWO choices now, so the panel picks and then
+SPAWNs rather than spawning on the first tap -- the shape the cartridge panel
+already had, and the reason the old one-tap-on-a-colour is gone.
+
+**Neither group has a "Default" button, and adding one back would be a mistake.**
+It had one in each, and they were duplicates: the lead ships at `SHIPPED_LENGTH`
+(3 m) with plugs in `AUDIO_GREY`, which are exactly the "3 m" and "Grey" buttons
+sitting next to them. The only thing "Default" did differently was leave the field
+out of the save -- invisible to a player, and not a choice to put on screen. Both
+groups instead OPEN ON what the lead already is, and picking those two sends empty
+fields, so a player who changes only the colour does not also pin the length. The
+menu sends `speaker_cable:<id>:<metres>`, either field empty for the scene's own
+and a token carrying no length at all being what it sent before lengths were
+offered. The
 controller sets `CompositeCable.plug_color_id` and `cord_length` before the lead
 enters the tree, and `_cord_color` answers with the colour for every cord. Plugs
 only: the jacket stays `wire_color`. The id is saved as `plug_color`, absent for a

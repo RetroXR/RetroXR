@@ -478,7 +478,7 @@ func _build() -> void:
 		# The height named is to the plate a cabinet stands on.
 		["Speaker Stand 1.2m", "speaker_stand_120"],
 		["Speaker Stand 1m",   "speaker_stand_100"],
-		["Speaker Cable",  "speaker_cable"],
+		["RCA Speaker Cable",  "speaker_cable"],
 		# Not under Controllers: nobody holds it, and it is no more a controller
 		# than the aerial is. It plugs into the Wii and stands on the television.
 		["Sensor Bar",     "sensor_bar"],
@@ -3115,27 +3115,29 @@ func _show_n64_spawn_options(label: String, spawn: Callable) -> void:
 ## How long a lead is and what colour its plugs are. Two choices, so they are
 ## picked and then SPAWN is pressed -- the same shape as the cartridge panel above,
 ## and the reason this one no longer spawns on the first tap.
+##
+## Both groups OPEN ON WHAT THE LEAD ALREADY IS (3 m, grey plugs) and picking
+## those forces nothing. There is no "Default" button in either group: it would be
+## a second button for an outcome already on screen, differing only in whether the
+## save records a field, which a player cannot see and should not be asked about.
 func _show_lead_spawn_options(label: String, token: String) -> void:
 	var vbox := _open_spawn_options_panel(label)
-	var chosen := {"color": "", "length": 0.0}
-	var auto_color := Color(0.18, 0.18, 0.35)
+	var chosen := {"color": String(CompositeCable.SHIPPED_PLUG_COLOR),
+		"length": CompositeCable.SHIPPED_LENGTH}
+	var plain := Color(0.18, 0.18, 0.35)
 
 	vbox.add_child(MenuStyle.header("Length"))
 	var lengths := MenuStyle.hbox(10)
 	vbox.add_child(lengths)
 	var length_group := ButtonGroup.new()
 	for row: Array in CompositeCable.SPAWN_LENGTHS:
-		var length_btn := _swatch_button(row[1], auto_color, length_group)
-		length_btn.button_pressed = row[0] == 0.0
+		var length_btn := _swatch_button(row[1], plain, length_group)
+		length_btn.button_pressed = row[0] == CompositeCable.SHIPPED_LENGTH
 		length_btn.pressed.connect(func() -> void: chosen["length"] = row[0])
 		lengths.add_child(length_btn)
 
 	vbox.add_child(MenuStyle.header("Plug colour"))
 	var color_group := ButtonGroup.new()
-	var auto_btn := _swatch_button("Default", auto_color, color_group)
-	auto_btn.button_pressed = true
-	auto_btn.pressed.connect(func() -> void: chosen["color"] = "")
-	vbox.add_child(auto_btn)
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3145,6 +3147,7 @@ func _show_lead_spawn_options(label: String, token: String) -> void:
 	for id: StringName in RcaJack.PLUG_COLORS:
 		var swatch := _swatch_button(RcaJack.PLUG_COLORS[id][0], RcaJack.PLUG_COLORS[id][1],
 			color_group)
+		swatch.button_pressed = id == CompositeCable.SHIPPED_PLUG_COLOR
 		swatch.pressed.connect(func() -> void: chosen["color"] = String(id))
 		grid.add_child(swatch)
 
@@ -3152,12 +3155,16 @@ func _show_lead_spawn_options(label: String, token: String) -> void:
 	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
 	go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
 	go.pressed.connect(func() -> void:
-		# An empty field is "the lead's own" at the other end, so a default choice
-		# sends nothing rather than a value that happens to match the scene.
+		# An empty field is "the lead's own" at the other end, so the two choices the
+		# menu opened on send nothing rather than pinning a value that merely happens
+		# to match the scene -- a player who only changed the colour does not also
+		# fix the length.
 		var metres: float = chosen["length"]
+		var colour: String = chosen["color"]
 		_close_spawn_options_panel()
-		spawn_requested.emit("%s:%s:%s" % [token, chosen["color"],
-			"" if metres <= 0.0 else str(metres)]))
+		spawn_requested.emit("%s:%s:%s" % [token,
+			"" if colour == CompositeCable.SHIPPED_PLUG_COLOR else colour,
+			"" if is_equal_approx(metres, CompositeCable.SHIPPED_LENGTH) else str(metres)]))
 	vbox.add_child(go)
 
 
