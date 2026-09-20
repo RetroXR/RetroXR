@@ -2,6 +2,38 @@
 
 Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary and links here.
 
+### A Quest can run STALE extension binaries, and only says so at the call
+
+The built `.so`/`.dll` files are gitignored build artifacts, and **`Tools/build.py` is
+per-platform**: building for `windows` leaves the `android` binaries exactly as they were. So
+a C++ change plus a Windows rebuild makes everything pass on desktop and in CI while the
+Quest keeps whatever was last built for it — for as long as nobody rebuilds android.
+
+The failure is invisible until the moment a renamed method is called, on device only:
+
+```
+SCRIPT ERROR: Invalid call. Nonexistent function 'open' in base 'PDFRenderer'.
+```
+
+The class registers, the library initialises, `ClassDB.instantiate()` succeeds — only the
+method is missing, because that binary still binds the OLD name.
+
+Found 2026-09-20: `godot-pdfium` was renaming `load` → `open` on Sep 5 for Windows while the
+android build stayed at Sep 2, so **every PDF manual on the Quest had been failing to open
+since**, presenting as an unloaded book (navy covers, no pages — see `books.md`). CBZ manuals
+kept working throughout because they never touch `PDFRenderer`, which is exactly why "books
+work on the Quest" was true and misleading at the same time. Every other extension was stale
+too, and `surround-godot` had no android build at all — the export ships a **0-byte `.so`**
+for a missing one rather than failing.
+
+- **Check before blaming the data.** The bound names are in the binary:
+  `strings <lib> | grep -x "open\|close\|render_page"`, android against windows. Dates alone
+  are a good smell test: `ls -la */*android*template_debug*.so */*windows*template_debug*.dll`.
+- **Rebuild both targets** — `--target debug` is what a local sideload uses, `--target release`
+  what a local release export uses. A debug-only rebuild leaves a release export broken.
+- CI is not affected: `release.yml` builds the android extensions from source on every run.
+  This bites **locally exported** builds only, which is what sideloading a debug APK is.
+
 ### Sibling GDExtensions (archive-godot, verlet-rope, vlc-godot, godot-pdfium, metaxr-audio, surround-godot)
 
 Six other C++ GDExtensions live beside libretro-godot, each with the same layout (repo-root

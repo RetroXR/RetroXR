@@ -27,6 +27,7 @@ func _ready() -> void:
 	await _test_unloadable_book()
 	await _test_loaded_book()
 	await _test_a_cached_page_never_decodes_on_the_main_thread()
+	await _test_a_half_written_manual_recovers()
 	_test_saved_manual_follows_its_folder()
 
 	print("[test] %d cases, %s" % [_ran,
@@ -47,6 +48,28 @@ func _test_unloadable_book() -> void:
 	# well inside a default 1 m BoxShape3D.
 	_ok(_ray_at(0.3) == null, "unloadable/a ray beside the book reaches what is behind it")
 	_ok(not (_ray_at(0.0) is PageGrab), "unloadable/a ray at the book finds the book")
+
+	# A book that cannot open keeps every authored default, and those are an
+	# OPEN SPREAD centred on the spine: a page-width of collision hanging in
+	# empty air beside the one cover quad that is actually drawn. That is what
+	# "odd collision" was on the Quest, 2026-09-20.
+	var body := book.get_node("CollisionShape3D") as CollisionShape3D
+	var pointer := book.get_node("PointerArea/CollisionShape3D") as CollisionShape3D
+	var cover := book.get_node("Cover") as MeshInstance3D
+	var cover_w: float = (cover.mesh as QuadMesh).size.x
+	_ok(is_equal_approx(body.position.x, cover.position.x),
+		"unloadable/the body box sits on the cover, not the spine (%.3f vs %.3f)"
+			% [body.position.x, cover.position.x])
+	_ok(is_equal_approx((body.shape as BoxShape3D).size.x, cover_w),
+		"unloadable/...and is no wider than the one mesh the book still shows")
+	_ok(is_equal_approx(pointer.position.x, cover.position.x)
+			and is_equal_approx((pointer.shape as BoxShape3D).size.x, cover_w + 0.04),
+		"unloadable/the pointer box follows it")
+	# A push_error is invisible in a headset, so a silent navy slab reads as
+	# "still loading" forever.
+	_ok(book._net_status_label != null and book._net_status_label.visible
+			and not book._net_status_label.text.is_empty(),
+		"unloadable/and the book says it could not be opened")
 
 	book.queue_free()
 	await _settle()
@@ -160,6 +183,59 @@ func _test_a_cached_page_never_decodes_on_the_main_thread() -> void:
 	await _settle()
 	_remove_tree("user://pdf_cache/" + cbz.md5_text())
 	DirAccess.remove_absolute(cbz)
+
+
+## A manual is often scraped moments before it is spawned, and a file still
+## being written opens as a TRUNCATED one and fails. Nothing looked again —
+## `pdf_path` is already set, so re-assigning it is a no-op — and the book was a
+## navy slab for the rest of its life. Reproduced with a real PDF cut to 55%
+## (`Tools/vr/manual_probe.gd`); a half-written CBZ fails the same way here.
+func _test_a_half_written_manual_recovers() -> void:
+	const PARTIAL := "user://__book_tests_partial.cbz"
+	var path := ProjectSettings.globalize_path(PARTIAL)
+	_write_cbz(PARTIAL)
+	var whole := FileAccess.get_file_as_bytes(path)
+	var cut := FileAccess.open(path, FileAccess.WRITE)
+	@warning_ignore("integer_division")
+	var half := whole.size() / 2
+	cut.store_buffer(whole.slice(0, half))
+	cut.close()
+
+	var book := _spawn_book(path)
+	await _settle()
+	_ok(book._page_count == 0, "retry/a half-written manual does not open")
+	_ok(book._net_status_label != null and book._net_status_label.visible,
+		"retry/...and the book says it is still trying")
+
+	# The scrape finishes.
+	var done := FileAccess.open(path, FileAccess.WRITE)
+	done.store_buffer(whole)
+	done.close()
+	# Real scene time, not frames: the retry is on a SceneTreeTimer, and a
+	# headless frame is far shorter than a second.
+	await get_tree().create_timer(2.5).timeout
+	_ok(book._page_count > 0,
+		"retry/once the file is whole the book opens itself (%d pages)" % book._page_count)
+
+	# It must also GIVE UP. Driven directly rather than waiting out the backoff
+	# (1+2+3+4 s of scene time), which would dominate the suite.
+	var doomed := _spawn_book(ProjectSettings.globalize_path(PARTIAL))
+	await _settle()
+	var before: int = doomed._load_retries
+	for i in PDFBook.LOAD_RETRIES + 3:
+		doomed._fail_or_retry(path, "Could not open")
+	_ok(doomed._load_retries == PDFBook.LOAD_RETRIES,
+		"retry/gives up after %d tries, not forever (%d)" % [PDFBook.LOAD_RETRIES, doomed._load_retries])
+	_ok(doomed._net_status_label != null and doomed._net_status_label.text.contains("Could not open"),
+		"retry/...and then says so instead of claiming it is still opening")
+	_ok(before <= PDFBook.LOAD_RETRIES, "retry/the counter never ran away on its own")
+	doomed.queue_free()
+	await _settle()
+
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + path.md5_text())
+	DirAccess.remove_absolute(path)
 
 
 ## A scraped manual lives under roms/<systemid>/media/, so a room saved before a

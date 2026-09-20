@@ -310,7 +310,9 @@ var _net_status_label: Label3D = null
 
 
 ## Show or clear a floating status line above the book ("" hides it). Called by
-## NetObjectSync while the backing PDF is being transferred from the host.
+## NetObjectSync while the backing PDF is being transferred from the host, and
+## by _show_load_failure() when the file will not open at all — in a headset a
+## push_error is invisible, and a silent navy slab reads as "still loading".
 func net_set_download_status(text: String) -> void:
 	if text.is_empty():
 		if _net_status_label:
@@ -397,11 +399,13 @@ func _load_pdf_internal(path: String) -> void:
 	_renderer = ClassDB.instantiate("PDFRenderer")
 	if not _renderer:
 		push_error("[PDFBook] PDFRenderer class not available. Is the GDExtension loaded?")
+		_show_load_failure("Manual viewer unavailable")
 		return
 
 	if not _renderer.open(path):
 		push_error("[PDFBook] Failed to open PDF: %s" % path)
 		_renderer = null
+		_fail_or_retry(path, "Could not open\n%s" % path.get_file())
 		return
 
 	_page_count = _renderer.get_page_count()
@@ -409,6 +413,7 @@ func _load_pdf_internal(path: String) -> void:
 		push_warning("[PDFBook] PDF has 0 pages: %s" % path)
 		_renderer.close()
 		_renderer = null
+		_show_load_failure("Manual is empty")
 		return
 
 	var size: Vector2 = _renderer.get_page_size(0)
@@ -456,6 +461,7 @@ func _load_cbz(path: String) -> void:
 	var err := reader.open(path)
 	if err != OK:
 		push_error("[PDFBook] Failed to open CBZ: %s (err %d)" % [path, err])
+		_fail_or_retry(path, "Could not open\n%s" % path.get_file())
 		return
 
 	# Filter entries to supported image types, sort naturally
@@ -471,6 +477,7 @@ func _load_cbz(path: String) -> void:
 
 	if entries.is_empty():
 		push_warning("[PDFBook] CBZ has no image entries: %s" % path)
+		_show_load_failure("Manual is empty")
 		return
 
 	_cbz_entries = entries
@@ -1206,6 +1213,71 @@ func _set_state(new_state: BookState) -> void:
 	_update_page_frames()
 	_layout_page_grabs()
 	_refresh_flop()
+
+
+## A book whose file will not open keeps every authored default in the scene:
+## navy covers, both page stacks hidden, and a collision box centred on the
+## SPINE — a whole page-width of it hanging in empty air beside the one quad you
+## can actually see, which is what a failed manual feels like in the hand.
+## _apply_dimensions() bails on `_page_count == 0` so nothing downstream ever
+## runs, and the only outward sign was a push_error nobody in a headset can
+## read. Say so, and be no bigger than what is drawn.
+## How many more goes a file that exists but will not open gets.
+const LOAD_RETRIES := 4
+
+var _retry_path := ""
+var _load_retries := 0
+
+
+## A manual still being WRITTEN opens as a truncated file and fails —
+## `scraped_manual_path()` only asks whether the file exists, and a scrape a
+## second from finishing looks exactly like one that finished. Nothing ever
+## looked again: `pdf_path` is already that path, so re-assigning it is a no-op
+## and the book stayed a navy slab for the rest of its life. Reproduced by
+## truncating a good PDF to 55% (`Tools/vr/manual_probe.gd --file=`).
+##
+## Only worth retrying while the file is THERE: a path that does not exist is
+## not going to finish arriving.
+func _fail_or_retry(path: String, reason: String) -> void:
+	if _retry_path != path:
+		_retry_path = path
+		_load_retries = 0
+	if _load_retries < LOAD_RETRIES and FileAccess.file_exists(path) and is_inside_tree():
+		_load_retries += 1
+		# Back off: a big manual takes longer to finish arriving than a small one.
+		get_tree().create_timer(float(_load_retries)).timeout.connect(func() -> void:
+			if is_inside_tree() and _page_count == 0 and pdf_path == path:
+				load_pdf(path))
+		_show_load_failure("Opening" + char(8230))
+		return
+	_show_load_failure(reason)
+
+
+func _show_load_failure(reason: String) -> void:
+	_fit_collision_to_cover()
+	net_set_download_status(reason)
+
+
+## Body and pointer boxes sized to the one mesh a failed book still shows.
+func _fit_collision_to_cover() -> void:
+	var col_shape := $CollisionShape3D as CollisionShape3D
+	if col_shape == null or not col_shape.shape is BoxShape3D:
+		return
+	# The .tscn sub-resource is SHARED by every book instance and a failed book
+	# never reached the duplicate in _configure_meshes(), so resizing it here
+	# would resize every other book in the room.
+	col_shape.shape = col_shape.shape.duplicate()
+	var quad: QuadMesh = _cover_mesh.mesh as QuadMesh if _cover_mesh else null
+	var w: float = quad.size.x if quad else 0.18
+	var h: float = quad.size.y if quad else 0.25
+	(col_shape.shape as BoxShape3D).size = Vector3(w, h, MIN_COLLISION_DEPTH)
+	col_shape.position = Vector3(_cover_mesh.position.x, _cover_mesh.position.y, 0.0)
+	var pointer_shape := $PointerArea/CollisionShape3D as CollisionShape3D
+	if pointer_shape and pointer_shape.shape is BoxShape3D:
+		pointer_shape.shape = pointer_shape.shape.duplicate()
+		var box := pointer_shape.shape as BoxShape3D
+		box.size = Vector3(w + POINTER_MARGIN * 2.0, h + POINTER_MARGIN * 2.0, box.size.z)
+		pointer_shape.position = col_shape.position
 
 
 ## Update the CollisionShape3D so the grab/highlight area matches the visible book.
@@ -2659,3 +2731,5 @@ func _cleanup() -> void:
 	if _grab_right != null:
 		_grab_right.set_enabled(false)
 		_grab_left.set_enabled(false)
+	# A previous failure's message must not outlive the book it was about.
+	net_set_download_status("")

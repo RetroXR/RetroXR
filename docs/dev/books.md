@@ -268,6 +268,45 @@ cable. At most two books are ever held. **Quest is not measured** — expect a s
 of these; run the bench on device before quoting a figure. The GPU side is a sin/cos pair
 per vertex over ~600 vertices (Quest grid) and is not visible to a script.
 
+### When a book cannot open it must not pretend
+
+Reported from a Quest, 2026-09-20: a spawned Ocarina of Time manual was "a purple/blackish
+cover, no pages, odd collision". All three are **one** thing — the book never loaded — and none
+of them is a texture problem, which is the trap. Read the symptoms this way:
+
+| what you see | what it means |
+|---|---|
+| **navy/purple cover** | the authored `Mat_cover` (`Color(0.15,0.15,0.4)`) in `pdf_book.tscn`. The paper shader is installed by `_configure_meshes()`, which only `_apply_dimensions()` calls, and that returns immediately on `_page_count == 0`. |
+| **cream cover** | the opposite case — the book DID load and `_loading_texture` is standing in until a render lands. |
+| **no pages at all** | both stacks are authored `visible = false`; only `_set_state()` shows them. A loaded CLOSED book always shows the right-hand block. |
+| **collision beside the cover** | the authored boxes are an open spread centred on the SPINE, and `_update_collision_shape()` is only reached from `_set_state()`. |
+
+So **cream = loading, navy = failed**, and a book with no page block never loaded. The
+`user://pdf_cache/<md5>/` directory is the other tell: `load_pdf` creates it the moment the
+file opens (`pdf_book.gd:440`), so if it is absent the load died before that line.
+
+Each of the five failure returns (three PDF, two CBZ) now calls `_show_load_failure()`, which
+fits the body and pointer boxes to the one mesh still drawn — the cover quad, `.duplicate()`d
+first because a failed book never reached the shared-sub-resource duplicate in
+`_configure_meshes()` and would otherwise resize every other book in the room — and puts the
+reason on the book with `net_set_download_status()`. **A `push_error` cannot be read from
+inside a headset**, and a silent slab is indistinguishable from one still loading.
+
+A manual is very often scraped moments before it is spawned, and a file still being WRITTEN
+opens as a truncated one — `scraped_manual_path()` only asks whether the file exists, and a
+scrape a second from finishing looks exactly like one that finished. That used to be permanent:
+`pdf_path` is assigned before the load is attempted (`pdf_book.gd:385`), so the setter's
+equality guard makes re-assigning the same path a no-op and nothing ever looked again.
+`_fail_or_retry()` now gives such a file `LOAD_RETRIES` (4) more goes, backing off a second at a
+time, showing "Opening…" while it does and the real reason once it gives up. Reproduce it by
+truncating a good PDF to 55 %: `Tools/vr/manual_probe.gd --file=<path>`.
+
+**The 2026-09-20 Ocarina of Time manual was NOT this**, though it looked identical. The file was
+whole and opened fine on desktop; the Quest's `godot-pdfium` binary was 18 days stale and still
+bound the method as `load`, so `open()` did not exist on that platform and every PDF manual had
+been failing since. That trap, and how to spot it, is in `extensions.md` — check the binary
+before you blame the file.
+
 ### What a page TURN costs, and why it used to hitch
 
 The flop above is the cheap part. The expensive thing a book does is produce page textures,

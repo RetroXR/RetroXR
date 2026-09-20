@@ -21,6 +21,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 config/icon="res://Textures/app_icon.png"
 run/main_scene.flycastprobe="res://Tools/cores/flycast_quest_probe.tscn"
 run/main_scene.pageturnprobe="res://Tools/perf/page_turn_probe.tscn"
+run/main_scene.manualprobe="res://Tools/vr/manual_probe.tscn"
 
 [audio]
 
