@@ -51,8 +51,15 @@ files missing, and a RomM firmware install lands where the core never looks.
 `xbox_tests` `system/` fails on a `/` in any of them. **Re-apply this when refreshing the
 overlay from the fork.**
 
-Runtime files, all in `system/xemu/`: `mcpx_1.0.bin` (512 bytes), a flash BIOS
-(`Complex_4627v1.03.bin`; mandatory), `xbox_hdd.qcow2` (mandatory, NOT generated — the stock
+Runtime files, all in `system/xemu/`: `mcpx_1.0.bin` (512 bytes), a flash BIOS — **either
+`Complex_4627v1.03.bin` or `Complex_4627.bin`**, two different Complex 4627 dumps (md5
+`21445c6f…` and `ec00e31e…`), each measured 2026-09-20 alone in the folder to boot Halo to
+its menu and an empty tray to the placeholder. Both are listed OPTIONAL in the `.info`,
+because `firmwareN_opt` cannot say "one of these"; what requires one is `BiosBoot`'s
+`boot_rom` group with `media_needs_boot_rom`, the same mechanism a regional PlayStation set
+uses. The core takes more names than these and any `.bin` of 256 KiB or 1 MiB, but the list
+stays at what has been BOOTED here: a retail 3944 stops at "Your Xbox requires service" and
+a retail 5838 draws nothing, `xbox_hdd.qcow2` (mandatory, NOT generated — the stock
 xemu image), `xbox_eeprom.bin` (optional, generated). The core also writes its shader caches
 there (`shaders_vk/`, `vk_pipeline_cache.bin`, `shaders/`, `shader_cache_list`): they are
 neither firmware nor saves.

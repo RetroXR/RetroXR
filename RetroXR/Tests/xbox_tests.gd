@@ -20,7 +20,7 @@ extends Node
 
 ## Cases in this file, NOT counting the guard below -- it is checked before it
 ## has recorded itself. Bump when adding.
-const EXPECTED_CASES := 167
+const EXPECTED_CASES := 175
 
 const TITLE := "4d530004"
 const OTHER_TITLE := "4d530051"
@@ -130,7 +130,7 @@ func _group_system() -> void:
 	# frontend with one shared system directory. Resolved here that would be
 	# system/xemu/xemu/, where the core never looks.
 	var firmware := FirmwareRequirements.for_core("xemu")
-	_eq(firmware.size(), 4, "system/four firmware files")
+	_eq(firmware.size(), 5, "system/five firmware rows: the boot ROM, two flash BIOSes, the disk, the EEPROM")
 	var nested := PackedStringArray()
 	var required := PackedStringArray()
 	for fw: Dictionary in firmware:
@@ -147,6 +147,43 @@ func _group_system() -> void:
 		"system/the disk is required and the EEPROM, which the core makes, is not",
 		", ".join(required))
 
+	# TWO flash BIOSes, EITHER of which will do. `firmwareN_opt` cannot say "one
+	# of these", so both are optional there and BiosBoot's boot_rom group is what
+	# holds them together — the same shape as a regional PlayStation set. Marking
+	# one required would refuse a console the core boots perfectly.
+	var listed := PackedStringArray()
+	for fw: Dictionary in firmware:
+		listed.append(str(fw["path"]))
+	_ok(listed.has("Complex_4627v1.03.bin") and listed.has("Complex_4627.bin"),
+		"system/both Complex 4627 dumps are offered", ", ".join(listed))
+	_ok(not required.has("Complex_4627v1.03.bin") and not required.has("Complex_4627.bin"),
+		"system/neither is required on its own", ", ".join(required))
+	var group: Array = BiosBoot.entry("xemu", "xbox").get("boot_rom", [])
+	_ok(group.has("Complex_4627v1.03.bin") and group.has("Complex_4627.bin"),
+		"system/and the any-of group is what says one is needed", str(group))
+	# Every name in the group must be a row the BIOS tab can show and a RomM
+	# firmware install can fill, or it could never be satisfied.
+	var unlisted := PackedStringArray()
+	for name: Variant in group:
+		if not listed.has(str(name)):
+			unlisted.append(str(name))
+	_ok(unlisted.is_empty(), "system/each of them a row the BIOS tab can fill", ", ".join(unlisted))
+
+	# With both optional, nothing in the .info would notice a console with NO
+	# BIOS: a disc would start into the core's own error. media_needs_boot_rom is
+	# what puts a card in front of it instead, naming the alternatives.
+	_ok(BiosBoot.media_needs_boot_rom("xemu", "xbox"),
+		"system/a disc will not start without one of them")
+	var want := BiosBoot.media_boot_rom_row("xemu", "xbox")
+	_eq((want.get("any_of", []) as Array).size(), group.size(),
+		"system/and the card it shows offers every one")
+	var bios_missing: Array[Dictionary] = [want]
+	var nothing_missing: Array[Dictionary] = []
+	_eq(str(RetroSystem._power_on_verdict("xemu", "xbox", "game.iso", bios_missing, "")["title"]),
+		"BIOS required", "system/so a disc with no BIOS says which file is missing")
+	_ok(bool(RetroSystem._power_on_verdict("xemu", "xbox", "game.iso", nothing_missing, "")["start"]),
+		"system/and with one installed it just starts")
+
 	_ok(XboxStorage.is_xbox_core("xemu"), "system/xemu is the core the one-at-a-time rule is about")
 	_ok(not XboxStorage.is_xbox_core("pcsx2"), "system/and no other")
 
@@ -162,7 +199,7 @@ func _group_system() -> void:
 	_eq(BiosBoot.empty_media_extension("xemu", "xbox"), "",
 		"empty/there being no such thing as a blank Xbox disc")
 	_ok((boot.get("boot_rom", []) as Array).has("Complex_4627v1.03.bin"),
-		"empty/and only once its flash BIOS is installed", str(boot.get("boot_rom", [])))
+		"empty/and only once a flash BIOS is installed", str(boot.get("boot_rom", [])))
 
 	# The verdict the power button reaches, called directly as its other cases
 	# are: it is a table of decisions and reads no disk.

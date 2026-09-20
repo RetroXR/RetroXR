@@ -192,6 +192,19 @@ const _ROWS := {
 	# `no_content`, not empty media: there is no blank disc to hand an Xbox, and
 	# the core declares SET_SUPPORT_NO_GAME.
 	#
+	# TWO flash BIOSes, and either will do -- an any-of group exactly like the
+	# PlayStation's regional set above, which is the thing the .info's own
+	# `firmwareN_opt` cannot say. Both are Complex 4627 dumps and they are
+	# different files (md5 21445c6f… and ec00e31e…); each was measured alone in
+	# the system folder on 2026-09-20 and boots Halo to its menu. The core takes
+	# more names than these, and any .bin of the right size, but a dump nobody
+	# here has BOOTED does not go in this list: a retail 3944 stops at "Your Xbox
+	# requires service" and a retail 5838 draws nothing.
+	#
+	# `media_needs_boot_rom`, because with both of them optional in the .info
+	# nothing else would notice a console with no BIOS at all -- a disc would
+	# start into the core's own error instead of a card naming what is missing.
+	#
 	# MEASURED 2026-09-20, the v1 release core, on the OpenGL renderer and the
 	# Vulkan one alike: 452 lit pixels of 307,200, in a band at x 25..280,
 	# y 25..31 -- and twice in one process, stopped and started again, which is
@@ -204,9 +217,10 @@ const _ROWS := {
 	# the strokes. A whole day went on that false reading. xbox_boot_probe counts
 	# every pixel now and prints the bounding box with it.
 	"xemu/xbox": {
-		"boot_rom": ["Complex_4627v1.03.bin"],
+		"boot_rom": ["Complex_4627v1.03.bin", "Complex_4627.bin"],
 		"empty_media": "",
 		"no_content": true,
+		"media_needs_boot_rom": true,
 		"why": "Boots the console's own dashboard with no disc in the tray",
 	},
 }
