@@ -562,6 +562,52 @@ static func find_music_album(name: String) -> String:
 	return result
 
 
+## True when `path` names one entry DIRECTLY inside `root` — the only shape a
+## library delete accepts. Everything the media scans list is a direct child of
+## its root (a file, an album folder, a VIDEO_TS disc folder), so a path that is
+## the root itself, climbs out of it with "..", or reaches into a subfolder is a
+## bug upstream and must never reach a recursive remove.
+static func is_library_entry(path: String, root: String) -> bool:
+	if path.is_empty() or root.is_empty():
+		return false
+	var entry := path.simplify_path()
+	return not entry.get_file().is_empty() \
+		and entry.get_base_dir() == root.simplify_path()
+
+
+## Delete one poster / video / DVD / album from its media root, for good. A
+## folder (an album, a VIDEO_TS disc) goes with everything in it — cover art and
+## cue sheets included, since nothing else would ever list them again. Returns
+## true when the entry is gone afterwards.
+static func delete_library_entry(path: String, root: String) -> bool:
+	if not is_library_entry(path, root):
+		push_warning("RomLibrary: refusing to delete '%s' — not an entry of '%s'" % [path, root])
+		return false
+	if DirAccess.dir_exists_absolute(path):
+		_remove_tree(path)
+		return not DirAccess.dir_exists_absolute(path)
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	return not FileAccess.file_exists(path)
+
+
+## A linked folder is unlinked, never walked: the music it points at lives
+## somewhere this library does not own.
+static func _remove_tree(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	if dir.is_link(path):
+		DirAccess.remove_absolute(path)
+		return
+	dir.include_hidden = true
+	for f: String in dir.get_files():
+		DirAccess.remove_absolute(path.path_join(f))
+	for d: String in dir.get_directories():
+		_remove_tree(path.path_join(d))
+	DirAccess.remove_absolute(path)
+
+
 ## Root directory for mod packs, beside roms/ and books/ in the same files root.
 ##
 ## On Android this is the EXTERNAL tree on purpose, so a mod can be `adb push`ed

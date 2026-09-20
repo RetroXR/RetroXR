@@ -36,6 +36,7 @@ func _ready() -> void:
 	_group_formats()
 	_group_fit()
 	await _group_hold()
+	await _group_delete()
 	_group_discs()
 	await _group_variants()
 
@@ -285,6 +286,122 @@ func _group_hold() -> void:
 	_ok(SpawnMenuSpawnView._has_spawn_options("n64")
 		and not SpawnMenuSpawnView._has_spawn_options("nes"),
 		"hold/only an N64 ROM row opens one")
+
+
+# ── delete/ — the trash can on a poster, video, DVD or album row ────────────
+
+const DELETE_ROOT := "user://__spawn_menu_delete_selftest"
+
+
+## The delete takes its root as an argument, so this whole group runs against a
+## scratch folder and never goes near the player's posters or music. The view has
+## no _ready and tolerates a null menu, so the REAL row builder and the REAL press
+## handler are what gets driven — only the toast goes nowhere.
+func _group_delete() -> void:
+	var root := ProjectSettings.globalize_path(DELETE_ROOT)
+	RomLibrary._remove_tree(root)
+	DirAccess.make_dir_recursive_absolute(root)
+
+	# What the scans hand over: a loose file, and a folder with things inside it
+	# that no scan lists (cover art, a nested VIDEO_TS).
+	var song := root.path_join("song.mp3")
+	var other := root.path_join("other.mp3")
+	var album := root.path_join("Album")
+	_touch(song)
+	_touch(other)
+	_touch(album.path_join("01.flac"))
+	_touch(album.path_join("cover.jpg"))
+	_touch(album.path_join("VIDEO_TS").path_join("VTS_01_1.VOB"))
+	# And a neighbour OUTSIDE the root, which nothing may ever reach.
+	var outside_dir := root + "_outside"
+	var outside := outside_dir.path_join("keep.mp3")
+	_touch(outside)
+
+	_ok(RomLibrary.is_library_entry(song, root), "delete/a file in the root is an entry")
+	_ok(RomLibrary.is_library_entry(album, root), "delete/so is an album folder")
+	_ok(not RomLibrary.is_library_entry(root, root), "delete/the root itself is not")
+	_ok(not RomLibrary.is_library_entry(root + "/", root), "delete/nor with a trailing slash")
+	_ok(not RomLibrary.is_library_entry(album.path_join("01.flac"), root),
+		"delete/nor is a track inside an album")
+	_ok(not RomLibrary.is_library_entry(root.path_join("../" + outside_dir.get_file() + "/keep.mp3"), root),
+		"delete/nor a path that climbs out with ..")
+	_ok(not RomLibrary.is_library_entry("", root) and not RomLibrary.is_library_entry(song, ""),
+		"delete/nor anything empty")
+
+	_ok(not RomLibrary.delete_library_entry(outside, root), "delete/a path outside the root is refused")
+	_ok(not RomLibrary.delete_library_entry(root, root), "delete/and so is the root")
+	_ok(FileAccess.file_exists(outside) and FileAccess.file_exists(song),
+		"delete/a refusal removes nothing")
+
+	# The real row, the real handler.
+	var view := SpawnMenuSpawnView.new()
+	add_child(view)
+	_spawned.append(view)
+	var vbox := VBoxContainer.new()
+	view.add_child(vbox)
+	var dels := {}
+	for path: String in [song, other, album]:
+		var spawn_btn := Button.new()
+		spawn_btn.custom_minimum_size = Vector2(0, 72)
+		view._add_media_row(vbox, spawn_btn, path, root)
+		dels[path] = spawn_btn.get_parent().get_node("Delete")
+	await get_tree().process_frame
+	var trash := String.chr(MenuIcons.DELETE_FOREVER)
+	var warn := String.chr(MenuIcons.ERROR)
+	_eq((dels[song] as Button).text, trash, "delete/a row starts as a trash can")
+
+	(dels[song] as Button).pressed.emit()
+	_ok(FileAccess.file_exists(song), "delete/one tap deletes nothing")
+	_eq((dels[song] as Button).text, warn, "delete/it arms, and says so")
+
+	(dels[other] as Button).pressed.emit()
+	_ok(FileAccess.file_exists(song) and FileAccess.file_exists(other),
+		"delete/a tap on a second row is that row's FIRST tap")
+	_eq([(dels[song] as Button).text, (dels[other] as Button).text], [trash, warn],
+		"delete/and stands the first row down")
+
+	(dels[song] as Button).pressed.emit()
+	_ok(FileAccess.file_exists(song), "delete/so the first row needs two taps again")
+	(dels[song] as Button).pressed.emit()
+	_ok(not FileAccess.file_exists(song), "delete/the second tap deletes the file")
+	_ok(FileAccess.file_exists(other), "delete/and only that file")
+
+	# A rebuild inside the arm window: the new button inherits the warning.
+	(dels[other] as Button).pressed.emit()
+	var rebuilt_spawn := Button.new()
+	view._add_media_row(vbox, rebuilt_spawn, other, root)
+	var rebuilt: Button = rebuilt_spawn.get_parent().get_node("Delete")
+	_eq(rebuilt.text, warn, "delete/a row rebuilt while armed is still armed")
+	view._disarm_media_delete()
+	_eq(rebuilt.text, trash, "delete/and it is the rebuilt button the timeout stands down")
+	rebuilt.pressed.emit()
+	_ok(FileAccess.file_exists(other), "delete/after the timeout a tap only arms again")
+
+	(dels[album] as Button).pressed.emit()
+	(dels[album] as Button).pressed.emit()
+	_ok(not DirAccess.dir_exists_absolute(album), "delete/an album folder goes with everything in it")
+	_ok(FileAccess.file_exists(outside), "delete/the folder next door is untouched")
+
+	# The poster thumbnail is memoized by path, misses included.
+	view._poster_thumb_cache[other] = null
+	view._poster_thumb_order.append(other)
+	rebuilt.pressed.emit()
+	rebuilt.pressed.emit()
+	_ok(not FileAccess.file_exists(other), "delete/(the poster stand-in was deleted)")
+	_ok(not view._poster_thumb_cache.has(other) and not view._poster_thumb_order.has(other),
+		"delete/a deleted poster leaves the thumbnail cache")
+
+	RomLibrary._remove_tree(root)
+	RomLibrary._remove_tree(outside_dir)
+	_ok(not DirAccess.dir_exists_absolute(root) and not DirAccess.dir_exists_absolute(outside_dir),
+		"delete/the scratch folders are gone afterwards")
+
+
+func _touch(path: String) -> void:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string("x")
+	f.close()
 
 
 # ── discs/ — which disc a file is, and the glyph that says so ─────────────────

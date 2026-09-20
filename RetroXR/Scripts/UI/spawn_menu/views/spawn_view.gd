@@ -122,6 +122,13 @@ var _romm_dl_row_index: int = -1
 var _romm_meta_cache: Dictionary = {}
 ## Row index whose delete button is armed for its second confirming tap.
 var _romm_delete_armed: int = -1
+## Path of the poster / video / DVD / album whose delete button is armed. A path,
+## not a row index: these tabs are rebuilt from a fresh scan, and the three music
+## tabs list the same albums.
+var _media_delete_armed: String = ""
+var _media_delete_armed_btn: Button = null
+## Bumped on every arm and every commit, so a stale 3 s timer can tell it is stale.
+var _media_delete_serial: int = 0
 ## Typing is bursty; one rebuild after the keys stop instead of one per key.
 var _romm_search_timer: Timer = null
 ## Poster thumbnails, memoized with misses — most entries have no thumbnail.
@@ -1927,7 +1934,7 @@ func _populate_videos_tab() -> void:
 		btn.custom_minimum_size = Vector2(0, 72)
 		btn.add_theme_font_size_override("font_size", 24)
 		btn.pressed.connect(spawn_video_requested.emit.bind(video["path"]))
-		_videos_vbox.add_child(btn)
+		_add_media_row(_videos_vbox, btn, video["path"], RomLibrary.default_videos_root())
 	_videos_vbox.add_child(MenuStyle.spacer(8))
 
 
@@ -1949,7 +1956,7 @@ func _populate_dvds_tab() -> void:
 		btn.custom_minimum_size = Vector2(0, 72)
 		btn.add_theme_font_size_override("font_size", 24)
 		btn.pressed.connect(spawn_dvd_requested.emit.bind(dvd["path"]))
-		_dvds_vbox.add_child(btn)
+		_add_media_row(_dvds_vbox, btn, dvd["path"], RomLibrary.default_dvd_root())
 	_dvds_vbox.add_child(MenuStyle.spacer(8))
 
 
@@ -1985,8 +1992,104 @@ func _populate_music_vbox(vbox: VBoxContainer, icon: String, sig: Signal) -> voi
 		btn.custom_minimum_size = Vector2(0, 72)
 		btn.add_theme_font_size_override("font_size", 24)
 		btn.pressed.connect(sig.emit.bind(album["path"]))
-		vbox.add_child(btn)
+		_add_media_row(vbox, btn, album["path"], RomLibrary.default_music_root())
 	vbox.add_child(MenuStyle.spacer(8))
+
+
+## One library row: the delete button leading, where a ROM row keeps its own, then
+## the spawn button taking the rest of the width.
+func _add_media_row(vbox: VBoxContainer, spawn_btn: Button, path: String, root: String) -> void:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var del := Button.new()
+	del.name = "Delete"
+	del.custom_minimum_size = Vector2(76, spawn_btn.custom_minimum_size.y)
+	del.add_theme_font_override("font", MenuIcons.symbols())
+	del.add_theme_font_size_override("font_size", 40)
+	del.add_theme_color_override("font_color", MenuIcons.TINT_DELETE)
+	# A rebuild inside the arm window (the CDs tab, armed, then over to Records)
+	# must not quietly hand back an innocent-looking trash can — and the new
+	# button is the one the timer has to stand down.
+	del.text = String.chr(MenuIcons.DELETE_FOREVER)
+	if _media_delete_armed == path:
+		del.text = String.chr(MenuIcons.ERROR)
+		_media_delete_armed_btn = del
+	del.tooltip_text = "Delete permanently"
+	del.pressed.connect(_on_media_delete_pressed.bind(path, root, del))
+	row.add_child(del)
+
+	spawn_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	spawn_btn.clip_text = true
+	row.add_child(spawn_btn)
+	vbox.add_child(row)
+
+
+## Same two-stage confirm as _on_rom_delete_pressed. Nothing here can be fetched
+## again — there is no server copy of a poster or an album — so it is always the
+## "permanently" wording and always the DELETE_FOREVER glyph.
+##
+## Objects already in the room are left alone, as a deleted ROM leaves its
+## cartridge: a poster keeps the texture it has loaded, and a tape whose file is
+## gone simply will not play. The StorageBox is the verb for removing those.
+func _on_media_delete_pressed(path: String, root: String, del: Button) -> void:
+	if path.is_empty():
+		return
+
+	if _media_delete_armed != path:
+		# Arming a second row stands the first one down at once, so there is never
+		# more than one warning glyph on screen claiming to be one tap from gone.
+		if is_instance_valid(_media_delete_armed_btn):
+			_media_delete_armed_btn.text = String.chr(MenuIcons.DELETE_FOREVER)
+		_media_delete_armed = path
+		_media_delete_armed_btn = del
+		_media_delete_serial += 1
+		var serial := _media_delete_serial
+		del.text = String.chr(MenuIcons.ERROR)
+		show_notice("Tap again to delete permanently", 3.0)
+		# The serial, not the path: A armed, B armed, A armed again must not have
+		# A's FIRST timer cut its second arm short.
+		get_tree().create_timer(3.0).timeout.connect(func() -> void:
+			if _media_delete_serial == serial:
+				_disarm_media_delete()
+		)
+		return
+
+	_media_delete_armed = ""
+	_media_delete_armed_btn = null
+	_media_delete_serial += 1
+	var fname := path.get_file()
+	if RomLibrary.delete_library_entry(path, root):
+		show_notice("Deleted %s" % fname, 2.5)
+	else:
+		# A file the player has open elsewhere, or a read-only folder on the card.
+		show_notice("Could not delete %s" % fname, 3.0)
+
+	if _poster_thumb_cache.erase(path):
+		_poster_thumb_order.erase(path)
+	_refresh_media_tabs(root)
+
+
+func _disarm_media_delete() -> void:
+	if is_instance_valid(_media_delete_armed_btn):
+		_media_delete_armed_btn.text = String.chr(MenuIcons.DELETE_FOREVER)
+	_media_delete_armed = ""
+	_media_delete_armed_btn = null
+
+
+## Rebuild whichever tabs list `root`. Music is three tabs over one folder, so an
+## album deleted from CDs has to leave Tapes and Records too.
+func _refresh_media_tabs(root: String) -> void:
+	if root == RomLibrary.default_videos_root():
+		_populate_videos_tab()
+	elif root == RomLibrary.default_dvd_root():
+		_populate_dvds_tab()
+	elif root == RomLibrary.default_posters_root():
+		_populate_posters_tab()
+	elif root == RomLibrary.default_music_root():
+		_populate_cds_tab()
+		_populate_tapes_tab()
+		_populate_records_tab()
 
 
 ## Returns the vbox, so a tab whose contents change at runtime can keep hold of
@@ -3408,7 +3511,7 @@ func _populate_posters_tab() -> void:
 		else:
 			btn.text = "  🖼  " + str(poster["label"])
 		btn.pressed.connect(spawn_poster_requested.emit.bind(poster["path"]))
-		_posters_vbox.add_child(btn)
+		_add_media_row(_posters_vbox, btn, poster["path"], RomLibrary.default_posters_root())
 	_posters_vbox.add_child(MenuStyle.spacer(8))
 
 
