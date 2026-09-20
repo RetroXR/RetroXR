@@ -130,6 +130,20 @@ signal topology_changed
 ## not hold, leaves the scene's own. Read once, in _ready, and saved with the lead.
 @export var plug_color_id: StringName = &""
 
+## A length the player asked for at spawn, in metres. Zero leaves the scene's own.
+## Read once, in _ready, before the rope is built, and saved with the lead.
+@export var cord_length: float = 0.0
+
+## The lengths the spawn menu offers, in menu order: metres, then the name on the
+## button. Zero is the scene's own, which is what a lead left alone keeps.
+const SPAWN_LENGTHS := [
+	[0.0, "Default"],
+	[1.5, "1.5 m"],
+	[3.0, "3 m"],
+	[4.5, "4.5 m"],
+	[6.0, "6 m"],
+]
+
 ## The jacket every cord wears. Deliberately NOT cord_colors: a real composite
 ## lead is black sheath with colour-coded CONNECTORS, and the connector is what a
 ## player matches to a socket. Both used to be drawn from cord_colors, which made
@@ -199,6 +213,7 @@ func _ready() -> void:
 			# The Multi Out shell is grey on the real lead and stays grey here.
 			if not _shared[e]:
 				_tint_plug(plug, _cord_color(c))
+	_apply_cord_length()
 	# Deferred, NOT called straight through. VerletRope is top_level and its
 	# particles are world-space, so _init_points bakes them around wherever the
 	# plugs stand at the time. _ready runs inside add_child, and the spawn menu
@@ -272,6 +287,75 @@ func _tint_plug(plug: RcaPlug, col: Color) -> void:
 	# parameter on one shared material, not a copy of it. Same rule as
 	# RcaJack._apply_color and CablePlug._apply_plug_color.
 	tip.set_instance_shader_parameter(&"tint", col)
+
+
+## The middle of one end's connectors, in the lead's own space. Zero for a CAPTIVE
+## end, which is where its cord leaves the body anyway.
+func _end_centre(e: int) -> Vector3:
+	var plugs := _end_plugs(e)
+	if plugs.is_empty():
+		return Vector3.ZERO
+	var sum := Vector3.ZERO
+	for plug: RcaPlug in plugs:
+		sum += plug.position
+	return sum / float(plugs.size())
+
+
+## Cut the lead to cord_length, and move its ends apart to match.
+##
+## The resize is retro_controller.gd::_resize_cable's: the count comes from the
+## authored segment length, then the segment length is nudged so the chain is
+## exactly as long as was asked for -- more cord of the same gauge rather than the
+## same cord stretched.
+##
+## **The count may never RISE above the one the scene authored.** VerletRope's
+## segment_count is a plain setter: it resizes no array, while every trunk loop in
+## the solver takes its bound from TrunkCount() == segment_count + 1. The arrays
+## are laid out once, by the _ready that ran before this, and _build_rope only
+## re-lays them a frame later -- so a count raised here is one physics tick of
+## writes off the end of m_points, which corrupts the heap and kills the process
+## seconds later with no error at all. Measured on the speaker lead: 110 settles,
+## 120 dies, with self_collision and surface_collision_mask both off. 110 is not a
+## limit of the rope, it is that lead's 100 trunk + 5 + 5 fray particles.
+##
+## So a lead asked for more length than its authored segments cover LENGTHENS the
+## segments it already has rather than buying more. A coarser chain, which the
+## smoothed tube hides, and the alternative is a crash.
+##
+## The ends have to travel with it. A scene authors its plugs at the span its rope
+## rests at -- the speaker lead is 100 x 30 mm between plugs 3 m apart -- so adding
+## cord without moving them spawns the extra as a heap on the floor between two
+## ends that never moved. Only the separation ALONG the lead is scaled: the lateral
+## spread of a multi-cord lead's connectors belongs to its breakout, not to its
+## length.
+##
+## Called from _ready, so it lands before the deferred _build_rope lays the
+## particles out.
+func _apply_cord_length() -> void:
+	if _rope == null or cord_length <= 0.0:
+		return
+	var seg: float = _rope.segment_length
+	var authored: int = _rope.segment_count
+	var rest: float = float(authored) * seg
+	if seg <= 0.0 or rest <= 0.0:
+		return
+	# Never above `authored`: that is what the arrays were laid out for. See above.
+	var count: int = clampi(int(round(cord_length / seg)), 2, authored)
+	_rope.segment_count = count
+	_rope.segment_length = cord_length / float(count)
+	var a := _end_centre(End.A)
+	var b := _end_centre(End.B)
+	var span := b - a
+	if span.length() < 0.001:
+		return          # both ends on one spot: there is no axis to spread along
+	var axis := span.normalized()
+	var mid := (a + b) * 0.5
+	var k := cord_length / rest
+	for e in [End.A, End.B]:
+		for plug: RcaPlug in _end_plugs(e):
+			var off := plug.position - mid
+			var along: float = off.dot(axis)
+			plug.position = mid + axis * (along * k) + (off - axis * along)
 
 
 ## Wire the ribbon to its six plugs. Both ends fray into one group per cord, so

@@ -88,6 +88,7 @@ func _run() -> void:
 		["save/both cabinets and the lead are registered", _s_registered],
 		["save/a cabinet round-trips through a save entry", _s_round_trip],
 		["save/a lead keeps the plug colour it was spawned in", _s_plug_color],
+		["save/a lead keeps the length it was spawned at", _s_cord_length],
 		["held/the targets name the speakers the positions came from", _h_targets],
 		["held/the ring stands round the head facing the picture", _h_ring],
 		["held/a fold keeps its fold round the head", _h_ring_fold],
@@ -886,6 +887,62 @@ func _s_plug_color() -> void:
 	await _wait(4)
 	_check_eq((odd.get_node("PlugA0/PlugTip") as MeshInstance3D) 		.get_instance_shader_parameter(&"tint"), RcaJack.AUDIO_GREY,
 		"a colour the table does not hold leaves the scene's own")
+
+
+## The same sub-menu cuts a lead to a length. 6 m is the fixture because the
+## scene's own is 3: a lead that ignored cord_length measures 3.
+##
+## The layout is read before the first physics step, while the ends still stand
+## where _ready put them -- the plugs are live bodies and gravity has them from
+## the next frame on.
+func _s_cord_length() -> void:
+	var lead := SPEAKER_CABLE.instantiate() as CompositeCable
+	lead.cord_length = 6.0
+	add_child(_hold(lead))
+	var rope := lead.get_node("VerletRope") as VerletRope
+	var rest: float = float(rope.segment_count) * rope.segment_length
+	_ok(absf(rest - 6.0) < 0.001, "the rope rests at the length asked for (%.3f m)" % rest)
+	# 100 is what the scene authored, and raising a rope's count past what its
+	# arrays were laid out for walks off the end of m_points -- see surround.md.
+	_check_eq(rope.segment_count, 100, "without ever rising above the authored count")
+	var end_a := lead.get_node("PlugA0") as Node3D
+	var end_b := lead.get_node("PlugB0") as Node3D
+	var span: float = end_a.position.distance_to(end_b.position)
+	_ok(absf(span - 6.0) < 0.001, "and its ends are laid out that far apart (%.3f m)" % span)
+	await _wait(4)
+
+	# Under the cap a lead buys segments instead, at the gauge the scene authored.
+	var short_lead := SPEAKER_CABLE.instantiate() as CompositeCable
+	short_lead.cord_length = 1.5
+	add_child(_hold(short_lead))
+	var short_rope := short_lead.get_node("VerletRope") as VerletRope
+	_check_eq(short_rope.segment_count, 50, "a 1.5 m lead is 50 segments, not 100 stretched")
+	_ok(absf(short_rope.segment_length - 0.03) < 0.0001,
+		"so its cord keeps the 30 mm gauge the scene authored")
+	await _wait(4)
+
+	var persistence := ScenePersistence.new()
+	var entry: Dictionary = persistence._serialize_node(lead, 1, {})
+	_ok(absf(float(entry.get("cord_length", 0.0)) - 6.0) < 0.001, "the save entry records it")
+	_check_eq(ScenePersistence._entry_validation_error(entry, {}), "", "and validates")
+	var back := persistence._deserialize_object(entry) as CompositeCable
+	_ok(back != null and absf(back.cord_length - 6.0) < 0.001,
+		"and it is read back before the lead enters the tree")
+	if back != null:
+		add_child(_hold(back))
+		var back_rope := back.get_node("VerletRope") as VerletRope
+		_ok(absf(float(back_rope.segment_count) * back_rope.segment_length - 6.0) < 0.001,
+			"a restored lead is cut to it again")
+		await _wait(4)
+
+	var plain := SPEAKER_CABLE.instantiate() as CompositeCable
+	add_child(_hold(plain))
+	var plain_rope := plain.get_node("VerletRope") as VerletRope
+	var plain_rest: float = float(plain_rope.segment_count) * plain_rope.segment_length
+	_ok(absf(plain_rest - 3.0) < 0.001, "a lead left alone keeps the scene's own 3 m")
+	await _wait(4)
+	var plain_entry: Dictionary = persistence._serialize_node(plain, 2, {})
+	_ok(not plain_entry.has("cord_length"), "and writes no length")
 
 
 func _s_round_trip() -> void:

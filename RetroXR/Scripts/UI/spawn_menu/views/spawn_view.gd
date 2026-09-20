@@ -2004,10 +2004,10 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 		btn.custom_minimum_size = Vector2(0, 80)
 		btn.add_theme_font_size_override("font_size", 26)
 		if item[1] == "speaker_cable":
-			# Held for a second: choose the colour of its plugs.
+			# Held for a second: choose its length and the colour of its plugs.
 			var hold := HoldPress.attach(btn)
 			hold.clicked.connect(spawn_requested.emit.bind(item[1]))
-			hold.held.connect(_show_plug_color_options.bind(item[0], item[1]))
+			hold.held.connect(_show_lead_spawn_options.bind(item[0], item[1]))
 		else:
 			btn.pressed.connect(spawn_requested.emit.bind(item[1]))
 		vbox.add_child(btn)
@@ -3005,10 +3005,30 @@ func _show_n64_spawn_options(label: String, spawn: Callable) -> void:
 	vbox.add_child(go)
 
 
-## Plug colour for a lead. One choice, so a tap on a colour spawns it.
-func _show_plug_color_options(label: String, token: String) -> void:
+## How long a lead is and what colour its plugs are. Two choices, so they are
+## picked and then SPAWN is pressed -- the same shape as the cartridge panel above,
+## and the reason this one no longer spawns on the first tap.
+func _show_lead_spawn_options(label: String, token: String) -> void:
 	var vbox := _open_spawn_options_panel(label)
+	var chosen := {"color": "", "length": 0.0}
+	var auto_color := Color(0.18, 0.18, 0.35)
+
+	vbox.add_child(MenuStyle.header("Length"))
+	var lengths := MenuStyle.hbox(10)
+	vbox.add_child(lengths)
+	var length_group := ButtonGroup.new()
+	for row: Array in CompositeCable.SPAWN_LENGTHS:
+		var length_btn := _swatch_button(row[1], auto_color, length_group)
+		length_btn.button_pressed = row[0] == 0.0
+		length_btn.pressed.connect(func() -> void: chosen["length"] = row[0])
+		lengths.add_child(length_btn)
+
 	vbox.add_child(MenuStyle.header("Plug colour"))
+	var color_group := ButtonGroup.new()
+	var auto_btn := _swatch_button("Default", auto_color, color_group)
+	auto_btn.button_pressed = true
+	auto_btn.pressed.connect(func() -> void: chosen["color"] = "")
+	vbox.add_child(auto_btn)
 	var grid := GridContainer.new()
 	grid.columns = 4
 	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -3016,11 +3036,22 @@ func _show_plug_color_options(label: String, token: String) -> void:
 	grid.add_theme_constant_override("v_separation", 10)
 	vbox.add_child(grid)
 	for id: StringName in RcaJack.PLUG_COLORS:
-		var swatch := _swatch_button(RcaJack.PLUG_COLORS[id][0], RcaJack.PLUG_COLORS[id][1])
-		swatch.pressed.connect(func() -> void:
-			_close_spawn_options_panel()
-			spawn_requested.emit("%s:%s" % [token, id]))
+		var swatch := _swatch_button(RcaJack.PLUG_COLORS[id][0], RcaJack.PLUG_COLORS[id][1],
+			color_group)
+		swatch.pressed.connect(func() -> void: chosen["color"] = String(id))
 		grid.add_child(swatch)
+
+	vbox.add_child(MenuStyle.spacer(6))
+	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
+	go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
+	go.pressed.connect(func() -> void:
+		# An empty field is "the lead's own" at the other end, so a default choice
+		# sends nothing rather than a value that happens to match the scene.
+		var metres: float = chosen["length"]
+		_close_spawn_options_panel()
+		spawn_requested.emit("%s:%s:%s" % [token, chosen["color"],
+			"" if metres <= 0.0 else str(metres)]))
+	vbox.add_child(go)
 
 
 ## A game's saves and achievements, without going and finding the cartridge.

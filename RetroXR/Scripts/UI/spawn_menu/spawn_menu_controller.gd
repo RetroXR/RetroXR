@@ -1085,13 +1085,18 @@ func _on_spawn_requested(type: String) -> void:
 		_place_spawned(unit, type)
 		return
 
-	# "speaker_cable:<color>" — a lead whose plugs the hold sub-menu asked for in
-	# a colour, a key of RcaJack.PLUG_COLORS. Set before the lead enters the tree,
-	# which is when it tints its plugs.
+	# "speaker_cable:<color>:<length>" — what the hold sub-menu asked a lead to be:
+	# a key of RcaJack.PLUG_COLORS for its plugs, and a length in metres. Either
+	# field may be empty for "the scene's own", and a token carrying no length at
+	# all is the one the menu sent before lengths were offered. Both are set before
+	# the lead enters the tree, which is when it tints its plugs and cuts its cord.
 	if type.begins_with("speaker_cable:"):
 		var lead := ScenePersistence.instantiate("speaker_cable") as CompositeCable
 		if lead != null:
-			lead.plug_color_id = StringName(type.substr("speaker_cable:".length()))
+			var asked := type.substr("speaker_cable:".length()).split(":")
+			lead.plug_color_id = StringName(asked[0])
+			if asked.size() > 1:
+				lead.cord_length = asked[1].to_float()
 			_place_spawned(lead, "speaker_cable")
 		return
 

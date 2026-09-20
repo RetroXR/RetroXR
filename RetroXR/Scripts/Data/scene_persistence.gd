@@ -47,6 +47,9 @@ const _NUMBER_FIELDS := [
 	"page_leaf", "sensitivity", "stick_distance", "device_type", "port_index",
 	"volume", "cords",
 	"pad_ordinal", "fit_mode", "roll",
+	# The length a player forced on a lead at spawn, in metres. Absent means the
+	# scene's own -- see CompositeCable.cord_length.
+	"cord_length",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
 	"locked", "hardback"]
@@ -2176,6 +2179,8 @@ func _serialize_cable(cable: CompositeCable, id: int, n3d: Node3D,
 			extra["body"] = body_pose
 	if not cable.plug_color_id.is_empty():
 		extra["plug_color"] = String(cable.plug_color_id)
+	if cable.cord_length > 0.0:
+		extra["cord_length"] = cable.cord_length
 	return _base(id, "composite_cable", n3d).merged(extra).merged({
 		# 2 = the mono lead, 3 = the full one. Both are CompositeCable; only
 		# the scene differs, so the count is what picks it back up.
@@ -2453,6 +2458,7 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				obj = lead.instantiate() as Node3D
 				if obj is CompositeCable:
 					(obj as CompositeCable).plug_color_id = StringName(str(data.get("plug_color", "")))
+					(obj as CompositeCable).cord_length = float(data.get("cord_length", 0.0))
 			"audio_disc":
 				var adisc := AUDIO_DISC_SCENE.instantiate() as AudioDisc
 				adisc.album_path = data.get("album_path", "")

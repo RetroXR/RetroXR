@@ -224,16 +224,66 @@ plates the legend actually built — it went red on all three composite seams at
 **Measure a printed width; never read one off a comment.** The divider stays gone: it
 added nothing the plates' own borders do not already say.
 
-**A speaker cable's plugs can be spawned in a colour.** The lead is neutral grey
-because its channel belongs to the socket, not to it -- but six grey plugs behind a
-set are hard to tell apart, so holding the Speaker Cable row for a second
-(`HoldPress`, §2q) offers `RcaJack.PLUG_COLORS`. The menu sends
-`speaker_cable:<id>`, the controller sets `CompositeCable.plug_color_id` before the
-lead enters the tree, and `_cord_color` answers with it for every cord. Plugs only:
-the jacket stays `wire_color`. The id is saved as `plug_color`, absent for a lead
-left alone, and an id the table does not hold leaves the scene's grey. It changes
-nothing about routing. `speaker_tests` `save/a lead keeps the plug colour it was
-spawned in`.
+**A speaker cable's plugs can be spawned in a colour, and its cord cut to a
+length.** The lead is neutral grey because its channel belongs to the socket, not
+to it -- but six grey plugs behind a set are hard to tell apart, so holding the
+Speaker Cable row for a second (`HoldPress`, §2q) offers `RcaJack.PLUG_COLORS` and
+`CompositeCable.SPAWN_LENGTHS`. TWO choices now, so the panel picks and then SPAWNs
+rather than spawning on the first tap -- the shape the cartridge panel already had,
+and the reason the old one-tap-on-a-colour is gone. The menu sends
+`speaker_cable:<id>:<metres>`, either field empty for the scene's own and a token
+carrying no length at all being what it sent before lengths were offered. The
+controller sets `CompositeCable.plug_color_id` and `cord_length` before the lead
+enters the tree, and `_cord_color` answers with the colour for every cord. Plugs
+only: the jacket stays `wire_color`. The id is saved as `plug_color`, absent for a
+lead left alone, and an id the table does not hold leaves the scene's grey. Neither
+changes anything about routing. `speaker_tests` `save/a lead keeps the plug colour
+it was spawned in`.
+
+**Raising a rope's `segment_count` past what its arrays were laid out for CORRUPTS
+THE HEAP, so a lead past 3 m lengthens its segments rather than buying more.** The
+first cut of this feature did the obvious thing -- keep the 30 mm gauge, ask for 200
+segments at 6 m -- and took the whole app down every time: a silent process death a
+few seconds in, no Godot error, nothing in the log.
+
+It is **not** a capacity limit in the extension. `VerletRope::SetSegmentCount` is a
+plain `XENU_ROPE_PROP` setter (`VerletRope.hpp:134`) that resizes nothing, while every
+trunk loop in the solver takes its bound from `TrunkCount() == m_segment_count + 1`
+(`VerletRope.hpp:306`, used raw at `VerletRopeSim.cpp:737`). `m_points` and friends are
+sized once, by `InitPoints()`. `CompositeCable` raises the count in `_ready` and
+`_build_rope` re-lays only on the DEFERRED call a frame later, so one physics tick of
+`SolveConstraints` runs against the old array and writes off the end of it.
+`VerletRopeRender.cpp` has the same latent bug for `tube_sides` and `smoothing`.
+
+That is why the threshold looked like "about 110": the speaker lead allocates
+**100 trunk + 5 + 5 fray = 111** particles, so `segment_count = 110` is the last index
+in bounds and 120 writes 10 `Vector3` past the block. It is not a constant, and a cap
+of 100 would be **wrong for a shorter lead** -- every one-cord scene shares this
+script. `_apply_cord_length` therefore clamps to the count the SCENE AUTHORED, read off
+`_rope.segment_count` before it touches it. Under that a lead buys segments at the
+authored gauge (1.5 m is 50 x 30 mm); at or over it the count pins and the segment
+length grows instead (6 m is 100 x 60 mm).
+
+**The proper fix is in the extension** and is not done: make `SetSegmentCount` re-lay
+when the arrays already exist, or bound `TrunkCount()` by what the last `InitPoints`
+allocated. Until then, treat "never raise a live rope's `segment_count`" as the rule --
+`retro_controller.gd::_resize_cable` gets away with it only because it calls
+`_init_points()` synchronously on the next line.
+
+**A lead is cut in `_ready`, and its ENDS travel with it.** `_apply_cord_length` runs
+before the deferred `_build_rope` lays the particles out, and resizes the way
+`retro_controller.gd::_resize_cable` does: a count from the authored segment length,
+then the segment length nudged so the chain measures exactly what was asked for. The
+ends then have to move, because a scene authors its plugs at the span its rope rests
+at -- the speaker lead's are 3 m apart -- so adding cord without moving them spawns
+the extra as a heap between two ends that never moved. Only the separation ALONG the
+lead is scaled; the lateral spread of a multi-cord lead's connectors belongs to its
+breakout, not to its length. Saved as `cord_length`, absent for a lead left alone.
+`speaker_tests` `save/a lead keeps the length it was spawned at` covers both regimes
+and reads the layout BEFORE the first physics step, while the ends still stand where
+`_ready` put them. A photograph of 1.5 / 3 / 6 m settled on a floor is the proof that
+a cut lead spawns laid out; the cord is a 2.2 mm tube, so a probe has to fatten it to
+photograph it at all.
 
 **Binning a lead re-seated its plugs.** `CompositeCable.drop_and_free` releases every plug
 IN PLACE, still standing in the panel, and every empty socket whose grab sphere the plug

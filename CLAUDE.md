@@ -154,6 +154,11 @@ PowerShell buffers output until exit.
   print `node.transform.basis.x/.y/.z` from a probe first.
 - `FileAccess.file_exists("res://….tscn")` is false in exported builds — use
   `ResourceLoader.exists()`.
+- **Never raise a live `VerletRope`'s `segment_count` (or `tube_sides`/`smoothing`) without
+  re-laying it.** The setter resizes nothing while the solver bounds its loops by
+  `segment_count + 1`, so the next tick writes off the end of `m_points` — heap corruption,
+  then a silent death seconds later with nothing logged. `_init_points()` must follow in the
+  SAME frame; a `call_deferred` re-lay is already too late. Unfixed in the extension (§2r).
 - A cord leaves a body along its anchor's local **-Z**; assert the exit direction by SIGN.
 - No two same-facing coplanar faces on a generated mesh (z-fights); measure printed widths,
   never trust one from a comment.
