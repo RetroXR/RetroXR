@@ -54,6 +54,20 @@ const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.
 ## alone would take a cable end.
 const SLOT_GROUP := &"dc_slot_device"
 
+## The Xbox's Memory Unit, which goes in the SAME two sockets rather than a pair
+## of its own. Not a shortcut: the pad is the primitive box on both consoles,
+## and the top edge is where a Dreamcast pad and an Xbox pad both carry their
+## two — so a second pair would be two sockets in one place. A separate group,
+## because which console's things a pad takes depends on the pad (see _accepts):
+## a pad MADE for a Dreamcast has no business seating an Xbox's unit.
+##
+## Everything else about a slot is asked of whatever is seated, by method, so a
+## Memory Unit needs no more than this: it answers slot_option_value() with
+## "None", which is what a Dreamcast should be told about it, and the Xbox finds
+## it through get_device() like anything else (XboxStorage).
+const XBOX_SLOT_GROUP := &"xbox_slot_device"
+const XBOX_SYSTEMID := "xbox"
+
 ## The console whose pads have these. A pad made for some other console, with a
 ## shell and a systemid of its own, has none.
 const HOST_SYSTEMID := "dreamcast"
@@ -127,7 +141,7 @@ static func hosts_slots(owner: Node) -> bool:
 	if not authored_seats(owner).is_empty():
 		return true
 	var sid := str(owner.get("systemid")) if "systemid" in owner else ""
-	return sid.is_empty() or sid == HOST_SYSTEMID
+	return sid.is_empty() or sid == HOST_SYSTEMID or sid == XBOX_SYSTEMID
 
 
 ## The seats a host's SCENE authors, as "VmuSeat1", "VmuSeat2", ... taken in
@@ -183,8 +197,18 @@ func _build() -> void:
 
 ## The systemid sentinel is what narrows a socket that would otherwise take any
 ## cable plug in the room to this one object.
+##
+## A pad made for one console takes that console's devices. The primitive pad
+## and the dongle stand in for every console's, and take either.
 func _accepts(obj: Node3D) -> bool:
-	return obj != null and obj.is_in_group(SLOT_GROUP)
+	if obj == null:
+		return false
+	var sid := str(_owner.get("systemid")) if is_instance_valid(_owner) and "systemid" in _owner else ""
+	if obj.is_in_group(SLOT_GROUP):
+		return sid != XBOX_SYSTEMID
+	if obj.is_in_group(XBOX_SLOT_GROUP):
+		return sid != HOST_SYSTEMID
+	return false
 
 
 func _on_seated(obj: Node3D, slot: int) -> void:

@@ -8,7 +8,7 @@
     "bay_tests": 106,
     "binding_tests": 186,
     "bsx_pack_tests": 34,
-    "card_tests": 128,
+    "card_tests": 615,
     "cores_data_tests": 42,
     "deck_tests": 89,
     "ereader_tests": 203,
@@ -28,16 +28,17 @@
     "poster_tests": 112,
     "ra_tests": 29,
     "rom_compat_tests": 27,
-    "romm_tests": 336,
+    "romm_tests": 403,
     "rope_tests": 82,
     "scene_tests": 153,
     "screen_cast_light_tests": 11,
     "spawn_menu_tests": 24,
     "state_tests": 100,
-    "system_tests": 426,
+    "system_tests": 567,
     "systems_data_tests": 42,
     "time_of_day_tests": 108,
     "tv_resize_tests": 53,
-    "web_server_tests": 70
+    "web_server_tests": 70,
+    "xbox_tests": 161
   }
 }

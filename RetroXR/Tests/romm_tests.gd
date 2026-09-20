@@ -75,6 +75,7 @@ func _ready() -> void:
 	_test_state_schema()
 	await _test_state_upload_body()
 	await _test_save_upload_still_works()
+	await _test_xbox_archive_upload()
 	await _test_state_overwrite_and_delete()
 	_test_state_server_only()
 	_test_state_restore()
@@ -195,6 +196,15 @@ func _test_systemid_for() -> void:
 		"neogeocd", "slug/the hyphenated RomM form too")
 	_eq(RommPlatforms.systemid_for({"slug": "neogeo", "fs_slug": "neogeo"}),
 		"neogeo", "slug/the cartridge Neo Geo is untouched")
+
+	# The original Xbox, by IGDB's slug and by the folder names people use to keep
+	# it apart from the 360 -- which must NOT come along: it has no core here, and
+	# a 360 library filed under xbox would be a shelf of discs nothing can run.
+	_eq(RommPlatforms.systemid_for({"slug": "xbox", "fs_slug": "xbox"}), "xbox", "slug/the Xbox")
+	_eq(RommPlatforms.systemid_for({"slug": "xbox", "fs_slug": "xbox-original"}),
+		"xbox", "slug/under the folder name that tells it from the 360")
+	_eq(RommPlatforms.systemid_for({"slug": "xbox360", "fs_slug": "xbox360"}),
+		"", "slug/and the 360 is not an Xbox")
 
 	# fs_slug beats slug — it is the folder the user named themselves.
 	_eq(RommPlatforms.systemid_for({"slug": "unknown-thing", "fs_slug": "snes"}),
@@ -1595,6 +1605,35 @@ func _test_save_upload_still_works() -> void:
 	_ok(req.contains("battery"), "saves/still sends the bytes")
 	_ok(req.contains(_CRLF + "--%s--" % _boundary_of(req)), "saves/and still terminates the body")
 	_eq(_body_len(req), _declared_len(req), "saves/with a Content-Length that matches")
+
+
+## An Xbox game's saves go up as one archive lifted off the console's hard disk
+## (XboxHddSaves), through the same call a battery save does. What differs is
+## what the server is told -- the core, the title id as the slot -- and that the
+## body is a BINARY file with NULs in its first bytes, which is the kind a
+## multipart writer built on strings truncates.
+func _test_xbox_archive_upload() -> void:
+	var zip := XboxHddSaves.pack({
+		"UDATA/TitleMeta.xbx": "Halo".to_utf16_buffer(),
+		"UDATA/0123456789AB/slot.sav": PackedByteArray([0, 255, 0, 13, 10, 45, 45, 0]),
+	})
+	var sent: Dictionary = await _probe_request([[0, (_HEAD + _BODY).to_utf8_buffer()]],
+		func(http: RommHttp) -> Dictionary:
+			return RommSaves.create(http, PackedStringArray(), 31, XboxHddSaves.CORE,
+				"4d530004", "4d530004." + XboxHddSaves.ARCHIVE_EXT, zip))
+	var req: String = sent["request"]
+	_ok(req.begins_with("POST /api/saves?rom_id=31&emulator=xemu&slot=4d530004&overwrite=true "),
+		"xbox/the archive is filed under its game, its core and its title id", req.left(80))
+	_ok(req.contains('filename="4d530004.zip"'), "xbox/as a zip named for the title")
+	_eq(_body_len(req), _declared_len(req), "xbox/with a Content-Length that matches")
+	var raw: PackedByteArray = sent.get("raw", PackedByteArray())
+	var at := -1
+	for i: int in range(0, raw.size() - zip.size() + 1):
+		if raw[i] == zip[0] and raw.slice(i, i + zip.size()) == zip:
+			at = i
+			break
+	_ok(at > 0, "xbox/and every byte of it arrives, NULs and CRLFs included",
+		"%d-byte archive not found in a %d-byte request" % [zip.size(), raw.size()])
 
 
 func _test_state_overwrite_and_delete() -> void:

@@ -263,6 +263,22 @@ func rom_id_for_serial(systemid: String, serial: String) -> int:
 	if not DirAccess.dir_exists_absolute(dir):
 		return 0
 
+	# An Xbox save names its game by TITLE ID, which is in the certificate of the
+	# disc's default.xbe rather than in a boot line. Same sweep, another reader.
+	if systemid == "xbox":
+		var hit := 0
+		for fname: String in DirAccess.get_files_at(dir):
+			if not fname.get_extension().to_lower() in ["iso", "xiso"]:
+				continue
+			var disc := dir.path_join(fname)
+			if str(XboxDisc.title_of(disc).get("title_id", "")) != serial.to_lower():
+				continue
+			hit = rom_id_for(systemid, disc)
+			if hit > 0:
+				break
+		_serial_ids[memo] = hit
+		return hit
+
 	# A .cue and the .bin it names are the same disc. Scanning both reads every
 	# image twice, so the raw files a cue already speaks for are skipped.
 	var files := DirAccess.get_files_at(dir)

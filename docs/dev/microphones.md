@@ -503,7 +503,9 @@ In RetroXR:
 - **`DcMicrophone` is a `JumpPack` clone.** A slot device costs no edits at all in `VmuPort`,
   `VmuStorage` or `system.gd`: those ask by method, so answering `slot_option_value()` with
   `"Microphone"` is the whole of the wiring. It carries the same origin rule as the card and
-  the pack — a seat places an object's ORIGIN, so the connector sits at +42.5 mm.
+  the pack — a seat places an object's ORIGIN, so the connector sits at +42.5 mm. (True of a
+  DREAMCAST's devices. The Xbox's Memory Unit goes in these same two sockets and is another
+  console's, so `VmuPort` accepts a second group for it, `XBOX_SLOT_GROUP` — see `xbox.md`.)
 - **The pads answer `seated_microphone()`, not `microphone_position()`**, and that distinction
   is load-bearing: `RetroSystem.microphone_position()` walks its port controllers for the first
   thing that can say where it hears from, so a pad that always answered would shadow a device

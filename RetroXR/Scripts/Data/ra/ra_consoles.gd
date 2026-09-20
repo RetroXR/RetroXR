@@ -112,9 +112,11 @@ const CONSOLE_MAP := {
 ##   atari800, commodore_c128, spectravideo, n64dd
 ##   satellaview, sufami_turbo — RA hashes these into SNES subsets, not a console
 ##   chip_8, pico8, scummvm    — no RA console
+##   xbox — rcheevos reserves RC_CONSOLE_XBOX (22) but RA has no sets and no hash
+##          for it, and xemu publishes no memory map for one to read
 const UNSUPPORTED := [
 	"amigacd32", "cdtv", "atari800", "commodore_c128", "spectravideo",
-	"n64dd", "satellaview", "sufami", "chip_8", "pico8", "scummvm",
+	"n64dd", "satellaview", "sufami", "chip_8", "pico8", "scummvm", "xbox",
 ]
 
 

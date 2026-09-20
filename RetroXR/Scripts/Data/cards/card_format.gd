@@ -55,6 +55,15 @@ func romm_systemid() -> String:
 	return SystemIds.canonical(id())
 
 
+## The systemid whose ROM LIBRARY holds the games that save here: where a save's
+## `serial` is looked up to find the game it belongs to, and whose default core
+## an upload is filed under. The family id serves everywhere it always has; a
+## family named for a DEVICE (the Xbox's Memory Unit) has no library of its own
+## and names its console's.
+func library_systemid() -> String:
+	return id()
+
+
 ## Every extension a RomM save for this family may arrive under: its own
 ## single-save file, plus any file that carries saves inside it.
 func romm_save_extensions() -> PackedStringArray:

@@ -1,0 +1,85 @@
+# Microsoft - Xbox (xemu), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too — an edit there would be
+# lost the next time, silently. The vendored entry describes an older port: it
+# puts the firmware somewhere this core no longer looks, lists the EEPROM as
+# required, and says only port 1 is wired.
+#
+# The binary this describes is built from RetroXR/xemu, branch `retroxr`, at the
+# tag retroxr-xemu-libretro-v1 (17e738cbd4), and published on that repository's
+# releases page, which is also where its source is:
+#
+#     https://github.com/RetroXR/xemu/releases/tag/retroxr-xemu-libretro-v1
+#
+# xemu is GPLv2, so the tag beside the binary is an obligation, as Dolphin's is.
+# Until 2026-09-19 this named the branch alone, because there was no release; a
+# later release needs the tag here and CoreSources' known_tag moved together.
+#
+# Everything below is the fork's own ui/libretro/xemu_libretro.info, except the
+# three retroXR name fields and the FIRMWARE PATHS. The fork writes them as
+# "xemu/mcpx_1.0.bin" for a frontend with one shared system directory. RetroXR
+# hands every core system/<core>/, the core sees a system directory already
+# named "xemu" and uses it as its own folder, and FirmwareRequirements resolves
+# these paths against that same directory. Left as the fork has them they would
+# name system/xemu/xemu/ — the BIOS tab would report present files missing and
+# a RomM firmware install would land where the core never looks.
+#
+# ONE flash BIOS is listed, Complex_4627v1.03.bin, as the fork lists it, and on
+# purpose. The core itself is looser — it takes Complex_4627.bin, xbox_bios.bin
+# or bios.bin by name, and failing those any .bin of 256 KB or 1 MB — but being
+# picked up is not booting. Measured 2026-09-19 against the stock hard disk
+# image: a retail 3944 kernel starts and stops at "Your Xbox requires service",
+# and a retail 5838 draws nothing at all. So the list names the one dump known
+# to work rather than advertising alternatives that do not.
+
+# Software Information
+display_name = "Microsoft - Xbox (xemu, retroXR)"
+authors = "xemu-project team|Matt Borgerson"
+supported_extensions = "iso|xiso"
+corename = "xemu (retroXR)"
+categories = "Emulator"
+license = "GPLv2"
+permissions = ""
+display_version = "retroXR build"
+
+# Hardware Information
+manufacturer = "Microsoft"
+systemname = "Xbox"
+systemid = "xbox"
+
+# Libretro Features
+database = "Microsoft - Xbox"
+supports_no_game = "true"
+savestate = "false"
+savestate_features = "null"
+cheats = "false"
+input_descriptors = "true"
+memory_descriptors = "false"
+libretro_saves = "false"
+core_options = "true"
+core_options_version = "2.0"
+load_subsystem = "false"
+hw_render = "false"
+needs_fullpath = "true"
+disk_control = "false"
+is_experimental = "true"
+
+# Firmware / BIOS
+firmware_count = 4
+firmware0_desc = "mcpx_1.0.bin (MCPX Boot ROM)"
+firmware0_path = "mcpx_1.0.bin"
+firmware0_opt = "false"
+firmware1_desc = "Complex_4627v1.03.bin (Flash ROM / BIOS)"
+firmware1_path = "Complex_4627v1.03.bin"
+firmware1_opt = "false"
+firmware2_desc = "xbox_hdd.qcow2 (Hard disk image)"
+firmware2_path = "xbox_hdd.qcow2"
+firmware2_opt = "false"
+firmware3_desc = "xbox_eeprom.bin (EEPROM, generated on first start)"
+firmware3_path = "xbox_eeprom.bin"
+firmware3_opt = "true"
+
+description = "xemu, the original Xbox emulator built on QEMU, as a libretro core, from retroXR's fork. The whole machine is emulated: Pentium III CPU through TCG, the NV2A GPU on OpenGL or Vulkan, and MCPX audio. The machine runs on its own threads in real time, as it does in standalone xemu, and the core hands the most recent frame to the frontend as a software framebuffer, so it works with any frontend video driver. Requires an MCPX boot ROM, a flash BIOS and a hard disk image in the core's system folder. Game saves are kept inside a copy of the hard disk image in the save directory. Source and binaries: github.com/RetroXR/xemu/releases/latest & the tag it points at."
+notes = "(!) Requires mcpx_1.0.bin, the Complex_4627v1.03.bin flash BIOS and xbox_hdd.qcow2 in the core's system folder. An xemu.toml placed there can point elsewhere.|(!) The OpenGL renderer needs an OpenGL 4.0 capable driver even though the core outputs a software framebuffer; the Vulkan renderer needs Vulkan 1.1 with geometry shaders. Android builds only have the Vulkan renderer.|(!) Content must be an XISO image; the disc is opened from its full path.|Game saves live inside the hard disk image. The image and the EEPROM are copied to the 'xemu' folder of the save directory on first use and used from there; memory units enabled through the core options are kept there too.|The machine is created once per process: closing content parks it, and loading the next game swaps the disc and resets. Options marked as needing a restart apply when the frontend is restarted.|Save states, rewind, fast-forward and run-ahead are not supported.|Experimental core."

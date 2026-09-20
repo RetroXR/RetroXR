@@ -448,6 +448,10 @@ func _init() -> void:
 	_saturn.name = "SaturnStorage"
 	add_child(_saturn)
 	_saturn.setup(self)
+	_xbox = XboxStorage.new()
+	_xbox.name = "XboxStorage"
+	add_child(_xbox)
+	_xbox.setup(self)
 	_audio = SystemAudio.new()
 	_audio.name = "SystemAudio"
 	add_child(_audio)
@@ -2239,6 +2243,16 @@ func power_on() -> void:
 			cart_toast.show_notice(_display_name(), "Cartridge in use", saturn_busy,
 				Color(1.0, 0.72, 0.2))
 		return
+	# One Xbox at a time: xemu is one machine per process, and every console
+	# writes the same hard disk image.
+	var xbox_busy := _xbox.busy_elsewhere(resolved_core)
+	if not xbox_busy.is_empty():
+		push_error("RetroSystem: Cannot power on - %s" % xbox_busy)
+		var xbox_toast := _machine_toast()
+		if xbox_toast != null:
+			xbox_toast.show_notice(_display_name(), "Xbox in use", xbox_busy,
+				Color(1.0, 0.72, 0.2))
+		return
 
 	# May be empty media: a machine with nothing in it whose BIOS is installed is
 	# handed a blank disc, which is what a console with a closed empty tray is.
@@ -2271,6 +2285,8 @@ func power_on() -> void:
 	# that staging may only now have created.
 	_sega_cd.stage_before_start(resolved_dir, resolved_core)
 	_saturn.stage_before_start(resolved_dir, resolved_core)
+	_xbox.note_started(resolved_core)
+	_xbox.stage_units_before_start(resolved_dir, resolved_core)
 	_apply_forced_core_options(resolved_dir, resolved_core)
 	_persist_pak_options(resolved_dir, resolved_core)
 	_vmu.stage_before_start(resolved_dir, resolved_core)
@@ -2572,6 +2588,12 @@ func _stop_core() -> void:
 	_sega_cd.drain_after_stop()
 	# Beetle Saturn flushes a cartridge once more as it unloads.
 	_saturn.drain_after_stop()
+	# xemu flushes the console's hard disk as it unloads; the game's saves are
+	# lifted out of it for RomM once it has.
+	_xbox.backup_after_stop()
+	# And the Memory Units in its pads, which the core writes to files of its own.
+	_xbox.drain_units()
+	_xbox.stop_draining_units_soon()
 	_has_disk_control = false
 	_disc_index = 0
 	_disc_ejected = false
@@ -3814,6 +3836,28 @@ func get_port_controllers() -> Array:
 ## content start.
 func reapply_vmu(ctrl: Node) -> void:
 	_vmu.reapply(ctrl)
+	# The same sockets hold an Xbox's Memory Units, and the pad announces a
+	# change in them the same way. Each storage ignores what is not its own.
+	_xbox.reapply(ctrl)
+
+
+## Whether the running core has said what options it has yet, and whether `key`
+## is one of them. Read by XboxStorage, to tell a core build with no lower
+## Memory Unit slot from one that has it.
+func core_options_known() -> bool:
+	return not _options_definitions.is_empty()
+
+
+func core_declares_option(key: String) -> bool:
+	return _options_definitions.has(key)
+
+
+func machine_toast() -> AchievementToast:
+	return _machine_toast()
+
+
+func display_name_for_toast() -> String:
+	return _display_name()
 
 
 ## Read by another machine's SegaCdStorage, deciding whether the shared folder is
@@ -3981,6 +4025,7 @@ func _ensure_port_devices_bound() -> void:
 	# only at power-off, so anything a game put on a VMU lived in flycast's
 	# scratch file until then and a hard kill lost it.
 	_vmu.start_draining()
+	_xbox.start_draining_units()
 
 
 ## Re-apply every plugged pad's preferred pad type. Called when the option set
@@ -5310,6 +5355,9 @@ var _sega_cd: SegaCdStorage = null
 ## A Saturn's Backup RAM Cartridge, and the options Beetle Saturn keeps its
 ## memories by. Inert on every other machine -- see SaturnStorage.
 var _saturn: SaturnStorage = null
+## One Xbox at a time, and its game's saves lifted off the shared hard disk for
+## RomM once it stops. Inert on every other machine -- see XboxStorage.
+var _xbox: XboxStorage = null
 ## The memory built into the console, on one with any -- see ConsoleMemory.
 var _console_memory: ConsoleMemory = null
 ## What a stacked expansion hands the core at boot - see ExpansionLaunch.

@@ -235,6 +235,15 @@ const RECOMMENDED := {
 		"why":  "The only PS2 core here",
 	},
 
+	# ── Microsoft ────────────────────────────────────────────────────────────
+	# directxbox declares the system too, and is a stub that boots nothing. xemu
+	# is RetroXR's own port, published from its own repository (see CoreSources):
+	# the buildbot has never built one.
+	"xbox": {
+		"core": "xemu",
+		"why":  "The only Xbox core that runs a game: RetroXR's libretro port of xemu, experimental, with no save states",
+	},
+
 	# ── SNK ──────────────────────────────────────────────────────────────────
 	# Keyed on fbneo rather than neogeo: FinalBurn Neo files itself under
 	# fbneo, and the neogeo tile holds only Geolith.

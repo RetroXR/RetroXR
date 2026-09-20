@@ -1,0 +1,136 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/xbox_mu_card.gd" id="1_muscript"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="4_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_lhand"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_mu"]
+friction = 0.8
+
+; 40 x 50 x 12 mm and 25 g. AN ESTIMATE, not a measurement: nobody here has put
+; callipers on an Xbox Memory Unit, and the pad it goes into is the primitive
+; box, so there is no shell to check it against either. What is NOT an estimate
+; is where it sits, because the sockets are shared with the Dreamcast's devices
+; (VmuPort) and a seat places an object's ORIGIN:
+;
+;   +Y is the length, with the connector on that end; +Z is the face.
+;   The origin is 40 mm below the connector end, as the VMU's is -- the VMU is
+;   80 long and centred, and that distance is what the seat was authored for.
+;   A shorter body therefore sits OFF its own centre: this one spans y -10..+40,
+;   centre +15. A Jump Pack with its origin at its middle floated 12.5 mm short
+;   of the slot; see jump_pack.tscn.
+;
+; The connector is the VMU's, to the millimetre, because it is the same socket.
+[sub_resource type="BoxShape3D" id="Box_mu_body"]
+size = Vector3(0.04, 0.05, 0.012)
+
+[sub_resource type="BoxMesh" id="Mesh_mu_body"]
+size = Vector3(0.04, 0.05, 0.012)
+
+; The unit's smoked near-black, which is the console's own plastic.
+[sub_resource type="StandardMaterial3D" id="Mat_mu_shell"]
+albedo_color = Color(0.075, 0.08, 0.085, 1)
+roughness = 0.42
+
+[sub_resource type="BoxMesh" id="Mesh_mu_connector"]
+size = Vector3(0.0305, 0.007, 0.011)
+
+[sub_resource type="StandardMaterial3D" id="Mat_mu_connector"]
+albedo_color = Color(0.16, 0.16, 0.18, 1)
+roughness = 0.6
+
+; The green badge on the face: the one thing that says Xbox at arm's length,
+; and what tells this from a Jump Pack in the other slot. Proud of the face by
+; 0.4 mm rather than flush, so it is never coplanar with it.
+[sub_resource type="BoxMesh" id="Mesh_mu_badge"]
+size = Vector3(0.026, 0.012, 0.0008)
+
+[sub_resource type="StandardMaterial3D" id="Mat_mu_badge"]
+albedo_color = Color(0.36, 0.78, 0.1, 1)
+roughness = 0.35
+
+[sub_resource type="BoxShape3D" id="Box_mu_pointer"]
+size = Vector3(0.05, 0.06, 0.024)
+
+[node name="XboxMemoryUnit" type="RigidBody3D" groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.025
+physics_material_override = SubResource("PhysMat_mu")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_muscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+shape = SubResource("Box_mu_body")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+mesh = SubResource("Mesh_mu_body")
+surface_material_override/0 = SubResource("Mat_mu_shell")
+
+[node name="Connector" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0425, 0)
+mesh = SubResource("Mesh_mu_connector")
+surface_material_override/0 = SubResource("Mat_mu_connector")
+
+; The face reads with the CONNECTOR DOWN. Seated, the connector end is the one
+; nearest the player -- the unit sticks out of the pad's far edge -- so that end
+; has to be the bottom of the text, or every seated unit reads upside down (the
+; first render did). Hence the badge towards the far end, y +2 mm, the legend
+; below it towards the connector, and the legend turned R_z(180): -1,0,0, 0,-1,0,
+; 0,0,1, which is its own transpose, so rows and columns agree.
+[node name="Badge" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.002, 0.0064)
+mesh = SubResource("Mesh_mu_badge")
+surface_material_override/0 = SubResource("Mat_mu_badge")
+
+[node name="Legend" type="Label3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0.022, 0.0062)
+pixel_size = 0.00016
+alpha_cut = 1
+text = "MEMORY UNIT  8MB"
+font_size = 22
+width = 220
+autowrap_mode = 3
+
+; On the BACK, facing -Z: the card's own name, as a VMU carries it, and
+; connector-down like the face. R_y(180) to face -Z, then R_z(180) to turn the
+; text: together R_x(180) = 1,0,0, 0,-1,0, 0,0,-1 -- symmetric again.
+[node name="CardLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0.015, -0.0062)
+pixel_size = 0.00016
+alpha_cut = 1
+text = "Memory Unit"
+font_size = 28
+width = 220
+autowrap_mode = 3
+
+; IDENTITY, as every slot device's is: a snap zone seats an object by composing
+; its grab point, so the slot's own transform is the whole seating geometry.
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0)
+shape = SubResource("Box_mu_pointer")
+
+[node name="HandRight" parent="." instance=ExtResource("4_rhand")]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("5_lhand")]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+visible = false

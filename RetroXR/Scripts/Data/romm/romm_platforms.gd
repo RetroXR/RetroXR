@@ -69,6 +69,14 @@ const SLUG_MAP := {
 	"playstation-2": "ps2",
 	"psp": "psp",
 
+	# Microsoft. "xbox" is both IGDB's slug and ES-DE's folder; the rest are what
+	# people call the folder to keep it apart from the 360.
+	"xbox": "xbox",
+	"xbox-original": "xbox",
+	"original-xbox": "xbox",
+	"microsoft-xbox": "xbox",
+	"xboxog": "xbox",
+
 	# Sega
 	"megadrive": "genesis",
 	"megadrive-msu": "genesis",

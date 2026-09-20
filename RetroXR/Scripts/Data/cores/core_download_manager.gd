@@ -240,8 +240,10 @@ func _on_listing_completed(result: int, response_code: int,
 ## buildbot listed them — CoreSources.has() is false there, so a Linux player
 ## still gets the stock Dolphin instead of a row that cannot download.
 func _apply_own_sources(entries: Array[Dictionary]) -> Array[Dictionary]:
+	var listed: Dictionary = {}
 	for entry: Dictionary in entries:
 		var core_name: String = entry.get("core_name", "")
+		listed[core_name] = true
 		if not CoreSources.has(core_name):
 			continue
 		entry["filename"] = CoreSources.asset_for(core_name)
@@ -250,7 +252,34 @@ func _apply_own_sources(entries: Array[Dictionary]) -> Array[Dictionary]:
 		# Replaced by the live tag if the probe below reaches GitHub.
 		entry["remote_date"] = CoreSources.version_of(core_name)
 		entry["source"] = "retroxr"
+	# A core nobody but us builds has no buildbot row to override (xemu). It gets
+	# one of its own once this app knows a release of it; one it knows none of
+	# waits for the version probe, which adds the row when GitHub names a release
+	# and otherwise leaves the core unlisted rather than offering a 404.
+	for core_name: String in CoreSources.active_core_names():
+		if not listed.has(core_name) and CoreSources.is_released(core_name):
+			_list_own_core(entries, core_name, CoreSources.version_of(core_name))
 	return entries
+
+
+## Add the row for a core only we build, keeping the listing sorted by name as
+## _parse_listing_html left it. Does nothing when the core is already listed.
+static func _list_own_core(entries: Array[Dictionary], core_name: String, version: String) -> void:
+	for entry: Dictionary in entries:
+		if entry.get("core_name", "") == core_name:
+			return
+	var row := {
+		"core_name":   core_name,
+		"filename":    CoreSources.asset_for(core_name),
+		"remote_date": version,
+		"source":      "retroxr",
+	}
+	var at := entries.size()
+	for i: int in entries.size():
+		if str(entries[i].get("core_name", "")) > core_name:
+			at = i
+			break
+	entries.insert(at, row)
 
 
 ## Ask GitHub what the newest release of each core we publish is called, and put
@@ -289,10 +318,18 @@ func _probe_own_versions(done: Callable) -> void:
 					if parsed is Dictionary:
 						var tag := str((parsed as Dictionary).get("tag_name", ""))
 						if not tag.is_empty():
+							# First, for a core that had no row: the release this
+							# app was built before is what lists it.
+							_list_own_core(available_cores, core_name, tag)
 							for entry: Dictionary in available_cores:
 								if entry.get("core_name", "") == core_name:
 									entry["remote_date"] = tag
 							print("[CoreDownloadManager] %s: newest release is %s" % [core_name, tag])
+				elif code == 404 and not CoreSources.is_released(core_name):
+					# The expected answer, not a failure: GitHub has no release of a
+					# core we know none of. It stays unlisted.
+					print("[CoreDownloadManager] %s: no release yet — built from %s"
+						% [core_name, CoreSources.source_url(core_name)])
 				else:
 					push_warning("CoreDownloadManager: version probe for '%s' failed (result %d, HTTP %d) — using %s"
 						% [core_name, result, code, CoreSources.version_of(core_name)])
@@ -654,7 +691,9 @@ func _on_download_completed(core_name: String, result: int, response_code: int) 
 			_finish(core_name, false, "Connection failed after %d attempts" % MAX_ATTEMPTS)
 			return
 
-		if CoreSources.has(core_name):
+		if CoreSources.has(core_name) and not CoreSources.is_released(core_name):
+			_finish(core_name, false, "No release of this core yet (HTTP %d)" % response_code)
+		elif CoreSources.has(core_name):
 			_finish(core_name, false, "Not in the %s release (HTTP %d)"
 				% [CoreSources.version_of(core_name), response_code])
 		else:

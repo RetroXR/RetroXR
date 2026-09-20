@@ -657,13 +657,17 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 		# And the Dreamcast's VMU, for exactly the same reason.
 		elif token == "vmu":
 			card_fmt = CardFormats.for_family(VmuCard.FAMILY)
+		# And the Xbox's Memory Unit, which goes in a controller as well.
+		elif token == "xbox_mu":
+			card_fmt = CardFormats.for_family(XboxMuCard.FAMILY)
 		# And a cartridge that is memory -- the Sega CD's Backup RAM Cartridge --
 		# resolved from the unit its row names.
 		var cart_memory := memory_cart_family(token)
 		if not cart_memory.is_empty():
 			card_fmt = CardFormats.for_family(cart_memory)
 		if (token.ends_with("memory_card") or token == "controller_pak"
-				or token == "vmu" or not cart_memory.is_empty()) and card_fmt != null:
+				or token == "vmu" or token == "xbox_mu"
+				or not cart_memory.is_empty()) and card_fmt != null:
 			# This row does one of two different things, so it says which. With
 			# cards saved it opens the shelf and drops the +, because every other
 			# + on this page puts something in the room on the first press.

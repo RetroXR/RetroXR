@@ -204,6 +204,7 @@ const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/ru
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
+const XBOX_MU_SCENE          := preload("res://Scenes/Objects/controllers/xbox/xbox_mu.tscn")
 const DC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/dreamcast/dc_microphone.tscn")
 const GC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn")
 const N64_VRU_SCENE          := preload("res://Scenes/Objects/controllers/n64/n64_vru.tscn")
@@ -296,6 +297,9 @@ const PLAIN_SCENES := {
 	# card that seats in a controller — so it carries card fields on top of the
 	# pose and has a serialize branch of its own too.
 	"vmu": VMU_SCENE,
+	# The Xbox's Memory Unit: a card in a controller again, in the same two
+	# sockets, so the pad saves which slot holds it exactly as it does a VMU.
+	"xbox_mu": XBOX_MU_SCENE,
 	# Pose only, like the Rumble Pak: which slot it is in is saved on the
 	# controller holding it, not here.
 	"jump_pack": JUMP_PACK_SCENE,
@@ -1818,6 +1822,14 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"card_id": vmu.card_id,
 			"card_label": vmu.card_label,
 		})
+	elif node is XboxMuCard:
+		# The VMU's reason: the unit IS its image on disk, and one that came back
+		# without its card_id would mint a blank and read as a wiped unit.
+		var unit := node as XboxMuCard
+		return _base(id, "xbox_mu", n3d).merged({
+			"card_id": unit.card_id,
+			"card_label": unit.card_label,
+		})
 	elif node is TransferPak:
 		# The cartridge in its roof is a reference rather than a pose, so a pak put
 		# away with a game still in it comes back holding that same game.
@@ -2314,6 +2326,11 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 		if vmu != null:
 			vmu.card_id = str(data.get("card_id", ""))
 			vmu.card_label = str(data.get("card_label", "VMU"))
+		# And an Xbox Memory Unit: identity before the tree, once more.
+		var unit := obj as XboxMuCard
+		if unit != null:
+			unit.card_id = str(data.get("card_id", ""))
+			unit.card_label = str(data.get("card_label", XboxMuCard.DEFAULT_LABEL))
 	else:
 		match obj_type:
 			"system":

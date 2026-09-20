@@ -257,10 +257,14 @@ func _test_light_gun_cards() -> void:
 	# its card spawns the Mega-CD UNIT and a gun goes into the Mega Drive
 	# standing on it. mega_drive is in the list above and still offers the row,
 	# so the hardware is still reachable -- from the machine it plugs into.
+	# xbox is here for a different reason from the rest: guns WERE sold for it
+	# (third-party, for The House of the Dead III and Silent Scope), but the xemu
+	# port's only port devices are the two pads, so a gun in this room would be a
+	# prop. It moves across when the core grows a lightgun device.
 	var without_gun: Array = ["n64", "gc", "wii", "virtualboy",
 		"gb", "gba", "neogeo", "atari5200", "colecovision",
 		"intellivision", "vectrex", "tg16", "sg-1000", "nds", "dos",
-		"segacd"]
+		"segacd", "xbox"]
 
 	for sysid: String in with_gun:
 		_ok(not _gun_row(sysid).is_empty(), "gun/%s offers one" % sysid)

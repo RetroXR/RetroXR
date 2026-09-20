@@ -314,7 +314,7 @@ static func backup_save(fmt: CardFormat, path: String, s: Dictionary,
 	# which is the only place a save's product code maps to a game.
 	var rom_id := SaveSync.card_save_owner(key)
 	if rom_id <= 0:
-		rom_id = SaveSync.rom_id_for_serial(fmt.id(), str(s.get("serial", "")))
+		rom_id = SaveSync.rom_id_for_serial(fmt.library_systemid(), str(s.get("serial", "")))
 		if rom_id > 0:
 			SaveSync.note_card_save_owner(key, rom_id)
 	if rom_id <= 0:
@@ -346,5 +346,5 @@ static func backup_save(fmt: CardFormat, path: String, s: Dictionary,
 			on_done.call(true, "Backed up to RomM")
 	self_ref.append(handler)
 	SaveSync.sync_finished.connect(handler)
-	SaveSync.push_card_save(key, rom_id, SramPaths.core_for_systemid(fmt.id()),
+	SaveSync.push_card_save(key, rom_id, SramPaths.core_for_systemid(fmt.library_systemid()),
 		slot, title_of(s), bytes, fmt.save_extension())

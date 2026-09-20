@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 595
+const EXPECTED_CASES := 614
 
 var _pass := 0
 var _fail := 0
@@ -894,6 +894,9 @@ func _smallest_save_size(fmt: CardFormat) -> int:
 		# A .ssav is a header and the data; a byte of data fits in a first block.
 		"sega_saturn_memory", "sega_saturn_ram_cart":
 			return SaturnBram.SAVE_HEADER + 1
+		# An Xbox counts a Memory Unit in 16 KB blocks, and a save is its files'
+		# bytes: one full block of them is the largest save that is still one.
+		"xbox_mu":        return XboxMemoryUnit.BLOCK_BYTES
 	return 0
 
 
@@ -997,6 +1000,8 @@ func _test_format_registry() -> void:
 		"registry/the sega_saturn_memory family is a SaturnMemoryFormat")
 	_ok(CardFormats.for_family("sega_saturn_ram_cart") is SaturnCartFormat,
 		"registry/the sega_saturn_ram_cart family is a SaturnCartFormat")
+	_ok(CardFormats.for_family("xbox_mu") is XboxMuCardFormat,
+		"registry/the xbox_mu family is an XboxMuCardFormat")
 	_eq(CardFormats.for_path("/x/y/mednafen_saturn_libretro_shared.bcr").id(), "sega_saturn_ram_cart",
 		"registry/a .bcr is the Saturn's cartridge, not its System Memory")
 

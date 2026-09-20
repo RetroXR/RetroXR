@@ -139,6 +139,7 @@ const DISC_DIAMETERS: Dictionary = {
 	"3do":                   0.12,
 	"cdi":                   0.12,
 	"pcfx":                 0.12,
+	"xbox":                  0.12,
 	"gc":              0.08,   # mini-DVD
 	"psp":  0.064,  # UMD (bare disc, no caddy)
 	# ScummVM is not console hardware — it stands in for a 90s PC, whose adventure
@@ -190,6 +191,8 @@ const DISC_FINISHES: Dictionary = {
 	"gc":     FINISH_DVD,   # mini-DVD
 	"wii":          FINISH_DVD,
 	"psp": FINISH_DVD,   # UMD is DVD-derived, not a CD
+	# Every Xbox game is a DVD; disc_finish() turns the big ones gold by image size.
+	"xbox":         FINISH_DVD,
 	# playstation2 is resolved per-title in disc_finish(): CD-ROM or DVD.
 }
 
@@ -240,6 +243,7 @@ const FRONT_TRAY_SYSTEMS: Dictionary = {
 	# Model 1, the machine our icon draws — a motorised tray out of the front.
 	# Model 2 is a hinged top lid, which is the other branch.
 	"segacd": true,
+	"xbox": true,
 }
 
 

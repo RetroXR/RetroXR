@@ -4,7 +4,7 @@
 ## core lands in this table when we maintain a fork of it, because then the
 ## buildbot's build is not the one we want the player to have.
 ##
-## Ten of them, and four are here for the same reason: this room has cables in
+## Eleven of them, and four are here for the same reason: this room has cables in
 ## it, and libretro has nowhere to put the far end of one. Dolphin, mGBA,
 ## gambatte and pcsx_rearmed each reach a link bus the frontend hosts.
 ##
@@ -14,7 +14,9 @@
 ## mupen64plus_next. (Azahar's stereo 3D was a third until upstream merged it
 ## in 2126.1; the buildbot's build now carries it, so it is back on that.)
 ## Play! is the odd one, and is here for two crashes that stop the buildbot's
-## build running on a Quest at all.
+## build running on a Quest at all. xemu is odder still: not a fork of a libretro
+## core but a port nobody else builds, so the buildbot has no row for it to
+## replace — see is_released and CoreDownloadManager._list_own_core.
 ##
 ## Dolphin is the one to read first if you want the shape of it. The buildbot
 ## build cannot do Wiimote IR passthrough — the frontend hands the emulated
@@ -321,6 +323,38 @@ const SOURCES := {
 			"Android": "mupen64plus_next_gles3_libretro_android.so.zip",
 		},
 	},
+	# xemu, the original Xbox. The one entry here that is not a fork of a libretro
+	# core: upstream xemu has no libretro port, and the vendored xemu .info
+	# describes someone's older attempt that the buildbot never built. Ours is a
+	# new frontend (ui/libretro) over the whole machine, with the NV2A on Vulkan so
+	# it runs on a Quest, handing over a software framebuffer.
+	#
+	# It is the one entry the BUILDBOT HAS NO ROW FOR, so there is nothing for
+	# _apply_own_sources to override: CoreDownloadManager lists an own-only core
+	# itself (_list_own_core) — from known_tag at once, and from the version probe
+	# when this app was built knowing no release. That second case is how this
+	# entry began: it carried a `branch` and an EMPTY known_tag until the first
+	# release was cut, nothing offered a download that could only 404, and the
+	# release then reached installed copies with no app build. `branch` stays
+	# because it is still true — the tags sit on it — and is_released is what
+	# tells the two states apart for the next core that starts that way.
+	#
+	# v1 is 17e738cbd4. Checked 2026-09-19 through the URLs this file composes:
+	# /releases/latest names the tag, both assets answer 200, and each zip holds
+	# the bare library at its root. The release also carries two LICENSE-*.txt
+	# assets, which nothing here asks for by name.
+	#
+	# xemu is GPLv2, so the tag beside the binary is an obligation, as Dolphin's is.
+	"xemu": {
+		"repo":  "RetroXR/xemu",
+		"branch": "retroxr",
+		"known_tag": "retroxr-xemu-libretro-v1",
+		"label": "xemu (retroXR build)",
+		"assets": {
+			"Windows": "xemu_libretro.dll.zip",
+			"Android": "xemu_libretro_android.so.zip",
+		},
+	},
 }
 
 
@@ -377,6 +411,37 @@ static func api_url(core_name: String) -> String:
 static func version_of(core_name: String) -> String:
 	var src: Dictionary = SOURCES.get(core_name, {})
 	return str(src.get("known_tag", ""))
+
+
+## The branch a core is built from when no release names a tag yet, or "".
+##
+## Every other entry is pinned by known_tag and leaves this out: a tag says
+## exactly what was built, and a branch only says where to look. It is here for a
+## core that exists as source before it exists as a release.
+static func branch_of(core_name: String) -> String:
+	var src: Dictionary = SOURCES.get(core_name, {})
+	return str(src.get("branch", ""))
+
+
+## Where a person can read the source this core is built from: the tag when one
+## is known, else the branch, else the repository.
+static func source_url(core_name: String) -> String:
+	var src: Dictionary = SOURCES.get(core_name, {})
+	if src.is_empty():
+		return ""
+	var repo := "https://github.com/%s" % src.get("repo", "")
+	var ref := version_of(core_name)
+	if ref.is_empty():
+		ref = branch_of(core_name)
+	return repo if ref.is_empty() else "%s/tree/%s" % [repo, ref]
+
+
+## False for a core this app was built knowing no release of. Its download URL
+## is still the /releases/latest/ form, so the first release reaches players on
+## its own — but until the version probe hears of one there is nothing to offer,
+## and the download manager must not list a row that can only 404.
+static func is_released(core_name: String) -> bool:
+	return not version_of(core_name).is_empty()
 
 
 ## Core names we publish AND build for this platform, for callers that need to

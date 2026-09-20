@@ -67,6 +67,12 @@ const _PERIPHERALS: Dictionary = {
 		# core offers it in either.
 		{"kind": "peripheral", "label": "Microphone", "spawn": "dc_microphone"},
 	],
+	# The Xbox's, which goes into a CONTROLLER too, two to a pad. Not where its
+	# games save — that is the hard disk in the console — but where a save is
+	# copied to be carried, and where one backed up to RomM comes home through.
+	"xbox": [
+		{"kind": "peripheral", "label": "Memory Unit", "spawn": "xbox_mu"},
+	],
 	# The pad is named here because it is the only one with an expansion port, and
 	# all three paks are useless without it. The paks themselves are listed rather
 	# than left to the console's own card row: they go into a CONTROLLER, so none

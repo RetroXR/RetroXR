@@ -19,7 +19,8 @@ static func _build() -> void:
 	for fmt: CardFormat in [PS1CardFormat.new(), PS2CardFormat.new(),
 			GCCardFormat.new(), N64CardFormat.new(), VMUCardFormat.new(),
 			SegaCdMemoryFormat.new(), SegaCdCartFormat.new(),
-			SaturnMemoryFormat.new(), SaturnCartFormat.new()]:
+			SaturnMemoryFormat.new(), SaturnCartFormat.new(),
+			XboxMuCardFormat.new()]:
 		_by_family[fmt.id()] = fmt
 
 

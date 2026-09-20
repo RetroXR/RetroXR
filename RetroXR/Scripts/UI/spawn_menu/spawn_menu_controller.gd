@@ -41,6 +41,7 @@ const MEMCARD_SCENE         := preload("res://Scenes/Objects/media/memory_card.t
 const GC_MEMCARD_SCENE      := preload("res://Scenes/Objects/media/gc_memory_card.tscn")
 const PS2_MEMCARD_SCENE     := preload("res://Scenes/Objects/media/ps2_memory_card.tscn")
 const VMU_SCENE             := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
+const XBOX_MU_SCENE         := preload("res://Scenes/Objects/controllers/xbox/xbox_mu.tscn")
 const TAPE_SCENE            := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const DVD_DISC_SCENE        := preload("res://Scenes/Objects/media/dvd_disc.tscn")
 const AUDIO_DISC_SCENE      := preload("res://Scenes/Objects/media/audio_disc.tscn")
@@ -909,6 +910,8 @@ func _card_scene_for(family: String) -> PackedScene:
 		# Same again for the Dreamcast: a VMU seats in a CONTROLLER, so it is a
 		# VmuCard rather than a MemoryCard and is reached by property name.
 		"vmu":      return VMU_SCENE
+		# And the Xbox's Memory Unit, a controller's card as well.
+		"xbox_mu":  return XBOX_MU_SCENE
 		_:          return MEMCARD_SCENE
 
 
