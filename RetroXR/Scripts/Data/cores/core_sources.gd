@@ -339,16 +339,31 @@ const SOURCES := {
 	# because it is still true — the tags sit on it — and is_released is what
 	# tells the two states apart for the next core that starts that way.
 	#
-	# v1 is 17e738cbd4. Checked 2026-09-19 through the URLs this file composes:
-	# /releases/latest names the tag, both assets answer 200, and each zip holds
-	# the bare library at its root. The release also carries two LICENSE-*.txt
-	# assets, which nothing here asks for by name.
+	# v2 is bcced37b6d. Checked 2026-09-20 through the URLs this file composes:
+	# /releases/latest names the tag, both assets answer 200, each zip holds the
+	# bare library at its root, and the bytes served are the bytes built. The
+	# release also carries two LICENSE-*.txt assets, which nothing here asks for
+	# by name.
+	#
+	# v2 is four lines of ui/libretro/core.c over v1: retro_load_game reads an
+	# EMPTY content path as no content at all. That is what the app sends on a
+	# no_content start -- system.gd unsets the NULL convention the line after
+	# StartContent, so the reset wins the race and a ZEROED struct goes, and a
+	# zeroed one carries an empty path. v1 took it on a cold start, where the DVD
+	# path is empty anyway, but with the machine already running it asked QEMU to
+	# insert a medium with no name.
+	#
+	# Measured on the v2 Windows build before publishing: an empty tray boots the
+	# stock disk's placeholder at 452 lit pixels of 307,200 in a band at
+	# x 25..280, y 25..31, the disk is held against a write handle, and the same
+	# frame comes back after a stop and a second power-on in one process. Those
+	# are v1's numbers exactly, which is how this says nothing else moved.
 	#
 	# xemu is GPLv2, so the tag beside the binary is an obligation, as Dolphin's is.
 	"xemu": {
 		"repo":  "RetroXR/xemu",
 		"branch": "retroxr",
-		"known_tag": "retroxr-xemu-libretro-v1",
+		"known_tag": "retroxr-xemu-libretro-v2",
 		"label": "xemu (retroXR build)",
 		"assets": {
 			"Windows": "xemu_libretro.dll.zip",

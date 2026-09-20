@@ -7,9 +7,10 @@ vendored `xemu_libretro.info` describes someone's older attempt the buildbot nev
 
 ## Where the core comes from — our own release, which began as a branch
 
-`github.com/RetroXR/xemu`, branch **`retroxr`**, released as **`retroxr-xemu-libretro-v1`**
-(`17e738cbd4`) on 2026-09-19. `CoreSources.SOURCES["xemu"]` carries that `known_tag` and
-still names the `branch`, which the tags sit on.
+`github.com/RetroXR/xemu`, branch **`retroxr`**, released as **`retroxr-xemu-libretro-v2`**
+(`bcced37b6d`) on 2026-09-20, after `retroxr-xemu-libretro-v1` (`17e738cbd4`) the day before.
+`CoreSources.SOURCES["xemu"]` carries that `known_tag` and still names the `branch`, which
+the tags sit on.
 
 - **The buildbot has no xemu row** for `_apply_own_sources` to override, which no other entry
   can say, so an own-only core is listed by `_list_own_core`: from `known_tag` at once, and
@@ -20,10 +21,14 @@ still names the `branch`, which the tags sit on.
   about — and the first release then reached installed copies **with no app build**.
 - Checked through the URLs `CoreSources` composes: `/releases/latest` names the tag (not a
   pre-release), `xemu_libretro.dll.zip` and `xemu_libretro_android.so.zip` both answer 200
-  with the bare library at the zip root (sha256 `57014994…` and `85a293fb…`). The release
-  also carries two `LICENSE-*.txt` assets, which nothing asks for by name. **Built locally —
-  that fork has no release workflow yet**, unlike the others. xemu is GPLv2: the tag beside
-  the binary is an obligation.
+  with the bare library at the zip root (v2 zips sha256 `3f8933d8…` and `80063d9a…`; v1's
+  were `57014994…` and `85a293fb…`), and what GitHub serves is byte-for-byte what was built.
+  The release also carries two `LICENSE-*.txt` assets, which nothing asks for by name.
+  **Built locally — that fork has no release workflow yet**, unlike the others: zero Actions
+  runs on it, so a release is `Tools`-free handwork out of `~/xemu-libretro-dev`
+  (`rebuild-windows.ps1`, `android-rebuild.ps1`, `llvm-strip`, `zip -j`, `gh release create`),
+  and `XEMU_VERSION_STR`/`XEMU_COMMIT_STR` there must be moved to the new commit FIRST or the
+  binary reports the old one. xemu is GPLv2: the tag beside the binary is an obligation.
 - **Installed through the app's own downloader, end to end** (2026-09-19, Windows, the live
   buildbot and GitHub): 238 rows listed, 227 of them the buildbot's and none of those xemu;
   the version probe answered `retroxr-xemu-libretro-v1`; the xemu row carried our asset and
@@ -32,9 +37,26 @@ still names the `branch`, which the tags sit on.
   read as UPDATE. Before that the core was hand-placed, which counts as installed and
   records no version. Halo then booted on it, 2,767 frames in 50 s, both Memory Unit
   options declared.
-- This build reports `0.8.136-107-g17e738cbd4`. Earlier ones said `…-49-gf9b14039e5`, the
-  fork's MASTER head, whatever they were built from — which matters to netplay, where
-  `GetCoreIdentity()` is what tells two builds apart.
+- This build reports `0.8.136-108-gbcced37b6d`; v1 said `…-107-g17e738cbd4` and earlier ones
+  `…-49-gf9b14039e5`, the fork's MASTER head, whatever they were built from — which matters
+  to netplay, where `GetCoreIdentity()` is what tells two builds apart.
+- **What v2 changed**, and it is four lines of `ui/libretro/core.c`: `retro_load_game` reads
+  an EMPTY content path as no content at all. That is what the app actually sends on a
+  `no_content` start — `system.gd` unsets the NULL convention the line after `StartContent`,
+  so the reset wins the race and a ZEROED struct goes, and a zeroed one carries an empty
+  path. v1 took it on a cold start, where the DVD path is empty anyway, but with the machine
+  already running it asked QEMU to insert a medium with no name.
+- Measured on the v2 Windows build before publishing, with `xbox_boot_probe` and no `--rom`:
+  452 lit pixels of 307,200 in a band at x 25..280, y 25..31, the disk held against a write
+  handle, and the same frame after `--restart` — **v1's numbers exactly**, which is how this
+  says nothing else moved.
+- **The fix itself is NOT proven by a probe here, and do not claim it is.** A throwaway probe
+  driving the ZEROED convention deliberately could not tell the builds apart: on v1, empty →
+  stop → empty gives 452 px both times, and Halo → stop → empty gives 298,939 px then 452 px.
+  The guarded path is `retro_load_game` with `game_loaded` already TRUE — a disc swap with no
+  unload in between — and `StartContent`/`StopContent` always unload first, so nothing in
+  this repo's probe surface reaches it. v2 is correct-by-reading and non-regressive by
+  measurement; the case it repairs is still OWED a reproduction.
 - A later release: move `known_tag` and the tag in the overlay `.info`'s header together.
   A hand-placed core still counts as installed everywhere (the tiles, the Manager and
   "Download All Recommended" all read the disk).

@@ -8,10 +8,10 @@
 # required, and says only port 1 is wired.
 #
 # The binary this describes is built from RetroXR/xemu, branch `retroxr`, at the
-# tag retroxr-xemu-libretro-v1 (17e738cbd4), and published on that repository's
+# tag retroxr-xemu-libretro-v2 (bcced37b6d), and published on that repository's
 # releases page, which is also where its source is:
 #
-#     https://github.com/RetroXR/xemu/releases/tag/retroxr-xemu-libretro-v1
+#     https://github.com/RetroXR/xemu/releases/tag/retroxr-xemu-libretro-v2
 #
 # xemu is GPLv2, so the tag beside the binary is an obligation, as Dolphin's is.
 # Until 2026-09-19 this named the branch alone, because there was no release; a
