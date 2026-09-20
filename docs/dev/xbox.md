@@ -159,6 +159,45 @@ read out of a `Dictionary` is a COPY. The first fixture poked copies, left every
 zero, and would have passed every torn/ case for the wrong reason — the unbroken-disk
 control case is what caught it.
 
+## Switched on with an empty tray
+
+An Xbox with nothing in it boots its DASHBOARD, and the dashboard is software on the HARD
+DISK rather than anything in the BIOS — so what a player sees is whatever their disk carries.
+`BiosBoot`'s `xemu/xbox` row is what allows it: `no_content` (there is no blank disc to hand
+an Xbox) gated on the flash BIOS being installed.
+
+Without that row an Xbox could not be switched on empty AT ALL, and a disc sitting in a tray
+still open got "Close the tray" instead — the verdict asks "can this machine start empty?"
+before it asks about the tray, so one missing row produced both complaints.
+
+**The stock image has a placeholder where a dashboard would be.** `C:\xboxdash.xbe` on the
+4.5 MB image is an nxdk sample, title id `ffff0002`, name `hello`, and all it draws is one
+line: "Please insert an Xbox disc...". That is the machine working. A real dashboard needs a
+disk image the player supplies, and nothing here can ship one.
+
+**Measured 2026-09-20**, the v1 release core, OpenGL and Vulkan alike: 452 lit pixels of
+307,200, in a band at x 25..280, y 25..31 of 640x480 — and the same after a stop and a second
+start in one process, which is the power cycle a core that read a missing path as a medium
+named `""` would fail on. Both no-content conventions were tried and this core takes either.
+
+**A warning about how that was measured, which cost a day.** The first pass sampled every
+eighth pixel and reported the frame as uniform black — a line of 8-pixel text is twelve rows
+high, and a sparse grid steps between the strokes. On that reading the empty boot was written
+off as useless and a whole mechanism was built to refuse it. `xbox_boot_probe` counts every
+pixel now and prints the bounding box beside the count, because "lit=0.000" was the wrong
+answer to a question nothing else could check.
+
+**A latent bug this uncovered, not fixed here.** `no_content` is supposed to hand the core a
+NULL game info: `system.gd` sets `SetNoContentPassesNull(true)`, calls `StartContent`, and
+sets it back to false on the next line. But `StartContent` only spawns the emulation thread
+and returns, and that thread reads the flag later, when it loads the core — so the reset wins
+the race and every no-content start passes a ZEROED struct instead. Measured both ways here:
+with the reset the core logs "passing a zeroed game info", without it "a null game info".
+xemu takes either, so the Xbox is unaffected, but the rows that are NOT are `mgba/gba`,
+`dolphin/gc` and `pcsx2/ps2` — and this table's own header says dolphin "dies on a zeroed
+one". Worth fixing on its own, with those three tested; the default is already `true`, so the
+reset may simply be wrong.
+
 ## Memory Units — in the controller, two to a pad
 
 An Xbox's games save to the hard disk. A **Memory Unit** (8 MB) is where a player COPIES a

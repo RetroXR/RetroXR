@@ -179,6 +179,36 @@ const _ROWS := {
 		"empty_media_track": "audio",
 		"why": "A silent audio CD gives the Saturn's CD player and memory manager",
 	},
+
+	# ── Microsoft ────────────────────────────────────────────────────────────
+	# Switched on with an empty tray an Xbox boots its DASHBOARD, and the
+	# dashboard is software on the HARD DISK rather than anything in the BIOS --
+	# so what a player sees is whatever their disk carries. The stock xemu image
+	# has a placeholder where a dashboard would be, and all it draws is one line:
+	# "Please insert an Xbox disc...". That is the machine working rather than
+	# failing, and it is also the whole of what this row buys until someone
+	# supplies a disk with a real dashboard on it.
+	#
+	# `no_content`, not empty media: there is no blank disc to hand an Xbox, and
+	# the core declares SET_SUPPORT_NO_GAME.
+	#
+	# MEASURED 2026-09-20, the v1 release core, on the OpenGL renderer and the
+	# Vulkan one alike: 452 lit pixels of 307,200, in a band at x 25..280,
+	# y 25..31 -- and twice in one process, stopped and started again, which is
+	# the power cycle a core that read a missing path as a medium named "" would
+	# fail on. Both no-content conventions were tried and this core takes either.
+	#
+	# That measurement is also a warning about HOW it was taken. The first pass
+	# sampled every eighth pixel and reported the frame as uniform black, because
+	# a line of 8-pixel text is twelve rows high and a sparse grid steps between
+	# the strokes. A whole day went on that false reading. xbox_boot_probe counts
+	# every pixel now and prints the bounding box with it.
+	"xemu/xbox": {
+		"boot_rom": ["Complex_4627v1.03.bin"],
+		"empty_media": "",
+		"no_content": true,
+		"why": "Boots the console's own dashboard with no disc in the tray",
+	},
 }
 
 

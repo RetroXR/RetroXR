@@ -34,6 +34,14 @@
 ## grep the run for "memory unit". Halo only ever detects; Conker reads, at its
 ## profile screen.
 ##
+## No --rom starts the machine with NO CONTENT, the way RetroSystem does for a
+## row whose `no_content` is set: the core is handed a NULL game info rather than
+## a zeroed struct, which is libretro's own convention and the one xemu wants —
+## a zeroed one carries no path, and this core reads that as a medium named ""
+## on any start after the first. --restart=<seconds> stops and starts again at
+## that mark, which is the second power-on of a session and the case that tells
+## the two conventions apart.
+##
 ## No --rom boots the BIOS alone: the stock disk's dashboard placeholder, which
 ## says "Please insert an Xbox disc". That is the control leg for "the picture is
 ## the GAME's" — run it in a process of its own.
@@ -57,6 +65,8 @@ var settle := XboxStorage.SETTLE_AFTER_OFF_SEC
 ## [port, slot] of every Memory Unit to seat.
 var units: Array = []
 var unit_save := false
+## When to stop the machine and start it again, or 0.
+var restart_at := 0.0
 ## A hard disk image whose saves for --rom's game go onto each unit first.
 var unit_from := ""
 ## [seconds, port, slot] of every mid-run pull and seat.
@@ -87,6 +97,8 @@ func _ready() -> void:
 					into.append([float(bits[1]), int(bits[0][0]) - 1, 0 if bits[0][1].to_upper() == "A" else 1])
 		elif arg.begins_with("--unit-from="):
 			unit_from = arg.trim_prefix("--unit-from=")
+		elif arg.begins_with("--restart="):
+			restart_at = float(arg.trim_prefix("--restart="))
 		elif arg == "--unit-save":
 			unit_save = true
 		elif arg.begins_with("--settle="):
@@ -123,7 +135,7 @@ func _run() -> void:
 	add_child(_lib)
 	_lib.connect("content_load_failed", func(reason: String) -> void: _load_failed = reason)
 	_lib.connect("options_ready", _on_options_ready)
-	_lib.StartContent(root_dir, CORE, rom)
+	_start()
 
 	var end_at := 0.0
 	for t: float in sample_at:
@@ -143,6 +155,7 @@ func _run() -> void:
 	sorted.sort()
 	var next_sample := 0
 	var shared_checked := false
+	var restarted := restart_at <= 0.0
 	var t0 := Time.get_ticks_msec()
 	while _load_failed.is_empty():
 		var now := Time.get_ticks_msec() - t0
@@ -165,6 +178,13 @@ func _run() -> void:
 				shared_checked = true
 				_read_while_held(hdd)
 				_units_held()
+		if not restarted and now >= int(restart_at * 1000.0):
+			restarted = true
+			print("[xboxprobe] restart: stopping")
+			_lib.StopContent()
+			await get_tree().create_timer(3.0).timeout
+			print("[xboxprobe] restart: starting again")
+			_start()
 		if now >= int(end_at * 1000.0):
 			break
 		await get_tree().process_frame
@@ -244,6 +264,19 @@ func _unit_event(what: String, port: int, slot: int) -> void:
 			f.close()
 			_lib.SetCoreOption(key, XboxStorage.UNIT_ON)
 			print("[xboxprobe] SEAT %s: a fresh unit staged (md5 %s), option on" % [name, RommSaveSync.md5_of(image)])
+
+
+## Start the machine the way RetroSystem starts one. With no content that means
+## the NULL convention, switched on around the call and off again after, exactly
+## as system.gd does it — a probe that passed a zeroed struct instead would be
+## measuring a path the app never takes.
+func _start() -> void:
+	var no_content := rom.is_empty()
+	if no_content:
+		ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", true)
+	_lib.StartContent(root_dir, CORE, rom)
+	if no_content:
+		ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", false)
 
 
 ## What XboxStorage.stage_units_before_start does, without a room to find the
@@ -372,17 +405,37 @@ func _sample(at: float) -> void:
 	flat.convert(Image.FORMAT_RGB8)
 	if not shot.is_empty():
 		flat.save_png(shot.get_basename() + ("_%05.1f." % at).replace(" ", "0") + shot.get_extension())
-	# A coarse grid is plenty to tell a picture from a black frame.
+	# EVERY pixel, and the bounding box of the lit ones.
+	#
+	# A grid of every 8th pixel used to stand in for this, and it reported as
+	# uniform black a frame that carried the dashboard placeholder's single line
+	# of text: ~300 lit pixels of 307,200, in a strip twelve rows high, which a
+	# sparse grid steps straight over between the strokes. A whole day's wrong
+	# conclusion came out of that reading, so nothing here samples any more. The
+	# BOX is what makes the difference legible at a glance — a line of text is a
+	# few rows near the top, a picture is the whole frame.
+	var raw := flat.get_data()
+	var w := flat.get_width()
 	var lit := 0
-	var seen := 0
 	var colours: Dictionary = {}
-	for y: int in range(0, flat.get_height(), 8):
-		for x: int in range(0, flat.get_width(), 8):
-			var c := flat.get_pixel(x, y)
-			seen += 1
-			if c.r + c.g + c.b > 0.06:
-				lit += 1
-			colours[c.to_rgba32() >> 12] = true
-	print("[xboxprobe] t=%5.1f frames=%d size=%dx%d lit=%.3f colours=%d" % [at,
-		int(_lib.GetFrameCount()), flat.get_width(), flat.get_height(),
-		float(lit) / maxf(1.0, float(seen)), colours.size()])
+	var top := w * flat.get_height()
+	var bottom := -1
+	var left := w
+	var right := -1
+	for i: int in range(0, raw.size(), 3):
+		if raw[i] + raw[i + 1] + raw[i + 2] <= 16:
+			continue
+		lit += 1
+		colours[(raw[i] >> 3) << 10 | (raw[i + 1] >> 3) << 5 | (raw[i + 2] >> 3)] = true
+		@warning_ignore("integer_division")
+		var px: int = (i / 3) % w
+		@warning_ignore("integer_division")
+		var py: int = (i / 3) / w
+		top = mini(top, py)
+		bottom = maxi(bottom, py)
+		left = mini(left, px)
+		right = maxi(right, px)
+	var box := "none" if lit == 0 else "x %d..%d  y %d..%d" % [left, right, top, bottom]
+	print("[xboxprobe] t=%5.1f frames=%d size=%dx%d lit=%.4f (%d px) colours=%d  box %s" % [at,
+		int(_lib.GetFrameCount()), w, flat.get_height(),
+		float(lit) / maxf(1.0, float(w * flat.get_height())), lit, colours.size(), box])

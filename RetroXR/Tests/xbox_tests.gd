@@ -20,7 +20,7 @@ extends Node
 
 ## Cases in this file, NOT counting the guard below -- it is checked before it
 ## has recorded itself. Bump when adding.
-const EXPECTED_CASES := 160
+const EXPECTED_CASES := 167
 
 const TITLE := "4d530004"
 const OTHER_TITLE := "4d530051"
@@ -149,6 +149,37 @@ func _group_system() -> void:
 
 	_ok(XboxStorage.is_xbox_core("xemu"), "system/xemu is the core the one-at-a-time rule is about")
 	_ok(not XboxStorage.is_xbox_core("pcsx2"), "system/and no other")
+
+	# Switched on with an EMPTY tray. Every other console's BIOS screen is in the
+	# firmware; an Xbox's is the dashboard on its hard disk, and with the stock
+	# image that is a placeholder drawing one line of text — which is the machine
+	# working. Without this row an empty Xbox refused to start at all, and a disc
+	# sitting in an open tray got "close the tray" instead of the dashboard.
+	var boot := BiosBoot.entry("xemu", "xbox")
+	_ok(not boot.is_empty(), "empty/an Xbox knows how to start with nothing in it")
+	_ok(BiosBoot.boots_with_no_content("xemu", "xbox"),
+		"empty/by being handed no content at all, not a blank disc")
+	_eq(BiosBoot.empty_media_extension("xemu", "xbox"), "",
+		"empty/there being no such thing as a blank Xbox disc")
+	_ok((boot.get("boot_rom", []) as Array).has("Complex_4627v1.03.bin"),
+		"empty/and only once its flash BIOS is installed", str(boot.get("boot_rom", [])))
+
+	# The verdict the power button reaches, called directly as its other cases
+	# are: it is a table of decisions and reads no disk.
+	var none: Array[Dictionary] = []
+	var empty := RetroSystem._power_on_verdict("xemu", "xbox", "", none, "", true, true, "")
+	_ok(bool(empty["start"]) and str(empty["rom"]).is_empty(),
+		"empty/so it switches on with an empty tray, handed nothing")
+	# The case the user met: a disc in a tray still open. Starting beats the
+	# refusal, because that is what the hardware does — an open tray is a disc
+	# the drive cannot read, which is the dashboard.
+	var tray := RetroSystem._power_on_verdict("xemu", "xbox", "", none, "", true, true, "tray")
+	_ok(bool(tray["start"]), "empty/and with the tray still open over a disc")
+	# With no BIOS the row cannot help: can_boot_empty says no, so empty_ok is
+	# false, and the machine asks for a game rather than starting into black.
+	var no_bios := RetroSystem._power_on_verdict("xemu", "xbox", "", none, "", false, true, "")
+	_eq(str(no_bios["title"]), "No game inserted",
+		"empty/but with no BIOS it asks for a disc, as it always did")
 
 
 # ── sources/ ──────────────────────────────────────────────────────────────────

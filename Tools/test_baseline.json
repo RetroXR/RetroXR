@@ -34,11 +34,11 @@
     "screen_cast_light_tests": 11,
     "spawn_menu_tests": 24,
     "state_tests": 100,
-    "system_tests": 567,
+    "system_tests": 571,
     "systems_data_tests": 42,
     "time_of_day_tests": 108,
     "tv_resize_tests": 53,
     "web_server_tests": 70,
-    "xbox_tests": 161
+    "xbox_tests": 168
   }
 }
