@@ -162,7 +162,10 @@ const _PERIPHERALS: Dictionary = {
 ## Platforms that model their own console AND their own pad, so the generic
 ## stand-ins are only clutter on their card. Everything else keeps them: for a
 ## platform with no hardware of its own they are the whole way to play it.
-const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari2600", "psx"]
+##
+## The N64 is here for its pad more than its box: the generic pad has no expansion
+## port, so on that card it was a controller that takes none of the three paks.
+const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari2600", "psx", "n64"]
 
 
 ## Platforms that name their own A/V lead above, so the generic one would be a

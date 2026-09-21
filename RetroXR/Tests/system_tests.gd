@@ -97,6 +97,7 @@ func _ready() -> void:
 	_test_core_device_id()
 	_test_light_gun_cards()
 	_test_bsx_card()
+	_test_n64_card()
 	_test_pad_type_choice()
 	await _test_analog_mode_switch()
 	await _test_playstation_hardware()
@@ -336,6 +337,25 @@ func _spawn_row(sysid: String, token: String) -> Dictionary:
 		if String(item.get("spawn", "")) == token:
 			return item
 	return {}
+
+
+## The N64 card names its own pad, the only one with an expansion port. The
+## generic pad beside it took none of the three paks, so it was a controller the
+## card's own paks did not fit.
+func _test_n64_card() -> void:
+	var spawns: Array = []
+	for it: Dictionary in SpawnCatalog.items_for("n64"):
+		spawns.append(String(it.get("spawn", "")))
+	_ok(not spawns.has(SpawnCatalog.PRIMITIVE_CONTROLLER), "n64/no Primitive Controller offered")
+	_ok(spawns.has("n64_controller"), "n64/its own pad is still offered")
+	_ok(_has_model("n64", "nintendo_64"), "n64/the console is still offered")
+
+
+func _has_model(sysid: String, model_id: String) -> bool:
+	for it: Dictionary in SpawnCatalog.items_for(sysid):
+		if String(it.get("model_id", "")) == model_id:
+			return true
+	return false
 
 
 ## The gun's row on a platform's card, or {} if that card offers none.
