@@ -158,11 +158,26 @@ turn, untouched (`page_grab_probe`'s fold-direction cases give the same numbers)
   solved in the leaf's own frame whatever the lift is, and this only decides how the turn is
   shared between hinge and bow. **Judge continuity by the paper, not the lift angle** — near
   taut the tangent at the binding legitimately turns degrees for a fraction of a millimetre.
-- **The lift hands over to the roll** (`LIFT_HANDS_OVER_FROM/TO`, in the hand's bearing about
-  the gutter, 90° = straight over it). A leaf up on its hinge is turned about *its own* half, so
-  it can never lie on the far one; the rolled-over sheet, whose flap rides the far half's bend,
-  can. Bearings run −90°…270°: wrapping at 180° dropped the lift from 105° to nothing in one
-  frame once the hand was over the far side of a drooping book.
+- **The lift hands over to the roll — as the hand comes DOWN** (`LIFT_HANDS_OVER_FROM/TO` in
+  the hand's bearing about the gutter, 90° = straight over it, **times** `LIFT_LANDS_BELOW` →
+  `LIFT_HELD_ABOVE`, 2 → 5 cm of height above the far page). Bearings run −90°…270°: wrapping at
+  180° dropped the lift from 105° to nothing in one frame over the far side of a drooping book.
+  - **It must hand over, and it must not hand over by bearing alone.** Removed entirely, a
+    lifted and bowed page set down on the far half sinks **30–34 mm through the far block** at
+    either end of a thick book — that, not the old stated reason, is what it is for (after the
+    lift the shader re-measures from the gutter and a point past it DOES take the far bend).
+    By bearing alone, a page merely leaning past upright went limp: the roll laid it flat and
+    the grip trailed the hand by 11–22 cm, well inside the paper's reach (Quest, 2026-09-20).
+  - **It is a trade, measured, not a fix.** The lift and the roll put the grip on the hand as
+    two very different shapes — a page standing part-way up and bowed, against one lying flat
+    with a curl — so somewhere the page must change between them. Quick = a settle as it lands;
+    slow = a half-lifted leaf pointing at nothing, worse than either. Far half, old → now:
+    held 5 cm up 109 → 8 mm, held 10 cm up 219 → 32 mm (the near half's own reach limit),
+    held 3.5 cm up 70 → 169 mm, landing 1.4 → 5.4 mm of page per 0.5 mm of hand, and at the
+    front of a thick book it now dips 2.7 mm into the far block half-way through the hand-over
+    (it swings about its thin side's height). Every other band followed a page held at 5 cm
+    WORSE than the old one, because 5 cm fell inside it — and 5 cm is where a page is carried.
+    `spine/` pins all of it; don't retune without re-running the sweep.
 - A raised leaf is being lifted, not corner-folded: the hand's drift *along* the spine stops
   steering the fold (`LIFT_STEERS_STRAIGHT`). Before, a hand that mostly rose gave an in-plane
   displacement of a few millimetres pointing wherever it drifted, the binding rule refused it,
@@ -306,6 +321,28 @@ whole and opened fine on desktop; the Quest's `godot-pdfium` binary was 18 days 
 bound the method as `load`, so `open()` did not exist on that platform and every PDF manual had
 been failing since. That trap, and how to spot it, is in `extensions.md` — check the binary
 before you blame the file.
+
+### What the turning page shows, and what is under it
+
+- **A mid-turn refresh must not re-lay the spread.** `_spawn_leaf` puts the page BEYOND the leaf
+  on the block's top sheet under it; `_update_spread_textures` lays the plain spread, whose page
+  on that side IS the page on the leaf. Anything refreshing mid-turn put the page being turned
+  back underneath it, and it flashed up as the next page until the turn finished — constantly
+  for a fast reader, because `_drain_uploads` refreshes every frame it lands a page.
+  `_relay_turning_leaf()` puts back what belongs under a turning page, and lets the leaf pick up
+  a page that was still rendering when it lifted (it wore the placeholder for the whole turn).
+- **At either END the leaf is a cover.** Turning the last page forward or the first page back
+  left a blank white sheet in the book for the length of the turn: only the two turns that start
+  from a SHUT book (open the cover, close the back) lifted the cover mesh with the leaf. The two
+  from an open spread left the cover and its one-leaf block behind, and the block showed as a
+  bare page. `_leaf_plan` now marks them with `hide` and `hide_block`. `ends/` checks each end
+  turn leaves exactly the surfaces its REVERSE turn does — an oracle that names the stray.
+- **The loading placeholder says what it is.** It was a plain cream square, in a headset
+  indistinguishable from a blank page. Now an hourglass and "Loading page", drawn ONCE per app
+  into one shared `ImageTexture` with the engine's fallback font and the project's own icon font
+  (no new asset or licence), updated **in place** so every surface already wearing it picks the
+  drawing up and `_loading_texture` keeps its identity. Skipped under `--headless`, where the
+  dummy renderer returns a blank image (and an updating SubViewport would hang the run).
 
 ### What a page TURN costs, and why it used to hitch
 

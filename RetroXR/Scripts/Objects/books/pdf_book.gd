@@ -133,12 +133,18 @@ const GRAB_BAND := 0.65
 ## the point.
 const CURL_MIN := 0.009
 const CURL_MAX := 1.5
-## The hand's bearing about the gutter (90 = straight over it) across which a
-## lifted leaf gives way to the rolled-over one.
-const LIFT_HANDS_OVER_FROM := deg_to_rad(95.0)
-const LIFT_HANDS_OVER_TO := deg_to_rad(150.0)
 ## How reluctant a lifted page is to bow rather than hinge (radians: the bow it
 ## gives up to stiffness). See _solve_leaf_lift.
+## The hand's bearing about the gutter (90 = straight over it) across which a
+## lifted leaf gives way to the rolled-over one...
+const LIFT_HANDS_OVER_FROM := deg_to_rad(95.0)
+const LIFT_HANDS_OVER_TO := deg_to_rad(150.0)
+## ...but only as the hand comes DOWN onto the far page: fully handed over below
+## the first height above it, not at all above the second. Measured against the
+## other bands in _solve_leaf_lift's comment; the ONLY one that follows a page
+## held at 5 cm, which is where a page is carried over the spine.
+const LIFT_LANDS_BELOW := 0.02
+const LIFT_HELD_ABOVE := 0.05
 const LIFT_BOW_STIFFNESS := 0.5
 ## By this much lift a page is being raised, not corner-folded.
 const LIFT_STEERS_STRAIGHT := deg_to_rad(12.0)
@@ -1508,6 +1514,7 @@ func _update_spread_textures() -> void:
 	_apply_texture(_left_stack_top, left_tex)
 	var right_tex := _get_page_texture(right_page_idx) if right_page_idx < _page_count else null
 	_apply_texture(_right_stack_top, right_tex)
+	_relay_turning_leaf()
 
 	_trim_texture_cache()
 
@@ -1755,8 +1762,17 @@ func _leaf_plan(dir: int) -> Dictionary:
 					"under": _right_stack_top, "under_page": 2}
 			BookState.OPEN:
 				var front := (_current_leaf + 1) * 2
+				var under_page := (_current_leaf + 2) * 2
+				# The LAST page: this leaf is the back cover (its underside is the
+				# back cover's art), and nothing lies under a cover. Lift the back
+				# cover mesh and its one-leaf block with it, as closing from
+				# LAST_PAGE already does — left behind, the block stood there as a
+				# blank white page for the length of the turn (a Quest, 2026-09-20).
+				if under_page >= _page_count:
+					return {"front": front, "back": front + 1, "hide": _back_cover_mesh,
+						"hide_block": _right_stack, "under": _right_stack_top, "under_page": under_page}
 				return {"front": front, "back": front + 1, "hide": null,
-					"under": _right_stack_top, "under_page": (_current_leaf + 2) * 2}
+					"under": _right_stack_top, "under_page": under_page}
 	else:
 		match _state:
 			BookState.LAST_PAGE:
@@ -1764,8 +1780,14 @@ func _leaf_plan(dir: int) -> Dictionary:
 					"under": _left_stack_top, "under_page": _page_count - 3}
 			BookState.OPEN:
 				var front := _current_leaf * 2 + 1
+				var under_page := (_current_leaf - 1) * 2 + 1
+				# The first page, turned back: the mirror image — this leaf is the
+				# FRONT cover, so it takes the cover mesh and its block with it.
+				if under_page < 0:
+					return {"front": front, "back": front - 1, "hide": _cover_mesh,
+						"hide_block": _left_stack, "under": _left_stack_top, "under_page": under_page}
 				return {"front": front, "back": front - 1, "hide": null,
-					"under": _left_stack_top, "under_page": (_current_leaf - 1) * 2 + 1}
+					"under": _left_stack_top, "under_page": under_page}
 	return {}
 
 
@@ -1815,12 +1837,19 @@ func _spawn_leaf(dir: int) -> bool:
 	_active_leaf = leaf
 	_is_turning = true
 	_turn_direction = dir
+	_leaf_front_page = int(plan["front"])
+	_leaf_back_page = back_idx
+	_leaf_under = plan.get("under") as MeshInstance3D
+	_leaf_under_page = int(plan["under_page"])
 	_push_flop(true)
 
 	# Reveal what the turning page is uncovering.
 	var hide_node := plan.get("hide") as MeshInstance3D
 	if hide_node:
 		hide_node.visible = false
+	var hide_block := plan.get("hide_block") as MeshInstance3D
+	if hide_block:
+		hide_block.visible = false
 	var under := plan.get("under") as MeshInstance3D
 	var under_page := int(plan["under_page"])
 	if under:
@@ -1833,6 +1862,38 @@ func _spawn_leaf(dir: int) -> bool:
 	return true
 
 
+## What the turn in progress is showing: the two faces of the leaf, and the
+## sheet it uncovers (the block's top, carrying the page BEYOND the leaf).
+var _leaf_front_page := -1
+var _leaf_back_page := -1
+var _leaf_under: MeshInstance3D = null
+var _leaf_under_page := -1
+
+
+## _update_spread_textures() lays the plain spread, and on the side being turned
+## the spread's page IS the page on the leaf — so anything that refreshed mid-turn
+## put the page being turned back on the sheet under it, and it flashed up as the
+## next page until the turn finished (a Quest, 2026-09-20). _drain_uploads()
+## refreshes every frame it lands a page, so a fast reader outrunning the
+## prefetch hit it constantly. Put back what belongs under a page in mid-turn,
+## and let the leaf pick up a page that was still rendering when it lifted —
+## otherwise it wears the placeholder for the whole turn.
+func _relay_turning_leaf() -> void:
+	if _active_leaf == null:
+		return
+	var mat := _active_leaf.get_surface_override_material(0) as ShaderMaterial
+	if mat:
+		mat.set_shader_parameter("front_texture", _get_page_texture(_leaf_front_page))
+		if _leaf_back_page >= 0 and _leaf_back_page < _page_count:
+			mat.set_shader_parameter("back_texture", _get_page_texture(_leaf_back_page))
+	if is_instance_valid(_leaf_under):
+		if _leaf_under_page >= 0 and _leaf_under_page < _page_count:
+			_leaf_under.visible = true
+			_apply_texture(_leaf_under, _get_page_texture(_leaf_under_page))
+		else:
+			_leaf_under.visible = false
+
+
 func _despawn_active_leaf() -> void:
 	if _leaf_tween and _leaf_tween.is_valid():
 		_leaf_tween.kill()
@@ -1840,6 +1901,7 @@ func _despawn_active_leaf() -> void:
 	if _active_leaf:
 		_active_leaf.queue_free()
 		_active_leaf = null
+	_leaf_under = null
 	_is_turning = false
 	_turn_direction = 0
 	_grab_dir = 0
@@ -1921,12 +1983,30 @@ func _solve_leaf_lift(world_pos: Vector3) -> float:
 	var bow := _arc_half_angle(Vector2(across, up).length() / maxf(paper, 1e-4))
 	bow = bow * bow / (bow + LIFT_BOW_STIFFNESS)
 	var lift := clampf(over - bow, 0.0, PI)
-	# A leaf up on its hinge is turned about ITS OWN half, so it can never come to
-	# lie on the far one — that is the rolled-over sheet's job, whose flap rides
-	# the far half's bend. As the hand comes down past the spine the lift hands
-	# over to it, smoothly in the hand's bearing, so there is no frame where the
-	# page changes its mind.
-	return lift * (1.0 - smoothstep(LIFT_HANDS_OVER_FROM, LIFT_HANDS_OVER_TO, over))
+	# A leaf up on its hinge must hand over to the rolled-over sheet to LAND: with
+	# no hand-over at all, a lifted and bowed page set down on the far half goes
+	# 30-34 mm THROUGH the far block at either end of a thick book. So it hands
+	# over past the spine, smoothly in the hand's bearing.
+	#
+	# But landing is about the hand coming DOWN. Faded by bearing alone, a page
+	# held up in the air went limp the moment it leaned past upright: the roll
+	# laid it flat and the grip trailed the hand by 11-22 cm, well inside the
+	# paper's reach (a Quest, 2026-09-20). So the bearing fade only acts as the
+	# hand descends onto the far page. Measured, far half, against the old:
+	#                            bearing only   this (2-5 cm)
+	#     held 5 cm up              109 mm          8 mm
+	#     held 10 cm up             219 mm         32 mm  (= the near half: reach)
+	#     held 3.5 cm up             70 mm        169 mm
+	#     landing, page per hand    1.4 mm/0.5     5.4 mm/0.5
+	#     through the far block      never          never
+	# Every other band followed a page held at 5 cm WORSE than the old — 5 cm
+	# fell inside it. The lift and the roll reach the hand as two very different
+	# shapes (standing up and bowed, against flat with a curl), so SOMEWHERE the
+	# page has to change between them, and either the change is quick (a settle
+	# as it lands) or it is slow and leaves a half-lifted leaf that points at
+	# nothing. This puts it where the page is being set down, not carried.
+	var lands := 1.0 - smoothstep(LIFT_LANDS_BELOW, LIFT_HELD_ABOVE, up)
+	return lift * (1.0 - smoothstep(LIFT_HANDS_OVER_FROM, LIFT_HANDS_OVER_TO, over) * lands)
 
 
 ## h in [0, PI / 2] with sin(h) / h = ratio: half the angle an arc turns through
@@ -2652,10 +2732,84 @@ func _update_hints_and_detect_grip() -> void:
 
 # ── Utilities ─────────────────────────────────────────────────────────────────
 
+## The page shown while its render is still on the way. It used to be a plain
+## cream square — in a headset indistinguishable from a page that is simply
+## blank — so it says what it is: an hourglass and "Loading page".
+##
+## Drawn ONCE per app, with the engine's own fallback font for the words and the
+## project's icon font (fonts/SymbolsNerdFont, already shipped and licensed) for
+## the glyph, so it brings in no new asset. Every book shares the one
+## ImageTexture and the drawing is written into it IN PLACE: surfaces already
+## wearing the plain version pick the drawing up, and _loading_texture keeps its
+## identity, which callers compare against.
+##
+## Portrait, the shape of most manuals. A landscape page stretches it, which is
+## tolerable for something on screen for a few frames.
+const LOADING_SIZE := Vector2i(360, 504)
+const LOADING_PAPER := Color(0.9, 0.9, 0.85)
+const LOADING_INK := Color(0.36, 0.33, 0.30)
+const LOADING_ICON := 0xF252          # nf-fa-hourglass_half
+const SYMBOL_FONT := preload("res://fonts/SymbolsNerdFont-Regular.ttf")
+static var _shared_loading: ImageTexture = null
+static var _loading_drawn := false
+
+
 func _create_loading_texture() -> void:
-	var img := Image.create(256, 256, false, Image.FORMAT_RGBA8)
-	img.fill(Color(0.9, 0.9, 0.85))
-	_loading_texture = ImageTexture.create_from_image(img)
+	if _shared_loading == null:
+		var img := Image.create(LOADING_SIZE.x, LOADING_SIZE.y, false, Image.FORMAT_RGBA8)
+		img.fill(LOADING_PAPER)
+		_shared_loading = ImageTexture.create_from_image(img)
+	_loading_texture = _shared_loading
+	if not _loading_drawn:
+		_loading_drawn = true
+		_draw_loading_page.call_deferred()
+
+
+## Render the icon and the words once in a SubViewport and copy the result into
+## the shared texture. The dummy renderer hands back a correctly sized BLANK
+## image, so under --headless there is nothing to draw and the plain page stands
+## (and a SubViewport left updating would hang a headless run besides).
+func _draw_loading_page() -> void:
+	if DisplayServer.get_name() == "headless" or not is_inside_tree():
+		return
+	var vp := SubViewport.new()
+	vp.size = LOADING_SIZE
+	vp.transparent_bg = false
+	vp.render_target_update_mode = SubViewport.UPDATE_ONCE
+	var paper := ColorRect.new()
+	paper.color = LOADING_PAPER
+	paper.size = Vector2(LOADING_SIZE)
+	vp.add_child(paper)
+	var icon := Label.new()
+	icon.text = char(LOADING_ICON)
+	icon.add_theme_font_override("font", SYMBOL_FONT)
+	icon.add_theme_font_size_override("font_size", 132)
+	icon.add_theme_color_override("font_color", LOADING_INK)
+	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	icon.position = Vector2(0, LOADING_SIZE.y * 0.22)
+	icon.size = Vector2(LOADING_SIZE.x, LOADING_SIZE.y * 0.36)
+	vp.add_child(icon)
+	var words := Label.new()
+	words.text = "Loading page"
+	words.add_theme_font_size_override("font_size", 40)
+	words.add_theme_color_override("font_color", LOADING_INK)
+	words.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	words.position = Vector2(0, LOADING_SIZE.y * 0.62)
+	words.size = Vector2(LOADING_SIZE.x, 60)
+	vp.add_child(words)
+	get_tree().root.add_child(vp)
+	# One frame to lay the labels out, one to draw them.
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var img := vp.get_texture().get_image()
+	vp.queue_free()
+	if img == null or img.is_empty():
+		return
+	img.convert(Image.FORMAT_RGBA8)
+	if img.get_size() != LOADING_SIZE:
+		img.resize(LOADING_SIZE.x, LOADING_SIZE.y)
+	_shared_loading.update(img)
 
 
 func _create_hint_labels() -> void:

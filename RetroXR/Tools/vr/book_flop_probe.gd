@@ -327,7 +327,7 @@ func _flip(caption: String, dir: int, seconds: float) -> void:
 ## the paper, and the gap between them is printed per phase — the fold solver's
 ## claim is that the gripped spot sits under the hand, and this is the check.
 func _follow() -> void:
-	_caption = "6f pulled OVER, then OUT, then UP and AWAY (red = hand, green = gripped paper)"
+	_caption = "6f pulled OVER, UP, OUT, AWAY, then carried over the SPINE and set DOWN (red = hand, green = gripped paper)"
 	print("[probe] %s" % _caption)
 	var w := _book._book_width
 	var plane := _book._page_plane_z(1)
@@ -340,6 +340,11 @@ func _follow() -> void:
 		["up   ", Vector3(w * 0.45, -0.02, plane + 0.115), 40],
 		["out  ", Vector3(w * 1.25, -0.02, plane + 0.05), 40],
 		["away ", Vector3(w * 0.70, 0.02, plane + 0.26), 40],
+		# Held up and carried OVER THE SPINE: the page used to let go here, the
+		# moment it leaned past upright, and trail the hand by 11-22 cm.
+		["spine", Vector3(w * -0.55, -0.02, plane + 0.08), 50],
+		# ...and set down on the far page, where it hands over to the roll.
+		["down ", Vector3(w * -0.60, -0.02, plane + 0.004), 40],
 		["back ", start, 30],
 	]
 	_hand_dot.visible = true

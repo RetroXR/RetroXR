@@ -47,6 +47,8 @@ func _ready() -> void:
 	_test_bend_geometry()
 	_test_bent_outline_shaders()
 	await _test_book()
+	await _test_turning_leaf_textures()
+	await _test_end_leaves()
 	await _test_thick_book()
 
 	print("[test] %d cases, %s" % [_ran,
@@ -495,6 +497,114 @@ func _worst_stretch(sim: BookFlop, z: float, as_leaf: bool) -> float:
 	return longest / 0.001
 
 
+# ── the turning leaf's pages ─────────────────────────────────────────────────
+
+## Flipping quickly, the page just turned would flash up as the page beyond it,
+## for a moment or until the turn finished (a Quest, 2026-09-20). _spawn_leaf()
+## puts the page BEYOND on the block's top sheet under the leaf — but
+## _refresh_visible_textures() re-applies the plain spread to that same sheet,
+## and the spread's right page IS the page on the leaf. Anything that refreshed
+## mid-turn put it back. _drain_uploads() refreshes every frame it lands a page,
+## so a fast reader, outrunning the prefetch, hit it constantly.
+func _test_turning_leaf_textures() -> void:
+	_write_cbz(CBZ_PATH)
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
+	add_child(book)
+	await _settle()
+	await _drain_renders(book)
+	book.set_page(PDFBook.BookState.OPEN, 4)
+	await _settle()
+	await _drain_renders(book)
+
+	for dir: int in [1, -1]:
+		var plan := book._leaf_plan(dir)
+		var under_page := int(plan["under_page"])
+		var turning := int(plan["front"])
+		var under := plan["under"] as MeshInstance3D
+		_ok(book._spawn_leaf(dir), "leaf/a %s turn starts" % ("forward" if dir > 0 else "backward"))
+		_ok(_mat(under).get_shader_parameter("front_texture") == book._texture_cache.get(under_page),
+			"leaf/%+d: the block under a turning page shows the page beyond it" % dir)
+		book._refresh_visible_textures()
+		var shown: Variant = _mat(under).get_shader_parameter("front_texture")
+		_ok(shown == book._texture_cache.get(under_page) and shown != book._texture_cache.get(turning),
+			"leaf/%+d: ...and STILL does once a refresh lands mid-turn — not the page being turned (showing %d, want %d, turning %d)"
+				% [dir, _page_of(book, shown), under_page, turning])
+		book._despawn_active_leaf()
+		book.set_page(PDFBook.BookState.OPEN, 4)
+		await _settle()
+
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + ProjectSettings.globalize_path(CBZ_PATH).md5_text())
+
+
+## Turning the LAST page forward, or the FIRST page back, left a blank white
+## sheet in the book for the length of the turn (a Quest, 2026-09-20). At either
+## end the leaf being turned IS a cover, and nothing lies under a cover — but only
+## the two turns that start from a shut book (open the cover, close the back) knew
+## to lift the cover mesh and its one-leaf block with the leaf. The two that start
+## from an open spread left both behind, and the block showed as a bare page.
+##
+## The oracle is the MIRROR: each end turn must leave exactly the surfaces its
+## reverse turn does. That cannot pass by accident, and it names the stray.
+func _test_end_leaves() -> void:
+	_write_cbz(CBZ_PATH)
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
+	add_child(book)
+	await _settle()
+	await _drain_renders(book)
+	var last := book._leaf_count - 2
+	var pairs := [
+		["the last page, turned forward", PDFBook.BookState.OPEN, last, 1,
+			"its reverse, closing from the back", PDFBook.BookState.LAST_PAGE, last + 1, -1],
+		["the first page, turned back", PDFBook.BookState.OPEN, 0, -1,
+			"its reverse, opening the cover", PDFBook.BookState.CLOSED, 0, 1],
+	]
+	for pair: Array in pairs:
+		var got := await _visible_during(book, pair[1], pair[2], pair[3])
+		var want := await _visible_during(book, pair[5], pair[6], pair[7])
+		_ok(got == want, "ends/%s leaves the book as %s does (%s vs %s)"
+				% [pair[0], pair[4], ", ".join(got), ", ".join(want)])
+	book.set_page(PDFBook.BookState.OPEN, last)
+	await _settle()
+	book._spawn_leaf(1)
+	_ok(not book._right_stack.visible and not book._back_cover_mesh.visible,
+		"ends/the last leaf takes the back cover and its block with it, no bare sheet under it")
+	book._despawn_active_leaf()
+	book.set_page(PDFBook.BookState.OPEN, 0)
+	await _settle()
+	book._spawn_leaf(-1)
+	_ok(not book._left_stack.visible and not book._cover_mesh.visible,
+		"ends/...and the first, the front cover and its block")
+	book._despawn_active_leaf()
+	# An abandoned turn puts everything back.
+	book.set_page(PDFBook.BookState.OPEN, 0)
+	await _settle()
+	_ok(book._left_stack.visible and book._cover_mesh.visible,
+		"ends/a turn that is let go of puts the cover and block back")
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + ProjectSettings.globalize_path(CBZ_PATH).md5_text())
+
+
+## The names of the page surfaces showing while a turn is in progress.
+func _visible_during(book: PDFBook, state: int, leaf: int, dir: int) -> PackedStringArray:
+	book.set_page(state, leaf)
+	await _settle()
+	book._spawn_leaf(dir)
+	var names: PackedStringArray = []
+	for node: MeshInstance3D in [book._cover_mesh, book._back_cover_mesh, book._left_stack,
+			book._right_stack, book._left_stack_top, book._right_stack_top]:
+		if node.visible:
+			names.append(node.name)
+	book._despawn_active_leaf()
+	return names
+
+
 # ── book ──────────────────────────────────────────────────────────────────────
 
 func _test_book() -> void:
@@ -665,6 +775,7 @@ func _test_book() -> void:
 	_test_page_bends(book)
 	_test_pointer_drags_across_the_middle(book)
 	await _test_page_follows_hand(book)
+	_test_follow_across_spine(book)
 
 	# Shut again AFTER having been open: the covers must give the droop back. (Checked
 	# only on a freshly loaded book, this passed with the reset deleted — nothing had
@@ -697,6 +808,65 @@ func _test_book() -> void:
 	await _settle()
 	_remove_tree(cache_dir)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(CBZ_PATH))
+
+
+## Held up and carried past the spine, a page stopped following the hand (a
+## Quest, 2026-09-20). The lift was handed over to the roll by the hand's
+## BEARING alone, so a page merely leaning past upright went limp: the roll laid
+## it flat on the far half and the grip trailed the hand by up to 22 cm, well
+## inside the paper's reach. Landing is about the hand coming DOWN.
+##
+## The oracle is SYMMETRY. Paper has a real reach, and a hand out past the fore
+## edge is left a real gap — but the same gap on both halves. So the far half may
+## be no worse than the near one, at every height a page is held at.
+func _test_follow_across_spine(book: PDFBook) -> void:
+	_drive(book, FACE_UP)
+	var w := book._book_width
+	var plane := book._page_plane_z(1)
+	for height: float in [0.05, 0.10]:
+		book._despawn_active_leaf()
+		book._on_page_grab_begin(1, _hand_at(book, Vector3(w * 0.85, -0.02, plane + 0.004)))
+		var near := 0.0
+		var far := 0.0
+		var far_at := 0.0
+		for i in 35:
+			var along := lerpf(0.85, -0.85, float(i) / 34.0)
+			var hand := _hand_at(book, Vector3(w * along, -0.02, plane + height))
+			book._update_fold_from_hand(hand)
+			var err := _grip_world(book).distance_to(hand)
+			if along > 0.0:
+				near = maxf(near, err)
+			elif err > far:
+				far = err
+				far_at = along
+		_ok(far <= near + 0.002,
+			"spine/held %d cm up, the far half follows the hand as well as the near one (worst %.0f mm at %.2f, near half %.0f mm)"
+				% [int(height * 100.0), far * 1000.0, far_at, near * 1000.0])
+	# The hand-over is a band of HEIGHT, so crossing it is where a page could leap:
+	# bring a hand straight down onto the far page and watch a point on the paper,
+	# as the spine sweep does. This is the side of the trade the old design won
+	# (1.4 mm; this is ~5 mm, a quick settle as it lands, measured in
+	# _solve_leaf_lift) — the bound is there so it cannot quietly get worse.
+	book._despawn_active_leaf()
+	book._on_page_grab_begin(1, _hand_at(book, Vector3(w * 0.85, -0.02, plane + 0.004)))
+	book._update_fold_from_hand(_hand_at(book, Vector3(w * -0.5, -0.02, plane + 0.10)))
+	var mid := Vector2(book._grab_anchor.x * 0.5 - w * 0.25, -0.02)
+	var worst_step := 0.0
+	var worst_up := 0.0
+	var last_mid := Vector3.INF
+	for i in 201:
+		var up := lerpf(0.10, 0.001, float(i) / 200.0)
+		book._update_fold_from_hand(_hand_at(book, Vector3(w * -0.5, -0.02, plane + up)))
+		var here := _leaf_point_world(book, mid)
+		if last_mid.is_finite() and here.distance_to(last_mid) > worst_step:
+			worst_step = here.distance_to(last_mid)
+			worst_up = up
+		last_mid = here
+	_ok(worst_step < 0.006,
+		"spine/brought straight down onto the far page it lands without a leap (mid-page moved at most %.1f mm per 0.5 mm of hand, %.0f mm up)"
+			% [worst_step * 1000.0, worst_up * 1000.0])
+	_ok(book._leaf_lift < 0.02, "spine/...and once down, the roll has it (%.1f deg of lift left)" % rad_to_deg(book._leaf_lift))
+	book._despawn_active_leaf()
 
 
 ## Does the page being turned follow the hand? The fold rolls a page over FLAT and
@@ -769,7 +939,9 @@ func _test_page_follows_hand(book: PDFBook) -> void:
 	# Coming down onto the far half, the leaf must NOT still be up on its hinge: a
 	# lifted leaf turns about its own half and can never lie on the other. The
 	# rolled-over sheet takes over, smoothly in the hand's bearing.
-	book._update_fold_from_hand(_hand_at(book, Vector3(w * -0.60, -0.02, plane + 0.03)))
+	# Brought DOWN onto the far page: that is landing, and the roll takes it. (A hand
+	# 3 cm up used to count: that is still holding the page, which now follows it.)
+	book._update_fold_from_hand(_hand_at(book, Vector3(w * -0.60, -0.02, plane + 0.002)))
 	_ok(book._leaf_lift < 0.02, "follow/landing on the far half, the lift has handed over to the roll (%.1f deg)"
 		% rad_to_deg(book._leaf_lift))
 	# ...and it got there without a jump: sweep the hand over the spine and watch.
@@ -966,6 +1138,24 @@ func _hand_at(book: PDFBook, flat: Vector3) -> Vector3:
 
 
 ## Where the gripped spot of the turning leaf is in the world.
+## How far any part of the turning leaf has gone THROUGH the far half's block, in
+## metres (positive = through it, negative = floating clear). The leaf is sampled
+## on a grid; the strip by the gutter is skipped, where the pages dive into the
+## valley on purpose.
+func _through_far(book: PDFBook) -> float:
+	var w := book._book_width
+	var h := book.book_height
+	var far_plane := book._page_plane_z(-book._grab_dir)
+	var worst := -INF
+	for ix in 11:
+		for iy in 5:
+			var p := Vector2(lerpf(-0.5, 0.5, float(ix) / 10.0) * w, lerpf(-0.45, 0.45, float(iy) / 4.0) * h)
+			var flat := book._flop.unbend_over(book.to_local(_leaf_point_world(book, p)), book._turn_direction)
+			if float(book._grab_dir) * flat.x < -0.15 * w:
+				worst = maxf(worst, far_plane - flat.z)
+	return worst
+
+
 func _grip_world(book: PDFBook) -> Vector3:
 	return _leaf_point_world(book, book._grab_anchor)
 
@@ -1074,10 +1264,43 @@ func _test_thick_book() -> void:
 	# its own height, 5 mm up, only moves the grip ~3 mm.
 	_ok(_grip_world(book).distance_to(over) < 0.001,
 		"thick/pulled over, the gripped spot is under the hand (%.1f mm)" % (_grip_world(book).distance_to(over) * 1000.0))
+
 	var up := _hand_at(book, Vector3(w * 0.45, -0.02, plane + 0.115))
 	book._update_fold_from_hand(up)
 	_ok(_grip_world(book).distance_to(up) < 0.001,
 		"thick/pulled up, the page swings up to the hand (%.1f mm)" % (_grip_world(book).distance_to(up) * 1000.0))
+	book._despawn_active_leaf()
+	book._set_state(book._state)
+
+	# Set DOWN on the far half, at both ends of a thick book, where the two blocks'
+	# tops are furthest apart. This is what the lift's hand-over to the roll is for:
+	# without one, a lifted and bowed page sank 30-34 mm THROUGH the far block.
+	var pierce := -INF
+	var pierce_at := ""
+	for at: int in [2, book._leaf_count - 4]:
+		for dir: int in [1, -1]:
+			book._despawn_active_leaf()
+			book.set_page(PDFBook.BookState.OPEN, at)
+			await _settle()
+			var pw := book._book_width
+			book._on_page_grab_begin(dir, _hand_at(book, Vector3(dir * pw * 0.85, -0.02, book._page_plane_z(dir) + 0.004)))
+			var far_plane := book._page_plane_z(-dir)
+			for height: float in [0.10, 0.05, 0.035, 0.02, 0.005, 0.001]:
+				book._update_fold_from_hand(_hand_at(book, Vector3(-dir * pw * 0.6, -0.02, far_plane + height)))
+				var through := _through_far(book)
+				if through > pierce:
+					pierce = through
+					pierce_at = "leaf %d, dir %+d, %d mm up" % [at, dir, int(height * 1000.0)]
+	# Not zero. Half-way through the hand-over (~35 mm up), at the FRONT of a thick
+	# book, the leaf dips 2.7 mm into the far block: it swings about the gutter at
+	# its own THIN side's height and bows down short of a block 10 mm higher. The
+	# old bearing-only hand-over, landing by the roll, stayed 7.6 mm clear — this
+	# is part of what following a held page costs (see _solve_leaf_lift). The
+	# bound is pinned just over it so it cannot quietly grow; the 30-34 mm of a
+	# page with no hand-over at all is what it really guards.
+	_ok(pierce < 0.003,
+		"thick/a page set down on the far half never goes more than a paper-width into its block (deepest %+.1f mm, %s)"
+			% [pierce * 1000.0, pierce_at])
 	book._despawn_active_leaf()
 	book._set_state(book._state)
 
