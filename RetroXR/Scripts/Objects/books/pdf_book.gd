@@ -161,6 +161,9 @@ const FOLD_GUTTER_MARGIN := 0.004
 ## Fold progress past which letting go completes the turn instead of undoing it.
 const TURN_COMMIT := 0.5
 const LEAF_SETTLE_TIME := 0.28
+## A page let go with more lift than this finishes on its hinge (falls over)
+## rather than by the roll. See _settle_leaf.
+const SETTLE_FALLS_OVER_ABOVE := deg_to_rad(5.0)
 ## A replayed remote turn covers the whole page, so it runs slower than the
 ## settle that finishes a drag already most of the way over.
 const REMOTE_TURN_TIME := 0.45
@@ -2184,7 +2187,27 @@ func _settle_leaf(commit: bool, duration: float = LEAF_SETTLE_TIME) -> void:
 	# two crease radii, so the leaf's own plane drops as the fold completes and
 	# the crease closes almost flat.
 	var to_z := _active_leaf.position.z
-	if commit:
+	var to_lift := 0.0
+	if commit and _leaf_lift > SETTLE_FALLS_OVER_ABOVE:
+		# Held up and let go past halfway: it FALLS OVER. A page carrying the turn
+		# on its hinge finishes on its hinge — the lift carries on round to PI and
+		# the curl eases out flat — rather than being handed to the roll.
+		#
+		# Rolling it closed meant winding the lift back down alongside, and the
+		# two fought: the hinge swung the page back toward its own side while the
+		# roll carried it over, and it slid 24 mm UNDER the page it should land on,
+		# only popping on top as the turn ended (a Quest, 2026-09-20). That was
+		# harmless only while a page past the spine had no lift left to unwind.
+		#
+		# At PI the shader gives every point the far half's bend, and a flat leaf
+		# lies at its pivot height — flop_origin_z, which is the leaf's own z — so
+		# that is brought down onto the far page.
+		to_origin = Vector2(dir * (_book_width * 0.5 + 0.01), 0.0)
+		to_radius = _curl_radius
+		to_taper = _curl_taper
+		to_lift = PI
+		to_z = _page_plane_z(-_grab_dir) + LEAF_LIFT
+	elif commit:
 		# Fold line exactly on the book's gutter: the page lands mirrored onto
 		# the opposite stack.
 		to_origin = Vector2(-dir * (_book_width * 0.5 + SPINE_WIDTH * 0.5), 0.0)
@@ -2222,8 +2245,9 @@ func _settle_leaf(commit: bool, duration: float = LEAF_SETTLE_TIME) -> void:
 			_fold_normal = from_normal.slerp(to_normal, t)
 			_curl_radius = lerpf(from_radius, to_radius, t)
 			_curl_taper = lerpf(from_taper, to_taper, t)
-			# Either way it ends lying on a block, so the lift always goes.
-			_leaf_lift = lerpf(from_lift, 0.0, t)
+			# It ends lying on a block either way: by the roll, the hinge is
+			# undone (0); falling over, it is carried the rest of the way (PI).
+			_leaf_lift = lerpf(from_lift, to_lift, t)
 			if is_instance_valid(leaf):
 				leaf.position.z = lerpf(from_z, to_z, t)
 			_push_fold(1.0),

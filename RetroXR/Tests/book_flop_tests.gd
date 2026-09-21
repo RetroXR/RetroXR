@@ -776,6 +776,7 @@ func _test_book() -> void:
 	_test_pointer_drags_across_the_middle(book)
 	await _test_page_follows_hand(book)
 	_test_follow_across_spine(book)
+	await _test_release_lands_on_top(book)
 
 	# Shut again AFTER having been open: the covers must give the droop back. (Checked
 	# only on a freshly loaded book, this passed with the reset deleted — nothing had
@@ -867,6 +868,70 @@ func _test_follow_across_spine(book: PDFBook) -> void:
 			% [worst_step * 1000.0, worst_up * 1000.0])
 	_ok(book._leaf_lift < 0.02, "spine/...and once down, the roll has it (%.1f deg of lift left)" % rad_to_deg(book._leaf_lift))
 	book._despawn_active_leaf()
+
+
+## Let go of a page held up past the spine and it slid UNDER the page it should
+## land on, only popping on top as the turn finished (a Quest, 2026-09-20).
+## _settle_leaf rolls the fold closed at the gutter — the designed landing — and
+## ran the lift down to nothing alongside it. That was harmless while the lift
+## was already gone past the spine; once a held page kept its lift, the settle
+## swung it BACK toward its own side while the roll carried it over, and the two
+## fought their way through the far block. Sampled every frame of the settle, on
+## a far block thinner than the near one and on one thicker.
+func _test_release_lands_on_top(book: PDFBook, label: String = "thin") -> void:
+	_drive(book, FACE_UP)
+	# From high to low: the high ones are let go with the page up on its hinge
+	# and fall over; the low ones are rolled and finish by the roll. The heights
+	# straddle SETTLE_FALLS_OVER_ABOVE, so both ways out, and the seam between
+	# them, are all landed.
+	var paths := {}
+	for at: int in [3, book._leaf_count - 5]:
+		for height: float in [0.08, 0.04, 0.035, 0.03, 0.02]:
+			book._despawn_active_leaf()
+			book.set_page(PDFBook.BookState.OPEN, at)
+			await _settle()
+			var w := book._book_width
+			var plane := book._page_plane_z(1)
+			book._on_page_grab_begin(1, _hand_at(book, Vector3(w * 0.85, -0.02, plane + 0.004)))
+			for i in 20:
+				book._update_fold_from_hand(_hand_at(book,
+					Vector3(w * lerpf(0.85, -0.5, float(i) / 19.0), -0.02, plane + height)))
+			var lift_at_release := book._leaf_lift
+			paths["falls over" if lift_at_release > PDFBook.SETTLE_FALLS_OVER_ABOVE else "rolls"] = true
+			book._on_page_grab_end(1)
+			var deepest := -INF
+			var last := {}
+			for i in 2000:
+				await get_tree().process_frame
+				if book._active_leaf == null:
+					break
+				last = _against_far(book)
+				deepest = maxf(deepest, float(last["deepest"]))
+			var landed: bool = not last.is_empty() and float(last["over"]) > 0.5 				and float(last["highest"]) < 0.002
+			_ok(deepest < 0.001 and landed,
+				"release/%s: let go past the spine at leaf %d, %d mm up (lift %.0f deg), it lands ON the far page — never under it (deepest %+.1f mm), and lying on it at the end (%.0f%% over it, highest %+.1f mm)"
+					% [label, at, int(height * 1000.0), rad_to_deg(lift_at_release), deepest * 1000.0,
+					float(last.get("over", 0.0)) * 100.0, float(last.get("highest", 0.0)) * 1000.0])
+			await _settle()
+	_ok(paths.has("falls over") and paths.has("rolls"),
+		"release/...and those releases really did take both ways out (%s)" % ", ".join(paths.keys()))
+	# Let go BEFORE halfway, held up: it falls back to its own side and the turn
+	# does not happen.
+	book._despawn_active_leaf()
+	book.set_page(PDFBook.BookState.OPEN, 3)
+	await _settle()
+	var before: int = book._current_leaf
+	var pw := book._book_width
+	var own := book._page_plane_z(1)
+	book._on_page_grab_begin(1, _hand_at(book, Vector3(pw * 0.85, -0.02, own + 0.004)))
+	book._update_fold_from_hand(_hand_at(book, Vector3(pw * 0.45, -0.02, own + 0.06)))
+	book._on_page_grab_end(1)
+	for i in 2000:
+		await get_tree().process_frame
+		if book._active_leaf == null:
+			break
+	_ok(book._current_leaf == before, "release/let go held up before halfway, it falls back and nothing turns")
+	await _settle()
 
 
 ## Does the page being turned follow the hand? The fold rolls a page over FLAT and
@@ -1156,6 +1221,31 @@ func _through_far(book: PDFBook) -> float:
 	return worst
 
 
+## Where the turning leaf is against the far page: how deep any sampled point is
+## below it, how high any is above it (metres), and what fraction of the sheet is
+## over the far half at all. A page that has LANDED is all over the far half and
+## within a paper-width of its plane both ways; one that never turned passes a
+## "never under the far page" test trivially, which is why all three are needed.
+func _against_far(book: PDFBook) -> Dictionary:
+	var w := book._book_width
+	var h := book.book_height
+	var far_plane := book._page_plane_z(-book._grab_dir)
+	var deepest := -INF
+	var highest := -INF
+	var over := 0
+	var total := 0
+	for ix in 11:
+		for iy in 5:
+			var p := Vector2(lerpf(-0.5, 0.5, float(ix) / 10.0) * w, lerpf(-0.45, 0.45, float(iy) / 4.0) * h)
+			var flat := book._flop.unbend_over(book.to_local(_leaf_point_world(book, p)), book._turn_direction)
+			total += 1
+			if float(book._grab_dir) * flat.x < -0.15 * w:
+				over += 1
+				deepest = maxf(deepest, far_plane - flat.z)
+				highest = maxf(highest, flat.z - far_plane)
+	return {"deepest": deepest, "highest": highest, "over": float(over) / float(total)}
+
+
 func _grip_world(book: PDFBook) -> Vector3:
 	return _leaf_point_world(book, book._grab_anchor)
 
@@ -1304,6 +1394,9 @@ func _test_thick_book() -> void:
 	book._despawn_active_leaf()
 	book._set_state(book._state)
 
+	# The blocks' tops differ by ~10 mm at either end of this book, which the thin
+	# suite book (0.2 mm) cannot show: a landing at the wrong height hides there.
+	await _test_release_lands_on_top(book, "thick")
 	var cache_dir: String = book._cache_dir
 	book.queue_free()
 	await _settle()

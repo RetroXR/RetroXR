@@ -337,6 +337,19 @@ before you blame the file.
   from an open spread left the cover and its one-leaf block behind, and the block showed as a
   bare page. `_leaf_plan` now marks them with `hide` and `hide_block`. `ends/` checks each end
   turn leaves exactly the surfaces its REVERSE turn does — an oracle that names the stray.
+- **A page let go finishes the way it was being turned** (`SETTLE_FALLS_OVER_ABOVE`, 5°). On
+  release `_settle_leaf` used to roll the fold closed AND wind the lift down to 0 alongside it —
+  harmless while a page past the spine had already given its lift to the roll. Once a held page
+  kept its lift, the two fought: the hinge swung it back toward its own side while the roll
+  carried it over, and it slid **24 mm under** the page it should land on, only popping on top as
+  the turn ended (Quest, 2026-09-20). Now a page released with any real lift **falls over** —
+  the lift carries on to π, the curl eases flat, and the leaf's z (its pivot, `flop_origin_z`) is
+  brought onto the far page — and only a page with no lift left finishes by the roll. Even 22° of
+  lift unwound by the roll dipped 2.6 mm at the end of a thick book, hence 5°, not 30°.
+  `release/` checks every frame of the settle, on the thin suite book AND the 400-page one:
+  never under the far page, and at the end lying on it, most of it over the far half. All three
+  are needed — a page that never turned passes "never under" trivially, and a landing at the
+  wrong height hides in a thin book whose blocks differ by 0.2 mm.
 - **The loading placeholder says what it is.** It was a plain cream square, in a headset
   indistinguishable from a blank page. Now an hourglass and "Loading page", drawn ONCE per app
   into one shared `ImageTexture` with the engine's fallback font and the project's own icon font
