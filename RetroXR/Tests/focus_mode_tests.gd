@@ -10,6 +10,8 @@ extends Node
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
+const N64_AV_CABLE_SCENE := preload(
+	"res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
 const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
 
@@ -370,6 +372,43 @@ func _keep_cases() -> void:
 	console.free()
 	await _wait(2)
 	cable.free()
+	await _wait(2)
+
+	# The lead out of the back of the machine a set shows runs to the hidden set: its
+	# plug in the kept console must not draw it. A lead with nothing hidden at its far
+	# end hangs off the machine and stays drawn with it.
+	tv = await _tv()
+	var n64 := await _handheld("n64")
+	var av_lead := N64_AV_CABLE_SCENE.instantiate() as Node3D
+	av_lead.position = Vector3(3, 1.5, 0.8)
+	add_child(av_lead)
+	var spare := CABLE_SCENE.instantiate() as Node3D
+	spare.position = Vector3(3, 1.2, 1.2)
+	add_child(spare)
+	await _wait(20)
+	var multi_out := n64.get_node_or_null("AvMultiOut") as RcaPort
+	_ok(multi_out is N64AvPort, "keep/the N64 has its AV MULTI OUT")
+	if multi_out != null:
+		multi_out.pick_up_object(av_lead.get_node("PlugA0") as RcaPlug)
+	var tv_ends := {"PlugB0": "CompositePort", "PlugB1": "AudioLIn", "PlugB2": "AudioRIn"}
+	for plug_name: String in tv_ends:
+		(tv.get_node(tv_ends[plug_name]) as RcaPort).pick_up_object(
+			av_lead.get_node(plug_name) as RcaPlug)
+	_seat(n64, spare.get_node("PlugA0") as RcaPlug)
+	await _wait(30)
+	_ok(tv.panel().selected_system() == n64, "keep/the set shows the N64 over its AV lead")
+	_fm.enter(tv)
+	_ok(n64.visible, "keep/the N64 on the set's input stays in view")
+	_ok(not av_lead.visible, "keep/but not the AV lead out of its back, which ends in the hidden set")
+	_ok(spare.visible, "keep/a lead in the machine with its far end loose stays with it")
+	_fm.leave()
+	_ok(av_lead.visible, "keep/leaving draws the AV lead again")
+	tv.free()
+	await _wait(2)
+	n64.free()
+	await _wait(2)
+	av_lead.free()
+	spare.free()
 	await _wait(2)
 
 

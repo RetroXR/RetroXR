@@ -7,7 +7,8 @@
 ## whatever a hand has held since focus began, the focused machine (the handheld
 ## itself, or the source on a TV's selected input) with the units bolted to it, every
 ## device and lead wired to that machine, and whatever is seated in a socket on any of
-## those. Hidden things keep their bodies, so their pickables and poke widgets are
+## those — but not an AV or power lead out of the back, which runs to the hidden set or
+## outlet. Hidden things keep their bodies, so their pickables and poke widgets are
 ## switched off and the lasers see only the screen.
 class_name FocusMode
 extends Node3D
@@ -340,18 +341,39 @@ func _keep_machine(keep: Dictionary, machine: Variant) -> void:
 ## Adds whatever sits in a socket on something kept, however deep: a VMU in a pad,
 ## a Transfer Pak and the cartridge in it. A snapped object is never reparented under
 ## its socket, so it is a room child of its own and the tree cannot say what holds it.
+##
+## Something seated in several sockets is a lead, and it is kept only when EVERY one of
+## them is. An AV or power cord out of the back of a kept console ends in the hidden set
+## or outlet, and drawn it is a cord running off into the void. A lead the focused
+## machine plays through (a pad's cord, a link lead) is kept by _keep_wired, not here.
 func _keep_seated(keep: Dictionary) -> void:
-	var seats: Array[Array] = []
+	# Seated room child -> the room children whose sockets hold it.
+	var holders := {}
 	for zone: XRToolsSnapZone in XRToolsSnapZone.live_zones():
-		if is_instance_valid(zone) and is_instance_valid(zone.picked_up_object):
-			seats.append([_top_level(zone), _top_level(zone.picked_up_object)])
+		if not is_instance_valid(zone) or not is_instance_valid(zone.picked_up_object):
+			continue
+		var seated := _top_level(zone.picked_up_object)
+		var holder := _top_level(zone)
+		# A plug in a socket on its own body holds it to nothing.
+		if seated == null or seated == holder:
+			continue
+		if not holders.has(seated):
+			holders[seated] = []
+		(holders[seated] as Array).append(holder)
 	var grew := true
 	while grew:
 		grew = false
-		for seat: Array in seats:
-			if seat[1] != null and keep.has(seat[0]) and not keep.has(seat[1]):
-				keep[seat[1]] = true
+		for seated: Node in holders:
+			if not keep.has(seated) and _all_kept(keep, holders[seated]):
+				keep[seated] = true
 				grew = true
+
+
+static func _all_kept(keep: Dictionary, nodes: Array) -> bool:
+	for node: Variant in nodes:
+		if not keep.has(node):
+			return false
+	return true
 
 
 func _keep(into: Dictionary, node: Variant) -> void:
