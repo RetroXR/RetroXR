@@ -132,6 +132,26 @@ const CORES: Dictionary = {
 			"serial_link": "disabled",
 		},
 	},
+	# The Atari Lynx on RetroXR's fork (beetle-lynx-libretro, retroxr branch),
+	# which carries ComLynx. `link_rollback`: a cabled group of these can roll
+	# back TOGETHER (Wrapper::NetplayGroupIteration) instead of dropping to
+	# lockstep, because lynx_fixed_frames ends every unit's frame on the same
+	# tick of the bus. Measured by Tools/netplay/lynx_rollback_probe: Warbirds
+	# over the cable, 20 group rewinds, every CRC equal to lockstep.
+	# `power_on_stagger`: frames between one unit being switched on and the
+	# next, as players in a room do -- identical units powered on together
+	# transmit on identical ticks and collide on every byte (lynx-link.md).
+	"mednafen_lynx": {
+		"verified": true,
+		"state_transfer": true,
+		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
+		"cross_play": false,
+		"link_rollback": true,
+		"handheld_rollback": true,
+		"power_on_stagger": 7,
+		"systems": ["atarilynx"],
+		"options": {"lynx_fixed_frames": "enabled"},
+	},
 	# The Neo Geo Pocket / Color on RetroXR's fork (beetle-ngp-libretro, retroxr
 	# branch), which carries the SNK link cable. `ngp_rtc` runs the clock on
 	# emulated time (stock read the host's, so peers disagreed from frame 1) and
@@ -161,6 +181,28 @@ const CORES: Dictionary = {
 		"options": {},
 	},
 }
+
+
+## True when a cabled group of this core can roll back together rather than
+## drop to lockstep: its frames end on the same tick of the link bus on every
+## unit, so "every machine at frame N" is one instant on the wire.
+static func link_rollback_capable(core_name: String) -> bool:
+	return bool((CORES.get(core_name, {}) as Dictionary).get("link_rollback", false))
+
+
+## True when a HANDHELD on this core may still roll back: it feeds the core
+## nothing but its buttons. A handheld otherwise forces lockstep because its
+## motion sensors travel in the aux block, which only the lockstep scheduler
+## carries; the Lynx has none, and a hand-over is a scheduled port transfer
+## under rollback like any other.
+static func handheld_rollback_capable(core_name: String) -> bool:
+	return bool((CORES.get(core_name, {}) as Dictionary).get("handheld_rollback", false))
+
+
+## Frames between switching on one cabled machine of this core and the next
+## at a cold start, or 0 when they may all start together.
+static func power_on_stagger(core_name: String) -> int:
+	return int((CORES.get(core_name, {}) as Dictionary).get("power_on_stagger", 0))
 
 
 ## Debug: let an UNVETTED core start a session anyway.

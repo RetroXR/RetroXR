@@ -248,6 +248,68 @@ prove: they exercise the BUS with real cores, not a netplay session over it.
 Dolphin having no transferable state is why it is DETERMINISM-only, which in
 turn means no late join and no desync repair.
 
+### 2g′. Rolling back a cabled group — 2026-09-22, the Atari Lynx first
+
+A cabled machine used to drop to lockstep, because rollback rewinds ONE core
+and a cabled core's state is half a conversation. It now rolls back as a GROUP
+when every core on the lead can: `Wrapper::NetplayGroupIteration`, with the
+shared state in `libretro-godot/src/NetplayGroup.hpp`.
+
+- **Every member stops at every frame edge** (`NetplayRollbackGroup::Rendezvous`).
+  Each hands in a proposal (its first mismatch, how far it has verified, whether
+  it could run); the LAST to arrive decides for all of them, under the lock. The
+  anchor is the EARLIEST mismatch on any member, and every member rewinds to it:
+  a machine whose own inputs were right still heard the other end say things it
+  will now not say. A frame is verified only when every member verified it, so
+  no CRC leaves for a frame the cable could still undo. A frame runs only if
+  every member can run it.
+- **The bus is snapshotted at every edge and restored with the cores**
+  (`LinkCoordinator::CaptureGroup` / `RestoreGroup`, the late join's primitives).
+  A replay stops at every edge too and re-captures as it goes.
+- **A cable moves only at an edge, once every frame BEFORE it is confirmed**
+  (`frame <= watermark + 1`, not `<= watermark`: a player's own input for a
+  frame only exists once the frame has run). The leader lands it
+  (`ScheduleLinkOp` on the head core), then captures, so a rewind TO that frame
+  finds the new cable. One that arrives after its frame breaks the group.
+- **The cores must END their frames on the same bus tick.** Nothing in the
+  frontend can make them; it is a core option (`lynx_fixed_frames`, see
+  `lynx-link.md`). A core whose frames end on its display cannot: the edges land
+  at unrelated instants on the wire, the barrier deadlocks or the snapshot is not
+  one moment. `NetplayCores` marks the ones that can with `link_rollback`.
+
+**Session.** `_group_link_rollback()` keeps ROLLBACK for a group that is
+`link_rollback` on every core, on ONE bus, and whose installed build declares
+every option its row pins (`_core_declares_pins`, a peek: an older build ignores
+the pin and would desync). `power_on_stagger` (any strategy) switches unit i on
+at `start + i*stagger` (`SetNetplayPowerOnFrame`: the frame counts, the core does
+not run), takes the lead OFF the bus at cold start, and holds the room's lead off
+too (`holds_cable`, asked by `CompositeCable.netplay_took_bus`, because a lead
+re-joins at every power-on) until the scheduled join at
+`start + MAX_AHEAD + 2 + stagger*(n-1)` -- through the C++ group under rollback,
+the ordinary `_link_ops` boundary under lockstep. Identical handhelds switched on
+together collide on every byte; lockstep needs this as much as rollback.
+`handheld_rollback` exempts a handheld that feeds nothing but buttons from the
+handheld-means-lockstep rule. Late join and desync resync are refused for a
+rolling group (`_state_transfer_possible`) until measured.
+
+Three bugs the real session found, none reachable from mocks: `_pump_local_records`
+drained only the anchor core, so the far machine's player was never confirmed;
+`net_start_core` read `merge_values() == false` ("already set") as failure, so the
+second same-core machine of a pair never started; and `LinkCoordinator::RebuildBuses`
+re-anchored every bus on ANY cable change (now it keeps a bus whose members did
+not change) while leaving a LOOSE endpoint's stale origin (now re-anchored).
+
+**Evidence** (Warbirds, two Lynxes, 2800 frames, windows x86_64):
+`Tools/netplay/lynx_rollback_probe` (`--leg=rb|ref|solo|compare`, one per
+process): group rollback with the far pad confirmed 67 ms late equals plain
+lockstep at all 186 checkpoints, 8 group rewinds, in flight; a mutant that skips
+the bus restore diverges at the first rewind. `Tools/netplay/lynx_session_probe`
+(`--mode=rollback|lockstep`): two NetworkManagers over loopback ENet, each with
+two `system.tscn` Lynxes and the catalog's ComLynx Cable seated -- 44 group
+rewinds, no desync reported, both peers' CRCs of both machines equal at all 102
+checkpoints, all four screens in flight; lockstep equal at 102/102. `netplay_tests`
+`link/` covers the session's decisions with mocks.
+
 ### e-Reader cards under netplay (mGBA) — 2026-09-22: rollback and late join both measured
 
 A swipe during a session is a **disc op, kind 2** (`NetplaySession.DISK_OP_CARD`):

@@ -51,6 +51,13 @@ var netplay_manager_override: Object = null
 func netplay_took_bus(join: Array, held: Array) -> bool:
 	var manager: Object = netplay_manager_override if netplay_manager_override != null \
 		else NetworkManager
+	# A session switching these machines on apart owns the wire until it joins
+	# it itself; nothing is scheduled from here, and nothing joined.
+	if manager.has_method("netplay_holds_cable"):
+		var holding: Array = join if join.size() >= 2 else held
+		if not holding.is_empty() and holding.all(
+				func(e: Dictionary) -> bool: return manager.netplay_holds_cable(e.get("machine"))):
+			return true
 	if not manager.netplay_running():
 		_netplay_held.clear()
 		return false

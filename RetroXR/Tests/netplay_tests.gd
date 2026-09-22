@@ -103,6 +103,7 @@ func _ready() -> void:
 		await _test_strategy()
 	if _want("link"):
 		await _test_link()
+		await _test_link_rollback()
 
 	print("[test] %d cases, %s" % [_ran,
 		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
@@ -2005,6 +2006,100 @@ func _test_strategy() -> void:
 # waits for a peer that is behind rather than guessing, with deliberately no
 # timeout. Host fine, client wedged, which is the worst shape a fault can have.
 
+## A cabled pair of cores whose frames end on the same tick of the bus rolls
+## back as ONE group instead of dropping to lockstep. The C++ half (the frame
+## edge every member stops at, the bus restored with the cores) is measured with
+## real cores by Tools/netplay/lynx_rollback_probe; this is the session's half:
+## it keeps rollback, forms the group on every peer, powers the units on apart,
+## and joins the cable on a scheduled frame instead of at once.
+func _test_link_rollback() -> void:
+	# Whether the installed core declares lynx_fixed_frames is a fact about the
+	# machine running the suite (CI has no cores); state it, and restore it.
+	var pins_before: Dictionary = NetplaySession._pins_declared.duplicate()
+	NetplaySession._pins_declared["mednafen_lynx"] = true
+	var w := await _pair_cabled()
+	for sys: MockSys in [w.host_sys, w.host_far, w.client_sys, w.client_far]:
+		sys.machine_core = "mednafen_lynx"
+	w.host_nm.netplay_start_host(w.host_sys, "mednafen_lynx", "MD5", {0: 1, 4: w.client_id}, 3, 1)
+	_ok(await _until(func() -> bool: return w.host_np.is_running() and w.client_np.is_running()),
+		"link/a cabled pair of group-capable cores starts")
+	_ok(w.host_np._rollback and w.client_np._rollback,
+		"link/and keeps rollback on the cable instead of dropping to lockstep")
+	_ok(w.host_np._group_rollback and w.client_np._group_rollback,
+		"link/as one group rolling back together, on every peer")
+	_eq(w.host_sys.lib.rollback_group, [w.host_far.lib],
+		"link/the head machine names the other end of the cable as its group")
+	_eq(w.client_sys.lib.rollback_group, [w.client_far.lib],
+		"link/and the client forms the same group over its own machines")
+	_eq(w.host_sys.lib.rollback_group_ports, PackedInt32Array([0, 0]),
+		"link/with each machine's bus port")
+	var stagger := NetplayCores.power_on_stagger("mednafen_lynx")
+	_ok(stagger > 0, "link/identical handhelds are switched on apart")
+	_eq([w.host_sys.lib.power_on_frame, w.host_far.lib.power_on_frame], [0, stagger],
+		"link/the far unit comes on `stagger` frames after the near one")
+	_eq([w.client_sys.lib.power_on_frame, w.client_far.lib.power_on_frame], [0, stagger],
+		"link/on the same frames on every peer")
+	_eq(w.host_sys.link_refreshes, 0,
+		"link/the cable is not re-seated at once, with a unit not yet switched on")
+	var join: Array = w.host_sys.lib.link_scheduled
+	var expect := NetplaySession.MAX_AHEAD + 2 + stagger
+	_eq(join.size(), 1, "link/the cable join is scheduled on the head core instead")
+	_eq(join[0][0] if not join.is_empty() else -1, expect,
+		"link/after the last unit is on and past anything speculated before a confirmation")
+	_eq(w.client_sys.lib.link_scheduled.size(), 1, "link/and on the client, on the same frame")
+	_ok(not w.host_np._state_transfer_possible(),
+		"link/a late join into a rolling cabled group is refused until measured")
+	w.host_nm.netplay_stop()
+	_ok(await _until(func() -> bool: return not w.host_np.is_running()),
+		"link/the group session stops")
+	_eq(w.host_sys.lib.rollback_group, [], "link/and the group is taken apart")
+	_free(w)
+
+	# A cabled pair of cores that cannot end their frames together still drops
+	# to lockstep: one core rewound alone replays half a conversation.
+	w = await _pair_cabled()
+	w.host_nm.netplay_start_host(w.host_sys, "fceumm", "MD5", {0: 1, 4: w.client_id}, 3, 1)
+	_ok(await _until(func() -> bool: return w.host_np.is_running() and w.client_np.is_running()),
+		"link/a cabled pair of ordinary rollback cores starts")
+	_ok(not w.host_np._rollback and not w.host_np._group_rollback,
+		"link/and runs in lockstep, as a cable always made it")
+	_eq(w.host_sys.lib.rollback_group, [], "link/with no group formed")
+	_ok(w.host_sys.link_refreshes > 0, "link/and the cable re-seated at once as before")
+	_free(w)
+
+	# Lockstep over the same handhelds still switches them on apart: the
+	# collision is the wire's, not the strategy's.
+	w = await _pair_cabled()
+	for sys: MockSys in [w.host_sys, w.host_far, w.client_sys, w.client_far]:
+		sys.machine_core = "mednafen_lynx"
+	w.host_nm.netplay_start_host(w.host_sys, "mednafen_lynx", "MD5", {0: 1, 4: w.client_id}, 3, 0)
+	_ok(await _until(func() -> bool: return w.host_np.is_running() and w.client_np.is_running()),
+		"link/a cabled lockstep pair of handhelds starts")
+	_ok(not w.host_np._rollback and not w.host_np._group_rollback,
+		"link/in lockstep, with no rollback group")
+	_eq([w.host_sys.lib.power_on_frame, w.host_far.lib.power_on_frame], [0, stagger],
+		"link/its units still come on apart")
+	_eq(w.host_sys.link_refreshes, 0, "link/and the cable is not seated at once")
+	_ok(w.host_np._link_ops.has(expect) or w.host_sys.lib.link_applied.size() > 0,
+		"link/it joins through the lockstep boundary queue instead")
+	_free(w)
+
+	# A build of the core from before lynx_fixed_frames ignores the pin, and
+	# its group would desync; it gets lockstep, still switched on apart.
+	NetplaySession._pins_declared["mednafen_lynx"] = false
+	w = await _pair_cabled()
+	for sys: MockSys in [w.host_sys, w.host_far, w.client_sys, w.client_far]:
+		sys.machine_core = "mednafen_lynx"
+	w.host_nm.netplay_start_host(w.host_sys, "mednafen_lynx", "MD5", {0: 1, 4: w.client_id}, 3, 1)
+	_ok(await _until(func() -> bool: return w.host_np.is_running() and w.client_np.is_running()),
+		"link/an older build of the handheld core starts")
+	_ok(not w.host_np._rollback and not w.host_np._group_rollback,
+		"link/in lockstep, since it cannot end its frames together")
+	_eq(w.host_far.lib.power_on_frame, stagger, "link/its units still switched on apart")
+	_free(w)
+	NetplaySession._pins_declared = pins_before
+
+
 func _test_link() -> void:
 	# A topology change cannot land while either local emulation thread is still
 	# finishing an earlier frame. The old head-only schedule let the fast core
@@ -2386,6 +2481,27 @@ class MockLib extends Node:
 
 	func ScheduleReset(frame: int) -> void:
 		reset_ops.append(frame)
+
+	# The cabled rollback group (Wrapper::NetplayGroupIteration): what the
+	# session asked for, recorded rather than run.
+	var rollback_group: Array = []
+	var rollback_group_ports := PackedInt32Array()
+	var power_on_frame := -1
+	var link_scheduled: Array = []
+
+	func SetNetplayRollbackGroup(others: Array, ports: PackedInt32Array) -> bool:
+		rollback_group = others.duplicate()
+		rollback_group_ports = ports
+		return true
+
+	func ClearNetplayRollbackGroup() -> void:
+		rollback_group = []
+
+	func SetNetplayPowerOnFrame(frame: int) -> void:
+		power_on_frame = frame
+
+	func ScheduleLinkOp(frame: int, op: int, others: Array, ports: PackedInt32Array) -> void:
+		link_scheduled.append([frame, op, others.size(), ports])
 
 	func ScheduleNetplayLocalMask(frame: int, mask: int) -> bool:
 		rollback_masks.append([frame, mask])

@@ -91,3 +91,52 @@ Gauntlet and California Games are the open ones: both talk on the title and give
 up at the start, the shape the first two fixes cured elsewhere, so the next
 suspect is a timing detail neither game tolerates (parity, the TX-empty IRQ, or
 a byte arriving in the grain it overlaps).
+
+## Netplay: rollback over the lead (2026-09-22)
+
+A cabled pair of Lynxes rolls back as ONE group (`netplay.md` §2g′). Four things
+in the core made that possible, all in the fork (`link.cpp`, `system.cpp`,
+`mikie.cpp`); the first is a core option netplay pins, the rest are always on.
+
+1. **`lynx_fixed_frames`** (default off; `NetplayCores` pins it on). Stock ends a
+   `retro_run` when THIS unit's display finishes, which the game's timers and
+   the unit's power-on moment decide, so two units' frame N end at unrelated
+   instants on the wire. With the option every frame is a constant 213333
+   cycles (16 MHz / 75, no carried remainder -- a remainder depends on how many
+   frames a unit has run), an instruction's overshoot carried into the next, a
+   sleeping CPU's skip clamped at the edge. A unit about to be anchored afresh
+   runs a WHOLE window, so every unit anchored at one edge ends every later frame
+   on the same bus tick. The link meets its peers at both edges, never requests
+   past the edge, and at the end promises a grain beyond it (`advance(now,
+   now+GRAIN, now)`). Mikey draws into an always-armed back buffer and a finished
+   picture is copied out, so a 60 Hz game shows a picture twice now and then.
+2. **The latch is deterministic.** A byte used to latch with whatever overlapping
+   frame had ARRIVED -- which thread got there first. Now it waits (host time
+   only; the byte still lands on its own tick) until every peer has run past it:
+   anything overlapping it was sent when it STARTED, before this one ended. In
+   fixed mode a byte past the frame edge waits for the next frame's first step.
+   Two lockstep runs were already identical; a rollback run was not, and this
+   was one of the two reasons.
+3. **The savestate is whole.** Mikey's receive queue (`mUART_Rx_*`) was never
+   saved (stock never queued more than one byte), nor the screen DMA position
+   (`mLynxLine`, `mLynxLineDMACounter`, `mLynxAddr`: a stock frame always ends
+   at `DisplayEndOfFrame`, which resets them; a fixed window stops mid-screen,
+   and the DMA steals CPU cycles). Both are the optional section `MIKR`. The
+   link's own state (clock, limit, grant, peers, inbox) is section `LINK` and
+   is restored verbatim ONLY in fixed mode, where netplay restores the bus to
+   the same instant; otherwise a load keeps the link clock running forward, as
+   it always has -- and now actually calls `lynx_link_resync` (it never did).
+4. **Mikey's 2^31 cycle fold** (every ~2 minutes) is running, not a jump: the
+   link used to lose that step.
+
+Found by `Tools/netplay/lynx_rollback_probe`, which compares group rollback to
+lockstep CRC by CRC -- a divergence one frame after a rewind, localised by dumping
+serialized states from both runs and diffing them variable by variable (a
+Mednafen state is named sections of named variables; the parser is ten lines).
+The room is unchanged: Warbirds still flies, Joust still says "2 PLAYERS".
+
+**Units must be switched on apart under netplay too.** `--stagger=0` on the room
+probe freezes Warbirds at the mission board with both TX counts stuck; netplay
+powers unit i on at frame `7*i` and joins the lead after the last one
+(`power_on_stagger`). Group rollback also needs fork **v2** or later: v1 has no
+`lynx_fixed_frames`, and the session falls back to lockstep for it.

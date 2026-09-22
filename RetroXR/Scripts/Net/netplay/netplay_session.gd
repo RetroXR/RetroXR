@@ -128,6 +128,14 @@ var _delay := 3
 ## rewinding?" keeps reading it.
 var _strategy: int = NetplayCores.Strategy.LOCKSTEP
 var _rollback := false          # GGPO-style: local input live, remote predicted
+## A cabled group rolling back TOGETHER (Wrapper::NetplayGroupIteration): every
+## core on the lead and the bus between them rewind to one frame. Only for cores
+## that end their frames on the same tick of the bus (NetplayCores.link_rollback_capable).
+var _group_rollback := false
+## The group's units are switched on apart and cabled after (NetplayCores.
+## power_on_stagger), under either strategy.
+var _staggered := false
+var _cold_frame := 0
 var _all_ports: PackedInt32Array = PackedInt32Array()   # sorted participating ports
 var _local_ports: Dictionary = {}       # port -> true (owned by this peer)
 var _owners: Dictionary = {}            # port -> peer_id
@@ -322,7 +330,7 @@ func start_host(system: Object, core: String, rom_md5: String, owners: Dictionar
 		return false
 	_strategy = _pick_strategy(available, rollback)
 	if _strategy == NetplayCores.Strategy.ROLLBACK \
-			and (_group.size() > 1 or _is_linked(system)):
+			and (_group.size() > 1 or _is_linked(system)) and not _group_link_rollback():
 		_strategy = _demote_from_rollback(available)
 		push_warning("[Netplay] machine is on a link bus; starting in %s, not rollback"
 			% strategy_str(_strategy))
@@ -424,12 +432,14 @@ func _set_group(group: Array) -> void:
 ## own motion sensors and any pickable room peripheral need the lockstep frame
 ## scheduler: it carries their aux data and can transfer ownership as hands move.
 func _requires_lockstep_input() -> bool:
-	for machine: Object in _group:
+	for i in range(_group.size()):
+		var machine: Object = _group[i]
 		if machine == null:
 			continue
 		if machine.has_method("get_model"):
 			var model: Variant = machine.get_model()
-			if model != null and model.has_method("is_handheld") and model.is_handheld():
+			var core := str(_machine_specs[i].get("core", "")) if i < _machine_specs.size() else ""
+			if model != null and model.has_method("is_handheld") and model.is_handheld() 					and not NetplayCores.handheld_rollback_capable(core):
 				return true
 		if machine.has_method("port_holders"):
 			var controllers: Array = machine.port_holders()
@@ -581,6 +591,9 @@ func _mask_for_machine(machine_index: int) -> int:
 func _cold_start_local(start_frame: int) -> bool:
 	_reset_runtime(start_frame)
 	_libs = []
+	_cold_frame = start_frame
+	if not _arm_group_rollback(start_frame):
+		return false
 	for i in range(_group.size()):
 		var machine: Object = _group[i]
 		if i >= _machine_specs.size():
@@ -689,7 +702,12 @@ func _poll_core_ready() -> void:
 	# Restarting a core drops every LinkCoordinator endpoint it owned, while the
 	# physical plugs remain seated. Re-resolve those cables now that every core
 	# is attached again and before frame zero is released.
-	if _group.size() > 1 and _system != null \
+	#
+	# A group rolling back together joins the cable on a scheduled frame instead,
+	# after every unit has been switched on (see _arm_group_rollback).
+	if _staggered:
+		_schedule_group_cable()
+	elif _group.size() > 1 and _system != null \
 			and _system.has_method("net_refresh_link_cables"):
 		_system.net_refresh_link_cables()
 		print("[Netplay] restored the physical link topology after core restart")
@@ -943,6 +961,10 @@ func _stop_local(reason: String) -> void:
 				lib.netplay_crc.disconnect(handler)
 		if lib.has_method("SetNetplayRollback"):
 			lib.SetNetplayRollback(false, 0, MAX_AHEAD)
+		if lib.has_method("ClearNetplayRollbackGroup"):
+			lib.ClearNetplayRollbackGroup()
+	_group_rollback = false
+	_staggered = false
 	for machine: Object in _group:
 		if machine != null and machine.has_method("net_stop_core"):
 			machine.net_stop_core()
@@ -1482,7 +1504,7 @@ func _resolve_disk_path(machine_index: int, md5: String) -> String:
 ## Host: schedule a link change for this session's bus. Lockstep only, for the
 ## same reason a disc swap is: a rollback would have to re-run the join.
 func schedule_link_op(system: Object, op: int, members: Array, ports: Array) -> void:
-	if not _nm.is_host() or not _running or _rollback:
+	if not _nm.is_host() or not _running or (_rollback and not _group_rollback):
 		return
 	if _group.find(system) < 0:
 		return
@@ -1492,6 +1514,12 @@ func schedule_link_op(system: Object, op: int, members: Array, ports: Array) -> 
 		if int(m) < 0 or int(m) >= _group.size():
 			return
 	var frame := _complete_upto + _delay + LINK_LEAD
+	if _group_rollback:
+		# Past anything any peer can have speculated through: the group moves a
+		# cable only on a frame whose predecessors are all confirmed, and one
+		# that arrives after its frame breaks the session rather than landing
+		# late on one peer.
+		frame += MAX_AHEAD
 	var member_ids := PackedInt32Array()
 	for m: int in members:
 		member_ids.append(int(m))
@@ -1514,6 +1542,11 @@ func schedule_link_op(system: Object, op: int, members: Array, ports: Array) -> 
 ## on the bus has to manage it: a joiner that can restore three of four cores
 ## resumes half a conversation, which is worse than not joining.
 func _state_transfer_possible() -> bool:
+	# Not yet for a group rolling back together: its cores and bus only stand
+	# still together at the frame edge inside the group, and nothing has
+	# measured capturing them there for a joiner. Cold start only, for now.
+	if _group_rollback:
+		return false
 	for spec: Dictionary in _machine_specs:
 		if not NetplayCores.state_transfer_capable(str(spec.get("core", ""))):
 			return false
@@ -1648,6 +1681,16 @@ func covers(machine: Object) -> bool:
 	return _running and _group.find(machine) >= 0
 
 
+## True while this session is switching its cabled machines on apart and has
+## not joined their lead yet. A lead re-resolves whenever one of its machines
+## powers on, and a session starting them is exactly that -- but the session is
+## not RUNNING yet, so covers() says no and the lead would join on the spot,
+## putting a unit that is still held off on the wire. The lead asks this first
+## and leaves the wire to the session's scheduled join.
+func holds_cable(machine: Object) -> bool:
+	return _staggered and not _running and machine != null and _group.find(machine) >= 0
+
+
 ## The room's form of schedule_link_op: it knows machines and their link ports,
 ## not indices into a session it cannot see. `entries` are
 ## [{machine, port}, ...], head first, exactly as the cable walk produced them.
@@ -1694,6 +1737,8 @@ func _np_link_failed(serial: int, reason: String) -> void:
 ## posts that frame to each of them.
 func _apply_link_op(op: int, members: PackedInt32Array, ports: PackedInt32Array,
 		frame: int) -> bool:
+	if _group_rollback:
+		return _schedule_group_link_op(op, members, ports, frame)
 	if frame < _next_post:
 		push_warning("[Netplay] link op for frame %d arrived after frame %d was posted" % [
 			frame, _next_post - 1])
@@ -1768,6 +1813,173 @@ func _all_cores_at_link_boundary(frame: int) -> bool:
 const LINK_PORTS: Array[int] = [0, 1]
 
 
+## Whether this session's machines can roll back as one cabled group: more
+## than one machine, every core able to (NetplayCores.link_rollback_capable),
+## and every one of them on ONE bus. Several independent leads would each need
+## a group of their own, and nothing has measured that yet.
+func _group_link_rollback() -> bool:
+	if _group.size() < 2 or _machine_specs.size() != _group.size():
+		return false
+	for spec: Dictionary in _machine_specs:
+		var core := str(spec.get("core", ""))
+		if not NetplayCores.link_rollback_capable(core) or not _core_declares_pins(core):
+			return false
+	return not _group_bus().is_empty()
+
+
+## core -> whether the INSTALLED build declares every option its row pins.
+static var _pins_declared: Dictionary = {}
+
+
+## Whether this build of `core` has every option netplay pins for it.
+##
+## What makes a cabled group safe to roll back is an option (lynx_fixed_frames),
+## and a core build from before it existed ignores the pin without a word: the
+## frames go back to ending on the display, the group's frame edges stop being
+## one instant on the wire, and the session desyncs. Every peer runs the same
+## build (the identity check), so every peer reaches the same answer. A core
+## that cannot be peeked is assumed not to have them.
+func _core_declares_pins(core: String) -> bool:
+	if _pins_declared.has(core):
+		return bool(_pins_declared[core])
+	var pins: Dictionary = NetplayCores.forced_options(core)
+	var ok := true
+	if not pins.is_empty():
+		var peeked := CoreOptionsStore.peek(CoreOptionsStore.default_root(), core)
+		var defined: Dictionary = peeked.get("definitions", {})
+		for key: Variant in pins:
+			if not defined.has(str(key)):
+				ok = false
+				push_warning("[Netplay] %s does not declare '%s'; a cabled group will not roll back"
+					% [core, str(key)])
+				break
+	_pins_declared[core] = ok
+	return ok
+
+
+## The one bus the whole group is on: {"members", "ports"}, with the ports in
+## GROUP order (a port per machine), or {} if they are not all on a single bus.
+func _group_bus() -> Dictionary:
+	if _system == null or not _system.has_method("net_link_buses"):
+		return {}
+	var descriptors: Variant = _link_bus_descriptors()
+	if descriptors == null or (descriptors as Array).size() != 1:
+		return {}
+	var desc: Dictionary = (descriptors as Array)[0]
+	var members: PackedInt32Array = desc["members"]
+	if members.size() != _group.size():
+		return {}
+	var bus_ports: PackedInt32Array = desc["ports"]
+	var ports := PackedInt32Array()
+	ports.resize(_group.size())
+	for i in range(members.size()):
+		ports[int(members[i])] = int(bus_ports[i])
+	return {"members": members, "ports": ports}
+
+
+func _group_power_on_stagger() -> int:
+	var out := 0
+	for spec: Dictionary in _machine_specs:
+		out = maxi(out, NetplayCores.power_on_stagger(str(spec.get("core", ""))))
+	return out
+
+
+## Before any core starts: make the machines one rollback group, and switch them
+## on a few frames apart. Every peer does this identically from the same specs,
+## so every peer's units come on on the same frames.
+##
+## The cable is NOT joined here. Joining it now would put units that are not
+## switched on yet on the wire, and an attached machine that has never run holds
+## every other one at its first rendezvous; _schedule_group_cable joins it on a
+## frame after the last unit is on, at a frame edge every member stops at.
+func _arm_group_rollback(start_frame: int) -> bool:
+	_group_rollback = _rollback and _group_link_rollback()
+	var pre: Array = []
+	for machine: Object in _group:
+		pre.append(machine.get_libretro_node()
+			if machine != null and machine.has_method("get_libretro_node") else null)
+	# Lockstep needs the stagger just as much: identical units started on one
+	# frame with the cable in collide on every byte whatever the strategy.
+	var bus := _group_bus() if _group.size() > 1 else {}
+	var stagger := _group_power_on_stagger() if not bus.is_empty() else 0
+	_staggered = stagger > 0
+	if _staggered:
+		# Off the wire until they are all on. A seated lead joined these
+		# machines on the bus when its plugs went in, core or no core, and a
+		# unit held off is an attached peer that never speaks: it would pin the
+		# first one to its first rendezvous for good.
+		var off: PackedInt32Array = bus["ports"]
+		for i in range(pre.size()):
+			if pre[i] != null and pre[i].has_method("LinkDisconnect"):
+				pre[i].LinkDisconnect(int(off[i]))
+	for i in range(pre.size()):
+		var lib: Object = pre[i]
+		if lib == null:
+			continue
+		if lib.has_method("ClearNetplayRollbackGroup"):
+			lib.ClearNetplayRollbackGroup()
+		if lib.has_method("SetNetplayPowerOnFrame"):
+			lib.SetNetplayPowerOnFrame(start_frame + i * stagger)
+	if not _group_rollback:
+		return true
+	var head: Object = pre[0]
+	if head == null or not head.has_method("SetNetplayRollbackGroup"):
+		push_warning("[Netplay] this build cannot roll a cabled group back together")
+		return false
+	var ports: PackedInt32Array = _group_bus()["ports"]
+	if not head.SetNetplayRollbackGroup(pre.slice(1), ports):
+		push_warning("[Netplay] could not form the cabled rollback group")
+		return false
+	print("[Netplay] %d cabled machines roll back together; switched on %d frames apart" % [
+		pre.size(), stagger])
+	return true
+
+
+## Join the group's cable once every unit is switched on, and past anything the
+## cores can have speculated through before the first confirmation. Lockstep
+## lands it through the ordinary boundary queue; a rollback group in the cores.
+func _schedule_group_cable() -> void:
+	var bus := _group_bus()
+	if bus.is_empty() or _libs.is_empty():
+		push_warning("[Netplay] the cabled group lost its bus before frame zero")
+		return
+	var frame := _cold_frame + MAX_AHEAD + 2 \
+		+ _group_power_on_stagger() * (_group.size() - 1)
+	var members := PackedInt32Array()
+	for i in range(_group.size()):
+		members.append(i)
+	var ok := _schedule_group_link_op(1, members, bus["ports"], frame) if _group_rollback \
+		else _apply_link_op(1, members, bus["ports"], frame)
+	if ok:
+		print("[Netplay] the cable joins the group @frame %d" % frame)
+
+
+## A cable change for a group rolling back together goes to the cores, which
+## land it at the frame edge where every member stops, once the frames before it
+## are confirmed. From here it could only land wherever each core happened to be.
+func _schedule_group_link_op(op: int, members: PackedInt32Array,
+		ports: PackedInt32Array, frame: int) -> bool:
+	if members.is_empty() or members.size() != ports.size():
+		return false
+	var head_idx := int(members[0])
+	if head_idx < 0 or head_idx >= _libs.size() or _libs[head_idx] == null:
+		return false
+	var head: Object = _libs[head_idx]
+	if not head.has_method("ScheduleLinkOp"):
+		return false
+	if int(head.GetFrameCount()) >= frame:
+		push_warning("[Netplay] link op for frame %d arrived after it" % frame)
+		return false
+	var others: Array = []
+	for i in range(1, members.size()):
+		var idx := int(members[i])
+		if idx < 0 or idx >= _libs.size():
+			return false
+		others.append(_libs[idx])
+	head.ScheduleLinkOp(frame, op, others, ports)
+	return true
+
+
 ## Whether this machine is cabled to another one.
 ##
 ## Asked because rollback and a link cable cannot both be on. Rollback rewinds
@@ -1777,10 +1989,10 @@ const LINK_PORTS: Array[int] = [0, 1]
 ## never find out. It is not a desync the CRC checker can resync either, because
 ## both peers are wrong in the same way.
 ##
-## So a linked machine starts in lockstep whatever the core is capable of. The
-## real fix is group rollback, rewinding every core on the bus AND the
-## coordinator to one frame, which is a project rather than a flag, and the plan
-## records it as such.
+## So a linked machine starts in lockstep unless the whole group can roll back
+## TOGETHER -- every core on the bus AND the coordinator rewound to one frame
+## (Wrapper::NetplayGroupIteration, _group_link_rollback), which needs cores that
+## end their frames on the same tick of the bus (docs/dev/netplay.md §2g′).
 ##
 ## Asked of the CORE rather than inferred from a nearby socket: the cable is
 ## what joined them, but LinkCoordinator is the authority on whether another
@@ -1826,23 +2038,31 @@ func _process(_delta: float) -> void:
 ## Rollback: the emu thread already ran frames with live local input — drain
 ## its per-frame records (frame, port, 5 values) and ship them for assembly.
 func _pump_local_records() -> void:
-	if not _lib.has_method("TakeNetplayLocalRecords"):
-		return
-	var recs: PackedInt32Array = _lib.TakeNetplayLocalRecords()
-	var i := 0
-	while i + 7 <= recs.size():
-		var f := int(recs[i])
-		var port := int(recs[i + 1])
-		var vals := [int(recs[i + 2]), int(recs[i + 3]), int(recs[i + 4]),
-			int(recs[i + 5]), int(recs[i + 6])]
-		if not _local_inputs.has(f):
-			_local_inputs[f] = {}
-		_local_inputs[f][port] = vals
-		if _nm.is_host():
-			_recv_put(f, port, vals)
-		_sched_frame = maxi(_sched_frame, f + 1)
-		i += 7
-	if not _nm.is_host() and recs.size() > 0:
+	# EVERY machine's core: a cabled group rolling back together samples each
+	# player's pad in the core of the machine they hold, and a record's port is
+	# that machine's own. Draining only the anchor starved the host of the far
+	# machine's player, and nothing was ever confirmed.
+	var sent := false
+	for machine_index in range(_libs.size()):
+		var lib: Object = _libs[machine_index]
+		if lib == null or not lib.has_method("TakeNetplayLocalRecords"):
+			continue
+		var recs: PackedInt32Array = lib.TakeNetplayLocalRecords()
+		var i := 0
+		while i + 7 <= recs.size():
+			var f := int(recs[i])
+			var port := machine_index * PORTS_PER_MACHINE + int(recs[i + 1])
+			var vals := [int(recs[i + 2]), int(recs[i + 3]), int(recs[i + 4]),
+				int(recs[i + 5]), int(recs[i + 6])]
+			if not _local_inputs.has(f):
+				_local_inputs[f] = {}
+			_local_inputs[f][port] = vals
+			if _nm.is_host():
+				_recv_put(f, port, vals)
+			_sched_frame = maxi(_sched_frame, f + 1)
+			i += 7
+		sent = sent or recs.size() > 0
+	if not _nm.is_host() and sent:
 		_send_local_window()
 
 

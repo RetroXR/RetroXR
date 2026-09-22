@@ -2895,10 +2895,18 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	# StartContent. Netplay options must therefore go through the same persisted
 	# store the core reads during startup, or every "forced" option here is a
 	# no-op and peers can boot with different saved settings.
-	if not options.is_empty() \
-			and not CoreOptionsStore.merge_values(_resolve_dir(), resolved_core, options):
-		push_error("RetroSystem: netplay start — could not pin deterministic core options")
-		return null
+	#
+	# merge_values answers "was the file rewritten", which is false when the pins
+	# are already there -- the second machine of a cabled pair on the same core
+	# finds exactly that, the first having just written them. What matters is
+	# that they are in effect, so that is what is checked.
+	if not options.is_empty():
+		CoreOptionsStore.merge_values(_resolve_dir(), resolved_core, options)
+		var saved := CoreOptionsStore.load_values(_resolve_dir(), resolved_core)
+		for key: Variant in options:
+			if str(saved.get(str(key), "")) != str(options[key]):
+				push_error("RetroSystem: netplay start — could not pin deterministic core options")
+				return null
 	# SRAM: netplay override (session-injected identical bytes) or the normal
 	# local composition when the session didn't set one (offline-like start).
 	if not _memcards.apply_netplay_sram():

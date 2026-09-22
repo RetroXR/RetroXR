@@ -609,6 +609,12 @@ func netplay_covers(machine: Object) -> bool:
 	return _netplay != null and _netplay.covers(machine)
 
 
+## Whether a starting session is holding this machine's lead off the wire until
+## its scheduled join (NetplaySession.holds_cable).
+func netplay_holds_cable(machine: Object) -> bool:
+	return _netplay != null and _netplay.holds_cable(machine)
+
+
 ## Host: schedule a link-cable change for the running session. `entries` are
 ## [{machine, port}, ...], head first. op 1 joins them as one bus, op 0 drops
 ## the single named port.
