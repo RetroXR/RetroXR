@@ -2,6 +2,7 @@
 ##
 ##   "$godot" --headless --path RetroXR res://Tools/netplay/netplay_link_probe.tscn -- \
 ##       --link-core=gambatte
+##   ... -- --link-core=genesis_plus_gx ##       --roms=res://Tools/gglink/link_master.gg,res://Tools/gglink/link_slave.gg
 ##
 ## A probe, not a test: two real Game Boys and the real LinkCoordinator. ROMs
 ## come from Tools/gen_gblink_rom.py (ours, so they ship freely) and are
@@ -40,6 +41,7 @@ const WEDGE_TICKS := 90
 
 var root_dir := _home + "/retroxr/libretro"
 var core := "gambatte"
+var roms: Array = [ROM_DIR + "link_master.gb", ROM_DIR + "link_slave.gb"]
 
 var _libs: Array = []
 var _feed := [0, 0]
@@ -57,12 +59,14 @@ func _ready() -> void:
 			core = arg.trim_prefix("--link-core=")
 		elif arg.begins_with("--link-root="):
 			root_dir = arg.trim_prefix("--link-root=")
+		elif arg.begins_with("--roms="):
+			roms = Array(arg.trim_prefix("--roms=").split(","))
 	get_tree().create_timer(180.0).timeout.connect(func() -> void:
 		print("[nplink] TIMEOUT in leg '%s'" % _leg)
 		get_tree().quit(1))
-	for name in ["link_master.gb", "link_slave.gb"]:
-		if not FileAccess.file_exists(ROM_DIR + name):
-			print("[nplink] FAIL missing %s — run Tools/gen_gblink_rom.py" % name)
+	for path: String in roms:
+		if not FileAccess.file_exists(path):
+			print("[nplink] FAIL missing %s — run Tools/gen_gblink_rom.py" % path)
 			get_tree().quit(1)
 			return
 	_start_leg("both")
@@ -80,7 +84,6 @@ func _start_leg(leg: String) -> void:
 	_libs = []
 	await get_tree().create_timer(1.5).timeout
 
-	var roms := [ROM_DIR + "link_master.gb", ROM_DIR + "link_slave.gb"]
 	for i in range(2):
 		var obj: Object = ClassDB.instantiate("Libretro")
 		var lib: Node = obj as Node
@@ -101,7 +104,7 @@ func _start_leg(leg: String) -> void:
 		if up:
 			break
 	_libs[0].LinkConnectGroup([_libs[1]], PackedInt32Array([0, 0]))
-	print("[nplink] leg '%s': two %s Game Boys, cabled" % [leg, core])
+	print("[nplink] leg '%s': two %s machines, cabled" % [leg, core])
 
 
 func _process(_d: float) -> void:
