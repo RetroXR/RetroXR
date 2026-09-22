@@ -936,6 +936,9 @@ func _held_pose(net_id: int, pos: Vector3, quat: Quaternion) -> void:
 func _maybe_handoff_port(node: Node, peer_id: int) -> void:
 	if _nm.is_host() and _is_port_peripheral(node):
 		_nm.netplay_handoff(node, peer_id)
+	elif _nm.is_host() and node is VmuCard:
+		# A standalone VMU is the machine AND its pad: port 0 follows the hand.
+		_nm.netplay_handoff_port(node, 0, peer_id)
 
 
 ## Host: a controller was dropped and nobody else holds it — release its netplay
@@ -943,6 +946,8 @@ func _maybe_handoff_port(node: Node, peer_id: int) -> void:
 func _maybe_release_port(node: Node) -> void:
 	if _nm.is_host() and _is_port_peripheral(node):
 		_nm.netplay_handoff(node, 0)
+	elif _nm.is_host() and node is VmuCard:
+		_nm.netplay_handoff_port(node, 0, 0)
 
 
 @rpc("any_peer", "call_remote", "reliable", 0)

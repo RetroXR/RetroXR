@@ -434,6 +434,10 @@ func _requires_lockstep_input() -> bool:
 		if machine.has_method("port_holders"):
 			var controllers: Array = machine.port_holders()
 			for controller: Variant in controllers:
+				# A machine that is its own pad (a standalone VMU) carries no aux
+				# feed, and its hand-over is a scheduled port transfer like any other.
+				if controller == machine:
+					continue
 				if controller is KeyboardReceiver:
 					return true
 				if is_instance_valid(controller) \

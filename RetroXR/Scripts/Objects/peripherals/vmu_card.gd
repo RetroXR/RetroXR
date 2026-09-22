@@ -165,6 +165,16 @@ var _carry_pending := false
 ## The hand's buttons reaching the core — see VmuInput.
 var _input: VmuInput = null
 
+## Netplay: the flash image the session is about to boot on every peer, what to
+## call it, and where it came from ({mode: "rom"|"card", rom_md5, ...}). Set by
+## the host when a game is offered to a session, and by a client from the host's
+## spec. Empty outside a session.
+var _net_image := PackedByteArray()
+var _net_title := ""
+var _net_source: Dictionary = {}
+## Why net_prepare_boot last refused, in words the session shows the player.
+var net_boot_failure: String = ""
+
 
 func _ready() -> void:
 	super._ready()
@@ -240,7 +250,10 @@ func _bind_controls() -> void:
 ## core or vice versa.
 func set_input(btn: int) -> void:
 	_btn = btn
-	if _running and _lib != null:
+	# In a session the port is the session's: a remote holder's presses arrive
+	# through the gate, and under rollback a local one still comes straight here.
+	if _running and _lib != null \
+			and not NetworkManager.netplay_route(self, 0, {"btn": btn}):
 		_lib.SetJoypadState(0, btn, 0, 0, 0, 0)
 	# Wake the per-frame drive. The controls have to move whether or not this card
 	# has a screen to fill — the animation gate and the picture gate are separate
@@ -319,7 +332,12 @@ func power_on(vms_path: String, title := "") -> bool:
 	if image.is_empty():
 		push_warning("[VmuCard] %s is not a VMU game, save or card" % vms_path.get_file())
 		return false
-	return _boot(image, title if not title.is_empty() else vms_path.get_file().get_basename())
+	var name := title if not title.is_empty() else vms_path.get_file().get_basename()
+	var sums := NetFileTransfer.checksums_of(vms_path)
+	if _net_offer(image, name, {"mode": "rom", "rom_md5": NetFileTransfer.hash_of(vms_path),
+			"rom_size": int(sums.get("size", 0)), "rom_label": vms_path.get_file().get_basename()}):
+		return true
+	return _boot(image, name)
 
 
 ## The 128 KiB flash image the core is handed, whatever the file was.
@@ -351,7 +369,7 @@ func _flash_image_for(bytes: PackedByteArray, path: String) -> PackedByteArray:
 ## .bin with writing on gives it a real handle to close, and the writes land
 ## in this scratch copy, never in the card. (The .dci path is also simply
 ## broken: a real one runs zero frames.)
-func _boot(image: PackedByteArray, title: String) -> bool:
+func _boot(image: PackedByteArray, title: String, net := {}) -> bool:
 	var why := standalone_blocker()
 	if not why.is_empty():
 		push_warning("[VmuCard] cannot run %s: %s" % [title, why])
@@ -371,21 +389,14 @@ func _boot(image: PackedByteArray, title: String) -> bool:
 	f.close()
 	var root := CoreDownloadManager.default_core_root()
 	CoreOptionsStore.merge_values(root, STANDALONE_CORE, FORCED_OPTIONS)
-
-	# Made once and KEPT. Freeing a Libretro node whose emulation thread is still
-	# unwinding is how a clean run ends in an access violation on the way out —
-	# the same hazard as a GDExtension audio playback that outlives its
-	# extension. Powering off stops the content and leaves the node in place for
-	# the next game.
-	if _lib == null:
-		var lib: Object = ClassDB.instantiate("Libretro")
-		_lib = lib as Node
-		if _lib == null:
-			push_warning("[VmuCard] could not instantiate a Libretro node")
-			return false
-		_lib.name = "VmuLibretro"
-		add_child(_lib)
-		_lib.connect("options_ready", _on_options_ready)
+	if not _ensure_lib():
+		return false
+	# A session's pins go through the store the core reads at load, as in
+	# RetroSystem.net_start_core, and the gate is set BEFORE StartContent so the
+	# core holds at the start frame until inputs post.
+	if not net.is_empty():
+		CoreOptionsStore.merge_values(root, STANDALONE_CORE, net.get("options", {}))
+		_lib.SetNetplayMode(true, int(net.get("mask", 1)), int(net.get("start_frame", 0)))
 	_lib.StartContent(root, STANDALONE_CORE, ProjectSettings.globalize_path(scratch))
 	_running = true
 	_game_title = title
@@ -423,6 +434,9 @@ func play_save(block: int, title := "") -> bool:
 	if image.is_empty():
 		push_warning("[VmuCard] the game at block %d would not go onto a blank card" % block)
 		return false
+	# A game off a card is the player's save, so a session ships it like SRAM.
+	if _net_offer(image, title, {"mode": "card"}):
+		return true
 	if not _boot(image, title):
 		return false
 	JsonStore.write_dict(_play_note_path(), {"card_id": card_id}, "VmuCard")
@@ -443,6 +457,24 @@ func _play_note_path() -> String:
 func _remove_play_note() -> void:
 	if FileAccess.file_exists(_play_note_path()):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(_play_note_path()))
+
+
+## Made once and KEPT. Freeing a Libretro node whose emulation thread is still
+## unwinding is how a clean run ends in an access violation on the way out —
+## the same hazard as a GDExtension audio playback that outlives its extension.
+## Powering off stops the content and leaves the node in place for the next game.
+func _ensure_lib() -> bool:
+	if _lib != null:
+		return true
+	var lib: Object = ClassDB.instantiate("Libretro")
+	_lib = lib as Node
+	if _lib == null:
+		push_warning("[VmuCard] could not instantiate a Libretro node")
+		return false
+	_lib.name = "VmuLibretro"
+	add_child(_lib)
+	_lib.connect("options_ready", _on_options_ready)
+	return true
 
 
 ## Whether the core has unloaded, which is when vemulator closes the scratch image.
@@ -562,6 +594,18 @@ func playing_title() -> String:
 
 
 func power_off() -> void:
+	if not _running:
+		return
+	# A game in a session stops on every peer; the session calls net_stop_core.
+	if NetworkManager.netplay_running() and NetworkManager.netplay_covers(self) \
+			and not NetworkManager.is_event_applying():
+		NetworkManager.netplay_stop("VMU powered off")
+		if not _running:
+			return
+	_power_off_local()
+
+
+func _power_off_local() -> void:
 	if not _running:
 		return
 	_running = false
@@ -802,3 +846,145 @@ func toggle_options_ui(camera: Node3D) -> void:
 		_options_panel.hide_panel()
 	else:
 		_options_panel.show_for(self, camera)
+
+
+# --- Netplay ------------------------------------------------------------------
+#
+# A standalone VMU is a one-port machine of its own to NetplaySession, through
+# the same duck-typed seam RetroSystem answers. The card is its own controller,
+# so port 0 belongs to whoever holds it (ObjectSync hands it over on a grab).
+# The image the core boots comes from one of two places: a library minigame is
+# found by hash on every peer and never sent, like any ROM, and a game lifted
+# off a card is the player's save, so it travels in the spec's SRAM field.
+
+## Host: hand a game about to start to the running session. True when the
+## session took it — it boots the core on every peer, this one included.
+func _net_offer(image: PackedByteArray, title: String, source: Dictionary) -> bool:
+	if not NetworkManager.is_active() or not NetworkManager.is_host() \
+			or NetworkManager.is_event_applying() \
+			or not NetworkManager.netplay_capable(STANDALONE_CORE):
+		return false
+	_net_image = image
+	_net_title = title
+	_net_source = source
+	if source.get("mode") == "card":
+		_net_source["rom_md5"] = _md5(image)
+	if NetworkManager.netplay_start_host(self, STANDALONE_CORE, str(_net_source["rom_md5"])):
+		return true
+	_net_clear()
+	return false
+
+
+func _net_clear() -> void:
+	_net_image = PackedByteArray()
+	_net_title = ""
+	_net_source = {}
+
+
+static func _md5(bytes: PackedByteArray) -> String:
+	var ctx := HashingContext.new()
+	ctx.start(HashingContext.HASH_MD5)
+	ctx.update(bytes)
+	return ctx.finish().hex_encode()
+
+
+func get_libretro_node() -> Node:
+	return _lib if _ensure_lib() else null
+
+
+func resolve_core_name() -> String:
+	return STANDALONE_CORE
+
+
+func net_rom_md5() -> String:
+	return str(_net_source.get("rom_md5", ""))
+
+
+## The card is its own pad.
+func port_holders() -> Array:
+	return [self]
+
+
+func net_boot_spec(_core: String) -> Dictionary:
+	if _net_source.is_empty() or _net_image.is_empty():
+		return {}
+	var spec := _net_source.duplicate()
+	spec["vmu_title"] = _net_title
+	if spec.get("mode") == "card":
+		# The session knows three boot modes; this is a ROM whose bytes happen to
+		# come in the SRAM field, and net_prepare_boot reads the flag.
+		spec["mode"] = "rom"
+		spec["vmu_card"] = true
+	else:
+		spec["systemid"] = LIBRARY_SYSTEMID
+	return spec
+
+
+func net_prepare_boot(spec: Dictionary) -> bool:
+	net_boot_failure = ""
+	var why := standalone_blocker()
+	if not why.is_empty():
+		net_boot_failure = "the VMU is %s" % why if _slot >= 0 else why
+		return false
+	var md5 := str(spec.get("rom_md5", ""))
+	_net_title = str(spec.get("vmu_title", "VMU game"))
+	if bool(spec.get("vmu_card", false)):
+		# The image arrives in net_set_sram, which the session calls next.
+		if str(_net_source.get("rom_md5", "")) != md5:
+			_net_image = PackedByteArray()
+		_net_source = {"mode": "card", "rom_md5": md5}
+		return true
+	if not _net_image.is_empty() and str(_net_source.get("rom_md5", "")) == md5:
+		return true   # the host, which built it
+	var path := NetFileTransfer.resolve_by_md5(md5, "rom", int(spec.get("rom_size", 0)), "",
+		[RomLibrary.rom_dir_for_system(LIBRARY_SYSTEMID)])
+	if path.is_empty():
+		net_boot_failure = "you do not have the VMU game %s" % str(spec.get("rom_label", ""))
+		return false
+	_net_image = _flash_image_for(FileAccess.get_file_as_bytes(path), path)
+	_net_source = {"mode": "rom", "rom_md5": md5}
+	return not _net_image.is_empty()
+
+
+## Host: the image of a game played off a card, for every peer to boot. Empty
+## for a library game, which each peer finds by hash.
+func net_sram_file_bytes() -> PackedByteArray:
+	return _net_image if _net_source.get("mode") == "card" else PackedByteArray()
+
+
+func net_set_sram(_path: String, data: PackedByteArray) -> void:
+	if _net_source.get("mode") != "card":
+		return
+	if _md5(data) != str(_net_source.get("rom_md5", "")):
+		push_warning("[VmuCard] netplay: the card game that arrived does not match its hash")
+		_net_image = PackedByteArray()
+		return
+	_net_image = data
+
+
+func net_start_core(_core: String, port_mask: int, start_frame: int,
+		options: Dictionary) -> Node:
+	if _net_image.is_empty():
+		push_warning("[VmuCard] netplay start — no game prepared")
+		return null
+	_power_off_local()
+	var host_card: bool = _net_source.get("mode") == "card" and NetworkManager.is_host()
+	if not _boot(_net_image, _net_title,
+			{"options": options, "mask": port_mask, "start_frame": start_frame}):
+		return null
+	# Progress goes back to the host's card, whose game it was. A client only
+	# ever played a copy.
+	if host_card:
+		JsonStore.write_dict(_play_note_path(), {"card_id": card_id}, "VmuCard")
+	return _lib
+
+
+func net_stop_core() -> void:
+	if _lib != null:
+		_lib.SetNetplayMode(false, 1, 0)
+	_power_off_local()
+	_net_clear()
+
+
+func net_play_reset() -> void:
+	pass

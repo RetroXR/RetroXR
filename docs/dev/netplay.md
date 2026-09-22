@@ -280,3 +280,61 @@ eject/replace-image-0/insert on the agreed frame (`ScheduleDiscOp`).
   core, so it cannot be the oracle.
 - Not yet exercised: two real peers over a real network, and a multi-strip card
   (strip 2) inside a session.
+
+### The standalone VMU (vemulator) — 2026-09-22: rollback yes, measured end to end
+
+A VMU running a minigame out of a controller is its OWN netplay machine: `VmuCard`
+answers the same duck-typed seam as `RetroSystem` (`get_libretro_node`,
+`net_boot_spec`, `net_prepare_boot`, `net_start_core`, `net_stop_core`,
+`port_holders`, `net_sram_file_bytes`/`net_set_sram`). One port, and the card is
+its own pad, so `_requires_lockstep_input` skips a machine whose holder is
+itself (it has no aux feed) and ObjectSync hands port 0 over on a grab
+(`_maybe_handoff_port`'s `VmuCard` branch). A host in a session who powers a card
+on gets `_net_offer`: the session boots the game on every peer instead.
+
+- **What a peer boots from.** A library minigame (`roms/vmu`) goes by md5 and is
+  never sent, like any ROM. A game lifted off a CARD is the player's save, so its
+  128 KB image travels in the spec's SRAM field, flagged `vmu_card` in a `rom`
+  spec (the session knows three modes); the client checks it against the md5.
+  Progress goes back to the HOST's card only.
+- **It needs the RetroXR fork past `retroxr-vemulator-libretro-v2`.** v2 has no
+  savestates (`serialize_size 0`; rollback stalls at frame 0 waiting for its first
+  state). The fork added them on 2026-09-21, and on 2026-09-22 a `clock` option
+  (`system|fixed`) and an initialised `VE_VMS_CPU::instructionCount`.
+- **Cold start had two separate sources of divergence, and fixing one hid behind
+  the other.** (1) `VMU::setDate` seeds the clock from the host's wall clock.
+  `clock=fixed` seeds Sat 1 Jan 2000 00:00, built by hand rather than through
+  `localtime`, because peers in different time zones would otherwise disagree.
+  (2) `instructionCount` was never initialised and is serialized, so the STATE
+  CRC differed from frame 60 even with identical emulation. Measured by diffing
+  two cold states at frame 4: 22 bytes, PC, ACC/C and that counter.
+- **`--spike-option` does NOT reach vemulator at load.** It goes through
+  `SetCoreOption`, which is ignored before `StartContent`, and the core writes its
+  whole option set back at shutdown, so a spike "with clock=fixed" was running
+  whatever the `.opt` file said. Write `core_options/vemulator.opt` directly
+  before each run. `NetplaySession` pins through the file, which is the right path.
+- **The CRC is a savestate's** (`crc_from_state`): the core publishes neither
+  SYSTEM_RAM nor a memory map, so the RAM oracle never fires. `netplay_spike`
+  takes `--spike-crc-from-state` for the same reason.
+- Pinned in the row: `clock=fixed`, `bios=disabled` (one peer having the BIOS
+  file and another not is two machines; HLE is the same everywhere),
+  `enable_flash_write=enabled` (the scratch-.bin crash, see `VmuCard._boot`),
+  `serial_link=disabled`.
+
+`Tools/netplay/vmu_netplay_probe` (two processes, real `NetworkManager`, real
+`vmu_card.tscn`, loopback). Alien Shooter, Windows x86_64:
+
+- library game: rollback, 82 rollbacks, port 0 handed host → client at frame 710,
+  **29/29 checkpoints agreed** by both peers through frame 1740.
+- `--card`: the same, the image shipped as SRAM: 29/29 agreed.
+- mutation: the fork WITHOUT the `instructionCount` initialiser → DESYNC @60.
+- the clock mutation (`clock=system` in the row) still PASSED the probe: the two
+  cold starts land within the same second. The clock's proof is the spike pair:
+  `system` 61 s apart differ, `fixed` match.
+- The probe counts AGREED checkpoints off the session's table, because matches
+  are silent. A client that never reports is never compared, and an earlier
+  version "passed" that way. The client's own "finished at frame 6" is read after
+  its core stopped, and does not mean anything.
+
+Owed: arm64 (Quest) and cross-play (`cross_play: false` until measured), a
+headset run, and a published fork release. `CoreSources` still names v2 until then.

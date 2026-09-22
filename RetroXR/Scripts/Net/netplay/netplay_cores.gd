@@ -111,6 +111,25 @@ const CORES: Dictionary = {
 		"systems": ["megadrive", "genesis", "gamegear"],
 		"options": {},
 	},
+	# The standalone VMU (VmuCard), not a RetroSystem. Savestates and the fixed
+	# clock need the RetroXR fork past retroxr-vemulator-libretro-v2. It
+	# publishes no SYSTEM_RAM or memory map, so the CRC is a savestate's. The BIOS
+	# is pinned off because one peer having the file and another not is two
+	# different machines; the HLE boot is the same everywhere.
+	"vemulator": {
+		"verified": true,
+		"state_transfer": true,
+		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
+		"cross_play": false,
+		"crc_from_state": true,
+		"systems": ["vmu"],
+		"options": {
+			"clock": "fixed",
+			"bios": "disabled",
+			"enable_flash_write": "enabled",
+			"serial_link": "disabled",
+		},
+	},
 	"pcsx_rearmed": {
 		"verified": true,
 		"state_transfer": false,
