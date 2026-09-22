@@ -40,8 +40,14 @@ func held_machines() -> Array[Dictionary]:
 	return ILinkBus.held_for(self)
 
 
-## CompositeCable.rejoin's first half: take this lead's bus off the wire so the
-## _resolve after it joins it for real.
+## One rejoin per BUS, not per lead: RetroSystem asks every lead touching a
+## console that restarted, and on a hub those are all spokes of the same wire.
+func rejoin() -> void:
+	ILinkBus.rejoin(self)
+
+
+## Take this lead's bus off the wire -- what leaving the room does before the
+## other leads settle.
 func _disconnect() -> void:
 	ILinkBus.forget(self)
 

@@ -49,6 +49,16 @@ static var _cable_bus: Dictionary = {}
 ## the first one each frame does anything.
 static var _watched_frame := -1
 
+## Bus key -> the process frame it was last rejoined on. RetroSystem rejoins
+## every lead touching a console after its core starts or stops, and on a hub
+## that is every spoke of one bus: without this, three leads meant three
+## part/join pairs, six resets on every console for one power switch.
+static var _rejoined: Dictionary = {}
+
+## How many times a bus has been handed to ConnectGroup. Only for tests to
+## count resets by.
+static var joins := 0
+
 
 # ── the walk ─────────────────────────────────────────────────────────────────
 
@@ -225,6 +235,22 @@ static func forget(cable: Node) -> void:
 	_log("parted", bus["entries"])
 
 
+## CompositeCable.rejoin for an i.LINK lead: take its bus off the wire and join
+## it again, once per bus per frame however many of its leads ask.
+static func rejoin(cable: CompositeCable) -> void:
+	var frame := Engine.get_process_frames()
+	var key: String = _cable_bus.get(cable.get_instance_id(), "")
+	if not key.is_empty() and int(_rejoined.get(key, -1)) == frame:
+		return
+	forget(cable)
+	if cable.is_inside_tree():
+		settle(cable.get_tree(), null, cable)
+	var now: String = _cable_bus.get(cable.get_instance_id(), "")
+	for k: String in [key, now]:
+		if not k.is_empty():
+			_rejoined[k] = frame
+
+
 ## A cabled bus can stop meaning anything without a plug moving -- PsxLinkCable's
 ## _watch explains why for a pair, and it is the same for six: switching a console
 ## off destroys the core the coordinator keyed the wire on, and switching it back
@@ -314,6 +340,7 @@ static func _connect(entries: Array) -> bool:
 	for k in range(1, entries.size()):
 		others.append(entries[k]["libretro"])
 		ports.append(int(entries[k]["port"]))
+	joins += 1
 	return head.LinkConnectGroup(others, ports)
 
 

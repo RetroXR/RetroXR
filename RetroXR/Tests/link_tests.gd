@@ -2292,6 +2292,20 @@ func _test_ilink_hub_scene() -> void:
 	await get_tree().process_frame
 
 
+## Pull a plug and keep it pulled. A plug let go of is fair game for any empty
+## socket whose 60 mm zone it is in -- a hub's are 20 mm apart -- and that
+## socket's next _process teleports it in, before a move away can register
+## (area membership only updates on the physics step). So the test does what
+## av_suite's `_unplug` does for the same reason: the plug is made ungrabbable.
+## Re-enable it before seating it anywhere again.
+func _pull(port: XRToolsSnapZone) -> void:
+	var plug := port.picked_up_object as XRToolsPickable
+	port.drop_object()
+	if plug != null:
+		plug.enabled = false
+		plug.freeze = true
+
+
 ## Three real PlayStation 2s, one hub, three leads: one bus of three.
 func _test_ilink_bus_through_a_hub() -> void:
 	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
@@ -2339,8 +2353,20 @@ func _test_ilink_bus_through_a_hub() -> void:
 	_ok(heads[0] == heads[1] and heads[1] == heads[2], "every lead names the same bus head",
 		", ".join(heads))
 
+	# A core restarting rejoins every lead that touches its console, and on a hub
+	# that is every spoke of one bus. Each rejoin is a reset for every console on
+	# the wire, so it has to happen once, not once per lead.
+	var before := ILinkBus.joins
+	consoles[0].net_refresh_link_cables()
+	_eq(ILinkBus.joins - before, 1, "a console restarting on a hub rejoins its bus once, not per spoke")
+	_eq((leads[2].held_machines() as Array).size(), 3, "and the bus is whole after it")
+	await get_tree().process_frame
+	before = ILinkBus.joins
+	consoles[1].net_refresh_link_cables()
+	_eq(ILinkBus.joins - before, 1, "and a later restart still rejoins it")
+
 	# One spoke pulled at the hub: the other two are still a bus.
-	hub_ports[1].drop_object()
+	_pull(hub_ports[1])
 	await get_tree().process_frame
 	leads[1]._resolve()
 	_eq((leads[0].linked_machines() as Array).size(), 2, "pulling one spoke leaves a bus of two")
@@ -2350,7 +2376,7 @@ func _test_ilink_bus_through_a_hub() -> void:
 	_eq(consoles[1].net_link_bus().size(), 0, "the unplugged console is on no bus")
 
 	# Down to one console on the hub: a bus of one is no bus.
-	hub_ports[2].drop_object()
+	_pull(hub_ports[2])
 	await get_tree().process_frame
 	leads[2]._resolve()
 	_eq((leads[0].linked_machines() as Array).size(), 0, "one console on a hub is on no bus")
@@ -2415,8 +2441,10 @@ func _test_ilink_hubs_chain_and_pairs_still_pair() -> void:
 			var plug := lead.get_node(plug_name) as RcaPlug
 			var at := plug.seated_port()
 			if at != null:
-				at.drop_object()
+				_pull(at)
 	await get_tree().process_frame
+	for plug_name in ["PlugA0", "PlugB0"]:
+		(leads[2].get_node(plug_name) as XRToolsPickable).enabled = true
 	(sock.call(2) as ILinkPort).pick_up_object(leads[2].get_node("PlugA0"))
 	(sock.call(3) as ILinkPort).pick_up_object(leads[2].get_node("PlugB0"))
 	await get_tree().process_frame

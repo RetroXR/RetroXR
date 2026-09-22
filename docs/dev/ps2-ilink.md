@@ -76,6 +76,43 @@ left with one console, two chained hubs and a plain console-to-console pair besi
 All with real `system.tscn` consoles and real socket seating; no core, so the bus is
 checked through `ILinkBus`'s bookkeeping rather than peer counts.
 
-**Owed:** a real multi-console run through the ROOM — hub, leads and GT3 in a headset
-or a windowed probe. The fork verified six consoles on the bus directly; this layer is
-covered by the headless suite only.
+## Three screens, verified through the room (2026-09-22)
+
+`Tools/link/gt3_ilink_hub_probe.tscn` + `gt3_three_screen.txt` run three real pcsx2
+consoles on Gran Turismo 3 A-spec (USA) v1.10, cabled through a real `ILinkHub` with
+real `ILinkCable`s, and drive the jamesfmackenzie.com three-screen set-up
+(Arcade → i.LINK Battle → **Broadcast** on every console). Windowed, ~6 min a run.
+
+What it showed, every run:
+
+- All three report 3 peers from boot, and their frame counters lock together (the
+  180-frame stagger collapses to ~30) once GT3's i.LINK driver is up.
+- Entering i.LINK Battle, one or two consoles get bounced back to the Arcade menu —
+  which one varies run to run. Pressing CROSS again and then **replugging that
+  console's lead at the hub** gets it in. After that all three hold Console IDs
+  (L 3, C 2, R 1 here) on the "Compete | Broadcast" screen. The probe does this
+  reactively (`reenter`: a blue Arcade frame means bounced).
+- **Broadcast is the default choice**, highlighted brighter; RIGHT moves to Compete.
+  (All three on Compete also works: one race, three players.)
+- With all three on Broadcast, IDs 2 and 3 go to "Waiting..." and **Console ID 1 is
+  the control unit**: it picks the track, car and settings and drives with the full
+  HUD. IDs 2 and 3 show the same race, in step, without a HUD, as its left and right
+  views: ordered **ID 2 | ID 1 | ID 3** the three frames form one continuous
+  panorama.
+- Which physical console gets ID 1 is decided by the bus, not by where it stands —
+  the right-hand one here. The article hit the same thing and swapped monitor cables;
+  in the room, move the televisions (or the consoles' leads).
+
+Things the run needed that a player will also meet:
+
+- **The BIOS first-run wizard.** RetroXR pins `pcsx2_fastboot = disabled` (boot through
+  the BIOS) unless the BIOS-boot override is on, so a PS2 with blank NVRAM stops on
+  User Preferences (language, time zone ...). Once walked, the `.nvm` beside the BIOS
+  remembers it for every console.
+- **A post-driver bus reset**, as above: replug a lead once everyone is in i.LINK
+  Battle.
+
+One fix came out of it: `RetroSystem.net_refresh_link_cables()` rejoins every lead
+touching a console after its core starts or stops, and on a hub that is every spoke
+of one bus — three part/join pairs, six resets, per power switch. `ILinkBus.rejoin`
+now rejoins a bus once per frame however many leads ask (`link_tests` counts it).

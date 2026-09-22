@@ -1,0 +1,33 @@
+# Gran Turismo 3 A-spec (USA) v1.10, three consoles on the room's i.LINK hub,
+# every console on Broadcast: the jamesfmackenzie.com three-screen set-up.
+# Frames are each console's own; the consoles lock together once the bus is up.
+# Assumes the PS2's NVRAM already exists (the BIOS first-run wizard is done).
+2000 * press START          # skip the intro movie to the title
+2400 * press CROSS          # Arcade Mode
+3100 * press DOWN           # down to i.LINK Battle, the seventh entry
+3140 * press DOWN
+3180 * press DOWN
+3220 * press DOWN
+3260 * press DOWN
+3300 * press DOWN
+3420 * press CROSS          # i.LINK Battle
+3520 R replug               # a reset after the drivers start: Console IDs
+# Whichever console got bounced back to the menu goes back in and is replugged.
+3500 * reenter 4400
+# Broadcast is the default choice. Console ID 1 becomes the control unit.
+4600 L press CROSS
+4600 R press CROSS
+4800 C press CROSS
+# The control unit came up on the RIGHT console (ID 1) in every run here.
+5100 R press CROSS          # track: Super Speedway
+5250 R press CROSS
+5400 R press CROSS          # car class, car, Racing/Drift ...
+5550 R press CROSS
+5700 R press CROSS
+5850 R press CROSS
+6000 R press CROSS
+6150 R press CROSS
+6300 R press CROSS
+6450 R press CROSS
+6600 R press CROSS
+6750 R press CROSS 1800     # hold the accelerator
