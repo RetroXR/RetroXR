@@ -66,7 +66,9 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP, Strategy.DETERMINISM],
 		"cross_play": false,
-		"systems": ["gba", "gb", "game_boy_color"],
+		# ereader: the card tile. A swipe is a frame-scheduled disc op, and the
+		# fork's savestate carries the scanner, so rollback and late join hold.
+		"systems": ["gba", "gb", "game_boy_color", "ereader"],
 		"options": {},
 	},
 	"gpsp": {

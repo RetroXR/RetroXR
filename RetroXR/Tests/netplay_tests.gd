@@ -2770,6 +2770,8 @@ func _test_substitute() -> void:
 	var gba := NetplayCores.cores_for_system("gba")
 	_ok(gba[0] == "gpsp" or gba[0] == "mgba",
 		"substitute/a rollback core leads the GBA list")
+	_ok(NetplayCores.cores_for_system("ereader").has("mgba"),
+		"substitute/the e-Reader card shelf is served by mGBA")
 
 	# The debug switch opens the session gate; it must not invent evidence.
 	var before := NetplayCores.cores_for_system("gba")
