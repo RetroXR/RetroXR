@@ -91,6 +91,8 @@ var _job_labels: Dictionary = {}
 ## The Wii System Menu row's region button, kept across the page rebuilding
 ## itself after every install. "" until the row first decides it.
 var _wii_region := ""
+## WiiSystemMenu.core_state() for this page build: it opens the core, so once.
+var _wii_core_state := WiiSystemMenu.CoreState.READY
 
 
 static func create(menu: Node) -> SpawnMenuCoresView:
@@ -899,23 +901,22 @@ func _populate_bios_tab() -> void:
 
 	# A core lands under ONE tile, its .info's systemid, and dolphin's is "gc".
 	# The Wii still gets its own, because its firmware is not in that .info: the
-	# System Menu in dolphin's NAND (WiiSystemMenu).
-	if _core_installed(WiiSystemMenu.CORE) and not _bios_cores_by_system.has("wii"):
+	# System Menu in dolphin's NAND (WiiSystemMenu). Shown even with no dolphin
+	# installed, so the tile can say what is missing instead of not existing.
+	if not _bios_cores_by_system.has("wii"):
+		_wii_core_state = WiiSystemMenu.core_state()
+		var badge := "complete" if WiiSystemMenu.is_installed() else "1 required missing"
+		if _wii_core_state == WiiSystemMenu.CoreState.MISSING:
+			badge = "Dolphin core not installed"
+		elif _wii_core_state == WiiSystemMenu.CoreState.TOO_OLD and not WiiSystemMenu.is_installed():
+			badge = "Dolphin core too old"
 		systems.append({
 			"systemid": "wii",
 			"name": core_db.get_systemname_for_id("wii"),
-			"badge": "complete" if WiiSystemMenu.is_installed() else "1 required missing",
+			"badge": badge,
 		})
 
 	_bios_browser.set_systems(systems)
-
-
-func _core_installed(core_name: String) -> bool:
-	for entries: Array in _bios_cores_by_system.values():
-		for c: Dictionary in entries:
-			if str(c["core_name"]) == core_name:
-				return true
-	return false
 
 
 ## Resolved status rows for one core, memoised for the life of this rebuild.
@@ -1023,21 +1024,34 @@ func _build_wii_menu_row() -> Control:
 	if installed:
 		desc = "%s (%s) — a Wii boots to it, and a disc starts from the Disc Channel." % [
 			WiiSystemMenu.installed_version(), WiiSystemMenu.installed_region()]
+	var problem := WiiSystemMenu.core_problem(_wii_core_state)
 	var row := _build_bios_download_row("bios:wii_menu", "Wii System Menu", desc,
 		installed, "Download and install into Dolphin's Wii NAND",
 		func(key: String) -> void: _firmware_installer.enqueue_wii_menu(key, _wii_region))
+	# The download button is second from the end, before the scrollbar gutter.
+	var download := row.get_child(row.get_child_count() - 2) as Button
 
-	var region := Button.new()
-	region.text = _wii_region
-	region.add_theme_font_size_override("font_size", 17)
-	region.custom_minimum_size = Vector2(84, 52)
-	region.tooltip_text = "Region — press to change"
-	region.pressed.connect(func() -> void:
-		_wii_region = WiiSystemMenu.next_region(_wii_region)
-		region.text = _wii_region)
+	if not problem.is_empty():
+		var warn := Label.new()
+		warn.text = problem
+		warn.add_theme_font_size_override("font_size", 15)
+		warn.add_theme_color_override("font_color", MenuIcons.TINT_WARN)
+		warn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		(row.get_child(0) as VBoxContainer).add_child(warn)
+		download.disabled = true
+		download.tooltip_text = problem
+
+	# VRDropdown, never OptionButton: its PopupMenu is a separate Window, which
+	# does not open in a Viewport2Din3D panel.
+	var options: Array = []
+	for r: String in WiiSystemMenu.REGIONS:
+		options.append([r, r])
+	var region := VRDropdown.create("Region", options, _wii_region, 1, Vector2(120, 52), 17)
+	region.set_label_visible(false)
+	region.tooltip_text = "Region — must match your discs"
+	region.item_selected.connect(func(id: Variant) -> void: _wii_region = str(id))
 	row.add_child(region)
-	# Before the download button, which is second from the end (the gutter last).
-	row.move_child(region, row.get_child_count() - 3)
+	row.move_child(region, download.get_index())
 	return row
 
 

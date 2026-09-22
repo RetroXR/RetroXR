@@ -205,6 +205,12 @@ func set_label(text: String) -> void:
 	_label.text = text
 
 
+## Drop the label beside the toggle, for a row that already says what it is:
+## the label expands, and in a busy row it leaves a gap wider than the toggle.
+func set_label_visible(shown: bool) -> void:
+	_label.visible = shown
+
+
 ## Put a font glyph on the toggle itself and drop the separate label, so the
 ## control reads as one unit. `font` must resolve both the glyph and ordinary
 ## text — a FontVariation with the symbols font as a fallback does.

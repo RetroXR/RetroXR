@@ -69,9 +69,22 @@ Nintendo's Wii update service itself is offline: Dolphin's
 `fakenus.dolphin-emu.org` answers the title list and Nintendo's Wii U CDN serves
 the files, so the download depends on both staying up.
 
-UI: BIOS / Extras → Wii → "Wii System Menu" row, with a region button that
-cycles USA → EUR → JPN → KOR (defaulted from the OS locale, or the installed
-menu's region). No `OptionButton`: popups do not work in the headset menus.
+UI: BIOS / Extras → **Nintendo Wii** tile → "Wii System Menu" row, with a
+region `VRDropdown` (USA / EUR / JPN / KOR, defaulted from the installed menu's
+region, else the OS locale). The grid files each core under ONE tile (its
+`.info` systemid, `gc` for dolphin), so the Wii tile is added by hand in
+`_populate_bios_tab`, and shown even with no dolphin installed so it can say so.
+
+The row reads `WiiSystemMenu.core_state()` once per page build
+(`Libretro.CoreHasExport`, which opens the core in place): **missing** → "Install
+the Dolphin core first", **too old** (no `retroxr_wii_system_update`, every
+release up to v12) → "Update the Dolphin core"; both disable Download, and the
+tile's badge says the same when no menu is installed.
+
+The installed menu's REGION is its title version's low nibble (Dolphin's
+`GetSysMenuRegion`: 0 J, 1 U, 2 E, 6 K). The TMD's region field at 0x19C is 0
+on the System Menu of every region; reading it called a USA menu JPN, and the
+region control then offered a Japanese menu over it.
 
 ## Measured (2026-09-21, Windows)
 

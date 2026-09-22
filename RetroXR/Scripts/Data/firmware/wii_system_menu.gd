@@ -56,6 +56,34 @@ const _MENU_VERSIONS := {
 }
 
 
+## The fork's export that installs the menu. A Dolphin core built before it
+## (every release up to v12) cannot, and the row says so up front.
+const EXPORT := "retroxr_wii_system_update"
+
+enum CoreState { MISSING, TOO_OLD, READY }
+
+
+## Whether the installed dolphin core can install the menu. Opens the core
+## (Libretro.CoreHasExport), so ask once per page build, not per frame.
+static func core_state() -> CoreState:
+	if CoreDownloadManager.installed_core_lib(CORE).is_empty():
+		return CoreState.MISSING
+	if not bool(ClassDB.class_call_static("Libretro", "CoreHasExport",
+			CoreDownloadManager.default_core_root(), CORE, EXPORT)):
+		return CoreState.TOO_OLD
+	return CoreState.READY
+
+
+## What the row and the tile say when the core cannot install it, or "".
+static func core_problem(state: CoreState) -> String:
+	match state:
+		CoreState.MISSING:
+			return "Install the Dolphin core first (Cores > Download)"
+		CoreState.TOO_OLD:
+			return "Update the Dolphin core: this one cannot download the Wii Menu"
+	return ""
+
+
 static func save_dir() -> String:
 	return CoreDownloadManager.default_core_root().path_join("save").path_join(CORE)
 
