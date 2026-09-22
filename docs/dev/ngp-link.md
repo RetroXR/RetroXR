@@ -120,7 +120,57 @@ player's walk showing on the other's screen.
 | Card Fighters' Clash (SNK/Capcom) | in-game menu → LINK → COM CABLE | **untested**: the link is past the opening tutorial battle, and the probe never finished it |
 | Biomotor Unitron | in-game | **untested**: the link is deep in the RPG |
 
+## Netplay and rollback (2026-09-22, fork commit on `retroxr`, NOT yet released)
+
+Three things stood between the NGP and a rollback session, each measured:
+
+1. **The RTC read the host's clock.** `rtc.c` called `localtime()` on every read,
+   so two peers booted a second apart disagreed from FRAME 1 — cable or not.
+   Core option **`ngp_rtc=deterministic`** starts it at 2000-01-01 00:00 UTC and
+   runs it on emulated time (the link's `own_clock`, which the state carries).
+   Three cold cabled runs of Gals' Fighters, 2400 frames: bit-identical, both
+   machines, same bytes on the wire (3783/4504).
+2. **The state lost things.** Upstream never saved the Z80's IRQ line (`iline`,
+   section `Z80I`): a state taken while the TLCS-900 held it raised made the sound
+   CPU take another path for ~20 frames — the RAM CRC caught it through the shared
+   RAM at 0x7000. That was Bust-A-Move's anchor 500 (stock too) and KOF R-1's 852
+   and 860. The fork also saves `SC0BUF`/`COMMStatus` (`SIO`) and the whole link
+   (`LINK`: inbox, RTS queue, pacing, `tx_done_at`, `own_clock`). `rewind_probe`
+   over 100..2500: 0 bad of 300 anchors on KOF R-1, Bust-A-Move and Gals' Fighters
+   (were 2, 1, 0). **Find such a thing by diffing two states, not by reading code:**
+   `sdiff`-style parsing of the Mednafen sections names the variable (MDFNSVST,
+   32-byte section name + size, then len-prefixed var name + size + bytes).
+3. **A cabled pair could not stop on one frame.** A stock frame ends at the
+   instruction that crosses vblank, so two units' frame N ends on different bus
+   ticks; gated and fed to N, one sits at N-1 blocked inside its frame on the bus
+   and cannot take a state. Measured on Gals' Fighters' link screen: 124 of 143
+   boundaries unreachable (gambatte: 139 of 139 — every link core has this).
+   Core option **`ngp_fixed_frames=enabled`** runs every `retro_run` for exactly
+   102485 ticks (515 × 199, a hardware constant, so vblank stays in the window),
+   overshoot carried, anchored with a whole window, never asking the bus past the
+   edge, promising a grain past it on the way out, and holding a message stamped
+   past the edge for the next window — the Lynx fork's `lynx_fixed_frames`
+   contract, which is what the session's group rollback barrier needs. Result:
+   **0 of 143**. Under fixed frames a load restores the link clock ABSOLUTELY (the
+   group restore puts the bus back to that instant); otherwise every bus tick is
+   rebased relative to `now`, which never goes back.
+
+**Measured with fixed frames on:** a cabled restore sweep of Gals' Fighters (pause
+both, capture both cores + `LinkCaptureGroup`, run 12, `LinkRestoreGroup` then the
+cores, replay, compare both CRCs and the wire) — **0 bad of 100 anchors, 92 of
+them mid-conversation**. Mutation: dropping the inbox on load turns 26 of 40 red.
+Skipping the ABSOLUTE restore stays green (the relative rebase is already
+self-consistent), so that branch is belt-and-braces, not load-bearing.
+
+The probe is `Tools/netplay/ngp_link_netplay_probe` (`--mode=pause|trace|sweep`,
+`--nocable`, `--opt=`, `--root=`): gated exactly as the session gates, input
+lead capped at 60 frames (posting hundreds at once overruns the gate's ring and
+reads as a wedge at ~600).
+
 **Owed:**
+- a `NetplayCores` row (`link_rollback`, both options pinned) — it must wait for a
+  fork RELEASE carrying the options, since `CoreSources` downloads by tag;
+- a real two-peer session over the cable;
 - the Card Fighters' Clash link battle and trade;
 - Biomotor Unitron;
 - Android and Quest (the release builds for arm64, but nobody has run it on a headset);
