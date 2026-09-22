@@ -1777,6 +1777,31 @@ func _test_rollback() -> void:
 		"rollback/the logical owner lands on the same scheduled frame")
 	_ok(w.host_np.is_running() and w.client_np.is_running(),
 		"rollback/the session keeps running through the handoff")
+
+	# An e-Reader card is the one disc op rollback takes: mGBA's savestate holds
+	# the scanner and the card, and the core never speculates across the op's
+	# frame. A real disc swap is still lockstep-only.
+	w.host_np.schedule_disk_op(w.host_sys, 1, "SOME_DISC", 0)
+	await _await_frames(10)
+	_eq(w.host_sys.lib.disc_ops.size() + w.client_sys.lib.disc_ops.size(), 0,
+		"rollback/a disc swap is still refused under rollback")
+	var confirmed_at := w.host_np._complete_upto
+	var rom_md5 := w.client_sys.resolved_md5
+	w.host_np.schedule_disk_op(w.host_sys, NetplaySession.DISK_OP_CARD, "CARD_MD5", 0)
+	_ok(await _until(func() -> bool:
+		return w.host_sys.lib.disc_ops.size() == 1 and w.client_sys.lib.disc_ops.size() == 1),
+		"rollback/a swiped e-Reader card reaches every peer")
+	if w.client_sys.lib.disc_ops.size() == 1 and w.host_sys.lib.disc_ops.size() == 1:
+		var op: Array = w.client_sys.lib.disc_ops[0]
+		_eq(op[0], w.host_sys.lib.disc_ops[0][0], "rollback/the card lands on one frame everywhere")
+		_eq([op[1], op[2], op[3]], [1, 0, "cards/CARD_MD5.raw"],
+			"rollback/as a replace of image 0 with the peer's own copy of the strip")
+		_ok(int(op[0]) >= confirmed_at + NetplaySession.MAX_AHEAD + NetplaySession.DISK_LEAD,
+			"rollback/scheduled past anything a rollback core may have speculated")
+	_eq(w.client_sys.resolved_card, "CARD_MD5", "rollback/the strip is found by the CARD resolver")
+	_eq(w.client_sys.resolved_md5, rom_md5, "rollback/and never through the machine's own ROM")
+	_ok(await _until(func() -> bool: return w.host_np._disc_waiting.is_empty()),
+		"rollback/every peer arms the card before assembly resumes")
 	w.host_nm.netplay_stop("done")
 	await _await_frames(5)
 
@@ -2441,6 +2466,7 @@ class MockSys extends Node:
 	var firmware_signature := ""
 	var prepared_boot := ""
 	var resolved_md5 := ""
+	var resolved_card := ""
 	var sram_bytes := PackedByteArray()
 	var received_sram := PackedByteArray()
 	var link_refreshes := 0
@@ -2512,6 +2538,10 @@ class MockSys extends Node:
 	func net_resolve_rom(md5: String) -> bool:
 		resolved_md5 = md5
 		return true
+
+	func net_resolve_card(md5: String) -> String:
+		resolved_card = md5
+		return "cards/%s.raw" % md5
 
 	func net_sram_file_bytes() -> PackedByteArray:
 		return sram_bytes

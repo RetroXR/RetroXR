@@ -2852,6 +2852,16 @@ func net_resolve_rom(md5: String, size := 0) -> bool:
 	return true
 
 
+## The local e-Reader strip whose md5 matches, or "" if this player has none.
+## Only the card folder is searched, and the machine's own rom_path is never
+## touched: this is the card, not the cartridge.
+func net_resolve_card(md5: String) -> String:
+	if md5.is_empty():
+		return ""
+	return NetFileTransfer.resolve_by_md5(md5, "ereader", 0, "card.raw",
+		[RomLibrary.rom_dir_for_system(EReaderCards.SYSTEMID)])
+
+
 # ── Netplay core seam (driven by NetplaySession on every peer) ────────────────
 
 ## Start the local core under the netplay gate. The gate (SetNetplayMode) is set
@@ -3360,16 +3370,19 @@ func _on_expansion_card_swiped(card: Node3D, edge: String, strip: int) -> void:
 	if path.is_empty():
 		push_warning("[RetroSystem] swiped card supplied no path for strip %d" % strip)
 		return
-	# mGBA does not serialize the e-Reader's card queue, scan position or dot
-	# buffer, so a rollback replaying across a swipe and a late join mid-card both
-	# diverge. Landing the op on one agreed frame is not enough on its own.
+	# In a session the card lands on ONE agreed frame on every peer, as a disc
+	# swap does, and each peer finds the strip by hash in its own card folder.
+	# Rollback and late join are safe because the RetroXR mGBA build carries the
+	# scanner and the card on it in its savestate (GBA_SUBSYSTEM_EREADER).
 	if NetworkManager.netplay_running() and NetworkManager.netplay_covers(self):
-		print("[RetroSystem] card refused: e-Reader state is not transferable in a session")
-		var toast := _machine_toast()
-		if toast != null:
-			toast.show_notice(_display_name(), "Card not scanned",
-				"e-Reader cards cannot be scanned during netplay.",
-				AchievementToast.ACCENT_NOTICE)
+		var md5 := NetFileTransfer.hash_of(path)
+		print("[RetroSystem] card swiped in a session: %s strip %d -> %s (md5 %s…)"
+			% [edge, strip, path.get_file(), md5.left(8)])
+		if NetworkManager.is_host():
+			NetworkManager.netplay_schedule_disk(self, DISK_OP_CARD, md5, 0)
+		else:
+			NetworkManager.report_event(NetEvents.Event.EV_DISK_OP,
+				{"sys": self, "op": DISK_OP_CARD, "md5": md5, "index": 0})
 		return
 	if not _supports_disk_control():
 		push_warning("[RetroSystem] core takes no removable media; card ignored")
@@ -5039,6 +5052,8 @@ func _restart_on_disc() -> void:
 const DISK_OP_NONE := -1
 const DISK_OP_EJECT := 0
 const DISK_OP_CLOSE := 1
+## An e-Reader card, scanned; see NetplaySession.DISK_OP_CARD.
+const DISK_OP_CARD := 2
 
 
 ## Perform a disc op — op 0 = eject (open the core's tray), op 1 = replace the

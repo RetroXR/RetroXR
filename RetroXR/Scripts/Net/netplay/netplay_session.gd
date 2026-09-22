@@ -40,6 +40,13 @@ const PRUNE_BEHIND := 120       # keep this many frames behind the gate
 const MAX_AHEAD := 10           # rollback: speculation cap past the confirmed frame
 const TRANSFER_LEAD := 8        # frames ahead a port-ownership handoff is scheduled
 const DISK_LEAD := 8            # frames ahead a disc eject/swap is scheduled
+## Disc op 2: an e-Reader card swiped through a GBA's scanner. It reaches the
+## core as a replace of image 0, but it is resolved against the card folder,
+## not the machine's own ROM (net_resolve_rom would re-point the CARTRIDGE at
+## the strip), and unlike a disc it is allowed under rollback: the core now
+## serializes the scanner and the card on it, and the C++ scheduler never runs
+## a disc-op frame speculatively, so no rewind can reach behind it.
+const DISK_OP_CARD := 2
 const RESET_LEAD := 8           # frames ahead a front-panel reset is scheduled
 const LINK_LEAD := 8            # frames ahead a link plug/pull is scheduled
 const OP_ACK_TIMEOUT_MS := 5000 # reliable control op accepted by every peer
@@ -1298,14 +1305,20 @@ func _apply_pending_transfers(f: int) -> void:
 # before running that frame. Lockstep only, same as port handoffs.
 
 ## Host: schedule a disc op for this session's system. op 0 = eject,
-## op 1 = replace the image at `index` with the disc whose md5 matches.
+## op 1 = replace the image at `index` with the disc whose md5 matches,
+## op 2 (DISK_OP_CARD) = scan the e-Reader card whose md5 matches.
 func schedule_disk_op(system: Object, op: int, md5: String, index: int) -> void:
-	if not _nm.is_host() or not _running or _rollback:
+	if not _nm.is_host() or not _running or (_rollback and op != DISK_OP_CARD):
 		return
 	var machine_index := _group.find(system)
 	if machine_index < 0:
 		return
 	var frame := _complete_upto + _delay + DISK_LEAD
+	if _rollback:
+		# A rollback core runs up to MAX_AHEAD past the confirmed frame, so a
+		# frame only DISK_LEAD ahead of it may already have been speculated
+		# through; the op would then land a frame late on this machine alone.
+		frame += MAX_AHEAD
 	_disc_serial += 1
 	var serial := _disc_serial
 	var waiting := _op_arm(_disc_waiting, _disc_deadlines, serial)
@@ -1354,9 +1367,18 @@ func _apply_disk_op(machine_index: int, op: int, md5: String, index: int,
 		if path.is_empty():
 			push_warning("[Netplay] disc swap: no local file for md5 %s…" % md5.left(8))
 			return false
+	elif op == DISK_OP_CARD:
+		var machine: Object = _group[machine_index] if machine_index < _group.size() else null
+		if machine != null and machine.has_method("net_resolve_card"):
+			path = str(machine.net_resolve_card(md5))
+		if path.is_empty():
+			push_warning("[Netplay] card scan: no local strip for md5 %s…" % md5.left(8))
+			return false
 	print("[Netplay] machine %d disc op %d armed @frame %d%s" %
 		[machine_index, op, frame, "" if path.is_empty() else " (" + path.get_file() + ")"])
-	lib.ScheduleDiscOp(frame, op, index, path)
+	# A card is an ordinary replace to the core: the eject/insert edge it gets
+	# is what queues the dotcode (ereader_disk.c).
+	lib.ScheduleDiscOp(frame, 1 if op == DISK_OP_CARD else op, index, path)
 	return true
 
 

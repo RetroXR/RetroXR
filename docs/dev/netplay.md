@@ -247,3 +247,36 @@ this pair can now be started — but note what the probes above do and do not
 prove: they exercise the BUS with real cores, not a netplay session over it.
 Dolphin having no transferable state is why it is DETERMINISM-only, which in
 turn means no late join and no desync repair.
+
+### e-Reader cards under netplay (mGBA) — 2026-09-22: rollback and late join both measured
+
+A swipe during a session is a **disc op, kind 2** (`NetplaySession.DISK_OP_CARD`):
+`system.gd._on_expansion_card_swiped` sends the strip's md5 to the host (clients
+use `EV_DISK_OP` intent), the host schedules it, and every peer resolves the strip
+in its OWN card folder with `net_resolve_card` — never `net_resolve_rom`, which
+would re-point the machine's cartridge at the strip. The core sees an ordinary
+eject/replace-image-0/insert on the agreed frame (`ScheduleDiscOp`).
+
+- **Why rollback is allowed for this op and not for a disc:** RetroXR's mGBA fork
+  now serializes the whole scanner — registers, serial state, scan position, the
+  card under the head and the one waiting (`GBA_SUBSYSTEM_EREADER` extdata, a
+  FIXED-size block so `retro_serialize_size` does not change on a swipe). Before
+  that it was upstream's `// TODO: Serialize these`.
+- **Under rollback the op is scheduled `MAX_AHEAD` further out**: a rollback core
+  speculates up to MAX_AHEAD past the confirmed frame, so `DISK_LEAD` alone can
+  name a frame it has already run.
+- **libretro-godot race, fixed:** the solo runner's boundary stall let a disc/reset
+  frame run as soon as it was CONFIRMED; confirmations arriving during the 4 ms
+  wait could leave the frames just before it unverified, and the later rewind
+  went behind the op, which a replay never re-applies. The card vanished. It now
+  also requires `m_np_verified + 1 >= frame`. The group runner never had it.
+- **Proof:** `Tools/netplay/ereader_rollback_probe` (legs `ref`, `rb`, `join`,
+  `compare`; windowed for the final screen). Real e-Reader (USA) + Air Hockey-e
+  strip 1, `--crc=ram`: rb == ref at 42/42 checkpoints (23 after the card) with 42
+  rollbacks, join (fresh core, mid-scan snapshot) == ref 21/21, all three reach
+  "Scan AIR HOCKEY 2/2". **Control:** the same fork without the scanner block —
+  rb diverges from frame 630, join from 660, both drop back to "Scan Dot Code".
+  Use `--crc=ram`: the whole-state CRC differs between identical runs on this
+  core, so it cannot be the oracle.
+- Not yet exercised: two real peers over a real network, and a multi-strip card
+  (strip 2) inside a session.
