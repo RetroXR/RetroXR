@@ -44,3 +44,28 @@ wire.
 out until a profile exists, so each machine needs a scripted name entry through
 an on-screen keyboard first, and the two routes drift apart. The Game Boy Color
 path is covered by the `_fast` ROMs instead.
+
+### The Game Gear's Gear-to-Gear cable
+
+genesis_plus_gx carries it (RetroXR fork, `libretro/gg_link.c`, core commit
+`3d726c2`) on wire `gg-ext-1`, through the link API exactly as
+libretro/RetroArch#19454 adds it to `libretro.h` -- no private header. The UART
+is what games use: `$03` lands in the peer's `$04` with RX-full and an NMI, and
+reading it empties the sender's TX-full. With nothing cabled, bit 2 of `$05` and
+an NMI every frame, which is how Columns greys out VERSUS. Parallel pins are
+carried too (crossed 0<->2, 1<->3, 4<->5, 6<->6); nobody has tested a game on them.
+
+```bash
+python Tools/gen_gglink_rom.py
+"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn
+"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn -- "--rom=Z:/roms/gamegear/Columns (USA, Europe).gg" --seconds=30 "--press=DOWN@11.5,START@12.5,START@16,START@18" "--press2=DOWN@11.5,START@14,START@21,START@23"
+```
+
+**Wait on the screen, never on a frame count.** Headless, the probe spins frames
+far faster than the core emulates, so 240 frames was ~23 emulated ones and the
+master had not sent its first byte yet -- a "failure" that was only impatience.
+
+**Stagger the two machines' presses** (`--press2`), as with Tetris: Columns makes
+whoever picks VERSUS first the host (SELECT GAME) and the other shows WAIT; both
+then reach READY. Measured 2026-09-21. There is no Game Gear MODEL in the room
+yet (it spawns the placeholder box, no socket), so no player can seat a lead.
