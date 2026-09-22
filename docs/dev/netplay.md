@@ -310,6 +310,86 @@ rewinds, no desync reported, both peers' CRCs of both machines equal at all 102
 checkpoints, all four screens in flight; lockstep equal at 102/102. `netplay_tests`
 `link/` covers the session's decisions with mocks.
 
+### PlayStation (pcsx_rearmed) — rollback, and a cabled pair as one group, 2026-09-22
+
+On RetroXR's fork past v3. The cable itself was never the problem; savestates
+and thread timing were, and both broke rollback long before a second console
+was involved.
+
+**A load has to put the machine back exactly**, because rollback does one every
+time it mispredicts. Found by diffing every internal global before a save
+against after loading it back in the same process, where a correct load is an
+identity (`netplay_spike --spike-selfload` is the cheap version of the same
+question: green there and red in the ordinary leg means the load is sound and
+something from LATER leaked through it).
+
+- `LoadState` called `sio1Reset()`, which re-armed PSXINT_SIO1 from the cycle of
+  the LOAD. The event scheduler after a load was not the one the state
+  described, so interrupts came a few cycles off and the replay wandered within
+  two frames -- with no cable in the socket. The port and the netlink driver
+  (clock, horizon, stamps, lines, the queue of bytes not yet landed) are in the
+  state now.
+- The memory cards' FLAG byte was not saved and a load set its "new card" bit on
+  purpose. WipEout polls its cards when the menu opens, re-read the directory,
+  and went somewhere the first run never did -- 3000 frames in, which is why a
+  save at 600 looked fine.
+- gpulib: the load replayed GP1(02) (acknowledge IRQ), which left it in the
+  register write cache, so the game's next acknowledge matched and was DROPPED.
+  Its write cache, `last_flip_frame`, the dirty bits, a VRAM transfer in flight
+  and the GPUREAD latch are saved; a read transfer flushes the renderer before
+  latching its first word (it read pixels the original run had not drawn yet).
+- Upstream, all reached by the same audit: root counters lost the part-tick when
+  `cycleStart` was rebuilt, MDEC resumed a macroblock from its start, `FifoSize`
+  was re-derived from Mode, `cdClearSamples` reset to 512 (writing silence into
+  the CD capture buffers in SPU RAM), `subCycle` was zeroed, and the upper half
+  of SPU `regArea` was never saved.
+
+**The cable has to keep each frame's traffic inside the frame**
+(`pcsx_rearmed_link_frame_edges`, on; netplay pins it, which also refuses an
+older build, since it does not declare the option). The port never asks the bus
+past the frame's VBlankStart, a byte stamped past the edge waits for the next
+frame, and the two consoles meet at both edges. Two more, and they are the ones
+worth remembering:
+
+- **A byte may never land past the last GRANT.** The CPU overshoots its
+  scheduled rendezvous by an instruction, or a whole block under a recompiler,
+  and a register read in that overshoot used to release anything due by the
+  current cycle -- but a byte due past the grant may not be on the bus yet.
+  This is what made a group stopped at every edge disagree with plain lockstep
+  with ZERO rollbacks, which is how it was found: run `--alllocal` (both pads
+  local, nothing ever mispredicted) and the difference is still there, so it is
+  not the rewind.
+- **A promised horizon never goes back.** The poll assigned `now + horizon`
+  where the frame edge had promised further.
+
+**Everything that runs on a thread of its own is off**
+(`pcsx_rearmed_netplay_deterministic`, pinned): the threaded GPU and SPU, the
+dynarec's compile thread, CD read-ahead. On a Quest they default to ON and two
+identical LOCKSTEP runs parted at frame 120. One switch rather than four pins,
+because which of the four a build has varies (no dynarec thread in a Lightrec
+build), and a frontend pinning a name would refuse a build for not declaring an
+option it cannot have.
+
+**Evidence** (WipEout (USA), `Tools/netplay/psx_rollback_probe`, the Lynx probe's
+legs and oracle driving two PlayStations through `psx_link_probe`'s menu walk
+into a two-player race, `--leg=rb|ref|solo|compare`, one per process):
+
+- **windows x86_64**: group rollback equals lockstep at 262/262 checkpoints over
+  80 group rewinds, ~152 KB across the cable; the solo control (each core
+  rewinding alone) diverges at 120.
+- **Quest 3, arm64, new_dynarec**: 262/262 over 80 rewinds, ~156 KB; solo
+  diverges at 82. Run it there with the `Quest psx rollback probe` preset
+  (`com.xenu.retroxr.psxrb`), arguments in `user://psxrb.cfg`, results pulled
+  back with `run-as` and compared on a desktop.
+- `netplay_spike --spike-rollback`: 165 single-core rewinds equal to lockstep.
+  A state written by one process and loaded by a fresh one replays 20/20, which
+  is what a late join does.
+
+**Still open**: a state loaded ~1200 frames BACK into a core that has run on
+past it drifts (both CPUs, so not the recompiler). Only a LOCKSTEP resync does
+that, and the row does not offer LOCKSTEP. `cross_play` is false: never
+measured across architectures.
+
 ### Atari 2600 (stella) — vetted 2026-09-21: lockstep yes, rollback NO
 
 `netplay_spike` on `stella_libretro.dll` with Air Raid (USA), Windows x86_64,
