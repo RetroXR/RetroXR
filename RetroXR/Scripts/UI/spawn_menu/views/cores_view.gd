@@ -88,6 +88,10 @@ var _bios_dir_open: Dictionary = {}
 ## view fill it; cleared when the job ends.
 var _job_labels: Dictionary = {}
 
+## The Wii System Menu row's region button, kept across the page rebuilding
+## itself after every install. "" until the row first decides it.
+var _wii_region := ""
+
 
 static func create(menu: Node) -> SpawnMenuCoresView:
 	var v := SpawnMenuCoresView.new()
@@ -941,6 +945,8 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 			vbox.add_child(_build_bios_archive_row(cn, rows))
 		for pack: Dictionary in SystemAssetCatalog.packs_for(cn):
 			vbox.add_child(_build_bios_pack_row(cn, pack))
+		if cn == WiiSystemMenu.CORE and systemid == "wii":
+			vbox.add_child(_build_wii_menu_row())
 
 		for r: Dictionary in rows:
 			vbox.add_child(_build_bios_row(r, systemid))
@@ -982,6 +988,38 @@ func _build_bios_pack_row(core_name: String, pack: Dictionary) -> Control:
 		str(pack["label"]), str(pack.get("desc", "")), installed,
 		"Download and install into this core's system folder",
 		func(key: String) -> void: _firmware_installer.enqueue_pack(key, core_name, pack_id, installed))
+
+
+## The Wii's firmware, which no .info declares: the System Menu in dolphin's
+## NAND, installed by the core itself (WiiSystemMenu). The region has to match
+## the player's discs, so it sits on the row as a button that cycles.
+func _build_wii_menu_row() -> Control:
+	var installed := WiiSystemMenu.is_installed()
+	if _wii_region.is_empty():
+		_wii_region = WiiSystemMenu.installed_region() if installed else ""
+		if _wii_region.is_empty():
+			_wii_region = WiiSystemMenu.default_region()
+	var desc := ("Needed to boot a Wii to its menu, with or without a disc. "
+		+ "Downloaded from Nintendo through Dolphin, about 135 MB. The region must match your discs.")
+	if installed:
+		desc = "%s (%s) — a Wii boots to it, and a disc starts from the Disc Channel." % [
+			WiiSystemMenu.installed_version(), WiiSystemMenu.installed_region()]
+	var row := _build_bios_download_row("bios:wii_menu", "Wii System Menu", desc,
+		installed, "Download and install into Dolphin's Wii NAND",
+		func(key: String) -> void: _firmware_installer.enqueue_wii_menu(key, _wii_region))
+
+	var region := Button.new()
+	region.text = _wii_region
+	region.add_theme_font_size_override("font_size", 17)
+	region.custom_minimum_size = Vector2(84, 52)
+	region.tooltip_text = "Region — press to change"
+	region.pressed.connect(func() -> void:
+		_wii_region = WiiSystemMenu.next_region(_wii_region)
+		region.text = _wii_region)
+	row.add_child(region)
+	# Before the download button, which is second from the end (the gutter last).
+	row.move_child(region, row.get_child_count() - 3)
+	return row
 
 
 ## One download that fills in something at once: a title, an optional line under

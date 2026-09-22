@@ -185,9 +185,9 @@ const _ROWS := {
 	},
 
 	# ── Nintendo ─────────────────────────────────────────────────────────────
-	# GameCube only. A Wii row would need a NAND dump, which dolphin's .info
-	# does not declare a path for, so there is nothing to check the option
-	# against -- and enabling the Wii menu without one gives a black screen.
+	# One core, one dolphin.opt, two machines. Which console it is comes from
+	# `dolphin_console`, pinned on every boot by ForcedCoreOptions.dolphin_console;
+	# it is repeated in empty_options so a netplay boot spec names it too.
 	"dolphin/gc": {
 		"boot_rom": [
 			"dolphin-emu/Sys/GC/USA/IPL.bin",
@@ -196,8 +196,29 @@ const _ROWS := {
 		],
 		"empty_media": "",
 		"no_content": true,
+		"empty_options": {"dolphin_console": "gamecube"},
 		"splash": {"dolphin_skip_gc_bios": "disabled"},
 		"why": "Plays the GameCube IPL animation before the disc",
+	},
+	# The Wii's "BIOS" is the System Menu installed in the NAND, which the .info
+	# cannot declare: it lives in the SAVE dir, and "present" means the menu AND
+	# its IOS, so the row asks WiiSystemMenu.is_installed() (`wii_menu`) instead
+	# of naming a `boot_rom`. Installed from the BIOS / Extras tab, by the core
+	# itself. With no menu the fork refuses the load rather than falling back to
+	# the GameCube IPL, so the gate matters.
+	#
+	# With a disc in, the splash boots the menu with the disc in the drive and
+	# the player starts it from the Disc Channel, as on a real Wii. The fork
+	# honours that option only when dolphin_console is "wii", so a GameCube
+	# reading the same .opt still boots its disc. A menu of another region does
+	# not list the disc (the core logs it and the Disc Channel stays empty).
+	"dolphin/wii": {
+		"wii_menu": true,
+		"empty_media": "",
+		"no_content": true,
+		"empty_options": {"dolphin_console": "wii"},
+		"splash": {"dolphin_disc_based_games_boot_to_wii_menu": "enabled"},
+		"why": "Boots the Wii System Menu, and a disc through its Disc Channel",
 	},
 	# The 64DD, not the N64. parallel_n64 is the nintendo_64dd core and this is
 	# a genuine boot-to-menu; pointing it at a plain N64 would boot every
@@ -364,6 +385,8 @@ static func boot_rom_present(core_name: String, systemid: String) -> bool:
 	var row := entry(core_name, systemid)
 	if row.is_empty():
 		return false
+	if bool(row.get("wii_menu", false)):
+		return WiiSystemMenu.is_installed()
 	var wanted: Array = row.get("boot_rom", [])
 	if wanted.is_empty():
 		return false

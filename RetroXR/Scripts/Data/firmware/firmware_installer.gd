@@ -10,6 +10,10 @@
 ##   PACK    several zips from their own hosts, each unpacked from a folder
 ##           inside it into a folder of one core's system dir
 ##           (SystemAssetCatalog.PACKS).
+##   WII_MENU the Wii System Menu, installed into dolphin's NAND by the core
+##           itself (WiiSystemMenu). No file passes through here: the core
+##           downloads, decrypts and imports each title, and reports progress
+##           in titles, not bytes.
 ##
 ## Deliberately not built on RommDownloader: that class keys everything on a
 ## rom_id, writes into the ROM dir, merges gamelist.json and takes part in LRU
@@ -44,7 +48,7 @@ const UNPACK_BATCH := 250
 ## GitHub answers a release asset with one hop to a signed link; the rest is slack.
 const MAX_REDIRECTS := 5
 
-enum Kind { FILE, ARCHIVE, PACK }
+enum Kind { FILE, ARCHIVE, PACK, WII_MENU }
 
 var _queue: Array[Dictionary] = []
 var _thread: Thread = null
@@ -136,6 +140,27 @@ func enqueue_pack(key: String, core_name: String, pack_id: String, repair: bool 
 	_pump()
 
 
+## Install the Wii System Menu for `region` ("USA", "EUR", "JPN", "KOR").
+## Refused while a Dolphin machine is switched on: the core would be writing
+## the NAND that machine has open.
+func enqueue_wii_menu(key: String, region: String) -> void:
+	if key.is_empty() or is_queued(key):
+		return
+	var busy := _dolphin_machines_on()
+	if not busy.is_empty():
+		var label := "Wii System Menu"
+		var why := "switch off %s first" % ", ".join(busy)
+		(func() -> void:
+			job_started.emit(key, label, 0)
+			job_finished.emit(key, false, why)).call_deferred()
+		return
+	_queue.append({
+		"kind": Kind.WII_MENU, "key": key,
+		"label": "Wii System Menu (%s)" % region, "region": region,
+	})
+	_pump()
+
+
 ## Stop the running job. Its partial file is kept, so a retry resumes.
 func cancel_current() -> void:
 	_abort = true
@@ -184,6 +209,9 @@ func _pump() -> void:
 func _worker(job: Dictionary) -> void:
 	if int(job["kind"]) == Kind.PACK:
 		_run_pack(job)
+		return
+	if int(job["kind"]) == Kind.WII_MENU:
+		_run_wii_menu(job)
 		return
 
 	var key := str(job["key"])
@@ -250,6 +278,35 @@ func _run_pack(job: Dictionary) -> void:
 			return
 
 	_emit_finished.call_deferred(key, true, "")
+
+
+## The core does all of it, so there is no retry loop here: Dolphin's updater
+## skips every title already installed, so pressing the button again resumes.
+## A cancel lands between titles, not inside one.
+func _run_wii_menu(job: Dictionary) -> void:
+	var key := str(job["key"])
+	_emit_started.call_deferred(key, str(job["label"]), 0)
+	var progress := func(processed: int, total: int, _title: String) -> bool:
+		_emit_progress.call_deferred(key, processed, total)
+		return not _abort
+	var result := WiiSystemMenu.run(str(job["region"]), progress)
+	if result == WiiSystemMenu.RESULT_CANCELLED or (_abort and not WiiSystemMenu.succeeded(result)):
+		_emit_cancelled.call_deferred(key)
+		return
+	_emit_finished.call_deferred(key, WiiSystemMenu.succeeded(result),
+		WiiSystemMenu.result_text(result))
+
+
+static func _dolphin_machines_on() -> PackedStringArray:
+	var out := PackedStringArray()
+	if not Engine.get_main_loop() is SceneTree:
+		return out
+	for node: Node in (Engine.get_main_loop() as SceneTree).get_nodes_in_group("retro_system"):
+		if not is_instance_valid(node) or not bool(node.get("is_powered_on")):
+			continue
+		if node.has_method("resolve_core_name") and str(node.resolve_core_name()) == WiiSystemMenu.CORE:
+			out.append(str(node.get("system_label")) if node.get("system_label") != null else node.name)
+	return out
 
 
 ## Download into `staging`, retrying what is worth retrying.

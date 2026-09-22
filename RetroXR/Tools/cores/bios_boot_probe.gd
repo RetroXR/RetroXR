@@ -51,6 +51,11 @@ var pass_null := true
 ## a solid error screen is lit too -- so a row only goes in the table once
 ## somebody has LOOKED at what the core actually drew.
 var shot := ""
+## Core options to pin, as `--opt=key=value` (repeatable), written the way a
+## machine writes them before StartContent (CoreOptionsStore.merge_values). That
+## is the REAL core_options/<core>.opt: snapshot and restore it around the run.
+## An empty-tray Wii is `--opt=dolphin_console=wii`.
+var opts: Dictionary = {}
 
 var _lib: Node = null
 var _frames_best := 0
@@ -73,6 +78,9 @@ func _ready() -> void:
 			rom = a.trim_prefix("--rom=")
 		elif a.begins_with("--shot="):
 			shot = a.trim_prefix("--shot=")
+		elif a.begins_with("--opt="):
+			var kv := a.trim_prefix("--opt=")
+			opts[kv.get_slice("=", 0)] = kv.substr(kv.find("=") + 1)
 	if root_dir.is_empty():
 		root_dir = CoreDownloadManager.default_core_root()
 
@@ -161,6 +169,9 @@ func _try_no_content() -> void:
 
 	# Before StartContent: it is read on the emulation thread as the core loads.
 	ClassDB.class_call_static("Libretro", "SetNoContentPassesNull", pass_null)
+	if not opts.is_empty():
+		CoreOptionsStore.merge_values(root_dir, core, opts)
+		print("[biosprobe] pinned %s" % str(opts))
 	if rom.is_empty():
 		print("[biosprobe] starting %s with no content, %s (root=%s)" % [
 			core, "null game info" if pass_null else "zeroed game info", root_dir])

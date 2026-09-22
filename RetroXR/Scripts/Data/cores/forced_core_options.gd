@@ -32,7 +32,24 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(declared_frame_rate(core), true)
 	out.merge(vmu_sound(core), true)
 	out.merge(microphone_hotkey(core, systemid), true)
+	out.merge(dolphin_console(core, systemid), true)
 	return out
+
+
+## Which console dolphin is. A disc says so itself, but an empty drive does not,
+## and one dolphin.opt serves both machines: without this a GameCube started
+## after a Wii would read the Wii's "boot discs through the menu" and boot a Wii
+## menu. The fork boots the System Menu from an empty drive only for "wii", and
+## honours the menu option only when it is not "gamecube". Pinned on every run,
+## not only an empty one, because a disc run reads it too.
+static func dolphin_console(core: String, systemid: String) -> Dictionary:
+	if not core.begins_with("dolphin"):
+		return {}
+	if systemid == "wii":
+		return {"dolphin_console": "wii"}
+	if systemid == "gc":
+		return {"dolphin_console": "gamecube"}
+	return {}
 
 
 ## The GameCube Microphone's button. Dolphin reads it from the joypad bit this

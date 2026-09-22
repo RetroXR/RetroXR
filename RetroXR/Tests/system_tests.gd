@@ -125,6 +125,7 @@ func _ready() -> void:
 	_test_supergrafx_core()
 	_test_bios_pinned_options()
 	_test_bios_pins_reach_the_opt_file()
+	_test_wii_system_menu()
 	_test_power_on_verdict()
 	_test_state_paths()
 	_test_state_thumbnail()
@@ -1305,7 +1306,9 @@ func _test_bios_boot_table() -> void:
 		_ok(ResourceLoader.exists("res://SystemInfo/%s.tres" % parts[1]),
 			"table/%s names a real system" % key)
 		var row: Dictionary = BiosBoot._ROWS[key]
-		_ok(not (row.get("boot_rom", []) as Array).is_empty(), "table/%s declares a boot rom" % key)
+		# The Wii's is the System Menu in its NAND, which no .info declares.
+		_ok(not (row.get("boot_rom", []) as Array).is_empty() or bool(row.get("wii_menu", false)),
+			"table/%s declares a boot rom" % key)
 		for opt_key: String in (row.get("splash", {}) as Dictionary):
 			_ok(not opt_key.strip_edges().is_empty(), "table/%s option %s is named" % [key, opt_key])
 
@@ -1397,6 +1400,75 @@ func _test_bios_boot_table() -> void:
 # its boot ROM through `splash`, an empty slot reaches the BIOS through
 # `empty_options`, and which one applies is read from what is in the slot.
 # ---------------------------------------------------------------------------
+
+## The Wii's empty-tray boot. Its "BIOS" is the System Menu in dolphin's NAND,
+## which the core installs (WiiSystemMenu); these cases cover the half RetroXR
+## owns. The install itself needs the network: Tools/cores/wii_menu_update_probe.
+func _test_wii_system_menu() -> void:
+	# One dolphin.opt serves both machines, so each run pins which console it is:
+	# a GameCube after a Wii must not read the Wii's "boot discs through the menu".
+	_eq(ForcedCoreOptions.dolphin_console("dolphin", "wii").get("dolphin_console"),
+		"wii", "wii/a Wii says it is one on every run")
+	_eq(ForcedCoreOptions.dolphin_console("dolphin", "gc").get("dolphin_console"),
+		"gamecube", "wii/and a GameCube pins it back")
+	_ok(ForcedCoreOptions.all("dolphin", "gc", "/roms/gc/game.rvz", [], "gamecube",
+		[] as Array[bool], "").get("dolphin_console") == "gamecube",
+		"wii/a GameCube with a disc in pins it too, not only an empty one")
+	_ok(ForcedCoreOptions.dolphin_console("snes9x", "wii").is_empty(),
+		"wii/and no other core is told")
+	_eq(BiosBoot.empty_boot_options("dolphin", "wii").get("dolphin_console"),
+		"wii", "wii/an empty Wii names its console in the boot spec")
+	_ok(BiosBoot.boots_with_no_content("dolphin", "wii"),
+		"wii/an empty Wii starts with no content")
+	# A disc boots through the menu, like the hardware. Gated on the menu being
+	# installed by splash_options itself (boot_rom_present -> is_installed).
+	_eq((BiosBoot.entry("dolphin", "wii").get("splash", {}) as Dictionary)
+		.get("dolphin_disc_based_games_boot_to_wii_menu"), "enabled",
+		"wii/a disc goes through the Disc Channel")
+	_ok(not (BiosBoot.entry("dolphin", "gc").get("splash", {}) as Dictionary)
+		.has("dolphin_disc_based_games_boot_to_wii_menu"),
+		"wii/a GameCube's disc does not")
+	_ok(BiosBoot.pinned_keys_for_core("dolphin").has("dolphin_disc_based_games_boot_to_wii_menu"),
+		"wii/the core manager shows the menu option locked")
+
+	# A NAND built by hand: the menu's TMD names its IOS at 0x184, its region at
+	# 0x19C and its version at 0x1DC, all big-endian.
+	var save := "user://__wiimenu_selftest"
+	_rmtree(save)
+	var tmd := PackedByteArray()
+	tmd.resize(0x1E4)
+	tmd.encode_u32(0x184, 0x01000000)          # 00000001, big-endian
+	tmd.encode_u32(0x188, 0x50000000)          # 00000050: IOS80
+	tmd[0x19D] = 1                             # USA
+	tmd[0x1DC] = 0x02
+	tmd[0x1DD] = 0x01                          # 513
+	var menu := save.path_join(WiiSystemMenu.TMD_PATH)
+	DirAccess.make_dir_recursive_absolute(menu.get_base_dir())
+	var f := FileAccess.open(menu, FileAccess.WRITE)
+	f.store_buffer(tmd)
+	f.close()
+	# Dolphin installs the menu second of 58 titles: a cancelled update leaves
+	# exactly this, and it boots to a black screen.
+	_ok(not WiiSystemMenu.is_installed_at(save),
+		"wii/a menu with no IOS under it is not installed")
+	var ios := save.path_join("User/Wii/title/00000001/00000050/content/title.tmd")
+	DirAccess.make_dir_recursive_absolute(ios.get_base_dir())
+	f = FileAccess.open(ios, FileAccess.WRITE)
+	f.store_buffer(PackedByteArray([0]))
+	f.close()
+	_ok(WiiSystemMenu.is_installed_at(save), "wii/with IOS80 it is")
+	_rmtree(save)
+	_ok(not WiiSystemMenu.is_installed_at(save), "wii/and an empty NAND is not")
+
+	_eq(WiiSystemMenu.next_region("KOR"), "USA", "wii/the region button wraps")
+	_ok(WiiSystemMenu.REGIONS.has(WiiSystemMenu.default_region()),
+		"wii/the locale always lands on a real region")
+	_ok(WiiSystemMenu.succeeded(WiiSystemMenu.RESULT_UP_TO_DATE),
+		"wii/already up to date is a success")
+	_ok(not WiiSystemMenu.succeeded(WiiSystemMenu.RESULT_CANCELLED)
+		and WiiSystemMenu.result_text(-2).contains("too old"),
+		"wii/a cancel is not, and an old core says so")
+
 
 func _test_bios_pinned_options() -> void:
 	# The empty-slot half. This is the case that used to reach netplay and
