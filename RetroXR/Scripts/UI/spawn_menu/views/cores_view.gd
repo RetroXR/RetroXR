@@ -897,7 +897,25 @@ func _populate_bios_tab() -> void:
 			"badge": str(FirmwareState.summarise(rows)["badge"]),
 		})
 
+	# A core lands under ONE tile, its .info's systemid, and dolphin's is "gc".
+	# The Wii still gets its own, because its firmware is not in that .info: the
+	# System Menu in dolphin's NAND (WiiSystemMenu).
+	if _core_installed(WiiSystemMenu.CORE) and not _bios_cores_by_system.has("wii"):
+		systems.append({
+			"systemid": "wii",
+			"name": core_db.get_systemname_for_id("wii"),
+			"badge": "complete" if WiiSystemMenu.is_installed() else "1 required missing",
+		})
+
 	_bios_browser.set_systems(systems)
+
+
+func _core_installed(core_name: String) -> bool:
+	for entries: Array in _bios_cores_by_system.values():
+		for c: Dictionary in entries:
+			if str(c["core_name"]) == core_name:
+				return true
+	return false
 
 
 ## Resolved status rows for one core, memoised for the life of this rebuild.
@@ -918,6 +936,9 @@ func _bios_rows_for_core(core_name: String) -> Array[Dictionary]:
 ## Grouped by core, with the heading shown only when there is more than one —
 ## the requirements genuinely differ between cores for the same machine.
 func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
+	if systemid == "wii" and not _bios_cores_by_system.has("wii"):
+		vbox.add_child(_build_wii_menu_row())
+		return
 	var cores: Array = _bios_cores_by_system.get(systemid, [])
 	var multi := cores.size() > 1
 
@@ -945,8 +966,6 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 			vbox.add_child(_build_bios_archive_row(cn, rows))
 		for pack: Dictionary in SystemAssetCatalog.packs_for(cn):
 			vbox.add_child(_build_bios_pack_row(cn, pack))
-		if cn == WiiSystemMenu.CORE and systemid == "wii":
-			vbox.add_child(_build_wii_menu_row())
 
 		for r: Dictionary in rows:
 			vbox.add_child(_build_bios_row(r, systemid))

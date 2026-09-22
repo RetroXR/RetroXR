@@ -1431,15 +1431,15 @@ func _test_wii_system_menu() -> void:
 	_ok(BiosBoot.pinned_keys_for_core("dolphin").has("dolphin_disc_based_games_boot_to_wii_menu"),
 		"wii/the core manager shows the menu option locked")
 
-	# A NAND built by hand: the menu's TMD names its IOS at 0x184, its region at
-	# 0x19C and its version at 0x1DC, all big-endian.
+	# A NAND built by hand: the menu's TMD names its IOS at 0x184 and its version
+	# at 0x1DC, big-endian. Its region field (0x19C) is 0 on a real menu of ANY
+	# region, so it stays 0 here: the region is the version's low nibble.
 	var save := "user://__wiimenu_selftest"
 	_rmtree(save)
 	var tmd := PackedByteArray()
 	tmd.resize(0x1E4)
 	tmd.encode_u32(0x184, 0x01000000)          # 00000001, big-endian
 	tmd.encode_u32(0x188, 0x50000000)          # 00000050: IOS80
-	tmd[0x19D] = 1                             # USA
 	tmd[0x1DC] = 0x02
 	tmd[0x1DD] = 0x01                          # 513
 	var menu := save.path_join(WiiSystemMenu.TMD_PATH)
@@ -1457,6 +1457,8 @@ func _test_wii_system_menu() -> void:
 	f.store_buffer(PackedByteArray([0]))
 	f.close()
 	_ok(WiiSystemMenu.is_installed_at(save), "wii/with IOS80 it is")
+	_eq(WiiSystemMenu.installed_region_at(save), "USA",
+		"wii/4.3U reads as USA from its version, not the zero region field")
 	_rmtree(save)
 	_ok(not WiiSystemMenu.is_installed_at(save), "wii/and an empty NAND is not")
 

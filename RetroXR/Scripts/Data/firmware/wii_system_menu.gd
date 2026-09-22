@@ -43,8 +43,11 @@ const _RESULT_TEXT := {
 	8: "Cancelled",
 }
 
-## TMD region field (u16 at 0x19C) to NUS region.
-const _TMD_REGIONS := {0: "JPN", 1: "USA", 2: "EUR", 4: "KOR"}
+## The menu's region is its title version's low four bits, as Dolphin reads it
+## (DiscIO::GetSysMenuRegion). NOT the TMD's region field at 0x19C, which is 0
+## on the System Menu whatever its region -- reading it called every menu JPN,
+## and the region button then offered to replace a USA menu with a Japanese one.
+const _VERSION_REGIONS := {0: "JPN", 1: "USA", 2: "EUR", 6: "KOR"}
 
 ## System Menu title versions (u16 at 0x1DC) to what a player calls them.
 const _MENU_VERSIONS := {
@@ -91,10 +94,14 @@ static func is_installed_at(dolphin_save_dir: String) -> bool:
 
 ## The installed menu's region ("USA"…), or "" when none is installed.
 static func installed_region() -> String:
-	var tmd := FileAccess.get_file_as_bytes(tmd_path())
+	return installed_region_at(save_dir())
+
+
+static func installed_region_at(dolphin_save_dir: String) -> String:
+	var tmd := FileAccess.get_file_as_bytes(dolphin_save_dir.path_join(TMD_PATH))
 	if tmd.size() < 0x1DE:
 		return ""
-	return str(_TMD_REGIONS.get(_be16(tmd, 0x19C), ""))
+	return str(_VERSION_REGIONS.get(_be16(tmd, 0x1DC) & 0xF, ""))
 
 
 ## "4.3U", or the raw version number for one not in the table, or "".
