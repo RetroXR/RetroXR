@@ -151,6 +151,25 @@ const SOURCES := {
 			"Android": "gambatte_libretro_android.so.zip",
 		},
 	},
+	# mednafen_wswan, for the WonderSwan's Communication Cable.
+	#
+	# The stock core's serial port completes every byte into thin air and never
+	# receives one. Our build puts the UART on the frontend's link bus as
+	# `ws-sio-1` (the RetroArch#19454 interface): a byte is stamped with the tick
+	# its stop bit leaves, 3200 CPU cycles at 9600 baud and 800 at 38400, and the
+	# far unit latches it when its own clock gets there. Uncabled it behaves
+	# exactly as the stock core does, so there is no option to turn it on.
+	#
+	# A WonderSwan and a WonderSwan Color are the same core and the same wire.
+	"mednafen_wswan": {
+		"repo":  "RetroXR/beetle-wswan-libretro",
+		"known_tag": "retroxr-mednafen_wswan-libretro-v2",
+		"label": "Beetle WonderSwan (retroXR build)",
+		"assets": {
+			"Windows": "mednafen_wswan_libretro.dll.zip",
+			"Android": "mednafen_wswan_libretro_android.so.zip",
+		},
+	},
 	# mednafen_lynx, for ComLynx.
 	#
 	# Stock Mikey had a transmit hook nothing was attached to. Our build puts the
