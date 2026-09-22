@@ -53,6 +53,11 @@ func _ready() -> void:
 	await _test_psx_socket_is_in_the_panel()
 	await _test_psx_lead_will_seat()
 	await _test_psx_cable_joins_a_pair()
+	_test_saturn_plug_gating()
+	_test_saturn_cable_is_spawnable()
+	await _test_saturn_socket_follows_the_hardware()
+	await _test_saturn_lead_will_seat()
+	await _test_saturn_cable_joins_a_pair()
 	await _test_every_lead_states_its_bus()
 	_test_no_reset_path()
 	print("[link] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -1508,6 +1513,141 @@ func _test_psx_cable_joins_a_pair() -> void:
 	# one serial socket -- but which the guard exists for anyway.
 	cable._join(a, {"libretro": m1.libretro, "machine": m1, "port": 0})
 	_eq(cable._linked.size(), 0, "a console is not cabled to itself")
+
+	cable.queue_free()
+	m1.queue_free()
+	m2.queue_free()
+	await get_tree().process_frame
+
+
+# --- the Sega Saturn Link Cable ---------------------------------------------
+#
+# A PlayStation lead's shape -- two consoles, peers, no junction -- plugged into
+# the Saturn's Communication Connector instead of a serial socket. What the room
+# has to get right is that the two leads do not fit each other's consoles: the
+# connectors are nothing alike, and the cores' wires (saturn-sci-1, psx-sio-1)
+# would refuse the join one layer down anyway, as a log line nobody reads.
+
+const SATURN_CABLE_SCENE := "res://Scenes/Objects/cables/saturn_link_cable.tscn"
+
+
+func _test_saturn_plug_gating() -> void:
+	var port := SaturnLinkPort.new()
+	add_child(port)
+	var plug := SaturnLinkPlug.new()
+	add_child(plug)
+	var psx_port := PsxLinkPort.new()
+	add_child(psx_port)
+	var psx_plug := PsxLinkPlug.new()
+	add_child(psx_plug)
+
+	_eq(port.plug_group(), plug.plug_group(), "the Saturn port and plug name the same group")
+	_eq(port.plug_group(), "saturn_link_plug", "the group is saturn_link_plug")
+	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
+	# Both directions, because SaturnLinkPort EXTENDS PsxLinkPort: forgetting the
+	# override would inherit psx_link_plug and open the gate the wrong way.
+	_ok(port.plug_group() != psx_plug.plug_group(), "a Saturn socket does not take a PlayStation plug")
+	_ok(psx_port.plug_group() != plug.plug_group(), "nor a PlayStation socket a Saturn plug")
+
+	for n: Node in [port, plug, psx_port, psx_plug]:
+		n.queue_free()
+
+
+func _test_saturn_cable_is_spawnable() -> void:
+	var found := false
+	for item: Dictionary in SpawnCatalog.items_for("saturn"):
+		if str(item.get("spawn", "")) == "saturn_link_cable":
+			found = true
+			_ok(not str(item.get("label", "")).is_empty(), "and it is labelled")
+	_ok(found, "a Saturn link cable is offered under the Saturn")
+	var stray := false
+	for item: Dictionary in SpawnCatalog.items_for("psx"):
+		if str(item.get("spawn", "")) == "saturn_link_cable":
+			stray = true
+	_ok(not stray, "and not under the PlayStation")
+	# A lead that cannot be rebuilt from a saved room comes back as nothing.
+	_ok(ScenePersistence.LEAD_SCENES.has("saturn_link_cable"), "and a saved room can rebuild it")
+
+
+func _test_saturn_socket_follows_the_hardware() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	if sys_scene == null:
+		_ok(false, "the machine scene loads")
+		return
+	var sat: Node3D = sys_scene.instantiate()
+	sat.systemid = "saturn"
+	add_child(sat)
+	var psx: Node3D = sys_scene.instantiate()
+	psx.systemid = "psx"
+	add_child(psx)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var on_sat := sat.find_child("SaturnLinkPort", true, false) as SaturnLinkPort
+	_ok(on_sat != null, "a Saturn wears a Communication Connector")
+	_ok(sat.find_child("PsxLinkPort", true, false) == null, "and not a PlayStation serial socket")
+	_ok(psx.find_child("SaturnLinkPort", true, false) == null, "a PlayStation does not wear a Saturn's")
+	if on_sat != null:
+		_eq(on_sat.get_machine(), sat, "the connector belongs to the Saturn it is on")
+
+	sat.queue_free()
+	psx.queue_free()
+	await get_tree().process_frame
+
+
+func _test_saturn_lead_will_seat() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	if sys_scene == null:
+		return
+	var sat: Node3D = sys_scene.instantiate()
+	sat.systemid = "saturn"
+	add_child(sat)
+	var psx: Node3D = sys_scene.instantiate()
+	psx.systemid = "psx"
+	add_child(psx)
+	var lead: Node3D = load(SATURN_CABLE_SCENE).instantiate()
+	add_child(lead)
+	var psx_lead: Node3D = load(PSX_CABLE_SCENE).instantiate()
+	add_child(psx_lead)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var comm := sat.find_child("SaturnLinkPort", true, false) as XRToolsSnapZone
+	var serial := psx.find_child("PsxLinkPort", true, false) as XRToolsSnapZone
+	_ok(comm != null and serial != null, "both consoles have their sockets")
+	if comm != null and serial != null:
+		var end_a := lead.get_node_or_null("PlugA0") as Node3D
+		var end_b := lead.get_node_or_null("PlugB0") as Node3D
+		var psx_end := psx_lead.get_node_or_null("PlugA0") as Node3D
+		_ok(lead is SaturnLinkCable, "the scene is a SaturnLinkCable")
+		_ok(comm.can_preview(end_a) and comm.can_preview(end_b),
+			"either end of a Saturn lead goes into a Saturn",
+			"require '%s', plug in %s" % [comm.snap_require, str(end_a.get_groups())])
+		_ok(not serial.can_preview(end_a), "a Saturn lead does not go into a PlayStation")
+		_ok(not comm.can_preview(psx_end), "and a PlayStation lead does not go into a Saturn")
+
+	for n: Node in [sat, psx, lead, psx_lead]:
+		n.queue_free()
+	await get_tree().process_frame
+
+
+func _test_saturn_cable_joins_a_pair() -> void:
+	var cable := SaturnLinkCable.new()
+	add_child(cable)
+	var m1 := _StubMachine.new()
+	var m2 := _StubMachine.new()
+	add_child(m1)
+	add_child(m2)
+	m1.libretro = Libretro.new()
+	m2.libretro = Libretro.new()
+	m1.add_child(m1.libretro)
+	m2.add_child(m2.libretro)
+
+	cable._join({"libretro": m1.libretro, "machine": m1, "port": 0},
+		{"libretro": m2.libretro, "machine": m2, "port": 0})
+	_eq(cable._linked.size(), 6, "two Saturns are cabled together")
+	cable._disconnect()
+	_eq(cable._linked.size(), 0, "pulling a plug parts them")
 
 	cable.queue_free()
 	m1.queue_free()

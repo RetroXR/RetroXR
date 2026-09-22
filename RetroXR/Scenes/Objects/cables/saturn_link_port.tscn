@@ -1,0 +1,165 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/saturn_link_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
+
+; PLACEHOLDER GEOMETRY, matching psx_link_cable.tscn. Boxes rather than a model,
+; for the reason the GBA lead's are: the repo ships only assets it has the right
+; to, and a Sony connector is not something to guess at with someone else's
+; export. The dimensions are still real, because everything keys off the scale.
+;
+; A PlayStation's serial socket is a shrouded rectangular mouth on the back panel
+; beside the A/V multi-out -- a panel socket, unlike the GBA's, which is why the
+; numbers here are roughly twice that one's.
+;
+; Sized 16.0 x 4.8 mm, MEASURED off the shell rather than estimated: the console
+; GLB's JackSerial island is 16.1 x 4.8 (split_playstation.separate_rear_sockets).
+; It was 19 x 9 while this socket only ever appeared on the primitive box, where
+; nothing contradicted it -- against the real shell that is nearly twice the
+; height, and the plug overhung the mouth it was supposed to be entering.
+;
+; The chain is nose < recess < body, each 1 mm proud of the last all round, and
+; re-anchoring the recess carries the other two with it:
+;   recess 16.0 x 4.8   nose 14.0 x 2.8   body 18.0 x 6.8
+
+; The recess. Sized 1 mm proud of the plug's nose all round so a seated plug
+; looks like it went INTO something, and pushed back so its MOUTH is level with
+; the panel and the rest of it lies inside the console.
+;
+; 7 mm deep, not 5. On the primitive box the depth only had to look like a hole,
+; but a real shell puts its connector 6.2 mm behind the panel (the PlayStation's
+; silver sits at z -86.06 against a panel face at -92.3), and a 5 mm recess
+; stopped 1.2 mm short of it -- so with nothing plugged in, the last millimetre
+; of bare silver lit up past the end of the darkness and the socket read as a
+; pale block again. It has to reach the metal to hide it.
+[sub_resource type="BoxMesh" id="BoxMesh_jack"]
+size = Vector3(0.016, 0.0048, 0.007)
+
+; Darker than the plate around it, and UNSHADED, which is the part that matters.
+; A shaded near-black material renders at whatever the flat ambient gives it --
+; the first attempt at this came out a mid grey rectangle sitting on a black
+; plate, reading as a raised block rather than a hole. Darkness has to be the
+; material, which is the call gen_rca_jack.gd makes for its own bore and
+; AvLegend makes for its plate.
+[sub_resource type="StandardMaterial3D" id="Mat_jack"]
+albedo_color = Color(0.012, 0.012, 0.015, 1)
+shading_mode = 0
+
+; The silk-screened plate around the mouth, drawn as FOUR strips rather than one
+; quad with the slot on top of it. The slot is a recess: a solid plate in front
+; of it would hide the hole, and a plate behind it would show through the hole as
+; a flat panel where the depth should be. A frame leaves the mouth open.
+;
+; Unshaded, as AvLegend's plate is and for the same reason: these rooms light
+; with a flat ambient and no radiance map, so a shaded near-black plate renders
+; at whatever the ambient gives it and stops reading as ink on plastic.
+[sub_resource type="QuadMesh" id="Quad_top"]
+size = Vector2(0.03, 0.0025)
+
+[sub_resource type="QuadMesh" id="Quad_bottom"]
+size = Vector2(0.03, 0.0095)
+
+[sub_resource type="QuadMesh" id="Quad_side"]
+size = Vector2(0.0055, 0.0048)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plate"]
+albedo_color = Color(0.055, 0.055, 0.065, 1)
+shading_mode = 0
+
+; The plug's own shell, so the ghost reads as "a link lead goes here" rather than
+; as a generic marker.
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.018, 0.0068, 0.024)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; Placed the way every other port in the room is: the ZONE sits where a seated
+; plug's ORIGIN belongs. For this connector that origin is its mating face, which
+; stops about a millimetre proud of the panel -- so whoever positions this node
+; puts it 1 mm out from the panel, and everything below is measured back from
+; there. That is NOT where a phono port goes: a phono plug's origin is 10 mm out
+; with its barrel reaching back, which is why rca_port pushes its jack back by
+; ten and this one by one.
+;
+; grab_distance is the phono row's 60 mm, NOT the GBA socket's 50. That one is
+; small and on a handheld the player is holding; this is a panel socket on the
+; back of a console standing on a shelf, and it gets reached for the same way the
+; A/V sockets beside it do.
+[node name="SaturnLinkPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.06
+script = ExtResource("2_portscript")
+
+; Named PsxLinkJack, not RcaJack, deliberately: RcaPort's _tint_jack and
+; show_jack both look for a child called RcaJack, so this one is invisible to
+; them and the port's inherited channel colouring is a no-op. Which is right -- a
+; link cable carries neither picture nor sound, so there is no signal colour.
+;
+; Centred 4.5 mm back: the mouth still lands on the panel 1 mm behind the port
+; origin, and the deeper box grows INWARD from there rather than out through the
+; panel, which is what keeps the mouth flush while the far end reaches the metal.
+[node name="PsxLinkJack" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
+mesh = SubResource("BoxMesh_jack")
+surface_material_override/0 = SubResource("Mat_jack")
+
+; Half a millimetre in front of the panel, which is where pc_tower's silkscreen
+; sits and clear of z-fighting with it.
+;
+; Turned 180 degrees about Z, which is the whole reason this is a node of its own
+; rather than four meshes hung off the port. The port is turned 180 about X so its
+; +Z points out of the panel, and that leaves its +Y pointing DOWN in the world
+; and its +X pointing away from the viewer's right. Lettering inherited straight
+; off it comes out reversed -- SERIAL I/O read back to front in the first render.
+; Turning about Z flips X and Y together and leaves the facing alone, which puts
+; the glyphs back the right way round without pointing the plate into the console.
+; AvLegend has the same problem and solves it by deriving its own panel frame;
+; one socket does not need that machinery.
+[node name="Legend" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, -0.0005)
+
+[node name="PlateTop" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.00365, 0)
+mesh = SubResource("Quad_top")
+surface_material_override/0 = SubResource("Mat_plate")
+
+[node name="PlateBottom" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.00715, 0)
+mesh = SubResource("Quad_bottom")
+surface_material_override/0 = SubResource("Mat_plate")
+
+[node name="PlateLeft" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.01075, 0, 0)
+mesh = SubResource("Quad_side")
+surface_material_override/0 = SubResource("Mat_plate")
+
+[node name="PlateRight" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.01075, 0, 0)
+mesh = SubResource("Quad_side")
+surface_material_override/0 = SubResource("Mat_plate")
+
+; font_size is the size the glyphs are RASTERISED at, not the size they come out:
+; asking for a 3 mm font builds a three-pixel-tall atlas and magnifies a smear.
+; Rastered at 48 and scaled down through pixel_size, which is AvLegend's recipe
+; and pc_tower's before it. 0.0032 / 48 = 6.6667e-05.
+[node name="Label" type="Label3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0067, 0.0004)
+pixel_size = 6.6667e-05
+billboard = 0
+modulate = Color(0.9, 0.9, 0.87, 1)
+text = "COMMUNICATION"
+font_size = 48
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("3_snaphigh")
+
+; Back along -Z from the mating face, where the shell actually sits once seated.
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

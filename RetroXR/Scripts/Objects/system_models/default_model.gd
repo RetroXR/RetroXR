@@ -7,6 +7,9 @@ extends RetroSystemModel
 ## Loaded here rather than in build_serial_port so the cost is paid once per
 ## build of the script, not once per console spawned.
 const SERIAL_PORT_SCENE := preload("res://Scenes/Objects/cables/psx_link_port.tscn")
+## A Saturn's is its Communication Connector, which takes a Saturn lead and
+## nothing else -- a different plug group, so a PlayStation lead cannot seat.
+const SATURN_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/saturn_link_port.tscn")
 
 var _power_btn: VRButton = null
 var _reset_btn: VRButton = null
@@ -79,7 +82,8 @@ func build_serial_port(host: Node3D, systemid: String) -> void:
 	var info := SystemInfo.for_system(systemid)
 	if info == null or not info.serial_port:
 		return
-	var port := SERIAL_PORT_SCENE.instantiate() as Node3D
+	var scene: PackedScene = SATURN_LINK_PORT_SCENE if systemid == "saturn" else SERIAL_PORT_SCENE
+	var port := scene.instantiate() as Node3D
 	if port == null:
 		return
 	host.add_child(port)
