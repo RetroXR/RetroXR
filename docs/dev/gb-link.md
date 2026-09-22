@@ -104,5 +104,15 @@ Measured 2026-09-21, every game on the list, each against a `--nolink` control:
 | Mortal Kombat 3 (Europe) | never touches the EXT port -- no link code in this dump |
 | World Series Baseball (USA) | no VS mode -- the '95 edition is the linked one |
 
-There is no Game Gear MODEL in the room yet (it spawns the placeholder box, no
-socket), so no player can seat a lead.
+**In the room:** a Game Gear still wears the placeholder box, which now carries
+an EXT socket (`SystemInfo.serial_port` + `default_model.gd`, the handheld
+`LinkPort`), and the spawn menu offers a **Gear-to-Gear Cable** (the two-ended
+GB lead). The socket stands 20 mm off the back panel on purpose: the lead's plug
+collider reaches 20 mm behind its origin, and flush it was buried in the box's
+own body and ejected every few frames. CoreSources fetches the linked build
+(`RetroXR/Genesis-Plus-GX`, `retroxr-genesis_plus_gx-libretro-v1`, Windows +
+Android). `gg_link_room_probe` seats the lead by hand and checks the bus (12/12):
+
+```bash
+"$godot" --headless --path RetroXR res://Tools/link/gg_link_room_probe.tscn -- --roms=Z:/roms
+```

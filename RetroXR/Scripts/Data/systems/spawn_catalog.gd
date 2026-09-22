@@ -232,6 +232,10 @@ const _PSX_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable"
 ## Boy's, so it is the same two-ended lead under Bandai's name for it.
 const _WS_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Communication Cable",
 	"spawn": "gb_link_cable"}
+## Sega's Gear-to-Gear Cable joins two Game Gears and no more: the same
+## two-ended lead again, under Sega's name for it.
+const _GG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Gear-to-Gear Cable",
+	"spawn": "gb_link_cable"}
 const _SATURN_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "saturn_link_cable"}
 
@@ -262,6 +266,7 @@ const _LINK_LEADS: Dictionary = {
 	"gb": _GB_LINK_CABLE,
 	"psx": _PSX_LINK_CABLE,
 	"wonderswan": _WS_LINK_CABLE,
+	"gamegear": _GG_LINK_CABLE,
 	"saturn": _SATURN_LINK_CABLE,
 	"atarilynx": _COMLYNX_CABLE,
 	"ngp": _NGP_LINK_CABLE,

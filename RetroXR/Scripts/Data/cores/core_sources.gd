@@ -151,6 +151,24 @@ const SOURCES := {
 			"Android": "gambatte_libretro_android.so.zip",
 		},
 	},
+	# genesis_plus_gx, for the Game Gear's Gear-to-Gear Cable.
+	#
+	# The stock core's EXT port has no far end. Our build puts it on the
+	# frontend's link bus as `gg-ext-1` (the RetroArch#19454 interface): the UART
+	# delivers a byte ten bit times after it is written, and the parallel pins
+	# cross the way the real cable wires them. Uncabled it behaves exactly as the
+	# stock core does, so there is no option to turn it on. The same core runs the
+	# Mega Drive, Master System and Sega CD rows, which also get the fork's one
+	# other change: a disabled Sega CD RAM cartridge reads as absent.
+	"genesis_plus_gx": {
+		"repo":  "RetroXR/Genesis-Plus-GX",
+		"known_tag": "retroxr-genesis_plus_gx-libretro-v1",
+		"label": "Genesis Plus GX (retroXR build)",
+		"assets": {
+			"Windows": "genesis_plus_gx_libretro.dll.zip",
+			"Android": "genesis_plus_gx_libretro_android.so.zip",
+		},
+	},
 	# mednafen_wswan, for the WonderSwan's Communication Cable.
 	#
 	# The stock core's serial port completes every byte into thin air and never

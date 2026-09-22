@@ -10,6 +10,10 @@ const SERIAL_PORT_SCENE := preload("res://Scenes/Objects/cables/psx_link_port.ts
 ## A Saturn's is its Communication Connector, which takes a Saturn lead and
 ## nothing else -- a different plug group, so a PlayStation lead cannot seat.
 const SATURN_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/saturn_link_port.tscn")
+## A Game Gear's EXT connector takes the two-ended handheld lead, the Game Boy's
+## socket and plug group; the wire the core speaks (`gg-ext-1`) is what keeps a
+## Game Gear from linking with anything that is not another Game Gear.
+const HANDHELD_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/link_port.tscn")
 
 var _power_btn: VRButton = null
 var _reset_btn: VRButton = null
@@ -82,13 +86,25 @@ func build_serial_port(host: Node3D, systemid: String) -> void:
 	var info := SystemInfo.for_system(systemid)
 	if info == null or not info.serial_port:
 		return
-	var scene: PackedScene = SATURN_LINK_PORT_SCENE if systemid == "saturn" else SERIAL_PORT_SCENE
+	var scene: PackedScene = SERIAL_PORT_SCENE
+	if systemid == "saturn":
+		scene = SATURN_LINK_PORT_SCENE
+	elif systemid == "gamegear":
+		scene = HANDHELD_LINK_PORT_SCENE
 	var port := scene.instantiate() as Node3D
 	if port == null:
 		return
 	host.add_child(port)
 	port.position = Vector3(0.045, 0.0, -0.126)
 	port.rotation = Vector3(PI, 0.0, 0.0)
+	# The handheld lead's plug is a 27 mm collider reaching 20 mm BEHIND its
+	# origin. In a handheld's thin shell that is harmless; against this solid box
+	# it buried the plug 20 mm inside the console's own body, and physics shoved
+	# it out again and again -- the cable joined and parted every few frames and
+	# never held a bus. So the socket stands 20 mm further out, where the plug's
+	# collider just clears the panel.
+	if scene == HANDHELD_LINK_PORT_SCENE:
+		port.position.z -= 0.020
 
 
 func get_controller_port_count() -> int:
