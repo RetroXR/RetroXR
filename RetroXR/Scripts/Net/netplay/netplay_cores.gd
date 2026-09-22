@@ -232,6 +232,10 @@ const CORES: Dictionary = {
 			"pcsx_rearmed_link_cable": "enabled",
 			"pcsx_rearmed_link_frame_edges": "enabled",
 			"pcsx_rearmed_drc": "enabled",
+			# The GPU/SPU workers, the dynarec compile thread and CD read-ahead,
+			# off: on their Android defaults two identical lockstep runs on a
+			# Quest parted at frame 120.
+			"pcsx_rearmed_netplay_deterministic": "enabled",
 		},
 	},
 }

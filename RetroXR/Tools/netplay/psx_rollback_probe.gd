@@ -22,7 +22,9 @@
 extends Node
 
 const CORE := "pcsx_rearmed"
-const OUT_DIR := "res://probe_out/psx/rollback"
+## res:// on a desktop checkout; user:// on a headset, where res:// is the
+## read-only APK. Pull it back with run-as and run --leg=compare on a desktop.
+var OUT_DIR := "user://psx_rollback" if OS.get_name() == "Android" else "res://probe_out/psx/rollback"
 const CRC_INTERVAL := 60
 var _crc_interval := CRC_INTERVAL
 const MAX_AHEAD := 8
@@ -66,8 +68,21 @@ var _opt_existed := false
 var _joined := false
 
 
+## A headset launch carries no arguments, so they come from user://psxrb.cfg,
+## one per line, which is deleted as soon as it is read: a crash must not
+## leave the next launch running the same leg again.
+func _args() -> PackedStringArray:
+	var args := OS.get_cmdline_user_args()
+	if args.is_empty() and FileAccess.file_exists("user://psxrb.cfg"):
+		args = FileAccess.get_file_as_string("user://psxrb.cfg").strip_edges().split("\n", false)
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://psxrb.cfg"))
+	return args
+
+
 func _ready() -> void:
-	for arg in OS.get_cmdline_user_args():
+	if OS.get_name() == "Android":
+		_rom = OS.get_user_data_dir() + "/roms/WipEout (USA).cue"
+	for arg in _args():
 		if arg.begins_with("--leg="):
 			_leg = arg.substr(6)
 		elif arg.begins_with("--rom="):
@@ -344,15 +359,18 @@ func _shot() -> void:
 	pair.save_png(OUT_DIR + "/%s.png" % _leg)
 
 
-## The link cable and the dynarec on for this run only. The .opt file is the player's real
+## The netplay pins on for this run only. The .opt file is the player's real
 ## one (StartContent reads nothing else), so it is put back byte for byte.
 func _pin_options(root: String) -> void:
 	_opt_path = CoreOptionsStore.opt_path(root, CORE)
 	_opt_existed = FileAccess.file_exists(_opt_path)
 	if _opt_existed:
 		_opt_bytes = FileAccess.get_file_as_bytes(_opt_path)
-	CoreOptionsStore.merge_values(root, CORE, {"pcsx_rearmed_link_cable": "enabled",
-		"pcsx_rearmed_drc": "disabled" if _interp else "enabled"})
+	# What a session pins (NetplayCores), so the probe runs the configuration
+	# a real one would.
+	var pins: Dictionary = NetplayCores.forced_options(CORE).duplicate()
+	pins["pcsx_rearmed_drc"] = "disabled" if _interp else "enabled"
+	CoreOptionsStore.merge_values(root, CORE, pins)
 
 
 func _restore_options() -> void:
