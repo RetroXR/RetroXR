@@ -20,6 +20,9 @@ const ROW := {
 	# A lid, not a drawer. The Jaguar CD opens upward the way a PlayStation or
 	# a GameCube does; the Mega-CD and the CD-ROM2 we model slide a tray out.
 	"lid": true,
+	# Its name on the face the player looks at. On the back face, where the other
+	# cartridge-mounted units wear theirs, it read only from behind the console.
+	"label_front": true,
 }
 
 

@@ -320,6 +320,18 @@ func _test_bsx_card() -> void:
 		"bsx/the Jaguar CD no longer sits on the console's")
 	_ok(not _spawn_row("atarijaguarcd", "expansion:jaguar_cd").is_empty(),
 		"bsx/and is offered from its own spawn menu")
+	# And ONLY from there as a unit: the card is the add-on's, not a console's.
+	# Its id (jaguar_cd) differs from its media (atarijaguarcd), which once sent
+	# the card down the console path and offered a "Primitive System" -- a Jaguar
+	# CD console that never existed.
+	var jcd_consoles := 0
+	for item: Dictionary in SpawnCatalog.items_for("atarijaguarcd"):
+		if String(item.get("kind", "")) == "system":
+			jcd_consoles += 1
+	_eq(jcd_consoles, 0, "bsx/the Jaguar CD card offers no console of its own")
+	_ok(not _spawn_row("atarijaguar", "system").is_empty() 			or SpawnCatalog.items_for("atarijaguar").any(func(i: Dictionary) -> bool:
+				return String(i.get("kind", "")) == "system"),
+		"bsx/while the Jaguar's card still offers the console")
 
 	_ok(_spawn_row("snes", "expansion:bsx_cart").is_empty(),
 		"bsx/never on the SNES spawn list")

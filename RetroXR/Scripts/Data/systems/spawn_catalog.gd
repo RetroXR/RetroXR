@@ -354,6 +354,15 @@ static func items_for(systemid: String) -> Array:
 		own.append_array(_units_carded_here(systemid))
 		return own
 
+	# The same card under another name: the MEDIA of a unit whose id differs from
+	# it. The Jaguar CD is the one -- its id is jaguar_cd (persisted, so it
+	# stays) and its discs are atarijaguarcd -- and without this its card fell
+	# through to the console path below and grew a "Primitive System": a Jaguar
+	# CD console, which never existed. It is an add-on for the Jaguar, the
+	# Jaguar's card offers the console, and this card offers only the unit.
+	if _is_expansion_media(systemid):
+		return _units_carded_here(systemid)
+
 	var primitive: Array = []
 	var imported: Array = []
 	for row: Dictionary in SystemModelRegistry.rows_for(systemid):
@@ -438,6 +447,15 @@ static func items_for(systemid: String) -> Array:
 ## and a spawn row for one is a promise the room cannot keep. The BS-X cartridge
 ## is the only unit that names any: without BS-X.bin in snes9x's system
 ## directory there is no shell for it to run.
+## Whether `systemid` is only the media of an expansion unit -- a card that
+## files a unit and is no console of its own (its host is somebody else).
+static func _is_expansion_media(systemid: String) -> bool:
+	for id: String in ExpansionCatalog.ids_carded_on(systemid):
+		if ExpansionCatalog.media_of(id) == systemid 				and ExpansionCatalog.host_of(id) != systemid:
+			return true
+	return false
+
+
 static func _units_carded_here(systemid: String) -> Array:
 	var out: Array = []
 	for id: String in ExpansionCatalog.ids_carded_on(systemid):
