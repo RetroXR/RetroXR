@@ -119,3 +119,13 @@ Android). `gg_link_room_probe` seats the lead by hand and checks the bus (12/12)
 ```bash
 "$godot" --headless --path RetroXR res://Tools/link/gg_link_room_probe.tscn -- --roms=Z:/roms
 ```
+
+**Under netplay (measured 2026-09-21).** A Game Gear never plays ROLLBACK in a
+session: it is a handheld (`_requires_lockstep_input`), and a cabled one is
+demoted as well (§2g), so a Gear-to-Gear pair is always LOCKSTEP. The core would
+support rollback: `rewind_probe` on genesis_plus_gx passed 275 anchors with
+0 mismatches on Columns, Sonic Drift 2 and Faceball 2000. The cabled pair holds
+the netplay gate: `netplay_link_probe` with `--link-core=genesis_plus_gx
+--roms=res://Tools/gglink/link_master.gg,res://Tools/gglink/link_slave.gg` ran
+241/241 frames on one bus (traffic 29/26), and the unfed leg stopped at frame 3.
+Neither demotion is pinned by a suite. A real two-headset GG session is OWED.
