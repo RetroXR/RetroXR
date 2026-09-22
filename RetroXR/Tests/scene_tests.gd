@@ -149,6 +149,8 @@ func _ready() -> void:
 		await _test_power()
 	if _want_group("cords"):
 		await _test_cords()
+	if _want_group("strip"):
+		await _test_power_strip()
 	if _want_group("stack"):
 		await _test_stack()
 	if _want_group("vlc"):
@@ -1110,6 +1112,112 @@ func _test_cords() -> void:
 
 	room.remove_child(polarized); polarized.queue_free()
 	room.remove_child(grounded); grounded.queue_free()
+	remove_child(room)
+	room.queue_free()
+	await get_tree().process_frame
+
+
+## The 6-outlet strip: a mains lead with a body on one end and six 5-15R sockets
+## on that body — one of which its own plug can go into.
+func _test_power_strip() -> void:
+	var room := Node3D.new()
+	add_child(room)
+	var strip := preload("res://Scenes/Objects/appliances/power_strip.tscn") 		.instantiate() as PowerStrip
+	room.add_child(strip)
+	strip.add_to_group("spawned")
+	var other := preload("res://Scenes/Objects/cables/power_cord.tscn") 		.instantiate() as PowerCord
+	room.add_child(other)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var sockets := strip.sockets()
+	_eq(sockets.size(), 6, "strip/six sockets")
+	var names: Array[String] = []
+	for s in sockets:
+		names.append(String(s.name))
+	_eq(names, ["Socket1", "Socket2", "Socket3", "Socket4", "Socket5", "Socket6"],
+		"strip/named Socket1..6, which a save writes down")
+	var body := strip.get_node("Body") as Node3D
+	for s in sockets:
+		_eq(s.snap_require, "nema_5_15_plug", "strip/%s is a 5-15R" % s.name)
+		# Out of the top, and "up" on the outlet face (away from the ground hole)
+		# along the strip toward the switch end, +X.
+		_ok(s.global_basis.z.dot(Vector3.UP) > 0.99, "strip/%s faces up" % s.name)
+		_ok(s.global_basis.y.dot(body.global_basis.x) > 0.99,
+			"strip/%s has its ground hole toward the far end" % s.name)
+		_ok(s.get_device() == strip, "strip/%s names the strip as its device" % s.name)
+
+	var own := sockets[2]
+	_ok(own.can_preview(strip.wall_plug), "strip/it accepts its own plug")
+	_ok(own.can_preview(other.wall_plug), "strip/and any other 5-15P")
+	_ok(not own.can_preview(other.appliance_plug), "strip/but not a C13")
+	var seated: Transform3D = own.snap_pose_for(strip.wall_plug)
+	# The plug's up matches the socket's, and its prongs (the plug's +Z) point
+	# down INTO the strip, against the socket's outward +Z.
+	_ok(seated.basis.y.dot(own.global_basis.y) > 0.99,
+		"strip/a plug seats with its earth pin toward the ground hole")
+	_ok(seated.basis.z.dot(Vector3.DOWN) > 0.99, "strip/prongs down into the strip")
+
+	# The cord leaves the SWITCH end (+X), out of the end face, and is 3 ft.
+	var attach := strip.get_node("Body/Shell/PowerStrip/CordAnchor") as Node3D
+	var switch := strip.get_node("Body/Shell/PowerStrip/Switch") as Node3D
+	_ok(attach.global_position.x > 0.14 and switch.global_position.x > 0.0,
+		"strip/the cord leaves the switch end")
+	_ok((-attach.global_basis.z).dot(Vector3.RIGHT) > 0.99,
+		"strip/out of the end face, not into the case")
+	_ok(strip.rope.start_node == attach and strip.rope.end_node == strip.wall_plug,
+		"strip/the rope runs from the case to the plug")
+	_ok(absf(strip.rope.segment_count * strip.rope.segment_length - 0.9144) < 0.005,
+		"strip/and is three feet long")
+
+	# ── Its own plug in its own socket, saved and restored ──
+	own.pick_up_object(strip.wall_plug)
+	await get_tree().process_frame
+	_ok(PowerCord.socket_holding(strip.wall_plug) == own,
+		"strip/its own plug seats in its own socket")
+	body.global_position = Vector3(0.3, 0.2, -0.4)
+	await get_tree().process_frame
+	# A live rigid body: it has fallen a little by now, so compare against where
+	# it IS when saved.
+	var saved_at := body.global_position
+	var sp := ScenePersistence.new("arcade")
+	var entry := sp._serialize_node(strip, 0, {strip: 0})
+	_eq(str(entry.get("kind", "")), "power_strip", "strip/serializes by kind")
+	var plugs: Array = entry.get("plugs", [])
+	_eq(plugs.size(), 1, "strip/one plug recorded")
+	if plugs.size() == 1:
+		_eq(str((plugs[0] as Dictionary).get("port", "")), "Socket3",
+			"strip/the plug names the socket")
+		_eq((plugs[0] as Dictionary).get("device"), 0, "strip/on the strip itself")
+	var bp: Array = (entry.get("body", {}) as Dictionary).get("position", [])
+	_ok(bp.size() == 3 and Vector3(bp[0], bp[1], bp[2]).distance_to(saved_at) < 0.001,
+		"strip/the case's pose is recorded")
+
+	strip.drop_and_free()
+	await get_tree().process_frame
+	var spawned := sp.instantiate_objects(room, [entry])
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var back := spawned.get(0) as PowerStrip
+	_ok(back != null, "strip/is rebuilt from its entry")
+	if back != null:
+		var back_body := back.get_node("Body") as Node3D
+		_ok(back_body.global_position.distance_to(saved_at) < 0.01,
+			"strip/where its case was")
+		var holder := PowerCord.socket_holding(back.wall_plug)
+		_ok(holder != null and holder.name == &"Socket3" and holder.get_device() == back,
+			"strip/and comes back plugged into itself")
+
+		# Binning a strip lets go of a plug that is somebody else's.
+		back.sockets()[0].pick_up_object(other.wall_plug)
+		await get_tree().process_frame
+		back.drop_and_free()
+		await get_tree().process_frame
+		_ok(PowerCord.socket_holding(other.wall_plug) == null and not other.wall_plug.freeze,
+			"strip/binning it lets go of another cord's plug")
+
+	room.remove_child(other); other.queue_free()
 	remove_child(room)
 	room.queue_free()
 	await get_tree().process_frame

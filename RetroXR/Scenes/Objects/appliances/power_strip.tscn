@@ -1,0 +1,151 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power_strip.gd" id="1_strip"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power_strip_body.gd" id="2_body"]
+[ext_resource type="PackedScene" path="res://imported-assets/electrical/power_strip.glb" id="3_shell"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/power_port.tscn" id="4_port"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power_plug.gd" id="5_plug"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/nema_5_15_plug_ivory.res" id="6_nema"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="7_highlight"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="8_grab"]
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(0.29, 0.038, 0.052)
+
+[sub_resource type="BoxShape3D" id="Shape_bodyptr"]
+size = Vector3(0.31, 0.05, 0.07)
+
+[sub_resource type="PhysicsMaterial" id="Phys_strip"]
+friction = 0.9
+
+[sub_resource type="BoxShape3D" id="Shape_nema"]
+size = Vector3(0.039, 0.042, 0.0675)
+
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.055, 0.060, 0.070)
+
+[sub_resource type="PhysicsMaterial" id="Phys_plug"]
+friction = 0.8
+
+; ── PowerStrip: six NEMA 5-15R sockets and a captive 3 ft cord ─────────────────
+;
+; A lead with a body on one end, like the Antenna: the Body is what the player
+; carries, the root never moves (hence carried_body_pose). The cord leaves the SWITCH
+; end, from the GLB's CordAnchor, whose local -Z points out of the end face.
+[node name="PowerStrip" type="Node3D"]
+script = ExtResource("1_strip")
+
+; 290 x 38 x 52 mm, origin on the floor under its centre; outlets face +Y.
+[node name="Body" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("Phys_strip")
+mass = 0.4
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_body")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.019, 0)
+shape = SubResource("Shape_body")
+
+[node name="Shell" parent="Body" instance=ExtResource("3_shell")]
+
+[node name="PointerArea" type="StaticBody3D" parent="Body"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Body/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.019, 0)
+shape = SubResource("Shape_bodyptr")
+
+[node name="PickableHighlight" type="Node3D" parent="Body"]
+script = ExtResource("7_highlight")
+
+; The sockets. A PowerPort faces its local +Z with the outlet's "up" (away from the
+; ground hole) on local +Y, as on the bedroom wall outlets. Here +Z is world up and
+; the ground holes are toward -X, so local +Y is +X: basis columns x=(0,0,1),
+; y=(1,0,0), z=(0,1,0). Named Socket1..6 from the far end: a save names a socket by
+; node name, so these must not be renamed.
+
+[node name="Socket1" parent="Body" instance=ExtResource("4_port")]
+transform = Transform3D(0, 1, 0, 0, 0, 1, 1, 0, 0, -0.11, 0.036, 0)
+accepted_plug = "nema_5_15_plug"
+
+[node name="Socket2" parent="Body" instance=ExtResource("4_port")]
+transform = Transform3D(0, 1, 0, 0, 0, 1, 1, 0, 0, -0.074, 0.036, 0)
+accepted_plug = "nema_5_15_plug"
+
+[node name="Socket3" parent="Body" instance=ExtResource("4_port")]
+transform = Transform3D(0, 1, 0, 0, 0, 1, 1, 0, 0, -0.038, 0.036, 0)
+accepted_plug = "nema_5_15_plug"
+
+[node name="Socket4" parent="Body" instance=ExtResource("4_port")]
+transform = Transform3D(0, 1, 0, 0, 0, 1, 1, 0, 0, -0.002, 0.036, 0)
+accepted_plug = "nema_5_15_plug"
+
+[node name="Socket5" parent="Body" instance=ExtResource("4_port")]
+transform = Transform3D(0, 1, 0, 0, 0, 1, 1, 0, 0, 0.034, 0.036, 0)
+accepted_plug = "nema_5_15_plug"
+
+[node name="Socket6" parent="Body" instance=ExtResource("4_port")]
+transform = Transform3D(0, 1, 0, 0, 0, 1, 1, 0, 0, 0.07, 0.036, 0)
+accepted_plug = "nema_5_15_plug"
+
+; ── the wall plug ─────────────────────────────────────────────────────────────
+; PowerCord's WallPlug, with the body baked in the case colour
+; (Tools/gen/ivory_plug.gd). Turned R_y(+90) so its cord (plug-local -Z) trails
+; back toward the strip's switch end.
+[node name="WallPlug" type="RigidBody3D" parent="."]
+transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.55, 0.021, 0)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("Phys_plug")
+mass = 0.085
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("5_plug")
+connector_group = "nema_5_15_plug"
+connector_label = "a grounded US wall plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0167)
+shape = SubResource("Shape_nema")
+
+[node name="PlugTip" type="MeshInstance3D" parent="WallPlug"]
+mesh = ExtResource("6_nema")
+
+[node name="PointerArea" type="StaticBody3D" parent="WallPlug"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.019)
+shape = SubResource("Shape_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="WallPlug"]
+script = ExtResource("7_highlight")
+
+[node name="SnapGrabPoint" parent="WallPlug" instance=ExtResource("8_grab")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── the cord ──────────────────────────────────────────────────────────────────
+; 30 x 30.5 mm = 0.915 m: three feet, in the case colour. PowerCord's cord
+; in every other respect.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 30
+segment_length = 0.0305
+constraint_iterations = 8
+bend_stiffness = 0.22
+tube_radius = 0.00425
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.906, 0.901, 0.876, 1)
+surface_collision_mask = 7
+collision_radius = 0.0056
+self_collision = true
+end_align_stiffness = 0.72
+end_stiffness = 0.48
+end_stiff_segments = 2

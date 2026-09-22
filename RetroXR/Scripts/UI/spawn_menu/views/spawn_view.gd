@@ -502,6 +502,9 @@ func _build() -> void:
 		["NEMA 1-15P to C7 Cable", "nema_1_15_to_c7_cord"],
 		["Polarized NEMA 1-15P to C7P Cable",
 			"nema_1_15_polarized_to_c7_polarized_cord"],
+		# Six more grounded sockets on a 3 ft cord — including, if you like, for
+		# its own plug.
+		["6-Outlet Power Strip", "power_strip"],
 	])
 
 	# Rebuilt at runtime, unlike the other const tabs: its tail is one row per

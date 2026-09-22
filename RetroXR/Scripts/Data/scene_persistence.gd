@@ -184,6 +184,7 @@ const PSX_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/psx_link_ca
 const SATURN_LINK_CABLE_SCENE := preload("res://Scenes/Objects/cables/saturn_link_cable.tscn")
 const JAG_LINK_CABLE_SCENE  := preload("res://Scenes/Objects/cables/jag_link_cable.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
+const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
 	"res://Scenes/Objects/cables/nema_1_15_to_c7_cord.tscn")
 const NEMA_1_15_C7P_CORD_SCENE := preload(
@@ -253,6 +254,7 @@ const LEAD_SCENES := {
 	"rf_switch": RF_SWITCH_SCENE,
 	"antenna": ANTENNA_SCENE,
 	"power_cord": POWER_CORD_SCENE,
+	"power_strip": POWER_STRIP_SCENE,
 	"nema_1_15_to_c7_cord": NEMA_1_15_C7_CORD_SCENE,
 	"nema_1_15_polarized_to_c7_polarized_cord": NEMA_1_15_C7P_CORD_SCENE,
 	"speaker_cable": SPEAKER_CABLE_SCENE,
@@ -1188,7 +1190,7 @@ func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dict
 	# pass 2 hangs the cord in mid-air over the desk for as many frames as the
 	# restore takes to reach it. Which socket holds which is still pass 2's, because
 	# that genuinely does need every device to exist.
-	if obj is CompositeCable or obj is PowerCord:
+	if obj is CompositeCable or obj is PowerCord or obj is PowerStrip:
 		obj.call("restore_plug_poses", d.get("plugs", []))
 	spawned[id] = obj
 	entries[id] = d
@@ -1452,7 +1454,7 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		var pair := obj as SpeakerPair
 		pair.set_volume(float(d.get("volume", 0.75)))
 		pair.restore_box_poses(d.get("boxes", []))
-	elif obj is CompositeCable or obj is PowerCord:
+	elif obj is CompositeCable or obj is PowerCord or obj is PowerStrip:
 		# Pass 2, so every deck and set the plugs point at already exists, and for
 		# a mains lead so does every wall outlet and every inlet. A plug whose
 		# socket cannot be found is simply left where it was saved: a loose end on
@@ -2050,6 +2052,8 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		return _serialize_cable(node as CompositeCable, id, n3d, node_to_id)
 	elif node is PowerCord:
 		return _serialize_power_cord(node as PowerCord, id, n3d, node_to_id)
+	elif node is PowerStrip:
+		return _serialize_power_strip(node as PowerStrip, id, n3d, node_to_id)
 	return {}
 
 
@@ -2228,6 +2232,23 @@ func _serialize_power_cord(cord: PowerCord, id: int, n3d: Node3D,
 		"kind": cord.scene_file_path.get_file().get_basename(),
 		"plugs": _plug_records(cord.seating(), node_to_id),
 	})
+
+
+## A power strip: a mains lead with a body on one end, so PowerCord's entry plus
+## the body's pose — the root never moves, the player carries the Body, and without
+## it the strip restores where it was first spawned. Its six sockets need nothing:
+## a plug in one is recorded by THAT plug's lead, naming this strip and "SocketN".
+func _serialize_power_strip(strip: PowerStrip, id: int, n3d: Node3D,
+		node_to_id: Dictionary) -> Dictionary:
+	var entry := _base(id, "composite_cable", n3d).merged({
+		"cords": strip.cord_count(),
+		"kind": strip.scene_file_path.get_file().get_basename(),
+		"plugs": _plug_records(strip.seating(), node_to_id),
+	})
+	var body_pose := strip.carried_body_pose()
+	if not body_pose.is_empty():
+		entry["body"] = body_pose
+	return entry
 
 
 ## One JSON record per connector, from either kind of lead's seating().
