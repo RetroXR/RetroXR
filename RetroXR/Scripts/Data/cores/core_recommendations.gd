@@ -122,6 +122,10 @@ const RECOMMENDED := {
 		"core": "snes9x",
 		"why":  "Drives the SNES Mouse, and runs full speed on Quest where bsnes does not — measured here. Kept on desktop too so saves and core options are the same file on both platforms",
 	},
+	"sufami": {
+		"core": "snes9x",
+		"why":  "The Sufami Turbo runs on the SNES pick — snes9x's Multi-Cart Link, both slots and STBIOS.bin — on desktop and Quest alike",
+	},
 	"n64": {
 		"core":    "parallel_n64",
 		"why":     "The Angrylion/ParaLLEl RDP path is the accurate one, and desktop can afford it",

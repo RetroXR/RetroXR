@@ -861,12 +861,28 @@ func _mark_systems_without_a_core(systems: Array, by_system: Dictionary) -> void
 ##
 ## Installed, not merely known: the mark says what this device can do now, which
 ## is the question a cartridge tile is answering.
+##
+## by_system files a core under its primary systemid only, so the platforms it
+## serves through `secondary_systemids` are walked here too -- the Sufami Turbo
+## runs on snes9x, filed under `snes`, and would otherwise never show the mark.
 func _mark_netplay_systems(systems: Array, by_system: Dictionary) -> void:
+	var db := CoreInfoDatabase.shared()
+	var cores_by_sid: Dictionary = {}
+	for key: String in by_system:
+		for e: Dictionary in (by_system[key] as Array):
+			var cn := str(e.get("core_name", ""))
+			var sids: Array[String] = CoreInfoDatabase.systemids_of(db.get_by_core_name(cn))
+			if key not in sids:
+				sids.append(key)
+			for sid: String in sids:
+				if not cores_by_sid.has(sid):
+					cores_by_sid[sid] = []
+				(cores_by_sid[sid] as Array).append(cn)
 	for s: Dictionary in systems:
 		var sid: String = str(s.get("systemid", ""))
 		var best := -1
-		for e: Dictionary in (by_system.get(sid, []) as Array):
-			var strategy := NetplayCores.listed_strategy(str(e.get("core_name", "")))
+		for cn: String in (cores_by_sid.get(sid, []) as Array):
+			var strategy := NetplayCores.listed_strategy(cn)
 			if strategy < 0:
 				continue
 			if best < 0 or NetplayCores.STRATEGY_ORDER.find(strategy) \
