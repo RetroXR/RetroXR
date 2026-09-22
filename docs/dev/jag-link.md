@@ -54,11 +54,27 @@ Results (2026-09-21, Windows):
 bit-identical; pressed on the same frame, BattleSphere picks the same player
 id on both and says "Network Failure — unable to locate any other players".
 
+## In the room
+
+`atarijaguar.tres` has `serial_port`, so the primitive body wears a
+`JagLinkPort` (the DSP port, legend "DSP"). The lead is `JagLinkCable`
+(`jag_link_cable.tscn`, spawnable under the Jaguar and from the peripherals
+list, saved as `jag_link_cable`). Port, plug and cable extend the
+PlayStation's, under their own plug group `jag_link_plug`, so neither the
+PlayStation nor the Saturn lead fits a Jaguar and a JagLink lead fits
+neither of them. `link_tests` covers the gating both ways.
+
+`Tools/link/jag_link_room_probe` builds two `RetroSystem`s, seats each end by
+hand and checks nobody -> one end (still nobody) -> both (a pair) -> AirCars'
+Two Player Direct Serial flying one mission clock -> pull a plug (parted).
+It uses AirCars, not Doom: Doom's title is an attract loop that takes A only
+in some phases, and the room's boot lands at a different point in it than a
+bare Libretro does, so the Doom walk misses its presses there.
+
 ## Owed
 
-- Room side: `SystemInfo/atarijaguar.tres` has no `serial_port`, and there is
-  no JagLink socket/lead scene; the PSX `LinkPort`/`PsxLinkCable` pattern is
-  the template (`LinkConnect(b, 0, 0)` is all the bus needs).
-- A published core build (Windows + Android) and its `CoreSources` row.
+- A published core build (Windows + Android) and its `CoreSources` row;
+  until then only a machine with the fork installed by hand links.
 - The BattleSphere dogfight; Voice Modem (Ultra Vortek) stays on the byte
   seam and is not carried by the bus.
+- A headset check of the socket and lead on the Jaguar body.

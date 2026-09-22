@@ -182,6 +182,7 @@ const GB_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/gb_link_cab
 const GC_GBA_CABLE_SCENE     := preload("res://Scenes/Objects/cables/gc_gba_cable.tscn")
 const PSX_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/psx_link_cable.tscn")
 const SATURN_LINK_CABLE_SCENE := preload("res://Scenes/Objects/cables/saturn_link_cable.tscn")
+const JAG_LINK_CABLE_SCENE  := preload("res://Scenes/Objects/cables/jag_link_cable.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
 	"res://Scenes/Objects/cables/nema_1_15_to_c7_cord.tscn")
@@ -248,6 +249,7 @@ const LEAD_SCENES := {
 	"gc_gba_cable": GC_GBA_CABLE_SCENE,
 	"psx_link_cable": PSX_LINK_CABLE_SCENE,
 	"saturn_link_cable": SATURN_LINK_CABLE_SCENE,
+	"jag_link_cable": JAG_LINK_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
 	"antenna": ANTENNA_SCENE,
 	"power_cord": POWER_CORD_SCENE,

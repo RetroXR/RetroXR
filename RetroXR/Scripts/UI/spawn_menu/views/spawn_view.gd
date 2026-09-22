@@ -470,6 +470,7 @@ func _build() -> void:
 		["GC-GBA Cable",   "gc_gba_cable"],
 		["PS Link Cable",  "psx_link_cable"],
 		["Saturn Link Cable", "saturn_link_cable"],
+		["JagLink Cable",  "jag_link_cable"],
 		["Speakers",       "speaker_pair"],
 		# A surround rig: a satellite per channel and one subwoofer, each cabled to
 		# a socket on the back of the set with a speaker lead.

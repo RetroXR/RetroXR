@@ -238,6 +238,8 @@ const _GG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Gear-to-Gear
 	"spawn": "gb_link_cable"}
 const _SATURN_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "saturn_link_cable"}
+const _JAG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "JagLink Cable",
+	"spawn": "jag_link_cable"}
 
 ## ComLynx chains: every cable has a pass-through socket on its plug, so a third
 ## Lynx (up to eight) joins where the last one plugs in. That is the GBA lead's
@@ -268,6 +270,7 @@ const _LINK_LEADS: Dictionary = {
 	"wonderswan": _WS_LINK_CABLE,
 	"gamegear": _GG_LINK_CABLE,
 	"saturn": _SATURN_LINK_CABLE,
+	"atarijaguar": _JAG_LINK_CABLE,
 	"atarilynx": _COMLYNX_CABLE,
 	"ngp": _NGP_LINK_CABLE,
 }

@@ -10,3 +10,4 @@ native_ports = 2
 media_type = 0
 supports_multitap = true
 multitap_ports = 4
+serial_port = true

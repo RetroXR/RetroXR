@@ -58,6 +58,11 @@ func _ready() -> void:
 	await _test_saturn_socket_follows_the_hardware()
 	await _test_saturn_lead_will_seat()
 	await _test_saturn_cable_joins_a_pair()
+	_test_jag_plug_gating()
+	_test_jag_cable_is_spawnable()
+	await _test_jag_socket_follows_the_hardware()
+	await _test_jag_lead_will_seat()
+	await _test_jag_cable_joins_a_pair()
 	await _test_every_lead_states_its_bus()
 	_test_no_reset_path()
 	print("[link] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -1646,6 +1651,138 @@ func _test_saturn_cable_joins_a_pair() -> void:
 	cable._join({"libretro": m1.libretro, "machine": m1, "port": 0},
 		{"libretro": m2.libretro, "machine": m2, "port": 0})
 	_eq(cable._linked.size(), 6, "two Saturns are cabled together")
+	cable._disconnect()
+	_eq(cable._linked.size(), 0, "pulling a plug parts them")
+
+	cable.queue_free()
+	m1.queue_free()
+	m2.queue_free()
+	await get_tree().process_frame
+
+
+# --- the JagLink cable ------------------------------------------------------
+#
+# The Saturn lead's shape again, into an Atari Jaguar's DSP port. The core's
+# wire is jag-uart-1; what the room must get right is the plug group.
+
+const JAG_CABLE_SCENE := "res://Scenes/Objects/cables/jag_link_cable.tscn"
+
+
+func _test_jag_plug_gating() -> void:
+	var port := JagLinkPort.new()
+	add_child(port)
+	var plug := JagLinkPlug.new()
+	add_child(plug)
+	var psx_port := PsxLinkPort.new()
+	add_child(psx_port)
+	var psx_plug := PsxLinkPlug.new()
+	add_child(psx_plug)
+
+	_eq(port.plug_group(), plug.plug_group(), "the Jaguar port and plug name the same group")
+	_eq(port.plug_group(), "jag_link_plug", "the group is jag_link_plug")
+	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
+	# Both directions, because JagLinkPort EXTENDS PsxLinkPort: forgetting the
+	# override would inherit psx_link_plug and open the gate the wrong way.
+	_ok(port.plug_group() != psx_plug.plug_group(), "a Jaguar socket does not take a PlayStation plug")
+	_ok(psx_port.plug_group() != plug.plug_group(), "nor a PlayStation socket a Jaguar plug")
+
+	for n: Node in [port, plug, psx_port, psx_plug]:
+		n.queue_free()
+
+
+func _test_jag_cable_is_spawnable() -> void:
+	var found := false
+	for item: Dictionary in SpawnCatalog.items_for("atarijaguar"):
+		if str(item.get("spawn", "")) == "jag_link_cable":
+			found = true
+			_ok(not str(item.get("label", "")).is_empty(), "and it is labelled")
+	_ok(found, "a Jaguar link cable is offered under the Jaguar")
+	var stray := false
+	for item: Dictionary in SpawnCatalog.items_for("psx"):
+		if str(item.get("spawn", "")) == "jag_link_cable":
+			stray = true
+	_ok(not stray, "and not under the PlayStation")
+	# A lead that cannot be rebuilt from a saved room comes back as nothing.
+	_ok(ScenePersistence.LEAD_SCENES.has("jag_link_cable"), "and a saved room can rebuild it")
+
+
+func _test_jag_socket_follows_the_hardware() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	if sys_scene == null:
+		_ok(false, "the machine scene loads")
+		return
+	var jag: Node3D = sys_scene.instantiate()
+	jag.systemid = "atarijaguar"
+	add_child(jag)
+	var psx: Node3D = sys_scene.instantiate()
+	psx.systemid = "psx"
+	add_child(psx)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var on_jag := jag.find_child("JagLinkPort", true, false) as JagLinkPort
+	_ok(on_jag != null, "a Jaguar wears a DSP port")
+	_ok(jag.find_child("PsxLinkPort", true, false) == null, "and not a PlayStation serial socket")
+	_ok(psx.find_child("JagLinkPort", true, false) == null, "a PlayStation does not wear a Jaguar's")
+	if on_jag != null:
+		_eq(on_jag.get_machine(), jag, "the connector belongs to the Jaguar it is on")
+
+	jag.queue_free()
+	psx.queue_free()
+	await get_tree().process_frame
+
+
+func _test_jag_lead_will_seat() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	if sys_scene == null:
+		return
+	var jag: Node3D = sys_scene.instantiate()
+	jag.systemid = "atarijaguar"
+	add_child(jag)
+	var psx: Node3D = sys_scene.instantiate()
+	psx.systemid = "psx"
+	add_child(psx)
+	var lead: Node3D = load(JAG_CABLE_SCENE).instantiate()
+	add_child(lead)
+	var psx_lead: Node3D = load(PSX_CABLE_SCENE).instantiate()
+	add_child(psx_lead)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var dsp := jag.find_child("JagLinkPort", true, false) as XRToolsSnapZone
+	var serial := psx.find_child("PsxLinkPort", true, false) as XRToolsSnapZone
+	_ok(dsp != null and serial != null, "both consoles have their sockets")
+	if dsp != null and serial != null:
+		var end_a := lead.get_node_or_null("PlugA0") as Node3D
+		var end_b := lead.get_node_or_null("PlugB0") as Node3D
+		var psx_end := psx_lead.get_node_or_null("PlugA0") as Node3D
+		_ok(lead is JagLinkCable, "the scene is a JagLinkCable")
+		_ok(dsp.can_preview(end_a) and dsp.can_preview(end_b),
+			"either end of a Jaguar lead goes into a Jaguar",
+			"require '%s', plug in %s" % [dsp.snap_require, str(end_a.get_groups())])
+		_ok(not serial.can_preview(end_a), "a Jaguar lead does not go into a PlayStation")
+		_ok(not dsp.can_preview(psx_end), "and a PlayStation lead does not go into a Jaguar")
+
+	for n: Node in [jag, psx, lead, psx_lead]:
+		n.queue_free()
+	await get_tree().process_frame
+
+
+func _test_jag_cable_joins_a_pair() -> void:
+	var cable := JagLinkCable.new()
+	add_child(cable)
+	var m1 := _StubMachine.new()
+	var m2 := _StubMachine.new()
+	add_child(m1)
+	add_child(m2)
+	m1.libretro = Libretro.new()
+	m2.libretro = Libretro.new()
+	m1.add_child(m1.libretro)
+	m2.add_child(m2.libretro)
+
+	cable._join({"libretro": m1.libretro, "machine": m1, "port": 0},
+		{"libretro": m2.libretro, "machine": m2, "port": 0})
+	_eq(cable._linked.size(), 6, "two Jaguars are cabled together")
 	cable._disconnect()
 	_eq(cable._linked.size(), 0, "pulling a plug parts them")
 

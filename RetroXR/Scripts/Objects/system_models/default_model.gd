@@ -10,6 +10,8 @@ const SERIAL_PORT_SCENE := preload("res://Scenes/Objects/cables/psx_link_port.ts
 ## A Saturn's is its Communication Connector, which takes a Saturn lead and
 ## nothing else -- a different plug group, so a PlayStation lead cannot seat.
 const SATURN_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/saturn_link_port.tscn")
+## A Jaguar's is its DSP port, where a JagLink lead goes.
+const JAG_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/jag_link_port.tscn")
 ## A Game Gear's EXT connector takes the two-ended handheld lead, the Game Boy's
 ## socket and plug group; the wire the core speaks (`gg-ext-1`) is what keeps a
 ## Game Gear from linking with anything that is not another Game Gear.
@@ -89,6 +91,8 @@ func build_serial_port(host: Node3D, systemid: String) -> void:
 	var scene: PackedScene = SERIAL_PORT_SCENE
 	if systemid == "saturn":
 		scene = SATURN_LINK_PORT_SCENE
+	elif systemid == "atarijaguar":
+		scene = JAG_LINK_PORT_SCENE
 	elif systemid == "gamegear":
 		scene = HANDHELD_LINK_PORT_SCENE
 	var port := scene.instantiate() as Node3D
