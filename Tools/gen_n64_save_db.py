@@ -22,7 +22,7 @@ import re
 import sys
 
 DEFAULT_INI = os.path.expanduser(
-    "~/mupen64plus-libretro-nx/custom/mupen64plus-core/main/mupen64plus.ini.h")
+    "~/libretro-cores-retroxr/mupen64plus-libretro-nx/custom/mupen64plus-core/main/mupen64plus.ini.h")
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "RetroXR",
                    "Scripts", "Data", "n64_save_db_table.gd")
 
