@@ -21,9 +21,14 @@ extends RcaPort
 ## drives is addressed by port from the start.
 @export var link_port: int = 0
 
+## The plug family this socket takes -- LinkPlug.plug_family's other half. Game
+## Boy and GBA sockets keep "link_plug"; a Game Gear, WonderSwan, Lynx or Neo Geo
+## Pocket sets its own, so only its own lead fits. Read in _ready.
+@export var plug_family: String = "link_plug"
+
 
 func plug_group() -> String:
-	return "link_plug"
+	return plug_family
 
 
 func _ready() -> void:

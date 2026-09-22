@@ -3031,7 +3031,7 @@ func _link_cables() -> Array:
 	if not is_inside_tree():
 		return cables
 	var seen := {}
-	for plug in get_tree().get_nodes_in_group("link_plug") \
+	for plug in get_tree().get_nodes_in_group(LinkPlug.ANY_GROUP) \
 			+ get_tree().get_nodes_in_group("controller_plug"):
 		var cable: Object = plug.get("cable")
 		if cable == null or not is_instance_valid(cable) or seen.has(cable) \

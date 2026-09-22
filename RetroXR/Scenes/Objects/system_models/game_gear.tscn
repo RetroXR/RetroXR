@@ -155,3 +155,4 @@ shape = SubResource("BoxShape3D_powerswitch")
 ; of the panel.
 [node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.055, 0, -0.057)
+plug_family = "gg_link_plug"

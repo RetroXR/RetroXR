@@ -63,6 +63,7 @@ func _ready() -> void:
 	await _test_jag_socket_follows_the_hardware()
 	await _test_jag_lead_will_seat()
 	await _test_jag_cable_joins_a_pair()
+	_test_every_lead_fits_only_its_own_machines()
 	await _test_every_lead_states_its_bus()
 	_test_no_reset_path()
 	print("[link] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -2058,3 +2059,96 @@ func _test_no_reset_path() -> void:
 			found = true
 	_ok(not found, "reset/nor anything else named for one")
 	cable.free()
+
+
+# ---------------------------------------------------------------------------
+# Every link lead against every link socket. The Game Gear, WonderSwan, Lynx and
+# Neo Geo Pocket leads began as the Game Boy's and GBA's scenes under other names,
+# which left all of them seating in all of those handhelds; the wire caught the
+# mismatch only as a log line, with the cable sitting there looking connected.
+
+## Socket scenes, each with the family its LinkPort (or subclass) must take.
+const _LINK_SOCKETS := {
+	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "link_plug",
+	"res://Scenes/Objects/system_models/game_boy_advance_primitive.tscn": "link_plug",
+	"res://Scenes/Objects/system_models/game_boy_advance_sp_primitive.tscn": "link_plug",
+	"res://Scenes/Objects/system_models/game_gear.tscn": "gg_link_plug",
+	"res://Scenes/Objects/system_models/wonderswan.tscn": "ws_link_plug",
+	"res://Scenes/Objects/system_models/atari_lynx.tscn": "comlynx_plug",
+	"res://Scenes/Objects/system_models/neo_geo_pocket.tscn": "ngp_link_plug",
+	"res://Scenes/Objects/cables/psx_link_port.tscn": "psx_link_plug",
+	"res://Scenes/Objects/cables/saturn_link_port.tscn": "saturn_link_plug",
+	"res://Scenes/Objects/cables/jag_link_port.tscn": "jag_link_plug",
+}
+
+## Spawn id -> the family both its ends (and any junction) must be.
+const _LINK_LEADS := {
+	"link_cable": "link_plug",
+	"gb_link_cable": "link_plug",
+	"gg_link_cable": "gg_link_plug",
+	"ws_link_cable": "ws_link_plug",
+	"comlynx_cable": "comlynx_plug",
+	"ngp_link_cable": "ngp_link_plug",
+	"psx_link_cable": "psx_link_plug",
+	"saturn_link_cable": "saturn_link_plug",
+	"jag_link_cable": "jag_link_plug",
+}
+
+## What the spawn menu offers each machine.
+const _LINK_OFFERS := {
+	"gb": "gb_link_cable", "gba": "link_cable", "gamegear": "gg_link_cable",
+	"wonderswan": "ws_link_cable", "atarilynx": "comlynx_cable", "ngp": "ngp_link_cable",
+	"psx": "psx_link_cable", "saturn": "saturn_link_cable", "atarijaguar": "jag_link_cable",
+}
+
+
+func _link_nodes(root: Node, out: Array) -> void:
+	if root is LinkPort or root is RcaPlug:
+		out.append(root)
+	for c: Node in root.get_children():
+		_link_nodes(c, out)
+
+
+func _test_every_lead_fits_only_its_own_machines() -> void:
+	# The socket side: each machine wears a socket of its own family, and only one.
+	var socket_family := {}
+	for path: String in _LINK_SOCKETS:
+		var node := (load(path) as PackedScene).instantiate()
+		var found: Array = []
+		_link_nodes(node, found)
+		var ports := found.filter(func(n: Node) -> bool: return n is LinkPort)
+		_eq(ports.size(), 1, "%s wears one link socket" % path.get_file())
+		if ports.size() == 1:
+			socket_family[path] = (ports[0] as LinkPort).plug_group()
+			_eq(socket_family[path], _LINK_SOCKETS[path], "%s takes %s" % [path.get_file(), _LINK_SOCKETS[path]])
+		node.free()
+
+	# The lead side: both ends, and a junction if it has one, are the one family.
+	for id: String in _LINK_LEADS:
+		var scene := ScenePersistence.LEAD_SCENES.get(id) as PackedScene
+		_ok(scene != null, "%s is a spawnable lead" % id)
+		if scene == null:
+			continue
+		var cable := scene.instantiate()
+		var found: Array = []
+		_link_nodes(cable, found)
+		var plugs := found.filter(func(n: Node) -> bool: return n is RcaPlug)
+		_eq(plugs.size(), 2, "%s has two ends" % id)
+		for n: Node in found:
+			_eq(n.call("plug_group"), _LINK_LEADS[id], "%s: %s is %s" % [id, n.name, _LINK_LEADS[id]])
+		# The whole matrix: a plug of this lead fits exactly the sockets of its family.
+		for path: String in socket_family:
+			var fits: bool = plugs.size() > 0 and socket_family[path] == plugs[0].call("plug_group")
+			var should: bool = _LINK_SOCKETS[path] == _LINK_LEADS[id]
+			_eq(fits, should, "%s %s %s" % [id, "fits" if should else "is refused by", path.get_file()])
+		cable.free()
+
+	# And the menu hands each machine its own lead.
+	for sys: String in _LINK_OFFERS:
+		var offered := false
+		for item: Dictionary in SpawnCatalog.items_for(sys):
+			var spawn := str(item.get("spawn", ""))
+			if _LINK_LEADS.has(spawn):
+				_eq(spawn, _LINK_OFFERS[sys], "%s is offered %s" % [sys, _LINK_OFFERS[sys]])
+				offered = offered or spawn == _LINK_OFFERS[sys]
+		_ok(offered, "%s is offered its link lead" % sys)

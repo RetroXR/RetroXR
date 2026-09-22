@@ -47,8 +47,10 @@ the POLL trampoline, and every button read 0. No Lynx game had ever taken input
 in RetroXR. `VideoHandler::GetOverscan(bool*)` now.
 
 **The room.** `atari_lynx.tscn` carries a `LinkPort` on the bottom edge; the spawn
-catalog offers "ComLynx Cable" -- the GBA lead (`link_cable`), whose inline
-junction is how a third to eighth unit chains in, as on the real cable.
+catalog offers "ComLynx Cable" -- `comlynx_cable`, the GBA lead's shape under its
+own plug family (`comlynx_plug`, junction included), so it fits a Lynx and
+nothing else; that inline junction is how a third to eighth unit chains in, as on
+the real cable.
 
 **Room probe** (`RetroXR/Tools/link/lynx_link_room_probe.tscn`, `-- --roms=Z:/roms`):
 the path a player uses -- three Lynxes from `system.tscn`, the catalog's ComLynx
@@ -140,3 +142,11 @@ probe freezes Warbirds at the mission board with both TX counts stuck; netplay
 powers unit i on at frame `7*i` and joins the lead after the last one
 (`power_on_stagger`). Group rollback also needs fork **v2** or later: v1 has no
 `lynx_fixed_frames`, and the session falls back to lockstep for it.
+
+## Plug families
+
+Each of these leads used to BE the Game Boy's or the GBA's scene under another
+name, so every one of them seated in every one of those handhelds and the wire
+caught the mismatch only as a log line. Each now has its own plug family
+(`LinkPlug.plug_family`, matched by `LinkPort.plug_family`), so a lead fits its
+own machines and nothing else; `link_tests` walks the whole lead x socket matrix.

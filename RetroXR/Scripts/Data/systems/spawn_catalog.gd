@@ -229,13 +229,14 @@ const _GB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 const _PSX_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "psx_link_cable"}
 ## The WonderSwan's Communication Cable is two units and no more, like the Game
-## Boy's, so it is the same two-ended lead under Bandai's name for it.
+## Boy's, so it is the same two-ended lead under Bandai's name -- keyed to the
+## WonderSwan's socket alone (ws_link_cable.tscn).
 const _WS_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Communication Cable",
-	"spawn": "gb_link_cable"}
+	"spawn": "ws_link_cable"}
 ## Sega's Gear-to-Gear Cable joins two Game Gears and no more: the same
-## two-ended lead again, under Sega's name for it.
+## two-ended lead again, under Sega's name, keyed to Game Gears alone.
 const _GG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Gear-to-Gear Cable",
-	"spawn": "gb_link_cable"}
+	"spawn": "gg_link_cable"}
 const _SATURN_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "saturn_link_cable"}
 const _JAG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "JagLink Cable",
@@ -243,13 +244,13 @@ const _JAG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "JagLink Cab
 
 ## ComLynx chains: every cable has a pass-through socket on its plug, so a third
 ## Lynx (up to eight) joins where the last one plugs in. That is the GBA lead's
-## shape -- two ends and a junction -- under Atari's name for it.
+## shape -- two ends and a junction -- under Atari's name, keyed to Lynxes alone.
 const _COMLYNX_CABLE: Dictionary = {"kind": "peripheral", "label": "ComLynx Cable",
-	"spawn": "link_cable"}
+	"spawn": "comlynx_cable"}
 ## The SNK link cable joins two Neo Geo Pockets (either model, one core, one
-## wire) and no more, so it is the same two-ended lead.
+## wire) and no more, so it is the same two-ended lead, keyed to NGPs alone.
 const _NGP_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
-	"spawn": "gb_link_cable"}
+	"spawn": "ngp_link_cable"}
 
 ## The console-to-handheld lead, offered on BOTH platforms it joins. A player
 ## spawning a GameCube for Four Swords Adventures should be offered one without

@@ -39,8 +39,9 @@ The core logs `[ws-sio] cabled/uncabled`, `N bytes sent/received` and
 ## The room
 
 `wonderswan.tscn` carries a `LinkPort` on the top edge, and the spawn catalog
-offers the platform a "Communication Cable": the two-ended `gb_link_cable` lead
-(nothing in the plug group is Game Boy specific).
+offers the platform a "Communication Cable": `ws_link_cable`, the two-ended Game
+Boy lead keyed to its own plug family (`ws_link_plug`), so it seats in a
+WonderSwan and in nothing else.
 
 ## Probes (`RetroXR/Tools/link/`)
 
@@ -79,3 +80,11 @@ Y-left/Y-right.
 | Buffers Evolution | — | **no cable feature**: the manual (p.4–30) lists only ENDURO, S.S. and RECORD |
 | Rockman EXE WS | — | **no cable code**: the ROM never reads B1 or B3 (N1 Battle does, but its link battle is behind story progress) |
 | Swan Colosseum | — | not in the library |
+
+## Plug families
+
+Each of these leads used to BE the Game Boy's or the GBA's scene under another
+name, so every one of them seated in every one of those handhelds and the wire
+caught the mismatch only as a log line. Each now has its own plug family
+(`LinkPlug.plug_family`, matched by `LinkPort.plug_family`), so a lead fits its
+own machines and nothing else; `link_tests` walks the whole lead x socket matrix.

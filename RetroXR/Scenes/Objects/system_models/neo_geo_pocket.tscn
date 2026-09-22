@@ -176,3 +176,4 @@ surface_material_override/0 = SubResource("StandardMaterial3D_ngpseat")
 ; back face at z = -0.03725.
 [node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.045, 0, -0.03825)
+plug_family = "ngp_link_plug"

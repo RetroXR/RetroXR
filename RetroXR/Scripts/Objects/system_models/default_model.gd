@@ -12,9 +12,8 @@ const SERIAL_PORT_SCENE := preload("res://Scenes/Objects/cables/psx_link_port.ts
 const SATURN_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/saturn_link_port.tscn")
 ## A Jaguar's is its DSP port, where a JagLink lead goes.
 const JAG_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/jag_link_port.tscn")
-## A Game Gear's EXT connector takes the two-ended handheld lead, the Game Boy's
-## socket and plug group; the wire the core speaks (`gg-ext-1`) is what keeps a
-## Game Gear from linking with anything that is not another Game Gear.
+## A Game Gear's EXT connector: the two-ended handheld socket, keyed to the
+## Gear-to-Gear cable's own plug family so no other handheld's lead seats in it.
 const HANDHELD_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/link_port.tscn")
 
 var _power_btn: VRButton = null
@@ -98,6 +97,10 @@ func build_serial_port(host: Node3D, systemid: String) -> void:
 	var port := scene.instantiate() as Node3D
 	if port == null:
 		return
+	# Keyed to the Gear-to-Gear cable so no other handheld's lead seats. Before
+	# add_child: the socket reads its family in _ready.
+	if scene == HANDHELD_LINK_PORT_SCENE:
+		(port as LinkPort).plug_family = "gg_link_plug"
 	host.add_child(port)
 	port.position = Vector3(0.045, 0.0, -0.126)
 	port.rotation = Vector3(PI, 0.0, 0.0)

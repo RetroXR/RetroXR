@@ -108,7 +108,9 @@ Measured 2026-09-21, every game on the list, each against a `--nolink` control:
 model id `game_gear`): pad left, buttons 1/2 right (1 = RETRO B = `FaceButton2`,
 2 = RETRO A = `FaceButton1`), blue START, all animated by the shared stand-in
 pass; the EXT `LinkPort` is on the top edge left of the cart slot, 1 mm proud,
-and the spawn menu offers a **Gear-to-Gear Cable** (the two-ended GB lead). The
+and the spawn menu offers a **Gear-to-Gear Cable** (`gg_link_cable`: the
+two-ended GB lead under its own plug family, `gg_link_plug`, so it fits a Game
+Gear and nothing else -- the socket on the placeholder body is keyed too). The
 placeholder box keeps its socket too, as the fallback when the model is
 missing; there it stands 20 mm off the back panel on purpose (the plug collider
 reaches 20 mm behind its origin, and flush it was buried in the solid box and
@@ -139,3 +141,11 @@ saves it as a tagged `PSE!` block from `retroxr-genesis_plus_gx-libretro-v2`;
 Sonic, Alex Kidd and Wonder Boy then passed 275/275 (BIOS on and off). An
 older core with `mastersystem` listed desyncs only on PAUSE. A real
 two-headset SMS session is OWED.
+
+### Plug families
+
+Each of these leads used to BE the Game Boy's or the GBA's scene under another
+name, so every one of them seated in every one of those handhelds and the wire
+caught the mismatch only as a log line. Each now has its own plug family
+(`LinkPlug.plug_family`, matched by `LinkPort.plug_family`), so a lead fits its
+own machines and nothing else; `link_tests` walks the whole lead x socket matrix.

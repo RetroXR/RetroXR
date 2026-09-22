@@ -158,3 +158,4 @@ font_size = 16
 ; proud of the panel.
 [node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.031, 0, -0.0615)
+plug_family = "ws_link_plug"

@@ -179,6 +179,10 @@ const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.t
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const LINK_CABLE_SCENE       := preload("res://Scenes/Objects/cables/link_cable.tscn")
 const GB_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/gb_link_cable.tscn")
+const GG_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/gg_link_cable.tscn")
+const WS_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/ws_link_cable.tscn")
+const NGP_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/ngp_link_cable.tscn")
+const COMLYNX_CABLE_SCENE    := preload("res://Scenes/Objects/cables/comlynx_cable.tscn")
 const GC_GBA_CABLE_SCENE     := preload("res://Scenes/Objects/cables/gc_gba_cable.tscn")
 const PSX_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/psx_link_cable.tscn")
 const SATURN_LINK_CABLE_SCENE := preload("res://Scenes/Objects/cables/saturn_link_cable.tscn")
@@ -247,6 +251,10 @@ const LEAD_SCENES := {
 	"trs_cable": TRS_CABLE_SCENE,
 	"link_cable": LINK_CABLE_SCENE,
 	"gb_link_cable": GB_LINK_CABLE_SCENE,
+	"gg_link_cable": GG_LINK_CABLE_SCENE,
+	"ws_link_cable": WS_LINK_CABLE_SCENE,
+	"ngp_link_cable": NGP_LINK_CABLE_SCENE,
+	"comlynx_cable": COMLYNX_CABLE_SCENE,
 	"gc_gba_cable": GC_GBA_CABLE_SCENE,
 	"psx_link_cable": PSX_LINK_CABLE_SCENE,
 	"saturn_link_cable": SATURN_LINK_CABLE_SCENE,

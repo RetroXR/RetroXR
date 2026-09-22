@@ -312,7 +312,7 @@ func _keep_wired(keep: Dictionary, machine: RetroSystem) -> void:
 		if is_instance_valid(ctrl):
 			_keep(keep, ctrl)
 	var tree := get_tree()
-	var plugs := tree.get_nodes_in_group("controller_plug") + tree.get_nodes_in_group("link_plug")
+	var plugs := tree.get_nodes_in_group("controller_plug") + tree.get_nodes_in_group(LinkPlug.ANY_GROUP)
 	for plug: Node in plugs:
 		if plug.has_method("get_controller") and controllers.has(plug.call("get_controller")):
 			_keep(keep, plug)

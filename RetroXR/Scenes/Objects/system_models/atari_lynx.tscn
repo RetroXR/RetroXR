@@ -158,3 +158,4 @@ font_size = 16
 ; needs no turn; 1 mm proud of the panel.
 [node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, 0, 0.056)
+plug_family = "comlynx_plug"

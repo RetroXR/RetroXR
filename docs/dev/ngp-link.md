@@ -59,8 +59,9 @@ Two further details:
 
 `neo_geo_pocket.tscn` carries a `LinkPort` on the top edge, left of the
 cartridge slot, facing -Z. The spawn catalog offers `ngp` a "Link Cable": the
-two-ended `gb_link_cable` lead. Nothing in that plug group is Game Boy specific,
-and a third machine on the wire is not something the SNK cable does.
+two-ended `ngp_link_cable` lead -- the Game Boy lead's shape under its own plug
+family (`ngp_link_plug`), so it fits a Neo Geo Pocket and nothing else. A third
+machine on the wire is not something the SNK cable does.
 
 ## Probes (`RetroXR/Tools/link/`)
 
@@ -175,3 +176,11 @@ reads as a wedge at ~600).
 - Biomotor Unitron;
 - Android and Quest (the release builds for arm64, but nobody has run it on a headset);
 - two people playing it in a headset.
+
+## Plug families
+
+Each of these leads used to BE the Game Boy's or the GBA's scene under another
+name, so every one of them seated in every one of those handhelds and the wire
+caught the mismatch only as a log line. Each now has its own plug family
+(`LinkPlug.plug_family`, matched by `LinkPort.plug_family`), so a lead fits its
+own machines and nothing else; `link_tests` walks the whole lead x socket matrix.

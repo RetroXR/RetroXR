@@ -278,7 +278,7 @@ func _keep_cases() -> void:
 	var link_plug := _stub(LINK_PLUG_SRC, Node3D.new()) as Node3D
 	link_plug.set("cable", lead)
 	lead_root.add_child(link_plug)
-	link_plug.add_to_group("link_plug")
+	link_plug.add_to_group(LinkPlug.ANY_GROUP)
 
 	var other_root := _prop("OtherLead")
 	var other := _stub(LEAD_SRC, Node3D.new()) as Node3D
@@ -287,7 +287,7 @@ func _keep_cases() -> void:
 	var other_plug := _stub(LINK_PLUG_SRC, Node3D.new()) as Node3D
 	other_plug.set("cable", other)
 	other_root.add_child(other_plug)
-	other_plug.add_to_group("link_plug")
+	other_plug.add_to_group(LinkPlug.ANY_GROUP)
 
 	var loose := _prop("Loose")
 	gb._port_controllers[1] = pad
