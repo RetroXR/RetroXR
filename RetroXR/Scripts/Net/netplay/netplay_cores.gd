@@ -132,6 +132,26 @@ const CORES: Dictionary = {
 			"serial_link": "disabled",
 		},
 	},
+	# The Neo Geo Pocket / Color on RetroXR's fork (beetle-ngp-libretro, retroxr
+	# branch), which carries the SNK link cable. `ngp_rtc` runs the clock on
+	# emulated time (stock read the host's, so peers disagreed from frame 1) and
+	# `ngp_fixed_frames` ends every unit's frame on one bus tick, which is what
+	# `link_rollback` needs. Measured by Tools/netplay/ngp_link_netplay_probe and
+	# rewind_probe (docs/dev/ngp-link.md): 0 bad of 300 rewinds on three games,
+	# 0 bad of 100 cabled group restores, 92 of them mid-conversation. The
+	# options need core release v2+; v1 ignores them. `power_on_stagger`: two
+	# units switched on together stall a game settling which end leads.
+	"mednafen_ngp": {
+		"verified": true,
+		"state_transfer": true,
+		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP, Strategy.DETERMINISM],
+		"cross_play": false,
+		"link_rollback": true,
+		"handheld_rollback": true,
+		"power_on_stagger": 37,
+		"systems": ["ngp", "ngpc"],
+		"options": {"ngp_rtc": "deterministic", "ngp_fixed_frames": "enabled"},
+	},
 	"pcsx_rearmed": {
 		"verified": true,
 		"state_transfer": false,
