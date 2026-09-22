@@ -229,6 +229,8 @@ func _dispatch(c: Dictionary, method: String, path: String,
 		_handle_download(peer, query.get("path", ""))
 	elif method == "DELETE" and path == "/api/delete":
 		_handle_delete(peer, query.get("path", ""))
+	elif method == "GET" and path == "/api/log":
+		_handle_log(peer, query.get("download", "") == "1")
 	else:
 		_send_text(peer, 404, "text/plain", "Not Found")
 
@@ -468,6 +470,28 @@ func _handle_delete(peer: StreamPeerTCP, rel: String) -> void:
 				   '{"error":"delete failed","code":%d}' % err)
 
 
+## The engine's own log file (user://logs/godot.log unless the project moves it),
+## either shown in the page or sent as an attachment. File logging is off by
+## default on mobile, so project.godot switches it on for every platform.
+func _handle_log(peer: StreamPeerTCP, download: bool) -> void:
+	var log_path := ProjectSettings.globalize_path(
+			ProjectSettings.get_setting("debug/file_logging/log_path", "user://logs/godot.log"))
+	var f := FileAccess.open(log_path, FileAccess.READ)
+	if not f:
+		_send_text(peer, 404, "text/plain", "No log file at " + log_path)
+		return
+	var data := f.get_buffer(f.get_length())
+	f.close()
+	if not download:
+		_send_text(peer, 200, "text/plain", data.get_string_from_utf8())
+		return
+	var filename := "retroxr-%s.log" % Time.get_datetime_string_from_system().replace(":", "-")
+	var hdr := "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Disposition: attachment; filename=\"%s\"\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" \
+			   % [filename, data.size()]
+	peer.put_data(hdr.to_utf8_buffer())
+	peer.put_data(data)
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 ## Maps a URL path ("<root>/sub/dir") to an absolute path, confined to that named
@@ -600,6 +624,11 @@ button{border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:13
 .dl:hover{background:#070}
 .rm{background:#500;color:#f88}
 .rm:hover{background:#800}
+#lg_bar{margin-top:18px}
+.lb{background:#245;color:#8cf;padding:7px 12px;font-size:14px;margin-right:6px}
+.lb:hover{background:#367}
+#lg{margin-top:10px;background:#0b0b0f;border:1px solid #222;border-radius:6px;padding:10px;
+    font-size:12px;color:#aaa;max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-all}
 </style></head><body>
 <h1>RetroXR Files</h1>
 <div id="bc"></div>
@@ -609,6 +638,8 @@ button{border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:13
 <div id="st"></div>
 <div id="pb" style="display:none;height:8px;background:#222;border-radius:4px;margin-bottom:10px;overflow:hidden"><div id="pf" style="height:100%;width:0%;background:#8af;border-radius:4px;transition:width .15s"></div></div>
 <table><tbody id="tb"></tbody></table>
+<div id="lg_bar"><button class="lb" id="lg_show">Show game log</button> <button class="lb" id="lg_save">Save game log</button></div>
+<pre id="lg" style="display:none"></pre>
 <script>
 var cur='';
 function fmt(b){
@@ -747,5 +778,18 @@ dz.addEventListener('drop',function(e){
   for(var k=0;k<files.length;k++)out.push({file:files[k],path:files[k].webkitRelativePath||files[k].name});
   uploadItems(out);
 });
+// Game log: Show toggles a panel with the current log (re-fetched on every open,
+// scrolled to the newest line); Save downloads it as a file.
+var lg=document.getElementById('lg'),lgs=document.getElementById('lg_show');
+lgs.addEventListener('click',function(){
+  if(lg.style.display!='none'){lg.style.display='none';lgs.textContent='Show game log';return;}
+  lg.style.display='block';lgs.textContent='Hide game log';lg.textContent='Loading…';
+  fetch('/api/log').then(function(r){
+	if(r.status==401){location.reload();return null;}
+	return r.text();
+  }).then(function(t){if(t!==null){lg.textContent=t||'(log is empty)';lg.scrollTop=lg.scrollHeight;}})
+	.catch(function(){lg.textContent='Connection error.';});
+});
+document.getElementById('lg_save').addEventListener('click',function(){window.location='/api/log?download=1';});
 go('',false);
 </script></body></html>"""
