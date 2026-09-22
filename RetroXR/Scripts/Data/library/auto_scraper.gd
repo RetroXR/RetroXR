@@ -41,13 +41,12 @@ func setup(queue: ScrapeQueue, gamelist: GamelistManager,
 
 ## True when auto-scraping can run at all.
 ##
-## Credentials are the gate: ScreenScraper's anonymous quota is small enough
-## that a library sweep would exhaust it, and a player who has not signed in has
-## not opted into anything. Checked per request rather than cached because the
-## account can be entered while the app is running.
+## The player's Auto-scrape switch is the gate, not credentials: an anonymous
+## client scrapes too, just on the smaller allowance, and MAX_QUEUE keeps a big
+## batch from spending it all at once. Checked per request rather than cached
+## because the switch can be flipped while the app is running.
 func is_enabled() -> bool:
-	return _config != null and _queue != null \
-		and not _config.ssid.is_empty() and not _config.sspassword.is_empty()
+	return _config != null and _queue != null and _config.auto_scrape
 
 
 ## The systemid a ROM path sits under, or "".

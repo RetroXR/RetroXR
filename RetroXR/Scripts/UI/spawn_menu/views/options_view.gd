@@ -1482,6 +1482,20 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 		scraper_config.save_config()
 	))
 
+	# Scrape games that arrive without being browsed to (RomM downloads,
+	# netplay matches). Works signed out too, on the anonymous allowance.
+	var auto_row := HBoxContainer.new()
+	auto_row.add_theme_constant_override("separation", 10)
+	auto_row.custom_minimum_size = Vector2(0, 56)
+	vbox.add_child(auto_row)
+	var auto_lbl := MenuStyle.label("Auto-scrape downloaded games", 18, MenuStyle.COLOR_TITLE)
+	auto_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	auto_row.add_child(auto_lbl)
+	auto_row.add_child(VRToggle.create(scraper_config.auto_scrape, func(on: bool) -> void:
+		scraper_config.auto_scrape = on
+		scraper_config.save_config()
+	))
+
 	# Region priorities
 	_add_options_text_field(vbox, "Region Priority", ", ".join(scraper_config.region_priorities), func(text: String):
 		var parts: Array[String] = []

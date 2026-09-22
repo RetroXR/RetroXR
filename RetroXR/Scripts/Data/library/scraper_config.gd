@@ -24,6 +24,12 @@ var language_priorities: Array[String] = ["en", "fr"]
 ## a queued batch would otherwise stop at a popup after every game.
 var approve_scrapes: bool = false
 
+## Scrape a ROM's metadata on its own once it arrives (a RomM download, a
+## netplay hash match). On by default, with or without an account: the
+## anonymous allowance is small, but AutoScraper queues only games with no
+## metadata, one at a time, and a failed scrape is silent.
+var auto_scrape: bool = true
+
 ## Whether the web file server should auto-start on launch.
 var web_server_enabled: bool = false
 
@@ -87,6 +93,7 @@ func load_config() -> void:
 			language_priorities.append(str(l))
 
 	approve_scrapes = bool(data.get("approve_scrapes", false))
+	auto_scrape = bool(data.get("auto_scrape", true))
 	web_server_enabled = bool(data.get("web_server_enabled", false))
 	web_server_pin = str(data.get("web_server_pin", ""))
 
@@ -104,6 +111,7 @@ func save_config() -> bool:
 		"region_priorities": region_priorities,
 		"language_priorities": language_priorities,
 		"approve_scrapes": approve_scrapes,
+		"auto_scrape": auto_scrape,
 		"web_server_enabled": web_server_enabled,
 		"web_server_pin": web_server_pin,
 	}

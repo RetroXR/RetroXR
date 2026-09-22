@@ -549,13 +549,13 @@ func _group_auto() -> void:
 	add_child(auto)
 	auto.setup(q, _gamelist, _config)
 	var a := _rom("auto_a.bin")
-	_check(not auto.is_enabled(), "no credentials: auto-scraping is off")
+	_config.auto_scrape = false
+	_check(not auto.is_enabled(), "switch off: auto-scraping is off")
 	auto.request(a, TEST_SYSTEM)
 	_check(not q.is_queued(a), "a request while off queues nothing")
 
-	_config.ssid = "tester"
-	_config.sspassword = "secret"
-	_check(auto.is_enabled(), "credentials entered at runtime turn it on")
+	_config.auto_scrape = true
+	_check(auto.is_enabled(), "switch on with no credentials: it runs anonymously")
 	auto.request("", TEST_SYSTEM)
 	auto.request(a, "")
 	auto.request(RomLibrary.rom_dir_for_system(TEST_SYSTEM).path_join("ghost.bin"), TEST_SYSTEM)
