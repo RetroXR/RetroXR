@@ -110,7 +110,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["megadrive", "genesis", "segacd", "gamegear"],
+		"systems": ["megadrive", "genesis", "segacd", "gamegear", "mastersystem"],
 		"options": {},
 	},
 	# The standalone VMU (VmuCard), not a RetroSystem. Savestates and the fixed

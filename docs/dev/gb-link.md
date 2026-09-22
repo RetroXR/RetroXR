@@ -129,3 +129,13 @@ the netplay gate: `netplay_link_probe` with `--link-core=genesis_plus_gx
 --roms=res://Tools/gglink/link_master.gg,res://Tools/gglink/link_slave.gg` ran
 241/241 frames on one bus (traffic 29/26), and the unfed leg stopped at frame 3.
 Neither demotion is pinned by a suite. A real two-headset GG session is OWED.
+
+**The Master System plays ROLLBACK on the same core** (it is not a handheld).
+Stock genesis_plus_gx kept the PAUSE edge latch (`pause_b`, `core/system.c`) out
+of the savestate, so a rewind across a Start press raised or skipped the NMI by
+timeline: `rewind_probe` failed 3/275 anchors on every SMS game, all at the
+probe's START edges, while Game Gear (Start is a port bit) passed. The fork
+saves it as a tagged `PSE!` block from `retroxr-genesis_plus_gx-libretro-v2`;
+Sonic, Alex Kidd and Wonder Boy then passed 275/275 (BIOS on and off). An
+older core with `mastersystem` listed desyncs only on PAUSE. A real
+two-headset SMS session is OWED.

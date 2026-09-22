@@ -162,7 +162,7 @@ const SOURCES := {
 	# other change: a disabled Sega CD RAM cartridge reads as absent.
 	"genesis_plus_gx": {
 		"repo":  "RetroXR/Genesis-Plus-GX",
-		"known_tag": "retroxr-genesis_plus_gx-libretro-v1",
+		"known_tag": "retroxr-genesis_plus_gx-libretro-v2",
 		"label": "Genesis Plus GX (retroXR build)",
 		"assets": {
 			"Windows": "genesis_plus_gx_libretro.dll.zip",
