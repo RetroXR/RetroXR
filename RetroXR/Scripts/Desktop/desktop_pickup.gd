@@ -213,6 +213,11 @@ func is_holding() -> bool:
 	return _held_object != null
 
 
+## What the desktop hand is holding, or null.
+func held_object() -> XRToolsPickable:
+	return _held_object if is_instance_valid(_held_object) else null
+
+
 ## Grab a freshly spawned pickable into the desktop hand (spawn-into-hand).
 func grab_spawned(pickable: XRToolsPickable) -> void:
 	if _held_object or not is_instance_valid(pickable):

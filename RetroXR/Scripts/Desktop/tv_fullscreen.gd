@@ -95,7 +95,13 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if _pickup == null or not _pickup.has_method("aimed_target"):
 		return
-	open(device_from_target(_pickup.aimed_target()))
+	var device := device_from_target(_pickup.aimed_target())
+	# A held handheld is never under the crosshair, yet holding it is how its keys
+	# are captured (Scroll Lock / F3) -- so with no screen aimed at, take the
+	# picture of whatever is in the hand.
+	if device == null and _pickup.has_method("held_object"):
+		device = device_from_node(_pickup.held_object())
+	open(device)
 
 
 ## The television or handheld behind a crosshair hit, or null. Walks up from the
