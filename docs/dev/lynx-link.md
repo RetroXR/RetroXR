@@ -50,6 +50,14 @@ in RetroXR. `VideoHandler::GetOverscan(bool*)` now.
 catalog offers "ComLynx Cable" -- the GBA lead (`link_cable`), whose inline
 junction is how a third to eighth unit chains in, as on the real cable.
 
+**Room probe** (`RetroXR/Tools/link/lynx_link_room_probe.tscn`, `-- --roms=Z:/roms`):
+the path a player uses -- three Lynxes from `system.tscn`, the catalog's ComLynx
+Cable seated in two sockets, the units switched on one after another, Slime World
+talking across the lead; then a second lead from the first one's junction to a
+third unit (a bus of three), a plug pulled and pushed back. 19 checks. Windowed
+with `--shot` it photographs the cabled pair to `probe_out/lynx/room/`: both screens
+say "2 PLAYERS", the plugs seated in the bottom edge.
+
 **Probe** (`RetroXR/Tools/link/lynx_link_probe.tscn`, one at a time -- two cabled
 probes in parallel break each other):
 
