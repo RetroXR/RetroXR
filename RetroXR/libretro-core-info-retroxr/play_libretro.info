@@ -6,7 +6,7 @@
 # lost the next time, silently.
 #
 # The binary this describes is built from RetroXR/Play- at the tag
-# retroxr-play-libretro-v1 and published on that repository's releases page,
+# retroxr-play-libretro-v2 and published on that repository's releases page,
 # which is also where its source is. Play! is BSD/MIT, so no source obligation
 # rides with the binary; the tag is beside it so anyone can tell what they are
 # running.

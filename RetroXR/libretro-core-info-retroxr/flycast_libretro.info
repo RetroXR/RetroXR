@@ -6,7 +6,7 @@
 # lost the next time, silently.
 #
 # The binary it describes is built from RetroXR/flycast at the tag
-# retroxr-flycast-libretro-v3 and published on that repository's releases page,
+# retroxr-flycast-libretro-v4 and published on that repository's releases page,
 # which is also where its source is. flycast is GPLv2, so for this one that is
 # an obligation and not merely good manners.
 #

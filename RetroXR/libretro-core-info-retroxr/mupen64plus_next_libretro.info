@@ -6,12 +6,12 @@
 # lost the next time, silently.
 #
 # The binary this describes is built from RetroXR/mupen64plus-libretro-nx
-# at the tag retroxr-mupen64plus-next-libretro-v4 and published on that
+# at the tag retroxr-mupen64plus-next-libretro-v5 and published on that
 # repository's releases page, which is also where its source is: mupen64plus is
 # GPLv2, so the two travel together.
 #
-# This is the WINDOWS core. The buildbot publishes no Android build under this
-# name, so the Android half of the same fork is described by
+# This is the Windows, Linux and macOS core. The buildbot publishes no Android
+# build under this name, so the Android half of the same fork is described by
 # mupen64plus_next_gles3_libretro.info beside this file.
 #
 # Every field but the three naming ones is a verbatim copy of the vendored file,

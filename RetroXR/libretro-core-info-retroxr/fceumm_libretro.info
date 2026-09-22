@@ -6,7 +6,7 @@
 # lost the next time, silently.
 #
 # The binary this describes is built from RetroXR/libretro-fceumm at the tag
-# retroxr-fceumm-libretro-v1 and published on that repository's releases page,
+# retroxr-fceumm-libretro-v2 and published on that repository's releases page,
 # which is also where its source is: FCEUmm is GPLv2, so the two travel
 # together.
 #

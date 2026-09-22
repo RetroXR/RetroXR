@@ -7,7 +7,7 @@
 #
 # This file described the BUILDBOT's snes9x until 2026-09-01, when we began
 # publishing our own. The binary it describes is now built from
-# RetroXR/snes9x at the tag retroxr-snes9x-libretro-v1 and published on
+# RetroXR/snes9x at the tag retroxr-snes9x-libretro-v2 and published on
 # that repository's releases page, which is also where its source is. snes9x is
 # non-commercial rather than GPL, so that is not an obligation here; it is the
 # only way anyone can tell what they are running.

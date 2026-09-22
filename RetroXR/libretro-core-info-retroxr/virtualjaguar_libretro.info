@@ -1,0 +1,45 @@
+# Atari - Jaguar (Virtual Jaguar), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too — an edit there would be
+# lost the next time, silently. An overlay REPLACES the entry, so everything
+# below is a whole copy of it with only the names and version changed.
+#
+# The binary this describes is built from RetroXR/virtualjaguar-libretro at the tag
+# retroxr-virtualjaguar-libretro-v1 and published on that repository's releases page, which is
+# also where its source is (GPLv3). What the fork adds is in CoreSources.
+
+# Software Information
+display_name = "Atari - Jaguar (Virtual Jaguar, retroXR)"
+authors = "David Raingeard|Shamus|Joseph Mattiello"
+supported_extensions = "j64|jag|rom|abs|cof|bin|prg|cue|cdi"
+corename = "Virtual Jaguar (retroXR)"
+license = "GPLv3"
+permissions = ""
+display_version = "retroXR build"
+categories = "Emulator"
+
+# Hardware Information
+manufacturer = "Atari"
+systemname = "Jaguar"
+systemid = "atarijaguar"
+secondary_systemids = "atarijaguarcd:cue,cdi"
+
+# Libretro Features
+supports_no_game = "false"
+database = "Atari - Jaguar|Atari - Jaguar CD"
+savestate = "true"
+savestate_features = "2"
+cheats = "true"
+input_descriptors = "true"
+memory_descriptors = "true"
+libretro_saves = "true"
+core_options = "true"
+load_subsystem = "false"
+hw_render = "false"
+needs_fullpath = "false"
+disk_control = "false"
+is_experimental = "false"
+
+description = "A port of the Virtual Jaguar emulator, originally based on Potato Emulation, to libretro. The accurate blitter is SIMD-accelerated (SSE2 on x86, NEON on ARM), and the Blitter core option can be set to 'Fast' to trade some accuracy for additional speed on lower-end hardware. Supports a high-level BIOS that lets most commercial titles boot without a real BIOS image, plus save states, SRAM, cheat codes, and RetroAchievements."

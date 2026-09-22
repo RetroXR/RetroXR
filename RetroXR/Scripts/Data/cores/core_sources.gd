@@ -4,9 +4,15 @@
 ## core lands in this table when we maintain a fork of it, because then the
 ## buildbot's build is not the one we want the player to have.
 ##
-## Eleven of them, and four are here for the same reason: this room has cables in
-## it, and libretro has nowhere to put the far end of one. Dolphin, mGBA,
-## gambatte and pcsx_rearmed each reach a link bus the frontend hosts.
+## Eighteen of them, and most are here for the same reason: this room has cables
+## in it, and libretro has nowhere to put the far end of one. Dolphin, mGBA,
+## gambatte, pcsx_rearmed, Genesis Plus GX, the four Beetles (WonderSwan, Lynx,
+## NeoPop, Saturn), VeMUlator and Virtual Jaguar each reach a link bus the
+## frontend hosts. The netplay forks (fbneo and several of those) are here for
+## savestates exact enough to roll back on.
+##
+## Every fork publishes Windows, Android, Linux x86_64 and macOS arm64/x86_64
+## unless its row says otherwise.
 ##
 ## Two more are hardware the core could always emulate and no frontend could
 ## ever ask it to, because the libretro glue never surfaced it: the
@@ -60,14 +66,17 @@ const SOURCES := {
 		# URL — see base_url. It is only the version to show when GitHub cannot be
 		# reached, so an offline player still sees something truthful rather than
 		# a blank.
-		"known_tag": "retroxr-dolphin-libretro-v12",
+		"known_tag": "retroxr-dolphin-libretro-v13",
 		"label": "Dolphin (retroXR build)",
 		# Per platform, because we only publish what we build. A platform absent
-		# here is not an error — the manager falls back to the buildbot for it,
-		# which is why Linux players still get a working Dolphin.
+		# here is not an error — the manager falls back to the buildbot for it.
+		# Since v13 Dolphin publishes all four: Windows, Android, Linux x86_64,
+		# and macOS as one thin dylib per architecture (see asset_for).
 		"assets": {
 			"Windows": "dolphin_libretro.dll.zip",
 			"Android": "dolphin_libretro_android.so.zip",
+			"Linux":   "dolphin_libretro.so.zip",
+			"macOS":   "dolphin_libretro_{arch}.dylib.zip",
 		},
 	},
 	# mGBA, for the half of the link cable that is not the console.
@@ -90,11 +99,13 @@ const SOURCES := {
 	# name here fails silently, as a core that simply never downloads.
 	"mgba": {
 		"repo":  "RetroXR/mgba",
-		"known_tag": "retroxr-mgba-libretro-v6",
+		"known_tag": "retroxr-mgba-libretro-v7",
 		"label": "mGBA (retroXR build)",
 		"assets": {
 			"Windows": "mgba_libretro.dll.zip",
 			"Android": "mgba_libretro_android.so.zip",
+			"Linux":   "mgba_libretro.so.zip",
+			"macOS":   "mgba_libretro_{arch}.dylib.zip",
 		},
 	},
 	# Play!, the PS2 core. Two of the three fixes are the difference between a
@@ -111,11 +122,13 @@ const SOURCES := {
 	# the fork is where it is built from all the same.
 	"play": {
 		"repo":  "RetroXR/Play-",
-		"known_tag": "retroxr-play-libretro-v1",
+		"known_tag": "retroxr-play-libretro-v2",
 		"label": "Play! (retroXR build)",
 		"assets": {
 			"Windows": "play_libretro.dll.zip",
 			"Android": "play_libretro_android.so.zip",
+			"Linux":   "play_libretro.so.zip",
+			"macOS":   "play_libretro_{arch}.dylib.zip",
 		},
 	},
 	# gambatte, the other end of every Game Boy cable in the room.
@@ -144,11 +157,13 @@ const SOURCES := {
 	# tag beside the binary is what meets it.
 	"gambatte": {
 		"repo":  "RetroXR/gambatte-libretro",
-		"known_tag": "retroxr-gambatte-libretro-v2",
+		"known_tag": "retroxr-gambatte-libretro-v3",
 		"label": "gambatte (retroXR build)",
 		"assets": {
 			"Windows": "gambatte_libretro.dll.zip",
 			"Android": "gambatte_libretro_android.so.zip",
+			"Linux":   "gambatte_libretro.so.zip",
+			"macOS":   "gambatte_libretro_{arch}.dylib.zip",
 		},
 	},
 	# genesis_plus_gx, for the Game Gear's Gear-to-Gear Cable.
@@ -162,11 +177,13 @@ const SOURCES := {
 	# other change: a disabled Sega CD RAM cartridge reads as absent.
 	"genesis_plus_gx": {
 		"repo":  "RetroXR/Genesis-Plus-GX",
-		"known_tag": "retroxr-genesis_plus_gx-libretro-v2",
+		"known_tag": "retroxr-genesis_plus_gx-libretro-v3",
 		"label": "Genesis Plus GX (retroXR build)",
 		"assets": {
 			"Windows": "genesis_plus_gx_libretro.dll.zip",
 			"Android": "genesis_plus_gx_libretro_android.so.zip",
+			"Linux":   "genesis_plus_gx_libretro.so.zip",
+			"macOS":   "genesis_plus_gx_libretro_{arch}.dylib.zip",
 		},
 	},
 	# mednafen_wswan, for the WonderSwan's Communication Cable.
@@ -181,11 +198,13 @@ const SOURCES := {
 	# A WonderSwan and a WonderSwan Color are the same core and the same wire.
 	"mednafen_wswan": {
 		"repo":  "RetroXR/beetle-wswan-libretro",
-		"known_tag": "retroxr-mednafen_wswan-libretro-v2",
+		"known_tag": "retroxr-mednafen_wswan-libretro-v3",
 		"label": "Beetle WonderSwan (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_wswan_libretro.dll.zip",
 			"Android": "mednafen_wswan_libretro_android.so.zip",
+			"Linux":   "mednafen_wswan_libretro.so.zip",
+			"macOS":   "mednafen_wswan_libretro_{arch}.dylib.zip",
 		},
 	},
 	# mednafen_lynx, for ComLynx.
@@ -204,6 +223,8 @@ const SOURCES := {
 		"assets": {
 			"Windows": "mednafen_lynx_libretro.dll.zip",
 			"Android": "mednafen_lynx_libretro_android.so.zip",
+			"Linux":   "mednafen_lynx_libretro.so.zip",
+			"macOS":   "mednafen_lynx_libretro_{arch}.dylib.zip",
 		},
 	},
 	# mednafen_ngp, for the SNK link cable.
@@ -217,11 +238,13 @@ const SOURCES := {
 	# docs/dev/ngp-link.md.
 	"mednafen_ngp": {
 		"repo":  "RetroXR/beetle-ngp-libretro",
-		"known_tag": "retroxr-mednafen_ngp-libretro-v1",
+		"known_tag": "retroxr-mednafen_ngp-libretro-v2",
 		"label": "Beetle NeoPop (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_ngp_libretro.dll.zip",
 			"Android": "mednafen_ngp_libretro_android.so.zip",
+			"Linux":   "mednafen_ngp_libretro.so.zip",
+			"macOS":   "mednafen_ngp_libretro_{arch}.dylib.zip",
 		},
 	},
 	# pcsx_rearmed, for the PlayStation's serial port.
@@ -240,11 +263,13 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin and gambatte.
 	"pcsx_rearmed": {
 		"repo":  "RetroXR/pcsx_rearmed",
-		"known_tag": "retroxr-pcsx-rearmed-libretro-v3",
+		"known_tag": "retroxr-pcsx-rearmed-libretro-v4",
 		"label": "PCSX-ReARMed (retroXR build)",
 		"assets": {
 			"Windows": "pcsx_rearmed_libretro.dll.zip",
 			"Android": "pcsx_rearmed_libretro_android.so.zip",
+			"Linux":   "pcsx_rearmed_libretro.so.zip",
+			"macOS":   "pcsx_rearmed_libretro_{arch}.dylib.zip",
 		},
 	},
 	# Beetle Saturn, for the Saturn Link Cable.
@@ -260,11 +285,13 @@ const SOURCES := {
 	# Beetle Saturn is GPLv2, so the source for these binaries sits on the tag.
 	"mednafen_saturn": {
 		"repo":  "RetroXR/beetle-saturn-libretro",
-		"known_tag": "retroxr-beetle-saturn-libretro-v1",
+		"known_tag": "retroxr-beetle-saturn-libretro-v2",
 		"label": "Beetle Saturn (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_saturn_libretro.dll.zip",
 			"Android": "mednafen_saturn_libretro_android.so.zip",
+			"Linux":   "mednafen_saturn_libretro.so.zip",
+			"macOS":   "mednafen_saturn_libretro_{arch}.dylib.zip",
 		},
 	},
 	# snes9x, for the Satellaview's 8M Memory Pack.
@@ -310,11 +337,13 @@ const SOURCES := {
 	# VeMUlator is GPLv3, so the source for these binaries sits on the tag.
 	"vemulator": {
 		"repo":  "RetroXR/vemulator-libretro",
-		"known_tag": "retroxr-vemulator-libretro-v2",
+		"known_tag": "retroxr-vemulator-libretro-v3",
 		"label": "VeMUlator (retroXR build)",
 		"assets": {
 			"Windows": "vemulator_libretro.dll.zip",
 			"Android": "vemulator_libretro_android.so.zip",
+			"Linux":   "vemulator_libretro.so.zip",
+			"macOS":   "vemulator_libretro_{arch}.dylib.zip",
 		},
 	},
 	# flycast, so a VMU's screen can be on the VMU.
@@ -337,20 +366,24 @@ const SOURCES := {
 	# flycast is GPLv2, so the source for these binaries sits on the tag.
 	"flycast": {
 		"repo":  "RetroXR/flycast",
-		"known_tag": "retroxr-flycast-libretro-v3",
+		"known_tag": "retroxr-flycast-libretro-v4",
 		"label": "Flycast (retroXR build)",
 		"assets": {
 			"Windows": "flycast_libretro.dll.zip",
 			"Android": "flycast_libretro_android.so.zip",
+			"Linux":   "flycast_libretro.so.zip",
+			"macOS":   "flycast_libretro_{arch}.dylib.zip",
 		},
 	},
 	"snes9x": {
 		"repo":  "RetroXR/snes9x",
-		"known_tag": "retroxr-snes9x-libretro-v1",
+		"known_tag": "retroxr-snes9x-libretro-v2",
 		"label": "Snes9x (retroXR build)",
 		"assets": {
 			"Windows": "snes9x_libretro.dll.zip",
 			"Android": "snes9x_libretro_android.so.zip",
+			"Linux":   "snes9x_libretro.so.zip",
+			"macOS":   "snes9x_libretro_{arch}.dylib.zip",
 		},
 	},
 	# FCEUmm, for the microphone in a Famicom's second controller.
@@ -369,11 +402,13 @@ const SOURCES := {
 	# FCEUmm is GPLv2, so the source for these binaries sits on the tag.
 	"fceumm": {
 		"repo":  "RetroXR/libretro-fceumm",
-		"known_tag": "retroxr-fceumm-libretro-v1",
+		"known_tag": "retroxr-fceumm-libretro-v2",
 		"label": "FCEUmm (retroXR build)",
 		"assets": {
 			"Windows": "fceumm_libretro.dll.zip",
 			"Android": "fceumm_libretro_android.so.zip",
+			"Linux":   "fceumm_libretro.so.zip",
+			"macOS":   "fceumm_libretro_{arch}.dylib.zip",
 		},
 	},
 	# mupen64plus_next, for a 64DD disk with no cartridge behind it.
@@ -393,10 +428,12 @@ const SOURCES := {
 	# binary — same arrangement as Dolphin, gambatte and pcsx_rearmed.
 	"mupen64plus_next": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v4",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v5",
 		"label": "Mupen64Plus-Next (retroXR build)",
 		"assets": {
 			"Windows": "mupen64plus_next_libretro.dll.zip",
+			"Linux":   "mupen64plus_next_libretro.so.zip",
+			"macOS":   "mupen64plus_next_libretro_{arch}.dylib.zip",
 		},
 	},
 	# The same core and the same tag, under the name the buildbot gives its
@@ -410,7 +447,7 @@ const SOURCES := {
 	# CoreRecommendations already names for nintendo_64 on Android.
 	"mupen64plus_next_gles3": {
 		"repo":  "RetroXR/mupen64plus-libretro-nx",
-		"known_tag": "retroxr-mupen64plus-next-libretro-v4",
+		"known_tag": "retroxr-mupen64plus-next-libretro-v5",
 		"label": "Mupen64Plus-Next GLES3 (retroXR build)",
 		"assets": {
 			"Android": "mupen64plus_next_gles3_libretro_android.so.zip",
@@ -431,6 +468,10 @@ const SOURCES := {
 	# release then reached installed copies with no app build. `branch` stays
 	# because it is still true — the tags sit on it — and is_released is what
 	# tells the two states apart for the next core that starts that way.
+	#
+	# v3 is 777f199ed5: no emulator change, but the first release built by CI
+	# (.github/workflows/retroxr-release.yml; v1 and v2 were built by hand) and
+	# the first Linux x86_64 build, its dependencies linked in statically.
 	#
 	# v2 is bcced37b6d. Checked 2026-09-20 through the URLs this file composes:
 	# /releases/latest names the tag, both assets answer 200, each zip holds the
@@ -453,14 +494,58 @@ const SOURCES := {
 	# are v1's numbers exactly, which is how this says nothing else moved.
 	#
 	# xemu is GPLv2, so the tag beside the binary is an obligation, as Dolphin's is.
+	# virtualjaguar, for JagLink.
+	#
+	# The Jaguar's JagLink/CatBox cable is JERRY's UART out of the DSP port. Our
+	# build carries it over the frontend's link bus as `jag-uart-1`: a character
+	# is posted when it starts shifting out, stamped at its stop bit, and lands
+	# in the partner's receive register at that tick. The core's
+	# virtualjaguar_netlink option defaults to `auto`, which takes the bus
+	# whenever the frontend offers one; with none it is the upstream core.
+	# docs/dev/jag-link.md. GPLv3.
+	"virtualjaguar": {
+		"repo":  "RetroXR/virtualjaguar-libretro",
+		"known_tag": "retroxr-virtualjaguar-libretro-v1",
+		"label": "Virtual Jaguar (retroXR build)",
+		"assets": {
+			"Windows": "virtualjaguar_libretro.dll.zip",
+			"Android": "virtualjaguar_libretro_android.so.zip",
+			"Linux":   "virtualjaguar_libretro.so.zip",
+			"macOS":   "virtualjaguar_libretro_{arch}.dylib.zip",
+		},
+	},
+	# fbneo, so the Neo Geo can roll back.
+	#
+	# Stock fbneo desyncs on the first rewind: a YM2610 restore lost or recomputed
+	# the ADPCM-A levels and registers, the envelope and LFO counters, Delta-T's
+	# now_data and the resampler position. Our build saves all of it, and adds
+	# fbneo-netplay-deterministic, which pins the uPD4990A clock and the random
+	# seed and turns hiscores off. NetplayCores["fbneo"] sets rollback_needs_pins,
+	# so a build that does not declare that option still gets lockstep.
+	#
+	# FBNeo's licence is non-commercial; the tag beside the binary is its source.
+	"fbneo": {
+		"repo":  "RetroXR/FBNeo",
+		"known_tag": "retroxr-fbneo-libretro-v1",
+		"label": "FBNeo (retroXR build)",
+		"assets": {
+			"Windows": "fbneo_libretro.dll.zip",
+			"Android": "fbneo_libretro_android.so.zip",
+			"Linux":   "fbneo_libretro.so.zip",
+			"macOS":   "fbneo_libretro_{arch}.dylib.zip",
+		},
+	},
 	"xemu": {
 		"repo":  "RetroXR/xemu",
 		"branch": "retroxr",
-		"known_tag": "retroxr-xemu-libretro-v2",
+		"known_tag": "retroxr-xemu-libretro-v3",
 		"label": "xemu (retroXR build)",
+		# No macOS: the OpenGL renderer makes its context through an SDL window on
+		# the core's own thread, and Cocoa only creates windows on the main one.
 		"assets": {
 			"Windows": "xemu_libretro.dll.zip",
 			"Android": "xemu_libretro_android.so.zip",
+			"Linux":   "xemu_libretro.so.zip",
 		},
 	},
 }
@@ -473,11 +558,23 @@ static func has(core_name: String) -> bool:
 
 
 ## The release asset filename for this platform, or "" when we do not build one.
+##
+## A macOS asset names its architecture, "{arch}" standing for arm64 or x86_64:
+## each fork publishes one thin dylib per architecture, as the buildbot does, and
+## both unzip to the same <core>_libretro.dylib.
 static func asset_for(core_name: String) -> String:
 	var src: Dictionary = SOURCES.get(core_name, {})
 	if src.is_empty():
 		return ""
-	return str((src.get("assets", {}) as Dictionary).get(OS.get_name(), ""))
+	var asset := str((src.get("assets", {}) as Dictionary).get(OS.get_name(), ""))
+	return asset.replace("{arch}", mac_arch())
+
+
+## The architecture a macOS asset is published for, named as the release names
+## it. Anything unrecognised gets arm64, matching the buildbot URL's fallback.
+static func mac_arch() -> String:
+	var arch := Engine.get_architecture_name()
+	return arch if arch in ["arm64", "x86_64"] else "arm64"
 
 
 ## Directory URL the asset hangs off, shaped like the buildbot's so the download

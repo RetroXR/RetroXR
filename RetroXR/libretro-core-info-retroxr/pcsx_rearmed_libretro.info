@@ -6,7 +6,7 @@
 # lost the next time, silently.
 #
 # The binary this describes is built from RetroXR/pcsx_rearmed at the tag
-# retroxr-pcsx-rearmed-libretro-v3 and published on that repository's releases
+# retroxr-pcsx-rearmed-libretro-v4 and published on that repository's releases
 # page, which is also where its source is: pcsx_rearmed is GPLv2, so the two
 # travel together.
 

@@ -1,0 +1,39 @@
+# Atari - Lynx (Beetle Lynx), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too — an edit there would be
+# lost the next time, silently. An overlay REPLACES the entry, so everything
+# below is a whole copy of it with only the names and version changed.
+#
+# The binary this describes is built from RetroXR/beetle-lynx-libretro at the tag
+# retroxr-mednafen_lynx-libretro-v1 and published on that repository's releases page, which is
+# also where its source is (Zlib|GPLv2). What the fork adds is in CoreSources.
+
+# Software Information
+display_name = "Atari - Lynx (Beetle Lynx, retroXR)"
+authors = "K. Wilkins|Mednafen Team"
+supported_extensions = "lnx|lyx|bll|o"
+corename = "Beetle Lynx (retroXR)"
+license = "Zlib|GPLv2"
+permissions = ""
+display_version = "retroXR build"
+categories = "Emulator"
+
+# Hardware Information
+manufacturer = "Atari"
+systemname = "Lynx"
+systemid = "atarilynx"
+
+# Libretro Features
+supports_no_game = "false"
+database = "Atari - Lynx"
+
+# Firmware / BIOS
+firmware_count = 1
+firmware0_desc = "lynxboot.img (Lynx Boot Image)"
+firmware0_path = "lynxboot.img"
+firmware0_opt = "false"
+notes = "(!) lynxboot.img (md5): fcd403db69f54290b51035d82f835e7b"
+
+description = "An older fork of Mednafen's Atari Lynx core, which is itself a fork of the Handy emulator. While this core works fine, many users will be better served by using the regular Handy core."

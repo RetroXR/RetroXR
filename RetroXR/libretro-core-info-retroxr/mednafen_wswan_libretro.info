@@ -1,0 +1,34 @@
+# Bandai - WonderSwan/Color (Beetle Wonderswan), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too — an edit there would be
+# lost the next time, silently. An overlay REPLACES the entry, so everything
+# below is a whole copy of it with only the names and version changed.
+#
+# The binary this describes is built from RetroXR/beetle-wswan-libretro at the tag
+# retroxr-mednafen_wswan-libretro-v3 and published on that repository's releases page, which is
+# also where its source is (GPLv2). What the fork adds is in CoreSources.
+
+# Software Information
+display_name = "Bandai - WonderSwan/Color (Beetle Wonderswan, retroXR)"
+authors = "Dox|Mednafen Team"
+supported_extensions = "ws|wsc|pc2|pcv2"
+corename = "Beetle WonderSwan (retroXR)"
+license = "GPLv2"
+permissions = ""
+display_version = "retroXR build"
+categories = "Emulator"
+
+# Hardware Information
+manufacturer = "Bandai"
+systemname = "WonderSwan/Color"
+systemid = "wonderswan"
+
+# Libretro Features
+supports_no_game = "false"
+database = "Bandai - WonderSwan|Bandai - WonderSwan Color"
+savestate = "true"
+savestate_features = "deterministic"
+
+description = "A port of Mednafen's WonderSwan Color emulation core to libretro."
