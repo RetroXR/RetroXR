@@ -400,3 +400,23 @@ on gets `_net_offer`: the session boots the game on every peer instead.
 
 Owed: arm64 (Quest) and cross-play (`cross_play: false` until measured), a
 headset run, and a published fork release. `CoreSources` still names v2 until then.
+
+### Atari 2600 (stella) — vetted 2026-09-21: lockstep yes, rollback NO
+
+`netplay_spike` on `stella_libretro.dll` with Air Raid (USA), Windows x86_64,
+control leg fceumm/3-D WorldRunner under the same flags (passes both modes):
+
+- lockstep: two cold starts give identical CRCs; savestate (1041 bytes) @600
+  reload → 0/20 mismatches. DETERMINISM + LOCKSTEP hold.
+- `--spike-rollback --spike-lag=0` (serialize every frame, 0 rewinds) == lockstep,
+  so per-frame serialization does not perturb the core.
+- `--spike-lag=1` and `=3` DIVERGE from lockstep at the first input change
+  (START at frame 180; CRC 180 matches, 240 does not). One rewind across a
+  changed input corrupts the run: something input-dependent is not in stella's
+  `retro_serialize` (suspect the libretro wrapper's own cached input / console-
+  switch edge state — unconfirmed). A lag-1 run "passing" its own replay is
+  self-consistency, not correctness — diff against lockstep.
+
+So stella is NOT in `NetplayCores`. If added, it would be `strategies:
+[Strategy.LOCKSTEP]` only; not done yet, and the cross-machine state leg
+(x86_64 → arm64) has not been run for it.
