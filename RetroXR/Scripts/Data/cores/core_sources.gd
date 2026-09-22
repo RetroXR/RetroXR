@@ -151,6 +151,24 @@ const SOURCES := {
 			"Android": "gambatte_libretro_android.so.zip",
 		},
 	},
+	# mednafen_lynx, for ComLynx.
+	#
+	# Stock Mikey had a transmit hook nothing was attached to. Our build puts the
+	# UART on the frontend's link bus as `comlynx-1`, modelled as the one
+	# open-collector wire it is: a byte is broadcast when written, stamped with
+	# the tick its stop bit leaves, and every unit -- the sender included --
+	# hears the same bytes in the same order, overlapping frames ANDed. Up to
+	# eight chain, as on the real cable. Uncabled it runs as the stock core does.
+	# docs/dev/lynx-link.md.
+	"mednafen_lynx": {
+		"repo":  "RetroXR/beetle-lynx-libretro",
+		"known_tag": "retroxr-mednafen_lynx-libretro-v1",
+		"label": "Beetle Lynx (retroXR build)",
+		"assets": {
+			"Windows": "mednafen_lynx_libretro.dll.zip",
+			"Android": "mednafen_lynx_libretro_android.so.zip",
+		},
+	},
 	# pcsx_rearmed, for the PlayStation's serial port.
 	#
 	# SIO1 — the port at 1F801050h that the official Link Cable plugs into — had

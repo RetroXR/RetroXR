@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/atari_lynx_model.gd" id="1_pb32f"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_n8qqf"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="3_linkport"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_336yc"]
 size = Vector3(0.21, 0.045, 0.11)
@@ -150,3 +151,10 @@ pixel_size = 0.00016
 modulate = Color(0.1, 0.1, 0.12, 1)
 text = "POWER"
 font_size = 16
+
+; The ComLynx jack, on the bottom edge left of centre beside the headphone
+; socket, where a real Lynx takes its cable. +Z points OUT of the shell (every
+; port in the room follows that) and the bottom edge already faces +Z, so it
+; needs no turn; 1 mm proud of the panel.
+[node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, 0, 0.056)
