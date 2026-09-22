@@ -12,6 +12,9 @@ const SERIAL_PORT_SCENE := preload("res://Scenes/Objects/cables/psx_link_port.ts
 const SATURN_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/saturn_link_port.tscn")
 ## A Jaguar's is its DSP port, where a JagLink lead goes.
 const JAG_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/jag_link_port.tscn")
+## A PlayStation 2's is its S400 i.LINK socket, where an i.LINK lead goes -- to
+## another console or to an i.LINK hub.
+const ILINK_PORT_SCENE := preload("res://Scenes/Objects/cables/ilink_port.tscn")
 ## A Game Gear's EXT connector: the two-ended handheld socket, keyed to the
 ## Gear-to-Gear cable's own plug family so no other handheld's lead seats in it.
 const HANDHELD_LINK_PORT_SCENE := preload("res://Scenes/Objects/cables/link_port.tscn")
@@ -92,6 +95,8 @@ func build_serial_port(host: Node3D, systemid: String) -> void:
 		scene = SATURN_LINK_PORT_SCENE
 	elif systemid == "atarijaguar":
 		scene = JAG_LINK_PORT_SCENE
+	elif systemid == "ps2":
+		scene = ILINK_PORT_SCENE
 	elif systemid == "gamegear":
 		scene = HANDHELD_LINK_PORT_SCENE
 	var port := scene.instantiate() as Node3D

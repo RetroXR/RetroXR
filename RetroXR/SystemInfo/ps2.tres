@@ -13,3 +13,4 @@ card_family = "playstation2"
 save_device = "playstation2"
 supports_multitap = true
 multitap_ports = 8
+serial_port = true

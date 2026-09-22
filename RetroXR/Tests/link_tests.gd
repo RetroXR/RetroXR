@@ -63,6 +63,12 @@ func _ready() -> void:
 	await _test_jag_socket_follows_the_hardware()
 	await _test_jag_lead_will_seat()
 	await _test_jag_cable_joins_a_pair()
+	_test_ilink_plug_gating()
+	_test_ilink_is_spawnable()
+	await _test_ilink_socket_follows_the_hardware()
+	await _test_ilink_hub_scene()
+	await _test_ilink_bus_through_a_hub()
+	await _test_ilink_hubs_chain_and_pairs_still_pair()
 	_test_every_lead_fits_only_its_own_machines()
 	await _test_every_lead_states_its_bus()
 	_test_no_reset_path()
@@ -188,6 +194,7 @@ func _test_every_lead_states_its_bus() -> void:
 		"res://Scenes/Objects/cables/link_cable.tscn": "the handheld lead",
 		"res://Scenes/Objects/cables/gc_gba_cable.tscn": "the GameCube lead",
 		"res://Scenes/Objects/cables/psx_link_cable.tscn": "the PlayStation lead",
+		"res://Scenes/Objects/cables/ilink_cable.tscn": "the i.LINK lead",
 	}
 	for path: String in leads:
 		var scene := load(path) as PackedScene
@@ -2079,6 +2086,7 @@ const _LINK_SOCKETS := {
 	"res://Scenes/Objects/cables/psx_link_port.tscn": "psx_link_plug",
 	"res://Scenes/Objects/cables/saturn_link_port.tscn": "saturn_link_plug",
 	"res://Scenes/Objects/cables/jag_link_port.tscn": "jag_link_plug",
+	"res://Scenes/Objects/cables/ilink_port.tscn": "ilink_plug",
 }
 
 ## Spawn id -> the family both its ends (and any junction) must be.
@@ -2092,6 +2100,7 @@ const _LINK_LEADS := {
 	"psx_link_cable": "psx_link_plug",
 	"saturn_link_cable": "saturn_link_plug",
 	"jag_link_cable": "jag_link_plug",
+	"ilink_cable": "ilink_plug",
 }
 
 ## What the spawn menu offers each machine.
@@ -2099,6 +2108,7 @@ const _LINK_OFFERS := {
 	"gb": "gb_link_cable", "gba": "link_cable", "gamegear": "gg_link_cable",
 	"wonderswan": "ws_link_cable", "atarilynx": "comlynx_cable", "ngp": "ngp_link_cable",
 	"psx": "psx_link_cable", "saturn": "saturn_link_cable", "atarijaguar": "jag_link_cable",
+	"ps2": "ilink_cable",
 }
 
 
@@ -2152,3 +2162,277 @@ func _test_every_lead_fits_only_its_own_machines() -> void:
 				_eq(spawn, _LINK_OFFERS[sys], "%s is offered %s" % [sys, _LINK_OFFERS[sys]])
 				offered = offered or spawn == _LINK_OFFERS[sys]
 		_ok(offered, "%s is offered its link lead" % sys)
+
+
+# ---------------------------------------------------------------------------
+# The PlayStation 2's i.LINK -- a bus, not a pair.
+#
+# A PlayStation lead's shape at each end, but 1394 puts every node on the wire
+# on one bus, and a hub joins everything plugged into it. So what these check is
+# the walk ILinkBus does through hubs, with real consoles, real sockets and real
+# seating, and that netplay's sweep (RetroSystem.net_link_bus) sees the whole bus
+# rather than one cord of it.
+
+const ILINK_CABLE_SCENE := "res://Scenes/Objects/cables/ilink_cable.tscn"
+const ILINK_HUB_SCENE := "res://Scenes/Objects/cables/ilink_hub.tscn"
+
+
+func _test_ilink_plug_gating() -> void:
+	var port := ILinkPort.new()
+	add_child(port)
+	var plug := ILinkPlug.new()
+	add_child(plug)
+	var psx_port := PsxLinkPort.new()
+	add_child(psx_port)
+	var psx_plug := PsxLinkPlug.new()
+	add_child(psx_plug)
+
+	_eq(port.plug_group(), plug.plug_group(), "the i.LINK port and plug name the same group")
+	_eq(port.plug_group(), "ilink_plug", "the group is ilink_plug")
+	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
+	# Both directions, because ILinkPort EXTENDS PsxLinkPort.
+	_ok(port.plug_group() != psx_plug.plug_group(), "an i.LINK socket does not take a PlayStation plug")
+	_ok(psx_port.plug_group() != plug.plug_group(), "nor a PlayStation socket an i.LINK plug")
+	# What RetroSystem._link_cables sweeps. A PlayStation plug is not in it; an
+	# i.LINK plug must be, or a hub's far consoles drop out of a netplay group.
+	_ok(plug.is_in_group(LinkPlug.ANY_GROUP), "an i.LINK plug is one netplay's lead sweep can see")
+
+	for n: Node in [port, plug, psx_port, psx_plug]:
+		n.queue_free()
+
+
+func _test_ilink_is_spawnable() -> void:
+	var lead := false
+	var hub := false
+	for item: Dictionary in SpawnCatalog.items_for("ps2"):
+		var spawn := str(item.get("spawn", ""))
+		lead = lead or spawn == "ilink_cable"
+		hub = hub or spawn == "ilink_hub"
+	_ok(lead, "an i.LINK cable is offered under the PlayStation 2")
+	_ok(hub, "and so is an i.LINK hub")
+	var stray := false
+	for item: Dictionary in SpawnCatalog.items_for("psx"):
+		var spawn := str(item.get("spawn", ""))
+		stray = stray or spawn == "ilink_cable" or spawn == "ilink_hub"
+	_ok(not stray, "and neither under the PlayStation")
+	_ok(ScenePersistence.LEAD_SCENES.has("ilink_cable"), "a saved room can rebuild the lead")
+	_ok(ScenePersistence.PLAIN_SCENES.has("ilink_hub"), "and the hub")
+
+
+func _test_ilink_socket_follows_the_hardware() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	if sys_scene == null:
+		_ok(false, "the machine scene loads")
+		return
+	var ps2: Node3D = sys_scene.instantiate()
+	ps2.systemid = "ps2"
+	add_child(ps2)
+	var psx: Node3D = sys_scene.instantiate()
+	psx.systemid = "psx"
+	add_child(psx)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var on_ps2 := ps2.find_child("ILinkPort", true, false) as ILinkPort
+	_ok(on_ps2 != null, "a PlayStation 2 wears an i.LINK socket")
+	_ok(ps2.find_child("PsxLinkPort", true, false) == null, "and not a PlayStation serial socket")
+	_ok(psx.find_child("ILinkPort", true, false) == null, "a PlayStation does not wear an i.LINK socket")
+	if on_ps2 != null:
+		_eq(on_ps2.get_machine(), ps2, "the socket belongs to the PlayStation 2 it is on")
+		_eq(on_ps2.get_hub(), null, "and to no hub")
+		_eq(on_ps2.link_port, 0, "it is link port 0, the one the core attaches")
+
+	ps2.queue_free()
+	psx.queue_free()
+	await get_tree().process_frame
+
+
+func _test_ilink_hub_scene() -> void:
+	var hub: ILinkHub = load(ILINK_HUB_SCENE).instantiate()
+	add_child(hub)
+	var psx_lead: Node3D = load(PSX_CABLE_SCENE).instantiate()
+	add_child(psx_lead)
+	var lead: Node3D = load(ILINK_CABLE_SCENE).instantiate()
+	add_child(lead)
+	await get_tree().process_frame
+
+	var ports := hub.sockets()
+	_eq(ports.size(), ILinkHub.PORT_COUNT, "a hub has six sockets")
+	_eq(ILinkHub.PORT_COUNT, 6, "six, the most a PlayStation 2 game puts on one bus")
+	_ok(hub.is_in_group("spawned"), "a hub is saved with the room")
+	for port in ports:
+		_eq(port.get_machine(), null, "%s belongs to no machine" % port.name)
+		_eq(port.get_hub(), hub, "%s belongs to the hub" % port.name)
+		# What a lead's save names as the owner of the socket it is in.
+		_eq(port.get_device(), hub, "%s is saved against the hub" % port.name)
+		_ok(port.can_preview(lead.get_node("PlugA0")), "%s takes an i.LINK plug" % port.name)
+		_ok(not port.can_preview(psx_lead.get_node("PlugA0")), "%s refuses a PlayStation plug" % port.name)
+		# Facing, measured in the hub's frame: a socket's +Z points where a plug
+		# arrives FROM, which has to be out of the box. Authored inside out, this
+		# is negative -- a symmetric recess would render the same either way.
+		var out_of_box: float = hub.to_local(port.global_position + port.global_basis.z).z \
+			- hub.to_local(port.global_position).z
+		_ok(out_of_box > 0.9, "%s faces out of the hub" % port.name, "local +Z step %.3f" % out_of_box)
+
+	# And a seated plug's shell lies OUTSIDE the box, which is what a player sees.
+	var plug := lead.get_node("PlugA0") as RigidBody3D
+	ports[0].pick_up_object(plug)
+	await get_tree().physics_frame
+	await get_tree().process_frame
+	var shell := plug.get_node("PlugTip") as Node3D
+	var shell_z := hub.to_local(shell.global_position).z
+	_ok(shell_z > 0.0425, "a seated plug's shell stands outside the hub", "shell at z %.4f" % shell_z)
+	_ok(hub.get_collision_exceptions().has(plug), "and does not shove the hub it is in")
+	ports[0].drop_object()
+	await get_tree().process_frame
+	_ok(not hub.get_collision_exceptions().has(plug), "pulled, it collides with the hub again")
+
+	for n: Node in [hub, psx_lead, lead]:
+		n.queue_free()
+	await get_tree().process_frame
+
+
+## Three real PlayStation 2s, one hub, three leads: one bus of three.
+func _test_ilink_bus_through_a_hub() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	if sys_scene == null:
+		return
+	var consoles: Array[Node3D] = []
+	for k in range(3):
+		var ps2: Node3D = sys_scene.instantiate()
+		ps2.systemid = "ps2"
+		ps2.name = "PS2_%d" % k
+		add_child(ps2)
+		consoles.append(ps2)
+	var hub: ILinkHub = load(ILINK_HUB_SCENE).instantiate()
+	add_child(hub)
+	var leads: Array[ILinkCable] = []
+	for k in range(3):
+		var lead: ILinkCable = load(ILINK_CABLE_SCENE).instantiate()
+		lead.name = "ILinkLead_%d" % k
+		add_child(lead)
+		leads.append(lead)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var hub_ports := hub.sockets()
+	for k in range(3):
+		var socket := consoles[k].find_child("ILinkPort", true, false) as ILinkPort
+		socket.pick_up_object(leads[k].get_node("PlugA0"))
+		hub_ports[k].pick_up_object(leads[k].get_node("PlugB0"))
+	await get_tree().process_frame
+	for lead in leads:
+		lead._resolve()
+
+	for k in range(3):
+		_eq((leads[k].linked_machines() as Array).size(), 3,
+			"lead %d states the whole three-console bus, not its own pair" % k)
+	var bus: Array = consoles[2].net_link_bus()
+	_eq(bus.size(), 3, "netplay's sweep finds the whole bus from any console")
+	for ps2 in consoles:
+		_ok(bus.any(func(e: Dictionary) -> bool: return e.get("machine") == ps2),
+			"and %s is on it" % ps2.name)
+	_eq((leads[0].held_machines() as Array).size(), 3, "and the bus is joined, not just described")
+	var heads := PackedStringArray()
+	for lead in leads:
+		heads.append(String((lead.linked_machines()[0] as Dictionary)["machine"].name))
+	_ok(heads[0] == heads[1] and heads[1] == heads[2], "every lead names the same bus head",
+		", ".join(heads))
+
+	# One spoke pulled at the hub: the other two are still a bus.
+	hub_ports[1].drop_object()
+	await get_tree().process_frame
+	leads[1]._resolve()
+	_eq((leads[0].linked_machines() as Array).size(), 2, "pulling one spoke leaves a bus of two")
+	_eq((leads[1].linked_machines() as Array).size(), 0, "and the pulled lead joins nothing")
+	_eq((leads[1].held_machines() as Array).size(), 0, "nor holds anything")
+	_eq((leads[2].held_machines() as Array).size(), 2, "and the two left are joined as two")
+	_eq(consoles[1].net_link_bus().size(), 0, "the unplugged console is on no bus")
+
+	# Down to one console on the hub: a bus of one is no bus.
+	hub_ports[2].drop_object()
+	await get_tree().process_frame
+	leads[2]._resolve()
+	_eq((leads[0].linked_machines() as Array).size(), 0, "one console on a hub is on no bus")
+	_eq((leads[0].held_machines() as Array).size(), 0, "and holds none")
+
+	var all: Array = []
+	all.append_array(consoles)
+	all.append(hub)
+	all.append_array(leads)
+	for n: Node in all:
+		n.queue_free()
+	await get_tree().process_frame
+
+
+## Two hubs joined by a lead are one bus, and a plain lead is still a pair.
+func _test_ilink_hubs_chain_and_pairs_still_pair() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	if sys_scene == null:
+		return
+	var consoles: Array[Node3D] = []
+	for k in range(4):
+		var ps2: Node3D = sys_scene.instantiate()
+		ps2.systemid = "ps2"
+		ps2.name = "ChainPS2_%d" % k
+		add_child(ps2)
+		consoles.append(ps2)
+	var hub_a: ILinkHub = load(ILINK_HUB_SCENE).instantiate()
+	var hub_b: ILinkHub = load(ILINK_HUB_SCENE).instantiate()
+	add_child(hub_a)
+	add_child(hub_b)
+	var leads: Array[ILinkCable] = []
+	for k in range(4):
+		var lead: ILinkCable = load(ILINK_CABLE_SCENE).instantiate()
+		add_child(lead)
+		leads.append(lead)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# Consoles 0 and 1 on hub A, console 2 on hub B, hub A to hub B.
+	var sock := func(i: int) -> ILinkPort:
+		return consoles[i].find_child("ILinkPort", true, false) as ILinkPort
+	(sock.call(0) as ILinkPort).pick_up_object(leads[0].get_node("PlugA0"))
+	hub_a.sockets()[0].pick_up_object(leads[0].get_node("PlugB0"))
+	(sock.call(1) as ILinkPort).pick_up_object(leads[1].get_node("PlugA0"))
+	hub_a.sockets()[1].pick_up_object(leads[1].get_node("PlugB0"))
+	(sock.call(2) as ILinkPort).pick_up_object(leads[2].get_node("PlugA0"))
+	hub_b.sockets()[0].pick_up_object(leads[2].get_node("PlugB0"))
+	hub_a.sockets()[5].pick_up_object(leads[3].get_node("PlugA0"))
+	hub_b.sockets()[5].pick_up_object(leads[3].get_node("PlugB0"))
+	await get_tree().process_frame
+	for lead in leads:
+		lead._resolve()
+	_eq((leads[3].linked_machines() as Array).size(), 3,
+		"a lead between two hubs carries both hubs' consoles")
+	_eq(consoles[0].net_link_bus().size(), 3, "and netplay sees one bus of three")
+	_eq(consoles[3].net_link_bus().size(), 0, "a console on no lead is on no bus")
+
+	# Unhook hub B's console and the hub link; cable 0 and 1 stay on hub A. Then a
+	# plain lead between console 2 and console 3 is its own, separate pair.
+	for lead in [leads[2], leads[3]]:
+		for plug_name in ["PlugA0", "PlugB0"]:
+			var plug := lead.get_node(plug_name) as RcaPlug
+			var at := plug.seated_port()
+			if at != null:
+				at.drop_object()
+	await get_tree().process_frame
+	(sock.call(2) as ILinkPort).pick_up_object(leads[2].get_node("PlugA0"))
+	(sock.call(3) as ILinkPort).pick_up_object(leads[2].get_node("PlugB0"))
+	await get_tree().process_frame
+	for lead in leads:
+		lead._resolve()
+	_eq(consoles[2].net_link_bus().size(), 2, "a lead between two consoles is a pair")
+	_ok(consoles[2].net_link_bus().any(func(e: Dictionary) -> bool: return e.get("machine") == consoles[3]),
+		"of those two consoles")
+	_eq(consoles[0].net_link_bus().size(), 2, "and the hub's bus is its own two")
+	_ok(not consoles[0].net_link_bus().any(func(e: Dictionary) -> bool: return e.get("machine") == consoles[2]),
+		"with nothing of the pair's on it")
+
+	var all: Array = []
+	all.append_array(consoles)
+	all.append_array([hub_a, hub_b])
+	all.append_array(leads)
+	for n: Node in all:
+		n.queue_free()
+	await get_tree().process_frame

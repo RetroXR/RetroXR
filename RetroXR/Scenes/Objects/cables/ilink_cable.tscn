@@ -1,0 +1,152 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/ilink_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/ilink_plug.gd" id="2_plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
+
+; PLACEHOLDER GEOMETRY, for saturn_link_cable.tscn's reason: boxes are generated,
+; so they carry no licence at all. The numbers are real.
+;
+; A 4-pin IEEE 1394 plug: a small metal nose about 5.4 x 2.6 mm, 6 mm long, in a
+; black overmould about 10 x 7 mm and 20 mm deep. Both ends the same, because
+; 1394 is a bus of peers -- either end goes in either console, or in a hub.
+
+; The overmould, running BACK from the mating face -- the plug's ORIGIN, which is
+; the convention every port in the room places against.
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.01, 0.007, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_shell"]
+albedo_color = Color(0.1, 0.1, 0.11, 1)
+roughness = 0.6
+
+; The nose, forward of the mating face. Separate from PlugTip, because RcaPlug
+; derives the cord's exit from PlugTip's AABB alone.
+[sub_resource type="BoxMesh" id="BoxMesh_nose"]
+size = Vector3(0.0054, 0.0026, 0.006)
+
+; Lightly metallic, not fully -- see saturn_link_cable.tscn.
+[sub_resource type="StandardMaterial3D" id="Mat_nose"]
+albedo_color = Color(0.72, 0.71, 0.69, 1)
+metallic = 0.25
+metallic_specular = 0.75
+roughness = 0.4
+
+; Overmould and nose together, 26 mm end to end, centred 7 mm behind the face.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.01, 0.007, 0.026)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+; Laser target, larger than the physics box so a beam from across the room finds
+; a plug on the back of a console. Only the pointer answers it (mask 0).
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.04, 0.04, 0.06)
+
+; A 1.8 m i.LINK cable: one cord, the same plug at each end. Long enough to reach
+; a hub on the floor between two consoles on a table.
+[node name="ILinkCable" type="Node3D"]
+script = ExtResource("1_cablescript")
+
+; -- End A --------------------------------------------------------------------
+; Turned about Y so the cord trails toward the far end -- see saturn_link_cable.
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.7)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.02
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+shape = SubResource("BoxShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("Mat_shell")
+
+[node name="PlugNose" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.003)
+mesh = SubResource("BoxMesh_nose")
+surface_material_override/0 = SubResource("Mat_nose")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; -- End B --------------------------------------------------------------------
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.7)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.02
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+shape = SubResource("BoxShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("Mat_shell")
+
+[node name="PlugNose" type="MeshInstance3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.003)
+mesh = SubResource("BoxMesh_nose")
+surface_material_override/0 = SubResource("Mat_nose")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.007)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; 60 x 30 mm = 1.80 m against 1.40 m between the plugs, so it hangs. The Saturn
+; lead's solver tuning with a slightly thinner tube: a 4-pin 1394 cord is about
+; 4 mm across.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 60
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.15
+tube_radius = 0.002
+tube_sides = 8
+smoothing = 2
+rope_color = Color(0.09, 0.09, 0.1, 1.0)
+surface_collision_mask = 7
+collision_radius = 0.0035
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.3
+end_stiff_segments = 2

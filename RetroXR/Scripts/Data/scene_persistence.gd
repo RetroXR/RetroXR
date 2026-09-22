@@ -187,6 +187,8 @@ const GC_GBA_CABLE_SCENE     := preload("res://Scenes/Objects/cables/gc_gba_cabl
 const PSX_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/psx_link_cable.tscn")
 const SATURN_LINK_CABLE_SCENE := preload("res://Scenes/Objects/cables/saturn_link_cable.tscn")
 const JAG_LINK_CABLE_SCENE  := preload("res://Scenes/Objects/cables/jag_link_cable.tscn")
+const ILINK_CABLE_SCENE      := preload("res://Scenes/Objects/cables/ilink_cable.tscn")
+const ILINK_HUB_SCENE        := preload("res://Scenes/Objects/cables/ilink_hub.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
@@ -259,6 +261,7 @@ const LEAD_SCENES := {
 	"psx_link_cable": PSX_LINK_CABLE_SCENE,
 	"saturn_link_cable": SATURN_LINK_CABLE_SCENE,
 	"jag_link_cable": JAG_LINK_CABLE_SCENE,
+	"ilink_cable": ILINK_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
 	"antenna": ANTENNA_SCENE,
 	"power_cord": POWER_CORD_SCENE,
@@ -281,6 +284,9 @@ const PLAIN_SCENES := {
 	"speaker_stand_100": SPEAKER_STAND_100,
 	"trash_can": STORAGE_BOX_SCENE,
 	"table": TABLE_SCENE,
+	# Pose only: the hub has no state of its own. Which lead is in which of its
+	# sockets is recorded by each LEAD, naming this hub and "PortN".
+	"ilink_hub": ILINK_HUB_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
 	# Slots written before the rename say "ray_gun".
 	"ray_gun": LIGHT_GUN_SCENE,
@@ -1888,6 +1894,9 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		return _base(id, "tv_remote", n3d)
 	elif node is StorageBox:
 		return _base(id, "trash_can", n3d)
+	elif node is ILinkHub:
+		# Pose only, and needs this branch for the table's reason below.
+		return _base(id, "ilink_hub", n3d)
 	elif node is Table:
 		# Pose only. Being in PLAIN_SCENES is not enough on its own — that map is
 		# read when LOADING, so without this branch a table is never written and

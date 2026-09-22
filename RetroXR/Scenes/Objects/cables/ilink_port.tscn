@@ -1,0 +1,105 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/ilink_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
+
+; PLACEHOLDER GEOMETRY, matching saturn_link_port.tscn: boxes rather than a model,
+; because the repo ships only assets it has the right to. The dimensions are
+; real, because everything keys off the scale.
+;
+; The S400 i.LINK socket is the 4-pin IEEE 1394 receptacle: a small rectangular
+; mouth about 6 x 3.5 mm with a dimpled shell, much smaller than a PlayStation's
+; serial socket. The chain is nose < recess, each half a millimetre proud of the
+; last all round:
+;   recess 6.4 x 3.6   nose 5.4 x 2.6   plug overmould 10.0 x 7.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_jack"]
+size = Vector3(0.0064, 0.0036, 0.007)
+
+; Unshaded near-black, for saturn_link_port's reason: a shaded one renders at
+; whatever the flat ambient gives it and reads as a raised block, not a hole.
+[sub_resource type="StandardMaterial3D" id="Mat_jack"]
+albedo_color = Color(0.012, 0.012, 0.015, 1)
+shading_mode = 0
+
+; The silk-screened plate around the mouth, drawn as four strips so the mouth
+; stays open -- see saturn_link_port.tscn.
+[sub_resource type="QuadMesh" id="Quad_top"]
+size = Vector2(0.02, 0.002)
+
+[sub_resource type="QuadMesh" id="Quad_bottom"]
+size = Vector2(0.02, 0.0075)
+
+[sub_resource type="QuadMesh" id="Quad_side"]
+size = Vector2(0.0068, 0.0036)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plate"]
+albedo_color = Color(0.055, 0.055, 0.065, 1)
+shading_mode = 0
+
+; The plug's own overmould, so the ghost reads as "an i.LINK lead goes here".
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.01, 0.007, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; The zone sits where a seated plug's ORIGIN belongs -- its mating face, a
+; millimetre proud of the panel -- exactly as saturn_link_port does.
+[node name="ILinkPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.06
+script = ExtResource("2_portscript")
+
+; Named PsxLinkJack so PsxLinkPort.show_recess finds it.
+[node name="PsxLinkJack" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
+mesh = SubResource("BoxMesh_jack")
+surface_material_override/0 = SubResource("Mat_jack")
+
+; Turned 180 about Z for saturn_link_port's reason: the port is turned 180 about
+; X on a console's back panel, which reverses lettering inherited straight off it.
+[node name="Legend" type="Node3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, -1, 0, 0, 0, 1, 0, 0, -0.0005)
+
+[node name="PlateTop" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0028, 0)
+mesh = SubResource("Quad_top")
+surface_material_override/0 = SubResource("Mat_plate")
+
+[node name="PlateBottom" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.00555, 0)
+mesh = SubResource("Quad_bottom")
+surface_material_override/0 = SubResource("Mat_plate")
+
+[node name="PlateLeft" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0066, 0, 0)
+mesh = SubResource("Quad_side")
+surface_material_override/0 = SubResource("Mat_plate")
+
+[node name="PlateRight" type="MeshInstance3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0066, 0, 0)
+mesh = SubResource("Quad_side")
+surface_material_override/0 = SubResource("Mat_plate")
+
+; Rastered at 48 and scaled down through pixel_size -- AvLegend's recipe.
+; 0.0022 / 48 = 4.5833e-05.
+[node name="Label" type="Label3D" parent="Legend"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0052, 0.0004)
+pixel_size = 4.5833e-05
+billboard = 0
+modulate = Color(0.9, 0.9, 0.87, 1)
+text = "S400 i.LINK"
+font_size = 48
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("3_snaphigh")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

@@ -241,6 +241,13 @@ const _SATURN_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cab
 	"spawn": "saturn_link_cable"}
 const _JAG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "JagLink Cable",
 	"spawn": "jag_link_cable"}
+## The PlayStation 2's i.LINK is a bus rather than a pair, so its lead comes with
+## the hub that puts up to six consoles on one wire (ILinkBus). The hub is not a
+## lead and is not in _LINK_LEADS; it is offered beside the lead in items_for.
+const _ILINK_CABLE: Dictionary = {"kind": "peripheral", "label": "i.LINK Cable",
+	"spawn": "ilink_cable"}
+const _ILINK_HUB: Dictionary = {"kind": "peripheral", "label": "i.LINK Hub",
+	"spawn": "ilink_hub"}
 
 ## ComLynx chains: every cable has a pass-through socket on its plug, so a third
 ## Lynx (up to eight) joins where the last one plugs in. That is the GBA lead's
@@ -272,6 +279,7 @@ const _LINK_LEADS: Dictionary = {
 	"gamegear": _GG_LINK_CABLE,
 	"saturn": _SATURN_LINK_CABLE,
 	"atarijaguar": _JAG_LINK_CABLE,
+	"ps2": _ILINK_CABLE,
 	"atarilynx": _COMLYNX_CABLE,
 	"ngp": _NGP_LINK_CABLE,
 }
@@ -420,6 +428,8 @@ static func items_for(systemid: String) -> Array:
 		items.append(_LIGHT_GUN.duplicate())
 	if _LINK_LEADS.has(systemid):
 		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
+	if systemid == "ps2":
+		items.append(_ILINK_HUB.duplicate())
 	if _GC_GBA_PLATFORMS.has(systemid):
 		items.append(_GC_GBA_CABLE.duplicate())
 	var info := SystemInfo.for_system(systemid)
