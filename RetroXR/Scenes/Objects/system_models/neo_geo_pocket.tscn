@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/neo_geo_pocket_model.gd" id="1_xgyca"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_u51h8"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="3_linkport"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_ugpba"]
 size = Vector3(0.1295, 0.0245, 0.0745)
@@ -168,3 +169,10 @@ gizmo_extents = 0.04
 [node name="SeatPreview" type="MeshInstance3D" parent="CartSeat"]
 mesh = SubResource("BoxMesh_ngpseat")
 surface_material_override/0 = SubResource("StandardMaterial3D_ngpseat")
+
+; The EXT connector on the top edge, left of the cartridge slot, where the SNK
+; link cable plugs in. +Z points OUT of the shell (every port in the room follows
+; that), so it is turned half a turn about Y to look along -Z; 1 mm proud of the
+; back face at z = -0.03725.
+[node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.045, 0, -0.03825)

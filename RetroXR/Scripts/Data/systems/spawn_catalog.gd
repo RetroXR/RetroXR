@@ -240,6 +240,10 @@ const _SATURN_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cab
 ## shape -- two ends and a junction -- under Atari's name for it.
 const _COMLYNX_CABLE: Dictionary = {"kind": "peripheral", "label": "ComLynx Cable",
 	"spawn": "link_cable"}
+## The SNK link cable joins two Neo Geo Pockets (either model, one core, one
+## wire) and no more, so it is the same two-ended lead.
+const _NGP_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+	"spawn": "gb_link_cable"}
 
 ## The console-to-handheld lead, offered on BOTH platforms it joins. A player
 ## spawning a GameCube for Four Swords Adventures should be offered one without
@@ -260,6 +264,7 @@ const _LINK_LEADS: Dictionary = {
 	"wonderswan": _WS_LINK_CABLE,
 	"saturn": _SATURN_LINK_CABLE,
 	"atarilynx": _COMLYNX_CABLE,
+	"ngp": _NGP_LINK_CABLE,
 }
 
 

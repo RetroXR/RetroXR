@@ -188,6 +188,24 @@ const SOURCES := {
 			"Android": "mednafen_lynx_libretro_android.so.zip",
 		},
 	},
+	# mednafen_ngp, for the SNK link cable.
+	#
+	# NeoPop stubbed its comms hooks, so a Neo Geo Pocket never saw the other end
+	# of a cable. Our build puts SIO0 on the frontend's link bus as `ngp-sio-1`
+	# at the 6.144 MHz CPU clock, bytes paced at 19200 baud, the /RTS-/CTS pair
+	# carried as its own message, and NeoPop's swapped INTRX0/INTTX0 put right
+	# (KOF R-1/R-2 and SNK vs. Capcom run their own serial handlers and never
+	# linked without it). Uncabled it runs as the stock core does.
+	# docs/dev/ngp-link.md.
+	"mednafen_ngp": {
+		"repo":  "RetroXR/beetle-ngp-libretro",
+		"known_tag": "retroxr-mednafen_ngp-libretro-v1",
+		"label": "Beetle NeoPop (retroXR build)",
+		"assets": {
+			"Windows": "mednafen_ngp_libretro.dll.zip",
+			"Android": "mednafen_ngp_libretro_android.so.zip",
+		},
+	},
 	# pcsx_rearmed, for the PlayStation's serial port.
 	#
 	# SIO1 — the port at 1F801050h that the official Link Cable plugs into — had
