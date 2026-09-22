@@ -230,7 +230,7 @@ func _dispatch(c: Dictionary, method: String, path: String,
 	elif method == "DELETE" and path == "/api/delete":
 		_handle_delete(peer, query.get("path", ""))
 	elif method == "GET" and path == "/api/log":
-		_handle_log(peer, query.get("download", "") == "1")
+		_handle_log(peer, query.get("download", "") == "1", int(query.get("from", "0")))
 	else:
 		_send_text(peer, 404, "text/plain", "Not Found")
 
@@ -473,18 +473,30 @@ func _handle_delete(peer: StreamPeerTCP, rel: String) -> void:
 ## The engine's own log file (user://logs/godot.log unless the project moves it),
 ## either shown in the page or sent as an attachment. File logging is off by
 ## default on mobile, so project.godot switches it on for every platform.
-func _handle_log(peer: StreamPeerTCP, download: bool) -> void:
+## `from` is a byte offset the page already has: only what follows it is sent,
+## with X-Log-Size giving the next offset. A `from` past the end means the file
+## was replaced (a new run), so X-Log-Reset tells the page to start over.
+func _handle_log(peer: StreamPeerTCP, download: bool, from: int = 0) -> void:
 	var log_path := ProjectSettings.globalize_path(
 			ProjectSettings.get_setting("debug/file_logging/log_path", "user://logs/godot.log"))
 	var f := FileAccess.open(log_path, FileAccess.READ)
 	if not f:
 		_send_text(peer, 404, "text/plain", "No log file at " + log_path)
 		return
-	var data := f.get_buffer(f.get_length())
-	f.close()
+	var size := f.get_length()
 	if not download:
-		_send_text(peer, 200, "text/plain", data.get_string_from_utf8())
+		var reset := from > size
+		var start := 0 if reset else maxi(from, 0)
+		f.seek(start)
+		var tail := f.get_buffer(size - start)
+		f.close()
+		var hdr_tail := "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\nX-Log-Size: %d\r\nX-Log-Reset: %d\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" \
+				% [tail.size(), size, 1 if reset else 0]
+		peer.put_data(hdr_tail.to_utf8_buffer())
+		peer.put_data(tail)
 		return
+	var data := f.get_buffer(size)
+	f.close()
 	var filename := "retroxr-%s.log" % Time.get_datetime_string_from_system().replace(":", "-")
 	var hdr := "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Disposition: attachment; filename=\"%s\"\r\nContent-Length: %d\r\nConnection: close\r\n\r\n" \
 			   % [filename, data.size()]
@@ -778,17 +790,33 @@ dz.addEventListener('drop',function(e){
   for(var k=0;k<files.length;k++)out.push({file:files[k],path:files[k].webkitRelativePath||files[k].name});
   uploadItems(out);
 });
-// Game log: Show toggles a panel with the current log (re-fetched on every open,
-// scrolled to the newest line); Save downloads it as a file.
+// Game log: Show toggles a panel that follows the log live — every second it
+// asks for the bytes past what it has and appends them, staying pinned to the
+// bottom unless the reader has scrolled up. Save downloads the whole file.
 var lg=document.getElementById('lg'),lgs=document.getElementById('lg_show');
-lgs.addEventListener('click',function(){
-  if(lg.style.display!='none'){lg.style.display='none';lgs.textContent='Show game log';return;}
-  lg.style.display='block';lgs.textContent='Hide game log';lg.textContent='Loading…';
-  fetch('/api/log').then(function(r){
+var lgOff=0,lgTimer=null,lgBusy=false;
+function lgPoll(){
+  if(lgBusy)return;lgBusy=true;
+  fetch('/api/log?from='+lgOff).then(function(r){
 	if(r.status==401){location.reload();return null;}
-	return r.text();
-  }).then(function(t){if(t!==null){lg.textContent=t||'(log is empty)';lg.scrollTop=lg.scrollHeight;}})
-	.catch(function(){lg.textContent='Connection error.';});
+	var sz=parseInt(r.headers.get('X-Log-Size')||'0',10),reset=r.headers.get('X-Log-Reset')=='1';
+	return r.text().then(function(t){return {t:t,sz:sz,reset:reset};});
+  }).then(function(d){
+	lgBusy=false;if(!d)return;
+	var atEnd=lg.scrollTop+lg.clientHeight>=lg.scrollHeight-20;
+	if(d.reset||lgOff==0)lg.textContent='';
+	if(d.t)lg.textContent+=d.t;
+	if(!lg.textContent)lg.textContent='(log is empty)';
+	lgOff=d.sz;
+	if(atEnd)lg.scrollTop=lg.scrollHeight;
+  }).catch(function(){lgBusy=false;});
+}
+lgs.addEventListener('click',function(){
+  if(lg.style.display!='none'){
+	lg.style.display='none';lgs.textContent='Show game log';clearInterval(lgTimer);lgTimer=null;return;
+  }
+  lg.style.display='block';lgs.textContent='Hide game log';lg.textContent='Loading…';
+  lgOff=0;lgPoll();lgTimer=setInterval(lgPoll,1000);
 });
 document.getElementById('lg_save').addEventListener('click',function(){window.location='/api/log?download=1';});
 go('',false);
