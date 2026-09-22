@@ -47,7 +47,7 @@ path is covered by the `_fast` ROMs instead.
 
 ### The Game Gear's Gear-to-Gear cable
 
-genesis_plus_gx carries it (RetroXR fork, `libretro/gg_link.c`) on wire
+genesis_plus_gx carries it (RetroXR fork, `libretro/gg_link.c`, branch `retroxr` at `b41f14e`) on wire
 `gg-ext-1`, through the link API exactly as libretro/RetroArch#19454 adds it to
 `libretro.h` -- no private header. Both halves of the EXT port cross:
 
