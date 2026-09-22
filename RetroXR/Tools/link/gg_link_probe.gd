@@ -19,10 +19,12 @@
 ## person to read: there is no oracle for a commercial menu.
 extends Node
 
-const CORE := "genesis_plus_gx"
+var CORE := "genesis_plus_gx"
 
 var _pass := 0
 var _fail := 0
+## --tag=NAME prefixes every saved file, so several probes can run at once.
+var _tag := ""
 
 
 func _ready() -> void:
@@ -66,6 +68,10 @@ func _run() -> void:
 			rom = arg.substr(6)
 		elif arg.begins_with("--rom2="):
 			rom2 = arg.substr(7)
+		elif arg.begins_with("--core="):
+			CORE = arg.substr(7)
+		elif arg.begins_with("--tag="):
+			_tag = arg.substr(6) + "_"
 		elif arg.begins_with("--seconds="):
 			seconds = float(arg.substr(10))
 
@@ -94,16 +100,17 @@ func _run() -> void:
 	add_child(b)
 	a.StartContent(root, CORE, master_rom)
 	b.StartContent(root, CORE, slave_rom)
-	await _until(a, b, "blue")
+	await _frames(240)
 
-	# Control leg: attached but cabled to nothing. A machine with its UART on and
-	# nobody at the far end takes the "not there" NMI every frame -- which is the
-	# driver talking; a core without one would sit on black.
+	# Control leg: attached but cabled to nothing. With no lead in, the receive
+	# line idles and no NMI ever fires, so both stay black -- as on the stock core.
+	# (The ROMs paint blue for the framing error a lead into a switched-OFF Game
+	# Gear gives; the bus cannot tell that apart from no lead, so it never shows.)
 	var ca := _shade(a.GetVideoImage())
 	var cb := _shade(b.GetVideoImage())
 	print("[gg-link] uncabled: master %s, slave %s" % [_name(ca), _name(cb)])
-	_ok("uncabled master is told nobody is there", _name(ca) == "blue", _name(ca))
-	_ok("uncabled slave is told nobody is there", _name(cb) == "blue", _name(cb))
+	_ok("uncabled master hears nothing", _name(ca) == "black", _name(ca))
+	_ok("uncabled slave hears nothing", _name(cb) == "black", _name(cb))
 
 	_ok("cabling them together succeeds", a.LinkConnect(b, 0, 0))
 	await _frames(2)
@@ -119,12 +126,15 @@ func _run() -> void:
 	_ok("the slave received the master's byte", _name(lb) == "green", _name(lb))
 	_ok("the master received the slave's answer", _name(la) == "green", _name(la))
 
-	# Pull the lead: both are told the far end has gone.
+	# Pull the lead: nothing more crosses, however long the master keeps sending.
 	a.LinkDisconnect(0)
-	await _until(a, b, "blue")
-	_ok("pulling the lead is felt on the master", _name(_shade(a.GetVideoImage())) == "blue",
-			_name(_shade(a.GetVideoImage())))
-	_ok("and on the slave", _name(_shade(b.GetVideoImage())) == "blue", _name(_shade(b.GetVideoImage())))
+	await _frames(30)
+	var sent_out := a.LinkSent(0)
+	var until := Time.get_ticks_msec() + 3000
+	while Time.get_ticks_msec() < until:
+		await _frames(10)
+	_ok("pulling the lead stops the traffic", a.LinkSent(0) == sent_out,
+			"%d more sent" % (a.LinkSent(0) - sent_out))
 
 	# And back: the master's send buffer was emptied when the cable moved, so it
 	# starts sending again of its own accord.
@@ -178,11 +188,27 @@ func _game(root: String, rom: String, rom2: String, seconds: float) -> void:
 	var b := Libretro.new()
 	add_child(a)
 	add_child(b)
+	# --delay2=SECONDS switches the second machine on that much later, the way
+	# two people never power up on the same frame. Games that settle which end
+	# leads by racing each other need it; two identical boots stay symmetric.
+	var delay2 := 0.0
+	for arg in OS.get_cmdline_user_args():
+		if arg.begins_with("--delay2="):
+			delay2 = float(arg.substr(9))
 	a.StartContent(root, CORE, rom)
-	b.StartContent(root, CORE, rom2)
+	if delay2 <= 0.0:
+		b.StartContent(root, CORE, rom2)
 	await _frames(120)
 	if not "--nolink" in OS.get_cmdline_user_args():
 		a.LinkConnect(b, 0, 0)
+	if delay2 > 0.0:
+		var until := Time.get_ticks_msec() + int(delay2 * 1000.0)
+		while Time.get_ticks_msec() < until:
+			await _frames(1)
+		b.StartContent(root, CORE, rom2)
+		if not "--nolink" in OS.get_cmdline_user_args():
+			await _frames(30)
+			a.LinkConnect(b, 0, 0)
 	var start := Time.get_ticks_msec()
 	var next_shot := 0.0
 	var shot := 0
@@ -253,6 +279,6 @@ func _save(img: Image, name: String) -> void:
 		return
 	var dir := ProjectSettings.globalize_path("res://probe_out")
 	DirAccess.make_dir_recursive_absolute(dir)
-	img.save_png("%s/gg_link_%s.png" % [dir, name])
+	img.save_png("%s/gg_link_%s%s.png" % [dir, _tag, name])
 	if not name.begins_with("game_") or name in ["game_a", "game_b"]:
 		print("[gg-link] wrote res://probe_out/gg_link_%s.png" % name)

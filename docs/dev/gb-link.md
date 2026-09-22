@@ -47,25 +47,62 @@ path is covered by the `_fast` ROMs instead.
 
 ### The Game Gear's Gear-to-Gear cable
 
-genesis_plus_gx carries it (RetroXR fork, `libretro/gg_link.c`, core commit
-`3d726c2`) on wire `gg-ext-1`, through the link API exactly as
-libretro/RetroArch#19454 adds it to `libretro.h` -- no private header. The UART
-is what games use: `$03` lands in the peer's `$04` with RX-full and an NMI, and
-reading it empties the sender's TX-full. With nothing cabled, bit 2 of `$05` and
-an NMI every frame, which is how Columns greys out VERSUS. Parallel pins are
-carried too (crossed 0<->2, 1<->3, 4<->5, 6<->6); nobody has tested a game on them.
+genesis_plus_gx carries it (RetroXR fork, `libretro/gg_link.c`) on wire
+`gg-ext-1`, through the link API exactly as libretro/RetroArch#19454 adds it to
+`libretro.h` -- no private header. Both halves of the EXT port cross:
+
+- **UART** (`$03`-`$05`), what most games use. A byte lands in the peer's `$04`
+  with RX-full and an NMI **ten bit times** after it was written, at the rate
+  `$05` bits 6-7 pick; reading it acks and empties the sender's TX-full. The byte
+  time is load-bearing: Faceball answers every byte from its NMI, and at the old
+  one-horizon delivery the rally ran 8x fast and starved the first machine.
+- **Parallel pins** (`$01`/`$02`), crossed 0<->2, 1<->3, 4<->5, 6<->6.
+  Mortal Kombat 1/II and Pete Sampras bit-bang them. While a machine drives any
+  pin the rendezvous is every LINE (the floor: the core only syncs between lines,
+  and a horizon under the grain deadlocks); otherwise every four. **Bit 7 of `$01`
+  reads 1 while cabled** -- Sampras waits for exactly `CF`/`F0`, and the stock
+  latch left it 0, so the two could never match.
+- **No cable = no framing error.** `$05` bit 2 is a lead into a switched-OFF Game
+  Gear; with no lead the line idles. Raising it with nothing cabled (BizHawk's
+  reading) hung Streets of Rage at boot. The bus cannot tell the two apart.
+
+**Three games race for the lead at boot and deadlock if both machines start on
+the same frame** -- Faceball 2000, Mortal Kombat, Mortal Kombat II -- as real
+hardware would. Probe them with `--delay2=2` (power the second machine on later).
+In a room nobody powers two Game Gears on in the same instant.
 
 ```bash
 python Tools/gen_gglink_rom.py
-"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn
-"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn -- "--rom=Z:/roms/gamegear/Columns (USA, Europe).gg" --seconds=30 "--press=DOWN@11.5,START@12.5,START@16,START@18" "--press2=DOWN@11.5,START@14,START@21,START@23"
+"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn          # 10 cases
+"$godot" --headless --path RetroXR res://Tools/link/gg_link_probe.tscn -- "--rom=Z:/roms/gamegear/Columns (USA, Europe).gg" --tag=col --seconds=30 "--press=DOWN@11.5,START@12.5,START@16,START@18" "--press2=DOWN@11.5,START@14,START@21,START@23"
+python Tools/gglink_sheet.py col     # contact sheet, top row machine A
 ```
 
-**Wait on the screen, never on a frame count.** Headless, the probe spins frames
-far faster than the core emulates, so 240 frames was ~23 emulated ones and the
-master had not sent its first byte yet -- a "failure" that was only impatience.
+`--press`/`--press2` tap buttons at wall-clock seconds (GG button 1 = `B`, 2 = `A`;
+Sonic Drift confirms only with `A`), `--nolink` is the control leg, `--core=`
+loads another build (e.g. the stock one) beside the installed core. **Wait on the
+screen, never on a frame count**: headless spins frames faster than the core
+emulates. **Stagger the two machines' confirms**: most games make whoever picks
+the link mode first the host and show WAIT on the other.
 
-**Stagger the two machines' presses** (`--press2`), as with Tetris: Columns makes
-whoever picks VERSUS first the host (SELECT GAME) and the other shows WAIT; both
-then reach READY. Measured 2026-09-21. There is no Game Gear MODEL in the room
-yet (it spawns the placeholder box, no socket), so no player can seat a lead.
+Measured 2026-09-21, every game on the list, each against a `--nolink` control:
+
+| Game | Result |
+|---|---|
+| Columns, Super Columns | VERSUS -> both play (Super Columns: B must confirm first) |
+| Puyo Puyo, Puyo Puyo 2 (Tsuu) | versus field on both |
+| Bust-A-Move | 1P VS 2P -> handicap -> versus field |
+| Dr. Robotnik's Mean Bean Machine | GEAR TO GEAR MODE -> matched wells |
+| Sonic Drift, Sonic Drift 2 | VERSUS -> same race, same course |
+| Streets of Rage, Streets of Rage 2 | 2 PLAYERS -> stage 1 together |
+| Fatal Fury Special | LINK GAME -> player select -> same map select (no fight filmed) |
+| Crystal Warriors | VERSUS -> round select / WAIT -> member select (no battle filmed) |
+| World Series Baseball '95 | VS MODE -> PL1/PL2 -> line-up -> PLAY BALL on both |
+| Faceball 2000 | `--delay2`; host picks 2 Players, the other follows into the maze |
+| Mortal Kombat, Mortal Kombat II | `--delay2`; Kontestant 1/2 -> same fight frame, same timer |
+| Pete Sampras Tennis (Europe) | LINKED on the title; the other machine mirrors every menu to the venue |
+| Mortal Kombat 3 (Europe) | never touches the EXT port -- no link code in this dump |
+| World Series Baseball (USA) | no VS mode -- the '95 edition is the linked one |
+
+There is no Game Gear MODEL in the room yet (it spawns the placeholder box, no
+socket), so no player can seat a lead.
