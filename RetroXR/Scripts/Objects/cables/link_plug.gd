@@ -14,8 +14,11 @@
 class_name LinkPlug
 extends RcaPlug
 
-## Every handheld lead's plug joins this group as well as its own, for the sweeps
-## that want "any link lead in the room" (RetroSystem._link_cables, focus mode).
+## Every link lead's plug joins this group as well as its own, for the sweeps
+## that want "any link lead in the room" (RetroSystem._link_cables, focus mode):
+## the handheld leads here, and the console leads that are their own classes
+## (PsxLinkPlug, SaturnLinkPlug, JagLinkPlug). One left out is a lead netplay
+## never finds, so its far machine is not in the session and never starts.
 ## No socket filters on it -- a socket's snap_require is always a family.
 const ANY_GROUP := "any_link_plug"
 

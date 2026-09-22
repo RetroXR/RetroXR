@@ -238,6 +238,35 @@ const CORES: Dictionary = {
 			"pcsx_rearmed_netplay_deterministic": "enabled",
 		},
 	},
+	# The Saturn on RetroXR's fork (beetle-saturn-libretro, retroxr branch), past
+	# v2: a state load is exact (the SCI's clocks), `netplay_deterministic`
+	# boots a fixed clock and factory settings instead of the host's or the
+	# player's .smpc, and `link_frame_edges` gives every frame one span on the
+	# Link Cable so a cabled pair rolls back as a group. Measured with
+	# netplay_spike and Tools/netplay/saturn_rollback_probe
+	# (docs/dev/saturn-link.md). Android defaults to YabaSanshiro, which has no
+	# row, so a Quest never hosts this. The cartridge and save options are not
+	# pinned: SaturnStorage forces them from the machine (a seated backup cart).
+	"mednafen_saturn": {
+		"verified": true,
+		"state_transfer": true,
+		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
+		"cross_play": false,
+		"rollback_needs_pins": true,
+		"link_rollback": true,
+		"systems": ["saturn"],
+		"options": {
+			"beetle_saturn_netplay_deterministic": "enabled",
+			"beetle_saturn_link_cable": "enabled",
+			"beetle_saturn_link_frame_edges": "enabled",
+			"beetle_saturn_autortc": "disabled",
+			"beetle_saturn_sh2_interleave": "exact",
+			"beetle_saturn_sh2_jit": "disabled",
+			"beetle_saturn_midsync": "enabled",
+			"beetle_saturn_mpeg_card": "disabled",
+			"beetle_saturn_opposite_directions": "disabled",
+		},
+	},
 }
 
 

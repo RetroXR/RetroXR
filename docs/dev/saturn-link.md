@@ -130,3 +130,78 @@ Two linked Saturns run at about 0.87× realtime headless on the dev desktop.
 
 Owed: a race or battle driven to its end; Doom, Gebockers, Hyper Reverthion;
 the headset.
+
+## Netplay: rollback, and a cabled pair rolled back together (2026-09-22)
+
+`NetplayCores["mednafen_saturn"]` is ROLLBACK + LOCKSTEP with `link_rollback`
+and `rollback_needs_pins`. It needs the fork past v2 (`d7ed3e9`, `ee78092`,
+`183d53b`); an installed build that does not declare the pinned options gets
+lockstep. Pinned: `netplay_deterministic`, `link_cable`, `link_frame_edges` on;
+`autortc`, `sh2_jit`, `mpeg_card`, `opposite_directions` off; `sh2_interleave`
+exact; `midsync` on. NOT pinned: `cart`, `shared_ext`, `save_method` --
+`SaturnStorage` forces those from the machine (a seated backup cartridge), after
+the pins, so a pin there would only fight it.
+
+What the core needed, each found by a measurement:
+
+- **A load was not an identity** (`netplay_spike --spike-selfload
+  --spike-crc-state --spike-crc-interval=1`, then the two states at 602 diffed by
+  named variable -- a Mednafen state is 32-byte section names, then
+  `len,name,u32 size,data` entries, ten lines of Python). Only the fork's own SCI
+  differed: an idle `tx_end` sank a frame's cycles every frame until it wrapped,
+  and a load clamped it; `poll_ts` was not saved at all, so a load moved
+  `FRT_WDT_NextTS`. Everything upstream Mednafen saves was exact.
+- **Cold boots differ between players** even with `autortc` off: the SMPC clock
+  and its four settings bytes come from the player's own `.smpc`.
+  `beetle_saturn_netplay_deterministic` (restart-time) boots a fixed, VALID clock
+  (Thu 1 Jan 1998 00:00, built by hand, not `localtime`) and factory settings
+  with the configured language. Invalid would stop at the BIOS clock screen.
+- **Frame edges** (`beetle_saturn_link_frame_edges`). Group rollback stops both
+  consoles at every frame edge and needs frame N to end on one bus tick. A
+  Saturn frame does not: interlaced fields are a line short, PAL is longer, and
+  the SH-2 overshoots by a block. Rather than cut `retro_run` to fixed windows
+  (the Lynx way, and VDP2's frame is wired through `Emulate`), the LINK CLOCK
+  gives every frame the same span, `MasterClock/40` ticks: 1:1 through the frame,
+  then a jump to the next edge. Timing between the consoles is exact inside a
+  frame; only the gap has no length. The port meets the peer at both edges,
+  never asks past the edge, never lands a byte past the last grant, and loops
+  on an early wake instead of acting on it. The savestate's optional `LINK`
+  section carries the clock and the driver (queue, horizon, holds, grant),
+  restored verbatim only in this mode. **Outside a frame the port does not
+  meet the bus**: the attach kick inside `retro_load_game` used to wait for the
+  other console, which a session has not started yet (it waits for every core
+  to load) -- the second Saturn never finished loading.
+
+**The room had a hole too:** `RetroSystem._link_cables` finds a machine's bus by
+sweeping `LinkPlug.ANY_GROUP`, and the PlayStation, Saturn and Jaguar plugs are
+`RcaPlug`s of their own that never joined it. A session on a cabled Saturn (or
+PlayStation) therefore never saw the far machine: it was not in the group, its
+core never started, and the session wedged at frame 0. They join it now.
+
+Evidence, windows x86_64:
+
+- `netplay_spike`, Virtua Fighter 2 (USA), whole savestate hashed: self-load
+  equals the plain run at all 1200 frames (was: parted at 602); rollback lag 3 and
+  6 (310 rewinds) equals lockstep at 300/300; the v2 build under the same
+  rollback parts at 190. Deterministic boot: host clock vs none equal 20/20; with
+  the option off they differ from frame 60.
+- `Tools/netplay/saturn_rollback_probe` (`--leg=rb|ref|solo|compare`, one per
+  process, `--root=` for a fork build, `--option=k=v` for a mutant): Steeldom,
+  both consoles in LINK MODE, rb == ref at 150/150 over 40 group rewinds,
+  ~28000 messages each way; solo diverges at 70. **With `link_frame_edges` off
+  the group WEDGES** at 2317, the first mispredicted press.
+- `Tools/netplay/saturn_session_probe` (`--mode=rollback|lockstep`): two
+  NetworkManagers over loopback ENet, two cabled `system.tscn` Saturns each (a
+  TV stand-in in channel 0: a console refuses a netplay start with no display).
+  Rollback: 72 group rewinds, no desync, both peers' CRCs of both machines equal
+  at 150/150. Lockstep: the same, 150/150. It loads from the PLAYER'S core root:
+  swap the fork build in and put the original back. Give it a LOCAL disc
+  (`--rom=`): `Z:` is a network share, and two cores opening a 337 MB CHD over it
+  miss the session's 10 s readiness deadline.
+
+**Open:** a process holding two Saturn cores segfaults at EXIT about half the
+time, after both cores have torn down -- lockstep or rollback, the v2 build too,
+and never under gdb. Not the netplay work; not investigated. Owed: two real
+machines over a real network, the published release (`CoreSources` still names
+v1), Linux/macOS builds of the new options, and the games with a battle to the
+end (GunGriffon II, Daytona CE).

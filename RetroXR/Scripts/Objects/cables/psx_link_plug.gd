@@ -20,6 +20,12 @@ class_name PsxLinkPlug
 extends RcaPlug
 
 
+func _ready() -> void:
+	super._ready()
+	# The sweeps that find a machine's bus (netplay, focus mode) look here.
+	add_to_group(LinkPlug.ANY_GROUP)
+
+
 func plug_group() -> String:
 	return "psx_link_plug"
 

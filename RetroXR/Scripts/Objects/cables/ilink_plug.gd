@@ -5,8 +5,8 @@
 ## i.LINK hub's, and nothing else. Both ends are the same group: 1394 is a bus of
 ## peers, so either end goes in either console, or in a hub.
 ##
-## Also in LinkPlug.ANY_GROUP, which a PlayStation lead's plug is not. That group
-## is what RetroSystem._link_cables() sweeps to find the leads a machine's netplay
+## Also in LinkPlug.ANY_GROUP, like every console lead's plug. That group is
+## what RetroSystem._link_cables() sweeps to find the leads a machine's netplay
 ## group has to follow, and an i.LINK bus can be six consoles wide through a hub:
 ## a lead the sweep cannot see would leave five of them out of the session.
 class_name ILinkPlug

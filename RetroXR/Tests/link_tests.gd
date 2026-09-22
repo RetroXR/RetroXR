@@ -69,6 +69,7 @@ func _ready() -> void:
 	await _test_ilink_hub_scene()
 	await _test_ilink_bus_through_a_hub()
 	await _test_ilink_hubs_chain_and_pairs_still_pair()
+	await _test_console_leads_join_the_sweep()
 	_test_every_lead_fits_only_its_own_machines()
 	await _test_every_lead_states_its_bus()
 	_test_no_reset_path()
@@ -1666,6 +1667,24 @@ func _test_saturn_cable_joins_a_pair() -> void:
 	m1.queue_free()
 	m2.queue_free()
 	await get_tree().process_frame
+
+
+## The console leads' plugs are RcaPlugs of their own, not LinkPlugs, and the
+## sweep that finds a machine's bus (RetroSystem._link_cables, and focus mode)
+## looks only in LinkPlug.ANY_GROUP. Left out of it, a netplay session never
+## saw a cabled Saturn's far end: not in the group, its core never started, and
+## the session wedged at frame 0.
+func _test_console_leads_join_the_sweep() -> void:
+	for path: String in [PSX_CABLE_SCENE, SATURN_CABLE_SCENE, JAG_CABLE_SCENE, ILINK_CABLE_SCENE]:
+		var lead := (load(path) as PackedScene).instantiate() as Node3D
+		add_child(lead)
+		await get_tree().process_frame
+		for end: String in ["PlugA0", "PlugB0"]:
+			var plug := lead.get_node(end)
+			_ok(plug.is_in_group(LinkPlug.ANY_GROUP),
+				"%s %s is in the link-lead sweep group" % [path.get_file(), end])
+		lead.queue_free()
+		await get_tree().process_frame
 
 
 # --- the JagLink cable ------------------------------------------------------

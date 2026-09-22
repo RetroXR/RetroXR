@@ -390,6 +390,15 @@ past it drifts (both CPUs, so not the recompiler). Only a LOCKSTEP resync does
 that, and the row does not offer LOCKSTEP. `cross_play` is false: never
 measured across architectures.
 
+### Sega Saturn (mednafen_saturn) — rollback, and a cabled pair as one group, 2026-09-22
+
+On RetroXR's fork past v2. Exact loads (the SCI's clocks), a deterministic boot
+(fixed SMPC clock and settings), and `beetle_saturn_link_frame_edges`: the link
+CLOCK gives every frame one span, so edges line up whatever the video mode. The
+details, the probes and the numbers are in `saturn-link.md` § Netplay. The same
+work found that PlayStation, Saturn and Jaguar plugs were missing from
+`LinkPlug.ANY_GROUP`, so a session never found a console lead's far machine.
+
 ### Atari 2600 (stella) — vetted 2026-09-21: lockstep yes, rollback NO
 
 `netplay_spike` on `stella_libretro.dll` with Air Raid (USA), Windows x86_64,
