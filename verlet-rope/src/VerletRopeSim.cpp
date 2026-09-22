@@ -1245,16 +1245,68 @@ bool VerletRope::EnvironmentChangedWhileSleeping()
     return false;
 }
 
+// The surface particle i is resting on, if it is: a cached contact plane it is
+// actually touching. Self-collision must not drive such a particle INTO it.
+bool VerletRope::RestingNormal(int i, Vector3 &r_normal) const
+{
+    const double touching = m_collision_radius * 1.05;
+    if ((m_c_flags[i] & 1) && (m_points[i] - m_c_p1[i]).dot(m_c_n1[i]) <= touching)
+    {
+        r_normal = m_c_n1[i];
+        return true;
+    }
+    if ((m_c_flags[i] & 2) && (m_points[i] - m_c_p2[i]).dot(m_c_n2[i]) <= touching)
+    {
+        r_normal = m_c_n2[i];
+        return true;
+    }
+    return false;
+}
+
+// Whether a self-collision move `d` on particle i would push it into the surface
+// it rests on — by more than a glancing share of the move, so two strands lying
+// side by side on a floor still part sideways as they always did.
+bool VerletRope::PushesIntoRest(int i, const Vector3 &d) const
+{
+    Vector3 n;
+    if (!RestingNormal(i, n))
+        return false;
+    const double len = d.length();
+    return len > 1e-12 && d.dot(n) < -0.3 * len;
+}
+
+// Where a cord crosses itself on a surface, the strand underneath is the one
+// resting on it. Three rules keep that crossing still:
+//   * A strand resting on a surface is never pushed into it: the strand on top
+//     takes the whole separation. Split evenly, the lower strand was driven
+//     into the floor, the floor threw it back out on the next tick, and a loop
+//     unbending across itself popped a strand a full cord's thickness over or
+//     under the other in a single tick (rope_crossing_probe: 11-12 mm jumps,
+//     and the strands swapped places).
+//   * A contact is INELASTIC: parting two strands creates no velocity (the
+//     history moves with the push), and whatever velocity they had toward each
+//     other stops. The particle pass used to leave the push as velocity, which
+//     bounced a heap; moving the history alone kept the approach, so strands
+//     pressed together were pushed again every tick and a composite lead's
+//     breakout knot crept 22 mm across the floor.
+//   * Whatever this pass itself pushed into a surface is lifted back out
+//     afterwards, so no crossing ends a tick inside it. A laid loop settled
+//     with its lower strand's centre at -0.6 mm, half inside the floor. ONLY
+//     what the pass did: re-projecting every resting particle also lifted ones
+//     low for other reasons, and a heap churned at 0.63 mm/tick held awake.
 void VerletRope::SolveSelfCollision()
 {
     const int count = static_cast<int>(m_points.size());
     const double min_d = m_collision_radius * 2.0;
     const double min_d_sq = min_d * min_d;
+    m_self_moved.assign(count, Vector3());
     for (int i = 0; i < count; ++i)
     {
         const float w_i = m_inv_mass[i];
         const uint8_t g_i = m_self_group[i];
         Vector3 p_i = m_points[i];
+        Vector3 moved_i;
+        Vector3 history_i;
         // j >= i+2 exempts chain neighbours by ARRAY distance, which stops being
         // chain distance once branches are appended: a branch's head and the
         // trunk's end are coincident but far apart in the array, as are the
@@ -1273,10 +1325,36 @@ void VerletRope::SolveSelfCollision()
                 continue;
             const double dist = std::sqrt(d_sq);
             const Vector3 push = diff * ((dist - min_d) / dist);
-            p_i += push * (w_i / w_sum);
-            m_points[j] -= push * (w_j / w_sum);
+            // i moves along +push, j along -push.
+            float wi = w_i;
+            float wj = w_j;
+            if (wi != 0.0f && PushesIntoRest(i, push))
+                wi = 0.0f;
+            if (wj != 0.0f && PushesIntoRest(j, -push))
+                wj = 0.0f;
+            if (wi + wj == 0.0f)
+            {
+                wi = w_i;
+                wj = w_j;
+            }
+            const float w_eff = wi + wj;
+            const Vector3 d_i = push * (wi / w_eff);
+            const Vector3 d_j = push * -(wj / w_eff);
+            // Their approach along the contact normal, i toward j, before this push.
+            const Vector3 n = diff / dist;
+            const Vector3 v_i = p_i - (m_prev_points[i] + history_i);
+            const Vector3 v_j = m_points[j] - m_prev_points[j];
+            const double closing = std::max(0.0, static_cast<double>((v_i - v_j).dot(n)));
+            p_i += d_i;
+            moved_i += d_i;
+            history_i += d_i + n * (closing * (wi / w_eff));
+            m_points[j] += d_j;
+            m_prev_points[j] += d_j - n * (closing * (wj / w_eff));
+            m_self_moved[j] += d_j;
         }
         m_points[i] = p_i;
+        m_prev_points[i] += history_i;
+        m_self_moved[i] += moved_i;
     }
 
     // Particle pairs do not see two long segments crossing at their middles:
@@ -1374,15 +1452,28 @@ void VerletRope::SolveSelfCollision()
             const double as1 = s;
             const double bt0 = 1.0 - t;
             const double bt1 = t;
-            const double weight = m_inv_mass[a0] * as0 * as0 + m_inv_mass[a1] * as1 * as1 +
-                                  m_inv_mass[b0] * bt0 * bt0 + m_inv_mass[b1] * bt1 * bt1;
+            // Strand a moves along -n, strand b along +n; an end resting on a
+            // surface the move would drive it into holds still (see above).
+            float wa0 = PushesIntoRest(a0, -n) ? 0.0f : m_inv_mass[a0];
+            float wa1 = PushesIntoRest(a1, -n) ? 0.0f : m_inv_mass[a1];
+            float wb0 = PushesIntoRest(b0, n) ? 0.0f : m_inv_mass[b0];
+            float wb1 = PushesIntoRest(b1, n) ? 0.0f : m_inv_mass[b1];
+            double weight = wa0 * as0 * as0 + wa1 * as1 * as1 + wb0 * bt0 * bt0 + wb1 * bt1 * bt1;
+            if (weight <= 0.0)
+            {
+                wa0 = m_inv_mass[a0];
+                wa1 = m_inv_mass[a1];
+                wb0 = m_inv_mass[b0];
+                wb1 = m_inv_mass[b1];
+                weight = wa0 * as0 * as0 + wa1 * as1 * as1 + wb0 * bt0 * bt0 + wb1 * bt1 * bt1;
+            }
             if (weight <= 0.0)
                 continue;
             const double lambda = (min_d - dist) / weight;
-            const Vector3 da0 = -n * (lambda * m_inv_mass[a0] * as0);
-            const Vector3 da1 = -n * (lambda * m_inv_mass[a1] * as1);
-            const Vector3 db0 = n * (lambda * m_inv_mass[b0] * bt0);
-            const Vector3 db1 = n * (lambda * m_inv_mass[b1] * bt1);
+            const Vector3 da0 = -n * (lambda * wa0 * as0);
+            const Vector3 da1 = -n * (lambda * wa1 * as1);
+            const Vector3 db0 = n * (lambda * wb0 * bt0);
+            const Vector3 db1 = n * (lambda * wb1 * bt1);
             m_points[a0] += da0;
             m_points[a1] += da1;
             m_points[b0] += db0;
@@ -1394,6 +1485,10 @@ void VerletRope::SolveSelfCollision()
             m_prev_points[a1] += da1;
             m_prev_points[b0] += db0;
             m_prev_points[b1] += db1;
+            m_self_moved[a0] += da0;
+            m_self_moved[a1] += da1;
+            m_self_moved[b0] += db0;
+            m_self_moved[b1] += db1;
             segment_corrected = true;
         }
     }
@@ -1406,6 +1501,28 @@ void VerletRope::SolveSelfCollision()
         for (int s = 0; s < seg_count; ++s)
             SolvePair(m_seg_a[s], m_seg_b[s], m_seg_rest[s], k);
         PinAnchors();
+    }
+
+    // Lift back out of a surface whatever this pass pushed into it, and no more.
+    // The history moves with the lift: it undoes a violation the pass made, and
+    // left as velocity it bounced the strand every tick.
+    for (int i : m_active_contact)
+    {
+        for (int slot = 0; slot < 2; ++slot)
+        {
+            if ((m_c_flags[i] & (1 << slot)) == 0)
+                continue;
+            const Vector3 &n = slot == 0 ? m_c_n1[i] : m_c_n2[i];
+            const Vector3 &cp = slot == 0 ? m_c_p1[i] : m_c_p2[i];
+            const double pushed_in = -m_self_moved[i].dot(n);
+            const double depth = m_collision_radius - (m_points[i] - cp).dot(n);
+            const double lift = std::min(pushed_in, depth);
+            if (lift > 0.0)
+            {
+                m_points[i] += n * lift;
+                m_prev_points[i] += n * lift;
+            }
+        }
     }
 }
 

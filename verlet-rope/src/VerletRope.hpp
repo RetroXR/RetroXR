@@ -254,6 +254,8 @@ private:
                           const godot::Vector3 &p_end_exit);
     void ApplyContactFriction();
     void SolveSelfCollision();
+    bool RestingNormal(int i, godot::Vector3 &r_normal) const;
+    bool PushesIntoRest(int i, const godot::Vector3 &d) const;
     void SolveSurfaceCollision(bool p_do_rest);
     // The three phases of SolveSurfaceCollision, in the order it runs them.
     // Split out for reading only: the arithmetic and its order are unchanged,
@@ -401,6 +403,9 @@ private:
     std::vector<double> m_fric_heaviest;
     std::vector<godot::Vector3> m_fric_normal;
     std::vector<int> m_fric_touched;
+    // How far self-collision moved each particle this step, so it can undo
+    // exactly what it pushed into a surface and nothing else.
+    std::vector<godot::Vector3> m_self_moved;
     double m_step_dt_sq = 1.0 / (60.0 * 60.0);
     // Segment starting at each particle, or -1 — only used to invalidate a
     // midpoint cache after the tunnel recovery moves a particle.

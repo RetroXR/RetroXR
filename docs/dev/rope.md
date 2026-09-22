@@ -87,6 +87,43 @@ creeps), but the creep is a crawl the sleep system parks within a second.
   friction holds the snag harder. Jitter there fell from 81 to 3.7 mm. It is one of
   the two impossible lays, and it was accepted deliberately.
 
+## A cord crossing itself: the strand underneath owns the floor
+
+`SolveSelfCollision` runs after the solve. Where a loop crosses over itself on a floor,
+three rules keep the crossing still (2026-09-22):
+
+- **A particle resting on a surface is never pushed into it** (`PushesIntoRest`: a
+  push with more than a glancing share into the plane it touches). The strand on top
+  takes the whole separation. Split evenly, the lower strand was driven into the
+  floor, the floor threw it back out on the next tick, and a loop unbending across
+  itself popped a strand a full cord's thickness over or under the other in one tick.
+  `rope_crossing_probe` at 70% loop size measured the loop never sleeping, 209 mm of
+  creep, 11 mm single-tick jumps, and the strands swapping places. After the fix it
+  sleeps at tick about 70, with no creep.
+- **A contact is INELASTIC.** Parting two strands creates no velocity (the history
+  moves with the push), and any velocity they had toward each other stops.
+  Both halves matter. The particle pass used to leave the push as velocity, which
+  bounced a heap (2.1 mm/tick held awake with the history left alone). Moving the
+  history alone kept the approach, so strands pressed together were pushed again
+  every tick, and a composite lead's breakout knot crept 22 mm across the floor
+  (`floor_ends_probe`). The segment pass moves the history but does not yet stop
+  the approach.
+- **Only what the pass pushed into a surface is lifted back out**, with the history
+  (`m_self_moved`). Re-projecting EVERY resting particle instead also lifted ones that
+  were low for other reasons: a heap churned at 0.63 mm/tick held awake. Lifting
+  without moving the history pumped the loops, which then never slept. Both were
+  measured and backed out.
+
+The heap case measures 0.035 mm/tick held awake (0.35 before). Strand on strand has NO
+friction, only strand on surface: a pile forced awake from the moment it lands (`--heap
+--awake`) slumps slowly, and a strand now and then slides off another (a 4 mm drop).
+Left to itself the same pile sleeps by tick ~270 without creeping. A loop tighter than about
+10 cm across (40% in the probe) still springs open against friction: at the shipped
+bend stiffness a cord is stiffer than its grip on the floor. Holding it would need
+bend memory (a rest shape that yields to where the cord has lain), which is not built.
+Two separate cables do not collide with each other at all. A rope has no
+CollisionObject, only queries, so crossing leads pass through each other.
+
 ## A loose plug is reeled in by ONE helper: `PlugTether.reel_in`
 
 Every owner of a lead keeps its loose plug within the cord's reach with a hard tether
@@ -114,6 +151,15 @@ controllers, as each always did. A body that must be HAULED on its cord (a switc
 speaker cabinet) is `CableHaul`'s job, not this. A new owner of a lead calls
 `PlugTether`; it never writes its own clamp.
 
+## A taut cord stretches: the solver's known limit
+
+Eight Gauss-Seidel iterations cannot make a long cord inextensible under tension. A lead
+held up by one plug with the other on the floor sits a few percent long along its whole
+length, and most of that (1.23–1.25×) lands in the first segment past the held plug's
+boot (`handling/a yanked lead recovers its length`, bound 1.30). The standard fix is
+long-range attachments: every particle constrained to lie within its path length of each
+pinned end, which is O(n) per iteration. It is not built.
+
 ## Probes (`RetroXR/Tools/rope/`)
 
 - `floor_ends_probe`: a plain lead and a composite lead dropped on a floor, ticked by
@@ -125,6 +171,10 @@ speaker cabinet) is `CableHaul`'s job, not this. A new owner of a lead calls
   boot `LoadingOverlay` curtain is a 44 m panel standing in the world, so a windowed
   probe must `suspend()` it or it renders straight into the camera.
 - `plug_hang_probe`: the coupling's sign and settle check (above).
+- `rope_crossing_probe`: a cord laid in a loop crossing itself on a floor (`--scale=`
+  for tighter loops, `--heap` to drop 2 m in a pile, `--awake` to measure jitter
+  rather than sleep, `--video=`). Reports the strands' heights at the crossing, the
+  peak single-tick jump of any stacked particle, creep, and sleep/wake flips.
 - `rope_ledge` (older): gained `--no-couple`, `--legacy` and `--trace`. Its composite
   lead hangs off BOTH table edges with no host, three plugs dangling from each
   breakout and pressing into each other. That still wakes now and then (plug jitter

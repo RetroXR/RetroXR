@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Tools/rope/rope_crossing_probe.gd" id="1"]
+
+[node name="RopeCrossingProbe" type="Node"]
+script = ExtResource("1")
