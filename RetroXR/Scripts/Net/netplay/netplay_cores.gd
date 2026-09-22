@@ -100,7 +100,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["snes"],
+		"systems": ["snes", "sufami"],
 		"options": {},
 	},
 	"genesis_plus_gx": {
@@ -108,7 +108,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["megadrive", "genesis"],
+		"systems": ["megadrive", "genesis", "gamegear"],
 		"options": {},
 	},
 	"pcsx_rearmed": {
