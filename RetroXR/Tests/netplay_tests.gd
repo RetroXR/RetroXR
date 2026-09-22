@@ -99,6 +99,7 @@ func _ready() -> void:
 		await _test_leave()
 	if _want("rollback"):
 		await _test_rollback()
+		await _test_rollback_pins()
 	if _want("strategy"):
 		await _test_strategy()
 	if _want("link"):
@@ -1752,6 +1753,31 @@ func _test_leave() -> void:
 # Rollback rewinds ONE core. A cabled machine's state is half a conversation, so
 # rewinding one end replays a transfer the far end has already answered — and
 # both peers are then wrong in the same way, which the CRC checker cannot see.
+
+## A core whose rollback is only sound on RetroXR's fork (fbneo: the stock
+## build's YM2610 cannot be rewound) rolls back only when the INSTALLED build
+## declares the row's pins; a stock one still plays, in lockstep.
+func _test_rollback_pins() -> void:
+	var pins_before: Dictionary = NetplaySession._pins_declared.duplicate()
+	for declared: bool in [true, false]:
+		NetplaySession._pins_declared["fbneo"] = declared
+		var w := await _pair()
+		w.host_sys.machine_core = "fbneo"
+		w.client_sys.machine_core = "fbneo"
+		w.host_sys.lib.link_peers = {}
+		var what := "the fork" if declared else "a stock build"
+		_ok(w.host_nm.netplay_start_host(w.host_sys, "fbneo", "MD5", {0: 1, 1: w.client_id}, 3, 1),
+			"rollback/an fbneo session on %s starts" % what)
+		_ok(await _until(func() -> bool: return w.host_np.is_running() and w.client_np.is_running()),
+			"rollback/and runs on both peers (%s)" % what)
+		_eq(w.host_np._rollback, declared,
+			"rollback/it rolls back only if the build declares its pins (%s)" % what)
+		_eq(w.client_np._rollback, declared, "rollback/and the client agrees (%s)" % what)
+		w.host_nm.netplay_stop()
+		await _until(func() -> bool: return not w.host_np.is_running())
+		_free(w)
+	NetplaySession._pins_declared = pins_before
+
 
 func _test_rollback() -> void:
 	var w := await _pair()

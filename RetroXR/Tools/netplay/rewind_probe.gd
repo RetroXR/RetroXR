@@ -13,6 +13,11 @@
 ## anchor frame it fails at, which is the thing a single mid-run reload cannot
 ## find -- gambatte survives 164 rewinds and loses a frame on one of them.
 ##
+## --mispredict is the rollback case proper: pass 1, then a reload and a pass
+## fed the WRONG input (the prediction a rollback throws away), then a reload
+## and pass 2 with the right input again. Pass 2 must equal pass 1: anything the
+## wrong pass left behind that the state did not carry shows up here.
+##
 ## The report says HOW a mismatch failed. `slip` means the replay's CRC at
 ## frame n is the first pass's at n+1 (or n-1): the machine is a whole frame
 ## out, which is a pacing or frame-boundary fault rather than corrupted memory.
@@ -28,6 +33,8 @@ var rom := ""
 var from_frame := 100
 var to_frame := 1200
 var depth := 4
+var mispredict := false
+var _wrong := false
 var _opts: Dictionary = {}
 
 var _lib: Node = null
@@ -57,6 +64,8 @@ func _ready() -> void:
 			to_frame = int(a.trim_prefix("--to="))
 		elif a.begins_with("--depth="):
 			depth = int(a.trim_prefix("--depth="))
+		elif a == "--mispredict":
+			mispredict = true
 		elif a.begins_with("--opt="):
 			var kv := a.trim_prefix("--opt=").split("=", true, 1)
 			if kv.size() == 2:
@@ -102,6 +111,8 @@ func _flat(f: int) -> PackedInt32Array:
 	var arr := PackedInt32Array()
 	arr.resize(20)
 	arr[0] = _input_for_frame(f)
+	if _wrong and f >= _anchor:
+		arr[0] ^= (1 << 0) | (1 << 7) | (1 << 8)
 	return arr
 
 
@@ -118,6 +129,11 @@ func _process(_delta: float) -> void:
 			_lib.RequestSaveState()
 	elif _phase == "pass1" and cur >= _anchor + depth:
 		_phase = "reloading"
+		_wrong = mispredict
+		_lib.RequestLoadState(_state, _anchor)
+	elif _phase == "wrong" and cur >= _anchor + depth:
+		_phase = "reloading"
+		_wrong = false
 		_lib.RequestLoadState(_state, _anchor)
 	elif _phase == "pass2" and cur >= _anchor + depth:
 		_compare()
@@ -152,7 +168,7 @@ func _on_state_loaded(ok: bool) -> void:
 		get_tree().quit(1)
 		return
 	_feed = _anchor
-	_phase = "pass2"
+	_phase = "wrong" if _wrong else "pass2"
 
 
 func _compare() -> void:

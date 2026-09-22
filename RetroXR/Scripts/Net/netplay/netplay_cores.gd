@@ -183,6 +183,26 @@ const CORES: Dictionary = {
 		"systems": ["n64"],
 		"options": {"mupen64plus-cpucore": "cached_interpreter"},
 	},
+	# Neo Geo on RetroXR's fork of FinalBurn Neo (libretro/FBNeo, retroxr branch).
+	# Stock fbneo cannot roll back: its YM2610 savestate re-derived the ADPCM-A
+	# channels and the Delta-T byte on load, left out the envelope/LFO clocks and
+	# the resampler position, and the chip's own reset left REGS stale for the
+	# postload to resurrect. `fbneo-netplay-deterministic` pins the MVS clock and
+	# the random seed, which stock takes from the host (peers differed from frame
+	# 1). Measured by netplay_spike --spike-crc-state (the WHOLE state hashed every
+	# frame): Metal Slug, KOF '98 and Garou equal to lockstep at every frame of
+	# 1800 through ~163 rollbacks at lag 1/3/6 (docs/dev/netplay.md).
+	# `rollback_needs_pins`: a stock build ignores the option, so a session only
+	# rolls back when the installed build declares it (NetplaySession).
+	"fbneo": {
+		"verified": true,
+		"state_transfer": true,
+		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
+		"cross_play": false,
+		"rollback_needs_pins": true,
+		"systems": ["neogeo"],
+		"options": {"fbneo-netplay-deterministic": "enabled"},
+	},
 	# RetroXR's fork (retroxr branch) past v3: a savestate load is exact (the
 	# serial port and link driver are in the state; so are gpulib's GP1 write
 	# cache, GPUREAD latch and VRAM transfer, the cards' FLAG byte and more),
@@ -213,7 +233,15 @@ const CORES: Dictionary = {
 			"pcsx_rearmed_link_frame_edges": "enabled",
 			"pcsx_rearmed_drc": "enabled",
 		},
+	},
 }
+
+
+## True when this core's rollback is only sound on a build that declares every
+## option its row pins (a fork's), so the session checks the installed build.
+static func rollback_needs_pins(core_name: String) -> bool:
+	var e: Dictionary = CORES.get(core_name, {})
+	return bool(e.get("rollback_needs_pins", false))
 
 
 ## True when a cabled group of this core can roll back together rather than

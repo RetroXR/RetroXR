@@ -310,6 +310,77 @@ rewinds, no desync reported, both peers' CRCs of both machines equal at all 102
 checkpoints, all four screens in flight; lockstep equal at 102/102. `netplay_tests`
 `link/` covers the session's decisions with mocks.
 
+### Atari 2600 (stella) — vetted 2026-09-21: lockstep yes, rollback NO
+
+`netplay_spike` on `stella_libretro.dll` with Air Raid (USA), Windows x86_64,
+control leg fceumm/3-D WorldRunner under the same flags (passes both modes):
+
+- lockstep: two cold starts give identical CRCs; savestate (1041 bytes) @600
+  reload → 0/20 mismatches. DETERMINISM + LOCKSTEP hold.
+- `--spike-rollback --spike-lag=0` (serialize every frame, 0 rewinds) == lockstep,
+  so per-frame serialization does not perturb the core.
+- `--spike-lag=1` and `=3` DIVERGE from lockstep at the first input change
+  (START at frame 180; CRC 180 matches, 240 does not). One rewind across a
+  changed input corrupts the run: something input-dependent is not in stella's
+  `retro_serialize` (suspect the libretro wrapper's own cached input / console-
+  switch edge state — unconfirmed). A lag-1 run "passing" its own replay is
+  self-consistency, not correctness — diff against lockstep.
+
+So stella is NOT in `NetplayCores`. If added, it would be `strategies:
+[Strategy.LOCKSTEP]` only; not done yet, and the cross-machine state leg
+(x86_64 → arm64) has not been run for it.
+
+### Neo Geo (fbneo) — rollback on RetroXR's fork, 2026-09-22
+
+Stock fbneo (v1.0.0.03 GIT6bb3167) cannot roll back; our fork can. The fork is
+`~/libretro-cores-retroxr/FBNeo`, branch `retroxr`, from libretro/FBNeo at 6bb3167
+(**local only — not yet published**, so there is no `CoreSources` row and players
+still download stock). `NetplayCores["fbneo"]` has `rollback_needs_pins`: a session
+rolls back only when the installed build declares `fbneo-netplay-deterministic`
+(the fork declares it at `retro_set_environment` so `CoreOptionsStore.peek` sees
+it); a stock build gets lockstep.
+
+**The oracle is the WHOLE savestate, hashed every frame** (`netplay_spike
+--spike-crc-state --spike-crc-interval=1`). The RAM CRC hid all of this: the
+68K RAM agreed while the sound chip had already split, and a rollback run's RAM
+CRCs "healed" after diverging. `FBNEO_STATE_TRACE=<n>` (fork, env) logs a CRC of
+every named state area on each serialize whose frame is a multiple of n — diff
+two runs to name the area.
+
+What was wrong, in the order it was found:
+- **ROM path needs backslashes on Windows** (fbneo splits the directory on `\`;
+  `Z:/…` searches `.\mslug.zip`). Not a fork change — worth checking the app's path.
+- **Host-seeded state:** the MVS uPD4990A clock is seeded from the host's local
+  time and `BurnRandomInit` from `time(NULL)`, so peers differed from frame 1;
+  and `<set>.fs` (MVS NVRAM) from the last run changes the next boot. Fork option
+  `fbneo-netplay-deterministic` sets `kNetGame` before the driver starts (fixed
+  2018-06-01 clock, fixed seed, hiscores off) and `TweakScanFlags` no longer
+  clears it. The NVRAM file still differs per player — UNSOLVED for a cold start;
+  the session's state transfer carries NVRAM (it is in the savestate).
+- **The option never arrived:** libretro-godot dropped a value for a key the core
+  had not declared yet, and fbneo declares its options inside `retro_load_game`.
+  `OptionsHandler` now keeps every frontend value and lays it back on after each
+  declaration (`ReapplyFrontendValues`).
+- **YM2610 savestate** (`burn/snd/fm.c`, `burn_ym2610.cpp`, `ymdeltat.c`):
+  postload rebuilt ADPCM-A start/end from REGS and an unsaved `adpcmTL` (the fix
+  dink made for the YM2608 in 2022, never applied to the 2610); Delta-T
+  `now_data` re-read from ROM over its saved value; `eg_cnt`/`eg_timer`/`lfo_cnt`
+  not saved (the YM2203 saves them); `nFractionalPosition` (resampler) not saved,
+  so a frame after a load rendered a different number of chip samples.
+- **`YM2610ResetChip` left REGS stale** — it writes zeros to the chip, not to
+  REGS, and postload rebuilds every operator from REGS. KOF '98 resets its sound
+  driver when a game starts; a rewind across that brought the old TLs back.
+
+Measured with the final fork, Windows x86_64: Metal Slug, KOF '98 and Garou each
+equal to lockstep **on the full state at all 1800 frames**, lag 3 and 6 (~163
+rollbacks); two cold starts identical; reload 0/1200. The stock DLL under the
+same oracle: reload 1200/1200 mismatched, rollback 1800/1800. The fceumm control
+passes both. `netplay_tests` `rollback` group covers the pin gate (mutation-tested).
+
+**Owed:** a real two-machine session; the Android build and a Quest run; the
+x86_64 → arm64 state leg; publishing the fork (repo, release workflow, tag,
+`CoreSources` row). The four fork fixes to the sound chip are upstreamable.
+
 ### e-Reader cards under netplay (mGBA) — 2026-09-22: rollback and late join both measured
 
 A swipe during a session is a **disc op, kind 2** (`NetplaySession.DISK_OP_CARD`):
@@ -400,23 +471,3 @@ on gets `_net_offer`: the session boots the game on every peer instead.
 
 Owed: arm64 (Quest) and cross-play (`cross_play: false` until measured), a
 headset run, and a published fork release. `CoreSources` still names v2 until then.
-
-### Atari 2600 (stella) — vetted 2026-09-21: lockstep yes, rollback NO
-
-`netplay_spike` on `stella_libretro.dll` with Air Raid (USA), Windows x86_64,
-control leg fceumm/3-D WorldRunner under the same flags (passes both modes):
-
-- lockstep: two cold starts give identical CRCs; savestate (1041 bytes) @600
-  reload → 0/20 mismatches. DETERMINISM + LOCKSTEP hold.
-- `--spike-rollback --spike-lag=0` (serialize every frame, 0 rewinds) == lockstep,
-  so per-frame serialization does not perturb the core.
-- `--spike-lag=1` and `=3` DIVERGE from lockstep at the first input change
-  (START at frame 180; CRC 180 matches, 240 does not). One rewind across a
-  changed input corrupts the run: something input-dependent is not in stella's
-  `retro_serialize` (suspect the libretro wrapper's own cached input / console-
-  switch edge state — unconfirmed). A lag-1 run "passing" its own replay is
-  self-consistency, not correctness — diff against lockstep.
-
-So stella is NOT in `NetplayCores`. If added, it would be `strategies:
-[Strategy.LOCKSTEP]` only; not done yet, and the cross-machine state leg
-(x86_64 → arm64) has not been run for it.

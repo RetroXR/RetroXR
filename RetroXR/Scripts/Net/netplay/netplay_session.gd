@@ -1653,6 +1653,12 @@ func _group_strategies() -> Array:
 			if theirs.has(s):
 				kept.append(s)
 		out = kept
+	# A build without the fork's pins would roll back a machine it cannot
+	# rewind; it still gets every other strategy the row lists.
+	for spec: Dictionary in _machine_specs:
+		var core := str(spec.get("core", ""))
+		if NetplayCores.rollback_needs_pins(core) and not _core_declares_pins(core):
+			out.erase(NetplayCores.Strategy.ROLLBACK)
 	return out
 
 
