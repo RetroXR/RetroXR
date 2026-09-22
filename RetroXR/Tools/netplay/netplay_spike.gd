@@ -58,7 +58,18 @@ var state_in := ""       # load another machine's state instead of self-saving
 ## the engine still serializes EVERY frame, and never mispredicts, so a run that
 ## differs from lockstep at lag 0 blames retro_serialize rather than the rewind.
 var rollback_lag := 3
+## --spike-selfload: load the state straight back the moment it is taken and
+## carry on in phase A. Diff the [crc] stream against a plain run. Green here and
+## red in the ordinary leg means a load is fine but state from BEFORE it leaks
+## through (the ordinary leg loads after running on to END_AT); red here means
+## the load itself re-derives something wrongly.
+var selfload := false
+var _selfloading := false
 const ROLLBACK_MAX_AHEAD := 8
+## --spike-crc-from-state: hash a savestate instead of RAM, for a core that
+## publishes neither SYSTEM_RAM nor a memory map (vemulator) and so would
+## otherwise never emit a checkpoint.
+var crc_from_state := false
 
 var save_at := 600
 const END_AT := 1800
@@ -118,6 +129,10 @@ func _ready() -> void:
 			state_in = arg.trim_prefix("--spike-state-in=")
 		elif arg == "--spike-rollback":
 			rollback = true
+		elif arg == "--spike-crc-from-state":
+			crc_from_state = true
+		elif arg == "--spike-selfload":
+			selfload = true
 		elif arg.begins_with("--spike-lag="):
 			rollback_lag = int(arg.trim_prefix("--spike-lag="))
 	if not state_in.is_empty():
@@ -141,6 +156,8 @@ func _ready() -> void:
 	_lib.SetNetplayMode(true, 0x1, 0)
 	if _lib.has_method("SetNetplayCrcInterval"):
 		_lib.SetNetplayCrcInterval(crc_interval)
+	if crc_from_state:
+		_lib.SetNetplayCrcFromState(true)
 	# Rollback mode: port 0 is REMOTE (local_mask 0) so the engine predicts it
 	# and our lagged confirmations force rewind+replay corrections.
 	_lib.SetNetplayRollback(rollback, 0, ROLLBACK_MAX_AHEAD)
@@ -318,9 +335,19 @@ func _on_state_ready(data: PackedByteArray, frame: int) -> void:
 		return
 	_state_data = data
 	_state_frame = frame
+	if selfload and _phase == "A":
+		_selfloading = true
+		_lib.RequestLoadState(data, frame)
 
 
 func _on_state_loaded(ok: bool) -> void:
+	if _selfloading:
+		_selfloading = false
+		print("[spike] self-load at %d ok=%s — carrying on in phase A" % [_state_frame, ok])
+		# A load clears the netplay schedule, so everything posted past the
+		# state's frame is gone and has to be posted again.
+		_next_feed = _state_frame
+		return
 	print("[spike] state loaded ok=%s — replaying from %d" % [ok, _state_frame])
 	if not ok:
 		print("[spike] RESULT=FAIL (unserialize failed)")
