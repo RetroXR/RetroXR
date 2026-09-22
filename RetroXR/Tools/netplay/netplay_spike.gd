@@ -58,12 +58,20 @@ var state_in := ""       # load another machine's state instead of self-saving
 ## the engine still serializes EVERY frame, and never mispredicts, so a run that
 ## differs from lockstep at lag 0 blames retro_serialize rather than the rewind.
 var rollback_lag := 3
+const STARTUP_CONFIRMED := 8   # frames confirmed without lag (see _process)
 ## --spike-selfload: load the state straight back the moment it is taken and
 ## carry on in phase A. Diff the [crc] stream against a plain run. Green here and
 ## red in the ordinary leg means a load is fine but state from BEFORE it leaks
 ## through (the ordinary leg loads after running on to END_AT); red here means
 ## the load itself re-derives something wrongly.
 var selfload := false
+## --spike-crc-state: checkpoints hash the WHOLE savestate instead of main RAM,
+## so a difference is seen the frame it enters the state, not when a game reads it.
+var crc_state := false
+## --spike-pad: plug a RetroPad into port 0 once the core is up, as a room's
+## machine does. A bare core may leave the port empty.
+var pad := false
+var _pad_done := false
 var _selfloading := false
 const ROLLBACK_MAX_AHEAD := 8
 ## --spike-crc-from-state: hash a savestate instead of RAM, for a core that
@@ -72,7 +80,12 @@ const ROLLBACK_MAX_AHEAD := 8
 var crc_from_state := false
 
 var save_at := 600
-const END_AT := 1800
+var END_AT := 1800
+## --spike-script=psx-title: psx_link_probe's way off WipEout's title (START
+## held through the attract, then taps) instead of the default timeline. The
+## default diverges from anything WipEout does after frame 180, so it never
+## reaches the disc load behind the menu.
+var script_name := ""
 
 var _lib: Node = null
 var _mesh: MeshInstance3D = null
@@ -111,6 +124,8 @@ func _ready() -> void:
 			core = arg.trim_prefix("--spike-core=")
 		elif arg.begins_with("--spike-rom="):
 			rom = arg.trim_prefix("--spike-rom=")
+		elif arg == "--spike-crc-state":
+			crc_state = true
 		elif arg.begins_with("--spike-root="):
 			root_dir = arg.trim_prefix("--spike-root=")
 		elif arg.begins_with("--spike-save-at="):
@@ -131,6 +146,12 @@ func _ready() -> void:
 			rollback = true
 		elif arg == "--spike-crc-from-state":
 			crc_from_state = true
+		elif arg.begins_with("--spike-end="):
+			END_AT = int(arg.trim_prefix("--spike-end="))
+		elif arg.begins_with("--spike-script="):
+			script_name = arg.trim_prefix("--spike-script=")
+		elif arg == "--spike-pad":
+			pad = true
 		elif arg == "--spike-selfload":
 			selfload = true
 		elif arg.begins_with("--spike-lag="):
@@ -154,6 +175,8 @@ func _ready() -> void:
 	_lib.connect("savestate_loaded", _on_state_loaded)
 	# Gate BEFORE starting content: the core holds at frame 0 until inputs post.
 	_lib.SetNetplayMode(true, 0x1, 0)
+	if crc_state:
+		_lib.SetNetplayCrcFromState(true)
 	if _lib.has_method("SetNetplayCrcInterval"):
 		_lib.SetNetplayCrcInterval(crc_interval)
 	if crc_from_state:
@@ -174,6 +197,12 @@ func _ready() -> void:
 ## Deterministic scripted play: START to get in-game, then run right with
 ## periodic jumps — same function drives both phases.
 func _input_for_frame(f: int) -> int:
+	if script_name == "psx-title":
+		if f >= 2760 and f < 3000:
+			return 1 << 3
+		if f >= 3180 and f < 3420 and (f - 3180) % 30 < 6:
+			return 1 << 3
+		return 0
 	var btn := 0
 	if (f >= 180 and f < 195) or (f >= 300 and f < 320):
 		btn |= 1 << 3          # START
@@ -200,12 +229,21 @@ func _process(_delta: float) -> void:
 		_try_import()
 		return
 	var cur: int = _lib.GetFrameCount()
+	if pad and not _pad_done and not _lib.GetCoreIdentity().is_empty():
+		_pad_done = true
+		_lib.SetControllerPortDevice(0, 1)
+		print("[spike] pad plugged into port 0 at frame %d" % cur)
 	if rollback:
 		# Confirmations trail execution — the engine must predict first, then
 		# get corrected. (The speculation throttle keeps this from deadlocking:
 		# execution stalls at watermark + max_ahead, which keeps cur - LAG
 		# ahead of the feed pointer.)
-		while _next_feed <= cur - rollback_lag:
+		# The first frames are confirmed as they run: a core with no state
+		# before its first retro_run (mupen64plus-next) runs only CONFIRMED
+		# frames until it has an anchor, and a feed that waits on execution
+		# would never let it start. A real peer confirms its own input at once.
+		var confirm_to: int = cur if cur < STARTUP_CONFIRMED else cur - rollback_lag
+		while _next_feed <= confirm_to:
 			_lib.PostNetplayInputs(_next_feed, _flat(_next_feed))
 			_next_feed += 1
 	else:

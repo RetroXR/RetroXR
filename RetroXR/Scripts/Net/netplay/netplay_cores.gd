@@ -172,6 +172,17 @@ const CORES: Dictionary = {
 		"systems": ["ngp", "ngpc"],
 		"options": {"ngp_rtc": "deterministic", "ngp_fixed_frames": "enabled"},
 	},
+	# Needs our fork's frame-boundary savestates (79f7af3+): stock states run a
+	# partial frame on every save and load. new_dynarec still misses 6 of 349
+	# rewinds (its block state is not in a state), so the interpreter is forced.
+	"mupen64plus_next": {
+		"verified": true,
+		"state_transfer": true,
+		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
+		"cross_play": false,
+		"systems": ["n64"],
+		"options": {"mupen64plus-cpucore": "cached_interpreter"},
+	},
 	"pcsx_rearmed": {
 		"verified": true,
 		"state_transfer": false,
