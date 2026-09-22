@@ -72,6 +72,25 @@ has `serial_port = true`; `default_model.build_serial_port` picks
 `ScenePersistence.LEAD_SCENES` know `saturn_link_cable`. Geometry is the PS1
 placeholder with a COMMUNICATION legend.
 
+## Shipping
+
+`CoreSources` names `mednafen_saturn` → `RetroXR/beetle-saturn-libretro`, tag
+`retroxr-beetle-saturn-libretro-v1` (Windows + Android, CI-built from the tag),
+replacing the buildbot's build in place, so `system/mednafen_saturn` and every
+save stay where they were. Android still defaults to YabaSanshiro.
+
+## The room probe
+
+`RetroXR/Tools/link/saturn_link_room_probe.tscn` is the player's path: two
+Saturns from `system.tscn` (`core_directory` = the probe root), a spawned
+`saturn_link_cable`, each plug pushed in through `XRToolsSnapZone.pick_up_object`
+BEFORE power, no `LinkConnect`. Steeldom: both reach LINK MODE, then only B
+presses right and player 2's half of the screen must be IDENTICAL on both.
+`--nocable` is the control leg and must fail 4 checks. Measured 2026-09-22 on
+the CI-built v1 core fetched through the `/releases/latest/` URL: all pass
+cabled, 4 fail uncabled. ("A's screen changed" alone is NOT a check — the
+select screen animates, so it passes unplugged.)
+
 ## The probe
 
 `RetroXR/Tools/link/saturn_link_probe.tscn` — two Saturns in one process, the

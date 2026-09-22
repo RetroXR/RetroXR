@@ -229,6 +229,26 @@ const SOURCES := {
 			"Android": "pcsx_rearmed_libretro_android.so.zip",
 		},
 	},
+	# Beetle Saturn, for the Saturn Link Cable.
+	#
+	# Mednafen had never emulated the SH-2's serial port -- the SCI behind the
+	# Communication Connector -- so a cable had nothing to plug into. Our build
+	# implements it (and the DMA a port can pace, which Daytona USA CE sends its
+	# packets with) and speaks `saturn-sci-1` over the frontend's bus, joining
+	# only the slave SH-2's lines: crossing the master's hangs both consoles in
+	# the boot library's dev-host probe. beetle_saturn_link_cable is on by
+	# default and not restart-time; off is the stock core.
+	#
+	# Beetle Saturn is GPLv2, so the source for these binaries sits on the tag.
+	"mednafen_saturn": {
+		"repo":  "RetroXR/beetle-saturn-libretro",
+		"known_tag": "retroxr-beetle-saturn-libretro-v1",
+		"label": "Beetle Saturn (retroXR build)",
+		"assets": {
+			"Windows": "mednafen_saturn_libretro.dll.zip",
+			"Android": "mednafen_saturn_libretro_android.so.zip",
+		},
+	},
 	# snes9x, for the Satellaview's 8M Memory Pack.
 	#
 	# The BS-X shell has always run on this core; what it had nowhere to put was
