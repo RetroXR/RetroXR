@@ -71,6 +71,11 @@ var crc_state := false
 ## --spike-pad: plug a RetroPad into port 0 once the core is up, as a room's
 ## machine does. A bare core may leave the port empty.
 var pad := false
+## --spike-dump-at=N --spike-dump-out=path: write the whole savestate at frame N
+## (phase A), to diff two runs byte by byte.
+var dump_at := -1
+var dump_out := ""
+var _dumping := false
 var _pad_done := false
 var _selfloading := false
 const ROLLBACK_MAX_AHEAD := 8
@@ -150,6 +155,10 @@ func _ready() -> void:
 			END_AT = int(arg.trim_prefix("--spike-end="))
 		elif arg.begins_with("--spike-script="):
 			script_name = arg.trim_prefix("--spike-script=")
+		elif arg.begins_with("--spike-dump-at="):
+			dump_at = int(arg.trim_prefix("--spike-dump-at="))
+		elif arg.begins_with("--spike-dump-out="):
+			dump_out = arg.trim_prefix("--spike-dump-out=")
 		elif arg == "--spike-pad":
 			pad = true
 		elif arg == "--spike-selfload":
@@ -247,9 +256,15 @@ func _process(_delta: float) -> void:
 			_lib.PostNetplayInputs(_next_feed, _flat(_next_feed))
 			_next_feed += 1
 	else:
-		while _next_feed < cur + 90:
+		# Parked exactly at the dump frame until it is written: the core only
+		# runs frames it has inputs for.
+		var cap := dump_at if (dump_at >= 0 and _saved and not _selfloading) else 1 << 30
+		while _next_feed < mini(cur + 90, cap):
 			_lib.PostNetplayInputs(_next_feed, _flat(_next_feed))
 			_next_feed += 1
+	if dump_at >= 0 and not _dumping and _saved and cur == dump_at and not _selfloading:
+		_dumping = true
+		_lib.RequestSaveState()
 	if _phase == "A" and not _saved and cur >= save_at:
 		_saved = true
 		_lib.RequestSaveState()
@@ -366,6 +381,13 @@ func _write_bundle() -> void:
 
 
 func _on_state_ready(data: PackedByteArray, frame: int) -> void:
+	if _dumping and dump_at >= 0 and frame >= dump_at:
+		var fa := FileAccess.open(dump_out, FileAccess.WRITE)
+		fa.store_buffer(data)
+		fa.close()
+		print("[spike] dumped state at frame %d to %s" % [frame, dump_out])
+		dump_at = -1
+		return
 	print("[spike] savestate captured: %d bytes at frame %d" % [data.size(), frame])
 	if data.is_empty():
 		print("[spike] RESULT=FAIL (core has no savestate support)")

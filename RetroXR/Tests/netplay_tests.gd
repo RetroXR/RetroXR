@@ -160,22 +160,21 @@ func _test_cores() -> void:
 		"cores/because netplay forces its frame pacing off")
 	_ok(NetplayCores.state_transfer_capable("fceumm"),
 		"cores/fceumm can do both")
-	# pcsx_rearmed is the live example of the split now that gambatte has been
-	# fixed: it reproduces exactly from a cold start across two processes and
-	# fails 8 of 20 checkpoints after reloading its own state, so a session
-	# plays and a late join must not be offered.
+	# pcsx_rearmed was the live example of the split until its fork's
+	# savestates were made exact (a state loaded into a fresh core replays
+	# 20/20); dolphin, unverified, is the one that must never transfer.
 	_ok(NetplayCores.is_capable("pcsx_rearmed"),
 		"cores/pcsx_rearmed can hold a session")
-	_ok(not NetplayCores.state_transfer_capable("pcsx_rearmed"),
-		"cores/but cannot put a state on the wire")
+	_ok(NetplayCores.state_transfer_capable("pcsx_rearmed"),
+		"cores/and, on the fork, put a state on the wire")
 	_ok(not NetplayCores.state_transfer_capable("__never_vetted"),
 		"cores/an unvetted core can do neither")
 	_ok(not NetplayCores.state_transfer_capable("nonesuch"),
 		"cores/nor an unknown one")
 	# A core that cannot roll back must not be offered rollback, and a core with
 	# no transferable state cannot: rollback rewinds through one every frame.
-	_ok(not NetplayCores.rollback_capable("pcsx_rearmed"),
-		"cores/pcsx_rearmed does not roll back, having no state to rewind through")
+	_ok(not NetplayCores.rollback_capable("dolphin"),
+		"cores/dolphin does not roll back, having no state to rewind through")
 
 	# The debug override exists to let a core be MEASURED. Shipping it a state
 	# that will not restore measures nothing, so it must not reach across into
@@ -200,10 +199,11 @@ func _test_cores() -> void:
 	_ok(NetplayCores.strategies_for("nonesuch").is_empty(),
 		"cores/and so is an unknown one")
 	# Verified is not a blanket yes: it earns the entry, and the entry says which
-	# strategies the evidence actually covers. pcsx_rearmed is the standing case
-	# -- it reproduces perfectly from a cold start and cannot reload its own
-	# state, so determinism is the only one of the three it can hold.
-	_eq(NetplayCores.strategies_for("pcsx_rearmed"), [NetplayCores.Strategy.DETERMINISM],
+	# strategies the evidence actually covers. pcsx_rearmed rolls back and plays
+	# on determinism, and is not offered LOCKSTEP: a resync loads a state far
+	# back into a running core, which is the one reload it still gets wrong.
+	_eq(NetplayCores.strategies_for("pcsx_rearmed"),
+		[NetplayCores.Strategy.ROLLBACK, NetplayCores.Strategy.DETERMINISM],
 		"cores/a core vetted for some strategies gets only those")
 	# And rollback is never offered without the state transfer it rewinds
 	# through, which is the pairing the two keys exist to keep honest.
@@ -282,8 +282,8 @@ func _test_cores() -> void:
 func _test_badge() -> void:
 	_eq(NetplayCores.listed_strategy("fceumm"), NetplayCores.Strategy.ROLLBACK,
 		"badge/a vetted core reports its strongest strategy")
-	_eq(NetplayCores.listed_strategy("pcsx_rearmed"), NetplayCores.Strategy.DETERMINISM,
-		"badge/a determinism-only core reports determinism")
+	_eq(NetplayCores.listed_strategy("pcsx_rearmed"), NetplayCores.Strategy.ROLLBACK,
+		"badge/a core with rollback first reports rollback")
 	_eq(NetplayCores.listed_strategy("dolphin"), -1,
 		"badge/a listed but unvetted core reports none")
 	_eq(NetplayCores.listed_strategy("__never_vetted"), -1,

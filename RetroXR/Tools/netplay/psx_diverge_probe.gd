@@ -38,6 +38,9 @@ var _opts: Dictionary = {}
 ## whatever is broken underneath it, so zeros here would make this probe green
 ## against faults netplay_spike catches 180 frames after the save.
 var idle := false
+## --script=psx-title: netplay_spike's psx-title timeline instead.
+var script_name := ""
+var _padded := false
 
 
 func _ready() -> void:
@@ -50,6 +53,8 @@ func _ready() -> void:
 			save_at = int(a.trim_prefix("--save-at="))
 		elif a.begins_with("--check-at="):
 			check_at = int(a.trim_prefix("--check-at="))
+		elif a.begins_with("--script="):
+			script_name = a.trim_prefix("--script=")
 		elif a == "--idle":
 			idle = true
 		elif a.begins_with("--opt="):
@@ -83,6 +88,12 @@ func _ready() -> void:
 func _input_for_frame(f: int) -> int:
 	if idle:
 		return 0
+	if script_name == "psx-title":
+		if f >= 2760 and f < 3000:
+			return 1 << 3
+		if f >= 3180 and f < 3420 and (f - 3180) % 30 < 6:
+			return 1 << 3
+		return 0
 	var btn := 0
 	if (f >= 180 and f < 195) or (f >= 300 and f < 320):
 		btn |= 1 << 3          # START
@@ -99,6 +110,10 @@ func _process(_d: float) -> void:
 	if _lib == null or _phase.ends_with("_wait"):
 		return
 	var cur: int = _lib.GetFrameCount()
+	# The title script needs a pad in port 0, which a bare core may not have.
+	if script_name == "psx-title" and not _padded and not _lib.GetCoreIdentity().is_empty():
+		_padded = true
+		_lib.SetControllerPortDevice(0, 1)
 	while _feed < cur + 40:
 		var a := PackedInt32Array()
 		a.resize(20)

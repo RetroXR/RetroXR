@@ -183,14 +183,36 @@ const CORES: Dictionary = {
 		"systems": ["n64"],
 		"options": {"mupen64plus-cpucore": "cached_interpreter"},
 	},
+	# RetroXR's fork (retroxr branch) past v3: a savestate load is exact (the
+	# serial port and link driver are in the state; so are gpulib's GP1 write
+	# cache, GPUREAD latch and VRAM transfer, the cards' FLAG byte and more),
+	# and `pcsx_rearmed_link_frame_edges` keeps a cabled pair's traffic inside
+	# each frame so the two consoles' frame edges are one instant on the wire.
+	# That option doubles as the build check: an older core does not declare it,
+	# so neither rollback nor a cabled group is offered on one.
+	# Measured on WipEout (Tools/netplay/psx_rollback_probe, netplay_spike):
+	# 165 rewinds equal to lockstep on one console; a cabled two-player race
+	# rolled back 80 times as a group with 262/262 checkpoints equal to
+	# lockstep, and a lone core rewinding without its peer diverges. The
+	# dynarec is pinned because it and the interpreter do not agree on timing.
+	# `state_transfer`: a state loaded into a freshly started core (a joiner's)
+	# replays exactly, 20/20 checkpoints across two processes. One loaded far
+	# BACK into a core that has run on past it still drifts (WipEout, 1200
+	# frames) -- only a LOCKSTEP resync does that, and LOCKSTEP is not offered.
 	"pcsx_rearmed": {
 		"verified": true,
-		"state_transfer": false,
-		"strategies": [Strategy.DETERMINISM],
+		"state_transfer": true,
+		"strategies": [Strategy.ROLLBACK, Strategy.DETERMINISM],
 		"cross_play": false,
+		"rollback_needs_pins": true,
+		"link_rollback": true,
+		"power_on_stagger": 7,
 		"systems": ["psx"],
-		"options": {},
-	},
+		"options": {
+			"pcsx_rearmed_link_cable": "enabled",
+			"pcsx_rearmed_link_frame_edges": "enabled",
+			"pcsx_rearmed_drc": "enabled",
+		},
 }
 
 
