@@ -1,0 +1,157 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/system_models/game_gear_model.gd" id="1_ggmdl"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_ggsld"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="3_linkport"]
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.21, 0.038, 0.112)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(0.07, 0.07, 0.08, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bezel"]
+size = Vector3(0.1, 0.002, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bezel"]
+albedo_color = Color(0.12, 0.12, 0.14, 1)
+
+[sub_resource type="QuadMesh" id="QuadMesh_screen"]
+size = Vector2(0.064, 0.058)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_screen"]
+albedo_color = Color(0.3, 0.33, 0.3, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_dpadh"]
+size = Vector3(0.026, 0.004, 0.009)
+
+[sub_resource type="BoxMesh" id="BoxMesh_dpadv"]
+size = Vector3(0.009, 0.004, 0.026)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dpad"]
+albedo_color = Color(0.16, 0.16, 0.18, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_face"]
+top_radius = 0.0065
+bottom_radius = 0.0065
+height = 0.004
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_face"]
+albedo_color = Color(0.2, 0.2, 0.23, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_start"]
+top_radius = 0.0042
+bottom_radius = 0.0042
+height = 0.004
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_start"]
+albedo_color = Color(0.12, 0.3, 0.78, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_slot"]
+size = Vector3(0.074, 0.014, 0.004)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_slot"]
+albedo_color = Color(0.02, 0.02, 0.03, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_knob"]
+size = Vector3(0.008, 0.006, 0.008)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_knob"]
+albedo_color = Color(0.22, 0.22, 0.25, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_powerswitch"]
+size = Vector3(0.016, 0.014, 0.016)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_volumeslider"]
+size = Vector3(0.016, 0.014, 0.016)
+
+[node name="GameGear" type="Node3D" unique_id=1874410257]
+script = ExtResource("1_ggmdl")
+
+[node name="HandheldBody" type="MeshInstance3D" parent="." unique_id=902558713]
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("StandardMaterial3D_body")
+
+[node name="ScreenBezel" type="MeshInstance3D" parent="." unique_id=1327608064]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+mesh = SubResource("BoxMesh_bezel")
+surface_material_override/0 = SubResource("StandardMaterial3D_bezel")
+
+[node name="HandheldScreen" type="MeshInstance3D" parent="." unique_id=411902776]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.0215, 0)
+mesh = SubResource("QuadMesh_screen")
+surface_material_override/0 = SubResource("StandardMaterial3D_screen")
+
+[node name="DpadBar1" type="MeshInstance3D" parent="." unique_id=1570385530]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.077, 0.021, 0.004)
+mesh = SubResource("BoxMesh_dpadh")
+surface_material_override/0 = SubResource("StandardMaterial3D_dpad")
+
+[node name="DpadBar2" type="MeshInstance3D" parent="." unique_id=640128391]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.077, 0.021, 0.004)
+mesh = SubResource("BoxMesh_dpadv")
+surface_material_override/0 = SubResource("StandardMaterial3D_dpad")
+
+; Button 2 -- the core reads it off RETRO A, which is FaceButton1's bit.
+[node name="FaceButton1" type="MeshInstance3D" parent="." unique_id=1263998402]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.085, 0.021, -0.002)
+mesh = SubResource("CylinderMesh_face")
+surface_material_override/0 = SubResource("StandardMaterial3D_face")
+
+; Button 1, lower left of 2 -- RETRO B.
+[node name="FaceButton2" type="MeshInstance3D" parent="." unique_id=2019446188]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.067, 0.021, 0.01)
+mesh = SubResource("CylinderMesh_face")
+surface_material_override/0 = SubResource("StandardMaterial3D_face")
+
+[node name="StartButton" type="MeshInstance3D" parent="." unique_id=770812945]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.08, 0.021, -0.03)
+mesh = SubResource("CylinderMesh_start")
+surface_material_override/0 = SubResource("StandardMaterial3D_start")
+
+[node name="CardSlotMouth" type="MeshInstance3D" parent="." unique_id=1193044170]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0565)
+mesh = SubResource("BoxMesh_slot")
+surface_material_override/0 = SubResource("StandardMaterial3D_slot")
+
+; The volume slider, on the bottom edge right of centre.
+[node name="VolumeSlider" type="Area3D" parent="." unique_id=1405216387]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.06, 0, 0.056)
+collision_layer = 1048577
+script = ExtResource("2_ggsld")
+travel = 0.022
+engage_radius = 0.028
+value = 1.0
+
+[node name="KnobMesh" type="MeshInstance3D" parent="VolumeSlider" unique_id=1837119664]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.011, 0, 0)
+mesh = SubResource("BoxMesh_knob")
+surface_material_override/0 = SubResource("StandardMaterial3D_knob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VolumeSlider" unique_id=275904311]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.011, 0, 0)
+shape = SubResource("BoxShape3D_volumeslider")
+
+[node name="PowerSwitch" type="Area3D" parent="." unique_id=1601587449]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.086, 0.012, -0.057)
+collision_layer = 1048577
+script = ExtResource("2_ggsld")
+travel = 0.014
+steps = 2
+engage_radius = 0.028
+
+[node name="KnobMesh" type="MeshInstance3D" parent="PowerSwitch" unique_id=1120986451]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.007, 0, 0)
+mesh = SubResource("BoxMesh_knob")
+surface_material_override/0 = SubResource("StandardMaterial3D_knob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PowerSwitch" unique_id=1726053373]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.007, 0, 0)
+shape = SubResource("BoxShape3D_powerswitch")
+
+; The EXT connector, on the top edge left of the cartridge slot, where the
+; Gear-to-Gear Cable plugs in. +Z points OUT of the shell (every port in the room
+; follows that), so it is turned half a turn about Y to look along -Z; 1 mm proud
+; of the panel.
+[node name="LinkPort" parent="." instance=ExtResource("3_linkport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.055, 0, -0.057)

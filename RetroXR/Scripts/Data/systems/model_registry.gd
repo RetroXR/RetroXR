@@ -123,6 +123,8 @@ const _ROWS: Dictionary = {
 		"scene": _SCENES + "atari_lynx.tscn"},
 	"wonderswan":           {"platform": "wonderswan", "label": "WonderSwan", "handheld": true,
 		"scene": _SCENES + "wonderswan.tscn"},
+	"game_gear":            {"platform": "gamegear", "label": "Game Gear", "handheld": true,
+		"scene": _SCENES + "game_gear.tscn"},
 	"neo_geo_pocket":       {"platform": "ngp", "label": "Neo Geo Pocket", "handheld": true,
 		"scene": _SCENES + "neo_geo_pocket.tscn"},
 	"pokemon_mini":         {"platform": "pokemini", "label": "Pokemon Mini", "handheld": true,

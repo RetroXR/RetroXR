@@ -104,12 +104,15 @@ Measured 2026-09-21, every game on the list, each against a `--nolink` control:
 | Mortal Kombat 3 (Europe) | never touches the EXT port -- no link code in this dump |
 | World Series Baseball (USA) | no VS mode -- the '95 edition is the linked one |
 
-**In the room:** a Game Gear still wears the placeholder box, which now carries
-an EXT socket (`SystemInfo.serial_port` + `default_model.gd`, the handheld
-`LinkPort`), and the spawn menu offers a **Gear-to-Gear Cable** (the two-ended
-GB lead). The socket stands 20 mm off the back panel on purpose: the lead's plug
-collider reaches 20 mm behind its origin, and flush it was buried in the box's
-own body and ejected every few frames. CoreSources fetches the linked build
+**In the room:** a Game Gear is its own primitive handheld (`game_gear.tscn`,
+model id `game_gear`): pad left, buttons 1/2 right (1 = RETRO B = `FaceButton2`,
+2 = RETRO A = `FaceButton1`), blue START, all animated by the shared stand-in
+pass; the EXT `LinkPort` is on the top edge left of the cart slot, 1 mm proud,
+and the spawn menu offers a **Gear-to-Gear Cable** (the two-ended GB lead). The
+placeholder box keeps its socket too, as the fallback when the model is
+missing; there it stands 20 mm off the back panel on purpose (the plug collider
+reaches 20 mm behind its origin, and flush it was buried in the solid box and
+ejected every few frames). CoreSources fetches the linked build
 (`RetroXR/Genesis-Plus-GX`, `retroxr-genesis_plus_gx-libretro-v1`, Windows +
 Android). `gg_link_room_probe` seats the lead by hand and checks the bus (12/12):
 
