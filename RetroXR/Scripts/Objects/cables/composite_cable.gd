@@ -474,6 +474,20 @@ func _build_rope() -> void:
 ## beam-held plug to a junction lying on the floor pins it there, and the junction
 ## only follows at the speed the rope solver drags it — which reads as the plug
 ## hanging back under its own weight rather than coming to the beam.
+## How far past its reach a plug may lie before the clamp acts. The rope's own
+## solver leaves a taut branch a few millimetres long, and a clamp at exactly the
+## reach fought that for ever: a lead lying on the floor fell asleep with one
+## branch pulled tight, the clamp dragged that plug 2.4 mm back into its
+## neighbour every tick, the drag kept it inside the rope's 0.5 mm wake
+## threshold, and the plug jostled indefinitely under a cord that never woke to
+## let it go. The clamp is for over-extension measured in metres.
+##
+## It holds a plug AT the slack's edge rather than hauling it back to the reach:
+## a plug hanging off a table is carried by this clamp, and one dropped 5 mm and
+## then yanked back up every tick bounced for ever.
+const CLAMP_SLACK := 0.005
+
+
 func _physics_process(_delta: float) -> void:
 	if not _rope_built or _rope == null or _plugs.is_empty():
 		return
@@ -518,9 +532,9 @@ func _physics_process(_delta: float) -> void:
 			var away: Vector3 = boss - junction[e]
 			var d: float = away.length()
 			var r: float = reach[e]
-			if d <= r or d < 0.0001:
+			if d <= r + CLAMP_SLACK or d < 0.0001:
 				continue
-			_clamp_move(plug, away * ((r - d) / d))
+			_clamp_move(plug, away * ((r + CLAMP_SLACK - d) / d))
 
 
 ## Keep the two ends of a one-cord lead within its rest length of each other.
@@ -553,9 +567,9 @@ func _clamp_pair() -> void:
 	var to: Vector3 = loose.global_transform * loose.cable_anchor
 	var away: Vector3 = to - from
 	var d: float = away.length()
-	if d <= reach or d < 0.0001:
+	if d <= reach + CLAMP_SLACK or d < 0.0001:
 		return
-	_clamp_move(loose, away * ((reach - d) / d))
+	_clamp_move(loose, away * ((reach + CLAMP_SLACK - d) / d))
 
 
 ## Move a clamped plug with a SWEPT motion, sliding along whatever it meets.
@@ -566,10 +580,19 @@ func _clamp_pair() -> void:
 ## an uncollided write composes badly with everything else that repositions a
 ## plug (the rope's plug alignment carried one through a floor before its step
 ## was capped). Swept is strictly safer and costs one query.
+##
+## And kill the velocity that carried it out, as RetroSystem._clamp_plug does.
+## Without that a plug hanging past its reach — a branch over a table edge —
+## fell a tick's worth under gravity, was hauled back, and fell again for ever:
+## its body never slept, its cord never slept, and the ends squirmed.
 func _clamp_move(plug: RcaPlug, motion: Vector3) -> void:
 	var hit := plug.move_and_collide(motion)
 	if hit != null:
 		plug.move_and_collide(hit.get_remainder().slide(hit.get_normal()))
+	var inward := motion.normalized()
+	var outward := -inward.dot(plug.linear_velocity)
+	if outward > 0.0:
+		plug.linear_velocity += inward * outward
 
 
 func _on_plug_moved() -> void:

@@ -19,7 +19,15 @@
 //   - End stiffness: a strain-relief stub holding the first/last few segments
 //     straight, plus a directional stub for an end whose plug orientation is
 //     externally fixed.
-//   - Cached contact planes, per particle and per segment midpoint.
+//   - Cached contact planes, per particle and per segment midpoint, with
+//     Coulomb friction (static_friction / kinetic_friction) on velocity, sized
+//     by how hard the planes pushed back.
+//
+// A loose plug is a real RigidBody3D that Jolt owns. The rope never moves it
+// directly: the corrections the solver makes against a pinned end (the last
+// segment's tension, the boot pulling the cord onto the plug's exit axis) are
+// turned into a force and a torque on that body, sized by linear_density. The
+// plug in turn drives the rope, which stays pinned to its cord boss.
 //
 // ── Ribbon cables ───────────────────────────────────────────────────────────
 // ribbon_count > 1 draws the rope as several cords moulded side by side in a
@@ -149,6 +157,9 @@ public:
     XENU_ROPE_PROP(int, SurfaceCollisionMask, m_surface_collision_mask)
     XENU_ROPE_PROP(double, CollisionRadius, m_collision_radius)
     XENU_ROPE_PROP(double, SurfaceFriction, m_surface_friction)
+    XENU_ROPE_PROP(double, StaticFriction, m_static_friction)
+    XENU_ROPE_PROP(double, KineticFriction, m_kinetic_friction)
+    XENU_ROPE_PROP(double, LinearDensity, m_linear_density)
     XENU_ROPE_PROP(int, RaycastInterval, m_raycast_interval)
     XENU_ROPE_PROP(bool, SelfCollision, m_self_collision)
     XENU_ROPE_PROP(double, AnchorPull, m_anchor_pull)
@@ -288,8 +299,13 @@ private:
     static bool EndpointIsFree(EndpointRole role);
     bool PlugIsFixed(godot::Node3D *node) const;
     godot::Vector3 PlugExitDir(godot::Node3D *node, const godot::Vector3 &axis) const;
-    void AlignAnchorPlug(godot::Node3D *node, const godot::Vector3 &offset,
-                         const godot::Vector3 &axis, const godot::Vector3 &target_dir, double k);
+    // Pin reactions: slot 0 is the trunk's start, 1 its end, 2+g fray chain g.
+    int PinSlot(int p_particle) const;
+    inline void AddPinReaction(int p_pinned, const godot::Vector3 &p_push,
+                               const godot::Vector3 &p_arm);
+    bool PlugIsCoupled(godot::Node3D *node, int p_configured_role) const;
+    void CouplePlug(godot::Node3D *node, int p_configured_role, const godot::Vector3 &offset,
+                    int p_slot, double p_segment_length);
     void RefreshExclusions();
     void DepenetrateLay();
     // Resolved once per tick so the hot paths don't repeat the ObjectDB lookup.
@@ -374,6 +390,17 @@ private:
     std::vector<double> m_contact_lambda_2;
     std::unordered_map<uint64_t, godot::Vector3> m_bend_lambda;
     std::unordered_map<uint64_t, double> m_angle_lambda;
+    // What the rope did to each pinned end this step, as the displacement the
+    // pin would have taken had it been free (summed over every iteration), and
+    // that displacement's moment about the pin. Indexed by PinSlot.
+    std::vector<godot::Vector3> m_pin_push;
+    std::vector<godot::Vector3> m_pin_moment;
+    // Friction scratch, per particle: its summed contact load this step and the
+    // plane bearing hardest on it.
+    std::vector<double> m_fric_load;
+    std::vector<double> m_fric_heaviest;
+    std::vector<godot::Vector3> m_fric_normal;
+    std::vector<int> m_fric_touched;
     double m_step_dt_sq = 1.0 / (60.0 * 60.0);
     // Segment starting at each particle, or -1 — only used to invalidate a
     // midpoint cache after the tunnel recovery moves a particle.
@@ -486,10 +513,24 @@ private:
     godot::Color m_rope_color = godot::Color(0.15f, 0.15f, 0.15f, 1.0f);
     int m_surface_collision_mask = 7;
     double m_collision_radius = 0.008;
+    // Viscous slide damping, applied only when both Coulomb coefficients are
+    // zero (and to the swept landing, which has no load to measure).
     double m_surface_friction = 0.4;
+    // Coulomb friction against every surface the cord rests on: a point that
+    // slid less than static_friction x the surface's push this step is put back
+    // (it sticks), otherwise its slide is cut by kinetic_friction x the push.
+    // A PVC jacket on wood or carpet.
+    double m_static_friction = 0.7;
+    double m_kinetic_friction = 0.5;
+    // Cord mass per metre, kg. Turns the solver's corrections against a loose
+    // plug into newtons. A composite A/V lead is 30-50 g/m.
+    double m_linear_density = 0.04;
     int m_raycast_interval = 3;
     bool m_self_collision = false;
     double m_anchor_pull = 0.0;
+    // Name kept for the scenes that set it: any value above zero couples a
+    // loose RigidBody plug to the cord (the cord leaves along its exit axis and
+    // pushes back on it through forces). Zero leaves the plug untouched.
     double m_end_align_stiffness = 0.0;
     godot::Vector3 m_start_exit_axis = godot::Vector3(0, 0, -1);
     godot::Vector3 m_end_exit_axis = godot::Vector3(0, 0, -1);

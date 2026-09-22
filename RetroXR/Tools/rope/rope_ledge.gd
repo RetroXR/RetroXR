@@ -2,11 +2,14 @@
 ## moving, with REAL RigidBody plugs on its ends?
 ##
 ##   godot --headless --path RetroXR res://Tools/rope/rope_ledge.tscn
+##   ... -- --no-couple   end_align_stiffness 0: the cords never push their plugs
+##   ... -- --legacy      plug colliders back to the spheres they were
+##   ... -- --trace       the six composite plugs' state and positions after the run
 ##
 ## This exists because rope_stress structurally cannot cover it. Every case there
-## anchors to a plain Node3D, and AlignAnchorPlug bails on anything that is not a
-## RigidBody3D — so the whole plug-alignment path, and the feedback it has with
-## the rope, is invisible to that suite. rope_stress reported 0.00 jitter on its
+## anchors to a plain Node3D, and the plug coupling (CouplePlug; AlignAnchorPlug
+## before it) acts only on a RigidBody3D — so the whole plug path, and the
+## feedback it has with the rope, is invisible to that suite. rope_stress reported 0.00 jitter on its
 ## own "wrapped on a ledge" case while both real cables in here shivered forever.
 ##
 ## What to read: `asleep N/200 of the tail`. A settled cable should be asleep for
@@ -74,6 +77,19 @@ func _run() -> void:
 		"composite": comp.get_node("VerletRope") as VerletRope,
 		"plain": plain.get_node("VerletRope") as VerletRope,
 	}
+	var args := OS.get_cmdline_user_args()
+	if args.has("--no-couple"):
+		for k: String in ropes:
+			(ropes[k] as VerletRope).end_align_stiffness = 0.0
+	if args.has("--legacy"):
+		for body: Node in comp.find_children("Plug*", "RigidBody3D", false, false) + [plain.get_node("CablePlug")]:
+			for c: Node in body.get_children():
+				if c is CollisionShape3D:
+					var sp := SphereShape3D.new()
+					sp.radius = 0.035 if body.name == "CablePlug" else 0.028
+					(c as CollisionShape3D).shape = sp
+					(c as CollisionShape3D).position = Vector3(0, 0, 0.0 if body.name == "CablePlug" else -0.013)
+					break
 	# The plain lead has no owner to wire it, so give it two mounts on the table.
 	var a := Node3D.new()
 	a.position = Vector3(-0.45, TABLE_TOP + 0.02, 0.35)
@@ -134,6 +150,19 @@ func _run() -> void:
 		if t >= TICKS - 40:
 			trace.append((ropes["composite"] as VerletRope).get_points()[25].y)
 
+	if args.has("--trace"):
+		for n in ["PlugA0","PlugA1","PlugA2","PlugB0","PlugB1","PlugB2"]:
+			var pg: RigidBody3D = comp.get_node(n)
+			print("[probe] trace %s pos=%s sleeping=%s held=%s v=%.3f w=%.3f" % [n, pg.global_position,
+				str(pg.sleeping), str(pg.is_held()), pg.linear_velocity.length(), pg.angular_velocity.length()])
+		for i in 60:
+			await get_tree().physics_frame
+			var line := ""
+			for n in ["PlugA0","PlugA1","PlugA2","PlugB0","PlugB1","PlugB2"]:
+				var pg: Node3D = comp.get_node(n)
+				line += "%s y=%.4f x=%.4f  " % [n, pg.global_position.y, pg.global_position.x]
+			if i % 6 == 0:
+				print("[probe] trace t+%d %s" % [i, line])
 	for k in ropes:
 		print("[probe] %-10s jitter(last 50) = %.4f mm   asleep %d/200 of the tail   first_slept=%s" % [
 			k, worst[k] * 1000.0, int(_asleep_ticks[k]),

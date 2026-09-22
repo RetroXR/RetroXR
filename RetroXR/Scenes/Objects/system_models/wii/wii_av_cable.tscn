@@ -8,14 +8,18 @@
 [ext_resource type="Script" path="res://Scripts/Objects/cables/wii_av_plug.gd" id="6_wiiplugscript"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/system_models/wii/wii_av_plug.res" id="7_wiiplugmesh"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
-radius = 0.028
+; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
+size = Vector3(0.0144, 0.0144, 0.054)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
 friction = 0.8
 
-; Laser target, deliberately wider than the physics sphere — a plug is a small
+; Laser target, deliberately wider than the physics box — a plug is a small
 ; thing to hit with a beam from across the room, and this shape only answers the
 ; pointer (mask 0).
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
@@ -23,10 +27,11 @@ radius = 0.032
 
 ; The Multi Out shell is 27 x 15 x 30 mm against a phono plug's 8 mm barrel, so it
 ; gets its own pair. Sized to the SHROUD rather than to the whole plug: the 13 mm
-; tongue is inside the console whenever the connector matters, and a sphere covering
-; it would let the shell be grabbed through the back panel.
-[sub_resource type="SphereShape3D" id="SphereShape3D_wiiplug"]
-radius = 0.017
+; tongue is inside the console whenever the connector matters, and a shape covering
+; it would let the shell be grabbed through the back panel. A box, not the
+; sphere it was: a sphere rolls.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.027, 0.015, 0.03)
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_wiipointer"]
 radius = 0.024
@@ -83,7 +88,7 @@ script = ExtResource("6_wiiplugscript")
 ; became ungrabbable the moment it was plugged in.
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.015)
-shape = SubResource("SphereShape3D_wiiplug")
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
 mesh = ExtResource("7_wiiplugmesh")
@@ -118,7 +123,7 @@ script = ExtResource("2_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
-shape = SubResource("SphereShape3D_plug")
+shape = SubResource("BoxShape3D_plugfit2")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
 mesh = ExtResource("3_rcaplug")
@@ -150,7 +155,7 @@ script = ExtResource("2_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
-shape = SubResource("SphereShape3D_plug")
+shape = SubResource("BoxShape3D_plugfit2")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugB1"]
 mesh = ExtResource("3_rcaplug")
@@ -182,7 +187,7 @@ script = ExtResource("2_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB2"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
-shape = SubResource("SphereShape3D_plug")
+shape = SubResource("BoxShape3D_plugfit2")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugB2"]
 mesh = ExtResource("3_rcaplug")

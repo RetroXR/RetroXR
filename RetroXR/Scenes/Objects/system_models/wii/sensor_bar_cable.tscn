@@ -9,8 +9,12 @@
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 friction = 0.8
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
-radius = 0.014
+; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.01075, 0.008, 0.035)
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
 radius = 0.045
@@ -50,8 +54,8 @@ angular_damp = 8.0
 script = ExtResource("1_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="ControllerPlug" unique_id=2050876331]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.009)
-shape = SubResource("SphereShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0125)
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="ControllerPlug" unique_id=344788865]
 mesh = ExtResource("5_sensorplug")

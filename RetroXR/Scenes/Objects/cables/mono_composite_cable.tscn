@@ -6,14 +6,18 @@
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
-radius = 0.028
+; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0144, 0.0144, 0.054)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
 friction = 0.8
 
-; Laser target, deliberately wider than the physics sphere — a plug is a small
+; Laser target, deliberately wider than the physics box — a plug is a small
 ; thing to hit with a beam from across the room, and this shape only answers the
 ; pointer (mask 0). Tighter than cable.tscn's 55 mm: six plugs sit close enough
 ; together here that overlapping targets would make picking one of them a lottery.
@@ -47,7 +51,7 @@ script = ExtResource("2_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
-shape = SubResource("SphereShape3D_plug")
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
 mesh = ExtResource("3_rcaplug")
@@ -79,7 +83,7 @@ script = ExtResource("2_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
-shape = SubResource("SphereShape3D_plug")
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugA1"]
 mesh = ExtResource("3_rcaplug")
@@ -111,7 +115,7 @@ script = ExtResource("2_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
-shape = SubResource("SphereShape3D_plug")
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
 mesh = ExtResource("3_rcaplug")
@@ -143,7 +147,7 @@ script = ExtResource("2_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
-shape = SubResource("SphereShape3D_plug")
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugB1"]
 mesh = ExtResource("3_rcaplug")

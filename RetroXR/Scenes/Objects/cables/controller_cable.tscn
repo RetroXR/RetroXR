@@ -4,8 +4,12 @@
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
-radius = 0.03
+; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.02, 0.02, 0.06)
 
 ; The moulded boot: fat where it meets the connector, tapering down to the cord.
 ; Its top (local +Y) maps to world -Z under the -90 rotation below, so top_radius
@@ -30,7 +34,7 @@ albedo_color = Color(0.15, 0.15, 0.15, 1.0)
 bounce = 0.0
 friction = 0.8
 
-; Laser target. Deliberately wider than the 35 mm physics sphere: a plug is a
+; Laser target. Deliberately wider than the physics box: a plug is a
 ; small thing to hit with a beam from across the room, and this shape only ever
 ; answers the pointer (mask 0), so nothing else notices it is generous.
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
@@ -51,7 +55,8 @@ freeze_mode = 1
 script = ExtResource("1_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="ControllerPlug"]
-shape = SubResource("SphereShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
+shape = SubResource("BoxShape3D_plugfit")
 
 ; The two halves, the way round they actually go: the TIP is the dark stub that
 ; enters the socket (+Z), and the STRAIN RELIEF is the grey moulded boot the cord

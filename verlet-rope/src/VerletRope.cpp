@@ -145,6 +145,18 @@ void VerletRope::_bind_methods()
     ClassDB::bind_method(D_METHOD("get_surface_friction"), &VerletRope::GetSurfaceFriction);
     ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "surface_friction", PROPERTY_HINT_RANGE, "0.0,1.0"),
                  "set_surface_friction", "get_surface_friction");
+    ClassDB::bind_method(D_METHOD("set_static_friction", "value"), &VerletRope::SetStaticFriction);
+    ClassDB::bind_method(D_METHOD("get_static_friction"), &VerletRope::GetStaticFriction);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "static_friction", PROPERTY_HINT_RANGE, "0.0,2.0"),
+                 "set_static_friction", "get_static_friction");
+    ClassDB::bind_method(D_METHOD("set_kinetic_friction", "value"), &VerletRope::SetKineticFriction);
+    ClassDB::bind_method(D_METHOD("get_kinetic_friction"), &VerletRope::GetKineticFriction);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "kinetic_friction", PROPERTY_HINT_RANGE, "0.0,2.0"),
+                 "set_kinetic_friction", "get_kinetic_friction");
+    ClassDB::bind_method(D_METHOD("set_linear_density", "value"), &VerletRope::SetLinearDensity);
+    ClassDB::bind_method(D_METHOD("get_linear_density"), &VerletRope::GetLinearDensity);
+    ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "linear_density", PROPERTY_HINT_RANGE, "0.0,1.0,0.001"),
+                 "set_linear_density", "get_linear_density");
 
     ClassDB::bind_method(D_METHOD("set_raycast_interval", "value"), &VerletRope::SetRaycastInterval);
     ClassDB::bind_method(D_METHOD("get_raycast_interval"), &VerletRope::GetRaycastInterval);

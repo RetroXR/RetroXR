@@ -1221,6 +1221,49 @@ func _group_loose() -> void:
 	lead.queue_free()
 	await get_tree().physics_frame
 
+	# A composite lead dropped on a floor with all six phono plugs loose: its ends
+	# have to LIE there. They used to squirm for seconds and the cord never slept,
+	# because every tick the rope turned each plug onto its tangent with a
+	# transform write, the turn swung the plug into the floor, the physics server
+	# pushed it out, and the pinned cord end moved with it. The plugs also rested
+	# on spheres two to five times their thickness, which rolled and held them
+	# 27-30 mm up. Measured before the fix: 330-590 mm of plug travel after
+	# landing and awake at 900 frames; after it, 0 mm and asleep by ~200.
+	base = _new_case()
+	_box(base + Vector3(0, -0.05, 0), Vector3(4.0, 0.10, 4.0))
+	var comp: Node3D = COMPOSITE_SCENE.instantiate()
+	comp.position = base + Vector3(0, 0.06, 0)  # posed before it enters the tree
+	_case_geometry.add_child(comp)
+	var crope: VerletRope = comp.get_node("VerletRope")
+	var plugs: Array[Node] = comp.find_children("Plug*", "RigidBody3D", false, false)
+	var prev_anchor := {}
+	var travel := 0.0
+	var slept_frame := -1
+	for f in 900:
+		await get_tree().physics_frame
+		for pg: Node in plugs:
+			var body := pg as RigidBody3D
+			var anchor: Vector3 = body.global_transform * (body.get("cable_anchor") as Vector3)
+			if f >= 240 and prev_anchor.has(body):
+				travel += anchor.distance_to(prev_anchor[body])
+			prev_anchor[body] = anchor
+		if slept_frame < 0 and crope.is_sleeping():
+			slept_frame = f
+	var highest := 0.0
+	for pg: Node in plugs:
+		highest = maxf(highest, (pg as Node3D).global_position.y - base.y)
+	_ok(crope.is_sleeping() and slept_frame >= 0 and slept_frame < 600,
+		"loose/a lead on the floor falls asleep and stays asleep",
+		"first asleep at frame %d, asleep at 900: %s" % [slept_frame, str(crope.is_sleeping())])
+	_ok(travel < 0.03,
+		"loose/a lead's loose plugs lie still once it has landed",
+		"%.1f mm of plug travel after frame 240" % (travel * 1000.0))
+	_ok(highest < 0.012,
+		"loose/a loose phono plug lies on the floor, not propped above it",
+		"highest plug origin %.1f mm up; a 14 mm barrel lying down is 7" % (highest * 1000.0))
+	comp.queue_free()
+	await get_tree().physics_frame
+
 
 ## Advance a frozen plug one stride, the way a hand carries a pickup. The write
 ## goes through the physics server: repositioning a frozen body by

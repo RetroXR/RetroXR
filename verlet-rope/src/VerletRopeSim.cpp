@@ -48,15 +48,15 @@ constexpr int SLEEP_ENVIRONMENT_INTERVAL = 30;
 // at 60 Hz is 24 m/s, where a hard throw is nearer 10. Every teleport a restore
 // performs is 0.7 m or more, so the gap is wide. See AnchorTeleported.
 constexpr double TELEPORT_EPS_SQ = 0.4 * 0.4;
-// Largest rotation AlignAnchorPlug may apply in one tick, radians. The rotation
-// is about the cable anchor, some 40 mm from the body origin, and it is written
-// as a transform — a teleport the physics server never sweeps. Uncapped, a cord
-// whipping during a drop flips the tangent and the alignment arcs the origin
-// ~90 mm in a single write, far past the server's depenetration recovery: a
-// dropped lead's plug was carried clean through a 100 mm floor slab and fell
-// out of the world. 0.12 rad keeps the arc under ~5 mm a tick — unescapably
-// inside contact recovery — and still turns a full flip in a third of a second.
-constexpr double MAX_ALIGN_STEP = 0.12;
+// Most the cord may change a loose plug's velocity in one step, through
+// CouplePlug's force and torque. The coupling is physical — a few grams of cord
+// against a plug of tens of grams — and never reaches these in normal handling;
+// they are there for a whipping cord, whose corrections are no longer small.
+// A force goes through the physics server's own solver, so unlike the old
+// aligning teleport it cannot carry a plug through a floor, but a light plug
+// spun at hundreds of rad/s still reads as a glitch.
+constexpr double MAX_COUPLE_DV = 0.5;
+constexpr double MAX_COUPLE_DW = 12.0;
 } // namespace
 
 // ── Constraint primitives ───────────────────────────────────────────────────
@@ -82,6 +82,9 @@ inline void VerletRope::SolvePair(int a, int b, double rest, double k, double *l
         const Vector3 correction = diff * ((dist - rest) / dist) * k;
         m_points[a] += correction * (w_a / w_sum);
         m_points[b] -= correction * (w_b / w_sum);
+        if (w_a == 0.0f || w_b == 0.0f)
+            AddPinReaction(w_a == 0.0f ? a : b, w_a == 0.0f ? correction : -correction,
+                           Vector3());
         return;
     }
     const double alpha = m_stretch_compliance / m_step_dt_sq;
@@ -91,6 +94,36 @@ inline void VerletRope::SolvePair(int a, int b, double rest, double k, double *l
     const Vector3 correction = diff * (-delta_lambda / dist);
     m_points[a] += correction * (w_a / w_sum);
     m_points[b] -= correction * (w_b / w_sum);
+    if (w_a == 0.0f || w_b == 0.0f)
+        AddPinReaction(w_a == 0.0f ? a : b, w_a == 0.0f ? correction : -correction, Vector3());
+}
+
+// Which pin slot a pinned particle is: 0 the trunk's start, 1 its end, 2+g the
+// end of fray chain g, or -1. Only asked about particles with zero inverse
+// mass, which is what keeps it off the hot path.
+int VerletRope::PinSlot(int p_particle) const
+{
+    if (p_particle == 0)
+        return 0;
+    if (p_particle == TrunkCount() - 1)
+        return 1;
+    for (size_t g = 0; g < m_fray.size(); ++g)
+        if (p_particle == m_fray[g].first + m_fray[g].count - 1)
+            return 2 + static_cast<int>(g);
+    return -1;
+}
+
+// Record that a constraint moved a free particle by -p_push against pinned
+// particle p_pinned: had the pin been free, it would have taken p_push. p_arm
+// is where that push acts, relative to the pin — zero for a segment, which
+// pulls straight on the pin; the boot's pushes act out along the cord.
+inline void VerletRope::AddPinReaction(int p_pinned, const Vector3 &p_push, const Vector3 &p_arm)
+{
+    const int slot = PinSlot(p_pinned);
+    if (slot < 0 || slot >= static_cast<int>(m_pin_push.size()))
+        return;
+    m_pin_push[slot] += p_push;
+    m_pin_moment[slot] += p_arm.cross(p_push);
 }
 
 // Angular bend constraint: pull particle b toward the midpoint of its
@@ -340,6 +373,7 @@ inline void VerletRope::SolveMidContact(int s, bool second)
         const double weight = w_a * ta * ta + w_b * t * t;
         if (weight <= 0.0)
             return;
+        (second ? m_mid_contact_lambda_2[s] : m_mid_contact_lambda[s]) += push_distance;
         m_points[ia] += push * (w_a * ta / weight);
         m_points[ib] += push * (w_b * t / weight);
     }
@@ -353,6 +387,9 @@ inline void VerletRope::ProjectPlane(int i, const Vector3 &cp, const Vector3 &n,
     {
         if (m_contact_compliance <= 0.0)
         {
+            // No multiplier on this path, but friction still needs to know how
+            // hard the surface pushed back: record the push distance itself.
+            lambda += m_collision_radius - d;
             m_points[i] += n * (m_collision_radius - d);
             return;
         }
@@ -509,67 +546,66 @@ Vector3 VerletRope::PlugExitDir(Node3D *node, const Vector3 &axis) const
     return (node->get_global_transform().basis.orthonormalized().xform(axis)).normalized();
 }
 
-// Rotate a free plug rigidbody so its cable-exit axis points along the rope's
-// tangent, easing by k per frame.
+// A loose plug the cord is coupled to: a RigidBody3D in the FREE role, on a
+// rope whose end_align_stiffness is non-zero. Its orientation is its own, so
+// the cord leaves along its exit axis as it does from a held plug — but the
+// plug is free to answer back, through CouplePlug.
 //
-// The rotation is about the plug's CABLE ANCHOR, not its origin. That is what
-// makes this safe to run inside the tick: the rope reads the anchor as
-// transform * offset, and a real plug's offset is its cord boss some 40 mm back
-// from the origin, so spinning about the origin swings the anchor through a
-// 40 mm arc — it perturbs the very rope whose tangent it is chasing. This used
-// to claim it "never perturbs the sim", which held only for a zero offset.
-//
-// Six free plugs on a composite lead made that a standing wave: each anchor
-// moved ~0.7 mm a tick, over the 0.5 mm wake threshold, so the rope re-woke
-// every tick forever and a cable draped on a table never stopped shivering.
-void VerletRope::AlignAnchorPlug(Node3D *node, const Vector3 &offset, const Vector3 &axis,
-                                 const Vector3 &target_dir_in, double k)
+// The configured role wins, as everywhere else: the VRU authors its microphone
+// end as a HOST, and a coupling that re-derived the role from the node pushed
+// the microphone across the floor (n64_vru_tests "stays where it landed").
+bool VerletRope::PlugIsCoupled(Node3D *node, int p_configured_role) const
 {
+    if (m_end_align_stiffness <= 0.0 || node == nullptr)
+        return false;
+    if (Object::cast_to<RigidBody3D>(node) == nullptr)
+        return false;
+    return ResolveEndpointRole(node, p_configured_role) == ENDPOINT_FREE_PLUG;
+}
+
+// Push a loose plug with what the cord did to it this step.
+//
+// m_pin_push is how far the pinned particle would have moved had it been free,
+// summed over the solve; over a step of dt that is a force of m x push / dt^2,
+// with m the mass of one segment of cord. The moment term is the boot: it bent
+// the cord's first segments onto the plug's exit axis, and the plug takes the
+// equal and opposite turn. Both go to the physics server as ordinary forces,
+// so the plug's own contacts, friction and sleep decide where it ends up.
+//
+// This replaced AlignAnchorPlug, which rotated the plug onto the cord's tangent
+// with a transform write every tick. On a floor that turn swung the body into
+// the surface, the server pushed it back out, the pinned cord end moved with it
+// and the next turn started over — the ends of a cord lying on the floor
+// squirmed until the rope happened to fall asleep.
+void VerletRope::CouplePlug(Node3D *node, int p_configured_role, const Vector3 &offset, int p_slot,
+                            double p_segment_length)
+{
+    if (!PlugIsCoupled(node, p_configured_role) || m_linear_density <= 0.0)
+        return;
+    if (p_slot < 0 || p_slot >= static_cast<int>(m_pin_push.size()))
+        return;
     RigidBody3D *rb = Object::cast_to<RigidBody3D>(node);
-    if (rb == nullptr || rb->is_freeze_enabled())
+    const double scale = m_linear_density * p_segment_length / m_step_dt_sq;
+    Vector3 force = m_pin_push[p_slot] * scale;
+    Vector3 torque = m_pin_moment[p_slot] * scale;
+    if (force.length_squared() < 1e-14 && torque.length_squared() < 1e-14)
         return;
-    if (rb->has_method("is_picked_up") && static_cast<bool>(rb->call("is_picked_up")))
-        return;
-    if (target_dir_in.length_squared() < 1e-8)
-        return;
-    const Vector3 target_dir = target_dir_in.normalized();
-    // We own this plug's rotation while it dangles free — kill any residual spin
-    // so the physics engine doesn't drift it between our frames.
-    rb->set_angular_velocity(Vector3());
-    const Basis basis = rb->get_global_transform().basis.orthonormalized();
-    const Vector3 cur_axis = basis.xform(axis).normalized();
-    if (cur_axis.length_squared() < 1e-8)
-        return;
-    const double dot = CLAMP(cur_axis.dot(target_dir), -1.0, 1.0);
-    if (dot > 0.9999)
-        return; // already aligned
-    Quaternion arc;
-    if (dot < -0.9999)
+
+    const double dt = std::sqrt(m_step_dt_sq);
+    const double mass = rb->get_mass();
+    if (mass > 0.0)
     {
-        // Opposite directions — pick any perpendicular for the 180 degree flip.
-        Vector3 perp = cur_axis.cross(Vector3(0, 1, 0));
-        if (perp.length_squared() < 1e-6)
-            perp = cur_axis.cross(Vector3(1, 0, 0));
-        arc = Quaternion(perp.normalized(), Math_PI);
+        const double dv = force.length() / mass * dt;
+        if (dv > MAX_COUPLE_DV)
+            force *= MAX_COUPLE_DV / dv;
     }
-    else
-    {
-        arc = Quaternion(cur_axis, target_dir);
-    }
-    const Quaternion cur_q = basis.get_rotation_quaternion();
-    const Quaternion target_q = (arc * cur_q).normalized();
-    const double theta = std::acos(dot); // slerp is linear in angle, so w*theta is the applied step
-    double w = CLAMP(k, 0.0, 1.0);
-    if (w * theta > MAX_ALIGN_STEP)
-        w = MAX_ALIGN_STEP / theta;
-    const Quaternion new_q = cur_q.slerp(target_q, w);
-    Transform3D xf = rb->get_global_transform();
-    // Pin the anchor: work out where it is now, re-basis, then put the origin
-    // back so the anchor lands in exactly the same place.
-    const Vector3 anchor_before = xf.xform(offset);
-    xf.basis = Basis(new_q);
-    xf.origin += anchor_before - xf.xform(offset);
-    rb->set_global_transform(xf);
+    const double dw = (rb->get_inverse_inertia_tensor().xform(torque) * dt).length();
+    if (dw > MAX_COUPLE_DW)
+        torque *= MAX_COUPLE_DW / dw;
+
+    const Vector3 anchor = AnchorPoint(node, offset, Vector3());
+    rb->apply_force(force, anchor - rb->get_global_position());
+    rb->apply_torque(torque);
 }
 
 // ── Tick ────────────────────────────────────────────────────────────────────
@@ -650,18 +686,24 @@ void VerletRope::Step(double p_delta)
     Integrate(p_delta);
 
     // End orientation authority: a plug whose orientation is externally fixed
-    // drives the ROPE. A free plug is the complement — it follows the rope (see
-    // AlignAnchorPlug after the solve).
+    // drives the ROPE. A free plug and its cord settle it between them — the
+    // cord leaves along the plug, the plug takes the cord's reaction as forces
+    // (see CouplePlug after the solve).
     const EndpointRole start_role = ResolveEndpointRole(m_start_cached, m_start_endpoint_role);
     const EndpointRole end_role = ResolveEndpointRole(m_end_cached, m_end_endpoint_role);
     const bool start_fixed = EndpointIsFixed(start_role);
     const bool end_fixed = EndpointIsFixed(end_role);
-    const Vector3 start_exit = start_fixed ? PlugExitDir(m_start_cached, m_start_exit_axis) : Vector3();
-    const Vector3 end_exit = end_fixed ? PlugExitDir(m_end_cached, m_end_exit_axis) : Vector3();
     // Hosts, held plugs and seated plugs all have authored orientation and keep
-    // the moulded strain-relief stub when their endpoint role changes.
-    const bool start_directional = EndpointIsDirectional(start_role);
-    const bool end_directional = EndpointIsDirectional(end_role);
+    // the moulded strain-relief stub when their endpoint role changes. A coupled
+    // loose plug keeps it too: the plug's own orientation is physical now, and
+    // the stub's reaction is what turns it (see CouplePlug).
+    const bool start_directional = EndpointIsDirectional(start_role) ||
+                                   (!start_fixed && PlugIsCoupled(m_start_cached, m_start_endpoint_role));
+    const bool end_directional = EndpointIsDirectional(end_role) ||
+                                 (!end_fixed && PlugIsCoupled(m_end_cached, m_end_endpoint_role));
+    const Vector3 start_exit =
+        start_directional ? PlugExitDir(m_start_cached, m_start_exit_axis) : Vector3();
+    const Vector3 end_exit = end_directional ? PlugExitDir(m_end_cached, m_end_exit_axis) : Vector3();
 
     SolveConstraints(start_directional, end_directional, start_exit, end_exit);
     ApplyContactFriction();
@@ -685,26 +727,12 @@ void VerletRope::Step(double p_delta)
 
     ApplyAnchorCoupling();
 
-    // Plug end-direction alignment, FREE ends only.
-    const int count = TrunkCount();
-    if (m_end_align_stiffness > 0.0 && count >= 2)
-    {
-        if (!start_fixed)
-            AlignAnchorPlug(m_start_cached, m_start_anchor_offset, m_start_exit_axis,
-                            m_points[1] - m_points[0], m_end_align_stiffness);
-        if (!end_fixed)
-            AlignAnchorPlug(m_end_cached, m_end_anchor_offset, m_end_exit_axis,
-                            m_points[count - 2] - m_points[count - 1], m_end_align_stiffness);
-        for (const FrayChain &fc : m_fray)
-        {
-            if (fc.cached == nullptr || fc.count < 2 || PlugIsFixed(fc.cached))
-                continue;
-            const int last = fc.first + fc.count - 1;
-            AlignAnchorPlug(fc.cached, fc.offset, m_end_exit_axis,
-                            m_points[last - 1] - m_points[last],
-                            m_end_align_stiffness);
-        }
-    }
+    // Loose plugs answer the cord through forces, FREE ends only.
+    CouplePlug(m_start_cached, m_start_endpoint_role, m_start_anchor_offset, 0, m_segment_length);
+    CouplePlug(m_end_cached, m_end_endpoint_role, m_end_anchor_offset, 1, m_segment_length);
+    for (size_t g = 0; g < m_fray.size(); ++g)
+        CouplePlug(m_fray[g].cached, ENDPOINT_AUTO, m_fray[g].offset, 2 + static_cast<int>(g),
+                   FraySegLength());
 
     UpdateSleepState();
     // Last thing in the tick, after the anchors are pinned: roll the render
@@ -744,6 +772,8 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
     m_contact_lambda_2.assign(m_points.size(), 0.0);
     m_bend_lambda.clear();
     m_angle_lambda.clear();
+    m_pin_push.assign(2 + m_fray.size(), Vector3());
+    m_pin_moment.assign(2 + m_fray.size(), Vector3());
 
     // Stretch stiffness is remapped so extensibility is independent of the
     // iteration count (k' = 1-(1-k)^(1/n)); 1.0 stays fully rigid.
@@ -848,9 +878,13 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
                 {
                     const int idx = count - 1 - j;
                     if (m_inv_mass[idx] != 0.0f)
+                    {
+                        const Vector3 before = m_points[idx];
                         m_points[idx] = m_points[idx].lerp(
                             base_e + p_end_exit * (m_segment_length * j),
                             StubWeight(ked, j, nd));
+                        AddPinReaction(count - 1, before - m_points[idx], before - base_e);
+                    }
                 }
             }
             if (p_start_fixed)
@@ -859,9 +893,13 @@ void VerletRope::SolveConstraints(bool p_start_fixed, bool p_end_fixed,
                 for (int j = 1; j <= nd; ++j)
                 {
                     if (m_inv_mass[j] != 0.0f)
+                    {
+                        const Vector3 before = m_points[j];
                         m_points[j] = m_points[j].lerp(
                             base_s + p_start_exit * (m_segment_length * j),
                             StubWeight(ked, j, nd));
+                        AddPinReaction(0, before - m_points[j], before - base_s);
+                    }
                 }
             }
         }
@@ -973,8 +1011,10 @@ void VerletRope::SolveFrayConstraints(int p_iter, double, double p_k_bend, doubl
             }
 
             // Directional stub: a branch whose plug is held or socketed leaves
-            // it along the plug's exit axis rather than hanging off it.
-            if (PlugIsFixed(fc.cached))
+            // it along the plug's exit axis rather than hanging off it, and so
+            // does one whose loose plug is coupled — its body takes the stub's
+            // reaction as a torque, so the plug and its boot turn together.
+            if (fc.cached != nullptr && (PlugIsFixed(fc.cached) || PlugIsCoupled(fc.cached, ENDPOINT_AUTO)))
             {
                 const Vector3 exit = PlugExitDir(fc.cached, m_end_exit_axis);
                 const Vector3 base = m_points[last];
@@ -982,35 +1022,129 @@ void VerletRope::SolveFrayConstraints(int p_iter, double, double p_k_bend, doubl
                 {
                     const int idx = last - j;
                     if (m_inv_mass[idx] != 0.0f)
+                    {
+                        const Vector3 before = m_points[idx];
                         m_points[idx] = m_points[idx].lerp(base + exit * (seg_len * j),
                                                            StubWeight(ke, j, n_end));
+                        AddPinReaction(last, before - m_points[idx], before - base);
+                    }
                 }
             }
         }
     }
 }
 
-// Friction for cached resting contacts (once per frame, not per iteration): damp
-// the tangential velocity of every particle a contact plane is holding.
+// Coulomb friction for cached resting contacts, once per step after the solve,
+// on VELOCITY only.
+//
+// The load is how far the contact planes pushed a particle back out this step
+// (the accumulated contact multipliers, summed over every plane and segment
+// midpoint bearing on it). A resting point is pushed back by one step of
+// gravity, so the load is g dt^2 and "tangential step < mu x load" is exactly
+// "friction force < mu x weight"; a cord pulled round an edge is pressed
+// harder and grips harder, as a real one does. Applied along the plane
+// bearing hardest on the particle.
+//
+// Inside the static cone the tangential velocity is zeroed outright — the
+// point stops dead instead of coasting on at 60%. Outside it, kinetic_friction
+// x load comes off it each step, a deceleration of mu g, never past zero.
+//
+// Positions are never touched, deliberately. A stick applied to positions
+// fights the rigid stretch constraints: once after the solve it left them
+// unsatisfied and the unstuck neighbours were hauled every tick (a composite
+// lead's breakout loop crawled for seconds on the floor); inside the loop it
+// held points against pulls the stretch re-applied in small steps (a cord
+// hauled round a post stretched to twice its length), and budgeting the grip
+// over the iterations pumped a heap that never slept. What a velocity stick
+// cannot do is hold a point against a steady pull — a slope creeps — but at a
+// crawl the sleep system already parks.
+//
+// With both coefficients zero this is the old viscous damping instead: keep a
+// (1 - surface_friction) share of every contact's tangential velocity, which
+// never brought a slow slide to zero.
 void VerletRope::ApplyContactFriction()
 {
     const int count = static_cast<int>(m_points.size());
-    for (int i = 0; i < count; ++i)
+    if (m_static_friction <= 0.0 && m_kinetic_friction <= 0.0)
     {
-        if (m_inv_mass[i] == 0.0f || m_c_flags[i] == 0)
-            continue;
+        for (int i = 0; i < count; ++i)
+        {
+            if (m_inv_mass[i] == 0.0f || m_c_flags[i] == 0)
+                continue;
+            for (int slot = 0; slot < 2; ++slot)
+            {
+                if ((m_c_flags[i] & (1 << slot)) == 0)
+                    continue;
+                const Vector3 n = slot == 0 ? m_c_n1[i] : m_c_n2[i];
+                const Vector3 cp = slot == 0 ? m_c_p1[i] : m_c_p2[i];
+                if ((m_points[i] - cp).dot(n) > m_collision_radius * 1.05)
+                    continue;
+                const Vector3 vel = m_points[i] - m_prev_points[i];
+                const Vector3 tangential = vel - n * vel.dot(n);
+                m_prev_points[i] = m_points[i] - tangential * (1.0 - m_surface_friction);
+            }
+        }
+        return;
+    }
+
+    // Gather each particle's load and the plane it bears on most.
+    const bool xpbd = m_contact_compliance > 0.0;
+    m_fric_load.assign(count, 0.0);
+    m_fric_heaviest.assign(count, 0.0);
+    m_fric_normal.resize(count);
+    m_fric_touched.clear();
+    const auto load_on = [&](int i, const Vector3 &n, double load) {
+        if (load <= 0.0 || m_inv_mass[i] == 0.0f)
+            return;
+        if (m_fric_load[i] == 0.0)
+            m_fric_touched.push_back(i);
+        if (load > m_fric_heaviest[i])
+        {
+            m_fric_heaviest[i] = load;
+            m_fric_normal[i] = n;
+        }
+        m_fric_load[i] += load;
+    };
+    for (int i : m_active_contact)
+    {
+        const float w = xpbd ? m_inv_mass[i] : 1.0f;
+        if (m_c_flags[i] & 1)
+            load_on(i, m_c_n1[i], m_contact_lambda_1[i] * w);
+        if (m_c_flags[i] & 2)
+            load_on(i, m_c_n2[i], m_contact_lambda_2[i] * w);
+    }
+    // A segment's midpoint contact loads its two ends by their share of the
+    // push. Only the share matters here, so the rigid path's larger per-end
+    // move (push / weight) is deliberately not reproduced.
+    for (int s : m_active_mid)
+    {
         for (int slot = 0; slot < 2; ++slot)
         {
-            if ((m_c_flags[i] & (1 << slot)) == 0)
+            if ((m_mid_contact[s] & (1 << slot)) == 0)
                 continue;
-            const Vector3 n = slot == 0 ? m_c_n1[i] : m_c_n2[i];
-            const Vector3 cp = slot == 0 ? m_c_p1[i] : m_c_p2[i];
-            if ((m_points[i] - cp).dot(n) > m_collision_radius * 1.05)
+            const double lambda = slot == 0 ? m_mid_contact_lambda[s] : m_mid_contact_lambda_2[s];
+            if (lambda <= 0.0)
                 continue;
-            const Vector3 vel = m_points[i] - m_prev_points[i];
-            const Vector3 tangential = vel - n * vel.dot(n);
-            m_prev_points[i] = m_points[i] - tangential * (1.0 - m_surface_friction);
+            const double t = slot == 0 ? m_mid_contact_t[s] : m_mid_contact_t_2[s];
+            const Vector3 &n = slot == 0 ? m_mid_contact_normal[s] : m_mid_contact_normal_2[s];
+            load_on(m_seg_a[s], n, lambda * (1.0 - t));
+            load_on(m_seg_b[s], n, lambda * t);
         }
+    }
+
+    for (int i : m_fric_touched)
+    {
+        const double load = m_fric_load[i];
+        const Vector3 n = m_fric_normal[i];
+        const Vector3 vel = m_points[i] - m_prev_points[i];
+        const Vector3 slide = vel - n * vel.dot(n);
+        const double len = slide.length();
+        if (len <= 1e-12)
+            continue;
+        if (len <= m_static_friction * load)
+            m_prev_points[i] += slide;
+        else
+            m_prev_points[i] += slide * std::min(m_kinetic_friction * load / len, 1.0);
     }
 }
 

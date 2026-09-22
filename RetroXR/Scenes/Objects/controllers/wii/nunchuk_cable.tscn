@@ -14,8 +14,12 @@
 [ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
-radius = 0.022
+; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.013, 0.007, 0.03)
 
 [sub_resource type="BoxMesh" id="BoxMesh_plug"]
 size = Vector3(0.013, 0.005, 0.016)
@@ -53,7 +57,8 @@ freeze_mode = 1
 script = ExtResource("1_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="ControllerPlug"]
-shape = SubResource("SphereShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.003)
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="ControllerPlug"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.004)

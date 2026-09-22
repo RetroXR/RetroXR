@@ -5,14 +5,18 @@
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
-radius = 0.035
+; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0144, 0.0144, 0.054)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
 friction = 0.8
 
-; Laser target. Deliberately wider than the 35 mm physics sphere: a plug is a
+; Laser target. Deliberately wider than the physics box: a plug is a
 ; small thing to hit with a beam from across the room, and this shape only ever
 ; answers the pointer (mask 0), so nothing else notices it is generous.
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
@@ -33,7 +37,8 @@ freeze_mode = 1
 script = ExtResource("1_plugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="CablePlug"]
-shape = SubResource("SphereShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
 
 ; Baked RCA plug (Tools/gen/gen_rca_plug.gd). No transform: the mesh is authored
 ; connector-on-+Z, unlike a CylinderMesh which is Y-up and needed rotating. No
@@ -91,7 +96,8 @@ script = ExtResource("1_plugscript")
 plug_color = Color(0.87, 0.87, 0.84, 1)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="CablePlugL"]
-shape = SubResource("SphereShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="CablePlugL"]
 mesh = ExtResource("5_rcaplug")
@@ -124,7 +130,8 @@ script = ExtResource("1_plugscript")
 plug_color = Color(0.72, 0.08, 0.08, 1)
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="CablePlugR"]
-shape = SubResource("SphereShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="CablePlugR"]
 mesh = ExtResource("5_rcaplug")

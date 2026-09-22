@@ -18,8 +18,12 @@ size = Vector3(0.3, 0.42, 0.11)
 bounce = 0.0
 friction = 0.95
 
-[sub_resource type="SphereShape3D" id="SphereShape3D_plug"]
-radius = 0.022
+; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
+; loose plug lies ON a surface at its real size. It was a sphere two to five
+; times the plug's thickness, which rolled under any push and held the plug
+; centimetres off the floor with nothing visibly holding it there.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0128, 0.0111, 0.0444)
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
 radius = 0.038
@@ -105,7 +109,8 @@ freeze_mode = 1
 script = ExtResource("4_coaxplugscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
-shape = SubResource("SphereShape3D_plug")
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0098)
+shape = SubResource("BoxShape3D_plugfit")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
 mesh = ExtResource("5_coaxplug")

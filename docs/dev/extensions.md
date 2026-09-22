@@ -53,7 +53,8 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   A/V plug. Lived inside `libretro-godot` until 2026-08-02 and was moved out (and purged from
   that submodule's history) because it never belonged there: it includes nothing from libretro
   and libretro includes nothing from it. Pure godot-cpp, no third-party dependency, so it is
-  one of the simplest extensions to build.
+  one of the simplest extensions to build. How the cord, its plugs and friction meet:
+  `rope.md`.
   ```bash
   cd verlet-rope && scons platform=windows arch=x86_64 target=template_debug
   cd verlet-rope && scons platform=macos arch=arm64 target=template_debug macos_deployment_target=13.0

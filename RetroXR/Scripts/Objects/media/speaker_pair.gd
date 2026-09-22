@@ -67,11 +67,11 @@ func _ready() -> void:
 ##
 ## Anchored at the cable BOSSES, not at the cabinets. The marker is what makes the
 ## difference: VerletRope reads a RigidBody3D anchor that is neither held nor frozen
-## as a free PLUG and, every tick, zeroes its spin and turns it 70% of the way toward
-## pointing its -Z down the cord (end_align_stiffness, VerletRope::AlignAnchorPlug).
-## That is the whole point for a 30 mm plug and ruinous for a cabinet: anchored at the
-## boxes, a spawned pair rolled flat on its side within a second and then crept across
-## the floor forever, chasing a tangent its own turning kept moving. A plain Node3D
+## as a free PLUG and couples it to the cord (end_align_stiffness,
+## VerletRope::CouplePlug) — the cord leaves along its -Z and pushes back on it. It
+## used to TURN it there, 70% a tick, and anchored at the boxes a spawned pair rolled
+## flat on its side within a second and then crept across the floor forever, chasing a
+## tangent its own turning kept moving. A cabinet is still not a plug. A plain Node3D
 ## anchor is read as a host attach point instead — a device end, which is what these
 ## are — exactly as every controller and peripheral cable here anchors its machine end.
 ## The cabinet still owns the anchor: RefreshExclusions walks up to the first

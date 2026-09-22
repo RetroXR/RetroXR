@@ -45,7 +45,7 @@ debug build, 2026-08-27 — all passing):
 | `object_sync_tests` | 127 | 8 s | the shared-room network layer, 2–3 real ENet peers |
 | `scene_tests` | 120 | 10 s | SceneManager and the save gates around it |
 | `poster_tests` | 112 | 11 s | the posters feature, stick/peel/conform |
-| `rope_tests` | 82 | 69 s | what a cable does when it meets furniture |
+| `rope_tests` | 85 | 70 s | what a cable does when it meets furniture |
 | `av_tests` | 41 | 35 s | what reaches a television's inputs (§2c) |
 | `system_tests` | — | — | the machine controller's port, pad, save and disc rules |
 | `link_tests` | — | — | which socket each end of a link lead belongs in |
@@ -111,16 +111,23 @@ on a ledge, heaped, bridging a gap; loose/ — a whole lead dropped flat, across
 from height) and what a player DOES to one (handling/ — a real lead's plug yanked at
 5 m/s, towed 2.5 m across the floor, pulled out through a 100 mm slot, carried over a
 partition, a cord wrapped round a post and hauled tight), plus inextensibility,
-determinism, anchor pinning, teleport re-lay, `set_rope_length` and sleep/wake. 82 cases,
+determinism, anchor pinning, teleport re-lay, `set_rope_length` and sleep/wake. 85 cases,
 ~70 s, no GPU. It complements rather than replaces the two BIT-EXACT oracles in `Tools/`
-(`rope_bench --settle` prints `still_awake=12`, `rope_stress` diffs a 22-row table): those
-catch arithmetic drift, this catches a cord that jitters, tunnels or will not settle.
+(`rope_bench --settle` prints `settled_at_tick=49 still_awake=0`, `rope_stress` diffs a
+22-row table): those catch arithmetic drift, this catches a cord that jitters, tunnels or
+will not settle.
 (The bench printed 15 until 2026-08-17: DepenetrateLay freed wedged lays and three more
 bench ropes settle; the stress rows that moved are the two impossible lays. Re-baselined
-deliberately — an UNINTENDED move in these numbers is still a stop-everything signal.)
+deliberately — an UNINTENDED move in these numbers is still a stop-everything signal.
+Re-baselined again 2026-09-22 for Coulomb friction and force-coupled plugs, `rope.md`:
+every bench rope now settles, where 7 stayed awake on the build before, and `rope_stress`
+moved on two rows — "slack over floor" squash 0.96 → 0.95, and "dragged through wall"
+worst segment 6.89 → 30.82 with jitter 81 → 3.7 mm, the other impossible lay.
+`loose/` gained three cases for a composite lead's plugs lying still on a floor.)
 Two defects this suite caught and got fixed the same day: `AlignAnchorPlug` used to apply
 uncapped rotation steps about the cable anchor, a per-tick transform teleport that carried
-a dropped lead's plug through a 100 mm floor (now capped at MAX_ALIGN_STEP); and a cord
+a dropped lead's plug through a 100 mm floor (capped then; the turn itself is gone since
+2026-09-22, the plug is pushed by forces — `rope.md`); and a cord
 laid straight through furniture — every restore/teleport re-lay can do this — left
 particles wedged inside it for ever (now freed by `DepenetrateLay` on the first tick after
 a lay). `Tools/rope/rope_video_probe.tscn` renders the same cases to PNG frames (windowed, not
