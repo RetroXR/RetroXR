@@ -262,12 +262,20 @@ func _ensure_slot2_save(core: String) -> String:
 	var path := _host.slot2_save_path(core)
 	if path.is_empty():
 		return ""
-	if not FileAccess.file_exists(path):
+	# An EMPTY file is refused just like a missing one (measured): the core sizes
+	# the cartridge's save memory from the file, so it is seeded blank at the size
+	# the cartridge declares. A file that already holds a save is never touched.
+	var existing := FileAccess.open(path, FileAccess.READ)
+	var size := existing.get_length() if existing != null else 0
+	if existing != null:
+		existing.close()
+	if size == 0:
 		DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 		var f := FileAccess.open(path, FileAccess.WRITE)
 		if f == null:
 			push_warning("[RetroSystem] cannot create GBA save file %s (%s)"
 				% [path, error_string(FileAccess.get_open_error())])
 			return ""
+		f.store_buffer(Slot2Catalog.blank_gba_save(_host.slot2_media_path()))
 		f.close()
 	return path

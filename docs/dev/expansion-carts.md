@@ -253,9 +253,12 @@ subsystems[]    = { "gba" (3 roms), "gbanosav" (2 roms) }
 read into memory — the bridge does that for every `need_fullpath=false` entry),
 `game[2]` the GBA save PATH. **The GBA save never goes through
 `retro_get_memory_data`**: the core opens that path itself and **throws on a path
-that does not exist** ("Failed to open GBA save file", load refused), tolerates an
-empty file, and writes the SRAM back to it itself. So the `slot2_save` token
-CREATES the file when it is missing, keyed off the GBA cartridge's own `save_id`
+that does not exist** ("Failed to open GBA save file", load refused) **and on an
+EMPTY one too** (measured 2026-09-21 — it sizes the cart's save memory from the file),
+and writes the SRAM back to it itself. So the `slot2_save` token CREATES the file
+when it is missing or empty, seeded as erased (0xFF) memory of the size the GBA ROM's
+own save-type string declares (`Slot2Catalog.blank_gba_save`: `EEPROM_V` 8 KB,
+`SRAM_V` 32 KB, `FLASH_V`/`FLASH512_V` 64 KB, `FLASH1M_V` 128 KB, none → 32 KB), keyed off the GBA cartridge's own `save_id`
 under the GBA game's stem (the save follows the GBA game between DS games).
 `gbanosav` is not a fallback: it never writes a save.
 
@@ -267,5 +270,8 @@ DS card alone in a session — not extended.
 `expansion_tests` `slot2/` (27 cases) pins the gates, the pose (printed basis:
 top edge out of +Z, label down), the recipe order and the save file's existence.
 What no suite covers is the core actually taking the pair: that needs melondsds,
-the DS firmware, a DS ROM and a GBA ROM, and has not been measured yet — the
-log line to look for is `Loading subsystem 'gba' (id=...) with 3 file(s)`.
+the DS firmware, a DS ROM and a GBA ROM. MEASURED 2026-09-21 with
+`Tools/cores/ds_boot_probe` (`--rom= --gba=`): Super Mario 64 DS + a never-played
+Classic NES Donkey Kong, seeded blank, boots; with `melonds_boot_mode=native` the DS
+home screen lists both ("Start GBA game."). The log line is
+`Loading subsystem 'gba' (id=...) with 3 file(s)`.

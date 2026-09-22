@@ -79,6 +79,79 @@ const _ROWS := {
 		"splash": {"mgba_use_bios": "ON", "mgba_skip_bios": "OFF"},
 		"why": "Boots its own BIOS with no cartridge, and then listens on the link port",
 	},
+	# The DS's home screen is the FIRMWARE's menu, not the BIOS's: firmware.bin
+	# carries it, and the two BIOSes are what run it, so all three must be there
+	# (`also_needs` is all-of where `boot_rom` is any-of). With a cartridge in,
+	# booting through the firmware rather than straight into the card is what
+	# puts the menu up with the card -- and a GBA cartridge in Slot-2 -- listed
+	# on it, as the hardware does; the player taps the card to start it.
+	#
+	# The DSi is the same DS machine with the core's console mode switched to
+	# DSi, which is the player's choice and so is never pinned here. It needs
+	# the dsi_* files as well and lands in the DSi Menu, which lists the card
+	# beside System Settings.
+	#
+	# MEASURED 2026-09-21 with Tools/cores/ds_boot_probe, one core per process,
+	# a real DS firmware and BIOS pair and a DSi NAND:
+	#   melondsds  no content  -> DS home screen, "There is no DS Card inserted"
+	#                             and "no Game Pak"; console mode dsi -> the DSi
+	#                             health screen, a touch -> the DSi Menu. With
+	#                             Super Mario 64 DS in -> listed on both menus;
+	#                             with a GBA cartridge in Slot-2 as well -> "Start
+	#                             GBA game." on the DS menu.
+	#   melonds    declares no SET_SUPPORT_NO_GAME, so it cannot be asked with
+	#              nothing; a ZERO-BYTE .nds reaches the same empty menu, and
+	#              console mode DSi the DSi Menu (touch mode must be Touch, which
+	#              the DS model pins). Card listed on both.
+	#   desmume    no no-content support and refuses the empty image, so an empty
+	#              DS stays "no game inserted"; with a card and the external
+	#              BIOS/firmware on, the DS menu with the card listed. No DSi mode.
+	#
+	# The BIOS lookup in melondsds tries system/melondsds/melonDS DS/ first and
+	# logs a failure there before finding the files one level up -- that line is
+	# noise, not the cause of anything.
+	#
+	# melondsds lists the firmware files it FOUND as the values of its path
+	# options and saves the choice -- so a core first run before the firmware was
+	# installed has "/notfound" saved, keeps it for ever, and draws "Oh no!
+	# melonDS DS couldn't start... /notfound" once the files are there (measured
+	# on a real data root). The paths are pinned to the standard names for that
+	# reason; the row is gated on those files, so the DS pin cannot dangle.
+	"melondsds/nds": {
+		"boot_rom": ["firmware.bin"],
+		"also_needs": ["bios7.bin", "bios9.bin"],
+		"empty_media": "",
+		"no_content": true,
+		"empty_options": {"melonds_boot_mode": "native", "melonds_sysfile_mode": "native",
+			"melonds_firmware_nds_path": "firmware.bin",
+			"melonds_firmware_dsi_path": "dsi_firmware.bin"},
+		"splash": {"melonds_boot_mode": "native", "melonds_sysfile_mode": "native",
+			"melonds_firmware_nds_path": "firmware.bin",
+			"melonds_firmware_dsi_path": "dsi_firmware.bin"},
+		# The built-in firmware's Wi-Fi profile ("melonAP"), written by a run
+		# with NO firmware installed. Left there, the core merges it into the
+		# real firmware and the menu dies at once -- ARM9 "PC in non executable
+		# region 00800204", a white screen. Measured with a control leg: the
+		# same pristine firmware.bin boots without it and crashes with it. The
+		# core does not write it again once real firmware is in use.
+		"retire_files": ["melonDS DS/wfcsettings.bin"],
+		"why": "Boots to the DS home screen (or the DSi Menu), listing whatever cartridges are in",
+	},
+	"melonds/nds": {
+		"boot_rom": ["firmware.bin"],
+		"also_needs": ["bios7.bin", "bios9.bin"],
+		"empty_media": "nds",
+		"empty_options": {"melonds_boot_directly": "disabled"},
+		"splash": {"melonds_boot_directly": "disabled"},
+		"why": "Boots to the DS home screen (or the DSi Menu); an empty card slot takes a blank card image",
+	},
+	"desmume/nds": {
+		"boot_rom": ["firmware.bin"],
+		"also_needs": ["bios7.bin", "bios9.bin"],
+		"empty_media": "",
+		"splash": {"desmume_use_external_bios": "enabled", "desmume_boot_into_bios": "enabled"},
+		"why": "Boots a DS card through the home screen; DeSmuME cannot start with the slot empty",
+	},
 	# ── Sony ─────────────────────────────────────────────────────────────────
 	# The one machine that reaches a full BIOS UI. Verified visually: an empty
 	# .cue gives the real "Please insert PlayStation CD-ROM" screen, from which
@@ -294,12 +367,20 @@ static func boot_rom_present(core_name: String, systemid: String) -> bool:
 	var wanted: Array = row.get("boot_rom", [])
 	if wanted.is_empty():
 		return false
+	# `also_needs` is the opposite shape: every one of these, as well as one of
+	# the group. A DS menu is in its firmware but runs on its two BIOSes.
+	var needed: Dictionary = {}
+	for file: Variant in row.get("also_needs", []):
+		needed[str(file)] = true
+	var any_of := false
 	for status_row: Dictionary in _firmware_rows(core_name):
-		if not wanted.has(str(status_row.get("path", ""))):
+		var path := str(status_row.get("path", ""))
+		if int(status_row.get("status", -1)) != FirmwareState.Status.PRESENT:
 			continue
-		if int(status_row.get("status", -1)) == FirmwareState.Status.PRESENT:
-			return true
-	return false
+		if wanted.has(path):
+			any_of = true
+		needed.erase(path)
+	return any_of and needed.is_empty()
 
 
 ## Extension of the empty image that reaches this machine's BIOS, or "" when
@@ -342,7 +423,8 @@ static func empty_boot_options(core_name: String, systemid: String) -> Dictionar
 ## Firmware paths whose bytes decide the BIOS boot. Public for netplay's local
 ## fingerprint; firmware is never transferred.
 static func boot_rom_paths(core_name: String, systemid: String) -> Array:
-	return (entry(core_name, systemid).get("boot_rom", []) as Array).duplicate()
+	var row := entry(core_name, systemid)
+	return (row.get("boot_rom", []) as Array) + (row.get("also_needs", []) as Array)
 
 
 ## Core options that make a loaded game play its boot ROM first. Empty unless
@@ -390,6 +472,30 @@ static func pinned_keys_for_core(core_name: String) -> Dictionary:
 		for group: String in ["splash", "empty_options"]:
 			for key: Variant in (row.get(group, {}) as Dictionary):
 				out[str(key)] = true
+	return out
+
+
+## Move aside the files the row names under `retire_files`: leftovers a core
+## wrote in some earlier state that break the boot this row pins. Only when the
+## boot ROM is present, because only then is that boot taken. Renamed, never
+## deleted -- it is the core's file, and a player may want it back. Returns the
+## paths moved.
+static func retire_stale_files(core_name: String, systemid: String) -> Array[String]:
+	var out: Array[String] = []
+	if not boot_rom_present(core_name, systemid):
+		return out
+	for rel: Variant in entry(core_name, systemid).get("retire_files", []):
+		var path := FirmwareRequirements.destination(core_name, str(rel))
+		if not FileAccess.file_exists(path):
+			continue
+		var aside := path + ".retroxr-retired"
+		var n := 1
+		while FileAccess.file_exists(aside):
+			n += 1
+			aside = path + ".retroxr-retired%d" % n
+		if DirAccess.rename_absolute(path, aside) == OK:
+			push_warning("[BiosBoot] moved %s aside to %s: it breaks the %s boot" % [path, aside.get_file(), systemid])
+			out.append(path)
 	return out
 
 

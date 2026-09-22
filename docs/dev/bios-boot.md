@@ -50,3 +50,38 @@ on shutdown, and a crashed run can leave a key moved (a crashed mgba run flipped
 `mgba_skip_bios` to `ON`). The survey snapshots the directory up front and restores it on
 exit, including on failure. A probe run by hand does not, so restore by hand or re-run the
 survey afterwards.
+
+### The DS and DSi home screens (measured 2026-09-21)
+
+`RetroXR/Tools/cores/ds_boot_probe.tscn` — windowed, one core per process, against a
+THROWAWAY root (`--root=`; it writes that root's `core_options/`). `--opt=key=value`
+pins options, `--gba=` loads melonDS DS's Slot-2 subsystem beside `--rom=`, `--press=`
+takes `12:touch=x:y` (bottom-screen pixels) as well as buttons, `--options` dumps every key.
+
+| core | empty slot | DSi (`console_mode`) | card listed | GBA listed |
+|---|---|---|---|---|
+| melondsds | no content (NULL) | DSi Menu | DS + DSi menus | yes, Slot-2 subsystem |
+| melonds | zero-byte `.nds` (no SET_SUPPORT_NO_GAME) | DSi Menu (touch mode Touch) | DS + DSi menus | no subsystem |
+| desmume | refuses both → "no cartridge" | none | DS menu (`desmume_use_external_bios` + `desmume_boot_into_bios`) | no subsystem |
+
+The menu is in `firmware.bin` and runs on `bios7.bin`/`bios9.bin`, so the rows use
+`also_needs` (all-of) beside the any-of `boot_rom`. DS vs DSi is the player's core
+option and is never pinned. The DSi's first screen is the health warning; a touch
+reaches the DSi Menu, whose card-slot icon sits next to System Settings.
+
+Three traps found on a REAL data root that a fresh probe root hides:
+
+- **The NULL no-content flag raced.** `Libretro.SetNoContentPassesNull` wrote a global
+  the emulation thread read LATER, after `system.gd` had already put it back to false,
+  so every no-content start got a zeroed struct. xemu takes either, which hid it;
+  melonDS DS says "Loaded an empty file as content". `Wrapper::StartSubsystemContent`
+  now latches it per run.
+- **melonDS DS saves `melonds_firmware_nds_path = "/notfound"`** when first run with no
+  firmware, and keeps it after the files arrive ("Oh no! melonDS DS couldn't start").
+  The row pins both firmware paths to the standard names.
+- **`system/melondsds/melonDS DS/wfcsettings.bin`** — the built-in firmware's "melonAP"
+  Wi-Fi profile from such a run — is merged into real firmware and the menu dies
+  (ARM9 "PC in non executable region 00800204", white screen; control leg: same
+  `firmware.bin` boots without it). The row's `retire_files` renames it to
+  `.retroxr-retired` before the boot. melonDS DS also REWRITES `firmware.bin` on
+  shutdown, so a crashed run leaves the merged state behind — restore the dump.

@@ -2288,6 +2288,9 @@ func power_on() -> void:
 	_xbox.note_started(resolved_core)
 	_xbox.stage_units_before_start(resolved_dir, resolved_core)
 	_apply_forced_core_options(resolved_dir, resolved_core)
+	# Leftovers from an earlier run that would crash the boot just pinned (a DS
+	# core's built-in-firmware Wi-Fi profile, merged into the real firmware).
+	BiosBoot.retire_stale_files(resolved_core, systemid)
 	_persist_pak_options(resolved_dir, resolved_core)
 	_vmu.stage_before_start(resolved_dir, resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)

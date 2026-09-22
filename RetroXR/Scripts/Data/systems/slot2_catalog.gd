@@ -61,3 +61,52 @@ static func boot_for(host: String) -> Dictionary:
 	var out := row.duplicate(true)
 	out.erase("media")
 	return out
+
+
+## The save-type strings a GBA cartridge carries in its ROM (Nintendo's SDK links
+## them in with the save library), longest first so FLASH1M_V is not read as
+## FLASH_V, and the bytes of save memory each one means.
+const _GBA_SAVE_TYPES: Array = [
+	["FLASH1M_V", 131072],
+	["FLASH512_V", 65536],
+	["FLASH_V", 65536],
+	["SRAM_F_V", 32768],
+	["SRAM_V", 32768],
+	["EEPROM_V", 8192],
+]
+## A cartridge that names none of them has no save to keep; the core still needs
+## a file, and battery SRAM is the size that asks nothing of the game.
+const _GBA_SAVE_FALLBACK := 32768
+
+
+## A blank GBA save for the cartridge at `rom_path`: erased (0xFF) memory of the
+## size its own save-type string declares.
+##
+## MEASURED 2026-09-21 on melondsds: the core refuses an EMPTY save file ("Failed
+## to open GBA save file", the load fails) exactly as it refuses a missing one --
+## it sizes the cartridge's save memory from the file's length. The first run of
+## every GBA cartridge in a DS used to die on that. EEPROM is either 512 bytes or
+## 8 KB and the ROM cannot say which; 8 KB is the one the Classic NES Series (and
+## most EEPROM games of any size) use.
+static func blank_gba_save(rom_path: String) -> PackedByteArray:
+	var size := _GBA_SAVE_FALLBACK
+	var rom := FileAccess.get_file_as_bytes(rom_path)
+	if not rom.is_empty():
+		for row: Array in _GBA_SAVE_TYPES:
+			if _contains(rom, str(row[0]).to_ascii_buffer()):
+				size = int(row[1])
+				break
+	var out := PackedByteArray()
+	out.resize(size)
+	out.fill(0xFF)
+	return out
+
+
+static func _contains(hay: PackedByteArray, needle: PackedByteArray) -> bool:
+	var first := needle[0]
+	var at := hay.find(first)
+	while at >= 0 and at + needle.size() <= hay.size():
+		if hay.slice(at, at + needle.size()) == needle:
+			return true
+		at = hay.find(first, at + 1)
+	return false

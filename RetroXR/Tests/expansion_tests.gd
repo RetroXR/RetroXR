@@ -2236,6 +2236,28 @@ func _group_slot2() -> void:
 	# The core opens that path itself and refuses the load when it is missing,
 	# so resolving the recipe is what brings the file into existence.
 	_ok(FileAccess.file_exists(save), "slot2/ and the save file exists once resolved")
+	# And an EMPTY file is refused as surely as a missing one (measured on
+	# melondsds 2026-09-21), so it is seeded as erased memory. This ROM path does
+	# not exist, so it takes the no-save-type size.
+	var seeded := FileAccess.get_file_as_bytes(save)
+	_ok(seeded.size() == 32768 and seeded[0] == 0xFF and seeded[32767] == 0xFF,
+		"slot2/ a first-run save is erased memory, never an empty file")
+	var kept := PackedByteArray([1, 2, 3, 4])
+	var kf := FileAccess.open(save, FileAccess.WRITE)
+	kf.store_buffer(kept)
+	kf.close()
+	ds._expansion_launch.expansion_roms(sub, "melondsds")
+	_ok(FileAccess.get_file_as_bytes(save) == kept, "slot2/ a save already there is never re-seeded")
+	var fake_rom := "user://slot2_savetype_probe.gba"
+	for row: Array in [["FLASH1M_V103", 131072], ["FLASH_V126", 65536],
+			["EEPROM_V124", 8192], ["SRAM_V113", 32768]]:
+		var rf := FileAccess.open(fake_rom, FileAccess.WRITE)
+		rf.store_buffer(PackedByteArray([0, 0xF, 0xF]))
+		rf.store_buffer(str(row[0]).to_ascii_buffer())
+		rf.close()
+		_ok(Slot2Catalog.blank_gba_save(fake_rom).size() == int(row[1]),
+			"slot2/ a cartridge naming %s gets a %d-byte save" % [row[0], row[1]])
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(fake_rom))
 	_ok(ds._expansion_launch.apply_expansion_launch().has("subsystem")
 			and ds.rom_path == "/roms/nds/dsgame.nds",
 		"slot2/ the machine still boots from the DS card")

@@ -1368,6 +1368,20 @@ func _test_bios_boot_table() -> void:
 	_eq(BiosBoot.empty_media_extension("fceumm", "nes"),
 		"", "table/nor does a machine with no row")
 
+	# The DS: three cores, three different ways to an empty menu (measured).
+	_ok(BiosBoot.boots_with_no_content("melondsds", "nds"),
+		"table/melonDS DS starts with no card at all")
+	_eq(BiosBoot.empty_media_extension("melonds", "nds"), "nds",
+		"table/legacy melonDS takes a blank card image instead")
+	_ok(not BiosBoot.boots_with_no_content("desmume", "nds")
+			and BiosBoot.empty_media_extension("desmume", "nds").is_empty(),
+		"table/DeSmuME cannot start empty")
+	_eq(BiosBoot.entry("desmume", "nds").get("splash", {}).get("desmume_boot_into_bios", ""),
+		"enabled", "table/but boots a card through the home screen")
+	_eq(BiosBoot.boot_rom_paths("melondsds", "nds"), ["firmware.bin", "bios7.bin", "bios9.bin"],
+		"table/the DS menu needs its firmware AND both BIOSes, and netplay fingerprints all three")
+	_ok(not (BiosBoot.entry("melondsds", "nds").get("splash", {}) as Dictionary).has("melonds_console_mode"),
+		"table/DS or DSi stays the player's choice")
 	_ok(BiosBoot.entry("selftest_core", "nes").is_empty(), "table/an unknown pair offers nothing")
 	_ok(BiosBoot.splash_options("selftest_core", "nes").is_empty(), "table/and no splash")
 	_ok(BiosBoot.missing_required("selftest_core").is_empty(),
