@@ -14,8 +14,8 @@
 ## 90 ticks, and the plug's angular speed at the end.
 ##
 ## Nothing in the rope holds a plug's weight up (anchor_pull is 0 in every
-## scene); in the room the host does, with a hard tether clamp. This probe runs
-## the same clamp as RetroSystem._clamp_plug after every physics tick.
+## scene); in the room the host does, with a hard tether. This probe runs the
+## same PlugTether.reel_in as RetroSystem._clamp_plug after every physics tick.
 
 extends Node
 
@@ -24,9 +24,13 @@ const TABLE_TOP := 0.75
 
 
 func _ready() -> void:
-	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+	get_tree().create_timer(120.0).timeout.connect(func() -> void:
 		print("[probe] TIMEOUT"); get_tree().quit(1))
 	var no_couple := OS.get_cmdline_user_args().has("--no-couple")
+	var ticks := 541
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--ticks="):
+			ticks = int(arg.trim_prefix("--ticks="))
 	var body := StaticBody3D.new()
 	body.collision_layer = 1
 	add_child(body)
@@ -69,22 +73,20 @@ func _ready() -> void:
 
 	var exit_local: Vector3 = rope.end_exit_axis
 	var reach := rope.segment_count * rope.segment_length
-	for t in range(541):
+	for t in range(ticks):
 		await get_tree().physics_frame
-		var diff := plug.global_position - mount.global_position
-		if diff.length() > reach:
-			var dir := diff.normalized()
-			plug.global_position = mount.global_position + dir * reach
-			var outward := dir.dot(plug.linear_velocity)
-			if outward > 0.0:
-				plug.linear_velocity -= dir * outward
-		if t % 90 == 0:
+		PlugTether.reel_in(plug, plug.global_position, mount.global_position, reach)
+		if t % 90 == 0 and (t < 541 or t % 450 == 0):
 			var pts: PackedVector3Array = rope.get_points()
 			var last := rope.point_count() - 1
 			var cord: Vector3 = (pts[last - 3] - pts[last]).normalized()
 			var exit: Vector3 = (plug.global_transform.basis * exit_local).normalized()
 			print("[probe] t=%3d angle(exit, cord)=%5.1f deg  plug y=%.3f" % [
 				t, rad_to_deg(exit.angle_to(cord)), plug.global_position.y])
+	if OS.get_cmdline_user_args().has("--dbg"):
+		print("[probe] dbg local w=%s v=%s sleeping=%s metrics=%s" % [
+			plug.global_basis.inverse() * plug.angular_velocity, plug.linear_velocity,
+			str(plug.sleeping), rope.get_sleep_metrics()])
 	print("[probe] %s spin=%.3f rad/s  rope asleep=%s" % [
 		"no-couple" if no_couple else "coupled", plug.angular_velocity.length(),
 		str(rope.is_sleeping())])

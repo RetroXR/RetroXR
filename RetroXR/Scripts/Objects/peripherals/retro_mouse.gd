@@ -251,15 +251,8 @@ func _physics_process(_delta: float) -> void:
 	# Cable rope clamp (same as RetroController).
 	if _cable_plug != null and _cable_attach_point != null and _max_rope_length > 0.0 \
 			and not _cable_plug.is_picked_up() and _connected_system == null:
-		var attach_pos := _cable_attach_point.global_position
-		var diff := _cable_plug.global_position - attach_pos
-		var dist := diff.length()
-		if dist > _max_rope_length:
-			var dir := diff / dist
-			_cable_plug.global_position = attach_pos + dir * _max_rope_length
-			var outward := dir.dot(_cable_plug.linear_velocity)
-			if outward > 0.0:
-				_cable_plug.linear_velocity -= dir * outward
+		PlugTether.reel_in(_cable_plug, _cable_plug.global_position,
+				_cable_attach_point.global_position, _max_rope_length)
 
 	_update_sticky()
 

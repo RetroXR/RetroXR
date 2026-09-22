@@ -1264,6 +1264,50 @@ func _group_loose() -> void:
 	comp.queue_free()
 	await get_tree().physics_frame
 
+	# PlugTether, the one clamp every owner of a lead reels a loose plug in with.
+	# Each rule below is one the sixteen copies it replaced disagreed on.
+	base = _new_case()
+	var from := base + Vector3(0, 1.0, 0)
+	var reach := 0.5
+	var plug := RigidBody3D.new()
+	plug.gravity_scale = 0.0
+	var pcol := CollisionShape3D.new()
+	var pbox := BoxShape3D.new()
+	pbox.size = Vector3(0.014, 0.014, 0.05)
+	pcol.shape = pbox
+	plug.add_child(pcol)
+	_case_geometry.add_child(plug)
+	plug.global_position = from + Vector3(reach + 0.003, 0, 0)
+	await get_tree().physics_frame
+	var moved := PlugTether.reel_in(plug, plug.global_position, from, reach)
+	_ok(not moved and absf(plug.global_position.x - from.x - reach - 0.003) < 1e-6,
+		"loose/a tethered plug inside the slack is left where it lies",
+		"moved=%s, %.2f mm past reach" % [str(moved), (plug.global_position.x - from.x - reach) * 1000.0])
+	plug.global_position = from + Vector3(reach + 0.08, 0, 0)
+	plug.linear_velocity = Vector3(1.0, 0, 0.2)
+	await get_tree().physics_frame
+	PlugTether.reel_in(plug, plug.global_position, from, reach)
+	var past := plug.global_position.distance_to(from) - reach
+	_ok(absf(past - PlugTether.SLACK) < 0.0005 and plug.linear_velocity.x <= 1e-6,
+		"loose/a plug past its reach is held at the slack's edge, its outward speed gone",
+		"%.2f mm past reach, outward %.3f m/s" % [past * 1000.0, plug.linear_velocity.x])
+	# Swept: a partition between the plug and the anchor stops it rather than
+	# letting it through, which a position write would not.
+	_box(from + Vector3(reach + 0.2, 0, 0), Vector3(0.02, 0.4, 0.4))
+	plug.linear_velocity = Vector3.ZERO
+	plug.global_position = from + Vector3(reach + 0.4, 0, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	PlugTether.reel_in(plug, plug.global_position, from, reach)
+	# The plug starts 900 mm out and would be reeled to 505; the partition's far
+	# face is at 710, so a write lands it on the anchor's side and a sweep cannot.
+	_ok(plug.global_position.x > from.x + reach + 0.21,
+		"loose/reeling a plug in does not pull it through what is in the way",
+		"plug at x %+.0f mm, partition's far face at %+.0f mm" % [
+			(plug.global_position.x - from.x) * 1000.0, (reach + 0.21) * 1000.0])
+	plug.queue_free()
+	await get_tree().physics_frame
+
 
 ## Advance a frozen plug one stride, the way a hand carries a pickup. The write
 ## goes through the physics server: repositioning a frozen body by

@@ -2139,23 +2139,14 @@ func _physics_process(_delta: float) -> void:
 				_clamp_plug(p, attach.global_position, max_len)
 
 
-## Hold one plug within the cord's reach of where the cord leaves the machine,
-## and kill the velocity that carried it past. A hard clamp rather than a spring,
-## for the reason CompositeCable._physics_process gives: over-extension here runs
-## to a metre and a spring stiff enough to haul a plug back at that distance
-## launches it.
+## Hold one plug within the cord's reach of where the cord leaves the machine.
+## A hard clamp rather than a spring, for the reason CompositeCable._physics_process
+## gives: over-extension here runs to a metre and a spring stiff enough to haul a
+## plug back at that distance launches it. PlugTether says how.
 func _clamp_plug(plug: CablePlug, attach_pos: Vector3, max_len: float) -> void:
 	if plug.is_picked_up():
 		return          # a hand, a beam or a socket owns it
-	var diff := plug.global_position - attach_pos
-	var dist := diff.length()
-	if dist <= max_len or dist < 0.0001:
-		return
-	var dir := diff / dist
-	plug.global_position = attach_pos + dir * max_len
-	var outward_vel := dir.dot(plug.linear_velocity)
-	if outward_vel > 0.0:
-		plug.linear_velocity -= dir * outward_vel
+	PlugTether.reel_in(plug, plug.global_position, attach_pos, max_len)
 
 
 ## Power on: start this system's libretro core

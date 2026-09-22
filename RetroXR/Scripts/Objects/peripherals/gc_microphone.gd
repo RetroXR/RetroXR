@@ -107,15 +107,8 @@ func _physics_process(_delta: float) -> void:
 	if _plug == null or _cable_attach_point == null or _max_rope_length <= 0.0 \
 			or _plug.is_picked_up():
 		return
-	var attach_pos := _cable_attach_point.global_position
-	var diff := _plug.global_position - attach_pos
-	var dist := diff.length()
-	if dist > _max_rope_length:
-		var dir := diff / dist
-		_plug.global_position = attach_pos + dir * _max_rope_length
-		var outward := dir.dot(_plug.linear_velocity)
-		if outward > 0.0:
-			_plug.linear_velocity -= dir * outward
+	PlugTether.reel_in(_plug, _plug.global_position,
+			_cable_attach_point.global_position, _max_rope_length)
 
 
 func _exit_tree() -> void:

@@ -160,11 +160,7 @@ func _physics_process(_delta: float) -> void:
 	var from: Vector3 = _attach.global_position
 	var to: Vector3 = plug.global_transform * plug.cable_anchor
 	if not plug.is_held():
-		# Loose connector, reel it in. Swept, for the reason _clamp_move gives.
-		var away: Vector3 = to - from
-		var d: float = away.length()
-		if d > _reach and d > 0.0001:
-			_clamp_move(plug, away * ((_reach - d) / d))
+		PlugTether.reel_in(plug, to, from, _reach)     # loose connector, reel it in
 		return
 	if _body.freeze:
 		return                  # both ends owned; the reach is the hands' problem

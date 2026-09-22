@@ -189,12 +189,9 @@ func _tether(plug: RcaPlug, attach: Node3D, reach: float) -> Vector3:
 	var from: Vector3 = attach.global_position
 	var to: Vector3 = plug.global_transform * plug.cable_anchor
 	if not plug.is_held():
-		# Loose connector, reel it in. A hard move, not a haul: a plug is a light thing
-		# on the end of a cord that a rope already turns to face the tangent.
-		var away: Vector3 = to - from
-		var d: float = away.length()
-		if d > reach and d > 0.0001:
-			plug.global_position -= away * ((d - reach) / d)
+		# Loose connector, reel it in rather than haul the box: a plug is a light
+		# thing on the end of a cord.
+		PlugTether.reel_in(plug, to, from, reach)
 		return Vector3.ZERO
 	if _body_is_held():
 		return Vector3.ZERO                  # both ends owned; nothing to do

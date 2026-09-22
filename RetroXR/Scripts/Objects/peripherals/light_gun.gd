@@ -404,16 +404,8 @@ func _physics_process(_delta: float) -> void:
 	if _cable_plug.is_picked_up() or _connected_system != null:
 		return
 
-	var attach_pos := _cable_attach_point.global_position
-	var diff := _cable_plug.global_position - attach_pos
-	var dist := diff.length()
-
-	if dist > _max_rope_length:
-		var dir := diff / dist
-		_cable_plug.global_position = attach_pos + dir * _max_rope_length
-		var outward_vel := dir.dot(_cable_plug.linear_velocity)
-		if outward_vel > 0.0:
-			_cable_plug.linear_velocity -= dir * outward_vel
+	PlugTether.reel_in(_cable_plug, _cable_plug.global_position,
+			_cable_attach_point.global_position, _max_rope_length)
 
 
 # ── Port events ───────────────────────────────────────────────────────────────

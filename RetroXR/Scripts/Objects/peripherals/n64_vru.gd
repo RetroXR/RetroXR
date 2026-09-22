@@ -232,16 +232,7 @@ func _hold_within(body: XRToolsPickable, anchor: Node3D, limit: float) -> void:
 		return
 	if body.is_picked_up():
 		return
-	var anchor_pos := anchor.global_position
-	var diff := body.global_position - anchor_pos
-	var dist := diff.length()
-	if dist <= limit:
-		return
-	var dir := diff / dist
-	body.global_position = anchor_pos + dir * limit
-	var outward := dir.dot(body.linear_velocity)
-	if outward > 0.0:
-		body.linear_velocity -= dir * outward
+	PlugTether.reel_in(body, body.global_position, anchor.global_position, limit)
 
 
 ## Both cords go with the unit.

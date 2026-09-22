@@ -467,6 +467,8 @@ func _build_rope() -> void:
 ## A hard clamp rather than a force: over-extension here reaches a metre or more,
 ## and a spring stiff enough to drag a 50 g plug off the floor at that distance
 ## launches it. VerletRope.anchor_pull is the soft version and stays available.
+## How the clamp moves a plug — swept, killing the velocity it undoes, with slack —
+## is PlugTether's, shared with every other owner of a lead.
 ##
 ## Plugs held by a hand, a laser or a socket are skipped — something else owns
 ## their transform, and fighting it either jitters the plug or pulls it out. The
@@ -474,20 +476,6 @@ func _build_rope() -> void:
 ## beam-held plug to a junction lying on the floor pins it there, and the junction
 ## only follows at the speed the rope solver drags it — which reads as the plug
 ## hanging back under its own weight rather than coming to the beam.
-## How far past its reach a plug may lie before the clamp acts. The rope's own
-## solver leaves a taut branch a few millimetres long, and a clamp at exactly the
-## reach fought that for ever: a lead lying on the floor fell asleep with one
-## branch pulled tight, the clamp dragged that plug 2.4 mm back into its
-## neighbour every tick, the drag kept it inside the rope's 0.5 mm wake
-## threshold, and the plug jostled indefinitely under a cord that never woke to
-## let it go. The clamp is for over-extension measured in metres.
-##
-## It holds a plug AT the slack's edge rather than hauling it back to the reach:
-## a plug hanging off a table is carried by this clamp, and one dropped 5 mm and
-## then yanked back up every tick bounced for ever.
-const CLAMP_SLACK := 0.005
-
-
 func _physics_process(_delta: float) -> void:
 	if not _rope_built or _rope == null or _plugs.is_empty():
 		return
@@ -528,13 +516,8 @@ func _physics_process(_delta: float) -> void:
 				continue
 			# The branch ends at the cord boss, not at the plug's origin, which
 			# sits 40 mm forward at the collar.
-			var boss: Vector3 = plug.global_transform * plug.cable_anchor
-			var away: Vector3 = boss - junction[e]
-			var d: float = away.length()
-			var r: float = reach[e]
-			if d <= r + CLAMP_SLACK or d < 0.0001:
-				continue
-			_clamp_move(plug, away * ((r + CLAMP_SLACK - d) / d))
+			PlugTether.reel_in(plug, plug.global_transform * plug.cable_anchor,
+					junction[e], reach[e])
 
 
 ## Keep the two ends of a one-cord lead within its rest length of each other.
@@ -563,36 +546,8 @@ func _clamp_pair() -> void:
 	var reach: float = float(_rope.segment_count) * _rope.segment_length
 	# Measured boss to boss, not origin to origin: the cord leaves each hood some
 	# 50 mm behind the mating face, and that is the span the rope actually has.
-	var from: Vector3 = fixed.global_transform * fixed.cable_anchor
-	var to: Vector3 = loose.global_transform * loose.cable_anchor
-	var away: Vector3 = to - from
-	var d: float = away.length()
-	if d <= reach + CLAMP_SLACK or d < 0.0001:
-		return
-	_clamp_move(loose, away * ((reach + CLAMP_SLACK - d) / d))
-
-
-## Move a clamped plug with a SWEPT motion, sliding along whatever it meets.
-## The clamp used to write global_position directly, which bypasses collision
-## entirely; the physics server happens to rescue steps smaller than the
-## obstacle's half-thickness, so no tunnel was ever reproduced from this write
-## alone at hand speeds — but that rescue is luck of scale, not a contract, and
-## an uncollided write composes badly with everything else that repositions a
-## plug (the rope's plug alignment carried one through a floor before its step
-## was capped). Swept is strictly safer and costs one query.
-##
-## And kill the velocity that carried it out, as RetroSystem._clamp_plug does.
-## Without that a plug hanging past its reach — a branch over a table edge —
-## fell a tick's worth under gravity, was hauled back, and fell again for ever:
-## its body never slept, its cord never slept, and the ends squirmed.
-func _clamp_move(plug: RcaPlug, motion: Vector3) -> void:
-	var hit := plug.move_and_collide(motion)
-	if hit != null:
-		plug.move_and_collide(hit.get_remainder().slide(hit.get_normal()))
-	var inward := motion.normalized()
-	var outward := -inward.dot(plug.linear_velocity)
-	if outward > 0.0:
-		plug.linear_velocity += inward * outward
+	PlugTether.reel_in(loose, loose.global_transform * loose.cable_anchor,
+			fixed.global_transform * fixed.cable_anchor, reach)
 
 
 func _on_plug_moved() -> void:

@@ -27,16 +27,21 @@ plug's own contacts, friction, damping and sleep decide where it ends up.
   cord leaves along its exit axis and pushes back). Zero leaves the plug alone. The
   value itself no longer scales anything.
 - **The coupling cannot hold a plug's weight up.** A rope with a few grams per
-  segment cannot carry a 50–100 g plug through a PBD reaction. The host's hard tether
-  clamp (`RetroSystem._clamp_plug`, CompositeCable's branch clamps, the controllers'
-  `_clamp_*`) still does that, exactly as before. `plug_hang_probe` runs the same
-  clamp for that reason. Without it the plug simply falls to the floor.
+  segment cannot carry a 50–100 g plug through a PBD reaction. The owner's hard tether
+  (`PlugTether`, below) does that. `plug_hang_probe` runs the same tether for that
+  reason. Without it the plug simply falls to the floor.
 - The velocity change the coupling can make in one step is capped (`MAX_COUPLE_DV`,
   `MAX_COUPLE_DW`). Normal handling never reaches the caps. They exist for a whipping
   cord.
 - Sign check: `plug_hang_probe` hangs a plug turned 90° off its cord. Coupled, it
-  settles about 2° from the cord with no spin. With `--no-couple` it stays at about
-  129°. A sign error shows as the angle growing, or as spin.
+  settles about 2° from the cord and stays there. With `--no-couple` it stays at about
+  130°. A sign error shows as the angle growing.
+- **Known:** in that probe the coupled plug hangs against the table's side face with
+  the cord's pull pressing it there. Its pose is still to under 1 mm, but Jolt keeps
+  a 0.03 rad/s velocity into the contact, the plug never sleeps, and so neither does
+  the rope (measured for 30 s; `--dbg` prints it). It is invisible and costs one
+  awake rope. Dropping the torque's component along the cord did not change it (it
+  is a pitch into the face, not a roll). The uncoupled control sleeps.
 
 ## Plug colliders are FITTED boxes, never spheres
 
@@ -82,22 +87,32 @@ creeps), but the creep is a crawl the sleep system parks within a second.
   friction holds the snag harder. Jitter there fell from 81 to 3.7 mm. It is one of
   the two impossible lays, and it was accepted deliberately.
 
-## Host clamps need slack, and must kill the velocity they undo
+## A loose plug is reeled in by ONE helper: `PlugTether.reel_in`
 
-`CompositeCable._clamp_move` (branch and one-cord pair clamps):
+Every owner of a lead keeps its loose plug within the cord's reach with a hard tether
+(the rope cannot carry a plug's weight). That used to be written sixteen times, twelve
+near-identical copies in the consoles, controllers and peripherals and four variants
+(RfSwitch, Antenna, PowerStrip, CompositeCable), and the copies disagreed. Since
+2026-09-22 they all call `Scripts/Objects/cables/plug_tether.gd`, which:
 
-- **It removes the outward velocity**, as `RetroSystem._clamp_plug` always did. A plug
-  hanging past its reach used to fall a tick's worth, get hauled back, and fall again,
-  so neither it nor its cord ever slept.
-- **`CLAMP_SLACK` (5 mm).** The solver leaves a taut branch a few millimetres long. A
-  clamp at exactly the reach dragged a floor plug 2.4 mm back into its neighbour every
-  tick, which kept it inside the rope's 0.5 mm wake threshold under a cord that never
-  woke. The plug jostled for ever (193 mm of travel in `rope_tests`). The clamp holds
-  a plug AT the slack's edge rather than hauling it back to the reach: a hanging plug
-  dropped 5 mm and yanked up every tick bounced.
-- Other owners' clamps (`rf_switch`, `antenna`, `power_strip`, the controllers) were
-  left as they were. If one of those leads' ends squirm, look for the same pattern:
-  a blocked `move_and_collide` repeated every tick under a sleeping rope.
+- **moves the plug SWEPT** (`move_and_collide` plus a slide), never by writing
+  `global_position`. A write bypasses collision and could carry a plug through a
+  partition.
+- **kills the outward velocity it undoes.** RfSwitch, Antenna and PowerStrip did not.
+  A plug hanging past its reach fell a tick's worth, was hauled back, and fell again
+  for ever, so neither it nor its cord slept.
+- **leaves `SLACK` (5 mm) and holds the plug AT the slack's edge.** The solver leaves
+  a taut cord a few millimetres long. A clamp at exactly the reach dragged a floor
+  plug 2.4 mm back into its neighbour every tick, inside the rope's 0.5 mm wake
+  threshold, under a cord that never woke: the plug jostled for ever (193 mm of travel
+  in `rope_tests`). Hauling a hanging plug all the way back to the reach instead
+  bounced it 5 mm a tick.
+
+Callers still decide which end is loose (a held plug is somebody else's) and which point
+the reach is measured from: the cord boss for the leads, the plug origin for the
+controllers, as each always did. A body that must be HAULED on its cord (a switch box, a
+speaker cabinet) is `CableHaul`'s job, not this. A new owner of a lead calls
+`PlugTether`; it never writes its own clamp.
 
 ## Probes (`RetroXR/Tools/rope/`)
 

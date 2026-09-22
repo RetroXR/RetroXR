@@ -52,12 +52,7 @@ func _physics_process(_delta: float) -> void:
 	var from: Vector3 = _attach.global_position
 	var to: Vector3 = wall_plug.global_transform * wall_plug.cable_anchor
 	if not wall_plug.is_held():
-		var away: Vector3 = to - from
-		var d: float = away.length()
-		if d > _reach and d > 0.0001:
-			var hit := wall_plug.move_and_collide(away * ((_reach - d) / d))
-			if hit != null:
-				wall_plug.move_and_collide(hit.get_remainder().slide(hit.get_normal()))
+		PlugTether.reel_in(wall_plug, to, from, _reach)
 		return
 	if _body.freeze:
 		return
