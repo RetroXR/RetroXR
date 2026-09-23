@@ -95,6 +95,10 @@ const _ROWS: Dictionary = {
 		"scene": _SCENES + "wii_primitive.tscn"},
 	"nintendo_64":          {"platform": "n64", "label": "Nintendo 64",
 		"scene": _SCENES + "nintendo_64_primitive.tscn"},
+	# The Model 2, not the Model 1: it is the shell there is a licensed model of.
+	"genesis":              {"platform": "genesis", "label": "Genesis (Model 2)",
+		"script": "res://Scripts/Objects/system_models/genesis_model.gd",
+		"requires": ["res://imported-assets/consoles/genesis/genesis_console.glb"]},
 	# --- computers ------------------------------------------------------------
 	# One row across every computer platform rather than eighteen near-identical
 	# ones. The tower is a single model that happens to fit them all; copies would

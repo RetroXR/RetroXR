@@ -69,6 +69,7 @@ const SECTIONS: Array = [
 		["Ceiling fan", "lucaboechat", "CC BY 4.0"],
 		["Corner TV stand", "Manix3D — @manix3d", "CC BY 4.0"],
 		["Desk chair", "Slava Izvekov — @guantanamera", "CC BY 4.0"],
+		["Genesis console", "Zerescas", "CC BY 4.0"],
 		["Interior door and trim", "Roman — @janwama", "CC BY 4.0"],
 		["Light switch", "BillieBones", "CC BY 4.0"],
 		["NES cartridge", "cloud — @cloudstormchnl", "CC BY 4.0"],

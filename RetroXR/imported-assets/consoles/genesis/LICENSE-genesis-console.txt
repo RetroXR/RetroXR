@@ -1,0 +1,48 @@
+Model Information:
+* title:	Sega Genesis Model 2 / Sega Mega Drive
+* source:	https://sketchfab.com/3d-models/sega-genesis-model-2-sega-mega-drive-d8feaa413cc847a599e6a484cc4ed2b6
+* author:	Zerescas (https://sketchfab.com/zerescas)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sega Genesis Model 2 / Sega Mega Drive" (https://sketchfab.com/3d-models/sega-genesis-model-2-sega-mega-drive-d8feaa413cc847a599e6a484cc4ed2b6) by Zerescas (https://sketchfab.com/zerescas) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+
+
+			------------------------------
+
+MODIFICATIONS (CC-BY-4.0 requires these be indicated)
+
+Adapted for RetroXR as genesis_console.glb, by Tools/glb/prepare_genesis_textures.py
+and Tools/glb/prepare_genesis.py:
+
+  * Removed the trademarks the source paints into its textures: the GENESIS
+    badge beside the cartridge slot, the SEGA plate on the front control strip,
+    and the SEGA logo on the underside label. Each was painted over in the
+    base colour, normal and metallic-roughness maps alike, so its embossed
+    relief went with it.
+
+  * Removed the three studio lights the Sketchfab scene ships.
+
+  * Split the front control strip into the strip and its two caps
+    (ButtonPower, ButtonReset) so each can be pressed on its own, and renamed
+    every part to what it is (ShellTop, ShellBottom, CartSlot, SlotFlapFront,
+    SlotFlapRear, PortsInside, Labels, ControlPanel). Each slot flap's origin
+    was moved onto its hinge so it can swing open.
+
+  * Baked the scene's node transforms into the geometry and rescaled it to
+    real-world size (220 mm wide), centred on its own footprint and resting
+    on y = 0, facing +Z.
+
+  * Decimated for standalone VR from 156,484 to 30,056 triangles (Blender
+    Collapse via Tools/glb/decimate_glb.py), with the shading re-derived from
+    the new geometry, and every texture resized to 1024 x 1024.
+
+NOT modified: the underside label's plain text ("GENESIS SYSTEM CONSOLE",
+"SEGA OF AMERICA INC", the model, rating and serial lines) remains.
+
+Nothing here is affiliated with, endorsed by, or sponsored by Sega. "Sega",
+"Genesis" and "Mega Drive" are trademarks of Sega Corporation and are used,
+where unavoidable, only descriptively.

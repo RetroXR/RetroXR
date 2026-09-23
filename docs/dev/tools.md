@@ -76,3 +76,11 @@ carried alongside it.
   to preserve names, hierarchy, world placement and image names. Note the GLBs are **Git LFS**,
   so `git show HEAD:<path>` yields a pointer: pipe it through `git lfs smudge` to get a
   baseline to diff against.
+- **`Tools/glb/prepare_genesis_textures.py` + `prepare_genesis.py`** — rebuild
+  `genesis_console.glb` from the Model 2 download (recipe in the second file's docstring;
+  finish with `decimate_glb.py --target 30000`). The marks on this shell are PRINTED, not
+  modelled, so they come out of the textures: each is a UV box refilled by a Coons blend of
+  its own border on the base colour, normal AND metallic-roughness maps — skip the normal map
+  and the logo stays embossed in the plastic. The source ships three UV sets per mesh; keep
+  only the first, or Godot logs "Invalid array format for surface" once per mesh.
+  `RetroXR/Tools/models/genesis_render_probe` (windowed, `--room` for colour) is the check.
