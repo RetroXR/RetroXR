@@ -15,6 +15,11 @@ enum Availability { STANDARD, RELEASED, OFFERED_ONLY }
 @export var finish := Finish.PLASTIC
 @export var color := Color(0.64, 0.65, 0.67)
 @export_range(0.0, 1.0) var roughness := 0.43
+## 1 is solid plastic. Lower is the dyed clear plastic of a clear cartridge,
+## the board inside showing through, tinted: the value is how strongly the dye
+## filters (CartridgeColor.CLEAR_DENSITY) and scatters (CLEAR_HAZE). PLASTIC
+## finishes only; a metal flake shell is always solid.
+@export_range(0.0, 1.0) var opacity := 1.0
 
 @export_group("Metal flake")
 @export var flake_color := Color(0.92, 0.92, 0.94)

@@ -12,11 +12,15 @@
 ##     CartridgeColor.apply_two_tone(cart, &"gold", Color.BLACK)
 ##     CartridgeColor.reset_to_default(cart)
 ##     CartridgeColor.apply_preset(gb_cart, &"red", "gb")
+##     CartridgeColor.apply_preset(gba_cart, &"ruby", "gba")
 ##
 ## `cart` is the GLB instance or any node above it. Plain presets and colours stay
 ## on StandardMaterial3D duplicates; METAL_FLAKE presets switch that surface to
 ## cartridge_flake_plastic.gdshader, carrying the normal map across. Preset names
-## are looked up in the palette of the system given, N64 when none is.
+## are looked up in the palette of the system given, N64 when none is. A plastic
+## preset's opacity, or a colour's alpha, below 1 makes the shell dyed clear
+## plastic: cartridge_clear_plastic.gdshader filters what is behind it through the
+## colour, and its next pass adds the gloss, so no draw order is needed.
 class_name CartridgeColor
 extends RefCounted
 
@@ -26,14 +30,25 @@ const PALETTE_PATH := "res://Resources/n64_cartridge_shells.tres"
 const PALETTE_PATHS := {
 	"n64": PALETTE_PATH,
 	"gb": "res://Resources/gb_cartridge_shells.tres",
+	"gba": "res://Resources/gba_cartridge_shells.tres",
 }
 const FLAKE_SHADER := preload("res://Shaders/cartridge_flake_plastic.gdshader")
+const CLEAR_SHADER := preload("res://Shaders/cartridge_clear_plastic.gdshader")
+const CLEAR_SURFACE_SHADER := preload("res://Shaders/cartridge_clear_plastic_surface.gdshader")
+
+## Clear plastic: how much of the colour one wall filters per unit of opacity
+## missing from solid, the light it scatters back, and the gloss a plain colour
+## (which carries no roughness) gets.
+const CLEAR_DENSITY := 1.0
+const CLEAR_HAZE := 0.6
+const CLEAR_ROUGHNESS := 0.3
 
 ## Materials of the exterior moulding, by the name the model gives them: the N64
-## bodies' three, then the Game Boy cart's front, rear, smooth rails and the rim
-## round its sticker recess.
+## bodies' three, the Game Boy cart's front, rear, smooth rails and the rim
+## round its sticker recess, then the Game Boy Advance cart's two halves.
 const EXTERIOR_PLASTIC: Array[StringName] = [&"Shell_Plastic", &"Molded_Smooth_Plastic", &"Nintendo_Molded_SVG",
-	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow"]
+	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow",
+	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic"]
 
 ## A moulding authored lighter or darker than the rest of its shell, as a factor
 ## on the colour painted: the Game Boy cart's ratios to its front shell. Every
@@ -44,10 +59,10 @@ const SHADE := {
 }
 
 ## Mouldings whose own roughness a paint keeps, because the texture of the mould
-## (the Game Boy cart's rough rear, smooth rails and matte rim) sets it rather
-## than the plastic's colour.
+## (the Game Boy cart's rough rear, smooth rails and matte rim; the Game Boy
+## Advance cart's baked roughness map) sets it rather than the plastic's colour.
 const OWN_ROUGHNESS: Array[StringName] = [&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth",
-	&"Shell_Seam_Shadow"]
+	&"Shell_Seam_Shadow", &"Tintable_Front_Plastic", &"Tintable_Rear_Plastic"]
 
 ## The half each moulded part belongs to, by node-name prefix. The Nintendo logo
 ## patch and the bottom latch tabs are part of the rear moulding. A part not
@@ -169,6 +184,17 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 			sm.set_shader_parameter("roughness", source.roughness)
 		mi.set_surface_override_material(i, sm)
 		return
+	var color: Color = finish.color if finish is CartridgeShellPreset else finish
+	var opacity: float = finish.opacity if finish is CartridgeShellPreset else color.a
+	if opacity < 0.999:
+		var cm := slot.get("clear") as ShaderMaterial
+		if cm == null:
+			cm = _clear_material(source)
+			slot["clear"] = cm
+		var gloss: float = finish.roughness if finish is CartridgeShellPreset else CLEAR_ROUGHNESS
+		_set_clear(cm, _shaded(color, shade), opacity, gloss)
+		mi.set_surface_override_material(i, cm)
+		return
 	var pm := slot.get("plain") as BaseMaterial3D
 	if pm == null:
 		pm = source.duplicate() as BaseMaterial3D
@@ -180,6 +206,34 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 		pm.albedo_color = _shaded(finish, shade)
 		pm.roughness = source.roughness
 	mi.set_surface_override_material(i, pm)
+
+
+## The filter pass, with the surface pass (normal map carried) as its next pass.
+static func _clear_material(source: BaseMaterial3D) -> ShaderMaterial:
+	var cm := ShaderMaterial.new()
+	cm.shader = CLEAR_SHADER
+	cm.resource_name = source.resource_name
+	var surface := ShaderMaterial.new()
+	surface.shader = CLEAR_SURFACE_SHADER
+	surface.resource_name = source.resource_name
+	surface.set_shader_parameter("specular", source.metallic_specular)
+	surface.set_shader_parameter("normal_enabled", source.normal_enabled and source.normal_texture != null)
+	surface.set_shader_parameter("texture_normal", source.normal_texture)
+	surface.set_shader_parameter("normal_scale", source.normal_scale)
+	surface.set_shader_parameter("uv1_scale", source.uv1_scale)
+	surface.set_shader_parameter("uv1_offset", source.uv1_offset)
+	cm.next_pass = surface
+	return cm
+
+
+static func _set_clear(cm: ShaderMaterial, color: Color, opacity: float, gloss: float) -> void:
+	var solid := Color(color.r, color.g, color.b, 1.0)
+	cm.set_shader_parameter("tint", solid)
+	cm.set_shader_parameter("density", clampf(opacity, 0.0, 1.0) * CLEAR_DENSITY)
+	var surface := cm.next_pass as ShaderMaterial
+	surface.set_shader_parameter("albedo", solid)
+	surface.set_shader_parameter("haze", clampf(opacity, 0.0, 1.0) * CLEAR_HAZE)
+	surface.set_shader_parameter("roughness", gloss)
 
 
 static func _shaded(c: Color, shade: float) -> Color:

@@ -2,7 +2,9 @@ Game Boy Advance cartridge (gba_cart.glb)
 
 Own work. Photogrammetry reconstruction from Ryan McClelland's photographs
 of a cartridge, rebuilt as clean geometry and decimated to 2,595 triangles
-with a 1K baked atlas (base color, tangent normal, packed ORM). No label
+with a 1K baked atlas (base color, tangent normal, packed ORM). The shell is
+split into Front_Shell and Rear_Shell with a colour factor of their own, so
+it can be tinted and made translucent; the internals keep the atlas. No label
 artwork is included: the Label mesh carries a plain white placeholder that
 the cartridge script covers with the scraped label art.
 

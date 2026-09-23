@@ -3016,7 +3016,7 @@ func _close_game_detail_panel() -> void:
 
 ## Whether this platform's ROM rows open a sub-menu when held.
 static func _has_spawn_options(systemid: String) -> bool:
-	return systemid == "n64" or GbCartShell.is_shell(systemid)
+	return systemid in ["n64", GbaCartShell.SYSTEMID] or GbCartShell.is_shell(systemid)
 
 
 ## The overlay's shell: a title with a close button, and the column to fill.

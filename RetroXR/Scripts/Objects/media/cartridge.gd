@@ -35,7 +35,7 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 
 ## A shell the player asked for at spawn, overriding the one the ROM shipped in.
 ## A CartridgeShellPalette id; empty, or an id the palette does not hold, is the
-## ROM's own. N64 and Game Boy only, and read once, in _ready.
+## ROM's own. N64, Game Boy and Game Boy Advance only, and read once, in _ready.
 @export var shell_preset: StringName = &""
 
 ## A regional body the player asked for at spawn: N64CartShell.REGION_USA or
@@ -52,7 +52,7 @@ const _CART_MODELS := {
 	"nes": "res://imported-assets/carts/nes/nes_cart.glb",
 	"atari2600": "res://imported-assets/carts/atari_2600/atari_2600_cart.glb",
 	"n64dd": Nintendo64DD.DISK_MODEL,
-	"gba": "res://imported-assets/carts/game_boy_advance/gba_cart.glb",
+	"gba": GbaCartShell.BODY,
 	"gb": GbCartShell.BODY,
 	"gbc": GbCartShell.BODY,
 }
@@ -222,6 +222,11 @@ func _apply_cart_model() -> void:
 		if CartridgeColor.get_palette(GbCartShell.SYSTEMID).find(shell_preset) != null:
 			gb_preset = shell_preset
 		CartridgeColor.apply_preset(glb, gb_preset, GbCartShell.SYSTEMID)
+	elif systemid == GbaCartShell.SYSTEMID:
+		var gba_preset := GbaCartShell.preset_for_rom(rom_path)
+		if CartridgeColor.get_palette(GbaCartShell.SYSTEMID).find(shell_preset) != null:
+			gba_preset = shell_preset
+		CartridgeColor.apply_preset(glb, gba_preset, GbaCartShell.SYSTEMID)
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:

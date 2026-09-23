@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="CartridgeShellPalette" format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_palette.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_preset.gd" id="2"]
+
+[sub_resource type="Resource" id="grey"]
+script = ExtResource("2")
+id = &"grey"
+display_name = "Grey (standard)"
+availability = 0
+color = Color(0.4614, 0.4731, 0.4845, 1)
+roughness = 0.6
+
+[sub_resource type="Resource" id="ruby"]
+script = ExtResource("2")
+id = &"ruby"
+display_name = "Clear red (Pokemon Ruby)"
+color = Color(0.76, 0.05, 0.1, 1)
+roughness = 0.35
+opacity = 0.6
+
+[sub_resource type="Resource" id="sapphire"]
+script = ExtResource("2")
+id = &"sapphire"
+display_name = "Clear blue (Pokemon Sapphire)"
+color = Color(0.08, 0.22, 0.74, 1)
+roughness = 0.35
+opacity = 0.6
+
+[sub_resource type="Resource" id="emerald"]
+script = ExtResource("2")
+id = &"emerald"
+display_name = "Clear green (Pokemon Emerald)"
+color = Color(0.03, 0.55, 0.32, 1)
+roughness = 0.35
+opacity = 0.6
+
+[sub_resource type="Resource" id="fire_red"]
+script = ExtResource("2")
+id = &"fire_red"
+display_name = "Clear orange-red (Pokemon FireRed)"
+color = Color(0.93, 0.26, 0.08, 1)
+roughness = 0.35
+opacity = 0.6
+
+[sub_resource type="Resource" id="leaf_green"]
+script = ExtResource("2")
+id = &"leaf_green"
+display_name = "Clear leaf green (Pokemon LeafGreen)"
+color = Color(0.38, 0.74, 0.2, 1)
+roughness = 0.35
+opacity = 0.6
+
+[resource]
+script = ExtResource("1")
+source = "Game Boy Advance cartridge shells. Grey is the model's own plastic, solid. The Pokemon shells are dyed translucent plastic; opacity is how much of the board inside they hide. Every colour and opacity is a VISUAL APPROXIMATION, not a calibrated measurement. The shells keep the model's baked roughness, so roughness here is unused. GbaCartShell picks one per ROM. Edit freely."
+presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("ruby"), SubResource("sapphire"), SubResource("emerald"), SubResource("fire_red"), SubResource("leaf_green")])
