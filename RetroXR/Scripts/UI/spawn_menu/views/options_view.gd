@@ -2017,19 +2017,16 @@ func update_romm_status_label() -> void:
 		else "Not connected."
 
 	if not _unmapped().is_empty():
-		# Biggest first, capped — a full list runs to dozens of engine cores and
-		# one-ROM oddities that will never have a systemid.
+		# Biggest first, and every one of them: "and 6 more" hid exactly the
+		# platforms someone would need to name in a platform override.
 		var sorted_un := _unmapped().duplicate()
 		sorted_un.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 			return int(a.get("rom_count", 0)) > int(b.get("rom_count", 0))
 		)
 		var names: Array[String] = []
-		for i in mini(sorted_un.size(), 6):
-			var p: Dictionary = sorted_un[i]
+		for p: Dictionary in sorted_un:
 			names.append("%s (%d)" % [RommPlatforms.display_name(p), int(p.get("rom_count", 0))])
 		text += "\n%d unmapped: " % _unmapped().size() + ", ".join(PackedStringArray(names))
-		if sorted_un.size() > 6:
-			text += " and %d more" % (sorted_un.size() - 6)
 
 	# Only when the server actually answered. Saying nothing is right while the
 	# scope set is unknown: an absent line reads as "fine", which matches the
