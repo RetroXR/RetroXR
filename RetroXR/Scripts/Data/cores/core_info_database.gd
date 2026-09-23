@@ -200,6 +200,14 @@ func is_secondary_systemid(systemid: String) -> bool:
 	return _secondary_exts.has(systemid) and not _primary_ids.has(systemid)
 
 
+## Labels that beat every core's own `systemname`. The Game Boy cores all call
+## their platform "Game Boy/Game Boy Color", which was right while one tile held
+## both; Game Boy Color has a tile of its own now, named by SystemInfo.
+const SYSTEM_LABELS := {
+	"gb": "Game Boy",
+}
+
+
 ## Return the human-readable systemname for a given systemid.
 ## Uses the first matching entry. Returns the systemid itself if not found.
 ##
@@ -207,6 +215,8 @@ func is_secondary_systemid(systemid: String) -> bool:
 ## entry indexed under it belongs to the parent machine, so Game Gear would
 ## otherwise be labelled "Sega 8/16-bit (Various)".
 func get_systemname_for_id(systemid: String) -> String:
+	if SYSTEM_LABELS.has(systemid):
+		return SYSTEM_LABELS[systemid]
 	if is_secondary_systemid(systemid):
 		var info := SystemInfo.for_system(systemid)
 		return info.display_name if info != null and not info.display_name.is_empty() \

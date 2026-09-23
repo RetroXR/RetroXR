@@ -297,6 +297,33 @@ func _test_gbc_platform() -> void:
 	_eq(ScreenscraperSystems.get_systemeid("gbc"), 10, "gbc/ScreenScraper's own platform")
 	_eq(RaConsoles.for_systemid("gbc"), 6, "gbc/RetroAchievements' own console")
 
+	# The tiles' names: the Game Boy cores call their platform "Game Boy/Game Boy
+	# Color", which stopped being true when Game Boy Color got a tile of its own.
+	_eq(db.get_systemname_for_id("gb"), "Game Boy", "gbc/the Game Boy tile names one machine")
+	_eq(db.get_systemname_for_id("gbc"), "Game Boy Color", "gbc/and its own tile the other")
+
+	# Every core that runs Game Boy ROMs and takes a .gbc is on the Game Boy
+	# Color tile too. Derived from the database rather than listed, so a core
+	# added later without the declaration fails here instead of going missing.
+	var missed: Array[String] = []
+	for entry: Dictionary in db.cores:
+		var sids := CoreInfoDatabase.systemids_of(entry)
+		var exts := str(entry.get("supported_extensions", "")).split("|")
+		if "gb" in sids and "gbc" in exts and not ("gbc" in sids):
+			missed.append(str(entry.get("core_name", "")))
+	_ok(missed.is_empty(), "gbc/every Game Boy core that takes .gbc serves it", str(missed))
+
+	# A platform added on cores already installed gets a default without the
+	# Cores panel being opened -- the purple Game Boy Color tile.
+	var defaults := CoreDefaults.new()
+	defaults.set_default_core("gb", "gambatte")
+	var adopted := defaults.adopt_missing(db, PackedStringArray(["gambatte"]))
+	_ok("gbc" in adopted, "gbc/an installed Game Boy core gives it a default", str(adopted))
+	_eq(defaults.get_default_core("gbc"), "gambatte", "gbc/that core")
+	_eq(defaults.get_default_core("gb"), "gambatte", "gbc/an existing default is left alone")
+	_ok(defaults.adopt_missing(db, PackedStringArray(["gambatte"])).is_empty(),
+		"gbc/and a second pass adopts nothing")
+
 
 # ---------------------------------------------------------------------------
 # RommFirmware — the two indexes over the server's firmware list.

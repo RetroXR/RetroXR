@@ -34,6 +34,37 @@ func set_default_core(systemid: String, core_name: String) -> void:
 	_defaults[systemid] = core_name
 
 
+## Give every platform an installed core serves -- its own systemid and its
+## secondaries -- a default core when it has none, the recommended one first.
+## Returns the systemids that were given one. Does not save.
+##
+## The Cores panel does the same when its Manager grid is built, but that only
+## runs when the panel is opened. A platform that appears later on cores that
+## are already installed -- a new secondary_systemids entry, like gbc on the
+## Game Boy cores -- had no default until then, so its tile was purple and a
+## console spawned for it had nothing to boot.
+func adopt_missing(core_db: CoreInfoDatabase, installed: PackedStringArray) -> Array[String]:
+	var by_sid: Dictionary = {}
+	for cn: String in installed:
+		var info: Dictionary = core_db.get_by_core_name(cn)
+		if info.is_empty():
+			continue
+		for sid: String in CoreInfoDatabase.systemids_of(info):
+			if sid.is_empty():
+				continue
+			if not by_sid.has(sid):
+				by_sid[sid] = []
+			(by_sid[sid] as Array).append({"core_name": cn})
+	var adopted: Array[String] = []
+	for sid: String in by_sid:
+		if not get_default_core(sid).is_empty():
+			continue
+		var ranked: Array = CoreRecommendations.first(sid, by_sid[sid] as Array)
+		set_default_core(sid, str((ranked[0] as Dictionary)["core_name"]))
+		adopted.append(sid)
+	return adopted
+
+
 ## Returns a copy of the full defaults dict (systemid -> core_name).
 func all_defaults() -> Dictionary:
 	return _defaults.duplicate()

@@ -5,7 +5,7 @@
 [resource]
 script = ExtResource("1")
 systemid = "gbc"
-display_name = "Nintendo Game Boy Color"
+display_name = "Game Boy Color"
 native_ports = 1
 media_type = 0
 supports_multitap = false

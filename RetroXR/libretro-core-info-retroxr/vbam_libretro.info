@@ -1,0 +1,57 @@
+# Nintendo - Game Boy Advance (VBA-M), upstream build.
+#
+# Overrides the vendored libretro-core-info entry of the same name, which is
+# otherwise copied unchanged: res://libretro-core-info is vendored wholesale
+# from libretro's repository and refreshed wholesale too, so an edit there
+# would be lost the next time, silently.
+#
+# The only change is `gbc` in secondary_systemids: this core runs Game Boy
+# Color ROMs, and that declaration is what lists it on the Game Boy Color
+# tile and lets it be that platform's default.
+
+# Software Information
+display_name = "Nintendo - Game Boy Advance (VBA-M)"
+authors = "Forgotten|VBA-M Team"
+supported_extensions = "dmg|gb|gbc|cgb|sgb|gba"
+corename = "VBA-M"
+license = "GPLv2"
+permissions = ""
+display_version = "2.1.4"
+
+# Hardware Information
+manufacturer = "Nintendo"
+categories = "Emulator"
+systemname = "Game Boy Advance"
+systemid = "gba"
+secondary_systemids = "gb:gb,gbc,dmg,cgb,sgb|gbc:gbc"
+
+# Libretro Features
+database = "Nintendo - Game Boy|Nintendo - Game Boy Color|Nintendo - Game Boy Advance"
+supports_no_game = "false"
+savestate = "true"
+savestate_features = "deterministic"
+cheats = "true"
+input_descriptors = "true"
+memory_descriptors = "true"
+libretro_saves = "true"
+core_options = "true"
+load_subsystem = "false"
+hw_render = "false"
+needs_fullpath = "false"
+disk_control = "false"
+is_experimental = "false"
+
+# Firmware / BIOS
+firmware_count = 3
+firmware0_desc = "gba_bios.bin (Game Boy Advance BIOS)"
+firmware0_path = "gba_bios.bin"
+firmware0_opt = "true"
+firmware1_desc = "gb_bios.bin (Game Boy BIOS)"
+firmware1_path = "gb_bios.bin"
+firmware1_opt = "true"
+firmware2_desc = "gbc_bios.bin (Game Boy Color BIOS)"
+firmware2_path = "gbc_bios.bin"
+firmware2_opt = "true"
+notes = "(!) gba_bios.bin (md5): a860e8c0b6d573d191e4ec7db1b1e4f6|(!) gb_bios.bin (md5): 32fbbd84168d3482956eb3c5051637f5|(!) gbc_bios.bin (md5): dbfce9db9deaa2567f6a84fde55f9680"
+
+description = "An up-to-date libretro port of the venerable Game Boy Advance emulator, VisualBoy Advance-Merged. In addition to Game Boy Advance, this core also supports Game Boy, Game Boy Color and Super Game Boy (borders and palette, only). Most users should start with this VBA-M core and only fall back to the older VBA-Next core if they need the additional performance boost at the cost of reduced accuracy and compatibility."

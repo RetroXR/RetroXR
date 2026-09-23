@@ -71,6 +71,25 @@ static func installed_core_lib(core_name: String) -> String:
 			return filename
 	return ""
 
+
+## Every core with a library in the cores dir, by core_name, sorted so anything
+## that picks "the first" of them picks the same one on every run.
+static func installed_core_names() -> PackedStringArray:
+	var out := PackedStringArray()
+	var dir := DirAccess.open(default_cores_dir())
+	if dir == null:
+		return out
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		var cn := "" if dir.current_is_dir() else core_name_from_lib_filename(fname)
+		if not cn.is_empty() and not out.has(cn):
+			out.append(cn)
+		fname = dir.get_next()
+	dir.list_dir_end()
+	out.sort()
+	return out
+
 static func _core_lib_ext() -> String:
 	if OS.get_name() in ["Android", "Linux"]:
 		return ".so"

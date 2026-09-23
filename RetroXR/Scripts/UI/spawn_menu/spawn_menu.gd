@@ -207,6 +207,14 @@ func _init_core_db() -> void:
 func _init_core_defaults() -> void:
 	core_defaults = CoreDefaults.new()
 	core_defaults.setup(CoreDefaults.default_path())
+	# Platforms the installed cores serve but that have no default yet -- ones
+	# a core-info update added -- get one now, not when the Cores panel is next
+	# opened. _ready then makes their roms dirs with everyone else's.
+	var adopted := core_defaults.adopt_missing(core_db,
+		CoreDownloadManager.installed_core_names())
+	if not adopted.is_empty():
+		core_defaults.save()
+		print("[SpawnMenu] adopted default cores for ", adopted)
 
 
 func _init_download_manager() -> void:
