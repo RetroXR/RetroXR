@@ -1,0 +1,14 @@
+Game Boy cartridge (gb_cart.glb)
+
+Own work. Modelled in Blender from Ryan McClelland's photographs and
+measurements of a DMG cartridge and reduced for real-time use (the Quest close
+export, 14,386 triangles); the source .blend files and references live outside
+this repository. Plastic grain is a tangent normal map; the Label mesh carries a
+plain white placeholder that the cartridge script replaces with the scraped
+label art.
+
+Licensed with the rest of RetroXR (see the repository LICENSE).
+
+No third-party marks are carried. The moulded Nintendo and GAME BOY lettering
+above the label is left off and its bowl left blank; the rear MADE IN JAPAN and
+PAT. PEND. markings remain.

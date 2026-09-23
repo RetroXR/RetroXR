@@ -35,7 +35,7 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 
 ## A shell the player asked for at spawn, overriding the one the ROM shipped in.
 ## A CartridgeShellPalette id; empty, or an id the palette does not hold, is the
-## ROM's own. N64 only, and read once, in _ready.
+## ROM's own. N64 and Game Boy only, and read once, in _ready.
 @export var shell_preset: StringName = &""
 
 ## A regional body the player asked for at spawn: N64CartShell.REGION_USA or
@@ -53,15 +53,16 @@ const _CART_MODELS := {
 	"atari2600": "res://imported-assets/carts/atari_2600/atari_2600_cart.glb",
 	"n64dd": Nintendo64DD.DISK_MODEL,
 	"gba": "res://imported-assets/carts/game_boy_advance/gba_cart.glb",
+	"gb": GbCartShell.BODY,
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
-## the N64 cart's contacts and screws are metal.
-const _AUTHORED_MATERIALS := {"n64": true}
+## the N64 and Game Boy carts' contacts and screws are metal.
+const _AUTHORED_MATERIALS := {"n64": true, "gb": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
-const _UV_LABELS := {"n64": true}
+const _UV_LABELS := {"n64": true, "gb": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
@@ -215,6 +216,11 @@ func _apply_cart_model() -> void:
 		if CartridgeColor.get_palette().find(shell_preset) != null:
 			preset = shell_preset
 		CartridgeColor.apply_preset(glb, preset)
+	elif systemid == GbCartShell.SYSTEMID:
+		var gb_preset := GbCartShell.preset_for_rom(rom_path)
+		if CartridgeColor.get_palette(GbCartShell.SYSTEMID).find(shell_preset) != null:
+			gb_preset = shell_preset
+		CartridgeColor.apply_preset(glb, gb_preset, GbCartShell.SYSTEMID)
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:

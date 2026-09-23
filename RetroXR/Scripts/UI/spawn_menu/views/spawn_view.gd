@@ -1724,7 +1724,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		hold.clicked.connect(spawn.bind({}))
 		# Held for a second: choose the shell and the body before it spawns.
 		hold.hold_enabled = _has_spawn_options(systemid)
-		hold.held.connect(_show_n64_spawn_options.bind(label, spawn))
+		hold.held.connect(_show_cart_spawn_options.bind(systemid, label, spawn))
 	elif romm_client.is_reachable():
 		# Not downloaded yet — tapping the title fetches it, same as the icon.
 		main.pressed.connect(func() -> void: romm_downloader.enqueue(entry, systemid))
@@ -3016,7 +3016,7 @@ func _close_game_detail_panel() -> void:
 
 ## Whether this platform's ROM rows open a sub-menu when held.
 static func _has_spawn_options(systemid: String) -> bool:
-	return systemid == "n64"
+	return systemid == "n64" or systemid == GbCartShell.SYSTEMID
 
 
 ## The overlay's shell: a title with a close button, and the column to fill.
@@ -3079,23 +3079,25 @@ static func _swatch_button(text: String, color: Color, group: ButtonGroup = null
 	return btn
 
 
-## Shell and body for an N64 cartridge. Two choices, so they are picked and then
-## SPAWN is pressed; `spawn` takes the options dictionary.
-func _show_n64_spawn_options(label: String, spawn: Callable) -> void:
+## Shell, and for an N64 the body, of a cartridge. Picked and then SPAWN is
+## pressed; `spawn` takes the options dictionary. The swatches are the system's
+## own CartridgeColor palette.
+func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) -> void:
 	var vbox := _open_spawn_options_panel(label)
 	var chosen := {"shell_preset": "", "body_region": ""}
 	var auto_color := Color(0.18, 0.18, 0.35)
 
-	vbox.add_child(MenuStyle.header("Body"))
-	var bodies := MenuStyle.hbox(10)
-	vbox.add_child(bodies)
-	var body_group := ButtonGroup.new()
-	for body: Array in [["Auto (from the ROM)", ""],
-			["USA / PAL", N64CartShell.REGION_USA], ["Japan", N64CartShell.REGION_JPN]]:
-		var body_btn := _swatch_button(body[0], auto_color, body_group)
-		body_btn.button_pressed = body[1] == ""
-		body_btn.pressed.connect(func() -> void: chosen["body_region"] = body[1])
-		bodies.add_child(body_btn)
+	if systemid == "n64":
+		vbox.add_child(MenuStyle.header("Body"))
+		var bodies := MenuStyle.hbox(10)
+		vbox.add_child(bodies)
+		var body_group := ButtonGroup.new()
+		for body: Array in [["Auto (from the ROM)", ""],
+				["USA / PAL", N64CartShell.REGION_USA], ["Japan", N64CartShell.REGION_JPN]]:
+			var body_btn := _swatch_button(body[0], auto_color, body_group)
+			body_btn.button_pressed = body[1] == ""
+			body_btn.pressed.connect(func() -> void: chosen["body_region"] = body[1])
+			bodies.add_child(body_btn)
 
 	vbox.add_child(MenuStyle.header("Shell"))
 	var shell_group := ButtonGroup.new()
@@ -3103,7 +3105,7 @@ func _show_n64_spawn_options(label: String, spawn: Callable) -> void:
 	auto_btn.button_pressed = true
 	auto_btn.pressed.connect(func() -> void: chosen["shell_preset"] = "")
 	vbox.add_child(auto_btn)
-	var palette := CartridgeColor.get_palette()
+	var palette := CartridgeColor.get_palette(systemid)
 	for section: Array in [
 			["Standard", CartridgeShellPreset.Availability.STANDARD],
 			["Released", CartridgeShellPreset.Availability.RELEASED],
@@ -3401,7 +3403,7 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 		var rom_hold := HoldPress.attach(rom_btn)
 		rom_hold.hold_enabled = _has_spawn_options(systemid)
 		rom_hold.clicked.connect(rom_spawn.bind({}))
-		rom_hold.held.connect(_show_n64_spawn_options.bind(rom_label, rom_spawn))
+		rom_hold.held.connect(_show_cart_spawn_options.bind(systemid, rom_label, rom_spawn))
 
 		# Which disc this file is, in the title's bottom-right corner: a game's
 		# discs share one wheel, so the rows are otherwise identical.
@@ -3463,7 +3465,7 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 		var spawn_hold := HoldPress.attach(spawn_btn)
 		spawn_hold.hold_enabled = _has_spawn_options(systemid)
 		spawn_hold.clicked.connect(rom_spawn.bind({}))
-		spawn_hold.held.connect(_show_n64_spawn_options.bind(rom_label, rom_spawn))
+		spawn_hold.held.connect(_show_cart_spawn_options.bind(systemid, rom_label, rom_spawn))
 		row.add_child(spawn_btn)
 
 		vbox.add_child(row)

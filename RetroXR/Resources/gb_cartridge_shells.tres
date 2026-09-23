@@ -1,0 +1,80 @@
+[gd_resource type="Resource" script_class="CartridgeShellPalette" format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_palette.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_preset.gd" id="2"]
+
+[sub_resource type="Resource" id="grey"]
+script = ExtResource("2")
+id = &"grey"
+display_name = "Grey (standard)"
+availability = 0
+color = Color(0.4169, 0.41, 0.4016, 1)
+roughness = 0.57
+
+[sub_resource type="Resource" id="black"]
+script = ExtResource("2")
+id = &"black"
+display_name = "Black (Game Boy Color compatible)"
+color = Color(0.13, 0.13, 0.14, 1)
+roughness = 0.57
+
+[sub_resource type="Resource" id="red"]
+script = ExtResource("2")
+id = &"red"
+display_name = "Red (Pokemon Red)"
+color = Color(0.72, 0.12, 0.13, 1)
+roughness = 0.57
+
+[sub_resource type="Resource" id="blue"]
+script = ExtResource("2")
+id = &"blue"
+display_name = "Blue (Pokemon Blue)"
+color = Color(0.16, 0.33, 0.7, 1)
+roughness = 0.57
+
+[sub_resource type="Resource" id="green"]
+script = ExtResource("2")
+id = &"green"
+display_name = "Green (Pocket Monsters Green)"
+color = Color(0.13, 0.52, 0.3, 1)
+roughness = 0.57
+
+[sub_resource type="Resource" id="yellow"]
+script = ExtResource("2")
+id = &"yellow"
+display_name = "Yellow (Pokemon Yellow)"
+color = Color(0.93, 0.76, 0.12, 1)
+roughness = 0.57
+
+[sub_resource type="Resource" id="gold"]
+script = ExtResource("2")
+id = &"gold"
+display_name = "Gold (Pokemon Gold)"
+finish = 1
+color = Color(0.62, 0.49, 0.24, 1)
+roughness = 0.45
+flake_color = Color(0.9, 0.78, 0.47, 1)
+flake_density = 0.25
+flake_size_mm = 0.35
+flake_intensity = 0.8
+flake_roughness = 0.22
+flake_tilt = 0.4
+
+[sub_resource type="Resource" id="silver"]
+script = ExtResource("2")
+id = &"silver"
+display_name = "Silver (Pokemon Silver)"
+finish = 1
+color = Color(0.56, 0.57, 0.59, 1)
+roughness = 0.42
+flake_color = Color(0.85, 0.86, 0.89, 1)
+flake_density = 0.28
+flake_size_mm = 0.35
+flake_intensity = 0.8
+flake_roughness = 0.2
+flake_tilt = 0.4
+
+[resource]
+script = ExtResource("1")
+source = "Game Boy cartridge shells. Grey is the model's own plastic. Every other value is a VISUAL APPROXIMATION of the moulded colour, not a calibrated measurement. GbCartShell picks one per ROM. Edit freely."
+presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("black"), SubResource("red"), SubResource("blue"), SubResource("green"), SubResource("yellow"), SubResource("gold"), SubResource("silver")])

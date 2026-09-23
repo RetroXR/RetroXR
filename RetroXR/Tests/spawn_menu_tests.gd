@@ -284,8 +284,9 @@ func _group_hold() -> void:
 	_eq(seen["clicked"], 1, "hold/a rebound row forgets the last entry's hold")
 
 	_ok(SpawnMenuSpawnView._has_spawn_options("n64")
+		and SpawnMenuSpawnView._has_spawn_options("gb")
 		and not SpawnMenuSpawnView._has_spawn_options("nes"),
-		"hold/only an N64 ROM row opens one")
+		"hold/only an N64 or Game Boy ROM row opens one")
 
 
 # ── delete/ — the trash can on a poster, video, DVD or album row ────────────
