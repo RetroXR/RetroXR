@@ -12,3 +12,12 @@ Licensed with the rest of RetroXR (see the repository LICENSE).
 
 The front "Game Boy Advance" molding and the rear "Nintendo" wordmark are
 left off the atlas; the model number and country/patent markings remain.
+
+Circuit board photographs (gba_cart_pcb_front_clean_1024.jpg,
+gba_cart_pcb_back_1024.jpg, also embedded in gba_cart.glb): by FexCollects,
+from the Game Boy hardware database entry for Pokemon Ruby (AGB-AXVE-0),
+https://gbhwdb.gekkio.fi/cartridges/AGB-AXVE-0/fexcollects-1.html
+Licensed CC BY-SA 4.0, https://creativecommons.org/licenses/by-sa/4.0/
+Changes: resized from 2805 x 1781 to 1024 x 650; the background beyond the
+board's screw notch filled in; the Nintendo silkscreen wordmark removed. These
+derived textures are shared under CC BY-SA 4.0.

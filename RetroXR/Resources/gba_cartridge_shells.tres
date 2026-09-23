@@ -15,7 +15,7 @@ roughness = 0.6
 script = ExtResource("2")
 id = &"ruby"
 display_name = "Clear red (Pokemon Ruby)"
-color = Color(0.461, 0.249, 0.249, 1)
+color = Color(0.493, 0.288, 0.314, 1)
 roughness = 0.35
 opacity = 0.65
 
@@ -23,7 +23,7 @@ opacity = 0.65
 script = ExtResource("2")
 id = &"sapphire"
 display_name = "Clear blue (Pokemon Sapphire)"
-color = Color(0.202, 0.256, 0.577, 1)
+color = Color(0.235, 0.289, 0.674, 1)
 roughness = 0.35
 opacity = 0.6
 
@@ -31,7 +31,7 @@ opacity = 0.6
 script = ExtResource("2")
 id = &"emerald"
 display_name = "Clear green (Pokemon Emerald)"
-color = Color(0.176, 0.629, 0.232, 1)
+color = Color(0.204, 0.709, 0.295, 1)
 roughness = 0.35
 opacity = 0.55
 
@@ -39,7 +39,7 @@ opacity = 0.55
 script = ExtResource("2")
 id = &"fire_red"
 display_name = "Frosted red (Pokemon FireRed)"
-color = Color(0.784, 0.501, 0.463, 1)
+color = Color(0.824, 0.529, 0.496, 1)
 roughness = 0.35
 opacity = 0.9
 
@@ -47,11 +47,11 @@ opacity = 0.9
 script = ExtResource("2")
 id = &"leaf_green"
 display_name = "Frosted green (Pokemon LeafGreen)"
-color = Color(0.426, 0.629, 0.473, 1)
+color = Color(0.493, 0.709, 0.566, 1)
 roughness = 0.35
 opacity = 0.9
 
 [resource]
 script = ExtResource("1")
-source = "Game Boy Advance cartridge shells. Grey is the model's own plastic, solid. The Pokemon shells are dyed clear plastic; opacity is how strongly the dye filters and scatters (FireRed and LeafGreen are frosted, so higher). Colours were FITTED: each preset rendered lying on white under flat light until the median shell colour matched a photo of the real cartridge (Ruby measured from a scan, the others read off photos). Change one by eye and it will drift from its photo. Roughness is the clear shells' gloss; grey keeps the model's baked roughness map. GbaCartShell picks one per ROM. Edit freely."
+source = "Game Boy Advance cartridge shells. Grey is the model's own plastic, solid. The Pokemon shells are dyed clear plastic; opacity is how strongly the dye filters and scatters (FireRed and LeafGreen are frosted, so higher). Colours were FITTED: each preset rendered lying on white under flat light until the per-channel median shell colour, the board showing through, matched a photo of the real cartridge (Ruby measured from a scan, the others read off photos). Change one by eye and it will drift from its photo. Roughness is the clear shells' gloss; grey keeps the model's baked roughness map. GbaCartShell picks one per ROM. Edit freely."
 presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("ruby"), SubResource("sapphire"), SubResource("emerald"), SubResource("fire_red"), SubResource("leaf_green")])

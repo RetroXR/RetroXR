@@ -45,12 +45,16 @@ const SECTIONS: Array = [
 		["Input Prompts", "Kenney — kenney.nl", "CC0 1.0"],
 		["Touch controller model", "immersive-web/webxr-input-profiles", "MIT"],
 		["NES controller diagram", "Fant0men — Wikimedia Commons", "CC BY-SA 3.0"],
+		["GBA cartridge circuit board photos", "FexCollects — Game Boy hardware database (gbhwdb.gekkio.fi)", "CC BY-SA 4.0"],
 		["Lamp chain switch (audio)", "ftpalad — freesound.org", "CC0 1.0"],
 	], "Console art from the Systematic theme for RetroArch / Lakka. "
 		+ "Controller line art is rendered from the WebXR input profile model; "
 		+ "button glyphs are Kenney's Input Prompts. The NES controller drawing is "
 		+ "used under CC BY-SA 3.0 with its maker's branding removed; that edit is "
-		+ "shared under the same licence."],
+		+ "shared under the same licence. The board seen through a clear Game Boy "
+		+ "Advance cartridge wears FexCollects' photographs of a Pokemon Ruby board, "
+		+ "used under CC BY-SA 4.0, resized, with the notch background filled and a "
+		+ "maker's wordmark removed; those edits are shared under the same licence."],
 
 	["GAME DATA", [
 		["ScreenScraper", "screenscraper.fr contributors", "CC BY-NC-SA 4.0"],

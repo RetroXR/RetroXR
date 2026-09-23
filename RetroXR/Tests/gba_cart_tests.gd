@@ -14,8 +14,10 @@ const FIXTURE := "__gbacart_selftest"
 
 ## The two halves of the moulding, each one surface.
 const SHELL_PARTS := ["Front_Shell", "Rear_Shell"]
-## Parts a shell colour must never reach.
-const KEPT_PARTS := ["Label", "Opaque_Internal_Details"]
+## Parts a shell colour must never reach: the label, the contact strip and
+## screw, and the board seen through a clear shell with its chips and battery.
+const KEPT_PARTS := ["Label", "Opaque_Internal_Details", "Interior_PCB", "Interior_ROM_Chip",
+	"Interior_RTC_Chip", "Interior_Save_Battery"]
 const CLEAR := [&"ruby", &"sapphire", &"emerald", &"fire_red", &"leaf_green"]
 
 var _pass := 0
@@ -96,6 +98,13 @@ func _mat(root: Node, part: String) -> BaseMaterial3D:
 
 func _source(root: Node, part: String) -> BaseMaterial3D:
 	return _part(root, part).mesh.surface_get_material(0) as BaseMaterial3D
+
+
+func _materials(mi: MeshInstance3D) -> Array[Material]:
+	var out: Array[Material] = []
+	for i in mi.mesh.get_surface_count():
+		out.append(mi.get_active_material(i))
+	return out
 
 
 func _preset(id: StringName) -> CartridgeShellPreset:
@@ -279,7 +288,7 @@ func _test_kept() -> void:
 	var cart := _body()
 	var before := {}
 	for part: String in KEPT_PARTS:
-		before[part] = _part(cart, part).get_active_material(0)
+		before[part] = _materials(_part(cart, part))
 	for id in CLEAR + [&"grey"]:
 		CartridgeColor.apply_preset(cart, id, GbaCartShell.SYSTEMID)
 	CartridgeColor.apply_color(cart, Color(0, 1, 0, 0.5))
@@ -287,11 +296,22 @@ func _test_kept() -> void:
 	CartridgeColor.apply_preset(cart, &"ruby", GbaCartShell.SYSTEMID)
 	var changed := PackedStringArray()
 	for part: String in KEPT_PARTS:
-		if _part(cart, part).get_active_material(0) != before[part]:
+		if _materials(_part(cart, part)) != before[part]:
 			changed.append(part)
-	_ok(changed.is_empty(), "kept/label and the board inside keep their materials", str(changed))
-	var inside := before["Opaque_Internal_Details"] as BaseMaterial3D
-	_ok(inside.transparency == BaseMaterial3D.TRANSPARENCY_DISABLED, "kept/the board inside is solid")
+	_ok(changed.is_empty(), "kept/label, contacts and the board inside keep their materials", str(changed))
+	var see_through := PackedStringArray()
+	for part: String in KEPT_PARTS:
+		for m: Material in before[part]:
+			if m is BaseMaterial3D and (m as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
+				see_through.append(part)
+	_ok(see_through.is_empty(), "kept/everything inside is solid", str(see_through))
+	var board := _part(cart, "Interior_PCB")
+	var photos := 0
+	for i in board.mesh.get_surface_count():
+		var m := board.get_active_material(i) as BaseMaterial3D
+		if m != null and m.albedo_texture != null and m.albedo_texture.get_width() <= 1024:
+			photos += 1
+	_ok(photos == 2, "kept/the board carries both photos, at most 1024 wide", str(photos))
 	cart.free()
 
 
