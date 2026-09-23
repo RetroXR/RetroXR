@@ -88,6 +88,9 @@ const _ROWS: Dictionary = {
 	"playstation":          {"platform": "psx", "label": "PlayStation",
 		"script": "res://Scripts/Objects/system_models/playstation_model.gd",
 		"requires": ["res://imported-assets/consoles/playstation/ps1_console.glb"]},
+	"dreamcast":            {"platform": "dreamcast", "label": "Dreamcast",
+		"script": "res://Scripts/Objects/system_models/dreamcast_model.gd",
+		"requires": ["res://imported-assets/consoles/dreamcast/dreamcast_console.glb"]},
 	# A scene row with the model script on its root: primitive geometry, no GLB, so
 	# there is no `requires` to declare. It also still carries the core options the
 	# Wii cannot run correctly without.

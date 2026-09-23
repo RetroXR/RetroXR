@@ -15,7 +15,7 @@
 
 numpy>=1.24          # mesh and audio maths, and most of the image probes
 pillow>=10.0         # PIL: icon baking, controller art, render comparison
-scipy>=1.11          # Tools/art/wii_ir_cursor.py only
+scipy>=1.11          # Tools/art/wii_ir_cursor.py, Tools/glb/scrub_dreamcast_textures.py
 imageio>=2.31        # encoding probe PNG frames to mp4
 imageio-ffmpeg>=0.4  # the encoder imageio calls for libx264
 openpyxl>=3.1        # Tools/gen_n64_cart_colors.py reads micro-64's workbook

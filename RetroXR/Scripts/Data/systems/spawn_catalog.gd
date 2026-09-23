@@ -66,6 +66,9 @@ const _PERIPHERALS: Dictionary = {
 		# Seaman wants the card in slot 1 and this in slot 2, which is why the
 		# core offers it in either.
 		{"kind": "peripheral", "label": "Microphone", "spawn": "dc_microphone"},
+		# Sega's own AV OUT at the machine and three phonos at the set, the way the
+		# console shipped. Nothing else's AV lead fits that socket.
+		{"kind": "peripheral", "label": "Stereo AV Cable", "spawn": "dc_av_cable"},
 	],
 	# The Xbox's, which goes into a CONTROLLER too, two to a pad. Not where its
 	# games save — that is the hard disk in the console — but where a save is
