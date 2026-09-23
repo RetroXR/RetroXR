@@ -15,7 +15,10 @@ class_name GbCartShell
 extends RefCounted
 
 const BODY := "res://imported-assets/carts/game_boy/gb_cart.glb"
+## The palette's systemid. A Game Boy Color cartridge is the same shell and
+## takes the same palette; is_shell() is the check for "spawns as this model".
 const SYSTEMID := "gb"
+const SYSTEMIDS: Array[String] = ["gb", "gbc"]
 const DEFAULT_PRESET := &"grey"
 const BLACK_PRESET := &"black"
 
@@ -42,6 +45,11 @@ const OVERSEAS_TITLE_SHELLS := {
 	"POKEMON BLUE": &"blue",
 	"POKEMON YEL": &"yellow",
 }
+
+
+## Whether a cartridge of this systemid spawns as the Game Boy shell.
+static func is_shell(systemid: String) -> bool:
+	return SYSTEMIDS.has(systemid)
 
 
 static func preset_for_rom(rom_path: String) -> StringName:

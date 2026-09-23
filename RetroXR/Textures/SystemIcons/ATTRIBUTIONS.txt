@@ -74,7 +74,7 @@ verified by opening the file rather than trusting the suffix:
                  finishes, not regions: both colors sold in North America.
 
 Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30;
-Wii U and Famicom 2026-09-15.
+Wii U and Famicom 2026-09-15; Game Boy Color 2026-09-22.
 
 file map
 -------------------------------------------------------------------------------
@@ -176,6 +176,8 @@ gb-content.svg                      Nintendo - Game Boy-content.svg
 gb.svg                              Nintendo - Game Boy.svg
 gba-content.svg                     Nintendo - Game Boy Advance-content.svg
 gba.svg                             Nintendo - Game Boy Advance.svg
+gbc-content.svg                     Nintendo - Game Boy Color-content.svg
+gbc.svg                             Nintendo - Game Boy Color.svg
 gamegear-content.svg                Sega - Game Gear-content.svg
 gamegear.svg                        Sega - Game Gear.svg
 gc-content.svg                      Nintendo - GameCube-content.svg

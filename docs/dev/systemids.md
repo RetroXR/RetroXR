@@ -42,7 +42,7 @@ under a name nothing else uses.
 
 | where | how it is read |
 |---|---|
-| `roms/<id>/` | `RomLibrary.rom_dir_for_system` composes, then resolves: the first of `SystemIds.folder_names()` that EXISTS — the id, the old id, then ES-DE's other folders (`sfc`, `megadrive`, `gbc`). `rom_dirs_for_system` is all of them, and `scan_roms` merges them into one tile. Only the first is written to. |
+| `roms/<id>/` | `RomLibrary.rom_dir_for_system` composes, then resolves: the first of `SystemIds.folder_names()` that EXISTS — the id, the old id, then ES-DE's other folders (`sfc`, `megadrive`, `mark3`). `rom_dirs_for_system` is all of them, and `scan_roms` merges them into one tile. Only the first is written to. |
 | `save/carts/<id>/` | `SystemIdMigration` moves it a file at a time through `SaveMigration._place`, so the RomM ledger follows. Until then `SramPaths.resolve_cart_save` finds it, as it always swept every folder. |
 | bindings, `core_defaults.json`, `app_prefs.json` hidden systems, `romm_config.json`, `romm_cache.json`, the ledger's `rom_ids` | read through `SystemIds.rekeyed` / `rekeyed_paths` AS THEY LOAD. Not rewritten at boot: their autoloads have read them before anything can run, and would write the old keys back. A key under both names keeps the new one. |
 | a saved room | `systemid` and `cart_systemid` through `canonical` at deserialize, and `rom_path` — and a book's `pdf_path`, since a scraped manual lives under `roms/<id>/media/` — through `RomLibrary.relocate`, which finds a file whose folder was since renamed. (The book was missed at first: its manual failed to open and, unloaded, it blocked every click around it — `book_tests`.) **Not** by bumping `ScenePersistence.VERSION`, which drops the slot. |

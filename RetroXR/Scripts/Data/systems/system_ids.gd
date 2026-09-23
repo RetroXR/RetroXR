@@ -87,8 +87,8 @@ const LEGACY: Dictionary = {
 	"zx_spectrum": "zxspectrum",
 }
 
-## Other ES-DE folders holding the same machine's ROMs. `famicom` is absent on
-## purpose: it is a system of its own here. So are `sgb`, `arcade` and `cps*`,
+## Other ES-DE folders holding the same machine's ROMs. `famicom` and `gbc` are
+## absent on purpose: each is a system of its own here. So are `sgb`, `arcade` and `cps*`,
 ## which fit more than one tile.
 const FOLDER_ALIASES: Dictionary = {
 	"amiga": ["amiga600", "amiga1200"],
@@ -97,7 +97,6 @@ const FOLDER_ALIASES: Dictionary = {
 	"cdi": ["cdimono1", "philips-cd-i"],
 	"fbneo": ["fba"],
 	"gameandwatch": ["lcdgames"],
-	"gb": ["gbc"],
 	"genesis": ["megadrive", "megadrivejp"],
 	"mastersystem": ["mark3"],
 	"moto": ["to8"],

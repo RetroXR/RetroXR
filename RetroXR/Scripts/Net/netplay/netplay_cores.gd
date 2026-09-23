@@ -50,7 +50,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["gb", "game_boy_color"],
+		"systems": ["gb", "gbc"],
 		"options": {"gambatte_frame_dupe": "disabled"},
 	},
 	"tgbdual": {
@@ -58,7 +58,7 @@ const CORES: Dictionary = {
 		"state_transfer": true,
 		"strategies": [Strategy.ROLLBACK, Strategy.LOCKSTEP],
 		"cross_play": false,
-		"systems": ["gb", "game_boy_color"],
+		"systems": ["gb", "gbc"],
 		"options": {"tgbdual_gblink_enable": "disabled"},
 	},
 	"mgba": {
@@ -68,7 +68,7 @@ const CORES: Dictionary = {
 		"cross_play": false,
 		# ereader: the card tile. A swipe is a frame-scheduled disc op, and the
 		# fork's savestate carries the scanner, so rollback and late join hold.
-		"systems": ["gba", "gb", "game_boy_color", "ereader"],
+		"systems": ["gba", "gb", "gbc", "ereader"],
 		"options": {},
 	},
 	"gpsp": {

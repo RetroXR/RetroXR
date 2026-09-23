@@ -45,10 +45,11 @@ const SLUG_MAP := {
 	"n64dd": "n64dd",
 	"gb": "gb",
 	"gb2players": "gb",
-	# The project has no separate Game Boy Color systemid — gambatte reports
-	# "gb" for both, and the cart shell is the same.
-	"gbc": "gb",
-	"gbc2players": "gb",
+	# Game Boy Color is a secondary platform of the Game Boy cores with a tile of
+	# its own. Folding it into "gb" made it lose collapse_by_systemid to the
+	# bigger Game Boy library and vanish into the unmapped list.
+	"gbc": "gbc",
+	"gbc2players": "gbc",
 	"gba": "gba",
 	"nds": "nds",
 	"3ds": "n3ds",
@@ -295,7 +296,7 @@ static func partition(platforms: Array, overrides: Dictionary = {}) -> Dictionar
 ## Collapse partition()'s mapped LIST into a systemid -> platform dictionary.
 ##
 ## Several RomM slugs legitimately share one systemid — snes/sfc/sgb, the nine
-## arcade slugs, gb/gbc — so this is a real contest, not an anomaly. Keying the
+## arcade slugs, gb/sgb — so this is a real contest, not an anomaly. Keying the
 ## dict directly kept whichever arrived last, which made the winner a function
 ## of the server's array order: a platform could vanish and reappear between
 ## syncs with nothing said.

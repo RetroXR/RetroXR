@@ -28,6 +28,9 @@ const CART_SIZES: Dictionary = {
 	"snes":        Vector3(0.137, 0.088, 0.020),
 	"n64":      Vector3(0.116, 0.0766, 0.0185),  # the cartridge model's shell
 	"gb":         Vector3(0.057, 0.065, 0.0075),  # the cartridge model's shell
+	# A Game Boy Color cartridge is the same DMG-shaped shell (the notch is the
+	# only difference), and spawns as the same model.
+	"gbc":        Vector3(0.057, 0.065, 0.0075),
 	"gba": Vector3(0.058, 0.036, 0.007),
 	"genesis":       Vector3(0.110, 0.070, 0.017),
 	# A 32X game is a Mega Drive cartridge -- same shell, same slot, and it goes

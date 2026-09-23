@@ -51,6 +51,7 @@ func _ready() -> void:
 	_test_systemid_for()
 	_test_partition()
 	_test_collapse_by_systemid()
+	_test_gbc_platform()
 	_test_firmware_index()
 	_test_stats_unchanged()
 	_test_password_not_persisted()
@@ -261,6 +262,40 @@ func _test_collapse_by_systemid() -> void:
 	])
 	_eq((many["platforms"] as Dictionary).size(), 2, "collapse/distinct kept")
 	_eq((many["shadowed"] as Array).size(), 0, "collapse/no false shadow")
+
+
+func _test_gbc_platform() -> void:
+	# A RomM gbc library used to map onto "gb", lose collapse_by_systemid to the
+	# bigger Game Boy library, and land in the unmapped list: 1439 games with no
+	# tile. It is a secondary platform of the Game Boy cores now.
+	_eq(RommPlatforms.systemid_for({"slug": "gbc", "fs_slug": "gbc"}), "gbc",
+		"gbc/RomM's Game Boy Color is not filed under gb")
+	var both := RommPlatforms.collapse_by_systemid(RommPlatforms.partition([
+		{"slug": "gb", "fs_slug": "gb", "rom_count": 1616},
+		{"slug": "gbc", "fs_slug": "gbc", "rom_count": 1439},
+	])["mapped"])
+	_eq((both["platforms"] as Dictionary).size(), 2, "gbc/a tile beside the Game Boy's")
+	_eq((both["shadowed"] as Array).size(), 0, "gbc/and not shadowed by it")
+
+	var info := SystemInfo.for_system("gbc")
+	_ok(info != null and info.systemid == "gbc", "gbc/there is a SystemInfo row")
+	_eq(SystemIds.systemid_for_folder("gbc"), "gbc", "gbc/its folder is its own, not a gb alias")
+
+	var db := CoreInfoDatabase.shared()
+	for core: String in ["gambatte", "sameboy", "mgba"]:
+		var entry: Dictionary = db.get_by_core_name(core)
+		_ok("gbc" in CoreInfoDatabase.systemids_of(entry),
+			"gbc/%s serves it, which is what makes the tile" % core)
+
+	_ok(SystemIcons.has_icon("gbc"), "gbc/it has console art rather than the fallback")
+	_ok(SystemIcons.has_content_icon("gbc"), "gbc/and its own cartridge art")
+	_ok(GbCartShell.is_shell("gbc"), "gbc/its cartridge spawns as the Game Boy shell")
+	_ok(MediaDimensions.CART_SIZES.get("gbc") == MediaDimensions.CART_SIZES.get("gb"),
+		"gbc/at the Game Boy cartridge's size")
+	_ok(not SystemModelRegistry.rows_for("gbc").is_empty(), "gbc/a handheld is offered for it")
+	_ok(SystemModelRegistry.platform_is_handheld("gbc"), "gbc/and it is a handheld")
+	_eq(ScreenscraperSystems.get_systemeid("gbc"), 10, "gbc/ScreenScraper's own platform")
+	_eq(RaConsoles.for_systemid("gbc"), 6, "gbc/RetroAchievements' own console")
 
 
 # ---------------------------------------------------------------------------

@@ -25,7 +25,7 @@ display_version = "retroXR build"
 manufacturer = "Nintendo"
 systemname = "Game Boy Advance"
 systemid = "gba"
-secondary_systemids = "gb:gb,gbc|ereader:raw"
+secondary_systemids = "gb:gb,gbc|gbc:gbc|ereader:raw"
 
 # Libretro Features
 supports_no_game = "false"

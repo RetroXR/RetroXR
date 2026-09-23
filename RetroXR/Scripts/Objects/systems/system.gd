@@ -379,13 +379,15 @@ var _port_plugs: Array = [null, null, null, null]
 
 
 ## Real-world cross-compatibility: media of these systemids also fits.
-## (The GBA plays original Game Boy carts — and mgba runs them.)
+## (The GBA plays original Game Boy and Game Boy Color carts — and mgba runs
+## them; the Game Boy Color plays the original's.)
 ##
 ## The Wii row is not just cosmetic: with a GameCube disc in the tray the core's
 ## IsWii() goes false, and that changes how the whole cabinet is wired — see
 ## _wii_mode().
 const _MEDIA_COMPAT: Dictionary = {
-	"gba": ["gb"],
+	"gba": ["gb", "gbc"],
+	"gbc": ["gb"],
 	"wii": ["gc"],
 }
 

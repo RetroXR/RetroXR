@@ -86,9 +86,16 @@ const RECOMMENDED := {
 	},
 
 	# ── Nintendo handhelds ───────────────────────────────────────────────────
-	# One entry covers Game Boy and Game Boy Color: no core in this database
-	# declares a separate `game_boy_color` systemid, so the two share a tile.
+	# Game Boy Color is a tile of its own (the Game Boy cores' overlays name
+	# `gbc` in secondary_systemids), but the same cores run both, for the same
+	# reasons -- so the two entries are deliberately identical.
 	"gb": {
+		"core":    "sameboy",
+		"why":     "The most accurate GB/GBC core, and cheap enough to spend the accuracy on desktop",
+		"android": "gambatte",
+		"why_android": "SameBoy's sub-frame accuracy costs more than it shows on a handheld screen; Gambatte is mature and much lighter",
+	},
+	"gbc": {
 		"core":    "sameboy",
 		"why":     "The most accurate GB/GBC core, and cheap enough to spend the accuracy on desktop",
 		"android": "gambatte",

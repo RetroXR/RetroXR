@@ -27,6 +27,7 @@ const CONSOLE_MAP := {
 	"gc": 16,               # RC_CONSOLE_GAMECUBE
 	"wii": 19,                    # RC_CONSOLE_WII
 	"gb": 4,                # RC_CONSOLE_GAMEBOY
+	"gbc": 6,               # RC_CONSOLE_GAMEBOY_COLOR
 	"gba": 5,        # RC_CONSOLE_GAMEBOY_ADVANCE
 	"nds": 18,                    # RC_CONSOLE_NINTENDO_DS
 	"virtualboy": 28,            # RC_CONSOLE_VIRTUAL_BOY

@@ -2,8 +2,10 @@
 
 ### 2x. Game Boy cartridges — one body, a moulded colour, a scraped sticker
 
-`RetroCartridge` builds a `gb` cartridge (`.gb` and `.gbc`; the `gbc` folder is an
-alias of `gb`) from `imported-assets/carts/game_boy/gb_cart.glb`: the unbranded Quest
+`RetroCartridge` builds a `gb` cartridge (`.gb` and `.gbc`), and a `gbc` one the same
+way (`GbCartShell.is_shell`; Game Boy Color is a secondary platform of the Game Boy
+cores with its own tile and `roms/gbc/` folder, not an alias of `gb`), from
+`imported-assets/carts/game_boy/gb_cart.glb`: the unbranded Quest
 close export of the Codex Kirby's Block Ball model, 14,386 triangles, 57 × 65 × 7.5 mm,
 connector on −Y and label on +Z, so it drops into the frame with no turn. The LODs are
 Godot's own (`meshes/generate_lods`), not Codex's `_lod1` file. `MediaDimensions`' `gb`

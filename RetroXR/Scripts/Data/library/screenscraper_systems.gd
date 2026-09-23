@@ -44,6 +44,8 @@ const SYSTEM_MAP := {
 	"fbneo": 75,
 	"fds": 106,
 	"gb": 9,
+	# Unlike the NES/Famicom, ScreenScraper does split these two.
+	"gbc": 10,
 	"gba": 12,
 	"gamegear": 21,
 	"gc": 13,

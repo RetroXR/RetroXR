@@ -274,6 +274,7 @@ const _GC_GBA_PLATFORMS: Array = ["gc", "gba"]
 const _LINK_LEADS: Dictionary = {
 	"gba": _LINK_CABLE,
 	"gb": _GB_LINK_CABLE,
+	"gbc": _GB_LINK_CABLE,
 	"psx": _PSX_LINK_CABLE,
 	"wonderswan": _WS_LINK_CABLE,
 	"gamegear": _GG_LINK_CABLE,

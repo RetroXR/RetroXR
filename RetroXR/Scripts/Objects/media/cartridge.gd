@@ -54,15 +54,16 @@ const _CART_MODELS := {
 	"n64dd": Nintendo64DD.DISK_MODEL,
 	"gba": "res://imported-assets/carts/game_boy_advance/gba_cart.glb",
 	"gb": GbCartShell.BODY,
+	"gbc": GbCartShell.BODY,
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
 ## the N64 and Game Boy carts' contacts and screws are metal.
-const _AUTHORED_MATERIALS := {"n64": true, "gb": true}
+const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
-const _UV_LABELS := {"n64": true, "gb": true}
+const _UV_LABELS := {"n64": true, "gb": true, "gbc": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
@@ -216,7 +217,7 @@ func _apply_cart_model() -> void:
 		if CartridgeColor.get_palette().find(shell_preset) != null:
 			preset = shell_preset
 		CartridgeColor.apply_preset(glb, preset)
-	elif systemid == GbCartShell.SYSTEMID:
+	elif GbCartShell.is_shell(systemid):
 		var gb_preset := GbCartShell.preset_for_rom(rom_path)
 		if CartridgeColor.get_palette(GbCartShell.SYSTEMID).find(shell_preset) != null:
 			gb_preset = shell_preset
