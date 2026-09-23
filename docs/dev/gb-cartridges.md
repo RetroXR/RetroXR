@@ -16,8 +16,7 @@ hashed), from `Resources/gb_cartridge_shells.tres`:
 | --- | --- |
 | title `POKEMON_GLD` / `POKEMON_SLV`, Nintendo | gold / silver (metal flake), every market |
 | title `POKEMON RED` / `POKEMON BLUE` / `POKEMON YEL…`, Nintendo, destination 0x14A ≠ 0 | red / blue / yellow |
-| same, destination 0x14A = 0 (Japan) | grey: the Japanese Red, Blue and Pikachu were standard grey |
-| title `POKEMON GREEN`, Nintendo | green |
+| same, destination 0x14A = 0 (Japan) | grey: the Japanese Red, Green, Blue and Pikachu were standard grey |
 | CGB flag 0x143 = 0x80 (runs on both machines) | black |
 | anything else, GBC-only 0xC0 included | grey |
 
@@ -28,7 +27,7 @@ Korea included. Every value in the palette is a visual approximation; grey is th
 own imported plastic, so the default is the model as authored.
 
 Assumptions still open: Japanese Gold/Silver are coloured (the source checked says
-nothing); Green is green though some Midori shipped grey; Japanese Pikachu is grey
+nothing); Japanese Pikachu is grey
 like Japan's other first-generation carts; GBC-only games (clear carts) stay grey
 because no preset was asked for.
 

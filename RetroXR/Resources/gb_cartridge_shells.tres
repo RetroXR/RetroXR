@@ -32,13 +32,6 @@ display_name = "Blue (Pokemon Blue)"
 color = Color(0.16, 0.33, 0.7, 1)
 roughness = 0.57
 
-[sub_resource type="Resource" id="green"]
-script = ExtResource("2")
-id = &"green"
-display_name = "Green (Pocket Monsters Green)"
-color = Color(0.13, 0.52, 0.3, 1)
-roughness = 0.57
-
 [sub_resource type="Resource" id="yellow"]
 script = ExtResource("2")
 id = &"yellow"
@@ -77,4 +70,4 @@ flake_tilt = 0.4
 [resource]
 script = ExtResource("1")
 source = "Game Boy cartridge shells. Grey is the model's own plastic. Every other value is a VISUAL APPROXIMATION of the moulded colour, not a calibrated measurement. GbCartShell picks one per ROM. Edit freely."
-presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("black"), SubResource("red"), SubResource("blue"), SubResource("green"), SubResource("yellow"), SubResource("gold"), SubResource("silver")])
+presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("black"), SubResource("red"), SubResource("blue"), SubResource("yellow"), SubResource("gold"), SubResource("silver")])

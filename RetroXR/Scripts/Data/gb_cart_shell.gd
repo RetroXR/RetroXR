@@ -4,8 +4,8 @@
 ##   - Pokemon Gold and Silver: gold and silver, in every market.
 ##   - Pokemon Red, Blue and Yellow: red, blue and yellow outside Japan. The
 ##     Japanese Red, Blue and Pikachu came in the standard grey; the destination
-##     byte tells them apart.
-##   - Pocket Monsters Green, which only Japan had: green.
+##     byte tells them apart. Pocket Monsters Green, which only Japan had, was
+##     grey too.
 ##   - Any other game that also runs in colour on a Game Boy Color (CGB flag
 ##     0x80): black.
 ##   - Everything else, GBC-only games (0xC0) included: grey.
@@ -35,7 +35,6 @@ const OLD_LICENSEE_USE_NEW := 0x33
 const TITLE_SHELLS := {
 	"POKEMON_GLD": &"gold",
 	"POKEMON_SLV": &"silver",
-	"POKEMON GREEN": &"green",
 }
 ## Title prefix -> preset, outside Japan only.
 const OVERSEAS_TITLE_SHELLS := {

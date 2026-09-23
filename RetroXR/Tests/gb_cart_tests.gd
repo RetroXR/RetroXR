@@ -176,7 +176,7 @@ func _test_resources() -> void:
 		_ok(ResourceLoader.exists(path), "resources/%s exists" % path.get_file())
 	var palette := CartridgeColor.get_palette(GbCartShell.SYSTEMID)
 	_ok(palette != null and palette != CartridgeColor.get_palette(), "resources/the Game Boy has a palette of its own")
-	var wanted := ["grey", "black", "red", "blue", "green", "yellow", "gold", "silver"]
+	var wanted := ["grey", "black", "red", "blue", "yellow", "gold", "silver"]
 	_ok(Array(palette.ids()) == wanted, "resources/palette carries exactly the presets", str(palette.ids()))
 	_ok(palette.find(&"grey").availability == CartridgeShellPreset.Availability.STANDARD,
 		"resources/grey is the standard shell")
@@ -363,7 +363,7 @@ func _test_lookup() -> void:
 		["Pokemon Blue, overseas", _header("POKEMON BLUE"), &"blue"],
 		["Pocket Monsters Red, Japan", _header("POKEMON RED", 0, true), &"grey"],
 		["Pocket Monsters Blue, Japan", _header("POKEMON BLUE", 0, true), &"grey"],
-		["Pocket Monsters Green", _header("POKEMON GREEN", 0, true), &"green"],
+		["Pocket Monsters Green", _header("POKEMON GREEN", 0, true), &"grey"],
 		["Pokemon Gold, USA", _header("POKEMON_GLDAAUE", 0x80), &"gold"],
 		["Pokemon Silver, USA", _header("POKEMON_SLVAAXE", 0x80), &"silver"],
 		["Pocket Monsters Gold, Japan", _header("POKEMON_GLDAAUJ", 0x80, true), &"gold"],
