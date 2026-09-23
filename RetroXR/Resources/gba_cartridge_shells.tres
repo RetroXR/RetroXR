@@ -15,7 +15,7 @@ roughness = 0.6
 script = ExtResource("2")
 id = &"ruby"
 display_name = "Clear red (Pokemon Ruby)"
-color = Color(0.493, 0.288, 0.314, 1)
+color = Color(0.469, 0.279, 0.286, 1)
 roughness = 0.35
 opacity = 0.65
 
@@ -31,7 +31,7 @@ opacity = 0.6
 script = ExtResource("2")
 id = &"emerald"
 display_name = "Clear green (Pokemon Emerald)"
-color = Color(0.204, 0.709, 0.295, 1)
+color = Color(0.187, 0.723, 0.271, 1)
 roughness = 0.35
 opacity = 0.55
 
@@ -39,7 +39,7 @@ opacity = 0.55
 script = ExtResource("2")
 id = &"fire_red"
 display_name = "Frosted red (Pokemon FireRed)"
-color = Color(0.824, 0.529, 0.496, 1)
+color = Color(0.837, 0.488, 0.458, 1)
 roughness = 0.35
 opacity = 0.9
 
@@ -47,7 +47,7 @@ opacity = 0.9
 script = ExtResource("2")
 id = &"leaf_green"
 display_name = "Frosted green (Pokemon LeafGreen)"
-color = Color(0.493, 0.709, 0.566, 1)
+color = Color(0.447, 0.675, 0.518, 1)
 roughness = 0.35
 opacity = 0.9
 

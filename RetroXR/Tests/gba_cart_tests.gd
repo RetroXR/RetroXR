@@ -14,10 +14,10 @@ const FIXTURE := "__gbacart_selftest"
 
 ## The two halves of the moulding, each one surface.
 const SHELL_PARTS := ["Front_Shell", "Rear_Shell"]
-## Parts a shell colour must never reach: the label, the contact strip and
-## screw, and the board seen through a clear shell with its chips and battery.
-const KEPT_PARTS := ["Label", "Opaque_Internal_Details", "Interior_PCB", "Interior_ROM_Chip",
-	"Interior_RTC_Chip", "Interior_Save_Battery"]
+## Parts a shell colour must never reach: the label, the screw, and the board
+## seen through a clear shell (its contact strip, chips and battery).
+const KEPT_PARTS := ["Label", "Opaque_Internal_Details", "Connector_PCB", "Interior_PCB",
+	"Interior_ROM_Chip", "Interior_RTC_Chip", "Interior_Save_Battery"]
 const CLEAR := [&"ruby", &"sapphire", &"emerald", &"fire_red", &"leaf_green"]
 
 var _pass := 0
@@ -305,13 +305,19 @@ func _test_kept() -> void:
 			if m is BaseMaterial3D and (m as BaseMaterial3D).transparency != BaseMaterial3D.TRANSPARENCY_DISABLED:
 				see_through.append(part)
 	_ok(see_through.is_empty(), "kept/everything inside is solid", str(see_through))
-	var board := _part(cart, "Interior_PCB")
-	var photos := 0
-	for i in board.mesh.get_surface_count():
-		var m := board.get_active_material(i) as BaseMaterial3D
-		if m != null and m.albedo_texture != null and m.albedo_texture.get_width() <= 1024:
-			photos += 1
-	_ok(photos == 2, "kept/the board carries both photos, at most 1024 wide", str(photos))
+	# The contact strip wears the same two photos as the board above it, so the
+	# silkscreen and the contacts run on across the join.
+	for part: String in ["Interior_PCB", "Connector_PCB"]:
+		var board := _part(cart, part)
+		var photos := {}
+		for i in board.mesh.get_surface_count():
+			var m := board.get_active_material(i) as BaseMaterial3D
+			if m != null and m.albedo_texture != null and m.albedo_texture.get_width() <= 1024:
+				photos[m.albedo_texture] = true
+		_ok(photos.size() == 2, "kept/%s carries both photos, at most 1024 wide" % part, str(photos.size()))
+	var upper := _part(cart, "Interior_PCB")
+	var lower := _part(cart, "Connector_PCB")
+	_ok(upper.get_active_material(0) == lower.get_active_material(0), "kept/board and contact strip share the photo material")
 	cart.free()
 
 

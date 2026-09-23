@@ -5,8 +5,7 @@
 `RetroCartridge` builds a `gba` cartridge from
 `imported-assets/carts/game_boy_advance/gba_cart.glb` (`GbaCartShell.BODY`): the
 no-logos `gba_cartridge_tintable.glb` from `codex-photos/gba-cart`
-(`build_tintable.py`), 2,911 triangles, 60 × 35 × 9 mm, copied in unchanged. Eight
-meshes:
+(`build_tintable.py`), 60 × 35 × 9 mm, copied in unchanged. Nine meshes:
 
 - `Front_Shell`, `Rear_Shell` (materials `Tintable_Front_Plastic` /
   `Tintable_Rear_Plastic`: colour factor + normal + ORM, no colour texture). The
@@ -17,11 +16,22 @@ meshes:
   `Interior_RTC_Chip`, `Interior_Save_Battery`: the AGB-E05-01 board Ruby and
   Sapphire use, from FexCollects' photos (gbhwdb, CC BY-SA 4.0, credited in the
   About panel and `LICENSE-gba-cart.txt`), 1024 × 650, "Nintendo" silkscreen
-  removed. It continues the contact strip from z = −9.45 to +15 mm; the component
-  side faces the label, as the scanned contact strip's gold does. Board size,
-  notch (3.3 mm) and part heights are fitted to the photos, not measured.
-- `Opaque_Internal_Details`: the contact strip and the tri-wing screw.
+  removed, and the photographed background beyond the board filled with board
+  green (no white fringe, no mipmap halo). It continues from z = −9.45 to +15 mm;
+  the component side faces the label, as the scanned contact strip's gold does.
+  Board size, notch (3.3 mm) and part heights are fitted to the photos, not
+  measured.
+- `Connector_PCB`: the scanned contact strip (its geometry is the part fitted to
+  the slot), now wearing the same two photos at the same scale, so the
+  silkscreen and the photographed gold contacts run on across the join.
+- `Opaque_Internal_Details`: the tri-wing screw.
 - `Label`: white placeholder the scraped art is laid over (not UV-mapped).
+
+**OPEN — a crack round the rear marking panel.** When the duplicate shell surface
+under the panel was removed, a ring about 0.2 mm wide just outside the panel
+edge (x ±11.84, z 0.10–10.39 mm in Blender) was left with no rear-shell surface:
+rays there reach the board, so even a solid grey cart shows a thin green outline
+round the panel, and a clear one a teal one. Codex to close it.
 
 **The shells export solid** (`OPAQUE`, alpha 1): a cartridge is clear only when a
 preset makes it so. An earlier export was 82 % opaque and blended by default; if
@@ -83,6 +93,6 @@ roughness). `demetal` skips them: they carry a metallic map.
 **Forcing a shell**: `_has_spawn_options` includes `gba`, so a held ROM row opens
 `_show_cart_spawn_options` with the GBA swatches, as for GB.
 
-`gba_cart_tests` (58 cases): resources, model, surfaces, color, clear, kept,
+`gba_cart_tests` (60 cases): resources, model, surfaces, color, clear, kept,
 lookup, cartridge, forced. Mutation-tested: sending clear shells down the solid path fails 11
 cases, dropping the maker check fails `lookup/a Pokemon game code from another maker`.
