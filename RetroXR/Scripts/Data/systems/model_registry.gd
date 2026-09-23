@@ -105,10 +105,13 @@ const _ROWS: Dictionary = {
 	# --- handhelds ------------------------------------------------------------
 	# The "(primitive)" suffix is now redundant — these are the only models their
 	# platforms have — but the ids are what saves and peers name, so they stay.
-	# It stands in for the Game Boy Color too, which has no model of its own: a
-	# gbc tile without a handheld row would be offered a console box, a pad and
-	# an AV lead. As an array row it takes the tile's systemid when spawned.
-	"game_boy_primitive":   {"platform": ["gb", "gbc"], "label": "Game Boy", "handheld": true,
+	"game_boy_primitive":   {"platform": "gb", "label": "Game Boy", "handheld": true,
+		"scene": _SCENES + "game_boy_primitive.tscn"},
+	# The Game Boy Color has no model of its own, so the Game Boy stands in for
+	# it, labelled as what it is. A row of its own rather than a platform array:
+	# arrays are the PC tower's, which mod_tests holds to SystemInfo.computer.
+	# Without it a gbc tile would be offered a console box, a pad and an AV lead.
+	"game_boy_color_primitive": {"platform": "gbc", "label": "Game Boy", "handheld": true,
 		"scene": _SCENES + "game_boy_primitive.tscn"},
 	"game_boy_advance_primitive": {"platform": "gba", "label": "Game Boy Advance", "handheld": true,
 		"scene": _SCENES + "game_boy_advance_primitive.tscn"},
