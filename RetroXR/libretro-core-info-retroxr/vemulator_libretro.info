@@ -39,6 +39,14 @@
 # rather than merging into it, so a file carrying only the changed lines would
 # delete everything else with them. Re-copy from the vendored file and re-apply
 # these whenever that file is refreshed.
+#
+# The firmware rows are ours too; upstream lists none. The core looks for these
+# two dump names first, directly in the system directory it is handed
+# (system/vemulator/, so no subfolder in the paths), the US revision before the
+# Japanese one under bios=auto. Both are optional: with
+# neither the core boots its HLE, which sounds the buzzer since the fork past
+# v3 sets port 1 the way the BIOS leaves it. With one, a game starts from the
+# BIOS menu instead of straight away.
 
 # Software Information
 display_name = "SEGA - Visual Memory Unit (VeMUlator, retroXR)"
@@ -68,5 +76,14 @@ hw_render = "false"
 needs_fullpath = "false"
 disk_control = "false"
 is_experimental = "false"
+
+firmware_count = 2
+firmware0_desc = "en1005-19991026-315-6208-05.bin (VMU BIOS, US)"
+firmware0_path = "en1005-19991026-315-6208-05.bin"
+firmware0_opt = "true"
+firmware1_desc = "jp1004-19980930-315-6208-01.bin (VMU BIOS, Japan)"
+firmware1_path = "jp1004-19980930-315-6208-01.bin"
+firmware1_opt = "true"
+notes = "(!) en1005-19991026-315-6208-05.bin (md5): 322054c6d7b7ea5fd0388eee7b636fb0|(!) jp1004-19980930-315-6208-01.bin (md5): 1c75e99bdc6d88a855da1ce212c2b38a"
 
 description = "A port of VeMUlator, a SEGA Dreamcast VMU emulator originally developed for Android, to libretro."

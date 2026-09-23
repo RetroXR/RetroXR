@@ -86,6 +86,9 @@ var _lcd_mat: ShaderMaterial = null
 ## The voice a seated card's beep plays on, posed on the card each frame.
 var _beep_voice := -1
 var _beep_gain := -1.0
+## The voices the card's own core plays on when it runs standalone.
+var _own_voices := PackedInt32Array()
+var _own_gain := -1.0
 var _mx: Object = null
 var _listener: Node = null
 var _last_tex: Texture2D = null
@@ -148,6 +151,11 @@ const LIBRARY_EXTENSIONS: Array[String] = ["vms", "dci", "bin"]
 static var _icon_cache := {}
 ## Pinned for every standalone run: see _boot() for why writing must be on.
 const FORCED_OPTIONS := {"enable_flash_write": "enabled"}
+
+## The standalone buzzer's distance law: RetroSystem's defaults, as a seated
+## card's beep gets from its Dreamcast.
+const STANDALONE_AUDIO_UNIT_SIZE := 3.0
+const STANDALONE_AUDIO_MAX_DISTANCE := 15.0
 
 ## Where a game lifted off a card is written for the core to boot from.
 const PLAY_DIR := "user://vmu_play"
@@ -736,6 +744,8 @@ func _process(_delta: float) -> void:
 		_carry_progress_back()
 	if _slot >= 0:
 		_update_beep()
+	elif _running and _lib != null:
+		_update_standalone_audio()
 
 	if _anim != null and not _anim.is_empty():
 		_anim.animate(_btn, Vector2.ZERO, Vector2.ZERO, ANIM_WEIGHT)
@@ -799,20 +809,51 @@ func _update_beep() -> void:
 				_mx.set_voice_directivity(voice, SpatialAudioEmitter.SPEAKER_DIRECTIVITY)
 	if voice < 0 or _mx == null:
 		return
+	_beep_gain = _pose_on_card([voice], float(sys.get("audio_unit_size")),
+		float(sys.get("audio_max_distance")), _beep_gain)
+
+
+## Pose the card's own core's voices on the card while it runs standalone.
+##
+## Meta XR Audio mixes a voice only once its owner has posed it, and RetroSystem
+## is what poses a machine's voices — a card is not one, so without this its
+## buzzer played into voices nobody placed and was never heard. Empty on the
+## fallback player, which is already a child of the card.
+func _update_standalone_audio() -> void:
+	var voices: PackedInt32Array = _lib.GetAudioVoiceIds()
+	if voices != _own_voices:
+		_own_voices = voices
+		_own_gain = -1.0
+		if _mx == null and Engine.has_singleton("MetaXRAudio"):
+			_mx = Engine.get_singleton("MetaXRAudio")
+		if _mx != null:
+			for v in voices:
+				_mx.set_voice_directivity(v, SpatialAudioEmitter.SPEAKER_DIRECTIVITY)
+	if voices.is_empty() or _mx == null:
+		return
+	_own_gain = _pose_on_card(voices, STANDALONE_AUDIO_UNIT_SIZE,
+		STANDALONE_AUDIO_MAX_DISTANCE, _own_gain)
+
+
+## Place `voices` on the card, facing out of its screen, at the distance law's
+## gain. Returns the gain now set; `last_gain` saves re-sending an unchanged one.
+func _pose_on_card(voices: PackedInt32Array, unit_size: float, max_distance: float,
+		last_gain: float) -> float:
 	if _listener == null or not is_instance_valid(_listener):
 		_listener = get_node_or_null("/root/SpatialAudioListener")
 		if _listener == null:
-			return
+			return last_gain
 	var listener_pos: Vector3 = _listener.get_listener_position()
 	var pos := global_position
 	var basis := global_transform.basis
-	_mx.set_voice_pose(voice, SpatialAudioEmitter.hold_off_head(pos, listener_pos),
-		basis.y.normalized(), basis.z.normalized())
-	var gain := SpatialAudioEmitter.distance_gain(pos, listener_pos,
-		float(sys.get("audio_unit_size")), float(sys.get("audio_max_distance")))
-	if not is_equal_approx(gain, _beep_gain):
-		_beep_gain = gain
-		_mx.set_voice_gain(voice, gain)
+	var at := SpatialAudioEmitter.hold_off_head(pos, listener_pos)
+	for v in voices:
+		_mx.set_voice_pose(v, at, basis.y.normalized(), basis.z.normalized())
+	var gain := SpatialAudioEmitter.distance_gain(pos, listener_pos, unit_size, max_distance)
+	if not is_equal_approx(gain, last_gain):
+		for v in voices:
+			_mx.set_voice_gain(v, gain)
+	return gain
 
 
 ## What flycast's per-slot device option should be set to while this is seated.
