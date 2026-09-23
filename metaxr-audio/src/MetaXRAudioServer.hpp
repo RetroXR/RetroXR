@@ -4,6 +4,7 @@
 
 #include <godot_cpp/classes/object.hpp>
 #include <godot_cpp/classes/audio_stream_player.hpp>
+#include <godot_cpp/classes/audio_stream_playback_polyphonic.hpp>
 #include <godot_cpp/classes/ref.hpp>
 #include <godot_cpp/variant/transform3d.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
@@ -219,6 +220,11 @@ public:
     /// See the definition for the shutdown ordering this exists to beat.
     void PrepareForQuit();
 
+    /// Starts the mix inside the player's polyphonic playback, once the player
+    /// is playing (its play() is deferred with its add_child). Called by
+    /// MetaXRAudioMixer every frame until it has. See m_poly.
+    void AttachMix();
+
     /// Renders `frames` of the mix synchronously, bypassing the audio device.
     /// Godot's headless mode uses the dummy audio driver and never calls _mix,
     /// so this is the only way to test the mixer in a headless probe.
@@ -278,6 +284,21 @@ private:
     godot::AudioStreamPlayer* LivePlayer() const;
     uint64_t m_player_id = 0;
     godot::Ref<MetaXRAudioStream> m_stream;
+
+    /// What the AudioServer holds is a NATIVE polyphonic playback, with the mix
+    /// running inside it as its one voice -- never this extension's playback
+    /// directly. The AudioServer frees a playback it holds on the main thread,
+    /// in update(), or at its own destruction, which comes after Godot has
+    /// freed this extension's class records; releasing one of our objects then
+    /// reads a freed record and faults. A player stopped after the last frame
+    /// -- the scene tree deletes it on the way out of every quit that is not
+    /// the window's close button -- is released exactly there, and whether the
+    /// audio thread had moved it to the graveyard first was a coin toss. A
+    /// polyphonic playback's stop() drops its voices synchronously under the
+    /// audio lock, from any thread, so ReleaseMixer does it itself: from a
+    /// frame, or from this extension's own deinitialisation, where the records
+    /// still exist. The AudioServer is then left holding only native objects.
+    godot::Ref<godot::AudioStreamPlaybackPolyphonic> m_poly;
 };
 
 } // namespace Xenu

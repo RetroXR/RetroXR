@@ -199,9 +199,9 @@ Evidence, windows x86_64:
   (`--rom=`): `Z:` is a network share, and two cores opening a 337 MB CHD over it
   miss the session's 10 s readiness deadline.
 
-**Open:** a process holding two Saturn cores segfaults at EXIT about half the
-time, after both cores have torn down -- lockstep or rollback, the v2 build too,
-and never under gdb. Not the netplay work; not investigated. Owed: two real
+The crash at EXIT that two Saturn cores used to hit about half the time was not
+the core. It was metaxr-audio's mixer being released through freed class records
+after the last frame, and is fixed there (`extensions.md`, metaxr-audio). Owed: two real
 machines over a real network, the published release (`CoreSources` still names
 v1), Linux/macOS builds of the new options, and the games with a battle to the
 end (GunGriffon II, Daytona CE).

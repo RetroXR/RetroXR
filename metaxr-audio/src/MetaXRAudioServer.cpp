@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include <godot_cpp/classes/audio_server.hpp>
+#include <godot_cpp/classes/audio_stream_polyphonic.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
@@ -164,6 +165,14 @@ AudioStreamPlayer* MetaXRAudioServer::LivePlayer() const
 
 void MetaXRAudioServer::ReleaseMixer()
 {
+    // First, and whether or not the player still exists: this is what takes
+    // every object of ours out of the AudioServer's hands (see m_poly).
+    if (m_poly.is_valid())
+    {
+        m_poly->stop();
+        m_poly.unref();
+    }
+
     if (AudioStreamPlayer* player = LivePlayer())
     {
         // May still be waiting on its deferred add, so free it either way. At
@@ -211,6 +220,20 @@ void MetaXRAudioServer::PrepareForQuit()
         os->delay_msec(100);
 }
 
+void MetaXRAudioServer::AttachMix()
+{
+    if (m_poly.is_valid() || m_stream.is_null())
+        return;
+    AudioStreamPlayer* player = LivePlayer();
+    if (player == nullptr || !player->is_playing())
+        return;
+    Ref<AudioStreamPlaybackPolyphonic> poly = player->get_stream_playback();
+    if (poly.is_null())
+        return;
+    poly->play_stream(m_stream);
+    m_poly = poly;
+}
+
 void MetaXRAudioServer::Shutdown()
 {
     // Flag first, and atomically. _mix runs on the audio driver thread and is
@@ -243,10 +266,14 @@ void MetaXRAudioServer::EnsurePlayer()
         return;
 
     m_stream.instantiate();
+    // One voice: the mix. See m_poly for why it is not the player's stream.
+    Ref<AudioStreamPolyphonic> poly;
+    poly.instantiate();
+    poly->set_polyphony(1);
     MetaXRAudioMixer* player = memnew(MetaXRAudioMixer);
     m_player_id = static_cast<uint64_t>(player->get_instance_id());
     player->set_name("MetaXRAudioMixer");
-    player->set_stream(m_stream);
+    player->set_stream(poly);
     player->set_process(true);
 
     // Deferred, because the first voice is usually created from some device's

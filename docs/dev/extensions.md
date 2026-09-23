@@ -109,3 +109,19 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   cd surround-godot && scons platform=windows arch=x86_64 target=template_debug
   cd surround-godot && python tests/run_tests.py     # 24 assertions, no Godot needed
   ```
+
+- **metaxr-audio's objects must be out of the AudioServer before this extension
+  deinitialises.** Godot frees an extension's class records at
+  `deinitialize_extensions(SCENE)`, and it deletes the AudioServer after that, much
+  later. A playback the AudioServer still holds is released then, through the freed
+  record, and faults. The mixer's `AudioStreamPlayer` therefore plays a NATIVE
+  `AudioStreamPolyphonic`, with the mix running inside it as its one voice (`m_poly`).
+  `ReleaseMixer` calls its `stop()`, which drops our playback synchronously under the
+  audio lock. It does this from a frame, or from our own deinit while the records
+  still exist. Before this change only the window's close button was safe
+  (`PrepareForQuit`). Every `get_tree().quit()` let the tree free the player after
+  the last frame, and whether the audio thread moved it to the graveyard in time was a
+  coin toss: two Saturn cores crashed at exit 4 of 9 times, and 0 of 15 after the
+  change. Under gdb, launch `Godot_*.exe`, not `_console.exe`. The console exe is a
+  wrapper that starts the real one as a child, so gdb sees only the wrapper exit
+  cleanly.

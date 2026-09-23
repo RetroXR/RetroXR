@@ -55,8 +55,12 @@ bool MetaXRAudioStream::_is_monophonic() const { return false; }
 void MetaXRAudioMixer::_process(double /*p_delta*/)
 {
     MetaXRAudioServer* server = MetaXRAudioServer::GetSingleton();
-    if (server != nullptr && server->GetActiveVoiceCount() == 0)
+    if (server == nullptr)
+        return;
+    if (server->GetActiveVoiceCount() == 0)
         server->ReleaseMixer();
+    else
+        server->AttachMix();
 }
 
 // Retiring when the room falls silent is not enough on its own: quitting with
