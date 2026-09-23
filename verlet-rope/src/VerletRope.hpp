@@ -341,6 +341,7 @@ private:
     // still is. Skips the ribbon gather entirely so they mesh at the old cost.
     bool IsPlainCord() const { return m_fray.empty() && m_built_cords <= 1; }
     void RenderTube();
+    bool RibbonEndsTurned() const;
     void RenderCord(int p_cord);
     void SnapshotRenderState();
     int Subdiv() const { return m_smoothing + 1; }
@@ -478,6 +479,9 @@ private:
     godot::Vector3 m_sleep_anchor_start;
     godot::Vector3 m_sleep_anchor_end;
     bool m_mesh_dirty = true;
+    // Where each connector's ribbon lay pointed when the mesh was last built.
+    godot::Vector3 m_meshed_start_lay;
+    godot::Vector3 m_meshed_end_lay;
     bool m_interpolating = false;
     double m_debug_max_velocity = 0.0;
     double m_debug_rms_velocity = 0.0;

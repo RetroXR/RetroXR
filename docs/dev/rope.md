@@ -151,6 +151,24 @@ controllers, as each always did. A body that must be HAULED on its cord (a switc
 speaker cabinet) is `CableHaul`'s job, not this. A new owner of a lead calls
 `PlugTether`; it never writes its own clamp.
 
+## A ribbon's lay is held by BOTH connectors
+
+A ribbon (`ribbon_count` > 1, the two-wire mains cords) is one simulated chain. Its
+cords are laid out sideways in a render-time frame that is parallel-transported
+along the curve, seeded from the START connector's `ribbon_axis`. Until 2026-09-22
+nothing tied it to the END connector, so the pair entered that plug at whatever
+angle the transport arrived at, and visibly rolled about the cord as it moved.
+`RenderCord` now measures the roll between the arriving frame and the end
+connector's own `ribbon_axis`, and spreads it along the cord by arc length: the lay
+leaves both plugs square and takes up the difference as a gradual twist. Where the
+cords share a colour it takes the shorter way round (half a turn looks identical),
+and otherwise the exact roll. This only applies where the trunk ends AT a plug; a
+frayed end is a breakout. A sleeping ribbon also re-meshes (never re-simulates) when
+either connector turns more than half a degree (`RibbonEndsTurned`). Rolling a plug
+about its own cord axis moves no anchor, so the rope slept on and the wires stayed
+put under a turning plug. `ribbon_twist_probe` films it (windowed only: the lay is
+drawn, not simulated).
+
 ## A taut cord stretches: the solver's known limit
 
 Eight Gauss-Seidel iterations cannot make a long cord inextensible under tension. A lead
@@ -180,5 +198,7 @@ pinned end, which is O(n) per iteration. It is not built.
   breakout and pressing into each other. That still wakes now and then (plug jitter
   2.0 mm, was 4.1). It is a bundle-on-a-hard-clamp problem, not the rope's.
 - `plug_shape_probe`: lists any plug still resting on a sphere, with its mesh bounds.
+- `ribbon_twist_probe`: a two-wire mains cord held at both plugs, the appliance plug
+  turned a full 360° about its cord axis; the wires must turn with it.
 
 Headset validation of all of this is OWED: nothing here has been felt in a hand.

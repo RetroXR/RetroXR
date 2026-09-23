@@ -354,6 +354,54 @@ void VerletRope::RenderCord(int p_cord)
         m_ring_up[i] = side.cross(tangent).normalized();
     }
 
+    // A ribbon is held by BOTH connectors. The transport above is seeded at the
+    // start plug only, so the lay arrived at the end plug at whatever angle the
+    // curve's path happened to leave it, and a flat two-wire mains cord visibly
+    // rolled about its own axis where it entered the plug whenever the cord moved.
+    // Work out the roll between where the frame arrives and the end connector's
+    // own ribbon axis, and spread it along the cord by arc length: the lay leaves
+    // both plugs square and takes up the difference as a gradual twist, as a real
+    // zip cord does. Only where the trunk ends AT a plug; a frayed end is a
+    // breakout, not a connector.
+    Node3D *end = GetEndNode();
+    if (!plain && end != nullptr && m_fray.empty() && count >= 2)
+    {
+        const Vector3 t_end = (m_ring_points[count - 1] - m_ring_points[count - 2]).normalized();
+        Vector3 want = end->get_global_transform().basis.orthonormalized().xform(m_ribbon_axis);
+        want -= t_end * want.dot(t_end);
+        if (want.length_squared() > 1e-8 && t_end.length_squared() > 0.5)
+        {
+            want = want.normalized();
+            const Vector3 got = m_ring_side[count - 1];
+            double roll = std::atan2(static_cast<double>(got.cross(want).dot(t_end)),
+                                     static_cast<double>(got.dot(want)));
+            // Identical wires side by side look the same turned half a turn, so
+            // take whichever way round is the smaller twist. With cords of
+            // different colours the order is real and the exact roll is kept.
+            if (CordsShareColour() && std::abs(roll) > Math_PI * 0.5)
+                roll -= roll > 0.0 ? Math_PI : -Math_PI;
+            double total = 0.0;
+            for (int i = 1; i < count; ++i)
+                total += m_ring_points[i].distance_to(m_ring_points[i - 1]);
+            if (total > 1e-8 && std::abs(roll) > 1e-6)
+            {
+                double run = 0.0;
+                for (int i = 0; i < count; ++i)
+                {
+                    if (i > 0)
+                        run += m_ring_points[i].distance_to(m_ring_points[i - 1]);
+                    const Vector3 up = m_ring_up[i];
+                    const Vector3 side = m_ring_side[i];
+                    const Vector3 axis = up.cross(side).normalized(); // the ring's tangent
+                    const double a = roll * (run / total);
+                    const Vector3 new_side = side.rotated(axis, static_cast<real_t>(a));
+                    m_ring_side[i] = new_side;
+                    m_ring_up[i] = new_side.cross(axis).normalized();
+                }
+            }
+        }
+    }
+
     // Fill the staging buffers directly — these go straight to the GPU.
     float *vw = reinterpret_cast<float *>(m_vertex_bytes[p_cord].ptrw());
     float *nw = reinterpret_cast<float *>(m_normal_bytes[p_cord].ptrw());
@@ -400,8 +448,30 @@ void VerletRope::RenderCord(int p_cord)
     am->surface_update_attribute_region(p_cord, 0, m_normal_bytes[p_cord]);
 }
 
+// The world directions each connector lays its ribbon along, as the last mesh
+// drew them, against where they point now. Plain round cords have no lay.
+bool VerletRope::RibbonEndsTurned() const
+{
+    if (IsPlainCord())
+        return false;
+    constexpr double TURNED = 0.99996; // cos 0.5 degrees
+    Node3D *start = GetStartNode();
+    Node3D *end = GetEndNode();
+    if (start != nullptr &&
+        start->get_global_transform().basis.orthonormalized().xform(m_ribbon_axis).dot(m_meshed_start_lay) < TURNED)
+        return true;
+    if (end != nullptr &&
+        end->get_global_transform().basis.orthonormalized().xform(m_ribbon_axis).dot(m_meshed_end_lay) < TURNED)
+        return true;
+    return false;
+}
+
 void VerletRope::RenderTube()
 {
+    if (Node3D *start = GetStartNode(); start != nullptr)
+        m_meshed_start_lay = start->get_global_transform().basis.orthonormalized().xform(m_ribbon_axis);
+    if (Node3D *end = GetEndNode(); end != nullptr)
+        m_meshed_end_lay = end->get_global_transform().basis.orthonormalized().xform(m_ribbon_axis);
     const int cords = std::min(m_ribbon_count > 0 ? m_ribbon_count : 1, m_built_cords);
     for (int c = 0; c < cords; ++c)
         RenderCord(c);

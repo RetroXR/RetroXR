@@ -678,6 +678,12 @@ void VerletRope::Step(double p_delta)
             // Nothing moved, so there is nothing to interpolate between; leaving
             // this true would re-mesh a settled cable every frame forever.
             m_interpolating = false;
+            // Except a ribbon's LAY, which is drawn from its connectors' bases:
+            // turning a plug about its own cord axis moves no anchor, so the rope
+            // sleeps on, and the wires stayed where they were while the plug
+            // rolled underneath them. Re-mesh (never re-simulate) when it does.
+            if (RibbonEndsTurned())
+                m_mesh_dirty = true;
             return;
         }
     }
