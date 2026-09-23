@@ -131,6 +131,28 @@ const SOURCES := {
 			"macOS":   "play_libretro_{arch}.dylib.zip",
 		},
 	},
+	# LRPS2, the PCSX2-derived PS2 core -- the one the PS2 tile recommends. What
+	# the fork adds is the console's i.LINK port (pcsx2/FW.cpp): a real IEEE 1394
+	# bus on the frontend's link interface, protocol `ps2-ilink-1394`, behind the
+	# pcsx2_ilink option. It is what the room's i.LINK cable and six-port hub
+	# drive -- Gran Turismo 3's i.LINK Battle, its three-screen Broadcast set-up
+	# included, and Time Crisis II's cooperative mode (docs/dev/ps2-ilink.md). The
+	# buildbot's build has no link port at all, so a cable to it joins nothing.
+	# The fork also carries the native AArch64 port that makes an Android build
+	# possible.
+	#
+	# GPL-3.0, so the tag beside the binary is the source obligation, as Dolphin's.
+	"pcsx2": {
+		"repo":  "RetroXR/ps2",
+		"known_tag": "retroxr-pcsx2-libretro-v1",
+		"label": "LRPS2 (retroXR build)",
+		"assets": {
+			"Windows": "pcsx2_libretro.dll.zip",
+			"Android": "pcsx2_libretro_android.so.zip",
+			"Linux":   "pcsx2_libretro.so.zip",
+			"macOS":   "pcsx2_libretro_{arch}.dylib.zip",
+		},
+	},
 	# gambatte, the other end of every Game Boy cable in the room.
 	#
 	# The Game Boy's serial port is two wires and a clock, and libretro has never
