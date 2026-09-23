@@ -22,7 +22,7 @@
 #
 # And the naming fields say which build this is, as the other vendored forks do.
 # The binary is built from RetroXR/vemulator-libretro at the tag
-# retroxr-vemulator-libretro-v3 and published on that repository's releases
+# retroxr-vemulator-libretro-v4 and published on that repository's releases
 # page, which is also where its source is — an obligation here rather than
 # merely good manners, since VeMUlator is GPLv3.
 #
@@ -44,8 +44,8 @@
 # two dump names first, directly in the system directory it is handed
 # (system/vemulator/, so no subfolder in the paths), the US revision before the
 # Japanese one under bios=auto. Both are optional: with
-# neither the core boots its HLE, which sounds the buzzer since the fork past
-# v3 sets port 1 the way the BIOS leaves it. With one, a game starts from the
+# neither the core boots its HLE, which sounds the buzzer from v4 on, since it
+# sets port 1 the way the BIOS leaves it. With one, a game starts from the
 # BIOS menu instead of straight away.
 
 # Software Information

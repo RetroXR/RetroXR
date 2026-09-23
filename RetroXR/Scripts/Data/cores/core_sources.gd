@@ -356,10 +356,14 @@ const SOURCES := {
 	# and writes there constantly, so the heap was corrupt by the time a stop
 	# freed it, and stopping the game crashed.
 	#
+	# v4: v3's timer rework reaches the speaker only through P17, and the HLE
+	# boot never set port 1 as the BIOS leaves it, so with no BIOS installed
+	# every game was silent. The HLE now sets P1FCR/P1DDR the BIOS's way.
+	#
 	# VeMUlator is GPLv3, so the source for these binaries sits on the tag.
 	"vemulator": {
 		"repo":  "RetroXR/vemulator-libretro",
-		"known_tag": "retroxr-vemulator-libretro-v3",
+		"known_tag": "retroxr-vemulator-libretro-v4",
 		"label": "VeMUlator (retroXR build)",
 		"assets": {
 			"Windows": "vemulator_libretro.dll.zip",
