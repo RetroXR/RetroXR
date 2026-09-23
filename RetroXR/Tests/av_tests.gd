@@ -19,6 +19,7 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const VGA_CABLE := preload("res://Scenes/Objects/cables/vga_cable.tscn")
 const N64_AV_CABLE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
+const DC_AV_CABLE := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
 const TRS_CABLE := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const SPEAKERS := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 const RF_SWITCH := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
@@ -138,6 +139,9 @@ func _run() -> void:
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
+		["routing/a Dreamcast wears ONE AV OUT, on its own marker", _r_dc_av_out],
+		["routing/the Dreamcast lead carries all three signals", _r_dc_lead],
+		["routing/a Nintendo lead does not fit a Dreamcast, nor the reverse", _r_dc_keying],
 		["osd/a set in the tree has its OSD nodes wired", _o_wired],
 		["osd/routing the OSD does not throw on a fresh set", _o_route],
 		["display/a monitor lands on its own socket, not the tuner", _d_monitor_default],
@@ -693,6 +697,99 @@ func _r_multi_out_keying() -> void:
 		_check_eq(port.channel_for(3), RcaPort.Channel.VIDEO, "out of range is the picture")
 		_check_eq(port.channel_for(-1), RcaPort.Channel.VIDEO, "and so is below range")
 	wii_port.free()
+
+
+## The Dreamcast's AV OUT is Sega's own connector rather than Nintendo's Multi Out, so
+## it is a third group -- and its socket is seated on a marker the asset exports at the
+## tunnel mouth, which is what these pin beside the routing: the zone lands on the
+## back face, facing out of it, where the shell moulds the connector.
+func _dreamcast() -> Node3D:
+	var sys := SYSTEM_SCENE.instantiate() as Node3D
+	sys.systemid = "dreamcast"
+	sys.model_id = "dreamcast"
+	sys.freeze = true
+	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	await _wait(60)
+	return sys
+
+
+func _r_dc_av_out() -> void:
+	var sys := await _dreamcast()
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	_ok(multi != null, "a Dreamcast builds a socket named AvMultiOut")
+	if multi == null:
+		return
+	_ok(multi is DcAvPort, "and it is Sega's port, not a Nintendo one")
+	_check_eq(multi.plug_group(), "dc_av_plug", "which takes the Dreamcast lead")
+	var phonos := 0
+	for node in sys.find_children("*", "RcaPort", true, false):
+		if node != multi:
+			phonos += 1
+	_check_eq(phonos, 0, "and it is the only A/V socket on the machine")
+	_ok(sys._av_stereo, "one hole, still a stereo machine")
+	var mouth := sys.find_child("AvOut", true, false) as Node3D
+	_ok(mouth != null, "the shell exports its AvOut marker")
+	if mouth == null:
+		return
+	_ok(multi.global_position.distance_to(mouth.global_position) < 1e-4,
+		"the socket sits on the tunnel mouth")
+	var out_of_back: Vector3 = -sys.global_transform.basis.z.normalized()
+	_ok(multi.global_basis.z.normalized().dot(out_of_back) > 0.999,
+		"and receives along the back face's outward normal")
+	_ok(multi.global_basis.y.normalized().dot(sys.global_transform.basis.y.normalized()) > 0.999,
+		"with the key up, not rolled over")
+
+
+func _r_dc_lead() -> void:
+	var tv := _tv()
+	var sys := await _dreamcast()
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	if multi == null:
+		_skip("this build's Dreamcast has no AV OUT")
+		return
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	var lead := DC_AV_CABLE.instantiate() as Node3D
+	lead.position = Vector3(1.0, 1, -0.5)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(30)
+	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPOSITE_4,
+		"the set files the Dreamcast on the input its lead reaches")
+	_ok(sys.connected_tv == tv, "and the console knows which set it feeds")
+	var route: Dictionary = sys.audio_speakers()
+	_check_eq(route.get("left"), 0, "left channel lands on the left speaker")
+	_check_eq(route.get("right"), 1, "right channel lands on the right speaker")
+
+
+func _r_dc_keying() -> void:
+	var sys := await _dreamcast()
+	var multi := sys.find_child("AvMultiOut", true, false) as XRToolsSnapZone
+	if multi == null:
+		_skip("this build's Dreamcast has no AV OUT")
+		return
+	_check_eq(multi.snap_require, "dc_av_plug", "the socket gates on the Dreamcast group")
+	var ours := DC_AV_CABLE.instantiate() as Node3D
+	var n64 := N64_AV_CABLE.instantiate() as Node3D
+	var wii := WII_AV_CABLE.instantiate() as Node3D
+	for lead in [ours, n64, wii]:
+		add_child(lead)
+		_spawned.append(lead)
+	await _wait(20)
+	var our_plug := ours.get_node("PlugA0") as RcaPlug
+	_ok(our_plug.is_in_group(multi.snap_require), "the Dreamcast lead fits the Dreamcast")
+	_ok(not (n64.get_node("PlugA0") as RcaPlug).is_in_group(multi.snap_require), "the SNS-008 does not")
+	_ok(not (wii.get_node("PlugA0") as RcaPlug).is_in_group(multi.snap_require), "nor the RVL-009")
+	_ok(not our_plug.is_in_group("n64_av_plug") and not our_plug.is_in_group("wii_av_plug"),
+		"and the Dreamcast lead fits neither Nintendo socket")
 
 
 func _d_monitor_default() -> void:

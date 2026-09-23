@@ -1,0 +1,207 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/dc_av_plug.gd" id="6_dcplugscript"]
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
+size = Vector3(0.0144, 0.0144, 0.054)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.032
+
+[sub_resource type="BoxMesh" id="BoxMesh_dc_body"]
+size = Vector3(0.028, 0.012, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dc_body"]
+albedo_color = Color(0.06, 0.06, 0.065, 1)
+roughness = 0.55
+
+[sub_resource type="BoxMesh" id="BoxMesh_dc_tongue"]
+size = Vector3(0.0194, 0.0058, 0.009)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dc_tongue"]
+albedo_color = Color(0.72, 0.72, 0.7, 1)
+metallic = 0.9
+roughness = 0.35
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.028, 0.012, 0.03)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_avpointer"]
+radius = 0.024
+
+; The Dreamcast Stereo AV Cable (HKT-7400): Sega's AV OUT plug at the console end,
+; three phonos at the set. The Nintendo 64 lead with a different plug script and a
+; different plug: the console end is DcAvPlug, which only DcAvPort accepts, drawn as
+; the moulded body (28 x 12 x 30 mm, outside the case) with the 19.4 x 5.8 mm metal
+; tongue that runs 9 mm into the socket along the plug's +Z. The collision box is the
+; body only, so the plug cannot be grabbed through the back panel.
+;
+; The console end is a SHARED end carrying all three cords -- see CompositeCable for
+; why that means four plugs for three cords. Black jacket, as Sega moulded it.
+[node name="DcAvCable" type="Node3D"]
+script = ExtResource("1_cablescript")
+wire_color = Color(0.07, 0.07, 0.075, 1.0)
+
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("6_dcplugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.015)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.015)
+mesh = SubResource("BoxMesh_dc_body")
+surface_material_override/0 = SubResource("Mat_dc_body")
+
+[node name="Tongue" type="MeshInstance3D" parent="PlugA0/PlugTip"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.0195)
+mesh = SubResource("BoxMesh_dc_tongue")
+surface_material_override/0 = SubResource("Mat_dc_tongue")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.015)
+shape = SubResource("SphereShape3D_avpointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.003, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit2")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB1" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit2")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB1"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB1"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB1"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB1" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB2" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.003, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit2")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB2"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB2"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB2/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB2"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB2" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 50
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0015
+tube_sides = 6
+smoothing = 2
+surface_collision_mask = 7
+collision_radius = 0.0045
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2
+fray_segments_start = 5
+fray_segments_end = 5
+fray_taper_segments = 3

@@ -1,0 +1,62 @@
+Model Information:
+* title:	Sega Dreamcast
+* source:	https://sketchfab.com/3d-models/sega-dreamcast-f82d99e4739e42f4abfc37cb97918cfc
+* author:	Zerescas (https://sketchfab.com/zerescas)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Sega Dreamcast" (https://sketchfab.com/3d-models/sega-dreamcast-f82d99e4739e42f4abfc37cb97918cfc) by Zerescas (https://sketchfab.com/zerescas) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+
+
+			------------------------------
+
+MODIFICATIONS (CC-BY-4.0 requires these be indicated)
+
+Produced by Tools/glb/scrub_dreamcast_textures.py and Tools/glb/prepare_dreamcast.py,
+then Tools/glb/fix_unmapped_uvs.py (33 unmapped triangles given UVs).
+
+TRADEMARK REMOVAL
+
+  * Deleted the raised Dreamcast swirl-and-wordmark sticker on the disc lid (three
+    loose parts). The lid surface beneath it is the author's, unchanged.
+  * Erased "SEGA" and "Compatible with Microsoft Windows CE" from the front of the
+    case, from both the Case base-colour sheet and the Case normal map, where they
+    were embossed. A second "SEGA" on an interior wall behind the front panel was
+    erased from the same two sheets.
+
+  The functional legends are KEPT: POWER, OPEN, the controller port letters A-D, and
+  the rear LINE, AC IN, AV OUT and SERIAL.
+
+GEOMETRY AND SCENE CHANGES
+
+  * Deleted the disc. RetroXR builds discs from MediaDimensions at runtime.
+  * Deleted the three area lights and the camera.
+  * Flattened the node hierarchy, baked its non-uniform node scales into the meshes
+    and rescaled by 0.071 m per source unit. The console lands at 190.1 x 80.2 x
+    195.2 mm (W x H x D). It is centred on its footprint and rests on y = 0.
+  * Made the case material opaque. It carried full transmission with alpha blending
+    and a 0.18 base-colour factor that together read as smoked glass. The factor is
+    now 1.0.
+  * Gave the front power lens a material of its own (PowerLED).
+  * Moved the controller port sockets +0.17 mm across and +1.29 mm up, so their wells
+    sit centred in the case's front opening; they had run into its lower lip. The
+    port plate moves up with them, stays centred, and its blank lower strip is drawn
+    up to z = 18.2 mm so the plate sits on the flat front face instead of overhanging
+    the curved base.
+  * Separated the single Buttons mesh into PowerButton and OpenButton, re-origined at
+    each cap's base. Joined the lid with its hinge arms into Lid, origined on the
+    hinge axis.
+  * Re-origined Spindle and SpindlePlate on their own axis.
+  * Added empty marker nodes ControllerPort1-4 and AvOut at the connector mouths.
+  * Downsized the textures from 4096 to 2048 px.
+  * Renamed nodes to Case, Bottom, Lid, PowerButton, OpenButton, PowerLED,
+    ControllerPorts, BackPorts, DiscReader, DiscReaderTop, DiscLaser, Spindle and
+    SpindlePlate.
+  The console shell is otherwise unchanged geometry by the original author.
+
+Nothing here is affiliated with, endorsed by, or sponsored by Sega. Trademarked
+wording and logos have been removed from the asset as shipped; "Sega" and
+"Dreamcast" remain trademarks of Sega Corporation and are used only descriptively.

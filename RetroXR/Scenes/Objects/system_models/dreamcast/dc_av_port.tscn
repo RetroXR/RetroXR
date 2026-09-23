@@ -1,0 +1,36 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/dc_av_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="4_snaphigh"]
+
+; The plug's moulded body, so the ghost reads as "the Dreamcast AV plug goes here".
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.028, 0.012, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; The Dreamcast's AV OUT. A socket only: the console's shell MOULDS the tunnel and the
+; connector inside it, so unlike n64_av_port.tscn there is no jack mesh here. The zone
+; sits at the tunnel MOUTH on the back face, which is where a seated plug's origin
+; belongs -- its body butts against the case there and its tongue runs 9 mm in.
+;
+; grab_distance 25 mm for the reason n64_av_port.tscn gives: roughly a plug's width,
+; so the empty zone does not swallow clicks aimed at SERIAL 17 mm away.
+[node name="DcAvPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.025
+script = ExtResource("2_portscript")
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("4_snaphigh")
+
+; Out along +Z from the mating face, where the plug's body stands off the case.
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.015)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")
