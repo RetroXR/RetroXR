@@ -17,6 +17,7 @@ extends Node
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const FIXTURE := "__n64cart_selftest"
 const SCRATCH_SYSTEM := "__n64cart_selftest"
+const UV_MIN_WIDTH := 0.00005
 
 ## Every exterior part of the moulding, and the half it belongs to.
 const SHELL_PARTS := {
@@ -264,7 +265,9 @@ func _test_branding() -> void:
 ## Every triangle of a normal-mapped surface has area in UV space. One with none
 ## gets no tangent, and on a face whose normal runs along X the fallback tangent is
 ## parallel to it: the face takes ambient light only, a dark band down the side.
-## Tools/glb/fix_unmapped_uvs.py repairs a body that fails this.
+## Tools/glb/fix_unmapped_uvs.py repairs a body that fails this. Slivers narrower
+## than UV_MIN_WIDTH are skipped: the import's 16-bit vertex compression collapses
+## their UVs, and they are thinner than a pixel from 10 cm.
 func _test_uv() -> void:
 	for region in ["usa", "jpn"]:
 		var body := _body(region)
@@ -284,7 +287,9 @@ func _test_uv() -> void:
 					var a := idx[t]
 					var b := idx[t + 1]
 					var c := idx[t + 2]
-					if (verts[b] - verts[a]).cross(verts[c] - verts[a]).length_squared() < 1e-24:
+					var longest := maxf(verts[a].distance_to(verts[b]),
+							maxf(verts[b].distance_to(verts[c]), verts[c].distance_to(verts[a])))
+					if (verts[b] - verts[a]).cross(verts[c] - verts[a]).length() <= UV_MIN_WIDTH * longest:
 						continue
 					if absf((uvs[b] - uvs[a]).cross(uvs[c] - uvs[a])) < 1e-12:
 						count += 1
