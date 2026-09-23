@@ -27,11 +27,12 @@ no-logos `gba_cartridge_tintable.glb` from `codex-photos/gba-cart`
 - `Opaque_Internal_Details`: the tri-wing screw.
 - `Label`: white placeholder the scraped art is laid over (not UV-mapped).
 
-**OPEN — a crack round the rear marking panel.** When the duplicate shell surface
-under the panel was removed, a ring about 0.2 mm wide just outside the panel
-edge (x ±11.84, z 0.10–10.39 mm in Blender) was left with no rear-shell surface:
-rays there reach the board, so even a solid grey cart shows a thin green outline
-round the panel, and a clear one a teal one. Codex to close it.
+**The rear marking panel** is one surface of `Rear_Shell`, joined to the recess wall
+by a narrow rim under its edge (no floor under it, which tinted twice and read as a
+darker rectangle; and no gap, which once let the board show round it as a green
+line even on a solid cart). Checked by casting 12,444 rays from behind across all
+four edges: none reaches the interior. Where the rim sits under the edge, a clear
+shell tints twice, which reads as the thin darker outline of a moulded recess.
 
 **The shells export solid** (`OPAQUE`, alpha 1): a cartridge is clear only when a
 preset makes it so. An earlier export was 82 % opaque and blended by default; if
