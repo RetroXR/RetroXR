@@ -20,6 +20,10 @@ enum Availability { STANDARD, RELEASED, OFFERED_ONLY }
 ## filters (CartridgeColor.CLEAR_DENSITY) and scatters (CLEAR_HAZE). PLASTIC
 ## finishes only; a metal flake shell is always solid.
 @export_range(0.0, 1.0) var opacity := 1.0
+## How much a clear shell scatters: what is inside goes out of focus and flat,
+## and the milkiness of the plastic turns patchy. 0 is glass-clear; frosted
+## plastic like FireRed's is high. Unused while the shell is solid.
+@export_range(0.0, 1.0) var frost := 0.0
 
 @export_group("Metal flake")
 @export var flake_color := Color(0.92, 0.92, 0.94)

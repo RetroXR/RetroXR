@@ -43,6 +43,18 @@ const CLEAR_DENSITY := 1.0
 const CLEAR_HAZE := 0.6
 const CLEAR_ROUGHNESS := 0.3
 
+## Frost (CartridgeShellPreset.frost): parts inside a clear shell, by node-name
+## prefix, go onto cartridge_frosted_interior.gdshader, out of focus by up to
+## FROST_BLUR mip levels and FROST_FLATTEN of the way to their average colour;
+## the shell's scatter turns patchy by up to FROST_CLOUD.
+const FROST_SHADER := preload("res://Shaders/cartridge_frosted_interior.gdshader")
+const FROSTED_PARTS: Array[String] = ["Interior_", "Connector_PCB"]
+const FROST_BLUR := 6.0
+const FROST_FLATTEN := 0.55
+const FROST_CLOUD := 1.6
+## How far the clear surface's fine moulded grain moves its roughness either way.
+const CLEAR_GRAIN := 0.2
+
 ## Materials of the exterior moulding, by the name the model gives them: the N64
 ## bodies' three, the Game Boy cart's front, rear, smooth rails and the rim
 ## round its sticker recess, then the Game Boy Advance cart's two halves.
@@ -163,7 +175,45 @@ static func _paint(cartridge: Node, front: Variant, back: Variant) -> Error:
 		return ERR_DOES_NOT_EXIST
 	for s in surfaces:
 		_paint_surface(s["mesh"], s["surface"], front if s["half"] == Half.FRONT else back)
+	_frost_interior(cartridge, maxf(_frost_of(front), _frost_of(back)))
 	return OK
+
+
+## A finish's frost: a clear plastic preset's own, otherwise none.
+static func _frost_of(finish: Variant) -> float:
+	if finish is CartridgeShellPreset and finish.finish == CartridgeShellPreset.Finish.PLASTIC 			and finish.opacity < 0.999:
+		return finish.frost
+	return 0.0
+
+
+## The parts inside go out of focus behind a frosted shell, and back to their own
+## materials when it is not.
+static func _frost_interior(cartridge: Node, frost: float) -> void:
+	for mi in _meshes(cartridge):
+		if not FROSTED_PARTS.any(func(prefix: String) -> bool: return String(mi.name).begins_with(prefix)):
+			continue
+		for i in mi.mesh.get_surface_count():
+			var slot := _slot(mi, i)
+			var source := slot["source"] as BaseMaterial3D
+			if source == null:
+				continue
+			if frost <= 0.0:
+				mi.set_surface_override_material(i, slot["original"])
+				continue
+			var fm := slot.get("frost") as ShaderMaterial
+			if fm == null:
+				fm = ShaderMaterial.new()
+				fm.shader = FROST_SHADER
+				fm.resource_name = source.resource_name
+				fm.set_shader_parameter("albedo", source.albedo_color)
+				fm.set_shader_parameter("texture_albedo", source.albedo_texture)
+				fm.set_shader_parameter("use_texture", source.albedo_texture != null)
+				fm.set_shader_parameter("roughness", source.roughness)
+				fm.set_shader_parameter("metallic", source.metallic)
+				slot["frost"] = fm
+			fm.set_shader_parameter("blur", frost * FROST_BLUR)
+			fm.set_shader_parameter("flatten", frost * FROST_FLATTEN)
+			mi.set_surface_override_material(i, fm)
 
 
 static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
@@ -192,7 +242,7 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 			cm = _clear_material(source)
 			slot["clear"] = cm
 		var gloss: float = finish.roughness if finish is CartridgeShellPreset else CLEAR_ROUGHNESS
-		_set_clear(cm, _shaded(color, shade), opacity, gloss)
+		_set_clear(cm, _shaded(color, shade), opacity, gloss, _frost_of(finish))
 		mi.set_surface_override_material(i, cm)
 		return
 	var pm := slot.get("plain") as BaseMaterial3D
@@ -226,7 +276,7 @@ static func _clear_material(source: BaseMaterial3D) -> ShaderMaterial:
 	return cm
 
 
-static func _set_clear(cm: ShaderMaterial, color: Color, opacity: float, gloss: float) -> void:
+static func _set_clear(cm: ShaderMaterial, color: Color, opacity: float, gloss: float, frost := 0.0) -> void:
 	var solid := Color(color.r, color.g, color.b, 1.0)
 	cm.set_shader_parameter("tint", solid)
 	cm.set_shader_parameter("density", clampf(opacity, 0.0, 1.0) * CLEAR_DENSITY)
@@ -234,6 +284,9 @@ static func _set_clear(cm: ShaderMaterial, color: Color, opacity: float, gloss: 
 	surface.set_shader_parameter("albedo", solid)
 	surface.set_shader_parameter("haze", clampf(opacity, 0.0, 1.0) * CLEAR_HAZE)
 	surface.set_shader_parameter("roughness", gloss)
+	surface.set_shader_parameter("roughness_grain", CLEAR_GRAIN)
+	surface.set_shader_parameter("cloud", minf(frost * FROST_CLOUD, 1.0))
+	cm.set_shader_parameter("cloud", minf(frost * FROST_CLOUD, 1.0))
 
 
 static func _shaded(c: Color, shade: float) -> Color:

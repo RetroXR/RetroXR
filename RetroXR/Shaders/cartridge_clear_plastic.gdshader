@@ -20,8 +20,21 @@ uniform vec4 tint : source_color = vec4(0.76, 0.05, 0.1, 1.0);
 uniform float density : hint_range(0.0, 4.0) = 0.6;
 // Longest path, as a multiple of the straight-on one, reached at the silhouette.
 uniform float edge_depth : hint_range(1.0, 8.0) = 3.0;
+// Patchy density, the same patches as the surface pass's scatter: 0 even, 1
+// patches from half to one and a half times `density`.
+uniform float cloud : hint_range(0.0, 1.0) = 0.0;
+uniform float cloud_size_mm : hint_range(0.5, 20.0) = 1.8;
+
+varying vec3 obj_pos;
+
+#include "res://Shaders/cartridge_clear_cloud.gdshaderinc"
+
+void vertex() {
+	obj_pos = VERTEX;
+}
 
 void fragment() {
 	float facing = clamp(abs(dot(NORMAL, VIEW)), 1.0 / edge_depth, 1.0);
-	ALBEDO = pow(max(tint.rgb, vec3(0.001)), vec3(density / facing));
+	float patchy = 1.0 + cloud * (cloud_noise(obj_pos, cloud_size_mm) - 0.5);
+	ALBEDO = pow(max(tint.rgb, vec3(0.001)), vec3(density * patchy / facing));
 }

@@ -46,6 +46,8 @@ func _ready() -> void:
 		_test_clear()
 	if _wants("kept"):
 		_test_kept()
+	if _wants("frost"):
+		_test_frost()
 	if _wants("lookup"):
 		_test_lookup()
 	if _wants("cartridge"):
@@ -294,11 +296,40 @@ func _test_kept() -> void:
 	CartridgeColor.apply_color(cart, Color(0, 1, 0, 0.5))
 	CartridgeColor.reset_to_default(cart)
 	CartridgeColor.apply_preset(cart, &"ruby", GbaCartShell.SYSTEMID)
+	# Label and screw are outside: nothing touches them.
 	var changed := PackedStringArray()
+	for part: String in ["Label", "Opaque_Internal_Details"]:
+		if _materials(_part(cart, part)) != before[part]:
+			changed.append(part)
+	_ok(changed.is_empty(), "kept/label and screw keep their materials", str(changed))
+	# Behind a frosted shell the parts inside are out of focus, carrying their own
+	# colour and texture.
+	var ruby := _preset(&"ruby")
+	var unfrosted := PackedStringArray()
+	for part: String in KEPT_PARTS:
+		if part in ["Label", "Opaque_Internal_Details"]:
+			continue
+		var mi := _part(cart, part)
+		for i in mi.mesh.get_surface_count():
+			var fm := mi.get_active_material(i) as ShaderMaterial
+			var src := before[part][i] as BaseMaterial3D
+			if fm == null or fm.shader != CartridgeColor.FROST_SHADER 					or fm.get_shader_parameter("texture_albedo") != src.albedo_texture 					or not is_equal_approx(fm.get_shader_parameter("blur"), ruby.frost * CartridgeColor.FROST_BLUR):
+				unfrosted.append("%s/%d" % [part, i])
+	_ok(unfrosted.is_empty(), "kept/behind a frosted shell the inside is out of focus", str(unfrosted))
+	# A solid shell, or a reset, gives every part back exactly its own material.
+	CartridgeColor.apply_preset(cart, &"grey", GbaCartShell.SYSTEMID)
+	changed.clear()
 	for part: String in KEPT_PARTS:
 		if _materials(_part(cart, part)) != before[part]:
 			changed.append(part)
-	_ok(changed.is_empty(), "kept/label, contacts and the board inside keep their materials", str(changed))
+	_ok(changed.is_empty(), "kept/a solid shell puts every inside part back", str(changed))
+	CartridgeColor.apply_preset(cart, &"fire_red", GbaCartShell.SYSTEMID)
+	CartridgeColor.reset_to_default(cart)
+	changed.clear()
+	for part: String in KEPT_PARTS:
+		if _materials(_part(cart, part)) != before[part]:
+			changed.append(part)
+	_ok(changed.is_empty(), "kept/reset puts every inside part back", str(changed))
 	var see_through := PackedStringArray()
 	for part: String in KEPT_PARTS:
 		for m: Material in before[part]:
@@ -308,16 +339,41 @@ func _test_kept() -> void:
 	# The contact strip wears the same two photos as the board above it, so the
 	# silkscreen and the contacts run on across the join.
 	for part: String in ["Interior_PCB", "Connector_PCB"]:
-		var board := _part(cart, part)
 		var photos := {}
-		for i in board.mesh.get_surface_count():
-			var m := board.get_active_material(i) as BaseMaterial3D
-			if m != null and m.albedo_texture != null and m.albedo_texture.get_width() <= 1024:
-				photos[m.albedo_texture] = true
+		for m: Material in before[part]:
+			var bm := m as BaseMaterial3D
+			if bm != null and bm.albedo_texture != null and bm.albedo_texture.get_width() <= 1024:
+				photos[bm.albedo_texture] = true
 		_ok(photos.size() == 2, "kept/%s carries both photos, at most 1024 wide" % part, str(photos.size()))
-	var upper := _part(cart, "Interior_PCB")
-	var lower := _part(cart, "Connector_PCB")
-	_ok(upper.get_active_material(0) == lower.get_active_material(0), "kept/board and contact strip share the photo material")
+	_ok(before["Interior_PCB"][0] == before["Connector_PCB"][0], "kept/board and contact strip share the photo material")
+	cart.free()
+
+
+## Frosted plastic: the inside out of focus, the scatter and the roughness patchy.
+func _test_frost() -> void:
+	var frosted := [&"fire_red", &"leaf_green"]
+	var clear := [&"ruby", &"sapphire", &"emerald"]
+	var ordered := frosted.all(func(f: StringName) -> bool:
+		return clear.all(func(c: StringName) -> bool: return _preset(f).frost > _preset(c).frost))
+	_ok(ordered and clear.all(func(c: StringName) -> bool: return _preset(c).frost > 0.0),
+		"frost/FireRed and LeafGreen are frostier than the clear three, which still frost a little")
+	_ok(is_equal_approx(CartridgeShellPreset.new().frost, 0.0), "frost/a preset is glass-clear unless it says")
+	var cart := _body()
+	CartridgeColor.apply_preset(cart, &"fire_red", GbaCartShell.SYSTEMID)
+	var fr := _preset(&"fire_red")
+	var cloud := minf(fr.frost * CartridgeColor.FROST_CLOUD, 1.0)
+	var cm := _part(cart, "Front_Shell").get_active_material(0) as ShaderMaterial
+	var surface := cm.next_pass as ShaderMaterial
+	_ok(is_equal_approx(cm.get_shader_parameter("cloud"), cloud) and is_equal_approx(surface.get_shader_parameter("cloud"), cloud),
+		"frost/both passes share the patchiness")
+	_ok(is_equal_approx(surface.get_shader_parameter("roughness"), fr.roughness)
+		and is_equal_approx(surface.get_shader_parameter("roughness_grain"), CartridgeColor.CLEAR_GRAIN),
+		"frost/the surface has the preset's roughness and the moulded grain")
+	_ok(CartridgeColor.FROST_SHADER.code.contains("texture(texture_albedo, UV, blur)"),
+		"frost/the blur is a mip bias, not a screen copy")
+	CartridgeColor.apply_color(cart, Color(1, 0, 0, 0.5))
+	var pcb := _part(cart, "Interior_PCB")
+	_ok(not (pcb.get_active_material(0) is ShaderMaterial), "frost/a plain translucent colour does not frost")
 	cart.free()
 
 

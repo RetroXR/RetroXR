@@ -27,6 +27,30 @@ no-logos `gba_cartridge_tintable.glb` from `codex-photos/gba-cart`
 - `Opaque_Internal_Details`: the tri-wing screw.
 - `Label`: white placeholder the scraped art is laid over (not UV-mapped).
 
+**Frost: foggy plastic.** Real moulded clear plastic scatters a little, so what is
+inside looks out of focus and flat, and the plastic itself is patchy and satin
+rather than glassy. `CartridgeShellPreset.frost` (0 glass, 1 fully frosted; the
+clear three 0.40–0.45, FireRed and LeafGreen 0.85) drives three cheap effects, no
+screen copy:
+
+- the inside (`FROSTED_PARTS`: `Interior_*`, `Connector_PCB`) goes onto
+  `cartridge_frosted_interior.gdshader` while the shell is clear: its texture
+  sampled `frost × FROST_BLUR` (6) mip levels down, and `frost × FROST_FLATTEN`
+  (0.55) of the way to its own average colour. Only ever seen through the shell,
+  so blurring the parts is the whole effect. A solid shell or a reset puts every
+  part back on exactly its own material.
+- both clear passes share `cartridge_clear_cloud.gdshaderinc`: patches about
+  1.8 mm across (three octaves) vary the filter's density and the surface's
+  scatter by `min(frost × FROST_CLOUD, 1)` (FROST_CLOUD 1.6), matching the fine
+  blotchy look of a real Ruby.
+- the surface's roughness gets the moulded finish: a 0.3 mm grain of ±
+  `CLEAR_GRAIN` (0.2), fading to the preset's roughness once a grain is under a
+  pixel, and milkier patches a little more matte. The model's own ORM roughness
+  is a flat 0.42, so the grain is procedural. FireRed and LeafGreen are
+  roughness 0.55, the clear three 0.35.
+
+A plain translucent colour (`apply_color` with alpha) does not frost.
+
 **The rear marking panel** is one surface of `Rear_Shell`, joined to the recess wall
 by a narrow rim under its edge (no floor under it, which tinted twice and read as a
 darker rectangle; and no gap, which once let the board show round it as a green
@@ -94,6 +118,6 @@ roughness). `demetal` skips them: they carry a metallic map.
 **Forcing a shell**: `_has_spawn_options` includes `gba`, so a held ROM row opens
 `_show_cart_spawn_options` with the GBA swatches, as for GB.
 
-`gba_cart_tests` (60 cases): resources, model, surfaces, color, clear, kept,
+`gba_cart_tests` (69 cases): resources, model, surfaces, color, clear, kept,
 lookup, cartridge, forced. Mutation-tested: sending clear shells down the solid path fails 11
 cases, dropping the maker check fails `lookup/a Pokemon game code from another maker`.
