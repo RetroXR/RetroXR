@@ -22,6 +22,7 @@ extends Node
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
+const AV_LEAD_SCENE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
 const ROOM_SCENE := "res://Scenes/BedroomScene.tscn"
 ## Straight above the desk the bedroom probe frames; the console lands on
 ## whatever a ray down from here meets first.
@@ -38,11 +39,16 @@ func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if str(arg).begins_with("--out="):
 			out_dir = str(arg).trim_prefix("--out=").replace("\\", "/")
+	# Made here for every mode: save_png into a folder that does not exist fails
+	# without a word, and each shot still logs that it was written.
+	DirAccess.make_dir_recursive_absolute(out_dir)
 	get_tree().create_timer(300.0).timeout.connect(func() -> void:
 		print("[mdrender] TIMEOUT")
 		get_tree().quit(1))
 	if OS.get_cmdline_user_args().has("--buttons"):
 		_run_buttons()
+	elif OS.get_cmdline_user_args().has("--insert"):
+		_run_insert()
 	else:
 		_run()
 
@@ -142,14 +148,62 @@ func _run() -> void:
 		var plug = pads[i].get("_cable_plug")
 		print("[mdrender] port %d at %s, zone +Z %s, plug seated %s" % [i + 1, zone.position,
 			zone.transform.basis.z, is_instance_valid(plug) and zone.get("picked_up_object") == plug])
-	print("[mdrender] cable attach %s" % sys._cable_attach_point.position)
 	print("[mdrender] power button at %s, reset at %s" % [
 		sys.to_local(sys._power_button.global_position), sys.to_local(sys._reset_button.global_position)])
+
+	# The A/V lead: a loose object now, not a captive cord. Photographed lying on the
+	# desk first, then with its mini-DIN seated in the A/V OUT.
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	print("[mdrender] A/V socket %s (%s), captive lead %s" % [multi != null,
+		multi.get_script().get_global_name() if multi != null else "-",
+		sys._channels[0].plug != null])
+	var lead := AV_LEAD_SCENE.instantiate() as Node3D
+	add_child(lead)
+	lead.global_position = base + Vector3(0.0, 0.03, -0.30)
+	await _wait(200)
+	# The bare plug mesh, upright and head-on, high above the desk with its own light:
+	# the one framing where the pin layout can be checked against the mini-DIN-9
+	# drawing (3-4-2, pin 1 lower left, keyway at the TOP) without the lead's roll
+	# turning the face.
+	var bare := MeshInstance3D.new()
+	bare.mesh = load("res://Scenes/Objects/system_models/genesis/genesis_av_plug.res")
+	add_child(bare)
+	bare.global_position = Vector3(0.0, 2.0, 0.0)
+	var key := OmniLight3D.new()
+	add_child(key)
+	key.global_position = bare.global_position + Vector3(0.02, 0.03, 0.06)
+	key.omni_range = 0.3
+	key.light_energy = 0.12
+	await _shot(sv, cam, bare.global_position + Vector3(0.0, 0.0, 0.028),
+		bare.global_position + Vector3(0.0, 0.0, 0.005), Vector3.UP, "genesis_av_face_upright.png")
+	bare.queue_free()
+	key.queue_free()
+
+	# Face-on down the connector's own +Z, so the shield and its nine pins read the
+	# way the lead is photographed; then from the side for the head and boot.
+	var loose := lead.get_node("PlugA0") as Node3D
+	var face := loose.global_transform.basis.z.normalized()
+	var side := loose.global_transform.basis.x.normalized()
+	await _shot(sv, cam, loose.global_position + face * 0.045 + Vector3.UP * 0.012,
+		loose.global_position, Vector3.UP, "genesis_av_face.png")
+	await _shot(sv, cam, loose.global_position + side * 0.07 + face * 0.02 + Vector3.UP * 0.03,
+		loose.global_position - face * 0.012, Vector3.UP, "genesis_av_loose.png")
+	if multi != null:
+		multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+		await _wait(200)
+		var plug := lead.get_node("PlugA0") as Node3D
+		var pl := sys.global_transform.affine_inverse() * plug.global_transform
+		print("[mdrender] seated plug at %s, connector +Z %s (into the case is +Z)" % [
+			pl.origin, pl.basis.z])
 
 	await _shot(sv, cam, mid + b.z * 0.42 + up * 0.26 + b.x * 0.16, mid, up, "genesis_front_seated.png")
 	await _shot(sv, cam, mid + b.z * 0.30 + up * 0.08, mid + b.z * 0.08, up, "genesis_ports.png")
 	var rear := sys.global_position + up * 0.02
 	await _shot(sv, cam, rear - b.z * 0.36 + up * 0.18 - b.x * 0.10, rear, up, "genesis_rear.png")
+	var av := sys.global_position + Vector3(-0.0398, 0.0166, -0.1043)
+	await _shot(sv, cam, av - b.z * 0.09 + up * 0.035 - b.x * 0.05, av, up, "genesis_av_seated.png")
+	var phonos := (lead.get_node("PlugB1") as Node3D).global_position
+	await _shot(sv, cam, phonos + Vector3(0.06, 0.08, 0.10), phonos, Vector3.UP, "genesis_av_phonos.png")
 	var strip := sys.global_position + up * 0.034 + b.z * 0.066
 	await _shot(sv, cam, strip + up * 0.16 + b.z * 0.10, strip, up, "genesis_buttons.png")
 	get_tree().quit(0)
@@ -193,14 +247,23 @@ func _run_buttons() -> void:
 	sys.restore_cartridge(cart)
 	await _wait(10)
 
-	# The captive lead to the set's first composite input, the way a save restores
-	# it. Stood in at both ends as well (surround_probe does the same): the lead's
-	# plug can lag the model, and this film is about the buttons, not the cord.
-	sys.restore_cable_connection(tv, 0, 0)
+	# The real A/V lead, seated the way a player seats it: the mini-DIN in the A/V OUT,
+	# yellow, white and red in the set's first composite input. No stand-in wiring —
+	# if the lead does not carry the picture, the film shows a blue screen.
+	var lead := AV_LEAD_SCENE.instantiate() as Node3D
+	add_child(lead)
+	lead.global_position = Vector3(0.1, 0.03, -0.25)
 	await _wait(30)
-	tv._panel._connected_systems[RetroTV.Source.COMPOSITE_1] = sys
-	sys._channels[0].tv = tv
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	var ins := ["CompositePort", "AudioLIn", "AudioRIn"]
+	for c in 3:
+		(tv.get_node(ins[c]) as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(60)
 	tv.set_source(RetroTV.Source.COMPOSITE_1)
+	print("[mdrender] lead seated: console feeds %s" % sys.connected_tv)
 	if not tv.is_on():
 		tv.remote_power_toggle()
 	sys._reset_button.button_pressed.connect(func() -> void: _resets += 1)
@@ -286,6 +349,113 @@ func _film(n: int) -> void:
 		out.save_png(out_dir.path_join("frames/%04d.png" % _frame))
 		_frame += 1
 		await get_tree().process_frame
+
+
+## `--insert`: the A/V lead's mini-DIN going into the A/V OUT, and whether it lines up.
+##
+## Films the real lead's plug sliding in along its own axis from 40 mm out, from a rear
+## three-quarter view beside a side view, then hands it to the socket the way a hand
+## does. Then the alignment check, which a film cannot settle: the socket face-on from
+## outside, and the SEATED plug's face from inside the case (console hidden) with the
+## same framing mirrored left-right — the view an observer outside would have through
+## the case — blended over it. Pins that land on the socket's contacts line up.
+func _run_insert() -> void:
+	DirAccess.make_dir_recursive_absolute(out_dir.path_join("frames"))
+	_build_studio()
+	var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+	sys.systemid = "genesis"
+	add_child(sys)
+	sys.freeze = true
+	await _wait(30)
+	var multi := sys.find_child("AvMultiOut", true, false) as XRToolsSnapZone
+	var lead := AV_LEAD_SCENE.instantiate() as Node3D
+	add_child(lead)
+	lead.global_position = Vector3(-0.05, 0.03, -0.35)
+	await _wait(60)
+	var plug := lead.get_node("PlugA0") as RigidBody3D
+
+	# Learn the seated pose by seating it once, then take it back out.
+	multi.pick_up_object(plug)
+	await _wait(10)
+	var seated := plug.global_transform
+	var local := sys.global_transform.affine_inverse() * seated
+	print("[mdrender] seated plug origin %s  +X %s  +Y %s  +Z %s" % [
+		local.origin, local.basis.x, local.basis.y, local.basis.z])
+	multi.drop_object()
+	plug.freeze = true
+	await _wait(5)
+
+	var av := sys.global_transform * Vector3(-0.0398, 0.0166, -0.1043)
+	var light := OmniLight3D.new()
+	add_child(light)
+	light.global_position = av + Vector3(-0.04, 0.04, -0.08)
+	light.omni_range = 0.4
+	light.light_energy = 0.6
+
+	_wide = _viewport(Vector2i(800, 600))
+	_close = _viewport(Vector2i(800, 600))
+	(_wide.get_child(0) as Camera3D).look_at_from_position(
+		av + Vector3(-0.10, 0.06, -0.13), av + Vector3(0.0, 0.0, -0.015), Vector3.UP)
+	(_close.get_child(0) as Camera3D).look_at_from_position(
+		av + Vector3(-0.11, 0.012, -0.022), av + Vector3(0.0, 0.0, -0.022), Vector3.UP)
+	for o in LoadingOverlay.owners():
+		LoadingOverlay.end(o)
+	for i in range(60):
+		await get_tree().process_frame
+
+	# Slide in along the plug's own +Z (its connector axis) from 40 mm out.
+	var axis := seated.basis.z.normalized()
+	plug.global_transform = Transform3D(seated.basis, seated.origin - axis * 0.040)
+	await _film(30)
+	for i in range(1, 91):
+		var t := float(i) / 90.0
+		var ease_t := 1.0 - pow(1.0 - t, 2.0)
+		plug.global_transform = Transform3D(seated.basis, seated.origin - axis * 0.040 * (1.0 - ease_t))
+		await _film(1)
+	plug.freeze = false
+	multi.pick_up_object(plug)
+	await _film(60)
+	var after := sys.global_transform.affine_inverse() * plug.global_transform
+	print("[mdrender] after seating: origin %s, off the learnt pose by %.2f mm, zone holds it %s" % [
+		after.origin, (plug.global_transform.origin - seated.origin).length() * 1000.0,
+		multi.picked_up_object == plug])
+
+	# ── Alignment: socket face-on from outside, plug face from inside, mirrored. ──
+	var cam := (_close.get_child(0) as Camera3D)
+	var out_eye := av + Vector3(0.0, 0.0, -0.035)
+	var in_eye := av + Vector3(0.0, 0.0, 0.035)
+	lead.visible = false
+	light.global_position = av + Vector3(0.01, 0.015, -0.05)
+	cam.look_at_from_position(out_eye, av, Vector3.UP)
+	# ORTHOGRAPHIC, not perspective. The socket's contacts sit 37 mm from their camera
+	# and the plug's pin tips 29 mm from theirs, so under a perspective lens the plug
+	# came out 1.27x larger and every outer pin looked off its contact. 9.2 mm tall,
+	# 600 px: 15.35 um a pixel on both shots, whatever the depth.
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = ALIGN_VIEW_M
+	await _snap(_close, "genesis_socket_face.png")
+	lead.visible = true
+	sys.visible = false
+	light.global_position = av + Vector3(0.01, 0.015, 0.05)
+	cam.look_at_from_position(in_eye, av, Vector3.UP)
+	await _snap(_close, "genesis_plug_face_seated.png")
+	sys.visible = true
+	print("[mdrender] frames=%d" % _frame)
+	get_tree().quit(0)
+
+
+## Height of the orthographic alignment view, in metres.
+const ALIGN_VIEW_M := 0.00921
+
+
+func _snap(sv: SubViewport, file: String) -> void:
+	for i in range(8):
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	var img := sv.get_texture().get_image()
+	img.convert(Image.FORMAT_RGB8)
+	img.save_png(out_dir.path_join(file))
+	print("[mdrender] wrote %s" % file)
 
 
 ## The flat grey studio: good for positions, NOT for judging the shell's colour.

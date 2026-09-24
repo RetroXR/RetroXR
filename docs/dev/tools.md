@@ -84,3 +84,8 @@ carried alongside it.
   and the logo stays embossed in the plastic. The source ships three UV sets per mesh; keep
   only the first, or Godot logs "Invalid array format for surface" once per mesh.
   `RetroXR/Tools/models/genesis_render_probe` (windowed, `--room` for colour) is the check.
+  **Colour maps must be RGB:** Godot samples a grayscale albedo without the sRGB decode, so
+  the shell's 15/255 black rendered as a 6% grey until the cleaner stopped keeping `L` mode.
+  The A/V lead's console end is `RetroXR/Tools/gen/gen_genesis_av.gd` (the 9-pin mini-DIN),
+  sized to the SHELL's 6.2 mm socket rather than the 9.5 mm standard, with its origin on the
+  moulded head's face — the face that stops on the panel at z = -0.1043.

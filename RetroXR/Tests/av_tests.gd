@@ -19,6 +19,7 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const VGA_CABLE := preload("res://Scenes/Objects/cables/vga_cable.tscn")
 const N64_AV_CABLE := preload("res://Scenes/Objects/system_models/nintendo_64/n64_av_cable.tscn")
 const WII_AV_CABLE := preload("res://Scenes/Objects/system_models/wii/wii_av_cable.tscn")
+const GENESIS_AV_CABLE := preload("res://Scenes/Objects/system_models/genesis/genesis_av_cable.tscn")
 const TRS_CABLE := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const SPEAKERS := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 const RF_SWITCH := preload("res://Scenes/Objects/appliances/rf_switch.tscn")
@@ -138,6 +139,9 @@ func _run() -> void:
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
+		["routing/a Genesis wears one 9-pin socket, not a captive lead", _r_genesis_socket],
+		["routing/its lead carries all three signals down the mini-DIN", _r_genesis_lead],
+		["routing/a Genesis lead fits only a Genesis", _r_genesis_keying],
 		["osd/a set in the tree has its OSD nodes wired", _o_wired],
 		["osd/routing the OSD does not throw on a fresh set", _o_route],
 		["display/a monitor lands on its own socket, not the tuner", _d_monitor_default],
@@ -693,6 +697,106 @@ func _r_multi_out_keying() -> void:
 		_check_eq(port.channel_for(3), RcaPort.Channel.VIDEO, "out of range is the picture")
 		_check_eq(port.channel_for(-1), RcaPort.Channel.VIDEO, "and so is below range")
 	wii_port.free()
+
+
+## The Genesis Model 2. It wore a captive lead until its A/V cable became a loose
+## object: a 9-pin mini-DIN at the console and three phonos at the set.
+func _genesis() -> Node3D:
+	var sys := SYSTEM_SCENE.instantiate() as Node3D
+	sys.systemid = "genesis"
+	sys.model_id = "genesis"
+	sys.freeze = true
+	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	await _wait(60)
+	return sys
+
+
+func _r_genesis_socket() -> void:
+	var sys := await _genesis()
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	_ok(multi != null, "a Genesis builds a socket named AvMultiOut")
+	if multi == null:
+		return
+	_ok(multi is GenesisAvPort, "and it is the Genesis's own port")
+	_check_eq(multi.plug_group(), "genesis_av_plug", "which takes the mini-DIN lead")
+	_check_eq(multi.direction, RcaPort.Direction.OUT, "a console's A/V is an output")
+	var phonos := 0
+	for node in sys.find_children("*", "RcaPort", true, false):
+		if node != multi:
+			phonos += 1
+	_check_eq(phonos, 0, "and it is the only A/V socket on the machine")
+	_ok(sys._av_stereo, "one hole, still a stereo machine")
+
+	# NOT a captive lead any more. A machine with sockets builds no cable of its own;
+	# before this change the Genesis spawned wearing one, permanently attached.
+	_ok(sys._channels[0].plug == null, "and it spawns with no captive lead")
+
+	# On the REAR panel, facing out of it. The socket takes its plug along its own
+	# +Z, so +Z in the console's frame must point out of the back (-Z); a socket
+	# facing +Z would seat the plug backwards inside the case. By sign, not by eye.
+	var local := (sys.global_transform.affine_inverse() * multi.global_transform)
+	_ok(local.origin.z < -0.10, "the socket is on the rear panel (z %.4f)" % local.origin.z)
+	_ok(local.basis.z.z < -0.9, "and faces out of it (+Z %s)" % local.basis.z)
+
+
+func _r_genesis_lead() -> void:
+	var tv := _tv()
+	var sys := await _genesis()
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	if multi == null:
+		_ok(false, "the Genesis has an A/V socket to seat the lead in")
+		return
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+
+	var lead := GENESIS_AV_CABLE.instantiate() as Node3D
+	lead.position = Vector3(1.0, 1, -0.5)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(30)
+
+	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPOSITE_4,
+		"the set files the Genesis on the input its lead reaches")
+	_ok(sys.connected_tv == tv, "and the console knows which set it feeds")
+	var route: Dictionary = sys.audio_speakers()
+	_check_eq(route.get("left"), 0, "left channel lands on the left speaker")
+	_check_eq(route.get("right"), 1, "right channel lands on the right speaker")
+
+
+## Group membership IS the fit (a plug joins its group in _ready, the socket gates on
+## snap_require). pick_up_object bypasses the gate, so this is asked of the groups.
+func _r_genesis_keying() -> void:
+	var sys := await _genesis()
+	var multi := sys.find_child("AvMultiOut", true, false) as XRToolsSnapZone
+	_ok(multi != null, "the Genesis's socket is a snap zone")
+	if multi == null:
+		return
+	_check_eq(multi.snap_require, "genesis_av_plug",
+		"and it gates on the Genesis's group")
+	var ours := GENESIS_AV_CABLE.instantiate() as Node3D
+	var theirs := N64_AV_CABLE.instantiate() as Node3D
+	add_child(ours)
+	add_child(theirs)
+	_spawned.append(ours)
+	_spawned.append(theirs)
+	await _wait(20)
+	var our_plug := ours.get_node("PlugA0") as RcaPlug
+	var their_plug := theirs.get_node("PlugA0") as RcaPlug
+	_ok(our_plug.is_in_group(multi.snap_require), "the Genesis lead fits the Genesis")
+	_ok(not their_plug.is_in_group(multi.snap_require), "and an N64 lead does not")
+	_ok(not our_plug.is_in_group("n64_av_plug"), "nor does the Genesis lead fit an N64")
+	# The far end is ordinary phonos: yellow, white and red into any set's sockets.
+	for c in 3:
+		var phono := ours.get_node("PlugB%d" % c) as RcaPlug
+		_ok(phono.is_in_group("composite_plug"), "far plug %d is a plain phono" % c)
 
 
 func _d_monitor_default() -> void:

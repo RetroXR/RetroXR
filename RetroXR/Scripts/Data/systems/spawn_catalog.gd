@@ -156,6 +156,12 @@ const _PERIPHERALS: Dictionary = {
 	"snes": [
 		{"kind": "peripheral", "label": "SNES Mouse", "spawn": "snes_mouse"},
 	],
+	# The Model 2's A/V OUT is a 9-pin mini-DIN, so the generic composite lead fits
+	# the television and nothing at this end. Sega's own lead: the round plug at the
+	# console, three phonos at the set.
+	"genesis": [
+		{"kind": "peripheral", "label": "A/V Cable", "spawn": "genesis_av_cable"},
+	],
 }
 
 
@@ -174,8 +180,9 @@ const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari2600", "psx", "n64"
 ## all, so the generic lead would fit their television and nothing on the console.
 ## The Famicom is here for a stronger reason than the other three: it has no
 ## composite socket at all, so the generic lead would fit its television and
-## nothing on the console. Its card lists the RF switch instead.
-const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64"]
+## nothing on the console. Its card lists the RF switch instead. The Genesis, for
+## the Wii's and N64's reason: its one socket is a 9-pin mini-DIN.
+const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets
 ## (av_port_channels() is empty), so a spawned lead has nothing to enter at that

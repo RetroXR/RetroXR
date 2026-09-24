@@ -1,0 +1,44 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/genesis_av_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
+
+; The plug's own head, so the ghost reads as "the round plug goes here".
+[sub_resource type="CylinderMesh" id="CylinderMesh_plug_ghost"]
+top_radius = 0.0036
+bottom_radius = 0.0036
+height = 0.009
+radial_segments = 20
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+; The Genesis Model 2's A/V OUT — the round 9-pin mini-DIN on the rear panel.
+;
+; NO jack mesh, unlike n64_av_port.tscn. The socket is moulded into
+; genesis_console.glb itself, and a second one drawn over it would z-fight. The zone
+; is all this scene is: it sits where a seated plug's ORIGIN belongs, which for
+; gen_genesis_av.gd's plug is the moulded head's front face — and that face stops
+; flat on the panel, so the zone goes on the panel plane (genesis_model.gd places it).
+;
+; grab_distance 25 mm, the Multi Out's reason: the DC jack is 9 mm away and the rest
+; of the rear panel is close, and an empty socket with a 60 mm reach swallows clicks
+; meant for things beside it.
+[node name="GenesisAvPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.025
+script = ExtResource("2_portscript")
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("3_snaphigh")
+
+; Back along -Z from the mating face, where the head sits once seated. A cylinder
+; stands along Y, so it is laid over onto Z.
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -0.0045)
+mesh = SubResource("CylinderMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

@@ -1,0 +1,237 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/composite_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="2_plugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/genesis_av_plug.gd" id="6_mdplugscript"]
+[ext_resource type="ArrayMesh" path="res://Scenes/Objects/system_models/genesis/genesis_av_plug.res" id="7_avplugmesh"]
+
+; Fitted to the phono connector mesh (measured by Tools/rope/plug_shape_probe), as
+; every lead's far end is.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
+size = Vector3(0.0144, 0.0144, 0.054)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
+radius = 0.032
+
+; The mini-DIN's moulded head, 7.2 mm round and 9 mm long, from gen_genesis_av.gd.
+; Sized to the HEAD, not the whole plug: the shield is inside the console whenever
+; the connector matters, and a shape over it would let the plug be grabbed through
+; the back panel. A box, not a cylinder or sphere: those roll.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plugfit"]
+size = Vector3(0.0072, 0.0072, 0.009)
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_avpointer"]
+radius = 0.022
+
+; The Genesis Model 2 A/V cable: a round 9-pin mini-DIN at the console, three phonos
+; at the set, 1.80 m. The lead that shipped with the Model 2 and fits the Model 3; not
+; the Model 1's, whose A/V OUT is an 8-pin DIN.
+;
+; Built as n64_av_cable.tscn is, and for its reasons: the console end is a SHARED end
+; carrying all three cords (four plugs, three cords), what a cord carries is decided
+; by the sockets its ends sit in, and which signal each cord is at the console end is
+; MultiAvPort.channel_for's cord index — yellow picture, white left, red right. The
+; plug script is the only real difference, and it is one string: genesis_av_plug,
+; which only GenesisAvPort accepts.
+;
+; BLACK jacket, as Sega moulded it, where Nintendo's leads are grey. `script` FIRST,
+; then the export: an exported property does not exist until the script is attached,
+; so a wire_color written above it is silently dropped.
+[node name="GenesisAvCable" type="Node3D"]
+script = ExtResource("1_cablescript")
+wire_color = Color(0.05, 0.05, 0.055, 1.0)
+
+; ── End A: the 9-pin mini-DIN ─────────────────────────────────────
+; Turned about Y so the cord trails toward the far end: the plug mesh is authored
+; connector-on-+Z with the cord leaving -Z, which is also VerletRope's
+; plug_exit_axis, so an unturned plug here would leave its tail with a hairpin.
+; On the centreline, unlike the phono ends — there is nothing to spread it against.
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("6_mdplugscript")
+
+; The colliders sit on the BODY, not on the origin. This connector's origin is its
+; MATING face — the frame a snap zone seats to — and the whole moulding lies BEHIND
+; it, so a shape left at the origin ends up half buried in the console while the part
+; a hand reaches for carries nothing. That is exactly what happened when the stand-in
+; cylinder, which sat in FRONT of its origin, was swapped for the real mesh: the plug
+; became ungrabbable the moment it was plugged in.
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
+shape = SubResource("BoxShape3D_plugfit")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugA0"]
+mesh = ExtResource("7_avplugmesh")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugA0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0045)
+shape = SubResource("SphereShape3D_avpointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugA0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugA0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; ── End B ────────────────────────────────────────────────────────────────────
+; Unturned: their cords already trail -Z, back toward end A.
+
+[node name="PlugB0" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.003, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit2")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB1" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit2")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB1"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB1"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB1/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB1"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB1" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+[node name="PlugB2" type="RigidBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.003, 0, 0.75)
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.05
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB2"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("BoxShape3D_plugfit2")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB2"]
+mesh = ExtResource("3_rcaplug")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB2"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB2/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.013)
+shape = SubResource("SphereShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB2"]
+script = ExtResource("4_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB2" instance=ExtResource("5_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; 1.80 m overall, the length a real composite lead shipped at, split so the
+; breakouts are part of it: a 1.50 m trunk (50 x 30 mm) plus a 150 mm tail at each
+; end (5 x 30 mm). Buying length with segment COUNT rather than a longer segment
+; keeps the boot and the minimum bend radius where cable.tscn tuned them in
+; millimetres. 80 particles against that lead's 60, so reckon on ~1.4 ms per
+; physics tick — it is a spawned object, not one per station.
+;
+; 2.2 mm cords, thinner than the N64 lead's 3 mm: Sega's lead is a slim one, and the
+; plug's moulding hugs its shield, so the ribbon has to fit a 6.8 mm boot. Three of
+; them make a 6.6 mm ribbon. The cords are drawn from
+; ribbon_colors and the trunk needs no rope_color of its own.
+;
+; collision_radius is the ribbon's HALF-WIDTH, not the standoff over the tube that
+; cable.tscn uses. The solver only ever collides the centreline, so on a round cord
+; the radius is the cord; on a ribbon it has to cover the outermost cord or that one
+; sinks through whatever the cable is lying on. 2.2 mm pitch x 2 gaps / 2 + 1.1 mm tube
+; = 3.3 mm. Get this wrong low and the outer cord dips under the floor whenever the
+; ribbon happens to lie on edge.
+;
+; The plug's strain relief is sized against this — see CORD_R in Tools/gen/gen_genesis_av.gd,
+; which has to end wider than the ribbon it grips. Change one and change the other.
+;
+; The cost is that a ribbon lying FLAT now floats 2.2 mm rather than resting on
+; its tube. Both cannot be right from one radius on one centreline; poke-through
+; reads worse than clearance. Fixing it properly means giving the solver the
+; ribbon frame so the standoff can follow |side . normal|, which is a
+; VerletRope change, not a scene value.
+[node name="VerletRope" type="VerletRope" parent="."]
+segment_count = 50
+segment_length = 0.03
+constraint_iterations = 8
+bend_stiffness = 0.2
+tube_radius = 0.0011
+tube_sides = 6
+smoothing = 2
+surface_collision_mask = 7
+collision_radius = 0.0033
+self_collision = true
+end_align_stiffness = 0.7
+end_stiffness = 0.45
+end_stiff_segments = 2
+fray_segments_start = 5
+fray_segments_end = 5
+fray_taper_segments = 3

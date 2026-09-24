@@ -7,10 +7,9 @@
 ## as their origin.
 ##
 ## Wires POWER and RESET, the two front pad ports, the top cartridge slot and the
-## A/V lead. Both buttons are push caps on the Model 2, not slides: POWER latches
-## in, RESET is momentary. The rear A/V OUT is Sega's own 9-pin socket, which no
-## lead in the room fits yet, so this console keeps the captive lead the Genesis
-## has always had here — it now leaves from that socket.
+## rear A/V OUT. Both buttons are push caps on the Model 2, not slides: POWER latches
+## in, RESET is momentary. The A/V OUT is Sega's own 9-pin mini-DIN socket, and the
+## lead is a separate object (genesis_av_cable.tscn), not a captive cord.
 ##
 ## No eject: a Genesis cart pulls straight up out of the slot.
 class_name RetroSystemModelGenesis
@@ -191,17 +190,51 @@ func configure_controller_ports(port_zones: Array) -> void:
 	hide_port_placeholders(port_zones)
 
 
-# --- A/V lead ---------------------------------------------------------------------
+# --- A/V OUT ----------------------------------------------------------------------
 
-## The 9-pin A/V OUT on the rear panel, the round socket beside the DC jack
-## (which is 9 mm further toward -X). Measured off its pin cluster.
-const _AV_OUT := Vector3(-0.0398, 0.0166, -0.1040)
+## The 9-pin A/V OUT on the rear panel, the round socket beside the DC jack (which is
+## 9 mm further toward -X). x/y off the socket's pin cluster; z is the PANEL FACE
+## around it, raycast off the shell at -0.1043 — the mouth itself is recessed 1.5 mm
+## behind that and opens to 6.2 mm.
+const _AV_OUT := Vector3(-0.0398, 0.0166, -0.1043)
+## Off the panel by half a millimetre, so the plug's head — whose origin is its front
+## face, the face that stops on the panel — is never coplanar with the case.
+const _AV_PROUD := 0.0005
 
 
+## A socket, not a captive lead: the Model 2 shipped its A/V cable loose, a 9-pin
+## mini-DIN at this end and three phonos at the set (genesis_av_cable.tscn). The
+## channel list is the stereo trio — the machine's sound is stereo — and multi-way
+## says all three leave through one hole, so the cabinet builds GenesisAvPort and no
+## cable of its own.
+func av_port_channels() -> Array:
+	return [RcaPort.Channel.VIDEO, RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R]
+
+
+func av_ports_are_multi_way() -> bool:
+	return true
+
+
+## Its own socket, not either Nintendo one: only the Genesis lead's plug group fits.
+func av_multi_port_scene() -> String:
+	return "res://Scenes/Objects/system_models/genesis/genesis_av_port.tscn"
+
+
+## Rotated 180 degrees about X, as the 2600's rear sockets are: a socket receives its
+## plug along its own +Z, and the rear panel faces -Z, so identity would face the
+## socket into the console and seat the plug backwards.
+func configure_av_ports(ports: Array) -> void:
+	if ports.is_empty():
+		return
+	var port := ports[0] as Node3D
+	port.position = _AV_OUT - Vector3(0.0, 0.0, _AV_PROUD)
+	port.rotation = Vector3(PI, 0.0, 0.0)
+
+
+## Unused while this model wears a socket — RetroSystem builds no cable for it — but
+## the attach point is still created and posed for every system.
 func configure_cable_attach(attach_point: Node3D) -> void:
 	attach_point.position = _AV_OUT
-	# The rear faces -Z and VerletRope leaves an attach point along its local -Z,
-	# so identity trails the lead straight out of the back.
 	attach_point.rotation = Vector3.ZERO
 
 
