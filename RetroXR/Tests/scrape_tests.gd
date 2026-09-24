@@ -671,6 +671,38 @@ func _group_priority() -> void:
 			known = known or entry[0] == code
 		_check(known, "default priority '%s' is in the catalogue" % code)
 
+	# Media is picked from the ROM's own regions first, ranked by the PLAYER'S
+	# priority. ScreenScraper lists Sonic the Hedgehog (USA, Europe) as
+	# eu, us, wor; taken in that order it scraped the Mega Drive box.
+	var prio: Array[String] = ["us", "eu", "wor", "jp", "ss"]
+	_check(ScreenscraperClient.media_region_order(["eu", "us", "wor"], prio)
+		== ["us", "eu", "wor", "jp", "ss"], "a USA/Europe ROM ranks its regions by the player's order")
+	var eu_first: Array[String] = ["eu", "us", "wor", "jp", "ss"]
+	_check(ScreenscraperClient.media_region_order(["eu", "us", "wor"], eu_first)
+		== ["eu", "us", "wor", "jp", "ss"], "and the other way round for a player who puts Europe first")
+	_check(ScreenscraperClient.media_region_order(["jp"], prio)
+		== ["jp", "wor", "us", "eu", "ss"], "a Japan-only ROM still gets its own region's art first")
+	_check(ScreenscraperClient.media_region_order(["br", "us"], prio)
+		== ["us", "br", "wor", "eu", "jp", "ss"], "a ROM region the player never ranked follows the ranked ones")
+	_check(ScreenscraperClient.media_region_order([], prio)
+		== ["wor", "us", "eu", "jp", "ss"], "no ROM regions: world, then the player's order")
+
+	# The whole picker, on Sonic's real media list (trimmed to the types it reads).
+	var client := ScreenscraperClient.new()
+	client.config = ScraperConfig.new()
+	client.config.region_priorities = prio
+	var medias: Array = []
+	for t: String in ["wheel", "box-texture", "support-texture"]:
+		for r: String in (["eu", "jp", "us"] if t == "wheel" else ["br", "eu", "jp", "kr", "us"]):
+			medias.append({"type": t, "region": r, "url": "%s/%s" % [t, r]})
+	var picked: Dictionary = client._extract_media_urls(medias, ["eu", "us", "wor"])
+	_check(picked["box"] == "box-texture/us" and picked["label"] == "support-texture/us"
+		and picked["wheel"] == "wheel/us", "Sonic (USA, Europe) scrapes the USA box, label and logo: %s" % str(picked))
+	client.config.region_priorities = eu_first
+	picked = client._extract_media_urls(medias, ["eu", "us", "wor"])
+	_check(picked["box"] == "box-texture/eu", "and the Europe box with Europe first")
+	client.free()
+
 	var start: Array[String] = ["us", "eu"]
 	var d := VRPriorityDropdown.create("Region Priority",
 		[["us", "USA", "U"], ["eu", "Europe", "E"], ["jp", "Japan", "J"]], start)

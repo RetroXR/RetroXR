@@ -484,23 +484,43 @@ func _pick_by_language(arr) -> String:
 ## disc_num: the ROM's disc number, used to pick its own disc label (0 = unknown).
 ## disc_total: how many discs the set holds (0 = unknown); 1 means there is no disc to tell apart.
 ## Returns {wheel: url, box: url, label: url, manual: url} (empty string if not found).
+## The region order media is picked in: the ROM's own regions first, then
+## "wor", then the rest of the player's priorities.
+##
+## The ROM's regions are ranked by the PLAYER'S priority, never in the order
+## ScreenScraper lists them. It lists them alphabetically-ish -- Sonic the
+## Hedgehog (USA, Europe) comes back as ["eu", "us", "wor"] -- and taking that
+## order as-is gave every USA/Europe cart the European box (a Mega Drive box on
+## a Genesis game) with USA at the top of the list. A ROM region the player
+## never ranked keeps its place after the ones they did.
+static func media_region_order(rom_region_codes: Array,
+		priorities: Array[String]) -> Array[String]:
+	var rom := PackedStringArray()
+	for code in rom_region_codes:
+		var s := str(code)
+		if not s.is_empty() and not rom.has(s):
+			rom.append(s)
+	var out: Array[String] = []
+	for code: String in priorities:
+		if rom.has(code) and code != "wor":
+			out.append(code)
+	for code: String in rom:
+		if not out.has(code) and code != "wor":
+			out.append(code)
+	out.append("wor")
+	for code: String in priorities:
+		if not out.has(code):
+			out.append(code)
+	return out
+
+
 func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0,
 						 disc_total: int = 0) -> Dictionary:
 	var result := {"wheel": "", "box": "", "label": "", "manual": ""}
 	if not medias is Array:
 		return result
 
-	# Build effective priority: ROM's own region codes first, then "wor", then user priorities.
-	var effective_priorities: Array[String] = []
-	for code in rom_region_codes:
-		var s := str(code)
-		if not effective_priorities.has(s):
-			effective_priorities.append(s)
-	if not effective_priorities.has("wor"):
-		effective_priorities.append("wor")
-	for code: String in config.region_priorities:
-		if not effective_priorities.has(code):
-			effective_priorities.append(code)
+	var effective_priorities := media_region_order(rom_region_codes, config.region_priorities)
 	print("[ScreenscraperClient] Effective media region priorities: %s" % str(effective_priorities))
 
 	# Collect candidates per type
