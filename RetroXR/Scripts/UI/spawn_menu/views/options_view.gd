@@ -1496,30 +1496,36 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 		scraper_config.save_config()
 	))
 
-	# Region priorities
-	_add_options_text_field(vbox, "Region Priority", ", ".join(scraper_config.region_priorities), func(text: String):
-		var parts: Array[String] = []
-		for p in text.split(","):
-			var trimmed := p.strip_edges().to_lower()
-			if not trimmed.is_empty():
-				parts.append(trimmed)
-		if not parts.is_empty():
-			scraper_config.region_priorities = parts
-			scraper_config.save_config()
+	# Region and language priorities: tick any, order with the arrows. First
+	# match wins in ScreenscraperClient, so the order is the setting.
+	var regions := VRPriorityDropdown.create("Region Priority",
+		_priority_items(ScraperConfig.REGIONS), scraper_config.region_priorities)
+	regions.order_changed.connect(func(order: Array[String]) -> void:
+		scraper_config.region_priorities = order
+		scraper_config.save_config()
 	)
+	vbox.add_child(regions)
 
-	# Language priorities
-	_add_options_text_field(vbox, "Language Priority", ", ".join(scraper_config.language_priorities), func(text: String):
-		var parts: Array[String] = []
-		for p in text.split(","):
-			var trimmed := p.strip_edges().to_lower()
-			if not trimmed.is_empty():
-				parts.append(trimmed)
-		if not parts.is_empty():
-			scraper_config.language_priorities = parts
-			scraper_config.save_config()
+	var languages := VRPriorityDropdown.create("Language Priority",
+		_priority_items(ScraperConfig.LANGUAGES), scraper_config.language_priorities)
+	languages.order_changed.connect(func(order: Array[String]) -> void:
+		scraper_config.language_priorities = order
+		scraper_config.save_config()
 	)
+	vbox.add_child(languages)
 
+
+## A ScraperConfig catalogue ([code, name, flag key]) as VRPriorityDropdown
+## items ([code, name, glyph]). ScreenScraper's own "ss" region has no flag, so
+## it takes the scrape glyph.
+static func _priority_items(table: Array) -> Array:
+	var out: Array = []
+	for entry: Array in table:
+		var glyph := MenuIcons.region_flag(str(entry[2]))
+		if glyph.is_empty():
+			glyph = String.chr(MenuIcons.SCRAPE)
+		out.append([entry[0], entry[1], glyph])
+	return out
 
 func _on_scrape_threads_changed(threads: int) -> void:
 	if is_instance_valid(_scrape_threads_label):

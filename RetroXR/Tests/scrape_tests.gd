@@ -92,6 +92,7 @@ func _ready() -> void:
 	await _run_group("quota", _group_quota)
 	await _run_group("auto", _group_auto)
 	await _run_group("config", _group_config)
+	await _run_group("priority", _group_priority)
 	_teardown()
 	print("[test] %d checks, %d failures" % [_checks, _fail])
 	get_tree().quit(1 if _fail else 0)
@@ -630,3 +631,62 @@ func _group_config() -> void:
 	var restored := ScraperConfig.new()
 	restored.load_config()
 	_check(restored.approve_scrapes == false or had, "player's config restored")
+
+
+## The region/language priority editor: pure order edits, the catalogues, and
+## the widget end to end through its inline card (no Viewport2Din3D here).
+func _group_priority() -> void:
+	var order: Array[String] = ["us", "eu", "jp"]
+	_check(PriorityOptions2D.toggle(order, "wor") == ["us", "eu", "jp", "wor"],
+		"ticking appends at the end")
+	_check(PriorityOptions2D.toggle(order, "eu") == ["us", "jp"], "unticking removes")
+	var one: Array[String] = ["us"]
+	_check(PriorityOptions2D.toggle(one, "us") == ["us"], "the last pick cannot be unticked")
+	_check(order == ["us", "eu", "jp"], "toggle leaves its input alone")
+
+	_check(PriorityOptions2D.move(order, "jp", -1) == ["us", "jp", "eu"], "up one place")
+	_check(PriorityOptions2D.move(order, "us", 1) == ["eu", "us", "jp"], "down one place")
+	_check(PriorityOptions2D.move(order, "us", -1) == order, "first cannot go up")
+	_check(PriorityOptions2D.move(order, "jp", 1) == order, "last cannot go down")
+	_check(PriorityOptions2D.move(order, "de", -1) == order, "an unpicked code does not move")
+
+	var typed: Array[String] = ["us", "xx"]
+	var items := PriorityOptions2D.with_unknown([["us", "USA", ""]], typed)
+	_check(items.size() == 2 and items[1] == ["xx", "xx", ""],
+		"a hand-typed code outside the catalogue is kept, shown by its code")
+
+	for table: Array in [ScraperConfig.REGIONS, ScraperConfig.LANGUAGES]:
+		var seen := {}
+		var flagless := PackedStringArray()
+		for entry: Array in table:
+			seen[entry[0]] = true
+			if entry[0] != "ss" and MenuIcons.region_flag(str(entry[2])).is_empty():
+				flagless.append(str(entry[0]))
+		_check(seen.size() == table.size(), "catalogue codes are unique")
+		_check(flagless.is_empty(), "every catalogue entry draws a flag: %s" % str(flagless))
+	var defaults := ScraperConfig.new()
+	for code: String in defaults.region_priorities + defaults.language_priorities:
+		var known := false
+		for entry: Array in ScraperConfig.REGIONS + ScraperConfig.LANGUAGES:
+			known = known or entry[0] == code
+		_check(known, "default priority '%s' is in the catalogue" % code)
+
+	var start: Array[String] = ["us", "eu"]
+	var d := VRPriorityDropdown.create("Region Priority",
+		[["us", "USA", "U"], ["eu", "Europe", "E"], ["jp", "Japan", "J"]], start)
+	var got: Array = []
+	d.order_changed.connect(func(o: Array[String]) -> void: got.append(o))
+	add_child(d)
+	_check(d.summary() == "U › E", "the toggle spells the order out")
+	d._on_toggle_pressed()
+	_check(d.is_open() and d._inline != null and d._inline.visible,
+		"no 3D host: the card opens inline")
+	d._inline._apply(PriorityOptions2D.toggle(d._inline.get_order(), "jp"))
+	d._inline._apply(PriorityOptions2D.move(d._inline.get_order(), "jp", -2))
+	_check(got.size() == 2 and got[1] == ["jp", "us", "eu"], "each edit is announced whole")
+	_check(d.get_order() == ["jp", "us", "eu"] and d.summary() == "J › U › E",
+		"the row follows the card")
+	_check(start == ["us", "eu"], "the caller's array is not edited in place")
+	d.close()
+	_check(not d.is_open() and not d._inline.visible, "close hides the card")
+	d.queue_free()

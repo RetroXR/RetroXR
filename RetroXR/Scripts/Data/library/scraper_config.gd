@@ -20,6 +20,74 @@ var region_priorities: Array[String] = ["us", "eu", "wor", "jp", "ss"]
 ## Language priority for selecting localized text (first match wins).
 var language_priorities: Array[String] = ["en", "fr"]
 
+## The regions the options menu offers for region_priorities: [code, name, flag].
+## Codes are ScreenScraper's own (regionsListe.php, checked 2026-09-23) -- note
+## Spain is "sp" and Mexico "mex", not their ISO codes. The flag column is a key
+## for MenuIcons.region_flag(); "" draws none. Continents it also lists (afr,
+## ame, oce, mor) and the tiny markets are left out; a code saved that is not
+## here is still kept and shown by its code.
+const REGIONS := [
+	["us", "USA", "us"],
+	["eu", "Europe", "eu"],
+	["wor", "World", "wor"],
+	["jp", "Japan", "jp"],
+	["ss", "ScreenScraper", ""],
+	["uk", "United Kingdom", "uk"],
+	["fr", "France", "fr"],
+	["de", "Germany", "de"],
+	["sp", "Spain", "es"],
+	["it", "Italy", "it"],
+	["nl", "Netherlands", "nl"],
+	["pt", "Portugal", "pt"],
+	["se", "Sweden", "se"],
+	["no", "Norway", "no"],
+	["dk", "Denmark", "dk"],
+	["fi", "Finland", "fi"],
+	["pl", "Poland", "pl"],
+	["cz", "Czech Republic", "cz"],
+	["hu", "Hungary", "hu"],
+	["gr", "Greece", "gr"],
+	["tr", "Turkey", "tr"],
+	["ru", "Russia", "ru"],
+	["il", "Israel", "il"],
+	["au", "Australia", "au"],
+	["nz", "New Zealand", "nz"],
+	["ca", "Canada", "ca"],
+	["mex", "Mexico", "mx"],
+	["br", "Brazil", "br"],
+	["kr", "Korea", "kr"],
+	["cn", "China", "cn"],
+	["tw", "Taiwan", "tw"],
+	["asi", "Asia", "asi"],
+]
+
+## The languages offered for language_priorities: [code, name, flag], from
+## languesListe.php (checked 2026-09-23) -- Korean is "kr" and Czech "cz" there.
+## The flag is the country a player would look for, not a claim about the
+## language. Slovak is left out: the flag font has no Slovakia.
+const LANGUAGES := [
+	["en", "English", "uk"],
+	["fr", "French", "fr"],
+	["de", "German", "de"],
+	["es", "Spanish", "es"],
+	["it", "Italian", "it"],
+	["pt", "Portuguese", "pt"],
+	["nl", "Dutch", "nl"],
+	["sv", "Swedish", "se"],
+	["no", "Norwegian", "no"],
+	["da", "Danish", "dk"],
+	["fi", "Finnish", "fi"],
+	["pl", "Polish", "pl"],
+	["cz", "Czech", "cz"],
+	["hu", "Hungarian", "hu"],
+	["tr", "Turkish", "tr"],
+	["ru", "Russian", "ru"],
+	["ja", "Japanese", "jp"],
+	["kr", "Korean", "kr"],
+	["zh", "Chinese", "cn"],
+	["tw", "Taiwanese", "tw"],
+]
+
 ## Show each scrape result for approval before it is written. Off by default:
 ## a queued batch would otherwise stop at a popup after every game.
 var approve_scrapes: bool = false

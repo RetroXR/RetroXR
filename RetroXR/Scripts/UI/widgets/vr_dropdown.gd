@@ -36,8 +36,10 @@ signal item_selected(id: Variant)
 
 const COLOR_TITLE := Color(0.9, 0.9, 1.0)
 
-## Only one dropdown may be expanded at a time, across every panel.
-static var _open_dropdown: VRDropdown = null
+## Only one dropdown may be expanded at a time, across every panel. A Control
+## rather than a VRDropdown because a VRPriorityDropdown takes the same slot:
+## whichever is in it has a close().
+static var _open_dropdown: Control = null
 
 var _label: Label
 var _icon: TextureRect = null
@@ -310,7 +312,7 @@ func _on_toggle_pressed() -> void:
 	var opening := not _is_open
 	if _open_dropdown != null and _open_dropdown != self \
 			and is_instance_valid(_open_dropdown):
-		_open_dropdown.close()
+		_open_dropdown.call("close")
 	if opening:
 		_open_panel()
 	else:

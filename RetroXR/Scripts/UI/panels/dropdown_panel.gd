@@ -11,9 +11,14 @@ class_name DropdownPanel
 extends Node3D
 
 signal option_chosen(id: Variant)
+## From a PriorityOptions2D card: every edit, and its ✕. That card stays open
+## across edits, so the owner decides when it goes.
+signal order_changed(order: Array[String])
+signal close_requested
 
 const VIEWPORT_2D_IN_3D := preload("res://addons/godot-xr-tools/objects/viewport_2d_in_3d.tscn")
 const OPTIONS_2D := preload("res://Scenes/UI/dropdown_options_2d.tscn")
+const PRIORITY_2D := preload("res://Scenes/UI/priority_options_2d.tscn")
 
 ## Metres in front of the host panel. Far enough to clear it without landing in
 ## a different focal plane from the menu behind it.
@@ -22,7 +27,10 @@ const MAX_PANEL_PX_H := 620.0
 const MIN_PANEL_PX_W := 320.0
 
 var _viewport: XRToolsViewport2DIn3D = null
-var _ui: DropdownOptions2D = null
+## What the card holds. OPTIONS_2D for a VRDropdown, PRIORITY_2D for a
+## VRPriorityDropdown. Set before the first show or prewarm; never changed after.
+var options_scene: PackedScene = OPTIONS_2D
+var _ui: Control = null
 var _host: XRToolsViewport2DIn3D = null
 ## Metres per host viewport pixel, so the popout matches the menu's scale.
 var _m_per_px := 0.0005
@@ -43,17 +51,35 @@ func _ready() -> void:
 ## options     : [[label, id, (Texture2D)], ...]
 func show_for(host: XRToolsViewport2DIn3D, toggle_rect: Rect2, options: Array,
 			  current_id: Variant, font: Font = null, columns: int = 1) -> void:
+	var ui := _ensure_ui() as DropdownOptions2D
+	if ui == null:
+		return
+	_size_to(host, toggle_rect, DropdownOptions2D.wanted_size(options.size(), columns))
+	ui.set_options(options, current_id, font, 22, columns)
+	_place(host, toggle_rect)
+
+
+## The multi-select, orderable card (options_scene must be PRIORITY_2D).
+## items: [[code, name, glyph], ...]; order: the ticked codes, first first.
+func show_priority_for(host: XRToolsViewport2DIn3D, toggle_rect: Rect2, title: String,
+		items: Array, order: Array[String], font: Font = null) -> void:
+	var ui := _ensure_ui() as PriorityOptions2D
+	if ui == null:
+		return
+	var rows := PriorityOptions2D.with_unknown(items, order).size()
+	_size_to(host, toggle_rect, PriorityOptions2D.wanted_size(rows))
+	ui.set_items(title, items, order, font)
+	_place(host, toggle_rect)
+
+
+## Size the quad and its viewport for a card that wants `want` pixels.
+func _size_to(host: XRToolsViewport2DIn3D, toggle_rect: Rect2, want: Vector2) -> void:
 	_host = host
 	if host.screen_size.x > 0.0 and host.viewport_size.x > 0.0:
 		_m_per_px = host.screen_size.x / host.viewport_size.x
-
-	var ui := _ensure_ui()
-	if ui == null:
-		return
 	# Set here rather than in _ensure_ui: prewarm() builds the viewport before
 	# any host is known, so doing it there would leave the layer at its default.
 	_viewport.collision_layer = host.collision_layer
-	var want := DropdownOptions2D.wanted_size(options.size(), columns)
 	var px_w := maxf(maxf(toggle_rect.size.x, MIN_PANEL_PX_W), want.x)
 	var px_h := minf(want.y, MAX_PANEL_PX_H)
 
@@ -69,9 +95,10 @@ func show_for(host: XRToolsViewport2DIn3D, toggle_rect: Rect2, options: Array,
 	else:
 		resize.call()
 
-	ui.set_options(options, current_id, font, 22, columns)
 
-	_flat_at = _local_for(host, toggle_rect, px_w, px_h)
+func _place(host: XRToolsViewport2DIn3D, toggle_rect: Rect2) -> void:
+	var px := _viewport.viewport_size
+	_flat_at = _local_for(host, toggle_rect, px.x, px.y)
 	_host_curve = host.get_node_or_null("CurvedPanel") as CurvedPanel
 	if _host_curve != null and not _host_curve.curve_changed.is_connected(_follow_host):
 		_host_curve.curve_changed.connect(_follow_host)
@@ -142,7 +169,7 @@ func _local_for(host: XRToolsViewport2DIn3D, toggle_rect: Rect2,
 		Z_OFFSET)
 
 
-func _ensure_ui() -> DropdownOptions2D:
+func _ensure_ui() -> Control:
 	if is_instance_valid(_ui):
 		return _ui
 
@@ -177,12 +204,16 @@ func _ensure_ui() -> DropdownOptions2D:
 	# Must go through the `scene` property: that is what instantiates the UI
 	# into the SubViewport and binds its texture to the quad's material.
 	# Adding a Control to the SubViewport directly renders nothing.
-	_viewport.scene = OPTIONS_2D
-	_ui = _viewport.get_scene_instance() as DropdownOptions2D
-	if _ui == null:
-		return null
-	_ui.option_chosen.connect(func(id: Variant) -> void:
-		hide_panel()
-		option_chosen.emit(id)
-	)
+	_viewport.scene = options_scene
+	_ui = _viewport.get_scene_instance() as Control
+	if _ui is DropdownOptions2D:
+		(_ui as DropdownOptions2D).option_chosen.connect(func(id: Variant) -> void:
+			hide_panel()
+			option_chosen.emit(id)
+		)
+	elif _ui is PriorityOptions2D:
+		var prio := _ui as PriorityOptions2D
+		prio.order_changed.connect(func(order: Array[String]) -> void:
+			order_changed.emit(order))
+		prio.close_requested.connect(func() -> void: close_requested.emit())
 	return _ui
