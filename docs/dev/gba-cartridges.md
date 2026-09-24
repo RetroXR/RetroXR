@@ -25,7 +25,9 @@ no-logos `gba_cartridge_tintable.glb` from `codex-photos/gba-cart`
   the slot), now wearing the same two photos at the same scale, so the
   silkscreen and the photographed gold contacts run on across the join.
 - `Opaque_Internal_Details`: the tri-wing screw.
-- `Label`: white placeholder the scraped art is laid over (not UV-mapped).
+- `Label`: the sticker, 43.0 × 22.0 mm (the front recess reshaped to match; it was
+  45.4 × 22.8), a white placeholder the scraped art is laid over, fitted inside
+  without stretching (not UV-mapped).
 
 **Frost: foggy plastic.** Real moulded clear plastic scatters a little, so what is
 inside looks out of focus and flat, and the plastic itself is patchy and satin
