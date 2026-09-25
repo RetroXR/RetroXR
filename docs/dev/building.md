@@ -101,3 +101,20 @@ macOS export preset remain future packaging work.
 A hardened Mac export will need library validation disabled for downloaded unsigned cores
 and unsigned executable memory for callback trampolines; dynarec cores may also need the
 JIT entitlement.
+
+## `**/*.info` belongs in EVERY export preset
+
+`CoreInfoDatabase` reads `res://libretro-core-info/` and `res://libretro-core-info-retroxr/`.
+A `.info` file has no Godot importer, so `export_filter="all_resources"` does not carry it —
+only `include_filter="**/*.info"` does. Until 2026-09-25 only the Android presets had it, and
+a Linux/Windows/macOS export shipped with an EMPTY core database. Nothing errors: the Cores
+panel still lists the installed `.so`/`.dll` by filename, but with no `.info` behind it
+`CoreInfoDatabase.systemids_of()` returns empty, every core is filed under the `"unknown"`
+bucket (`cores_view.gd`), `CoreDefaults.adopt_missing()` adopts nothing, and the Systems tab
+ends up holding one tile named after whichever core sorted first. A fresh Linux install
+reproduced it exactly: 51 cores downloaded, `core_defaults.json` = `{"unknown": "arduous"}`.
+
+Two habits keep it from coming back: the filter is on all four shipping presets, and
+`docs/dev/systemids.md` is the place to look when a system is missing on one platform only.
+`Tools/rename_systemids.py` is run on the source directories, so the exported copies are
+rewritten by export, not by hand.
