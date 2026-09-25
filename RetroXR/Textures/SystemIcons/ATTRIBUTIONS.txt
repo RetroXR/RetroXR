@@ -74,7 +74,8 @@ verified by opening the file rather than trusting the suffix:
                  finishes, not regions: both colors sold in North America.
 
 Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30;
-Wii U and Famicom 2026-09-15; Game Boy Color 2026-09-22.
+Wii U and Famicom 2026-09-15; Game Boy Color 2026-09-22;
+Neo Geo Pocket Color and WonderSwan Color 2026-09-25.
 
 file map
 -------------------------------------------------------------------------------
@@ -220,6 +221,8 @@ neogeocd-content.svg                SNK - Neo Geo CD-content.svg
 neogeocd.svg                        SNK - Neo Geo CD.svg
 ngp-content.svg                     SNK - Neo Geo Pocket-content.svg
 ngp.svg                             SNK - Neo Geo Pocket.svg
+ngpc-content.svg                    SNK - Neo Geo Pocket Color-content.svg
+ngpc.svg                            SNK - Neo Geo Pocket Color.svg
 neogeo-content.svg                  SNK - Neo Geo-content.svg
 neogeo.svg                          SNK - Neo Geo.svg
 nes-content.svg                     Nintendo - Nintendo Entertainment System-content.svg
@@ -316,6 +319,8 @@ wolfenstein-content.svg             Wolfenstein 3D-content.svg
 wolfenstein.svg                     Wolfenstein 3D.svg
 wonderswan-content.svg              Bandai - WonderSwan-content.svg
 wonderswan.svg                      Bandai - WonderSwan.svg
+wonderswancolor-content.svg         Bandai - WonderSwan Color-content.svg
+wonderswancolor.svg                 Bandai - WonderSwan Color.svg
 xbox-content.svg                    Microsoft - Xbox-content.svg
 xbox.svg                            Microsoft - Xbox.svg
 xrick-content.svg                   Rick Dangerous-content.svg

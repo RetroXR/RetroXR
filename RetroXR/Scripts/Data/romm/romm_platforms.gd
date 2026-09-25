@@ -138,7 +138,12 @@ const SLUG_MAP := {
 	"neogeocd": "neogeocd",
 	"neo-geo-cd": "neogeocd",
 	"ngp": "ngp",
-	"ngpc": "ngp",
+	"neo-geo-pocket": "ngp",
+	# The Color is a secondary platform of the Neo Geo Pocket cores with a tile
+	# of its own, like the Game Boy Color: folded into "ngp" it won
+	# collapse_by_systemid on size and the mono library went unmapped.
+	"ngpc": "ngpc",
+	"neo-geo-pocket-color": "ngpc",
 
 	# Bandai / Watara / other handhelds
 	#
@@ -149,8 +154,10 @@ const SLUG_MAP := {
 	"gameandwatch": "gameandwatch",
 	"wonderswan": "wonderswan",
 	"wswan": "wonderswan",
-	"wonderswancolor": "wonderswan",
-	"wswanc": "wonderswan",
+	# The same split as the Game Boy Color and the Neo Geo Pocket Color.
+	"wonderswancolor": "wonderswancolor",
+	"wonderswan-color": "wonderswancolor",
+	"wswanc": "wonderswancolor",
 	"supervision": "supervision",
 	"megaduck": "megaduck",
 

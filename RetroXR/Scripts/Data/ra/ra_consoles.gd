@@ -78,7 +78,9 @@ const CONSOLE_MAP := {
 	"arcadia": 73,                # RC_CONSOLE_ARCADIA_2001
 	"neogeocd": 56,             # RC_CONSOLE_NEO_GEO_CD
 	"ngp": 14,         # RC_CONSOLE_NEOGEO_POCKET
+	"ngpc": 14,        # the same console to RetroAchievements
 	"wonderswan": 53,             # RC_CONSOLE_WONDERSWAN
+	"wonderswancolor": 53,        # the same console to RetroAchievements
 	"supervision": 63,            # RC_CONSOLE_SUPERVISION
 	"megaduck": 69,              # RC_CONSOLE_MEGADUCK
 	"gameandwatch": 60,    # RC_CONSOLE_GAME_AND_WATCH

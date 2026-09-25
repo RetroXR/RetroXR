@@ -87,8 +87,8 @@ const LEGACY: Dictionary = {
 	"zx_spectrum": "zxspectrum",
 }
 
-## Other ES-DE folders holding the same machine's ROMs. `famicom` and `gbc` are
-## absent on purpose: each is a system of its own here. So are `sgb`, `arcade` and `cps*`,
+## Other ES-DE folders holding the same machine's ROMs. `famicom`, `gbc`, `ngpc`
+## and `wonderswancolor` are absent on purpose: each is a system of its own here. So are `sgb`, `arcade` and `cps*`,
 ## which fit more than one tile.
 const FOLDER_ALIASES: Dictionary = {
 	"amiga": ["amiga600", "amiga1200"],
@@ -102,7 +102,6 @@ const FOLDER_ALIASES: Dictionary = {
 	"moto": ["to8"],
 	"msx": ["msx1", "msx2", "msxturbor"],
 	"neogeocd": ["neogeocdjp"],
-	"ngp": ["ngpc"],
 	"odyssey2": ["videopac"],
 	"satellaview": ["satellaview_plus"],
 	"saturn": ["saturnjp"],
@@ -111,7 +110,6 @@ const FOLDER_ALIASES: Dictionary = {
 	"snes": ["sfc", "snesna"],
 	"tg-cd": ["pcenginecd"],
 	"tg16": ["pcengine"],
-	"wonderswan": ["wonderswancolor"],
 	"x68000": ["sharp-x68000"],
 }
 

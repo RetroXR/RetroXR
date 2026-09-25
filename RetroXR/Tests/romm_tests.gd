@@ -52,6 +52,7 @@ func _ready() -> void:
 	_test_partition()
 	_test_collapse_by_systemid()
 	_test_gbc_platform()
+	_test_color_handhelds()
 	_test_firmware_index()
 	_test_stats_unchanged()
 	_test_password_not_persisted()
@@ -85,6 +86,7 @@ func _ready() -> void:
 	_test_gamelist_dedupe()
 	_test_collapse_variants()
 	_test_ghost_rows()
+	_test_sync_stop_announce()
 	_test_index_rewrite()
 	_test_accent_search()
 	await _test_http_stalls()
@@ -323,6 +325,62 @@ func _test_gbc_platform() -> void:
 	_eq(defaults.get_default_core("gb"), "gambatte", "gbc/an existing default is left alone")
 	_ok(defaults.adopt_missing(db, PackedStringArray(["gambatte"])).is_empty(),
 		"gbc/and a second pass adopts nothing")
+
+
+func _test_color_handhelds() -> void:
+	# The Game Boy Color's split, for the other two handhelds that had one. Each
+	# RomM library folded into its parent's systemid lost collapse_by_systemid to
+	# the bigger one: WonderSwan Color's 95 games, and the Neo Geo Pocket's own
+	# 11 -- there the Color was the bigger library, so the MONO tile vanished.
+	var db := CoreInfoDatabase.shared()
+	for c: Array in [
+			["wonderswan", "wonderswancolor", "wonderswan-color", "wsc", "WonderSwan", "WonderSwan Color", 46, 53],
+			["ngp", "ngpc", "neo-geo-pocket-color", "ngc", "Neo Geo Pocket", "Neo Geo Pocket Color", 82, 14]]:
+		var parent: String = c[0]
+		var color: String = c[1]
+		_eq(RommPlatforms.systemid_for({"slug": c[2], "fs_slug": color}), color,
+			"%s/RomM's Color library is not filed under %s" % [color, parent])
+		var both := RommPlatforms.collapse_by_systemid(RommPlatforms.partition([
+			{"slug": parent, "fs_slug": parent, "rom_count": 11},
+			{"slug": c[2], "fs_slug": color, "rom_count": 119},
+		])["mapped"])
+		_eq((both["platforms"] as Dictionary).size(), 2, "%s/a tile beside %s's" % [color, parent])
+		_eq((both["shadowed"] as Array).size(), 0, "%s/and neither shadows the other" % color)
+
+		var info := SystemInfo.for_system(color)
+		_ok(info != null and info.systemid == color, "%s/there is a SystemInfo row" % color)
+		_eq(SystemIds.systemid_for_folder(color), color, "%s/its folder is its own" % color)
+		_eq(db.get_systemname_for_id(parent), c[4], "%s/the parent tile names one machine" % color)
+		_eq(db.get_systemname_for_id(color), c[5], "%s/and its own tile the other" % color)
+
+		# Every core that runs the parent's ROMs and takes the Color's extension
+		# serves it -- derived, so a core added later without it fails here.
+		var serving: Array[String] = []
+		var missed: Array[String] = []
+		for entry: Dictionary in db.cores:
+			var sids := CoreInfoDatabase.systemids_of(entry)
+			var exts := str(entry.get("supported_extensions", "")).split("|")
+			if parent in sids and str(c[3]) in exts:
+				if color in sids:
+					serving.append(str(entry.get("core_name", "")))
+				else:
+					missed.append(str(entry.get("core_name", "")))
+		_ok(not serving.is_empty() and missed.is_empty(),
+			"%s/every %s core that takes .%s serves it" % [color, parent, c[3]],
+			"serving %s, missed %s" % [serving, missed])
+
+		_ok(SystemIcons.has_icon(color), "%s/it has console art rather than the fallback" % color)
+		_ok(SystemIcons.has_content_icon(color), "%s/and its own cartridge art" % color)
+		_ok(SystemModelRegistry.platform_is_handheld(color), "%s/a handheld is offered for it" % color)
+		_ok(MediaDimensions.CART_SIZES.get(color) == MediaDimensions.CART_SIZES.get(parent),
+			"%s/at its parent's cartridge size" % color)
+		_eq(ScreenscraperSystems.get_systemeid(color), c[6], "%s/ScreenScraper's own platform" % color)
+		_eq(RaConsoles.for_systemid(color), c[7], "%s/RetroAchievements' console" % color)
+
+		var defaults := CoreDefaults.new()
+		var core: String = CoreRecommendations.core_for(parent)
+		defaults.adopt_missing(db, PackedStringArray([core]))
+		_eq(defaults.get_default_core(color), core, "%s/an installed %s core gives it a default" % [color, parent])
 
 
 # ---------------------------------------------------------------------------
@@ -2223,6 +2281,59 @@ func _test_ghost_rows() -> void:
 	_eq(none.size(), 1, "ghost/and leaves the index alone")
 
 	cat.free()
+
+
+# ---------------------------------------------------------------------------
+# sync_aborted means a running sync was stopped — nothing else.
+#
+# The shipped bug: _finish never joins, so a sync that ended on its own left its
+# Thread parked in the catalog, and abort_sync announced joining it as a stop.
+# Every quit put up "Stopped syncing" (empty name: the systemid was already
+# cleared), through the SPAWN tab's toasts, which had left the tree before the
+# catalog — "Cannot call method 'create_timer' on a null value". And every sync
+# after the first announced one from inside sync_platform, which pumped the
+# queue re-entrantly and orphaned the next platform's running Thread.
+# ---------------------------------------------------------------------------
+
+func _test_sync_stop_announce() -> void:
+	var cat := RommCatalog.new()
+	var heard: Array[String] = []
+	cat.sync_aborted.connect(func(sid: String) -> void: heard.append(sid))
+	# The worker's own abort check, capped so a broken abort cannot hang the run.
+	var worker := func() -> void:
+		var until := Time.get_ticks_msec() + 5000
+		while not cat._abort and Time.get_ticks_msec() < until:
+			OS.delay_msec(1)
+
+	# --- a finished, unjoined thread is not a stop ---------------------------
+	cat._thread = Thread.new()
+	cat._thread.start(func() -> void: pass)
+	var deadline := Time.get_ticks_msec() + 2000
+	while cat._thread.is_alive() and Time.get_ticks_msec() < deadline:
+		OS.delay_msec(1)
+	cat.abort_sync()
+	_eq(heard.size(), 0, "syncstop/joining a finished sync announces nothing")
+	_ok(cat._thread == null, "syncstop/and still joins it")
+
+	# --- the control: a running one is ---------------------------------------
+	cat._syncing_systemid = TEST_SYSTEM
+	cat._thread = Thread.new()
+	cat._thread.start(worker)
+	cat.abort_sync()
+	_eq(str(heard), str([TEST_SYSTEM]), "syncstop/stopping a running sync announces it")
+
+	# --- teardown stops it without a word ------------------------------------
+	heard.clear()
+	var holder := Node.new()
+	add_child(holder)
+	holder.add_child(cat)
+	cat._syncing_systemid = TEST_SYSTEM
+	cat._thread = Thread.new()
+	cat._thread.start(worker)
+	remove_child(holder)
+	_ok(cat._thread == null, "syncstop/leaving the tree joins a running sync")
+	_eq(heard.size(), 0, "syncstop/and does not announce it")
+	holder.free()
 
 
 # ---------------------------------------------------------------------------

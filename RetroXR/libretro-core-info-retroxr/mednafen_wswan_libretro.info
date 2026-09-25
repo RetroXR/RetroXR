@@ -9,6 +9,9 @@
 # The binary this describes is built from RetroXR/beetle-wswan-libretro at the tag
 # retroxr-mednafen_wswan-libretro-v3 and published on that repository's releases page, which is
 # also where its source is (GPLv2). What the fork adds is in CoreSources.
+#
+# It also adds `wonderswancolor` to secondary_systemids, which is what puts the
+# WonderSwan Color on the browser as a tile of its own.
 
 # Software Information
 display_name = "Bandai - WonderSwan/Color (Beetle Wonderswan, retroXR)"
@@ -24,6 +27,7 @@ categories = "Emulator"
 manufacturer = "Bandai"
 systemname = "WonderSwan/Color"
 systemid = "wonderswan"
+secondary_systemids = "wonderswancolor:wsc"
 
 # Libretro Features
 supports_no_game = "false"

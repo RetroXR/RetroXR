@@ -9,6 +9,9 @@
 # The binary this describes is built from RetroXR/beetle-ngp-libretro at the tag
 # retroxr-mednafen_ngp-libretro-v2 and published on that repository's releases page, which is
 # also where its source is (GPLv2). What the fork adds is in CoreSources.
+#
+# It also adds `ngpc` to secondary_systemids, which is what puts the
+# Neo Geo Pocket Color on the browser as a tile of its own.
 
 # Software Information
 display_name = "SNK - Neo Geo Pocket / Color (Beetle NeoPop, retroXR)"
@@ -24,6 +27,7 @@ categories = "Emulator"
 manufacturer = "SNK"
 systemname = "Neo Geo Pocket (Color)"
 systemid = "ngp"
+secondary_systemids = "ngpc:ngc,ngpc,npc"
 
 # Libretro Features
 supports_no_game = "false"

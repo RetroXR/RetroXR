@@ -297,12 +297,14 @@ const _LINK_LEADS: Dictionary = {
 	"gbc": _GB_LINK_CABLE,
 	"psx": _PSX_LINK_CABLE,
 	"wonderswan": _WS_LINK_CABLE,
+	"wonderswancolor": _WS_LINK_CABLE,
 	"gamegear": _GG_LINK_CABLE,
 	"saturn": _SATURN_LINK_CABLE,
 	"atarijaguar": _JAG_LINK_CABLE,
 	"ps2": _ILINK_CABLE,
 	"atarilynx": _COMLYNX_CABLE,
 	"ngp": _NGP_LINK_CABLE,
+	"ngpc": _NGP_LINK_CABLE,
 }
 
 

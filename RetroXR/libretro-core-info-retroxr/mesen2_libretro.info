@@ -5,9 +5,9 @@
 # from libretro's repository and refreshed wholesale too, so an edit there
 # would be lost the next time, silently.
 #
-# The only change is `gbc` in secondary_systemids: this core runs Game Boy
-# Color ROMs, and that declaration is what lists it on the Game Boy Color
-# tile and lets it be that platform's default.
+# The only changes are `gbc` and `wonderswancolor` in secondary_systemids:
+# this core runs Game Boy Color and WonderSwan Color ROMs, and those
+# declarations are what list it on those tiles and let it be their default.
 
 # Software Information
 display_name = "Nintendo - NES / FC / FDS / SNES / SFC / GB / GBC / GBA / NEC - PCE / PCE-CD / Sega - SMS / GG / Bandai - Wswan (MesenCE)"
@@ -23,7 +23,7 @@ categories = "Emulator"
 manufacturer = "Nintendo, Sega, Bandai, and NEC"
 systemname = "Nintendo Entertainment System"
 systemid = "nes"
-secondary_systemids = "fds:fds|gb:gb,gbc|gba:gba|tg16:pce|tg-cd:cue|satellaview:bs|snes:sfc,smc,fig,swc,bs|wonderswan:ws,wsc,pc2,pcv2|gbc:gbc"
+secondary_systemids = "fds:fds|gb:gb,gbc|gba:gba|tg16:pce|tg-cd:cue|satellaview:bs|snes:sfc,smc,fig,swc,bs|wonderswan:ws,wsc,pc2,pcv2|gbc:gbc|wonderswancolor:wsc"
 
 # Libretro Features
 supports_no_game = "false"

@@ -46,7 +46,9 @@ const CART_SIZES: Dictionary = {
 	"atarilynx":       Vector3(0.073, 0.086, 0.006),   # Lynx card
 	"gamegear":        Vector3(0.068, 0.047, 0.012),
 	"wonderswan":       Vector3(0.048, 0.052, 0.008),
+	"wonderswancolor":  Vector3(0.048, 0.052, 0.008),   # the same cartridge shell
 	"ngp":   Vector3(0.048, 0.052, 0.008),
+	"ngpc":  Vector3(0.048, 0.052, 0.008),              # the same cartridge shell
 	"n64dd":    Vector3(0.101, 0.104, 0.0103),  # 64DD magnetic disk
 	# The 8M Memory Pack, which is NOT a Super Famicom cartridge -- it is a small
 	# pack that goes into a well in the top of the BS-X cart and stands proud of

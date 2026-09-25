@@ -200,11 +200,14 @@ func is_secondary_systemid(systemid: String) -> bool:
 	return _secondary_exts.has(systemid) and not _primary_ids.has(systemid)
 
 
-## Labels that beat every core's own `systemname`. The Game Boy cores all call
-## their platform "Game Boy/Game Boy Color", which was right while one tile held
-## both; Game Boy Color has a tile of its own now, named by SystemInfo.
+## Labels that beat every core's own `systemname`. The Game Boy, WonderSwan and
+## Neo Geo Pocket cores name both models ("Game Boy/Game Boy Color"), which was
+## right while one tile held both; each Color has a tile of its own now, named
+## by SystemInfo.
 const SYSTEM_LABELS := {
 	"gb": "Game Boy",
+	"ngp": "Neo Geo Pocket",
+	"wonderswan": "WonderSwan",
 }
 
 

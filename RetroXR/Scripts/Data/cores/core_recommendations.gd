@@ -270,7 +270,17 @@ const RECOMMENDED := {
 		"core": "mednafen_ngp",
 		"why":  "More complete than RACE, and cheap on both platforms",
 	},
+	# The Colors are tiles of their own, run by the same cores for the same
+	# reasons, so each entry is its parent's.
+	"ngpc": {
+		"core": "mednafen_ngp",
+		"why":  "More complete than RACE, and cheap on both platforms",
+	},
 	"wonderswan": {
+		"core": "mednafen_wswan",
+		"why":  "The only WonderSwan core here (upstream renamed it Beetle Cygne)",
+	},
+	"wonderswancolor": {
 		"core": "mednafen_wswan",
 		"why":  "The only WonderSwan core here (upstream renamed it Beetle Cygne)",
 	},

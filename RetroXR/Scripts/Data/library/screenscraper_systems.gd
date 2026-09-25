@@ -69,6 +69,7 @@ const SYSTEM_MAP := {
 	"nds": 15,
 	"neogeocd": 70,
 	"ngp": 25,
+	"ngpc": 82,
 	"neogeo": 142,
 	"nes": 3,
 	# ScreenScraper does not split the two: one platform, both regions.
@@ -117,6 +118,7 @@ const SYSTEM_MAP := {
 	"wii": 16,
 	"wiiu": 18,
 	"wonderswan": 45,
+	"wonderswancolor": 46,
 	"xbox": 32,
 	"zmachine": 215,
 	"zx81": 77,
