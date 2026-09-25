@@ -101,6 +101,7 @@ func _ready() -> void:
 	_test_pad_type_choice()
 	await _test_analog_mode_switch()
 	await _test_playstation_hardware()
+	await _test_dreamcast_pointer()
 	await _test_power_led()
 	await _test_save_state_gates()
 	await _test_sram_paths()
@@ -390,6 +391,47 @@ func _gun_row(sysid: String) -> Dictionary:
 ## RELEASE, so RetroSystem deliberately ignores it while it believes the tray is
 ## up. Close the lid by hand without telling it and that belief never changes,
 ## the next press is correctly ignored, and the button reads as dead.
+## The desktop pointer has to reach the Dreamcast's POWER and OPEN caps. They sit
+## in wells on a top that slopes from 80 mm at the hinge to 62 mm at the front, and
+## a single full-height collision box buried them past
+## InteractionResolver.ENCLOSURE_DEPTH: every click on either landed on the console.
+## Asked of the resolver itself, from above and from the front-above angle a seated
+## player looks from, so the stepped boxes in dreamcast_model.gd are what is tested.
+func _test_dreamcast_pointer() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	var dc := sys_scene.instantiate() as RigidBody3D
+	dc.systemid = "dreamcast"
+	dc.model_id = "dreamcast"
+	dc.freeze = true
+	dc.position = Vector3(6.0, 1.0, 0.0)
+	add_child(dc)
+	for i in range(20):
+		await get_tree().process_frame
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var space := dc.get_world_3d().direct_space_state
+	var hand := Node3D.new()
+	add_child(hand)
+	var up := dc.global_transform.basis.y.normalized()
+	var front := dc.global_transform.basis.z.normalized()
+	for name in ["PowerButton", "EjectButton"]:
+		var btn := dc.get_node(name) as VRButton
+		var cap := btn.get("_mesh") as MeshInstance3D
+		_ok(cap != null, "dreamcast/%s wears the shell's cap" % name)
+		if cap == null:
+			continue
+		var ab: AABB = cap.global_transform * cap.get_aabb()
+		var top := Vector3(ab.get_center().x, ab.end.y, ab.get_center().z)
+		for dir: Vector3 in [up, (up + front).normalized()]:
+			var t := InteractionResolver.resolve_desktop(space, top + dir * 0.4, top - dir * 0.1, hand)
+			_ok(t.kind == InteractionTarget.KIND_BUTTON and t.action_node == btn,
+				"dreamcast/the pointer clicks %s from %s" % [name, "above" if dir == up else "the front"],
+				"got %s" % (t.action_node.name if t.action_node else String(t.kind)))
+	hand.queue_free()
+	dc.queue_free()
+	await get_tree().process_frame
+
+
 func _test_playstation_hardware() -> void:
 	var labels: Array = []
 	for it in SpawnCatalog.items_for("psx"):

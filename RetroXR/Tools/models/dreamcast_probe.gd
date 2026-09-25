@@ -58,6 +58,9 @@ func _ready() -> void:
 			var c: Vector3 = cap.global_transform * cap.get_aabb().get_center()
 			_ok(btn.global_position.distance_to(c) < 1e-4, "%s widget sits on the %s cap" % [pair[0], pair[1]])
 
+	# The desktop pointer reaches both caps, lid shut.
+	await _pointer_reaches_caps(sys, "lid shut")
+
 	# Power latch and lens.
 	var led := model.find_child("PowerLED", true, false) as MeshInstance3D
 	model.on_power_on()
@@ -78,6 +81,7 @@ func _ready() -> void:
 	sys.call("_on_eject_pressed")
 	await get_tree().create_timer(0.6).timeout
 	_ok(model.is_lid_open(), "a second OPEN leaves it up: it is closed by hand")
+	await _pointer_reaches_caps(sys, "lid open")
 
 	# Disc seat on the platter, gated on the lid.
 	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
@@ -172,6 +176,46 @@ func _render(sys: Node3D, model: RetroSystemModel, av: XRToolsSnapZone) -> void:
 		var path := "user://dreamcast_probe_%s.png" % shot[0]
 		get_viewport().get_texture().get_image().save_png(path)
 		print("[dc] wrote ", ProjectSettings.globalize_path(path))
+
+
+## Aim the desktop pointer's own resolver at each cap — its centre and both edges,
+## from the front-above angle a seated player looks from and from straight above —
+## and ask what a click there would operate. The console's collision box and the
+## lid's grab box both surround the caps, and either one winning is a dead button.
+func _pointer_reaches_caps(sys: Node3D, when: String) -> void:
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var space := get_world_3d().direct_space_state
+	var hand := Node3D.new()
+	add_child(hand)
+	var up := sys.global_transform.basis.y.normalized()
+	var front := sys.global_transform.basis.z.normalized()
+	var right := sys.global_transform.basis.x.normalized()
+	for name in ["PowerButton", "EjectButton"]:
+		var btn := sys.get_node(name) as VRButton
+		var cap := btn.get("_mesh") as MeshInstance3D
+		if cap == null:
+			_ok(false, "%s has adopted its cap" % name)
+			continue
+		var ab: AABB = cap.global_transform * cap.get_aabb()
+		var top := Vector3(ab.get_center().x, ab.end.y, ab.get_center().z)
+		var bad: Array[String] = []
+		for dx: float in [-0.35, 0.0, 0.35]:
+			var aim := top + right * ab.size.x * dx
+			for dir: Vector3 in [(up + front).normalized(), up]:
+				var t := InteractionResolver.resolve_desktop(space, aim + dir * 0.4, aim - dir * 0.1, hand)
+				if not (t.kind == InteractionTarget.KIND_BUTTON and t.action_node == btn):
+					bad.append("%+.2f %s -> %s" % [dx, "above" if dir == up else "front", t.action_node.name if t.action_node else t.kind])
+		_ok(bad.is_empty(), "the pointer clicks %s (%s)%s" % [name, when, "" if bad.is_empty() else ": " + ", ".join(bad)])
+	# And the lid stays reachable among the stepped shell boxes. Latched shut its grab
+	# box is off (OPEN releases it, as on the PlayStation), so only once it is up does
+	# an aim at its free front half take the lid — which is how it gets closed.
+	var hinge := sys.find_child("LidHinge", true, false) as Node3D
+	if hinge != null and (sys.get("_model") as RetroSystemModel).is_lid_open():
+		var at := hinge.global_position
+		var t := InteractionResolver.resolve_desktop(space, at + up * 0.4, at - up * 0.1, hand)
+		_ok(t.action_node == hinge, "the pointer takes the open lid to close it (%s)" % t.action_node)
+	hand.queue_free()
 
 
 func _finish() -> void:

@@ -357,13 +357,47 @@ func configure_cable_attach(attach_point: Node3D) -> void:
 
 # --- placement ---------------------------------------------------------------
 
-## The measured shell: 190.1 x 80.2 x 195.2 mm.
+## The shell's footprint, 190.1 x 195.2 mm, and the stepped top the boxes follow.
+const _FOOTPRINT := Vector2(0.1901, 0.1952)
+
+## The top is NOT flat: it runs from 80 mm at the rear hinge hump down to 62-64 mm
+## along the front, where POWER and OPEN sit in wells with their caps' tops at 62.4.
+## One box to the full 80 mm (what this first shipped with) buried both caps some
+## 18 mm under its lid, past InteractionResolver.ENCLOSURE_DEPTH, so the desktop
+## pointer resolved every aim at them to the console and neither could be clicked.
+## So the box steps down with the shell, each step at or under the measured top
+## (Tools/models/shell_enclosure_audit, dreamcast_probe's pointer checks):
+##   [name, top y, rear edge -> this z]    "" is the cabinet's own shape, the base
+const _STEPS := [
+	["", 0.060, 0.0976],          # full footprint, 2.4 mm under the caps' tops
+	["ShellMid", 0.067, 0.055],   # behind the caps' row: the lid's front half
+	["ShellRear", 0.075, -0.050], # the rear third, rising to the hinge
+	["ShellHump", 0.080, -0.080], # the hinge hump itself
+]
+
+
 func configure_collision(host: Node3D) -> void:
-	var box := Vector3(0.190, 0.080, 0.195)
-	var pos := Vector3(0.0, 0.040, 0.0)
+	var half_x := _FOOTPRINT.x * 0.5
+	var back := -_FOOTPRINT.y * 0.5
 	for path in ["CollisionShape3D", "PointerArea/CollisionShape3D"]:
 		var col := host.get_node_or_null(path) as CollisionShape3D
-		if col != null and col.shape is BoxShape3D:
-			col.shape = col.shape.duplicate()
-			(col.shape as BoxShape3D).size = box
-			col.position = pos
+		if col == null or not (col.shape is BoxShape3D):
+			continue
+		var parent := col.get_parent()
+		var floor_y := 0.0
+		for step: Array in _STEPS:
+			var part_name: String = step[0]
+			var top: float = step[1]
+			var front: float = step[2]
+			var target := col
+			if not part_name.is_empty():
+				target = parent.get_node_or_null(NodePath(part_name)) as CollisionShape3D
+				if target == null:
+					target = CollisionShape3D.new()
+					target.name = part_name
+					parent.add_child(target)
+			var box := BoxShape3D.new()
+			box.size = Vector3(half_x * 2.0, top - floor_y, front - back)
+			target.shape = box
+			target.position = Vector3(0.0, (floor_y + top) * 0.5, (back + front) * 0.5)
+			floor_y = top
