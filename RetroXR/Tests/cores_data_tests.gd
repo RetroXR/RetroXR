@@ -9,6 +9,12 @@
 ## None of it needs a core, a ROM or the network. The parser is given files this
 ## suite writes; the rest are tables and rules.
 ##
+## `packaging/` is the odd one out: it reads `export_presets.cfg` rather than
+## game code, because the .info files are the input every other class here reads
+## and NOTHING at runtime can report that a build shipped without them. A
+## desktop preset that lost `include_filter="**/*.info"` produces an empty
+## `CoreInfoDatabase`, and the app that reads it looks healthy.
+##
 ## ForcedCoreOptions is the part worth having covered. Every answer in it was
 ## MEASURED against a real core and the reasons are written out beside each one
 ## — a 64DD with its drive switched off has nothing to load a disk into, an N64
@@ -22,7 +28,7 @@ extends Node
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 69
+const EXPECTED_CASES := 80
 
 var _passed := 0
 var _failed := 0
@@ -39,6 +45,7 @@ func _ready() -> void:
 	DirAccess.make_dir_recursive_absolute(_dir)
 
 	_group_parser()
+	_group_packaging()
 	_group_sources()
 	_group_forced()
 	_group_manifest()
@@ -130,6 +137,126 @@ func _group_parser() -> void:
 	# A file that is not there is not a crash, and still reports what it can.
 	var missing := CoreInfoParser.parse_info_file(_dir.path_join("nope_libretro.info"))
 	_eq(missing.get("core_name", "<none>"), "nope", "parser/a missing file still names its core")
+
+
+# ── packaging/ ────────────────────────────────────────────────────────────────
+
+## Every `.info` in the project, as paths relative to it — the shape the export
+## filter is tested against.
+static func _info_files(dir: String) -> Array[String]:
+	var out: Array[String] = []
+	for f: String in DirAccess.get_files_at(dir):
+		if f.get_extension().to_lower() == "info":
+			out.append("%s/%s" % [dir.trim_prefix("res://"), f])
+	out.sort()
+	return out
+
+
+## Whether a preset's include_filter carries `rel_path` into the build. This
+## mirrors the exporter's own test — the filter is a comma-separated list of
+## patterns, a file is shipped when its path matches one, and the patterns are
+## matched with String.match, whose `*` crosses a "/". That is why `*.info`
+## reaches a directory two levels down, and why the controls at the end of the
+## group are stated the way they are.
+static func _filter_ships(filter_line: String, rel_path: String) -> bool:
+	for raw: String in filter_line.split(","):
+		if rel_path.match(raw.strip_edges()):
+			return true
+	return false
+
+
+## The first few offenders, so a red run NAMES the presets and the files
+## instead of counting them.
+static func _named(items: Array[String]) -> String:
+	if items.size() <= 4:
+		return ", ".join(items)
+	return "%s (+%d more)" % [", ".join(items.slice(0, 4)), items.size() - 4]
+
+
+## How the .info files reach a build AT ALL, which is the one link in the chain
+## that no runtime code can report on. A `.info` has no Godot importer, so
+## `export_filter="all_resources"` does not carry it — only include_filter does,
+## and until 2026-09-25 only the Android presets had one. A desktop export then
+## ships an EMPTY CoreInfoDatabase, and nothing says so anywhere: the Cores panel
+## still lists every installed library by filename, but with no .info behind it
+## `systemids_of()` answers empty, every core is filed under the "unknown" bucket,
+## `CoreDefaults.adopt_missing()` adopts nothing, and the Systems tab is left with
+## a single tile named after whichever core sorted first. A fresh Linux install
+## reproduced it exactly: 51 cores downloaded, and a `core_defaults.json`
+## holding `{"unknown": "arduous"}`.
+##
+## So the group reads the FILTERS rather than the preset names, and asserts
+## against the real file list: nothing inside a running build can tell one that
+## lost its .info files from one that kept them.
+func _group_packaging() -> void:
+	var cfg := ConfigFile.new()
+	_eq(cfg.load("res://export_presets.cfg"), OK, "packaging/the export presets parse")
+
+	# Every "[preset.N]", and not the "[preset.N.options]" child of each.
+	var sections: Array[String] = []
+	for s: String in cfg.get_sections():
+		if s.begins_with("preset.") and not s.ends_with(".options"):
+			sections.append(s)
+	_ok(sections.size() > 1, "packaging/there is more than one preset to check",
+		"got %d" % sections.size())
+
+	# The files the filters are asked about, so a case below cannot pass on an
+	# empty directory. The vendored path is a literal because
+	# load_from_project() names it inline; OVERLAY_DIR is the constant it uses.
+	var vendored := _info_files("res://libretro-core-info")
+	var overlay := _info_files(CoreInfoDatabase.OVERLAY_DIR)
+	_ok(not vendored.is_empty(), "packaging/the vendored core-info set is in the project",
+		"%d files" % vendored.size())
+	_ok(not overlay.is_empty(), "packaging/so is the retroXR overlay laid over it",
+		"%d files" % overlay.size())
+	var all_info := vendored + overlay
+
+	# The case the fix is for. Aggregate over presets and files on purpose: one
+	# case per preset would make this suite's own total move whenever a preset is
+	# added or a probe retired, and a red count reads as a broken suite.
+	var unshipped: Array[String] = []
+	for section: String in sections:
+		var filter_line := str(cfg.get_value(section, "include_filter", ""))
+		for rel: String in all_info:
+			if not _filter_ships(filter_line, rel):
+				unshipped.append("%s: %s" % [cfg.get_value(section, "name", section), rel])
+	_ok(unshipped.is_empty(), "packaging/every preset ships every .info file",
+		_named(unshipped))
+
+	# A superset, not an equality: a new platform's preset is fine and needs no
+	# edit here, but DELETING one must not be a way to make the case above green
+	# by removing the thing it checks.
+	var platforms: Array[String] = []
+	for section: String in sections:
+		platforms.append(str(cfg.get_value(section, "platform", "")))
+	var absent: Array[String] = []
+	for p: String in ["Android", "Windows Desktop", "Linux", "macOS"]:
+		if not platforms.has(p):
+			absent.append(p)
+	_ok(absent.is_empty(), "packaging/all four shipping platforms still have a preset",
+		_named(absent))
+
+	# The controls. Without them the case above cannot tell a correct filter from
+	# a matcher that says yes to everything: "" and a pattern naming some other
+	# extension are the shapes those three presets really carried, and the bug is
+	# precisely that they shipped a build with an empty core database.
+	var sample: String = all_info[0] if not all_info.is_empty() \
+		else "libretro-core-info/fceumm_libretro.info"
+	_ok(not _filter_ships("", sample),
+		"packaging/an empty include_filter ships no .info file")
+	_ok(not _filter_ships("**/*.txt", sample),
+		"packaging/neither does a filter naming another extension")
+	_ok(_filter_ships("**/*.info", sample),
+		"packaging/while the one every preset carries does")
+
+	# What those files are FOR: the database assembled from them, and a systemid
+	# out of it. Red if the vendored set ever stops being read, which is the
+	# other half of the same silent failure.
+	var db := CoreInfoDatabase.shared()
+	_ok(db.cores.size() > 100, "packaging/the core database is built from those files",
+		"%d cores" % db.cores.size())
+	_ok(CoreInfoDatabase.systemids_of(db.get_by_core_name("fceumm")).has("nes"),
+		"packaging/and a core in it still names its platform")
 
 
 # ── sources/ ──────────────────────────────────────────────────────────────────

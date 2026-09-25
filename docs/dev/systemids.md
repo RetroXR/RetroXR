@@ -56,3 +56,12 @@ does.
 
 **Netplay accepts the new ids only**, by decision: a build from before the rename and one
 from after cannot play each other in either direction.
+
+## A system missing on ONE platform only
+
+A systemid here is only ever as good as the `.info` file behind it, and a `.info` file is
+not a resource: it reaches an exported build only through `include_filter="**/*.info"`. A
+preset without it ships an empty `CoreInfoDatabase`, and then a platform is invisible by
+omission rather than by name — every installed core lands in the `"unknown"` bucket and no
+default is ever adopted. Check the preset before suspecting the table above; `building.md`
+has the failure's exact shape.
