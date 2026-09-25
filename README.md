@@ -375,6 +375,16 @@ Godot through `GODOT_ANDROID_KEYSTORE_RELEASE_*`, so no `export_credentials.cfg`
 ever written. It has to be the same keystore you sign with locally or the APK will not
 install over an existing one.
 
+Without the repository signing secrets, Godot refuses `--export-release` without a keystore. CI therefore falls back to `.github/ci/retroxr-fallback.keystore`, a **fixed development key** intentionally committed to the repository.
+
+The fixed key ensures that contributors without access to the official signing secrets can install new builds over their previous fallback builds without losing application data.
+
+Fallback-signed APKs cannot update official releases, so CI will not publish them as live release assets. If the signing secrets are missing during a release run, the release is created as a **draft** instead.
+
+See `.github/ci/README.md` for the key details, certificate fingerprint, and instructions for signing local builds with the same key.
+
+**Make sure the official signing secrets are configured before tagging a release.**
+
 `.github/workflows/sidequest.yml` remains the fallback for a release published by hand
 in the web UI. A release created by CI does not fire it — GitHub does not emit
 `release: published` for a release created with `GITHUB_TOKEN` — which is why
