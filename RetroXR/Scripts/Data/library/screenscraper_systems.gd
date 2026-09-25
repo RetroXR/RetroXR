@@ -61,6 +61,10 @@ const SYSTEM_MAP := {
 	"lowresnx": 244,
 	"macintosh": 146,
 	"mame": 75,
+	# Each board is a platform of its own there, checked on screenscraper.fr.
+	"naomi": 56,
+	"naomi2": 230,
+	"atomiswave": 53,
 	"mastersystem": 2,
 	"genesis": 1,
 	"megaduck": 90,

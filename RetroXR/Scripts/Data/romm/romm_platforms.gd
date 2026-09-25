@@ -184,9 +184,13 @@ const SLUG_MAP := {
 	"mame-libretro": "mame",
 	"mame-advmame": "mame",
 	"mame-mame4all": "mame",
-	"naomi": "mame",
-	"naomi2": "mame",
-	"atomiswave": "mame",
+	# Sega's and Sammy's Dreamcast-derived boards run on flycast, not MAME, and
+	# are secondary platforms of it with tiles of their own. Filed under mame
+	# they lost collapse_by_systemid to the MAME library and went unmapped.
+	"naomi": "naomi",
+	"naomi2": "naomi2",
+	"naomi-2": "naomi2",
+	"atomiswave": "atomiswave",
 	"model3": "mame",
 	"fba": "fbneo",
 	"fbneo": "fbneo",

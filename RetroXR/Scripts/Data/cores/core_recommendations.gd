@@ -197,6 +197,20 @@ const RECOMMENDED := {
 		"core": "flycast",
 		"why":  "The only maintained Dreamcast core, and it runs well on both platforms",
 	},
+	# The arcade boards built on the Dreamcast's hardware, which flycast serves
+	# as secondary platforms. flycast_gles2 is older and lists only NAOMI.
+	"naomi": {
+		"core": "flycast",
+		"why":  "The only maintained core for Sega's Dreamcast-based arcade board",
+	},
+	"naomi2": {
+		"core": "flycast",
+		"why":  "The only core here that runs NAOMI 2",
+	},
+	"atomiswave": {
+		"core": "flycast",
+		"why":  "The only core here that runs Sammy's Dreamcast-based arcade board",
+	},
 	"vmu": {
 		"core": "vemulator",
 		"why":  "The only VMU core here, and the retroXR build is the one that loads a game on Quest and survives being powered off",

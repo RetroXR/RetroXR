@@ -72,10 +72,16 @@ verified by opening the file rather than trusting the suffix:
                  drawing in white; "WUP-001 KT" and "WT" are the black and
                  white consoles framed landscape on their feet. These are
                  finishes, not regions: both colors sold in North America.
+  naomi          console: "(alt)", the owner's pick over the untagged file.
+                 Upstream has no "(alt)" content art; the untagged -content is
+                 used.
+  naomi2         console: "(alt)", matching naomi; content untagged, as there.
+  atomiswave     console and content: "(alt)", the owner's pick.
 
 Retrieved 2026-07-28; -content art and the SNES console correction 2026-07-30;
 Wii U and Famicom 2026-09-15; Game Boy Color 2026-09-22;
-Neo Geo Pocket Color and WonderSwan Color 2026-09-25.
+Neo Geo Pocket Color, WonderSwan Color, NAOMI, NAOMI 2 and Atomiswave
+2026-09-25.
 
 file map
 -------------------------------------------------------------------------------
@@ -193,6 +199,8 @@ j2me-content.svg                    Mobile - J2ME-content.svg
 j2me.svg                            Mobile - J2ME.svg
 atarijaguarcd-content.svg           Atari - Jaguar CD-content.svg
 atarijaguarcd.svg                   Atari - Jaguar CD.svg
+atomiswave-content.svg              Atomiswave (alt)-content.svg
+atomiswave.svg                      Atomiswave (alt).svg
 jollycv-content.svg                 Coleco - ColecoVision-content.svg
 jollycv.svg                         Coleco - ColecoVision.svg
 jumpnbump-content.svg               Jump 'n Bump-content.svg
@@ -231,6 +239,10 @@ n64-content.svg                     Nintendo - Nintendo 64-content.svg
 n64.svg                             Nintendo - Nintendo 64.svg
 n64dd-content.svg                   Nintendo - Nintendo 64DD-content.svg
 n64dd.svg                           Nintendo - Nintendo 64DD.svg
+naomi-content.svg                   Sega - Naomi-content.svg
+naomi.svg                           Sega - Naomi (alt).svg
+naomi2-content.svg                  Sega - Naomi 2-content.svg
+naomi2.svg                          Sega - Naomi 2 (alt).svg
 nuon-content.svg                    VM Labs - NUON-content.svg
 nuon.svg                            VM Labs - NUON.svg
 nxengine-content.svg                Cave Story-content.svg

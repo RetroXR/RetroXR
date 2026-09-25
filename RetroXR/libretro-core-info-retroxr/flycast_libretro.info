@@ -21,6 +21,10 @@
 # them — taking the BIOS/Extras rows for dc_boot.bin and every Naomi set out of
 # the app. Re-copy from the vendored file and re-apply these three whenever that
 # file is refreshed.
+#
+# It also adds secondary_systemids -- naomi, naomi2 and atomiswave, the three
+# arcade boards in its database -- which is what gives each a tile of its own;
+# re-apply that line too.
 
 # Software Information
 display_name = "Sega - Dreamcast/Naomi (Flycast, retroXR)"
@@ -36,6 +40,7 @@ display_version = "retroXR build"
 manufacturer = "Sega"
 systemname = "Sega Dreamcast"
 systemid = "dreamcast"
+secondary_systemids = "naomi:zip,7z,lst,dat|naomi2:zip,7z,lst,dat|atomiswave:zip,7z"
 
 # Libretro Features
 database = "Sega - Dreamcast|Sega - Naomi|Sega - Naomi 2|Atomiswave"

@@ -53,6 +53,7 @@ func _ready() -> void:
 	_test_collapse_by_systemid()
 	_test_gbc_platform()
 	_test_color_handhelds()
+	_test_arcade_boards()
 	_test_firmware_index()
 	_test_stats_unchanged()
 	_test_password_not_persisted()
@@ -381,6 +382,36 @@ func _test_color_handhelds() -> void:
 		var core: String = CoreRecommendations.core_for(parent)
 		defaults.adopt_missing(db, PackedStringArray([core]))
 		_eq(defaults.get_default_core(color), core, "%s/an installed %s core gives it a default" % [color, parent])
+
+
+func _test_arcade_boards() -> void:
+	# NAOMI and Atomiswave were filed under mame, lost collapse_by_systemid to the
+	# MAME library and went unmapped -- and MAME is not what runs them. Each is a
+	# secondary platform of flycast now, and NAOMI 2 with them.
+	var db := CoreInfoDatabase.shared()
+	for c: Array in [["naomi", "NAOMI", 56], ["naomi2", "NAOMI 2", 230], ["atomiswave", "Atomiswave", 53]]:
+		var sid: String = c[0]
+		_eq(RommPlatforms.systemid_for({"slug": sid, "fs_slug": sid}), sid, "%s/RomM's library is not filed under mame" % sid)
+		var beside := RommPlatforms.collapse_by_systemid(RommPlatforms.partition([
+			{"slug": "mame-libretro", "fs_slug": "mame-libretro", "rom_count": 4738},
+			{"slug": sid, "fs_slug": sid, "rom_count": 128},
+		])["mapped"])
+		_eq((beside["shadowed"] as Array).size(), 0, "%s/and not shadowed by the MAME library" % sid)
+
+		var info := SystemInfo.for_system(sid)
+		_ok(info != null and info.systemid == sid, "%s/there is a SystemInfo row" % sid)
+		_eq(SystemIds.systemid_for_folder(sid), sid, "%s/its folder is its own" % sid)
+		_eq(db.get_systemname_for_id(sid), c[1], "%s/its tile's name" % sid)
+		_ok(sid in CoreInfoDatabase.systemids_of(db.get_by_core_name("flycast")),
+			"%s/flycast serves it, which is what makes the tile" % sid)
+		_ok(SystemIcons.has_icon(sid), "%s/it has console art rather than the fallback" % sid)
+		_ok(SystemIcons.has_content_icon(sid), "%s/and its own cartridge art" % sid)
+		_eq(ScreenscraperSystems.get_systemeid(sid), c[2], "%s/ScreenScraper's own platform" % sid)
+		var defaults := CoreDefaults.new()
+		defaults.adopt_missing(db, PackedStringArray(["flycast"]))
+		_eq(defaults.get_default_core(sid), "flycast", "%s/an installed flycast gives it a default" % sid)
+	_ok("naomi" in CoreInfoDatabase.systemids_of(db.get_by_core_name("flycast_gles2")),
+		"naomi/flycast_gles2 serves it too")
 
 
 # ---------------------------------------------------------------------------
