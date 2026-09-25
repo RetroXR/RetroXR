@@ -101,6 +101,7 @@ func _ready() -> void:
 	_test_pad_type_choice()
 	await _test_analog_mode_switch()
 	await _test_playstation_hardware()
+	_test_own_console_cards()
 	await _test_dreamcast_pointer()
 	await _test_power_led()
 	await _test_save_state_gates()
@@ -430,6 +431,26 @@ func _test_dreamcast_pointer() -> void:
 	hand.queue_free()
 	dc.queue_free()
 	await get_tree().process_frame
+
+
+## A platform that models its console but not its pad drops the Primitive System box
+## and keeps the Primitive Controller -- the only pad it has. Only while the model is
+## there: with its GLB missing the box is the console, and it comes back.
+func _test_own_console_cards() -> void:
+	for pair in [["dreamcast", "Dreamcast"], ["genesis", "Genesis (Model 2)"]]:
+		var sid: String = pair[0]
+		var labels: Array = []
+		for it in SpawnCatalog.items_for(sid):
+			labels.append(String((it as Dictionary).get("label", "")))
+		_ok(not labels.has("Primitive System"), "%s/no Primitive System offered" % sid)
+		_ok(labels.has(pair[1]), "%s/its own console is offered" % sid)
+		_ok(labels.has("Primitive Controller"), "%s/the Primitive Controller stays" % sid)
+		SystemModelRegistry.simulate_missing_assets = true
+		labels.clear()
+		for it in SpawnCatalog.items_for(sid):
+			labels.append(String((it as Dictionary).get("label", "")))
+		SystemModelRegistry.simulate_missing_assets = false
+		_ok(labels.has("Primitive System"), "%s/without its model the box comes back" % sid)
 
 
 func _test_playstation_hardware() -> void:

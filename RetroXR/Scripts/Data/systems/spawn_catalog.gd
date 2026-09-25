@@ -177,6 +177,16 @@ const _PERIPHERALS: Dictionary = {
 const _NO_STANDINS: Array[String] = ["nes", "famicom", "atari2600", "psx", "n64"]
 
 
+## Platforms that model their own CONSOLE but not their own pad. The Primitive System
+## box is a second, worse console on their card, so it goes; the Primitive Controller
+## stays, because it is the only pad they have.
+##
+## Only while that model is available. rows_for lists a GLB-backed row only when its
+## asset is present, so a build without the Dreamcast's or the Genesis's shell gets
+## the box back rather than a card with no console on it at all.
+const _NO_STANDIN_CONSOLE: Array[String] = ["dreamcast", "genesis"]
+
+
 ## Platforms that name their own A/V lead above, so the generic one would be a
 ## second cable doing the same job. The NES puts out one audio channel and lists the
 ## mono lead its console shipped with; the Wii and the N64 have no phono sockets at
@@ -405,7 +415,8 @@ static func items_for(systemid: String) -> Array:
 	# The generic box stands in for a platform with NO plain model of its own.
 	# Where the platform authored one — the PC tower, the Virtual Boy — it is a
 	# second and worse console on the same card.
-	if standins and primitive.is_empty():
+	var own_console := _NO_STANDIN_CONSOLE.has(systemid) and not imported.is_empty()
+	if standins and primitive.is_empty() and not own_console:
 		items.append({"kind": "system", "label": "Primitive System",
 			"model_id": SystemModelRegistry.PLACEHOLDER_ID})
 	items.append_array(imported)
