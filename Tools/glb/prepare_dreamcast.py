@@ -30,6 +30,11 @@ an FBX-style hierarchy whose nodes carry scales of 100, 0.84 and 0.08. What this
     re-origined at the base of its cap, and joins the lid with its hinge arms into Lid,
     origined ON the hinge axis (the artist's Door Axis node) so 0 is shut and a rotation
     about local -X lifts the front.
+  * SEATS THE DISC. The whole drive leans ~2.9 degrees in the case (back higher), so
+    the spindle and platter are put on their own measured axis and a DiscSeat marker
+    is exported on it: above the highest bay surface under a 120 mm disc, plus half
+    a disc and 0.1 mm of air. The artist's own disc sat 0.3 mm into its platter and
+    was cut by the tray insert, so it is a reference for the lean, not the seat.
   * MARKS THE CONNECTORS. ControllerPort1..4 sit at each socket mouth on the plate face,
     AvOut at the AV OUT tunnel mouth on the back face. Each marker's +Z points OUT of the
     console. The AV OUT connector was already centred in its tunnel (0.005 mm) and is
@@ -48,6 +53,16 @@ import mathutils
 SCALE = 0.071
 MM = 0.001
 TEXTURE_SIZE = 2048
+
+## A RetroDisc: 120 mm across, a 15 mm hole, 1.2 mm thick and centred on its origin
+## (Tools/gen/gen_disc.gd HALF_T). DISC_AIR is the gap left under it.
+DISC_R = 0.060
+DISC_HOLE_R = 0.0075
+DISC_HALF_T = 0.0006
+DISC_AIR = 0.0001
+
+## The drive's own axis, measured off the platter before its transform is baked.
+SPIN_AXIS = None
 
 KEEP = {
     "Case_Case_0": "Case",
@@ -122,6 +137,18 @@ def import_and_flatten(src):
     bpy.ops.import_scene.gltf(filepath=os.path.join(src, "scene.gltf"))
     world = {o.name: o.matrix_world.copy() for o in objs()}
     hinge = mathutils.Matrix.Scale(SCALE, 4) @ world["Door Axis"]
+    # The platter's axis is the local axis it is thinnest along. The whole drive leans
+    # ~2.9 degrees in the case (its back sits higher), and that lean is lost once the
+    # transforms are baked into the vertices, so it is read here.
+    global SPIN_AXIS
+    plate = bpy.data.objects["Cylinder.004_Case_0"]
+    m3 = world[plate.name].to_3x3()
+    spans = [(max(v.co[i] for v in plate.data.vertices) - min(v.co[i] for v in plate.data.vertices))
+             * m3.col[i].length for i in range(3)]
+    k = min(range(3), key=lambda i: spans[i])
+    SPIN_AXIS = (m3 @ mathutils.Vector([1.0 if i == k else 0.0 for i in range(3)])).normalized()
+    if SPIN_AXIS.z < 0:
+        SPIN_AXIS = -SPIN_AXIS
     for o in list(objs()):
         if o.name not in KEEP:
             bpy.data.objects.remove(o)
@@ -261,12 +288,49 @@ def split_buttons():
         set_origin(o, mathutils.Vector(((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z)))
 
 
+def axis_frame():
+    """Rotation taking +Z onto the drive's axis."""
+    return mathutils.Vector((0, 0, 1)).rotation_difference(SPIN_AXIS).to_matrix().to_4x4()
+
+
 def origin_turntable():
-    """Spindle and platter origined on their own axis, so the model can spin them in place."""
+    """Spindle and platter on their OWN axis, origin and orientation both, so the model's
+    spin about local up turns them in place. Level, they wobbled: the drive leans."""
+    R = axis_frame()
+    plate = bpy.data.objects["SpindlePlate"]
+    mn, mx = bounds(R.inverted() @ v.co for v in plate.data.vertices)
+    centre = R @ ((mn + mx) / 2)
+    frame = mathutils.Matrix.Translation(centre) @ R
     for name in ("Spindle", "SpindlePlate"):
         o = bpy.data.objects[name]
-        mn, mx = bounds(v.co for v in o.data.vertices)
-        set_origin(o, mathutils.Vector(((mn.x + mx.x) / 2, (mn.y + mx.y) / 2, mn.z)))
+        o.data.transform(frame.inverted())
+        o.matrix_world = frame
+    return centre
+
+
+def seat_disc(centre):
+    """DiscSeat: where a RetroDisc's centre goes, its local up along the drive's axis.
+
+    NOT the artist's disc. That one sat 0.3 mm into its own platter and was cut by the
+    tray insert (DiscReaderTop rises 0.23 mm above its mid-plane between r 40 and 55),
+    and a level seat on the platter -- what this first shipped with -- buried the back
+    of a disc 2.7 mm in the well. The seat is the highest bay surface under a 120 mm
+    disc's footprint, plus half a disc and a breath of air."""
+    bpy.context.view_layer.update()
+    top = -1.0
+    for name in ("Case", "DiscReader", "DiscReaderTop", "DiscLaser", "SpindlePlate"):
+        o = bpy.data.objects[name]
+        for v in o.data.vertices:
+            d = o.matrix_world @ v.co - centre
+            h = d.dot(SPIN_AXIS)
+            r = (d - SPIN_AXIS * h).length
+            if DISC_HOLE_R < r <= DISC_R and h < 0.004:
+                top = max(top, h)
+    seat_h = top + DISC_HALF_T + DISC_AIR
+    e = bpy.data.objects.new("DiscSeat", None)
+    bpy.context.scene.collection.objects.link(e)
+    e.matrix_world = mathutils.Matrix.Translation(centre + SPIN_AXIS * seat_h) @ axis_frame()
+    return seat_h
 
 
 def add_markers():
@@ -315,6 +379,32 @@ def check(opening):
     print("AV OUT centred in tunnel, offset mm", round(off.x * 1000, 3), round(off.z * 1000, 3))
 
 
+def check_disc(centre, seat_h):
+    """The seated disc touches nothing: no bay vertex inside its body or past its rim,
+    and the shut lid clears its top face."""
+    bpy.context.view_layer.update()
+    lo, hi = seat_h - DISC_HALF_T, seat_h + DISC_HALF_T
+    inside, rim, lid_gap = 0, 1.0, 1.0
+    for name in ("Case", "DiscReader", "DiscReaderTop", "DiscLaser", "SpindlePlate", "Lid"):
+        o = bpy.data.objects[name]
+        for v in o.data.vertices:
+            d = o.matrix_world @ v.co - centre
+            h = d.dot(SPIN_AXIS)
+            r = (d - SPIN_AXIS * h).length
+            if DISC_HOLE_R < r <= DISC_R and lo < h < hi:
+                inside += 1
+            if lo < h < hi and r > DISC_R * 0.5:
+                rim = min(rim, r - DISC_R) if r > DISC_R else rim
+            if name == "Lid" and r <= DISC_R and h > hi:
+                lid_gap = min(lid_gap, h - hi)
+    tilt = math.degrees(SPIN_AXIS.angle(mathutils.Vector((0, 0, 1))))
+    assert inside == 0, "%d bay vertices inside a seated disc" % inside
+    assert lid_gap > 0.002, "shut lid %.2f mm over the disc" % (lid_gap * 1000)
+    print("disc seat on the drive axis (%.2f deg lean), %.2f mm above the platter centre;"
+          " nothing inside the disc, rim clear by %.2f mm, lid %.2f mm above it"
+          % (tilt, seat_h * 1000, rim * 1000, lid_gap * 1000))
+
+
 def main():
     a = argv()
     pivot = import_and_flatten(a["in"])
@@ -323,7 +413,8 @@ def main():
     join_lid(pivot)
     opening = seat_controller_panel()
     split_buttons()
-    origin_turntable()
+    centre = origin_turntable()
+    seat_h = seat_disc(centre)
     add_markers()
     root = bpy.data.objects.new("Dreamcast", None)
     bpy.context.scene.collection.objects.link(root)
@@ -331,6 +422,7 @@ def main():
         if o is not root and o.parent is None:
             o.parent = root
     check(opening)
+    check_disc(centre, seat_h)
     os.makedirs(a["out"], exist_ok=True)
     bpy.ops.export_scene.gltf(filepath=os.path.join(a["out"], "dreamcast_console.glb"),
                               export_format="GLB", export_yup=True, export_cameras=False,

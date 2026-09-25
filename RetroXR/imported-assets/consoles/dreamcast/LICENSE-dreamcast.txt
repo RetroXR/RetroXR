@@ -49,8 +49,10 @@ GEOMETRY AND SCENE CHANGES
   * Separated the single Buttons mesh into PowerButton and OpenButton, re-origined at
     each cap's base. Joined the lid with its hinge arms into Lid, origined on the
     hinge axis.
-  * Re-origined Spindle and SpindlePlate on their own axis.
-  * Added empty marker nodes ControllerPort1-4 and AvOut at the connector mouths.
+  * Re-origined and re-oriented Spindle and SpindlePlate on the drive's own axis,
+    which leans about 2.9 degrees in the case.
+  * Added empty marker nodes ControllerPort1-4 and AvOut at the connector mouths, and
+    DiscSeat on the drive axis where a 120 mm disc clears the bay.
   * Downsized the textures from 4096 to 2048 px.
   * Renamed nodes to Case, Bottom, Lid, PowerButton, OpenButton, PowerLED,
     ControllerPorts, BackPorts, DiscReader, DiscReaderTop, DiscLaser, Spindle and

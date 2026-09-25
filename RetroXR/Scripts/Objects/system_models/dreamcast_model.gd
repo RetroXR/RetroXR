@@ -272,8 +272,14 @@ func is_lid_open() -> bool:
 
 # --- disc -------------------------------------------------------------------
 
-## The disc rests on the SpindlePlate's top face, centred on its axis; the asset
-## origins the plate there, so its position is the axis.
+## The shell's DiscSeat: on the drive's axis, above the highest part of the bay under
+## a 120 mm disc, and LEANING with the drive, which sits ~2.9 degrees off level in the
+## case (its back higher). A level seat on the platter -- what this first did --
+## buried the back of a disc 2.7 mm in the well. prepare_dreamcast.py places the
+## marker and asserts the clearance; see seat_disc there.
+##
+## The fallback, for a shell without the marker, stands on the platter along the
+## platter's own up, which the asset also leans with the drive.
 func configure_cartridge_slot(slot: Node3D) -> void:
 	_disc_slot = slot
 	var seat := _seat_marker("DiscSeat")
@@ -282,10 +288,9 @@ func configure_cartridge_slot(slot: Node3D) -> void:
 	else:
 		var plate := _mesh("SpindlePlate")
 		if plate != null:
-			var ab: AABB = plate.global_transform * plate.get_aabb()
-			var axis := plate.global_position
-			slot.global_position = Vector3(axis.x, ab.position.y + ab.size.y, axis.z)
-			slot.global_basis = global_transform.basis.orthonormalized()
+			var top := plate.get_aabb().end.y + 0.0007   # half a disc and a breath of air
+			slot.global_transform = plate.global_transform.orthonormalized() \
+				* Transform3D(Basis.IDENTITY, Vector3(0.0, top, 0.0))
 	var slot_visual := slot.get_node_or_null("SlotVisual") as MeshInstance3D
 	if slot_visual != null:
 		slot_visual.hide()
@@ -297,7 +302,8 @@ func get_cartridge_insert_direction() -> Vector3:
 
 
 ## The hub stands in the disc's centre hole, so it turns with the platter. Both
-## parts are origined on the spin axis by prepare_dreamcast.py.
+## parts are origined AND oriented on the drive's leaning axis by
+## prepare_dreamcast.py, so turning them about local up spins them without wobble.
 func spin_disc_mechanism(radians: float) -> void:
 	for part_name in ["Spindle", "SpindlePlate"]:
 		var m := _mesh(part_name)

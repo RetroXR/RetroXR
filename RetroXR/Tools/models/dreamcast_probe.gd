@@ -9,14 +9,15 @@
 ## up; the disc seat on the platter; four controller zones on the shell's
 ## ControllerPort markers, level and evenly spaced; and AV OUT on its marker.
 ##
-## With a renderer it also seats four pads' plugs and the Dreamcast AV lead, opens the
-## lid, powers the lens and writes user://dreamcast_probe_{front,rear,iso}.png — the
+## With a renderer it also seats four pads' plugs, the Dreamcast AV lead and a disc, opens the
+## lid, powers the lens and writes user://dreamcast_probe_{front,rear,iso,disc,disc_low}.png — the
 ## pictures that show a seated plug lines up, which no number here can.
 extends Node3D
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const DC_AV_CABLE := preload("res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn")
+const DISC_SCENE := preload("res://Scenes/Objects/media/disc.tscn")
 
 var _failures: Array[String] = []
 
@@ -83,15 +84,23 @@ func _ready() -> void:
 	_ok(model.is_lid_open(), "a second OPEN leaves it up: it is closed by hand")
 	await _pointer_reaches_caps(sys, "lid open")
 
-	# Disc seat on the platter, gated on the lid.
+	# Disc seat: the shell's DiscSeat, which lies on the drive's own axis and leans
+	# with it. The drive sits ~2.9 degrees off level in the case, so a level seat
+	# buried the back of a disc in the well. prepare_dreamcast.py measures the
+	# clearance itself; here it is the wiring and the lean.
 	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
-	var plate := model.find_child("SpindlePlate", true, false) as MeshInstance3D
-	if plate != null:
-		var top: float = (plate.global_transform * plate.get_aabb()).end.y
-		_ok(absf(slot.global_position.y - top) < 1e-4 and
-			Vector2(slot.global_position.x - plate.global_position.x,
-				slot.global_position.z - plate.global_position.z).length() < 1e-4,
-			"the disc seat is the platter's top, on its axis")
+	var plate := model.find_child("SpindlePlate", true, false) as Node3D
+	var seat := model.find_child("DiscSeat", true, false) as Node3D
+	_ok(seat != null and slot.global_transform.is_equal_approx(seat.global_transform),
+		"the disc slot sits on the shell's DiscSeat")
+	if plate != null and seat != null:
+		var axis := plate.global_basis.y.normalized()
+		var off := seat.global_position - plate.global_position
+		_ok((off - axis * off.dot(axis)).length() < 1e-4 and off.dot(axis) > 0.0,
+			"the seat is on the platter's axis, above it")
+		_ok(seat.global_basis.y.normalized().dot(axis) > 0.99999,
+			"and the disc leans with the drive (%.2f deg off level)"
+			% rad_to_deg(axis.angle_to(sys.global_basis.y)))
 	_ok(slot.enabled, "and takes a disc with the lid up")
 
 	# Controller ports.
@@ -144,6 +153,13 @@ func _render(sys: Node3D, model: RetroSystemModel, av: XRToolsSnapZone) -> void:
 	add_child(lead)
 	await _frames(20)
 	av.pick_up_object(lead.get_node("PlugA0"))
+	var disc := DISC_SCENE.instantiate() as Node3D
+	disc.set("systemid", "dreamcast")
+	disc.set("game_label", "PROBE DISC")
+	disc.position = Vector3(0.3, 0.3, 0.0)
+	add_child(disc)
+	await _frames(10)
+	(sys.get_node("CartridgeSlot") as XRToolsSnapZone).pick_up_object(disc)
 	await _frames(60)
 
 	# The boot curtain is head-locked to whatever camera is current, so it would
@@ -168,7 +184,11 @@ func _render(sys: Node3D, model: RetroSystemModel, av: XRToolsSnapZone) -> void:
 	var c := sys.global_position + Vector3(0, 0.04, 0)
 	for shot in [["front", Vector3(0.0, 0.08, 0.32), c + Vector3(0, -0.01, 0.08)],
 			["rear", Vector3(-0.08, 0.05, -0.22), c + Vector3(-0.03, -0.02, -0.09)],
-			["iso", Vector3(0.28, 0.3, 0.4), c]]:
+			["iso", Vector3(0.28, 0.3, 0.4), c],
+			# The seated disc from the front-left, where the lid's hinge side and the
+			# well's back ledge are both in view -- where a level seat clipped.
+			["disc", Vector3(-0.09, 0.2, 0.17), c + Vector3(0.0, 0.02, -0.005)],
+			["disc_low", Vector3(0.16, 0.07, 0.1), c + Vector3(0.0, 0.022, -0.01)]]:
 		cam.global_position = c + shot[1]
 		cam.look_at(shot[2])
 		await _frames(4)
