@@ -42,6 +42,9 @@ func _ready() -> void:
 	await _group_toasts()
 	await _group_owed()
 	await _group_art()
+	await _group_scroll()
+	_group_art_lookup()
+	await _group_idle()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -754,3 +757,123 @@ func _group_art() -> void:
 	await get_tree().process_frame
 	_eq(bound, [], "art/art for a row that is not on screen re-binds nothing")
 	catalog.free()
+
+
+# ── scroll/ — what one step of the ROM list costs ─────────────────────────────
+
+## Every pooled row was re-bound whenever the first row on screen changed, so a
+## one-row scroll bound fourteen rows on a headset, each parsing its JSON and
+## asking the art caches. A row keeps its slot now, and only the rows that come
+## into view are bound.
+func _group_scroll() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.size = Vector2(400, 300)
+	add_child(scroll)
+	_spawned.append(scroll)
+	var list := VirtualRowList.new()
+	list.row_height = 100
+	var bound: Array = []
+	list.set_row_builder(func() -> Control: return Control.new())
+	list.set_row_binder(func(_row: Control, i: int) -> void: bound.append(i))
+	scroll.add_child(list)
+	list.set_row_count(50)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_eq(list.visible_indices(), PackedInt32Array(range(0, 9)), "scroll/the window starts at row 0")
+
+	# Three rows of overscan: the window starts moving at row 4.
+	bound.clear()
+	scroll.scroll_vertical = 400
+	await get_tree().process_frame
+	_eq(bound, [9], "scroll/a one-row step binds only the row that came into view")
+	_eq(list.visible_indices(), PackedInt32Array(range(1, 10)), "scroll/and the window is rows 1 to 9")
+
+	bound.clear()
+	scroll.scroll_vertical = 1000
+	await get_tree().process_frame
+	bound.sort()
+	_eq(bound, [10, 11, 12, 13, 14, 15], "scroll/a six-row jump binds six")
+
+	bound.clear()
+	list.rebind_visible()
+	_eq(bound.size(), 9, "scroll/a re-bind still binds every row")
+	bound.clear()
+	list.rebind_index(12)
+	list.rebind_index(40)
+	_eq(bound, [12], "scroll/one row re-binds on its own, and one off screen not at all")
+
+
+# ── art lookup/ — scraped art is not looked for on disk at every bind ─────────
+
+const ART_SYSTEM := "__art_selftest"
+
+## resolve() is up to four file_exists calls a kind and a row asks for two, on
+## every bind. Where the art is -- or that there is none -- is kept a while, and
+## forget(), which a scrape calls when it writes, drops it at once.
+func _group_art_lookup() -> void:
+	var root := RomLibrary.rom_dir_for_system(ART_SYSTEM)
+	RomLibrary._remove_tree(root)
+	var wheel_dir := root.path_join("media").path_join("wheel")
+	DirAccess.make_dir_recursive_absolute(wheel_dir)
+	var rom := root.path_join("Probe (USA).gba")
+	var cache := ScrapedArtCache.new()
+	add_child(cache)
+
+	_eq(cache.get_or_request(ART_SYSTEM, rom, "wheel"), null, "art lookup/no art, no texture")
+	var img := Image.create(4, 4, false, Image.FORMAT_RGBA8)
+	img.save_png(wheel_dir.path_join("Probe (USA).png"))
+	cache.get_or_request(ART_SYSTEM, rom, "wheel")
+	_ok(cache._decoding.is_empty(), "art lookup/a miss is remembered, not looked for again at once")
+	cache.forget(ART_SYSTEM, rom)
+	cache.get_or_request(ART_SYSTEM, rom, "wheel")
+	_eq(cache._decoding.size(), 1, "art lookup/forget() -- what a scrape calls -- finds it")
+
+	for task: int in cache._decoding.values():
+		WorkerThreadPool.wait_for_task_completion(task)
+	cache._decoding.clear()
+	cache.free()
+	RomLibrary._remove_tree(root)
+
+
+# ── idle/ — menu widgets that cost frames while nobody uses them ──────────────
+
+## Three things that kept working after they stopped being seen: a dropdown's
+## popout outliving the dropdown, a panel's lock button rewritten every frame,
+## and PS2 save icons rendering inside a panel that had been put away.
+func _group_idle() -> void:
+	var dd := VRDropdown.new()
+	add_child(dd)
+	var popout := DropdownPanel.new()
+	dd._popout = popout
+	remove_child(dd)
+	await get_tree().process_frame
+	_ok(not is_instance_valid(popout), "idle/a dropdown's popout goes when the dropdown does")
+	dd.free()
+
+	var panel := FloatingObjectPanel3D.new()
+	panel._lock_btn = Button.new()
+	panel._refresh_lock_row()
+	panel._lock_btn.text = "left alone"
+	panel._refresh_lock_row()
+	_eq(panel._lock_btn.text, "left alone", "idle/an unchanged lock is not written to the button again")
+	panel._lock_btn.free()
+	panel.free()
+
+	var host := Node3D.new()
+	var vp := SubViewport.new()
+	vp.render_target_update_mode = SubViewport.UPDATE_DISABLED
+	host.add_child(vp)
+	add_child(host)
+	var icon := PS2IconView.new()
+	vp.add_child(icon)
+	icon.show_model({"shapes": [PackedVector3Array([Vector3.ZERO, Vector3.ONE, Vector3.UP])],
+		"frames": []})
+	host.visible = false
+	icon._process(0.5)
+	_eq(icon._time, 0.0, "idle/a PS2 icon in a panel that is put away does not move")
+	_eq(icon._viewport.render_target_update_mode, SubViewport.UPDATE_DISABLED,
+		"idle/nor render")
+	host.visible = true
+	icon._process(0.5)
+	_eq(icon._time, 0.5, "idle/and turns again when the panel is back")
+	host.free()

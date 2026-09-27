@@ -144,6 +144,17 @@ func _frame_camera(cam: Camera3D) -> void:
 func _process(delta: float) -> void:
 	if _viewport == null:
 		return
+	# Drawn only while what it is drawn into can be seen. A memory card's panel
+	# is put away, not freed, and this Control still reads as visible inside it —
+	# so every icon kept rendering at 4x MSAA in a world of its own, and morphing
+	# its mesh, for as long as the app ran after one PS2 card was opened.
+	var live := _host_is_live()
+	var mode := SubViewport.UPDATE_ALWAYS \
+		if live and DisplayServer.get_name() != "headless" else SubViewport.UPDATE_DISABLED
+	if _viewport.render_target_update_mode != mode:
+		_viewport.render_target_update_mode = mode
+	if not live:
+		return
 	_time += delta
 	if not _animated:
 		# Nothing to morph: turn it slowly instead, which costs one rotation.
@@ -153,6 +164,18 @@ func _process(delta: float) -> void:
 		return
 	_next_morph = _time + 1.0 / MORPH_HZ
 	_apply_pose(_time)
+
+
+## Visible here, and the 3D panel holding the viewport this is drawn into is
+## visible in the world. The second is what hiding a panel actually changes.
+func _host_is_live() -> bool:
+	if not is_visible_in_tree():
+		return false
+	var vp := get_viewport()
+	var host: Node = vp.get_parent() if vp != null else null
+	if host is Node3D:
+		return (host as Node3D).is_visible_in_tree()
+	return true
 
 
 ## The model at time t: every animated shape mixed by the weight its own key

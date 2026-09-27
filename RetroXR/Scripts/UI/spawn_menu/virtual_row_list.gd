@@ -39,8 +39,14 @@ var _binder: Callable = Callable()
 
 var _scroll: ScrollContainer = null
 var _pool: Array[Control] = []
-## Row index currently bound to _pool[0]; -1 forces a full re-bind.
+## First row index of the bound window; -1 forces a full re-bind.
 var _first_bound: int = -1
+## The row index each pool slot is bound to, -1 for none. Row i lives in slot
+## i % pool size, so a one-row scroll hands ONE slot to the row coming into view
+## and every other slot keeps the row it already shows. Binding all of them on
+## every step was the scroll's cost: a bind parses the row's JSON and asks the
+## art caches, and a Quest re-bound fourteen of them per row scrolled.
+var _slot_index: PackedInt32Array = PackedInt32Array()
 
 
 func _ready() -> void:
@@ -132,12 +138,13 @@ func rebind_visible() -> void:
 ## Re-bind one row, if it is on screen. Binding is not cheap, so anything that
 ## changes a single row (download progress) must not rebind the whole window.
 func rebind_index(index: int) -> void:
-	if _first_bound < 0 or _binder.is_null():
+	var n := _pool.size()
+	if _first_bound < 0 or _binder.is_null() or n == 0:
 		return
-	var slot := index - _first_bound
-	if slot < 0 or slot >= _pool.size():
+	if index < _first_bound or index >= _first_bound + n:
 		return
-	if not _pool[slot].visible:
+	var slot := index % n
+	if not _pool[slot].visible or _slot_index[slot] != index:
 		return
 	_binder.call(_pool[slot], index)
 
@@ -162,11 +169,11 @@ func first_visible_index() -> int:
 ## away, so a fast scroll doesn't queue hundreds of covers nobody is looking at.
 func visible_indices() -> PackedInt32Array:
 	var out := PackedInt32Array()
-	if _first_bound < 0:
+	var n := _pool.size()
+	if _first_bound < 0 or n == 0:
 		return out
-	for i in _pool.size():
-		var idx := _first_bound + i
-		if idx < _count and _pool[i].visible:
+	for idx in range(_first_bound, _first_bound + n):
+		if idx < _count and _pool[idx % n].visible:
 			out.append(idx)
 	return out
 
@@ -208,18 +215,27 @@ func _relayout(force: bool) -> void:
 		return
 
 	_ensure_pool(visible_rows)
+	var n := _pool.size()
+	if _slot_index.size() != n:
+		# A bigger pool is a new modulus: every row's slot moved.
+		_slot_index.resize(n)
+		_slot_index.fill(-1)
 
 	var width := size.x
-	for i in _pool.size():
-		var row := _pool[i]
-		var index := first + i
+	for k in n:
+		var index := first + k
+		var slot := index % n
+		var row := _pool[slot]
 		if index >= _count:
 			row.visible = false
+			_slot_index[slot] = -1
 			continue
 		row.visible = true
 		row.position = Vector2(0, index * row_height)
 		row.size = Vector2(width, row_height)
-		_binder.call(row, index)
+		if force or _slot_index[slot] != index:
+			_slot_index[slot] = index
+			_binder.call(row, index)
 
 	var moved := first != _first_bound
 	_first_bound = first
@@ -242,6 +258,7 @@ func _discard_pool() -> void:
 		if is_instance_valid(row):
 			row.queue_free()
 	_pool.clear()
+	_slot_index = PackedInt32Array()
 	_first_bound = -1
 
 
@@ -249,3 +266,4 @@ func _hide_all() -> void:
 	for row: Control in _pool:
 		if is_instance_valid(row):
 			row.visible = false
+	_slot_index.fill(-1)

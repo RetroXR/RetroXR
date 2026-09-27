@@ -43,6 +43,15 @@ var _decoded_mutex := Mutex.new()
 ## Paths that decoded to nothing. Never retried — the row falls back to its text.
 var _dead: Dictionary = {}
 
+## "<systemid>|<stem>|<kind>" -> [path or "", msec]: where resolve() last found
+## the art, or that it found none. resolve() is up to four file_exists calls, a
+## row asks for two kinds, and every pooled row is bound on each scroll step —
+## on a headset's storage the stat calls were most of a bind, and a row with no
+## art paid all eight every time. Kept briefly; forget() drops them the moment a
+## scrape writes, and anything else that adds art is seen within the TTL.
+var _resolved: Dictionary = {}
+const RESOLVE_TTL_MS := 30000
+
 
 func _process(_delta: float) -> void:
 	_promote_decoded()
@@ -59,7 +68,7 @@ func _process(_delta: float) -> void:
 ## a glancing angle in 3D; a 2D icon drawn at one size does not want them.
 func get_or_request(systemid: String, rom_name: String, kind: String,
 					box: Vector2i = Vector2i.ZERO, mipmaps: bool = false) -> Texture2D:
-	var path := resolve(systemid, rom_name, kind)
+	var path := _resolve_cached(systemid, rom_name, kind)
 	if path.is_empty():
 		return null
 	if _textures.has(path):
@@ -89,6 +98,21 @@ static func resolve(systemid: String, rom_name: String, kind: String) -> String:
 	return ""
 
 
+func _resolve_cached(systemid: String, rom_name: String, kind: String) -> String:
+	var key := _resolved_key(systemid, rom_name, kind)
+	var now := Time.get_ticks_msec()
+	var seen: Array = _resolved.get(key, [])
+	if not seen.is_empty() and now - int(seen[1]) < RESOLVE_TTL_MS:
+		return str(seen[0])
+	var path := resolve(systemid, rom_name, kind)
+	_resolved[key] = [path, now]
+	return path
+
+
+static func _resolved_key(systemid: String, rom_name: String, kind: String) -> String:
+	return "%s|%s|%s" % [systemid, rom_name.get_file().get_basename(), kind]
+
+
 ## Forget one ROM's art across every kind, so the next bind re-reads it.
 ##
 ## What a freshly scraped file needs, and all it needs. The whole cache used to
@@ -96,6 +120,7 @@ static func resolve(systemid: String, rom_name: String, kind: String) -> String:
 ## arriving wheel cost a full re-decode of everything on screen.
 func forget(systemid: String, rom_name: String) -> void:
 	for kind: String in ["wheel", "label", "box", "manual"]:
+		_resolved.erase(_resolved_key(systemid, rom_name, kind))
 		var path := resolve(systemid, rom_name, kind)
 		if path.is_empty():
 			continue
@@ -108,6 +133,7 @@ func clear() -> void:
 	_textures.clear()
 	_lru_order.clear()
 	_dead.clear()
+	_resolved.clear()
 
 
 # ---------------------------------------------------------------------------

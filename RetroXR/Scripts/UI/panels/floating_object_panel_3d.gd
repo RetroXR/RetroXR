@@ -96,6 +96,10 @@ const _COLOR_ON := Color(1.0, 0.80, 0.35)
 
 var _lock_btn: Button = null
 var _lock_grown := false
+## What _lock_btn last drew: 1 locked, 0 not, -1 nothing yet. The row is checked
+## every frame the panel shows, and writing the text and the colour override on
+## each of them re-laid the whole panel out whether or not anything had changed.
+var _lock_drawn := -1
 
 
 ## Build the row if the 2D UI is up and the subject can be locked; keep it in
@@ -129,6 +133,7 @@ func _ensure_lock_row() -> void:
 	box.add_child(row)
 
 	_grow_for_lock_row()
+	_lock_drawn = -1
 	_refresh_lock_row()
 
 
@@ -144,6 +149,9 @@ func _refresh_lock_row() -> void:
 	if _lock_btn == null or not is_instance_valid(_lock_btn):
 		return
 	var locked := ObjectLock.is_locked(_target_node())
+	if int(locked) == _lock_drawn:
+		return
+	_lock_drawn = int(locked)
 	_lock_btn.set_pressed_no_signal(locked)
 	_lock_btn.text = "%s  %s" % [
 		String.chr(MenuIcons.LOCK if locked else MenuIcons.LOCK_OPEN),

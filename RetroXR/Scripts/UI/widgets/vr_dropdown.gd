@@ -439,6 +439,14 @@ func _on_item_pressed(id: Variant) -> void:
 	item_selected.emit(id)
 
 
+## The popout lives on the host viewport, not under this node, so it has to be
+## freed by hand. It was not: every page that rebuilt its dropdowns — a system's
+## detail page rebuilds on every refresh — left each one's popout behind on the
+## menu (a SubViewport, an arc mesh and its collision). _ensure_popout builds
+## it again if this dropdown ever comes back.
 func _exit_tree() -> void:
 	if _open_dropdown == self:
 		_open_dropdown = null
+	if is_instance_valid(_popout):
+		_popout.queue_free()
+	_popout = null

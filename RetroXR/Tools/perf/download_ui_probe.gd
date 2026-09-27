@@ -116,7 +116,7 @@ func _run() -> void:
 	await _probe_art(sv)
 	await _probe_download_finished(menu, sv)
 	await _probe_core_finished(menu, cv)
-	_probe_extract(cv)
+	await _probe_extract(cv)
 	_probe_dedupe()
 
 	_say("---- done ----")
@@ -291,7 +291,20 @@ func _probe_toasts(menu: Node, toasts: Node) -> void:
 # ── 2. Cover art arriving ─────────────────────────────────────────────────────
 
 func _probe_art(sv: Node) -> void:
-	var browser: Object = sv.get("_cartridges_browser")
+	var browser: Control = sv.get("_cartridges_browser")
+	# On screen, as the player has it: the SPAWN view, on the tab holding the
+	# Cartridges browser. A page on a hidden tab is never laid out, so its list
+	# binds rows but cannot scroll.
+	var menu: Node = sv.get("_menu")
+	if menu != null and menu.has_method("_show_spawn_view"):
+		menu.call("_show_spawn_view")
+	var tabs: TabContainer = sv.get("_spawn_tabs")
+	if tabs != null and browser != null:
+		for i in tabs.get_tab_count():
+			var tab := tabs.get_tab_control(i)
+			if tab == browser or tab.is_ancestor_of(browser):
+				tabs.current_tab = i
+	await _frames(5)
 	var t := _t()
 	browser.call("open_system", PLATFORM)
 	var open_ms := _ms(t)
@@ -360,6 +373,25 @@ func _probe_art(sv: Node) -> void:
 		last = now
 	_say("art: frame with 6 arrivals        %s   <-- deferred work included", [_stats(per_frame)])
 	await _frames(10)
+
+	# Scrolling, one row a step: what binding the rows that came into view costs.
+	# It used to re-bind the whole window, the rebind_visible line above.
+	var scroll := (list as Control).get_parent() as ScrollContainer
+	var node: Node = list as Node
+	while scroll == null and node != null:
+		node = node.get_parent()
+		scroll = node as ScrollContainer
+	if scroll != null:
+		var steps := PackedFloat64Array()
+		for i in 20:
+			t = _t()
+			scroll.scroll_vertical += 100
+			steps.append(_ms(t))
+			await get_tree().process_frame
+		var window: PackedInt32Array = list.call("visible_indices")
+		_say("scroll one row (20 steps)         %s   window now from row %d, scroll %d of %d",
+			[_stats(steps), window[0] if not window.is_empty() else -1, scroll.scroll_vertical,
+			int(scroll.get_v_scroll_bar().max_value)])
 
 
 # ── 3. A finished ROM download ────────────────────────────────────────────────
@@ -467,8 +499,25 @@ func _probe_extract(cv: Node) -> void:
 	var zipped := FileAccess.get_file_as_bytes(zip_path).size()
 	var t := _t()
 	var err: int = dm.call("_extract_zip", zip_path, SCRATCH.path_join("out"))
-	_say("extract %d MB core (%.1f MB zipped)  %8.2f ms  err=%d  <-- blocks the frame today",
+	_say("extract %d MB core (%.1f MB zipped)  %8.2f ms  err=%d  <-- the unzip itself",
 		[ZIP_BYTES / 1048576, zipped / 1048576.0, _ms(t), err])
+
+	# How a finished download runs it now: a pool task, the frames going on.
+	if dm.has_method("_unzip_task"):
+		var status: Array = [ERR_BUSY]
+		t = _t()
+		var task := WorkerThreadPool.add_task(
+			Callable(dm, "_unzip_task").bind(zip_path, SCRATCH.path_join("out"), status))
+		var submit := _ms(t)
+		var frames := PackedFloat64Array()
+		var last := _t()
+		while not WorkerThreadPool.is_task_completed(task):
+			await get_tree().process_frame
+			var now := _t()
+			frames.append(float(now - last) / 1000.0)
+			last = now
+		WorkerThreadPool.wait_for_task_completion(task)
+		_say("extract on the pool: submit %.2f ms, frames meanwhile %s", [submit, _stats(frames)])
 
 	# A real one where a desktop has it lying about (a dolphin build, 25 MB).
 	if FileAccess.file_exists("user://probe_core.zip"):
