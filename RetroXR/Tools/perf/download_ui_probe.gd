@@ -497,27 +497,33 @@ func _probe_extract(cv: Node) -> void:
 	var zip_path := SCRATCH.path_join("core.zip")
 	_write_core_like_zip(zip_path, ZIP_BYTES)
 	var zipped := FileAccess.get_file_as_bytes(zip_path).size()
-	var t := _t()
-	var err: int = dm.call("_extract_zip", zip_path, SCRATCH.path_join("out"))
-	_say("extract %d MB core (%.1f MB zipped)  %8.2f ms  err=%d  <-- the unzip itself",
-		[ZIP_BYTES / 1048576, zipped / 1048576.0, _ms(t), err])
 
 	# How a finished download runs it now: a pool task, the frames going on.
+	# First, and after the frames have settled, so nothing done earlier in the
+	# same frame is counted against it.
 	if dm.has_method("_unzip_task"):
-		var status: Array = [ERR_BUSY]
-		t = _t()
-		var task := WorkerThreadPool.add_task(
-			Callable(dm, "_unzip_task").bind(zip_path, SCRATCH.path_join("out"), status))
-		var submit := _ms(t)
-		var frames := PackedFloat64Array()
-		var last := _t()
-		while not WorkerThreadPool.is_task_completed(task):
-			await get_tree().process_frame
-			var now := _t()
-			frames.append(float(now - last) / 1000.0)
-			last = now
-		WorkerThreadPool.wait_for_task_completion(task)
-		_say("extract on the pool: submit %.2f ms, frames meanwhile %s", [submit, _stats(frames)])
+		for run in 3:
+			await _frames(10)
+			var status: Array = [ERR_BUSY]
+			var t0 := _t()
+			var task := WorkerThreadPool.add_task(
+				Callable(dm, "_unzip_task").bind(zip_path, SCRATCH.path_join("out"), status))
+			var submit := _ms(t0)
+			var frames := PackedFloat64Array()
+			var last := _t()
+			while not WorkerThreadPool.is_task_completed(task):
+				await get_tree().process_frame
+				var now := _t()
+				frames.append(float(now - last) / 1000.0)
+				last = now
+			WorkerThreadPool.wait_for_task_completion(task)
+			_say("extract on the pool: submit %.2f ms, frames meanwhile %s", [submit, _stats(frames)])
+	await _frames(10)
+
+	var t := _t()
+	var err: int = dm.call("_extract_zip", zip_path, SCRATCH.path_join("out"))
+	_say("extract %d MB core (%.1f MB zipped)  %8.2f ms  err=%d  <-- the unzip itself, inline",
+		[ZIP_BYTES / 1048576, zipped / 1048576.0, _ms(t), err])
 
 	# A real one where a desktop has it lying about (a dolphin build, 25 MB).
 	if FileAccess.file_exists("user://probe_core.zip"):
@@ -526,7 +532,7 @@ func _probe_extract(cv: Node) -> void:
 		_say("extract user://probe_core.zip     %8.2f ms  err=%d", [_ms(t), err])
 
 
-## Compresses about 3:1, like a shared library: runs of random bytes between
+## Compresses about 2:1, like a shared library: runs of random bytes between
 ## runs of repetitive ones.
 func _write_core_like_zip(path: String, size: int) -> void:
 	var noise := Crypto.new().generate_random_bytes(size / 2)

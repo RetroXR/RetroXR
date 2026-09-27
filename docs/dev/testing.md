@@ -300,6 +300,60 @@ sits in that dir). `$proj` on Linux is `<checkout>/RetroXR`. Note Godot
 virtual overrides (bit two `_property_get_revert` overrides in godot-xr-tools — fixed with a
 trailing `return null`).
 
+### Menu under load — `perf/download_ui_probe`
+
+What the spawn menu's MAIN thread pays when a download, a RomM sync or the scraper
+reports back. The transfers were always on workers; the stutter was the menu's
+response, often several times in one frame, and just as much with the menu put away.
+`perf/menu_perf_probe` is its sibling for opening and searching a platform.
+
+- Windowed on desktop (`--resolution 640x480 --position 20,20`), never `--headless`:
+  the menu is hosted as `player_rig.tscn` hosts it (a Viewport2Din3D at 2200x1800 with
+  its CurvedPanel) because the toast pop-out only attaches to that host. It shows the
+  SPAWN view's Cartridges tab before opening a platform — a page on a hidden tab never
+  lays out, so its list binds rows but cannot scroll, and the numbers lie.
+- On the Quest: preset "Quest download UI probe" (`com.xenu.retroxr.dluiprobe`, the
+  probe-only export above). `DataPaths.android_root()` follows the running package, so
+  the probe has its own sandbox and writes a 3147-row synthetic `gba` index into it;
+  it used to be pointed at the real app's folder, which Android hides from another
+  package, and every write failed. Desktop reads the real index and writes nothing.
+- Desktop timings wander ±2x between runs on a busy machine. The Quest's are the ones
+  to quote; its idle frame is the 72 Hz vsync (13.8 ms), so read the spikes above it.
+
+Quest 3, before → after (2026-09-27):
+
+| lands on the menu | before | after |
+|---|---|---|
+| core install finished (genesis_plus_gx, 6 systems) | 560 ms frame | 177 ms with SPAWN on screen and a 3k list open (117 of it re-running that page); ~12 ms from the CORES tab, the rest owed until SPAWN is shown |
+| ROM download finished, list open / menu hidden | 72 / 70 ms | 47 ms (one rebuild, not two) / nothing over the 13.9 ms frame |
+| 6 art arrivals in one frame | 19 ms (24 ms p95) | nothing over the 13.9 ms frame |
+| one row of scroll (was a full-window re-bind) | 8 ms | 1.4 ms |
+| core unzip (12 MB) | 49-65 ms, inside the download's callback | 0.02 ms to hand to the pool; frames stay at 13.8-15.2 ms while it runs |
+| gamelist dedupe, 1,000 games | 1.7 s | 9.8 ms (3,000: 15.6 s → 31 ms) |
+| toast tick (notify + refresh) | ~1 ms, a refresh per tick | 0.2-0.6 ms, one refresh a frame |
+
+The rules that fell out of it (the commits `perf(menu)`, `perf(cores)`,
+`perf(library)`, `perf(cartridge)` of 2026-09-27 carry the detail):
+
+- **Owe a rebuild, don't run it.** SpawnView's `_owe()` marks the grids or the ROM list
+  stale and one pass at the end of the frame pays — only while the menu is out
+  (`_menu_shown`) AND the SPAWN tab is on screen; otherwise when it next is, and then
+  synchronously, before anything binds a row against an index a sync rewrote. A ROM
+  list is rebuilt only if its page is open (`_romm_detail_systemid` outlives the page).
+  A core serving six systems emits six `default_core_changed`: one rebuild.
+- **A Control inside a SubViewport reads as visible when its 3D host is hidden.**
+  `is_visible_in_tree()` stops at the viewport. Gate on the host Node3D or on
+  `_menu_shown` — ToastPanel, PS2IconView and SpawnView all had to.
+- **Re-bind the rows that changed.** Landed art finds its row by rom id (RomM) or the
+  ROM file's stem (scraped art); VirtualRowList keeps row i in slot i % pool, so a
+  scroll step binds the rows that came into view. `rebind_visible()` is for data that
+  changed under every row.
+- **Nothing file-sized in a `request_completed` callback.** Unzips and hashing belong
+  on a pool task (`CoreDownloadManager._unzip_task`); a digest a worker already
+  checked is handed over (`FirmwareState.note_verified`), not recomputed.
+- **Toasts:** one refresh a frame (MenuToasts), and the quad's arc — a mesh upload and a
+  collision cook — only when the host's curve or the quad's size changed.
+
 ### 1. Compile / import check (catches parse, shader & scene-load errors)
 ```bash
 "$godot" --headless --path "$proj" --editor --quit
