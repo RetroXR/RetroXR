@@ -21,7 +21,17 @@ extends RefCounted
 ## The app's external files directory. Plain `adb push` reaches this one; it is
 ## deliberately NOT `user://`, which on Android is internal storage the shell
 ## cannot write. See CLAUDE.md on why pushing into the app's own tree is a trap.
-const ANDROID_ROOT := "/sdcard/Android/data/com.xenu.retroxr/files"
+##
+## Named after the RUNNING package, which user:// already carries
+## (/data/user/0/<package>/files), rather than spelled out. A probe-only export
+## installs under its own id (docs/dev/quest-device.md), and Android does not let
+## one package see another's folder here at all: with the real app's name written
+## in, a probe build had no data root, and every write it made failed.
+static func android_root() -> String:
+	var package := OS.get_user_data_dir().get_base_dir().get_file()
+	if not package.begins_with("com.xenu.retroxr"):
+		package = "com.xenu.retroxr"
+	return "/sdcard/Android/data/%s/files" % package
 
 
 ## The player's data root, or a named folder inside it.
@@ -33,7 +43,7 @@ const ANDROID_ROOT := "/sdcard/Android/data/com.xenu.retroxr/files"
 static func media_root(sub: String = "") -> String:
 	var root := ""
 	if OS.get_name() == "Android":
-		root = ANDROID_ROOT
+		root = android_root()
 	elif OS.get_name() in ["Linux", "macOS"]:
 		root = OS.get_environment("HOME") + "/retroxr"
 	else:
