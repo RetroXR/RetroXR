@@ -34,6 +34,7 @@ var _armed_id := ""
 ## asked about. See _lookup_achievements.
 var _looked_up: Dictionary = {}
 var _looking_up := ""
+var _populate_queued := false
 ## How long a delete stays armed — the memory card's window, and the ROM rows'.
 const ARM_SECONDS := 3.0
 
@@ -187,6 +188,23 @@ func _ensure_ui_connected() -> void:
 		SaveSync.conflict_forked.connect(_on_conflict_forked)
 		RA.game_loaded.connect(_on_ra_changed)
 		RA.achievement_unlocked.connect(_on_ra_unlocked)
+
+
+## _populate at the end of the frame, once however many background results
+## land in it. A save sync finishing relisted the server's saves and states on
+## their own threads, and every listing that came back rebuilt the whole panel
+## again: three rebuilds for one job, on top of the finish's own.
+func _populate_soon() -> void:
+	if _populate_queued:
+		return
+	_populate_queued = true
+	_flush_populate.call_deferred()
+
+
+func _flush_populate() -> void:
+	_populate_queued = false
+	if _showing():
+		_populate()
 
 
 func _populate() -> void:
@@ -504,15 +522,14 @@ func _on_server_save_requested(slot: String) -> void:
 func _on_sync_finished(_key: String, _action: String, _ok: bool, _detail: String) -> void:
 	if _showing():
 		_refresh_server_list()
-		_populate()
+		_populate_soon()
 
 
 func _on_conflict_forked(_key: String, forked_save_id: String, _label: String) -> void:
 	# Flag the fork, not the original: the fork is the copy the user has not
 	# seen, and it is the one that needs explaining.
 	_conflicted[forked_save_id] = true
-	if _showing():
-		_populate()
+	_populate_soon()
 
 
 ## Ask the server what it has for this ROM. Runs on SaveSync's worker, so the
@@ -536,8 +553,7 @@ func _refresh_server_list() -> void:
 		if not ok:
 			return
 		_server_saves = saves
-		if _showing():
-			_populate()
+		_populate_soon()
 	)
 
 
@@ -763,15 +779,13 @@ func _on_state_loaded(_state_id: String, ok: bool, reason: String) -> void:
 ## The RomM half of the States tab: a status glyph moving, a listing landing, or
 ## a pull finishing. All of them mean the same thing here — redraw.
 func _on_state_backup_changed(_key: String, _ok: bool, _detail: String) -> void:
-	if _showing():
-		_populate()
+	_populate_soon()
 
 
 func _on_state_backup_finished(key: String, ok: bool, detail: String) -> void:
 	if not ok:
 		push_warning("[CartridgeOptions] RomM: %s (%s)" % [detail, key])
-	if _showing():
-		_populate()
+	_populate_soon()
 
 
 ## The hash lookup came back. A hit turns the whole RomM half of both tabs on
@@ -782,16 +796,14 @@ func _on_rom_id_resolved(_systemid: String, rom_path: String, rom_id: int) -> vo
 		return
 	if rom_id > 0:
 		_refresh_server_list()
-	if _showing():
-		_populate()
+	_populate_soon()
 
 
 func _on_states_listed(rom_id: int, ok: bool, states: Array, _detail: String) -> void:
 	if not ok or rom_id != _rom_id():
 		return
 	_server_states = states
-	if _showing():
-		_populate()
+	_populate_soon()
 
 
 ## Pull a state the server has and this device does not. It arrives in the

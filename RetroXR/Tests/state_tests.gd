@@ -44,6 +44,7 @@ func _ready() -> void:
 	_test_panel_chrome()
 	await _test_floating_panels()
 	_test_panels_with_their_own_anchor()
+	await _test_background_results_rebuild_once()
 	_restore_ledger()
 	print("[state-ui] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
@@ -267,6 +268,39 @@ func _test_arm_ladder() -> void:
 	# A different row takes the slot rather than sharing it.
 	_ok(not panel._arm_state("B", "overwrite"), "arm/another row only arms")
 	_eq(panel._states_armed_id, "B", "arm/and owns the slot now")
+	panel.free()
+
+
+class _CountingOptionsPanel extends CartridgeOptionsPanel:
+	var populates := 0
+
+	func _populate() -> void:
+		populates += 1
+
+	# The real one asks the server; the listings it starts are what this
+	# stands in for below.
+	func _refresh_server_list() -> void:
+		pass
+
+
+## A save sync finishing relisted the server's saves and states on their own
+## threads, and each listing, each state-backup status and the finish itself
+## rebuilt the whole panel: several rebuilds for one job, in one frame.
+func _test_background_results_rebuild_once() -> void:
+	var panel := _CountingOptionsPanel.new()
+	add_child(panel)
+	panel.visible = true
+	panel._on_sync_finished("k", "upload", true, "")
+	panel._on_state_backup_changed("k", true, "")
+	panel._on_state_backup_finished("k", true, "")
+	panel._on_conflict_forked("k", "fork-1", "label")
+	_eq(panel.populates, 0, "background/nothing is rebuilt inside the callbacks")
+	await get_tree().process_frame
+	_eq(panel.populates, 1, "background/four results in one frame rebuild the panel once")
+	panel.visible = false
+	panel._on_sync_finished("k", "upload", true, "")
+	await get_tree().process_frame
+	_eq(panel.populates, 1, "background/a panel that is not showing is not rebuilt")
 	panel.free()
 
 
