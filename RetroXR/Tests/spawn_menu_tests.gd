@@ -294,6 +294,65 @@ func _group_hold() -> void:
 		and not SpawnMenuSpawnView._has_spawn_options("nes"),
 		"hold/only an N64 or Game Boy ROM row opens one")
 
+	# The sub-menu itself: what SPAWN hands on for the palette, and for a colour
+	# mixed on the Custom sliders. It opens beside the view, so the view has a parent.
+	var holder := Control.new()
+	add_child(holder)
+	_spawned.append(holder)
+	var view := SpawnMenuSpawnView.new()
+	holder.add_child(view)
+	var sent := {"options": null}
+	var spawn := func(options: Dictionary) -> void: sent["options"] = options
+	var panel_part := func(part: String) -> Control:
+		return view._spawn_options_panel.find_child(part, true, false) as Control
+	var press_text := func(text: String) -> void:
+		for b: Node in view._spawn_options_panel.find_children("*", "Button", true, false):
+			if (b as Button).text.strip_edges() == text:
+				(b as Button).pressed.emit()
+				return
+		_ok(false, "hold/no button reads %s" % text)
+
+	view._show_cart_spawn_options("n64", "Selftest", spawn)
+	var custom := panel_part.call("ShellCustom") as Button
+	var hue := panel_part.call("ShellHue") as HSlider
+	_ok(custom != null and hue != null and panel_part.call("ShellSaturation") != null
+		and panel_part.call("ShellBrightness") != null and panel_part.call("ShellFlake") != null,
+		"hold/the shell list ends in a Custom swatch, its three sliders and a flake switch")
+	_ok(custom != null and not custom.button_pressed, "hold/Custom is not chosen until it is touched")
+	press_text.call("+  SPAWN")
+	_eq(sent["options"], {}, "hold/untouched, SPAWN forces nothing")
+
+	view._show_cart_spawn_options("n64", "Selftest", spawn)
+	custom = panel_part.call("ShellCustom") as Button
+	hue = panel_part.call("ShellHue") as HSlider
+	hue.value = 10.0
+	var want := "#" + Color.from_hsv(10.0 / 360.0, SpawnMenuSpawnView.CUSTOM_SHELL_START.s,
+		SpawnMenuSpawnView.CUSTOM_SHELL_START.v).to_html(false)
+	_ok(custom.button_pressed and custom.text.contains(want),
+		"hold/moving a slider picks Custom and shows its colour", custom.text)
+	press_text.call("+  SPAWN")
+	_eq(sent["options"], {"shell_color": want}, "hold/SPAWN hands on the mixed colour alone")
+
+	view._show_cart_spawn_options("n64", "Selftest", spawn)
+	(panel_part.call("ShellFlake") as BaseButton).button_pressed = true
+	custom = panel_part.call("ShellCustom") as Button
+	_ok(custom.button_pressed and custom.text.contains("metal flake"),
+		"hold/the flake switch picks Custom too", custom.text)
+	press_text.call("+  SPAWN")
+	var flaked: Dictionary = sent["options"]
+	_ok(flaked.get("shell_flake", false) == true and str(flaked.get("shell_color", "")).begins_with("#")
+		and not flaked.has("shell_preset"), "hold/and SPAWN hands on the flake with the colour", str(flaked))
+
+	view._show_cart_spawn_options("n64", "Selftest", spawn)
+	(panel_part.call("ShellFlake") as BaseButton).button_pressed = true
+	press_text.call("Blue")
+	press_text.call("+  SPAWN")
+	_eq(sent["options"], {"shell_preset": "blue"}, "hold/a palette swatch after mixing drops the mix")
+
+	view._show_cart_spawn_options("gb", "Selftest", spawn)
+	_ok(panel_part.call("ShellCustom") != null, "hold/a Game Boy cartridge can be mixed too")
+	view._close_spawn_options_panel()
+
 
 # ── delete/ — the trash can on a poster, video, DVD or album row ────────────
 

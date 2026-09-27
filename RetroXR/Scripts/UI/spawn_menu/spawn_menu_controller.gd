@@ -1277,6 +1277,8 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 	cart.systemid = systemid
 	# What the hold sub-menu forced; empty for a plain click.
 	cart.shell_preset = StringName(str(options.get("shell_preset", "")))
+	cart.shell_color = str(options.get("shell_color", ""))
+	cart.shell_flake = bool(options.get("shell_flake", false))
 	cart.body_region = str(options.get("body_region", ""))
 	_place_spawned(cart, "disc" if is_disc else "cartridge")
 

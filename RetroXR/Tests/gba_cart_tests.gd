@@ -439,16 +439,31 @@ func _test_forced() -> void:
 	_ok(_clear_in(gb_only.get_node("CartModel"), _preset(&"ruby")),
 		"forced/an id the Game Boy Advance palette lacks keeps the ROM's own")
 	_ok(_clear_in(own.get_node("CartModel"), _preset(&"ruby")), "forced/nothing forced is the ROM's own")
-	for cart in [sapphire, grey, gb_only, own]:
+
+	# A colour mixed on the panel's Custom sliders: solid, though Ruby is clear.
+	var mix := Color("#d0417e")
+	var mixed := await _spawn(rom, &"sapphire", "#d0417e")
+	var mixed_front := _mat(mixed.get_node("CartModel"), "Front_Shell")
+	_ok(mixed_front != null and _solid(mixed_front) and mixed_front.albedo_color == mix,
+		"forced/a mixed colour beats a forced shell and is solid plastic")
+	var sparkle := await _spawn(rom, &"", "#d0417e", true)
+	var sm := _part(sparkle.get_node("CartModel"), "Front_Shell").get_active_material(0) as ShaderMaterial
+	var n64_gold := CartridgeColor.get_palette().find(&"gold")
+	_ok(sm != null and sm.shader == CartridgeColor.FLAKE_SHADER and sm.get_shader_parameter("albedo") == mix
+		and is_equal_approx(sm.get_shader_parameter("flake_density"), n64_gold.flake_density),
+		"forced/a mixed flake shell borrows the N64 gold's flakes, having none of its own")
+	for cart in [sapphire, grey, gb_only, own, mixed, sparkle]:
 		cart.queue_free()
 	await get_tree().process_frame
 
 
-func _spawn(rom: String, shell: StringName = &"") -> RetroCartridge:
+func _spawn(rom: String, shell: StringName = &"", color := "", flake := false) -> RetroCartridge:
 	var cart := CART_SCENE.instantiate() as RetroCartridge
 	cart.systemid = GbaCartShell.SYSTEMID
 	cart.rom_path = rom
 	cart.shell_preset = shell
+	cart.shell_color = color
+	cart.shell_flake = flake
 	cart.game_label = "Selftest"
 	cart.freeze = true
 	add_child(cart)

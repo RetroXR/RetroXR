@@ -649,19 +649,74 @@ func _test_forced() -> void:
 		back.queue_free()
 	var auto := await _spawn(rom)
 	var auto_entry: Dictionary = persistence._serialize_node(auto, 3, {})
-	_ok(not auto_entry.has("shell_preset") and not auto_entry.has("body_region"),
-		"forced/an untouched cartridge writes neither key")
-	for cart: Node in [blue, unknown, jpn, usa, both, auto]:
+	_ok(not auto_entry.has("shell_preset") and not auto_entry.has("body_region")
+		and not auto_entry.has("shell_color") and not auto_entry.has("shell_flake"),
+		"forced/an untouched cartridge writes none of the keys")
+
+	# A mixed colour, from the panel's Custom sliders. Forced red underneath, so
+	# the colour has to beat a forced preset as well as the ROM's gold.
+	var mix := Color("#24479a")
+	var mixed := await _spawn(rom, &"red", "", "#24479a")
+	var mixed_model := mixed.get_node_or_null("CartModel")
+	_ok(mixed_model != null and _albedo(mixed_model, "Front_Shell") == mix
+		and _albedo(mixed_model, "Rear_Shell") == mix
+		and _part(mixed_model, "Front_Shell").get_active_material(0) is BaseMaterial3D,
+		"forced/a mixed colour beats a forced shell and the ROM's own")
+	var junk := await _spawn(rom, &"", "", "not a colour")
+	var junk_flake := _part(junk.get_node("CartModel"), "Front_Shell").get_active_material(0) as ShaderMaterial
+	_ok(junk_flake != null and junk_flake.get_shader_parameter("albedo") == _preset(&"gold").color,
+		"forced/a shell colour that is not one is the ROM's own")
+	var sparkle := await _spawn(rom, &"", "", "#24479a", true)
+	var sparkle_model := sparkle.get_node_or_null("CartModel")
+	var sm := _part(sparkle_model, "Front_Shell").get_active_material(0) as ShaderMaterial 		if sparkle_model != null else null
+	_ok(sm != null and sm.shader == CartridgeColor.FLAKE_SHADER
+		and sm.get_shader_parameter("albedo") == mix
+		and sm.get_shader_parameter("flake_color") == CartridgeColor.flake_finish(mix).flake_color,
+		"forced/a mixed colour can be metal flake")
+	_ok(sm != null and is_equal_approx(sm.get_shader_parameter("flake_density"), _preset(&"gold").flake_density)
+		and is_equal_approx(sm.get_shader_parameter("flake_size_mm"), _preset(&"gold").flake_size_mm),
+		"forced/with the flakes of the palette's own flake shell")
+	var lifted := CartridgeColor.flake_finish(Color.BLACK).flake_color
+	_ok(lifted.r > 0.0 and lifted.r == lifted.g and lifted.g == lifted.b
+		and CartridgeColor.flake_finish(Color.WHITE).flake_color == Color.WHITE,
+		"forced/flakes over black still show, over white they stay white", str(lifted))
+	var mixed_entry: Dictionary = persistence._serialize_node(sparkle, 4, {})
+	_ok(mixed_entry.get("shell_color", "") == "#24479a" and mixed_entry.get("shell_flake", false) == true
+		and not mixed_entry.has("shell_preset"),
+		"forced/a mixed colour and its flake are written to the save entry", str(mixed_entry))
+	_ok(ScenePersistence._entry_validation_error(mixed_entry, {}).is_empty(),
+		"forced/and that entry validates", ScenePersistence._entry_validation_error(mixed_entry, {}))
+	var mixed_bad := mixed_entry.duplicate()
+	mixed_bad["shell_flake"] = "yes"
+	_ok(not ScenePersistence._entry_validation_error(mixed_bad, {}).is_empty(),
+		"forced/a shell_flake that is not a boolean is refused")
+	var mixed_back := persistence._deserialize_object(mixed_entry) as RetroCartridge
+	_ok(mixed_back != null and mixed_back.shell_color == "#24479a" and mixed_back.shell_flake,
+		"forced/a mixed colour is read back before the cartridge enters the tree")
+	if mixed_back != null:
+		mixed_back.freeze = true
+		add_child(mixed_back)
+		for i in 4:
+			await get_tree().physics_frame
+		var restored := mixed_back.get_node_or_null("CartModel")
+		var rm := _part(restored, "Front_Shell").get_active_material(0) as ShaderMaterial 			if restored != null else null
+		_ok(rm != null and rm.shader == CartridgeColor.FLAKE_SHADER and rm.get_shader_parameter("albedo") == mix,
+			"forced/a restored cartridge wears its mixed flake shell")
+		mixed_back.queue_free()
+	for cart: Node in [blue, unknown, jpn, usa, both, auto, mixed, junk, sparkle]:
 		cart.queue_free()
 	await get_tree().process_frame
 
 
-func _spawn(rom: String, shell: StringName = &"", body := "") -> RetroCartridge:
+func _spawn(rom: String, shell: StringName = &"", body := "", color := "",
+		flake := false) -> RetroCartridge:
 	var cart := CART_SCENE.instantiate() as RetroCartridge
 	cart.systemid = "n64"
 	cart.rom_path = rom
 	cart.shell_preset = shell
 	cart.body_region = body
+	cart.shell_color = color
+	cart.shell_flake = flake
 	cart.game_label = "Selftest"
 	cart.freeze = true
 	add_child(cart)

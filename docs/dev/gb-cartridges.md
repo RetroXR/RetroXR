@@ -46,7 +46,9 @@ and `demetal` does not run (contacts and screw are metal).
 `_show_cart_spawn_options`, the N64's sub-menu without the Body row, with the
 swatches of the Game Boy palette. The id lands in `RetroCartridge.shell_preset`
 (saved by `scene_persistence`); an id the GB palette does not hold, an N64 one
-included, is ignored and the ROM's own shell is used.
+included, is ignored and the ROM's own shell is used. The sub-menu's Custom
+colour (`shell_color`, `shell_flake`; see n64-cartridges.md) keeps the rim's 0.65
+and the rails' 1.03 shade of it, and a flake mix takes the GB gold's flakes.
 
 **The sticker**: the scraped `media/label/<rom>.png` is painted onto the UV-mapped
 `Label` mesh (`_UV_LABELS`), which covers 0–1 with the image's top left at the
@@ -56,6 +58,6 @@ label's top left; the embedded 4 × 4 white is only a placeholder.
 Blender bug as the N64 front shell: run `Tools/glb/fix_unmapped_uvs.py` on any
 re-export. `gb_cart_tests` `uv/` fails otherwise.
 
-`gb_cart_tests` (68 cases): resources, model, branding, uv, surfaces, color, flake,
+`gb_cart_tests` (71 cases): resources, model, branding, uv, surfaces, color, flake,
 kept, lookup, cartridge, forced. Mutation-tested: dropping the destination check, the rim
 shade, or `gb` from `_UV_LABELS` each fail their own cases.

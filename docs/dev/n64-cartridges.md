@@ -45,6 +45,7 @@ reissue greys share the retail ROM and cannot be told apart by any hash.
 ```gdscript
 CartridgeColor.apply_preset(cart, &"gold_silver")          # Pokemon Stadium 2
 CartridgeColor.apply_color(cart, Color("#24479a"))
+CartridgeColor.apply_flake(cart, Color("#24479a"))          # any colour as metal flake
 CartridgeColor.apply_two_tone(cart, &"black", Color.YELLOW)  # a Color or a preset id per half
 CartridgeColor.reset_to_default(cart)
 CartridgeLabel.apply_file(cart, "user://label.png")         # independent of the shell
@@ -126,6 +127,18 @@ Japanese body on Ocarina of Time USA stays gold -- and a preset id the palette d
 not hold falls back to the ROM's own. Neither is saved for a cartridge left alone,
 because both are derived from its ROM; a forced one writes `shell_preset` /
 `body_region` into its entry, which is also what object sync sends.
+**The Shell list ends in Custom**: a swatch wearing the colour, Hue / Saturation /
+Brightness sliders (`MenuStyle.menu_slider_row`) and a Metal flake switch. Moving any
+of them, or pressing the swatch, picks Custom; a palette swatch or Auto drops it.
+Sliders, not Godot's `ColorPicker`: its wheel and fields are mouse-sized, its hex
+field wants a keyboard and its eyedropper cannot see out of a headset. The mix lands
+on `RetroCartridge.shell_color` ("#rrggbb") and `shell_flake`, and **beats any preset**,
+forced or the ROM's; a string that is not a colour is ignored. Metal flake is
+`CartridgeColor.flake_finish`: the system palette's first METAL_FLAKE preset (its
+gold) with the colour swapped in -- the N64's when the palette has none, as GBA's
+has not -- and flakes of colour × `FLAKE_LIFT` + `FLAKE_FLOOR` (1.5, 0.05), the
+ratio gold's and silver's flakes have to their base, so black still sparkles. Both
+are saved only when set (`shell_flake` is a `_BOOL_FIELDS` entry).
 `n64_cart_tests` `forced/` and `spawn_menu_tests` `hold/` cover it. **`HoldPress`
 listens to the button's own `pressed`, and a pooled ROM row sweeps every listener
 off that signal on each bind** -- `_bind_rom_row` calls `ensure_connected()` after

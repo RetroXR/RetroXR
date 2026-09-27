@@ -17,8 +17,8 @@ class_name SpawnMenuSpawnView
 extends Control
 
 signal spawn_requested(type: String)
-## `options` is what the hold sub-menu forced -- "shell_preset", "body_region" --
-## and empty for a plain click.
+## `options` is what the hold sub-menu forced -- "shell_preset" or "shell_color",
+## "body_region" -- and empty for a plain click.
 signal spawn_cartridge_requested(rom_path: String, game_label: String, systemid: String,
 		options: Dictionary)
 signal spawn_manual_requested(pdf_path: String)
@@ -48,6 +48,10 @@ const POSTER_THUMB_BOX := Vector2i(96, 72)
 const MAX_POSTER_THUMBS := 200
 ## Typing in the ROM filter rebuilds the list; this waits for a pause first.
 const SEARCH_DEBOUNCE_SEC := 0.18
+## The colour the cartridge panel's Custom sliders open on: a mid blue, so hue,
+## saturation and brightness each visibly change it from the first drag, where a
+## grey would leave the hue slider doing nothing.
+const CUSTOM_SHELL_START := Color(0.26, 0.44, 0.65)
 
 ## Applied to a whole row rather than its label: a server-only title with the
 ## server down has no working control on it, and dimming only the icon reads as
@@ -3201,6 +3205,16 @@ static func _swatch_button(text: String, color: Color, group: ButtonGroup = null
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.add_theme_font_size_override("font_size", 20)
 	btn.clip_text = true
+	_paint_swatch(btn, color)
+	if group != null:
+		btn.toggle_mode = true
+		btn.button_group = group
+	return btn
+
+
+## A swatch's fill, chosen border and ink, which is black or white by how light
+## the fill is. Split out so a swatch can follow a colour being mixed.
+static func _paint_swatch(btn: Button, color: Color) -> void:
 	var ink := Color.BLACK if color.get_luminance() > 0.45 else Color.WHITE
 	for state in ["font_color", "font_hover_color", "font_pressed_color",
 			"font_hover_pressed_color", "font_focus_color"]:
@@ -3212,18 +3226,14 @@ static func _swatch_button(text: String, color: Color, group: ButtonGroup = null
 		btn.add_theme_stylebox_override(state, MenuStyle.rounded(color, 8))
 	for state in ["pressed", "hover_pressed"]:
 		btn.add_theme_stylebox_override(state, chosen)
-	if group != null:
-		btn.toggle_mode = true
-		btn.button_group = group
-	return btn
 
 
 ## Shell, and for an N64 the body, of a cartridge. Picked and then SPAWN is
 ## pressed; `spawn` takes the options dictionary. The swatches are the system's
-## own CartridgeColor palette.
+## own CartridgeColor palette, then a colour the player mixes.
 func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) -> void:
 	var vbox := _open_spawn_options_panel(label)
-	var chosen := {"shell_preset": "", "body_region": ""}
+	var chosen := {"shell_preset": "", "shell_color": "", "shell_flake": false, "body_region": ""}
 	var auto_color := Color(0.18, 0.18, 0.35)
 
 	if systemid == "n64":
@@ -3242,7 +3252,7 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 	var shell_group := ButtonGroup.new()
 	var auto_btn := _swatch_button("Auto (from the ROM)", auto_color, shell_group)
 	auto_btn.button_pressed = true
-	auto_btn.pressed.connect(func() -> void: chosen["shell_preset"] = "")
+	auto_btn.pressed.connect(_pick_shell.bind(chosen, "", "", false))
 	vbox.add_child(auto_btn)
 	var palette := CartridgeColor.get_palette(systemid)
 	for section: Array in [
@@ -3264,8 +3274,9 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 			var shown := palette.find(preset.front) if preset.is_two_tone() else preset
 			var swatch := _swatch_button(preset.display_name,
 				(shown if shown != null else preset).color, shell_group)
-			swatch.pressed.connect(func() -> void: chosen["shell_preset"] = String(preset.id))
+			swatch.pressed.connect(_pick_shell.bind(chosen, String(preset.id), "", false))
 			grid.add_child(swatch)
+	_add_custom_shell(vbox, shell_group, chosen)
 
 	vbox.add_child(MenuStyle.spacer(6))
 	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
@@ -3273,11 +3284,66 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 	go.pressed.connect(func() -> void:
 		var options := {}
 		for key: String in chosen:
-			if not str(chosen[key]).is_empty():
-				options[key] = chosen[key]
+			var value: Variant = chosen[key]
+			if (value is bool and value) or (value is String and not value.is_empty()):
+				options[key] = value
 		_close_spawn_options_panel()
 		spawn.call(options))
 	vbox.add_child(go)
+
+
+## One shell choice replaces the last: a preset id, or a mixed "#rrggbb" and
+## whether it is metal flake. Empty preset and colour is Auto.
+static func _pick_shell(chosen: Dictionary, preset: String, color: String, flake: bool) -> void:
+	chosen["shell_preset"] = preset
+	chosen["shell_color"] = color
+	chosen["shell_flake"] = flake
+
+
+## A colour of the player's own: a swatch in the shell group wearing it, the hue,
+## saturation and brightness sliders that mix it, and a metal flake switch.
+## Sliders rather than Godot's ColorPicker, whose wheel and fields are sized for
+## a mouse, whose hex field wants a keyboard, and whose eyedropper cannot see out
+## of a headset. Moving any of them picks the swatch; so does pressing it.
+func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Dictionary) -> void:
+	vbox.add_child(MenuStyle.hint("Custom"))
+	var swatch := _swatch_button("", CUSTOM_SHELL_START, shell_group)
+	swatch.name = "ShellCustom"
+	vbox.add_child(swatch)
+	var sliders: Array[HSlider] = []
+	var readouts: Array[Label] = []
+	for row: Array in [["Hue", "ShellHue", 359.0, CUSTOM_SHELL_START.h * 360.0],
+			["Saturation", "ShellSaturation", 100.0, CUSTOM_SHELL_START.s * 100.0],
+			["Brightness", "ShellBrightness", 100.0, CUSTOM_SHELL_START.v * 100.0]]:
+		var parts := MenuStyle.menu_slider_row(vbox, row[0], 0.0, row[2], 1.0)
+		var slider: HSlider = parts[0]
+		slider.name = row[1]
+		slider.value = row[3]
+		sliders.append(slider)
+		readouts.append(parts[1])
+	var flake := MenuStyle.switch_row(vbox, "Metal flake, like the gold and silver shells",
+		false, 22, 56)
+	flake.name = "ShellFlake"
+
+	var refresh := func(pick: bool) -> void:
+		var c := Color.from_hsv(sliders[0].value / 360.0, sliders[1].value / 100.0,
+			sliders[2].value / 100.0)
+		var hex := "#" + c.to_html(false)
+		_paint_swatch(swatch, c)
+		swatch.text = "Custom  %s%s" % [hex, "  metal flake" if flake.button_pressed else ""]
+		readouts[0].text = "%d°" % int(sliders[0].value)
+		readouts[1].text = "%d%%" % int(sliders[1].value)
+		readouts[2].text = "%d%%" % int(sliders[2].value)
+		if pick:
+			# Setting button_pressed moves the group's choice without emitting
+			# `pressed`, so the choice is recorded here too.
+			swatch.button_pressed = true
+			_pick_shell(chosen, "", hex, flake.button_pressed)
+	refresh.call(false)
+	for slider in sliders:
+		slider.value_changed.connect(func(_v: float) -> void: refresh.call(true))
+	flake.toggled.connect(func(_on: bool) -> void: refresh.call(true))
+	swatch.pressed.connect(func() -> void: refresh.call(true))
 
 
 ## How long a lead is and what colour its plugs are. Two choices, so they are

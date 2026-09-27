@@ -118,8 +118,10 @@ flake ignores opacity. The two shell materials are in
 roughness). `demetal` skips them: they carry a metallic map.
 
 **Forcing a shell**: `_has_spawn_options` includes `gba`, so a held ROM row opens
-`_show_cart_spawn_options` with the GBA swatches, as for GB.
+`_show_cart_spawn_options` with the GBA swatches, as for GB, and its Custom colour.
+A mixed colour is always solid (the sliders have no opacity), and a flake mix
+borrows the N64 gold's flakes because this palette has no metal flake preset.
 
-`gba_cart_tests` (69 cases): resources, model, surfaces, color, clear, kept,
+`gba_cart_tests` (71 cases): resources, model, surfaces, color, clear, kept,
 lookup, cartridge, forced. Mutation-tested: sending clear shells down the solid path fails 11
 cases, dropping the maker check fails `lookup/a Pokemon game code from another maker`.

@@ -38,9 +38,10 @@ const _STRING_FIELDS := [
 	"expansion_id",
 	# The image of the memory built into a console -- see ConsoleMemory.
 	"console_memory",
-	# What a player forced at spawn: an N64 cartridge's shell and regional body,
-	# and the colour of a lead's plugs. Absent means the object's own.
-	"shell_preset", "body_region", "plug_color",
+	# What a player forced at spawn: a cartridge's shell (a preset, or a colour
+	# they mixed), an N64's regional body, and the colour of a lead's plugs.
+	# Absent means the object's own.
+	"shell_preset", "shell_color", "body_region", "plug_color",
 ]
 const _NUMBER_FIELDS := [
 	"lid_angle", "scale_factor", "stereo_mode", "size_scale", "page_state",
@@ -52,7 +53,9 @@ const _NUMBER_FIELDS := [
 	"cord_length",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
-	"locked", "hardback"]
+	"locked", "hardback",
+	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
+	"shell_flake"]
 const _REFERENCE_FIELDS := [
 	"tv", "cartridge", "memcard", "tape", "disc", "media", "system",
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
@@ -2103,6 +2106,10 @@ func _media_fields(cart: RetroCartridge) -> Dictionary:
 	# Only what was forced: a cartridge left alone derives both from its ROM.
 	if not cart.shell_preset.is_empty():
 		fields["shell_preset"] = String(cart.shell_preset)
+	if not cart.shell_color.is_empty():
+		fields["shell_color"] = cart.shell_color
+	if cart.shell_flake:
+		fields["shell_flake"] = true
 	if not cart.body_region.is_empty():
 		fields["body_region"] = cart.body_region
 	return fields
@@ -2570,4 +2577,6 @@ func _apply_media_fields(cart: RetroCartridge, data: Dictionary) -> void:
 	cart.save_id = data.get("save_id", "")
 	cart.systemid = SystemIds.canonical(str(data.get("cart_systemid", "")))
 	cart.shell_preset = StringName(str(data.get("shell_preset", "")))
+	cart.shell_color = str(data.get("shell_color", ""))
+	cart.shell_flake = bool(data.get("shell_flake", false))
 	cart.body_region = str(data.get("body_region", ""))

@@ -9,6 +9,7 @@
 ##
 ##     CartridgeColor.apply_preset(cart, &"gold_silver")
 ##     CartridgeColor.apply_color(cart, Color("#24479a"))
+##     CartridgeColor.apply_flake(cart, Color("#24479a"), "gb")
 ##     CartridgeColor.apply_two_tone(cart, &"gold", Color.BLACK)
 ##     CartridgeColor.reset_to_default(cart)
 ##     CartridgeColor.apply_preset(gb_cart, &"red", "gb")
@@ -54,6 +55,12 @@ const FROST_FLATTEN := 0.55
 const FROST_CLOUD := 1.6
 ## How far the clear surface's fine moulded grain moves its roughness either way.
 const CLEAR_GRAIN := 0.2
+
+## A metal flake shell in a colour of the player's own (flake_finish): its flakes
+## are the colour times FLAKE_LIFT plus FLAKE_FLOOR, the ratio the gold and silver
+## presets' flakes have to their base, so a black shell still sparkles.
+const FLAKE_LIFT := 1.5
+const FLAKE_FLOOR := 0.05
 
 ## Materials of the exterior moulding, by the name the model gives them: the N64
 ## bodies' three, the Game Boy cart's front, rear, smooth rails and the rim
@@ -117,6 +124,32 @@ static func apply_color(cartridge: Node, color: Color) -> Error:
 	return _paint(cartridge, color, color)
 
 
+## `color` as metal flake plastic, like the gold and silver shells.
+static func apply_flake(cartridge: Node, color: Color, systemid := "n64") -> Error:
+	var finish := flake_finish(color, systemid)
+	return _paint(cartridge, finish, finish)
+
+
+## A metal flake finish in any colour: the flakes, gloss and grain of the system's
+## first metal flake preset -- the N64's when its palette has none -- over
+## `color`, the flakes FLAKE_LIFT brighter.
+static func flake_finish(color: Color, systemid := "n64") -> CartridgeShellPreset:
+	var template := _first_flake(systemid)
+	if template == null:
+		template = _first_flake("n64")
+	var finish := CartridgeShellPreset.new()
+	if template != null:
+		finish = template.duplicate() as CartridgeShellPreset
+	finish.id = &""
+	finish.finish = CartridgeShellPreset.Finish.METAL_FLAKE
+	finish.color = Color(color.r, color.g, color.b, 1.0)
+	finish.flake_color = Color(
+		minf(color.r * FLAKE_LIFT + FLAKE_FLOOR, 1.0),
+		minf(color.g * FLAKE_LIFT + FLAKE_FLOOR, 1.0),
+		minf(color.b * FLAKE_LIFT + FLAKE_FLOOR, 1.0))
+	return finish
+
+
 ## Each half is a Color or the id of a single-colour preset.
 static func apply_two_tone(cartridge: Node, front_color: Variant, back_color: Variant,
 		systemid := "n64") -> Error:
@@ -152,6 +185,16 @@ static func shell_surfaces(cartridge: Node) -> Array[Dictionary]:
 			if _source_of(mi, i) != null:
 				out.append({"mesh": mi, "surface": i, "half": _half_of(cartridge, mi)})
 	return out
+
+
+static func _first_flake(systemid: String) -> CartridgeShellPreset:
+	var p := get_palette(systemid)
+	if p == null:
+		return null
+	for preset in p.presets:
+		if preset != null and preset.finish == CartridgeShellPreset.Finish.METAL_FLAKE:
+			return preset
+	return null
 
 
 static func _find_preset(id: StringName, systemid: String) -> CartridgeShellPreset:

@@ -38,6 +38,15 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 ## ROM's own. N64, Game Boy and Game Boy Advance only, and read once, in _ready.
 @export var shell_preset: StringName = &""
 
+## A colour the player mixed at spawn, "#rrggbb", painted over the whole shell in
+## place of any preset -- forced or the ROM's own. Empty, or not a colour, is
+## unset. The same systems as shell_preset, and read at the same time.
+@export var shell_color: String = ""
+
+## shell_color as metal flake plastic, like the gold and silver shells. Nothing
+## without a shell_color.
+@export var shell_flake := false
+
 ## A regional body the player asked for at spawn: N64CartShell.REGION_USA or
 ## REGION_JPN, empty for the ROM's own market. It picks the SHAPE only — the
 ## shell colour is still looked up under the market the ROM really has.
@@ -213,20 +222,11 @@ func _apply_cart_model() -> void:
 	if systemid == "n64dd" and Nintendo64DD.is_dev_disk(rom_path):
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
 	if systemid == "n64":
-		var preset := N64CartShell.preset_for_rom(rom_path, market)
-		if CartridgeColor.get_palette().find(shell_preset) != null:
-			preset = shell_preset
-		CartridgeColor.apply_preset(glb, preset)
+		_paint_shell(glb, "n64", N64CartShell.preset_for_rom(rom_path, market))
 	elif GbCartShell.is_shell(systemid):
-		var gb_preset := GbCartShell.preset_for_rom(rom_path)
-		if CartridgeColor.get_palette(GbCartShell.SYSTEMID).find(shell_preset) != null:
-			gb_preset = shell_preset
-		CartridgeColor.apply_preset(glb, gb_preset, GbCartShell.SYSTEMID)
+		_paint_shell(glb, GbCartShell.SYSTEMID, GbCartShell.preset_for_rom(rom_path))
 	elif systemid == GbaCartShell.SYSTEMID:
-		var gba_preset := GbaCartShell.preset_for_rom(rom_path)
-		if CartridgeColor.get_palette(GbaCartShell.SYSTEMID).find(shell_preset) != null:
-			gba_preset = shell_preset
-		CartridgeColor.apply_preset(glb, gba_preset, GbaCartShell.SYSTEMID)
+		_paint_shell(glb, GbaCartShell.SYSTEMID, GbaCartShell.preset_for_rom(rom_path))
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:
@@ -240,6 +240,21 @@ func _apply_cart_model() -> void:
 	var shutter := get_node_or_null("Shutter")
 	if shutter != null:
 		shutter.queue_free()
+
+
+## The shell the model wears: the colour the player mixed, else the preset they
+## forced when `palette_id`'s palette holds it, else `own_preset`, the ROM's.
+func _paint_shell(glb: Node3D, palette_id: String, own_preset: StringName) -> void:
+	if Color.html_is_valid(shell_color):
+		if shell_flake:
+			CartridgeColor.apply_flake(glb, Color.html(shell_color), palette_id)
+		else:
+			CartridgeColor.apply_color(glb, Color.html(shell_color))
+		return
+	var preset := own_preset
+	if CartridgeColor.get_palette(palette_id).find(shell_preset) != null:
+		preset = shell_preset
+	CartridgeColor.apply_preset(glb, preset, palette_id)
 
 
 ## Bounds of a cart model, in the GLB root's own space.
