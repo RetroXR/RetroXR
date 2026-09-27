@@ -1,10 +1,13 @@
 ## Times the menu operations that stutter, on whatever device it runs on.
 ##
-## Booted by NetworkManager when user://perfprobe.cfg exists, so it can run on
-## the Quest with nobody wearing it. Desktop numbers were misleading here: the
-## costs are dominated by storage, and Quest internal storage is far slower.
+## Nothing boots it: run it as the launched scene, windowed on a desktop or on a
+## headset through a probe-only export (docs/dev/quest-device.md). It once
+## hung off a NetworkManager cfg-file hook, which is gone. Desktop numbers were
+## misleading here: the costs are dominated by storage, and Quest internal
+## storage is far slower. Its sibling, download_ui_probe, times what lands on
+## the open menu while something downloads or syncs.
 ##
-## Prints [perf] lines and quits. Delete the .cfg after a run.
+## Prints [perf] lines, leaves them in user://perf_result.txt, and quits.
 extends Node
 
 const BIG := "gba"
@@ -90,7 +93,7 @@ func _run() -> void:
 
 	# ---- 4. The real menu ---------------------------------------------------
 	var sv := SubViewport.new()
-	sv.size = Vector2i(2200, 1500)
+	sv.size = Vector2i(2200, 1800)
 	sv.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	add_child(sv)
 
@@ -106,11 +109,13 @@ func _run() -> void:
 	for i in range(120):
 		await get_tree().process_frame
 
+	# The spawn tab's view owns the grid and the ROM list, not the menu itself.
+	var view: Node = menu.get("_spawn_view")
 	var t := _t()
-	menu.call("_populate_cartridges_tab")
+	view.call("_populate_cartridges_tab")
 	_say("_populate_cartridges_tab         %8.2f ms", [_ms(t)])
 
-	var browser: Object = menu.get("_cartridges_browser")
+	var browser: Object = view.get("_cartridges_browser")
 	if browser != null:
 		var target := BIG if BIG in synced else (synced[0] if not synced.is_empty() else "")
 		if not target.is_empty():
@@ -119,18 +124,18 @@ func _run() -> void:
 			var open_ms := _ms(t)
 			for i in range(4):
 				await get_tree().process_frame
-			var rows: Array = menu.get("_romm_rows")
+			var rows: Array = view.get("_romm_rows")
 			_say("open_system(%s)  %8.2f ms   %d rows  <-- the stutter",
 				[target, open_ms, rows.size()])
 
 			# Typing, one keystroke at a time, rebuilding synchronously so the
 			# per-key cost is visible even though the UI now debounces it.
 			for term: String in ["m", "ma", "mar", "mari", "mario"]:
-				menu.set("_romm_filter", term)
+				view.set("_romm_filter", term)
 				t = _t()
-				menu.call("_rebuild_romm_rows")
+				view.call("_rebuild_romm_rows")
 				_say("  rebuild filter=%-6s        %8.2f ms   %d rows",
-					['"' + term + '"', _ms(t), (menu.get("_romm_rows") as Array).size()])
+					['"' + term + '"', _ms(t), (view.get("_romm_rows") as Array).size()])
 
 	# ---- 4b. What the per-row loop actually costs ---------------------------
 	# open_system is ~0.13 ms/row on device; this splits that between the parts
