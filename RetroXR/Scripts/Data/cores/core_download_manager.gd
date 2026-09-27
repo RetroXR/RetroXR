@@ -659,7 +659,14 @@ func _start_download_attempt(core_name: String) -> void:
 
 func _process(_delta: float) -> void:
 	for core_name: String in _active_downloads.keys():
+		if not _active_downloads.has(core_name):
+			continue
 		var info: Dictionary = _active_downloads[core_name]
+		if info.has("unzip_task"):
+			if WorkerThreadPool.is_task_completed(int(info["unzip_task"])):
+				WorkerThreadPool.wait_for_task_completion(int(info["unzip_task"]))
+				_on_unzipped(core_name)
+			continue
 		var http: HTTPRequest = info["http"]
 		if not is_instance_valid(http):
 			continue
@@ -682,7 +689,6 @@ func _on_download_completed(core_name: String, result: int, response_code: int) 
 		return
 
 	var zip_path: String  = info["zip_path"]
-	var remote_date: String = info["remote_date"]
 
 	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
 		# Remove incomplete zip if it exists
@@ -729,8 +735,35 @@ func _on_download_completed(core_name: String, result: int, response_code: int) 
 
 	_free_download_request(core_name)
 
-	# Extract the zip
-	var extract_err := _extract_zip(zip_path, default_cores_dir())
+	# Unzipped on a pool thread. Inflating the library and writing it out ran
+	# right here, on the main thread: ~50 ms for a 12 MB core on a Quest 3 and
+	# more for the big ones, once per core of a Download All. The job stays the
+	# current one until it is done, so the queue still runs one at a time;
+	# _process picks the result up.
+	var status: Array = [ERR_BUSY]
+	info["unzip_status"] = status
+	info["unzip_task"] = WorkerThreadPool.add_task(
+		_unzip_task.bind(zip_path, _unzip_dest(), status))
+
+
+## Where a finished download is unpacked. Its own method so cores_data_tests can
+## point it at a scratch folder rather than the player's cores.
+func _unzip_dest() -> String:
+	return default_cores_dir()
+
+
+## Runs on a pool thread. `status` is written once, here, and read only after
+## the task has been seen to complete.
+func _unzip_task(zip_path: String, dest_dir: String, status: Array) -> void:
+	status[0] = _extract_zip(zip_path, dest_dir)
+
+
+## The main-thread half of a finished download, once its unzip is done.
+func _on_unzipped(core_name: String) -> void:
+	var info: Dictionary = _active_downloads[core_name]
+	info.erase("unzip_task")
+	var zip_path: String = info["zip_path"]
+	var extract_err := int((info["unzip_status"] as Array)[0])
 	# Always delete the zip regardless of extraction result
 	if FileAccess.file_exists(zip_path):
 		DirAccess.remove_absolute(zip_path)
@@ -740,9 +773,23 @@ func _on_download_completed(core_name: String, result: int, response_code: int) 
 		return
 
 	# Update manifest with the name the core actually landed under
-	manifest.set_downloaded(core_name, remote_date, installed_core_lib(core_name))
+	manifest.set_downloaded(core_name, str(info["remote_date"]), installed_core_lib(core_name))
 	print("[CoreDownloadManager] Downloaded and extracted: %s" % core_name)
 	_finish(core_name, true, "")
+
+
+## Wait out a job's unzip. A cancel must not delete the zip under a pool thread
+## still reading it, and nothing may leave a task behind unjoined.
+func _join_unzip(core_name: String) -> void:
+	var info: Dictionary = _active_downloads.get(core_name, {})
+	if info.has("unzip_task"):
+		WorkerThreadPool.wait_for_task_completion(int(info["unzip_task"]))
+		info.erase("unzip_task")
+
+
+func _exit_tree() -> void:
+	for core_name: String in _active_downloads.keys():
+		_join_unzip(core_name)
 
 
 ## Extract all files from zip_path into dest_dir.
@@ -778,6 +825,7 @@ func _extract_zip(zip_path: String, dest_dir: String) -> int:
 # ---------------------------------------------------------------------------
 
 func _cleanup_download(core_name: String) -> void:
+	_join_unzip(core_name)
 	_free_download_request(core_name)
 	_active_downloads.erase(core_name)
 

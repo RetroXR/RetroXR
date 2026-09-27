@@ -22,7 +22,7 @@ extends Node
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 69
+const EXPECTED_CASES := 75
 
 var _passed := 0
 var _failed := 0
@@ -43,6 +43,8 @@ func _ready() -> void:
 	_group_forced()
 	_group_manifest()
 	_group_recommended()
+	_group_firmware_known()
+	await _group_unzip()
 
 	# A case that never RAN is not a case that passed. GDScript has no
 	# try/catch, so one bad index aborts the function it is in and every case
@@ -385,3 +387,83 @@ func _group_recommended() -> void:
 	var by_other: Array = [{"name": "zzz"}, {"name": pick}]
 	var keyed := CoreRecommendations.first(known, by_other, "name")
 	_eq(str(keyed[0]["name"]), pick, "recommended/first honours a different key")
+
+
+# ── unzip/ — a finished download is unpacked off the main thread ──────────────
+
+class _ScratchCores extends CoreDownloadManager:
+	var scratch := ""
+
+	func _unzip_dest() -> String:
+		return scratch
+
+
+## The core's zip was inflated and written out inside the download's own
+## callback, on the main thread -- ~50 ms a core on a Quest 3, once per core of a
+## Download All. It is a pool task now, and the job finishes on a later frame.
+func _group_unzip() -> void:
+	var cores := _dir.path_join("cores")
+	DirAccess.make_dir_recursive_absolute(cores)
+	var zip_path := cores.path_join("probe.zip")
+	var zip := ZIPPacker.new()
+	zip.open(zip_path)
+	zip.start_file("probe_libretro_android.so")
+	zip.write_file("not really a core".to_utf8_buffer())
+	zip.close_file()
+	zip.close()
+
+	var dm := _ScratchCores.new()
+	dm.scratch = cores
+	add_child(dm)
+	dm.manifest = DownloadManifest.new()
+	dm.manifest.setup(_dir)
+	dm._current = "probe"
+	dm._active_downloads["probe"] = {
+		"http": null, "zip_path": zip_path, "remote_date": "2026-09-27",
+		"label": "Probe", "candidates": PackedStringArray(["probe.zip"]),
+		"attempt": 0, "net_attempt": 0,
+	}
+	var finished: Array = []
+	dm.job_finished.connect(func(key: String, ok: bool, error: String) -> void:
+		finished.append([key, ok, error]))
+
+	dm._on_download_completed("probe", HTTPRequest.RESULT_SUCCESS, 200)
+	_eq(finished.size(), 0, "unzip/the download's callback returns before the job is done")
+	for i in 120:
+		if not finished.is_empty():
+			break
+		await get_tree().process_frame
+	_eq(finished, [["core:probe", true, ""]], "unzip/the job finishes once the pool has unzipped it")
+	_ok(FileAccess.file_exists(cores.path_join("probe_libretro_android.so"))
+		and not FileAccess.file_exists(zip_path),
+		"unzip/the library is in place and the zip is gone")
+	_eq(dm.manifest.get_remote_date("probe"), "2026-09-27", "unzip/and the manifest has its stamp")
+	dm.queue_free()
+	# _cleanup takes the files in _dir, not a folder inside it.
+	DirAccess.remove_absolute(cores.path_join("probe_libretro_android.so"))
+	DirAccess.remove_absolute(zip_path)
+	DirAccess.remove_absolute(cores)
+
+
+# ── firmware/ — what the installer verified is not hashed again ──────────────
+
+## Every freshly installed BIOS missed FirmwareState's cache (its mtime is new),
+## and the BIOS tab's rebuild hashed each on the main thread. The installer
+## already checked the download against its digest, and hands it over.
+func _group_firmware_known() -> void:
+	var dest := _dir.path_join("firmware_known.bin")
+	var f := FileAccess.open(dest, FileAccess.WRITE)
+	f.store_string("a bios, or so it says")
+	f.close()
+	var fs := FirmwareState.new()
+	# Deliberately not this file's real digest: a hash would give it away.
+	var claimed := "0123456789abcdef0123456789abcdef"
+	fs.note_verified(dest, claimed)
+	_eq(fs._md5_of("probe", "firmware_known.bin", dest), claimed,
+		"firmware/a file the installer verified is not hashed again")
+
+	f = FileAccess.open(dest, FileAccess.WRITE)
+	f.store_string("replaced since, and longer than it was")
+	f.close()
+	_eq(fs._md5_of("probe", "firmware_known.bin", dest), FileAccess.get_md5(dest).to_lower(),
+		"firmware/one that has changed since is hashed")

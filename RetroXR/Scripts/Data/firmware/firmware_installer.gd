@@ -237,7 +237,19 @@ func _worker(job: Dictionary) -> void:
 	if bool(placed.get("cancelled", false)):
 		_emit_cancelled.call_deferred(key)
 		return
+	# The download was checked against this digest before it was placed, so the
+	# BIOS tab's refresh -- which the finish below sets off -- need not hash the
+	# files again on the main thread. Deferred first, so it lands before that.
+	var md5 := str(job.get("md5", ""))
+	if bool(placed["ok"]) and int(job["kind"]) == Kind.FILE and not md5.is_empty():
+		_note_verified.call_deferred((job["dests"] as Array).duplicate(), md5)
 	_emit_finished.call_deferred(key, bool(placed["ok"]), str(placed.get("error", "")))
+
+
+## Main thread: FirmwareState is not shared with the workers.
+func _note_verified(dests: Array, md5: String) -> void:
+	for dest: String in dests:
+		FirmwareState.shared().note_verified(dest, md5)
 
 
 ## Each part is its own download and its own bar, announced under the part's

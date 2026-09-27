@@ -28,7 +28,25 @@ static var _shared: FirmwareState = null
 ## a re-open never re-hashes an unchanged file.
 var _cache: Dictionary = {}
 
+## dest -> {size, mtime, md5} for files FirmwareInstaller has just written from a
+## download it checked. Every freshly written file misses _cache (its mtime is
+## new), and the BIOS tab's rebuild then hashed each one on the main thread —
+## "several hundred ms on a headset" for a Get all. Keyed by where the file
+## went, which is what the installer knows; _cache is keyed by core and path.
+var _known: Dictionary = {}
+
 var _dirty := false
+
+
+## A file the installer wrote and verified against `md5`. Trusted only while its
+## size and mtime are still the ones recorded here.
+func note_verified(dest: String, md5: String) -> void:
+	var f := FileAccess.open(dest, FileAccess.READ)
+	if f == null or md5.is_empty():
+		return
+	_known[dest] = {"size": f.get_length(),
+		"mtime": int(FileAccess.get_modified_time(dest)), "md5": md5.to_lower()}
+	f.close()
 
 
 static func shared() -> FirmwareState:
@@ -91,6 +109,13 @@ func _md5_of(core_name: String, path: String, dest: String) -> String:
 
 	if size < 0 or size > MAX_VERIFY_BYTES:
 		return ""
+
+	# Just installed from a download that was checked against this digest.
+	var known: Dictionary = _known.get(dest, {})
+	if not known.is_empty() and int(known["size"]) == size and int(known["mtime"]) == mtime:
+		_cache[key] = {"size": size, "mtime": mtime, "md5": str(known["md5"])}
+		_dirty = true
+		return str(known["md5"])
 
 	var digest := FileAccess.get_md5(dest).to_lower()
 	if digest.is_empty():
