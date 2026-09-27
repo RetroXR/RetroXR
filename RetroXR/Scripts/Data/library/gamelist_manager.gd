@@ -158,6 +158,15 @@ static func _same_rom_path(a: String, b: String) -> bool:
 	return false
 
 
+## A key under which _same_rom_path's equal paths collide: upper-cased where it
+## ignores case, since nocasecmp_to compares characters by their upper case.
+## "" for no path, which _game_holding_rom never matches either.
+static func _path_key(path: String) -> String:
+	if OS.get_name() in ["Windows", "macOS"]:
+		return path.to_upper()
+	return path
+
+
 ## Which of two ids to keep when one entry absorbs another.
 ##
 ## A "romm:" id is load-bearing — save sync, save-state backup and the cache
@@ -187,15 +196,37 @@ func dedupe(systemid: String) -> int:
 	var games: Array = gamelist.get("games", [])
 	var removed := 0
 
+	# The earliest entry listing each ROM path. Walking back from the end, an
+	# entry folds into the earliest one BEFORE it that lists any of its ROMs.
+	# That used to be found by copying and scanning every entry before it, for
+	# every entry — O(n²), 1.7 s for a 1,000-game list on a Quest 3 — and this
+	# runs on the main thread after every download and every scrape. Only the
+	# earliest holder is kept, so a lookup that lands at or past `gi` means no
+	# entry before it holds the path. Entries past `gi` are only ever removed,
+	# which leaves every index below it where it was.
+	var first_holder: Dictionary = {}
+	for i in games.size():
+		for r: Dictionary in (games[i] as Dictionary).get("roms", []):
+			var k := _path_key(str(r.get("path", "")))
+			if not k.is_empty() and not first_holder.has(k):
+				first_holder[k] = i
+
 	for gi in range(games.size() - 1, 0, -1):
 		var g: Dictionary = games[gi]
-		var target: Dictionary = {}
+		var ti := -1
 		for r: Dictionary in g.get("roms", []):
-			target = _game_holding_rom(games.slice(0, gi), str(r.get("path", "")))
-			if not target.is_empty():
+			var at := int(first_holder.get(_path_key(str(r.get("path", ""))), gi))
+			if at < gi:
+				ti = at
 				break
-		if target.is_empty():
+		if ti < 0:
 			continue
+		var target: Dictionary = games[ti]
+		# Everything this entry listed is the earlier one's now.
+		for r: Dictionary in g.get("roms", []):
+			var k := _path_key(str(r.get("path", "")))
+			if not k.is_empty():
+				first_holder[k] = mini(int(first_holder.get(k, ti)), ti)
 		target["game_id"] = _best_game_id(
 			str(target.get("game_id", "")), str(g.get("game_id", "")))
 		for field: String in ["name", "desc", "developer", "publisher", "genre"]:

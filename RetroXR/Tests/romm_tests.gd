@@ -2026,6 +2026,126 @@ func _test_gamelist_dedupe() -> void:
 	_eq(gl.dedupe(sysid), 0, "dedupe/a clean list folds nothing")
 	gl._gamelists.clear()
 
+	_test_gamelist_dedupe_is_the_old_fold()
+
+
+## dedupe was O(n²) -- every entry copied and scanned every entry before it --
+## and runs after every download and every scrape: 1.7 s for a 1,000-game list
+## on a Quest 3. The linear one must fold exactly as that one did, so the old
+## loop is kept here verbatim and both are run over random lists built to split
+## games every way it has to cope with: shared ROMs, chains of them, the same
+## file under two spellings, blank paths, a ROM repeated inside one entry.
+func _test_gamelist_dedupe_is_the_old_fold() -> void:
+	var rng := RandomNumberGenerator.new()
+	var mismatch := ""
+	var folded_any := 0
+	for seed_i in 300:
+		rng.seed = 7000 + seed_i
+		var games := _random_split_gamelist(rng)
+		var gl := GamelistManager.new()
+		gl._gamelists[TEST_SYSTEM] = {"games": games.duplicate(true)}
+		var got_removed := gl.dedupe(TEST_SYSTEM)
+		var want_games := games.duplicate(true)
+		var want_removed := _dedupe_as_it_was(want_games)
+		var got := JSON.stringify(gl._gamelists[TEST_SYSTEM]["games"])
+		if got_removed != want_removed or got != JSON.stringify(want_games):
+			mismatch = "seed %d: folded %d, the old fold %d" % [7000 + seed_i, got_removed, want_removed]
+			break
+		folded_any += 1 if want_removed > 0 else 0
+	_ok(mismatch.is_empty() and folded_any > 100,
+		"dedupe/the linear fold gives the old fold's answer on 300 random lists",
+		mismatch if not mismatch.is_empty() else "only %d lists folded anything" % folded_any)
+
+	# The key it looks paths up by must call two paths equal exactly when
+	# _same_rom_path does, awkward letters included.
+	var names := ["a.nes", "A.NES", "ſ.nes", "S.nes", "s.nes", "ß.nes", "SS.nes",
+		"İ.nes", "i.nes", "I.nes", "ı.nes", "K.nes", "k.nes", "K.nes", "Ω.nes", "ω.nes", ""]
+	var disagree := ""
+	for a: String in names:
+		for b: String in names:
+			var same := GamelistManager._same_rom_path(a, b) and not a.is_empty()
+			var keyed := GamelistManager._path_key(a) == GamelistManager._path_key(b) \
+				and not a.is_empty()
+			if same != keyed:
+				disagree = "%s / %s" % [a, b]
+	_eq(disagree, "", "dedupe/its path key agrees with _same_rom_path")
+
+
+## A gamelist split the ways real ones were: from a pool of paths smaller than
+## the ROMs drawn from it, some spelt in another case, some blank.
+func _random_split_gamelist(rng: RandomNumberGenerator) -> Array:
+	var n := rng.randi_range(1, 40)
+	var pool: Array[String] = []
+	for i in maxi(1, int(n * 1.3)):
+		pool.append("./Game %02d (USA).nes" % i)
+	var games: Array = []
+	for i in n:
+		var roms: Array = []
+		for j in rng.randi_range(1, 3):
+			var p: String = pool[rng.randi_range(0, pool.size() - 1)]
+			var roll := rng.randf()
+			if roll < 0.15:
+				p = p.to_upper()
+			elif roll < 0.2:
+				p = ""
+			var r := {"path": p}
+			if rng.randf() < 0.4:
+				r["preferred"] = true
+			roms.append(r)
+		var g := {"game_id": ["romm:%d" % i, "ss:%d" % i, ""][rng.randi_range(0, 2)],
+			"name": ["", "Game %d" % i][rng.randi_range(0, 1)],
+			"desc": ["", "A game."][rng.randi_range(0, 1)],
+			"roms": roms}
+		if rng.randf() < 0.3:
+			g["scraped"] = true
+		games.append(g)
+	return games
+
+
+## GamelistManager.dedupe before it went linear, word for word but for taking
+## the list rather than a systemid.
+func _dedupe_as_it_was(games: Array) -> int:
+	var removed := 0
+	for gi in range(games.size() - 1, 0, -1):
+		var g: Dictionary = games[gi]
+		var target: Dictionary = {}
+		for r: Dictionary in g.get("roms", []):
+			target = GamelistManager._game_holding_rom(games.slice(0, gi), str(r.get("path", "")))
+			if not target.is_empty():
+				break
+		if target.is_empty():
+			continue
+		target["game_id"] = GamelistManager._best_game_id(
+			str(target.get("game_id", "")), str(g.get("game_id", "")))
+		for field: String in ["name", "desc", "developer", "publisher", "genre"]:
+			target[field] = GamelistManager._keep_better(
+				str(target.get(field, "")), str(g.get(field, "")))
+		if bool(g.get("scraped", false)):
+			target["scraped"] = true
+		var into: Array = target.get("roms", [])
+		for r: Dictionary in g.get("roms", []):
+			if GamelistManager._game_holding_rom([target], str(r.get("path", ""))).is_empty():
+				into.append(r)
+		target["roms"] = into
+		games.remove_at(gi)
+		removed += 1
+
+	for g: Dictionary in games:
+		var roms: Array = g.get("roms", [])
+		for i in range(roms.size() - 1, 0, -1):
+			var dup := false
+			for j in range(i):
+				if GamelistManager._same_rom_path(str((roms[i] as Dictionary).get("path", "")),
+						str((roms[j] as Dictionary).get("path", ""))):
+					if bool((roms[i] as Dictionary).get("preferred", false)):
+						(roms[j] as Dictionary)["preferred"] = true
+					dup = true
+					break
+			if dup:
+				roms.remove_at(i)
+		g["roms"] = roms
+	return removed
+
 
 ## One row per downloaded game in the ROM list: its variants fold behind the
 ## preferred copy. Shaped like the Sega CD page that asked for it, where Mickey
