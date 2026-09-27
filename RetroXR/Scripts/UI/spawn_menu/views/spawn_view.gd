@@ -36,6 +36,11 @@ signal scroll_changed(scroll: ScrollContainer)
 signal romm_state_changed
 
 const WHEEL_BOX := Vector2i(300, 76)
+## A row's scraped label, which the Cover slot draws at 72x96. Four times that
+## leaves the mips room for a menu resized up and read at an angle, and keeps a
+## 1000-px scan from being uploaded whole — two of those land in a frame, and a
+## texture upload is the costly part of a Quest frame (books.md).
+const LABEL_BOX := Vector2i(288, 384)
 ## Poster row thumbnails. Bounded for the same reason WHEEL_BOX is: an unbounded
 ## Button.icon with expand_icon draws far past its row and spills into the
 ## neighbours.
@@ -178,6 +183,26 @@ var _media_dl_refresh_cb: Callable = Callable()
 ## always visible, it is the Viewport2Din3D in the world that gets toggled.
 var _menu_shown: bool = false
 
+## Rebuilds owed to the menu, run once at the end of the frame that asked for
+## them, and only while the menu is out; put away, they wait for on_menu_shown.
+##
+## A finished download reached _rebuild_romm_rows twice in one frame (the cache
+## manifest's `changed`, then the downloader's `finished`). A core serving six
+## systems reported each of them, and every report rebuilt both grids and the
+## open page: 560 ms of one frame on a Quest 3. And all of it ran with the menu
+## put away too, because _romm_detail_systemid outlives the page it names.
+var _owe_systems := false
+var _owe_cartridges := false
+var _owe_romm_rows := false
+var _owed_flush_queued := false
+
+## Art that landed this frame, applied once at its end: RomM rom ids, and the
+## file stems scraped art is named after. See _flush_landed_art.
+var _art_landed_ids: Dictionary = {}
+var _art_landed_stems: Dictionary = {}
+var _art_flush_queued := false
+var _cover_prune_timer: SceneTreeTimer = null
+
 static func create(menu: Node) -> SpawnMenuSpawnView:
 	var v := SpawnMenuSpawnView.new()
 	v._menu = menu
@@ -196,6 +221,7 @@ static func create(menu: Node) -> SpawnMenuSpawnView:
 	v.scraped_art      = menu.scraped_art
 	v._connect_romm()
 	v._build()
+	v.visibility_changed.connect(v._on_visibility_changed)
 	return v
 
 
@@ -210,9 +236,10 @@ func _connect_romm() -> void:
 	romm_catalog.sync_finished.connect(_on_romm_sync_finished)
 	romm_catalog.sync_aborted.connect(_on_romm_sync_aborted)
 	# The warm thread works out a platform's shown count after the grid is
-	# already up, so the tile it belongs to has to be redrawn.
+	# already up, so the tile it belongs to has to be redrawn. Once however many
+	# platforms it finishes in a frame.
 	romm_catalog.index_stats_ready.connect(func(_sid: String) -> void:
-		_populate_cartridges_tab()
+		_owe(false, true, false)
 	)
 	romm_downloader.download_started.connect(_on_romm_dl_started)
 	romm_downloader.download_progress.connect(_on_romm_dl_progress)
@@ -560,9 +587,56 @@ func _clear_vbox(vbox: VBoxContainer) -> void:
 ## Cores view reports a download — the two grids must never refresh
 ## independently again, which is how Cartridges came to update while Systems
 ## silently did not.
+##
+## Owed rather than run: a core that serves several systems reports each one in
+## the same frame, and the grids need rebuilding once.
 func refresh_after_core_change() -> void:
-	_populate_systems_tab()
-	_populate_cartridges_tab()
+	_owe(true, true, false)
+
+
+func _owe(systems: bool, cartridges: bool, romm_rows: bool) -> void:
+	_owe_systems = _owe_systems or systems
+	_owe_cartridges = _owe_cartridges or cartridges
+	_owe_romm_rows = _owe_romm_rows or romm_rows
+	if _can_pay() and not _owed_flush_queued:
+		_owed_flush_queued = true
+		_flush_owed.call_deferred()
+
+
+## Out in the world AND the tab on screen. A core finishes installing while the
+## player is on the CORES tab, and this view's two grids and open page are ~90 ms
+## of a desktop frame that nobody could see.
+func _can_pay() -> bool:
+	return _menu_shown and is_visible_in_tree()
+
+
+## Switching back to this tab settles what it owes before it is drawn.
+func _on_visibility_changed() -> void:
+	if _can_pay():
+		_flush_owed()
+
+
+func _flush_owed() -> void:
+	_owed_flush_queued = false
+	if not _can_pay():
+		return
+	var systems := _owe_systems
+	var cartridges := _owe_cartridges
+	var rows := _owe_romm_rows
+	_owe_systems = false
+	_owe_cartridges = false
+	_owe_romm_rows = false
+	if systems:
+		_populate_systems_tab()
+	if cartridges:
+		_populate_cartridges_tab()
+	# Only for a page that is open: opening one builds its rows from scratch, so
+	# a list nobody is looking at has nothing to catch up on. And the Cartridges
+	# refresh above has just re-run the open page, rows included.
+	var open := _cartridges_browser != null \
+		and _cartridges_browser.current_systemid() == _romm_detail_systemid
+	if rows and open and not cartridges:
+		_rebuild_romm_rows()
 
 
 ## Rebuild the Systems home grid: one tile per system that has a default core.
@@ -645,8 +719,9 @@ func _populate_systems_tab() -> void:
 			entry["badge"] = "%d items" % n
 		systems.append(entry)
 	_systems_browser.set_systems(systems)
-	# If a system detail is open, re-run it so catalog changes appear.
-	_systems_browser.refresh()
+	# If a system detail is open, re-run it so catalog changes appear. Detail
+	# only: set_systems has just built the tiles, and refresh() built them again.
+	_systems_browser.refresh_detail()
 
 
 ## Detail page for one system: each spawnable item — the console model(s) plus
@@ -1094,6 +1169,7 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 	_romm_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_romm_list.set_row_builder(_build_blank_rom_row)
 	_romm_list.set_row_binder(_bind_rom_row)
+	_romm_list.window_moved.connect(_schedule_cover_prune)
 	vbox.add_child(_romm_list)
 
 	# Start before the first rebuild, or the empty list reads "add ROMs here"
@@ -1709,7 +1785,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		# Was MediaDimensions.load_label_texture, which decoded and generated mips
 		# inline with no cache at all — 4.1 ms per row on every scroll step.
 		cover.texture = scraped_art.get_or_request(
-			systemid, local_path, "label", Vector2i.ZERO, true)
+			systemid, local_path, "label", LABEL_BOX, true)
 	if cover.texture == null and rom_id > 0:
 		cover.texture = romm_art.get_or_request(rom_id, str(entry.get("cover_small", "")), systemid)
 	cover.visible = cover.texture != null
@@ -2254,9 +2330,10 @@ func _on_scrape_all_pressed(systemid: String) -> void:
 
 ## A row's button reads the queue at bind time, so a change of state is a
 ## repaint of what is on screen and nothing more.
-func _on_scrape_row_changed(_rom_path: String, _systemid: String) -> void:
-	if is_instance_valid(_romm_list):
-		_romm_list.rebind_visible()
+## One ROM's row, at the end of the frame, with any art that landed in it.
+func _on_scrape_row_changed(rom_path: String, _systemid: String) -> void:
+	_art_landed_stems[rom_path.get_file().get_basename()] = true
+	_queue_art_flush()
 
 
 func _on_scrape_completed(rom_path: String, systemid: String, result: Dictionary,
@@ -2299,7 +2376,7 @@ func _schedule_scrape_refresh() -> void:
 	_scrape_refresh_timer.timeout.connect(func() -> void:
 		_scrape_refresh_timer = null
 		if is_instance_valid(_romm_list):
-			_populate_cartridges_tab()
+			_owe(false, true, false)
 	)
 
 
@@ -2440,6 +2517,10 @@ func _close_scrape_popup() -> void:
 ## Called when the menu panel becomes visible in the world.
 func on_menu_shown() -> void:
 	_menu_shown = true
+	# Whatever changed while the menu was away, settled NOW rather than at the
+	# end of the frame: a sync that finished meanwhile rewrote the index, and no
+	# row may be bound against the old one's offsets first.
+	_flush_owed()
 	_flush_romm_notices()
 	_romm_check_for_changes()
 
@@ -2608,7 +2689,7 @@ func _on_romm_sync_finished(systemid: String, ok: bool, added: int, removed: int
 
 	# The open detail page is showing a stale list — rebuild it against the new index.
 	if systemid == _romm_detail_systemid:
-		_rebuild_romm_rows()
+		_owe(false, false, true)
 	romm_state_changed.emit()
 
 
@@ -2765,7 +2846,7 @@ func _on_romm_dl_finished(rom_id: int, ok: bool, path: String, error: String) ->
 	if ok and gamelist_manager != null:
 		gamelist_manager.invalidate(AutoScraper.systemid_for_path(path))
 	_invalidate_local_scan()
-	_rebuild_romm_rows()
+	_owe(false, false, true)
 
 
 func _on_romm_dl_cancelled(rom_id: int) -> void:
@@ -2773,7 +2854,7 @@ func _on_romm_dl_cancelled(rom_id: int) -> void:
 	_romm_dl_attempt.erase(rom_id)
 	notify_clear("romm:dl:%d" % rom_id)
 	notify_clear("romm:dl:%d:why" % rom_id)
-	_rebuild_romm_rows()
+	_owe(false, false, true)
 
 
 ## Files silently vanishing from a library reads as data loss — always say so.
@@ -2787,21 +2868,79 @@ func _on_romm_cache_evicted(freed_bytes: int, count: int) -> void:
 func _on_romm_cache_changed() -> void:
 	_romm_meta_cache.clear()
 	_invalidate_local_scan()
-	_rebuild_romm_rows()
+	_owe(false, false, true)
 
 
 
 
-func _on_romm_art_ready(_rom_id: int, _texture: Texture2D) -> void:
-	if is_instance_valid(_romm_list):
-		_romm_list.rebind_visible()
+func _on_romm_art_ready(rom_id: int, _texture: Texture2D) -> void:
+	_art_landed_ids[rom_id] = true
+	_queue_art_flush()
 
 
-## A wheel or label finished decoding. Only the visible rows are re-bound, and
-## the cache's per-frame budget means at most two of these land in one frame.
-func _on_scraped_art_ready(_key: String, _texture: Texture2D) -> void:
-	if is_instance_valid(_romm_list):
-		_romm_list.rebind_visible()
+## A wheel or label finished decoding. The key is the art's own file,
+## <rom dir>/media/<kind>/<rom stem>.<ext>, and the stem is what finds its row.
+func _on_scraped_art_ready(key: String, _texture: Texture2D) -> void:
+	_art_landed_stems[key.get_file().get_basename()] = true
+	_queue_art_flush()
+
+
+## Once the list has stopped moving, drop the cover fetches queued for rows that
+## scrolled past. A fling through a platform binds every row it crosses, each
+## bind queues its cover, and they would otherwise keep arriving — and keep being
+## applied — long after the rows they were for were gone.
+func _schedule_cover_prune() -> void:
+	if _cover_prune_timer != null or not is_inside_tree():
+		return
+	_cover_prune_timer = get_tree().create_timer(0.3)
+	_cover_prune_timer.timeout.connect(func() -> void:
+		_cover_prune_timer = null
+		if not is_instance_valid(_romm_list) or romm_art == null or romm_catalog == null:
+			return
+		var keep := PackedInt32Array()
+		for i: int in _romm_list.visible_indices():
+			if i < _romm_rows.size():
+				var cat_index := int((_romm_rows[i] as Dictionary).get("index", -1))
+				if cat_index >= 0:
+					keep.append(romm_catalog.rom_id_at(cat_index))
+		romm_art.cancel_outside(keep)
+	)
+
+
+func _queue_art_flush() -> void:
+	if _art_flush_queued:
+		return
+	_art_flush_queued = true
+	_flush_landed_art.call_deferred()
+
+
+## Re-bind the rows on screen whose art landed this frame, and only those.
+##
+## The caches promote up to six textures a frame, and each one used to re-bind
+## the whole window: ~100 row binds in one frame, each parsing its row's JSON
+## and probing the disk for scraped art. 19 ms of a Quest 3 frame.
+func _flush_landed_art() -> void:
+	_art_flush_queued = false
+	var ids := _art_landed_ids
+	var stems := _art_landed_stems
+	_art_landed_ids = {}
+	_art_landed_stems = {}
+	if not is_instance_valid(_romm_list) or romm_catalog == null:
+		return
+	for i: int in _romm_list.visible_indices():
+		if i >= _romm_rows.size():
+			continue
+		var model: Dictionary = _romm_rows[i]
+		# What _bind_rom_row asks the caches for: scraped art by the local
+		# file's name, RomM covers by the row's rom id.
+		var local_path := str(model.get("path", ""))
+		var hit := not stems.is_empty() and not local_path.is_empty() \
+			and stems.has(local_path.get_file().get_basename())
+		if not hit and not ids.is_empty():
+			var cat_index := int(model.get("index", -1))
+			hit = cat_index >= 0 and ids.has(romm_catalog.rom_id_at(cat_index))
+		if hit:
+			_romm_list.rebind_index(i)
 
 
 func _system_label(systemid: String) -> String:

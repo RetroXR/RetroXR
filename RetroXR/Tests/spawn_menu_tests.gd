@@ -39,6 +39,9 @@ func _ready() -> void:
 	await _group_delete()
 	_group_discs()
 	await _group_variants()
+	await _group_toasts()
+	await _group_owed()
+	await _group_art()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -534,3 +537,220 @@ func _label_texts(root: Node) -> Array:
 	for n: Node in root.find_children("*", "Label", true, false):
 		out.append((n as Label).text)
 	return out
+
+
+# ── toasts/ — the bar stack's pop-out quad, under a download's updates ────────
+#
+# The real quad is a Viewport2Din3D, which hangs a headless run, so these count
+# instead of drawing: a panel that counts refreshes, a curve that counts builds.
+
+class _CountingToastPanel extends ToastPanel:
+	var refreshes := 0
+
+	func refresh() -> void:
+		refreshes += 1
+
+
+class _CountingCurve extends CurvedPanel:
+	var builds := 0
+	var radius := 1.4
+
+	func set_curved(_on: bool, _animate := true) -> void:
+		builds += 1
+
+	func axis_radius() -> float:
+		return radius
+
+	func surface_pose(_flat_x: float, _y: float, _out: float) -> Transform3D:
+		return Transform3D.IDENTITY
+
+
+## A core download updates its bar every frame and a firmware fetch two or three
+## times in one; each update used to queue a refresh of its own, and each
+## refresh rebuilt the quad's arc mesh and collision whether anything moved.
+func _group_toasts() -> void:
+	var toasts := MenuToasts.create()
+	add_child(toasts)
+	_spawned.append(toasts)
+	var counting := _CountingToastPanel.new()
+	toasts._panel = counting
+	for i in 5:
+		toasts.notify("t:%d" % (i % 2), "", "bar %d" % i, i / 5.0)
+	await get_tree().process_frame
+	_eq(counting.refreshes, 1, "toasts/five updates in one frame refresh the quad once")
+	toasts.notify("t:0", "", "again", 0.9)
+	await get_tree().process_frame
+	_eq(counting.refreshes, 2, "toasts/and the next frame's update refreshes it again")
+	toasts._panel = null
+	counting.free()
+
+	var panel := ToastPanel.new()
+	var host := XRToolsViewport2DIn3D.new()
+	var quad := XRToolsViewport2DIn3D.new()
+	var host_curve := _CountingCurve.new()
+	var arc := _CountingCurve.new()
+	panel._host = host
+	panel._viewport = quad
+	panel._host_curve = host_curve
+	panel._curve = arc
+	panel.visible = true
+	for i in 5:
+		panel._place()
+	_eq(arc.builds, 1, "toasts/placing an unchanged quad five times builds its arc once")
+	host_curve.radius = 2.0
+	panel._place()
+	_eq(arc.builds, 2, "toasts/a new host radius builds it again")
+	host_curve.radius = 0.0
+	panel._place()
+	panel._place()
+	_eq(arc.builds, 3, "toasts/flattening the host builds it once more")
+
+	# The menu put away, the way the controller puts it away: nothing is
+	# measured, and the refresh is owed for when it comes back. The stack has a
+	# bar in it, so a refresh that ran would hand it a wrap width.
+	var stack := MenuToasts.create()
+	add_child(stack)
+	stack._add("t", "", "a bar", -1.0)
+	panel._stack = stack
+	host.visible = false
+	panel.refresh()
+	_ok(panel._stale and is_zero_approx(stack._wrap_width),
+		"toasts/a hidden host's quad is not measured, and a refresh is owed",
+		"stale=%s wrap=%s" % [panel._stale, stack._wrap_width])
+	host.visible = true
+	panel._on_host_visibility_changed()
+	_ok(not panel._stale and stack._wrap_width > 0.0,
+		"toasts/and it is paid when the host is shown again",
+		"stale=%s wrap=%s" % [panel._stale, stack._wrap_width])
+	stack._panel = null
+	for n: Node in [panel, host, quad, host_curve, arc, stack]:
+		n.free()
+
+
+# ── owed/ — rebuilds the spawn tab owes, and when it pays them ────────────────
+
+class _CountingSpawnView extends SpawnMenuSpawnView:
+	var systems := 0
+	var cartridges := 0
+	var rows := 0
+
+	func _populate_systems_tab() -> void:
+		systems += 1
+
+	func _populate_cartridges_tab() -> void:
+		cartridges += 1
+
+	func _rebuild_romm_rows() -> void:
+		rows += 1
+
+
+## A core serving six systems reported each in one frame, and every report
+## rebuilt both grids; a finished download rebuilt its list twice; and all of it
+## ran with the menu put away, because the list's systemid outlives its page.
+func _group_owed() -> void:
+	var view := _CountingSpawnView.new()
+	add_child(view)
+	_spawned.append(view)
+	var browser := SystemGridBrowser.new()
+	view._cartridges_browser = browser
+	view._menu_shown = true
+
+	for i in 6:
+		view.refresh_after_core_change()
+	await get_tree().process_frame
+	_eq([view.systems, view.cartridges], [1, 1],
+		"owed/a core serving six systems rebuilds each grid once")
+
+	view.on_menu_hidden()
+	view.refresh_after_core_change()
+	view.refresh_after_core_change()
+	await get_tree().process_frame
+	_eq([view.systems, view.cartridges], [1, 1],
+		"owed/nothing is rebuilt while the menu is put away")
+	view.on_menu_shown()
+	_eq([view.systems, view.cartridges], [2, 2],
+		"owed/and it is rebuilt once, as the menu comes back, not a frame later")
+
+	view._romm_detail_systemid = "gba"
+	browser._current_systemid = "gba"
+	view._on_romm_cache_changed()
+	view._on_romm_dl_finished(1, false, "", "probe")
+	await get_tree().process_frame
+	_eq(view.rows, 1, "owed/a finished download rebuilds the open list once, not twice")
+
+	browser._current_systemid = ""
+	view._on_romm_cache_changed()
+	await get_tree().process_frame
+	_eq(view.rows, 1, "owed/a list whose page has been closed is not rebuilt")
+
+	# Another tab on screen: the CORES tab a core was just installed from.
+	view.visible = false
+	view.refresh_after_core_change()
+	await get_tree().process_frame
+	_eq([view.systems, view.cartridges], [2, 2],
+		"owed/nothing is rebuilt while another tab is on screen")
+	view.visibility_changed.connect(view._on_visibility_changed)
+	view.visible = true
+	_eq([view.systems, view.cartridges], [3, 3],
+		"owed/and it is rebuilt once as its own tab comes back")
+	browser.free()
+
+
+# ── art/ — which rows a landed cover or scraped image re-binds ────────────────
+
+class _StubCatalog extends RommCatalog:
+	func rom_id_at(i: int) -> int:
+		return 100 + i
+
+
+## Up to six textures land in a frame, and each used to re-bind every row on
+## screen. Now only the rows they belong to are, once each, at the frame's end.
+func _group_art() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.size = Vector2(400, 300)
+	add_child(scroll)
+	_spawned.append(scroll)
+	var list := VirtualRowList.new()
+	list.row_height = 100
+	var bound: Array = []
+	list.set_row_builder(func() -> Control: return Control.new())
+	list.set_row_binder(func(_row: Control, i: int) -> void: bound.append(i))
+	scroll.add_child(list)
+	list.set_row_count(5)
+	await get_tree().process_frame
+
+	var view := SpawnMenuSpawnView.new()
+	add_child(view)
+	_spawned.append(view)
+	var catalog := _StubCatalog.new()
+	view.romm_catalog = catalog
+	view._romm_list = list
+	view._romm_rows = [
+		{"path": "C:/roms/gba/Alpha (USA).gba", "index": -1},
+		{"path": "", "index": 1},
+		{"path": "", "index": 2},
+		{"path": "C:/roms/gba/Beta (Europe).gba", "index": 3},
+		{"path": "", "index": 4},
+	]
+	_eq(list.visible_indices().size(), 5, "art/all five rows are on screen")
+
+	bound.clear()
+	var tex := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGBA8))
+	view._on_romm_art_ready(102, tex)
+	view._on_scraped_art_ready("C:/roms/gba/media/wheel/Beta (Europe).png", tex)
+	view._on_romm_art_ready(102, tex)
+	_eq(bound, [], "art/nothing is re-bound until the frame ends")
+	await get_tree().process_frame
+	bound.sort()
+	_eq(bound, [2, 3], "art/only the rows whose art landed are re-bound, once each")
+
+	bound.clear()
+	view._on_scrape_row_changed("C:/roms/gba/Alpha (USA).gba", "gba")
+	await get_tree().process_frame
+	_eq(bound, [0], "art/a scrape changing one ROM re-binds that ROM's row")
+
+	bound.clear()
+	view._on_romm_art_ready(999, tex)
+	await get_tree().process_frame
+	_eq(bound, [], "art/art for a row that is not on screen re-binds nothing")
+	catalog.free()

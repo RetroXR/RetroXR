@@ -97,6 +97,8 @@ var _spawn_view:    SpawnMenuSpawnView = null
 var _cores_view:    SpawnMenuCoresView = null
 var _controls_view: SpawnMenuControlsView = null
 var _options_view:  SpawnMenuOptionsView = null
+var _controls_refresh_queued := false
+var _controls_platforms_stale := false
 # Extracted into their own files — see Scripts/UI/spawn_menu/views/. Each owns
 # its widgets and its state; this class only shows and hides them.
 var _graphics_view: SpawnMenuGraphicsView = null
@@ -431,11 +433,16 @@ func _build_ui() -> void:
 		func() -> void: controller_bindings_changed.emit())
 	# The tab is built once and never rebuilt on a switch, so the per-platform
 	# grid has to be told when a system gains a default core. Connected to the
-	# menu-level signal, which both the CORES and SPAWN paths already emit.
+	# menu-level signal, which both the CORES and SPAWN paths already emit — once
+	# per system, so a core serving six is one refresh at the end of the frame.
 	default_core_changed.connect(
 		func(_sid: String, _cn: String) -> void:
-			if is_instance_valid(_controls_view):
-				_controls_view.refresh_platforms())
+			if not _controls_refresh_queued:
+				_controls_refresh_queued = true
+				_refresh_controls_platforms.call_deferred())
+	_controls_view.visibility_changed.connect(func() -> void:
+		if _controls_platforms_stale:
+			_refresh_controls_platforms())
 	content.add_child(_controls_view)
 
 	_options_view = SpawnMenuOptionsView.create(self)
@@ -566,6 +573,20 @@ func romm_platforms() -> Dictionary:
 
 func romm_unmapped() -> Array:
 	return _spawn_view.romm_unmapped() if _spawn_view else []
+
+
+## Refreshed when its tab is on screen, and otherwise the next time it is: a
+## core is installed from the CORES tab, and this grid is 53 ms of a desktop
+## frame that nobody is looking at.
+func _refresh_controls_platforms() -> void:
+	_controls_refresh_queued = false
+	if not is_instance_valid(_controls_view):
+		return
+	if not _controls_view.is_visible_in_tree():
+		_controls_platforms_stale = true
+		return
+	_controls_platforms_stale = false
+	_controls_view.refresh_platforms()
 
 
 ## Driven by the controller's _show_menu/_hide_menu — this Control is always

@@ -53,6 +53,13 @@ var _viewport: XRToolsViewport2DIn3D = null
 var _stack: Control = null
 var _curve: CurvedPanel = null
 var _host_curve: CurvedPanel = null
+## What the arc was last built for: x is 1 curved / 0 flat, y the radius. A
+## rebuild re-uploads the mesh and re-cooks a collision shape nothing uses, and
+## _place runs on every toast update — once a frame through a core download —
+## while the arc only changes when the host's curve or this quad's size does.
+var _arc_built := Vector2(-1.0, 0.0)
+## A refresh asked for while the host was hidden, owed for when it is shown.
+var _stale := false
 
 
 ## Move `stack` out of the menu page and onto a quad of its own. Returns null
@@ -113,19 +120,27 @@ func _build(stack: Control) -> void:
 	_host_curve = _host.get_node_or_null("CurvedPanel") as CurvedPanel
 	if _host_curve != null and not _host_curve.curve_changed.is_connected(_place):
 		_host_curve.curve_changed.connect(_place)
+	_host.visibility_changed.connect(_on_host_visibility_changed)
 
 	visible = false
 	refresh.call_deferred()
 
 
 ## Re-measure and re-place. Call whenever a toast is added, removed or hidden;
-## deferred internally is not enough because the caller may add several in one
-## frame, so this is cheap and idempotent.
+## MenuToasts queues it once a frame, however many bars changed in it.
+##
+## Nothing is measured while the host is hidden — a download keeps updating its
+## bar with the menu put away — and the refresh that was skipped runs when the
+## host is shown again.
 func refresh() -> void:
 	if not is_instance_valid(_stack) or not is_instance_valid(_viewport):
 		return
 	if not is_instance_valid(_host):
 		return
+	if not _host.is_visible_in_tree():
+		_stale = true
+		return
+	_stale = false
 
 	var shown := 0
 	for c: Node in _stack.get_children():
@@ -162,9 +177,16 @@ func refresh() -> void:
 		else:
 			resize.call()
 		_rebind_albedo()
+		# The geometry was re-laid at the new size, so the arc is due again.
+		_arc_built = Vector2(-1.0, 0.0)
 
 	visible = true
 	_place()
+
+
+func _on_host_visibility_changed() -> void:
+	if _stale and is_instance_valid(_host) and _host.is_visible_in_tree():
+		refresh()
 
 
 ## Re-point the quad's albedo at the SubViewport texture. The addon binds it once,
@@ -214,12 +236,16 @@ func _place() -> void:
 		transform = _host_curve.surface_pose(0.0, y, Z_OFFSET)
 		if _curve != null:
 			var r := _host_curve.axis_radius()
-			if r <= 0.0:
-				_curve.set_curved(false, false)
-			else:
-				# Concentric with the host: the stack floats Z_OFFSET nearer the
-				# cylinder axis, so it needs the smaller radius.
-				_curve.curve_radius = maxf(r - Z_OFFSET, 0.05)
-				_curve.set_curved(true, false)
+			# Concentric with the host: the stack floats Z_OFFSET nearer the
+			# cylinder axis, so it needs the smaller radius.
+			var want := Vector2(0.0, 0.0) if r <= 0.0 \
+				else Vector2(1.0, maxf(r - Z_OFFSET, 0.05))
+			if want != _arc_built:
+				_arc_built = want
+				if want.x == 0.0:
+					_curve.set_curved(false, false)
+				else:
+					_curve.curve_radius = want.y
+					_curve.set_curved(true, false)
 	else:
 		position = Vector3(0.0, y, Z_OFFSET)

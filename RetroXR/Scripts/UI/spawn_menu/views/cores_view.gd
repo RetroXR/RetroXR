@@ -65,6 +65,8 @@ var _bios_dest_cache: Dictionary = {}
 const PICKER_ROW_H := 46
 var _firmware_installer: FirmwareInstaller = null
 var _bios_job_buttons: Dictionary = {}
+## Firmware job key -> the whole percent last shown for it.
+var _firmware_pct: Dictionary = {}
 ## Core awaiting its second delete press, "" when nothing is armed. Cleared by a
 ## rebuild rather than a timer — the row is redrawn on arm, so the armed glyph
 ## and this are always written together.
@@ -757,12 +759,19 @@ func _job_label(key: String) -> String:
 
 func _on_firmware_started(key: String, label: String, total: int) -> void:
 	_job_labels[key] = label
+	_firmware_pct.erase(key)
 	_romm_notify_or_queue(key, String.chr(MenuIcons.BUSY),
 		_job_text(key, total), 0.0, 0.0)
 
 
+## Progress lands every 256 KB, two or three times a frame on a LAN; only a new
+## whole percent changes what the button and the bar show.
 func _on_firmware_progress(key: String, received: int, total: int) -> void:
 	var frac := 0.0 if total <= 0 else clampf(float(received) / float(total), 0.0, 1.0)
+	var pct := int(frac * 100.0)
+	if int(_firmware_pct.get(key, -1)) == pct:
+		return
+	_firmware_pct[key] = pct
 	var btn := _bios_job_buttons.get(key) as Button
 	if is_instance_valid(btn):
 		btn.text = "%d%%" % int(frac * 100.0)
@@ -786,6 +795,7 @@ func _on_firmware_retrying(key: String, attempt: int, total: int, reason: String
 
 func _on_firmware_finished(key: String, ok: bool, error: String) -> void:
 	_bios_job_buttons.erase(key)
+	_firmware_pct.erase(key)
 	if ok:
 		_romm_notify_or_queue(key, String.chr(MenuIcons.CHECK),
 			"%s installed" % _job_label(key), MenuToasts.DWELL_OK)
@@ -800,6 +810,7 @@ func _on_firmware_finished(key: String, ok: bool, error: String) -> void:
 
 func _on_firmware_cancelled(key: String) -> void:
 	_bios_job_buttons.erase(key)
+	_firmware_pct.erase(key)
 	_job_labels.erase(key)
 	notify_clear(key)
 	_refresh_bios_soon()

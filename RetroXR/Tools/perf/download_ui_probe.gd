@@ -438,6 +438,21 @@ func _probe_core_finished(menu: Node, cv: Node) -> void:
 	_say("core finished, whole frame       %s", [_stats(samples)])
 	await _frames(10)
 
+	# What that frame is made of, one part at a time.
+	var sv: Node = menu.get("_spawn_view")
+	var controls: Node = menu.get("_controls_view")
+	for part: Array in [
+			[sv, "_populate_systems_tab"], [sv, "_populate_cartridges_tab"],
+			[cv, "_populate_manager_tab"], [cv, "refresh_download_systems"],
+			[controls, "refresh_platforms"]]:
+		var target: Object = part[0]
+		if target == null or not target.has_method(part[1]):
+			continue
+		var t := _t()
+		target.call(part[1])
+		_say("  core finished part %-26s %8.2f ms", [part[1], _ms(t)])
+		await _frames(3)
+
 
 # ── 5. Unzipping a core ───────────────────────────────────────────────────────
 

@@ -17,6 +17,10 @@
 class_name VirtualRowList
 extends Control
 
+## The window of bound rows moved: different rows are on screen than before.
+## For dropping work queued on behalf of rows that have scrolled away.
+signal window_moved
+
 
 ## Uniform height of every row, in pixels.
 @export var row_height: int = 100:
@@ -217,7 +221,10 @@ func _relayout(force: bool) -> void:
 		row.size = Vector2(width, row_height)
 		_binder.call(row, index)
 
+	var moved := first != _first_bound
 	_first_bound = first
+	if moved:
+		window_moved.emit()
 
 
 func _ensure_pool(needed: int) -> void:

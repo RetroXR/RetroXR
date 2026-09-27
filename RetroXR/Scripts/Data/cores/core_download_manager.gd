@@ -664,8 +664,16 @@ func _process(_delta: float) -> void:
 		if not is_instance_valid(http):
 			continue
 		var total := http.get_body_size()
-		if total > 0:
-			job_progress.emit(job_key(core_name), http.get_downloaded_bytes(), total)
+		if total <= 0:
+			continue
+		# A whole percent at a time. This emitted every frame, and each one
+		# redrew the job's bar in the menu whether or not it had moved.
+		var received := http.get_downloaded_bytes()
+		var pct := int(100.0 * float(received) / float(total))
+		if pct == int(info.get("last_pct", -1)):
+			continue
+		info["last_pct"] = pct
+		job_progress.emit(job_key(core_name), received, total)
 
 
 func _on_download_completed(core_name: String, result: int, response_code: int) -> void:

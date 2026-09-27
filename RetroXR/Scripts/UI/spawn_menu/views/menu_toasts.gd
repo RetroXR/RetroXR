@@ -36,6 +36,7 @@ const PROGRESS_TRACK := Color(0.25, 0.25, 0.38)
 ## key -> { bar, label, icon, progress }
 var _toasts: Dictionary = {}
 var _panel: ToastPanel = null
+var _refresh_queued := false
 var _overflow_bar: PanelContainer = null
 var _overflow_label: Label = null
 
@@ -82,11 +83,21 @@ func _ensure_panel() -> void:
 
 
 ## Re-measure the quad. Deferred so it lands after _enforce_cap's visibility
-## pass and after any other bars raised in the same frame; refresh() is
-## idempotent, so extra calls cost nothing.
+## pass and after any other bars raised in the same frame, and queued ONCE a
+## frame: every update calls this — a core download every frame, a firmware
+## fetch two or three times in one — and each queued call used to re-measure the
+## stack and rebuild the quad's arc on its own.
 func refresh() -> void:
+	if _refresh_queued or not is_instance_valid(_panel):
+		return
+	_refresh_queued = true
+	_flush_refresh.call_deferred()
+
+
+func _flush_refresh() -> void:
+	_refresh_queued = false
 	if is_instance_valid(_panel):
-		_panel.refresh.call_deferred()
+		_panel.refresh()
 
 
 ## Fold each bar's text to fit `px` of quad. Called by ToastPanel before it
