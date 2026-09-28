@@ -127,11 +127,17 @@ Japanese body on Ocarina of Time USA stays gold -- and a preset id the palette d
 not hold falls back to the ROM's own. Neither is saved for a cartridge left alone,
 because both are derived from its ROM; a forced one writes `shell_preset` /
 `body_region` into its entry, which is also what object sync sends.
-**The Shell list ends in Custom**: a swatch wearing the colour, Hue / Saturation /
-Brightness sliders (`MenuStyle.menu_slider_row`) and a Metal flakes switch. Moving any
-of them, or pressing the swatch, picks Custom; a palette swatch or Auto drops it.
-Sliders, not Godot's `ColorPicker`: its wheel and fields are mouse-sized, its hex
-field wants a keyboard and its eyedropper cannot see out of a headset. The mix lands
+**The Shell list ends in Custom**: a swatch wearing the colour, then a colour wheel
+(`HsvWheel`, `Scripts/UI/widgets/hsv_wheel.gd`: hue round the rim, saturation out
+from a white centre, the disc at the current brightness, `ui_hsv_wheel.gdshader`)
+with Hue / Saturation / Brightness sliders (`MenuStyle.menu_slider_row`) and a Metal
+flakes switch beside it. Wheel and sliders follow each other (`set_hsv` does not
+emit, so they do not echo). A press or a drag on the wheel -- motion with the
+button held, which Viewport2Din3D sends as `button_mask = 1` -- or touching a slider,
+the switch or the swatch picks Custom; a palette swatch or Auto drops it. The
+never-used offers follow the released swatches untitled. Not Godot's `ColorPicker`:
+its wheel and fields are mouse-sized, its hex field wants a keyboard and its
+eyedropper cannot see out of a headset. The mix lands
 on `RetroCartridge.shell_color` ("#rrggbb") and `shell_flake`, and **beats any preset**,
 forced or the ROM's; a string that is not a colour is ignored. Metal flake is
 `CartridgeColor.flake_finish`: the system palette's first METAL_FLAKE preset (its

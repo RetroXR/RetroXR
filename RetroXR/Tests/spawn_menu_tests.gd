@@ -349,6 +349,38 @@ func _group_hold() -> void:
 	press_text.call("+  SPAWN")
 	_eq(sent["options"], {"shell_preset": "blue"}, "hold/a palette swatch after mixing drops the mix")
 
+	# The colour wheel beside the sliders: each follows the other.
+	view._show_cart_spawn_options("n64", "Selftest", spawn)
+	await get_tree().process_frame
+	var wheel := panel_part.call("ShellWheel") as HsvWheel
+	hue = panel_part.call("ShellHue") as HSlider
+	var sat := panel_part.call("ShellSaturation") as HSlider
+	var bright := panel_part.call("ShellBrightness") as HSlider
+	custom = panel_part.call("ShellCustom") as Button
+	_ok(wheel != null and wheel.size.x > 0.0, "hold/a colour wheel sits beside the sliders")
+	hue.value = 200.0
+	_ok(is_equal_approx(wheel.hue, 200.0 / 360.0), "hold/the hue slider turns the wheel's marker")
+	# The top of the disc is a quarter turn round from red: 90 degrees, full saturation.
+	wheel.pick_at(Vector2(wheel.size.x * 0.5, HsvWheel.MARKER_RADIUS))
+	_ok(is_equal_approx(hue.value, 90.0) and is_equal_approx(sat.value, 100.0) and custom.button_pressed,
+		"hold/a pick on the wheel sets hue and saturation and picks Custom", "%s %s" % [hue.value, sat.value])
+	var hover := InputEventMouseMotion.new()
+	hover.position = Vector2(wheel.size.x - HsvWheel.MARKER_RADIUS, wheel.size.y * 0.5)
+	wheel._gui_input(hover)
+	_ok(is_equal_approx(hue.value, 90.0), "hold/the pointer passing over the wheel picks nothing")
+	var drag := hover.duplicate() as InputEventMouseMotion
+	drag.button_mask = MOUSE_BUTTON_MASK_LEFT
+	wheel._gui_input(drag)
+	_ok(is_equal_approx(hue.value, 0.0) and is_equal_approx(sat.value, 100.0),
+		"hold/dragging with the trigger held picks: the right-hand rim is red", str(hue.value))
+	wheel.pick_at(wheel.size * 0.5)
+	_ok(is_equal_approx(sat.value, 0.0), "hold/the centre of the wheel is unsaturated")
+	press_text.call("Blue")
+	wheel.pick_at(wheel.size * 0.5)
+	press_text.call("+  SPAWN")
+	_eq(sent["options"], {"shell_color": "#" + Color.from_hsv(0.0, 0.0, bright.value / 100.0).to_html(false)},
+		"hold/a wheel pick that moves no slider still picks Custom over a swatch")
+
 	view._show_cart_spawn_options("gb", "Selftest", spawn)
 	_ok(panel_part.call("ShellCustom") != null, "hold/a Game Boy cartridge can be mixed too")
 	view._close_spawn_options_panel()

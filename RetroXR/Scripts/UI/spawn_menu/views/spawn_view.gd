@@ -52,6 +52,9 @@ const SEARCH_DEBOUNCE_SEC := 0.18
 ## saturation and brightness each visibly change it from the first drag, where a
 ## grey would leave the hue slider doing nothing.
 const CUSTOM_SHELL_START := Color(0.26, 0.44, 0.65)
+## The Custom colour wheel's diameter: about the height of the three sliders and
+## the flake switch beside it.
+const CUSTOM_SHELL_WHEEL := 340.0
 
 ## Applied to a whole row rather than its label: a server-only title with the
 ## server down has no working control on it, and dimming only the icon reads as
@@ -3303,28 +3306,37 @@ static func _pick_shell(chosen: Dictionary, preset: String, color: String, flake
 	chosen["shell_flake"] = flake
 
 
-## A colour of the player's own: a swatch in the shell group wearing it, the hue,
-## saturation and brightness sliders that mix it, and a Metal flakes switch.
-## Sliders rather than Godot's ColorPicker, whose wheel and fields are sized for
-## a mouse, whose hex field wants a keyboard, and whose eyedropper cannot see out
-## of a headset. Moving any of them picks the swatch; so does pressing it.
+## A colour of the player's own: a swatch in the shell group wearing it, and
+## below it a colour wheel with the hue, saturation and brightness sliders and a
+## Metal flakes switch beside it. The wheel shows hue and saturation at a glance
+## and picks both in one drag; the sliders set each exactly, and the two follow
+## each other. Not Godot's ColorPicker, whose wheel and fields are sized for a
+## mouse, whose hex field wants a keyboard, and whose eyedropper cannot see out of
+## a headset. Touching any of them picks the swatch; so does pressing it.
 func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Dictionary) -> void:
 	vbox.add_child(MenuStyle.hint("Custom"))
 	var swatch := _swatch_button("", CUSTOM_SHELL_START, shell_group)
 	swatch.name = "ShellCustom"
 	vbox.add_child(swatch)
+	var mixer := MenuStyle.hbox(28)
+	vbox.add_child(mixer)
+	var wheel := HsvWheel.create(CUSTOM_SHELL_WHEEL)
+	wheel.name = "ShellWheel"
+	mixer.add_child(wheel)
+	var controls := MenuStyle.vbox(10)
+	mixer.add_child(controls)
 	var sliders: Array[HSlider] = []
 	var readouts: Array[Label] = []
 	for row: Array in [["Hue", "ShellHue", 359.0, CUSTOM_SHELL_START.h * 360.0],
 			["Saturation", "ShellSaturation", 100.0, CUSTOM_SHELL_START.s * 100.0],
 			["Brightness", "ShellBrightness", 100.0, CUSTOM_SHELL_START.v * 100.0]]:
-		var parts := MenuStyle.menu_slider_row(vbox, row[0], 0.0, row[2], 1.0)
+		var parts := MenuStyle.menu_slider_row(controls, row[0], 0.0, row[2], 1.0)
 		var slider: HSlider = parts[0]
 		slider.name = row[1]
 		slider.value = row[3]
 		sliders.append(slider)
 		readouts.append(parts[1])
-	var flake := MenuStyle.switch_row(vbox, "Metal flakes", false, 22, 56)
+	var flake := MenuStyle.switch_row(controls, "Metal flakes", false, 22, 56)
 	flake.name = "ShellFlake"
 
 	var refresh := func(pick: bool) -> void:
@@ -3333,6 +3345,7 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 		var hex := "#" + c.to_html(false)
 		_paint_swatch(swatch, c)
 		swatch.text = "Custom  %s%s" % [hex, "  metal flakes" if flake.button_pressed else ""]
+		wheel.set_hsv(sliders[0].value / 360.0, sliders[1].value / 100.0, sliders[2].value / 100.0)
 		readouts[0].text = "%d°" % int(sliders[0].value)
 		readouts[1].text = "%d%%" % int(sliders[1].value)
 		readouts[2].text = "%d%%" % int(sliders[2].value)
@@ -3346,6 +3359,12 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 		slider.value_changed.connect(func(_v: float) -> void: refresh.call(true))
 	flake.toggled.connect(func(_on: bool) -> void: refresh.call(true))
 	swatch.pressed.connect(func() -> void: refresh.call(true))
+	# The wheel sets the two sliders it covers. A pick that leaves both where they
+	# were changes neither, so it picks the swatch itself.
+	wheel.picked.connect(func(h: float, s: float) -> void:
+		sliders[0].value = h * 360.0
+		sliders[1].value = s * 100.0
+		refresh.call(true))
 
 
 ## How long a lead is and what colour its plugs are. Two choices, so they are
