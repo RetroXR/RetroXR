@@ -128,7 +128,7 @@ not hold falls back to the ROM's own. Neither is saved for a cartridge left alon
 because both are derived from its ROM; a forced one writes `shell_preset` /
 `body_region` into its entry, which is also what object sync sends.
 **The Shell list ends in Custom**: a swatch wearing the colour, Hue / Saturation /
-Brightness sliders (`MenuStyle.menu_slider_row`) and a Metal flake switch. Moving any
+Brightness sliders (`MenuStyle.menu_slider_row`) and a Metal flakes switch. Moving any
 of them, or pressing the swatch, picks Custom; a palette swatch or Auto drops it.
 Sliders, not Godot's `ColorPicker`: its wheel and fields are mouse-sized, its hex
 field wants a keyboard and its eyedropper cannot see out of a headset. The mix lands

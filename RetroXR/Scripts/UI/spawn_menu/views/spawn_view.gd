@@ -3301,7 +3301,7 @@ static func _pick_shell(chosen: Dictionary, preset: String, color: String, flake
 
 
 ## A colour of the player's own: a swatch in the shell group wearing it, the hue,
-## saturation and brightness sliders that mix it, and a metal flake switch.
+## saturation and brightness sliders that mix it, and a Metal flakes switch.
 ## Sliders rather than Godot's ColorPicker, whose wheel and fields are sized for
 ## a mouse, whose hex field wants a keyboard, and whose eyedropper cannot see out
 ## of a headset. Moving any of them picks the swatch; so does pressing it.
@@ -3321,8 +3321,7 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 		slider.value = row[3]
 		sliders.append(slider)
 		readouts.append(parts[1])
-	var flake := MenuStyle.switch_row(vbox, "Metal flake, like the gold and silver shells",
-		false, 22, 56)
+	var flake := MenuStyle.switch_row(vbox, "Metal flakes", false, 22, 56)
 	flake.name = "ShellFlake"
 
 	var refresh := func(pick: bool) -> void:
@@ -3330,7 +3329,7 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 			sliders[2].value / 100.0)
 		var hex := "#" + c.to_html(false)
 		_paint_swatch(swatch, c)
-		swatch.text = "Custom  %s%s" % [hex, "  metal flake" if flake.button_pressed else ""]
+		swatch.text = "Custom  %s%s" % [hex, "  metal flakes" if flake.button_pressed else ""]
 		readouts[0].text = "%d°" % int(sliders[0].value)
 		readouts[1].text = "%d%%" % int(sliders[1].value)
 		readouts[2].text = "%d%%" % int(sliders[2].value)

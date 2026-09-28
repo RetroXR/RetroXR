@@ -336,7 +336,7 @@ func _group_hold() -> void:
 	view._show_cart_spawn_options("n64", "Selftest", spawn)
 	(panel_part.call("ShellFlake") as BaseButton).button_pressed = true
 	custom = panel_part.call("ShellCustom") as Button
-	_ok(custom.button_pressed and custom.text.contains("metal flake"),
+	_ok(custom.button_pressed and custom.text.contains("metal flakes"),
 		"hold/the flake switch picks Custom too", custom.text)
 	press_text.call("+  SPAWN")
 	var flaked: Dictionary = sent["options"]
