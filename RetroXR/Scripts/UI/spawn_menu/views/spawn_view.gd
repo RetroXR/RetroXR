@@ -3258,11 +3258,14 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 	for section: Array in [
 			["Standard", CartridgeShellPreset.Availability.STANDARD],
 			["Released", CartridgeShellPreset.Availability.RELEASED],
-			["Offered by Nintendo, never used", CartridgeShellPreset.Availability.OFFERED_ONLY]]:
+			# Offered by Nintendo and never used: listed after the released ones,
+			# untitled.
+			["", CartridgeShellPreset.Availability.OFFERED_ONLY]]:
 		var presets := palette.with_availability(section[1])
 		if presets.is_empty():
 			continue
-		vbox.add_child(MenuStyle.hint(section[0]))
+		if not section[0].is_empty():
+			vbox.add_child(MenuStyle.hint(section[0]))
 		var grid := GridContainer.new()
 		grid.columns = 4
 		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
