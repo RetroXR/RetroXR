@@ -130,7 +130,7 @@ void VlcPlayer::Shutdown(int budget_ms)
         {
             UtilityFunctions::push_warning(
                 "VlcPlayer: stop exceeded ", budget_ms,
-                " ms — abandoning the player (its thread and libVLC instance leak for this process)");
+                " ms; abandoning the player (its thread and libVLC instance leak for this process)");
             s_abandoned.push_back(godot::Ref<VlcPlayer>(this));
             return;
         }
@@ -149,7 +149,7 @@ void VlcPlayer::EnsureInstance()
 #ifdef __ANDROID__
     if (!ensure_android_jvm())
     {
-        UtilityFunctions::push_error("VlcPlayer: libVLC JavaVM handoff failed — DVD playback unavailable");
+        UtilityFunctions::push_error("VlcPlayer: libVLC JavaVM handoff failed; DVD playback unavailable");
         return;
     }
 #endif
@@ -177,7 +177,7 @@ void VlcPlayer::EnsureInstance()
     };
     m_vlc = libvlc_new(sizeof(args) / sizeof(args[0]), args);
     if (!m_vlc)
-        UtilityFunctions::push_error("VlcPlayer: libvlc_new failed (check VLC_PLUGIN_PATH: ", plugins, ")");
+        UtilityFunctions::push_error("VlcPlayer: libvlc_new failed (check VLC_PLUGIN_PATH: ", String::utf8(plugins), ")");
     m_instance_ready.store(true, std::memory_order_release);
 }
 
@@ -192,7 +192,7 @@ void VlcPlayer::WarmUp()
     // process; libvlc_new is the part worth moving.
     if (!ensure_android_jvm())
     {
-        UtilityFunctions::push_error("VlcPlayer: libVLC JavaVM handoff failed — DVD playback unavailable");
+        UtilityFunctions::push_error("VlcPlayer: libVLC JavaVM handoff failed; DVD playback unavailable");
         m_instance_ready.store(true, std::memory_order_release);
         return;
     }
@@ -299,7 +299,7 @@ bool VlcPlayer::Open(const String &path, bool is_dvd)
     {
         const char *err = libvlc_errmsg();
         UtilityFunctions::push_error("VlcPlayer: could not create media for ", mrl,
-                                     " — ", err ? err : "(no libvlc error)");
+                                     ": ", err ? String::utf8(err) : String("(no libvlc error)"));
         return false;
     }
 

@@ -121,7 +121,7 @@ int main(int argc, char** argv)
     const char* lib_path = (argc > 1) ? argv[1] : "MetaXRAudioUnity.dll";
     const char* out_path = (argc > 2) ? argv[2] : "orbit.wav";
 
-    std::printf("Meta XR Audio SDK — Phase 0 ABI smoke test\n");
+    std::printf("Meta XR Audio SDK: Phase 0 ABI smoke test\n");
     std::printf("library: %s\n\n", lib_path);
 
     ABI abi;
@@ -141,7 +141,7 @@ int main(int argc, char** argv)
                       major, minor, patch, version_str ? version_str : "(null)");
         if (!Step(major == 1 && minor == 117, "mxra_get_version reports 1.117.x", detail))
         {
-            std::printf("\nFAILED: version mismatch — the vendored binary is not v85.\n");
+            std::printf("\nFAILED: version mismatch; the vendored binary is not v85.\n");
             Unload(abi);
             return 1;
         }
@@ -158,7 +158,7 @@ int main(int argc, char** argv)
     mxra_context* ctx = nullptr;
     if (!Check(abi.context_create(&ctx, &params), "mxra_context_create(+params)"))
     {
-        std::printf("\nFAILED at context creation — the params struct layout is wrong.\n");
+        std::printf("\nFAILED at context creation; the params struct layout is wrong.\n");
         Unload(abi);
         return 1;
     }
@@ -283,7 +283,7 @@ int main(int argc, char** argv)
     Unload(abi);
 
     const bool pass = peak > 1e-4 && channel_diff > 1e-5;
-    std::printf("\n%s\n", pass ? "PASS — ABI is callable and spatializing."
-                               : "FAIL — calls succeeded but the output is not spatialized.");
+    std::printf("\n%s\n", pass ? "PASS: ABI is callable and spatializing."
+                               : "FAIL: calls succeeded but the output is not spatialized.");
     return pass ? 0 : 1;
 }

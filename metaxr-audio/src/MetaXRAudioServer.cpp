@@ -151,7 +151,7 @@ bool MetaXRAudioServer::Initialise()
         return false;
     }
 
-    UtilityFunctions::print("[MetaXRAudio] ready — SDK ", m_version,
+    UtilityFunctions::print("[MetaXRAudio] ready: SDK ", m_version,
                             ", ", params.sample_rate, " Hz, ", kMaxVoices, " voices");
     return true;
 }
