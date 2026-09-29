@@ -35,7 +35,8 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 
 ## A shell the player asked for at spawn, overriding the one the ROM shipped in.
 ## A CartridgeShellPalette id; empty, or an id the palette does not hold, is the
-## ROM's own. N64, Game Boy and Game Boy Advance only, and read once, in _ready.
+## ROM's own. N64, Game Boy, Game Boy Advance and Super NES only, and read once,
+## in _ready.
 @export var shell_preset: StringName = &""
 
 ## A colour the player mixed at spawn, "#rrggbb", painted over the whole shell in
@@ -49,7 +50,8 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 
 ## A regional body the player asked for at spawn: N64CartShell.REGION_USA or
 ## REGION_JPN, empty for the ROM's own market. It picks the SHAPE only — the
-## shell colour is still looked up under the market the ROM really has.
+## shell colour is still looked up under the market the ROM really has. A Super NES
+## cartridge's is its front latch: SnesCartShell.TYPE_A or TYPE_B.
 @export var body_region: String = ""
 
 var _options_panel: Node3D = null
@@ -70,11 +72,11 @@ const _CART_MODELS := {
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
 ## the N64, Game Boy and DS/3DS cards' contacts and screws are metal.
-const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true}
+const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
-const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true}
+const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
@@ -191,10 +193,14 @@ func get_card_size() -> Vector3:
 func _apply_cart_model() -> void:
 	if _model_label != null or has_node("CartModel"):
 		return
-	# An N64 cartridge's body is regional: N64CartShell picks it per ROM.
+	# An N64 cartridge's body is regional: N64CartShell picks it per ROM. So is a
+	# Super NES one's: SnesCartShell gives a US ROM the latch of its first print.
 	var market := N64CartShell.market(systemid, rom_path) if systemid == "n64" else ""
-	var path: String = N64CartShell.body_model_for_region(body_region, market) \
-		if systemid == "n64" else _CART_MODELS.get(systemid, "")
+	var path: String = _CART_MODELS.get(systemid, "")
+	if systemid == "n64":
+		path = N64CartShell.body_model_for_region(body_region, market)
+	elif systemid == SnesCartShell.SYSTEMID:
+		path = SnesCartShell.body_model_for_rom(body_region, systemid, rom_path)
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var scene := load(path) as PackedScene
@@ -229,6 +235,8 @@ func _apply_cart_model() -> void:
 		_paint_shell(glb, GbCartShell.SYSTEMID, GbCartShell.preset_for_rom(rom_path))
 	elif systemid == GbaCartShell.SYSTEMID:
 		_paint_shell(glb, GbaCartShell.SYSTEMID, GbaCartShell.preset_for_rom(rom_path))
+	elif systemid == SnesCartShell.SYSTEMID:
+		_paint_shell(glb, SnesCartShell.SYSTEMID, SnesCartShell.preset_for_rom(rom_path))
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:

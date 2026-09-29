@@ -14,6 +14,7 @@
 ##     CartridgeColor.reset_to_default(cart)
 ##     CartridgeColor.apply_preset(gb_cart, &"red", "gb")
 ##     CartridgeColor.apply_preset(gba_cart, &"ruby", "gba")
+##     CartridgeColor.apply_preset(snes_cart, &"black", "snes")
 ##
 ## `cart` is the GLB instance or any node above it. Plain presets and colours stay
 ## on StandardMaterial3D duplicates; METAL_FLAKE presets switch that surface to
@@ -32,6 +33,7 @@ const PALETTE_PATHS := {
 	"n64": PALETTE_PATH,
 	"gb": "res://Resources/gb_cartridge_shells.tres",
 	"gba": "res://Resources/gba_cartridge_shells.tres",
+	"snes": "res://Resources/snes_cartridge_shells.tres",
 }
 const FLAKE_SHADER := preload("res://Shaders/cartridge_flake_plastic.gdshader")
 const CLEAR_SHADER := preload("res://Shaders/cartridge_clear_plastic.gdshader")
@@ -64,10 +66,11 @@ const FLAKE_FLOOR := 0.05
 
 ## Materials of the exterior moulding, by the name the model gives them: the N64
 ## bodies' three, the Game Boy cart's front, rear, smooth rails and the rim
-## round its sticker recess, then the Game Boy Advance cart's two halves.
+## round its sticker recess, then the Game Boy Advance cart's two halves, then the
+## Super NES cart's grained shell and the smooth bezel round its rear sticker.
 const EXTERIOR_PLASTIC: Array[StringName] = [&"Shell_Plastic", &"Molded_Smooth_Plastic", &"Nintendo_Molded_SVG",
 	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow",
-	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic"]
+	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic", &"SNES_Shell_Plastic", &"SNES_Smooth_Plastic"]
 
 ## A moulding authored lighter or darker than the rest of its shell, as a factor
 ## on the colour painted: the Game Boy cart's ratios to its front shell. Every
@@ -79,9 +82,11 @@ const SHADE := {
 
 ## Mouldings whose own roughness a paint keeps, because the texture of the mould
 ## (the Game Boy cart's rough rear, smooth rails and matte rim; the Game Boy
-## Advance cart's baked roughness map) sets it rather than the plastic's colour.
+## Advance cart's baked roughness map; the Super NES cart's grain and bezel) sets
+## it rather than the plastic's colour.
 const OWN_ROUGHNESS: Array[StringName] = [&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth",
-	&"Shell_Seam_Shadow", &"Tintable_Front_Plastic", &"Tintable_Rear_Plastic"]
+	&"Shell_Seam_Shadow", &"Tintable_Front_Plastic", &"Tintable_Rear_Plastic",
+	&"SNES_Shell_Plastic", &"SNES_Smooth_Plastic"]
 
 ## The half each moulded part belongs to, by node-name prefix. The Nintendo logo
 ## patch and the bottom latch tabs are part of the rear moulding. A part not

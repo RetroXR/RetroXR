@@ -3162,7 +3162,7 @@ func _close_game_detail_panel() -> void:
 
 ## Whether this platform's ROM rows open a sub-menu when held.
 static func _has_spawn_options(systemid: String) -> bool:
-	return systemid in ["n64", GbaCartShell.SYSTEMID] or GbCartShell.is_shell(systemid)
+	return systemid in ["n64", GbaCartShell.SYSTEMID, SnesCartShell.SYSTEMID] or GbCartShell.is_shell(systemid)
 
 
 ## The overlay's shell: a title with a close button, and the column to fill.
@@ -3231,21 +3231,28 @@ static func _paint_swatch(btn: Button, color: Color) -> void:
 		btn.add_theme_stylebox_override(state, chosen)
 
 
-## Shell, and for an N64 the body, of a cartridge. Picked and then SPAWN is
-## pressed; `spawn` takes the options dictionary. The swatches are the system's
-## own CartridgeColor palette, then a colour the player mixes.
+## Shell, and for an N64 or Super NES the body, of a cartridge. Picked and then
+## SPAWN is pressed; `spawn` takes the options dictionary. The swatches are the
+## system's own CartridgeColor palette, then a colour the player mixes.
 func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) -> void:
 	var vbox := _open_spawn_options_panel(label)
 	var chosen := {"shell_preset": "", "shell_color": "", "shell_flake": false, "body_region": ""}
 	var auto_color := Color(0.18, 0.18, 0.35)
 
+	# The first body is the default, and leaves body_region empty.
+	var body_options: Array = []
 	if systemid == "n64":
+		body_options = [["Auto (from the ROM)", ""],
+				["USA / PAL", N64CartShell.REGION_USA], ["Japan", N64CartShell.REGION_JPN]]
+	elif systemid == SnesCartShell.SYSTEMID:
+		body_options = [["Auto (by release date)", ""],
+				["Type A (groove)", SnesCartShell.TYPE_A], ["Type B (recess)", SnesCartShell.TYPE_B]]
+	if not body_options.is_empty():
 		vbox.add_child(MenuStyle.header("Body"))
 		var bodies := MenuStyle.hbox(10)
 		vbox.add_child(bodies)
 		var body_group := ButtonGroup.new()
-		for body: Array in [["Auto (from the ROM)", ""],
-				["USA / PAL", N64CartShell.REGION_USA], ["Japan", N64CartShell.REGION_JPN]]:
+		for body: Array in body_options:
 			var body_btn := _swatch_button(body[0], auto_color, body_group)
 			body_btn.button_pressed = body[1] == ""
 			body_btn.pressed.connect(func() -> void: chosen["body_region"] = body[1])

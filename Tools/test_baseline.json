@@ -38,6 +38,7 @@
     "rope_tests": 82,
     "scene_tests": 169,
     "scrape_tests": 88,
+    "snes_cart_tests": 95,
     "screen_cast_light_tests": 11,
     "spawn_menu_tests": 38,
     "speaker_tests": 205,

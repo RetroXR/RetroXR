@@ -25,7 +25,7 @@ const CART_SIZES: Dictionary = {
 	# from photographs scaled against the console's 150 mm depth; no dimensioned
 	# drawing was found.
 	"famicom":          Vector3(0.110, 0.070, 0.017),
-	"snes":        Vector3(0.137, 0.088, 0.020),
+	"snes":        Vector3(0.1355, 0.087, 0.02015),  # the cartridge model's shell, caliper-measured
 	"n64":      Vector3(0.116, 0.0766, 0.0185),  # the cartridge model's shell
 	"gb":         Vector3(0.057, 0.065, 0.0075),  # the cartridge model's shell
 	# A Game Boy Color cartridge is the same DMG-shaped shell (the notch is the

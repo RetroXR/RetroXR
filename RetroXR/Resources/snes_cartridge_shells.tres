@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="CartridgeShellPalette" format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_palette.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_preset.gd" id="2"]
+
+[sub_resource type="Resource" id="grey"]
+script = ExtResource("2")
+id = &"grey"
+display_name = "Grey (standard)"
+availability = 0
+color = Color(0.5658, 0.5611, 0.5927, 1)
+roughness = 0.62
+
+[sub_resource type="Resource" id="black"]
+script = ExtResource("2")
+id = &"black"
+display_name = "Black (Killer Instinct)"
+color = Color(0.12, 0.12, 0.13, 1)
+roughness = 0.62
+
+[resource]
+script = ExtResource("1")
+source = "Super NES cartridge shells. Grey is the model's own plastic. Black is a VISUAL APPROXIMATION of Killer Instinct's moulded colour, not a calibrated measurement. SnesCartShell picks one per ROM. Edit freely."
+presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("black")])
