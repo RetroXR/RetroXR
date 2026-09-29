@@ -388,6 +388,16 @@ func configure_cartridge_slot(slot: Node3D) -> void:
 		slot.global_transform = seat.global_transform
 
 
+## Where a cartridge of another size seats in this model's cart slot — a Game Boy
+## cart in a Game Boy Advance — as the point, in the CARTRIDGE's own frame (x
+## width, y along its length with the grip on +Y, z thickness with the label on
+## +Z), that the seat takes. Its connector edge lands where this model's own
+## cartridge's does, so a longer cart stands prouder rather than sinking deeper.
+## ZERO seats it by its middle, as before. RetroCartridge asks, per slot.
+func foreign_cart_seat(foreign: Vector3) -> Vector3:
+	return Vector3(0.0, -(foreign.y - cart_size.y) * 0.5, 0.0)
+
+
 ## The second slot on the FRONT edge -- the DS's Slot-2, which takes a Game Boy
 ## Advance cartridge: lying flat, label down, connector first, the length running
 ## into the body along -Z from the front face, and a stub left proud to grab.

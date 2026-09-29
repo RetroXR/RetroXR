@@ -164,16 +164,68 @@ func _run() -> void:
 		model.animate_controls(0, Vector2.ZERO, Vector2.ZERO)
 	_check(a_btn.position.distance_to(a_rest) < 0.00002 and shoulder.basis.is_equal_approx(l_rest), "and everything comes back")
 
+	# --- the desktop pointer finds the seated cart --------------------------------------
+	# What shows of it: its top end, over the back wall, seen end on past the top
+	# edge and from behind. Aiming at the screen or over the front top still takes
+	# the console.
+	await _physics(4)
+	for spec: Array in [[Vector3(0, -0.02, -0.12), "from behind the top edge"],
+			[Vector3(0, -0.12, -0.05), "from the back, over the back wall"],
+			[Vector3(0.0, -0.005, -0.15), "end on"]]:
+		var from: Vector3 = sys.global_transform * (Vector3(0, -0.00786, -0.037) + (spec[0] as Vector3))
+		var aim: Vector3 = sys.global_transform * Vector3(0, -0.00786, -0.037)
+		_check(_takes(from, aim, cart), "the desktop pointer takes the seated cart %s" % spec[1])
+	_check(_takes(sys.global_transform * Vector3(0, 0.3, 0), sys.global_transform * Vector3(0, 0.01, -0.005), sys),
+		"and the console when aimed at its screen")
+	_check(_takes(sys.global_transform * Vector3(0, 0.3, -0.037), sys.global_transform * Vector3(0, 0.0, -0.037), sys),
+		"and when aimed straight down at the top edge over the slot")
+
 	if DisplayServer.get_name() != "headless":
 		await _shots(sys, "")
 
-	# --- the e-Reader, whose tongue takes the same slot -------------------------------
+	# --- a Game Boy cartridge, which a GBA takes too ------------------------------------
 	# Out of the slot first: a snap zone dropping its object during teardown fills
 	# the log with not-in-tree errors that are nothing to do with this.
 	(sys.get("_cartridge_slot") as XRToolsSnapZone).drop_object()
 	await _wait(5)
 	cart.queue_free()
 	await _wait(10)
+	var gb := CART_SCENE.instantiate() as RetroCartridge
+	gb.systemid = "gb"
+	gb.game_label = "PROBE GB"
+	gb.position = Vector3(0, 1.3, 0)
+	add_child(gb)
+	gb.add_to_group("spawned")
+	await _wait(20)
+	sys.restore_cartridge(gb)
+	await _wait(40)
+	var gb_size := MediaDimensions.cart_size("gb")
+	var gb_top := to_sys * (gb.global_transform * Vector3(0, gb_size.y * 0.5, 0))
+	var gb_mid := to_sys * gb.global_position
+	# The GBA's top edge is z = -41.0 mm in this frame; the user measured 30 mm
+	# of a Game Boy cart standing out above it.
+	print("[gba] gb cart top %.2f mm past the top edge, middle at y %.2f mm" % [(-0.041 - gb_top.z) * 1000.0, gb_mid.y * 1000.0])
+	_check(absf((-0.041 - gb_top.z) - 0.030) < 0.001, "a Game Boy cart stands 30 mm out of the top edge")
+	_check(absf(gb_mid.y - (-0.006988)) < 0.0001, "centred in the 7.8 mm slot, 0.15 mm clear of each wall")
+	_check(absf(gb_mid.x) < 0.0001, "and across it")
+	var gb_body := gb.get_node_or_null("CartModel") as Node3D
+	if gb_body != null:
+		var gr: Transform3D = console.global_transform.affine_inverse() * gb_body.global_transform
+		var gf := FileAccess.open(OUT_DIR.path_join("gb_cart_in_console.json"), FileAccess.WRITE)
+		gf.store_string(JSON.stringify({"basis_x": _v(gr.basis.x), "basis_y": _v(gr.basis.y), "basis_z": _v(gr.basis.z),
+			"origin": _v(gr.origin)}))
+		gf.close()
+	await _physics(4)
+	_check(_takes(sys.global_transform * Vector3(0, 0.25, -0.058), sys.global_transform * Vector3(0, 0, -0.058), gb),
+		"the desktop pointer takes it from above, over its middle")
+	if DisplayServer.get_name() != "headless":
+		await _shots(sys, "gb_")
+	(sys.get("_cartridge_slot") as XRToolsSnapZone).drop_object()
+	await _wait(5)
+	gb.queue_free()
+	await _wait(10)
+
+	# --- the e-Reader, whose tongue takes the same slot -------------------------------
 	var unit := preload("res://Scenes/Objects/expansion.tscn").instantiate() as RetroExpansion
 	unit.expansion_id = "ereader"
 	unit.position = Vector3(0, 1.3, 0)
@@ -204,6 +256,36 @@ func _run() -> void:
 	await _wait(3)
 	print("[gba] %s" % ("ALL CHECKS PASSED" if not _fail else "FAILED"))
 	get_tree().quit(1 if _fail else 0)
+
+
+func _physics(frames: int) -> void:
+	for i in frames:
+		await get_tree().physics_frame
+
+
+var _grabber: Node3D = null
+
+
+## True when the desktop pointer, aimed from `from` through `to`, acts on `want`
+## — the same resolver the reticle uses. Says what it got instead when not.
+func _takes(from: Vector3, to: Vector3, want: Node) -> bool:
+	if _grabber == null:
+		_grabber = Node3D.new()
+		_grabber.add_to_group("desktop_hand")
+		add_child(_grabber)
+	var t := InteractionResolver.resolve_desktop(get_world_3d().direct_space_state,
+		from, to + (to - from).normalized() * 0.2, _grabber)
+	if not t.is_valid():
+		print("[gba]   the pointer found nothing")
+		return false
+	for node: Node in [t.action_node, t.hit_node]:
+		var n := node
+		while n != null:
+			if n == want:
+				return true
+			n = n.get_parent()
+	print("[gba]   the pointer found %s" % (t.action_node.name if is_instance_valid(t.action_node) else "?"))
+	return false
 
 
 func _near(a: Vector3, b: Vector3, tol: float = 0.001) -> bool:

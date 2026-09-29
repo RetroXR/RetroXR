@@ -192,3 +192,27 @@ width) is inside the R button on this shell.
 
 The primitive (`game_boy_advance_primitive.tscn`) keeps its own authored seat and
 controls; the same script drives it through the stand-in pass.
+
+**Game Boy and Game Boy Color cartridges** (`_MEDIA_COMPAT`: a GBA takes both) go in
+until their connector bottoms, like the real ones: a GB cart stands **30 mm** out of
+the top edge (the user's measurement; 65 mm against a GBA cart's 35). The slot's
+seat is where a GBA cart has its MIDDLE, so a cart of another size must not seat by
+its middle — seated that way a GB cart sank 15 mm in. `RetroCartridge._get_grab_point`
+turns on a `ForeignSlotSeat` snap point only in a console's own cartridge slot when
+the cart is another system's, placed where the model's `foreign_cart_seat()` says
+(handheld default: connector edges level; the detailed GBA also centres it on the
+slot, 0.875 mm off the GBA cart's grip-biased middle). Everywhere else the point is
+off, so a cart in its own machine seats by its middle exactly as before. Swept 0–30
+mm withdrawn against the console GLB: no contact, 0.11 mm clear.
+
+**Taking a seated cart with the desktop pointer.** The pointer takes the nearest hit,
+and on this shell the cart's exposed end lies inside the body's bounds (the slot is in
+the back half of the top edge; a GBA cart ends 0.3 mm past the front top). The base
+handheld's body and pointer boxes therefore sat in front of it from every direction
+and the console won every click. `configure_handheld_body` carves the slot out of both
+— four boxes round an empty notch (61 mm wide, behind the slot's front wall, above
+the back wall's top at z = −33.2 mm), as `nes_model.gd` carves its bay — and the grab
+stub is what shows above that wall (a GB cart's 38 mm, not the default 28 % of a GBA
+cart). `gba_seat_probe` resolves the pointer from behind, over the back wall and end on
+(the cart) and from above and at the screen (the console); with the carve removed the
+three cart cases return the console.

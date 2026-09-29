@@ -578,6 +578,46 @@ func _tighten_pointer_box() -> void:
 	pcol.position = Vector3.ZERO
 
 
+## A cartridge made for another machine, in a console's own slot — a Game Boy
+## cart in a Game Boy Advance. It goes in until its connector bottoms, as the real
+## one does, not until its MIDDLE reaches the seat, which is where the slot's own
+## cartridge has its middle: a Game Boy cart is 65 mm to a GBA cart's 35, so
+## seated by its middle it sank 15 mm into the console instead of standing 30 mm
+## proud of it. The host's model says where it goes (foreign_cart_seat, in this
+## cart's frame); the point is switched off for every other slot, so a cart in its
+## own machine still seats by its middle, exactly as before.
+var _foreign_seat: XRToolsGrabPointSnap = null
+
+
+func _get_grab_point(grabber: Node3D, current: XRToolsGrabPoint) -> XRToolsGrabPoint:
+	_aim_foreign_seat(grabber as XRToolsSnapZone)
+	return super(grabber, current)
+
+
+func _aim_foreign_seat(zone: XRToolsSnapZone) -> void:
+	var seat := Vector3.ZERO
+	var sys: RetroSystem = null
+	if zone != null:
+		sys = zone.get_parent() as RetroSystem
+	if sys != null and not systemid.is_empty() and sys.systemid != systemid \
+			and zone == sys.get("_cartridge_slot"):
+		var model: Object = sys.get("_model")
+		if model != null and model.has_method("foreign_cart_seat"):
+			seat = model.call("foreign_cart_seat", _cart_size())
+	if seat == Vector3.ZERO:
+		if _foreign_seat != null:
+			_foreign_seat.enabled = false
+		return
+	if _foreign_seat == null:
+		_foreign_seat = XRToolsGrabPointSnap.new()
+		_foreign_seat.name = "ForeignSlotSeat"
+		add_child(_foreign_seat)
+		# By hand: XRToolsPickable collects its grab points in _ready.
+		_grab_points.push_back(_foreign_seat)
+	_foreign_seat.enabled = true
+	_foreign_seat.position = seat
+
+
 ## While seated in a handheld's recessed slot only the grip end pokes out of
 ## the body — limit grabbing (VR hands, desktop reticle, laser) to that stub.
 ## The normal grab padding (a ≥5 cm box around a 3.3 cm card) otherwise pokes
