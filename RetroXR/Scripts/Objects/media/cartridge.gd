@@ -64,20 +64,22 @@ const _CART_MODELS := {
 	"gba": GbaCartShell.BODY,
 	"gb": GbCartShell.BODY,
 	"gbc": GbCartShell.BODY,
+	"nds": "res://imported-assets/carts/nintendo_ds/ds_cart.glb",
+	"n3ds": "res://imported-assets/carts/nintendo_3ds/3ds_cart.glb",
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
-## the N64 and Game Boy carts' contacts and screws are metal.
-const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true}
+## the N64, Game Boy and DS/3DS cards' contacts and screws are metal.
+const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
-const _UV_LABELS := {"n64": true, "gb": true, "gbc": true}
+const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
-## calls it Label. First match wins.
-const _LABEL_MESHES := ["media_label", "Label"]
+## calls it Label, the DS/3DS cards CartridgeLabel. First match wins.
+const _LABEL_MESHES := ["media_label", "Label", "CartridgeLabel"]
 
 ## Models whose label mesh is paper the art is laid on, rather than a
 ## placeholder the art replaces. The 64DD disk's covers the front recess and a

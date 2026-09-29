@@ -11,6 +11,7 @@
     "card_tests": 615,
     "cores_data_tests": 70,
     "deck_tests": 98,
+    "ds_cart_tests": 33,
     "ereader_tests": 203,
     "expansion_tests": 422,
     "famicom_tests": 101,

@@ -3,8 +3,12 @@ extends RefCounted
 ## Set a cartridge's label without modifying the imported/shared material.
 ## PNG/JPEG/WebP can be decoded at runtime; packaged textures use apply_texture.
 
+## The sticker mesh: "Label" on the Game Boy and N64 carts, "CartridgeLabel" on
+## the DS/3DS cards.
+const LABEL_NAMES: Array[StringName] = [&"Label", &"CartridgeLabel"]
+
 static func find_label(cartridge: Node) -> MeshInstance3D:
-	if cartridge is MeshInstance3D and cartridge.name == &"Label":
+	if cartridge is MeshInstance3D and LABEL_NAMES.has(cartridge.name):
 		return cartridge as MeshInstance3D
 	for child in cartridge.get_children():
 		var found := find_label(child)
