@@ -50,10 +50,11 @@ const SHELL_LODS := [
 ]
 # The reader's tongue is a GBA cartridge's lower half: it goes INTO the slot
 # while the housing stands over the console. So the seat takes the point where
-# a GBA cartridge's middle would be -- 18 mm (half of MediaDimensions' 36 mm
+# a GBA cartridge's middle would be -- 17.5 mm (half of MediaDimensions' 35 mm
 # GBA cart) up from the tongue's bottom edge, at the tongue's depth, which is
-# 15.6 mm behind the centre of the model.
-const CONNECTOR := Vector3(0.0, -0.03799, -0.01559)
+# 15.6 mm behind the centre of the model. Follow that entry if it changes: the
+# tongue's bottom edge then reaches as deep into the slot as a cartridge's.
+const CONNECTOR := Vector3(0.0, -0.03849, -0.01559)
 # The card channel: 1 mm tall at 79.9 mm above the tongue's bottom edge,
 # running the full width and 22 mm in from the front face to a rear wall. The
 # groove line is 0.3 mm in front of that wall, where a card's coded edge stops.

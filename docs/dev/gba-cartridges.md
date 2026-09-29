@@ -125,3 +125,57 @@ borrows the N64 gold's flakes because this palette has no metal flake preset.
 `gba_cart_tests` (71 cases): resources, model, surfaces, color, clear, kept,
 lookup, cartridge, forced. Mutation-tested: sending clear shells down the solid path fails 11
 cases, dropping the maker check fails `lookup/a Pokemon game code from another maker`.
+
+### The console it goes into — the detailed Game Boy Advance
+
+`game_boy_advance` is the platform's default model (listed first in
+`SystemModelRegistry`; the stand-in is now labelled "Game Boy Advance
+(primitive)"). Its scene, `system_models/game_boy_advance.tscn`, bakes
+`imported-assets/consoles/game_boy_advance/gba_console.glb` as `Shell`: codex-photos/gba's
+**debranded mobile LOD0**, own work (the shell is fitted to a laser scan of a
+real GBA), 35,227 triangles with baked 2048/1024 atlases, copied in unchanged
+(see `LICENSE-gba-console.txt` beside it). It is the same id the unbundled GBA had,
+so a save from before that model was removed spawns this one.
+
+**The frame.** The GLB is upright (+Y up the face, +Z out of the screen), so
+`Shell` is `R_x(-90)` plus a 1.06 mm offset that centres its bounds, 144.5 × 82.0
+× 26.9 mm, on the model — the handheld base's collision, pointer box and grips
+all assume a centred body.
+
+**The seat is the GLB's own `CartridgeSocket`**, not a pose dialled in by eye.
+That node is where `gba_cart.glb` (the same cartridge GLB, same frame) sits at
+identity; codex-photos fitted it to the scanned slot, 61 mm wide and 7.85 mm front
+wall to back wall. The cart body goes in with 0.3 mm spare in front and 0.15 mm
+behind, and the thicker grip stands above the back wall, 6.4 mm proud of it and
+flush with the front top. `CartSeat` is that socket carried through the Shell
+transform: centre (0, −7.863, −23.799) mm in the model, label down (toward the
+back), grip out of the top edge (−Z).
+
+For that to hold, **`MediaDimensions` `gba` is the cartridge model's shell,
+60 × 35 × 9 mm** (it was 58 × 36 × 7, which scaled the body per axis to a 7 mm
+thick cart). The GB and N64 entries are their models' shells the same way.
+
+`Tools/models/gba_seat_probe` spawns the model, seats a cart through
+`restore_cartridge()` and checks the cart GLB against the socket (0.003 mm, no
+turn, unit scale), the screen, the EXT socket, the video-out lead, the power
+switch, wheel, LED and buttons; windowed it renders four views of the seated
+cart. It writes the seated pose to `probe_out/gba_seat/cart_in_console.json`; an
+intersection sweep of `gba_cart.glb` at that pose against the console GLB, 0 to
+40 mm withdrawn in 1 mm steps, found no contact with the mobile shell (at least
+0.10 mm clear at the seat). Re-run both if either GLB is re-exported.
+
+**Controls are the GLB's own meshes** (`game_boy_advance_model.gd`), each about its
+real pivot in the GLB frame: A, B, START and SELECT press 0.8 mm straight in; the
+D-pad rocks 0.07 rad; the shoulder caps turn ±0.06 rad about their inner hinges;
+`PowerSwitch` is a 2-step `VRSlider` that slides the real cap 4 mm along its
+track (17.8° up the bottom edge, +X is ON); `VolumeSlider` is continuous, and the
+wheel turns by the distance its rim moves (louder is +X, where the moulded ramp
+is tall). The GLB's LCD quad is hidden and its unlit material worn by
+`HandheldScreen`, which sits exactly on it; `PowerLED` lights green while the
+machine runs. The EXT `LinkPort` is on the real socket (x = 8.7 mm, 1 mm proud of
+the rim) with its placeholder jack hidden, and the video-out lead leaves from the
+headphone jack on the bottom edge — the handheld default (back edge, 30 % of the
+width) is inside the R button on this shell.
+
+The primitive (`game_boy_advance_primitive.tscn`) keeps its own authored seat and
+controls; the same script drives it through the stand-in pass.

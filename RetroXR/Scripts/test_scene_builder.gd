@@ -122,7 +122,7 @@ const GENERATIONS: Array = [
 			["ps2", BOX, "PlayStation 2"],
 			["gc", BOX, "Nintendo GameCube"],
 			["xbox", BOX, "Microsoft Xbox"],
-			["gba", "game_boy_advance_primitive", "Game Boy Advance"],
+			["gba", "game_boy_advance", "Game Boy Advance"],
 			["gba", "game_boy_advance_sp_primitive", "Game Boy Advance SP"],
 			["pokemini", "pokemon_mini", "Pokémon mini"],
 		],

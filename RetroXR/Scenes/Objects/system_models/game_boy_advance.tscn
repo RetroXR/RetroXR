@@ -1,0 +1,116 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://b514vw5ug1a0j" path="res://Scripts/Objects/system_models/game_boy_advance_model.gd" id="1_model"]
+[ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_slider"]
+[ext_resource type="PackedScene" uid="uid://d23hkb0sx8qye" path="res://imported-assets/consoles/game_boy_advance/gba_console.glb" id="3_shell"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="4_linkport"]
+
+; The GLB's own LCD quad is 61.2 x 40.8 mm. This one sits exactly on it; the model
+; script hides the GLB's and gives this the GLB's unlit-LCD material.
+[sub_resource type="QuadMesh" id="QuadMesh_screen"]
+size = Vector2(0.0612, 0.0408)
+
+[sub_resource type="StandardMaterial3D" id="Mat_screen"]
+albedo_color = Color(0.3959, 0.4492, 0.41, 1)
+roughness = 0.3
+
+[sub_resource type="BoxMesh" id="BoxMesh_seat"]
+size = Vector3(0.06, 0.035, 0.009)
+
+[sub_resource type="StandardMaterial3D" id="Mat_seat"]
+transparency = 1
+albedo_color = Color(1, 0.55, 0.1, 0.35)
+emission_enabled = true
+emission = Color(1, 0.55, 0.1, 1)
+emission_energy_multiplier = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_knob"]
+size = Vector3(0.008, 0.006, 0.008)
+
+[sub_resource type="StandardMaterial3D" id="Mat_knob"]
+albedo_color = Color(0.2, 0.2, 0.22, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_powerswitch"]
+size = Vector3(0.016, 0.012, 0.024)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_volumeslider"]
+size = Vector3(0.02, 0.012, 0.024)
+
+; Frame (every handheld's): lying flat, screen up (+Y), the top edge -- shoulder
+; buttons, cartridge slot, EXT socket -- toward -Z. Millimetre figures in the
+; comments below are in the GLB's own frame (+Y up the face, +Z out of the screen).
+[node name="GameBoyAdvance" type="Node3D"]
+script = ExtResource("1_model")
+
+; R_x(-90) lays the upright GLB on its back. The offset centres its bounds
+; (144.5 x 82.0 x 26.9 mm, centre z = +1.06 mm) on this node, which is what the
+; handheld base's collision, pointer box and grips assume.
+[node name="Shell" parent="." instance=ExtResource("3_shell")]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, -0.001063, 1e-06)
+
+; On the GLB's Screen: centre (0, 4.4, 10.4) mm, 1.58 mm behind ScreenGlass.
+[node name="HandheldScreen" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.009337, -0.004399)
+mesh = SubResource("QuadMesh_screen")
+surface_material_override/0 = SubResource("Mat_screen")
+
+; The GLB's CartridgeSocket, where the cartridge model seats at identity: centre
+; (0, 23.8, -6.8) mm, turned 180 degrees about Y, so the label faces the back and
+; the grip stands out of the top. That seat was fitted to the laser-scanned slot
+; (61 mm wide, 7.85 mm front to back wall) with the cart RetroXR builds from
+; gba_cart.glb: the body goes in with 0.3 mm to spare in front and 0.15 behind,
+; and the thicker grip stays above the back wall, 6.4 mm proud of it.
+[node name="CartSeat" type="Marker3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, -0.007863, -0.023799)
+gizmo_extents = 0.03
+
+[node name="SeatPreview" type="MeshInstance3D" parent="CartSeat"]
+mesh = SubResource("BoxMesh_seat")
+surface_material_override/0 = SubResource("Mat_seat")
+
+; The EXT socket, on the top edge right of centre: its metal is centred at
+; x = 8.7 mm, z = 7.65 mm (toward the face), and the housing round its mouth is
+; at 41.0 mm. +Z points out of the shell (every port's convention), so the
+; node is turned 180 degrees about Y, and it stands 1 mm proud of the rim: a
+; seated link plug's origin is its shell's front face.
+[node name="LinkPort" parent="." instance=ExtResource("4_linkport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0087, 0.006587, -0.041999)
+
+; On its real cap. Slides 4 mm along the cap's own +X, which follows the bottom
+; edge 17.8 degrees up toward the corner; +X is ON (the "OFF . . ON" legend). The
+; origin is mid-travel: the GLB models the cap OFF, 2 mm back along the axis.
+; Its box reaches past the bottom edge so a pointer finds it before the shell.
+[node name="PowerSwitch" type="Area3D" parent="."]
+transform = Transform3D(0.952167, 0, -0.305577, 0, 1, 0, 0.305577, 0, 0.952167, -0.049196, 0.002337, 0.031331)
+collision_layer = 1048577
+script = ExtResource("2_slider")
+travel = 0.004
+steps = 2
+engage_radius = 0.025
+
+[node name="KnobMesh" type="MeshInstance3D" parent="PowerSwitch"]
+mesh = SubResource("BoxMesh_knob")
+surface_material_override/0 = SubResource("Mat_knob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PowerSwitch"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.008)
+shape = SubResource("BoxShape3D_powerswitch")
+
+; At the thumbwheel's rim where it shows through the bottom edge (x = 54 mm,
+; 30.4 mm down). A thumb rolls it along X; the model script turns the wheel by the
+; distance the rim travels. Louder is +X, where the moulded volume ramp is tall.
+[node name="VolumeSlider" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.054, -0.000163, 0.030401)
+collision_layer = 1048577
+script = ExtResource("2_slider")
+travel = 0.012
+engage_radius = 0.025
+value = 1.0
+
+[node name="KnobMesh" type="MeshInstance3D" parent="VolumeSlider"]
+mesh = SubResource("BoxMesh_knob")
+surface_material_override/0 = SubResource("Mat_knob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VolumeSlider"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.008)
+shape = SubResource("BoxShape3D_volumeslider")

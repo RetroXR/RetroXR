@@ -120,7 +120,14 @@ const _ROWS: Dictionary = {
 	# Without it a gbc tile would be offered a console box, a pad and an AV lead.
 	"game_boy_color_primitive": {"platform": "gbc", "label": "Game Boy", "handheld": true,
 		"scene": _SCENES + "game_boy_primitive.tscn"},
-	"game_boy_advance_primitive": {"platform": "gba", "label": "Game Boy Advance", "handheld": true,
+	# The detailed shell FIRST, so it is the platform's default. Own work: the
+	# debranded mobile LOD0 of codex-photos/gba, fitted to a laser scan. The id is
+	# the one the unbundled model it replaces had, so a save from before that
+	# model was removed spawns this one.
+	"game_boy_advance":     {"platform": "gba", "label": "Game Boy Advance", "handheld": true,
+		"scene": _SCENES + "game_boy_advance.tscn",
+		"requires": ["res://imported-assets/consoles/game_boy_advance/gba_console.glb"]},
+	"game_boy_advance_primitive": {"platform": "gba", "label": "Game Boy Advance (primitive)", "handheld": true,
 		"scene": _SCENES + "game_boy_advance_primitive.tscn"},
 	"game_boy_advance_sp_primitive": {"platform": "gba", "label": "Game Boy Advance SP", "handheld": true,
 		"scene": _SCENES + "game_boy_advance_sp_primitive.tscn"},

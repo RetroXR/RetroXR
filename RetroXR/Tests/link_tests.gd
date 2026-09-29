@@ -2096,6 +2096,7 @@ func _test_no_reset_path() -> void:
 ## Socket scenes, each with the family its LinkPort (or subclass) must take.
 const _LINK_SOCKETS := {
 	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "link_plug",
+	"res://Scenes/Objects/system_models/game_boy_advance.tscn": "link_plug",
 	"res://Scenes/Objects/system_models/game_boy_advance_primitive.tscn": "link_plug",
 	"res://Scenes/Objects/system_models/game_boy_advance_sp_primitive.tscn": "link_plug",
 	"res://Scenes/Objects/system_models/game_gear.tscn": "gg_link_plug",

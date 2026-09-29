@@ -1,0 +1,27 @@
+Game Boy Advance console (gba_console.glb)
+
+Own work. Reconstructed in Blender from Ryan McClelland's photographs and
+caliper measurements of a Game Boy Advance, with the shell fitted to a laser
+scan of a real one (codex-photos/gba, build_console.py). This is the mobile
+LOD0 of that asset, without trademarks (build_console_mobile.py, package
+console_mobile_no_trademarks): 35,227 triangles, every part decimated and its
+detail baked into texture atlases (base colour, tangent normal, packed ORM;
+2048 shell and stickers, 1024 controls and details).
+
+Licensed with the rest of RetroXR (see the repository LICENSE).
+
+Left off: the molded Nintendo logo and its oval on the front, the printed
+GAME BOY ADVANCE logo on the lens, the GAME BOY ADVANCE logo and
+"(C) (M) 2000 Nintendo" on the rear rating label, and the support line on the
+battery warning sticker. The model number, the compliance and country text and
+the molded START, SELECT, POWER, EXT, PHONES and VOLUME legends remain.
+
+The lettering is baked into the textures from glyphs rendered in Blender:
+Bahnschrift (the rear label's rating and compliance lines and the button
+letters) and Arial (the other legends), both Microsoft system fonts. No font
+file is included.
+
+Nodes keep the detailed asset's names and pivots: DPad, Button_A, Button_B,
+Start, Select, Shoulder_L/R (hinges), PowerSwitch (slide), VolumeWheel (axle),
+PowerLED, Screen (a 61.2 x 40.8 mm quad, full 0-1 UVs), ScreenGlass and
+CartridgeSocket (where gba_cart.glb seats at identity).

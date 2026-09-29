@@ -31,7 +31,10 @@ const CART_SIZES: Dictionary = {
 	# A Game Boy Color cartridge is the same DMG-shaped shell (the notch is the
 	# only difference), and spawns as the same model.
 	"gbc":        Vector3(0.057, 0.065, 0.0075),
-	"gba": Vector3(0.058, 0.036, 0.007),
+	# The cartridge model's shell (gba_cart.glb, 60 x 35 x 9 mm over the grip), so
+	# the body is not squashed per axis: the laser-scanned console slot it seats in
+	# is 61 x 7.85 mm, which a 9 mm grip clears only because it stands above it.
+	"gba": Vector3(0.060, 0.035, 0.009),
 	"genesis":       Vector3(0.110, 0.070, 0.017),
 	# A 32X game is a Mega Drive cartridge -- same shell, same slot, and it goes
 	# into the 32X's own slot the way a plain cart goes into the console's. Listed
