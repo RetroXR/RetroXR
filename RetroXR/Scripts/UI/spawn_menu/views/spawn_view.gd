@@ -2748,9 +2748,9 @@ func _on_romm_resync_pressed(systemid: String) -> void:
 ## was stopped, and anything queued behind it still wants to run. OPTIONS clears
 ## the queue before it aborts, so its Stop really does stop everything.
 func _on_romm_sync_aborted(systemid: String) -> void:
-	# abort_sync is also the teardown path, so this can fire while the menu is on
-	# its way out. `if _menu` inside the notify wrappers is not enough — a freed
-	# Object is still truthy in GDScript.
+	# The catalog's teardown stop is not announced (RommCatalog._exit_tree), so
+	# this only runs for a stop someone asked for. `if _menu` inside the notify
+	# wrappers would not catch a freed menu — a freed Object is still truthy.
 	if not is_instance_valid(_menu):
 		return
 	notify_clear("romm:sync:" + systemid)

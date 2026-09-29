@@ -103,17 +103,30 @@ func setup(cfg: RommConfig) -> void:
 
 
 func _exit_tree() -> void:
-	# Without this, quitting mid-sync hangs the app on the socket.
-	abort_sync()
+	# Without this, quitting mid-sync hangs the app on the socket. Unannounced:
+	# the one listener is the SPAWN tab of the menu this catalog is a child of,
+	# and that menu is leaving with it. The tree exits children last-added
+	# first, so its tabs and toasts are already out — a handler run now faulted
+	# on the toasts' null get_tree() — while the menu itself still reads as
+	# inside, and pumping the queue from here would start a sync on a catalog
+	# that is going.
+	abort_sync(false)
 	if _warm_thread != null and _warm_thread.is_started():
 		_warm_thread.wait_to_finish()
 		_warm_thread = null
 
 
 ## Signal the sync thread to stop and join it. Safe to call when idle.
-func abort_sync() -> void:
+## `announce` false is the teardown path only (see _exit_tree).
+func abort_sync(announce: bool = true) -> void:
 	var was := _syncing_systemid
-	var stopped := _thread != null
+	# ALIVE, not merely present. _finish never joins, so a sync that ended on its
+	# own leaves its Thread here until the next sync_platform joins it — and
+	# announcing that as a stop flashed "Stopped syncing" at the start of every
+	# sync after the first, and pumped the queue re-entrantly from inside
+	# sync_platform: the next platform started within this call, then lost its
+	# Thread to the outer one while still running.
+	var stopped := is_syncing()
 	_abort = true
 	if _thread != null:
 		if _thread.is_started():
@@ -121,11 +134,7 @@ func abort_sync() -> void:
 		_thread = null
 	_abort = false
 	_syncing_systemid = ""
-	# Only when something was actually running. This is also the teardown path
-	# (_exit_tree), where listeners may already be on their way out — hence the
-	# announcement carries no payload beyond the systemid, and every handler
-	# guards its own nodes.
-	if stopped:
+	if stopped and announce:
 		sync_aborted.emit(was)
 
 
