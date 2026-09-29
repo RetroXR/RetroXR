@@ -25,7 +25,7 @@ is left off and the scan has no moulded marks. So this only tidies it:
   * copies the Genesis Model 2 spacer (codex-photos build_spacer.py) beside it
     as sega32x_spacer.glb, the accessory's own model. Sega packed it with the
     32X because on a Model 2 -- the only Mega Drive RetroXR has -- the plug
-    bottoms out with the unit standing ~22 mm clear of the console; the spacer
+    bottoms out with the unit standing ~13 mm clear of the console; the spacer
     clips under the 32X and fills that gap. It shares the 32X's frame (y = 0 on
     the 32X's resting plane, front +Z), so clipped on it sits at identity in the
     32X shell's frame.

@@ -147,12 +147,24 @@ func _run() -> void:
 	if plug != null:
 		var p := inv * plug.global_position
 		print("[probe] plug board edge at y=%.4f (console floor 0), x=%.4f z=%.4f" % [p.y, p.x, p.z])
-	var sm := spacer.find_children("*", "MeshInstance3D", true, false)
-	if not sm.is_empty():
-		var m := sm[0] as MeshInstance3D
-		var sb := (inv * m.global_transform) * m.get_aabb()
-		print("[probe] spacer floor y=%.4f -> %.1f mm above the console's top" % [
-			sb.position.y, (sb.position.y - roof.end.y) * 1000.0])
+	# The spacer's underside follows the console's top: its highest downward-facing
+	# point is where it rests on the slot's hump, and its lowest is the wall's foot
+	# at a corner, where the dome has fallen away. Its model only, not the hand poses.
+	var up_most := -INF
+	var low_most := INF
+	for m: MeshInstance3D in spacer.get_node("Model").find_children("*", "MeshInstance3D", true, false):
+		var to_host := inv * m.global_transform
+		for s in m.mesh.get_surface_count():
+			var arrays := m.mesh.surface_get_arrays(s)
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var norms: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+			for i in verts.size():
+				var y := (to_host * verts[i]).y
+				low_most = minf(low_most, y)
+				if (to_host.basis * norms[i]).normalized().y < -0.5:
+					up_most = maxf(up_most, y)
+	print("[probe] spacer underside rests at y=%.4f -> %.1f mm off the console's top; its foot reaches y=%.4f" % [
+		up_most, (up_most - roof.end.y) * 1000.0, low_most])
 	await _shot("seated_front", STAGE + Vector3(0.36, 0.26, 0.52), STAGE + Vector3(0, 0.05, 0))
 	await _shot("seated_side", STAGE + Vector3(0.62, 0.08, 0.0), STAGE + Vector3(0, 0.05, 0))
 	await _shot("seated_rear", STAGE + Vector3(-0.30, 0.22, -0.52), STAGE + Vector3(0, 0.05, 0))

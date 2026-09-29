@@ -78,6 +78,9 @@ carried alongside it.
   baseline to diff against.
 - **`Tools/glb/prepare_genesis_textures.py` + `prepare_genesis.py`** — rebuild
   `genesis_console.glb` from the Model 2 download (recipe in the second file's docstring;
+  the download is modelled 16 mm too flat, and `HEIGHT_KNOTS_MM` raises it to Sega's 59 mm by
+  a piecewise remap fitted to Sega's design patent D349,520, which keeps the ports and the
+  round rear sockets their true shape -- a uniform stretch turns the sockets oval;
   finish with `decimate_glb.py --target 30000`). The marks on this shell are PRINTED, not
   modelled, so they come out of the textures: each is a UV box refilled by a Coons blend of
   its own border on the base colour, normal AND metallic-roughness maps — skip the normal map

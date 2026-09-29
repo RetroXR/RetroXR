@@ -12,7 +12,7 @@ const ID := "sega_32x"
 # The shell is the laser-scanned unit, debranded (see the LICENSE beside it and
 # Tools/glb/prepare_sega32x.py): real size, facing +Z, y = 0 on the plane it rests
 # on, with the plug that goes into the Mega Drive hanging 35.7 mm below that. On a
-# Model 2 the plug bottoms out with the unit standing ~22 mm clear of the console;
+# Model 2 the plug bottoms out with the unit standing ~13 mm clear of the console;
 # Sega's Model 2 spacer fills that gap, and here it is its own accessory
 # (Sega32xSpacer, spawned from this card) that clips into the unit's
 # AccessoryMount and rides it into the slot.

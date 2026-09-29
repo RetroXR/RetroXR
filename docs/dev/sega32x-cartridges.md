@@ -26,7 +26,8 @@ is 114.0 × 18.5 mm at its narrowest, 5 mm above the floor: 0.6 mm clear each si
 `genesis` is its own row: the 32X's `connector` is derived from it (the middle
 of a Genesis cart standing on `PlugSeat`, `expansion-carts.md` §2j′), so the
 plug's board edge stays on the slot's cart seat whatever that row says, and the
-spacer's 21.7 mm drop is measured against that seat.
+spacer is built on that seat (its underside is the Genesis's top under the
+seated 32X, §2j′).
 
 **Parts** (node names): `Front_Shell`, `Rear_Shell`, `Label`, `Connector_PCB`,
 `Connector_Contacts`, `Security_Screw_L`, `Security_Screw_R`. Connector on −Y,

@@ -67,7 +67,7 @@ func card_slot_count() -> int:
 # --- buttons ----------------------------------------------------------------------
 
 ## Both caps are pressed straight down into the control strip, which is level
-## where they sit (the shell's top is 31.6 mm either side of both, measured).
+## where they sit (the shell's top is 44.8 mm either side of both, measured).
 func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRButton) -> void:
 	if eject_btn != null:
 		eject_btn.set_active(false)
@@ -104,11 +104,16 @@ func on_power_off() -> void:
 # --- cartridge --------------------------------------------------------------------
 
 ## The slot, measured off the shell: the two flaps close a 109 x 18 mm mouth at
-## z = -41 .. -23 mm whose top sits 36.5 mm up; the edge connector under them
-## tops out at 28 mm. A cart stands on the connector with its label to the front,
-## so its bottom edge is 2 mm above that and the rest stands out of the slot.
+## z = -41 .. -23 mm whose top sits 50.6 mm up, in the 59 mm ring; the edge
+## connector under them tops out at 39.6 mm. A cart's board edge is recessed in
+## its shell, so the connector goes up INTO the shell: the cart's bottom edge
+## sits 2 mm below the connector's top, with 21.5 mm of the cart inside the ring
+## -- a Mega Drive II photographed with a cart in shows 20-23 mm -- and the rest
+## standing out of the slot, label to the front. The 32X's plug seats the same
+## way (its `connector` is this seat), which is what leaves it standing ~13 mm
+## over the ring on Sega's spacer, the "half an inch" owners describe.
 const _SLOT_CENTRE_Z := -0.0319
-const _CART_BOTTOM_Y := 0.030
+const _CART_BOTTOM_Y := 0.0375
 
 ## How far each flap swings down, in degrees, once a cart is in. The pair meet in
 ## the middle of the mouth and fold into the slot about their outer edges, so the
@@ -164,11 +169,11 @@ func _swing_flaps(open: float) -> void:
 
 ## The two DE-9 sockets on the front face, centred on their own pin rows (five
 ## over four, 12 mm across): port 1 on the player's left. Measured off the
-## shell's pins at x = -/+15.9 mm, y = 15.7 mm; the socket mouth is the shell's
+## shell's pins at x = -/+15.9 mm, y = 25.4 mm; the socket mouth is the shell's
 ## front face at z = 104 mm, and the plug's pose sits 6 mm inside it like the NES.
 const _PORT_POS := [
-	Vector3(-0.0159, 0.0157, 0.0985),
-	Vector3(0.0159, 0.0157, 0.0985),
+	Vector3(-0.0159, 0.0254, 0.0985),
+	Vector3(0.0159, 0.0254, 0.0985),
 ]
 ## Offered at the mouth rather than already inside it.
 const _PLUG_PROUD := 0.012
@@ -196,7 +201,7 @@ func configure_controller_ports(port_zones: Array) -> void:
 ## 9 mm further toward -X). x/y off the socket's pin cluster; z is the PANEL FACE
 ## around it, raycast off the shell at -0.1043 — the mouth itself is recessed 1.5 mm
 ## behind that and opens to 6.2 mm.
-const _AV_OUT := Vector3(-0.0398, 0.0166, -0.1043)
+const _AV_OUT := Vector3(-0.0398, 0.0263, -0.1043)
 ## Off the panel by half a millimetre, so the plug's head — whose origin is its front
 ## face, the face that stops on the panel — is never coplanar with the case.
 const _AV_PROUD := 0.0005
@@ -240,15 +245,16 @@ func configure_cable_attach(attach_point: Node3D) -> void:
 
 # --- placement --------------------------------------------------------------------
 
-## The shell, measured: 0.220 x 0.043 x 0.210 m on y = 0. Its top is a dome
-## (31–38 mm, the slot ring to 43 mm) except for the control strip across the
-## front, where the caps stand 35.8 mm high over a 33 mm strip.
+## The shell, measured: 0.220 x 0.059 x 0.210 m on y = 0 -- Sega's 220 x 212 x 59
+## (prepare_genesis.py raises the download to it). Its top is a dome (43–53 mm,
+## the slot ring to 59 mm) except for the control strip across the front, where
+## the caps stand 49.7 mm high over a 46 mm strip.
 ##
-## Two boxes, as on the 2600: the body to 30 mm everywhere, and the deck above it
+## Two boxes, as on the 2600: the body to 42 mm everywhere, and the deck above it
 ## only behind the strip. One box over the lot tops out above both caps and puts
 ## shell in front of them from every angle.
-const BODY_SIZE := Vector3(0.220, 0.030, 0.2104)
-const DECK_TOP_Y := 0.037
+const BODY_SIZE := Vector3(0.220, 0.042, 0.2104)
+const DECK_TOP_Y := 0.051
 const DECK_FRONT_Z := 0.055
 
 

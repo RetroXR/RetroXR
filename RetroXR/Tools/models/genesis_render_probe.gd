@@ -200,11 +200,11 @@ func _run() -> void:
 	await _shot(sv, cam, mid + b.z * 0.30 + up * 0.08, mid + b.z * 0.08, up, "genesis_ports.png")
 	var rear := sys.global_position + up * 0.02
 	await _shot(sv, cam, rear - b.z * 0.36 + up * 0.18 - b.x * 0.10, rear, up, "genesis_rear.png")
-	var av := sys.global_position + Vector3(-0.0398, 0.0166, -0.1043)
+	var av := sys.global_position + Vector3(-0.0398, 0.0263, -0.1043)
 	await _shot(sv, cam, av - b.z * 0.09 + up * 0.035 - b.x * 0.05, av, up, "genesis_av_seated.png")
 	var phonos := (lead.get_node("PlugB1") as Node3D).global_position
 	await _shot(sv, cam, phonos + Vector3(0.06, 0.08, 0.10), phonos, Vector3.UP, "genesis_av_phonos.png")
-	var strip := sys.global_position + up * 0.034 + b.z * 0.066
+	var strip := sys.global_position + up * 0.048 + b.z * 0.066
 	await _shot(sv, cam, strip + up * 0.16 + b.z * 0.10, strip, up, "genesis_buttons.png")
 	get_tree().quit(0)
 
@@ -272,7 +272,7 @@ func _run_buttons() -> void:
 	_close = _viewport(Vector2i(640, 720))
 	(_wide.get_child(0) as Camera3D).look_at_from_position(
 		Vector3(0.30, 0.34, 0.62), Vector3(0.0, 0.14, -0.22), Vector3.UP)
-	var strip := sys.global_position + Vector3(0.0, 0.034, 0.066)
+	var strip := sys.global_position + Vector3(0.0, 0.048, 0.066)
 	(_close.get_child(0) as Camera3D).look_at_from_position(
 		strip + Vector3(0.0, 0.13, 0.19), strip, Vector3.UP)
 	for o in LoadingOverlay.owners():
@@ -385,7 +385,7 @@ func _run_insert() -> void:
 	plug.freeze = true
 	await _wait(5)
 
-	var av := sys.global_transform * Vector3(-0.0398, 0.0166, -0.1043)
+	var av := sys.global_transform * Vector3(-0.0398, 0.0263, -0.1043)
 	var light := OmniLight3D.new()
 	add_child(light)
 	light.global_position = av + Vector3(-0.04, 0.04, -0.08)

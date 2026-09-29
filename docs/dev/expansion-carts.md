@@ -301,16 +301,21 @@ is the middle of a Genesis cartridge standing on the shell's `PlugSeat` marker
 cartridge by its middle, so when that row went from 70 to 67 mm a fixed
 `-0.0135` sank the unit and its spacer 1.5 mm into the console, inside the
 spacer test's old 2 mm tolerance (now 0.5 mm). Every console's slot already
-seats a cartridge there, so no console is measured. On the Model 2 this puts the board edge at y = 0.030 and
+seats a cartridge there, so no console is measured. On the Model 2 this puts the board edge at y = 0.0375 and
 z = -0.0319, the slot's own cart seat, and the unit faces +Z like the console
 (no `seat_yaw`). Measured by `Tools/models/sega32x_probe`.
 
-**On the Model 2 that leaves the unit standing 21.7 mm up.** The console's body
-top is at 42.9 mm, the 32X's resting plane at 64.6 mm. That is the real hardware,
-not a seating bug: on a Model 2 the plug bottoms out in the edge connector with
-the unit clear of the console, and Sega packed a black plastic riser that clips
-under the 32X to fill the gap (gametrog.com's Model 2 hook-up guide). Resting the
-underside on the roof instead would put the plug 22 mm through the connector.
+**On the Model 2 that leaves the unit standing 13.1 mm up.** The console's top
+(the slot's hump) is at 59.0 mm, the 32X's resting plane at 72.1 mm. That is the
+real hardware, not a seating bug: on a Model 2 the plug bottoms out in the edge
+connector with the unit clear of the console, and Sega packed a black plastic
+riser that clips under the 32X to fill the gap (gametrog.com's Model 2 hook-up
+guide). Owners describe it as about half an inch; a level photo of a 32X on a
+printed copy puts the 32X body's underside ~21 mm (+-4) over the slot ring, and
+here it is 22.6 (the 32X's own 9.5 mm neck plus 13.1). **This number is the
+Genesis's**: it was 21.7 while the Model 2 shell was modelled 16 mm too flat
+(43 mm against Sega's 59; `tools.md`, `prepare_genesis.py`), which is what made
+the spacer look tall.
 **The spacer is its own accessory**, as it was in the box: "Model 2 Spacer" on the
 32X's card (`SpawnCatalog._PERIPHERALS["sega32x"]`; `items_for` appends a unit
 card's own rows after its units, and still never a console). It is
@@ -320,8 +325,9 @@ and no state. The 32X's row names that group as its `accessory_group`, so the un
 grows an `AccessoryMount` snap zone at its shell's origin (30 mm capture, like the
 paks' ports, so it never wins a grab meant for the unit). The spacer's model shares
 the 32X's frame, so clipped on it lands exactly where it was modelled, and from
-then on it rides the unit -- in a hand, and into the slot, where its floor lands on
-the console's roof (0.0 mm). Clipped on, it is exempt from the unit (whose box
+then on it rides the unit -- in a hand, and into the slot, where its underside
+lands on the console's roof (0.0 mm: the highest of its downward faces, on the
+slot's hump). Clipped on, it is exempt from the unit (whose box
 runs down to the plug tip, enclosing it) and, while the unit is seated, from the
 console (`_except_accessory_from`, following `_bind_host` / `_unbind_host`).
 **Saved on the UNIT** as `"accessory"` (in `_REFERENCE_FIELDS`); the spacer's own
@@ -332,9 +338,13 @@ pin it.
 
 The spacer was built in codex-photos (`sega-32x/build_spacer.py`, not scanned: its
 outline is the 32X's own underside collar, its top follows the collar's uneven
-bottom edge, its floor is flat). **The drop (`build_spacer.py --drop`, 21.7) is
-measured against THIS Genesis model**: rebuild it if the Genesis shell or its cart
-seat changes. A Model 1 needs no spacer: the 32X rests on that console.
+bottom edge). **Its underside is THIS Genesis's top**: `genesis_top_map.py` maps
+genesis_console.glb under the seated 32X (13.1 mm below the resting plane on the
+hump, falling to 24.4 at the corners where the dome does) and the floor lies on
+that map, as the moulded part does; a flat floor stood up to 8 mm clear at the
+corners. Rebuild both if the Genesis shell or its cart seat changes (the map
+takes the resting plane, `--rest-y`, which the probe prints). A Model 1 needs no
+spacer: the 32X rests on that console.
 
 **Its own slot is modelled, so its bay follows the shell.** `_build_well_bay`
 puts the bay on the `CartFloor` marker (the plate at the bottom of the slot

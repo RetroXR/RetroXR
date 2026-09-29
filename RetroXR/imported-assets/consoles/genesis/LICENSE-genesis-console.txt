@@ -36,7 +36,13 @@ and Tools/glb/prepare_genesis.py:
     real-world size (220 mm wide), centred on its own footprint and resting
     on y = 0, facing +Z.
 
-  * Decimated for standalone VR from 156,484 to 30,056 triangles (Blender
+  * Raised it from 42.9 mm to Sega's 59 mm height (Genesis II service manual)
+    by a piecewise vertical remap fitted to the front and side views of Sega's
+    design patent D349,520: the feet unchanged, the lower body and the top
+    shell taller, the band holding the controller ports and rear sockets moved
+    up unstretched.
+
+  * Decimated for standalone VR from 156,484 to 30,055 triangles (Blender
     Collapse via Tools/glb/decimate_glb.py), with the shading re-derived from
     the new geometry, and every texture resized to 1024 x 1024.
 

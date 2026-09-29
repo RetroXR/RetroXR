@@ -1,11 +1,11 @@
 ## Sega32xSpacer — the riser Sega packed with the 32X for the Genesis Model 2.
 ##
 ## On a Model 2 the 32X's plug bottoms out in the console's edge connector with
-## the unit standing ~22 mm clear of the roof, so it rocks on its plug; the spacer
+## the unit standing ~13 mm clear of the roof, so it rocks on its plug; the spacer
 ## clips under the 32X and fills that gap. Here it is its own thing in the room:
 ## spawned from the 32X's card, clipped into the 32X's AccessoryMount, and carried
 ## with it from then on -- in a hand, and into the Mega Drive's slot, where its
-## floor lands on the console's roof (see expansion-carts.md 2j').
+## underside lies on the console's top (see expansion-carts.md 2j').
 ##
 ## Shaped after the N64 paks: a pickable a socket narrows by group, carrying no
 ## state. Which 32X it is clipped to is recorded on the 32X, the end that means

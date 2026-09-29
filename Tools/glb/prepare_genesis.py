@@ -23,6 +23,18 @@ What this does to the scene:
   * scales to real size, 220 mm wide (the source is 491.5 units; its depth then
     measures 210 mm, which is the hardware), front on -Y in Blender so the GLB
     faces +Z, centred on its footprint and resting on z = 0;
+  * then raises it to 59 mm tall, Sega's figure (Genesis II service manual,
+    220 x 212 x 59 mm). The download is modelled too flat -- 42.9 mm at the
+    width's scale -- but its details are not: the controller ports are the
+    patent's 10.8 x 20.6 mm and the rear sockets are round. So the height goes in
+    where Sega's design patent D349,520 (front and side views, true orthographic)
+    puts it, by a piecewise-linear remap of z (HEIGHT_KNOTS_MM): the feet stay,
+    the 4 mm under the ports becomes 13.7 (the patent's tall lower body), the
+    band holding the ports and the rear sockets (10-22 mm) only moves up, and the
+    top shell takes the rest. Checked against the patent: ports 20.5-30.4 (patent
+    20.5-31), seam 25.5 (25.5), front-face top 37.7 (38), dome 53.2 (54), ring 59
+    (60-62). The knots sit where the shell's walls are vertical or flat, so the
+    remap bends no curved surface;
   * puts each flap's origin on its hinge — the flaps meet mid-slot and each
     swings down about its OUTER long edge — and each button's origin at its
     centre.
@@ -42,6 +54,10 @@ def opt(args, flag, default=None):
 
 
 WIDTH_M = 0.220
+HEIGHT_M = 0.059
+## (height at the width's scale, real height), mm. The last knot's input is the
+## model's own top, so it lands on HEIGHT_M.
+HEIGHT_KNOTS_MM = [(0.0, 0.0), (6.0, 6.0), (10.0, 19.7), (22.0, 31.7), (None, HEIGHT_M * 1000.0)]
 
 RENAME = {
     "Case_Top Case_0": "ShellTop",
@@ -64,6 +80,14 @@ def world_bounds(objs):
             lo = Vector(map(min, lo, p))
             hi = Vector(map(max, hi, p))
     return lo, hi
+
+
+def remap(z, knots):
+    """Piecewise-linear through `knots` [(in, out), ...], ascending."""
+    for (a0, b0), (a1, b1) in zip(knots, knots[1:]):
+        if z <= a1 or (a1, b1) == knots[-1]:
+            return b0 + (z - a0) * (b1 - b0) / (a1 - a0)
+    return z
 
 
 def set_origin(o, point):
@@ -105,6 +129,13 @@ def main():
     fit = Matrix.Scale(s, 4) @ Matrix.Translation(-centre)
     for o in meshes:
         o.data.transform(fit)
+    lo, hi = world_bounds(meshes)
+    print("[genesis] at the width's scale %.4f x %.4f x %.4f m" % tuple(hi - lo))
+    knots = [((hi.z - lo.z) if a is None else a / 1000.0, b / 1000.0) for a, b in HEIGHT_KNOTS_MM]
+    for o in meshes:
+        for v in o.data.vertices:
+            v.co.z = remap(v.co.z, knots)
+        o.data.update()
     lo, hi = world_bounds(meshes)
     print("[genesis] footprint %.4f x %.4f x %.4f m" % tuple(hi - lo))
 

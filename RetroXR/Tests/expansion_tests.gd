@@ -1432,21 +1432,36 @@ func _group_spacer() -> void:
 		"spacer/ and it is exempt from the console it rests on")
 	_ok(shell != null and spacer.global_position.distance_to(shell.global_position) < 0.001,
 		"spacer/ still under the unit once the unit is seated")
-	# Its floor on the console's roof: the gap the plug leaves on a Model 2.
-	var mi := spacer.find_children("*", "MeshInstance3D", true, false)
-	if not mi.is_empty():
-		var m := mi[0] as MeshInstance3D
-		var bottom := ((md.global_transform.affine_inverse() * m.global_transform) * m.get_aabb()).position.y
-		# Tight: the unit seats by a Genesis cartridge's middle, so a change to that
-		# cartridge's height once sank it 1.5 mm into the console unnoticed.
-		_ok(absf(bottom - md.body_aabb().end.y) < 0.0005,
-			"spacer/ its floor lands on the Model 2's roof (%.1f mm off)" % [(bottom - md.body_aabb().end.y) * 1000.0])
+	# Its floor on the console: the spacer's underside follows the Model 2's top, so
+	# the highest point of it (the downward faces only) is where it rests on the
+	# slot's hump, the console's roof -- the gap the plug leaves on a Model 2.
+	var contact := _spacer_contact_y(spacer, md)
+	# Tight: the unit seats by a Genesis cartridge's middle, so a change to that
+	# cartridge's height once sank it 1.5 mm into the console unnoticed.
+	_ok(absf(contact - md.body_aabb().end.y) < 0.0005,
+		"spacer/ its underside rests on the Model 2's roof (%.1f mm off)" % [(contact - md.body_aabb().end.y) * 1000.0])
 
 	x32.unbind_from_host()
 	await _wait(3)
 	_ok(not md.get_collision_exceptions().has(spacer),
 		"spacer/ taken off the console, that exemption goes with it")
 	await _clear()
+
+
+## The highest point of the spacer's underside -- its model's downward-facing
+## vertices, not the hand poses' -- in `host`'s frame, or -INF without a mesh.
+func _spacer_contact_y(spacer: Node3D, host: Node3D) -> float:
+	var best := -INF
+	for mi: MeshInstance3D in spacer.get_node("Model").find_children("*", "MeshInstance3D", true, false):
+		var to_host := host.global_transform.affine_inverse() * mi.global_transform
+		for s in mi.mesh.get_surface_count():
+			var arrays := mi.mesh.surface_get_arrays(s)
+			var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+			var norms: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+			for i in verts.size():
+				if (to_host.basis * norms[i]).normalized().y < -0.5:
+					best = maxf(best, (to_host * verts[i]).y)
+	return best
 
 
 # ── scd_boot/ — what a Sega CD hands the core ─────────────────────────────────
