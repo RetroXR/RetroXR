@@ -199,10 +199,26 @@ func _test_resources() -> void:
 	var palette := CartridgeColor.get_palette(GbaCartShell.SYSTEMID)
 	_ok(palette != null and palette != CartridgeColor.get_palette(GbCartShell.SYSTEMID),
 		"resources/the Game Boy Advance has a palette of its own")
-	var wanted := ["grey", "ruby", "sapphire", "emerald", "fire_red", "leaf_green"]
+	var wanted := ["grey", "ruby", "sapphire", "emerald", "fire_red", "leaf_green", "nes_grey"]
 	_ok(Array(palette.ids()) == wanted, "resources/palette carries exactly the presets", str(palette.ids()))
 	_ok(palette.find(&"grey").availability == CartridgeShellPreset.Availability.STANDARD
 		and is_equal_approx(palette.find(&"grey").opacity, 1.0), "resources/grey is the standard, solid shell")
+	var nes_grey := palette.find(&"nes_grey")
+	_ok(nes_grey.finish == CartridgeShellPreset.Finish.PLASTIC and is_equal_approx(nes_grey.opacity, 1.0)
+		and nes_grey.color.get_luminance() > palette.find(&"grey").color.get_luminance(),
+		"resources/NES grey is solid plastic, lighter than the standard grey")
+	# The same plastic as the room's own NES cartridge.
+	var nes_cart := (load("res://imported-assets/carts/nes/nes_cart.glb") as PackedScene).instantiate()
+	var nes_plastic: Color = Color.BLACK
+	for n in nes_cart.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		for s in mi.mesh.get_surface_count():
+			var m := mi.mesh.surface_get_material(s) as BaseMaterial3D
+			if m != null and m.resource_name == "Material_cart":
+				nes_plastic = m.albedo_color
+	nes_cart.free()
+	_ok(_near(nes_grey.color, nes_plastic), "resources/NES grey is the NES cartridge's own grey",
+		"%s vs %s" % [nes_grey.color, nes_plastic])
 	var clear := true
 	for id: StringName in CLEAR:
 		var p := palette.find(id)
@@ -393,6 +409,13 @@ func _test_lookup() -> void:
 		["a Pokemon game code from another maker", _header("POKEMON RUBY", "AXVE", "08"), &"grey"],
 		["a homebrew with no game code", _header("HOMEBREW", "", ""), &"grey"],
 		["a short file", PackedByteArray([1, 2, 3]), &"grey"],
+		# Game codes as the Classic NES Series / Famicom Mini ROMs carry them.
+		["Classic NES Series Zelda", _header("ZELDA 1", "FZLE"), &"nes_grey"],
+		["Classic NES Series Castlevania, a Konami game", _header("CASTLEVANIA", "FADE"), &"nes_grey"],
+		["NES Classics Castlevania, Europe", _header("CASTLEVANIA", "FADP"), &"nes_grey"],
+		["Famicom Mini Zelda, Japan", _header("ZELDA 1", "FZLJ"), &"grey"],
+		["a Classic NES game code from another maker", _header("ZELDA 1", "FZLE", "08"), &"grey"],
+		["F-Zero, not a reissue", _header("F-ZERO", "AFZE"), &"grey"],
 	]
 	for c: Array in cases:
 		var got := GbaCartShell.preset_for_header(c[1])
@@ -401,7 +424,7 @@ func _test_lookup() -> void:
 	_ok(GbaCartShell.preset_for_rom("") == &"grey" and GbaCartShell.preset_for_rom("user://missing.gba") == &"grey",
 		"lookup/no file is grey")
 	var every := PackedStringArray()
-	for id: StringName in GbaCartShell.GAME_SHELLS.values() + [GbaCartShell.DEFAULT_PRESET]:
+	for id: StringName in GbaCartShell.GAME_SHELLS.values() + [GbaCartShell.DEFAULT_PRESET, GbaCartShell.NES_SERIES_PRESET]:
 		if _preset(id) == null:
 			every.append(id)
 	_ok(every.is_empty(), "lookup/every answer is a palette preset", str(every))
@@ -420,7 +443,15 @@ func _test_cartridge() -> void:
 		"cartridge/Pokemon FireRed spawns clear orange-red")
 	var plain_model := plain.get_node_or_null("CartModel")
 	_ok(plain_model != null and _as_model(plain_model), "cartridge/any other game spawns solid grey")
-	for cart in [ruby, fire, plain]:
+	var nes := await _spawn(_write_rom("nes.gba", _header("ZELDA 1", "FZLE")))
+	var nes_model := nes.get_node_or_null("CartModel")
+	var nes_grey := nes_model != null
+	for p: String in SHELL_PARTS:
+		if nes_grey:
+			var m := _mat(nes_model, p)
+			nes_grey = m != null and _solid(m) and _near(m.albedo_color, _preset(&"nes_grey").color)
+	_ok(nes_grey, "cartridge/a Classic NES Series game spawns solid NES grey")
+	for cart in [ruby, fire, plain, nes]:
 		cart.queue_free()
 	await get_tree().process_frame
 

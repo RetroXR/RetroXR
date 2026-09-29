@@ -77,9 +77,21 @@ market matches):
 | `BPE_` | Emerald | `emerald`, clear green |
 | `BPR_` | FireRed | `fire_red`, clear orange-red |
 | `BPG_` | LeafGreen | `leaf_green`, clear leaf green |
+| `F__` + market ≠ `J` | Classic NES Series / NES Classics | `nes_grey`, solid NES grey |
 | anything else, or not maker `01` | | `grey`, solid: the model's own plastic |
 
 FireRed/LeafGreen codes and maker are pret's `pokefirered/config.mk`.
+
+**Classic NES Series.** Every NES reissue has a game code beginning `F`, maker `01`
+whoever made the original (read 2026-09-28 off 45 ROMs in a No-Intro `gba` set:
+Classic NES Series `F__E` (FZLE Zelda, FADE Castlevania, FSME...), Europe's NES
+Classics `FADP`, Japan's Famicom Mini `F__J`). The US/European carts are NES grey;
+the Famicom Mini ones (`J`) keep the standard grey, as their colour was not
+checked. `nes_grey` is the room's own NES cartridge plastic (`nes_cart.glb`
+`Material_cart`, linear 0.2685 = sRGB 0.555), and `gba_cart_tests` holds the two
+equal, so a Classic NES cart beside an NES cart is the same grey; it is lighter
+and more neutral than the GBA's standard grey. Rendered side by side: NES cart
+face ~169, Classic NES GBA ~165, standard GBA ~143 (sRGB, 8-bit).
 
 **The colours are fitted, not picked.** A probe (re-run whenever the model's interior changes) rendered each preset lying on a
 white surface under flat front light (ortho camera, near/far 0.1–0.3 m: the
@@ -122,9 +134,10 @@ roughness). `demetal` skips them: they carry a metallic map.
 A mixed colour is always solid (the sliders have no opacity), and a flake mix
 borrows the N64 gold's flakes because this palette has no metal flake preset.
 
-`gba_cart_tests` (71 cases): resources, model, surfaces, color, clear, kept,
+`gba_cart_tests` (80 cases): resources, model, surfaces, color, clear, kept,
 lookup, cartridge, forced. Mutation-tested: sending clear shells down the solid path fails 11
-cases, dropping the maker check fails `lookup/a Pokemon game code from another maker`.
+cases, dropping the maker check fails `lookup/a Pokemon game code from another maker`,
+dropping the Japan check fails `lookup/Famicom Mini Zelda, Japan`.
 
 ### The console it goes into — the detailed Game Boy Advance
 
