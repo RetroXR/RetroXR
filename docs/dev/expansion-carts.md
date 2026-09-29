@@ -275,3 +275,60 @@ the DS firmware, a DS ROM and a GBA ROM. MEASURED 2026-09-21 with
 Classic NES Donkey Kong, seeded blank, boots; with `melonds_boot_mode=native` the DS
 home screen lists both ("Start GBA game."). The log line is
 `Loading subsystem 'gba' (id=...) with 3 file(s)`.
+
+### 2j′. The 32X — a scanned shell, seated by its plug
+
+The 32X wears `imported-assets/consoles/sega_32x/sega32x.glb`: codex-photos'
+laser-scanned unit, debranded (the "32X" badge is left off; the scan has no
+moulded marks), at its distance level (24.7 k triangles, 1024 px normal and
+occlusion maps, about the Genesis shell's budget), with Sega's Genesis Model 2
+spacer merged in. `Tools/glb/prepare_sega32x.py` builds it; the LICENSE beside it
+says what is scanned and what is not. The GLB is real size, faces +Z, and has
+y = 0 on the plane the unit rests on, with the plug hanging 35.7 mm below.
+
+**`size` is the GLB's true bounds, plug included**:
+`Vector3(0.20781, 0.09906, 0.11225)`. `_build_shell` fits a shell to `size` per
+axis, so this is what keeps the scan at 1:1 (the probe prints the scale:
+0.99995-1.00001). Do not round it; a millimetre off is a visible stretch. The
+catalog box is then centred on those bounds, 13.9 mm above the resting plane.
+
+**The plug seats at a cartridge's depth.** The row's `connector` (the key the e-Reader rows introduced)
+is the middle of a 70 mm Genesis cartridge standing on the shell's
+`PlugSeat` marker (the plug board's bottom edge), in the unit frame:
+`(0, -0.0135, 0.0111)`. Every console's slot already seats a cartridge there, so
+no console is measured. On the Model 2 this puts the board edge at y = 0.030 and
+z = -0.0319, the slot's own cart seat, and the unit faces +Z like the console
+(no `seat_yaw`). Measured by `Tools/models/sega32x_probe`.
+
+**On the Model 2 that leaves the unit standing 21.7 mm up.** The console's body
+top is at 42.9 mm, the 32X's resting plane at 64.6 mm. That is the real hardware,
+not a seating bug: on a Model 2 the plug bottoms out in the edge connector with
+the unit clear of the console, and Sega packed a black plastic riser that clips
+under the 32X to fill the gap (gametrog.com's Model 2 hook-up guide). Resting the
+underside on the roof instead would put the plug 22 mm through the connector.
+The spacer is `Model2_Spacer` in the GLB, built in codex-photos
+(`sega-32x/build_spacer.py`, not scanned: its outline is the 32X's own underside
+collar, its top follows the collar's uneven bottom edge, its floor is flat).
+Its floor sits exactly on the console's top (probe: 0.0 mm). It stays on the
+unit, as it does for a Model 2 owner. **The drop (`build_spacer.py --drop`, 21.7)
+is measured against THIS Genesis model**: rebuild it if the Genesis shell or its
+cart seat changes, and leave it off entirely for a Model 1, where the 32X rests
+on the console.
+
+**Its own slot is modelled, so its bay follows the shell.** `_build_well_bay`
+puts the bay on the `CartFloor` marker (the plate at the bottom of the slot
+funnel) plus half the cartridge's height, and draws no dark `WellMouth` plate.
+The box roof, which every other well unit uses, is 18 mm in front of the real
+slot and 2 mm high. The probe measures the seated cart's bottom on the floor at
+0.0 mm and centred in z. `Flap_Front` / `Flap_Back` are origined on their hinges
+and swing ±80° while a cartridge is in (`_swing_flaps`), the Mega Drive's own
+figures. The flaps reach the funnel walls at about 82°.
+
+```bash
+"$godot" --path RetroXR --resolution 960x720 --position 20,20 \
+  res://Tools/models/sega32x_probe.tscn -- --out=C:/path/to/stills
+```
+
+Windowed. It hides every visual except the shell, the console's model and the
+cartridge (the room's panels stand in front of its cameras), and prints facing,
+gap, plug depth, spacer contact, the cart against `CartFloor`, and the flap angles.

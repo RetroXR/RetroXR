@@ -859,10 +859,18 @@ func _build_tray_bay(s: Vector3, media: String, loader: int) -> void:
 func _build_well_bay(s: Vector3, media: String, loader: int) -> void:
 	var n := _bays.size()
 	var pitch := MediaDimensions.cart_size(media).x + 0.010
+	# A shell that models its own slot (the 32X) marks where a cartridge in it comes
+	# to rest -- the floor of its slot funnel, which is neither the box's roof nor
+	# its middle -- and draws its own mouth, so no dark plate goes on top of it.
+	var floor_marker := _shell_node("CartFloor")
 	for i in n:
 		var x: float = (float(i) - float(n - 1) * 0.5) * pitch
-		_bays[i].position = Vector3(x, s.y * 0.5, 0.0)
-		ExpansionShell.build_well(_body, s, media, loader, x)
+		if floor_marker != null and n == 1:
+			var h: float = MediaDimensions.cart_size(media).y
+			_bays[i].position = to_local(floor_marker.global_position) + Vector3(0.0, h * 0.5, 0.0)
+		else:
+			_bays[i].position = Vector3(x, s.y * 0.5, 0.0)
+			ExpansionShell.build_well(_body, s, media, loader, x)
 		# Bound, so each zone reports the slot it IS. Without the bind both bays
 		# write the same entry and the second cartridge is invisible.
 		_bays[i].has_picked_up.connect(_on_media_in.bind(i))
@@ -888,6 +896,7 @@ func _on_media_in(media: Node3D, slot := 0) -> void:
 	# Back-fill, exactly as a console does: a disk put into a 64DD is a 64DD disk.
 	if "systemid" in media and str(media.get("systemid")).is_empty():
 		media.set("systemid", ExpansionCatalog.media_of(expansion_id))
+	_swing_flaps(true)
 	_notify_host_media()
 
 
@@ -898,7 +907,32 @@ func _on_media_out(slot := 0) -> void:
 	if is_instance_valid(was) and _slot == null:
 		remove_collision_exception_with(was)
 	_media[slot] = null
+	_swing_flaps(false)
 	_notify_host_media()
+
+
+## How far a shell's slot flaps swing, and how fast -- the Mega Drive's own figures
+## (genesis_model.gd), since the 32X's slot is the same pair of sprung flaps.
+const _FLAP_OPEN_DEG := 80.0
+const _FLAP_SWING_SEC := 0.12
+var _flap_tween: Tween = null
+
+
+## Open or close the dust flaps of a shell that has them (Flap_Front / Flap_Back,
+## each origined on its hinge). They meet in the middle of the slot and fold down
+## into it about their outer edges, so the front one turns about -X and the rear
+## one about +X, as the console's do. A no-op on every unit without them.
+func _swing_flaps(open: bool) -> void:
+	var front := _shell_node("Flap_Front")
+	var back := _shell_node("Flap_Back")
+	if front == null or back == null:
+		return
+	if _flap_tween != null and _flap_tween.is_valid():
+		_flap_tween.kill()
+	var angle := deg_to_rad(_FLAP_OPEN_DEG) if open else 0.0
+	_flap_tween = create_tween().set_parallel(true)
+	_flap_tween.tween_property(front, "rotation:x", -angle, _FLAP_SWING_SEC)
+	_flap_tween.tween_property(back, "rotation:x", angle, _FLAP_SWING_SEC)
 
 
 ## Tell the console its stack changed, if a console is bolted on.

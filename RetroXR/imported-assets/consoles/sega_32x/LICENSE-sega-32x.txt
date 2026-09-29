@@ -1,0 +1,29 @@
+Sega 32X (sega32x.glb)
+
+Own work. Built from Ryan McClelland's laser scan of a Sega 32X: the two
+housing halves, the cartridge plug's two halves, the slot's cartridge guide and
+its two dust flaps, each registered to the others and reduced for real-time use
+(the distance level of the build, 24,688 triangles, with 1024 x 1024 normal and
+occlusion maps baked from the ~9M-triangle scan; the spacer adds 1,920). The
+scan carries no colour, so the plastic is a material. The source scan, the build
+scripts and the references live outside this repository (codex-photos/sega-32x);
+the file shipped here is its sega32x_unbranded_lod1.glb with its
+sega32x_model2_spacer.glb merged in, by Tools/glb/prepare_sega32x.py (which also
+tidies the node names and adds the PlugSeat and CartFloor markers).
+
+Not from the scan, modelled to photographs of the real unit and Sega's service
+manual: the metal shield in the plug's windows, the circuit board and its edge
+contacts, the rear A/V OUT / A/V IN (9-pin mini-DIN) and ADAPTOR sockets, the
+screws, the clean A/V OUT / A/V IN / ADAPTOR lettering, a dark interior liner
+that stops the hollow shell from being seen through its gaps, and the Genesis
+Model 2 spacer (Model2_Spacer, codex-photos sega-32x/build_spacer.py) -- built
+from a photo of Sega's riser and the scan's underside collar, its height set by
+the gap under the unit on RetroXR's Model 2 Genesis.
+
+Licensed with the rest of RetroXR (see the repository LICENSE).
+
+No third-party marks are carried: the "32X" badge on the front is left off
+(its lens-shaped pad is bare) and the scan has no moulded marks. The functional
+legends A/V OUT, A/V IN and ADAPTOR are kept. Nothing here is affiliated with,
+endorsed by, or sponsored by Sega; "Sega", "32X", "Genesis" and "Mega Drive"
+are trademarks of Sega Corporation and are used only descriptively.

@@ -61,7 +61,10 @@
 ##               where both are the same size and shape. Absent means plain.
 ##   shell       a GLB the unit wears instead of the primitive box, scaled to
 ##               `size`. Its markers, when it has them: SocketMarker (where a
-##               seated disk's centre sits), EjectButton and AccessLed meshes.
+##               seated disk's centre sits), EjectButton and AccessLed meshes,
+##               CartFloor (where a cartridge in the unit's own slot rests its
+##               bottom edge; the 32X) and Flap_Front / Flap_Back (slot flaps
+##               origined on their hinges, swung open while a cartridge is in).
 ##   shell_albedo
 ##               a colour map swapped onto the shell's "shell" material, for a
 ##               second unit that is the same casting in a different finish.
