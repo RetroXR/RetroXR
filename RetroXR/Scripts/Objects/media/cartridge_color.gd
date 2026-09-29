@@ -15,6 +15,7 @@
 ##     CartridgeColor.apply_preset(gb_cart, &"red", "gb")
 ##     CartridgeColor.apply_preset(gba_cart, &"ruby", "gba")
 ##     CartridgeColor.apply_preset(snes_cart, &"black", "snes")
+##     CartridgeColor.apply_preset(gbc_cart, &"crystal", "gbc")
 ##
 ## `cart` is the GLB instance or any node above it. Plain presets and colours stay
 ## on StandardMaterial3D duplicates; METAL_FLAKE presets switch that surface to
@@ -22,7 +23,8 @@
 ## are looked up in the palette of the system given, N64 when none is. A plastic
 ## preset's opacity, or a colour's alpha, below 1 makes the shell dyed clear
 ## plastic: cartridge_clear_plastic.gdshader filters what is behind it through the
-## colour, and its next pass adds the gloss, so no draw order is needed.
+## colour, and its next pass adds the gloss, so no draw order is needed. A METAL_FLAKE
+## preset below 1 is that clear plastic with metal glitter in it (Pokemon Crystal).
 class_name CartridgeColor
 extends RefCounted
 
@@ -34,6 +36,7 @@ const PALETTE_PATHS := {
 	"gb": "res://Resources/gb_cartridge_shells.tres",
 	"gba": "res://Resources/gba_cartridge_shells.tres",
 	"snes": "res://Resources/snes_cartridge_shells.tres",
+	"gbc": "res://Resources/gbc_cartridge_shells.tres",
 }
 const FLAKE_SHADER := preload("res://Shaders/cartridge_flake_plastic.gdshader")
 const CLEAR_SHADER := preload("res://Shaders/cartridge_clear_plastic.gdshader")
@@ -69,11 +72,13 @@ const FLAKE_FLOOR := 0.05
 ## round its sticker recess, then the Game Boy Advance cart's two halves, then the
 ## Super NES cart's grained shell and the smooth bezel round its rear sticker (the
 ## Super Famicom body's moulded lettering), and the Super Famicom body's ribbed
-## back, whose ribs are a baked normal map.
+## back, whose ribs are a baked normal map. Last the Game Boy Color cart's two
+## stippled halves and its smooth moulded lettering and ridges, faces and walls.
 const EXTERIOR_PLASTIC: Array[StringName] = [&"Shell_Plastic", &"Molded_Smooth_Plastic", &"Nintendo_Molded_SVG",
 	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow",
 	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic", &"SNES_Shell_Plastic", &"SNES_Smooth_Plastic",
-	&"SNES_Shell_Plastic_Ribbed"]
+	&"SNES_Shell_Plastic_Ribbed", &"GBC_Shell_Front", &"GBC_Shell_Rear", &"GBC_Shell_Smooth",
+	&"GBC_Shell_Edge"]
 
 ## A moulding authored lighter or darker than the rest of its shell, as a factor
 ## on the colour painted: the Game Boy cart's ratios to its front shell. Every
@@ -85,11 +90,13 @@ const SHADE := {
 
 ## Mouldings whose own roughness a paint keeps, because the texture of the mould
 ## (the Game Boy cart's rough rear, smooth rails and matte rim; the Game Boy
-## Advance cart's baked roughness map; the Super NES cart's grain, bezel and ribs)
-## sets it rather than the plastic's colour.
+## Advance cart's baked roughness map; the Super NES cart's grain, bezel and ribs;
+## the Game Boy Color cart's polished lettering and ridges) sets it rather than the
+## plastic's colour.
 const OWN_ROUGHNESS: Array[StringName] = [&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth",
 	&"Shell_Seam_Shadow", &"Tintable_Front_Plastic", &"Tintable_Rear_Plastic",
-	&"SNES_Shell_Plastic", &"SNES_Smooth_Plastic", &"SNES_Shell_Plastic_Ribbed"]
+	&"SNES_Shell_Plastic", &"SNES_Smooth_Plastic", &"SNES_Shell_Plastic_Ribbed",
+	&"GBC_Shell_Smooth", &"GBC_Shell_Edge"]
 
 ## The half each moulded part belongs to, by node-name prefix. The Nintendo logo
 ## patch and the bottom latch tabs are part of the rear moulding. A part not
@@ -140,7 +147,9 @@ static func apply_flake(cartridge: Node, color: Color, systemid := "n64") -> Err
 
 ## A metal flake finish in any colour: the flakes, gloss and grain of the system's
 ## first metal flake preset -- the N64's when its palette has none -- over
-## `color`, the flakes FLAKE_LIFT brighter.
+## `color`, the flakes FLAKE_LIFT brighter. Always solid, even when that preset
+## is clear glitter plastic (the Game Boy Color's is Crystal's): a mixed colour has
+## no opacity.
 static func flake_finish(color: Color, systemid := "n64") -> CartridgeShellPreset:
 	var template := _first_flake(systemid)
 	if template == null:
@@ -150,6 +159,7 @@ static func flake_finish(color: Color, systemid := "n64") -> CartridgeShellPrese
 		finish = template.duplicate() as CartridgeShellPreset
 	finish.id = &""
 	finish.finish = CartridgeShellPreset.Finish.METAL_FLAKE
+	finish.opacity = 1.0
 	finish.color = Color(color.r, color.g, color.b, 1.0)
 	finish.flake_color = Color(
 		minf(color.r * FLAKE_LIFT + FLAKE_FLOOR, 1.0),
@@ -230,9 +240,9 @@ static func _paint(cartridge: Node, front: Variant, back: Variant) -> Error:
 	return OK
 
 
-## A finish's frost: a clear plastic preset's own, otherwise none.
+## A finish's frost: a clear preset's own, glitter or not, otherwise none.
 static func _frost_of(finish: Variant) -> float:
-	if finish is CartridgeShellPreset and finish.finish == CartridgeShellPreset.Finish.PLASTIC 			and finish.opacity < 0.999:
+	if finish is CartridgeShellPreset and finish.opacity < 0.999:
 		return finish.frost
 	return 0.0
 
@@ -273,7 +283,7 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 	var material_name := StringName(source.resource_name)
 	var shade: float = SHADE.get(material_name, 1.0)
 	var own_roughness := OWN_ROUGHNESS.has(material_name)
-	if finish is CartridgeShellPreset and finish.finish == CartridgeShellPreset.Finish.METAL_FLAKE:
+	if _is_solid_flake(finish):
 		var sm := slot.get("flake") as ShaderMaterial
 		if sm == null:
 			sm = _flake_material(source)
@@ -294,6 +304,7 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 			slot["clear"] = cm
 		var gloss: float = finish.roughness if finish is CartridgeShellPreset else CLEAR_ROUGHNESS
 		_set_clear(cm, _shaded(color, shade), opacity, gloss, _frost_of(finish))
+		_set_clear_flake(cm, finish if _is_clear_flake(finish) else null)
 		mi.set_surface_override_material(i, cm)
 		return
 	var pm := slot.get("plain") as BaseMaterial3D
@@ -307,6 +318,14 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 		pm.albedo_color = _shaded(finish, shade)
 		pm.roughness = source.roughness
 	mi.set_surface_override_material(i, pm)
+
+
+static func _is_solid_flake(finish: Variant) -> bool:
+	return finish is CartridgeShellPreset and finish.finish == CartridgeShellPreset.Finish.METAL_FLAKE 		and finish.opacity >= 0.999
+
+
+static func _is_clear_flake(finish: Variant) -> bool:
+	return finish is CartridgeShellPreset and finish.finish == CartridgeShellPreset.Finish.METAL_FLAKE 		and finish.opacity < 0.999
 
 
 ## The filter pass, with the surface pass (normal map carried) as its next pass.
@@ -338,6 +357,20 @@ static func _set_clear(cm: ShaderMaterial, color: Color, opacity: float, gloss: 
 	surface.set_shader_parameter("roughness_grain", CLEAR_GRAIN)
 	surface.set_shader_parameter("cloud", minf(frost * FROST_CLOUD, 1.0))
 	cm.set_shader_parameter("cloud", minf(frost * FROST_CLOUD, 1.0))
+
+
+## Glitter in clear plastic, on both passes (the filter blacks out what is behind a
+## flake, the surface lights it); null takes it out again.
+static func _set_clear_flake(cm: ShaderMaterial, p: CartridgeShellPreset) -> void:
+	for m: ShaderMaterial in [cm, cm.next_pass as ShaderMaterial]:
+		m.set_shader_parameter("flake_amount", p.flake_density if p != null else 0.0)
+		if p == null:
+			continue
+		m.set_shader_parameter("flake_color", p.flake_color)
+		m.set_shader_parameter("flake_size_mm", p.flake_size_mm)
+		m.set_shader_parameter("flake_intensity", p.flake_intensity)
+		m.set_shader_parameter("flake_roughness", p.flake_roughness)
+		m.set_shader_parameter("flake_tilt", p.flake_tilt)
 
 
 static func _shaded(c: Color, shade: float) -> Color:

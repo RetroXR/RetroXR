@@ -35,8 +35,9 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 
 ## A shell the player asked for at spawn, overriding the one the ROM shipped in.
 ## A CartridgeShellPalette id; empty, or an id the palette does not hold, is the
-## ROM's own. N64, Game Boy, Game Boy Advance and Super NES only, and read once,
-## in _ready.
+## ROM's own. N64, Game Boy, Game Boy Color, Game Boy Advance and Super NES only,
+## and read once, in _ready. On a Game Boy or Game Boy Color ROM it also picks the
+## body whose palette holds it (GbcCartShell).
 @export var shell_preset: StringName = &""
 
 ## A colour the player mixed at spawn, "#rrggbb", painted over the whole shell in
@@ -52,10 +53,12 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 ## REGION_JPN, empty for the ROM's own market. It picks the SHAPE only — the
 ## shell colour is still looked up under the market the ROM really has. A Super NES
 ## cartridge's is SnesCartShell.TYPE_A or TYPE_B (the North American front latch)
-## or SFC (the Super Famicom shell).
+## or SFC (the Super Famicom shell). A Game Boy or Game Boy Color one's is
+## GbcCartShell.BODY_GB or BODY_GBC (the clear Game Boy Color-only shell).
 @export var body_region: String = ""
 
-## _body_model()'s answer, and the systemid|rom_path|body_region it was for.
+## _body_model()'s answer, and the systemid|rom_path|body_region|shell_preset it
+## was for.
 var _body_model_path := ""
 var _body_model_key := ""
 
@@ -193,11 +196,12 @@ func get_card_size() -> Vector3:
 ##
 ## An N64 cartridge's body is regional: N64CartShell picks it per ROM. So is a
 ## Super NES one's: SnesCartShell gives a US ROM the latch of its first print and a
-## Japanese or PAL ROM the Super Famicom shell. Kept until the ROM or the forced
-## body changes: the size passes ask on every drop, and the Super NES answer reads
-## the ROM's header.
+## Japanese or PAL ROM the Super Famicom shell. A Game Boy Color-only game's is the
+## clear Game Boy Color shell (GbcCartShell). Kept until the ROM or the forced body
+## or shell changes: the size passes ask on every drop, and the Super NES and Game
+## Boy answers read the ROM's header.
 func _body_model() -> String:
-	var key := "%s|%s|%s" % [systemid, rom_path, body_region]
+	var key := "%s|%s|%s|%s" % [systemid, rom_path, body_region, shell_preset]
 	if key == _body_model_key:
 		return _body_model_path
 	_body_model_key = key
@@ -206,11 +210,14 @@ func _body_model() -> String:
 		_body_model_path = N64CartShell.body_model_for_region(body_region, N64CartShell.market(systemid, rom_path))
 	elif systemid == SnesCartShell.SYSTEMID:
 		_body_model_path = SnesCartShell.body_model_for_rom(body_region, systemid, rom_path)
+	elif GbCartShell.is_shell(systemid):
+		_body_model_path = GbcCartShell.body_model_for_rom(body_region, shell_preset, rom_path)
 	return _body_model_path
 
 
 ## This cartridge's real-world size: the system's, or its body's where a system's
-## bodies differ (the Super Famicom shell is smaller than the North American one).
+## bodies differ (the Super Famicom shell is smaller than the North American one;
+## the Game Boy Color shell's head is thicker than the Game Boy's).
 func _cart_size() -> Vector3:
 	return MediaDimensions.cart_size(systemid, rom_path, _body_model())
 
@@ -256,6 +263,8 @@ func _apply_cart_model() -> void:
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
 	if systemid == "n64":
 		_paint_shell(glb, "n64", N64CartShell.preset_for_rom(rom_path, market))
+	elif GbCartShell.is_shell(systemid) and GbcCartShell.is_body(path):
+		_paint_shell(glb, GbcCartShell.PALETTE, GbcCartShell.preset_for_rom(rom_path))
 	elif GbCartShell.is_shell(systemid):
 		_paint_shell(glb, GbCartShell.SYSTEMID, GbCartShell.preset_for_rom(rom_path))
 	elif systemid == GbaCartShell.SYSTEMID:

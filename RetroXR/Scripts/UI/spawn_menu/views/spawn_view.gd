@@ -3231,9 +3231,11 @@ static func _paint_swatch(btn: Button, color: Color) -> void:
 		btn.add_theme_stylebox_override(state, chosen)
 
 
-## Shell, and for an N64 or Super NES the body, of a cartridge. Picked and then
-## SPAWN is pressed; `spawn` takes the options dictionary. The swatches are the
-## system's own CartridgeColor palette, then a colour the player mixes.
+## Shell, and for an N64, Super NES or Game Boy the body, of a cartridge. Picked
+## and then SPAWN is pressed; `spawn` takes the options dictionary. The swatches are
+## the system's own CartridgeColor palette -- a Game Boy or Game Boy Color ROM gets
+## both shells' palettes, and a swatch brings its shell's body -- then a colour the
+## player mixes.
 func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) -> void:
 	var vbox := _open_spawn_options_panel(label)
 	var chosen := {"shell_preset": "", "shell_color": "", "shell_flake": false, "body_region": ""}
@@ -3248,6 +3250,9 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 		body_options = [["Auto (from the ROM)", ""],
 				["Type A (groove)", SnesCartShell.TYPE_A], ["Type B (recess)", SnesCartShell.TYPE_B],
 				["Super Famicom / PAL", SnesCartShell.SFC]]
+	elif GbCartShell.is_shell(systemid):
+		body_options = [["Auto (from the ROM)", ""], ["Game Boy", GbcCartShell.BODY_GB],
+				["Game Boy Color (clear)", GbcCartShell.BODY_GBC]]
 	if not body_options.is_empty():
 		vbox.add_child(MenuStyle.header("Body"))
 		var bodies := MenuStyle.hbox(10)
@@ -3265,31 +3270,39 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 	auto_btn.button_pressed = true
 	auto_btn.pressed.connect(_pick_shell.bind(chosen, "", "", false))
 	vbox.add_child(auto_btn)
-	var palette := CartridgeColor.get_palette(systemid)
-	for section: Array in [
-			["Standard", CartridgeShellPreset.Availability.STANDARD],
-			["Released", CartridgeShellPreset.Availability.RELEASED],
-			# Offered by Nintendo and never used: listed after the released ones,
-			# untitled.
-			["", CartridgeShellPreset.Availability.OFFERED_ONLY]]:
-		var presets := palette.with_availability(section[1])
-		if presets.is_empty():
-			continue
-		if not section[0].is_empty():
-			vbox.add_child(MenuStyle.hint(section[0]))
-		var grid := GridContainer.new()
-		grid.columns = 4
-		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		grid.add_theme_constant_override("h_separation", 10)
-		grid.add_theme_constant_override("v_separation", 10)
-		vbox.add_child(grid)
-		for preset: CartridgeShellPreset in presets:
-			# A two-tone shell is shown by its front half, the one facing the player.
-			var shown := palette.find(preset.front) if preset.is_two_tone() else preset
-			var swatch := _swatch_button(preset.display_name,
-				(shown if shown != null else preset).color, shell_group)
-			swatch.pressed.connect(_pick_shell.bind(chosen, String(preset.id), "", false))
-			grid.add_child(swatch)
+	var palettes: Array = [["", CartridgeColor.get_palette(systemid)]]
+	if GbCartShell.is_shell(systemid):
+		palettes = [["Game Boy", CartridgeColor.get_palette(GbCartShell.SYSTEMID)],
+				["Game Boy Color", CartridgeColor.get_palette(GbcCartShell.PALETTE)]]
+	for entry: Array in palettes:
+		var palette: CartridgeShellPalette = entry[1]
+		for section: Array in [
+				["Standard", CartridgeShellPreset.Availability.STANDARD],
+				["Released", CartridgeShellPreset.Availability.RELEASED],
+				# Offered by Nintendo and never used: listed after the released ones,
+				# untitled.
+				["", CartridgeShellPreset.Availability.OFFERED_ONLY]]:
+			var presets := palette.with_availability(section[1])
+			if presets.is_empty():
+				continue
+			var title: String = section[0]
+			if not entry[0].is_empty() and not title.is_empty():
+				title = "%s, %s" % [entry[0], title.to_lower()]
+			if not title.is_empty():
+				vbox.add_child(MenuStyle.hint(title))
+			var grid := GridContainer.new()
+			grid.columns = 4
+			grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			grid.add_theme_constant_override("h_separation", 10)
+			grid.add_theme_constant_override("v_separation", 10)
+			vbox.add_child(grid)
+			for preset: CartridgeShellPreset in presets:
+				# A two-tone shell is shown by its front half, the one facing the player.
+				var shown := palette.find(preset.front) if preset.is_two_tone() else preset
+				var swatch := _swatch_button(preset.display_name,
+					(shown if shown != null else preset).color, shell_group)
+				swatch.pressed.connect(_pick_shell.bind(chosen, String(preset.id), "", false))
+				grid.add_child(swatch)
 	_add_custom_shell(vbox, shell_group, chosen)
 
 	vbox.add_child(MenuStyle.spacer(6))

@@ -10,15 +10,17 @@
 ##     grey too.
 ##   - Any other game that also runs in colour on a Game Boy Color (CGB flag
 ##     0x80): black.
-##   - Everything else, GBC-only games (0xC0) included: grey.
+##   - Everything else: grey.
 ## Only Nintendo-published ROMs match a Pokemon or Donkey Kong Land title. The colours are in
-## Resources/gb_cartridge_shells.tres.
+## Resources/gb_cartridge_shells.tres. A GBC-only game (0xC0) spawns in the clear
+## Game Boy Color shell instead (GbcCartShell); forced into this one, it is grey.
 class_name GbCartShell
 extends RefCounted
 
 const BODY := "res://imported-assets/carts/game_boy/gb_cart.glb"
-## The palette's systemid. A Game Boy Color cartridge is the same shell and
-## takes the same palette; is_shell() is the check for "spawns as this model".
+## The palette's systemid. A Game Boy Color ROM spawns in this shell and takes this
+## palette unless it is GBC-only; is_shell() is the check for "a Game Boy family
+## cartridge", and GbcCartShell.body_model_for() says which of the two shells.
 const SYSTEMID := "gb"
 const SYSTEMIDS: Array[String] = ["gb", "gbc"]
 const DEFAULT_PRESET := &"grey"

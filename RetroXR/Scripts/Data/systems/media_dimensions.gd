@@ -88,6 +88,11 @@ const CART_SIZE_DEFAULT := Vector3(0.10, 0.08, 0.015)
 ## ribs. The "snes" row above is the North American shell.
 const CART_SIZE_SFC := Vector3(0.128, 0.0875, 0.020)
 
+## The clear Game Boy Color-only shell (GbcCartShell): the model's own,
+## caliper-measured, 9 mm over its raised head (the body is 7.2). The "gb" and
+## "gbc" rows above are the Game Boy shell, which dual-mode games came in too.
+const CART_SIZE_GBC := Vector3(0.057, 0.065, 0.009)
+
 ## The 3.5-inch disk: 90 mm across, 94 mm deep, 3.3 mm thick — the real thing.
 ## One constant rather than a row per system, because every machine below loaded
 ## from the same disk. Axes match a cartridge: the shutter edge is -Y (where a
@@ -300,7 +305,8 @@ static func has_cart_size(systemid: String) -> bool:
 ## boots from -- sizing it off the systemid alone shrank it to pack size.
 ## `body_model` is the model the cartridge spawns as, for a system whose bodies
 ## differ in size: a Super NES cartridge in the Super Famicom shell is smaller
-## than the North American one.
+## than the North American one, and the Game Boy Color shell is thicker than the
+## Game Boy's.
 static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vector3:
 	if _mod_media.has(systemid):
 		var m: Dictionary = _mod_media[systemid]
@@ -313,6 +319,8 @@ static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vec
 		return FLOPPY_SIZE
 	if systemid == SnesCartShell.SYSTEMID and body_model == SnesCartShell.BODY_SFC:
 		return CART_SIZE_SFC
+	if GbCartShell.is_shell(systemid) and GbcCartShell.is_body(body_model):
+		return CART_SIZE_GBC
 	if systemid == "satellaview" and not rom_path.is_empty():
 		var ext := rom_path.get_extension().to_lower()
 		if ext == "sfc" or ext == "smc":

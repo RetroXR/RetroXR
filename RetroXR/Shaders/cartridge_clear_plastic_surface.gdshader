@@ -31,6 +31,7 @@ uniform float grain_size_mm : hint_range(0.05, 2.0) = 0.3;
 varying vec3 obj_pos;
 
 #include "res://Shaders/cartridge_clear_cloud.gdshaderinc"
+#include "res://Shaders/cartridge_clear_flake.gdshaderinc"
 
 void vertex() {
 	obj_pos = VERTEX;
@@ -46,7 +47,26 @@ void fragment() {
 	ROUGHNESS = clamp(roughness + roughness_grain * grain * 2.0 + cloud * 0.25 * (n - 0.5), 0.05, 1.0);
 	SPECULAR = specular;
 	METALLIC = 0.0;
-	if (normal_enabled) {
+	if (flake_amount > 0.0) {
+		// Glitter: each flake a small tilted mirror in the plastic, lit here; the
+		// filter pass has already blacked out what is behind it.
+		vec4 flake = clear_flake(obj_pos);
+		float k = (flake.x + flake.y) * flake_intensity;
+		ALBEDO = mix(ALBEDO, flake_color.rgb, k);
+		METALLIC = k * 0.7;
+		ROUGHNESS = mix(ROUGHNESS, flake_roughness, flake.x + flake.y * 0.5);
+		vec2 bump = vec2(0.0);
+		if (normal_enabled) {
+			bump = (texture(texture_normal, UV * uv1_scale.xy + uv1_offset.xy).xy * 2.0 - 1.0) * normal_scale;
+		}
+		vec2 nm = bump + flake.zw * flake.x;
+		float len = length(nm);
+		if (len > 0.95) {
+			nm *= 0.95 / len;
+		}
+		NORMAL_MAP = vec3(nm * 0.5 + 0.5, 1.0);
+		NORMAL_MAP_DEPTH = 1.0;
+	} else if (normal_enabled) {
 		NORMAL_MAP = texture(texture_normal, UV * uv1_scale.xy + uv1_offset.xy).rgb;
 		NORMAL_MAP_DEPTH = normal_scale;
 	}

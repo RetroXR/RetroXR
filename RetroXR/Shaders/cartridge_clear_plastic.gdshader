@@ -28,6 +28,7 @@ uniform float cloud_size_mm : hint_range(0.5, 20.0) = 1.8;
 varying vec3 obj_pos;
 
 #include "res://Shaders/cartridge_clear_cloud.gdshaderinc"
+#include "res://Shaders/cartridge_clear_flake.gdshaderinc"
 
 void vertex() {
 	obj_pos = VERTEX;
@@ -36,5 +37,7 @@ void vertex() {
 void fragment() {
 	float facing = clamp(abs(dot(NORMAL, VIEW)), 1.0 / edge_depth, 1.0);
 	float patchy = 1.0 + cloud * (cloud_noise(obj_pos, cloud_size_mm) - 0.5);
-	ALBEDO = pow(max(tint.rgb, vec3(0.001)), vec3(density * patchy / facing));
+	vec4 flake = clear_flake(obj_pos);
+	// A glitter flake is metal: nothing behind it shows through.
+	ALBEDO = pow(max(tint.rgb, vec3(0.001)), vec3(density * patchy / facing)) * (1.0 - flake.x - flake.y);
 }

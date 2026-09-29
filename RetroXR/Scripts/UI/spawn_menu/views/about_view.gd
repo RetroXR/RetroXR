@@ -46,6 +46,7 @@ const SECTIONS: Array = [
 		["Touch controller model", "immersive-web/webxr-input-profiles", "MIT"],
 		["NES controller diagram", "Fant0men — Wikimedia Commons", "CC BY-SA 3.0"],
 		["GBA cartridge circuit board photos", "FexCollects — Game Boy hardware database (gbhwdb.gekkio.fi)", "CC BY-SA 4.0"],
+		["GBC cartridge circuit board photos", "ikk5 and Gekkio — Game Boy hardware database (gbhwdb.gekkio.fi)", "CC BY-SA 4.0"],
 		["Lamp chain switch (audio)", "ftpalad — freesound.org", "CC0 1.0"],
 	], "Console art from the Systematic theme for RetroArch / Lakka. "
 		+ "Controller line art is rendered from the WebXR input profile model; "
@@ -54,7 +55,12 @@ const SECTIONS: Array = [
 		+ "shared under the same licence. The board seen through a clear Game Boy "
 		+ "Advance cartridge wears FexCollects' photographs of a Pokemon Ruby board, "
 		+ "used under CC BY-SA 4.0, resized, with the notch background filled and a "
-		+ "maker's wordmark removed; those edits are shared under the same licence."],
+		+ "maker's wordmark removed; those edits are shared under the same licence. "
+		+ "The boards inside a clear Game Boy Color cartridge wear ikk5's photographs "
+		+ "of a Pokemon Crystal board and Gekkio's of a Shrek: Fairy Tale Freakdown "
+		+ "board, used under CC BY-SA 4.0, perspective-corrected, evened out, with the "
+		+ "background filled and a maker's wordmark removed; those edits are shared "
+		+ "under the same licence."],
 
 	["GAME DATA", [
 		["ScreenScraper", "screenscraper.fr contributors", "CC BY-NC-SA 4.0"],

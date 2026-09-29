@@ -17,8 +17,9 @@ enum Availability { STANDARD, RELEASED, OFFERED_ONLY }
 @export_range(0.0, 1.0) var roughness := 0.43
 ## 1 is solid plastic. Lower is the dyed clear plastic of a clear cartridge,
 ## the board inside showing through, tinted: the value is how strongly the dye
-## filters (CartridgeColor.CLEAR_DENSITY) and scatters (CLEAR_HAZE). PLASTIC
-## finishes only; a metal flake shell is always solid.
+## filters (CartridgeColor.CLEAR_DENSITY) and scatters (CLEAR_HAZE). A METAL_FLAKE
+## finish below 1 is clear plastic with the flakes in it as glitter, as Pokemon
+## Crystal's shell is; at 1 it is solid.
 @export_range(0.0, 1.0) var opacity := 1.0
 ## How much a clear shell scatters: what is inside goes out of focus and flat,
 ## and the milkiness of the plastic turns patchy. 0 is glass-clear; frosted
