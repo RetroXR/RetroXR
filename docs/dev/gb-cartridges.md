@@ -17,6 +17,7 @@ hashed), from `Resources/gb_cartridge_shells.tres`:
 | Header | Shell |
 | --- | --- |
 | title `POKEMON_GLD` / `POKEMON_SLV`, Nintendo | gold / silver (metal flake), every market |
+| title `DONKEYKONGLAND…` / `SUPERDONKEYKONG`, Nintendo | yellow: Donkey Kong Land, 2 and III, and Japan's Super Donkey Kong GB and Donkey Kong Land (its Land 2), every market |
 | title `POKEMON RED` / `POKEMON BLUE` / `POKEMON YEL…`, Nintendo, destination 0x14A ≠ 0 | red / blue / yellow |
 | same, destination 0x14A = 0 (Japan) | grey: the Japanese Red, Green, Blue and Pikachu were standard grey |
 | CGB flag 0x143 = 0x80 (runs on both machines) | black |
@@ -28,8 +29,13 @@ a No-Intro `gb`/`gbc` set: destination is 0 on every Japanese release and 1 else
 Korea included. Every value in the palette is a visual approximation; grey is the model's
 own imported plastic, so the default is the model as authored.
 
+The Land games use the old 16-byte title, so 0x143 is a title letter, not a CGB
+flag: `DONKEYKONGLAND95`, `DONKEYKONGLAND 2`, `DONKEYKONGLAND 3`. A beta with a
+garbled licensee stays grey.
+
 Assumptions still open: Japanese Gold/Silver are coloured (the source checked says
-nothing); Japanese Pikachu is grey
+nothing); the Japanese Land carts are yellow (sources name the series, not
+the Japanese run); Japanese Pikachu is grey
 like Japan's other first-generation carts; GBC-only games (clear carts) stay grey
 because no preset was asked for.
 

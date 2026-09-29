@@ -35,7 +35,7 @@ roughness = 0.57
 [sub_resource type="Resource" id="yellow"]
 script = ExtResource("2")
 id = &"yellow"
-display_name = "Yellow (Pokemon Yellow)"
+display_name = "Yellow (Pokemon Yellow, Donkey Kong Land)"
 color = Color(0.93, 0.76, 0.12, 1)
 roughness = 0.57
 

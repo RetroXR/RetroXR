@@ -2,6 +2,8 @@
 ##
 ## Read from the ROM header, 0x150 bytes, never by hashing the file:
 ##   - Pokemon Gold and Silver: gold and silver, in every market.
+##   - Donkey Kong Land, 2 and III (Super Donkey Kong GB and Donkey Kong Land in
+##     Japan): banana yellow, in every market.
 ##   - Pokemon Red, Blue and Yellow: red, blue and yellow outside Japan. The
 ##     Japanese Red, Blue and Pikachu came in the standard grey; the destination
 ##     byte tells them apart. Pocket Monsters Green, which only Japan had, was
@@ -9,7 +11,7 @@
 ##   - Any other game that also runs in colour on a Game Boy Color (CGB flag
 ##     0x80): black.
 ##   - Everything else, GBC-only games (0xC0) included: grey.
-## Only Nintendo-published ROMs match a Pokemon title. The colours are in
+## Only Nintendo-published ROMs match a Pokemon or Donkey Kong Land title. The colours are in
 ## Resources/gb_cartridge_shells.tres.
 class_name GbCartShell
 extends RefCounted
@@ -38,6 +40,8 @@ const OLD_LICENSEE_USE_NEW := 0x33
 const TITLE_SHELLS := {
 	"POKEMON_GLD": &"gold",
 	"POKEMON_SLV": &"silver",
+	"DONKEYKONGLAND": &"yellow",
+	"SUPERDONKEYKONG": &"yellow",
 }
 ## Title prefix -> preset, outside Japan only.
 const OVERSEAS_TITLE_SHELLS := {
