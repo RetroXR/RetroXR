@@ -153,6 +153,8 @@ func _ready() -> void:
 		await _test_power_strip()
 	if _want_group("stack"):
 		await _test_stack()
+	if _want_group("spacer"):
+		await _test_spacer()
 	if _want_group("vlc"):
 		_test_vlc()
 	if _want_group("manifest"):
@@ -867,6 +869,81 @@ func _test_stack() -> void:
 			"stack/and the unit knows which console it is under")
 		_eq(back_unit.get_media_path(), "Z:/roms/segacd/selftest.cue",
 			"stack/the disc is still in the drive")
+
+	sp.clear_scene(self)
+	for i in range(20):
+		await get_tree().physics_frame
+
+
+## The 32X's Model 2 spacer is its own object clipped under the unit, and the unit
+## is in the console's slot: a reload has to bring back all three, still joined.
+## The spacer's entry is only a pose -- the 32X's entry names it ("accessory").
+func _test_spacer() -> void:
+	var sp := ScenePersistence.new("arcade")
+	sp.clear_scene(self)
+	for i in range(10):
+		await get_tree().physics_frame
+
+	var unit := (load("res://Scenes/Objects/expansion.tscn") as PackedScene) \
+		.instantiate() as RetroExpansion
+	unit.expansion_id = "sega_32x"
+	unit.add_to_group("spawned")
+	add_child(unit)
+	unit.freeze = true
+	unit.global_position = Vector3(0.0, 1.0, 0.0)
+
+	var console := (load("res://Scenes/Objects/system.tscn") as PackedScene) \
+		.instantiate() as RetroSystem
+	console.systemid = "genesis"
+	console.add_to_group("spawned")
+	add_child(console)
+	console.freeze = true
+	console.global_position = Vector3(0.4, 1.0, 0.0)
+
+	var spacer := ScenePersistence.instantiate("sega32x_spacer") as Sega32xSpacer
+	add_child(spacer)
+	spacer.freeze = true
+	spacer.global_position = Vector3(-0.4, 1.0, 0.0)
+	for i in range(60):
+		await get_tree().physics_frame
+
+	unit.restore_accessory(spacer)
+	console.restore_cartridge(unit)
+	for i in range(20):
+		await get_tree().physics_frame
+	_ok(unit.get_accessory() == spacer, "spacer/built: the spacer is clipped under the 32X")
+	_ok(unit.get_host() == console, "spacer/built: and the 32X is in the slot")
+
+	_ok(sp.save_slot(self, SLOT_A), "spacer/saved the assembled room")
+	sp.clear_scene(self)
+	for i in range(20):
+		await get_tree().physics_frame
+	_eq(get_tree().get_nodes_in_group("spawned").size(), 0, "spacer/cleared")
+
+	var loaded: bool = await sp.load_slot_async(self, SLOT_A)
+	_ok(loaded, "spacer/loaded it back")
+	for i in range(40):
+		await get_tree().physics_frame
+
+	var back_console: RetroSystem = null
+	var back_unit: RetroExpansion = null
+	var back_spacer: Sega32xSpacer = null
+	for n in get_tree().get_nodes_in_group("spawned"):
+		if n is RetroSystem:
+			back_console = n as RetroSystem
+		elif n is RetroExpansion:
+			back_unit = n as RetroExpansion
+		elif n is Sega32xSpacer:
+			back_spacer = n as Sega32xSpacer
+	_ok(back_spacer != null, "spacer/the spacer came back")
+	_ok(back_unit != null and back_spacer != null and back_unit.get_accessory() == back_spacer,
+		"spacer/still clipped to the 32X after the reload")
+	_ok(back_unit != null and back_unit.get_host() == back_console,
+		"spacer/and the 32X is still in the slot")
+	if back_unit != null and back_spacer != null:
+		var shell := back_unit.get_node_or_null("Shell") as Node3D
+		_ok(shell != null and back_spacer.global_position.distance_to(shell.global_position) < 0.001,
+			"spacer/back exactly under the unit, where it was modelled")
 
 	sp.clear_scene(self)
 	for i in range(20):

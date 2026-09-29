@@ -1,4 +1,5 @@
-## The 32X's scanned shell, seated on a Mega Drive with a cartridge in it.
+## The 32X's scanned shell and its Model 2 spacer, clipped together and seated on
+## a Mega Drive with a cartridge in it.
 ##
 ## Prints the numbers the seat is judged by -- which way the unit faces on the
 ## console, how its underside sits against the console's roof, how deep its plug
@@ -91,7 +92,8 @@ func _hide_panels(_root: Node = null) -> void:
 			if is_instance_valid(k) and (k == n or k.is_ancestor_of(n)):
 				wanted = true
 				break
-		(n as VisualInstance3D).visible = wanted or n is Light3D
+		if not wanted and not n is Light3D:
+			(n as VisualInstance3D).visible = false
 
 
 func _run() -> void:
@@ -106,7 +108,20 @@ func _run() -> void:
 		shell.scale if shell else Vector3.ZERO, shell.position if shell else Vector3.ZERO])
 	var alone := unit.global_position
 	keep.append(shell)
+
+	# The Model 2 spacer, spawned on its own beside the unit, then clipped on.
+	var spacer := ScenePersistence.instantiate("sega32x_spacer") as Sega32xSpacer
+	spacer.freeze = true
+	add_child(spacer)
+	spacer.global_position = alone + Vector3(0.20, -0.02, 0.0)
+	await _wait(12)
+	keep.append(spacer)
 	_hide_panels()
+	await _shot("unit_and_spacer", alone + Vector3(0.28, 0.18, 0.40), alone + Vector3(0.10, -0.01, 0))
+	unit.restore_accessory(spacer)
+	await _wait(6)
+	print("[probe] spacer clipped on: %s, %.2f mm from the shell's origin" % [
+		unit.get_accessory() == spacer, spacer.global_position.distance_to(shell.global_position) * 1000.0])
 	await _shot("unit_front", alone + Vector3(0.20, 0.14, 0.34), alone)
 	await _shot("unit_below", alone + Vector3(0.22, -0.20, 0.30), alone + Vector3(0, -0.02, 0))
 
@@ -132,9 +147,10 @@ func _run() -> void:
 	if plug != null:
 		var p := inv * plug.global_position
 		print("[probe] plug board edge at y=%.4f (console floor 0), x=%.4f z=%.4f" % [p.y, p.x, p.z])
-	var spacer := _marker(unit, "Model2_Spacer") as MeshInstance3D
-	if spacer != null:
-		var sb := (inv * spacer.global_transform) * spacer.get_aabb()
+	var sm := spacer.find_children("*", "MeshInstance3D", true, false)
+	if not sm.is_empty():
+		var m := sm[0] as MeshInstance3D
+		var sb := (inv * m.global_transform) * m.get_aabb()
 		print("[probe] spacer floor y=%.4f -> %.1f mm above the console's top" % [
 			sb.position.y, (sb.position.y - roof.end.y) * 1000.0])
 	await _shot("seated_front", STAGE + Vector3(0.36, 0.26, 0.52), STAGE + Vector3(0, 0.05, 0))

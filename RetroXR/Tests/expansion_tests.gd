@@ -1373,6 +1373,78 @@ func _run() -> void:
 		await _group_scd_boot()
 	if _want("saturn"):
 		await _group_saturn()
+	if _want("spacer"):
+		await _group_spacer()
+
+
+# ── spacer/ — the 32X's Model 2 spacer, a clip-on accessory ───────────────────
+
+## Sega's riser for the Model 2: its own object, spawned from the 32X's card,
+## clipped into the unit's AccessoryMount and carried into the Mega Drive's slot.
+func _group_spacer() -> void:
+	var menu := SpawnCatalog.items_for("sega32x")
+	var offered := false
+	var consoles := 0
+	for item: Dictionary in menu:
+		if str(item.get("spawn", "")) == "sega32x_spacer":
+			offered = true
+		if str(item.get("kind", "")) == "system":
+			consoles += 1
+	_ok(offered, "spacer/ the 32X's card offers the Model 2 spacer")
+	_ok(_spawn_card_has("sega32x", "sega_32x"), "spacer/ beside the 32X itself")
+	_ok(consoles == 0, "spacer/ and a unit's card still grows no console")
+
+	var spacer := ScenePersistence.instantiate("sega32x_spacer") as Sega32xSpacer
+	_ok(spacer != null, "spacer/ its spawn token builds one")
+	if spacer == null:
+		return
+	add_child(spacer)
+	spacer.freeze = true
+	spacer.position = Vector3(_spawned.size() * 2.0, 1, 0)
+	_spawned.append(spacer)
+	_ok(spacer.is_in_group("spawned") and spacer.is_in_group(Sega32xSpacer.GROUP),
+		"spacer/ it is a room object, in the group the mount takes")
+
+	var x32 := await _unit("sega_32x")
+	var mount := x32.get_node_or_null("AccessoryMount") as XRToolsSnapZone
+	var shell := x32.get_node_or_null("Shell") as Node3D
+	_ok(mount != null, "spacer/ the 32X grows a mount for it")
+	_ok(mount != null and shell != null and mount.position.distance_to(shell.position) < 0.0005,
+		"spacer/ at the shell's own origin, its resting plane")
+	var cd := await _unit("sega_cd")
+	_ok(cd.get_node_or_null("AccessoryMount") == null, "spacer/ and no other unit grows one")
+	await _wait(10)
+
+	x32.restore_accessory(spacer)
+	await _wait(5)
+	_ok(x32.get_accessory() == spacer and spacer.get_unit() == x32,
+		"spacer/ clipped on, each knows the other")
+	_ok(shell != null and spacer.global_position.distance_to(shell.global_position) < 0.001,
+		"spacer/ exactly where it was modelled, under the unit")
+	_ok(x32.get_collision_exceptions().has(spacer),
+		"spacer/ exempt from the unit whose box it sits inside")
+
+	var md := await _console("genesis")
+	md.restore_cartridge(x32)
+	await _wait(10)
+	_ok(x32.get_host() == md, "spacer/ the 32X goes into the slot with it on")
+	_ok(md.get_collision_exceptions().has(spacer),
+		"spacer/ and it is exempt from the console it rests on")
+	_ok(shell != null and spacer.global_position.distance_to(shell.global_position) < 0.001,
+		"spacer/ still under the unit once the unit is seated")
+	# Its floor on the console's roof: the gap the plug leaves on a Model 2.
+	var mi := spacer.find_children("*", "MeshInstance3D", true, false)
+	if not mi.is_empty():
+		var m := mi[0] as MeshInstance3D
+		var bottom := ((md.global_transform.affine_inverse() * m.global_transform) * m.get_aabb()).position.y
+		_ok(absf(bottom - md.body_aabb().end.y) < 0.002,
+			"spacer/ its floor lands on the Model 2's roof (%.1f mm off)" % [(bottom - md.body_aabb().end.y) * 1000.0])
+
+	x32.unbind_from_host()
+	await _wait(3)
+	_ok(not md.get_collision_exceptions().has(spacer),
+		"spacer/ taken off the console, that exemption goes with it")
+	await _clear()
 
 
 # ── scd_boot/ — what a Sega CD hands the core ─────────────────────────────────

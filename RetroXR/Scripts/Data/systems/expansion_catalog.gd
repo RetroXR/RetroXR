@@ -79,6 +79,12 @@
 ##               seated, relative to a cartridge (whose +Z, its label, faces away
 ##               from the player). The e-Reader is 180: its front -- card slit,
 ##               sticker -- faces the player. Absent, 0.
+##   accessory_group
+##               a clip-on accessory this unit takes, by the group it joins: the
+##               unit grows an AccessoryMount snap zone at its shell's origin,
+##               the accessory rides it from then on and is saved on the unit as
+##               "accessory". The 32X's Model 2 spacer ("sega32x_spacer"). Absent,
+##               no mount. See RetroExpansion._build_accessory_mount.
 ##   swipe_slit  for a LOADER_SWIPE unit whose shell has a card channel: the
 ##               groove's frame in the unit's frame (axes as CardSwipeSlit
 ##               documents them). Absent, a groove is cut in the roof.
@@ -353,6 +359,12 @@ static func connector_of(id: String) -> Variant:
 ## to a cartridge. See the row docs above.
 static func seat_yaw_of(id: String) -> float:
 	return float(row(id).get("seat_yaw", 0.0))
+
+
+## The group of the clip-on accessory this unit takes, or "" for none. See the row
+## docs above.
+static func accessory_group_of(id: String) -> String:
+	return str(row(id).get("accessory_group", ""))
 
 
 ## The swipe groove's frame in the unit's own frame, or null to cut the groove in

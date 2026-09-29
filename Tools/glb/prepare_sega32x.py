@@ -7,9 +7,10 @@ rests on (the plug hangs below that), and carries no trademark: the front badge
 is left off and the scan has no moulded marks. So this only tidies it:
 
     python Tools/glb/prepare_sega32x.py \
-        --in     <codex-photos>/sega-32x/sega32x_asset/sega32x_unbranded_lod1.glb \
-        --spacer <codex-photos>/sega-32x/sega32x_asset/sega32x_model2_spacer.glb \
-        --out    RetroXR/imported-assets/consoles/sega_32x/sega32x.glb
+        --in         <codex-photos>/sega-32x/sega32x_asset/sega32x_unbranded_lod1.glb \
+        --out        RetroXR/imported-assets/consoles/sega_32x/sega32x.glb \
+        --spacer     <codex-photos>/sega-32x/sega32x_asset/sega32x_model2_spacer.glb \
+        --spacer-out RetroXR/imported-assets/consoles/sega_32x/sega32x_spacer.glb
 
   * strips the "_LOD1" suffix from every node, mesh, material and image name,
     names the root Sega32X and the two texture sheets normal / ao (Godot
@@ -21,15 +22,15 @@ is left off and the scan has no moulded marks. So this only tidies it:
       CartFloor  the dark plate at the bottom of the unit's own slot funnel,
                  centred on the slot -- where a cartridge put into the 32X
                  comes to rest;
-  * merges in the Genesis Model 2 spacer (codex-photos build_spacer.py) as a
-    Model2_Spacer node under the root. Sega packed it with the 32X because on a
-    Model 2 -- the only Mega Drive RetroXR has -- the plug bottoms out with the
-    unit standing ~22 mm clear of the console; the spacer clips under the 32X and
-    fills that gap, so it stays on, the way it would for a Model 2 owner. It
-    shares the 32X's frame, so it goes in with no transform.
+  * copies the Genesis Model 2 spacer (codex-photos build_spacer.py) beside it
+    as sega32x_spacer.glb, the accessory's own model. Sega packed it with the
+    32X because on a Model 2 -- the only Mega Drive RetroXR has -- the plug
+    bottoms out with the unit standing ~22 mm clear of the console; the spacer
+    clips under the 32X and fills that gap. It shares the 32X's frame (y = 0 on
+    the 32X's resting plane, front +Z), so clipped on it sits at identity in the
+    32X shell's frame.
 
-Pure JSON surgery on the GLB: the 32X's binary chunk is copied through untouched
-and the spacer's is appended after it.
+Pure JSON surgery on the GLB: the binary chunk is copied through untouched.
 """
 import argparse
 import json
@@ -83,8 +84,9 @@ def strip(name):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--in", dest="src", required=True)
-    ap.add_argument("--spacer", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--spacer", required=True)
+    ap.add_argument("--spacer-out", required=True)
     a = ap.parse_args()
     gltf, binary = read_glb(a.src)
 
@@ -115,37 +117,13 @@ def main():
         root["children"].append(len(gltf["nodes"]) - 1)
         print("%-10s at (%.4f, %.4f, %.4f) m" % (name, *t))
 
-    binary = merge(gltf, binary, *read_glb(a.spacer), root)
     write_glb(a.out, gltf, binary)
     print("wrote", a.out)
 
-
-def merge(gltf, binary, sub, sub_bin, parent):
-    """Append `sub`'s one mesh node (and what it uses) under `parent`."""
-    binary = binary + b"\0" * (-len(binary) % 4)
-    base = len(binary)
-    views = len(gltf["bufferViews"])
-    accs = len(gltf["accessors"])
-    mats = len(gltf["materials"])
-    meshes = len(gltf["meshes"])
-    assert not sub.get("images") and not sub.get("textures"), "the spacer is untextured"
-    for v in sub["bufferViews"]:
-        gltf["bufferViews"].append(dict(v, buffer=0, byteOffset=v.get("byteOffset", 0) + base))
-    for acc in sub["accessors"]:
-        gltf["accessors"].append(dict(acc, bufferView=acc["bufferView"] + views))
-    gltf["materials"].extend(sub["materials"])
-    for m in sub["meshes"]:
-        prims = [dict(p, attributes={k: i + accs for k, i in p["attributes"].items()},
-                      indices=p["indices"] + accs, material=p["material"] + mats)
-                 for p in m["primitives"]]
-        gltf["meshes"].append(dict(m, primitives=prims))
-    (node,) = [n for n in sub["nodes"] if "mesh" in n]
-    gltf["nodes"].append(dict(node, mesh=node["mesh"] + meshes))
-    parent["children"].append(len(gltf["nodes"]) - 1)
-    binary = binary + sub_bin
-    gltf["buffers"][0]["byteLength"] = len(binary)
-    print("merged", node["name"])
-    return binary
+    spacer, spacer_bin = read_glb(a.spacer)
+    assert [n["name"] for n in spacer["nodes"]] == ["Model2_Spacer"], "unexpected spacer GLB"
+    write_glb(a.spacer_out, spacer, spacer_bin)
+    print("wrote", a.spacer_out)
 
 
 if __name__ == "__main__":

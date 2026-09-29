@@ -91,8 +91,9 @@ carried alongside it.
   moulded head's face — the face that stops on the panel at z = -0.1043.
 - **`Tools/glb/prepare_sega32x.py`** — builds `consoles/sega_32x/sega32x.glb` from
   codex-photos' debranded, laser-scanned 32X (`sega32x_unbranded_lod1.glb`, 24.7 k triangles,
-  1024 px maps) and its Genesis Model 2 spacer (`sega32x_model2_spacer.glb`). Pure JSON surgery,
-  no Blender: it strips the `_LOD1` names, adds the `PlugSeat` and `CartFloor` markers read off
-  the geometry, and merges the spacer in as `Model2_Spacer`. Recipe in its docstring;
+  1024 px maps), and copies its Genesis Model 2 spacer (`sega32x_model2_spacer.glb`) beside it
+  as `sega32x_spacer.glb`, the spacer accessory's model. Pure JSON surgery, no Blender: it strips
+  the `_LOD1` names and adds the `PlugSeat` and `CartFloor` markers read off the geometry.
+  Recipe in its docstring;
   `RetroXR/Tools/models/sega32x_probe` (windowed) prints the seat numbers and writes stills.
   See `expansion-carts.md` §2j′.

@@ -122,6 +122,7 @@ func _ready() -> void:
 	_build_body()
 	_build_connector()
 	_build_media_bay()
+	_build_accessory_mount()
 	_update_label()
 	_build_panel()
 
@@ -576,6 +577,7 @@ func _bind_host(sys: RetroSystem) -> void:
 	# The seated machine is frozen and rides us through the scene graph; without
 	# this the two boxes fight at the face they are pressed together at.
 	add_collision_exception_with(sys)
+	_except_accessory_from(sys, true)
 	sys.attach_expansion(self)
 	_update_label()
 	host_changed.emit(sys)
@@ -588,6 +590,7 @@ func _unbind_host() -> void:
 	_host = null
 	if is_instance_valid(was):
 		remove_collision_exception_with(was)
+		_except_accessory_from(was, false)
 		was.detach_expansion(self)
 	_update_label()
 	host_changed.emit(null)
@@ -994,6 +997,81 @@ func restore_media(media: Node3D, slot := 0) -> void:
 ## The socket, for the console to release when it is pulled off from the far side.
 func get_socket() -> XRToolsSnapZone:
 	return _socket
+
+
+# ── a clip-on accessory ───────────────────────────────────────────────────────
+
+## The zone a clip-on accessory seats in -- the 32X's Model 2 spacer -- or null on
+## a unit whose row names no `accessory_group`.
+var _accessory_mount: XRToolsSnapZone = null
+## What is clipped on, kept so its exemptions can be undone after it is gone.
+var _accessory: PhysicsBody3D = null
+
+
+## A small snap zone at the shell's own origin -- its resting plane, under the
+## middle of the footprint -- taking the row's accessory group. The accessory's
+## model shares the shell's frame and seats by an identity grab point, so it lands
+## exactly where it was modelled. 30 mm of capture, as the paks' ports have: a
+## zone that small is touched only when the accessory is offered to it, where a
+## larger one would win grabs meant for the unit itself.
+func _build_accessory_mount() -> void:
+	var group := ExpansionCatalog.accessory_group_of(expansion_id)
+	if group.is_empty() or _shell == null:
+		return
+	var zone := SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
+	zone.name = "AccessoryMount"
+	zone.snap_require = group
+	zone.grab_distance = 0.03
+	add_child(zone)
+	zone.position = _shell.position
+	zone.has_picked_up.connect(_on_accessory_in)
+	zone.has_dropped.connect(_on_accessory_out)
+	_accessory_mount = zone
+
+
+## The accessory clipped to this unit, or null.
+func get_accessory() -> Node3D:
+	if _accessory_mount == null:
+		return null
+	var a := _accessory_mount.picked_up_object as Node3D
+	return a if is_instance_valid(a) else null
+
+
+## Clip `accessory` on after a save restore, bypassing the reach.
+func restore_accessory(accessory: Node3D) -> void:
+	if _accessory_mount != null and accessory != null:
+		_accessory_mount.pick_up_object(accessory)
+
+
+## The accessory rides inside this unit's box (the box runs down to the plug's
+## tip, past the spacer's floor), and once the unit is seated the spacer's floor
+## rests on the console's roof -- so it is exempt from both, or each pair fights
+## at the faces they share. The console's exemption follows the unit's own: made
+## in _bind_host, dropped in _unbind_host.
+func _on_accessory_in(what: Node3D) -> void:
+	_accessory = what as PhysicsBody3D
+	if _accessory == null:
+		return
+	add_collision_exception_with(_accessory)
+	if get_host() != null:
+		get_host().add_collision_exception_with(_accessory)
+
+
+func _on_accessory_out() -> void:
+	if is_instance_valid(_accessory):
+		remove_collision_exception_with(_accessory)
+		if get_host() != null:
+			get_host().remove_collision_exception_with(_accessory)
+	_accessory = null
+
+
+func _except_accessory_from(sys: RetroSystem, on: bool) -> void:
+	if not is_instance_valid(_accessory):
+		return
+	if on:
+		sys.add_collision_exception_with(_accessory)
+	else:
+		sys.remove_collision_exception_with(_accessory)
 
 
 ## The EJECT/OPEN button, placed against this unit's own box and wired to

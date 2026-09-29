@@ -281,9 +281,10 @@ home screen lists both ("Start GBA game."). The log line is
 The 32X wears `imported-assets/consoles/sega_32x/sega32x.glb`: codex-photos'
 laser-scanned unit, debranded (the "32X" badge is left off; the scan has no
 moulded marks), at its distance level (24.7 k triangles, 1024 px normal and
-occlusion maps, about the Genesis shell's budget), with Sega's Genesis Model 2
-spacer merged in. `Tools/glb/prepare_sega32x.py` builds it; the LICENSE beside it
-says what is scanned and what is not. The GLB is real size, faces +Z, and has
+occlusion maps, about the Genesis shell's budget). Sega's Genesis Model 2 spacer
+is a separate accessory beside it (`sega32x_spacer.glb`, below).
+`Tools/glb/prepare_sega32x.py` builds both; the LICENSE beside them says what is
+scanned and what is not. The GLB is real size, faces +Z, and has
 y = 0 on the plane the unit rests on, with the plug hanging 35.7 mm below.
 
 **`size` is the GLB's true bounds, plug included**:
@@ -306,14 +307,30 @@ not a seating bug: on a Model 2 the plug bottoms out in the edge connector with
 the unit clear of the console, and Sega packed a black plastic riser that clips
 under the 32X to fill the gap (gametrog.com's Model 2 hook-up guide). Resting the
 underside on the roof instead would put the plug 22 mm through the connector.
-The spacer is `Model2_Spacer` in the GLB, built in codex-photos
-(`sega-32x/build_spacer.py`, not scanned: its outline is the 32X's own underside
-collar, its top follows the collar's uneven bottom edge, its floor is flat).
-Its floor sits exactly on the console's top (probe: 0.0 mm). It stays on the
-unit, as it does for a Model 2 owner. **The drop (`build_spacer.py --drop`, 21.7)
-is measured against THIS Genesis model**: rebuild it if the Genesis shell or its
-cart seat changes, and leave it off entirely for a Model 1, where the 32X rests
-on the console.
+**The spacer is its own accessory**, as it was in the box: "Model 2 Spacer" on the
+32X's card (`SpawnCatalog._PERIPHERALS["sega32x"]`; `items_for` appends a unit
+card's own rows after its units, and still never a console). It is
+`Sega32xSpacer` (`Scenes/Objects/peripherals/sega32x_spacer.tscn`), shaped after
+the N64 paks: a pickable in group `sega32x_spacer` with an identity grab point
+and no state. The 32X's row names that group as its `accessory_group`, so the unit
+grows an `AccessoryMount` snap zone at its shell's origin (30 mm capture, like the
+paks' ports, so it never wins a grab meant for the unit). The spacer's model shares
+the 32X's frame, so clipped on it lands exactly where it was modelled, and from
+then on it rides the unit -- in a hand, and into the slot, where its floor lands on
+the console's roof (0.0 mm). Clipped on, it is exempt from the unit (whose box
+runs down to the plug tip, enclosing it) and, while the unit is seated, from the
+console (`_except_accessory_from`, following `_bind_host` / `_unbind_host`).
+**Saved on the UNIT** as `"accessory"` (in `_REFERENCE_FIELDS`); the spacer's own
+entry is a pose, like the paks'. Live attach is not a net event -- nor is seating
+the 32X itself; a late joiner gets both from the snapshot. `expansion_tests
+--only=spacer` and `scene_tests --only=spacer` (the save/clear/load round trip)
+pin it.
+
+The spacer was built in codex-photos (`sega-32x/build_spacer.py`, not scanned: its
+outline is the 32X's own underside collar, its top follows the collar's uneven
+bottom edge, its floor is flat). **The drop (`build_spacer.py --drop`, 21.7) is
+measured against THIS Genesis model**: rebuild it if the Genesis shell or its cart
+seat changes. A Model 1 needs no spacer: the 32X rests on that console.
 
 **Its own slot is modelled, so its bay follows the shell.** `_build_well_bay`
 puts the bay on the `CartFloor` marker (the plate at the bottom of the slot
@@ -329,6 +346,9 @@ figures. The flaps reach the funnel walls at about 82°.
   res://Tools/models/sega32x_probe.tscn -- --out=C:/path/to/stills
 ```
 
-Windowed. It hides every visual except the shell, the console's model and the
-cartridge (the room's panels stand in front of its cameras), and prints facing,
-gap, plug depth, spacer contact, the cart against `CartFloor`, and the flap angles.
+Windowed. It spawns the spacer beside the unit, clips it on, seats the pair and
+loads a cartridge. It hides every visual except the shell, the spacer, the
+console's model and the cartridge (the room's panels stand in front of its
+cameras; it only ever hides, so hidden hand poses and highlights stay hidden), and
+prints facing, gap, plug depth, spacer contact, the cart against `CartFloor`, and
+the flap angles.

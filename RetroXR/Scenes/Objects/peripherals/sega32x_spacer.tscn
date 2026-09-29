@@ -1,0 +1,65 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/sega32x_spacer.gd" id="1_spacer"]
+[ext_resource type="Script" uid="uid://myg1jnlsxhnm" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="Script" uid="uid://b8uwrf51jd5xm" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="3_grabpoint"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_right.tscn" id="4_rhand"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_lhand"]
+[ext_resource type="PackedScene" path="res://imported-assets/consoles/sega_32x/sega32x_spacer.glb" id="6_model"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_spacer"]
+friction = 0.8
+
+; The Genesis Model 2 spacer: a black plastic tray whose outline is the 32X's own
+; underside collar (136 x 79.5 mm), open on top, with a slot in its floor that
+; the 32X's plug passes through. Frame = the 32X's (sega32x_spacer.glb): y = 0 is
+; the 32X's resting plane, the floor's underside is at y = -0.0217, and the rim
+; rises to +0.012 at the front where the collar does; front +Z.
+;
+; One box for the tray. It is hollow and the plug goes through it, which only
+; matters once it is clipped to a 32X -- and then the two are exempt from each
+; other (RetroExpansion._on_accessory_in).
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.136, 0.0237, 0.0795)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.146, 0.034, 0.09)
+
+[node name="Sega32xSpacer" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.04
+physics_material_override = SubResource("PhysMat_spacer")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_spacer")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.00985, 0.00125)
+shape = SubResource("BoxShape3D_body")
+
+[node name="Model" parent="." instance=ExtResource("6_model")]
+
+; IDENTITY: a snap zone composes the grab point, and the model shares the 32X's
+; frame, so this seats the spacer exactly under a 32X's AccessoryMount.
+[node name="GrabPoint" type="Marker3D" parent="."]
+visible = false
+script = ExtResource("3_grabpoint")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.00985, 0.00125)
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="HandRight" parent="." instance=ExtResource("4_rhand")]
+visible = false
+
+[node name="HandLeft" parent="." instance=ExtResource("5_lhand")]
+visible = false

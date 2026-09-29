@@ -165,6 +165,12 @@ const _PERIPHERALS: Dictionary = {
 	"genesis": [
 		{"kind": "peripheral", "label": "A/V Cable", "spawn": "genesis_av_cable"},
 	],
+	# The riser Sega packed with the 32X for the Model 2, whose slot leaves the
+	# unit standing on its plug. On the 32X's card, beside the unit it clips under
+	# (items_for appends a unit card's own rows after its units).
+	"sega32x": [
+		{"kind": "peripheral", "label": "Model 2 Spacer", "spawn": "sega32x_spacer"},
+	],
 }
 
 
@@ -391,9 +397,11 @@ static func items_for(systemid: String) -> Array:
 	# stays) and its discs are atarijaguarcd -- and without this its card fell
 	# through to the console path below and grew a "Primitive System": a Jaguar
 	# CD console, which never existed. It is an add-on for the Jaguar, the
-	# Jaguar's card offers the console, and this card offers only the unit.
+	# Jaguar's card offers the console, and this card offers only the unit --
+	# and whatever that unit carries into the room with it (_PERIPHERALS: the
+	# 32X's Model 2 spacer), never a console or a pad.
 	if _is_expansion_media(systemid):
-		return _units_carded_here(systemid)
+		return _units_carded_here(systemid) + (_PERIPHERALS.get(systemid, []) as Array).duplicate(true)
 
 	var primitive: Array = []
 	var imported: Array = []

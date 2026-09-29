@@ -59,6 +59,8 @@ const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages
 const _REFERENCE_FIELDS := [
 	"tv", "cartridge", "memcard", "tape", "disc", "media", "system",
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
+	# The clip-on accessory on an expansion unit -- the 32X's Model 2 spacer.
+	"accessory",
 ]
 ## Stamped on a mod prop when it spawns, so _serialize_node can recognise it
 ## without a class to test against. The value is the registered type string.
@@ -215,6 +217,7 @@ const WIIMOTE_SCENE          := preload("res://Scenes/Objects/controllers/wii/wi
 const NUNCHUK_SCENE          := preload("res://Scenes/Objects/controllers/wii/nunchuk.tscn")
 const MOTION_PLUS_SCENE      := preload("res://Scenes/Objects/controllers/wii/motion_plus.tscn")
 const RUMBLE_PAK_SCENE       := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
+const SEGA32X_SPACER_SCENE   := preload("res://Scenes/Objects/peripherals/sega32x_spacer.tscn")
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
@@ -319,6 +322,10 @@ const PLAIN_SCENES := {
 	# serialize branch of its own; all three are still instantiated from here.
 	"rumble_pak": RUMBLE_PAK_SCENE,
 	"controller_pak": CONTROLLER_PAK_SCENE,
+	# The 32X's Model 2 spacer: a pose here, and which 32X it is clipped to
+	# restored from that UNIT's entry ("accessory"), as the paks are from their
+	# controller's.
+	"sega32x_spacer": SEGA32X_SPACER_SCENE,
 	"transfer_pak": TRANSFER_PAK_SCENE,
 	# The Dreamcast's VMU is the same shape of thing as the Controller Pak — a
 	# card that seats in a controller — so it carries card fields on top of the
@@ -1449,6 +1456,11 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		var own_b := _resolve_ref(root, spawned, d.get("media_b")) as Node3D
 		if own_b:
 			(obj as RetroExpansion).restore_media(own_b, 1)
+		# Its clip-on accessory (the 32X's Model 2 spacer), on the same terms: a
+		# pose relative to the unit, whether or not the unit is seated yet.
+		var accessory := _resolve_ref(root, spawned, d.get("accessory")) as Node3D
+		if accessory:
+			(obj as RetroExpansion).restore_accessory(accessory)
 	elif obj is TransferPak:
 		# The Game Boy cartridge in the pak's roof, on the same terms as an
 		# expansion's own bay above: a pose relative to the pak, so it lands right
@@ -1865,6 +1877,10 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		})
 	elif node is RumblePak:
 		return _base(id, "rumble_pak", n3d)
+	elif node is Sega32xSpacer:
+		# Pose only, for the Rumble Pak's reason; which 32X it is clipped to is on
+		# the unit's entry.
+		return _base(id, "sega32x_spacer", n3d)
 	elif node is JumpPack:
 		# Pose only, for the Rumble Pak's reason: it carries no state of its
 		# own. It needs a branch here all the same, because PLAIN_SCENES is
@@ -1926,6 +1942,9 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			# the same reason the second memory card is: an array would not load
 			# in any room file saved before there was a second slot.
 			"media_b": _ref(node_to_id, unit.get_media(1)),
+			# What is clipped on -- the 32X's Model 2 spacer. Absent from every
+			# room saved before units took accessories, so read with a default.
+			"accessory": _ref(node_to_id, unit.get_accessory()),
 			# The unit's own memory, so its saves come back with it and are not
 			# minted afresh under a new name.
 			"card_id": unit.card_id,
