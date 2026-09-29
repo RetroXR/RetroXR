@@ -39,6 +39,7 @@
     "rope_tests": 82,
     "scene_tests": 169,
     "scrape_tests": 88,
+    "sega32x_cart_tests": 20,
     "sfc_cart_tests": 72,
     "snes_cart_tests": 122,
     "screen_cast_light_tests": 11,

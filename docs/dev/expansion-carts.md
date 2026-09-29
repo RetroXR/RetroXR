@@ -337,9 +337,12 @@ puts the bay on the `CartFloor` marker (the plate at the bottom of the slot
 funnel) plus half the cartridge's height, and draws no dark `WellMouth` plate.
 The box roof, which every other well unit uses, is 18 mm in front of the real
 slot and 2 mm high. The probe measures the seated cart's bottom on the floor at
-0.0 mm and centred in z. `Flap_Front` / `Flap_Back` are origined on their hinges
-and swing ±80° while a cartridge is in (`_swing_flaps`), the Mega Drive's own
-figures. The flaps reach the funnel walls at about 82°.
+0.0 mm and centred in z. The cart standing in it is the photographed 32X cartridge
+(`sega32x-cartridges.md`), 112.8 × 73 × 17 mm; the slot is 114.0 × 18.5 mm at its
+narrowest, 5 mm above the floor, so it clears by 0.6 mm a side. `Flap_Front` /
+`Flap_Back` are origined on their hinges and swing ±80° while a cartridge is in
+(`_swing_flaps`), the Mega Drive's own figures. The flaps reach the funnel walls
+at about 82°.
 
 ```bash
 "$godot" --path RetroXR --resolution 960x720 --position 20,20 \
