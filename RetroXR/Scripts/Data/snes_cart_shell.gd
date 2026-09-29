@@ -1,15 +1,17 @@
 ## SnesCartShell — which body and moulded shell a Super NES cartridge spawns with.
 ##
-## The two bodies are the North American (NTSC-U) shell, alike but for the front
-## latch: Type A, the deep locking notch (Super Mario World's), and Type B, the
-## sloped recess (Bubsy II's) that replaced it partway through 1993. Games printed
-## after the change, reprints of older ones included, came in Type B.
+## Three bodies. Two are the North American (NTSC-U) shell, alike but for the
+## front latch: Type A, the deep locking notch (Super Mario World's), and Type B,
+## the sloped recess (Bubsy II's) that replaced it partway through 1993. Games
+## printed after the change, reprints of older ones included, came in Type B. The
+## third is the Super Famicom shell, which Japan, Europe and Australia shared:
+## rounded top, ribbed back, 128 x 87.5 x 20 mm (Super Mario RPG's).
 ##
 ## Auto (RetroCartridge.body_region empty) gives a North American ROM the body of
 ## its first print by release date: Type B from TYPE_B_FROM on, else Type A, which
-## is also the answer when no date is known. A ROM from any other market keeps the
-## procedural box: the Super Famicom and PAL cartridges are a different shape. The
-## player can force either body on any ROM at spawn.
+## is also the answer when no date is known. A Japanese, European or Australian
+## ROM gets the Super Famicom body; a ROM of no known market keeps the procedural
+## box. The player can force any body on any ROM at spawn.
 ##
 ## The market is the scraper's region for the ROM, else the destination byte of
 ## the internal header. The shell colour is read from that header's title, never
@@ -22,9 +24,13 @@ extends RefCounted
 const SYSTEMID := "snes"
 const BODY_TYPE_A := "res://imported-assets/carts/snes/snes_cart_type_a.glb"
 const BODY_TYPE_B := "res://imported-assets/carts/snes/snes_cart_type_b.glb"
+const BODY_SFC := "res://imported-assets/carts/sfc/sfc_cart.glb"
 ## RetroCartridge.body_region values the player can force. Empty is Auto.
 const TYPE_A := "type_a"
 const TYPE_B := "type_b"
+const SFC := "sfc"
+## Markets whose cartridges are the Super Famicom shell.
+const SFC_MARKETS: Array[String] = ["jp", "eu", "au"]
 const DEFAULT_PRESET := &"grey"
 
 ## First release date, YYYYMMDD, from which Auto picks Type B. Collectors date the
@@ -69,13 +75,18 @@ static func body_model_for_rom(body_region: String, systemid: String, rom_path: 
 
 
 ## A forced body on any ROM; otherwise a North American ROM's first print by
-## `released` (YYYYMMDD, or "" when unknown), and "" for any other market.
+## `released` (YYYYMMDD, or "" when unknown), the Super Famicom body for the
+## markets that shared it, and "" when the market is unknown.
 static func body_model(body_region: String, market_name: String, released := "") -> String:
 	match body_region:
 		TYPE_A:
 			return BODY_TYPE_A
 		TYPE_B:
 			return BODY_TYPE_B
+		SFC:
+			return BODY_SFC
+	if market_name in SFC_MARKETS:
+		return BODY_SFC
 	if market_name != "us":
 		return ""
 	return BODY_TYPE_B if released.length() == 8 and released >= TYPE_B_FROM else BODY_TYPE_A

@@ -1,0 +1,19 @@
+Super Famicom / PAL Super Nintendo cartridge shell (sfc_cart.glb)
+
+Own work. Ryan McClelland's photographs and caliper measurements of a Super
+Famicom cartridge (Super Mario RPG, SHVC-006), rebuilt as a parametric Blender
+model registered to those photographs and reduced for real-time use (the
+debranded mobile tier: 20,768 triangles, 128 x 87.5 x 20 mm). The PAL cartridge
+is the same shell. The source .blend files, build scripts and references live
+outside this repository (codex-photos/snes-cart-jap/cartridge_assets:
+build_all.py, export_retroxr.py). Plastic grain and the rear ribbing are tangent
+normal maps; the Label mesh carries a plain white placeholder that the cartridge
+script replaces with the scraped label art.
+
+Licensed with the rest of RetroXR (see the repository LICENSE).
+
+No third-party marks are carried. The moulded Nintendo oval and its (R) on the
+back are left off, and the rear warning sticker (recreated, not scanned) keeps
+its warning text, CASSETTE, MODEL NO. SHVC-006 and its serial without the
+"SUPER FAMICOM(R)" mark or the trademark notice line. The moulded
+PAT. PEND. / MADE IN JAPAN stays.

@@ -83,6 +83,11 @@ const CART_SIZES: Dictionary = {
 ## without an entry above.
 const CART_SIZE_DEFAULT := Vector3(0.10, 0.08, 0.015)
 
+## The Super Famicom shell, which Japan, Europe and Australia shared
+## (SnesCartShell.BODY_SFC): the model's own, caliper-measured, 20 mm over the rear
+## ribs. The "snes" row above is the North American shell.
+const CART_SIZE_SFC := Vector3(0.128, 0.0875, 0.020)
+
 ## The 3.5-inch disk: 90 mm across, 94 mm deep, 3.3 mm thick — the real thing.
 ## One constant rather than a row per system, because every machine below loaded
 ## from the same disk. Axes match a cartridge: the shutter edge is -Y (where a
@@ -293,7 +298,10 @@ static func has_cart_size(systemid: String) -> bool:
 ## objects. Everything under "satellaview" is an 8M pack EXCEPT the BS-X shell
 ## itself, which is an ordinary Super Famicom cartridge and is the file the town
 ## boots from -- sizing it off the systemid alone shrank it to pack size.
-static func cart_size(systemid: String, rom_path := "") -> Vector3:
+## `body_model` is the model the cartridge spawns as, for a system whose bodies
+## differ in size: a Super NES cartridge in the Super Famicom shell is smaller
+## than the North American one.
+static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vector3:
 	if _mod_media.has(systemid):
 		var m: Dictionary = _mod_media[systemid]
 		if bool(m.get("floppy", false)):
@@ -303,6 +311,8 @@ static func cart_size(systemid: String, rom_path := "") -> Vector3:
 	# A floppy system with a row of its own (the 64DD) is sized by that row.
 	if FLOPPY_SYSTEMS.has(systemid) and not CART_SIZES.has(systemid):
 		return FLOPPY_SIZE
+	if systemid == SnesCartShell.SYSTEMID and body_model == SnesCartShell.BODY_SFC:
+		return CART_SIZE_SFC
 	if systemid == "satellaview" and not rom_path.is_empty():
 		var ext := rom_path.get_extension().to_lower()
 		if ext == "sfc" or ext == "smc":

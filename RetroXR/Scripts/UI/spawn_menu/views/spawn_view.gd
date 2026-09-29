@@ -3245,8 +3245,9 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 		body_options = [["Auto (from the ROM)", ""],
 				["USA / PAL", N64CartShell.REGION_USA], ["Japan", N64CartShell.REGION_JPN]]
 	elif systemid == SnesCartShell.SYSTEMID:
-		body_options = [["Auto (by release date)", ""],
-				["Type A (groove)", SnesCartShell.TYPE_A], ["Type B (recess)", SnesCartShell.TYPE_B]]
+		body_options = [["Auto (from the ROM)", ""],
+				["Type A (groove)", SnesCartShell.TYPE_A], ["Type B (recess)", SnesCartShell.TYPE_B],
+				["Super Famicom / PAL", SnesCartShell.SFC]]
 	if not body_options.is_empty():
 		vbox.add_child(MenuStyle.header("Body"))
 		var bodies := MenuStyle.hbox(10)

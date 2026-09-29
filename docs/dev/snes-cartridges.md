@@ -1,6 +1,6 @@
 # §2y-snes — Super NES cartridges
 
-### 2y-snes. Super NES cartridges — two North American bodies, a moulded colour, a scraped sticker
+### 2y-snes. Super NES cartridges — two North American bodies, the Super Famicom / PAL one, a moulded colour, a scraped sticker
 
 `RetroCartridge` builds a `snes` cartridge from `imported-assets/carts/snes/`:
 `snes_cart_type_a.glb` or `snes_cart_type_b.glb`, the debranded mobile tier of the
@@ -31,16 +31,16 @@ They share one rear shell. Parts:
 
 | `body_region` | market | first release | body |
 | --- | --- | --- | --- |
-| `TYPE_A` / `TYPE_B` (forced) | any | any | that body |
+| `TYPE_A` / `TYPE_B` / `SFC` (forced) | any | any | that body |
 | empty (Auto) | `us` | before 1994, or unknown | Type A |
 | empty | `us` | 1994 on | Type B |
-| empty | `jp`, `eu`, `au`, unknown | | none: the procedural box |
+| empty | `jp`, `eu`, `au` (`SFC_MARKETS`) | any | Super Famicom |
+| empty | unknown | | none: the procedural box |
 
 The market is the scraper's region for the ROM (`gamelist.json`, read through
 `N64CartShell.market_of_region`), else the internal header's destination byte
-(+0x19: 0x01 and 0x0F Canada `us`, 0x00 `jp`, 0x02–0x0A `eu`, 0x11 `au`). The
-Super Famicom and PAL cartridges are a different shape, so their ROMs keep the box
-until that model arrives; the natural hook is another body here, by market.
+(+0x19: 0x01 and 0x0F Canada `us`, 0x00 `jp`, 0x02–0x0A `eu`, 0x11 `au`). Korea
+(0x0D) and the other codes have no market, so they keep the box.
 
 The release date is the gamelist ROM entry's `releasedate` (`date_digits` reads
 both `1994-11-01` and `19941101T000000`). Why 1994 (`TYPE_B_FROM`): collectors date
@@ -57,17 +57,56 @@ when checksum and complement sum to 0xFFFF. `KILLER INSTINCT` is black (it shipp
 in black plastic); everything else is grey, the model's own plastic.
 `Resources/snes_cartridge_shells.tres`; black is a visual approximation.
 
-**Painting.** `CartridgeColor.PALETTE_PATHS` has `snes`; `SNES_Shell_Plastic` and
-`SNES_Smooth_Plastic` are in `EXTERIOR_PLASTIC` and `OWN_ROUGHNESS` (the grain and
-roughness stay the mould's). The halves go by node name, the bezel by side. Label,
+**Painting.** `CartridgeColor.PALETTE_PATHS` has `snes`; `SNES_Shell_Plastic`,
+`SNES_Smooth_Plastic` and the Super Famicom body's `SNES_Shell_Plastic_Ribbed` are
+in `EXTERIOR_PLASTIC` and `OWN_ROUGHNESS` (the grain and roughness stay the
+mould's). The halves go by node name, the bezel by side. Label,
 fold, sticker, board, contacts and screws are never painted, and `demetal` does not
 run (`_AUTHORED_MATERIALS`: contacts and screws are metal). A flake mix borrows the
 N64 gold's flakes; this palette has none.
 
 **Forcing**: held, a `snes` ROM row opens `_show_cart_spawn_options` with a Body
-row (Auto (by release date) / Type A (groove) / Type B (recess), into
-`body_region`), the grey and black swatches, and Custom. A forced body is spawned
-on any ROM, a Japanese one included.
+row (Auto (from the ROM) / Type A (groove) / Type B (recess) / Super Famicom / PAL,
+into `body_region`), the grey and black swatches, and Custom. A forced body is
+spawned on any ROM: a US shell on a Japanese ROM, or the Super Famicom shell on a
+US one.
+
+### The Super Famicom / PAL body
+
+`imported-assets/carts/sfc/sfc_cart.glb` (`SnesCartShell.BODY_SFC`) is the shell
+Japan, Europe and Australia shared: rounded top, the NTSC Type A-like grip slot
+with a ridged floor, ribbed back, and the two notches cut into its top edge. It is
+the debranded mobile LOD0 of the user's photographed and calipered Super Mario RPG
+(SHVC-006), codex-photos/snes-cart-jap/cartridge_assets (`build_all.py` →
+`export_retroxr.py`), 20,768 triangles, **128 × 87.5 × 20 mm** (20 over the rear
+ribs), in the same frame as the US bodies. The LODs are Godot's own.
+
+- **Its size is not the `snes` row.** `MediaDimensions.cart_size(systemid,
+  rom_path, body_model)` returns `CART_SIZE_SFC` for this body, and
+  `RetroCartridge._cart_size()` passes the body `_body_model()` resolved (cached
+  per ROM and `body_region`, since the size passes run on every drop). Every size
+  pass in cartridge.gd goes through it (the box, the body it rests on, the aim box,
+  the seated stub and the model's scale), so it loads at scale 1. A new body of
+  another size needs the same treatment, or the per-axis fit stretches it.
+- Parts: `Front_Shell`, `Rear_Shell` (`SNES_Shell_Plastic`, and
+  `SNES_Shell_Plastic_Ribbed` for the flat rear panels, whose ribbing is a baked
+  normal + AO map on UV0), `Molded_Made_In_Japan` and `Cavity_Mold_ID`
+  (`SNES_Smooth_Plastic`, raised lettering on the rear moulding, painted with it),
+  `Label` (the front label only: this shell's label does not wrap over the top),
+  `Rear_Sticker`, `Connector_PCB`, `Connector_Contacts`, `Grounding_Clip`, and
+  brass `Security_Screw_L/R`.
+- Debranded like the US bodies: no moulded Nintendo oval or ®; the recreated rear
+  sticker drops "SUPER FAMICOM®" and the trademark notice line and keeps its
+  warning text, CASSETTE, MODEL NO. SHVC-006 and serial. The moulded
+  PAT. PEND. / MADE IN JAPAN and the mold ID stay.
+- Its plastic is authored as the palette's grey, so the default `grey` preset
+  leaves it as it is. The PAL cartridges use the same shell and, for now, the
+  Japanese sticker; no PAL specimen has been photographed.
+
+**Re-export**: `python source/build_all.py` in codex-photos/snes-cart-jap/cartridge_assets
+writes `retroxr/sfc_cart.glb` and runs `fix_unmapped_uvs.py` on it, then `--check`
+(three hairline slivers where the front shoulder channel meets the top rim always
+need it). Copy that GLB over this one.
 
 **Re-export**: run the three Blender scripts in codex-photos/snes-cart, copy the
 two GLBs over, then `python Tools/glb/fix_unmapped_uvs.py <glb>` and `--check` on
@@ -82,8 +121,18 @@ their own cases. The cartridge group writes one label PNG into the REAL roms roo
 `snes/media/label` (as gb_cart_tests does) and removes it, and any folder it had
 to create.
 
+`sfc_cart_tests` (72 cases): resources, model, branding (no SUPER FAMICOM mark or
+trademark line on the sticker, MODEL NO. and serial printed, MADE IN JAPAN kept),
+uv, surfaces (the ribbed panel is moulding, the lettering on the rear half), color,
+kept, lookup (by market, forced, and from header fixtures 0x00/0x02/0x09/0x11/0x01),
+size, cartridge (Japanese, PAL and forced carts spawn it unstretched and centred, at
+the Super Famicom size; a US ROM still gets Type A). Mutation-tested: dropping
+`SFC_MARKETS`, the forced `SFC`, the body from `_cart_size()`, or the ribbed
+material from `EXTERIOR_PLASTIC` or `OWN_ROUGHNESS` each fail their own cases.
+
 ```bash
 "$godot" --headless --path RetroXR res://Tests/snes_cart_tests.tscn
+"$godot" --headless --path RetroXR res://Tests/sfc_cart_tests.tscn
 "$godot" --path RetroXR --resolution 1600x900 --position 20,20 \
   res://Tools/models/snes_cart_render_probe.tscn -- --out=<dir> [--label=<front-face png>]
 ```

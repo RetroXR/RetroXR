@@ -479,8 +479,8 @@ func _test_lookup() -> void:
 		["a US game from late 1993", "", "us", "19931231", A],
 		["a US game from 1994 (Bubsy II)", "", "us", "19941101", B],
 		["a US game with no known date", "", "us", "", A],
-		["a Japanese game", "", "jp", "19910823", ""],
-		["a PAL game", "", "eu", "19950101", ""],
+		["a Japanese game", "", "jp", "19910823", SnesCartShell.BODY_SFC],
+		["a PAL game", "", "eu", "19950101", SnesCartShell.BODY_SFC],
 		["a game of no known market", "", "", "", ""],
 		["Type B forced on an early US game", SnesCartShell.TYPE_B, "us", "19910823", B],
 		["Type A forced on a late US game", SnesCartShell.TYPE_A, "us", "19950101", A],
@@ -505,8 +505,9 @@ func _test_cartridge() -> void:
 	var ki := await _spawn(_write_rom(FIXTURE + ".sfc", _rom("KILLER INSTINCT")))
 	var plain := await _spawn(_write_rom("plain.sfc", _rom("SUPER MARIOWORLD", 0x7FC0, 0x8000)))
 	var jp := await _spawn(_write_rom("jp.sfc", _rom("SUPER MARIOWORLD", 0x7FC0, 0x8000, 0, true, 0x00)))
-	_ok(jp.get_node_or_null("CartModel") == null and (jp.get_node("CartridgeMesh") as Node3D).visible,
-		"cartridge/a Japanese ROM keeps the procedural box, not the US shell")
+	_ok(jp.get_node_or_null("CartModel") != null
+		and jp.get_node("CartModel").scene_file_path == SnesCartShell.BODY_SFC,
+		"cartridge/a Japanese ROM spawns the Super Famicom shell, not the US one")
 	var ki_model := ki.get_node_or_null("CartModel") as Node3D
 	_ok(ki_model != null and ki_model.scene_file_path == SnesCartShell.BODY_TYPE_A,
 		"cartridge/a Super NES ROM spawns the Type A model")

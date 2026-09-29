@@ -67,10 +67,13 @@ const FLAKE_FLOOR := 0.05
 ## Materials of the exterior moulding, by the name the model gives them: the N64
 ## bodies' three, the Game Boy cart's front, rear, smooth rails and the rim
 ## round its sticker recess, then the Game Boy Advance cart's two halves, then the
-## Super NES cart's grained shell and the smooth bezel round its rear sticker.
+## Super NES cart's grained shell and the smooth bezel round its rear sticker (the
+## Super Famicom body's moulded lettering), and the Super Famicom body's ribbed
+## back, whose ribs are a baked normal map.
 const EXTERIOR_PLASTIC: Array[StringName] = [&"Shell_Plastic", &"Molded_Smooth_Plastic", &"Nintendo_Molded_SVG",
 	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow",
-	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic", &"SNES_Shell_Plastic", &"SNES_Smooth_Plastic"]
+	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic", &"SNES_Shell_Plastic", &"SNES_Smooth_Plastic",
+	&"SNES_Shell_Plastic_Ribbed"]
 
 ## A moulding authored lighter or darker than the rest of its shell, as a factor
 ## on the colour painted: the Game Boy cart's ratios to its front shell. Every
@@ -82,11 +85,11 @@ const SHADE := {
 
 ## Mouldings whose own roughness a paint keeps, because the texture of the mould
 ## (the Game Boy cart's rough rear, smooth rails and matte rim; the Game Boy
-## Advance cart's baked roughness map; the Super NES cart's grain and bezel) sets
-## it rather than the plastic's colour.
+## Advance cart's baked roughness map; the Super NES cart's grain, bezel and ribs)
+## sets it rather than the plastic's colour.
 const OWN_ROUGHNESS: Array[StringName] = [&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth",
 	&"Shell_Seam_Shadow", &"Tintable_Front_Plastic", &"Tintable_Rear_Plastic",
-	&"SNES_Shell_Plastic", &"SNES_Smooth_Plastic"]
+	&"SNES_Shell_Plastic", &"SNES_Smooth_Plastic", &"SNES_Shell_Plastic_Ribbed"]
 
 ## The half each moulded part belongs to, by node-name prefix. The Nintendo logo
 ## patch and the bottom latch tabs are part of the rear moulding. A part not

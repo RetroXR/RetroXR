@@ -51,8 +51,13 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 ## A regional body the player asked for at spawn: N64CartShell.REGION_USA or
 ## REGION_JPN, empty for the ROM's own market. It picks the SHAPE only — the
 ## shell colour is still looked up under the market the ROM really has. A Super NES
-## cartridge's is its front latch: SnesCartShell.TYPE_A or TYPE_B.
+## cartridge's is SnesCartShell.TYPE_A or TYPE_B (the North American front latch)
+## or SFC (the Super Famicom shell).
 @export var body_region: String = ""
+
+## _body_model()'s answer, and the systemid|rom_path|body_region it was for.
+var _body_model_path := ""
+var _body_model_key := ""
 
 var _options_panel: Node3D = null
 var _pack_panel: BsxPackPanel = null
@@ -184,6 +189,32 @@ func get_card_size() -> Vector3:
 	return MediaDimensions.cart_size(systemid, rom_path)
 
 
+## The real cartridge model this one spawns as, or "" for the procedural box.
+##
+## An N64 cartridge's body is regional: N64CartShell picks it per ROM. So is a
+## Super NES one's: SnesCartShell gives a US ROM the latch of its first print and a
+## Japanese or PAL ROM the Super Famicom shell. Kept until the ROM or the forced
+## body changes: the size passes ask on every drop, and the Super NES answer reads
+## the ROM's header.
+func _body_model() -> String:
+	var key := "%s|%s|%s" % [systemid, rom_path, body_region]
+	if key == _body_model_key:
+		return _body_model_path
+	_body_model_key = key
+	_body_model_path = _CART_MODELS.get(systemid, "")
+	if systemid == "n64":
+		_body_model_path = N64CartShell.body_model_for_region(body_region, N64CartShell.market(systemid, rom_path))
+	elif systemid == SnesCartShell.SYSTEMID:
+		_body_model_path = SnesCartShell.body_model_for_rom(body_region, systemid, rom_path)
+	return _body_model_path
+
+
+## This cartridge's real-world size: the system's, or its body's where a system's
+## bodies differ (the Super Famicom shell is smaller than the North American one).
+func _cart_size() -> Vector3:
+	return MediaDimensions.cart_size(systemid, rom_path, _body_model())
+
+
 ## Swap the procedural box for this system's real cartridge model when one ships.
 ##
 ## The GLB's body runs +Y from its connector with the label on +Z — the same
@@ -193,14 +224,8 @@ func get_card_size() -> Vector3:
 func _apply_cart_model() -> void:
 	if _model_label != null or has_node("CartModel"):
 		return
-	# An N64 cartridge's body is regional: N64CartShell picks it per ROM. So is a
-	# Super NES one's: SnesCartShell gives a US ROM the latch of its first print.
 	var market := N64CartShell.market(systemid, rom_path) if systemid == "n64" else ""
-	var path: String = _CART_MODELS.get(systemid, "")
-	if systemid == "n64":
-		path = N64CartShell.body_model_for_region(body_region, market)
-	elif systemid == SnesCartShell.SYSTEMID:
-		path = SnesCartShell.body_model_for_rom(body_region, systemid, rom_path)
+	var path := _body_model()
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var scene := load(path) as PackedScene
@@ -216,7 +241,7 @@ func _apply_cart_model() -> void:
 	# One uniform factor off width and height leaves depth to whatever proportions
 	# the asset happens to have — the NES cart drew 12.2 mm against a real 17 — and
 	# depth is the axis a bay's clearances are built on.
-	var s := MediaDimensions.cart_size(systemid, rom_path)
+	var s := _cart_size()
 	var k := Vector3(
 		s.x / maxf(ab.size.x, 0.0001),
 		s.y / maxf(ab.size.y, 0.0001),
@@ -350,7 +375,7 @@ func _update_label() -> void:
 func _apply_system_size() -> void:
 	if not MediaDimensions.has_cart_size(systemid):
 		return
-	var s := MediaDimensions.cart_size(systemid, rom_path)
+	var s := _cart_size()
 
 	var body := get_node_or_null("CartridgeMesh") as MeshInstance3D
 	if body and body.mesh is BoxMesh:
@@ -432,7 +457,7 @@ func _apply_system_size() -> void:
 func _apply_floppy_shell() -> void:
 	if not MediaDimensions.uses_floppy(systemid) or has_node("CartModel"):
 		return
-	var s := MediaDimensions.cart_size(systemid, rom_path)
+	var s := _cart_size()
 
 	# The shell and its shutter are built once; the Shutter node's absence is what
 	# says this cartridge has not been through here yet.
@@ -537,7 +562,7 @@ func _tighten_pointer_box() -> void:
 	var pcol := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pcol == null or not (pcol.shape is BoxShape3D):
 		return
-	var s := MediaDimensions.cart_size(systemid, rom_path)
+	var s := _cart_size()
 	var shape := pcol.shape.duplicate() as BoxShape3D
 	shape.size = s + Vector3(0.004, 0.004, 0.004)
 	pcol.shape = shape
@@ -553,7 +578,7 @@ func set_seated_grab_stub(depth: float) -> void:
 	if not MediaDimensions.has_cart_size(systemid):
 		return
 	_stub_seated = true
-	var s := MediaDimensions.cart_size(systemid, rom_path)
+	var s := _cart_size()
 	var stub_center := Vector3(0, s.y / 2.0 - depth / 2.0, 0)
 	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col and col.shape is BoxShape3D:

@@ -1,13 +1,14 @@
 ## Renders the Super NES cartridges as the spawn menu makes them: Type A and Type
-## B wearing a scraped label, Killer Instinct's black shell, and a mixed metal-flake
-## shell — from the front, the back, below, and the label up close.
+## B wearing a scraped label, Killer Instinct's black shell, a mixed metal-flake
+## shell, and the Super Famicom / PAL body with the label — from the front, the
+## back, below, and each label up close.
 ##
 ##     "$godot" --path RetroXR --resolution 1600x900 --position 20,20 \
 ##         res://Tools/models/snes_cart_render_probe.tscn -- --out=<dir> [--label=<png>]
 ##
 ## Windowed: the headless renderer returns a blank image at the right size.
-## `--label` is copied into the snes media/label folder as the first two carts'
-## scraped art for the run, and removed again (with any folder made for it).
+## `--label` is copied into the snes media/label folder as the Type A, Type B and
+## Super Famicom carts' scraped art for the run, and removed again (with any folder made for it).
 ## The flat grey studio is for shape and label placement, not for judging colour.
 extends Node
 
@@ -43,6 +44,7 @@ func _run(label_src: String) -> void:
 		["b.sfc", "BUBSY II", SnesCartShell.TYPE_B, "", false],
 		["ki.sfc", "KILLER INSTINCT", "", "", false],
 		["flake.sfc", "SUPER MARIOWORLD", SnesCartShell.TYPE_B, "#2a6fd6", true],
+		["sfc.sfc", "SUPER MARIO RPG", SnesCartShell.SFC, "", false],
 	]
 	if not label_src.is_empty():
 		var img := Image.load_from_file(label_src)
@@ -50,7 +52,7 @@ func _run(label_src: String) -> void:
 			push_error("[snesrender] cannot read %s" % label_src)
 		else:
 			_make_label_dir()
-			for c: Array in carts.slice(0, 2):
+			for c: Array in carts.slice(0, 2) + carts.slice(4, 5):
 				var path := _label_dir().path_join(FIXTURE + "_" + str(c[0]).get_basename() + ".png")
 				img.save_png(path)
 				_labels.append(path)
@@ -94,6 +96,8 @@ func _run(label_src: String) -> void:
 	await _shot(sv, cam, Vector3(0.35, -0.55, 0.55), Vector3(0, -0.03, 0), "below.png")
 	await _shot(sv, cam, Vector3(-0.28, 0.10, 0.30), Vector3(-0.225, 0.01, 0.0), "type_a_close.png")
 	await _shot(sv, cam, Vector3(-0.13, 0.10, 0.30), Vector3(-0.075, 0.01, 0.0), "type_b_close.png")
+	await _shot(sv, cam, Vector3(0.43, 0.10, 0.30), Vector3(0.375, 0.01, 0.0), "sfc_close.png")
+	await _shot(sv, cam, Vector3(0.32, 0.10, -0.30), Vector3(0.375, 0.01, 0.0), "sfc_back_close.png")
 	_cleanup()
 	get_tree().quit(0)
 
