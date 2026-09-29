@@ -77,17 +77,18 @@ const _CART_MODELS := {
 	"nds": "res://imported-assets/carts/nintendo_ds/ds_cart.glb",
 	"n3ds": "res://imported-assets/carts/nintendo_3ds/3ds_cart.glb",
 	"sega32x": "res://imported-assets/carts/sega_32x/sega32x_cart.glb",
+	"genesis": "res://imported-assets/carts/genesis/genesis_cart.glb",
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
-## the N64, Game Boy, DS/3DS and 32X cartridges' contacts and screws are metal.
+## the N64, Game Boy, DS/3DS, 32X and Genesis cartridges' contacts and screws are metal.
 const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true}
+	"sega32x": true, "genesis": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
 const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true}
+	"sega32x": true, "genesis": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan

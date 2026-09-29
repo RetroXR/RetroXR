@@ -35,7 +35,9 @@ const CART_SIZES: Dictionary = {
 	# the body is not squashed per axis: the laser-scanned console slot it seats in
 	# is 61 x 7.85 mm, which a 9 mm grip clears only because it stands above it.
 	"gba": Vector3(0.060, 0.035, 0.009),
-	"genesis":       Vector3(0.110, 0.070, 0.017),
+	# The cartridge model's shell (genesis_cart.glb, a caliper-measured US cart), so
+	# the per-axis fit is 1:1. The 32X's `connector` is derived from this height.
+	"genesis":       Vector3(0.108, 0.067, 0.017),
 	# A 32X game is a Mega Drive cartridge -- same shell, same slot, and it goes
 	# into the 32X's own slot the way a plain cart goes into the console's. Listed
 	# so it is not handed CART_SIZE_DEFAULT, which is a different shape entirely
