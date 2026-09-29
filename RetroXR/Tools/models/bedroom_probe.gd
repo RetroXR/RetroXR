@@ -24,7 +24,9 @@
 ## sweeping its arc. `--sweep-frames=N` sets the clip length.
 ##
 ## Modes: stills (default), flythrough, both, timesweep. PNGs land in `out_dir`; delete it
-## when finished. Encode a flythrough with imageio at 24 fps:
+## when finished. `--lights-off` flips the wall switches first; `--empty-room` drops
+## the PlayerRig so the saved slot is not restored, which is how to judge the baked
+## shell lighting (with `--shell-unshaded`) without furniture hiding the corners. Encode a flythrough with imageio at 24 fps:
 ##
 ##     iio.get_writer("tour.mp4", fps=24, codec="libx264", pixelformat="yuv420p",
 ##                    macro_block_size=1, output_params=["-crf","24"])
@@ -98,7 +100,16 @@ func _resolve_mode() -> Mode:
 func _run() -> void:
 	var m: Mode = _resolve_mode()
 	DirAccess.make_dir_recursive_absolute(out_dir)
-	add_child(SCENE.instantiate())
+	var room := SCENE.instantiate()
+	# `--empty-room` renders the room as authored. The rig's spawn menu restores
+	# the last save slot, whose objects stand in front of exactly the walls and
+	# corners a lighting change has to be judged on.
+	if OS.get_cmdline_user_args().has("--empty-room"):
+		var rig := room.get_node_or_null("PlayerRig")
+		if rig != null:
+			room.remove_child(rig)
+			rig.free()
+	add_child(room)
 
 	_sv = SubViewport.new()
 	_sv.size = still_size if m == Mode.STILLS else video_size
@@ -115,6 +126,19 @@ func _run() -> void:
 	# without this half of the bake can never be looked at.
 	for i in 30:
 		await get_tree().process_frame
+	# The loading panel is welded to the RIG's camera, not this one, so while a
+	# slot restores it floats in the room as a black box across half the stills.
+	# Waited out, then suspended: with `--empty-room` nothing is left to announce
+	# the room's content ready, so the overlay would never end on its own.
+	var waited := 0
+	while LoadingOverlay.is_active() and waited < 600:
+		await get_tree().process_frame
+		waited += 1
+	if LoadingOverlay.is_active():
+		print("[probe] loading overlay still up after %d frames (%s) - hiding it"
+			% [waited, ", ".join(LoadingOverlay.owners().map(func(o): return str(o)))])
+	LoadingOverlay.suspend()
+	await get_tree().create_timer(0.5).timeout
 	if OS.get_cmdline_user_args().has("--lights-off"):
 		# Flip the SWITCH, not the light. `visible` on a ceiling fixture belongs to
 		# LightSwitch, which reasserts it from its own state - setting the light
@@ -133,6 +157,9 @@ func _run() -> void:
 				lit += 1
 		print("[probe] light switches turned off: %d, ceiling lights still visible: %d"
 			% [hit, lit])
+		# ShellLighting rebinds the baked volume on its own 10 Hz refresh, so the
+		# first two stills otherwise land on the lit volume under a dark switch.
+		await get_tree().create_timer(0.3).timeout
 
 
 	var globe := get_tree().root.find_child("FanGlobeLight", true, false) as OmniLight3D

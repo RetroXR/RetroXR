@@ -22,6 +22,15 @@ It forces the ceiling-light energy to 0.6 on purpose. The scene authors 1.2 and
 `QualityManager._adjust_lights` has not run that early, so a naive probe renders
 the room brighter than any player sees it.
 
+**The headset's baked shell lighting** (`Tools/room/bake_shell_gi.gd`) is judged with
+`-- --mode=stills --shell-unshaded --empty-room`, plus `--lights-off` for the other
+volume. `--empty-room` drops the PlayerRig so the saved slot is not restored, because its
+tables and TVs stand in front of the corners being judged. The baker strips the rig for
+the same reason: the first bedroom bake ran with a slot restored and baked that slot's
+furniture into the walls as blocky blue shadows. The baker also inherited the saved
+time-of-day lever, which a headset wall never follows, so it now pins the authored dusk
+(`-- --time=0..1` to choose another time).
+
 **Overwriting a texture in place needs a reimport.** A game run keeps serving the
 cached `.ctex`, so two successive recolours of the bed's atlas appeared to do
 nothing at all. Run `--editor --quit` between the overwrite and the render.
