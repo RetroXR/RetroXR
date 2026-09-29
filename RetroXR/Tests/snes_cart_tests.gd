@@ -246,7 +246,8 @@ func _test_resources() -> void:
 	var palette := CartridgeColor.get_palette(SnesCartShell.SYSTEMID)
 	_ok(palette != null and palette != CartridgeColor.get_palette(GbaCartShell.SYSTEMID),
 		"resources/the Super NES has a palette of its own")
-	_ok(Array(palette.ids()) == ["grey", "black"], "resources/palette carries exactly the presets", str(palette.ids()))
+	_ok(Array(palette.ids()) == ["grey", "black", "red"], "resources/palette carries exactly the presets",
+		str(palette.ids()))
 	_ok(palette.find(&"grey").availability == CartridgeShellPreset.Availability.STANDARD,
 		"resources/grey is the standard shell")
 
@@ -463,12 +464,44 @@ func _test_lookup() -> void:
 		var got := SnesCartShell.header_market(_header_of(_rom("GAME", 0xFFC0, 0x10000, 0, true, m[1])))
 		_ok(got == m[2], "lookup/destination %s is market \"%s\"" % [m[0], m[2]], "got \"%s\"" % got)
 	_ok(SnesCartShell.header_market(PackedByteArray()) == "", "lookup/no header, no market")
+	# The coloured shells, by title and market: only the North American Doom and
+	# Maximum Carnage were red; Killer Instinct was black wherever it was sold.
+	var shells := [
+		["DOOM", "us", &"red"], ["DOOM", "eu", &"grey"], ["DOOM", "jp", &"grey"], ["DOOM", "", &"grey"],
+		["MAXIMUM CARNAGE", "us", &"red"], ["MAXIMUM CARNAGE", "eu", &"grey"],
+		["KILLER INSTINCT", "us", &"black"], ["KILLER INSTINCT", "eu", &"black"],
+		["DOOM TROOPERS", "us", &"grey"], ["SUPER MARIOWORLD", "us", &"grey"],
+	]
+	for c: Array in shells:
+		var got := SnesCartShell.preset_for_title(c[0], c[1])
+		_ok(got == c[2], "lookup/%s in market \"%s\" is %s" % [c[0], c[1], c[2]], "got %s" % got)
+	# The file name's region tag: No-Intro's, then GoodTools'.
+	var tags := [
+		["Doom (USA).sfc", "us"], ["Doom (Japan) (En).sfc", "jp"], ["Flashback (Europe) (En,Fr).sfc", "eu"],
+		["Tetris Attack (Germany).sfc", "eu"], ["Street Racer (Australia).sfc", "au"],
+		["X Zone (Japan, USA).sfc", "us"], ["Doom (U) [!].smc", "us"], ["Super Mario World (JU).smc", "us"],
+		["Doom (E).smc", "eu"], ["Game (Rev 1) (USA).sfc", "us"], ["Game (PAL).sfc", ""],
+		["Game (Beta).sfc", ""], ["no tags.sfc", ""],
+	]
+	for t: Array in tags:
+		var got := SnesCartShell.filename_market("Z:/roms/snes/" + t[0])
+		_ok(got == t[1], "lookup/file name %s is market \"%s\"" % [t[0], t[1]], "got \"%s\"" % got)
+	# The tag outranks a wrong destination byte (Pinocchio (USA) says Japan).
+	var pinocchio := _write_rom("Pinocchio (USA).sfc", _rom("PINOCCHIO", 0x7FC0, 0x8000, 0, true, 0x00))
+	_ok(SnesCartShell.market(SnesCartShell.SYSTEMID, pinocchio) == "us"
+		and SnesCartShell.body_model_for_rom("", SnesCartShell.SYSTEMID, pinocchio) == SnesCartShell.BODY_TYPE_A,
+		"lookup/a USA-tagged file with a Japanese header byte is a US cartridge")
+	var untagged := _write_rom("untagged.sfc", _rom("PINOCCHIO", 0x7FC0, 0x8000, 0, true, 0x00))
+	_ok(SnesCartShell.market(SnesCartShell.SYSTEMID, untagged) == "jp", "lookup/with no tag the header byte decides")
 	var copier := _write_rom("copier.smc", _rom("KILLER INSTINCT", 0xFFC0, 0x10000, 0x200))
 	_ok(SnesCartShell.preset_for_rom(copier) == &"black", "lookup/a file's copier header is skipped by its size")
 	_ok(SnesCartShell.preset_for_rom("") == &"grey" and SnesCartShell.preset_for_rom("user://missing.sfc") == &"grey",
 		"lookup/no file is grey")
 	var every := PackedStringArray()
-	for id: StringName in SnesCartShell.TITLE_SHELLS.values() + [SnesCartShell.DEFAULT_PRESET]:
+	var answers: Array[StringName] = [SnesCartShell.DEFAULT_PRESET]
+	for entry: Array in SnesCartShell.TITLE_SHELLS.values():
+		answers.append(entry[0])
+	for id: StringName in answers:
 		if _preset(id) == null:
 			every.append(id)
 	_ok(every.is_empty(), "lookup/every answer is a palette preset", str(every))
@@ -505,6 +538,14 @@ func _test_cartridge() -> void:
 	var ki := await _spawn(_write_rom(FIXTURE + ".sfc", _rom("KILLER INSTINCT")))
 	var plain := await _spawn(_write_rom("plain.sfc", _rom("SUPER MARIOWORLD", 0x7FC0, 0x8000)))
 	var jp := await _spawn(_write_rom("jp.sfc", _rom("SUPER MARIOWORLD", 0x7FC0, 0x8000, 0, true, 0x00)))
+	var doom_us := await _spawn(_write_rom("Doom (USA).sfc", _rom("DOOM", 0x7FC0, 0x80000, 0, true, 0x01)))
+	var doom_jp := await _spawn(_write_rom("Doom (Japan) (En).sfc", _rom("DOOM", 0x7FC0, 0x80000, 0, true, 0x00)))
+	_ok(doom_us.get_node_or_null("CartModel") != null and _painted(doom_us.get_node("CartModel"), _preset(&"red").color),
+		"cartridge/Doom (USA) spawns red")
+	var doom_jp_model := doom_jp.get_node_or_null("CartModel") as Node3D
+	_ok(doom_jp_model != null and doom_jp_model.scene_file_path == SnesCartShell.BODY_SFC
+		and not _near(_mat(doom_jp_model, "Front_Shell").albedo_color, _preset(&"red").color),
+		"cartridge/Doom (Japan) spawns the grey Super Famicom shell, not red")
 	_ok(jp.get_node_or_null("CartModel") != null
 		and jp.get_node("CartModel").scene_file_path == SnesCartShell.BODY_SFC,
 		"cartridge/a Japanese ROM spawns the Super Famicom shell, not the US one")
@@ -537,7 +578,7 @@ func _test_cartridge() -> void:
 		"cartridge/the label art paints the front label, not the fold")
 	_ok(SpawnMenuSpawnView._has_spawn_options(SnesCartShell.SYSTEMID),
 		"cartridge/a held Super NES ROM row opens the spawn options")
-	for cart in [ki, plain, jp]:
+	for cart in [ki, plain, jp, doom_us, doom_jp]:
 		cart.queue_free()
 	await get_tree().process_frame
 

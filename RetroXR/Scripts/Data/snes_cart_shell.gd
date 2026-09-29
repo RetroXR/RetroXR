@@ -13,10 +13,11 @@
 ## ROM gets the Super Famicom body; a ROM of no known market keeps the procedural
 ## box. The player can force any body on any ROM at spawn.
 ##
-## The market is the scraper's region for the ROM, else the destination byte of
-## the internal header. The shell colour is read from that header's title, never
-## by hashing the file: Killer Instinct shipped in black plastic, everything else
-## in the standard grey, the model's own. The colours are in
+## The market is the scraper's region for the ROM, else the file name's region
+## tag, else the destination byte of the internal header. The shell colour is read
+## from that header's title, never by hashing the file: Killer Instinct shipped in
+## black plastic, and the North American Doom and Maximum Carnage in red;
+## everything else in the standard grey, the model's own. The colours are in
 ## Resources/snes_cartridge_shells.tres.
 class_name SnesCartShell
 extends RefCounted
@@ -56,10 +57,19 @@ const DESTINATION_MARKETS := {
 	0x08: "eu", 0x09: "eu", 0x0A: "eu", 0x11: "au",
 }
 
-## Internal title, trailing spaces trimmed -> preset.
+## Internal title, trailing spaces trimmed -> [preset, the markets it shipped in, or
+## [] for every one]. Measured on a No-Intro set: these titles belong to no other
+## game. Doom's and Maximum Carnage's ROMs share their titles across markets, but
+## only the North American cartridges were red; Europe's and Japan's were grey.
+## Killer Instinct had no Japanese release.
 const TITLE_SHELLS := {
-	"KILLER INSTINCT": &"black",
+	"KILLER INSTINCT": [&"black", []],
+	"DOOM": [&"red", ["us"]],
+	"MAXIMUM CARNAGE": [&"red", ["us"]],
 }
+
+## GoodTools' one-letter region codes, as in "Doom (U) [!].smc".
+const GOODTOOLS_MARKETS := {"U": "us", "J": "jp", "E": "eu", "F": "eu", "G": "eu", "A": "au"}
 
 static var _gamelists := GamelistManager.new()
 static var _gamelist_stamps := {}
@@ -67,11 +77,47 @@ static var _gamelist_stamps := {}
 
 ## The body model for a ROM, or "" to keep the procedural box.
 static func body_model_for_rom(body_region: String, systemid: String, rom_path: String) -> String:
-	var scraped := scraped_rom(systemid, rom_path)
-	var market_name := N64CartShell.market_of_region(str(scraped.get("region", "")))
-	if market_name.is_empty():
-		market_name = header_market(read_header(rom_path))
-	return body_model(body_region, market_name, date_digits(str(scraped.get("releasedate", ""))))
+	var released := date_digits(str(scraped_rom(systemid, rom_path).get("releasedate", "")))
+	return body_model(body_region, market(systemid, rom_path), released)
+
+
+## "us", "jp", "eu", "au", or "" — from the scraper's region for the ROM, else the
+## file name's region tag, else the header's destination byte. The tag outranks
+## the header: 12 of 3,057 retail No-Intro ROMs carry a wrong destination
+## (Pinocchio and Flashback USA say Japan, An American Tail 0xFF, FIFA 98 Europe
+## says USA), and none a wrong tag.
+static func market(systemid: String, rom_path: String) -> String:
+	var found := N64CartShell.market_of_region(str(scraped_rom(systemid, rom_path).get("region", "")))
+	if found.is_empty():
+		found = filename_market(rom_path)
+	if found.is_empty():
+		found = header_market(read_header(rom_path))
+	return found
+
+
+## The market of the first bracketed region tag in the file name: No-Intro's
+## "(USA)", "(Europe)", "(Japan, USA)", or GoodTools' "(U)", "(JU)". A tag naming
+## North America among others is "us": that cartridge was sold there.
+static func filename_market(rom_path: String) -> String:
+	var name := rom_path.get_file()
+	var at := name.find("(")
+	while at >= 0:
+		var close := name.find(")", at)
+		if close < 0:
+			break
+		var tag := name.substr(at + 1, close - at - 1).strip_edges()
+		var found: Array[String] = []
+		for part in tag.split(","):
+			var m := N64CartShell.market_of_region(part)
+			if not m.is_empty():
+				found.append(m)
+		if found.is_empty() and _is_goodtools_code(tag):
+			for c in tag:
+				found.append(GOODTOOLS_MARKETS[c])
+		if not found.is_empty():
+			return "us" if found.has("us") else found[0]
+		at = name.find("(", close)
+	return ""
 
 
 ## A forced body on any ROM; otherwise a North American ROM's first print by
@@ -92,12 +138,28 @@ static func body_model(body_region: String, market_name: String, released := "")
 	return BODY_TYPE_B if released.length() == 8 and released >= TYPE_B_FROM else BODY_TYPE_A
 
 
-static func preset_for_rom(rom_path: String) -> StringName:
-	return preset_for_title(title_of(read_header(rom_path)))
+## "U", "JU", "E": every letter a GoodTools region code ("PAL" is not one).
+static func _is_goodtools_code(tag: String) -> bool:
+	if tag.is_empty() or tag.length() > 3:
+		return false
+	for c in tag:
+		if not GOODTOOLS_MARKETS.has(c):
+			return false
+	return true
 
 
-static func preset_for_title(title: String) -> StringName:
-	return TITLE_SHELLS.get(title, DEFAULT_PRESET)
+static func preset_for_rom(rom_path: String, systemid := SYSTEMID) -> StringName:
+	return preset_for_title(title_of(read_header(rom_path)), market(systemid, rom_path))
+
+
+## The shell a title shipped in, in `market_name`: grey unless TITLE_SHELLS lists
+## the title for that market (or for every market).
+static func preset_for_title(title: String, market_name := "") -> StringName:
+	var entry: Array = TITLE_SHELLS.get(title, [])
+	if entry.is_empty():
+		return DEFAULT_PRESET
+	var markets: Array = entry[1]
+	return entry[0] if markets.is_empty() or markets.has(market_name) else DEFAULT_PRESET
 
 
 ## "us", "jp", "eu", "au", or "" when the header does not say.
