@@ -1,0 +1,24 @@
+e-Reader (ereader.glb, ereader_lod1.glb, ereader_lod2.glb)
+
+Own work. Modelled from Ryan McClelland's photographs of a US e-Reader
+(AGB-014) and his caliper measurements of it: 94 x 112 x 42.6 mm with the
+cartridge tongue. Built in Blender by codex-photos/ereader/build_ereader.py,
+then reduced for mobile by build_ereader_lods.py (the "mobile_debranded"
+package): hidden faces culled, decimated, and the detailed surface baked into
+one atlas (base colour, tangent normal, packed ORM) plus a sticker texture.
+
+  ereader.glb       LOD0  3,938 triangles  1024 px maps
+  ereader_lod1.glb  LOD1  2,349 triangles   512 px maps
+  ereader_lod2.glb  LOD2  1,468 triangles   256 px maps
+
+All three share the root name, origin and axes (+Y up, the card-slot face on
++Z). LOD1 and LOD2 cap the screw wells, latch pockets and EXT ports flush and
+bake them in as shading.
+
+Licensed with the rest of RetroXR (see the repository LICENSE).
+
+Debranded: the e-Reader logo is left off both stickers, the molded Nintendo
+logo is left off the rear shell (it is not in the geometry or any texture),
+and the rear sticker's two copyright lines (Nintendo / Creatures / HAL
+Laboratory, and Olympus Optical) are removed. The model number, the FCC and
+ICES notice, "PES-USA", "MADE IN JAPAN" and the molded EXT lettering remain.

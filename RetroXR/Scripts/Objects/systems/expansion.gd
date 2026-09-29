@@ -260,6 +260,7 @@ func _build_shell(s: Vector3) -> void:
 	shell.position = -(ab.position + ab.size * 0.5) * k
 	_shell = shell
 	_body.visible = false
+	_build_shell_lods(shell)
 	var albedo := ExpansionCatalog.shell_albedo_of(expansion_id)
 	if not albedo.is_empty():
 		ModelMaterialFix.retexture(shell, "shell", albedo)
@@ -272,6 +273,48 @@ func _build_shell(s: Vector3) -> void:
 		_led_mat.emission_energy_multiplier = 2.5
 		led.set_surface_override_material(0, _led_mat)
 		host_changed.connect(_watch_access_led)
+
+
+## How far past a level's switch distance the camera has to go before the other
+## level takes over, in metres. With fading off, a visibility range's margin is
+## hysteresis, so a unit held near a switch distance does not flicker between two.
+const LOD_HYSTERESIS := 0.1
+
+
+## The shell's lower levels of detail, each given the shell's own scale and offset
+## and shown only in its band of camera distance. The levels share the shell's
+## bounds, which is what lets its numbers carry over. Markers (SocketMarker,
+## AccessLed, ...) are only ever read off the full shell.
+func _build_shell_lods(shell: Node3D) -> void:
+	var lods := ExpansionCatalog.shell_lods_of(expansion_id)
+	if lods.is_empty():
+		return
+	var levels: Array[Node3D] = [shell]
+	var starts: Array[float] = [0.0]
+	for entry: Array in lods:
+		var path := str(entry[0])
+		if not ResourceLoader.exists(path):
+			continue
+		var packed := load(path) as PackedScene
+		if packed == null:
+			continue
+		var level := packed.instantiate() as Node3D
+		level.name = "ShellLOD%d" % levels.size()
+		level.scale = shell.scale
+		level.position = shell.position
+		add_child(level)
+		levels.append(level)
+		starts.append(float(entry[1]))
+	for i in levels.size():
+		var begin: float = starts[i]
+		var end: float = starts[i + 1] if i + 1 < levels.size() else 0.0
+		for n in levels[i].find_children("*", "GeometryInstance3D", true, false):
+			var g := n as GeometryInstance3D
+			g.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
+			g.visibility_range_begin = begin
+			g.visibility_range_begin_margin = LOD_HYSTERESIS if begin > 0.0 else 0.0
+			g.visibility_range_end = end
+			g.visibility_range_end_margin = LOD_HYSTERESIS if end > 0.0 else 0.0
 
 
 ## Bounds of every mesh under `root`, in `root`'s own space.
@@ -480,6 +523,14 @@ func _get_grab_point(grabber: Node3D, current: XRToolsGrabPoint) -> XRToolsGrabP
 func _aim_connector(zone: XRToolsSnapZone) -> void:
 	if _connector == null:
 		return
+	# A unit whose modelled tongue goes INTO the slot, the way a cartridge's does
+	# (the e-Reader), names the point the seat takes: where a cartridge's middle
+	# would be if the tongue were one. Every console's slot already seats a
+	# cartridge there, so no console needs measuring.
+	var fixed: Variant = ExpansionCatalog.connector_of(expansion_id)
+	if fixed is Vector3:
+		_connector.position = fixed
+		return
 	var lift := 0.0
 	if zone != null:
 		var n: Node = zone.get_parent()
@@ -673,7 +724,14 @@ func _build_slot_bay(s: Vector3, media: String) -> void:
 ## pass; this unit only forwards it.
 func _build_swipe_slit(s: Vector3, media: String) -> void:
 	var card := MediaDimensions.cart_size(media)
-	var centre := ExpansionShell.build_through_slot(_body, s, card)
+	# A shell with a card channel of its own says where it is, and which way a
+	# card lies in it; anything else gets a groove cut in its roof.
+	var frame: Variant = ExpansionCatalog.swipe_slit_of(expansion_id)
+	var place := Transform3D.IDENTITY
+	if frame is Transform3D:
+		place = frame
+	else:
+		place.origin = ExpansionShell.build_through_slot(_body, s, card)
 
 	_slit = CardSwipeSlit.new()
 	_slit.name = "SwipeSlit"
@@ -687,7 +745,7 @@ func _build_swipe_slit(s: Vector3, media: String) -> void:
 	# The groove runs the width of the case, and a pass has to clear both ends.
 	_slit.travel = s.x
 	add_child(_slit)
-	_slit.position = centre
+	_slit.transform = place
 
 	var shape := CollisionShape3D.new()
 	var box := BoxShape3D.new()

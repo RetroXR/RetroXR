@@ -65,6 +65,16 @@
 ##   shell_albedo
 ##               a colour map swapped onto the shell's "shell" material, for a
 ##               second unit that is the same casting in a different finish.
+##   shell_lods  lower levels of detail for the shell, nearest first, each
+##               [GLB path, metres from the camera where it takes over]. They
+##               must share the shell's bounds; see RetroExpansion._build_shell_lods.
+##   connector   for a MOUNT_CARTRIDGE unit whose modelled tongue goes INTO the
+##               slot (the e-Reader): the point, in the unit's frame, that the
+##               console's cartridge seat takes -- where a cartridge's middle
+##               would be. Absent, the unit stands on the console's roof.
+##   swipe_slit  for a LOADER_SWIPE unit whose shell has a card channel: the
+##               groove's frame in the unit's frame (axes as CardSwipeSlit
+##               documents them). Absent, a groove is cut in the roof.
 ##   default_occupant
 ##               this unit comes pre-installed on a bare console — a Jumper
 ##               Pak, not something a player goes looking for. RetroSystem
@@ -316,6 +326,27 @@ static func shell_of(id: String) -> String:
 
 static func shell_albedo_of(id: String) -> String:
 	return str(row(id).get("shell_albedo", ""))
+
+
+## The shell's lower levels of detail, nearest first: [GLB path, metres from the
+## camera where it takes over]. Empty for a shell that has one level. Each GLB must
+## share the shell's bounds, since all of them are fitted with the shell's numbers.
+static func shell_lods_of(id: String) -> Array:
+	return row(id).get("shell_lods", [])
+
+
+## Where the console's cartridge seat takes this unit, in the unit's own frame, or
+## null to seat it on the console's roof (see RetroExpansion._aim_connector). Set
+## by a unit whose modelled tongue goes INTO the slot the way a cartridge's does.
+static func connector_of(id: String) -> Variant:
+	return row(id).get("connector", null)
+
+
+## The swipe groove's frame in the unit's own frame, or null to cut the groove in
+## the roof. Set by a shell with a card channel of its own, so the groove is where
+## the model's channel is. CardSwipeSlit documents the frame's axes.
+static func swipe_slit_of(id: String) -> Variant:
+	return row(id).get("swipe_slit", null)
 
 
 ## Media systemids a console's OWN cartridge slot must take on top of its own,

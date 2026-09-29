@@ -12,10 +12,10 @@ extends RefCounted
 
 const ID := "ereader"
 
-# A Game Boy Advance cartridge with a slit through its roof that a printed card
-# is SLID through, dotcode edge first. LOADER_SWIPE, so it builds a through-slot
-# and no bay at all -- the card is never seated, and a snap zone would capture it
-# mid-swipe.
+# A Game Boy Advance cartridge with a slit across its front that a printed card
+# is SLID through, dotcode edge first, lying flat with its dotcode up to the
+# scanner. LOADER_SWIPE, so it builds a swipe groove and no bay at all -- the card
+# is never seated, and a snap zone would capture it mid-swipe.
 #
 # The unit id IS the media systemid, so has_own_card is true and the e-Reader
 # tile carries the reader and its cards and nothing else. An id that differed
@@ -32,7 +32,36 @@ const ID := "ereader"
 # does not have. The Super Game Boy still works the older way -- see
 # ExpansionCatalog.firmware_rom_path for why the two differ.
 #
-# Size is nominal, proportioned against the GBA cart it dwarfs; not measured.
+# The shell is the US e-Reader (AGB-014), modelled from photographs and calipers
+# of a real unit and debranded (imported-assets/consoles/ereader/). The two
+# Japanese revisions wear it too: the Card e-Reader+ is the same hardware, and
+# the original PEAJ differs mainly in having no link sockets.
+#
+# SIZE is the shell's own bounds, tongue included, so it is fitted 1:1. The
+# CONNECTOR and SWIPE_SLIT below are read off the model in that frame (the
+# centre of those bounds; +Y up, the card-slit face on +Z, which is the face a
+# console's cartridge slot turns away, the way it turns a cartridge's label).
+const SIZE := Vector3(0.094, 0.11197, 0.04257)
+const SHELL := "res://imported-assets/consoles/ereader/ereader.glb"
+# 3,938, 2,349 and 1,468 triangles; see the LICENSE file beside them.
+const SHELL_LODS := [
+	["res://imported-assets/consoles/ereader/ereader_lod1.glb", 0.8],
+	["res://imported-assets/consoles/ereader/ereader_lod2.glb", 2.0],
+]
+# The reader's tongue is a GBA cartridge's lower half: it goes INTO the slot
+# while the housing stands over the console. So the seat takes the point where
+# a GBA cartridge's middle would be -- 18 mm (half of MediaDimensions' 36 mm
+# GBA cart) up from the tongue's bottom edge, at the tongue's depth, which is
+# 15.6 mm behind the centre of the model.
+const CONNECTOR := Vector3(0.0, -0.03799, -0.01559)
+# The card channel: 1 mm tall at 79.9 mm above the tongue's bottom edge,
+# running the full width and 22 mm in from the front face to a rear wall. The
+# groove line is 0.3 mm in front of that wall, where a card's coded edge stops.
+# Groove frame (CardSwipeSlit): travel along the width, the card standing out of
+# the front (+Z), its printed face up (+Y) to the scanner above the channel.
+const SWIPE_SLIT := Transform3D(
+	Basis(Vector3(-1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), Vector3(0.0, 1.0, 0.0)),
+	Vector3(0.0, 0.04139, -0.00379))
 const ROW := {
 	"label": "Card e-Reader",
 	"host": "gba",
@@ -46,7 +75,11 @@ const ROW := {
 	# every other route in _compose_sram_path answers "", the core is handed an
 	# empty SRAM path, and each launch starts from blank flash.
 	"save_owner": ExpansionDefs.SAVE_OWNER_UNIT,
-	"size": Vector3(0.090, 0.062, 0.023),
+	"size": SIZE,
+	"shell": SHELL,
+	"shell_lods": SHELL_LODS,
+	"connector": CONNECTOR,
+	"swipe_slit": SWIPE_SLIT,
 	"loader": MediaDimensions.LOADER_SWIPE,
 	# The game code in the dump's own header, which is what mGBA's override table
 	# matches to switch the reader hardware on, and what AdapterRoms matches to

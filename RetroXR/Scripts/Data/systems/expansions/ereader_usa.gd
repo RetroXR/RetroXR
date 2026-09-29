@@ -10,6 +10,9 @@ extends RefCounted
 
 const ID := "ereader_usa"
 
+# The shell and where its tongue and card channel are: see ereader.gd.
+const _READER := preload("res://Scripts/Data/systems/expansions/ereader.gd")
+
 # Its media is `ereader`, not its own id, so has_own_card is false and this unit
 # is offered from the e-Reader card rather than from a tile of its own. Three
 # tiles for one shelf of cards would be three empty libraries.
@@ -21,7 +24,11 @@ const ROW := {
 	# See ereader.gd: the battery is in the reader, and each revision keeps its
 	# own flash -- they are different hardware and their cards are region-locked.
 	"save_owner": ExpansionDefs.SAVE_OWNER_UNIT,
-	"size": Vector3(0.090, 0.062, 0.023),
+	"size": _READER.SIZE,
+	"shell": _READER.SHELL,
+	"shell_lods": _READER.SHELL_LODS,
+	"connector": _READER.CONNECTOR,
+	"swipe_slit": _READER.SWIPE_SLIT,
 	"loader": MediaDimensions.LOADER_SWIPE,
 	# See ereader.gd: the header code is what a library dump is recognised by.
 	"rom_code": "PSAE",
