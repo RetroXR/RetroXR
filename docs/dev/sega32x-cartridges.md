@@ -23,9 +23,10 @@ It reads `sega_32x_cartridge_v01.blend`, writes `retroxr/sega32x_cart.glb`, then
 matches, so the cart loads at scale 1; the old 110 × 70 × 17 row would have
 squashed it by 2.5 % across and 4 % in height. The 32X's slot (`CartFloor`, §2j′)
 is 114.0 × 18.5 mm at its narrowest, 5 mm above the floor: 0.6 mm clear each side.
-`genesis` keeps its 110 × 70 × 17 row and the box: the 32X's `connector` is the
-middle of a 70 mm Genesis cart on `PlugSeat`, and the spacer's 21.7 mm drop is
-measured against that seat, so a Genesis body is its own change.
+`genesis` is its own row: the 32X's `connector` is derived from it (the middle
+of a Genesis cart standing on `PlugSeat`, `expansion-carts.md` §2j′), so the
+plug's board edge stays on the slot's cart seat whatever that row says, and the
+spacer's 21.7 mm drop is measured against that seat.
 
 **Parts** (node names): `Front_Shell`, `Rear_Shell`, `Label`, `Connector_PCB`,
 `Connector_Contacts`, `Security_Screw_L`, `Security_Screw_R`. Connector on −Y,

@@ -294,10 +294,14 @@ axis, so this is what keeps the scan at 1:1 (the probe prints the scale:
 catalog box is then centred on those bounds, 13.9 mm above the resting plane.
 
 **The plug seats at a cartridge's depth.** The row's `connector` (the key the e-Reader rows introduced)
-is the middle of a 70 mm Genesis cartridge standing on the shell's
-`PlugSeat` marker (the plug board's bottom edge), in the unit frame:
-`(0, -0.0135, 0.0111)`. Every console's slot already seats a cartridge there, so
-no console is measured. On the Model 2 this puts the board edge at y = 0.030 and
+is the middle of a Genesis cartridge standing on the shell's `PlugSeat` marker
+(the plug board's bottom edge), in the unit frame: `(0, PLUG_EDGE_Y + h / 2,
+0.0111)`, with `PLUG_EDGE_Y` = -0.0485 and `h` the `genesis` row of
+`MediaDimensions.CART_SIZES`. **Derived, never a number**: the console seats a
+cartridge by its middle, so when that row went from 70 to 67 mm a fixed
+`-0.0135` sank the unit and its spacer 1.5 mm into the console, inside the
+spacer test's old 2 mm tolerance (now 0.5 mm). Every console's slot already
+seats a cartridge there, so no console is measured. On the Model 2 this puts the board edge at y = 0.030 and
 z = -0.0319, the slot's own cart seat, and the unit faces +Z like the console
 (no `seat_yaw`). Measured by `Tools/models/sega32x_probe`.
 

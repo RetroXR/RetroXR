@@ -30,15 +30,22 @@ const ROW := {
 	"shell": SHELL,
 	# The plug seats the way a cartridge does: the bottom edge of its board goes
 	# where a cartridge's bottom edge goes, so this is the middle of a Genesis
-	# cartridge (70 mm tall) standing on the shell's PlugSeat marker -- (0, -34.6,
-	# +11.1) mm in the GLB, (0, -48.5, +11.1) mm once centred on the bounds.
-	"connector": Vector3(0.0, -0.0135, 0.0111),
+	# cartridge standing on the shell's PlugSeat marker (PLUG_EDGE_Y). Derived
+	# from that cartridge's own height, because the console seats a cartridge by
+	# its MIDDLE: a fixed number here sinks the unit, and its spacer, into the
+	# console whenever the Genesis cartridge's row changes.
+	"connector": Vector3(0.0, PLUG_EDGE_Y + MediaDimensions.CART_SIZES["genesis"].y * 0.5, 0.0111),
 	# Sega32xSpacer.GROUP. Its model shares the shell's frame, so the mount at the
 	# shell's origin seats it exactly under the unit.
 	"accessory_group": "sega32x_spacer",
 }
 
 const SHELL := "res://imported-assets/consoles/sega_32x/sega32x.glb"
+
+## The plug board's bottom edge -- the shell's PlugSeat marker -- in the unit
+## frame: (0, -34.6, +11.1) mm in the GLB, (0, -48.5, +11.1) mm once centred on
+## the bounds.
+const PLUG_EDGE_Y := -0.0485
 
 
 const BOOT := {

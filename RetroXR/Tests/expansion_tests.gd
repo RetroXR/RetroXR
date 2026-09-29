@@ -1437,7 +1437,9 @@ func _group_spacer() -> void:
 	if not mi.is_empty():
 		var m := mi[0] as MeshInstance3D
 		var bottom := ((md.global_transform.affine_inverse() * m.global_transform) * m.get_aabb()).position.y
-		_ok(absf(bottom - md.body_aabb().end.y) < 0.002,
+		# Tight: the unit seats by a Genesis cartridge's middle, so a change to that
+		# cartridge's height once sank it 1.5 mm into the console unnoticed.
+		_ok(absf(bottom - md.body_aabb().end.y) < 0.0005,
 			"spacer/ its floor lands on the Model 2's roof (%.1f mm off)" % [(bottom - md.body_aabb().end.y) * 1000.0])
 
 	x32.unbind_from_host()
