@@ -4,7 +4,7 @@
 
 `RetroCartridge` builds a `genesis` cartridge from
 `imported-assets/carts/genesis/genesis_cart.glb` (`_CART_MODELS`). It is the
-optimized close tier (LOD0, 2,076 triangles) of `codex-photos/genesis-cart-work`:
+optimized close tier (LOD0, 2,072 triangles) of `codex-photos/genesis-cart-work`:
 a parametric Blender model (`scripts/build_cartridge.py`) of a US Champions World
 Class Soccer cart in Acclaim's "Assembled in Mexico" shell, built from the user's
 caliper numbers and registered to the photographs (`LICENSE-genesis-cart.txt`).
@@ -16,7 +16,8 @@ It comes in through one script, which renames the nodes and materials and runs
 
 It reads `delivery/genesis_cartridge_v002.blend`, writes `retroxr/genesis_cart.glb`,
 then `Tools/glb/fix_unmapped_uvs.py --tile 5.56` (the plastic grain's tile) and
-`--check`. One boolean sliver on the front shell gets UVs.
+`--check`. The build welds the boolean cuts before exporting, so there is no sliver
+left for it to fix; the step stays as the guard.
 
 **Size.** 108 × 67 × 17 mm, measured. The `CART_SIZES` row matches, so the cart
 loads at scale 1; the old 110 × 70 × 17 box row would stretch it 1.9 % across and

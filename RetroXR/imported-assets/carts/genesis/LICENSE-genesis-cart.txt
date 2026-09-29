@@ -3,7 +3,7 @@ Sega Genesis cartridge shell (genesis_cart.glb)
 Own work. Ryan McClelland's photographs and caliper measurements of a US Sega
 Genesis cartridge (Champions World Class Soccer, an Acclaim "Assembled in
 Mexico" shell), rebuilt as a parametric Blender model registered to those
-photographs and reduced for real-time use (the optimized LOD0: 2,076 triangles,
+photographs and reduced for real-time use (the optimized LOD0: 2,072 triangles,
 108 x 67 x 17 mm). The source .blend files, build scripts and references live
 outside this repository (codex-photos/genesis-cart-work: scripts/build_cartridge.py,
 scripts/export_retroxr.py). The plastic's fine grain is a tangent normal map; the

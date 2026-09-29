@@ -209,8 +209,8 @@ func _test_branding() -> void:
 
 
 ## Every triangle of a normal-mapped surface has area in UV space; see
-## n64_cart_tests' uv group. Tools/glb/fix_unmapped_uvs.py gave the boolean
-## sliver on the front shell its UVs.
+## n64_cart_tests' uv group. The export runs Tools/glb/fix_unmapped_uvs.py as a
+## guard; the welded build leaves it nothing to fix.
 func _test_uv() -> void:
 	var body := _body()
 	var unmapped := {}
