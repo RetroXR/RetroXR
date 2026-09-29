@@ -72,6 +72,10 @@
 ##               slot (the e-Reader): the point, in the unit's frame, that the
 ##               console's cartridge seat takes -- where a cartridge's middle
 ##               would be. Absent, the unit stands on the console's roof.
+##   seat_yaw    degrees a MOUNT_CARTRIDGE unit is turned about its own +Y when
+##               seated, relative to a cartridge (whose +Z, its label, faces away
+##               from the player). The e-Reader is 180: its front -- card slit,
+##               sticker -- faces the player. Absent, 0.
 ##   swipe_slit  for a LOADER_SWIPE unit whose shell has a card channel: the
 ##               groove's frame in the unit's frame (axes as CardSwipeSlit
 ##               documents them). Absent, a groove is cut in the roof.
@@ -340,6 +344,12 @@ static func shell_lods_of(id: String) -> Array:
 ## by a unit whose modelled tongue goes INTO the slot the way a cartridge's does.
 static func connector_of(id: String) -> Variant:
 	return row(id).get("connector", null)
+
+
+## Degrees a cartridge-mounted unit is turned about its own +Y when seated, relative
+## to a cartridge. See the row docs above.
+static func seat_yaw_of(id: String) -> float:
+	return float(row(id).get("seat_yaw", 0.0))
 
 
 ## The swipe groove's frame in the unit's own frame, or null to cut the groove in

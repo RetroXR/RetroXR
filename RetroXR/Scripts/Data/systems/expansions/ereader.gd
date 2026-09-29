@@ -39,8 +39,17 @@ const ID := "ereader"
 #
 # SIZE is the shell's own bounds, tongue included, so it is fitted 1:1. The
 # CONNECTOR and SWIPE_SLIT below are read off the model in that frame (the
-# centre of those bounds; +Y up, the card-slit face on +Z, which is the face a
-# console's cartridge slot turns away, the way it turns a cartridge's label).
+# centre of those bounds; +Y up, the card-slit face on +Z).
+#
+# It goes in the other way round from a cartridge (SEAT_YAW): a cartridge's
+# label faces the console's back, but the reader's front -- card slit, sticker
+# -- faces the PLAYER, with its white back to the console's back. Measured
+# against the laser-scanned GBA (gba_console.glb) that is the pose that fits: the
+# tongue centres in the 7.8 mm slot with 0.15 mm each side, the white step at
+# the neck clears the back wall's top by 1 mm (facing the player it sat 0.9 mm
+# into the front lip), and the male EXT plug under the housing goes 6 mm into
+# the console's EXT socket, within about 1 mm of its centre.
+const SEAT_YAW := 180.0
 const SIZE := Vector3(0.094, 0.11197, 0.04257)
 const SHELL := "res://imported-assets/consoles/ereader/ereader.glb"
 # 3,938, 2,349 and 1,468 triangles; see the LICENSE file beside them.
@@ -51,10 +60,14 @@ const SHELL_LODS := [
 # The reader's tongue is a GBA cartridge's lower half: it goes INTO the slot
 # while the housing stands over the console. So the seat takes the point where
 # a GBA cartridge's middle would be -- 17.5 mm (half of MediaDimensions' 35 mm
-# GBA cart) up from the tongue's bottom edge, at the tongue's depth, which is
-# 15.6 mm behind the centre of the model. Follow that entry if it changes: the
-# tongue's bottom edge then reaches as deep into the slot as a cartridge's.
-const CONNECTOR := Vector3(0.0, -0.03849, -0.01559)
+# GBA cart) up from the tongue's bottom edge -- less 0.65 mm. At a cartridge's
+# full depth the housing's underside sank 0.6 mm into the scanned GBA's top
+# edge; the real reader rests on it, which leaves the tongue 0.9 mm off the slot
+# floor, out of sight. In depth it is 16.4 mm behind the centre of the model:
+# 0.85 mm off the tongue's own centre (15.6), because a cartridge's origin,
+# which the seat takes, sits that far from the middle of the scanned slot.
+# Turned, this centres the tongue.
+const CONNECTOR := Vector3(0.0, -0.03914, -0.01641)
 # The card channel: 1 mm tall at 79.9 mm above the tongue's bottom edge,
 # running the full width and 22 mm in from the front face to a rear wall. The
 # groove line is 0.3 mm in front of that wall, where a card's coded edge stops.
@@ -80,6 +93,7 @@ const ROW := {
 	"shell": SHELL,
 	"shell_lods": SHELL_LODS,
 	"connector": CONNECTOR,
+	"seat_yaw": SEAT_YAW,
 	"swipe_slit": SWIPE_SLIT,
 	"loader": MediaDimensions.LOADER_SWIPE,
 	# The game code in the dump's own header, which is what mGBA's override table

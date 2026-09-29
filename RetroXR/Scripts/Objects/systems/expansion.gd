@@ -523,6 +523,10 @@ func _get_grab_point(grabber: Node3D, current: XRToolsGrabPoint) -> XRToolsGrabP
 func _aim_connector(zone: XRToolsSnapZone) -> void:
 	if _connector == null:
 		return
+	# The seat composes this point's whole transform, so turning it turns the unit
+	# in the slot (snap_pose_for). The e-Reader goes in facing the other way from a
+	# cartridge's label.
+	_connector.basis = Basis(Vector3.UP, deg_to_rad(ExpansionCatalog.seat_yaw_of(expansion_id)))
 	# A unit whose modelled tongue goes INTO the slot, the way a cartridge's does
 	# (the e-Reader), names the point the seat takes: where a cartridge's middle
 	# would be if the tongue were one. Every console's slot already seats a

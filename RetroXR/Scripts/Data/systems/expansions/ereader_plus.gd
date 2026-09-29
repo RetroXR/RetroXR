@@ -27,6 +27,7 @@ const ROW := {
 	"shell": _READER.SHELL,
 	"shell_lods": _READER.SHELL_LODS,
 	"connector": _READER.CONNECTOR,
+	"seat_yaw": _READER.SEAT_YAW,
 	"swipe_slit": _READER.SWIPE_SLIT,
 	"loader": MediaDimensions.LOADER_SWIPE,
 	# See ereader.gd: the header code is what a library dump is recognised by.
