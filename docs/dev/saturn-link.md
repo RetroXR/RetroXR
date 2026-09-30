@@ -75,8 +75,9 @@ placeholder with a COMMUNICATION legend.
 ## Shipping
 
 `CoreSources` names `mednafen_saturn` → `RetroXR/beetle-saturn-libretro`, tag
-`retroxr-beetle-saturn-libretro-v1` (Windows + Android, CI-built from the tag),
-replacing the buildbot's build in place, so `system/mednafen_saturn` and every
+`retroxr-beetle-saturn-libretro-v3` (Windows, Android, Linux x86_64, macOS
+arm64/x86_64, CI-built from the tag; v1 was Windows + Android, v2 added Linux and
+macOS, v3 is the netplay rollback below), replacing the buildbot's build in place, so `system/mednafen_saturn` and every
 save stay where they were. Android still defaults to YabaSanshiro.
 
 ## The room probe
@@ -134,8 +135,8 @@ the headset.
 ## Netplay: rollback, and a cabled pair rolled back together (2026-09-22)
 
 `NetplayCores["mednafen_saturn"]` is ROLLBACK + LOCKSTEP with `link_rollback`
-and `rollback_needs_pins`. It needs the fork past v2 (`d7ed3e9`, `ee78092`,
-`183d53b`); an installed build that does not declare the pinned options gets
+and `rollback_needs_pins`. It needs fork v3 (`d7ed3e9`, `ee78092`, `183d53b`,
+released 2026-09-30); an installed build that does not declare the pinned options gets
 lockstep. Pinned: `netplay_deterministic`, `link_cable`, `link_frame_edges` on;
 `autortc`, `sh2_jit`, `mpeg_card`, `opposite_directions` off; `sh2_interleave`
 exact; `midsync` on. NOT pinned: `cart`, `shared_ext`, `save_method` --
@@ -190,6 +191,9 @@ Evidence, windows x86_64:
   both consoles in LINK MODE, rb == ref at 150/150 over 40 group rewinds,
   ~28000 messages each way; solo diverges at 70. **With `link_frame_edges` off
   the group WEDGES** at 2317, the first mispredicted press.
+  The CI-built v3 (the release's Windows asset, from a scratch `--root=`,
+  2026-09-30): rb == ref at 150/150 over 40 group rewinds (deepest 7), 28290
+  messages each way; solo 66 of 150 differ. PASS.
 - `Tools/netplay/saturn_session_probe` (`--mode=rollback|lockstep`): two
   NetworkManagers over loopback ENet, two cabled `system.tscn` Saturns each (a
   TV stand-in in channel 0: a console refuses a netplay start with no display).
@@ -202,6 +206,7 @@ Evidence, windows x86_64:
 The crash at EXIT that two Saturn cores used to hit about half the time was not
 the core. It was metaxr-audio's mixer being released through freed class records
 after the last frame, and is fixed there (`extensions.md`, metaxr-audio). Owed: two real
-machines over a real network, the published release (`CoreSources` still names
-v1), Linux/macOS builds of the new options, and the games with a battle to the
-end (GunGriffon II, Daytona CE).
+machines over a real network, `saturn_session_probe` on the published v3 (only
+the rollback probe has run on the CI build), the new options run on Linux/macOS
+(built by CI, never run), and the games with a battle to the end (GunGriffon II,
+Daytona CE).

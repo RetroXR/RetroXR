@@ -304,10 +304,16 @@ const SOURCES := {
 	# the boot library's dev-host probe. beetle_saturn_link_cable is on by
 	# default and not restart-time; off is the stock core.
 	#
+	# v3: netplay rollback. A state load puts the SCI's clocks back exactly,
+	# beetle_saturn_netplay_deterministic boots every player on one fixed SMPC
+	# clock, and beetle_saturn_link_frame_edges ends every frame on one link-bus
+	# tick, so a cabled pair rolls back as a group. NetplayCores' row pins both;
+	# an older build declares neither and gets lockstep. docs/dev/saturn-link.md.
+	#
 	# Beetle Saturn is GPLv2, so the source for these binaries sits on the tag.
 	"mednafen_saturn": {
 		"repo":  "RetroXR/beetle-saturn-libretro",
-		"known_tag": "retroxr-beetle-saturn-libretro-v2",
+		"known_tag": "retroxr-beetle-saturn-libretro-v3",
 		"label": "Beetle Saturn (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_saturn_libretro.dll.zip",
