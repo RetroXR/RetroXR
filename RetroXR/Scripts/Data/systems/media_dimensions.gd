@@ -20,7 +20,7 @@ const CARD_SIZE_EREADER := Vector3(0.063, 0.088, 0.0008)
 ## Axes match cartridge.tscn (label faces +Z). Unlisted systems fall back to
 ## the generic scene size via cart_size().
 const CART_SIZES: Dictionary = {
-	"nes":              Vector3(0.120, 0.133, 0.017),   # measured off a real cart
+	"nes":              Vector3(0.120, 0.134, 0.017),   # the cartridge model's shell (nes_cart.glb), measured
 	# The HVC cartridge is much squatter than the NES-005 beside it. Estimated
 	# from photographs scaled against the console's 150 mm depth; no dimensioned
 	# drawing was found.

@@ -16,6 +16,7 @@
 ##     CartridgeColor.apply_preset(gba_cart, &"ruby", "gba")
 ##     CartridgeColor.apply_preset(snes_cart, &"black", "snes")
 ##     CartridgeColor.apply_preset(gbc_cart, &"crystal", "gbc")
+##     CartridgeColor.apply_preset(nes_cart, &"gold", "nes")
 ##
 ## `cart` is the GLB instance or any node above it. Plain presets and colours stay
 ## on StandardMaterial3D duplicates; METAL_FLAKE presets switch that surface to
@@ -25,6 +26,8 @@
 ## plastic: cartridge_clear_plastic.gdshader filters what is behind it through the
 ## colour, and its next pass adds the gloss, so no draw order is needed. A METAL_FLAKE
 ## preset below 1 is that clear plastic with metal glitter in it (Pokemon Crystal).
+## A METALLIZED preset (the gold NES Zelda cartridges) stays on the duplicate, made
+## fully metallic, each molding's own roughness scaled by the preset's.
 class_name CartridgeColor
 extends RefCounted
 
@@ -37,6 +40,7 @@ const PALETTE_PATHS := {
 	"gba": "res://Resources/gba_cartridge_shells.tres",
 	"snes": "res://Resources/snes_cartridge_shells.tres",
 	"gbc": "res://Resources/gbc_cartridge_shells.tres",
+	"nes": "res://Resources/nes_cartridge_shells.tres",
 }
 const FLAKE_SHADER := preload("res://Shaders/cartridge_flake_plastic.gdshader")
 const CLEAR_SHADER := preload("res://Shaders/cartridge_clear_plastic.gdshader")
@@ -72,13 +76,15 @@ const FLAKE_FLOOR := 0.05
 ## round its sticker recess, then the Game Boy Advance cart's two halves, then the
 ## Super NES cart's grained shell and the smooth bezel round its rear sticker (the
 ## Super Famicom body's moulded lettering), and the Super Famicom body's ribbed
-## back, whose ribs are a baked normal map. Last the Game Boy Color cart's two
+## back, whose ribs are a baked normal map. Then the Game Boy Color cart's two
 ## stippled halves and its smooth moulded lettering and ridges, faces and walls.
+## Last the NES cart's stippled faces, its smooth moldings (sides, bevel, rib
+## channel, grips) and its rear plaque, whose lettering is a baked normal map.
 const EXTERIOR_PLASTIC: Array[StringName] = [&"Shell_Plastic", &"Molded_Smooth_Plastic", &"Nintendo_Molded_SVG",
 	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow",
 	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic", &"SNES_Shell_Plastic", &"SNES_Smooth_Plastic",
 	&"SNES_Shell_Plastic_Ribbed", &"GBC_Shell_Front", &"GBC_Shell_Rear", &"GBC_Shell_Smooth",
-	&"GBC_Shell_Edge"]
+	&"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked"]
 
 ## A moulding authored lighter or darker than the rest of its shell, as a factor
 ## on the colour painted: the Game Boy cart's ratios to its front shell. Every
@@ -91,12 +97,13 @@ const SHADE := {
 ## Mouldings whose own roughness a paint keeps, because the texture of the mould
 ## (the Game Boy cart's rough rear, smooth rails and matte rim; the Game Boy
 ## Advance cart's baked roughness map; the Super NES cart's grain, bezel and ribs;
-## the Game Boy Color cart's polished lettering and ridges) sets it rather than the
-## plastic's colour.
+## the Game Boy Color cart's polished lettering and ridges; the NES cart's stipple,
+## whose roughness map glints its pebble tops, and its smooth moldings) sets it
+## rather than the plastic's colour.
 const OWN_ROUGHNESS: Array[StringName] = [&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth",
 	&"Shell_Seam_Shadow", &"Tintable_Front_Plastic", &"Tintable_Rear_Plastic",
 	&"SNES_Shell_Plastic", &"SNES_Smooth_Plastic", &"SNES_Shell_Plastic_Ribbed",
-	&"GBC_Shell_Smooth", &"GBC_Shell_Edge"]
+	&"GBC_Shell_Smooth", &"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked"]
 
 ## The half each moulded part belongs to, by node-name prefix. The Nintendo logo
 ## patch and the bottom latch tabs are part of the rear moulding. A part not
@@ -311,9 +318,16 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 	if pm == null:
 		pm = source.duplicate() as BaseMaterial3D
 		slot["plain"] = pm
+	# A metal coat, or the molding's own metalness back (the duplicate is reused).
+	var metallized := _is_metallized(finish)
+	pm.metallic = 1.0 if metallized else source.metallic
+	pm.metallic_texture = null if metallized else source.metallic_texture
 	if finish is CartridgeShellPreset:
 		pm.albedo_color = _shaded(finish.color, shade)
-		pm.roughness = source.roughness if own_roughness else finish.roughness
+		if metallized:
+			pm.roughness = source.roughness * finish.roughness
+		else:
+			pm.roughness = source.roughness if own_roughness else finish.roughness
 	else:
 		pm.albedo_color = _shaded(finish, shade)
 		pm.roughness = source.roughness
@@ -322,6 +336,10 @@ static func _paint_surface(mi: MeshInstance3D, i: int, finish: Variant) -> void:
 
 static func _is_solid_flake(finish: Variant) -> bool:
 	return finish is CartridgeShellPreset and finish.finish == CartridgeShellPreset.Finish.METAL_FLAKE 		and finish.opacity >= 0.999
+
+
+static func _is_metallized(finish: Variant) -> bool:
+	return finish is CartridgeShellPreset and finish.finish == CartridgeShellPreset.Finish.METALLIZED
 
 
 static func _is_clear_flake(finish: Variant) -> bool:

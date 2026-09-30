@@ -214,7 +214,7 @@ func _test_resources() -> void:
 		var mi := n as MeshInstance3D
 		for s in mi.mesh.get_surface_count():
 			var m := mi.mesh.surface_get_material(s) as BaseMaterial3D
-			if m != null and m.resource_name == "Material_cart":
+			if m != null and m.resource_name == "NES_Shell_Plastic":
 				nes_plastic = m.albedo_color
 	nes_cart.free()
 	_ok(_near(nes_grey.color, nes_plastic), "resources/NES grey is the NES cartridge's own grey",

@@ -3,7 +3,11 @@
 class_name CartridgeShellPreset
 extends Resource
 
-enum Finish { PLASTIC, METAL_FLAKE }
+## METALLIZED is plastic under a vacuum-deposited metal coat, as the gold NES
+## Zelda cartridges are: fully metallic in `color`, and every molding keeps its own
+## texture and relative gloss, `roughness` being a FACTOR on the molding's own
+## (its roughness map, where it has one). Always solid.
+enum Finish { PLASTIC, METAL_FLAKE, METALLIZED }
 ## STANDARD is the grey every cartridge came in unless its publisher paid for
 ## another run; RELEASED was used by a commercial release; OFFERED_ONLY was on
 ## the manufacturer's list and never used commercially.

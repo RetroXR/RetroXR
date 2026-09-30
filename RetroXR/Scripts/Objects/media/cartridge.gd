@@ -35,8 +35,8 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 
 ## A shell the player asked for at spawn, overriding the one the ROM shipped in.
 ## A CartridgeShellPalette id; empty, or an id the palette does not hold, is the
-## ROM's own. N64, Game Boy, Game Boy Color, Game Boy Advance and Super NES only,
-## and read once, in _ready. On a Game Boy or Game Boy Color ROM it also picks the
+## ROM's own. N64, Game Boy, Game Boy Color, Game Boy Advance, Super NES and NES
+## only, and read once, in _ready. On a Game Boy or Game Boy Color ROM it also picks the
 ## body whose palette holds it (GbcCartShell).
 @export var shell_preset: StringName = &""
 
@@ -81,14 +81,14 @@ const _CART_MODELS := {
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
-## the N64, Game Boy, DS/3DS, 32X and Genesis cartridges' contacts and screws are metal.
+## the N64, Game Boy, DS/3DS, 32X, Genesis and NES cartridges' contacts and screws are metal.
 const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true}
+	"sega32x": true, "genesis": true, "nes": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
 const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true}
+	"sega32x": true, "genesis": true, "nes": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
@@ -275,6 +275,8 @@ func _apply_cart_model() -> void:
 		_paint_shell(glb, GbaCartShell.SYSTEMID, GbaCartShell.preset_for_rom(rom_path))
 	elif systemid == SnesCartShell.SYSTEMID:
 		_paint_shell(glb, SnesCartShell.SYSTEMID, SnesCartShell.preset_for_rom(rom_path))
+	elif systemid == NesCartShell.SYSTEMID:
+		_paint_shell(glb, NesCartShell.SYSTEMID, NesCartShell.preset_for_rom(rom_path))
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:

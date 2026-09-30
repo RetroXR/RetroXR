@@ -88,7 +88,7 @@ Classic NES Series `F__E` (FZLE Zelda, FADE Castlevania, FSME...), Europe's NES
 Classics `FADP`, Japan's Famicom Mini `F__J`). The US/European carts are NES grey;
 the Famicom Mini ones (`J`) keep the standard grey, as their colour was not
 checked. `nes_grey` is the room's own NES cartridge plastic (`nes_cart.glb`
-`Material_cart`, linear 0.2685 = sRGB 0.555), and `gba_cart_tests` holds the two
+`NES_Shell_Plastic`, linear 0.2685 = sRGB 0.555), and `gba_cart_tests` holds the two
 equal, so a Classic NES cart beside an NES cart is the same grey; it is lighter
 and more neutral than the GBA's standard grey. Rendered side by side: NES cart
 face ~169, Classic NES GBA ~165, standard GBA ~143 (sRGB, 8-bit).

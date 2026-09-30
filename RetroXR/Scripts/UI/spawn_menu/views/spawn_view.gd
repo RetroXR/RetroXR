@@ -3162,7 +3162,9 @@ func _close_game_detail_panel() -> void:
 
 ## Whether this platform's ROM rows open a sub-menu when held.
 static func _has_spawn_options(systemid: String) -> bool:
-	return systemid in ["n64", GbaCartShell.SYSTEMID, SnesCartShell.SYSTEMID] or GbCartShell.is_shell(systemid)
+	if systemid in ["n64", GbaCartShell.SYSTEMID, SnesCartShell.SYSTEMID, NesCartShell.SYSTEMID]:
+		return true
+	return GbCartShell.is_shell(systemid)
 
 
 ## The overlay's shell: a title with a close button, and the column to fill.
@@ -3231,7 +3233,8 @@ static func _paint_swatch(btn: Button, color: Color) -> void:
 		btn.add_theme_stylebox_override(state, chosen)
 
 
-## Shell, and for an N64, Super NES or Game Boy the body, of a cartridge. Picked
+## Shell, and for an N64, Super NES or Game Boy the body, of a cartridge (an NES
+## cartridge has one body, so only its shell: grey, or the Zelda gold). Picked
 ## and then SPAWN is pressed; `spawn` takes the options dictionary. The swatches are
 ## the system's own CartridgeColor palette -- a Game Boy or Game Boy Color ROM gets
 ## both shells' palettes, and a swatch brings its shell's body -- then a colour the

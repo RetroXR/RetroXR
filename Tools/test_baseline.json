@@ -22,6 +22,7 @@
     "gbc_cart_tests": 101,
     "gba_cart_tests": 80,
     "genesis_cart_tests": 26,
+    "nes_cart_tests": 41,
     "link_tests": 190,
     "loading_overlay_tests": 39,
     "locomotion_tests": 24,

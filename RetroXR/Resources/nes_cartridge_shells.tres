@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="CartridgeShellPalette" format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_palette.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_preset.gd" id="2"]
+
+[sub_resource type="Resource" id="grey"]
+script = ExtResource("2")
+id = &"grey"
+display_name = "Grey (standard)"
+availability = 0
+color = Color(0.555, 0.555, 0.555, 1)
+roughness = 0.75
+
+[sub_resource type="Resource" id="gold"]
+script = ExtResource("2")
+id = &"gold"
+display_name = "Gold (The Legend of Zelda, Zelda II)"
+finish = 2
+color = Color(0.894, 0.784, 0.588, 1)
+roughness = 0.5
+
+[resource]
+script = ExtResource("1")
+source = "NES cartridge shells. Grey is the model's own plastic (nes_cart.glb NES_Shell_Plastic, sRGB 0.555), the grey the Game Boy Advance palette's Classic NES Series preset matches. Gold is the vacuum-metallized shell of The Legend of Zelda and Zelda II: a METALLIZED finish in the color of a photographed cart's midtones (sRGB 228, 200, 150), its roughness a factor on each molding's own, so the stipple's pebble tops glint and the rib channel and grips stay near mirror. It needs a reflection probe or sky to read as gold. NesCartShell picks one per ROM. Edit freely."
+presets = Array[ExtResource("2")]([SubResource("grey"), SubResource("gold")])

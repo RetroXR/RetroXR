@@ -1,35 +1,20 @@
-Model Information:
-* title:	Super Mario Bros 3 NES Cartridge
-* source:	https://sketchfab.com/3d-models/super-mario-bros-3-nes-cartridge-bd25d390c5f847cfb1030e7fdb0efd75
-* author:	cloud (https://sketchfab.com/cloudstormchnl)
+NES Game Pak shell (nes_cart.glb)
 
-Model License:
-* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
-* requirements:	Author must be credited. Commercial use is allowed.
+Own work. Ryan McClelland's photographs and measurements of a US NES Game Pak (a
+gray three-screw shell, Maniac Mansion), rebuilt as a parametric Blender model
+registered to those photographs and reduced for real-time use (the optimized LOD0:
+2,766 triangles, 120 x 134 x 17 mm). The source .blend files, build scripts and
+references live outside this repository (codex-photos/nes-cart-work:
+scripts/build_cartridge.py, scripts/export_retroxr.py).
 
-If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
-This work is based on "Super Mario Bros 3 NES Cartridge" (https://sketchfab.com/3d-models/super-mario-bros-3-nes-cartridge-bd25d390c5f847cfb1030e7fdb0efd75) by cloud (https://sketchfab.com/cloudstormchnl) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+The shell's stipple is a tangent normal map with a roughness map of its own
+(generated noise). The Label mesh carries a plain white placeholder that the
+cartridge script replaces with the scraped label art. The rear caution sticker is
+redrawn artwork, set in Arimo (Copyright 2020 The Arimo Project Authors, SIL Open
+Font License 1.1); the raised PAT.PEND. MADE IN JAPAN lettering on the rear plaque
+is baked into the NES_Plaque_Baked normal map. No font file is included.
 
-			------------------------------
+Licensed with the rest of RetroXR (see the repository LICENSE).
 
-MODIFICATIONS (CC-BY-4.0 requires these be indicated)
-
-Adapted for RetroXR as nes_cart.glb:
-
-  * REMOVED the Super Mario Bros 3 label artwork in full. The source ships the
-    whole sticker as one texture (R__0_baseColor.png) — Mario artwork, the
-    Nintendo wordmark, the "Official Nintendo Seal of Quality" and the game
-    title. That texture, its material, and the two meshes that also carried
-    printed branding ("Text", "nintendo") are gone. The exported GLB contains no
-    images, textures or samplers at all.
-  * The sticker quad itself is kept, renamed "media_label" and given a blank
-    matte material, so it serves as the swappable label face RetroXR lays
-    scraped box art onto (see cartridge.gd) and reads as an unprinted sticker
-    when a game has no art.
-  * Re-oriented into ControllerPlug's sibling contract for cartridges: connector
-    on -Y, grip +Y, label +Z.
-  * Decimated the five bolts from 6,755 triangles each; the model went from
-    46,619 triangles to 4,866 overall.
-
-Nothing here is affiliated with, endorsed by, or sponsored by Nintendo. No
-Nintendo artwork, wordmark or trademark ships in this asset.
+No Nintendo artwork, wordmark or trademark is carried: the rear plaque's moulded
+Nintendo logo and the caution sticker's (c)(M) Nintendo(R) line are left off.

@@ -183,7 +183,7 @@ func _test_resources() -> void:
 	_ok(palette.find(&"gold").finish == CartridgeShellPreset.Finish.METAL_FLAKE
 		and palette.find(&"silver").finish == CartridgeShellPreset.Finish.METAL_FLAKE,
 		"resources/gold and silver are metal flake")
-	_ok(CartridgeColor.get_palette("nes") == null, "resources/a system with no palette gets none")
+	_ok(CartridgeColor.get_palette("genesis") == null, "resources/a system with no palette gets none")
 
 
 func _test_model() -> void:

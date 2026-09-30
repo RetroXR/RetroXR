@@ -291,8 +291,9 @@ func _group_hold() -> void:
 
 	_ok(SpawnMenuSpawnView._has_spawn_options("n64")
 		and SpawnMenuSpawnView._has_spawn_options("gb")
-		and not SpawnMenuSpawnView._has_spawn_options("nes"),
-		"hold/only an N64 or Game Boy ROM row opens one")
+		and SpawnMenuSpawnView._has_spawn_options("nes")
+		and not SpawnMenuSpawnView._has_spawn_options("genesis"),
+		"hold/an N64, Game Boy or NES ROM row opens one, a Genesis row does not")
 
 	# The sub-menu itself: what SPAWN hands on for the palette, and for a colour
 	# mixed on the Custom sliders. It opens beside the view, so the view has a parent.
