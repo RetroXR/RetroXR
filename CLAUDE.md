@@ -66,14 +66,23 @@ python Tools/build.py windows --jobs 8 -- verbose=yes    # extra args go to scon
 
 ### The Quest ships a PATCHED engine — `docs/dev/engine-patches.md`
 
-Stock 4.7.2 has six Quest defects fixed by `docs/godot-4.7.2-*.patch`, applied on engine
+Stock 4.7.2 has seven Quest defects fixed by `docs/godot-4.7.2-*.patch`, applied on engine
 branch `retroxr-4.7.2` in `~/godot` (github.com/RetroXR/godot). Prebuilt arm64 libs live
 in `Tools/engine/` (Git LFS):
 
 ```bash
 python Tools/place_engine.py --target release   # what release.yml runs before the export
-python Tools/place_engine.py --target debug     # local Quest export (--restore to undo)
+python Tools/place_engine.py --target debug     # local Quest export; --check only reports
 ```
+
+**Every Android export places the engine itself** (`retroxr_build_stamp`'s export plugin runs
+`place_engine.py`; `RETROXR_STOCK_ENGINE=1` opts out). The gradle template is SHARED by every
+export from the checkout: never `--restore` it to tidy up after a probe. One such restore left
+it stock for four days, and stock DEADLOCKS on the loading screen (2026-09-30, 0/4 launches).
+A stock build prints `4.7.2.stable.official` and logs `[Boot] running STOCK Godot`; ours is
+`custom_build`. The seventh patch is the Vulkan PSO cache: stock never reused it on Adreno,
+so every boot recompiled every pipeline (arcade curtain at 75 s; 39 s with the patch, 25 s
+with the book page cap as well, books.md).
 
 `rendering/renderer/mobile/render_directly_to_target` is ON in `project.godot` (pays on the
 MSAA path). Never judge an sRGB-view experiment from a screencap alone. Rebuild recipe,

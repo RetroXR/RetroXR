@@ -1,0 +1,63 @@
+From 08f38c13bc34b774d64e17804dc27c2420050043 Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Wed, 30 Sep 2026 21:12:37 -0700
+Subject: [PATCH] Vulkan: save the pipeline cache at the size the driver wrote
+
+pipeline_cache_serialize() sized its buffer from the last size query, let
+vkGetPipelineCacheData() write into it, and recorded the size actually
+written in the header, but returned the buffer at its worst-case size. The
+Adreno driver on a Quest 3 writes a few hundred bytes less than it reports
+(349 of 16 MiB), so the file kept that slack after the data, and the next
+launch's check that data_size equals the payload length rejected the whole
+cache as an "invalid header". Every launch recompiled every pipeline: about
+95 CPU-seconds of driver compiling, and a 75 s boot.
+
+The buffer is now trimmed to what was written. A cache already saved with
+slack is read up to its data_size (the hash covers exactly those bytes)
+instead of being thrown away.
+---
+ drivers/vulkan/rendering_device_driver_vulkan.cpp | 14 ++++++++++++--
+ 1 file changed, 12 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/vulkan/rendering_device_driver_vulkan.cpp b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+index 4b1bd9fd0e..f094e3690a 100644
+--- a/drivers/vulkan/rendering_device_driver_vulkan.cpp
++++ b/drivers/vulkan/rendering_device_driver_vulkan.cpp
+@@ -5289,6 +5289,12 @@ bool RenderingDeviceDriverVulkan::pipeline_cache_create(const Vector<uint8_t> &p
+ 			} else {
+ 				const uint8_t *loaded_buffer_start = p_data.ptr() + sizeof(PipelineCacheHeader);
+ 				uint32_t loaded_buffer_size = p_data.size() - sizeof(PipelineCacheHeader);
++				// A cache saved before pipeline_cache_serialize() trimmed its buffer can carry
++				// unused bytes after the data the driver wrote. The hash still covers exactly
++				// data_size bytes, so read only those rather than discarding the whole cache.
++				if (loaded_header->data_size < loaded_buffer_size) {
++					loaded_buffer_size = loaded_header->data_size;
++				}
+ 				const PipelineCacheHeader *current_header = (PipelineCacheHeader *)pipelines_cache.buffer.ptr();
+ 				if (loaded_header->data_hash != hash_murmur3_buffer(loaded_buffer_start, loaded_buffer_size) ||
+ 						loaded_header->data_size != loaded_buffer_size ||
+@@ -5301,6 +5307,7 @@ bool RenderingDeviceDriverVulkan::pipeline_cache_create(const Vector<uint8_t> &p
+ 				} else {
+ 					pipelines_cache.current_size = loaded_buffer_size;
+ 					pipelines_cache.buffer = p_data;
++					pipelines_cache.buffer.resize(loaded_buffer_size + sizeof(PipelineCacheHeader));
+ 				}
+ 			}
+ 		}
+@@ -5354,8 +5361,11 @@ Vector<uint8_t> RenderingDeviceDriverVulkan::pipeline_cache_serialize() {
+ 	// Incomplete is OK because the cache may have grown since the size was queried (unless when exiting).
+ 	ERR_FAIL_COND_V_MSG(err != VK_SUCCESS && err != VK_INCOMPLETE, Vector<uint8_t>(), vformat("Couldn't get Vulkan pipeline cache data (VkResult error %d).", err));
+ 
+-	// The real buffer size may now be bigger than the updated current_size.
+-	// We take into account the new size but keep the buffer resized in a worst-case fashion.
++	// The driver may write less than the size it reported when queried (Adreno does,
++	// by a few hundred bytes). The loader requires the blob to be exactly data_size
++	// long, so the buffer must not keep its worst-case size: the unused tail used to be
++	// saved with it, and every later launch rejected the whole cache as invalid.
++	pipelines_cache.buffer.resize(pipelines_cache.current_size + sizeof(PipelineCacheHeader));
+ 
+ 	PipelineCacheHeader *header = (PipelineCacheHeader *)pipelines_cache.buffer.ptrw();
+ 	header->data_size = pipelines_cache.current_size;
+-- 
+2.53.0.windows.1
+

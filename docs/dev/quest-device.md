@@ -153,3 +153,47 @@ loses boot output. Stream from before the launch instead:
 ```bash
 adb logcat -c && adb logcat -s godot:* > quest.log &
 ```
+
+### "Stuck on the loading screen": which engine is it running?
+
+Read the banner first. `Godot Engine v4.7.2.stable.official…` is **stock** Godot, which
+deadlocks at boot on a Quest (engine-patches.md); ours prints `…custom_build…`, and boot
+now logs `[Boot] running STOCK Godot` as an error when it is not. The 2026-09-30 report
+was exactly this: a `place_engine.py --restore` used to tidy up after a probe build had
+left the shared gradle template stock, so every local export after it hung (stock 0/4
+launches, patched 5/5). Every Android export now re-places the engine itself.
+
+A hang shows as the app's VrApi lines going quiet (`FPS=1/72`, then nothing) with every
+thread asleep: `run-as com.xenu.retroxr sh -c 'for t in /proc/<pid>/task/*; do echo
+$(cat $t/comm) $(cat $t/wchan); done'` — the main loop is the thread named `VkThread`.
+
+**Native stacks without root.** `debuggerd -b` needs root, but the app is debuggable, so
+the NDK's lldb-server can attach as the app:
+```bash
+adb push "C:/android/android-ndk-r27d/toolchains/llvm/prebuilt/windows-x86_64/lib/clang/18/lib/linux/aarch64/lldb-server" /data/local/tmp/
+adb shell "run-as com.xenu.retroxr sh -c 'cp /data/local/tmp/lldb-server . && chmod 755 lldb-server && ./lldb-server gdbserver --attach <pid> 127.0.0.1:5039 > /dev/null 2>&1 &'"
+adb forward tcp:5039 tcp:5039
+lldb.cmd -b -o "gdb-remote 127.0.0.1:5039" -o "thread backtrace all" -o detach -o quit   # PowerShell; lldb.exe alone cannot find its DLLs
+```
+Frames come back as raw addresses. Map them with `run-as … cat /proc/<pid>/maps`: the
+libraries are mapped straight out of `base.apk` (stored uncompressed), so an address is
+`base.apk+offset`, and the zip's local headers say which `.so` that offset falls in. The
+installed `libgodot_android.so`'s build-id (`llvm-readelf -n`) tells stock from patched
+without symbols. A SIGSEGV in a `binder:` thread on attach is ART's implicit null check,
+not a crash. Delete the lldb-server copy from the app dir afterwards.
+
+### Profiling a boot (where the time goes)
+
+`simpleperf` ships on the headset and samples a debuggable app without root, user space
+only:
+```bash
+adb shell monkey -p com.xenu.retroxr 1
+adb shell simpleperf record --app com.xenu.retroxr -e cpu-clock:u -f 500 --duration 78 -o /data/local/tmp/perf.data
+adb shell "simpleperf report-sample -i /data/local/tmp/perf.data" > samples.txt   # one block per sample: time, thread, file, symbol
+```
+The engine is stripped, but bucketing samples by thread and LIBRARY across the boot's log
+milestones is usually enough: `libllvm-qgl.so` is the Adreno driver compiling pipelines,
+`libpdfium.so` is page rendering, `libgodot_android.so` on `VkThread` is the main loop. A
+debug export with `command_line/extra_args="--verbose"` on the preset adds a `Loading
+resource:` line (with its thread id) for every load, and the PSO cache verdict
+(`Startup PSO cache (N MiB)`). Revert the preset afterwards.
