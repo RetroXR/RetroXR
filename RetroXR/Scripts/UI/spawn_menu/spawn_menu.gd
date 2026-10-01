@@ -419,7 +419,7 @@ func _build_ui() -> void:
 	_cores_view.default_core_changed.connect(
 		func(sid: String, cn: String) -> void:
 			if is_instance_valid(_spawn_view):
-				_spawn_view.refresh_after_core_change()
+				_spawn_view.refresh_after_core_change(sid)
 			default_core_changed.emit(sid, cn))
 	content.add_child(_cores_view)
 

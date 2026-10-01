@@ -45,6 +45,7 @@ func _ready() -> void:
 	await _group_scroll()
 	_group_art_lookup()
 	await _group_idle()
+	await _group_tiles()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -727,13 +728,16 @@ func _group_toasts() -> void:
 class _CountingSpawnView extends SpawnMenuSpawnView:
 	var systems := 0
 	var cartridges := 0
+	var detail_reruns := 0
 	var rows := 0
 
 	func _populate_systems_tab() -> void:
 		systems += 1
 
-	func _populate_cartridges_tab() -> void:
+	func _populate_cartridges_tab(rerun_detail: bool = true) -> void:
 		cartridges += 1
+		if rerun_detail:
+			detail_reruns += 1
 
 	func _rebuild_romm_rows() -> void:
 		rows += 1
@@ -788,6 +792,24 @@ func _group_owed() -> void:
 	view.visible = true
 	_eq([view.systems, view.cartridges], [3, 3],
 		"owed/and it is rebuilt once as its own tab comes back")
+
+	# The open page is gba. A core for other systems redraws the tiles and leaves
+	# the page; one for gba, or a scrape, re-runs it.
+	browser._current_systemid = "gba"
+	var reruns := view.detail_reruns
+	view.refresh_after_core_change("genesis")
+	view.refresh_after_core_change("segacd")
+	await get_tree().process_frame
+	_eq([view.cartridges, view.detail_reruns - reruns], [4, 0],
+		"owed/a core for another system redraws the tiles, not the open page")
+	view.refresh_after_core_change("genesis")
+	view.refresh_after_core_change("gba")
+	await get_tree().process_frame
+	_eq(view.detail_reruns - reruns, 1, "owed/a core for the open system re-runs its page")
+	view._owe_detail = true
+	view._owe(false, true, false)
+	await get_tree().process_frame
+	_eq(view.detail_reruns - reruns, 2, "owed/and so does a scrape's refresh")
 	browser.free()
 
 
@@ -969,3 +991,54 @@ func _group_idle() -> void:
 	icon._process(0.5)
 	_eq(icon._time, 0.5, "idle/and turns again when the panel is back")
 	host.free()
+
+
+# ── tiles/ — a grid handed the same systems keeps the tiles that did not change ─
+
+## A core finishing an install sends every grid in the menu through set_systems,
+## and it rebuilt every tile of each: 126 ms for the CORES tab's Download grid
+## and 75 ms for its Manager grid on a Quest 3, for one core. Unchanged tiles stay.
+func _group_tiles() -> void:
+	var browser := SystemGridBrowser.new()
+	add_child(browser)
+	_spawned.append(browser)
+	await get_tree().process_frame
+	var three := [
+		{"systemid": "nes", "name": "NES", "badge": "2 cores"},
+		{"systemid": "snes", "name": "SNES", "badge": "3 cores", "alt_tile": true},
+		{"systemid": "gba", "name": "Game Boy Advance", "badge": "1 core"},
+	]
+	browser.set_systems(three)
+	var before := browser._tile_nodes.duplicate()
+	var changed := three.duplicate(true)
+	(changed[2] as Dictionary)["alt_tile"] = false
+	browser.set_systems(changed)
+	var after := browser._tile_nodes.duplicate()
+	# Sorted by name: Game Boy Advance, NES, SNES -- the changed one is first.
+	_eq([after[0] == before[0], after[1] == before[1], after[2] == before[2]], [false, true, true],
+		"tiles/one system changed: only its tile is rebuilt")
+	_eq(browser._tiles_grid.get_children().size(), 3, "tiles/and the grid still holds three")
+	_eq(_visible_names(browser), ["game boy advance", "nes", "snes"],
+		"tiles/in the same order")
+	# A tile still queued for deletion is a child until the frame ends, so the
+	# grid has to be looked at a frame later: kept tiles must still be there.
+	await get_tree().process_frame
+	var alive := 0
+	for n: Variant in browser._tile_nodes:
+		if is_instance_valid(n) and (n as Node).get_parent() == browser._tiles_grid:
+			alive += 1
+	_eq([alive, browser._tiles_grid.get_children().size()], [3, 3],
+		"tiles/and a frame later all three are alive and on the grid")
+
+	var four := changed.duplicate(true)
+	four.append({"systemid": "n64", "name": "Nintendo 64"})
+	browser.set_systems(four)
+	_ok(not browser._tile_nodes.has(after[0]), "tiles/a system added rebuilds the grid")
+
+	var kept := browser._tile_nodes.duplicate()
+	browser.allow_compact = true
+	var was := AppPrefs.compact_tiles
+	AppPrefs.compact_tiles = not was
+	browser._rebuild_tiles()
+	AppPrefs.compact_tiles = was
+	_ok(not browser._tile_nodes.has(kept[0]), "tiles/and so does switching to compact")

@@ -94,6 +94,15 @@ const CORNER_GLYPH_RESERVE_PX := 34.0
 #               "corner_glyph": String, "corner_glyph_color": Color,
 #               "corner_glyph_tip": String (all optional) }
 var _systems: Array = []
+## The tiles in _tiles_grid, in grid order, and what each was built from: its
+## system entry plus the state outside it that changes how it is drawn.
+## set_systems() is handed the whole list every time, and a core finishing an
+## install sends every grid in the menu through it when one or two tiles differ
+## -- a tile is a Button with an icon, labels and a two-line wrapping name, and
+## rebuilding the Manager tab's ~60 was 23 ms of a desktop frame for one core.
+## Tiles whose signature is unchanged are kept.
+var _tile_nodes: Array[Control] = []
+var _tile_built: Array = []
 var _detail_populator: Callable = Callable()
 var _current_systemid: String = ""
 var _built: bool = false
@@ -530,8 +539,6 @@ func _update_tile_columns() -> void:
 
 
 func _rebuild_tiles() -> void:
-	for c in _tiles_grid.get_children():
-		c.queue_free()
 	# Filtered here rather than by the host, so set_systems() keeps the whole
 	# list and unhiding needs no round trip back to whoever built it.
 	var shown: Array = []
@@ -545,11 +552,53 @@ func _rebuild_tiles() -> void:
 	_sync_hidden_toggle(hidden_count)
 	_home_empty.visible = shown.is_empty()
 	_home_scroll.visible = not shown.is_empty()
+	var built: Array = []
 	for s: Dictionary in shown:
-		_tiles_grid.add_child(_make_tile(s))
+		built.append(_tile_signature(s))
+	if _same_systems(built):
+		# The same systems in the same order: replace only the tiles that differ,
+		# each in its own place.
+		for i in built.size():
+			if built[i] == _tile_built[i]:
+				continue
+			var old := _tile_nodes[i]
+			var tile := _make_tile(shown[i])
+			_tiles_grid.add_child(tile)
+			_tiles_grid.move_child(tile, old.get_index())
+			_tiles_grid.remove_child(old)
+			old.queue_free()
+			_tile_nodes[i] = tile
+	else:
+		for c in _tiles_grid.get_children():
+			c.queue_free()
+		_tile_nodes.clear()
+		for s: Dictionary in shown:
+			var tile := _make_tile(s)
+			_tiles_grid.add_child(tile)
+			_tile_nodes.append(tile)
+	_tile_built = built
 	_update_tile_columns()
 	if _filter_edit and not _filter_edit.text.is_empty():
 		_on_filter_changed(_filter_edit.text)
+
+
+## Everything a tile is drawn from. Two tiles with equal signatures look the same.
+func _tile_signature(s: Dictionary) -> Array:
+	var sid := str(s.get("systemid", ""))
+	return [s, _compact(), allow_hiding and AppPrefs.is_system_hidden(sid),
+		tile_min_size, use_content_art]
+
+
+## Do the tiles on the grid stand for exactly these systems, in this order?
+func _same_systems(built: Array) -> bool:
+	if built.size() != _tile_built.size() or built.size() != _tile_nodes.size():
+		return false
+	for i in built.size():
+		if not is_instance_valid(_tile_nodes[i]):
+			return false
+		if str((built[i][0] as Dictionary).get("systemid", "")) 				!= str((_tile_built[i][0] as Dictionary).get("systemid", "")):
+			return false
+	return true
 
 
 func _make_tile(s: Dictionary) -> Button:

@@ -67,6 +67,7 @@ var _firmware_installer: FirmwareInstaller = null
 var _bios_job_buttons: Dictionary = {}
 ## Firmware job key -> the whole percent last shown for it.
 var _firmware_pct: Dictionary = {}
+var _recommend_refresh_queued := false
 ## Core awaiting its second delete press, "" when nothing is armed. Cleared by a
 ## rebuild rather than a timer — the row is redrawn on arm, so the armed glyph
 ## and this are always written together.
@@ -1982,6 +1983,19 @@ func _on_download_all_recommended() -> void:
 	_refresh_recommend_all_button()
 
 
+## _refresh_recommend_all_button at the end of the frame, once. A core finishing
+## asked for it, and the next one in the queue starting asked again in the same
+## frame: a listing of the cores folder and a pass over all ~240 buildbot entries
+## each time, 10 ms of a Quest 3 frame apiece.
+func _refresh_recommend_all_soon() -> void:
+	if _recommend_refresh_queued:
+		return
+	_recommend_refresh_queued = true
+	(func() -> void:
+		_recommend_refresh_queued = false
+		_refresh_recommend_all_button()).call_deferred()
+
+
 ## An empty listing is "not fetched yet", not "nothing left to do" — the two read
 ## identically from the count alone, and calling the first one done would tell a
 ## player with no network that they have every core.
@@ -2176,7 +2190,7 @@ func _on_core_job_started(key: String, label: String, total: int) -> void:
 	_job_labels[key] = label
 	_romm_notify_or_queue(key, String.chr(MenuIcons.BUSY), _job_text(key, total), 0.0, 0.0)
 	_refresh_download_button(_core_from_key(key))
-	_refresh_recommend_all_button()
+	_refresh_recommend_all_soon()
 
 
 func _on_core_job_progress(key: String, received: int, total: int) -> void:
@@ -2194,7 +2208,7 @@ func _on_core_job_cancelled(key: String) -> void:
 	_job_labels.erase(key)
 	notify_clear(key)
 	_refresh_download_button(_core_from_key(key))
-	_refresh_recommend_all_button()
+	_refresh_recommend_all_soon()
 
 
 func _on_core_job_finished(key: String, ok: bool, error: String) -> void:
@@ -2206,13 +2220,13 @@ func _on_core_job_finished(key: String, ok: bool, error: String) -> void:
 			"%s — %s" % [label, error if not error.is_empty() else "download failed"],
 			MenuToasts.DWELL_FAIL)
 		_refresh_download_button(core_name)
-		_refresh_recommend_all_button()
+		_refresh_recommend_all_soon()
 		return
 
 	_romm_notify_or_queue(key, String.chr(MenuIcons.CHECK),
 		"%s installed" % label, MenuToasts.DWELL_OK)
 	_refresh_download_button(core_name)
-	_refresh_recommend_all_button()
+	_refresh_recommend_all_soon()
 	call_deferred("_populate_manager_tab")
 	# Rebuilds the home grid only, so the detail page this was pressed on is left
 	# alone — the tile behind it drops its purple.

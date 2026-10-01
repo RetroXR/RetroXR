@@ -202,6 +202,12 @@ var _owe_systems := false
 var _owe_cartridges := false
 var _owe_romm_rows := false
 var _owed_flush_queued := false
+## Whether the owed Cartridges refresh must also re-run the open system's page:
+## for a scrape that changed what its rows show, or a core change for THAT system.
+## Re-running it rebuilds the whole ROM list -- 117 ms of a Quest 3 frame for a
+## 3k-row platform -- and a core for some other system changes nothing on it.
+var _owe_detail := false
+var _owe_core_sids: Dictionary = {}
 
 ## Art that landed this frame, applied once at its end: RomM rom ids, and the
 ## file stems scraped art is named after. See _flush_landed_art.
@@ -371,7 +377,7 @@ func _build() -> void:
 	_populate_systems_tab()
 
 	# Rebuild systems/cartridges lists whenever the user sets/changes a default
-	default_core_changed.connect(func(_sid: String, _cn: String): refresh_after_core_change())
+	default_core_changed.connect(func(sid: String, _cn: String): refresh_after_core_change(sid))
 
 	# Cartridges tab — drill-down browser, one tile per system
 	_cartridges_browser = SystemGridBrowser.new()
@@ -597,7 +603,11 @@ func _clear_vbox(vbox: VBoxContainer) -> void:
 ##
 ## Owed rather than run: a core that serves several systems reports each one in
 ## the same frame, and the grids need rebuilding once.
-func refresh_after_core_change() -> void:
+func refresh_after_core_change(systemid: String = "") -> void:
+	if systemid.is_empty():
+		_owe_detail = true
+	else:
+		_owe_core_sids[systemid] = true
 	_owe(true, true, false)
 
 
@@ -630,19 +640,22 @@ func _flush_owed() -> void:
 	var systems := _owe_systems
 	var cartridges := _owe_cartridges
 	var rows := _owe_romm_rows
+	var shown_sid := _cartridges_browser.current_systemid() if _cartridges_browser != null else ""
+	var detail := _owe_detail or _owe_core_sids.has(shown_sid)
 	_owe_systems = false
 	_owe_cartridges = false
 	_owe_romm_rows = false
+	_owe_detail = false
+	_owe_core_sids.clear()
 	if systems:
 		_populate_systems_tab()
 	if cartridges:
-		_populate_cartridges_tab()
+		_populate_cartridges_tab(detail)
 	# Only for a page that is open: opening one builds its rows from scratch, so
-	# a list nobody is looking at has nothing to catch up on. And the Cartridges
-	# refresh above has just re-run the open page, rows included.
-	var open := _cartridges_browser != null \
-		and _cartridges_browser.current_systemid() == _romm_detail_systemid
-	if rows and open and not cartridges:
+	# a list nobody is looking at has nothing to catch up on. And a Cartridges
+	# refresh that re-ran the open page has rebuilt its rows already.
+	var open := _cartridges_browser != null and shown_sid == _romm_detail_systemid
+	if rows and open and not (cartridges and detail):
 		_rebuild_romm_rows()
 
 
@@ -842,7 +855,7 @@ func _clear_children(node: Node) -> void:
 ## OR a mapped RomM platform. ROMs are scanned/synced lazily, only when a system
 ## tile is opened — a full library sync at launch would be minutes of transfer
 ## before the user could do anything.
-func _populate_cartridges_tab() -> void:
+func _populate_cartridges_tab(rerun_detail: bool = true) -> void:
 	if not _cartridges_browser:
 		return
 
@@ -904,8 +917,10 @@ func _populate_cartridges_tab() -> void:
 	_cartridges_browser.set_systems(systems)
 	# If a system detail is open, re-run it so newly-added ROMs appear. Detail
 	# only: set_systems has just rebuilt the tiles, and refresh() would build all
-	# 68 of them again for nothing.
-	_cartridges_browser.refresh_detail()
+	# 68 of them again for nothing. Not when the caller knows the page is
+	# unaffected (_flush_owed).
+	if rerun_detail:
+		_cartridges_browser.refresh_detail()
 
 	# Pull the largest synced platforms' sidecars into the file cache while the
 	# user is still looking at the grid. Opening one is disk-bound the first
@@ -2383,6 +2398,8 @@ func _schedule_scrape_refresh() -> void:
 	_scrape_refresh_timer.timeout.connect(func() -> void:
 		_scrape_refresh_timer = null
 		if is_instance_valid(_romm_list):
+			# Names and metadata the rows draw changed: the open page too.
+			_owe_detail = true
 			_owe(false, true, false)
 	)
 

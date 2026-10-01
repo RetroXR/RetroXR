@@ -33,6 +33,17 @@ const TIMEOUT_SEC := 300.0
 const MULTI_SYSTEM_CORES := ["genesis_plus_gx", "picodrive", "mednafen_pce_fast",
 	"fceumm", "mgba", "gambatte"]
 const TOAST_EMOJI := ["✅", "❌", "⏳", "⬇", "⚠", "🗑", "⏹"]
+## The cores installed on the dev Quest 3 on 2026-09-30, stood in for by empty
+## files in a probe package's own cores folder (it starts with none), so the
+## Manager and Download grids are the size a player's are. Never loaded.
+const QUEST_CORES := ["arduous", "atari800", "azahar", "bluemsx", "cap32", "dolphin",
+	"dosbox_pure", "fbneo", "fceumm", "flycast", "freechaf", "freeintv", "fuse", "gambatte",
+	"gearcoleco", "genesis_plus_gx", "hatari", "mame2003_plus", "mednafen_lynx", "mednafen_ngp",
+	"mednafen_pce_fast", "mednafen_pcfx", "mednafen_supergrafx", "mednafen_vb", "mednafen_wswan",
+	"melondsds", "mgba", "mupen64plus_next_gles3", "neocd", "np2kai", "o2em", "opera", "pcsx2",
+	"pcsx_rearmed", "picodrive", "pokemini", "potator", "ppsspp", "prosystem", "puae", "px68k",
+	"quasi88", "scummvm", "snes9x", "stella", "supermodel", "vecx", "vemulator", "vice_x64sc",
+	"virtualjaguar", "xemu", "yabasanshiro"]
 
 var _lines: PackedStringArray = PackedStringArray()
 var _host: Node3D = null
@@ -116,6 +127,7 @@ func _run() -> void:
 	await _probe_art(sv)
 	await _probe_download_finished(menu, sv)
 	await _probe_core_finished(menu, cv)
+	await _probe_core_finished_on_cores_tab(menu, cv)
 	await _probe_extract(cv)
 	_probe_dedupe()
 
@@ -593,3 +605,85 @@ func _remove_tree(path: String) -> void:
 	for sub: String in d.get_directories():
 		_remove_tree(path.path_join(sub))
 	DirAccess.remove_absolute(path)
+
+
+# ── 4b. A finished core install, as the player sees it ────────────────────────
+
+## On the CORES tab, where a core is downloaded from, with the buildbot listing
+## in and a real install's worth of cores on disk. The SPAWN tab's share is owed
+## until it is shown; what is left is this view's own grids and buttons.
+func _probe_core_finished_on_cores_tab(menu: Node, cv: Node) -> void:
+	var cores_dir := CoreDownloadManager.default_cores_dir()
+	if OS.has_feature("android"):
+		DirAccess.make_dir_recursive_absolute(cores_dir)
+		for cn: String in QUEST_CORES:
+			var stand_in := cores_dir.path_join(cn + "_libretro_android.so")
+			if not FileAccess.file_exists(stand_in):
+				var f := FileAccess.open(stand_in, FileAccess.WRITE)
+				if f != null:
+					f.close()
+	var installed := 0
+	var d := DirAccess.open(cores_dir)
+	if d != null:
+		for fn: String in d.get_files():
+			if not CoreDownloadManager.core_name_from_lib_filename(fn).is_empty():
+				installed += 1
+
+	menu.call("_show_cores_view")
+	var dm: Object = cv.get("download_manager")
+	var give_up := Time.get_ticks_msec() + 30000
+	while (dm.get("available_cores") as Array).is_empty() and Time.get_ticks_msec() < give_up:
+		await get_tree().process_frame
+	cv.call("_populate_manager_tab")
+	await _frames(20)
+	_say("cores tab: %d cores installed, %d in the buildbot listing",
+		[installed, (dm.get("available_cores") as Array).size()])
+	if (dm.get("available_cores") as Array).is_empty():
+		_say("cores tab: no listing (offline?) - the Download grid is empty, skipped")
+		return
+
+	var key := CoreDownloadManager.job_key("genesis_plus_gx")
+	var samples := PackedFloat64Array()
+	var syncs := PackedFloat64Array()
+	for i in 5:
+		(cv.get("_job_labels") as Dictionary)[key] = "Probe core"
+		var t := _t()
+		cv.call("_on_core_job_finished", key, true, "")
+		syncs.append(_ms(t))
+		await get_tree().process_frame
+		samples.append(_ms(t))
+		await _frames(5)
+		menu.call("notify_clear", key)
+		await _frames(5)
+	_say("core finished on CORES tab: synchronous part %s", [_stats(syncs)])
+	_say("core finished on CORES tab, frame %s", [_stats(samples)])
+
+	# The synchronous part, step by step, in the handler's order.
+	var core_db: Object = cv.get("core_db")
+	var defaults: Object = cv.get("core_defaults")
+	var sids: Array = CoreInfoDatabase.systemids_of(core_db.call("get_by_core_name", "genesis_plus_gx"))
+	var ts := _t()
+	menu.call("notify", key, "", "Probe core installed", -1.0, 2.5)
+	_say("  finish step notify                  %8.2f ms", [_ms(ts)])
+	ts = _t()
+	cv.call("_refresh_download_button", "genesis_plus_gx")
+	_say("  finish step _refresh_download_button %7.2f ms", [_ms(ts)])
+	ts = _t()
+	for sid: String in sids:
+		RomLibrary.ensure_rom_dir(sid)
+	_say("  finish step ensure_rom_dir x%d       %8.2f ms", [sids.size(), _ms(ts)])
+	ts = _t()
+	for sid: String in sids:
+		cv.emit_signal("default_core_changed", sid, str(defaults.call("get_default_core", sid)))
+	_say("  finish step default_core_changed x%d %8.2f ms", [sids.size(), _ms(ts)])
+	await _frames(5)
+	menu.call("notify_clear", key)
+
+	for part: String in ["_refresh_recommend_all_button", "_populate_manager_tab",
+			"refresh_download_systems"]:
+		await _frames(3)
+		var t := _t()
+		cv.call(part)
+		_say("  cores tab part %-30s %8.2f ms", [part, _ms(t)])
+	menu.call("_show_spawn_view")
+	await _frames(10)
