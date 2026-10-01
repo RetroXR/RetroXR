@@ -309,6 +309,8 @@ var _loading_texture: ImageTexture = null
 # 1-pixel-wide colour strip taken from the cover's inner edge, wrapped around
 # the binding by spine.gdshader. Built once per loaded book.
 var _spine_strip: ImageTexture = null
+# Its pixels, handed over by the cover's worker where pages arrive compressed.
+var _cover_strip_image: Image = null
 
 # Hint labels for page turning
 var _next_label: Label3D = null
@@ -712,19 +714,42 @@ func _request_page_render(page_index: int) -> void:
 	var src_index := page_index / 2 if half_page_mode else page_index
 	# Captured for the worker lambda so it never reaches back through `self`.
 	var cache_dir := _cache_dir
+	var cache_path := cache_dir + "page_%03d.png" % page_index
+	var blocks_path := cache_dir + "page_%03d.etc2" % page_index
+	var compress := compress_pages
+
+	# Compressed on an earlier run (mobile GPUs only): a read and an upload,
+	# with no decode at all.
+	if compress and FileAccess.file_exists(blocks_path):
+		_render_tasks.append(WorkerThreadPool.add_task(func():
+			var img := _load_page_blocks(blocks_path)
+			var strip: Image = null
+			if img == null:
+				# Damaged, or another version's format: drop it, and the page is
+				# rendered again the next time it is asked for.
+				DirAccess.remove_absolute(blocks_path)
+			elif page_index == 0:
+				var plain := img.duplicate() as Image
+				plain.clear_mipmaps()
+				plain.decompress()
+				strip = _spine_strip_from(plain)
+			call_deferred("_on_page_rendered", page_index, img, strip)
+		))
+		return
 
 	# Rendered on some earlier run: this is only a decode — but a full-size PNG
 	# is ~11 ms of one, which is main-thread time a frame does not have. Same
 	# pool, same landing, so the caller cannot tell the two apart.
-	var cache_path := cache_dir + "page_%03d.png" % page_index
 	if FileAccess.file_exists(cache_path):
 		_render_tasks.append(WorkerThreadPool.add_task(func():
 			var img := Image.load_from_file(cache_path)
 			# Rendered before MAX_PAGE_PX existed: shrink it, and keep the shrunk
-			# copy so the next launch decodes the small one.
-			if _fit_page(img):
+			# copy so the next launch decodes the small one. Where pages are
+			# compressed, the blocks file written below supersedes it instead.
+			if _fit_page(img) and not compress:
 				_save_page_atomically(img, cache_path)
-			call_deferred("_on_page_rendered", page_index, img)
+			var strip := _finish_page(img, page_index, compress, blocks_path)
+			call_deferred("_on_page_rendered", page_index, img, strip)
 		))
 		return
 
@@ -733,9 +758,10 @@ func _request_page_render(page_index: int) -> void:
 			var img := _decode_cbz_page(src_index)
 			img = _crop_to_half(img, page_index)
 			_fit_page(img)
-			if img:
-				img.save_png(cache_dir + "page_%03d.png" % page_index)
-			call_deferred("_on_page_rendered", page_index, img)
+			if img and not compress:
+				img.save_png(cache_path)
+			var strip := _finish_page(img, page_index, compress, blocks_path)
+			call_deferred("_on_page_rendered", page_index, img, strip)
 		))
 		return
 
@@ -754,9 +780,10 @@ func _request_page_render(page_index: int) -> void:
 				_fit_dpi(renderer_ref.get_page_size(src_index), dpi, half))
 		_render_mutex.unlock()
 		img = _crop_to_half(img, page_index)
-		if img:
-			img.save_png(cache_dir + "page_%03d.png" % page_index)
-		call_deferred("_on_page_rendered", page_index, img)
+		if img and not compress:
+			img.save_png(cache_path)
+		var strip := _finish_page(img, page_index, compress, blocks_path)
+		call_deferred("_on_page_rendered", page_index, img, strip)
 	))
 
 
@@ -803,6 +830,95 @@ static func _save_page_atomically(img: Image, path: String) -> void:
 		DirAccess.remove_absolute(tmp)
 
 
+## A mobile GPU reads ETC2 natively, so a page there is compressed on the worker:
+## 1.4 MiB for a 1411 x 2048 page against 11 MiB of RGBA8, plus a third again for
+## mipmaps, which the page shaders sample (filter_linear_mipmap) and which pages
+## never had, so small or distant text aliased. The upload is what a Quest turn
+## spends its frame on (6-7.5 ms for an uncompressed 1200 x 1600 page), and it
+## scales with the bytes. The blocks are cached beside the PNGs as
+## page_NNN.etc2, so a page read before is a file read and an upload, with no
+## decode. Desktop keeps RGBA8: its GPUs do not take ETC2, and it has the memory.
+##
+## Measured on the manual pages (desktop encode, etcpak): ~30 ms a page, PSNR
+## 34-37 dB; flat pale areas show faint 4x4 blocks where a scan already had
+## JPEG blocks. ASTC 4x4 was cleaner but 1-2 s a page to encode.
+static var compress_pages: bool = _can_compress_pages()
+
+
+## Godot registers its texture ENCODERS in editor builds only; an export template
+## gets the decoders. RetroXR's Quest engine registers the ETC2 one on Android
+## too (docs/godot-4.7.2-etc2-encoder-android.patch). Asked rather than assumed:
+## on a stock engine compress() fails, and a page converted for it but left
+## uncompressed (RGB8, with mipmaps) is bigger than the page it replaced.
+static func _can_compress_pages() -> bool:
+	if not (OS.has_feature("mobile") and RenderingServer.has_os_feature("etc2")):
+		return false
+	return Image.create(4, 4, false, Image.FORMAT_RGB8).compress(Image.COMPRESS_ETC2) == OK
+
+const _BLOCKS_MAGIC := 0x47505852  # "RXPG"
+const _BLOCKS_VERSION := 1
+
+
+## Worker side, once a page image is final: compress it for a mobile GPU and
+## cache the blocks. Returns the cover's spine strip (page 0), taken first,
+## because a compressed image cannot be read pixel by pixel.
+static func _finish_page(img: Image, page_index: int, compress: bool, blocks_path: String) -> Image:
+	if not compress or img == null or img.is_empty():
+		return null
+	var strip := _spine_strip_from(img) if page_index == 0 else null
+	# Pages are opaque, and ETC2 RGB is half the size of ETC2 RGBA.
+	img.convert(Image.FORMAT_RGB8)
+	img.generate_mipmaps()
+	if img.compress(Image.COMPRESS_ETC2, Image.COMPRESS_SOURCE_SRGB) == OK:
+		_save_page_blocks(img, blocks_path)
+	return strip
+
+
+## The blocks exactly as the GPU takes them, behind a small header. Written
+## beside the target and renamed over it: copies of one book share the cache.
+static func _save_page_blocks(img: Image, path: String) -> void:
+	if not img.is_compressed():
+		return
+	var tmp := "%s.%x.tmp" % [path, randi()]
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
+	if f == null:
+		return
+	var data := img.get_data()
+	f.store_32(_BLOCKS_MAGIC)
+	f.store_32(_BLOCKS_VERSION)
+	f.store_32(img.get_width())
+	f.store_32(img.get_height())
+	f.store_32(img.get_format())
+	f.store_8(1 if img.has_mipmaps() else 0)
+	f.store_32(data.size())
+	f.store_buffer(data)
+	f.close()
+	if DirAccess.rename_absolute(tmp, path) != OK:
+		DirAccess.remove_absolute(tmp)
+
+
+## null for anything that is not a whole blocks file of this version.
+static func _load_page_blocks(path: String) -> Image:
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null or f.get_length() < 25:
+		return null
+	if f.get_32() != _BLOCKS_MAGIC or f.get_32() != _BLOCKS_VERSION:
+		return null
+	var w := f.get_32()
+	var h := f.get_32()
+	var fmt := f.get_32()
+	var mips := f.get_8() == 1
+	var size := f.get_32()
+	var fits := w > 0 and h > 0 and w <= MAX_PAGE_PX + 4 and h <= MAX_PAGE_PX + 4
+	if fmt != Image.FORMAT_ETC2_RGB8 or not fits or size != f.get_length() - f.get_position():
+		return null
+	var data := f.get_buffer(size)
+	if data.size() != size:
+		return null
+	var img := Image.create_from_data(w, h, mips, fmt, data)
+	return null if img.is_empty() else img
+
+
 ## Hand finished render tasks back to the pool. `block` waits for the running
 ## ones too: their lambdas call back into this book, so it cannot go first.
 func _reap_render_tasks(block: bool = false) -> void:
@@ -820,9 +936,12 @@ func _notification(what: int) -> void:
 		_reap_render_tasks(true)
 
 
-## Called on main thread when a background page render completes.
-func _on_page_rendered(page_index: int, img: Image) -> void:
+## Called on main thread when a background page render completes. `strip` is
+## the cover's spine strip where pages arrive compressed (see _finish_page).
+func _on_page_rendered(page_index: int, img: Image, strip: Image = null) -> void:
 	_reap_render_tasks()
+	if strip != null:
+		_cover_strip_image = strip
 	if not img:
 		_pending_renders.erase(page_index)
 		return
@@ -1518,9 +1637,20 @@ func _update_spine_strip(tex: Texture2D) -> void:
 	var mat := _spine_mesh.get_surface_override_material(0) as ShaderMaterial
 	if mat == null:
 		return
-	var src := tex.get_image()
-	if src == null or src.get_width() == 0:
+	# A compressed cover cannot be read per pixel; its worker took the strip
+	# before compressing it.
+	var strip := _cover_strip_image if compress_pages else _spine_strip_from(tex.get_image())
+	if strip == null:
 		return
+	_spine_strip = ImageTexture.create_from_image(strip)
+	mat.set_shader_parameter("cover_texture", _spine_strip)
+	mat.set_shader_parameter("has_cover", true)
+
+
+## The cover's inner edge, a band of columns averaged into a 1-pixel strip.
+static func _spine_strip_from(src: Image) -> Image:
+	if src == null or src.get_width() == 0:
+		return null
 	var rows := mini(src.get_height(), 256)
 	@warning_ignore("integer_division")
 	var band := maxi(1, src.get_width() / 32)
@@ -1532,9 +1662,7 @@ func _update_spine_strip(tex: Texture2D) -> void:
 		for x in band:
 			acc += src.get_pixel(x, sy)
 		strip.set_pixel(0, y, acc / float(band))
-	_spine_strip = ImageTexture.create_from_image(strip)
-	mat.set_shader_parameter("cover_texture", _spine_strip)
-	mat.set_shader_parameter("has_cover", true)
+	return strip
 
 
 func _update_back_cover_texture() -> void:
@@ -2940,6 +3068,7 @@ func _cleanup() -> void:
 	_cbz_entries.clear()
 	_cbz_path = ""
 	_spine_strip = null
+	_cover_strip_image = null
 	_texture_cache.clear()
 	_pending_renders.clear()
 	_upload_queue.clear()

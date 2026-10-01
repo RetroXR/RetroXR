@@ -1,0 +1,76 @@
+From 01f20061e879b4690693035e6f2691e912c6640f Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Wed, 30 Sep 2026 22:17:37 -0700
+Subject: [PATCH] etcpak: register the ETC2 encoder in Android export templates
+
+Godot registers its texture encoders in editor builds only; export templates
+get the decoders. RetroXR builds images at run time on a Quest (PDF pages, an
+11 MiB RGBA8 upload each) and wants them as ETC2, which the GPU samples
+natively at an eighth of the size. Image::compress(COMPRESS_ETC2) returned
+ERR_UNAVAILABLE there.
+
+The encoder sources (ProcessRGB, ProcessDxtc) were already compiled into every
+build; only the module's wrapper and its registration were editor-only. They
+now build on Android as well.
+---
+ modules/etcpak/image_compress_etcpak.cpp | 4 ++--
+ modules/etcpak/image_compress_etcpak.h   | 4 ++--
+ modules/etcpak/register_types.cpp        | 4 +++-
+ 3 files changed, 7 insertions(+), 5 deletions(-)
+
+diff --git a/modules/etcpak/image_compress_etcpak.cpp b/modules/etcpak/image_compress_etcpak.cpp
+index 1d8c936079..7900e0d699 100644
+--- a/modules/etcpak/image_compress_etcpak.cpp
++++ b/modules/etcpak/image_compress_etcpak.cpp
+@@ -30,7 +30,7 @@
+ 
+ #include "image_compress_etcpak.h"
+ 
+-#ifdef TOOLS_ENABLED
++#if defined(TOOLS_ENABLED) || defined(ANDROID_ENABLED)
+ 
+ #include "core/os/os.h"
+ #include "core/string/print_string.h"
+@@ -305,4 +305,4 @@ void _compress_etcpak(EtcpakType p_compress_type, Image *r_img) {
+ 
+ 	print_verbose(vformat("etcpak: Encoding took %d ms.", OS::get_singleton()->get_ticks_msec() - start_time));
+ }
+-#endif // TOOLS_ENABLED
++#endif // TOOLS_ENABLED || ANDROID_ENABLED
+diff --git a/modules/etcpak/image_compress_etcpak.h b/modules/etcpak/image_compress_etcpak.h
+index eb57297b71..d87339e549 100644
+--- a/modules/etcpak/image_compress_etcpak.h
++++ b/modules/etcpak/image_compress_etcpak.h
+@@ -30,7 +30,7 @@
+ 
+ #pragma once
+ 
+-#ifdef TOOLS_ENABLED
++#if defined(TOOLS_ENABLED) || defined(ANDROID_ENABLED)
+ 
+ #include "core/io/image.h"
+ 
+@@ -54,4 +54,4 @@ void _compress_bc(Image *r_img, Image::UsedChannels p_channels);
+ 
+ void _compress_etcpak(EtcpakType p_compress_type, Image *r_img);
+ 
+-#endif // TOOLS_ENABLED
++#endif // TOOLS_ENABLED || ANDROID_ENABLED
+diff --git a/modules/etcpak/register_types.cpp b/modules/etcpak/register_types.cpp
+index da0c1e5c1b..ea9b6d677c 100644
+--- a/modules/etcpak/register_types.cpp
++++ b/modules/etcpak/register_types.cpp
+@@ -38,7 +38,9 @@ void initialize_etcpak_module(ModuleInitializationLevel p_level) {
+ 		return;
+ 	}
+ 
+-#ifdef TOOLS_ENABLED
++#if defined(TOOLS_ENABLED) || defined(ANDROID_ENABLED)
++	// Android templates too: a mobile GPU takes ETC2 natively, and RetroXR
++	// compresses images it makes at run time (PDF pages) before uploading them.
+ 	Image::_image_compress_etc1_func = _compress_etc1;
+ 	Image::_image_compress_etc2_func = _compress_etc2;
+ 	Image::_image_compress_bc_func = _compress_bc;
+-- 
+2.53.0.windows.1
+

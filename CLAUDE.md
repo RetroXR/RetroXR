@@ -66,7 +66,8 @@ python Tools/build.py windows --jobs 8 -- verbose=yes    # extra args go to scon
 
 ### The Quest ships a PATCHED engine — `docs/dev/engine-patches.md`
 
-Stock 4.7.2 has seven Quest defects fixed by `docs/godot-4.7.2-*.patch`, applied on engine
+Stock 4.7.2 has seven Quest defects (and lacks a run-time ETC2 encoder, which RetroXR adds)
+fixed by `docs/godot-4.7.2-*.patch`, applied on engine
 branch `retroxr-4.7.2` in `~/godot` (github.com/RetroXR/godot). Prebuilt arm64 libs live
 in `Tools/engine/` (Git LFS):
 
@@ -328,6 +329,11 @@ Repo-root `Tools/` holds out-of-band scripts (`RetroXR/Tools/` holds probe scene
 through `git lfs smudge`). `decimate_glb.py` must WELD first; `glb_diff.py` checks a round
 trip preserved names, hierarchy and placement, because seat/port constants are hand-measured
 in the GLB's frame.
+
+**3D model textures import VRAM Compressed** (ETC2/ASTC on a Quest, mipmaps, normal maps as
+normal maps): a GLB's extracted textures arrive Lossless and only the EDITOR's 3D view flips
+them. `texture_import_tests` fails CI otherwise; the rule and the High Quality call are in
+tools.md.
 
 **Only add 3D assets this project has the right to ship**, with licence and attribution
 alongside (`RetroXR/imported-assets/`, credited in the About panel). The NES pad drawing is

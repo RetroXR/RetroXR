@@ -40,6 +40,16 @@ the library; it compares the zip entry's CRC), and errors loudly if it cannot.
 engine names itself: the banner says `4.7.2.stable.official` (ours: `custom_build`)
 and `boot_scene.gd` logs `[Boot] running STOCK Godot` as an error.
 
+### The ETC2 encoder (`godot-4.7.2-etc2-encoder-android.patch`)
+
+Not a defect: a capability. Godot registers its texture ENCODERS only with
+`TOOLS_ENABLED`, so an export template can decode ETC2/ASTC but `Image.compress()` returns
+`ERR_UNAVAILABLE`. RetroXR compresses PDF pages at run time on a Quest (books.md), so the
+etcpak wrapper and its registration now also build with `ANDROID_ENABLED`. The encoder
+sources (`ProcessRGB`, `ProcessDxtc`) were in every build already; the library grew 34 KB (debug) and 43 KB (release).
+`PDFBook._can_compress_pages()` asks rather than assumes, so a stock engine falls back to
+RGBA8 pages instead of half-converting them. ASTC's encoder is still editor-only.
+
 ### The pipeline cache (`godot-4.7.2-pipeline-cache-size.patch`)
 
 `user://vulkan/pipelines.mobile.adreno_(tm)_740.cache` was rewritten on every boot and

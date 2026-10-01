@@ -267,6 +267,24 @@ screen up ~14 s longer; capped it is 1.1 GiB. `_fit_dpi` picks the render dpi fr
 design call rather than a bug: a CLOSED book prefetches eleven pages for the fan it shows
 when tipped, and each copy of the same manual keeps its own texture of every page.
 
+**On a mobile GPU pages are ETC2 with mipmaps** (`compress_pages`, 2026-09-30): 1.4 MiB for a
+1411 x 2048 page instead of 11 MiB of RGBA8, plus a third for mipmaps, which the page shaders
+sample (`filter_linear_mipmap`) and pages never had, so distant text no longer aliases. Done
+on the worker by `_finish_page` (convert to RGB8, mipmaps, etcpak ~30 ms a page on desktop)
+and cached beside the PNGs as `page_NNN.etc2`, a small header plus the blocks exactly as
+uploaded, written atomically; a page read before is then a file read and an upload with no
+decode, and no PNG is written where pages are compressed. A damaged or old-version blocks
+file is deleted and the page rendered again. The cover's spine strip is taken on the worker
+BEFORE compression (a compressed image cannot be read per pixel), and `_update_spine_strip`
+uses it. Desktop keeps RGBA8: its GPUs do not take ETC2. **It needs the patched engine**:
+stock Godot registers its encoders in editor builds only (`godot-4.7.2-etc2-encoder-android.patch`),
+and `_can_compress_pages()` compresses a 4x4 image once to ASK, because a page converted for
+ETC2 and then left uncompressed (RGB8 with mipmaps) is bigger than before; that is exactly
+what the first on-device run did. Quest, arcade (five books): boot texture growth 1,140 ->
+255 MiB, curtain 25 -> 20 s. The trade, seen in a render: identical at reading distance,
+smoother far away, and at ~10 cm faint 4x4 blotching in pale flat areas where the scan
+already had JPEG blocks. ASTC 4x4 would be cleaner but encodes at 1-2 s a page.
+
 Leaf `k` carries the pages that were on top of the block (`_update_spread_textures`, the one
 place spread textures are written), and the block shows the page under the last visible
 leaf. `prefetch_pages = 6` covers three leaves either side; `_prefetch_nearby_pages` reaches
@@ -415,8 +433,8 @@ which would have moved the stutter rather than removed it. `UPLOADS_PER_FRAME_DE
 densities). A draining frame then measures **7.5 ms on device** — under budget, but only just,
 and two pages enter the window per turn so two frames carry it. **The remaining lever is
 pixels, not scheduling**: the upload scales with them, and a book of 3000×3000 scans is ~4.7×
-the page measured here. Downscaling page textures on Quest is the open follow-up; nobody has
-decided what that costs in readability.
+the page measured here. Addressed 2026-09-30, by the two paragraphs on page size and
+ETC2 further up (`MAX_PAGE_PX`, `compress_pages`).
 
 A page therefore stays in `_pending_renders` until its texture actually exists, not until its
 worker finishes. That is deliberate: it keeps `_pending_renders.is_empty()` meaning

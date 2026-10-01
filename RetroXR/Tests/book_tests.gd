@@ -29,6 +29,7 @@ func _ready() -> void:
 	await _test_a_cached_page_never_decodes_on_the_main_thread()
 	await _test_a_half_written_manual_recovers()
 	await _test_an_oversized_page_is_capped()
+	await _test_pages_are_etc2_on_a_mobile_gpu()
 	_test_saved_manual_follows_its_folder()
 
 	print("[test] %d cases, %s" % [_ran,
@@ -226,6 +227,71 @@ func _test_an_oversized_page_is_capped() -> void:
 ".join(DirAccess.get_files_at(book._cache_dir)).contains(".tmp"),
 		"cap/...with no temporary file left behind")
 
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + cbz.md5_text())
+	DirAccess.remove_absolute(cbz)
+
+
+## A mobile GPU takes pages as ETC2 with mipmaps, compressed on the worker and
+## cached as blocks, so a page read before is a file read and an upload with no
+## decode. Forced on here: the suite runs where `compress_pages` is off (desktop
+## GPUs do not take ETC2), and the headless renderer uploads the blocks anyway.
+func _test_pages_are_etc2_on_a_mobile_gpu() -> void:
+	var was := PDFBook.compress_pages
+	PDFBook.compress_pages = true
+	_write_cbz(CBZ_PATH)
+	var cbz := ProjectSettings.globalize_path(CBZ_PATH)
+	_remove_tree("user://pdf_cache/" + cbz.md5_text())
+	var book := _spawn_book(cbz)
+	await _settle()
+	await _drain_renders(book)
+	var dir := book._cache_dir
+
+	var cover := book._texture_cache.get(0) as ImageTexture
+	_ok(cover != null and cover.get_format() == Image.FORMAT_ETC2_RGB8,
+		"etc2/a page arrives as ETC2 (%s)" % (cover.get_format() if cover else "none"))
+	var blocks := PDFBook._load_page_blocks(dir + "page_000.etc2")
+	_ok(blocks != null and blocks.get_format() == Image.FORMAT_ETC2_RGB8 and blocks.has_mipmaps(),
+		"etc2/...cached as its blocks, with mipmaps")
+	_ok(not FileAccess.file_exists(dir + "page_000.png"), "etc2/...and no PNG is written beside it")
+	_ok(book._spine_strip != null, "etc2/the spine still takes its colour from the cover")
+
+	# Read back from the blocks.
+	book._texture_cache.clear()
+	book._get_page_texture(1)
+	await _drain_renders(book)
+	var again := book._texture_cache.get(1) as ImageTexture
+	_ok(again != null and again.get_format() == Image.FORMAT_ETC2_RGB8,
+		"etc2/a page read before comes back from its blocks")
+
+	# A cache from before compression: the PNG is compressed on its way in.
+	DirAccess.remove_absolute(dir + "page_002.etc2")
+	Image.create(20, 28, false, Image.FORMAT_RGB8).save_png(dir + "page_002.png")
+	book._texture_cache.clear()
+	book._get_page_texture(2)
+	await _drain_renders(book)
+	var migrated := book._texture_cache.get(2) as ImageTexture
+	_ok(migrated != null and migrated.get_format() == Image.FORMAT_ETC2_RGB8
+			and PDFBook._load_page_blocks(dir + "page_002.etc2") != null,
+		"etc2/an old PNG page is compressed and cached as blocks")
+
+	# A damaged blocks file is dropped rather than shown, and the next request
+	# renders the page again.
+	var f := FileAccess.open(dir + "page_001.etc2", FileAccess.WRITE)
+	f.store_buffer("not a page".to_utf8_buffer())
+	f.close()
+	book._texture_cache.clear()
+	book._get_page_texture(1)
+	await _drain_renders(book)
+	_ok(not book._texture_cache.has(1) and not FileAccess.file_exists(dir + "page_001.etc2"),
+		"etc2/a damaged blocks file is thrown away, not uploaded")
+	book._get_page_texture(1)
+	await _drain_renders(book)
+	_ok(book._texture_cache.has(1) and PDFBook._load_page_blocks(dir + "page_001.etc2") != null,
+		"etc2/...and the page is rendered and cached again")
+
+	PDFBook.compress_pages = was
 	book.queue_free()
 	await _settle()
 	_remove_tree("user://pdf_cache/" + cbz.md5_text())
