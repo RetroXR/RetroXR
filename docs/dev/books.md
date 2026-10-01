@@ -255,6 +255,18 @@ Face-up, gravity pins the whole fan at *exactly* zero and no leaf is drawn. Tip 
 vertical and they peel off; each deeper leaf is held a little tighter by the binding
 (`FAN_W2_SPREAD`), which is the only reason a fan fans instead of moving as one sheet.
 
+**Page textures are capped at `MAX_PAGE_PX` (2048) on the long side** (2026-09-30).
+`render_dpi` 150 suits an ordinary page (letter 1275 x 1650) and never reaches it; a scan
+stored at its paper size does — the Ocarina of Time manual is 15.5 x 22.5 in, 2325 x 3375,
+30 MiB of RGBA8 a page. The arcade's five books (that manual four times, plus Rush 2)
+prefetched 2.6 GiB of them at boot on a Quest 3, leaving 350 MB free and the loading
+screen up ~14 s longer; capped it is 1.1 GiB. `_fit_dpi` picks the render dpi from
+`get_page_size` (points; half-page mode caps the half), and a page already in
+`user://pdf_cache/` at the old size is shrunk on the worker and written back atomically
+(temp file + rename, because copies of one book share the directory). Still open, and a
+design call rather than a bug: a CLOSED book prefetches eleven pages for the fan it shows
+when tipped, and each copy of the same manual keeps its own texture of every page.
+
 Leaf `k` carries the pages that were on top of the block (`_update_spread_textures`, the one
 place spread textures are written), and the block shows the page under the last visible
 leaf. `prefetch_pages = 6` covers three leaves either side; `_prefetch_nearby_pages` reaches

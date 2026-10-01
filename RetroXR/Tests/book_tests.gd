@@ -28,6 +28,7 @@ func _ready() -> void:
 	await _test_loaded_book()
 	await _test_a_cached_page_never_decodes_on_the_main_thread()
 	await _test_a_half_written_manual_recovers()
+	await _test_an_oversized_page_is_capped()
 	_test_saved_manual_follows_its_folder()
 
 	print("[test] %d cases, %s" % [_ran,
@@ -178,6 +179,52 @@ func _test_a_cached_page_never_decodes_on_the_main_thread() -> void:
 	# Nearest the open spread first, or a turn would show the placeholder while
 	# pages nobody is looking at went up the queue ahead of it.
 	_ok(book._texture_cache.has(1), "cache/...the pages being read go first")
+
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + cbz.md5_text())
+	DirAccess.remove_absolute(cbz)
+
+
+## render_dpi is sized for an ordinary page, and a scan stored at its paper size
+## is not one: the Ocarina of Time manual is 15.5 x 22.5 in, 2325 x 3375 at 150
+## dpi, 30 MiB a texture. A room of five such books held 2.6 GiB of page textures
+## at boot on a Quest 3 (2026-09-30). Pages are now capped at MAX_PAGE_PX on their
+## long side, at render time and for the pages already sitting in the cache.
+func _test_an_oversized_page_is_capped() -> void:
+	var cap := PDFBook.MAX_PAGE_PX
+	# 15.5 x 22.5 in, in PDF points.
+	var dpi := PDFBook._fit_dpi(Vector2(1116, 1620), 150, false)
+	var long_px := floori(1620 * dpi / 72.0)
+	_ok(long_px <= cap and long_px > cap - 40,
+		"cap/an oversized scan renders to the cap, not past it or far below (%d px)" % long_px)
+	_ok(PDFBook._fit_dpi(Vector2(612, 792), 150, false) == 150,
+		"cap/a letter page keeps render_dpi")
+	# Half-page mode: a book page is half the source's width.
+	_ok(PDFBook._fit_dpi(Vector2(2232, 1620), 150, true) == dpi,
+		"cap/a two-page spread is capped by its halves")
+
+	# A page rendered big on an earlier run is shrunk on its way in, and the
+	# shrunk copy replaces it so the next launch decodes the small one.
+	_write_cbz(CBZ_PATH)
+	var cbz := ProjectSettings.globalize_path(CBZ_PATH)
+	var book := _spawn_book(cbz)
+	await _settle()
+	await _drain_renders(book)
+	var page_png := book._cache_dir + "page_002.png"
+	Image.create(cap + 952, (cap + 952) / 2, false, Image.FORMAT_RGB8).save_png(page_png)
+	book._texture_cache.clear()
+	book._get_page_texture(2)
+	await _drain_renders(book)
+	var tex: Texture2D = book._texture_cache.get(2)
+	_ok(tex != null and tex.get_width() == cap and tex.get_height() == cap / 2,
+		"cap/a cached oversized page arrives at the cap (%s)" % (tex.get_size() if tex else "none"))
+	var on_disk := Image.load_from_file(page_png)
+	_ok(on_disk != null and on_disk.get_width() == cap,
+		"cap/...and the cache file is rewritten at that size")
+	_ok(not "
+".join(DirAccess.get_files_at(book._cache_dir)).contains(".tmp"),
+		"cap/...with no temporary file left behind")
 
 	book.queue_free()
 	await _settle()

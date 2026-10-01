@@ -720,6 +720,10 @@ func _request_page_render(page_index: int) -> void:
 	if FileAccess.file_exists(cache_path):
 		_render_tasks.append(WorkerThreadPool.add_task(func():
 			var img := Image.load_from_file(cache_path)
+			# Rendered before MAX_PAGE_PX existed: shrink it, and keep the shrunk
+			# copy so the next launch decodes the small one.
+			if _fit_page(img):
+				_save_page_atomically(img, cache_path)
 			call_deferred("_on_page_rendered", page_index, img)
 		))
 		return
@@ -728,6 +732,7 @@ func _request_page_render(page_index: int) -> void:
 		_render_tasks.append(WorkerThreadPool.add_task(func():
 			var img := _decode_cbz_page(src_index)
 			img = _crop_to_half(img, page_index)
+			_fit_page(img)
 			if img:
 				img.save_png(cache_dir + "page_%03d.png" % page_index)
 			call_deferred("_on_page_rendered", page_index, img)
@@ -740,17 +745,62 @@ func _request_page_render(page_index: int) -> void:
 		return
 	var renderer_ref := _renderer
 	var dpi := render_dpi
+	var half := half_page_mode
 	_render_tasks.append(WorkerThreadPool.add_task(func():
 		_render_mutex.lock()
 		var img: Image = null
 		if renderer_ref and renderer_ref.is_open():
-			img = renderer_ref.render_page(src_index, dpi)
+			img = renderer_ref.render_page(src_index,
+				_fit_dpi(renderer_ref.get_page_size(src_index), dpi, half))
 		_render_mutex.unlock()
 		img = _crop_to_half(img, page_index)
 		if img:
 			img.save_png(cache_dir + "page_%03d.png" % page_index)
 		call_deferred("_on_page_rendered", page_index, img)
 	))
+
+
+## Longest side, in pixels, of one page's texture. render_dpi is right for an
+## ordinary page — letter at 150 dpi is 1275 x 1650, A4 1240 x 1754 — and never
+## reaches this. A scan stored at its paper size does: the Ocarina of Time
+## manual's pages are 15.5 x 22.5 in, 2325 x 3375 at 150 dpi, 30 MiB of RGBA8
+## apiece. A room of five such books prefetched 2.6 GiB of them at boot on a
+## Quest 3, decoding and uploading through the loading screen with the headset
+## down to 350 MB free.
+const MAX_PAGE_PX := 2048
+
+
+## The dpi that renders a page of `size_pts` (PDF points) no larger than
+## MAX_PAGE_PX on its long side, or `dpi` when that already fits. In half-page
+## mode a book page is half the source page's width.
+static func _fit_dpi(size_pts: Vector2, dpi: int, half: bool) -> int:
+	var long_pts := maxf(size_pts.x * (0.5 if half else 1.0), size_pts.y)
+	if long_pts <= 0.0:
+		return dpi
+	return mini(dpi, maxi(1, floori(MAX_PAGE_PX * 72.0 / long_pts)))
+
+
+## Shrink `img` in place to fit MAX_PAGE_PX. True if it had to.
+static func _fit_page(img: Image) -> bool:
+	if img == null or img.is_empty():
+		return false
+	var long_px := maxi(img.get_width(), img.get_height())
+	if long_px <= MAX_PAGE_PX:
+		return false
+	var s := float(MAX_PAGE_PX) / float(long_px)
+	img.resize(maxi(1, roundi(img.get_width() * s)), maxi(1, roundi(img.get_height() * s)),
+		Image.INTERPOLATE_CUBIC)
+	return true
+
+
+## Several copies of one book share a cache directory, so a reader must never
+## see a half-written PNG: write beside it, then rename over.
+static func _save_page_atomically(img: Image, path: String) -> void:
+	var tmp := "%s.%x.tmp" % [path, randi()]
+	if img.save_png(tmp) == OK:
+		DirAccess.rename_absolute(tmp, path)
+	else:
+		DirAccess.remove_absolute(tmp)
 
 
 ## Hand finished render tasks back to the pool. `block` waits for the running
