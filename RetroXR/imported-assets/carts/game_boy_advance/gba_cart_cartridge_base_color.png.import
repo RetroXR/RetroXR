@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://f76orjtydwcg"
-path="res://.godot/imported/gba_cart_cartridge_base_color.png-77f2e3f28755a23c9afd979dfc28d27a.ctex"
+path.bptc="res://.godot/imported/gba_cart_cartridge_base_color.png-77f2e3f28755a23c9afd979dfc28d27a.bptc.ctex"
+path.astc="res://.godot/imported/gba_cart_cartridge_base_color.png-77f2e3f28755a23c9afd979dfc28d27a.astc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "2b00272873685b12907ee47b06fa1993"
@@ -14,12 +16,12 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/game_boy_advance/gba_cart_cartridge_base_color.png"
-dest_files=["res://.godot/imported/gba_cart_cartridge_base_color.png-77f2e3f28755a23c9afd979dfc28d27a.ctex"]
+dest_files=["res://.godot/imported/gba_cart_cartridge_base_color.png-77f2e3f28755a23c9afd979dfc28d27a.bptc.ctex", "res://.godot/imported/gba_cart_cartridge_base_color.png-77f2e3f28755a23c9afd979dfc28d27a.astc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

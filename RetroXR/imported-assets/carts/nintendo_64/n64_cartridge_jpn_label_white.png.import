@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d03c2i4e1glq"
-path="res://.godot/imported/n64_cartridge_jpn_label_white.png-d83c5dafe20b3d5c87c2db7d1dbf6e42.ctex"
+path.s3tc="res://.godot/imported/n64_cartridge_jpn_label_white.png-d83c5dafe20b3d5c87c2db7d1dbf6e42.s3tc.ctex"
+path.etc2="res://.godot/imported/n64_cartridge_jpn_label_white.png-d83c5dafe20b3d5c87c2db7d1dbf6e42.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "fc064e4d4d17d453d38ae26e074661b2"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/nintendo_64/n64_cartridge_jpn_label_white.png"
-dest_files=["res://.godot/imported/n64_cartridge_jpn_label_white.png-d83c5dafe20b3d5c87c2db7d1dbf6e42.ctex"]
+dest_files=["res://.godot/imported/n64_cartridge_jpn_label_white.png-d83c5dafe20b3d5c87c2db7d1dbf6e42.s3tc.ctex", "res://.godot/imported/n64_cartridge_jpn_label_white.png-d83c5dafe20b3d5c87c2db7d1dbf6e42.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

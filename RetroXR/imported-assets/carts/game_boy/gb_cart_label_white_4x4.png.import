@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b5pj0r5uf1h2o"
-path="res://.godot/imported/gb_cart_label_white_4x4.png-10ee7d2eee0e1163a5ad0f58fb91f677.ctex"
+path.s3tc="res://.godot/imported/gb_cart_label_white_4x4.png-10ee7d2eee0e1163a5ad0f58fb91f677.s3tc.ctex"
+path.etc2="res://.godot/imported/gb_cart_label_white_4x4.png-10ee7d2eee0e1163a5ad0f58fb91f677.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "5b53000f4d831a433070f80004262910"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/game_boy/gb_cart_label_white_4x4.png"
-dest_files=["res://.godot/imported/gb_cart_label_white_4x4.png-10ee7d2eee0e1163a5ad0f58fb91f677.ctex"]
+dest_files=["res://.godot/imported/gb_cart_label_white_4x4.png-10ee7d2eee0e1163a5ad0f58fb91f677.s3tc.ctex", "res://.godot/imported/gb_cart_label_white_4x4.png-10ee7d2eee0e1163a5ad0f58fb91f677.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cguhbxpyhnfy"
-path="res://.godot/imported/3ds_cart_3ds_serial.png-96d9088d1bb1ba139118edff15ad7c0d.ctex"
+path.s3tc="res://.godot/imported/3ds_cart_3ds_serial.png-96d9088d1bb1ba139118edff15ad7c0d.s3tc.ctex"
+path.etc2="res://.godot/imported/3ds_cart_3ds_serial.png-96d9088d1bb1ba139118edff15ad7c0d.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f86b97e2ba04117513250e10b58b459a"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/nintendo_3ds/3ds_cart_3ds_serial.png"
-dest_files=["res://.godot/imported/3ds_cart_3ds_serial.png-96d9088d1bb1ba139118edff15ad7c0d.ctex"]
+dest_files=["res://.godot/imported/3ds_cart_3ds_serial.png-96d9088d1bb1ba139118edff15ad7c0d.s3tc.ctex", "res://.godot/imported/3ds_cart_3ds_serial.png-96d9088d1bb1ba139118edff15ad7c0d.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

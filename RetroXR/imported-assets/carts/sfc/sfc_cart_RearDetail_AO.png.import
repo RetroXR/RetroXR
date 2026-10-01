@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://c7fkcjjh2esvc"
-path="res://.godot/imported/sfc_cart_RearDetail_AO.png-64d23e71ac01e4e830ba20318de4ceed.ctex"
+path.s3tc="res://.godot/imported/sfc_cart_RearDetail_AO.png-64d23e71ac01e4e830ba20318de4ceed.s3tc.ctex"
+path.etc2="res://.godot/imported/sfc_cart_RearDetail_AO.png-64d23e71ac01e4e830ba20318de4ceed.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "e69dbf5febba3a5e858a5fe473115ed6"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/sfc/sfc_cart_RearDetail_AO.png"
-dest_files=["res://.godot/imported/sfc_cart_RearDetail_AO.png-64d23e71ac01e4e830ba20318de4ceed.ctex"]
+dest_files=["res://.godot/imported/sfc_cart_RearDetail_AO.png-64d23e71ac01e4e830ba20318de4ceed.s3tc.ctex", "res://.godot/imported/sfc_cart_RearDetail_AO.png-64d23e71ac01e4e830ba20318de4ceed.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

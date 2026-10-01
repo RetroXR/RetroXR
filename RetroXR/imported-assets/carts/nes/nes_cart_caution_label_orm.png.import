@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dxxdsw6kwcg5v"
-path="res://.godot/imported/nes_cart_caution_label_orm.png-644b8651117b9bb56f8e39a1cbb72ddf.ctex"
+path.bptc="res://.godot/imported/nes_cart_caution_label_orm.png-644b8651117b9bb56f8e39a1cbb72ddf.bptc.ctex"
+path.astc="res://.godot/imported/nes_cart_caution_label_orm.png-644b8651117b9bb56f8e39a1cbb72ddf.astc.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "90fd2bf0a0fa9ea05de85e56587d1bf0"
@@ -14,12 +16,12 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/nes/nes_cart_caution_label_orm.png"
-dest_files=["res://.godot/imported/nes_cart_caution_label_orm.png-644b8651117b9bb56f8e39a1cbb72ddf.ctex"]
+dest_files=["res://.godot/imported/nes_cart_caution_label_orm.png-644b8651117b9bb56f8e39a1cbb72ddf.bptc.ctex", "res://.godot/imported/nes_cart_caution_label_orm.png-644b8651117b9bb56f8e39a1cbb72ddf.astc.ctex"]
 
 [params]
 
-compress/mode=0
-compress/high_quality=false
+compress/mode=2
+compress/high_quality=true
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

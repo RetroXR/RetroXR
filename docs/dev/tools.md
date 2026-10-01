@@ -100,3 +100,30 @@ carried alongside it.
   Recipe in its docstring;
   `RetroXR/Tools/models/sega32x_probe` (windowed) prints the seat numbers and writes stills.
   See `expansion-carts.md` §2j′.
+
+## Textures on 3D models import VRAM Compressed
+
+A GLB's extracted textures arrive as **Lossless** with "Detect 3D" on, which flips them to
+VRAM Compressed the first time the EDITOR draws them. Imported headless, or never opened,
+they never are: by 2026-09-30, 101 textures from that month's cartridges and consoles had
+shipped lossless, so a Quest decoded each from PNG on the CPU at load and uploaded RGBA8
+(~532 MiB of them; ~100 MiB compressed). `texture_import_tests` now fails CI on any raster
+texture under `imported-assets/` that is not VRAM Compressed with mipmaps and an ETC2/ASTC
+file, or a normal map (by name: `_normal`, `NormalGL`) not imported as one.
+
+Set what the editor would: `compress/mode=2`, `mipmaps/generate=true`, `compress/normal_map=1`
+on normal maps (two-channel RG11 on a Quest; the engine rebuilds Z, and so do the project's
+PBR shaders), `detect_3d/compress_to=0`. `--editor --quit` then reimports, because the
+`.import` file's MD5 changed. 2D UI art (the SVG icons, `Textures/Controllers/quest_touch_plus_*`,
+the app icons) stays lossless.
+
+**High Quality** (`compress/high_quality=true`: ASTC 4x4 on a Quest, BPTC on desktop) is for a
+texture whose ETC2 shows. Judged by compressing with Godot's own etcpak (the importer's
+encoder) and taking the WORST 64-px block's PSNR, not the mean: under ~31 dB went High
+Quality. That was every packed ORM / metallic-roughness map (ETC2 encodes RGB jointly, so
+three unrelated channels suffer: 20-23 dB worst block, 40-48 dB as ASTC) plus labels, stickers
+and PCB photos, 21 of the 101. Score the SHIPPED file (`CompressedTexture2D.load()` its
+`.etc2.ctex`) to see what a Quest gets, and mind three traps that each faked a bad score: an
+alpha texture's invisible pixels are rewritten by `fix_alpha_border` (compare premultiplied
+colour), ETC2 PADS a side that is not a multiple of 4 while ASTC STRETCHES it (align by crop
+and by resize respectively), and GDScript prints booleans in lower case.

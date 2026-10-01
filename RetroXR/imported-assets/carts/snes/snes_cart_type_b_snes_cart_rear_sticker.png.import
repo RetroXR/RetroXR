@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cb1pskvlituho"
-path="res://.godot/imported/snes_cart_type_b_snes_cart_rear_sticker.png-d967ef9d2bf29ecf3607672977920f7f.ctex"
+path.s3tc="res://.godot/imported/snes_cart_type_b_snes_cart_rear_sticker.png-d967ef9d2bf29ecf3607672977920f7f.s3tc.ctex"
+path.etc2="res://.godot/imported/snes_cart_type_b_snes_cart_rear_sticker.png-d967ef9d2bf29ecf3607672977920f7f.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "83b3e86a92d557b2881cf9e22920c97d"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/snes/snes_cart_type_b_snes_cart_rear_sticker.png"
-dest_files=["res://.godot/imported/snes_cart_type_b_snes_cart_rear_sticker.png-d967ef9d2bf29ecf3607672977920f7f.ctex"]
+dest_files=["res://.godot/imported/snes_cart_type_b_snes_cart_rear_sticker.png-d967ef9d2bf29ecf3607672977920f7f.s3tc.ctex", "res://.godot/imported/snes_cart_type_b_snes_cart_rear_sticker.png-d967ef9d2bf29ecf3607672977920f7f.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

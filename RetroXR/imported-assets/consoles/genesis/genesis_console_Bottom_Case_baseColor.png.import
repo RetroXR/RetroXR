@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cuyn6saf3hxcl"
-path="res://.godot/imported/genesis_console_Bottom_Case_baseColor.png-74dff05cf4d37f994a7471b5b3351b02.ctex"
+path.s3tc="res://.godot/imported/genesis_console_Bottom_Case_baseColor.png-74dff05cf4d37f994a7471b5b3351b02.s3tc.ctex"
+path.etc2="res://.godot/imported/genesis_console_Bottom_Case_baseColor.png-74dff05cf4d37f994a7471b5b3351b02.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "7a58cbcb4da35863d98a1a5189f776be"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/consoles/genesis/genesis_console_Bottom_Case_baseColor.png"
-dest_files=["res://.godot/imported/genesis_console_Bottom_Case_baseColor.png-74dff05cf4d37f994a7471b5b3351b02.ctex"]
+dest_files=["res://.godot/imported/genesis_console_Bottom_Case_baseColor.png-74dff05cf4d37f994a7471b5b3351b02.s3tc.ctex", "res://.godot/imported/genesis_console_Bottom_Case_baseColor.png-74dff05cf4d37f994a7471b5b3351b02.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

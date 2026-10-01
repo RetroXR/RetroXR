@@ -112,9 +112,9 @@ python Tools/glb/fix_unmapped_uvs.py <body.glb> --check    # exits 1 if it needs
 python Tools/glb/fix_unmapped_uvs.py <body.glb>            # rewrites in place
 ```
 
-**Still owed:** the flake shader has not been measured on a Quest; the extracted
-textures import lossless, 4096 x 2000 rear stickers included, and the grain and
-blank-label maps are stored once per region.
+**Still owed:** the flake shader has not been measured on a Quest, and the grain and
+blank-label maps are stored once per region. The extracted textures, 4096 x 2000 rear
+stickers included, import VRAM Compressed since 2026-09-30 (tools.md).
 
 **A player can force both at spawn.** A ROM row in the spawn menu held for a
 second opens a sub-menu instead of spawning (`HoldPress`,

@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://fes4wv8xqixw"
-path="res://.godot/imported/atari_2600_console_Image_0.png-59bc9b38a3c9c50c1e54b2a84b4d2163.ctex"
+path.s3tc="res://.godot/imported/atari_2600_console_Image_0.png-59bc9b38a3c9c50c1e54b2a84b4d2163.s3tc.ctex"
+path.etc2="res://.godot/imported/atari_2600_console_Image_0.png-59bc9b38a3c9c50c1e54b2a84b4d2163.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "705f180ed21d64ecd8bd777b2d6e507b"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/consoles/atari_2600/atari_2600_console_Image_0.png"
-dest_files=["res://.godot/imported/atari_2600_console_Image_0.png-59bc9b38a3c9c50c1e54b2a84b4d2163.ctex"]
+dest_files=["res://.godot/imported/atari_2600_console_Image_0.png-59bc9b38a3c9c50c1e54b2a84b4d2163.s3tc.ctex", "res://.godot/imported/atari_2600_console_Image_0.png-59bc9b38a3c9c50c1e54b2a84b4d2163.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0

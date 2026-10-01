@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bs2sw5kbf2nfj"
-path="res://.godot/imported/gbc_cart_small_pcb_small_front_photo.jpg-e6f0d56a635d7d8b340572118089f4c8.ctex"
+path.s3tc="res://.godot/imported/gbc_cart_small_pcb_small_front_photo.jpg-e6f0d56a635d7d8b340572118089f4c8.s3tc.ctex"
+path.etc2="res://.godot/imported/gbc_cart_small_pcb_small_front_photo.jpg-e6f0d56a635d7d8b340572118089f4c8.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "fbad0db3f93e7af1c25a593f0a3dcff9"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://imported-assets/carts/game_boy_color/gbc_cart_small_pcb_small_front_photo.jpg"
-dest_files=["res://.godot/imported/gbc_cart_small_pcb_small_front_photo.jpg-e6f0d56a635d7d8b340572118089f4c8.ctex"]
+dest_files=["res://.godot/imported/gbc_cart_small_pcb_small_front_photo.jpg-e6f0d56a635d7d8b340572118089f4c8.s3tc.ctex", "res://.godot/imported/gbc_cart_small_pcb_small_front_photo.jpg-e6f0d56a635d7d8b340572118089f4c8.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
@@ -40,4 +42,4 @@ process/normal_map_invert_y=false
 process/hdr_as_srgb=false
 process/hdr_clamp_exposure=false
 process/size_limit=0
-detect_3d/compress_to=1
+detect_3d/compress_to=0
