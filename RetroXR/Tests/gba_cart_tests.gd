@@ -283,9 +283,6 @@ func _test_color() -> void:
 		and _part(a, "Front_Shell").get_surface_override_material(0) == null, "color/reset restores the model")
 	a.free()
 	b.free()
-	var cm := _part(cart, "Front_Shell").get_active_material(0) as ShaderMaterial
-	_ok(cm.render_priority == (cm.next_pass as ShaderMaterial).render_priority + 1,
-		"clear/the filter sorts after the surface pass, every frame")
 
 
 func _test_clear() -> void:
@@ -302,6 +299,9 @@ func _test_clear() -> void:
 	_ok(filter_code.contains("blend_mul") and filter_code.contains("depth_draw_never")
 		and surface_code.contains("blend_add") and surface_code.contains("depth_draw_never"),
 		"clear/the filter multiplies and the surface adds, neither writing depth")
+	var cm := _part(cart, "Front_Shell").get_active_material(0) as ShaderMaterial
+	_ok(cm.render_priority == (cm.next_pass as ShaderMaterial).render_priority + 1,
+		"clear/the filter sorts after the surface pass, every frame")
 	CartridgeColor.apply_preset(cart, &"grey", GbaCartShell.SYSTEMID)
 	_ok(_as_model(cart), "clear/repainting grey makes it solid again, with the model's culling")
 	cart.free()

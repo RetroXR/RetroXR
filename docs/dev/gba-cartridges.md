@@ -82,6 +82,17 @@ market matches):
 
 FireRed/LeafGreen codes and maker are pret's `pokefirered/config.mk`.
 
+**Classic NES Series.** Every NES reissue has a game code beginning `F`, maker `01`
+whoever made the original (read 2026-09-28 off 45 ROMs in a No-Intro `gba` set:
+Classic NES Series `F__E` (FZLE Zelda, FADE Castlevania, FSME...), Europe's NES
+Classics `FADP`, Japan's Famicom Mini `F__J`). The US/European carts are NES grey;
+the Famicom Mini ones (`J`) keep the standard grey, as their colour was not
+checked. `nes_grey` is the room's own NES cartridge plastic (`nes_cart.glb`
+`NES_Shell_Plastic`, linear 0.2685 = sRGB 0.555), and `gba_cart_tests` holds the two
+equal, so a Classic NES cart beside an NES cart is the same grey; it is lighter
+and more neutral than the GBA's standard grey. Rendered side by side: NES cart
+face ~169, Classic NES GBA ~165, standard GBA ~143 (sRGB, 8-bit).
+
 **The colours are fitted, not picked.** `Tools/models/gba_cart_fit_probe` (windowed; re-run whenever the model's interior or the clear shaders change) renders each preset lying on a
 white surface under flat front light (ortho camera, near/far 0.1–0.3 m: the
 default 4 km far plane lets the recess floor, 0.47 mm behind the label, win the
