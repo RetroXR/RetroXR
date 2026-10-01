@@ -1271,6 +1271,13 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 	# The PSP UMD is the one non-round disc — its own RetroUMD subclass/scene.
 	var is_disc := MediaDimensions.is_disc_system(systemid)
 	var disc_scene := UMD_DISC_SCENE if systemid == "psp" else DISC_SCENE
+	# The body GLB comes in on the loader threads before the cartridge is built:
+	# RetroCartridge loads it synchronously in _ready, and a cold one froze the
+	# headset for the length of the load. Free once it is held.
+	var body := RetroCartridge.body_model_for(systemid, rom_path, str(options.get("body_region", "")),
+		StringName(str(options.get("shell_preset", ""))))
+	if not body.is_empty() and ResourceLoader.exists(body):
+		await ModelWarmer.acquire(body)
 	var cart := (disc_scene if is_disc else CART_SCENE).instantiate() as RetroCartridge
 	cart.rom_path = rom_path
 	cart.game_label = game_label

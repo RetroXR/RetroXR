@@ -1190,12 +1190,20 @@ func _acquire_entry_assets(entry: Variant) -> void:
 	if not entry is Dictionary:
 		return
 	var d := entry as Dictionary
-	if str(d.get("type", "")) != "system":
-		return
-	var row := SystemModelRegistry.resolve(str(d.get("model_id", "")),
-		SystemIds.canonical(str(d.get("systemid", ""))))
-	for path: String in row.get("requires", []):
-		await ModelWarmer.acquire(path)
+	match str(d.get("type", "")):
+		"system":
+			var row := SystemModelRegistry.resolve(str(d.get("model_id", "")),
+				SystemIds.canonical(str(d.get("systemid", ""))))
+			for path: String in row.get("requires", []):
+				await ModelWarmer.acquire(path)
+		"cartridge":
+			# Same story, a cartridge body: the fields as _apply_media_fields reads them.
+			var body := RetroCartridge.body_model_for(
+				SystemIds.canonical(str(d.get("cart_systemid", ""))),
+				RomLibrary.relocate(str(d.get("rom_path", ""))),
+				str(d.get("body_region", "")), StringName(str(d.get("shell_preset", ""))))
+			if not body.is_empty() and ResourceLoader.exists(body):
+				await ModelWarmer.acquire(body)
 
 
 func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dictionary,

@@ -155,6 +155,8 @@ func _ready() -> void:
 		await _test_stack()
 	if _want_group("spacer"):
 		await _test_spacer()
+	if _want_group("cartbody"):
+		await _test_cart_body()
 	if _want_group("vlc"):
 		_test_vlc()
 	if _want_group("manifest"):
@@ -947,6 +949,35 @@ func _test_spacer() -> void:
 
 	sp.clear_scene(self)
 	for i in range(20):
+		await get_tree().physics_frame
+
+
+## A restored cartridge's body GLB comes in on the loader threads BEFORE the
+## cartridge is built (ModelWarmer.acquire). RetroCartridge loads it
+## synchronously in _ready: free once it is cached, and a 625 ms frozen frame on
+## a Quest (an N64 cart in the arcade restore) when it was not.
+func _test_cart_body() -> void:
+	var sp := ScenePersistence.new("arcade")
+	sp.clear_scene(self)
+	var cart := (load("res://Scenes/Objects/media/cartridge.tscn") as PackedScene) \
+		.instantiate() as RetroCartridge
+	cart.systemid = "n64"
+	cart.add_to_group("spawned")
+	add_child(cart)
+	cart.freeze = true
+	var body := cart._body_model()
+	_ok(not body.is_empty() and cart.has_node("CartModel"), "cartbody/an N64 cartridge wears its body")
+	_ok(sp.save_slot(self, SLOT_A), "cartbody/saved it")
+	sp.clear_scene(self)
+	for i in range(10):
+		await get_tree().physics_frame
+
+	ModelWarmer._held.erase(body)
+	var loaded: bool = await sp.load_slot_async(self, SLOT_A)
+	_ok(loaded and ModelWarmer._held.has(body),
+		"cartbody/the restore fetched the body through ModelWarmer before building the cartridge")
+	sp.clear_scene(self)
+	for i in range(10):
 		await get_tree().physics_frame
 
 

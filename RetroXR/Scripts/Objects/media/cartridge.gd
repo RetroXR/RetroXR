@@ -209,14 +209,24 @@ func _body_model() -> String:
 	if key == _body_model_key:
 		return _body_model_path
 	_body_model_key = key
-	_body_model_path = _CART_MODELS.get(systemid, "")
-	if systemid == "n64":
-		_body_model_path = N64CartShell.body_model_for_region(body_region, N64CartShell.market(systemid, rom_path))
-	elif systemid == SnesCartShell.SYSTEMID:
-		_body_model_path = SnesCartShell.body_model_for_rom(body_region, systemid, rom_path)
-	elif GbCartShell.is_shell(systemid):
-		_body_model_path = GbcCartShell.body_model_for_rom(body_region, shell_preset, rom_path)
+	_body_model_path = body_model_for(systemid, rom_path, body_region, shell_preset)
 	return _body_model_path
+
+
+## The body GLB a cartridge with these properties wears, "" for the procedural
+## box. Static so whatever builds a cartridge can have ModelWarmer pull the GLB
+## in on the loader threads FIRST: _apply_cart_model loads it synchronously in
+## _ready, which costs nothing once it is cached and was a 625 ms frozen frame on
+## a Quest (an N64 cart in a room restore) when it was not.
+static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region: String,
+		p_shell_preset: StringName) -> String:
+	if p_systemid == "n64":
+		return N64CartShell.body_model_for_region(p_body_region, N64CartShell.market(p_systemid, p_rom_path))
+	if p_systemid == SnesCartShell.SYSTEMID:
+		return SnesCartShell.body_model_for_rom(p_body_region, p_systemid, p_rom_path)
+	if GbCartShell.is_shell(p_systemid):
+		return GbcCartShell.body_model_for_rom(p_body_region, p_shell_preset, p_rom_path)
+	return _CART_MODELS.get(p_systemid, "")
 
 
 ## This cartridge's real-world size: the system's, or its body's where a system's
