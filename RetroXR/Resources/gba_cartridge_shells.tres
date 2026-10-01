@@ -6,9 +6,9 @@
 [sub_resource type="Resource" id="grey"]
 script = ExtResource("2")
 id = &"grey"
-display_name = "Grey (standard)"
+display_name = "Charcoal (standard)"
 availability = 0
-color = Color(0.4614, 0.4731, 0.4845, 1)
+color = Color(0.196, 0.22, 0.239, 1)
 roughness = 0.6
 
 [sub_resource type="Resource" id="ruby"]

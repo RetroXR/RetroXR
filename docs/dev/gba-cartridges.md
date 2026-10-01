@@ -63,7 +63,15 @@ shell tints twice, which reads as the thin darker outline of a moulded recess.
 **The shells export solid** (`OPAQUE`, alpha 1): a cartridge is clear only when a
 preset makes it so. An earlier export was 82 % opaque and blended by default; if
 one ever is again, make it solid before it goes in. The imported grey is sRGB
-`(0.4614, 0.4731, 0.4845)` — glTF's linear 0.18/0.19/0.20.
+`(0.4614, 0.4731, 0.4845)` — glTF's linear 0.18/0.19/0.20, which Codex meant as a
+dark charcoal and is far too light. **The standard shell is therefore NOT the
+model's own colour**: the `grey` preset ("Charcoal (standard)") is the real
+cart's plastic, sRGB `(0.196, 0.22, 0.239)` = (50, 56, 61), the median shell
+colour of the photographed atlas (`codex-photos/gba-cart/cartridge_optimized_no_logos/
+gba_cartridge.glb`, `Cartridge_Atlas.001`). From 2026-09-22 to 2026-09-30 the preset
+matched the imported 0.46 instead, and every standard cart (Golden Sun...) was mid
+grey rather than near black. `reset_to_default` still shows the lighter imported
+grey; a spawned cart always gets a preset.
 
 **The shell** is chosen by `GbaCartShell` from the ROM header (0xC0 bytes, never
 hashed), from `Resources/gba_cartridge_shells.tres`. Maker code `01` at 0xB0 and the
@@ -78,7 +86,7 @@ market matches):
 | `BPR_` | FireRed | `fire_red`, clear orange-red |
 | `BPG_` | LeafGreen | `leaf_green`, clear leaf green |
 | `F__` + market ≠ `J` | Classic NES Series / NES Classics | `nes_grey`, solid NES grey |
-| anything else, or not maker `01` | | `grey`, solid: the model's own plastic |
+| anything else, or not maker `01` | | `grey`, solid charcoal: the photographed cart's plastic |
 
 FireRed/LeafGreen codes and maker are pret's `pokefirered/config.mk`.
 

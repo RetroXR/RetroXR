@@ -19,6 +19,10 @@ const SHELL_PARTS := ["Front_Shell", "Rear_Shell"]
 const KEPT_PARTS := ["Label", "Opaque_Internal_Details", "Connector_PCB", "Interior_PCB",
 	"Interior_ROM_Chip", "Interior_RTC_Chip", "Interior_Save_Battery"]
 const CLEAR := [&"ruby", &"sapphire", &"emerald", &"fire_red", &"leaf_green"]
+## The real cart's plastic: the median shell colour of the photographed atlas
+## (codex-photos/gba-cart, gba_cartridge.glb's Cartridge_Atlas), sRGB (50, 56, 61).
+## The tintable model's own factor (linear 0.18 = sRGB 0.46) is far lighter.
+const PHOTOGRAPHED_CHARCOAL := Color(0.196, 0.22, 0.239)
 
 var _pass := 0
 var _fail := 0
@@ -138,12 +142,12 @@ func _is_clear(root: Node, part: String, color: Color, opacity: float) -> bool:
 	return surface != null and surface.shader == CartridgeColor.CLEAR_SURFACE_SHADER 		and _near(cm.get_shader_parameter("tint"), color) 		and is_equal_approx(cm.get_shader_parameter("density"), opacity * CartridgeColor.CLEAR_DENSITY) 		and surface.get_shader_parameter("texture_normal") == _source(root, part).normal_texture 		and surface.get_shader_parameter("normal_enabled") == true
 
 
-## Both halves as imported: the model's colour, solid, with its own culling.
-func _as_model(root: Node) -> bool:
+## Both halves in the standard charcoal, solid, with the model's own culling.
+func _is_standard(root: Node) -> bool:
 	for p: String in SHELL_PARTS:
 		var m := _mat(root, p)
 		var src := _source(root, p)
-		if not (_near(m.albedo_color, src.albedo_color) and _solid(m) and m.cull_mode == src.cull_mode):
+		if not (_near(m.albedo_color, _preset(&"grey").color) and _solid(m) and m.cull_mode == src.cull_mode):
 			return false
 	return true
 
@@ -265,8 +269,10 @@ func _test_color() -> void:
 	var b := _body()
 	var grey := _preset(&"grey")
 	_ok(CartridgeColor.apply_preset(a, &"grey", GbaCartShell.SYSTEMID) == OK, "color/grey applies")
-	_ok(_as_model(a), "color/grey reproduces the model's own solid plastic")
-	_ok(_near(grey.color, _source(a, "Front_Shell").albedo_color), "color/grey is the model's colour")
+	_ok(_is_standard(a), "color/grey paints both halves solid charcoal")
+	_ok(_near(grey.color, PHOTOGRAPHED_CHARCOAL)
+		and grey.color.get_luminance() < _source(a, "Front_Shell").albedo_color.get_luminance() * 0.6,
+		"color/grey is the photographed charcoal, not the model's lighter factor")
 	_ok(_own_roughness(a), "color/each half keeps its baked roughness")
 	_ok(_mat(a, "Front_Shell").normal_texture == _source(a, "Front_Shell").normal_texture
 		and _source(a, "Front_Shell").normal_texture != null, "color/the normal map is carried")
@@ -303,7 +309,7 @@ func _test_clear() -> void:
 	_ok(cm.render_priority == (cm.next_pass as ShaderMaterial).render_priority + 1,
 		"clear/the filter sorts after the surface pass, every frame")
 	CartridgeColor.apply_preset(cart, &"grey", GbaCartShell.SYSTEMID)
-	_ok(_as_model(cart), "clear/repainting grey makes it solid again, with the model's culling")
+	_ok(_is_standard(cart), "clear/repainting grey makes it solid charcoal again, with the model's culling")
 	cart.free()
 
 
@@ -447,7 +453,7 @@ func _test_cartridge() -> void:
 	_ok(fire_model != null and _clear_in(fire_model, _preset(&"fire_red")),
 		"cartridge/Pokemon FireRed spawns clear orange-red")
 	var plain_model := plain.get_node_or_null("CartModel")
-	_ok(plain_model != null and _as_model(plain_model), "cartridge/any other game spawns solid grey")
+	_ok(plain_model != null and _is_standard(plain_model), "cartridge/any other game spawns solid charcoal")
 	var nes := await _spawn(_write_rom("nes.gba", _header("ZELDA 1", "FZLE")))
 	var nes_model := nes.get_node_or_null("CartModel")
 	var nes_grey := nes_model != null
