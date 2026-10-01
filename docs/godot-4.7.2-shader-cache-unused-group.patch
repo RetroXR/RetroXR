@@ -1,0 +1,153 @@
+From 3cc3a390daea54ab99d4805025f9eb69944d7463 Mon Sep 17 00:00:00 2001
+From: Ryan McClelland <rymcclel@gmail.com>
+Date: Wed, 30 Sep 2026 23:00:20 -0700
+Subject: [PATCH] ShaderRD: save a compiled group from its last variant, not on
+ first use
+
+A group's compile was saved to the shader cache only in _compile_version_end,
+which runs when one of the group's variants is asked for. On a Quest in XR the
+scene is drawn with the multiview variants, so the non-multiview group of a
+material drawn only in stereo is compiled eagerly and never asked for: its
+result was discarded unsaved and every launch compiled it again. 13
+SceneForwardMobileShaderRD groups did, the same 13 each boot, 0.6 s of it on
+the main thread before the autoloads were ready (one 585 ms stall).
+
+Each group compile now carries a countdown of its variants, and the variant
+that finishes last saves the group (if every enabled variant compiled), from the
+worker. _compile_version_end releases the countdown and no longer saves. The
+cache-miss message names the group.
+---
+ servers/rendering/renderer_rd/shader_rd.cpp | 44 ++++++++++++++++++---
+ servers/rendering/renderer_rd/shader_rd.h   |  6 +++
+ 2 files changed, 44 insertions(+), 6 deletions(-)
+
+diff --git a/servers/rendering/renderer_rd/shader_rd.cpp b/servers/rendering/renderer_rd/shader_rd.cpp
+index a9739f2550..d4f09e17c9 100644
+--- a/servers/rendering/renderer_rd/shader_rd.cpp
++++ b/servers/rendering/renderer_rd/shader_rd.cpp
+@@ -258,6 +258,7 @@ void ShaderRD::_initialize_version(Version *p_version) {
+ 	p_version->variants.resize_initialized(variant_defines.size());
+ 	p_version->variant_data.resize(variant_defines.size());
+ 	p_version->group_compilation_tasks.resize_initialized(group_enabled.size());
++	p_version->group_compile_remaining.resize_initialized(group_enabled.size());
+ }
+ 
+ void ShaderRD::_clear_version(Version *p_version) {
+@@ -403,7 +404,31 @@ Vector<String> ShaderRD::_build_variant_stage_sources(uint32_t p_variant, Compil
+ 	return stage_sources;
+ }
+ 
++// The group is saved by whichever of its variants finishes compiling last, not by
++// _compile_version_end. That only runs when a variant of the group is asked for,
++// and on a Quest the non-multiview group of a material drawn only in stereo
++// never is: its compile was thrown away unsaved, and every launch compiled it
++// again (13 SceneForwardMobileShaderRD groups, 0.6 s of it on the main thread
++// before the autoloads were ready).
+ void ShaderRD::_compile_variant(uint32_t p_variant, CompileData p_data) {
++	_compile_variant_stages(p_variant, p_data);
++
++#if ENABLE_SHADER_CACHE
++	if (p_data.remaining == nullptr || p_data.remaining->decrement() != 0) {
++		return;
++	}
++	// acq_rel: every other variant's writes are visible here.
++	for (uint32_t i = 0; i < group_to_variant_map[p_data.group].size(); i++) {
++		int variant_id = group_to_variant_map[p_data.group][i];
++		if (variants_enabled[variant_id] && p_data.version->variants[variant_id].is_null()) {
++			return; // A variant failed; _compile_version_end clears the group.
++		}
++	}
++	_save_to_cache(p_data.version, p_data.group);
++#endif
++}
++
++void ShaderRD::_compile_variant_stages(uint32_t p_variant, const CompileData &p_data) {
+ 	uint32_t variant = group_to_variant_map[p_data.group][p_variant];
+ 	if (!variants_enabled[variant]) {
+ 		return; // Variant is disabled, return.
+@@ -624,7 +649,7 @@ bool ShaderRD::_load_from_cache(Version *p_version, int p_group) {
+ 
+ 	if (f.is_null()) {
+ 		const String &sha1 = _version_get_sha1(p_version);
+-		print_verbose(vformat("Shader cache miss for %s", name.path_join(group_sha256[p_group]).path_join(sha1)));
++		print_verbose(vformat("Shader cache miss for %s (group %d)", name.path_join(group_sha256[p_group]).path_join(sha1), p_group));
+ 		return false;
+ 	}
+ 
+@@ -731,6 +756,12 @@ void ShaderRD::_compile_version_start(Version *p_version, int p_group) {
+ 	CompileData compile_data;
+ 	compile_data.version = p_version;
+ 	compile_data.group = p_group;
++#if ENABLE_SHADER_CACHE
++	if (shader_cache_user_dir_valid) {
++		compile_data.remaining = memnew(SafeNumeric<uint32_t>(group_to_variant_map[p_group].size()));
++		p_version->group_compile_remaining.write[p_group] = compile_data.remaining;
++	}
++#endif
+ 
+ 	WorkerThreadPool::GroupID group_task = WorkerThreadPool::get_singleton()->add_template_group_task(this, &ShaderRD::_compile_variant, compile_data, group_to_variant_map[p_group].size(), -1, true, SNAME("ShaderCompilation"));
+ 	p_version->group_compilation_tasks.write[p_group] = group_task;
+@@ -743,6 +774,10 @@ void ShaderRD::_compile_version_end(Version *p_version, int p_group) {
+ 	WorkerThreadPool::GroupID group_task = p_version->group_compilation_tasks[p_group];
+ 	WorkerThreadPool::get_singleton()->wait_for_group_task_completion(group_task);
+ 	p_version->group_compilation_tasks.write[p_group] = 0;
++	if (p_version->group_compile_remaining[p_group] != nullptr) {
++		memdelete(p_version->group_compile_remaining[p_group]);
++		p_version->group_compile_remaining.write[p_group] = nullptr;
++	}
+ 
+ 	bool all_valid = true;
+ 
+@@ -772,12 +807,9 @@ void ShaderRD::_compile_version_end(Version *p_version, int p_group) {
+ 		p_version->variant_data.clear();
+ 		return;
+ 	}
+-#if ENABLE_SHADER_CACHE
+-	else if (shader_cache_user_dir_valid) {
+-		_save_to_cache(p_version, p_group);
+-	}
+-#endif
+ 
++	// Saved to the shader cache already, by the group's last variant to finish
++	// compiling (_compile_variant).
+ 	p_version->valid = true;
+ }
+ 
+diff --git a/servers/rendering/renderer_rd/shader_rd.h b/servers/rendering/renderer_rd/shader_rd.h
+index 9ec4cbd0c8..bf63ec11e5 100644
+--- a/servers/rendering/renderer_rd/shader_rd.h
++++ b/servers/rendering/renderer_rd/shader_rd.h
+@@ -34,6 +34,7 @@
+ #include "core/templates/hash_map.h"
+ #include "core/templates/local_vector.h"
+ #include "core/templates/rid_owner.h"
++#include "core/templates/safe_refcount.h"
+ #include "servers/rendering/rendering_device.h"
+ #include "servers/rendering/rendering_server_types.h"
+ 
+@@ -82,6 +83,9 @@ private:
+ 		HashMap<StringName, CharString> code_sections;
+ 		Vector<CharString> custom_defines;
+ 		Vector<WorkerThreadPool::GroupID> group_compilation_tasks;
++		// Variants of each group still compiling. The last one to finish saves the
++		// group to the shader cache (see _compile_variant).
++		Vector<SafeNumeric<uint32_t> *> group_compile_remaining;
+ 
+ 		Vector<Vector<uint8_t>> variant_data;
+ 		Vector<RID> variants;
+@@ -95,10 +99,12 @@ private:
+ 	struct CompileData {
+ 		Version *version;
+ 		int group = 0;
++		SafeNumeric<uint32_t> *remaining = nullptr;
+ 	};
+ 
+ 	// Vector will have the size of SHADER_STAGE_MAX and unused stages will have empty strings.
+ 	void _compile_variant(uint32_t p_variant, CompileData p_data);
++	void _compile_variant_stages(uint32_t p_variant, const CompileData &p_data);
+ 
+ 	void _initialize_version(Version *p_version);
+ 	void _clear_version(Version *p_version);
+-- 
+2.53.0.windows.1
+

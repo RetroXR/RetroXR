@@ -109,9 +109,10 @@ Assumption open: the Japanese Crystal (`BXTJ`) is the same clear blue.
 **Clear glitter.** Crystal is a `METAL_FLAKE` preset with opacity below 1, which
 `CartridgeColor` now paints as clear plastic with flakes in it, not as the solid flake
 shader: both clear passes include `cartridge_clear_flake.gdshaderinc`, placing the
-flakes exactly as `cartridge_flake_plastic.gdshader` does. The filter pass blacks out
-what is behind a flake (it is metal); the surface pass lights it as a tilted mirror,
-fading to its average once a flake is under a pixel. `flake_amount` 0 is plain clear
+flakes exactly as `cartridge_flake_plastic.gdshader` does. The surface pass lights a
+flake as a tilted mirror, fading to its average once a flake is under a pixel, and
+the filter, drawn after it (the clear passes' fixed order, gba-cartridges.md), lets
+the flake's light through untinted. `flake_amount` 0 is plain clear
 plastic, so every other clear shell renders as before. A mixed metal-flake colour
 borrows Crystal's flakes but is always solid (`flake_finish` sets opacity 1). A solid
 metal-flake preset (the gold and silver) still goes to the solid flake shader.
@@ -134,11 +135,12 @@ and white-balance reference; a red label's median is not). Targets from the same
 of each photo: smoke `(0.268, 0.299, 0.220)` from codex-photos/gbc-cart IMG_1634 (an
 Oracle of Seasons, whose ScreenScraper label the fit wears), Crystal
 `(0.598, 1.067, 1.331)` from ScreenScraper's CGB-BYTE-USA photo. Fitted within 1 % on
-every channel: smoke `#7d8584` opacity 0.75, Crystal `#a7c7db` opacity 0.9. Opacity and
+every channel: smoke `#7e8587` opacity 0.75, Crystal `#a2c3d7` opacity 0.9 (re-fitted
+2026-09-30 for the clear passes' fixed draw order). Opacity and
 frost (0.45 both, so the glitter is not lost in cloud) are set from the photos, then
 the colour is fitted. Re-fit rather than retune by eye.
 
-`gbc_cart_tests` (101 cases): resources, model, branding, uv, surfaces, clear,
+`gbc_cart_tests` (102 cases): resources, model, branding, uv, surfaces, clear,
 glitter, kept, lookup, size, cartridge, forced, menu. Mutation-tested: dropping the
 CGB-only rule fails 12 cases, clear presets losing their glitter
 fail 4, and dropping the Korean Gold/Silver exception fails 2.

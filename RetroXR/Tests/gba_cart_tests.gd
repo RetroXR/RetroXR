@@ -283,6 +283,9 @@ func _test_color() -> void:
 		and _part(a, "Front_Shell").get_surface_override_material(0) == null, "color/reset restores the model")
 	a.free()
 	b.free()
+	var cm := _part(cart, "Front_Shell").get_active_material(0) as ShaderMaterial
+	_ok(cm.render_priority == (cm.next_pass as ShaderMaterial).render_priority + 1,
+		"clear/the filter sorts after the surface pass, every frame")
 
 
 func _test_clear() -> void:
@@ -290,8 +293,10 @@ func _test_clear() -> void:
 	for id: StringName in CLEAR:
 		_ok(CartridgeColor.apply_preset(cart, id, GbaCartShell.SYSTEMID) == OK and _clear_in(cart, _preset(id)),
 			"clear/%s is clear plastic in its colour at its opacity" % id)
-	# Multiply and add commute: the two halves, and shells over each other, give
-	# the same picture in any draw order. An alpha blend would not.
+	# Multiplies commute with each other and adds with each other, so the two halves
+	# and shells over each other give the same picture in any order; but a multiply
+	# and an add do not, so every surface pass draws first and every filter after
+	# (render_priority). An alpha blend would depend on order throughout.
 	var filter_code := CartridgeColor.CLEAR_SHADER.code
 	var surface_code := CartridgeColor.CLEAR_SURFACE_SHADER.code
 	_ok(filter_code.contains("blend_mul") and filter_code.contains("depth_draw_never")

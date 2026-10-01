@@ -21,7 +21,10 @@ adb install -r out.apk        # -r keeps app data
   edit. If an on-device change doesn't take: `rm -rf RetroXR/android/build/src/main/assets
   RetroXR/android/build/build/intermediates/assets` and re-export. To verify before
   installing: a `.gdc` is a 12-byte `GDSC` header + zstd; decompress with Python 3.14's
-  `compression.zstd` and grep the payload for a string you just added.
+  `compression.zstd` and grep the payload for a string LITERAL you just added. Not an
+  identifier or function name: 4.7's tokens do not store those as searchable text, and
+  their absence proves nothing (2026-09-30: `request_shells` was "missing" from a build
+  that certainly had it).
 - `FileAccess.file_exists("res://….tscn")` is **false in exported builds** (paths are
   remapped into the pck) — use `ResourceLoader.exists()`.
 

@@ -4,9 +4,10 @@ Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary a
 
 ### The Quest ships a PATCHED engine
 
-The stock 4.7.2 Android template has seven defects on a Quest 3 that each have
+The stock 4.7.2 Android template has eight defects on a Quest 3 that each have
 a fix: a boot deadlock in the Forward Mobile shader lock scope; a Vulkan
-pipeline cache that is thrown away on every launch (below); colour and
+pipeline cache that is thrown away on every launch, and a shader cache that never
+saves a group nothing asked for (both below); colour and
 depth buffers stored every frame though nothing reads them (and their
 subsampled twins); the swapchain loaded into tile memory every bin though the
 pass overwrites it; the foveation density map left blank after any MSAA or
@@ -70,15 +71,46 @@ master has the same code as of 2026-09-30. Arcade slot, Quest 3, steady state:
 | before | 37-41 s | 72-75 s |
 | cache patch | 17.5 s | 39 s |
 | + 2048 px page cap (books.md) | 17.3 s | 25-26 s |
+| + ETC2 pages, model textures VRAM | 17.2 s | 19.7 s |
+| + shader cache, no stand-in warm | 18.4 s (31 objects) | ~18.4 s |
+
+The last row's room had grown from 17 objects to 31; the curtain now lifts when the
+restore ends, and the room holds 72 fps from ~3 s after (with the warm it ran 1-9 fps for
+up to 20 s more).
+
+**The stand-in warm is gone** (`SceneManager._warm_models`, `ModelWarmer.skip_stand_ins`).
+It built and drew every stand-in under the curtain because a cold spawn of the 3DS one
+took 3.9 s, nearly all pipeline and shader compiles that both caches threw away. With the
+caches kept, a cold spawn measured on the Quest (no warm, 2026-09-30): GBA 37 ms, Wii 76,
+N64 19, DS 184, PSP 78, Famicom 48, Virtual Boy 81, Lynx 54. That is what the warm saved,
+for 2.5-7 s of curtain, and run after the curtain it would put all of them into the room
+at once. The bespoke shells' GLBs still load at boot, off the main thread
+(`request_shells`, `warm_shells`). Anything that loads a model GLB in `_ready` must be
+fetched with `ModelWarmer.acquire()` before it is built: cartridges were not, and an N64
+cart's body was a 625 ms frozen frame in the arcade restore (`RetroCartridge.body_model_for`,
+`scene_tests` `cartbody/`).
 
 Remaining, measured but not fixed: ~7 s from engine start to the first autoload
-`_ready` is the autoloads' transitive preloads (no single item over 0.5 s); the
-stand-in warm (`ModelWarmer`) still holds the curtain ~8 s after the room is in; 13
-`SceneForwardMobileShaderRD` groups miss the SHADER cache on every boot (same hashes
-each time, never saved, no compile error, so most likely versions freed before
-`_compile_version_end` saves them); and a build deployed with remote debugging on (its
-command line carries `--remote-debug tcp://localhost:6007`) spends 3.3 s at launch
-failing to connect when no editor is listening. A CLI `--export-debug` does not.
+`_ready` is the autoloads' transitive preloads (UI nobody sees at boot among them: the
+controller-diagram art, the HSV wheel shader, the toast host); and a build deployed with
+remote debugging on (its command line carries `--remote-debug tcp://localhost:6007`)
+spends 3.3 s at launch failing to connect when no editor is listening. A CLI
+`--export-debug` does not.
+
+### The shader cache (`godot-4.7.2-shader-cache-unused-group.patch`)
+
+`ShaderRD` saved a compiled group to `user://shader_cache/` only in
+`_compile_version_end`, which runs when one of the group's variants is ASKED for. Every
+material eagerly compiles all its enabled groups, and on a Quest in XR the scene is drawn
+with the multiview ones, so the plain group of a material drawn only in stereo finished
+compiling and was never committed: discarded unsaved, compiled again next launch. The same
+13 `SceneForwardMobileShaderRD` groups every boot (`--verbose`: "Shader cache miss"), 8 of
+them on the main thread before the autoloads were ready, 0.6 s with one 585 ms stall, plus
+worker time the threaded loads queued behind. Now each group compile carries a countdown of
+its variants and the last to finish saves the group from the worker (if every enabled
+variant compiled); `_compile_version_end` only releases the countdown. The miss message
+names the group. Measured: 0 misses on the second boot after install (a room with new
+materials compiled 153 on the first, and kept them).
 
 **The direct render path is a project setting**,
 `rendering/renderer/mobile/render_directly_to_target` (on in `project.godot`;

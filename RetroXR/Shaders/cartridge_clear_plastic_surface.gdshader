@@ -1,9 +1,13 @@
-// Dyed clear plastic, second pass: the surface. Added over the filter pass
-// (cartridge_clear_plastic.gdshader), it is the shell's gloss at full strength,
-// with the model's normal map, and a little light scattered in the dye. Adding
-// commutes like the filter's multiply, so draw order never matters. `cloud`
-// makes that scatter uneven, in soft patches fixed to the shell, as moulded
-// plastic is: the frosted look, with cartridge_frosted_interior.gdshader
+// Dyed clear plastic, the surface: the shell's gloss, with the model's normal
+// map, and a little light scattered in the dye, ADDED to what is behind. It
+// draws BEFORE the filter pass (cartridge_clear_plastic.gdshader; CartridgeColor
+// sorts the filter one render_priority higher), so the dye tints it along with
+// the board: the plastic reads as clear coloured plastic at every angle. A
+// multiply and an add do not commute, and with the same sort key the two passes
+// swapped as the cart moved, the shell jumping between that and a milky white.
+// Adds commute with each other, so shells over each other add up in any order.
+// `cloud` makes the scatter uneven, in soft patches fixed to the shell, as
+// moulded plastic is: the frosted look, with cartridge_frosted_interior.gdshader
 // blurring what is inside.
 shader_type spatial;
 render_mode blend_add, depth_draw_never, cull_back, diffuse_burley, specular_schlick_ggx;
@@ -49,7 +53,7 @@ void fragment() {
 	METALLIC = 0.0;
 	if (flake_amount > 0.0) {
 		// Glitter: each flake a small tilted mirror in the plastic, lit here; the
-		// filter pass has already blacked out what is behind it.
+		// filter pass, drawn after, leaves its light untinted.
 		vec4 flake = clear_flake(obj_pos);
 		float k = (flake.x + flake.y) * flake_intensity;
 		ALBEDO = mix(ALBEDO, flake_color.rgb, k);

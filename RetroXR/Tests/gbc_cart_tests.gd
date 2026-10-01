@@ -365,6 +365,10 @@ func _test_clear() -> void:
 		and is_equal_approx(surface.get_shader_parameter("flake_amount"), 0.0), "clear/smoke has no glitter")
 	_ok(surface.get_shader_parameter("texture_normal") != null
 		and surface.get_shader_parameter("normal_enabled") == true, "clear/the stipple normal map is carried")
+	# A multiply and an add do not commute: with one sort key the passes swapped as
+	# the cart moved and the shell jumped between clear blue and milky white.
+	_ok(front.render_priority == surface.render_priority + 1,
+		"clear/the filter sorts after the surface pass, so the dye tints the gloss and haze every frame")
 	var polished := _active(cart, "Front_Shell", &"GBC_Shell_Smooth") as ShaderMaterial
 	_ok(polished != null and polished.shader == CartridgeColor.CLEAR_SHADER, "clear/the lettering and ridges go clear too")
 	var frosted := FROSTED.all(func(p: String) -> bool:
@@ -402,7 +406,7 @@ func _test_glitter() -> void:
 	var both := [front, surface].all(func(m: ShaderMaterial) -> bool:
 		return (is_equal_approx(m.get_shader_parameter("flake_amount"), crystal.flake_density)
 			and is_equal_approx(m.get_shader_parameter("flake_size_mm"), crystal.flake_size_mm)))
-	_ok(both, "glitter/the same flakes on both passes, so the filter blacks out what the surface lights")
+	_ok(both, "glitter/the same flakes on both passes, so the filter lets through the light the surface gives them")
 	_ok(surface.get_shader_parameter("flake_color") == crystal.flake_color
 		and is_equal_approx(surface.get_shader_parameter("flake_tilt"), crystal.flake_tilt),
 		"glitter/flake colour and tilt reach the surface pass")

@@ -82,18 +82,7 @@ market matches):
 
 FireRed/LeafGreen codes and maker are pret's `pokefirered/config.mk`.
 
-**Classic NES Series.** Every NES reissue has a game code beginning `F`, maker `01`
-whoever made the original (read 2026-09-28 off 45 ROMs in a No-Intro `gba` set:
-Classic NES Series `F__E` (FZLE Zelda, FADE Castlevania, FSME...), Europe's NES
-Classics `FADP`, Japan's Famicom Mini `F__J`). The US/European carts are NES grey;
-the Famicom Mini ones (`J`) keep the standard grey, as their colour was not
-checked. `nes_grey` is the room's own NES cartridge plastic (`nes_cart.glb`
-`NES_Shell_Plastic`, linear 0.2685 = sRGB 0.555), and `gba_cart_tests` holds the two
-equal, so a Classic NES cart beside an NES cart is the same grey; it is lighter
-and more neutral than the GBA's standard grey. Rendered side by side: NES cart
-face ~169, Classic NES GBA ~165, standard GBA ~143 (sRGB, 8-bit).
-
-**The colours are fitted, not picked.** A probe (re-run whenever the model's interior changes) rendered each preset lying on a
+**The colours are fitted, not picked.** `Tools/models/gba_cart_fit_probe` (windowed; re-run whenever the model's interior or the clear shaders change) renders each preset lying on a
 white surface under flat front light (ortho camera, near/far 0.1–0.3 m: the
 default 4 km far plane lets the recess floor, 0.47 mm behind the label, win the
 depth test and tint the label), took the per-channel median colour of the shell outside the
@@ -103,7 +92,11 @@ same way from a flat scan; Sapphire `#2c3aa6`, Emerald `#2cbf3c`, FireRed `#e45a
 LeafGreen `#4d9a5c`, read off photos the user supplied. Opacity is from the same photos: Ruby 0.65,
 Sapphire 0.6 and Emerald 0.55 are clear; FireRed and LeafGreen are FROSTED, 0.9,
 milkier and hiding more of the inside. Re-fit rather than retune by eye.
-Assumption open: the Japanese releases are clear too.
+Assumption open: the Japanese releases are clear too. All five were re-fitted on
+2026-09-30, when the clear passes got a fixed draw order (below): the old fits had
+been made in whichever order the sort happened to give, and the fixed order moved
+every median by a lot (Ruby rendered `#825555` with the filter first and `#46211e`
+with the gloss first, either side of its `#653634`).
 
 **Clear plastic.** `CartridgeShellPreset.opacity` (default 1). Below 1 — or
 `apply_color` with a colour whose alpha is below 1 — `CartridgeColor` puts the
@@ -115,15 +108,23 @@ surface on `cartridge_clear_plastic.gdshader` with
   thicker. `density` = opacity × `CLEAR_DENSITY`. The colour is used as the wall's
   real transmittance: normalising it so the dye's own channel passed whole (tried)
   made every red shell a bright fire-engine red, far off the real Ruby.
-- the surface pass (`blend_add`, lit) adds the gloss at full strength with the
-  half's normal map, and `haze` = opacity × `CLEAR_HAZE` of lit dye colour.
-  Roughness is the preset's (0.35; a plain colour gets `CLEAR_ROUGHNESS`).
+- the surface pass (`blend_add`, lit) adds the gloss with the half's normal map,
+  and `haze` = opacity × `CLEAR_HAZE` of lit dye colour. Roughness is the preset's
+  (0.35; a plain colour gets `CLEAR_ROUGHNESS`).
 
-Multiply and add commute and neither writes depth, so the two halves and stacked
-carts need no sorting and have no overlap artefacts. What an alpha blend got wrong,
-and why this replaced it: it washed the background toward the shell colour
-instead of filtering it (a grey, milky look), faded the reflections with the
-body, and depended on draw order. No screen texture is read, so it costs a Quest
+**The surface pass draws first and the filter after it**, every frame:
+`CartridgeColor` gives the filter a `render_priority` one higher than its next
+pass. Multiplies commute with each other and adds with each other, so the two
+halves and stacked carts need no sorting among themselves, but a multiply and an
+add do not commute: filter-then-surface is the board tinted plus untinted haze and
+gloss, a milky white; surface-then-filter tints the haze and gloss too, clear
+colored plastic. Until 2026-09-30 the two passes shared one sort key, and the sort
+swapped them as a cart moved, so a clear shell jumped between the two looks (the
+user saw it on Pokemon Crystal and the GBA carts, in the headset and on desktop).
+The fixed order is the clear one. Neither pass writes depth. What an alpha blend
+got wrong, and why this replaced it: it washed the background toward the shell
+color instead of filtering it (a gray, milky look), faded the reflections with the
+body, and depended on draw order throughout. No screen texture is read, so it costs a Quest
 two cheap passes. At 1 the plain `StandardMaterial3D` path is untouched. Metal
 flake ignores opacity. The two shell materials are in
 `EXTERIOR_PLASTIC` and `OWN_ROUGHNESS` (the solid path keeps the ORM map's

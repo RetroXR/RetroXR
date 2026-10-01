@@ -63,9 +63,19 @@ static var warm_total := 0
 static var warm_phase := ""
 
 
-## True once every stand-in has been warmed and thrown away.
+## True once every stand-in has been warmed and thrown away, or once a boot has
+## decided not to warm them (skip_stand_ins), so nothing waits on a warm that
+## will never run.
 static func is_warmed() -> bool:
 	return _finished
+
+
+## The boot's choice since 2026-09-30: no stand-in warm (SceneManager._warm_models
+## says why). warm_stand_ins() stays for probes that want a warmed process.
+static func skip_stand_ins() -> void:
+	if not _started:
+		_started = true
+		_finished = true
 
 
 static func _tree() -> SceneTree:

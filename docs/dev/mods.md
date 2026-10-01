@@ -43,9 +43,10 @@ share one definition), `SystemInfo`, `ConsolePadArt`, `MediaDimensions`,
 `ScreenscraperSystems`, `SpawnCatalog`, `ScenePersistence.PLAIN_SCENES`,
 `RetroTV._SHELL_SCENES`, `RoomCatalog`.
 
-**Mod models are deliberately kept out of `ModelWarmer`'s boot warm** and warmed
+**Mod models are deliberately kept out of `ModelWarmer`'s boot work** and loaded
 lazily on first spawn, so boot time is not a function of how many mods are
-installed. `stand_in_ids()` / `bespoke_ids()` / `shell_assets()` read `_ROWS`
+installed. (Since 2026-09-30 the boot warms no stand-ins at all; it still pre-loads the
+bespoke shells' GLBs.) `stand_in_ids()` / `bespoke_ids()` / `shell_assets()` read `_ROWS`
 directly for that reason — do not "fix" them to use `_table()`.
 
 **`RoomCatalog`** (`Scripts/Data/room_catalog.gd`) replaced four hand-synced tables

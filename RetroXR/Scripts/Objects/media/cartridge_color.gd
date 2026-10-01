@@ -24,7 +24,8 @@
 ## are looked up in the palette of the system given, N64 when none is. A plastic
 ## preset's opacity, or a colour's alpha, below 1 makes the shell dyed clear
 ## plastic: cartridge_clear_plastic.gdshader filters what is behind it through the
-## colour, and its next pass adds the gloss, so no draw order is needed. A METAL_FLAKE
+## colour, and its next pass adds the gloss and the light scattered in the dye,
+## drawn first so the dye tints them too. A METAL_FLAKE
 ## preset below 1 is that clear plastic with metal glitter in it (Pokemon Crystal).
 ## A METALLIZED preset (the gold NES Zelda cartridges) stays on the duplicate, made
 ## fully metallic, each molding's own roughness scaled by the preset's.
@@ -347,6 +348,11 @@ static func _is_clear_flake(finish: Variant) -> bool:
 
 
 ## The filter pass, with the surface pass (normal map carried) as its next pass.
+##
+## The filter sorts one render_priority higher than the surface pass, so every
+## gloss and scatter is added first and the dye then tints it with the board: a
+## multiply and an add do not commute, and with the same sort key the two swapped
+## as the cart moved, the shell jumping between clear and a milky white.
 static func _clear_material(source: BaseMaterial3D) -> ShaderMaterial:
 	var cm := ShaderMaterial.new()
 	cm.shader = CLEAR_SHADER
@@ -354,6 +360,7 @@ static func _clear_material(source: BaseMaterial3D) -> ShaderMaterial:
 	var surface := ShaderMaterial.new()
 	surface.shader = CLEAR_SURFACE_SHADER
 	surface.resource_name = source.resource_name
+	cm.render_priority = surface.render_priority + 1
 	surface.set_shader_parameter("specular", source.metallic_specular)
 	surface.set_shader_parameter("normal_enabled", source.normal_enabled and source.normal_texture != null)
 	surface.set_shader_parameter("texture_normal", source.normal_texture)

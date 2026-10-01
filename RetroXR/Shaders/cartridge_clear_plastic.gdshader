@@ -5,11 +5,14 @@
 // washes the background toward the shell colour and fades its reflections too).
 //
 // The path through the wall lengthens toward the silhouette, so the edges read
-// thicker and deeper in colour. Multiplying commutes, so the two halves and any
-// number of shells give the same result in any draw order: no sorting artefacts.
+// thicker and deeper in colour. Multiplies commute with each other, so the two
+// halves and any number of shells filter alike in any draw order.
 //
 // The reflections and the light scattered in the plastic are the next pass,
-// cartridge_clear_plastic_surface.gdshader. CartridgeColor sets both.
+// cartridge_clear_plastic_surface.gdshader, which draws BEFORE this one, so this
+// tints them too: CartridgeColor sorts this pass one render_priority higher. A
+// multiply and an add do not commute, and with the same sort key the two passes
+// swapped as the cart moved, the shell jumping between clear and milky white.
 shader_type spatial;
 render_mode blend_mul, unshaded, depth_draw_never, cull_back, fog_disabled;
 
@@ -38,6 +41,9 @@ void fragment() {
 	float facing = clamp(abs(dot(NORMAL, VIEW)), 1.0 / edge_depth, 1.0);
 	float patchy = 1.0 + cloud * (cloud_noise(obj_pos, cloud_size_mm) - 0.5);
 	vec4 flake = clear_flake(obj_pos);
-	// A glitter flake is metal: nothing behind it shows through.
-	ALBEDO = pow(max(tint.rgb, vec3(0.001)), vec3(density * patchy / facing)) * (1.0 - flake.x - flake.y);
+	// A glitter flake sits in the plastic, in front of the dye behind it: its own
+	// light, added by the surface pass, passes untinted (what is behind a flake is
+	// a sub-millimetre speck, not worth a pass of its own).
+	vec3 through = pow(max(tint.rgb, vec3(0.001)), vec3(density * patchy / facing));
+	ALBEDO = mix(through, vec3(1.0), clamp(flake.x + flake.y, 0.0, 1.0));
 }

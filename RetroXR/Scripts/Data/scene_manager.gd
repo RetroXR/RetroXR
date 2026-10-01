@@ -489,25 +489,27 @@ func _seat_player_rig(incoming: Node, player: PlayerRig) -> void:
 		incoming.move_child(player, index)
 
 
-## Pay every model's first-spawn cost once, at startup, instead of the first
-## time a player reaches for one. Measured on a Quest 3: 3.9 s for a single cold
-## spawn of the 3DS stand-in, 6.9 s of blocked main thread for the NES shell.
+## Start the bespoke shells' GLBs loading, off the main thread, so a spawn or a
+## slot restore finds them (ModelWarmer.acquire) instead of a synchronous load()
+## that blocked a Quest 3 for 6.9 s for the NES shell. Deferred past the first
+## frames so the room is up and drawing first.
 ##
-## Deferred past the first frames so the room is up and drawing first. The order
-## matters: the shell GLBs' threaded requests fire before anything else, because
-## they are what a menu spawn or a slot restore has to wait for
-## (ModelWarmer.acquire) and starting them costs the main thread nothing. The
-## stand-in warm then runs on the main thread while those loads ride the loader
-## threads, and warm_shells finds its GLBs mostly arrived.
+## The stand-ins are no longer warmed. Every one used to be built and drawn once
+## here, under the loading curtain, because a cold spawn of the 3DS stand-in took
+## 3.9 s — almost all of it pipeline and shader compiles that both caches threw
+## away at every launch. With those caches surviving (godot-4.7.2-pipeline-cache-
+## size and -shader-cache-unused-group patches), a cold stand-in spawn measured
+## 19-184 ms on a Quest 3 (2026-09-30), and the warm held the curtain 2.5-7 s to
+## save that. Run after the curtain instead it would only move the same hitches
+## into the room at once, where a spawn pays its own only when a player asks.
 func _warm_models() -> void:
 	for i in 4:
 		await get_tree().process_frame
 	ModelWarmer.request_shells()
-	await ModelWarmer.warm_stand_ins(self)
-	# The curtain lifts here, not after warm_shells. The shells cost ~7 s and only
-	# make FUTURE spawns cheap — nothing on screen at boot is waiting on them, and
-	# holding the room back for it would turn a short boot into a long black one.
-	# The stand-ins are what a slot restore actually instantiates.
+	ModelWarmer.skip_stand_ins()
+	# Nothing on screen is waiting on the shells: they only make FUTURE spawns
+	# cheap, so the curtain does not wait for them. A restore that needs one
+	# acquires it itself.
 	if has_node("/root/LoadingOverlay"):
 		LoadingOverlay.end(&"boot_warm")
 	await ModelWarmer.warm_shells(self)

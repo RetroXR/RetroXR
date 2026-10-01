@@ -2,8 +2,8 @@
 // flakes, each a small metallic mirror at its own tilt, in object-space cells so
 // the pattern is fixed to the shell, placed exactly as
 // cartridge_flake_plastic.gdshader places them in a solid one. Shared by both
-// clear-plastic passes, so the filter darkens what is behind a flake (a flake is
-// opaque) and the surface pass lights the same flake. flake_amount 0 is plain
+// clear-plastic passes: the surface pass lights a flake and the filter, drawn
+// after it, lets that flake's light through untinted. flake_amount 0 is plain
 // clear plastic, and costs one branch.
 
 // Share of cells holding a flake.
