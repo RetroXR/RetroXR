@@ -2,7 +2,8 @@
 
 ## The core half
 
-Our PS2 fork (`github.com/RetroXR/ps2`, branch `retroxr`, `pcsx2/FW.cpp`) models the
+Our PS2 fork (`github.com/RetroXR/ps2`, branch `retroxr`, release
+`retroxr-pcsx2-libretro-v2`, `pcsx2/FW.cpp`) models the
 console's i.LINK controller. Each console attaches ONE link port, index 0, protocol
 `ps2-ilink-1394`, at the IOP's 36.864 MHz, behind the core option `pcsx2_ilink`
 (default on, restart to change). It is a real IEEE 1394 bus, not a pair: every console
@@ -133,10 +134,10 @@ script, `XENU_UNTHROTTLED=1`:
 | step = promise / 2 | 162 | 126 | 84% / 33% / 34% |
 
 42 fps is the crackle: under 60 nothing the frontend does can keep three sinks fed,
-and v1 went under in the menus, not the race. **Needs a core release**: the change is
-commit `2b1bd7fa0` on the fork's `retroxr`, and until that is tagged
-`retroxr-pcsx2-libretro-v2` and `CoreSources` names it, the released core still takes
-turns. (A local build is `cmake -S . -B build -G Ninja` in an MSVC shell, three minutes.)
+and v1 went under in the menus, not the race. Released as
+`retroxr-pcsx2-libretro-v2` (fork commit `2b1bd7fa0`), which `CoreSources` names; the
+published Windows binary measured 163 mean and 108 worst on the same run. (A local
+build is `cmake -S . -B build -G Ninja` in an MSVC shell, three minutes.)
 
 **The frontend braked each console on its own sink.** The audio brake holds a core
 while its sink is over target. Cabled consoles advance together, and each one's EE

@@ -141,10 +141,14 @@ const SOURCES := {
 	# The fork also carries the native AArch64 port that makes an Android build
 	# possible.
 	#
+	# v2 is the one where cabled consoles run together: v1 had them take turns,
+	# which three on one hub could not always do in real time, and the sound of
+	# all three broke up (ps2-ilink.md, "The sound of three consoles").
+	#
 	# GPL-3.0, so the tag beside the binary is the source obligation, as Dolphin's.
 	"pcsx2": {
 		"repo":  "RetroXR/ps2",
-		"known_tag": "retroxr-pcsx2-libretro-v1",
+		"known_tag": "retroxr-pcsx2-libretro-v2",
 		"label": "LRPS2 (retroXR build)",
 		"assets": {
 			"Windows": "pcsx2_libretro.dll.zip",
