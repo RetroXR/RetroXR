@@ -1,0 +1,21 @@
+# Gran Turismo 3 A-spec (USA) v1.10, three consoles and NO cable: the control
+# leg for gt3_three_screen.txt, run with --nocable. Each console walks Arcade
+# Mode -> Single Race on its own and races, on the linked script's timeline, so
+# the two runs put the same three race engines on the host and differ only in
+# the bus. Whatever the sinks do here is three PS2s; whatever they only do in
+# the cabled run is the cable.
+2000 * press START          # skip the intro movie to the title
+2400 * press CROSS          # Arcade Mode
+3100 * press CROSS          # Single Race, the first entry
+3250 * press CROSS          # difficulty, course, class, car ... all the defaults
+3400 * press CROSS
+3550 * press CROSS
+3700 * press CROSS
+3850 * press CROSS
+4000 * press CROSS
+4150 * press CROSS
+4300 * press CROSS
+4450 * press CROSS
+4600 * press CROSS
+4750 * press CROSS
+4900 * press CROSS 3600     # hold the accelerator

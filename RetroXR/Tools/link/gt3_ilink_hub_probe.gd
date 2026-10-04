@@ -20,6 +20,24 @@
 ## <who> is L, C, R or * (each console at its own frame). # starts a comment.
 ## GT3 drops presses shorter than ~8 frames, hence the default hold of 10.
 ##
+## The sound, which is what a cabled group breaks first (docs/dev/ps2-ilink.md):
+##     --audio     once a second, every console's fps, its sink's floor..ceiling
+##                 in ms, the mixer's underrun count, and where its second went
+##                 (in retro_run, asleep on the brake, parked on the bus). Also
+##                 switches the consoles' sound ON: nothing here is wired to a
+##                 set, and an unwired machine is silent on purpose.
+##     --mute      the same work at -80 dB.
+##     --nocable   three consoles and no leads: the control leg, with
+##                 gt3_three_solo.txt, which races each one on its own.
+## and two switches the EXTENSION reads from the environment:
+##     XENU_LINK_WAIT_DIAGNOSTICS=1   time every park, or `parked` reads 0
+##     XENU_UNTHROTTLED=1             no brake, no ceiling: the fps is then what
+##                                    the group can DO. The measure that settles
+##                                    a throughput question; a paced run reads 60
+##                                    with room to spare and 60 with none.
+## Watch the log for `Parameter "mem" is null`: three PS2s commit a lot, and a
+## host out of commit stalls a console for seconds and spoils the run.
+##
 ## Measured 2026-09-22 (docs/dev/ps2-ilink.md): all three reach i.LINK Battle,
 ## take Console IDs 3/2/1 (L/C/R), all choose Broadcast, ID 1 becomes the
 ## control unit and races; IDs 2 and 3 show its left and right views with no
@@ -40,6 +58,8 @@ var _shots := "res://probe_out/gt3"
 var _until := 4000
 var _stagger := 3.0
 var _every := 0
+var _audio := false      # --audio: report every console's sink once a second
+var _nocable := false    # --nocable: the control leg, three consoles and no bus
 
 var _sys: Array[Node3D] = []
 var _hub: ILinkHub = null
@@ -71,6 +91,14 @@ func _ready() -> void:
 			_stagger = float(s.substr(10))
 		elif s.begins_with("--every="):
 			_every = int(s.substr(8))
+		elif s == "--audio":
+			_audio = true
+		elif s == "--nocable":
+			_nocable = true
+		elif s == "--mute":
+			# Three race engines out of the desk speakers for six minutes. The
+			# mixer does the same work at any level, so the counts do not move.
+			AudioServer.set_bus_volume_db(0, -80.0)
 	if not FileAccess.file_exists(_rom):
 		print("[probe] need --rom=<GT3 image>")
 		get_tree().quit(1)
@@ -131,6 +159,8 @@ func _run() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	for k in range(3):
+		if _nocable:
+			break
 		(_sys[k].find_child("ILinkPort", true, false) as ILinkPort).pick_up_object(_leads[k].get_node("PlugA0"))
 		_hub.sockets()[k * 2].pick_up_object(_leads[k].get_node("PlugB0"))
 	await get_tree().process_frame
@@ -158,6 +188,12 @@ func _run() -> void:
 			break
 	for k in range(3):
 		print("[probe] %s identity %s" % [NAMES[k], str(_lib(k).GetCoreIdentity())])
+		# "A machine wired to nothing is silent", and nothing here is wired to a
+		# set: without this the sinks are never fed, every depth reads 0 and the
+		# mixer counts an underrun on every block of every voice. The first
+		# --audio run measured exactly that and nothing else.
+		if _audio:
+			_lib(k).SetAudioPlaying(true)
 
 	var last_log := 0
 	var next_every := _every
@@ -166,6 +202,8 @@ func _run() -> void:
 		var frames: Array[int] = []
 		for k in range(3):
 			frames.append(int(_lib(k).GetFrameCount()))
+		if _audio:
+			_sample_audio(frames)
 		for k in range(3):
 			var bits := 0
 			for p: Array in _presses:
@@ -248,6 +286,87 @@ func _bluish(k: int) -> bool:
 
 func _lib(k: int) -> Libretro:
 	return _sys[k].call("get_libretro_node") as Libretro
+
+
+## --audio: what each console's sink is doing, which is the only measure of the
+## SYMPTOM. Depth is the front voice's queue in ms, sampled every rendered frame
+## and reported as the second's floor..ceiling; the floor is the number that
+## matters, since a sink that touches 0 is a hole in the sound. The underrun
+## count is the mixer's own and the authoritative one, but it is one counter for
+## every voice in the process, so the floors are what say WHICH console.
+var _au_mx: Object = null
+var _au_last_ms := 0
+var _au_last_frames: Array[int] = [0, 0, 0]
+var _au_lo: Array[float] = [INF, INF, INF]
+var _au_hi: Array[float] = [0.0, 0.0, 0.0]
+var _au_brake: Array[float] = [0.0, 0.0, 0.0]
+var _au_underruns := 0
+var _au_total := 0
+var _au_run: Array[float] = [0.0, 0.0, 0.0]
+var _au_slept: Array[float] = [0.0, 0.0, 0.0]
+var _au_parked: Array[float] = [0.0, 0.0, 0.0]
+var _au_audio: Array[int] = [0, 0, 0]
+
+
+func _sample_audio(frames: Array[int]) -> void:
+	if _au_mx == null:
+		if not Engine.has_singleton("MetaXRAudio"):
+			return
+		_au_mx = Engine.get_singleton("MetaXRAudio")
+		_au_last_ms = Time.get_ticks_msec()
+		_au_last_frames = frames.duplicate()
+		_au_underruns = int(_au_mx.call("get_underrun_count"))
+		print("[probe] audio: target fill %.1f ms, mix rate %d" % [
+			float(_au_mx.call("get_target_latency_ms")), int(AudioServer.get_mix_rate())])
+	var rate: float = AudioServer.get_mix_rate()
+	for k in range(3):
+		var ids: PackedInt32Array = _lib(k).GetAudioVoiceIds()
+		if ids.is_empty():
+			continue
+		var ms: float = 1000.0 * float(_au_mx.call("voice_frames_available", ids[0])) / rate
+		_au_lo[k] = minf(_au_lo[k], ms)
+		_au_hi[k] = maxf(_au_hi[k], ms)
+		_au_brake[k] = maxf(_au_brake[k], float(_lib(k).GetAudioBrakeMs()))
+	var now := Time.get_ticks_msec()
+	var span := now - _au_last_ms
+	if span < 1000:
+		return
+	var under := int(_au_mx.call("get_underrun_count"))
+	_au_total += under - _au_underruns
+	var fps: Array[float] = []
+	for k in range(3):
+		fps.append(1000.0 * float(frames[k] - _au_last_frames[k]) / float(span))
+	print("[probe] audio C@%d fps %.1f/%.1f/%.1f  depth ms L %.0f..%.0f C %.0f..%.0f R %.0f..%.0f  brake %.0f/%.0f/%.0f  underruns +%d (%d)" % [
+		frames[1], fps[0], fps[1], fps[2], _au_lo[0], _au_hi[0], _au_lo[1], _au_hi[1],
+		_au_lo[2], _au_hi[2], _au_brake[0], _au_brake[1], _au_brake[2],
+		under - _au_underruns, _au_total])
+	# Where each console's second went: inside retro_run, asleep on its own audio
+	# brake, and (of the time inside) parked on the bus waiting for another
+	# console. A console that is SLOW runs long and parks little; one that is
+	# WAITING runs long and parks for most of it. `parked` is all zeros unless
+	# XENU_LINK_WAIT_DIAGNOSTICS is set in the environment.
+	var pace := ""
+	for k in range(3):
+		var p: Dictionary = _lib(k).GetPacingStats()
+		var c: Dictionary = _lib(k).LinkCost(0)
+		var run: float = float(p.get("run_ms", 0.0))
+		var slept: float = float(p.get("brake_sleep_ms", 0.0))
+		var parked: float = float(c.get("blocked_ms", 0.0))
+		var audio: int = int(p.get("audio_frames", 0))
+		pace += "  %s run %.0f (worst %.0f) sleep %.0f parked %.0f audio %d" % [NAMES[k],
+			run - _au_run[k], float(p.get("run_worst_ms", 0.0)), slept - _au_slept[k],
+			parked - _au_parked[k], audio - _au_audio[k]]
+		_au_run[k] = run
+		_au_slept[k] = slept
+		_au_parked[k] = parked
+		_au_audio[k] = audio
+	print("[probe] pace  C@%d %d ms:%s" % [frames[1], span, pace])
+	_au_underruns = under
+	_au_last_ms = now
+	_au_last_frames = frames.duplicate()
+	_au_lo = [INF, INF, INF]
+	_au_hi = [0.0, 0.0, 0.0]
+	_au_brake = [0.0, 0.0, 0.0]
 
 
 ## L | C | R side by side, each flattened to RGB (the core leaves alpha unfilled).

@@ -112,7 +112,77 @@ Things the run needed that a player will also meet:
 - **A post-driver bus reset**, as above: replug a lead once everyone is in i.LINK
   Battle.
 
-One fix came out of it: `RetroSystem.net_refresh_link_cables()` rejoins every lead
+## The sound of three consoles (2026-10-03)
+
+Three cabled consoles crackled in Broadcast. Three UNCABLED consoles racing a full
+six-car field each did not, so it was never the load of three PS2s. Two faults, one
+in the core and one in the frontend, and they needed different measurements to see.
+
+**The core ran one console at a time.** A console is granted its next stretch once
+every other console's promise ("I originate nothing before this tick") reaches the end
+of it. v1 asked for a stretch as long as the promise, half a millisecond, which only
+holds for a console standing at or behind every other, and no two stand on the same
+tick. So they took strict turns. `FW_GRAIN_LINKED` is now half of `FW_AHEAD_LINKED`:
+the stretch is 0.25 ms, the promise still 0.5 ms, and the slack lets them run
+together. Nothing crosses the wire later than it did. Cabled, GT3 three-screen, same
+script, `XENU_UNTHROTTLED=1`:
+
+| core | mean fps | worst second | not parked on the bus (L/C/R, racing) |
+|---|---|---|---|
+| v1 release | 100 | **42** | 57% / 20% / 20% (adds up to one console) |
+| step = promise / 2 | 162 | 126 | 84% / 33% / 34% |
+
+42 fps is the crackle: under 60 nothing the frontend does can keep three sinks fed,
+and v1 went under in the menus, not the race. **Needs a core release**: the change is
+commit `2b1bd7fa0` on the fork's `retroxr`, and until that is tagged
+`retroxr-pcsx2-libretro-v2` and `CoreSources` names it, the released core still takes
+turns. (A local build is `cmake -S . -B build -G Ninja` in an MSVC shell, three minutes.)
+
+**The frontend braked each console on its own sink.** The audio brake holds a core
+while its sink is over target. Cabled consoles advance together, and each one's EE
+stops at its own vsync until its frontend calls `retro_run`, so a console asleep on a
+full sink held the other two still while THEIR sinks drained, three times a frame.
+A `retro_run` that should take a few ms took 25-35, and every sink sat 10 ms lower
+than an uncabled console's. A machine on a bus now brakes on the neediest sink on the
+wire (`AudioHandler::MsUntilBusWantsFrames`, `SinkClock`, `LinkCoordinator::BusSinkClocks`),
+giving way only while it holds less than twice its target. This is every link bus,
+not just this one; only i.LINK has been measured.
+
+Paced, cabled, 9000 frames, mixer underruns after boot / sink floor..ceiling:
+
+| | underruns | sink, ms |
+|---|---|---|
+| v1 core, own-sink brake (two runs) | 416, 550 | 17-24 .. 47-56 |
+| three uncabled consoles (the control, before and after) | 18, 0 | 25-35 .. 62-70 |
+| new core, bus brake | 28 | 29-37 .. 61-71 |
+
+The 28 are one second of track loading where a `retro_run` took 40 ms. That hitch is
+the core's and an uncabled console has it too; cabled, all three share it.
+
+How to measure it again, and what misled:
+
+- `gt3_ilink_hub_probe --audio` prints each console's fps, sink floor..ceiling, the
+  mixer's underruns, and where its second went: in `retro_run`, asleep on the brake,
+  parked on the bus (`Libretro.GetPacingStats`, `Libretro.LinkCost`). `--nocable` with
+  `gt3_three_solo.txt` is the control leg.
+- **A paced run cannot show a throughput fault.** It reads 60 fps with twice the host
+  to spare and 60 with nothing. `XENU_UNTHROTTLED=1` drops the brake and the ceiling;
+  the fps is then what the group can do. The paced runs with the new core looked no
+  better than v1's, second for second, and the core change was nearly written off.
+- `parked` needs `XENU_LINK_WAIT_DIAGNOSTICS=1`. The timing used to be compiled in only
+  without `NDEBUG`, and godot-cpp defines `NDEBUG` for `template_debug` too, so no
+  build anyone loaded had it.
+- A probe's consoles are SILENT unless it calls `SetAudioPlaying(true)`: nothing there
+  is wired to a set. The first `--audio` run measured empty sinks and 1128 underruns a
+  second, all of them the silence the rule intends.
+- Three PS2s commit a lot of memory. One run hit the host's commit limit mid-race
+  (`Parameter "mem" is null` in the log), a console stalled for 6.3 s, and the run
+  read as the fix making things worse. Check for that line before believing a run.
+
+Not re-verified with the shorter stretch: six consoles, and Time Crisis II (no image
+here). The promise is unchanged, which is what both were verified against.
+
+One fix came out of the first run: `RetroSystem.net_refresh_link_cables()` rejoins every lead
 touching a console after its core starts or stops, and on a hub that is every spoke
 of one bus — three part/join pairs, six resets, per power switch. `ILinkBus.rejoin`
 now rejoins a bus once per frame however many leads ask (`link_tests` counts it).
