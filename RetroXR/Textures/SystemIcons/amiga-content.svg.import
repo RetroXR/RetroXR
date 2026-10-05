@@ -3,7 +3,7 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bdkx6ljbxoplv"
-path="res://.godot/imported/commodore_amiga-content.svg-e521f666c93b147acde4629d4f9b9b0c.ctex"
+path="res://.godot/imported/amiga-content.svg-9b0148246f026d205ba3179e6d5fd68b.ctex"
 metadata={
 "vram_texture": false
 }
@@ -11,7 +11,7 @@ metadata={
 [deps]
 
 source_file="res://Textures/SystemIcons/amiga-content.svg"
-dest_files=["res://.godot/imported/commodore_amiga-content.svg-e521f666c93b147acde4629d4f9b9b0c.ctex"]
+dest_files=["res://.godot/imported/amiga-content.svg-9b0148246f026d205ba3179e6d5fd68b.ctex"]
 
 [params]
 
