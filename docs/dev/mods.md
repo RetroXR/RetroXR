@@ -59,7 +59,15 @@ handshake, rejecting a mismatch rather than shipping the pack to the peer. Keep 
 that way: a mod is a file the player chose to install, and the moment the app
 becomes the transport it owns what is inside one.
 
-`RetroXR/Tests/mod_tests.tscn` is 137 headless checks and needs no mod installed;
+**A mod's lead saves as a lead.** A mod prop is written to a slot as its type and
+pose, which is all a crate needs. A lead (`CompositeCable`, `PowerCord`, `PowerStrip`)
+registered through `register_object` used to be written the same way, so a room came
+back with the lead on the floor and nothing plugged in. `_serialize_node` now gives a
+mod lead the ordinary lead entry (`plugs`, `cord_length`, `body`) under the MOD's type;
+both restore passes already read a lead by class. `mod_tests` `objects/` holds it, with
+a shipped lead standing in for the mod's scene.
+
+`RetroXR/Tests/mod_tests.tscn` is 199 headless checks and needs no mod installed;
 fixtures are built into `user://` at run time. Almost none of it mounts anything,
 for the reason above.
 

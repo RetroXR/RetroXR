@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 189
+const EXPECTED_CASES := 199
 
 var _pass := 0
 var _fail := 0
@@ -319,6 +319,50 @@ func _group_objects() -> void:
 
 	ScenePersistence.drop_mod_objects(owner)
 	_ok(not ScenePersistence.is_mod_object("t.obj:crate"), "objects/drop removes it")
+
+	# A mod's LEAD saves as a lead. It used to be written as a pose alone, like
+	# any other mod prop, so a room came back with the lead on the floor and
+	# nothing plugged in. A shipped lead stands in for the mod's scene.
+	var lead_type := "t.lead:av"
+	var lead_scene := "res://Scenes/Objects/system_models/dreamcast/dc_av_cable.tscn"
+	_eq(ScenePersistence.register_mod_object(lead_type, lead_scene, "t.lead"), "",
+		"objects/a lead registers")
+	var store := ScenePersistence.new("__mod_selftest")
+	var lead := ScenePersistence._instantiate_mod_object(lead_type) as CompositeCable
+	lead.cord_length = 2.5
+	add_child(lead)
+	var plug := lead.get_node("PlugA0") as Node3D
+	plug.global_position = Vector3(1.0, 2.0, 3.0)
+	var entry := store._serialize_node(lead, 4, {lead: 4})
+	_eq(str(entry.get("type", "")), lead_type, "objects/a lead keeps its mod type")
+	var plugs: Array = entry.get("plugs", [])
+	_eq(plugs.size(), 4, "objects/a lead saves every plug")
+	var first: Dictionary = plugs[0] if not plugs.is_empty() else {}
+	_eq(first.get("position", []), [1.0, 2.0, 3.0], "objects/with where each plug is")
+	_eq(float(entry.get("cord_length", 0.0)), 2.5, "objects/and its cord length")
+	_eq(ScenePersistence._objects_validation_error([entry]), "",
+		"objects/a saved lead validates")
+	lead.free()
+	var back := store._deserialize_object(entry) as CompositeCable
+	_ok(back != null and back.scene_file_path == lead_scene
+		and str(back.get_meta(ScenePersistence.MOD_TYPE_META, "")) == lead_type,
+		"objects/a lead restores from the mod's scene")
+	if back != null:
+		_eq(back.cord_length, 2.5, "objects/with its cord length")
+		add_child(back)
+		back.restore_plug_poses(entry.get("plugs", []))
+		_ok((back.get_node("PlugA0") as Node3D).global_position.is_equal_approx(
+			Vector3(1.0, 2.0, 3.0)), "objects/and its plugs where they were")
+		back.free()
+	# An ordinary mod prop is still a pose and nothing else.
+	ScenePersistence.register_mod_object("t.lead:crate", scene, "t.lead")
+	var crate := ScenePersistence._instantiate_mod_object("t.lead:crate")
+	add_child(crate)
+	var plain := store._serialize_node(crate, 5, {crate: 5})
+	_ok(str(plain.get("type", "")) == "t.lead:crate" and not plain.has("plugs"),
+		"objects/a plain prop still saves as a pose")
+	crate.free()
+	ScenePersistence.drop_mod_objects("t.lead")
 
 
 # ── media/ ────────────────────────────────────────────────────────────────────

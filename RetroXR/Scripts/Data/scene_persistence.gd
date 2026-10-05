@@ -1818,7 +1818,16 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	# happens to derive from a known type is still written as itself rather than
 	# as its base class, which would lose the scene it came from.
 	if node.has_meta(MOD_TYPE_META):
-		return _base(id, str(node.get_meta(MOD_TYPE_META)), n3d)
+		var mod_type := str(node.get_meta(MOD_TYPE_META))
+		# A mod's LEAD is still a lead. Written as a pose alone it came back as
+		# the right scene lying on the floor with nothing plugged in, because
+		# where a lead's ends are IS where it is. So it takes the lead's own
+		# entry under the mod's type; both restore passes read a lead by class.
+		var lead := _serialize_lead(node, id, n3d, node_to_id)
+		if lead.is_empty():
+			return _base(id, mod_type, n3d)
+		lead["type"] = mod_type
+		return lead
 
 	if node is RetroSystem:
 		return _serialize_system(node as RetroSystem, id, n3d, node_to_id)
@@ -2240,6 +2249,17 @@ func _restore_vmu_slots(host: Node, root: Node, spawned: Dictionary, refs: Varia
 ## the device and the socket's node name. The name is what makes this readable
 ## and stable — "AudioLIn" survives any renumbering of ports, which an index
 ## would not.
+## The entry for any of the three kinds of lead, or {} for a node that is not one.
+func _serialize_lead(node: Node, id: int, n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
+	if node is CompositeCable:
+		return _serialize_cable(node as CompositeCable, id, n3d, node_to_id)
+	if node is PowerCord:
+		return _serialize_power_cord(node as PowerCord, id, n3d, node_to_id)
+	if node is PowerStrip:
+		return _serialize_power_strip(node as PowerStrip, id, n3d, node_to_id)
+	return {}
+
+
 func _serialize_cable(cable: CompositeCable, id: int, n3d: Node3D,
 		node_to_id: Dictionary) -> Dictionary:
 	var plugs := _plug_records(cable.seating(), node_to_id)
@@ -2383,12 +2403,21 @@ func _instantiate_controller(data: Dictionary) -> Node3D:
 	return RETRO_CONTROLLER_SCENE.instantiate() as Node3D
 
 
+## What a lead has to be told before it enters the tree: its plug colour and its
+## cord length. Nothing for anything else.
+func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
+	if obj is CompositeCable:
+		(obj as CompositeCable).plug_color_id = StringName(str(data.get("plug_color", "")))
+		(obj as CompositeCable).cord_length = float(data.get("cord_length", 0.0))
+
+
 func _deserialize_object(data: Dictionary) -> Node3D:
 	var obj_type: String = data.get("type", "")
 	var obj: Node3D = null
 
 	if _mod_objects.has(obj_type):
 		obj = _instantiate_mod_object(obj_type)
+		_restore_lead_fields(obj, data)
 	elif PLAIN_SCENES.has(obj_type):
 		obj = (PLAIN_SCENES[obj_type] as PackedScene).instantiate() as Node3D
 		# A Controller Pak is a PLAIN_SCENES row so the spawn menu can build one
@@ -2553,9 +2582,7 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 					# what an old save holding one would have been.
 					lead = MONO_CABLE_SCENE if int(data.get("cords", 3)) == 2 						else COMPOSITE_CABLE_SCENE
 				obj = lead.instantiate() as Node3D
-				if obj is CompositeCable:
-					(obj as CompositeCable).plug_color_id = StringName(str(data.get("plug_color", "")))
-					(obj as CompositeCable).cord_length = float(data.get("cord_length", 0.0))
+				_restore_lead_fields(obj, data)
 			"audio_disc":
 				var adisc := AUDIO_DISC_SCENE.instantiate() as AudioDisc
 				adisc.album_path = data.get("album_path", "")
