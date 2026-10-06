@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 199
+const EXPECTED_CASES := 203
 
 var _pass := 0
 var _fail := 0
@@ -362,6 +362,19 @@ func _group_objects() -> void:
 	_ok(str(plain.get("type", "")) == "t.lead:crate" and not plain.has("plugs"),
 		"objects/a plain prop still saves as a pose")
 	crate.free()
+	# And a mod's PAD saves as a pad: by the scene it came from, with its port.
+	# A shipped pad stands in for the mod's scene.
+	var pad_scene := "res://Scenes/Objects/controllers/playstation/ps1_controller.tscn"
+	ScenePersistence.register_mod_object("t.lead:pad", pad_scene, "t.lead")
+	var pad := ScenePersistence._instantiate_mod_object("t.lead:pad")
+	_ok(pad is RetroController, "objects/a mod pad instantiates as a controller")
+	add_child(pad)
+	var pad_entry := store._serialize_node(pad, 6, {pad: 6})
+	_eq(str(pad_entry.get("scene", "")), pad_scene, "objects/a mod pad saves the scene it came from")
+	_eq(str(pad_entry.get("type", "")), "retro_controller",
+		"objects/as a controller entry, which is what carries its port, not as a bare prop")
+	_ok(ScenePersistence.is_known_controller_scene(pad_scene), "objects/and that scene is one a save may name")
+	pad.free()
 	ScenePersistence.drop_mod_objects("t.lead")
 
 

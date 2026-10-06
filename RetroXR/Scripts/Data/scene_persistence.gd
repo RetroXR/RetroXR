@@ -1817,7 +1817,11 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	# the mod supplies the scene. Checked FIRST so a mod object whose root
 	# happens to derive from a known type is still written as itself rather than
 	# as its base class, which would lose the scene it came from.
-	if node.has_meta(MOD_TYPE_META):
+	# A mod's PAD is not one of these, and is left to the controller branch below.
+	# That branch already writes the scene a pad came from, which is how every pad
+	# is told apart, and with it the port it is plugged into. Written here as a
+	# bare pose, a mod's pad came back as the right pad, unplugged.
+	if node.has_meta(MOD_TYPE_META) and not (node is RetroController):
 		var mod_type := str(node.get_meta(MOD_TYPE_META))
 		# A mod's LEAD is still a lead. Written as a pose alone it came back as
 		# the right scene lying on the floor with nothing plugged in, because
