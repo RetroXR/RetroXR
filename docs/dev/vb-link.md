@@ -14,8 +14,11 @@ with its two-player code patched back in.
 Stock Beetle VB has no port: `CCR`, `CCSR`, `CDTR` and `CDRR` (0x02000000-0C) all
 read 0 and a transfer never runs. `mednafen/vb/comm.c` implements them as the
 Sacred Tech Scroll describes (it agrees with Red Viper's and Shrooms VB's code)
-and puts them on the link bus through `RETRO_ENVIRONMENT_GET_LINK_INTERFACE`.
-`link_interface.h` is the gambatte fork's, byte-identical.
+and puts them on the link bus through `RETRO_ENVIRONMENT_GET_LINK_INTERFACE`,
+exactly as libretro/RetroArch#19454 adds it to `libretro.h`: the fork's
+`libretro-common/include/libretro.h` carries the pull request's block line for
+line and there is no private header (v2; v1 vendored the gambatte fork's
+`link_interface.h`, an earlier draft that also probed a plain environment 94).
 
 - **The port** is the Game Boy's with one more wire: a clocked 8-bit exchange,
   160 us (3200 CPU cycles) a byte, on whichever unit selected its own clock

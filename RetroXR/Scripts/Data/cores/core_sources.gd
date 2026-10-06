@@ -283,10 +283,14 @@ const SOURCES := {
 	# pulses eight cycles wide). Two fixes linked software needs ride with it:
 	# HALT stops the CPU at the HALT, and DPSTTS reports FCLK. Uncabled, the port
 	# is an empty socket, and every retail ROM tried runs frame for frame as on
-	# the stock core. docs/dev/vb-link.md.
+	# the stock core.
+	#
+	# From v2 it reaches the bus through the link API exactly as
+	# libretro/RetroArch#19454 adds it to libretro.h, with no private header;
+	# v1 vendored an earlier draft. docs/dev/vb-link.md.
 	"mednafen_vb": {
 		"repo":  "RetroXR/beetle-vb-libretro",
-		"known_tag": "retroxr-mednafen_vb-libretro-v1",
+		"known_tag": "retroxr-mednafen_vb-libretro-v2",
 		"label": "Beetle VB (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_vb_libretro.dll.zip",
