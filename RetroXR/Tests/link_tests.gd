@@ -2103,6 +2103,7 @@ const _LINK_SOCKETS := {
 	"res://Scenes/Objects/system_models/wonderswan.tscn": "ws_link_plug",
 	"res://Scenes/Objects/system_models/atari_lynx.tscn": "comlynx_plug",
 	"res://Scenes/Objects/system_models/neo_geo_pocket.tscn": "ngp_link_plug",
+	"res://Scenes/Objects/system_models/virtual_boy_primitive.tscn": "vb_link_plug",
 	"res://Scenes/Objects/cables/psx_link_port.tscn": "psx_link_plug",
 	"res://Scenes/Objects/cables/saturn_link_port.tscn": "saturn_link_plug",
 	"res://Scenes/Objects/cables/jag_link_port.tscn": "jag_link_plug",
@@ -2117,6 +2118,7 @@ const _LINK_LEADS := {
 	"ws_link_cable": "ws_link_plug",
 	"comlynx_cable": "comlynx_plug",
 	"ngp_link_cable": "ngp_link_plug",
+	"vb_link_cable": "vb_link_plug",
 	"psx_link_cable": "psx_link_plug",
 	"saturn_link_cable": "saturn_link_plug",
 	"jag_link_cable": "jag_link_plug",
@@ -2127,6 +2129,7 @@ const _LINK_LEADS := {
 const _LINK_OFFERS := {
 	"gb": "gb_link_cable", "gba": "link_cable", "gamegear": "gg_link_cable",
 	"wonderswan": "ws_link_cable", "atarilynx": "comlynx_cable", "ngp": "ngp_link_cable",
+	"virtualboy": "vb_link_cable",
 	"psx": "psx_link_cable", "saturn": "saturn_link_cable", "atarijaguar": "jag_link_cable",
 	"ps2": "ilink_cable",
 }

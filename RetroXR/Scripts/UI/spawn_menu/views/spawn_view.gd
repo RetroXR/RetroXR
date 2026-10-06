@@ -510,6 +510,7 @@ func _build() -> void:
 		["Gear-to-Gear Cable", "gg_link_cable"],
 		["WonderSwan Link Cable", "ws_link_cable"],
 		["NGP Link Cable", "ngp_link_cable"],
+		["VB Link Cable",  "vb_link_cable"],
 		["ComLynx Cable",  "comlynx_cable"],
 		["GC-GBA Cable",   "gc_gba_cable"],
 		["PS Link Cable",  "psx_link_cable"],

@@ -3,6 +3,7 @@
 [ext_resource type="Script" uid="uid://bjm0qluv18cqv" path="res://Scripts/Objects/system_models/virtual_boy_model.gd" id="1_model"]
 [ext_resource type="Shader" uid="uid://bwfu7ewask6e" path="res://Shaders/vb_stereo.gdshader" id="2_stereo"]
 [ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="3_slider"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="4_linkport"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_base"]
 size = Vector3(0.16, 0.012, 0.14)
@@ -111,3 +112,11 @@ gizmo_extents = 0.03
 [node name="SeatPreview" type="MeshInstance3D" parent="CartSeat" unique_id=191005773]
 mesh = SubResource("BoxMesh_seat")
 surface_material_override/0 = SubResource("StandardMaterial3D_seat")
+
+; The EXT. connector, on the underside of the visor beside the stand, where the
+; link cable plugs in. +Z points OUT of the shell (every port in the room follows
+; that), so it is turned a quarter turn about X to look straight down; 1 mm proud
+; of the underside at y = 0.25.
+[node name="LinkPort" parent="." instance=ExtResource("4_linkport")]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.045, 0.249, -0.015)
+plug_family = "vb_link_plug"

@@ -1,0 +1,15 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/gb_link_cable.tscn" id="1_base"]
+
+; The Virtual Boy's link cable, the one Nintendo designed and never sold. The base lead's shape
+; with its own plug family, so it seats in a Virtual Boy's EXT. socket and nothing else
+; (LinkPlug.plug_family).
+
+[node name="LinkCable" instance=ExtResource("1_base")]
+
+[node name="PlugA0" parent="."]
+plug_family = "vb_link_plug"
+
+[node name="PlugB0" parent="."]
+plug_family = "vb_link_plug"

@@ -23,8 +23,8 @@ extends RcaPlug
 const ANY_GROUP := "any_link_plug"
 
 ## Which handheld family's socket this plug fits, and nothing else. The GBA and
-## Game Boy leads are "link_plug"; the Game Gear, WonderSwan, Lynx and Neo Geo
-## Pocket leads share this scene's shape but each has its own family, set in its
+## Game Boy leads are "link_plug"; the Game Gear, WonderSwan, Lynx, Neo Geo Pocket
+## and Virtual Boy leads share this scene's shape but each has its own family, set in its
 ## cable scene, so a Gear-to-Gear cable will not seat in a WonderSwan. Must be
 ## set before _ready, which is when the plug joins its group.
 @export var plug_family: String = "link_plug"
@@ -35,6 +35,7 @@ const _LABELS := {
 	"ws_link_plug": "a WonderSwan communication cable plug",
 	"comlynx_plug": "a ComLynx cable plug",
 	"ngp_link_plug": "a Neo Geo Pocket link cable plug",
+	"vb_link_plug": "a Virtual Boy link cable plug",
 }
 
 

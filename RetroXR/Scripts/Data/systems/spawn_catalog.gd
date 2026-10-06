@@ -284,6 +284,11 @@ const _COMLYNX_CABLE: Dictionary = {"kind": "peripheral", "label": "ComLynx Cabl
 ## wire) and no more, so it is the same two-ended lead, keyed to NGPs alone.
 const _NGP_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "ngp_link_cable"}
+## The Virtual Boy's link cable joins two units by their EXT. sockets. Nintendo
+## never sold one and no retail game used it; what does is homebrew, and Mario's
+## Tennis with its two-player code patched back in (docs/dev/vb-link.md).
+const _VB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+	"spawn": "vb_link_cable"}
 
 ## The console-to-handheld lead, offered on BOTH platforms it joins. A player
 ## spawning a GameCube for Four Swords Adventures should be offered one without
@@ -311,6 +316,7 @@ const _LINK_LEADS: Dictionary = {
 	"atarilynx": _COMLYNX_CABLE,
 	"ngp": _NGP_LINK_CABLE,
 	"ngpc": _NGP_LINK_CABLE,
+	"virtualboy": _VB_LINK_CABLE,
 }
 
 
