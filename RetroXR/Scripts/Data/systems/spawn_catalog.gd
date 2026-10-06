@@ -405,7 +405,14 @@ static func items_for(systemid: String) -> Array:
 
 	var primitive: Array = []
 	var imported: Array = []
-	for row: Dictionary in SystemModelRegistry.rows_for(systemid):
+	# Whether every console on this card names a socket of its own for its
+	# picture (a mod's av_connector). The box below wears phono jacks, and so
+	# does any row that names nothing.
+	var own_sockets := true
+	var rows := SystemModelRegistry.rows_for(systemid)
+	for row: Dictionary in rows:
+		if str(row.get("av_connector", "")).is_empty():
+			own_sockets = false
 		var item := {"kind": "system", "model_id": row.get("id", ""),
 			"label": row.get("label", "Console")}
 		if (row.get("requires", []) as Array).is_empty():
@@ -425,11 +432,24 @@ static func items_for(systemid: String) -> Array:
 	# The generic box stands in for a platform with NO plain model of its own.
 	# Where the platform authored one — the PC tower, the Virtual Boy — it is a
 	# second and worse console on the same card.
-	var own_console := _NO_STANDIN_CONSOLE.has(systemid) and not imported.is_empty()
-	if standins and primitive.is_empty() and not own_console:
+	# A mod that brings the console says so (ModApi.replaces_standin), which is
+	# _NO_STANDIN_CONSOLE for a platform the game ships no model of.
+	var own_console := (_NO_STANDIN_CONSOLE.has(systemid)
+		or mod_replaces_standin(systemid, STANDIN_CONSOLE)) and not imported.is_empty()
+	var boxed := standins and primitive.is_empty() and not own_console
+	if boxed:
 		items.append({"kind": "system", "label": "Primitive System",
 			"model_id": SystemModelRegistry.PLACEHOLDER_ID})
 	items.append_array(imported)
+	# With more than one console on the card, say which the game reaches for
+	# when nothing names a model: the first available row. Two mods modelling
+	# the same console is the case this is for -- which of them that is follows
+	# from their priority, and the card is the only place it can be seen.
+	if items.size() > 1 and not rows.is_empty():
+		var chosen := str((rows[0] as Dictionary).get("id", ""))
+		for item: Dictionary in items:
+			if str(item.get("model_id", "")) == chosen:
+				item["default"] = true
 	items.append_array((_PERIPHERALS.get(systemid, []) as Array).duplicate(true))
 	# The machines that bolt onto this one -- but ONLY those actually filed under
 	# this card, or a unit would be offered from two places at once and this card
@@ -469,11 +489,15 @@ static func items_for(systemid: String) -> Array:
 		items.append_array(_COMPUTER_INPUT.duplicate(true))
 		items.append(_VGA_CABLE.duplicate())
 		items.append_array(_TRS_KIT.duplicate(true))
-	if standins:
+	if standins and not mod_replaces_standin(systemid, STANDIN_CONTROLLER):
 		items.append({"kind": "peripheral", "label": "Primitive Controller",
 			"spawn": PRIMITIVE_CONTROLLER})
+	# The generic lead fits phono jacks. Once no console on the card has any --
+	# the box is gone and every model names its own socket -- it would fit the
+	# television and nothing on the console, which is _OWN_AV_LEAD's reason.
+	var no_phono := not boxed and not rows.is_empty() and own_sockets
 	if not handheld and not _NO_AV_SOCKETS.has(systemid) \
-			and not _OWN_AV_LEAD.has(systemid):
+			and not _OWN_AV_LEAD.has(systemid) and not no_phono:
 		items.append(_AV_CABLE.duplicate())
 	# Mod peripherals go LAST, after the stand-ins and the shipped accessories,
 	# so a mod adds to a console's card rather than reordering it.
@@ -516,6 +540,16 @@ static var _mod_peripherals: Dictionary = {}
 ## An owner per systemid entry, so a failed mod's rows can be withdrawn.
 static var _peripheral_owners: Dictionary = {}
 
+## The stand-ins a mod can say it replaces. See ModApi.replaces_standin.
+const STANDIN_CONSOLE := "console"
+const STANDIN_CONTROLLER := "controller"
+const STANDIN_ROLES: Array[String] = [STANDIN_CONSOLE, STANDIN_CONTROLLER]
+
+## systemid -> {role -> Array[String] of the mods that replace it}. A list and
+## not a flag: two mods may replace the same stand-in, and it comes back only
+## when the last of them goes.
+static var _mod_standins: Dictionary = {}
+
 ## Standalone spawnable props, shown on their own rather than under a console.
 ## type -> {label, owner}
 static var _mod_spawnables: Dictionary = {}
@@ -544,6 +578,28 @@ static func register_mod_peripherals(systemid: String, items: Array,
 		_peripheral_owners[owner_id] = []
 	(_peripheral_owners[owner_id] as Array).append(systemid)
 	return ""
+
+
+## "" on success, else why the claim was refused.
+static func register_mod_standin(systemid: String, role: String, owner_id: String) -> String:
+	if systemid.is_empty():
+		return "systemid is empty"
+	if not STANDIN_ROLES.has(role):
+		return "'%s' is not a stand-in (one of %s)" % [role, ", ".join(STANDIN_ROLES)]
+	if not _mod_standins.has(systemid):
+		_mod_standins[systemid] = {}
+	var roles: Dictionary = _mod_standins[systemid]
+	if not roles.has(role):
+		roles[role] = []
+	if not (roles[role] as Array).has(owner_id):
+		(roles[role] as Array).append(owner_id)
+	return ""
+
+
+## Whether some mod has said it replaces `role` on this console's card.
+static func mod_replaces_standin(systemid: String, role: String) -> bool:
+	var roles: Dictionary = _mod_standins.get(systemid, {})
+	return not (roles.get(role, []) as Array).is_empty()
 
 
 ## A prop the spawn menu can offer directly. `menu` carries at least a label.
@@ -585,6 +641,9 @@ static func drop_mod(owner_id: String) -> void:
 		else:
 			_mod_peripherals[systemid] = kept
 	_peripheral_owners.erase(owner_id)
+	for systemid: String in _mod_standins:
+		for role: String in (_mod_standins[systemid] as Dictionary):
+			(_mod_standins[systemid][role] as Array).erase(owner_id)
 	for type: String in _mod_spawnables.keys():
 		if _mod_spawnables[type].get("owner", "") == owner_id:
 			_mod_spawnables.erase(type)

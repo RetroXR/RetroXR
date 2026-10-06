@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 203
+const EXPECTED_CASES := 241
 
 var _pass := 0
 var _fail := 0
@@ -54,6 +54,7 @@ func _ready() -> void:
 	if _want("netplay"):     _group_netplay()
 	if _want("consistency"): _group_consistency()
 	if _want("overlay"):     _group_overlay()
+	if _want("standins"):    _group_standins()
 
 	_cleanup()
 	# A case that never RAN is not a case that passed: GDScript has no try/catch,
@@ -801,3 +802,128 @@ func _group_overlay() -> void:
 	_eq(t.table()["nes"]["name"], "shipped nes",
 		"overlay/withdrawing an override restores the shipped row")
 	_eq(t.table(), base, "overlay/and the table is the shipped one again")
+
+
+# ── standins/ ─────────────────────────────────────────────────────────────────
+
+func _labels(systemid: String) -> Array:
+	var out: Array = []
+	for item: Dictionary in SpawnCatalog.items_for(systemid):
+		out.append(str(item.get("label", "")))
+	return out
+
+
+func _api(mod_id: String) -> ModApi:
+	return ModApi.new(ModManifest.parse({"id": mod_id, "api_version": 1,
+		"entry": "res://mods/%s/m.gd" % mod_id, "name": mod_id, "version": "1.0.0"}), _hooks)
+
+
+var _hooks: ModHooks = null
+
+
+## A mod that brings the real console, pad or lead takes the stand-in off the
+## card, and two mods doing the same thing do not fight over it.
+func _group_standins() -> void:
+	_hooks = ModHooks.new(get_tree())
+	# A console the game ships no model of, so its card is all stand-ins. Not the
+	# PlayStation 2: this machine may have a real mod for one installed.
+	var sysid := "saturn"
+	_ok(SystemModelRegistry.rows_for(sysid).is_empty(), "standins/the console under test has no model")
+	var before := _labels(sysid)
+	_ok(before.has("Primitive System") and before.has("Primitive Controller")
+		and before.has("Composite Cable"), "standins/its card is the three stand-ins", str(before))
+
+	# A model alone hides nothing: nobody has said the box is replaced.
+	var a := _api("t.sa")
+	_ok(a.register_model({"id": "t.sa:console", "platform": sysid, "label": "Saturn A",
+		"script": _SCRIPT, "requires": [_SCRIPT], "av_connector": "t.sa:av"}),
+		"standins/a model naming its own socket registers", a.errors_text())
+	_ok(_labels(sysid).has("Primitive System"), "standins/a model alone leaves the box")
+	_ok(_labels(sysid).has("Composite Cable"),
+		"standins/and the box keeps the composite lead that fits it")
+
+	_ok(a.replaces_standin(sysid, "console"), "standins/the console claim is taken")
+	var with_console := _labels(sysid)
+	_ok(not with_console.has("Primitive System"), "standins/the box leaves the card")
+	_ok(with_console.has("Saturn A"), "standins/the mod's console stays")
+	_ok(with_console.has("Primitive Controller"),
+		"standins/the stand-in pad stays: nothing replaced it")
+	_ok(not with_console.has("Composite Cable"),
+		"standins/with no phono jacks left on the card the composite lead goes")
+
+	_ok(a.replaces_standin(sysid, "controller"), "standins/the controller claim is taken")
+	_ok(not _labels(sysid).has("Primitive Controller"), "standins/the stand-in pad leaves")
+	_ok((a.contributions().get("standin", []) as Array).size() == 2,
+		"standins/both are on the mod's page")
+
+	# One console on the card: there is no choice to mark.
+	var marked := 0
+	for item: Dictionary in SpawnCatalog.items_for(sysid):
+		marked += 1 if bool(item.get("default", false)) else 0
+	_eq(marked, 0, "standins/a lone console is not marked default")
+
+	# A second mod models the same console, with phono jacks.
+	var b := _api("t.sb")
+	_ok(b.register_model({"id": "t.sb:console", "platform": sysid, "label": "Saturn B",
+		"script": _SCRIPT, "requires": [_SCRIPT]}), "standins/a second mod's console registers")
+	_ok(b.replaces_standin(sysid, "console"), "standins/and it may claim the box too")
+	var both := _labels(sysid)
+	_ok(both.has("Saturn A") and both.has("Saturn B"), "standins/both consoles are offered")
+	_ok(both.has("Composite Cable"),
+		"standins/a console with phono jacks brings the composite lead back")
+	var defaults: Array = []
+	for item: Dictionary in SpawnCatalog.items_for(sysid):
+		if bool(item.get("default", false)):
+			defaults.append(str(item.get("model_id", "")))
+	_eq(defaults, [str(SystemModelRegistry.resolve("", sysid).get("id", ""))],
+		"standins/exactly the model the game falls back to is marked default")
+
+	# The first mod goes; the second still replaces the box.
+	a.withdraw()
+	var only_b := _labels(sysid)
+	_ok(not only_b.has("Primitive System") and only_b.has("Saturn B"),
+		"standins/the box stays away while another mod still replaces it")
+	_ok(only_b.has("Primitive Controller"), "standins/the pad comes back with its only replacer")
+	b.withdraw()
+	_eq(_labels(sysid), before, "standins/with both gone the card is the stand-ins again")
+
+	# A claim with no console behind it cannot empty the card.
+	var c := _api("t.sc")
+	_ok(c.replaces_standin(sysid, "console"), "standins/a claim with no model is accepted")
+	_ok(_labels(sysid).has("Primitive System"), "standins/but the box stays: there is no console")
+	_ok(not c.replaces_standin(sysid, "lead"), "standins/an unknown stand-in is refused")
+	_ok(c.failed(), "standins/and counts against the mod")
+	c.withdraw()
+
+	# Connector names: the game's, or the mod's own namespaced one.
+	_eq(ModConnectors.problem("ps2_av_multi"), "", "standins/a connector the game names is allowed")
+	_eq(ModConnectors.problem("t.sd:dock"), "", "standins/and a namespaced one of the mod's own")
+	_ok(not ModConnectors.problem("my_av").is_empty(), "standins/a made-up bare name is not")
+	var d := _api("t.sd")
+	_ok(not d.register_model({"id": "t.sd:console", "platform": sysid, "label": "Saturn D",
+		"script": _SCRIPT, "av_connector": "my_av"}), "standins/a model naming one is refused")
+	_ok(SystemModelRegistry.row_for("t.sd:console").is_empty(), "standins/and is not registered")
+	d.withdraw()
+
+	# Dressing a shipped object belongs to one mod at a time.
+	var seen: Array = []
+	var first := _api("t.da")
+	var second := _api("t.db")
+	_ok(first.dress(&"Timer", "kind", func(n: Node) -> void: seen.append("a:" + n.name)),
+		"standins/the first mod to ask dresses it")
+	_ok(not second.dress(&"Timer", "kind", func(n: Node) -> void: seen.append("b:" + n.name)),
+		"standins/a second is turned away")
+	_ok(not second.failed(), "standins/which is not a failure of that mod")
+	_ok("t.da" in "; ".join(second.problems()), "standins/and its page names who has it",
+		"; ".join(second.problems()))
+	_ok(second.dress(&"Timer", "other", func(_n: Node) -> void: pass),
+		"standins/another key of the same class is free")
+	var probe := Timer.new()
+	probe.name = "DressProbe"
+	add_child(probe)
+	_eq(seen, ["a:DressProbe"], "standins/only the holder's callback runs")
+	probe.free()
+	first.withdraw()
+	_ok(second.dress(&"Timer", "kind", func(_n: Node) -> void: pass),
+		"standins/and it is free again once the holder is withdrawn")
+	second.withdraw()

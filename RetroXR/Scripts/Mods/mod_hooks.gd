@@ -14,6 +14,8 @@ extends RefCounted
 var _node_watchers: Array[Dictionary] = []
 var _connected := false
 var _tree: SceneTree = null
+## "<cls>/<key>" -> the mod that dresses it. See claim_dress.
+var _dressers: Dictionary = {}
 
 
 func _init(tree: SceneTree) -> void:
@@ -56,9 +58,28 @@ static func _matches(node: Node, cls: StringName) -> bool:
 	return false
 
 
+## Take the right to dress `cls`/`key`, or learn who has it.
+##
+## Returns "" when `owner_id` now holds it (or already did), else the mod that
+## got there first. Two mods that each hang a shell on the same memory card both
+## draw, one inside the other, and neither can see the other to step aside --
+## so the first to ask is the one that dresses it. Mods register in priority
+## order, which makes "first" the player's own ordering.
+func claim_dress(owner_id: String, cls: StringName, key: String) -> String:
+	var slot := "%s/%s" % [cls, key]
+	var holder := str(_dressers.get(slot, ""))
+	if holder.is_empty():
+		_dressers[slot] = owner_id
+		return ""
+	return "" if holder == owner_id else holder
+
+
 ## Drop every watcher belonging to a mod. Used when a mod's registration failed
 ## part-way, so a half-registered mod leaves nothing behind.
 func drop_owner(owner_id: String) -> void:
+	for slot: String in _dressers.keys():
+		if _dressers[slot] == owner_id:
+			_dressers.erase(slot)
 	var kept: Array[Dictionary] = []
 	for w: Dictionary in _node_watchers:
 		if w["owner"] != owner_id:

@@ -53,6 +53,32 @@ directly for that reason — do not "fix" them to use `_table()`.
 for one fact: `SceneManager.SCENE_PATHS` / `SCENE_TITLES` / `SLOT_ROOMS` and
 `scene_view.gd`'s `ROOM_TITLES`. Those three consts are GONE, not shimmed.
 
+**Several mods for one console (2026-10-06).** Two authors modelling the same
+machine was always legal -- ids are namespaced, both rows are listed -- but three
+things around it were not handled, and each has one home now:
+
+- *Stand-ins.* `ModApi.replaces_standin(systemid, "console"|"controller")` is the
+  mod-reachable form of `SpawnCatalog._NO_STANDIN_CONSOLE` / `_NO_STANDINS`. Claims
+  are a LIST of owners per role, not a flag, so the stand-in returns only with the
+  last claimant. The Composite Cable has no claim: it is derived
+  (`no_phono` in `items_for`) from every console row on the card naming an
+  `av_connector` and the box being gone. A console-only install therefore has no AV
+  lead on its card at all, which is the truth -- the composite lead would fit the
+  set and nothing on the console.
+- *Connector names.* `ModConnectors.KNOWN` is the game's list of plug groups that
+  cross between mods; a row's `av_connector` must be one of them or namespaced.
+  Nothing checks that a mod's `plug_group()` actually returns the name it declared:
+  that is in the mod's own scripts, and only a probe with both packs mounted shows it.
+  **Never rename a row**: the string is compiled into mods already published.
+- *Dressing.* `ModApi.dress(cls, key, cb)` is `on_node_added` with a first-come
+  claim held in `ModHooks._dressers`. The loser gets a problem line (not a failure)
+  and no watcher.
+
+The spawn card marks the row `SystemModelRegistry.resolve("", platform)` would pick
+with `default` whenever it offers more than one console. Which mod that is follows
+from priority and load order; the mark is the only place a player can see it.
+`mod_tests --only=standins`.
+
 **The app downloads mods from mod.io, and from nowhere else** (reversed
 2026-10-06; this paragraph used to say "no in-app browser, no download"). The old
 objection was that the moment the app becomes the transport it owns what is inside

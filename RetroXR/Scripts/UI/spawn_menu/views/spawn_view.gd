@@ -752,6 +752,9 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 	for item: Dictionary in SpawnCatalog.items_for(systemid):
 		var btn := Button.new()
 		btn.text = "  +  " + str(item.get("label", "Console"))
+		# Only set where a card has more than one console to choose between.
+		if bool(item.get("default", false)):
+			btn.text += "      default"
 		btn.custom_minimum_size = Vector2(0, 80)
 		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT

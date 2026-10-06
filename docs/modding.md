@@ -245,6 +245,61 @@ A **controller** is simply a scene rooted at `RetroController`. Persistence
 already records its scene path and falls back to the generic pad if your mod is
 gone; nothing extra is needed.
 
+### Taking a stand-in off the card
+
+A console the game ships no model of gets three stand-ins on its spawn card: the
+**Primitive System** box, the **Primitive Controller** and the **Composite
+Cable**. A mod that brings the real thing says so, and the stand-in stops being
+offered beside it:
+
+```gdscript
+api.replaces_standin("ps2", "console")      # the box
+api.replaces_standin("ps2", "controller")   # the stand-in pad
+```
+
+Say it from the mod that brings the replacement, and only for what that mod
+brings: a console mod claims `console`, a pad mod claims `controller`. Then any
+subset of them a player installs still leaves a card that works. Several mods
+may claim the same stand-in; it goes while any of them is enabled and comes back
+with the last. The box only goes while a console for that platform is really on
+the card, so a model that failed to load cannot leave a card with no console.
+
+There is no claim for the Composite Cable. It goes by itself once no console on
+the card has phono jacks, which a console says by naming its socket (below).
+
+This changes the **menu**. A room saved with a stand-in in it still loads one.
+
+Both calls arrived on 2026-10-06. A mod that should still load in an older build
+asks first: `if api.has_method("replaces_standin"): ...`.
+
+### Sockets two mods have to agree on
+
+A lead goes into a socket because both name the same **plug group**, and that
+string is the whole agreement. Inside one mod it can be anything. Between two it
+cannot: if you model a PlayStation 2 and somebody else models its AV lead, and
+you each invent a name, their lead does not go into your console.
+
+So the names that cross between mods are the game's, in
+`Scripts/Mods/mod_connectors.gd`:
+
+| name | what it is |
+|---|---|
+| `ps2_av_multi` | PlayStation 2 AV MULTI OUT |
+
+Use the listed name, verbatim, as the `plug_group()` of both the socket script
+and the plug script, and name it on the console's row:
+
+```gdscript
+api.register_model({"id": "xenu.ps2:scph30001r", "platform": "ps2", ...,
+    "av_connector": "ps2_av_multi"})
+```
+
+`av_connector` is what tells the card this console has no phono jacks. A
+connector that is your mod's own business is namespaced like any other id,
+`"<mod id>:<name>"`; a bare name that is not in the table is refused. If you
+need one that is not listed yet, ask for it to be added before you publish: the
+name ends up inside every mod that uses it and cannot be changed afterwards.
+
 ## Audio and shaders
 
 Ship audio for **your own** hardware and load it yourself — `nes_model.gd` shows
@@ -276,6 +331,20 @@ api.on_scene_content_ready(func(scene_id): ...)     # a room, once it has restor
 
 `on_node_added` matches engine classes and `class_name` scripts, and is how you
 decorate something without editing it. It is connected only if a mod asks.
+
+A mod that **dresses** a shipped object -- hides its stand-in mesh and hangs a
+real shell on it -- uses `dress` instead, because only one mod can do that to one
+thing:
+
+```gdscript
+api.dress(&"MemoryCard", "playstation2", _dress)   # false if another mod has it
+```
+
+The key says which of that class's objects you mean (a card's family, a pad's
+systemid). The first mod to ask gets it, in priority order, and its callback is
+called for every node of the class exactly as with `on_node_added`. A later mod
+is told who has it on its own page in the MODS tab, and its callback is never
+connected -- two shells are not drawn one inside the other.
 
 Also available and needing nothing from this API: the `"spawned"` group (join it
 or your object is not saved), `LoadingOverlay.begin(&"my_mod", ...)` for progress,

@@ -14,7 +14,7 @@ extends RefCounted
 
 ## Contribution kinds, in the order the Mods page lists them.
 const KINDS := ["console", "platform", "room", "object", "tv_shell", "controller",
-	"media", "scraper", "hook"]
+	"standin", "media", "scraper", "hook"]
 
 var id: String = ""
 var manifest: ModManifest = null
@@ -43,9 +43,15 @@ func _init(a_manifest: ModManifest, hooks: ModHooks) -> void:
 
 ## Add a console model. `row` is a SystemModelRegistry row: platform, label, and
 ## exactly one of scene/script, plus optional handheld and requires.
+##
+## `av_connector` names the one socket its picture leaves by, when that is not
+## three phono jacks -- a ModConnectors name, which is also the plug group the
+## socket returns. A console that names one is not offered the Composite Cable.
 func register_model(row: Dictionary) -> bool:
 	var model_id := str(row.get("id", ""))
 	if not _namespaced(model_id, "model id"):
+		return false
+	if not _connector_ok(row, "model %s" % model_id):
 		return false
 	row = _current_platform(row)
 	var err := SystemModelRegistry.register_mod_row(model_id, row, id)
@@ -59,6 +65,8 @@ func register_model(row: Dictionary) -> bool:
 ## hardware: no file replacement, no claim, and the row keeps its original id so
 ## existing saves still resolve to it.
 func override_model(model_id: String, row: Dictionary) -> bool:
+	if not _connector_ok(row, "override %s" % model_id):
+		return false
 	row = _current_platform(row)
 	var err := SystemModelRegistry.override_mod_row(model_id, row, id)
 	if not err.is_empty():
@@ -216,6 +224,28 @@ func add_peripherals(systemid: String, items: Array) -> bool:
 	return true
 
 
+## Say that this mod brings the real thing a stand-in was standing in for, so
+## the console's spawn card stops offering the stand-in beside it.
+##
+## `role` is "console" (the Primitive System box) or "controller" (the Primitive
+## Controller). Any number of mods may say so for the same console: the stand-in
+## goes while at least one of them is enabled and comes back with the last.
+##
+## The box only goes while a console model for that platform is actually on the
+## card, so a mod whose model failed to load does not leave a card with no
+## console. There is no "av" role: the Composite Cable goes by itself once no
+## console on the card has phono jacks (see register_model's av_connector).
+##
+## This is the MENU. A room saved with a stand-in in it still loads one.
+func replaces_standin(systemid: String, role: String) -> bool:
+	systemid = SystemIds.canonical(systemid)
+	var err := SpawnCatalog.register_mod_standin(systemid, role, id)
+	if not err.is_empty():
+		return _fail("stand-in %s: %s" % [systemid, err])
+	_note("standin", "%s (%s)" % [role, systemid])
+	return true
+
+
 # ── services ──────────────────────────────────────────────────────────────────
 
 ## A built-in display shader by name — "crt", "vcr", "static", "window",
@@ -232,6 +262,25 @@ func shader(shader_name: String) -> Shader:
 func on_node_added(cls: StringName, cb: Callable) -> void:
 	_hooks.watch_nodes(id, cls, cb)
 	_note("hook", "watches %s" % cls)
+
+
+## on_node_added for a mod that DRESSES a shipped object -- hides its stand-in
+## mesh and hangs a real shell on it -- which only one mod can do to one thing.
+##
+## `key` says which of that class's objects: a memory card's family
+## ("playstation2"), a pad's systemid. The first mod to ask gets it (mods
+## register in priority order) and `cb` is called for every node of `cls`, as
+## with on_node_added; a later mod is told who has it, on its page in the Mods
+## tab, and its callback is never connected. Returns whether this mod got it.
+func dress(cls: StringName, key: String, cb: Callable) -> bool:
+	var holder := _hooks.claim_dress(id, cls, key)
+	if not holder.is_empty():
+		_warn("%s (%s) is already dressed by mod '%s'; this mod's is not used"
+			% [cls, key, holder])
+		return false
+	_hooks.watch_nodes(id, cls, cb)
+	_note("hook", "dresses %s (%s)" % [cls, key])
+	return true
 
 
 ## Call `cb(scene_id)` once a room has finished restoring its saved contents —
@@ -314,8 +363,11 @@ static func _plural(kind: String, n: int) -> String:
 	var word: String = {
 		"console": "console", "platform": "platform", "room": "room",
 		"object": "prop", "tv_shell": "TV cabinet", "controller": "peripheral",
+		"standin": "stand-in replaced",
 		"media": "media format", "scraper": "scraper mapping", "hook": "hook",
 	}.get(kind, kind)
+	if kind == "standin":
+		return word if n == 1 else "stand-ins replaced"
 	return word if n == 1 else word + "s"
 
 
@@ -335,6 +387,18 @@ func _fail(msg: String) -> bool:
 func _warn(msg: String) -> void:
 	_problems.append(msg)
 	push_warning("[mod:%s] %s" % [id, msg])
+
+
+## A model row's av_connector, if it names one, must be a name two mods can
+## agree on -- see ModConnectors.
+func _connector_ok(row: Dictionary, what: String) -> bool:
+	var connector := str(row.get("av_connector", ""))
+	if connector.is_empty():
+		return true
+	var err := ModConnectors.problem(connector)
+	if err.is_empty():
+		return true
+	return _fail("%s: %s" % [what, err])
 
 
 ## A mod-introduced id must carry its own mod's prefix.
