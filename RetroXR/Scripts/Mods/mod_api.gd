@@ -75,6 +75,28 @@ func override_model(model_id: String, row: Dictionary) -> bool:
 	return true
 
 
+## Replace the shell an expansion unit wears -- an e-Reader, a 32X, a disk drive.
+##
+## `unit_id` is the unit's catalog id ("ereader_usa"), one call per unit, so a
+## mod can dress one revision or all of them. `fields` is {shell, size} and,
+## only for a model that is NOT in the same frame as the game's, the placements
+## the game measured off its own: {connector, swipe_slit, seat_yaw}. `shell_lods`
+## is [[model, metres], ...]; without it the shell has one level.
+##
+## What the unit is does not change: its host, its media and the dump it runs
+## stay the game's. One mod holds a unit; a second is told who has it.
+func override_expansion_shell(unit_id: String, fields: Dictionary) -> bool:
+	var holder := ExpansionCatalog.shell_owner_of(unit_id)
+	if not holder.is_empty() and holder != id:
+		_warn("%s's shell already comes from mod '%s'; this mod's is not used" % [unit_id, holder])
+		return false
+	var err := ExpansionCatalog.register_mod_shell(unit_id, fields, id)
+	if not err.is_empty():
+		return _fail("expansion shell %s: %s" % [unit_id, err])
+	_note("console", "%s (shell)" % ExpansionCatalog.label_of(unit_id))
+	return true
+
+
 ## Add or replace a console's hardware descriptor.
 func register_system_info(info: SystemInfo) -> bool:
 	if info == null or info.systemid.is_empty():
@@ -378,6 +400,7 @@ func withdraw() -> void:
 	ConsolePadArt.drop_mod(id)
 	MediaDimensions.drop_mod(id)
 	ModCartShells.drop_mod(id)
+	ExpansionCatalog.drop_mod(id)
 	ScreenscraperSystems.drop_mod(id)
 	RoomCatalog.drop_mod(id)
 	SpawnCatalog.drop_mod(id)

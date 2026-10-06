@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 289
+const EXPECTED_CASES := 315
 
 var _pass := 0
 var _fail := 0
@@ -56,6 +56,7 @@ func _ready() -> void:
 	if _want("overlay"):     _group_overlay()
 	if _want("standins"):    _group_standins()
 	if _want("cartshell"):   await _group_cartshell()
+	if _want("expshell"):    _group_expshell()
 
 	_cleanup()
 	# A case that never RAN is not a case that passed: GDScript has no try/catch,
@@ -1153,3 +1154,64 @@ func _group_cartshell() -> void:
 		"cartshell/a cartridge is the box again")
 	_ok(CartridgeColor.get_palette(sysid) == null, "cartshell/and the palette is gone")
 	_ok(not MediaDimensions.has_cart_size(sysid), "cartshell/and the size")
+
+
+# ── expshell/ ─────────────────────────────────────────────────────────────────
+
+## A mod replaces the shell an expansion unit wears, and nothing else about it.
+func _group_expshell() -> void:
+	_hooks = ModHooks.new(get_tree())
+	var unit := "ereader_usa"
+	var other := "ereader"
+	var size := Vector3(0.09, 0.11, 0.04)
+	var model := _save_body("exp_shell", size)
+	var before: Dictionary = ExpansionCatalog.row(unit).duplicate(true)
+	var other_before: Dictionary = ExpansionCatalog.row(other).duplicate(true)
+	_ok(not str(before.get("shell", "")).is_empty(), "expshell/the unit under test has a shell of the game's")
+
+	var bad := _api("t.ex")
+	_ok(not bad.override_expansion_shell("no_such_unit", {"shell": model, "size": size}),
+		"expshell/a unit that does not exist is refused")
+	_ok(not bad.override_expansion_shell(unit, {"shell": "res://nope.glb", "size": size}),
+		"expshell/a shell that is not there is refused")
+	_ok(not bad.override_expansion_shell(unit, {"shell": model}), "expshell/a shell with no size is refused")
+	_ok(not bad.override_expansion_shell(unit, {"shell": model, "size": Vector3(0.1, 0.0, 0.1)}),
+		"expshell/and one with no height")
+	_ok(not bad.override_expansion_shell(unit, {"shell": model, "size": size, "host": "snes"}),
+		"expshell/what the unit IS cannot be set")
+	_ok(not bad.override_expansion_shell(unit, {"shell": model, "size": size, "connector": 3}),
+		"expshell/a placement of the wrong type is refused")
+	_ok(not bad.override_expansion_shell(unit, {"shell": model, "size": size,
+		"shell_lods": [["res://nope.glb", 1.0]]}), "expshell/and a lower level that is not there")
+	_ok(bad.failed() and ExpansionCatalog.row(unit) == before, "expshell/none of which changed the unit")
+	bad.withdraw()
+
+	var api := _api("t.ex")
+	_ok(api.override_expansion_shell(unit, {"shell": model, "size": size}),
+		"expshell/a shell and its size register", api.errors_text())
+	_eq(ExpansionCatalog.shell_of(unit), model, "expshell/the unit wears the mod's shell")
+	_eq(ExpansionCatalog.size_of(unit), size, "expshell/at the mod's size")
+	_eq(ExpansionCatalog.shell_lods_of(unit), [], "expshell/without the game's lower levels of the old one")
+	_eq(ExpansionCatalog.shell_albedo_of(unit), "", "expshell/or its recolour")
+	_eq(ExpansionCatalog.connector_of(unit), before.get("connector"),
+		"expshell/its tongue is where the game measured it")
+	_eq(ExpansionCatalog.swipe_slit_of(unit), before.get("swipe_slit"), "expshell/and its card channel")
+	_eq(ExpansionCatalog.host_of(unit), str(before.get("host")), "expshell/it is still the same unit")
+	_eq(ExpansionCatalog.row(other), other_before, "expshell/and another revision is untouched")
+	_eq(ExpansionCatalog.shell_owner_of(unit), "t.ex", "expshell/the catalog knows whose it is")
+
+	var late := _api("t.ey")
+	_ok(not late.override_expansion_shell(unit, {"shell": model, "size": size}),
+		"expshell/a second mod is turned away")
+	_ok(not late.failed() and "t.ex" in "; ".join(late.problems()),
+		"expshell/told who has it, which is not a failure")
+	_ok(late.override_expansion_shell(other, {"shell": model, "size": size,
+		"connector": Vector3(0.0, -0.04, 0.0)}), "expshell/but may dress another unit")
+	_eq(ExpansionCatalog.connector_of(other), Vector3(0.0, -0.04, 0.0),
+		"expshell/with a tongue of its own, for a model in another frame")
+	late.withdraw()
+	_eq(ExpansionCatalog.row(other), other_before, "expshell/which goes when that mod does")
+	_eq(ExpansionCatalog.shell_of(unit), model, "expshell/leaving the first mod's alone")
+
+	api.withdraw()
+	_eq(ExpansionCatalog.row(unit), before, "expshell/withdrawn, the unit is exactly what it was")

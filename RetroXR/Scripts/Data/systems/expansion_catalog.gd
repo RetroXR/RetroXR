@@ -253,9 +253,78 @@ static func core_of(spec: Dictionary, mobile: bool) -> String:
 			return over
 	return str(spec.get("core", ""))
 
-## The row for an id, or an empty Dictionary.
+## The row for an id, or an empty Dictionary. With a mod's shell for the unit
+## laid over it: every accessor below reads through here, so the shell, its size
+## and where its tongue and card channel are all change together or not at all.
 static func row(id: String) -> Dictionary:
-	return ROWS.get(id, {})
+	if not _mod_shells.has(id):
+		return ROWS.get(id, {})
+	var merged: Dictionary = (ROWS.get(id, {}) as Dictionary).duplicate()
+	merged.merge(_mod_shells[id]["fields"] as Dictionary, true)
+	return merged
+
+
+# ── a mod's shell for a unit ──────────────────────────────────────────────────
+
+## What a mod may say about a unit's shell, and the type each must be. Nothing
+## else of a row is a mod's to change: what the unit IS -- its host, its media,
+## the dump it runs -- stays the game's.
+const _SHELL_FIELDS := {
+	"shell": TYPE_STRING, "size": TYPE_VECTOR3, "shell_lods": TYPE_ARRAY,
+	"connector": TYPE_VECTOR3, "swipe_slit": TYPE_TRANSFORM3D, "seat_yaw": TYPE_FLOAT,
+}
+
+## unit id -> {owner, fields}.
+static var _mod_shells: Dictionary = {}
+
+
+## The mod whose shell this unit wears, or "".
+static func shell_owner_of(id: String) -> String:
+	return str((_mod_shells.get(id, {}) as Dictionary).get("owner", ""))
+
+
+## "" on success, else why the shell was refused.
+##
+## `shell` and `size` are required; the rest default to the unit's own, which is
+## right for a model in the same frame as the game's (the same shell with its
+## branding on, say). `size` is the model's true bounds, fitted per axis.
+static func register_mod_shell(id: String, fields: Dictionary, owner_id: String) -> String:
+	if not ROWS.has(id):
+		return "'%s' is not an expansion unit" % id
+	var checked := {}
+	for key: String in fields:
+		if not _SHELL_FIELDS.has(key):
+			return "'%s' is not something a shell can set (%s)" % [key, ", ".join(_SHELL_FIELDS.keys())]
+		var value: Variant = fields[key]
+		if key == "seat_yaw" and value is int:
+			value = float(value)
+		if typeof(value) != _SHELL_FIELDS[key]:
+			return "%s is the wrong type" % key
+		checked[key] = value
+	var shell := str(checked.get("shell", ""))
+	if shell.is_empty() or not ResourceLoader.exists(shell):
+		return "shell does not exist: %s" % shell
+	if not checked.has("size"):
+		return "size is required: the shell's true bounds, in metres"
+	var size: Vector3 = checked["size"]
+	if size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
+		return "size must be positive on every axis"
+	for level: Variant in (checked.get("shell_lods", []) as Array):
+		if not (level is Array) or (level as Array).size() != 2 \
+				or not ResourceLoader.exists(str((level as Array)[0])):
+			return "a shell_lods entry is [model path, metres], and its model must exist"
+	# The game's lower levels and its recolour belong to the game's shell.
+	if not checked.has("shell_lods"):
+		checked["shell_lods"] = []
+	checked["shell_albedo"] = ""
+	_mod_shells[id] = {"owner": owner_id, "fields": checked}
+	return ""
+
+
+static func drop_mod(owner_id: String) -> void:
+	for id: String in _mod_shells.keys():
+		if _mod_shells[id]["owner"] == owner_id:
+			_mod_shells.erase(id)
 
 
 static func has(id: String) -> bool:
