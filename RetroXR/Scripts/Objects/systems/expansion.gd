@@ -258,7 +258,7 @@ func _build_shell(s: Vector3) -> void:
 		return
 	var k := Vector3(s.x / ab.size.x, s.y / ab.size.y, s.z / ab.size.z)
 	shell.scale = k
-	shell.position = -(ab.position + ab.size * 0.5) * k
+	shell.position = -(ab.position + ab.size * 0.5) * k + ExpansionCatalog.shell_offset_of(expansion_id)
 	_shell = shell
 	_body.visible = false
 	_build_shell_lods(shell)

@@ -81,7 +81,9 @@ func override_model(model_id: String, row: Dictionary) -> bool:
 ## mod can dress one revision or all of them. `fields` is {shell, size} and,
 ## only for a model that is NOT in the same frame as the game's, the placements
 ## the game measured off its own: {connector, swipe_slit, seat_yaw}. `shell_lods`
-## is [[model, metres], ...]; without it the shell has one level.
+## is [[model, metres], ...]; without it the shell has one level. `shell_offset`
+## moves the shell off the middle of its bounds, for one whose locating part --
+## the body that goes in a pocket -- is not the middle of the whole.
 ##
 ## What the unit is does not change: its host, its media and the dump it runs
 ## stay the game's. One mod holds a unit; a second is told who has it.

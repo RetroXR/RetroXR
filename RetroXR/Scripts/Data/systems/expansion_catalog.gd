@@ -272,10 +272,20 @@ static func row(id: String) -> Dictionary:
 const _SHELL_FIELDS := {
 	"shell": TYPE_STRING, "size": TYPE_VECTOR3, "shell_lods": TYPE_ARRAY,
 	"connector": TYPE_VECTOR3, "swipe_slit": TYPE_TRANSFORM3D, "seat_yaw": TYPE_FLOAT,
+	"shell_offset": TYPE_VECTOR3,
 }
 
 ## unit id -> {owner, fields}.
 static var _mod_shells: Dictionary = {}
+
+
+## How far a unit's shell sits from the middle of its own bounds, in the unit's
+## frame. A unit is seated by the middle of its size, and a shell is centred on
+## that; but the part of a real shell that locates it is not always the middle of
+## the whole -- a pak whose body goes in a pocket carries a boss on one face and a
+## cap that overhangs the other. Zero for every shell the game ships.
+static func shell_offset_of(id: String) -> Vector3:
+	return row(id).get("shell_offset", Vector3.ZERO)
 
 
 ## The mod whose shell this unit wears, or "".

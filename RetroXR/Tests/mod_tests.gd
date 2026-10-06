@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 327
+const EXPECTED_CASES := 330
 
 var _pass := 0
 var _fail := 0
@@ -1252,6 +1252,10 @@ func _group_expshell() -> void:
 		"connector": Vector3(0.0, -0.04, 0.0)}), "expshell/but may dress another unit")
 	_eq(ExpansionCatalog.connector_of(other), Vector3(0.0, -0.04, 0.0),
 		"expshell/with a tongue of its own, for a model in another frame")
+	_eq(ExpansionCatalog.shell_offset_of(other), Vector3.ZERO, "expshell/a shell sits on the middle of its bounds unless it says")
+	_ok(late.override_expansion_shell(other, {"shell": model, "size": size, "shell_offset": Vector3(0.0, 0.0, 0.002)}),
+		"expshell/a shell may say it sits off the middle")
+	_eq(ExpansionCatalog.shell_offset_of(other), Vector3(0.0, 0.0, 0.002), "expshell/and the unit reads that")
 	late.withdraw()
 	_eq(ExpansionCatalog.row(other), other_before, "expshell/which goes when that mod does")
 	_eq(ExpansionCatalog.shell_of(unit), model, "expshell/leaving the first mod's alone")
