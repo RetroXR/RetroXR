@@ -2,6 +2,13 @@
 ##
 ##   godot --headless --path RetroXR --script res://Tools/mods/pack_mod.gd -- --id=xenu.snes
 ##   godot --headless --path RetroXR --script res://Tools/mods/pack_mod.gd -- --id=xenu.snes --out=Z:/xenu.snes.zip
+##   godot --headless --path RetroXR --script res://Tools/mods/pack_mod.gd -- --check=Z:/xenu.ps2.zip
+##
+## EVERY PACK NEEDS A PREVIEW IMAGE: res://mods/<id>/thumbnail.png, 16:9 and at
+## least 512x288. It is the tile the mod browser shows for an installed mod, and
+## the same file is the logo on the mod's mod.io page. A pack without one is not
+## written. (The loader still accepts an old pack that has none; only the packer
+## insists.)
 ##
 ## Writes a .zip resource pack, which is the recommended format: Godot mounts one
 ## exactly as it does a .pck, and it can be read member-by-member WITHOUT being
@@ -16,7 +23,11 @@
 ##
 ##   godot --headless --path RetroXR --export-pack "<preset>" out.zip
 ##
-## with an export preset whose include filter is mods/<id>/*.
+## with an export preset whose include filter is mods/<id>/*. Set thumbnail.png's
+## import type to "Keep File" first, or the export ships a compressed texture in
+## its place and the pack has no thumbnail the loader can read. Then run this
+## script with --check=<the pack> to put an exported pack through the same
+## verification, thumbnail included.
 ##
 ## Whichever route, the result is read back through ModPackReader before this
 ## exits. A pack whose manifest the loader cannot find is a mod that silently
@@ -37,13 +48,19 @@ const SOURCE_EXTS := ["gd", "tscn", "tres", "json", "txt", "md",
 func _init() -> void:
 	var mod_id := ""
 	var out := ""
+	var check := ""
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--id="):
 			mod_id = a.substr(5)
 		elif a.begins_with("--out="):
 			out = a.substr(6)
+		elif a.begins_with("--check="):
+			check = a.substr(8)
+	if not check.is_empty():
+		quit(0 if _check(check) else 1)
+		return
 	if mod_id.is_empty():
-		print("usage: --id=<mod id> [--out=<path>]")
+		print("usage: --id=<mod id> [--out=<path>]   or   --check=<pack>")
 		quit(1)
 		return
 
@@ -66,6 +83,15 @@ func _init() -> void:
 	if manifest.id != mod_id:
 		print("[pack] mod.json says id '%s' but it lives in mods/%s/"
 			% [manifest.id, mod_id])
+		quit(1)
+		return
+
+	# Before anything is written, so a mod with no picture leaves no pack behind
+	# that looks finished.
+	var thumb_err := ModManifest.thumbnail_error(
+		FileAccess.get_file_as_bytes(src.path_join(ModManifest.THUMBNAIL_NAME)))
+	if not thumb_err.is_empty():
+		print("[pack] %s" % thumb_err)
 		quit(1)
 		return
 
@@ -134,6 +160,29 @@ func _collect(dir_path: String, into: PackedStringArray) -> void:
 	dir.list_dir_end()
 
 
+## Verify a pack made some other way -- an --export-pack one -- with the same
+## checks, reading its manifest out of the pack itself.
+func _check(path: String) -> bool:
+	var r := ModPackReader.open(path)
+	if not r.error.is_empty():
+		print("[pack] FAILED verification: %s" % r.error)
+		return false
+	var manifest: ModManifest = null
+	for member: String in r.files():
+		if member.begins_with(ModManifest.NAMESPACE_ROOT) and member.ends_with("/mod.json") \
+				and member.count("/") == 4:
+			manifest = ModManifest.parse(r.read_json(member))
+			break
+	r.close()
+	if manifest == null:
+		print("[pack] FAILED verification: no mod.json under res://mods/<id>/")
+		return false
+	if not manifest.error.is_empty():
+		print("[pack] FAILED verification: manifest unreadable: %s" % manifest.error)
+		return false
+	return _verify(path, manifest)
+
+
 ## Read the finished pack back the way the loader will. This is the check that
 ## matters: everything above can succeed and still produce a pack the Mods page
 ## never shows.
@@ -144,6 +193,7 @@ func _verify(path: String, manifest: ModManifest) -> bool:
 		return false
 	var files := r.files()
 	var found := ModManifest.parse(r.read_json(manifest.own_root() + "mod.json"))
+	var thumb := r.read(manifest.own_root() + ModManifest.THUMBNAIL_NAME)
 	r.close()
 	if not found.error.is_empty():
 		print("[pack] FAILED verification: manifest unreadable: %s" % found.error)
@@ -155,6 +205,10 @@ func _verify(path: String, manifest: ModManifest) -> bool:
 	if not inventory.is_empty():
 		print("[pack] FAILED verification: the loader would refuse this pack: %s"
 			% inventory)
+		return false
+	var thumb_err := ModManifest.thumbnail_error(thumb)
+	if not thumb_err.is_empty():
+		print("[pack] FAILED verification: %s" % thumb_err)
 		return false
 	if not ResourceLoader.exists(manifest.entry) and not files.has(manifest.entry):
 		print("[pack] FAILED verification: entry script %s is not in the pack"

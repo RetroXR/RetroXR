@@ -53,11 +53,226 @@ directly for that reason — do not "fix" them to use `_table()`.
 for one fact: `SceneManager.SCENE_PATHS` / `SCENE_TITLES` / `SLOT_ROOMS` and
 `scene_view.gd`'s `ROOM_TITLES`. Those three consts are GONE, not shimmed.
 
-**A mod is never distributed by the app.** No in-app browser, no download, and
-netplay sends only a fingerprint (`id@version`) in the existing `_register`
-handshake, rejecting a mismatch rather than shipping the pack to the peer. Keep it
-that way: a mod is a file the player chose to install, and the moment the app
-becomes the transport it owns what is inside one.
+**The app downloads mods from mod.io, and from nowhere else** (reversed
+2026-10-06; this paragraph used to say "no in-app browser, no download"). The old
+objection was that the moment the app becomes the transport it owns what is inside
+one. What changed is that the transport is now a host that scans uploads and that
+the game's admin moderates, and the app's own vetting runs on every file before it
+is installed. Netplay is unchanged: it still sends only a fingerprint
+(`id@version`) in the `_register` handshake and rejects a mismatch rather than
+shipping the pack to the peer — a pack handed from one player to another has been
+through neither check.
+
+## The mod browser (MODS tab)
+
+`Scripts/UI/spawn_menu/views/mods_view.gd`, over four services owned by the
+**`Modio` autoload** (`Scripts/Net/modio/modio_service.gd`, declared after `Mods`;
+`autoload_order_tests` holds that): `ModioClient` (`Scripts/Net/modio/`),
+`ModDownloader` (`Scripts/Data/mods/`), `ModArtCache` (`Scripts/UI/spawn_menu/`)
+and `ModReviews` (`Scripts/Mods/`). The menu only borrows them.
+
+**They are an autoload because the menu leaves the tree on every room change.**
+As children of `SpawnMenu2D` their `_exit_tree` fired there, and the downloader's
+cancels every download. It matters twice over for the install hook: bound to the
+menu's view, it died with the menu, and a download that finished afterwards fell
+back to `Mods.install` — installed with no review. `ModReviews.stage` is the hook
+now and lives as long as the downloader does. Three sub-tabs: **Browse** (mod.io's
+catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
+**Installed** (what was Options > Mods, moved whole).
+
+- **mod.io game 14432**, `https://g-14432.modapi.io/v1`, REST from GDScript. The
+  only maintained Godot plugin is a desktop-only Rust extension with no Android
+  build. mod.io's C++ SDK is not used: it builds for Android only through CMake
+  and JNI, and would be an eighth GDExtension.
+- **API key only.** mod.io's docs describe a game key as "limited to read-only GET
+  requests, due to the limited security it offers", sent by the client in the
+  query string — so it is a constant in `modio_client.gd`, not a secret. No login
+  means no subscribing, rating or commenting; those need OAuth and are not built.
+- **Consent comes before everything.** mod.io's game terms ask for the player's
+  agreement to its Terms and Privacy Policy "before using any mod.io
+  functionality, such as on startup, or before launching any UGC browsers"
+  (docs.mod.io/terms), which covers anonymous browsing. Browse and Packs show
+  mod.io's own text, buttons and links (`GET /authenticate/terms`, the one request
+  allowed first) and nothing else until it is accepted. **The gate is in
+  `ModioClient._fetch_json`**, not in the page, so a page that forgets to ask
+  cannot send a request. `ModioConsent` keeps the answer in
+  `user://modio_consent.json` with the text's MD5; once a session the terms are
+  re-read and changed wording asks again. Withdrawing (the button under Browse)
+  cancels downloads, discards what was waiting, and clears both pages. Installed
+  never asks. mod.io's text says an account "will be created for you"; that is
+  their wording for the sign-in case, so the gate adds that RetroXR signs nobody in.
+- **`X-Modio-Platform` is sent** (`windows`/`linux`/`mac`, and `oculus` on a Quest).
+  The game has no platforms configured, so it changes nothing yet (measured
+  2026-10-06: same reply with and without). Whether a sideloaded build may claim
+  `oculus` is unanswered; `android` is the fallback.
+- **The tag filter is mod.io's own list** (`GET /games/<id>/tags`, flattened; one
+  group, "Object", when this was written).
+- **What mod.io's game terms require is on the page**: its name beside the
+  catalogue, and a Report button on every mod (it opens
+  `https://mod.io/report/mods/<id>/widget`, which takes a report without a login).
+  Remove neither.
+- **Nothing reaches mod.io until the tab is first opened** (`ensure_fetched`).
+- **A download address is asked for again at the press** (`get_mod`), never taken
+  from the listing: mod.io signs each one and lets it expire.
+- **The redirect is followed on the GET**, not probed with a HEAD as
+  `FirmwareInstaller` does for GitHub: a CDN signature made for a GET need not
+  answer a HEAD. `RommHttp.download_to_file` returns the response headers on an
+  HTTP error for this.
+- **Uploads are zip only.** mod.io stores a zip; the app fetches it into
+  `mods/.incoming/` and installs it as `mods/<id>.zip`, as-is. A `.pck` is still
+  fine dropped in by hand.
+
+### What a download has to get through
+
+Four checks, in this order, and then the player:
+
+1. **mod.io's scan.** `ModioClient.scan_problem`: only `virus_status == 1` with
+   `virus_positive == 0` is fetched, asked of the FRESH reply at the press. A file
+   never scanned is refused with the rest — it is the one check the game cannot
+   make itself — and its tile reads "Being scanned by mod.io".
+2. **mod.io's MD5**, in the downloader.
+3. **The loader's own vetting** (`inspect`).
+4. **No games, no programs** (`ModContentPolicy`, through `ModManager.vet`): every
+   extension a core loads as content, less text, pictures and sound, plus native
+   code. `.md` is refused on purpose — it is a Mega Drive ROM as well as Markdown.
+   Applied to DOWNLOADS only; a pack the player copied in is not held to it. The
+   same list belongs in mod.io's upload rules.
+5. **The review.** The downloader's install hook is `ModReviews.stage`, so a
+   vetted file is parked, not installed. The review shows the full-access
+   warning, what the mod **Replaces**, any file two mods both replace, and an
+   "Enable on next launch" switch that starts OFF. Discard deletes the file.
+   **A download nobody answered for is deleted at the next launch**
+   (`_sweep_incoming`, after `_apply_pending`); a `.part` is kept so it can resume.
+
+**Room is checked before the first byte** (`ModDownloader.space_problem`): twice
+the file plus 16 MiB, less what a partial already holds — twice because a bundle
+is opened beside the download before the download is deleted. A size mod.io did
+not state, or a volume that reports 0 free, is not refused: unknown is not full.
+`get_space_left` on a Quest's `/sdcard` path is UNMEASURED.
+
+**A bundle is one upload holding a build per platform** (`ModManager._unwrap`,
+through `vet`). mod.io stores one zip per mod; a zip with no manifest of its own
+and containers at its top level is opened, each is inspected, and the one that
+runs here is what gets reviewed and installed — which is also how a `.pck`, which
+mod.io will not take bare, travels. None that fits is refused with each build's
+reason; MORE than one that fits is refused too, rather than picked by a rule the
+author cannot see. Only the top level is searched. `vet()` returns `path`, the
+pack to install, and every caller must use it and not the download's own name.
+
+**A failed request used to raise instead of reporting.** The error path handed a
+bare `[]` to a callback typed `Array[Dictionary]`, which Godot refuses outright, so
+the page never saw the error. `_no_rows()` is typed for that reason.
+
+### Packs — mod.io collections
+
+A pack is a mod.io **collection**; "pack" is the menu's word and `collection` the
+code's, because a pack is also the `.zip`/`.pck` container. The endpoints answer
+with only the game key (measured 2026-10-06, on an empty catalogue):
+`/games/<id>/collections` and `/collections/<cid>/mods`.
+
+- `ModCollectionPlan` is pure and holds every decision: what to fetch, what is
+  already here, what is skipped and why, which shipped files two mods both replace,
+  and what removing a pack removes.
+- **Installing** fetches each member exactly as a single mod is fetched, then asks
+  ONE question for the lot (`SpawnMenuModsPacksPage._fill_review`): each member's
+  Replaces, conflicts between members and with installed mods, what was skipped,
+  and "Enable all on next launch", OFF. A member that fails is skipped; the rest
+  carry on.
+- **A mod's `source` records who wants it**: `collections` (pack ids) and
+  `individual`. A mod that was here before a pack named it is the player's own.
+  **Removing a pack removes only what it alone brought** (`plan_remove`).
+- Ids come back from `mods.json` as FLOATS; `collections_of` reads them as ints.
+- A collection's members are capped at 500 (`MEMBER_PAGES_MAX`); mod.io's own
+  count is shown when a pack is cut short.
+- **There is no Subscribe.** That needs a login.
+
+### Install, update, remove — `ModManager`
+
+`install(staged, source)`, `vet(path)`, `remove(id)`, `inspect(path)`,
+`remove_unreadable(path)`, `source(id)`, `set_source(id, source)`,
+`find_by_source(key, value)`, and the `mods_changed` signal. There was no such API
+before; the loader only ever read.
+
+- **`install` is the boot's own vetting on one file** (`inspect`: reader, manifest,
+  inventory, platform). A pack that would be refused at the next launch is refused
+  now, with the same sentence, deleted, and never reaches the mods root.
+- **A download lands DISABLED** unless that id was already enabled. Fetching is not
+  consent; the switch is, and its page shows what the mod claims.
+- **One container per id.** The new file is `<id>.zip`, and whatever held that id
+  before goes — a hand-installed `My Cool Mod v1.zip`, or both halves of a double
+  install — because two files with one id refuse both at the next boot.
+- **A MOUNTED pack is not touched in-session.** The engine keeps a mounted container
+  open until exit (Windows refuses the delete; elsewhere the old copy would go on
+  being read). The update is parked in `mods/.incoming/`, the move recorded in
+  `user://mods.json` (`pending`), and `_apply_pending` makes it at the next launch
+  before discovery. The record keeps describing what is mounted, so the netplay
+  fingerprint stays true for the session; `update_staged` / `removal_staged` carry
+  what is waiting. `ModRecord.mounted` is the flag — true for FAILED as well as
+  LOADED.
+- **`pending` is read from a JSON file**, so every name in it is reduced to its last
+  component and must be a `.zip`/`.pck`: it cannot reach outside the mods root.
+- `user://mods.json` also holds `sources` (`{modio_id, file_id, profile_url}` per
+  mod id), which is how a Browse tile knows it is installed and whether mod.io now
+  offers a different file.
+
+### Preview images
+
+A Browse tile shows the logo the author uploaded to mod.io (the app cannot open a
+pack it has not downloaded); an Installed tile shows the pack's own
+`res://mods/<id>/thumbnail.png`, read without mounting. `pack_mod.gd` **refuses to
+write a pack without one** — 16:9, at least 512x288, mod.io's own floor, so the
+same file serves as both — and `--check=<pack>` puts an `--export-pack` pack
+through the same verification. The LOADER never insists: a pack from before the
+rule still loads and gets a placeholder tile.
+
+**An exported pack only carries the raw PNG if its import type is "Keep File".**
+Imported as a texture, the export ships a `.ctex` in its place and the loader finds
+no thumbnail. `xenu.ps2.pck` has none: it is built by `mods/build_mod.py` in the
+RetroXR-models repo, whose source ships no `thumbnail.png` yet.
+
+### Still owed
+
+- **A real download, measured 2026-10-06** with the first mod published (the
+  PlayStation 2, mod 6431594, a 4.7 MB zip from RetroXR-models' `build_mod.py
+  --zip`). `Tools/mods/modio_live_probe` is the check: the real client and
+  downloader against mod.io, into a scratch loader, touching nothing of the
+  player's. What it and curl showed:
+  - `binary_url` is `…/mods/<id>/files/<fid>/download` and answers **302** to
+    `binary.modcdn.io/…zip?verify=…`. It needs **no token and no API key**.
+  - The CDN answers `Accept-Ranges: bytes` and a Range request with 206, and the
+    first hop answers a HEAD (302), so following on the GET was caution, not need.
+  - mod.io's scan had passed (`virus_status` 1) within minutes of the upload, and
+    the file's MD5 matched what was built.
+  - The pack passed the deny-list as built: `.ctex`, `.scn`, `.import`, `.gd`,
+    `.tscn`, `.json` and `thumbnail.png`.
+  - `logo.thumb_1280x720` answered 307 while the two smaller sizes answered 200:
+    sizes are made on demand. `ModArtCache` marks a failed address dead for the
+    session, so a logo asked for too soon after an upload stays blank until a
+    restart. Seen once, on the 640 size, minutes after the upload; not reproduced.
+- **Curation is ON now**: an uploaded mod is "Pending" until a game admin presses
+  Activate on its page, and is not listed before that.
+- **Still unmeasured:** a Quest, a large file on a slow link, and a resume.
+- **Four suites assume no mod is loaded**, and run against the player's own
+  `Mods` autoload: with the PlayStation 2 mod enabled on the machine, `mod_tests`
+  (the empty fingerprint), `link_tests` (it finds the shell's `ILinkPort` MARKER
+  by name before the socket) and `system_tests` (a PS2 no longer wears the box)
+  each fail one case. CI has no mods. Turn them off before reading a local run.
+- **A real pack.** No collection existed either, so the Mod Collection fields are
+  read off mod.io's schema page, not a live reply, and no pack has been installed
+  end to end. `mod_browser_tests` `collection/` is the plan, not that proof.
+- **The game's mod.io settings**: curation was `0` (uploads go live unreviewed, and
+  collections have a curation switch of their own) and no platforms were
+  configured.
+- **A pack install does not survive the menu.** The downloads do, and each lands
+  in `ModReviews`, but the batch that ties them into one question is the Packs
+  page's: lose the menu mid-pack and its members come back as single reviews,
+  with no record of the pack.
+- **A room change with a download running**, on a headset. The autoload is the
+  reason it should survive; nobody has watched it do so.
+- **The Quest's mods folder may be unwritable** if it was ever made by `adb push`
+  (owned by shell). The downloader says so; it cannot fix it.
+- The tab in a headset, and nine nav buttons on the bar (they fit by measurement:
+  839 of 1072 px).
 
 **A mod's lead saves as a lead.** A mod prop is written to a slot as its type and
 pose, which is all a crate needs. A lead (`CompositeCable`, `PowerCord`, `PowerStrip`)
@@ -67,9 +282,24 @@ mod lead the ordinary lead entry (`plugs`, `cord_length`, `body`) under the MOD'
 both restore passes already read a lead by class. `mod_tests` `objects/` holds it, with
 a shipped lead standing in for the mod's scene.
 
-`RetroXR/Tests/mod_tests.tscn` is 199 headless checks and needs no mod installed;
+**A mod's pad saves as a pad.** The same short-circuit wrote a mod-registered
+`RetroController` as a bare pose, so it came back as the right pad, unplugged. A mod
+object that is a controller is now left to the controller branch, which records the
+scene it came from (how every pad is told apart) and the port it is in;
+`is_known_controller_scene` already allowed a scene a mod registered.
+
+`RetroXR/Tests/mod_tests.tscn` is 203 headless checks and needs no mod installed;
 fixtures are built into `user://` at run time. Almost none of it mounts anything,
-for the reason above.
+for the reason above. **It asserts that NO mod is loaded** (`netplay/no mods means
+an empty fingerprint`), so it fails by one on a machine with a mod enabled.
+
+`RetroXR/Tests/mod_browser_tests.tscn` is 149 checks on install / update / remove,
+the pending moves, the catalogue parser, the thumbnail rule and a download over a
+loopback server (redirect, checksum, resume, a server that ignores `Range`, a pack
+the loader refuses). Each case builds its OWN `ModManager`, never added to the
+tree, over a scratch root (`mods_root_override`, `state_path_override`): the
+`Mods` autoload and the player's mods folder are never touched, and `mounted` is
+set by hand rather than by mounting.
 
 ```bash
 python Tools/mods/new_mod.py xenu.snes --name "Super Nintendo"

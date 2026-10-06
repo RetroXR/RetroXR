@@ -330,7 +330,10 @@ func download_to_file(path: String, headers: PackedStringArray, file: FileAccess
 	if code < 200 or code >= 300:
 		# Drain so the connection stays reusable, then report the status.
 		_read_body(abort)
-		return {"result": Result.HTTP_ERROR, "code": code, "received": 0, "total": 0}
+		# The headers go back too: a 302 is reported here, and a caller that
+		# follows redirects itself needs the Location it came with.
+		return {"result": Result.HTTP_ERROR, "code": code, "received": 0, "total": 0,
+			"headers": sent["headers"]}
 
 	var total := _content_length(sent["headers"])
 	var received := 0

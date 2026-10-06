@@ -37,6 +37,24 @@ var reason: String = ""
 ## run, which is never for anything that did not reach LOADED.
 var api: ModApi = null
 var thumbnail: Texture2D = null
+## The pack was handed to ProjectSettings.load_resource_pack this session. True
+## for LOADED and for FAILED alike, and it is what decides whether the file can
+## be replaced or deleted now or only at the next launch: a mounted container
+## stays open for as long as the app runs.
+var mounted := false
+## Version of an update that is downloaded and waiting for the next launch, ""
+## for none. The record keeps describing the pack that is actually mounted, so
+## the netplay fingerprint goes on telling the truth about this session.
+var update_staged: String = ""
+## What that waiting pack is, for the page: its own picture, size and file count.
+## The page shows these beside the running pack's, so a mod that is about to be
+## replaced is not described only by the copy that is on its way out.
+var update_thumbnail: Texture2D = null
+var update_size: int = 0
+var update_files: int = 0
+## The player removed this mod while it was mounted; the file goes at the next
+## launch.
+var removal_staged := false
 
 
 ## Mark a mod as refused or failed, with the reason shown on the Mods page.

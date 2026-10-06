@@ -9,7 +9,18 @@ you intend to maintain.
 
 ## Installing one
 
-Put the file in the mods folder and restart:
+**From inside RetroXR:** open the menu's **MODS** tab. The first time, it shows
+mod.io's terms and asks nothing of mod.io until you agree to them. **Browse** then
+lists the mods published for RetroXR on [mod.io](https://mod.io/g/retroxr); pick
+one and press Download. It is fetched and checked, and you are shown what it
+replaces before you install it. It then appears under **Installed**, where you
+enable it and restart.
+
+**Packs** lists mod packs: lists of mods somebody put together on mod.io. One
+press downloads a pack's mods and one answer installs them. Removing a pack
+removes the mods it brought, and leaves any you had installed on its own.
+
+**By hand:** put the file in the mods folder and restart:
 
 | platform | folder |
 |---|---|
@@ -17,23 +28,28 @@ Put the file in the mods folder and restart:
 | Linux, macOS | `~/retroxr/mods/` |
 | Quest / Android | `/sdcard/Android/data/com.xenu.retroxr/files/mods/` (`adb push`-able) |
 
-Then **OPTIONS → Mods**, enable it, and restart again.
+Then **MODS → Installed**, enable it, and restart again.
 
 Mods are **disabled when they arrive**. A mod runs with the app's full
 permissions — your ROMs, your saves, your RomM credentials, the network — and
 Godot has no sandbox to put one in, so nothing loads until you say so. Enabling
 is the whole of the trust decision, and it is yours.
 
-RetroXR does not browse, download, host or index mods, and never sends one to
-another player. A mod is a file you chose to install, from wherever you chose to
-get it, and its contents are between you and whoever made it.
+RetroXR does not make or host mods. The Browse tab shows what authors have
+published on mod.io, which scans what it hosts; a file you copy in by hand has
+been through nothing but RetroXR's own checks. Either way the contents are
+between you and whoever made it, and RetroXR never sends a mod from one player to
+another.
+
+Updating or removing a mod that is currently running, like enabling one, takes
+effect the next time RetroXR starts.
 
 ## What a mod looks like
 
 ```
 xenu.snes.zip
     res://mods/xenu.snes/mod.json        the manifest
-    res://mods/xenu.snes/thumbnail.png   optional, shown on the Mods page
+    res://mods/xenu.snes/thumbnail.png   the preview image: 16:9, at least 512x288
     res://mods/xenu.snes/mod_main.gd     the entry script
     res://mods/xenu.snes/...             everything else it ships
 ```
@@ -317,6 +333,36 @@ godot --headless --path RetroXR --export-pack "YourModPreset" xenu.snes.zip
 `pack_mod.gd` tells you which files it skipped for this reason rather than
 producing a pack that is quietly missing its art.
 
+### The preview image
+
+Every pack needs `thumbnail.png` in its folder: **16:9, at least 512x288**
+(1280x720 is the usual size). It is the tile RetroXR shows for your mod once it is
+installed, and the same file is the logo you upload to its mod.io page, so the two
+match. `pack_mod.gd` refuses to write a pack without one.
+
+If you build with `--export-pack`, set the PNG's import type to **Keep File** in
+Godot's Import dock first. Imported as a texture, the export ships a compressed
+copy in its place and RetroXR — which reads the thumbnail without loading the mod —
+finds nothing. Check the finished pack either way:
+
+```bash
+godot --headless --path RetroXR --script res://Tools/mods/pack_mod.gd -- --check=xenu.snes.zip
+```
+
+## Publishing on mod.io
+
+RetroXR's mod browser lists what is published at <https://mod.io/g/retroxr>.
+
+- Upload a **`.zip`** — the pack itself, not a zip with a pack inside it. A `.pck`
+  works when installed by hand but is not accepted from the browser.
+- Use your `thumbnail.png` as the mod's logo.
+- The name, summary and logo on your mod.io page are what players see before they
+  download; your `mod.json` is what they see after.
+- The file in the pack decides the mod's id and version. Keep the `id` the same
+  across uploads and RetroXR treats a new file as an update to the one installed.
+- If your mod is not for every platform, say so in `mod.json`'s `platforms`: a
+  player on another one is told it was not built for theirs.
+
 ## Stability
 
 **There is none yet, and that is deliberate.** RetroXR is young and moves fast;
@@ -347,10 +393,33 @@ an update is the system working as intended, not a bug.
   is false there, and a tiny light close to a surface renders black or as a flat
   disc. Test on the device.
 
+## One upload, more than one build
+
+mod.io keeps one zip per mod. That zip is normally your pack. It can instead be a
+**bundle**: a zip with no `mods/<id>/mod.json` of its own and your packs at its top
+level, one per platform, each naming its platforms in its manifest. RetroXR opens
+it and installs the one that runs on the device, so a desktop build and a Quest
+build can each carry only its own texture formats. A `.pck`, which mod.io does
+not accept on its own, is uploaded the same way: inside a zip.
+
+Exactly one pack in a bundle must run on any given platform. None, or two, and
+the download is refused with the reason.
+
+## What a mod on mod.io may not contain
+
+RetroXR will not install a download that carries a game or a program: any file
+with an extension an emulator core loads as content (`.iso`, `.nes`, `.sfc`,
+`.bin`, `.zip`, `.chd` and several hundred more), or native code (`.dll`, `.so`,
+`.exe`). Text, pictures and sound are fine. **`.md` is refused**, because it is a
+Mega Drive ROM as well as Markdown: ship your notes as `.txt`. RetroXR also waits
+for mod.io's scan of your file to finish before offering it, so a new upload
+shows as "Being scanned by mod.io" for a while.
+
 ## What you are responsible for
 
-Everything in your pack is yours. RetroXR does not review, endorse or distribute
-mods, and does not check what is in one.
+Everything in your pack is yours. RetroXR does not make or endorse mods. What is
+listed on mod.io is subject to mod.io's terms and to moderation there, and a mod
+can be reported from its page in RetroXR's browser.
 
 If you intend to share a mod, ship only what you have the right to ship. Console
 shells in particular carry wordmarks, logos and trade dress belonging to their

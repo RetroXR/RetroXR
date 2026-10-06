@@ -33,6 +33,8 @@ const MUST_PRECEDE := [
 		"a mod may register tables and defaults that AppPrefs then reads"],
 	["Mods", "SceneManager",
 		"a mod can add rooms, and SceneManager builds its room list at startup"],
+	["Mods", "Modio",
+		"the mod browser's downloader hands every file it fetches to the loader"],
 	["AppPrefs", "QualityManager",
 		"QualityManager applies the stored quality tier on boot"],
 	["NetworkManager", "SaveSync",

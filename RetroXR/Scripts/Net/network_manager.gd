@@ -829,9 +829,9 @@ func _wire_signals() -> void:
 func _on_connected_to_server() -> void:
 	print("[NetworkManager] ENet connected as peer %d; registering" % multiplayer.get_unique_id())
 	# The mod list rides in the info dict, not the packs themselves. A peer with
-	# a different set is told so and refused; it is never sent the mod. A mod is
-	# a file the player chose to install, and this app is not a channel for
-	# distributing one.
+	# a different set is told so and refused; it is never sent the mod. The mod
+	# browser fetches from mod.io, which has scanned and moderated what it hosts;
+	# one player's copy passed straight to another has been through neither.
 	_register.rpc_id(1, {
 		"name": player_name,
 		"is_vr": get_viewport().use_xr,

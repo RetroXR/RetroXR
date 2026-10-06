@@ -272,9 +272,25 @@ mounting (mounting cannot be undone), so enable/disable applies next launch. Eve
 pack ships lives under `res://mods/<id>/` unless listed in `claims`. Shipped `const` tables
 stay the base with `static var` overlays; mod models stay out of `ModelWarmer`'s boot warm
 (`stand_in_ids()` etc. read `_ROWS` on purpose). `RoomCatalog` replaced the old
-`SCENE_PATHS`/`SCENE_TITLES`/`SLOT_ROOMS` consts. **The app never distributes a mod** —
-netplay sends only an `id@version` fingerprint. Mods are authored inside a checkout, in
+`SCENE_PATHS`/`SCENE_TITLES`/`SLOT_ROOMS` consts. Mods are authored inside a checkout, in
 `RetroXR/mods/<id>/`. `SystemInfo.media_type` is read by nothing; `DISC_INSERT` means the Wii.
+
+**The MODS tab browses and downloads from mod.io** (game 14432, REST from GDScript, API key
+only — no login, so no subscribe/rate). **Nothing but mod.io's terms is requested until the
+player agrees to them** — the gate is in `ModioClient._fetch_json`, never in a page. Packs
+are mod.io collections (`ModCollectionPlan` holds the decisions). The services are the
+**`Modio` autoload**'s, after `Mods`: as children of the menu they were cancelled by every
+room change, and a download finishing after the menu died installed with NO review. This REVERSED the old "the app never distributes a mod" rule on 2026-10-06. What
+still holds: a download is fetched only after mod.io's scan is clean, vetted as a boot vets
+it plus `ModContentPolicy` (no games, no programs), WAITS for the player's review, and lands
+DISABLED; netplay still sends only an `id@version` fingerprint, never a pack; **a MOUNTED
+pack's file is never replaced or deleted in-session** — the move is written to
+`user://mods.json` and made by `_apply_pending` at the next launch, before discovery.
+mod.io uploads are **zip only**, and `pack_mod.gd` refuses a mod with no 16:9
+`thumbnail.png` (the loader still accepts old packs). `mod_browser_tests`; how the tab
+looks is `Tools/mods/mods_view_probe` (windowed; `-- --live` for the real catalogue). A
+real download was measured 2026-10-06 (`Tools/mods/modio_live_probe`, needs the network).
+A real PACK is still OWED — never present the fake-server cases as that.
 
 ## Android plugin
 

@@ -77,6 +77,13 @@ var romm_art: RommArtCache = null
 ## romm_art; needs no config, so it is built with no setup call.
 var scraped_art: ScrapedArtCache = null
 var romm_firmware: RommFirmware = null
+
+## The mod browser's services (MODS tab): mod.io's catalogue, the pack
+## downloader, and the tiles' preview images.
+var modio_client: ModioClient = null
+var mod_downloader: ModDownloader = null
+var mod_art: ModArtCache = null
+var mod_reviews: ModReviews = null
 ## systemid -> platform dict from /api/platforms (with "systemid" added).
 ## Slug signature of the last unmapped set announced, so it is reported once.
 ## Terminal outcomes that happened while the menu was closed, flushed on open.
@@ -105,6 +112,7 @@ var _graphics_view: SpawnMenuGraphicsView = null
 var _scene_view:    SpawnMenuSceneView = null
 var _net_view:      SpawnMenuNetView = null
 var _about_view:    SpawnMenuAboutView = null
+var _mods_view:     SpawnMenuModsView = null
 
 ## The views, for a caller that wants to hear one of them directly.
 ##
@@ -139,6 +147,7 @@ var _nav_options_btn:  Button = null
 var _nav_graphics_btn: Button = null
 var _nav_scene_btn:    Button = null
 var _nav_about_btn:    Button = null
+var _nav_mods_btn:     Button = null
 var _nav_buttons: Array[Button] = []
 
 # Cores > Download tab state
@@ -188,6 +197,7 @@ func _ready() -> void:
 	_init_scraper()
 	_init_web_server()
 	_init_romm()
+	_init_mods()
 	# Always ensure the roms root exists, plus dirs for any already-configured systems
 	print("[SpawnMenu] roms root=", RomLibrary.default_roms_root())
 	RomLibrary.ensure_roms_root()
@@ -312,6 +322,17 @@ func _init_romm() -> void:
 	)
 
 
+## The mod browser. Its services belong to the Modio autoload, not to this menu:
+## the menu leaves the tree on every room change, and a download must not be
+## cancelled by walking through a door. Nothing reaches the network until the
+## player opens the MODS tab.
+func _init_mods() -> void:
+	modio_client = Modio.client
+	mod_downloader = Modio.downloader
+	mod_art = Modio.art
+	mod_reviews = Modio.reviews
+
+
 func _init_web_server() -> void:
 	if OS.get_name() != "Android":
 		return
@@ -367,6 +388,7 @@ func _build_ui() -> void:
 	_nav_graphics_btn = _make_nav_button("GRAPHICS")
 	_nav_scene_btn    = _make_nav_button("SCENE")
 	_nav_net_btn      = _make_nav_button("NET")
+	_nav_mods_btn     = _make_nav_button("MODS")
 	_nav_about_btn    = _make_nav_button("ABOUT")
 	_nav_spawn_btn.pressed.connect(_show_spawn_view)
 	_nav_cores_btn.pressed.connect(_show_cores_view)
@@ -376,8 +398,9 @@ func _build_ui() -> void:
 	_nav_scene_btn.pressed.connect(_show_scene_view)
 	_nav_net_btn.pressed.connect(_show_net_view)
 	_nav_about_btn.pressed.connect(_show_about_view)
+	_nav_mods_btn.pressed.connect(_show_mods_view)
 	_nav_buttons = [_nav_spawn_btn, _nav_cores_btn, _nav_controls_btn, _nav_options_btn,
-		_nav_graphics_btn, _nav_scene_btn, _nav_net_btn, _nav_about_btn]
+		_nav_graphics_btn, _nav_scene_btn, _nav_net_btn, _nav_mods_btn, _nav_about_btn]
 	for btn in _nav_buttons:
 		nav_bar.add_child(btn)
 
@@ -486,6 +509,13 @@ func _build_ui() -> void:
 		if _net_view.visible:
 			_active_scroll = sc)
 
+	_mods_view = SpawnMenuModsView.create(self)
+	_mods_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	content.add_child(_mods_view)
+	_mods_view.scroll_changed.connect(func(sc: ScrollContainer) -> void:
+		if _mods_view.visible:
+			_active_scroll = sc)
+
 	_about_view = SpawnMenuAboutView.create()
 	_about_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.add_child(_about_view)
@@ -512,7 +542,7 @@ func _make_nav_button(lbl: String) -> Button:
 
 
 func _show_view(view: Control, scroll: ScrollContainer, nav_btn: Button) -> void:
-	for v: Control in [_spawn_view, _cores_view, _controls_view, _options_view, _graphics_view, _scene_view, _net_view, _about_view]:
+	for v: Control in [_spawn_view, _cores_view, _controls_view, _options_view, _graphics_view, _scene_view, _net_view, _mods_view, _about_view]:
 		v.visible = v == view
 	_active_scroll = scroll
 	_set_nav_active(nav_btn)
@@ -556,6 +586,12 @@ func _show_scene_view() -> void:
 
 func _show_about_view() -> void:
 	_show_view(_about_view, _about_view, _nav_about_btn)
+
+
+func _show_mods_view() -> void:
+	_show_view(_mods_view, _mods_view.active_scroll(), _nav_mods_btn)
+	# The first time this tab is opened is the first time mod.io is asked for anything.
+	_mods_view.ensure_fetched()
 
 
 func _show_net_view() -> void:

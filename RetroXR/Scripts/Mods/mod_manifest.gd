@@ -133,6 +133,41 @@ func inventory_error(files: PackedStringArray) -> String:
 	return ""
 
 
+## The preview image a pack carries, as the mod browser needs it.
+const THUMBNAIL_NAME := "thumbnail.png"
+## mod.io's own floor for a mod's logo, and its shape: the same file is the
+## pack's thumbnail and the picture on its mod.io page, so the two cannot differ.
+const THUMBNAIL_MIN := Vector2i(512, 288)
+const THUMBNAIL_ASPECT := 16.0 / 9.0
+
+
+## What is wrong with a pack's thumbnail.png, "" when it will do.
+##
+## Asked by the PACKER, never by the loader: a pack made before this rule still
+## loads and gets a placeholder tile, because refusing a mod over its picture
+## would break every mod already installed. `png` is the member's raw bytes --
+## empty when the pack has none.
+##
+## A pack built with --export-pack only carries the raw file if the PNG's import
+## type is "Keep File"; imported as a texture, the export ships a .ctex in its
+## place and the loader, which reads without mounting, finds no thumbnail at all.
+static func thumbnail_error(png: PackedByteArray) -> String:
+	if png.is_empty():
+		return "no %s — every pack needs a preview image (16:9, at least %dx%d)" % [
+			THUMBNAIL_NAME, THUMBNAIL_MIN.x, THUMBNAIL_MIN.y]
+	var img := Image.new()
+	if img.load_png_from_buffer(png) != OK or img.is_empty():
+		return "%s is not a readable PNG" % THUMBNAIL_NAME
+	if img.get_width() < THUMBNAIL_MIN.x or img.get_height() < THUMBNAIL_MIN.y:
+		return "%s is %dx%d; it must be at least %dx%d" % [THUMBNAIL_NAME,
+			img.get_width(), img.get_height(), THUMBNAIL_MIN.x, THUMBNAIL_MIN.y]
+	var aspect := float(img.get_width()) / float(img.get_height())
+	if absf(aspect - THUMBNAIL_ASPECT) > 0.02:
+		return "%s is %dx%d; it must be 16:9 (1280x720 is the usual size)" % [
+			THUMBNAIL_NAME, img.get_width(), img.get_height()]
+	return ""
+
+
 ## Which claims land on a path the base game already ships. Only these need the
 ## pack mounted with replace_files, and only these are worth warning about.
 func shadowing_claims() -> PackedStringArray:
