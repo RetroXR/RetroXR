@@ -220,6 +220,9 @@ func _body_model() -> String:
 ## a Quest (an N64 cart in a room restore) when it was not.
 static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region: String,
 		p_shell_preset: StringName) -> String:
+	# A mod's shells for this system stand in for the game's own, all of them.
+	if ModCartShells.has(p_systemid):
+		return ModCartShells.model_for(p_systemid, p_rom_path, p_body_region)
 	if p_systemid == "n64":
 		return N64CartShell.body_model_for_region(p_body_region, N64CartShell.market(p_systemid, p_rom_path))
 	if p_systemid == SnesCartShell.SYSTEMID:
@@ -271,11 +274,18 @@ func _apply_cart_model() -> void:
 	glb.position = -(ab.position + ab.size * 0.5) * k
 	# Moulded plastic exported with a high metallicFactor reads as a dark mirror
 	# rather than a grey shell — the NES cart ships metallic 0.76.
-	if not _AUTHORED_MATERIALS.has(systemid):
+	var mod_shell := ModCartShells.has(systemid)
+	# A mod's body is its author's own PBR, like the game's own authored ones.
+	if not _AUTHORED_MATERIALS.has(systemid) and not mod_shell:
 		ModelMaterialFix.demetal(glb)
 	if systemid == "n64dd" and Nintendo64DD.is_dev_disk(rom_path):
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
-	if systemid == "n64":
+	if mod_shell:
+		# Left in its own materials unless the mod brought colours for it, or the
+		# player mixed one.
+		if ModCartShells.palette_for(systemid) != null or Color.html_is_valid(shell_color):
+			_paint_shell(glb, systemid, ModCartShells.preset_for(systemid, rom_path))
+	elif systemid == "n64":
 		_paint_shell(glb, "n64", N64CartShell.preset_for_rom(rom_path, market))
 	elif GbCartShell.is_shell(systemid) and GbcCartShell.is_body(path):
 		_paint_shell(glb, GbcCartShell.PALETTE, GbcCartShell.preset_for_rom(rom_path))
@@ -312,7 +322,8 @@ func _paint_shell(glb: Node3D, palette_id: String, own_preset: StringName) -> vo
 			CartridgeColor.apply_color(glb, Color.html(shell_color))
 		return
 	var preset := own_preset
-	if CartridgeColor.get_palette(palette_id).find(shell_preset) != null:
+	var held := CartridgeColor.get_palette(palette_id)
+	if held != null and held.find(shell_preset) != null:
 		preset = shell_preset
 	CartridgeColor.apply_preset(glb, preset, palette_id)
 
@@ -798,7 +809,9 @@ func _apply_label_art() -> void:
 	if _model_label != null and _SPINE_LABELS.has(systemid):
 		_dress_spine_label(tex)
 		return
-	if _model_label != null and _UV_LABELS.has(systemid):
+	var uv_label := ModCartShells.uv_label(systemid) if ModCartShells.has(systemid) \
+		else _UV_LABELS.has(systemid)
+	if _model_label != null and uv_label:
 		_dress_uv_label(tex)
 		return
 	if tex == null:

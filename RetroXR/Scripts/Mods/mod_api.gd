@@ -156,6 +156,39 @@ func register_media(systemid: String, dims: Dictionary) -> bool:
 	return true
 
 
+## The cartridge shells for a system, and which one a ROM wears.
+##
+## `row` is {bodies, choose, palette, uv_label}:
+##
+##   bodies    [{id, label, model, size}]: each shape a cartridge can be. `id` is
+##             namespaced and is saved with a cartridge the player forced it on;
+##             `size` is the model's true bounds in metres (the fit is per axis,
+##             so never round it). The first is what a ROM gets when nothing
+##             chooses.
+##   choose    func(info) -> {body, preset}: this ROM's body id and shell colour.
+##             `info` is {systemid, rom_path, file, region, market}. Optional,
+##             and either key may be left out. It must be a STATIC function: the
+##             mod's entry object is not kept after register().
+##   palette   a CartridgeShellPalette resource of shell colours. Without one the
+##             models wear their own materials and nothing is painted.
+##   uv_label  the bodies' label mesh is UV-mapped as the sticker itself.
+##
+## It replaces the game's own shells for that system, all of them, and one mod
+## holds a system: a second is told who has it and is not used.
+func register_cart_shell(systemid: String, row: Dictionary) -> bool:
+	systemid = SystemIds.canonical(systemid)
+	var holder := ModCartShells.owner_of(systemid)
+	if not holder.is_empty() and holder != id:
+		_warn("%s cartridge shells already come from mod '%s'; this mod's are not used"
+			% [systemid, holder])
+		return false
+	var err := ModCartShells.register(systemid, row, id)
+	if not err.is_empty():
+		return _fail("cartridge shell %s: %s" % [systemid, err])
+	_note("media", "%s cartridge shells (%d)" % [systemid, ModCartShells.bodies(systemid).size()])
+	return true
+
+
 ## Map this platform to a screenscraper.fr system id so its ROMs can be scraped
 ## at all. A platform absent from that table gets no art, ever.
 func register_scraper_system(systemid: String, systemeid: int) -> bool:
@@ -341,6 +374,7 @@ func withdraw() -> void:
 	SystemInfo.drop_mod(id)
 	ConsolePadArt.drop_mod(id)
 	MediaDimensions.drop_mod(id)
+	ModCartShells.drop_mod(id)
 	ScreenscraperSystems.drop_mod(id)
 	RoomCatalog.drop_mod(id)
 	SpawnCatalog.drop_mod(id)

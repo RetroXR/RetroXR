@@ -211,6 +211,62 @@ needs is to be **mapped**: `api.register_scraper_system(systemid, systemeid)`
 against a screenscraper.fr system id. A platform with no mapping can never be
 scraped, and the symptom is silent — the carts are simply blank, for ever.
 
+### Cartridge shells, by game and region
+
+The game gives its own cartridges the body and colour each game shipped in: a
+Japanese N64 ROM gets the Japanese shell, the gold Zelda gets gold. A mod can do
+the same for a system, with its own models:
+
+```gdscript
+func register(api: ModApi) -> void:
+    api.register_cart_shell("n64", {
+        "bodies": [
+            {"id": "xenu.n64cart:usa", "label": "USA / PAL",
+             "model": "res://mods/xenu.n64cart/usa.glb", "size": Vector3(0.116, 0.0754, 0.0186)},
+            {"id": "xenu.n64cart:jpn", "label": "Japan",
+             "model": "res://mods/xenu.n64cart/jpn.glb", "size": Vector3(0.116, 0.0754, 0.0186)},
+        ],
+        "palette": "res://mods/xenu.n64cart/shells.tres",
+        "choose": _choose,
+    })
+
+static func _choose(info: Dictionary) -> Dictionary:
+    var body := "xenu.n64cart:jpn" if info["market"] == "jp" else "xenu.n64cart:usa"
+    return {"body": body, "preset": "xenu.n64cart:grey"}
+```
+
+- **`bodies`** are the shapes. The first is what a ROM gets when nothing chooses.
+  `size` is the model's **true bounds** in metres: the fit is per axis, so a
+  rounded number stretches the shell. A body's `id` is saved with a cartridge the
+  player forced it on, so it is namespaced and permanent.
+- **`choose`** is asked once per ROM and returns its body id and shell colour;
+  leave either out, or return `{}`, for the default. It is handed
+  `{systemid, rom_path, file, region, market}`: `region` is what the scraper
+  wrote, `market` is `"us"`, `"eu"`, `"au"`, `"jp"` or `""` (for an N64 ROM the
+  header is read when the scraper said nothing). Anything else, a header title
+  say, read from `rom_path` yourself. **It must be a `static func`**: your entry
+  object is not kept after `register()`.
+- **`palette`** is a `CartridgeShellPalette` resource. Its presets are the swatches
+  on the spawn menu's hold options, and `preset` names one. Only materials named
+  as the game's tintable mouldings are painted (`CartridgeColor.EXTERIOR_PLASTIC`).
+  With no palette your models wear their own materials and nothing is painted.
+- **`uv_label`**: your label mesh is UV-mapped as the sticker itself (UV 0-1 is
+  the art). Without it the art is laid over the mesh as a quad. Either way the
+  mesh is called `Label`.
+
+The model is in the game's cartridge frame: connector toward -Y, label on +Z.
+
+With that the game does for your shells what it does for its own: fits each body
+to its size, loads it before the cartridge spawns, puts the scraped label on it,
+offers a **Body** row and your colours when a ROM row is held, and saves a body
+or colour the player forced.
+
+Two rules. It **replaces** the game's own shells for that system, all of them: a
+mod for the N64 answers for every N64 cartridge. And **one mod holds a system**;
+a second is told who has it on its page in the MODS tab and is not used. A
+console seats a cartridge by the system's size, so bodies much larger than the
+real cartridge will not sit in the slot.
+
 ## Rooms, props, cabinets and controllers
 
 ```gdscript

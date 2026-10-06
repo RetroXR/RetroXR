@@ -125,6 +125,10 @@ static var _palettes := {}
 
 ## The palette for a system, or null when it has none.
 static func get_palette(systemid := "n64") -> CartridgeShellPalette:
+	# A mod that brings this system's shells brings their colours too, or none:
+	# the game's own palette is for the game's own mouldings.
+	if ModCartShells.has(systemid):
+		return ModCartShells.palette_for(systemid)
 	if systemid == "n64":
 		if palette == null:
 			palette = load(PALETTE_PATH) as CartridgeShellPalette

@@ -3182,6 +3182,10 @@ func _close_game_detail_panel() -> void:
 
 ## Whether this platform's ROM rows open a sub-menu when held.
 static func _has_spawn_options(systemid: String) -> bool:
+	# A mod's shells: only when there is something to choose between.
+	if ModCartShells.has(systemid):
+		return ModCartShells.bodies(systemid).size() > 1 \
+			or ModCartShells.palette_for(systemid) != null
 	if systemid in ["n64", GbaCartShell.SYSTEMID, SnesCartShell.SYSTEMID, NesCartShell.SYSTEMID]:
 		return true
 	return GbCartShell.is_shell(systemid)
@@ -3266,7 +3270,13 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 
 	# The first body is the default, and leaves body_region empty.
 	var body_options: Array = []
-	if systemid == "n64":
+	if ModCartShells.has(systemid):
+		var mod_bodies := ModCartShells.bodies(systemid)
+		if mod_bodies.size() > 1:
+			body_options = [["Auto (from the ROM)", ""]]
+			for mod_body: Dictionary in mod_bodies:
+				body_options.append([str(mod_body["label"]), str(mod_body["id"])])
+	elif systemid == "n64":
 		body_options = [["Auto (from the ROM)", ""],
 				["USA / PAL", N64CartShell.REGION_USA], ["Japan", N64CartShell.REGION_JPN]]
 	elif systemid == SnesCartShell.SYSTEMID:
@@ -3293,8 +3303,11 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 	auto_btn.button_pressed = true
 	auto_btn.pressed.connect(_pick_shell.bind(chosen, "", "", false))
 	vbox.add_child(auto_btn)
-	var palettes: Array = [["", CartridgeColor.get_palette(systemid)]]
-	if GbCartShell.is_shell(systemid):
+	var palettes: Array = []
+	# Null for a mod's shells that came with no colours of their own.
+	if CartridgeColor.get_palette(systemid) != null:
+		palettes = [["", CartridgeColor.get_palette(systemid)]]
+	if GbCartShell.is_shell(systemid) and not ModCartShells.has(systemid):
 		palettes = [["Game Boy", CartridgeColor.get_palette(GbCartShell.SYSTEMID)],
 				["Game Boy Color", CartridgeColor.get_palette(GbcCartShell.PALETTE)]]
 	for entry: Array in palettes:

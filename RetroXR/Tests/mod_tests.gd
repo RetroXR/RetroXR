@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 241
+const EXPECTED_CASES := 279
 
 var _pass := 0
 var _fail := 0
@@ -55,6 +55,7 @@ func _ready() -> void:
 	if _want("consistency"): _group_consistency()
 	if _want("overlay"):     _group_overlay()
 	if _want("standins"):    _group_standins()
+	if _want("cartshell"):   await _group_cartshell()
 
 	_cleanup()
 	# A case that never RAN is not a case that passed: GDScript has no try/catch,
@@ -927,3 +928,162 @@ func _group_standins() -> void:
 	_ok(second.dress(&"Timer", "kind", func(_n: Node) -> void: pass),
 		"standins/and it is free again once the holder is withdrawn")
 	second.withdraw()
+
+
+# ── cartshell/ ────────────────────────────────────────────────────────────────
+
+## A body for the cases below: a box of `size` with a label face, saved where a
+## pack's model would be.
+func _save_body(name: String, size: Vector3) -> String:
+	var root := Node3D.new()
+	root.name = "Body"
+	var shell := MeshInstance3D.new()
+	shell.name = "Shell"
+	var box := BoxMesh.new()
+	box.size = size
+	shell.mesh = box
+	root.add_child(shell)
+	shell.owner = root
+	var packed := PackedScene.new()
+	packed.pack(root)
+	var path := "%s/%s.tscn" % [_dir, name]
+	ResourceSaver.save(packed, path)
+	root.free()
+	return path
+
+
+## What the mod under test says a ROM wears. Static, as a mod's must be.
+static func _choose_shell(info: Dictionary) -> Dictionary:
+	if "(Japan)" in str(info.get("file", "")):
+		return {"body": "t.cs:jpn", "preset": "t.cs:red"}
+	if "Gold" in str(info.get("file", "")):
+		return {"preset": "t.cs:red"}
+	if "Lost" in str(info.get("file", "")):
+		return {"body": "t.cs:no_such_body"}
+	return {}
+
+
+## A mod brings a system's cartridge shells and says which a ROM wears.
+func _group_cartshell() -> void:
+	_hooks = ModHooks.new(get_tree())
+	var sysid := "t_cartsys"
+	var usa_size := Vector3(0.116, 0.075, 0.018)
+	var jpn_size := Vector3(0.100, 0.070, 0.016)
+	var usa := _save_body("cs_usa", usa_size)
+	var jpn := _save_body("cs_jpn", jpn_size)
+	var palette := CartridgeShellPalette.new()
+	var red := CartridgeShellPreset.new()
+	red.id = &"t.cs:red"
+	red.display_name = "Red"
+	red.color = Color(0.8, 0.1, 0.1)
+	palette.presets = [red]
+	var palette_path := "%s/cs_palette.tres" % _dir
+	ResourceSaver.save(palette, palette_path)
+
+	var n64_before := RetroCartridge.body_model_for("n64", "Some Game (Japan).z64", "", &"")
+	_ok(not ModCartShells.has(sysid), "cartshell/nothing is registered to begin with")
+	_eq(RetroCartridge.body_model_for(sysid, "Game.bin", "", &""), "",
+		"cartshell/and a cartridge of that system is the box")
+
+	var good := {"bodies": [
+			{"id": "t.cs:usa", "label": "USA", "model": usa, "size": usa_size},
+			{"id": "t.cs:jpn", "label": "Japan", "model": jpn, "size": jpn_size}],
+		"palette": palette_path, "choose": _choose_shell}
+
+	# Refusals: each is a row the mod believes it registered.
+	var bad := _api("t.cs")
+	_ok(not bad.register_cart_shell(sysid, {"bodies": []}), "cartshell/no bodies is refused")
+	_ok(not bad.register_cart_shell(sysid, {"bodies": [
+		{"id": "usa", "model": usa, "size": usa_size}]}), "cartshell/a bare body id is refused")
+	_ok(not bad.register_cart_shell(sysid, {"bodies": [
+		{"id": "other.mod:usa", "model": usa, "size": usa_size}]}),
+		"cartshell/and another mod's namespace")
+	_ok(not bad.register_cart_shell(sysid, {"bodies": [
+		{"id": "t.cs:usa", "model": "res://nope.glb", "size": usa_size}]}),
+		"cartshell/a model that is not there is refused")
+	_ok(not bad.register_cart_shell(sysid, {"bodies": [
+		{"id": "t.cs:usa", "model": usa, "size": Vector3(0.1, 0.0, 0.01)}]}),
+		"cartshell/a body with no thickness is refused")
+	_ok(not bad.register_cart_shell(sysid, {"bodies": [
+		{"id": "t.cs:usa", "model": usa, "size": usa_size}], "palette": usa}),
+		"cartshell/a palette that is not a palette is refused")
+	_ok(bad.failed() and not ModCartShells.has(sysid), "cartshell/and none of them registered")
+	bad.withdraw()
+
+	var api := _api("t.cs")
+	_ok(api.register_cart_shell(sysid, good), "cartshell/a good row registers", api.errors_text())
+	_ok(ModCartShells.has(sysid), "cartshell/the system has mod shells")
+	_eq((api.contributions().get("media", []) as Array), ["%s cartridge shells (2)" % sysid],
+		"cartshell/it is on the mod's page")
+
+	# Which body a ROM wears.
+	_eq(RetroCartridge.body_model_for(sysid, "Game (USA).bin", "", &""), usa,
+		"cartshell/a ROM nothing is said about gets the first body")
+	_eq(RetroCartridge.body_model_for(sysid, "Game (Japan).bin", "", &""), jpn,
+		"cartshell/the mod's function picks the Japanese body for a Japanese ROM")
+	_eq(RetroCartridge.body_model_for(sysid, "Game (Japan).bin", "t.cs:usa", &""), usa,
+		"cartshell/a body the player forced wins over it")
+	_eq(RetroCartridge.body_model_for(sysid, "Game (Japan).bin", "usa", &""), jpn,
+		"cartshell/a forced body it does not have is ignored")
+	_eq(RetroCartridge.body_model_for(sysid, "Lost Game.bin", "", &""), usa,
+		"cartshell/and so is one the function made up")
+
+	# Its colour.
+	_eq(ModCartShells.preset_for(sysid, "Game (Japan).bin"), &"t.cs:red",
+		"cartshell/the function's colour for the ROM is kept")
+	_eq(ModCartShells.preset_for(sysid, "Game (USA).bin"), &"",
+		"cartshell/a ROM it says nothing about has none")
+	_eq(RetroCartridge.body_model_for(sysid, "Gold Game.bin", "", &""), usa,
+		"cartshell/a colour alone leaves the first body")
+	_ok(CartridgeColor.get_palette(sysid) != null
+		and CartridgeColor.get_palette(sysid).find(&"t.cs:red") != null,
+		"cartshell/the mod's palette is the system's")
+
+	# Its size, per body.
+	_ok(MediaDimensions.has_cart_size(sysid), "cartshell/the system has a cartridge size now")
+	_eq(MediaDimensions.cart_size(sysid, "", usa), usa_size, "cartshell/the first body's size")
+	_eq(MediaDimensions.cart_size(sysid, "", jpn), jpn_size, "cartshell/the second body's own")
+	_eq(MediaDimensions.cart_size(sysid), usa_size,
+		"cartshell/with no body named, a system the game has no size for takes the first")
+
+	# The hold menu has something to offer.
+	_ok(SpawnMenuSpawnView._has_spawn_options(sysid), "cartshell/its ROM rows open the hold options")
+
+	# A real cartridge.
+	var cart := (load("res://Scenes/Objects/media/cartridge.tscn") as PackedScene).instantiate() as RetroCartridge
+	cart.systemid = sysid
+	cart.rom_path = "Game (Japan).bin"
+	cart.freeze = true
+	add_child(cart)
+	await get_tree().process_frame
+	var worn := cart.get_node_or_null("CartModel") as Node3D
+	_ok(worn != null, "cartshell/a cartridge wears the mod's body")
+	if worn != null:
+		var mesh := worn.get_node("Shell") as MeshInstance3D
+		var fitted := (mesh.mesh as BoxMesh).size * worn.scale
+		_ok(fitted.is_equal_approx(jpn_size), "cartshell/the Japanese one, at its own size",
+			str(fitted))
+		_ok(not (cart.get_node("CartridgeMesh") as Node3D).visible,
+			"cartshell/and the stand-in box is hidden under it")
+	cart.free()
+
+	# One mod holds a system.
+	var late := _api("t.ct")
+	_ok(not late.register_cart_shell(sysid, {"bodies": [
+		{"id": "t.ct:any", "model": usa, "size": usa_size}]}), "cartshell/a second mod is turned away")
+	_ok(not late.failed() and "t.cs" in "; ".join(late.problems()),
+		"cartshell/told who has it, which is not a failure", "; ".join(late.problems()))
+	_eq(ModCartShells.owner_of(sysid), "t.cs", "cartshell/the first still holds it")
+	late.withdraw()
+	_ok(ModCartShells.has(sysid), "cartshell/and the loser withdrawing takes nothing with it")
+
+	# The game's own shells are not disturbed by a mod for another system.
+	_eq(RetroCartridge.body_model_for("n64", "Some Game (Japan).z64", "", &""), n64_before,
+		"cartshell/an N64 cartridge is what it was")
+
+	api.withdraw()
+	_ok(not ModCartShells.has(sysid), "cartshell/withdrawing the mod takes its shells")
+	_eq(RetroCartridge.body_model_for(sysid, "Game (Japan).bin", "", &""), "",
+		"cartshell/a cartridge is the box again")
+	_ok(CartridgeColor.get_palette(sysid) == null, "cartshell/and the palette is gone")
+	_ok(not MediaDimensions.has_cart_size(sysid), "cartshell/and the size")

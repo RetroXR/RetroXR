@@ -298,7 +298,8 @@ static func has_cart_size(systemid: String) -> bool:
 	if _mod_media.has(systemid):
 		var m: Dictionary = _mod_media[systemid]
 		return m.has("cart_size") or bool(m.get("floppy", false))
-	return CART_SIZES.has(systemid) or FLOPPY_SYSTEMS.has(systemid)
+	return CART_SIZES.has(systemid) or FLOPPY_SYSTEMS.has(systemid) \
+		or ModCartShells.has(systemid)
 
 
 ## Cartridge body size for a system, or the generic default.
@@ -311,6 +312,12 @@ static func has_cart_size(systemid: String) -> bool:
 ## than the North American one, and the Game Boy Color shell is thicker than the
 ## Game Boy's.
 static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vector3:
+	# A mod's body is fitted to the size its author measured, whatever the
+	# system's other bodies are.
+	if not body_model.is_empty():
+		var modded := ModCartShells.size_of(systemid, body_model)
+		if modded != Vector3.ZERO:
+			return modded
 	if _mod_media.has(systemid):
 		var m: Dictionary = _mod_media[systemid]
 		if bool(m.get("floppy", false)):
@@ -328,6 +335,8 @@ static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vec
 		var ext := rom_path.get_extension().to_lower()
 		if ext == "sfc" or ext == "smc":
 			return CART_SIZES["snes"]
+	if not CART_SIZES.has(systemid) and ModCartShells.has(systemid):
+		return ModCartShells.default_size(systemid)
 	return CART_SIZES.get(systemid, CART_SIZE_DEFAULT)
 
 

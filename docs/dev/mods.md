@@ -79,6 +79,24 @@ with `default` whenever it offers more than one console. Which mod that is follo
 from priority and load order; the mark is the only place a player can see it.
 `mod_tests --only=standins`.
 
+**Cartridge shells from a mod (2026-10-06).** `ModApi.register_cart_shell` /
+`ModCartShells` is `N64CartShell` and its siblings handed to a mod: bodies, an
+optional palette, and a function from a ROM to `{body, preset}`. It is consulted
+FIRST in the four places the shipped classes are named, and nowhere else:
+`RetroCartridge.body_model_for` (static, so the warm before a spawn and the room
+restore get the mod's GLB too), `MediaDimensions.cart_size(..., body_model)` /
+`has_cart_size`, `CartridgeColor.get_palette`, and the hold menu
+(`_has_spawn_options`, the Body row). A mod shell is never `demetal`led.
+`body_region` and `shell_preset` already were strings in the save, so a forced mod
+body is saved with no new field; with the mod gone the id matches nothing and the
+game's own choice returns. The function's answers are cached per ROM (it may open
+the file, and a cartridge asks for its body on every drop) and it must be static,
+for the reason every mod callback must. `cart_size` WITHOUT a body model still
+answers from `CART_SIZES` where the game has a row, so a mod for a shipped system
+moves no seat or bay constant. `mod_tests --only=cartshell`; a real third-party
+cartridge mod is OWED -- the visual check so far registered the game's own two N64
+bodies through the API.
+
 **The app downloads mods from mod.io, and from nowhere else** (reversed
 2026-10-06; this paragraph used to say "no in-app browser, no download"). The old
 objection was that the moment the app becomes the transport it owns what is inside
