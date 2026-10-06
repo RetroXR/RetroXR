@@ -99,9 +99,12 @@ game's own choice returns. The function's answers are cached per ROM (it may ope
 the file, and a cartridge asks for its body on every drop) and it must be static,
 for the reason every mod callback must. `cart_size` WITHOUT a body model still
 answers from `CART_SIZES` where the game has a row, so a mod for a shipped system
-moves no seat or bay constant. `mod_tests --only=cartshell`; a real third-party
-cartridge mod is OWED -- the visual check so far registered the game's own two N64
-bodies through the API.
+moves no seat or bay constant. `mod_tests --only=cartshell`. The first real one is
+`xenu.n64cart` in RetroXR-models (the branded N64 Game Pak, 2026-10-06): its
+`n64cart_probe` mounts the pack, feeds it header-only ROMs and renders the result.
+Still OWED: a cartridge mod for a system the game has NO body for, one whose bodies
+differ in size, and any of it on a Quest -- that mod's bodies are 72 mesh nodes
+each, against the shipped Quest tier's 9.
 
 **The app downloads mods from mod.io, and from nowhere else** (reversed
 2026-10-06; this paragraph used to say "no in-app browser, no download"). The old
