@@ -273,6 +273,28 @@ const SOURCES := {
 			"macOS":   "mednafen_ngp_libretro_{arch}.dylib.zip",
 		},
 	},
+	# mednafen_vb, for the Virtual Boy's link cable.
+	#
+	# Beetle VB never emulated the EXT. port: its four registers read 0 and a
+	# transfer never ran, so no game saw the other end of a cable. Our build
+	# implements it on the frontend's link bus as `vb-comm-1` at the 20 MHz CPU
+	# clock -- the clocked 8-bit exchange, both interrupt requests, and the
+	# COMCNT line with its edges kept in time (Mario's Tennis signals with
+	# pulses eight cycles wide). Two fixes linked software needs ride with it:
+	# HALT stops the CPU at the HALT, and DPSTTS reports FCLK. Uncabled, the port
+	# is an empty socket, and every retail ROM tried runs frame for frame as on
+	# the stock core. docs/dev/vb-link.md.
+	"mednafen_vb": {
+		"repo":  "RetroXR/beetle-vb-libretro",
+		"known_tag": "retroxr-mednafen_vb-libretro-v1",
+		"label": "Beetle VB (retroXR build)",
+		"assets": {
+			"Windows": "mednafen_vb_libretro.dll.zip",
+			"Android": "mednafen_vb_libretro_android.so.zip",
+			"Linux":   "mednafen_vb_libretro.so.zip",
+			"macOS":   "mednafen_vb_libretro_{arch}.dylib.zip",
+		},
+	},
 	# pcsx_rearmed, for the PlayStation's serial port.
 	#
 	# SIO1 — the port at 1F801050h that the official Link Cable plugs into — had

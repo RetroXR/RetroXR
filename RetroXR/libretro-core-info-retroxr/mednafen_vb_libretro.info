@@ -1,0 +1,32 @@
+# Nintendo - Virtual Boy (Beetle VB), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in
+# its own directory because res://libretro-core-info is vendored wholesale from
+# libretro's repository and is refreshed wholesale too — an edit there would be
+# lost the next time, silently. An overlay REPLACES the entry, so everything
+# below is a whole copy of it with only the names and version changed.
+#
+# The binary this describes is built from RetroXR/beetle-vb-libretro at the tag
+# retroxr-mednafen_vb-libretro-v1 and published on that repository's releases page, which is
+# also where its source is (GPLv2). What the fork adds is in CoreSources.
+
+# Software Information
+display_name = "Nintendo - Virtual Boy (Beetle VB, retroXR)"
+authors = "Mednafen Team"
+supported_extensions = "vb|vboy|bin"
+corename = "Beetle VB (retroXR)"
+license = "GPLv2"
+permissions = ""
+display_version = "retroXR build"
+categories = "Emulator"
+
+# Hardware Information
+manufacturer = "Nintendo"
+systemname = "Virtual Boy"
+systemid = "virtualboy"
+
+# Libretro Features
+supports_no_game = "false"
+database = "Nintendo - Virtual Boy"
+
+description = "A port of Mednafen's Virtual Boy emulation core to libretro. This core supports a variety of different 3D display methods for use with anaglyph glasses, head-mounted displays and 3D monitors."
