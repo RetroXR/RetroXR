@@ -226,6 +226,7 @@ func register(api: ModApi) -> void:
             {"id": "xenu.n64cart:jpn", "label": "Japan",
              "model": "res://mods/xenu.n64cart/jpn.glb", "size": Vector3(0.116, 0.0754, 0.0186)},
         ],
+        "tint": ["Shell_Front", "Shell_Back"],
         "palette": "res://mods/xenu.n64cart/shells.tres",
         "choose": _choose,
     })
@@ -246,10 +247,13 @@ static func _choose(info: Dictionary) -> Dictionary:
   header is read when the scraper said nothing). Anything else, a header title
   say, read from `rom_path` yourself. **It must be a `static func`**: your entry
   object is not kept after `register()`.
-- **`palette`** is a `CartridgeShellPalette` resource. Its presets are the swatches
-  on the spawn menu's hold options, and `preset` names one. Only materials named
-  as the game's tintable mouldings are painted (`CartridgeColor.EXTERIOR_PLASTIC`).
-  With no palette your models wear their own materials and nothing is painted.
+- **`tint`** names the materials on your bodies that are shell plastic. Those, and
+  only those, are what a colour is painted on: labels, contacts and screws keep
+  their own. It is what makes your shells colourable at all. With it a held ROM row
+  offers the colour mixer (and the metal flake switch); without it your models
+  always wear their own materials and no colours are offered for them.
+- **`palette`** is a `CartridgeShellPalette` resource: named colours, shown as
+  swatches beside the mixer, and what `preset` names. It needs `tint`.
 - **`uv_label`**: your label mesh is UV-mapped as the sticker itself (UV 0-1 is
   the art). Without it the art is laid over the mesh as a quad. Either way the
   mesh is called `Label`.
@@ -259,7 +263,8 @@ The model is in the game's cartridge frame: connector toward -Y, label on +Z.
 With that the game does for your shells what it does for its own: fits each body
 to its size, loads it before the cartridge spawns, puts the scraped label on it,
 offers a **Body** row and your colours when a ROM row is held, and saves a body
-or colour the player forced.
+or colour the player forced. A colour the player picks wins over the one
+`choose` gave: a mixed colour first, then a swatch, then yours.
 
 Two rules. It **replaces** the game's own shells for that system, all of them: a
 mod for the N64 answers for every N64 cartridge. And **one mod holds a system**;

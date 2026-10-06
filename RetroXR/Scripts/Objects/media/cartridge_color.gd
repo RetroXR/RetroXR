@@ -446,7 +446,11 @@ static func _slot(mi: MeshInstance3D, i: int) -> Dictionary:
 static func _source_of(mi: MeshInstance3D, i: int) -> BaseMaterial3D:
 	var state: Dictionary = mi.get_meta(_META, {})
 	var m: Material = state[i]["source"] if state.has(i) else mi.get_active_material(i)
-	if m is BaseMaterial3D and EXTERIOR_PLASTIC.has(StringName(m.resource_name)):
+	if not (m is BaseMaterial3D):
+		return null
+	var material_name := StringName(m.resource_name)
+	# The game's own mouldings, or one a mod's cartridge shells name as theirs.
+	if EXTERIOR_PLASTIC.has(material_name) or ModCartShells.is_tint(material_name):
 		return m
 	return null
 

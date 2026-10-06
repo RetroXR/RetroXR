@@ -169,8 +169,11 @@ func register_media(systemid: String, dims: Dictionary) -> bool:
 ##             `info` is {systemid, rom_path, file, region, market}. Optional,
 ##             and either key may be left out. It must be a STATIC function: the
 ##             mod's entry object is not kept after register().
-##   palette   a CartridgeShellPalette resource of shell colours. Without one the
-##             models wear their own materials and nothing is painted.
+##   tint      the names of the bodies' materials that are shell plastic. Those
+##             are what a colour is painted on; with none the models keep their
+##             own materials and the spawn menu offers no colours for them.
+##   palette   a CartridgeShellPalette resource of shell colours, the swatches
+##             beside the colour mixer. Needs `tint`.
 ##   uv_label  the bodies' label mesh is UV-mapped as the sticker itself.
 ##
 ## It replaces the game's own shells for that system, all of them, and one mod

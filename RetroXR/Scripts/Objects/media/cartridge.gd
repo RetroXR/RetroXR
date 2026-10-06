@@ -281,9 +281,9 @@ func _apply_cart_model() -> void:
 	if systemid == "n64dd" and Nintendo64DD.is_dev_disk(rom_path):
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
 	if mod_shell:
-		# Left in its own materials unless the mod brought colours for it, or the
-		# player mixed one.
-		if ModCartShells.palette_for(systemid) != null or Color.html_is_valid(shell_color):
+		# Only where the mod said which of its materials are shell plastic;
+		# otherwise the body keeps its own materials whatever was asked for.
+		if ModCartShells.tintable(systemid):
 			_paint_shell(glb, systemid, ModCartShells.preset_for(systemid, rom_path))
 	elif systemid == "n64":
 		_paint_shell(glb, "n64", N64CartShell.preset_for_rom(rom_path, market))

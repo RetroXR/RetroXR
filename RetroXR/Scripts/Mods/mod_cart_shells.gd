@@ -17,7 +17,7 @@ class_name ModCartShells
 extends RefCounted
 
 ## systemid -> {owner, bodies: Array[Dictionary], palette, choose: Callable,
-## uv_label: bool}. A body is {id, label, model, size}.
+## uv_label: bool, tint: Array[StringName]}. A body is {id, label, model, size}.
 static var _shells: Dictionary = {}
 ## "systemid|rom_path" -> what the mod's function answered. It may open the ROM
 ## to read its header, and a cartridge asks for its body on every drop.
@@ -68,8 +68,20 @@ static func register(systemid: String, row: Dictionary, owner_id: String) -> Str
 	if not (choose is Callable):
 		return "choose must be a function"
 
+	var named: Variant = row.get("tint", [])
+	if not (named is Array):
+		return "tint must be a list of material names"
+	var tint: Array[StringName] = []
+	for material_name: Variant in (named as Array):
+		if str(material_name).is_empty():
+			return "tint has an empty material name"
+		tint.append(StringName(str(material_name)))
+	# Colours with nothing to put them on would be swatches that do nothing.
+	if palette != null and tint.is_empty():
+		return "a palette needs tint: the names of the materials it colours"
+
 	_shells[systemid] = {"owner": owner_id, "bodies": bodies, "palette": palette,
-		"choose": choose, "uv_label": bool(row.get("uv_label", false))}
+		"choose": choose, "uv_label": bool(row.get("uv_label", false)), "tint": tint}
 	_choices.clear()
 	return ""
 
@@ -93,6 +105,22 @@ static func bodies(systemid: String) -> Array:
 ## their own materials.
 static func palette_for(systemid: String) -> CartridgeShellPalette:
 	return (_shells.get(systemid, {}) as Dictionary).get("palette") as CartridgeShellPalette
+
+
+## Whether this system's mod shells can be coloured at all: the mod named the
+## materials that are shell plastic. Without that nothing is painted and the
+## spawn menu offers no colours for them.
+static func tintable(systemid: String) -> bool:
+	return not ((_shells.get(systemid, {}) as Dictionary).get("tint", []) as Array).is_empty()
+
+
+## Whether some mod's shells name `material_name` as shell plastic. Asked by
+## CartridgeColor for every surface it considers, beside the game's own names.
+static func is_tint(material_name: StringName) -> bool:
+	for systemid: String in _shells:
+		if (_shells[systemid]["tint"] as Array).has(material_name):
+			return true
+	return false
 
 
 ## Whether the bodies' label mesh is UV-mapped as the sticker itself.

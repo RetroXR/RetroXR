@@ -87,6 +87,12 @@ FIRST in the four places the shipped classes are named, and nowhere else:
 restore get the mod's GLB too), `MediaDimensions.cart_size(..., body_model)` /
 `has_cart_size`, `CartridgeColor.get_palette`, and the hold menu
 (`_has_spawn_options`, the Body row). A mod shell is never `demetal`led.
+**What is painted is the mod's `tint` list**, not `EXTERIOR_PLASTIC`: the names are
+the author's, so `CartridgeColor._source_of` asks `ModCartShells.is_tint` beside the
+game's list (a union over every mod shell, not per system -- `_source_of` has no
+system to ask about). No `tint` means no paint, no Shell section in the hold menu,
+and a palette without it is refused: a picker that silently does nothing is what
+this replaced.
 `body_region` and `shell_preset` already were strings in the save, so a forced mod
 body is saved with no new field; with the mod gone the id matches nothing and the
 game's own choice returns. The function's answers are cached per ROM (it may open

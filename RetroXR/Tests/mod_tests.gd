@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 279
+const EXPECTED_CASES := 289
 
 var _pass := 0
 var _fail := 0
@@ -941,15 +941,38 @@ func _save_body(name: String, size: Vector3) -> String:
 	shell.name = "Shell"
 	var box := BoxMesh.new()
 	box.size = size
+	var plastic := StandardMaterial3D.new()
+	plastic.resource_name = "T_Shell_Plastic"
+	plastic.albedo_color = Color(0.5, 0.5, 0.5)
+	box.material = plastic
 	shell.mesh = box
 	root.add_child(shell)
 	shell.owner = root
+	# A part that is not shell plastic, inside the box so the bounds are the shell's.
+	var contacts := MeshInstance3D.new()
+	contacts.name = "Contacts"
+	var pins := BoxMesh.new()
+	pins.size = size * 0.5
+	var metal := StandardMaterial3D.new()
+	metal.resource_name = "T_Contacts"
+	metal.albedo_color = Color(0.9, 0.8, 0.2)
+	pins.material = metal
+	contacts.mesh = pins
+	root.add_child(contacts)
+	contacts.owner = root
 	var packed := PackedScene.new()
 	packed.pack(root)
 	var path := "%s/%s.tscn" % [_dir, name]
 	ResourceSaver.save(packed, path)
 	root.free()
 	return path
+
+
+## The colour a part of a cartridge model is showing.
+func _shown(model: Node3D, part: String) -> Color:
+	var mesh := model.get_node(part) as MeshInstance3D
+	var material := mesh.get_active_material(0) as BaseMaterial3D
+	return material.albedo_color if material != null else Color(-1, -1, -1)
 
 
 ## What the mod under test says a ROM wears. Static, as a mod's must be.
@@ -988,7 +1011,7 @@ func _group_cartshell() -> void:
 	var good := {"bodies": [
 			{"id": "t.cs:usa", "label": "USA", "model": usa, "size": usa_size},
 			{"id": "t.cs:jpn", "label": "Japan", "model": jpn, "size": jpn_size}],
-		"palette": palette_path, "choose": _choose_shell}
+		"palette": palette_path, "choose": _choose_shell, "tint": ["T_Shell_Plastic"]}
 
 	# Refusals: each is a row the mod believes it registered.
 	var bad := _api("t.cs")
@@ -1007,6 +1030,9 @@ func _group_cartshell() -> void:
 	_ok(not bad.register_cart_shell(sysid, {"bodies": [
 		{"id": "t.cs:usa", "model": usa, "size": usa_size}], "palette": usa}),
 		"cartshell/a palette that is not a palette is refused")
+	_ok(not bad.register_cart_shell(sysid, {"bodies": [
+		{"id": "t.cs:usa", "model": usa, "size": usa_size}], "palette": palette_path}),
+		"cartshell/colours with nothing named to put them on are refused")
 	_ok(bad.failed() and not ModCartShells.has(sysid), "cartshell/and none of them registered")
 	bad.withdraw()
 
@@ -1065,7 +1091,26 @@ func _group_cartshell() -> void:
 			str(fitted))
 		_ok(not (cart.get_node("CartridgeMesh") as Node3D).visible,
 			"cartshell/and the stand-in box is hidden under it")
+		_ok(_shown(worn, "Shell").is_equal_approx(Color(0.8, 0.1, 0.1)),
+			"cartshell/in the colour the mod said this ROM came in", str(_shown(worn, "Shell")))
+		_ok(_shown(worn, "Contacts").is_equal_approx(Color(0.9, 0.8, 0.2)),
+			"cartshell/and a material it did not name is left alone")
 	cart.free()
+
+	# A colour the player mixed goes on the same materials, over the mod's own.
+	var mixed := (load("res://Scenes/Objects/media/cartridge.tscn") as PackedScene).instantiate() as RetroCartridge
+	mixed.systemid = sysid
+	mixed.rom_path = "Game (Japan).bin"
+	mixed.shell_color = "#00ff00"
+	mixed.freeze = true
+	add_child(mixed)
+	await get_tree().process_frame
+	var mixed_model := mixed.get_node_or_null("CartModel") as Node3D
+	_ok(mixed_model != null and _shown(mixed_model, "Shell").is_equal_approx(Color(0, 1, 0)),
+		"cartshell/a mixed colour is painted over the mod's choice")
+	_ok(mixed_model != null and _shown(mixed_model, "Contacts").is_equal_approx(Color(0.9, 0.8, 0.2)),
+		"cartshell/and still not on the contacts")
+	mixed.free()
 
 	# One mod holds a system.
 	var late := _api("t.ct")
@@ -1083,6 +1128,27 @@ func _group_cartshell() -> void:
 
 	api.withdraw()
 	_ok(not ModCartShells.has(sysid), "cartshell/withdrawing the mod takes its shells")
+	_ok(not ModCartShells.is_tint(&"T_Shell_Plastic"), "cartshell/and its material names")
+
+	# Shells with no materials named cannot be coloured, and are not offered it.
+	var plain := _api("t.cs")
+	_ok(plain.register_cart_shell(sysid, {"bodies": [
+		{"id": "t.cs:usa", "model": usa, "size": usa_size}]}), "cartshell/one body, nothing named, registers")
+	_ok(not ModCartShells.tintable(sysid), "cartshell/it cannot be coloured")
+	_ok(not SpawnMenuSpawnView._has_spawn_options(sysid),
+		"cartshell/so with one body its ROM rows have no hold options")
+	var kept := (load("res://Scenes/Objects/media/cartridge.tscn") as PackedScene).instantiate() as RetroCartridge
+	kept.systemid = sysid
+	kept.rom_path = "Game.bin"
+	kept.shell_color = "#00ff00"
+	kept.freeze = true
+	add_child(kept)
+	await get_tree().process_frame
+	var kept_model := kept.get_node_or_null("CartModel") as Node3D
+	_ok(kept_model != null and _shown(kept_model, "Shell").is_equal_approx(Color(0.5, 0.5, 0.5)),
+		"cartshell/and a colour forced on it anyway leaves its own material")
+	kept.free()
+	plain.withdraw()
 	_eq(RetroCartridge.body_model_for(sysid, "Game (Japan).bin", "", &""), "",
 		"cartshell/a cartridge is the box again")
 	_ok(CartridgeColor.get_palette(sysid) == null, "cartshell/and the palette is gone")
