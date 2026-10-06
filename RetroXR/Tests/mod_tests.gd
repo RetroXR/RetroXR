@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 315
+const EXPECTED_CASES := 327
 
 var _pass := 0
 var _fail := 0
@@ -378,6 +378,41 @@ func _group_objects() -> void:
 		"objects/as a controller entry, which is what carries its port, not as a bare prop")
 	_ok(ScenePersistence.is_known_controller_scene(pad_scene), "objects/and that scene is one a save may name")
 	pad.free()
+	# A mod's LIGHT GUN saves as a gun, by the scene it came from, and comes back
+	# as that gun. The shipped gun under another path stands in for the mod's.
+	var shipped_gun := (load("res://Scenes/Objects/peripherals/light_gun.tscn") as PackedScene).instantiate()
+	var gun_packed := PackedScene.new()
+	gun_packed.pack(shipped_gun)
+	shipped_gun.free()
+	var gun_scene := "%s/mod_gun.tscn" % _dir
+	ResourceSaver.save(gun_packed, gun_scene)
+	ScenePersistence.register_mod_object("t.lead:gun", gun_scene, "t.lead")
+	var gun := ScenePersistence._instantiate_mod_object("t.lead:gun")
+	_ok(gun is LightGun, "objects/a mod gun instantiates as a light gun")
+	add_child(gun)
+	var gun_entry := store._serialize_node(gun, 7, {gun: 7})
+	_eq(str(gun_entry.get("type", "")), "light_gun",
+		"objects/a mod gun saves as a light gun entry, which is what carries its port")
+	_eq(str(gun_entry.get("scene", "")), gun_scene, "objects/with the scene it came from")
+	_ok(gun_entry.has("port_index"), "objects/and its port")
+	gun.free()
+	var gun_back := store._deserialize_object(gun_entry)
+	_ok(gun_back is LightGun and gun_back.scene_file_path == gun_scene,
+		"objects/a save brings the mod's gun back, not the generic one")
+	if gun_back != null:
+		gun_back.free()
+	var plain_gun := (load("res://Scenes/Objects/peripherals/light_gun.tscn") as PackedScene).instantiate() as Node3D
+	add_child(plain_gun)
+	var plain_entry := store._serialize_node(plain_gun, 8, {plain_gun: 8})
+	_ok(not plain_entry.has("scene"), "objects/the game's own gun saves as it always did")
+	plain_gun.free()
+	var stray := gun_entry.duplicate()
+	stray["scene"] = "res://Scenes/Objects/controllers/playstation/ps1_controller.tscn"
+	var stray_back := store._deserialize_object(stray)
+	_ok(stray_back is LightGun and stray_back.scene_file_path == "res://Scenes/Objects/peripherals/light_gun.tscn",
+		"objects/a gun entry naming something that is not a gun gets the generic gun")
+	if stray_back != null:
+		stray_back.free()
 	ScenePersistence.drop_mod_objects("t.lead")
 
 
@@ -894,6 +929,14 @@ func _group_standins() -> void:
 	_ok(c.replaces_standin(sysid, "console"), "standins/a claim with no model is accepted")
 	_ok(_labels(sysid).has("Primitive System"), "standins/but the box stays: there is no console")
 	_ok(not c.replaces_standin(sysid, "lead"), "standins/an unknown stand-in is refused")
+	# The generic Light Gun, on a console that has one.
+	_ok(_labels("nes").has("Light Gun"), "standins/the NES card offers the generic light gun")
+	var g := _api("t.sg")
+	_ok(g.replaces_standin("nes", "light_gun"), "standins/a mod may replace it")
+	_ok(not _labels("nes").has("Light Gun"), "standins/and it leaves the NES card")
+	_ok(_labels("snes").has("Light Gun") or not before.is_empty(), "standins/other consoles are not touched")
+	g.withdraw()
+	_ok(_labels("nes").has("Light Gun"), "standins/it comes back when that mod goes")
 	_ok(c.failed(), "standins/and counts against the mod")
 	c.withdraw()
 

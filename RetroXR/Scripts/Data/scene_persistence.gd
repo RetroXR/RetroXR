@@ -1820,8 +1820,10 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	# A mod's PAD is not one of these, and is left to the controller branch below.
 	# That branch already writes the scene a pad came from, which is how every pad
 	# is told apart, and with it the port it is plugged into. Written here as a
-	# bare pose, a mod's pad came back as the right pad, unplugged.
-	if node.has_meta(MOD_TYPE_META) and not (node is RetroController):
+	# bare pose, a mod's pad came back as the right pad, unplugged. A mod's LIGHT
+	# GUN is the same case: it is in a port too, and that branch is where the port
+	# is written.
+	if node.has_meta(MOD_TYPE_META) and not (node is RetroController or node is LightGun):
 		var mod_type := str(node.get_meta(MOD_TYPE_META))
 		# A mod's LEAD is still a lead. Written as a pose alone it came back as
 		# the right scene lying on the floor with nothing plugged in, because
@@ -2199,6 +2201,10 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 	if node is RetroMouse:
 		entry["sensitivity"] = (node as RetroMouse).sensitivity
 		entry["stick_distance"] = (node as RetroMouse).stick_distance
+	if node is LightGun and node.scene_file_path != LIGHT_GUN_SCENE.resource_path:
+		# A gun with a scene of its own -- a mod's Zapper -- is told from the
+		# generic one the way a pad is: by the scene it came from.
+		entry["scene"] = node.scene_file_path
 	if node is RetroController:
 		# Every real pad — NES, Virtual Boy, CX40 — is a RetroController with a
 		# scene of its own, so the type above maps the whole family back onto the
@@ -2407,6 +2413,21 @@ func _instantiate_controller(data: Dictionary) -> Node3D:
 	return RETRO_CONTROLLER_SCENE.instantiate() as Node3D
 
 
+## The gun the entry names, or the generic one: when the entry names no scene,
+## or one no enabled mod registered, or something that is not a light gun.
+func _instantiate_light_gun(data: Dictionary) -> Node3D:
+	var path: String = str(data.get("scene", ""))
+	if not path.is_empty() and is_known_controller_scene(path) and ResourceLoader.exists(path):
+		var packed := ResourceLoader.load(path) as PackedScene
+		var inst := packed.instantiate() as Node3D if packed != null else null
+		if inst is LightGun:
+			return inst
+		if inst != null:
+			push_warning("ScenePersistence: '%s' is not a light gun" % path)
+			inst.queue_free()
+	return LIGHT_GUN_SCENE.instantiate() as Node3D
+
+
 ## What a lead has to be told before it enters the tree: its plug colour and its
 ## cord length. Nothing for anything else.
 func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
@@ -2422,6 +2443,10 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 	if _mod_objects.has(obj_type):
 		obj = _instantiate_mod_object(obj_type)
 		_restore_lead_fields(obj, data)
+	elif obj_type == "light_gun":
+		# Before the plain table, which has a row for it: a mod's gun is saved
+		# under this type with the scene it came from.
+		obj = _instantiate_light_gun(data)
 	elif PLAIN_SCENES.has(obj_type):
 		obj = (PLAIN_SCENES[obj_type] as PackedScene).instantiate() as Node3D
 		# A Controller Pak is a PLAIN_SCENES row so the spawn menu can build one

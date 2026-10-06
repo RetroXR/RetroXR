@@ -285,8 +285,9 @@ func add_peripherals(systemid: String, items: Array) -> bool:
 ## Say that this mod brings the real thing a stand-in was standing in for, so
 ## the console's spawn card stops offering the stand-in beside it.
 ##
-## `role` is "console" (the Primitive System box) or "controller" (the Primitive
-## Controller). Any number of mods may say so for the same console: the stand-in
+## `role` is "console" (the Primitive System box), "controller" (the Primitive
+## Controller) or "light_gun" (the generic Light Gun, where a console has one).
+## Any number of mods may say so for the same console: the stand-in
 ## goes while at least one of them is enabled and comes back with the last.
 ##
 ## The box only goes while a console model for that platform is actually on the

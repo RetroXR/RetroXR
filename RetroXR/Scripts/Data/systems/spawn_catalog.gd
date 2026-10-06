@@ -476,7 +476,8 @@ static func items_for(systemid: String) -> Array:
 	# has a tile now and is spawned from that.
 	items.append_array(_units_carded_here(systemid))
 	# With the peripherals rather than the leads below: it is something you hold.
-	if _LIGHT_GUN_PLATFORMS.has(systemid):
+	if _LIGHT_GUN_PLATFORMS.has(systemid) \
+			and not mod_replaces_standin(systemid, STANDIN_LIGHT_GUN):
 		items.append(_LIGHT_GUN.duplicate())
 	if _LINK_LEADS.has(systemid):
 		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
@@ -543,7 +544,9 @@ static var _peripheral_owners: Dictionary = {}
 ## The stand-ins a mod can say it replaces. See ModApi.replaces_standin.
 const STANDIN_CONSOLE := "console"
 const STANDIN_CONTROLLER := "controller"
-const STANDIN_ROLES: Array[String] = [STANDIN_CONSOLE, STANDIN_CONTROLLER]
+## The generic Light Gun row, for a mod that brings the console's own gun.
+const STANDIN_LIGHT_GUN := "light_gun"
+const STANDIN_ROLES: Array[String] = [STANDIN_CONSOLE, STANDIN_CONTROLLER, STANDIN_LIGHT_GUN]
 
 ## systemid -> {role -> Array[String] of the mods that replace it}. A list and
 ## not a flag: two mods may replace the same stand-in, and it comes back only
