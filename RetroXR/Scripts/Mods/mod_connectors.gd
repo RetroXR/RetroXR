@@ -21,6 +21,9 @@ extends RefCounted
 ## between mods; never rename one, mods already out there return it.
 const KNOWN := {
 	"ps2_av_multi": {"platform": "ps2", "label": "PlayStation 2 AV MULTI OUT"},
+	# The game's own plug group for its Nintendo stereo AV lead (N64AvPlug), so a
+	# mod's console can say it takes that lead and nothing else.
+	"n64_av_plug": {"platform": "n64", "label": "Nintendo Multi Out (Super NES, Nintendo 64, GameCube)"},
 }
 
 
