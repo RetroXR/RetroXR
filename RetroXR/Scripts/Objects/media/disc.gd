@@ -17,6 +17,7 @@ extends RetroCartridge
 ## thickness are identical at every size, so scaling would shrink them along with
 ## the disc. Keyed by diameter and matched to the NEAREST — a diameter with no
 ## mesh warns rather than silently getting a platter of the wrong size.
+const THICKNESS := 0.0012
 const MESH_120 := preload("res://Scenes/Objects/media/disc_120mm.res")
 const MESH_80 := preload("res://Scenes/Objects/media/disc_80mm.res")
 const MESH_64 := preload("res://Scenes/Objects/media/disc_64mm.res")
@@ -104,7 +105,11 @@ func _apply_system_size() -> void:
 	var pointer_col := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pointer_col and pointer_col.shape is CylinderShape3D:
 		var pshape := pointer_col.shape.duplicate() as CylinderShape3D
-		pshape.radius = d / 2.0 + 0.02
+		# The platter, to its rim and its 1.2 mm. It was a 50 mm tall drum 20 mm
+		# wider than the disc, and a laser stopped on it well clear of anything
+		# that could be seen.
+		pshape.radius = d / 2.0
+		pshape.height = THICKNESS
 		pointer_col.shape = pshape
 
 

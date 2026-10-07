@@ -492,13 +492,13 @@ func _test_cartridge() -> void:
 		_ok(model.scale.distance_to(Vector3.ONE) < 0.003, "cartridge/%s: the model is not stretched" % c[0],
 			str(model.scale))
 		_ok(_bounds(model, cart).get_center().length() < 0.0005, "cartridge/%s: the model is centred" % c[0])
-		# The body it rests on is the shell exactly; the aim box is that plus its padding.
+		# The body it rests on is the shell exactly; and so is the aim box.
 		var box := (cart.get_node("CollisionShape3D") as CollisionShape3D).shape as BoxShape3D
 		_ok(box.size.distance_to(MODEL_SIZE) < 0.00001,
 			"cartridge/%s: the body is the Super Famicom shell's size" % c[0], str(box.size))
 		var aim := (cart.get_node("PointerArea/CollisionShape3D") as CollisionShape3D).shape as BoxShape3D
-		_ok(aim.size.distance_to(MODEL_SIZE + Vector3(0.04, 0.04, 0.025)) < 0.00001,
-			"cartridge/%s: the aim box is padded round it" % c[0], str(aim.size))
+		_ok(aim.size.distance_to(MODEL_SIZE) < 0.00001,
+			"cartridge/%s: the aim box is the shell and no bigger" % c[0], str(aim.size))
 		_ok(_as_model(model), "cartridge/%s: the standard grey" % c[0])
 	var us_model := us.get_node_or_null("CartModel") as Node3D
 	_ok(us_model != null and us_model.scene_file_path == SnesCartShell.BODY_TYPE_A,

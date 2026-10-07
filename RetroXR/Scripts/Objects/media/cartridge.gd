@@ -461,18 +461,14 @@ func _apply_system_size() -> void:
 		lbl.position = Vector3(0, s.y * 0.125, s.z / 2.0 + 0.0045)
 		lbl.width = s.x * 2000.0
 
-	# The AIM target keeps the padding, computed from the card rather than from the
-	# grab box it used to be derived off. A ray has to be put on a 33 mm card edge-on
-	# from across the room, and this StaticBody is 21:XRPointer with mask 0, so a
-	# volume larger than the shell costs nothing physical. (It is pulled back to the
-	# card itself the moment a machine is holding one — see _tighten_pointer_box.)
+	# The AIM target is the cart too, and nothing more. It was padded 40 mm across
+	# and 25 mm through so a ray could find a small card from across the room, and
+	# what that bought was a laser that stopped in the air beside every cartridge
+	# and picked up the one next to the thing aimed at (2026-10-07).
 	var pointer_col := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pointer_col and pointer_col.shape is BoxShape3D:
 		var pshape := pointer_col.shape.duplicate() as BoxShape3D
-		pshape.size = Vector3(
-			maxf(s.x, 0.05) + 0.04,
-			maxf(s.y, 0.05) + 0.04,
-			maxf(s.z + 0.025, 0.04))
+		pshape.size = s
 		pointer_col.shape = pshape
 
 	_apply_floppy_shell()
@@ -563,14 +559,11 @@ func _apply_floppy_shell() -> void:
 			lbl.width = lm.size.x * 2000.0
 
 
-## Whoever has it decides how big a target it should be.
-##
-## Loose, it wants generous padding. Seated in a console's bay it does not: the
-## pointer box is the grab box plus 40 mm, and the grab box is already the cart
-## plus 25 mm through its thickness, which together leave it standing 1.9 mm above
-## an NES deck across 149 x 161 mm — most of the top face. Every aim at the
-## console then reached the cartridge first. Handhelds already had this treatment
-## (see set_seated_grab_stub); a console bay never did.
+## Seated in a console's bay the pointer target is the cart itself, re-centred.
+## Loose it is the same box now; it used to be padded 40 mm, which stood 1.9 mm
+## above an NES deck across most of its top face, so every aim at the console
+## reached the cartridge first. A handheld's slot sizes it for its own mouth
+## (see set_seated_grab_stub).
 func _on_picked_up(_p: Variant) -> void:
 	if _stub_seated:
 		return          # a handheld slot has already sized this for its mouth
@@ -589,9 +582,8 @@ func _snap_zone_holder() -> XRToolsSnapZone:
 	return get_picked_up_by() as XRToolsSnapZone
 
 
-## Pointer target down to the cart itself, so nothing of it stands proud of the
-## machine holding it. The GRAB box is untouched: it is on 17:XRHand_SnapZone,
-## which no pointer ray queries, and hands want the padding.
+## Pointer target on the cart itself, so nothing of it stands proud of the
+## machine holding it.
 func _tighten_pointer_box() -> void:
 	if not MediaDimensions.has_cart_size(systemid):
 		return
@@ -600,7 +592,7 @@ func _tighten_pointer_box() -> void:
 		return
 	var s := _cart_size()
 	var shape := pcol.shape.duplicate() as BoxShape3D
-	shape.size = s + Vector3(0.004, 0.004, 0.004)
+	shape.size = s
 	pcol.shape = shape
 	pcol.position = Vector3.ZERO
 
@@ -665,12 +657,11 @@ func set_seated_grab_stub(depth: float) -> void:
 	var pcol := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pcol and pcol.shape is BoxShape3D:
 		var pshape := pcol.shape.duplicate() as BoxShape3D
-		# Keep the pointer target to the exposed stub. It used to pad +1 cm on
-		# every axis, and that +1 cm of DEPTH pushed the grab volume ~6 mm past
+		# The pointer target is the exposed stub and no more. It used to pad +1 cm
+		# on every axis, and that +1 cm of DEPTH pushed the grab volume ~6 mm past
 		# the slot mouth toward the screen — so pointing at the console just above
-		# a seated cart grabbed the cart. Match the grab box's depth (no bleed) and
-		# only pad x/y a hair so the small stub is still targetable.
-		pshape.size = Vector3(s.x + 0.004, depth + 0.002, s.z + 0.004)
+		# a seated cart grabbed the cart.
+		pshape.size = Vector3(s.x, depth, s.z)
 		pcol.shape = pshape
 		pcol.position = stub_center
 

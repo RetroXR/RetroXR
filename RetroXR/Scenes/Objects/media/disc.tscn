@@ -10,8 +10,8 @@ radius = 0.065
 height = 0.004
 
 [sub_resource type="CylinderShape3D" id="CylShape_pointer"]
-radius = 0.08
-height = 0.05
+radius = 0.06
+height = 0.0012
 
 [sub_resource type="ShaderMaterial" id="Mat_disc"]
 resource_local_to_scene = true
