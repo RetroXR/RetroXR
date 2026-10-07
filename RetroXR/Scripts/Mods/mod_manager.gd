@@ -255,8 +255,52 @@ func _load_state() -> void:
 
 
 func _save_state() -> void:
+	if _hold > 0:
+		_held_save = true
+		return
 	JsonStore.write_dict(_state_path(),
 		{"enabled": _enabled, "sources": _sources, "pending": _pending}, STATE_OWNER)
+
+
+# ── several changes at once ───────────────────────────────────────────────────
+
+## How many callers are holding, and what they are owed when the last lets go.
+var _hold := 0
+var _held_save := false
+var _held_notice := false
+
+
+## Between hold_changes() and release_changes() the loader does everything it is
+## asked but says so ONCE, at the end: one write of its state file and one
+## mods_changed, however many mods were installed, enabled or tagged in between.
+##
+## A pack of four used to be four installs, four enables and four sources, each
+## writing the file and each rebuilding every list the menu shows -- on the main
+## thread, in the one frame the player pressed Install. Held, it is one of each.
+## Calls nest; nothing is said until the outermost release.
+func hold_changes() -> void:
+	_hold += 1
+
+
+func release_changes() -> void:
+	if _hold <= 0:
+		return
+	_hold -= 1
+	if _hold > 0:
+		return
+	if _held_save:
+		_held_save = false
+		_save_state()
+	if _held_notice:
+		_held_notice = false
+		mods_changed.emit()
+
+
+func _notify_changed() -> void:
+	if _hold > 0:
+		_held_notice = true
+		return
+	mods_changed.emit()
 
 
 func _state_path() -> String:
@@ -462,8 +506,17 @@ func _unwrap(path: String) -> Dictionary:
 ##
 ## The mod lands DISABLED unless the player had already enabled that id. Fetching
 ## a mod is not consent to run it; the switch is, and it shows what the mod claims.
-func install(staged: String, source: Dictionary = {}) -> Dictionary:
-	var info := vet(staged)
+##
+## `vetted` is what vet() returned for this same file, from a caller that has
+## already asked (the review a download waits in). Vetting opens the pack, lists
+## it and decodes its picture, and a file that has not left incoming since need
+## not be put through that twice. It is believed only for the file it names,
+## and only while that file is still there.
+func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -> Dictionary:
+	var info := vetted
+	if info.get("manifest") == null or str(info.get("path", "")) != staged \
+			or not str(info.get("error", "")).is_empty() or not FileAccess.file_exists(staged):
+		info = vet(staged)
 	if not str(info["error"]).is_empty():
 		DirAccess.remove_absolute(str(info["path"]))
 		DirAccess.remove_absolute(staged)
@@ -495,7 +548,7 @@ func install(staged: String, source: Dictionary = {}) -> Dictionary:
 		if not source.is_empty():
 			_sources[id] = source
 		_save_state()
-		mods_changed.emit()
+		_notify_changed()
 		return {"ok": true, "id": id, "error": "", "restart": true}
 
 	for file_name: String in old_names:
@@ -522,7 +575,7 @@ func install(staged: String, source: Dictionary = {}) -> Dictionary:
 	else:
 		_sources[id] = source
 	_save_state()
-	mods_changed.emit()
+	_notify_changed()
 	return {"ok": true, "id": id, "error": "",
 		"restart": rec.status == ModRecord.Status.PENDING}
 
@@ -543,7 +596,7 @@ func remove(id: String) -> Dictionary:
 		rec.update_size = 0
 		rec.update_files = 0
 		_save_state()
-		mods_changed.emit()
+		_notify_changed()
 		return {"ok": true, "error": "", "restart": true}
 	for file_name: String in names:
 		var path := mods_root().path_join(file_name)
@@ -554,7 +607,7 @@ func remove(id: String) -> Dictionary:
 	_duplicates.erase(id)
 	_sources.erase(id)
 	_save_state()
-	mods_changed.emit()
+	_notify_changed()
 	return {"ok": true, "error": "", "restart": false}
 
 
@@ -567,7 +620,7 @@ func remove_unreadable(path: String) -> bool:
 		if FileAccess.file_exists(path) and DirAccess.remove_absolute(path) != OK:
 			return false
 		_unreadable.remove_at(i)
-		mods_changed.emit()
+		_notify_changed()
 		return true
 	return false
 
@@ -588,7 +641,7 @@ func set_source(id: String, source: Dictionary) -> void:
 	else:
 		_sources[id] = source
 	_save_state()
-	mods_changed.emit()
+	_notify_changed()
 
 
 ## The installed mod whose source has `key` equal to `value`, or null.

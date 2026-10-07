@@ -51,6 +51,7 @@ func _ready() -> void:
 	_state = _dir.path_join("mods.json")
 
 	if _want("install"):   _group_install()
+	if _want("batch"):     _group_batch()
 	if _want("update"):    _group_update()
 	if _want("mounted"):   _group_mounted()
 	if _want("remove"):    _group_remove()
@@ -272,6 +273,59 @@ func _group_mounted() -> void:
 	boot2.free()
 	m.free()
 	r.free()
+
+
+# ── batch/ ─────────────────────────────────────────────
+
+## Several changes to the loader as one, and an install that does not vet twice.
+func _group_batch() -> void:
+	var m := _fresh()
+	var changed := [0]
+	m.mods_changed.connect(func() -> void: changed[0] += 1)
+	var out: Dictionary = {}
+
+	# A pack of several is ONE change: held, the loader installs, enables and
+	# tags each but writes its state and says so once, when it is let go. Each
+	# used to rebuild every list in the menu, in the frame Install was pressed.
+	changed[0] = 0
+	var state_file: String = m.state_path_override
+	var stamp_before := FileAccess.get_file_as_string(state_file)
+	m.hold_changes()
+	m.hold_changes()
+	for i in 3:
+		var held: Dictionary = m.install(_stage(m, "held-%d.zip" % i, _pack("t.held%d" % i, "1.0.0")), {"modio_id": 20 + i})
+		_ok(bool(held["ok"]), "batch/held, member %d still installs" % i, str(held["error"]))
+		m.set_enabled("t.held%d" % i, true)
+		m.set_source("t.held%d" % i, {"modio_id": 20 + i, "file_id": 5})
+	_eq(changed[0], 0, "batch/held, nothing is announced while the batch runs")
+	_eq(FileAccess.get_file_as_string(state_file), stamp_before, "batch/and the state file is not rewritten")
+	m.release_changes()
+	_eq(changed[0], 0, "batch/an inner release says nothing either")
+	m.release_changes()
+	_eq(changed[0], 1, "batch/let go, the whole batch is announced once")
+	_ok(FileAccess.get_file_as_string(state_file).contains("t.held2"), "batch/and written once, with all of it")
+	_ok(m.is_enabled("t.held0") and int(m.source("t.held2").get("file_id", 0)) == 5, "batch/nothing done while held was lost")
+	m.release_changes()
+	m.set_enabled("t.held0", false)
+	_ok(FileAccess.get_file_as_string(state_file).contains("\"t.held0\": false"), "batch/a release too many leaves it working")
+
+	# An install handed the vetting its caller already did does not repeat it;
+	# one handed vetting for some other file, or a failed one, vets for itself.
+	var good := _stage(m, "pre-1.zip", _pack("t.pre", "1.0.0"))
+	var info: Dictionary = m.vet(good)
+	var lie := info.duplicate()
+	lie["manifest"] = ModManifest.parse({"id": "t.lie", "api_version": 1, "entry": "res://mods/t.lie/m.gd",
+		"name": "Lie", "version": "9.9.9"})
+	out = m.install(good, {}, lie)
+	_eq(str(out.get("id", "")), "t.lie", "batch/vetting handed in for this file is used as given")
+	var other := _stage(m, "pre-2.zip", _pack("t.other", "1.0.0"))
+	out = m.install(other, {}, info)
+	_eq(str(out.get("id", "")), "t.other", "batch/vetting for another file is not believed")
+	var broken := _stage(m, "pre-3.zip", {"readme.txt": "not a mod"})
+	var bad_info := {"manifest": lie["manifest"], "path": broken, "error": "", "files": PackedStringArray(), "thumbnail": null}
+	DirAccess.remove_absolute(broken)
+	out = m.install(broken, {}, bad_info)
+	_ok(not bool(out["ok"]), "batch/nor is vetting for a file that is no longer there")
 
 
 # ── remove/ ───────────────────────────────────────────────────────────────────

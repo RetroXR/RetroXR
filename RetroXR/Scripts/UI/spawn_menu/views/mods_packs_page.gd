@@ -573,6 +573,9 @@ func _confirm(enable: bool) -> void:
 	var installed := 0
 	var restart := false
 	var failed := PackedStringArray()
+	# The whole pack is one change to the loader: one write, one rebuild of the
+	# lists, not one of each per member in the frame the button was pressed.
+	Mods.hold_changes()
 	for key: String in (_batch["staged"] as Array):
 		var mod: Dictionary = (_batch["keys"] as Dictionary)[key]
 		var manifest: ModManifest = _view.review(key)["manifest"]
@@ -587,6 +590,7 @@ func _confirm(enable: bool) -> void:
 	_tag_have()
 	var name := str(_batch["name"])
 	_batch = {}
+	Mods.release_changes()
 	if not failed.is_empty():
 		_view.notify("mods:pack", "❌", "%s: not installed — %s" % [name, ", ".join(failed)],
 			-1.0, MenuToasts.DWELL_FAIL)

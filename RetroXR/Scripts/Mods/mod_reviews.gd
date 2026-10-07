@@ -52,8 +52,10 @@ func stage(staged: String, source: Dictionary) -> Dictionary:
 	# A second download of the same mod replaces the first's file, never joins it.
 	discard(key)
 	# `path` is the pack itself: the download, or the build picked out of a bundle.
+	# `vetted` is the whole answer, kept so the install that follows a yes does
+	# not have to ask it of the same file again.
 	_parked[key] = {"staged": str(info["path"]), "source": source, "manifest": manifest,
-		"thumbnail": info["thumbnail"]}
+		"thumbnail": info["thumbnail"], "vetted": info}
 	changed.emit()
 	return {"ok": true, "id": manifest.id, "error": "", "restart": false, "review": true}
 
@@ -79,10 +81,13 @@ func finish(key: String, source: Dictionary, enable: bool) -> Dictionary:
 		return {"ok": false, "id": "", "error": "Nothing to install", "restart": false}
 	var entry: Dictionary = _parked[key]
 	_parked.erase(key)
-	var out: Dictionary = loader.install(str(entry["staged"]), source)
+	# One write and one notice for the install and the switch together.
+	loader.hold_changes()
+	var out: Dictionary = loader.install(str(entry["staged"]), source, entry.get("vetted", {}))
 	if bool(out.get("ok", false)) and enable:
 		loader.set_enabled(str(out["id"]), true)
 		out["restart"] = true
+	loader.release_changes()
 	changed.emit()
 	return out
 
