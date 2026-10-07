@@ -316,6 +316,7 @@ offered beside it:
 ```gdscript
 api.replaces_standin("ps2", "console")      # the box
 api.replaces_standin("ps2", "controller")   # the stand-in pad
+api.replaces_standin("ps2", "av_lead")      # the Primitive AV Cable (below)
 ```
 
 Say it from the mod that brings the replacement, and only for what that mod
@@ -326,12 +327,17 @@ with the last. The box only goes while a console for that platform is really on
 the card, so a model that failed to load cannot leave a card with no console.
 
 There is no claim for the Composite Cable. It goes by itself once no console on
-the card has phono jacks, which a console says by naming its socket (below).
+the card has phono jacks, which a console says by naming its socket (below). In
+its place the card offers the game's own lead for that socket, a plain plug on
+the same three phonos, so a console is never left with no way to reach a
+television. The mod that brings the modelled lead claims `av_lead`.
 
 This changes the **menu**. A room saved with a stand-in in it still loads one.
 
-Both calls arrived on 2026-10-06. A mod that should still load in an older build
-asks first: `if api.has_method("replaces_standin"): ...`.
+Both calls arrived on 2026-10-06, and `av_lead` a day later. A mod that should
+still load in an older build asks first: `if api.has_method("replaces_standin"):
+...`, and for the lead `if SpawnCatalog.STANDIN_ROLES.has("av_lead"): ...` (an
+unknown role is an error).
 
 ### Sockets two mods have to agree on
 
@@ -343,9 +349,10 @@ you each invent a name, their lead does not go into your console.
 So the names that cross between mods are the game's, in
 `Scripts/Mods/mod_connectors.gd`:
 
-| name | what it is |
-|---|---|
-| `ps2_av_multi` | PlayStation 2 AV MULTI OUT |
+| name | what it is | the game's lead |
+|---|---|---|
+| `ps2_av_multi` | PlayStation 2 AV MULTI OUT | Primitive AV Cable |
+| `n64_av_plug` | Nintendo Multi Out (Super NES, Nintendo 64, GameCube) | Stereo Composite Cable |
 
 Use the listed name, verbatim, as the `plug_group()` of both the socket script
 and the plug script, and name it on the console's row:

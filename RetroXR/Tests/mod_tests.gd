@@ -25,7 +25,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 330
+const EXPECTED_CASES := 340
 
 var _pass := 0
 var _fail := 0
@@ -929,6 +929,33 @@ func _group_standins() -> void:
 	_ok(c.replaces_standin(sysid, "console"), "standins/a claim with no model is accepted")
 	_ok(_labels(sysid).has("Primitive System"), "standins/but the box stays: there is no console")
 	_ok(not c.replaces_standin(sysid, "lead"), "standins/an unknown stand-in is refused")
+	c.withdraw()
+
+	# A console that names one of the GAME's sockets is offered the game's lead
+	# for it, until a mod brings the modelled one.
+	var sd := _api("t.sd")
+	_ok(sd.register_model({"id": "t.sd:console", "platform": sysid, "label": "Saturn D",
+		"script": _SCRIPT, "requires": [_SCRIPT], "av_connector": "ps2_av_multi"})
+		and sd.replaces_standin(sysid, "console"), "standins/a console naming a shared socket registers")
+	var lead := str(ModConnectors.KNOWN["ps2_av_multi"]["lead_label"])
+	var socketed := _labels(sysid)
+	_ok(not socketed.has("Composite Cable"), "standins/it is not offered the phono lead")
+	_ok(socketed.has(lead), "standins/it is offered the game's lead for that socket", str(socketed))
+	for connector: String in ModConnectors.KNOWN:
+		var type := str(ModConnectors.KNOWN[connector].get("lead", ""))
+		_ok(ScenePersistence.LEAD_SCENES.has(type),
+			"standins/the lead for %s is something the game can spawn" % connector)
+	var plug := (ScenePersistence.LEAD_SCENES["ps2_av_cable"] as PackedScene).instantiate()
+	_eq(str(plug.get_node("PlugA0").call("plug_group")), "ps2_av_multi",
+		"standins/and its console end is that socket's plug")
+	plug.free()
+	var se := _api("t.se")
+	_ok(se.replaces_standin(sysid, "av_lead"), "standins/a lead mod may claim it")
+	_ok(not _labels(sysid).has(lead), "standins/and the game's lead leaves the card")
+	se.withdraw()
+	_ok(_labels(sysid).has(lead), "standins/it comes back when that mod goes")
+	sd.withdraw()
+	_eq(_labels(sysid), before, "standins/and the card is the stand-ins once more")
 	# The generic Light Gun, on a console that has one.
 	_ok(_labels("nes").has("Light Gun"), "standins/the NES card offers the generic light gun")
 	var g := _api("t.sg")

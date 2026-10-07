@@ -62,9 +62,12 @@ things around it were not handled, and each has one home now:
   are a LIST of owners per role, not a flag, so the stand-in returns only with the
   last claimant. The Composite Cable has no claim: it is derived
   (`no_phono` in `items_for`) from every console row on the card naming an
-  `av_connector` and the box being gone. A console-only install therefore has no AV
-  lead on its card at all, which is the truth -- the composite lead would fit the
-  set and nothing on the console.
+  `av_connector` and the box being gone. A console-only install is then offered the
+  game's OWN lead for that socket (`ModConnectors.KNOWN[..].lead`, a primitive plug in
+  the same plug group; `ps2_av_cable.tscn`) until a mod claims `"av_lead"`. Before
+  2026-10-07 it was offered nothing: the composite lead was rightly hidden and there
+  was no other, so a PlayStation 2 with the lead mod disabled could not reach a set.
+  **A `KNOWN` row never ships without a `lead`** (`mod_tests` checks each is spawnable).
 - *Connector names.* `ModConnectors.KNOWN` is the game's list of plug groups that
   cross between mods; a row's `av_connector` must be one of them or namespaced.
   Nothing checks that a mod's `plug_group()` actually returns the name it declared:

@@ -17,13 +17,18 @@
 class_name ModConnectors
 extends RefCounted
 
-## name -> {platform, label}. Add a row when a connector first needs to cross
+## name -> {platform, label, lead}. `lead` is the spawn type of the game's own
+## lead for that socket, which a console's card offers until a mod replaces it
+## (ModApi.replaces_standin "av_lead") -- a connector is never named here
+## without one, or a console that names it could reach no television. Add a row when a connector first needs to cross
 ## between mods; never rename one, mods already out there return it.
 const KNOWN := {
-	"ps2_av_multi": {"platform": "ps2", "label": "PlayStation 2 AV MULTI OUT"},
+	"ps2_av_multi": {"platform": "ps2", "label": "PlayStation 2 AV MULTI OUT",
+		"lead": "ps2_av_cable", "lead_label": "Primitive AV Cable"},
 	# The game's own plug group for its Nintendo stereo AV lead (N64AvPlug), so a
 	# mod's console can say it takes that lead and nothing else.
-	"n64_av_plug": {"platform": "n64", "label": "Nintendo Multi Out (Super NES, Nintendo 64, GameCube)"},
+	"n64_av_plug": {"platform": "n64", "label": "Nintendo Multi Out (Super NES, Nintendo 64, GameCube)",
+		"lead": "n64_av_cable", "lead_label": "Stereo Composite Cable"},
 }
 
 

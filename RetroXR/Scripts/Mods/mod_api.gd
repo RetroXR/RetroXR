@@ -288,14 +288,17 @@ func add_peripherals(systemid: String, items: Array) -> bool:
 ## the console's spawn card stops offering the stand-in beside it.
 ##
 ## `role` is "console" (the Primitive System box), "controller" (the Primitive
-## Controller) or "light_gun" (the generic Light Gun, where a console has one).
+## Controller), "light_gun" (the generic Light Gun, where a console has one) or
+## "av_lead" (the game's own lead for a socket a console names with
+## av_connector, for a mod that brings the modelled lead).
 ## Any number of mods may say so for the same console: the stand-in
 ## goes while at least one of them is enabled and comes back with the last.
 ##
 ## The box only goes while a console model for that platform is actually on the
 ## card, so a mod whose model failed to load does not leave a card with no
-## console. There is no "av" role: the Composite Cable goes by itself once no
-## console on the card has phono jacks (see register_model's av_connector).
+## console. The Composite Cable is not a role: it goes by itself once no console
+## on the card has phono jacks (see register_model's av_connector), and the
+## game's lead for the socket named takes its place until "av_lead" is claimed.
 ##
 ## This is the MENU. A room saved with a stand-in in it still loads one.
 func replaces_standin(systemid: String, role: String) -> bool:

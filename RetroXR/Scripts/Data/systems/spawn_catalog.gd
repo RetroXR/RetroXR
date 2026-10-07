@@ -409,10 +409,14 @@ static func items_for(systemid: String) -> Array:
 	# picture (a mod's av_connector). The box below wears phono jacks, and so
 	# does any row that names nothing.
 	var own_sockets := true
+	var connectors: Array[String] = []
 	var rows := SystemModelRegistry.rows_for(systemid)
 	for row: Dictionary in rows:
-		if str(row.get("av_connector", "")).is_empty():
+		var connector := str(row.get("av_connector", ""))
+		if connector.is_empty():
 			own_sockets = false
+		elif not connectors.has(connector):
+			connectors.append(connector)
 		var item := {"kind": "system", "model_id": row.get("id", ""),
 			"label": row.get("label", "Console")}
 		if (row.get("requires", []) as Array).is_empty():
@@ -500,6 +504,17 @@ static func items_for(systemid: String) -> Array:
 	if not handheld and not _NO_AV_SOCKETS.has(systemid) \
 			and not _OWN_AV_LEAD.has(systemid) and not no_phono:
 		items.append(_AV_CABLE.duplicate())
+	# A socket a console names needs a lead that fits it, and the mod that
+	# brings the console need not bring one. The game's own lead for the socket
+	# stands in until a mod says it has the real thing.
+	if not mod_replaces_standin(systemid, STANDIN_AV_LEAD):
+		for connector: String in connectors:
+			var known: Dictionary = ModConnectors.KNOWN.get(connector, {})
+			var lead := str(known.get("lead", ""))
+			if lead.is_empty() or items.any(func(i: Dictionary) -> bool: return i.get("spawn", "") == lead):
+				continue
+			items.append({"kind": "peripheral", "label": str(known.get("lead_label", "AV Cable")),
+				"spawn": lead})
 	# Mod peripherals go LAST, after the stand-ins and the shipped accessories,
 	# so a mod adds to a console's card rather than reordering it.
 	items.append_array((_mod_peripherals.get(systemid, []) as Array).duplicate(true))
@@ -546,7 +561,11 @@ const STANDIN_CONSOLE := "console"
 const STANDIN_CONTROLLER := "controller"
 ## The generic Light Gun row, for a mod that brings the console's own gun.
 const STANDIN_LIGHT_GUN := "light_gun"
-const STANDIN_ROLES: Array[String] = [STANDIN_CONSOLE, STANDIN_CONTROLLER, STANDIN_LIGHT_GUN]
+## The game's own lead for a socket a mod's console names (ModConnectors), for a
+## mod that brings the modelled lead.
+const STANDIN_AV_LEAD := "av_lead"
+const STANDIN_ROLES: Array[String] = [STANDIN_CONSOLE, STANDIN_CONTROLLER, STANDIN_LIGHT_GUN,
+	STANDIN_AV_LEAD]
 
 ## systemid -> {role -> Array[String] of the mods that replace it}. A list and
 ## not a flag: two mods may replace the same stand-in, and it comes back only
