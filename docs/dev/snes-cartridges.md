@@ -102,7 +102,7 @@ US one.
 Japan, Europe and Australia shared: rounded top, the NTSC Type A-like grip slot
 with a ridged floor, ribbed back, and the two notches cut into its top edge. It is
 the debranded mobile LOD0 of the user's photographed and calipered Super Mario RPG
-(SHVC-006), codex-photos/nintendo/snes/cart-sfc/cartridge_assets (`build_all.py` →
+(SHVC-006), codex-photos/nintendo/snes/cart-sfc (`build_all.py` →
 `export_retroxr.py`), 20,768 triangles, **128 × 87.5 × 20 mm** (20 over the rear
 ribs), in the same frame as the US bodies. The LODs are Godot's own.
 
@@ -128,8 +128,8 @@ ribs), in the same frame as the US bodies. The LODs are Godot's own.
   leaves it as it is. The PAL cartridges use the same shell and, for now, the
   Japanese sticker; no PAL specimen has been photographed.
 
-**Re-export**: `python source/build_all.py` in codex-photos/nintendo/snes/cart-sfc/cartridge_assets
-writes `retroxr/sfc_cart.glb` and runs `fix_unmapped_uvs.py` on it, then `--check`
+**Re-export**: `python build_all.py` in codex-photos/nintendo/snes/cart-sfc
+writes `exports/retroxr/sfc_cart.glb` and runs `fix_unmapped_uvs.py` on it, then `--check`
 (three hairline slivers where the front shoulder channel meets the top rim always
 need it). Copy that GLB over this one.
 

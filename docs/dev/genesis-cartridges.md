@@ -12,9 +12,9 @@ It comes in through one script, which renames the nodes and materials and runs
 `fix_unmapped_uvs.py`:
 
     cd codex-photos/sega/genesis/cart
-    blender -b --factory-startup --python scripts/export_retroxr.py
+    blender -b --factory-startup --python tools/export_retroxr.py
 
-It reads `delivery/genesis_cartridge_v002.blend`, writes `retroxr/genesis_cart.glb`,
+It reads `exports/genesis_cartridge_v002.blend`, writes `exports/retroxr/genesis_cart.glb`,
 then `Tools/glb/fix_unmapped_uvs.py --tile 5.56` (the plastic grain's tile) and
 `--check`. The build welds the boolean cuts before exporting, so there is no sliver
 left for it to fix; the step stays as the guard.
@@ -73,5 +73,5 @@ cases, and the old 110 × 70 row fails 3.
 
 **Re-exporting.** Rebuild with `build_cartridge.py`, then run `export_retroxr.py`
 (never copy `genesis_mobile.glb` straight over: its node and material names are the
-build's), copy `retroxr/genesis_cart.glb` here, reimport, and run
+build's), copy `exports/retroxr/genesis_cart.glb` here, reimport, and run
 `genesis_cart_tests`.

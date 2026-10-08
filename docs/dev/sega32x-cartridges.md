@@ -12,10 +12,10 @@ Fighter cart, its size and recess outlines measured on a 1:1 reference shell
 through one script, which renames the nodes and materials to RetroXR's and runs
 `fix_unmapped_uvs.py`:
 
-    cd codex-photos/sega/32x/cart/asset
-    blender -b --factory-startup --python scripts/export_retroxr.py
+    cd codex-photos/sega/32x/cart
+    blender -b --factory-startup --python tools/export_retroxr.py
 
-It reads `sega_32x_cartridge_v01.blend`, writes `retroxr/sega32x_cart.glb`, then
+It reads `sega_32x_cartridge_v01.blend`, writes `exports/retroxr/sega32x_cart.glb`, then
 `Tools/glb/fix_unmapped_uvs.py --tile 5.56` (the plastic grain's own tile) and
 `--check`. The boolean cuts leave one sliver on the rear shell with no UV area.
 
@@ -65,5 +65,5 @@ metal contacts and screws, scale 1). Mutation-tested: dropping `sega32x` from
 
 **Re-exporting.** Rebuild with `build_cartridge.py`, then run
 `export_retroxr.py` (never copy `32x_mobile_clean.glb` straight over: its node and
-material names are the build's), copy `retroxr/sega32x_cart.glb` here,
+material names are the build's), copy `exports/retroxr/sega32x_cart.glb` here,
 reimport, and run `sega32x_cart_tests` and `sega32x_probe`.

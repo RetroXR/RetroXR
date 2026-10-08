@@ -13,9 +13,9 @@ with it. It comes in through one script, which renames the nodes and materials,
 swaps in the debranded textures and runs `fix_unmapped_uvs.py`:
 
     cd codex-photos/nintendo/nes/cart
-    blender -b --factory-startup --python scripts/export_retroxr.py
+    blender -b --factory-startup --python tools/export_retroxr.py
 
-It reads `delivery/nes_cartridge_v002.blend`, writes `retroxr/nes_cart.glb`, then
+It reads `exports/nes_cartridge_v002.blend`, writes `exports/retroxr/nes_cart.glb`, then
 `Tools/glb/fix_unmapped_uvs.py --tile 11.12` (the stipple's tile) and `--check`.
 The GLB replaced the old one under the same `.import` file, so its UID stayed.
 
