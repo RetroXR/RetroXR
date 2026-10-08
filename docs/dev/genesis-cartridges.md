@@ -4,14 +4,14 @@
 
 `RetroCartridge` builds a `genesis` cartridge from
 `imported-assets/carts/genesis/genesis_cart.glb` (`_CART_MODELS`). It is the
-optimized close tier (LOD0, 2,072 triangles) of `codex-photos/sega/genesis/cart`:
+optimized close tier (LOD0, 2,072 triangles) of `RetroXR-models/sega/genesis/cart`:
 a parametric Blender model (`scripts/build_cartridge.py`) of a US Champions World
 Class Soccer cart in Acclaim's "Assembled in Mexico" shell, built from the user's
 caliper numbers and registered to the photographs (`LICENSE-genesis-cart.txt`).
 It comes in through one script, which renames the nodes and materials and runs
 `fix_unmapped_uvs.py`:
 
-    cd codex-photos/sega/genesis/cart
+    cd RetroXR-models/sega/genesis/cart
     blender -b --factory-startup --python tools/export_retroxr.py
 
 It reads `exports/genesis_cartridge_v002.blend`, writes `exports/retroxr/genesis_cart.glb`,
@@ -55,7 +55,7 @@ Super NES. `genesis` is in `_UV_LABELS`, and `CartridgeLabel.find_label` finds
 
 **LOD** is Godot's own (`meshes/generate_lods`, the 32X cart's import settings). The
 export's own LOD1/LOD2 (1,076 and 636 triangles, a three-level switch in the
-codex-photos Godot scene) are not imported.
+RetroXR-models Godot scene) are not imported.
 
 **Marks.** The Acclaim plaque on the back is modelled blank (the user's call); the
 raised CAUTION lettering names nobody, so it stays, set in Cutive (OFL) and baked

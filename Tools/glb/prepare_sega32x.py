@@ -1,15 +1,15 @@
-"""Turn the debranded Sega 32X from codex-photos into sega32x.glb for RetroXR.
+"""Turn the debranded Sega 32X from RetroXR-models into sega32x.glb for RetroXR.
 
-The model is built from a laser scan of a real 32X in the codex-photos repo
+The model is built from a laser scan of a real 32X in the RetroXR-models repo
 (sega-32x/, build_32x.py). Its `sega32x_unbranded_lod1.glb` is already at real
 size in metres, facing +Z, centred on its footprint, with y = 0 on the plane it
 rests on (the plug hangs below that), and carries no trademark: the front badge
 is left off and the scan has no moulded marks. So this only tidies it:
 
     python Tools/glb/prepare_sega32x.py \
-        --in         <codex-photos>/sega/32x/console/sega32x_asset/sega32x_unbranded_lod1.glb \
+        --in         <RetroXR-models>/sega/32x/console/sega32x_asset/sega32x_unbranded_lod1.glb \
         --out        RetroXR/imported-assets/consoles/sega_32x/sega32x.glb \
-        --spacer     <codex-photos>/sega/32x/console/sega32x_asset/sega32x_model2_spacer.glb \
+        --spacer     <RetroXR-models>/sega/32x/console/sega32x_asset/sega32x_model2_spacer.glb \
         --spacer-out RetroXR/imported-assets/consoles/sega_32x/sega32x_spacer.glb
 
   * strips the "_LOD1" suffix from every node, mesh, material and image name,
@@ -22,7 +22,7 @@ is left off and the scan has no moulded marks. So this only tidies it:
       CartFloor  the dark plate at the bottom of the unit's own slot funnel,
                  centred on the slot -- where a cartridge put into the 32X
                  comes to rest;
-  * copies the Genesis Model 2 spacer (codex-photos build_spacer.py) beside it
+  * copies the Genesis Model 2 spacer (RetroXR-models build_spacer.py) beside it
     as sega32x_spacer.glb, the accessory's own model. Sega packed it with the
     32X because on a Model 2 -- the only Mega Drive RetroXR has -- the plug
     bottoms out with the unit standing ~13 mm clear of the console; the spacer

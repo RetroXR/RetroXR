@@ -6,7 +6,7 @@ its two dust flaps, each registered to the others and reduced for real-time use
 (the distance level of the build, 24,688 triangles, with 1024 x 1024 normal and
 occlusion maps baked from the ~9M-triangle scan). The scan carries no colour, so
 the plastic is a material. The source scan, the build scripts and the references
-live outside this repository (codex-photos/sega/32x/console); the files shipped here are
+live outside this repository (RetroXR-models/sega/32x/console); the files shipped here are
 its sega32x_unbranded_lod1.glb and sega32x_model2_spacer.glb (1,920 triangles),
 by Tools/glb/prepare_sega32x.py (which also tidies the 32X's node names and adds
 its PlugSeat and CartFloor markers).
@@ -16,7 +16,7 @@ manual: the metal shield in the plug's windows, the circuit board and its edge
 contacts, the rear A/V OUT / A/V IN (9-pin mini-DIN) and ADAPTOR sockets, the
 screws, the clean A/V OUT / A/V IN / ADAPTOR lettering, a dark interior liner
 that stops the hollow shell from being seen through its gaps, and the Genesis
-Model 2 spacer (sega32x_spacer.glb, codex-photos sega-32x/build_spacer.py) -- built
+Model 2 spacer (sega32x_spacer.glb, RetroXR-models sega-32x/build_spacer.py) -- built
 from a photo of Sega's riser and the scan's underside collar, its height set by
 the gap under the unit on RetroXR's Model 2 Genesis.
 

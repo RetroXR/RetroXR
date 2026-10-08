@@ -278,7 +278,7 @@ home screen lists both ("Start GBA game."). The log line is
 
 ### 2j′. The 32X — a scanned shell, seated by its plug
 
-The 32X wears `imported-assets/consoles/sega_32x/sega32x.glb`: codex-photos'
+The 32X wears `imported-assets/consoles/sega_32x/sega32x.glb`: RetroXR-models'
 laser-scanned unit, debranded (the "32X" badge is left off; the scan has no
 moulded marks), at its distance level (24.7 k triangles, 1024 px normal and
 occlusion maps, about the Genesis shell's budget). Sega's Genesis Model 2 spacer
@@ -336,7 +336,7 @@ the 32X itself; a late joiner gets both from the snapshot. `expansion_tests
 --only=spacer` and `scene_tests --only=spacer` (the save/clear/load round trip)
 pin it.
 
-The spacer was built in codex-photos (`sega-32x/build_spacer.py`, not scanned: its
+The spacer was built in RetroXR-models (`sega-32x/build_spacer.py`, not scanned: its
 outline is the 32X's own underside collar, its top follows the collar's uneven
 bottom edge). **Its underside is THIS Genesis's top**: `genesis_top_map.py` maps
 genesis_console.glb under the seated 32X (13.1 mm below the resting plane on the
