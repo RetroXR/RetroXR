@@ -5,14 +5,14 @@
 `RetroCartridge` builds a `sega32x` cartridge from
 `imported-assets/carts/sega_32x/sega32x_cart.glb` (`_CART_MODELS`). It is the
 no-branding optimized close tier (`03_Mobile_Clean`, 6,168 triangles) of
-`codex-photos/sega-32x-cart/asset`: a parametric Blender model
+`codex-photos/sega/32x/cart/asset`: a parametric Blender model
 (`build_cartridge.py`) registered to the user's photographs of a US Virtua
 Fighter cart, its size and recess outlines measured on a 1:1 reference shell
 (CC BY-NC, used for measurement only; `LICENSE-sega32x-cart.txt`). It comes in
 through one script, which renames the nodes and materials to RetroXR's and runs
 `fix_unmapped_uvs.py`:
 
-    cd codex-photos/sega-32x-cart/asset
+    cd codex-photos/sega/32x/cart/asset
     blender -b --factory-startup --python scripts/export_retroxr.py
 
 It reads `sega_32x_cartridge_v01.blend`, writes `retroxr/sega32x_cart.glb`, then

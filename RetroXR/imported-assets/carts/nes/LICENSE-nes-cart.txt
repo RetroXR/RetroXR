@@ -4,7 +4,7 @@ Own work. Ryan McClelland's photographs and measurements of a US NES Game Pak (a
 gray three-screw shell, Maniac Mansion), rebuilt as a parametric Blender model
 registered to those photographs and reduced for real-time use (the optimized LOD0:
 2,766 triangles, 120 x 134 x 17 mm). The source .blend files, build scripts and
-references live outside this repository (codex-photos/nes-cart-work:
+references live outside this repository (codex-photos/nintendo/nes/cart:
 scripts/build_cartridge.py, scripts/export_retroxr.py).
 
 The shell's stipple is a tangent normal map with a roughness map of its own

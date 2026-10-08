@@ -20,7 +20,7 @@ const KEPT_PARTS := ["Label", "Opaque_Internal_Details", "Connector_PCB", "Inter
 	"Interior_ROM_Chip", "Interior_RTC_Chip", "Interior_Save_Battery"]
 const CLEAR := [&"ruby", &"sapphire", &"emerald", &"fire_red", &"leaf_green"]
 ## The real cart's plastic: the median shell colour of the photographed atlas
-## (codex-photos/gba-cart, gba_cartridge.glb's Cartridge_Atlas), sRGB (50, 56, 61).
+## (codex-photos/nintendo/gba/cart, gba_cartridge.glb's Cartridge_Atlas), sRGB (50, 56, 61).
 ## The tintable model's own factor (linear 0.18 = sRGB 0.46) is far lighter.
 const PHOTOGRAPHED_CHARCOAL := Color(0.196, 0.22, 0.239)
 

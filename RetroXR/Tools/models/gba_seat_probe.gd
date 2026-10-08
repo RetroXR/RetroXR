@@ -4,7 +4,7 @@
 ## Spawns the `game_boy_advance` model and a gba cartridge, seats the cart through
 ## restore_cartridge() (the same path a save takes), and checks the cartridge
 ## model against the console model's own CartridgeSocket: the node the console
-## GLB carries for exactly this, fitted in codex-photos/gba to the laser-scanned
+## GLB carries for exactly this, fitted in codex-photos/nintendo/gba/console to the laser-scanned
 ## slot with the same cartridge GLB. It writes the seated pose to
 ## probe_out/gba_seat/cart_in_console.json, in the console GLB's frame, for a mesh
 ## intersection check outside Godot.

@@ -3,7 +3,7 @@ Nintendo DS Game Card (ds_cart.glb)
 Own work. Modelled in Blender from Ryan McClelland's photographs and caliper
 measurements of a DS Game Card (33 x 35 x 3.8 mm) and reduced for real-time use
 (the mobile close export, 12,349 triangles); the source .blend, build scripts
-and references live outside this repository (codex-photos/3ds-ds). Unmapped
+and references live outside this repository (codex-photos/nintendo/ds/cart). Unmapped
 shell triangles were given UVs with Tools/glb/fix_unmapped_uvs.py (--tile 34).
 The CartridgeLabel mesh carries a plain white placeholder that the cartridge
 script replaces with the scraped label art.

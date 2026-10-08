@@ -6,7 +6,7 @@ its two dust flaps, each registered to the others and reduced for real-time use
 (the distance level of the build, 24,688 triangles, with 1024 x 1024 normal and
 occlusion maps baked from the ~9M-triangle scan). The scan carries no colour, so
 the plastic is a material. The source scan, the build scripts and the references
-live outside this repository (codex-photos/sega-32x); the files shipped here are
+live outside this repository (codex-photos/sega/32x/console); the files shipped here are
 its sega32x_unbranded_lod1.glb and sega32x_model2_spacer.glb (1,920 triangles),
 by Tools/glb/prepare_sega32x.py (which also tidies the 32X's node names and adds
 its PlugSeat and CartFloor markers).

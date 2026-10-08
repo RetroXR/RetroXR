@@ -2,7 +2,7 @@ e-Reader (ereader.glb, ereader_lod1.glb, ereader_lod2.glb)
 
 Own work. Modelled from Ryan McClelland's photographs of a US e-Reader
 (AGB-014) and his caliper measurements of it: 94 x 112 x 42.6 mm with the
-cartridge tongue. Built in Blender by codex-photos/ereader/build_ereader.py,
+cartridge tongue. Built in Blender by codex-photos/nintendo/gba/ereader/build_ereader.py,
 then reduced for mobile by build_ereader_lods.py (the "mobile_debranded"
 package): hidden faces culled, decimated, and the detailed surface baked into
 one atlas (base colour, tangent normal, packed ORM) plus a sticker texture.

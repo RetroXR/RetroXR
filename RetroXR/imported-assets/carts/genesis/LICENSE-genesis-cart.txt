@@ -5,7 +5,7 @@ Genesis cartridge (Champions World Class Soccer, an Acclaim "Assembled in
 Mexico" shell), rebuilt as a parametric Blender model registered to those
 photographs and reduced for real-time use (the optimized LOD0: 2,072 triangles,
 108 x 67 x 17 mm). The source .blend files, build scripts and references live
-outside this repository (codex-photos/genesis-cart-work: scripts/build_cartridge.py,
+outside this repository (codex-photos/sega/genesis/cart: scripts/build_cartridge.py,
 scripts/export_retroxr.py). The plastic's fine grain is a tangent normal map; the
 Label mesh carries a plain white placeholder that the cartridge script replaces
 with the scraped label art.

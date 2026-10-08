@@ -7,7 +7,7 @@ and reduced for real-time use (the clean mobile tier: 6,168 triangles,
 measured on a 1:1 reference model, RetroGameRevival's "SEGA 32X Cartridge Shell"
 (printables.com/model/845316, CC BY-NC); it was used for measurement only and
 none of its geometry is in this model. The source .blend files, build scripts
-and references live outside this repository (codex-photos/sega-32x-cart/asset:
+and references live outside this repository (codex-photos/sega/32x/cart/asset:
 build_cartridge.py, export_retroxr.py). The plastic's fine grain is a tangent
 normal map; the Label mesh carries a plain white placeholder that the cartridge
 script replaces with the scraped label art.

@@ -4,7 +4,7 @@
 
 `RetroCartridge` builds an `nes` cartridge from
 `imported-assets/carts/nes/nes_cart.glb` (`_CART_MODELS`). It is the debranded,
-optimized close tier (LOD0, 2,766 triangles) of `codex-photos/nes-cart-work`: a
+optimized close tier (LOD0, 2,766 triangles) of `codex-photos/nintendo/nes/cart`: a
 parametric Blender model (`scripts/build_cartridge.py`) of a gray three-screw US
 Game Pak (Maniac Mansion), built from the user's measurements and registered to the
 photographs (`LICENSE-nes-cart.txt`). It replaced a CC BY 4.0 Sketchfab model
@@ -12,7 +12,7 @@ photographs (`LICENSE-nes-cart.txt`). It replaced a CC BY 4.0 Sketchfab model
 with it. It comes in through one script, which renames the nodes and materials,
 swaps in the debranded textures and runs `fix_unmapped_uvs.py`:
 
-    cd codex-photos/nes-cart-work
+    cd codex-photos/nintendo/nes/cart
     blender -b --factory-startup --python scripts/export_retroxr.py
 
 It reads `delivery/nes_cartridge_v002.blend`, writes `retroxr/nes_cart.glb`, then

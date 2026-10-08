@@ -2,7 +2,7 @@ Game Boy Color cartridge (gbc_cart_large.glb, gbc_cart_small.glb)
 
 Own work. The clear Game Boy Color-only cartridge shell (model CGB-002),
 built from Ryan McClelland's caliper measurements and photographs of a
-cartridge in codex-photos/gbc-cart (build_gbc.py, export_retroxr.py): the
+cartridge in codex-photos/nintendo/gbc/cart/photos (build_gbc.py, export_retroxr.py): the
 debranded mobile level of detail, one per circuit board. The shell exports
 solid; RetroXR makes it clear smoke, or Pokemon Crystal's clear blue with
 glitter, at runtime. No label artwork is included: the Label mesh carries a

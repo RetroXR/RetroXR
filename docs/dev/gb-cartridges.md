@@ -75,7 +75,7 @@ shade, or `gb` from `_UV_LABELS` each fail their own cases.
 A game that runs only on a Game Boy Color (CGB flag 0x143 = 0xC0) came in the clear
 CGB-002 shell, not the Game Boy's: its own shape, with a raised head at the top of the
 front and the board showing through. `GbcCartShell` gives such a ROM, `gb` or `gbc`,
-one of two bodies in `imported-assets/carts/game_boy_color/`, both codex-photos/gbc-cart's
+one of two bodies in `imported-assets/carts/game_boy_color/`, both codex-photos/nintendo/gbc/cart/photos's
 **debranded mobile LOD0** (own work, `LICENSE-gbc-cart.txt`):
 
 | Body | Board | Picked for | Triangles |
@@ -90,7 +90,7 @@ size and `cart_size()` returns it for either body, so neither is stretched (the 
 and `gbc` rows stay the Game Boy shell's, which dual-mode games still spawn in).
 Seated, the body's AABB centre is on the seat like any cart, so the flat body sits
 0.9 mm off it, away from the head; in the detailed GBA's slot that leaves 0.30 mm to
-the front wall and 0.35 mm to the back one (measured against codex-photos/gba's
+the front wall and 0.35 mm to the back one (measured against codex-photos/nintendo/gba/console's
 slot numbers, not probed), and the head starts 3.3 mm above the back wall.
 
 The GBC-only Korean Pokemon Gold and Silver keep the Game Boy's shell in gold and
@@ -117,7 +117,7 @@ plastic, so every other clear shell renders as before. A mixed metal-flake colou
 borrows Crystal's flakes but is always solid (`flake_finish` sets opacity 1). A solid
 metal-flake preset (the gold and silver) still goes to the solid flake shader.
 
-**The export** (`codex-photos/gbc-cart-work/export_retroxr.py`, from the saved .blend)
+**The export** (`codex-photos/nintendo/gbc/cart/export_retroxr.py`, from the saved .blend)
 makes the shell solid, one smoke colour and no frost texture, so the preset does all
 the clear work; the four moulding materials are `GBC_Shell_Front`, `GBC_Shell_Rear`
 (stipple normal map, 10 mm per UV) and `GBC_Shell_Smooth` / `GBC_Shell_Edge` (the
@@ -132,7 +132,7 @@ light, ortho from above at 10 px/mm (near/far 0.1-0.3 m), wearing the scraped la
 the cartridge photographed, and takes the per-channel linear median of the shell
 outside the recess divided by the median of the label's pale side strips (the exposure
 and white-balance reference; a red label's median is not). Targets from the same frame
-of each photo: smoke `(0.268, 0.299, 0.220)` from codex-photos/gbc-cart IMG_1634 (an
+of each photo: smoke `(0.268, 0.299, 0.220)` from codex-photos/nintendo/gbc/cart/photos IMG_1634 (an
 Oracle of Seasons, whose ScreenScraper label the fit wears), Crystal
 `(0.598, 1.067, 1.331)` from ScreenScraper's CGB-BYTE-USA photo. Fitted within 1 % on
 every channel: smoke `#7e8587` opacity 0.75, Crystal `#a2c3d7` opacity 0.9 (re-fitted

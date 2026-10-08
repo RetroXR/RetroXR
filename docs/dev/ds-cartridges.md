@@ -6,7 +6,7 @@
 `imported-assets/carts/nintendo_ds/ds_cart.glb` and an `n3ds` card from
 `imported-assets/carts/nintendo_3ds/3ds_cart.glb` (`_CART_MODELS`). Both are the
 no-branding optimized close exports, `ds_mobile_clean.glb` and
-`3ds_mobile_clean.glb`, from `codex-photos/3ds-ds/cartridge_assets`
+`3ds_mobile_clean.glb`, from `codex-photos/nintendo/ds/cart/cartridge_assets`
 (`build_master.py` → `derive_export.py`; its README has the measurement table).
 They were built from the user's photographs and caliper measurements and copied in
 through one tool:

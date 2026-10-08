@@ -7,9 +7,9 @@ rests on (the plug hangs below that), and carries no trademark: the front badge
 is left off and the scan has no moulded marks. So this only tidies it:
 
     python Tools/glb/prepare_sega32x.py \
-        --in         <codex-photos>/sega-32x/sega32x_asset/sega32x_unbranded_lod1.glb \
+        --in         <codex-photos>/sega/32x/console/sega32x_asset/sega32x_unbranded_lod1.glb \
         --out        RetroXR/imported-assets/consoles/sega_32x/sega32x.glb \
-        --spacer     <codex-photos>/sega-32x/sega32x_asset/sega32x_model2_spacer.glb \
+        --spacer     <codex-photos>/sega/32x/console/sega32x_asset/sega32x_model2_spacer.glb \
         --spacer-out RetroXR/imported-assets/consoles/sega_32x/sega32x_spacer.glb
 
   * strips the "_LOD1" suffix from every node, mesh, material and image name,

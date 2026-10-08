@@ -2,7 +2,7 @@
 ##
 ## Two separate models wear this script:
 ##   * game_boy_advance.tscn — the detailed shell. Its GLB (imported-assets/
-##     consoles/game_boy_advance/gba_console.glb, codex-photos/gba's debranded
+##     consoles/game_boy_advance/gba_console.glb, codex-photos/nintendo/gba/console's debranded
 ##     mobile LOD0) is baked in as "Shell". Its controls are real meshes with real
 ##     pivots, driven below.
 ##   * game_boy_advance_primitive.tscn — the stand-in, whose authored controls the
@@ -12,7 +12,7 @@
 class_name RetroSystemModelGameBoyAdvance
 extends RetroSystemModelHandheld
 
-## The GLB's own figures (node extras / codex-photos/gba/console/README.md): A, B,
+## The GLB's own figures (node extras / codex-photos/nintendo/gba/console/console/README.md): A, B,
 ## START and SELECT press 0.8 mm straight in, the D-pad rocks 0.07 rad about its
 ## centre, and each shoulder cap turns 0.06 rad about its inner hinge, the L one
 ## positive about +Z and the R one negative.

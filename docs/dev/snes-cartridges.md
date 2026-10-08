@@ -4,7 +4,7 @@
 
 `RetroCartridge` builds a `snes` cartridge from `imported-assets/carts/snes/`:
 `snes_cart_type_a.glb` or `snes_cart_type_b.glb`, the debranded mobile tier of the
-user's own model (codex-photos/snes-cart: `rebuild_from_user.py` →
+user's own model (codex-photos/nintendo/snes/cart: `rebuild_from_user.py` →
 `package_revision2.py` → `export_retroxr.py`), 17,285 and 18,377 triangles,
 135.5 × 87 × 20.15 mm (the 0.15 is the bezel round the rear sticker), connector on
 −Y and label on +Z, so it drops into the frame with no turn. The LODs are Godot's
@@ -102,7 +102,7 @@ US one.
 Japan, Europe and Australia shared: rounded top, the NTSC Type A-like grip slot
 with a ridged floor, ribbed back, and the two notches cut into its top edge. It is
 the debranded mobile LOD0 of the user's photographed and calipered Super Mario RPG
-(SHVC-006), codex-photos/snes-cart-jap/cartridge_assets (`build_all.py` →
+(SHVC-006), codex-photos/nintendo/snes/cart-sfc/cartridge_assets (`build_all.py` →
 `export_retroxr.py`), 20,768 triangles, **128 × 87.5 × 20 mm** (20 over the rear
 ribs), in the same frame as the US bodies. The LODs are Godot's own.
 
@@ -128,12 +128,12 @@ ribs), in the same frame as the US bodies. The LODs are Godot's own.
   leaves it as it is. The PAL cartridges use the same shell and, for now, the
   Japanese sticker; no PAL specimen has been photographed.
 
-**Re-export**: `python source/build_all.py` in codex-photos/snes-cart-jap/cartridge_assets
+**Re-export**: `python source/build_all.py` in codex-photos/nintendo/snes/cart-sfc/cartridge_assets
 writes `retroxr/sfc_cart.glb` and runs `fix_unmapped_uvs.py` on it, then `--check`
 (three hairline slivers where the front shoulder channel meets the top rim always
 need it). Copy that GLB over this one.
 
-**Re-export**: run the three Blender scripts in codex-photos/snes-cart, copy the
+**Re-export**: run the three Blender scripts in codex-photos/nintendo/snes/cart, copy the
 two GLBs over, then `python Tools/glb/fix_unmapped_uvs.py <glb>` and `--check` on
 each: the bevel strips came out with zero-area UVs (the exporter re-projects the
 grain on the final faces; the tool catches the remaining slivers).

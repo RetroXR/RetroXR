@@ -4,7 +4,7 @@
 
 `RetroCartridge` builds a `gba` cartridge from
 `imported-assets/carts/game_boy_advance/gba_cart.glb` (`GbaCartShell.BODY`): the
-no-logos `gba_cartridge_tintable.glb` from `codex-photos/gba-cart`
+no-logos `gba_cartridge_tintable.glb` from `codex-photos/nintendo/gba/cart`
 (`build_tintable.py`), 60 × 35 × 9 mm, copied in unchanged. Nine meshes:
 
 - `Front_Shell`, `Rear_Shell` (materials `Tintable_Front_Plastic` /
@@ -67,7 +67,7 @@ one ever is again, make it solid before it goes in. The imported grey is sRGB
 dark charcoal and is far too light. **The standard shell is therefore NOT the
 model's own colour**: the `grey` preset ("Charcoal (standard)") is the real
 cart's plastic, sRGB `(0.196, 0.22, 0.239)` = (50, 56, 61), the median shell
-colour of the photographed atlas (`codex-photos/gba-cart/cartridge_optimized_no_logos/
+colour of the photographed atlas (`codex-photos/nintendo/gba/cart/cartridge_optimized_no_logos/
 gba_cartridge.glb`, `Cartridge_Atlas.001`). From 2026-09-22 to 2026-09-30 the preset
 matched the imported 0.46 instead, and every standard cart (Golden Sun...) was mid
 grey rather than near black. `reset_to_default` still shows the lighter imported
@@ -164,7 +164,7 @@ dropping the Japan check fails `lookup/Famicom Mini Zelda, Japan`.
 `game_boy_advance` is the platform's default model (listed first in
 `SystemModelRegistry`; the stand-in is now labelled "Game Boy Advance
 (primitive)"). Its scene, `system_models/game_boy_advance.tscn`, bakes
-`imported-assets/consoles/game_boy_advance/gba_console.glb` as `Shell`: codex-photos/gba's
+`imported-assets/consoles/game_boy_advance/gba_console.glb` as `Shell`: codex-photos/nintendo/gba/console's
 **debranded mobile LOD0**, own work (the shell is fitted to a laser scan of a
 real GBA), 35,227 triangles with baked 2048/1024 atlases, copied in unchanged
 (see `LICENSE-gba-console.txt` beside it). It is the same id the unbundled GBA had,

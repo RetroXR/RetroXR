@@ -2,7 +2,7 @@ Game Boy Advance console (gba_console.glb)
 
 Own work. Reconstructed in Blender from Ryan McClelland's photographs and
 caliper measurements of a Game Boy Advance, with the shell fitted to a laser
-scan of a real one (codex-photos/gba, build_console.py). This is the mobile
+scan of a real one (codex-photos/nintendo/gba/console, build_console.py). This is the mobile
 LOD0 of that asset, without trademarks (build_console_mobile.py, package
 console_mobile_no_trademarks): 35,227 triangles, every part decimated and its
 detail baked into texture atlases (base colour, tangent normal, packed ORM;

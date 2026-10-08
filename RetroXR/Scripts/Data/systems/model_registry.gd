@@ -121,7 +121,7 @@ const _ROWS: Dictionary = {
 	"game_boy_color_primitive": {"platform": "gbc", "label": "Game Boy", "handheld": true,
 		"scene": _SCENES + "game_boy_primitive.tscn"},
 	# The detailed shell FIRST, so it is the platform's default. Own work: the
-	# debranded mobile LOD0 of codex-photos/gba, fitted to a laser scan. The id is
+	# debranded mobile LOD0 of codex-photos/nintendo/gba/console, fitted to a laser scan. The id is
 	# the one the unbundled model it replaces had, so a save from before that
 	# model was removed spawns this one.
 	"game_boy_advance":     {"platform": "gba", "label": "Game Boy Advance", "handheld": true,
