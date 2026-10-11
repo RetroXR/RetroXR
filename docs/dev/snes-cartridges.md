@@ -125,13 +125,52 @@ ribs), in the same frame as the US bodies. The LODs are Godot's own.
   warning text, CASSETTE, MODEL NO. SHVC-006 and serial. The moulded
   PAT. PEND. / MADE IN JAPAN and the mold ID stay.
 - Its plastic is authored as the palette's grey, so the default `grey` preset
-  leaves it as it is. The PAL cartridges use the same shell and, for now, the
-  Japanese sticker; no PAL specimen has been photographed.
+  leaves it as it is.
+
+**PAL rear stickers.** A PAL cartridge is this shell with another warning sticker
+on the back. There were six, each naming itself in its corner, recreated in
+RetroXR-models from flatbed scans and listing photographs of real cartridges
+(clean artwork, no photograph; `nintendo/snes/cart-sfc/README.md` has the sources)
+and debranded like the body: no `(M) (C) 1992 NINTENDO`; the warning text,
+MODEL NO. SNSP-006, MADE IN JAPAN and the code stay. They are
+`imported-assets/carts/sfc/stickers/sfc_rear_sticker_<code>.png`, 1600 × 676:
+
+| sticker | languages | regions (`REGION_STICKERS`) | header byte +0x19 (`DESTINATION_STICKERS`) |
+| --- | --- | --- | --- |
+| `ukv` | English | uk, australia, new zealand, sweden, scandinavia | 0x03 Sweden, 0x04 Finland, 0x05 Denmark, 0x11 Australia |
+| `noe` | German | germany | 0x09 |
+| `esp` | Spanish | spain | 0x08 |
+| `ita` | Italian | italy | 0x0A |
+| `fah` | English, French, Dutch | france, netherlands | 0x06, 0x07 |
+| `eur` | English, French, German | europe | 0x02 |
+
+`SnesCartShell.rear_sticker` reads the region as `market()` does and in the same
+order: the scraper's region, else the file name's region tag (`filename_sticker`:
+"(Germany)", "(Europe) (En,Fr,De)", GoodTools' "(G)"), else the header byte. The
+first source that names a region answers, with none when that region had no PAL
+sticker (Japan, the USA), so a Japanese ROM keeps the GLB's own Japanese sticker.
+Australian and Scandinavian cartridges really did carry the UK sticker; no sticker
+of their own was found. A plain "Europe" ROM gets the three-language `eur` one,
+though early pan-European games were sold with each country's own.
+
+`rear_sticker_file(body, systemid, rom_path)` is the art for a cartridge, and only
+the Super Famicom body takes one: a US body forced on a PAL ROM keeps its US
+sticker. `apply_rear_sticker` puts it on `Rear_Sticker` as the model's own
+material with the albedo swapped, one material per sticker shared by every
+cartridge wearing it (no shell colour reaches the sticker). The spawn menu and the
+room restore `ModelWarmer.acquire` the art with the body, as they do the GLB. The
+textures import VRAM Compressed with mipmaps (`texture_import_tests`); their worst
+64-px ETC2 block is 32 dB, so they are not High Quality.
+
+Not there: the `SNSP-006-02` stickers of Super FX cartridges, and a way to force a
+sticker from the spawn menu (the Body row forces the shell only).
 
 **Re-export**: `python build_all.py` in RetroXR-models/nintendo/snes/cart-sfc
 writes `exports/retroxr/sfc_cart.glb` and runs `fix_unmapped_uvs.py` on it, then `--check`
 (three hairline slivers where the front shoulder channel meets the top rim always
-need it). Copy that GLB over this one.
+need it). Copy that GLB over this one. `python build_all.py --stickers` redraws only
+the stickers into `exports/retroxr/stickers/`; copy them over `carts/sfc/stickers/`
+and keep the `.import` files (`compress/mode=2`, `mipmaps/generate=true`).
 
 **Re-export**: run the three Blender scripts in RetroXR-models/nintendo/snes/cart, copy the
 two GLBs over, then `python Tools/glb/fix_unmapped_uvs.py <glb>` and `--check` on
@@ -146,7 +185,18 @@ their own cases. The cartridge group writes one label PNG into the REAL roms roo
 `snes/media/label` (as gb_cart_tests does) and removes it, and any folder it had
 to create.
 
-`sfc_cart_tests` (72 cases): resources, model, branding (no SUPER FAMICOM mark or
+`sfc_cart_tests` (159 cases; the two sticker groups below are 87 of them):
+`sticker` (each of the six: there, 1600 × 676, its copyright notice blank, MADE IN
+JAPAN, code and heading printed, no two alike; 42 region, file-name and header
+cases through `sticker_code`; which body takes one) and `stickered` (spawned
+European, German, French, Spanish, Italian and Australian ROMs wear theirs, a
+"(Germany)" file name beats a European header, the material is shared and the
+model's own untouched, a Japanese ROM, a US ROM and a forced body keep their own,
+and a shell colour or clear shell leaves the sticker alone). Mutation-tested, 8
+breaks: the cartridge not applying it, the scraped region or the file name's tag
+ignored, any body taking one, a wrong header or region row, a material per
+cartridge, and the art written into the mesh's own material. The other groups:
+resources, model, branding (no SUPER FAMICOM mark or
 trademark line on the sticker, MODEL NO. and serial printed, MADE IN JAPAN kept),
 uv, surfaces (the ribbed panel is moulding, the lettering on the rear half), color,
 kept, lookup (by market, forced, and from header fixtures 0x00/0x02/0x09/0x11/0x01),

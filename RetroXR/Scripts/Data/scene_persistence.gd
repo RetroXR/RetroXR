@@ -1202,12 +1202,16 @@ func _acquire_entry_assets(entry: Variant) -> void:
 				await ModelWarmer.acquire(path)
 		"cartridge":
 			# Same story, a cartridge body: the fields as _apply_media_fields reads them.
-			var body := RetroCartridge.body_model_for(
-				SystemIds.canonical(str(d.get("cart_systemid", ""))),
-				RomLibrary.relocate(str(d.get("rom_path", ""))),
+			var cart_systemid := SystemIds.canonical(str(d.get("cart_systemid", "")))
+			var cart_rom := RomLibrary.relocate(str(d.get("rom_path", "")))
+			var body := RetroCartridge.body_model_for(cart_systemid, cart_rom,
 				str(d.get("body_region", "")), StringName(str(d.get("shell_preset", ""))))
 			if not body.is_empty() and ResourceLoader.exists(body):
 				await ModelWarmer.acquire(body)
+			# And the PAL rear sticker a Super Famicom-shaped cartridge wears.
+			var sticker := SnesCartShell.rear_sticker_file(body, cart_systemid, cart_rom)
+			if not sticker.is_empty():
+				await ModelWarmer.acquire(sticker)
 
 
 func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dictionary,

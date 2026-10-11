@@ -1,5 +1,6 @@
 ## Super Famicom / PAL cartridge self-tests: the third Super NES body, the markets
-## that get it, the size it spawns at, and the shell colours that paint it.
+## that get it, the size it spawns at, the shell colours that paint it, and the
+## PAL rear stickers a European or Australian ROM's cartridge wears.
 ##
 ##     "$godot" --headless --path RetroXR res://Tests/sfc_cart_tests.tscn
 ##     "$godot" --headless --path RetroXR res://Tests/sfc_cart_tests.tscn -- --only=lookup
@@ -29,6 +30,18 @@ const TRADEMARK_RECT := Rect2i(90, 932, 1440, 56)
 const MARK_RECT := Rect2i(1870, 45, 270, 75)
 const MODEL_NO_RECT := Rect2i(1350, 150, 740, 56)
 const SERIAL_RECT := Rect2i(1740, 936, 575, 45)
+## The PAL rear stickers' art is 1600 x 676. Per sticker: where the printed one has
+## "(M) (C) 1992 NINTENDO", then where MADE IN JAPAN, the sticker's code and its
+## heading are (pixels, top-left origin; from the layouts in RetroXR-models).
+const STICKER_SIZE := Vector2i(1600, 676)
+const STICKER_RECTS := {
+	"ukv": [Rect2i(120, 572, 444, 49), Rect2i(604, 577, 331, 37), Rect2i(1318, 576, 221, 36), Rect2i(124, 42, 459, 67)],
+	"noe": [Rect2i(114, 597, 441, 45), Rect2i(599, 601, 335, 37), Rect2i(1288, 596, 221, 36), Rect2i(103, 61, 368, 66)],
+	"esp": [Rect2i(150, 583, 439, 47), Rect2i(632, 586, 327, 36), Rect2i(1311, 583, 208, 35), Rect2i(147, 43, 537, 65)],
+	"ita": [Rect2i(75, 592, 447, 45), Rect2i(568, 596, 350, 42), Rect2i(1317, 598, 209, 42), Rect2i(110, 38, 519, 69)],
+	"fah": [Rect2i(79, 626, 313, 38), Rect2i(417, 629, 554, 29), Rect2i(1400, 628, 157, 28), Rect2i(77, 13, 248, 35)],
+	"eur": [Rect2i(58, 630, 198, 22), Rect2i(279, 630, 433, 22), Rect2i(1420, 634, 132, 22), Rect2i(63, 14, 207, 30)],
+}
 
 var _pass := 0
 var _fail := 0
@@ -64,6 +77,10 @@ func _ready() -> void:
 		_test_size()
 	if _wants("cartridge"):
 		await _test_cartridge()
+	if _wants("sticker"):
+		_test_sticker()
+	if _wants("stickered"):
+		await _test_stickered()
 
 	_clear_fixtures()
 	await _settle_warm()
@@ -520,6 +537,154 @@ func _test_cartridge() -> void:
 	_ok(black.get_node_or_null("CartModel") != null and _painted(black.get_node("CartModel"), _preset(&"black").color),
 		"cartridge/a forced shell paints the Super Famicom body")
 	for cart in [jp, pal, us, forced, black]:
+		cart.queue_free()
+	await get_tree().process_frame
+
+
+## The PAL rear stickers: their art, and which one a ROM's region picks.
+func _test_sticker() -> void:
+	_ok(SnesCartShell.STICKERS.size() == 6 and STICKER_RECTS.size() == 6, "sticker/six PAL stickers")
+	var seen := {}
+	for code: String in SnesCartShell.STICKERS:
+		var path := SnesCartShell.STICKER_FILE % code
+		_ok(ResourceLoader.exists(path), "sticker/%s exists" % path.get_file())
+		var art := load(path) as Texture2D
+		var img := art.get_image() if art != null else null
+		if img != null and img.is_compressed():
+			img.decompress()
+		_ok(img != null and img.get_size() == STICKER_SIZE, "sticker/%s is 1600 x 676" % code,
+			str(img.get_size() if img != null else null))
+		if img == null or img.get_size() != STICKER_SIZE:
+			continue
+		var r: Array = STICKER_RECTS[code]
+		_ok(_spread(img, r[0]) < 0.08, "sticker/%s carries no mask-work and copyright notice" % code,
+			str(_spread(img, r[0])))
+		_ok(_spread(img, r[1]) > 0.3 and _spread(img, r[2]) > 0.3 and _spread(img, r[3]) > 0.3,
+			"sticker/%s: MADE IN JAPAN, its code and its heading are printed" % code)
+		seen[img.get_data().hex_encode().md5_text()] = true
+	_ok(seen.size() == 6, "sticker/no two are the same art", str(seen.size()))
+
+	# [what, the scraper's region, file name, header destination (-1: no header), sticker]
+	var cases := [
+		["the scraper's Germany", "de", "game.sfc", -1, "noe"],
+		["the scraper's Europe", "eu", "game.sfc", -1, "eur"],
+		["the scraper's UK", "uk", "game.sfc", -1, "ukv"],
+		["the scraper's Australia", "au", "game.sfc", -1, "ukv"],
+		["the scraper's Sweden", "se", "game.sfc", -1, "ukv"],
+		["the scraper's France", "fr", "game.sfc", -1, "fah"],
+		["the scraper's Netherlands", "nl", "game.sfc", -1, "fah"],
+		["the scraper's Spain", "sp", "game.sfc", -1, "esp"],
+		["the scraper's Italy", "it", "game.sfc", -1, "ita"],
+		["the scraper's Japan", "jp", "game.sfc", 0x02, ""],
+		["the scraper's USA", "us", "Game (Germany).sfc", 0x09, ""],
+		["the scraper's region over the file name's", "de", "Game (France).sfc", 0x08, "noe"],
+		["a No-Intro (Germany)", "", "Game (Germany).sfc", -1, "noe"],
+		["a No-Intro (Europe) with its languages", "", "Game (Europe) (En,Fr,De).sfc", -1, "eur"],
+		["a No-Intro (France)", "", "Game (France).sfc", -1, "fah"],
+		["a No-Intro (Netherlands)", "", "Game (Netherlands).sfc", -1, "fah"],
+		["a No-Intro (Spain)", "", "Game (Spain).sfc", -1, "esp"],
+		["a No-Intro (Italy)", "", "Game (Italy).sfc", -1, "ita"],
+		["a No-Intro (UK)", "", "Game (UK).sfc", -1, "ukv"],
+		["a No-Intro (Sweden)", "", "Game (Sweden).sfc", -1, "ukv"],
+		["a No-Intro (Australia)", "", "Game (Australia).sfc", -1, "ukv"],
+		["a No-Intro (Europe, Australia)", "", "Game (Europe, Australia).sfc", -1, "eur"],
+		["a No-Intro (Japan)", "", "Game (Japan).sfc", 0x02, ""],
+		["a No-Intro (USA) with German among its languages", "", "Game (USA) (En,Fr,De).sfc", 0x09, ""],
+		["a GoodTools (G)", "", "Game (G) [!].smc", -1, "noe"],
+		["a GoodTools (E)", "", "Game (E).smc", -1, "eur"],
+		["a GoodTools (U)", "", "Game (U).smc", 0x02, ""],
+		["the file name's tag over the header", "", "Game (Germany).sfc", 0x02, "noe"],
+		["a header for Europe", "", "game.sfc", 0x02, "eur"],
+		["a header for Sweden", "", "game.sfc", 0x03, "ukv"],
+		["a header for Finland", "", "game.sfc", 0x04, "ukv"],
+		["a header for Denmark", "", "game.sfc", 0x05, "ukv"],
+		["a header for France", "", "game.sfc", 0x06, "fah"],
+		["a header for the Netherlands", "", "game.sfc", 0x07, "fah"],
+		["a header for Spain", "", "game.sfc", 0x08, "esp"],
+		["a header for Germany", "", "game.sfc", 0x09, "noe"],
+		["a header for Italy", "", "game.sfc", 0x0A, "ita"],
+		["a header for Australia", "", "game.sfc", 0x11, "ukv"],
+		["a header for Japan", "", "game.sfc", 0x00, ""],
+		["a header for North America", "", "game.sfc", 0x01, ""],
+		["a header for Korea", "", "game.sfc", 0x0D, ""],
+		["nothing to go by", "", "game.sfc", -1, ""],
+	]
+	for c: Array in cases:
+		var header := SnesCartShell.header_in(_rom("GAME", c[3])) if c[3] >= 0 else PackedByteArray()
+		var got := SnesCartShell.sticker_code(c[1], c[2], header)
+		_ok(got == c[4], "sticker/%s takes %s" % [c[0], ("SNSP-" + (c[4] as String).to_upper()) if c[4] != "" else "the body's own"],
+			"got \"%s\"" % got)
+	var every := PackedStringArray()
+	for code: String in SnesCartShell.REGION_STICKERS.values() + SnesCartShell.DESTINATION_STICKERS.values() \
+			+ SnesCartShell.GOODTOOLS_STICKERS.values():
+		if not SnesCartShell.STICKERS.has(code):
+			every.append(code)
+	_ok(every.is_empty(), "sticker/every answer is one of the six", str(every))
+	var pal := _write_rom("sticker_pal.sfc", _rom("GAME", 0x02))
+	_ok(SnesCartShell.rear_sticker_file(BODY, SnesCartShell.SYSTEMID, pal) == SnesCartShell.STICKER_FILE % "eur",
+		"sticker/a PAL ROM in the Super Famicom body takes its sticker's art")
+	_ok(SnesCartShell.rear_sticker_file(SnesCartShell.BODY_TYPE_A, SnesCartShell.SYSTEMID, pal) == ""
+		and SnesCartShell.rear_sticker_file("", SnesCartShell.SYSTEMID, pal) == "",
+		"sticker/a North American body, or none, takes no PAL sticker")
+	_ok(SnesCartShell.rear_sticker_file(BODY, SnesCartShell.SYSTEMID, _write_rom("sticker_jp.sfc", _rom("GAME", 0x00))) == "",
+		"sticker/a Japanese ROM keeps the body's own")
+
+
+## The art on a cartridge's Rear_Sticker: the file name of its albedo, or "" when
+## it shows the model's own material.
+func _sticker_on(cart: RetroCartridge) -> String:
+	var model := cart.get_node_or_null("CartModel")
+	var mi := _part(model, SnesCartShell.STICKER_MESH) if model != null else null
+	if mi == null or mi.get_surface_override_material(0) == null:
+		return ""
+	var art := (mi.get_surface_override_material(0) as BaseMaterial3D).albedo_texture
+	return art.resource_path.get_file() if art != null else "?"
+
+
+## Spawned cartridges wear the sticker of their ROM's market.
+func _test_stickered() -> void:
+	var cases := [
+		["a European ROM", "st_eu.sfc", 0x02, "eur"], ["a German ROM", "st_de.sfc", 0x09, "noe"],
+		["a French ROM", "st_fr.sfc", 0x06, "fah"], ["a Spanish ROM", "st_es.sfc", 0x08, "esp"],
+		["an Italian ROM", "st_it.sfc", 0x0A, "ita"], ["an Australian ROM", "st_au.sfc", 0x11, "ukv"],
+		["a ROM named (Germany) with a European header", "Sticker (Germany).sfc", 0x02, "noe"],
+	]
+	var carts: Array[RetroCartridge] = []
+	for c: Array in cases:
+		var cart := await _spawn(_write_rom(c[1], _rom("GAME", c[2])))
+		carts.append(cart)
+		var model := cart.get_node_or_null("CartModel") as Node3D
+		_ok(model != null and model.scene_file_path == BODY and _sticker_on(cart) == "sfc_rear_sticker_%s.png" % c[3],
+			"stickered/%s wears SNSP-%s" % [c[0], (c[3] as String).to_upper()], _sticker_on(cart))
+	var eu := carts[0]
+	var eu_sticker := _part(eu.get_node("CartModel"), SnesCartShell.STICKER_MESH)
+	var shown := eu_sticker.get_active_material(0) as BaseMaterial3D
+	var own := eu_sticker.mesh.surface_get_material(0) as BaseMaterial3D
+	_ok(shown != own and own.albedo_texture != shown.albedo_texture
+		and is_equal_approx(shown.roughness, own.roughness) and is_equal_approx(shown.metallic, own.metallic),
+		"stickered/the sticker is the model's material with the art swapped, and the model's is untouched")
+	var again := await _spawn(_write_rom("st_eu2.sfc", _rom("GAME", 0x02)))
+	carts.append(again)
+	_ok(_part(again.get_node("CartModel"), SnesCartShell.STICKER_MESH).get_active_material(0) == shown,
+		"stickered/two cartridges with one sticker share its material")
+	var jp := await _spawn(_write_rom("st_jp.sfc", _rom("GAME", 0x00)))
+	var forced := await _spawn(_write_rom("st_us.sfc", _rom("GAME", 0x01)), SnesCartShell.SFC)
+	var us := await _spawn(_write_rom("st_us2.sfc", _rom("GAME", 0x01)))
+	var eu_in_a := await _spawn(_write_rom("st_eu3.sfc", _rom("GAME", 0x02)), SnesCartShell.TYPE_A)
+	carts.append_array([jp, forced, us, eu_in_a])
+	_ok(jp.get_node_or_null("CartModel") != null and _sticker_on(jp) == "", "stickered/a Japanese ROM keeps the Japanese sticker")
+	_ok(forced.get_node_or_null("CartModel") != null and _sticker_on(forced) == "",
+		"stickered/the Super Famicom body forced on a US ROM keeps the Japanese sticker")
+	_ok(us.get_node_or_null("CartModel") != null and _sticker_on(us) == "", "stickered/a US cartridge keeps its own sticker")
+	_ok(eu_in_a.get_node("CartModel").scene_file_path == SnesCartShell.BODY_TYPE_A and _sticker_on(eu_in_a) == "",
+		"stickered/a US body forced on a PAL ROM takes no PAL sticker")
+	var black := await _spawn(_write_rom("st_de2.sfc", _rom("GAME", 0x09)), "", &"black")
+	carts.append(black)
+	_ok(_painted(black.get_node("CartModel"), _preset(&"black").color) and _sticker_on(black) == "sfc_rear_sticker_noe.png",
+		"stickered/a shell colour leaves the sticker alone")
+	CartridgeColor.apply_color(black.get_node("CartModel"), Color(0, 0, 1, 0.5))
+	_ok(_sticker_on(black) == "sfc_rear_sticker_noe.png", "stickered/and so does a clear shell")
+	for cart in carts:
 		cart.queue_free()
 	await get_tree().process_frame
 

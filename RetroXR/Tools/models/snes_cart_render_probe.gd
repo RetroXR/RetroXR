@@ -1,7 +1,8 @@
 ## Renders the Super NES cartridges as the spawn menu makes them: Type A and Type
 ## B wearing a scraped label, Killer Instinct's black shell, a mixed metal-flake
-## shell, and the Super Famicom / PAL body with the label — from the front, the
-## back, below, and each label up close.
+## shell, the Super Famicom / PAL body with the label, and above it a German ROM's
+## cartridge, the same body with its PAL rear sticker — from the front, the back,
+## below, and each label and both Super Famicom backs up close.
 ##
 ##     "$godot" --path RetroXR --resolution 1600x900 --position 20,20 \
 ##         res://Tools/models/snes_cart_render_probe.tscn -- --out=<dir> [--label=<png>]
@@ -38,13 +39,14 @@ func _ready() -> void:
 
 func _run(label_src: String) -> void:
 	_build_studio()
-	# [rom file, internal title, forced body, mixed colour, flake]
+	# [rom file, internal title, forced body, mixed colour, flake, header destination (North America unless given)]
 	var carts := [
 		["a.sfc", "SUPER MARIOWORLD", SnesCartShell.TYPE_A, "", false],
 		["b.sfc", "BUBSY II", SnesCartShell.TYPE_B, "", false],
 		["ki.sfc", "KILLER INSTINCT", "", "", false],
 		["flake.sfc", "SUPER MARIOWORLD", SnesCartShell.TYPE_B, "#2a6fd6", true],
 		["sfc.sfc", "SUPER MARIO RPG", SnesCartShell.SFC, "", false],
+		["pal.sfc", "SUPER MARIO RPG", "", "", false, 0x09],
 	]
 	if not label_src.is_empty():
 		var img := Image.load_from_file(label_src)
@@ -61,14 +63,15 @@ func _run(label_src: String) -> void:
 		var c: Array = carts[i]
 		var cart := CART_SCENE.instantiate() as RetroCartridge
 		cart.systemid = SnesCartShell.SYSTEMID
-		cart.rom_path = _write_rom(FIXTURE + "_" + str(c[0]), _rom(str(c[1])))
+		cart.rom_path = _write_rom(FIXTURE + "_" + str(c[0]), _rom(str(c[1]), c[5] if c.size() > 5 else 0x01))
 		cart.body_region = c[2]
 		cart.shell_color = c[3]
 		cart.shell_flake = c[4]
 		cart.game_label = str(c[1])
 		cart.freeze = true
 		add_child(cart)
-		cart.global_position = Vector3((i - 1.5) * 0.15, 0.0, 0.0)
+		# Five in a row; the PAL cartridge above the Super Famicom one.
+		cart.global_position = Vector3((i - 1.5) * 0.15, 0.0, 0.0) if i < 5 else Vector3(0.375, 0.12, 0.0)
 		spawned.append(cart)
 		var model := cart.get_node_or_null("CartModel")
 		print("[snesrender] %s: %s" % [c[1], model.scene_file_path.get_file() if model != null else "no model"])
@@ -98,6 +101,7 @@ func _run(label_src: String) -> void:
 	await _shot(sv, cam, Vector3(-0.13, 0.10, 0.30), Vector3(-0.075, 0.01, 0.0), "type_b_close.png")
 	await _shot(sv, cam, Vector3(0.43, 0.10, 0.30), Vector3(0.375, 0.01, 0.0), "sfc_close.png")
 	await _shot(sv, cam, Vector3(0.32, 0.10, -0.30), Vector3(0.375, 0.01, 0.0), "sfc_back_close.png")
+	await _shot(sv, cam, Vector3(0.34, 0.20, -0.30), Vector3(0.375, 0.125, 0.0), "pal_back_close.png")
 	_cleanup()
 	get_tree().quit(0)
 
@@ -133,15 +137,15 @@ func _build_studio() -> void:
 	add_child(fill)
 
 
-## A 64 KB HiROM image whose internal header names `title`, sold in North America,
-## checksum and complement paired.
-func _rom(title: String) -> PackedByteArray:
+## A 64 KB HiROM image whose internal header names `title`, sold in North America
+## unless `destination` says elsewhere, checksum and complement paired.
+func _rom(title: String, destination := 0x01) -> PackedByteArray:
 	var rom := PackedByteArray()
 	rom.resize(0x10000)
 	var h := 0xFFC0
 	for i in SnesCartShell.TITLE_BYTES:
 		rom[h + i] = title.unicode_at(i) if i < title.length() else 0x20
-	rom[h + SnesCartShell.DESTINATION_AT] = 0x01
+	rom[h + SnesCartShell.DESTINATION_AT] = destination
 	rom.encode_u16(h + SnesCartShell.CHECKSUM_AT, 0x5A3C)
 	rom.encode_u16(h + SnesCartShell.CHECKSUM_COMPLEMENT_AT, ~0x5A3C & 0xFFFF)
 	return rom

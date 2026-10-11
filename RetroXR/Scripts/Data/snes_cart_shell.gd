@@ -19,6 +19,11 @@
 ## black plastic, and the North American Doom and Maximum Carnage in red;
 ## everything else in the standard grey, the model's own. The colours are in
 ## Resources/snes_cartridge_shells.tres.
+##
+## The Super Famicom body carries the Japanese warning sticker on its back. A PAL
+## cartridge is the same shell with another one, and there were six, each naming
+## itself in its corner (SNSP-UKV, -NOE, -ESP, -ITA, -FAH, - EUR): rear_sticker()
+## picks one from the ROM's region and apply_rear_sticker() puts it on.
 class_name SnesCartShell
 extends RefCounted
 
@@ -71,8 +76,41 @@ const TITLE_SHELLS := {
 ## GoodTools' one-letter region codes, as in "Doom (U) [!].smc".
 const GOODTOOLS_MARKETS := {"U": "us", "J": "jp", "E": "eu", "F": "eu", "G": "eu", "A": "au"}
 
+## The PAL rear stickers, by the code printed on them, and their art: the
+## debranded recreations from RetroXR-models (no "(M) (C) 1992 NINTENDO").
+const STICKERS: Array[String] = ["ukv", "noe", "esp", "ita", "fah", "eur"]
+const STICKER_FILE := "res://imported-assets/carts/sfc/stickers/sfc_rear_sticker_%s.png"
+const STICKER_MESH := "Rear_Sticker"
+
+## A region, as the scraper or a No-Intro file name writes it (lower case) -> the
+## sticker that market's cartridges carried. Australia and Scandinavia took the
+## United Kingdom's (English); France and the Netherlands shared one in English,
+## French and Dutch; "Europe" is the pan-European one in English, French and
+## German. A region not listed (Japan, the USA) keeps the body's own sticker.
+const REGION_STICKERS := {
+	"uk": "ukv", "united kingdom": "ukv", "australia": "ukv", "au": "ukv",
+	"new zealand": "ukv", "nz": "ukv", "sweden": "ukv", "se": "ukv", "scandinavia": "ukv",
+	"germany": "noe", "de": "noe",
+	"spain": "esp", "sp": "esp", "es": "esp",
+	"italy": "ita", "it": "ita",
+	"france": "fah", "fr": "fah", "netherlands": "fah", "nl": "fah",
+	"europe": "eur", "eu": "eur",
+}
+
+## Header destination code -> sticker: Europe, Sweden, Finland, Denmark, France,
+## the Netherlands, Spain, Germany, Italy, Australia.
+const DESTINATION_STICKERS := {
+	0x02: "eur", 0x03: "ukv", 0x04: "ukv", 0x05: "ukv", 0x06: "fah", 0x07: "fah",
+	0x08: "esp", 0x09: "noe", 0x0A: "ita", 0x11: "ukv",
+}
+
+## GoodTools' region codes that name one sticker, as in "Game (G) [!].smc".
+const GOODTOOLS_STICKERS := {"E": "eur", "F": "fah", "G": "noe", "A": "ukv"}
+
 static var _gamelists := GamelistManager.new()
 static var _gamelist_stamps := {}
+## Sticker art path -> the material showing it, shared by every cartridge wearing it.
+static var _sticker_materials := {}
 
 
 ## The body model for a ROM, or "" to keep the procedural box.
@@ -136,6 +174,86 @@ static func body_model(body_region: String, market_name: String, released := "")
 	if market_name != "us":
 		return ""
 	return BODY_TYPE_B if released.length() == 8 and released >= TYPE_B_FROM else BODY_TYPE_A
+
+
+## The rear sticker a ROM's cartridge carried ("noe", "eur", ...), or "" for the
+## body's own. Read as market() reads the market: the scraper's region, else the
+## file name's region tag, else the header's destination byte.
+static func rear_sticker(systemid: String, rom_path: String) -> String:
+	return sticker_code(str(scraped_rom(systemid, rom_path).get("region", "")), rom_path.get_file(),
+		read_header(rom_path))
+
+
+## rear_sticker()'s rule on its three sources. The first one that names a region
+## answers, with "" when that region had no PAL sticker (Japan, the USA).
+static func sticker_code(scraped_region: String, file_name: String, header: PackedByteArray) -> String:
+	var region := scraped_region.strip_edges().to_lower()
+	if not N64CartShell.market_of_region(region).is_empty():
+		return str(REGION_STICKERS.get(region, ""))
+	if not filename_market(file_name).is_empty():
+		return filename_sticker(file_name)
+	if header.size() >= HEADER_BYTES:
+		return str(DESTINATION_STICKERS.get(header[DESTINATION_AT], ""))
+	return ""
+
+
+## The sticker of the file name's first region tag, the tag filename_market()
+## reads: "(Germany)" is "noe", "(Europe, Australia)" "eur", "(G)" "noe", and
+## "(USA)" or "(Japan)" none.
+static func filename_sticker(file_name: String) -> String:
+	var name := file_name.get_file()
+	var at := name.find("(")
+	while at >= 0:
+		var close := name.find(")", at)
+		if close < 0:
+			break
+		var tag := name.substr(at + 1, close - at - 1).strip_edges()
+		var named := false
+		for part in tag.split(","):
+			if N64CartShell.market_of_region(part).is_empty():
+				continue
+			named = true
+			var code := str(REGION_STICKERS.get(part.strip_edges().to_lower(), ""))
+			if not code.is_empty():
+				return code
+		if named or _is_goodtools_code(tag):
+			return str(GOODTOOLS_STICKERS.get(tag, ""))
+		at = name.find("(", close)
+	return ""
+
+
+## The art a cartridge in `body_model` wears on its back for this ROM, or "" when
+## it keeps the model's own: only the Super Famicom body takes a PAL sticker.
+static func rear_sticker_file(body_model: String, systemid: String, rom_path: String) -> String:
+	if body_model != BODY_SFC:
+		return ""
+	var code := rear_sticker(systemid, rom_path)
+	if code.is_empty():
+		return ""
+	var path := STICKER_FILE % code
+	return path if ResourceLoader.exists(path) else ""
+
+
+## Put a rear sticker's art (rear_sticker_file()) on `body`'s Rear_Sticker. The
+## material is the model's own with the art swapped, one per sticker and shared:
+## no shell colour reaches the sticker, so nothing changes it afterwards.
+static func apply_rear_sticker(body: Node, art_path: String) -> bool:
+	if body == null or art_path.is_empty():
+		return false
+	var mi := body.find_child(STICKER_MESH, true, false) as MeshInstance3D
+	if mi == null or mi.mesh == null:
+		return false
+	var material := _sticker_materials.get(art_path) as BaseMaterial3D
+	if material == null:
+		var own := mi.mesh.surface_get_material(0) as BaseMaterial3D
+		var art := load(art_path) as Texture2D
+		if own == null or art == null:
+			return false
+		material = own.duplicate() as BaseMaterial3D
+		material.albedo_texture = art
+		_sticker_materials[art_path] = material
+	mi.set_surface_override_material(0, material)
+	return true
 
 
 ## "U", "JU", "E": every letter a GoodTools region code ("PAL" is not one).

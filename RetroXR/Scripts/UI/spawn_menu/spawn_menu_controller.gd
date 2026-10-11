@@ -1278,6 +1278,10 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 		StringName(str(options.get("shell_preset", ""))))
 	if not body.is_empty() and ResourceLoader.exists(body):
 		await ModelWarmer.acquire(body)
+	# And the PAL rear sticker a Super Famicom-shaped cartridge wears, likewise.
+	var sticker := SnesCartShell.rear_sticker_file(body, systemid, rom_path)
+	if not sticker.is_empty():
+		await ModelWarmer.acquire(sticker)
 	var cart := (disc_scene if is_disc else CART_SCENE).instantiate() as RetroCartridge
 	cart.rom_path = rom_path
 	cart.game_label = game_label

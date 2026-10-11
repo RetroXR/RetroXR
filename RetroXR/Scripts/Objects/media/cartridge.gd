@@ -295,6 +295,8 @@ func _apply_cart_model() -> void:
 		_paint_shell(glb, GbaCartShell.SYSTEMID, GbaCartShell.preset_for_rom(rom_path))
 	elif systemid == SnesCartShell.SYSTEMID:
 		_paint_shell(glb, SnesCartShell.SYSTEMID, SnesCartShell.preset_for_rom(rom_path))
+		# A PAL cartridge is the Super Famicom shell with its market's warning sticker.
+		SnesCartShell.apply_rear_sticker(glb, SnesCartShell.rear_sticker_file(path, systemid, rom_path))
 	elif systemid == NesCartShell.SYSTEMID:
 		_paint_shell(glb, NesCartShell.SYSTEMID, NesCartShell.preset_for_rom(rom_path))
 	for nm: String in _LABEL_MESHES:
