@@ -1486,6 +1486,11 @@ func set_crt_params(values: Dictionary) -> void:
 	_display.set_crt_params(values)
 
 
+## Initial cabinet tuning; restored values and player edits always win.
+func set_crt_defaults(values: Dictionary) -> void:
+	_display.set_crt_defaults(values)
+
+
 ## True when the showing source is handing over a side-by-side stereo frame.
 func has_stereo_source() -> bool:
 	return _display.has_stereo_source()

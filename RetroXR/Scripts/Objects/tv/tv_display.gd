@@ -63,6 +63,10 @@ var _crt_params := {
 ## only when one of those actually moves.
 var _crt_derived_key: Array = []
 
+## Explicit save/panel values beat cabinet defaults, including saves seeded
+## before the shell is created in RetroTV._ready.
+var _crt_overrides: Dictionary = {}
+
 ## The texture currently being sampled onto the glass.
 var _crt_source_tex: Texture2D = null
 
@@ -602,6 +606,7 @@ func set_crt_param(pname: String, value: Variant) -> void:
 		push_warning("TVDisplay: no CRT parameter named '%s'" % pname)
 		return
 	_crt_params[pname] = value
+	_crt_overrides[pname] = true
 	for mat: ShaderMaterial in known_display_materials():
 		mat.set_shader_parameter(pname, value)
 	# crt_mask_pitch_mm isn't a uniform — it feeds the derived triad count.
@@ -618,13 +623,26 @@ func get_crt_params() -> Dictionary:
 ## parameters, and coerces through the current value's type — JSON gives every
 ## number back as a float, but crt_mask_mode is an int uniform.
 func set_crt_params(values: Dictionary) -> void:
+	_merge_crt_params(values, false)
+
+
+## Cabinet-specific initial tuning, never an overwrite of a player's settings.
+func set_crt_defaults(values: Dictionary) -> void:
+	_merge_crt_params(values, true)
+
+
+func _merge_crt_params(values: Dictionary, defaults: bool) -> void:
 	for key: String in values:
 		if not _crt_params.has(key):
+			continue
+		if defaults and _crt_overrides.has(key):
 			continue
 		if typeof(_crt_params[key]) == TYPE_INT:
 			_crt_params[key] = int(values[key])
 		else:
 			_crt_params[key] = float(values[key])
+		if not defaults:
+			_crt_overrides[key] = true
 	_crt_derived_key = []
 	# Seeded before _ready (scene restore instantiates then sets): the values are
 	# in place and get pushed when the filter first wraps a source.

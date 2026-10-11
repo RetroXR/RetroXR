@@ -302,6 +302,13 @@ to doing nothing:
   your own sounds off them. The stock sets have no button audio at all, so this is
   adding rather than overriding.
 
+A cabinet can seed the stock CRT shader from its `_ready()` using
+`(get_parent() as RetroTV).set_crt_defaults({"crt_mask_mode": 2})`.
+Only known CRT keys are merged; saved picture values and player edits take
+priority, even when restored before the cabinet enters the tree. Use this instead
+of `set_crt_params()` for defaults so loading a room cannot reset its picture.
+Registered cabinets appear in **SPAWN > TVs** under their registration label.
+
 A **controller** is simply a scene rooted at `RetroController`. Persistence
 already records its scene path and falls back to the generic pad if your mod is
 gone; nothing extra is needed.

@@ -15,6 +15,7 @@
 ##   removal/     A SLOT MUST SURVIVE THE MOD THAT FILLED IT GOING AWAY
 ##   netplay/     the fingerprint and its mismatch report
 ##   consistency/ cross-table invariants a mod platform would break first
+##   tvdefaults/  cabinet CRT defaults without overwriting restored/player values
 ##
 ## Almost every case runs WITHOUT mounting anything, because a mounted pack
 ## cannot be unmounted and a test that mounts pollutes every case after it.
@@ -25,7 +26,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 340
+const EXPECTED_CASES := 352
 
 var _pass := 0
 var _fail := 0
@@ -57,6 +58,7 @@ func _ready() -> void:
 	if _want("standins"):    _group_standins()
 	if _want("cartshell"):   await _group_cartshell()
 	if _want("expshell"):    _group_expshell()
+	if _want("tvdefaults"):  _group_tv_defaults()
 
 	_cleanup()
 	# A case that never RAN is not a case that passed: GDScript has no try/catch,
@@ -67,6 +69,39 @@ func _ready() -> void:
 		_eq(_pass + _fail, EXPECTED_CASES, "suite/every case ran")
 	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
+
+
+## Scene restoration seeds parameters before the TV's shell enters the tree.
+## Equal-to-stock overrides matter too: comparing against stock cannot detect them.
+func _group_tv_defaults() -> void:
+	var scene := load("res://Scenes/Objects/tv.tscn") as PackedScene
+	var fresh := scene.instantiate() as RetroTV
+	fresh.set_crt_defaults({"crt_mask_mode": 2.0, "crt_gamma": 1.09, "not_a_crt_key": 9})
+	_eq(fresh.get_crt_params()["crt_mask_mode"], 2, "tvdefaults/fresh cabinet gets slot mask as int")
+	_eq(fresh.get_crt_params()["crt_gamma"], 1.09, "tvdefaults/gamma is a ratio, not tube gamma")
+	_ok(not fresh.get_crt_params().has("not_a_crt_key"), "tvdefaults/unknown defaults ignored")
+	var restored := scene.instantiate() as RetroTV
+	restored.set_crt_params({"crt_mask_mode": 1.0, "crt_gamma": 1.09, "crt_grain": 0.07})
+	restored.set_crt_defaults({"crt_mask_mode": 2, "crt_gamma": 1.2,
+		"crt_grain": 0.02, "crt_scanline_strength": 0.4})
+	_eq(restored.get_crt_params()["crt_mask_mode"], 1, "tvdefaults/saved stock mask still overrides cabinet")
+	_eq(restored.get_crt_params()["crt_gamma"], 1.09, "tvdefaults/saved stock gamma still overrides cabinet")
+	_eq(restored.get_crt_params()["crt_grain"], 0.07, "tvdefaults/saved tuning beats defaults")
+	_eq(restored.get_crt_params()["crt_scanline_strength"], 0.4, "tvdefaults/partial save gets remaining defaults")
+	restored.set_crt_param("crt_scanline_strength", 0.2)
+	restored.set_crt_defaults({"crt_scanline_strength": 0.5})
+	_eq(restored.get_crt_params()["crt_scanline_strength"], 0.2, "tvdefaults/panel edit beats later defaults")
+	fresh.set_crt_params({"crt_mask_mode": 3.0})
+	_eq(fresh.get_crt_params()["crt_mask_mode"], 3, "tvdefaults/save applied after defaults wins too")
+	var stock := scene.instantiate() as RetroTV
+	_eq(stock.get_crt_params()["crt_mask_mode"], 1, "tvdefaults/other televisions stay unchanged")
+	fresh.set_crt_defaults({"crt_halation": 0.06})
+	_eq(fresh.get_crt_params()["crt_halation"], 0.06, "tvdefaults/unedited values can take cabinet defaults")
+	var copy := fresh.get_crt_params()
+	copy["crt_halation"] = 0.9
+	_eq(fresh.get_crt_params()["crt_halation"], 0.06, "tvdefaults/readback does not expose mutable state")
+	for tv: RetroTV in [fresh, restored, stock]:
+		tv.free()
 
 
 func _want(group: String) -> bool:
@@ -647,7 +682,11 @@ func _entry_of(entries: Array, type: String) -> Dictionary:
 func _group_netplay() -> void:
 	# With nothing loaded the fingerprint is empty, so two stock builds match and
 	# the check costs an untouched room nothing.
-	_eq(Mods.fingerprint().size(), 0, "netplay/no mods means an empty fingerprint")
+	# The player's autoload may have installed mods. An empty manager is the
+	# fixture here; never disable real mods or depend on the player's enable list.
+	var empty_manager: Node = load("res://Scripts/Mods/mod_manager.gd").new()
+	_eq(empty_manager.fingerprint().size(), 0, "netplay/no mods means an empty fingerprint")
+	empty_manager.free()
 
 	var ours := PackedStringArray(["a@1.0.0", "b@2.0.0"])
 	var same := PackedStringArray(["a@1.0.0", "b@2.0.0"])
