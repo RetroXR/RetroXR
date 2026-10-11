@@ -22,6 +22,10 @@ extends Node3D
 @export var glow_color: Color = Color(1, 0.85, 0.6)
 @export var glow_energy: float = 1.6
 
+## Transmissive fixture parts that must not block their own light's shadow map.
+## Includes the bulb itself when the light sits inside its modelled envelope.
+@export var shadowless_meshes: PackedStringArray = []
+
 ## Meshes to turn into LIT GLASS — a shade you can see the bulb through.
 ##
 ## Without this the only way to show a fixture was on was to make the shade itself
@@ -48,6 +52,8 @@ var _glass: Array[BaseMaterial3D] = []
 func _ready() -> void:
 	for node in find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
+		if shadowless_meshes.has(mi.name):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		if mi.mesh == null:
 			continue
 		var is_glow := glow_meshes.has(mi.name)

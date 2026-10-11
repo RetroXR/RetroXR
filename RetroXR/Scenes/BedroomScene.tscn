@@ -922,6 +922,8 @@ yank = 0.22
 script = ExtResource("35_glow")
 glow_color = Color(1, 0.82, 0.55, 1)
 glow_energy = 4.5
+; Imported glass cover and bulb envelope; neither may occlude the light inside.
+shadowless_meshes = PackedStringArray("defaultMaterial4", "defaultMaterial5")
 
 [node name="Fan" parent="Furniture/FanPivot" unique_id=907614595 instance=ExtResource("14_fan")]
 transform = Transform3D(0.00283, 0, 0, 0, 0.00283, 0, 0, 0, 0.00283, 0.2181, 0.4982, -0.5128)
@@ -1033,7 +1035,7 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 0.527, -2.512, 0.121, 1.9365)
 mesh = SubResource("Mesh_cap_ew")
 surface_material_override/0 = SubResource("Mat_trim")
 
-[node name="FanGlobeLight" type="OmniLight3D" parent="." unique_id=1074569393 groups=["ceiling_light", "no_shadow"]]
+[node name="FanGlobeLight" type="OmniLight3D" parent="." unique_id=1074569393 groups=["ceiling_light", "no_shadow_mobile"]]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.29, 0)
 light_color = Color(1, 0.85, 0.62, 1)
 light_energy = 1.2
