@@ -35,6 +35,7 @@ func _ready() -> void:
 	_group_counts()
 	_group_formats()
 	_group_fit()
+	_group_tvs()
 	await _group_hold()
 	await _group_delete()
 	_group_discs()
@@ -70,6 +71,40 @@ func _ok(cond: bool, what: String, detail := "") -> void:
 
 func _eq(got: Variant, want: Variant, what: String) -> void:
 	_ok(got == want, what, "got %s, want %s" % [got, want])
+
+
+## Build only the actual TVs tab, without the menu's rendered viewport.
+func _group_tvs() -> void:
+	const OWNER := "menu.tv_fixture"
+	const SHELL := "menu.tv_fixture:panasonic"
+	var view := SpawnMenuSpawnView.new()
+	var tabs := TabContainer.new()
+	view.add_child(tabs)
+	var baseline := RetroTV.mod_shells().size()
+	_eq(RetroTV.register_mod_shell(SHELL, "res://Scenes/Objects/tv.tscn",
+		"Panasonic fixture", OWNER), "", "tvs/register a cabinet")
+	var rows := view._add_tv_spawn_tab(tabs)
+	var buttons: Array[Button] = []
+	for child: Node in rows.get_children():
+		if child is Button:
+			buttons.append(child as Button)
+	_eq(tabs.get_tab_title(0), "TVs", "tvs/tab title")
+	_eq(buttons.size(), baseline + 3, "tvs/stock TVs plus every registered cabinet")
+	_eq(buttons[0].text.strip_edges(), "+  TV", "tvs/stock TV remains")
+	_eq(buttons[1].text.strip_edges(), "+  Plain Monitor", "tvs/stock monitor remains")
+	var emitted: Array[String] = []
+	view.spawn_requested.connect(func(token: String) -> void: emitted.append(token))
+	buttons[-1].pressed.emit()
+	_eq(buttons[-1].text.strip_edges(), "+  Panasonic fixture", "tvs/registration label shown")
+	_eq(emitted, ["tv:" + SHELL], "tvs/press emits the namespaced cabinet token")
+	RetroTV.drop_mod_shells(OWNER)
+	var rebuilt := view._add_tv_spawn_tab(tabs)
+	var count := 0
+	for child: Node in rebuilt.get_children():
+		if child is Button:
+			count += 1
+	_eq(count, baseline + 2, "tvs/removed cabinet absent from a rebuilt menu")
+	view.free()
 
 
 # ── filter/ — the drill-down browser's search box ─────────────────────────────

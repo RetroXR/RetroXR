@@ -402,9 +402,7 @@ func _build() -> void:
 	_spawn_tab_scrolls.append(null)
 	_populate_cartridges_tab()
 
-	# "tv:<shell>" names a cabinet variant, the way "model:<systemid>:<model_id>"
-	# names a console's. A future shell costs a row here and nothing else.
-	_add_spawn_tab(tabs, "TVs", [["TV", "tv"], ["Plain Monitor", "tv:crt_plain"]])
+	_add_tv_spawn_tab(tabs)
 
 	# Books tab — lists PDFs from the books root directory
 	var books_scroll := ScrollContainer.new()
@@ -2248,6 +2246,15 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 			btn.pressed.connect(spawn_requested.emit.bind(item[1]))
 		vbox.add_child(btn)
 	return vbox
+
+
+## Mods register before the menu is built. Keep the stock TVs, then offer every
+## registered cabinet using the same "tv:<shell>" token as the plain monitor.
+func _add_tv_spawn_tab(tabs: TabContainer) -> VBoxContainer:
+	var items: Array = [["TV", "tv"], ["Plain Monitor", "tv:crt_plain"]]
+	for shell: Dictionary in RetroTV.mod_shells():
+		items.append([str(shell["label"]), "tv:" + str(shell["id"])])
+	return _add_spawn_tab(tabs, "TVs", items)
 
 
 ## The virtual controllers, then a receiver per connected physical pad.
