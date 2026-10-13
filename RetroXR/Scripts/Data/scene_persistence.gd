@@ -1570,6 +1570,10 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 				_resolve_ref(root, spawned, d.get("motion_plus")) as MotionPlus)
 			(obj as Wiimote).restore_nunchuk(
 				_resolve_ref(root, spawned, d.get("nunchuk")) as Nunchuk)
+			# And an extension the game has no class for (a mod's Classic
+			# Controller), which goes back the way the Nunchuk does.
+			(obj as Wiimote).restore_extension(
+				_resolve_ref(root, spawned, d.get("extension")) as Node3D)
 		if obj is RetroController:
 			# The pak goes back whether or not the pad was plugged into anything —
 			# a loose N64 controller can still have one in it. A Transfer Pak
@@ -2215,6 +2219,12 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 		# derived from device_type, because the pair of them is what says which
 		# port the Nunchuk goes back into.
 		entry["motion_plus"] = _ref(node_to_id, (node as Wiimote).get_motion_plus())
+		# An extension of a mod's making, when there is one: the remote is asked
+		# what is on the end of it, straight in or through the dongle. Left out
+		# of the entry when there is none, so a save without one is as it was.
+		var extension := (node as Wiimote).get_extension()
+		if extension != null:
+			entry["extension"] = _ref(node_to_id, extension)
 	if node is RetroMouse:
 		entry["sensitivity"] = (node as RetroMouse).sensitivity
 		entry["stick_distance"] = (node as RetroMouse).stick_distance

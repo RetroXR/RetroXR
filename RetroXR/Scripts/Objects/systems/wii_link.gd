@@ -78,10 +78,13 @@ func _exit_tree() -> void:
 # ── Sensor bar ────────────────────────────────────────────────────────────────
 
 func _bind_sensor_bar_port() -> void:
-	var model := host.get_model() as RetroSystemModelWii
-	if model == null:
+	# Asked of whatever model the console wears, by method and not by class: a
+	# shell a mod brings is not RetroSystemModelWii and has the jack all the same.
+	# Cast to that class, such a console's jack was built and never listened to.
+	var model := host.get_model()
+	if model == null or not model.has_method("get_sensor_bar_port"):
 		return
-	_sensor_bar_port = model.get_sensor_bar_port()
+	_sensor_bar_port = model.call("get_sensor_bar_port") as XRToolsSnapZone
 	if _sensor_bar_port == null:
 		return
 	_sensor_bar_port.has_picked_up.connect(_on_sensor_bar_seated)

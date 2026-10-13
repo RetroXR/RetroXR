@@ -42,12 +42,17 @@ const RESEAT_RETRIES := 8
 ## itself, being two objects away from it, so the chain is announced upward and
 ## the remote re-announces its libretro slot on the strength of it.
 signal nunchuk_changed(nunchuk: Nunchuk)
+## The same for an extension the game has no class for (a mod's Classic
+## Controller; see Wiimote._brought_extension), which goes in this socket as it
+## goes in the remote's.
+signal extension_changed(extension: Node3D)
 
 
 ## Read by any socket this is offered to. See PLUG_SYSTEMID.
 var systemid: String = PLUG_SYSTEMID
 
 var _nunchuk: Nunchuk = null
+var _extension: Node3D = null
 var _hint: HeldHint = null
 
 @onready var _expansion_port: XRToolsSnapZone = $ExpansionPort
@@ -69,20 +74,38 @@ func _ready() -> void:
 # ── The pass-through port ─────────────────────────────────────────────────────
 
 func _accepts_nunchuk(obj: Node3D) -> bool:
-	return "systemid" in obj and str(obj.get("systemid")) == NUNCHUK_PLUG_SYSTEMID
+	if not "systemid" in obj:
+		return false
+	if str(obj.get("systemid")) == NUNCHUK_PLUG_SYSTEMID:
+		return true
+	# What the remote's own socket takes of a mod's making, this one does.
+	return Wiimote._brought_extension(obj) != null
 
 
 func _on_nunchuk_seated(plug: Node3D) -> void:
 	var owner_node: Node3D = plug.get_controller() if plug.has_method("get_controller") else plug
 	_nunchuk = owner_node as Nunchuk
+	if _nunchuk == null:
+		_extension = Wiimote._brought_extension(plug)
+		extension_changed.emit(_extension)
+		return
 	nunchuk_changed.emit(_nunchuk)
 
 
 ## XRToolsSnapZone.has_dropped carries no argument: it says the zone is empty,
-## not what left. Which is enough: the zone holds one thing and _nunchuk is it.
+## not what left. Which is enough: the zone holds one thing, and it is _nunchuk
+## or _extension.
 func _on_nunchuk_removed() -> void:
+	if _extension != null:
+		_extension = null
+		extension_changed.emit(null)
 	_nunchuk = null
 	nunchuk_changed.emit(null)
+
+
+## The extension of a mod's making plugged into the pass-through, or null.
+func get_extension() -> Node3D:
+	return _extension if is_instance_valid(_extension) else null
 
 
 ## The Nunchuk plugged into the pass-through, or null. The remote reads its stick
@@ -112,3 +135,11 @@ func _reseat_nunchuk(nc: Nunchuk, tries_left: int) -> void:
 		push_warning("[MotionPlus] nunchuk cord never appeared; left unseated")
 		return
 	_reseat_nunchuk.call_deferred(nc, tries_left - 1)
+
+
+## Seat a plug in the pass-through: what a load does for an extension of a mod's
+## making once its cord has been made (Wiimote.restore_extension, which does the
+## waiting).
+func seat_plug(plug: Node3D) -> void:
+	if is_instance_valid(plug):
+		_expansion_port.pick_up_object(plug)

@@ -208,6 +208,10 @@ var _pending_port_restore: Dictionary = {}
 # _nunchuk holds it either way so nothing downstream has to care which.
 var _nunchuk: Nunchuk = null
 var _motion_plus: MotionPlus = null
+## An extension the game has no class for, or null: whatever is on the end of
+## the seated cord when it says it is one (see _brought_extension). A Classic
+## Controller a mod brings is the case this exists for.
+var _extension: Node3D = null
 
 # Cached screen geometry (set on pair, cleared on unpair)
 var _screen_mesh: MeshInstance3D = null
@@ -525,6 +529,13 @@ func get_nunchuk() -> Nunchuk:
 	return _nunchuk
 
 
+## The extension of a mod's making on the end of this remote (see
+## _brought_extension), straight in or through the dongle, or null. Read when
+## saving: it is the remote that knows what is plugged into it.
+func get_extension() -> Node3D:
+	return _extension if is_instance_valid(_extension) else null
+
+
 ## The MotionPlus dongle seated in the expansion port, or null. Read when saving.
 func get_motion_plus() -> MotionPlus:
 	return _motion_plus
@@ -571,6 +582,37 @@ func _reseat_nunchuk(nc: Nunchuk, tries_left: int) -> void:
 		push_warning("[Wiimote] nunchuk cord never appeared; left unseated")
 		return
 	_reseat_nunchuk.call_deferred(nc, tries_left - 1)
+
+
+## How many frames a load waits for a brought extension's cord: half a second.
+const RESEAT_FRAMES := 30
+
+## Re-seat a brought extension after a load: its plug, once its cord has been
+## made, into the dongle when one is fitted, because that is the socket it came
+## out of, and into this one when not. restore_motion_plus runs first and seats
+## at once, so which it is, is settled before the first frame of waiting is up.
+##
+## Waited for a frame at a time, and not a deferred call at a time: deferred
+## calls queued from a deferred call all run before the frame is out, so tries
+## of that kind are over in one frame and have waited for nothing.
+func restore_extension(extension: Node3D) -> void:
+	if not is_instance_valid(extension) or _brought_extension(extension) == null:
+		return
+	for i in RESEAT_FRAMES:
+		if not is_inside_tree():
+			return
+		await get_tree().process_frame
+		if not is_instance_valid(extension):
+			return
+		var plug: Node3D = extension.call("get_plug") if extension.has_method("get_plug") else null
+		if plug == null:
+			continue
+		if _motion_plus != null:
+			_motion_plus.seat_plug(plug)
+		else:
+			_expansion_port.pick_up_object(plug)
+		return
+	push_warning("[Wiimote] an extension's cord never appeared; left unseated")
 
 
 ## Re-seat a MotionPlus after a load. No deferral, unlike the Nunchuk: the dongle
@@ -635,7 +677,43 @@ func _accepts_extension(obj: Node3D) -> bool:
 	if not "systemid" in obj:
 		return false
 	var mid := str(obj.get("systemid"))
-	return mid == NUNCHUK_PLUG_SYSTEMID or mid == MOTION_PLUS_PLUG_SYSTEMID
+	if mid == NUNCHUK_PLUG_SYSTEMID or mid == MOTION_PLUS_PLUG_SYSTEMID:
+		return true
+	return _brought_extension(obj) != null
+
+
+## The controller on the end of `obj`'s cord when it is an extension the game
+## has no class for, else null.
+##
+## Such a controller says two things, by method, and that is the whole of what
+## the remote asks of it:
+##
+##   wii_extension_device(with_motion_plus: bool) -> int
+##                                   the libretro device a remote with this on
+##                                   the end of it is announced as, with a
+##                                   MotionPlus between them or without (the
+##                                   core's own ids: Dolphin's "WiiMote + Classic
+##                                   Controller Pro" is 1281, and 2817 with the
+##                                   dongle)
+##   wii_extension_state() -> Dictionary   what it is doing this frame, as
+##                                   {btn, alx, aly, arx, ary}: the RetroPad the
+##                                   core reads in place of the remote's own keys
+##
+## and may take a third call, wii_extension_attached(remote), made with the
+## remote as it goes in and with null as it comes out. To be put back in its
+## socket by a load it also says what its plug is, get_plug(), which any
+## RetroController does.
+##
+## Asked by method and not by class so that a mod can bring one: a pack cannot
+## add a class to the game. The Nunchuk and the MotionPlus keep their own paths,
+## which do more than this (an accelerometer, a pass-through socket). One may be
+## seated in the remote or one step further out, in the dongle's pass-through,
+## as a Nunchuk may: _extension holds it either way.
+static func _brought_extension(obj: Node3D) -> Node3D:
+	var node: Node3D = obj.get_controller() if obj != null and obj.has_method("get_controller") else obj
+	if node != null and node.has_method("wii_extension_device") and node.has_method("wii_extension_state"):
+		return node
+	return null
 
 
 func _on_extension_seated(obj: Node3D) -> void:
@@ -647,9 +725,13 @@ func _on_extension_seated(obj: Node3D) -> void:
 		# remote can no longer see it being seated or pulled. Follow the dongle's
 		# signal instead, and adopt whatever is already in it.
 		mp.nunchuk_changed.connect(_on_chained_nunchuk_changed)
+		mp.extension_changed.connect(_on_chained_extension_changed)
 		_nunchuk = mp.get_nunchuk()
-	else:
+		_set_extension(mp.get_extension())
+	elif node is Nunchuk:
 		_nunchuk = node as Nunchuk
+	else:
+		_set_extension(_brought_extension(obj))
 	_refresh_device_type()
 
 
@@ -660,8 +742,28 @@ func _on_extension_removed() -> void:
 	if _motion_plus != null:
 		if _motion_plus.nunchuk_changed.is_connected(_on_chained_nunchuk_changed):
 			_motion_plus.nunchuk_changed.disconnect(_on_chained_nunchuk_changed)
+		if _motion_plus.extension_changed.is_connected(_on_chained_extension_changed):
+			_motion_plus.extension_changed.disconnect(_on_chained_extension_changed)
 		_motion_plus = null
 	_nunchuk = null
+	_set_extension(null)
+	_refresh_device_type()
+
+
+## Take a brought extension, or let the one held go, and tell each whose socket
+## it is in now: this remote's, or nobody's.
+func _set_extension(extension: Node3D) -> void:
+	if extension == _extension:
+		return
+	if is_instance_valid(_extension) and _extension.has_method("wii_extension_attached"):
+		_extension.call("wii_extension_attached", null)
+	_extension = extension
+	if is_instance_valid(_extension) and _extension.has_method("wii_extension_attached"):
+		_extension.call("wii_extension_attached", self)
+
+
+func _on_chained_extension_changed(extension: Node3D) -> void:
+	_set_extension(extension)
 	_refresh_device_type()
 
 
@@ -674,6 +776,18 @@ func _on_chained_nunchuk_changed(nc: Nunchuk) -> void:
 ## Whether the announced id is one of the Nunchuk ones. Asked rather than compared
 ## against a single id because there are two of them now, with and without the
 ## dongle, and the button layout is the same for both.
+## What an extension said it is doing, made safe to send: the five numbers and
+## nothing else, each an int, a stick's inside what a stick can report.
+##
+## Public because the suites assert against it directly.
+static func extension_state(said: Variant) -> Dictionary:
+	var state: Dictionary = said if said is Dictionary else {}
+	var out := {"btn": int(state.get("btn", 0)) & 0xFFFF}
+	for axis: String in ["alx", "aly", "arx", "ary"]:
+		out[axis] = clampi(int(state.get(axis, 0)), -int(ANALOG_SCALE), int(ANALOG_SCALE))
+	return out
+
+
 func _has_nunchuk() -> bool:
 	return device_type == RETRO_DEVICE_WIIMOTE_NC or device_type == RETRO_DEVICE_WIIMOTE_MP_NC
 
@@ -689,7 +803,11 @@ func _has_nunchuk() -> bool:
 ## So a seated Nunchuk wins and the second hand is just a second hand.
 func _refresh_device_type() -> void:
 	var dev := RETRO_DEVICE_WIIMOTE
-	if _motion_plus != null:
+	if is_instance_valid(_extension):
+		# What it is, is its own to say: the core's id for a remote with it on
+		# the end, through a MotionPlus or straight in.
+		dev = int(_extension.call("wii_extension_device", _motion_plus != null))
+	elif _motion_plus != null:
 		if _nunchuk != null:
 			dev = RETRO_DEVICE_WIIMOTE_MP_NC
 		elif _is_held_in_two_hands():
@@ -1494,8 +1612,12 @@ func _process(delta: float) -> void:
 	# accelerometer below.
 	var joy := {"btn": _button_mask(pressed), "alx": int(nstick.x * ANALOG_SCALE),
 		"aly": int(-nstick.y * ANALOG_SCALE), "arx": 0, "ary": 0}
+	# With an extension of its own kind in the socket the core reads that pad
+	# and none of the remote's keys: the same RetroPad bits mean its buttons now.
+	if is_instance_valid(_extension):
+		joy = extension_state(_extension.call("wii_extension_state"))
 	if not NetworkManager.netplay_route(_connected_system, _port_index, joy):
-		libretro.SetJoypadState(_port_index, joy.btn, joy.alx, joy.aly, 0, 0)
+		libretro.SetJoypadState(_port_index, joy.btn, joy.alx, joy.aly, joy.arx, joy.ary)
 
 	_update_aim(libretro)
 	_update_speaker(libretro)

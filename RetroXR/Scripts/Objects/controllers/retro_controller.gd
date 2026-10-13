@@ -348,6 +348,14 @@ func _resize_cable() -> void:
 	_cable_rope.segment_length = cable_length / float(count)
 
 
+## The plug on the end of this pad's cord, or null until the cord has been made
+## (it is made on a deferred call, after the pad appears). Asked for by what
+## seats that plug on a load when no console's socket does: a Wii Remote, of a
+## pad that is its extension (Wiimote.restore_extension).
+func get_plug() -> ControllerPlug:
+	return _cable_plug
+
+
 func _add_cable_to_scene() -> void:
 	get_tree().current_scene.add_child(_cable_instance)
 	if not captive:

@@ -65,6 +65,8 @@ func _ready() -> void:
 		await _test_a_dongle_has_its_own_sideways_id()
 		await _test_a_nunchuk_behind_a_dongle()
 		await _test_pulling_the_extension()
+	if _wants("extension"):
+		await _test_a_brought_extension()
 	if _wants("touch"):
 		_test_touch_smoother()
 	if _wants("sideways"):
@@ -76,6 +78,165 @@ func _ready() -> void:
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
+
+
+## An extension the game has no class for, the way a mod's Classic Controller is
+## one: it says what device it makes of a remote and what it is doing.
+class _BroughtExtension extends Node3D:
+	var systemid := "wii_classic"
+	var remote: Node = null
+	var calls := 0
+	var doing := {"btn": 0x10001, "alx": 40000, "aly": -40000, "arx": 12, "ary": "7", "extra": 1}
+
+	func wii_extension_device(with_motion_plus: bool) -> int:
+		return 2817 if with_motion_plus else 1281
+
+	func wii_extension_state() -> Dictionary:
+		return doing
+
+	func wii_extension_attached(to: Node) -> void:
+		remote = to
+		calls += 1
+
+	## Its cord's plug, once the cord has been made: a controller has none on the
+	## frame it appears.
+	var plug: Node3D = null
+
+	func get_plug() -> Node3D:
+		return plug
+
+
+## The plug on the end of such an extension's cord: a thing a socket can hold,
+## that says whose it is.
+class _BroughtPlug extends XRToolsPickable:
+	var systemid := "wii_classic"
+	var whose: Node3D = null
+
+	func get_controller() -> Node3D:
+		return whose
+
+
+## Something with a systemid and no more: not an extension.
+class _NotAnExtension extends Node3D:
+	var systemid := "wii_classic"
+
+
+## A remote takes an extension a mod brings: it is accepted by what it says of
+## itself, the remote is announced as the device it names, and comes back a bare
+## remote when it is pulled.
+func _test_a_brought_extension() -> void:
+	var remote := WIIMOTE_SCENE.instantiate() as Wiimote
+	remote.freeze = true
+	add_child(remote)
+	await get_tree().process_frame
+	var pad := _BroughtExtension.new()
+	var other := _NotAnExtension.new()
+	add_child(pad)
+	add_child(other)
+	_ok(Wiimote._brought_extension(pad) == pad and Wiimote._brought_extension(other) == null
+		and Wiimote._brought_extension(null) == null,
+		"extension/one is known by the two things it says, and nothing else is one")
+	_ok(remote._accepts_extension(pad) and not remote._accepts_extension(other),
+		"extension/the socket takes it, and not a stranger with the same systemid")
+	remote._on_extension_seated(pad)
+	_ok(remote.device_type == 1281 and pad.remote == remote and pad.calls == 1,
+		"extension/seated, the remote is the device it names, and it is told whose socket it is in",
+		"device %d" % remote.device_type)
+	_ok(not remote._has_nunchuk() and remote.get_nunchuk() == null,
+		"extension/and is not taken for a Nunchuk")
+	var sent := Wiimote.extension_state(pad.wii_extension_state())
+	_ok(sent == {"btn": 1, "alx": 32767, "aly": -32767, "arx": 12, "ary": 7},
+		"extension/what it says it is doing is sent as five numbers, each kept in range", str(sent))
+	_ok(Wiimote.extension_state(null) == {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0},
+		"extension/and nothing said is nothing sent")
+	remote._on_extension_removed()
+	_ok(remote.device_type == Wiimote.RETRO_DEVICE_WIIMOTE and pad.remote == null and pad.calls == 2,
+		"extension/pulled, it is a bare remote again and the extension is told so",
+		"device %d" % remote.device_type)
+	# Through a MotionPlus: the dongle's socket takes it as the remote's did, and
+	# the remote is announced as the device it names for a remote with a dongle.
+	var dongle := MOTION_PLUS_SCENE.instantiate() as MotionPlus
+	dongle.freeze = true
+	add_child(dongle)
+	await get_tree().process_frame
+	_ok(dongle._accepts_nunchuk(pad) and not dongle._accepts_nunchuk(other),
+		"extension/a MotionPlus's pass-through takes it too, and not the stranger")
+	remote._on_extension_seated(dongle)
+	_ok(remote.device_type == Wiimote.RETRO_DEVICE_WIIMOTE_MP and pad.remote == null,
+		"extension/a dongle alone is a remote with a MotionPlus", "device %d" % remote.device_type)
+	dongle._on_nunchuk_seated(pad)
+	_ok(remote.device_type == 2817 and pad.remote == remote and dongle.get_extension() == pad
+		and dongle.get_nunchuk() == null,
+		"extension/in the dongle, the remote is the device it names for one with a MotionPlus",
+		"device %d" % remote.device_type)
+	dongle._on_nunchuk_removed()
+	_ok(remote.device_type == Wiimote.RETRO_DEVICE_WIIMOTE_MP and pad.remote == null and dongle.get_extension() == null,
+		"extension/pulled out of the dongle, it is a remote with a MotionPlus again",
+		"device %d" % remote.device_type)
+	dongle._on_nunchuk_seated(pad)
+	remote._on_extension_removed()
+	_ok(remote.device_type == Wiimote.RETRO_DEVICE_WIIMOTE and pad.remote == null and dongle.get_extension() == pad,
+		"extension/the dongle pulled with it still in: a bare remote, and the extension told so",
+		"device %d" % remote.device_type)
+	remote._on_extension_seated(dongle)
+	_ok(remote.device_type == 2817 and pad.remote == remote,
+		"extension/and a dongle that goes in with one already in it brings it along",
+		"device %d" % remote.device_type)
+	# What a save keeps: the remote says which one it has, through the dongle or
+	# straight in, and a save writes it beside the Nunchuk.
+	var store := ScenePersistence.new()
+	var ids := {remote: 1, pad: 2, dongle: 3}
+	var through := store._serialize_node(remote, 1, ids)
+	_ok(remote.get_extension() == pad and through.get("extension") == 2 and through.get("motion_plus") == 3,
+		"extension/a save of the remote keeps the extension on the end of it, and the dongle it goes through",
+		str(through.get("extension")))
+	remote._on_extension_removed()
+	var bare := store._serialize_node(remote, 1, ids)
+	_ok(remote.get_extension() == null and not bare.has("extension"),
+		"extension/and a remote with none saves no such key")
+	# Put back by a load. The cord of a controller is made after it appears, so
+	# its plug is waited for, a frame at a time, and seated when it is there.
+	var plug := _BroughtPlug.new()
+	plug.whose = pad
+	plug.freeze = true
+	add_child(plug)
+	remote.restore_extension(other)
+	remote.restore_extension(null)
+	remote.restore_extension(pad)
+	for i in 3:
+		await get_tree().process_frame
+	_ok(remote.get_extension() == null and remote.device_type == Wiimote.RETRO_DEVICE_WIIMOTE,
+		"extension/a load waits for a cord that has not been made yet", "device %d" % remote.device_type)
+	pad.plug = plug
+	for i in 3:
+		await get_tree().process_frame
+	_ok(remote.get_extension() == pad and remote.device_type == 1281 and remote._expansion_port.picked_up_object == plug,
+		"extension/and seats its plug in the remote when it has", "device %d" % remote.device_type)
+	remote._expansion_port.drop_object()
+	await get_tree().process_frame
+	_ok(remote.get_extension() == null and remote.device_type == Wiimote.RETRO_DEVICE_WIIMOTE,
+		"extension/pulled by its plug, it is out again", "device %d" % remote.device_type)
+	# Through the dongle when one is fitted: that is the socket it came out of.
+	remote._on_extension_seated(dongle)
+	remote.restore_extension(pad)
+	for i in 3:
+		await get_tree().process_frame
+	_ok(dongle.get_extension() == pad and remote.get_extension() == pad and remote.device_type == 2817
+		and remote._expansion_port.picked_up_object == null,
+		"extension/a load puts it back in the dongle when the remote has one", "device %d" % remote.device_type)
+	dongle._expansion_port.drop_object()
+	remote._on_extension_removed()
+	await get_tree().process_frame
+	# One whose cord never appears is given up on.
+	pad.plug = null
+	remote.restore_extension(pad)
+	for i in Wiimote.RESEAT_FRAMES + 3:
+		await get_tree().process_frame
+	_ok(remote.get_extension() == null and remote.device_type == Wiimote.RETRO_DEVICE_WIIMOTE,
+		"extension/and does not seat what never has a plug to seat", "device %d" % remote.device_type)
+	for node: Node in [remote, pad, other, dongle, plug]:
+		node.queue_free()
+	await get_tree().process_frame
 
 
 func _ok(cond: bool, name: String, detail := "") -> void:
