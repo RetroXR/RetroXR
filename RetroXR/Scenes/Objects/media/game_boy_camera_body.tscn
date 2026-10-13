@@ -1,0 +1,150 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" uid="uid://bkw0pkdhlp1m4" path="res://Scripts/Objects/widgets/vr_hinge.gd" id="1_hinge"]
+
+; The Game Boy Camera as a cartridge body (GbCameraShell.BODY), in the cartridge's
+; own frame: x width, y length with the connector on -Y, z thickness with the
+; label on +Z.
+;
+; Everything outside "Overhang" is the cartridge that goes in a slot, and is
+; exactly a Game Boy cartridge's 57 x 65 x 7.5 mm (MediaDimensions "gb") so the
+; per-axis fit leaves it at scale 1. "Overhang" is the head, which RetroCartridge
+; keeps out of that fit and gives a box of its own.
+;
+; The head's proportions are from photographs, not from a measured unit.
+
+; The moulding. CartridgeColor paints whatever wears this name (EXTERIOR_PLASTIC).
+[sub_resource type="StandardMaterial3D" id="Mat_shell"]
+resource_name = "GBCamera_Shell"
+albedo_color = Color(0.16, 0.33, 0.7, 1)
+roughness = 0.6
+
+; 0.2 mm short of the cartridge's 7.5 mm on the label side: the sticker stands that
+; far off the face, and it is the sticker's plane that ends the fitted bounds.
+[sub_resource type="BoxMesh" id="BoxMesh_tongue"]
+size = Vector3(0.057, 0.065, 0.0073)
+
+[sub_resource type="QuadMesh" id="QuadMesh_label"]
+size = Vector2(0.044, 0.038)
+
+[sub_resource type="StandardMaterial3D" id="Mat_label"]
+resource_name = "Label_Paper"
+albedo_color = Color(0.93, 0.92, 0.89, 1)
+roughness = 0.85
+
+[sub_resource type="BoxMesh" id="BoxMesh_base"]
+size = Vector3(0.057, 0.0155, 0.022)
+
+[sub_resource type="BoxMesh" id="BoxMesh_cheek"]
+size = Vector3(0.013, 0.028, 0.022)
+
+[sub_resource type="SphereMesh" id="SphereMesh_ball"]
+radius = 0.015
+height = 0.03
+radial_segments = 32
+rings = 16
+
+[sub_resource type="StandardMaterial3D" id="Mat_ball"]
+resource_name = "Lens_Ball"
+albedo_color = Color(0.06, 0.06, 0.07, 1)
+roughness = 0.45
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_bezel"]
+top_radius = 0.0065
+bottom_radius = 0.0065
+height = 0.003
+radial_segments = 24
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_bezel"]
+resource_name = "Lens_Bezel"
+albedo_color = Color(0.3, 0.3, 0.32, 1)
+roughness = 0.5
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_glass"]
+top_radius = 0.0042
+bottom_radius = 0.0042
+height = 0.0006
+radial_segments = 24
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_glass"]
+resource_name = "Lens_Glass"
+albedo_color = Color(0.02, 0.03, 0.06, 1)
+roughness = 0.08
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ball"]
+size = Vector3(0.032, 0.032, 0.032)
+
+[node name="GameBoyCameraBody" type="Node3D" unique_id=1659022358]
+
+[node name="Tongue" type="MeshInstance3D" parent="." unique_id=1181063828]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0001)
+mesh = SubResource("BoxMesh_tongue")
+surface_material_override/0 = SubResource("Mat_shell")
+
+; The sticker, UV 0-1 with the image's top left at its own, 0.2 mm off the face.
+[node name="Label" type="MeshInstance3D" parent="." unique_id=354909582]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.002, 0.00375)
+mesh = SubResource("QuadMesh_label")
+surface_material_override/0 = SubResource("Mat_label")
+
+[node name="Overhang" type="Node3D" parent="." unique_id=316546952]
+
+; The fixed housing: a block over the cartridge and a cheek either side of the
+; ball. These three, the meshes directly under Overhang, are what its box is
+; fitted to. The block starts half a millimetre inside the cartridge's end.
+[node name="HeadBase" type="MeshInstance3D" parent="Overhang" unique_id=1650756439]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.03975, 0)
+mesh = SubResource("BoxMesh_base")
+surface_material_override/0 = SubResource("Mat_shell")
+
+[node name="CheekLeft" type="MeshInstance3D" parent="Overhang" unique_id=1052859817]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.022, 0.0615, 0)
+mesh = SubResource("BoxMesh_cheek")
+surface_material_override/0 = SubResource("Mat_shell")
+
+[node name="CheekRight" type="MeshInstance3D" parent="Overhang" unique_id=1544382807]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.022, 0.0615, 0)
+mesh = SubResource("BoxMesh_cheek")
+surface_material_override/0 = SubResource("Mat_shell")
+
+; The ball, on an axle across the head. It stands 4 mm out of the housing front
+; and back and 2.5 mm over the cheeks, so a ray aimed at it reaches it before
+; the housing's box.
+;
+; The pivot is at identity and the lens is on its +Z, the label side: at 0 degrees
+; the camera looks the way the label faces, which is away from the player once it
+; is in a Game Boy. LensHinge turns it about X from 0 down to -180, and
+; R_x(-90) carries +Z to +Y, so the lens goes OVER THE TOP to look out of the
+; back. The other way round is through the housing.
+[node name="LensPivot" type="Node3D" parent="Overhang" unique_id=1689625841]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.063, 0)
+
+[node name="Ball" type="MeshInstance3D" parent="Overhang/LensPivot" unique_id=853606931]
+mesh = SubResource("SphereMesh_ball")
+surface_material_override/0 = SubResource("Mat_ball")
+
+; A cylinder lies along Y; a quarter turn about X lays it along the lens axis.
+[node name="LensBezel" type="MeshInstance3D" parent="Overhang/LensPivot" unique_id=1517904416]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0142)
+mesh = SubResource("CylinderMesh_bezel")
+surface_material_override/0 = SubResource("Mat_bezel")
+
+[node name="LensGlass" type="MeshInstance3D" parent="Overhang/LensPivot" unique_id=1826447457]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.0158)
+mesh = SubResource("CylinderMesh_glass")
+surface_material_override/0 = SubResource("Mat_glass")
+
+; Trigger near the ball (VR) or press it with the reticle and roll the wheel
+; (desktop). A child of the pivot it turns, as every hinge's target is "..".
+[node name="LensHinge" type="Area3D" parent="Overhang/LensPivot" unique_id=242714617 node_paths=PackedStringArray("target")]
+collision_layer = 1048577
+script = ExtResource("1_hinge")
+target = NodePath("..")
+min_deg = -180.0
+max_deg = 0.0
+engage_radius = 0.03
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Overhang/LensPivot/LensHinge" unique_id=252861072]
+shape = SubResource("BoxShape3D_ball")

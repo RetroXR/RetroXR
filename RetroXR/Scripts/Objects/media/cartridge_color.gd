@@ -79,13 +79,14 @@ const FLAKE_FLOOR := 0.05
 ## Super Famicom body's moulded lettering), and the Super Famicom body's ribbed
 ## back, whose ribs are a baked normal map. Then the Game Boy Color cart's two
 ## stippled halves and its smooth moulded lettering and ridges, faces and walls.
-## Last the NES cart's stippled faces, its smooth moldings (sides, bevel, rib
+## Then the NES cart's stippled faces, its smooth moldings (sides, bevel, rib
 ## channel, grips) and its rear plaque, whose lettering is a baked normal map.
+## Last the Game Boy Camera stand-in's one plastic, cartridge and head alike.
 const EXTERIOR_PLASTIC: Array[StringName] = [&"Shell_Plastic", &"Molded_Smooth_Plastic", &"Nintendo_Molded_SVG",
 	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow",
 	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic", &"SNES_Shell_Plastic", &"SNES_Smooth_Plastic",
 	&"SNES_Shell_Plastic_Ribbed", &"GBC_Shell_Front", &"GBC_Shell_Rear", &"GBC_Shell_Smooth",
-	&"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked"]
+	&"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked", &"GBCamera_Shell"]
 
 ## A moulding authored lighter or darker than the rest of its shell, as a factor
 ## on the colour painted: the Game Boy cart's ratios to its front shell. Every

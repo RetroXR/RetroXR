@@ -3292,7 +3292,8 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 				["Super Famicom / PAL", SnesCartShell.SFC]]
 	elif GbCartShell.is_shell(systemid):
 		body_options = [["Auto (from the ROM)", ""], ["Game Boy", GbcCartShell.BODY_GB],
-				["Game Boy Color (clear)", GbcCartShell.BODY_GBC]]
+				["Game Boy Color (clear)", GbcCartShell.BODY_GBC],
+				["Game Boy Camera", GbCameraShell.BODY_CAMERA]]
 	if not body_options.is_empty():
 		vbox.add_child(MenuStyle.header("Body"))
 		var bodies := MenuStyle.hbox(10)

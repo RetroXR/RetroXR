@@ -54,7 +54,8 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 ## shell colour is still looked up under the market the ROM really has. A Super NES
 ## cartridge's is SnesCartShell.TYPE_A or TYPE_B (the North American front latch)
 ## or SFC (the Super Famicom shell). A Game Boy or Game Boy Color one's is
-## GbcCartShell.BODY_GB or BODY_GBC (the clear Game Boy Color-only shell).
+## GbcCartShell.BODY_GB or BODY_GBC (the clear Game Boy Color-only shell), or
+## GbCameraShell.BODY_CAMERA (the Game Boy Camera).
 @export var body_region: String = ""
 
 ## _body_model()'s answer, and the systemid|rom_path|body_region|shell_preset it
@@ -106,6 +107,13 @@ const _LABEL_PAPER := Color(0.93, 0.92, 0.89)
 ## Lays a quad's +Z along -Y with its image top toward +Z, so art on a -Y edge
 ## reads upright on a medium lying label-up.
 const _EDGE_BASIS := Basis(Vector3.RIGHT, Vector3.BACK, Vector3.DOWN)
+
+## A body's child of this name is the part of it that stands OUTSIDE the slot:
+## the Game Boy Camera's head (GbCameraShell). It is not in the cartridge's size,
+## which stays what goes in the slot, so every seat, stub and insert pose is the
+## plain cartridge's. See _cart_model_aabb and _add_overhang_shapes.
+const OVERHANG_NODE := "Overhang"
+const _OVERHANG_SHAPE := "OverhangShape"
 
 ## The model's own label face, when a real cart model is in use.
 var _model_label: MeshInstance3D = null
@@ -201,7 +209,8 @@ func get_card_size() -> Vector3:
 ## An N64 cartridge's body is regional: N64CartShell picks it per ROM. So is a
 ## Super NES one's: SnesCartShell gives a US ROM the latch of its first print and a
 ## Japanese or PAL ROM the Super Famicom shell. A Game Boy Color-only game's is the
-## clear Game Boy Color shell (GbcCartShell). Kept until the ROM or the forced body
+## clear Game Boy Color shell (GbcCartShell), and the Game Boy Camera is its own
+## body, head and all (GbCameraShell). Kept until the ROM or the forced body
 ## or shell changes: the size passes ask on every drop, and the Super NES and Game
 ## Boy answers read the ROM's header.
 func _body_model() -> String:
@@ -272,6 +281,7 @@ func _apply_cart_model() -> void:
 		s.z / maxf(ab.size.z, 0.0001))
 	glb.scale = k
 	glb.position = -(ab.position + ab.size * 0.5) * k
+	_add_overhang_shapes(glb)
 	# Moulded plastic exported with a high metallicFactor reads as a dark mirror
 	# rather than a grey shell — the NES cart ships metallic 0.76.
 	var mod_shell := ModCartShells.has(systemid)
@@ -287,6 +297,9 @@ func _apply_cart_model() -> void:
 			_paint_shell(glb, systemid, ModCartShells.preset_for(systemid, rom_path))
 	elif systemid == "n64":
 		_paint_shell(glb, "n64", N64CartShell.preset_for_rom(rom_path, market))
+	elif GbCartShell.is_shell(systemid) and GbCameraShell.is_body(path):
+		# One ROM for every colour it was sold in, so the header has no shell to give.
+		_paint_shell(glb, GbCartShell.SYSTEMID, GbCameraShell.DEFAULT_PRESET)
 	elif GbCartShell.is_shell(systemid) and GbcCartShell.is_body(path):
 		_paint_shell(glb, GbcCartShell.PALETTE, GbcCartShell.preset_for_rom(rom_path))
 	elif GbCartShell.is_shell(systemid):
@@ -336,18 +349,58 @@ func _paint_shell(glb: Node3D, palette_id: String, own_preset: StringName) -> vo
 ## exported straight from Sketchfab nests its meshes several levels deep
 ## (Sketchfab_model / *.fbx / RootNode / part / mesh), so reading one level gave a
 ## fraction of the real size and scaled the cart to two metres across.
+##
+## A body's overhang is left out: these are the bounds the model is fitted to the
+## cartridge's size by, and the overhang is not part of that size.
 func _cart_model_aabb(root: Node3D) -> AABB:
 	var to_root := root.global_transform.affine_inverse()
+	var overhang := root.get_node_or_null(OVERHANG_NODE)
 	var acc := AABB()
 	var first := true
 	for n in root.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
-		if mi.mesh == null:
+		if mi.mesh == null or (overhang != null and overhang.is_ancestor_of(mi)):
 			continue
 		var ab: AABB = (to_root * mi.global_transform) * mi.get_aabb()
 		acc = ab if first else acc.merge(ab)
 		first = false
 	return acc
+
+
+## A box for a body's overhang to rest on and be taken by, and one for it to be
+## aimed at, fitted to the meshes DIRECTLY under the overhang: its fixed housing.
+## What is deeper is a moving part with a grab of its own (the camera's ball), and
+## stands clear of this box so a ray reaches it first.
+##
+## Separate nodes from the cartridge's own two shapes, which every size pass
+## rewrites: cut down to the stub in a handheld's slot, the cartridge keeps its
+## head in reach, and a hand takes it out by that as it would the real one.
+func _add_overhang_shapes(model: Node3D) -> void:
+	var overhang := model.get_node_or_null(OVERHANG_NODE) as Node3D
+	if overhang == null or has_node(_OVERHANG_SHAPE):
+		return
+	var to_cart := global_transform.affine_inverse()
+	var acc := AABB()
+	var first := true
+	for n in overhang.get_children():
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var ab: AABB = (to_cart * mi.global_transform) * mi.get_aabb()
+		acc = ab if first else acc.merge(ab)
+		first = false
+	if first:
+		return
+	var box := BoxShape3D.new()
+	box.size = acc.size
+	for holder: Node in [self, get_node_or_null("PointerArea")]:
+		if holder == null:
+			continue
+		var col := CollisionShape3D.new()
+		col.name = _OVERHANG_SHAPE
+		col.shape = box
+		col.position = acc.get_center()
+		holder.add_child(col)
 
 
 ## Bounds of the flat face of a model's label mesh, in cartridge space.

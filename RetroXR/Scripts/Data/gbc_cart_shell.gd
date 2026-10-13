@@ -63,7 +63,14 @@ static func board_body(header: PackedByteArray) -> String:
 ## preset's palette, then the header: GBC-only, unless GbCartShell gives the title a
 ## shell of its own (the Korean Gold and Silver are GBC-only and stay gold and
 ## silver).
+##
+## Before any of that, the Game Boy Camera: its own body when it is forced, or
+## when no body is and the header is the camera's. A forced shell only repaints
+## it, where on a game it would bring the body its palette belongs to.
 static func body_model_for(body_region: String, shell_preset: StringName, header: PackedByteArray) -> String:
+	if body_region == GbCameraShell.BODY_CAMERA \
+			or (body_region.is_empty() and GbCameraShell.is_camera(header)):
+		return GbCameraShell.BODY
 	var clear := is_cgb_only(header) and GbCartShell.preset_for_header(header) == GbCartShell.DEFAULT_PRESET
 	if body_region == BODY_GBC:
 		clear = true

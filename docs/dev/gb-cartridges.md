@@ -190,3 +190,89 @@ photographs the shell into `probe_out/gbc/`, the last frame beside the Game Boy:
 Boy's scene fails three, the window moved behind the slot fails one, and sunk inside the
 shell fails one. `link_tests` walks its socket in the lead × socket matrix. Nobody has
 held it in a headset or run it on a Quest yet.
+
+### 2x-cam. The Game Boy Camera — a cartridge with a head, and a ball a hand turns
+
+The Game Boy Camera is not a game in a shell: it is the cartridge, lens and all.
+`GbCameraShell` knows it by the **cartridge type at 0x147, 0xFC** (POCKET CAMERA), which
+no game has, and never by hashing. Measured on Game Boy Camera (USA, Europe): title
+`GAMEBOYCAMERA`, type 0xFC, Nintendo (`01`), destination 1. Its body is a stand-in made of
+primitives, `Scenes/Objects/media/game_boy_camera_body.tscn`, 110.5 mm long with a 30 mm
+ball. **The head's proportions are from photographs, not from a measured unit.**
+
+`GbcCartShell.body_model_for` answers the camera first: when the `camera` body is forced
+(`GbCameraShell.BODY_CAMERA`, the hold menu's fourth Body choice on a `gb` or `gbc` row), or
+when no body is forced and the header is the camera's. Either cartridge shell can still
+be forced onto the camera's ROM. A forced *shell* only repaints it, where on a game it
+would bring the body its palette belongs to. A mod's shells for the system still stand in
+for all of it (`RetroCartridge.body_model_for` asks `ModCartShells` first).
+
+**The overhang.** A body's child named `Overhang` (`RetroCartridge.OVERHANG_NODE`) is the
+part of it that stands OUTSIDE the slot, and it is not in the cartridge's size:
+
+- `_cart_model_aabb` leaves it out, so what is fitted is the cartridge that goes in, and
+  `MediaDimensions.cart_size` needs no row for the camera: 57 × 65 × 7.5 mm, scale 1.
+- `_add_overhang_shapes` gives it an `OverhangShape` on the cartridge (to rest on and be
+  taken by) and one under `PointerArea` (to be aimed at), fitted to the meshes DIRECTLY
+  under `Overhang`: its fixed housing. What is deeper is a moving part with a grab of its
+  own.
+- Neither is touched by the passes that rewrite the cartridge's own two shapes
+  (`_apply_system_size`, `set_seated_grab_stub`, `reset_grab_shapes`), so in a handheld's
+  slot the body is cut to its stub and the head stays in reach: it comes out by the head.
+
+So the camera seats wherever a Game Boy cartridge does, with no seat code of its own.
+`gb_camera_tests` `seated/` compares its pose with a game's in the same slot, in a Game
+Boy Color (its own system's) and a Game Boy Advance (a foreign one, seated by the
+connector): identical.
+
+**Everything outside `Overhang`, the sticker included, must add up to the cartridge's size
+exactly.** The first build laid the sticker 0.2 mm proud of a full-thickness cartridge:
+the fitted bounds were 7.7 mm deep and the whole body, head and ball with it, was
+squashed 2.6 % in thickness. The plastic under the sticker is 7.3 mm, 0.1 mm off centre,
+so the sticker's plane is what ends the bounds.
+
+**The ball** is `Overhang/LensPivot`, at identity, with the lens on its **+Z**, the label
+side, and a `VRHinge` (`LensHinge`, target `..`) ranged **-180 to 0**: `R_x(-90)` carries
++Z to +Y, so it turns OVER THE TOP to look out of the back, and the other way round is
+through the housing. At 0 it looks the way the label faces, which is out of the back of
+the console once seated; at -180, at whoever is looking at the screen.
+
+- It is taken on the **trigger**, the room's rule for a lid on something pickable: grip
+  takes the cartridge. `grip_engages` stays off: with it on, the 15 mm grip margin round
+  the ball's box covers the whole head, and the camera could only be lifted by the part
+  that is in the slot. Desktop: press the ball with the reticle and roll the wheel,
+  eighteen notches end to end.
+- It stands 4 mm out of the housing front and back and 2.5 mm over the cheeks, so a ray
+  aimed at it reaches the hinge's box before the head's.
+- **Saved and network-synced with no code here**: `ScenePersistence` and `NetObjectSync`
+  both walk every `VRHinge` under a spawned object, and this one is at
+  `CartModel/Overhang/LensPivot/LensHinge`. The save round trip is in the suite; a netplay
+  session with one is OWED.
+
+**Plastic.** Cartridge and head wear one material, `GBCamera_Shell`, listed in
+`CartridgeColor.EXTERIOR_PLASTIC`. One ROM served every colour the camera was sold in, so
+the header has no shell to give: it is the Game Boy palette's `blue`, and that palette's
+other shells or a mixed colour repaint cartridge and head. The ball, the lens and the
+sticker are never painted. The sticker is a `Label` quad, UV 0-1, so the scraped label is
+painted on it like any Game Boy cartridge's, and the title stands in when there is none.
+
+**It is not a camera yet.** libretro-godot answers `RETRO_ENVIRONMENT_GET_CAMERA_INTERFACE`
+with not-implemented (`EnvironmentHandler.cpp`), so no core is handed a picture and which
+way the lens looks changes nothing in the game.
+
+`Tools/models/game_boy_camera_probe` (32 checks headless) drags the ball with a point
+where a latched hand would be and seats the cartridge in a Game Boy Color; windowed it
+photographs the camera into `probe_out/gb_camera/`, and `-- --film` writes the turn as
+frames for an mp4:
+
+```bash
+"$godot" --headless --path RetroXR res://Tools/models/game_boy_camera_probe.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/models/game_boy_camera_probe.tscn -- --film
+```
+
+`gb_camera_tests` (68 cases): lookup, body, cartridge, ball, saved, seated, menu.
+Mutation-tested, each fault failing its own cases: the header rule dropped (12), the head
+counted in the fit (9), no box for the head (3), the lens authored on the back of the
+ball (11), the hinge ranged 0 to 180 (15), the sticker proud of the cartridge's depth
+(2), the menu row gone (3), and the camera painted as a game's shell (1). Nobody has
+turned the ball in a headset yet.
