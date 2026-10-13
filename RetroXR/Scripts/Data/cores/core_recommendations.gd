@@ -87,8 +87,12 @@ const RECOMMENDED := {
 
 	# ── Nintendo handhelds ───────────────────────────────────────────────────
 	# Game Boy Color is a tile of its own (the Game Boy cores' overlays name
-	# `gbc` in secondary_systemids), but the same cores run both, for the same
-	# reasons -- so the two entries are deliberately identical.
+	# `gbc` in secondary_systemids), and the same cores run both. The two
+	# entries were identical until 2026-10-13, when the Game Boy Color's stopped
+	# being SameBoy on desktop: the machine has an infrared window, and only our
+	# Gambatte and mGBA forks put anything behind it (docs/dev/gb-link.md). A
+	# core with no port leaves two machines pointed at each other linked to
+	# nothing. The Game Boy has no window, so its entry keeps the accuracy.
 	"gb": {
 		"core":    "sameboy",
 		"why":     "The most accurate GB/GBC core, and cheap enough to spend the accuracy on desktop",
@@ -96,10 +100,8 @@ const RECOMMENDED := {
 		"why_android": "SameBoy's sub-frame accuracy costs more than it shows on a handheld screen; Gambatte is mature and much lighter",
 	},
 	"gbc": {
-		"core":    "sameboy",
-		"why":     "The most accurate GB/GBC core, and cheap enough to spend the accuracy on desktop",
-		"android": "gambatte",
-		"why_android": "SameBoy's sub-frame accuracy costs more than it shows on a handheld screen; Gambatte is mature and much lighter",
+		"core": "gambatte",
+		"why":  "Mature, light, and it carries the infrared port, so two Game Boy Colors pointed at each other can trade a Mystery Gift; SameBoy is more exact and has nothing behind that window",
 	},
 	"gba": {
 		"core": "mgba",

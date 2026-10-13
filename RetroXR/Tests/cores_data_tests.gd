@@ -28,7 +28,7 @@ extends Node
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
-const EXPECTED_CASES := 86
+const EXPECTED_CASES := 88
 
 var _passed := 0
 var _failed := 0
@@ -459,6 +459,18 @@ func _group_recommended() -> void:
 		if not (table[sysid].get("core") is String):
 			non_string += 1
 	_eq(non_string, 0, "recommended/a system picks exactly one core, not a list")
+
+	# The Game Boy Color is the one machine here with an infrared window, and a
+	# pick with no port behind it leaves two of them pointed at each other and
+	# linked to nothing, silently (docs/dev/gb-link.md). Only our Gambatte and
+	# mGBA forks carry `gbc-ir-1`, so its row names one of them on EVERY
+	# platform -- both keys are read here, whichever this run is on.
+	var gbc: Dictionary = table.get("gbc", {})
+	for platform: String in ["core", "android"]:
+		var pick := str(gbc.get(platform, gbc.get("core", "")))
+		_ok(pick in ["gambatte", "mgba"],
+			"recommended/the Game Boy Color's %s pick carries the infrared port" % platform,
+			"got '%s'" % pick)
 
 	var names := CoreRecommendations.core_names()
 	var seen: Array[String] = []
