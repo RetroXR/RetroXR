@@ -470,6 +470,73 @@ passes both. `netplay_tests` `rollback` group covers the pin gate (mutation-test
 x86_64 → arm64 state leg; publishing the fork (repo, release workflow, tag,
 `CoreSources` row). The four fork fixes to the sound chip are upstreamable.
 
+### The Game Boy Color's infrared port under netplay — 2026-10-13: lockstep measured, the room owed
+
+The port is a link like any other (`gb-link.md`): link port 1, `gbc-ir-1`, two
+cores in one process and nothing over the network. Nothing in the room joins port
+1 yet, so no session has ever held one. What follows is what was measured at the
+cores and the bus, and what the room has to do on the day it does.
+
+- **A port coming into view is a link change, and lands like one**: on an agreed
+  frame with every core stopped on it (`ScheduleLinkOp`, port 1). Joined while the
+  cores run, the bus lines the pair up from wherever each first speaks -- four
+  cores on four threads do not first speak on the same frame -- and lockstep then
+  hands both machines the same frame for ever after. `gbc_ir_netplay_probe` did
+  exactly that at first and wedged at frame 565, the near machines four frames
+  ahead of the far ones and nobody able to move.
+- **The unit in view is in the session**, as the far end of a cable is: whatever
+  comes to stand for the link must answer `linked_machines()` / `held_machines()`
+  and be found by `net_link_bus`, or a client runs half a pair and wedges.
+- **LOCKSTEP for a pair in view.** Neither Game Boy core ends its frames on a bus
+  tick, so the pair cannot roll back as a group (§2g′); and a machine rewinding on
+  its own would take back flashes the other has already timed. Which LEDs are lit
+  and which edges are still in flight is the driver's memory, not the savestate's.
+- **A machine with nobody in view rolls back exactly as it did.** gambatte's port
+  does nothing at all without a peer. mGBA's driver wakes every 16384 ticks on a
+  grid counted off the machine's own clock, which the savestate carries, so a
+  machine that loaded and one that never did wake on the same ticks.
+
+`RetroXR/Tools/netplay/gbc_ir_netplay_probe.tscn` runs TWO copies of the pair in
+one process -- four machines, two buses -- under the netplay gate, posts every
+frame to both copies at once, and compares each machine's RAM checksum with its
+twin's every thirty frames while Mystery Gift runs over the port:
+
+```bash
+"$godot" --headless --path RetroXR res://Tools/netplay/gbc_ir_netplay_probe.tscn -- \
+    "--rom=<Pokemon Gold or Silver>" --save=a.srm --save2=b.srm [--core=mgba] [--core2=gambatte]
+... -- ... --mutate    # the second copy's calling press lands one frame later: must DIVERGE
+... -- ... --one       # only the near machines are fed: they must stop, not run on
+```
+
+One process rather than two runs compared afterwards, because the cartridge has a
+clock: gambatte and mGBA both read the HOST's time for it, so two runs a minute
+apart disagree before the port is touched. (That is its own netplay problem for
+any game with a clock in it, and nothing here addresses it.)
+
+Measured 2026-10-13, windows x86_64:
+
+| Pair | Result |
+|---|---|
+| gambatte / gambatte | 42 checkpoints on each machine, the copies equal at every one; 2352 and 2240 edges in both; the exchange completes in both |
+| mGBA / mGBA | the same |
+| gambatte / mGBA | the same |
+| `--mutate`, gambatte and mGBA | both machines diverge at frame 1080 |
+| `--one` | the near machines stop on the frame the ports came into view |
+
+`rewind_probe` on Pokemon Gold, the port attached and nobody in view: gambatte 275
+anchors, 0 bad, and the same with `--mispredict`. **mGBA has ONE bad anchor in each
+range tried (344 of 100-1200, 1368 of 1200-2400 -- 1024 frames apart), and so does
+the build before any of this**, with the same two checksums to the digit
+(`ad0d99e0` / `799c1a18`, `da1c289f` / `249df73b`). So the port changed nothing a
+rewind can see, and mGBA's Game Boy has a rewind fault on this game that is older
+than the port and not found. The savestate timer fix in `gb-link.md` is not it:
+the checksums are the same with the fix and without.
+
+**Not measured:** a real session (there is no room object to hold one); late join
+with a port in use -- the joiner's driver starts with nobody lit and nothing in
+flight, as it does for the cable's own driver state, and neither core's link clock
+is in its savestate; a Quest.
+
 ### e-Reader cards under netplay (mGBA) — 2026-09-22: rollback and late join both measured
 
 A swipe during a session is a **disc op, kind 2** (`NetplaySession.DISK_OP_CARD`):

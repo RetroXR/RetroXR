@@ -45,6 +45,150 @@ out until a profile exists, so each machine needs a scripted name entry through
 an on-screen keyboard first, and the two routes drift apart. The Game Boy Color
 path is covered by the `_fast` ROMs instead.
 
+### The Game Boy Color's infrared port — 2026-10-13
+
+Both Game Boy cores carry it: gambatte (`libgambatte/libretro/link_infrared.cpp`,
+hooked through `src/infrared_io.h`) and mGBA (`src/platform/libretro/gb_ir_netlink.c`,
+a `GBInfraredDriver` beside the serial one). Neither emulated the port before --
+gambatte kept the byte written to `FF56` and nothing else, mGBA called it an
+unknown register and read `FF` -- so Mystery Gift flashed into the dark.
+
+**Link port 1, protocol `gbc-ir-1`**, at the cable's 8388608 Hz. The cable stays
+port 0, `gb-sio-1`. ONE message of eight bytes: `[0] = 1` (an LED level), `[1]` the
+sender's bus index, `[2]` 0 or 1, stamped with the tick the edge LANDS on. The two
+cores share the id and the layout, so a unit of each see each other, and nothing
+limits the bus to a pair: the receiver reads lit while ANY other unit's LED is.
+Every machine that has the port attaches it (not an original Game Boy, and not a
+Game Boy Advance, which runs these games and leaves the window out), behind no
+option, and it is inert until the frontend joins port 1 to something.
+
+**What crosses is WHEN the LED changed, and nothing else.** RP is a lamp and an
+eye: no clock, no byte, no interrupt. Pokemon tells a 0 from a 1 by whether two
+flashes are 183 or 366 microseconds apart, so the one thing the wire must not do
+is move two edges by different amounts. Every edge is stamped the same distance
+ahead -- `IR_LATENCY`, 1024 ticks, 122 us, which is also the commit horizon -- and
+a promise made while the port was idle (16384 ticks) makes the delay GROW to meet
+it and stay grown for that burst, rather than shorten one flash. A port is "in
+use", and its horizon short, while its receiver is on, its LED is lit, or it
+flashed in the last eighth of a second; two units left facing each other with
+neither using the port rendezvous 512 times a second, not 8192.
+
+**`GBC_IR_STATS=1` in the environment makes each core say, as its port leaves the
+bus, how many edges came in and how many arrived after the tick they were stamped
+for** (WARN: `Infrared: 42344 edges in, 0 of them late, the worst by 0 ticks`).
+None may be late on mGBA, which wakes on the tick it was granted; gambatte may be
+a few ticks late now and then, by as much as a chunk overshoots its grant. It is
+the thing to read first when a pair will not talk -- on a Quest, in logcat -- and
+it is what separated the faults below from the game's own bad luck.
+
+**A machine waits on ONE bus.** A port whose link cable is carrying a peer goes
+DEAF: it still says where it is and still flashes, and stops seeing. Each bus
+lines its machines up on its own, so with both live the cable can hold this
+machine for the other while the light holds the other for this one -- for ever,
+there being no timeout on either. So Mystery Gift does nothing between two units
+that are each cabled to a running machine; pull the lead. `--cabled` is that leg:
+nothing trades and nothing freezes.
+
+**Not modelled:** the receiver warming up and losing sight of a steady light
+(SameBoy does both), a unit seeing its own LED, anything that is not another Game
+Boy Color (a television remote, a Pocket Pikachu), and the port a HuC1 or HuC3
+cartridge carries.
+
+**Three things in mGBA rode with it and are not the port**, all of them found by
+loading a state on the Mystery Gift screen:
+
+- `FF56` is a register on a Game Boy Color now: bits 0, 6 and 7 are kept, bits
+  1-5 read high.
+- **A loaded state could wreck the timer.** `timaPeriod` is ONE byte in the
+  savestate with the flags in the byte after it, and was read back as a word. A
+  state saved in the few cycles between TIMA overflowing and its interrupt -- the
+  only time that flag is set -- loaded a period of 260 where it saved 4, and TIMA
+  then counted on a mask that is not a power of two until the game rewrote TAC.
+  Upstream, and there since 2017. Mystery Gift's timer overflows every 30 us, so
+  for it that window is one save in twenty-five: the listener's `halt` came back
+  4096 or 8192 ticks late and no greeting was ever answered. `src/gb/timer.c`
+  reads the byte.
+- **A loaded state took both link drivers off the schedule** (`mTimingClear`, and
+  nothing put them back), which does not stop the machine that loaded -- it stops
+  the one at the OTHER end of the wire, waiting on a tick that is never published
+  again. `retro_unserialize` re-arms them, on the beat they were on, counted off
+  the clock the state carries: a step from the load would leave a machine that
+  loaded and one that never did waking on different ticks, and those two are
+  exactly what rollback compares. With somebody in view the port's driver comes
+  back no further than it had been granted before the load -- a whole horizon on
+  from wherever the state put it runs past the end of the peer's promise.
+
+**The game misses by itself, about one call in six.** The listener polls the
+port from a loop a few hundred cycles long and, once it sees the caller's first
+flash, halts until its next timer tick before it looks again; that flash lasts
+640 cycles. Caught late it is over by the second look, the listener takes the
+second flash for the first, and waits out its timeout for one that is never sent.
+The caller waits a random while before it flashes, so which call misses is luck.
+Not the link: no edge arrived late in any of those runs. A player presses A
+again, and `gbc_ir_probe` does too (up to five times, and says how many).
+`--stress=20` makes twenty calls and counts the greetings answered, with
+`--reload` loading a state on each machine before every one.
+
+```bash
+python Tools/gs_save.py <a Gold or Silver save>                  # what is in it
+python Tools/gs_save.py <save> --unlock a.srm
+python Tools/gs_save.py <save> --unlock b.srm --id 12345 --name PROBE
+"$godot" --headless --path RetroXR res://Tools/link/gbc_ir_probe.tscn -- \
+    "--rom=<Pokemon Gold or Silver>" --save=a.srm --save2=b.srm
+... -- ... --core=mgba --core2=gambatte   # a unit of each
+... -- ... --nolink                       # the control: must NOT trade
+... -- ... --reload                       # each loads a state first
+... -- ... --cabled                       # and a link cable between them too
+... -- ... --stress=20 [--reload]         # twenty calls: how many are answered
+```
+
+**The saves are scratch copies and are WRITTEN** (the game stores the gift), made
+afresh for every run: a pair that has already traded is told "one gift a day per
+person". The main menu offers MYSTERY GIFT when a save exists and
+`sNumDailyMysteryGiftPartnerIDs` (file offset `0x0BE5`) is not `FF`; no checksum
+covers it, so `gs_save.py --unlock` writes what the girl in the Goldenrod
+Department Store does. The two copies are given different trainers because the
+oracle is the cartridge: each machine writes its partner's trainer id and name
+into its own save when the exchange completes, and is read for the OTHER one's.
+
+Measured 2026-10-13, windows x86_64, both cores built from the working trees, each
+leg its own process:
+
+| Leg | Result |
+|---|---|
+| gambatte / gambatte, mGBA / mGBA, gambatte / mGBA, mGBA / gambatte | 20/20 each, on the first press: both cartridges hold the other's trainer, 2352 + 2240 edges and none late, 70 emulated frames at 1.00x real time |
+| `--nolink`, either core | 14/14: five presses, nothing written, nothing frozen |
+| `--cabled`, either core | 16/16: nothing trades, nothing freezes (the port is deaf) |
+| Gold (gambatte) facing Silver (mGBA) | 20/20 |
+| `--reload`, gambatte and mGBA | 24/24 each. mGBA before the timer fix: 2 runs of 6 never traded and one took four presses |
+| `--cabled --reload`, mGBA | 20/20: the cable's own re-arm, nothing frozen |
+| mGBA with the re-arm taken out (`--reload`) | stops dead at the first load and times out: the machine that did NOT load is the one parked |
+| `--stress=20` | gambatte 15, and 17 with `--reload`; mGBA 18, and 16 with `--reload`. No edge late in any: 0 of 78076 in the last |
+
+About 8900 rendezvous a second for each machine while both ports are in use, nearly
+all of them waited on -- twice a cabled pair's idle cost, for the second or so an
+exchange lasts and for as long as two units sit on the "Press A" screen.
+
+Building the two cores here: gambatte with MSYS2's mingw64 (`make -f
+Makefile.libretro platform=win` from a MINGW64 shell), mGBA with CMake and the
+VS 2022 build tools, with the flags `retroxr-release.yml` gives. **gambatte's
+makefile does not track headers: `make ... clean` after touching one.**
+`libretro.o` holds the driver objects whose layout `link_infrared.h` and
+`link_serial.h` define, and is not rebuilt when they change -- the core then runs,
+links and mostly works with two files disagreeing about how big an object is. It
+showed here as a counter reading "0 edges in, 3 of them late".
+
+**Under netplay:** `netplay.md`, "The Game Boy Color's infrared port under
+netplay".
+
+**Released** as `retroxr-gambatte-libretro-v4` and `retroxr-mgba-libretro-v8`,
+which `CoreSources` names; every platform's build comes off the tag.
+
+**OWED:** the room. Nothing joins port 1 yet -- no object decides that two units
+are facing each other -- so none of this can be reached by a player. A Quest
+run: the Android builds are published and have never been started. Any game but
+Gold and Silver.
+
 ### The Game Gear's Gear-to-Gear cable
 
 genesis_plus_gx carries it (RetroXR fork, `libretro/gg_link.c`, branch `retroxr` at `b41f14e`) on wire
