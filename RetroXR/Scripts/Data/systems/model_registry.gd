@@ -207,7 +207,89 @@ static func validate_row(model_id: String, row: Dictionary) -> String:
 	var req: Variant = row.get("requires", [])
 	if not (req is Array):
 		return "requires must be an array"
+	return _variants_error(row.get("variants", []))
+
+
+# ── Variants: the colors one model comes in ──────────────────────────────────
+#
+# Not the "variant of another model" this table did away with (see the top of
+# the file): a variant here is the SAME shell in another plastic. A row lists
+# them as
+#
+#     "variants": [{"id": "charcoal", "label": "Charcoal Gray", "color": Color(...)}, ...]
+#
+# and the first is the row as it comes. The menu offers them when the row is
+# held (SpawnView._show_model_spawn_options), the console keeps the one picked
+# (RetroSystem.model_variant) and its model is told which (RetroSystemModel.
+# apply_variant). What an id means is the model's own business.
+
+
+## What a thing in the room keeps its color under: a property of this name on
+## a console (RetroSystem) and on a bay lid (ExpansionCover), and metadata of
+## this name on anything else, so that a controller, a remote or a mod's own
+## object can be one of several colors without its class knowing.
+const VARIANT_KEY := &"model_variant"
+
+
+## Which of its colors a thing in the room is, by the id its row lists it
+## under; "" for one that is as it comes.
+static func variant_of(node: Object) -> String:
+	if node == null:
+		return ""
+	if VARIANT_KEY in node:
+		return str(node.get(VARIANT_KEY))
+	return str(node.get_meta(VARIANT_KEY, ""))
+
+
+## Give a thing its color. Before it enters the room: that is when a model is
+## built and when a mod's hook dresses what it dresses.
+static func set_variant_of(node: Object, variant: String) -> void:
+	if node == null:
+		return
+	if VARIANT_KEY in node:
+		node.set(VARIANT_KEY, variant)
+	elif variant.is_empty():
+		node.remove_meta(VARIANT_KEY)
+	else:
+		node.set_meta(VARIANT_KEY, variant)
+
+
+## "" for a well-formed `variants`, else what is wrong with it.
+static func variants_error(variants: Variant) -> String:
+	return _variants_error(variants)
+
+
+static func _variants_error(variants: Variant) -> String:
+	if not (variants is Array):
+		return "variants must be an array"
+	var seen := {}
+	for entry: Variant in variants as Array:
+		if not (entry is Dictionary):
+			return "a variant must be a dictionary"
+		var id: Variant = (entry as Dictionary).get("id", "")
+		# No colon: the id rides a spawn token, whose fields colons divide.
+		if not (id is String) or (id as String).is_empty() or ":" in (id as String):
+			return "a variant needs an id, with no colon in it"
+		if seen.has(id):
+			return "variant '%s' is listed twice" % id
+		seen[id] = true
+		var color: Variant = (entry as Dictionary).get("color", Color.WHITE)
+		if not (color is Color) and not (color is String and Color.html_is_valid(color as String)):
+			return "variant '%s' has a color that is neither a Color nor '#rrggbb'" % id
 	return ""
+
+
+## The colors a row comes in, as it lists them; empty for a model with one.
+static func variants_of(model_id: String) -> Array:
+	return (row_for(model_id).get("variants", []) as Array).duplicate(true)
+
+
+## A variant's swatch: its `color`, given as a Color or as "#rrggbb".
+static func variant_color(variant: Dictionary) -> Color:
+	var color: Variant = variant.get("color", Color(0.18, 0.18, 0.35))
+	if color is Color:
+		return color as Color
+	return Color.html(str(color)) if Color.html_is_valid(str(color)) else Color(0.18, 0.18, 0.35)
 
 
 ## Add a mod's row. Returns "" on success.

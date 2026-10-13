@@ -30,7 +30,7 @@ const VERSION       := 2
 const FRAME_BUDGET_USEC := 4000
 
 const _STRING_FIELDS := [
-	"systemid", "model_id", "tv_model", "rom_path", "game_label", "save_id",
+	"systemid", "model_id", "model_variant", "tv_model", "rom_path", "game_label", "save_id",
 	"cart_systemid", "card_id", "card_label", "pdf_path", "scene", "video_path",
 	"video_label", "dvd_path", "dvd_label", "album_path", "album_label", "kind",
 	"pad_guid", "pad_name", "image_path",
@@ -1820,6 +1820,18 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 
 
 func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
+	var entry := _serialize_kind(node, id, node_to_id)
+	# Which of its colors it is, for anything that is one of several: a console,
+	# a bay lid, a controller a mod dressed. Only then, so everything else saves
+	# exactly as it did.
+	if not entry.is_empty():
+		var variant := SystemModelRegistry.variant_of(node)
+		if not variant.is_empty():
+			entry["model_variant"] = variant
+	return entry
+
+
+func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	if not node is Node3D:
 		return {}
 	var n3d := node as Node3D
@@ -2000,7 +2012,8 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	elif node is ExpansionCover:
 		# Nothing to record but its existence and where it is: a lid is
 		# interchangeable, and which console it belongs on comes from that
-		# console's own "expansion_cover" reference.
+		# console's own "expansion_cover" reference. (Its color, for a lid that
+		# was given one, is written by _serialize_node as anything's is.)
 		return _base(id, "expansion_cover", n3d)
 	elif node is Poster:
 		var poster := node as Poster
@@ -2464,6 +2477,15 @@ func _restore_lead_fields(obj: Node3D, data: Dictionary) -> void:
 
 
 func _deserialize_object(data: Dictionary) -> Node3D:
+	var obj := _deserialize_kind(data)
+	# Its color, back on it before it enters the room.
+	var variant: Variant = data.get("model_variant", "")
+	if obj != null and variant is String and not (variant as String).is_empty():
+		SystemModelRegistry.set_variant_of(obj, variant as String)
+	return obj
+
+
+func _deserialize_kind(data: Dictionary) -> Node3D:
 	var obj_type: String = data.get("type", "")
 	var obj: Node3D = null
 
@@ -2502,6 +2524,7 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				var sys := SYSTEM_SCENE.instantiate() as RetroSystem
 				sys.systemid = SystemIds.canonical(str(data.get("systemid", "")))
 				sys.model_id = str(data.get("model_id", ""))
+				sys.model_variant = str(data.get("model_variant", ""))
 				sys.pad_guid = str(data.get("pad_guid", ""))
 				sys.pad_ordinal = int(data.get("pad_ordinal", 0))
 				sys.ignore_gravity = bool(data.get("ignore_gravity", false))

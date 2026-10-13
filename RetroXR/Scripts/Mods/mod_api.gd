@@ -284,6 +284,23 @@ func add_peripherals(systemid: String, items: Array) -> bool:
 	return true
 
 
+## Offer colors for a row this mod does not own: something of the game's that
+## the mod only dresses (the N64 controller, the Wii Remote), named by the spawn
+## token its row has on the card. The row can then be held to pick one, as a
+## console's row with `variants` can, and what it spawns is given the id picked
+## before it enters the room: SystemModelRegistry.variant_of(node) reads it, in
+## the hook that dresses the thing and after a load alike.
+##
+## `variants` is [{id, label, color}], the first the thing as it comes. A row
+## this mod ADDS lists them on its own item instead (add_peripherals).
+func offer_variants(spawn: String, variants: Array) -> bool:
+	var err := SpawnCatalog.register_mod_row_variants(spawn, variants, id)
+	if not err.is_empty():
+		return _fail("variants %s: %s" % [spawn, err])
+	_note("variants", "%s (%d)" % [spawn, variants.size()])
+	return true
+
+
 ## Say that this mod brings the real thing a stand-in was standing in for, so
 ## the console's spawn card stops offering the stand-in beside it.
 ##

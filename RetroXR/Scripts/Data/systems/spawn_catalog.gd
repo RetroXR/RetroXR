@@ -16,6 +16,8 @@
 ##   label    : row text — the HARDWARE's name, not a category ("DS Lite",
 ##              "PSP-1000"), so the row says what it actually spawns
 ##   model_id : (kind=="system")     the SystemModelRegistry row to spawn
+##   variants : (kind=="system")     the colors that row comes in, when it lists
+##                                   any: [{id, label, color}], the first its own
 ##   spawn    : (kind=="peripheral") an EXISTING spawn string that
 ##                                   SpawnMenuController._on_spawn_requested already
 ##                                   handles ("retro_controller", "memory_card", …)
@@ -360,6 +362,47 @@ const _TRS_KIT: Array = [
 ## rather than by the system's name, so a platform with two models says which is
 ## which. Kept in the signature because the menu passes it.
 static func items_for(systemid: String) -> Array:
+	return _with_offered_variants(_items_for(systemid))
+
+
+# ── Colors of a row a mod does not own ────────────────────────────────────────
+#
+# A console's row is a model row and lists its own `variants`. A controller a
+# mod BRINGS lists them on the item it adds (register_mod_peripherals). A
+# controller that is the game's own, which a mod only dresses, has a row the
+# mod cannot reach: it offers that row its variants here, by the row's token.
+
+## spawn token -> {"variants": Array, "owner": String}
+static var _offered_variants: Dictionary = {}
+
+
+## Offer `variants` for the row that spawns `spawn`. "" on success, else why not.
+static func register_mod_row_variants(spawn: String, variants: Array, owner_id: String) -> String:
+	if spawn.is_empty():
+		return "no spawn token"
+	if variants.is_empty():
+		return "no variants given for '%s'" % spawn
+	var err := SystemModelRegistry.variants_error(variants)
+	if not err.is_empty():
+		return err
+	if _offered_variants.has(spawn):
+		return "'%s' already has variants from mod '%s'" % [spawn, _offered_variants[spawn]["owner"]]
+	_offered_variants[spawn] = {"variants": variants.duplicate(true), "owner": owner_id}
+	return ""
+
+
+static func _with_offered_variants(items: Array) -> Array:
+	if _offered_variants.is_empty():
+		return items
+	for item: Variant in items:
+		var row := item as Dictionary
+		var spawn := str(row.get("spawn", ""))
+		if row.get("kind", "system") == "peripheral" and not row.has("variants") and _offered_variants.has(spawn):
+			row["variants"] = (_offered_variants[spawn]["variants"] as Array).duplicate(true)
+	return items
+
+
+static func _items_for(systemid: String) -> Array:
 	# An expansion with a card of its own IS this card, and is the whole of it.
 	#
 	# Almost every unit is also a systemid -- a 64DD's disks are "n64dd",
@@ -418,6 +461,10 @@ static func items_for(systemid: String) -> Array:
 	var connectors: Array[String] = []
 	var rows := SystemModelRegistry.rows_for(systemid)
 	for row: Dictionary in rows:
+		# A row kept for the rooms that name it and not for the card: what was
+		# once a color's own row and is now one of another row's variants.
+		if bool(row.get("unlisted", false)):
+			continue
 		var connector := str(row.get("av_connector", ""))
 		if connector.is_empty():
 			own_sockets = false
@@ -425,6 +472,11 @@ static func items_for(systemid: String) -> Array:
 			connectors.append(connector)
 		var item := {"kind": "system", "model_id": row.get("id", ""),
 			"label": row.get("label", "Console")}
+		# The colors the shell comes in, for a row that lists them: the menu
+		# offers them when the row is held.
+		var variants: Array = row.get("variants", [])
+		if not variants.is_empty():
+			item["variants"] = variants.duplicate(true)
 		if (row.get("requires", []) as Array).is_empty():
 			primitive.append(item)
 		else:
@@ -595,6 +647,10 @@ static func register_mod_peripherals(systemid: String, items: Array,
 	if not _mod_peripherals.has(systemid):
 		_mod_peripherals[systemid] = []
 	for item: Variant in items:
+		var colors_error := SystemModelRegistry.variants_error((item as Dictionary).get("variants", []))
+		if not colors_error.is_empty():
+			return "%s: %s" % [str((item as Dictionary).get("label", "?")), colors_error]
+	for item: Variant in items:
 		var row := (item as Dictionary).duplicate(true)
 		row["kind"] = "peripheral"
 		# Tagged per ROW, like _mod_spawnables. A systemid's list is shared by
@@ -669,6 +725,9 @@ static func drop_mod(owner_id: String) -> void:
 		else:
 			_mod_peripherals[systemid] = kept
 	_peripheral_owners.erase(owner_id)
+	for spawn: String in _offered_variants.keys():
+		if _offered_variants[spawn].get("owner", "") == owner_id:
+			_offered_variants.erase(spawn)
 	for systemid: String in _mod_standins:
 		for role: String in (_mod_standins[systemid] as Dictionary):
 			(_mod_standins[systemid][role] as Array).erase(owner_id)
@@ -681,11 +740,70 @@ static func drop_mod(owner_id: String) -> void:
 ## SpawnMenu2D.spawn_requested. Keeping this here means SpawnMenuController stays
 ## the one and only spawn authority.
 ##   system     → "model:<systemid>:<model_id>"
+##                or, asked for in one of its row's colors,
+##                "model_as:<variant>:<systemid>:<model_id>"
 ##   peripheral → the item's existing spawn string, verbatim
+##                or, asked for in one of its colors,
+##                "as:<variant>:<that string>"
 ##
 ## The systemid rides along because the placeholder row belongs to no platform, so
-## its id alone cannot say which core to load.
-static func spawn_token(systemid: String, item: Dictionary) -> String:
+## its id alone cannot say which core to load. The variant goes in FRONT of it,
+## under a prefix of its own: a mod's model id has a colon in it and is everything
+## after the last field, so nothing can follow it.
+static func spawn_token(systemid: String, item: Dictionary, variant: String = "") -> String:
 	if item.get("kind", "system") == "peripheral":
-		return item.get("spawn", "")
-	return "model:%s:%s" % [systemid, item.get("model_id", "")]
+		var spawn: String = item.get("spawn", "")
+		return spawn if variant.is_empty() else "%s%s:%s" % [AS, variant, spawn]
+	if not variant.is_empty():
+		return "%s%s:%s:%s" % [MODEL_AS, variant, systemid, item.get("model_id", "")]
+	return "%s%s:%s" % [MODEL, systemid, item.get("model_id", "")]
+
+
+const MODEL := "model:"
+const MODEL_AS := "model_as:"
+## Any other row asked for in a color: the color, then the row's own token whole.
+const AS := "as:"
+
+
+## Whether a token asks for a console, in a color or as it comes.
+static func is_model_token(token: String) -> bool:
+	return token.begins_with(MODEL) or token.begins_with(MODEL_AS)
+
+
+## The color a console's token asks for, or "" for the model as it comes.
+static func variant_of_token(token: String) -> String:
+	for prefix: String in [MODEL_AS, AS]:
+		if token.begins_with(prefix):
+			return token.substr(prefix.length()).get_slice(":", 0)
+	return ""
+
+
+## A row's own token, with the color it was asked for in taken off the front:
+## what to spawn. A console's token is read by model_of_token instead.
+static func plain_token(token: String) -> String:
+	if not token.begins_with(AS):
+		return token
+	var rest := token.substr(AS.length())
+	var colon := rest.find(":")
+	return rest.substr(colon + 1) if colon >= 0 else ""
+
+
+## The other way: what a "model:<systemid>:<model_id>" token asks for, as
+## [systemid, model_id].
+##
+## The id is everything after the SECOND colon, because a mod's model id has a
+## colon of its own ("xenu.sfc:shvc001"). Split at every colon and that row
+## reaches the console as "xenu.sfc", which is no row at all: the platform's
+## first row was spawned whichever one the player picked, so a mod's console
+## only came out right while it was the only console on its card.
+static func model_of_token(token: String) -> PackedStringArray:
+	# Asked for in a color, the color is one more field in front.
+	if token.begins_with(MODEL_AS):
+		var rest := token.substr(MODEL_AS.length())
+		var colon := rest.find(":")
+		token = MODEL + (rest.substr(colon + 1) if colon >= 0 else "")
+	var parts := token.split(":", true, 2)
+	return PackedStringArray([
+		parts[1] if parts.size() > 1 else "",
+		parts[2] if parts.size() > 2 else "",
+	])

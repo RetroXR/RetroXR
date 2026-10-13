@@ -76,11 +76,54 @@ things around it were not handled, and each has one home now:
 - *Dressing.* `ModApi.dress(cls, key, cb)` is `on_node_added` with a first-come
   claim held in `ModHooks._dressers`. The loser gets a problem line (not a failure)
   and no watcher.
+- *The row's token (2026-10-13).* A console row is asked for as
+  `model:<systemid>:<model_id>`, and a mod's model id has a colon of its own.
+  `SpawnMenuController` split the token at EVERY colon, so `xenu.sfc:shvc001` arrived
+  as `xenu.sfc`, matched no row, and `resolve` handed back the platform's first row.
+  A mod's console therefore spawned right while it was the only console on its card
+  (which is why nobody saw it) and wrong beside any other: the Super Famicom beside
+  the Super NES, a second row from the same mod. `SpawnCatalog.model_of_token` is now
+  the one reader, next to `spawn_token`, which writes it.
+  `spawn_menu_tests --only=tokens`.
 
 The spawn card marks the row `SystemModelRegistry.resolve("", platform)` would pick
 with `default` whenever it offers more than one console. Which mod that is follows
 from priority and load order; the mark is the only place a player can see it.
 `mod_tests --only=standins`.
+
+**A row's colors (2026-10-13).** A row on a spawn card may carry `variants`:
+`[{id, label, color}]`, the first the thing as it comes. Such a row can be HELD, the
+hold the cartridge rows already had, for a panel of swatches; pressed, it spawns the
+first as before. The game paints nothing: what a color IS belongs to the mod. There
+is one path and three ways onto it:
+
+- *A mod's console row* lists them on the row it registers (`register_model`,
+  `override_model`). `SystemModelRegistry.variants_error` is part of `validate_row`.
+- *A row a mod adds* lists them on the item it passes to `add_peripherals`.
+- *A game-owned row a mod only dresses* (the N64 controller, the Wii Remote) is
+  offered them by its spawn token: `ModApi.offer_variants(spawn, variants)`, kept in
+  `SpawnCatalog.register_mod_row_variants` and withdrawn with the mod.
+
+The token is `model_as:<variant>:<systemid>:<model_id>` for a console and
+`as:<variant>:<the row's own token>` for anything else. `SpawnCatalog.spawn_token`
+writes both and `variant_of_token` / `plain_token` / `model_of_token` read them. The
+first swatch asks with the plain token, so the thing as it comes is saved exactly as
+it was before any of this.
+
+What is spawned is told its color BEFORE it enters the room, which is what lets a
+node-added hook read it. A console gets `RetroSystem.model_variant` and calls its
+model's `apply_variant(id)` once, after the model is added; an expansion cover has
+the same property. Everything else gets metadata, `SystemModelRegistry.VARIANT_KEY`
+(`variant_of`, `set_variant_of`), set in `SpawnMenuController._place_spawned`.
+`ScenePersistence._serialize_node` / `_deserialize_object` wrap every kind and keep
+`"model_variant"`, so no kind has a field of its own for it. An id the mod no longer
+has, or a save loaded with the mod gone, is ignored.
+
+A row marked `"unlisted": true` stays resolvable, for the saves that name it, and is
+left off the card: how `xenu.gbc` retired the four rows it had before it had colors.
+
+`spawn_menu_tests` (`_group_colors`), `system_tests` (`_test_model_variant`). Still
+OWED: the panel and the translucent shells' filter gain on a headset.
 
 **Cartridge shells from a mod (2026-10-06).** `ModApi.register_cart_shell` /
 `ModCartShells` is `N64CartShell` and its siblings handed to a mod: bodies, an

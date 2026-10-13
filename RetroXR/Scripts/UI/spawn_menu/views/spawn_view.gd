@@ -792,6 +792,13 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 					% [str(item.get("label", "Memory Card")), cards, "" if cards == 1 else "s"]
 			btn.pressed.connect(
 				_on_system_memcard_pressed.bind(systemid, card_fmt.id(), vbox))
+		elif not (item.get("variants", []) as Array).is_empty():
+			# A console that comes in several colors. Pressed, it spawns as its
+			# row has it; held for a second, it asks which, as a ROM's row asks
+			# for a cartridge's shell.
+			var hold := HoldPress.attach(btn)
+			hold.clicked.connect(spawn_requested.emit.bind(token))
+			hold.held.connect(_show_model_spawn_options.bind(systemid, item))
 		else:
 			btn.pressed.connect(spawn_requested.emit.bind(token))
 		vbox.add_child(btn)
@@ -3434,6 +3441,46 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 		refresh.call(true))
 
 
+## Which of its colors to spawn a console in: one swatch for each of the
+## `variants` its row lists (SystemModelRegistry), painted in that variant's own
+## color. It opens on the first, which is the console as a plain press spawns
+## it, and picking that one asks for nothing: the token then names no color, so
+## the save records none.
+func _show_model_spawn_options(systemid: String, item: Dictionary) -> void:
+	var vbox := _open_spawn_options_panel(str(item.get("label", "Console")))
+	var variants: Array = item.get("variants", [])
+	var chosen := {"variant": ""}
+
+	vbox.add_child(MenuStyle.header("Color"))
+	var group := ButtonGroup.new()
+	var grid := GridContainer.new()
+	grid.name = "Variants"
+	grid.columns = 4
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 10)
+	vbox.add_child(grid)
+	for i in variants.size():
+		var variant: Dictionary = variants[i]
+		var id := str(variant.get("id", ""))
+		var swatch := _swatch_button(str(variant.get("label", id)),
+			SystemModelRegistry.variant_color(variant), group)
+		swatch.button_pressed = i == 0
+		var asked := "" if i == 0 else id
+		swatch.pressed.connect(func() -> void: chosen["variant"] = asked)
+		grid.add_child(swatch)
+
+	vbox.add_child(MenuStyle.spacer(6))
+	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
+	go.name = "SpawnVariant"
+	go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
+	go.pressed.connect(func() -> void:
+		var variant: String = chosen["variant"]
+		_close_spawn_options_panel()
+		spawn_requested.emit(SpawnCatalog.spawn_token(systemid, item, variant)))
+	vbox.add_child(go)
+
+
 ## How long a lead is and what colour its plugs are. Two choices, so they are
 ## picked and then SPAWN is pressed -- the same shape as the cartridge panel above,
 ## and the reason this one no longer spawns on the first tap.
@@ -3458,7 +3505,7 @@ func _show_lead_spawn_options(label: String, token: String) -> void:
 		length_btn.pressed.connect(func() -> void: chosen["length"] = row[0])
 		lengths.add_child(length_btn)
 
-	vbox.add_child(MenuStyle.header("Plug colour"))
+	vbox.add_child(MenuStyle.header("Plug color"))
 	var color_group := ButtonGroup.new()
 	var grid := GridContainer.new()
 	grid.columns = 4

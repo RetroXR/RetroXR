@@ -170,6 +170,44 @@ No file replacement and no claim needed. This is the recommended route.
 The alternative — claim a shipped asset path and ship a replacement, e.g. a new
 `nes_console.glb` — keeps the shipped logic and swaps only the geometry.
 
+### Colors and editions on one row
+
+A machine sold in ten colors is one row, not ten. Give the row a `variants` list
+and the player holds the row to pick from a panel of swatches; pressing it spawns
+the first, as before:
+
+```gdscript
+row["variants"] = [
+    {"id": "indigo", "label": "Indigo", "color": Color8(56, 46, 118)},      # as it comes
+    {"id": "jet_black", "label": "Jet Black", "color": Color8(40, 41, 45)},
+]
+```
+
+`id` is what is saved, so it is permanent; `label` and `color` are the swatch. The
+first entry is your model as it comes, and is saved as a row with no variant at all.
+
+The game only carries the id to what it spawns. What it MEANS is yours, and there
+are three places to read it, by what the row is:
+
+- **Your console** (`register_model`, `override_model`): override
+  `apply_variant(id)` on your model script. It is called once, after the model is
+  in the tree, and only when a variant was asked for. Paint the WHOLE model, not
+  the shell alone: a lid you hung on a hinge is no longer under the shell.
+- **A row you add** (`add_peripherals`): put `variants` on the item. Your object
+  has it as metadata before it enters the room: `get_meta(&"model_variant", "")`,
+  readable from `_ready()`.
+- **A row of the game's that you only dress** (`api.dress`): offer it the list by
+  its spawn token, `api.offer_variants("n64_controller", variants)`, and read the
+  same metadata in your hook.
+
+An id you do not recognize is a save that has outlived your list: leave the thing
+as it comes. A variant can be more than paint. One that is a different shell (a
+regional pad, a special edition with its own print) swaps the shell before your
+script looks for its parts on it.
+
+To retire rows you once shipped one per color, keep them registered with
+`"unlisted": true`: old saves still resolve, and the card stops listing them.
+
 ## Adding a whole platform
 
 A console model alone is not a usable platform. `api.register_platform()` takes

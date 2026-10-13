@@ -129,6 +129,7 @@ func _ready() -> void:
 	await _test_playstation_hardware()
 	_test_own_console_cards()
 	await _test_dreamcast_pointer()
+	await _test_model_variant()
 	await _test_power_led()
 	await _test_save_state_gates()
 	await _test_sram_paths()
@@ -450,6 +451,86 @@ func _gun_row(sysid: String) -> Dictionary:
 # ---------------------------------------------------------------------------
 # Which pad profile a plugged pad selects (PCSX-ReARMed's padNtype).
 # ---------------------------------------------------------------------------
+
+## A console asked for in one of its model's colors tells the model which,
+## once, as it builds it; one asked for as it comes tells it nothing. A save
+## keeps the color, and keeps a lid's, and writes neither key for a console or
+## a lid that has none.
+func _test_model_variant() -> void:
+	const OWNER := "sys.colors"
+	const MODEL := "sys.colors:box"
+	_eq(SystemModelRegistry.register_mod_row(MODEL, {"platform": "nes", "label": "Box",
+		"script": "res://Tests/variant_model_fixture.gd",
+		"variants": [{"id": "gray"}, {"id": "green"}]}, OWNER), "", "colors/the fixture's row registers")
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	var made: Array[RetroSystem] = []
+	for asked: String in ["green", ""]:
+		var sys := sys_scene.instantiate() as RetroSystem
+		sys.systemid = "nes"
+		sys.model_id = MODEL
+		sys.model_variant = asked
+		sys.freeze = true
+		sys.position = Vector3(9.0 + made.size(), 1.0, 0.0)
+		add_child(sys)
+		made.append(sys)
+	for i in range(10):
+		await get_tree().process_frame
+	_eq(made[0].get_model().get("told"), ["green"] as Array[String], "colors/a console asked for in one tells its model, once")
+	_eq(made[1].get_model().get("told"), [] as Array[String], "colors/a console as it comes tells its model nothing")
+
+	var store := ScenePersistence.new()
+	var entry := store._serialize_node(made[0], 1, {made[0]: 1})
+	var plain := store._serialize_node(made[1], 2, {made[1]: 2})
+	_eq(entry.get("model_variant"), "green", "colors/a save keeps the color")
+	_ok(not plain.has("model_variant"), "colors/and writes no such key for a console that has none")
+	_eq(ScenePersistence._entry_validation_error(entry, {1: true}), "", "colors/the entry is one a load accepts")
+	var back := store._deserialize_object(entry) as RetroSystem
+	_ok(back != null and back.model_variant == "green" and back.model_id == MODEL, "colors/a load gives it back to the console")
+	if back != null:
+		back.free()
+	var bad := entry.duplicate(true)
+	bad["model_variant"] = 3
+	_ok(not ScenePersistence._entry_validation_error(bad, {1: true}).is_empty(), "colors/a color that is not a string is refused")
+
+	var lid := (load("res://Scenes/Objects/expansion_cover.tscn") as PackedScene).instantiate() as ExpansionCover
+	lid.freeze = true
+	add_child(lid)
+	_ok(not store._serialize_node(lid, 3, {lid: 3}).has("model_variant"), "colors/a lid nothing has colored saves as it did")
+	lid.model_variant = "green"
+	var lid_entry := store._serialize_node(lid, 3, {lid: 3})
+	_eq(lid_entry.get("model_variant"), "green", "colors/a lid keeps its own color in a save")
+	var lid_back := store._deserialize_object(lid_entry) as ExpansionCover
+	_ok(lid_back != null and lid_back.model_variant == "green", "colors/and has it back before it enters the room")
+	if lid_back != null:
+		lid_back.free()
+	# Anything else keeps its color as metadata, which a save writes and a load
+	# gives back before the thing enters the room: no class has to know.
+	var pad := (load("res://Scenes/Objects/controllers/retro_controller.tscn") as PackedScene).instantiate() as RigidBody3D
+	pad.freeze = true
+	_eq(SystemModelRegistry.variant_of(pad), "", "colors/a controller as it comes has no color")
+	SystemModelRegistry.set_variant_of(pad, "green")
+	_ok(SystemModelRegistry.variant_of(pad) == "green" and str(pad.get_meta(SystemModelRegistry.VARIANT_KEY, "")) == "green",
+		"colors/a controller keeps its color as metadata")
+	_ok(SystemModelRegistry.variant_of(made[0]) == "green" and SystemModelRegistry.variant_of(lid) == "green"
+		and not lid.has_meta(SystemModelRegistry.VARIANT_KEY),
+		"colors/a console and a lid answer from their own property")
+	add_child(pad)
+	await get_tree().process_frame
+	var pad_entry := store._serialize_node(pad, 4, {pad: 4})
+	_eq(pad_entry.get("model_variant"), "green", "colors/a save keeps a controller's color")
+	var pad_back := store._deserialize_object(pad_entry)
+	_ok(pad_back != null and SystemModelRegistry.variant_of(pad_back) == "green" and not pad_back.is_inside_tree(),
+		"colors/and a load gives it back before the controller enters the room")
+	if pad_back != null:
+		pad_back.free()
+	SystemModelRegistry.set_variant_of(pad, "")
+	_ok(not pad.has_meta(SystemModelRegistry.VARIANT_KEY) and not store._serialize_node(pad, 4, {pad: 4}).has("model_variant"),
+		"colors/taken off, nothing is kept and nothing is saved")
+	for node: Node in [made[0], made[1], lid, pad]:
+		node.queue_free()
+	await get_tree().process_frame
+	SystemModelRegistry.drop_mod(OWNER)
+
 
 ## Three faults reported from the room, each of which a render had already been
 ## used to "confirm" was fine.

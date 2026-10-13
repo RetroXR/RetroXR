@@ -33,6 +33,8 @@ func _ready() -> void:
 	await _group_filter()
 	await _group_cartridges()
 	_group_counts()
+	_group_tokens()
+	await _group_colors()
 	_group_formats()
 	_group_fit()
 	_group_tvs()
@@ -215,6 +217,247 @@ func _group_counts() -> void:
 		"counts/just under a million is still thousands")
 	_eq(SystemGridBrowser._compact_count(1000000), "1.0M",
 		"counts/a million becomes millions")
+
+
+# ── tokens/ — what a console row asks SpawnMenuController for ─────────────────
+
+## A row's token is written by SpawnCatalog.spawn_token and read back by
+## model_of_token, and the two have to agree for EVERY id a row can carry. A
+## mod's model id has a colon in it. Read with a split at every colon it lost
+## everything after that colon, the game knew no such model, and the platform's
+## first row was spawned whichever one was picked: the Super Famicom beside the
+## Super NES, a PS one beside the PlayStation.
+func _group_tokens() -> void:
+	for row: Array in [
+			["nes", "nes", "tokens/a shipped console"],
+			["snes", "xenu.sfc:shvc001", "tokens/a mod's console keeps the whole of its id"],
+			["psx", "xenu.psone:scph101", "tokens/a mod's console beside the game's own"],
+			["x68000", "", "tokens/a row with no model still says its system"],
+	]:
+		var token := SpawnCatalog.spawn_token(str(row[0]), {"model_id": str(row[1])})
+		var asked := SpawnCatalog.model_of_token(token)
+		_eq(asked.size(), 2, "%s: two answers" % row[2])
+		_eq(asked[0], str(row[0]), "%s: the system" % row[2])
+		_eq(asked[1], str(row[1]), "%s: the model" % row[2])
+	var short := SpawnCatalog.model_of_token("model:")
+	_ok(short.size() == 2 and short[0].is_empty() and short[1].is_empty(),
+		"tokens/a token cut short answers with nothing, and does not throw")
+
+	# Asked for in one of its colors, the color is a field of its own in front
+	# and the rest reads back as it did.
+	var item := {"model_id": "xenu.n64:nus001"}
+	var plain := SpawnCatalog.spawn_token("n64", item)
+	var green := SpawnCatalog.spawn_token("n64", item, "jungle_green")
+	_eq(plain, "model:n64:xenu.n64:nus001", "tokens/a console as it comes is asked for as before")
+	_eq(green, "model_as:jungle_green:n64:xenu.n64:nus001", "tokens/a color goes in front, under a prefix of its own")
+	_eq([SpawnCatalog.variant_of_token(plain), SpawnCatalog.variant_of_token(green)], ["", "jungle_green"],
+		"tokens/and reads back: nothing for the plain one")
+	var back := SpawnCatalog.model_of_token(green)
+	_eq([back[0], back[1]], ["n64", "xenu.n64:nus001"], "tokens/with the system and the whole of the model id behind it")
+	_ok(SpawnCatalog.is_model_token(plain) and SpawnCatalog.is_model_token(green)
+		and not SpawnCatalog.is_model_token("speaker_cable:red:"),
+		"tokens/both are a console's token, and a lead's is not")
+	# Any other row asked for in a color keeps its own token whole, colons and
+	# all, behind the color.
+	var pad_row := {"kind": "peripheral", "spawn": "mod:xenu.pads:six"}
+	var pad_plain := SpawnCatalog.spawn_token("genesis", pad_row)
+	var pad_red := SpawnCatalog.spawn_token("genesis", pad_row, "red")
+	_eq([pad_plain, pad_red], ["mod:xenu.pads:six", "as:red:mod:xenu.pads:six"],
+		"tokens/a peripheral's token is its own, with the color in front when one is asked for")
+	_eq([SpawnCatalog.variant_of_token(pad_plain), SpawnCatalog.variant_of_token(pad_red)], ["", "red"],
+		"tokens/and its color reads back")
+	_eq([SpawnCatalog.plain_token(pad_plain), SpawnCatalog.plain_token(pad_red), SpawnCatalog.plain_token("as:")],
+		["mod:xenu.pads:six", "mod:xenu.pads:six", ""],
+		"tokens/and what is left is the token to spawn")
+	_ok(not SpawnCatalog.is_model_token(pad_red), "tokens/a peripheral in a color is not a console's token")
+	var cut := SpawnCatalog.model_of_token("model_as:")
+	_ok(cut.size() == 2 and cut[0].is_empty() and cut[1].is_empty() and SpawnCatalog.variant_of_token("model_as:").is_empty(),
+		"tokens/a colored token cut short answers with nothing too")
+
+
+# ── colors/ — a console that comes in several ───────────────────────────────
+
+## A model row may list the colors its shell comes in. The card's row for it is
+## then held to pick one, as a ROM's row is held to pick a cartridge's shell, and
+## pressed to spawn the first, which is the row as it comes.
+func _group_colors() -> void:
+	const OWNER := "menu.colors"
+	const MODEL := "menu.colors:box"
+	const SYS := "zz_colors"
+	const SCRIPT := "res://Tests/variant_model_fixture.gd"
+	var row := {"platform": SYS, "label": "Box", "script": SCRIPT,
+		"variants": [{"id": "gray", "label": "Gray", "color": Color(0.2, 0.2, 0.2)},
+			{"id": "green", "label": "Jungle", "color": "#1e8e3e"}]}
+	_eq(SystemModelRegistry.register_mod_row(MODEL, row, OWNER), "", "colors/a row that lists its colors registers")
+	_eq(SystemModelRegistry.variants_of(MODEL).size(), 2, "colors/and says which they are")
+	_eq(SystemModelRegistry.variants_of("nes").size(), 0, "colors/a model with one color lists none")
+	_eq(SystemModelRegistry.variant_color({"color": "#1e8e3e"}).to_html(false), "1e8e3e",
+		"colors/a swatch is given as '#rrggbb'")
+	_eq(SystemModelRegistry.variant_color({"color": Color(0.2, 0.2, 0.2)}), Color(0.2, 0.2, 0.2),
+		"colors/or as a Color")
+	for bad: Array in [
+			["not a list", "gray"],
+			["an entry that is not a dictionary", ["gray"]],
+			["no id", [{"label": "Gray"}]],
+			["a colon in an id", [{"id": "a:b"}]],
+			["the same id twice", [{"id": "gray"}, {"id": "gray"}]],
+			["a color that is not one", [{"id": "gray", "color": "grayish"}]],
+	]:
+		var broken := {"platform": SYS, "label": "X", "script": SCRIPT, "variants": bad[1]}
+		_ok(not SystemModelRegistry.register_mod_row("menu.colors:bad", broken, OWNER).is_empty(),
+			"colors/refused: %s" % bad[0])
+
+	var found := {}
+	var plain_rows := 0
+	for item: Dictionary in SpawnCatalog.items_for(SYS):
+		if str(item.get("model_id", "")) == MODEL:
+			found = item
+		elif not item.has("variants"):
+			plain_rows += 1
+	_eq((found.get("variants", []) as Array).size(), 2, "colors/the card's item for that console carries them")
+	# A row kept only so that rooms saved naming it still load.
+	_eq(SystemModelRegistry.register_mod_row("menu.colors:old", {"platform": SYS, "label": "Box (Green)", "script": SCRIPT,
+		"unlisted": true}, OWNER), "", "colors/a row may be kept off the card")
+	var offered: Array = []
+	for item: Dictionary in SpawnCatalog.items_for(SYS):
+		offered.append(str(item.get("model_id", "")))
+	_ok(not offered.has("menu.colors:old") and offered.has(MODEL)
+		and str(SystemModelRegistry.resolve("menu.colors:old", SYS).get("id", "")) == "menu.colors:old",
+		"colors/the card does not offer it, and a save that names it still resolves to it")
+	_ok(plain_rows > 0, "colors/and the card's other rows carry none")
+
+	# The card itself. Its page is a plain column, built with no menu round it.
+	var holder := Control.new()
+	add_child(holder)
+	_spawned.append(holder)
+	var view := SpawnMenuSpawnView.new()
+	holder.add_child(view)
+	var page := VBoxContainer.new()
+	holder.add_child(page)
+	var sent: Array[String] = []
+	view.spawn_requested.connect(func(token: String) -> void: sent.append(token))
+	view._populate_systems_detail(SYS, page)
+	await get_tree().process_frame
+	var console: Button = null
+	var others_hold := 0
+	for child in page.get_children():
+		var btn := child as Button
+		if btn == null:
+			continue
+		if btn.text.contains("Box"):
+			console = btn
+		elif btn.has_node("HoldPress"):
+			others_hold += 1
+	var hold := console.get_node_or_null("HoldPress") as HoldPress if console != null else null
+	_ok(hold != null, "colors/the console's row can be held")
+	_eq(others_hold, 0, "colors/and no other row on the card can")
+	if hold == null:
+		SystemModelRegistry.drop_mod(OWNER)
+		return
+	var plain := "model:%s:%s" % [SYS, MODEL]
+
+	console.button_down.emit()
+	hold.advance(0.3)
+	console.pressed.emit()
+	console.button_up.emit()
+	_eq(sent, [plain] as Array[String], "colors/pressed, it spawns the console as it comes")
+	_ok(view._spawn_options_panel == null, "colors/and opens nothing")
+
+	sent.clear()
+	console.button_down.emit()
+	hold.advance(HoldPress.HOLD_SECONDS + 0.1)
+	console.pressed.emit()
+	console.button_up.emit()
+	var panel := view._spawn_options_panel
+	_ok(panel != null and sent.is_empty(), "colors/held for a second, it opens the panel and spawns nothing")
+	var grid := panel.find_child("Variants", true, false) as GridContainer if panel != null else null
+	var swatches: Array = grid.get_children() if grid != null else []
+	_eq(swatches.size(), 2, "colors/with a swatch for each color")
+	if swatches.size() == 2:
+		var first := swatches[0] as Button
+		var second := swatches[1] as Button
+		_eq([first.text, second.text], ["Gray", "Jungle"], "colors/each under its own name")
+		_ok(first.button_pressed and not second.button_pressed, "colors/open on the first, which is the row's own")
+		var fill := second.get_theme_stylebox("normal") as StyleBoxFlat
+		_ok(fill != null and fill.bg_color.is_equal_approx(Color.html("#1e8e3e")), "colors/each painted its color")
+		(panel.find_child("SpawnVariant", true, false) as Button).pressed.emit()
+		_eq(sent, [plain] as Array[String], "colors/SPAWN on the first asks for no color at all")
+		_ok(view._spawn_options_panel == null, "colors/and closes the panel")
+
+		sent.clear()
+		console.button_down.emit()
+		hold.advance(HoldPress.HOLD_SECONDS + 0.1)
+		console.pressed.emit()
+		console.button_up.emit()
+		panel = view._spawn_options_panel
+		grid = panel.find_child("Variants", true, false) as GridContainer if panel != null else null
+		if grid != null and grid.get_child_count() == 2:
+			(grid.get_child(1) as Button).pressed.emit()
+			(panel.find_child("SpawnVariant", true, false) as Button).pressed.emit()
+		_eq(sent, ["model_as:green:%s:%s" % [SYS, MODEL]] as Array[String],
+			"colors/a swatch picked, SPAWN asks for the console in that color")
+	await get_tree().process_frame
+
+	# A row that is not a console's. One a mod adds lists its colors on the item;
+	# one of the game's own is offered them by its token.
+	var pad_colors := [{"id": "gray", "label": "Gray", "color": "#888888"}, {"id": "red", "label": "Red", "color": "#cc2222"}]
+	_eq(SpawnCatalog.register_mod_peripherals(SYS, [{"label": "Mod Pad", "spawn": "mod:menu.colors:pad", "variants": pad_colors}], OWNER),
+		"", "colors/a mod's own row may list colors")
+	_ok(not SpawnCatalog.register_mod_peripherals(SYS, [{"label": "Bad Pad", "spawn": "x", "variants": [{"id": "a:b"}]}], OWNER).is_empty(),
+		"colors/and is refused when they are malformed")
+	_eq(SpawnCatalog.register_mod_row_variants("light_gun", pad_colors, OWNER), "", "colors/a row of the game's own can be offered colors by its token")
+	_ok(not SpawnCatalog.register_mod_row_variants("light_gun", pad_colors, "menu.other").is_empty(),
+		"colors/by one mod at a time")
+	_ok(not SpawnCatalog.register_mod_row_variants("light_gun2", [{"id": ""}], OWNER).is_empty(),
+		"colors/and not malformed ones")
+	var mod_pad := {}
+	for item: Dictionary in SpawnCatalog.items_for(SYS):
+		if str(item.get("spawn", "")) == "mod:menu.colors:pad":
+			mod_pad = item
+	_eq((mod_pad.get("variants", []) as Array).size(), 2, "colors/the card's item for the mod's row carries them")
+	var gun := {}
+	for item: Dictionary in SpawnCatalog.items_for("nes"):
+		if str(item.get("spawn", "")) == "light_gun":
+			gun = item
+	_eq((gun.get("variants", []) as Array).size(), 2, "colors/and so does the game's own row, wherever it is carded")
+	var pad_page := VBoxContainer.new()
+	holder.add_child(pad_page)
+	view._populate_systems_detail(SYS, pad_page)
+	await get_tree().process_frame
+	var pad_btn: Button = null
+	for child in pad_page.get_children():
+		if child is Button and (child as Button).text.contains("Mod Pad"):
+			pad_btn = child as Button
+	var pad_hold := pad_btn.get_node_or_null("HoldPress") as HoldPress if pad_btn != null else null
+	_ok(pad_hold != null, "colors/a peripheral's row with colors can be held too")
+	if pad_hold != null:
+		sent.clear()
+		pad_btn.button_down.emit()
+		pad_hold.advance(0.3)
+		pad_btn.pressed.emit()
+		pad_btn.button_up.emit()
+		_eq(sent, ["mod:menu.colors:pad"] as Array[String], "colors/pressed, it spawns as it comes")
+		sent.clear()
+		pad_btn.button_down.emit()
+		pad_hold.advance(HoldPress.HOLD_SECONDS + 0.1)
+		pad_btn.pressed.emit()
+		pad_btn.button_up.emit()
+		var pad_panel := view._spawn_options_panel
+		var pad_grid := pad_panel.find_child("Variants", true, false) as GridContainer if pad_panel != null else null
+		if pad_grid != null and pad_grid.get_child_count() == 2:
+			(pad_grid.get_child(1) as Button).pressed.emit()
+			(pad_panel.find_child("SpawnVariant", true, false) as Button).pressed.emit()
+		_eq(sent, ["as:red:mod:menu.colors:pad"] as Array[String], "colors/held and picked, it asks for itself in that color")
+	await get_tree().process_frame
+
+	SystemModelRegistry.drop_mod(OWNER)
+	SpawnCatalog.drop_mod(OWNER)
+	_eq(SystemModelRegistry.variants_of(MODEL).size(), 0, "colors/with the row gone there is nothing to pick")
+	var gun_after := {}
+	for item: Dictionary in SpawnCatalog.items_for("nes"):
+		if str(item.get("spawn", "")) == "light_gun":
+			gun_after = item
+	_ok(not gun_after.is_empty() and not gun_after.has("variants"), "colors/and the game's own row is as it was once the mod is gone")
 
 
 # ── formats/ — the strings the options panel prints ───────────────────────────

@@ -87,6 +87,15 @@ func brings_own_body() -> bool:
 	return true
 
 
+## Become one of the colors this model's row lists (SystemModelRegistry
+## `variants`), by its id. Called once, as the console builds its model and
+## before it wires anything to it, and only for a console that names one: the
+## model as it comes is asked nothing. An id the model does not know is one a
+## save has outlived, and is left as the model's own color.
+func apply_variant(_variant: String) -> void:
+	pass
+
+
 ## Called when the system is powered on (e.g. light up power LED, play boot animation).
 func on_power_on() -> void:
 	if _power_slider != null:

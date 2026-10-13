@@ -36,6 +36,10 @@ static func has_primitive_model(sysid: String) -> bool:
 ## platform's default". Saves written before models had ids are translated on the
 ## way in by ScenePersistence, so nothing here needs to know about variants.
 @export var model_id: String = ""
+## Which of that model's colors this console is, by the id its row lists it
+## under (SystemModelRegistry `variants`); empty for the model as it comes. Set
+## before the console enters the tree, as model_id is, and saved with it.
+@export var model_variant: String = ""
 
 ## The id of the memory built into this console, set by a restore before the
 ## machine enters the tree. Empty mints a new one -- see ConsoleMemory.
@@ -706,6 +710,10 @@ func _load_system_model() -> void:
 	# have nothing to do with geometry (the Wii's carries core options), and such a
 	# model still wears the procedural box. See RetroSystemModel.brings_own_body.
 	add_child(_model)
+	# Its color, for a console that was asked for in one. After add_child: the
+	# model has built its shell by now, and before anything below reads it.
+	if not model_variant.is_empty():
+		_model.apply_variant(model_variant)
 	var is_bespoke := _model.brings_own_body()
 	_model.hide_printed_labels()
 	if is_bespoke:

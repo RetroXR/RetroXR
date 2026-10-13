@@ -918,6 +918,11 @@ func _card_scene_for(family: String) -> PackedScene:
 ## Add obj to the scene, place it 0.5 m in front of the menu, then hand it to
 ## whichever hand clicked the spawn button. A full hand
 ## blocks the spawn ("Drop Item From Hand First" in the menu's status bar).
+## The color the row being spawned was asked for in, for _place_spawned to give
+## to what it places. Empty for a row spawned as it comes.
+var _spawn_variant := ""
+
+
 func _place_spawned(obj: Node3D, type: String) -> void:
 	var grabber := _spawn_grabber()
 	if grabber != null and _grabber_busy(grabber):
@@ -926,6 +931,10 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 		if menu:
 			menu.show_notice("Drop Item From Hand First")
 		return
+	# Before it enters the room: a mod dresses a thing as it does.
+	if not _spawn_variant.is_empty():
+		SystemModelRegistry.set_variant_of(obj, _spawn_variant)
+		_spawn_variant = ""
 	get_tree().current_scene.add_child(obj)
 	obj.add_to_group("spawned")
 	print("[Spawn] spawned %s (%s)" % [obj.name, type])
@@ -1050,6 +1059,13 @@ func _is_vr_runtime() -> bool:
 
 
 func _on_spawn_requested(type: String) -> void:
+	# A row held and asked for in one of its colors: "as:<variant>:<its own
+	# token>". The token spawns as it always did, and _place_spawned gives the
+	# thing its color. (A console's row says it its own way, "model_as:", below.)
+	_spawn_variant = ""
+	if type.begins_with(SpawnCatalog.AS):
+		_spawn_variant = SpawnCatalog.variant_of_token(type)
+		type = SpawnCatalog.plain_token(type)
 	var obj: Node3D
 	# Model token "model:<systemid>:<model_id>" (from SpawnCatalog) — checked BEFORE
 	# the match below, since `match` only does literal string equality and would
@@ -1057,14 +1073,18 @@ func _on_spawn_requested(type: String) -> void:
 	# predecessor of this branch silently fell to the `_:` default, spawning the
 	# default model with the whole token as a garbage systemid (e.g. "Mega Drive",
 	# "DS Lite" and "Console (Original)" all landed on their default shell).
-	if type.begins_with("model:"):
-		var parts := type.split(":")
-		var model_id: String = parts[2] if parts.size() > 2 else ""
+	if SpawnCatalog.is_model_token(type):
+		# SpawnCatalog wrote the token and reads it back: a mod's model id has a
+		# colon of its own, so this is not a split at every colon. Held, a row
+		# asks for one of its colors ("model_as:<variant>:..."), which is read
+		# back the same way.
+		var asked := SpawnCatalog.model_of_token(type)
+		var model_id: String = asked[1]
 		# The row is the authority on which platform it belongs to, so the model and
 		# the core cannot disagree. Only the placeholder — which belongs to no
 		# platform — falls back to the systemid carried in the token.
 		var platform := SystemModelRegistry.platform_of(model_id)
-		var systemid := platform if not platform.is_empty() else (parts[1] if parts.size() > 1 else "")
+		var systemid := platform if not platform.is_empty() else asked[0]
 		# A bespoke shell's GLB may still be warming this early in the session. The
 		# model's _ready would load() it synchronously — the frame freezes until the
 		# whole threaded load lands. Await it into the cache first; once warm this
@@ -1076,6 +1096,7 @@ func _on_spawn_requested(type: String) -> void:
 		var sys := SYSTEM_SCENE.instantiate() as RetroSystem
 		sys.systemid = systemid
 		sys.model_id = model_id
+		sys.model_variant = SpawnCatalog.variant_of_token(type)
 		_place_spawned(sys, type)
 		return
 	# "expansion:<id>" — a machine that bolts onto a console. Checked with the
