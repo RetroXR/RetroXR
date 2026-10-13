@@ -90,6 +90,14 @@ const SOURCES := {
 	# play together, single-cartridge play work, and a GameCube lead reach a
 	# handheld at all.
 	#
+	# Since v8 the Game Boy Color's infrared port rides the same bus, on link
+	# port 1 as `gbc-ir-1` (the cable is port 0) -- upstream called RP an unknown
+	# register. gambatte's driver speaks the same id and message, so a unit run by
+	# either core sees one run by the other. That build also mends two things a
+	# loaded state did to a Game Boy, both of which rollback meets: the timer's
+	# period was read back over its flags byte, and both link drivers were left
+	# off the schedule, which stops the machine at the OTHER end of the wire.
+	#
 	# Unlike Dolphin this is not a GPL obligation -- mGBA is MPL-2.0 -- but the
 	# source sits on the tag beside the binary for the same practical reason: it
 	# is the only way anyone can tell what they are running.
@@ -99,7 +107,7 @@ const SOURCES := {
 	# name here fails silently, as a core that simply never downloads.
 	"mgba": {
 		"repo":  "RetroXR/mgba",
-		"known_tag": "retroxr-mgba-libretro-v7",
+		"known_tag": "retroxr-mgba-libretro-v8",
 		"label": "mGBA (retroXR build)",
 		"assets": {
 			"Windows": "mgba_libretro.dll.zip",
@@ -179,11 +187,18 @@ const SOURCES := {
 	# frame on reload with the LCD off. That second one is what kept gambatte out
 	# of rollback netplay.
 	#
+	# Since v4 it carries the Game Boy Color's infrared port as well: link port 1,
+	# `gbc-ir-1`, where the cable is port 0. The stock core kept the byte written
+	# to RP and nothing else, so Mystery Gift flashed into the dark. Every Game
+	# Boy Color attaches the port, behind no option, and it is inert until the
+	# room puts two units in view of each other -- which nothing does yet
+	# (docs/dev/gb-link.md).
+	#
 	# gambatte is GPLv2, so the source obligation is Dolphin's, not mGBA's — the
 	# tag beside the binary is what meets it.
 	"gambatte": {
 		"repo":  "RetroXR/gambatte-libretro",
-		"known_tag": "retroxr-gambatte-libretro-v3",
+		"known_tag": "retroxr-gambatte-libretro-v4",
 		"label": "gambatte (retroXR build)",
 		"assets": {
 			"Windows": "gambatte_libretro.dll.zip",
