@@ -3,8 +3,8 @@ extends Node3D
 ##
 ## Three variants of the tube stage: `reference` (the frozen pre-optimisation
 ## crt_band / crt_mask / crt_beam), `current` (the shipped crt_filter) and
-## `mobile` (crt_effect_mobile, the unshaded opaque tier, which exists for the
-## crt_effect caller only). A run compares one PAIR, given as `--pair=a,b` on the
+## `mobile` (the unshaded opaque tier of every caller).
+## A run compares one PAIR, given as `--pair=a,b` on the
 ## command line or as the second word of user://mode.txt on device
 ## ("benchmark current,mobile"). reference/current is an identity check and
 ## fails on a difference of more than one 8-bit level; a pair that includes
@@ -12,8 +12,8 @@ extends Node3D
 ## for viewing, and never fails.
 const WRAPPERS := ["crt_effect", "screen_window", "vcr_effect", "tv_static"]
 const SUFFIX := {"reference": "_reference", "current": "", "mobile": "_mobile"}
-const SAMPLES := 600
-const WARMUP := 120
+var sample_count := 600
+var warmup_count := 120
 var materials: Dictionary = {}
 var source: ImageTexture
 var screens: Array[MeshInstance3D] = []
@@ -23,11 +23,19 @@ var xr: XRInterface
 var results: Array = []
 var run_mode := "benchmark"
 var pair: Array = ["current", "mobile"]
+var benchmark_wrapper := "crt_effect"
+var quick := false
 
 func _ready() -> void:
 	_build_materials()
 	var visual := "--visual" in OS.get_cmdline_user_args()
 	for arg in OS.get_cmdline_user_args():
+		if arg == "--quick":
+			quick = true
+			sample_count = 120
+			warmup_count = 30
+		if arg.begins_with("--wrapper="):
+			benchmark_wrapper = arg.trim_prefix("--wrapper=")
 		if arg.begins_with("--pair="):
 			pair = Array(arg.trim_prefix("--pair=").split(","))
 	if FileAccess.file_exists("user://mode.txt"):
@@ -38,8 +46,11 @@ func _ready() -> void:
 			pair = Array(words[1].split(","))
 		visual = run_mode == "visual"
 	assert(pair.size() == 2 and SUFFIX.has(pair[0]) and SUFFIX.has(pair[1]), "pair must name two of %s" % [SUFFIX.keys()])
-	print("[crtbench] pair ", pair)
-	if visual:
+	assert(benchmark_wrapper in WRAPPERS, "unknown wrapper")
+	print("[crtbench] pair ", pair, " wrapper ", benchmark_wrapper)
+	if "--contracts" in OS.get_cmdline_user_args():
+		_contracts.call_deferred()
+	elif visual:
 		_visual.call_deferred()
 	elif run_mode == "ablate":
 		_ablate.call_deferred()
@@ -206,7 +217,8 @@ func _benchmark() -> void:
 	RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 	var metadata := {"device": OS.get_model_name(), "renderer": RenderingServer.get_current_rendering_method(),
 		"gpu": RenderingServer.get_video_adapter_name(), "msaa": vp.msaa_3d, "pair": pair,
-		"foveation": 0, "performance_request": "sustained_high", "samples": SAMPLES, "warmup": WARMUP,
+		"wrapper": benchmark_wrapper, "stereo": xr != null and xr.is_initialized(),
+		"foveation": 0, "performance_request": "sustained_high" if xr != null and xr.is_initialized() else "n/a", "samples": sample_count, "warmup": warmup_count,
 		"manifest": JSON.parse_string(FileAccess.get_file_as_string("res://manifest.json"))}
 	if xr != null and xr.is_initialized():
 		metadata["eye_size"] = str(xr.get_render_target_size())
@@ -219,13 +231,13 @@ func _benchmark() -> void:
 			# capture_<variant>; "optimized" is the old name for "current".
 			var variant := run_mode.trim_prefix("capture_").replace("optimized", "current")
 			_set_variant(variant)
-			await _frames(WARMUP)
+			await _frames(warmup_count)
 			print("[crtbench] CAPTURE READY ", run_mode)
 			await _frames(600)
 			run_mode = FileAccess.get_file_as_string("user://mode.txt").strip_edges().split(" ", false)[0]
 		return
-	for count in [1, 9]:
-		for distance in [0.35, 1.0, 2.0]:
+	for count in ([9] if quick else [1, 9]):
+		for distance in ([1.0] if quick else [0.35, 1.0, 2.0]):
 			for i in range(screens.size()):
 				var s := screens[i]
 				s.visible = i < count
@@ -235,36 +247,36 @@ func _benchmark() -> void:
 			# Prime both variants before the measured alternating runs.
 			for variant in pair:
 				_set_variant(variant)
-				await _frames(WARMUP)
+				await _frames(warmup_count)
 			for repeat in range(3):
 				# AB / BA / AB balances short-term thermal/clock drift.
 				var order: Array = pair if repeat % 2 == 0 else [pair[1], pair[0]]
 				for variant in order:
 					_set_variant(variant)
-					await _frames(WARMUP)
+					await _frames(warmup_count)
 					# The refresh request takes effect after OpenXR begins its session.
 					if xr != null and xr.is_initialized():
 						metadata["refresh_hz"] = xr.get_display_refresh_rate()
 					var times: Array[float] = []
-					for frame in range(SAMPLES):
+					for frame in range(sample_count):
 						await RenderingServer.frame_post_draw
 						times.append(RenderingServer.viewport_get_measured_render_time_gpu(vp.get_viewport_rid()))
 					var sorted := times.duplicate()
 					sorted.sort()
 					var result := {"count": count, "distance": distance, "repeat": repeat,
 						"variant": variant,
-						"median_ms": sorted[SAMPLES / 2], "p95_ms": sorted[int(SAMPLES * 0.95)], "samples_ms": times}
+						"median_ms": sorted[sample_count / 2], "p95_ms": sorted[int(sample_count * 0.95)], "samples_ms": times}
 					results.append(result)
 					var short := result.duplicate()
 					short.erase("samples_ms")
 					print("[crtbench] result ", JSON.stringify(short))
-					_write_json("user://timings.json", {"metadata": metadata, "runs": results})
-	print("[crtbench] COMPLETE ", ProjectSettings.globalize_path("user://timings.json"))
+					_write_json("user://timings_%s.json" % benchmark_wrapper, {"metadata": metadata, "runs": results})
+	print("[crtbench] COMPLETE ", ProjectSettings.globalize_path("user://timings_%s.json" % benchmark_wrapper))
 	get_tree().quit()
 
 func _set_variant(variant: String) -> void:
 	for screen in screens:
-		screen.material_override = materials["crt_effect"][variant]
+		screen.material_override = materials[benchmark_wrapper][variant]
 
 func _frames(count: int) -> void:
 	for i in range(count):
@@ -384,4 +396,82 @@ func _visual() -> void:
 		"worst_byte_error": worst, "failed": failed})
 	print("[crtbench] VISUAL COMPLETE pair=%s cases=%d worst=%d failed=%d path=%s" % [
 		pair, cases.size(), worst, failed, ProjectSettings.globalize_path("user://visual.json")])
+	get_tree().quit(1 if failed > 0 else 0)
+
+
+## Render assertions: a neighbouring packed screen must never enter the filter,
+## and OSD must survive each fast stage with the tube toggled off and on.
+func _contracts() -> void:
+	var vp := SubViewport.new()
+	vp.size = Vector2i(128, 128)
+	vp.own_world_3d = true
+	vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(vp)
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.background_mode = Environment.BG_COLOR
+	env.environment.background_color = Color.BLACK
+	vp.add_child(env)
+	var cam := Camera3D.new()
+	cam.projection = Camera3D.PROJECTION_ORTHOGONAL
+	cam.size = 0.36
+	vp.add_child(cam)
+	var screen := _screen(vp, false)
+	screen.position.z = -1.0
+	var img := Image.create(512, 512, false, Image.FORMAT_RGB8)
+	img.fill(Color.RED)
+	img.fill_rect(Rect2i(256, 0, 256, 512), Color.GREEN)
+	var packed := ImageTexture.create_from_image(img)
+	var osd_img := Image.create(2, 2, false, Image.FORMAT_RGBA8)
+	osd_img.fill(Color.BLUE)
+	var osd := ImageTexture.create_from_image(osd_img)
+	var failed := 0
+	var checks := 0
+	for mode in [1, 2]:
+		var mat: ShaderMaterial = materials["screen_window"]["mobile"]
+		mat.set_shader_parameter("source_tex", packed)
+		mat.set_shader_parameter("source_rect", Vector4(0, 0, 0.5, 1))
+		mat.set_shader_parameter("eye_shift", 0.5)
+		mat.set_shader_parameter("stereo_mode", mode)
+		mat.set_shader_parameter("crt_enabled", false)
+		mat.set_shader_parameter("crt_glass_reflection", 0.0)
+		screen.material_override = mat
+		# Shift the silhouette by fractions of a pixel at several minification
+		# ratios. A centred, aligned quad can pass even with the clamp removed.
+		for size in [0.36, 0.7, 1.4]:
+			cam.size = size
+			for offset in [-0.001, 0.0, 0.001]:
+				screen.position.x = offset
+				await _frames(3)
+				var rendered := vp.get_texture().get_image()
+				var lit := 0
+				for x in range(128):
+					var c := rendered.get_pixel(x, 64)
+					if maxf(c.r, c.g) < 0.1:
+						continue
+					lit += 1
+					checks += 1
+					if (mode == 1 and c.g > 0.002) or (mode == 2 and c.r > 0.002):
+						failed += 1
+				checks += 1
+				if lit < 20:
+					failed += 1
+	cam.size = 0.36
+	screen.position.x = 0.0
+	for wrapper in WRAPPERS:
+		for tube in [false, true]:
+			var mat: ShaderMaterial = materials[wrapper]["mobile"]
+			mat.set_shader_parameter("osd_tex", osd)
+			mat.set_shader_parameter("osd_enabled", true)
+			mat.set_shader_parameter("crt_enabled", tube)
+			mat.set_shader_parameter("crt_mask_strength", 0.0)
+			mat.set_shader_parameter("crt_scanline_strength", 0.0)
+			mat.set_shader_parameter("crt_glass_reflection", 0.0)
+			screen.material_override = mat
+			await _frames(3)
+			var c := vp.get_texture().get_image().get_pixel(64, 64)
+			checks += 1
+			if c.b < 0.90 or c.r > 0.02 or c.g > 0.02:
+				failed += 1
+	print("[crtbench] CONTRACTS checks=%d failed=%d" % [checks, failed])
 	get_tree().quit(1 if failed > 0 else 0)

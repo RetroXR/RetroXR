@@ -154,3 +154,9 @@ vec4 pixel_aa_fast(sampler2D tex, vec2 uv) {
 	vec2 half_texel = 0.5 / vec2(textureSize(tex, 0));
 	return pixel_aa_fast_bounded(tex, uv, half_texel, vec2(1.0) - half_texel);
 }
+
+// Four-tap mobile sampling with the same packed-screen isolation as pixel_aa_rect.
+vec4 pixel_aa_fast_rect(sampler2D tex, vec2 uv, vec4 rect) {
+	vec2 half_texel = 0.5 / vec2(textureSize(tex, 0));
+	return pixel_aa_fast_bounded(tex, uv, rect.xy + half_texel, rect.xy + rect.zw - half_texel);
+}

@@ -207,9 +207,7 @@ func route() -> void:
 	var sm: ShaderMaterial = null
 	if mat is ShaderMaterial:
 		var candidate := mat as ShaderMaterial
-		if candidate == _tv.display()._crt_material or candidate.shader == RetroTV.VCR_SHADER \
-				or candidate.shader == RetroTV.WINDOW_SHADER \
-				or candidate.shader == RetroTV.STATIC_SHADER:
+		if candidate == _tv.display()._crt_material or RetroTV.is_display_shader(candidate.shader):
 			sm = candidate
 	if sm != null:
 		sm.set_shader_parameter("osd_tex", _viewport.get_texture())

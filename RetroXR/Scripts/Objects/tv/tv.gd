@@ -18,6 +18,9 @@ const GLASS_WEAR_TEXTURE := preload("res://Textures/TV/crt_glass_wear.png")
 # halation, grain, notch, wear and lit glass dropped. Handed out by crt_shader()
 # when QualityManager.crt_fast is set, which is the mobile renderer's default.
 const CRT_MOBILE_SHADER := preload("res://Shaders/crt_effect_mobile.gdshader")
+const WINDOW_MOBILE_SHADER := preload("res://Shaders/screen_window_mobile.gdshader")
+const VCR_MOBILE_SHADER := preload("res://Shaders/vcr_effect_mobile.gdshader")
+const STATIC_MOBILE_SHADER := preload("res://Shaders/tv_static_mobile.gdshader")
 
 
 ## The stock CRT wrapper for this session's renderer. Every place that INSTALLS
@@ -29,6 +32,40 @@ static func crt_shader() -> Shader:
 
 static func is_crt_shader(shader: Shader) -> bool:
 	return shader == CRT_SHADER or shader == CRT_MOBILE_SHADER
+
+## Built-in source stages use the same tier as the ordinary CRT wrapper.
+## Custom shaders pass through unchanged. Recognition accepts both tiers so
+## OSD/stereo/light routing also works for materials created before a tier change.
+static func window_shader() -> Shader:
+	return WINDOW_MOBILE_SHADER if QualityManager.crt_fast else WINDOW_SHADER
+
+
+static func static_shader() -> Shader:
+	return STATIC_MOBILE_SHADER if QualityManager.crt_fast else STATIC_SHADER
+
+
+static func stage_shader(shader: Shader) -> Shader:
+	if shader == WINDOW_SHADER or shader == WINDOW_MOBILE_SHADER:
+		return window_shader()
+	if shader == VCR_SHADER or shader == VCR_MOBILE_SHADER:
+		return VCR_MOBILE_SHADER if QualityManager.crt_fast else VCR_SHADER
+	if shader == STATIC_SHADER or shader == STATIC_MOBILE_SHADER:
+		return static_shader()
+	return shader
+
+
+static func is_window_shader(shader: Shader) -> bool:
+	return shader == WINDOW_SHADER or shader == WINDOW_MOBILE_SHADER
+
+
+static func is_static_shader(shader: Shader) -> bool:
+	return shader == STATIC_SHADER or shader == STATIC_MOBILE_SHADER
+
+
+static func is_display_shader(shader: Shader) -> bool:
+	return is_crt_shader(shader) or is_window_shader(shader) or is_static_shader(shader) \
+		or shader == VCR_SHADER or shader == VCR_MOBILE_SHADER
+
 
 ## Which input the set is showing. COMPOSITE_1..4 are the physical sockets on the
 ## back — a console, VCR or DVD deck on a composite lead — TV is the built-in tuner

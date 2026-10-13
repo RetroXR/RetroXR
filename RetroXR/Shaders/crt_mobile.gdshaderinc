@@ -1,8 +1,8 @@
 // The mobile tube stage: crt_filter.gdshaderinc with everything that does not
 // survive a headset's viewing distance taken out, for the Quest's fragment budget.
 //
-// Included by crt_effect_mobile.gdshader, which RetroTV installs instead of
-// crt_effect.gdshader when QualityManager.crt_fast is set (the mobile renderer's
+// Included by the mobile CRT, packed-screen, VHS and static shaders, selected
+// when QualityManager.crt_fast is set (the mobile renderer's
 // default). Same uniform names as the full stage, so TvDisplay pushes the same
 // _crt_params at it and the options panel's sliders keep working where the
 // feature exists; a slider for a feature this tier drops (halation, grain,
@@ -31,7 +31,7 @@
 // pixel, and TIME), convergence (colour derivatives), the composite notch and
 // chroma smear (two taps each), the fingerprint mask (a texture tap), and the lit
 // PBR glass with its clearcoat. The caller is unshaded and draws in the opaque
-// pass: the rounded corner is an alpha SCISSOR under alpha-to-coverage rather
+// pass: the rounded corner is an alpha SCISSOR rather
 // than the blended fade the full stage writes. (The tube collar in tv.tscn does
 // not hide that corner, as a render of the set with no cut confirmed.)
 //

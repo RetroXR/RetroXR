@@ -193,6 +193,7 @@ func _run() -> void:
 		["display/the picture shape follows the button on a broadcast channel", _d_tv_aspect],
 		["display/the CRT button reaches the shader", _d_crt_button],
 		["display/the fast tier wears the mobile shader", _d_crt_fast_tier],
+		["display/fast source stages retain OSD, stereo and snow", _d_fast_stages],
 		["guard/a host that is not shown is refused", _g_refused],
 		["guard/the shown host may paint", _g_allowed],
 		["guard/only the owner may take the picture down", _g_release],
@@ -1364,6 +1365,54 @@ func _d_crt_fast_tier() -> void:
 	_check_eq(_glass(tv), tv._display._dark_material, "which is what a set switched off wears")
 
 
+func _d_fast_stages() -> void:
+	var was_fast := QualityManager.crt_fast
+	QualityManager.crt_fast = true
+	var tv := _tv()
+	await _wait(30)
+	var src := StubSource.new()
+	src.texture = _a_texture()
+	src.stage = {"shader": WINDOW_SHADER, "params": {
+		"source_rect": Vector4(0.0, 0.5, 0.5, 0.5), "eye_shift": 0.5}}
+	await _seat_stub(tv, RetroTV.Source.COMPOSITE_3, src)
+	await _wait(4)
+	var mat := _glass(tv) as ShaderMaterial
+	_ok(mat != null and mat.shader == RetroTV.WINDOW_MOBILE_SHADER, "packed source uses the fast stage")
+	if mat != null:
+		_check_eq(mat.get_shader_parameter("source_rect"), Vector4(0.0, 0.5, 0.5, 0.5), "packed window retained")
+		_check_eq(tv._display.screen_light_rect(mat), Rect2(0.0, 0.5, 0.5, 0.5), "light sampler recognizes fast packed source")
+		tv.stereo_mode = 2
+		await _wait(3)
+		_check_eq(mat.get_shader_parameter("stereo_mode"), 2, "stereo switch reaches the fast shader")
+		_check_eq(tv._display.screen_light_rect(mat), Rect2(0.5, 0.5, 0.5, 0.5), "right-eye light region retained")
+		_ok(tv._display.has_stereo_source(), "stereo controls remain available")
+	tv.osd().show_text("FAST STAGE")
+	await _wait(3)
+	if mat != null:
+		_check_eq(mat.get_shader_parameter("osd_enabled"), true, "OSD routed into fast packed stage")
+		_ok(mat.get_shader_parameter("osd_tex") != null, "OSD texture supplied")
+	src.stage = {"shader": RetroTV.VCR_SHADER, "params": {"effect_amount": 0.4}}
+	await _wait(4)
+	mat = _glass(tv) as ShaderMaterial
+	_ok(mat != null and mat.shader == RetroTV.VCR_MOBILE_SHADER, "VHS source uses the fast stage")
+	if mat != null:
+		_check_eq(mat.get_shader_parameter("effect_amount"), 0.4, "VHS controls retained")
+		_check_eq(mat.get_shader_parameter("osd_enabled"), true, "OSD follows VHS stage")
+	var snow := tv._display.rf_static()
+	_check_eq(snow.shader, RetroTV.STATIC_MOBILE_SHADER, "RF snow uses the fast stage")
+	var tuner := TVTuner.new()
+	add_child(tuner)
+	_spawned.append(tuner)
+	_check_eq(tuner._static_material.shader, RetroTV.STATIC_MOBILE_SHADER, "tuner snow uses the fast stage")
+	var custom := Shader.new()
+	_check_eq(RetroTV.stage_shader(custom), custom, "custom source shaders preserved")
+	QualityManager.crt_fast = false
+	_check_eq(RetroTV.stage_shader(WINDOW_SHADER), WINDOW_SHADER, "full packed stage retained on desktop tier")
+	_check_eq(RetroTV.stage_shader(RetroTV.VCR_SHADER), RetroTV.VCR_SHADER, "full VHS stage retained on desktop tier")
+	_check_eq(RetroTV.static_shader(), RetroTV.STATIC_SHADER, "full static stage retained on desktop tier")
+	QualityManager.crt_fast = was_fast
+
+
 func _d_off() -> void:
 	var tv := _tv()
 	await _wait(30)
@@ -1542,7 +1591,7 @@ func _d_stage() -> void:
 	await _seat_stub(tv, RetroTV.Source.COMPOSITE_3, src)
 	await _wait(4)
 	var mat := _glass(tv) as ShaderMaterial
-	_ok(mat != null and mat.shader == WINDOW_SHADER, "the set uses the source's shader")
+	_ok(mat != null and mat.shader == RetroTV.window_shader(), "the set uses the source's stage on its quality tier")
 	if mat != null:
 		_check_eq(mat.get_shader_parameter("source_rect"), Vector4(0.0, 0.5, 1.0, 0.5),
 			"and the source's own uniforms")

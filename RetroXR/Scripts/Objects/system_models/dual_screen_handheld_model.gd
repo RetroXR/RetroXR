@@ -116,9 +116,9 @@ func _ready() -> void:
 	_hide_seat_previews()
 	# Window materials, ready before the first frame of core output.
 	_top_mat = ShaderMaterial.new()
-	_top_mat.shader = SCREEN_WINDOW_SHADER
+	_top_mat.shader = RetroTV.window_shader()
 	_bottom_mat = ShaderMaterial.new()
-	_bottom_mat.shader = SCREEN_WINDOW_SHADER
+	_bottom_mat.shader = RetroTV.window_shader()
 	_apply_window_params()
 	await get_tree().process_frame
 	for node in get_tree().root.find_children("*", "XRController3D", true, false):

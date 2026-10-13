@@ -6,12 +6,16 @@ This standalone Godot 4.7 project compares three variants of the tube stage:
   in `reference.gdshaderinc`, spliced into a copy of the current include.
 - `current` — the shipped `crt_filter.gdshaderinc`, through every caller.
 - `mobile` — `crt_effect_mobile.gdshader` + `crt_mobile.gdshaderinc`, the
-  unshaded opaque tier RetroTV installs on the mobile renderer. It exists for
-  the `crt_effect` caller only.
+  unshaded opaque tier RetroTV installs on the mobile renderer, including the
+  packed-screen, VHS and static callers.
 
 A run compares one PAIR: `--pair=current,mobile` on the command line, or the
 second word of `user://mode.txt` on device (`benchmark current,mobile`). The
-default pair is `current,mobile`. `reference,current` is an identity check and
+default pair is `current,mobile`. `--wrapper=screen_window`, `--wrapper=vcr_effect`
+or `--wrapper=tv_static` selects a timing workload (default `crt_effect`); outputs
+are `user://timings_<wrapper>.json`. `--quick` limits timings to nine screens
+at 1 m, with 120 measured / 30 settling frames per arm and three AB/BA/AB pairs. `--contracts` asserts packed-screen
+isolation at several subpixel placements and OSD on every mobile stage. `reference,current` is an identity check and
 the visual run fails on any difference above one 8-bit level; a pair that
 includes `mobile` differs by design, so that run reports per-case max/mean
 errors (whole image and central half), writes every image pair, and exits 0.
@@ -48,7 +52,7 @@ echo "benchmark current,mobile" | adb shell "run-as com.xenu.crtbench sh -c 'cat
 adb shell am start -n com.xenu.crtbench/com.godot.game.GodotAppLauncher
 adb logcat -s godot:I VrApi:I '*:S'
 # After [crtbench] COMPLETE:
-adb exec-out run-as com.xenu.crtbench cat files/timings.json > timings.json
+adb exec-out run-as com.xenu.crtbench cat files/timings_crt_effect.json > timings.json
 python Tools/crt_bench/summarize.py timings.json
 ```
 

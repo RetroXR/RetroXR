@@ -91,7 +91,7 @@ func _ready() -> void:
 	add_child(_emitter)
 
 	_static_material = ShaderMaterial.new()
-	_static_material.shader = STATIC_SHADER
+	_static_material.shader = RetroTV.static_shader()
 
 
 # ── channel list ──────────────────────────────────────────────────────────────

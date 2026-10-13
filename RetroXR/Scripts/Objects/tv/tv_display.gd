@@ -117,7 +117,7 @@ func build_states() -> void:
 ## shared 3D light cannot differ per eye, so stereo uses the selected eye when
 ## forced and the left-eye region in the ordinary per-eye mode.
 func screen_light_rect(mat: Material) -> Rect2:
-	if not (mat is ShaderMaterial) or (mat as ShaderMaterial).shader != RetroTV.WINDOW_SHADER:
+	if not (mat is ShaderMaterial) or not RetroTV.is_window_shader((mat as ShaderMaterial).shader):
 		return Rect2(0.0, 0.0, 1.0, 1.0)
 	var shader_mat := mat as ShaderMaterial
 	var packed: Variant = shader_mat.get_shader_parameter("source_rect")
@@ -241,7 +241,7 @@ func update_crt() -> void:
 		mat.set_shader_parameter("crt_enabled", _tv.crt_enabled)
 		if _tv.crt_enabled:
 			apply_crt_params(mat)
-	if mat.shader == RetroTV.WINDOW_SHADER:
+	if RetroTV.is_window_shader(mat.shader):
 		var cur_mode: Variant = mat.get_shader_parameter("stereo_mode")
 		if cur_mode != _tv.stereo_mode:
 			mat.set_shader_parameter("stereo_mode", _tv.stereo_mode)
@@ -286,7 +286,7 @@ func _pull_from_selected() -> bool:
 	# the same frame.
 	var stage: Dictionary = host.get_video_stage(_tv) \
 		if host.has_method("get_video_stage") else {}
-	var shader := stage.get("shader") as Shader
+	var shader := RetroTV.stage_shader(stage.get("shader") as Shader)
 	var stereo := _source_is_sbs()
 	var mat: ShaderMaterial
 	if shader != null:
@@ -392,7 +392,7 @@ func _stage_screen_material(shader: Shader) -> ShaderMaterial:
 func _stereo_screen_material() -> ShaderMaterial:
 	if _stereo_material == null:
 		_stereo_material = ShaderMaterial.new()
-		_stereo_material.shader = RetroTV.WINDOW_SHADER
+		_stereo_material.shader = RetroTV.window_shader()
 		_stereo_material.set_shader_parameter("source_rect", Vector4(0.0, 0.0, 0.5, 1.0))
 		_stereo_material.set_shader_parameter("eye_shift", 0.5)
 		_stereo_material.set_shader_parameter("stereo_mode", _tv.stereo_mode)
@@ -473,7 +473,7 @@ func _stereo_source_active() -> bool:
 		return true
 	var override := _tv.screen_mesh().get_surface_override_material(0)
 	if override is ShaderMaterial and override != _stereo_material \
-			and (override as ShaderMaterial).shader == RetroTV.WINDOW_SHADER:
+			and RetroTV.is_window_shader((override as ShaderMaterial).shader):
 		var es: Variant = (override as ShaderMaterial).get_shader_parameter("eye_shift")
 		return es != null and float(es) != 0.0
 	return false
@@ -500,8 +500,7 @@ func apply_crt_params(mat: ShaderMaterial) -> void:
 
 
 func _is_tv_display_shader(shader: Shader) -> bool:
-	return RetroTV.is_crt_shader(shader) or shader == RetroTV.VCR_SHADER or shader == RetroTV.WINDOW_SHADER \
-		or shader == RetroTV.STATIC_SHADER
+	return RetroTV.is_display_shader(shader)
 
 
 ## Every cached or currently installed material that can carry the shared tube
@@ -796,7 +795,7 @@ func _paint(mat: Material) -> void:
 func rf_static() -> ShaderMaterial:
 	if _rf_static_material == null:
 		_rf_static_material = ShaderMaterial.new()
-		_rf_static_material.shader = RetroTV.STATIC_SHADER
+		_rf_static_material.shader = RetroTV.static_shader()
 	return _rf_static_material
 
 
@@ -818,7 +817,7 @@ func tick_ambilight() -> void:
 	if _crt_source_tex == _blue_texture:
 		_tv.ambilight().show_solid(RetroTV.BLUE_SCREEN_COLOR)
 		return
-	if override is ShaderMaterial and (override as ShaderMaterial).shader == RetroTV.STATIC_SHADER:
+	if override is ShaderMaterial and RetroTV.is_static_shader((override as ShaderMaterial).shader):
 		_tv.ambilight().show_solid(RetroTV.STATIC_LIGHT_COLOR)
 		return
 	var tex := screen_texture()

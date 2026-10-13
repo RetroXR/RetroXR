@@ -271,7 +271,7 @@ func _place_eyepiece() -> void:
 		qm.size = Vector2(ab.size.x, ab.size.y)
 		quad.mesh = qm
 		var mat := ShaderMaterial.new()
-		mat.shader = WINDOW_SHADER
+		mat.shader = RetroTV.window_shader()
 		# Left half of the composite, pinned per pane: stereo_mode 1 never
 		# applies eye_shift (left eye), 2 always applies it (right eye).
 		mat.set_shader_parameter("source_rect", Vector4(0.0, 0.0, 0.5, 1.0))

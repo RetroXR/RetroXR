@@ -770,7 +770,7 @@ func _process(_delta: float) -> void:
 
 	if _lcd_mat == null:
 		_lcd_mat = ShaderMaterial.new()
-		_lcd_mat.shader = SCREEN_WINDOW_SHADER
+		_lcd_mat.shader = RetroTV.window_shader()
 
 	# The texture is a NEW object whenever the core changes resolution, so it is
 	# read every frame and only pushed when it differs.

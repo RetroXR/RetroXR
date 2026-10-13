@@ -33,7 +33,7 @@ shaders = out / "Shaders"
 shaders.mkdir(exist_ok=True)
 for p in (ROOT / "RetroXR/Shaders").glob("*.gdshader*"):
     if p.suffix != ".uid":
-        shutil.copy2(p, shaders / p.name)
+        (shaders / p.name).write_text(re.sub(r"\bTIME\b", "0.0", p.read_text()))
 current = (shaders / "crt_filter.gdshaderinc").read_text()
 reference = current
 frozen = (HERE / "reference.gdshaderinc").read_text()
@@ -103,7 +103,7 @@ xr_features/enable_meta_plugin=true
 meta_xr_features/hand_tracking=1
 screen/immersive_mode=true
 ''')
-mobile = (shaders / "crt_mobile.gdshaderinc").read_text() + (shaders / "crt_effect_mobile.gdshader").read_text()
+mobile = "".join(p.read_text() for p in sorted(shaders.glob("*_mobile.gdshader*")))
 (out / "manifest.json").write_text(json.dumps({
     "current_sha256": hashlib.sha256(current.encode()).hexdigest(),
     "reference_sha256": hashlib.sha256(reference.encode()).hexdigest(),

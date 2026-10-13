@@ -283,9 +283,10 @@ var glow_enabled: bool = true
 ## desktop keeps it. _ready sets the platform default before the saved
 ## preference is read, so a player's choice on either wins.
 var screen_lights_enabled: bool = true
-## Which tube stage the televisions draw with. True installs the mobile tier
+## Which tube stage the televisions and packed-screen panels draw with. True installs the mobile tier
 ## (crt_effect_mobile.gdshader: unshaded, opaque, no halation/grain/wear) in
-## place of the lit full-featured crt_effect.gdshader. The mobile renderer starts
+## place of the lit full-featured stage, including VHS, static and packed-screen
+## callers. The mobile renderer starts
 ## fast; a saved preference on either platform wins, the same way the screen
 ## lights do. Read at material creation by RetroTV.crt_shader(), so a change
 ## reaches sets spawned afterwards.
@@ -513,14 +514,16 @@ func _run_vrs_probe() -> void:
 			if supports_foveation() else Foveation.OFF
 		apply_foveation()
 	print("[VRSProbe] applied, foveation_live=%s" % foveation_live())
+	if bool(cfg.get("profile_transfers", false)):
+		_probe_profile_transfers = true
 	if cfg.has("profile_scripts"):
 		_probe_profile_scripts(maxi(int(cfg["profile_scripts"]), 1))
 	if cfg.has("bisect_scenes"):
 		await _probe_bisect_scenes(maxi(int(cfg["bisect_scenes"]), 30))
 	if cfg.has("bisect_children"):
 		await _probe_bisect_children(String(cfg["bisect_children"]), int(cfg.get("frames", 60)))
-	if cfg.has("report"):
-		_probe_report(maxi(int(cfg["report"]), 1))
+	if cfg.has("report") or _probe_profile_transfers:
+		_probe_report(maxi(int(cfg.get("report", 72)), 1))
 
 
 ## One level down from _probe_bisect_scenes: every spawned node instanced from
@@ -662,6 +665,40 @@ func _probe_profile_scripts(frames: int) -> void:
 			float(totals[k]) / 1000.0 / float(frames), int(counts.get(k, 0)), k])
 
 
+var _probe_profile_transfers := false
+var _probe_transfer_previous: Dictionary = {}
+
+
+## Sample native counters without invoking frame callbacks a second time.
+## Totals are CPU wall times; readback wait/copy are subsets of total.
+func _probe_report_transfers() -> void:
+	var live: Dictionary = {}
+	for lib: Node in get_tree().root.find_children("*", "Libretro", true, false):
+		if not lib.has_method("SetVideoTransferProfiling"):
+			continue
+		live[lib.get_instance_id()] = true
+		lib.call("SetVideoTransferProfiling", true)
+		var stats: Dictionary = lib.call("GetVideoTransferStats")
+		var previous: Dictionary = _probe_transfer_previous.get(lib.get_instance_id(), {})
+		_probe_transfer_previous[lib.get_instance_id()] = stats
+		if previous.is_empty():
+			continue
+		var stages: Array[String] = ["readback_total", "readback_wait", "readback_copy", "texture_update"]
+		var reads := int(stats["readback_total"]["calls"]) - int(previous["readback_total"]["calls"])
+		var uploads := int(stats["texture_update"]["calls"]) - int(previous["texture_update"]["calls"])
+		if reads == 0 and uploads == 0:
+			continue
+		var times: Array[float] = []
+		for stage: String in stages:
+			var count := uploads if stage == "texture_update" else reads
+			times.append((float(stats[stage]["total_ms"]) - float(previous[stage]["total_ms"])) / maxf(float(count), 1.0))
+		print("[VRSProbe] transfer %s reads %d uploads %d avg-ms total %.3f wait %.3f copy %.3f update %.3f" % [
+			lib.get_path(), reads, uploads, times[0], times[1], times[2], times[3]])
+	for id: int in _probe_transfer_previous.keys():
+		if not live.has(id):
+			_probe_transfer_previous.erase(id)
+
+
 ## Print the frame's cost split every `every` frames, for the rest of the
 ## session. The perf HUD measures the same things and paints them in the
 ## headset; over adb, with nobody wearing it, logcat is the only readout. GPU
@@ -680,6 +717,8 @@ func _probe_report(every: int) -> void:
 			RenderingServer.viewport_set_measure_render_time(vp.get_viewport_rid(), true)
 		for i in every:
 			await get_tree().process_frame
+		if _probe_profile_transfers:
+			_probe_report_transfers()
 		var rid := root.get_viewport_rid()
 		# The LIVE eye size, not the one XRInit logged at boot: with the runtime's
 		# dynamic resolution on, this is what shrinks under load.
