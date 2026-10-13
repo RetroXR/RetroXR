@@ -144,3 +144,49 @@ the colour is fitted. Re-fit rather than retune by eye.
 glitter, kept, lookup, size, cartridge, forced, menu. Mutation-tested: dropping the
 CGB-only rule fails 12 cases, clear presets losing their glitter
 fail 4, and dropping the Korean Gold/Silver exception fails 2.
+
+### 2x-cgb. The Game Boy Color itself — a stand-in of its own
+
+The `gbc` tile wore the Game Boy's shell until 2026-10-13: its registry row
+(`game_boy_color_primitive`) loaded `game_boy_primitive.tscn`, whose script is
+`RetroSystemModelGameBoy`, whose panel is `gameboy_lcd.gdshader`. **Every Game Boy Color
+game was drawn in the DMG's four greens.** The row keeps its id, because saves and peers
+name it, and now loads `game_boy_color_primitive.tscn` under
+`RetroSystemModelGameBoyColor`, which sets no LCD shader: the handheld base's pixel-AA
+default shows the picture in colour. The Game Boy's row and shell are untouched.
+
+The shell is the CGB-001 as one box, 78 × 133.5 × 27.4 mm, in grape: a 44 × 39.6 mm
+(160:144) panel high in its lens, the power lamp left of it (`PowerLED`, lit by the
+model script on power), D-pad, A above and outboard of B, SELECT and START slanted the
+way A and B are, and the speaker as a patch of face. Everything is named in the shared
+stand-in vocabulary (`DpadBar1/2`, `FaceButton1/2`, `StartButton`, `SelectButton`), so
+the handheld base animates it with no code here.
+
+| Where | What | Note |
+| --- | --- | --- |
+| top edge, back | cartridge mouth, `CartSeat` | the base's pose moved 5 mm toward the back of the shell, as on the hardware |
+| top edge, front | `IrWindow`, 8 mm square, glossy black | 0.5 mm proud so its face is not the shell's plane; cosmetic, nothing in the room drives infrared |
+| left flank | EXT `LinkPort`, then the volume slider below it | the socket is `R_y(-90)` written as rows, the transpose of the Game Boy's; the Game Boy's own plug family |
+| right flank | power switch, up the edge is ON | |
+| bottom edge | video-out lead, at the headphone jack | `configure_cable_attach` is overridden: the base moves a narrow body's lead to the right flank, which is where the switch slides |
+
+The cartridge seat is why the window fits: seated on the body's mid-plane, as the Game
+Boy stand-in seats one, a cart takes the middle of the top edge and the window has
+nowhere to go but through it.
+
+`Tools/models/game_boy_color_probe` settles each of those by a number (36 checks
+headless: the row's scene with the `gb` row as its control, both facings of the panel,
+the window proud of the edge and in front of the slot, the socket's `+Z`, the lead's
+exit, the switch's throw, the lamp, the animated controls, and a cartridge seated
+through `restore_cartridge()` standing 18.2 mm out, behind the window). Windowed it also
+photographs the shell into `probe_out/gbc/`, the last frame beside the Game Boy:
+
+```bash
+"$godot" --headless --path RetroXR res://Tools/models/game_boy_color_probe.tscn
+"$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/models/game_boy_color_probe.tscn
+```
+
+`romm_tests` `gbc/` pins it with five cases, mutation-tested: the row back on the Game
+Boy's scene fails three, the window moved behind the slot fails one, and sunk inside the
+shell fails one. `link_tests` walks its socket in the lead × socket matrix. Nobody has
+held it in a headset or run it on a Quest yet.

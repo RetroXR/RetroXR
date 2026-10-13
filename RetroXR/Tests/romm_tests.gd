@@ -297,6 +297,30 @@ func _test_gbc_platform() -> void:
 		"gbc/at the Game Boy cartridge's size")
 	_ok(not SystemModelRegistry.rows_for("gbc").is_empty(), "gbc/a handheld is offered for it")
 	_ok(SystemModelRegistry.platform_is_handheld("gbc"), "gbc/and it is a handheld")
+	# Its own shell, which it did not always have: it wore the Game Boy's, whose
+	# panel is the DMG's four-green filter, so every Color game was drawn in them.
+	var gbc_row := SystemModelRegistry.resolve("", "gbc")
+	var gbc_model := SystemModelRegistry.instantiate(gbc_row)
+	_ok(gbc_model is RetroSystemModelGameBoyColor, "gbc/that handheld is a Game Boy Color",
+		str(gbc_row.get("scene", "")))
+	_ok(gbc_model != null and gbc_model.get("_lcd_shader") != RetroSystemModelGameBoy.LCD_SHADER,
+		"gbc/whose panel is not the Game Boy's four greens")
+	# The infrared window, which is what its top edge has that no Game Boy's does:
+	# standing out of that edge, in front of the mouth the cartridge goes in at.
+	if gbc_model != null:
+		var gbc_body := gbc_model.get_node_or_null("HandheldBody") as MeshInstance3D
+		var gbc_ir := gbc_model.get_node_or_null("IrWindow") as MeshInstance3D
+		var gbc_mouth := gbc_model.get_node_or_null("CardSlotMouth") as MeshInstance3D
+		_ok(gbc_body != null and gbc_ir != null and gbc_mouth != null, "gbc/it has an infrared window")
+		if gbc_body != null and gbc_ir != null and gbc_mouth != null:
+			var top_edge: float = -(gbc_body.mesh as BoxMesh).size.z * 0.5
+			var ir_box: AABB = gbc_ir.transform * gbc_ir.get_aabb()
+			var mouth_box: AABB = gbc_mouth.transform * gbc_mouth.get_aabb()
+			_ok(ir_box.position.z < top_edge and ir_box.end.z > top_edge,
+				"gbc/on the top edge", "z %s .. %s, edge %s" % [ir_box.position.z, ir_box.end.z, top_edge])
+			_ok(ir_box.position.y > mouth_box.end.y, "gbc/in front of the cartridge slot",
+				"window from y %s, slot to y %s" % [ir_box.position.y, mouth_box.end.y])
+		gbc_model.free()
 	_eq(ScreenscraperSystems.get_systemeid("gbc"), 10, "gbc/ScreenScraper's own platform")
 	_eq(RaConsoles.for_systemid("gbc"), 6, "gbc/RetroAchievements' own console")
 

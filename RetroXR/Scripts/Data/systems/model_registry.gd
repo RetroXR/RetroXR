@@ -114,12 +114,12 @@ const _ROWS: Dictionary = {
 	# platforms have — but the ids are what saves and peers name, so they stay.
 	"game_boy_primitive":   {"platform": "gb", "label": "Game Boy", "handheld": true,
 		"scene": _SCENES + "game_boy_primitive.tscn"},
-	# The Game Boy Color has no model of its own, so the Game Boy stands in for
-	# it, labelled as what it is. A row of its own rather than a platform array:
-	# arrays are the PC tower's, which mod_tests holds to SystemInfo.computer.
-	# Without it a gbc tile would be offered a console box, a pad and an AV lead.
-	"game_boy_color_primitive": {"platform": "gbc", "label": "Game Boy", "handheld": true,
-		"scene": _SCENES + "game_boy_primitive.tscn"},
+	# The Game Boy stood in for this one until it had a shell of its own, and the
+	# Game Boy's panel is the DMG's four greens — which is what a Color game was
+	# drawn in. Without a row a gbc tile would be offered a console box, a pad and
+	# an AV lead.
+	"game_boy_color_primitive": {"platform": "gbc", "label": "Game Boy Color", "handheld": true,
+		"scene": _SCENES + "game_boy_color_primitive.tscn"},
 	# The detailed shell FIRST, so it is the platform's default. Own work: the
 	# debranded mobile LOD0 of RetroXR-models/nintendo/gba/console, fitted to a laser scan. The id is
 	# the one the unbundled model it replaces had, so a save from before that

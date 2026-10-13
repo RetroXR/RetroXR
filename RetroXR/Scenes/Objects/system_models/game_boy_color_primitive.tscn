@@ -1,0 +1,251 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/system_models/game_boy_color_model.gd" id="1_model"]
+[ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_slider"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="9_linkport"]
+
+; The CGB-001's 78 x 133.5 x 27.4 mm, as one box.
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.078, 0.0274, 0.1335)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+albedo_color = Color(0.42, 0.27, 0.6, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_bezel"]
+size = Vector3(0.062, 0.002, 0.054)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_bezel"]
+albedo_color = Color(0.12, 0.12, 0.14, 1)
+
+[sub_resource type="QuadMesh" id="QuadMesh_screen"]
+size = Vector2(0.044, 0.0396)
+
+[sub_resource type="StandardMaterial3D" id="Mat_screen"]
+albedo_color = Color(0.33, 0.36, 0.33, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_led"]
+top_radius = 0.0011
+bottom_radius = 0.0011
+height = 0.0006
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_led"]
+albedo_color = Color(0.25, 0.04, 0.04, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_dpadh"]
+size = Vector3(0.0215, 0.004, 0.0072)
+
+; A tenth of a millimetre shorter than the other bar, so the two tops are not
+; one plane where they cross.
+[sub_resource type="BoxMesh" id="BoxMesh_dpadv"]
+size = Vector3(0.0072, 0.0038, 0.0215)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_dpad"]
+albedo_color = Color(0.1, 0.1, 0.11, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_face"]
+top_radius = 0.0052
+bottom_radius = 0.0052
+height = 0.004
+
+[sub_resource type="BoxMesh" id="BoxMesh_pill"]
+size = Vector3(0.0085, 0.003, 0.0032)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pill"]
+albedo_color = Color(0.22, 0.22, 0.24, 1)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_speaker"]
+top_radius = 0.006
+bottom_radius = 0.006
+height = 0.0006
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_speaker"]
+albedo_color = Color(0.24, 0.15, 0.35, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_slot"]
+size = Vector3(0.062, 0.011, 0.003)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_slot"]
+albedo_color = Color(0.03, 0.03, 0.04, 1)
+
+; The infrared window: 8 mm square, in the dark glossy plastic that passes
+; infrared and nothing the eye can see.
+[sub_resource type="BoxMesh" id="BoxMesh_ir"]
+size = Vector3(0.008, 0.008, 0.002)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ir"]
+albedo_color = Color(0.015, 0.012, 0.016, 1)
+roughness = 0.25
+
+[sub_resource type="BoxMesh" id="BoxMesh_seat"]
+size = Vector3(0.057, 0.065, 0.008)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_seat"]
+transparency = 1
+albedo_color = Color(1, 0.55, 0.1, 0.35)
+emission_enabled = true
+emission = Color(1, 0.55, 0.1, 1)
+emission_energy_multiplier = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_knob"]
+size = Vector3(0.005, 0.005, 0.007)
+
+[sub_resource type="StandardMaterial3D" id="Mat_knob"]
+albedo_color = Color(0.2, 0.2, 0.22, 1)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_powerswitch"]
+size = Vector3(0.016, 0.014, 0.016)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_volumeslider"]
+size = Vector3(0.016, 0.014, 0.016)
+
+[node name="GameBoyColorPrimitive" type="Node3D" unique_id=1704569958]
+script = ExtResource("1_model")
+
+[node name="HandheldBody" type="MeshInstance3D" parent="." unique_id=1184456231]
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("StandardMaterial3D_body")
+
+; The lens. The panel sits high in it: the bottom border is where the real one
+; carries its wordmark.
+[node name="ScreenBezel" type="MeshInstance3D" parent="." unique_id=1424523148]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.014, -0.0325)
+mesh = SubResource("BoxMesh_bezel")
+surface_material_override/0 = SubResource("StandardMaterial3D_bezel")
+
+[node name="HandheldScreen" type="MeshInstance3D" parent="." unique_id=176732091]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.0151, -0.0347)
+mesh = SubResource("QuadMesh_screen")
+surface_material_override/0 = SubResource("Mat_screen")
+
+; The power lamp, in the lens left of the panel. The model script lights it.
+[node name="PowerLED" type="MeshInstance3D" parent="." unique_id=1806442182]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0265, 0.0152, -0.04)
+mesh = SubResource("CylinderMesh_led")
+surface_material_override/0 = SubResource("StandardMaterial3D_led")
+
+[node name="PowerLabel" type="Label3D" parent="." unique_id=1244993024 groups=["printed_label"]]
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, -0.0265, 0.0152, -0.0362)
+pixel_size = 8e-05
+modulate = Color(0.75, 0.75, 0.78, 1)
+text = "POWER"
+font_size = 24
+outline_size = 4
+
+[node name="DpadBar1" type="MeshInstance3D" parent="." unique_id=242185428]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0205, 0.0137, 0.0195)
+mesh = SubResource("BoxMesh_dpadh")
+surface_material_override/0 = SubResource("StandardMaterial3D_dpad")
+
+[node name="DpadBar2" type="MeshInstance3D" parent="." unique_id=1745109606]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0205, 0.0137, 0.0195)
+mesh = SubResource("BoxMesh_dpadv")
+surface_material_override/0 = SubResource("StandardMaterial3D_dpad")
+
+; A, the upper and outer of the pair.
+[node name="FaceButton1" type="MeshInstance3D" parent="." unique_id=632347043]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0265, 0.0137, 0.0135)
+mesh = SubResource("CylinderMesh_face")
+surface_material_override/0 = SubResource("StandardMaterial3D_dpad")
+
+; B, lower and inboard of A.
+[node name="FaceButton2" type="MeshInstance3D" parent="." unique_id=252082195]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.012, 0.0137, 0.0215)
+mesh = SubResource("CylinderMesh_face")
+surface_material_override/0 = SubResource("StandardMaterial3D_dpad")
+
+; SELECT and START, each turned 25 degrees about Y so its right end is the higher
+; one, on the same slant A and B sit on.
+;
+; A .tscn lists a basis by ROWS, so this is R_y(+25) written as its rows: the
+; pill's long axis (local +X) comes out along (0.906, 0, -0.423), and -Z is up
+; the face. Written from the columns it slants the other way.
+[node name="SelectButton" type="MeshInstance3D" parent="." unique_id=1621150015]
+transform = Transform3D(0.906308, 0, 0.422618, 0, 1, 0, -0.422618, 0, 0.906308, -0.0075, 0.0134, 0.039)
+mesh = SubResource("BoxMesh_pill")
+surface_material_override/0 = SubResource("StandardMaterial3D_pill")
+
+[node name="StartButton" type="MeshInstance3D" parent="." unique_id=71394107]
+transform = Transform3D(0.906308, 0, 0.422618, 0, 1, 0, -0.422618, 0, 0.906308, 0.0075, 0.0134, 0.039)
+mesh = SubResource("BoxMesh_pill")
+surface_material_override/0 = SubResource("StandardMaterial3D_pill")
+
+; The speaker, as the patch of face its holes are drilled in.
+[node name="SpeakerGrille" type="MeshInstance3D" parent="." unique_id=2107272915]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.024, 0.0137, 0.047)
+mesh = SubResource("CylinderMesh_speaker")
+surface_material_override/0 = SubResource("StandardMaterial3D_speaker")
+
+; The cartridge goes in at the BACK of the top edge, as it does on the hardware,
+; which is what leaves the front of that edge free for the infrared window.
+[node name="CardSlotMouth" type="MeshInstance3D" parent="." unique_id=838374287]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.005, -0.06575)
+mesh = SubResource("BoxMesh_slot")
+surface_material_override/0 = SubResource("StandardMaterial3D_slot")
+
+; The infrared port, on the top edge in front of the cartridge: half a millimetre
+; proud of the shell, so its face and the shell's are not one plane.
+[node name="IrWindow" type="MeshInstance3D" parent="." unique_id=1185825921]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.007, -0.06625)
+mesh = SubResource("BoxMesh_ir")
+surface_material_override/0 = SubResource("StandardMaterial3D_ir")
+
+; Where the handheld base would seat the cartridge (lying flat, label to the back,
+; its grip 18 mm out of the top edge), moved 5 mm toward the back of the shell.
+[node name="CartSeat" type="Marker3D" parent="." unique_id=289337444]
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, -0.005, -0.05245)
+gizmo_extents = 0.03
+
+[node name="SeatPreview" type="MeshInstance3D" parent="CartSeat" unique_id=1375852794]
+mesh = SubResource("BoxMesh_seat")
+surface_material_override/0 = SubResource("StandardMaterial3D_seat")
+
+; The volume wheel's place on the left edge, below the EXT connector. Up the edge
+; is louder.
+[node name="VolumeSlider" type="Area3D" parent="." unique_id=1359083866]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0395, 0.004, -0.012)
+collision_layer = 1048577
+script = ExtResource("2_slider")
+axis_local = Vector3(0, 0, -1)
+travel = 0.012
+engage_radius = 0.025
+value = 1.0
+
+[node name="KnobMesh" type="MeshInstance3D" parent="VolumeSlider" unique_id=1330689251]
+mesh = SubResource("BoxMesh_knob")
+surface_material_override/0 = SubResource("Mat_knob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VolumeSlider" unique_id=1922535542]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.006)
+shape = SubResource("BoxShape3D_volumeslider")
+
+; The power switch, on the right edge beside the screen. Up the edge is ON.
+[node name="PowerSwitch" type="Area3D" parent="." unique_id=214482056]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0395, 0.004, -0.04)
+collision_layer = 1048577
+script = ExtResource("2_slider")
+axis_local = Vector3(0, 0, -1)
+travel = 0.006
+steps = 2
+engage_radius = 0.025
+
+[node name="KnobMesh" type="MeshInstance3D" parent="PowerSwitch" unique_id=1776092448]
+mesh = SubResource("BoxMesh_knob")
+surface_material_override/0 = SubResource("Mat_knob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PowerSwitch" unique_id=514588178]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.003)
+shape = SubResource("BoxShape3D_powerswitch")
+
+; The EXT connector, on the left edge beside the screen and above the volume
+; wheel.
+;
+; +Z points OUT of the shell, the convention every port in the room follows, so
+; this one is turned a quarter turn about Y to look along -X: R_y(-90), written
+; as its ROWS. It is the transpose of the Game Boy's, whose socket is on the
+; other edge. 1 mm proud of the panel: a seated link plug's origin is the front
+; face of its shell, and that face stops almost flush against the socket's rim.
+[node name="LinkPort" parent="." instance=ExtResource("9_linkport")]
+transform = Transform3D(0, 0, -1, 0, 1, 0, 1, 0, 0, -0.04, 0, -0.036)
