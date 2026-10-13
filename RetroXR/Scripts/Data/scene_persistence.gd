@@ -2029,6 +2029,10 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		return _base(id, "vcr_tape", n3d).merged({
 			"video_path": tape.video_path,
 			"video_label": tape.video_label,
+			# Where its tape stands. A tape in a deck is saved as itself and
+			# seated afterward, so the deck reads these as it takes it back.
+			"tape_time": tape.tape_time,
+			"tape_progress": tape.tape_progress,
 		})
 	elif node is DVDPlayer:
 		var dvdp := node as DVDPlayer
@@ -2062,6 +2066,11 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		return _base(id, "audio_cassette", n3d).merged({
 			"album_path": acass.album_path,
 			"album_label": acass.album_label,
+			# Where its tape stands. A cassette in a deck is saved as itself and
+			# seated afterward, so the deck reads these as it takes it back.
+			"tape_track": acass.tape_track,
+			"tape_time": acass.tape_time,
+			"tape_progress": acass.tape_progress,
 		})
 	elif node is VinylRecord:
 		var lp := node as VinylRecord
@@ -2598,6 +2607,8 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				var tape := TAPE_SCENE.instantiate() as VCRTape
 				tape.video_path = data.get("video_path", "")
 				tape.video_label = data.get("video_label", "")
+				tape.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
+				tape.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
 				obj = tape
 			"dvd_disc":
 				var disc := DVD_DISC_SCENE.instantiate() as DVDDisc
@@ -2629,6 +2640,9 @@ func _deserialize_object(data: Dictionary) -> Node3D:
 				var acass := AUDIO_CASSETTE_SCENE.instantiate() as AudioCassette
 				acass.album_path = data.get("album_path", "")
 				acass.album_label = data.get("album_label", "")
+				acass.tape_track = maxi(0, int(data.get("tape_track", 0)))
+				acass.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
+				acass.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
 				obj = acass
 			"vinyl_record":
 				var lp := VINYL_RECORD_SCENE.instantiate() as VinylRecord

@@ -27,13 +27,16 @@
 ##   remote/   which remote cells each deck offers
 extends Node
 
-const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote"]
+const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote", "tape"]
 
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
 const CD_PLAYER := preload("res://Scenes/Objects/appliances/cd_player.tscn")
 const CASSETTE_PLAYER := preload("res://Scenes/Objects/appliances/cassette_player.tscn")
 const VINYL_RECORD := preload("res://Scenes/Objects/media/vinyl_record.tscn")
 const AUDIO_DISC := preload("res://Scenes/Objects/media/audio_disc.tscn")
+const AUDIO_CASSETTE := preload("res://Scenes/Objects/media/audio_cassette.tscn")
+const VCR_PLAYER := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
+const VCR_TAPE := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 
 var _fail := 0
 var _ran := 0
@@ -67,11 +70,142 @@ func _ready() -> void:
 		await _test_net()
 	if _want("remote"):
 		await _test_remote()
+	if _want("tape"):
+		await _test_tape()
 
 	await _cleanup()
 	print("[test] %d cases, %s" % [_ran,
 		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
 	get_tree().quit(0 if _fail == 0 else 1)
+
+
+
+# ── tape/ ─────────────────────────────────────────────────────────────────────
+
+## A tape keeps its place. The cassette carries which track it is on and how far
+## into it; the deck takes that up as the cassette goes in, keeps it written
+## while it plays, leaves it alone while it does not, and a save carries it.
+## Before this a cassette taken out half way through an album started from the
+## top when it went back in, and a room saved with a tape playing came back at
+## track one.
+##
+## Nothing here plays (see the top of this file), so each case drives the
+## bookkeeping either side of the sound directly.
+func _test_tape() -> void:
+	# How far through an album a point is, weighed by the tracks' sizes.
+	var sizes := PackedInt64Array([100, 300, 600])
+	_ok(is_equal_approx(RetroAudioPlayer.album_progress(sizes, 1, 0.5), 0.25),
+		"tape/half way through the second of three tracks is a quarter of this album")
+	_ok(is_equal_approx(RetroAudioPlayer.album_progress(sizes, 0, 0.0), 0.0), "tape/the start is 0")
+	_ok(is_equal_approx(RetroAudioPlayer.album_progress(sizes, 2, 1.0), 1.0), "tape/the end is 1")
+	_ok(is_equal_approx(RetroAudioPlayer.album_progress(sizes, 9, 7.0), 1.0),
+		"tape/a point past the end is the end, not past it")
+	_ok(is_equal_approx(RetroAudioPlayer.album_progress(PackedInt64Array([0, 0, 0, 0]), 2, 0.5), 0.625),
+		"tape/with no sizes to go by every track counts the same")
+	_ok(is_equal_approx(RetroAudioPlayer.album_progress(PackedInt64Array(), 0, 0.5), 0.0),
+		"tape/an empty album has no progress")
+
+	var deck := await _deck(CASSETTE_PLAYER) as RetroAudioPlayer
+	var tape := AUDIO_CASSETTE.instantiate() as AudioCassette
+	add_child(tape)
+	_spawned.append(tape)
+	_ok(tape.tape_track == 0 and tape.tape_time == 0.0 and tape.tape_progress == 0.0
+		and tape.tape_speed == 0.0, "tape/a new cassette is at its start, and still")
+
+	# Going in: the deck takes up the tape's place.
+	deck._tracks = PackedStringArray(["a.ogg", "b.ogg", "c.ogg"])
+	tape.tape_track = 2
+	tape.tape_time = 31.5
+	deck._take_tape_place(tape)
+	_eq(deck._track_idx, 2, "tape/the deck selects the track the tape was on")
+	_ok(is_equal_approx(deck._resume_at, 31.5), "tape/and holds how far into it to carry on from")
+	tape.tape_track = 9
+	deck._take_tape_place(tape)
+	_eq(deck._track_idx, 2, "tape/a track the album no longer has is its last")
+	var disc := AUDIO_DISC.instantiate()
+	add_child(disc)
+	_spawned.append(disc)
+	deck._track_idx = 1
+	deck._take_tape_place(disc)
+	_ok(deck._track_idx == 1 and deck._resume_at == 0.0,
+		"tape/a disc keeps no place: its track is left alone and it starts at the start")
+
+	# Choosing a track is not carrying on: it starts that track at its start.
+	deck._resume_at = 12.0
+	deck._goto_track(1)
+	_ok(deck._track_idx == 1 and deck._resume_at == 0.0, "tape/choosing a track drops the place held")
+
+	# In a deck that is not playing, the tape's place is left exactly as it was.
+	tape.tape_track = 1
+	tape.tape_time = 12.0
+	tape.tape_progress = 0.4
+	tape.tape_speed = 1.0
+	deck._snapped_media = tape
+	deck.is_playing = false
+	deck._note_tape()
+	_ok(tape.tape_track == 1 and is_equal_approx(tape.tape_time, 12.0)
+		and is_equal_approx(tape.tape_progress, 0.4), "tape/a stopped deck does not move the tape")
+	_eq(tape.tape_speed, 0.0, "tape/and says it is still")
+
+	# Coming out: still, and where it was.
+	tape.tape_speed = 1.0
+	deck._media_unloaded()
+	_ok(tape.tape_speed == 0.0 and tape.tape_track == 1 and is_equal_approx(tape.tape_time, 12.0),
+		"tape/taken out, the tape is still and keeps its place")
+	_ok(deck._resume_at == 0.0 and deck._tape() == null, "tape/and the deck holds nothing of it")
+
+	# A save carries the place, and a load puts it back.
+	var store := ScenePersistence.new()
+	var entry := store._serialize_node(tape, 1, {tape: 1})
+	_ok(int(entry.get("tape_track", -1)) == 1 and is_equal_approx(float(entry.get("tape_time", -1.0)), 12.0)
+		and is_equal_approx(float(entry.get("tape_progress", -1.0)), 0.4),
+		"tape/a save records the track, the time into it and the progress")
+	var back := store._deserialize_object(entry) as AudioCassette
+	_ok(back != null and back.tape_track == 1 and is_equal_approx(back.tape_time, 12.0)
+		and is_equal_approx(back.tape_progress, 0.4), "tape/and a load brings back a cassette at that place")
+	if back != null:
+		back.free()
+	var old := store._deserialize_object({"type": "audio_cassette", "album_path": "", "album_label": "x"}) as AudioCassette
+	_ok(old != null and old.tape_track == 0 and old.tape_time == 0.0,
+		"tape/a save from before tapes kept their place loads at the start")
+	if old != null:
+		old.free()
+
+	# The video tape keeps its place the same way, in the VCR.
+	var vcr := await _deck(VCR_PLAYER) as VCRPlayer
+	var video := VCR_TAPE.instantiate() as VCRTape
+	add_child(video)
+	_spawned.append(video)
+	_ok(video.tape_time == 0.0 and video.tape_progress == 0.0 and video.tape_speed == 0.0,
+		"tape/a new video tape is at its start, and still")
+	video.tape_time = 754.0
+	video.tape_progress = 0.21
+	vcr._take_tape_place(video)
+	_ok(is_equal_approx(vcr._resume_at, 754.0) and vcr._tape == video and is_equal_approx(vcr._tape_time(), 754.0),
+		"tape/a VCR takes up a video tape's place as it goes in")
+	video.tape_speed = 1.0
+	vcr._note_tape()
+	_ok(is_equal_approx(video.tape_time, 754.0) and is_equal_approx(video.tape_progress, 0.21) and video.tape_speed == 0.0,
+		"tape/a VCR that is not playing does not move the tape, and says it is still")
+	video.tape_speed = 1.0
+	vcr._on_media_removed()
+	_ok(video.tape_speed == 0.0 and is_equal_approx(video.tape_time, 754.0) and vcr._tape == null and vcr._resume_at == 0.0,
+		"tape/taken out, the video tape is still and keeps its place")
+	vcr._take_tape_place(video)
+	vcr._on_video_finished()
+	_ok(video.tape_time == 0.0 and video.tape_progress == 0.0 and vcr._resume_at == 0.0,
+		"tape/played to its end, a video tape is wound back to its start")
+	vcr._on_media_removed()
+	video.tape_time = 754.0
+	video.tape_progress = 0.21
+	var v_entry := store._serialize_node(video, 2, {video: 2})
+	_ok(is_equal_approx(float(v_entry.get("tape_time", -1.0)), 754.0)
+		and is_equal_approx(float(v_entry.get("tape_progress", -1.0)), 0.21), "tape/a save records a video tape's place")
+	var v_back := store._deserialize_object(v_entry) as VCRTape
+	_ok(v_back != null and is_equal_approx(v_back.tape_time, 754.0) and is_equal_approx(v_back.tape_progress, 0.21),
+		"tape/and a load brings back a video tape at that place")
+	if v_back != null:
+		v_back.free()
 
 
 # ── base/ ─────────────────────────────────────────────────────────────────────

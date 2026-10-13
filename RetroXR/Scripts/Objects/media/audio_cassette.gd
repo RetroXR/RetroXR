@@ -15,6 +15,22 @@ extends XRToolsPickable
 		_update_label()
 
 
+## Where the tape stands: which track of the album, and how far into it, in
+## seconds. A tape keeps its place. The deck it is in writes these as it plays,
+## winds and stops (RetroAudioPlayer._note_tape) and reads them when the cassette
+## goes in, so one taken out half way through and put back, into this deck or
+## another, carries on from where it was. A save keeps them too.
+var tape_track: int = 0
+var tape_time: float = 0.0
+## How far through the whole album the tape is, 0 to 1, for anything that shows
+## the tape itself (a mod's reels). Measured by the deck from the tracks' sizes
+## on disk, which follow their lengths closely enough to wind a reel by.
+var tape_progress: float = 0.0
+## How the tape is moving right now: 0 still (out of a deck, stopped or paused),
+## 1 playing, more winding on, less than 0 winding back.
+var tape_speed: float = 0.0
+
+
 func _ready() -> void:
 	super._ready()
 	add_to_group("audio_cassette")

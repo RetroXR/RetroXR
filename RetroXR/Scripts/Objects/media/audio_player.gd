@@ -37,6 +37,13 @@ var _track_idx: int = 0
 # mute, exactly like the VCR's video scan.
 var _scan_dir: int = 0
 var _scan_accum: float = 0.0
+## Seconds into the selected track that the next play() carries on from, for a
+## medium that keeps its place (a tape; see _tape). 0 for a disc or a record,
+## which start a track at its start. It waits here because a seek means nothing
+## until the track is open and its length is known.
+var _resume_at: float = 0.0
+## Each track's size on disk, beside _tracks: what a tape's progress is weighed by.
+var _track_bytes: PackedInt64Array = PackedInt64Array()
 const SCAN_SEEK_INTERVAL := 0.08
 ## If Prev is pressed past this point in a track, it restarts the track instead
 ## of skipping to the previous one (standard CD behaviour).
@@ -137,6 +144,80 @@ func _process(delta: float) -> void:
 		_vlc.update_frame()
 		_pump_audio()
 	_update_scan(delta)
+	_resume_tape()
+	_note_tape()
+
+
+# --- A medium that keeps its place (a tape) ---
+
+## The medium in the deck if it keeps its place, else null. A cassette does: it
+## has the fields. A disc and a record do not, and none of this touches them.
+func _tape() -> Node:
+	if is_instance_valid(_snapped_media) and "tape_time" in _snapped_media:
+		return _snapped_media
+	return null
+
+
+## Take up where a tape was left: its track, and how far into it. Called as the
+## medium is loaded, with the track list already built.
+func _take_tape_place(media: Node) -> void:
+	_resume_at = 0.0
+	if media == null or not ("tape_time" in media) or _tracks.is_empty():
+		return
+	_track_idx = clampi(int(media.get("tape_track")), 0, _tracks.size() - 1)
+	_resume_at = maxf(0.0, float(media.get("tape_time")))
+
+
+## Seek to where the tape was, once the track play() opened knows its length.
+func _resume_tape() -> void:
+	if _resume_at <= 0.0 or not is_playing:
+		return
+	if _vlc_length_sec() <= 0.0:
+		return
+	_vlc_seek_sec(_resume_at)
+	_resume_at = 0.0
+
+
+## Write the tape's place back onto it, every frame it is in a deck. While
+## stopped the place is left as it was, which is the point: a stopped tape has
+## not moved.
+func _note_tape() -> void:
+	var tape := _tape()
+	if tape == null:
+		return
+	if not is_playing or _resume_at > 0.0:
+		tape.set("tape_speed", 0.0)
+		return
+	var at := _vlc_time_sec()
+	var length := _vlc_length_sec()
+	tape.set("tape_track", _track_idx)
+	tape.set("tape_time", at)
+	if length > 0.0:
+		tape.set("tape_progress", album_progress(_track_bytes, _track_idx, at / length))
+	if _paused and _scan_dir == 0:
+		tape.set("tape_speed", 0.0)
+	else:
+		tape.set("tape_speed", scan_speed * float(_scan_dir) if _scan_dir != 0 else 1.0)
+
+
+## How far through an album a point is, 0 to 1: `into` (0 to 1) of track `idx`,
+## the tracks weighed by `bytes`, their sizes on disk. With no sizes to go by
+## every track counts the same.
+static func album_progress(bytes: PackedInt64Array, idx: int, into: float) -> float:
+	var count := bytes.size()
+	if count == 0:
+		return 0.0
+	idx = clampi(idx, 0, count - 1)
+	into = clampf(into, 0.0, 1.0)
+	var total := 0.0
+	var before := 0.0
+	for i in count:
+		total += float(bytes[i])
+		if i < idx:
+			before += float(bytes[i])
+	if total <= 0.0:
+		return (float(idx) + into) / float(count)
+	return clampf((before + float(bytes[idx]) * into) / total, 0.0, 1.0)
 
 
 ## Drain decoded PCM from VlcPlayer into the generator (fills only what's free).
@@ -224,6 +305,7 @@ func _media_loaded(media: Node3D) -> void:
 		album_path = media.get_album_path()
 	_track_idx = 0
 	_rebuild_tracks()
+	_take_tape_place(media)
 	NetworkManager.report_event(NetEvents.Event.EV_AUDIO_INSERT,
 		{"player": self, "media": media, "yaw": media_seat_yaw()})
 	if _autoplay_on_load() and not NetworkManager.is_active():
@@ -239,7 +321,12 @@ func _autoplay_on_load() -> bool:
 
 ## Media left the deck (ejected / lid opened and taken). Stops and clears state.
 func _media_unloaded() -> void:
+	# A tape leaves with its place as last written, and is still from here on.
+	var tape := _tape()
+	if tape != null:
+		tape.set("tape_speed", 0.0)
 	_snapped_media = null
+	_resume_at = 0.0
 	stop()
 	album_path = ""
 	_tracks = PackedStringArray()
@@ -250,6 +337,10 @@ func _media_unloaded() -> void:
 func _rebuild_tracks() -> void:
 	_tracks = RomLibrary.music_tracks(album_path)
 	_track_idx = clampi(_track_idx, 0, maxi(0, _tracks.size() - 1))
+	_track_bytes = PackedInt64Array()
+	for path: String in _tracks:
+		var file := FileAccess.open(path, FileAccess.READ)
+		_track_bytes.append(file.get_length() if file != null else 0)
 
 
 func get_snapped_media() -> Node3D:
@@ -394,6 +485,7 @@ func _goto_track(idx: int) -> void:
 		return
 	_track_idx = idx
 	_scan_dir = 0
+	_resume_at = 0.0
 	play()
 
 
@@ -424,6 +516,10 @@ func play() -> void:
 func stop() -> void:
 	if not is_playing:
 		return
+	# A stopped tape stays where it stopped, and the next play carries on from
+	# there. A disc goes back to the start of its track, as before.
+	var tape := _tape()
+	_resume_at = float(tape.get("tape_time")) if tape != null else 0.0
 	_scan_dir = 0
 	if _vlc:
 		_vlc.stop()
@@ -440,10 +536,19 @@ func stop() -> void:
 func _on_track_finished() -> void:
 	if NetworkManager.is_client():
 		return   # the host drives advancement; clients follow its state
+	_resume_at = 0.0
 	if _track_idx + 1 < _tracks.size():
 		_track_idx += 1
 		play()
 	else:
+		# The end of the tape. It is wound back to the start, so that PLAY plays
+		# it again: the deck has no way to wind a whole album back by hand.
+		var tape := _tape()
+		if tape != null:
+			_track_idx = 0
+			tape.set("tape_track", 0)
+			tape.set("tape_time", 0.0)
+			tape.set("tape_progress", 0.0)
 		is_playing = false
 		_paused = false
 		if _emitter:

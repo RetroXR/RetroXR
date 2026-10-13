@@ -52,6 +52,13 @@ var is_playing: bool = false
 # audio muted (real-VCR feel).
 var _scan_dir: int = 0
 var _scan_accum: float = 0.0            # time since the last scan seek
+## Seconds into the tape that the next play() carries on from: a tape keeps its
+## place (see _note_tape). It waits here because a seek means nothing until the
+## recording is open and its length is known.
+var _resume_at: float = 0.0
+## The tape in the deck, kept from the moment it goes in: by the time the slot
+## says a tape has left, it no longer has it to ask for.
+var _tape: Node = null
 # How often (seconds) to seek while scanning. Seeking every frame overloads the
 # decoder; ~12 seeks/sec still reads as a smooth fast-scan.
 const SCAN_SEEK_INTERVAL := 0.08
@@ -140,15 +147,17 @@ func _process(delta: float) -> void:
 			_emitter.clear_emit_position()
 			_emitter.clear_emit_direction()
 	_update_scan(delta)
+	_resume_tape()
+	_note_tape()
 	if _clock == null:
 		return
 	if is_playing:
 		_last_total = _vlc_length_sec()
 		_clock.set_times(_vlc_time_sec(), _last_total)
 	elif not video_path.is_empty():
-		# Tape inserted but stopped/paused-at-start — show 0 against the last
-		# known length (unknown until first played).
-		_clock.set_times(0.0, _last_total)
+		# Tape inserted but stopped — show where the tape stands (0 for one at
+		# its start) against the last known length (unknown until first played).
+		_clock.set_times(_tape_time(), _last_total)
 	else:
 		_last_total = -1.0
 		_clock.set_blank()
@@ -245,6 +254,7 @@ func toggle_options_ui(camera: Node3D) -> void:
 func _on_media_inserted(tape: Node3D) -> void:
 	if tape.has_method("get_video_path"):
 		video_path = tape.get_video_path()
+	_take_tape_place(tape)
 	NetworkManager.report_event(NetEvents.Event.EV_TAPE_INSERT,
 		{"vcr": self, "tape": tape})
 
@@ -252,6 +262,11 @@ func _on_media_inserted(tape: Node3D) -> void:
 ## MediaSlot reports the tape left (ejected, or pulled straight out). Stop playback
 ## and clear state.
 func _on_media_removed() -> void:
+	# The tape leaves with its place as last written, and is still from here on.
+	if is_instance_valid(_tape):
+		_tape.set("tape_speed", 0.0)
+	_tape = null
+	_resume_at = 0.0
 	stop()
 	video_path = ""
 	NetworkManager.report_event(NetEvents.Event.EV_TAPE_REMOVE, {"vcr": self})
@@ -479,6 +494,9 @@ func play() -> void:
 func stop() -> void:
 	if not is_playing:
 		return
+	# A stopped tape stays where it stopped, and the next play carries on from
+	# there.
+	_resume_at = _tape_time()
 	_scan_dir = 0
 	if _vlc:
 		_vlc.stop()
@@ -565,6 +583,13 @@ func get_vcr_params() -> Dictionary:
 
 func _on_video_finished() -> void:
 	# Leave the last frame; mark as not playing so Play restarts from the top.
+	# The end of the tape: it is wound back to its start, which is what makes
+	# Play restart it.
+	_resume_at = 0.0
+	if is_instance_valid(_tape):
+		_tape.set("tape_time", 0.0)
+		_tape.set("tape_progress", 0.0)
+		_tape.set("tape_speed", 0.0)
 	is_playing = false
 	_paused = false
 	if _emitter:
@@ -579,6 +604,48 @@ func _on_video_finished() -> void:
 # channel only when one joins AudioLOut to an audio in — and if that one lands in
 # the set's RIGHT socket, the left channel comes out of the right-hand speaker.
 # CompositeCable works out the pairs; this only reads them.
+
+
+# --- A tape keeps its place ---
+
+## Take up where a tape was left. Called as it goes in.
+func _take_tape_place(tape: Node) -> void:
+	_tape = tape if tape != null and "tape_time" in tape else null
+	_resume_at = maxf(0.0, float(_tape.get("tape_time"))) if _tape != null else 0.0
+
+
+## Where the tape in the deck stands, in seconds; 0 with none in it.
+func _tape_time() -> float:
+	return float(_tape.get("tape_time")) if is_instance_valid(_tape) else 0.0
+
+
+## Seek to where the tape was, once the recording play() opened knows its length.
+func _resume_tape() -> void:
+	if _resume_at <= 0.0 or not is_playing:
+		return
+	if _vlc_length_sec() <= 0.0:
+		return
+	_vlc_seek_sec(_resume_at)
+	_resume_at = 0.0
+
+
+## Write the tape's place back onto it, every frame it is in the deck. While
+## stopped the place is left as it was: a stopped tape has not moved.
+func _note_tape() -> void:
+	if not is_instance_valid(_tape):
+		return
+	if not is_playing or _resume_at > 0.0:
+		_tape.set("tape_speed", 0.0)
+		return
+	var at := _vlc_time_sec()
+	var length := _vlc_length_sec()
+	_tape.set("tape_time", at)
+	if length > 0.0:
+		_tape.set("tape_progress", clampf(at / length, 0.0, 1.0))
+	if _paused and _scan_dir == 0:
+		_tape.set("tape_speed", 0.0)
+	else:
+		_tape.set("tape_speed", scan_speed * float(_scan_dir) if _scan_dir != 0 else 1.0)
 
 
 # --- Save/load restore (mirrors RetroSystem) ---
