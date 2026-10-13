@@ -165,7 +165,7 @@ the handheld base animates it with no code here.
 | Where | What | Note |
 | --- | --- | --- |
 | top edge, back | cartridge mouth, `CartSeat` | the base's pose moved 5 mm toward the back of the shell, as on the hardware |
-| top edge, front | `IrWindow`, 8 mm square, glossy black | 0.5 mm proud so its face is not the shell's plane; cosmetic, nothing in the room drives infrared |
+| top edge, front | `IrWindow`, 8 mm square, glossy black | 0.5 mm proud so its face is not the shell's plane. Its child `IrPort` is the infrared link (port 1, beam along its -Z, out of the edge): two units whose windows can see each other are linked by `IrBus`, and the model script makes the window glow faintly while they are (`gb-link.md`, "In the room") |
 | left flank | EXT `LinkPort`, then the volume slider below it | the socket is `R_y(-90)` written as rows, the transpose of the Game Boy's; the Game Boy's own plug family |
 | right flank | power switch, up the edge is ON | |
 | bottom edge | video-out lead, at the headphone jack | `configure_cable_attach` is overridden: the base moves a narrow body's lead to the right flank, which is where the switch slides |
@@ -188,8 +188,10 @@ photographs the shell into `probe_out/gbc/`, the last frame beside the Game Boy:
 
 `romm_tests` `gbc/` pins it with five cases, mutation-tested: the row back on the Game
 Boy's scene fails three, the window moved behind the slot fails one, and sunk inside the
-shell fails one. `link_tests` walks its socket in the lead × socket matrix. Nobody has
-held it in a headset or run it on a Quest yet.
+shell fails one. `link_tests` walks its socket in the lead × socket matrix, and
+`ir_tests` `machine/` pins the port: there, on link port 1, looking OUT of the edge its
+window is on, the glow following its link. Nobody has held it in a headset or run it on
+a Quest yet.
 
 ### 2x-cam. The Game Boy Camera — a cartridge with a head, and a ball a hand swivels
 

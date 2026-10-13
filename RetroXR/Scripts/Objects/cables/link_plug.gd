@@ -20,6 +20,11 @@ extends RcaPlug
 ## (PsxLinkPlug, SaturnLinkPlug, JagLinkPlug). One left out is a lead netplay
 ## never finds, so its far machine is not in the session and never starts.
 ## No socket filters on it -- a socket's snap_require is always a family.
+##
+## What a sweep reads off a member is its `cable`, and that the cable answers
+## linked_machines(). Nothing else is assumed of it, which is how a link with
+## no plug at all is in here too: an IrPort, an infrared window whose `cable`
+## is its pair's head window.
 const ANY_GROUP := "any_link_plug"
 
 ## Which handheld family's socket this plug fits, and nothing else. The GBA and

@@ -1697,6 +1697,21 @@ func holds_cable(machine: Object) -> bool:
 	return _staggered and not _running and machine != null and _group.find(machine) >= 0
 
 
+## True from the moment this session takes `machine` until its first frame is
+## released: its cores are being restarted and nothing is running yet.
+##
+## Asked by a link the ROOM decides rather than a seated plug -- two infrared
+## windows in sight of each other (IrBus). A lead is seated identically on every
+## peer, so each one stating it before frame zero is the same act everywhere.
+## Sight is worked out from where each peer happens to have the two machines,
+## which is not the same on any two of them, so such a link must not be made
+## here at all: it waits, and once the session runs the host schedules it like
+## any other change (schedule_link_for). covers() says no for exactly this
+## stretch, which is why it cannot be the question.
+func prepares(machine: Object) -> bool:
+	return not _running and machine != null and _group.find(machine) >= 0
+
+
 ## The room's form of schedule_link_op: it knows machines and their link ports,
 ## not indices into a session it cannot see. `entries` are
 ## [{machine, port}, ...], head first, exactly as the cable walk produced them.

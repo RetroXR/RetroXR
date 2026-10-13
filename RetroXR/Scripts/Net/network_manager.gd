@@ -615,6 +615,12 @@ func netplay_holds_cable(machine: Object) -> bool:
 	return _netplay != null and _netplay.holds_cable(machine)
 
 
+## Whether a session has taken this machine and not released its first frame
+## yet (NetplaySession.prepares) -- when a link decided by sight must wait.
+func netplay_prepares(machine: Object) -> bool:
+	return _netplay != null and _netplay.prepares(machine)
+
+
 ## Host: schedule a link-cable change for the running session. `entries` are
 ## [{machine, port}, ...], head first. op 1 joins them as one bus, op 0 drops
 ## the single named port.

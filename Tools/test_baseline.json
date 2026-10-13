@@ -18,6 +18,7 @@
     "firmware_digest_tests": 15,
     "focus_mode_tests": 85,
     "hdhomerun_tests": 58,
+    "ir_tests": 119,
     "gb_cart_tests": 78,
     "gbc_cart_tests": 102,
     "gba_cart_tests": 81,

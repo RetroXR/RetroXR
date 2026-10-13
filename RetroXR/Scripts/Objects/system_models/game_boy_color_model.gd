@@ -16,15 +16,34 @@ const _LED_COLOR := Color(1.0, 0.12, 0.08)
 ## body's width from its middle.
 const _AV_JACK_X_FRACTION := -0.16
 
+## The infrared window, while this machine and the one it faces are linked.
+## Infrared cannot be seen, which is the trouble with it here: a link that is
+## up and one that is not look exactly alike until a game says so. So the
+## window glows, deep red and dim -- a remote control's lamp as a camera shows
+## it, not a second power light. The strength was settled from a photograph
+## (gbc_ir_room_probe, windowed): at 0.55 it was a bright red panel.
+const _IR_COLOR := Color(1.0, 0.07, 0.1)
+const _IR_GLOW := 0.12
+
 var _led: MeshInstance3D = null
 var _led_off_material: Material = null
 var _led_material: StandardMaterial3D = null
+
+var _ir_window: MeshInstance3D = null
+var _ir_off_material: Material = null
+var _ir_material: StandardMaterial3D = null
 
 
 func _on_shell_ready() -> void:
 	_led = find_child("PowerLED", true, false) as MeshInstance3D
 	if _led != null:
 		_led_off_material = _led.get_surface_override_material(0)
+	_ir_window = find_child("IrWindow", true, false) as MeshInstance3D
+	if _ir_window != null:
+		_ir_off_material = _ir_window.get_surface_override_material(0)
+		var port := _ir_window.get_node_or_null("IrPort") as IrPort
+		if port != null:
+			port.link_changed.connect(_light_ir)
 
 
 func on_power_on() -> void:
@@ -50,6 +69,24 @@ func _light_led(on: bool) -> void:
 		_led_material.emission = _LED_COLOR
 		_led_material.emission_energy_multiplier = 2.0
 	_led.set_surface_override_material(0, _led_material)
+
+
+## Lit by the window's IrPort when its pair comes up on the bus, and put out
+## when it goes: switching either machine off does that, as does looking away.
+func _light_ir(on: bool) -> void:
+	if not is_instance_valid(_ir_window):
+		return
+	if not on:
+		_ir_window.set_surface_override_material(0, _ir_off_material)
+		return
+	if _ir_material == null:
+		_ir_material = StandardMaterial3D.new()
+		_ir_material.albedo_color = _IR_COLOR.darkened(0.92)
+		_ir_material.roughness = 0.25
+		_ir_material.emission_enabled = true
+		_ir_material.emission = _IR_COLOR
+		_ir_material.emission_energy_multiplier = _IR_GLOW
+	_ir_window.set_surface_override_material(0, _ir_material)
 
 
 ## The video-out lead plugs in at the headphone jack, out of the bottom edge. The

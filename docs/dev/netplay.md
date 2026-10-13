@@ -470,12 +470,15 @@ passes both. `netplay_tests` `rollback` group covers the pin gate (mutation-test
 x86_64 → arm64 state leg; publishing the fork (repo, release workflow, tag,
 `CoreSources` row). The four fork fixes to the sound chip are upstreamable.
 
-### The Game Boy Color's infrared port under netplay — 2026-10-13: lockstep measured, the room owed
+### The Game Boy Color's infrared port under netplay — 2026-10-13: lockstep measured, a real session owed
 
 The port is a link like any other (`gb-link.md`): link port 1, `gbc-ir-1`, two
-cores in one process and nothing over the network. Nothing in the room joins port
-1 yet, so no session has ever held one. What follows is what was measured at the
-cores and the bus, and what the room has to do on the day it does.
+cores in one process and nothing over the network. The room joins it now
+(`IrBus`, two windows in sight of each other), and hands every change to a
+session exactly as a lead does. What follows is what was measured at the cores
+and the bus, then what the room does about it. **No session between two real
+peers has held an infrared pair yet** -- the room's half is checked against a
+stub session (`ir_tests` `netplay/`), never present that as the proof.
 
 - **A port coming into view is a link change, and lands like one**: on an agreed
   frame with every core stopped on it (`ScheduleLinkOp`, port 1). Joined while the
@@ -495,6 +498,33 @@ cores and the bus, and what the room has to do on the day it does.
   does nothing at all without a peer. mGBA's driver wakes every 16384 ticks on a
   grid counted off the machine's own clock, which the savestate carries, so a
   machine that loaded and one that never did wake on the same ticks.
+
+**What the room does** (`IrBus`, `NetplayLinkGate`):
+
+- **Sight is each peer's own, so only the host's counts.** A seated plug is the
+  same fact on every peer; where two machines are is not -- object sync puts them
+  a few millimetres and a few frames apart on each. So a join or a part worked
+  out from sight goes through the gate like a plug moving: the host schedules it
+  (`netplay_schedule_link`, ports `[1, 1]`, head first), every peer applies it on
+  the agreed frame, and a peer that is not the host decides nothing whatever its
+  own windows can see.
+- **A starting session gets NO infrared join before frame zero.** A lead is
+  re-stated by every peer once its cores are up (`net_refresh_link_cables`),
+  which is the same act everywhere. An infrared pair re-stated that way would be
+  on the wire at frame zero on a peer who has the two machines 59 cm apart and
+  not on one who has them 61. `NetplaySession.prepares(machine)` is true from
+  the moment a session takes a machine until its first frame is released --
+  the stretch `covers()` says no for -- and `IrBus` holds the pair for exactly
+  that long, then the host schedules it on the first look after frames run.
+- **A pair in view when the session starts is in the session**: both windows are
+  in `LinkPlug.ANY_GROUP`, so `net_link_group` finds the far machine, and the
+  session is lockstep (`_group.size() > 1`, neither core has `link_rollback`).
+- **A unit that comes into view of a machine already in a session is refused**
+  (the gate's "touches a machine outside the session"), with the host's warning,
+  and its window stays dark. A session is not widened by pointing at it.
+- **Late join with a pair in view is still unmeasured**, and `linked_machines()`
+  is empty while a pair has parted, which `_link_bus_descriptors` reads as "not
+  known" for a group of two.
 
 `RetroXR/Tools/netplay/gbc_ir_netplay_probe.tscn` runs TWO copies of the pair in
 one process -- four machines, two buses -- under the netplay gate, posts every

@@ -184,10 +184,115 @@ netplay".
 **Released** as `retroxr-gambatte-libretro-v4` and `retroxr-mgba-libretro-v8`,
 which `CoreSources` names; every platform's build comes off the tag.
 
-**OWED:** the room. Nothing joins port 1 yet -- no object decides that two units
-are facing each other -- so none of this can be reached by a player. A Quest
-run: the Android builds are published and have never been started. Any game but
-Gold and Silver.
+#### In the room: two windows in sight of each other — 2026-10-13
+
+A link cable is decided by which sockets its plugs are in. Infrared has no lead,
+so the room decides it from where two machines are and which way they look.
+
+| Piece | What it is |
+|---|---|
+| `IrPort` (`Scripts/Objects/cables/ir_port.gd`) | a node on the stand-in's `IrWindow`: link port 1, family `gbc_ir`, beam along its own **-Z** |
+| `IrBus` (`ir_bus.gd`) | one static resolver for the whole room, as `ILinkBus` is: which windows are a pair, and `LinkConnectGroup` / `LinkDisconnect` on port 1 to match |
+| `NetplayLinkGate` (`netplay_link_gate.gd`) | the "has a session taken this join" rule, lifted out of `CompositeCable` so a link with no lead answers to the same one |
+
+**Two machines are linked while each one's window is inside the other's beam.**
+Both ways round, because a unit that can be seen by one it cannot see is half a
+conversation. It is NOT "the two beams overlap": two units side by side looking
+the same way throw beams that overlap for ever and see nothing of each other
+(`ir_tests` `view/` has that case, and a one-sided rule fails it).
+
+| | to link | to stay linked |
+|---|---|---|
+| distance between the windows | 60 cm | 80 cm |
+| off each window's axis | 60° (a cone 120° across) | 70° |
+| held for | 0.3 s (3 looks) | lost for 0.3 s |
+
+Those are the room's numbers, not the hardware's: a real Game Boy Color wants its
+partner a hand's width away and nearly dead ahead, which in a headset is a fiddle
+nobody could see the reason for. The room looks ten times a second
+(`LOOK_TICKS` = 9 of its 90 physics ticks). The dwell is there because every
+change is a bus rebuild in the cores, and in a session an operation the host
+schedules: a window swept past another must not make one, nor a hand through the
+beam.
+
+- **Line of sight is required.** One ray, window to window, against the room
+  (layer 1) and loose objects (layer 3), with both machines' own bodies excluded
+  by RID -- a window is set into its own shell. **Nothing that is HELD blocks**:
+  picking a thing up moves it to layer 17, which covers what a hand is carrying,
+  seated plugs, and the unit's own cartridge, 18 mm out of the same edge as its
+  window. With a partner off toward the back of the shell the line really does
+  pass through that cartridge (`ir_tests` asks the held layer and gets a
+  `RetroCartridge` back), so adding layer 17 to `SIGHT_MASK` means dealing with
+  the cartridge first. Hands and the player's body do not block either.
+- **A window has ONE partner, the nearest.** Three units in a row pair the two
+  closest; the third is left alone until one of them is switched off or turned.
+- **Only machines that are switched on, and not cabled.** A machine whose link
+  cable has a peer on it (`LinkPeerCount(0) >= 2`) is left out of the pairing --
+  its core would be deaf on port 1 anyway (above), and joining it would also fold
+  the cable's machines and the beam's into one netplay group for nothing. A cable
+  seated between a linked pair parts the infrared link on the next look.
+- **It answers as a lead does.** An `IrPort` is in `LinkPlug.ANY_GROUP` and has a
+  `cable` (the HEAD window of its pair, from both windows, so a sweep that keeps
+  each lead once keeps the bus once) answering `linked_machines()`,
+  `held_machines()` and `rejoin()`. So `RetroSystem._link_cables`, the re-state
+  after a core restart (`net_refresh_link_cables`) and focus mode's "keep what is
+  wired to this machine" all reach it with no sweep learning that infrared exists.
+- **A restart is a fresh look.** A pair holding at 70 cm, past where it could
+  link, does not come back by itself after either core restarts: it has to be
+  brought within 60 cm again.
+- **The window glows, faintly, while the link is LIVE** -- both cores on the bus
+  (`LinkPeerCount(1) >= 2` at each end), not merely a partner in view. A unit
+  facing one whose core has no infrared port (SameBoy; a Game Boy game running as
+  a DMG) is in view of it, linked to nothing, and stays dark, and the `[IrBus]
+  linked:` line prints each end's peer count for the same reason. The glow is
+  `RetroSystemModelGameBoyColor._light_ir`, emission energy 0.12: at 0.55 the
+  photograph showed a bright red panel beside the power lamp.
+- **Gambatte is the Game Boy Color's recommended core on desktop now** (it was
+  SameBoy; Quest was already Gambatte). `CoreRecommendations` `gbc`, pinned by
+  `cores_data_tests`: the row must name a core that carries `gbc-ir-1` on every
+  platform. The Game Boy's row keeps SameBoy -- it has no window. A clock file is
+  per core (`saves.md`), so a Gold or Silver cartridge that ran on SameBoy asks
+  for the time again under Gambatte; the battery is per system and carries over.
+
+`Tests/ir_tests` (119 cases, no core) is the geometry, the pairing, the dwell
+and hysteresis, sight against real colliders, the netplay hand-off against a
+stub session, and the scene: a real `gbc` machine's port looks OUT of the edge
+its window is on (by sign), the Game Boy has none, two real machines link and
+are found by `net_link_bus`. Mutation-tested 2026-10-13, 38 breaks, every one
+caught -- after two rounds: the dwell cases counted looks in terms of the
+constant they were meant to check (a dwell of 1 passed), and a 25 mm standoff
+on the sight line turned out to protect nothing (see "held", above) and was
+removed.
+
+`Tools/link/gbc_ir_room_probe` is the room path with real cores: two
+`system.tscn` machines with a cartridge each, switched on a metre and a half
+apart, and only THEN brought face to face -- so the gift crosses a link the room
+made under running cores. It writes saves, so it refuses to run unless the data
+root holds `probe_home.txt`; give it a scratch `USERPROFILE` (and `APPDATA`).
+
+```bash
+USERPROFILE=<scratch home> APPDATA=<scratch> "$godot" --headless --path RetroXR \
+    res://Tools/link/gbc_ir_room_probe.tscn -- "--rom=<Gold or Silver>" --save=a.srm --save2=b.srm
+... -- ... --apart | --away | --wall | --cabled     # the controls: none may trade
+... -- ... --core=mgba [--core2=gambatte]
+# windowed, for the photographs of the window lit and dark:
+"$godot" --path RetroXR --resolution 640x480 --position 20,20 res://Tools/link/gbc_ir_room_probe.tscn -- ...
+```
+
+Measured 2026-10-13, windows x86_64, the RELEASED cores (gambatte v4, mGBA v8),
+each leg its own process:
+
+| Leg | Result |
+|---|---|
+| gambatte / gambatte | 31/31: apart and dark, then linked with 2 peers each and both windows lit, the gift on the first press, each cartridge holding the other's trainer; carried apart, parted and dark |
+| mGBA / mGBA, mGBA / gambatte | 31/31 each (second press and first) |
+| `--apart`, `--away`, `--wall` (gambatte), `--apart` (mGBA) | 24/24 each: no partner, 0 peers, dark windows, five presses, nothing written, nothing frozen |
+| `--cabled` | 27/27: the pair links, the cable goes in and carries both machines, the infrared link parts, nothing trades |
+
+**OWED:** a headset -- nobody has held two of these up to each other, so the
+60 cm / 60° numbers are untried by a hand. A Quest run: the Android cores are
+published and have never been started. A real two-peer session (`netplay.md`).
+Any game but Gold and Silver.
 
 ### The Game Gear's Gear-to-Gear cable
 

@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/game_boy_color_model.gd" id="1_model"]
 [ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_slider"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="9_linkport"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/ir_port.gd" id="10_irport"]
 
 ; The CGB-001's 78 x 133.5 x 27.4 mm, as one box.
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
@@ -191,6 +192,12 @@ surface_material_override/0 = SubResource("StandardMaterial3D_slot")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.007, -0.06625)
 mesh = SubResource("BoxMesh_ir")
 surface_material_override/0 = SubResource("StandardMaterial3D_ir")
+
+; What the window does: it looks out of the top edge along its own -Z, and IrBus
+; links two machines whose windows can see each other. The model script makes the
+; window glow while they are linked.
+[node name="IrPort" type="Node3D" parent="IrWindow" unique_id=1493307715]
+script = ExtResource("10_irport")
 
 ; Where the handheld base would seat the cartridge (lying flat, label to the back,
 ; its grip 18 mm out of the top edge), moved 5 mm toward the back of the shell.
