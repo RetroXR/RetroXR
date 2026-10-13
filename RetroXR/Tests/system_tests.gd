@@ -77,6 +77,32 @@ const MIXED_PORTS: Array = [
 		{"name": "Zapper", "id": 258}, {"name": "Super Scope", "id": 263}]},
 ]
 
+## A core that offers two guns on a port, both proper light-gun subclasses, and
+## lists the one a GunCon is NOT first: the shape of a PlayStation core's list.
+const TWO_GUN_PORTS: Array = [
+	{"port": 0, "controllers": [
+		{"name": "PlayStation Controller", "id": 1}, {"name": "Justifier", "id": 263},
+		{"name": "Guncon / G-Con 45", "id": 519}]},
+]
+
+## Two Saturn cores' lists. They agree on what a 3D Control Pad is called, near
+## enough, and not on its id: Beetle Saturn's 261 is the Yabause family's wheel.
+const BEETLE_SATURN_PORTS: Array = [
+	{"port": 0, "controllers": [
+		{"name": "Control Pad", "id": 1}, {"name": "3D Control Pad", "id": 261},
+		{"name": "Arcade Racer", "id": 517}]},
+]
+const YABAUSE_PORTS: Array = [
+	{"port": 0, "controllers": [
+		{"name": "Saturn Pad", "id": 1}, {"name": "Saturn 3D Pad", "id": 5},
+		{"name": "Saturn Wheel", "id": 261}]},
+]
+
+## A peripheral that is one particular gun, the way a mod's Zapper is.
+class _NamedGun extends Node:
+	var device_names := PackedStringArray(["zapper"])
+
+
 const DEVICE_NONE := 0
 const DEVICE_JOYPAD := 1
 const DEVICE_MOUSE := 2
@@ -239,6 +265,46 @@ func _test_core_device_id() -> void:
 	# Base type beats the name, however early the name matches.
 	sys._controller_info = MIXED_PORTS
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 263, "device/base type beats name")
+
+	# A gun that is one particular gun says which, and a core that lists several
+	# is told that one. The generic gun still gets the core's first.
+	sys._controller_info = TWO_GUN_PORTS
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 263, "device/generic gun takes the first gun listed")
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["guncon", "g-con"])), 519,
+		"device/a named gun is announced as the device of its name")
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["JUSTIFIER"])), 263,
+		"device/a name is matched whatever its case")
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["zapper"])), 263,
+		"device/a name the core does not list falls back to the first gun")
+	# Names are tried in the order given, each through the whole list.
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["guncon 2", "guncon"])), 519,
+		"device/a second name is tried when the core lists nothing of the first")
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["g-con", "justifier"])), 519,
+		"device/an earlier name wins over a device listed earlier")
+	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, PackedStringArray(["guncon"])), 519,
+		"device/a name is looked up whatever type carries it")
+	# A pad that is more than a plain joypad names itself the same way, and each
+	# core is told its own id for it.
+	var pad_3d := PackedStringArray(["3d control pad", "3d pad"])
+	sys._controller_info = BEETLE_SATURN_PORTS
+	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, pad_3d), 261, "device/a named pad is announced as the device of its name")
+	_eq(sys.core_device_id(DEVICE_JOYPAD, 0), DEVICE_JOYPAD, "device/a pad with no name is the plain joypad still")
+	sys._controller_info = YABAUSE_PORTS
+	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, pad_3d), 5, "device/and by another core's id for it on that core")
+	sys._controller_info = FCEUMM_PORTS
+	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, pad_3d), DEVICE_JOYPAD,
+		"device/a named pad the core does not list is announced as the type it carries")
+	_eq(sys.core_device_id(DEVICE_JOYPAD, 3, pad_3d), DEVICE_JOYPAD, "device/as it is on a port the core does not describe")
+	# The name wins even over the base type: fceumm's Zapper is a mouse subclass.
+	sys._controller_info = MIXED_PORTS
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["zapper"])), 258,
+		"device/a named gun beats the base type")
+	# A plug carries its controller's names to the port.
+	var named_gun := _NamedGun.new()
+	_eq(RetroSystem.device_names_of(named_gun), PackedStringArray(["zapper"]),
+		"device/names are read off a peripheral that has them")
+	_eq(RetroSystem.device_names_of(sys), PackedStringArray(), "device/and are none where it has none")
+	named_gun.free()
 
 	sys.free()
 

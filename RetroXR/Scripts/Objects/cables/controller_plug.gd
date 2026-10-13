@@ -10,6 +10,10 @@ var _plugged_in := false
 
 ## Device type exposed so system.gd can read it without knowing the controller type.
 var device_type: int = 1  # RETRO_DEVICE_JOYPAD
+## What the controller on the other end calls itself in a core's device list
+## (a gun's "zapper", "guncon"), copied with its device type. Empty for most.
+## See RetroSystem.core_device_id.
+var device_names: PackedStringArray = PackedStringArray()
 ## Systemid of the controller on the other end; "" = fits any port.
 var systemid: String = ""
 
@@ -115,6 +119,7 @@ func set_controller(controller: Node3D) -> void:
 	_controller = controller
 	if "device_type" in controller:
 		device_type = controller.device_type
+	device_names = RetroSystem.device_names_of(controller)
 	# Which system this plug fits. The port zone's snap filter reads it off the
 	# plug rather than chasing the cable back to the controller.
 	if "systemid" in controller:

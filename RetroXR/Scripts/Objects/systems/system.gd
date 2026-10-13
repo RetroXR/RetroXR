@@ -3998,7 +3998,8 @@ func _reannounce_port_devices() -> void:
 		if _wii_link != null and _port_plugs[i] != null:
 			announce = _wii_link.cabinet_device_id(dev)
 		var lib_port := _libretro_port_for(dev, i)
-		set_controller_port_device(lib_port, core_device_id(announce, lib_port))
+		set_controller_port_device(lib_port,
+			core_device_id(announce, lib_port, device_names_of(ctrl)))
 
 
 ## Say what is on each port a SECOND time, once the core has actually run a frame.
@@ -4139,7 +4140,7 @@ func _libretro_port_for(device_type: int, physical_port: int) -> int:
 
 
 ## The id the RUNNING core understands for a peripheral, given the generic type
-## the peripheral carries. Only the light gun needs translating, and it needs it
+## the peripheral carries. The light gun always needs translating, and it needs it
 ## badly: a core names its own device ids, and a gun is rarely plain
 ## RETRO_DEVICE_LIGHTGUN — fceumm's Zapper is 258, a MOUSE subclass. An id a core
 ## does not recognise does not leave the port alone either; fceumm's switch falls
@@ -4149,22 +4150,61 @@ func _libretro_port_for(device_type: int, physical_port: int) -> int:
 ## prefer an entry whose base type IS a light gun, else one whose name reads as a
 ## gun, else announce what we were given.
 ##
+## `named` is what a gun that is one PARTICULAR gun calls itself (a peripheral's
+## `device_names`: "zapper", "guncon"). A core that lists several guns on one
+## port lists them in its own order, and the first is not always the one in the
+## player's hand: a PlayStation core offers the GunCon and the Justifier. Where
+## the core has a device of one of those names, that is the one announced; where
+## it has none, the rules above stand, so a named gun is never worse off than
+## the generic one.
+##
+## A name is looked up for ANY peripheral that gives one, not only a gun. A pad
+## that is more than a plain joypad has the gun's problem exactly: a Saturn 3D
+## Control Pad is 261 to Beetle Saturn and 5 to the Yabause family, where 261 is
+## the steering wheel. Where the core lists nothing of its name the pad is
+## announced as the type it carries, which for a pad is the plain joypad every
+## core has.
+##
 ## Public because the suites assert against it directly: an underscore promises
 ## the name may change freely, and a test that names it is a caller that cannot.
-func core_device_id(device_type: int, lib_port: int) -> int:
+func core_device_id(device_type: int, lib_port: int,
+		named: PackedStringArray = PackedStringArray()) -> int:
+	if device_type != RETRO_DEVICE_LIGHTGUN and named.is_empty():
+		return device_type
+	var devices: Array = []
+	for entry: Dictionary in _controller_info:
+		if int(entry.get("port", -1)) == lib_port:
+			devices.append_array(entry.get("controllers", []))
+	# The names are in the peripheral's own order of preference, so each is
+	# looked for through the whole list before the next: a GunCon 2 that will
+	# settle for a GunCon still gets the "GunCon 2" a core lists after it.
+	for word: String in named:
+		if word.is_empty():
+			continue
+		for dev: Dictionary in devices:
+			if String(dev.get("name", "")).to_lower().contains(word.to_lower()):
+				return int(dev.get("id", 0))
 	if device_type != RETRO_DEVICE_LIGHTGUN:
 		return device_type
 	var by_name := -1
-	for entry: Dictionary in _controller_info:
-		if int(entry.get("port", -1)) != lib_port:
-			continue
-		for dev: Dictionary in entry.get("controllers", []):
-			var id := int(dev.get("id", 0))
-			if (id & RETRO_DEVICE_MASK) == RETRO_DEVICE_LIGHTGUN:
-				return id
-			if by_name < 0 and reads_as_lightgun(String(dev.get("name", ""))):
-				by_name = id
+	for dev: Dictionary in devices:
+		var id := int(dev.get("id", 0))
+		if (id & RETRO_DEVICE_MASK) == RETRO_DEVICE_LIGHTGUN:
+			return id
+		if by_name < 0 and reads_as_lightgun(String(dev.get("name", ""))):
+			by_name = id
 	return by_name if by_name >= 0 else device_type
+
+
+## The names a plugged peripheral goes by in a core's device list, or none. Read
+## off the plug or the controller, whichever the caller has: a plug copies its
+## controller's as it copies its device type.
+static func device_names_of(peripheral: Object) -> PackedStringArray:
+	if peripheral != null and "device_names" in peripheral:
+		var names: Variant = peripheral.get("device_names")
+		if names is PackedStringArray:
+			return names
+	return PackedStringArray()
 
 
 ## Whether a core's device NAME reads as a light gun, for the cores that
@@ -4394,7 +4434,7 @@ func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
 		if _wii_link != null:
 			_wii_link.evict_remote_from(lib_port)
 			announce = _wii_link.cabinet_device_id(device_type)
-	announce = core_device_id(announce, lib_port)
+	announce = core_device_id(announce, lib_port, device_names_of(plug))
 	print("[RetroSystem] port %d bound: device_type=%d -> libretro port %d (announced %d)" %
 		[cabinet_index, device_type, lib_port, announce])
 	if _claims_port_device(device_type):

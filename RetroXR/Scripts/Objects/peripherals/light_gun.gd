@@ -44,6 +44,12 @@ var _hint: HeldHint = null
 
 ## libretro device type reported to the system when plugged in.
 var device_type: int = RETRO_DEVICE_LIGHTGUN
+## What this gun is called in a core's own device list, lower case, when it is
+## one particular gun and not the generic one: ["zapper"], ["guncon"]. A core
+## that offers several guns on a port is then told this one and not whichever
+## it lists first (RetroSystem.core_device_id). Empty, the generic gun's, takes
+## the core's first.
+var device_names: PackedStringArray = PackedStringArray()
 
 ## Whether to show the laser-dot aim indicator on the screen.
 var show_laser_dot: bool = false
