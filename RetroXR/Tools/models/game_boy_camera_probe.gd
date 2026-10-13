@@ -1,9 +1,10 @@
 ## The Game Boy Camera stand-in: that a cartridge whose header says POCKET CAMERA
 ## wears it, that the part of it in the slot is still a Game Boy cartridge, and
-## that the ball turns half a turn the way a hand takes it -- over the top.
+## that the ball swivels the way the real one does -- about its upright axle, the
+## lens swinging round sideways and never tipping over the top.
 ##
 ## Spawns the cartridge from a fixture header (cartridge type 0xFC and nothing
-## else), drags the ball with a point where a latched hand would be, saves and
+## else), twists the ball with a point where a latched hand would be, saves and
 ## restores it, then seats it in a Game Boy Color through restore_cartridge().
 ## A plain Game Boy cartridge beside it is the control.
 ##
@@ -11,13 +12,14 @@
 ##
 ## Windowed (no --headless, `--resolution 320x240 --position 20,20`) it also
 ## photographs the camera into probe_out/gb_camera/, and with `-- --film` writes
-## the turn as frames into probe_out/gb_camera/film/ for an mp4.
+## the swivel as frames into probe_out/gb_camera/film/ for an mp4.
 extends Node3D
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const OUT_DIR := "res://probe_out/gb_camera"
 const FIXTURE_DIR := "user://__gb_camera_probe"
+const KNOB_PATH := "CartModel/Overhang/LensKnob"
 const SHOT := Vector2i(1200, 900)
 ## How far off the axle the stand-in hand holds the ball.
 const REACH := 0.03
@@ -35,7 +37,7 @@ func _check(ok: bool, what: String) -> void:
 
 
 func _ready() -> void:
-	get_tree().create_timer(150.0).timeout.connect(func() -> void:
+	get_tree().create_timer(240.0).timeout.connect(func() -> void:
 		print("[gbcam] TIMEOUT")
 		_clear_fixtures()
 		get_tree().quit(1))
@@ -138,17 +140,25 @@ func _run() -> void:
 	_check(plain.get_node_or_null("OverhangShape") == null, "and a plain cartridge has neither")
 	var head_box := AABB()
 	if head != null:
-		var hs := (head.shape as BoxShape3D).size
-		head_box = AABB(head.position - hs * 0.5, hs)
+		head_box = _box_of(head)
 		print("[gbcam] head box %s .. %s mm" % [head_box.position * 1000.0, head_box.end * 1000.0])
 		_check(head_box.position.y > size.y * 0.5 - 0.001 and absf(head_box.get_center().x) < 0.00001,
 			"it stands past the cartridge's grip end, from %.1f to %.1f mm" % [head_box.position.y * 1000.0, head_box.end.y * 1000.0])
-	var pivot := model.get_node("Overhang/LensPivot") as Node3D
+	var knob := model.get_node("Overhang/LensKnob") as VRKnob
+	var pivot := knob.get_node("KnobPivot") as Node3D
 	var ball := pivot.get_node("Ball") as MeshInstance3D
 	var ball_box: AABB = (to_cart * ball.global_transform) * ball.get_aabb()
+	var lens_y: float = (to_cart * (pivot.get_node("LensGlass") as Node3D).global_position).y
+	_check(head_box.end.y < lens_y - 0.006,
+		"nothing stands beside the ball: the housing ends %.1f mm below the lens" % ((lens_y - head_box.end.y) * 1000.0))
 	_check(ball_box.end.z > head_box.end.z + 0.002 and ball_box.position.z < head_box.position.z - 0.002
-			and ball_box.end.y > head_box.end.y + 0.001,
-		"the ball stands out of that box front, back and top, so a ray reaches it first")
+			and ball_box.end.y > head_box.end.y + 0.02,
+		"the ball stands on top of it and out of it front and back, so a ray reaches the ball first")
+	var rest := cart.get_node_or_null("OverhangMovingShape") as CollisionShape3D
+	_check(rest != null and _box_of(rest).grow(0.0001).encloses(ball_box),
+		"the ball has a box on the cartridge too, so the camera lies on its ball and not through it")
+	_check(cart.get_node_or_null("PointerArea/OverhangMovingShape") == null,
+		"but none to be aimed at: a ray at the ball is for the ball's own grab")
 	print("[gbcam] overall %.1f mm long, %.1f mm deep at the ball" % [
 		(ball_box.end.y + size.y * 0.5) * 1000.0, ball_box.size.z * 1000.0])
 
@@ -160,66 +170,77 @@ func _run() -> void:
 			and (base.get_active_material(0) as BaseMaterial3D).albedo_color == blue.color,
 		"cartridge and head are the Game Boy palette's blue")
 	var red_model := red.get_node("CartModel")
-	_check(((red_model.get_node("Overhang/CheekLeft") as MeshInstance3D).get_active_material(0) as BaseMaterial3D).albedo_color
-			== want_red.color, "and a forced shell repaints both")
-	_check(((red_model.get_node("Overhang/LensPivot/Ball") as MeshInstance3D).get_active_material(0) as BaseMaterial3D).albedo_color.r < 0.1,
-		"but never the ball")
+	_check(_albedo(red_model, "Tongue") == want_red.color and _albedo(red_model, "Overhang/HeadBase") == want_red.color,
+		"and a forced shell repaints both")
+	_check(_albedo(red_model, "Overhang/LensKnob/KnobPivot/Ball").r < 0.1, "but never the ball")
 	var title := cart.get_node("GameLabel") as Label3D
 	_check(title.visible and title.position.z > size.z * 0.5 and absf(title.position.x) < 0.001,
 		"with no scraped art its title is on the sticker")
 
 	# --- the ball ----------------------------------------------------------------
-	var hinge := pivot.get_node("LensHinge") as VRHinge
-	_check(hinge != null and hinge.target == pivot, "the ball is on a VRHinge that turns its pivot")
-	_check(is_equal_approx(hinge.min_deg, -180.0) and is_equal_approx(hinge.max_deg, 0.0), "through half a turn")
+	_check(knob.target == pivot, "the ball is on a VRKnob that turns its pivot")
+	_check(is_equal_approx(knob.deg_at_zero, -180.0) and is_equal_approx(knob.deg_at_one, 180.0)
+			and is_equal_approx(knob.get_value(), 0.5), "half a turn either way from the front")
 	_check(_lens(cart, pivot).z > 0.999, "at rest the lens looks out of the label side: %s" % _lens(cart, pivot))
-	# A latched hand, taking the ball by the lens and carrying it over the top to
-	# the back. The lens has to stay under the hand the whole way: backwards, or
-	# through the housing, and it leaves it.
+	# A latched hand, taking the ball by the lens and carrying it round by the
+	# cartridge's +X to the back. The lens has to stay under the hand the whole
+	# way, and level: the real one swivels, it does not tip.
 	var worst := 1.0
-	hinge._begin_track(_hand(cart, pivot, 0.0))
+	var tipped := 0.0
+	knob._begin_track(_hand(cart, pivot, 0.0))
 	for step in range(1, 19):
-		hinge._track_world_point(_hand(cart, pivot, float(step) * 10.0))
+		knob._track_world_point(_hand(cart, pivot, float(step) * 10.0))
 		worst = minf(worst, _lens(cart, pivot).dot(_arc(float(step) * 10.0)))
+		tipped = maxf(tipped, absf(_lens(cart, pivot).y))
 		if step == 9:
-			_check(_lens(cart, pivot).y > 0.999, "a quarter of the way it looks straight up: %s" % _lens(cart, pivot))
-	_check(worst > 0.999, "the lens follows the hand over the top (worst alignment %.4f)" % worst)
-	_check(is_equal_approx(hinge.get_rotation_deg(), -180.0) and _lens(cart, pivot).z < -0.999,
-		"and ends looking out of the back: %.1f deg, %s" % [hinge.get_rotation_deg(), _lens(cart, pivot)])
+			_check(_lens(cart, pivot).x > 0.999, "a quarter of the way it looks out of the side: %s" % _lens(cart, pivot))
+	_check(worst > 0.999, "the lens follows the hand round (worst alignment %.4f)" % worst)
+	_check(tipped < 0.0001, "and stays level all the way: it swivels, it does not tip (%.5f)" % tipped)
+	_check(is_equal_approx(knob.get_value(), 1.0) and _lens(cart, pivot).z < -0.999,
+		"and ends looking out of the back: value %.2f, %s" % [knob.get_value(), _lens(cart, pivot)])
 	for step in range(19, 24):
-		hinge._track_world_point(_hand(cart, pivot, float(step) * 10.0))
-	_check(is_equal_approx(hinge.get_rotation_deg(), -180.0), "it stops there, however much further the hand goes")
-	for step in range(23, -5, -1):
-		hinge._track_world_point(_hand(cart, pivot, float(step) * 10.0))
-	_check(is_equal_approx(hinge.get_rotation_deg(), 0.0) and _lens(cart, pivot).z > 0.999,
-		"and comes back to the front, and stops there too")
+		knob._track_world_point(_hand(cart, pivot, float(step) * 10.0))
+	_check(is_equal_approx(knob.get_value(), 1.0), "it stops there, however much further the hand goes")
+	# Back through the front and on round the other side.
+	for step in range(23, -19, -1):
+		knob._track_world_point(_hand(cart, pivot, float(step) * 10.0))
+		tipped = maxf(tipped, absf(_lens(cart, pivot).y))
+		if step == -9:
+			_check(_lens(cart, pivot).x < -0.999, "the other way round it passes the other side: %s" % _lens(cart, pivot))
+	_check(is_equal_approx(knob.get_value(), 0.0) and _lens(cart, pivot).z < -0.999 and tipped < 0.0001,
+		"to the back again, and stops there too: value %.2f" % knob.get_value())
+	for step in range(-18, 1):
+		knob._track_world_point(_hand(cart, pivot, float(step) * 10.0))
+	_check(is_equal_approx(knob.get_value(), 0.5) and _lens(cart, pivot).z > 0.999, "and comes back to the front")
 
 	# The desktop's way: press it with the reticle, then roll the wheel.
-	var press := XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, self, hinge, pivot.global_position, pivot.global_position)
-	hinge.pointer_event(press)
+	knob.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, self, knob,
+		pivot.global_position, pivot.global_position))
 	var notch := InputEventMouseButton.new()
 	notch.button_index = MOUSE_BUTTON_WHEEL_UP
 	notch.pressed = true
-	for i in 18:
-		hinge._unhandled_input(notch)
-	_check(is_equal_approx(hinge.get_rotation_deg(), -180.0), "eighteen notches of the wheel turn it all the way")
-	hinge.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, self, hinge, pivot.global_position, pivot.global_position))
+	for i in 10:
+		knob._unhandled_input(notch)
+	_check(is_equal_approx(knob.get_value(), 1.0) and _lens(cart, pivot).z < -0.999,
+		"ten notches of the wheel turn it to the back")
+	knob.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, self, knob,
+		pivot.global_position, pivot.global_position))
 
 	# --- it is saved, where it was left ------------------------------------------
 	var persistence := ScenePersistence.new()
 	var records: Array = persistence._serialize_articulated_controls(cart)
 	var saved := false
 	for rec: Dictionary in records:
-		if str(rec.get("path", "")) == "CartModel/Overhang/LensPivot/LensHinge":
-			saved = is_equal_approx(float(rec.get("value", 0.0)), -180.0)
-	_check(saved, "a save writes the ball's angle: %s" % str(records))
-	hinge.set_rotation_deg_no_signal(0.0)
+		if str(rec.get("path", "")) == KNOB_PATH and str(rec.get("kind", "")) == "knob":
+			saved = is_equal_approx(float(rec.get("value", 0.0)), 1.0)
+	_check(saved, "a save writes where the ball was left: %s" % str(records))
+	knob.set_value_no_signal(0.5)
 	persistence._restore_articulated_controls(cart, records)
-	_check(is_equal_approx(hinge.get_rotation_deg(), -180.0), "and a restore turns it back there")
-	hinge.set_rotation_deg_no_signal(0.0)
+	_check(is_equal_approx(knob.get_value(), 1.0) and _lens(cart, pivot).z < -0.999, "and a restore turns it back there")
+	knob.set_value_no_signal(0.5)
 
 	if DisplayServer.get_name() != "headless":
-		await _loose_shots(cart, hinge, [plain, red, forced])
+		await _loose_shots(cart, knob, [plain, red, forced])
 
 	# --- in a Game Boy Color -----------------------------------------------------
 	for other: Node3D in [plain, red, forced]:
@@ -244,16 +265,19 @@ func _run() -> void:
 	_check(head_in_sys.end.z < top_edge - 0.01, "and the head is clear of the console, %.1f mm past its top edge"
 		% ((top_edge - head_in_sys.end.z) * 1000.0))
 	var stub := (cart.get_node("CollisionShape3D") as CollisionShape3D).shape as BoxShape3D
-	_check(stub.size.y < size.y * 0.5 and (head.shape as BoxShape3D).size.is_equal_approx(head_box.size),
+	_check(stub.size.y < size.y * 0.5 and _box_of(head).is_equal_approx(head_box),
 		"the slot cuts the cartridge's box to its stub (%.1f mm) and leaves the head's alone" % (stub.size.y * 1000.0))
 	var out_front := (to_sys.basis * _world_lens(pivot)).normalized()
 	_check(out_front.y < -0.999, "at rest the lens looks out of the BACK of the console: %s" % out_front)
-	hinge.set_rotation_deg_remote(-180.0)
+	knob.set_value(0.75)
+	var out_side := (to_sys.basis * _world_lens(pivot)).normalized()
+	_check(absf(out_side.x) > 0.999, "a quarter turn, along the console's top edge: %s" % out_side)
+	knob.set_value(1.0)
 	var out_back := (to_sys.basis * _world_lens(pivot)).normalized()
-	_check(out_back.y > 0.999, "and turned, at whoever is looking at the screen: %s" % out_back)
+	_check(out_back.y > 0.999, "and half a turn, at whoever is looking at the screen: %s" % out_back)
 
 	if DisplayServer.get_name() != "headless":
-		await _seated_shots(sys, hinge)
+		await _seated_shots(sys, knob)
 
 	(sys.get("_cartridge_slot") as XRToolsSnapZone).drop_object()
 	await _wait(5)
@@ -265,6 +289,16 @@ func _run() -> void:
 	get_tree().quit(1 if _fail else 0)
 
 
+func _albedo(model: Node, path: String) -> Color:
+	return ((model.get_node(path) as MeshInstance3D).get_active_material(0) as BaseMaterial3D).albedo_color
+
+
+## A box shape's bounds in its body's frame.
+func _box_of(col: CollisionShape3D) -> AABB:
+	var box := (col.shape as BoxShape3D).size
+	return AABB(col.position - box * 0.5, box)
+
+
 ## Where the lens points, in the cartridge's frame.
 func _lens(cart: Node3D, pivot: Node3D) -> Vector3:
 	return (cart.global_transform.basis.inverse() * _world_lens(pivot)).normalized()
@@ -274,17 +308,19 @@ func _world_lens(pivot: Node3D) -> Vector3:
 	return ((pivot.get_node("LensGlass") as Node3D).global_position - pivot.global_position).normalized()
 
 
-## The direction `deg` round the arc from the label side over the top to the
-## back, in the cartridge's frame: +Z at 0, +Y at 90, -Z at 180.
+## The direction `deg` round the upright axle from the label side, in the
+## cartridge's frame: +Z at 0, +X at 90, -Z at 180 and at -180, -X at -90.
 func _arc(deg: float) -> Vector3:
-	var a := deg_to_rad(clampf(deg, 0.0, 180.0))
-	return Vector3(0.0, sin(a), cos(a))
+	var a := deg_to_rad(clampf(deg, -180.0, 180.0))
+	return Vector3(sin(a), 0.0, cos(a))
 
 
-## A hand `deg` round that arc (unclamped: a hand can go where the ball cannot).
+## A hand `deg` round that axle (unclamped: a hand can go where the ball cannot),
+## and a little above the lens, which is where one holding a ball would be.
 func _hand(cart: Node3D, pivot: Node3D, deg: float) -> Vector3:
 	var a := deg_to_rad(deg)
-	return pivot.global_position + cart.global_transform.basis * (Vector3(0.0, sin(a), cos(a)) * REACH)
+	return pivot.global_position + cart.global_transform.basis \
+		* (Vector3(sin(a), 0.0, cos(a)) * REACH + Vector3(0.0, 0.008, 0.0))
 
 
 # --- windowed: pictures --------------------------------------------------------
@@ -307,7 +343,7 @@ func _camera() -> void:
 		LoadingOverlay.end(o)
 
 
-func _loose_shots(cart: Node3D, hinge: VRHinge, others: Array) -> void:
+func _loose_shots(cart: Node3D, knob: VRKnob, others: Array) -> void:
 	_camera()
 	var c := cart.global_position + Vector3(0, 0.022, 0)
 	# The row: a game, the camera, a red one, and the body forced onto a game.
@@ -317,28 +353,29 @@ func _loose_shots(cart: Node3D, hinge: VRHinge, others: Array) -> void:
 		other.visible = false
 	await _snap(c + Vector3(0.10, 0.06, 0.33), c, "front")
 	await _snap(c + Vector3(-0.12, 0.05, -0.31), c, "back")
-	# From over one shoulder, where all three of the ball's positions show.
-	var over := c + Vector3(0.20, 0.17, 0.22)
+	# From above one shoulder, where the sideways swing shows.
+	var over := c + Vector3(0.15, 0.24, 0.20)
 	await _snap(over, c, "lens_front")
-	hinge.set_rotation_deg_no_signal(-90.0)
-	await _snap(over, c, "lens_up")
-	hinge.set_rotation_deg_no_signal(-180.0)
+	knob.set_value_no_signal(0.75)
+	await _snap(over, c, "lens_side")
+	knob.set_value_no_signal(1.0)
 	await _snap(over, c, "lens_back")
 	await _snap(c + Vector3(-0.12, 0.05, -0.31), c, "back_lens_back")
-	hinge.set_rotation_deg_no_signal(0.0)
+	knob.set_value_no_signal(0.5)
 	if OS.get_cmdline_user_args().has("--film"):
-		await _film(cart, hinge, over, c)
+		await _film(cart, knob, over, c)
 	for other: Node3D in others:
 		other.visible = true
 
 
-## The turn, as frames for an mp4 (`-- --film`): an orange bead where a latched
-## hand is, carried over the top and back, and the ball driven by nothing but
-## that point -- the same call the trigger makes every frame it is held.
-func _film(cart: Node3D, hinge: VRHinge, eye: Vector3, target: Vector3) -> void:
+## The swivel, as frames for an mp4 (`-- --film`): an orange bead where a latched
+## hand is, carried round one side to the back, home, and round the other, and
+## the ball driven by nothing but that point -- the same call the trigger makes
+## every frame it is held.
+func _film(cart: Node3D, knob: VRKnob, eye: Vector3, target: Vector3) -> void:
 	var dir := ProjectSettings.globalize_path(OUT_DIR.path_join("film"))
 	DirAccess.make_dir_recursive_absolute(dir)
-	var pivot := hinge.target
+	var pivot := knob.target
 	var bead := MeshInstance3D.new()
 	var sphere := SphereMesh.new()
 	sphere.radius = 0.004
@@ -353,19 +390,18 @@ func _film(cart: Node3D, hinge: VRHinge, eye: Vector3, target: Vector3) -> void:
 	_cam.look_at_from_position(eye, target, Vector3.UP)
 	_cam.current = true
 	var path: Array[float] = []
-	for i in range(0, 61):
-		path.append(float(i) * 3.0)
-	for i in 12:
-		path.append(180.0)
-	for i in range(60, -1, -1):
-		path.append(float(i) * 3.0)
-	for i in 12:
-		path.append(0.0)
-	hinge._begin_track(_hand(cart, pivot, 0.0))
+	for leg: Array in [[0, 180], [180, 0], [0, -180], [-180, 0]]:
+		var from: int = leg[0]
+		var to: int = leg[1]
+		for deg in range(from, to, 4 if to > from else -4):
+			path.append(float(deg))
+		for i in 10:
+			path.append(float(to))
+	knob._begin_track(_hand(cart, pivot, 0.0))
 	var frame := 0
 	for deg: float in path:
 		bead.global_position = _hand(cart, pivot, deg)
-		hinge._track_world_point(bead.global_position)
+		knob._track_world_point(bead.global_position)
 		await _wait(2)
 		await RenderingServer.frame_post_draw
 		var img := _sv.get_texture().get_image()
@@ -374,18 +410,19 @@ func _film(cart: Node3D, hinge: VRHinge, eye: Vector3, target: Vector3) -> void:
 		img.save_png(dir.path_join("%04d.png" % frame))
 		frame += 1
 	bead.queue_free()
-	hinge.set_rotation_deg_no_signal(0.0)
-	_check(frame == path.size(), "filmed the turn: %d frames in %s" % [frame, dir])
+	knob.set_value_no_signal(0.5)
+	_check(frame == path.size(), "filmed the swivel: %d frames in %s" % [frame, dir])
 
 
-func _seated_shots(sys: Node3D, hinge: VRHinge) -> void:
+func _seated_shots(sys: Node3D, knob: VRKnob) -> void:
 	_camera()
 	# The console lies screen-up with its top edge toward -Z; the pictures are of
 	# it as it is held, from over the bottom edge and from behind the top one.
 	var c := sys.global_position + Vector3(0, 0, -0.03)
 	await _snap(c + Vector3(-0.10, 0.34, 0.30), c, "seated_lens_at_player")
-	await _snap(c + Vector3(0.12, -0.20, -0.38), c, "seated_from_behind_lens_at_player")
-	hinge.set_rotation_deg_no_signal(0.0)
+	knob.set_value_no_signal(0.75)
+	await _snap(c + Vector3(-0.10, 0.34, 0.30), c, "seated_lens_sideways")
+	knob.set_value_no_signal(0.5)
 	await _snap(c + Vector3(0.12, -0.20, -0.38), c, "seated_from_behind_lens_out")
 	await _snap(c + Vector3(0.34, 0.06, -0.06), c, "seated_side")
 

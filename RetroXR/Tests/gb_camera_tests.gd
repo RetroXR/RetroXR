@@ -1,6 +1,6 @@
 ## Game Boy Camera self-tests — the header lookup that picks its body, the
 ## cartridge that wears it (a Game Boy cartridge with a head standing outside the
-## slot), the ball a hand turns half a turn, and the seat it shares with a game.
+## slot), the ball a hand swivels half a turn, and the seat it shares with a game.
 ##
 ##     "$godot" --headless --path RetroXR res://Tests/gb_camera_tests.tscn
 ##     "$godot" --headless --path RetroXR res://Tests/gb_camera_tests.tscn -- --only=ball
@@ -15,7 +15,7 @@ extends Node
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const FIXTURE := "__gbcamera_selftest"
-const HINGE_PATH := "CartModel/Overhang/LensPivot/LensHinge"
+const KNOB_PATH := "CartModel/Overhang/LensKnob"
 ## How far off the axle the stand-in hand holds the ball.
 const REACH := 0.03
 
@@ -159,25 +159,30 @@ func _box_of(col: CollisionShape3D) -> AABB:
 	return AABB(col.position - size * 0.5, size)
 
 
+func _pivot(cart: Node3D) -> Node3D:
+	return cart.get_node(KNOB_PATH + "/KnobPivot") as Node3D
+
+
 ## Where the lens points, in the cartridge's frame.
 func _lens(cart: Node3D) -> Vector3:
-	var pivot := cart.get_node("CartModel/Overhang/LensPivot") as Node3D
+	var pivot := _pivot(cart)
 	var out := (pivot.get_node("LensGlass") as Node3D).global_position - pivot.global_position
 	return (cart.global_transform.basis.inverse() * out).normalized()
 
 
-## The direction `deg` round the arc from the label side over the top to the
-## back, in the cartridge's frame: +Z at 0, +Y at 90, -Z at 180.
+## The direction `deg` round the upright axle from the label side, in the
+## cartridge's frame: +Z at 0, +X at 90, -Z at 180 and at -180, -X at -90.
 func _arc(deg: float) -> Vector3:
-	var a := deg_to_rad(clampf(deg, 0.0, 180.0))
-	return Vector3(0.0, sin(a), cos(a))
+	var a := deg_to_rad(clampf(deg, -180.0, 180.0))
+	return Vector3(sin(a), 0.0, cos(a))
 
 
-## A hand `deg` round that arc (unclamped: a hand can go where the ball cannot).
+## A hand `deg` round that axle (unclamped: a hand can go where the ball cannot),
+## and a little above the lens, which is where one holding a ball would be.
 func _hand(cart: Node3D, deg: float) -> Vector3:
-	var pivot := cart.get_node("CartModel/Overhang/LensPivot") as Node3D
 	var a := deg_to_rad(deg)
-	return pivot.global_position + cart.global_transform.basis * (Vector3(0.0, sin(a), cos(a)) * REACH)
+	return _pivot(cart).global_position + cart.global_transform.basis \
+		* (Vector3(sin(a), 0.0, cos(a)) * REACH + Vector3(0.0, 0.008, 0.0))
 
 
 # ── groups ────────────────────────────────────────────────────────────────────
@@ -217,23 +222,34 @@ func _test_body() -> void:
 	_ok(overhang != null, "body/it has an Overhang")
 	var label := CartridgeLabel.find_label(body)
 	_ok(label != null and not overhang.is_ancestor_of(label), "body/and a sticker on the cartridge, not the head")
+	var knob := body.get_node_or_null("Overhang/LensKnob") as VRKnob
+	_ok(knob != null and knob.target == knob.get_node_or_null("KnobPivot"), "body/the ball's knob turns its pivot")
+	# The housing is under the ball and nowhere beside it: the real one's ball
+	# stands on top with nothing either side.
 	var housing := 0
+	var beside := PackedStringArray()
 	for n in overhang.get_children():
-		if n is MeshInstance3D:
-			housing += 1
+		var mi := n as MeshInstance3D
+		if mi == null:
+			continue
+		housing += 1
+		if knob != null and (mi.transform * mi.get_aabb()).end.y > knob.position.y - 0.0065:
+			beside.append(str(mi.name))
 	_ok(housing >= 1, "body/the head has fixed housing for its box to fit", "%d meshes directly under Overhang" % housing)
+	_ok(beside.is_empty(), "body/and none of it stands beside the ball", str(beside))
 	var painted := PackedStringArray()
 	for s: Dictionary in CartridgeColor.shell_surfaces(body):
 		painted.append(str((s["mesh"] as Node).name))
-	_ok(painted.has("Tongue") and painted.has("HeadBase") and painted.has("CheekLeft") and painted.has("CheekRight"),
-		"body/cartridge and head are shell plastic", str(painted))
+	_ok(painted.has("Tongue") and painted.has("HeadBase"), "body/cartridge and head are shell plastic", str(painted))
 	_ok(not painted.has("Ball") and not painted.has("LensBezel") and not painted.has("LensGlass") and not painted.has("Label"),
 		"body/the ball, the lens and the sticker are not", str(painted))
-	var hinge := body.get_node_or_null("Overhang/LensPivot/LensHinge") as VRHinge
-	_ok(hinge != null and hinge.target == body.get_node("Overhang/LensPivot"), "body/the ball's hinge turns its pivot")
-	_ok(hinge != null and is_equal_approx(hinge.min_deg, -180.0) and is_equal_approx(hinge.max_deg, 0.0),
-		"body/through half a turn")
-	_ok(hinge != null and not hinge.grip_engages, "body/on the trigger: the grip is how the cartridge is picked up")
+	if knob != null:
+		# The knob turns about its own Z, so its Z has to be the cartridge's length:
+		# the axle stands upright. Written as its transpose it lies along the label.
+		_ok((knob.transform.basis.z - Vector3.UP).length() < 0.0001, "body/the ball's axle stands upright",
+			str(knob.transform.basis.z))
+		_ok(is_equal_approx(knob.deg_at_zero, -180.0) and is_equal_approx(knob.deg_at_one, 180.0)
+			and is_equal_approx(knob.get_value(), 0.5), "body/half a turn either way, and it starts at the front")
 	body.free()
 
 
@@ -268,24 +284,30 @@ func _test_cartridge() -> void:
 	var head := camera.get_node_or_null("OverhangShape") as CollisionShape3D
 	var aim := camera.get_node_or_null("PointerArea/OverhangShape") as CollisionShape3D
 	_ok(head != null and aim != null, "cartridge/the head has a box to be taken by and one to be aimed at")
-	_ok(game.get_node_or_null("OverhangShape") == null and game.get_node_or_null("PointerArea/OverhangShape") == null,
-		"cartridge/a game's cartridge has neither")
+	_ok(game.get_node_or_null("OverhangShape") == null and game.get_node_or_null("PointerArea/OverhangShape") == null
+		and game.get_node_or_null("OverhangMovingShape") == null, "cartridge/a game's cartridge has none of them")
 	if head != null and aim != null:
 		var head_box := _box_of(head)
-		_ok(head_box.position.y > size.y * 0.5 - 0.001 and head_box.size.y > 0.03,
+		_ok(head_box.position.y > size.y * 0.5 - 0.001 and head_box.size.y > 0.015,
 			"cartridge/the head's box stands past the grip end", str(head_box))
 		_ok(_box_of(aim).is_equal_approx(head_box), "cartridge/and the aim box is the same box")
-		var ball := model.get_node("Overhang/LensPivot/Ball") as MeshInstance3D
+		var ball := _pivot(camera).get_node("Ball") as MeshInstance3D
 		var ball_box: AABB = (camera.global_transform.affine_inverse() * ball.global_transform) * ball.get_aabb()
 		_ok(ball_box.end.z > head_box.end.z + 0.002 and ball_box.position.z < head_box.position.z - 0.002
-			and ball_box.end.y > head_box.end.y + 0.001,
-			"cartridge/the ball stands out of it front, back and top, so a ray reaches the ball first")
+			and ball_box.end.y > head_box.end.y + 0.02,
+			"cartridge/the ball stands on top of it and out of it front and back, so a ray reaches the ball first")
+		# The cartridge rests on the ball, and is lifted by it.
+		var rest := camera.get_node_or_null("OverhangMovingShape") as CollisionShape3D
+		_ok(rest != null and _box_of(rest).grow(0.0001).encloses(ball_box),
+			"cartridge/the ball has a box on the cartridge to rest on", str(_box_of(rest)) if rest != null else "none")
+		_ok(camera.get_node_or_null("PointerArea/OverhangMovingShape") == null,
+			"cartridge/and none to be aimed at, which would stand in front of its own grab")
 
 	_ok(_albedo(camera, "Tongue") == _gb_preset(&"blue").color and _albedo(camera, "HeadBase") == _gb_preset(&"blue").color,
 		"cartridge/it is blue, cartridge and head")
-	_ok(_albedo(red, "Tongue") == _gb_preset(&"red").color and _albedo(red, "CheekLeft") == _gb_preset(&"red").color,
+	_ok(_albedo(red, "Tongue") == _gb_preset(&"red").color and _albedo(red, "HeadBase") == _gb_preset(&"red").color,
 		"cartridge/a forced Game Boy shell repaints both")
-	_ok(_albedo(mixed, "CheekRight") == Color("#3fa34d"), "cartridge/and so does a mixed colour")
+	_ok(_albedo(mixed, "HeadBase") == Color("#3fa34d"), "cartridge/and so does a mixed colour")
 	_ok(_albedo(red, "Ball").r < 0.1 and _albedo(mixed, "Ball").g < 0.1, "cartridge/the ball stays black")
 
 	var label := CartridgeLabel.find_label(model)
@@ -307,52 +329,65 @@ func _test_ball() -> void:
 	# cartridge's rest pose is measuring in the wrong frame.
 	cart.global_transform = Transform3D(Basis.from_euler(Vector3(0.4, -1.1, 0.25)), Vector3(0.3, 1.2, -0.2))
 	await get_tree().process_frame
-	var hinge := cart.get_node(HINGE_PATH) as VRHinge
+	var knob := cart.get_node(KNOB_PATH) as VRKnob
 	_ok(_lens(cart).z > 0.999, "ball/at rest the lens looks out of the label side", str(_lens(cart)))
-	# A latched hand taking the ball by the lens and carrying it over the top.
+	# A latched hand taking the ball by the lens and carrying it round one side to
+	# the back. The real one swivels about its upright axle: the lens stays level.
 	var worst := 1.0
-	var at_top := Vector3.ZERO
-	hinge._begin_track(_hand(cart, 0.0))
+	var tipped := 0.0
+	var at_side := Vector3.ZERO
+	knob._begin_track(_hand(cart, 0.0))
 	for step in range(1, 19):
-		hinge._track_world_point(_hand(cart, float(step) * 10.0))
+		knob._track_world_point(_hand(cart, float(step) * 10.0))
 		worst = minf(worst, _lens(cart).dot(_arc(float(step) * 10.0)))
+		tipped = maxf(tipped, absf(_lens(cart).y))
 		if step == 9:
-			at_top = _lens(cart)
-	_ok(at_top.y > 0.999, "ball/a quarter turn points it straight up, not down through the housing", str(at_top))
-	_ok(worst > 0.999, "ball/the lens stays under the hand the whole way over", "worst alignment %.4f" % worst)
-	_ok(is_equal_approx(hinge.get_rotation_deg(), -180.0) and _lens(cart).z < -0.999,
-		"ball/half a turn ends looking out of the back", "%.2f deg, %s" % [hinge.get_rotation_deg(), _lens(cart)])
+			at_side = _lens(cart)
+	_ok(at_side.x > 0.999, "ball/a quarter turn points it out of the side, not up over the top", str(at_side))
+	_ok(tipped < 0.0001, "ball/the lens stays level the whole way: it swivels, it does not tip", "%.5f" % tipped)
+	_ok(worst > 0.999, "ball/and stays under the hand the whole way round", "worst alignment %.4f" % worst)
+	_ok(is_equal_approx(knob.get_value(), 1.0) and _lens(cart).z < -0.999,
+		"ball/half a turn ends looking out of the back", "value %.3f, %s" % [knob.get_value(), _lens(cart)])
 	for step in range(19, 25):
-		hinge._track_world_point(_hand(cart, float(step) * 10.0))
-	_ok(is_equal_approx(hinge.get_rotation_deg(), -180.0), "ball/and no further, wherever the hand goes",
-		"%.2f deg" % hinge.get_rotation_deg())
-	for step in range(24, -6, -1):
-		hinge._track_world_point(_hand(cart, float(step) * 10.0))
-	_ok(is_equal_approx(hinge.get_rotation_deg(), 0.0) and _lens(cart).z > 0.999,
-		"ball/it comes back the same way and stops at the front", "%.2f deg" % hinge.get_rotation_deg())
+		knob._track_world_point(_hand(cart, float(step) * 10.0))
+	_ok(is_equal_approx(knob.get_value(), 1.0) and _lens(cart).z < -0.999, "ball/and no further, wherever the hand goes",
+		"value %.3f" % knob.get_value())
+	# Back through the front and on round the other side.
+	var other_side := Vector3.ZERO
+	for step in range(24, -19, -1):
+		knob._track_world_point(_hand(cart, float(step) * 10.0))
+		tipped = maxf(tipped, absf(_lens(cart).y))
+		if step == 0:
+			_ok(is_equal_approx(knob.get_value(), 0.5) and _lens(cart).z > 0.999, "ball/it comes back the same way to the front")
+		if step == -9:
+			other_side = _lens(cart)
+	_ok(other_side.x < -0.999, "ball/and goes round the other side as well", str(other_side))
+	_ok(is_equal_approx(knob.get_value(), 0.0) and _lens(cart).z < -0.999 and tipped < 0.0001,
+		"ball/to the back again, level, and stops", "value %.3f" % knob.get_value())
+	knob.set_value_no_signal(0.5)
 
-	# A hand that takes hold anywhere on the ball turns it by how far the hand
+	# A hand that takes hold anywhere round the ball turns it by how far the hand
 	# moves; it does not snap the lens to the hand.
-	hinge._begin_track(_hand(cart, 120.0))
-	_ok(is_equal_approx(hinge.get_rotation_deg(), 0.0), "ball/taking hold does not move it")
-	hinge._track_world_point(_hand(cart, 150.0))
-	_ok(absf(hinge.get_rotation_deg() + 30.0) < 0.01, "ball/thirty degrees of hand is thirty degrees of ball",
-		"%.2f deg" % hinge.get_rotation_deg())
-	hinge.set_rotation_deg_no_signal(0.0)
+	knob._begin_track(_hand(cart, 120.0))
+	_ok(is_equal_approx(knob.get_value(), 0.5), "ball/taking hold does not move it")
+	knob._track_world_point(_hand(cart, 150.0))
+	_ok(absf(_lens(cart).dot(_arc(30.0)) - 1.0) < 0.0001, "ball/thirty degrees of hand is thirty degrees of ball", str(_lens(cart)))
+	knob.set_value_no_signal(0.5)
 
 	# The desktop's way: press the ball with the reticle, then roll the wheel.
-	var pivot := hinge.target
-	hinge.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, cart, hinge,
+	var pivot := _pivot(cart)
+	knob.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.PRESSED, cart, knob,
 		pivot.global_position, pivot.global_position))
 	var notch := InputEventMouseButton.new()
 	notch.button_index = MOUSE_BUTTON_WHEEL_UP
 	notch.pressed = true
-	hinge._unhandled_input(notch)
-	_ok(_lens(cart).y > 0.1 and _lens(cart).z > 0.0, "ball/a notch of the wheel starts it up over the top", str(_lens(cart)))
-	for i in 17:
-		hinge._unhandled_input(notch)
-	_ok(is_equal_approx(hinge.get_rotation_deg(), -180.0), "ball/and eighteen take it all the way")
-	hinge.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, cart, hinge,
+	knob._unhandled_input(notch)
+	_ok(absf(_lens(cart).y) < 0.0001 and absf(_lens(cart).x) > 0.2 and _lens(cart).z > 0.0,
+		"ball/a notch of the wheel starts it round sideways", str(_lens(cart)))
+	for i in 9:
+		knob._unhandled_input(notch)
+	_ok(_lens(cart).z < -0.999, "ball/and ten take it to the back", str(_lens(cart)))
+	knob.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, cart, knob,
 		pivot.global_position, pivot.global_position))
 	cart.queue_free()
 	await get_tree().process_frame
@@ -360,23 +395,23 @@ func _test_ball() -> void:
 
 func _test_saved() -> void:
 	var cart := await _spawn(_write_rom("saved.gb", _camera()))
-	var hinge := cart.get_node(HINGE_PATH) as VRHinge
-	hinge.set_rotation_deg_no_signal(-135.0)
+	var knob := cart.get_node(KNOB_PATH) as VRKnob
+	knob.set_value_no_signal(0.875)
 	var persistence := ScenePersistence.new()
 	var records: Array = persistence._serialize_articulated_controls(cart)
 	var value := NAN
 	for rec: Dictionary in records:
-		if str(rec.get("path", "")) == HINGE_PATH and str(rec.get("kind", "")) == "hinge":
+		if str(rec.get("path", "")) == KNOB_PATH and str(rec.get("kind", "")) == "knob":
 			value = float(rec.get("value", NAN))
-	_ok(is_equal_approx(value, -135.0), "saved/a save writes where the ball was left", str(records))
+	_ok(is_equal_approx(value, 0.875), "saved/a save writes where the ball was left", str(records))
 	# The restore is of another cartridge: a new one, built from the same ROM.
 	var again := await _spawn(_write_rom("saved.gb", _camera()))
 	persistence._restore_articulated_controls(again, records)
-	_ok(is_equal_approx((again.get_node(HINGE_PATH) as VRHinge).get_rotation_deg(), -135.0),
+	_ok(is_equal_approx((again.get_node(KNOB_PATH) as VRKnob).get_value(), 0.875),
 		"saved/and a restored cartridge's ball is turned back there")
 	_ok(absf(_lens(again).dot(_arc(135.0)) - 1.0) < 0.0001, "saved/lens and all", str(_lens(again)))
 	# What netplay binds, by the same walk.
-	_ok(cart.find_children("*", "VRHinge", true, false).has(hinge), "saved/the hinge is found from the cartridge")
+	_ok(cart.find_children("*", "VRKnob", true, false).has(knob), "saved/the knob is found from the cartridge")
 	cart.queue_free()
 	again.queue_free()
 	await get_tree().process_frame
@@ -411,7 +446,9 @@ func _test_seated() -> void:
 
 		var camera := await _spawn(_write_rom("seat_camera.gb", _camera()))
 		var head := camera.get_node("OverhangShape") as CollisionShape3D
+		var rest := camera.get_node("OverhangMovingShape") as CollisionShape3D
 		var head_box := _box_of(head)
+		var rest_box := _box_of(rest)
 		sys.restore_cartridge(camera)
 		for i in 30:
 			await get_tree().process_frame
@@ -425,16 +462,20 @@ func _test_seated() -> void:
 		_ok(head_in_sys.end.z < edge - 0.005, "seated/%s: its head is clear of the top edge" % systemid,
 			"head to z %.1f mm, edge %.1f mm" % [head_in_sys.end.z * 1000.0, edge * 1000.0])
 		var stub := _box_of(camera.get_node("CollisionShape3D") as CollisionShape3D)
-		_ok(stub.size.y < size.y and _box_of(head).is_equal_approx(head_box),
-			"seated/%s: the slot cuts the cartridge's box to its stub and leaves the head's" % systemid,
+		_ok(stub.size.y < size.y and _box_of(head).is_equal_approx(head_box) and _box_of(rest).is_equal_approx(rest_box),
+			"seated/%s: the slot cuts the cartridge's box to its stub and leaves the head's and the ball's" % systemid,
 			"stub %.1f mm" % (stub.size.y * 1000.0))
-		var hinge := camera.get_node(HINGE_PATH) as VRHinge
-		var pivot := hinge.target
-		var out := (to_sys.basis * ((pivot.get_node("LensGlass") as Node3D).global_position - pivot.global_position)).normalized()
+		var knob := camera.get_node(KNOB_PATH) as VRKnob
+		var pivot := _pivot(camera)
+		var glass := pivot.get_node("LensGlass") as Node3D
+		var out := (to_sys.basis * (glass.global_position - pivot.global_position)).normalized()
 		_ok(out.y < -0.999, "seated/%s: at rest the lens looks out of the back of the console" % systemid, str(out))
-		hinge.set_rotation_deg_remote(-180.0)
-		out = (to_sys.basis * ((pivot.get_node("LensGlass") as Node3D).global_position - pivot.global_position)).normalized()
-		_ok(out.y > 0.999, "seated/%s: turned, it looks at whoever is looking at the screen" % systemid, str(out))
+		knob.set_value(0.75)
+		out = (to_sys.basis * (glass.global_position - pivot.global_position)).normalized()
+		_ok(absf(out.x) > 0.999, "seated/%s: a quarter turn, along the top edge" % systemid, str(out))
+		knob.set_value(1.0)
+		out = (to_sys.basis * (glass.global_position - pivot.global_position)).normalized()
+		_ok(out.y > 0.999, "seated/%s: half a turn, at whoever is looking at the screen" % systemid, str(out))
 		slot.drop_object()
 		for i in 5:
 			await get_tree().process_frame

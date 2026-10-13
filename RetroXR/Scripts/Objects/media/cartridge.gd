@@ -114,6 +114,7 @@ const _EDGE_BASIS := Basis(Vector3.RIGHT, Vector3.BACK, Vector3.DOWN)
 ## plain cartridge's. See _cart_model_aabb and _add_overhang_shapes.
 const OVERHANG_NODE := "Overhang"
 const _OVERHANG_SHAPE := "OverhangShape"
+const _OVERHANG_MOVING_SHAPE := "OverhangMovingShape"
 
 ## The model's own label face, when a real cart model is in use.
 var _model_label: MeshInstance3D = null
@@ -369,38 +370,53 @@ func _cart_model_aabb(root: Node3D) -> AABB:
 
 ## A box for a body's overhang to rest on and be taken by, and one for it to be
 ## aimed at, fitted to the meshes DIRECTLY under the overhang: its fixed housing.
-## What is deeper is a moving part with a grab of its own (the camera's ball), and
-## stands clear of this box so a ray reaches it first.
+##
+## What is deeper is a moving part with a grab of its own (the camera's ball). It
+## gets a box on the cartridge too, as it lies at rest, because the cartridge
+## rests on it and is lifted by it: without one the ball sank 4 mm into whatever
+## the camera was laid on. It gets none to be aimed at. A ray at it is for its own
+## grab, which an aim box of the cartridge's would stand in front of.
 ##
 ## Separate nodes from the cartridge's own two shapes, which every size pass
 ## rewrites: cut down to the stub in a handheld's slot, the cartridge keeps its
 ## head in reach, and a hand takes it out by that as it would the real one.
 func _add_overhang_shapes(model: Node3D) -> void:
 	var overhang := model.get_node_or_null(OVERHANG_NODE) as Node3D
-	if overhang == null or has_node(_OVERHANG_SHAPE):
+	if overhang == null or has_node(_OVERHANG_SHAPE) or has_node(_OVERHANG_MOVING_SHAPE):
 		return
 	var to_cart := global_transform.affine_inverse()
-	var acc := AABB()
-	var first := true
-	for n in overhang.get_children():
+	var housing := AABB()
+	var moving := AABB()
+	var has_housing := false
+	var has_moving := false
+	for n in overhang.find_children("*", "MeshInstance3D", true, false):
 		var mi := n as MeshInstance3D
-		if mi == null or mi.mesh == null:
+		if mi.mesh == null:
 			continue
 		var ab: AABB = (to_cart * mi.global_transform) * mi.get_aabb()
-		acc = ab if first else acc.merge(ab)
-		first = false
-	if first:
-		return
+		if mi.get_parent() == overhang:
+			housing = housing.merge(ab) if has_housing else ab
+			has_housing = true
+		else:
+			moving = moving.merge(ab) if has_moving else ab
+			has_moving = true
+	if has_housing:
+		_add_box(self, _OVERHANG_SHAPE, housing)
+		var pointer := get_node_or_null("PointerArea")
+		if pointer != null:
+			_add_box(pointer, _OVERHANG_SHAPE, housing)
+	if has_moving:
+		_add_box(self, _OVERHANG_MOVING_SHAPE, moving)
+
+
+func _add_box(holder: Node, shape_name: String, bounds: AABB) -> void:
 	var box := BoxShape3D.new()
-	box.size = acc.size
-	for holder: Node in [self, get_node_or_null("PointerArea")]:
-		if holder == null:
-			continue
-		var col := CollisionShape3D.new()
-		col.name = _OVERHANG_SHAPE
-		col.shape = box
-		col.position = acc.get_center()
-		holder.add_child(col)
+	box.size = bounds.size
+	var col := CollisionShape3D.new()
+	col.name = shape_name
+	col.shape = box
+	col.position = bounds.get_center()
+	holder.add_child(col)
 
 
 ## Bounds of the flat face of a model's label mesh, in cartridge space.

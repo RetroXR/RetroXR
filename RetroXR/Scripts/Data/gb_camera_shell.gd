@@ -10,9 +10,9 @@
 ## cartridge, and that is all MediaDimensions and every slot in the room know of
 ## it, so it seats wherever a Game Boy cartridge does and exactly as one does.
 ## The head is the body's "Overhang" (RetroCartridge.OVERHANG_NODE): it stands
-## outside whatever the cartridge is seated in, with a box of its own to be taken
-## by. The ball in it turns half a turn on a VRHinge, from looking out of the
-## label side, over the top, to looking out of the back.
+## outside whatever the cartridge is seated in, with boxes of its own to be taken
+## by. The ball stands on top of it and swivels about its upright axle on a
+## VRKnob, the lens swinging round sideways from the label side to the back.
 ##
 ## One ROM served every colour the camera was sold in, so the header cannot say
 ## which this one is. It is blue; the Game Boy palette's other shells repaint it,

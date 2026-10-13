@@ -191,13 +191,13 @@ Boy's scene fails three, the window moved behind the slot fails one, and sunk in
 shell fails one. `link_tests` walks its socket in the lead × socket matrix. Nobody has
 held it in a headset or run it on a Quest yet.
 
-### 2x-cam. The Game Boy Camera — a cartridge with a head, and a ball a hand turns
+### 2x-cam. The Game Boy Camera — a cartridge with a head, and a ball a hand swivels
 
 The Game Boy Camera is not a game in a shell: it is the cartridge, lens and all.
 `GbCameraShell` knows it by the **cartridge type at 0x147, 0xFC** (POCKET CAMERA), which
 no game has, and never by hashing. Measured on Game Boy Camera (USA, Europe): title
 `GAMEBOYCAMERA`, type 0xFC, Nintendo (`01`), destination 1. Its body is a stand-in made of
-primitives, `Scenes/Objects/media/game_boy_camera_body.tscn`, 110.5 mm long with a 30 mm
+primitives, `Scenes/Objects/media/game_boy_camera_body.tscn`, 110.4 mm long with a 30 mm
 ball. **The head's proportions are from photographs, not from a measured unit.**
 
 `GbcCartShell.body_model_for` answers the camera first: when the `camera` body is forced
@@ -214,9 +214,13 @@ part of it that stands OUTSIDE the slot, and it is not in the cartridge's size:
   `MediaDimensions.cart_size` needs no row for the camera: 57 × 65 × 7.5 mm, scale 1.
 - `_add_overhang_shapes` gives it an `OverhangShape` on the cartridge (to rest on and be
   taken by) and one under `PointerArea` (to be aimed at), fitted to the meshes DIRECTLY
-  under `Overhang`: its fixed housing. What is deeper is a moving part with a grab of its
-  own.
-- Neither is touched by the passes that rewrite the cartridge's own two shapes
+  under `Overhang`: its fixed housing.
+- What is deeper is a moving part with a grab of its own. It gets an
+  `OverhangMovingShape` on the cartridge, as it lies at rest, because the cartridge rests
+  on it and is lifted by it (without one the ball sank 4 mm into whatever the camera was
+  laid on), and **none to be aimed at**: a ray at it is for its own grab, which an aim box
+  of the cartridge's would stand in front of.
+- None of them is touched by the passes that rewrite the cartridge's own two shapes
   (`_apply_system_size`, `set_seated_grab_stub`, `reset_grab_shapes`), so in a handheld's
   slot the body is cut to its stub and the head stays in reach: it comes out by the head.
 
@@ -231,23 +235,35 @@ the fitted bounds were 7.7 mm deep and the whole body, head and ball with it, wa
 squashed 2.6 % in thickness. The plastic under the sticker is 7.3 mm, 0.1 mm off centre,
 so the sticker's plane is what ends the bounds.
 
-**The ball** is `Overhang/LensPivot`, at identity, with the lens on its **+Z**, the label
-side, and a `VRHinge` (`LensHinge`, target `..`) ranged **-180 to 0**: `R_x(-90)` carries
-+Z to +Y, so it turns OVER THE TOP to look out of the back, and the other way round is
-through the housing. At 0 it looks the way the label faces, which is out of the back of
-the console once seated; at -180, at whoever is looking at the screen.
+**The ball stands on top of the housing with nothing either side of it, and swivels about
+its UPRIGHT axle**: the lens swings round sideways, like a head turning, from the label
+side to the back. That is the real one's motion (it "swivels horizontally"; the picture
+stays the right way up when it is turned on the player). The first build was wrong
+twice: it cradled the ball between two cheeks and tipped it over the top on a
+`VRHinge`. A suite case holds the lens LEVEL through the whole turn.
 
-- It is taken on the **trigger**, the room's rule for a lid on something pickable: grip
-  takes the cartridge. `grip_engages` stays off: with it on, the 15 mm grip margin round
-  the ball's box covers the whole head, and the camera could only be lifted by the part
-  that is in the slot. Desktop: press the ball with the reticle and roll the wheel,
-  eighteen notches end to end.
-- It stands 4 mm out of the housing front and back and 2.5 mm over the cheeks, so a ray
-  aimed at it reaches the hinge's box before the head's.
+- It is a `VRKnob` (`Overhang/LensKnob`, pivot `KnobPivot`), which turns its pivot about
+  the pivot's own Z, so the knob is laid over to put its +Z along the cartridge's +Y:
+  `R_x(-90)`, **written as its rows** (`1,0,0, 0,0,1, 0,-1,0`). In that frame the lens is
+  on -Y, the label side. Written as the transpose the axle points down and the lens
+  starts at the back; `body/the ball's axle stands upright` reads the basis.
+- A `VRHinge` cannot do this from the pivot alone: Node3D's Euler order is YXZ, so the X
+  a hinge drives is applied about the PARENT's X turned by the pivot's yaw only, and
+  never leaves the parent's XZ plane.
+- **Half a turn either way from the front**: `deg_at_zero` -180, `deg_at_one` 180, value
+  0.5 at the front, 0 and 1 both the back, reached by the cartridge's -X and +X. **The
+  real ball stops at the front and goes round one side only, and which side is not
+  known here** (no source found says). When it is, it is one stop: set the front to an
+  end of the range.
+- At value 0.5 it looks the way the label faces, which is out of the back of the console
+  once seated; at 0 or 1, at whoever is looking at the screen.
+- It is taken on the **trigger**, the room's rule for a control on something pickable: grip
+  takes the cartridge, by the housing or by the ball. Desktop: press the ball with the
+  reticle and roll the wheel, ten notches front to back.
 - **Saved and network-synced with no code here**: `ScenePersistence` and `NetObjectSync`
-  both walk every `VRHinge` under a spawned object, and this one is at
-  `CartModel/Overhang/LensPivot/LensHinge`. The save round trip is in the suite; a netplay
-  session with one is OWED.
+  both walk every `VRKnob` under a spawned object, and this one is at
+  `CartModel/Overhang/LensKnob`. The save round trip is in the suite; a netplay session
+  with one is OWED.
 
 **Plastic.** Cartridge and head wear one material, `GBCamera_Shell`, listed in
 `CartridgeColor.EXTERIOR_PLASTIC`. One ROM served every colour the camera was sold in, so
@@ -258,11 +274,12 @@ painted on it like any Game Boy cartridge's, and the title stands in when there 
 
 **It is not a camera yet.** libretro-godot answers `RETRO_ENVIRONMENT_GET_CAMERA_INTERFACE`
 with not-implemented (`EnvironmentHandler.cpp`), so no core is handed a picture and which
-way the lens looks changes nothing in the game.
+way the lens looks changes nothing in the game. The real ball is also set at an angle,
+so the lens looks ahead with the console held tilted; the stand-in's looks straight out.
 
-`Tools/models/game_boy_camera_probe` (32 checks headless) drags the ball with a point
+`Tools/models/game_boy_camera_probe` (39 checks headless) twists the ball with a point
 where a latched hand would be and seats the cartridge in a Game Boy Color; windowed it
-photographs the camera into `probe_out/gb_camera/`, and `-- --film` writes the turn as
+photographs the camera into `probe_out/gb_camera/`, and `-- --film` writes the swivel as
 frames for an mp4:
 
 ```bash
@@ -270,9 +287,11 @@ frames for an mp4:
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/models/game_boy_camera_probe.tscn -- --film
 ```
 
-`gb_camera_tests` (68 cases): lookup, body, cartridge, ball, saved, seated, menu.
-Mutation-tested, each fault failing its own cases: the header rule dropped (12), the head
-counted in the fit (9), no box for the head (3), the lens authored on the back of the
-ball (11), the hinge ranged 0 to 180 (15), the sticker proud of the cartridge's depth
-(2), the menu row gone (3), and the camera painted as a game's shell (1). Nobody has
+`gb_camera_tests` (76 cases): lookup, body, cartridge, ball, saved, seated, menu.
+Mutation-tested, each fault failing its own cases. On the first build: the header rule
+dropped, the head counted in the fit, no box for the head, the lens authored on the back
+of the ball, the sticker proud of the cartridge's depth, the menu row gone, and the
+camera painted as a game's shell. On the swivel: housing risen beside the ball again (4),
+the knob's basis written as its transpose (17), no box for the ball to rest on (1), a
+one-way range from an end stop (9), and the ball's box used as an aim box (1). Nobody has
 turned the ball in a headset yet.
