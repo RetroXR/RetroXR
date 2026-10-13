@@ -43,7 +43,7 @@ debug build, 2026-08-27 — all passing):
 | `romm_tests` | 312 | 17 s | the pure-logic half of the RomM stack |
 | `binding_tests` | 176 | 12 s | which control map a platform resolves to |
 | `object_sync_tests` | 127 | 8 s | the shared-room network layer, 2–3 real ENet peers |
-| `scene_tests` | 226 | 20 s | SceneManager and the save gates around it. `cartbody/`: a restored cartridge's body GLB comes in through `ModelWarmer.acquire` before the cartridge is built (it loads synchronously in `_ready`; cold, an N64 cart was a 625 ms frozen frame on a Quest). Mutation-tested: drop the restore's cartridge branch and it fails. |
+| `scene_tests` | 247 | 20 s | SceneManager and the save gates around it. `cartbody/`: a restored cartridge's body GLB comes in through `ModelWarmer.acquire` before the cartridge is built (it loads synchronously in `_ready`; cold, an N64 cart was a 625 ms frozen frame on a Quest). Mutation-tested: drop the restore's cartridge branch and it fails. `curtain/`: a slot loaded into the room already standing goes up under the loading screen (owner `slot_load`), stays covered until the load hands back, shares one screen between two overlapping loads, and raises nothing for Clean Room or a slot that will not read. Mutation-tested, 3 breaks. |
 | `poster_tests` | 112 | 11 s | the posters feature, stick/peel/conform |
 | `rope_tests` | 90 | 75 s | what a cable does when it meets furniture |
 | `av_tests` | 41 | 35 s | what reaches a television's inputs (§2c) |
@@ -203,6 +203,22 @@ captive cable in the `"spawned"` group, so the group is always bigger than the e
 measure a baseline rather than hardcoding a count. And tear a group's room down with
 `clear_scene()`, not by freeing the systems: freeing only those leaves the cables standing
 in the next group's room.
+
+`curtain/` drives `SpawnMenuController._on_slot_load` — the in-place Load, which has no room
+change in front of it and so brings its own `LoadingOverlay` owner — without building a
+controller: the script is set on a node ALREADY in the tree, so `_ready` never runs (a whole
+controller finds the rig, builds the menu's SubViewport and restores the player's own room),
+and the handler is started by signal, as the menu starts it. Three things the next case
+there needs. `SceneManager._ready` claims the boot curtain, and on a machine whose boot room
+has a slot nothing in this suite ends it, so end every owner and wait out `HOLD_S` before
+counting `overlay_shown`. Ask whether the screen is still owned at the MOMENT a load hands
+back (`active_slot_changed` is the handler's last act), not on the frames either side: the
+restore reports progress every frame and each report re-raises the owner, so a dropped one
+is back before a per-frame poll can see it. And assert the restore spans frames, or a load
+that finished inside the press passes every "stays covered" case with nothing to cover.
+How it LOOKS is a windowed run of the real room, in a scratch home (it writes slots and
+`prefs.json`): give the window `WINDOW_FLAG_NO_FOCUS`, or the rig's desktop mouse-look
+follows the real mouse and swings the view mid-shot.
 
 It writes to the player's real `user://scenes` — the slot dir is derived from the room id
 and cannot be pointed elsewhere — so it snapshots `prefs.json`, the arcade manifest and the

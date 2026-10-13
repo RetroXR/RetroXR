@@ -276,13 +276,14 @@ func _on_scene_ready(scene_id: String) -> void:
 
 
 ## Whichever loading owner is waiting on this restore. Boot and a room change
-## both come through _autoload_slot, and only one of them is ever registered.
+## both come through _autoload_slot, and only one of them is ever registered; a
+## slot loaded into the room already standing brings its own (_on_slot_load).
 func _on_restore_progress(done: int, total: int) -> void:
 	if not has_node("/root/LoadingOverlay"):
 		return
 	var text := "RESTORING OBJECTS  %d / %d" % [done, total]
 	var fraction := float(done) / float(maxi(total, 1))
-	for owner: StringName in [&"transition", &"boot_restore"]:
+	for owner: StringName in [&"transition", &"boot_restore", SLOT_LOAD_OWNER]:
 		LoadingOverlay.set_phase(owner, text, fraction)
 
 
@@ -1510,6 +1511,9 @@ func _on_scene_change_requested(scene_id: String) -> void:
 ## into whatever room is standing, over the top of that room's own. The arrival
 ## runs the load itself: scene_ready fires _autoload_slot, which reads exactly the
 ## slot claimed here.
+##
+## Standing in the room already, no transition runs, so nothing else puts a
+## loading screen over the restore: see _on_slot_load_progress.
 func _on_slot_load(slot_id: String, room_id: String) -> void:
 	var sm := get_node_or_null("/root/SceneManager")
 	if sm != null and sm.current_scene_id != room_id:
@@ -1517,7 +1521,15 @@ func _on_slot_load(slot_id: String, room_id: String) -> void:
 		sm.change_scene(room_id)
 		return
 	var persistence := ScenePersistence.new(room_id)
+	persistence.restore_progress.connect(_on_slot_load_progress.bind(room_id))
+	_slot_loads_in_flight += 1
 	var loaded := await persistence.load_slot_async(get_tree().current_scene, slot_id)
+	_slot_loads_in_flight -= 1
+	# Counted, not ended by whichever load returns: a second Load pressed over the
+	# first stands the first down (ScenePersistence._restore_generation), and it
+	# returns while the second is still building the room.
+	if _slot_loads_in_flight == 0 and has_node("/root/LoadingOverlay"):
+		LoadingOverlay.end(SLOT_LOAD_OWNER)
 	if not loaded:
 		return
 	if sm:
@@ -1525,6 +1537,26 @@ func _on_slot_load(slot_id: String, room_id: String) -> void:
 	var menu := _get_menu()
 	if menu:
 		menu.rebuild_states_grid()
+
+
+## The loading screen's owner for a slot loaded into the room already standing.
+const SLOT_LOAD_OWNER := &"slot_load"
+var _slot_loads_in_flight := 0
+
+
+## The same screen a room change ends on, for a restore that has no room change
+## in front of it: the room used to be emptied and rebuilt in plain view.
+##
+## Raised by the restore's first report rather than by the button. That report is
+## made once the room has been cleared and before anything is built into it, with
+## no frame drawn in between, so the screen is up before the empty room can be
+## seen — and a load that never gets that far does not flash it at nothing: Clean
+## Room only clears, and a slot file that will not read leaves the room standing.
+func _on_slot_load_progress(done: int, total: int, room_id: String) -> void:
+	if not has_node("/root/LoadingOverlay"):
+		return
+	LoadingOverlay.begin(SLOT_LOAD_OWNER, "LOADING  %s" % RoomCatalog.title_of(room_id))
+	_on_restore_progress(done, total)
 
 
 ## Only the room you are standing in can be written into a slot — anywhere else

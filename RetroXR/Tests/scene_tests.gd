@@ -18,7 +18,7 @@ extends Node
 ## set_active_slot() writes user://scenes/prefs.json. Both are snapshotted at the
 ## start and put back at the end, so a red run cannot cost anyone their room.
 
-const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "overlap", "fixture", "switch", "power", "cords", "vlc", "manifest", "stack"]
+const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "overlap", "curtain", "fixture", "switch", "power", "cords", "vlc", "manifest", "stack"]
 ## Scratch slot ids, in the arcade's real directory — slot_dir() is derived from
 ## the room id and cannot be pointed somewhere safer.
 const SLOT_A := "__scene_selftest_a"
@@ -141,6 +141,8 @@ func _ready() -> void:
 		await _test_reload()
 	if _want_group("overlap"):
 		await _test_overlap()
+	if _want_group("curtain"):
+		await _test_curtain()
 	if _want_group("fixture"):
 		await _test_fixture()
 	if _want_group("switch"):
@@ -568,6 +570,140 @@ func _test_overlap() -> void:
 	sp._let_go(held)
 	_eq(live.gravity_scale, 1.0, "overlap/_let_go weights bodies after a freed one")
 	live.queue_free()
+
+
+# ── The loading screen over a slot loaded where you stand ─────────────────────
+
+signal _load_pressed(slot_id: String, room_id: String)
+
+## A slot loaded into the room the player is already in has no room change in
+## front of it, so nothing put the loading screen up: the room was emptied and
+## rebuilt in plain view. The handler is SpawnMenuController's, and it is driven
+## here the way the menu drives it — by signal, which is also the only way to
+## start a coroutine without waiting for it.
+##
+## The script goes onto a node ALREADY in the tree, so its _ready never runs. A
+## whole controller looks for the rig, builds the menu's SubViewport (which hangs
+## a headless run) and restores the player's own room; none of that is the
+## question here, and the handler needs only the viewport it asks for the menu.
+func _test_curtain() -> void:
+	var sp := ScenePersistence.new("arcade")
+	sp.instantiate_objects(self, [
+		{"id": 0, "type": "system", "systemid": "nes",
+			"position": [0, 0, 0], "rotation": [0, 0, 0]},
+		{"id": 1, "type": "system", "systemid": "gb",
+			"position": [1, 0, 0], "rotation": [0, 0, 0]},
+		{"id": 2, "type": "system", "systemid": "snes",
+			"position": [2, 0, 0], "rotation": [0, 0, 0]},
+	])
+	for i in range(30):
+		await get_tree().physics_frame
+	var baseline := get_tree().get_nodes_in_group("spawned").size()
+	_ok(sp.save_slot(self, SLOT_A), "curtain/saved a furnished room")
+
+	SceneManager.current_scene_id = "arcade"
+	SceneManager._transitioning = false
+	SceneManager.active_slots["arcade"] = "clean"
+	var ctl := Node3D.new()
+	add_child(ctl)
+	ctl.set_script(load("res://Scripts/UI/spawn_menu/spawn_menu_controller.gd"))
+	var viewport := XRToolsViewport2DIn3D.new()
+	ctl.set("_viewport_node", viewport)
+	_load_pressed.connect(Callable(ctl, "_on_slot_load"))
+
+	# SceneManager claims the boot curtain in its own _ready, and on a machine whose
+	# boot room has a slot that owner is never ended by a run of this suite.
+	await _curtain_down()
+	var shows := [0]
+	var returned := [0]
+	# Whether the screen still had its owner as each load handed back.
+	var owned_at_return: Array[bool] = []
+	var count_show := func() -> void: shows[0] += 1
+	var count_return := func(_slot: String) -> void:
+		returned[0] += 1
+		owned_at_return.append(LoadingOverlay.owners().has(&"slot_load"))
+	LoadingOverlay.overlay_shown.connect(count_show)
+	SceneManager.active_slot_changed.connect(count_return)
+
+	# The load itself. active_slot_changed is the handler's last act on a load that
+	# worked, so until it fires the room is still being built and must be covered.
+	_load_pressed.emit(SLOT_A, "arcade")
+	_eq(shows[0], 1, "curtain/an in-place load puts the loading screen up")
+	var panel: Node = LoadingOverlay._panel
+	_ok(panel != null and str(panel.get_node("Screen/TitleLabel").text) == "LOADING  ARCADE ROOM",
+		"curtain/titled for the room, as a room change is")
+	_ok(panel != null and str(panel.get_node("Screen/StatusLabel").text).begins_with("RESTORING OBJECTS  "),
+		"curtain/saying what it is waiting on")
+	var covered := await _covered_until(returned, 1)
+	_ok(covered[1] > 0, "curtain/the restore spans frames, so there is a room to hide")
+	_eq(covered[0], 0, "curtain/it stays up for as long as the room is being built")
+	_eq(returned[0], 1, "curtain/the load finished")
+	_ok(not LoadingOverlay.is_active(), "curtain/and comes down when the room is whole")
+	_eq(SceneManager.active_slot("arcade"), SLOT_A, "curtain/the loaded slot is the active one")
+	_eq(get_tree().get_nodes_in_group("spawned").size(), baseline,
+		"curtain/one room's worth was restored under it")
+	await _curtain_down()
+	_ok(LoadingOverlay._panel == null, "curtain/the panel is gone once it is down")
+
+	# Two presses, the second over the first. The first restore stands down at its
+	# next yield and returns at once; the screen belongs to the one still building.
+	# Asked at the moment the first hands back, not on the frames either side: the
+	# second load's next progress report would put a dropped owner straight back.
+	shows[0] = 0
+	returned[0] = 0
+	owned_at_return.clear()
+	_load_pressed.emit(SLOT_A, "arcade")
+	_load_pressed.emit(SLOT_A, "arcade")
+	covered = await _covered_until(returned, 2)
+	_eq(shows[0], 1, "curtain/two loads at once share one screen")
+	_eq(returned[0], 2, "curtain/both loads finished")
+	_eq(owned_at_return, [true, false] as Array[bool],
+		"curtain/the first load returning does not uncover the second")
+	_eq(covered[0], 0, "curtain/nor does any frame between them")
+	_eq(_systems(), 3, "curtain/and left one room's systems")
+	await _curtain_down()
+
+	# Clean Room only clears, and a slot that will not read leaves the room as it
+	# was. Neither has anything to wait for, so neither may flash a loading screen.
+	shows[0] = 0
+	_load_pressed.emit("__no_such_slot", "arcade")
+	_eq(shows[0], 0, "curtain/a load that fails raises nothing")
+	_eq(_systems(), 3, "curtain/and leaves the room standing")
+	_load_pressed.emit("clean", "arcade")
+	_eq(shows[0], 0, "curtain/clearing the room raises nothing")
+	_ok(not LoadingOverlay.is_active(), "curtain/and leaves no owner behind")
+	for i in range(20):
+		await get_tree().physics_frame
+	_eq(get_tree().get_nodes_in_group("spawned").size(), 0, "curtain/the clean slot emptied the room")
+
+	LoadingOverlay.overlay_shown.disconnect(count_show)
+	SceneManager.active_slot_changed.disconnect(count_return)
+	_load_pressed.disconnect(Callable(ctl, "_on_slot_load"))
+	viewport.free()
+	ctl.queue_free()
+	sp.clear_scene(self)
+	for i in range(20):
+		await get_tree().physics_frame
+
+
+## Frames run until `returned` reaches `want`, and how many of them found the room
+## uncovered: [uncovered, frames].
+func _covered_until(returned: Array, want: int) -> Array:
+	var uncovered := 0
+	var frames := 0
+	while returned[0] < want and frames < 1200:
+		if not LoadingOverlay.owners().has(&"slot_load"):
+			uncovered += 1
+		frames += 1
+		await get_tree().process_frame
+	return [uncovered, frames]
+
+
+## Nobody waiting and the hide grace run out, so the next show is a new one.
+func _curtain_down() -> void:
+	for owner: Variant in LoadingOverlay.owners():
+		LoadingOverlay.end(owner)
+	await get_tree().create_timer(LoadingOverlay.HOLD_S + 0.15).timeout
 
 
 # ── The room's own movable furniture ──────────────────────────────────────────
