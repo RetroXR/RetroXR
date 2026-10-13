@@ -3299,9 +3299,12 @@ func get_expansion_cover() -> Node3D:
 	return zone.picked_up_object as Node3D
 
 
-## Put a saved lid back on. The counterpart of get_expansion_cover, called from
+## Put a saved lid back on, building the bay first when a restore gets here
+## before the deferred call that builds it (see restore_expansion). The
+## counterpart of get_expansion_cover, called from
 ## the restore's second pass the way restore_memory_card is.
 func restore_expansion_cover(cover: Node3D) -> void:
+	_build_expansion_hardware()
 	var zone := _model.expansion_cover_slot() if _model != null else null
 	if zone != null and cover != null:
 		zone.pick_up_object(cover)
@@ -3421,6 +3424,10 @@ func on_expansion_media_changed(_unit: RetroExpansion) -> void:
 func restore_expansion(unit: RetroExpansion) -> void:
 	if unit == null:
 		return
+	# The bay is built on a deferred call from _ready, and a restore can reach
+	# here in the frame this console appeared: build it now. Built already, this
+	# does nothing, and so does the deferred call when it comes.
+	_build_expansion_hardware()
 	# Whichever machine owns the socket is the one that has to do the taking: a
 	# unit that stands on this console goes into OUR socket, a unit this console
 	# stands on takes the console into ITS socket. Only the second half was here,

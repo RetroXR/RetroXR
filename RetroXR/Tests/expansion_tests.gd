@@ -305,6 +305,29 @@ func _group_fit() -> void:
 	if rebuilt != null:
 		rebuilt.free()
 
+	# A short save is rebuilt and rewired in ONE frame, and the bay is built on
+	# a deferred call: the lid and the pak used to be handed back to a console
+	# that had neither slot nor socket yet, and were left lying on it.
+	var room := Node3D.new()
+	add_child(room)
+	_spawned.append(room)
+	var back := sp.instantiate_objects(room, [
+		{"id": 1, "type": "system", "systemid": "n64", "position": [30.0, 1.0, 0.0], "rotation": [0.0, 0.0, 0.0],
+			"expansions": [2], "expansion_cover": 3, "ignore_gravity": true},
+		{"id": 2, "type": "expansion", "expansion_id": "jumper_pak", "position": [30.0, 1.05, 0.0], "rotation": [0.0, 0.0, 0.0]},
+		{"id": 3, "type": "expansion_cover", "position": [30.0, 1.07, 0.0], "rotation": [0.0, 0.0, 0.0]},
+	])
+	var same_frame := back.get(1) as RetroSystem
+	_ok(same_frame != null and same_frame.get_expansion_cover() == back.get(3),
+		"fit/ a console rebuilt and rewired in one frame has its lid back on")
+	_ok(same_frame != null and back.get(2) != null and (back.get(2) as RetroExpansion).get_host() == same_frame
+		and same_frame.get_node_or_null("ExpansionSocket") != null
+		and (same_frame.get_node("ExpansionSocket") as XRToolsSnapZone).picked_up_object == back.get(2),
+		"fit/ and its pak seated in the bay, not only bound to it")
+	await _wait(10)
+	_ok(same_frame != null and Array(same_frame.expansion_ids()) == ["jumper_pak"] and same_frame.get_expansion_cover() == back.get(3),
+		"fit/ and the deferred build that follows adds nothing to it")
+
 
 # ── join ──────────────────────────────────────────────────────────────────────
 
