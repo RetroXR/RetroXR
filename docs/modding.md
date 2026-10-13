@@ -203,7 +203,10 @@ are three places to read it, by what the row is:
 An id you do not recognize is a save that has outlived your list: leave the thing
 as it comes. A variant can be more than paint. One that is a different shell (a
 regional pad, a special edition with its own print) swaps the shell before your
-script looks for its parts on it.
+script looks for its parts on it. One that is a different machine says so to the
+game: a shell that makes the Wii Remote a Wii Remote Plus sets
+`motion_plus_inside` on it, and the remote is announced to a console as one with
+a MotionPlus whether or not the dongle is in its socket.
 
 To retire rows you once shipped one per color, keep them registered with
 `"unlisted": true`: old saves still resolve, and the card stops listing them.

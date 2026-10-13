@@ -40,6 +40,8 @@ const MOTION_PLUS_PLUG_SYSTEMID := "wii_motion_plus"
 # every extension can still be plugged in behind it. What the id buys is the
 # emulated dongle: the core attaches MotionPlus for a _MP id and detaches it
 # otherwise, which is what makes the accessory in the room mean something.
+# A Wii Remote Plus has the dongle's works inside it and is a _MP remote with
+# nothing in its socket: see motion_plus_inside.
 #
 # The _SW pair is the same remote held SIDEWAYS, in two hands like a plain pad.
 # It is a device id and not a setting because the core has to know: it swaps the
@@ -168,6 +170,18 @@ const GYRO_MIN_ANGLE := 0.00001
 ## libretro device type reported to the system. Flips to _NC while a Nunchuk is
 ## seated in the expansion port.
 var device_type: int = RETRO_DEVICE_WIIMOTE
+
+## A Wii Remote Plus: the MotionPlus is inside the remote, so it is announced
+## as a remote with one whether or not a dongle is in its socket, and anything
+## plugged into it is announced as plugged in through one. The game's own remote
+## is not a Plus; this is for what makes one of it to set, a mod's shell among
+## them. It is not saved: whatever made the remote a Plus says so again when
+## the room loads.
+@export var motion_plus_inside: bool = false:
+	set(value):
+		motion_plus_inside = value
+		if is_node_ready():
+			_refresh_device_type()
 
 ## Whether to show the aim dot on the screen.
 var show_laser_dot: bool = false
@@ -416,6 +430,9 @@ func _ready() -> void:
 	_sync_button.button_pressed.connect(_on_sync_pressed)
 	_sync_button.set_active(false)
 	_battery_cover.rotation_changed.connect(_on_cover_moved)
+	# A remote made a Plus before it was ready (a mod's hook runs as it enters
+	# the tree) is one from its first frame.
+	_refresh_device_type()
 	call_deferred("_find_vr_nodes")
 
 
@@ -803,11 +820,14 @@ func _has_nunchuk() -> bool:
 ## So a seated Nunchuk wins and the second hand is just a second hand.
 func _refresh_device_type() -> void:
 	var dev := RETRO_DEVICE_WIIMOTE
+	# A MotionPlus in the socket, or inside the remote: the core is told the
+	# same of either.
+	var with_motion_plus := motion_plus_inside or _motion_plus != null
 	if is_instance_valid(_extension):
 		# What it is, is its own to say: the core's id for a remote with it on
 		# the end, through a MotionPlus or straight in.
-		dev = int(_extension.call("wii_extension_device", _motion_plus != null))
-	elif _motion_plus != null:
+		dev = int(_extension.call("wii_extension_device", with_motion_plus))
+	elif with_motion_plus:
 		if _nunchuk != null:
 			dev = RETRO_DEVICE_WIIMOTE_MP_NC
 		elif _is_held_in_two_hands():

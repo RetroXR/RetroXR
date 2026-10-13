@@ -64,6 +64,7 @@ func _ready() -> void:
 		await _test_a_nunchuk_beats_a_second_hand()
 		await _test_a_dongle_has_its_own_sideways_id()
 		await _test_a_nunchuk_behind_a_dongle()
+		await _test_a_remote_plus()
 		await _test_pulling_the_extension()
 	if _wants("extension"):
 		await _test_a_brought_extension()
@@ -895,6 +896,45 @@ func _test_a_nunchuk_behind_a_dongle() -> void:
 	wm.queue_free()
 	mp.queue_free()
 	nc.queue_free()
+
+
+## A Wii Remote Plus has the MotionPlus inside it: it is every _MP device the
+## dongle makes of a remote, with nothing in its socket.
+func _test_a_remote_plus() -> void:
+	var wm: Wiimote = WIIMOTE_SCENE.instantiate()
+	# Said before it is in the room, as a mod's hook says it.
+	wm.motion_plus_inside = true
+	var nc: Nunchuk = NUNCHUK_SCENE.instantiate()
+	add_child(wm)
+	add_child(nc)
+	await get_tree().process_frame
+	_hold(wm, 1)
+	_ok(wm.device_type == Wiimote.RETRO_DEVICE_WIIMOTE_MP and wm.get_motion_plus() == null,
+		"a remote with the MotionPlus inside is a MotionPlus remote from its first frame, with no dongle",
+		"device %d" % wm.device_type)
+	_hold(wm, 2)
+	_ok(wm.device_type == Wiimote.RETRO_DEVICE_WIIMOTE_MP_SW, "held in two hands it is the sideways one")
+	_hold(wm, 1)
+	wm._on_extension_seated(nc)
+	_ok(wm.device_type == Wiimote.RETRO_DEVICE_WIIMOTE_MP_NC and wm._has_nunchuk(),
+		"a Nunchuk straight into it makes the MotionPlus Nunchuk remote", "device %d" % wm.device_type)
+	wm._on_extension_removed()
+	_ok(wm.device_type == Wiimote.RETRO_DEVICE_WIIMOTE_MP, "pulled, it is a MotionPlus remote still")
+	# An extension a mod brings is told it is on a remote with a MotionPlus.
+	var pad := _BroughtExtension.new()
+	add_child(pad)
+	wm._on_extension_seated(pad)
+	_ok(wm.device_type == 2817, "an extension a mod brings is announced as it names itself behind a MotionPlus",
+		"device %d" % wm.device_type)
+	wm._on_extension_removed()
+	# And it can stop being one, and start again, in a room.
+	wm.motion_plus_inside = false
+	_ok(wm.device_type == Wiimote.RETRO_DEVICE_WIIMOTE, "no longer a Plus, it is a bare remote")
+	wm.motion_plus_inside = true
+	_ok(wm.device_type == Wiimote.RETRO_DEVICE_WIIMOTE_MP, "and a Plus again when told so")
+	wm.queue_free()
+	nc.queue_free()
+	pad.queue_free()
 
 
 func _test_pulling_the_extension() -> void:
