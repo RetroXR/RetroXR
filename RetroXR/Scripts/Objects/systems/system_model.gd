@@ -725,11 +725,23 @@ func configure_expansion_socket(_socket: Node3D) -> void:
 
 
 ## Place a socket of a unit's own (ExpansionCatalog's row `socket`), which RetroSystem
-## builds on the roof like the shared one. The placeholder box puts a Saturn's
-## Video CD Card slot in its back panel; a model that does not override this
-## leaves the socket on the roof, where the unit still seats and works.
-func configure_unit_socket(_socket_id: String, _socket: Node3D) -> void:
-	pass
+## builds on the roof like the shared one. A model whose shell has the real opening
+## puts it there (a Saturn's Video CD Card goes in behind its battery door); one
+## that does not gets it here, through the middle of its back panel, with no plate.
+## Left on the roof it was a connector drawn over the disc well of every console
+## of a mod built before this hook, card or no card.
+func configure_unit_socket(socket_id: String, socket: Node3D) -> void:
+	var zone := socket as XRToolsSnapZone
+	var host := socket.get_parent()
+	if zone == null or host == null or not host.has_method("body_aabb"):
+		return
+	var box: AABB = host.call("body_aabb")
+	if box.size.x <= 0.0:
+		return
+	var center := box.get_center()
+	ExpansionPort.seat_through_back(zone,
+		ExpansionCatalog.socket_size(str(host.get("systemid")), socket_id),
+		Vector3(center.x, center.y, box.position.z))
 
 
 ## The slot this model's expansion-bay cover goes into, or null on a model with

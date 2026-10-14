@@ -14,10 +14,13 @@ const ID := "sega_saturn_vcd_card"
 # off the cartridge's A-bus -- so it has a socket of its own ("mpeg_card") and
 # stays in while a cartridge goes in and out of the slot behind the lid.
 #
-# It slides in flat: the console turns the socket so the card's +Y runs into the
-# back panel and its face looks up. `size` is width x depth in x thickness, an
-# ESTIMATE (no dimensions were found); the 12 mm it stands out of the panel is a
-# handle, where the real card goes in behind its door.
+# It is "a metal cassette with side rails that slides in label side down" through
+# a bay opening 61.6 mm wide and 33 mm tall (RetroXR-models' Saturn console:
+# research/NOTES.md and params.py `bay`, sized off a photograph), so the console
+# turns the socket that way (ExpansionPort.seat_through_back). `size` is width x
+# depth in x thickness: the width clears that opening, the depth and thickness are
+# ESTIMATES. The 12 mm it stands out of the panel (CARD_HANDLE) is a handle, where
+# the real card goes all the way in and its door shuts over it.
 #
 # What seating it does is ForcedCoreOptions.saturn_mpeg_card. `firmware` is the
 # card's ROM, mpeg_card.bin in Beetle's system directory: without it the core's
@@ -27,7 +30,7 @@ const ROW := {
 	"host": "saturn",
 	"mount": ExpansionDefs.MOUNT_ABOVE,
 	"socket": "mpeg_card",
-	"size": Vector3(0.100, 0.070, 0.012),
+	"size": Vector3(0.058, 0.100, 0.016),
 	"loader": MediaDimensions.LOADER_NONE,
 	"firmware": ["mpeg_card.bin"],
 }

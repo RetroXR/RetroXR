@@ -2192,6 +2192,25 @@ func _group_vcdcard() -> void:
 		ExpansionCatalog.size_of("sega_saturn_ram_cart").x + ProceduralDiscBay.REAR_SLOT_CLEARANCE),
 		"vcdcard/ and the slot behind the lid is still sized to a cartridge, not to it")
 
+	var slot_plate := slot.get_node_or_null("ConnectorPlate") as Node3D
+	_ok(slot_plate == null or not slot_plate.visible, "vcdcard/ with no connector plate drawn on the box")
+
+	# A model that does not place the socket -- the Saturn mod, built before the
+	# hook -- must not leave it on the roof: that drew a connector over the disc well.
+	var bare := RetroSystemModel.new()
+	var spare := ExpansionPort.build_socket(saturn, 0.05, Vector2(0.3, 0.25),
+		ExpansionPort.GROUP_EXPANSION, func(_o: Node3D) -> bool: return false)
+	bare.configure_unit_socket("mpeg_card", spare)
+	var body: AABB = saturn.body_aabb()
+	var spare_plate := spare.get_node_or_null("ConnectorPlate") as Node3D
+	_ok(spare.transform.basis.y.dot(Vector3(0, 0, -1)) > 0.99
+		and absf(spare.position.x - body.get_center().x) < 0.001
+		and spare.position.z > body.position.z and spare.position.z < 0.0
+		and (spare_plate == null or not spare_plate.visible),
+		"vcdcard/ a model that does not place it gets it through its back, no plate (at %s)" % spare.position)
+	spare.free()
+	bare.free()
+
 	var card := await _unit(card_id)
 	saturn.restore_expansion(card)
 	await _wait(10)
@@ -2200,8 +2219,8 @@ func _group_vcdcard() -> void:
 	var at := saturn.to_local(card.global_position)
 	_ok(at.z + card.size().y * 0.5 > -0.125 and at.z - card.size().y * 0.5 < -0.125,
 		"vcdcard/ mostly inside the box, the end of it out of the panel (centre %s)" % at)
-	_ok(card.global_transform.basis.z.dot(saturn.global_transform.basis.y) > 0.99,
-		"vcdcard/ lying flat, its face up")
+	_ok(card.global_transform.basis.z.dot(-saturn.global_transform.basis.y) > 0.99,
+		"vcdcard/ lying flat, label side down, as the real cassette goes in")
 	_ok(saturn._resolve_core() == beetle, "vcdcard/ seated, the machine runs Beetle")
 	_ok(saturn._all_forced_options(beetle).get("beetle_saturn_mpeg_card") == "enabled",
 		"vcdcard/ with the card switched on")

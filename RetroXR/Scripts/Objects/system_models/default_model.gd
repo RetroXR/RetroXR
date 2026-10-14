@@ -58,17 +58,14 @@ func configure_expansion_socket(socket: Node3D) -> void:
 
 
 ## A Saturn's Video CD Card goes in flat through the back panel, at the end away
-## from the A/V row and the serial socket (x 0.045 and up), standing out of it by
-## what is left of the card once its depth is in. The real slot is behind the
-## battery door; the door is not modelled.
+## from the A/V row and the serial socket (x 0.045 and up), with the end of it left
+## out as a handle. The real slot is behind the battery door; the box has none.
 func configure_unit_socket(socket_id: String, socket: Node3D) -> void:
 	if socket_id != "mpeg_card" or not (socket is XRToolsSnapZone):
+		super(socket_id, socket)
 		return
-	var size := Vector3.ZERO
-	for id: String in ExpansionCatalog.ids_for_host(str(socket.get_parent().get("systemid"))):
-		if ExpansionCatalog.socket_of(id) == socket_id:
-			size = size.max(ExpansionCatalog.size_of(id))
-	ProceduralDiscBay.seat_back_card_slot(socket as XRToolsSnapZone, size)
+	ProceduralDiscBay.seat_back_card_slot(socket as XRToolsSnapZone,
+		ExpansionCatalog.socket_size(str(socket.get_parent().get("systemid")), socket_id))
 
 
 func build_disc_slit(host: Node3D, systemid: String) -> void:

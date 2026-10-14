@@ -815,6 +815,16 @@ static func socket_of(id: String) -> String:
 	return str(row(id).get("socket", ""))
 
 
+## The size a console's socket of its own has to take: the largest unit that goes
+## in it.
+static func socket_size(host: String, socket: String) -> Vector3:
+	var out := Vector3.ZERO
+	for id: String in ids_for_host(host):
+		if socket_of(id) == socket:
+			out = out.max(size_of(id))
+	return out
+
+
 ## The sockets of their own this console grows, beyond the shared one, in ROWS
 ## order and each once.
 static func unit_sockets_for_host(host: String) -> Array[String]:

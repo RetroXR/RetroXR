@@ -206,10 +206,18 @@ it has a socket of its own and stays in while cartridges come and go behind the
 lid. A row's `socket` names the console socket a MOUNT_ABOVE unit takes;
 `RetroSystem._build_unit_sockets` grows one per name (`MpegCardSocket`) with its own
 filter (`_accepts_expansion_in`), and `RetroSystemModel.configure_unit_socket`
-places it -- the placeholder box turns it R_x(-90) into the back panel
-(`ProceduralDiscBay.seat_back_card_slot`, x = -0.075, away from the A/V row), so the
-card slides in flat, face up, 12 mm left out as a handle. The battery door is not
-modelled, and the card's 100 x 70 x 12 mm is an estimate (no dimensions found).
+places it. **The card is "a metal cassette with side rails that slides in label side
+down"** through a bay opening 61.6 x 33 mm (RetroXR-models' Saturn console research,
+off a photograph), so `ExpansionPort.seat_through_back` turns the socket that way --
++Y out of the back, the card's face down -- and leaves `CARD_HANDLE` (12 mm) out as
+a handle, where the real card goes all the way in and its door shuts over it. The
+card is 58 mm wide to clear that opening; its 100 mm depth and 16 mm thickness are
+estimates. The placeholder box puts the slot at x = -0.075, away from its A/V row
+(`ProceduralDiscBay.seat_back_card_slot`). **A model that does not place it gets it
+through the middle of its back panel, plate hidden** (the base class): the first
+build left the socket on the roof where RetroSystem builds every socket, and the
+Saturn mod (`xenu.saturn`, built before the hook) showed its connector plate over
+the disc well, card or no card -- its own probe caught it as a stand-in mesh drawn.
 **`_on_expansion_lifted` now unbinds only the units their OWN socket stopped
 holding** -- it used to unbind every MOUNT_ABOVE unit, which with one socket was the
 same thing and with two pulled the card out whenever a cartridge came out.

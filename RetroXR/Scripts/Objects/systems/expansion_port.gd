@@ -108,6 +108,34 @@ static func build_foot(host: Node3D, bottom_y: float, span: Vector2,
 	return point
 
 
+## How much of a card that slides into a console's back is left outside, as a
+## handle. A Saturn's Video CD Card goes all the way in and its door shuts over
+## it, which a hand in the room could never take out again.
+const CARD_HANDLE := 0.012
+
+
+## Turn a socket into a slot through a console's back panel, for a card that
+## slides in flat and label side down (a Saturn's Video CD Card, "a metal cassette
+## with side rails that slides in label side down"). `opening` is the middle of
+## the slot's mouth in the socket's parent's frame, whose back is -Z. The socket's
+## +Y -- where a seated unit stands -- points out of the back, and its origin is
+## as far in as the card goes, so CARD_HANDLE of it is left outside. Its plate
+## would be inside the case, so it is hidden.
+##
+## The basis is written as COLUMNS: x -> -X, y -> -Z, z -> -Y (a unit's face, its
+## +Z, looking down).
+static func seat_through_back(zone: XRToolsSnapZone, card: Vector3, opening: Vector3) -> void:
+	zone.transform = Transform3D(
+		Basis(Vector3(-1, 0, 0), Vector3(0, 0, -1), Vector3(0, -1, 0)),
+		opening + Vector3(0.0, 0.0, card.y - CARD_HANDLE))
+	# A card is pushed into a slot, not a console lowered onto a base.
+	zone.grab_distance = 0.08
+	for part: String in ["ConnectorPlate", "ConnectorPins"]:
+		var n := zone.get_node_or_null(part) as Node3D
+		if n != null:
+			n.visible = false
+
+
 ## Detach whatever a socket is holding, without the socket having to be found
 ## again by name. Null-safe: a machine with no socket simply has nothing to drop.
 static func release(zone: XRToolsSnapZone) -> void:
