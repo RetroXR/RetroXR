@@ -430,6 +430,15 @@ can never hang the run.
   ports and then the Game Boy link socket were both authored inside out. Print
   `node.transform.basis.x/.y/.z` from a throwaway probe and compare it with what you
   meant, before rendering anything.
+- **Every suite "CRASHes" on its way out (`0xC0000374` under the runner, exit 127 /
+  0x7F by hand) with every case passing: look at `RetroXR/.godot/extension_list.cfg`.**
+  A Quest export leaves `RetroXR/android/build/` holding copies of every extension's
+  `.gdextension`; without `android/build/.gdignore` the next editor scan (an open
+  editor, or `--editor --quit`) registers all of them, and every process then tries to
+  load seven extensions whose libraries are not there and dies at exit. Measured
+  2026-10-14: `autoload_order_tests` exited 0x7F with them listed and 0 without. Put
+  an empty `.gdignore` back in `android/build/` and delete the `res://android/` lines
+  from the list. Both are local state, not files to commit.
 - **PowerShell buffers `& $godot ... | Out-String` until the process exits**, so a
   backgrounded run shows an empty output file until it finishes. The Bash tool with
   `timeout 90 "$godot" ... 2>&1 | grep` streams and bounds the run — prefer it.

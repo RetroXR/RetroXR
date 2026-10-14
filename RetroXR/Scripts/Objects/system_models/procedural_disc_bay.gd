@@ -27,6 +27,11 @@ const SLIDE_TIME := 0.9
 const REAR_SLOT_BACK_WALL := 0.010
 const REAR_SLOT_SINK := 0.040
 const REAR_SLOT_CLEARANCE := 0.004
+## The card slot in the back panel (a Saturn's Video CD Card): where across the
+## back it is, at the end away from the A/V row, and how far a seated card stands
+## out of the panel so a hand can take it. Neither is a measurement.
+const BACK_CARD_X := -0.075
+const BACK_CARD_PROUD := 0.012
 
 ## The placeholder console box every measurement in here was taken from. Passed
 ## as `box` by default so the consoles are unchanged; an expansion unit is a
@@ -282,6 +287,38 @@ func seat_rear_slot(socket: XRToolsSnapZone, card: Vector3, box: Vector3 = PLACE
 	mouth.set_surface_override_material(0, mat)
 	mouth.position = Vector3(0.0, top + 0.0005, z)
 	_host.add_child(mouth)
+
+
+## Turn an expansion socket into a slot in the back panel that a card of size
+## `card` slides into FLAT: the socket's +Y (where a seated unit stands) points out
+## of the back, so the card's depth runs into the box and its face looks up. Placed
+## so BACK_CARD_PROUD of the card is left outside, at mid-height. The connector
+## plate the socket drew would be inside the box, so it is hidden; the mouth is
+## drawn on the panel.
+##
+## The basis is written as COLUMNS (x, y, z): R_x(-90), y -> -Z and z -> +Y.
+static func seat_back_card_slot(socket: XRToolsSnapZone, card: Vector3,
+		box: Vector3 = PLACEHOLDER_BOX) -> void:
+	var back := -box.z * 0.5
+	socket.transform = Transform3D(
+		Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0)),
+		Vector3(BACK_CARD_X, 0.0, back + card.y - BACK_CARD_PROUD))
+	socket.grab_distance = 0.08
+	for part: String in ["ConnectorPlate", "ConnectorPins"]:
+		var n := socket.get_node_or_null(part) as Node3D
+		if n != null:
+			n.visible = false
+
+	var mouth := MeshInstance3D.new()
+	mouth.name = "BackCardSlotMouth"
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(card.x + REAR_SLOT_CLEARANCE, card.z + REAR_SLOT_CLEARANCE, 0.001)
+	mouth.mesh = mesh
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.08, 0.08, 0.1)
+	mouth.set_surface_override_material(0, mat)
+	mouth.position = Vector3(BACK_CARD_X, 0.0, back - 0.0005)
+	socket.get_parent().add_child(mouth)
 
 
 ## A flat ring in the XZ plane at y = 0, facing up. Godot has no annulus

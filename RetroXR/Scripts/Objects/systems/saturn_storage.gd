@@ -10,7 +10,10 @@
 ##
 ##     beetle_saturn_save_method  "libretro"
 ##     beetle_saturn_shared_ext   "enabled"  ->  mednafen_saturn_libretro_shared.bcr
-##     beetle_saturn_cart         "Backup Memory" with a cartridge seated, "None" without
+##
+## and beetle_saturn_cart says what is in the slot -- "Backup Memory" with this
+## cartridge seated -- which ForcedCoreOptions.saturn_cart decides, because the slot
+## takes Extended RAM and ROM cartridges too and only one of them at a time.
 ##
 ## and a seated cartridge's image is STAGED into that file before content starts,
 ## then drained back while the game runs and for a while after it stops. The
@@ -66,20 +69,19 @@ static func cart_of(expansions: Array) -> RetroExpansion:
 
 
 ## Empty on another core.
-static func forced_options(core: String, has_cart: bool) -> Dictionary:
+static func forced_options(core: String) -> Dictionary:
 	if not core.begins_with(CORE_PREFIX):
 		return {}
 	return {
 		"beetle_saturn_save_method": "libretro",
 		"beetle_saturn_shared_ext": "enabled",
-		"beetle_saturn_cart": "Backup Memory" if has_cart else "None",
 	}
 
 
 func forced_options_for(core: String) -> Dictionary:
 	if not is_instance_valid(_host):
 		return {}
-	return forced_options(core, cart_of(_host.get_expansions()) != null)
+	return forced_options(core)
 
 
 ## Why this machine may not start with its cartridge, or "": the folder is shared,

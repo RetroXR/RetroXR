@@ -28,6 +28,8 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(disk_drive(core, systemid, expansions, media_path), true)
 	out.merge(expansion_pak(core, expansions), true)
 	out.merge(fm_sound_unit(core, systemid, expansions), true)
+	out.merge(saturn_cart(core, systemid, expansions), true)
+	out.merge(saturn_mpeg_card(core, systemid, expansions), true)
 	out.merge(bios_pinned(core, systemid, rom_path), true)
 	out.merge(declared_frame_rate(core), true)
 	out.merge(vmu_sound(core), true)
@@ -227,6 +229,62 @@ static func fm_sound_unit(core: String, systemid: String, expansions: Array) -> 
 	if systemid != "mastersystem" or core != "genesis_plus_gx":
 		return {}
 	return {"genesis_plus_gx_ym2413": "enabled" if expansions.has("fm_sound_unit") else "disabled"}
+
+
+## What is in the cartridge slot behind a Saturn's lid, by unit id, as each core
+## names it. One slot, so at most one of these is ever seated; "" is the empty
+## slot. Read at source, not guessed: Beetle Saturn's values are the ones its
+## libretro_core_options.h declares for beetle_saturn_cart, YabaSanshiro's the
+## strings its libretro.c compares yabasanshiro_addon_cart against.
+##
+## YabaSanshiro has RAM cartridges and nothing else -- no backup cartridge, no ROM
+## cartridges -- so those leave its slot empty. The two ROM cartridges never reach
+## it anyway: their BOOT rows run Beetle. "none" is not in the list YabaSanshiro
+## DECLARES (that is "4M_extended_ram|1M_extended_ram") but it is a branch its
+## code takes, and libretro-godot hands a pinned value over unchecked.
+const SATURN_CARTS := {
+	"": {"beetle": "None", "yabasanshiro": "none"},
+	"sega_saturn_ram_cart": {"beetle": "Backup Memory", "yabasanshiro": "none"},
+	"sega_saturn_extram_1m": {"beetle": "Extended RAM (1MB)", "yabasanshiro": "1M_extended_ram"},
+	"sega_saturn_extram_4m": {"beetle": "Extended RAM (4MB)", "yabasanshiro": "4M_extended_ram"},
+	"sega_saturn_kof95_rom": {"beetle": "The King of Fighters '95", "yabasanshiro": "none"},
+	"sega_saturn_ultraman_rom": {"beetle": "Ultraman: Hikari no Kyojin Densetsu", "yabasanshiro": "none"},
+}
+
+
+## Pinned in both directions, the Expansion Pak's shape and for its reason: Beetle
+## left on Auto Detect fits a cartridge from its own game database (a Backup RAM
+## Cartridge for anything it does not list), and YabaSanshiro defaults to the 4 MB
+## cartridge, so without the empty pin every Saturn in the room would have a
+## cartridge nobody put in it -- on a Quest, a 4 MB one, which Beetle's database
+## says two of the 1 MB games refuse.
+static func saturn_cart(core: String, systemid: String, expansions: Array) -> Dictionary:
+	if systemid != "saturn":
+		return {}
+	var fitted := ""
+	for id: Variant in expansions:
+		if SATURN_CARTS.has(str(id)) and not str(id).is_empty():
+			fitted = str(id)
+			break
+	var values: Dictionary = SATURN_CARTS[fitted]
+	if core.begins_with("mednafen_saturn"):
+		return {"beetle_saturn_cart": values["beetle"]}
+	if core == "yabasanshiro":
+		return {"yabasanshiro_addon_cart": values["yabasanshiro"]}
+	return {}
+
+
+## The Video CD Card in the slot in a Saturn's back. Beetle's
+## beetle_saturn_mpeg_card defaults to disabled, so this pins ON what a player
+## seated -- and OFF what they did not, the same both-ways shape as the slot
+## above, so an option somebody turned on in a menu is not a card nobody put in.
+## Restart-time in the core, which a pin always is: it is written before boot.
+## Netplay pins it off for a session (NetplayCores), whatever is seated.
+static func saturn_mpeg_card(core: String, systemid: String, expansions: Array) -> Dictionary:
+	if systemid != "saturn" or not core.begins_with("mednafen_saturn"):
+		return {}
+	return {"beetle_saturn_mpeg_card":
+		"enabled" if expansions.has("sega_saturn_vcd_card") else "disabled"}
 
 
 ## The measured options that make this machine show its own boot screen, unless

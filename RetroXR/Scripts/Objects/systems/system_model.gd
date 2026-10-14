@@ -724,6 +724,14 @@ func configure_expansion_socket(_socket: Node3D) -> void:
 	pass
 
 
+## Place a socket of a unit's own (ExpansionCatalog's row `socket`), which RetroSystem
+## builds on the roof like the shared one. The placeholder box puts a Saturn's
+## Video CD Card slot in its back panel; a model that does not override this
+## leaves the socket on the roof, where the unit still seats and works.
+func configure_unit_socket(_socket_id: String, _socket: Node3D) -> void:
+	pass
+
+
 ## The slot this model's expansion-bay cover goes into, or null on a model with
 ## no such bay — which is every model but the N64, whose Jumper Pak sits under a
 ## lid that pulls off. RetroSystem asks so a save can record whether the lid is

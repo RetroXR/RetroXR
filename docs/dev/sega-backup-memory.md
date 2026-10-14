@@ -1,4 +1,4 @@
-# §2m, §2n — Sega CD and Saturn backup memory
+# §2m, §2n, §2n′, §2n″ — Sega CD and Saturn backup memory, the Saturn's other cartridges and its Video CD Card
 
 Moved verbatim out of `CLAUDE.md` on 2026-09-18; `CLAUDE.md` keeps the summary and links here.
 
@@ -90,10 +90,10 @@ Yabause's HLE BIOS calls (`src/bios.c`).
   `SaturnStorage` pins shared_ext, stages the seated cartridge's image into that
   file, drains it while running and for 12 s after stop, and keeps a manifest for
   a crash, as SegaCdStorage does. One Saturn with a cartridge runs at a time.
-- `beetle_saturn_cart` is pinned "Backup Memory" with a cartridge seated and
-  "None" without. **That takes Auto Detect away**, and Auto Detect is what gives
-  the Japanese titles that need a 1 MB or 4 MB Extended RAM cartridge their RAM:
-  they will not run until there is a unit for that cartridge.
+- `beetle_saturn_cart` is pinned to whatever is in the slot -- "Backup Memory"
+  with this cartridge, "None" with nothing -- by `ForcedCoreOptions.saturn_cart`,
+  not by `SaturnStorage`, because the slot takes four other cartridges too (§2n′).
+  Auto Detect stays away: it would fit a cartridge nobody put in the slot.
 
 The first System Memory image made takes the saves games kept in per-disc `.srm`
 files, which stay where they are. A new cartridge takes the saves in the per-disc
@@ -128,4 +128,108 @@ Point `--root` at a throwaway root: the probe writes its `save/` and
 `core_options/`.
 
 Still owed: netplay and savestates carry no cartridge; no game has been run saving
-to either memory; and the Extended RAM cartridge above.
+to either memory.
+
+### 2n′. The other cartridges for that slot — Extended RAM and two ROM cartridges
+
+Four more units stand in the same slot behind the lid, in the Backup RAM
+Cartridge's shell (`sega_saturn_ram_cart.gd`'s `SIZE`; Sega Retro: the Extended RAM
+Cartridge "looks virtually the same"), so only one cartridge of the five is ever
+in, as on the hardware:
+
+| unit | Beetle `beetle_saturn_cart` | YabaSanshiro `yabasanshiro_addon_cart` |
+|---|---|---|
+| (empty slot) | `None` | `none` |
+| `sega_saturn_ram_cart` | `Backup Memory` | `none` |
+| `sega_saturn_extram_1m` (HSS-0150) | `Extended RAM (1MB)` | `1M_extended_ram` |
+| `sega_saturn_extram_4m` (HSS-0167) | `Extended RAM (4MB)` | `4M_extended_ram` |
+| `sega_saturn_kof95_rom` | `The King of Fighters '95` | — (runs Beetle) |
+| `sega_saturn_ultraman_rom` | `Ultraman: Hikari no Kyojin Densetsu` | — (runs Beetle) |
+
+`ForcedCoreOptions.saturn_cart` pins it **both ways**, the Expansion Pak's shape:
+Beetle on Auto Detect fits a cartridge from its own game database (a Backup RAM
+Cartridge for any disc it does not list), and **YabaSanshiro defaults to the 4 MB
+cartridge**, so until this every Saturn on a Quest had 4 MB nobody put in it --
+which Beetle's database says Real Bout Garou Densetsu and Samurai Spirits: Amakusa
+Kourin refuse. Which game wants which cartridge is that database
+(`mednafen/ss/db.c`: 22 discs want 1 MB, 7 want 4 MB); nothing in the room reads
+it, so a disc without its cartridge shows whatever the game itself shows.
+
+- **RAM cartridges** keep no saves (no memory family), have no BOOT row and change
+  no core: a game that wants the RAM saves to the console's System Memory, and the
+  slot being taken is why.
+- **ROM cartridges** are half a game, the dump the core opens from its system
+  directory (`mpr-18811-mx.ic1`, `mpr-19367-mx.ic1`, the names Beetle's .info
+  declares), so each names it as `firmware` and is offered only when it is on disk.
+  Each has a BOOT row naming `mednafen_saturn` and no `roms` -- the disc still
+  boots -- because YabaSanshiro has no ROM cartridges at all; on a Quest seating one
+  runs Beetle. A cartridge restored into a room whose dump has gone opens nothing
+  and the core runs with an empty slot (`cart.c` falls through).
+- **"none" is not a value YabaSanshiro declares** (`4M_extended_ram|1M_extended_ram`)
+  but a branch its `check_variables` takes, read before `YabauseInit`;
+  libretro-godot passes a pinned value through unchecked (`SetVariable`,
+  `DeserializeFromFile` check only the key).
+
+**Measured 2026-10-14:** `Tools/cores/core_options_probe` peeked the installed
+Beetle (36 options) and a buildbot YabaSanshiro: every Beetle string in the table is
+one it declares, and YabaSanshiro declares `yabasanshiro_addon_cart` defaulting to
+`4M_extended_ram`. `expansion_tests --only=saturncart` (mutation-tested: dropping
+the empty pin, leaving SaturnStorage pinning the slot, a ROM row without its core,
+and one without its dump each turn a case red). `Tools/models/saturn_cart_render_probe`
+(windowed) photographs each of the five seated and prints what it pins.
+
+```bash
+"$godot" --path RetroXR --resolution 960x720 --position 20,20   res://Tools/models/saturn_cart_render_probe.tscn -- --out=C:/tmp/satcarts
+```
+
+Still owed: **no game has been run with any of them** -- this machine has no Saturn
+BIOS and no disc that wants a cartridge -- so that X-Men vs. Street Fighter boots on
+the 4 MB cartridge, and refuses without it, is read at source, not seen; YabaSanshiro
+taking "none" is read at source too; Kronos and other Saturn cores pin nothing; a
+real two-peer session with a cartridge seated.
+
+### 2n″. The Video CD Card — a slot of its own in the back
+
+Beetle Saturn has emulated the card since upstream libretro's 2026-08-06 work (in our
+fork from v1): `mpeg.c` is the CD block's MPEG command surface, decoding on
+libretro-common's rmpeg1/rmp3, composited as VDP2's external background, behind
+`beetle_saturn_mpeg_card` (default disabled, restart-time) and the card ROM
+`mpeg_card.bin` (`ss.mpeg_card_path`). **The ROM's bytes are never read**:
+`MPEG_GetROM` has no caller, and `MPEG_Auth` authenticates exactly when the file
+opened, so any dump works and none can be checked. Not modelled by the core: the
+image/sector transfer commands 0xA7-0xAA.
+
+The card is `sega_saturn_vcd_card`, a MOUNT_ABOVE unit with **`socket: "mpeg_card"`**:
+it is not a cartridge (Sega Retro: it goes in "through the door the battery is
+accessed from"; MAME's forum: a PCMCIA-like slot in the back near the battery), so
+it has a socket of its own and stays in while cartridges come and go behind the
+lid. A row's `socket` names the console socket a MOUNT_ABOVE unit takes;
+`RetroSystem._build_unit_sockets` grows one per name (`MpegCardSocket`) with its own
+filter (`_accepts_expansion_in`), and `RetroSystemModel.configure_unit_socket`
+places it -- the placeholder box turns it R_x(-90) into the back panel
+(`ProceduralDiscBay.seat_back_card_slot`, x = -0.075, away from the A/V row), so the
+card slides in flat, face up, 12 mm left out as a handle. The battery door is not
+modelled, and the card's 100 x 70 x 12 mm is an estimate (no dimensions found).
+**`_on_expansion_lifted` now unbinds only the units their OWN socket stopped
+holding** -- it used to unbind every MOUNT_ABOVE unit, which with one socket was the
+same thing and with two pulled the card out whenever a cartridge came out.
+
+`ForcedCoreOptions.saturn_mpeg_card` pins the option both ways on Beetle. The card
+names `mpeg_card.bin` as firmware, so it is offered only with the file installed --
+RetroXR's `.info` overlay declares it (optional), with the md5 of the one dump
+tested, `b3841bb91201eee6c0db229b2c66d54c`, which is NOT a published hash; another
+dump reads MISMATCH and still works. YabaSanshiro has no decoder, so the card's BOOT
+row runs Beetle, and so does each ROM cartridge's pair with it (a stack's recipe is
+keyed by every unit that names one, so `kof95|vcd_card` must be spelled out or the
+pair falls back to the player's core). Netplay pins the option off
+(`NetplayCores`), card or no card: `net_start_core` writes the session's pins, then
+the machine's, and now writes `NetplayCores.forced_options` back over both -- the
+machine's "enabled" used to win. That key is the only one the two ever share.
+
+**Measured 2026-10-14:** `expansion_tests --only=vcdcard` (30 checks; mutation-tested:
+the old unbind-everything, a socket that takes any unit, an unturned slot, a missing
+pair recipe and a missing `.info` row each turn a case red); `saturn_cart_render_probe`
+photographs the card in the back beside a 4 MB cartridge. Still owed: **no Video CD
+or MPEG game has been played** -- no Saturn BIOS or disc on this machine -- so the
+picture, the sound and Lunar: Silver Star Story's MPEG edition are unseen; a model
+with a real back panel; netplay with the card.

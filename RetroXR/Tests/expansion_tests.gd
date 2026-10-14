@@ -24,6 +24,12 @@
 ##            dumps get the blue development shell
 ##   saturn/  a Saturn's own System Memory, its Backup RAM Cartridge, the slot
 ##            behind the lid, and staging the cartridge into Beetle Saturn
+##   three_do/ a 3DO's own NVRAM, and staging it into the file Opera keeps it in
+##   saturncart/ the Extended RAM and ROM cartridges that share that slot: what
+##            each pins on Beetle and YabaSanshiro, the core a ROM cartridge
+##            needs, and the dump gate
+##   vcdcard/ the Saturn's Video CD Card: a socket of its own in the back panel,
+##            in beside a cartridge and staying in when the cartridge comes out
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -1396,6 +1402,12 @@ func _run() -> void:
 		await _group_scd_boot()
 	if _want("saturn"):
 		await _group_saturn()
+	if _want("three_do"):
+		await _group_three_do()
+	if _want("saturncart"):
+		await _group_saturncart()
+	if _want("vcdcard"):
+		await _group_vcdcard()
 	if _want("spacer"):
 		await _group_spacer()
 
@@ -1714,13 +1726,16 @@ func _group_saturn() -> void:
 	_ok(ExpansionCatalog.boot_for("saturn", ["sega_saturn_ram_cart"]).is_empty(),
 		"saturn/ seated, it changes nothing about what boots")
 
-	var o := SaturnStorage.forced_options(core, false)
+	var o := SaturnStorage.forced_options(core)
 	_ok(o.get("beetle_saturn_save_method") == "libretro" and o.get("beetle_saturn_shared_ext") == "enabled",
 		"saturn/ the core hands the System Memory over and keeps one cartridge file")
-	_ok(o.get("beetle_saturn_cart") == "None", "saturn/ with no cartridge seated, none is fitted")
-	_ok(SaturnStorage.forced_options(core, true).get("beetle_saturn_cart") == "Backup Memory",
-		"saturn/ with one seated, a Backup Memory cartridge is")
-	_ok(SaturnStorage.forced_options("yabasanshiro", true).is_empty(),
+	_ok(not o.has("beetle_saturn_cart"),
+		"saturn/ and leaves what is in the slot to ForcedCoreOptions, which knows every cartridge")
+	_ok(ForcedCoreOptions.saturn_cart(core, "saturn", []).get("beetle_saturn_cart") == "None",
+		"saturn/ with no cartridge seated, none is fitted")
+	_ok(ForcedCoreOptions.saturn_cart(core, "saturn", ["sega_saturn_ram_cart"]).get("beetle_saturn_cart")
+		== "Backup Memory", "saturn/ with one seated, a Backup Memory cartridge is")
+	_ok(SaturnStorage.forced_options("yabasanshiro").is_empty(),
 		"saturn/ nothing is pinned on another core")
 
 	var root := ProjectSettings.globalize_path("user://__saturn_selftest")
@@ -1860,6 +1875,365 @@ func _group_saturn() -> void:
 
 	await _clear()
 	_saturn_cleanup(root, ids)
+
+
+# ── saturncart/ — the other cartridges for the slot behind a Saturn's lid ─────
+
+const _SATURN_RAM_CARTS := ["sega_saturn_extram_1m", "sega_saturn_extram_4m"]
+const _SATURN_ROM_CARTS := ["sega_saturn_kof95_rom", "sega_saturn_ultraman_rom"]
+
+
+func _group_saturncart() -> void:
+	var beetle := "mednafen_saturn"
+	var yaba := "yabasanshiro"
+	for id: String in _SATURN_RAM_CARTS + _SATURN_ROM_CARTS:
+		_ok(ExpansionCatalog.host_of(id) == "saturn"
+			and ExpansionCatalog.mount_of(id) == ExpansionCatalog.MOUNT_ABOVE,
+			"saturncart/ %s goes in a Saturn's own socket" % id)
+		_ok(ExpansionCatalog.size_of(id) == ExpansionCatalog.size_of("sega_saturn_ram_cart"),
+			"saturncart/ %s is the Backup RAM Cartridge's shell" % id)
+		_ok(ExpansionCatalog.memory_of(id).is_empty()
+			and SpawnMenuSpawnView.memory_cart_family("expansion:%s" % id).is_empty(),
+			"saturncart/ %s keeps no saves, so its row spawns it rather than a card shelf" % id)
+		_ok(ExpansionCatalog.ids_carded_on("saturn").has(id),
+			"saturncart/ %s belongs on the Saturn's card" % id)
+	for id: String in _SATURN_RAM_CARTS:
+		_ok(ExpansionCatalog.boot_for("saturn", [id]).is_empty()
+			and ExpansionCatalog.firmware_of(id).is_empty(),
+			"saturncart/ %s changes nothing about what boots and needs no dump" % id)
+		_ok(_spawn_card_has("saturn", id), "saturncart/ %s is always offered" % id)
+	for id: String in _SATURN_ROM_CARTS:
+		_ok(str(ExpansionCatalog.boot_for("saturn", [id]).get("core", "")) == beetle,
+			"saturncart/ %s runs Beetle Saturn, the core that has it" % id)
+
+	_ok(ForcedCoreOptions.saturn_cart(beetle, "segacd", ["sega_saturn_extram_4m"]).is_empty(),
+		"saturncart/ nothing is pinned on a machine that is not a Saturn")
+	_ok(ForcedCoreOptions.saturn_cart("kronos", "saturn", ["sega_saturn_extram_4m"]).is_empty(),
+		"saturncart/ nor on a core whose cartridge option nobody has read")
+	_ok(ForcedCoreOptions.saturn_cart(yaba, "saturn", ["sega_saturn_ram_cart"])
+		.get("yabasanshiro_addon_cart") == "none",
+		"saturncart/ YabaSanshiro has no Backup RAM Cartridge, so its slot is empty for one")
+
+	# Through the real socket, so expansion_ids and the merge order are what is tested:
+	# SaturnStorage's options land after ForcedCoreOptions', and used to pin the slot.
+	var saturn := await _console("saturn")
+	saturn.core_name = yaba
+	var socket := saturn.get_node_or_null("ExpansionSocket") as XRToolsSnapZone
+	_ok(saturn._all_forced_options(beetle).get("beetle_saturn_cart") == "None"
+		and saturn._all_forced_options(yaba).get("yabasanshiro_addon_cart") == "none",
+		"saturncart/ a bare Saturn has an empty slot on both cores, not either core's default")
+
+	var four := await _unit("sega_saturn_extram_4m")
+	saturn.restore_expansion(four)
+	await _wait(10)
+	_ok(saturn.expansion_ids().size() == 1 and saturn.expansion_ids().has("sega_saturn_extram_4m"),
+		"saturncart/ the 4 MB cartridge seats behind the lid")
+	_ok(saturn._all_forced_options(beetle).get("beetle_saturn_cart") == "Extended RAM (4MB)"
+		and saturn._all_forced_options(yaba).get("yabasanshiro_addon_cart") == "4M_extended_ram",
+		"saturncart/ and both cores are given 4 MB")
+	_ok(saturn._resolve_core() == yaba, "saturncart/ a RAM cartridge leaves the player's core alone")
+	_ok(saturn.saturn_storage().cart_of(saturn.get_expansions()) == null,
+		"saturncart/ and is not a Backup RAM Cartridge, so nothing is staged for it")
+
+	var one := await _unit("sega_saturn_extram_1m")
+	saturn.restore_expansion(one)
+	await _wait(10)
+	_ok(saturn.expansion_ids().size() == 1 and saturn.expansion_ids().has("sega_saturn_extram_1m"),
+		"saturncart/ one slot: the 1 MB cartridge takes the 4 MB one's place")
+	_ok(saturn._all_forced_options(yaba).get("yabasanshiro_addon_cart") == "1M_extended_ram",
+		"saturncart/ and a Quest's YabaSanshiro is given 1 MB, which two SNK games need rather than 4")
+
+	var kof := await _unit("sega_saturn_kof95_rom")
+	saturn.restore_expansion(kof)
+	await _wait(10)
+	_ok(saturn._resolve_core() == beetle,
+		"saturncart/ a ROM cartridge runs Beetle, over the player's YabaSanshiro")
+	_ok(saturn._all_forced_options(beetle).get("beetle_saturn_cart") == "The King of Fighters '95",
+		"saturncart/ and Beetle maps the KOF '95 cartridge")
+	saturn.rom_path = "/roms/saturn/kof95.chd"
+	saturn._expansion_launch.apply_expansion_launch()
+	_ok(saturn.rom_path == "/roms/saturn/kof95.chd",
+		"saturncart/ while the disc in the console is still what boots")
+
+	await _unbolt(socket, kof)
+	_ok(saturn.expansion_ids().is_empty()
+		and saturn._all_forced_options(beetle).get("beetle_saturn_cart") == "None"
+		and saturn._resolve_core() == yaba,
+		"saturncart/ taken out, the slot is empty and the player's core is back")
+	await _clear()
+
+	await _saturn_dump_gate(_SATURN_ROM_CARTS)
+
+
+func _refresh_saturn_firmware() -> void:
+	FirmwareState.shared().evaluate("mednafen_saturn", FirmwareRequirements.for_core("mednafen_saturn"))
+
+
+## The dump gate, driven both ways, as the Sufami Turbo's is: the path is the core's
+## system directory and cannot be pointed elsewhere, so a real dump is moved aside
+## and put straight back, and a scratch one is written and removed.
+func _saturn_dump_gate(ids: Array) -> void:
+	var core := "mednafen_saturn"
+	for id: String in ids:
+		var wanted := ExpansionCatalog.firmware_of(id)
+		_ok(wanted.size() == 1, "saturncart/ %s names the one dump it cannot work without" % id)
+		if wanted.size() != 1:
+			continue
+		var name := str(wanted[0])
+		var declared := false
+		for status_row: Dictionary in FirmwareState.shared().evaluate(
+				core, FirmwareRequirements.for_core(core)):
+			if str(status_row.get("path", "")) == name:
+				declared = true
+		_ok(declared, "saturncart/ %s is a file Beetle Saturn's .info names" % name)
+
+		var dest := FirmwareRequirements.destination(core, name)
+		var aside := dest + ".expansion_tests_backup"
+		if FileAccess.file_exists(aside) and not FileAccess.file_exists(dest):
+			DirAccess.rename_absolute(aside, dest)
+			print("[exp] saturncart/ restored a %s left aside by an earlier run" % name)
+		var had := FileAccess.file_exists(dest)
+		if had:
+			DirAccess.rename_absolute(dest, aside)
+		_refresh_saturn_firmware()
+		_ok(not ExpansionCatalog.firmware_present(id) and not _spawn_card_has("saturn", id),
+			"saturncart/ without %s, the Saturn's card does not offer %s" % [name, id])
+
+		if had:
+			DirAccess.rename_absolute(aside, dest)
+		else:
+			DirAccess.make_dir_recursive_absolute(dest.get_base_dir())
+			var f := FileAccess.open(dest, FileAccess.WRITE)
+			if f == null:
+				_ok(false, "saturncart/ can write to the BIOS folder to drive the gate")
+				return
+			f.store_string("retroxr expansion_tests scratch, safe to delete")
+			f.close()
+		_refresh_saturn_firmware()
+		_ok(ExpansionCatalog.firmware_present(id) and _spawn_card_has("saturn", id),
+			"saturncart/ with it on disk, the card offers %s" % id)
+		if not had:
+			DirAccess.remove_absolute(dest)
+			_refresh_saturn_firmware()
+			_ok(not FileAccess.file_exists(dest), "saturncart/ and the scratch %s is cleaned up" % name)
+
+
+# ── three_do/ — a 3DO's own NVRAM, staged into the file Opera keeps it in ─────
+
+func _three_do_cleanup(root: String, ids: Array) -> void:
+	for id: String in ids:
+		var path := SramPaths.find_card(id, ThreeDoStorage.MEMORY_FAMILY)
+		if not path.is_empty():
+			DirAccess.remove_absolute(path)
+	_remove_tree(root)
+
+
+## An NVRAM image holding one file called `name` of `bytes` bytes.
+func _three_do_image(name: String, bytes: int) -> PackedByteArray:
+	return ThreeDoNvram.write_file(ThreeDoNvram.blank_image(), name, ThreeDoNvram.BLANK_TYPE, 0,
+		bytes, _scd_payload(bytes))
+
+
+func _group_three_do() -> void:
+	var core := "opera"
+	var o := ThreeDoStorage.forced_options(core, true)
+	_ok(o.get("opera_nvram_storage") == "shared" and o.get("opera_nvram_version") == "0",
+		"three_do/ Opera keeps one NVRAM for every game, in one known file")
+	_ok(ThreeDoStorage.forced_options(core, false).is_empty()
+		and ThreeDoStorage.forced_options("mednafen_saturn", true).is_empty(),
+		"three_do/ nothing is pinned without the memory or on another core")
+
+	var root := ProjectSettings.globalize_path("user://__three_do_selftest")
+	var ids := ["__3DO SELFTEST NVRAM", "__3DO SELFTEST OTHER", "__3DO SELFTEST RESTORED"]
+	_three_do_cleanup(root, ids)
+
+	var three_do := await _console("3do")
+	var other := await _console("3do")
+	var own := three_do.console_memory()
+	_ok(own != null and own.family == ThreeDoStorage.MEMORY_FAMILY and not own.card_id.is_empty(),
+		"three_do/ a 3DO has NVRAM of its own")
+	_ok(own != null and other.console_memory() != null and own.card_id != other.console_memory().card_id,
+		"three_do/ and two 3DOs spawned together keep two")
+	_ok(CardSaveOps.holder_of(get_tree(), own.card_id) == three_do, "three_do/ the console holds its own NVRAM")
+	var driver := CoreOptionsPanel.new()
+	driver._system = three_do
+	var units := driver._memory_units()
+	_ok(units.size() == 1 and units[0] == own, "three_do/ its Saves tab manages the NVRAM")
+	driver.free()
+	_ok(three_do._all_forced_options(core).get("opera_nvram_storage") == "shared",
+		"three_do/ and the machine pins Opera to it")
+
+	var restored := SYSTEM_SCENE.instantiate() as RetroSystem
+	restored.systemid = "3do"
+	restored.console_memory_id = ids[2]
+	restored.begin_restore()
+	restored.position = Vector3(_spawned.size() * 2.0, 1, 0)
+	restored.freeze = true
+	add_child(restored)
+	_spawned.append(restored)
+	await _wait(30)
+	_ok(restored.console_memory().card_id == ids[2],
+		"three_do/ a restored 3DO keeps the NVRAM it was saved with")
+
+	var disc := await _cart("3do", "/roms/3do/game.chd")
+	disc.set("save_id", "selftest")
+	three_do.restore_cartridge(disc)
+	await _wait(10)
+	three_do.rom_path = "/roms/3do/game.chd"
+	_ok(three_do.get_snapped_cartridge() == disc
+		and not three_do._memcards._compose_sram_path("othercore").is_empty(),
+		"three_do/ a disc in the tray has a file of its own on another core")
+	_ok(three_do._memcards._compose_sram_path(core).is_empty(),
+		"three_do/ but none on Opera, which has no SAVE_RAM to fill it")
+	_ok(three_do._memcards.rtc_path_for_run(core).is_empty(), "three_do/ nor a clock")
+
+	var per_game := root.path_join("pergame")
+	DirAccess.make_dir_recursive_absolute(per_game.path_join(ThreeDoStorage.PER_GAME_DIR))
+	FileAccess.open(per_game.path_join(ThreeDoStorage.PER_GAME_DIR).path_join("Game A.0.srm"),
+		FileAccess.WRITE).store_buffer(_three_do_image("GAME_A", 400))
+	var adopted := ThreeDoStorage.adopt_per_game(per_game, ThreeDoNvram.blank_image())
+	_ok(ThreeDoNvram.index_of(adopted, "GAME_A") >= 0
+		and FileAccess.file_exists(per_game.path_join(ThreeDoStorage.PER_GAME_DIR).path_join("Game A.0.srm")),
+		"three_do/ the first NVRAM takes the saves Opera kept per game, and leaves them")
+
+	# Staging into the core's file. An unclaimed shared file -- the player had
+	# switched the option on -- is set aside and becomes the new NVRAM.
+	own.card_id = ids[0]
+	var save_dir := root.path_join("save").path_join(core)
+	var shared := save_dir.path_join(ThreeDoStorage.NVRAM_FILE)
+	DirAccess.make_dir_recursive_absolute(shared.get_base_dir())
+	FileAccess.open(shared, FileAccess.WRITE).store_buffer(_three_do_image("OLDSAVE", 700))
+	var storage := three_do.three_do_storage()
+	storage.stage_before_start(root, "mednafen_saturn")
+	_ok(not storage.is_holding_files(), "three_do/ another core stages nothing")
+	storage.stage_before_start(root, core)
+	var image := SramPaths.find_card(ids[0], ThreeDoStorage.MEMORY_FAMILY)
+	var image_bytes := FileAccess.get_file_as_bytes(image)
+	_ok(not image.is_empty() and ThreeDoNvram.index_of(image_bytes, "OLDSAVE") >= 0,
+		"three_do/ a new NVRAM starts with the saves an unclaimed shared file held")
+	_ok(FileAccess.file_exists(save_dir.path_join(ThreeDoStorage.LEGACY_DIR).path_join("nvram.0.srm.imported")),
+		"three_do/ which is set aside, not written over")
+	_ok(FileAccess.get_file_as_bytes(shared) == image_bytes
+		and FileAccess.file_exists(save_dir.path_join(ThreeDoStorage.MANIFEST)),
+		"three_do/ staged into the core's one file, with a manifest")
+	_ok(not other.three_do_storage().busy_elsewhere(core).is_empty(),
+		"three_do/ a second 3DO cannot start while the file is in use")
+
+	# The core's write goes home to the console that filled the file.
+	var written := ThreeDoNvram.write_file(image_bytes, "NEWSAVE", ThreeDoNvram.BLANK_TYPE, 0, 300,
+		_scd_payload(300))
+	FileAccess.open(shared, FileAccess.WRITE).store_buffer(written)
+	_ok(storage.drain() and FileAccess.get_file_as_bytes(image) == written,
+		"three_do/ the core's write goes back to the console's NVRAM")
+	storage._finish()
+	_ok(not FileAccess.file_exists(shared) and not FileAccess.file_exists(save_dir.path_join(ThreeDoStorage.MANIFEST)),
+		"three_do/ and the folder is cleared once it is done")
+	_ok(other.three_do_storage().busy_elsewhere(core).is_empty(), "three_do/ which frees it for the other 3DO")
+
+	# A run that never drained -- a crash -- is put right by the next start.
+	storage.stage_before_start(root, core)
+	var more := ThreeDoNvram.write_file(written, "NEWSAVE2", ThreeDoNvram.BLANK_TYPE, 0, 40,
+		_scd_payload(40))
+	FileAccess.open(shared, FileAccess.WRITE).store_buffer(more)
+	storage._staged.clear()
+	_ok(ThreeDoStorage.recover(save_dir) and FileAccess.get_file_as_bytes(image) == more,
+		"three_do/ a crashed run's write is recovered from its manifest")
+
+	await _clear()
+	_three_do_cleanup(root, ids)
+
+
+# ── vcdcard/ — the Saturn's Video CD Card, in a slot of its own in the back ───
+
+func _group_vcdcard() -> void:
+	var beetle := "mednafen_saturn"
+	var card_id := "sega_saturn_vcd_card"
+	var sockets := ExpansionCatalog.unit_sockets_for_host("saturn")
+	_ok(ExpansionCatalog.socket_of(card_id) == "mpeg_card"
+		and sockets.size() == 1 and sockets[0] == "mpeg_card",
+		"vcdcard/ the card has a socket of its own, and the Saturn grows one")
+	_ok(ExpansionCatalog.host_takes_top_unit("saturn"),
+		"vcdcard/ beside the slot behind the lid, which the cartridges still share")
+	_ok(ExpansionCatalog.firmware_of(card_id) == ["mpeg_card.bin"],
+		"vcdcard/ it cannot work without the card's ROM")
+	var declared := false
+	for status_row: Dictionary in FirmwareState.shared().evaluate(
+			beetle, FirmwareRequirements.for_core(beetle)):
+		if str(status_row.get("path", "")) == "mpeg_card.bin":
+			declared = true
+	_ok(declared, "vcdcard/ which RetroXR's Beetle Saturn .info declares")
+
+	_ok(ForcedCoreOptions.saturn_mpeg_card(beetle, "saturn", []).get("beetle_saturn_mpeg_card") == "disabled"
+		and ForcedCoreOptions.saturn_mpeg_card(beetle, "saturn", [card_id]).get("beetle_saturn_mpeg_card") == "enabled",
+		"vcdcard/ Beetle has the card exactly while it is seated")
+	_ok(ForcedCoreOptions.saturn_mpeg_card("yabasanshiro", "saturn", [card_id]).is_empty()
+		and ForcedCoreOptions.saturn_mpeg_card(beetle, "segacd", [card_id]).is_empty(),
+		"vcdcard/ and nothing is pinned on another core or another machine")
+	for ids: Array in [[card_id], ["sega_saturn_kof95_rom", card_id],
+			["sega_saturn_ultraman_rom", card_id], ["sega_saturn_extram_4m", card_id]]:
+		_ok(str(ExpansionCatalog.boot_for("saturn", ids).get("core", "")) == beetle,
+			"vcdcard/ %s runs Beetle, the one core with the card" % " + ".join(ids))
+
+	var saturn := await _console("saturn")
+	saturn.core_name = "yabasanshiro"
+	var slot := saturn.get_node_or_null("MpegCardSocket") as XRToolsSnapZone
+	var rear := saturn.get_node_or_null("ExpansionSocket") as XRToolsSnapZone
+	_ok(slot != null and rear != null and slot != rear, "vcdcard/ a Saturn grows a second socket for it")
+	if slot == null or rear == null:
+		await _clear()
+		return
+	# The back face of the placeholder box is z = -0.125; the card goes in flat.
+	_ok(slot.position.z > -0.125 and slot.position.z < 0.0 and absf(slot.position.y) < 0.05,
+		"vcdcard/ inside the back panel, at mid-height (at %s)" % slot.position)
+	_ok(slot.transform.basis.y.dot(Vector3(0, 0, -1)) > 0.99,
+		"vcdcard/ facing out of the back, so a card slides in along the box")
+	var mouth := saturn.get_node_or_null("RearSlotMouth") as MeshInstance3D
+	_ok(mouth != null and is_equal_approx((mouth.mesh as BoxMesh).size.x,
+		ExpansionCatalog.size_of("sega_saturn_ram_cart").x + ProceduralDiscBay.REAR_SLOT_CLEARANCE),
+		"vcdcard/ and the slot behind the lid is still sized to a cartridge, not to it")
+
+	var card := await _unit(card_id)
+	saturn.restore_expansion(card)
+	await _wait(10)
+	_ok(slot.picked_up_object == card and not rear.has_snapped_object(),
+		"vcdcard/ the card seats in its own socket, not the cartridge slot")
+	var at := saturn.to_local(card.global_position)
+	_ok(at.z + card.size().y * 0.5 > -0.125 and at.z - card.size().y * 0.5 < -0.125,
+		"vcdcard/ mostly inside the box, the end of it out of the panel (centre %s)" % at)
+	_ok(card.global_transform.basis.z.dot(saturn.global_transform.basis.y) > 0.99,
+		"vcdcard/ lying flat, its face up")
+	_ok(saturn._resolve_core() == beetle, "vcdcard/ seated, the machine runs Beetle")
+	_ok(saturn._all_forced_options(beetle).get("beetle_saturn_mpeg_card") == "enabled",
+		"vcdcard/ with the card switched on")
+
+	var four := await _unit("sega_saturn_extram_4m")
+	_ok(not saturn._accepts_expansion(card) and not saturn._accepts_expansion_in(four, "mpeg_card"),
+		"vcdcard/ neither slot takes the other's kind")
+	saturn.restore_expansion(four)
+	await _wait(10)
+	_ok(saturn.expansion_ids().size() == 2 and saturn.expansion_ids().has(card_id)
+		and saturn.expansion_ids().has("sega_saturn_extram_4m"),
+		"vcdcard/ a cartridge goes in behind the lid with the card in")
+	var both := saturn._all_forced_options(beetle)
+	_ok(both.get("beetle_saturn_cart") == "Extended RAM (4MB)" and both.get("beetle_saturn_mpeg_card") == "enabled",
+		"vcdcard/ and Beetle has both")
+
+	await _unbolt(rear, four)
+	_ok(saturn.expansion_ids().size() == 1 and saturn.expansion_ids().has(card_id)
+		and card.get_host() == saturn,
+		"vcdcard/ taking the cartridge out leaves the card in")
+	_ok(saturn._all_forced_options(beetle).get("beetle_saturn_mpeg_card") == "enabled"
+		and saturn._all_forced_options(beetle).get("beetle_saturn_cart") == "None",
+		"vcdcard/ still switched on, with the cartridge slot empty")
+
+	await _unbolt(slot, card)
+	_ok(saturn.expansion_ids().is_empty() and card.get_host() == null
+		and saturn._all_forced_options(beetle).get("beetle_saturn_mpeg_card") == "disabled"
+		and saturn._resolve_core() == "yabasanshiro",
+		"vcdcard/ taken out, the card is off and the player's core is back")
+	await _clear()
+
+	await _saturn_dump_gate([card_id])
 
 
 # ── memory/ — a unit that keeps backup memory of its own ─────────────────────

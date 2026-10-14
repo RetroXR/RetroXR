@@ -88,6 +88,13 @@
 ##   swipe_slit  for a LOADER_SWIPE unit whose shell has a card channel: the
 ##               groove's frame in the unit's frame (axes as CardSwipeSlit
 ##               documents them). Absent, a groove is cut in the roof.
+##   socket      for a MOUNT_ABOVE unit, which of the console's sockets it goes
+##               into, when that is not the one ExpansionSocket every such unit
+##               shares. A Saturn's Video CD Card ("mpeg_card") slides into a slot
+##               in the back of its own, behind the battery door, and stays in while
+##               a cartridge goes in and out of the slot behind the lid. The console
+##               grows the socket (RetroSystem._build_unit_sockets) and the model
+##               places it (RetroSystemModel.configure_unit_socket). Absent, "".
 ##   default_occupant
 ##               this unit comes pre-installed on a bare console — a Jumper
 ##               Pak, not something a player goes looking for. RetroSystem
@@ -138,6 +145,11 @@ const _UNITS: Array = [
 	preload("res://Scripts/Data/systems/expansions/power_base_converter.gd"),
 	preload("res://Scripts/Data/systems/expansions/fm_sound_unit.gd"),
 	preload("res://Scripts/Data/systems/expansions/sega_saturn_ram_cart.gd"),
+	preload("res://Scripts/Data/systems/expansions/sega_saturn_extram_1m.gd"),
+	preload("res://Scripts/Data/systems/expansions/sega_saturn_extram_4m.gd"),
+	preload("res://Scripts/Data/systems/expansions/sega_saturn_kof95_rom.gd"),
+	preload("res://Scripts/Data/systems/expansions/sega_saturn_ultraman_rom.gd"),
+	preload("res://Scripts/Data/systems/expansions/sega_saturn_vcd_card.gd"),
 	preload("res://Scripts/Data/systems/expansions/pc_engine_cd.gd"),
 	preload("res://Scripts/Data/systems/expansions/jaguar_cd.gd"),
 	preload("res://Scripts/Data/systems/expansions/ereader.gd"),
@@ -154,7 +166,9 @@ const _ORDER: Array = [
 	"nintendo_64dd", "nintendo_64dd_dev", "expansion_pak", "jumper_pak", "fds", "satellaview",
 	"bsx_cart", "sufami_turbo", "super_game_boy", "super_game_boy_2",
 	"sega_cd", "sega_cd_ram_cart", "sega_32x", "power_base_converter", "fm_sound_unit",
-	"sega_saturn_ram_cart", "pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
+	"sega_saturn_ram_cart", "sega_saturn_extram_1m", "sega_saturn_extram_4m",
+	"sega_saturn_kof95_rom", "sega_saturn_ultraman_rom", "sega_saturn_vcd_card",
+	"pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
 ]
 
 
@@ -786,12 +800,30 @@ static func host_has_expansions(host: String) -> bool:
 
 
 ## True when something mounts ABOVE this console, so it needs a socket on its
-## roof as well as a foot underneath (the Mega Drive, which is both).
+## roof as well as a foot underneath (the Mega Drive, which is both). A unit with
+## a socket of its own does not count: it grows that one instead.
 static func host_takes_top_unit(host: String) -> bool:
 	for id: String in ids_for_host(host):
-		if mount_of(id) == MOUNT_ABOVE:
+		if mount_of(id) == MOUNT_ABOVE and socket_of(id).is_empty():
 			return true
 	return false
+
+
+## Which console socket a MOUNT_ABOVE unit goes into: "" for the ExpansionSocket
+## they share, else the name of one of its own. See the row docs above.
+static func socket_of(id: String) -> String:
+	return str(row(id).get("socket", ""))
+
+
+## The sockets of their own this console grows, beyond the shared one, in ROWS
+## order and each once.
+static func unit_sockets_for_host(host: String) -> Array[String]:
+	var out: Array[String] = []
+	for id: String in ids_for_host(host):
+		var socket := socket_of(id)
+		if mount_of(id) == MOUNT_ABOVE and not socket.is_empty() and not out.has(socket):
+			out.append(socket)
+	return out
 
 
 ## True when the console itself stands on something — the reason it grows a foot

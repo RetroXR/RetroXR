@@ -41,7 +41,13 @@ core_options = "true"
 load_subsystem = "false"
 
 # Firmware / BIOS
-firmware_count = 4
+#
+# mpeg_card.bin is the Video CD Card's ROM (beetle_saturn_mpeg_card; ss.mpeg_card_path
+# in mednafen/settings.c), up to 512 KiB. Not in libretro's own entry, and no hash
+# is published anywhere: the md5 below is the one dump RetroXR was tested with, not
+# a verified one. The core reads none of its bytes -- it authenticates the card
+# when the file opens -- so another dump reads as MISMATCH here and still works.
+firmware_count = 5
 firmware0_desc = "sega_101.bin (Saturn JP BIOS)"
 firmware0_path = "sega_101.bin"
 firmware0_opt = "false"
@@ -54,6 +60,9 @@ firmware2_opt = "true"
 firmware3_desc = "mpr-19367-mx.ic1 (Ultraman: Hikari no Kyojin Densetsu ROM Cartridge)"
 firmware3_path = "mpr-19367-mx.ic1"
 firmware3_opt = "true"
-notes = "(!) sega_101.bin (md5): 85ec9ca47d8f6807718151cbcca8b964|(!) mpr-17933.bin (md5): 3240872c70984b6cbfda1586cab68dbe|(!) mpr-18811-mx.ic1 (md5): 255113ba943c92a54facd25a10fd780c|(!) mpr-19367-mx.ic1 (md5): 1cd19988d1d72a3e7caa0b73234c96b4"
+firmware4_desc = "mpeg_card.bin (Video CD Card ROM)"
+firmware4_path = "mpeg_card.bin"
+firmware4_opt = "true"
+notes = "(!) sega_101.bin (md5): 85ec9ca47d8f6807718151cbcca8b964|(!) mpr-17933.bin (md5): 3240872c70984b6cbfda1586cab68dbe|(!) mpr-18811-mx.ic1 (md5): 255113ba943c92a54facd25a10fd780c|(!) mpr-19367-mx.ic1 (md5): 1cd19988d1d72a3e7caa0b73234c96b4|(!) mpeg_card.bin (md5): b3841bb91201eee6c0db229b2c66d54c"
 
 description = "An older fork of Mednafen's Saturn emulator (circa mid-2019 with some fixes backported from later versions), this core represents a major step forward for accurate Saturn emulation, and it runs most games with few or no noticeable glitches/anomalies. However, this accuracy comes at the price of high CPU requirements. Additionally, this core is software-rendered and does not support any increased internal resolution or other fun-but-accuracy-compromising features, unlike the other, less-accurate Saturn cores."

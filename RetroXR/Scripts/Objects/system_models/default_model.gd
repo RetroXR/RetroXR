@@ -51,9 +51,24 @@ func configure_expansion_socket(socket: Node3D) -> void:
 		return
 	var card := Vector3.ZERO
 	for id: String in ExpansionCatalog.ids_for_host(str(socket.get_parent().get("systemid"))):
-		if ExpansionCatalog.mount_of(id) == ExpansionCatalog.MOUNT_ABOVE:
+		if ExpansionCatalog.mount_of(id) == ExpansionCatalog.MOUNT_ABOVE \
+				and ExpansionCatalog.socket_of(id).is_empty():
 			card = card.max(ExpansionCatalog.size_of(id))
 	_lid_bay.seat_rear_slot(socket as XRToolsSnapZone, card)
+
+
+## A Saturn's Video CD Card goes in flat through the back panel, at the end away
+## from the A/V row and the serial socket (x 0.045 and up), standing out of it by
+## what is left of the card once its depth is in. The real slot is behind the
+## battery door; the door is not modelled.
+func configure_unit_socket(socket_id: String, socket: Node3D) -> void:
+	if socket_id != "mpeg_card" or not (socket is XRToolsSnapZone):
+		return
+	var size := Vector3.ZERO
+	for id: String in ExpansionCatalog.ids_for_host(str(socket.get_parent().get("systemid"))):
+		if ExpansionCatalog.socket_of(id) == socket_id:
+			size = size.max(ExpansionCatalog.size_of(id))
+	ProceduralDiscBay.seat_back_card_slot(socket as XRToolsSnapZone, size)
 
 
 func build_disc_slit(host: Node3D, systemid: String) -> void:

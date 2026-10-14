@@ -2933,6 +2933,12 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	_sega_cd.stage_before_start(_resolve_dir(), resolved_core)
 	_saturn.stage_before_start(_resolve_dir(), resolved_core)
 	_apply_forced_core_options(_resolve_dir(), resolved_core)
+	# The session's determinism pins outrank what the machine pins for its own
+	# hardware, so they go back over it: a Saturn's Video CD Card is off in a
+	# session (NetplayCores) even seated. The one key both pin today.
+	var session_pins := NetplayCores.forced_options(resolved_core)
+	if not session_pins.is_empty():
+		CoreOptionsStore.merge_values(_resolve_dir(), resolved_core, session_pins)
 	_persist_pak_options(_resolve_dir(), resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
 	_libretro.SetNetplayMode(true, port_mask, start_frame)
@@ -3267,6 +3273,8 @@ func _build_expansion_hardware() -> void:
 			_seed_default_occupant(socket)
 			_seed_expansion_cover()
 
+	_build_unit_sockets(aabb, span)
+
 	if ExpansionCatalog.host_stands_on_unit(systemid) \
 			and get_node_or_null("ExpansionFoot") == null:
 		# Registered by hand: XRToolsPickable collects grab points in its own
@@ -3333,11 +3341,44 @@ func restore_expansion_cover(cover: Node3D) -> void:
 
 ## Roof-socket gate: is this a unit that mounts on THIS console?
 func _accepts_expansion(obj: Node3D) -> bool:
+	return _accepts_expansion_in(obj, "")
+
+
+## The same gate for one socket: a unit mounts here when it is this console's and
+## names this socket ("" for the shared ExpansionSocket).
+func _accepts_expansion_in(obj: Node3D, socket_id: String) -> bool:
 	var unit := obj as RetroExpansion
 	if unit == null:
 		return false
 	return ExpansionCatalog.host_of(unit.expansion_id) == systemid \
-		and ExpansionCatalog.mount_of(unit.expansion_id) == ExpansionCatalog.MOUNT_ABOVE
+		and ExpansionCatalog.mount_of(unit.expansion_id) == ExpansionCatalog.MOUNT_ABOVE \
+		and ExpansionCatalog.socket_of(unit.expansion_id) == socket_id
+
+
+## The sockets of their own some units go into -- a Saturn's Video CD Card slot in
+## its back -- built as the shared one is and placed by the model. Named after the
+## row's `socket`: "mpeg_card" is MpegCardSocket.
+func _build_unit_sockets(aabb: AABB, span: Vector2) -> void:
+	for socket_id: String in ExpansionCatalog.unit_sockets_for_host(systemid):
+		if _unit_socket(socket_id) != null:
+			continue
+		var socket := ExpansionPort.build_socket(self, aabb.end.y, span,
+			ExpansionPort.GROUP_EXPANSION, _accepts_expansion_in.bind(socket_id))
+		socket.name = _unit_socket_name(socket_id)
+		socket.has_picked_up.connect(_on_expansion_seated)
+		socket.has_dropped.connect(_on_expansion_lifted)
+		_model.configure_unit_socket(socket_id, socket)
+
+
+## The socket a MOUNT_ABOVE unit naming `socket_id` goes into, or null.
+func _unit_socket(socket_id: String) -> XRToolsSnapZone:
+	if socket_id.is_empty():
+		return get_node_or_null("ExpansionSocket") as XRToolsSnapZone
+	return get_node_or_null(_unit_socket_name(socket_id)) as XRToolsSnapZone
+
+
+static func _unit_socket_name(socket_id: String) -> String:
+	return socket_id.to_pascal_case() + "Socket"
 
 
 func _on_expansion_seated(obj: Node3D) -> void:
@@ -3348,9 +3389,14 @@ func _on_expansion_seated(obj: Node3D) -> void:
 
 func _on_expansion_lifted() -> void:
 	# The zone says it is empty, not what left it, so unbind whatever we hold
-	# that a socket is no longer holding.
+	# that a socket is no longer holding. ITS socket: a Saturn's Video CD Card stays
+	# in its own while a cartridge comes out of the slot behind the lid.
 	for unit in _expansions.duplicate():
-		if is_instance_valid(unit) and ExpansionCatalog.mount_of(unit.expansion_id) == ExpansionCatalog.MOUNT_ABOVE:
+		if not is_instance_valid(unit) \
+				or ExpansionCatalog.mount_of(unit.expansion_id) != ExpansionCatalog.MOUNT_ABOVE:
+			continue
+		var socket := _unit_socket(ExpansionCatalog.socket_of(unit.expansion_id))
+		if socket == null or socket.picked_up_object != unit:
 			unit.unbind_from_host()
 
 
@@ -3463,8 +3509,9 @@ func restore_expansion(unit: RetroExpansion) -> void:
 			_cartridge_slot.pick_up_object(unit)
 			return
 	elif mount == ExpansionCatalog.MOUNT_ABOVE:
-		var socket := get_node_or_null("ExpansionSocket") as XRToolsSnapZone
-		if socket != null and _accepts_expansion(unit):
+		var socket_id := ExpansionCatalog.socket_of(unit.expansion_id)
+		var socket := _unit_socket(socket_id)
+		if socket != null and _accepts_expansion_in(unit, socket_id):
 			socket.pick_up_object(unit)
 			return
 	else:
