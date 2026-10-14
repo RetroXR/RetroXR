@@ -179,6 +179,20 @@ No file replacement and no claim needed. This is the recommended route.
 The alternative — claim a shipped asset path and ship a replacement, e.g. a new
 `nes_console.glb` — keeps the shipped logic and swaps only the geometry.
 
+A row you replace brings its own working parts: whatever the shipped scene had
+that the room talks to is gone unless your scene has it too. Most are plain to
+see (a link socket, a cartridge slot). One is not: **the Game Boy Color's
+infrared port.** The shipped model carries an `IrPort` node
+(`res://Scripts/Objects/cables/ir_port.gd`) on its window, and it is the only
+thing that lets two of them link by pointing at each other. A replacement
+without one has no infrared at all, and nothing says so. Put one on your
+model's window, looking out of the top end along its own **-Z**, and light the
+window from its `link_changed(live)` signal if you want the glow: `live` is
+true only while both cores are on the bus. The Game Boy Color in RetroXR-models
+(`xenu.gbc`, `_seat_ir_port`) seats it on its GLB's `IRWindow`, and lays its glow
+OVER the window (`material_overlay`) because its own paint code owns the window's
+material.
+
 ### Colors and editions on one row
 
 A machine sold in ten colors is one row, not ten. Give the row a `variants` list
