@@ -239,5 +239,10 @@ the old unbind-everything, a socket that takes any unit, an unturned slot, a mis
 pair recipe and a missing `.info` row each turn a case red); `saturn_cart_render_probe`
 photographs the card in the back beside a 4 MB cartridge. Still owed: **no Video CD
 or MPEG game has been played** -- no Saturn BIOS or disc on this machine -- so the
-picture, the sound and Lunar: Silver Star Story's MPEG edition are unseen; a model
-with a real back panel; netplay with the card.
+picture, the sound and Lunar: Silver Star Story's MPEG edition are unseen; netplay
+with the card. **The Saturn mod seats it for real from 0.2.0** (RetroXR-models
+`mods/xenu.saturn`, its `configure_unit_socket`): on the shell's `ExpansionBay`
+marker, with `BatteryCover` off while a card is in; its `saturn_probe` checks the
+bay, the fit (58 x 16 mm in the 61.6 x 33 mm opening) and the door, 145 checks.
+A mod's override must not call `super()` or anything newer than the oldest build
+it loads in -- GDScript refuses to compile it there, and the console with it.
