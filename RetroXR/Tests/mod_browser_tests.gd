@@ -10,6 +10,8 @@
 ##   mounted/   A MOUNTED PACK IS NOT TOUCHED UNTIL THE NEXT LAUNCH
 ##   remove/    removal, and the state it leaves behind
 ##   pending/   the moves carried over a restart, and what the list may not reach
+##   apply/     what the Installed page's button would do, a pack mounted after
+##              boot, and a pack that arrived after boot (rescan)
 ##   catalogue/ what a mod.io reply becomes, and the request that asks for it
 ##   scan/      a file mod.io has not scanned clean is not offered
 ##   policy/    a download may not carry a game or a program
@@ -24,8 +26,9 @@
 ## Every case runs against its OWN ModManager, built here and never added to the
 ## tree, pointed at a scratch root and a scratch state file through the two
 ## override seams. The `Mods` autoload and <data root>/mods are never touched,
-## and nothing is mounted: `mounted` is set by hand, which is the only thing the
-## code under test reads.
+## and almost nothing is mounted: `mounted` and `loaded` are set by hand, which
+## is all the code under test reads. The one exception is apply/, which mounts a
+## pack of its own under its own namespace to prove a late mount registers.
 ##
 ## Exits 0 when everything passes, 1 otherwise.
 extends Node
@@ -66,8 +69,13 @@ func _ready() -> void:
 	if _want("space"):     await _group_space()
 	if _want("thumbnail"): _group_thumbnail()
 	if _want("download"):  await _group_download()
+	# Last: it mounts a pack, and a mounted file cannot be deleted until exit.
+	if _want("apply"):     _group_apply()
 
 	_remove_tree(_dir)
+	# Goes on Linux; on Windows the mounted zip is held open, and the next run's
+	# _group_apply_live clears it.
+	_remove_tree(_dir + "_live")
 	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
 
@@ -98,7 +106,7 @@ func _group_install() -> void:
 		_eq(rec.path, _root.path_join("t.one.zip"), "install/record names the installed file")
 	_ok(not m.is_enabled("t.one"), "install/is not enabled for the player")
 	_ok(not bool(out["restart"]), "install/a disabled mod needs no restart")
-	_ok(not m.restart_pending(), "install/nothing is pending")
+	_ok(not m.changes_waiting(), "install/nothing is pending")
 	_eq(int(m.source("t.one").get("modio_id", 0)), 7, "install/keeps where it came from")
 	_ok(m.find_by_source("modio_id", 7) == rec, "install/found again by its source")
 	_ok(m.find_by_source("modio_id", 8) == null, "install/another source finds nothing")
@@ -195,6 +203,7 @@ func _group_mounted() -> void:
 	var rec: ModRecord = m.mod("t.one")
 	rec.status = ModRecord.Status.LOADED
 	rec.mounted = true
+	rec.loaded = true
 	var old_bytes := FileAccess.get_file_as_bytes(_root.path_join("t.one.zip"))
 
 	var out: Dictionary = m.install(_stage(m, "dl-1.zip", _pack("t.one", "2.0.0")))
@@ -213,7 +222,7 @@ func _group_mounted() -> void:
 		"mounted/the page says which version is coming")
 	_eq(m.fingerprint(), PackedStringArray(["t.one@1.0.0"]),
 		"mounted/the netplay fingerprint is still this session's")
-	_ok(m.restart_pending(), "mounted/a restart is pending")
+	_ok(m.changes_waiting(), "mounted/a restart is pending")
 	_ok(FileAccess.file_exists(m.incoming_dir().path_join("t.one.zip")),
 		"mounted/the update waits in incoming")
 
@@ -254,6 +263,7 @@ func _group_mounted() -> void:
 	var grec: ModRecord = r.mod("t.gone")
 	grec.status = ModRecord.Status.LOADED
 	grec.mounted = true
+	grec.loaded = true
 	out = r.remove("t.gone")
 	_ok(bool(out["ok"]) and bool(out["restart"]), "mounted/removal is accepted for later")
 	_ok(FileAccess.file_exists(_root.path_join("t.gone.zip")), "mounted/the file is still there")
@@ -340,7 +350,7 @@ func _group_remove() -> void:
 	_ok(m.mod("t.one") == null, "remove/its record is dropped")
 	_ok(not m.is_enabled("t.one"), "remove/its switch is cleared")
 	_ok(m.source("t.one").is_empty(), "remove/its source is forgotten")
-	_ok(not m.restart_pending(), "remove/nothing waits on a restart")
+	_ok(not m.changes_waiting(), "remove/nothing waits on a restart")
 	_ok(not bool(m.remove("t.one")["ok"]), "remove/twice is an error, not a crash")
 
 	# Reinstalling must not come back enabled on the strength of the old switch.
@@ -395,10 +405,196 @@ func _group_pending() -> void:
 	_ok(FileAccess.file_exists(_root.path_join("victim.zip")),
 		"pending/an install whose file is missing replaces nothing")
 	_eq(boot._pending.size(), 0, "pending/the list is cleared even when ops were skipped")
-	_ok(not boot.restart_pending(), "pending/and no restart is asked for again")
+	_ok(not boot.changes_waiting(), "pending/and no restart is asked for again")
 	DirAccess.remove_absolute(outside)
 	m.free()
 	boot.free()
+
+
+# ── apply/ ────────────────────────────────────────────────────────────────────
+
+## The button on the Installed page: what is waiting, whether it can be loaded
+## into the room now or needs a restart, and what a late mount does.
+func _group_apply() -> void:
+	# Switching a new mod on is a change that can be applied now.
+	var m := _fresh()
+	_write_zip(_root.path_join("t.new.zip"), _pack("t.new", "1.0.0"))
+	m._discover()
+	_ok(not m.changes_waiting(), "apply/nothing waits after a boot")
+	m.set_enabled("t.new", true)
+	var plan: Dictionary = m.apply_plan()
+	_eq(_ids(plan["live"]), ["t.new"], "apply/a new mod switched on can be loaded now")
+	_ok(not bool(plan["restart"]), "apply/and needs no restart")
+	_eq(str(plan["blocked"]), "", "apply/and nothing blocks it outside netplay")
+	# Switched off again it is not a change at all. This used to stay PENDING, so
+	# the page asked for a restart that would have changed nothing.
+	m.set_enabled("t.new", false)
+	_eq(m.mod("t.new").status, ModRecord.Status.DISABLED, "apply/on then off again is back to disabled")
+	_ok(not m.changes_waiting(), "apply/and nothing waits")
+
+	# Load order among the mods applied together is a boot's: priority, then id.
+	_write_zip(_root.path_join("t.b.zip"), _pack_with("t.b", {"priority": 0}))
+	_write_zip(_root.path_join("t.a.zip"), _pack_with("t.a", {"priority": 5}))
+	_write_zip(_root.path_join("t.c.zip"), _pack_with("t.c", {"priority": 0}))
+	m.rescan()
+	for id: String in ["t.a", "t.b", "t.c"]:
+		m.set_enabled(id, true)
+	_eq(_ids(m.apply_plan()["live"]), ["t.b", "t.c", "t.a"],
+		"apply/in a boot's order: priority, then id")
+
+	# One that replaces a shipped file is mounted with replace_files, and the
+	# shipped copy may already be cached: that takes a restart.
+	var claimed := _pack_with("t.shadow", {"claims": ["res://Scenes/Objects/tv.tscn"]})
+	claimed["Scenes/Objects/tv.tscn"] = "[gd_scene format=3]"
+	_write_zip(_root.path_join("t.shadow.zip"), claimed)
+	m.rescan()
+	m.set_enabled("t.shadow", true)
+	plan = m.apply_plan()
+	_ok(bool(plan["restart"]), "apply/a mod replacing a shipped file needs a restart")
+	_ok(not _ids(plan["live"]).has("t.shadow"), "apply/and is not loaded live")
+	m.free()
+
+	# A running mod switched off keeps running until the restart, so it stays in
+	# the netplay fingerprint; switched on again it is no change.
+	var r := _fresh()
+	_write_zip(_root.path_join("t.run.zip"), _pack("t.run", "1.0.0"))
+	r._discover()
+	r.set_enabled("t.run", true)
+	var run: ModRecord = r.mod("t.run")
+	run.status = ModRecord.Status.LOADED
+	run.mounted = true
+	run.loaded = true
+	r.set_enabled("t.run", false)
+	_eq(run.status, ModRecord.Status.PENDING, "apply/a running mod switched off waits")
+	_ok(bool(r.apply_plan()["restart"]), "apply/for a restart")
+	_eq(r.fingerprint(), PackedStringArray(["t.run@1.0.0"]),
+		"apply/and is still in this session's fingerprint")
+	r.set_enabled("t.run", true)
+	_eq(run.status, ModRecord.Status.LOADED, "apply/switched back on it is simply loaded")
+	_ok(not r.changes_waiting(), "apply/and nothing waits")
+	# Mounted and failed: neither position of the switch changes this session.
+	run.loaded = false
+	run.fail("entry script did not compile")
+	r.set_enabled("t.run", false)
+	r.set_enabled("t.run", true)
+	_eq(run.status, ModRecord.Status.FAILED, "apply/a failed mount stays failed either way")
+	_ok(not r.changes_waiting(), "apply/and asks for nothing")
+	# A move parked for the next launch is a restart.
+	r._pending.append({"op": "remove", "id": "t.run", "files": ["t.run.zip"]})
+	_ok(bool(r.apply_plan()["restart"]), "apply/a parked move needs a restart")
+	r.free()
+
+	_group_apply_rescan()
+	_group_apply_live()
+
+
+## Packs that arrive after boot -- by hand, over adb, through the LAN server.
+func _group_apply_rescan() -> void:
+	var m := _fresh()
+	m._discover()
+	var changed := [0]
+	m.mods_changed.connect(func() -> void: changed[0] += 1)
+	_write_zip(_root.path_join("t.late.zip"), _pack("t.late", "1.0.0"))
+	_eq(m.rescan(), 1, "apply/rescan finds a pack added since boot")
+	_eq(m.mod("t.late").status, ModRecord.Status.DISABLED, "apply/and it lands disabled")
+	_eq(changed[0], 1, "apply/and says so")
+	_eq(m.rescan(), 0, "apply/a second rescan finds nothing new")
+	_eq(changed[0], 1, "apply/and says nothing")
+	# Switched on in an earlier session, then deleted and copied back in.
+	m._enabled["t.back"] = true
+	_write_zip(_root.path_join("t.back.zip"), _pack("t.back", "1.0.0"))
+	m.rescan()
+	_eq(m.mod("t.back").status, ModRecord.Status.PENDING,
+		"apply/an id already switched on arrives waiting to apply")
+	# Half-copied, then finished.
+	var half := _root.path_join("t.half.zip")
+	var f := FileAccess.open(half, FileAccess.WRITE)
+	f.store_string("PK half a zip")
+	f.close()
+	m.rescan()
+	_eq(m.unreadable().size(), 1, "apply/a half-copied pack is listed as unreadable")
+	_write_zip(half, _pack("t.half", "1.0.0"))
+	m.rescan()
+	_ok(m.mod("t.half") != null, "apply/and is read again once it is whole")
+	_ok(m.unreadable().is_empty(), "apply/and is no longer listed as unreadable")
+	# A second copy of a mod already here is the next boot's to judge.
+	var before: ModRecord = m.mod("t.late")
+	_write_zip(_root.path_join("t.late copy.zip"), _pack("t.late", "2.0.0"))
+	_eq(m.rescan(), 0, "apply/a second copy of a known id adds nothing")
+	_ok(m.mod("t.late") == before and before.manifest.version == "1.0.0",
+		"apply/and leaves the record alone")
+	m.free()
+
+
+## A real mount after boot. The pack lives in its own folder, away from _dir: a
+## mounted container stays open until the process exits, and on Windows that
+## means it cannot be deleted (the next run clears it).
+func _group_apply_live() -> void:
+	var live_dir := _dir + "_live"
+	_remove_tree(live_dir)
+	var root := live_dir.path_join("mods")
+	DirAccess.make_dir_recursive_absolute(root)
+	var m: Node = MANAGER.new()
+	m.mods_root_override = root
+	m.state_path_override = live_dir.path_join("mods.json")
+	# _ready never runs on a manager outside the tree, and a refused registration
+	# withdraws through the hooks.
+	m._hooks = ModHooks.new(get_tree())
+	var good := _pack("t.live", "1.0.0")
+	good["mods/t.live/m.gd"] = "extends RetroMod\n\nfunc register(api: ModApi) -> void:\n" \
+		+ "\tapi.register_tv_shell(\"t.live:crt\", \"res://mods/t.live/crt.tscn\", \"Live fixture\")\n"
+	good["mods/t.live/crt.tscn"] = "[gd_scene format=3]\n\n[node name=\"Crt\" type=\"Node3D\"]\n"
+	_write_zip(root.path_join("t.live.zip"), good)
+	var bad := _pack("t.livebad", "1.0.0")
+	bad["mods/t.livebad/m.gd"] = "extends RetroMod\n\nfunc register(api: ModApi) -> void:\n" \
+		+ "\tapi.register_tv_shell(\"t.livebad:crt\", \"res://mods/t.livebad/none.tscn\", \"Bad\")\n"
+	_write_zip(root.path_join("t.livebad.zip"), bad)
+	m._discover()
+	m.set_enabled("t.live", true)
+	m.set_enabled("t.livebad", true)
+	var applied := [0]
+	m.mods_applied.connect(func() -> void: applied[0] += 1)
+
+	var mounted: Array = m.apply_live()
+	_eq(mounted.size(), 2, "apply/both waiting mods are mounted")
+	var rec: ModRecord = m.mod("t.live")
+	_eq(rec.status, ModRecord.Status.LOADED, "apply/a late mount registers")
+	_ok(rec.mounted and rec.loaded, "apply/and is running")
+	_ok(_has_tv_shell("t.live:crt"), "apply/what it registered is there to be read")
+	_eq(applied[0], 1, "apply/mods_applied says so once")
+	_eq(m.fingerprint(), PackedStringArray(["t.live@1.0.0"]),
+		"apply/and netplay is told about it, and only it")
+	var badrec: ModRecord = m.mod("t.livebad")
+	_eq(badrec.status, ModRecord.Status.FAILED, "apply/a refused registration fails")
+	_ok(badrec.reason.contains("refused"), "apply/and says why", badrec.reason)
+	_ok(not m.changes_waiting(), "apply/nothing waits once applied")
+	_eq((m.apply_live() as Array).size(), 0, "apply/a second apply mounts nothing")
+	_eq(applied[0], 1, "apply/and says nothing")
+	rec.api.withdraw()
+	_ok(not _has_tv_shell("t.live:crt"), "apply/withdrawn, the registry is clean for what runs next")
+	m.free()
+
+
+func _has_tv_shell(shell_id: String) -> bool:
+	for shell: Dictionary in RetroTV.mod_shells():
+		if str(shell["id"]) == shell_id:
+			return true
+	return false
+
+
+func _ids(records: Variant) -> Array:
+	return (records as Array).map(func(r: ModRecord) -> String: return r.id)
+
+
+## A pack whose manifest carries more than _pack writes.
+func _pack_with(id: String, extra: Dictionary) -> Dictionary:
+	var manifest := {"id": id, "api_version": 1, "version": "1.0.0", "name": id,
+		"entry": "res://mods/%s/m.gd" % id}
+	manifest.merge(extra, true)
+	return {
+		"mods/%s/mod.json" % id: JSON.stringify(manifest),
+		"mods/%s/m.gd" % id: "extends RetroMod",
+	}
 
 
 # ── catalogue/ ────────────────────────────────────────────────────────────────

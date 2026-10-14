@@ -18,7 +18,11 @@ extends Node
 ## set_active_slot() writes user://scenes/prefs.json. Both are snapshotted at the
 ## start and put back at the end, so a red run cannot cost anyone their room.
 
-const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "overlap", "curtain", "fixture", "switch", "power", "cords", "vlc", "manifest", "stack"]
+const GROUPS := ["slots", "boot", "ready", "transition", "autosave", "reload", "carry", "restart", "overlap", "curtain", "fixture", "switch", "power", "cords", "vlc", "manifest", "stack"]
+## A room id no real room has, for the carry: its file lives in a folder of its
+## own under user://scenes, deleted at the end, never the player's.
+const CARRY_ROOM := "__scene_selftest_carry"
+const SCENE_MANAGER := preload("res://Scripts/Data/scene_manager.gd")
 ## Scratch slot ids, in the arcade's real directory — slot_dir() is derived from
 ## the room id and cannot be pointed somewhere safer.
 const SLOT_A := "__scene_selftest_a"
@@ -139,6 +143,10 @@ func _ready() -> void:
 		await _test_autosave()
 	if _want_group("reload"):
 		await _test_reload()
+	if _want_group("carry"):
+		await _test_carry()
+	if _want_group("restart"):
+		_test_restart_args()
 	if _want_group("overlap"):
 		await _test_overlap()
 	if _want_group("curtain"):
@@ -509,6 +517,124 @@ func _test_reload() -> void:
 	sp.clear_scene(self)
 	for i in range(20):
 		await get_tree().physics_frame
+
+
+# ── The carry: a room across a reload or a restart ────────────────────────────
+
+## Applying a mod rebuilds the room, and some changes restart the app. Neither is
+## the player leaving it, so the room is written as it stands and the next restore
+## of THAT room brings it back -- once -- in place of its slot.
+func _test_carry() -> void:
+	SceneManager._carry_room_id = ""
+	SceneManager._transitioning = false
+	SceneManager.current_scene_id = CARRY_ROOM
+	SceneManager._content_ready_scene_id = ""
+	_ok(not SceneManager.carry_room(), "carry/refused before the room has settled")
+	_ok(not SceneManager.reload_room().is_empty(), "carry/as is a reload")
+	_eq(SceneManager._carry_room_id, "", "carry/and nothing is marked")
+	SceneManager._content_ready_scene_id = CARRY_ROOM
+
+	var sp := ScenePersistence.new(CARRY_ROOM)
+	var entries := [
+		{"id": 0, "type": "system", "systemid": "nes",
+			"position": [0, 0, 0], "rotation": [0, 0, 0]},
+		{"id": 1, "type": "system", "systemid": "gb",
+			"position": [1, 0, 0], "rotation": [0, 0, 0]},
+	]
+	sp.instantiate_objects(self, entries)
+	for i in range(30):
+		await get_tree().physics_frame
+	var baseline := get_tree().get_nodes_in_group("spawned").size()
+	var carry_file := ProjectSettings.globalize_path(
+		"user://scenes/%s/%s.json" % [CARRY_ROOM, ScenePersistence.CARRY_SLOT])
+
+	_ok(SceneManager.carry_room(), "carry/written for a settled room")
+	_ok(FileAccess.file_exists(carry_file), "carry/the file is beside the slots")
+	# Kept in the prefs, so a restart finds it.
+	SceneManager._carry_room_id = ""
+	SceneManager.load_prefs()
+	_eq(SceneManager._carry_room_id, CARRY_ROOM, "carry/the mark survives a restart")
+	_ok(SceneManager.take_carry(CARRY_ROOM), "carry/the room's next restore takes it")
+	_ok(not SceneManager.take_carry(CARRY_ROOM), "carry/and only that one")
+	SceneManager.load_prefs()
+	_eq(SceneManager._carry_room_id, "", "carry/taken, it is gone from the prefs as well")
+
+	sp.clear_scene(self)
+	for i in range(30):
+		await get_tree().physics_frame
+	_eq(_systems(), 0, "carry/the room is torn down")
+	var restored: bool = await sp.load_carry_async(self)
+	_ok(restored, "carry/restores")
+	for i in range(30):
+		await get_tree().physics_frame
+	_eq(_systems(), 2, "carry/the room comes back with what was in it")
+	_eq(get_tree().get_nodes_in_group("spawned").size(), baseline,
+		"carry/exactly one room's worth")
+	_ok(not FileAccess.file_exists(carry_file), "carry/deleted once restored")
+	var again: bool = await sp.load_carry_async(self)
+	_ok(not again, "carry/a second restore finds none")
+	_eq(_systems(), 2, "carry/and leaves the room standing")
+
+	# Marked for one room and restored into another (a restart that came back
+	# somewhere else): dropped, not kept for a later visit, by when it is stale.
+	_ok(SceneManager.carry_room(), "carry/written again")
+	_ok(not SceneManager.take_carry("arcade"), "carry/another room's restore does not take it")
+	_ok(not FileAccess.file_exists(carry_file), "carry/and the file is deleted, not kept")
+	_eq(SceneManager._carry_room_id, "", "carry/nor the mark")
+
+	sp.clear_scene(self)
+	for i in range(20):
+		await get_tree().physics_frame
+	SceneManager.current_scene_id = _saved_scene_id
+	SceneManager._content_ready_scene_id = ""
+
+
+## The command line a restart starts the new process with. Static, so it is
+## asked here without quitting anything.
+func _test_restart_args() -> void:
+	var none := PackedStringArray()
+	_eq(SCENE_MANAGER.restart_args(true, true, PackedStringArray(["--x"]),
+		PackedStringArray(["--y"]), "C:/p"), none,
+		"restart/Android passes nothing: the activity adds its own")
+	_eq(SCENE_MANAGER.restart_args(false, true, PackedStringArray(["--fullscreen"]), none, "C:/p"),
+		PackedStringArray(["--fullscreen"]), "restart/an export keeps what the engine left it")
+	_eq(SCENE_MANAGER.restart_args(false, true, none, PackedStringArray(["--only=x"]), "C:/p"),
+		PackedStringArray(["--", "--only=x"]), "restart/our own arguments go after --")
+	_eq(SCENE_MANAGER.restart_args(false, false, none, none, "C:/p"),
+		PackedStringArray(["--path", "C:/p"]), "restart/an editor binary is told the project")
+	_eq(SCENE_MANAGER.restart_args(false, false, PackedStringArray(["--path", "D:/q"]), none, "C:/p"),
+		PackedStringArray(["--path", "D:/q"]), "restart/and not twice")
+
+	# The waiter that launches the new process once this one has gone. It does
+	# not trust a clean shutdown to do it (scene_manager.gd, restart_app).
+	_eq(SCENE_MANAGER.relaunch_command("Android", 42, "x", none), [],
+		"restart/Android starts no waiter: the activity relaunches itself")
+	var sh: Array = SCENE_MANAGER.relaunch_command("Linux", 42, "/opt/retro xr/RetroXR",
+		PackedStringArray(["--path", "/p q"]))
+	_eq(sh[0], "/bin/sh", "restart/Linux waits in sh")
+	_eq((sh[1] as PackedStringArray).slice(2), PackedStringArray(
+		["sh", "42", "/opt/retro xr/RetroXR", "--path", "/p q"]),
+		"restart/for that pid, then the program and its arguments, each one argument")
+	var ps: Array = SCENE_MANAGER.relaunch_command("Windows", 42,
+		"C:/Program Files/Bob's/RetroXR.exe", PackedStringArray(["--path", "C:/my games/p"]))
+	var command := str((ps[1] as PackedStringArray)[-1])
+	_eq(ps[0], "powershell.exe", "restart/Windows waits in PowerShell")
+	_ok(command.begins_with("Wait-Process -Id 42 "), "restart/for that pid")
+	_ok(command.contains("-FilePath 'C:/Program Files/Bob''s/RetroXR.exe'"),
+		"restart/the program quoted, its apostrophe doubled")
+	_ok(command.ends_with("-ArgumentList '\"--path\" \"C:/my games/p\"'"),
+		"restart/each argument in double quotes, so a space does not split it")
+	_ok(not str(SCENE_MANAGER.relaunch_command("Windows", 7, "C:/r.exe", none)[1][-1]).contains("-ArgumentList"),
+		"restart/and no empty argument list")
+
+
+func _remove_dir(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	for f in dir.get_files():
+		DirAccess.remove_absolute(path.path_join(f))
+	DirAccess.remove_absolute(path)
 
 
 ## Two restores into one room. The second bumps _restore_generation, and the
@@ -1230,6 +1356,8 @@ func _restore() -> void:
 	SceneManager._transitioning = false
 	SceneManager._pending_scene_id = ""
 	SceneManager._content_ready_scene_id = ""
+	SceneManager._carry_room_id = ""
+	_remove_dir(ProjectSettings.globalize_path("user://scenes/" + CARRY_ROOM))
 	for slot in [SLOT_A, SLOT_B]:
 		var p := ProjectSettings.globalize_path("user://scenes/arcade/%s.json" % slot)
 		if FileAccess.file_exists(p):

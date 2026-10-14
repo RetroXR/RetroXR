@@ -742,6 +742,11 @@ func _build_bios_tab() -> Control:
 ## The size is appended once it is known rather than at the start — the core
 ## downloader emits job_started with a total of 0, because the buildbot's
 ## Content-Length is not in hand until the response arrives.
+## A firmware fetch is under way, which an app restart would cancel.
+func firmware_busy() -> bool:
+	return _firmware_installer != null and _firmware_installer.is_busy()
+
+
 func _job_text(key: String, total: int) -> String:
 	var label := str(_job_labels.get(key, ""))
 	if label.is_empty():

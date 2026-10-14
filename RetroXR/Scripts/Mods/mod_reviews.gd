@@ -73,8 +73,9 @@ func keys() -> Array:
 	return _parked.keys()
 
 
-## The player said yes. Installs the parked file under `source`, enabled for the
-## next launch when asked. Returns what ModManager.install returned.
+## The player said yes. Installs the parked file under `source`, switched on when
+## asked -- it then waits under Installed to be applied. Returns what
+## ModManager.install returned.
 func finish(key: String, source: Dictionary, enable: bool) -> Dictionary:
 	var loader := _loader()
 	if not _parked.has(key) or loader == null:

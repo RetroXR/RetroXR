@@ -20,14 +20,19 @@
 ## its name beside the catalogue, and a way to report anything shown (the
 ## Report button on every mod).
 ##
-## Enabling, updating and removing a mod that is running all wait for the next
-## launch, because a mounted pack cannot be unmounted; the page says so wherever
-## that is the case rather than pretending otherwise.
+## A mod switched on loads without a restart: Installed's Apply now rebuilds the
+## room with it mounted. Switching off, updating or removing one that is RUNNING
+## waits for a restart, because a mounted pack cannot be unmounted -- the same
+## button then reads Restart now and the app does it itself. The page says which
+## is which wherever it matters rather than pretending otherwise.
 class_name SpawnMenuModsView
 extends VBoxContainer
 
 ## The sub-tab changed, so the thumbstick should drive a different scroll.
 signal scroll_changed(scroll: ScrollContainer)
+## The player pressed the Installed page's button: apply what is waiting, by
+## restarting the app (`restart`) or by loading the new mods into this room.
+signal apply_requested(restart: bool)
 
 const COLUMNS := 3
 const TILE_H := 286
@@ -94,6 +99,9 @@ var _terms_rechecked := false
 var reviews: ModReviews = null
 
 # Installed
+## What is waiting and the button that applies it, above the list AND above one
+## mod's page -- the page is where the switch is, so where a change is made.
+var _installed_banner: VBoxContainer = null
 var _installed_list: VBoxContainer = null
 var _installed_detail: VBoxContainer = null
 var _open_installed := ""
@@ -148,7 +156,7 @@ func _build() -> void:
 	_tabs.tab_changed.connect(func(_i: int) -> void:
 		scroll_changed.emit(active_scroll())
 		if _tabs.current_tab == INSTALLED_TAB:
-			refresh_installed()
+			_rescan_installed()
 		elif _tabs.current_tab == PACKS_TAB and has_consent():
 			_packs_page.ensure_fetched())
 	add_child(TabStrip.wrap(_tabs))
@@ -162,6 +170,8 @@ func _build() -> void:
 		downloader.job_cancelled.connect(_on_job_cancelled)
 		downloader.job_finished.connect(_on_job_finished)
 	Mods.mods_changed.connect(_on_mods_changed)
+	# The button waits on a settled room, so it is redrawn when one settles.
+	SceneManager.scene_content_ready.connect(func(_id: String) -> void: _fill_banner())
 
 
 func _page(title: String) -> VBoxContainer:
@@ -183,7 +193,7 @@ func active_scroll() -> ScrollContainer:
 ## Called when the tab is shown. Nothing reaches mod.io until the player opens
 ## this tab for the first time, and then only its terms until they agree to them.
 func ensure_fetched() -> void:
-	refresh_installed()
+	_rescan_installed()
 	_apply_consent()
 	if not has_consent():
 		if _terms.is_empty() and not _declined:
@@ -884,7 +894,7 @@ func _fill_single_review() -> void:
 	# An update keeps whatever the player already chose for this mod.
 	var enable: VRToggle = null
 	if not Mods.is_enabled(manifest.id):
-		enable = MenuStyle.switch_row(_browse_review, "Enable on next launch", false)
+		enable = MenuStyle.switch_row(_browse_review, "Enable", false)
 	var actions := MenuStyle.hbox(10)
 	_browse_review.add_child(actions)
 	var install := MenuStyle.row_button("Install", 20, 220, 56, false)
@@ -898,7 +908,7 @@ func _fill_single_review() -> void:
 			notify(_toast_key(key), "❌", "Not installed: %s" % str(out.get("error", "")),
 				-1.0, MenuToasts.DWELL_FAIL)
 		elif bool(out.get("restart", false)):
-			notify(_toast_key(key), "✅", "Installed — restart RetroXR to apply it",
+			notify(_toast_key(key), "✅", "Installed — apply it under Installed",
 				-1.0, MenuToasts.DWELL_FAIL)
 		else:
 			notify(_toast_key(key), "✅", "Installed — enable it under Installed",
@@ -921,6 +931,9 @@ func _refresh_open_mod(key: String) -> void:
 # ── Installed ─────────────────────────────────────────────────────────────────
 
 func _build_installed(vbox: VBoxContainer) -> void:
+	_installed_banner = MenuStyle.vbox(8)
+	_installed_banner.visible = false
+	vbox.add_child(_installed_banner)
 	_installed_list = MenuStyle.vbox(10)
 	vbox.add_child(_installed_list)
 	_installed_detail = MenuStyle.vbox(8)
@@ -937,9 +950,18 @@ func _on_mods_changed() -> void:
 	_packs_page.on_mods_changed()
 
 
+## A pack dropped into the folder since boot shows up when the page does. The
+## rescan announces what it found (mods_changed), which repaints the page; when
+## it finds nothing the page is repainted here.
+func _rescan_installed() -> void:
+	if Mods.rescan() == 0:
+		refresh_installed()
+
+
 func refresh_installed() -> void:
 	if _installed_list == null:
 		return
+	_fill_banner()
 	if not _open_installed.is_empty() and Mods.mod(_open_installed) == null:
 		_open_installed = ""
 	_installed_list.visible = _open_installed.is_empty()
@@ -949,18 +971,12 @@ func refresh_installed() -> void:
 		return
 
 	_clear(_installed_list)
-	if Mods.restart_pending():
-		var pending := MenuStyle.label(
-			"Restart RetroXR to apply your changes.", 18, MenuStyle.COLOR_RECOMMENDED)
-		pending.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		_installed_list.add_child(pending)
-
 	var mods: Array = Mods.all_mods()
 	var unreadable: Array = Mods.unreadable()
 	if mods.is_empty() and unreadable.is_empty():
 		_installed_list.add_child(MenuStyle.hint(
 			"No mods installed. Get one from the Browse tab, or drop a .zip or "
-			+ ".pck in the folder below and restart."))
+			+ ".pck in the folder below."))
 	else:
 		var grid := GridContainer.new()
 		grid.columns = COLUMNS
@@ -978,6 +994,76 @@ func refresh_installed() -> void:
 		+ "so nothing loads until you enable it. Mods from mod.io have been "
 		+ "through its scan; a file you copy in yourself has been through nothing."))
 	_installed_list.add_child(MenuStyle.hint("Folder: " + RomLibrary.default_mods_root()))
+
+
+## The changes that have not taken effect, and ONE button for all of them.
+##
+## New mods that can be mounted now (ModManager.apply_plan's `live`) are loaded
+## into this room, which is rebuilt behind the loading curtain with everything in
+## it carried across. Anything a running pack stands in the way of -- switching
+## one off, updating or removing it, or a mod that replaces a shipped file --
+## takes a restart, which the app does itself; that button applies the lot.
+func _fill_banner() -> void:
+	if _installed_banner == null:
+		return
+	_clear(_installed_banner)
+	var plan: Dictionary = Mods.apply_plan()
+	var live: Array = plan["live"]
+	var restart := bool(plan["restart"])
+	_installed_banner.visible = restart or not live.is_empty()
+	if not _installed_banner.visible:
+		return
+	var text := "Some of your changes need RetroXR to restart."
+	if not restart:
+		text = "%s ready to load. Applying reloads this room, and everything in it comes back where it was." 			% ", ".join(live.map(func(r: ModRecord) -> String: return r.manifest.name))
+	var head := MenuStyle.label(text, 18, MenuStyle.COLOR_RECOMMENDED)
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_installed_banner.add_child(head)
+	var blocked := str(plan["blocked"])
+	if not blocked.is_empty():
+		_installed_banner.add_child(MenuStyle.hint(blocked))
+		_installed_banner.add_child(HSeparator.new())
+		return
+	var why := _apply_blocker(restart)
+	var button := _narrow(MenuStyle.row_button(
+		"Restart now" if restart else "Apply now", 20, 260, 56, false))
+	button.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
+	button.disabled = not why.is_empty()
+	button.pressed.connect(_on_apply_pressed)
+	_installed_banner.add_child(button)
+	if not why.is_empty():
+		_installed_banner.add_child(MenuStyle.hint(why))
+	_installed_banner.add_child(HSeparator.new())
+
+
+## Asked again at the press: the banner was drawn a while ago, and a download may
+## have started or the room begun to change since.
+func _on_apply_pressed() -> void:
+	var plan: Dictionary = Mods.apply_plan()
+	var restart := bool(plan["restart"])
+	if not restart and (plan["live"] as Array).is_empty():
+		_fill_banner()
+		return
+	var why := str(plan["blocked"])
+	if why.is_empty():
+		why = _apply_blocker(restart)
+	if not why.is_empty():
+		notify("mods:apply", "❌", why, -1.0, MenuToasts.DWELL_FAIL)
+		_fill_banner()
+		return
+	apply_requested.emit(restart)
+
+
+## Why the button may not be pressed now, "" when it may. Either way the room is
+## rebuilt or carried, so it has to have finished arriving; a restart also loses
+## whatever is downloading, and the downloads parked for review (the next launch
+## sweeps those away).
+func _apply_blocker(restart: bool) -> String:
+	if not SceneManager.is_scene_content_ready(SceneManager.current_scene_id):
+		return "Wait for the room to finish loading."
+	if restart and _menu != null and _menu.has_method("busy_reason"):
+		return str(_menu.busy_reason())
+	return ""
 
 
 func _installed_tile(rec: ModRecord) -> Button:

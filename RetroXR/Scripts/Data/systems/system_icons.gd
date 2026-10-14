@@ -50,6 +50,12 @@ static func has_content_icon(systemid: String) -> bool:
 	return _load(systemid + CONTENT_SUFFIX) != null
 
 
+## Forget the misses (and the hits) cached so far. A mod mounted mid-session can
+## bring art for a systemid that was already looked up and found to have none.
+static func forget() -> void:
+	_cache.clear()
+
+
 static func _load(systemid: String) -> Texture2D:
 	if systemid.is_empty():
 		return null

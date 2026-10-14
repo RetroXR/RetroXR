@@ -16,7 +16,7 @@ extends RefCounted
 ## What happened to one mod this boot.
 enum Status {
 	DISABLED,       ## found, not enabled — the default for anything new
-	PENDING,        ## enabled since the last launch; mounts next restart
+	PENDING,        ## its switch no longer matches what runs: Apply, or a restart
 	LOADED,         ## mounted and registered
 	REFUSED,        ## failed a check, so it was never mounted
 	FAILED,         ## mounted, but its entry script did not run
@@ -42,6 +42,11 @@ var thumbnail: Texture2D = null
 ## be replaced or deleted now or only at the next launch: a mounted container
 ## stays open for as long as the app runs.
 var mounted := false
+## The mod's code is running this session: mounted AND registered. What netplay
+## and the switch go by, rather than `status`, which follows the switch -- a mod
+## switched off goes on running until the next launch, and its peers must still
+## be told it is there.
+var loaded := false
 ## Version of an update that is downloaded and waiting for the next launch, ""
 ## for none. The record keeps describing the pack that is actually mounted, so
 ## the netplay fingerprint goes on telling the truth about this session.

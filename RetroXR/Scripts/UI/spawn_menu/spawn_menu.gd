@@ -42,6 +42,10 @@ signal rebind_started(action_name: String)
 ## spawn_menu_controller captures the next joypad press and calls back
 ## on_pad_rebind_complete().
 signal pad_rebind_started(target: String)
+## The MODS tab's Apply button: restart the app (`restart`), or load the new mods
+## into the room being stood in. The controller does it, as it does a room change,
+## so it can close the menu first.
+signal mods_apply_requested(restart: bool)
 
 ## Shared core info database — populated on _ready, used by Download & Manager tabs.
 var core_db: CoreInfoDatabase = null
@@ -512,6 +516,8 @@ func _build_ui() -> void:
 	_mods_view = SpawnMenuModsView.create(self)
 	_mods_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.add_child(_mods_view)
+	_mods_view.apply_requested.connect(
+		func(restart: bool) -> void: mods_apply_requested.emit(restart))
 	_mods_view.scroll_changed.connect(func(sc: ScrollContainer) -> void:
 		if _mods_view.visible:
 			_active_scroll = sc)
@@ -671,6 +677,20 @@ func notify(key: String, icon_text: String, msg: String,
 func notify_clear(key: String) -> void:
 	if _toasts:
 		_toasts.clear(key)
+
+
+## What a restart now would throw away, "" for nothing. Every downloader cancels
+## its job when the app exits, and a mod download parked for the player's review
+## is deleted by the next launch (ModManager._sweep_incoming).
+func busy_reason() -> String:
+	if mod_reviews != null and not mod_reviews.keys().is_empty():
+		return "A mod download is waiting for your answer under Browse."
+	for job: Variant in [mod_downloader, download_manager, romm_downloader]:
+		if job != null and job.is_busy():
+			return "Wait for the downloads to finish."
+	if _cores_view != null and _cores_view.firmware_busy():
+		return "Wait for the downloads to finish."
+	return ""
 
 
 ## Forwarded onto the OPTIONS tab, which owns the one sync queue.

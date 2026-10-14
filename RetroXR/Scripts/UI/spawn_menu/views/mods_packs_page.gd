@@ -553,7 +553,7 @@ func _fill_review() -> void:
 			15, MenuStyle.COLOR_BTN_UPD))
 
 	_review.add_child(HSeparator.new())
-	var enable := MenuStyle.switch_row(_review, "Enable all on next launch", false)
+	var enable := MenuStyle.switch_row(_review, "Enable all", false)
 	var actions := MenuStyle.hbox(10)
 	_review.add_child(actions)
 	var install := MenuStyle.row_button("Install %d mod%s" % [staged.size(),
@@ -595,7 +595,7 @@ func _confirm(enable: bool) -> void:
 		_view.notify("mods:pack", "❌", "%s: not installed — %s" % [name, ", ".join(failed)],
 			-1.0, MenuToasts.DWELL_FAIL)
 	elif restart or enable:
-		_view.notify("mods:pack", "✅", "%s installed — restart RetroXR to apply it" % name,
+		_view.notify("mods:pack", "✅", "%s installed — apply it under Installed" % name,
 			-1.0, MenuToasts.DWELL_FAIL)
 	else:
 		_view.notify("mods:pack", "✅", "%s installed (%d mod%s) — enable them under Installed" % [

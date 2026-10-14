@@ -14,13 +14,13 @@ mod.io's terms and asks nothing of mod.io until you agree to them. **Browse** th
 lists the mods published for RetroXR on [mod.io](https://mod.io/g/retroxr); pick
 one and press Download. It is fetched and checked, and you are shown what it
 replaces before you install it. It then appears under **Installed**, where you
-enable it and restart.
+enable it and press **Apply now**.
 
 **Packs** lists mod packs: lists of mods somebody put together on mod.io. One
 press downloads a pack's mods and one answer installs them. Removing a pack
 removes the mods it brought, and leaves any you had installed on its own.
 
-**By hand:** put the file in the mods folder and restart:
+**By hand:** put the file in the mods folder:
 
 | platform | folder |
 |---|---|
@@ -28,7 +28,16 @@ removes the mods it brought, and leaves any you had installed on its own.
 | Linux, macOS | `~/retroxr/mods/` |
 | Quest / Android | `/sdcard/Android/data/com.xenu.retroxr/files/mods/` (`adb push`-able) |
 
-Then **MODS → Installed**, enable it, and restart again.
+Then open **MODS → Installed** (it looks in the folder again each time it is
+shown), enable it, and press **Apply now**.
+
+**Apply now** loads a newly enabled mod without a restart. The room you are
+standing in is rebuilt behind the loading screen, with everything in it put back
+where it was, so your mod's hooks see the room being built just as they do at
+launch. Switching off, updating or removing a mod that is already running cannot
+happen in place (see [Limits](#limits)), nor can loading one that replaces a file
+RetroXR ships; for those the button reads **Restart now**, and RetroXR restarts
+itself and comes back to the same room. Neither works during a netplay session.
 
 Mods are **disabled when they arrive**. A mod runs with the app's full
 permissions — your ROMs, your saves, your RomM credentials, the network — and
@@ -576,8 +585,14 @@ an update is the system working as intended, not a bug.
   code. Mods are GDScript and assets.
 - A mod **cannot add an autoload** — `project.godot` is read before any pack is
   mounted.
-- A pack **cannot be unmounted**, so enabling or disabling takes effect on the
-  next launch.
+- A pack **cannot be unmounted**, so disabling, updating or removing a running
+  mod takes effect on the next launch (the Installed page's **Restart now** does
+  it for you). A newly enabled mod loads in place with **Apply now**, unless it
+  replaces a shipped file.
+- A mod loaded with **Apply now** registers after every mod loaded at launch,
+  whatever its `priority`. Where two mods claim the same thing (`api.dress`, an
+  overridden model row, a cartridge or expansion shell — first come, first
+  served) the next launch may settle it the other way.
 - Overriding a `preload`ed path is load-order dependent and unsupported.
 - Two copies of the same mod are refused, both of them, rather than resolved by a
   rule you cannot see.

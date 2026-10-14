@@ -270,7 +270,12 @@ for windows debug, imports, fails on any script/shader error, runs `Tools/run_te
 
 One `.zip`/`.pck` in `<data root>/mods/`. Loader in `Scripts/Mods/`; the `Mods` autoload
 must come BEFORE `AppPrefs` (`autoload_order_tests` enforces the boot order). A pack is read and validated WITHOUT
-mounting (mounting cannot be undone), so enable/disable applies next launch. Everything a
+mounting (mounting cannot be undone). **A newly enabled mod loads in place** (Installed's Apply now:
+`reload_room` mounts it BETWEEN rooms, as a boot does, and the room comes back from a one-shot carry);
+disabling, updating or removing a running pack still needs a restart, which the app does itself
+(desktop: a waiter process that relaunches once this one is GONE, because a quit with objects in the
+room sometimes crashes in teardown; Android: `OS.set_restart_on_exit`, which it honours whatever
+Godot's docs say). Everything a
 pack ships lives under `res://mods/<id>/` unless listed in `claims`. Shipped `const` tables
 stay the base with `static var` overlays; mod models stay out of `ModelWarmer`'s boot warm
 (`stand_in_ids()` etc. read `_ROWS` on purpose). `RoomCatalog` replaced the old

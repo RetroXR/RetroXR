@@ -484,6 +484,39 @@ func load_slot_async(root: Node, slot_id: String) -> bool:
 	return true
 
 
+# ── The carry ─────────────────────────────────────────────────────────────────
+#
+# The room exactly as it stands, written for ONE restore to bring back in place of
+# its active slot: SceneManager.carry_room, before a reload or a restart that the
+# player did not ask to leave the room for. A file beside the slots, in no
+# manifest, so the slot grid never lists it; the id cannot be a real slot's,
+# which are eight hex digits.
+
+const CARRY_SLOT := "_carry"
+
+
+## Synchronous, because the next thing may be the process exiting.
+func save_carry(root: Node) -> bool:
+	DirAccess.make_dir_recursive_absolute(slot_dir())
+	return _write_scene_to_file(root, _slot_file(CARRY_SLOT))
+
+
+## Restore the carry, then delete it whether or not it loaded: it is good for one
+## restore, and a failed one falls back to the slot.
+func load_carry_async(root: Node) -> bool:
+	var ok: bool = await load_slot_async(root, CARRY_SLOT)
+	discard_carry()
+	return ok
+
+
+func discard_carry() -> void:
+	var path := _slot_file(CARRY_SLOT)
+	_await_path(path)
+	_last_digest.erase(path)
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+
+
 ## Remove a slot from the manifest and delete its file.
 func delete_slot(slot_id: String) -> bool:
 	if slot_id == "clean":

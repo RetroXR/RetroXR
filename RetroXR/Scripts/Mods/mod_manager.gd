@@ -14,9 +14,10 @@
 ##
 ## Steps 1-5 touch nothing and are reversible, which is what makes it safe to
 ## inspect every mod on disk at every boot while mounting only the enabled ones.
-## Step 6 is not: ProjectSettings.load_resource_pack cannot be undone, so
-## enabling or disabling a mod takes effect on the NEXT launch and the Mods page
-## says so rather than pretending otherwise.
+## Step 6 is not: ProjectSettings.load_resource_pack cannot be undone. A mod that
+## was never mounted can still be mounted later in the session (apply_live), but
+## disabling, updating or removing one that IS mounted waits for the next launch,
+## and the Mods page says which is which rather than pretending otherwise.
 ##
 ## One bad mod never blocks a boot. Every failure is recorded against that mod
 ## and the run continues, because a mod that silently vanishes is the worst
@@ -34,6 +35,9 @@ const Status := ModRecord.Status
 signal mods_ready()
 ## A mod was installed, updated or removed since boot, so a list of them is stale.
 signal mods_changed()
+## apply_live mounted mods after boot. What reads a registry once and keeps the
+## answer (the spawn menu's TVs tab, its grids) has to read it again.
+signal mods_applied()
 
 ## Where a download waits, inside the mods root: on the same volume, so the move
 ## into place is a rename, and one level down, which scan_mods never reads -- a
@@ -81,31 +85,15 @@ func _discover() -> void:
 	var found: Dictionary = {}          # id -> Array of file paths
 	for entry: Dictionary in _scan():
 		var path := str(entry["path"])
-		var reader := ModPackReader.open(path)
-		if not reader.error.is_empty():
-			_unreadable.append({"path": path, "reason": reader.error})
+		var read := _read_container(path)
+		if not read.has("rec"):
+			_unreadable.append({"path": path, "reason": str(read["reason"])})
 			continue
-		var files := reader.files()
-		var manifest := _manifest_from(reader, files)
-		if manifest == null:
-			_unreadable.append({"path": path, "reason": "no mod.json under res://mods/<id>/"})
-			reader.close()
-			continue
-		if not manifest.error.is_empty():
-			_unreadable.append({"path": path, "reason": manifest.error})
-			reader.close()
-			continue
-		if not found.has(manifest.id):
-			found[manifest.id] = []
-		(found[manifest.id] as Array).append(path)
-		var rec := _record_for(manifest, path, files)
-		# The thumbnail is read here, with the container open and nothing
-		# mounted. That is the whole point: the page shows art for a mod that is
-		# disabled and has never been loaded, which is exactly when the player is
-		# deciding whether to trust it.
-		rec.thumbnail = _read_thumbnail(reader, manifest)
-		_mods[manifest.id] = rec
-		reader.close()
+		var rec: ModRecord = read["rec"]
+		if not found.has(rec.id):
+			found[rec.id] = []
+		(found[rec.id] as Array).append(path)
+		_mods[rec.id] = rec
 
 	# Two copies of one mod is refused outright rather than resolved by a rule
 	# the player cannot see. An ambiguous install should be visible.
@@ -114,6 +102,76 @@ func _discover() -> void:
 			_duplicates[id] = found[id]
 			(_mods[id] as ModRecord).refuse("installed twice: %s" % ", ".join(
 				(found[id] as Array).map(func(p): return str(p).get_file())))
+
+
+## Open one container WITHOUT mounting it: {"rec": its ModRecord}, or
+## {"reason": why it could not be identified at all}.
+func _read_container(path: String) -> Dictionary:
+	var reader := ModPackReader.open(path)
+	if not reader.error.is_empty():
+		return {"reason": reader.error}
+	var files := reader.files()
+	var manifest := _manifest_from(reader, files)
+	var reason := ""
+	if manifest == null:
+		reason = "no mod.json under res://mods/<id>/"
+	elif not manifest.error.is_empty():
+		reason = manifest.error
+	if not reason.is_empty():
+		reader.close()
+		return {"reason": reason}
+	var rec := _record_for(manifest, path, files)
+	# The thumbnail is read here, with the container open and nothing mounted.
+	# That is the whole point: the page shows art for a mod that is disabled and
+	# has never been loaded, which is exactly when the player is deciding whether
+	# to trust it.
+	rec.thumbnail = _read_thumbnail(reader, manifest)
+	reader.close()
+	return {"rec": rec}
+
+
+## Pick up packs that arrived after boot -- dropped in by hand, pushed over adb,
+## uploaded through the LAN file server -- so they can be switched on without a
+## restart. Returns how many mods it added.
+##
+## Only a NEW id gets a record. A second container for an id already here is left
+## for the next boot to judge (two copies refuse both): re-recording a mod
+## mid-session could rewrite one that is running, and the netplay fingerprint is
+## read off the records. An unreadable container is read again, since an adb push
+## or a copy may have been half-written the last time.
+func rescan() -> int:
+	var known: Dictionary = {}
+	for rec: ModRecord in _mods.values():
+		known[rec.path] = true
+	for paths: Variant in _duplicates.values():
+		for p: Variant in (paths as Array):
+			known[str(p)] = true
+	var was_unreadable: Dictionary = {}
+	for u: Dictionary in _unreadable:
+		was_unreadable[str(u["path"])] = true
+	var unreadable: Array[Dictionary] = []
+	var added := 0
+	for entry: Dictionary in _scan():
+		var path := str(entry["path"])
+		if known.has(path):
+			continue
+		var read := _read_container(path)
+		if not read.has("rec"):
+			unreadable.append({"path": path, "reason": str(read["reason"])})
+			continue
+		var rec: ModRecord = read["rec"]
+		if _mods.has(rec.id):
+			continue
+		rec.status = _status_for(rec, is_enabled(rec.id))
+		_mods[rec.id] = rec
+		added += 1
+	var listing_changed := unreadable.size() != was_unreadable.size()
+	for u: Dictionary in unreadable:
+		listing_changed = listing_changed or not was_unreadable.has(str(u["path"]))
+	_unreadable = unreadable
+	if added > 0 or listing_changed:
+		_notify_changed()
+	return added
 
 
 ## Find and parse the manifest, which is at res://mods/<id>/mod.json for exactly
@@ -171,16 +229,18 @@ func _record_for(manifest: ModManifest, path: String,
 
 func _load_enabled() -> void:
 	var order := _mods.values().filter(func(r): return _should_load(r))
-	# Priority, then id, so a boot is deterministic and a mod that must layer
-	# over another can say so without depending on filenames.
-	order.sort_custom(func(a, b):
-		var pa: int = (a as ModRecord).manifest.priority
-		var pb: int = (b as ModRecord).manifest.priority
-		if pa != pb:
-			return pa < pb
-		return (a as ModRecord).id < (b as ModRecord).id)
+	order.sort_custom(_load_order)
 	for rec: ModRecord in order:
 		_mount_and_register(rec)
+
+
+## Priority, then id, so a boot is deterministic and a mod that must layer over
+## another can say so without depending on filenames. apply_live mounts in the
+## same order, among the mods it mounts.
+static func _load_order(a: ModRecord, b: ModRecord) -> bool:
+	if a.manifest.priority != b.manifest.priority:
+		return a.manifest.priority < b.manifest.priority
+	return a.id < b.id
 
 
 func _should_load(rec: ModRecord) -> bool:
@@ -225,6 +285,7 @@ func _mount_and_register(rec: ModRecord) -> void:
 		rec.fail("registration was refused: %s" % api.errors_text())
 		return
 	rec.api = api
+	rec.loaded = true
 	rec.status = ModRecord.Status.LOADED
 	if not shadowing.is_empty():
 		rec.reason = "replaces %d shipped file(s)" % shadowing.size()
@@ -344,30 +405,116 @@ func is_enabled(id: String) -> bool:
 	return bool(_enabled.get(id, false))
 
 
-## Enable or disable a mod. Takes effect on the next launch, because a mounted
-## pack cannot be unmounted.
+## Enable or disable a mod. Nothing is mounted or unmounted here: a mod switched
+## on waits for apply_live or the next launch, and one switched off goes on
+## running until the next launch, because a mounted pack cannot be unmounted.
 func set_enabled(id: String, enabled: bool) -> void:
 	if not _mods.has(id) or (_mods[id] as ModRecord).removal_staged:
 		return
 	_enabled[id] = enabled
 	_save_state()
 	var rec: ModRecord = _mods[id]
-	if rec.status == ModRecord.Status.REFUSED:
-		return
-	if enabled and rec.status != ModRecord.Status.LOADED:
-		rec.status = ModRecord.Status.PENDING
-	elif not enabled and rec.status == ModRecord.Status.LOADED:
-		rec.status = ModRecord.Status.PENDING
+	rec.status = _status_for(rec, enabled)
 
 
-## True when a change has been made that only a restart can apply.
-func restart_pending() -> bool:
+## A record's status once its switch reads `enabled`, from what is actually
+## running rather than from the status it had: flipping a switch and flipping it
+## back is not a change. (It used to be. Switching a new mod on and off again, or
+## a running one off and on again, left it waiting for a restart that would have
+## changed nothing.)
+static func _status_for(rec: ModRecord, enabled: bool) -> Status:
+	if rec.status == Status.REFUSED:
+		return Status.REFUSED
+	if rec.loaded:
+		return Status.LOADED if enabled else Status.PENDING
+	if rec.mounted:
+		# Mounted, and its entry failed. Neither position of the switch changes
+		# anything this session, and the reason is what the page should show.
+		return Status.FAILED
+	return Status.PENDING if enabled else Status.DISABLED
+
+
+## Mount the mods apply_plan() says can be mounted now, the way a boot mounts
+## them (_mount_and_register, in load order), and say so. Returns each record it
+## mounted, LOADED or FAILED.
+##
+## Call it with NO room standing -- SceneManager.reload_room's `prepare` -- as a
+## boot does: a mod's hooks see nodes as they enter the tree, before their
+## _ready, and the room built next is what they have to see. Dressing nodes that
+## are already ready is not the same thing (the n64pad reshell, for one, has to
+## run before the controller looks for its controls).
+##
+## A mod mounted here registers after every mod mounted at boot, whatever its
+## priority, so where two mods both claim one thing (ModApi.dress, an overridden
+## row, a cartridge or expansion shell -- first come, first served) the next
+## launch may settle it the other way.
+func apply_live() -> Array[ModRecord]:
+	var mounted: Array[ModRecord] = []
+	var plan := apply_plan()
+	if not str(plan["blocked"]).is_empty():
+		return mounted
+	for rec: ModRecord in (plan["live"] as Array):
+		_mount_and_register(rec)
+		mounted.append(rec)
+	if mounted.is_empty():
+		return mounted
+	# It caches misses, and a new platform's art can arrive with its pack.
+	SystemIcons.forget()
+	mods_applied.emit()
+	_notify_changed()
+	return mounted
+
+
+## True when some switch, install or removal has not taken effect yet.
+func changes_waiting() -> bool:
 	if not _pending.is_empty():
 		return true
 	for rec: ModRecord in _mods.values():
 		if rec.status == ModRecord.Status.PENDING:
 			return true
 	return false
+
+
+## What applying the waiting changes would take:
+##   live     the mods that can be mounted NOW, in load order: switched on, never
+##            mounted, and replacing no file the game ships (one that does is
+##            mounted with replace_files, and a shipped file already in the
+##            resource cache would go on being served from it)
+##   restart  something only a restart can apply: a mounted pack switched off,
+##            updated or removed, or a mod that is not `live`
+##   blocked  why neither may happen now, "" when they may
+func apply_plan() -> Dictionary:
+	var live: Array[ModRecord] = []
+	var restart := not _pending.is_empty()
+	for rec: ModRecord in _mods.values():
+		if rec.status != ModRecord.Status.PENDING:
+			continue
+		if _loads_live(rec):
+			live.append(rec)
+		else:
+			restart = true
+	live.sort_custom(_load_order)
+	var blocked := ""
+	if (restart or not live.is_empty()) and _in_netplay():
+		# Peers compared fingerprints once, at the handshake, and a host's reload
+		# would leave every client standing in the old room.
+		blocked = "Leave the netplay session to apply your changes."
+	return {"live": live, "restart": restart, "blocked": blocked}
+
+
+func _loads_live(rec: ModRecord) -> bool:
+	return not rec.mounted and _should_load(rec) \
+		and rec.manifest.shadowing_claims().is_empty()
+
+
+## Read through the tree rather than by the autoload's name, so a ModManager the
+## tests build outside the tree can still ask.
+func _in_netplay() -> bool:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return false
+	var net: Node = tree.root.get_node_or_null("NetworkManager")
+	return net != null and net.is_active()
 
 
 # ── install, update, remove ───────────────────────────────────────────────────
@@ -566,8 +713,7 @@ func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -
 
 	var rec := _record_for(manifest, final_path, info["files"])
 	rec.thumbnail = info["thumbnail"]
-	if is_enabled(id) and rec.status != ModRecord.Status.REFUSED:
-		rec.status = ModRecord.Status.PENDING
+	rec.status = _status_for(rec, is_enabled(id))
 	_mods[id] = rec
 	_duplicates.erase(id)
 	if source.is_empty():
@@ -757,14 +903,16 @@ func unreadable() -> Array[Dictionary]:
 static func status_text(status: ModRecord.Status) -> String:
 	match status:
 		Status.DISABLED: return "Disabled"
-		Status.PENDING:  return "Restart to apply"
+		Status.PENDING:  return "Waiting to apply"
 		Status.LOADED:   return "Loaded"
 		Status.REFUSED:  return "Refused"
 		Status.FAILED:   return "Failed"
 	return "?"
 
 
-## The enabled-and-loaded mods as "id@version", sorted — what peers compare.
+## The mods running this session as "id@version", sorted — what peers compare.
+## Running, not switched on: a mod switched off goes on running until the next
+## launch, and leaving it out told a peer it was not there.
 ##
 ## Sent in the netplay handshake, never the packs themselves. A peer missing a
 ## mod is told so rather than sent it: the mod browser fetches from mod.io, where
@@ -773,7 +921,7 @@ static func status_text(status: ModRecord.Status) -> String:
 func fingerprint() -> PackedStringArray:
 	var out := PackedStringArray()
 	for rec: ModRecord in _mods.values():
-		if rec.status != ModRecord.Status.LOADED:
+		if not rec.loaded:
 			continue
 		out.append("%s@%s" % [rec.manifest.id, rec.manifest.version])
 	out.sort()

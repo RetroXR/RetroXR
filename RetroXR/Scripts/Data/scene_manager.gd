@@ -74,6 +74,14 @@ var _last_load_failed: bool = false
 ## The room the last transition installed. Only it is remembered, so a room run
 ## directly (F6, a suite, a probe) leaves the player's boot room alone.
 var _installed_room_id: String = ""
+## The room whose next restore brings back the carry instead of its slot, "" for
+## none. Kept in the prefs file, because a restart is one of the two things that
+## carry a room (see carry_room).
+var _carry_room_id: String = ""
+## Set by reload_room for the one transition it starts: run `_reload_prepare`
+## between the rooms, and leave the player standing where they were.
+var _reload_prepare: Callable = Callable()
+var _reload_keep_player := false
 
 
 func _ready() -> void:
@@ -92,7 +100,8 @@ func _ready() -> void:
 	# looking like the feature simply does not do anything.
 	if has_node("/root/LoadingOverlay"):
 		LoadingOverlay.begin(&"boot_warm", "STARTING UP", 1.0)
-		if room_has_slots(current_scene_id) and active_slot(current_scene_id) != "clean":
+		if _carry_room_id == current_scene_id or (room_has_slots(current_scene_id)
+				and active_slot(current_scene_id) != "clean"):
 			# Weighted heavier because it is the phase the player actually notices:
 			# the warm is invisible, the restore is their room arriving.
 			LoadingOverlay.begin(&"boot_restore", "STARTING UP", 2.0)
@@ -160,6 +169,7 @@ func load_prefs() -> void:
 		for room: Variant in (slots as Dictionary):
 			active_slots[str(room)] = str((slots as Dictionary)[room])
 	last_room_id = str(data.get("room", ""))
+	_carry_room_id = str(data.get("carry", ""))
 
 
 ## Returns false when the write did not land. This file records which slot each
@@ -169,7 +179,158 @@ func save_prefs() -> bool:
 	var data := {"slots": active_slots}
 	if not last_room_id.is_empty():
 		data["room"] = last_room_id
+	if not _carry_room_id.is_empty():
+		data["carry"] = _carry_room_id
 	return JsonStore.write_dict(PREFS_FILE, data, "SceneManager")
+
+
+# ── Carrying a room across a reload or a restart ──────────────────────────────
+#
+# Applying a mod rebuilds the room the player is standing in, and some changes
+# restart the whole app. Neither is the player leaving the room, so neither may
+# cost them what is in it -- and the save a room change makes would: it is skipped
+# for a Clean Room, with the autosave switch off, and in a room with no slots at
+# all. So the room is written as it stands, beside its slots, and the next restore
+# of that room brings it back instead (SpawnMenuController._autoload_slot, which a
+# boot comes through as well). The active slot is left alone, exactly as walking
+# away and back would leave it.
+
+## Write the carry for the room being stood in. False when there is no settled
+## room to write, or it is not ours to (a client's world is the host's).
+func carry_room() -> bool:
+	var room := current_scene_id
+	if not is_scene_content_ready(room) or get_tree().current_scene == null:
+		return false
+	if has_node("/root/NetworkManager") and NetworkManager.is_client():
+		return false
+	if not ScenePersistence.new(room).save_carry(get_tree().current_scene):
+		return false
+	_carry_room_id = room
+	save_prefs()
+	return true
+
+
+## Whether `room_id`'s restore should bring back the carry, and forget it either
+## way: it is good for one restore. A carry for another room (a restart that came
+## back somewhere else) is deleted rather than kept for a later visit, by when it
+## would be stale.
+func take_carry(room_id: String) -> bool:
+	if _carry_room_id.is_empty():
+		return false
+	var carried := _carry_room_id
+	_carry_room_id = ""
+	save_prefs()
+	if carried != room_id:
+		ScenePersistence.new(carried).discard_carry()
+		return false
+	return true
+
+
+## Rebuild the room being stood in: carry it, tear it down, build it again and
+## restore the carry, behind the same loading curtain as a room change. `prepare`
+## runs between the two rooms, when there is no room at all -- the state a boot is
+## in when the autoloads run -- which is when ModManager.apply_live mounts.
+##
+## Returns "" once started, else why not. Refused in a netplay session: a host's
+## room change sends its clients a scene change, which for the room they are
+## already in does nothing, and the two worlds would part.
+func reload_room(prepare: Callable = Callable(), keep_player := true) -> String:
+	if has_node("/root/NetworkManager") and NetworkManager.is_active():
+		return "Leave the netplay session first."
+	if _transitioning or not is_scene_content_ready(current_scene_id):
+		return "Wait for the room to finish loading."
+	carry_room()
+	_reload_prepare = prepare
+	_reload_keep_player = keep_player
+	_begin_transition(current_scene_id)
+	return ""
+
+
+## Quit and start again, for what only a new process can do: a mounted mod pack
+## cannot be unmounted. The room is carried, so the restart comes back to it as it
+## was; consoles power off (and write their saves) on the way out as on any quit.
+## If no new process comes up, the carry is still marked in the prefs, so the
+## player's own next launch comes back to the room all the same.
+##
+## Android: set_restart_on_exit. Godot's documentation says it does nothing
+## there; the engine source says otherwise: Main::cleanup asks OS_Android to
+## create an instance, which GodotActivity answers by relaunching itself through
+## ProcessPhoenix (godot 4.7.2, platform/android/java/lib).
+##
+## Desktop: NOT set_restart_on_exit, which only fires at the very end of a clean
+## shutdown -- and quitting with things in the room sometimes does not shut down
+## cleanly (measured 2026-10-14: 4 of 7 quits with consoles or a set spawned died
+## in teardown on Windows, 0 of 3 with the room empty, mods or no mods). A small
+## waiter is started instead, which launches the new process once this one has
+## gone, however it went. Waiting matters on PCVR too: a second instance started
+## while this one still holds the OpenXR session would come up without a headset.
+##
+## Returns "" once the quit is under way, else why not.
+func restart_app() -> String:
+	if has_node("/root/NetworkManager") and NetworkManager.is_active():
+		return "Leave the netplay session first."
+	if _transitioning or not is_scene_content_ready(current_scene_id):
+		return "Wait for the room to finish loading."
+	carry_room()
+	var args := restart_args(OS.has_feature("android"), OS.has_feature("template"),
+		OS.get_cmdline_args(), OS.get_cmdline_user_args(),
+		ProjectSettings.globalize_path("res://"))
+	var waiter := relaunch_command(OS.get_name(), OS.get_process_id(),
+		OS.get_executable_path(), args)
+	if waiter.is_empty() or OS.create_process(str(waiter[0]), waiter[1]) == -1:
+		OS.set_restart_on_exit(true, args)
+	get_tree().quit()
+	return ""
+
+
+## The waiter restart_app starts on a desktop: [program, arguments], which waits
+## for process `pid` to end and then runs `exe` with `args`. [] where there is no
+## such thing to start (Android relaunches itself; see restart_app).
+static func relaunch_command(os_name: String, pid: int, exe: String,
+		args: PackedStringArray) -> Array:
+	match os_name:
+		"Windows":
+			# Start-Process joins -ArgumentList with bare spaces, so each argument
+			# is wrapped in double quotes here; single quotes are doubled, which is
+			# how a PowerShell single-quoted string escapes one.
+			var quoted := PackedStringArray()
+			for a: String in args:
+				quoted.append("\"%s\"" % a.replace("'", "''"))
+			var launch := "Start-Process -FilePath '%s'" % exe.replace("'", "''")
+			if not quoted.is_empty():
+				launch += " -ArgumentList '%s'" % " ".join(quoted)
+			return ["powershell.exe", PackedStringArray(["-NoProfile", "-NonInteractive",
+				"-WindowStyle", "Hidden", "-Command",
+				"Wait-Process -Id %d -ErrorAction SilentlyContinue; %s" % [pid, launch]])]
+		"Linux", "FreeBSD", "NetBSD", "OpenBSD", "BSD", "macOS":
+			var argv := PackedStringArray(["-c",
+				"while kill -0 \"$1\" 2>/dev/null; do sleep 0.2; done; shift; exec \"$@\"",
+				"sh", str(pid), exe])
+			argv.append_array(args)
+			return ["/bin/sh", argv]
+	return []
+
+
+## The command line the new process starts with.
+##
+## Android: none. The activity adds its own (`_cl_`, from the APK's assets), and
+## passing ours back would give it two.
+##
+## Desktop: what the engine did not consume (OS.get_cmdline_args() is the
+## leftovers -- `--path`, `--resolution` and the like are already gone), plus
+## `--path` again from an editor binary, which would otherwise open the Project
+## Manager, plus our own arguments after `--`.
+static func restart_args(android: bool, template: bool, cmd: PackedStringArray,
+		user: PackedStringArray, project_dir: String) -> PackedStringArray:
+	if android:
+		return PackedStringArray()
+	var out := PackedStringArray(cmd)
+	if not template and not out.has("--path"):
+		out.append_array(["--path", project_dir])
+	if not user.is_empty():
+		out.append("--")
+		out.append_array(user)
+	return out
 
 
 ## The slot `room_id` is standing on, "clean" if it has never been given one.
@@ -297,8 +458,13 @@ func _begin_transition(scene_id: String, net_client: bool = false) -> void:
 		persistence.save_slot(get_tree().current_scene, active_slot(leaving))
 
 	current_scene_id = scene_id
+	# reload_room's, for this transition only.
+	var prepare := _reload_prepare
+	var keep_player := _reload_keep_player
+	_reload_prepare = Callable()
+	_reload_keep_player = false
 	_run_transition.call_deferred(scene_id, RoomCatalog.path_of(scene_id),
-		RoomCatalog.title_of(scene_id))
+		RoomCatalog.title_of(scene_id), prepare, keep_player)
 	scene_changed.emit(scene_id)
 
 
@@ -316,7 +482,8 @@ func _begin_transition(scene_id: String, net_client: bool = false) -> void:
 ## headset. It steps out of the old room, waits on the root, and is spliced into
 ## the new one before that enters the tree. PlayerRig owns what the crossing does
 ## to it; this only decides when.
-func _run_transition(scene_id: String, path: String, title: String) -> void:
+func _run_transition(scene_id: String, path: String, title: String,
+		prepare: Callable = Callable(), keep_player := false) -> void:
 	var tree := get_tree()
 
 	# All of this runs in one deferred call: the room leaves and the loading
@@ -338,6 +505,9 @@ func _run_transition(scene_id: String, path: String, title: String) -> void:
 	# out of the cache before the next scene starts pulling its own in.
 	await tree.process_frame
 	await tree.process_frame
+	# Between the rooms, with the old one gone and the new one not yet loaded.
+	if prepare.is_valid():
+		prepare.call()
 	rig.set_progress(0.05)
 
 	var request_error := ResourceLoader.load_threaded_request(path)
@@ -375,7 +545,7 @@ func _run_transition(scene_id: String, path: String, title: String) -> void:
 	rig.set_progress(1.0)
 	await tree.process_frame
 	if player != null:
-		_seat_player_rig(incoming, player)
+		_seat_player_rig(incoming, player, keep_player)
 		_parked_player = null
 	# The rig has to be out of the tree BEFORE the incoming scene enters, not just
 	# switched off. Its WorldEnvironment would otherwise be the one the new room
@@ -475,12 +645,17 @@ func _player_for_transition(outgoing: Node) -> PlayerRig:
 ## Splice the carried rig into the incoming room in place of the one the room
 ## authored, before any of it enters the tree — so the room's own rig never runs
 ## a single _ready().
-func _seat_player_rig(incoming: Node, player: PlayerRig) -> void:
+##
+## `keep_place` is a reload of the same room: the rig keeps the transforms it had,
+## which are relative to that same room root, so the player is not moved back to
+## the room's entrance.
+func _seat_player_rig(incoming: Node, player: PlayerRig, keep_place := false) -> void:
 	var index := -1
 	var authored := incoming.get_node_or_null(PLAYER_RIG_NAME) as PlayerRig
 	if authored != null:
 		index = authored.get_index()
-		player.place_at(authored.transform, authored.get_node(ORIGIN_PATH).transform)
+		if not keep_place:
+			player.place_at(authored.transform, authored.get_node(ORIGIN_PATH).transform)
 		incoming.remove_child(authored)
 		authored.free()
 	player.get_parent().remove_child(player)

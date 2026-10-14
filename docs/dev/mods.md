@@ -18,8 +18,10 @@ thumbnail read, and its inventory checked — all WITHOUT mounting — before an
 is loaded. That matters because `ProjectSettings.load_resource_pack` cannot be
 undone: mounting to find out what a mod is would commit to every mod on disk.
 Reading without mounting is also what lets the Mods page show a disabled mod's
-name and art, which is when the player is deciding whether to trust it. Enabling
-or disabling therefore takes effect on the NEXT launch, and the page says so.
+name and art, which is when the player is deciding whether to trust it. A pack
+that was never mounted can still be mounted later in the session (see "Applying
+without a restart" below); disabling, updating or removing one that IS mounted
+takes effect on the NEXT launch, and the page says which is which.
 
 **`ModPackReader` handles both containers.** Zip is `ZIPReader`. Pck parses the
 pack directory and reads members at their recorded offsets — written against a
@@ -239,7 +241,7 @@ Four checks, in this order, and then the player:
 5. **The review.** The downloader's install hook is `ModReviews.stage`, so a
    vetted file is parked, not installed. The review shows the full-access
    warning, what the mod **Replaces**, any file two mods both replace, and an
-   "Enable on next launch" switch that starts OFF. Discard deletes the file.
+   "Enable" switch that starts OFF (applied from Installed). Discard deletes the file.
    **A download nobody answered for is deleted at the next launch**
    (`_sweep_incoming`, after `_apply_pending`); a `.part` is kept so it can resume.
 
@@ -275,7 +277,7 @@ with only the game key (measured 2026-10-06, on an empty catalogue):
 - **Installing** fetches each member exactly as a single mod is fetched, then asks
   ONE question for the lot (`SpawnMenuModsPacksPage._fill_review`): each member's
   Replaces, conflicts between members and with installed mods, what was skipped,
-  and "Enable all on next launch", OFF. A member that fails is skipped; the rest
+  and "Enable all", OFF. A member that fails is skipped; the rest
   carry on.
 - **A mod's `source` records who wants it**: `collections` (pack ids) and
   `individual`. A mod that was here before a pack named it is the player's own.
@@ -313,6 +315,98 @@ before; the loader only ever read.
 - `user://mods.json` also holds `sources` (`{modio_id, file_id, profile_url}` per
   mod id), which is how a Browse tile knows it is installed and whether mod.io now
   offers a different file.
+
+### Applying without a restart (2026-10-14)
+
+The Installed page has ONE button over everything waiting (`_fill_banner`, drawn
+above the list AND above a mod's own page, which is where its switch is):
+
+- **Apply now** when every waiting change is in `ModManager.apply_plan()`'s
+  `live`: switched on, never mounted, and with no claim that shadows a shipped file.
+  The controller closes the menu and calls `SceneManager.reload_room(prepare)`,
+  whose `prepare` is `Mods.apply_live()`, run inside `_run_transition` once the old
+  room is freed and before the new one loads. That is the state a boot is in when
+  the autoloads run, and it is the point: hooks fire on `node_added` before a
+  node's `_ready` (the n64pad reshell has to run before the controller looks for
+  its controls), so dressing a room that is already standing is NOT equivalent.
+  The room is rebuilt and the player stays where they stood (`_seat_player_rig`
+  `keep_place`). `mods_applied` then rebuilds what was read once: the spawn menu's
+  TVs tab, both grids (`refresh_after_core_change("")`) and the local scan cache.
+  `SystemIcons.forget()` drops its cached misses.
+- **Restart now** for the rest: a running pack switched off, updated or removed (a
+  `_pending` move), a mounted pack that failed, or a mod whose claims shadow a
+  shipped file. Its replace-files mount could not displace a copy already in the
+  resource cache. `SceneManager.restart_app()` carries the room and quits:
+  - **Desktop: a waiter, not `set_restart_on_exit`.** `relaunch_command` starts
+    `powershell Wait-Process -Id <pid>; Start-Process ...` (Windows) or a
+    `sh` `kill -0` loop (Linux/macOS) before the quit, so the new process starts
+    once the old one has GONE, however it went. `set_restart_on_exit` only fires
+    at the very end of `Main::cleanup`, and **quitting with things in the room
+    sometimes dies in teardown** (measured 2026-10-14 on Windows, mods or none: 4
+    of 7 quits with consoles or a set spawned exited 139, 0 of 3 with the room
+    empty; nothing reached the event log and stdout is lost with the process, so
+    the faulting module is UNKNOWN). With the engine's restart that was no
+    relaunch at all; with the waiter it relaunched 3 of 3, including a run whose
+    parent crashed. Waiting also keeps two instances off one OpenXR session.
+    `set_restart_on_exit` stays the fallback if the waiter cannot start.
+  - **Android: `set_restart_on_exit`**, which it honours though Godot's docs say
+    otherwise: `_terminate` -> `Main::cleanup` -> `OS_Android::create_instance` ->
+    `GodotActivity.onNewGodotInstanceRequested` -> `ProcessPhoenix.triggerRebirth`
+    (engine 4.7.2, unpatched there). The same teardown crash, if a Quest has it,
+    would cost the relaunch there too; the carry is still marked in the prefs, so
+    the player's own next launch comes back to the room either way.
+  - `restart_args` passes nothing on Android (the activity re-adds its `_cl_`
+    line) and re-adds `--path` from an editor binary. Consoles power off and flush
+    SRAM on the way out as on any quit.
+
+**The room is carried, not saved.** Both paths call `SceneManager.carry_room()`:
+the room is written as it stands to `<room>/_carry.json` (beside the slots, in no
+manifest), the room id goes in `prefs.json` as `"carry"`, and the next restore OF
+THAT ROOM (`SpawnMenuController._autoload_slot`, which a boot comes through too)
+loads it instead of the slot, once, then deletes it. A failed carry falls back to
+the slot. The leave-save a room change makes is not enough: it is skipped in a
+Clean Room, with the autosave switch off, and in rooms with no slots.
+
+**Refused:** in a netplay session (`apply_plan`'s `blocked`, and again inside
+`reload_room`/`restart_app`). Peers compared fingerprints once, at the handshake,
+and a host's room change tells its clients to change to the room they are already
+in, which does nothing. The button is also disabled until the room's content has
+settled, and a restart is refused while any download runs or a mod review waits
+(`SpawnMenu2D.busy_reason`): every downloader cancels on exit and
+`_sweep_incoming` deletes parked reviews at the next launch.
+
+**`ModRecord.loaded`** is "this mod's code is running this session". `status`
+follows the switch (`_status_for`): flipping a switch back is not a change any more
+(it used to leave the mod PENDING and ask for a restart that changed nothing), and
+**`fingerprint()` keys on `loaded`**, because a running mod switched off goes on
+running until the restart and a peer must still be told it is there.
+
+**`rescan()`** runs whenever Installed is shown, so a pack dropped in by hand, by
+adb or over the LAN server appears without a restart. Only NEW ids get records; a
+second container for a known id is left for the next boot's duplicate rule, since
+re-recording a running mod mid-session would rewrite what netplay reads.
+Unreadable files are read again (an adb push may have been mid-copy).
+
+**A live mod registers after every boot mod**, whatever its priority. Where two
+mods claim one thing first-come (`dress`, `override_model`, cart and expansion
+shells) the next launch can settle it the other way. Documented, not fixed. And a
+mod that was off at boot already had its props pruned from the restored room
+(`_prune_unknown_types`); applying it does not bring them back.
+
+`mod_browser_tests` `apply/` (classification, rescan, and a REAL mount of a
+fixture pack under its own namespace, from a folder outside `_dir` because Windows
+holds a mounted zip open), `scene_tests` `carry/` and `restart/`,
+`spawn_menu_tests` `tvs/`. A restart is never driven from a suite: a mutation that
+broke its refusal would relaunch the suite for ever.
+
+**`Tools/mods/mods_apply_probe`** is the end-to-end check, in the real app,
+WINDOWED, against a scratch `APPDATA` and `USERPROFILE` (it refuses to run without
+`probe_home.txt` in both): it boots BootScene, furnishes the room, presses Apply
+now on a mod that claims nothing (`-- --mod=`, default `xenu.panasonic`), checks
+the room, the player and the TVs tab, spawns the mod's set, switches the mod off
+and presses Restart now. The relaunched process is the probe again (its scene is
+on the command line) and reports phase 2 in `result2.txt`; it never restarts from
+there. Passed 3 of 3 on Windows, 2026-10-14.
 
 ### Preview images
 
@@ -372,6 +466,15 @@ RetroXR-models repo, whose source ships no `thumbnail.png` yet.
   (owned by shell). The downloader says so; it cannot fix it.
 - The tab in a headset, and nine nav buttons on the bar (they fit by measurement:
   839 of 1072 px).
+- **Restart now on a Quest**: that the relaunched activity comes back immersive,
+  with no 2D flash from ProcessPhoenix's translucent `:phoenix` activity, and
+  whether the Quest shares the desktop's teardown crash (which would cost the
+  relaunch: Android has no waiter). The path is read from the engine source, not
+  yet watched on a device. Apply now in a headset is OWED too.
+- **The teardown crash itself** (see Restart now above): an ordinary quit with
+  things in the room exits 139 about half the time on Windows. Unfixed and not
+  located; consoles power off first, so whether a save is ever lost to it is not
+  known either.
 
 **A mod's lead saves as a lead.** A mod prop is written to a slot as its type and
 pose, which is all a crate needs. A lead (`CompositeCable`, `PowerCord`, `PowerStrip`)

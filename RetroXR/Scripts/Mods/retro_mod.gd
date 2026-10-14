@@ -5,9 +5,11 @@
 ##     func register(api: ModApi) -> void:
 ##         api.register_model({...})
 ##
-## One call, made once, while the room is still being built. A mod that needs to
-## act later asks for a hook (api.on_node_added, api.on_scene_content_ready)
-## rather than staying resident, so nothing has to keep it alive.
+## One call, made once, before the room it will live in is built: at boot, or --
+## for a mod the player switched on and applied mid-session -- between the room
+## being torn down and built again. A mod that needs to act later asks for a hook
+## (api.on_node_added, api.on_scene_content_ready) rather than staying resident,
+## so nothing has to keep it alive.
 ##
 ## RefCounted rather than Node on purpose: a mod is not in the tree, and a mod
 ## that wants to be adds its own nodes through a hook.

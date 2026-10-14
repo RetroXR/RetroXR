@@ -226,6 +226,7 @@ func _connect_menu_signals() -> void:
 	menu.scene_slot_delete_requested.connect(_on_slot_delete)
 	menu.scene_slot_create_requested.connect(_on_slot_create)
 	menu.scene_slot_rename_requested.connect(_on_slot_rename)
+	menu.mods_apply_requested.connect(_on_mods_apply_requested)
 	menu.options_view().auto_save_changed.connect(_on_auto_save_changed)
 	menu.options_view().hud_changed.connect(_on_hud_changed)
 	menu.options_view().aim_crosshair_changed.connect(_on_aim_crosshair_changed)
@@ -289,11 +290,21 @@ func _on_restore_progress(done: int, total: int) -> void:
 
 func _autoload_slot(room: String) -> void:
 	var sm := get_node_or_null("/root/SceneManager")
-	if sm == null or sm.current_scene_id != room or not sm.room_has_slots(room):
+	if sm == null or sm.current_scene_id != room:
 		return
 	# The host's snapshot is authoritative. Loading this machine's own slot first
 	# would briefly build a different world and can race the incoming snapshot.
 	if has_node("/root/NetworkManager") and NetworkManager.is_client():
+		return
+	# A reload or a restart carried this room across as it stood (SceneManager.
+	# carry_room). Before the slot rooms check: a room with no slots is carried too.
+	if sm.take_carry(room) and get_tree().current_scene != null:
+		var carried := ScenePersistence.new(room)
+		carried.restore_progress.connect(_on_restore_progress)
+		if await carried.load_carry_async(get_tree().current_scene):
+			return
+		# One that would not load falls through to the slot, as if there were none.
+	if not sm.room_has_slots(room):
 		return
 	var slot: String = sm.active_slot(room)
 	if slot != "clean" and get_tree().current_scene != null:
@@ -1501,6 +1512,37 @@ func _on_scene_change_requested(scene_id: String) -> void:
 		return
 	_hide_menu()
 	sm.change_scene(scene_id)
+
+
+## The MODS tab's Apply button. A restart quits at the end of this frame; a live
+## apply rebuilds this room and mounts the new mods between the old room and the
+## new one (SceneManager.reload_room), so the menu closes as for a room change.
+func _on_mods_apply_requested(restart: bool) -> void:
+	var sm := get_node_or_null("/root/SceneManager")
+	if sm == null:
+		return
+	var why: String = sm.restart_app() if restart else sm.reload_room(_apply_mods_live)
+	if not why.is_empty():
+		var menu := _get_menu()
+		if menu != null:
+			menu.notify("mods:apply", "❌", why, -1.0, MenuToasts.DWELL_FAIL)
+		return
+	if not restart:
+		_hide_menu()
+
+
+## Runs between the rooms. A mod that mounted and failed to register is said out
+## loud: its page has the reason, but nobody is looking at the page now.
+func _apply_mods_live() -> void:
+	for rec: ModRecord in Mods.apply_live():
+		if rec.status == ModRecord.Status.LOADED:
+			continue
+		var msg := "%s did not load: %s" % [rec.manifest.name, rec.reason]
+		if _hud_toasts != null:
+			_hud_toasts.stack().notify("mods:failed:" + rec.id, "❌", msg, -1.0,
+				MenuToasts.DWELL_FAIL)
+		else:
+			push_warning("[mods] " + msg)
 
 
 ## Load a slot belonging to `room_id` — the room whose grid the player is looking

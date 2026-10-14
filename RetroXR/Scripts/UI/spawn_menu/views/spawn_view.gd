@@ -161,6 +161,8 @@ var _cartridges_browser: SystemGridBrowser = null
 ## is paired or unpaired.
 var _controllers_vbox: VBoxContainer = null
 var _books_vbox: VBoxContainer = null
+## The TVs tab's rows. Kept so a mod applied mid-session can add its cabinets.
+var _tvs_vbox: VBoxContainer = null
 var _videos_vbox: VBoxContainer = null
 var _dvds_vbox: VBoxContainer = null
 var _cds_vbox: VBoxContainer = null
@@ -403,6 +405,7 @@ func _build() -> void:
 	_populate_cartridges_tab()
 
 	_add_tv_spawn_tab(tabs)
+	Mods.mods_applied.connect(_on_mods_applied)
 
 	# Books tab — lists PDFs from the books root directory
 	var books_scroll := ScrollContainer.new()
@@ -2240,28 +2243,58 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 	scroll.add_child(vbox)
 	vbox.add_child(MenuStyle.spacer(10))
 	for item: Array in items:
-		var btn := Button.new()
-		btn.text = "  +  " + item[0]
-		btn.custom_minimum_size = Vector2(0, 80)
-		btn.add_theme_font_size_override("font_size", 26)
-		if item[1] == "speaker_cable":
-			# Held for a second: choose its length and the colour of its plugs.
-			var hold := HoldPress.attach(btn)
-			hold.clicked.connect(spawn_requested.emit.bind(item[1]))
-			hold.held.connect(_show_lead_spawn_options.bind(item[0], item[1]))
-		else:
-			btn.pressed.connect(spawn_requested.emit.bind(item[1]))
-		vbox.add_child(btn)
+		vbox.add_child(_spawn_tab_button(item))
 	return vbox
 
 
-## Mods register before the menu is built. Keep the stock TVs, then offer every
-## registered cabinet using the same "tv:<shell>" token as the plain monitor.
+## One `[label, token]` row of a plain spawn tab.
+func _spawn_tab_button(item: Array) -> Button:
+	var btn := Button.new()
+	btn.text = "  +  " + item[0]
+	btn.custom_minimum_size = Vector2(0, 80)
+	btn.add_theme_font_size_override("font_size", 26)
+	if item[1] == "speaker_cable":
+		# Held for a second: choose its length and the colour of its plugs.
+		var hold := HoldPress.attach(btn)
+		hold.clicked.connect(spawn_requested.emit.bind(item[1]))
+		hold.held.connect(_show_lead_spawn_options.bind(item[0], item[1]))
+	else:
+		btn.pressed.connect(spawn_requested.emit.bind(item[1]))
+	return btn
+
+
+## Keep the stock TVs, then offer every registered cabinet using the same
+## "tv:<shell>" token as the plain monitor. The mods mounted at boot have
+## registered by the time the menu is built; one mounted later is added by
+## _populate_tvs_tab.
 func _add_tv_spawn_tab(tabs: TabContainer) -> VBoxContainer:
+	_tvs_vbox = _add_spawn_tab(tabs, "TVs", _tv_items())
+	return _tvs_vbox
+
+
+func _tv_items() -> Array:
 	var items: Array = [["TV", "tv"], ["Plain Monitor", "tv:crt_plain"]]
 	for shell: Dictionary in RetroTV.mod_shells():
 		items.append([str(shell["label"]), "tv:" + str(shell["id"])])
-	return _add_spawn_tab(tabs, "TVs", items)
+	return items
+
+
+func _populate_tvs_tab() -> void:
+	if _tvs_vbox == null or not is_instance_valid(_tvs_vbox):
+		return
+	_clear_vbox(_tvs_vbox)
+	for item: Array in _tv_items():
+		_tvs_vbox.add_child(_spawn_tab_button(item))
+
+
+## Mods were mounted after the menu was built (ModManager.apply_live). The TVs
+## tab was built once; the two grids and an open card are owed a rebuild, which
+## pays when the tab is next on screen; and a mod's SystemInfo can change what a
+## ROM folder scan finds.
+func _on_mods_applied() -> void:
+	_populate_tvs_tab()
+	_invalidate_local_scan()
+	refresh_after_core_change("")
 
 
 ## The virtual controllers, then a receiver per connected physical pad.
