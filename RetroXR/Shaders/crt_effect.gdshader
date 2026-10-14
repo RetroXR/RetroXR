@@ -6,7 +6,15 @@
 //
 // The picture is emitted from behind the shared lit glass surface.
 shader_type spatial;
-render_mode cull_disabled, shadows_disabled, fog_disabled;
+// cull_back, and it has to be. The rounded glass edge is BLENDED (ALPHA, below),
+// which puts the tube in the transparent pass: nothing there writes depth, and one
+// mesh's triangles are drawn in index order. Drawn double-sided, the far half of a
+// deep tube turns its back to a viewer standing at the side and is painted straight
+// over the near half — the picture seen from behind, from about 76 degrees off axis
+// on a 25 mm tube. A tube bulges toward the viewer, so its front faces never overlap
+// one another, and with the back ones culled there is nothing left to sort.
+// Tools/av/tv_side_view_probe is the check.
+render_mode cull_back, shadows_disabled, fog_disabled;
 
 #include "res://Shaders/crt_filter.gdshaderinc"
 #include "res://Shaders/pixel_aa.gdshaderinc"

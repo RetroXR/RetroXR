@@ -9,7 +9,8 @@
 // contract. Runs through the same crt_apply_full stage, so static curves,
 // scanlines and blooms like a real picture.
 shader_type spatial;
-render_mode cull_disabled, shadows_disabled, fog_disabled;
+// cull_back: a screen is only ever seen from its front (see crt_effect.gdshader).
+render_mode cull_back, shadows_disabled, fog_disabled;
 
 #include "res://Shaders/crt_filter.gdshaderinc"
 

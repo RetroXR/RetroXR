@@ -338,7 +338,9 @@ functional part stays on the television. Two optional overrides, both defaulting
 to doing nothing:
 
 - `screen_shader()` — **null means the stock CRT**, which is what you want unless
-  your set genuinely looks different.
+  your set genuinely looks different. A shader of your own should be `cull_back`,
+  as the stock ones are: drawn double-sided, the far half of a curved tube shows
+  through the near half to anyone standing at the side.
 - `on_buttons_built(buttons)` — the bezel buttons, so you can adorn them or hang
   your own sounds off them. The stock sets have no button audio at all, so this is
   adding rather than overriding.
@@ -349,6 +351,11 @@ Only known CRT keys are merged; saved picture values and player edits take
 priority, even when restored before the cabinet enters the tree. Use this instead
 of `set_crt_params()` for defaults so loading a room cannot reset its picture.
 Registered cabinets appear in **SPAWN > TVs** under their registration label.
+
+A cabinet that puts its own tube on the set (`screen_mesh().mesh`, recentred on
+the `ScreenSeat`) gets the picture on that mesh's FRONT faces only. Leave it
+wound facing out of the cabinet, the way an exporter writes it; wound the other
+way it is not drawn at all.
 
 A **controller** is simply a scene rooted at `RetroController`. Persistence
 already records its scene path and falls back to the generic pad if your mod is

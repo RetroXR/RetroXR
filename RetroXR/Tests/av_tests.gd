@@ -194,6 +194,7 @@ func _run() -> void:
 		["display/the CRT button reaches the shader", _d_crt_button],
 		["display/the fast tier wears the mobile shader", _d_crt_fast_tier],
 		["display/fast source stages retain OSD, stereo and snow", _d_fast_stages],
+		["display/a tube is drawn from its front only", _d_tube_one_sided],
 		["guard/a host that is not shown is refused", _g_refused],
 		["guard/the shown host may paint", _g_allowed],
 		["guard/only the owner may take the picture down", _g_release],
@@ -1363,6 +1364,26 @@ func _d_crt_fast_tier() -> void:
 	tv.remote_power_toggle()
 	await _wait(6)
 	_check_eq(_glass(tv), tv._display._dark_material, "which is what a set switched off wears")
+
+
+## Every shader a set puts on its glass draws the FRONT of the tube only. Drawn
+## double-sided, the far half of a deep tube showed through the near half to
+## anyone standing at the side: the full tier blends its glass edge, so nothing
+## there writes depth and the back faces were simply painted over the front ones.
+## How it looks is Tools/av/tv_side_view_probe (windowed); this is what keeps a
+## new stage, or a copy of an old one, from bringing the back faces home.
+func _d_tube_one_sided() -> void:
+	for shader: Shader in [RetroTV.CRT_SHADER, RetroTV.CRT_MOBILE_SHADER,
+			RetroTV.WINDOW_SHADER, RetroTV.WINDOW_MOBILE_SHADER,
+			RetroTV.VCR_SHADER, RetroTV.VCR_MOBILE_SHADER,
+			RetroTV.STATIC_SHADER, RetroTV.STATIC_MOBILE_SHADER]:
+		var modes := PackedStringArray()
+		for line: String in shader.code.split("\n"):
+			if line.begins_with("render_mode "):
+				for mode: String in line.trim_prefix("render_mode ").trim_suffix(";").split(","):
+					modes.append(mode.strip_edges())
+		_ok(modes.has("cull_back") and not modes.has("cull_disabled"),
+			"%s culls the back of the tube" % shader.resource_path.get_file())
 
 
 func _d_fast_stages() -> void:

@@ -8,6 +8,50 @@ uses unshaded glass, an opaque alpha-scissor corner and the existing mobile
 mask/beam stage. Packed windows use four clamped minification taps rather than
 nine; no tap may sample an adjacent packed screen.
 
+## A tube is drawn from its front only
+
+All eight shaders a set can wear on its glass (crt_effect, screen_window,
+vcr_effect, tv_static and their _mobile twins) are cull_back. They were
+cull_disabled until 2026-10-14, and a deep tube showed its picture from behind:
+standing at the side of the Panasonic CT-20D10B (xenu.panasonic, a 24.9 mm
+tube; the stock one bulges 9 mm), the far part of the picture lay over the near
+part.
+
+The full tier blends its rounded glass edge (ALPHA), which puts the screen in
+the transparent pass. Nothing there writes depth, and one mesh's triangles are
+drawn in index order. Past the angle at which the far edge of the tube turns
+away (about 76 degrees off axis on that tube) its back faces were painted
+straight over the near half's front faces. It shows from ONE side only, the
+side whose far triangles come later in the index buffer, and over part of the
+height only. The fast tier is opaque, so depth hid it there except through a
+scissored corner.
+
+A tube bulges toward the viewer, so its front faces never overlap one another:
+with the back ones culled there is nothing left to sort, and no depth prepass
+is needed. A new stage shader has to cull back too. av_tests "display/a tube is
+drawn from its front only" holds the eight to it. A cabinet's own tube mesh has
+to be wound facing out, or it is now not drawn at all.
+
+Tools/av/tv_side_view_probe (windowed) is how it looks and the check that can
+fail: --picture=quarters photographs four colour bands from steep angles on
+both sides and fails when a row meets them out of order or skips one. Restoring
+cull_disabled fails it at -88, +86 and +88 with 11 to 95 rows out of order, on
+crt_effect, screen_window and vcr_effect alike. Four things it had to learn:
+
+- Two bands cannot show the fault. The far half lands beside what can be seen
+  of itself and reads as one run. It takes the far QUARTER over the middle.
+- A skipped band is the fault too: the blue left after the yellow is one pixel
+  wide at 86 degrees.
+- The tape's tracking line drags one row sideways, a different row each frame.
+  The VCR leg runs with effect_amount 0.
+- The stock cabinet's bezel caps are green, blue and yellow and stand in front
+  of the bottom of the tube from the side. The checking leg hides them. A deep
+  bezel (crt_plain) hides the whole tube at 88 degrees, which is no fault.
+
+screen_window is shared with the DS/3DS panels, the Virtual Boy's lens quads
+and the VMU's LCD. Those are flat quads placed by code with +Z facing out; the
+DS and 3DS were photographed with the culled shader and both panels still draw.
+
 ## Compare shaders
 
 Stage the isolated project as described in Tools/crt_bench/README.md. Run

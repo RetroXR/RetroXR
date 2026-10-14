@@ -16,7 +16,9 @@ shader_type spatial;
 // is showing. Not alpha_to_coverage: with that render mode (and its
 // ALPHA_ANTIALIASING_EDGE) the picture rendered at half brightness on Forward+,
 // measured 236 -> 120 on a white block, so the cut edge is a plain hard step.
-render_mode unshaded, cull_disabled, shadows_disabled, fog_disabled;
+// cull_back as on the full shader: depth hides the back of the tube here, except
+// through a scissored corner, and its fill is not spent either.
+render_mode unshaded, cull_back, shadows_disabled, fog_disabled;
 
 #include "res://Shaders/crt_mobile.gdshaderinc"
 #include "res://Shaders/pixel_aa.gdshaderinc"

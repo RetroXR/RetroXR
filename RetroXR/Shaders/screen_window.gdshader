@@ -15,7 +15,8 @@
 // with the VCR's tape shader: it flips `crt_enabled` and feeds the shared
 // crt_filter uniforms + the OSD texture, instead of wrapping the material.
 shader_type spatial;
-render_mode cull_disabled, shadows_disabled, fog_disabled;
+// cull_back: a screen is only ever seen from its front (see crt_effect.gdshader).
+render_mode cull_back, shadows_disabled, fog_disabled;
 
 #include "res://Shaders/crt_filter.gdshaderinc"
 #include "res://Shaders/pixel_aa.gdshaderinc"

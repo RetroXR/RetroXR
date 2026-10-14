@@ -7,7 +7,8 @@
 // The picture is emitted from behind the shared lit glass surface, so room light
 // can catch the faceplate without tinting or dimming the tape image itself.
 shader_type spatial;
-render_mode unshaded, cull_disabled, shadows_disabled, fog_disabled;
+// cull_back: a screen is only ever seen from its front (see crt_effect.gdshader).
+render_mode unshaded, cull_back, shadows_disabled, fog_disabled;
 
 #include "res://Shaders/crt_mobile.gdshaderinc"
 
