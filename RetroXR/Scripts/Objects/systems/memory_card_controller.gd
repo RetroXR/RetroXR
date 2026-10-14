@@ -493,6 +493,11 @@ func _compose_sram_path(resolved_core: String, slot := 0) -> String:
 	var own := _console_memory_for(resolved_core)
 	if own != null:
 		return SramPaths.card_save_path(own.family, own.card_id)
+	# Built in too, but kept by the core in a file of its own and exposed through
+	# no SAVE_RAM (Opera's NVRAM, which ThreeDoStorage stages): a per-disc file
+	# would never be filled.
+	if resolved_core.begins_with(ThreeDoStorage.CORE_PREFIX) and _host.console_memory() != null:
+		return ""
 	if _host.rom_path.is_empty():
 		return ""
 	# A unit with its own battery answers before anything in its bay, and before

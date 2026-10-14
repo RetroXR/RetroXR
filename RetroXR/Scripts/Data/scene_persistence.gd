@@ -1805,7 +1805,7 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		"ignore_gravity": sys.ignore_gravity,
 	})
 	# Which image the memory built into it is. Omitted on a machine with none, so
-	# no room without a Saturn in it changes at all.
+	# no room without a Saturn or a 3DO in it changes at all.
 	if sys.console_memory() != null:
 		result["console_memory"] = sys.console_memory().card_id
 	# What is bolted to this machine. Written from the CONSOLE rather than

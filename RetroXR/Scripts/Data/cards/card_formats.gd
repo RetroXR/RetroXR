@@ -20,7 +20,7 @@ static func _build() -> void:
 			GCCardFormat.new(), N64CardFormat.new(), VMUCardFormat.new(),
 			SegaCdMemoryFormat.new(), SegaCdCartFormat.new(),
 			SaturnMemoryFormat.new(), SaturnCartFormat.new(),
-			XboxMuCardFormat.new()]:
+			ThreeDoMemoryFormat.new(), XboxMuCardFormat.new()]:
 		_by_family[fmt.id()] = fmt
 
 

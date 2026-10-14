@@ -20,7 +20,7 @@ extends Node
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
-const EXPECTED_CASES := 614
+const EXPECTED_CASES := 672
 
 var _pass := 0
 var _fail := 0
@@ -59,6 +59,7 @@ func _ready() -> void:
 	_test_vmu_play()
 	_test_sega_cd()
 	_test_saturn()
+	_test_three_do()
 	_test_shared_contract()
 	_test_ops()
 	_test_save_device()
@@ -894,6 +895,8 @@ func _smallest_save_size(fmt: CardFormat) -> int:
 		# A .ssav is a header and the data; a byte of data fits in a first block.
 		"sega_saturn_memory", "sega_saturn_ram_cart":
 			return SaturnBram.SAVE_HEADER + 1
+		# A .3dosav is a header and the data, and NVRAM counts in bytes.
+		"3do_nvram":      return ThreeDoNvram.SAVE_HEADER + 1
 		# An Xbox counts a Memory Unit in 16 KB blocks, and a save is its files'
 		# bytes: one full block of them is the largest save that is still one.
 		"xbox_mu":        return XboxMemoryUnit.BLOCK_BYTES
@@ -1004,6 +1007,10 @@ func _test_format_registry() -> void:
 		"registry/the xbox_mu family is an XboxMuCardFormat")
 	_eq(CardFormats.for_path("/x/y/mednafen_saturn_libretro_shared.bcr").id(), "sega_saturn_ram_cart",
 		"registry/a .bcr is the Saturn's cartridge, not its System Memory")
+	_ok(CardFormats.for_family("3do_nvram") is ThreeDoMemoryFormat,
+		"registry/the 3do_nvram family is a ThreeDoMemoryFormat")
+	_eq(CardFormats.for_path("/x/y/3DO.nvram").id(), "3do_nvram",
+		"registry/an older Opera's 3DO.nvram is a 3DO's NVRAM")
 
 	# for_path lowercases before matching, so a card named by a tool that shouts
 	# still resolves. Nothing else covers the fold.
@@ -1078,6 +1085,11 @@ func _test_save_device() -> void:
 		"save_device/a Saturn disc saves to the console's System Memory")
 	_ok(SaveDevice.note_for("saturn", "", "NiGHTS").contains("console's Saves tab"),
 		"save_device/and its note points at the console's Saves tab too")
+	var three_do := SaveDevice.format_for("3do", "")
+	_eq(three_do.id() if three_do != null else "", "3do_nvram",
+		"save_device/a 3DO disc saves to the console's NVRAM")
+	_ok(SaveDevice.note_for("3do", "", "Gex").contains("console's Saves tab"),
+		"save_device/and its note points at the console's Saves tab")
 	_ok(SaveDevice.format_for("wii", "") == null,
 		"save_device/a Wii game saves to the console, though a Wii takes GameCube cards")
 	_ok(SaveDevice.format_for("snes", "") == null,
@@ -1321,6 +1333,111 @@ func _test_saturn() -> void:
 	_eq(SaturnBram.list_files(merged).size(), 2, "saturn/merging one image into another brings every save")
 	_ok(SaturnBram.merge(merged, img) == merged, "saturn/and merging it again brings none twice")
 	_ok(not SaturnBram.is_save(PackedByteArray([1, 2, 3])), "saturn/bytes that are no .ssav are not a save")
+
+
+## Measured with Tools/cores/three_do_nvram_probe (Opera 1.0.0 5a09dc4, FZ-10 BIOS,
+## Gex): the blank is the one Opera formats, Gex's own file laid into it is the
+## image the 3DO's OS wrote byte for byte, and the OS's NVRAM check at boot
+## repairs a bent link and leaves these layouts alone.
+func _test_three_do() -> void:
+	var blank := ThreeDoNvram.blank_image()
+	_ok(ThreeDoNvram.is_card_image(blank), "3do/a blank NVRAM parses")
+	_eq(_sha256(blank), "c7be917c33adf64c212f8e19c2b3f9bb1d085052ccb8883e0c70a39988da004e",
+		"3do/and is the one Opera formats, byte for byte")
+	_eq(_3do_blocks(blank), "152:free/32616", "3do/one free block after the label and anchor")
+	_eq(ThreeDoNvram.free_bytes(blank), 32552, "3do/the OS's free figure leaves a file header out")
+	var zeros := PackedByteArray()
+	zeros.resize(ThreeDoNvram.IMAGE_SIZE)
+	_ok(not ThreeDoNvram.is_card_image(zeros), "3do/unformatted memory is not an image")
+
+	var a := _scd_pattern(300, 3, 1, 1)
+	var b := _scd_pattern(1000, 7, 5, 1)
+	var c := _scd_pattern(50, 11, 2, 1)
+	var img := ThreeDoNvram.write_file(blank, "SAVE.A", 0x41414141, 7, 290, a)
+	_eq(_3do_blocks(img), "152:file/364 516:free/32252",
+		"3do/a file takes header and data from the first free block, which is split")
+	_eq(ThreeDoNvram._text(img, 516 + ThreeDoNvram.OFF_NAME, ThreeDoNvram.NAME_LEN), "SAVE.A",
+		"3do/the split-off block keeps the rest of the entry, as the OS leaves it")
+	img = ThreeDoNvram.write_file(img, "save.b", ThreeDoNvram.BLANK_TYPE, 0, 1000, b)
+	img = ThreeDoNvram.write_file(img, "SAVE.C", ThreeDoNvram.BLANK_TYPE, 0, 50, c)
+	_eq(_3do_listing(img), "SAVE.A 41414141 7 290 300 152|save.b 20202020 0 1000 1000 516|SAVE.C 20202020 0 50 50 1580",
+		"3do/listed in address order with type, id, end of file, size and place")
+	_eq(ThreeDoNvram.free_bytes(img), 31010, "3do/leaving 31010 free")
+	_ok(ThreeDoNvram.read_file(img, 516) == b, "3do/a file reads back")
+	_eq(ThreeDoNvram.index_of(img, "SAVE.B"), 516, "3do/names are found without case, as the OS finds them")
+	_ok(ThreeDoNvram.write_file(img, "SAVE.B", 0, 0, 1, c).is_empty(),
+		"3do/so the same name in other case is refused")
+	_ok(ThreeDoNvram.write_file(blank, "x".repeat(32), 0, 0, 1, c).is_empty()
+		and not ThreeDoNvram.write_file(blank, "x".repeat(31), 0, 0, 1, c).is_empty(),
+		"3do/a name must leave room for its terminator")
+
+	var holed := ThreeDoNvram.delete_file(img, 516)
+	_eq(_3do_blocks(holed), "152:file/364 516:free/1064 1580:file/114 1694:free/31074",
+		"3do/deleting a file between two leaves a hole")
+	_ok(ThreeDoNvram.read_file(holed, 1580) == c, "3do/and the file after it where it was")
+	var refilled := ThreeDoNvram.write_file(holed, "SAVE.D", 0, 0, 900, _scd_pattern(900, 5, 9, 1))
+	_eq(_3do_blocks(refilled), "152:file/364 516:file/964 1480:free/100 1580:file/114 1694:free/31074",
+		"3do/a new file takes the first hole that holds it")
+	var past := ThreeDoNvram.write_file(holed, "SAVE.E", 0, 0, 1100, _scd_pattern(1100, 5, 9, 1))
+	_eq(ThreeDoNvram.index_of(past, "SAVE.E"), 1694, "3do/and one too big for the hole goes past it")
+	var merged := ThreeDoNvram.delete_file(holed, 1580)
+	_eq(_3do_blocks(merged), "152:file/364 516:free/32252",
+		"3do/a delete joins the free blocks either side")
+	_eq(_3do_blocks(ThreeDoNvram.delete_file(merged, 152)), "152:free/32616",
+		"3do/and the last one gives everything back")
+
+	var whole := ThreeDoNvram.write_file(blank, "WHOLE", 0, 0, 1, _scd_pattern(32457, 1, 0, 1))
+	_eq(_3do_blocks(whole), "152:file/32616",
+		"3do/a file leaving less than a header and 32 bytes takes the whole block")
+	_eq(ThreeDoNvram.free_bytes(whole), 0, "3do/so nothing is free")
+	var split := ThreeDoNvram.write_file(blank, "SPLIT", 0, 0, 1, _scd_pattern(32456, 1, 0, 1))
+	_eq(_3do_blocks(split), "152:file/32520 32672:free/96", "3do/one byte less and it splits")
+	_ok(ThreeDoNvram.write_file(blank, "TOOBIG", 0, 0, 1, _scd_pattern(32553, 1, 0, 1)).is_empty(),
+		"3do/a file larger than the free space is refused")
+
+	var bent := img.duplicate()
+	ThreeDoNvram._put_u32(bent, 152 + ThreeDoNvram.OFF_FLINK, 520)
+	_ok(ThreeDoNvram.blocks(bent).is_empty() and ThreeDoNvram.list_files(bent).is_empty(),
+		"3do/a list with a bent forward link reads as broken")
+	_ok(ThreeDoNvram.write_file(bent, "NEW", 0, 0, 1, c).is_empty()
+		and ThreeDoNvram.delete_file(bent, 516).is_empty(), "3do/and is neither written nor deleted from")
+	var backwards := img.duplicate()
+	ThreeDoNvram._put_u32(backwards, 1580 + ThreeDoNvram.OFF_BLINK, 152)
+	_ok(ThreeDoNvram.blocks(backwards).is_empty(), "3do/as is one whose back link is wrong")
+
+	var fmt := CardFormats.for_family("3do_nvram")
+	var saves := fmt.list_saves(img, false)
+	_ok(saves.size() == 3 and str(saves[0]["title"]) == "SAVE.A" and int(saves[0]["blocks"]) == 300,
+		"3do/a save is titled by its name and counted in the bytes it occupies")
+	var lifted := fmt.extract_save(img, 152)
+	_ok(ThreeDoNvram.is_save(lifted), "3do/a lifted save is a .3dosav")
+	_eq(fmt.save_name(lifted), "SAVE.A", "3do/carrying its name")
+	var put := fmt.insert_save(blank, lifted)
+	_eq(_3do_listing(put), "SAVE.A 41414141 7 290 300 152", "3do/put back it keeps type, id and end of file")
+	_ok(ThreeDoNvram.read_file(put, 152) == a, "3do/and its bytes")
+	_ok(fmt.insert_save(put, lifted).is_empty(), "3do/a save already there is refused")
+	_eq(fmt.saves_in_download(img).size(), 3, "3do/a whole uploaded image yields every save")
+	var both := ThreeDoNvram.merge(blank, img)
+	_eq(ThreeDoNvram.list_files(both).size(), 3, "3do/merging one image into another brings every file")
+	_ok(ThreeDoNvram.merge(both, img) == both, "3do/and merging it again brings none twice")
+	_ok(not ThreeDoNvram.is_save(PackedByteArray([1, 2, 3])), "3do/bytes that are no .3dosav are not a save")
+
+
+## Every block as at:kind/count.
+func _3do_blocks(data: PackedByteArray) -> String:
+	var parts: PackedStringArray = []
+	for e: Dictionary in ThreeDoNvram.blocks(data):
+		parts.append("%d:%s/%d" % [e["at"], "file" if int(e["fingerprint"]) == ThreeDoNvram.FINGERPRINT_FILE
+			else "free", e["count"]])
+	return " ".join(parts)
+
+
+func _3do_listing(data: PackedByteArray) -> String:
+	var parts: PackedStringArray = []
+	for e: Dictionary in ThreeDoNvram.list_files(data):
+		parts.append("%s %08x %d %d %d %d" % [e["name"], e["type"], e["unique"], e["bytes"],
+			e["blocks"], e["at"]])
+	return "|".join(parts)
 
 
 func _saturn_listing(files: Array[Dictionary]) -> String:

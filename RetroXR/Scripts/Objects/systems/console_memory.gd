@@ -1,8 +1,10 @@
 ## ConsoleMemory — backup memory built into the console itself: the Sega
-## Saturn's System Memory.
+## Saturn's System Memory, the 3DO's NVRAM.
 ##
 ## A Sega CD's memory is in a unit that comes off, so it rides on the
-## RetroExpansion; a Saturn's is on the board, so it rides on the machine. It
+## RetroExpansion; a Saturn's or a 3DO's is on the board, so it rides on the
+## machine. Beetle Saturn takes it through SAVE_RAM (ensure_image below); Opera
+## keeps it in a file of its own, which ThreeDoStorage stages and drains. It
 ## carries what MemoryCardPanel reads off a card (card_id, family, card_label,
 ## minted), which is what lets the console's Saves tab manage it with the card
 ## panel's own code, and what CardSaveOps.holder_of matches. The image is

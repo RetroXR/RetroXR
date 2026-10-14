@@ -456,6 +456,10 @@ func _init() -> void:
 	_saturn.name = "SaturnStorage"
 	add_child(_saturn)
 	_saturn.setup(self)
+	_three_do = ThreeDoStorage.new()
+	_three_do.name = "ThreeDoStorage"
+	add_child(_three_do)
+	_three_do.setup(self)
 	_xbox = XboxStorage.new()
 	_xbox.name = "XboxStorage"
 	add_child(_xbox)
@@ -2246,6 +2250,16 @@ func power_on() -> void:
 			cart_toast.show_notice(_display_name(), "Cartridge in use", saturn_busy,
 				Color(1.0, 0.72, 0.2))
 		return
+	# One 3DO at a time: Opera keeps its NVRAM in one file every machine on the
+	# core shares.
+	var three_do_busy := _three_do.busy_elsewhere(resolved_core)
+	if not three_do_busy.is_empty():
+		push_error("RetroSystem: Cannot power on - %s" % three_do_busy)
+		var nvram_toast := _machine_toast()
+		if nvram_toast != null:
+			nvram_toast.show_notice(_display_name(), "3DO in use", three_do_busy,
+				Color(1.0, 0.72, 0.2))
+		return
 	# One Xbox at a time: xemu is one machine per process, and every console
 	# writes the same hard disk image.
 	var xbox_busy := _xbox.busy_elsewhere(resolved_core)
@@ -2288,6 +2302,7 @@ func power_on() -> void:
 	# that staging may only now have created.
 	_sega_cd.stage_before_start(resolved_dir, resolved_core)
 	_saturn.stage_before_start(resolved_dir, resolved_core)
+	_three_do.stage_before_start(resolved_dir, resolved_core)
 	_xbox.note_started(resolved_core)
 	_xbox.stage_units_before_start(resolved_dir, resolved_core)
 	_apply_forced_core_options(resolved_dir, resolved_core)
@@ -2594,6 +2609,8 @@ func _stop_core() -> void:
 	_sega_cd.drain_after_stop()
 	# Beetle Saturn flushes a cartridge once more as it unloads.
 	_saturn.drain_after_stop()
+	# Opera writes the 3DO's NVRAM as it unloads.
+	_three_do.drain_after_stop()
 	# xemu flushes the console's hard disk as it unloads; the game's saves are
 	# lifted out of it for RomM once it has.
 	_xbox.backup_after_stop()
@@ -2932,6 +2949,9 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 		_libretro.SetRtcPath("")
 	_sega_cd.stage_before_start(_resolve_dir(), resolved_core)
 	_saturn.stage_before_start(_resolve_dir(), resolved_core)
+	# Not a 3DO's NVRAM: Opera carries it in its savestate, so a session's state
+	# transfer hands every peer the HOST's, and draining it back would write the
+	# host's saves over this console's. (Opera is not vetted for netplay anyway.)
 	_apply_forced_core_options(_resolve_dir(), resolved_core)
 	# The session's determinism pins outrank what the machine pins for its own
 	# hardware, so they go back over it: a Saturn's Video CD Card is off in a
@@ -3165,6 +3185,8 @@ func _all_forced_options(core: String) -> Dictionary:
 		out.merge(_sega_cd.forced_options_for(core), true)
 	if _saturn != null:
 		out.merge(_saturn.forced_options_for(core), true)
+	if _three_do != null:
+		out.merge(_three_do.forced_options_for(core), true)
 	return out
 
 
@@ -3964,6 +3986,12 @@ func sega_cd_storage() -> SegaCdStorage:
 ## free.
 func saturn_storage() -> SaturnStorage:
 	return _saturn
+
+
+## Read by another machine's ThreeDoStorage, deciding whether the shared file is
+## free.
+func three_do_storage() -> ThreeDoStorage:
+	return _three_do
 
 
 ## The memory built into this console, or null on one with none -- see
@@ -5491,6 +5519,9 @@ var _sega_cd: SegaCdStorage = null
 ## A Saturn's Backup RAM Cartridge, and the options Beetle Saturn keeps its
 ## memories by. Inert on every other machine -- see SaturnStorage.
 var _saturn: SaturnStorage = null
+## A 3DO's NVRAM, staged into the file Opera keeps it in. Inert on every other
+## machine -- see ThreeDoStorage.
+var _three_do: ThreeDoStorage = null
 ## One Xbox at a time, and its game's saves lifted off the shared hard disk for
 ## RomM once it stops. Inert on every other machine -- see XboxStorage.
 var _xbox: XboxStorage = null

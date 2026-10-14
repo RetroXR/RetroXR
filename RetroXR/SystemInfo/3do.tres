@@ -10,3 +10,5 @@ native_ports = 1
 media_type = 1
 supports_multitap = false
 multitap_ports = 0
+save_device = "3do_nvram"
+console_memory = "3do_nvram"

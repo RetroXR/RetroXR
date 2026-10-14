@@ -20,7 +20,7 @@ states/<core>/<game stem>/…                              savestates
 **`save/<core>/` is the core's own directory and cannot be renamed.** `Wrapper.cpp` hands it
 to the core as `RETRO_ENVIRONMENT_GET_SAVE_DIRECTORY`, and the cores that write their own files
 keep them there — bsnes's `<rom>.srm`, genesis_plus_gx's `.brm`, mednafen_saturn's `.bcr`,
-desmume's `.dsv`, opera's `nvram`. RetroXR's own tree is therefore a sibling, like `memcards/`.
+desmume's `.dsv`, opera's `opera/shared/nvram.0.srm` (staged by `ThreeDoStorage`, §2n-3do). RetroXR's own tree is therefore a sibling, like `memcards/`.
 
 **Savestates stay per core.** A libretro savestate is the core's own struct dump.
 

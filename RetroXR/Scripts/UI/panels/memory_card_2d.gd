@@ -616,8 +616,11 @@ func _make_row(s: Dictionary) -> Control:
 
 	var sub := Label.new()
 	var blocks: int = int(s.get("blocks", 1))
-	sub.text = "%s   ·   %d %s" \
-		% [str(s.get("serial", "")), blocks, _units(blocks)]
+	# A Saturn's, a Sega CD's or a 3DO's save carries no product code, and a
+	# separator with nothing before it reads as a stray dot.
+	var serial := str(s.get("serial", ""))
+	sub.text = ("" if serial.is_empty() else serial + "   ·   ") \
+		+ "%d %s" % [blocks, _units(blocks)]
 	sub.add_theme_font_size_override("font_size", 15)
 	sub.add_theme_color_override("font_color", COLOR_DIM)
 	col.add_child(sub)
