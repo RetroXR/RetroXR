@@ -1,6 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_knob.gd" id="1_knob"]
+[ext_resource type="Script" path="res://Scripts/Objects/media/gb_camera_eye.gd" id="2_eye"]
 
 ; The Game Boy Camera as a cartridge body (GbCameraShell.BODY), in the cartridge's
 ; own frame: x width, y length with the connector on -Y, z thickness with the
@@ -142,3 +143,11 @@ surface_material_override/0 = SubResource("Mat_bezel")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0158, 0)
 mesh = SubResource("CylinderMesh_glass")
 surface_material_override/0 = SubResource("Mat_glass")
+
+; The lens as a camera in the room (GbCameraEye): a tenth of a millimetre outside
+; the glass, whose outer face is 16.1 mm from the ball's centre. Only its place is
+; written here. Which way it looks is set by the script, because a rotation typed
+; into this file is read by rows.
+[node name="LensEye" type="Node3D" parent="Overhang/LensKnob/KnobPivot" unique_id=1403377621]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0162, 0)
+script = ExtResource("2_eye")

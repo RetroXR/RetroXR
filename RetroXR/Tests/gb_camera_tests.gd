@@ -1,6 +1,12 @@
 ## Game Boy Camera self-tests — the header lookup that picks its body, the
 ## cartridge that wears it (a Game Boy cartridge with a head standing outside the
 ## slot), the ball a hand swivels half a turn, and the seat it shares with a game.
+## And the camera it is: where the lens looks, what is handed to a core and when,
+## the core its ROM names, and why it stays out of netplay.
+##
+## No core runs here. What a core is handed is stood in for by FakeLibretro, and
+## a headless run draws nothing, so the picture is a still a case supplies. That
+## the real core shows the room is Tools/cores/gb_camera_feed_probe.
 ##
 ##     "$godot" --headless --path RetroXR res://Tests/gb_camera_tests.tscn
 ##     "$godot" --headless --path RetroXR res://Tests/gb_camera_tests.tscn -- --only=ball
@@ -16,12 +22,47 @@ const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const FIXTURE := "__gbcamera_selftest"
 const KNOB_PATH := "CartModel/Overhang/LensKnob"
+const EYE_PATH := KNOB_PATH + "/KnobPivot/LensEye"
 ## How far off the axle the stand-in hand holds the ball.
 const REACH := 0.03
+## What mGBA asks for.
+const CAMERA_SIZE := Vector2i(128, 112)
 
 var _pass := 0
 var _fail := 0
 var _only := ""
+
+
+## A core that has asked for a camera, as far as GbCameraEye can tell.
+class FakeLibretro:
+	extends RefCounted
+	var active := true
+	var size := CAMERA_SIZE
+	var pushes: Array = []
+
+	func IsCameraActive() -> bool:
+		return active
+
+	func GetCameraFrameSize() -> Vector2i:
+		return size
+
+	func PushCameraFrame(rgba: PackedByteArray, width: int, height: int) -> bool:
+		pushes.append({"rgba": rgba, "width": width, "height": height})
+		return true
+
+
+## A library built before the camera existed: none of the three calls.
+class OldLibretro:
+	extends RefCounted
+
+
+class FakeMachine:
+	extends RefCounted
+	var lib: RefCounted = FakeLibretro.new()
+	var is_powered_on := true
+
+	func get_libretro_node() -> RefCounted:
+		return lib
 
 
 func _ready() -> void:
@@ -48,6 +89,14 @@ func _ready() -> void:
 		await _test_seated()
 	if _wants("menu"):
 		_test_menu()
+	if _wants("eye"):
+		await _test_eye()
+	if _wants("feed"):
+		await _test_feed()
+	if _wants("binding"):
+		_test_binding()
+	if _wants("core"):
+		await _test_core()
 
 	_clear_fixtures()
 	await _settle_warm()
@@ -521,3 +570,368 @@ func _test_menu() -> void:
 	_ok(not gba_texts.has("Game Boy Camera"), "menu/a Game Boy Advance row does not offer it")
 	view._close_spawn_options_panel()
 	holder.queue_free()
+
+
+# ── the camera ────────────────────────────────────────────────────────────────
+
+
+## Four quadrants, no two alike, so a picture turned over or mirrored on its way
+## to a core lands on different colours: red and green across the top, blue and
+## white across the bottom.
+func _still(size: Vector2i, format := Image.FORMAT_RGBA8) -> Image:
+	var img := Image.create(size.x, size.y, false, format)
+	var half := size / 2
+	img.fill_rect(Rect2i(Vector2i.ZERO, half), Color.RED)
+	img.fill_rect(Rect2i(Vector2i(half.x, 0), size - Vector2i(half.x, 0)), Color.GREEN)
+	img.fill_rect(Rect2i(Vector2i(0, half.y), Vector2i(half.x, size.y - half.y)), Color.BLUE)
+	img.fill_rect(Rect2i(half, size - half), Color.WHITE)
+	return img
+
+
+## One pixel of what a core was handed.
+func _pushed(push: Dictionary, x: int, y: int) -> Color:
+	var data: PackedByteArray = push["rgba"]
+	var at := (y * int(push["width"]) + x) * 4
+	return Color8(data[at], data[at + 1], data[at + 2])
+
+
+## The four corners of a push, two pixels in: red, green, blue, white.
+func _corners_right(push: Dictionary) -> bool:
+	var w := int(push["width"])
+	var h := int(push["height"])
+	return _pushed(push, 2, 2) == Color.RED and _pushed(push, w - 3, 2) == Color.GREEN \
+		and _pushed(push, 2, h - 3) == Color.BLUE and _pushed(push, w - 3, h - 3) == Color.WHITE
+
+
+## The eye of a body that is in no cartridge, and the body to free with it.
+func _loose_body() -> Node3D:
+	var body := (load(GbCameraShell.BODY) as PackedScene).instantiate() as Node3D
+	add_child(body)
+	return body
+
+
+func _eye_of(body: Node3D) -> GbCameraEye:
+	return body.get_node("Overhang/LensKnob/KnobPivot/LensEye") as GbCameraEye
+
+
+## Where the lens points is where the camera looks, however the ball is turned
+## and however the cartridge is held.
+func _test_eye() -> void:
+	var cart := await _spawn(_write_rom("eye.gb", _camera()))
+	cart.global_transform = Transform3D(Basis.from_euler(Vector3(0.4, -0.9, 0.25)), Vector3(0.5, 1.2, -0.3))
+	await get_tree().physics_frame
+	var eye := cart.get_node_or_null(EYE_PATH) as GbCameraEye
+	_ok(eye != null, "eye/the ball carries the lens as a camera")
+	if eye == null:
+		cart.queue_free()
+		return
+	var knob := cart.get_node(KNOB_PATH) as VRKnob
+	var to_cart := cart.global_transform.basis.inverse()
+	for value: float in [0.5, 0.75, 0.25, 1.0]:
+		knob.set_value(value)
+		var lens := _lens(cart)
+		var fwd := (to_cart * -eye.global_transform.basis.z).normalized()
+		var up := (to_cart * eye.global_transform.basis.y).normalized()
+		var right := (to_cart * eye.global_transform.basis.x).normalized()
+		_ok(fwd.dot(lens) > 0.9999, "eye/at %.2f it looks where the lens points" % value,
+			"%s against the lens at %s" % [fwd, lens])
+		_ok(up.dot(Vector3.UP) > 0.9999, "eye/at %.2f its top is the top of the cartridge" % value, str(up))
+		_ok(right.dot(fwd.cross(up)) > 0.9999, "eye/at %.2f its right is the right of a camera, so nothing is mirrored" % value,
+			str(right))
+	knob.set_value(0.5)
+	# Behind the label and looking out of it, the right of a camera is -X of the
+	# cartridge: the side that is the RIGHT of the screen once seated, so the
+	# viewfinder is the room as seen through the console.
+	_ok((to_cart * eye.global_transform.basis.x).normalized().dot(Vector3.LEFT) > 0.9999,
+		"eye/at the front its right is -X of the cartridge")
+	var pivot := _pivot(cart)
+	var out := eye.global_position - pivot.global_position
+	var along := out.dot((cart.global_transform.basis * _lens(cart)).normalized())
+	var glass := pivot.get_node("LensGlass") as MeshInstance3D
+	var face := glass.position.length() + (glass.mesh as CylinderMesh).height * 0.5
+	_ok(along > face and along < face + 0.001, "eye/it stands just outside the glass",
+		"%.2f mm out, the glass ends at %.2f" % [along * 1000.0, face * 1000.0])
+	_ok(out.length() - along < 0.00001, "eye/on the axis of the lens", "%.3f mm off it" % ((out.length() - along) * 1000.0))
+	_ok(eye.get("_cartridge") == cart and eye.is_processing(), "eye/it knows the cartridge it is part of")
+	var show := _loose_body()
+	_ok(_eye_of(show).get("_cartridge") == null and not _eye_of(show).is_processing(),
+		"eye/a body on show, with no cartridge round it, films nothing")
+	show.free()
+
+	# The viewport: made on demand, sharing the room, and never the one the player sees through.
+	var before := get_viewport().get_camera_3d()
+	_ok(eye.get_node_or_null("Feed") == null, "eye/it has no viewport until a core asks for a picture")
+	eye.call("_ensure_viewport")
+	var feed := eye.get_node_or_null("Feed") as SubViewport
+	var cam := (feed.get_node_or_null("Lens") as Camera3D) if feed != null else null
+	_ok(feed != null and cam != null and cam.get_parent() == feed, "eye/its camera is under a viewport of its own")
+	if feed != null and cam != null:
+		_ok(before == null and get_viewport().get_camera_3d() == null,
+			"eye/so the viewport of the room has gained no camera, and the view of the player is not taken",
+			"before %s, after %s" % [before, get_viewport().get_camera_3d()])
+		_ok(cam.current, "eye/and it is the current one of its own")
+		_ok(cam.physics_interpolation_mode == Node.PHYSICS_INTERPOLATION_MODE_OFF,
+			"eye/posed each frame it is drawn, it is not interpolated between physics ticks")
+		_ok(feed.render_target_update_mode == SubViewport.UPDATE_DISABLED, "eye/the viewport draws nothing until it is armed")
+		_ok(not feed.own_world_3d and feed.find_world_3d() == get_viewport().find_world_3d(),
+			"eye/it films the world of the room, not one of its own")
+		_ok(feed.msaa_3d == Viewport.MSAA_DISABLED and feed.positional_shadow_atlas_size == 0,
+			"eye/with no antialiasing and no shadow atlas of its own")
+		_ok(is_equal_approx(cam.fov, GbCameraEye.FOV_DEGREES) and cam.near <= 0.02 and cam.far >= 50.0,
+			"eye/through the angle of the lens, from the glass to the far wall")
+		knob.set_value(0.8)
+		eye.call("_aim")
+		var want := eye.global_transform
+		_ok(cam.global_position.distance_to(want.origin) < 0.00001
+			and (-cam.global_transform.basis.z).dot(-want.basis.z.normalized()) > 0.9999
+			and cam.global_transform.basis.y.dot(want.basis.y.normalized()) > 0.9999,
+			"eye/aimed, the camera is where the lens is and looks as it does")
+		# A body fitted per axis to another size: the eye is then scaled and
+		# sheared, and none of that may reach the camera.
+		(cart.get_node("CartModel") as Node3D).scale = Vector3(1.3, 0.8, 1.1)
+		eye.call("_aim")
+		var sheared := eye.global_transform.basis
+		_ok(absf(sheared.determinant() - 1.0) > 0.05, "eye/(a fitted body does scale the eye)", "%.3f" % sheared.determinant())
+		_ok(cam.global_transform.basis.is_equal_approx(cam.global_transform.basis.orthonormalized())
+			and absf(cam.global_transform.basis.determinant() - 1.0) < 0.0001,
+			"eye/none of the scale of a fitted body is carried into the picture")
+		_ok((-cam.global_transform.basis.z).dot((-sheared.z).normalized()) > 0.9999,
+			"eye/and the camera still looks exactly where the lens does")
+		(cart.get_node("CartModel") as Node3D).scale = Vector3.ONE
+	cart.queue_free()
+	await get_tree().process_frame
+
+
+## What is handed to a core, and when. A FakeMachine stands for the console and a
+## still for the room.
+func _test_feed() -> void:
+	var body := _loose_body()
+	var eye := _eye_of(body)
+	var machine := FakeMachine.new()
+	var lib := machine.lib as FakeLibretro
+	var asked: Array[Vector2i] = []
+	var shot := {"size": Vector2i.ZERO, "format": Image.FORMAT_RGBA8}
+	eye.machine_source = func() -> Object: return machine
+	eye.picture_source = func(size: Vector2i) -> Image:
+		asked.append(size)
+		var made: Vector2i = shot["size"]
+		return _still(size if made == Vector2i.ZERO else made, shot["format"])
+	# A frame a little over a quarter of the time from one picture to the next.
+	var period: float = eye.call("_period")
+	var tick := period * 0.26
+
+	machine.is_powered_on = false
+	_ok(eye.feed_target() == null, "feed/a machine switched off is not filmed for")
+	machine.is_powered_on = true
+	lib.active = false
+	_ok(eye.feed_target() == null, "feed/nor one whose core has not started its camera")
+	eye.set("_wait", 0.0)
+	for i in 16:
+		eye._process(tick)
+	_ok(lib.pushes.is_empty() and asked.is_empty(), "feed/and no picture is made for it")
+
+	lib.active = true
+	_ok(eye.feed_target() == lib, "feed/switched on with its camera started, it is")
+	eye.set("_wait", 0.0)
+	for i in 12:
+		eye._process(tick)
+	_ok(lib.pushes.size() == 3, "feed/so many pictures a second, not one a frame",
+		"%d pictures in 12 frames, each %.0f%% of the time between two" % [lib.pushes.size(), tick / period * 100.0])
+	if not lib.pushes.is_empty():
+		var first: Dictionary = lib.pushes[0]
+		_ok(int(first["width"]) == CAMERA_SIZE.x and int(first["height"]) == CAMERA_SIZE.y
+			and (first["rgba"] as PackedByteArray).size() == CAMERA_SIZE.x * CAMERA_SIZE.y * 4,
+			"feed/at the size the core asked for, four bytes a pixel")
+		_ok(_corners_right(first), "feed/the right way up and unmirrored: each corner where the still had it",
+			"%s %s / %s %s" % [_pushed(first, 2, 2), _pushed(first, 125, 2), _pushed(first, 2, 109), _pushed(first, 125, 109)])
+
+	# A picture that is not what the core asked for is never passed on as it came.
+	lib.pushes.clear()
+	shot["size"] = CAMERA_SIZE * 2
+	eye.set("_wait", 0.0)
+	eye._process(0.0)
+	_ok(lib.pushes.size() == 1 and int(lib.pushes[0]["width"]) == CAMERA_SIZE.x
+		and (lib.pushes[0]["rgba"] as PackedByteArray).size() == CAMERA_SIZE.x * CAMERA_SIZE.y * 4
+		and _corners_right(lib.pushes[0]), "feed/a larger picture is brought to the size of the core, not left for it to crop")
+	lib.pushes.clear()
+	shot["size"] = Vector2i.ZERO
+	shot["format"] = Image.FORMAT_RGB8
+	eye.set("_wait", 0.0)
+	eye._process(0.0)
+	_ok(lib.pushes.size() == 1 and (lib.pushes[0]["rgba"] as PackedByteArray).size() == CAMERA_SIZE.x * CAMERA_SIZE.y * 4
+		and _corners_right(lib.pushes[0]), "feed/a picture in another format is handed over as RGBA8")
+	shot["format"] = Image.FORMAT_RGBA8
+
+	# The size belongs to the core, and is asked for with every picture.
+	lib.pushes.clear()
+	asked.clear()
+	lib.size = Vector2i(64, 56)
+	eye.set("_wait", 0.0)
+	eye._process(0.0)
+	_ok(asked.size() == 1 and asked[0] == Vector2i(64, 56) and lib.pushes.size() == 1 and int(lib.pushes[0]["height"]) == 56,
+		"feed/another size asked for is another size of picture", str(asked))
+	lib.pushes.clear()
+	asked.clear()
+	lib.size = Vector2i.ZERO
+	eye.set("_wait", 0.0)
+	for i in 8:
+		eye._process(tick)
+	_ok(lib.pushes.is_empty() and asked.is_empty(), "feed/a core that has named no size is handed nothing")
+	lib.size = CAMERA_SIZE
+
+	lib.active = false
+	eye.set("_wait", 0.0)
+	for i in 8:
+		eye._process(tick)
+	_ok(lib.pushes.is_empty() and eye.get("_feeding") == null, "feed/it stops when the core stops its camera")
+
+	# A library from before the camera: asked nothing it does not have.
+	machine.lib = OldLibretro.new()
+	_ok(eye.feed_target() == null, "feed/a core library with no camera in it is never called")
+	eye._process(0.0)
+	eye.machine_source = func() -> Object: return null
+	_ok(eye.feed_target() == null, "feed/and with no machine there is nothing to feed")
+
+	# No still supplied: the picture is the room, which a headless run cannot draw.
+	machine.lib = lib
+	lib.active = true
+	lib.pushes.clear()
+	eye.machine_source = func() -> Object: return machine
+	eye.picture_source = Callable()
+	if DisplayServer.get_name() == "headless":
+		eye.set("_wait", 0.0)
+		for i in 16:
+			eye._process(tick)
+		_ok(lib.pushes.is_empty() and eye.get_node_or_null("Feed") == null,
+			"feed/a headless run draws no room and hands no blank picture over")
+	body.free()
+
+	# The real thing it asks: the console whose own slot the cartridge is in.
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = "gbc"
+	sys.ignore_gravity = true
+	sys.freeze = true
+	add_child(sys)
+	for i in 30:
+		await get_tree().process_frame
+	var camera := await _spawn(_write_rom("feed_camera.gb", _camera()))
+	var seated := camera.get_node(EYE_PATH) as GbCameraEye
+	_ok(seated.call("_seated_machine") == null and seated.feed_target() == null, "feed/a camera lying loose is in no machine")
+	sys.restore_cartridge(camera)
+	for i in 30:
+		await get_tree().process_frame
+	_ok(seated.call("_seated_machine") == sys, "feed/in the slot of a console, that console is its machine")
+	_ok(seated.feed_target() == null, "feed/which it does not film for while the console is off")
+	(sys.get("_cartridge_slot") as XRToolsSnapZone).drop_object()
+	for i in 5:
+		await get_tree().process_frame
+	_ok(seated.call("_seated_machine") == null, "feed/and taken out again, it is in none")
+	camera.queue_free()
+	sys.queue_free()
+	for i in 5:
+		await get_tree().process_frame
+
+
+func _test_binding() -> void:
+	for method: String in ["PushCameraFrame", "IsCameraActive", "GetCameraFrameSize", "GetCameraStats"]:
+		_ok(ClassDB.class_has_method("Libretro", method), "binding/%s is bound" % method)
+	if not ClassDB.class_exists("Libretro"):
+		return
+	var lib: Node = ClassDB.instantiate("Libretro")
+	_ok(not lib.IsCameraActive(), "binding/a node with no core has no camera started")
+	_ok(lib.GetCameraFrameSize() == Vector2i.ZERO, "binding/and no picture size, no core having asked for one")
+	var picture := PackedByteArray()
+	picture.resize(CAMERA_SIZE.x * CAMERA_SIZE.y * 4)
+	_ok(not lib.PushCameraFrame(picture, CAMERA_SIZE.x, CAMERA_SIZE.y), "binding/a picture pushed at it is refused")
+	_ok(not lib.PushCameraFrame(picture, 0, 0) and not lib.PushCameraFrame(PackedByteArray(), -4, 7),
+		"binding/as is one with no size, or a senseless one")
+	var stats: Dictionary = lib.GetCameraStats()
+	_ok(int(stats.get("starts", -1)) == 0 and int(stats.get("delivered", -1)) == 0 and int(stats.get("pushed", -1)) == 0,
+		"binding/and nothing has been handed to any core", str(stats))
+	lib.free()
+
+
+## The core the ROM of the camera names, what that core is told, and netplay.
+func _test_core() -> void:
+	var camera_rom := _write_rom("core_camera.gb", _camera())
+	var game_rom := _write_rom("core_game.gb", _game())
+	_ok(GbCameraShell.is_camera_rom(camera_rom) and not GbCameraShell.is_camera_rom(game_rom),
+		"core/the ROM of the camera is known on disk by its header, and that of a game is not")
+	var late := ProjectSettings.globalize_path("user://" + FIXTURE).path_join("core_late.gb")
+	_ok(not GbCameraShell.is_camera_rom(late) and not GbCameraShell.is_camera_rom(""), "core/a file that is not there is no camera")
+	_write_rom("core_late.gb", _camera())
+	_ok(GbCameraShell.is_camera_rom(late), "core/but is asked again once it is: a ROM still arriving is not remembered as a game")
+	for systemid: String in ["gb", "gbc", "gba"]:
+		_ok(GbCameraShell.boot_for(systemid, camera_rom) == {"core": "mgba"}, "core/%s: the camera names mGBA" % systemid,
+			str(GbCameraShell.boot_for(systemid, camera_rom)))
+	_ok(GbCameraShell.boot_for("gb", game_rom).is_empty() and GbCameraShell.boot_for("gbc", "").is_empty(),
+		"core/a game names no core, nor does an empty slot")
+	_ok(GbCameraShell.boot_for("snes", camera_rom).is_empty() and GbCameraShell.boot_for("n64", camera_rom).is_empty(),
+		"core/and the camera names none for a machine that is not a Game Boy")
+
+	# What mGBA is told it is: never a Super Game Boy, which the header of the camera asks for.
+	_ok(ForcedCoreOptions.game_boy_model("mgba", "gb") == {"mgba_gb_model": "Game Boy", "mgba_sgb_borders": "OFF"},
+		"core/on a Game Boy, mGBA is a Game Boy with no TV border", str(ForcedCoreOptions.game_boy_model("mgba", "gb")))
+	_ok(ForcedCoreOptions.game_boy_model("mgba", "gbc") == {"mgba_gb_model": "Game Boy Color", "mgba_sgb_borders": "OFF"},
+		"core/on a Game Boy Color, a Game Boy Color", str(ForcedCoreOptions.game_boy_model("mgba", "gbc")))
+	_ok(ForcedCoreOptions.game_boy_model("mgba", "gba") == {"mgba_sgb_borders": "OFF"},
+		"core/a Game Boy Advance loses the border and keeps its own model", str(ForcedCoreOptions.game_boy_model("mgba", "gba")))
+	_ok(ForcedCoreOptions.game_boy_model("gambatte", "gb").is_empty() and ForcedCoreOptions.game_boy_model("mgba", "ereader").is_empty(),
+		"core/no other core is told anything, and mGBA nothing for another machine")
+
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = "gbc"
+	sys.core_name = "gambatte"
+	sys.ignore_gravity = true
+	sys.freeze = true
+	add_child(sys)
+	for i in 30:
+		await get_tree().process_frame
+	var slot := sys.get("_cartridge_slot") as XRToolsSnapZone
+	_ok(sys.resolve_core_name() == "gambatte", "core/an empty Game Boy Color runs the core it was given")
+	var game := await _spawn(game_rom)
+	sys.restore_cartridge(game)
+	for i in 30:
+		await get_tree().process_frame
+	_ok(sys.resolve_core_name() == "gambatte" and sys.expansion_boot().is_empty(),
+		"core/and so does one with a game in it", sys.resolve_core_name())
+	_ok(not sys.net_boot_spec("gambatte").is_empty(), "core/a game there can be booted alike by every peer of a session")
+	slot.drop_object()
+	for i in 5:
+		await get_tree().process_frame
+	game.queue_free()
+
+	var camera := await _spawn(camera_rom)
+	sys.restore_cartridge(camera)
+	for i in 30:
+		await get_tree().process_frame
+	_ok(sys.resolve_core_name() == "mgba", "core/with the camera in it, it runs mGBA whatever it was given",
+		sys.resolve_core_name())
+	var forced: Dictionary = sys.call("_all_forced_options", sys.resolve_core_name())
+	_ok(str(forced.get("mgba_gb_model", "")) == "Game Boy Color" and str(forced.get("mgba_sgb_borders", "")) == "OFF",
+		"core/and that run is pinned to a Game Boy Color with no border", str(forced))
+	var none: Array[Dictionary] = []
+	var verdict := RetroSystem._power_on_verdict(sys.resolve_core_name(), "gbc", camera_rom, none, "", false, false)
+	_ok(not bool(verdict["start"]) and "mgba" in str(verdict["description"]),
+		"core/a player who never chose mGBA is told it is the core this needs", str(verdict.get("description", "")))
+
+	# Netplay: no two peers draw the room alike, so the camera boots for the host alone.
+	_ok(sys.rom_path == camera_rom and sys.net_boot_spec("mgba").is_empty(),
+		"core/the camera has no boot the peers of a session could share", str(sys.net_boot_spec("mgba")))
+	var heard := {"reason": "", "remedy": {"unset": true}}
+	var on_blocked := func(reason: String, _machine: Object, remedy: Dictionary) -> void:
+		heard["reason"] = reason
+		heard["remedy"] = remedy
+	NetworkManager.netplay_blocked.connect(on_blocked)
+	sys.call("_report_netplay_blocked")
+	NetworkManager.netplay_blocked.disconnect(on_blocked)
+	_ok("Game Boy Camera" in str(heard["reason"]) and (heard["remedy"] as Dictionary).is_empty(),
+		"core/and the host is told why in words of its own, with no core swap offered", str(heard))
+	slot.drop_object()
+	for i in 5:
+		await get_tree().process_frame
+	_ok(sys.resolve_core_name() == "gambatte", "core/the camera taken out, it is the core it was given again")
+	camera.queue_free()
+	sys.queue_free()
+	for i in 5:
+		await get_tree().process_frame

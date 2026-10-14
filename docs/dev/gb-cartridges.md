@@ -274,10 +274,131 @@ other shells or a mixed colour repaint cartridge and head. The ball, the lens an
 sticker are never painted. The sticker is a `Label` quad, UV 0-1, so the scraped label is
 painted on it like any Game Boy cartridge's, and the title stands in when there is none.
 
-**It is not a camera yet.** libretro-godot answers `RETRO_ENVIRONMENT_GET_CAMERA_INTERFACE`
-with not-implemented (`EnvironmentHandler.cpp`), so no core is handed a picture and which
-way the lens looks changes nothing in the game. The real ball is also set at an angle,
-so the lens looks ahead with the console held tilted; the stand-in's looks straight out.
+**It is a camera, on mGBA** (2026-10-14). The lens is a `GbCameraEye`
+(`CartModel/Overhang/LensKnob/KnobPivot/LensEye`), a node a tenth of a millimetre outside
+the glass. While the cartridge is in a running machine's own slot and the core has
+STARTED its camera, the room is drawn from there into a 128 × 112 viewport and each
+picture is handed to the core through libretro's camera interface
+(`Libretro.PushCameraFrame`), which is what the game shows in its viewfinder and
+photographs. Which way the ball is turned is now which way the game looks.
+
+Where the eye looks:
+
+- **Its basis is set in code** (`GbCameraEye.LENS_BASIS`, by columns), never typed into
+  the scene, where it would be read by rows. The lens is the pivot's -Y and a `Camera3D`
+  looks along its own -Z; its up is the pivot's Z, the axle, so the cartridge's +Y however
+  the ball is turned. At the front its right is the cartridge's -X, which is the SCREEN's
+  right once seated: the viewfinder is the room as seen through the console. Turned on the
+  player it is a camera's view of them, not a mirror's.
+- **The `Camera3D` lives under the eye's own `SubViewport`** (`Feed/Lens`), made the first
+  time a core asks. Anywhere else it would be a camera of the player's viewport, and the
+  first camera in a viewport becomes its current one. A viewport hands no transform down,
+  so `_aim()` rebuilds the pose from the lens's look and up (`Basis.looking_at`, so a body
+  fitted per axis carries no scale into the picture) each time it is armed, and the camera
+  has physics interpolation OFF: posed from `_process`, an interpolated one is drawn where
+  the lens was.
+- **It follows the stand-in's lens, straight out of the ball.** The real ball is set at an
+  angle so the lens looks ahead with the console held tilted; that is still not modelled.
+  **The 43° it takes in, top to bottom, is an ESTIMATE**: Nintendo published no angle, and
+  no source found gives the lens's focal length. One write-up measured the sensor at
+  3.6 mm and SUSPECTED the lens of being a 35 mm-equivalent 35, which is about 4.1 mm; the
+  game reads 112 of the sensor's 123 rows.
+
+What it costs, and the rules that keep it there:
+
+- **Never `UPDATE_ALWAYS`.** The viewport is armed `UPDATE_DISABLED` then `UPDATE_ONCE`
+  (as `ScreenCastLight`) and the pass is read the frame AFTER, never waited for. One eye
+  arms a process frame. No MSAA, `positional_shadow_atlas_size` 0, and the 3D scaling left
+  alone (it breaks the mobile XR viewport).
+- **So many pictures a SECOND, not one every so many frames**: `RATE_DESKTOP` 30,
+  `RATE_MOBILE` 12 (one frame in six at 72 Hz). Counted in frames, the first probe run
+  pushed 2947 pictures at a core that could take 2110, because a desktop window runs at
+  whatever its monitor does.
+- **It films for as long as a Game Boy Camera is switched on**, viewfinder or album.
+  "Active" is `Libretro.IsCameraActive()`, the core having started its camera, and mGBA
+  starts it as the game loads and stops it as the game unloads; the interface has no way
+  to say a photograph is being asked for. Idling it would take a change in the fork. **A
+  second pass over the room on a Quest is not measured**: its draw calls, the readback,
+  the first-arm hitch, and how bright the picture comes out under the sRGB-view patch.
+
+What mGBA does with the interface, read out of `libretro.c` and then measured:
+
+- It asks for it on EVERY Game Boy load and starts it only for cartridge type 0xFC, so a
+  core that merely asked is not active.
+- It starts it inside `retro_load_game` and `retro_reset` and stops it inside
+  `retro_unload_game`, not inside `retro_run` as libretro.h says, so `start` and `stop`
+  only set a flag. It stops it as every Game Boy game unloads, started or not.
+- **It frees its copy of the picture at every start, so every start redelivers.** With
+  nothing delivered it starts the camera again on every photograph it is asked for
+  (measured: 179 starts with delivery taken out) and takes none.
+- **The picture must be exactly the size it asked for** (128 × 112,
+  `GetCameraFrameSize()`). It centre-CROPS a larger one, and it copies `pitch` bytes a row
+  into a buffer it regrows only when width or height grow, so a pitch that varied would
+  write past its heap. `CameraStream` refuses any other size and always delivers at
+  `width * 4`; the eye brings a picture to size before pushing.
+- It turns the picture grey before it is seen, so **the channel order can be pinned only
+  in the C++ harness** (`camera_stream_test`), never against the core.
+
+In libretro-godot: `CameraHandler` (as long-lived as its `Wrapper`, like the microphones,
+because the main thread pushes at it whether or not a core is up) and the Godot-free
+`CameraStream.hpp`. The main thread only leaves a picture; **the core is handed it on the
+emulation thread immediately before EVERY `retro_run`**, at the two call sites themselves
+and not beside the audio status callback, which a replay after a rewind skips.
+
+**The ROM names its core.** `GbCameraShell.boot_for` answers `{"core": "mgba"}` on a `gb`,
+`gbc` or `gba` machine, through `ExpansionLaunch.expansion_boot()`, the way a Slot-2
+cartridge names melonDS DS: ahead of the player's own pick, and only while it is in the
+slot. Keyed on the ROM's header and not on the body, because a camera ROM forced into a
+game's shell is still a ROM Gambatte cannot load: **Gambatte refuses cartridge type 0xFC
+and the load fails**, so before this the camera did not boot at all in a Game Boy Color,
+or in a Game Boy on a Quest. SameBoy runs the cartridge but asks for no picture. A zipped
+ROM is not pinned (the header read sees the archive), the limit the body already has.
+
+**mGBA is told which Game Boy it is** (`ForcedCoreOptions.game_boy_model`). The camera's
+header says Super Game Boy enhanced (0x146 = 03), Autodetect makes mGBA a Super Game Boy,
+and `mgba_sgb_borders` defaults ON: the picture is the TV border, **256 × 224 on a
+handheld's screen** (measured, with the pin taken out). So `gb` pins "Game Boy", `gbc`
+"Game Boy Color", and all three lose the border. A Game Boy Advance keeps Autodetect: the
+model there would recolour every Game Boy cartridge on the core that machine runs by
+default.
+
+**Netplay: the camera runs for the host alone.** It photographs the room as one peer's
+machine draws it, and no two draw it alike, so `RetroSystem.net_boot_spec` answers `{}`
+for the camera's ROM and `_report_netplay_blocked` says why in words of its own. Lockstep
+would need every core shown the same thing, which is the blank, and that is exactly what
+`CameraHandler` hands a machine that is in a session anyway (as a microphone reads
+silence there): the safety net for a camera console pulled in by a link cable. A real
+two-peer session with one is OWED.
+
+`Tools/cores/gb_camera_feed_probe` is the real core and the real ROM, windowed, in a
+scratch home (it writes the cartridge's battery, so it refuses to run without
+`retroxr/probe_home.txt` in the data root, which wants `libretro/cores/mgba_libretro.dll`
+beside it). The room holds two black walls, one each side of the console, each with ONE
+white quarter: up and to the right of the lens on the far side, down and to the left on
+the near side. They are placed from the cartridge and the glass, never from the eye under
+test, so a picture turned over or mirrored lights the wrong quarter of the viewfinder.
+One core and one leg a process, and each control proves it reached the viewfinder:
+
+```bash
+USERPROFILE=<scratch home> "$godot" --path RetroXR --resolution 640x480 --position 20,20 \
+    res://Tools/cores/gb_camera_feed_probe.tscn -- "--rom=<Game Boy Camera>"
+... -- ... --away      # the ball turned half round: the OTHER target, not the first
+... -- ... --nofeed    # the eye stopped, then the lens turned: the game goes on showing the first
+... -- ... --system=gb|gbc|gba
+```
+
+Measured 2026-10-14 on Windows with the released mGBA v8, on a Game Boy Color that had
+been given Gambatte: mGBA resolved and loaded, a 128 × 112 camera asked for and started,
+a 160 × 144 picture, the viewfinder reached in three presses with the lit quarter reading
+0.99 and the other three 0.00, about 295 pictures pushed and all but two or three handed
+over, none refused. `--away` shows the other target; `--nofeed` goes on showing the
+first with nothing more pushed, then follows the lens once the eye runs again. The same
+on a Game Boy and a Game Boy Advance. Two faults were put in to see it go red: the model
+pin taken out (256 × 224), and the delivery before `retro_run` taken out (nothing handed
+over, 179 starts). **Keep the rig clear of the origin**: the lens films the window's own
+world and the boot splash stands there, so the first run photographed "RETRO XR /
+STARTING UP", legibly and the right way up. **In a headset, on a Quest, and with a second
+peer it is all still OWED.**
 
 `Tools/models/game_boy_camera_probe` (39 checks headless) twists the ball with a point
 where a latched hand would be and seats the cartridge in a Game Boy Color; windowed it
@@ -289,8 +410,20 @@ frames for an mp4:
 "$godot" --path RetroXR --resolution 320x240 --position 20,20 res://Tools/models/game_boy_camera_probe.tscn -- --film
 ```
 
-`gb_camera_tests` (76 cases): lookup, body, cartridge, ball, saved, seated, menu.
-Mutation-tested, each fault failing its own cases. On the first build: the header rule
+`gb_camera_tests` (156 cases): lookup, body, cartridge, ball, saved, seated, menu, and
+the camera's four: `eye/` (it looks where the lens points, the cartridge's top up, a
+camera's right on its right, BY SIGN at four turns of the ball; just outside the glass;
+its camera under a viewport of its own and the room's viewport with no camera gained),
+`feed/` (a `FakeMachine` and a still of four unlike quarters: nothing for a machine that
+is off or a core that has not started; so many a second; each corner where the still had
+it; brought to the core's size and to RGBA8; a library with no camera in it never
+called; a headless run draws nothing), `binding/`, and `core/` (the ROM names mGBA
+whatever the machine was given, the model pin, the "Core not installed" card naming
+mGBA, and the netplay refusal). No core runs in it. `camera_stream_test`
+(`libretro-godot/tests`, 43 checks) is the delivery rule and the channel order.
+Mutation-tested: 24 faults in the GDScript and 6 in the C++, each failing its own cases.
+
+The body's cases are mutation-tested too, each fault failing its own. On the first build: the header rule
 dropped, the head counted in the fit, no box for the head, the lens authored on the back
 of the ball, the sticker proud of the cartridge's depth, the menu row gone, and the
 camera painted as a game's shell. On the swivel: housing risen beside the ball again (4),

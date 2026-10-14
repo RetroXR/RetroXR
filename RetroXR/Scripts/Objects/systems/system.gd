@@ -2669,6 +2669,13 @@ func _netplay_eligible() -> bool:
 ## reproduce at all -- a BIOS-less machine, an unhashable ROM -- which no core
 ## swap helps.
 func _report_netplay_blocked() -> void:
+	# Its own words: the core is vetted and the ROM hashes, so neither of the two
+	# reasons below is the true one, and a core swap would not help.
+	if GbCameraShell.is_camera_rom(rom_path):
+		NetworkManager.netplay_blocked.emit(
+			"a Game Boy Camera films its own player's room, so it runs for the host only",
+			self, {})
+		return
 	var resolved_core := _resolve_core()
 	var why := NetplayCores.why_not_capable(resolved_core)
 	if why.is_empty():
@@ -2742,6 +2749,12 @@ var net_boot_failure: String = ""
 ## full deterministic machine state; it simply has no copyrighted content to
 ## hash or transfer. Empty media is regenerated locally from its extension.
 func net_boot_spec(core: String) -> Dictionary:
+	# A Game Boy Camera photographs the room as ONE peer's machine draws it, and
+	# no two draw it alike. Lockstep would need every core shown the same thing,
+	# which is the blank (CameraHandler hands exactly that to a machine in a
+	# session), so the camera boots for the host alone and keeps its picture.
+	if GbCameraShell.is_camera_rom(rom_path):
+		return {}
 	var empty_extension := BiosBoot.empty_media_extension(core, systemid)
 	var generated_empty := BiosBoot.empty_media_file(empty_extension,
 		BiosBoot.empty_media_track(core, systemid))

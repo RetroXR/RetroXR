@@ -42,6 +42,15 @@ Each handler is owned by a `Wrapper` instance and manages one libretro subsystem
 - **OptionsHandler** — Core option parsing (v1/v2 formats), categorization, persistence
 - **MessageHandler** — Notification/message interface
 - **LogHandler** — Log callback forwarding
+- **CameraHandler** — `RETRO_ENVIRONMENT_GET_CAMERA_INTERFACE`, with the Godot-free
+  `CameraStream.hpp` under it. libretro's camera is a PUSH interface: the frontend calls
+  the core's `frame_raw_framebuffer`. So GDScript only leaves a picture
+  (`Libretro.PushCameraFrame`, RGBA8, exactly `GetCameraFrameSize()`), and the emulation
+  thread hands the core the newest one immediately before every `retro_run`.
+  `IsCameraActive()` is the core having STARTED its camera, not having asked for the
+  interface. Lives as long as its `Wrapper`, like `MicrophoneHandler`, and like it goes
+  quiet in netplay: every peer's core is handed the same blank. The one consumer is the
+  Game Boy Camera on mGBA (`gb-cartridges.md` §2x-cam).
 - **RetroAchievements** — `RetroAchievements.cpp/.hpp`, backed by the `external/rcheevos`
   submodule, whose `src/`, `src/rcheevos/`, `src/rapi/` and `src/rhash/` trees are
   compiled straight into the extension (no external dependency). It hashes content by

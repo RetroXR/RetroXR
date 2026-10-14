@@ -20,6 +20,7 @@
     "hdhomerun_tests": 58,
     "ir_tests": 119,
     "gb_cart_tests": 78,
+    "gb_camera_tests": 156,
     "gbc_cart_tests": 102,
     "gba_cart_tests": 81,
     "genesis_cart_tests": 26,

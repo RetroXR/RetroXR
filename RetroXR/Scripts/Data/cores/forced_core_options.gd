@@ -33,7 +33,32 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(vmu_sound(core), true)
 	out.merge(microphone_hotkey(core, systemid), true)
 	out.merge(dolphin_console(core, systemid), true)
+	out.merge(game_boy_model(core, systemid), true)
 	return out
+
+
+## Which Game Boy mGBA is. Left on Autodetect it reads the cartridge, and a
+## header that says "Super Game Boy enhanced" (0x146 = 03, which the Game Boy
+## Camera's does) boots as a Super Game Boy; `mgba_sgb_borders` defaults ON, so
+## the picture comes out as the TV border, 256x224, on a handheld's 160x144
+## screen. A handheld is not a Super Game Boy whatever is in it.
+##
+## The model is pinned where the machine says which one it is. A Game Boy
+## Advance keeps Autodetect and loses only the border: the model there would
+## recolour every Game Boy cartridge on the core that machine runs by default,
+## which is a change to make on its own evidence, not in passing.
+## gb_camera_feed_probe reads the picture size back from the core.
+static func game_boy_model(core: String, systemid: String) -> Dictionary:
+	if not core.begins_with("mgba"):
+		return {}
+	match systemid:
+		"gb":
+			return {"mgba_gb_model": "Game Boy", "mgba_sgb_borders": "OFF"}
+		"gbc":
+			return {"mgba_gb_model": "Game Boy Color", "mgba_sgb_borders": "OFF"}
+		"gba":
+			return {"mgba_sgb_borders": "OFF"}
+	return {}
 
 
 ## Which console dolphin is. A disc says so itself, but an empty drive does not,

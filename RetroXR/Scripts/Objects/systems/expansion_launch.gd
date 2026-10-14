@@ -37,6 +37,11 @@ func expansion_boot() -> Dictionary:
 	# DS that keeps the player's own choice.
 	if spec.is_empty() and _host.get_slot2_cartridge() != null:
 		spec = Slot2Catalog.boot_for(_host.systemid)
+	# A cartridge that is itself hardware only one core emulates: the Game Boy
+	# Camera, whose picture mGBA alone takes and which Gambatte will not load at
+	# all. Only while it is in the slot, for the Slot-2 reason.
+	if spec.is_empty():
+		spec = GbCameraShell.boot_for(_host.systemid, host_media_path())
 	if spec.is_empty():
 		return spec
 	# A row that pins its core only while the console's own slot is filled drops

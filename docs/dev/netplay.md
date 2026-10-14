@@ -657,3 +657,30 @@ on gets `_net_offer`: the session boots the game on every peer instead.
 
 Owed: arm64 (Quest) and cross-play (`cross_play: false` until measured), a
 headset run, and a published fork release. `CoreSources` still names v2 until then.
+
+### The Game Boy Camera — host only, 2026-10-14
+
+A Game Boy Camera photographs the room as ONE peer's machine draws it (`GbCameraEye`,
+`gb-cartridges.md` §2x-cam), and no two machines draw a room alike. So it is the one
+cartridge that keeps a netplay-capable core out of a session:
+
+- `RetroSystem.net_boot_spec` answers `{}` for the camera's ROM, so `_netplay_eligible`
+  is false and the host boots it locally with its picture. `_report_netplay_blocked`
+  says why in words of its own: mGBA is vetted and the ROM hashes, so neither of the
+  two usual reasons is the true one and no core swap is offered.
+- A session's machine list refuses a group with one in it (`_build_machine_specs`, "no
+  reproducible boot media"), which is what happens to a camera console cabled to a
+  machine that is in a session.
+- **Underneath, a core in a session is never handed a live picture.** `CameraHandler`
+  goes quiet exactly as `MicrophoneHandler` does (netplay or rollback on): pushes are
+  dropped, `IsCameraActive()` is false so the eye stops drawing, and before every
+  `retro_run` the core is holding one constant blank. Evaluated at each frame rather
+  than when the mode changes, and placed at the `retro_run` call itself, so a replay
+  after a rewind hands it over on the same frame the first pass did. mGBA frees its
+  copy of the picture at every reset and its copy is not in a savestate, which is why
+  the rule is "what the core should be holding now" and not "send a blank once".
+
+Lockstep with a black viewfinder for everybody was the alternative, and it is strictly
+worse: the camera would work nowhere a second player was. Measured: nothing. A real
+two-peer session with a camera in the room, and a camera console pulled in by a cable,
+are both OWED.
