@@ -352,9 +352,16 @@ above the list AND above a mod's own page, which is where its switch is):
   - **Android: `set_restart_on_exit`**, which it honours though Godot's docs say
     otherwise: `_terminate` -> `Main::cleanup` -> `OS_Android::create_instance` ->
     `GodotActivity.onNewGodotInstanceRequested` -> `ProcessPhoenix.triggerRebirth`
-    (engine 4.7.2, unpatched there). The same teardown crash, if a Quest has it,
-    would cost the relaunch there too; the carry is still marked in the prefs, so
-    the player's own next launch comes back to the room either way.
+    (engine 4.7.2, unpatched there). **Measured on a Quest 3, 2026-10-14**
+    (`mods_apply_probe`, one run, nobody wearing it): the `:phoenix` activity
+    lived 0.15 s, the old process exited with no native crash, and the new one
+    reached `XR_SESSION_STATE_FOCUSED` 10 s after the press -- immersive, back in
+    the arcade with the room carried. Between the two it goes through Horizon's
+    ordinary app-launch transition, and Horizon did place a volumetric window
+    for the `:phoenix` activity; whether a wearer sees it is not known. A
+    teardown crash there would cost the relaunch (no waiter on Android); the
+    carry is still marked in the prefs, so the next launch comes back to the
+    room either way.
   - `restart_args` passes nothing on Android (the activity re-adds its `_cl_`
     line) and re-adds `--path` from an editor binary. Consoles power off and flush
     SRAM on the way out as on any quit.
@@ -406,7 +413,20 @@ now on a mod that claims nothing (`-- --mod=`, default `xenu.panasonic`), checks
 the room, the player and the TVs tab, spawns the mod's set, switches the mod off
 and presses Restart now. The relaunched process is the probe again (its scene is
 on the command line) and reports phase 2 in `result2.txt`; it never restarts from
-there. Passed 3 of 3 on Windows, 2026-10-14.
+there. Passed 3 of 3 on Windows, 2026-10-14, and 1 of 1 on a Quest 3 (Apply now
+rebuilt the arcade in 9 s with every object in place; the restart as above).
+
+On a Quest it is a probe-only export (quest-device.md): `project.godot` names it
+for the feature `modsapplyprobe`, and `export_presets.cfg` has the preset,
+`Quest mods apply probe`, under its OWN `package/unique_name`
+(`com.xenu.retroxr.maprobe`), so it installs beside the real app. Launch it once so the app makes its own folders (it refuses: no
+markers), then `adb push` `probe_home.txt` to its `files/` and the mod into
+`files/mods/`, put the other marker in `user://` with `run-as <pkg> sh -c 'echo
+probe > files/probe_home.txt'`, launch again, and read
+`files/mods_apply_probe/result1.txt` / `result2.txt` through `run-as`. The room
+PNGs come back ALL BLACK on a Quest (the XR view does not read back); the menu
+PNG is real. The checks and `XR_SESSION_STATE_*` in logcat are the proof there.
+Uninstall the package after.
 
 ### Preview images
 
@@ -466,11 +486,11 @@ RetroXR-models repo, whose source ships no `thumbnail.png` yet.
   (owned by shell). The downloader says so; it cannot fix it.
 - The tab in a headset, and nine nav buttons on the bar (they fit by measurement:
   839 of 1072 px).
-- **Restart now on a Quest**: that the relaunched activity comes back immersive,
-  with no 2D flash from ProcessPhoenix's translucent `:phoenix` activity, and
-  whether the Quest shares the desktop's teardown crash (which would cost the
-  relaunch: Android has no waiter). The path is read from the engine source, not
-  yet watched on a device. Apply now in a headset is OWED too.
+- **Both buttons as a WEARER sees them.** On a Quest 3 the probe passed and the
+  relaunch came back FOCUSED (above), but nobody had the headset on: whether the
+  0.15 s `:phoenix` window shows, and what the ~10 s through Horizon's launch
+  transition looks like, are unseen. One Quest run, so whether a Quest ever
+  shares the desktop's teardown crash is not settled either.
 - **The teardown crash itself** (see Restart now above): an ordinary quit with
   things in the room exits 139 about half the time on Windows. Unfixed and not
   located; consoles power off first, so whether a save is ever lost to it is not

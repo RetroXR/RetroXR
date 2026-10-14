@@ -24,6 +24,7 @@ run/main_scene.psxrbprobe="res://Tools/netplay/psx_rollback_probe.tscn"
 run/main_scene.pageturnprobe="res://Tools/perf/page_turn_probe.tscn"
 run/main_scene.dluiprobe="res://Tools/perf/download_ui_probe.tscn"
 run/main_scene.manualprobe="res://Tools/vr/manual_probe.tscn"
+run/main_scene.modsapplyprobe="res://Tools/mods/mods_apply_probe.tscn"
 
 [audio]
 
