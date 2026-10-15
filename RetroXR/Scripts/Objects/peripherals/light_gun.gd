@@ -82,10 +82,9 @@ var _max_rope_length: float = 0.0
 # Pending port restore (set before cable is ready)
 var _pending_port_restore: Dictionary = {}
 
-# Cached screen geometry (set on plug-in, cleared on unplug)
-var _screen_mesh: MeshInstance3D = null
-var _screen_w: float = 0.0
-var _screen_h: float = 0.0
+# The glass being aimed at. Rebuilt whenever the console's set or its tube
+# changes, cleared on unplug (see _current_aim).
+var _aim: ScreenAim = null
 
 # Toggle-hold state (VR)
 var _allow_drop := false
@@ -422,7 +421,6 @@ func on_plugged_in(system: RetroSystem, port_index: int) -> void:
 	_laser_dot.visible = show_laser_dot
 	_load_bindings()
 	print("[LightGun] plugged into system port %d" % port_index)
-	_cache_screen_geometry()
 
 
 ## Reload bindings from disk (called externally after the user saves new bindings).
@@ -443,21 +441,24 @@ func on_unplugged() -> void:
 	_laser_dot.visible = false
 	_connected_system = null
 	_port_index = -1
-	_screen_mesh = null
-	_screen_w = 0.0
-	_screen_h = 0.0
+	_aim = null
 
 
-func _cache_screen_geometry() -> void:
+## The glass of the set the console is showing on, or null. Looked up every
+## frame and rebuilt only when it changes: the console can be recabled to
+## another set while the gun stays plugged in, and a cabinet mod swaps its own
+## tube in once the set is ready.
+func _current_aim() -> ScreenAim:
 	if _connected_system == null or _connected_system.connected_tv == null:
-		return
+		_aim = null
+		return null
 	var mesh := _connected_system.connected_tv.get_screen_mesh()
-	if mesh == null:
-		return
-	var aabb := mesh.get_aabb()
-	_screen_mesh = mesh
-	_screen_w = aabb.size.x
-	_screen_h = aabb.size.y
+	if mesh == null or mesh.mesh == null:
+		_aim = null
+		return null
+	if _aim == null or not _aim.is_for(mesh):
+		_aim = ScreenAim.new(mesh)
+	return _aim
 
 
 func restore_port_connection(system: RetroSystem, port_index: int) -> void:
@@ -540,74 +541,38 @@ func _process_desktop_lightgun(libretro: Libretro, pressed: Dictionary) -> void:
 
 ## VR aim: ray from barrel tip along barrel -Z.
 func _update_aim(libretro: Libretro) -> void:
-	if _screen_mesh == null or _screen_w == 0.0:
-		_set_aim(libretro, 0, 0, true)
-		_laser_dot.visible = false
-		return
-
-	var screen_transform := _screen_mesh.global_transform
-	var screen_normal := screen_transform.basis.z
-	var plane := Plane(screen_normal, screen_transform.origin)
-	var ray_origin := _barrel_tip.global_position
-	var ray_dir := -_barrel_tip.global_transform.basis.z
-
-	_apply_aim_hit(libretro, plane, screen_transform, screen_normal, ray_origin, ray_dir)
+	_apply_aim_hit(libretro, _barrel_tip.global_position, -_barrel_tip.global_transform.basis.z)
 
 
 ## Desktop aim: ray from camera centre along camera -Z (matches the crosshair).
 func _update_aim_desktop(libretro: Libretro) -> void:
-	if _screen_mesh == null or _screen_w == 0.0:
-		_set_aim(libretro, 0, 0, true)
-		_laser_dot.visible = false
-		return
-
 	var cam := get_viewport().get_camera_3d()
 	if not is_instance_valid(cam):
 		_set_aim(libretro, 0, 0, true)
 		_laser_dot.visible = false
 		return
-
-	var screen_transform := _screen_mesh.global_transform
-	var screen_normal := screen_transform.basis.z
-	var plane := Plane(screen_normal, screen_transform.origin)
-	var ray_origin := cam.global_position
-	var ray_dir := -cam.global_transform.basis.z
-
-	_apply_aim_hit(libretro, plane, screen_transform, screen_normal, ray_origin, ray_dir)
+	_apply_aim_hit(libretro, cam.global_position, -cam.global_transform.basis.z)
 
 
-## Shared hit-test and coordinate conversion for both VR and desktop aim.
-func _apply_aim_hit(
-		libretro: Libretro,
-		plane: Plane,
-		screen_transform: Transform3D,
-		screen_normal: Vector3,
-		ray_origin: Vector3,
-		ray_dir: Vector3) -> void:
-
-	var hit: Variant = plane.intersects_ray(ray_origin, ray_dir)
-
-	if hit == null:
+## Shared hit-test and coordinate conversion for both VR and desktop aim: the
+## ray meets the glass itself, so the core is told the picture point drawn
+## where the gun points, from any angle (ScreenAim).
+func _apply_aim_hit(libretro: Libretro, ray_origin: Vector3, ray_dir: Vector3) -> void:
+	var aim := _current_aim()
+	var hit := aim.hit(ray_origin, ray_dir) if aim != null else {}
+	if hit.is_empty():
 		_set_aim(libretro, 0, 0, true)
 		_laser_dot.visible = false
 		return
 
-	var local: Vector3 = screen_transform.affine_inverse() * (hit as Vector3)
-
-	var u := (local.x / _screen_w) + 0.5
-	var v := (-local.y / _screen_h) + 0.5
-
-	if u < 0.0 or u > 1.0 or v < 0.0 or v > 1.0:
-		_set_aim(libretro, 0, 0, true)
-		_laser_dot.visible = false
-		return
-
-	var lx := int((u * 2.0 - 1.0) * 32767)
-	var ly := int((v * 2.0 - 1.0) * 32767)
+	var picture: Vector2 = hit["picture"]
+	var lx := int((picture.x * 2.0 - 1.0) * 32767)
+	var ly := int((picture.y * 2.0 - 1.0) * 32767)
 	_set_aim(libretro, lx, ly, false)
 
+	# On the glass where the ray met it, just proud of it toward the gun.
 	_laser_dot.visible = show_laser_dot
-	_laser_dot.global_position = (hit as Vector3) + screen_normal * 0.002
+	_laser_dot.global_position = (hit["point"] as Vector3) - ray_dir.normalized() * 0.002
 
 
 func _set_button(libretro: Libretro, button: int, pressed: bool) -> void:

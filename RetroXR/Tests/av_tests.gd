@@ -195,6 +195,7 @@ func _run() -> void:
 		["display/the fast tier wears the mobile shader", _d_crt_fast_tier],
 		["display/fast source stages retain OSD, stereo and snow", _d_fast_stages],
 		["display/a tube is drawn from its front only", _d_tube_one_sided],
+		["display/a light gun is told the picture point it is aimed at", _d_light_gun_aim],
 		["guard/a host that is not shown is refused", _g_refused],
 		["guard/the shown host may paint", _g_allowed],
 		["guard/only the owner may take the picture down", _g_release],
@@ -1619,6 +1620,66 @@ func _d_stage() -> void:
 		_check_eq(mat.get_shader_parameter("source_tex"), src.texture, "fed with its picture")
 		_check_eq(mat.get_shader_parameter("crt_glass_reflection"), 0.35,
 			"and the shared glass tuning reaches a source-owned display stage")
+
+
+func _d_light_gun_aim() -> void:
+	# The bug that shipped: LightGun met a flat plane at the tube's RIM, behind
+	# the bulging glass, and read x and y off the bounds of a glass this set's
+	# 4:3 picture does not fill. From a standing eye the shot landed 17 px low
+	# here (40 on the Panasonic's deeper tube) and up to 11 px off across.
+	# Tools/av/lightgun_aim_probe measures any shell, a mod's included.
+	var tv := _tv()
+	await _wait(30)
+	var src := StubSource.new()
+	src.texture = _a_texture()
+	await _seat_stub(tv, RetroTV.Source.COMPOSITE_3, src)
+	await _wait(4)
+	var mi := tv.get_screen_mesh()
+	var mat := _glass(tv) as ShaderMaterial
+	_ok(mat != null and RetroTV.is_crt_shader(mat.shader), "the picture is on the CRT stage")
+	if mat == null:
+		return
+	var fit: Vector2 = ScreenAim._param(mat, "fit_scale", Vector2.ONE)
+	_ok(fit.x < 0.99, "this glass is wider than 4:3, so the picture is fitted: %s" % fit)
+	var aim := ScreenAim.new(mi)
+	var xf := mi.global_transform
+	var eye: Vector3 = xf * Vector3(0.1, 0.6, 1.5)
+	for t: Vector2 in [Vector2(0.5, 0.5), Vector2(0.1, 0.2), Vector2(0.9, 0.8), Vector2(0.5, 0.05)]:
+		var on_glass: Variant = _glass_point_at(aim, (t - Vector2(0.5, 0.5)) * fit + Vector2(0.5, 0.5))
+		_ok(on_glass != null, "picture point %s is drawn somewhere on the glass" % t)
+		if on_glass == null:
+			continue
+		var hit := aim.hit(eye, (xf * (on_glass as Vector3) - eye).normalized())
+		var err: Vector2 = ((hit.get("picture", Vector2(-1, -1)) as Vector2) - t) * Vector2(640, 448)
+		_ok(err.length() < 0.5, "aimed at picture point %s, the core is told it within half a pixel: off by %s px" % [t, err])
+	var centre: Vector3 = xf * Vector3(0, 0, 0.009)
+	_ok(aim.hit(xf * Vector3(0, 0, -1.0), (centre - xf * Vector3(0, 0, -1.0)).normalized()).is_empty(),
+		"from behind the set it is offscreen")
+	_ok(aim.hit(eye, (xf * Vector3(0.4, 0, 0) - eye).normalized()).is_empty(),
+		"past the edge of the glass it is offscreen")
+	var on_bar: Variant = _glass_point_at(aim, Vector2(0.01, 0.5))
+	_ok(on_bar != null and aim.hit(eye, (xf * (on_bar as Vector3) - eye).normalized()).is_empty(),
+		"on the black bar beside a fitted picture it is offscreen")
+
+
+## The mesh-local point the glass draws at `uv`, found in UV space so it shares
+## nothing with ScreenAim's ray search but the mesh.
+func _glass_point_at(aim: ScreenAim, uv: Vector2) -> Variant:
+	var faces := aim._faces
+	var uvs := aim._uvs
+	for i in range(0, faces.size(), 3):
+		var a := uvs[i]
+		var v0 := uvs[i + 1] - a
+		var v1 := uvs[i + 2] - a
+		var v2 := uv - a
+		var den := v0.x * v1.y - v1.x * v0.y
+		if absf(den) < 1e-12:
+			continue
+		var s := (v2.x * v1.y - v1.x * v2.y) / den
+		var r := (v0.x * v2.y - v2.x * v0.y) / den
+		if s >= -1e-6 and r >= -1e-6 and s + r <= 1.0 + 1e-6:
+			return faces[i] * (1.0 - s - r) + faces[i + 1] * s + faces[i + 2] * r
+	return null
 
 
 func _d_glass_wear() -> void:
