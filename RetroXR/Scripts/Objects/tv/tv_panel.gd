@@ -511,6 +511,10 @@ func on_plug_snapped(plug: Node3D, input: int) -> void:
 			# machine is off — would never hear it lifted.
 			# …and it must be silent too until SOURCE picks it, for the same reason.
 			_tv.audio().apply_volume()
+			# And decoding if the set is on SURROUND or feeding an amplifier. It was
+			# only ever told when the key was pressed, so a console plugged into a set
+			# already switched played stereo until someone pressed it again.
+			_tv.audio().apply_audio_out()
 			NetworkManager.report_event(NetEvents.Event.EV_TV_PLUG,
 				{"owner": system, "tv": _tv, "ch": plugged.channel, "in": input})
 
@@ -527,8 +531,12 @@ func source_found(source: Node3D) -> void:
 	# video handler doesn't capture our CRT wrapper as the material to restore.
 	_tv.display().drop_sampled()
 	_connected_systems[input] = source
-	source.set_audio_volume(_tv.audio().volume_for(input))
+	# Only if its sound is ours: a console with its picture here and its sound in an
+	# amplifier is the amplifier's to set (TvAudio.carries_sound).
+	if _tv.audio().carries_sound(source):
+		source.set_audio_volume(_tv.audio().volume_for(input))
 	_tv.audio().apply_channel_mode()
+	_tv.audio().apply_audio_out()
 	# Same rule as the captive-lead path, and stated the same way: a deck cabled up
 	# to an input nobody is watching waits its turn rather than painting over the one
 	# they are, and hears so when its turn comes.

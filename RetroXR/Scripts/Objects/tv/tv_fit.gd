@@ -190,35 +190,16 @@ func speaker_positions() -> PackedVector3Array:
 	return out
 
 
-## -3 dB, for a channel folded onto a speaker that is already playing its own. Two
-## channels arriving at one point is twice the power, so each comes in at half of it.
-## A channel folded onto the MIDPOINT of a pair is not attenuated: nothing else is
-## playing there, and two speakers carrying it is what puts it there.
-const FOLD_GAIN := 0.7071068
-
-## Where each channel goes when its own speaker is missing, in decoder order (FL, FR,
-## C, LFE, SL, SR = 0..5). The first CABLED target wins; an int is one speaker, a pair
-## is the phantom point between two. The set's own speakers are on no chain: in
-## STEREO OUT and SURROUND the set is silent, as a real one switched to external
-## speakers is, so a channel folds onto the speakers that ARE plugged in and nothing
-## plugged in means nothing heard.
-##
-## Own side first, so a rig of rear speakers alone still images left-right. Every
-## chain names all six, so one cabled speaker gives every channel somewhere to go.
-const _FOLD_CHAINS := [
-	[0, 4, 2, 1, 5, 3],
-	[1, 5, 2, 0, 4, 3],
-	[2, [0, 1], 0, 1, [4, 5], 4, 5, 3],
-	[3, [0, 1], 0, 1, 2, [4, 5], 4, 5],
-	[4, 0, 2, 5, 1, 3],
-	[5, 1, 2, 4, 0, 3],
-]
+## -3 dB, for a channel folded onto a speaker already playing its own. The rule and
+## the fold chains now live in SpeakerRig, which the surround amplifier shares; the
+## name stays here because SystemAudio's device matrix and the suites read it here.
+const FOLD_GAIN := SpeakerRig.FOLD_GAIN
 
 
 ## World positions for the six decoded channels, in the decoder's order —
 ## FL, FR, C, LFE, SL, SR, which is RcaPort.SPEAKER_OUT_CHANNELS. A channel with a
-## speaker plays from its cone; one without folds along _FOLD_CHAINS. Folding is
-## placing a voice where a speaker already is, so not a sample is touched.
+## speaker plays from its cone; one without folds along SpeakerRig.FOLD_CHAINS.
+## Folding is placing a voice where a speaker already is, so not a sample is touched.
 func surround_positions() -> PackedVector3Array:
 	return _route()[0]
 
@@ -237,13 +218,10 @@ func surround_targets() -> Array:
 	return _route()[2]
 
 
-## Whether any of the six outputs reaches a speaker.
+## Whether any of the six outputs reaches a speaker. An amplifier with none of its
+## own does not count (SpeakerRig.cabinet_of).
 func has_cabled_speakers() -> bool:
-	var dest := _tv.panel().speaker_destinations()
-	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
-		if _cabinet_of(dest.get(ch)) != null:
-			return true
-	return false
+	return SpeakerRig.has_cabled(_tv.panel().speaker_destinations())
 
 
 ## The front pair of _route, for a source that plays stereo through a set switched
@@ -253,61 +231,28 @@ func external_pair() -> PackedVector3Array:
 	return PackedVector3Array([pos[0], pos[1]])
 
 
-func _route() -> Array:
+## The surround amplifier this set's FRONT pair is cabled into, or null — what a
+## real set's line out is for. Found off FL first, then FR, so one cord of the pair
+## is enough to name it; whether the amplifier has speakers of its own is its own
+## business (has_cabled_speakers), and it is returned either way so the set can
+## say which of the two is missing.
+func decoder() -> Node3D:
 	var dest := _tv.panel().speaker_destinations()
-	var cones: Array = []
-	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
-		cones.append(_cabinet_cone(dest.get(ch)))
-	# Where a silent voice waits. Its gain is 0, so this is never heard; it only
-	# keeps the voice somewhere sane rather than at the origin.
+	for ch in [RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R]:
+		var entry: Variant = dest.get(ch)
+		if not entry is Dictionary:
+			continue
+		var sink := (entry as Dictionary).get("sink") as Node3D
+		if is_instance_valid(sink) and sink.has_method("is_surround_decoder"):
+			return sink
+	return null
+
+
+func _route() -> Array:
+	# Where a silent voice waits: between the set's own pair. Its gain is 0, so this
+	# is never heard; it only keeps the voice somewhere sane rather than at the origin.
 	var pair := speaker_positions()
-	var rest: Vector3 = (pair[0] + pair[1]) * 0.5
-	var positions := PackedVector3Array()
-	var gains := PackedFloat32Array()
-	var targets: Array = []
-	for i in _FOLD_CHAINS.size():
-		var placed := false
-		for target: Variant in _FOLD_CHAINS[i]:
-			if target is Array:
-				var a: Variant = cones[target[0]]
-				var b: Variant = cones[target[1]]
-				if a != null and b != null:
-					positions.push_back(((a as Vector3) + (b as Vector3)) * 0.5)
-					gains.push_back(1.0)
-					targets.append(PackedInt32Array([target[0], target[1]]))
-					placed = true
-					break
-			elif cones[target] != null:
-				positions.push_back(cones[target] as Vector3)
-				gains.push_back(1.0 if target == i else FOLD_GAIN)
-				targets.append(PackedInt32Array([target]))
-				placed = true
-				break
-		if not placed:
-			positions.push_back(rest)
-			gains.push_back(0.0)
-			targets.append(PackedInt32Array())
-	return [positions, gains, targets]
-
-
-## The cabinet an audio_dest entry names, or null for a channel with none — and for
-## one whose cabinet has since been freed, which a room where anything can be picked
-## up and put in a box has to expect.
-func _cabinet_of(entry: Variant) -> Node3D:
-	if not entry is Dictionary:
-		return null
-	var sink := (entry as Dictionary).get("sink") as Node3D
-	return sink if is_instance_valid(sink) else null
-
-
-## The cone an audio_dest entry reaches, or null.
-func _cabinet_cone(entry: Variant) -> Variant:
-	var sink := _cabinet_of(entry)
-	if sink == null:
-		return null
-	var cones: PackedVector3Array = sink.get_speaker_positions()
-	var idx: int = int((entry as Dictionary).get("speaker", 0))
-	return cones[idx] if idx >= 0 and idx < cones.size() else null
+	return SpeakerRig.route(_tv.panel().speaker_destinations(), (pair[0] + pair[1]) * 0.5)
 
 
 ## Put the speaker markers where a set of this size wears them: flanking the tube

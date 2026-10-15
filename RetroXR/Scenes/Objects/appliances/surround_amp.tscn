@@ -1,0 +1,292 @@
+[gd_scene load_steps=26 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/media/surround_amp.gd" id="1_amp"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="3_rcaport"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_button.gd" id="4_vrbutton"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_knob.gd" id="5_vrknob"]
+
+; A surround amplifier of the Pro Logic II years: 430 W x 150 H x 340 D mm, the
+; size of the receivers it stands in for (a Harman DCR 600 II is 440 x 165 x 435).
+; Origin at the BASE centre, so it stands on a shelf by being placed on it; the
+; front is +Z and the back panel -Z, as on the television.
+;
+; Primitive, and laid out as those units were: a display window across the middle
+; of the face, the mode key under it, the volume knob on the right. No power key —
+; there is no power state to model, and a key that does nothing is a lie.
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_box"]
+bounce = 0.0
+friction = 0.8
+
+; The sheet-metal cover: everything but the front 12 mm.
+[sub_resource type="BoxMesh" id="Mesh_chassis"]
+size = Vector3(0.43, 0.135, 0.328)
+
+[sub_resource type="BoxMesh" id="Mesh_fascia"]
+size = Vector3(0.43, 0.135, 0.012)
+
+; The display window, 2 mm proud of the fascia so its edge catches light.
+[sub_resource type="BoxMesh" id="Mesh_window"]
+size = Vector3(0.17, 0.042, 0.002)
+
+[sub_resource type="CylinderMesh" id="Mesh_foot"]
+top_radius = 0.02
+bottom_radius = 0.022
+height = 0.015
+
+[sub_resource type="BoxMesh" id="Mesh_btn"]
+size = Vector3(0.03, 0.008, 0.012)
+
+[sub_resource type="BoxShape3D" id="Shape_btn"]
+size = Vector3(0.03, 0.015, 0.012)
+
+; The volume knob: a 52 mm aluminium cap, 20 mm deep, the dominant control on the
+; face as it was on the real ones.
+[sub_resource type="CylinderMesh" id="Mesh_knobcap"]
+top_radius = 0.025
+bottom_radius = 0.026
+height = 0.02
+
+[sub_resource type="BoxMesh" id="Mesh_knobmark"]
+size = Vector3(0.003, 0.012, 0.0015)
+
+[sub_resource type="BoxShape3D" id="Shape_knob"]
+size = Vector3(0.06, 0.06, 0.03)
+
+[sub_resource type="StandardMaterial3D" id="Mat_chassis"]
+albedo_color = Color(0.12, 0.12, 0.13, 1)
+metallic = 0.2
+roughness = 0.5
+
+[sub_resource type="StandardMaterial3D" id="Mat_fascia"]
+albedo_color = Color(0.07, 0.07, 0.075, 1)
+roughness = 0.35
+
+; Dark by MATERIAL: the rooms light with a flat ambient and no radiance map, so a
+; window given the fascia's colour reads as more fascia.
+[sub_resource type="StandardMaterial3D" id="Mat_window"]
+albedo_color = Color(0.015, 0.025, 0.03, 1)
+roughness = 0.15
+
+[sub_resource type="StandardMaterial3D" id="Mat_foot"]
+albedo_color = Color(0.03, 0.03, 0.03, 1)
+roughness = 0.9
+
+[sub_resource type="StandardMaterial3D" id="Mat_btn"]
+albedo_color = Color(0.22, 0.22, 0.24, 1)
+roughness = 0.45
+
+[sub_resource type="StandardMaterial3D" id="Mat_knob"]
+albedo_color = Color(0.62, 0.62, 0.64, 1)
+metallic = 0.25
+roughness = 0.3
+
+[sub_resource type="StandardMaterial3D" id="Mat_knobmark"]
+albedo_color = Color(0.1, 0.1, 0.11, 1)
+roughness = 0.5
+
+[sub_resource type="BoxShape3D" id="Shape_box"]
+size = Vector3(0.43, 0.15, 0.34)
+
+; Laser target, one size up. Only the pointer answers this shape (mask 0).
+[sub_resource type="BoxShape3D" id="Shape_pointer"]
+size = Vector3(0.45, 0.17, 0.36)
+
+[node name="SurroundAmp" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_box")
+mass = 4.0
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_amp")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
+shape = SubResource("Shape_box")
+
+[node name="Chassis" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0825, -0.006)
+mesh = SubResource("Mesh_chassis")
+surface_material_override/0 = SubResource("Mat_chassis")
+
+[node name="Fascia" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0825, 0.164)
+mesh = SubResource("Mesh_fascia")
+surface_material_override/0 = SubResource("Mat_fascia")
+
+[node name="FootFL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, 0.0075, 0.13)
+mesh = SubResource("Mesh_foot")
+surface_material_override/0 = SubResource("Mat_foot")
+
+[node name="FootFR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0.0075, 0.13)
+mesh = SubResource("Mesh_foot")
+surface_material_override/0 = SubResource("Mat_foot")
+
+[node name="FootBL" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.18, 0.0075, -0.13)
+mesh = SubResource("Mesh_foot")
+surface_material_override/0 = SubResource("Mat_foot")
+
+[node name="FootBR" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.18, 0.0075, -0.13)
+mesh = SubResource("Mesh_foot")
+surface_material_override/0 = SubResource("Mat_foot")
+
+; ── Front ────────────────────────────────────────────────────────────────────
+; The fascia's face is z = 0.170.
+
+[node name="DisplayWindow" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.105, 0.171)
+mesh = SubResource("Mesh_window")
+surface_material_override/0 = SubResource("Mat_window")
+
+; What the decoder is switched to, in the window. Label3D is unshaded by default,
+; which is what a fluorescent display is: lit from within, not by the room. Rastered
+; large and scaled down (font_size x pixel_size = 12.8 mm cap line). SurroundAmp
+; writes the text and dims it while no speaker is plugged in.
+[node name="DisplayText" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.105, 0.1725)
+pixel_size = 0.0002
+text = "PRO LOGIC II"
+font_size = 64
+outline_size = 0
+modulate = Color(0.42, 0.95, 0.88, 1)
+
+; Printed on the fascia, top left. A description of the unit, not a brand.
+; outline_size 0: a dark outline on text printed flat on a panel fuses into a blob.
+[node name="NameLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.15, 0.13, 0.1705)
+pixel_size = 0.0002
+text = "SURROUND AMPLIFIER"
+font_size = 32
+outline_size = 0
+modulate = Color(0.72, 0.72, 0.7, 1)
+
+; SURROUND MODE, under the window. The basis turns the cap's press axis (+Y) out of
+; the front (+Z): rows (1,0,0), (0,0,-1), (0,1,0), the television's bezel caps.
+[node name="ModeButton" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.06, 0.17)
+collision_layer = 0
+collision_mask = 0
+script = ExtResource("4_vrbutton")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="ModeButton"]
+shape = SubResource("Shape_btn")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="ModeButton"]
+mesh = SubResource("Mesh_btn")
+surface_material_override/0 = SubResource("Mat_btn")
+
+[node name="ModeLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.042, 0.1705)
+pixel_size = 0.0002
+text = "SURROUND MODE"
+font_size = 28
+outline_size = 0
+modulate = Color(0.72, 0.72, 0.7, 1)
+
+; VOLUME, on the right as seen from the front (+X).
+;
+; KnobPivot's local Z already points out of the face, which is what VRKnob turns
+; about. The cap MESH is the pivot's child and carries the +90-about-X that lays a
+; Y-aligned CylinderMesh along that axle, set 10 mm out so its back face meets the
+; fascia.
+[node name="VolumeKnob" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.09, 0.17)
+collision_layer = 1048576
+collision_mask = 0
+script = ExtResource("5_vrknob")
+engage_radius = 0.05
+value = 0.75
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="VolumeKnob"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.01)
+shape = SubResource("Shape_knob")
+
+[node name="KnobPivot" type="Node3D" parent="VolumeKnob"]
+
+[node name="KnobCap" type="MeshInstance3D" parent="VolumeKnob/KnobPivot"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0.01)
+mesh = SubResource("Mesh_knobcap")
+surface_material_override/0 = SubResource("Mat_knob")
+
+; The pointer line on the cap's face, along the pivot's +Y: straight up at mid-travel.
+[node name="KnobPointer" type="MeshInstance3D" parent="VolumeKnob/KnobPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.015, 0.0204)
+mesh = SubResource("Mesh_knobmark")
+surface_material_override/0 = SubResource("Mat_knobmark")
+
+[node name="VolumeLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.15, 0.042, 0.1705)
+pixel_size = 0.0002
+text = "VOLUME"
+font_size = 28
+outline_size = 0
+modulate = Color(0.72, 0.72, 0.7, 1)
+
+; ── Back ─────────────────────────────────────────────────────────────────────
+; The cover's back face is z = -0.170, and every socket's zone sits 10 mm proud of
+; it, as rca_port.tscn expects. Rx(180) turns a socket's +Z out of the back — the
+; television's SPEAKERS row, copied basis and all, at the same 18 mm pitch.
+;
+; Seen from behind, device +X is on the viewer's LEFT, so the descending x below
+; reads AUDIO IN L R, then FL FR C SUB SL SR, left to right. AvLegend sorts on that.
+
+; AUDIO IN — the line input. direction = 1 is IN.
+[node name="AudioInL" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.16, 0.1, -0.18002)
+channel = 1
+direction = 1
+
+[node name="AudioInR" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.142, 0.1, -0.18002)
+channel = 2
+direction = 1
+
+; SPEAKERS — what a loudspeaker cabinet is cabled to. direction = 0 is OUT, and the
+; channels are the appended surround values: 1 L, 2 R, 4 CENTER, 5 SUB, 6 SL, 7 SR.
+[node name="SpeakerOutL" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.07, 0.1, -0.18002)
+channel = 1
+direction = 0
+
+[node name="SpeakerOutR" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.052, 0.1, -0.18002)
+channel = 2
+direction = 0
+
+[node name="SpeakerOutC" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.034, 0.1, -0.18002)
+channel = 4
+direction = 0
+
+[node name="SpeakerOutLfe" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, 0.016, 0.1, -0.18002)
+channel = 5
+direction = 0
+
+[node name="SpeakerOutSl" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.002, 0.1, -0.18002)
+channel = 6
+direction = 0
+
+[node name="SpeakerOutSr" parent="." instance=ExtResource("3_rcaport")]
+transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.02, 0.1, -0.18002)
+channel = 7
+direction = 0
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.075, 0)
+shape = SubResource("Shape_pointer")

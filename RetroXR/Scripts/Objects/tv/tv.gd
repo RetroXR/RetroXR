@@ -749,19 +749,46 @@ func is_sound_external() -> bool:
 
 ## Whether any speaker output reaches a speaker. Without one, STEREO OUT and SURROUND
 ## are silent, as a real set switched to external speakers with none plugged in is.
+##
+## Through an amplifier, the amplifier's own: its speakers are the ones playing.
 func has_cabled_speakers() -> bool:
+	var amp := surround_decoder()
+	if amp != null:
+		return amp.has_cabled_speakers()
 	return _fit.has_cabled_speakers()
+
+
+## The surround amplifier this set's sound is going through, or null.
+##
+## STEREO OUT only, which is the set's line out: the front pair carries the plain
+## stereo, and an amplifier on it decodes that as it would any other line source.
+## On SURROUND the set decodes for itself and its FL and FR carry decoded fronts —
+## an amplifier fed those passes them to its own front pair, which is what
+## SpeakerRig already does with it, rather than decoding a decode.
+func surround_decoder() -> Node3D:
+	if audio_out != AudioOut.STEREO:
+		return null
+	return _fit.decoder()
 
 
 ## World positions for the six decoded channels, FL, FR, C, LFE, SL, SR. A channel
 ## with no speaker of its own folds onto the speakers that are plugged in, never onto
 ## the set; get_surround_gains() carries the level that goes with each, 0 when there
 ## is nowhere to go.
+##
+## Through an amplifier these are the amplifier's: its six outputs are where the
+## decode lands.
 func get_surround_positions() -> PackedVector3Array:
+	var amp := surround_decoder()
+	if amp != null:
+		return amp.get_surround_positions()
 	return _fit.surround_positions()
 
 
 func get_surround_gains() -> PackedFloat32Array:
+	var amp := surround_decoder()
+	if amp != null:
+		return amp.get_surround_gains()
 	return _fit.surround_gains()
 
 
@@ -771,6 +798,9 @@ func get_surround_gains() -> PackedFloat32Array:
 ## what a layout that is not this room's -- the one around a player's head, or the
 ## speakers wired to their PC -- has to be told.
 func get_surround_targets() -> Array:
+	var amp := surround_decoder()
+	if amp != null:
+		return amp.get_surround_targets()
 	return _fit.surround_targets()
 
 
@@ -859,9 +889,29 @@ func on_av_source_lost(source: Node3D) -> void:
 ## a plug moves — which cabinet is on which channel.
 func on_av_topology_changed(_links: Array) -> void:
 	_panel.on_av_topology_changed()
+	# An amplifier cabled onto the front pair, or pulled off it, changes what every
+	# machine on this set should be decoding.
+	_audio.refresh_decoder()
 	# Plugging the first speaker in, or pulling the last, is what lifts or brings
 	# back the silence of STEREO OUT and SURROUND, and volume is not per-frame.
 	_audio.apply_volume()
+
+
+## Called by the amplifier this set feeds when its own state moved: its switch, its
+## volume, or the speakers on its back. Each changes what the set pushes.
+func on_decoder_changed() -> void:
+	_audio.refresh_decoder()
+	_audio.apply_volume()
+
+
+## A machine whose sound has just moved onto this set, having already been a sink of
+## its picture — see RetroSystem._apply_av_feed. The set was skipping it while its
+## sound was elsewhere (TvAudio.carries_sound), so it is brought onto the set's
+## level, speaker switch and decode now.
+func on_audio_source_routed(_source: Node3D) -> void:
+	_audio.apply_volume()
+	_audio.apply_channel_mode()
+	_audio.apply_audio_out()
 
 
 # Remote-control entry points (TVRemote): identical to pressing the bezel

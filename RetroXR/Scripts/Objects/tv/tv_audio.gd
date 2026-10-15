@@ -27,6 +27,13 @@ var _tv: RetroTV = null
 var _volume: float = 1.0        # 0.0-1.0, default 100%
 var _muted: bool = false
 
+## The amplifier and the decoder it was switched to when the set last told its
+## machines what to decode, so a plug moving anywhere in the room re-tells them only
+## when that actually changed. An instance id rather than the node, because the
+## amplifier can be put in the bin between two calls.
+var _applied_decoder_id: int = 0
+var _applied_decode: int = 0
+
 
 func volume() -> float:
 	return _volume
@@ -75,10 +82,15 @@ func set_audio_out(mode: int) -> void:
 	# "spatial audio is off" in the log beside a machine reporting six voices.
 	var spatialised := SpatialAudioListener.is_spatialised() or decoding > 0
 	var speakers := _tv.has_cabled_speakers()
-	_tv.show_osd_timed(audio_out_osd(_tv.audio_out, spatialised, speakers), 2.0)
+	var amp := _tv.surround_decoder()
+	var amp_decode: int = int(amp.get("decode_mode")) if amp != null else -1
+	_tv.show_osd_timed(audio_out_osd(_tv.audio_out, spatialised, speakers, amp_decode), 2.0)
 	var result := ""
 	if _tv.is_sound_external() and not speakers:
 		result = "  (no speakers connected, so the set is silent)"
+	elif amp != null:
+		result = "  (through an amplifier on %s, decoding on %d machine(s))" % [
+			SurroundAmp.DECODE_NAMES[amp_decode], decoding]
 	elif _tv.audio_out == RetroTV.AudioOut.SURROUND:
 		if spatialised:
 			result = "  (decoding on %d machine(s))" % decoding
@@ -103,12 +115,22 @@ func set_audio_out(mode: int) -> void:
 ## the decoder declines. Naming the format there claimed a decode that was not
 ## happening — a player pressed the key, read "PRO LOGIC II" and heard nothing change.
 ##
+## STEREO OUT into a surround amplifier says so and names the amplifier's decoder
+## (`amp_decode`, -1 for none), because that is where the format is now chosen — the
+## set is only a line out — and with spatial audio off it says what SURROUND says,
+## since the decode needs the voices just the same.
+##
 ## Static so every answer can be checked without an SDK or a rig.
-static func audio_out_osd(mode: int, spatialised: bool, speakers: bool) -> String:
+static func audio_out_osd(mode: int, spatialised: bool, speakers: bool,
+		amp_decode: int = -1) -> String:
 	if mode != RetroTV.AudioOut.TV_SPEAKERS and not speakers:
 		return "%s — %s" % [RetroTV.AUDIO_OUT_NAMES[mode], RetroTV.AUDIO_OUT_NO_SPEAKERS]
-	if mode == RetroTV.AudioOut.SURROUND and not spatialised:
+	var decoding := mode == RetroTV.AudioOut.SURROUND or amp_decode >= 0
+	if decoding and not spatialised:
 		return RetroTV.AUDIO_OUT_NEEDS_SPATIAL
+	if amp_decode >= 0:
+		return "%s — AMPLIFIER, %s" % [RetroTV.AUDIO_OUT_NAMES[mode],
+			SurroundAmp.DECODE_NAMES[amp_decode]]
 	return RetroTV.AUDIO_OUT_OSD[mode]
 
 
@@ -123,16 +145,71 @@ func on_audio_out_toggle() -> void:
 ## does and for the same reason: the route is a property of the SET, so an input
 ## selected later must already be on it rather than reverting for one press.
 ##
+## Through an amplifier the machines are asked for SURROUND whatever the key says —
+## STEREO OUT is the set's line out, and the amplifier on it is what decodes — and
+## for the amplifier's own decoder. Otherwise Pro Logic II, which is what the set's
+## own SURROUND has always been.
+##
 ## Returns how many of them are really decoding, which is what the log reports.
 func apply_audio_out() -> int:
+	var amp := _tv.surround_decoder()
+	var mode: int = _tv.audio_out
+	var decode: int = SurroundAmp.DecodeMode.PRO_LOGIC_II
+	if amp != null:
+		mode = RetroTV.AudioOut.SURROUND
+		decode = int(amp.get("decode_mode"))
+	_applied_decoder_id = amp.get_instance_id() if amp != null else 0
+	_applied_decode = decode
 	var decoding := 0
 	for system in _tv.panel()._connected_systems:
-		if is_instance_valid(system) and system.has_method("set_audio_out_mode"):
-			if system.set_audio_out_mode(_tv.audio_out):
+		if not is_instance_valid(system) or not carries_sound(system):
+			continue
+		# The decoder first, so the first block decoded is already the right one.
+		if system.has_method("set_surround_mode"):
+			system.set_surround_mode(decode)
+		if system.has_method("set_audio_out_mode"):
+			if system.set_audio_out_mode(mode):
 				decoding += 1
 	if _tv.tuner() and _tv.tuner().has_method("set_audio_out_mode"):
 		_tv.tuner().set_audio_out_mode(_tv.audio_out)
 	return decoding
+
+
+## Re-tell the machines what to decode, but only when the amplifier on the front
+## pair — or its switch — has changed since they were last told. Reached from every
+## plug move in the room, so it must cost nothing when nothing changed.
+func refresh_decoder() -> void:
+	var amp := _tv.surround_decoder()
+	var id: int = amp.get_instance_id() if amp != null else 0
+	var decode: int = int(amp.get("decode_mode")) if amp != null \
+		else SurroundAmp.DecodeMode.PRO_LOGIC_II
+	if id == _applied_decoder_id and decode == _applied_decode:
+		return
+	var decoding := apply_audio_out()
+	if amp != null:
+		print("[RetroTV] %s: STEREO OUT into an amplifier on %s (decoding on %d machine(s))"
+			% [_tv.name, SurroundAmp.DECODE_NAMES[decode], decoding])
+	else:
+		print("[RetroTV] %s: no amplifier on the front pair any more" % _tv.name)
+
+
+## Whether this set carries `system`'s sound, and so gets to set its level and its
+## decode.
+##
+## A machine can put its picture on one box and its sound on another — a console's
+## yellow cord in the set and its white and red in a surround amplifier — and the set
+## then has to leave the sound alone: the amplifier is deciding its level and its
+## decoder, and a set that went on pushing its own over the top would undo the
+## amplifier on every plug moved anywhere in the room. A machine whose sound reaches
+## nothing at all is still the set's to quieten, which changes nothing it can hear.
+##
+## Asked through audio_route(), which only RetroSystem answers. A deck has no
+## separate sound route — it plays wherever its picture is — so it stays the set's.
+func carries_sound(system: Node3D) -> bool:
+	if not system.has_method("audio_route"):
+		return true
+	var sink: Variant = system.audio_route().get("tv")
+	return sink == null or sink == _tv
 
 
 ## One fixed glyph, like SourceButton: what the key is doing is reported by the OSD
@@ -163,7 +240,7 @@ func apply_channel_mode() -> void:
 	# property of the SET, so an input switched to later has to already be routed
 	# the way the switch says rather than reverting to stereo for one press.
 	for system in _tv.panel()._connected_systems:
-		if is_instance_valid(system) \
+		if is_instance_valid(system) and carries_sound(system) \
 				and system.has_method("set_audio_channel_mode"):
 			system.set_audio_channel_mode(_tv.audio_mode)
 	# The tuner is the one source the set does own an emitter for, so it takes the
@@ -197,6 +274,11 @@ func _effective_volume() -> float:
 		return 0.0
 	if _tv.is_sound_external() and not _tv.has_cabled_speakers():
 		return 0.0
+	# Through an amplifier its knob is the second volume in the chain, as on the real
+	# pair: the set's level into the line out, the amplifier's out of its speakers.
+	var amp := _tv.surround_decoder()
+	if amp != null:
+		return _volume * float(amp.call("get_volume"))
 	return _volume
 
 
@@ -237,7 +319,7 @@ func apply_volume() -> void:
 	# is on Source.RF and has to be silenced with the rest when it is not showing.
 	for i in _tv.panel()._connected_systems.size():
 		var system: Node3D = _tv.panel()._connected_systems[i]
-		if is_instance_valid(system):
+		if is_instance_valid(system) and carries_sound(system):
 			system.set_audio_volume(volume_for(i))
 	if _tv.tuner():
 		_tv.tuner().set_volume(tuner_volume())

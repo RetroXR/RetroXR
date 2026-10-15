@@ -23,6 +23,8 @@ const COMPOSITE_CABLE := preload("res://Scenes/Objects/cables/composite_cable.ts
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const STAND_120 := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
 const STAND_100 := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
+const AMP := preload("res://Scenes/Objects/appliances/surround_amp.tscn")
+const SOURCE_SCRIPT := preload("res://Tests/speaker_tests_source.gd")
 
 const MESHES := {
 	"satellite": "res://Scenes/Objects/appliances/speaker_satellite.res",
@@ -98,6 +100,16 @@ func _run() -> void:
 		["held/the PC gets the room's folds, not its own centre", _h_discrete_folds],
 		["held/nothing plugged in reaches no PC speaker", _h_discrete_silent],
 		["held/the device queue is drained by the output bus", _h_device_queue],
+		["amp/two inputs and six outputs, each the right way round", _a_panel],
+		["amp/the legend prints AUDIO IN and SPEAKERS, clear of each other", _a_legend],
+		["amp/a channel with no cabinet folds as on a set", _a_fold],
+		["amp/with nothing on the back the amplifier is silent", _a_silent],
+		["amp/a machine wired into AUDIO IN decodes with the switch", _a_source],
+		["amp/a set on STEREO OUT hands the decode to the amplifier", _a_through_set],
+		["amp/an amplifier with no speakers is not a cabinet", _a_not_a_cabinet],
+		["amp/a set leaves alone a machine whose sound is elsewhere", _a_sound_elsewhere],
+		["amp/the switch drives the decoder's two modes", _a_decoder_modes],
+		["amp/the switch and the knob survive a save", _a_save],
 	]
 
 	for entry in cases:
@@ -1143,3 +1155,336 @@ func _h_device_queue() -> void:
 	out.flush()
 	await get_tree().create_timer(0.1).timeout
 	_check_eq(int(out.queued()), 0, "a flush empties it")
+
+
+# ── amp/ ─────────────────────────────────────────────────────────────────────
+# The surround amplifier: a stereo pair in, six speaker outputs, and a decoder switch.
+# A real amplifier scene and real leads throughout — the stand-in is only ever the
+# machine on the far end, because what is under test is what the amplifier and the
+# set do with it.
+
+func _amp_at(at: Vector3) -> SurroundAmp:
+	var amp := AMP.instantiate() as SurroundAmp
+	amp.freeze = true
+	amp.position = at
+	add_child(_hold(amp))
+	await _wait(6)
+	return amp
+
+
+## One speaker lead from `out_port` to `in_port`, both ends seated.
+func _lead(out_port: RcaPort, in_port: RcaPort) -> void:
+	var lead := SPEAKER_CABLE.instantiate() as Node3D
+	add_child(_hold(lead))
+	await _wait(4)
+	out_port.pick_up_object(lead.get_node("PlugA0") as Node3D)
+	in_port.pick_up_object(lead.get_node("PlugB0") as Node3D)
+	await _wait(6)
+
+
+## A stand-in machine with a stereo pair of phono OUTs, 250 mm apart for the reason
+## _fake_set gives.
+func _stereo_source(at: Vector3) -> Array:
+	var src := Node3D.new()
+	src.name = "StereoSource"
+	src.set_script(SOURCE_SCRIPT)
+	src.position = at
+	add_child(_hold(src))
+	var outs: Array[RcaPort] = []
+	for i in 2:
+		var p := RCA_PORT.instantiate() as RcaPort
+		p.name = "Out%s" % ["L", "R"][i]
+		p.channel = [RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R][i]
+		p.direction = RcaPort.Direction.OUT
+		p.position = Vector3(float(i) * 0.25, 0.4, 0.0)
+		src.add_child(p)
+		outs.append(p)
+	await _wait(4)
+	return [src, outs]
+
+
+func _amp_outs(amp: SurroundAmp) -> Array[RcaPort]:
+	var outs: Array[RcaPort] = []
+	for n in SurroundAmp.SPEAKER_OUT_NAMES:
+		outs.append(amp.get_node(n) as RcaPort)
+	return outs
+
+
+func _a_panel() -> void:
+	var amp := await _amp_at(Vector3(20.0, 0.0, 0.0))
+	var back := -amp.global_basis.z
+	var inputs := {"AudioInL": RcaPort.Channel.AUDIO_L, "AudioInR": RcaPort.Channel.AUDIO_R}
+	for n: String in inputs:
+		var p := amp.get_node_or_null(n) as RcaPort
+		_ok(p != null, "%s is there" % n)
+		if p == null:
+			continue
+		_check_eq(p.channel, inputs[n], "%s carries its channel" % n)
+		_check_eq(p.direction, RcaPort.Direction.IN, "%s is an input" % n)
+		_ok(p.global_basis.z.normalized().dot(back) > 0.99, "%s opens out of the back" % n)
+		_ok(p.get_device() == amp, "%s belongs to the amplifier" % n)
+	var outs := _amp_outs(amp)
+	for i in outs.size():
+		var p := outs[i]
+		var ch: int = RcaPort.SPEAKER_OUT_CHANNELS[i]
+		_check_eq(p.channel, ch, "output %d carries %s" % [i, RcaPort.CHANNEL_NAMES[ch]])
+		_check_eq(p.direction, RcaPort.Direction.OUT, "%s is an output" % RcaPort.CHANNEL_NAMES[ch])
+		_ok(p.global_basis.z.normalized().dot(back) > 0.99,
+			"%s opens out of the back" % RcaPort.CHANNEL_NAMES[ch])
+
+
+## Two plates, the inputs' and the speakers', printed with words short enough for the
+## 18 mm pitch, on the back panel, and clear of each other — coplanar plates that
+## overlap z-fight, which is how the television's composite plates shipped.
+func _a_legend() -> void:
+	var amp := await _amp_at(Vector3(22.0, 0.0, 0.0))
+	var inputs := amp.get_node_or_null("AvLegendIn") as AvLegend
+	var speakers := amp.get_node_or_null("AvLegendSpeakers") as AvLegend
+	_ok(inputs != null and speakers != null, "both plates are printed")
+	if inputs == null or speakers == null:
+		return
+	_check_eq(inputs.heading_override, "AUDIO IN", "the inputs are headed AUDIO IN")
+	_check_eq(speakers.heading_override, "SPEAKERS", "the outputs are headed SPEAKERS")
+	for ch in [RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R]:
+		_check_eq(str(inputs.word_override.get(ch, "")), RcaPort.CHANNEL_NAMES[ch],
+			"the %s input is printed %s" % [RcaPort.CHANNEL_NAMES[ch], RcaPort.CHANNEL_NAMES[ch]])
+	for ch in RcaPort.SPEAKER_OUT_CHANNELS:
+		var word := str(speakers.word_override.get(ch, ""))
+		_ok(not word.is_empty() and AvLegend._text_width(word, speakers.word_height)
+			< TvPanel.AV_ROW_PITCH, "%s prints a word that fits the pitch" % RcaPort.CHANNEL_NAMES[ch])
+	var a := _aabb_of(inputs)
+	var b := _aabb_of(speakers)
+	_ok(a.size.x > 0.0 and b.size.x > 0.0, "both plates built geometry")
+	_ok(not a.intersects(b), "the two plates stand clear of each other")
+	# On the panel, not hanging off its edge or below the feet: the back is 430 mm
+	# wide and stands from 15 mm (the feet) to 150 mm.
+	var local := amp.global_transform.affine_inverse() * a.merge(b)
+	_ok(local.position.x > -0.215 and local.end.x < 0.215, "inside the panel's width")
+	_ok(local.position.y > 0.015 and local.end.y < 0.15, "and inside its height")
+
+
+func _a_fold() -> void:
+	var amp := await _amp_at(Vector3(24.0, 0.5, 0.0))
+	var outs := _amp_outs(amp)
+	var fl := (await _cable_up(outs[CH_FL], amp.position + Vector3(-1.2, 0.0, 1.5))) \
+		.get_speaker_positions()[0]
+	var fr := (await _cable_up(outs[CH_FR], amp.position + Vector3(1.2, 0.0, 1.5))) \
+		.get_speaker_positions()[0]
+	_ok(amp.has_cabled_speakers(), "the amplifier has speakers")
+	var pos := amp.get_surround_positions()
+	var gains := amp.get_surround_gains()
+	_ok(pos[CH_FL].is_equal_approx(fl) and is_equal_approx(gains[CH_FL], 1.0),
+		"front left comes off its own cabinet")
+	_ok(pos[CH_C].is_equal_approx((fl + fr) * 0.5) and is_equal_approx(gains[CH_C], 1.0),
+		"the centre plays between the fronts")
+	_ok(pos[CH_SL].is_equal_approx(fl) and is_equal_approx(gains[CH_SL], TvFit.FOLD_GAIN),
+		"a missing surround folds onto its own side, 3 dB down")
+	var pair := amp.get_speaker_positions()
+	_ok(pair[0].is_equal_approx(fl) and pair[1].is_equal_approx(fr),
+		"a stereo source plays from the front pair")
+
+
+func _a_silent() -> void:
+	var amp := await _amp_at(Vector3(26.0, 0.5, 0.0))
+	_ok(not amp.has_cabled_speakers(), "nothing on the back")
+	var audible := 0
+	for g in amp.get_surround_gains():
+		if g > 0.0:
+			audible += 1
+	_check_eq(audible, 0, "so no channel is audible")
+	_ok(is_zero_approx(amp.effective_volume()), "and the level it hands out is nothing")
+
+
+## A machine's own white and red into AUDIO IN: the amplifier is its sound sink, and
+## tells it to decode with whichever decoder the switch is on.
+func _a_source() -> void:
+	var amp := await _amp_at(Vector3(28.0, 0.5, 0.0))
+	var made: Array = await _stereo_source(Vector3(28.0, 0.0, 2.0))
+	var src: Node3D = made[0]
+	var outs: Array = made[1]
+	await _lead(outs[0], amp.get_node("AudioInL") as RcaPort)
+	await _lead(outs[1], amp.get_node("AudioInR") as RcaPort)
+	var feed := AvSource.resolve(src, true)
+	_ok(feed.audio_sink == amp, "the amplifier is the machine's sound sink")
+	_ok(feed.left == 0 and feed.right == 1, "left into L, right into R")
+
+	amp.on_av_source_found(src)
+	_check_eq(src.out_mode, RetroTV.AudioOut.SURROUND, "the machine is asked to decode")
+	_check_eq(src.surround_mode, SurroundAmp.DecodeMode.PRO_LOGIC_II, "on Pro Logic II")
+	_check_eq(src.channel_mode, 0, "in stereo")
+	_ok(is_zero_approx(src.volume), "and silent, with nothing on the back")
+
+	var amp_outs := _amp_outs(amp)
+	await _cable_up(amp_outs[CH_FL], amp.position + Vector3(-1.0, 0.0, 1.5))
+	_ok(is_equal_approx(src.volume, amp.get_volume()), "a speaker plugged in brings the knob's level")
+	amp.set_volume(0.3)
+	_ok(is_equal_approx(src.volume, 0.3), "and the knob turns it")
+
+	amp.cycle_mode()
+	_check_eq(src.surround_mode, SurroundAmp.DecodeMode.DOLBY_SURROUND,
+		"SURROUND MODE switches the machine's decoder")
+	_check_eq((amp.get_node("DisplayText") as Label3D).text, "DOLBY SURROUND",
+		"and the display says so")
+	amp.cycle_mode()
+	_check_eq(src.surround_mode, SurroundAmp.DecodeMode.PRO_LOGIC_II, "and back")
+
+	amp.on_av_source_lost(src)
+	_check_eq(src.out_mode, RetroTV.AudioOut.TV_SPEAKERS, "unplugged, it stops decoding")
+	_check_eq(src.surround_mode, SurroundAmp.DecodeMode.PRO_LOGIC_II, "and is left on Pro Logic II")
+
+
+## A set's FL and FR into AUDIO IN with the set on STEREO OUT: its line out. The set
+## asks its machines for the amplifier's decoder and answers for the amplifier's six.
+func _a_through_set() -> void:
+	var tv := await _set_with_outs()
+	var amp := await _amp_at(tv.position + Vector3(0.0, -0.5, 2.5))
+	var tv_outs := tv.panel().speaker_outs()
+	await _lead(tv_outs[CH_FL], amp.get_node("AudioInL") as RcaPort)
+	await _lead(tv_outs[CH_FR], amp.get_node("AudioInR") as RcaPort)
+	var amp_outs := _amp_outs(amp)
+	var cab := await _cable_up(amp_outs[CH_SL], amp.position + Vector3(-1.5, 0.0, 3.0))
+	var src := Node3D.new()
+	src.set_script(SOURCE_SCRIPT)
+	add_child(_hold(src))
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_1] = src
+
+	_ok(tv.surround_decoder() == null, "on TV SPEAKERS the set uses no amplifier")
+	tv.set_audio_out(RetroTV.AudioOut.STEREO)
+	await _wait(2)
+	_ok(tv.surround_decoder() == amp, "on STEREO OUT it finds the amplifier on its front pair")
+	_check_eq(src.out_mode, RetroTV.AudioOut.SURROUND, "and asks its machine to decode")
+	_check_eq(src.surround_mode, SurroundAmp.DecodeMode.PRO_LOGIC_II, "with the amplifier's decoder")
+	_ok(tv.get_surround_positions() == amp.get_surround_positions(),
+		"the six land where the amplifier's outputs put them")
+	_ok(tv.get_surround_positions()[CH_SL].is_equal_approx(cab.get_speaker_positions()[0]),
+		"surround left on the amplifier's own cabinet")
+	_ok(tv.has_cabled_speakers(), "and the set counts the amplifier's speakers as its own")
+
+	amp.cycle_mode()
+	_check_eq(src.surround_mode, SurroundAmp.DecodeMode.DOLBY_SURROUND,
+		"the amplifier's switch reaches the machine through the set")
+	_check_eq(TvAudio.audio_out_osd(RetroTV.AudioOut.STEREO, true, true,
+		SurroundAmp.DecodeMode.DOLBY_SURROUND), "STEREO OUT — AMPLIFIER, DOLBY SURROUND",
+		"the OSD names the amplifier and its decoder")
+
+	amp_outs[CH_SL].drop_object()
+	(cab.get_node("SpeakerIn") as RcaPort).drop_object()
+	await _wait(6)
+	_ok(not tv.has_cabled_speakers(), "with the amplifier's speaker pulled, the set has none")
+
+	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
+	await _wait(2)
+	_ok(tv.surround_decoder() == null, "on SURROUND the set decodes for itself")
+	_check_eq(src.surround_mode, SurroundAmp.DecodeMode.PRO_LOGIC_II, "on its own Pro Logic II")
+	# A real machine takes itself out of this table on the way out (source_lost); the
+	# stand-in is freed by the teardown, so it is taken out here.
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_1] = null
+
+
+## An amplifier with nothing on its back is silent, so a set's channel cabled into
+## one must not count as reaching a speaker and play from the amplifier's box.
+func _a_not_a_cabinet() -> void:
+	var tv := await _set_with_outs()
+	var amp := await _amp_at(tv.position + Vector3(0.0, -0.5, 2.5))
+	var tv_outs := tv.panel().speaker_outs()
+	await _lead(tv_outs[CH_FL], amp.get_node("AudioInL") as RcaPort)
+	await _lead(tv_outs[CH_FR], amp.get_node("AudioInR") as RcaPort)
+	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
+	await _wait(2)
+	_ok(not tv.has_cabled_speakers(), "the empty amplifier is not a speaker")
+	var audible := 0
+	for g in tv.get_surround_gains():
+		if g > 0.0:
+			audible += 1
+	_check_eq(audible, 0, "and nothing plays from its box")
+
+
+## A console's picture in the set and its sound in an amplifier: the set must leave
+## the sound alone, or it undoes the amplifier on every plug moved in the room.
+func _a_sound_elsewhere() -> void:
+	var tv := await _set_with_outs()
+	var amp := await _amp_at(tv.position + Vector3(0.0, -0.5, 2.5))
+	var elsewhere := Node3D.new()
+	elsewhere.set_script(SOURCE_SCRIPT)
+	add_child(_hold(elsewhere))
+	elsewhere.route_sink = amp
+	var here := Node3D.new()
+	here.set_script(SOURCE_SCRIPT)
+	add_child(_hold(here))
+	here.route_sink = tv
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_1] = elsewhere
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_2] = here
+
+	_ok(not tv.audio().carries_sound(elsewhere), "the set knows whose sound it does not carry")
+	_ok(tv.audio().carries_sound(here), "and whose it does")
+	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
+	tv.audio().apply_volume()
+	tv.audio().apply_channel_mode()
+	_check_eq(here.out_mode, RetroTV.AudioOut.SURROUND, "its own machine is switched")
+	_check_eq(elsewhere.out_mode, -1, "the amplifier's machine is not told to decode by the set")
+	_ok(elsewhere.volume < 0.0, "nor given the set's level")
+	_check_eq(elsewhere.channel_mode, -1, "nor the set's speaker switch")
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_1] = null
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_2] = null
+
+
+## The decoder the switch drives, through the real extension. The C++ harness proves
+## the stage's numbers; this proves the binding reaches it: a surround-encoded tone
+## decodes into anti-phase rears on Pro Logic II and identical ones on Dolby Surround.
+func _a_decoder_modes() -> void:
+	_ok(Engine.has_singleton("SurroundAudio"), "the surround extension is loaded")
+	if not Engine.has_singleton("SurroundAudio"):
+		return
+	var rears := {}
+	for mode in [SurroundAmp.DecodeMode.PRO_LOGIC_II, SurroundAmp.DecodeMode.DOLBY_SURROUND]:
+		var dec: Object = Engine.get_singleton("SurroundAudio").create_decoder(1024, 48000)
+		_check_eq(int(dec.get_mode()), SurroundAmp.DecodeMode.PRO_LOGIC_II, "a decoder starts on Pro Logic II")
+		dec.set_mode(mode)
+		_check_eq(int(dec.get_mode()), mode, "and takes mode %d" % mode)
+		var frames := PackedVector2Array()
+		frames.resize(1024 * 12)
+		for k in frames.size():
+			var c := cos(TAU * 1000.0 * float(k) / 48000.0) * 0.7071
+			frames[k] = Vector2(c, -c)
+		var out: Array = dec.decode(frames)
+		var sl: PackedFloat32Array = out[4]
+		var sr: PackedFloat32Array = out[5]
+		var same := 0.0
+		var level := 0.0
+		for k in range(sl.size() - 4096, sl.size()):
+			same += absf(sl[k] - sr[k])
+			level += absf(sl[k])
+		rears[mode] = [same, level]
+	_ok(rears[SurroundAmp.DecodeMode.PRO_LOGIC_II][0] > 1.0,
+		"Pro Logic II keeps two rears (|SL-SR| %.1f)" % rears[SurroundAmp.DecodeMode.PRO_LOGIC_II][0])
+	_ok(is_zero_approx(rears[SurroundAmp.DecodeMode.DOLBY_SURROUND][0])
+		and rears[SurroundAmp.DecodeMode.DOLBY_SURROUND][1] > 1.0,
+		"Dolby Surround plays one surround from both, and it is not silence")
+
+
+func _a_save() -> void:
+	var persistence := ScenePersistence.new()
+	_ok(persistence.PLAIN_SCENES.has("surround_amp"), "PLAIN_SCENES carries surround_amp")
+	var made := persistence.instantiate("surround_amp")
+	_ok(made is SurroundAmp, "and it instantiates an amplifier")
+	if made != null:
+		made.free()
+	var amp := await _amp_at(Vector3(30.0, 0.5, 0.0))
+	amp.cycle_mode()
+	(amp.get_node("VolumeKnob") as VRKnob).set_value(0.3)
+	var entry: Dictionary = persistence._serialize_node(amp, 4, {})
+	_check_eq(entry.get("type", ""), "surround_amp", "an amplifier saves under its own token")
+	_check_eq(int(entry.get("decode_mode", -1)), SurroundAmp.DecodeMode.DOLBY_SURROUND,
+		"with its switch")
+	var knob_saved := false
+	for rec: Dictionary in entry.get("articulated", []):
+		if str(rec.get("path", "")) == "VolumeKnob" and is_equal_approx(float(rec.get("value", -1.0)), 0.3):
+			knob_saved = true
+	_ok(knob_saved, "and its knob among the articulated controls")
+
+	var back := await _amp_at(Vector3(32.0, 0.5, 0.0))
+	persistence._restore_entry(self, 4, {4: back}, {4: entry})
+	await _wait(2)
+	_check_eq(back.decode_mode, SurroundAmp.DecodeMode.DOLBY_SURROUND, "the switch comes back")
+	_ok(is_equal_approx(back.get_volume(), 0.3), "and the level")
+	_check_eq((back.get_node("DisplayText") as Label3D).text, "DOLBY SURROUND", "on the display too")

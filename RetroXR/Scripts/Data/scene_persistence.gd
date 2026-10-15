@@ -207,6 +207,7 @@ const NEMA_1_15_C7P_CORD_SCENE := preload(
 const SPEAKER_PAIR_SCENE     := preload("res://Scenes/Objects/appliances/speaker_pair.tscn")
 const LOUDSPEAKER_SCENE      := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUBWOOFER_SCENE        := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
+const SURROUND_AMP_SCENE     := preload("res://Scenes/Objects/appliances/surround_amp.tscn")
 const SPEAKER_STAND_120      := preload("res://Scenes/Objects/appliances/speaker_stand_120.tscn")
 const SPEAKER_STAND_100      := preload("res://Scenes/Objects/appliances/speaker_stand_100.tscn")
 const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
@@ -292,6 +293,7 @@ const PLAIN_SCENES := {
 	"tv_remote": TV_REMOTE_SCENE,
 	"loudspeaker": LOUDSPEAKER_SCENE,
 	"subwoofer": SUBWOOFER_SCENE,
+	"surround_amp": SURROUND_AMP_SCENE,
 	# Tokens name the height in centimetres, so a third stand is a third row
 	# rather than a rename of these two.
 	"speaker_stand_120": SPEAKER_STAND_120,
@@ -1536,6 +1538,10 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		var pair := obj as SpeakerPair
 		pair.set_volume(float(d.get("volume", 0.75)))
 		pair.restore_box_poses(d.get("boxes", []))
+	elif obj is SurroundAmp:
+		# The switch only: the volume knob came back with every other VRKnob in
+		# _restore_articulated_controls above, and its value_changed pushed it.
+		(obj as SurroundAmp).restore_state(int(d.get("decode_mode", 0)))
 	elif obj is CompositeCable or obj is PowerCord or obj is PowerStrip:
 		# Pass 2, so every deck and set the plugs point at already exists, and for
 		# a mains lead so does every wall outlet and every inlet. A plug whose
@@ -2148,6 +2154,13 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		var stand_token := "speaker_stand_100" 			if node.scene_file_path.ends_with("speaker_stand_100.tscn") 			else "speaker_stand_120"
 		return _base(id, stand_token, n3d).merged({
 			"speaker": _ref(node_to_id, stand.seated_speaker()),
+		})
+	elif node is SurroundAmp:
+		# The decoder switch as well as the pose. The volume knob is a VRKnob, which
+		# _base already records with the other articulated controls; which machine it
+		# carries and which cabinets are on its back are the LEADS' to record.
+		return _base(id, "surround_amp", n3d).merged({
+			"decode_mode": (node as SurroundAmp).decode_mode,
 		})
 	elif node is SpeakerPair:
 		# Deliberately not a PLAIN_SCENES pose-only object. The root never moves —

@@ -1212,6 +1212,13 @@ func set_audio_out_mode(mode: int) -> bool:
 	return _audio.set_audio_out_mode(mode)
 
 
+## Part of the sink contract: which matrix decoder the amplifier carrying this
+## machine's sound is switched to — SurroundAmp.DecodeMode. Duck-typed like the
+## two above, so it stays here.
+func set_surround_mode(mode: int) -> void:
+	_audio.set_surround_mode(mode)
+
+
 ## The TV this system's sound should come out of: whichever channel is plugged
 ## in, channel 0 first (a dual-screen handheld can be wired up by its BOTTOM
 ## cable alone). Null when nothing is connected.
@@ -1683,6 +1690,7 @@ func _apply_av_feed(video_devs: Array[RetroTV], audio_dev: Node3D, l: int, r: in
 	# must not grow a dependency on _audio_tv(), which is still the old sink at
 	# this point; the position follows on the next frame's update_position().
 	_audio.route_changed()
+	var prev_audio := _av_tv
 	_av_tv = audio_dev
 	# The PICTURE follows the video cord alone: a lead with only its audio end in
 	# leaves the set on its blue no-signal screen, as it would.
@@ -1713,6 +1721,15 @@ func _apply_av_feed(video_devs: Array[RetroTV], audio_dev: Node3D, l: int, r: in
 		if not _av_sinks.has(sink):
 			sink.on_av_source_found(self)
 	_av_sinks = sinks
+	# A sink only pushes its level and its decode at machines whose SOUND lands on
+	# it, so the one now carrying the sound has to hear about it even when it was
+	# already a sink — a set showing this machine's picture that the white and red
+	# cords have just come back to from an amplifier. It was never "found" a second
+	# time. An amplifier needs nothing here: it is never a picture sink, so found and
+	# lost already cover every move of its own.
+	if audio_dev != prev_audio and is_instance_valid(audio_dev) \
+			and audio_dev.has_method("on_audio_source_routed"):
+		audio_dev.on_audio_source_routed(self)
 
 
 func _spawn_cables() -> void:

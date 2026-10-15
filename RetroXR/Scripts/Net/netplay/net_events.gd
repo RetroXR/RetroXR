@@ -70,4 +70,6 @@ enum Event {
 	EV_SLOT2_REMOVE,     # {sys}
 	EV_TV_AUDIO_OUT,     # {tv, mode}    where the set sends its sound
 	                     #               (0 its own speakers / 1 stereo out / 2 surround)
+	EV_AMP_MODE,         # {amp, mode}   a surround amplifier's decoder
+	                     #               (SurroundAmp.DecodeMode: 0 Pro Logic II / 1 Dolby Surround)
 }

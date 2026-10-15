@@ -309,7 +309,7 @@ socket holding a freed plug and an empty one both answer `is_instance_valid` fal
 "$godot" --headless --path RetroXR res://Tests/speaker_tests.tscn
 "$godot" --headless --path RetroXR res://Tests/speaker_tests.tscn -- --only=fold
 python Tools/build.py windows --only surround-godot
-cd surround-godot && python tests/run_tests.py     # 24 assertions, no Godot
+cd surround-godot && python tests/run_tests.py     # matrix, ring and pro_logic; no Godot
 "$godot" --path RetroXR --resolution 900x900 --position 20,20 \
   res://Tools/models/speaker_render_probe.tscn -- --out=<dir>
 "$godot" --path RetroXR --resolution 1320x600 --position 20,20 \
@@ -436,6 +436,121 @@ while silent.
 python Tools/surround_output_check.py                      # 3.1, 5.1, 7.1, no core
 python Tools/surround_output_check.py --mode 5.1 --rom <a ROM>   # + a real core, held
 ```
+
+### 2r′. The surround amplifier — a line in, a decoder switch, six outputs
+
+`SurroundAmp` (`Scenes/Objects/appliances/surround_amp.tscn`, spawn row "Surround
+Amp") is a receiver of the Pro Logic II years as a primitive: 430 x 150 x 340 mm (a
+Harman DCR 600 II is 440 x 165 x 435), a display window across the middle of the face,
+SURROUND MODE under it, a VOLUME knob on the right, no power key because there is no
+power state to model. The back carries AUDIO IN L/R and SPEAKERS FL FR C SUB SL SR,
+copied off the television's SPEAKERS row — same Rx(180) basis, same 18 mm pitch, same
+`TvPanel.SPEAKER_WORDS` — under two AvLegend plates, AUDIO IN and SPEAKERS.
+
+**It has almost no audio code, for the reason the set has none.** The source decodes
+its own stereo; the amplifier answers "decode", "with this decoder", and "here is where
+the six land". The landing is the set's SPEAKERS-row logic, lifted out of `TvFit` into
+**`SpeakerRig`** (`FOLD_CHAINS`, `route`, `cabinet_of`) so both share one copy —
+`TvFit.FOLD_GAIN` is kept as an alias because SystemAudio's device matrix and the
+suites read it there.
+
+**Two ways in, both real wiring:**
+- **A machine's own white and red into AUDIO IN.** AvSource files the amplifier as
+  the machine's SOUND sink; `on_av_source_found` pushes the decoder, SURROUND, stereo
+  and the knob's level (0 with no speaker on the back, the set's external-speakers
+  rule). `on_av_source_lost` hands the machine back NOT decoding and on Pro Logic II —
+  RetroSystem loses old sinks before it finds new ones, so a set taking the machine
+  over sets its own mode on top.
+- **A set's FL and FR into AUDIO IN, the set on STEREO OUT** — its line out.
+  `TvFit.decoder()` finds the amplifier on the front pair; `RetroTV.surround_decoder()`
+  answers it on STEREO OUT only, and then the set asks its machines for SURROUND with
+  the amplifier's decoder, answers `get_surround_*` and `has_cabled_speakers` from the
+  amplifier, and multiplies its volume by the amplifier's knob. On the set's own
+  SURROUND its FL/FR carry decoded fronts, and an amplifier fed those passes them to
+  its front pair (`SpeakerRig.cabinet_cone` into the amplifier's
+  `get_speaker_positions`) rather than decoding a decode. The amplifier tells the set
+  when its switch, knob or speakers move (`on_decoder_changed`), found off the cable
+  graph each time; `TvAudio.refresh_decoder` re-tells the machines only when the
+  amplifier or its switch actually changed.
+
+**An amplifier with no speakers is not a cabinet.** `SpeakerRig.cabinet_of` refuses a
+sink with `is_surround_decoder()` and nothing on its back, or a set's channel cabled
+into an empty amplifier would play from the amplifier's box. Asked by a method only an
+amplifier has, so a second television on the far end of a lead answers as it always did.
+
+**A set now pushes only at machines whose SOUND it carries** (`TvAudio.carries_sound`,
+over `audio_route()["tv"]`): volume, speaker switch and decode all skip a machine whose
+sound is in an amplifier. The common wiring — yellow to the set, white and red to the
+amplifier — otherwise had the set undo the amplifier on every plug moved in the room,
+since `apply_volume` runs on any topology change. A machine whose sound reaches nothing
+is still the set's (it changes nothing audible), and a deck, which has no separate sound
+route, still is. The other half: a machine whose sound moves onto a set that was already
+its PICTURE sink is never "found" again, so `_apply_av_feed` calls
+`on_audio_source_routed` on the new sound sink and the set re-pushes. And a set now
+pushes its audio-output mode when a machine connects (`on_plug_snapped`, `source_found`):
+it was only ever told on a key press, so a console plugged into a set already on
+SURROUND — or already feeding an amplifier — played stereo until the key was pressed.
+
+**The decoder switch is two matrix decoders, and the int crosses three layers
+unchanged**: `SurroundAmp.DecodeMode` == `SurroundDecoder::Mode` (surround-godot) ==
+what `Libretro.SetSurroundMode` / `AudioHandler::SetSurroundMode` carry; it is also
+saved (`decode_mode`) and sent (`EV_AMP_MODE`, appended), so the list only grows.
+- **PRO LOGIC II** (0, the default and what a set's own SURROUND always is):
+  FreeSurround as before, bit for bit.
+- **DOLBY SURROUND** (1): the first-generation decoder's ONE surround, from both rears
+  — `ProLogicSurround` (header-only, Godot-free) after the 5.1 decode: 100 Hz
+  high-pass, 7 kHz low-pass (2nd-order Butterworth, double state), 20 ms delay line.
+  Frames in == frames out, so the six voices stay level. Dolphin's trimmed
+  FreeSurround has only its 5.1 and 7.1 layouts, so there was no four-channel layout to
+  ask for instead.
+- **The mono surround is HALF THE DIFFERENCE, (SL - SR) / 2 — the sum is the trap.**
+  FreeSurround gives every left-hand output Lt's phase and every right-hand one Rt's,
+  and a Dolby Surround rear is encoded +90 in Lt and -90 in Rt, so a sound from behind
+  decodes as an ANTI-PHASE pair. The first cut summed them and cancelled the surround to
+  -55 dB (0.0009 against 0.50); its tests passed, because they fed the stage IN-phase
+  input it never receives and judged the decoder chain only against a silent front.
+  `pro_logic_test` P6 now compares the staged surround with the 5.1 decode's own level
+  (-0.02 dB) and the band and delay cases feed the anti-phase pair; mutation-tested —
+  the sum fails three cases, a 1 ms delay fails the three delay cases, judged against
+  the spec's 960 frames rather than `DelayFrames()`.
+- `SetSurroundMode` is remembered on the handler and on `SystemAudio` (both re-sent at
+  `bind()`, BEFORE `SetSurroundEnabled`, so the first block is right) and applied live
+  under `m_sink_mutex`, the lock `PushFrames` decodes under. An extension without
+  `set_mode` is asked (`has_method`) and stays on Pro Logic II with a WARN.
+
+**The panel.** The display is a Label3D (unshaded, which a fluorescent display is)
+naming the decoder, dimmed while nothing is on the back. The knob is a VRKnob, so
+ScenePersistence's articulated-control walk already saves and restores it; the save
+branch adds only `decode_mode`.
+
+**The render probe reparenting trap.** `Tools/models/surround_amp_render_probe`
+(windowed, `-- --out=<dir>`) first used the speaker probe's recipe of reparenting the
+subject into a fresh viewport per shot; a snap zone leaving the tree lets go of what it
+holds, so the wired shot showed plugs LYING where they had been seated, and "5 of 5
+seated" had been counted before the move. It now builds everything inside one
+own-world viewport and moves only the camera. And a frozen plug reads as held
+(`RcaPlug.is_held`), so a socket refuses it — park far ends frozen only after seating.
+
+```bash
+"$godot" --headless --path RetroXR res://Tests/speaker_tests.tscn -- --only=amp/
+cd surround-godot && python tests/run_tests.py --only pro_logic
+"$godot" --path RetroXR --resolution 1400x900 --position 20,20 \
+  res://Tools/models/surround_amp_render_probe.tscn -- --out=<dir>
+```
+
+`speaker_tests` `amp/` is 10 cases, 99 checks, each mutation-tested: the set pushing at a
+machine whose sound is elsewhere, an empty amplifier counted as a cabinet, a set that
+never finds its amplifier, a lost machine left decoding, and a switch that never reaches
+the machine each fail exactly the case that names them. `amp/the switch drives the
+decoder's two modes` decodes through the real extension (anti-phase rears on Pro Logic
+II, identical and non-silent on Dolby Surround).
+
+**Still owed for the amplifier.** Nobody has LISTENED to Dolby Surround mode, nor run a
+real core through the amplifier — the binding is proven by a decode through the
+extension, the routing by the suite, the look by the probe. A Quest build, netplay with
+two peers pressing the switch, and a deck (the VCR/DVD play wherever their PICTURE is —
+`connected_tv` is the primary sink cast to RetroTV — so a deck's sound cannot reach an
+amplifier or a speaker pair at all; that predates the amplifier).
 
 **Still owed.**
 - **Nobody has LISTENED to the device road either**, on any PC's real speakers: the

@@ -524,6 +524,9 @@ func _build() -> void:
 		# a socket on the back of the set with a speaker lead.
 		["Loudspeaker",    "loudspeaker"],
 		["Subwoofer",      "subwoofer"],
+		# Takes a stereo pair in — a machine's own cords, or a set's FL and FR on
+		# STEREO OUT — and drives the six with Pro Logic II or Dolby Surround.
+		["Surround Amp",   "surround_amp"],
 		# Floor stands, so a satellite is at ear height instead of on the carpet.
 		# The height named is to the plate a cabinet stands on.
 		["Speaker Stand 1.2m", "speaker_stand_120"],

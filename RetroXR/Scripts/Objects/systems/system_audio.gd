@@ -54,6 +54,12 @@ var _channel_mode: int = 0
 ## reason as the mono switch: a core started later has to come up on it.
 var _audio_out: int = 0
 
+## Which matrix decoder the six come out of — SurroundAmp.DecodeMode, 0 Pro Logic
+## II (what a set's own SURROUND always is), 1 Dolby Surround. Remembered for the
+## same reason again, and handed over BEFORE surround is engaged so the first block
+## decoded is already the right one.
+var _surround_mode: int = 0
+
 ## Whether the extension really engaged the decoder. Asking for surround is not
 ## the same as getting it: the mixer can be out of voices, the decoder extension
 ## can be absent, and the fallback backend has no voices to place at all — in
@@ -152,6 +158,24 @@ func set_audio_out_mode(mode: int) -> bool:
 	return _surround
 
 
+## Part of the sink contract: which decoder an amplifier is switched to. Nothing
+## about the voices changes — the same six, placed the same way — only what the
+## decoder writes into the two rears, so this is one call through and no re-place.
+func set_surround_mode(mode: int) -> void:
+	if mode == _surround_mode:
+		return
+	_surround_mode = mode
+	var node: Libretro = _host.get_libretro_node()
+	if node != null:
+		node.SetSurroundMode(_surround_mode)
+	print("[SystemAudio] %s: surround decoder -> %s" % [_log_label(),
+		SurroundAmp.DECODE_NAMES[clampi(mode, 0, SurroundAmp.DECODE_NAMES.size() - 1)]])
+
+
+func surround_mode() -> int:
+	return _surround_mode
+
+
 func _apply_audio_out() -> void:
 	var node: Libretro = _host.get_libretro_node()
 	if node == null:
@@ -198,6 +222,7 @@ func bind() -> void:
 	# and a set left on surround, likewise. Before GetAudioVoiceIds, because that
 	# is what decides whether the list is two ids or six.
 	_host.get_libretro_node().SetAudioChannelMode(_channel_mode)
+	_host.get_libretro_node().SetSurroundMode(_surround_mode)
 	_surround = _host.get_libretro_node().SetSurroundEnabled(
 		_audio_out == RetroTV.AudioOut.SURROUND)
 	_forget_discrete()
