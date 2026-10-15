@@ -309,6 +309,9 @@ func _ready() -> void:
 	_desktop = OS.get_name() != "Android"
 	Engine.max_physics_steps_per_frame = MAX_PHYSICS_STEPS
 	_read_vrs_overrides()
+	# Per-second pacing of every running machine, for a lag measured in the room.
+	if OS.has_environment("XENU_PACE_TRACE"):
+		add_child(load("res://Scripts/Objects/systems/pace_trace.gd").new())
 	# The old full-frame readback needed a 30-frame Quest throttle. The new path
 	# transfers only an older, completed 12x8 pass, so both renderers use this cadence.
 	screen_light_interval = 6

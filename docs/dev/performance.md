@@ -138,3 +138,15 @@ were identical in all 209 cases; packed-region and OSD GPU assertions passed
 1,350 checks. Removing packed-region bounds deliberately failed eight
 checks. Fast/full images differ by design: the fast tier omits full glass,
 grain and glow. A four-second full/fast animation was also inspected.
+
+## Pacing trace in the room
+
+`XENU_PACE_TRACE=1` in the environment adds `Scripts/Objects/systems/pace_trace.gd`
+(via `QualityManager`) and prints a `[PaceTrace]` line a second, also written
+line-flushed to `user://logs/pace_trace.log` so it can be read while the session runs:
+the room's fps, main-thread process ms and mixer underruns, then per running machine
+its fps, ms inside `retro_run` (and the worst call), ms asleep on the audio brake, ms
+parked on a link bus (`XENU_LINK_WAIT_DIAGNOSTICS=1`, else 0), link advance calls and
+how many parked, peers, and the front voice's queue floor..ceiling. A machine that is
+slow runs long and parks little; one waiting on another parks for most of it. Off,
+nothing is added. `ps2-ilink.md` has the worked example.

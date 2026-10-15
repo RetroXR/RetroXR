@@ -187,3 +187,68 @@ One fix came out of the first run: `RetroSystem.net_refresh_link_cables()` rejoi
 touching a console after its core starts or stops, and on a hub that is every spoke
 of one bus — three part/join pairs, six resets, per power switch. `ILinkBus.rejoin`
 now rejoins a bus once per frame however many leads ask (`link_tests` counts it).
+
+## Switched on one after the other (2026-10-15)
+
+Two consoles on one lead, one switched on while the other was off: when the second
+came on, the FIRST froze -- at 10 fps for about 19 s on Time Crisis II, and for good
+whenever the second never starts an i.LINK driver (BIOS browser, a game without one).
+Every core release had it; the old v3 froze identically.
+
+`LinkCoordinator` holds every member of a wire at the instant a newcomer joined until
+the newcomer first calls `advance` (`CeilingLocked`: an attached peer that has not
+published bounds the others at their origin). The core attaches at load, but met the
+cable only from its IOP event, which the boot's `psxReset` wiped and nothing re-armed
+until the game's driver touched the controller. Fork commit `3093f618f`: `psxHwReset`
+ends in `FWiopReset`, so a console on a cable meets it from power-on. The frontend's
+rule is unchanged and right; any other core that attaches before its guest drives the
+port has to publish from attach for the same reason.
+
+`Tools/link/ilink_power_on_probe` (windowed, scratch home with `probe_home.txt`,
+`--rom=`, `--rom2=` for B, `--delay=`, `--out=` for a line-flushed log, a watchdog
+for a stuck main thread) is the check: unfixed core with B on Ace Combat 04, A parks
+at 10 fps for the whole run; fixed, both 60. It flags FROZEN only for a console with
+no frames for 5 s, which a parked one is not (it keeps ~10): read the fps.
+
+## The heavy scenes took turns (2026-10-15)
+
+Time Crisis II linked fell from 60 to 36 fps where the second area starts and stayed
+there, the sound broken up. Even after v2, the consoles took turns in heavy scenes. A
+PS2 does a frame's work in a burst after vsync and spins out the rest almost for free;
+two consoles switched on apart have their vsyncs anywhere against each other
+(measured 50% and 91% of a frame in), so one's burst runs while the other spins to the
+edge of its 0.25 ms stretch and waits. With ~15 ms of work a frame each that is 30 ms
+a frame. MTVU (`pcsx2_mtvu`, off by default on x86) trimmed the work ~10% and changed
+nothing else.
+
+Fork commit `a04020112`: after every anchor a console measures where its next frame
+starts on the cable (`FWvsync`, from `VSyncStart`) and skips its controller's clock on
+by the rest of a frame (`fw_skip`), carrying its own timers with it. The skip is asked
+for and granted like any stretch. Same spot, two consoles, MTVU on, worst ten seconds:
+
+| | fps | parked | own work a frame | packet latency |
+|---|---|---|---|---|
+| promise 0.5 ms, unaligned | 36-38 | ~43% | 15 ms | 0.5 ms |
+| `LRPS2_ILINK_AHEAD_US=8000` | 51-53 | ~27% | 13-15 ms | 8 ms |
+| promise 0.5 ms, aligned | 48, then 58-60 within ~40 s | <10% | 19 ms | 0.5 ms |
+
+Aligned, nothing waits and nothing crosses later; what is left is the host doing two
+heavy frames at once (own work rising 14 -> 19 ms on a laptop Ryzen AI 9 465 that also
+draws the room uncapped). `LRPS2_ILINK_ALIGN=0` is the control leg (logs the phase,
+moves nothing), `LRPS2_ILINK_PHASE=1` logs it every 600 frames -- its readings drift by
+a few thousand ticks because it divides by the last frame interval, so only the first
+few hundred frames after a skip say much.
+
+How it was measured, and what to reach for next time:
+- `XENU_PACE_TRACE=1` (`performance.md`) with `XENU_LINK_WAIT_DIAGNOSTICS=1` in the
+  room, played by a person: per console and second, fps, `retro_run`, brake sleep and
+  parked time. Own work a frame is (run - parked) / fps; when fps follows
+  1000 / (sum of the consoles' own work), they are taking turns.
+- A game launched from the editor inherits the EDITOR's environment, so the switches go
+  on a game started from a shell. Claude Code's background-shell memory sweep killed
+  one such session; `cmd /c start` detaches it.
+- Not yet released: `CoreSources` still names v2 as `known_tag`, the download is
+  `/releases/latest/`, and the re-cut v3 (`e727b89da`, the GS heap fix on v2) has
+  neither commit. GT3, three or more consoles and the other platforms are unmeasured
+  with alignment; two early probe runs of it died silently as B started and five since
+  have not.
