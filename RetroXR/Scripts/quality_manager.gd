@@ -294,6 +294,13 @@ var crt_fast: bool = false
 ## Desktop window state. Empty resolution means "leave the window where it is".
 var window_mode: String = ""
 var resolution: String = ""
+## The most frames a second the desktop room is drawn at; 0 is no cap beyond the
+## display's vsync. The consoles run on their own threads, so a lower cap is CPU
+## and GPU handed to them: two cabled PlayStation 2s in a heavy scene share the
+## fast cores with the room (ps2-ilink.md). Never applied under a headset, whose
+## runtime paces the frames (apply_frame_cap).
+var frame_cap: int = 0
+const FRAME_CAPS: Array[int] = [0, 30, 60, 90, 120, 144]
 
 var _desktop: bool
 ## Resolved by detect_device(), which cannot run in _ready(): XR_META_headset_id
@@ -1294,6 +1301,25 @@ func set_window_state(mode: String, res: String) -> void:
 	save_prefs()
 
 
+func set_frame_cap(fps: int) -> void:
+	frame_cap = maxi(fps, 0)
+	apply_frame_cap()
+	save_prefs()
+
+
+## Engine.max_fps, on the desktop only. Under OpenXR the runtime paces every
+## frame and a cap below its rate would drop frames the headset then has to
+## reproject, so a headset session always runs uncapped, whatever was saved.
+## Applied when the menu restores the desktop window, which is the first moment
+## the room knows which of the two it is.
+## The OpenXR test is written out rather than asked of MenuStyle: this autoload
+## compiles before the UI classes, and naming one here made a dependency cycle
+## that left half the project's classes unresolvable at boot.
+func apply_frame_cap() -> void:
+	var xr := XRServer.find_interface("OpenXR")
+	Engine.max_fps = 0 if xr != null and xr.is_initialized() else frame_cap
+
+
 func set_msaa(mode: int) -> void:
 	msaa_3d = clampi(mode, Viewport.MSAA_DISABLED, Viewport.MSAA_8X)
 	apply_msaa()
@@ -1515,6 +1541,7 @@ func _load_prefs() -> void:
 		AOQuality.OFF, AOQuality.HIGH) as AOQuality
 	window_mode = str(data.get("window_mode", window_mode))
 	resolution = str(data.get("resolution", resolution))
+	frame_cap = maxi(JsonStore.get_int(data, "frame_cap", frame_cap), 0)
 	# Forced to 1.0 on the mobile backend, so a value saved on desktop and synced
 	# to a headset cannot bring the broken path back with it. On Forward+ it is
 	# kept even when this session is PCVR and cannot use it:
@@ -1553,6 +1580,7 @@ func save_prefs() -> void:
 		"preset": int(preset),
 		"window_mode": window_mode,
 		"resolution": resolution,
+		"frame_cap": frame_cap,
 		"shadow_quality": int(shadow_quality),
 		"ao_quality": int(ao_quality),
 		"render_scale": render_scale,

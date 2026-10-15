@@ -109,6 +109,7 @@ static func resolution_options() -> Array:
 ## pushed — an autoload's _ready runs long before this menu exists to hear a
 ## signal. Static because the menu restores the window before it builds any view.
 static func restore_window_state() -> void:
+	QualityManager.apply_frame_cap()
 	if MenuStyle.is_vr_mode():
 		return
 	if not QualityManager.window_mode.is_empty():
@@ -148,6 +149,20 @@ func _build(vr_mode: bool) -> void:
 			apply_resolution(str(id))
 			QualityManager.set_window_state("", str(id)))
 		vbox.add_child(res_opt)
+
+		var cap_opts: Array = []
+		for fps: int in QualityManager.FRAME_CAPS:
+			cap_opts.append(["Off" if fps == 0 else "%d fps" % fps, fps])
+		var cap_opt := VRDropdown.create("Frame Rate Cap", cap_opts,
+			QualityManager.frame_cap, cap_opts.size(), Vector2(110, 52), 20)
+		cap_opt.item_selected.connect(func(id: Variant) -> void:
+			QualityManager.set_frame_cap(int(id)))
+		vbox.add_child(cap_opt)
+
+		vbox.add_child(MenuStyle.hint("The most frames a second the room is drawn at. Off "
+			+ "leaves only the display's refresh. The consoles keep their own speed either way, "
+			+ "so a lower cap is CPU and GPU handed to them: two linked PlayStation 2s in a "
+			+ "heavy scene need every fast core they can get."))
 
 		vbox.add_child(HSeparator.new())
 

@@ -49,6 +49,7 @@ func _ready() -> void:
 	_group_art_lookup()
 	await _group_idle()
 	await _group_tiles()
+	_group_frame_cap()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -73,6 +74,52 @@ func _ok(cond: bool, what: String, detail := "") -> void:
 
 func _eq(got: Variant, want: Variant, what: String) -> void:
 	_ok(got == want, what, "got %s, want %s" % [got, want])
+
+
+## The GRAPHICS tab's desktop frame cap: offered on the desktop and nowhere else,
+## and picking it caps the engine and survives a launch. graphics_prefs.json is
+## the player's own, so it is put back byte for byte.
+func _group_frame_cap() -> void:
+	var prefs := ProjectSettings.globalize_path(QualityManager.PREFS_PATH)
+	var had := FileAccess.file_exists(prefs)
+	var before := FileAccess.get_file_as_bytes(prefs) if had else PackedByteArray()
+	var was_cap := QualityManager.frame_cap
+	var was_max := Engine.max_fps
+
+	var desk := SpawnMenuGraphicsView.create(false)
+	var cap := _dropdown(desk, "Frame Rate Cap")
+	_ok(cap != null, "frame_cap/the desktop GRAPHICS tab offers a frame cap")
+	if cap != null:
+		_eq(cap.get_selected_id(), QualityManager.frame_cap, "frame_cap/it opens on the saved cap")
+		cap.item_selected.emit(60)
+		_eq(Engine.max_fps, 60, "frame_cap/picking 60 caps the engine at 60")
+		var saved: Variant = JSON.parse_string(FileAccess.get_file_as_string(prefs))
+		_eq(int((saved as Dictionary).get("frame_cap", -1)) if saved is Dictionary else -1, 60,
+			"frame_cap/and it is saved with the other graphics settings")
+		cap.item_selected.emit(0)
+		_eq(Engine.max_fps, 0, "frame_cap/Off takes the cap away")
+	desk.free()
+
+	var vr := SpawnMenuGraphicsView.create(true)
+	_ok(_dropdown(vr, "Frame Rate Cap") == null, "frame_cap/a headset's GRAPHICS tab has no frame cap")
+	vr.free()
+
+	QualityManager.frame_cap = was_cap
+	Engine.max_fps = was_max
+	if had:
+		var f := FileAccess.open(prefs, FileAccess.WRITE)
+		f.store_buffer(before)
+		f.close()
+	elif FileAccess.file_exists(prefs):
+		DirAccess.remove_absolute(prefs)
+
+
+func _dropdown(root: Node, title: String) -> VRDropdown:
+	for node: Node in root.find_children("*", "VRDropdown", true, false):
+		var dd := node as VRDropdown
+		if dd._label != null and dd._label.text == title:
+			return dd
+	return null
 
 
 ## Build only the actual TVs tab, without the menu's rendered viewport.

@@ -150,3 +150,14 @@ parked on a link bus (`XENU_LINK_WAIT_DIAGNOSTICS=1`, else 0), link advance call
 how many parked, peers, and the front voice's queue floor..ceiling. A machine that is
 slow runs long and parks little; one waiting on another parks for most of it. Off,
 nothing is added. `ps2-ilink.md` has the worked example.
+
+## Desktop frame rate cap
+
+GRAPHICS > DISPLAY > Frame Rate Cap (desktop only; Off, 30-144) is
+`QualityManager.frame_cap`, saved in `graphics_prefs.json` and applied as
+`Engine.max_fps` when the menu restores the desktop window. A headset always runs
+uncapped (`apply_frame_cap` checks OpenXR itself: naming `MenuStyle` from that
+autoload made a class cycle that broke 13 suites). The desktop room otherwise draws
+at the panel's refresh, about 100-120 fps on the laptop in `ps2-ilink.md`, on the same
+fast cores the consoles need; what a cap buys them there is not yet measured.
+`spawn_menu_tests --only=frame_cap`.
