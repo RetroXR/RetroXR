@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ProLogicSurround.hpp"
+
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
 #include <godot_cpp/variant/packed_vector2_array.hpp>
@@ -32,6 +34,18 @@ public:
         CH_SL,
         CH_SR,
         CH_COUNT
+    };
+
+    /// Which decoder the six channels come out of. Pro Logic II is FreeSurround's
+    /// own and the default; Dolby Surround is the first-generation decoder, its
+    /// one band-limited, delayed surround played from both rears (see
+    /// ProLogicSurround). The int crosses into GDScript and a save file names it
+    /// through the amplifier's switch, so this list only grows at the end.
+    enum Mode
+    {
+        MODE_PRO_LOGIC_II = 0,
+        MODE_DOLBY_SURROUND,
+        MODE_COUNT
     };
 
     /// Both defined out of line: unique_ptr needs DPL2FSDecoder complete to
@@ -67,6 +81,12 @@ public:
     /// a stale tail.
     void Flush();
 
+    /// Switch decoders. Out-of-range values are refused and leave the mode as
+    /// it was. Entering Dolby Surround starts its surround stage empty, so the
+    /// first 20 ms after the switch are silent in the rears.
+    void SetMode(int mode);
+    int GetMode() const { return m_mode; }
+
     void SetCircularWrap(float v);
     void SetShift(float v);
     void SetDepth(float v);
@@ -100,8 +120,12 @@ private:
     std::vector<float> m_pending;
 
     godot::PackedFloat32Array m_out[CH_COUNT];
+
+    int m_mode = MODE_PRO_LOGIC_II;
+    ProLogicSurround m_pro_logic;
 };
 
 } // namespace Xenu
 
 VARIANT_ENUM_CAST(Xenu::SurroundDecoder::Channel);
+VARIANT_ENUM_CAST(Xenu::SurroundDecoder::Mode);

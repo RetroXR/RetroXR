@@ -69,6 +69,7 @@ bool SurroundDecoder::Configure(int block_frames, int sample_rate)
     for (auto &ch : m_out)
         ch.resize(0);
 
+    m_pro_logic.Configure(sample_rate);
     return true;
 }
 
@@ -139,6 +140,12 @@ Array SurroundDecoder::Decode(const PackedVector2Array &frames)
         produced += m_block;
     }
 
+    // After the remap rather than inside it: the stage runs over the whole batch
+    // with one delay line, so a surround sound straddling two blocks is delayed
+    // continuously across the seam.
+    if (m_mode == MODE_DOLBY_SURROUND && produced > 0)
+        m_pro_logic.Process(dst[CH_SL], dst[CH_SR], static_cast<size_t>(produced));
+
     m_pending.erase(m_pending.begin(), m_pending.begin() + static_cast<size_t>(blocks) * stride);
     return PackOutput(produced);
 }
@@ -192,6 +199,22 @@ void SurroundDecoder::Flush()
     m_pending.clear();
     if (m_fs != nullptr)
         m_fs->flush();
+    m_pro_logic.Reset();
+}
+
+void SurroundDecoder::SetMode(int mode)
+{
+    if (mode < 0 || mode >= MODE_COUNT)
+    {
+        UtilityFunctions::push_error("SurroundDecoder: no decoder mode ", mode);
+        return;
+    }
+    if (mode == m_mode)
+        return;
+    m_mode = mode;
+    // Entering the old decoder's surround from a stereo pair of rears must not
+    // play out whatever the delay line held the last time it was in use.
+    m_pro_logic.Reset();
 }
 
 void SurroundDecoder::SetCircularWrap(float v)
@@ -255,6 +278,8 @@ void SurroundDecoder::_bind_methods()
     ClassDB::bind_method(D_METHOD("decode", "frames"), &SurroundDecoder::Decode);
     ClassDB::bind_method(D_METHOD("deinterleave", "frames", "channels"), &SurroundDecoder::Deinterleave);
     ClassDB::bind_method(D_METHOD("flush"), &SurroundDecoder::Flush);
+    ClassDB::bind_method(D_METHOD("set_mode", "mode"), &SurroundDecoder::SetMode);
+    ClassDB::bind_method(D_METHOD("get_mode"), &SurroundDecoder::GetMode);
 
     ClassDB::bind_method(D_METHOD("set_circular_wrap", "degrees"), &SurroundDecoder::SetCircularWrap);
     ClassDB::bind_method(D_METHOD("set_shift", "v"), &SurroundDecoder::SetShift);
@@ -274,6 +299,10 @@ void SurroundDecoder::_bind_methods()
     BIND_ENUM_CONSTANT(CH_SL);
     BIND_ENUM_CONSTANT(CH_SR);
     BIND_ENUM_CONSTANT(CH_COUNT);
+
+    BIND_ENUM_CONSTANT(MODE_PRO_LOGIC_II);
+    BIND_ENUM_CONSTANT(MODE_DOLBY_SURROUND);
+    BIND_ENUM_CONSTANT(MODE_COUNT);
 }
 
 } // namespace Xenu

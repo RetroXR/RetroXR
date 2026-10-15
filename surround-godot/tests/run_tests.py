@@ -26,6 +26,7 @@ VENDOR = os.path.join(ROOT, "external", "freesurround")
 TESTS = {
     "discrete_ring_test.cpp": [],
     "matrix_decode_test.cpp": sorted(glob.glob(os.path.join(VENDOR, "source", "*.cpp"))),
+    "pro_logic_test.cpp": sorted(glob.glob(os.path.join(VENDOR, "source", "*.cpp"))),
 }
 
 INCLUDES = [os.path.join(VENDOR, "include"), os.path.join(ROOT, "src")]

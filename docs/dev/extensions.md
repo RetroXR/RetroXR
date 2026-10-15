@@ -107,7 +107,7 @@ deploying to `RetroXR/<name>/`). Build each **from its own directory** (each has
   See §2r.
   ```bash
   cd surround-godot && scons platform=windows arch=x86_64 target=template_debug
-  cd surround-godot && python tests/run_tests.py     # 24 assertions, no Godot needed
+  cd surround-godot && python tests/run_tests.py     # matrix, ring and pro_logic; no Godot needed
   ```
 
 - **metaxr-audio's objects must be out of the AudioServer before this extension
