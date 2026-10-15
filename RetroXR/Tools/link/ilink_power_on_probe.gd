@@ -11,7 +11,9 @@
 ## bus says; a console that is on and has not finished a frame for 5 s is
 ## reported FROZEN and the run exits 1. `--nocable` is the control leg.
 ## `--rom2` gives B a game of its own: one that never starts an i.LINK driver
-## is the case that held the first console for good.
+## is the case that held the first console for good. `--state=<s>` saves A's
+## state that many seconds in and loads it straight back, which is the i.LINK
+## controller's freeze block (FW.cpp fwFreeze) both ways: A has to go on.
 ##
 ## Windowed: pcsx2 renders on the GPU. The data root's memory cards and core
 ## files are written, so this refuses to run without probe_home.txt there.
@@ -31,6 +33,8 @@ var _rom2 := ""
 var _delay := 20.0
 var _seconds := 60.0
 var _nocable := false
+var _state_at := -1.0
+var _state_done := false
 var _sys: Array[Node3D] = []
 var _out_path := "user://ilink_power_on_probe.txt"
 var _out: FileAccess = null
@@ -56,6 +60,8 @@ func _ready() -> void:
 			_seconds = float(s.substr(10))
 		elif s == "--nocable":
 			_nocable = true
+		elif s.begins_with("--state="):
+			_state_at = float(s.substr(8))
 		elif s.begins_with("--out="):
 			_out_path = s.substr(6)
 	_out = FileAccess.open(_out_path, FileAccess.WRITE)
@@ -152,6 +158,9 @@ func _run() -> int:
 				_say("[probe] FROZEN %s at frame %d, %.1f s after its last frame (%.1f s in)" % [
 					NAMES[k], frames[k], (now - moved_at[k]) / 1000.0, now / 1000.0])
 				_report()
+		if _state_at >= 0.0 and not _state_done and now >= int(_state_at * 1000.0):
+			_state_done = true
+			await _round_trip_state()
 		if now >= next_log:
 			next_log += 1000
 			var line := "[probe] t=%5.1f" % (now / 1000.0)
@@ -174,6 +183,21 @@ func _run() -> int:
 		await get_tree().process_frame
 	_say("[probe] RESULT=%s" % ("FROZEN" if frozen else "BOTH RAN"))
 	return 1 if frozen else 0
+
+
+## Save A, load it back, report both answers and the bytes.
+func _round_trip_state() -> void:
+	var lib := _lib(0)
+	lib.RequestSaveState()
+	var saved: Array = await lib.savestate_ready
+	var data: PackedByteArray = saved[0]
+	_say("[probe] STATE saved %d bytes at frame %d" % [data.size(), int(saved[1])])
+	if data.is_empty():
+		_say("[probe] STATE FAILED: nothing saved")
+		return
+	lib.RequestLoadState(data, int(saved[1]))
+	var ok: bool = await lib.savestate_loaded
+	_say("[probe] STATE loaded back: %s" % ("ok" if ok else "FAILED"))
 
 
 func _report() -> void:

@@ -247,8 +247,14 @@ How it was measured, and what to reach for next time:
 - A game launched from the editor inherits the EDITOR's environment, so the switches go
   on a game started from a shell. Claude Code's background-shell memory sweep killed
   one such session; `cmd /c start` detaches it.
-- Not yet released: `CoreSources` still names v2 as `known_tag`, the download is
-  `/releases/latest/`, and the re-cut v3 (`e727b89da`, the GS heap fix on v2) has
-  neither commit. GT3, three or more consoles and the other platforms are unmeasured
-  with alignment; two early probe runs of it died silently as B started and five since
-  have not.
+- Released as `retroxr-pcsx2-libretro-v4` (fork merge `bb21ba39e`: libretro/ps2 master
+  to 3660a1fe8 with both commits on top), which `CoreSources` names. The merge took
+  upstream's Vulkan heap ceiling in place of v3's budget, moved the i.LINK save block
+  onto upstream's C savestate (`SaveStateFreeze.c`, `SaveState_PeekTag`), and kept the
+  fork's `PlaceMainAndCode` over upstream's `AllocateNearModule`, which wants main memory
+  AND the code cache near each image -- more than six images side by side can all
+  have. `ilink_power_on_probe --state=<s>` saves and reloads A on a live cable. Upstream
+  also changed pacing (one frame per `retro_run`, input of the presenting `retro_run`),
+  so the heavy spot is OWED a re-measure on v4. GT3, three or more consoles and the
+  other platforms are unmeasured with alignment; two early probe runs of it died
+  silently as B started and every run since has not.

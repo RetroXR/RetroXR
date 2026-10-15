@@ -151,12 +151,16 @@ const SOURCES := {
 	#
 	# v2 is the one where cabled consoles run together: v1 had them take turns,
 	# which three on one hub could not always do in real time, and the sound of
-	# all three broke up (ps2-ilink.md, "The sound of three consoles").
+	# all three broke up (ps2-ilink.md, "The sound of three consoles"). v3 added
+	# the GS heap fix. v4 is libretro/ps2 master to 3660a1fe8 with the fork on
+	# top: a console switched on first no longer waits for its partner's i.LINK
+	# driver, and cabled consoles line their frames up on the cable, which took
+	# Time Crisis II's linked second area from 36 fps to 48-60 (ps2-ilink.md).
 	#
 	# GPL-3.0, so the tag beside the binary is the source obligation, as Dolphin's.
 	"pcsx2": {
 		"repo":  "RetroXR/ps2",
-		"known_tag": "retroxr-pcsx2-libretro-v2",
+		"known_tag": "retroxr-pcsx2-libretro-v4",
 		"label": "LRPS2 (retroXR build)",
 		"assets": {
 			"Windows": "pcsx2_libretro.dll.zip",
@@ -358,7 +362,7 @@ const SOURCES := {
 	# Beetle Saturn is GPLv2, so the source for these binaries sits on the tag.
 	"mednafen_saturn": {
 		"repo":  "RetroXR/beetle-saturn-libretro",
-		"known_tag": "retroxr-beetle-saturn-libretro-v3",
+		"known_tag": "retroxr-beetle-saturn-libretro-v4",
 		"label": "Beetle Saturn (retroXR build)",
 		"assets": {
 			"Windows": "mednafen_saturn_libretro.dll.zip",
