@@ -114,6 +114,12 @@ jobs:
   quest:
     needs: preflight
     runs-on: windows-latest
+    outputs:
+      # Whether the APK carries the REAL production signature, as opposed to the
+      # committed fallback key. The release job reads it: a fallback-signed APK
+      # may be built and kept as an artifact, never published over the one
+      # players have installed.
+      release_key: ${{ steps.apk.outputs.release_key }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -298,6 +304,7 @@ jobs:
       # limit is six hours. A gradle build that wedges should cost 45 minutes
       # and a readable failure, not an afternoon.
       - name: Export the signed Quest APK
+        id: apk
         timeout-minutes: 45
         shell: bash
         env:
@@ -308,51 +315,67 @@ jobs:
           PUBLISHING: ${{ github.ref_type == 'tag' || inputs.publish }}
         run: |
           set -euo pipefail
-          # --export-release refuses to run with NO keystore at all ("Code
-          # Signing: Could not find release keystore"), so on a run that ships
-          # nothing a throwaway one is minted and used rather than killing the
-          # pipeline. A publishing run may not take that branch: an APK under a
-          # different key will not install over a player's existing one.
-          if [ -z "$KEYSTORE_B64" ] && [ "$PUBLISHING" = true ]; then
-            echo "::error::secret ANDROID_KEYSTORE_BASE64 is unset - a publishing run must sign with the real keystore"
-            exit 1
-          fi
+          # Two keystores, and WHICH one is the difference between an upgrade and
+          # a reinstall. Android keys an install on the signing certificate, so an
+          # APK under a new key cannot install over the one already on the headset
+          # — the player has to uninstall first, and uninstalling takes
+          # /sdcard/Android/data/com.xenu.retroxr with it: ROM library, scraper
+          # cache, bindings, every save. This used to mint a throwaway key per
+          # run, which meant every fallback build was a brand new application.
+          #
+          # So the fallback is a FIXED key, committed at .github/ci/ and public
+          # on purpose: it signs nothing that matters (a real release still
+          # needs the secret), and in exchange a contributor without the secret
+          # keeps updating over their own previous build. See
+          # .github/ci/README.md for the credentials, the fingerprint and how to
+          # regenerate it.
+          #
+          # It still must not PUBLISH: an APK signed here cannot install over a
+          # real release, so the flag below rides to the release job, which cuts
+          # a DRAFT rather than replacing the live assets.
+          release_key=false
           if [ -n "$KEYSTORE_B64" ]; then
             # Never written to the tree: RetroXR/.godot/export_credentials.cfg
             # stays absent and the keystore lives only in the runner temp dir.
             ks=$(cygpath -u "$RUNNER_TEMP")/release.keystore
             echo "$KEYSTORE_B64" | base64 -d > "$ks"
-            GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$(cygpath -w "$ks")
-            export GODOT_ANDROID_KEYSTORE_RELEASE_PATH
+            release_key=true
           else
-            ks=$(cygpath -u "$RUNNER_TEMP")/release.keystore
-            keytool -genkeypair -keystore "$(cygpath -w "$ks")" \
-              -storepass retroxr-ci -keypass retroxr-ci -alias retroxr-ci \
-              -keyalg RSA -keysize 2048 -validity 30 \
-              -dname "CN=RetroXR CI Test, OU=CI, O=RetroXR, C=IT"
-            GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$(cygpath -w "$ks")
-            export GODOT_ANDROID_KEYSTORE_RELEASE_PATH
+            ks=$(cygpath -u "$GITHUB_WORKSPACE")/.github/ci/retroxr-fallback.keystore
+            if [ ! -f "$ks" ]; then
+              echo "::error::neither ANDROID_KEYSTORE_BASE64 nor .github/ci/retroxr-fallback.keystore is available - see .github/ci/README.md"
+              exit 1
+            fi
             GODOT_ANDROID_KEYSTORE_RELEASE_USER=retroxr-ci
             export GODOT_ANDROID_KEYSTORE_RELEASE_USER
             GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD=retroxr-ci
             export GODOT_ANDROID_KEYSTORE_RELEASE_PASSWORD
-            echo "::warning::ANDROID_KEYSTORE_BASE64 is unset - signed with a THROWAWAY CI keystore (fine for a test run, useless for a release)"
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is unset - signed with the committed FALLBACK key, so this build upgrades over your previous fallback build but NOT over a real release"
             # Also land it in the run's Summary tab, where it survives the
-            # scrollback: nobody should mistake this APK for a shippable one,
-            # and a fork maintainer should know why their install won't
-            # upgrade over a real release.
+            # scrollback: nobody should mistake this APK for a shippable one, and
+            # a fork maintainer should know why their install won't upgrade over a
+            # real release.
             {
-              echo "### ⚠️ Quest APK signed with a throwaway CI keystore"
+              echo "### ⚠️ Quest APK signed with the fallback key"
               echo ""
-              echo 'Secret `ANDROID_KEYSTORE_BASE64` is unset on this repository, and Godot refuses to run `--export-release` without any keystore.'
-              echo "A one-off keystore was minted for this dispatch: the APK installs cleanly but will **not** upgrade over a real release (signature mismatch)."
+              echo 'Secret `ANDROID_KEYSTORE_BASE64` is unset on this repository, so the APK was signed with `.github/ci/retroxr-fallback.keystore`.'
+              echo "That key is fixed, so this build **does** install over an earlier fallback build with its data intact — it just cannot install over a real release (signature mismatch)."
               echo ""
+              if [ "$PUBLISHING" = true ]; then
+                echo "This run is a **publishing** one, so the release is being cut as a **DRAFT** rather than replacing the live assets."
+              fi
               echo "Set the ANDROID_KEYSTORE_* repo secrets to sign with the real keystore."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+          # One place, both branches: the path is what Godot reads, and the user
+          # and password above already sit in the environment.
+          GODOT_ANDROID_KEYSTORE_RELEASE_PATH=$(cygpath -w "$ks")
+          export GODOT_ANDROID_KEYSTORE_RELEASE_PATH
           mkdir -p build_out
           "$GODOT" --headless --path RetroXR --export-release "Quest" "$PWD/build_out/$APK"
           ls -la "build_out/$APK"
+          # Read by the release job, which is the only thing that can act on it.
+          echo "release_key=$release_key" >> "$GITHUB_OUTPUT"
 
       - name: Check the APK
         shell: bash
@@ -1064,6 +1087,8 @@ jobs:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', needs.preflight.outputs.version_name) }}
           VER: ${{ needs.preflight.outputs.version_name }}
           REPO: ${{ github.repository }}
+          APK_NAME: RetroXR-v${{ needs.preflight.outputs.version_name }}.apk
+          RELEASE_KEY: ${{ needs.quest.outputs.release_key }}
         run: |
           set -euo pipefail
           ls -la dist
@@ -1114,9 +1139,40 @@ jobs:
           # notes.md is a template for a human to fill in, so it is written on
           # creation only. A rerun refreshes the assets and leaves the notes -
           # by then they are usually the real ones.
+          # A fallback-signed APK installs clean on a fresh headset and REFUSES to
+          # install over the release a player already has (signature mismatch), so
+          # it is never allowed to become the asset SideQuest's listing serves. Two
+          # shapes, because the danger differs: a release that does not exist yet
+          # is cut as a DRAFT, and one that does keeps every live asset and simply
+          # skips the APK. Neither fails the run — a missing secret should cost a
+          # publish, not a build. Contributors are not affected either way: their
+          # own fallback-signed APKs carry the same fixed key, so each one installs
+          # over the last.
+          draft=""
+          if [ "$RELEASE_KEY" != "true" ]; then
+            draft="--draft"
+            {
+              echo "### ⚠️ Release published as a DRAFT"
+              echo ""
+              echo "The Quest APK in this run was signed with the committed fallback key"
+              echo "(\`ANDROID_KEYSTORE_BASE64\` is unset), so it cannot install over the"
+              echo "release players already have. Nothing was replaced."
+              echo ""
+              echo "Set the \`ANDROID_KEYSTORE_*\` repository secrets and re-run to publish"
+              echo "for real; the desktop artifacts below are unaffected either way."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           if ! gh release view "$TAG" > /dev/null 2>&1; then
-            gh release create "$TAG" --title "RetroXR $TAG" --notes-file notes.md dist/*
-            echo "::notice::release $TAG created - fill in the notes template"
+            gh release create "$TAG" --title "RetroXR $TAG" --notes-file notes.md $draft dist/*
+            if [ -n "$draft" ]; then
+              echo "::warning::release $TAG created as a DRAFT (fallback-signed APK)"
+            else
+              echo "::notice::release $TAG created - fill in the notes template"
+            fi
+          elif [ -n "$draft" ]; then
+            # The live release keeps its real APK; the fallback-signed one stays
+            # in this run's artifacts, where a human can look at it.
+            echo "::warning::release $TAG already exists - leaving every live asset alone"
           else
             gh release upload "$TAG" dist/* --clobber
             echo "existing release $TAG refreshed, notes left alone"
