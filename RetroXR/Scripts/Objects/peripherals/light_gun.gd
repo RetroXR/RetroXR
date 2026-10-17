@@ -14,7 +14,7 @@ extends XRToolsPickable
 
 
 const CONTROLLER_CABLE_SCENE := preload("res://Scenes/Objects/cables/controller_cable.tscn")
-const RETRO_DEVICE_LIGHTGUN := 7
+const RETRO_DEVICE_LIGHTGUN := 4
 const DPAD_THRESHOLD := 0.35
 
 ## Input thresholds per XRController float input name.
@@ -31,9 +31,17 @@ const DESKTOP_LIGHTGUN_BUTTONS: Dictionary = {
 	"trigger_left":        ControllerBindings.LIGHTGUN_TRIGGER,
 	"RETRO_JOYPAD_A":      ControllerBindings.LIGHTGUN_AUX_A,
 	"RETRO_JOYPAD_B":      ControllerBindings.LIGHTGUN_AUX_B,
+	"RETRO_JOYPAD_X":      ControllerBindings.LIGHTGUN_AUX_C,
+	"RETRO_JOYPAD_Y":      ControllerBindings.LIGHTGUN_RELOAD,
 	"RETRO_JOYPAD_START":  ControllerBindings.LIGHTGUN_START,
 	"RETRO_JOYPAD_SELECT": ControllerBindings.LIGHTGUN_SELECT,
 }
+
+## The lightgun d-pad, in the order _stick_dpad() reads the stick.
+const DPAD_IDS: Array[int] = [
+	ControllerBindings.LIGHTGUN_DPAD_UP, ControllerBindings.LIGHTGUN_DPAD_DOWN,
+	ControllerBindings.LIGHTGUN_DPAD_LEFT, ControllerBindings.LIGHTGUN_DPAD_RIGHT,
+]
 
 ## Set true so desktop_pickup.gd uses FPS-snap positioning instead of ray-hold.
 var desktop_fps_snap: bool = true
@@ -514,10 +522,8 @@ func _process(_delta: float) -> void:
 		for lid: int in pressed:
 			_set_button(libretro, lid, false)
 		if _lightgun_map.get("stick", "none") == "dpad":
-			_set_button(libretro, 8, false)
-			_set_button(libretro, 9, false)
-			_set_button(libretro, 10, false)
-			_set_button(libretro, 11, false)
+			for lid: int in DPAD_IDS:
+				_set_button(libretro, lid, false)
 		_laser_dot.visible = false
 		return
 
@@ -529,13 +535,17 @@ func _process(_delta: float) -> void:
 
 	# Thumbstick → lightgun d-pad (thresholded).
 	if _lightgun_map.get("stick", "none") == "dpad":
-		var stick: Vector2 = ctrl.get_vector2("primary")
-		_set_button(libretro, 8, stick.y > DPAD_THRESHOLD)
-		_set_button(libretro, 9, stick.y < -DPAD_THRESHOLD)
-		_set_button(libretro, 10, stick.x < -DPAD_THRESHOLD)
-		_set_button(libretro, 11, stick.x > DPAD_THRESHOLD)
+		var dirs := _stick_dpad(ctrl.get_vector2("primary"))
+		for i in DPAD_IDS.size():
+			_set_button(libretro, DPAD_IDS[i], dirs[i])
 
 	_update_aim(libretro)
+
+
+## Which way the thumbstick pushes the d-pad: up, down, left, right, as DPAD_IDS.
+static func _stick_dpad(stick: Vector2) -> Array[bool]:
+	return [stick.y > DPAD_THRESHOLD, stick.y < -DPAD_THRESHOLD,
+		stick.x < -DPAD_THRESHOLD, stick.x > DPAD_THRESHOLD]
 
 
 ## Desktop: read keyboard+mouse, aim from camera centre ray.

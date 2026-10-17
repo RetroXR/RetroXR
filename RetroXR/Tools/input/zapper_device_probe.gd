@@ -17,7 +17,7 @@ var rom := _home + "/retroxr/roms/nes/Duck Hunt (World).nes"
 ## [device id, what it is]
 const CASES: Array = [
 	[-1,  "untouched — whatever the core chose when the game loaded"],
-	[7,   "RETRO_DEVICE_LIGHTGUN — what LightGun announces today"],
+	[4,   "RETRO_DEVICE_LIGHTGUN — what the generic LightGun announces"],
 	[258, "fceumm ZAPPER = SUBCLASS(MOUSE, 0)"],
 	[1,   "AUTO = JOYPAD — game-database auto-detect"],
 	[513, "fceumm GAMEPAD = SUBCLASS(JOYPAD, 1)"],
@@ -145,12 +145,12 @@ func _run() -> void:
 	# RetroSystem.core_device_id, fed the list this very core just declared.
 	var sys: Object = load("res://Scripts/Objects/systems/system.gd").new()
 	sys.set("_controller_info", info)
-	var resolved: int = sys.call("core_device_id", 7, 1)
+	var resolved: int = sys.call("core_device_id", 4, 1)
 	print("[zapper] resolver: lightgun on port 2 -> %d %s"
 		% [resolved, "PASS" if resolved == 258 else "FAIL (expected fceumm's Zapper, 258)"])
-	var no_gun: int = sys.call("core_device_id", 7, 3)
+	var no_gun: int = sys.call("core_device_id", 4, 3)
 	print("[zapper] resolver: lightgun on port 4 (no gun declared) -> %d %s"
-		% [no_gun, "PASS" if no_gun == 7 else "FAIL (expected the id to pass through)"])
+		% [no_gun, "PASS" if no_gun == 4 else "FAIL (expected the id to pass through)"])
 	var pad: int = sys.call("core_device_id", 1, 1)
 	print("[zapper] resolver: joypad on port 2 -> %d %s"
 		% [pad, "PASS" if pad == 1 else "FAIL (only a light gun may be translated)"])

@@ -412,7 +412,7 @@ const RETRO_DEVICE_NONE := 0
 const RETRO_DEVICE_JOYPAD := 1
 const RETRO_DEVICE_MOUSE := 2
 const RETRO_DEVICE_KEYBOARD := 3
-const RETRO_DEVICE_LIGHTGUN := 7
+const RETRO_DEVICE_LIGHTGUN := 4
 ## A device id is a base type in the low byte and a core-specific subclass above it.
 const RETRO_DEVICE_MASK := 0xFF
 

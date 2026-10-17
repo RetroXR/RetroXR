@@ -147,10 +147,13 @@ const _STICK_OPTIONS: Array = [
 
 ## Lightgun button target choices: [display_name, button_id].
 const _LIGHTGUN_OPTIONS: Array = [
-	["None",    -1],
-	["Trigger",  2], ["Aux A",   3], ["Aux B",    4], ["Aux C",    5],
-	["Start",    6], ["Select",  7],
-	["D-Up",     8], ["D-Down",  9], ["D-Left",  10], ["D-Right", 11],
+	["None", ControllerBindings.LIGHTGUN_NONE],
+	["Trigger", ControllerBindings.LIGHTGUN_TRIGGER], ["Reload", ControllerBindings.LIGHTGUN_RELOAD],
+	["Aux A", ControllerBindings.LIGHTGUN_AUX_A], ["Aux B", ControllerBindings.LIGHTGUN_AUX_B],
+	["Aux C", ControllerBindings.LIGHTGUN_AUX_C],
+	["Start", ControllerBindings.LIGHTGUN_START], ["Select", ControllerBindings.LIGHTGUN_SELECT],
+	["D-Up", ControllerBindings.LIGHTGUN_DPAD_UP], ["D-Down", ControllerBindings.LIGHTGUN_DPAD_DOWN],
+	["D-Left", ControllerBindings.LIGHTGUN_DPAD_LEFT], ["D-Right", ControllerBindings.LIGHTGUN_DPAD_RIGHT],
 ]
 
 ## Order in which joypad button sources appear in the Controls UI.

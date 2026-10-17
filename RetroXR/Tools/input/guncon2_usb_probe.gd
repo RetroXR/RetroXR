@@ -19,6 +19,17 @@
 ## The core's own "(GunCon2) Attached to USB port" line is logged at INFO, which
 ## the extension does not forward, so the pictures are what there is.
 ##
+## --then=trigger|offscreen|reload calibrates twice (at 30 s, once the calibration
+## screen is up: it comes at about 24 s, and a chord before it is lost) and then
+## presses only that. `trigger` fires at the middle; `offscreen` fires aimed off
+## the glass, which is what an off-screen shot looks like to the game; `reload`
+## sends RELOAD aimed at the middle, which the core turns into an off-screen shot.
+## Each is HELD from then on. Time Crisis II's "Is the gun sight aligned
+## correctly?" screen draws the gun's live cursor: centred for the trigger leg,
+## gone for the offscreen leg. A RELOAD that reaches the core reports the gun at
+## (0, 0) while it is held, so its cursor goes as the offscreen leg's does; one
+## that does not leaves it centred, as the trigger leg's is.
+##
 ## Run WINDOWED: headless hands back a correctly sized frame with nothing in it.
 extends Node
 
@@ -28,6 +39,7 @@ const SHOT_EVERY := 5.0
 var _rom := ""
 var _usb := 1
 var _shots := ""
+var _then := ""
 
 
 func _ready() -> void:
@@ -40,6 +52,8 @@ func _ready() -> void:
 			_rom = s.substr("--ps2-rom=".length())
 		elif s.begins_with("--usb="):
 			_usb = int(s.substr("--usb=".length()))
+		elif s.begins_with("--then="):
+			_then = s.substr("--then=".length())
 		elif s.begins_with("--shots="):
 			_shots = s.substr("--shots=".length())
 			DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(_shots))
@@ -97,30 +111,37 @@ func _run() -> void:
 
 	var t1 := Time.get_ticks_msec()
 	var next_shot := 0.0
-	var next_press := 20.0
+	var next_press := 20.0 if _then.is_empty() else 30.0
 	var press := 0
 	while Time.get_ticks_msec() - t1 < RUN_SECONDS * 1000.0:
 		await get_tree().process_frame
 		var at := (Time.get_ticks_msec() - t1) / 1000.0
 		if _usb > 0:
-			# Aimed at the middle of the picture, on screen.
+			# Aimed at the middle of the picture, on screen -- or, for the offscreen
+			# leg once it is calibrated, off the glass.
 			lib.call("SetLightgunPosition", k, 0, 0)
-			lib.call("SetLightgunIsOffscreen", k, false)
+			lib.call("SetLightgunIsOffscreen", k, _then == "offscreen" and press >= 4)
 			if at >= next_press:
 				# The calibration shot (START + SELECT held together, which is how the
 				# core takes a GunCon 2's calibration), then the TRIGGER, alternately,
 				# each held a moment.
-				var calibrate := press % 4 < 2
-				var down := press % 2 == 0
+				var calibrate := press % 4 < 2 if _then.is_empty() else press < 4
+				var down := press % 2 == 0 or not (calibrate or _then.is_empty())
+				var button := ControllerBindings.LIGHTGUN_RELOAD if _then == "reload" \
+					else ControllerBindings.LIGHTGUN_TRIGGER
 				if calibrate:
 					lib.call("SetLightgunButton", k, ControllerBindings.LIGHTGUN_START, down)
 					lib.call("SetLightgunButton", k, ControllerBindings.LIGHTGUN_SELECT, down)
 				else:
-					lib.call("SetLightgunButton", k, ControllerBindings.LIGHTGUN_TRIGGER, down)
+					lib.call("SetLightgunButton", k, button, down)
 				if down:
-					print("[probe] t=%5.1f  %s" % [at, "calibration shot (START+SELECT)" if calibrate else "TRIGGER"])
+					print("[probe] t=%5.1f  %s" % [at, "calibration shot (START+SELECT)" if calibrate
+						else ControllerBindings.LIGHTGUN_NAMES.get(button, str(button)).to_upper()])
 				press += 1
 				next_press = at + (0.4 if down else 3.0)
+				if not calibrate and not _then.is_empty():
+					next_press = INF   # held to the end
+					print("[probe]          held from here on")
 		if _shots.is_empty() or at < next_shot:
 			continue
 		next_shot = at + SHOT_EVERY
@@ -129,7 +150,8 @@ func _run() -> void:
 			continue
 		var flat := Image.create_from_data(img.get_width(), img.get_height(), false,
 			Image.FORMAT_RGB8, _rgb_bytes(img))
-		flat.save_png("%s/usb%d_%05.1f.png" % [_shots, _usb, at])
+		flat.save_png("%s/usb%d%s_%05.1f.png" % [_shots, _usb,
+			"" if _then.is_empty() else "_" + _then, at])
 	sys.call("toggle_power")
 	var t2 := Time.get_ticks_msec()
 	while Time.get_ticks_msec() - t2 < 5000:

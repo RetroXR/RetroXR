@@ -266,7 +266,11 @@ wipe every desktop player's key map on first launch. It also covers ConsolePadAr
 table a platform's own controller is drawn from — that a control key's index in
 GamepadBindings.TARGET_ORDER really is its RetroPad bit (the trick that lets one
 table serve both the XR and the physical-pad sections), and that every control
-has an anchor and a row. 176 cases, ~12 s.
+has an anchor and a row. `ids/` reads libretro.h out of the libretro-common submodule
+and holds every light gun button, the thumbstick's d-pad and the device ids a
+peripheral announces to the header's numbers (they were hand-numbered once and went
+askew from Aux C on); `calibrate/` holds that the default gun map puts Start and
+Select on two buttons, neither the trigger. 243 cases, ~7 s.
 ```bash
 "$godot" --headless --path RetroXR res://Tests/binding_tests.tscn
 ```

@@ -60,6 +60,35 @@ The core takes a GunCon 2's calibration as START + SELECT held together
 (`usb-guncon2-input.cpp`: frontends read the old LIGHTGUN_PAUSE through Start, so the
 chord stands in for it, and is withheld from the game). The trigger alone does not
 calibrate: a run without the chord sat on the calibration screen. On desktop the
-START and SELECT keys make the chord. **In VR the default light gun map has no
-SELECT** (`ControllerBindings.DEFAULT_LIGHTGUN_MAP`: Start is the stick click, grip
-is unassigned), so a player cannot calibrate without remapping. Open.
+START and SELECT keys make the chord. **In VR it is stick click + grip**: the
+default light gun map (`ControllerBindings.DEFAULT_LIGHTGUN_MAP`) has Start on the
+stick click and Select on the grip. A held gun stays held without the grip, and the
+drop combo is grip + trigger + stick click, so the chord neither fires nor drops it
+(`binding_tests` `calibrate/`). It had no Select at all until 2026-10-17. A player
+whose bindings file was saved before then keeps the grip unassigned until they
+press Reset on the Controls page (a saved map is written whole and shadows the
+defaults).
+
+## The gun's other buttons
+
+The light gun ids are libretro.h's (`binding_tests` `ids/` reads them out of the
+header). Until 2026-10-17 they were numbered by hand straight on from Start, so
+Aux C went as the retired PAUSE (5) and the thumbstick d-pad was one button askew:
+up sent Aux C, down sent up, left sent down, right sent left and nothing sent
+right. The GunCon 2 reads all of them (`usb-guncon2-input.cpp`): Trigger, A, B, C,
+Start, Select, the d-pad and RELOAD.
+
+RELOAD (id 16) is an off-screen shot: the core sends the trigger with the position
+(0, 0). The extension used to answer it with its bit, which an `int16_t` truncates
+to 0, so no core was ever told a reload (`ButtonFromMask`, libretro-godot
+`tests/button_mask_test.cpp`; the joypad's R3, bit 15, came back as -32768 the same
+way). Nothing binds it by default: aiming off the glass and firing does the same.
+The Controls page offers it, and on desktop the pad's Y key is Reload and X is Aux C.
+
+Measured 2026-10-17 with `guncon2_usb_probe --usb=2 --then=trigger|offscreen|reload`
+(calibrate at 30 s, then hold that button to the end). Time Crisis II's "Is the gun
+sight aligned correctly?" screen draws the gun's live cursor: the trigger leg keeps it
+centred, the offscreen leg has none, and RELOAD held at the middle takes it away as
+the offscreen leg does. The same RELOAD leg on the extension before the fix keeps it
+centred. The calibration screen comes up at about 24 s: a chord before it is lost,
+which is why `--then` calibrates at 30.

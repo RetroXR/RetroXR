@@ -414,6 +414,12 @@ When no VR headset is detected, RetroXR falls back to a desktop mode with mouse/
 - Left stick: `T`/`G`/`F`/`H` (up/down/left/right)
 - Right stick: `I`/`K`/`J`/`L` (up/down/left/right)
 
+**Light gun** (while held)
+- Left-click — trigger; aim off the screen and fire to reload
+- The joypad's A and B keys are Aux A and Aux B, X is Aux C and Y is Reload
+- `Enter`=Start, `Shift`=Select (both together calibrate a GunCon 2)
+- `W`/`A`/`S`/`D` — the gun's d-pad
+
 ## Licensing
 
 Copyright (C) 2026 Ryan McClelland.

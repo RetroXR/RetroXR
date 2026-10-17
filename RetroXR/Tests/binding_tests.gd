@@ -69,6 +69,8 @@ func _ready() -> void:
 	_test_xr_identity()
 	_test_json_store()
 	_test_input_latch()
+	_test_lightgun_ids_are_libretros()
+	_test_a_gun_can_calibrate()
 
 	_restore()
 	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -1182,6 +1184,101 @@ func _test_json_store() -> void:
 ## one squeeze crosses its threshold, dips back under it as the hand settles, and
 ## climbs again, which without hysteresis reaches the core as two presses. These
 ## cases are the sequences that used to double.
+## The header the extension is built against: the numbers below are its, and
+## nothing else says so.
+const LIBRETRO_H := "../libretro-godot/external/libretro-common/include/libretro.h"
+
+
+## Every `#define NAME <number>` in libretro.h, name -> number.
+func _libretro_defines() -> Dictionary:
+	var path := ProjectSettings.globalize_path("res://").path_join(LIBRETRO_H)
+	var text := FileAccess.get_file_as_string(path)
+	var out := {}
+	# Some carry a comment after the number: `16 /*Forced off-screen shot*/`.
+	var re := RegEx.create_from_string("(?m)^#define\\s+(RETRO_DEVICE_\\w+)\\s+(\\d+)\\b")
+	for m: RegExMatch in re.search_all(text):
+		out[m.get_string(1)] = int(m.get_string(2))
+	return out
+
+
+## The light gun's buttons and the device ids a peripheral announces are
+## libretro.h's own numbers. They were numbered by hand once, straight on from
+## Start, and from Aux C on came out wrong: Aux C went as the retired PAUSE, the
+## thumbstick d-pad one button askew (up was Aux C, right was nothing), and the
+## gun announced device 7, which is no device, so a core's light-gun subclasses
+## never matched by type and were found by their names or not at all.
+func _test_lightgun_ids_are_libretros() -> void:
+	var h := _libretro_defines()
+	_ok(h.has("RETRO_DEVICE_ID_LIGHTGUN_RELOAD") and h.has("RETRO_DEVICE_LIGHTGUN"),
+		"ids/libretro.h is read (%s)" % LIBRETRO_H)
+	if not h.has("RETRO_DEVICE_ID_LIGHTGUN_RELOAD"):
+		return
+	var ours := {
+		"TRIGGER": ControllerBindings.LIGHTGUN_TRIGGER, "RELOAD": ControllerBindings.LIGHTGUN_RELOAD,
+		"AUX_A": ControllerBindings.LIGHTGUN_AUX_A, "AUX_B": ControllerBindings.LIGHTGUN_AUX_B,
+		"AUX_C": ControllerBindings.LIGHTGUN_AUX_C, "START": ControllerBindings.LIGHTGUN_START,
+		"SELECT": ControllerBindings.LIGHTGUN_SELECT, "DPAD_UP": ControllerBindings.LIGHTGUN_DPAD_UP,
+		"DPAD_DOWN": ControllerBindings.LIGHTGUN_DPAD_DOWN, "DPAD_LEFT": ControllerBindings.LIGHTGUN_DPAD_LEFT,
+		"DPAD_RIGHT": ControllerBindings.LIGHTGUN_DPAD_RIGHT,
+	}
+	for name: String in ours:
+		_eq(ours[name], h.get("RETRO_DEVICE_ID_LIGHTGUN_" + name, -100), "ids/gun %s is libretro's" % name)
+
+	# What the thumbstick sends, pushed each way, is that way's d-pad button.
+	var pushes := {"DPAD_UP": Vector2(0, 1), "DPAD_DOWN": Vector2(0, -1),
+		"DPAD_LEFT": Vector2(-1, 0), "DPAD_RIGHT": Vector2(1, 0)}
+	for dir: String in pushes:
+		var held: Array[bool] = LightGun._stick_dpad(pushes[dir])
+		var sent: Array[int] = []
+		for i in held.size():
+			if held[i]:
+				sent.append(LightGun.DPAD_IDS[i])
+		_eq(sent, [int(h["RETRO_DEVICE_ID_LIGHTGUN_" + dir])] as Array[int],
+			"ids/the stick pushed %s sends exactly libretro's %s" % [dir.trim_prefix("DPAD_").to_lower(), dir])
+
+	# Every button a player can bind it to is one of those, or none -- never a
+	# retired id (PAUSE, 5, is what Aux C used to send).
+	var stray: Array = []
+	for option: Array in ControlsBindingEditor._LIGHTGUN_OPTIONS:
+		if int(option[1]) >= 0 and not ours.values().has(int(option[1])):
+			stray.append(option[0])
+	_eq(stray, [], "ids/every gun button the Controls page offers is a libretro light gun id")
+	_ok(ControlsBindingEditor._LIGHTGUN_OPTIONS.any(func(o: Array) -> bool:
+			return int(o[1]) == int(h["RETRO_DEVICE_ID_LIGHTGUN_RELOAD"])),
+		"ids/and Reload is among them")
+
+	# The device a gun announces, and the base types a console routes by.
+	_eq(LightGun.RETRO_DEVICE_LIGHTGUN, h.get("RETRO_DEVICE_LIGHTGUN", -100), "ids/a gun announces libretro's light gun")
+	var console := {"NONE": RetroSystem.RETRO_DEVICE_NONE, "JOYPAD": RetroSystem.RETRO_DEVICE_JOYPAD,
+		"MOUSE": RetroSystem.RETRO_DEVICE_MOUSE, "KEYBOARD": RetroSystem.RETRO_DEVICE_KEYBOARD,
+		"LIGHTGUN": RetroSystem.RETRO_DEVICE_LIGHTGUN}
+	for name: String in console:
+		_eq(console[name], h.get("RETRO_DEVICE_" + name, -100), "ids/the console's RETRO_DEVICE_%s is libretro's" % name)
+
+
+## A GunCon 2 calibrates on Start and Select held together. In VR the default
+## gun map has to put both on buttons of the hand holding it, and neither on the
+## trigger, so holding the two neither fires nor is the drop combo (grip +
+## trigger + stick click). The first default had no Select at all, so a player
+## could not calibrate.
+func _test_a_gun_can_calibrate() -> void:
+	var m := ControllerBindings.DEFAULT_LIGHTGUN_MAP
+	var start_src := ""
+	var select_src := ""
+	for src: String in m:
+		if src == "stick":
+			continue
+		if int(m[src]) == ControllerBindings.LIGHTGUN_START:
+			start_src = src
+		elif int(m[src]) == ControllerBindings.LIGHTGUN_SELECT:
+			select_src = src
+	_ok(not start_src.is_empty() and not select_src.is_empty(),
+		"calibrate/the default gun map has a Start and a Select", "start %s, select %s" % [start_src, select_src])
+	_ok(start_src != select_src, "calibrate/on two different buttons")
+	_ok(not [start_src, select_src].has("trigger"),
+		"calibrate/neither is the trigger, so holding both is never grip + trigger + stick click")
+
+
 func _test_input_latch() -> void:
 	var l := InputLatch.new()
 

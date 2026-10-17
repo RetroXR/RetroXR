@@ -53,31 +53,40 @@ const JOYPAD_NAMES: Dictionary = {
 }
 
 # ── Lightgun button IDs (RETRO_DEVICE_ID_LIGHTGUN_*) ─────────────────────────
-const LIGHTGUN_NONE      := -1
-const LIGHTGUN_TRIGGER   := 2
-const LIGHTGUN_AUX_A     := 3
-const LIGHTGUN_AUX_B     := 4
-const LIGHTGUN_AUX_C     := 5
-const LIGHTGUN_START     := 6
-const LIGHTGUN_SELECT    := 7
-const LIGHTGUN_DPAD_UP   := 8
-const LIGHTGUN_DPAD_DOWN := 9
-const LIGHTGUN_DPAD_LEFT := 10
-const LIGHTGUN_DPAD_RIGHT := 11
+# Exactly libretro.h's, which are NOT in order: Aux C (8) comes after Select and
+# the d-pad after it. 5 is the retired PAUSE, read by cores as Start; numbering
+# straight on from it sent Aux C as PAUSE and the d-pad one button askew (up was
+# Aux C, right was nothing). These ids are saved in the bindings file and sent
+# over netplay.
+const LIGHTGUN_NONE       := -1
+const LIGHTGUN_TRIGGER    := 2
+const LIGHTGUN_AUX_A      := 3
+const LIGHTGUN_AUX_B      := 4
+const LIGHTGUN_START      := 6
+const LIGHTGUN_SELECT     := 7
+const LIGHTGUN_AUX_C      := 8
+const LIGHTGUN_DPAD_UP    := 9
+const LIGHTGUN_DPAD_DOWN  := 10
+const LIGHTGUN_DPAD_LEFT  := 11
+const LIGHTGUN_DPAD_RIGHT := 12
+## A "forced off-screen shot", for the games that reload that way. Aiming off
+## the glass and firing does the same wherever a core reads IS_OFFSCREEN.
+const LIGHTGUN_RELOAD     := 16
 
 ## Human-readable names for lightgun buttons.
 const LIGHTGUN_NAMES: Dictionary = {
-	-1: "None",
-	2:  "Trigger",
-	3:  "Aux A",
-	4:  "Aux B",
-	5:  "Aux C",
-	6:  "Start",
-	7:  "Select",
-	8:  "D-Up",
-	9:  "D-Down",
-	10: "D-Left",
-	11: "D-Right",
+	LIGHTGUN_NONE:       "None",
+	LIGHTGUN_TRIGGER:    "Trigger",
+	LIGHTGUN_AUX_A:      "Aux A",
+	LIGHTGUN_AUX_B:      "Aux B",
+	LIGHTGUN_AUX_C:      "Aux C",
+	LIGHTGUN_START:      "Start",
+	LIGHTGUN_SELECT:     "Select",
+	LIGHTGUN_RELOAD:     "Reload",
+	LIGHTGUN_DPAD_UP:    "D-Up",
+	LIGHTGUN_DPAD_DOWN:  "D-Down",
+	LIGHTGUN_DPAD_LEFT:  "D-Left",
+	LIGHTGUN_DPAD_RIGHT: "D-Right",
 }
 
 # ── Default mappings ──────────────────────────────────────────────────────────
@@ -121,12 +130,16 @@ const DEFAULT_STICK_MAP: Dictionary = {
 
 ## Default lightgun button map: XRController input name → LIGHTGUN_* id.
 ## -1 = unassigned. "stick" key is special: value is "none" or "dpad" (string).
+##
+## Grip is Select: a held gun stays held without it, and a GunCon 2 calibrates
+## on Start + Select together (stick click + grip), which the drop combo (grip +
+## trigger + stick click) does not take, because that needs the trigger as well.
 const DEFAULT_LIGHTGUN_MAP: Dictionary = {
-	"trigger":       2,      # LIGHTGUN_TRIGGER
-	"ax_button":     3,      # LIGHTGUN_AUX_A
-	"by_button":     4,      # LIGHTGUN_AUX_B
-	"grip":          -1,     # unassigned by default
-	"primary_click": 6,      # LIGHTGUN_START
+	"trigger":       LIGHTGUN_TRIGGER,
+	"ax_button":     LIGHTGUN_AUX_A,
+	"by_button":     LIGHTGUN_AUX_B,
+	"grip":          LIGHTGUN_SELECT,
+	"primary_click": LIGHTGUN_START,
 	"stick":         "dpad", # thumbstick → lightgun d-pad
 }
 

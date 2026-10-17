@@ -63,26 +63,28 @@ const FCEUMM_PORTS: Array = [
 ]
 
 ## A core that subclasses the light gun properly, the way libretro.h intends.
-## 263 = SUBCLASS(LIGHTGUN, 0), 519 = SUBCLASS(LIGHTGUN, 1).
+## 260 = SUBCLASS(LIGHTGUN, 0), 516 = SUBCLASS(LIGHTGUN, 1), as snes9x lists them.
+## (These once read 263 and 519, subclasses of a light gun numbered 7, which
+## matched the game's own wrong id and no core's.)
 const SNES_PORTS: Array = [
 	{"port": 0, "controllers": [
 		{"name": "SNES Joypad", "id": 1}, {"name": "SNES Mouse", "id": 2},
-		{"name": "Super Scope", "id": 263}, {"name": "Justifier", "id": 519}]},
+		{"name": "Super Scope", "id": 260}, {"name": "Justifier", "id": 516}]},
 ]
 
 ## A core declaring both shapes on one port. The base type is the stronger
 ## signal, so it must win however early the name match appears in the list.
 const MIXED_PORTS: Array = [
 	{"port": 0, "controllers": [
-		{"name": "Zapper", "id": 258}, {"name": "Super Scope", "id": 263}]},
+		{"name": "Zapper", "id": 258}, {"name": "Super Scope", "id": 260}]},
 ]
 
 ## A core that offers two guns on a port, both proper light-gun subclasses, and
 ## lists the one a GunCon is NOT first: the shape of a PlayStation core's list.
 const TWO_GUN_PORTS: Array = [
 	{"port": 0, "controllers": [
-		{"name": "PlayStation Controller", "id": 1}, {"name": "Justifier", "id": 263},
-		{"name": "Guncon / G-Con 45", "id": 519}]},
+		{"name": "PlayStation Controller", "id": 1}, {"name": "Justifier", "id": 260},
+		{"name": "Guncon / G-Con 45", "id": 516}]},
 ]
 
 ## Two Saturn cores' lists. They agree on what a 3D Control Pad is called, near
@@ -107,7 +109,7 @@ const DEVICE_NONE := 0
 const DEVICE_JOYPAD := 1
 const DEVICE_MOUSE := 2
 const DEVICE_KEYBOARD := 3
-const DEVICE_LIGHTGUN := 7
+const DEVICE_LIGHTGUN := 4
 
 var _pass := 0
 var _fail := 0
@@ -233,8 +235,8 @@ func _test_core_device_id() -> void:
 	var sys := _system()
 	sys._controller_info = FCEUMM_PORTS
 
-	# The bug this suite exists for: 7 is not a device fceumm knows, and its
-	# switch turns an unknown id into a gamepad. Port 2 (index 1) is where a NES
+	# The bug this suite exists for: the plain light gun is not a device fceumm
+	# knows, and its switch turns an unknown id into a gamepad. Port 2 (index 1) is where a NES
 	# Zapper goes.
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 1), 258, "device/fceumm gun -> Zapper")
 	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 258, "device/fceumm gun on port 1 -> Zapper")
@@ -261,28 +263,28 @@ func _test_core_device_id() -> void:
 
 	# A core that subclasses the light gun properly is taken at its word.
 	sys._controller_info = SNES_PORTS
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 263, "device/subclassed gun wins")
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 260, "device/subclassed gun wins")
 
 	# Base type beats the name, however early the name matches.
 	sys._controller_info = MIXED_PORTS
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 263, "device/base type beats name")
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 260, "device/base type beats name")
 
 	# A gun that is one particular gun says which, and a core that lists several
 	# is told that one. The generic gun still gets the core's first.
 	sys._controller_info = TWO_GUN_PORTS
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 263, "device/generic gun takes the first gun listed")
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["guncon", "g-con"])), 519,
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0), 260, "device/generic gun takes the first gun listed")
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["guncon", "g-con"])), 516,
 		"device/a named gun is announced as the device of its name")
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["JUSTIFIER"])), 263,
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["JUSTIFIER"])), 260,
 		"device/a name is matched whatever its case")
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["zapper"])), 263,
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["zapper"])), 260,
 		"device/a name the core does not list falls back to the first gun")
 	# Names are tried in the order given, each through the whole list.
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["guncon 2", "guncon"])), 519,
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["guncon 2", "guncon"])), 516,
 		"device/a second name is tried when the core lists nothing of the first")
-	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["g-con", "justifier"])), 519,
+	_eq(sys.core_device_id(DEVICE_LIGHTGUN, 0, PackedStringArray(["g-con", "justifier"])), 516,
 		"device/an earlier name wins over a device listed earlier")
-	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, PackedStringArray(["guncon"])), 519,
+	_eq(sys.core_device_id(DEVICE_JOYPAD, 0, PackedStringArray(["guncon"])), 516,
 		"device/a name is looked up whatever type carries it")
 	# A pad that is more than a plain joypad names itself the same way, and each
 	# core is told its own id for it.
