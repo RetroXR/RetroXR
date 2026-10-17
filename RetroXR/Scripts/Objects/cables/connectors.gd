@@ -50,6 +50,7 @@ const LABELS := {
 	"playstation_controller": "a PlayStation controller plug",
 	"de9_controller": "a DE-9 joystick plug",
 	"wii_extension": "a Wii Remote extension plug",
+	"usb_a": "a USB-A plug",
 	"wii_sensorbar_plug": "a sensor bar plug",
 	"nema_5_15_plug": "a grounded US wall plug",
 	"nema_1_15_plug": "a two-prong US wall plug",
@@ -123,6 +124,15 @@ const GAME_LEADS := {
 	"wii_av_plug": {"spawn": "wii_av_cable", "label": "AV Cable"},
 	"dc_av_plug": {"spawn": "dc_av_cable", "label": "Stereo AV Cable"},
 }
+
+## A USB-A socket and plug, the standard's own: the PlayStation 2's two on its
+## front take a GunCon 2.
+const USB_A := "usb_a"
+
+## The USB-A sockets each console has, by systemid. A plug in USB socket k is the
+## device on the core's port k, which the core plugs into its own USB port k and
+## keeps the pad on that port besides (RetroSystem._announce_port).
+const USB_PORTS := {"ps2": 2}
 
 ## A Wii Remote's expansion port: the Nunchuk, the MotionPlus, and any extension
 ## a mod brings.

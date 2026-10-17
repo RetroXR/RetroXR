@@ -215,6 +215,19 @@ func game_port_index() -> int:
 	return -1
 
 
+## How many USB-A sockets this hardware has, or -1 for its platform's
+## (Connectors.USB_PORTS).
+func get_usb_port_count() -> int:
+	return -1
+
+
+## Put the USB sockets on this model's shell. They arrive on the box's front face;
+## a model with sockets of its own moves them onto those and hides each zone's
+## UsbRecess, as configure_controller_ports does with the controller ports.
+func configure_usb_ports(_usb_zones: Array) -> void:
+	pass
+
+
 ## The connector this hardware's controller ports take, or "" for its platform's
 ## (Connectors.controller_port_of). Only a model whose ports are not its
 ## platform's own needs to say.

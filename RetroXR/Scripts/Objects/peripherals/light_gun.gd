@@ -48,6 +48,11 @@ var desktop_fps_snap: bool = true
 ## The plug on this gun's cord, when it is not its console's port. See Connectors.
 @export var connector: String = ""
 
+## The plug's own model, as a pad's plug_mesh_path: a scene or mesh in the
+## game's plug frame (connector +Z, origin on the mating plane, a CordExit
+## marker). Empty keeps the generic moulding.
+@export var plug_mesh_path: String = ""
+
 ## Height of the drop hint above the gun, in metres.
 const HINT_HEIGHT := 0.16
 var _hint: HeldHint = null
@@ -307,6 +312,8 @@ func _add_cable_to_scene() -> void:
 	_cable_plug = _cable_instance.get_node("ControllerPlug") as ControllerPlug
 	_cable_rope = _cable_instance.get_node("VerletRope") as VerletRope
 	_cable_plug.set_controller(self)
+	if not plug_mesh_path.is_empty():
+		_cable_plug.set_plug_mesh(plug_mesh_path)
 	_cable_plug.add_collision_exception_with(self)
 	_cable_plug.global_position = _cable_attach_point.global_position + Vector3(0, 0, -0.12)
 	_cable_rope.start_node = _cable_attach_point

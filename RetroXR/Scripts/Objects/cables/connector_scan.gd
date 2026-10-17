@@ -37,8 +37,9 @@ static var _scripts: Dictionary = {}
 
 ## {role: String, plugs: PackedStringArray, systemid: String} for the scene at
 ## `path`: what its root is, the connectors of every plug it carries (its root's,
-## for a pad), and for a pad or gun the console it was made for -- its systemid,
-## when its plug is that console's port. A scene that cannot be read is nothing.
+## for a pad), and for a pad or gun the console it was made for, its systemid --
+## whatever its plug: a GunCon 2's is USB-A and it is still the PlayStation 2's.
+## A scene that cannot be read is nothing.
 static func of_scene(path: String) -> Dictionary:
 	if _cache.has(path):
 		return _cache[path]
@@ -79,10 +80,10 @@ static func _take(kind: String, props: Dictionary, info: Dictionary, out: Dictio
 			return
 		out["role"] = kind
 		var sysid := SystemIds.canonical(str(props.get("systemid", "")))
+		out["systemid"] = sysid
 		var c := str(props.get("connector", ""))
-		if c.is_empty() or c == Connectors.controller_port_of(sysid):
+		if c.is_empty():
 			c = Connectors.controller_port_of(sysid)
-			out["systemid"] = sysid
 		if not c.is_empty():
 			_add_plug(out, c)
 	elif kind == ROLE_LEAD:

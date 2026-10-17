@@ -381,6 +381,16 @@ var _port_controllers: Array = [null, null, null, null]
 ## exception, its on_unplugged) rather than the controller behind it.
 var _port_plugs: Array = [null, null, null, null]
 
+## The console's USB-A sockets (Connectors.USB_PORTS), what is seated in each and
+## the peripheral at its far end. Built in code: system.tscn has none.
+var _usb_zones: Array = []
+var _usb_plugs: Array = []
+var _usb_controllers: Array = []
+## A USB socket's number where a socket is saved or sent over the network: past
+## the controller ports and every port a multitap could number, so the two
+## kinds can never be mistaken for each other. USB socket k is USB_SLOT_BASE + k.
+const USB_SLOT_BASE := 16
+
 
 ## Real-world cross-compatibility: media of these systemids also fits.
 ## (The GBA plays original Game Boy and Game Boy Color carts — and mgba runs
@@ -720,6 +730,7 @@ func _load_system_model() -> void:
 	_model.build_serial_port(self, systemid)
 	_model.configure_collision(self)
 	_build_port_zones()
+	_build_usb_ports()
 	_spawn_captive_controllers()
 	_build_memcard_slots()
 	_build_disc_loader(is_bespoke)
@@ -809,6 +820,41 @@ func _build_port_zones() -> void:
 		var active := i < port_count
 		_port_zones[i].visible = active
 		_port_zones[i].enabled = active
+
+
+## The USB-A sockets, for a console that has them: on the box's front face below
+## the free controller ports, until the model puts them on its own shell.
+func _build_usb_ports() -> void:
+	if not _usb_zones.is_empty() or _model.is_handheld():
+		return
+	var count := _model.get_usb_port_count()
+	if count < 0:
+		count = int(Connectors.USB_PORTS.get(systemid, 0))
+	if count <= 0:
+		return
+	var recess_mesh := BoxMesh.new()
+	recess_mesh.size = Vector3(0.0135, 0.0055, 0.006)
+	var recess_mat := StandardMaterial3D.new()
+	recess_mat.albedo_color = Color(0.05, 0.05, 0.05)
+	for k in count:
+		var zone := SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
+		zone.name = "UsbPort%d" % (k + 1)
+		zone.snap_require = "controller_plug"
+		zone.snap_filter = _accepts_usb_plug
+		zone.grab_distance = 0.03
+		add_child(zone)
+		zone.position = Vector3(0.05 + 0.03 * k, -0.025, 0.125)
+		var recess := MeshInstance3D.new()
+		recess.name = "UsbRecess"
+		recess.mesh = recess_mesh
+		recess.set_surface_override_material(0, recess_mat)
+		zone.add_child(recess)
+		zone.has_picked_up.connect(_on_usb_snapped.bind(k))
+		zone.has_dropped.connect(_on_usb_released.bind(k))
+		_usb_zones.append(zone)
+		_usb_plugs.append(null)
+		_usb_controllers.append(null)
+	_model.configure_usb_ports(_usb_zones)
 
 
 ## Pads this hardware is wired to rather than socketed for, built with the
@@ -4106,21 +4152,30 @@ static func _decide_pak(allowed: Array, seated: String, current: String) -> Stri
 ## the game — no buttons, no pointer.
 func _reannounce_port_devices() -> void:
 	for i in range(_port_controllers.size()):
-		var ctrl: Node = _port_controllers[i]
-		if not is_instance_valid(ctrl):
-			continue
-		var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
-		if not _claims_port_device(dev):
-			continue
-		# _port_plugs is what says WIRED: a cabinet socket records its plug, and a
-		# wireless remote or a multitap sub-port has none. Only the wired ones take
-		# the GameCube-on-Wii translation.
-		var announce := dev
-		if _wii_link != null and _port_plugs[i] != null:
-			announce = _wii_link.cabinet_device_id(dev)
-		var lib_port := _libretro_port_for(dev, i)
-		set_controller_port_device(lib_port,
-			core_device_id(announce, lib_port, device_names_of(ctrl)))
+		_announce_cabinet_port(i)
+	# Last, so a USB device wins its port over the pad there.
+	for k in _usb_plugs.size():
+		if _usb_plug_at(k) != null:
+			_announce_port(k)
+
+
+## Tell the core what the peripheral in cabinet slot `i` is, if one is there.
+func _announce_cabinet_port(i: int) -> void:
+	var ctrl: Node = _port_controllers[i]
+	if not is_instance_valid(ctrl):
+		return
+	var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
+	if not _claims_port_device(dev):
+		return
+	# _port_plugs is what says WIRED: a cabinet socket records its plug, and a
+	# wireless remote or a multitap sub-port has none. Only the wired ones take
+	# the GameCube-on-Wii translation.
+	var announce := dev
+	if _wii_link != null and i < _port_plugs.size() and _port_plugs[i] != null:
+		announce = _wii_link.cabinet_device_id(dev)
+	var lib_port := _libretro_port_for(dev, i)
+	set_controller_port_device(lib_port,
+		core_device_id(announce, lib_port, device_names_of(ctrl)))
 
 
 ## Say what is on each port a SECOND time, once the core has actually run a frame.
@@ -4558,7 +4613,9 @@ func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
 	announce = core_device_id(announce, lib_port, device_names_of(plug))
 	print("[RetroSystem] port %d bound: device_type=%d -> libretro port %d (announced %d)" %
 		[cabinet_index, device_type, lib_port, announce])
-	if _claims_port_device(device_type):
+	# A device in the USB socket of this number is what the core is told about:
+	# it keeps the pad on the port besides (see _announce_port).
+	if _claims_port_device(device_type) and _usb_plug_at(lib_port) == null:
 		set_controller_port_device(lib_port, announce)
 	# The bound node is a ControllerPlug (cable end). Unwrap to the actual
 	# RetroController so rumble can be routed to its set_rumble() method.
@@ -4594,10 +4651,73 @@ func _unbind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
 	if slot < _port_controllers.size():
 		_port_controllers[slot] = null
 	if _claims_port_device(device_type):
-		set_controller_port_device(lib_port, RETRO_DEVICE_NONE)
+		if _usb_plug_at(lib_port) != null:
+			_announce_port(lib_port)
+		else:
+			set_controller_port_device(lib_port, RETRO_DEVICE_NONE)
 	if is_instance_valid(plug) and plug.has_method("on_unplugged"):
 		plug.on_unplugged()
 	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG, {"sys": self, "port": slot})
+
+
+# --- USB socket snap handlers ---
+
+## A plug seated in USB socket k is the device on the core's port k. The core
+## plugs it into its own USB port k and keeps the pad on that port as it was --
+## the PlayStation 2 core: "The GunCon is a USB peripheral, so it does not
+## displace the emulated SIO DualShock 2" -- so a pad in controller port k and a
+## gun in USB socket k both work, and which player a gun is is the GAME's to
+## decide, by USB port, as it was on the hardware.
+func _on_usb_snapped(plug: Node3D, k: int) -> void:
+	if not is_instance_valid(plug) or k >= _usb_plugs.size():
+		return
+	if _model != null and k < _usb_zones.size():
+		_model.play_port_plug_insert(plug, _usb_zones[k])
+	add_collision_exception_with(plug)
+	_usb_plugs[k] = plug
+	var ctrl: Node3D = plug.get_controller() if plug.has_method("get_controller") else plug
+	_usb_controllers[k] = ctrl
+	_announce_port(k)
+	if plug.has_method("on_plugged_in"):
+		plug.on_plugged_in(self, k)
+	NetworkManager.report_event(NetEvents.Event.EV_PORT_PLUG,
+		{"sys": self, "ctrl": ctrl, "port": USB_SLOT_BASE + k})
+
+
+func _on_usb_released(k: int) -> void:
+	if k >= _usb_plugs.size():
+		return
+	var plug: Node3D = _usb_plugs[k]
+	_usb_plugs[k] = null
+	_usb_controllers[k] = null
+	_announce_port(k)
+	if not is_instance_valid(plug):
+		return
+	remove_collision_exception_with(plug)
+	if plug.has_method("on_unplugged"):
+		plug.on_unplugged()
+	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG, {"sys": self, "port": USB_SLOT_BASE + k})
+
+
+## The plug in the USB socket of this number, or null.
+func _usb_plug_at(lib_port: int) -> Node3D:
+	if lib_port < 0 or lib_port >= _usb_plugs.size() or not is_instance_valid(_usb_plugs[lib_port]):
+		return null
+	return _usb_plugs[lib_port]
+
+
+## Tell the core what is on its port `lib_port`: the device in the USB socket of
+## that number if there is one, else the pad in the controller port, else nothing.
+func _announce_port(lib_port: int) -> void:
+	var usb := _usb_plug_at(lib_port)
+	if usb != null:
+		var dev: int = usb.get("device_type") if "device_type" in usb else 1
+		set_controller_port_device(lib_port, core_device_id(dev, lib_port, device_names_of(usb)))
+		return
+	if lib_port < _port_controllers.size() and is_instance_valid(_port_controllers[lib_port]):
+		_announce_cabinet_port(lib_port)
+		return
+	set_controller_port_device(lib_port, RETRO_DEVICE_NONE)
 
 
 ## Route a rumble request from the core to the RetroController currently
@@ -4760,6 +4880,11 @@ func _accepts_plug(obj: Node3D) -> bool:
 	return plug.is_empty() or plug == controller_connector()
 
 
+## USB gate: a USB-A plug, and nothing else.
+func _accepts_usb_plug(obj: Node3D) -> bool:
+	return Connectors.of(obj) == Connectors.USB_A
+
+
 ## Card gate: is this the family of card this console takes? Every card is in
 ## one "memory_card" group — the group is load-bearing in scene persistence, the
 ## netplay object sync and the card's own numbering — so the family is what
@@ -4911,6 +5036,13 @@ func net_release_memory_card(slot: int) -> void:
 ## "controller_plug" group, and several things in it are not that class — a VMU,
 ## an N64 pak, the GameCube-to-GBA lead's console end.
 func restore_controller_plug(port_index: int, plug: Node3D) -> void:
+	if port_index >= USB_SLOT_BASE:
+		var k := port_index - USB_SLOT_BASE
+		if k < _usb_zones.size() and not is_instance_valid(_usb_zones[k].picked_up_object):
+			_restoring_media = true
+			_usb_zones[k].pick_up_object(plug)
+			_restoring_media = false
+		return
 	if port_index < 0 or port_index >= _port_zones.size():
 		return
 	# Never evict. XRToolsSnapZone.pick_up_object drops whatever a zone is already
@@ -4938,20 +5070,28 @@ func restore_controller_plug(port_index: int, plug: Node3D) -> void:
 ## plug away; a remote peer has no synced plug body, so park it by its controller
 ## before re-enabling the socket.
 func net_release_controller_port(port_index: int) -> void:
-	if port_index < 0 or port_index >= _port_zones.size():
+	# A USB socket is USB_SLOT_BASE + k, and released the same way.
+	var zones: Array = _port_zones
+	var plugs: Array = _port_plugs
+	var index := port_index
+	if port_index >= USB_SLOT_BASE:
+		zones = _usb_zones
+		plugs = _usb_plugs
+		index = port_index - USB_SLOT_BASE
+	if index < 0 or index >= zones.size():
 		return
-	var zone := _port_zones[port_index] as XRToolsSnapZone
-	var plug := _port_plugs[port_index] as ControllerPlug
+	var zone := zones[index] as XRToolsSnapZone
+	var plug := plugs[index] as ControllerPlug
 	var plug_enabled := plug.enabled if is_instance_valid(plug) else false
 	var enabled: Array[bool] = []
-	for candidate: XRToolsSnapZone in _port_zones:
+	for candidate: XRToolsSnapZone in zones:
 		enabled.append(candidate.enabled)
 		candidate.enabled = false
 	if is_instance_valid(plug):
 		plug.enabled = false
 	zone.drop_object()
 	if is_instance_valid(plug):
-		for candidate: XRToolsSnapZone in _port_zones:
+		for candidate: XRToolsSnapZone in zones:
 			candidate.forget_object(plug)
 		var controller := plug.get_controller()
 		var attach := controller.get_node_or_null("CableAttachPoint") as Node3D \
@@ -4966,8 +5106,8 @@ func net_release_controller_port(port_index: int) -> void:
 	# neighbouring socket shut until that callback and a physics overlap refresh
 	# have both passed, or the plug simply hops from port 1 into port 2.
 	get_tree().create_timer(0.1).timeout.connect(func() -> void:
-		for i in _port_zones.size():
-			_port_zones[i].enabled = enabled[i]
+		for i in zones.size():
+			zones[i].enabled = enabled[i]
 		if is_instance_valid(plug):
 			plug.enabled = plug_enabled, CONNECT_ONE_SHOT)
 
@@ -4984,6 +5124,9 @@ func cabinet_port_of(peripheral: Node) -> int:
 	for i in _port_controllers.size():
 		if is_instance_valid(_port_controllers[i]) and _port_controllers[i] == peripheral:
 			return i
+	for k in _usb_controllers.size():
+		if is_instance_valid(_usb_controllers[k]) and _usb_controllers[k] == peripheral:
+			return USB_SLOT_BASE + k
 	return -1
 
 

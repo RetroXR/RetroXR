@@ -1135,6 +1135,54 @@ func _test_expanded_port_binding() -> void:
 # props and unlabelled legacy media working everywhere.
 # ---------------------------------------------------------------------------
 
+## A PlayStation 2's USB sockets: what goes in them, and what the core is told.
+## A gun in USB socket 1 and a pad in controller port 1 share the core's port 0,
+## which the core splits itself (GunCon 2 on its USB port, the pad on SIO), so
+## the gun is what is announced there whichever went in first, and taking either
+## out leaves the other announced.
+func _test_usb_sockets() -> void:
+	var ps2 := _system("ps2")
+	var gun := Node3D.new()
+	var gun_plug := ControllerPlug.new()
+	# What a gun's plug is comes from the gun when the plug is given it.
+	gun_plug.set_controller(gun)
+	gun_plug.connector = Connectors.USB_A
+	gun_plug.device_type = RetroSystem.RETRO_DEVICE_LIGHTGUN
+	gun_plug.device_names = PackedStringArray(["guncon 2"])
+	var pad := Node3D.new()
+	var pad_plug := ControllerPlug.new()
+	pad_plug.set_controller(pad)
+	pad_plug.systemid = "ps2"
+	pad_plug.connector = Connectors.controller_port_of("ps2")
+	_ok(ps2._accepts_usb_plug(gun_plug), "usb/a USB socket takes a USB-A plug")
+	_ok(not ps2._accepts_plug(gun_plug), "usb/a controller port does not")
+	_ok(not ps2._accepts_usb_plug(pad_plug), "usb/and a USB socket takes no pad's plug")
+
+	const GUNCON := 260
+	ps2._usb_plugs = [null, null]
+	ps2._usb_controllers = [null, null]
+	ps2._controller_info = [{"port": 0, "current_id": -1, "controllers": [
+		{"name": "DualShock 2", "id": RetroSystem.RETRO_DEVICE_JOYPAD}, {"name": "GunCon 2", "id": GUNCON}]}]
+	var told := func() -> int: return int(ps2._controller_info[0]["current_id"])
+	ps2._on_usb_snapped(gun_plug, 0)
+	_eq(told.call(), GUNCON, "usb/a gun in USB socket 1 is announced on the core's port 0, as the core's GunCon 2")
+	_eq(ps2.cabinet_port_of(gun), RetroSystem.USB_SLOT_BASE, "usb/and is saved as in USB socket 1, not a controller port")
+	ps2._bind_port(0, pad_plug, 0)
+	_eq(told.call(), GUNCON, "usb/a pad plugged into controller port 1 after it does not take its place")
+	ps2._on_usb_released(0)
+	_eq(told.call(), RetroSystem.RETRO_DEVICE_JOYPAD, "usb/the gun out, the pad is announced again")
+	ps2._unbind_port(0, pad_plug, 0)
+	_eq(told.call(), RetroSystem.RETRO_DEVICE_NONE, "usb/and with both out, nothing")
+	ps2._bind_port(0, pad_plug, 0)
+	ps2._on_usb_snapped(gun_plug, 0)
+	_eq(told.call(), GUNCON, "usb/the pad in first, the gun still wins the port")
+	ps2._unbind_port(0, pad_plug, 0)
+	_eq(told.call(), GUNCON, "usb/and taking the pad out leaves the gun announced")
+	ps2._on_usb_released(0)
+	for n: Node in [gun_plug, pad_plug, gun, pad, ps2]:
+		n.free()
+
+
 func _test_belongs_here() -> void:
 	var nes := _system("nes")
 	var cart := FakeSeated.new()
@@ -1181,6 +1229,7 @@ func _test_belongs_here() -> void:
 	_ok(wii_box._accepts_plug(plug), "connector/and take a GameCube controller plug")
 	wii_box.free()
 	plug.free()
+	_test_usb_sockets()
 
 	# The media table is the console's, and it is not symmetric: a Wii takes a
 	# GameCube disc, a GameCube does not take a Wii one.

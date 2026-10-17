@@ -428,6 +428,7 @@ are `RcaPlug` (an A/V lead) and `LinkPlug` (a link lead).
 | `gamecube_controller` | GameCube, and the Wii's GameCube ports |
 | `de9_controller` | Atari's DE-9: Atari 2600, Master System, Genesis |
 | `wii_extension` | a Wii Remote's expansion port |
+| `usb_a` | a USB-A socket: the PlayStation 2's two on its front take a GunCon 2 |
 
 A connector names an interchangeable family -- plugs that fit AND work -- not a
 machine: a Super NES lead works on an N64, so they share one; a Wii lead fits the
