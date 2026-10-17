@@ -26,7 +26,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 385
+const EXPECTED_CASES := 387
 
 var _pass := 0
 var _fail := 0
@@ -1069,6 +1069,37 @@ func _group_standins() -> void:
 	l.withdraw()
 	_ok(not _labels(sysid).has("Cable"), "sockets/the lead leaves with its mod")
 	_ok("saturn_av_out" in "; ".join(d.problems()), "sockets/and the warning comes back")
+	# Read as text: a scene whose model is not there is read all the same, which a
+	# load would fail on -- it is what keeps a card from loading every mod's models.
+	var unbuilt := _scene_file("t_unbuilt", """[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="1"]
+[ext_resource type="PackedScene" path="res://mods/t.nothere/model/lead.glb" id="2"]
+
+[node name="Lead" type="Node3D"]
+
+[node name="Model" parent="." instance=ExtResource("2")]
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+script = ExtResource("1")
+connector = "saturn_av_out"
+""")
+	var read := ConnectorScan.of_scene(unbuilt)
+	_ok((read["plugs"] as PackedStringArray).has("saturn_av_out"),
+		"scan/a lead is read without loading what its scene names", str(read))
+	# A plug class's own connector, when the scene names none: LinkPlug's is set
+	# in _init, where no declared default shows it.
+	var link_lead := _scene_file("t_link", """[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link_plug.gd" id="1"]
+
+[node name="Lead" type="Node3D"]
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+script = ExtResource("1")
+""")
+	_eq(ConnectorScan.of_scene(link_lead)["plugs"], PackedStringArray(["link_plug"]),
+		"scan/a plug of a class gets that class's own connector")
 	# A phono end fits every console with jacks, so it says nothing of which.
 	var phono_lead := _api("t.ph")
 	_ok(phono_lead.register_object("t.ph:cable", _lead_scene("t_ph", Connectors.PHONO)),

@@ -96,10 +96,6 @@ static func mod_object_types() -> Array:
 	return _mod_objects.keys()
 
 
-static func mod_object_owner(type: String) -> String:
-	return str((_mod_objects.get(type, {}) as Dictionary).get("owner", ""))
-
-
 static func mod_object_scene(type: String) -> String:
 	return str((_mod_objects.get(type, {}) as Dictionary).get("scene", ""))
 

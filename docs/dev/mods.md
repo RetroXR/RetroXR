@@ -68,16 +68,21 @@ things around it were not handled, and each has one home now:
   refusing any other bare name), and a third author could not share a socket without
   a game release. Only spelling is checked.
 - *The card reads objects, mods declare nothing to it.* `ConnectorScan` reads a mod
-  object's SceneState (never instancing it): its root's role (`RetroController`,
-  `LightGun`) and every `RcaPlug`'s connector, cached by path. `items_for` offers every
+  object's scene FILE AS TEXT -- never `load()`, which pulls in everything the scene
+  names: for the DualShock 2 that was its model and textures (200 ms) and its script
+  compiled (46 ms), against 0.6 ms for the text. A node's script is followed by its
+  `extends` line to the game class it ends at (never loading the mod's script); a text
+  sub-scene is read, a model is not. It finds its root's role (`RetroController`,
+  `LightGun`) and every `RcaPlug`'s connector, cached by path for the run. A plug class
+  that sets its connector in `_init` (LinkPlug) is asked by making one. Only a binary
+  scene falls back to a load, and the mod packer never makes one. `items_for` offers every
   mod object fitting the card's sockets (the platform's controller port plus the rows'
   `sockets`), ROOM connectors never matching, and each stand-in goes while nothing
   installed does its job: box while a mod row is on the card, pad/gun while one fits the
   controller port, Composite Cable while no row wears `composite_plug` (a row with no
   `sockets` does), a `GAME_LEADS` lead while no mod lead fits its socket. This replaced
-  `replaces_standin`, `av_connector` and the uncommitted `provides_lead`. A scene's
-  script DEFAULTS are read (`get_property_default_value`) but nothing set at run time
-  is: the rule for authors is "set it on the node". `ModApi.problems()` adds
+  `replaces_standin`, `av_connector` and the uncommitted `provides_lead`. Nothing a
+  script sets at run time is seen: the rule for authors is "set it on the node". `ModApi.problems()` adds
   `SpawnCatalog.socket_problems_for` live (a socket nothing fits; a row whose `sockets`
   disagree with the built console, noted by `RetroSystem._check_listed_sockets`).
   `ModHooks._matches` also matches a node's `connector`, which is how a mod dresses a

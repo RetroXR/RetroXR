@@ -611,26 +611,12 @@ static func _listed(items: Array, spawn: String) -> bool:
 static func mod_objects_fitting(sockets: Array) -> Array:
 	var out: Array = []
 	for type: String in ScenePersistence.mod_object_types():
-		var info := ConnectorScan.of_scene(ScenePersistence.mod_object_scene(type),
-			_pack_stamp(ScenePersistence.mod_object_owner(type)))
+		var info := ConnectorScan.of_scene(ScenePersistence.mod_object_scene(type))
 		for plug: String in (info["plugs"] as PackedStringArray):
 			if sockets.has(plug) and not Connectors.is_room(plug):
 				out.append({"type": type, "spawn": "mod:" + type, "role": info["role"], "plug": plug})
 				break
 	return out
-
-
-## Which pack a mod's objects come from, for ConnectorScan's disk cache: its id,
-## version and file time, so a rebuilt pack is read again even at one version.
-## "" for an owner the loader has no record of (a test's), which is not kept.
-static func _pack_stamp(owner_id: String) -> String:
-	var loop := Engine.get_main_loop() as SceneTree
-	var mods := loop.root.get_node_or_null("Mods") if loop != null else null
-	var rec: Variant = mods.call("mod", owner_id) if mods != null else null
-	if rec == null or not (rec is ModRecord) or (rec as ModRecord).manifest == null:
-		return ""
-	var r := rec as ModRecord
-	return "%s@%s:%d" % [owner_id, r.manifest.version, FileAccess.get_modified_time(r.path)]
 
 
 ## The card row for a mod's object listed on a card it did not name: the row its
