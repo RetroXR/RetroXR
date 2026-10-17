@@ -14,7 +14,7 @@ extends RefCounted
 
 ## Contribution kinds, in the order the Mods page lists them.
 const KINDS := ["console", "platform", "room", "object", "tv_shell", "controller",
-	"standin", "media", "scraper", "hook"]
+	"media", "scraper", "hook"]
 
 var id: String = ""
 var manifest: ModManifest = null
@@ -44,14 +44,20 @@ func _init(a_manifest: ModManifest, hooks: ModHooks) -> void:
 ## Add a console model. `row` is a SystemModelRegistry row: platform, label, and
 ## exactly one of scene/script, plus optional handheld and requires.
 ##
-## `av_connector` names the one socket its picture leaves by, when that is not
-## three phono jacks -- a ModConnectors name, which is also the plug group the
-## socket returns. A console that names one is not offered the Composite Cable.
+## `sockets` lists the cable sockets on its back panel by connector -- the
+## `connector` each socket node has in its scene: "composite_plug" for phono
+## jacks, "ps2_av_multi" for a PlayStation 2's AV MULTI OUT, a link socket's.
+## The card reads it, since it cannot build the console to look: a console with
+## no phono jacks is not offered the Composite Cable, and every lead installed
+## that fits one of its sockets is offered instead. A row with no `sockets` is
+## taken to wear phono jacks. The first time the console is built, its page says
+## if the list and the console disagree. Its controller port is its platform's
+## (Connectors.CONTROLLER_PORTS) and is not listed.
 func register_model(row: Dictionary) -> bool:
 	var model_id := str(row.get("id", ""))
 	if not _namespaced(model_id, "model id"):
 		return false
-	if not _connector_ok(row, "model %s" % model_id):
+	if not _sockets_ok(row, "model %s" % model_id):
 		return false
 	row = _current_platform(row)
 	var err := SystemModelRegistry.register_mod_row(model_id, row, id)
@@ -65,7 +71,7 @@ func register_model(row: Dictionary) -> bool:
 ## hardware: no file replacement, no claim, and the row keeps its original id so
 ## existing saves still resolve to it.
 func override_model(model_id: String, row: Dictionary) -> bool:
-	if not _connector_ok(row, "override %s" % model_id):
+	if not _sockets_ok(row, "override %s" % model_id):
 		return false
 	row = _current_platform(row)
 	var err := SystemModelRegistry.override_mod_row(model_id, row, id)
@@ -301,32 +307,6 @@ func offer_variants(spawn: String, variants: Array) -> bool:
 	return true
 
 
-## Say that this mod brings the real thing a stand-in was standing in for, so
-## the console's spawn card stops offering the stand-in beside it.
-##
-## `role` is "console" (the Primitive System box), "controller" (the Primitive
-## Controller), "light_gun" (the generic Light Gun, where a console has one) or
-## "av_lead" (the game's own lead for a socket a console names with
-## av_connector, for a mod that brings the modelled lead).
-## Any number of mods may say so for the same console: the stand-in
-## goes while at least one of them is enabled and comes back with the last.
-##
-## The box only goes while a console model for that platform is actually on the
-## card, so a mod whose model failed to load does not leave a card with no
-## console. The Composite Cable is not a role: it goes by itself once no console
-## on the card has phono jacks (see register_model's av_connector), and the
-## game's lead for the socket named takes its place until "av_lead" is claimed.
-##
-## This is the MENU. A room saved with a stand-in in it still loads one.
-func replaces_standin(systemid: String, role: String) -> bool:
-	systemid = SystemIds.canonical(systemid)
-	var err := SpawnCatalog.register_mod_standin(systemid, role, id)
-	if not err.is_empty():
-		return _fail("stand-in %s: %s" % [systemid, err])
-	_note("standin", "%s (%s)" % [role, systemid])
-	return true
-
-
 # ── services ──────────────────────────────────────────────────────────────────
 
 ## A built-in display shader by name — "crt", "vcr", "static", "window",
@@ -395,7 +375,11 @@ func contributions() -> Dictionary:
 
 
 func problems() -> PackedStringArray:
-	return _problems
+	# Socket lines are asked for, not stored: the lead that fits may come from a
+	# mod that registers later, or be switched on later.
+	var out := _problems.duplicate()
+	out.append_array(SpawnCatalog.socket_problems_for(id))
+	return out
 
 
 ## True when some contribution this mod tried to make was refused.
@@ -446,11 +430,8 @@ static func _plural(kind: String, n: int) -> String:
 	var word: String = {
 		"console": "console", "platform": "platform", "room": "room",
 		"object": "prop", "tv_shell": "TV cabinet", "controller": "peripheral",
-		"standin": "stand-in replaced",
 		"media": "media format", "scraper": "scraper mapping", "hook": "hook",
 	}.get(kind, kind)
-	if kind == "standin":
-		return word if n == 1 else "stand-ins replaced"
 	return word if n == 1 else word + "s"
 
 
@@ -472,16 +453,19 @@ func _warn(msg: String) -> void:
 	push_warning("[mod:%s] %s" % [id, msg])
 
 
-## A model row's av_connector, if it names one, must be a name two mods can
-## agree on -- see ModConnectors.
-func _connector_ok(row: Dictionary, what: String) -> bool:
-	var connector := str(row.get("av_connector", ""))
-	if connector.is_empty():
-		return true
-	var err := ModConnectors.problem(connector)
-	if err.is_empty():
-		return true
-	return _fail("%s: %s" % [what, err])
+## A model row's `sockets`, if it lists any, must each be spelled as a connector
+## can be. Which names they are is the mod's business -- see Connectors.
+func _sockets_ok(row: Dictionary, what: String) -> bool:
+	if row.has("av_connector"):
+		return _fail("%s: av_connector is gone; list the console's sockets in `sockets`" % what)
+	var listed: Variant = row.get("sockets", [])
+	if not (listed is Array):
+		return _fail("%s: sockets must be an array of connector names" % what)
+	for socket: Variant in listed:
+		var err := Connectors.problem(str(socket))
+		if not err.is_empty():
+			return _fail("%s: %s" % [what, err])
+	return true
 
 
 ## A mod-introduced id must carry its own mod's prefix.

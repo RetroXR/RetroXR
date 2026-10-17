@@ -99,6 +99,31 @@ const CONTROLLER_PORTS := {
 	"genesis": "de9_controller",
 }
 
+## The connectors every room has a socket for, on the television, the wall and
+## the monitor. A lead's end that is one of these says nothing about which
+## console it is for, so the spawn card never offers a lead for one: the
+## Composite Cable is the game's own answer to a phono jack.
+const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "nema_5_15_plug",
+	"nema_1_15_plug", "nema_1_15_polarized_plug", "iec_c13_plug", "iec_c7_plug",
+	"iec_c7_polarized_plug"]
+
+## The leads the game ships for a console's own socket, offered on the card of a
+## console that has one when no installed mod brings a lead for it. Game content,
+## not a list of the sockets allowed. `spawn` is the lead's spawn token, `label`
+## its row.
+const GAME_LEADS := {
+	# A plain lead for a socket of a console the game itself has no model of, so
+	# a PlayStation 2 mod installed without its lead mod can still reach a set.
+	"ps2_av_multi": {"spawn": "ps2_av_cable", "label": "Primitive AV Cable"},
+	"n64_av_plug": {"spawn": "n64_av_cable", "label": "Stereo Composite Cable"},
+	# A Saturn mod names the Genesis Model 2's socket too: the Saturn's 10-pin A/V
+	# OUT is a round mini-DIN of the same look, and the game has no lead of its own
+	# for that socket.
+	"genesis_av_plug": {"spawn": "genesis_av_cable", "label": "A/V Cable"},
+	"wii_av_plug": {"spawn": "wii_av_cable", "label": "AV Cable"},
+	"dc_av_plug": {"spawn": "dc_av_cable", "label": "Stereo AV Cable"},
+}
+
 ## A Wii Remote's expansion port: the Nunchuk, the MotionPlus, and any extension
 ## a mod brings.
 const WII_EXTENSION := "wii_extension"
@@ -151,3 +176,12 @@ static func of(obj: Object) -> String:
 	if "systemid" in obj:
 		return controller_port_of(str(obj.get("systemid")))
 	return ""
+
+
+static func is_room(connector: String) -> bool:
+	return ROOM.has(connector)
+
+
+## The game's own lead for `connector` as {spawn, label}, or {} when it ships none.
+static func game_lead(connector: String) -> Dictionary:
+	return (GAME_LEADS.get(connector, {}) as Dictionary).duplicate()

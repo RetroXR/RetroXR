@@ -26,7 +26,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 352
+const EXPECTED_CASES := 385
 
 var _pass := 0
 var _fail := 0
@@ -897,56 +897,89 @@ func _api(mod_id: String) -> ModApi:
 var _hooks: ModHooks = null
 
 
-## A mod that brings the real console, pad or lead takes the stand-in off the
-## card, and two mods doing the same thing do not fight over it.
+## A scene file a test can register as a mod's object: written where a mod
+## pack's would be read from, so the spawn card reads it the same way.
+func _scene_file(name: String, body: String) -> String:
+	DirAccess.make_dir_recursive_absolute("user://mod_tests_scenes")
+	var path := "user://mod_tests_scenes/%s.tscn" % name
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(body)
+	f.close()
+	return path
+
+
+## A lead whose console end is `connector`, with a phono at the set.
+func _lead_scene(name: String, connector: String) -> String:
+	return _scene_file(name, """[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="1"]
+
+[node name="Lead" type="Node3D"]
+
+[node name="PlugA0" type="RigidBody3D" parent="."]
+script = ExtResource("1")
+connector = "%s"
+
+[node name="PlugB0" type="RigidBody3D" parent="."]
+script = ExtResource("1")
+""" % connector)
+
+
+## A pad (or, with `gun`, a light gun) for `systemid`.
+func _pad_scene(name: String, systemid: String, gun := false) -> String:
+	# A pad names its console; a gun, which has no console of its own, its plug.
+	var script := "res://Scripts/Objects/peripherals/light_gun.gd" if gun \
+		else "res://Scripts/Objects/controllers/retro_controller.gd"
+	var says := ('connector = "%s"' % Connectors.controller_port_of(systemid)) if gun \
+		else ('systemid = "%s"' % systemid)
+	return _scene_file(name, """[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="%s" id="1"]
+
+[node name="Pad" type="RigidBody3D"]
+script = ExtResource("1")
+%s
+""" % [script, says])
+
+
+## A stand-in stays on a card only while nothing installed does its job, and
+## what fits a card is read from the object, not claimed by its mod.
 func _group_standins() -> void:
 	_hooks = ModHooks.new(get_tree())
-	# A console the game ships no model of, so its card is all stand-ins. Not the
-	# PlayStation 2: this machine may have a real mod for one installed.
+	ConnectorScan.clear_cache()
+	# A console the game ships no model of, so its card is all stand-ins.
 	var sysid := "saturn"
 	_ok(SystemModelRegistry.rows_for(sysid).is_empty(), "standins/the console under test has no model")
 	var before := _labels(sysid)
 	_ok(before.has("Primitive System") and before.has("Primitive Controller")
-		and before.has("Composite Cable"), "standins/its card is the three stand-ins", str(before))
+		and before.has("Composite Cable") and before.has("Light Gun"),
+		"standins/its card is the stand-ins", str(before))
 
-	# A model alone hides nothing: nobody has said the box is replaced.
+	# A mod's console takes the box off the card by being there.
 	var a := _api("t.sa")
 	_ok(a.register_model({"id": "t.sa:console", "platform": sysid, "label": "Saturn A",
-		"script": _SCRIPT, "requires": [_SCRIPT], "av_connector": "t.sa:av"}),
-		"standins/a model naming its own socket registers", a.errors_text())
-	_ok(_labels(sysid).has("Primitive System"), "standins/a model alone leaves the box")
-	_ok(_labels(sysid).has("Composite Cable"),
-		"standins/and the box keeps the composite lead that fits it")
-
-	_ok(a.replaces_standin(sysid, "console"), "standins/the console claim is taken")
+		"script": _SCRIPT, "requires": [_SCRIPT], "sockets": ["t.sa:av"]}),
+		"standins/a model listing its own socket registers", a.errors_text())
 	var with_console := _labels(sysid)
 	_ok(not with_console.has("Primitive System"), "standins/the box leaves the card")
 	_ok(with_console.has("Saturn A"), "standins/the mod's console stays")
-	_ok(with_console.has("Primitive Controller"),
-		"standins/the stand-in pad stays: nothing replaced it")
+	_ok(with_console.has("Primitive Controller"), "standins/the stand-in pad stays: nothing fits its port")
 	_ok(not with_console.has("Composite Cable"),
 		"standins/with no phono jacks left on the card the composite lead goes")
-
-	_ok(a.replaces_standin(sysid, "controller"), "standins/the controller claim is taken")
-	_ok(not _labels(sysid).has("Primitive Controller"), "standins/the stand-in pad leaves")
-	_ok((a.contributions().get("standin", []) as Array).size() == 2,
-		"standins/both are on the mod's page")
-
-	# One console on the card: there is no choice to mark.
+	_ok("t.sa:av" in "; ".join(a.problems()), "standins/and its page says nothing fits its socket",
+		"; ".join(a.problems()))
 	var marked := 0
 	for item: Dictionary in SpawnCatalog.items_for(sysid):
 		marked += 1 if bool(item.get("default", false)) else 0
 	_eq(marked, 0, "standins/a lone console is not marked default")
 
-	# A second mod models the same console, with phono jacks.
+	# A second mod's console, with nothing said about its sockets: phono jacks.
 	var b := _api("t.sb")
 	_ok(b.register_model({"id": "t.sb:console", "platform": sysid, "label": "Saturn B",
 		"script": _SCRIPT, "requires": [_SCRIPT]}), "standins/a second mod's console registers")
-	_ok(b.replaces_standin(sysid, "console"), "standins/and it may claim the box too")
 	var both := _labels(sysid)
 	_ok(both.has("Saturn A") and both.has("Saturn B"), "standins/both consoles are offered")
-	_ok(both.has("Composite Cable"),
-		"standins/a console with phono jacks brings the composite lead back")
+	_ok(both.has("Composite Cable"), "standins/a console with phono jacks brings the composite lead back")
 	var defaults: Array = []
 	for item: Dictionary in SpawnCatalog.items_for(sysid):
 		if bool(item.get("default", false)):
@@ -954,67 +987,157 @@ func _group_standins() -> void:
 	_eq(defaults, [str(SystemModelRegistry.resolve("", sysid).get("id", ""))],
 		"standins/exactly the model the game falls back to is marked default")
 
-	# The first mod goes; the second still replaces the box.
+	# A pad for this console, from a mod that names no card at all.
+	var p := _api("t.pad")
+	_ok(p.register_object("t.pad:pad", _pad_scene("t_pad", sysid)), "standins/a pad registers")
+	var padded := _labels(sysid)
+	_ok(not padded.has("Primitive Controller"), "standins/the stand-in pad leaves: a pad fits the port")
+	_ok(padded.has("Pad"), "standins/and the mod's pad is offered, named after itself", str(padded))
+	_ok(padded.has("Light Gun"), "standins/a pad does not take the gun's place")
+	var g := _api("t.gun")
+	_ok(g.register_object("t.gun:gun", _pad_scene("t_gun", sysid, true)), "standins/a gun registers")
+	_ok(not _labels(sysid).has("Light Gun"), "standins/the generic gun leaves: a gun fits the port")
+	g.withdraw()
+	p.withdraw()
+	var unpadded := _labels(sysid)
+	_ok(unpadded.has("Primitive Controller") and unpadded.has("Light Gun"),
+		"standins/both come back with their mods")
+
 	a.withdraw()
 	var only_b := _labels(sysid)
 	_ok(not only_b.has("Primitive System") and only_b.has("Saturn B"),
-		"standins/the box stays away while another mod still replaces it")
-	_ok(only_b.has("Primitive Controller"), "standins/the pad comes back with its only replacer")
+		"standins/the box stays away while another mod's console is on the card")
 	b.withdraw()
 	_eq(_labels(sysid), before, "standins/with both gone the card is the stand-ins again")
 
-	# A claim with no console behind it cannot empty the card.
-	var c := _api("t.sc")
-	_ok(c.replaces_standin(sysid, "console"), "standins/a claim with no model is accepted")
-	_ok(_labels(sysid).has("Primitive System"), "standins/but the box stays: there is no console")
-	_ok(not c.replaces_standin(sysid, "lead"), "standins/an unknown stand-in is refused")
-	c.withdraw()
+	# A row that refers to the old field is told so.
+	var old := _api("t.old")
+	_ok(not old.register_model({"id": "t.old:console", "platform": sysid, "label": "Old",
+		"script": _SCRIPT, "av_connector": "ps2_av_multi"}), "standins/av_connector is refused")
+	_ok("sockets" in old.errors_text(), "standins/with what to use instead", old.errors_text())
+	old.withdraw()
 
-	# A console that names one of the GAME's sockets is offered the game's lead
-	# for it, until a mod brings the modelled one.
-	var sd := _api("t.sd")
-	_ok(sd.register_model({"id": "t.sd:console", "platform": sysid, "label": "Saturn D",
-		"script": _SCRIPT, "requires": [_SCRIPT], "av_connector": "ps2_av_multi"})
-		and sd.replaces_standin(sysid, "console"), "standins/a console naming a shared socket registers")
-	var lead := str(ModConnectors.KNOWN["ps2_av_multi"]["lead_label"])
-	var socketed := _labels(sysid)
-	_ok(not socketed.has("Composite Cable"), "standins/it is not offered the phono lead")
-	_ok(socketed.has(lead), "standins/it is offered the game's lead for that socket", str(socketed))
-	for connector: String in ModConnectors.KNOWN:
-		var type := str(ModConnectors.KNOWN[connector].get("lead", ""))
-		_ok(ScenePersistence.LEAD_SCENES.has(type),
-			"standins/the lead for %s is something the game can spawn" % connector)
-	var plug := (ScenePersistence.LEAD_SCENES["ps2_av_cable"] as PackedScene).instantiate()
-	_eq(str(plug.get_node("PlugA0").get("connector")), "ps2_av_multi",
-		"standins/and its console end is that socket's plug")
-	plug.free()
-	var se := _api("t.se")
-	_ok(se.replaces_standin(sysid, "av_lead"), "standins/a lead mod may claim it")
-	_ok(not _labels(sysid).has(lead), "standins/and the game's lead leaves the card")
-	se.withdraw()
-	_ok(_labels(sysid).has(lead), "standins/it comes back when that mod goes")
-	sd.withdraw()
-	_eq(_labels(sysid), before, "standins/and the card is the stand-ins once more")
-	# The generic Light Gun, on a console that has one.
-	_ok(_labels("nes").has("Light Gun"), "standins/the NES card offers the generic light gun")
-	var g := _api("t.sg")
-	_ok(g.replaces_standin("nes", "light_gun"), "standins/a mod may replace it")
-	_ok(not _labels("nes").has("Light Gun"), "standins/and it leaves the NES card")
-	_ok(_labels("snes").has("Light Gun") or not before.is_empty(), "standins/other consoles are not touched")
-	g.withdraw()
-	_ok(_labels("nes").has("Light Gun"), "standins/it comes back when that mod goes")
-	_ok(c.failed(), "standins/and counts against the mod")
-	c.withdraw()
+	# Pads by connector: consoles that share a port share pads.
+	_eq(Connectors.controller_port_of("ps2"), Connectors.controller_port_of("psx"),
+		"sockets/a PlayStation 2's pad port is a PlayStation's")
+	_eq(Connectors.controller_port_of("genesis"), Connectors.controller_port_of("atari2600"),
+		"sockets/a Genesis's is an Atari 2600's: the DE-9")
+	_ok(Connectors.controller_port_of("snes") != Connectors.controller_port_of("nes"),
+		"sockets/a Super NES's is not a NES's")
+	var ds := _api("t.ds")
+	_ok(ds.register_object("t.ds:pad", _pad_scene("t_ds", "ps2"))
+		and ds.add_peripherals("ps2", [{"label": "Dual Pad", "spawn": "mod:t.ds:pad"}]),
+		"sockets/a PlayStation 2 pad registers on its card")
+	_ok(_labels("psx").has("Dual Pad"), "sockets/and is offered on the PlayStation's too, as its mod named it",
+		str(_labels("psx")))
+	_eq(_labels("ps2").count("Dual Pad"), 1, "sockets/once on its own card")
+	_ok(not _labels("n64").has("Dual Pad"), "sockets/and not on a console it does not fit")
+	ds.withdraw()
 
-	# Connector names: the game's, or the mod's own namespaced one.
-	_eq(ModConnectors.problem("ps2_av_multi"), "", "standins/a connector the game names is allowed")
-	_eq(ModConnectors.problem("t.sd:dock"), "", "standins/and a namespaced one of the mod's own")
-	_ok(not ModConnectors.problem("my_av").is_empty(), "standins/a made-up bare name is not")
+	# Socket names: any name will do, only the spelling is checked.
+	_eq(Connectors.problem("ps2_av_multi"), "", "sockets/a socket the game ships a lead for is a name")
+	_eq(Connectors.problem("t.sd:dock"), "", "sockets/so is a namespaced one of the mod's own")
+	_eq(Connectors.problem("saturn_av_out"), "", "sockets/and so is one nobody has listed")
+	_ok(not Connectors.problem("Saturn_AV").is_empty(), "sockets/upper case is not: it would fit nothing")
+	_ok(not Connectors.problem("av out").is_empty(), "sockets/nor is a space")
+	var bad := _api("t.bad")
+	_ok(not bad.register_model({"id": "t.bad:console", "platform": sysid, "label": "Saturn Bad",
+		"script": _SCRIPT, "sockets": ["Saturn_AV"]}), "sockets/a console misspelling one is refused")
+	_ok(SystemModelRegistry.row_for("t.bad:console").is_empty(), "sockets/and is not registered")
+	bad.withdraw()
+
+	# A console whose socket no installed lead fits, and another author's lead
+	# that fits it, read off the lead's own scene.
 	var d := _api("t.sd")
-	_ok(not d.register_model({"id": "t.sd:console", "platform": sysid, "label": "Saturn D",
-		"script": _SCRIPT, "av_connector": "my_av"}), "standins/a model naming one is refused")
-	_ok(SystemModelRegistry.row_for("t.sd:console").is_empty(), "standins/and is not registered")
+	_ok(d.register_model({"id": "t.sd:console", "platform": sysid, "label": "Saturn D",
+		"script": _SCRIPT, "requires": [_SCRIPT], "sockets": ["saturn_av_out"]}),
+		"sockets/a console listing an unlisted socket registers", d.errors_text())
+	_ok(not d.failed(), "sockets/which is no failure")
+	_ok("saturn_av_out" in "; ".join(d.problems()), "sockets/but its page says nothing fits that socket",
+		"; ".join(d.problems()))
+	var l := _api("t.lead")
+	_ok(l.register_object("t.lead:cable", _lead_scene("t_lead", "saturn_av_out")),
+		"sockets/a lead whose plug is that socket registers")
+	var info := ConnectorScan.of_scene(ScenePersistence.mod_object_scene("t.lead:cable"))
+	_eq(str(info["role"]), ConnectorScan.ROLE_LEAD, "sockets/its scene reads as a lead")
+	_ok((info["plugs"] as PackedStringArray).has("saturn_av_out")
+		and (info["plugs"] as PackedStringArray).has(Connectors.PHONO),
+		"sockets/with both of its ends", str(info["plugs"]))
+	_ok(_labels(sysid).has("Cable"), "sockets/the console's card offers that lead", str(_labels(sysid)))
+	_ok(not "saturn_av_out" in "; ".join(d.problems()), "sockets/and the console's page stops warning",
+		"; ".join(d.problems()))
+	l.withdraw()
+	_ok(not _labels(sysid).has("Cable"), "sockets/the lead leaves with its mod")
+	_ok("saturn_av_out" in "; ".join(d.problems()), "sockets/and the warning comes back")
+	# A phono end fits every console with jacks, so it says nothing of which.
+	var phono_lead := _api("t.ph")
+	_ok(phono_lead.register_object("t.ph:cable", _lead_scene("t_ph", Connectors.PHONO)),
+		"sockets/a plain phono lead registers")
+	_ok(not _labels(sysid).has("Cable"), "sockets/and is offered on no card for it")
+	phono_lead.withdraw()
 	d.withdraw()
+	_ok(SpawnCatalog.socket_problems_for("t.sd").is_empty(), "sockets/a withdrawn console leaves no warning behind")
+
+	# A mod's lead for a socket the game ships a lead for takes the game's place.
+	var lead := str(Connectors.GAME_LEADS["ps2_av_multi"]["label"])
+	var ps := _api("t.ps")
+	_ok(ps.register_model({"id": "t.ps:console", "platform": sysid, "label": "Saturn PS",
+		"script": _SCRIPT, "requires": [_SCRIPT], "sockets": ["ps2_av_multi"]}),
+		"sockets/a console on a socket the game has a lead for")
+	_ok(ps.problems().is_empty(), "sockets/has nothing to warn about", "; ".join(ps.problems()))
+	var socketed := _labels(sysid)
+	_ok(not socketed.has("Composite Cable"), "sockets/it is not offered the phono lead")
+	_ok(socketed.has(lead), "sockets/and is offered the game's lead", str(socketed))
+	for connector: String in Connectors.GAME_LEADS:
+		var type := str(Connectors.GAME_LEADS[connector].get("spawn", ""))
+		_ok(ScenePersistence.LEAD_SCENES.has(type),
+			"sockets/the game's lead for %s is something it can spawn" % connector)
+		var scene := (ScenePersistence.LEAD_SCENES[type] as PackedScene).resource_path
+		_ok((ConnectorScan.of_scene(scene)["plugs"] as PackedStringArray).has(connector),
+			"sockets/and its plug is that socket's", scene)
+	var ml := _api("t.ml")
+	_ok(ml.register_object("t.ml:cable", _lead_scene("t_ml", "ps2_av_multi"))
+		and ml.add_peripherals(sysid, [{"label": "Modelled AV Cable", "spawn": "mod:t.ml:cable"}]),
+		"sockets/a lead mod lists its lead on the card")
+	var modelled := _labels(sysid)
+	_ok(not modelled.has(lead), "sockets/the game's lead leaves the card", str(modelled))
+	_eq(modelled.count("Modelled AV Cable"), 1, "sockets/and the mod's is there once")
+	ml.withdraw()
+	_ok(_labels(sysid).has(lead), "sockets/the game's lead comes back when it goes")
+	ps.withdraw()
+	_eq(_labels(sysid), before, "sockets/and the card is the stand-ins once more")
+
+	# A console, once built, is checked against the sockets its row lists.
+	SpawnCatalog.note_built_sockets("t.nb", "t.nb:console", ["ps2_av_multi"], ["ps2_av_multi", "ilink_plug"])
+	var noted := "; ".join(SpawnCatalog.socket_problems_for("t.nb"))
+	_ok("ilink_plug" in noted, "sockets/a socket the row leaves out is said on its page", noted)
+	SpawnCatalog.note_built_sockets("t.nb", "t.nb:console", ["ps2_av_multi", "ilink_plug"], ["ps2_av_multi", "ilink_plug"])
+	_ok(SpawnCatalog.socket_problems_for("t.nb").is_empty(), "sockets/and goes once the row lists it")
+
+	# A socket the game ships a lead for is no warning, A/V or not.
+	_ok(SpawnCatalog.game_lead_connectors().has("ilink_plug")
+		and SpawnCatalog.game_lead_connectors().has("n64_av_plug"),
+		"sockets/the game's leads are read off their scenes, its i.LINK cable among them")
+	var il := _api("t.il")
+	_ok(il.register_model({"id": "t.il:console", "platform": sysid, "label": "Saturn IL",
+		"script": _SCRIPT, "requires": [_SCRIPT], "sockets": ["ilink_plug"]}),
+		"sockets/a console with an i.LINK socket registers")
+	_ok(il.problems().is_empty(), "sockets/and is not told nothing fits it", "; ".join(il.problems()))
+	il.withdraw()
+
+	# The game's own scenes read the way the room fits them.
+	var nes_pad := ConnectorScan.of_scene("res://Scenes/Objects/controllers/nes/nes_controller.tscn")
+	_eq(str(nes_pad["role"]), ConnectorScan.ROLE_CONTROLLER, "scan/a NES pad is a controller")
+	_eq(nes_pad["plugs"], PackedStringArray(["nes_controller"]), "scan/whose plug is a NES's")
+	# A plug the game has no class for is named by its connector, to be dressed.
+	var plug_node := RcaPlug.new()
+	plug_node.connector = "n64_av_plug"
+	_ok(ModHooks._matches(plug_node, &"n64_av_plug"), "scan/a plug answers to its connector, for a mod to dress")
+	_ok(not ModHooks._matches(plug_node, &"wii_av_plug"), "scan/and not to another")
+	plug_node.free()
+	for file: String in DirAccess.get_files_at("user://mod_tests_scenes"):
+		DirAccess.remove_absolute("user://mod_tests_scenes/" + file)
+	DirAccess.remove_absolute("user://mod_tests_scenes")
 
 	# Dressing a shipped object belongs to one mod at a time.
 	var seen: Array = []

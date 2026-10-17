@@ -723,6 +723,7 @@ func _load_system_model() -> void:
 	_build_disc_loader(is_bespoke)
 	_build_handheld()
 	_build_slot2()
+	_check_listed_sockets()
 	# Restore a saved lid pose — a clamshell's hinge (DS/3DS/GBA SP) or a console's
 	# cartridge-bay flap (the NES). Last, and for every model rather than only the
 	# handhelds, because a disc loader and configure_cartridge_slot both re-gate the
@@ -732,6 +733,24 @@ func _load_system_model() -> void:
 		_restore_tray_open()
 
 
+
+
+## A mod console's row lists its cable sockets for the spawn card, which cannot
+## build it to look (ModApi.register_model). Built, it can be looked at: say on
+## its mod's page where the two disagree -- a socket the row leaves out is a lead
+## the card never offers, and one the console lacks is a lead offered for nothing.
+func _check_listed_sockets() -> void:
+	var row := SystemModelRegistry.resolve(model_id, systemid)
+	var id := str(row.get("id", ""))
+	if not row.has("sockets") or SystemModelRegistry.owner_of(id).is_empty():
+		return
+	var built: Array = []
+	for node: Node in find_children("*", "RcaPort", true, false):
+		var c := (node as RcaPort).connector
+		if not built.has(c):
+			built.append(c)
+	SpawnCatalog.note_built_sockets(SystemModelRegistry.owner_of(id), id,
+		(row.get("sockets", []) as Array), built)
 
 
 ## One attach point and cable per video channel.

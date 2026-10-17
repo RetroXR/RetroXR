@@ -380,93 +380,127 @@ the `ScreenSeat`) gets the picture on that mesh's FRONT faces only. Leave it
 wound facing out of the cabinet, the way an exporter writes it; wound the other
 way it is not drawn at all.
 
-A **controller** is simply a scene rooted at `RetroController`. Persistence
-already records its scene path and falls back to the generic pad if your mod is
-gone; nothing extra is needed.
+A **controller** is a scene rooted at `RetroController`, and a **light gun** one
+rooted at `LightGun`. Persistence already records its scene path and falls back
+to the generic pad if your mod is gone; nothing extra is needed. What it plugs
+into is below.
 
-### Taking a stand-in off the card
+### Sockets, plugs and what fits
 
-A console the game ships no model of gets three stand-ins on its spawn card: the
-**Primitive System** box, the **Primitive Controller** and the **Composite
-Cable**. A mod that brings the real thing says so, and the stand-in stops being
-offered beside it:
+Every socket and every plug in the room has a **connector**, and a plug goes into
+a socket when the two name the same one. That string is the whole agreement: the
+game does not have to have heard of it. You set it on the **node, in the scene**,
+with no script of your own:
 
-```gdscript
-api.replaces_standin("ps2", "console")      # the box
-api.replaces_standin("ps2", "controller")   # the stand-in pad
-api.replaces_standin("ps2", "av_lead")      # the Primitive AV Cable (below)
+```
+; a console's AV socket (in your console's port scene)
+[node name="AvMultiOut" instance=ExtResource("snap_zone")]
+script = ExtResource("multi_av_port.gd")   ; the game's class: picture + stereo
+connector = "ps2_av_multi"
+
+; the console end of a lead (in your lead's scene); the far ends are left as
+; they come, "composite_plug", phono plugs for the set
+[node name="PlugA0" type="RigidBody3D" parent="."]
+script = ExtResource("rca_plug.gd")
+connector = "ps2_av_multi"
 ```
 
-Say it from the mod that brings the replacement, and only for what that mod
-brings: a console mod claims `console`, a pad mod claims `controller`. Then any
-subset of them a player installs still leaves a card that works. Several mods
-may claim the same stand-in; it goes while any of them is enabled and comes back
-with the last. The box only goes while a console for that platform is really on
-the card, so a model that failed to load cannot leave a card with no console.
+The connector decides only **what fits**. What travels through it is the class
+you use: `MultiAvPort` carries a picture and both audio channels through one
+hole, `RcaPort` one signal, `LinkPort`/`PsxLinkPort` a link cable, and the plugs
+are `RcaPlug` (an A/V lead) and `LinkPlug` (a link lead).
 
-There is no claim for the Composite Cable. It goes by itself once no console on
-the card has phono jacks, which a console says by naming its socket (below). In
-its place the card offers the game's own lead for that socket, a plain plug on
-the same three phonos, so a console is never left with no way to reach a
-television. The mod that brings the modelled lead claims `av_lead`.
+**The game's own connectors** -- use these to fit what the game ships:
 
-This changes the **menu**. A room saved with a stand-in in it still loads one.
+| connector | what it is |
+|---|---|
+| `composite_plug` | a phono jack or plug (the default) |
+| `coax_plug`, `vga_plug`, `trs_plug` | RF, VGA, 3.5 mm stereo |
+| `n64_av_plug` | Nintendo Multi Out (Super NES, Nintendo 64, GameCube) |
+| `wii_av_plug` | the Wii's AV Multi Out (the same shell, other pins) |
+| `dc_av_plug`, `genesis_av_plug` | Dreamcast AV OUT; Genesis Model 2 A/V OUT (a Saturn mod uses it too) |
+| `ps2_av_multi` | PlayStation and PlayStation 2 AV MULTI OUT |
+| `link_plug`, `gg_link_plug`, `ws_link_plug`, `comlynx_plug`, `ngp_link_plug`, `vb_link_plug` | handheld link sockets |
+| `psx_link_plug`, `saturn_link_plug`, `jag_link_plug`, `ilink_plug` | console link sockets |
+| `nema_5_15_plug`, `iec_c13_plug`, `iec_c7_plug`, ... | power |
+| `<systemid>_controller` | a console's controller port, except those shared below |
+| `playstation_controller` | PlayStation and PlayStation 2 |
+| `gamecube_controller` | GameCube, and the Wii's GameCube ports |
+| `de9_controller` | Atari's DE-9: Atari 2600, Master System, Genesis |
+| `wii_extension` | a Wii Remote's expansion port |
 
-Both calls arrived on 2026-10-06, and `av_lead` a day later. A mod that should
-still load in an older build asks first: `if api.has_method("replaces_standin"):
-...`, and for the lead `if SpawnCatalog.STANDIN_ROLES.has("av_lead"): ...` (an
-unknown role is an error).
+A connector names an interchangeable family -- plugs that fit AND work -- not a
+machine: a Super NES lead works on an N64, so they share one; a Wii lead fits the
+same shell and gives no picture, so it has its own.
 
-### Sockets two mods have to agree on
+**Naming your own.** Inside one mod the name can be anything. Between two it has
+to be the same, and nobody hands it out: if you model a console and somebody else
+models its lead, you each derive it from the hardware the same way,
+`<systemid>_<socket>` in lower case (letters, digits and `_ . : -`):
+`saturn_av_out`, `neogeo_av_out`. A socket only your own mod should ever fit is
+namespaced, `"<mod id>:<name>"`. Never rename one you have published: it is
+inside every lead that fits it.
 
-A lead goes into a socket because both name the same **plug group**, and that
-string is the whole agreement. Inside one mod it can be anything. Between two it
-cannot: if you model a PlayStation 2 and somebody else models its AV lead, and
-you each invent a name, their lead does not go into your console.
+**A pad** names its console with `systemid` on its root node, and its plug is that
+console's controller port -- a pad for `"ps2"` goes into a PlayStation too. A pad
+whose plug is something else says so with `connector` (`"wii_extension"` for a
+Wii Remote extension). **A light gun** says `connector` (`"nes_controller"` for a
+Zapper); one that says nothing fits every console's port, as the game's own does.
 
-So the names that cross between mods are the game's, in
-`Scripts/Mods/mod_connectors.gd`:
-
-| name | what it is | the game's lead |
-|---|---|---|
-| `ps2_av_multi` | PlayStation 2 AV MULTI OUT | Primitive AV Cable |
-| `n64_av_plug` | Nintendo Multi Out (Super NES, Nintendo 64, GameCube) | Stereo Composite Cable |
-
-Use the listed name, verbatim, as the `plug_group()` of both the socket script
-and the plug script, and name it on the console's row:
+**A console** lists the cable sockets on its back panel on its row, by connector.
+The spawn card reads the list, because it cannot build the console to look:
 
 ```gdscript
 api.register_model({"id": "xenu.ps2:scph30001r", "platform": "ps2", ...,
-    "av_connector": "ps2_av_multi"})
+    "sockets": ["ps2_av_multi"]})
 ```
 
-`av_connector` is what tells the card this console has no phono jacks. A
-connector that is your mod's own business is namespaced like any other id,
-`"<mod id>:<name>"`; a bare name that is not in the table is refused. If you
-need one that is not listed yet, ask for it to be added before you publish: the
-name ends up inside every mod that uses it and cannot be changed afterwards.
+`"composite_plug"` in the list means phono jacks; a row with no `sockets` at all is
+taken to wear them, as the stand-in box does. Its controller port is its
+platform's and is not listed (a model whose ports are not overrides
+`get_controller_connector()`). The first time the console is built, its mod's page
+in the MODS tab says if the list and the console disagree.
 
-## Audio and shaders
+### What the spawn card offers
 
-Ship audio for **your own** hardware and load it yourself — `nes_model.gd` shows
-the pattern (a `PcmOneShot` pool and a round-robin voice). There is no mechanism
-for replacing a shipped console's sounds, deliberately.
+Nothing above is said to the menu separately. The game reads each object a mod
+registers -- its scene file, not its scripts -- and offers it on the card of every
+console it fits, whichever mod brought the console: a pad on the cards whose
+controller port it fits (a DualShock 2 on the PlayStation's card as well as the
+PlayStation 2's), a lead on the cards whose consoles list its connector. A phono
+end fits every console with jacks, so it says nothing of which and is never
+matched; the Composite Cable is the game's answer to those.
 
-A custom shader is opt-in and never required. Three ways to land:
+`add_peripherals` still lists something on a card, for a label of your choosing,
+colors (`variants`), or an accessory that plugs into nothing a card can see. The
+card shows each object once.
 
-1. **Do nothing.** Your cabinet gets the same picture every other set has.
-2. **Ask for a built-in by name** — `api.shader("crt")`, and likewise `vcr`,
-   `static`, `window`, `gameboy_lcd`, `vb_stereo`, `phosphor_decay`,
-   `screen_pixel_aa`. You get the resource the game already has loaded, so it
-   costs no second compile. Ask by name rather than by path: the shader files are
-   free to move.
-3. **Write one, reusing ours.** `#include "res://Shaders/crt_filter.gdshaderinc"`
-   and `pixel_aa.gdshaderinc` are the tube and pixel-AA stages every shipped
-   display shader is built from. Note a `.gdshaderinc` parameter cannot shadow a
-   uniform.
+**The stand-ins go by themselves**, as soon as something installed does their job:
 
-Replacing `res://Shaders/crt_effect.gdshader` wholesale is unsupported — it is
-`preload`ed, so whether your copy wins depends on load order.
+- the **Primitive System** box leaves while a mod's console is on the card;
+- the **Primitive Controller**, while an installed pad fits the controller port;
+- the generic **Light Gun**, while an installed gun fits it;
+- the **Composite Cable**, while no console on the card has phono jacks;
+- the game's own lead for a socket (the table below), while an installed lead fits it.
+
+| socket | the game's lead |
+|---|---|
+| `ps2_av_multi` | Primitive AV Cable |
+| `n64_av_plug` | Stereo Composite Cable |
+| `genesis_av_plug` | A/V Cable |
+| `wii_av_plug` | AV Cable |
+| `dc_av_plug` | Stereo AV Cable |
+
+If nothing installed fits a console's socket -- no mod's lead and none of the
+game's, its link cables included -- the console mod's page says so (`nothing installed fits its socket
+'...'`). That is also how a misspelt connector shows up: test your console with
+your lead mod enabled.
+
+This is the **menu**. A room saved with a stand-in in it still loads one.
+
+Until 2026-10-17 all of this was declared to the API (`av_connector`,
+`replaces_standin`, a list of the socket names a mod could use). None of those
+exist any more; a row with `av_connector` is refused with a pointer here.
 
 ## Attaching to existing code
 
@@ -475,8 +509,9 @@ api.on_node_added(&"RetroSystem", func(sys): ...)   # every console, as it spawn
 api.on_scene_content_ready(func(scene_id): ...)     # a room, once it has restored
 ```
 
-`on_node_added` matches engine classes and `class_name` scripts, and is how you
-decorate something without editing it. It is connected only if a mod asks.
+`on_node_added` matches engine classes, `class_name` scripts and connectors (a
+plug or socket whose `connector` is the name given), and is how you decorate
+something without editing it. It is connected only if a mod asks.
 
 A mod that **dresses** a shipped object -- hides its stand-in mesh and hangs a
 real shell on it -- uses `dress` instead, because only one mod can do that to one
@@ -487,7 +522,8 @@ api.dress(&"MemoryCard", "playstation2", _dress)   # false if another mod has it
 ```
 
 The key says which of that class's objects you mean (a card's family, a pad's
-systemid). The first mod to ask gets it, in priority order, and its callback is
+systemid). A plug the game has no class of its own for is dressed by its
+connector: `api.dress(&"n64_av_plug", "shell", _dress)`. The first mod to ask gets it, in priority order, and its callback is
 called for every node of the class exactly as with `on_node_added`. A later mod
 is told who has it on its own page in the MODS tab, and its callback is never
 connected -- two shells are not drawn one inside the other.

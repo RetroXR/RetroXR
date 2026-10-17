@@ -285,6 +285,11 @@ stay the base with `static var` overlays; mod models stay out of `ModelWarmer`'s
 (`stand_in_ids()` etc. read `_ROWS` on purpose). `RoomCatalog` replaced the old
 `SCENE_PATHS`/`SCENE_TITLES`/`SLOT_ROOMS` consts. Mods are authored inside a checkout, in
 `RetroXR/mods/<id>/`. `SystemInfo.media_type` is read by nothing; `DISC_INSERT` means the Wii.
+**What fits what is each socket's and plug's `connector`, set on the node in its scene**
+(a pad's from its `systemid`, `Connectors.CONTROLLER_PORTS`); a console row lists its cable
+`sockets`. The spawn card READS a mod object's scene (`ConnectorScan`, cached per pack in
+`user://connector_scan.json`) and each stand-in leaves while something installed does its
+job -- there is no claim API and no list of allowed names (2026-10-17, `docs/dev/mods.md`).
 
 **The MODS tab browses and downloads from mod.io** (game 14432, REST from GDScript, API key
 only — no login, so no subscribe/rate). **Nothing but mod.io's terms is requested until the

@@ -46,7 +46,9 @@ func _on_node_added(node: Node) -> void:
 
 
 ## is_class() only knows engine classes. A script class is matched by walking the
-## node's own script chain, which is what makes "RetroSystem" work.
+## node's own script chain, which is what makes "RetroSystem" work. A plug or a
+## socket also answers to its connector: most have no class of their own, so
+## "n64_av_plug" is how a mod names the Nintendo AV lead's plug.
 static func _matches(node: Node, cls: StringName) -> bool:
 	if node.is_class(cls):
 		return true
@@ -55,7 +57,7 @@ static func _matches(node: Node, cls: StringName) -> bool:
 		if s.get_global_name() == cls:
 			return true
 		s = s.get_base_script()
-	return false
+	return "connector" in node and str(node.get("connector")) == String(cls)
 
 
 ## Take the right to dress `cls`/`key`, or learn who has it.

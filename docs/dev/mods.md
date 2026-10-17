@@ -59,22 +59,29 @@ for one fact: `SceneManager.SCENE_PATHS` / `SCENE_TITLES` / `SLOT_ROOMS` and
 machine was always legal -- ids are namespaced, both rows are listed -- but three
 things around it were not handled, and each has one home now:
 
-- *Stand-ins.* `ModApi.replaces_standin(systemid, "console"|"controller")` is the
-  mod-reachable form of `SpawnCatalog._NO_STANDIN_CONSOLE` / `_NO_STANDINS`. Claims
-  are a LIST of owners per role, not a flag, so the stand-in returns only with the
-  last claimant. The Composite Cable has no claim: it is derived
-  (`no_phono` in `items_for`) from every console row on the card naming an
-  `av_connector` and the box being gone. A console-only install is then offered the
-  game's OWN lead for that socket (`ModConnectors.KNOWN[..].lead`, a primitive plug in
-  the same plug group; `ps2_av_cable.tscn`) until a mod claims `"av_lead"`. Before
-  2026-10-07 it was offered nothing: the composite lead was rightly hidden and there
-  was no other, so a PlayStation 2 with the lead mod disabled could not reach a set.
-  **A `KNOWN` row never ships without a `lead`** (`mod_tests` checks each is spawnable).
-- *Connector names.* `ModConnectors.KNOWN` is the game's list of plug groups that
-  cross between mods; a row's `av_connector` must be one of them or namespaced.
-  Nothing checks that a mod's `plug_group()` actually returns the name it declared:
-  that is in the mod's own scripts, and only a probe with both packs mounted shows it.
-  **Never rename a row**: the string is compiled into mods already published.
+- *Connectors (2026-10-17).* Every socket and plug has a `connector` set on the node
+  in its scene (RcaPort/RcaPlug and their subclasses, PowerPort; controller plugs take
+  their controller's via `Connectors.of`, `systemid` -> `Connectors.CONTROLLER_PORTS`).
+  `Connectors` (Scripts/Objects/cables) holds what the game knows: labels, ALSO_FITS,
+  the controller-port table, `ROOM` (connectors that fit nothing in particular) and
+  `GAME_LEADS`. It is not a list of allowed names -- it was once (`ModConnectors.KNOWN`,
+  refusing any other bare name), and a third author could not share a socket without
+  a game release. Only spelling is checked.
+- *The card reads objects, mods declare nothing to it.* `ConnectorScan` reads a mod
+  object's SceneState (never instancing it): its root's role (`RetroController`,
+  `LightGun`) and every `RcaPlug`'s connector, cached by path. `items_for` offers every
+  mod object fitting the card's sockets (the platform's controller port plus the rows'
+  `sockets`), ROOM connectors never matching, and each stand-in goes while nothing
+  installed does its job: box while a mod row is on the card, pad/gun while one fits the
+  controller port, Composite Cable while no row wears `composite_plug` (a row with no
+  `sockets` does), a `GAME_LEADS` lead while no mod lead fits its socket. This replaced
+  `replaces_standin`, `av_connector` and the uncommitted `provides_lead`. A scene's
+  script DEFAULTS are read (`get_property_default_value`) but nothing set at run time
+  is: the rule for authors is "set it on the node". `ModApi.problems()` adds
+  `SpawnCatalog.socket_problems_for` live (a socket nothing fits; a row whose `sockets`
+  disagree with the built console, noted by `RetroSystem._check_listed_sockets`).
+  `ModHooks._matches` also matches a node's `connector`, which is how a mod dresses a
+  plug whose class went (N64AvPlug and the other name-only scripts were removed).
 - *Dressing.* `ModApi.dress(cls, key, cb)` is `on_node_added` with a first-come
   claim held in `ModHooks._dressers`. The loser gets a problem line (not a failure)
   and no watcher.

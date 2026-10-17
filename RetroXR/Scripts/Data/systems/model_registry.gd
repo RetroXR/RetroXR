@@ -328,6 +328,16 @@ static func owner_of(model_id: String) -> String:
 	return _overlay.owner_of(model_id)
 
 
+## The rows `owner_id` brought or overrode.
+static func rows_of_mod(owner_id: String) -> Array:
+	var out: Array = []
+	var table := _overlay.table()
+	for key: String in table:
+		if _overlay.owner_of(key) == owner_id:
+			out.append(table[key])
+	return out
+
+
 ## True for a row a mod brought. Used to keep mod models out of the boot warm.
 static func is_mod_row(model_id: String) -> bool:
 	return _overlay.is_mod(model_id) or _overlay.has_override(model_id)

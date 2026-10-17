@@ -454,22 +454,28 @@ static func _items_for(systemid: String) -> Array:
 
 	var primitive: Array = []
 	var imported: Array = []
-	# Whether every console on this card names a socket of its own for its
-	# picture (a mod's av_connector). The box below wears phono jacks, and so
-	# does any row that names nothing.
-	var own_sockets := true
-	var connectors: Array[String] = []
+	# The sockets of the consoles on this card, for what fits them: their
+	# controller port, and the cable sockets a console's row lists. A row that
+	# lists none is taken to wear phono jacks, as the box below does.
+	var controller_port := Connectors.controller_port_of(systemid)
+	var sockets: Array[String] = [controller_port]
+	var phono := false
+	var mod_console := false
 	var rows := SystemModelRegistry.rows_for(systemid)
 	for row: Dictionary in rows:
 		# A row kept for the rooms that name it and not for the card: what was
 		# once a color's own row and is now one of another row's variants.
 		if bool(row.get("unlisted", false)):
 			continue
-		var connector := str(row.get("av_connector", ""))
-		if connector.is_empty():
-			own_sockets = false
-		elif not connectors.has(connector):
-			connectors.append(connector)
+		if not row.has("sockets"):
+			phono = true
+		for socket: Variant in row.get("sockets", []):
+			if str(socket) == Connectors.PHONO:
+				phono = true
+			elif not sockets.has(str(socket)):
+				sockets.append(str(socket))
+		if SystemModelRegistry.is_mod_row(str(row.get("id", ""))):
+			mod_console = true
 		var item := {"kind": "system", "model_id": row.get("id", ""),
 			"label": row.get("label", "Console")}
 		# The colors the shell comes in, for a row that lists them: the menu
@@ -494,10 +500,11 @@ static func _items_for(systemid: String) -> Array:
 	# The generic box stands in for a platform with NO plain model of its own.
 	# Where the platform authored one — the PC tower, the Virtual Boy — it is a
 	# second and worse console on the same card.
-	# A mod that brings the console says so (ModApi.replaces_standin), which is
-	# _NO_STANDIN_CONSOLE for a platform the game ships no model of.
-	var own_console := (_NO_STANDIN_CONSOLE.has(systemid)
-		or mod_replaces_standin(systemid, STANDIN_CONSOLE)) and not imported.is_empty()
+	# A mod's console on the card is that for a platform the game ships no model
+	# of. Only while one is really on it: a model that failed to load cannot leave
+	# a card with no console.
+	var own_console := (_NO_STANDIN_CONSOLE.has(systemid) or mod_console) \
+		and not imported.is_empty()
 	var boxed := standins and primitive.is_empty() and not own_console
 	if boxed:
 		items.append({"kind": "system", "label": "Primitive System",
@@ -537,9 +544,17 @@ static func _items_for(systemid: String) -> Array:
 	# this call was written for until its discs became a systemid of their own; it
 	# has a tile now and is spawned from that.
 	items.append_array(_units_carded_here(systemid))
+	# What mods bring that fits this card's sockets, whichever card they listed
+	# it on or none. Each stand-in below stays only while nothing installed does
+	# its job: the generic gun while no gun fits the controller port, the pad
+	# while no pad does, the game's lead for a socket while no mod's lead does.
+	var fitting := mod_objects_fitting(sockets)
+	var fits := func(role: String, socket: String) -> bool:
+		return fitting.any(func(f: Dictionary) -> bool:
+			return f["role"] == role and f["plug"] == socket)
 	# With the peripherals rather than the leads below: it is something you hold.
 	if _LIGHT_GUN_PLATFORMS.has(systemid) \
-			and not mod_replaces_standin(systemid, STANDIN_LIGHT_GUN):
+			and not fits.call(ConnectorScan.ROLE_LIGHT_GUN, controller_port):
 		items.append(_LIGHT_GUN.duplicate())
 	if _LINK_LEADS.has(systemid):
 		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
@@ -552,31 +567,134 @@ static func _items_for(systemid: String) -> Array:
 		items.append_array(_COMPUTER_INPUT.duplicate(true))
 		items.append(_VGA_CABLE.duplicate())
 		items.append_array(_TRS_KIT.duplicate(true))
-	if standins and not mod_replaces_standin(systemid, STANDIN_CONTROLLER):
+	if standins and not fits.call(ConnectorScan.ROLE_CONTROLLER, controller_port):
 		items.append({"kind": "peripheral", "label": "Primitive Controller",
 			"spawn": PRIMITIVE_CONTROLLER})
 	# The generic lead fits phono jacks. Once no console on the card has any --
-	# the box is gone and every model names its own socket -- it would fit the
+	# the box is gone and every row lists sockets without them -- it would fit the
 	# television and nothing on the console, which is _OWN_AV_LEAD's reason.
-	var no_phono := not boxed and not rows.is_empty() and own_sockets
+	var no_phono := not boxed and not rows.is_empty() and not phono
 	if not handheld and not _NO_AV_SOCKETS.has(systemid) \
 			and not _OWN_AV_LEAD.has(systemid) and not no_phono:
 		items.append(_AV_CABLE.duplicate())
 	# A socket a console names needs a lead that fits it, and the mod that
-	# brings the console need not bring one. The game's own lead for the socket
-	# stands in until a mod says it has the real thing.
-	if not mod_replaces_standin(systemid, STANDIN_AV_LEAD):
-		for connector: String in connectors:
-			var known: Dictionary = ModConnectors.KNOWN.get(connector, {})
-			var lead := str(known.get("lead", ""))
-			if lead.is_empty() or items.any(func(i: Dictionary) -> bool: return i.get("spawn", "") == lead):
-				continue
-			items.append({"kind": "peripheral", "label": str(known.get("lead_label", "AV Cable")),
-				"spawn": lead})
+	# brings the console need not bring one: the game's own lead for it stands in
+	# while no installed mod's lead fits it.
+	var mod_rows: Array = _mod_peripherals.get(systemid, [])
+	for socket: String in sockets.slice(1):
+		var own := Connectors.game_lead(socket)
+		if own.is_empty() or fits.call(ConnectorScan.ROLE_LEAD, socket):
+			continue
+		var spawn := str(own["spawn"])
+		if not _listed(items, spawn) and not _listed(mod_rows, spawn):
+			items.append({"kind": "peripheral", "label": str(own["label"]), "spawn": spawn})
 	# Mod peripherals go LAST, after the stand-ins and the shipped accessories,
 	# so a mod adds to a console's card rather than reordering it.
-	items.append_array((_mod_peripherals.get(systemid, []) as Array).duplicate(true))
+	items.append_array(mod_rows.duplicate(true))
+	# Then whatever else installed fits, from mods that listed it elsewhere or
+	# nowhere: a DualShock 2 on the PlayStation's card, another author's lead on a
+	# console it fits.
+	for f: Dictionary in fitting:
+		if not _listed(items, str(f["spawn"])):
+			items.append(_row_for_mod_object(str(f["type"])))
 	return items
+
+
+static func _listed(items: Array, spawn: String) -> bool:
+	return items.any(func(i: Dictionary) -> bool: return str(i.get("spawn", "")) == spawn)
+
+
+## Every object a mod registered that plugs into one of `sockets`, as
+## [{type, spawn, role, plug}]: read from its scene (ConnectorScan), never from
+## anything the mod said about it. A room connector (a phono end) fits nothing in
+## particular, so it never matches.
+static func mod_objects_fitting(sockets: Array) -> Array:
+	var out: Array = []
+	for type: String in ScenePersistence.mod_object_types():
+		var info := ConnectorScan.of_scene(ScenePersistence.mod_object_scene(type),
+			_pack_stamp(ScenePersistence.mod_object_owner(type)))
+		for plug: String in (info["plugs"] as PackedStringArray):
+			if sockets.has(plug) and not Connectors.is_room(plug):
+				out.append({"type": type, "spawn": "mod:" + type, "role": info["role"], "plug": plug})
+				break
+	return out
+
+
+## Which pack a mod's objects come from, for ConnectorScan's disk cache: its id,
+## version and file time, so a rebuilt pack is read again even at one version.
+## "" for an owner the loader has no record of (a test's), which is not kept.
+static func _pack_stamp(owner_id: String) -> String:
+	var loop := Engine.get_main_loop() as SceneTree
+	var mods := loop.root.get_node_or_null("Mods") if loop != null else null
+	var rec: Variant = mods.call("mod", owner_id) if mods != null else null
+	if rec == null or not (rec is ModRecord) or (rec as ModRecord).manifest == null:
+		return ""
+	var r := rec as ModRecord
+	return "%s@%s:%d" % [owner_id, r.manifest.version, FileAccess.get_modified_time(r.path)]
+
+
+## The card row for a mod's object listed on a card it did not name: the row its
+## mod gave it on another card, colors and all, else its menu label, else its name.
+static func _row_for_mod_object(type: String) -> Dictionary:
+	var spawn := "mod:" + type
+	for systemid: String in _mod_peripherals:
+		for row: Dictionary in _mod_peripherals[systemid]:
+			if str(row.get("spawn", "")) == spawn:
+				return row.duplicate(true)
+	var label := str((_mod_spawnables.get(type, {}) as Dictionary).get("label", ""))
+	if label.is_empty():
+		label = type.get_slice(":", 1).replace("_", " ").capitalize()
+	return {"kind": "peripheral", "label": label, "spawn": spawn}
+
+
+## What `owner_id`'s page should say about its consoles' sockets: one that
+## nothing installed fits, and one its row and its built console disagree on.
+## Asked when the page is drawn, never stored at registration, because the lead
+## may come from a mod that registers later or is switched on later.
+static func socket_problems_for(owner_id: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	var seen: Array[String] = []
+	for row: Dictionary in SystemModelRegistry.rows_of_mod(owner_id):
+		for socket: Variant in row.get("sockets", []):
+			var name := str(socket)
+			if seen.has(name) or Connectors.is_room(name) or game_lead_connectors().has(name):
+				continue
+			seen.append(name)
+			if mod_objects_fitting([name]).is_empty():
+				out.append("nothing installed fits its socket '%s': enable a lead mod for it" % name)
+	out.append_array(_built_socket_notes.get(owner_id, PackedStringArray()))
+	return out
+
+
+## Every connector a lead the game ships has a plug for -- its A/V leads, its
+## link cables, the i.LINK cable -- read off the leads' own scenes, which the
+## game holds loaded already.
+static func game_lead_connectors() -> PackedStringArray:
+	if _game_lead_connectors.is_empty():
+		for type: String in ScenePersistence.LEAD_SCENES:
+			var packed := ScenePersistence.LEAD_SCENES[type] as PackedScene
+			if packed == null:
+				continue
+			for plug: String in (ConnectorScan.of_scene(packed.resource_path)["plugs"] as PackedStringArray):
+				if not _game_lead_connectors.has(plug):
+					_game_lead_connectors.append(plug)
+	return _game_lead_connectors
+
+
+## Said once a mod's console is built: the sockets its row lists and the ones
+## the console really wears, which the card cannot build it to look at.
+static func note_built_sockets(owner_id: String, model_id: String, listed: Array, built: Array) -> void:
+	var notes := PackedStringArray()
+	for c: String in built:
+		if not listed.has(c):
+			notes.append("%s has a '%s' socket its row's sockets do not list" % [model_id, c])
+	for c: String in listed:
+		if not built.has(c):
+			notes.append("%s's row lists a '%s' socket the console does not have" % [model_id, c])
+	if notes.is_empty():
+		_built_socket_notes.erase(owner_id)
+	else:
+		_built_socket_notes[owner_id] = notes
 
 
 ## The expansion units this card offers as rows of its own: the ones with no
@@ -614,21 +732,10 @@ static var _mod_peripherals: Dictionary = {}
 ## An owner per systemid entry, so a failed mod's rows can be withdrawn.
 static var _peripheral_owners: Dictionary = {}
 
-## The stand-ins a mod can say it replaces. See ModApi.replaces_standin.
-const STANDIN_CONSOLE := "console"
-const STANDIN_CONTROLLER := "controller"
-## The generic Light Gun row, for a mod that brings the console's own gun.
-const STANDIN_LIGHT_GUN := "light_gun"
-## The game's own lead for a socket a mod's console names (ModConnectors), for a
-## mod that brings the modelled lead.
-const STANDIN_AV_LEAD := "av_lead"
-const STANDIN_ROLES: Array[String] = [STANDIN_CONSOLE, STANDIN_CONTROLLER, STANDIN_LIGHT_GUN,
-	STANDIN_AV_LEAD]
-
-## systemid -> {role -> Array[String] of the mods that replace it}. A list and
-## not a flag: two mods may replace the same stand-in, and it comes back only
-## when the last of them goes.
-static var _mod_standins: Dictionary = {}
+## owner -> what its built consoles said about their sockets (note_built_sockets).
+static var _built_socket_notes: Dictionary = {}
+## See game_lead_connectors. The game's leads do not change while it runs.
+static var _game_lead_connectors := PackedStringArray()
 
 ## Standalone spawnable props, shown on their own rather than under a console.
 ## type -> {label, owner}
@@ -662,28 +769,6 @@ static func register_mod_peripherals(systemid: String, items: Array,
 		_peripheral_owners[owner_id] = []
 	(_peripheral_owners[owner_id] as Array).append(systemid)
 	return ""
-
-
-## "" on success, else why the claim was refused.
-static func register_mod_standin(systemid: String, role: String, owner_id: String) -> String:
-	if systemid.is_empty():
-		return "systemid is empty"
-	if not STANDIN_ROLES.has(role):
-		return "'%s' is not a stand-in (one of %s)" % [role, ", ".join(STANDIN_ROLES)]
-	if not _mod_standins.has(systemid):
-		_mod_standins[systemid] = {}
-	var roles: Dictionary = _mod_standins[systemid]
-	if not roles.has(role):
-		roles[role] = []
-	if not (roles[role] as Array).has(owner_id):
-		(roles[role] as Array).append(owner_id)
-	return ""
-
-
-## Whether some mod has said it replaces `role` on this console's card.
-static func mod_replaces_standin(systemid: String, role: String) -> bool:
-	var roles: Dictionary = _mod_standins.get(systemid, {})
-	return not (roles.get(role, []) as Array).is_empty()
 
 
 ## A prop the spawn menu can offer directly. `menu` carries at least a label.
@@ -728,9 +813,7 @@ static func drop_mod(owner_id: String) -> void:
 	for spawn: String in _offered_variants.keys():
 		if _offered_variants[spawn].get("owner", "") == owner_id:
 			_offered_variants.erase(spawn)
-	for systemid: String in _mod_standins:
-		for role: String in (_mod_standins[systemid] as Dictionary):
-			(_mod_standins[systemid][role] as Array).erase(owner_id)
+	_built_socket_notes.erase(owner_id)
 	for type: String in _mod_spawnables.keys():
 		if _mod_spawnables[type].get("owner", "") == owner_id:
 			_mod_spawnables.erase(type)
