@@ -81,10 +81,10 @@ func _add_cable_to_scene() -> void:
 	_cable_rope = _cable_instance.get_node("VerletRope") as VerletRope
 	_cable_plug.set_controller(self)
 	_cable_plug.add_collision_exception_with(self)
-	# The console's SensorBarPort filters on this, and only this. Note the plug
-	# stays in "controller_plug" too (ControllerPlug._ready puts it there), which
-	# is harmless: a cabinet port also checks _accepts_plug, and this plug carries
-	# no device_type a console would announce.
+	# The console's SensorBarPort requires this, and only this. The plug stays in
+	# "controller_plug" too (ControllerPlug._ready puts it there), which is
+	# harmless: a cabinet port also reads the connector, and this is not a pad's.
+	_cable_plug.connector = String(PLUG_GROUP)
 	_cable_plug.add_to_group(PLUG_GROUP)
 	# Laid out along the boss's own axis, so the cord continues the direction the
 	# moulding points instead of kinking at the join.

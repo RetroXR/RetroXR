@@ -21,11 +21,6 @@ const DEVICE_GBA_LINK := (7 << 8) | 0
 ## Read by RetroSystem when this plug seats, and announced to the core.
 var device_type: int = DEVICE_GBA_LINK
 
-## Which console's ports will take it. RetroSystem's port filter reads this off
-## the plug: a GameCube lead is not a Wii lead and not a PlayStation lead, and
-## the socket says so before anything electrical is decided.
-var systemid: String = "gc"
-
 ## The console and port this end is sitting in, or null and -1. Set by the
 ## console itself, which is the only thing that knows: a controller socket is a
 ## plain snap zone rather than an RcaPort, so the usual walk to find the port a
@@ -34,17 +29,17 @@ var seated_system: Node3D = null
 var seated_port_index: int = -1
 
 
+## What a GameCube's (and a Wii's) controller ports take, which is what this is:
+## a GameCube lead is not a PlayStation lead, and the socket says so before
+## anything electrical is decided.
 func _init() -> void:
-	connector = "gc_link_plug"
-
+	connector = "gamecube_controller"
 
 
 func _ready() -> void:
 	super._ready()
-	# In BOTH groups: its own, so the cable's own bookkeeping can find it and so
-	# nothing else mistakes it for a phono plug, and "controller_plug" because
-	# that is the string a console's ports filter on. A connector that fits a
-	# socket has to answer to the name the socket asks for.
+	# In "controller_plug" as well as its own connector, because that is the group
+	# every controller port requires before its filter reads the connector.
 	add_to_group("controller_plug")
 
 

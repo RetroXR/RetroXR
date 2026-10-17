@@ -38,6 +38,12 @@ const DESKTOP_LIGHTGUN_BUTTONS: Dictionary = {
 ## Set true so desktop_pickup.gd uses FPS-snap positioning instead of ray-hold.
 var desktop_fps_snap: bool = true
 
+## The plug on this gun's cord: "nes_controller" for a Zapper, a PlayStation's
+## port for a GunCon. Empty fits every console's port, which is right for the
+## game's own gun, a stand-in for whichever console it is offered on. See
+## Connectors.
+@export var connector: String = ""
+
 ## Height of the drop hint above the gun, in metres.
 const HINT_HEIGHT := 0.16
 var _hint: HeldHint = null

@@ -39,14 +39,19 @@ var device_type: int = RETRO_DEVICE_JOYPAD
 ## back to the generic plug, so an export-excluded model never breaks a build.
 @export var plug_mesh_path: String = ""
 
-## The systemid this controller physically belongs to, e.g. "snes". A port
-## only accepts a plug whose controller matches (see RetroSystem._accepts_plug),
-## the same way the cartridge slot only accepts media for its own system.
+## The systemid this controller physically belongs to, e.g. "snes". Its plug fits
+## that console's controller port, and every other console's with the same one
+## (Connectors.CONTROLLER_PORTS: a PlayStation pad fits a PlayStation 2).
 ##
 ## Empty means UNIVERSAL and fits anything — that is deliberate for RetroXR's own
 ## props (the generic pad, keyboard, mouse, multitap, light gun), which stand in for
 ## hardware we have no model of and must keep working on every system.
 @export var systemid: String = ""
+
+## The plug on this controller's cord, when it is not simply its console's port:
+## "wii_extension" for a Wii Remote extension, say. Empty means what `systemid`
+## makes it. See Connectors.
+@export var connector: String = ""
 
 ## Cord length in metres, or 0 to keep whatever controller_cable.tscn ships
 ## (50 x 36 mm = 1.80 m). Real hardware varies a lot — a CX40's lead is far

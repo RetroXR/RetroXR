@@ -37,7 +37,7 @@ const LEAD_LENGTH := 1.0
 ## Announced to the console when the plug seats. Overridden per subclass.
 var device_type: int = 0
 
-## Universal — RetroSystem._accepts_plug reads this off the plug, and an empty
+## Universal — the plug's connector comes from this (Connectors.of), and an empty
 ## string fits every console's port.
 var systemid: String = ""
 

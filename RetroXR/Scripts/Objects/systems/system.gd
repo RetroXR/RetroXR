@@ -397,25 +397,6 @@ const _MEDIA_COMPAT: Dictionary = {
 	"wii": ["gc"],
 }
 
-## The same idea for connectors: controllers of these systemids ALSO fit this
-## system's ports.
-##
-## The Wii row is the same fact as the Wii row above, seen from the front of the
-## machine: a console that plays GameCube discs has the four GameCube controller
-## sockets to play them with, under the flap. Without it a GameCube pad, or a
-## GameCube-to-Game Boy Advance lead, is refused by the only machine in the room
-## that can use one, and the refusal is silent because a snap zone that declines
-## an object simply does nothing.
-##
-## Real hardware is looser still, and each of these is one line if wanted:
-##   "ps2":     ["psx"]         PS2 takes PS1 pads (identical connector)
-##   "genesis": ["atari2600"]   the DE-9 is shared, and vice versa
-## Physical fit only — a plug that cannot enter the socket does not belong here
-## however well its buttons would map.
-const _CONTROLLER_COMPAT: Dictionary = {
-	"wii": ["gc"],
-}
-
 # RETRO_DEVICE_* types relevant to port routing (libretro.h).
 const RETRO_DEVICE_NONE := 0
 const RETRO_DEVICE_JOYPAD := 1
@@ -4744,10 +4725,19 @@ func _accepts_media(obj: Node3D) -> bool:
 	return ExpansionCatalog.host_slot_media(systemid).has(str(obj.get("systemid")))
 
 
-## Port gate: does this plug's controller belong to this system? Reads the
-## systemid the ControllerPlug copied off its controller.
+## What this console's controller ports take: its model's say, else its
+## platform's (Connectors.controller_port_of) -- a Wii's take GameCube pads, a
+## Genesis's anything with Atari's DE-9.
+func controller_connector() -> String:
+	var own := _model.get_controller_connector() if _model != null else ""
+	return own if not own.is_empty() else Connectors.controller_port_of(systemid)
+
+
+## Port gate: is this plug what the ports take? One that says nothing (the game's
+## generic props) fits every port; see Connectors.of.
 func _accepts_plug(obj: Node3D) -> bool:
-	return _belongs_here(obj, _CONTROLLER_COMPAT)
+	var plug := Connectors.of(obj)
+	return plug.is_empty() or plug == controller_connector()
 
 
 ## Card gate: is this the family of card this console takes? Every card is in

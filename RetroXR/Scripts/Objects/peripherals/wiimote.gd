@@ -28,8 +28,6 @@ class_name Wiimote
 extends XRToolsPickable
 
 
-const NUNCHUK_PLUG_SYSTEMID := "wii_nunchuk"
-const MOTION_PLUS_PLUG_SYSTEMID := "wii_motion_plus"
 
 # Dolphin libretro device ids (DolphinLibretro/Input.cpp). WIIMOTE is #defined to
 # RETRO_DEVICE_JOYPAD, so a bare remote and a plain pad share the value 1. See
@@ -422,8 +420,8 @@ func _ready() -> void:
 	_cache_controls()
 	_setup_leds()
 	# snap_require alone would also take a console pad's plug — every ControllerPlug
-	# joins that group. The systemid sentinel is what makes this socket the
-	# Nunchuk's and nothing else's, the mirror of RetroSystem._accepts_plug.
+	# joins that group. The connector is what makes this socket an extension's and
+	# nothing else's, the mirror of RetroSystem._accepts_plug.
 	_expansion_port.snap_filter = _accepts_extension
 	_expansion_port.has_picked_up.connect(_on_extension_seated)
 	_expansion_port.has_dropped.connect(_on_extension_removed)
@@ -691,10 +689,7 @@ func _on_cover_moved(degrees: float) -> void:
 ## is not on a cord, so it presents ITSELF rather than a plug, which is why it
 ## joins the controller_plug group the snap zone requires.
 func _accepts_extension(obj: Node3D) -> bool:
-	if not "systemid" in obj:
-		return false
-	var mid := str(obj.get("systemid"))
-	if mid == NUNCHUK_PLUG_SYSTEMID or mid == MOTION_PLUS_PLUG_SYSTEMID:
+	if Connectors.of(obj) == Connectors.WII_EXTENSION:
 		return true
 	return _brought_extension(obj) != null
 

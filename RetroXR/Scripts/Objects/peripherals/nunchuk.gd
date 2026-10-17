@@ -16,11 +16,6 @@ extends XRToolsPickable
 
 const NUNCHUK_CABLE_SCENE := preload("res://Scenes/Objects/controllers/wii/nunchuk_cable.tscn")
 
-## What the plug reports so it fits the remote's expansion port and nothing else.
-## RetroSystem._accepts_plug rejects any plug whose systemid is not the console's,
-## which keeps this cord out of every cabinet socket in the room.
-const PLUG_SYSTEMID := "wii_nunchuk"
-
 const INPUT_THRESHOLDS: Dictionary = {
 	"trigger":   0.3,
 	"grip":      0.3,
@@ -184,9 +179,9 @@ func _add_cable_to_scene() -> void:
 	_cable_rope = _cable_instance.get_node("VerletRope") as VerletRope
 	_cable_plug.set_controller(self)
 	_cable_plug.add_collision_exception_with(self)
-	# set_controller copies device_type and systemid off this node; the sentinel
-	# below is what the remote's expansion port filters on.
-	_cable_plug.systemid = PLUG_SYSTEMID
+	# set_controller copies device_type off this node. The plug is an extension
+	# plug, which the remote's expansion port takes and no console port does.
+	_cable_plug.connector = Connectors.WII_EXTENSION
 	# Laid out along the BOOT's axis rather than straight down the world, so the
 	# first thing the cord does is continue the direction the moulding points. A
 	# world-down guess put a kink at the join on any nunchuk not stood upright.

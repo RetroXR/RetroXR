@@ -46,7 +46,11 @@ const LABELS := {
 	"saturn_link_plug": "a Saturn link cable plug",
 	"jag_link_plug": "a JagLink cable plug",
 	"ilink_plug": "an i.LINK cable plug",
-	"gc_link_plug": "a GameCube controller plug",
+	"gamecube_controller": "a GameCube controller plug",
+	"playstation_controller": "a PlayStation controller plug",
+	"de9_controller": "a DE-9 joystick plug",
+	"wii_extension": "a Wii Remote extension plug",
+	"wii_sensorbar_plug": "a sensor bar plug",
 	"nema_5_15_plug": "a grounded US wall plug",
 	"nema_1_15_plug": "a two-prong US wall plug",
 	"nema_1_15_polarized_plug": "a polarized two-prong US wall plug",
@@ -71,6 +75,33 @@ const ALSO_FITS := {
 	"nema_1_15_plug": ["nema_5_15_plug"],
 	"nema_1_15_polarized_plug": ["nema_5_15_plug"],
 }
+
+## The controller port each console has, by systemid: what a pad's plug has to be
+## to go in. A console not listed has a port of its own, "<systemid>_controller",
+## and so does a pad that names its systemid and nothing else, so a NES pad fits a
+## NES and nothing else. Physical fit, as on the hardware: a plug that cannot
+## enter the socket does not belong however well its buttons would map, and one
+## that can is not refused for having come in another box.
+const CONTROLLER_PORTS := {
+	# Sony kept the port from the PlayStation to the PlayStation 2: a DualShock 2
+	# works in a PlayStation, and a PlayStation pad in a PlayStation 2.
+	"psx": "playstation_controller",
+	"ps2": "playstation_controller",
+	# The Wii carries four GameCube ports under its flap.
+	"gc": "gamecube_controller",
+	"wii": "gamecube_controller",
+	# Atari's DE-9 joystick port. Sega kept it on the Master System and the
+	# Genesis, and a pad or stick from any of the three works in the others for
+	# the buttons they share. Not the 7800: its two-button joysticks wire the same
+	# shell differently, so it keeps a port of its own.
+	"atari2600": "de9_controller",
+	"mastersystem": "de9_controller",
+	"genesis": "de9_controller",
+}
+
+## A Wii Remote's expansion port: the Nunchuk, the MotionPlus, and any extension
+## a mod brings.
+const WII_EXTENSION := "wii_extension"
 
 ## The characters a connector name is made of. Lower case, because a group is
 ## compared byte for byte and "PS2_av_multi" would fit nothing; the rest are what
@@ -97,4 +128,26 @@ static func problem(connector: String) -> String:
 	for c: String in connector:
 		if not NAME_CHARS.contains(c):
 			return "'%s' is not a connector name: use lower-case letters, digits and _ . : -" % connector
+	return ""
+
+
+## What a console's controller ports take, from its systemid; "" for none.
+static func controller_port_of(systemid: String) -> String:
+	if systemid.is_empty():
+		return ""
+	return str(CONTROLLER_PORTS.get(systemid, systemid + "_controller"))
+
+
+## The connector `obj` presents to a socket: the `connector` it says it is, else
+## what its `systemid` makes it (a pad's: see CONTROLLER_PORTS), else "". A
+## controller port takes "" whatever it is, for the game's own generic props --
+## the stand-in pad, the keyboard, the mouse, the multitap, the light gun -- which
+## stand in for hardware nobody modelled and must work on every console.
+static func of(obj: Object) -> String:
+	if obj == null:
+		return ""
+	if "connector" in obj and not str(obj.get("connector")).is_empty():
+		return str(obj.get("connector"))
+	if "systemid" in obj:
+		return controller_port_of(str(obj.get("systemid")))
 	return ""

@@ -215,6 +215,13 @@ func game_port_index() -> int:
 	return -1
 
 
+## The connector this hardware's controller ports take, or "" for its platform's
+## (Connectors.controller_port_of). Only a model whose ports are not its
+## platform's own needs to say.
+func get_controller_connector() -> String:
+	return ""
+
+
 ## Returns the number of controller ports active on this hardware.
 ## The base system scene has 4 snap zones; ports beyond this count are hidden.
 func get_controller_port_count() -> int:

@@ -1150,10 +1150,37 @@ func _test_belongs_here() -> void:
 	_ok(nes._accepts_media(plain), "belongs/an object naming no system fits")
 
 	cart.systemid = "snes"
-	_ok(not nes._accepts_plug(cart), "belongs/the port gate reads the same way")
+	_ok(not nes._accepts_plug(cart), "belongs/the port gate refuses another console's pad")
 	cart.systemid = ""
 	_ok(nes._accepts_plug(cart), "belongs/an unlabelled plug fits")
 	nes.free()
+
+	# Ports are a connector, and consoles that share one take each other's pads.
+	var ps2 := _system("ps2")
+	cart.systemid = "psx"
+	_ok(ps2._accepts_plug(cart), "connector/a PlayStation 2 takes a PlayStation pad")
+	ps2.free()
+	var gen := _system("genesis")
+	cart.systemid = "atari2600"
+	_ok(gen._accepts_plug(cart), "connector/a Genesis takes an Atari joystick (DE-9)")
+	cart.systemid = "mastersystem"
+	_ok(gen._accepts_plug(cart), "connector/and a Master System pad")
+	cart.systemid = "saturn"
+	_ok(not gen._accepts_plug(cart), "connector/but not a Saturn pad")
+	gen.free()
+	var vcs := _system("atari2600")
+	cart.systemid = "genesis"
+	_ok(vcs._accepts_plug(cart), "connector/and an Atari 2600 takes a Genesis pad")
+	vcs.free()
+	# A plug that says what it is goes by that, not by its systemid.
+	var plug := ControllerPlug.new()
+	plug.connector = Connectors.WII_EXTENSION
+	var wii_box := _system("wii")
+	_ok(not wii_box._accepts_plug(plug), "connector/a Wii's ports refuse a Remote extension")
+	plug.connector = "gamecube_controller"
+	_ok(wii_box._accepts_plug(plug), "connector/and take a GameCube controller plug")
+	wii_box.free()
+	plug.free()
 
 	# The media table is the console's, and it is not symmetric: a Wii takes a
 	# GameCube disc, a GameCube does not take a Wii one.

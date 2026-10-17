@@ -18,15 +18,6 @@ class_name MotionPlus
 extends XRToolsPickable
 
 
-## What this reports to whatever socket it is offered to, and what the remote's
-## expansion port narrows on. Non-empty on purpose: RetroSystem._accepts_plug
-## rejects any plug whose systemid is not the console's, which keeps a dongle out
-## of every cabinet socket in the room the same way it keeps the Nunchuk cord out.
-const PLUG_SYSTEMID := "wii_motion_plus"
-
-## What this dongle's OWN port will take: the Nunchuk's plug and nothing else.
-## The pass-through is a Wii expansion port, not somewhere to stack more dongles.
-const NUNCHUK_PLUG_SYSTEMID := "wii_nunchuk"
 
 ## Height of the drop hint above the dongle, in metres. Lower than the Nunchuk's:
 ## this is a 46 mm block and a hint at its height would float clear of it.
@@ -48,8 +39,9 @@ signal nunchuk_changed(nunchuk: Nunchuk)
 signal extension_changed(extension: Node3D)
 
 
-## Read by any socket this is offered to. See PLUG_SYSTEMID.
-var systemid: String = PLUG_SYSTEMID
+## What this is to any socket it is offered to: an extension plug, which the
+## remote's expansion port takes and no console port does.
+var connector: String = Connectors.WII_EXTENSION
 
 var _nunchuk: Nunchuk = null
 var _extension: Node3D = null
@@ -73,10 +65,12 @@ func _ready() -> void:
 
 # ── The pass-through port ─────────────────────────────────────────────────────
 
+## The dongle's OWN port: an extension plug, but not another dongle -- the
+## pass-through is a Wii expansion port, not somewhere to stack more of them.
 func _accepts_nunchuk(obj: Node3D) -> bool:
-	if not "systemid" in obj:
+	if obj is MotionPlus:
 		return false
-	if str(obj.get("systemid")) == NUNCHUK_PLUG_SYSTEMID:
+	if Connectors.of(obj) == Connectors.WII_EXTENSION:
 		return true
 	# What the remote's own socket takes of a mod's making, this one does.
 	return Wiimote._brought_extension(obj) != null

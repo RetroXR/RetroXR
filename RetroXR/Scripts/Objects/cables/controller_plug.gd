@@ -1,5 +1,6 @@
 ## ControllerPlug — the grabbable plug at the end of a retro controller's cable.
-## Must be in the "controller_plug" group so RetroSystem controller ports accept it.
+## In the "controller_plug" group, which every controller port requires, and fits
+## the ports whose connector is its own (Connectors.of; RetroSystem._accepts_plug).
 class_name ControllerPlug
 extends XRToolsPickable
 
@@ -14,8 +15,11 @@ var device_type: int = 1  # RETRO_DEVICE_JOYPAD
 ## (a gun's "zapper", "guncon"), copied with its device type. Empty for most.
 ## See RetroSystem.core_device_id.
 var device_names: PackedStringArray = PackedStringArray()
-## Systemid of the controller on the other end; "" = fits any port.
+## Systemid of the controller on the other end.
 var systemid: String = ""
+## What this plug is, copied off its controller (Connectors.of): its console's
+## controller port, unless the controller says otherwise; "" fits any port.
+var connector: String = ""
 
 ## Local point the cable leaves this plug at, fed to VerletRope.end_anchor_offset.
 ## The generic plug reads its own CordExit marker (the end of the strain-relief
@@ -120,10 +124,11 @@ func set_controller(controller: Node3D) -> void:
 	if "device_type" in controller:
 		device_type = controller.device_type
 	device_names = RetroSystem.device_names_of(controller)
-	# Which system this plug fits. The port zone's snap filter reads it off the
-	# plug rather than chasing the cable back to the controller.
+	# What this plug fits. The port zone's snap filter reads it off the plug
+	# rather than chasing the cable back to the controller.
 	if "systemid" in controller:
 		systemid = str(controller.get("systemid"))
+	connector = Connectors.of(controller)
 
 
 ## Called by system.gd when this plug snaps into a port.
