@@ -387,7 +387,8 @@ func _keep_cases() -> void:
 	add_child(spare)
 	await _wait(20)
 	var multi_out := n64.get_node_or_null("AvMultiOut") as RcaPort
-	_ok(multi_out is N64AvPort, "keep/the N64 has its AV MULTI OUT")
+	_ok(multi_out is MultiAvPort and multi_out.connector == "n64_av_plug",
+		"keep/the N64 has its AV MULTI OUT")
 	if multi_out != null:
 		multi_out.pick_up_object(av_lead.get_node("PlugA0") as RcaPlug)
 	var tv_ends := {"PlugB0": "CompositePort", "PlugB1": "AudioLIn", "PlugB2": "AudioRIn"}

@@ -99,17 +99,16 @@ const SPEAKER_OUT_CHANNELS := [
 const GROUP := "rca_port"
 
 
-## The plug group this socket accepts — the other half of RcaPlug.plug_group().
-## VgaPort overrides both together, which is what keeps a DE-15 hood out of a
-## phono jack and a phono plug out of a DE-15 shell.
-func plug_group() -> String:
-	return "composite_plug"
+## The plug this socket takes -- the other half of RcaPlug.connector, set on the
+## node in its scene. A VGA socket and a VGA lead both naming "vga_plug" is what
+## keeps a DE-15 hood out of a phono jack and a phono plug out of a DE-15 shell.
+@export var connector: String = Connectors.PHONO
 
 
 func _ready() -> void:
 	super._ready()
 	add_to_group(GROUP)
-	snap_require = plug_group()
+	snap_require = connector
 	_tint_jack()
 	var jack := get_node_or_null("RcaJack") as Node3D
 	if jack != null:
@@ -206,7 +205,7 @@ func channel_name() -> String:
 ## is just `channel`. The exception is a MULTI-WAY connector — the Wii's AV Multi Out
 ## is one shell carrying picture and both audio channels — where a single socket is
 ## the source for three cords at once and each has to answer differently. See
-## WiiAvPort.
+## MultiAvPort.
 ##
 ## A reader of a CompositeCable link whose device could be on either side of a
 ## multi-way connector must come through here rather than through `channel` directly:

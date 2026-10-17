@@ -117,7 +117,7 @@ func build_serial_port(host: Node3D, systemid: String) -> void:
 	# Keyed to the Gear-to-Gear cable so no other handheld's lead seats. Before
 	# add_child: the socket reads its family in _ready.
 	if scene == HANDHELD_LINK_PORT_SCENE:
-		(port as LinkPort).plug_family = "gg_link_plug"
+		(port as LinkPort).connector = "gg_link_plug"
 	host.add_child(port)
 	port.position = Vector3(0.045, 0.0, -0.126)
 	port.rotation = Vector3(PI, 0.0, 0.0)

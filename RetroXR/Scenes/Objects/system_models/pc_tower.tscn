@@ -174,7 +174,7 @@ mesh = ExtResource("7_c14")
 
 [node name="PowerInlet" parent="Back" instance=ExtResource("6_powerport")]
 transform = Transform3D(1,0,0,0,-1,0,0,0,-1,0.055,0.075,-0.226)
-accepted_plug = "iec_c13_plug"
+connector = "iec_c13_plug"
 
 ; PS/2 keyboard + mouse receptacles, on the I/O panel near the top of the back —
 ; where an AT/ATX tower puts them. Stacked vertically, mouse above keyboard. The

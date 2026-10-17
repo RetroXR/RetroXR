@@ -210,7 +210,8 @@ const _AV_PROUD := 0.0005
 ## A socket, not a captive lead: the Model 2 shipped its A/V cable loose, a 9-pin
 ## mini-DIN at this end and three phonos at the set (genesis_av_cable.tscn). The
 ## channel list is the stereo trio — the machine's sound is stereo — and multi-way
-## says all three leave through one hole, so the cabinet builds GenesisAvPort and no
+## says all three leave through one hole, so the cabinet builds a MultiAvPort
+## taking "genesis_av_plug" (genesis_av_port.tscn) and no
 ## cable of its own.
 func av_port_channels() -> Array:
 	return [RcaPort.Channel.VIDEO, RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R]

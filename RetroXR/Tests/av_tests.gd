@@ -599,8 +599,8 @@ func _r_n64_multi_out() -> void:
 	_ok(multi != null, "an N64 builds a socket named AvMultiOut")
 	if multi == null:
 		return
-	_ok(multi is N64AvPort, "and it is the N64's own port, not the Wii's")
-	_check_eq(multi.plug_group(), "n64_av_plug", "which takes the SNS-008 shell")
+	_ok(multi is MultiAvPort, "and it is a Multi Out socket")
+	_check_eq(multi.connector, "n64_av_plug", "which takes the SNS-008 shell")
 	_check_eq(multi.direction, RcaPort.Direction.OUT, "a console's A/V is an output")
 
 	# ONE hole, and no phono row beside it. The old row is what the legend was
@@ -661,7 +661,7 @@ func _r_n64_lead() -> void:
 ## room has to refuse it, and the only thing standing between the two is the group.
 func _r_multi_out_keying() -> void:
 	# The BUILT socket, not a bare new() -- snap_require is set in _ready from
-	# plug_group(), and it is the field the zone actually gates on. Comparing the two
+	# `connector`, and it is the field the zone actually gates on. Comparing the two
 	# functions instead would pass on a port that never wired its filter up.
 	var sys := await _n64()
 	var multi := sys.find_child("AvMultiOut", true, false) as XRToolsSnapZone
@@ -694,7 +694,8 @@ func _r_multi_out_keying() -> void:
 	# Same cord map on both, because the SIGNALS are the same three -- it is the
 	# pins they travel on that differ. Read off the base so a subclass that
 	# reorders them is caught here rather than as crossed sound in a room.
-	var wii_port := WiiAvPort.new()
+	var wii_port := MultiAvPort.new()
+	wii_port.connector = "wii_av_plug"
 	for port: MultiAvPort in [multi as MultiAvPort, wii_port]:
 		_check_eq(port.channel_for(0), RcaPort.Channel.VIDEO, "cord 0 is the picture")
 		_check_eq(port.channel_for(1), RcaPort.Channel.AUDIO_L, "cord 1 is left")
@@ -727,8 +728,8 @@ func _r_genesis_socket() -> void:
 	_ok(multi != null, "a Genesis builds a socket named AvMultiOut")
 	if multi == null:
 		return
-	_ok(multi is GenesisAvPort, "and it is the Genesis's own port")
-	_check_eq(multi.plug_group(), "genesis_av_plug", "which takes the mini-DIN lead")
+	_ok(multi is MultiAvPort, "and it is a one-hole A/V socket")
+	_check_eq(multi.connector, "genesis_av_plug", "which takes the mini-DIN lead")
 	_check_eq(multi.direction, RcaPort.Direction.OUT, "a console's A/V is an output")
 	var phonos := 0
 	for node in sys.find_children("*", "RcaPort", true, false):
@@ -2333,8 +2334,8 @@ func _r_dc_av_out() -> void:
 	_ok(multi != null, "a Dreamcast builds a socket named AvMultiOut")
 	if multi == null:
 		return
-	_ok(multi is DcAvPort, "and it is Sega's port, not a Nintendo one")
-	_check_eq(multi.plug_group(), "dc_av_plug", "which takes the Dreamcast lead")
+	_ok(multi is MultiAvPort, "and it is a one-hole A/V socket")
+	_check_eq(multi.connector, "dc_av_plug", "which takes the Dreamcast lead")
 	var phonos := 0
 	for node in sys.find_children("*", "RcaPort", true, false):
 		if node != multi:

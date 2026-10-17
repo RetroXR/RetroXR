@@ -22,11 +22,12 @@
 ## RcaPort's own _tint_jack and show_jack — both of which look for a child named
 ## RcaJack — find nothing and no-op. That is wanted: this socket has no colour code.
 ##
-## Subclassed rather than used directly, because `plug_group` is the one thing that
-## differs and it is the thing that matters. Nintendo used the same 12-pin shell on the
-## SNES, N64, GameCube and Wii, but the pinouts are not the same and a Wii lead does not
-## work on an N64 — which is why N64-to-Wii adapters are a product. Two subclasses
-## naming two groups is how the room refuses a lead that would not have worked.
+## Used as it is by every machine with one: what differs between them is which lead
+## fits, and that is the socket's `connector`, set in its scene ("n64_av_plug",
+## "wii_av_plug", "dc_av_plug", "genesis_av_plug"). Nintendo used the same 12-pin
+## shell on the SNES, N64, GameCube and Wii, but the pinouts are not the same and a
+## Wii lead does not work on an N64 — which is why N64-to-Wii adapters are a product.
+## Two connectors is how the room refuses a lead that would not have worked.
 class_name MultiAvPort
 extends RcaPort
 

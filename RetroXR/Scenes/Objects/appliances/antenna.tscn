@@ -3,7 +3,7 @@
 [ext_resource type="Script" path="res://Scripts/Objects/tv/antenna.gd" id="1_antennascript"]
 [ext_resource type="Script" path="res://Scripts/Objects/tv/antenna_body.gd" id="2_bodyscript"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/antenna_body.res" id="3_shell"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/coax_plug.gd" id="4_coaxplugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="4_coaxplugscript"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/coax_plug.res" id="5_coaxplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="6_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="7_snapgp"]
@@ -107,6 +107,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("4_coaxplugscript")
+connector = "coax_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0098)

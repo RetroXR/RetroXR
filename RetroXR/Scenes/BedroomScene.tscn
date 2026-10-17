@@ -789,11 +789,11 @@ mesh = ExtResource("28_outlet")
 
 [node name="TopPort" parent="Furniture/WallOutlet" unique_id=1821578438 instance=ExtResource("85_powerport")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.022, 0.0086)
-accepted_plug = "nema_5_15_plug"
+connector = "nema_5_15_plug"
 
 [node name="BottomPort" parent="Furniture/WallOutlet" unique_id=1534469115 instance=ExtResource("85_powerport")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.0086)
-accepted_plug = "nema_5_15_plug"
+connector = "nema_5_15_plug"
 
 [node name="WallOutlet2" type="MeshInstance3D" parent="Furniture" unique_id=842137466]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 1.65, 0.3, 2.1289425)
@@ -801,11 +801,11 @@ mesh = ExtResource("28_outlet")
 
 [node name="TopPort" parent="Furniture/WallOutlet2" unique_id=1848600241 instance=ExtResource("85_powerport")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.022, 0.0086)
-accepted_plug = "nema_5_15_plug"
+connector = "nema_5_15_plug"
 
 [node name="BottomPort" parent="Furniture/WallOutlet2" unique_id=422144343 instance=ExtResource("85_powerport")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.0086)
-accepted_plug = "nema_5_15_plug"
+connector = "nema_5_15_plug"
 
 [node name="WallOutlet3" type="MeshInstance3D" parent="Furniture" unique_id=443960643]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2.526556, 0.4354713, 0.4778514)
@@ -813,11 +813,11 @@ mesh = ExtResource("28_outlet")
 
 [node name="TopPort" parent="Furniture/WallOutlet3" unique_id=1956728341 instance=ExtResource("85_powerport")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.022, 0.0086)
-accepted_plug = "nema_5_15_plug"
+connector = "nema_5_15_plug"
 
 [node name="BottomPort" parent="Furniture/WallOutlet3" unique_id=1117028565 instance=ExtResource("85_powerport")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.0086)
-accepted_plug = "nema_5_15_plug"
+connector = "nema_5_15_plug"
 
 [node name="TimeLever" type="Node3D" parent="Furniture" unique_id=1740983137]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -2.525, 1.15, 0.25)

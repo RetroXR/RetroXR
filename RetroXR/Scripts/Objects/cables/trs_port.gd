@@ -19,8 +19,8 @@ class_name TrsPort
 extends RcaPort
 
 
-func plug_group() -> String:
-	return "trs_plug"
+func _init() -> void:
+	connector = "trs_plug"
 
 
 func _ready() -> void:

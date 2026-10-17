@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3]
 
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/wii_av_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/multi_av_port.gd" id="2_portscript"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/system_models/wii/wii_av_jack.tscn" id="3_wiiavjack"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="4_snaphigh"]
 
@@ -40,6 +40,7 @@ emission_energy_multiplier = 0.4
 [node name="WiiAvPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.025
 script = ExtResource("2_portscript")
+connector = "wii_av_plug"
 
 [node name="WiiAvJack" parent="." instance=ExtResource("3_wiiavjack")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.002)

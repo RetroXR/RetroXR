@@ -5,7 +5,7 @@
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/n64_av_plug.gd" id="6_n64plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_n64plugscript"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/system_models/wii/wii_av_plug.res" id="7_avplugmesh"]
 
 ; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
@@ -93,6 +93,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("6_n64plugscript")
+connector = "n64_av_plug"
 
 ; The colliders sit on the BODY, not on the origin. This connector's origin is its
 ; MATING face — the frame a snap zone seats to — and the whole moulding lies BEHIND

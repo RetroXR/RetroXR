@@ -62,5 +62,5 @@ func _apply_recess() -> void:
 		jack.visible = show_recess
 
 
-func plug_group() -> String:
-	return "psx_link_plug"
+func _init() -> void:
+	connector = "psx_link_plug"

@@ -396,5 +396,5 @@ two-headset SMS session is OWED.
 Each of these leads used to BE the Game Boy's or the GBA's scene under another
 name, so every one of them seated in every one of those handhelds and the wire
 caught the mismatch only as a log line. Each now has its own plug family
-(`LinkPlug.plug_family`, matched by `LinkPort.plug_family`), so a lead fits its
+(the plug's `connector`, matched by the `LinkPort`'s `connector`), so a lead fits its
 own machines and nothing else; `link_tests` walks the whole lead x socket matrix.

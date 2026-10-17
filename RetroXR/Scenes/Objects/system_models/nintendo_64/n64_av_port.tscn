@@ -1,7 +1,7 @@
 [gd_scene load_steps=5 format=3]
 
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/n64_av_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/multi_av_port.gd" id="2_portscript"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/system_models/wii/wii_av_jack.tscn" id="3_avjack"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="4_snaphigh"]
 
@@ -45,6 +45,7 @@ emission_energy_multiplier = 0.4
 [node name="N64AvPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.025
 script = ExtResource("2_portscript")
+connector = "n64_av_plug"
 
 ; Named N64AvJack, not RcaJack, on purpose: RcaPort's _tint_jack and show_jack both look
 ; for a child by that name, so both quietly no-op here. That is wanted — a Multi Out has

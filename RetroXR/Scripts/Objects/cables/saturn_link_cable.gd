@@ -4,7 +4,8 @@
 ##
 ## Two consoles, one wire, peers: everything PsxLinkCable already does. Which
 ## SH-2 drives the clock is the games' business and the core's; the room only
-## says the two machines share a wire. _console_end walks to a PsxLinkPort, and a
-## SaturnLinkPort is one, so nothing here needs overriding but the name.
+## says the two machines share a wire. _console_end walks to a PsxLinkPort, and the
+## Saturn's Communication Connector is one (taking "saturn_link_plug"), so nothing
+## here needs overriding but the name.
 class_name SaturnLinkCable
 extends PsxLinkCable

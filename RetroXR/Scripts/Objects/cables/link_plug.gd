@@ -5,9 +5,9 @@
 ## plug. The only thing that differs is which sockets will take it, and that is
 ## one string.
 ##
-## Kept as its own group rather than reusing an existing one because a link lead
-## really does not fit anything else, and the whole point of plug_group() is that
-## the room refuses connections that could not be made with the real hardware.
+## Kept as its own connector rather than reusing an existing one because a link
+## lead really does not fit anything else, and the whole point of a connector is
+## that the room refuses connections that could not be made with the real hardware.
 ## It is also what will let an asymmetric cable work later: a GameCube-to-GBA
 ## lead is one cable whose two ends belong to different groups, so neither end
 ## can be pushed into the wrong socket.
@@ -16,10 +16,10 @@ extends RcaPlug
 
 ## Every link lead's plug joins this group as well as its own, for the sweeps
 ## that want "any link lead in the room" (RetroSystem._link_cables, focus mode):
-## the handheld leads here, and the console leads that are their own classes
-## (PsxLinkPlug, SaturnLinkPlug, JagLinkPlug). One left out is a lead netplay
-## never finds, so its far machine is not in the session and never starts.
-## No socket filters on it -- a socket's snap_require is always a family.
+## the handheld leads and the console ones (PlayStation, Saturn, Jaguar, i.LINK)
+## alike, all of them this class with their own connector. One left out is a lead
+## netplay never finds, so its far machine is not in the session and never starts.
+## No socket filters on it -- a socket's snap_require is always a connector.
 ##
 ## What a sweep reads off a member is its `cable`, and that the cable answers
 ## linked_machines(). Nothing else is assumed of it, which is how a link with
@@ -27,29 +27,12 @@ extends RcaPlug
 ## is its pair's head window.
 const ANY_GROUP := "any_link_plug"
 
-## Which handheld family's socket this plug fits, and nothing else. The GBA and
-## Game Boy leads are "link_plug"; the Game Gear, WonderSwan, Lynx, Neo Geo Pocket
-## and Virtual Boy leads share this scene's shape but each has its own family, set in its
-## cable scene, so a Gear-to-Gear cable will not seat in a WonderSwan. Must be
-## set before _ready, which is when the plug joins its group.
-@export var plug_family: String = "link_plug"
-
-const _LABELS := {
-	"link_plug": "a Game Boy Advance link plug",
-	"gg_link_plug": "a Gear-to-Gear cable plug",
-	"ws_link_plug": "a WonderSwan communication cable plug",
-	"comlynx_plug": "a ComLynx cable plug",
-	"ngp_link_plug": "a Neo Geo Pocket link cable plug",
-	"vb_link_plug": "a Virtual Boy link cable plug",
-}
-
-
-func plug_group() -> String:
-	return plug_family
-
-
-func plug_label() -> String:
-	return _LABELS.get(plug_family, "a link cable plug")
+## The GBA and Game Boy leads are "link_plug", which is the default; the Game
+## Gear, WonderSwan, Lynx, Neo Geo Pocket and Virtual Boy leads share this scene's
+## shape but each sets its own `connector` in its cable scene, so a Gear-to-Gear
+## cable will not seat in a WonderSwan.
+func _init() -> void:
+	connector = "link_plug"
 
 
 func _ready() -> void:

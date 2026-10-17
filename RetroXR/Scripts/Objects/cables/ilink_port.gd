@@ -14,8 +14,8 @@ class_name ILinkPort
 extends PsxLinkPort
 
 
-func plug_group() -> String:
-	return "ilink_plug"
+func _init() -> void:
+	connector = "ilink_plug"
 
 
 ## The i.LINK socket on a console, or null. Not find_child("ILinkPort") on its

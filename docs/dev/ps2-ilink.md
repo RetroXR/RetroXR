@@ -20,7 +20,7 @@ packet; `LRPS2_FW_LOG=1` every register access.
 
 | class | what it is |
 |---|---|
-| `ILinkPlug` | an `RcaPlug` in group `ilink_plug`, **and** in `LinkPlug.ANY_GROUP` |
+| plug | a `LinkPlug` whose `connector` is `ilink_plug` (set in `ilink_cable.tscn`), so in `LinkPlug.ANY_GROUP` too |
 | `ILinkPort` | a `PsxLinkPort` taking `ilink_plug`; `get_hub()` beside `get_machine()` |
 | `ILinkCable` | a `PsxLinkCable` (`ilink_cable.tscn`, 1.8 m, black 4-pin ends) |
 | `ILinkHub` | a pickable box with six `ILinkPort`s (`ilink_hub.tscn`) |

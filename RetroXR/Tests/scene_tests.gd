@@ -1425,7 +1425,7 @@ func _test_cords() -> void:
 	# ground pin has nowhere to go in a two-slot outlet.
 	var two_slot := preload("res://Scenes/Objects/cables/power_port.tscn").instantiate() as PowerPort
 	two_slot.name = "BottomPort"
-	two_slot.accepted_plug = "nema_1_15_plug"
+	two_slot.connector = "nema_1_15_plug"
 	wall.add_child(two_slot)
 	await get_tree().process_frame
 	_ok(not two_slot.can_preview(grounded.wall_plug),

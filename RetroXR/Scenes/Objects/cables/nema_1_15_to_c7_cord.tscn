@@ -32,8 +32,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("2_plug")
-connector_group = "nema_1_15_plug"
-connector_label = "a two-prong US wall plug"
+connector = "nema_1_15_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug"]
 transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0,-0.0155)
@@ -66,8 +65,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("2_plug")
-connector_group = "iec_c7_plug"
-connector_label = "an IEC C7 figure-eight connector"
+connector = "iec_c7_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="AppliancePlug"]
 transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0,-0.025)

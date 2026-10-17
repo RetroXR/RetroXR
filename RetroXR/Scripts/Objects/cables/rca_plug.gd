@@ -27,31 +27,29 @@ var cable: Node3D = null
 var cable_anchor: Vector3 = Vector3.ZERO
 
 
-## The snap group this end answers to, and the ONLY thing deciding which sockets
-## will take it. RcaPort declares the matching side, so the two cannot drift.
-##
-## Overridable because a lead is not always an RCA lead: VgaPlug answers to
-## "vga_plug", which is what stops a DE-15 hood being pushed into a phono jack.
-## Within a family there is still no further filter — any RCA plug fits any RCA
-## socket, by design, see RcaPort.
-func plug_group() -> String:
-	return "composite_plug"
+## What this end IS, and the only thing deciding which sockets will take it: a
+## socket whose `connector` is the same name. Set on the node in the lead's scene
+## ("vga_plug" is what stops a DE-15 hood being pushed into a phono jack); see
+## Connectors. Within a connector there is no further filter -- any phono plug
+## fits any phono socket, by design, see RcaPort.
+@export var connector: String = Connectors.PHONO
 
 
 ## What to call this connector when telling a player where it goes.
 ##
-## Overridden alongside plug_group, because the two say the same thing to
-## different audiences: one names the group a socket filters on, the other names
-## the thing a person is holding. A lead whose two ends fit different sockets is
-## unusable without this -- the GameCube lead was reached for by the wrong end
-## twice in one evening, and nothing in the room was in a position to say so.
+## The same fact as `connector`, said to a different audience: one names what a
+## socket filters on, the other the thing a person is holding. A lead whose two
+## ends fit different sockets is unusable without it -- the GameCube lead was
+## reached for by the wrong end twice in one evening, and nothing in the room was
+## in a position to say so.
 func plug_label() -> String:
-	return "a phono plug"
+	return Connectors.label_of(connector)
 
 
 func _ready() -> void:
 	super._ready()
-	add_to_group(plug_group())
+	for group: String in Connectors.groups_of(connector):
+		add_to_group(group)
 	_derive_cable_anchor()
 	picked_up.connect(func(_p: Variant) -> void: PlugAim.aim(self))
 

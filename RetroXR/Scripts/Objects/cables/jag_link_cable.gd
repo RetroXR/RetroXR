@@ -2,6 +2,7 @@
 ## deathmatch, AirCars' Two Player Direct Serial and BattleSphere's network mode.
 ##
 ## Two consoles, one wire, peers: everything PsxLinkCable already does, and a
-## JagLinkPort is a PsxLinkPort, so nothing here needs overriding but the name.
+## Jaguar's DSP port is a PsxLinkPort taking "jag_link_plug", so nothing here
+## needs overriding but the name.
 class_name JagLinkCable
 extends PsxLinkCable

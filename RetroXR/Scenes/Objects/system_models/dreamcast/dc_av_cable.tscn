@@ -5,7 +5,7 @@
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/dc_av_plug.gd" id="6_dcplugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_dcplugscript"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
 size = Vector3(0.0144, 0.0144, 0.054)
@@ -39,8 +39,9 @@ size = Vector3(0.028, 0.012, 0.03)
 radius = 0.024
 
 ; The Dreamcast Stereo AV Cable (HKT-7400): Sega's AV OUT plug at the console end,
-; three phonos at the set. The Nintendo 64 lead with a different plug script and a
-; different plug: the console end is DcAvPlug, which only DcAvPort accepts, drawn as
+; three phonos at the set. The Nintendo 64 lead with a different connector and a
+; different plug: the console end is "dc_av_plug", which only the Dreamcast's AV OUT
+; takes, drawn as
 ; the moulded body (28 x 12 x 30 mm, outside the case) with the 19.4 x 5.8 mm metal
 ; tongue that runs 9 mm into the socket along the plug's +Z. The collision box is the
 ; body only, so the plug cannot be grabbed through the back panel.
@@ -62,6 +63,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("6_dcplugscript")
+connector = "dc_av_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.015)

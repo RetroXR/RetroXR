@@ -5,7 +5,7 @@
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/ps2_av_plug.gd" id="6_dcplugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_dcplugscript"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_plugfit2"]
 size = Vector3(0.0144, 0.0144, 0.054)
@@ -65,6 +65,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("6_dcplugscript")
+connector = "ps2_av_multi"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0186)

@@ -153,7 +153,7 @@ func _test_gc_gba_cable() -> void:
 	# on "controller_plug" and a handheld's EXT port on "link_plug", and neither
 	# end answers to both, so neither can be pushed into the wrong machine.
 	_ok(gc_end.is_in_group("controller_plug"), "the console end answers a controller socket")
-	_ok(gc_end.plug_group() != gba_end.plug_group(), "and is not a handheld plug")
+	_ok(gc_end.connector != gba_end.connector, "and is not a handheld plug")
 	_ok(gba_end.is_in_group("link_plug"), "the handheld end answers an EXT port")
 	_ok(not gba_end.is_in_group("controller_plug"), "and is not a controller plug")
 
@@ -315,7 +315,7 @@ func _port() -> LinkPort:
 
 
 # ── The gate ────────────────────────────────────────────────────────────────
-# plug_group() is the whole of what stops a lead going somewhere it could not go
+# `connector` is the whole of what stops a lead going somewhere it could not go
 # on real hardware, and it only works if both halves agree.
 
 func _test_plug_gating() -> void:
@@ -323,23 +323,23 @@ func _test_plug_gating() -> void:
 	var plug := LinkPlug.new()
 	add_child(plug)
 
-	_eq(port.plug_group(), plug.plug_group(), "port and plug name the same group")
-	_eq(port.plug_group(), "link_plug", "the group is link_plug")
+	_eq(port.connector, plug.connector, "port and plug name the same group")
+	_eq(port.connector, "link_plug", "the group is link_plug")
 
 	# A link lead must not fit an A/V socket, and a phono cord must not fit this
 	# one. Asserted against the real classes rather than string literals, so
 	# renaming a group cannot quietly open the gate.
 	var rca := RcaPort.new()
 	add_child(rca)
-	_ok(port.plug_group() != rca.plug_group(), "a link socket does not take a phono plug")
+	_ok(port.connector != rca.connector, "a link socket does not take a phono plug")
 
 	var trs := TrsPort.new()
 	add_child(trs)
-	_ok(port.plug_group() != trs.plug_group(), "a link socket does not take a stereo plug")
+	_ok(port.connector != trs.connector, "a link socket does not take a stereo plug")
 
 	# The gate is enforced through the snap zone, so the requirement has to have
 	# actually been applied and not just be available to read.
-	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
+	_eq(port.snap_require, port.connector, "the socket requires that group to snap")
 
 	port.queue_free()
 	plug.queue_free()
@@ -1315,13 +1315,13 @@ const PSX_PORT_SCENE := "res://Scenes/Objects/cables/psx_link_port.tscn"
 func _test_psx_plug_gating() -> void:
 	var port := PsxLinkPort.new()
 	add_child(port)
-	var plug := PsxLinkPlug.new()
+	var plug := _link_plug("psx_link_plug")
 	add_child(plug)
 
-	_eq(port.plug_group(),
-		plug.plug_group(), "the PlayStation port and plug name the same group")
-	_eq(port.plug_group(), "psx_link_plug", "the group is psx_link_plug")
-	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
+	_eq(port.connector,
+		plug.connector, "the PlayStation port and plug name the same group")
+	_eq(port.connector, "psx_link_plug", "the group is psx_link_plug")
+	_eq(port.snap_require, port.connector, "the socket requires that group to snap")
 
 	# The case this class exists for. Reusing the handheld group would have let a
 	# Game Boy Advance lead seat in a console's serial socket and look right doing
@@ -1334,14 +1334,14 @@ func _test_psx_plug_gating() -> void:
 	add_child(gba)
 	var gba_plug := LinkPlug.new()
 	add_child(gba_plug)
-	_ok(port.plug_group() != gba_plug.plug_group(),
+	_ok(port.connector != gba_plug.connector,
 		"a PlayStation socket does not take a handheld link plug")
-	_ok(gba.plug_group() != plug.plug_group(),
+	_ok(gba.connector != plug.connector,
 		"a handheld socket does not take a PlayStation link plug")
 
 	var rca := RcaPort.new()
 	add_child(rca)
-	_ok(port.plug_group() != rca.plug_group(), "nor does it take a phono plug")
+	_ok(port.connector != rca.connector, "nor does it take a phono plug")
 
 	# link_port is inherited and a PlayStation has exactly one serial socket, so
 	# it stays where it started. The export exists for hardware that has more.
@@ -1546,22 +1546,22 @@ const SATURN_CABLE_SCENE := "res://Scenes/Objects/cables/saturn_link_cable.tscn"
 
 
 func _test_saturn_plug_gating() -> void:
-	var port := SaturnLinkPort.new()
+	var port := _psx_port("saturn_link_plug")
 	add_child(port)
-	var plug := SaturnLinkPlug.new()
+	var plug := _link_plug("saturn_link_plug")
 	add_child(plug)
 	var psx_port := PsxLinkPort.new()
 	add_child(psx_port)
-	var psx_plug := PsxLinkPlug.new()
+	var psx_plug := _link_plug("psx_link_plug")
 	add_child(psx_plug)
 
-	_eq(port.plug_group(), plug.plug_group(), "the Saturn port and plug name the same group")
-	_eq(port.plug_group(), "saturn_link_plug", "the group is saturn_link_plug")
-	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
-	# Both directions, because SaturnLinkPort EXTENDS PsxLinkPort: forgetting the
-	# override would inherit psx_link_plug and open the gate the wrong way.
-	_ok(port.plug_group() != psx_plug.plug_group(), "a Saturn socket does not take a PlayStation plug")
-	_ok(psx_port.plug_group() != plug.plug_group(), "nor a PlayStation socket a Saturn plug")
+	_eq(port.connector, plug.connector, "the Saturn port and plug name the same group")
+	_eq(port.connector, "saturn_link_plug", "the group is saturn_link_plug")
+	_eq(port.snap_require, port.connector, "the socket requires that group to snap")
+	# Both directions, because the Saturn's socket IS a PsxLinkPort: a scene that
+	# forgot its connector would inherit psx_link_plug and open the gate the wrong way.
+	_ok(port.connector != psx_plug.connector, "a Saturn socket does not take a PlayStation plug")
+	_ok(psx_port.connector != plug.connector, "nor a PlayStation socket a Saturn plug")
 
 	for n: Node in [port, plug, psx_port, psx_plug]:
 		n.queue_free()
@@ -1597,7 +1597,7 @@ func _test_saturn_socket_follows_the_hardware() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var on_sat := sat.find_child("SaturnLinkPort", true, false) as SaturnLinkPort
+	var on_sat := sat.find_child("SaturnLinkPort", true, false) as PsxLinkPort
 	_ok(on_sat != null, "a Saturn wears a Communication Connector")
 	_ok(sat.find_child("PsxLinkPort", true, false) == null, "and not a PlayStation serial socket")
 	_ok(psx.find_child("SaturnLinkPort", true, false) == null, "a PlayStation does not wear a Saturn's")
@@ -1696,22 +1696,22 @@ const JAG_CABLE_SCENE := "res://Scenes/Objects/cables/jag_link_cable.tscn"
 
 
 func _test_jag_plug_gating() -> void:
-	var port := JagLinkPort.new()
+	var port := _psx_port("jag_link_plug")
 	add_child(port)
-	var plug := JagLinkPlug.new()
+	var plug := _link_plug("jag_link_plug")
 	add_child(plug)
 	var psx_port := PsxLinkPort.new()
 	add_child(psx_port)
-	var psx_plug := PsxLinkPlug.new()
+	var psx_plug := _link_plug("psx_link_plug")
 	add_child(psx_plug)
 
-	_eq(port.plug_group(), plug.plug_group(), "the Jaguar port and plug name the same group")
-	_eq(port.plug_group(), "jag_link_plug", "the group is jag_link_plug")
-	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
-	# Both directions, because JagLinkPort EXTENDS PsxLinkPort: forgetting the
-	# override would inherit psx_link_plug and open the gate the wrong way.
-	_ok(port.plug_group() != psx_plug.plug_group(), "a Jaguar socket does not take a PlayStation plug")
-	_ok(psx_port.plug_group() != plug.plug_group(), "nor a PlayStation socket a Jaguar plug")
+	_eq(port.connector, plug.connector, "the Jaguar port and plug name the same group")
+	_eq(port.connector, "jag_link_plug", "the group is jag_link_plug")
+	_eq(port.snap_require, port.connector, "the socket requires that group to snap")
+	# Both directions, because the Jaguar's socket IS a PsxLinkPort: a scene that
+	# forgot its connector would inherit psx_link_plug and open the gate the wrong way.
+	_ok(port.connector != psx_plug.connector, "a Jaguar socket does not take a PlayStation plug")
+	_ok(psx_port.connector != plug.connector, "nor a PlayStation socket a Jaguar plug")
 
 	for n: Node in [port, plug, psx_port, psx_plug]:
 		n.queue_free()
@@ -1747,7 +1747,7 @@ func _test_jag_socket_follows_the_hardware() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var on_jag := jag.find_child("JagLinkPort", true, false) as JagLinkPort
+	var on_jag := jag.find_child("JagLinkPort", true, false) as PsxLinkPort
 	_ok(on_jag != null, "a Jaguar wears a DSP port")
 	_ok(jag.find_child("PsxLinkPort", true, false) == null, "and not a PlayStation serial socket")
 	_ok(psx.find_child("JagLinkPort", true, false) == null, "a PlayStation does not wear a Jaguar's")
@@ -2153,7 +2153,7 @@ func _test_every_lead_fits_only_its_own_machines() -> void:
 		var ports := found.filter(func(n: Node) -> bool: return n is LinkPort)
 		_eq(ports.size(), 1, "%s wears one link socket" % path.get_file())
 		if ports.size() == 1:
-			socket_family[path] = (ports[0] as LinkPort).plug_group()
+			socket_family[path] = (ports[0] as LinkPort).connector
 			_eq(socket_family[path], _LINK_SOCKETS[path], "%s takes %s" % [path.get_file(), _LINK_SOCKETS[path]])
 		node.free()
 
@@ -2169,10 +2169,10 @@ func _test_every_lead_fits_only_its_own_machines() -> void:
 		var plugs := found.filter(func(n: Node) -> bool: return n is RcaPlug)
 		_eq(plugs.size(), 2, "%s has two ends" % id)
 		for n: Node in found:
-			_eq(n.call("plug_group"), _LINK_LEADS[id], "%s: %s is %s" % [id, n.name, _LINK_LEADS[id]])
+			_eq(n.get("connector"), _LINK_LEADS[id], "%s: %s is %s" % [id, n.name, _LINK_LEADS[id]])
 		# The whole matrix: a plug of this lead fits exactly the sockets of its family.
 		for path: String in socket_family:
-			var fits: bool = plugs.size() > 0 and socket_family[path] == plugs[0].call("plug_group")
+			var fits: bool = plugs.size() > 0 and socket_family[path] == plugs[0].get("connector")
 			var should: bool = _LINK_SOCKETS[path] == _LINK_LEADS[id]
 			_eq(fits, should, "%s %s %s" % [id, "fits" if should else "is refused by", path.get_file()])
 		cable.free()
@@ -2204,19 +2204,19 @@ const ILINK_HUB_SCENE := "res://Scenes/Objects/cables/ilink_hub.tscn"
 func _test_ilink_plug_gating() -> void:
 	var port := ILinkPort.new()
 	add_child(port)
-	var plug := ILinkPlug.new()
+	var plug := _link_plug("ilink_plug")
 	add_child(plug)
 	var psx_port := PsxLinkPort.new()
 	add_child(psx_port)
-	var psx_plug := PsxLinkPlug.new()
+	var psx_plug := _link_plug("psx_link_plug")
 	add_child(psx_plug)
 
-	_eq(port.plug_group(), plug.plug_group(), "the i.LINK port and plug name the same group")
-	_eq(port.plug_group(), "ilink_plug", "the group is ilink_plug")
-	_eq(port.snap_require, port.plug_group(), "the socket requires that group to snap")
+	_eq(port.connector, plug.connector, "the i.LINK port and plug name the same group")
+	_eq(port.connector, "ilink_plug", "the group is ilink_plug")
+	_eq(port.snap_require, port.connector, "the socket requires that group to snap")
 	# Both directions, because ILinkPort EXTENDS PsxLinkPort.
-	_ok(port.plug_group() != psx_plug.plug_group(), "an i.LINK socket does not take a PlayStation plug")
-	_ok(psx_port.plug_group() != plug.plug_group(), "nor a PlayStation socket an i.LINK plug")
+	_ok(port.connector != psx_plug.connector, "an i.LINK socket does not take a PlayStation plug")
+	_ok(psx_port.connector != plug.connector, "nor a PlayStation socket an i.LINK plug")
 	# What RetroSystem._link_cables sweeps. A PlayStation plug is not in it; an
 	# i.LINK plug must be, or a hub's far consoles drop out of a netplay group.
 	_ok(plug.is_in_group(LinkPlug.ANY_GROUP), "an i.LINK plug is one netplay's lead sweep can see")
@@ -2488,3 +2488,18 @@ func _test_ilink_hubs_chain_and_pairs_still_pair() -> void:
 	for n: Node in all:
 		n.queue_free()
 	await get_tree().process_frame
+
+
+## A link plug of `connector`, as a lead's scene makes one: every link lead is a
+## LinkPlug and differs only in what it is.
+func _link_plug(connector: String) -> LinkPlug:
+	var plug := LinkPlug.new()
+	plug.connector = connector
+	return plug
+
+
+## A console's serial-style link socket taking `connector`, as its scene makes one.
+func _psx_port(connector: String) -> PsxLinkPort:
+	var port := PsxLinkPort.new()
+	port.connector = connector
+	return port

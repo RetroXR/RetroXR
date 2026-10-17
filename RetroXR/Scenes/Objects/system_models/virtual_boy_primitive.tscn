@@ -119,4 +119,4 @@ surface_material_override/0 = SubResource("StandardMaterial3D_seat")
 ; of the underside at y = 0.25.
 [node name="LinkPort" parent="." instance=ExtResource("4_linkport")]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.045, 0.249, -0.015)
-plug_family = "vb_link_plug"
+connector = "vb_link_plug"

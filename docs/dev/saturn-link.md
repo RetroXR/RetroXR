@@ -62,11 +62,12 @@ harmless); `SS_LINK_WIRED=<mask>` (which SH-2s the cable joins, bit 0 master).
 
 ## The room
 
-`SaturnLinkCable` / `SaturnLinkPort` / `SaturnLinkPlug` subclass the PlayStation
-lead (`psx_link_*`): two consoles, peers, no junction. The ONLY difference is the
-plug group `saturn_link_plug`, so neither lead seats in the other's console —
-`link_tests` asserts both directions, and forgetting the port's `plug_group`
-override (it extends `PsxLinkPort`) turns five cases red. `SystemInfo/saturn.tres`
+`SaturnLinkCable` subclasses the PlayStation lead (`psx_link_*`), and its socket and
+plugs ARE the PlayStation's (`PsxLinkPort`, `LinkPlug`): two consoles, peers, no
+junction. The ONLY difference is the connector `saturn_link_plug`, set on the nodes
+in `saturn_link_port.tscn` / `saturn_link_cable.tscn`, so neither lead seats in the
+other's console — `link_tests` asserts both directions, and a port scene that
+forgot its `connector` (inheriting `psx_link_plug`) turns five cases red. `SystemInfo/saturn.tres`
 has `serial_port = true`; `default_model.build_serial_port` picks
 `saturn_link_port.tscn` for `saturn`. Spawn catalog, spawn view and
 `ScenePersistence.LEAD_SCENES` know `saturn_link_cable`. Geometry is the PS1

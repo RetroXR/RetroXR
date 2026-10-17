@@ -985,7 +985,7 @@ func _group_standins() -> void:
 		_ok(ScenePersistence.LEAD_SCENES.has(type),
 			"standins/the lead for %s is something the game can spawn" % connector)
 	var plug := (ScenePersistence.LEAD_SCENES["ps2_av_cable"] as PackedScene).instantiate()
-	_eq(str(plug.get_node("PlugA0").call("plug_group")), "ps2_av_multi",
+	_eq(str(plug.get_node("PlugA0").get("connector")), "ps2_av_multi",
 		"standins/and its console end is that socket's plug")
 	plug.free()
 	var se := _api("t.se")

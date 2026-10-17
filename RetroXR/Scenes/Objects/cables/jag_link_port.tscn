@@ -1,7 +1,7 @@
 [gd_scene load_steps=12 format=3]
 
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/jag_link_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/psx_link_port.gd" id="2_portscript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
 
 ; PLACEHOLDER GEOMETRY, matching psx_link_cable.tscn. Boxes rather than a model,
@@ -94,6 +94,7 @@ emission_energy_multiplier = 0.4
 [node name="JagLinkPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.06
 script = ExtResource("2_portscript")
+connector = "jag_link_plug"
 
 ; Named PsxLinkJack, not RcaJack, deliberately: RcaPort's _tint_jack and
 ; show_jack both look for a child called RcaJack, so this one is invisible to

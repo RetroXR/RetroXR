@@ -19,8 +19,8 @@ class_name VgaPort
 extends RcaPort
 
 
-func plug_group() -> String:
-	return "vga_plug"
+func _init() -> void:
+	connector = "vga_plug"
 
 
 func _ready() -> void:

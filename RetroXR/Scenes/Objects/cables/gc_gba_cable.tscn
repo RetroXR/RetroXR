@@ -16,7 +16,7 @@
 ; two ends are deliberately nothing alike, because that is the point of this
 ; cable: a wide flat shell with two latch tabs for a console's controller socket,
 ; and a round barrel with a bare metal collar for a handheld's EXT port. Neither
-; will enter the other's socket in the room either, which is plug_group()'s job.
+; will enter the other's socket in the room either, which is their connectors' job.
 ;
 ; The cord is PURPLE. The Game Boy link cable's is grey with one purple shell;
 ; this one is the other way round, and telling the two apart at a glance is worth

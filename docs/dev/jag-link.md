@@ -57,10 +57,10 @@ id on both and says "Network Failure — unable to locate any other players".
 ## In the room
 
 `atarijaguar.tres` has `serial_port`, so the primitive body wears a
-`JagLinkPort` (the DSP port, legend "DSP"). The lead is `JagLinkCable`
+`PsxLinkPort` taking `jag_link_plug` (`jag_link_port.tscn`, the DSP port, legend "DSP"). The lead is `JagLinkCable`
 (`jag_link_cable.tscn`, spawnable under the Jaguar and from the peripherals
-list, saved as `jag_link_cable`). Port, plug and cable extend the
-PlayStation's, under their own plug group `jag_link_plug`, so neither the
+list, saved as `jag_link_cable`). Port and plug are the PlayStation's and the
+cable extends it, under their own connector `jag_link_plug`, so neither the
 PlayStation nor the Saturn lead fits a Jaguar and a JagLink lead fits
 neither of them. `link_tests` covers the gating both ways.
 

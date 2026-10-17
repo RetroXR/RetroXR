@@ -5,7 +5,7 @@
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/rca_plug_yellow.res" id="3_rcaplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/wii_av_plug.gd" id="6_wiiplugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/rca_plug.gd" id="6_wiiplugscript"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/system_models/wii/wii_av_plug.res" id="7_wiiplugmesh"]
 
 ; Fitted to the connector mesh (measured by Tools/rope/plug_shape_probe), so a
@@ -41,7 +41,7 @@ radius = 0.024
 ; The console end is a SHARED end — one connector carrying all three cords — which
 ; is why this scene ships four plugs for three cords. CompositeCable counts from the
 ; longer side and treats the short one as shared; which signal each cord carries is
-; then WiiAvPort.channel_for's business, not the plug's. See both.
+; then MultiAvPort.channel_for's business, not the plug's. See both.
 ;
 ; Everything else is composite_cable.tscn: same cords, same colours, same rope, and
 ; the same rule that what a cord carries is decided by the two sockets its ends sit
@@ -79,6 +79,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("6_wiiplugscript")
+connector = "wii_av_plug"
 
 ; The colliders sit on the BODY, not on the origin. This connector's origin is its
 ; MATING face — the frame a snap zone seats to — and the whole moulding lies BEHIND

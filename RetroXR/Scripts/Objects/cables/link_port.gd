@@ -3,7 +3,7 @@
 ## An RcaPort with a different mouth and a different consequence. Everything the
 ## seating machinery needs is already inherited: RcaPort.GROUP membership so a
 ## plug can find the socket holding it, the has_picked_up / has_dropped hooks,
-## and plug_group() gating so a link lead will not go into a phono jack.
+## and the `connector` gate so a link lead will not go into a phono jack.
 ##
 ## What differs is what a seated cable MEANS. An A/V lead resolves through
 ## AvGraph into a routing decision; this one resolves into two emulator cores
@@ -21,14 +21,10 @@ extends RcaPort
 ## drives is addressed by port from the start.
 @export var link_port: int = 0
 
-## The plug family this socket takes -- LinkPlug.plug_family's other half. Game
-## Boy and GBA sockets keep "link_plug"; a Game Gear, WonderSwan, Lynx or Neo Geo
-## Pocket sets its own, so only its own lead fits. Read in _ready.
-@export var plug_family: String = "link_plug"
-
-
-func plug_group() -> String:
-	return plug_family
+## Game Boy and GBA sockets keep "link_plug"; a Game Gear, WonderSwan, Lynx or Neo
+## Geo Pocket sets its own `connector` in its scene, so only its own lead fits.
+func _init() -> void:
+	connector = "link_plug"
 
 
 func _ready() -> void:

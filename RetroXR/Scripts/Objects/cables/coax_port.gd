@@ -16,7 +16,7 @@
 ##
 ## What is NOT modelled: RF carries mono sound down the same wire, so a set fed this
 ## way shows a picture and stays silent. The upgrade is data rather than surgery —
-## a channel_for(cord) table here (the WiiAvPort shape) plus a second shared cord on
+## a channel_for(cord) table here (the MultiAvPort shape) plus a second shared cord on
 ## the lead, and the existing machinery routes the audio with no new code.
 ##
 ## The jack visual is a child named CoaxJack, so RcaPort's _tint_jack and show_jack
@@ -26,8 +26,8 @@ class_name CoaxPort
 extends RcaPort
 
 
-func plug_group() -> String:
-	return "coax_plug"
+func _init() -> void:
+	connector = "coax_plug"
 
 
 func _ready() -> void:

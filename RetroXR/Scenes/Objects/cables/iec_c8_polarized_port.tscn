@@ -4,7 +4,7 @@
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/iec_c8_polarized_inlet.res" id="2_inlet"]
 
 [node name="PolarizedIecC8Port" instance=ExtResource("1_port")]
-accepted_plug = "iec_c7_polarized_plug"
+connector = "iec_c7_polarized_plug"
 
 [node name="Inlet" type="MeshInstance3D" parent="." index="0"]
 mesh = ExtResource("2_inlet")

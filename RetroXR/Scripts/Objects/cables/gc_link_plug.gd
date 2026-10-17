@@ -2,7 +2,7 @@
 ##
 ## The only asymmetric connector in the room: this end goes into a console's
 ## controller socket and the other into a handheld's EXT port, and neither will
-## enter the other's. That is what plug_group() has been for since the link cable
+## enter the other's. That is what a connector has been for since the link cable
 ## was built, and this is the cable it was waiting for.
 ##
 ## It is a CONTROLLER PLUG as far as the console is concerned, because that is
@@ -34,12 +34,9 @@ var seated_system: Node3D = null
 var seated_port_index: int = -1
 
 
-func plug_group() -> String:
-	return "gc_link_plug"
+func _init() -> void:
+	connector = "gc_link_plug"
 
-
-func plug_label() -> String:
-	return "a GameCube controller plug"
 
 
 func _ready() -> void:
