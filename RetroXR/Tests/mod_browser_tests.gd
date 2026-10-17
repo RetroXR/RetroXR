@@ -12,6 +12,8 @@
 ##   pending/   the moves carried over a restart, and what the list may not reach
 ##   apply/     what the Installed page's button would do, a pack mounted after
 ##              boot, and a pack that arrived after boot (rescan)
+##   depends/   a mod that needs another: never mounted without it, mounted
+##              after it, switched on and off with it, and says what is missing
 ##   catalogue/ what a mod.io reply becomes, and the request that asks for it
 ##   scan/      a file mod.io has not scanned clean is not offered
 ##   policy/    a download may not carry a game or a program
@@ -68,6 +70,7 @@ func _ready() -> void:
 	if _want("review"):    _group_review()
 	if _want("space"):     await _group_space()
 	if _want("thumbnail"): _group_thumbnail()
+	if _want("depends"):   _group_depends()
 	if _want("download"):  await _group_download()
 	# Last: it mounts a pack, and a mounted file cannot be deleted until exit.
 	if _want("apply"):     _group_apply()
@@ -549,21 +552,36 @@ func _group_apply_live() -> void:
 	bad["mods/t.livebad/m.gd"] = "extends RetroMod\n\nfunc register(api: ModApi) -> void:\n" \
 		+ "\tapi.register_tv_shell(\"t.livebad:crt\", \"res://mods/t.livebad/none.tscn\", \"Bad\")\n"
 	_write_zip(root.path_join("t.livebad.zip"), bad)
+	# One that needs the good one, ahead of it by priority; one that needs the bad.
+	_write_zip(root.path_join("t.liveneeds.zip"),
+		_pack_with("t.liveneeds", {"priority": -5, "dependencies": ["t.live"]}))
+	_write_zip(root.path_join("t.liveneedsbad.zip"),
+		_pack_with("t.liveneedsbad", {"dependencies": ["t.livebad"]}))
 	m._discover()
 	m.set_enabled("t.live", true)
 	m.set_enabled("t.livebad", true)
+	m.set_enabled("t.liveneeds", true)
+	m.set_enabled("t.liveneedsbad", true)
 	var applied := [0]
 	m.mods_applied.connect(func() -> void: applied[0] += 1)
 
 	var mounted: Array = m.apply_live()
-	_eq(mounted.size(), 2, "apply/both waiting mods are mounted")
+	# t.liveneeds is first by priority, so what it needs is mounted ahead of it.
+	_eq(_ids(mounted), ["t.live", "t.liveneeds", "t.livebad", "t.liveneedsbad"],
+		"apply/each waiting mod is tried, a dependency just ahead of what needs it")
+	var needs: ModRecord = m.mod("t.liveneeds")
+	_ok(needs.loaded, "depends/a mod mounted after the dependency it needs loads")
+	var needsbad: ModRecord = m.mod("t.liveneedsbad")
+	_ok(not needsbad.mounted and needsbad.status == ModRecord.Status.FAILED,
+		"depends/one whose dependency failed to register is never mounted")
+	_ok(needsbad.reason.contains("did not load"), "depends/and says so", needsbad.reason)
 	var rec: ModRecord = m.mod("t.live")
 	_eq(rec.status, ModRecord.Status.LOADED, "apply/a late mount registers")
 	_ok(rec.mounted and rec.loaded, "apply/and is running")
 	_ok(_has_tv_shell("t.live:crt"), "apply/what it registered is there to be read")
 	_eq(applied[0], 1, "apply/mods_applied says so once")
-	_eq(m.fingerprint(), PackedStringArray(["t.live@1.0.0"]),
-		"apply/and netplay is told about it, and only it")
+	_eq(m.fingerprint(), PackedStringArray(["t.live@1.0.0", "t.liveneeds@1.0.0"]),
+		"apply/and netplay is told about what loaded, and only that")
 	var badrec: ModRecord = m.mod("t.livebad")
 	_eq(badrec.status, ModRecord.Status.FAILED, "apply/a refused registration fails")
 	_ok(badrec.reason.contains("refused"), "apply/and says why", badrec.reason)
@@ -571,7 +589,115 @@ func _group_apply_live() -> void:
 	_eq((m.apply_live() as Array).size(), 0, "apply/a second apply mounts nothing")
 	_eq(applied[0], 1, "apply/and says nothing")
 	rec.api.withdraw()
+	needs.api.withdraw()
 	_ok(not _has_tv_shell("t.live:crt"), "apply/withdrawn, the registry is clean for what runs next")
+	m.free()
+
+
+# ── depends/ ──────────────────────────────────────────────────────────────────
+
+## A mod that needs another. Nothing is mounted here (apply/ mounts the real
+## pair); what is checked is what the loader would mount, in which order, what
+## each switch takes with it, and the sentence the page shows.
+func _group_depends() -> void:
+	# The manifest.
+	_eq(ModManifest.parse_dependency("xenu.usba"), {"id": "xenu.usba", "min": ""},
+		"depends/an id is a dependency on any version")
+	_eq(ModManifest.parse_dependency(" xenu.usba >= 0.2.0 "), {"id": "xenu.usba", "min": "0.2.0"},
+		"depends/id>=version is a dependency on at least that version")
+	for bad: String in ["Xenu.USB", "xenu.usba>=", "xenu.usba>=1.x", ">=1.0", ""]:
+		_eq(ModManifest.parse_dependency(bad), {}, "depends/'%s' is not a dependency" % bad)
+	var mf := ModManifest.parse({"id": "t.gun", "api_version": 1, "entry": "res://mods/t.gun/m.gd",
+		"dependencies": ["t.plug>=1.0.0"]})
+	_eq(mf.dependencies, [{"id": "t.plug", "min": "1.0.0"}] as Array[Dictionary],
+		"depends/a manifest lists them")
+	mf = ModManifest.parse({"id": "t.gun", "api_version": 1, "entry": "res://mods/t.gun/m.gd",
+		"dependencies": ["t.plug", "not an id"]})
+	_ok(mf.error.contains("not an id"), "depends/a bad entry refuses the manifest", mf.error)
+	mf = ModManifest.parse({"id": "t.gun", "api_version": 1, "entry": "res://mods/t.gun/m.gd",
+		"dependencies": ["t.gun"]})
+	_ok(mf.error.contains("itself"), "depends/as does needing itself", mf.error)
+	_ok(ModManifest.version_at_least("0.10.0", "0.9.2"), "depends/0.10.0 is newer than 0.9.2")
+	_ok(not ModManifest.version_at_least("0.9.2", "0.10.0"), "depends/and not the other way")
+	_ok(ModManifest.version_at_least("1.0", "1.0.0") and ModManifest.version_at_least("3.1.4", ""),
+		"depends/a missing part is 0, and no minimum is any version")
+
+	# Switched on with it, mounted ahead of it whatever the priorities say.
+	var m := _fresh()
+	_write_zip(_root.path_join("t.plug.zip"), _pack_with("t.plug", {"priority": 5}))
+	_write_zip(_root.path_join("t.gun.zip"),
+		_pack_with("t.gun", {"priority": 0, "dependencies": ["t.plug>=1.0.0"]}))
+	_write_zip(_root.path_join("t.other.zip"), _pack_with("t.other", {"priority": 1}))
+	m._discover()
+	_eq(m.switched_on_with("t.gun"), ["t.plug"] as Array[String],
+		"depends/the page can say what switching it on switches on")
+	m.set_enabled("t.gun", true)
+	m.set_enabled("t.other", true)
+	_ok(m.is_enabled("t.plug"), "depends/switching a mod on switches on what it needs")
+	_eq(_ids(m.apply_plan()["live"]), ["t.plug", "t.gun", "t.other"],
+		"depends/a dependency is mounted just ahead of what needs it, whatever its priority")
+	_eq(m.needed_by("t.plug"), ["t.gun"] as Array[String], "depends/the dependency knows what needs it")
+	_eq(m.switched_off_with("t.plug"), ["t.gun"] as Array[String],
+		"depends/the page can say what switching it off switches off")
+	m.set_enabled("t.plug", false)
+	_ok(not m.is_enabled("t.gun"), "depends/switching a dependency off switches off what needs it")
+	_ok(m.is_enabled("t.other"), "depends/and nothing else")
+	_eq(m.mod("t.gun").status, ModRecord.Status.DISABLED, "depends/which is simply disabled")
+
+	# Missing: never mounted, and the page says what is missing.
+	m.remove("t.plug")
+	m.set_enabled("t.gun", true)
+	var gun: ModRecord = m.mod("t.gun")
+	_eq(gun.status, ModRecord.Status.FAILED, "depends/a mod whose dependency is missing cannot run")
+	_ok(gun.reason.contains("t.plug 1.0.0 or newer, which is not installed"),
+		"depends/and says what to install", gun.reason)
+	_ok(not _ids(m.apply_plan()["live"]).has("t.gun"), "depends/it is not mounted by Apply")
+	_ok(not m.changes_waiting() or _ids(m.apply_plan()["live"]) == ["t.other"],
+		"depends/and does not wait for a restart that would not help")
+	# The next launch does not mount it either.
+	var boot := _fresh(false)
+	boot._load_state()
+	boot._discover()
+	boot._enabled["t.other"] = false
+	boot._load_enabled()
+	var at_boot: ModRecord = boot.mod("t.gun")
+	_ok(not at_boot.mounted and at_boot.status == ModRecord.Status.FAILED,
+		"depends/nor does a boot", ModRecord.Status.keys()[at_boot.status])
+	boot.free()
+
+	# Installed now: the mark comes off and both go together.
+	_write_zip(_root.path_join("t.plug.zip"), _pack_with("t.plug", {"version": "0.9.0"}))
+	m.rescan()
+	m.set_enabled("t.plug", true)
+	_ok(gun.reason.contains("1.0.0 or newer, and 0.9.0 is installed"), "depends/too old says so", gun.reason)
+	m.remove("t.plug")
+	_write_zip(_root.path_join("t.plug.zip"), _pack_with("t.plug", {"version": "1.2.0"}))
+	m.rescan()
+	m.set_enabled("t.plug", true)
+	_eq(gun.status, ModRecord.Status.PENDING, "depends/with it installed and on, it waits to apply")
+	_eq(gun.reason, "", "depends/and has nothing to explain")
+	_eq(_ids(m.apply_plan()["live"]), ["t.plug", "t.gun", "t.other"], "depends/and both apply now")
+
+	# A dependency that needs a restart holds back what needs it.
+	var shadow := _pack_with("t.plug2", {"claims": ["res://Scenes/Objects/tv.tscn"]})
+	shadow["Scenes/Objects/tv.tscn"] = "[gd_scene format=3]"
+	_write_zip(_root.path_join("t.plug2.zip"), shadow)
+	_write_zip(_root.path_join("t.gun2.zip"), _pack_with("t.gun2", {"dependencies": ["t.plug2"]}))
+	m.rescan()
+	m.set_enabled("t.gun2", true)
+	var plan: Dictionary = m.apply_plan()
+	_ok(not _ids(plan["live"]).has("t.gun2") and bool(plan["restart"]),
+		"depends/a mod whose dependency waits for a restart waits with it")
+
+	# Two that need each other: neither runs.
+	_write_zip(_root.path_join("t.x.zip"), _pack_with("t.x", {"dependencies": ["t.y"]}))
+	_write_zip(_root.path_join("t.y.zip"), _pack_with("t.y", {"dependencies": ["t.x"]}))
+	m.rescan()
+	m.set_enabled("t.x", true)
+	_ok(m.is_enabled("t.y"), "depends/a cycle is switched on together")
+	_ok(m.mod("t.x").status == ModRecord.Status.FAILED and m.mod("t.y").status == ModRecord.Status.FAILED,
+		"depends/and neither runs")
+	_ok(m.mod("t.y").reason.contains("in turn"), "depends/and the page says why", m.mod("t.y").reason)
 	m.free()
 
 
@@ -665,6 +791,20 @@ func _group_catalogue() -> void:
 	_eq(SpawnMenuModsView.state_text(""), "", "catalogue/a mod not here has no badge")
 	_ok(not SpawnMenuModsView.state_text("update").is_empty(), "catalogue/an update has a badge")
 	_ok(not SpawnMenuModsView.state_text("nofile").is_empty(), "catalogue/no file has a badge")
+
+	# What a mod needs: whether it says so, where to ask, and what a download comes to.
+	_ok(not bool(mod["dependencies"]), "catalogue/a mod needs nothing unless mod.io says so")
+	var needy := _modio_mod(9, "GunCon 2", 90)
+	needy["dependencies"] = true
+	_ok(bool(ModioClient.parse_mod(needy)["dependencies"]), "catalogue/and one that needs others says so")
+	var deps_path := ModioClient.dependencies_path(9, "KEY")
+	_ok(deps_path.begins_with("/games/14432/mods/9/dependencies?api_key=KEY")
+		and deps_path.contains("recursive=true"), "catalogue/asks for what it needs all the way down", deps_path)
+	var with_needs := ModCollectionPlan.with_needs(
+		[{"id": 1, "name": "gun"}, {"id": 2, "name": "plug"}],
+		[{"id": 2, "name": "plug"}, {"id": 3, "name": "cable"}, {"id": 1, "name": "gun"}, {"id": 0}])
+	_eq(with_needs.map(func(m: Dictionary) -> int: return int(m["id"])), [1, 2, 3],
+		"catalogue/what is needed joins the download once, after what was asked for")
 
 
 # ── scan/ ─────────────────────────────────────────────────────────────────────
@@ -1320,6 +1460,26 @@ func _group_download() -> void:
 	await _until(func() -> bool: return not got.is_empty())
 	_ok(not bool(got.get("ok", true)) and str(got.get("error", "")).contains("12 s"),
 		"download/a rate limit reaches the player with its wait", str(got.get("error", "")))
+	# What a mod needs, over HTTP: every one, not the mod itself.
+	var plug := _modio_mod(20, "USB-A Plug", 200)
+	web.routes["/games/14432/mods/7/dependencies"] = {"code": 200, "body": JSON.stringify(
+		{"data": [plug, _modio_mod(7, "A", 71), _modio_mod(21, "Deep", 210)], "result_total": 3}).to_utf8_buffer()}
+	web.routes["/games/14432/mods/8/dependencies"] = {"code": 500, "body": PackedByteArray()}
+	got.clear()
+	client.list_dependencies(7, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+		got.merge({"ok": ok, "mods": mods, "error": error}))
+	await _until(func() -> bool: return not got.is_empty())
+	_ok(bool(got.get("ok", false)), "download/what a mod needs is read over http", str(got.get("error", "")))
+	_eq((got.get("mods", []) as Array).map(func(m: Dictionary) -> int: return int(m["id"])), [20, 21],
+		"download/every mod it needs arrives, and never the mod itself")
+	_ok(web.log_text().contains("/games/14432/mods/7/dependencies?") and web.log_text().contains("recursive=true"),
+		"download/asked for all the way down", web.log_text())
+	got.clear()
+	client.list_dependencies(8, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+		got.merge({"ok": ok, "mods": mods, "error": error}))
+	await _until(func() -> bool: return not got.is_empty())
+	_ok(not bool(got.get("ok", true)) and not str(got.get("error", "")).is_empty(),
+		"download/and a refusal says so rather than reading as needing nothing")
 	client.queue_free()
 	web.stop()
 

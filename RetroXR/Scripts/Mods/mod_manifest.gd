@@ -20,6 +20,9 @@ const API_VERSION := 1
 ## Where a mod's own files must live inside its container.
 const NAMESPACE_ROOT := "res://mods/"
 
+## What a mod id may be: it becomes a res:// path segment and a save-file key.
+const ID_PATTERN := "^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$"
+
 ## Names a mod pack may never carry, whatever it claims. A mod exported from its
 ## own Godot project picks these up automatically, and either one would replace
 ## the running game's copy: the class cache decides what every `class_name` in
@@ -43,6 +46,14 @@ var api_version: int = 0
 var claims: PackedStringArray = []
 ## OS names this mod runs on; empty means all of them.
 var platforms: PackedStringArray = []
+## Other mods this one needs, [{id, min}], from mod.json's `dependencies`: each a
+## mod id, or "id>=1.2.0" for at least that version (`min` is "" for any). They
+## are mounted before it, and without every one of them it is not mounted at
+## all (ModManager.dependency_problem): a GunCon 2 whose plug model is another
+## mod's would otherwise come up with a plug that is not there.
+var dependencies: Array[Dictionary] = []
+## mod.json's `dependencies` as written, checked by _validate.
+var _dependency_specs := PackedStringArray()
 
 ## Empty while the manifest is usable.
 var error: String = ""
@@ -62,6 +73,7 @@ static func parse(data: Dictionary) -> ModManifest:
 	m.api_version = int(data.get("api_version", 0))
 	m.claims = _strings(data.get("claims", []))
 	m.platforms = _strings(data.get("platforms", []))
+	m._dependency_specs = _strings(data.get("dependencies", []))
 	if m.name.is_empty():
 		m.name = m.id
 	m.error = m._validate()
@@ -81,7 +93,7 @@ func _validate() -> String:
 		return "no id"
 	# The id becomes a res:// path segment and a save-file key, so it is held to
 	# what can safely be both.
-	if not RegEx.create_from_string("^[a-z0-9]([a-z0-9._-]*[a-z0-9])?$").search(id):
+	if not RegEx.create_from_string(ID_PATTERN).search(id):
 		return "id '%s' is not lower-case alphanumeric with . _ -" % id
 	if api_version <= 0:
 		return "no api_version"
@@ -92,7 +104,45 @@ func _validate() -> String:
 		return "no entry script"
 	if not entry.begins_with(own_root()):
 		return "entry '%s' is outside %s" % [entry, own_root()]
+	for spec: String in _dependency_specs:
+		var dep := parse_dependency(spec)
+		if dep.is_empty():
+			return "dependency '%s' is not a mod id, or a mod id>=version" % spec
+		if str(dep["id"]) == id:
+			return "lists itself as a dependency"
+		dependencies.append(dep)
 	return ""
+
+
+## One entry of `dependencies`: {id, min}, or {} when it is not "id" or
+## "id>=version".
+static func parse_dependency(spec: String) -> Dictionary:
+	var dep_id := spec.strip_edges()
+	var at_least := ""
+	var cut := dep_id.find(">=")
+	if cut >= 0:
+		at_least = dep_id.substr(cut + 2).strip_edges()
+		dep_id = dep_id.substr(0, cut).strip_edges()
+		if not RegEx.create_from_string("^[0-9]+([.][0-9]+)*$").search(at_least):
+			return {}
+	if not RegEx.create_from_string(ID_PATTERN).search(dep_id):
+		return {}
+	return {"id": dep_id, "min": at_least}
+
+
+## Whether version `have` is at least `want`, compared number by number, so
+## 0.10.0 comes after 0.9.2. An empty `want` is any version.
+static func version_at_least(have: String, want: String) -> bool:
+	if want.is_empty():
+		return true
+	var a := have.split(".")
+	var b := want.split(".")
+	for i in range(maxi(a.size(), b.size())):
+		var x := a[i].to_int() if i < a.size() else 0
+		var y := b[i].to_int() if i < b.size() else 0
+		if x != y:
+			return x > y
+	return true
 
 
 ## Everything this mod ships must sit under here.

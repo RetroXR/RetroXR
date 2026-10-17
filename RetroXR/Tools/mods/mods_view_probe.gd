@@ -7,8 +7,11 @@
 ## is never asked -- with each logo seeded straight into ModArtCache's disk
 ## cache, and writes PNGs to user://mods_view_probe/: consent (mod.io's terms,
 ## before anything else is shown), declined, browse, detail, review (the question
-## before a download is installed), packs, pack, pack_review, installed and
-## installed_detail. The Installed pages are the machine's real mods. The
+## before a download is installed), detail_needs and review_needs /
+## review_needs_ready (a mod that needs others, while they come down and once
+## they are in), packs, pack, pack_review, installed and installed_detail. The
+## Installed pages are the machine's real mods; `-- --installed=<id>` picks
+## which one installed_detail shows. The
 ## player's own answer to mod.io's terms is not read or written: the probe keeps
 ## its own in its output folder.
 ##
@@ -172,6 +175,44 @@ func _ready() -> void:
 	view.reviews._parked.erase(key)
 	view._close_single_review()
 
+	# A mod that needs others: its page says so, and its review answers for them
+	# -- one in, one still coming down, one mod.io will not give -- and holds the
+	# Install button until the last download ends.
+	var needy: Dictionary = client.mods[1].duplicate()
+	needy["dependencies"] = true
+	view._open_browse_detail(needy)
+	await get_tree().create_timer(0.6).timeout
+	await _shot("detail_needs")
+	var gun := ModManifest.parse({"id": "xenu.guncon2", "name": "GunCon 2", "version": "0.4.0",
+		"author": "xenu", "api_version": 1, "entry": "res://mods/xenu.guncon2/mod_main.gd",
+		"dependencies": ["xenu.usba"]})
+	var plug := ModManifest.parse({"id": "xenu.usba", "name": "USB-A Plug", "version": "0.1.0",
+		"author": "xenu", "api_version": 1, "entry": "res://mods/xenu.usba/mod_main.gd"})
+	var gun_key := SpawnMenuModsView._job_key(110)
+	var plug_key := SpawnMenuModsView._job_key(111)
+	var cable_key := SpawnMenuModsView._job_key(112)
+	view.reviews._parked[gun_key] = {"staged": "", "manifest": gun, "thumbnail": null,
+		"source": {"modio_id": 110, "file_id": 510, "profile_url": ""}}
+	view.reviews._parked[plug_key] = {"staged": "", "manifest": plug, "thumbnail": null,
+		"source": {"modio_id": 111, "file_id": 511, "profile_url": ""}}
+	view._with_needs[gun_key] = {"deps": {plug_key: {"id": 111, "name": "USB-A Plug"},
+			cable_key: {"id": 112, "name": "USB Extension Cable"}},
+		"done": [plug_key], "staged": [plug_key], "adopted": [],
+		"skip": [{"name": "GunCon 2 Pedal", "why": "mod.io has not finished scanning this file"}],
+		"have": [{"id": 113, "name": "PlayStation 2 (SCPH-30001 R)"}]}
+	view._open_single_review(gun_key)
+	await get_tree().create_timer(0.6).timeout
+	await _shot("review_needs")
+	(view._with_needs[gun_key]["done"] as Array).append(cable_key)
+	(view._with_needs[gun_key]["skip"] as Array).append(
+		{"name": "USB Extension Cable", "why": "the download was cancelled"})
+	view._fill_single_review()
+	await get_tree().create_timer(0.6).timeout
+	await _shot("review_needs_ready")
+	view._with_needs.clear()
+	view.reviews._parked.clear()
+	view._close_single_review()
+
 	view._tabs.current_tab = SpawnMenuModsView.PACKS_TAB
 	await get_tree().create_timer(1.0).timeout
 	await _shot("packs")
@@ -201,8 +242,12 @@ func _ready() -> void:
 	await get_tree().create_timer(0.6).timeout
 	await _shot("installed")
 	var first: Array = Mods.all_mods()
+	var pick := ""
+	for a: String in OS.get_cmdline_user_args():
+		if a.begins_with("--installed="):
+			pick = a.trim_prefix("--installed=")
 	if not first.is_empty():
-		view._open_installed_detail((first[0] as ModRecord).id)
+		view._open_installed_detail(pick if Mods.mod(pick) != null else (first[0] as ModRecord).id)
 		await get_tree().create_timer(0.6).timeout
 		await _shot("installed_detail")
 	for path: String in _seeded:

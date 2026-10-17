@@ -60,6 +60,10 @@ var update_files: int = 0
 ## The player removed this mod while it was mounted; the file goes at the next
 ## launch.
 var removal_staged := false
+## FAILED because a mod it needs cannot run (ModManager.dependency_problem), not
+## because of anything in its own pack. It was never mounted, and the mark comes
+## off by itself once the dependency is installed and switched on.
+var blocked_by_dependency := false
 
 
 ## Mark a mod as refused or failed, with the reason shown on the Mods page.

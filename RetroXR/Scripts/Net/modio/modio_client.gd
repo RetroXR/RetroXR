@@ -99,6 +99,31 @@ func get_mod(mod_id: int, callback: Callable) -> void:
 			callback.call(true, parse_mod(data), ""))
 
 
+## Every mod `mod_id` needs, all the way down (mod.io's `recursive`), each as
+## parse_mod returns it -- with a download address as fresh as get_mod's. mod.io
+## lists them whatever their state, so each is still held to scan_problem.
+## callback(ok: bool, mods: Array[Dictionary], error: String)
+func list_dependencies(mod_id: int, callback: Callable) -> void:
+	_fetch_json(dependencies_path(mod_id, api_key),
+		func(ok: bool, data: Variant, error: String) -> void:
+			if not ok or not (data is Dictionary):
+				callback.call(false, _no_rows(), error if not error.is_empty() else "Unexpected reply from mod.io")
+				return
+			var mods: Array[Dictionary] = []
+			var rows: Variant = (data as Dictionary).get("data", [])
+			if rows is Array:
+				for row: Variant in (rows as Array):
+					if row is Dictionary:
+						var mod := parse_mod(row)
+						if int(mod["id"]) > 0 and int(mod["id"]) != mod_id:
+							mods.append(mod)
+			callback.call(true, mods, ""))
+
+
+static func dependencies_path(mod_id: int, key: String = API_KEY) -> String:
+	return "/games/%d/mods/%d/dependencies?api_key=%s&recursive=true" % [GAME_ID, mod_id, key]
+
+
 ## The request path for a page. Static so the suite can read it without a socket.
 static func list_path(search: String, sort: String, offset: int, limit: int,
 		key: String = API_KEY, tag: String = "") -> String:
@@ -310,6 +335,8 @@ static func parse_mod(d: Dictionary) -> Dictionary:
 		"download_url": str(download.get("binary_url", "")),
 		"virus_status": int(file.get("virus_status", 0)),
 		"virus_positive": int(file.get("virus_positive", 0)),
+		# Whether it needs other mods (list_dependencies says which).
+		"dependencies": d.get("dependencies") is bool and bool(d["dependencies"]),
 	}
 
 

@@ -291,6 +291,10 @@ stay the base with `static var` overlays; mod models stay out of `ModelWarmer`'s
 `sockets`. The spawn card READS a mod object's scene file as TEXT (`ConnectorScan`: loading
 it pulled in its model and textures, 250 ms for one pad) and each stand-in leaves while
 something installed does its job -- there is no claim API and no list of allowed names (2026-10-17, `docs/dev/mods.md`).
+**A mod can need another** (`mod.json` `dependencies`, `"id"` or `"id>=x.y.z"`): it is mounted after them and NOT AT ALL
+without them (`ModManager.dependency_problem`, FAILED + `blocked_by_dependency`, never mounted), switches cascade both
+ways, and the MODS tab downloads mod.io's dependency list with it (`list_dependencies`, one review). The GunCon 2's
+USB-A plug is `xenu.usba`'s. `mod_browser_tests depends/`.
 
 **The MODS tab browses and downloads from mod.io** (game 14432, REST from GDScript, API key
 only — no login, so no subscribe/rate). **Nothing but mod.io's terms is requested until the

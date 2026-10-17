@@ -82,7 +82,8 @@ must be stored uncompressed, or the pack is refused with a message saying so.
   "entry": "res://mods/xenu.snes/mod_main.gd",
   "priority": 0,
   "claims": [],
-  "platforms": ["Windows", "Linux", "macOS", "Android"]
+  "platforms": ["Windows", "Linux", "macOS", "Android"],
+  "dependencies": ["xenu.usba>=0.1.0"]
 }
 ```
 
@@ -95,8 +96,40 @@ must be stored uncompressed, or the pack is refused with a message saying so.
 - **`claims`** — paths **outside** `res://mods/<id>/` your pack writes. Empty is
   the normal case and the safe one.
 - **`platforms`** — omit for "everywhere".
+- **`dependencies`** — other mods yours needs, by id: `"xenu.usba"`, or
+  `"xenu.usba>=0.1.0"` for at least that version. Omit for none. See
+  [Mods that need other mods](#mods-that-need-other-mods).
 
 There is no field naming the pack file: the manifest is *inside* it.
+
+### Mods that need other mods
+
+A part many mods share, a plug model say, can be a mod of its own that the others
+list in `dependencies`, rather than a copy in each. The GunCon 2 does this: its
+USB-A plug is `xenu.usba`'s, and its `.tscn` names
+`plug_mesh_path = "res://mods/xenu.usba/model/usb_a_plug.glb"`. What a dependency
+guarantees:
+
+- **It is mounted first**, whatever either mod's `priority`, so its files are there
+  when your entry script runs and when your scenes load.
+- **Without it, your mod is not mounted at all.** Missing, too old, switched off,
+  refused, or failed to load: your mod's page in the Mods tab says which, and
+  nothing of yours runs half-dressed. (A path into another mod that is not there
+  loads nothing, silently, so this is what keeps a plug from quietly turning into
+  the generic one.)
+- **Switching your mod on switches on what it needs**, and switching a dependency
+  off switches off what needs it; the page says so beside the switch.
+- **The in-game Mods tab downloads what your mod needs with it**, in the same
+  review, from mod.io's own dependency list. So on mod.io, also add the mods it
+  needs as **dependencies of your mod page** (Edit mod → Dependencies): the game
+  asks mod.io, not your `mod.json`, what to fetch. The two lists should agree.
+- A pack (collection) need not list them: installing it fetches what its mods need
+  as well.
+
+A mod that only carries parts for others registers nothing: its page says what
+needs it. Two mods that need each other never load. Use another mod's files only
+by the paths it documents: they are its, and it may move them in a new major
+version, which is what `>=` in your `dependencies` is for.
 
 ### The namespace rule
 
@@ -619,6 +652,8 @@ RetroXR's mod browser lists what is published at <https://mod.io/g/retroxr>.
   across uploads and RetroXR treats a new file as an update to the one installed.
 - If your mod is not for every platform, say so in `mod.json`'s `platforms`: a
   player on another one is told it was not built for theirs.
+- If it has `dependencies`, add the same mods as dependencies on its mod.io page:
+  that list is what the game downloads with it.
 
 ## Stability
 

@@ -45,6 +45,22 @@ static func plan_install(members: Array, installed: Dictionary) -> Dictionary:
 	return {"fetch": fetch, "have": have, "skip": skip}
 
 
+## `mods` followed by each of `needs` that is not already among them, in order:
+## what a download, or a pack, comes to once what its mods need is added to it.
+## A mod is told apart by its mod.io id.
+static func with_needs(mods: Array, needs: Array) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var seen := {}
+	for entry: Variant in mods + needs:
+		var mod := entry as Dictionary
+		var mod_id := int(mod.get("id", 0))
+		if mod_id <= 0 or seen.has(mod_id):
+			continue
+		seen[mod_id] = true
+		out.append(mod)
+	return out
+
+
 ## Files more than one mod wants to replace.
 ##   claims  name -> the shipped paths that mod replaces (its shadowing claims):
 ##           the pack's members, and the mods already installed

@@ -303,6 +303,54 @@ with only the game key (measured 2026-10-06, on an empty catalogue):
   count is shown when a pack is cut short.
 - **There is no Subscribe.** That needs a login.
 
+### Dependencies (2026-10-17)
+
+`mod.json` `dependencies`: `["id"]` or `["id>=x.y.z"]` (`ModManifest.parse_dependency`,
+`version_at_least` compares number by number). A malformed entry or a mod naming
+itself refuses the manifest.
+
+- **`ModManager.dependency_problem(rec)`** is the one rule: every dependency
+  installed, not refused, new enough, switched on, not mounted-and-failed, and
+  able to run itself (recursive; a cycle answers "needs X, which needs it in
+  turn"). Asked at boot before each mount (`_load_enabled`), by `apply_live`
+  before each mount, and after every install, removal, rescan and switch
+  (`_refresh_dependencies`).
+- **A blocked mod is never mounted**: FAILED with `blocked_by_dependency`, unmounted,
+  so the mark comes off by itself when the dependency arrives (it goes back to
+  PENDING). `_status_for` stays static; the refresh is what knows the others.
+- **Load order is priority-then-id with each mod's dependencies placed just ahead of
+  it** (`_in_load_order`, a DFS). `apply_plan` keeps a mod out of `live` unless every
+  dependency is loaded or `live` too (a dependency that needs a restart holds back
+  what needs it).
+- **Switches cascade** (`set_enabled`): on takes `switched_on_with` (everything it
+  needs, installed and off), off takes `switched_off_with` (everything on that needs
+  it, through `needed_by(id, true)`). The Installed page shows both beside the
+  switch, one line per dependency (`SpawnMenuModsView.dependency_lines`, orange only
+  where that mod stands in the way), and "Needed by".
+- **mod.io**: `parse_mod` reads the Mod Object's `dependencies` boolean;
+  `ModioClient.list_dependencies` is `/mods/<id>/dependencies?recursive=true`, whose
+  rows are full Mod Objects (fresh download addresses, scan state). The game
+  downloads from mod.io's list, not the manifest's. A single download that needs
+  others fetches the missing ones with it (`_fetch_with_needs`), answers for them in
+  its own review (`_with_needs`, `_needed_for`), holds Install until the last is in,
+  installs them first, and Discard throws them away (not ones that were already on
+  their way on their own, `adopted`). A pack adds its members' needs as members
+  (`ModCollectionPlan.with_needs`). Not tested headless: `mods_view_probe`'s
+  detail_needs / review_needs / review_needs_ready are the pictures.
+- **The game's mod.io settings must allow dependencies** (the game's Dependency
+  option, `Dependency_Enum`: 0 disallows them, so a mod page cannot list any).
+  It was 0 until 2026-10-17, then set to **2, allowed with opt-out** (a mod is
+  offered as a dependency unless its author opts out), read back the same day with
+  `GET /games/14432` on the game's own `g-14432.modapi.io` domain (`api.mod.io` now
+  answers 404 "deprecated"). With 0 no mod page could list one, the MODS tab saw
+  none, and a GunCon 2 downloaded alone arrived "Needs another mod".
+- Measured end to end with the real packs: RetroXR-models'
+  `mods/probes/usba_deps_probe` (the GunCon 2 alone is never mounted and names
+  `xenu.usba`; with the plug, one switch takes both, Apply mounts the plug then the
+  gun, and the spawned gun's plug is the plug mod's model). `mod_browser_tests`
+  `depends/` and the dependency cases in `apply/` and `catalogue/`/`download/` are
+  the suite.
+
 ### Install, update, remove — `ModManager`
 
 **A test suite boots with no mods** (`_is_test_run()`: a `res://Tests/` scene on the

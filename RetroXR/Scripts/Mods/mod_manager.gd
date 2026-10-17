@@ -10,7 +10,9 @@
 ##   3. read mod.json (and thumbnail.png) out of it
 ##   4. check the inventory against the manifest's namespace and claims
 ##   5. skip anything not explicitly enabled in user://mods.json
-##   6. mount what is left, in priority order, and run its entry script
+##   6. mount what is left, in priority order with each mod's dependencies ahead
+##      of it, and run its entry script; a mod whose dependency cannot run is
+##      not mounted at all (dependency_problem)
 ##
 ## Steps 1-5 touch nothing and are reversible, which is what makes it safe to
 ## inspect every mod on disk at every boot while mounting only the enabled ones.
@@ -181,6 +183,8 @@ func rescan() -> int:
 		rec.status = _status_for(rec, is_enabled(rec.id))
 		_mods[rec.id] = rec
 		added += 1
+	if added > 0:
+		_refresh_dependencies()
 	var listing_changed := unreadable.size() != was_unreadable.size()
 	for u: Dictionary in unreadable:
 		listing_changed = listing_changed or not was_unreadable.has(str(u["path"]))
@@ -244,10 +248,11 @@ func _record_for(manifest: ModManifest, path: String,
 # ── loading ───────────────────────────────────────────────────────────────────
 
 func _load_enabled() -> void:
-	var order := _mods.values().filter(func(r): return _should_load(r))
-	order.sort_custom(_load_order)
-	for rec: ModRecord in order:
-		_mount_and_register(rec)
+	for rec: ModRecord in _in_load_order(_mods.values().filter(func(r): return _should_load(r))):
+		# Asked of each in turn, after everything ahead of it has been mounted: a
+		# dependency that failed to register stops what needs it here.
+		if not _block_if_needed(rec):
+			_mount_and_register(rec)
 
 
 ## Priority, then id, so a boot is deterministic and a mod that must layer over
@@ -257,6 +262,151 @@ static func _load_order(a: ModRecord, b: ModRecord) -> bool:
 	if a.manifest.priority != b.manifest.priority:
 		return a.manifest.priority < b.manifest.priority
 	return a.id < b.id
+
+
+## `recs` in load order (_load_order) with every mod's dependencies among them
+## moved ahead of it, whatever their priority: a mod is mounted only after what
+## it needs. A cycle is placed in some order and refused by dependency_problem.
+func _in_load_order(recs: Array) -> Array[ModRecord]:
+	var sorted := recs.duplicate()
+	sorted.sort_custom(_load_order)
+	var wanted := {}
+	for rec: ModRecord in sorted:
+		wanted[rec.id] = rec
+	var out: Array[ModRecord] = []
+	var placed := {}
+	for rec: ModRecord in sorted:
+		_place_after_needs(rec, wanted, placed, out)
+	return out
+
+
+func _place_after_needs(rec: ModRecord, wanted: Dictionary, placed: Dictionary,
+		out: Array[ModRecord]) -> void:
+	if placed.has(rec.id):
+		return
+	# Marked before its dependencies are placed, so a cycle stops here.
+	placed[rec.id] = true
+	for dep: Dictionary in rec.manifest.dependencies:
+		var other: ModRecord = wanted.get(str(dep["id"]))
+		if other != null:
+			_place_after_needs(other, wanted, placed, out)
+	out.append(rec)
+
+
+# ── dependencies ──────────────────────────────────────────────────────────────
+
+## Why `rec` cannot run with what is installed and switched on, "" when it can:
+## every mod it needs is installed, not refused, switched on, new enough, and
+## able to run itself. Asked before a mod is mounted, at boot and by apply_live,
+## and after every change to what is installed or switched on, so a mod is never
+## mounted without what it needs and its page always says what is missing.
+func dependency_problem(rec: ModRecord) -> String:
+	return _dependency_problem(rec, {})
+
+
+func _dependency_problem(rec: ModRecord, seen: Dictionary) -> String:
+	seen[rec.id] = true
+	for dep: Dictionary in rec.manifest.dependencies:
+		var dep_id := str(dep["id"])
+		var at_least := str(dep["min"])
+		var other: ModRecord = _mods.get(dep_id)
+		if other == null or other.removal_staged:
+			return "needs %s, which is not installed" % (dep_id if at_least.is_empty()
+				else "%s %s or newer" % [dep_id, at_least])
+		var named := "%s (%s)" % [other.manifest.name, dep_id]
+		if seen.has(dep_id):
+			return "needs %s, which needs it in turn" % named
+		if other.status == Status.REFUSED:
+			return "needs %s, which was refused: %s" % [named, other.reason]
+		if not ModManifest.version_at_least(other.manifest.version, at_least):
+			return "needs %s %s or newer, and %s is installed" % [named, at_least,
+				other.manifest.version]
+		if not is_enabled(dep_id):
+			return "needs %s, which is switched off" % named
+		if other.mounted and not other.loaded:
+			return "needs %s, which did not load" % named
+		var deeper := _dependency_problem(other, seen.duplicate())
+		if not deeper.is_empty():
+			return "needs %s, which cannot run: it %s" % [named, deeper]
+	return ""
+
+
+## Mark `rec` FAILED, unmounted, when a dependency stops it. Returns whether it did.
+func _block_if_needed(rec: ModRecord) -> bool:
+	var why := dependency_problem(rec)
+	if why.is_empty():
+		return false
+	rec.fail(why)
+	rec.blocked_by_dependency = true
+	return true
+
+
+## Mark what cannot run for want of a dependency, and take the mark off what now
+## can. Only mods switched on and not mounted: a running mod goes on running, and
+## a mod switched off has nothing to explain.
+func _refresh_dependencies() -> void:
+	for rec: ModRecord in _mods.values():
+		if rec.mounted or rec.status == Status.REFUSED or not is_enabled(rec.id):
+			continue
+		if not _block_if_needed(rec) and rec.blocked_by_dependency:
+			rec.blocked_by_dependency = false
+			rec.reason = ""
+			rec.status = _status_for(rec, true)
+
+
+## What switching `id` on switches on with it: every installed mod it needs, all
+## the way down, that is switched off. The Mods page says so beside the switch.
+func switched_on_with(id: String) -> Array[String]:
+	var out: Array[String] = []
+	_collect_needs(id, out, {id: true})
+	return out
+
+
+func _collect_needs(id: String, out: Array[String], seen: Dictionary) -> void:
+	var rec: ModRecord = _mods.get(id)
+	if rec == null:
+		return
+	for dep: Dictionary in rec.manifest.dependencies:
+		var dep_id := str(dep["id"])
+		if seen.has(dep_id):
+			continue
+		seen[dep_id] = true
+		var other: ModRecord = _mods.get(dep_id)
+		if other == null or other.status == Status.REFUSED or other.removal_staged:
+			continue
+		if not is_enabled(dep_id):
+			out.append(dep_id)
+		_collect_needs(dep_id, out, seen)
+
+
+## What switching `id` off switches off with it: every mod switched on that needs
+## it, directly or through another.
+func switched_off_with(id: String) -> Array[String]:
+	var out: Array[String] = []
+	for other: String in needed_by(id, true):
+		if is_enabled(other):
+			out.append(other)
+	return out
+
+
+## The installed mods that need `id`, sorted: those that list it, or with `deep`
+## also those that need one of those.
+func needed_by(id: String, deep: bool = false) -> Array[String]:
+	var out: Array[String] = []
+	var frontier: Array[String] = [id]
+	var seen := {id: true}
+	while not frontier.is_empty():
+		var cur: String = frontier.pop_back()
+		for rec: ModRecord in _mods.values():
+			if seen.has(rec.id) or not rec.manifest.dependencies.any(
+					func(d: Dictionary) -> bool: return str(d["id"]) == cur):
+				continue
+			seen[rec.id] = true
+			out.append(rec.id)
+			if deep:
+				frontier.append(rec.id)
+	out.sort()
+	return out
 
 
 func _should_load(rec: ModRecord) -> bool:
@@ -424,12 +574,26 @@ func is_enabled(id: String) -> bool:
 ## Enable or disable a mod. Nothing is mounted or unmounted here: a mod switched
 ## on waits for apply_live or the next launch, and one switched off goes on
 ## running until the next launch, because a mounted pack cannot be unmounted.
+##
+## A mod switched on switches on what it needs (switched_on_with), and one
+## switched off switches off what needs it (switched_off_with): a switch the
+## player flips cannot leave a mod on that has no way to run.
 func set_enabled(id: String, enabled: bool) -> void:
 	if not _mods.has(id) or (_mods[id] as ModRecord).removal_staged:
 		return
-	_enabled[id] = enabled
+	for other: String in (switched_on_with(id) if enabled else switched_off_with(id)):
+		_switch(other, enabled)
+	_switch(id, enabled)
 	_save_state()
+	_refresh_dependencies()
+
+
+func _switch(id: String, enabled: bool) -> void:
+	_enabled[id] = enabled
 	var rec: ModRecord = _mods[id]
+	if rec.blocked_by_dependency:
+		rec.blocked_by_dependency = false
+		rec.reason = ""
 	rec.status = _status_for(rec, enabled)
 
 
@@ -470,7 +634,9 @@ func apply_live() -> Array[ModRecord]:
 	if not str(plan["blocked"]).is_empty():
 		return mounted
 	for rec: ModRecord in (plan["live"] as Array):
-		_mount_and_register(rec)
+		# Listed either way, so the caller says out loud why one did not load.
+		if not _block_if_needed(rec):
+			_mount_and_register(rec)
 		mounted.append(rec)
 	if mounted.is_empty():
 		return mounted
@@ -499,6 +665,8 @@ func changes_waiting() -> bool:
 ##   restart  something only a restart can apply: a mounted pack switched off,
 ##            updated or removed, or a mod that is not `live`
 ##   blocked  why neither may happen now, "" when they may
+## A mod is `live` only with everything it needs running or `live` too, and
+## mounted after it.
 func apply_plan() -> Dictionary:
 	var live: Array[ModRecord] = []
 	var restart := not _pending.is_empty()
@@ -509,7 +677,18 @@ func apply_plan() -> Dictionary:
 			live.append(rec)
 		else:
 			restart = true
-	live.sort_custom(_load_order)
+	var dropped := true
+	while dropped:
+		dropped = false
+		for rec: ModRecord in live.duplicate():
+			for dep: Dictionary in rec.manifest.dependencies:
+				var other: ModRecord = _mods.get(str(dep["id"]))
+				if other != null and not other.loaded and not live.has(other):
+					live.erase(rec)
+					restart = true
+					dropped = true
+					break
+	live = _in_load_order(live)
 	var blocked := ""
 	if (restart or not live.is_empty()) and _in_netplay():
 		# Peers compared fingerprints once, at the handshake, and a host's reload
@@ -736,6 +915,7 @@ func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -
 		_sources.erase(id)
 	else:
 		_sources[id] = source
+	_refresh_dependencies()
 	_save_state()
 	_notify_changed()
 	return {"ok": true, "id": id, "error": "",
@@ -757,6 +937,7 @@ func remove(id: String) -> Dictionary:
 		rec.update_thumbnail = null
 		rec.update_size = 0
 		rec.update_files = 0
+		_refresh_dependencies()
 		_save_state()
 		_notify_changed()
 		return {"ok": true, "error": "", "restart": true}
@@ -768,6 +949,7 @@ func remove(id: String) -> Dictionary:
 	_mods.erase(id)
 	_duplicates.erase(id)
 	_sources.erase(id)
+	_refresh_dependencies()
 	_save_state()
 	_notify_changed()
 	return {"ok": true, "error": "", "restart": false}

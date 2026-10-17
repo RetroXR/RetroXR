@@ -50,6 +50,8 @@ var _member_serial := 0
 ##   skip    Array of {name, why}
 ##   have    members already here at mod.io's file
 var _batch: Dictionary = {}
+## Asking mod.io what the pack's mods need, before its batch begins.
+var _asking_needs := false
 
 
 func _init(view: SpawnMenuModsView, into: VBoxContainer, scroll: ScrollContainer) -> void:
@@ -434,9 +436,28 @@ func _member_row(mod: Dictionary, installed: Dictionary, why: Dictionary) -> But
 # ── installing a pack ─────────────────────────────────────────────────────────
 
 func _install(pack: Dictionary) -> void:
-	if not _batch.is_empty() or _view.downloader == null or _members_state != "ok":
+	if not _batch.is_empty() or _asking_needs or _view.downloader == null or _members_state != "ok":
 		return
-	var plan := ModCollectionPlan.plan_install(_members, installed_files())
+	if not _members.any(func(m: Dictionary) -> bool: return bool(m.get("dependencies", false))):
+		_install_mods(pack, _members)
+		return
+	# What its mods need comes down with them, as members, whether or not the
+	# pack lists it: a member without it would arrive unable to run.
+	_asking_needs = true
+	_view.notify("mods:pack", "⏳", "Asking mod.io what %s needs…" % str(pack["name"]))
+	_view.fetch_needs(_members, func(ok: bool, needs: Array[Dictionary], error: String) -> void:
+		_asking_needs = false
+		if not ok:
+			_view.notify("mods:pack", "❌", "%s: mod.io did not say what its mods need (%s)" % [
+				str(pack["name"]), error], -1.0, MenuToasts.DWELL_FAIL)
+			return
+		_install_mods(pack, ModCollectionPlan.with_needs(_members, needs)))
+
+
+func _install_mods(pack: Dictionary, mods: Array) -> void:
+	if not _batch.is_empty():
+		return
+	var plan := ModCollectionPlan.plan_install(mods, installed_files())
 	_batch = {"id": int(pack["id"]), "name": str(pack["name"]), "keys": {}, "done": [],
 		"staged": [], "skip": (plan["skip"] as Array).duplicate(true),
 		"have": (plan["have"] as Array).duplicate(true)}
