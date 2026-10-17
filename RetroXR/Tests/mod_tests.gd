@@ -26,7 +26,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 387
+const EXPECTED_CASES := 390
 
 var _pass := 0
 var _fail := 0
@@ -925,21 +925,18 @@ script = ExtResource("1")
 """ % connector)
 
 
-## A pad (or, with `gun`, a light gun) for `systemid`.
+## A pad (or, with `gun`, a light gun) made for `systemid`.
 func _pad_scene(name: String, systemid: String, gun := false) -> String:
-	# A pad names its console; a gun, which has no console of its own, its plug.
 	var script := "res://Scripts/Objects/peripherals/light_gun.gd" if gun \
 		else "res://Scripts/Objects/controllers/retro_controller.gd"
-	var says := ('connector = "%s"' % Connectors.controller_port_of(systemid)) if gun \
-		else ('systemid = "%s"' % systemid)
 	return _scene_file(name, """[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="%s" id="1"]
 
 [node name="Pad" type="RigidBody3D"]
 script = ExtResource("1")
-%s
-""" % [script, says])
+systemid = "%s"
+""" % [script, systemid])
 
 
 ## A stand-in stays on a card only while nothing installed does its job, and
@@ -1025,14 +1022,25 @@ func _group_standins() -> void:
 	_ok(Connectors.controller_port_of("snes") != Connectors.controller_port_of("nes"),
 		"sockets/a Super NES's is not a NES's")
 	var ds := _api("t.ds")
-	_ok(ds.register_object("t.ds:pad", _pad_scene("t_ds", "ps2"))
-		and ds.add_peripherals("ps2", [{"label": "Dual Pad", "spawn": "mod:t.ds:pad"}]),
-		"sockets/a PlayStation 2 pad registers on its card")
-	_ok(_labels("psx").has("Dual Pad"), "sockets/and is offered on the PlayStation's too, as its mod named it",
+	_ok(ds.register_object("t.ds:pad", _pad_scene("t_ds", "ps2")),
+		"sockets/a PlayStation 2 pad registers, on no card")
+	_ok(_labels("ps2").has("Pad") and not _labels("ps2").has("Primitive Controller"),
+		"sockets/its console's card offers it in the stand-in's place", str(_labels("ps2")))
+	_eq(ConnectorScan.of_scene(ScenePersistence.mod_object_scene("t.ds:pad"))["plugs"],
+		PackedStringArray([Connectors.controller_port_of("psx")]),
+		"sockets/its plug fits a PlayStation's port too")
+	_ok(not _labels("psx").has("Pad"), "sockets/but a PlayStation's card lists only pads made for it",
 		str(_labels("psx")))
-	_eq(_labels("ps2").count("Dual Pad"), 1, "sockets/once on its own card")
-	_ok(not _labels("n64").has("Dual Pad"), "sockets/and not on a console it does not fit")
+	ds.add_peripherals("ps2", [{"label": "Dual Pad", "spawn": "mod:t.ds:pad"}])
+	_eq(_labels("ps2").count("Dual Pad"), 1, "sockets/listed on its card by its mod, it is there once")
 	ds.withdraw()
+	# Nor does a pad made for another console take this card's stand-in away.
+	var gp := _api("t.gp")
+	_ok(gp.register_object("t.gp:pad", _pad_scene("t_gp", "genesis")), "sockets/a Genesis pad registers")
+	var sms := _labels("mastersystem")
+	_ok(not sms.has("Pad") and sms.has("Primitive Controller"),
+		"sockets/the Master System's card, whose port is the same DE-9, keeps its own", str(sms))
+	gp.withdraw()
 
 	# Socket names: any name will do, only the spelling is checked.
 	_eq(Connectors.problem("ps2_av_multi"), "", "sockets/a socket the game ships a lead for is a name")

@@ -454,11 +454,10 @@ static func _items_for(systemid: String) -> Array:
 
 	var primitive: Array = []
 	var imported: Array = []
-	# The sockets of the consoles on this card, for what fits them: their
-	# controller port, and the cable sockets a console's row lists. A row that
-	# lists none is taken to wear phono jacks, as the box below does.
-	var controller_port := Connectors.controller_port_of(systemid)
-	var sockets: Array[String] = [controller_port]
+	# The cable sockets the consoles on this card list on their rows, for the
+	# leads that fit them. A row that lists none is taken to wear phono jacks, as
+	# the box below does.
+	var sockets: Array[String] = []
 	var phono := false
 	var mod_console := false
 	var rows := SystemModelRegistry.rows_for(systemid)
@@ -544,17 +543,22 @@ static func _items_for(systemid: String) -> Array:
 	# this call was written for until its discs became a systemid of their own; it
 	# has a tile now and is spawned from that.
 	items.append_array(_units_carded_here(systemid))
-	# What mods bring that fits this card's sockets, whichever card they listed
-	# it on or none. Each stand-in below stays only while nothing installed does
-	# its job: the generic gun while no gun fits the controller port, the pad
-	# while no pad does, the game's lead for a socket while no mod's lead does.
+	# What mods bring for this card, whichever card they listed it on or none: the
+	# pads and guns made for this console (one made for another console that
+	# shares its port still plugs in -- a Genesis pad into a Master System -- it is
+	# just not offered here), and the leads that fit its consoles' sockets. Each
+	# stand-in below stays only while nothing installed does its job: the generic
+	# gun while no gun is made for this console, the pad while no pad is, the
+	# game's lead for a socket while no mod's lead fits it.
+	var made_for := mod_objects_made_for(systemid)
+	var own := func(role: String) -> bool:
+		return made_for.any(func(f: Dictionary) -> bool: return f["role"] == role)
 	var fitting := mod_objects_fitting(sockets)
-	var fits := func(role: String, socket: String) -> bool:
+	var fits := func(socket: String) -> bool:
 		return fitting.any(func(f: Dictionary) -> bool:
-			return f["role"] == role and f["plug"] == socket)
+			return f["role"] == ConnectorScan.ROLE_LEAD and f["plug"] == socket)
 	# With the peripherals rather than the leads below: it is something you hold.
-	if _LIGHT_GUN_PLATFORMS.has(systemid) \
-			and not fits.call(ConnectorScan.ROLE_LIGHT_GUN, controller_port):
+	if _LIGHT_GUN_PLATFORMS.has(systemid) and not own.call(ConnectorScan.ROLE_LIGHT_GUN):
 		items.append(_LIGHT_GUN.duplicate())
 	if _LINK_LEADS.has(systemid):
 		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
@@ -567,7 +571,7 @@ static func _items_for(systemid: String) -> Array:
 		items.append_array(_COMPUTER_INPUT.duplicate(true))
 		items.append(_VGA_CABLE.duplicate())
 		items.append_array(_TRS_KIT.duplicate(true))
-	if standins and not fits.call(ConnectorScan.ROLE_CONTROLLER, controller_port):
+	if standins and not own.call(ConnectorScan.ROLE_CONTROLLER):
 		items.append({"kind": "peripheral", "label": "Primitive Controller",
 			"spawn": PRIMITIVE_CONTROLLER})
 	# The generic lead fits phono jacks. Once no console on the card has any --
@@ -581,20 +585,19 @@ static func _items_for(systemid: String) -> Array:
 	# brings the console need not bring one: the game's own lead for it stands in
 	# while no installed mod's lead fits it.
 	var mod_rows: Array = _mod_peripherals.get(systemid, [])
-	for socket: String in sockets.slice(1):
-		var own := Connectors.game_lead(socket)
-		if own.is_empty() or fits.call(ConnectorScan.ROLE_LEAD, socket):
+	for socket: String in sockets:
+		var lead := Connectors.game_lead(socket)
+		if lead.is_empty() or fits.call(socket):
 			continue
-		var spawn := str(own["spawn"])
+		var spawn := str(lead["spawn"])
 		if not _listed(items, spawn) and not _listed(mod_rows, spawn):
-			items.append({"kind": "peripheral", "label": str(own["label"]), "spawn": spawn})
+			items.append({"kind": "peripheral", "label": str(lead["label"]), "spawn": spawn})
 	# Mod peripherals go LAST, after the stand-ins and the shipped accessories,
 	# so a mod adds to a console's card rather than reordering it.
 	items.append_array(mod_rows.duplicate(true))
-	# Then whatever else installed fits, from mods that listed it elsewhere or
-	# nowhere: a DualShock 2 on the PlayStation's card, another author's lead on a
-	# console it fits.
-	for f: Dictionary in fitting:
+	# Then whatever else is for this card, from mods that listed it elsewhere or
+	# nowhere: another author's pad for this console, a lead for its socket.
+	for f: Dictionary in made_for + fitting:
 		if not _listed(items, str(f["spawn"])):
 			items.append(_row_for_mod_object(str(f["type"])))
 	return items
@@ -602,6 +605,17 @@ static func _items_for(systemid: String) -> Array:
 
 static func _listed(items: Array, spawn: String) -> bool:
 	return items.any(func(i: Dictionary) -> bool: return str(i.get("spawn", "")) == spawn)
+
+
+## Every pad and gun a mod registered that was made for `systemid` (its scene's
+## systemid, ConnectorScan), as [{type, spawn, role}].
+static func mod_objects_made_for(systemid: String) -> Array:
+	var out: Array = []
+	for type: String in ScenePersistence.mod_object_types():
+		var info := ConnectorScan.of_scene(ScenePersistence.mod_object_scene(type))
+		if not str(info["systemid"]).is_empty() and info["systemid"] == systemid:
+			out.append({"type": type, "spawn": "mod:" + type, "role": info["role"]})
+	return out
 
 
 ## Every object a mod registered that plugs into one of `sockets`, as

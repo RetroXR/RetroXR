@@ -75,12 +75,16 @@ things around it were not handled, and each has one home now:
   sub-scene is read, a model is not. It finds its root's role (`RetroController`,
   `LightGun`) and every `RcaPlug`'s connector, cached by path for the run. A plug class
   that sets its connector in `_init` (LinkPlug) is asked by making one. Only a binary
-  scene falls back to a load, and the mod packer never makes one. `items_for` offers every
-  mod object fitting the card's sockets (the platform's controller port plus the rows'
-  `sockets`), ROOM connectors never matching, and each stand-in goes while nothing
-  installed does its job: box while a mod row is on the card, pad/gun while one fits the
-  controller port, Composite Cable while no row wears `composite_plug` (a row with no
-  `sockets` does), a `GAME_LEADS` lead while no mod lead fits its socket. This replaced
+  scene falls back to a load, and the mod packer never makes one. `items_for` offers
+  a mod's pads and guns on the card of the console they are MADE FOR (the scan's
+  `systemid`, `mod_objects_made_for`) and its leads on every card whose rows list their
+  connector (`mod_objects_fitting`, ROOM connectors never matching). Fitting and listing
+  are apart on purpose (2026-10-17): a pad plugs into every console that shares its port,
+  but listing by fit put Genesis pads on the Master System's card and took its stand-in
+  pad away. Each stand-in goes while nothing installed does its job: box while a mod row
+  is on the card, pad/gun while one made for this console is installed, Composite Cable
+  while no row wears `composite_plug` (a row with no `sockets` does), a `GAME_LEADS` lead
+  while no mod lead fits its socket. This replaced
   `replaces_standin`, `av_connector` and the uncommitted `provides_lead`. Nothing a
   script sets at run time is seen: the rule for authors is "set it on the node". `ModApi.problems()` adds
   `SpawnCatalog.socket_problems_for` live (a socket nothing fits; a row whose `sockets`

@@ -38,10 +38,14 @@ const DESKTOP_LIGHTGUN_BUTTONS: Dictionary = {
 ## Set true so desktop_pickup.gd uses FPS-snap positioning instead of ray-hold.
 var desktop_fps_snap: bool = true
 
-## The plug on this gun's cord: "nes_controller" for a Zapper, a PlayStation's
-## port for a GunCon. Empty fits every console's port, which is right for the
-## game's own gun, a stand-in for whichever console it is offered on. See
-## Connectors.
+## The console this gun was made for, as a pad names its own: its plug is that
+## console's controller port (Connectors.CONTROLLER_PORTS -- a GunCon's fits a
+## PlayStation 2 as well), and the spawn card lists it on that console's card.
+## Empty, with no `connector`, fits every console's port, which is right for the
+## game's own gun, a stand-in for whichever console it is offered on.
+@export var systemid: String = ""
+
+## The plug on this gun's cord, when it is not its console's port. See Connectors.
 @export var connector: String = ""
 
 ## Height of the drop hint above the gun, in metres.
@@ -435,10 +439,10 @@ func reload_bindings() -> void:
 
 
 func _load_bindings() -> void:
-	var systemid := ""
+	var sysid := ""
 	if is_instance_valid(_connected_system):
-		systemid = _connected_system.systemid
-	var bindings := ControllerBindings.get_for_system(systemid)
+		sysid = _connected_system.systemid
+	var bindings := ControllerBindings.get_for_system(sysid)
 	_lightgun_map = bindings["lightgun"]
 
 

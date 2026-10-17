@@ -35,13 +35,14 @@ static var _cache: Dictionary = {}
 static var _scripts: Dictionary = {}
 
 
-## {role: String, plugs: PackedStringArray} for the scene at `path`: what its
-## root is, and the connectors of every plug it carries (its root's, for a pad).
-## A scene that cannot be read is nothing: {role: "", plugs: []}.
+## {role: String, plugs: PackedStringArray, systemid: String} for the scene at
+## `path`: what its root is, the connectors of every plug it carries (its root's,
+## for a pad), and for a pad or gun the console it was made for -- its systemid,
+## when its plug is that console's port. A scene that cannot be read is nothing.
 static func of_scene(path: String) -> Dictionary:
 	if _cache.has(path):
 		return _cache[path]
-	var out := {"role": "", "plugs": PackedStringArray()}
+	var out := {"role": "", "plugs": PackedStringArray(), "systemid": ""}
 	var nodes: Variant = _nodes(path)
 	if nodes == null:
 		var packed := ResourceLoader.load(path) as PackedScene if ResourceLoader.exists(path) else null
@@ -77,9 +78,11 @@ static func _take(kind: String, props: Dictionary, info: Dictionary, out: Dictio
 		if not root:
 			return
 		out["role"] = kind
+		var sysid := SystemIds.canonical(str(props.get("systemid", "")))
 		var c := str(props.get("connector", ""))
-		if c.is_empty():
-			c = Connectors.controller_port_of(str(props.get("systemid", "")))
+		if c.is_empty() or c == Connectors.controller_port_of(sysid):
+			c = Connectors.controller_port_of(sysid)
+			out["systemid"] = sysid
 		if not c.is_empty():
 			_add_plug(out, c)
 	elif kind == ROLE_LEAD:

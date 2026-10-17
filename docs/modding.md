@@ -441,11 +441,12 @@ models its lead, you each derive it from the hardware the same way,
 namespaced, `"<mod id>:<name>"`. Never rename one you have published: it is
 inside every lead that fits it.
 
-**A pad** names its console with `systemid` on its root node, and its plug is that
-console's controller port -- a pad for `"ps2"` goes into a PlayStation too. A pad
-whose plug is something else says so with `connector` (`"wii_extension"` for a
-Wii Remote extension). **A light gun** says `connector` (`"nes_controller"` for a
-Zapper); one that says nothing fits every console's port, as the game's own does.
+**A pad or a light gun** names the console it was made for with `systemid` on its
+root node, and its plug is that console's controller port -- so it also goes into
+every console that shares the port: a pad for `"ps2"` into a PlayStation, a
+Genesis pad into a Master System. One whose plug is something else says so with
+`connector` (`"wii_extension"` for a Wii Remote extension). A gun that names
+neither fits every console's port, as the game's own does.
 
 **A console** lists the cable sockets on its back panel on its row, by connector.
 The spawn card reads the list, because it cannot build the console to look:
@@ -464,12 +465,16 @@ in the MODS tab says if the list and the console disagree.
 ### What the spawn card offers
 
 Nothing above is said to the menu separately. The game reads each object a mod
-registers -- its scene file, not its scripts -- and offers it on the card of every
-console it fits, whichever mod brought the console: a pad on the cards whose
-controller port it fits (a DualShock 2 on the PlayStation's card as well as the
-PlayStation 2's), a lead on the cards whose consoles list its connector. A phono
-end fits every console with jacks, so it says nothing of which and is never
-matched; the Composite Cable is the game's answer to those.
+registers -- its scene file, not its scripts -- and offers it on a card, whichever
+mod brought the console:
+
+- a pad or gun on the card of the console it was made for (its `systemid`). Only
+  that one: a DualShock 2 still plugs into a PlayStation, but the PlayStation's
+  card lists the PlayStation's own pads, and a Genesis pad is not listed on the
+  Master System's;
+- a lead on the card of every console that lists its connector among its
+  sockets. A phono end fits every console with jacks, so it says nothing of which
+  and is never matched; the Composite Cable is the game's answer to those.
 
 `add_peripherals` still lists something on a card, for a label of your choosing,
 colors (`variants`), or an accessory that plugs into nothing a card can see. The
@@ -478,8 +483,8 @@ card shows each object once.
 **The stand-ins go by themselves**, as soon as something installed does their job:
 
 - the **Primitive System** box leaves while a mod's console is on the card;
-- the **Primitive Controller**, while an installed pad fits the controller port;
-- the generic **Light Gun**, while an installed gun fits it;
+- the **Primitive Controller**, while a pad made for this console is installed;
+- the generic **Light Gun**, while a gun made for it is;
 - the **Composite Cable**, while no console on the card has phono jacks;
 - the game's own lead for a socket (the table below), while an installed lead fits it.
 
