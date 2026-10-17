@@ -507,6 +507,8 @@ func _ready() -> void:
 		_build_av_ports()
 	else:
 		_spawn_cables()
+	# Last of the sockets: its A/V ones are only built above.
+	_check_listed_sockets()
 	_update_name_label()
 	# Lay the name flat on the model's front face once meshes + text are built.
 	_place_name_label.call_deferred()
@@ -723,7 +725,6 @@ func _load_system_model() -> void:
 	_build_disc_loader(is_bespoke)
 	_build_handheld()
 	_build_slot2()
-	_check_listed_sockets()
 	# Restore a saved lid pose — a clamshell's hinge (DS/3DS/GBA SP) or a console's
 	# cartridge-bay flap (the NES). Last, and for every model rather than only the
 	# handhelds, because a disc loader and configure_cartridge_slot both re-gate the
