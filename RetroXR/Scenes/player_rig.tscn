@@ -49,8 +49,11 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.5)
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.65, 0)
 script = ExtResource("21_desktoppickup")
 
+; No target dot: the DesktopReticle crosshair already marks where this ray aims,
+; and the dot was xr-tools' red pointer material, a red blob on every menu panel.
 [node name="FunctionDesktopPointer" parent="Staging/XROrigin3D/XRCamera3D" instance=ExtResource("20_deskpointer")]
 active_button_action = "trigger_left"
+show_target = false
 
 ; xr-tools ships mask 1023 (layers 1-10), which includes 3:Pickable — so the
 ; player collided with every loose object in the room. Standing on something
