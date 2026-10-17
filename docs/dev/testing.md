@@ -53,7 +53,7 @@ debug build, 2026-08-27 — all passing):
 | `state_tests` | — | — | savestate capture/restore rules |
 | `expansion_tests` | — | — | the expansion units and their catalog |
 | `bay_tests` | — | — | cartridge bays |
-| `card_tests` / `deck_tests` | — | — | memory cards; the video decks |
+| `card_tests` / `deck_tests` | — | — | memory cards; the decks, a tape's place, `.m3u` playlists (`--only=playlist`, a stand-in `FakeVlc`) |
 | `motion_tests` | — | — | accel/gyro/IR device frames |
 | `screen_cast_light_tests` | — | — | light the screen throws into the room |
 | `book_tests` | 52 | 3 s | a book answers the pointer only where it IS: dead page-grab zones and the `PointerArea` outline are checked per state (unloadable, closed, open, last page, failed reload) with a real ray on the pointer layer (the `disabled` flag is what the fix sets, the ray is what the reticle does). Builds its own CBZ, so no PDF or godot-pdfium. Writes one file under the REAL roms root for the manual-follows-its-folder case and removes exactly what it made. **Its exit code is a case too**: a book whose `WorkerThreadPool` render tasks are never waited on segfaults the process at quit, after every case has passed. `cache/` is the 2026-09-19 page-turn stutter: a page already in `user://pdf_cache/` must come back through the POOL like any other (the oracle is that `_get_page_texture` hands back `_loading_texture` and queues it, never a texture decoded on the spot), and `_drain_uploads` must cap itself per frame and take the open spread first — queue the pages furthest from the spread first, or the ordering case passes whatever the queue does. `unloadable/` also pins what a book that CANNOT open looks like: its body and pointer boxes sit on the one cover quad still drawn rather than the authored open spread centred on the spine (the 2026-09-20 "odd collision" on a Quest), and it says so on itself, because a `push_error` is invisible in a headset. `retry/` covers a manual still being WRITTEN (a half CBZ here; a PDF truncated to 55 % in `manual_probe`): it must reopen itself once the file is whole, and must GIVE UP — that half is driven by calling `_fail_or_retry` directly rather than waiting out 1+2+3+4 s of backoff, which would dominate the suite. `cap/` is the 2026-09-30 boot: an oversized scan's pages must render at `MAX_PAGE_PX` on the long side (not past it, not far below), a letter page keeps `render_dpi`, and a big page already in the cache must arrive capped AND be rewritten capped, with no `.tmp` left. `etc2/` forces `compress_pages` on (it is off on desktop): pages arrive ETC2 with mipmaps, cached as blocks with no PNG beside them, the spine strip still set, a page read back from its blocks, an old PNG migrated, and a damaged blocks file dropped and then re-rendered. Mutation-tested, 8 breaks + 2 for `cap/` + 4 for `etc2/` |
@@ -274,7 +274,8 @@ two and three real in-process ENet peers: initial and replacement snapshots,
 host/client spawning and despawning, rigid-body transform flow, grab arbitration,
 release velocities, disconnect cleanup, event relay, plain + spring-latched
 hinge mechanics (including push-push trays), knobs, plain + spring-return
-sliders, levers, and remote head/hand avatars. Momentary button depression is
+sliders, levers, remote head/hand avatars, and a playlist tape's recordings
+fetched and put back in the host's order. Momentary button depression is
 deliberately not replicated;
 the semantic action it triggers is. The event cases cover platform power/reset,
 tray/eject and media insertion, every TV bezel/remote action (power, volume,

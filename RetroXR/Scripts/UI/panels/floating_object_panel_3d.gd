@@ -189,28 +189,35 @@ func _viewport_2d() -> XRToolsViewport2DIn3D:
 
 
 ## Make room for the row rather than squeezing the menu that was already there.
-##
-## The quad and the collision box come out of the packed scene SHARED between
-## every panel instance, so they are made unique first — writing screen_size
-## without that resizes every other open menu's screen too.
 func _grow_for_lock_row() -> void:
 	if _lock_grown:
 		return
 	_lock_grown = true
+	_grow_page(LOCK_ROW_PX)
+
+
+## Make the page `px` viewport pixels taller (less, for a negative `px`) at the
+## density it already has, so the text keeps its size. False when it could not.
+##
+## The quad and the collision box come out of the packed scene SHARED between
+## every panel instance, so they are made unique first — writing screen_size
+## without that resizes every other open menu's screen too.
+func _grow_page(px: float) -> bool:
 	var v := _viewport_2d()
 	if v == null:
-		return
+		return false
 	var screen := v.get_node_or_null("Screen") as MeshInstance3D
 	if screen == null or not (screen.mesh is QuadMesh):
-		return
+		return false
 	_own_screen_resources(v)
 	var vp: Vector2 = v.viewport_size
-	if vp.y <= 0.0:
-		return
-	var grown := vp.y + LOCK_ROW_PX
+	if vp.y <= 0.0 or vp.y + px <= 0.0:
+		return false
+	var grown := vp.y + px
 	v.screen_size = Vector2(v.screen_size.x, v.screen_size.y * grown / vp.y)
 	v.viewport_size = Vector2(vp.x, grown)
 	_resize_place_grip()
+	return true
 
 
 ## The quad and the collision box come out of the packed scene SHARED between

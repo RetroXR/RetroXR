@@ -1439,9 +1439,9 @@ func _file_desc(node: Node) -> Dictionary:
 		# has no single md5, so it neither transfers nor resolves on a peer.
 		return {"kind": "dvd", "prop": "dvd_path"}
 	if node is AudioDisc or node is AudioCassette or node is VinylRecord:
-		# Music albums are folders (no single hash) + potentially copyrighted —
-		# verify-BY-NAME, never transferred. Each peer plays its own album of the
-		# same name; a peer without it simply won't hear playback.
+		# Music albums are folders or playlists (no single hash): a peer's own
+		# album of the same name is used first, and one without it fetches the
+		# tracks one by one (_start_album_fetch).
 		return {"kind": "music", "prop": "album_path"}
 	return {}
 
@@ -1455,18 +1455,21 @@ func _augment_file_fields(node: Node, entry: Dictionary) -> void:
 	var d := _file_desc(node)
 	if d.is_empty():
 		return
-	# Music albums are folders of tracks — carry the album name (for the peer's
-	# verify-by-name fast path) plus a per-track manifest (name/md5/size) so a peer
-	# without the album can fetch it track-by-track. Hashing may be deferred to a
-	# worker thread; the follow-up _album_manifest RPC re-enters resolution.
-	if str(d["kind"]) == "music":
+	# Music albums are folders of tracks, and a tape may be a playlist of several
+	# recordings — carry the set's name (for the peer's verify-by-name fast path)
+	# plus a per-file manifest (name/md5/size) IN PLAY ORDER so a peer without it
+	# can fetch it file-by-file and play it in the same order. Hashing may be
+	# deferred to a worker thread; the follow-up _album_manifest RPC re-enters
+	# resolution.
+	if _is_file_set(d, str(node.get(d["prop"]))):
 		var album := str(node.get(d["prop"]))
 		if album.is_empty():
 			return
+		var kind := str(d["kind"])
 		entry["album_name"] = album.get_file()
-		var manifest := _music_manifest_of(album, false)   # cache-only, non-blocking
+		var manifest := _music_manifest_of(album, kind, false)   # cache-only, non-blocking
 		if not manifest.is_empty():
-			_register_album_serve(album, manifest)
+			_register_album_serve(album, kind)
 			entry["tracks"] = manifest
 			return
 		var album_net_id := id_of(node)
@@ -1474,7 +1477,7 @@ func _augment_file_fields(node: Node, entry: Dictionary) -> void:
 			return
 		node.set_meta("net_hashing", true)
 		WorkerThreadPool.add_task(func() -> void:
-			var m := _music_manifest_of(album, true)   # blocking hash on the worker
+			var m := _music_manifest_of(album, kind, true)   # blocking hash on the worker
 			call_deferred("_on_music_hashed", album_net_id, album, m))
 		return
 	var path := str(node.get(d["prop"]))
@@ -1530,13 +1533,18 @@ func _resolve_file_fields(node: Node, entry: Dictionary) -> void:
 	var prop := str(d["prop"])
 	var kind := str(d["kind"])
 	var path := str(node.get(prop))
-	if kind == "music":
+	# A playlist tape arrives as one (its manifest follow-up has no path in it).
+	if _is_file_set(d, path) or entry.has("album_name"):
 		# 1) keep the host's path if it exists locally (same machine / shared lib).
-		if not path.is_empty() and (FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)):
+		# A playlist only counts if what it lists is here too.
+		if kind == "video":
+			if not path.is_empty() and not RomLibrary.video_recordings(path).is_empty():
+				return
+		elif not path.is_empty() and (FileAccess.file_exists(path) or DirAccess.dir_exists_absolute(path)):
 			return
 		# 2) verify-by-name: reuse our own album of the same name — no transfer.
 		var album_name := str(entry.get("album_name", path.get_file()))
-		var local_album := RomLibrary.find_music_album(album_name)
+		var local_album := RomLibrary.find_music_album(album_name) if kind == "music" else ""
 		if not local_album.is_empty():
 			node.set(prop, local_album)
 			return
@@ -1640,17 +1648,37 @@ func _on_transfer_failed(md5: String, reason: String) -> void:
 
 
 # ── Music album transfer (multi-track) ────────────────────────────────────────
-# An album is a folder of tracks (or a single audio file). It transfers as a set
-# of ordinary single-file transfers keyed by each track's MD5, driven by a
-# manifest [{name, md5, size}] the host builds. The client fetches each missing
-# track into the shared net cache, then reassembles the album folder locally.
+# An album is a folder of tracks, a single audio file or a playlist, and a tape
+# may be a playlist of recordings. Either transfers as a set of ordinary
+# single-file transfers keyed by each file's MD5, driven by a manifest
+# [{name, md5, size}] the host builds in play order. The client fetches each
+# missing file into the shared net cache, then reassembles the set in a folder
+# of its own with a playlist that keeps the host's order.
+
+const TAPE_CACHE_DIR := "user://net_cache/tapes"
+## What a reassembled set's order is written to. Not a dotfile: a folder listing
+## leaves those out, and then the album would play in name order after all.
+const SET_PLAYLIST := "playlist.m3u8"
+
+
+## An object backed by a SET of files rather than one: any music album, or a tape
+## that is a playlist.
+func _is_file_set(d: Dictionary, path: String) -> bool:
+	var kind := str(d.get("kind", ""))
+	return kind == "music" or (kind == "video" and RomLibrary.is_playlist(path))
+
+
+## The files of a set, in the order they play.
+static func _set_files(album: String, kind: String) -> PackedStringArray:
+	return RomLibrary.music_tracks(album) if kind == "music" else RomLibrary.video_recordings(album)
+
 
 ## Build the album's track manifest. allow_hash=false uses only cached hashes and
 ## returns [] if any track isn't cached yet (caller then hashes off-thread);
 ## allow_hash=true hashes every track (blocking — run on a worker thread).
-func _music_manifest_of(album: String, allow_hash: bool) -> Array:
+func _music_manifest_of(album: String, kind: String, allow_hash: bool) -> Array:
 	var out: Array = []
-	for tp: String in RomLibrary.music_tracks(album):
+	for tp: String in _set_files(album, kind):
 		var md5 := NetFileTransfer.cached_hash_of(tp)
 		if md5.is_empty():
 			if not allow_hash:
@@ -1663,13 +1691,13 @@ func _music_manifest_of(album: String, allow_hash: bool) -> Array:
 
 
 ## Host: offer each track for download by hash (main-thread only — _serve isn't
-## guarded for worker threads).
-func _register_album_serve(album: String, manifest: Array) -> void:
-	var is_dir := DirAccess.dir_exists_absolute(album)
-	for t: Variant in manifest:
-		var track_name := str((t as Dictionary).get("name", ""))
-		var tp := album.path_join(track_name) if is_dir else album
-		_nm.file_transfer().serve_register(str((t as Dictionary).get("md5", "")), tp)
+## guarded for worker threads), at its real path: a playlist's entries need not
+## be inside its folder, or any one folder.
+func _register_album_serve(album: String, kind: String) -> void:
+	for tp: String in _set_files(album, kind):
+		var md5 := NetFileTransfer.cached_hash_of(tp)
+		if not md5.is_empty():
+			_nm.file_transfer().serve_register(md5, tp)
 
 
 ## Host: a background album hash finished — register the tracks and broadcast the
@@ -1679,7 +1707,7 @@ func _on_music_hashed(net_id: int, album: String, manifest: Array) -> void:
 	if not is_instance_valid(node) or manifest.is_empty():
 		return
 	node.remove_meta("net_hashing")
-	_register_album_serve(album, manifest)
+	_register_album_serve(album, str(_file_desc(node).get("kind", "music")))
 	if _nm.is_host() and _nm.is_active():
 		_album_manifest.rpc(net_id, str(album).get_file(), manifest)
 
@@ -1699,36 +1727,63 @@ func _start_album_fetch(node: Node, album_name: String, tracks: Array) -> void:
 		return
 	if _album_fetch.has(net_id):
 		return   # already downloading this album
+	var d := _file_desc(node)
+	var kind := str(d.get("kind", "music"))
+	var prop := str(d.get("prop", "album_path"))
 	# A single-file album (the album path IS the track) stays a bare file; a
-	# multi-track album reassembles into its own cache folder.
-	var single: bool = tracks.size() == 1 and str((tracks[0] as Dictionary).get("name", "")) == album_name
+	# multi-track album, and every tape that is a playlist, reassembles into its
+	# own cache folder.
+	var single: bool = kind == "music" and tracks.size() == 1 \
+		and str((tracks[0] as Dictionary).get("name", "")) == album_name
 	var dir := ""
 	if not single:
-		dir = ALBUM_CACHE_DIR.path_join(album_name)
+		dir = (ALBUM_CACHE_DIR if kind == "music" else TAPE_CACHE_DIR).path_join(_set_dir_name(album_name))
 		DirAccess.make_dir_recursive_absolute(dir)
+	# Where each entry lands, in play order. Names come from the host, so they are
+	# cut to a bare file name; two different files of one name (a playlist can
+	# draw on several folders) are told apart by their place in it.
+	var dests: Array = []
+	var taken: Dictionary = {}
 	var remaining: Dictionary = {}
-	for t: Variant in tracks:
-		remaining[str((t as Dictionary)["md5"])] = t
-	_album_fetch[net_id] = {"name": album_name, "dir": dir, "single": single,
-		"total": tracks.size(), "remaining": remaining, "final": ""}
-	_wire_transfer_signals()
-	node.set("album_path", "")
-	if node.has_method("net_set_download_status"):
-		node.call("net_set_download_status", "DOWNLOADING 0/%d" % tracks.size())
-	for t: Variant in tracks:
-		var td := t as Dictionary
+	for i in tracks.size():
+		var td := tracks[i] as Dictionary
 		var md5 := str(td["md5"])
-		var cached := NetFileTransfer.resolve_by_md5(md5, "music", int(td.get("size", 0)), "")
+		var dest_name := str(td.get("name", "")).get_file()
+		if dest_name.is_empty() or (taken.has(dest_name) and taken[dest_name] != md5):
+			dest_name = "%d %s" % [i + 1, dest_name]
+		taken[dest_name] = md5
+		dests.append({"name": dest_name, "md5": md5})
+		remaining[md5] = td
+	_album_fetch[net_id] = {"name": album_name, "dir": dir, "single": single, "kind": kind,
+		"prop": prop, "dests": dests, "total": remaining.size(), "remaining": remaining, "final": ""}
+	_wire_transfer_signals()
+	node.set(prop, "")
+	if node.has_method("net_set_download_status"):
+		node.call("net_set_download_status", "DOWNLOADING 0/%d" % remaining.size())
+	for md5: String in remaining.keys():
+		var td := remaining[md5] as Dictionary
+		var cached := NetFileTransfer.resolve_by_md5(md5, kind, int(td.get("size", 0)), "")
 		if not cached.is_empty():
 			_album_track_ready(net_id, md5, cached)
 		else:
 			_fetching[md5] = {"net_id": net_id, "album": true}
-			_nm.file_transfer().request_file(md5, "music", int(td.get("size", 0)),
+			_nm.file_transfer().request_file(md5, kind, int(td.get("size", 0)),
 				str(td["name"]).get_extension())
 
 
+## A host's set name, made safe to be one folder under the cache: a bare name,
+## and a playlist's without its extension (a folder called "Mix.m3u" reads as a
+## playlist FILE to anything that goes by the name).
+static func _set_dir_name(album_name: String) -> String:
+	var dir_name := album_name.get_file()
+	if RomLibrary.is_playlist(dir_name):
+		dir_name = dir_name.get_basename()
+	return dir_name if dir_name != "" and dir_name != "." and dir_name != ".." else "set"
+
+
 ## Client: one album track arrived (or was already cached). Place it under the
-## album folder; when the last one lands, point the object at the local album.
+## album folder; when the last one lands, write the host's order beside the files
+## and point the object at the local album (a tape at that playlist).
 func _album_track_ready(net_id: int, md5: String, cache_path: String) -> void:
 	var af: Dictionary = _album_fetch.get(net_id, {})
 	if af.is_empty():
@@ -1740,18 +1795,34 @@ func _album_track_ready(net_id: int, md5: String, cache_path: String) -> void:
 	if af["single"]:
 		af["final"] = cache_path
 	else:
-		var dest := str(af["dir"]).path_join(str(t["name"]))
-		if not FileAccess.file_exists(dest):
-			DirAccess.copy_absolute(cache_path, dest)
+		for dest_info: Dictionary in af["dests"]:
+			if str(dest_info["md5"]) != md5:
+				continue
+			var dest := str(af["dir"]).path_join(str(dest_info["name"]))
+			if not FileAccess.file_exists(dest):
+				DirAccess.copy_absolute(cache_path, dest)
 		af["final"] = af["dir"]
 	var node: Node = _registry.get(net_id)
 	var done: int = int(af["total"]) - af["remaining"].size()
 	if af["remaining"].is_empty():
 		_album_fetch.erase(net_id)
+		if not af["single"]:
+			var listed := PackedStringArray()
+			for dest_info: Dictionary in af["dests"]:
+				# A name starting "#" would read as a comment line.
+				var entry_name := str(dest_info["name"])
+				listed.append("./" + entry_name if entry_name.begins_with("#") else entry_name)
+			var order := str(af["dir"]).path_join(SET_PLAYLIST)
+			var f := FileAccess.open(order, FileAccess.WRITE)
+			if f != null:
+				f.store_string("#EXTM3U\n" + "\n".join(listed) + "\n")
+				f.close()
+			if str(af["kind"]) == "video":
+				af["final"] = order
 		if is_instance_valid(node):
 			if node.has_method("net_set_download_status"):
 				node.call("net_set_download_status", "")
-			node.set("album_path", str(af["final"]))
+			node.set(str(af["prop"]), str(af["final"]))
 			print("[NetObjectSync] album '%s' assembled (%d tracks)" % [af["name"], af["total"]])
 	elif is_instance_valid(node) and node.has_method("net_set_download_status"):
 		node.call("net_set_download_status", "DOWNLOADING %d/%d" % [done, int(af["total"])])

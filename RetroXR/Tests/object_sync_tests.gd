@@ -15,9 +15,10 @@ const RETRO_SYSTEM := preload("res://Scenes/Objects/system.tscn")
 const RETRO_CONTROLLER := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const TV := preload("res://Scenes/Objects/tv.tscn")
 const AVATAR := preload("res://Scenes/Net/remote_avatar.tscn")
+const VCR_TAPE := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const PORT := 42917
 const GROUPS := ["registry", "snapshot", "spawn", "motion", "authority",
-	"controllers", "hinges", "events", "relay", "avatars", "lifecycle"]
+	"controllers", "hinges", "events", "relay", "avatars", "playlist", "lifecycle"]
 
 var _fail := 0
 var _ran := 0
@@ -347,6 +348,8 @@ func _ready() -> void:
 		await _test_relay(pair)
 	if _want("avatars"):
 		await _test_avatars(pair)
+	if _want("playlist"):
+		await _test_playlist_transfer(pair)
 	if _want("lifecycle"):
 		await _test_network_lifecycle(pair)
 	if pair != null:
@@ -1350,6 +1353,65 @@ func _test_avatars(p: Pair) -> void:
 	_ok(not desktop.get_node("LeftHand").visible and not desktop.get_node("RightHand").visible,
 		"avatars/desktop peers do not grow phantom hands")
 	desktop.queue_free()
+
+
+## playlist/ — a tape that is a playlist reaches a peer whole, and in order.
+##
+## Before, only the playlist's own text was sent: its entries named the host's
+## files, and the peer's tape played nothing. Now the host offers each recording
+## at its real path (not beside the playlist), and the peer fetches them by hash,
+## keeps two different files of one name apart, writes the host's order beside
+## them and points its tape there. Both peers share one disk here, so the peer
+## is handed a host path it cannot see and resolves from that.
+func _test_playlist_transfer(p: Pair) -> void:
+	var src := ProjectSettings.globalize_path("user://object_sync_playlist")
+	RomLibrary._remove_tree(src)
+	var stamp := str(Time.get_ticks_usec())
+	var r1 := _write_file(src.path_join("a/rec.mp4"), "first recording " + stamp)
+	var r2 := _write_file(src.path_join("b/rec.mp4"), "second recording, longer " + stamp)
+	var r3 := _write_file(src.path_join("c.mp4"), "third " + stamp)
+	var list := _write_file(src.path_join("Tape.m3u"), "a/rec.mp4\nb/rec.mp4\nc.mp4\na/rec.mp4\n")
+	var manifest: Array = p.host_os._music_manifest_of(list, "video", true)
+	_eq(manifest.size(), 4, "playlist/the host's manifest has every entry, a repeat included")
+	p.host_os._register_album_serve(list, "video")
+
+	var host_tape := VCR_TAPE.instantiate() as VCRTape
+	host_tape.video_path = list
+	p.host_root.add_child(host_tape)
+	host_tape.add_to_group("spawned")
+	p.host_nm.on_local_spawn(host_tape)
+	var tape_id := p.host_os.id_of(host_tape)
+	_ok(await _until(func() -> bool: return p.client_os.node_for_id(tape_id) is VCRTape),
+		"playlist/the tape reaches the client")
+	var client_tape := p.client_os.node_for_id(tape_id) as VCRTape
+	if client_tape == null:
+		return
+	client_tape.video_path = "Z:/nowhere/Tape.m3u"
+	p.client_os._resolve_file_fields(client_tape, {"album_name": "Tape.m3u", "tracks": manifest})
+	var want := "user://net_cache/tapes/Tape/" + NetObjectSync.SET_PLAYLIST
+	_ok(await _until(func() -> bool: return client_tape.video_path == want, 900),
+		"playlist/the client fetches the recordings and points its tape at the order it wrote",
+		client_tape.video_path)
+	var bodies := Array(RomLibrary.video_recordings(client_tape.video_path)).map(
+		func(path: String) -> String: return FileAccess.get_file_as_string(path))
+	_eq(bodies, [FileAccess.get_file_as_string(r1), FileAccess.get_file_as_string(r2),
+		FileAccess.get_file_as_string(r3), FileAccess.get_file_as_string(r1)],
+		"playlist/in the host's order, the two files called rec.mp4 kept apart, the repeat repeated")
+
+	RomLibrary._remove_tree(src)
+	RomLibrary._remove_tree(ProjectSettings.globalize_path("user://net_cache/tapes/Tape"))
+	for t: Dictionary in manifest:
+		for fname: String in DirAccess.get_files_at("user://net_cache/video"):
+			if fname.get_basename() == str(t["md5"]):
+				DirAccess.remove_absolute("user://net_cache/video".path_join(fname))
+
+
+func _write_file(path: String, text: String) -> String:
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(text)
+	f.close()
+	return path
 
 
 func _test_network_lifecycle(p: Pair) -> void:

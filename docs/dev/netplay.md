@@ -684,3 +684,34 @@ Lockstep with a black viewfinder for everybody was the alternative, and it is st
 worse: the camera would work nowhere a second player was. Measured: nothing. A real
 two-peer session with a camera in the room, and a camera console pulled in by a cable,
 are both OWED.
+
+### Albums and playlist tapes — a set of files, in the host's order, 2026-10-17
+
+An album (CD, cassette, record) and a VHS tape that is a playlist (`.m3u`/`.m3u8`, see
+`RomLibrary.playlist_entries`) are each a SET of files. `_is_file_set` routes both through
+the album machinery in `object_sync.gd`; a tape of one file still takes the single-file path.
+
+- **The manifest is in PLAY order** (`RomLibrary.music_tracks` / `video_recordings`), and
+  the host serves each file at its REAL path (`_register_album_serve`). It used to serve
+  `album/<name>`, which is wrong for a playlist: its entries need not be beside it, or in
+  any one folder, and a loose playlist would have been served as every track.
+- **The peer rebuilds the set in a folder of its own** (`net_cache/albums/<name>/`, tapes
+  `net_cache/tapes/<name>/`, a playlist's extension dropped so the folder is not read as a
+  file). Names from the host are cut to a bare file name; two different files of one name
+  get their place in the list prefixed; a file listed twice is fetched once. Then it writes
+  `playlist.m3u8` in the host's order (`SET_PLAYLIST`, not a dotfile: a folder listing
+  skips those). A folder's playlist decides its order, so the peer plays what the host
+  plays, and the deck state's track / `rec` index means the same file on both. Before this
+  the peer played its folder in NAME order while the host played the playlist's.
+- **A tape is pointed at that playlist**; an album at the folder.
+- **libVLC cannot open a `user://` path.** `VlcPlayer.Open` passes anything with a scheme
+  through as a URL, and VLC has no `user` module, so a peer's transferred video or album
+  never played (before the URL pass-through, `file:///user://…` failed the same way). The
+  VCR and the audio decks now `globalize_path` at `_vlc.open`. **`DVDPlayer` still hands
+  `dvd_path` over raw** — a transferred `.iso` on a peer is the same failure, unfixed.
+
+`object_sync_tests --only=playlist` transfers a playlist tape over loopback (a repeat and
+two files called `rec.mp4` from different folders). `Tools/av/vcr_playlist_probe`
+(windowed, `-- --clips=<dir>` with `red.mp4` and `blue.mp4`) plays one on the real libVLC:
+through the join, FF and REW across it, a `user://` copy, and the raw `user://` path as its
+control. A real two-machine session with a playlist is OWED.

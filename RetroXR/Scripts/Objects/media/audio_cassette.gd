@@ -53,3 +53,15 @@ func net_set_download_status(status: String) -> void:
 
 func get_album_path() -> String:
 	return album_path
+
+
+## What the generic object menu lists under its title (ObjectOptionsPanel):
+## where the tape stands, as a track and a time into it, and the album it
+## carries. The share of the tape is left off until a deck has measured it.
+func options_info() -> Array:
+	var s := roundi(tape_time)
+	@warning_ignore("integer_division")
+	var at := "Track %d, %d:%02d" % [tape_track + 1, s / 60, s % 60]
+	if tape_progress > 0.0:
+		at += "  (%d%% of the tape)" % roundi(tape_progress * 100.0)
+	return [["Position", at], ["Path", album_path if album_path != "" else "None"]]

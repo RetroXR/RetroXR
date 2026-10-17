@@ -2087,6 +2087,7 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"video_label": tape.video_label,
 			# Where its tape stands. A tape in a deck is saved as itself and
 			# seated afterward, so the deck reads these as it takes it back.
+			"tape_track": tape.tape_track,
 			"tape_time": tape.tape_time,
 			"tape_progress": tape.tape_progress,
 		})
@@ -2686,6 +2687,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				var tape := TAPE_SCENE.instantiate() as VCRTape
 				tape.video_path = data.get("video_path", "")
 				tape.video_label = data.get("video_label", "")
+				tape.tape_track = maxi(0, int(data.get("tape_track", 0)))
 				tape.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
 				tape.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
 				obj = tape

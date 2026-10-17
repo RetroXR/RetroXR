@@ -336,6 +336,48 @@ static func scan_books() -> Array[Dictionary]:
 	return results
 
 
+## Playlist files: a plain list of paths, one a line, in the order they play. An
+## album folder holding one plays in its order rather than by file name, and one
+## loose in music/ or videos/ is an album, or a tape of several recordings, of
+## its own.
+const PLAYLIST_EXTENSIONS := ["m3u", "m3u8"]
+
+
+static func is_playlist(path: String) -> bool:
+	return path.get_extension().to_lower() in PLAYLIST_EXTENSIONS
+
+
+## The entries of an M3U playlist that are existing files of one of `exts`, in
+## its order, as absolute paths. Lines starting "#" (#EXTM3U, #EXTINF) are
+## comments; an entry is relative to the playlist's own folder unless absolute,
+## may use either slash, and may be a file:// URL. Anything else (a stream URL,
+## a file that is not there, a kind the caller does not play) is left out, so a
+## playlist that has gone stale plays what it still can. Read as UTF-8, which
+## .m3u8 is by definition and most tools now write for .m3u too.
+static func playlist_entries(path: String, exts: Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	var f := FileAccess.open(path, FileAccess.READ)
+	if f == null:
+		return out
+	var base := path.get_base_dir()
+	for raw: String in f.get_as_text().split("\n"):
+		var line := raw.strip_edges().trim_prefix(String.chr(0xFEFF))
+		if line.is_empty() or line.begins_with("#"):
+			continue
+		if line.begins_with("file://"):
+			line = line.trim_prefix("file://").uri_decode()
+			# file:///C:/x arrives here as /C:/x.
+			if line.length() > 2 and line[0] == "/" and line[2] == ":":
+				line = line.substr(1)
+		elif line.contains("://"):
+			continue
+		line = line.replace("\\", "/")
+		var full := (line if line.is_absolute_path() else base.path_join(line)).simplify_path()
+		if full.get_extension().to_lower() in exts and FileAccess.file_exists(full):
+			out.append(full)
+	return out
+
+
 ## Video file extensions playable via the VlcPlayer GDExtension.
 const VIDEO_EXTENSIONS := ["mp4", "mkv", "avi", "webm", "mov"]
 
@@ -351,10 +393,12 @@ static func ensure_videos_root() -> void:
 	_ensure_root("videos")
 
 
-## Scan the videos root and return all video files sorted by name.
-## Returns Array of {path: String, label: String}.
-static func scan_videos() -> Array[Dictionary]:
-	var dir_path := default_videos_root()
+## Scan the videos root and return every tape it holds, sorted by name: each
+## video file, and each playlist naming at least one video, which is a tape of
+## several recordings played in its order.
+## Returns Array of {path: String, label: String}. `root` is for the tests.
+static func scan_videos(root := "") -> Array[Dictionary]:
+	var dir_path := root if root != "" else default_videos_root()
 	var dir := DirAccess.open(dir_path)
 	if not dir:
 		return []
@@ -363,14 +407,26 @@ static func scan_videos() -> Array[Dictionary]:
 	var fname := dir.get_next()
 	while fname != "":
 		var ext := fname.get_extension().to_lower()
-		if not dir.current_is_dir() and ext in VIDEO_EXTENSIONS:
-			results.append({"path": dir_path.path_join(fname), "label": fname.get_basename()})
+		var full := dir_path.path_join(fname)
+		if not dir.current_is_dir() and (ext in VIDEO_EXTENSIONS or (ext in PLAYLIST_EXTENSIONS
+				and not playlist_entries(full, VIDEO_EXTENSIONS).is_empty())):
+			results.append({"path": full, "label": fname.get_basename()})
 		fname = dir.get_next()
 	dir.list_dir_end()
 	results.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return (a["label"] as String).naturalnocasecmp_to(b["label"] as String) < 0
 	)
 	return results
+
+
+## The recordings on a tape, in the order they play: the file itself, or a
+## playlist's video entries. A playlist that names none is a blank tape.
+static func video_recordings(video_path: String) -> PackedStringArray:
+	if video_path.is_empty():
+		return PackedStringArray()
+	if is_playlist(video_path) and not DirAccess.dir_exists_absolute(video_path):
+		return playlist_entries(video_path, VIDEO_EXTENSIONS)
+	return PackedStringArray([video_path])
 
 
 ## Image extensions a poster can be made from.
@@ -462,7 +518,8 @@ const MUSIC_EXTENSIONS := ["mp3", "flac", "ogg", "wav", "m4a", "aac", "opus", "w
 
 
 ## Root directory for music. Each subfolder is an album (multi-track); loose
-## audio files are single-track albums. Sits alongside roms/, videos/, dvd/.
+## audio files are single-track albums, and a loose playlist is an album of what
+## it lists. Sits alongside roms/, videos/, dvd/.
 static func default_music_root() -> String:
 	return DataPaths.media_root("music")
 
@@ -489,10 +546,11 @@ static func _dir_has_audio(dir_path: String) -> bool:
 
 
 ## Scan the music root and return all albums. Each album is either a subfolder
-## containing audio files, or a standalone audio file (a single-track album).
-## Returns Array of {path: String, label: String}.
-static func scan_music() -> Array[Dictionary]:
-	var root := default_music_root()
+## containing audio files (or a playlist naming some elsewhere), a standalone
+## audio file (a single-track album), or a playlist naming at least one track.
+## Returns Array of {path: String, label: String}. `music_root` is for the tests.
+static func scan_music(music_root := "") -> Array[Dictionary]:
+	var root := music_root if music_root != "" else default_music_root()
 	var dir := DirAccess.open(root)
 	if not dir:
 		return []
@@ -502,9 +560,11 @@ static func scan_music() -> Array[Dictionary]:
 	while fname != "":
 		var full: String = root.path_join(fname)
 		if dir.current_is_dir():
-			if _dir_has_audio(full):
+			if _dir_has_audio(full) or not music_tracks(full).is_empty():
 				results.append({"path": full, "label": fname})
 		elif fname.get_extension().to_lower() in MUSIC_EXTENSIONS:
+			results.append({"path": full, "label": fname.get_basename()})
+		elif is_playlist(fname) and not playlist_entries(full, MUSIC_EXTENSIONS).is_empty():
 			results.append({"path": full, "label": fname.get_basename()})
 		fname = dir.get_next()
 	dir.list_dir_end()
@@ -514,8 +574,10 @@ static func scan_music() -> Array[Dictionary]:
 	return results
 
 
-## Resolve an album path into an ordered list of track file paths. A folder is
-## expanded to its audio files (natural sort); a single file yields itself.
+## Resolve an album path into an ordered list of track file paths. A playlist is
+## its audio entries. A folder holding a playlist plays in that playlist's order,
+## and otherwise is expanded to its audio files (natural sort); a single file
+## yields itself.
 static func music_tracks(album_path: String) -> PackedStringArray:
 	var tracks := PackedStringArray()
 	if album_path.is_empty():
@@ -524,17 +586,33 @@ static func music_tracks(album_path: String) -> PackedStringArray:
 		var dir := DirAccess.open(album_path)
 		if dir:
 			var names: Array[String] = []
+			var lists: Array[String] = []
 			dir.list_dir_begin()
 			var fname := dir.get_next()
 			while fname != "":
-				if not dir.current_is_dir() and fname.get_extension().to_lower() in MUSIC_EXTENSIONS:
-					names.append(fname)
+				if not dir.current_is_dir():
+					var ext := fname.get_extension().to_lower()
+					if ext in MUSIC_EXTENSIONS:
+						names.append(fname)
+					elif ext in PLAYLIST_EXTENSIONS:
+						lists.append(fname)
 				fname = dir.get_next()
 			dir.list_dir_end()
+			# The first playlist by name that still names a track decides the order.
+			# One gone wholly stale falls back to the file names rather than leaving
+			# the album silent.
+			lists.sort_custom(func(a: String, b: String) -> bool:
+				return a.naturalnocasecmp_to(b) < 0)
+			for list: String in lists:
+				var listed := playlist_entries(album_path.path_join(list), MUSIC_EXTENSIONS)
+				if not listed.is_empty():
+					return listed
 			names.sort_custom(func(a: String, b: String) -> bool:
 				return a.naturalnocasecmp_to(b) < 0)
 			for n in names:
 				tracks.append(album_path.path_join(n))
+	elif is_playlist(album_path):
+		return playlist_entries(album_path, MUSIC_EXTENSIONS)
 	elif FileAccess.file_exists(album_path):
 		tracks.append(album_path)
 	return tracks

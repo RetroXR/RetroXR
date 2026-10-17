@@ -23,7 +23,7 @@ func _ready() -> void:
 ## Show current / total time. Pass total < 0 for an unknown duration.
 func set_times(cur: float, total: float) -> void:
 	if _display:
-		_display.text = _fmt(cur) + " / " + _fmt(total)
+		_display.text = counter(cur) + " / " + counter(total)
 
 
 ## Show the idle "--:--:-- / --:--:--" state (no tape).
@@ -32,7 +32,9 @@ func set_blank() -> void:
 		_display.text = "--:--:-- / --:--:--"
 
 
-func _fmt(t: float) -> String:
+## One side of the readout. Static so a tape's menu (VCRTape.options_info) reads
+## its place the way the deck's front panel does.
+static func counter(t: float) -> String:
 	if t < 0.0:
 		return "--:--:--"
 	var s := int(round(t))

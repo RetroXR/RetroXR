@@ -52,16 +52,40 @@ var is_playing: bool = false
 # audio muted (real-VCR feel).
 var _scan_dir: int = 0
 var _scan_accum: float = 0.0            # time since the last scan seek
-## Seconds into the tape that the next play() carries on from: a tape keeps its
-## place (see _note_tape). It waits here because a seek means nothing until the
-## recording is open and its length is known.
+## Seconds into the recording that the next play() carries on from: a tape keeps
+## its place (see _note_tape). It waits here because a seek means nothing until
+## the recording is open and its length is known.
 var _resume_at: float = 0.0
+## Carry on from the recording's END instead: a rewind that has run off the start
+## of one recording into the one before it.
+var _resume_end := false
 ## The tape in the deck, kept from the moment it goes in: by the time the slot
 ## says a tape has left, it no longer has it to ask for.
 var _tape: Node = null
 # How often (seconds) to seek while scanning. Seeking every frame overloads the
 # decoder; ~12 seeks/sec still reads as a smooth fast-scan.
 const SCAN_SEEK_INTERVAL := 0.08
+## Where a scan has got to, in seconds into the recording. Kept here rather than
+## read back from the player, whose seeks land a frame or more late: a scan that
+## had just stepped into another recording read 0 there and stepped back out.
+var _scan_pos: float = 0.0
+
+## What is on the tape, in the order it plays: its one file, or a playlist's
+## entries (RomLibrary.video_recordings). _rec_idx is the one in the player, and
+## the sizes on disk weigh how far through the whole tape a point is.
+var _recordings := PackedStringArray()
+var _rec_bytes := PackedInt64Array()
+var _rec_idx: int = 0
+## The tape path _recordings was read from.
+var _recordings_of := ""
+## When this deck last opened a recording. libVLC posts `finished` from its own
+## thread, so one from the recording a scan has just left can arrive after the
+## next is open, and must not be taken for the end of that one.
+var _opened_msec: int = -100000
+const STALE_FINISH_MSEC := 300
+## How far short of its end a rewind into the previous recording starts: AT the
+## end, the player reports that recording finished and winds on again.
+const REW_END_MARGIN := 1.0
 
 
 # Front-loading tape bay (insert ride, eject, grab hand-off, collision) — all owned
@@ -204,24 +228,32 @@ func _vlc_seek_sec(sec: float) -> void:
 
 
 ## While scanning, jump the (still-playing) player's position forward/back in
-## throttled steps so frames visibly race by at scan_speed. Hitting either end
-## stops the scan and holds there.
+## throttled steps so frames visibly race by at scan_speed. Running off either
+## end of a recording winds on into the next one, or back into the one before;
+## hitting either end of the TAPE stops the scan and holds there.
 func _update_scan(delta: float) -> void:
-	if _scan_dir == 0 or not is_playing:
+	if _scan_dir == 0 or not is_playing or _resume_pending():
 		return
 	_scan_accum += delta
 	if _scan_accum < SCAN_SEEK_INTERVAL:
 		return
 	var length := _vlc_length_sec()
-	var pos := _vlc_time_sec() + _scan_accum * scan_speed * float(_scan_dir)
+	var pos := _scan_pos + _scan_accum * scan_speed * float(_scan_dir)
 	_scan_accum = 0.0
 	if pos <= 0.0:
+		if _rec_idx > 0:
+			_switch_recording(_rec_idx - 1, true)
+			return
 		_vlc_seek_sec(0.0)
 		_end_scan_hold()   # reached the start; hold here
 	elif length > 0.0 and pos >= length:
+		if _rec_idx + 1 < _recordings.size():
+			_switch_recording(_rec_idx + 1, false)
+			return
 		_vlc_seek_sec(length)
 		_end_scan_hold()   # reached the end; hold here
 	else:
+		_scan_pos = pos
 		_vlc_seek_sec(pos)
 
 
@@ -269,6 +301,9 @@ func _on_media_removed() -> void:
 	_resume_at = 0.0
 	stop()
 	video_path = ""
+	_recordings = PackedStringArray()
+	_recordings_of = ""
+	_rec_idx = 0
 	NetworkManager.report_event(NetEvents.Event.EV_TAPE_REMOVE, {"vcr": self})
 
 
@@ -301,11 +336,12 @@ func _net_push_state() -> void:
 		NetworkManager.report_media_state(self)
 
 
-## Current transport state for the sync layer.
+## Current transport state for the sync layer. `pos` is into recording `rec`.
 func net_get_state() -> Dictionary:
 	return {
 		"playing": is_playing,
 		"paused": is_playing and _paused,
+		"rec": _rec_idx,
 		"pos": _vlc_time_sec() if is_playing else 0.0,
 	}
 
@@ -314,6 +350,7 @@ func net_get_state() -> Dictionary:
 func net_apply_state(state: Dictionary) -> void:
 	var playing := bool(state.get("playing", false))
 	var paused := bool(state.get("paused", false))
+	var rec := int(state.get("rec", 0))
 	var pos := float(state.get("pos", 0.0))
 	if not playing:
 		if is_playing:
@@ -328,9 +365,14 @@ func net_apply_state(state: Dictionary) -> void:
 		if video_path.is_empty() or connected_tv == null:
 			_osd("WAITING FOR TAPE…", true)
 			return
+		_rec_idx = rec
 		play()
 		if is_playing and pos > NET_DRIFT_TOLERANCE:
 			_vlc_seek_sec(pos)
+	elif rec != _rec_idx and rec >= 0 and rec < _recordings.size():
+		# The host has played or wound on into another recording.
+		_switch_recording(rec, false)
+		_resume_at = pos
 	if not is_playing:
 		return
 	if _vlc:
@@ -452,6 +494,7 @@ func _osd(text: String, sticky: bool) -> void:
 func _set_scan(dir: int) -> void:
 	_scan_dir = dir
 	_scan_accum = 0.0
+	_scan_pos = _vlc_time_sec()
 	if _vlc:
 		_vlc.set_paused(false)
 	_paused = false
@@ -475,12 +518,16 @@ func play() -> void:
 	if _vlc == null:
 		push_error("VCRPlayer: VlcPlayer unavailable (extension not loaded)")
 		return
-	if not _vlc.open(video_path, false):
-		push_error("VCRPlayer: VlcPlayer.open failed for ", video_path)
+	_ensure_recordings()
+	if _recordings.is_empty():
+		# A playlist naming nothing that is still there. Said on the set, because
+		# the error log cannot be read in a headset.
+		push_error("VCRPlayer: Cannot play - no recording on the tape is there: ", video_path)
+		_osd("BLANK TAPE", false)
 		return
-	_vlc.play()
-	# Full internal gain — level is controlled by the Godot 3D player (TV knob).
-	_vlc.set_volume(100)
+	_rec_idx = clampi(_rec_idx, 0, _recordings.size() - 1)
+	if not _open_recording():
+		return
 	is_playing = true
 	_paused = false
 	_scan_dir = 0
@@ -497,6 +544,7 @@ func stop() -> void:
 	# A stopped tape stays where it stopped, and the next play carries on from
 	# there.
 	_resume_at = _tape_time()
+	_resume_end = false
 	_scan_dir = 0
 	if _vlc:
 		_vlc.stop()
@@ -507,6 +555,53 @@ func stop() -> void:
 	if connected_tv:
 		connected_tv.hide_osd()
 	_net_push_state()
+
+
+## Read what is on the tape, again whenever its path changes or nothing was
+## there last time: a netplay peer's copy can land after the tape went in.
+func _ensure_recordings() -> void:
+	if video_path == _recordings_of and not _recordings.is_empty():
+		return
+	_recordings_of = video_path
+	_recordings = RomLibrary.video_recordings(video_path)
+	_rec_bytes = PackedInt64Array()
+	for path: String in _recordings:
+		var file := FileAccess.open(path, FileAccess.READ)
+		_rec_bytes.append(file.get_length() if file != null else 0)
+
+
+## Open the recording at _rec_idx and set it running. The transport around it
+## (scan, mute, the OSD) is the caller's to keep or change.
+func _open_recording() -> bool:
+	if _vlc == null or _rec_idx < 0 or _rec_idx >= _recordings.size():
+		return false
+	# A netplay peer's copy lives under user://, which libVLC would take for a URL
+	# scheme it has no module for; it needs the real path.
+	var path := ProjectSettings.globalize_path(_recordings[_rec_idx])
+	if not _vlc.open(path, false):
+		push_error("VCRPlayer: VlcPlayer.open failed for ", path)
+		return false
+	_vlc.play()
+	# Full internal gain — level is controlled by the Godot 3D player (TV knob).
+	_vlc.set_volume(100)
+	_opened_msec = Time.get_ticks_msec()
+	return true
+
+
+## Go on into another recording on the same tape without stopping it: the end
+## of one playing into the next, or a scan running off either end of one. A scan
+## carries on through it, from its start, or for a rewind, from its end.
+func _switch_recording(idx: int, at_end: bool) -> void:
+	_rec_idx = idx
+	_resume_at = 0.0
+	_resume_end = at_end
+	_scan_pos = 0.0
+	if not _open_recording():
+		stop()
+
+
+func _resume_pending() -> bool:
+	return _resume_at > 0.0 or _resume_end
 
 
 # --- TV connection contract ---
@@ -582,11 +677,25 @@ func get_vcr_params() -> Dictionary:
 
 
 func _on_video_finished() -> void:
+	# The end of a recording a scan or an earlier finish has already moved off.
+	if Time.get_ticks_msec() - _opened_msec < STALE_FINISH_MSEC:
+		return
+	# More on the tape: it plays on into the next recording. In a session the
+	# host decides that, and a peer follows its state there.
+	if is_playing and _rec_idx + 1 < _recordings.size():
+		if NetworkManager.is_client():
+			return
+		_switch_recording(_rec_idx + 1, false)
+		_net_push_state()
+		return
 	# Leave the last frame; mark as not playing so Play restarts from the top.
 	# The end of the tape: it is wound back to its start, which is what makes
 	# Play restart it.
 	_resume_at = 0.0
+	_resume_end = false
+	_rec_idx = 0
 	if is_instance_valid(_tape):
+		_tape.set("tape_track", 0)
 		_tape.set("tape_time", 0.0)
 		_tape.set("tape_progress", 0.0)
 		_tape.set("tape_speed", 0.0)
@@ -608,40 +717,51 @@ func _on_video_finished() -> void:
 
 # --- A tape keeps its place ---
 
-## Take up where a tape was left. Called as it goes in.
+## Take up where a tape was left: its recording, and how far into it. Called as
+## it goes in. The recording is clamped when it plays, not here: a netplay peer's
+## copy of a playlist may not have landed yet.
 func _take_tape_place(tape: Node) -> void:
 	_tape = tape if tape != null and "tape_time" in tape else null
 	_resume_at = maxf(0.0, float(_tape.get("tape_time"))) if _tape != null else 0.0
+	_resume_end = false
+	_rec_idx = maxi(0, int(_tape.get("tape_track"))) if _tape != null and "tape_track" in _tape else 0
 
 
-## Where the tape in the deck stands, in seconds; 0 with none in it.
+## Where the tape in the deck stands, in seconds into its recording; 0 with none in it.
 func _tape_time() -> float:
 	return float(_tape.get("tape_time")) if is_instance_valid(_tape) else 0.0
 
 
 ## Seek to where the tape was, once the recording play() opened knows its length.
 func _resume_tape() -> void:
-	if _resume_at <= 0.0 or not is_playing:
+	if not _resume_pending() or not is_playing:
 		return
-	if _vlc_length_sec() <= 0.0:
+	var length := _vlc_length_sec()
+	if length <= 0.0:
 		return
-	_vlc_seek_sec(_resume_at)
+	var at := maxf(0.0, length - REW_END_MARGIN) if _resume_end else _resume_at
+	_vlc_seek_sec(at)
+	_scan_pos = at
 	_resume_at = 0.0
+	_resume_end = false
 
 
 ## Write the tape's place back onto it, every frame it is in the deck. While
-## stopped the place is left as it was: a stopped tape has not moved.
+## stopped the place is left as it was: a stopped tape has not moved. How far
+## through the whole tape is the cassette's measure, the recordings weighed by
+## their sizes on disk; for a tape of one file it is just how far through that.
 func _note_tape() -> void:
 	if not is_instance_valid(_tape):
 		return
-	if not is_playing or _resume_at > 0.0:
+	if not is_playing or _resume_pending():
 		_tape.set("tape_speed", 0.0)
 		return
 	var at := _vlc_time_sec()
 	var length := _vlc_length_sec()
+	_tape.set("tape_track", _rec_idx)
 	_tape.set("tape_time", at)
 	if length > 0.0:
-		_tape.set("tape_progress", clampf(at / length, 0.0, 1.0))
+		_tape.set("tape_progress", RetroAudioPlayer.album_progress(_rec_bytes, _rec_idx, at / length))
 	if _paused and _scan_dir == 0:
 		_tape.set("tape_speed", 0.0)
 	else:

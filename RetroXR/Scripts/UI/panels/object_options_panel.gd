@@ -19,6 +19,11 @@ const NODE_NAME := "ObjectOptionsPanel"
 const CLEARANCE := 0.18
 
 var _object: Node3D = null
+## The rows last handed to the UI, so a frame where nothing moved lays nothing out.
+var _info_drawn: Array = []
+## How much taller than it would otherwise be the page has been made, to hold
+## those rows.
+var _info_px := 0.0
 
 
 ## Open or close the generic menu for `obj`. Safe to call on anything: an object
@@ -66,8 +71,14 @@ func _top_offset() -> float:
 	return maxf(top, 0.0)
 
 
+func _process(delta: float) -> void:
+	super(delta)
+	if visible:
+		_refresh_info()
+
+
 func _populate() -> void:
-	var vp := ($ObjectOptionsViewport as XRToolsViewport2DIn3D).get_node_or_null("Viewport") as SubViewport
+	var vp := _ui_viewport()
 	if vp == null or vp.get_child_count() == 0:
 		call_deferred("_populate")
 		return
@@ -78,12 +89,54 @@ func _populate() -> void:
 		ui.close_requested.connect(hide_panel)
 		_ui_connected = true
 	ui.populate(_display_name())
+	_info_drawn = []
+	_refresh_info()
+
+
+func _ui_viewport() -> SubViewport:
+	return ($ObjectOptionsViewport as XRToolsViewport2DIn3D).get_node_or_null("Viewport") as SubViewport
+
+
+## The object's own facts, from its `options_info()` ([caption, text] rows), for
+## anything that has some. Asked again every frame the menu shows, because some
+## of them move: a tape's place, if the menu is left up while the tape plays.
+##
+## The page is fitted only on a frame where the rows did not change. A wrapped
+## label measures itself at the width it was last laid out at, and one just
+## written has not been, so measuring at once can read a path a letter a line.
+func _refresh_info() -> void:
+	var vp := _ui_viewport()
+	if vp == null or vp.get_child_count() == 0:
+		return
+	var ui := vp.get_child(0) as ObjectOptions2D
+	if ui == null or _object == null or not is_instance_valid(_object):
+		return
+	var rows: Array = []
+	if _object.has_method("options_info"):
+		rows = _object.call("options_info")
+	if rows != _info_drawn:
+		_info_drawn = rows
+		ui.set_info(rows)
+		return
+	_fit_page(ui)
+
+
+## As tall as what is on it, and never shorter than the page would be without
+## the info rows: the authored page has room for the title and the lock row, so
+## a menu with nothing to tell keeps exactly the size it always had. Fitted
+## rather than grown by a guess, so a measurement taken too early mends itself.
+func _fit_page(ui: ObjectOptions2D) -> void:
+	var v := $ObjectOptionsViewport as XRToolsViewport2DIn3D
+	var base := v.viewport_size.y - _info_px
+	var want := maxf(0.0, ceilf(ui.content_height() - base))
+	if want != _info_px and _grow_page(want - _info_px):
+		_info_px = want
 
 
 ## The object's own label when it has one, otherwise its node name with the
 ## spawn suffix Godot appends stripped off.
 func _display_name() -> String:
-	for prop: String in ["display_name", "game_label", "album_label"]:
+	for prop: String in ["display_name", "game_label", "album_label", "video_label"]:
 		if prop in _object:
 			var s := str(_object.get(prop))
 			if s != "":

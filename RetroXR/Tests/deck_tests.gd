@@ -25,9 +25,11 @@
 ##   arm/      the tonearm: parking, track mapping, and the restore that must NOT play
 ##   net/      the audio command shape, including the index-carrying one
 ##   remote/   which remote cells each deck offers
+##   tape/     a tape keeps its place, and its menu says where that is
+##   playlist/ an .m3u sets what plays and in what order, for albums and tapes
 extends Node
 
-const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote", "tape"]
+const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote", "tape", "playlist"]
 
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
 const CD_PLAYER := preload("res://Scenes/Objects/appliances/cd_player.tscn")
@@ -72,6 +74,8 @@ func _ready() -> void:
 		await _test_remote()
 	if _want("tape"):
 		await _test_tape()
+	if _want("playlist"):
+		await _test_playlist()
 
 	await _cleanup()
 	print("[test] %d cases, %s" % [_ran,
@@ -206,6 +210,241 @@ func _test_tape() -> void:
 		"tape/and a load brings back a video tape at that place")
 	if v_back != null:
 		v_back.free()
+
+	# The menu a tape opens (the generic one, ObjectOptionsPanel) says where it
+	# stands and what it carries. Before this it said only "Lock in place", and a
+	# video tape's was titled with its node name, not the video.
+	var shown := VCR_TAPE.instantiate() as VCRTape
+	_spawned.append(shown)
+	shown.video_path = "C:/retroxr/videos/Home Movies.mp4"
+	shown.video_label = "Home Movies"
+	_eq(shown.options_info(), [["Position", "00:00:00"], ["Path", "C:/retroxr/videos/Home Movies.mp4"]],
+		"tape/a new video tape's menu: at the start, and no share of a length no deck has measured")
+	shown.tape_time = 3754.4
+	shown.tape_progress = 0.372
+	_eq(shown.options_info()[0], ["Position", "01:02:34  (37%)"],
+		"tape/a played one: the deck's own counter, and how far through the tape")
+	shown.video_path = ""
+	_eq(shown.options_info()[1], ["Path", "None"], "tape/a tape with no file says so")
+	var menu := ObjectOptionsPanel.new()
+	menu._object = shown
+	_eq(menu._display_name(), "Home Movies", "tape/a video tape's menu is titled with its video")
+	menu.free()
+
+	var shown_c := AUDIO_CASSETTE.instantiate() as AudioCassette
+	_spawned.append(shown_c)
+	shown_c.album_path = "C:/retroxr/music/Mixtape"
+	_eq(shown_c.options_info(), [["Position", "Track 1, 0:00"], ["Path", "C:/retroxr/music/Mixtape"]],
+		"tape/a new cassette's menu: track one at the start")
+	shown_c.tape_track = 1
+	shown_c.tape_time = 134.4
+	shown_c.tape_progress = 0.45
+	_eq(shown_c.options_info()[0], ["Position", "Track 2, 2:14  (45% of the tape)"],
+		"tape/a played one: the track counted from one, the time into it, the share of the tape")
+
+	# The UI draws the rows under the title, above the lock row, and rewrites them
+	# in place as the place moves rather than stacking new ones.
+	var ui := ObjectOptions2D.new()
+	add_child(ui)
+	_spawned.append(ui)
+	ui.set_info(shown_c.options_info())
+	var texts := func() -> Array:
+		var out := []
+		for row in ui._info.get_children():
+			out.append([(row.get_child(0) as Label).text, (row.get_child(1) as Label).text])
+		return out
+	_eq(texts.call(), shown_c.options_info(), "tape/the menu shows each row's caption and text")
+	_ok(ui._info.visible and ui._info.get_index() == 1, "tape/under the title, so the lock row lands below it")
+	shown_c.tape_time = 135.0
+	ui.set_info(shown_c.options_info())
+	_ok(ui._info.get_child_count() == 2 and texts.call() == shown_c.options_info(),
+		"tape/a moved place is rewritten in the same two rows")
+	ui.set_info([])
+	_ok(not ui._info.visible, "tape/and an object with nothing to tell shows no info at all")
+
+
+# ── playlist/ ─────────────────────────────────────────────────────────────────
+
+## Stands in for VlcPlayer, which a headless run does not have: records what was
+## opened, and answers time and length from two numbers the case sets.
+class FakeVlc extends RefCounted:
+	var opened: Array = []
+	var time_ms := 0
+	var length_ms := 0
+
+	func open(path: String, _dvd: bool) -> bool:
+		opened.append(path)
+		time_ms = 0
+		return true
+
+	func get_time() -> int: return time_ms
+	func get_length() -> int: return length_ms
+	func set_position(f: float) -> void: time_ms = int(f * float(length_ms))
+	func play() -> void: pass
+	func stop() -> void: pass
+	func set_volume(_v: int) -> void: pass
+	func set_paused(_p: bool) -> void: pass
+	func update_frame() -> void: pass
+	func read_audio(_n: int) -> PackedVector2Array: return PackedVector2Array()
+	func get_texture() -> Texture2D: return null
+	func shutdown() -> void: pass
+
+
+var _scratch := ""
+
+
+func _scratch_file(rel: String, text := "x") -> String:
+	var path := _scratch.path_join(rel)
+	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	f.store_string(text)
+	f.close()
+	return path
+
+
+func _labels(entries: Array[Dictionary]) -> Array:
+	return entries.map(func(e: Dictionary) -> String: return str(e["label"]))
+
+
+## An .m3u/.m3u8 sets what plays and in what order: in an album folder it beats
+## the file names, loose in music/ it is an album, loose in videos/ a tape of
+## several recordings that the VCR plays, scans and keeps its place across.
+## Before this a folder's playlist was ignored, and a loose one was handed to VLC
+## as a track, which plays nothing.
+##
+## Everything lives in a scratch folder under user://, removed afterwards; the
+## scans are pointed at it, never at the player's library.
+func _test_playlist() -> void:
+	_scratch = ProjectSettings.globalize_path("user://deck_tests_playlist")
+	RomLibrary._remove_tree(_scratch)   # what a killed run left
+	var a := _scratch_file("album/01 b.mp3", "1")
+	var b := _scratch_file("album/02 a.mp3", "22")
+	var c := _scratch_file("album/10 c.mp3", "333")
+	_scratch_file("album/notes.txt")
+	_eq(RomLibrary.music_tracks(_scratch.path_join("album")), PackedStringArray([a, b, c]),
+		"playlist/with none, an album folder plays its files in name order")
+
+	var o1 := _scratch_file("ordered/01 b.mp3")
+	_scratch_file("ordered/02 a.mp3")
+	var o10 := _scratch_file("ordered/10 c.mp3")
+	_scratch_file("ordered/notes.txt")
+	_scratch_file("ordered/ordered.m3u", "#EXTM3U\r\n#EXTINF:123,Ten\r\n10 c.mp3\r\n\r\n01 b.mp3\r\n"
+		+ "missing.mp3\r\nhttp://example.com/live.mp3\r\nnotes.txt\r\n")
+	_eq(RomLibrary.music_tracks(_scratch.path_join("ordered")), PackedStringArray([o10, o1]),
+		"playlist/a playlist in the folder sets the order, leaving out what is missing, streamed or not music")
+
+	var s1 := _scratch_file("stale/01 b.mp3")
+	var s2 := _scratch_file("stale/02 a.mp3")
+	_scratch_file("stale/stale.m3u", "gone.mp3\n")
+	_eq(RomLibrary.music_tracks(_scratch.path_join("stale")), PackedStringArray([s1, s2]),
+		"playlist/one naming nothing that is there falls back to the file names, not to silence")
+
+	# Loose in the music root, its entries written every way a player writes them.
+	var url := "file://" + ("" if a.begins_with("/") else "/") + a.replace(" ", "%20")
+	var mix := _scratch_file("music/Mix.m3u8",
+		String.chr(0xFEFF) + "..\\album\\10 c.mp3\n" + b + "\n" + url + "\n")
+	_eq(RomLibrary.music_tracks(mix), PackedStringArray([c, b, a]),
+		"playlist/a loose one is an album: relative with backslashes, absolute and file:// entries, in its order")
+	_scratch_file("music/Dead.m3u", "nothing.mp3\n")
+	_scratch_file("music/Solo.mp3")
+	_scratch_file("music/Folder/x.mp3")
+	DirAccess.make_dir_recursive_absolute(_scratch.path_join("music/Empty"))
+	_scratch_file("music/Pointer/only.m3u", "../../album/02 a.mp3\n")
+	_eq(_labels(RomLibrary.scan_music(_scratch.path_join("music"))), ["Folder", "Mix", "Pointer", "Solo"],
+		"playlist/the music scan lists a loose playlist and a folder holding only one, not a dead one or an empty folder")
+	_eq(RomLibrary.music_tracks(_scratch.path_join("music/Pointer")), PackedStringArray([b]),
+		"playlist/a folder's playlist may name tracks outside it")
+	var w := _scratch_file("weird/Odd.m3u/x.mp3")
+	_eq(RomLibrary.music_tracks(_scratch.path_join("weird/Odd.m3u")), PackedStringArray([w]),
+		"playlist/a FOLDER named like a playlist is still a folder")
+
+	# A tape of several recordings.
+	var v1 := _scratch_file("videos/a.mp4", "1")
+	_scratch_file("videos/b.mkv")
+	var v3 := _scratch_file("videos/sub/c.mp4", "333")
+	var tape_list := _scratch_file("videos/Tape.m3u", "sub/c.mp4\na.mp4\n../album/01 b.mp3\n")
+	_scratch_file("videos/NoVideo.m3u", "../album/01 b.mp3\n")
+	_eq(RomLibrary.video_recordings(tape_list), PackedStringArray([v3, v1]),
+		"playlist/a tape playlist is its videos in order, and only videos")
+	_eq(RomLibrary.video_recordings("C:/x/one.mp4"), PackedStringArray(["C:/x/one.mp4"]),
+		"playlist/a tape of one file is that file, as before")
+	_eq(_labels(RomLibrary.scan_videos(_scratch.path_join("videos"))), ["a", "b", "Tape"],
+		"playlist/the video scan lists a playlist naming videos as a tape, and not one naming none")
+
+	# The VCR, on a stand-in player. Driven by hand, so its own frame does not move it.
+	var vcr := await _deck(VCR_PLAYER) as VCRPlayer
+	vcr.set_process(false)
+	var fake := FakeVlc.new()
+	vcr._vlc = fake
+	var tape := VCR_TAPE.instantiate() as VCRTape
+	add_child(tape)
+	_spawned.append(tape)
+	tape.video_path = tape_list
+	tape.tape_track = 1
+	tape.tape_time = 5.0
+	vcr.video_path = tape_list
+	vcr._take_tape_place(tape)
+	_eq(vcr._rec_idx, 1, "playlist/a tape goes in at the recording it was left in")
+	vcr._ensure_recordings()
+	_eq(vcr._recordings, PackedStringArray([v3, v1]), "playlist/the VCR reads the tape's recordings in order")
+
+	vcr._rec_idx = 0
+	vcr._resume_at = 0.0
+	vcr._open_recording()
+	vcr.is_playing = true
+	_eq(str(fake.opened.back()), v3, "playlist/the first recording is the one opened")
+	fake.length_ms = 100000
+	fake.time_ms = 50000
+	vcr._note_tape()
+	_ok(tape.tape_track == 0 and is_equal_approx(tape.tape_progress, 0.5 * 3.0 / 4.0),
+		"playlist/half way through the first recording is that share of the tape, weighed by size")
+
+	vcr._opened_msec = Time.get_ticks_msec()
+	vcr._on_video_finished()
+	_eq(vcr._rec_idx, 0, "playlist/a finish landing just after a recording opened is the last one's, and ignored")
+	vcr._opened_msec = -100000
+	vcr._on_video_finished()
+	_ok(vcr._rec_idx == 1 and str(fake.opened.back()) == v1 and vcr.is_playing,
+		"playlist/the end of a recording plays on into the next")
+
+	vcr._scan_dir = -1
+	vcr._scan_pos = 0.2
+	vcr._update_scan(0.1)
+	_ok(vcr._rec_idx == 0 and str(fake.opened.back()) == v3 and vcr._scan_dir == -1 and vcr._resume_end,
+		"playlist/rewinding off the start of a recording winds back into the one before")
+	vcr._update_scan(0.1)
+	_eq(vcr._rec_idx, 0, "playlist/and waits there until it can seek")
+	vcr._resume_tape()
+	_ok(is_equal_approx(vcr._scan_pos, 99.0) and fake.time_ms == 99000 and not vcr._resume_pending(),
+		"playlist/to just short of its end, and the rewind carries on from there")
+	vcr._scan_dir = 1
+	vcr._scan_pos = 99.5
+	vcr._update_scan(0.1)
+	_ok(vcr._rec_idx == 1 and str(fake.opened.back()) == v1 and vcr._scan_dir == 1,
+		"playlist/fast-forwarding off the end of one winds on into the next, still scanning")
+	vcr._scan_pos = 99.5
+	vcr._update_scan(0.1)
+	_ok(vcr._rec_idx == 1 and vcr._scan_dir == 0, "playlist/off the end of the last it stops, as a tape of one does")
+
+	vcr._opened_msec = -100000
+	vcr.is_playing = true
+	vcr._on_video_finished()
+	_ok(vcr._rec_idx == 0 and tape.tape_track == 0 and tape.tape_time == 0.0 and not vcr.is_playing,
+		"playlist/the end of the last recording winds the whole tape back to the first")
+	_eq(vcr.net_get_state().get("rec", -1), 0, "playlist/a session hears which recording the deck is in")
+
+	tape.tape_track = 1
+	tape.tape_time = 12.0
+	tape.tape_progress = 0.0
+	_eq(tape.options_info()[0], ["Position", "Recording 2, 00:00:12"],
+		"playlist/a playlist tape's menu says which recording it is in")
+	var store := ScenePersistence.new()
+	var back := store._deserialize_object(store._serialize_node(tape, 3, {tape: 3})) as VCRTape
+	_ok(back != null and back.tape_track == 1, "playlist/a save keeps which recording a tape is in")
+	if back != null:
+		back.free()
+	vcr._vlc = null
+	RomLibrary._remove_tree(_scratch)
 
 
 # ── base/ ─────────────────────────────────────────────────────────────────────

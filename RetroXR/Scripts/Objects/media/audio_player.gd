@@ -498,7 +498,9 @@ func play() -> void:
 		push_error("RetroAudioPlayer: cannot play — no album inserted")
 		return
 	_track_idx = clampi(_track_idx, 0, _tracks.size() - 1)
-	if not _vlc.open(_tracks[_track_idx], false):
+	# A netplay peer's copy lives under user://, which libVLC would take for a URL
+	# scheme it has no module for; it needs the real path.
+	if not _vlc.open(ProjectSettings.globalize_path(_tracks[_track_idx]), false):
 		push_error("RetroAudioPlayer: VlcPlayer.open failed for ", _tracks[_track_idx])
 		return
 	_vlc.play()

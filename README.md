@@ -163,6 +163,10 @@ The packaged libVLC backend currently ships on Windows, Linux and Android, not m
    - Linux / macOS: `~/retroxr/videos`
    - Quest/Android: `/sdcard/Android/data/com.xenu.retroxr/files/videos`
    - Supported: `.mp4`, `.mkv`, `.avi`, `.webm`, `.mov`
+   - A playlist (`.m3u` / `.m3u8`) listing videos is one tape of several recordings,
+     played in its order; FF and rewind wind across from one to the next. A playlist in a
+     music album's folder sets its track order the same way, and one loose in `music/` is
+     an album of its own.
 2. Open the spawn menu (`Tab`), go to the **Videos** tab, and click a video to spawn a
    **VHS tape** carrying that file's path (like a cartridge carries a ROM path).
 3. From the **Objects** tab, spawn a **VCR** and a **TV**.
