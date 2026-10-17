@@ -18,6 +18,17 @@ func plug_group() -> String:
 	return "ilink_plug"
 
 
+## The i.LINK socket on a console, or null. Not find_child("ILinkPort") on its
+## own: a modelled shell may carry a MARKER of that name where the socket goes
+## (xenu.ps2's does), and being in the model it comes first, so the first match
+## by name was a plain Node3D and the socket went unfound.
+static func on(console: Node) -> ILinkPort:
+	for n: Node in console.find_children("ILinkPort", "", true, false):
+		if n is ILinkPort:
+			return n as ILinkPort
+	return null
+
+
 ## The hub this socket is moulded into, or null on a console.
 func get_hub() -> ILinkHub:
 	var n: Node = get_parent()

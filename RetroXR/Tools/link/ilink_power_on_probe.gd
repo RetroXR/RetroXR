@@ -121,8 +121,8 @@ func _run() -> int:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if not _nocable:
-		(_sys[0].find_child("ILinkPort", true, false) as ILinkPort).pick_up_object(lead.get_node("PlugA0"))
-		(_sys[1].find_child("ILinkPort", true, false) as ILinkPort).pick_up_object(lead.get_node("PlugB0"))
+		ILinkPort.on(_sys[0]).pick_up_object(lead.get_node("PlugA0"))
+		ILinkPort.on(_sys[1]).pick_up_object(lead.get_node("PlugB0"))
 		await get_tree().process_frame
 		lead._resolve()
 	_say("[probe] lead joins %d console(s)%s" % [(lead.linked_machines() as Array).size(),

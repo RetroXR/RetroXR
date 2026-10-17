@@ -34,7 +34,13 @@ foldered by topic, see below.)
 
 **The bar for living in `RetroXR/Tests/` is exact:** a scene that checks itself, runs
 unattended with no ROM, core, headset or device, and **exits non-zero on failure**, so it
-can gate a commit. The suites, with their measured case counts and runtimes (Windows,
+can gate a commit. **It also boots with no mods:** `ModManager._is_test_run()` sees the
+`res://Tests/` scene on the command line and skips pending installs, discovery and
+mounting (the state file is still read, so a save writes it back unchanged). With the
+player's `xenu.ps2` enabled, a modded PS2 has no stand-in shelf (`system_tests` `tray/`)
+and its shell's `ILinkPort` MARKER came first by name (`link_tests`; look a socket up with
+`ILinkPort.on()`). Probes under `Tools/` keep the player's mods.
+The suites, with their measured case counts and runtimes (Windows,
 debug build, 2026-08-27 — all passing):
 
 | suite | cases | time | covers |

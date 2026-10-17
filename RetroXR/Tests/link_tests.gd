@@ -2257,10 +2257,10 @@ func _test_ilink_socket_follows_the_hardware() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	var on_ps2 := ps2.find_child("ILinkPort", true, false) as ILinkPort
+	var on_ps2 := ILinkPort.on(ps2)
 	_ok(on_ps2 != null, "a PlayStation 2 wears an i.LINK socket")
 	_ok(ps2.find_child("PsxLinkPort", true, false) == null, "and not a PlayStation serial socket")
-	_ok(psx.find_child("ILinkPort", true, false) == null, "a PlayStation does not wear an i.LINK socket")
+	_ok(ILinkPort.on(psx) == null, "a PlayStation does not wear an i.LINK socket")
 	if on_ps2 != null:
 		_eq(on_ps2.get_machine(), ps2, "the socket belongs to the PlayStation 2 it is on")
 		_eq(on_ps2.get_hub(), null, "and to no hub")
@@ -2355,7 +2355,7 @@ func _test_ilink_bus_through_a_hub() -> void:
 
 	var hub_ports := hub.sockets()
 	for k in range(3):
-		var socket := consoles[k].find_child("ILinkPort", true, false) as ILinkPort
+		var socket := ILinkPort.on(consoles[k])
 		socket.pick_up_object(leads[k].get_node("PlugA0"))
 		hub_ports[k].pick_up_object(leads[k].get_node("PlugB0"))
 	await get_tree().process_frame
@@ -2441,7 +2441,7 @@ func _test_ilink_hubs_chain_and_pairs_still_pair() -> void:
 
 	# Consoles 0 and 1 on hub A, console 2 on hub B, hub A to hub B.
 	var sock := func(i: int) -> ILinkPort:
-		return consoles[i].find_child("ILinkPort", true, false) as ILinkPort
+		return ILinkPort.on(consoles[i])
 	(sock.call(0) as ILinkPort).pick_up_object(leads[0].get_node("PlugA0"))
 	hub_a.sockets()[0].pick_up_object(leads[0].get_node("PlugB0"))
 	(sock.call(1) as ILinkPort).pick_up_object(leads[1].get_node("PlugA0"))

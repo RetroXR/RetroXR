@@ -70,11 +70,27 @@ var _ready_done := false
 func _ready() -> void:
 	_hooks = ModHooks.new(get_tree())
 	_load_state()
-	_apply_pending()
-	_discover()
-	_load_enabled()
+	# A test suite boots with no mods. What the player has installed is not what a
+	# suite checks: a modded PS2 has no stand-in shelf, and its shell's ILinkPort
+	# marker hid the socket, so two suites failed on one machine and passed on CI.
+	# Nor may a suite make the player's pending installs. The state is still read,
+	# so anything that saves it writes the player's choices back unchanged.
+	if not _is_test_run():
+		_apply_pending()
+		_discover()
+		_load_enabled()
 	_ready_done = true
 	mods_ready.emit()
+
+
+## Whether this run is one of the suites in res://Tests/ (the scene on the command
+## line, as Tools/run_tests.py and a hand-run suite both give it). Probes under
+## Tools/ are not: one that looks at the room wants the room the player has.
+static func _is_test_run() -> bool:
+	for arg: String in OS.get_cmdline_args():
+		if arg.begins_with("res://Tests/"):
+			return true
+	return false
 
 
 # ── discovery ─────────────────────────────────────────────────────────────────

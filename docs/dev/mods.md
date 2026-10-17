@@ -289,6 +289,11 @@ with only the game key (measured 2026-10-06, on an empty catalogue):
 
 ### Install, update, remove — `ModManager`
 
+**A test suite boots with no mods** (`_is_test_run()`: a `res://Tests/` scene on the
+command line). The state is read but nothing pending is applied and nothing is
+discovered or mounted. `mod_browser_tests` never used the autoload — it builds its own
+managers with `mods_root_override` / `state_path_override` — so it is unaffected.
+
 `install(staged, source)`, `vet(path)`, `remove(id)`, `inspect(path)`,
 `remove_unreadable(path)`, `source(id)`, `set_source(id, source)`,
 `find_by_source(key, value)`, and the `mods_changed` signal. There was no such API

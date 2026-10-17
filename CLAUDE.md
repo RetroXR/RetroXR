@@ -109,6 +109,9 @@ python Tools/run_tests.py --update-baseline   # after a DELIBERATE drop in case 
   `RetroXR/Tools/<topic>/` (`av cores gen input link models netplay perf room rope state
   vr`), including asserting ones that need real cores/ROMs or reproduce open bugs. A probe's
   `.tscn` names its script by literal path — rewrite it when moving one.
+- **A suite boots with NO mods.** `Mods` mounts none of the player's installed packs when
+  the scene on the command line is under `res://Tests/` (probes keep them). Before, an
+  enabled `xenu.ps2` failed `link_tests` and `system_tests` on one machine and not on CI.
 - ~45 suites (`--list` names them): netplay, romm, binding, object_sync, scene, poster, rope,
   av, system, link, ir, state, expansion, card, deck, microphone, famicom, n64_vru, n64_cart, gb_cart,
   speaker, archive, mod, spawn_menu, autoload_order, … Measured counts, timings and each

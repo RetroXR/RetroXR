@@ -161,7 +161,7 @@ func _run() -> void:
 	for k in range(3):
 		if _nocable:
 			break
-		(_sys[k].find_child("ILinkPort", true, false) as ILinkPort).pick_up_object(_leads[k].get_node("PlugA0"))
+		ILinkPort.on(_sys[k]).pick_up_object(_leads[k].get_node("PlugA0"))
 		_hub.sockets()[k * 2].pick_up_object(_leads[k].get_node("PlugB0"))
 	await get_tree().process_frame
 	for lead in _leads:
