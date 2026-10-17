@@ -177,10 +177,10 @@ func _ready() -> void:
 ## standing here — queue_free() alone is not enough because it only schedules the
 ## free, and quit() leaves at most the rest of the current iteration.
 ##
-## The frame count matches time_of_day_tests._settle for the same measured
-## reason: the reclaim is a chain (emitters freed, then the mixer notices it has
-## no voices and frees its own player, then another AudioServer::update() hands
-## the playback back), and a shorter wait only covers part of it.
+## Sixty frames, a measured figure: the reclaim is a chain (emitters freed,
+## then the mixer notices it has no voices and frees its own player, then
+## another AudioServer::update() hands the playback back), and a shorter wait
+## only covers part of it.
 func _settle() -> void:
 	for child in get_children():
 		child.queue_free()

@@ -53,7 +53,6 @@
     "state_tests": 103,
     "system_tests": 571,
     "systems_data_tests": 85,
-    "time_of_day_tests": 108,
     "tv_fullscreen_tests": 91,
     "tv_resize_tests": 53,
     "web_server_tests": 70,

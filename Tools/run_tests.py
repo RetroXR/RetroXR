@@ -241,9 +241,8 @@ def check_baseline(results: list[tuple[str, str, int, int, float]]) -> list[str]
 def verdict(code: int, timed_out: bool) -> str:
     """OK / FAIL / CRASH / TIMEOUT.
 
-    A suite can print a clean summary and still die on the way out -- both
-    motion_tests and time_of_day_tests pass every case and then segfault during
-    teardown. That is still a red run, but it needs a different fix from a failed
+    A suite can print a clean summary and still die on the way out --
+    motion_tests has passed every case and then segfaulted during teardown. That is still a red run, but it needs a different fix from a failed
     assertion, so the table says which one it was instead of calling both FAIL.
     """
     if timed_out:
