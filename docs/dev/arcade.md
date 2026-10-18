@@ -152,7 +152,7 @@ changing it switches a running machine off first.
 **Notices** (a refused game, an achievement) float in FRONT of the monitor, clear of the cabinet (`toast_anchor`
 -> `RetroSystem.toast_anchor_world` -> `AchievementToast._place`): laid over a tilted monitor and a marquee a
 toast is half inside the geometry. Any machine can name a spot the same way; the default is unchanged.
-**The monitor** is tilted back about 18 degrees, so the picture looks up at the player, behind a translucent pane of glass in a black frame, as on a real cabinet. Notices hang PARALLEL to it (a `Transform3D` from `toast_anchor`, half a metre off the glass).
+**The monitor** is built as on a real upright: the glass IS the cabinet's own slanted front edge (the side silhouette `PROFILE` runs from the control deck up to the marquee along it, so the pane lies ON that edge, never in front of it as a floating pane and frame), the tube sits `TUBE_DEPTH` (7 cm) behind the glass and the picture is painted on its face, and the whole monitor leans back about 27 degrees (`arcade_tests` pins all three: glass on the silhouette within 1 cm, picture more than 5 cm behind it, lean 20-35). The marquee overhangs only a little and is closed underneath (`MarqueeUnder`). Edit `Tools/gen/gen_arcade_cabinet.gd` (`GLASS_A`, `GLASS_B`, `TUBE_DEPTH`) and re-bake; the `side` shot of the probe shows it. Notices hang PARALLEL to it (a `Transform3D` from `toast_anchor`, half a metre off the glass).
 **Power** is the generic power button, seated inside the bay on the shelf beside the JAMMA socket (labelled
 POWER): open the door, press it, and the machine starts
 the board in the bay with the core of its system, as any machine does.
