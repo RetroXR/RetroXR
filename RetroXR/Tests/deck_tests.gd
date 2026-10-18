@@ -26,10 +26,11 @@
 ##   net/      the audio command shape, including the index-carrying one
 ##   remote/   which remote cells each deck offers
 ##   tape/     a tape keeps its place, and its menu says where that is
+##   label/    a video tape wears the picture found beside its video
 ##   playlist/ an .m3u sets what plays and in what order, for albums and tapes
 extends Node
 
-const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote", "tape", "playlist"]
+const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote", "tape", "label", "playlist"]
 
 const RECORD_PLAYER := preload("res://Scenes/Objects/appliances/record_player.tscn")
 const CD_PLAYER := preload("res://Scenes/Objects/appliances/cd_player.tscn")
@@ -74,6 +75,8 @@ func _ready() -> void:
 		await _test_remote()
 	if _want("tape"):
 		await _test_tape()
+	if _want("label"):
+		await _test_label()
 	if _want("playlist"):
 		await _test_playlist()
 
@@ -261,6 +264,134 @@ func _test_tape() -> void:
 		"tape/a moved place is rewritten in the same two rows")
 	ui.set_info([])
 	_ok(not ui._info.visible, "tape/and an object with nothing to tell shows no info at all")
+
+
+# ── label/ ────────────────────────────────────────────────────────────────────
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+func _wait_for(cond: Callable, frames := 180) -> bool:
+	for i in frames:
+		if cond.call():
+			return true
+		await get_tree().process_frame
+	return cond.call()
+
+
+func _solid_png(path: String, w: int, h: int) -> void:
+	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
+	img.fill(Color(0.8, 0.1, 0.1))
+	img.save_png(path)
+
+
+## A video tape wears the picture found beside its video (`Name.mp4` is labelled
+## by `Name.png`), so a label made in a generator such as vhs.texs.org drops in
+## as it was downloaded. The text title is what a tape without one shows, and
+## what steps aside for the picture, which carries the title itself.
+##
+## The picture is decoded on a pool thread, so each case waits for it. It is only
+## derived from video_path, so nothing here is saved.
+func _test_label() -> void:
+	_scratch = ProjectSettings.globalize_path("user://deck_tests_label")
+	RomLibrary._remove_tree(_scratch)   # what a killed run left
+	DirAccess.make_dir_recursive_absolute(_scratch)
+	var video := _scratch.path_join("Home Movies.mp4")
+
+	_eq(MediaLabelArt.sidecar(video), "", "label/a video with no picture beside it has none")
+	_eq(MediaLabelArt.sidecar(""), "", "label/an empty path has none")
+	_eq(MediaLabelArt.sidecar(_scratch), "", "label/a folder, which is an album, has none")
+
+	var bare := VCR_TAPE.instantiate() as VCRTape
+	bare.video_path = video
+	bare.video_label = "Home Movies"
+	add_child(bare)
+	_spawned.append(bare)
+	await _frames(3)
+	_ok(bare.get_node_or_null("LabelArt") == null and (bare.get_node("VideoLabel") as Label3D).visible,
+		"label/a tape with no picture shows its title as text")
+
+	var png := _scratch.path_join("Home Movies.png")
+	_solid_png(png, 400, 100)
+	_eq(MediaLabelArt.sidecar(video), png, "label/a .png of the same name beside the video is its picture")
+	DirAccess.remove_absolute(png)
+	var jpg := _scratch.path_join("Home Movies.jpg")
+	var jimg := Image.create(64, 64, false, Image.FORMAT_RGB8)
+	jimg.save_jpg(jpg)
+	_eq(MediaLabelArt.sidecar(video), jpg, "label/and a .jpg as well")
+	DirAccess.remove_absolute(jpg)
+
+	# A label made for printing is far bigger than a tape can show.
+	var big := _scratch.path_join("big.png")
+	_solid_png(big, 3000, 1000)
+	var job := {"path": big}
+	MediaLabelArt.decode_into(job)
+	var decoded := job["image"] as Image
+	_ok(decoded != null and decoded.get_width() == MediaLabelArt.MAX_SIDE and decoded.get_height() == 341
+		and decoded.has_mipmaps(), "label/a big picture is cut to the size limit, in proportion, with mipmaps")
+	var junk := _scratch_file("junk.png", "not a picture")
+	var bad := {"path": junk}
+	MediaLabelArt.decode_into(bad)
+	_ok(bad["image"] == null, "label/a file that will not decode is no picture, rather than a blank one")
+
+	_ok(MediaLabelArt.fit(4.0, Vector2(0.11, 0.045)).is_equal_approx(Vector2(0.11, 0.0275)),
+		"label/a wide picture fills the paper's width")
+	_ok(MediaLabelArt.fit(0.5, Vector2(0.11, 0.045)).is_equal_approx(Vector2(0.0225, 0.045)),
+		"label/and a tall one its height, neither stretched")
+
+	# On a tape: set before it enters the tree, as the spawn menu and a restore do.
+	_solid_png(png, 400, 100)
+	var tape := VCR_TAPE.instantiate() as VCRTape
+	tape.video_path = video
+	tape.video_label = "Home Movies"
+	add_child(tape)
+	_spawned.append(tape)
+	var text := tape.get_node("VideoLabel") as Label3D
+	var got: bool = await _wait_for(func() -> bool: return tape.get_node_or_null("LabelArt") != null)
+	_ok(got, "label/a tape whose video has a picture beside it wears it")
+	if not got:
+		return
+	var art := tape.get_node("LabelArt") as MeshInstance3D
+	var mat := art.material_override as StandardMaterial3D
+	_ok(mat.albedo_texture != null and mat.albedo_texture.get_width() == 400,
+		"label/the picture is on the sticker, whole")
+	_ok((art.mesh as QuadMesh).size.is_equal_approx(Vector2(0.11, 0.0275)),
+		"label/and fitted inside the paper, not stretched over it")
+	_ok(not text.visible, "label/the title text steps aside for it")
+	tape.net_set_download_status("40%")
+	_ok(text.visible and text.text == "40%", "label/a transfer's progress still shows, which only text can")
+	tape.net_set_download_status("")
+	_ok(not text.visible and text.text == "Home Movies", "label/and when it ends the picture is back and the title restored")
+
+	# The path can change under a tape (a netplay peer remaps it to its own file).
+	var other := _scratch.path_join("Other.mp4")
+	tape.video_path = other
+	_ok(await _wait_for(func() -> bool: return tape.get_node_or_null("LabelArt") == null),
+		"label/a tape moved to a video with no picture drops it")
+	_ok(text.visible, "label/and shows its title again")
+
+	# Moved twice before the first decode lands: the last one wins.
+	var tall := _scratch.path_join("Tall.png")
+	_solid_png(tall, 100, 200)
+	tape.video_path = video
+	tape.video_path = _scratch.path_join("Tall.mp4")
+	got = await _wait_for(func() -> bool:
+		var a := tape.get_node_or_null("LabelArt") as MeshInstance3D
+		return a != null and (a.mesh as QuadMesh).size.is_equal_approx(Vector2(0.0225, 0.045)))
+	_ok(got, "label/two moves in a row end on the picture of the last")
+
+	# Freed while a decode is in flight: the pool thread writes into the tape's
+	# own job, so the tape must wait for it. A crash here is the failure.
+	var doomed := VCR_TAPE.instantiate() as VCRTape
+	doomed.video_path = video
+	add_child(doomed)
+	doomed.free()
+	await _frames(3)
+	_ok(true, "label/a tape freed while its picture decodes does not crash")
+
+	RomLibrary._remove_tree(_scratch)
 
 
 # ── playlist/ ─────────────────────────────────────────────────────────────────
