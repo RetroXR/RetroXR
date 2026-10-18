@@ -226,6 +226,32 @@ true only while both cores are on the bus. The Game Boy Color in RetroXR-models
 OVER the window (`material_overlay`) because its own paint code owns the window's
 material.
 
+### Arcade cabinets
+
+Every MAME and FinalBurn Neo core plays in one **Generic Arcade Cabinet** (`arcade_cabinet_generic`), and a
+ROM is drawn as a JAMMA board. A cabinet of your own (a 4-player upright, a cocktail table, a
+tate cabinet) is an ordinary row: `api.register_model` (or `override_model` on the shipped
+id) with `platform: "arcade"` and a scene whose root runs
+`res://Scripts/Objects/system_models/arcade_cabinet_model.gd`. The model finds the cabinet's
+parts by **type**, never by node name: put an `ArcadeModule` for each part in the scene, each
+finding ITS OWN parts by name inside its own subtree.
+
+| module (`res://Scripts/Objects/arcade/`) | `kind` | parts it finds |
+|---|---|---|
+| `arcade_screen_module.gd` | `screen` | `CabinetScreen` (a quad; set `glass_size`) |
+| `arcade_control_module.gd` | `stick_buttons` | `Btn1`..`Btn6`, `Start` (VRButtons), `StickPivot`; set `player` |
+| `arcade_coin_module.gd` | `coin` | `CoinSlot` (VRButton), `CoinSpawn`, `CoinDrop`; set `player` |
+| `arcade_bay_module.gd` | `bay` | `DoorPivot`, `DoorGrab` (a VRHinge), `CartSeat`, `PowerSwitch` |
+| `arcade_socket_module.gd` | `sockets` | `PortSeat1..N`, rolled 180 degrees about Z like the NES's |
+| `arcade_direct_module.gd` | `direct` | `PlayButton` |
+
+The contract is versioned (`ArcadeProfiles.CONTRACT_VERSION`) and **additive only**: a cabinet
+that lacks an optional module is valid. The screen takes its shape from the core's reported
+geometry, not from your quad's size, so give the glass its real `glass_size`; a vertical game
+is pillarboxed in it. The door's angle is saved like any lid and the hinge replicates in a
+shared room. `ArcadeProfiles.register_bay_kind` adds a bay kind (which systems a bay takes);
+it has no `ModApi` wrapper yet. See `docs/dev/arcade.md`.
+
 ### Colors and editions on one row
 
 A machine sold in ten colors is one row, not ten. Give the row a `variants` list

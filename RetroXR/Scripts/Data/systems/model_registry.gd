@@ -156,6 +156,12 @@ const _ROWS: Dictionary = {
 		"scene": _SCENES + "pokemon_mini.tscn"},
 	"supervision":          {"platform": "supervision", "label": "Supervision", "handheld": true,
 		"scene": _SCENES + "supervision.tscn"},
+	# --- arcade ---------------------------------------------------------------
+	# The one cabinet both arcade tiles play in: screen, coin doors, panels and a JAMMA
+	# bay in one piece (docs/dev/arcade.md). THE ID IS PERSISTED in saved rooms and on
+	# the netplay wire, so it is final: ArcadeProfiles.CABINET_MODEL_ID says the same.
+	"arcade_cabinet_generic": {"platform": ["arcade"], "label": "Generic Arcade Cabinet",
+		"scene": _SCENES + "arcade_cabinet.tscn"},
 }
 
 

@@ -98,7 +98,7 @@ func build_zones() -> void:
 	if not model.is_handheld():
 		port_count = model.get_controller_port_count()
 		var info := SystemInfo.for_system(_host.systemid)
-		if info and info.native_ports > 0:
+		if info and info.native_ports > 0 and not model.port_count_is_fixed():
 			port_count = info.native_ports
 		port_count = clampi(port_count, 1, zones.size())
 	print("[RetroSystem] %s: %d controller port(s) shown" % [_host.systemid, port_count])
