@@ -14,7 +14,13 @@ RetroXR is a VR retro-gaming room in Godot 4.7. Its core is `libretro-godot`, a 
 
 The app is `RetroXR`, package `com.xenu.retroxr`. The Godot project folder is `RetroXR/`
 (godot-xr-tools based), and the desktop data root stays `~/retroxr/{roms,books,videos,…}` —
-it holds user ROMs, so it is deliberately not renamed.
+it holds user ROMs, so it is deliberately not renamed. The player can relocate it
+(desktop only): Options > Storage > Change data folder opens `DataRootDialog`'s native
+folder picker. The choice is saved in `user://data_root.json` for the next process;
+the running room keeps its old paths through shutdown. On restart, BootScene runs any
+pending `DataRootMigration` with progress/retry before mounting mods or loading the
+room and sync services. First launch uses the default root. Always go through
+`DataPaths.media_root()`.
 
 ## Git Workflow
 

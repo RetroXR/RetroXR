@@ -77,10 +77,20 @@ func _ready() -> void:
 	# marker hid the socket, so two suites failed on one machine and passed on CI.
 	# Nor may a suite make the player's pending installs. The state is still read,
 	# so anything that saves it writes the player's choices back unchanged.
+	# BootScene completes a pending folder move before any pack is mounted.
 	if not _is_test_run():
-		_apply_pending()
-		_discover()
-		_load_enabled()
+		if not DataPaths.migration_mode():
+			load_data_root()
+		return
+	_ready_done = true
+	mods_ready.emit()
+
+
+## Also called by BootScene after a data-folder move, before choosing a room.
+func load_data_root() -> void:
+	_apply_pending()
+	_discover()
+	_load_enabled()
 	_ready_done = true
 	mods_ready.emit()
 

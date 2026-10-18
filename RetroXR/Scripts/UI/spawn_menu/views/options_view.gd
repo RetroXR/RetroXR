@@ -910,7 +910,16 @@ func _build_storage_options(vbox: VBoxContainer) -> void:
 	_add_storage_path(vbox, "Cores and saves", CoreDownloadManager.default_core_root())
 	_add_storage_path(vbox, "Books", RomLibrary.default_books_root())
 	_add_storage_path(vbox, "Videos", RomLibrary.default_videos_root())
-
+	if DataPaths.can_configure():
+		var move_row := MenuStyle.hbox(10)
+		var move_btn := Button.new()
+		move_btn.text = "Change data folder…"
+		move_btn.custom_minimum_size = Vector2(280, 52)
+		move_btn.pressed.connect(func() -> void: DataRootDialog.open(get_tree().root))
+		move_row.add_child(move_btn)
+		vbox.add_child(move_row)
+		vbox.add_child(MenuStyle.hint(
+			"Choose a folder, optionally move your existing files, then restart RetroXR."))
 	_storage_usage_label = MenuStyle.label("", 15, MenuStyle.COLOR_DESC)
 	_storage_usage_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(_storage_usage_label)

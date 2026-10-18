@@ -10,6 +10,7 @@
     "bsx_pack_tests": 63,
     "card_tests": 615,
     "cores_data_tests": 70,
+    "data_paths_tests": 87,
     "deck_tests": 98,
     "ds_cart_tests": 33,
     "ereader_tests": 203,

@@ -33,6 +33,11 @@ var _badge_cache: Dictionary = {}
 
 
 func _ready() -> void:
+	if not DataPaths.migration_mode():
+		load_data_root()
+
+
+func load_data_root() -> void:
 	config = RaConfig.new()
 	config.load_config()
 

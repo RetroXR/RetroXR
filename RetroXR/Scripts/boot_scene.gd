@@ -4,6 +4,16 @@ extends Node
 
 
 func _ready() -> void:
+	if DataPaths.migration_mode():
+		var move := DataRootMove.new()
+		add_child(move)
+		await move.finish_pending()
+		move.queue_free()
+		Mods.load_data_root()
+		SaveSync.load_data_root()
+		StateSync.load_data_root()
+		RA.load_data_root()
+		SceneManager.start_boot()
 	_warn_if_stock_engine()
 	# Before any room is built: nothing may compose a save path until saves have moved.
 	SaveMigration.run_once(SaveSync)

@@ -86,6 +86,14 @@ var _reload_keep_player := false
 
 func _ready() -> void:
 	load_prefs()
+	scene_content_ready.connect(func(_id: String) -> void: _autosave_accum = 0.0)
+	if not DataPaths.migration_mode():
+		start_boot()
+
+
+## A data-folder move delays this until mods have registered the new root's
+## rooms. Resolving boot_room earlier can discard a room supplied by a mod.
+func start_boot() -> void:
 	# BootScene enters whatever this names.
 	current_scene_id = boot_room()
 	# Cold boot has no LoadingRig — the engine loads the room directly — so the
@@ -106,7 +114,6 @@ func _ready() -> void:
 			# the warm is invisible, the restore is their room arriving.
 			LoadingOverlay.begin(&"boot_restore", "STARTING UP", 2.0)
 	_warm_models.call_deferred()
-	scene_content_ready.connect(func(_id: String) -> void: _autosave_accum = 0.0)
 
 
 ## Periodic autosave of the room being played. The gates are the same ones
@@ -266,14 +273,26 @@ func reload_room(prepare: Callable = Callable(), keep_player := true) -> String:
 ## while this one still holds the OpenXR session would come up without a headset.
 ##
 ## Returns "" once the quit is under way, else why not.
-func restart_app() -> String:
+func restart_app(extra_user_args: PackedStringArray = PackedStringArray(),
+		before_restart: Callable = Callable()) -> String:
 	if has_node("/root/NetworkManager") and NetworkManager.is_active():
 		return "Leave the netplay session first."
 	if _transitioning or not is_scene_content_ready(current_scene_id):
 		return "Wait for the room to finish loading."
 	carry_room()
+	# The folder choice is persisted only after the restart gates pass and the
+	# room has been carried, without changing this process's data paths.
+	if before_restart.is_valid():
+		var why: String = before_restart.call()
+		if not why.is_empty():
+			return why
+	var user := PackedStringArray()
+	for a: String in OS.get_cmdline_user_args():
+		if a != "--data-root-launcher": # Drop obsolete arguments from old shortcuts.
+			user.append(a)
+	user.append_array(extra_user_args)
 	var args := restart_args(OS.has_feature("android"), OS.has_feature("template"),
-		OS.get_cmdline_args(), OS.get_cmdline_user_args(),
+		OS.get_cmdline_args(), user,
 		ProjectSettings.globalize_path("res://"))
 	var waiter := relaunch_command(OS.get_name(), OS.get_process_id(),
 		OS.get_executable_path(), args)

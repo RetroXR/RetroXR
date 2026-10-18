@@ -65,6 +65,11 @@ var _serial_ids: Dictionary = {}
 ## cartridge menu (which offers the toggle) need this, and they are unrelated
 ## nodes with no shared parent to hang it off.
 func _ready() -> void:
+	if not DataPaths.migration_mode():
+		load_data_root()
+
+
+func load_data_root() -> void:
 	config = RommConfig.new()
 	config.load_config()
 	load_state()

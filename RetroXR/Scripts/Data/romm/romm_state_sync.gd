@@ -47,6 +47,11 @@ var _abort := false
 
 
 func _ready() -> void:
+	if not DataPaths.migration_mode():
+		load_data_root()
+
+
+func load_data_root() -> void:
 	config = RommConfig.new()
 	config.load_config()
 	load_state()
