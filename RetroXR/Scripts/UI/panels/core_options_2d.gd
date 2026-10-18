@@ -27,6 +27,8 @@ signal ignore_gravity_toggled(enabled: bool)
 ## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
 ## sets.
 signal volume_changed(value: float)
+## The core picked for this machine on the System tab; "" is the system's default.
+signal core_selected(core_name: String)
 signal close_requested
 
 # ── Palette ────────────────────────────────────────────────────────────────────
@@ -81,6 +83,9 @@ var _bios_rows: VBoxContainer = null
 var _bios_tab_idx := -1
 var _active_scroll: ScrollContainer = null
 # Guard so populate_system() doesn't re-emit when it sets control values.
+## The System tab's rows, and the core picker built into them by populate_cores().
+var _system_rows: VBoxContainer = null
+var _core_picker: Control = null
 var _suppress_signal := false
 
 var _definitions: Dictionary = {}
@@ -253,6 +258,7 @@ func _build_ui() -> void:
 	sys_outer.add_child(_system_scroll)
 
 	var sys_rows := VBoxContainer.new()
+	_system_rows = sys_rows
 	sys_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sys_rows.add_theme_constant_override("separation", 4)
 	_system_scroll.add_child(sys_rows)
@@ -440,6 +446,37 @@ func populate_firmware(core_name: String, rows: Array[Dictionary]) -> void:
 		gutter.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(gutter)
 		_bios_rows.add_child(row)
+
+
+## The core picker on the System tab: the cores installed for this machine's system, plus
+## "Default", which follows the CORES panel. `choices` is [{core_name, label}], `selected` the
+## machine's own pick ("" = default), `default_core` what "Default" resolves to. Built with a
+## VRDropdown for the reason the port rows are (an OptionButton's popup is a Window, and the
+## VR viewport's duplicated press dismisses it on the click that opens it).
+func populate_cores(choices: Array, selected: String, default_core: String) -> void:
+	if _system_rows == null:
+		return
+	if is_instance_valid(_core_picker):
+		_core_picker.queue_free()
+		_core_picker = null
+	if choices.is_empty():
+		return
+	var default_label := default_core
+	for c: Dictionary in choices:
+		if str(c["core_name"]) == default_core:
+			default_label = str(c["label"])
+	var options: Array = [["Default (%s)" % default_label if not default_label.is_empty() else "Default", ""]]
+	var current := ""
+	for c: Dictionary in choices:
+		options.append([str(c["label"]), str(c["core_name"])])
+		if str(c["core_name"]) == selected:
+			current = selected
+	var drop := VRDropdown.create("Core", options, current, 1, Vector2(300, 48), 16)
+	drop.item_selected.connect(func(value: Variant) -> void:
+		core_selected.emit(str(value)))
+	_core_picker = drop
+	_system_rows.add_child(drop)
+	_system_rows.move_child(drop, 0)
 
 
 ## The pad picker rides `show_video_out`: both are "this machine is a handheld".
