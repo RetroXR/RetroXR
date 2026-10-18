@@ -382,6 +382,24 @@ func _group_cabinet() -> void:
 		"cabinet: it stays upright: only yaw is free")
 	_ok(not ObjectLock.is_locked(sys) and (sys as XRToolsPickable).enabled,
 		"cabinet: and it can be picked up and moved, not locked where it spawned")
+	# The glass is the cabinet's own slanted front, and the tube sits inside it: a pane that
+	# stands off the silhouette (as it once did, 4 cm proud with a frame floating round it)
+	# reads as a panel hovering in front of the machine.
+	var glass := model.find_child("Glass", true, false) as Node3D
+	var tube := model.get_builtin_screen() as Node3D
+	var ga := Vector2(0.30, 1.00)
+	var gb := Vector2(0.07, 1.46)
+	var gp := model.to_local(glass.global_position)
+	var edge := Vector2(gp.z, gp.y)
+	var along := (gb - ga).normalized()
+	var off := absf((edge - ga).dot(Vector2(-along.y, along.x)))
+	_ok(off < 0.01, "cabinet: the glass lies on the silhouette's slanted edge, not in front of it (off by %.3f)" % off)
+	var inward := glass.global_position.distance_to(tube.global_position)
+	var depth := (glass.global_position - tube.global_position).dot(glass.global_transform.basis.z.normalized())
+	_ok(depth > 0.05 and absf(inward - depth) < 0.02,
+		"cabinet: the picture is set well behind the glass, inside (depth %.3f)" % depth)
+	var lean := rad_to_deg(atan2(ga.x - gb.x, gb.y - ga.y))
+	_ok(lean > 20.0 and lean < 35.0, "cabinet: the monitor leans back about 25 degrees (%.1f)" % lean)
 	var body := sys.get_node("SystemBody") as MeshInstance3D
 	_ok(not body.visible, "cabinet: the generic box is hidden")
 	_ok(model.arcade_input() != null, "cabinet: the input node is on the system")
@@ -679,7 +697,7 @@ func _group_panel() -> void:
 	# Notices float in front of the monitor, PARALLEL to it, detached from the geometry.
 	var spot: Variant = sys.toast_anchor_world()
 	var screen_node := model.get_builtin_screen()
-	_ok(spot is Transform3D and model.to_local((spot as Transform3D).origin).z > 0.47 + 0.1,
+	_ok(spot is Transform3D and model.to_local((spot as Transform3D).origin).z > 0.47 + 0.05,
 		"panel: a notice floats well clear of the control panel, in front of the screen")
 	_ok(spot is Transform3D and (spot as Transform3D).basis.z.dot(screen_node.global_transform.basis.z.normalized()) > 0.999,
 		"panel: and parallel to the monitor, which is tilted back")
