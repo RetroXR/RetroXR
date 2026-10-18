@@ -43,7 +43,7 @@ const LEGACY: Dictionary = {
 	"commodore_vic20": "vic20",
 	"cpc": "amstradcpc",
 	"doom_3": "doom3",
-	"fb_alpha": "fbneo",
+	"fb_alpha": "arcade",
 	"game_boy": "gb",
 	"game_boy_advance": "gba",
 	"game_gear": "gamegear",
@@ -87,15 +87,35 @@ const LEGACY: Dictionary = {
 	"zx_spectrum": "zxspectrum",
 }
 
+## Ids that are not a system of their own any more but were never RENAMED: several
+## of them became one, and nothing on disk moved. `mame`, `fbneo` and `hbmame` are
+## three emulators of the one arcade machine (ES-DE gives them all `<platform>arcade`),
+## and `roms/mame/` holds the player's ROMs, so their folders stay where they are and
+## are read as `arcade`'s (FOLDER_ALIASES). Unlike LEGACY this is MANY-TO-ONE, which
+## LEGACY's invariants forbid (systems_data_tests `ids/`), and nothing here is
+## migrated: a saved room, a binding or a ledger key that says `mame` is read through
+## canonical() as it loads, the way a LEGACY one is. Tools/rename_systemids.py reads
+## both tables, so the .info files say `arcade`.
+const MERGED: Dictionary = {
+	"mame": "arcade",
+	"fbneo": "arcade",
+	"hbmame": "arcade",
+}
+
 ## Other ES-DE folders holding the same machine's ROMs. `famicom`, `gbc`, `ngpc`
-## and `wonderswancolor` are absent on purpose: each is a system of its own here. So are `sgb`, `arcade` and `cps*`,
-## which fit more than one tile.
+## and `wonderswancolor` are absent on purpose: each is a system of its own here. So is
+## `sgb`, which fits more than one tile. `arcade` takes every ES-DE folder whose games
+## are MAME or FinalBurn Neo romsets (`cps*` and `model*` included: the cabinet is the
+## same, and which emulator plays a set is the core's choice, not the folder's).
+## `neogeo`, `naomi*`, `atomiswave`, `daphne` and `dice` are NOT here: each has a core
+## of its own or hardware of its own, so each is a system.
 const FOLDER_ALIASES: Dictionary = {
 	"amiga": ["amiga600", "amiga1200"],
 	"amstradcpc": ["gx4000"],
+	"arcade": ["mame", "fbneo", "fba", "hbmame", "mame-libretro", "mame-advmame", "mame-mame4all",
+		"cps", "cps1", "cps2", "cps3", "model2", "model3", "stv"],
 	"atari800": ["atarixe"],
 	"cdi": ["cdimono1", "philips-cd-i"],
-	"fbneo": ["fba"],
 	"gameandwatch": ["lcdgames"],
 	"genesis": ["megadrive", "megadrivejp"],
 	"mastersystem": ["mark3"],
@@ -117,9 +137,10 @@ static var _legacy_of: Dictionary = {}
 static var _folder_owner: Dictionary = {}
 
 
-## The id a platform goes by now. Anything not in LEGACY is already it.
+## The id a platform goes by now. Anything in neither table is already it.
 static func canonical(systemid: String) -> String:
-	return LEGACY.get(systemid, systemid)
+	var id: String = LEGACY.get(systemid, systemid)
+	return MERGED.get(id, id)
 
 
 ## The id this platform went by before the rename, or "" if it never had another.

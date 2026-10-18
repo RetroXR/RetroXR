@@ -4,8 +4,8 @@
 
 [resource]
 script = ExtResource("1")
-systemid = "mame"
-display_name = "MAME (Arcade)"
+systemid = "arcade"
+display_name = "Arcade"
 native_ports = 4
 media_type = 0
 supports_multitap = false

@@ -272,12 +272,6 @@ const RECOMMENDED := {
 	},
 
 	# ── SNK ──────────────────────────────────────────────────────────────────
-	# Keyed on fbneo rather than neogeo: FinalBurn Neo files itself under
-	# fbneo, and the neogeo tile holds only Geolith.
-	"fbneo": {
-		"core": "fbneo",
-		"why":  "The maintained FinalBurn line, and where Neo Geo AES/MVS support actually lives",
-	},
 	"neogeocd": {
 		"core": "neocd",
 		"why":  "The only Neo Geo CD core here",
@@ -340,7 +334,10 @@ const RECOMMENDED := {
 	},
 
 	# ── Arcade ───────────────────────────────────────────────────────────────
-	"mame": {
+	# One tile for every MAME and FinalBurn core (docs/dev/arcade.md). FinalBurn Neo
+	# is not the default here: it runs fewer sets. Where it earns its place is
+	# netplay (NetplayCores: the only core vetted for rollback), which picks it itself.
+	"arcade": {
 		"core":    "mame",
 		"why":     "Current MAME — the widest romset support, and desktop can carry it",
 		"android": "mame2003_plus",

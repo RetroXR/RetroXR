@@ -178,12 +178,21 @@ const SLUG_MAP := {
 	"arcadia": "arcadia",
 	"uzebox": "uzebox",
 
-	# Arcade
-	"arcade": "mame",
-	"mame": "mame",
-	"mame-libretro": "mame",
-	"mame-advmame": "mame",
-	"mame-mame4all": "mame",
+	# Arcade: one system for every MAME and FinalBurn Neo romset, whatever the
+	# server calls the folder (ES-DE gives all of these <platform>arcade</platform>).
+	# Neo Geo, NAOMI and Atomiswave are NOT here: each has a core of its own.
+	"arcade": "arcade",
+	"mame": "arcade",
+	"mame-libretro": "arcade",
+	"mame-advmame": "arcade",
+	"mame-mame4all": "arcade",
+	"hbmame": "arcade",
+	"cps": "arcade",
+	"cps1": "arcade",
+	"cps2": "arcade",
+	"cps3": "arcade",
+	"model2": "arcade",
+	"stv": "arcade",
 	# Sega's and Sammy's Dreamcast-derived boards run on flycast, not MAME, and
 	# are secondary platforms of it with tiles of their own. Filed under mame
 	# they lost collapse_by_systemid to the MAME library and went unmapped.
@@ -191,9 +200,9 @@ const SLUG_MAP := {
 	"naomi2": "naomi2",
 	"naomi-2": "naomi2",
 	"atomiswave": "atomiswave",
-	"model3": "mame",
-	"fba": "fbneo",
-	"fbneo": "fbneo",
+	"model3": "arcade",
+	"fba": "arcade",
+	"fbneo": "arcade",
 
 	# Computers
 	"c64": "c64",
