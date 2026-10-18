@@ -26,7 +26,7 @@
 ##   net/      the audio command shape, including the index-carrying one
 ##   remote/   which remote cells each deck offers
 ##   tape/     a tape keeps its place, and its menu says where that is
-##   label/    a video tape wears the picture found beside its video
+##   label/    a tape, cassette or record wears the pictures found beside its file
 ##   playlist/ an .m3u sets what plays and in what order, for albums and tapes
 extends Node
 
@@ -77,6 +77,8 @@ func _ready() -> void:
 		await _test_tape()
 	if _want("label"):
 		await _test_label()
+		await _test_label_albums()
+		await _test_label_media()
 	if _want("playlist"):
 		await _test_playlist()
 
@@ -302,7 +304,7 @@ func _test_label() -> void:
 
 	_eq(MediaLabelArt.sidecar(video), "", "label/a video with no picture beside it has none")
 	_eq(MediaLabelArt.sidecar(""), "", "label/an empty path has none")
-	_eq(MediaLabelArt.sidecar(_scratch), "", "label/a folder, which is an album, has none")
+	_eq(MediaLabelArt.sidecar(_scratch), "", "label/a folder, which is an album, has no sidecar (album_side finds its pictures)")
 
 	var bare := VCR_TAPE.instantiate() as VCRTape
 	bare.video_path = video
@@ -392,6 +394,213 @@ func _test_label() -> void:
 	_ok(true, "label/a tape freed while its picture decodes does not crash")
 
 	RomLibrary._remove_tree(_scratch)
+
+
+## Which picture is which side of an album. Pure file lookups, so nothing waits.
+func _test_label_albums() -> void:
+	_scratch = ProjectSettings.globalize_path("user://deck_tests_label_albums")
+	RomLibrary._remove_tree(_scratch)
+	DirAccess.make_dir_recursive_absolute(_scratch)
+	var song := _scratch.path_join("Mix.mp3")
+
+	_eq(MediaLabelArt.album_side(song, "a"), "", "label/an album with no picture has no side A")
+	_eq(MediaLabelArt.album_side(song, "b"), "", "label/and no side B")
+	_eq(MediaLabelArt.album_side("", "a"), "", "label/an empty path has neither")
+
+	var side_a := _scratch.path_join("Mix A.png")
+	_solid_png(side_a, 64, 64)
+	_eq(MediaLabelArt.album_side(song, "a"), side_a, "label/`Name A.png` is side A of a single file")
+	var plain := _scratch.path_join("Mix.png")
+	_solid_png(plain, 64, 64)
+	_eq(MediaLabelArt.album_side(song, "a"), plain, "label/but a plain `Name.png` is taken before it")
+	_eq(MediaLabelArt.album_side(song, "b"), "", "label/neither of those is side B")
+	var side_b := _scratch.path_join("Mix B.jpg")
+	var jimg := Image.create(32, 32, false, Image.FORMAT_RGB8)
+	jimg.save_jpg(side_b)
+	_eq(MediaLabelArt.album_side(song, "b"), side_b, "label/`Name B.jpg` is side B")
+
+	# A folder's own name is not a file name: "Vol. 2" has no extension to strip.
+	var folder := _scratch.path_join("Vol. 2")
+	DirAccess.make_dir_recursive_absolute(folder)
+	_eq(MediaLabelArt.album_side(folder, "a"), "", "label/an album folder with no pictures has none")
+	var beside := _scratch.path_join("Vol. 2.png")
+	_solid_png(beside, 64, 64)
+	_eq(MediaLabelArt.album_side(folder, "a"), beside, "label/`Folder.png` beside an album folder is its side A, dots and all")
+	var beside_b := _scratch.path_join("Vol. 2 B.png")
+	_solid_png(beside_b, 64, 64)
+	_eq(MediaLabelArt.album_side(folder, "b"), beside_b, "label/and `Folder B.png` its side B")
+
+	var inside := folder.path_join("Cover.JPG")
+	jimg.save_jpg(inside)
+	_eq(MediaLabelArt.album_side(folder, "a"), inside, "label/a picture inside the folder beats one beside it, whatever its case")
+	_solid_png(folder.path_join("front.png"), 64, 64)
+	_eq(MediaLabelArt.album_side(folder, "a"), inside, "label/`cover` is taken before `front`, whichever sorts first")
+	_scratch_file("Vol. 2/cover.txt")
+	_scratch_file("Vol. 2/back.txt")
+	_eq(MediaLabelArt.album_side(folder, "b"), beside_b, "label/a file that is not a picture is not one")
+	var back := folder.path_join("back.png")
+	_solid_png(back, 64, 64)
+	_eq(MediaLabelArt.album_side(folder, "b"), back, "label/`back` inside the folder is side B")
+
+	RomLibrary._remove_tree(_scratch)
+
+
+## What the three media do with those pictures: a tape's spine, a cassette's two
+## faces and a record's two labels. Each is built the way the spawn menu builds
+## it, with its path set before it enters the tree.
+func _test_label_media() -> void:
+	_scratch = ProjectSettings.globalize_path("user://deck_tests_label_media")
+	RomLibrary._remove_tree(_scratch)
+	DirAccess.make_dir_recursive_absolute(_scratch)
+
+	# ── a tape's spine ──
+	var video := _scratch.path_join("Home Movies.mp4")
+	_solid_png(_scratch.path_join("Home Movies spine.png"), 800, 100)
+	var tape := VCR_TAPE.instantiate() as VCRTape
+	tape.video_path = video
+	tape.video_label = "Home Movies"
+	add_child(tape)
+	_spawned.append(tape)
+	var got: bool = await _wait_for(func() -> bool: return tape.get_node_or_null("SpineArt") != null)
+	_ok(got, "label/a tape with `Name spine.png` beside its video wears it on the spine")
+	if not got:
+		return
+	var spine := tape.get_node("SpineArt") as MeshInstance3D
+	_ok(tape.get_node_or_null("LabelArt") == null and (tape.get_node("VideoLabel") as Label3D).visible,
+		"label/and a spine alone leaves the face as text")
+	_ok(spine.transform.basis.z.is_equal_approx(Vector3.UP) and spine.transform.basis.y.is_equal_approx(Vector3(0, 0, -1)),
+		"label/the strip lies on the top edge, its top toward the back")
+	_ok(is_equal_approx(spine.position.y, 0.0402)
+		and (spine.mesh as QuadMesh).size.is_equal_approx(Vector2(0.136, 0.017)),
+		"label/over the edge and fitted inside it, not stretched")
+	DirAccess.remove_absolute(_scratch.path_join("Home Movies spine.png"))
+	tape.video_path = _scratch.path_join("Elsewhere.mp4")
+	_ok(await _wait_for(func() -> bool: return tape.get_node_or_null("SpineArt") == null),
+		"label/a tape moved to a video with no spine drops it")
+
+	# ── a cassette's two faces ──
+	var song := _scratch.path_join("Mix.mp3")
+	_solid_png(_scratch.path_join("Mix.png"), 400, 100)
+	var cas := AUDIO_CASSETTE.instantiate() as AudioCassette
+	cas.album_path = song
+	cas.album_label = "Mix"
+	add_child(cas)
+	_spawned.append(cas)
+	var cas_text := cas.get_node("CassetteLabel") as Label3D
+	got = await _wait_for(func() -> bool: return cas.get_node_or_null("LabelArtB") != null)
+	_ok(got, "label/a cassette with one picture wears it on both faces")
+	if not got:
+		return
+	var front := cas.get_node("LabelArt") as MeshInstance3D
+	var rear := cas.get_node("LabelArtB") as MeshInstance3D
+	_ok(front.position.z > 0.0 and rear.position.z < 0.0
+		and rear.transform.basis.z.is_equal_approx(Vector3(0, 0, -1)),
+		"label/side A faces front and side B faces back")
+	_ok(cas.get_node_or_null("LabelPaperB") != null and (cas.get_node("LabelPaperB") as Node3D).position.z < 0.0,
+		"label/and the back has paper to be printed on")
+	_ok((front.mesh as QuadMesh).size.is_equal_approx(Vector2(0.08, 0.02))
+		and (rear.mesh as QuadMesh).size.is_equal_approx(Vector2(0.08, 0.02)),
+		"label/each fitted inside the 80 x 30 mm label, not stretched")
+	_ok(not cas_text.visible, "label/the album's name text steps aside")
+	cas.net_set_download_status("55%")
+	_ok(cas_text.visible and cas_text.text == "55%", "label/a transfer's progress still shows on a cassette")
+	cas.net_set_download_status("")
+	_ok(not cas_text.visible and cas_text.text == "Mix", "label/and when it ends the picture is back")
+
+	_solid_png(_scratch.path_join("Mix B.png"), 100, 200)
+	cas.album_path = ""
+	cas.album_path = song
+	got = await _wait_for(func() -> bool:
+		var b := cas.get_node_or_null("LabelArtB") as MeshInstance3D
+		return b != null and (b.mesh as QuadMesh).size.is_equal_approx(Vector2(0.015, 0.03)))
+	_ok(got, "label/a `Name B.png` is side B, and side A is left as it was")
+	_ok((cas.get_node("LabelArt") as MeshInstance3D).mesh is QuadMesh
+		and ((cas.get_node("LabelArt") as MeshInstance3D).mesh as QuadMesh).size.is_equal_approx(Vector2(0.08, 0.02)),
+		"label/the two faces are two pictures")
+
+	cas.album_path = _scratch.path_join("None.mp3")
+	got = await _wait_for(func() -> bool:
+		return cas.get_node_or_null("LabelArt") == null and cas.get_node_or_null("LabelArtB") == null)
+	_ok(got and cas.get_node_or_null("LabelPaperB") == null and cas_text.visible,
+		"label/a cassette moved to an album with none drops both faces and shows its name again")
+
+	# Moved twice before the first decode lands: the last one wins.
+	_solid_png(_scratch.path_join("Mix2.png"), 100, 200)
+	cas.album_path = song
+	cas.album_path = _scratch.path_join("Mix2.mp3")
+	got = await _wait_for(func() -> bool:
+		var a := cas.get_node_or_null("LabelArt") as MeshInstance3D
+		return a != null and (a.mesh as QuadMesh).size.is_equal_approx(Vector2(0.015, 0.03)))
+	_ok(got, "label/two moves in a row end on the pictures of the last")
+
+	var doomed_cas := AUDIO_CASSETTE.instantiate() as AudioCassette
+	doomed_cas.album_path = song
+	add_child(doomed_cas)
+	doomed_cas.free()
+	await _frames(3)
+	_ok(true, "label/a cassette freed while its pictures decode does not crash")
+
+	# ── a record's two labels ──
+	_solid_png(_scratch.path_join("Wide.png"), 400, 100)
+	var lp := VINYL_RECORD.instantiate() as VinylRecord
+	lp.album_path = _scratch.path_join("Wide.flac")
+	lp.album_label = "Wide"
+	add_child(lp)
+	_spawned.append(lp)
+	var lp_text := lp.get_node("DiscLabel") as Label3D
+	# The record gives itself its own material when art arrives, so every read
+	# looks the material up afresh.
+	got = await _wait_for(func() -> bool: return _record_art(lp, "label_tex") != null)
+	_ok(got, "label/a record with a picture beside its album wears it on its label")
+	if not got:
+		return
+	var tex_a := _record_art(lp, "label_tex")
+	_ok(tex_a.get_width() == 100 and tex_a.get_height() == 100,
+		"label/cut square, since the label is round and a wide picture would be stretched over it")
+	_ok(_record_art(lp, "label_tex_b") == tex_a, "label/a record with one picture has it on both sides")
+	_ok(not lp_text.visible, "label/and the album's name text steps aside")
+	lp.net_set_download_status("12%")
+	_ok(lp_text.visible and lp_text.text == "12%", "label/a transfer's progress still shows on a record")
+	lp.net_set_download_status("")
+	_ok(not lp_text.visible and lp_text.text == "Wide", "label/and when it ends the picture is back")
+
+	var plain := VINYL_RECORD.instantiate() as VinylRecord
+	add_child(plain)
+	_spawned.append(plain)
+	await _frames(3)
+	_ok(_record_mat(plain) != _record_mat(lp) and _record_art(plain, "label_tex") == null,
+		"label/one record's picture is not on every record that shares the scene's material")
+
+	_solid_png(_scratch.path_join("Wide B.png"), 200, 200)
+	lp.album_path = ""
+	lp.album_path = _scratch.path_join("Wide.flac")
+	got = await _wait_for(func() -> bool:
+		var b := _record_art(lp, "label_tex_b")
+		return b != null and b.get_width() == 200)
+	_ok(got, "label/a `Name B.png` is the label of the underside")
+	_ok(_record_art(lp, "label_tex").get_width() == 100, "label/and side A is not it")
+
+	lp.album_path = _scratch.path_join("None.flac")
+	got = await _wait_for(func() -> bool: return _record_art(lp, "label_tex") == null)
+	_ok(got and _record_art(lp, "label_tex_b") == null and lp_text.visible,
+		"label/a record moved to an album with none drops both and shows its name again")
+
+	var doomed_lp := VINYL_RECORD.instantiate() as VinylRecord
+	doomed_lp.album_path = _scratch.path_join("Wide.flac")
+	add_child(doomed_lp)
+	doomed_lp.free()
+	await _frames(3)
+	_ok(true, "label/a record freed while its pictures decode does not crash")
+
+	RomLibrary._remove_tree(_scratch)
+
+
+func _record_mat(lp: VinylRecord) -> ShaderMaterial:
+	return (lp.get_node("RecordMesh") as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+
+
+func _record_art(lp: VinylRecord, param: String) -> Texture2D:
+	return _record_mat(lp).get_shader_parameter(param) as Texture2D
 
 
 # ── playlist/ ─────────────────────────────────────────────────────────────────

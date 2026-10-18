@@ -35,24 +35,29 @@ var tape_progress: float = 0.0
 ## 1 playing, more winding on, less than 0 winding back.
 var tape_speed: float = 0.0
 
-## Where the label picture sits, 1 mm over the paper and 0.5 mm under the text.
+## Where the label picture sits, 0.5 mm over the paper and 0.5 mm under the text.
 const _ART_Z := 0.0145
 ## The paper it is printed on (LabelMesh), which the picture is fitted inside.
 const _ART_BOX := Vector2(0.11, 0.045)
+## The spine is the top edge, the one the label sits against: the picture lies
+## 0.2 mm over the 40 mm half-height and is fitted inside the edge's width and
+## depth, which is 140 x 25 mm.
+const _SPINE_Y := 0.0402
+const _SPINE_BOX := Vector2(0.136, 0.021)
 
-## The sticker image beside the video file (MediaLabelArt), else null and the
-## tape shows its title as text. Derived from video_path, never saved.
-var _label_art: MeshInstance3D = null
-## The sidecar the tape is meant to show, and the pool task decoding one.
-var _label_path := ""
-var _label_task := -1
-var _label_job: Dictionary = {}
+## Finds and decodes the pictures beside the video file (MediaLabelArt): the
+## sticker for the face (LabelArt) and a strip for the spine (SpineArt). A tape
+## with no sticker shows its title as text. Derived from video_path, never saved.
+var _labels: MediaLabelLoader = null
 var _download_status := ""
 
 
 func _ready() -> void:
 	super()   # XRToolsPickable._ready collects grab points (SnapGrabPoint)
-	set_process(false)
+	_labels = MediaLabelLoader.new()
+	_labels.name = "LabelLoader"
+	_labels.art_ready.connect(_on_label_art)
+	add_child(_labels)
 	_update_label()
 	_request_label_art()
 
@@ -63,69 +68,26 @@ func _update_label() -> void:
 		lbl.text = video_label
 
 
-func _notification(what: int) -> void:
-	# The pool thread writes into _label_job, which dies with this node.
-	if what == NOTIFICATION_PREDELETE and _label_task != -1:
-		WorkerThreadPool.wait_for_task_completion(_label_task)
-
-
-## Look for a picture beside the video and decode it off the main thread. A
-## second call while one decodes only changes what is wanted; _process starts
-## the next decode when the running one lands.
+## Look for the pictures beside the video; they decode off the main thread.
 func _request_label_art() -> void:
-	var path := MediaLabelArt.sidecar(video_path)
-	if path == _label_path:
-		return
-	_label_path = path
-	if _label_task == -1:
-		_next_label_step()
+	_labels.request({
+		&"front": MediaLabelArt.sidecar(video_path),
+		&"spine": MediaLabelArt.sidecar(video_path, " spine"),
+	})
 
 
-func _next_label_step() -> void:
-	if _label_path.is_empty():
-		_show_label_art(null)
-		return
-	_label_job = {"path": _label_path}
-	_label_task = WorkerThreadPool.add_task(MediaLabelArt.decode_into.bind(_label_job))
-	set_process(true)
-
-
-func _process(_delta: float) -> void:
-	if _label_task == -1 or not WorkerThreadPool.is_task_completed(_label_task):
-		return
-	WorkerThreadPool.wait_for_task_completion(_label_task)
-	_label_task = -1
-	set_process(false)
-	if str(_label_job.get("path", "")) != _label_path:
-		_next_label_step()
-		return
-	_show_label_art(MediaLabelArt.texture_from(_label_job.get("image") as Image))
-
-
-## Put `tex` on the label, or take the picture away and show the title again.
-func _show_label_art(tex: Texture2D) -> void:
-	if tex == null:
-		if _label_art != null:
-			# Out of the tree now, so a picture arriving in the same frame does
-			# not meet a half-gone "LabelArt" of the same name.
-			remove_child(_label_art)
-			_label_art.queue_free()
-			_label_art = null
+## Put a picture on the tape, or take it away (a null `tex`) and show the title
+## text again.
+func _on_label_art(slot: StringName, tex: Texture2D) -> void:
+	if slot == &"front":
+		MediaLabelArt.show_quad(self, "LabelArt", tex, _ART_BOX,
+			Transform3D(Basis.IDENTITY, Vector3(0.0, 0.018, _ART_Z)))
+		_apply_label_text_visibility()
 	else:
-		if _label_art == null:
-			_label_art = MeshInstance3D.new()
-			_label_art.name = "LabelArt"
-			_label_art.mesh = QuadMesh.new()
-			var mat := StandardMaterial3D.new()
-			mat.roughness = 0.7
-			mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-			_label_art.material_override = mat
-			_label_art.position = Vector3(0.0, 0.018, _ART_Z)
-			add_child(_label_art)
-		(_label_art.material_override as StandardMaterial3D).albedo_texture = tex
-		(_label_art.mesh as QuadMesh).size = MediaLabelArt.fit(
-			float(tex.get_width()) / float(tex.get_height()), _ART_BOX)
-	_apply_label_text_visibility()
+		# A quad faces +Z; turned -90 degrees about X it faces up, with the top
+		# of the picture toward the back, which reads right from the front.
+		MediaLabelArt.show_quad(self, "SpineArt", tex, _SPINE_BOX,
+			Transform3D(Basis(Vector3.RIGHT, -PI / 2.0), Vector3(0.0, _SPINE_Y, 0.0)))
 
 
 ## The picture carries the title itself, so the text steps aside for it: except
@@ -133,7 +95,7 @@ func _show_label_art(tex: Texture2D) -> void:
 func _apply_label_text_visibility() -> void:
 	var lbl := get_node_or_null("VideoLabel") as Label3D
 	if lbl:
-		lbl.visible = _label_art == null or not _download_status.is_empty()
+		lbl.visible = get_node_or_null("LabelArt") == null or not _download_status.is_empty()
 
 
 ## Returns the video path — called by VCRPlayer when the tape snaps in

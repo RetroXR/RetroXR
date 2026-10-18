@@ -2,7 +2,9 @@
 //
 // Reads what Tools/gen_disc.gd's _bake_lp writes, using the same convention as
 // Shaders/disc.gdshader:
-//   UV     planar over the disc's bounding square, so label art maps 1:1
+//   UV     planar over the disc's bounding square (302 mm). The paper label is
+//          only its middle third, so label art is re-scaled by label_uv_scale
+//          below to fill the label rather than 1/9th of the picture
 //   UV2.x  face class: 1.0 label / 0.0 grooves / 0.5 rim, bore and the land ramps
 // and, like that shader, derives the radius from length(VERTEX.xz) rather than
 // baking it — exact, one vertex instruction, immune to attribute compression and
@@ -45,6 +47,12 @@ uniform float record_seed : hint_range(0.0, 1.0) = 0.5;
 
 uniform sampler2D label_tex : source_color, hint_default_transparent,
 	filter_linear_mipmap_anisotropic, repeat_disable;
+// Side B, the underside's label. Unset it is blank paper, not side A's picture;
+// whoever sets label_tex decides what the other side shows.
+uniform sampler2D label_tex_b : source_color, hint_default_transparent,
+	filter_linear_mipmap_anisotropic, repeat_disable;
+// The disc's 302 mm bounding square over the label's 101.6 mm: 0.151 / 0.0508.
+uniform float label_uv_scale = 2.9724;
 
 // Zone radii in metres, matching the bake.
 uniform float r_label_end = 0.0508;
@@ -53,6 +61,7 @@ uniform float r_lead_out = 0.1455;
 varying vec3 v_radial;    // view-space radial — across the grooves
 varying vec3 v_tangent;   // view-space azimuthal — ALONG the grooves
 varying float v_radius;
+varying float v_under;    // 1 on the underside (side B), 0 on top
 // Written in fragment(), read in light(). SPECULAR is not readable inside light()
 // — disc.gdshader carries v_irid/v_blur across the same way.
 varying float v_spec;
@@ -60,6 +69,7 @@ varying float v_spec;
 
 void vertex() {
 	v_radius = length(VERTEX.xz);
+	v_under = VERTEX.y < 0.0 ? 1.0 : 0.0;
 	// The bore is 7.24 mm across, so this is never degenerate.
 	v_radial = normalize((MODELVIEW_MATRIX * vec4(VERTEX.x, 0.0, VERTEX.z, 0.0)).xyz);
 	// Azimuthal direction: perpendicular to the radius in the disc plane.
@@ -87,7 +97,15 @@ void fragment() {
 
 	if (face > 0.75) {
 		// --- paper label ---
-		vec4 art = texture(label_tex, UV);
+		vec2 luv = (UV - 0.5) * label_uv_scale + 0.5;
+		vec4 art;
+		if (v_under > 0.5) {
+			// Side B is read from the other side. Turned over about the record's
+			// X axis, its picture is upright when v is flipped.
+			art = texture(label_tex_b, vec2(luv.x, 1.0 - luv.y));
+		} else {
+			art = texture(label_tex, luv);
+		}
 		art.a *= 1.0 - smoothstep(r_label_end - 0.0015, r_label_end, r);
 		ALBEDO = mix(base, art.rgb, art.a);
 		METALLIC = 0.0;
