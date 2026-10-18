@@ -208,8 +208,8 @@ func _build_pointer_shapes(host: Node3D) -> void:
 		AABB(Vector3(-0.33, 0.10, -0.40), Vector3(0.66, 0.40, 0.03)),   # behind the bay
 		AABB(Vector3(-0.33, 0.50, -0.40), Vector3(0.66, 0.28, 0.77)),   # coin area, behind the plates
 		AABB(Vector3(-0.33, 0.78, -0.40), Vector3(0.66, 0.14, 0.84)),   # apron, behind the sockets
-		AABB(Vector3(-0.33, 0.92, -0.40), Vector3(0.66, 0.54, 0.67)),   # deck and monitor
-		AABB(Vector3(-0.33, 1.46, -0.40), Vector3(0.66, 0.34, 0.74)),   # marquee
+		AABB(Vector3(-0.33, 0.92, -0.40), Vector3(0.66, 0.54, 0.52)),   # deck and monitor, behind the glass
+		AABB(Vector3(-0.33, 1.46, -0.40), Vector3(0.66, 0.34, 0.58)),   # marquee
 	]
 	for i in boxes.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()

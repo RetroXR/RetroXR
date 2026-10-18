@@ -4,7 +4,7 @@
 ##   "$godot" --path RetroXR res://Tools/models/arcade_cabinet_probe.tscn \
 ##       --resolution 1280x720 --position 20,20 -- --out=/some/dir [--shots=front,three]
 ##
-## One PNG per shot, named <shot>.png in --out. Shots: front, three, panel, bay,
+## One PNG per shot, named <shot>.png in --out. Shots: front, three, side, panel, bay,
 ## landscape, portrait, coin. The monitor shots feed the screen module a test card
 ## (a circle and a grid, so a stretch shows as an ellipse) of the shape a core would
 ## hand over: 384x224 CPS1 on a 4:3 tube, and a vertical 224x384 frame.
@@ -17,7 +17,7 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 
 var _out := "/tmp"
-var _shots: Array[String] = ["front", "three", "panel", "bay", "landscape", "portrait", "coin", "board", "boardside", "hover", "toast"]
+var _shots: Array[String] = ["front", "three", "panel", "bay", "landscape", "portrait", "coin", "board", "boardside", "hover", "toast", "side"]
 var _cam: Camera3D
 var _sys: Node3D
 var _model: RetroSystemModelArcadeCabinet
@@ -154,6 +154,14 @@ func _shot_front() -> void:
 func _shot_three() -> void:
 	_look(Vector3(2.0, 1.5, 2.1), Vector3(0, 0.85, 0))
 	await _save("three")
+
+
+## From the side: the silhouette, the glass on its slanted edge and the tube set back inside.
+func _shot_side() -> void:
+	_glass(384, 224)
+	_model.on_power_on()
+	_look(Vector3(3.2, 1.2, 0.1), Vector3(0, 1.0, 0.1))
+	await _save("side")
 
 
 func _shot_panel() -> void:
