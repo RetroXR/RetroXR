@@ -120,6 +120,12 @@ func _build() -> void:
 ## basis is orthonormalized, which strips the scale so the quad keeps the physical
 ## size screen_size asked for.
 func _place() -> void:
+	# A machine whose hardware swallows a notice laid over it (a cabinet's tilted monitor and
+	# marquee) names a spot of its own, detached in front of it.
+	var spot: Variant = _detached_spot()
+	if spot != null:
+		_place_at(spot)
+		return
 	if _machine != null:
 		_place_over_machine()
 		return
@@ -142,6 +148,36 @@ func _place() -> void:
 		+ frame.z * 0.01
 
 	global_transform = Transform3D(frame, top_centre + offset)
+
+
+## The machine's own spot for its notices, or null. Found by walking up from whatever this
+## toast hangs on, so it works for both the screen toast and the machine toast.
+func _detached_spot() -> Variant:
+	var node: Node = _machine if _machine != null else _anchor
+	while node != null:
+		if node.has_method("toast_anchor_world"):
+			return node.call("toast_anchor_world")
+		node = node.get_parent()
+	return null
+
+
+## Float at `spot`: a Transform3D hangs exactly there (parallel to whatever it was taken from);
+## a Vector3 is turned to face the player and kept level.
+func _place_at(spot: Variant) -> void:
+	if spot is Transform3D:
+		var xf := spot as Transform3D
+		global_transform = Transform3D(xf.basis.orthonormalized(), xf.origin)
+		return
+	global_position = spot as Vector3
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return
+	var flat := cam.global_position - global_position
+	flat.y = 0.0
+	if flat.length_squared() < 1e-6:
+		return
+	look_at(global_position + flat, Vector3.UP)
+	rotate_object_local(Vector3.UP, PI)
 
 
 ## Centred over the machine, its bottom edge clear of the hardware's crown, turned
