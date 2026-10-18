@@ -79,18 +79,20 @@ const _CART_MODELS := {
 	"n3ds": "res://imported-assets/carts/nintendo_3ds/3ds_cart.glb",
 	"sega32x": "res://imported-assets/carts/sega_32x/sega32x_cart.glb",
 	"genesis": "res://imported-assets/carts/genesis/genesis_cart.glb",
+	# A JAMMA board is a bare PCB, not a shell: see Tools/gen/gen_arcade_board.gd.
+	"arcade": ArcadeProfiles.BOARD_SCENE,
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
 ## the N64, Game Boy, DS/3DS, 32X, Genesis and NES cartridges' contacts and screws are metal,
 ## and so is the 64DD disk's hub.
 const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true, "nes": true, "n64dd": true}
+	"sega32x": true, "genesis": true, "nes": true, "n64dd": true, "arcade": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
 const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true, "nes": true}
+	"sega32x": true, "genesis": true, "nes": true, "arcade": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
@@ -617,8 +619,13 @@ func _apply_system_size() -> void:
 			label_mesh.mesh = lm
 			label_mesh.position = Vector3(0, s.y * 0.125, s.z / 2.0 + 0.001)
 
+	# The title belongs to the procedural box only while there is no model. This pass runs
+	# again on every drop and every leave of a handheld's slot, and once a model's label
+	# face has taken the title (_title_on_model_face) putting it back at the box's place
+	# floats it 3 cm off the board: the title came away from the sticker after the first
+	# time the cart was put down.
 	var lbl := get_node_or_null("GameLabel") as Label3D
-	if lbl:
+	if lbl and _model_label == null:
 		lbl.position = Vector3(0, s.y * 0.125, s.z / 2.0 + 0.0045)
 		lbl.width = s.x * 2000.0
 

@@ -435,8 +435,14 @@ func _parse_jeu(jeu: Dictionary) -> Dictionary:
 	result["releasedate"] = _pick_by_region(jeu.get("dates", []))
 
 	# Media URLs — pass ROM region codes so media selection prefers the ROM's own region
+	# An arcade game's `support-texture` is a render of its CABINET, which is no label: the
+	# board's sticker takes the cover (the box image) or a `support-2D` label instead.
+	var systeme: Variant = jeu.get("systeme", {})
+	var systemeid := int(str((systeme as Dictionary).get("id", jeu.get("systemeid", 0)))) \
+		if systeme is Dictionary else int(str(jeu.get("systemeid", 0)))
 	result["media"] = _extract_media_urls(
-		jeu.get("medias", []), regions_short, disc_num, result["disc_total"])
+		jeu.get("medias", []), regions_short, disc_num, result["disc_total"],
+		ScreenscraperSystems.is_arcade_systemeid(systemeid))
 
 	return result
 
@@ -515,7 +521,7 @@ static func media_region_order(rom_region_codes: Array,
 
 
 func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0,
-						 disc_total: int = 0) -> Dictionary:
+						 disc_total: int = 0, arcade: bool = false) -> Dictionary:
 	var result := {"wheel": "", "box": "", "label": "", "manual": ""}
 	if not medias is Array:
 		return result
@@ -539,7 +545,11 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 			candidates["wheel"].append({"url": url, "region": region, "type": mtype})
 		elif mtype == "box-texture":
 			candidates["box"].append({"url": url, "region": region})
-		elif mtype == "support-texture":
+		elif mtype == "support-texture" and not arcade:
+			candidates["label"].append({
+				"url": url, "region": region, "support": int(entry.get("support", 0)),
+			})
+		elif mtype == "support-2D" and arcade:
 			candidates["label"].append({
 				"url": url, "region": region, "support": int(entry.get("support", 0)),
 			})
