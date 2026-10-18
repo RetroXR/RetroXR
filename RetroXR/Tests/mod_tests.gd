@@ -888,7 +888,11 @@ func _group_consistency() -> void:
 		var row := SystemModelRegistry.row_for(id)
 		var field: Variant = row.get("platform", "")
 		if field is Array:
-			declared.append_array(field as Array)
+			# One model serving several systems is not always a computer: the arcade
+			# cabinet serves both arcade tiles, and neither is a computer.
+			for sid: String in field:
+				if not ArcadeProfiles.is_arcade_system(sid):
+					declared.append(sid)
 	var mismatched := PackedStringArray()
 	for sid: String in declared:
 		var info := SystemInfo.for_system(sid)

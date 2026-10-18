@@ -38,6 +38,11 @@ const CART_SIZES: Dictionary = {
 	# The cartridge model's shell (genesis_cart.glb, a caliper-measured US cart), so
 	# the per-axis fit is 1:1. The 32X's `connector` is derived from this height.
 	"genesis":       Vector3(0.108, 0.067, 0.017),
+	# A JAMMA arcade board (arcade_board.tscn, baked by Tools/gen/gen_arcade_board.gd):
+	# a bare PCB, 200 mm across the comb edge, 300 mm to insert, 35 mm over its
+	# tallest part. Real boards were every size, so this is one that stands for
+	# them all. The 111 mm comb (28 contacts a side at 3.96 mm) sits in the edge.
+	"arcade":        Vector3(0.200, 0.300, 0.035),
 	# A 32X game is a Mega Drive cartridge -- same shell, same slot, and it goes
 	# into the 32X's own slot the way a plain cart goes into the console's. Listed
 	# so it is not handed CART_SIZE_DEFAULT, which is a different shape entirely
@@ -492,6 +497,15 @@ static func disc_loader(systemid: String) -> int:
 ## <roms_root>/<systemid>/media/label/<rom_basename>.<ext> (screenscraper_client
 ## download_all_media), named after the ROM file — mirror _load_wheel_texture.
 static func load_label_texture(systemid: String, rom_path: String) -> Texture2D:
+	# An arcade board's sticker shows the game's COVER (or a real label), not the cabinet
+	# render the scraper used to leave in the label slot.
+	if ArcadeProfiles.is_arcade_system(systemid):
+		var art := ArcadeProfiles.board_art(load_media_image(systemid, rom_path, "box"),
+			load_media_image(systemid, rom_path, "label"))
+		if art == null:
+			return null
+		art.generate_mipmaps()
+		return ImageTexture.create_from_image(art)
 	return load_media_texture(systemid, rom_path, "label")
 
 
@@ -503,6 +517,19 @@ static func load_spine_texture(systemid: String, rom_path: String) -> Texture2D:
 
 ## A ROM's image from one of its media folders, named after the ROM file.
 static func load_media_texture(systemid: String, rom_path: String, folder: String) -> Texture2D:
+	var img := load_media_image(systemid, rom_path, folder)
+	if img == null:
+		return null
+	# These are ~600x600 photographic scans wrapped onto a disc face or a cartridge label,
+	# both of which are read at a glancing angle in VR. Without mips the print shimmers as the
+	# head moves. (The project's no-mipmaps rule is about emulator SCREENS, where sharp aliased
+	# pixel art is the point — the opposite case.)
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
+## The same image as load_media_texture, before it becomes a texture, or null.
+static func load_media_image(systemid: String, rom_path: String, folder: String) -> Image:
 	if systemid.is_empty() or rom_path.is_empty():
 		return null
 	var base := rom_path.get_file().get_basename()
@@ -514,13 +541,7 @@ static func load_media_texture(systemid: String, rom_path: String, folder: Strin
 		if FileAccess.file_exists(path):
 			var img := Image.load_from_file(path)
 			if img:
-				# These are ~600x600 photographic scans wrapped onto a disc face or
-				# a cartridge label, both of which are read at a glancing angle in
-				# VR. Without mips the print shimmers as the head moves. (The
-				# project's no-mipmaps rule is about emulator SCREENS, where sharp
-				# aliased pixel art is the point — the opposite case.)
-				img.generate_mipmaps()
-				return ImageTexture.create_from_image(img)
+				return img
 	return null
 
 
