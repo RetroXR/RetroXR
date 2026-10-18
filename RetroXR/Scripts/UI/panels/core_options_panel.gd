@@ -47,6 +47,10 @@ var _debug_frames := -1
 ## Half the panel is added because global_position is its centre — placing the
 ## centre at the clearance height is what put the lower half inside the tower.
 func _anchor() -> Vector3:
+	# A tall machine (an arcade cabinet) hangs its panel beside itself, where it can be read.
+	var beside: Variant = _system.options_panel_anchor(_viewport_node.screen_size)
+	if beside != null:
+		return beside as Vector3
 	var origin := _system.global_position
 	var half_height := _viewport_node.screen_size.y * 0.5
 	return Vector3(origin.x,
@@ -102,6 +106,7 @@ func _ensure_ui_connected() -> void:
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	ui.screen_glow_toggled.connect(_on_screen_glow_toggled)
 	ui.volume_changed.connect(_on_volume_changed)
+	ui.core_selected.connect(_on_core_selected)
 	ui.close_requested.connect(hide_panel)
 	ui.saves_source_picked.connect(_on_saves_source_picked)
 	ui.control_requested.connect(_on_control_requested)
@@ -131,6 +136,7 @@ func _populate() -> void:
 	_controls_state = _system.controls_state()
 	ui.populate_controls(_controls_state)
 	ui.populate_debug(_system.debug_state())
+	ui.populate_cores(_system.core_choices(), _system.core_name, _system.default_core_name())
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
 	var core := str(snap["core"])
@@ -347,6 +353,13 @@ func _on_port_device_changed(port: int, device_id: int) -> void:
 	if _system and is_instance_valid(_system):
 		print("[CoreOptionsPanel] port %d device → %d" % [port, device_id])
 		_system.set_controller_port_device(port, device_id)
+
+
+## System-tab picker: which core runs this machine.
+func _on_core_selected(core: String) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_core_choice(core)
+		_populate()
 
 
 func _on_pad_device_changed(guid: String, ordinal: int) -> void:
