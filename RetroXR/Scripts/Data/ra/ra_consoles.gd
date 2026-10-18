@@ -86,9 +86,8 @@ const CONSOLE_MAP := {
 	"gameandwatch": 60,    # RC_CONSOLE_GAME_AND_WATCH
 	"uzebox": 80,                 # RC_CONSOLE_UZEBOX
 
-	# Arcade. Both cabinets resolve to the one RA console.
-	"mame": 27,                   # RC_CONSOLE_ARCADE
-	"fbneo": 27,               # RC_CONSOLE_ARCADE
+	# Arcade. The one cabinet, and Neo Geo (its sets are arcade sets), are the one RA console.
+	"arcade": 27,                 # RC_CONSOLE_ARCADE
 	"neogeo": 27,                 # RC_CONSOLE_ARCADE — MVS/AES sets live here
 
 	# Home computers
@@ -127,7 +126,7 @@ const UNSUPPORTED := [
 static func for_systemid(systemid: String) -> int:
 	if systemid.is_empty():
 		return 0
-	return int(CONSOLE_MAP.get(systemid, 0))
+	return int(CONSOLE_MAP.get(SystemIds.canonical(systemid), 0))
 
 
 ## True when this system can take part in RetroAchievements at all.

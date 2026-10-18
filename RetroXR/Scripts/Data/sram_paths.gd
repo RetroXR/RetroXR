@@ -30,8 +30,10 @@ class_name SramPaths
 extends RefCounted
 
 ## Systems whose SAVE_RAM is not the same bytes on every core that runs them, so
-## their cartridge saves stay keyed by core.
-const PER_CORE_SYSTEMS: Array[String] = ["n64", "n64dd", "fds"]
+## their cartridge saves stay keyed by core. Arcade is here since mame, fbneo and
+## hbmame became one system: a game's NVRAM / EEPROM is the emulator's own layout
+## (MAME's and FinalBurn Neo's differ), and keyed by system they would share a file.
+const PER_CORE_SYSTEMS: Array[String] = ["n64", "n64dd", "fds", "arcade"]
 
 
 static func game_stem(rom_path: String) -> String:

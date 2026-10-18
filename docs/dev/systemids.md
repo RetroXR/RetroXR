@@ -38,6 +38,16 @@ python Tools/rename_systemids.py --check RetroXR/libretro-core-info     # exits 
 red after an un-renamed refresh, where everything else would quietly index a platform
 under a name nothing else uses.
 
+## Ids that became ONE: `SystemIds.MERGED`
+
+`LEGACY` is 1:1 by contract (`systems_data_tests` `ids/` fails if two old ids become the same
+system) and its migration RENAMES the player's ROM folder. Neither is right for `mame`,
+`fbneo` and `hbmame`, which are three emulators of the one `arcade` machine, so they live in
+`MERGED`: `canonical()` reads them (saved rooms, bindings, ledgers, mods, `SystemInfo.for_system`,
+`ScreenscraperSystems`, `RaConsoles`), `Tools/rename_systemids.py` rewrites the `.info` files with
+them, and **nothing on disk is moved** — their ROM folders are `FOLDER_ALIASES["arcade"]`, scanned and
+never written to. `LEGACY["fb_alpha"]` points straight at `arcade` (a chain would be read once).
+
 ## Old ids on a player's disk
 
 | where | how it is read |

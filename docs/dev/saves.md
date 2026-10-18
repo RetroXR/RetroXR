@@ -36,8 +36,8 @@ names it. Read at source:
 | mesen | `mapper->GetSaveRam()` |
 | snes9x | the SRAM, capped at `0x20000` |
 
-**`PER_CORE_SYSTEMS` is `n64`, `n64dd` and `fds`**, and each is a measured
-incompatibility rather than a precaution:
+**`PER_CORE_SYSTEMS` is `n64`, `n64dd`, `fds` and `arcade`** (arcade since `mame`/`fbneo`/`hbmame` became one system, 2026-10-18), and each but `arcade` is a measured
+incompatibility rather than a precaution (`arcade` IS a precaution: MAME's and FinalBurn Neo's NVRAM layouts are known to differ, no core pair was compared):
 
 - Both N64 cores return a `save_memory_data` struct with **no magic and no version**.
   mupen64plus-next's is `eeprom[0x800]`, `mempack[0x8000 * 4]`, `sram[0x8000]`,

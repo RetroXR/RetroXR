@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b25wa1m2p1f4h"
-path="res://.godot/imported/fbneo-content.svg-d2310de38034dd4154be6267dc8824d2.ctex"
+uid="uid://g4cjefdnhgep"
+path="res://.godot/imported/arcade-content.svg-f0b0625e8bad84ca59debe68ce1376e5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://Textures/SystemIcons/fbneo-content.svg"
-dest_files=["res://.godot/imported/fbneo-content.svg-d2310de38034dd4154be6267dc8824d2.ctex"]
+source_file="res://Textures/SystemIcons/arcade-content.svg"
+dest_files=["res://.godot/imported/arcade-content.svg-f0b0625e8bad84ca59debe68ce1376e5.ctex"]
 
 [params]
 
