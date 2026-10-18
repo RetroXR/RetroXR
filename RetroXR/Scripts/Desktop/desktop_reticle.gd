@@ -5,16 +5,22 @@
 ## when the viewport is running in XR mode (headset connected).
 extends Control
 
+## How full the hold-to-grab ring around the crosshair is, 0 (hidden) to 1. Set through the
+## "desktop_reticle" group by DesktopPickup while a long grab is being held.
+var _hold: float = 0.0
+
+
 func _ready() -> void:
+	add_to_group("desktop_reticle")
 	# Anchor to screen centre, 32×32 px hotspot
 	anchor_left   = 0.5
 	anchor_top    = 0.5
 	anchor_right  = 0.5
 	anchor_bottom = 0.5
-	offset_left   = -16.0
-	offset_top    = -16.0
-	offset_right  = 16.0
-	offset_bottom = 16.0
+	offset_left   = -32.0
+	offset_top    = -32.0
+	offset_right  = 32.0
+	offset_bottom = 32.0
 	mouse_filter  = Control.MOUSE_FILTER_IGNORE
 
 	# Hide when VR is active (use_xr is set true by xr_init.gd)
@@ -44,3 +50,22 @@ func _draw() -> void:
 
 	# Centre dot
 	draw_circle(c, 1.5, col)
+
+	# The hold-to-grab ring: a faint track, and the share filled so far, clockwise from the top.
+	if _hold > 0.0:
+		var radius := 22.0
+		draw_arc(c, radius, 0.0, TAU, 64, Color(1, 1, 1, 0.3), 4.0, true)
+		draw_arc(c, radius, -PI * 0.5, -PI * 0.5 + TAU * _hold, 64, Color(0.55, 0.85, 1.0, 1.0), 5.0, true)
+
+
+## Fill the ring around the crosshair: 0 hides it, 1 is a full circle.
+func set_hold_progress(p: float) -> void:
+	var clamped := clampf(p, 0.0, 1.0)
+	if is_equal_approx(clamped, _hold):
+		return
+	_hold = clamped
+	queue_redraw()
+
+
+func get_hold_progress() -> float:
+	return _hold
