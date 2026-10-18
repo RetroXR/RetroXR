@@ -33,7 +33,7 @@ const _STRING_FIELDS := [
 	"systemid", "model_id", "model_variant", "tv_model", "rom_path", "game_label", "save_id",
 	"cart_systemid", "card_id", "card_label", "pdf_path", "scene", "video_path",
 	"video_label", "dvd_path", "dvd_label", "album_path", "album_label", "kind",
-	"pad_guid", "pad_name", "image_path",
+	"pad_guid", "pad_name", "image_path", "core_name",
 	# Which expansion a unit is -- a key in ExpansionCatalog.ROWS.
 	"expansion_id",
 	# The image of the memory built into a console -- see ConsoleMemory.
@@ -2074,6 +2074,9 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	if not sys.pad_guid.is_empty():
 		result["pad_guid"] = sys.pad_guid
 		result["pad_ordinal"] = sys.pad_ordinal
+	# The core the player picked for THIS machine (empty = its system's default).
+	if not sys.core_name.is_empty():
+		result["core_name"] = sys.core_name
 	# Clamshell lid angle (DS/3DS); omitted for systems without a lid.
 	var lid_angle := sys.get_lid_angle_deg()
 	if lid_angle >= 0.0:
@@ -2930,6 +2933,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				sys.model_variant = str(data.get("model_variant", ""))
 				sys.pad_guid = str(data.get("pad_guid", ""))
 				sys.pad_ordinal = int(data.get("pad_ordinal", 0))
+				sys.core_name = str(data.get("core_name", ""))
 				sys.ignore_gravity = bool(data.get("ignore_gravity", false))
 				sys.console_memory_id = str(data.get("console_memory", ""))
 				# Before the caller adds it to the tree, like the fields above:

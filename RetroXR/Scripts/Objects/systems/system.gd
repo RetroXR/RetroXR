@@ -741,6 +741,7 @@ func _load_system_model() -> void:
 	_model.build_serial_port(self, systemid)
 	_build_builtin_ethernet_port()
 	_model.configure_collision(self)
+	_model.attach_to_host(self)
 	_build_port_zones()
 	_build_usb_ports()
 	_spawn_captive_controllers()
@@ -825,7 +826,7 @@ func _build_port_zones() -> void:
 	if not _model.is_handheld():
 		port_count = _model.get_controller_port_count()
 		var info := SystemInfo.for_system(systemid)
-		if info and info.native_ports > 0:
+		if info and info.native_ports > 0 and not _model.port_count_is_fixed():
 			port_count = info.native_ports
 		port_count = clampi(port_count, 1, _port_zones.size())
 	for i in range(_port_zones.size()):
@@ -1182,6 +1183,93 @@ func grip_anchor(is_left: bool) -> Variant:
 	if _model != null and _model.has_method("get_grip_anchor"):
 		return _model.get_grip_anchor(is_left)
 	return null
+
+
+## Where the options panel goes, in world space, when the hardware wants it somewhere other
+## than over its top (see RetroSystemModel.options_panel_anchor); null for the default.
+func options_panel_anchor(panel_size: Vector2) -> Variant:
+	if _model == null:
+		return null
+	var local: Variant = _model.options_panel_anchor(panel_size)
+	return null if local == null else global_transform * (local as Vector3)
+
+
+## Where notices about this machine go, in world space, when its hardware wants them somewhere
+## other than the default (RetroSystemModel.toast_anchor); null for the default.
+func toast_anchor_world() -> Variant:
+	if _model == null:
+		return null
+	var local: Variant = _model.toast_anchor()
+	if local is Transform3D:
+		return global_transform * (local as Transform3D)
+	return null if local == null else global_transform * (local as Vector3)
+
+
+## The cores installed that can run this machine's system, recommended first, as
+## [{core_name, label}]. What the System tab's core picker offers.
+func core_choices() -> Array:
+	var out: Array = []
+	var db := CoreInfoDatabase.shared()
+	for cn: String in CoreDownloadManager.installed_core_names():
+		var sids := CoreInfoDatabase.systemids_of(db.get_by_core_name(cn))
+		if core_serves_machine(sids, systemid):
+			out.append({"core_name": cn, "label": RomCompat.core_label(cn)})
+	return CoreRecommendations.first(systemid, out)
+
+
+## Whether a core that declares `core_systemids` can run a machine of system `machine_systemid`.
+## Usually the machine's own system; but an ARCADE cabinet runs a romset, and MAME and FBNeo
+## both run those: the cabinet of one tile can take the other's core (and the older MAME and
+## FBAlpha cores some .info files file under the plain `arcade` id).
+static func core_serves_machine(core_systemids: Array, machine_systemid: String) -> bool:
+	# Both sides through canonical(): a saved cabinet may still say `mame`, the cores say `arcade`,
+	# and comparing the raw strings left every arcade core out of the cabinet's list.
+	var machine := SystemIds.canonical(machine_systemid)
+	for sid: Variant in core_systemids:
+		if SystemIds.canonical(str(sid)) == machine:
+			return true
+	if ArcadeProfiles.is_arcade_system(machine):
+		for sid: Variant in core_systemids:
+			if ArcadeProfiles.is_arcade_system(str(sid)) or ArcadeProfiles.ARCADE_ALIASES.has(str(sid)):
+				return true
+	return false
+
+
+## The core this machine runs when nothing is picked on it: the CORES panel's default.
+func default_core_name() -> String:
+	var defaults := CoreDefaults.new()
+	defaults.setup(CoreDefaults.default_path())
+	return defaults.get_default_core(systemid)
+
+
+## Pick the core THIS machine runs ("" = the default for its system). A running machine
+## is switched off first: a core cannot be swapped under a game. The options the panel shows
+## are the new core's, and the choice is saved with the room.
+func set_core_choice(core: String) -> void:
+	if core == core_name:
+		return
+	print("[RetroSystem] core for '%s': '%s' -> '%s'" % [name, core_name, core])
+	if is_powered_on:
+		power_off()
+	core_name = core
+	_options_definitions = {}
+	_options_values = {}
+	_load_prelaunch_options()
+	if _options_panel != null and _options_panel.visible:
+		_options_panel.refresh()
+
+
+## How long the grab has to be held on this machine before it is picked up (HoldToGrab):
+## 0 for an ordinary console, a couple of seconds for something that must not be carried
+## off by accident.
+func grab_hold_seconds() -> float:
+	return _model.grab_hold_seconds() if _model != null else 0.0
+
+
+## Whether this hardware is too big to hold, so the spawn menu stands it on the floor
+## rather than putting it in a hand.
+func spawns_on_floor() -> bool:
+	return _model != null and _model.spawns_on_floor()
 
 
 ## Interior open angle of a clamshell handheld's lid (0 shut … 180 flat), or
@@ -3928,8 +4016,11 @@ func _on_content_load_failed(reason: String) -> void:
 	var absent := BiosBoot.absent_media_boot_roms(_resolve_core(), _media_systemid())
 	var toast := _machine_toast()
 	if toast != null:
-		toast.show_notice(_display_name(), "Could not start",
-			_load_failed_detail(reason, absent), AchievementToast.ACCENT_NOTICE)
+		var detail := _load_failed_detail(reason, absent)
+		# An arcade game that names a missing file needs its BIOS or device set beside it.
+		if ArcadeProfiles.is_arcade_system(systemid) and reason.contains("NOT FOUND"):
+			detail += "\nMAME/FBNeo games need their BIOS or device ROM sets (qsound.zip, cps2.zip, neogeo.zip...) in the same roms folder as the game."
+		toast.show_notice(_display_name(), "Could not start", detail, AchievementToast.ACCENT_NOTICE)
 
 
 ## What a refused load says. A game that needs a regional BIOS some of which is
