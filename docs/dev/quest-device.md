@@ -27,6 +27,23 @@ adb install -r out.apk        # -r keeps app data
   that certainly had it).
 - `FileAccess.file_exists("res://….tscn")` is **false in exported builds** (paths are
   remapped into the pck) — use `ResourceLoader.exists()`.
+- **`INSTALL_FAILED_UPDATE_INCOMPATIBLE ... signatures do not match`** (2026-10-18): the
+  device holds an APK signed with a different key than the one exporting. A release/CI
+  build is signed `CN=retroXR` (`ANDROID_KEYSTORE_*` secrets, never on a dev PC); the
+  editor's Run and `--export-debug` sign with Godot's debug keystore
+  (`%APPDATA%\Godot\keystores\debug.keystore`, `CN=Android Debug`). Android will not
+  update across keys and `adb install -r`/`-d` cannot override it. Compare with
+  `apksigner verify --print-certs <apk>` (pull the installed one via `pm path`).
+  The only way out is `adb uninstall com.xenu.retroxr`, which ALSO deletes
+  `/sdcard/Android/data/com.xenu.retroxr/` (ROMs, mods) and the internal `user://`.
+  **Back both up first**: `adb pull /sdcard/Android/data/com.xenu.retroxr/files ext`
+  and `adb exec-out run-as com.xenu.retroxr tar cf - files > internal.tar`. Restore
+  internal with `adb push` to `/data/local/tmp` then
+  `run-as com.xenu.retroxr tar xf …` (app-owned, so it can still write it). For external,
+  launch the app once so it creates its own folders, then push FILES only into them (not
+  `.romm/` dirs, not `romm_config.json`: pushed files are `shell`-owned and the app can
+  never overwrite them, and `run-as` cannot reach `/sdcard`, so RomM must be re-paired).
+  Keep the debug keystore: losing it forces this again on the next install.
 
 ### Launching with no one wearing it — ALL three are required
 ```bash
