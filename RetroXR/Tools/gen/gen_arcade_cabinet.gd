@@ -26,8 +26,14 @@ const SIDE_T := 0.02
 const PROFILE := [
 	Vector2(-0.40, 0.00), Vector2(0.34, 0.00), Vector2(0.34, 0.09), Vector2(0.40, 0.09),
 	Vector2(0.40, 0.78), Vector2(0.47, 0.80), Vector2(0.47, 0.92), Vector2(0.30, 1.00),
-	Vector2(0.15, 1.46), Vector2(0.36, 1.46), Vector2(0.36, 1.80), Vector2(-0.40, 1.80),
+	Vector2(0.07, 1.46), Vector2(0.18, 1.46), Vector2(0.18, 1.80), Vector2(-0.40, 1.80),
 ]
+# The glass runs along the silhouette's slanted edge, deck's back edge to the marquee's underside
+# (about 27 degrees off the vertical, leaning back as on a real upright); the tube sits INSIDE the
+# cabinet, this far behind the glass, between the side panels.
+const GLASS_A := Vector2(0.30, 1.00)
+const GLASS_B := Vector2(0.07, 1.46)
+const TUBE_DEPTH := 0.07
 
 const SCRIPTS := {
 	"model": "res://Scripts/Objects/system_models/arcade_cabinet_model.gd",
@@ -83,7 +89,7 @@ func _build_shell(cab: Node3D) -> void:
 		mi.mesh = side_mesh
 		mi.material_override = _body
 	U.box(_root, cab, "Rear", Vector3(IN_W, 1.80, 0.02), Vector3(0, 0.90, -0.39), _body)
-	U.box(_root, cab, "Top", Vector3(IN_W, 0.02, 0.76), Vector3(0, 1.79, -0.02), _body)
+	U.box(_root, cab, "Top", Vector3(IN_W, 0.02, 0.56), Vector3(0, 1.79, -0.11), _body)
 	U.box(_root, cab, "Floor", Vector3(IN_W, 0.02, 0.74), Vector3(0, 0.01, 0.0), _body)
 	U.box(_root, cab, "KickPlate", Vector3(IN_W, 0.09, 0.02), Vector3(0, 0.045, 0.34), _dark)
 	# Coin area: the front between the bay door and the control panel.
@@ -93,7 +99,7 @@ func _build_shell(cab: Node3D) -> void:
 	U.box(_root, cab, "ApronTrim", Vector3(IN_W, 0.012, 0.022), Vector3(0, 0.806, 0.462), _trim)
 	# Marquee: a lit panel above the monitor, so it glows when the machine is on.
 	var marquee_mat := U.mat(Color(0.95, 0.35, 0.20), 0.0, 0.5, Color(1.0, 0.45, 0.25), 0.0)
-	var marquee := U.box(_root, cab, "Marquee", Vector3(IN_W, 0.31, 0.012), Vector3(0, 1.62, 0.354), marquee_mat)
+	var marquee := U.box(_root, cab, "Marquee", Vector3(IN_W, 0.31, 0.012), Vector3(0, 1.62, 0.174), marquee_mat)
 	var title := U.node(_root, marquee, "Label3D", "MarqueeTitle", Vector3(0, 0, 0.0075)) as Label3D
 	title.text = "ARCADE"
 	title.pixel_size = 0.0013
@@ -101,17 +107,20 @@ func _build_shell(cab: Node3D) -> void:
 	title.modulate = Color(1.0, 0.95, 0.85)
 	title.outline_size = 0
 	title.no_depth_test = false
-	U.box(_root, cab, "MarqueeTrim", Vector3(IN_W, 0.012, 0.022), Vector3(0, 1.459, 0.354), _trim)
+	U.box(_root, cab, "MarqueeTrim", Vector3(IN_W, 0.012, 0.022), Vector3(0, 1.459, 0.174), _trim)
+	# The underside of the marquee's overhang, closing the cabinet over the top of the glass.
+	U.box(_root, cab, "MarqueeUnder", Vector3(IN_W, 0.012, 0.11), Vector3(0, 1.454, 0.125), _dark)
 
 
 # ── monitor ─────────────────────────────────────────────────────────────────
 
 func _build_monitor() -> void:
-	# The tube runs from the deck's back edge (z 0.30, y 1.00) to the marquee's underside
-	# (z 0.15, y 1.46): tilted back about 18 degrees, so the picture looks up at the player
-	# as it does on a real cabinet, behind a pane of glass in a black frame.
-	var a := Vector2(0.30, 1.00)
-	var b := Vector2(0.15, 1.46)
+	# The glass is the silhouette's own slanted edge, so it is part of the cabinet and not a
+	# panel in front of it; the tube is TUBE_DEPTH behind it, inside, between the side panels,
+	# and the frame is a black bezel hiding the tube's edge. Local +Z is the glass's normal
+	# (up and out toward the player), so everything "behind the glass" is a negative z.
+	var a := GLASS_A
+	var b := GLASS_B
 	var mid := (a + b) * 0.5
 	var along := b - a
 	var theta := atan2(along.x, along.y)   # rotation about X taking +Y onto `along` (z, y)
@@ -119,28 +128,32 @@ func _build_monitor() -> void:
 	var mod := U.node(_root, _root, "Node3D", "Screen", Vector3(0, mid.y, mid.x)) as Node3D
 	mod.set_script(load(SCRIPTS["screen"]))
 	mod.basis = basis
-	U.box(_root, mod, "Bezel", Vector3(IN_W, along.length(), 0.012), Vector3.ZERO, _dark)
-	var screen := U.quad(_root, mod, "CabinetScreen", Vector2(0.38, 0.285), Vector3(0, 0.005, 0.0072),
+	var length := along.length()
+	# The tube's enclosure: a dark board behind the picture, as wide as the cabinet.
+	U.box(_root, mod, "Bezel", Vector3(IN_W, length, 0.012), Vector3(0, 0, -TUBE_DEPTH - 0.006), _dark)
+	var screen := U.quad(_root, mod, "CabinetScreen", Vector2(0.44, 0.33), Vector3(0, 0.005, -TUBE_DEPTH + 0.0005),
 		U.mat(Color(0.015, 0.017, 0.02), 0.0, 0.12))
 	screen.name = "CabinetScreen"
-	# The classic glass: a pane a few centimetres in front of the tube, with a black frame
-	# around it that hides the tube's edge. Translucent, so the picture shows through.
+	# The classic glass: a translucent pane flush with the cabinet's front, the picture showing
+	# through it, in a black frame whose outer face is the glass's own plane.
 	var glass_mat := U.mat(Color(0.55, 0.65, 0.75, 0.035), 0.0, 0.04)
 	glass_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	glass_mat.specular_mode = BaseMaterial3D.SPECULAR_SCHLICK_GGX
 	glass_mat.metallic_specular = 1.0
-	var glass := U.quad(_root, mod, "Glass", Vector2(0.46, 0.36), Vector3(0, 0.005, 0.040), glass_mat)
+	var glass_w := 0.50
+	var glass_h := length - 0.11
+	var glass := U.quad(_root, mod, "Glass", Vector2(glass_w, glass_h), Vector3(0, 0, -0.004), glass_mat)
 	glass.name = "Glass"
-	var bar_t := 0.014
-	var fz := 0.046
-	var side_w := (IN_W - 0.46) * 0.5
-	var top_h := (along.length() - 0.36) * 0.5 - 0.0
+	var bar_t := 0.012
+	var fz := -bar_t * 0.5
+	var side_w := (IN_W - glass_w) * 0.5
+	var top_h := (length - glass_h) * 0.5
 	for sx in [-1.0, 1.0]:
-		U.box(_root, mod, "FrameSide%s" % ("L" if sx < 0 else "R"), Vector3(side_w, along.length(), bar_t),
-			Vector3(sx * (0.23 + side_w * 0.5), 0, fz), _dark)
+		U.box(_root, mod, "FrameSide%s" % ("L" if sx < 0 else "R"), Vector3(side_w, length, bar_t),
+			Vector3(sx * (glass_w * 0.5 + side_w * 0.5), 0, fz), _dark)
 	for sy in [-1.0, 1.0]:
-		U.box(_root, mod, "Frame%s" % ("Top" if sy > 0 else "Bottom"), Vector3(0.46, top_h, bar_t),
-			Vector3(0, 0.005 + sy * (0.18 + top_h * 0.5), fz), _dark)
+		U.box(_root, mod, "Frame%s" % ("Top" if sy > 0 else "Bottom"), Vector3(glass_w, top_h, bar_t),
+			Vector3(0, sy * (glass_h * 0.5 + top_h * 0.5), fz), _dark)
 
 
 # ── control deck ────────────────────────────────────────────────────────────
