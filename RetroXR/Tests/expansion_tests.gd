@@ -949,6 +949,10 @@ func _group_sgb() -> void:
 	_ok(sgb._accepts_media(gb), "sgb/ that slot takes a Game Boy cartridge")
 	_ok(not sgb._accepts_media(await _cart("snes", "/roms/snes/x.sfc")),
 		"sgb/ and refuses a Super Famicom one")
+	# The Color library's cartridges go in too, as on the hardware: a black
+	# dual-mode one plays, a Color-only one shows its own "Game Boy Color only".
+	_ok(sgb._accepts_media(await _cart("gbc", "/roms/gbc/game.gbc")),
+		"sgb/ that slot takes a Game Boy Color cartridge")
 
 	sfc.restore_cartridge(sgb)
 	sgb.restore_media(gb)
@@ -2483,6 +2487,21 @@ func _group_disk() -> void:
 	var plain := await _unit("sega_cd")
 	_ok(plain.get_node_or_null("ExpansionSocket/ConnectorPlate") != null,
 		"disk/ while the primitive box keeps its plate")
+	# The same for a unit standing ON its console: a pak given a shell (as the
+	# N64 paks mod does) has no plate hanging under it as a block.
+	var box_pak := await _unit("jumper_pak")
+	_ok(box_pak.get_node_or_null("ExpansionFoot/ConnectorPlate") != null,
+		"disk/ a Jumper Pak drawn as a box stands on a plate")
+	var refused := ExpansionCatalog.register_mod_shell("jumper_pak",
+		{"shell": "res://imported-assets/consoles/sega_32x/sega32x.glb", "size": Vector3(0.05, 0.05, 0.02)},
+		"test.pakshell")
+	_ok(refused.is_empty(), "disk/ a test shell for the Jumper Pak registers %s" % refused)
+	var shelled_pak := await _unit("jumper_pak")
+	_ok(shelled_pak.get_node_or_null("Shell") != null
+		and shelled_pak.get_node_or_null("ExpansionFoot") != null
+		and shelled_pak.get_node_or_null("ExpansionFoot/ConnectorPlate") == null,
+		"disk/ one wearing a shell has its foot and no plate under it")
+	ExpansionCatalog.drop_mod("test.pakshell")
 	var marker := dd.get_node_or_null("Shell/SocketMarker") as Node3D
 	var bay := dd.get_node("MediaBay") as Node3D
 	_ok(marker != null and absf(bay.position.y - dd.to_local(marker.global_position).y) < 0.001,

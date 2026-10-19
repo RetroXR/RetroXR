@@ -1093,6 +1093,10 @@ func _group_pak() -> void:
 		await _wait(4)
 		_ok(bay.snap_filter.call(gb), "pak/the bay takes a Game Boy cartridge")
 		_ok(not bay.snap_filter.call(snes), "pak/and refuses a Super Famicom one")
+		# The Color library's cartridges fit too: Pokemon Gold and Crystal (Color
+		# only) are what Stadium 2 reads through this pak.
+		var color := await _cart("gbc")
+		_ok(bay.snap_filter.call(color), "pak/the bay takes a Game Boy Color cartridge")
 
 		# snap_filter and pick_up_object are BOTH blind to snap_require, so a bay
 		# missing it passes every case above and cannot be loaded by hand: no ghost

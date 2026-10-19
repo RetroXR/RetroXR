@@ -14,7 +14,8 @@ extends N64Pak
 
 const PLUG_SYSTEMID := "n64_transfer_pak"
 
-## What this pak's own bay will take, and nothing else.
+## What this pak's own bay is for: Game Boy cartridges, the Color library's with
+## them (GbCartShell.is_shell).
 const MEDIA_SYSTEMID := "gb"
 
 ## The cartridge in the roof changed. The controller cannot watch this bay
@@ -52,7 +53,10 @@ func _accepts_cart(obj: Node3D) -> bool:
 	if obj == null or not ("systemid" in obj):
 		return false
 	var mid := str(obj.get("systemid"))
-	return mid.is_empty() or mid == MEDIA_SYSTEMID
+	# The Color library's cartridges fit too, as on the hardware: Pokemon Gold,
+	# Silver and Crystal (Crystal is Color only) are what Pokemon Stadium 2 reads
+	# through this pak.
+	return mid.is_empty() or GbCartShell.is_shell(mid)
 
 
 func _on_cart_seated(cart: Node3D) -> void:
@@ -94,8 +98,9 @@ func cart_rom_path() -> String:
 ## Keyed off the CARTRIDGE, the same way the Super Game Boy's Game Boy cartridge
 ## is: the battery is in the cartridge, not in the pak, so a save follows the
 ## cartridge from pak to pak and does not follow the pak from game to game. Filed
-## under MEDIA_SYSTEMID, so it is the same file a Game Boy playing that cartridge
-## reads.
+## under the cartridge's own library (MEDIA_SYSTEMID for a blank one), so it is
+## the same file a Game Boy or Game Boy Color playing that cartridge reads, as the
+## Super Game Boy's is (SramPaths.media_systemid).
 func cart_save_path(core_name: String) -> String:
 	var rom := cart_rom_path()
 	if rom.is_empty():
@@ -103,7 +108,7 @@ func cart_save_path(core_name: String) -> String:
 	var save_id := str(_cart.get("save_id")) if "save_id" in _cart else ""
 	if save_id.is_empty():
 		save_id = rom.get_file().get_basename()
-	return SramPaths.resolve_cart_save(MEDIA_SYSTEMID, core_name, rom, save_id)
+	return SramPaths.resolve_cart_save(SramPaths.media_systemid(_cart, MEDIA_SYSTEMID), core_name, rom, save_id)
 
 
 ## Where that cartridge's real-time clock is kept: beside its battery, and keyed

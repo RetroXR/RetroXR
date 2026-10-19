@@ -501,7 +501,9 @@ func _build_connector() -> void:
 		# We stand on the console: we wear the foot, and the console's own socket
 		# is what takes us. Registered by hand because XRToolsPickable collects
 		# grab points in its _ready, which has already run by the time we get here.
-		_foot = ExpansionPort.build_foot(self, -s.y * 0.5, span)
+		# A shell molds its own connector: the plate is for the primitive box,
+		# and under a Jumper Pak's shell it hung below it as a block.
+		_foot = ExpansionPort.build_foot(self, -s.y * 0.5, span, _shell == null)
 		_grab_points.push_back(_foot)
 
 
@@ -887,7 +889,13 @@ func _accepts_media(obj: Node3D) -> bool:
 	if obj == null or not ("systemid" in obj):
 		return false
 	var mid := str(obj.get("systemid"))
-	return mid.is_empty() or mid == ExpansionCatalog.media_of(expansion_id)
+	var media := ExpansionCatalog.media_of(expansion_id)
+	if mid.is_empty() or mid == media:
+		return true
+	# A Game Boy bay (the Super Game Boys') takes the Color library's cartridges
+	# as well, as the hardware does: the black dual-mode ones play, and a
+	# Color-only game puts up its own "Game Boy Color only" screen.
+	return media == GbCartShell.SYSTEMID and GbCartShell.is_shell(mid)
 
 
 func _on_media_in(media: Node3D, slot := 0) -> void:
