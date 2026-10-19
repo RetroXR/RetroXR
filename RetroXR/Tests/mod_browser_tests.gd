@@ -6,6 +6,7 @@
 ##
 ## Groups:
 ##   install/   a vetted file lands in the mods root, disabled; a bad one never does
+##   enableall/ the Installed page's "Enable all": every mod that is off, at once
 ##   update/    one container per id, whatever the old one was called
 ##   mounted/   A MOUNTED PACK IS NOT TOUCHED UNTIL THE NEXT LAUNCH
 ##   remove/    removal, and the state it leaves behind
@@ -57,6 +58,7 @@ func _ready() -> void:
 
 	if _want("install"):   _group_install()
 	if _want("batch"):     _group_batch()
+	if _want("enableall"): _group_enable_all()
 	if _want("update"):    _group_update()
 	if _want("mounted"):   _group_mounted()
 	if _want("remove"):    _group_remove()
@@ -339,6 +341,26 @@ func _group_batch() -> void:
 	DirAccess.remove_absolute(broken)
 	out = m.install(broken, {}, bad_info)
 	_ok(not bool(out["ok"]), "batch/nor is vetting for a file that is no longer there")
+
+
+# ── enableall/ ────────────────────────────────────────────────────────────────
+
+## The Installed page's "Enable all": every mod that is off switched on at once,
+## saved, and nothing offered once none is off.
+func _group_enable_all() -> void:
+	var m := _fresh()
+	for i in 3:
+		var out: Dictionary = m.install(_stage(m, "all-%d.zip" % i, _pack("t.all%d" % i, "1.0.0")), {})
+		_ok(bool(out["ok"]), "enableall/member %d installs" % i, str(out["error"]))
+	m.set_enabled("t.all1", true)
+	_eq(m.switchable_off().size(), 2, "enableall/two of the three are off")
+	_eq(m.enable_all(), 2, "enableall/it switches on the two that were off")
+	_ok(m.is_enabled("t.all0") and m.is_enabled("t.all1") and m.is_enabled("t.all2"),
+		"enableall/and all three are on")
+	_ok(FileAccess.get_file_as_string(m.state_path_override).contains("\"t.all2\": true"),
+		"enableall/and that is saved")
+	_eq(m.enable_all(), 0, "enableall/with none off it does nothing")
+	_ok(m.switchable_off().is_empty(), "enableall/and offers nothing")
 
 
 # ── remove/ ───────────────────────────────────────────────────────────────────

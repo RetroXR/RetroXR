@@ -598,6 +598,32 @@ func set_enabled(id: String, enabled: bool) -> void:
 	_refresh_dependencies()
 
 
+## Mods the Installed page's "Enable all" would switch on: every one that is off
+## and could run, so not a refused one and not one whose removal is staged.
+func switchable_off() -> Array[String]:
+	var out: Array[String] = []
+	for id: String in _mods:
+		var rec: ModRecord = _mods[id]
+		if not is_enabled(id) and rec.status != Status.REFUSED and not rec.removal_staged:
+			out.append(id)
+	return out
+
+
+## Switch on every mod that is off and could run, as set_enabled would one by
+## one, and save once. Like set_enabled it mounts nothing: what it switched on
+## waits for apply_live or the next launch. Returns how many it switched on.
+func enable_all() -> int:
+	var ids := switchable_off()
+	for id: String in ids:
+		for other: String in switched_on_with(id):
+			_switch(other, true)
+		_switch(id, true)
+	if not ids.is_empty():
+		_save_state()
+		_refresh_dependencies()
+	return ids.size()
+
+
 func _switch(id: String, enabled: bool) -> void:
 	_enabled[id] = enabled
 	var rec: ModRecord = _mods[id]

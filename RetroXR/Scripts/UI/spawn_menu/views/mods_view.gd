@@ -1162,6 +1162,17 @@ func refresh_installed() -> void:
 			"No mods installed. Get one from the Browse tab, or drop a .zip or "
 			+ ".pck in the folder below."))
 	else:
+		# Every mod that is off and could run, switched on at once. The banner
+		# then offers to apply them, as it does after one switch.
+		var off := Mods.switchable_off()
+		if not off.is_empty():
+			var enable_all := MenuStyle.row_button("Enable all (%d)" % off.size(), 20, 260, 56, false)
+			enable_all.name = "EnableAllButton"
+			enable_all.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+			enable_all.pressed.connect(func() -> void:
+				Mods.enable_all()
+				refresh_installed())
+			_installed_list.add_child(enable_all)
 		var grid := GridContainer.new()
 		grid.columns = COLUMNS
 		grid.add_theme_constant_override("h_separation", 12)
