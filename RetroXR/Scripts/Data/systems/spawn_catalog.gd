@@ -218,7 +218,8 @@ const _NO_STANDIN_CONSOLE: Array[String] = ["dreamcast", "genesis"]
 ## the N64's: even its primitive box wears a Multi Out.
 ## The arcade cabinet is here for the opposite of a missing socket: its monitor is part
 ## of it, so there is no lead to run anywhere.
-const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes", "arcade"]
+const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes", "arcade",
+	"daphne", "dice"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets
 ## (av_port_channels() is empty), so a spawned lead has nothing to enter at that
@@ -384,6 +385,8 @@ const _LIGHT_GUN_PLATFORMS: Array = [
 	"atari800", "c64", "zxspectrum", "amstradcpc", "3do", "cdi",
 	# Gun cabinets were a whole genre: the cabinet's front sockets take one.
 	"arcade",
+	# The laserdisc shooters (Mad Dog McCree, Crime Patrol) were played with a gun too.
+	"daphne",
 ]
 
 
