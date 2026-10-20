@@ -34,6 +34,11 @@ var _dial_angle := 0.0
 var _grip: ArcadePanelGrip = null
 var _stick_target := Vector2.ZERO
 var _stick_current := Vector2.ZERO
+## The mask last drawn, so an unchanged one costs nothing: show_state runs every frame, and a
+## `position =` dirties the transform and goes to the renderer even when it writes the value it holds.
+var _shown_mask := -1
+## Whether the stick's basis has been written at all (the first tick always writes it once).
+var _stick_written := false
 
 
 func _init() -> void:
@@ -86,6 +91,9 @@ func grip() -> ArcadePanelGrip:
 ## Show the state that reached the core: sink the caps it presses and lean the stick.
 ## `mask` is the joypad mask.
 func show_state(mask: int) -> void:
+	if mask == _shown_mask:
+		return
+	_shown_mask = mask
 	for i in _caps.size():
 		var pressed := (mask & (1 << _cap_bits[i])) != 0
 		_caps[i].position = _cap_rest[i] + (Vector3(0, 0, -CAP_PRESS) if pressed else Vector3.ZERO)
@@ -103,7 +111,13 @@ func tick(delta: float) -> void:
 		_dial.basis = Basis(Vector3.BACK, _dial_angle)
 	if _stick == null:
 		return
+	# Settled: the lerp never reaches its target, so it used to rewrite the same basis every frame for ever.
+	if _stick_written and _stick_current == _stick_target:
+		return
+	_stick_written = true
 	_stick_current = _stick_current.lerp(_stick_target, STICK_BLEND)
+	if _stick_current.distance_squared_to(_stick_target) < 1.0e-6:
+		_stick_current = _stick_target
 	# Deck-local: +X right, +Y toward the monitor, the shaft along +Z. A turn about X
 	# leans it toward -Y (the player) for a positive angle, which is "down" on the
 	# pad; a turn about Y leans it toward +X, which is "right".
