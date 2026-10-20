@@ -1,4 +1,4 @@
-## Arcade self-tests — the Generic Arcade Cabinet, its JAMMA board and the input that
+## Arcade self-tests — the Primitive Arcade Cabinet, its JAMMA board and the input that
 ## reaches the core. Headless, no core, no ROM, no headset.
 ##
 ##     "$godot" --headless --path RetroXR res://Tests/arcade_tests.tscn
@@ -176,6 +176,24 @@ func _group_profiles() -> void:
 		"profiles: a mod's bay kind adds its systems")
 	ArcadeProfiles._mod_bays.erase("test_mvs")
 	_ok(not ArcadeProfiles.is_arcade_system("neogeo"), "profiles: and takes them away when it goes")
+	# The BIOS and device sets a core looks for are its declared firmware, which is what puts
+	# them on the BIOS list and finds them on RomM by file name. MAME's own .info declared
+	# none (the retroXR overlay adds them), so a refused game had nothing to download.
+	for core: String in ["mame", "fbneo"]:
+		var fw := {}
+		for row in FirmwareRequirements.for_core(core):
+			fw[(row["path"] as String).get_file()] = row
+		_ok(fw.has("neogeo.zip") and (fw["neogeo.zip"] as Dictionary)["optional"],
+			"profiles: %s lists the Neo Geo BIOS, optional (only Neo Geo games want it)" % core)
+	var mame_fw := {}
+	for row in FirmwareRequirements.for_core("mame"):
+		mame_fw[(row["path"] as String).get_file()] = (row["path"] as String)
+	_ok(mame_fw.get("qsound.zip", "") == "mame/bios/qsound.zip",
+		"profiles: MAME lists qsound.zip, in the folder it searches (mame/bios)")
+	var all_in_bios := true
+	for p in mame_fw.values():
+		all_in_bios = all_in_bios and (p as String).begins_with("mame/bios/")
+	_ok(all_in_bios and mame_fw.size() >= 10, "profiles: every set MAME lists goes under mame/bios (%d)" % mame_fw.size())
 
 
 # --- input ---------------------------------------------------------------------
@@ -219,6 +237,25 @@ func _group_input() -> void:
 		frames += 1
 	_ok(frames >= 4 and frames <= 8, "input: and lets go after about a tenth of a second (%d frames)" % frames)
 	_ok(not pulse.active(), "input: then it is spent")
+	# The cabinet's own keyboard layout, checked on the data: every button has a key, and no
+	# two actions share one (a shared key would press two buttons at once).
+	var keys := ArcadeProfiles.DESKTOP_KEYS
+	var seen := {}
+	var clash := ""
+	for action: String in keys:
+		var code := int((keys[action] as Dictionary).get("physical_keycode", 0))
+		if seen.has(code):
+			clash = "%s and %s share key %d" % [seen[code], action, code]
+		seen[code] = action
+	_ok(clash.is_empty(), "input: no two actions share a key" + ("" if clash.is_empty() else " (" + clash + ")"))
+	var six := ["RETRO_JOYPAD_B", "RETRO_JOYPAD_A", "RETRO_JOYPAD_Y", "RETRO_JOYPAD_X", "RETRO_JOYPAD_L", "RETRO_JOYPAD_R"]
+	var bound := true
+	for action in six:
+		bound = bound and keys.has(action)
+	_ok(bound and six.size() == ArcadeProfiles.BUTTON_COUNT,
+		"input: each of the six buttons has a key of the cabinet's own layout")
+	_ok(ArcadeProfiles.DESKTOP_KEYS.has("RETRO_JOYPAD_START") and ArcadeProfiles.DESKTOP_KEYS.has("RETRO_JOYPAD_SELECT"),
+		"input: START and the coin have keys")
 
 
 # --- screen --------------------------------------------------------------------
@@ -366,6 +403,16 @@ func _group_cabinet() -> void:
 	_ok(model.modules_of_kind(ArcadeProfiles.KIND_COIN).size() == 2, "cabinet: two coin doors")
 	_ok(model.modules_of_kind(ArcadeProfiles.KIND_BAY).size() == 1, "cabinet: one bay")
 	_ok(model.modules_of_kind(ArcadeProfiles.KIND_SOCKETS).size() == 1, "cabinet: one set of sockets")
+	# Two speakers, a stereo pair low in the front, either side of the coin door, facing
+	# the player. Left first. A centre or a sub is not a cabinet layout, so there are two.
+	var spk := model.audio_speaker_positions()
+	_ok(spk.size() == 2, "cabinet: two speakers, a stereo pair (%d)" % spk.size())
+	if spk.size() == 2:
+		_ok(spk[0].x < 0.0 and spk[1].x > 0.0 and is_equal_approx(spk[0].x, -spk[1].x),
+			"cabinet: the pair is left and right of the middle, equally far out")
+		_ok(spk[0].z > 0.0 and spk[1].z > 0.0 and spk[0].z >= 0.4,
+			"cabinet: both speakers face the player, in the front (z %.2f)" % spk[0].z)
+		_ok(spk[0].y > 0.1 and spk[0].y < 0.6, "cabinet: they sit low, under the control panel (y %.2f)" % spk[0].y)
 	var players := []
 	for m in model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS):
 		players.append(m.player)
@@ -378,8 +425,8 @@ func _group_cabinet() -> void:
 		"cabinet: and shows dark glass until a picture comes")
 	_ok(model.get_controller_port_count() == 2 and model.port_count_is_fixed(),
 		"cabinet: two sockets, and SystemInfo's four do not get a vote")
-	_ok(sys is RigidBody3D and (sys as RigidBody3D).axis_lock_angular_x and (sys as RigidBody3D).axis_lock_angular_z,
-		"cabinet: it stays upright: only yaw is free")
+	_ok(sys is RigidBody3D and (sys as RigidBody3D).center_of_mass.y > 0.2 and not (sys as RigidBody3D).axis_lock_angular_x,
+		"cabinet: it stands by itself: a low weight and a controller (arcade_variants_tests stand/), no lock at a tilt")
 	_ok(not ObjectLock.is_locked(sys) and (sys as XRToolsPickable).enabled,
 		"cabinet: and it can be picked up and moved, not locked where it spawned")
 	# The glass is the cabinet's own slanted front, and the tube sits inside it: a pane that
@@ -561,6 +608,11 @@ func _group_attach() -> void:
 	_ok((int(input.last_sent.get(0, 0)) & bit_b) == 0,
 		"attach: a key does not play a player you are not attached to")
 	g1.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, g1))
+	await _wait(3)
+	# Attaching puts the cabinet's own layout on the actions (B moves from the numpad to
+	# Ctrl), which clears a press still held from before: a player presses again, as they would.
+	Input.action_release("RETRO_JOYPAD_B")
+	Input.action_press("RETRO_JOYPAD_B")
 	await _wait(3)
 	_ok(g1.attached and (int(input.last_sent.get(0, 0)) & bit_b) != 0,
 		"attach: attached, a pressed key reaches the core as player 1's button")
@@ -824,7 +876,7 @@ func _group_card() -> void:
 		_ok(labels.has("Primitive Controller"), "card: a pad is offered, for the front sockets")
 		_ok(labels.has("Light Gun"), "card: and a gun")
 	var sys := await _cabinet("arcade")
-	_ok(sys.spawns_on_floor(), "card: a cabinet is stood on the floor, not handed to a hand")
+	_ok(not sys.spawns_on_floor(), "card: a cabinet is handed to the hand that spawned it, and the player stands it")
 	var pad := PAD_SCENE.instantiate() as Node3D
 	pad.position = Vector3(0, 3, 0)
 	add_child(pad)

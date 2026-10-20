@@ -1,11 +1,14 @@
-## Photographs the Generic Arcade Cabinet. WINDOWED, never --headless: the dummy
+## Photographs the Primitive Arcade Cabinet. WINDOWED, never --headless: the dummy
 ## renderer returns a correctly sized BLANK image, so a size check passes on nothing.
 ##
 ##   "$godot" --path RetroXR res://Tools/models/arcade_cabinet_probe.tscn \
 ##       --resolution 1280x720 --position 20,20 -- --out=/some/dir [--shots=front,three]
 ##
+## --model=<registry id> and --system=<systemid> photograph another cabinet (the default is
+## arcade_cabinet_generic on `arcade`); the extra shots `holster` and `pedal` are for the gun cabinets.
+##
 ## One PNG per shot, named <shot>.png in --out. Shots: front, three, side, panel, bay,
-## landscape, portrait, coin. The monitor shots feed the screen module a test card
+## landscape, portrait, coin, holster, pedal. The monitor shots feed the screen module a test card
 ## (a circle and a grid, so a stretch shows as an ellipse) of the shape a core would
 ## hand over: 384x224 CPS1 on a 4:3 tube, and a vertical 224x384 frame.
 ##
@@ -17,6 +20,8 @@ const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 
 var _out := "/tmp"
+var _model_id := "arcade_cabinet_generic"
+var _systemid := "arcade"
 var _shots: Array[String] = ["front", "three", "panel", "bay", "landscape", "portrait", "coin", "board", "boardside", "hover", "toast", "side"]
 var _cam: Camera3D
 var _sys: Node3D
@@ -27,6 +32,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--out="):
 			_out = a.substr(6)
+		elif a.begins_with("--model="):
+			_model_id = a.substr(8)
+		elif a.begins_with("--system="):
+			_systemid = a.substr(9)
 		elif a.begins_with("--shots="):
 			_shots.clear()
 			for s in a.substr(8).split(","):
@@ -39,8 +48,8 @@ func _ready() -> void:
 		LoadingOverlay.end(o)
 	LoadingOverlay.suspend()
 	_sys = SYSTEM_SCENE.instantiate()
-	_sys.model_id = "arcade_cabinet_generic"
-	_sys.systemid = "arcade"
+	_sys.model_id = _model_id
+	_sys.systemid = _systemid
 	_sys.freeze = true
 	add_child(_sys)
 	await _frames(8)
@@ -164,6 +173,44 @@ func _shot_side() -> void:
 	await _save("side")
 
 
+## The holsters, close: the guns hanging muzzle-down on the apron, and their cords.
+func _shot_holster() -> void:
+	_glass(384, 224)
+	_model.on_power_on()
+	await _frames(120)         # let the cords settle
+	_look(Vector3(0.45, 0.95, 1.35), Vector3(0.0, 0.62, 0.45))
+	await _save("holster")
+
+
+## One gun hanging in its holster, close, from the front.
+func _shot_gunclose() -> void:
+	_model.on_power_on()
+	await _frames(60)
+	_look(Vector3(-0.05, 0.80, 0.95), Vector3(-0.25, 0.72, 0.52))
+	await _save("gunclose")
+
+
+## The left gun, straight on and from its own side.
+func _shot_gunfront() -> void:
+	_model.on_power_on()
+	await _frames(60)
+	_look(Vector3(-0.25, 0.74, 1.15), Vector3(-0.25, 0.72, 0.5))
+	await _save("gunfront")
+
+
+func _shot_gunside() -> void:
+	_model.on_power_on()
+	await _frames(60)
+	_look(Vector3(-1.05, 0.72, 0.52), Vector3(-0.25, 0.70, 0.52))
+	await _save("gunside")
+
+
+## The pedal on the floor in front of the cabinet.
+func _shot_pedal() -> void:
+	_look(Vector3(0.9, 0.9, 1.9), Vector3(0.0, 0.1, 0.8))
+	await _save("pedal")
+
+
 func _shot_panel() -> void:
 	_look(Vector3(0, 1.55, 1.15), Vector3(0, 0.98, 0.4))
 	await _save("panel")
@@ -172,7 +219,7 @@ func _shot_panel() -> void:
 func _shot_bay() -> void:
 	_model.set_lid_angle_deg(90.0)
 	var cart := CART_SCENE.instantiate() as Node3D
-	cart.systemid = "arcade"
+	cart.systemid = _systemid
 	cart.rom_path = "/tmp/sf2.zip"
 	cart.game_label = "STREET FIGHTER II"
 	cart.freeze = true
@@ -214,7 +261,7 @@ func _make_board() -> void:
 	if _board != null:
 		return
 	_board = CART_SCENE.instantiate() as Node3D
-	_board.systemid = "arcade"
+	_board.systemid = _systemid
 	_board.rom_path = "/tmp/sf2.zip"
 	_board.game_label = "STREET FIGHTER II"
 	_board.freeze = true
