@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Turn the 64DD .ugc bundles into the drive and disk RetroXR ships.
+"""Turn the 64DD drive's .ugc bundles into the drive RetroXR ships.
 
-Inputs are four ``.ugc`` bundles (Unity AssetBundles): the retail and Dev Kit
-Nintendo 64 Disk Drive by ArilcedT, and the plain and blue 64DD disk by
-Mickemoose. They are converted with ugc-to-gltf, then reworked here:
+Inputs are two ``.ugc`` bundles (Unity AssetBundles): the retail and Dev Kit
+Nintendo 64 Disk Drive by ArilcedT. They are converted with ugc-to-gltf, then
+reworked here. (The disk is RetroXR-models' own: Tools/glb/prepare_64dd_disk.py.
+Mickemoose's disk bundles, which this script also turned into one, are no longer
+shipped.)
 
   drive   The two bundles carry identical geometry and identical normal / ORM
           maps; only the colour bake differs. One GLB is written, with the
@@ -18,13 +20,6 @@ Mickemoose. They are converted with ugc-to-gltf, then reworked here:
           ao / roughness / metallic maps. The LED's emission is zeroed so
           the room can drive it from the core's disk activity. Maps are resized
           from 4096 to 2048.
-
-  disk    One GLB, plain colour map bound, blue map beside it. The "Desync"
-          sticker and the socket empty are dropped. The model lies flat with
-          the label up and the shutter on -Z; the floppy contract is label
-          +Z, shutter +Y (it goes into the drive first) and the paper label
-          toward -Y, so positions and normals are rotated by
-          (x, y, z) -> (x, -z, y).
 
 Every texture is written as a PNG beside the GLB and referenced by uri, so
 the two colour variants share one mesh file.
@@ -51,20 +46,16 @@ from prepare_n64_pad import prune, read_glb, write_glb  # noqa: E402
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 OUT_DRIVE = os.path.join(REPO, "RetroXR", "imported-assets", "consoles", "nintendo_64dd")
-OUT_DISK = os.path.join(REPO, "RetroXR", "imported-assets", "carts", "nintendo_64dd")
 
 BUNDLES = {
     "drive": "Nintendo_64_Disk_Drive_a77d0ed5.ugc",
     "drive_dev": "Nintendo_64_Disk_Drive_(Dev_Kit)_bb88589e.ugc",
-    "disk": "64DD_Disk_9ff9560b.ugc",
-    "disk_blue": "64DD_Disk_(Blue)_17117013.ugc",
 }
 
 DRIVE_DROP = {"Plugs", "Cable Plug (YWR)", "RCA_Red", "RCA_White", "RCA_Yellow", "Cables",
               "Finger Button", "Finger Button (1)", "Finger Button (2)",
               "N64_DiskDrive_Butt", "N64_DiskDrive_LightLit"}
-DISK_DROP = {"Desync", "Media Socket"}
-FORBIDDEN = DRIVE_DROP | DISK_DROP
+FORBIDDEN = DRIVE_DROP
 
 # Seated pose of the socket, read off the bundle's close animation (the node
 # itself is baked at the open pose). The bundle mates the disk's own socket empty to
@@ -73,7 +64,6 @@ FORBIDDEN = DRIVE_DROP | DISK_DROP
 SOCKET_SEATED = [-0.0002, 0.0335 - 0.00508, -0.0698]
 
 DRIVE_YAW = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]], np.float32)
-DISK_TO_CART = np.array([[1, 0, 0], [0, 0, -1], [0, 1, 0]], np.float32)
 
 DRIVE_TEXTURE_SIZE = 2048
 
@@ -317,42 +307,6 @@ def build_drive(glbs: dict[str, str], src: str, out_dir: str) -> None:
     print(f"drive: dropped {dropped}")
 
 
-# ── Disk ─────────────────────────────────────────────────────────────────────
-
-def build_disk(glbs: dict[str, str], out_dir: str) -> None:
-    os.makedirs(out_dir, exist_ok=True)
-    gltf, blob = read_glb(glbs["disk"])
-    blob = bytearray(blob)
-    blue, blue_blob = read_glb(glbs["disk_blue"])
-
-    dropped = drop_nodes(gltf, DISK_DROP)
-    rename_nodes(gltf, {"64disk": "Shell"})
-    transform_geometry(gltf, blob, DISK_TO_CART)
-
-    color_i = image_index(gltf, "64DD Disk New Texture")
-    normal_i = image_index(gltf, "normal", (1024, 1024), blob)
-    label_i = image_index(gltf, "Label_Albedo")
-    label_n_i = image_index(gltf, "normal", (128, 512), blob)
-    save_png(image_pil(gltf, blob, color_i).convert("RGB"), os.path.join(out_dir, "n64dd_disk_color.png"))
-    save_png(image_pil(gltf, blob, normal_i).convert("RGB"), os.path.join(out_dir, "n64dd_disk_normal.png"))
-    save_png(image_pil(gltf, blob, label_i).convert("RGB"), os.path.join(out_dir, "n64dd_disk_label.png"))
-    save_png(image_pil(gltf, blob, label_n_i).convert("RGB"), os.path.join(out_dir, "n64dd_disk_label_normal.png"))
-    save_png(image_pil(blue, blue_blob, image_index(blue, "64DD Disk New Texture_Blue")).convert("RGB"),
-             os.path.join(out_dir, "n64dd_disk_color_blue.png"))
-    externalize(gltf, color_i, "n64dd_disk_color.png")
-    externalize(gltf, normal_i, "n64dd_disk_normal.png")
-    externalize(gltf, label_i, "n64dd_disk_label.png")
-    externalize(gltf, label_n_i, "n64dd_disk_label_normal.png")
-
-    material(gltf, "Material.016")["name"] = "shell"
-    material(gltf, "Quick_MediaLabel")["name"] = "label"
-
-    prune_materials(gltf)
-    blob = prune(gltf, bytes(blob))
-    write_glb(os.path.join(out_dir, "n64dd_disk.glb"), gltf, blob)
-    print(f"disk: dropped {dropped}")
-
-
 # ── Verify ───────────────────────────────────────────────────────────────────
 
 def verify(path: str) -> int:
@@ -406,17 +360,13 @@ def main() -> int:
     ap.add_argument("--converter", required=True, help="path to ugc_to_gltf.py")
     ap.add_argument("--work", required=True, help="scratch folder for the converter's GLBs")
     ap.add_argument("--out-drive", default=OUT_DRIVE)
-    ap.add_argument("--out-disk", default=OUT_DISK)
     ap.add_argument("--verify", action="store_true")
     a = ap.parse_args()
 
     glbs = convert(a.converter, a.src, a.work)
     build_drive(glbs, a.src, a.out_drive)
-    build_disk(glbs, a.out_disk)
     if a.verify:
-        bad = verify(os.path.join(a.out_drive, "n64dd_drive.glb"))
-        bad += verify(os.path.join(a.out_disk, "n64dd_disk.glb"))
-        return 1 if bad else 0
+        return 1 if verify(os.path.join(a.out_drive, "n64dd_drive.glb")) else 0
     return 0
 
 

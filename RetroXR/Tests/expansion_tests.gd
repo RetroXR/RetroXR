@@ -130,6 +130,27 @@ func _cart(systemid: String, path: String, title := "") -> Node3D:
 	return cart
 
 
+## The albedo a disk's model shows in its material named `mat_name`, override
+## and all; an impossible color when the model has no such material.
+func _disk_color(cart: Node3D, mat_name: String) -> Color:
+	var model := cart.get_node_or_null("CartModel")
+	if model == null:
+		return Color(-1, -1, -1)
+	for n in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		for s in (mi.mesh.get_surface_count() if mi.mesh != null else 0):
+			var mat := mi.get_active_material(s) as BaseMaterial3D
+			if mat != null and mat.resource_name == mat_name:
+				return mat.albedo_color
+	return Color(-1, -1, -1)
+
+
+## Within one step of an 8-bit channel: a color that went through the GLB as linear
+## floats and back.
+func _color_near(a: Color, b: Color) -> bool:
+	return absf(a.r - b.r) < 0.004 and absf(a.g - b.g) < 0.004 and absf(a.b - b.b) < 0.004
+
+
 func _clear() -> void:
 	for n in _spawned:
 		if is_instance_valid(n):
@@ -2562,12 +2583,19 @@ func _group_disk() -> void:
 	_ok(((mlo + mhi) * 0.5 - col.position).length() < 0.0005,
 		"disk/ and sits where the model sits")
 	var size := MediaDimensions.cart_size("n64dd")
-	_ok(size.is_equal_approx(Vector3(0.101, 0.104, 0.0103)), "disk/ sized as a 64DD disk, not a floppy")
-	var shell_mi := retail.find_child("Shell", true, false) as MeshInstance3D
-	var retail_mat: BaseMaterial3D = shell_mi.get_active_material(0) as BaseMaterial3D if shell_mi != null else null
-	_ok(retail_mat != null and retail_mat.albedo_texture != null
-			and retail_mat.albedo_texture.resource_path.ends_with("n64dd_disk_color.png"),
-		"disk/ a retail disk is grey")
+	_ok(size.is_equal_approx(Vector3(0.10025, 0.10165, 0.0102)), "disk/ sized as a 64DD disk, not a floppy")
+	_ok(model.scale.is_equal_approx(Vector3.ONE), "disk/ at the model's own size, not stretched to it")
+	_ok(_color_near(_disk_color(retail, "DDD_Case"), Color8(170, 170, 168))
+			and _color_near(_disk_color(retail, "DDD_Shutter"), Color8(110, 110, 112)),
+		"disk/ a retail disk is gray, its shutter darker")
+	# The floppy frame: the shutter's edge goes into the drive first (+Y), the
+	# index label trails (-Y).
+	var shutter_mi := retail.find_child("Shutter", true, false) as MeshInstance3D
+	var top_mi := retail.find_child("LabelTop", true, false) as MeshInstance3D
+	var shutter_box: AABB = retail._label_face_bounds(shutter_mi, 1) if shutter_mi != null else AABB()
+	var top_box: AABB = retail._label_face_bounds(top_mi, 1) if top_mi != null else AABB()
+	_ok(shutter_mi != null and top_mi != null and shutter_box.end.y > 0.045 and top_box.position.y < -0.045,
+		"disk/ its shutter leads into the drive and its index label trails")
 	# The label: a sticker in the front recess, a spine image on the edge strip,
 	# and the title on the strip when there is no sticker. All on plain paper.
 	_write_label_fixture()
@@ -2596,7 +2624,9 @@ func _group_disk() -> void:
 		"disk/ a sticker with no spine image leaves the edge strip blank")
 
 	var spined := await _cart("n64dd", media_root.path_join(_LABEL_FIXTURE + "_spine.ndd"))
-	var edge: AABB = spined._label_face_bounds(spined._model_label, 1)
+	var edge: AABB = spined._label_face_bounds(spined.spine_strip_mesh(), 1)
+	_ok(spined.spine_strip_mesh() != spined._model_label and spined.spine_strip_mesh().name == "LabelTop",
+		"disk/ the edge strip is the disk's own index label")
 	_ok(edge.get_center().y < -0.04 and edge.size.y < 0.001,
 		"disk/ the edge strip is the trailing edge, opposite the shutter")
 	var spine_art := spined.get_node_or_null("ModelSpineArt") as MeshInstance3D
@@ -2621,11 +2651,14 @@ func _group_disk() -> void:
 	_ok(face_title == null or not face_title.visible, "disk/ and not on the face")
 	_clear_label_fixture()
 	var devdisk := await _cart("n64dd", "/roms/n64dd/NUD-TEST-JPN.ndd")
-	var dev_mi := devdisk.find_child("Shell", true, false) as MeshInstance3D
-	var dev_mat: BaseMaterial3D = dev_mi.get_active_material(0) as BaseMaterial3D if dev_mi != null else null
-	_ok(dev_mat != null and dev_mat.albedo_texture != null
-			and dev_mat.albedo_texture.resource_path.ends_with("n64dd_disk_color_blue.png"),
-		"disk/ a development disk is blue")
+	_ok(_color_near(_disk_color(devdisk, "DDD_Case"), Nintendo64DD.DISK_DEV_COLORS["shell"])
+			and _color_near(_disk_color(devdisk, "DDD_Molded"), Nintendo64DD.DISK_DEV_COLORS["shell"]),
+		"disk/ a development disk is blue, the marks molded in it too")
+	_ok(_color_near(_disk_color(devdisk, "DDD_Shutter"), Nintendo64DD.DISK_DEV_COLORS["shutter"])
+			and _color_near(_disk_color(devdisk, "DDD_ShutterMolded"), Nintendo64DD.DISK_DEV_COLORS["shutter"]),
+		"disk/ its shutter khaki, the symbols molded in it too")
+	_ok(_color_near(_disk_color(retail, "DDD_Case"), Color8(170, 170, 168)),
+		"disk/ and the retail disk beside it stays gray")
 
 	# And it still goes in: the retail unit takes it and reports it.
 	dd.restore_media(retail)

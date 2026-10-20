@@ -56,7 +56,7 @@ const CART_SIZES: Dictionary = {
 	"wonderswancolor":  Vector3(0.048, 0.052, 0.008),   # the same cartridge shell
 	"ngp":   Vector3(0.048, 0.052, 0.008),
 	"ngpc":  Vector3(0.048, 0.052, 0.008),              # the same cartridge shell
-	"n64dd":    Vector3(0.101, 0.104, 0.0103),  # 64DD magnetic disk
+	"n64dd":    Vector3(0.10025, 0.10165, 0.0102),  # 64DD magnetic disk: the disk model's own, so it loads at scale 1
 	# The 8M Memory Pack, which is NOT a Super Famicom cartridge -- it is a small
 	# pack that goes into a well in the top of the BS-X cart and stands proud of
 	# it. Approximate: proportioned from photographs against the SFC shell it

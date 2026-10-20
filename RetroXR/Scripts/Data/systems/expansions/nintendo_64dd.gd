@@ -39,8 +39,18 @@ const ROW := {
 const DECK_Y := 0.03174
 
 const SHELL := "res://imported-assets/consoles/nintendo_64dd/n64dd_drive.glb"
+## RetroXR-models' disk (nintendo/n64/64dd-disk), its debranded first mobile
+## level in the floppy frame (Tools/glb/prepare_64dd_disk.py). It carries the
+## retail gray; a development disk is repainted in DISK_DEV_COLORS.
 const DISK_MODEL := "res://imported-assets/carts/nintendo_64dd/n64dd_disk.glb"
-const DISK_DEV_ALBEDO := "res://imported-assets/carts/nintendo_64dd/n64dd_disk_color_blue.png"
+
+## The development disk's colors, sRGB, from the model's colors.json (its
+## "dev_blue" edition: a blue case, a khaki shutter). Each of the model's
+## plastics follows one of the two: the case and the marks molded in it, the
+## shutter and the symbols molded in it.
+const DISK_DEV_COLORS := {"shell": Color8(44, 52, 172), "shutter": Color8(100, 84, 60)}
+const DISK_PLASTICS := {"DDD_Case": "shell", "DDD_Molded": "shell", "DDD_Shutter": "shutter",
+	"DDD_ShutterMolded": "shutter"}
 
 ## Development disks were blue; retail ones grey. Dumps of the dev disks are
 ## named by their system-area strings (DDDiskD-DMTJ0-0, NUD-TEST-JPN) rather
@@ -56,6 +66,26 @@ static func is_dev_disk(rom_path: String) -> bool:
 		if stem.contains(mark):
 			return true
 	return false
+
+
+## Paints a disk model in the development disk's colors: each of its plastics
+## gets its own copy of its material, recolored, so the shared imported one (and
+## every retail disk) keeps the gray. Returns how many surfaces were painted.
+static func paint_dev_disk(model: Node) -> int:
+	var painted := 0
+	for n in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		for s in mi.mesh.get_surface_count():
+			var mat := mi.get_active_material(s) as BaseMaterial3D
+			if mat == null or not DISK_PLASTICS.has(mat.resource_name):
+				continue
+			var own := mat.duplicate() as BaseMaterial3D
+			own.albedo_color = DISK_DEV_COLORS[DISK_PLASTICS[mat.resource_name]]
+			mi.set_surface_override_material(s, own)
+			painted += 1
+	return painted
 
 
 # VERIFIED against mupen64plus-libretro-nx source. Two quite different cases,

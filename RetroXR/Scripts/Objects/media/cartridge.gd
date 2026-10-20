@@ -82,9 +82,10 @@ const _CART_MODELS := {
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
-## the N64, Game Boy, DS/3DS, 32X, Genesis and NES cartridges' contacts and screws are metal.
+## the N64, Game Boy, DS/3DS, 32X, Genesis and NES cartridges' contacts and screws are metal,
+## and so is the 64DD disk's hub.
 const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true, "nes": true}
+	"sega32x": true, "genesis": true, "nes": true, "n64dd": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
@@ -97,10 +98,14 @@ const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": 
 const _LABEL_MESHES := ["media_label", "Label", "CartridgeLabel"]
 
 ## Models whose label mesh is paper the art is laid on, rather than a
-## placeholder the art replaces. The 64DD disk's covers the front recess and a
-## strip on the trailing edge: the sticker goes in the recess, the spine image
-## on the strip, and the title on the strip when there is no sticker.
+## placeholder the art replaces. The 64DD disk has two: Label in the front
+## recess and LabelTop, its index label, on the trailing edge. The sticker goes
+## in the recess, the spine image on the strip, and the title on the strip when
+## there is no sticker.
 const _SPINE_LABELS := {"n64dd": true}
+
+## The mesh a spine-labelled model's edge strip is on, when it is not the label's.
+const _SPINE_STRIP_MESH := "LabelTop"
 
 const _LABEL_PAPER := Color(0.93, 0.92, 0.89)
 
@@ -295,7 +300,7 @@ func _apply_cart_model() -> void:
 	if not _AUTHORED_MATERIALS.has(systemid) and not mod_shell:
 		ModelMaterialFix.demetal(glb)
 	if systemid == "n64dd" and Nintendo64DD.is_dev_disk(rom_path):
-		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
+		Nintendo64DD.paint_dev_disk(glb)
 	# The camera, the game's or a mod's: in the camera's own colors (GbCameraShell).
 	if GbCartShell.is_shell(systemid) and GbCameraShell.is_camera_model(glb):
 		_paint_camera(glb)
@@ -892,16 +897,18 @@ func _dress_spine_label(sticker: Texture2D) -> void:
 	var paper := StandardMaterial3D.new()
 	paper.albedo_color = _LABEL_PAPER
 	paper.roughness = 0.85
-	for s in _model_label.mesh.get_surface_count():
-		_model_label.set_surface_override_material(s, paper)
-	_model_label.visible = true
+	var strip_mi := spine_strip_mesh()
+	for mi: MeshInstance3D in [_model_label, strip_mi]:
+		for s in mi.mesh.get_surface_count():
+			mi.set_surface_override_material(s, paper)
+		mi.visible = true
 	var glbl := get_node_or_null("GameLabel") as Label3D
 	if glbl != null:
 		glbl.visible = false
 	var face := _label_face_bounds(_model_label)
 	if sticker != null and face.size.x > 0.0001 and face.size.y > 0.0001:
 		_lay_label_art("ModelLabelArt", sticker, face)
-	var strip := _label_face_bounds(_model_label, 1)
+	var strip := _label_face_bounds(strip_mi, 1)
 	if strip.size.x <= 0.0001 or strip.size.z <= 0.0001 or strip.size.y > 0.001:
 		return
 	var spine := MediaDimensions.load_spine_texture(systemid, rom_path)
@@ -909,6 +916,15 @@ func _dress_spine_label(sticker: Texture2D) -> void:
 		_lay_label_art("ModelSpineArt", spine, strip, true)
 	elif sticker == null:
 		_title_on_spine(strip)
+
+
+## The mesh a spine-labelled model's edge strip is on: its own index label
+## (_SPINE_STRIP_MESH) when it has one, else the label mesh, which then covers
+## the strip as well as the recess.
+func spine_strip_mesh() -> MeshInstance3D:
+	var model := get_node_or_null("CartModel")
+	var strip := model.find_child(_SPINE_STRIP_MESH, true, false) as MeshInstance3D if model != null else null
+	return strip if strip != null and strip.mesh != null else _model_label
 
 
 ## The art painted onto a UV-mapped label mesh, or the title on the blank sticker

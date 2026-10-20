@@ -2,18 +2,21 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://x5eqi2bkdleb"
-path.s3tc="res://.godot/imported/n64dd_disk_normal.png-e5b5133b75188286847a79fe10a3e051.s3tc.ctex"
-path.etc2="res://.godot/imported/n64dd_disk_normal.png-e5b5133b75188286847a79fe10a3e051.etc2.ctex"
+uid="uid://dv6hn6rkf781x"
+path.s3tc="res://.godot/imported/n64dd_disk_grain_normal.png-59501c8e942bf7853d3b707ca49557bf.s3tc.ctex"
+path.etc2="res://.godot/imported/n64dd_disk_grain_normal.png-59501c8e942bf7853d3b707ca49557bf.etc2.ctex"
 metadata={
 "imported_formats": ["s3tc_bptc", "etc2_astc"],
 "vram_texture": true
 }
+generator_parameters={
+"md5": "09e3a31858e69d9e5ebfb76d74d79929"
+}
 
 [deps]
 
-source_file="res://imported-assets/carts/nintendo_64dd/n64dd_disk_normal.png"
-dest_files=["res://.godot/imported/n64dd_disk_normal.png-e5b5133b75188286847a79fe10a3e051.s3tc.ctex", "res://.godot/imported/n64dd_disk_normal.png-e5b5133b75188286847a79fe10a3e051.etc2.ctex"]
+source_file="res://imported-assets/carts/nintendo_64dd/n64dd_disk_grain_normal.png"
+dest_files=["res://.godot/imported/n64dd_disk_grain_normal.png-59501c8e942bf7853d3b707ca49557bf.s3tc.ctex", "res://.godot/imported/n64dd_disk_grain_normal.png-59501c8e942bf7853d3b707ca49557bf.etc2.ctex"]
 
 [params]
 
