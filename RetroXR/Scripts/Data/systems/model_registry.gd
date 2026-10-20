@@ -170,11 +170,11 @@ const _ROWS: Dictionary = {
 	# The Neo Geo MVS: a stick and four buttons.
 	# `sockets: []` says it has no phono jacks: the console beside it on the card does, and the card
 	# offers the composite lead for it.
-	"arcade_cabinet_neogeo": {"platform": "neogeo", "label": "Primitive Neo Geo AES", "sockets": [],
+	"arcade_cabinet_neogeo": {"platform": "neogeo", "label": "Primitive Neo Geo MVS", "sockets": [],
 		"scene": _SCENES + "arcade_cabinet_neogeo.tscn"},
 	# The MVS consolized: a console that takes the MVS cassettes (the community builds them; no SNK
 	# product), with controller ports on the front and phono AV out on the back like a SNES.
-	"neogeo_mvs_console": {"platform": "neogeo", "label": "Neo Geo MVS (Consolized)",
+	"neogeo_mvs_console": {"platform": "neogeo", "label": "Primitive Neo Geo AES",
 		"scene": _SCENES + "neogeo_console.tscn"},
 	# Laserdisc (Daphne): the stick and the sword button; and the one with guns.
 	"arcade_cabinet_daphne": {"platform": "daphne", "label": "Primitive Laserdisc Cabinet",

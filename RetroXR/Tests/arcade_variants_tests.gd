@@ -682,7 +682,7 @@ func _group_console() -> void:
 	# The card: both machines, a pad, a gun is not there, and the composite lead is.
 	var items := SpawnCatalog.items_for("neogeo")
 	var labels: Array = items.map(func(i: Dictionary) -> String: return str(i.get("label", "")))
-	_ok(labels.has("Neo Geo MVS (Consolized)") and labels.has("Primitive Neo Geo AES"), "console: the card lists both by name")
+	_ok(labels.has("Primitive Neo Geo AES") and labels.has("Primitive Neo Geo MVS"), "console: the card lists both by name")
 	_ok(labels.has("Composite Cable"), "console: and a video lead, for the console (the cabinet needs none)")
 	_ok(labels.has("Primitive Controller"), "console: and a pad")
 	_ok(not SpawnCatalog.items_for("arcade").any(func(i: Dictionary) -> bool: return i.get("label", "") == "Composite Cable"),
