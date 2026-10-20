@@ -92,6 +92,12 @@ func get_port_index() -> int:
 
 # Cable (same pattern as RetroController)
 var _cable_instance: Node3D = null
+
+
+## The captive cable spawned for this mouse, or null. Parented to the scene
+## root, so the storage box asks for it to unplug and free it with the mouse.
+func cable_instance() -> Node3D:
+	return _cable_instance
 var _cable_plug: ControllerPlug = null
 var _cable_rope: VerletRope = null
 var _max_rope_length: float = 0.0
@@ -189,6 +195,14 @@ func _add_cable_to_scene() -> void:
 		_pending_port_restore = {}
 		if is_instance_valid(sys) and idx >= 0:
 			sys.restore_controller_plug(idx, _cable_plug)
+
+
+## The cable is not a child, so a despawn would otherwise leave its plug and
+## rope standing in the room (RetroController._exit_tree).
+func _exit_tree() -> void:
+	if is_instance_valid(_cable_instance):
+		_cable_instance.queue_free()
+	super._exit_tree()
 
 
 # ── Port events (duck-typed contract used by RetroSystem) ────────────────────

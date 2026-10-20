@@ -159,6 +159,8 @@ func _ready() -> void:
 		await _test_power()
 	if _want_group("cords"):
 		await _test_cords()
+	if _want_group("storage"):
+		await _test_storage()
 	if _want_group("strip"):
 		await _test_power_strip()
 	if _want_group("stack"):
@@ -1537,6 +1539,61 @@ func _test_cords() -> void:
 	room.remove_child(grounded); grounded.queue_free()
 	remove_child(room)
 	room.queue_free()
+	await get_tree().process_frame
+
+
+## Every corded device takes its cord with it, binned or despawned. The cord is
+## spawned at the scene root rather than under the device, so each device has to
+## dispose of it itself; the light gun, mouse, keyboard, multitap, Nunchuk and
+## sensor bar did not, and dropping one into the storage box shrank the device
+## away and left its plug and rope standing in the room.
+func _test_storage() -> void:
+	get_tree().current_scene = self
+	var box := preload("res://Scenes/Objects/appliances/storage_box.tscn") \
+		.instantiate() as StorageBox
+	add_child(box)
+	var corded := {
+		"pad": "res://Scenes/Objects/controllers/retro_controller.tscn",
+		"light gun": "res://Scenes/Objects/peripherals/light_gun.tscn",
+		"mouse": "res://Scenes/Objects/peripherals/retro_mouse.tscn",
+		"keyboard": "res://Scenes/Objects/peripherals/retro_keyboard.tscn",
+		"multitap": "res://Scenes/Objects/controllers/retro_multitap.tscn",
+		"Nunchuk": "res://Scenes/Objects/controllers/wii/nunchuk.tscn",
+		"sensor bar": "res://Scenes/Objects/system_models/wii/sensor_bar.tscn",
+	}
+	for how: String in ["binned", "despawned"]:
+		var devices: Dictionary = {}
+		for label: String in corded:
+			var device := (load(corded[label]) as PackedScene).instantiate() as XRToolsPickable
+			add_child(device)
+			devices[label] = device
+		# The cord joins the room on a deferred call after _ready.
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var cords: Dictionary = {}
+		for label: String in devices:
+			var device: XRToolsPickable = devices[label]
+			# Read off the field, not the accessor, so a device without one is
+			# still caught leaving its cord behind.
+			var cord: Node3D = device.get("_cable_instance")
+			_ok(is_instance_valid(cord) and cord.is_inside_tree(),
+				"storage/a %s has its cord in the room" % label)
+			# The box asks for it by this name to unplug it before it frees it.
+			_ok(device.has_method("cable_instance") and device.call("cable_instance") == cord,
+				"storage/and a %s answers for it" % label)
+			cords[label] = cord
+			if how == "binned":
+				# What the box does on the release frame.
+				box._delete_with_dependents(device)
+			else:
+				device.queue_free()
+		# Past Vanish's shrink, which is what frees a binned device.
+		await get_tree().create_timer(Vanish.DURATION + 0.2).timeout
+		for label: String in devices:
+			_ok(not is_instance_valid(devices[label]), "storage/a %s %s is gone" % [label, how])
+			_ok(not is_instance_valid(cords[label]),
+				"storage/and a %s %s takes its cord and plug with it" % [label, how])
+	box.queue_free()
 	await get_tree().process_frame
 
 

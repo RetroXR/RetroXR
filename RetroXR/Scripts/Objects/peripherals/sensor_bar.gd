@@ -106,6 +106,20 @@ func get_plug() -> ControllerPlug:
 	return _cable_plug
 
 
+## The captive cable spawned for this bar, or null. Parented to the scene root,
+## so the storage box asks for it to unplug and free it with the bar.
+func cable_instance() -> Node3D:
+	return _cable_instance
+
+
+## The cable is not a child, so a despawn would otherwise leave its plug and
+## rope standing in the room (RetroController._exit_tree).
+func _exit_tree() -> void:
+	if is_instance_valid(_cable_instance):
+		_cable_instance.queue_free()
+	super._exit_tree()
+
+
 func _physics_process(_delta: float) -> void:
 	if _cable_plug == null or _cable_attach_point == null or _max_rope_length <= 0.0:
 		return

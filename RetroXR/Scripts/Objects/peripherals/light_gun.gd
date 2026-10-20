@@ -98,6 +98,14 @@ func get_port_index() -> int:
 
 # Cable
 var _cable_instance: Node3D = null
+
+
+## The captive cable spawned for this gun, or null. Parented to the scene root
+## rather than to the gun, as a pad's is (RetroController.cable_instance): the
+## storage box asks for it so the plug leaves its port and the cord goes with
+## the gun instead of staying behind on a freed anchor.
+func cable_instance() -> Node3D:
+	return _cable_instance
 var _cable_plug: ControllerPlug = null
 var _cable_rope: VerletRope = null
 var _max_rope_length: float = 0.0
@@ -277,6 +285,11 @@ func _drop_all() -> void:
 
 
 func _exit_tree() -> void:
+	# The cable is parented to current_scene, not to the gun, so any despawn
+	# that is not the storage box (a network despawn, a menu delete) would
+	# otherwise leave the plug and rope behind — the same rule as RetroController.
+	if is_instance_valid(_cable_instance):
+		_cable_instance.queue_free()
 	_pointer_block.release(_left_vr_ctrl, _right_vr_ctrl)
 	if _locomotion_manager != null:
 		_locomotion_manager.clear_owner(VrHold.vr_block_owner(self))
