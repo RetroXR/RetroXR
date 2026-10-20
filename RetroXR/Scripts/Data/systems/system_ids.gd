@@ -121,6 +121,10 @@ const FOLDER_ALIASES: Dictionary = {
 	"mastersystem": ["mark3"],
 	"moto": ["to8"],
 	"msx": ["msx1", "msx2", "msxturbor"],
+	# RomM files them under `neogeomvs` and `neogeoaes` (its platform list names both); ES-DE keeps one
+	# `neogeo` folder for the two. The cartridges differ in the plastic and the connector, the game DATA
+	# is the same (the cores take one romset for either), so one system holds both.
+	"neogeo": ["neogeomvs", "neogeoaes"],
 	"neogeocd": ["neogeocdjp"],
 	"odyssey2": ["videopac"],
 	"satellaview": ["bs-x"],
