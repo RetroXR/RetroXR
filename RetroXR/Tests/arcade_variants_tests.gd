@@ -100,6 +100,9 @@ func _clear() -> void:
 	for n in _spawned:
 		if is_instance_valid(n):
 			n.queue_free()
+	# The bays a cabinet seeded stand in the room, not in `_spawned`.
+	for bay in get_tree().get_nodes_in_group(ArcadeBayUnit.GROUP):
+		bay.queue_free()
 	_spawned.clear()
 	await _wait(6)
 
@@ -457,6 +460,18 @@ func _group_pedal() -> void:
 		"pedal: and the cabinet with sockets and no gun does not")
 
 
+## The slot a board stands in: the docked bay's (a cabinet's own is shut for good, ArcadeBayUnit).
+func _slot_of(sys: Node3D) -> XRToolsSnapZone:
+	var bay := (sys as RetroSystem).get_bay()
+	return bay.slot if bay != null else sys.get_node("CartridgeSlot") as XRToolsSnapZone
+
+
+## Where the board's centre stands: the docked bay's seat.
+func _seat_of(model: Node3D) -> Node3D:
+	var bay := (model.get_parent() as RetroSystem).get_bay()
+	return bay.find_child("CartSeat", true, false) as Node3D
+
+
 # --- seat ----------------------------------------------------------------------
 
 func _group_seat() -> void:
@@ -464,7 +479,7 @@ func _group_seat() -> void:
 		var systemid: String = VARIANTS[id][0]
 		var sys := await _machine(id, systemid)
 		var model := sys.get_model() as RetroSystemModelArcadeCabinet
-		var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
+		var slot := _slot_of(sys)
 		model.set_lid_angle_deg(90.0)
 		var cart := CART_SCENE.instantiate() as Node3D
 		cart.systemid = systemid
@@ -477,7 +492,7 @@ func _group_seat() -> void:
 		slot.pick_up_object(cart)
 		await _wait(6)
 		_ok(sys.rom_path == "/tmp/variant_test_board.zip", "seat: %s takes a %s board" % [id, systemid])
-		_ok(cart.global_position.distance_to((model.find_child("CartSeat", true, false) as Node3D).global_position) < 0.02,
+		_ok(cart.global_position.distance_to(_seat_of(model).global_position) < 0.02,
 			"seat: and it stands in the socket")
 		slot.drop_object()
 		await _wait(4)
@@ -621,18 +636,21 @@ func _group_neogeo() -> void:
 	# The cabinet: a rectangular unit with the slot, and the cassette's edge goes into it.
 	var sys := await _machine("arcade_cabinet_neogeo", "neogeo")
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
-	_ok(model.find_child("MvsTray", true, false) != null and model.find_child("MvsSlot", true, false) != null,
+	# The unit is the bay's now, a separate object clipped into the cabinet's mount.
+	var bay: ArcadeBayUnit = (sys as RetroSystem).get_bay()
+	_ok(bay != null and bay.bay_kind == "mvs", "neogeo: the cabinet comes with its own kind of bay")
+	_ok(bay.find_child("MvsTray", true, false) != null and bay.find_child("MvsSlot", true, false) != null,
 		"neogeo: the bay holds the MVS unit, a tray with the slot")
-	_ok(model.find_child("JammaSocket", true, false) == null, "neogeo: and no JAMMA socket")
-	var tray := (model.find_child("MvsTray", true, false) as MeshInstance3D)
+	_ok(bay.find_child("JammaSocket", true, false) == null, "neogeo: and no JAMMA socket")
+	var tray := (bay.find_child("MvsTray", true, false) as MeshInstance3D)
 	_ok(tray.get_aabb().size.x > tray.get_aabb().size.z, "neogeo: the unit is a wide rectangle")
-	var slot := model.find_child("MvsSlot", true, false) as MeshInstance3D
+	var slot := bay.find_child("MvsSlot", true, false) as MeshInstance3D
 	var slot_top := slot.position.y + slot.get_aabb().size.y * 0.5
-	var seat := model.find_child("CartSeat", true, false) as Node3D
+	var seat := bay.find_child("CartSeat", true, false) as Node3D
 	var tip := seat.position.y - size.y * 0.5
 	_ok(tip < slot_top and tip > slot_top - 0.03, "neogeo: the cassette's edge goes into the slot (%.3f m deep)" % (slot_top - tip))
 	var generic := await _machine("arcade_cabinet_generic", "arcade")
-	_ok((generic.get_model() as RetroSystemModelArcadeCabinet).find_child("MvsTray", true, false) == null,
+	_ok((generic as RetroSystem).get_bay() != null and (generic as RetroSystem).get_bay().find_child("MvsTray", true, false) == null,
 		"neogeo: the other cabinets have no MVS unit")
 
 

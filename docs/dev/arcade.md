@@ -239,7 +239,7 @@ same roms folder (`roms/mame/`). Without them the core refuses the game, and the
 arcade systems saying where such sets go (`RetroSystem._on_content_load_failed`). The files themselves are the
 player's to supply; RetroXR does not download ROM sets. `Tools/cores/arcade_load_probe` (needs a real core and
 a romset) starts a set in the cabinet and prints the reason. Cadillacs & Dinosaurs (`dino.zip`) is the case that
-found it: **current MAME** wants `qsound.zip`; FinalBurn Neo has the QSound DSP built in and runs the same zip. `arcade`'s default core is MAME, so pin the core with `--core=fbneo|mame`. The probe's `--audio` (with `--play` for a coin and START) prints the loudest bus peak: a silent attract screen reads -200 dB and is not a fault (dino on FBNeo: -200 dB until a coin and START, then -14 dB; Bubble Bobble and SF2 sound at once). Needs a windowed run and the probe's own camera: a 3D voice nobody listens to also reads silence.
+found it: **current MAME** wants `qsound.zip`; FinalBurn Neo has the QSound DSP built in and runs the same zip. `arcade`'s default core is FinalBurn Neo on desktop (2026-10-20: the most games that start at once; MAME runs more sets but wants its own romset version and device ROMs), so pin the core anyway with `--core=fbneo|mame`. The probe's `--audio` (with `--play` for a coin and START) prints the loudest bus peak: a silent attract screen reads -200 dB and is not a fault (dino on FBNeo: -200 dB until a coin and START, then -14 dB; Bubble Bobble and SF2 sound at once). Needs a windowed run and the probe's own camera: a 3D voice nobody listens to also reads silence.
 
 ## The title on the board
 
@@ -256,6 +256,12 @@ card ports coin keep`); each case was broken and watched go red. `libretro-godot
 runs `video_geometry_test.cpp`. The probe photographs front, three-quarter, panel, the bay with a
 board and the door open, the monitor in both shapes, and a coin in the air. **A GLB-less checkout
 (Git LFS not pulled) cannot run suites that need a console's GLB**; the arcade suite does not.
+
+## Performance
+
+How much a cabinet costs, what grows over minutes (nothing, measured), and what was kept: `performance.md`,
+"Arcade cabinets". The probes are `Tools/perf/arcade_scale_probe`, `arcade_soak_probe`, `arcade_mesh_census`.
+`ArcadeShadowBudget` (parts under 10 cm cast no shadow) runs when a cabinet, a bay unit or a board is built; `arcade_tests perf/`.
 
 ## OWED
 
@@ -373,3 +379,47 @@ AES is a separate software list). The Neo Geo tile now offers the cabinet (still
 `"sockets": []` so the card offers the lead only for the console, and `neogeo` left `_OWN_AV_LEAD`. **Names:** RomM lists `neogeomvs` and
 `neogeoaes`; ES-DE has one `neogeo` folder. Both RomM names and both folders are the one `neogeo` system (`SystemIds.FOLDER_ALIASES`,
 `RommPlatforms.SLUG_MAP`): one system, one romset. Replace the estimates with measurements when photos with a ruler exist.
+
+## The bay is its own object (2026-10-20)
+
+**What changed.** The bay (slot, board seat, harness socket) used to be baked into the cabinet. It is an `ArcadeBayUnit` now
+(`Scripts/Objects/arcade/arcade_bay_unit.gd`, one scene per kind in `Scenes/Objects/peripherals/arcade_bay_<kind>.tscn`, baked by
+`Tools/gen/gen_arcade_bay.gd -- --kind=jamma|mvs|laserdisc|discrete`; labels "JAMMA / Neo Geo MVS / Laserdisc / DICE Arcade Bay"). It is
+a pickable like the 32X's spacer, in the `arcade_bay` group, saved as `arcade_bay_<kind>` (`ScenePersistence.PLAIN_SCENES`) with the
+board standing in it (`"board"`). Every cabinet card offers all four kinds and the JAMMA lead.
+
+**The cabinet is still the machine.** It runs the core, takes the panels' and the guns' input, shows the picture, owns the saves and
+the netplay identity. Only two things follow the bay (`RetroSystem.link_bay` / `unlink_bay`): WHERE the board stands (`_cartridge_slot`
+becomes the bay's snap zone; the cabinet's own, kept as `_home_slot`, is shut) and WHICH system it plays (`systemid` becomes the bay
+kind's first). So a generic cabinet with an MVS bay plays Neo Geo and refuses JAMMA boards, and the other way round: the frankenstein.
+Taking the bay away stops the game (`_on_cartridge_removed`) and the board STAYS in the bay; a bay that arrives with a board in it
+makes the cabinet hear it (`_swap_cartridge_slot` calls `_on_cartridge_inserted` for a board already there, because a snap zone says
+nothing about one that was there first).
+
+**Two ways to be joined, never both.** (1) *Docked*: the cabinet's `BayMountZone` (a snap zone at the `BayMount` marker on the
+compartment floor, built by `RetroSystemModelArcadeCabinet._build_bay_mount`) holds the bay rigid, so moving the cabinet moves it; the
+door gates the docked bay's slot as it gated the old one (`ArcadeBayModule.set_gated_slot`). A FRESH cabinet seeds its own kind of bay
+in the mount (deferred; never on a restore, which is the whole truth about what is in there), as an expansion's default occupant.
+(2) *Cabled*: a `JammaCable` (`jamma_cable.tscn`, derived from the i.LINK lead; connector `jamma_plug`) between the cabinet's
+`JammaPort` (its back, +Z out) and a free bay's (`JammaPort`, `Scripts/Objects/cables/jamma_port.gd`). `JammaCable._resolve` joins them
+with `link_bay(bay, CABLE)`; a docked bay is never cabled, and a cabinet that has a bay takes a second one by cable only after the
+first is out. A docked bay replaces a cabled one. The cabled bay's slot is never gated (no door in the way).
+
+**A cabinet scene with no `BayMount` is the old format** and keeps the old behaviour (a `CartSeat` inside its bay): nothing breaks for a
+mod's cabinet that drew its own.
+
+**Phono IN on the bay.** Three sockets on the back (`VideoIn`, `AudioLIn`, `AudioRIn`, direction IN). A machine cabled to VIDEO IN shows
+on the cabinet's screen while no board is running (`ArcadeBayUnit.external_picture`, found through `AvGraph.links_for`, asked when a
+cord moves; `RetroSystemModelArcadeCabinet.host_picture`), in the picture's own aspect (the board's geometry describes the board).
+**Sound is NOT routed yet:** the external console's audio goes wherever its own cord sends it. There is no BOARD/EXT switch: a running
+board wins, otherwise the cabled machine.
+
+**Saved** the cabinet's entry carries `"bay"` when the bay is docked and no `"cartridge"` (the board is the bay's); a cabled bay is
+restored by the lead's plugs; the bay's entry carries `"board"`. `_restore_entry` restores the bay first, so the board lands in the
+bay's slot and not in the cabinet's shut one.
+
+**OWED.** None of this was run: the sandbox this was written in cannot load the GDExtensions, so only the baked scenes and the files
+that need no extension were compiled. Run `arcade_bay_tests`, `arcade_tests` and `arcade_variants_tests` first. Netplay does not
+replicate docking or the cable (each peer seeds its own default bay on a restored room's cabinet only when it is a fresh one; a
+bay moved by hand is local until `EV_*` events are added), the external sound, a headset, a Quest, and the plug/port geometry (boxes,
+estimates) are all still to do. The jamma plug is the i.LINK scene's with bigger boxes, not a measured connector.

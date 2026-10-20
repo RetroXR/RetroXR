@@ -91,10 +91,25 @@ func _cabinet(systemid: String = "arcade") -> Node3D:
 	return sys
 
 
+## The slot a board stands in: the docked bay's (a cabinet's own is shut for good, ArcadeBayUnit).
+func _slot_of(sys: Node3D) -> XRToolsSnapZone:
+	var bay := (sys as RetroSystem).get_bay()
+	return bay.slot if bay != null else sys.get_node("CartridgeSlot") as XRToolsSnapZone
+
+
+## Where the board's centre stands: the docked bay's seat.
+func _seat_of(model: Node3D) -> Node3D:
+	var bay := (model.get_parent() as RetroSystem).get_bay()
+	return bay.find_child("CartSeat", true, false) as Node3D
+
+
 func _clear() -> void:
 	for n in _spawned:
 		if is_instance_valid(n):
 			n.queue_free()
+	# The bays a cabinet seeded stand in the room, not in `_spawned`.
+	for bay in get_tree().get_nodes_in_group(ArcadeBayUnit.GROUP):
+		bay.queue_free()
 	_spawned.clear()
 	await _wait(6)
 
@@ -138,6 +153,8 @@ func _run() -> void:
 		await _group_restore()
 	if _want("keep"):
 		await _group_keep()
+	if _want("perf"):
+		await _group_perf()
 	await _clear()
 
 
@@ -451,7 +468,7 @@ func _group_cabinet() -> void:
 	_ok(not body.visible, "cabinet: the generic box is hidden")
 	_ok(model.arcade_input() != null, "cabinet: the input node is on the system")
 	var shapes := sys.find_children("CabinetBox*", "CollisionShape3D", false, false)
-	_ok(shapes.size() == 5, "cabinet: the body is six boxes with the bay left open (%d extra)" % shapes.size())
+	_ok(shapes.size() == 9, "cabinet: the body is ten boxes, the bay left open and the upper body a hollow shell (%d extra)" % shapes.size())
 	var power := sys.get_node("PowerButton") as Node3D
 	var seat := model.find_child("PowerSwitch", true, false) as Node3D
 	_ok(power.global_position.distance_to(seat.global_position) < 0.001, "cabinet: the power switch is where the model seats it")
@@ -468,8 +485,8 @@ func _group_cabinet() -> void:
 func _group_door() -> void:
 	var sys := await _cabinet("arcade")
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
-	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
-	var seat := model.find_child("CartSeat", true, false) as Node3D
+	var slot := _slot_of(sys)
+	var seat := _seat_of(model)
 	_ok(slot.global_position.distance_to(seat.global_position) < 0.001, "door: the slot sits on the board's seat")
 	_ok(not slot.enabled and not model.is_lid_open(), "door: shut, the bay takes nothing")
 	_ok(_near(model.get_lid_angle_deg(), 0.0), "door: and reads 0 degrees")
@@ -551,7 +568,7 @@ func _group_pointer() -> void:
 	var from := power.global_position + model.global_transform.basis * Vector3(0, 0.5, 0.6)
 	_ok(_first_pointable(from, power.global_position) == power,
 		"pointer: the power switch, through the open bay")
-	var seat := model.find_child("CartSeat", true, false) as Node3D
+	var seat := _seat_of(model)
 	var aim := seat.global_position + model.global_transform.basis * Vector3(0, 0.33, 0.8)
 	_ok(_first_pointable(aim, seat.global_position) != body,
 		"pointer: and the board's seat is not boxed over")
@@ -789,8 +806,14 @@ func _group_panel() -> void:
 		if o.get("type") == "system" and o.get("systemid") == "arcade":
 			entry = o
 	_ok(str(entry.get("core_name", "")) == "mame2003_plus", "panel: the pick is saved with the room")
+	_ok(entry.get("bay") != null, "panel: and the bay clipped into the cabinet is saved with it")
+	# The cabinet and its bay, as the room keeps them: the bay is an object of its own now.
+	var keep: Array[Dictionary] = []
+	for o in objects:
+		if o.get("type") == "system" or str(o.get("type", "")).begins_with("arcade_bay_"):
+			keep.append(o)
 	await _clear()
-	var made := sp.instantiate_objects(self, [entry])
+	var made := sp.instantiate_objects(self, keep)
 	var back: Node = null
 	for k in made:
 		if made[k] is RetroSystem:
@@ -840,7 +863,7 @@ func _group_art() -> void:
 func _group_seat() -> void:
 	var sys := await _cabinet("arcade")
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
-	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
+	var slot := _slot_of(sys)
 	model.set_lid_angle_deg(90.0)
 	var cart := CART_SCENE.instantiate() as Node3D
 	cart.systemid = "arcade"
@@ -853,7 +876,7 @@ func _group_seat() -> void:
 	slot.pick_up_object(cart)
 	await _wait(6)
 	_ok(sys.rom_path == "/tmp/arcade_test_board.zip", "seat: the board in the bay is the machine's game")
-	_ok(cart.global_position.distance_to((model.find_child("CartSeat", true, false) as Node3D).global_position) < 0.02,
+	_ok(cart.global_position.distance_to(_seat_of(model).global_position) < 0.02,
 		"seat: and it stands in the socket, comb down")
 	_ok((cart.global_transform.basis.y).dot(Vector3.UP) > 0.99 and (cart.global_transform.basis.z).dot(Vector3.BACK) > 0.99,
 		"seat: connector down, label to the front")
@@ -999,7 +1022,7 @@ func _group_restore() -> void:
 	cart.add_to_group("spawned")
 	_spawned.append(cart)
 	await _wait(8)
-	(sys.get_node("CartridgeSlot") as XRToolsSnapZone).pick_up_object(cart)
+	_slot_of(sys).pick_up_object(cart)
 	await _wait(6)
 	var pad := PAD_SCENE.instantiate() as Node3D
 	pad.systemid = "arcade"
@@ -1056,8 +1079,14 @@ func _group_keep() -> void:
 			entry = o
 	_ok(str(entry.get("model_id", "")) == MODEL_ID, "keep: the saved cabinet names its hardware")
 	_ok(_near(float(entry.get("lid_angle", -1.0)), 90.0, 0.01), "keep: and how far its door stands open")
+	_ok(entry.get("bay") != null, "keep: and the bay clipped into it")
+	# The cabinet and its bay, as the room keeps them: the bay is an object of its own now.
+	var keep: Array[Dictionary] = []
+	for o in objects:
+		if o.get("type") == "system" or str(o.get("type", "")).begins_with("arcade_bay_"):
+			keep.append(o)
 	await _clear()
-	var made := sp.instantiate_objects(self, [entry])
+	var made := sp.instantiate_objects(self, keep)
 	var back: Node = null
 	for k in made:
 		if made[k] is RetroSystem:
@@ -1070,5 +1099,113 @@ func _group_keep() -> void:
 		_ok(m2 != null and str(back.model_id) == MODEL_ID, "keep: wearing the cabinet")
 		_ok(m2 != null and m2.is_lid_open() and _near(m2.get_lid_angle_deg(), 90.0, 0.01),
 			"keep: with its door as it was left")
-		_ok((back.get_node("CartridgeSlot") as XRToolsSnapZone).enabled, "keep: and the bay open to a board")
+		_ok(_slot_of(back).enabled, "keep: and the bay open to a board")
+	await _clear()
+
+
+# --- perf ----------------------------------------------------------------------
+# Work a cabinet does for nothing, taken away (Tools/perf/arcade_scale_probe measures it): each case
+# is one of those savings AND what must still happen, so removing the work cannot remove the effect.
+
+func _box_at(parent: Node, size: float, scale_by: float = 1.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3.ONE * size
+	mi.mesh = bm
+	mi.scale = Vector3.ONE * scale_by
+	parent.add_child(mi)
+	return mi
+
+
+func _group_perf() -> void:
+	# Small parts cast no shadow; the shell's big parts keep theirs; size is the size AS IT STANDS.
+	var holder := Node3D.new()
+	add_child(holder)
+	var small := _box_at(holder, 0.03)
+	var big := _box_at(holder, 0.50)
+	var scaled_up := _box_at(holder, 0.05, 4.0)
+	var scaled_down := _box_at(holder, 0.50, 0.1)
+	var already := _box_at(holder, 0.03)
+	already.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	var turned := ArcadeShadowBudget.trim(holder)
+	_ok(small.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "perf: a 3 cm part casts no shadow")
+	_ok(big.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON, "perf: a 50 cm part keeps its shadow")
+	_ok(scaled_up.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_ON,
+		"perf: a 5 cm mesh scaled to 20 cm is judged at 20 cm, and keeps it")
+	_ok(scaled_down.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+		"perf: a 50 cm mesh scaled to 5 cm is judged at 5 cm")
+	_ok(turned == 2, "perf: it says how many it turned off (%d)" % turned)
+	_ok(ArcadeShadowBudget.trim(holder) == 0, "perf: and a second pass has nothing left to do")
+	holder.queue_free()
+
+	# The real thing: a cabinet's buttons and stick have no shadow, its shell still has.
+	var sys := await _cabinet("arcade")
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var ball := model.find_child("StickBall", true, false) as MeshInstance3D
+	_ok(ball != null and ball.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+		"perf: the cabinet's stick ball casts no shadow")
+	var casters := 0
+	for n in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.mesh != null and mi.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF and mi.is_visible_in_tree():
+			casters += 1
+	_ok(casters > 5, "perf: but the shell and the deck still cast theirs (%d)" % casters)
+	var bay: ArcadeBayUnit = sys.get_bay()
+	var bay_casters := 0
+	var bay_small := 0
+	for n in bay.find_children("*", "MeshInstance3D", true, false):
+		var mi2 := n as MeshInstance3D
+		if mi2.mesh == null or mi2.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+			continue
+		bay_casters += 1
+		var sz := (mi2.global_transform * mi2.get_aabb()).size
+		if maxf(sz.x, maxf(sz.y, sz.z)) < ArcadeShadowBudget.SMALL:
+			bay_small += 1
+	_ok(bay_small == 0 and bay_casters > 0, "perf: the bay keeps shadows only on its large parts (%d, %d small)" % [bay_casters, bay_small])
+
+	# A panel redraws only when what it shows changes.
+	var p1 := model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var cap := p1.find_child("Btn1", true, false) as Node3D
+	var rest := cap.position
+	p1.show_state(0)
+	cap.position = rest + Vector3(0, 0, 0.5)         # a mark: a redraw would put it back
+	p1.show_state(0)
+	_ok(is_equal_approx(cap.position.z, rest.z + 0.5), "perf: the same mask is not drawn again")
+	p1.show_state(1 << ArcadeProfiles.BUTTON_BITS[0])
+	_ok(cap.position.z < rest.z, "perf: a different one is")
+	p1.show_state(0)
+	_ok(is_equal_approx(cap.position.z, rest.z), "perf: and the next one too")
+	# The stick settles EXACTLY and then stops writing.
+	p1.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 80:
+		p1.tick(0.016)
+	_ok(p1.stick_lean() == Vector2(1, 0), "perf: the stick settles exactly on its lean (%s)" % str(p1.stick_lean()))
+	var pivot := p1.find_child("StickPivot", true, false) as Node3D
+	var shown := pivot.basis
+	pivot.basis = Basis.IDENTITY                      # a mark: a rewrite would put the lean back
+	p1.tick(0.016)
+	_ok(pivot.basis == Basis.IDENTITY, "perf: a settled stick is not rewritten")
+	p1.show_state(0)
+	p1.tick(0.016)
+	_ok(pivot.basis != Basis.IDENTITY and pivot.basis != shown, "perf: until the lean changes again")
+
+	# The core is told an input once, and told afresh after a restart.
+	var input := model.arcade_input()
+	var g1 := p1.grip()
+	sys.is_powered_on = true
+	await _wait(3)
+	g1.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, g1))
+	await _wait(2)
+	Input.action_release("RETRO_JOYPAD_B")
+	Input.action_press("RETRO_JOYPAD_B")
+	await _wait(3)
+	var bit_b := 1 << ControllerBindings.JOYPAD_B
+	_ok((int(input._heard_mask.get(0, 0)) & bit_b) != 0, "perf: what the core heard is kept (the B button)")
+	_ok((int(input.last_sent.get(0, 0)) & bit_b) != 0, "perf: and what was sent still says so every frame")
+	Input.action_release("RETRO_JOYPAD_B")
+	await _wait(3)
+	_ok((int(input._heard_mask.get(0, 0)) & bit_b) == 0, "perf: released, the core is told")
+	sys.is_powered_on = false
+	await _wait(3)
+	_ok(input._heard_mask.is_empty(), "perf: switched off, nothing is remembered: a restart is told afresh")
 	await _clear()

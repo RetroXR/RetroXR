@@ -225,7 +225,8 @@ func _shot_bay() -> void:
 	cart.freeze = true
 	add_child(cart)
 	await _frames(8)
-	var slot := _sys.get_node("CartridgeSlot") as XRToolsSnapZone
+	var bay: ArcadeBayUnit = _sys.get_bay()
+	var slot: XRToolsSnapZone = bay.slot if bay != null else _sys.get_node("CartridgeSlot") as XRToolsSnapZone
 	slot.pick_up_object(cart)
 	await _frames(6)
 	_look(Vector3(0.7, 0.75, 1.5), Vector3(0, 0.25, 0.1))
