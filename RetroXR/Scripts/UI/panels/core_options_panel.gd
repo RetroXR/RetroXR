@@ -232,9 +232,8 @@ func _device_volume() -> float:
 
 
 ## The Volume row follows the device's own wheel while the panel is open.
-func _process(delta: float) -> void:
-	super(delta)
-	if not visible or _system == null or not is_instance_valid(_system):
+func _while_shown(_delta: float) -> void:
+	if _system == null or not is_instance_valid(_system):
 		return
 	var v := _device_volume()
 	if is_equal_approx(v, _shown_volume):

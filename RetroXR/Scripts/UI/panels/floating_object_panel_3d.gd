@@ -41,7 +41,7 @@ func _ready() -> void:
 	visible = false
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not visible:
 		return
 	var target := _target_node()
@@ -52,6 +52,14 @@ func _process(_delta: float) -> void:
 		look_at(_camera.global_position, Vector3.UP)
 		rotate_object_local(Vector3.UP, PI)
 	_update_resize_drag()
+	_while_shown(delta)
+
+
+## Each frame the panel is shown, after it is placed: what a panel follows while it
+## is open (the core panel's handheld volume). A panel overrides this rather than
+## _process, which stays this one (state_tests' anchor/ group).
+func _while_shown(_delta: float) -> void:
+	pass
 
 
 func hide_panel() -> void:
