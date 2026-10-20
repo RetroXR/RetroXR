@@ -195,6 +195,7 @@ func _run() -> void:
 		["display/the fast tier wears the mobile shader", _d_crt_fast_tier],
 		["display/fast source stages retain OSD, stereo and snow", _d_fast_stages],
 		["display/a tube is drawn from its front only", _d_tube_one_sided],
+		["display/the glass is drawn before anything see-through in front of it", _d_glass_first],
 		["display/a light gun is told the picture point it is aimed at", _d_light_gun_aim],
 		["guard/a host that is not shown is refused", _g_refused],
 		["guard/the shown host may paint", _g_allowed],
@@ -1386,6 +1387,33 @@ func _d_tube_one_sided() -> void:
 					modes.append(mode.strip_edges())
 		_ok(modes.has("cull_back") and not modes.has("cull_disabled"),
 			"%s culls the back of the tube" % shader.resource_path.get_file())
+
+
+## Clear plastic in front of a set (a Funtastic N64, a clear cartridge) writes no
+## depth, so a picture drawn after it painted straight over it. Whatever is on the
+## glass sorts ahead of every see-through thing in the room instead: the set's own
+## picture, a host's paint, and the dark glass of a set switched off.
+func _d_glass_first() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var src := StubSource.new()
+	src.texture = _a_texture()
+	await _seat_stub(tv, RetroTV.Source.COMPOSITE_3, src)
+	await _wait(4)
+	var shown := _glass(tv)
+	_ok(shown != null and shown.render_priority == TvDisplay.GLASS_RENDER_PRIORITY,
+		"the set's own picture sorts first (%s)" % (shown.render_priority if shown != null else "none"))
+	_ok(TvDisplay.GLASS_RENDER_PRIORITY < 0,
+		"ahead of a clear cartridge's passes, which sort at 0 and 1")
+	var mine := StandardMaterial3D.new()
+	tv.paint_screen(src, mine)
+	_check_eq(mine.render_priority, TvDisplay.GLASS_RENDER_PRIORITY, "a host's paint sorts first too")
+	tv.release_screen(src)
+	tv.remote_power_toggle()
+	await _wait(6)
+	var dark := _glass(tv)
+	_ok(dark == tv._display._dark_material and dark.render_priority == TvDisplay.GLASS_RENDER_PRIORITY,
+		"and so does the dark glass of a set switched off")
 
 
 func _d_fast_stages() -> void:

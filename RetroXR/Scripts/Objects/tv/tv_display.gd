@@ -22,6 +22,16 @@
 class_name TvDisplay
 extends Node
 
+## Where whatever is on the glass sorts among the room's see-through surfaces:
+## ahead of all of them. A picture is blended (the desktop tube fades its rounded
+## edge), which puts it in the transparent pass, and clear plastic writes no depth
+## either, so at the default priority a set standing behind a Funtastic N64, a
+## clear Game Boy Color or a clear cartridge drew its picture after the plastic and
+## painted it straight over the console. Nothing see-through sits behind the glass
+## (the set's own body is opaque and hides what is behind the set), so drawn first
+## it is what the plastic is seen against, as on a real shelf.
+const GLASS_RENDER_PRIORITY := -100
+
 ## The set whose glass this owns.
 var _tv: RetroTV = null
 
@@ -760,7 +770,7 @@ func paint_screen(who: Object, mat: Material) -> bool:
 		return false
 	_refused = null
 	_screen_owner = who
-	_tv.screen_mesh().set_surface_override_material(0, mat)
+	_put_on_glass(mat)
 	return true
 
 
@@ -788,6 +798,14 @@ func _paint(mat: Material) -> void:
 		var shader_mat := mat as ShaderMaterial
 		if shader_mat.shader != null and _is_tv_display_shader(shader_mat.shader):
 			apply_crt_params(shader_mat)
+	_put_on_glass(mat)
+
+
+## The one write to the glass, the host's and the set's alike, sorted where every
+## picture belongs (GLASS_RENDER_PRIORITY).
+func _put_on_glass(mat: Material) -> void:
+	if mat != null:
+		mat.render_priority = GLASS_RENDER_PRIORITY
 	_tv.screen_mesh().set_surface_override_material(0, mat)
 
 ## Snow for an aerial channel with nothing on it. Built on first use, like the tuner
