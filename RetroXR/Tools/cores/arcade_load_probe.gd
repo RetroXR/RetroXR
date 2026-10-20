@@ -74,7 +74,10 @@ func _ready() -> void:
 	add_child(cart)
 	for i in 8:
 		await get_tree().process_frame
-	(sys.get_node("CartridgeSlot") as XRToolsSnapZone).pick_up_object(cart)
+	# The board stands in the cabinet's bay (a separate object since 2026-10-20), not in the cabinet's own slot.
+	var bay: ArcadeBayUnit = sys.get_bay()
+	var slot: XRToolsSnapZone = bay.slot if bay != null else sys.get_node("CartridgeSlot") as XRToolsSnapZone
+	slot.pick_up_object(cart)
 	for i in 6:
 		await get_tree().process_frame
 	var lib: Node = sys.get_libretro_node()
