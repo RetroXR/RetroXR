@@ -428,6 +428,9 @@ func _ready() -> void:
 	_sync_button.button_pressed.connect(_on_sync_pressed)
 	_sync_button.set_active(false)
 	_battery_cover.rotation_changed.connect(_on_cover_moved)
+	# A mod's shell fits its own (its hook runs as the remote enters the tree).
+	if not _collision_fitted:
+		fit_collision(SHELL_BOUNDS, COVER_BOUNDS)
 	# A remote made a Plus before it was ready (a mod's hook runs as it enters
 	# the tree) is one from its first frame.
 	_refresh_device_type()
@@ -680,7 +683,92 @@ func _cache_screen_geometry() -> void:
 ## VRButton.set_active is what takes it off the pointable layer and stops it
 ## polling fingertips, so a closed cover really does cover it.
 func _on_cover_moved(degrees: float) -> void:
+	_follow_cover()
 	_sync_button.set_active(degrees >= COVER_OPEN_DEG)
+
+
+# ── Collision ────────────────────────────────────────────────────────────────
+
+## The stand-in's shell, and its battery cover shut, in the remote's frame:
+## wiimote_shell.res, and wiimote_cover.res where CoverPivot hangs it.
+const SHELL_BOUNDS := AABB(Vector3(-0.018, -0.015, -0.074), Vector3(0.036, 0.03, 0.148))
+const COVER_BOUNDS := AABB(Vector3(-0.015, -0.015, -0.012), Vector3(0.03, 0.0034, 0.081))
+## A wall of the bay thinner than this is left to the boxes beside it.
+const WALL_MIN := 0.001
+
+## Whether a shell has fitted the collision yet (the stand-in's is fitted in _ready).
+var _collision_fitted := false
+## The cover's boxes, each with its holder and where it sits in CoverPivot's frame.
+var _cover_pieces: Array[Dictionary] = []
+
+
+## Fit the remote's collision, for its body and for a pointer alike, to a shell:
+## a box for the shell above the battery bay, its ends and walls beside the bay,
+## and one for the bay's cover that swings with the cover. With the cover open
+## the bay is open, so SYNC on its floor can be pointed at and a hand goes in.
+##
+## The pointer used to have one box of its own standing 12 mm clear of the shell
+## all round, which held SYNC 17 mm inside it: the desktop pointer at the open
+## bay picked the remote up. A shell that is not the game's calls this with its
+## own bounds (both in the remote's frame, the cover shut), once its CoverPivot
+## is where its cover hinges.
+func fit_collision(shell: AABB, cover: AABB) -> void:
+	_collision_fitted = true
+	var floor_y := cover.end.y
+	var low := floor_y - shell.position.y
+	var boxes := {
+		"": AABB(Vector3(shell.position.x, floor_y, shell.position.z),
+			Vector3(shell.size.x, shell.end.y - floor_y, shell.size.z)),
+		"Front": AABB(shell.position, Vector3(shell.size.x, low, cover.position.z - shell.position.z)),
+		"Rear": AABB(Vector3(shell.position.x, shell.position.y, cover.end.z),
+			Vector3(shell.size.x, low, shell.end.z - cover.end.z)),
+		"Left": AABB(Vector3(shell.position.x, shell.position.y, cover.position.z),
+			Vector3(cover.position.x - shell.position.x, low, cover.size.z)),
+		"Right": AABB(Vector3(cover.end.x, shell.position.y, cover.position.z),
+			Vector3(shell.end.x - cover.end.x, low, cover.size.z)),
+		"Cover": cover,
+	}
+	var pivot := get_node_or_null("CoverPivot") as Node3D
+	_cover_pieces.clear()
+	for holder: Node3D in [self, get_node_or_null("PointerArea") as Node3D]:
+		if holder == null:
+			continue
+		var to_holder := Transform3D.IDENTITY if holder == self else holder.transform.affine_inverse()
+		for key: String in boxes:
+			var box: AABB = boxes[key]
+			# The scene's own box becomes the shell's; the others are made once.
+			var name_of := "CollisionShape3D" if key.is_empty() else "Collision" + key
+			var piece := holder.get_node_or_null(name_of) as CollisionShape3D
+			if box.size.x < WALL_MIN or box.size.y < WALL_MIN or box.size.z < WALL_MIN:
+				if piece != null and not key.is_empty():
+					holder.remove_child(piece)
+					piece.queue_free()
+				continue
+			if piece == null:
+				piece = CollisionShape3D.new()
+				piece.name = name_of
+				holder.add_child(piece)
+			# A box of its own: the scene's is shared by every remote in the room.
+			var shape := BoxShape3D.new()
+			shape.size = box.size
+			piece.shape = shape
+			var at := Transform3D(Basis(), box.get_center())
+			piece.transform = to_holder * at
+			if key == "Cover" and pivot != null:
+				_cover_pieces.append({"piece": piece, "to_holder": to_holder,
+					"rest": pivot.transform.affine_inverse() * at})
+	_follow_cover()
+
+
+## Stand the cover's boxes where the cover is now.
+func _follow_cover() -> void:
+	var pivot := get_node_or_null("CoverPivot") as Node3D
+	if pivot == null:
+		return
+	for entry: Dictionary in _cover_pieces:
+		var piece := entry["piece"] as CollisionShape3D
+		if is_instance_valid(piece):
+			piece.transform = (entry["to_holder"] as Transform3D) * pivot.transform * (entry["rest"] as Transform3D)
 
 
 # ── Nunchuk ───────────────────────────────────────────────────────────────────
