@@ -386,26 +386,34 @@ func _build_ui() -> void:
 	nav_bar.add_theme_constant_override("separation", 6)
 	root_vbox.add_child(nav_bar)
 	_nav_spawn_btn    = _make_nav_button("SPAWN")
-	_nav_cores_btn    = _make_nav_button("CORES")
-	_nav_controls_btn = _make_nav_button("CONTROLS")
-	_nav_options_btn  = _make_nav_button("OPTIONS")
-	_nav_graphics_btn = _make_nav_button("GRAPHICS")
 	_nav_scene_btn    = _make_nav_button("SCENE")
 	_nav_net_btn      = _make_nav_button("NET")
 	_nav_mods_btn     = _make_nav_button("MODS")
+	_nav_cores_btn    = _make_nav_button("CORES")
+	_nav_controls_btn = _make_nav_button("CONTROLS")
+	_nav_graphics_btn = _make_nav_button("GRAPHICS")
+	_nav_options_btn  = _make_nav_button("OPTIONS")
 	_nav_about_btn    = _make_nav_button("ABOUT")
 	_nav_spawn_btn.pressed.connect(_show_spawn_view)
-	_nav_cores_btn.pressed.connect(_show_cores_view)
-	_nav_controls_btn.pressed.connect(_show_controls_view)
-	_nav_options_btn.pressed.connect(_show_options_view)
-	_nav_graphics_btn.pressed.connect(_show_graphics_view)
 	_nav_scene_btn.pressed.connect(_show_scene_view)
 	_nav_net_btn.pressed.connect(_show_net_view)
-	_nav_about_btn.pressed.connect(_show_about_view)
 	_nav_mods_btn.pressed.connect(_show_mods_view)
-	_nav_buttons = [_nav_spawn_btn, _nav_cores_btn, _nav_controls_btn, _nav_options_btn,
-		_nav_graphics_btn, _nav_scene_btn, _nav_net_btn, _nav_mods_btn, _nav_about_btn]
+	_nav_cores_btn.pressed.connect(_show_cores_view)
+	_nav_controls_btn.pressed.connect(_show_controls_view)
+	_nav_graphics_btn.pressed.connect(_show_graphics_view)
+	_nav_options_btn.pressed.connect(_show_options_view)
+	_nav_about_btn.pressed.connect(_show_about_view)
+	_nav_buttons = [_nav_spawn_btn, _nav_scene_btn, _nav_net_btn, _nav_mods_btn,
+		_nav_cores_btn, _nav_controls_btn, _nav_graphics_btn, _nav_options_btn, _nav_about_btn]
+	# Grouped by what the player is doing: playing (spawn, room, session), getting
+	# things installed (mods, cores), and the settings, with ABOUT on its own at
+	# the end. A separator goes before the first button of each later group.
+	var nav_group_starts: Array[Button] = [_nav_mods_btn, _nav_controls_btn, _nav_about_btn]
 	for btn in _nav_buttons:
+		if btn in nav_group_starts:
+			var sep := VSeparator.new()
+			sep.add_theme_constant_override("separation", 4)
+			nav_bar.add_child(sep)
 		nav_bar.add_child(btn)
 
 	root_vbox.add_child(HSeparator.new())
@@ -798,6 +806,10 @@ func _set_nav_active(active: Button) -> void:
 		for k in ["corner_radius_top_left","corner_radius_top_right",
 				  "corner_radius_bottom_left","corner_radius_bottom_right"]:
 			s.set(k, 6)
+		# The longest labels (CONTROLS, GRAPHICS) fill the row's share, and with
+		# no margin their letters ran into the button's edge.
+		s.content_margin_left = 4
+		s.content_margin_right = 4
 		for state in ["normal", "hover", "pressed"]:
 			btn.add_theme_stylebox_override(state, s)
 
