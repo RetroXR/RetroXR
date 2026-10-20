@@ -1,0 +1,44 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/jamma_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
+
+; PLACEHOLDER GEOMETRY, boxes like ilink_port.tscn's: the repo ships only assets it has the right to.
+; The JAMMA harness is a 56-way edge connector, here a flat black mouth 60 x 14 mm with the plug's
+; own shape as the ghost. Placed so the zone sits where a seated plug's ORIGIN belongs, its mating face.
+
+[sub_resource type="BoxMesh" id="BoxMesh_mouth"]
+size = Vector3(0.06, 0.014, 0.008)
+
+; Unshaded near-black, for the other sockets' reason: a shaded one reads as a raised block, not a hole.
+[sub_resource type="StandardMaterial3D" id="Mat_mouth"]
+albedo_color = Color(0.012, 0.012, 0.015, 1)
+shading_mode = 0
+
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.06, 0.014, 0.02)
+
+[sub_resource type="StandardMaterial3D" id="Mat_plug_ghost"]
+transparency = 1
+albedo_color = Color(0.2, 0.5, 1, 0.45)
+emission_enabled = true
+emission = Color(0, 0.15, 0.5, 1)
+emission_energy_multiplier = 0.4
+
+[node name="JammaPort" instance=ExtResource("1_snapzone")]
+grab_distance = 0.06
+script = ExtResource("2_portscript")
+
+[node name="Mouth" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.004)
+mesh = SubResource("BoxMesh_mouth")
+surface_material_override/0 = SubResource("Mat_mouth")
+
+[node name="SnapHighlight" type="Node3D" parent="."]
+script = ExtResource("3_snaphigh")
+
+[node name="HighlightMesh" type="MeshInstance3D" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)
+mesh = SubResource("BoxMesh_plug_ghost")
+surface_material_override/0 = SubResource("Mat_plug_ghost")

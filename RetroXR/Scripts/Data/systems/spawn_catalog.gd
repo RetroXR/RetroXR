@@ -28,6 +28,15 @@ extends RefCounted
 const PRIMITIVE_CONTROLLER := "retro_controller"
 
 
+## The arcade bays and their JAMMA lead, on every cabinet's card (see _PERIPHERALS).
+const _ARCADE_BAY_ROWS: Array = [
+	{"kind": "peripheral", "label": "JAMMA Arcade Bay", "spawn": "arcade_bay_jamma"},
+	{"kind": "peripheral", "label": "Neo Geo MVS Arcade Bay", "spawn": "arcade_bay_mvs"},
+	{"kind": "peripheral", "label": "Laserdisc Arcade Bay", "spawn": "arcade_bay_laserdisc"},
+	{"kind": "peripheral", "label": "DICE Arcade Bay", "spawn": "arcade_bay_discrete"},
+	{"kind": "peripheral", "label": "JAMMA Cable", "spawn": "jamma_cable"},
+]
+
 ## systemid → the peripherals that belong to that hardware. Systems with no entry
 ## just have none; their hardware rows still come from the registry.
 ##
@@ -185,6 +194,13 @@ const _PERIPHERALS: Dictionary = {
 	"sega32x": [
 		{"kind": "peripheral", "label": "Model 2 Spacer", "spawn": "sega32x_spacer"},
 	],
+	# A cabinet's bay is its own object now (ArcadeBayUnit), and the harness lead joins one standing
+	# elsewhere to a cabinet. Every cabinet's card offers every kind: a bay clipped into another kind's
+	# cabinet is what makes the cabinet play that system.
+	"arcade": _ARCADE_BAY_ROWS,
+	"neogeo": _ARCADE_BAY_ROWS,
+	"daphne": _ARCADE_BAY_ROWS,
+	"dice": _ARCADE_BAY_ROWS,
 }
 
 
@@ -570,7 +586,9 @@ static func _items_for(systemid: String) -> Array:
 	# when nothing names a model: the first available row. Two mods modelling
 	# the same console is the case this is for -- which of them that is follows
 	# from their priority, and the card is the only place it can be seen.
-	if items.size() > 1 and not rows.is_empty():
+	# Not on the arcade card: its cabinets are a choice of body, not of a console the game reaches for,
+	# and "default" beside the first one read as a flaw.
+	if items.size() > 1 and not rows.is_empty() and not ArcadeProfiles.is_arcade_system(systemid):
 		var chosen := str((rows[0] as Dictionary).get("id", ""))
 		for item: Dictionary in items:
 			if str(item.get("model_id", "")) == chosen:

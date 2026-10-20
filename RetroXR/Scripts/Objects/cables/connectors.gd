@@ -48,6 +48,7 @@ const LABELS := {
 	"saturn_link_plug": "a Saturn link cable plug",
 	"jag_link_plug": "a JagLink cable plug",
 	"ilink_plug": "an i.LINK cable plug",
+	"jamma_plug": "a JAMMA harness plug",
 	"gamecube_controller": "a GameCube controller plug",
 	"playstation_controller": "a PlayStation controller plug",
 	"de9_controller": "a DE-9 joystick plug",

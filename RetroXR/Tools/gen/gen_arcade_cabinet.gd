@@ -73,6 +73,7 @@ const SCRIPTS := {
 	"button": "res://Scripts/Objects/widgets/vr_button.gd",
 	"hinge": "res://Scripts/Objects/widgets/vr_hinge.gd",
 	"pedal": "res://Scripts/Objects/arcade/arcade_pedal_module.gd",
+	"av_in": "res://Scripts/Objects/arcade/arcade_av_in_module.gd",
 }
 
 var _root: Node3D
@@ -215,6 +216,7 @@ func _initialize() -> void:
 	elif bool(_v["sockets"]):
 		_build_front_sockets()
 	_build_bay()
+	_build_av_in()
 	if bool(_v["pedal"]):
 		_build_pedal()
 	# What the model needs of the shape (collision, pointer boxes, speakers, the options panel).
@@ -520,6 +522,53 @@ func _build_pedal() -> void:
 	U.box(_root, pedal, "PedalCable", Vector3(0.012, 0.008, 0.30), Vector3(0, 0.004, -0.28), _dark)
 
 
+# ── composite input ─────────────────────────────────────────────────────────
+
+## The cabinet's composite INPUT: a rectangle on the compartment floor beside the power supply (which stands to the
+## right at the back; this is the other side of it), three phono sockets on its top facing UP so a hand leaning
+## in puts a plug straight down, a yellow plate with COMPOSITE IN in front of them, and a LED on its front
+## that says whether it takes input (ArcadeAvInModule: only while the compartment holds no unit). The sockets
+## are the cabinet's, not any bay unit's.
+func _build_av_in() -> void:
+	var rca := load("res://Scenes/Objects/cables/rca_port.tscn") as PackedScene
+	var mod := U.node(_root, _root, "Node3D", "AvIn", Vector3.ZERO) as Node3D
+	mod.set_script(load(SCRIPTS["av_in"]))
+	var cx := -0.20
+	var cz := -0.29
+	var floor_y := 0.105
+	var h := 0.10
+	var top := floor_y + h
+	U.box(_root, mod, "InBox", Vector3(0.16, h, 0.14), Vector3(cx, floor_y + h * 0.5, cz), _metal)
+	U.box(_root, mod, "InPlate", Vector3(0.15, 0.001, 0.030), Vector3(cx, top + 0.0005, cz + 0.045),
+		U.mat(Color(0.95, 0.80, 0.12), 0.0, 0.5))
+	var tag := U.node(_root, mod, "Label3D", "InLegend", Vector3(cx, top + 0.0020, cz + 0.045)) as Label3D
+	tag.basis = Basis(Vector3.RIGHT, -PI * 0.5)       # lies flat on the plate, reads from the front
+	tag.text = "COMPOSITE IN"
+	tag.pixel_size = 0.00075
+	tag.font_size = 32
+	tag.modulate = Color(0.05, 0.05, 0.06)
+	tag.outline_size = 0
+	var led := U.box(_root, mod, "InLed", Vector3(0.014, 0.014, 0.002), Vector3(cx + 0.055, floor_y + 0.07, cz + 0.071),
+		U.mat(Color(0.25, 0.04, 0.04), 0.0, 0.5))
+	led.name = "InLed"
+	if rca == null:
+		return
+	for i in 3:
+		var jack := rca.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) as Node3D
+		jack.name = ["VideoIn", "AudioLIn", "AudioRIn"][i]
+		mod.add_child(jack)
+		jack.owner = _root
+		jack.set("direction", 1)             # RcaPort.Direction.IN
+		jack.set("channel", [0, 1, 2][i])    # VIDEO, AUDIO_L, AUDIO_R
+		var x := cx - 0.045 + 0.045 * i
+		# +Z (out of the socket) turned to +Y: the plug goes in from above.
+		jack.position = Vector3(x, top + 0.010, cz - 0.012)
+		jack.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+		# A colour disc under each socket (yellow video, white left, red right), as a console's jacks are marked.
+		U.cylinder(_root, mod, "InDisc%d" % (i + 1), 0.0125, 0.0015, Vector3(x, top + 0.00075, cz - 0.012),
+			U.mat([Color(0.95, 0.80, 0.10), Color(0.92, 0.92, 0.92), Color(0.85, 0.10, 0.10)][i], 0.0, 0.5))
+
+
 # ── bay ─────────────────────────────────────────────────────────────────────
 
 func _build_bay() -> void:
@@ -531,20 +580,26 @@ func _build_bay() -> void:
 	U.box(_root, bay, "BayRear", Vector3(_in_w - 0.02, 0.40, 0.01), Vector3(0, 0.30, -0.375), interior)
 	U.box(_root, bay, "BayLeft", Vector3(0.01, 0.40, 0.76), Vector3(-(_in_w * 0.5 - 0.015), 0.30, 0.0), interior)
 	U.box(_root, bay, "BayRight", Vector3(0.01, 0.40, 0.76), Vector3(_in_w * 0.5 - 0.015, 0.30, 0.0), interior)
-	U.box(_root, bay, "BayCeiling", Vector3(_in_w - 0.02, 0.01, 0.76), Vector3(0, 0.505, 0.0), interior)
+	# No ceiling over the compartment: a player who leans into the cabinet sees the bay from above, and a
+	# bay is taken out upward through the open top. The shell's own floor above (the deck) closes it.
 	U.box(_root, bay, "Psu", Vector3(0.16, 0.15, 0.14), Vector3(0.20, 0.18, -0.29), _metal)
-	var seat: Marker3D
-	if str(_v["bay"]) == "mvs":
-		seat = _build_mvs_unit(bay)
-	else:
-		# The harness: its female JAMMA connector on the floor, and the bundle running
-		# back from it. The board's comb goes into the top of the block.
-		U.box(_root, bay, "JammaSocket", Vector3(0.12, 0.02, 0.045), Vector3(0, 0.11, 0.0),
-			U.mat(Color(0.85, 0.80, 0.55), 0.0, 0.6))
-		U.cylinder(_root, bay, "Harness", 0.012, 0.34, Vector3(0, 0.115, -0.21),
-			U.mat(Color(0.10, 0.10, 0.12), 0.0, 0.7), Vector3.BACK)
-		# The board stands in the socket facing the front: connector -Y, label +Z.
-		seat = U.node(_root, bay, "Marker3D", "CartSeat", Vector3(0, 0.27, 0.0)) as Marker3D
+	# The board is not drawn here: the bay is a separate object (ArcadeBayUnit, baked by
+	# gen_arcade_bay.gd) that clips into the BayMount, standing on the compartment's floor, and
+	# brings its own socket, its harness and the seat the board stands on. What stays is the shell
+	# it stands in: the walls, the power supply, the door, the power switch and the JAMMA socket
+	# on the back that a bay standing elsewhere is wired to.
+	U.node(_root, bay, "Marker3D", "BayMount", Vector3(0, 0.10, 0.0))
+	var jamma_port := load("res://Scenes/Objects/cables/jamma_port.tscn") as PackedScene
+	if jamma_port != null:
+		# GEN_EDIT_STATE_INSTANCE: only what this node changes is saved, not the base scene's own script and
+		# signals again (a script set twice connects the zone's signals twice).
+		var port := jamma_port.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) as Node3D
+		port.name = "JammaPort"
+		_root.add_child(port)
+		port.owner = _root
+		# On the back panel, +Z out of it (a console's jacks are turned the same way).
+		port.position = Vector3(0, 0.30, -0.41)
+		port.basis = Basis(Vector3.RIGHT, PI)
 	# The power switch is in the bay beside the JAMMA socket, on the floor in front of the
 	# board where the door lies flat once it is open: it stands up out of the shelf, so a
 	# hand or a ray from above reaches it, and the board never hides it. Local +Y is out of
@@ -558,7 +613,6 @@ func _build_bay() -> void:
 	plabel.modulate = Color(0.9, 0.9, 0.95)
 	plabel.outline_size = 0
 	ps.name = "PowerSwitch"
-	seat.name = "CartSeat"
 
 	# The door: a drop-down panel hinged on its bottom edge, +X the hinge axis.
 	var pivot := U.node(_root, bay, "Node3D", "DoorPivot", Vector3(0, 0.10, 0.40)) as Node3D
@@ -579,45 +633,6 @@ func _build_bay() -> void:
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(_in_w - 0.12, 0.12, 0.04)
 	col.shape = shape
-
-
-# ── the Neo Geo MVS unit ────────────────────────────────────────────────────
-
-## The MVS in the bay: a RECTANGULAR unit, a metal tray holding the green motherboard, with the cartridge
-## slot standing up out of the middle of it (the vertical-slot MVS; the cart stands in it, its label
-## to the front, as the cart's frame has it). The MVS is a board, not a console, but in a cabinet it
-## is a box on the bay floor with a game plugged into it. The sizes are ESTIMATES (no source reached
-## gave them): about 340 x 200 mm. Returns the CartSeat marker, where the cassette's centre stands.
-func _build_mvs_unit(bay: Node3D) -> Marker3D:
-	var tray := U.mat(Color(0.55, 0.56, 0.60), 0.85, 0.4)
-	var green := U.mat(Color(0.04, 0.30, 0.15), 0.0, 0.55)
-	var black := U.mat(Color(0.03, 0.03, 0.035), 0.0, 0.5)
-	var chip := U.mat(Color(0.07, 0.07, 0.08), 0.0, 0.5)
-	var gold := U.mat(Color(0.85, 0.66, 0.22), 1.0, 0.3)
-	var floor_y := 0.10
-	U.box(_root, bay, "MvsTray", Vector3(0.34, 0.035, 0.20), Vector3(0, floor_y + 0.0175, 0.0), tray)
-	var board_y := floor_y + 0.035 + 0.0015
-	U.box(_root, bay, "MvsBoard", Vector3(0.32, 0.003, 0.19), Vector3(0, board_y, 0.0), green)
-	# The cartridge slot: a black housing with the slot cut into its top.
-	var slot_top := board_y + 0.0015 + 0.030
-	U.box(_root, bay, "MvsSlot", Vector3(0.178, 0.030, 0.032), Vector3(0, board_y + 0.0015 + 0.015, 0.0), black)
-	U.box(_root, bay, "MvsSlotMouth", Vector3(0.164, 0.002, 0.018), Vector3(0, slot_top + 0.0001, 0.0),
-		U.mat(Color(0.0, 0.0, 0.0), 0.0, 0.9))
-	# Chips and connectors on the board, either side of the slot.
-	for i in 3:
-		U.box(_root, bay, "MvsChipL%d" % (i + 1), Vector3(0.034, 0.008, 0.026),
-			Vector3(-0.125 + i * 0.002 - 0.0, board_y + 0.0055, -0.055 + i * 0.045), chip)
-	for i in 3:
-		U.box(_root, bay, "MvsChipR%d" % (i + 1), Vector3(0.030, 0.007, 0.022),
-			Vector3(0.125, board_y + 0.005, -0.055 + i * 0.045), chip)
-	U.box(_root, bay, "MvsEdgeConn", Vector3(0.150, 0.006, 0.010), Vector3(0, board_y + 0.0045, -0.088), gold)
-	U.box(_root, bay, "MvsPower", Vector3(0.040, 0.016, 0.030), Vector3(-0.140, board_y + 0.009, 0.080), tray)
-	# The cassette's edge goes INSERT into the slot: its centre is half its height above the tip.
-	var insert := 0.020
-	var cart_h := 0.130
-	var seat := U.node(_root, bay, "Marker3D", "CartSeat",
-		Vector3(0, slot_top - insert + cart_h * 0.5, 0.0)) as Marker3D
-	return seat
 
 
 # ── extrusion ───────────────────────────────────────────────────────────────

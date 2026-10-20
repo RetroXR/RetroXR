@@ -21,6 +21,11 @@ signal door_changed(open: bool)
 var _pivot: Node3D = null
 var _hinge: VRHinge = null
 var _slot: Node3D = null
+## True when the cabinet's scene has a `BayMount` marker: its bay is a separate object (ArcadeBayUnit)
+## that clips into the mount, and this module is only the compartment, the door and the power switch.
+var _detachable := false
+## The slot of the bay in the compartment, gated by the door; null with none, or a cabled one.
+var _gated: XRToolsSnapZone = null
 var _open := false
 
 
@@ -43,15 +48,32 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 		_hinge.rotation_changed.connect(_on_hinge)
 
 
-## Seat the cabinet's cartridge slot on the board's seat and gate it by the door.
+## Seat the cabinet's cartridge slot on the board's seat and gate it by the door. A cabinet with a
+## `BayMount` has no seat of its own: the slot is shut for good, and the bay brings one.
 func configure_slot(slot: Node3D) -> void:
 	_slot = slot
-	var seat := find_child("CartSeat", true, false) as Node3D
-	if seat != null:
-		slot.global_transform = seat.global_transform
 	var visual := slot.get_node_or_null("SlotVisual") as MeshInstance3D
 	if visual != null:
 		visual.hide()
+	_detachable = find_child("BayMount", true, false) != null
+	if _detachable:
+		if "enabled" in slot:
+			slot.enabled = false
+		return
+	var seat := find_child("CartSeat", true, false) as Node3D
+	if seat != null:
+		slot.global_transform = seat.global_transform
+	_gate()
+
+
+## Where a bay's origin goes when it is clipped in, or null on a cabinet whose bay is not separate.
+func mount_marker() -> Node3D:
+	return find_child("BayMount", true, false) as Node3D
+
+
+## The slot of the bay now docked, which the door gates; null when it is gone or is not docked.
+func set_gated_slot(zone: XRToolsSnapZone) -> void:
+	_gated = zone
 	_gate()
 
 
@@ -98,5 +120,6 @@ func _set_open(open: bool) -> void:
 
 
 func _gate() -> void:
-	if _slot != null and "enabled" in _slot:
-		_slot.enabled = _open
+	var target: Node3D = _gated if _detachable else _slot
+	if target != null and "enabled" in target:
+		target.enabled = _open
