@@ -796,19 +796,99 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 			if cards > 0:
 				btn.text = "     %s      %d card%s" \
 					% [str(item.get("label", "Memory Card")), cards, "" if cards == 1 else "s"]
-			btn.pressed.connect(
-				_on_system_memcard_pressed.bind(systemid, card_fmt.id(), vbox))
+			var card_colors: Array = item.get("variants", [])
+			if card_colors.is_empty():
+				btn.pressed.connect(
+					_on_system_memcard_pressed.bind(systemid, card_fmt.id(), vbox))
+			else:
+				# A card that comes in colors (a mod offered them on this card's row).
+				# Pressed, it does what a card row does, a new card in the row's
+				# default color; held, it asks which color for a new card.
+				var family := card_fmt.id()
+				var card_hold := HoldPress.attach(btn)
+				card_hold.clicked.connect(func() -> void:
+					_on_system_memcard_pressed(systemid, family, vbox,
+						_row_default(_default_key(systemid, token), card_colors)))
+				card_hold.held.connect(
+					_show_model_spawn_options.bind(systemid, item, "%s_memory_card" % family))
+				_mark_holdable(btn, _default_key(systemid, token), card_colors)
 		elif not (item.get("variants", []) as Array).is_empty():
 			# A console that comes in several colors. Pressed, it spawns as its
 			# row has it; held for a second, it asks which, as a ROM's row asks
 			# for a cartridge's shell.
+			# Pressed, it spawns the color its held panel made its default.
+			var colors: Array = item.get("variants", [])
 			var hold := HoldPress.attach(btn)
-			hold.clicked.connect(spawn_requested.emit.bind(token))
+			hold.clicked.connect(func() -> void:
+				spawn_requested.emit(SpawnCatalog.spawn_token(systemid, item,
+					_row_default(_default_key(systemid, token), colors))))
 			hold.held.connect(_show_model_spawn_options.bind(systemid, item))
+			_mark_holdable(btn, _default_key(systemid, token), colors)
 		else:
 			btn.pressed.connect(spawn_requested.emit.bind(token))
 		vbox.add_child(btn)
 	vbox.add_child(MenuStyle.spacer(8))
+
+
+## What a plain press of a row with colors spawns: the color its held panel made
+## the default, while the row still lists it; otherwise the row as it comes. The
+## first color listed IS as it comes, so it reads as "".
+static func _row_default(row_token: String, variants: Array) -> String:
+	var id := AppPrefs.spawn_default(row_token)
+	for i in variants.size():
+		if str((variants[i] as Dictionary).get("id", "")) == id:
+			return "" if i == 0 else id
+	return ""
+
+
+## Where a row's default is kept: by card and row, since rows on different cards
+## can share a token and still come in different colors (each console's
+## "Memory Card" row spawns its own family's card).
+static func _default_key(systemid: String, row_token: String) -> String:
+	return "%s|%s" % [systemid, row_token]
+
+
+## A token asking for `token`'s thing in `variant`, or `token` as it is.
+static func _in_color(token: String, variant: String) -> String:
+	return token if variant.is_empty() else "%s%s:%s" % [SpawnCatalog.AS, variant, token]
+
+
+## The mark of a row that can be held: at its right end, a swatch of the color a
+## plain press spawns, so a row with colors says so before it is held and says
+## which one it will give.
+func _mark_holdable(btn: Button, row_token: String, variants: Array) -> void:
+	var id := _row_default(row_token, variants)
+	var shown: Dictionary = variants[0]
+	for variant: Dictionary in variants:
+		if str(variant.get("id", "")) == id:
+			shown = variant
+	btn.icon = _hold_icon(SystemModelRegistry.variant_color(shown))
+	btn.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	btn.tooltip_text = "%s. Hold to choose another." % str(shown.get("label", ""))
+
+
+## Swatches drawn so far, by color: a page of rows asks for the same few.
+static var _hold_icons: Dictionary = {}
+
+
+## A round swatch of `color` in a light ring, 34 px across, its edge eased.
+static func _hold_icon(color: Color) -> Texture2D:
+	var key := color.to_html()
+	if _hold_icons.has(key):
+		return _hold_icons[key]
+	const SIZE := 34
+	var img := Image.create(SIZE, SIZE, false, Image.FORMAT_RGBA8)
+	var mid := (SIZE - 1) * 0.5
+	var ring := Color(0.92, 0.94, 1.0)
+	for y in SIZE:
+		for x in SIZE:
+			var d := Vector2(x - mid, y - mid).length()
+			var fill := ring if d > mid - 4.0 else Color(color, 1.0)
+			fill.a = clampf(mid + 0.5 - d, 0.0, 1.0)
+			img.set_pixel(x, y, fill)
+	var tex := ImageTexture.create_from_image(img)
+	_hold_icons[key] = tex
+	return tex
 
 
 ## The card family of a spawn token naming a unit that is only memory -- a Backup
@@ -827,10 +907,13 @@ static func memory_cart_family(token: String) -> String:
 ##
 ## Nothing saved yet means there is nothing to choose between, so the row keeps
 ## its plain behaviour and spawns a blank card.
+##
+## `variant` is the color a new blank card is spawned in (its row's default),
+## "" for as it comes.
 func _on_system_memcard_pressed(systemid: String, family: String,
-		vbox: VBoxContainer) -> void:
+		vbox: VBoxContainer, variant: String = "") -> void:
 	if not MemoryCardBrowser.has_cards(family):
-		spawn_requested.emit("%s_memory_card" % family)
+		spawn_requested.emit(_in_color("%s_memory_card" % family, variant))
 		return
 	_clear_children(vbox)
 	var b := MemoryCardBrowser.new()
@@ -3482,10 +3565,16 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 ## color. It opens on the first, which is the console as a plain press spawns
 ## it, and picking that one asks for nothing: the token then names no color, so
 ## the save records none.
-func _show_model_spawn_options(systemid: String, item: Dictionary) -> void:
+##
+## It opens on the row's default, and MAKE DEFAULT makes the color picked what a
+## plain press of the row spawns from then on. `base` is the token a color is
+## asked of when it is not the row's own: a card row's is "memory_card", and a
+## new card is its console's family's, "<family>_memory_card".
+func _show_model_spawn_options(systemid: String, item: Dictionary, base: String = "") -> void:
 	var vbox := _open_spawn_options_panel(str(item.get("label", "Console")))
 	var variants: Array = item.get("variants", [])
-	var chosen := {"variant": ""}
+	var row_token := _default_key(systemid, SpawnCatalog.spawn_token(systemid, item))
+	var chosen := {"variant": _row_default(row_token, variants)}
 
 	vbox.add_child(MenuStyle.header("Color"))
 	var group := ButtonGroup.new()
@@ -3501,19 +3590,38 @@ func _show_model_spawn_options(systemid: String, item: Dictionary) -> void:
 		var id := str(variant.get("id", ""))
 		var swatch := _swatch_button(str(variant.get("label", id)),
 			SystemModelRegistry.variant_color(variant), group)
-		swatch.button_pressed = i == 0
 		var asked := "" if i == 0 else id
-		swatch.pressed.connect(func() -> void: chosen["variant"] = asked)
+		swatch.button_pressed = asked == chosen["variant"]
 		grid.add_child(swatch)
 
 	vbox.add_child(MenuStyle.spacer(6))
+	var make_default := MenuStyle.row_button("  MAKE DEFAULT", 22, 0, 64, false)
+	make_default.name = "MakeDefault"
+	var show_default := func() -> void:
+		var is_default: bool = chosen["variant"] == _row_default(row_token, variants)
+		make_default.disabled = is_default
+		make_default.text = "  DEFAULT FOR THIS ROW" if is_default else "  MAKE DEFAULT"
+	show_default.call()
+	for i in grid.get_child_count():
+		var asked := "" if i == 0 else str((variants[i] as Dictionary).get("id", ""))
+		(grid.get_child(i) as Button).pressed.connect(func() -> void:
+			chosen["variant"] = asked
+			show_default.call())
+	make_default.pressed.connect(func() -> void:
+		AppPrefs.set_spawn_default(row_token, chosen["variant"])
+		show_default.call()
+		# The row behind the panel shows the new default's swatch.
+		if _systems_browser != null:
+			_systems_browser.refresh_detail())
+	vbox.add_child(make_default)
 	var go := MenuStyle.row_button("  +  SPAWN", 26, 0, 80, false)
 	go.name = "SpawnVariant"
 	go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
 	go.pressed.connect(func() -> void:
 		var variant: String = chosen["variant"]
 		_close_spawn_options_panel()
-		spawn_requested.emit(SpawnCatalog.spawn_token(systemid, item, variant)))
+		spawn_requested.emit(_in_color(base, variant) if not base.is_empty()
+			else SpawnCatalog.spawn_token(systemid, item, variant)))
 	vbox.add_child(go)
 
 

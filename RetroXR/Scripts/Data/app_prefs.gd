@@ -118,6 +118,30 @@ const DEFAULT_HW_RENDER := "vulkan"
 var hw_render_overrides: Dictionary = {}
 
 
+## Spawn-menu row -> the color a plain press of it spawns, set from the row's
+## held panel. Keyed "<systemid>|<the row's own token>" (SpawnMenuSpawnView._default_key);
+## a row not listed spawns as it comes. An id the row no longer lists (its mod
+## gone or changed) is ignored where it is read, not pruned here.
+var spawn_defaults: Dictionary = {}
+
+
+## The color a plain press of the row `token` spawns, or "" for as it comes.
+func spawn_default(token: String) -> String:
+	return str(spawn_defaults.get(token, ""))
+
+
+## Make `variant` what a plain press of the row `token` spawns ("": as it
+## comes again), and persist.
+func set_spawn_default(token: String, variant: String) -> void:
+	if token.is_empty() or spawn_default(token) == variant:
+		return
+	if variant.is_empty():
+		spawn_defaults.erase(token)
+	else:
+		spawn_defaults[token] = variant
+	save_prefs()
+
+
 ## True when this systemid should be kept out of the grids.
 func is_system_hidden(systemid: String) -> bool:
 	return systemid in hidden_systems
@@ -256,6 +280,7 @@ func _load_prefs() -> void:
 	bedroom_time_of_day = clampf(JsonStore.get_float(data, "bedroom_time_of_day",
 		bedroom_time_of_day), 0.0, 1.0)
 	hw_render_overrides = JsonStore.get_dict(data, "hw_render_overrides", hw_render_overrides)
+	spawn_defaults = JsonStore.get_dict(data, "spawn_defaults", spawn_defaults)
 
 
 ## Returns false when the write did not land. Callers that report a setting
@@ -284,6 +309,7 @@ func save_prefs() -> bool:
 		"compact_tiles":     compact_tiles,
 		"bedroom_time_of_day": bedroom_time_of_day,
 		"hw_render_overrides": hw_render_overrides,
+		"spawn_defaults": spawn_defaults,
 	}, "AppPrefs")
 
 

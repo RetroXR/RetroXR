@@ -520,6 +520,46 @@ func _group_colors() -> void:
 			(pad_grid.get_child(1) as Button).pressed.emit()
 			(pad_panel.find_child("SpawnVariant", true, false) as Button).pressed.emit()
 		_eq(sent, ["as:red:mod:menu.colors:pad"] as Array[String], "colors/held and picked, it asks for itself in that color")
+		# The row says it can be held, and with what a press gives; held, a color
+		# can be made that press's color, and is kept.
+		_ok(pad_btn.icon != null, "colors/a row that can be held wears a swatch")
+		var pad_key := "%s|%s" % [SYS, "mod:menu.colors:pad"]
+		var pad_was := AppPrefs.spawn_default(pad_key)
+		AppPrefs.set_spawn_default(pad_key, "")
+		pad_btn.button_down.emit()
+		pad_hold.advance(HoldPress.HOLD_SECONDS + 0.1)
+		pad_btn.pressed.emit()
+		pad_btn.button_up.emit()
+		pad_panel = view._spawn_options_panel
+		pad_grid = pad_panel.find_child("Variants", true, false) as GridContainer if pad_panel != null else null
+		var make := pad_panel.find_child("MakeDefault", true, false) as Button if pad_panel != null else null
+		_ok(make != null and make.disabled, "colors/held, the panel opens on the row's default, as it comes")
+		if pad_grid != null and make != null:
+			(pad_grid.get_child(1) as Button).pressed.emit()
+			_ok(not make.disabled, "colors/another color picked can be made the default")
+			make.pressed.emit()
+			_eq(AppPrefs.spawn_default(pad_key), "red", "colors/and is kept for this row")
+			_ok(make.disabled, "colors/and the button then says it is the default")
+		view._close_spawn_options_panel()
+		sent.clear()
+		pad_btn.button_down.emit()
+		pad_hold.advance(0.3)
+		pad_btn.pressed.emit()
+		pad_btn.button_up.emit()
+		_eq(sent, ["as:red:mod:menu.colors:pad"] as Array[String], "colors/pressed now, the row spawns its default")
+		pad_btn.button_down.emit()
+		pad_hold.advance(HoldPress.HOLD_SECONDS + 0.1)
+		pad_btn.pressed.emit()
+		pad_btn.button_up.emit()
+		pad_panel = view._spawn_options_panel
+		pad_grid = pad_panel.find_child("Variants", true, false) as GridContainer if pad_panel != null else null
+		_ok(pad_grid != null and (pad_grid.get_child(1) as Button).button_pressed
+			and not (pad_grid.get_child(0) as Button).button_pressed,
+			"colors/and held again, the panel opens on it")
+		view._close_spawn_options_panel()
+		_eq(SpawnMenuSpawnView._row_default(pad_key, pad_colors), "red", "colors/a kept default the row still lists is read back")
+		_eq(SpawnMenuSpawnView._row_default(pad_key, [pad_colors[0]]), "", "colors/one the row no longer lists is ignored")
+		AppPrefs.set_spawn_default(pad_key, pad_was)
 	await get_tree().process_frame
 
 	SystemModelRegistry.drop_mod(OWNER)
