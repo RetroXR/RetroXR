@@ -1,4 +1,4 @@
-## RetroSystemModelNeoGeoConsole — the Neo Geo MVS, consolized.
+## RetroSystemModelNeoGeoConsole — the Neo Geo AES (the home console), which takes MVS cassettes.
 ##
 ## A rectangular box that takes the MVS arcade cassettes (the same cartridges the MVS cabinet takes)
 ## and has what a home console has: two controller ports and POWER and RESET on the front, and the
