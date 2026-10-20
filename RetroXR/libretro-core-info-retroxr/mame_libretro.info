@@ -1,0 +1,90 @@
+# Arcade (MAME), retroXR build.
+#
+# Overrides the vendored libretro-core-info entry of the same name. It lives in its own
+# directory because res://libretro-core-info is vendored wholesale from libretro's
+# repository and is refreshed wholesale too -- an edit there would be lost the next time,
+# silently. An overlay REPLACES the entry, so everything below is a whole copy of it with
+# one addition: the BIOS and device ROM sets MAME looks for (the vendored entry declares
+# none), so they show on the core's BIOS list and download from RomM by file name like
+# any other firmware. Every one is optional: only the games on that hardware want it.
+# MAME searches the ROM folder, SYSTEMDIR/mame/bios and SYSTEMDIR/mame/roms (see notes).
+# Software Information
+display_name = "Arcade (MAME)"
+categories = "Emulator"
+authors = "MAMEdev"
+supported_extensions = "cmd|zip|7z"
+corename = "MAME"
+license = "GPLv2+"
+permissions = ""
+display_version = "Git"
+
+# Hardware Information
+manufacturer = "Various"
+systemname = "Arcade (various)"
+systemid = "arcade"
+
+# Libretro Features
+supports_no_game = "false"
+database = "MAME"
+savestate = "true"
+savestate_features = "deterministic"
+cheats = "false"
+input_descriptors = "false"
+memory_descriptors = "false"
+libretro_saves = "false"
+core_options = "true"
+core_options_version = "1.0"
+hw_render = "false"
+disk_control = "false"
+
+# Firmware
+firmware_count = 15
+firmware0_desc = "mame/bios/neogeo.zip (Neo Geo MVS/AES BIOS - every Neo Geo game (KOF, Metal Slug, Fatal Fury...))"
+firmware0_path = "mame/bios/neogeo.zip"
+firmware0_opt = "true"
+firmware1_desc = "mame/bios/qsound.zip (Capcom QSound DSP - CPS-1 QSound games (Cadillacs and Dinosaurs, Punisher...) and every CPS-2 game)"
+firmware1_path = "mame/bios/qsound.zip"
+firmware1_opt = "true"
+firmware2_desc = "mame/bios/pgm.zip (PolyGame Master BIOS)"
+firmware2_path = "mame/bios/pgm.zip"
+firmware2_opt = "true"
+firmware3_desc = "mame/bios/skns.zip (Super Kaneko Nova System BIOS)"
+firmware3_path = "mame/bios/skns.zip"
+firmware3_opt = "true"
+firmware4_desc = "mame/bios/stvbios.zip (Sega ST-V BIOS)"
+firmware4_path = "mame/bios/stvbios.zip"
+firmware4_opt = "true"
+firmware5_desc = "mame/bios/cchip.zip (Taito C-Chip internal ROM)"
+firmware5_path = "mame/bios/cchip.zip"
+firmware5_opt = "true"
+firmware6_desc = "mame/bios/nmk004.zip (NMK004 sound CPU internal ROM)"
+firmware6_path = "mame/bios/nmk004.zip"
+firmware6_opt = "true"
+firmware7_desc = "mame/bios/ym2608.zip (YM2608 internal ROM)"
+firmware7_path = "mame/bios/ym2608.zip"
+firmware7_opt = "true"
+firmware8_desc = "mame/bios/decocass.zip (DECO Cassette System BIOS)"
+firmware8_path = "mame/bios/decocass.zip"
+firmware8_opt = "true"
+firmware9_desc = "mame/bios/bubsys.zip (Konami Bubble System BIOS)"
+firmware9_path = "mame/bios/bubsys.zip"
+firmware9_opt = "true"
+firmware10_desc = "mame/bios/isgsm.zip (ISG Selection Master BIOS)"
+firmware10_path = "mame/bios/isgsm.zip"
+firmware10_opt = "true"
+firmware11_desc = "mame/bios/midssio.zip (Midway SSIO sound board internal ROM)"
+firmware11_path = "mame/bios/midssio.zip"
+firmware11_opt = "true"
+firmware12_desc = "mame/bios/namcoc69.zip (Namco C69 internal ROM)"
+firmware12_path = "mame/bios/namcoc69.zip"
+firmware12_opt = "true"
+firmware13_desc = "mame/bios/namcoc70.zip (Namco C70 internal ROM)"
+firmware13_path = "mame/bios/namcoc70.zip"
+firmware13_opt = "true"
+firmware14_desc = "mame/bios/namcoc75.zip (Namco C75 internal ROM)"
+firmware14_path = "mame/bios/namcoc75.zip"
+firmware14_opt = "true"
+database_match_archive_member = "true"
+notes = "[1] MAME supports MAME save states.|[2] MAME supports extracted MAME cheats.|[3] The BIOS files can be inside the ROM directory|[^] or 'SYSTEMDIR\mame\bios' or 'SYSTEMDIR\mame\roms' directory.|[4] CHD files and their directories must be inside the ROM directory.|[5] ARTWORK, CHEATS, HASH, INI and SAMPLES directories can be placed|[^] inside the 'SYSTEMDIR\mame' directory. (INI/Source for drivers)|[6] When saving, the following directories will be created in the 'SAVEDIR\mame'|[^] directory: STATES, NVRAM, INPUT, SNAPS, CFG, MEMCARD, and DIFF.|[7] Default combo to call MAME GUI: Retropad Select + X|[^] Retropad Select + Start => CANCEL"
+
+description = "'MAME - Current' is compatible with the latest MAME ROM sets. MAME is the most compatible emulator in the world, and it can run almost any game from any platform (though running console games through this core requires additional steps). Its high compatibility makes it a good option for most users. If you cannot run this core full speed, the year-stamped forks are faster at the cost of reduced accuracy, but FBNeo is typically a better choice for speed vs accuracy, as long as it supports the game(s) in question."
