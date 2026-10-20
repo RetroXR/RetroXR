@@ -25,9 +25,18 @@ const ROW := {
 	"media": "n64dd",
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.26, 0.0787, 0.19),
+	"seat_y": DECK_Y,
 	"loader": MediaDimensions.LOADER_SLOT,
 	"shell": SHELL,
 }
+
+## The drive's deck, where the N64's feet rest: 31.7 mm above its middle, 7.6 mm
+## under the top of its box. The box's top is the tips of the four locating pins
+## (the EXT plug stands 37.5), and a console seated there hung that far over the
+## deck. Measured on the shell as the box fits it: the N64's rear-left foot meets
+## the rim of its recess there, the other feet are 0.4 to 1.9 mm over theirs, and
+## the pins go up into the N64's feet as on the real pair.
+const DECK_Y := 0.03174
 
 const SHELL := "res://imported-assets/consoles/nintendo_64dd/n64dd_drive.glb"
 const DISK_MODEL := "res://imported-assets/carts/nintendo_64dd/n64dd_disk.glb"

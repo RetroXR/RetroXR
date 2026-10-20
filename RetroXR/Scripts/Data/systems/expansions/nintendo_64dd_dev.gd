@@ -15,6 +15,7 @@ const ROW := {
 	"media": "n64dd",
 	"mount": ExpansionDefs.MOUNT_BELOW,
 	"size": Vector3(0.26, 0.0787, 0.19),
+	"seat_y": _RETAIL.DECK_Y,
 	"loader": MediaDimensions.LOADER_SLOT,
 	"shell": _RETAIL.SHELL,
 	"shell_albedo": "res://imported-assets/consoles/nintendo_64dd/n64dd_drive_color_dev.png",

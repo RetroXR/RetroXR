@@ -21,6 +21,11 @@
 ##   mount       MOUNT_BELOW — the console stands ON this unit (64DD, Mega-CD)
 ##               MOUNT_ABOVE — this unit stands on the CONSOLE (32X, Jaguar CD)
 ##   size        the primitive box, in metres
+##   seat_y      MOUNT_BELOW only: where a console standing on this unit rests, in
+##               the unit's own frame, metres above its middle. Unset, the top of
+##               `size`, which is right for a flat roof. A shell whose highest
+##               points are locating pins and a plug rather than its deck says
+##               where the deck is (the 64DD), or the console rests on the pins.
 ##   loader      MediaDimensions.LOADER_* for its own bay
 ##   media_in_host
 ##               this unit has NO bay: its media goes into the CONSOLE's own
@@ -446,6 +451,12 @@ static func shell_lods_of(id: String) -> Array:
 ## by a unit whose modelled tongue goes INTO the slot the way a cartridge's does.
 static func connector_of(id: String) -> Variant:
 	return row(id).get("connector", null)
+
+
+## Where a console standing on this unit rests, in the unit's frame, or NAN for
+## the top of its box. See the row docs above.
+static func seat_y_of(id: String) -> float:
+	return float(row(id).get("seat_y", NAN))
 
 
 ## Degrees a cartridge-mounted unit is turned about its own +Y when seated, relative

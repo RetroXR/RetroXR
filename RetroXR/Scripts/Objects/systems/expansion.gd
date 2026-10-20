@@ -493,7 +493,8 @@ func _build_connector() -> void:
 	if ExpansionCatalog.mount_of(expansion_id) == ExpansionCatalog.MOUNT_BELOW:
 		# The console stands on us: we hold the socket, and only the console this
 		# unit was made for is allowed into it.
-		_socket = ExpansionPort.build_socket(self, s.y * 0.5, span,
+		var seat_y := ExpansionCatalog.seat_y_of(expansion_id)
+		_socket = ExpansionPort.build_socket(self, s.y * 0.5 if is_nan(seat_y) else seat_y, span,
 			ExpansionPort.GROUP_SYSTEM, _accepts_host, _shell == null)
 		_socket.has_picked_up.connect(_on_host_seated)
 		_socket.has_dropped.connect(_on_host_lifted)

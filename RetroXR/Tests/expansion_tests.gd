@@ -180,6 +180,10 @@ func _group_fit() -> void:
 		"fit/ the 64DD socket takes a Nintendo 64")
 	_ok(socket != null and not socket.snap_filter.call(snes),
 		"fit/ and refuses a Super NES")
+	# On the drive's deck, not the tips of its locating pins: the top of its box.
+	_ok(socket != null and is_equal_approx(socket.position.y, ExpansionCatalog.seat_y_of("nintendo_64dd"))
+		and socket.position.y < ExpansionCatalog.row("nintendo_64dd")["size"].y * 0.5 - 0.007,
+		"fit/ the console rests on the 64DD's deck, 7.6 mm under its pins' tips")
 
 	# The other kind: a unit that IS a cartridge. It goes into the console's own
 	# slot and fills it, so neither machine grows a connector for it — a Mega
