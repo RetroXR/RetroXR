@@ -715,3 +715,101 @@ two files called `rec.mp4` from different folders). `Tools/av/vcr_playlist_probe
 (windowed, `-- --clips=<dir>` with `red.mp4` and `blue.mp4`) plays one on the real libVLC:
 through the join, FF and REW across it, a `user://` copy, and the raw `user://` path as its
 control. A real two-machine session with a playlist is OWED.
+
+### The Super Game Boy (bsnes) — rollback on RetroXR's fork, 2026-10-20: core measured, session owed
+
+Four players on one Game Boy game: a Super Game Boy in an SNES with the Super Multitap in
+port 2 is P1 on libretro port 0 and P2-P4 on ports 1-3 (bsnes puts multitap socket n on
+libretro port n), which is exactly the four ports a netplay frame carries. Bomberman GB (USA,
+Europe) asks the adapter for 1, 2 and 4 players (`MLT_REQ` packets at 0x28030-0x280a0); in
+BATTLE each player presses DOWN on their own pad to go ON, and rounds cycle by themselves.
+`Tools/netplay/sgb_rollback_probe` is `netplay_spike` with the `sgb` subsystem, a port mask,
+port devices set before `StartContent` (so the multitap is there from frame 0), and
+`--spike-script=bomberman-battle`, which walks to a four-player battle and has every pad
+wander and bomb from frame 1900. Every port is remote under `--spike-rollback`.
+
+**Stock bsnes (115, the nightly) cannot hold a session**, rollback or lockstep:
+
+- **No oracle.** It publishes no memory (`retro_get_memory_data` is NULL, no map), so the
+  only checksum is the state, and two processes never agree on one: Random is seeded from
+  `clock()` even under `bsnes_entropy=None` (state bytes 542-549, which `random()` then
+  ignores) and SameBoy writes `time(NULL)` into its RTC block. Two cold starts: 160/160
+  checkpoints differ; their frame-300 states differ in exactly those 9 bytes. A session
+  would call every checkpoint a desync.
+- **A load is not exact.** `retro_serialize` writes bsnes's SYNCHRONIZED form: run every
+  thread to a sync point, and on load `power()` then restart every cothread from its entry.
+  A reload at 2400 differs at 5 of 40 later checkpoints (thread clocks, a few bytes of WRAM
+  and SPC state), healing in between. And because the sync runs before every save, a
+  rollback engine that saves every frame is already off lockstep at frame 20 with nothing
+  mispredicted (control below). One such run also died at frame ~2130 (exit 3, nothing
+  logged); an earlier one survived 4800 frames.
+- `bsnes_entropy` must be `None` in any case: the default `Low` randomizes power-on RAM from
+  `clock()` in bsnes and `time(NULL)` in SameBoy. The held-option path applies it before the
+  subsystem load, so it is in effect at power-on.
+
+**The fork** (`~/libretro-cores-retroxr/bsnes-libretro`, branch `retroxr`, from
+libretro/bsnes-libretro at 6d19eef; **local only, not published**) adds
+`bsnes_netplay_deterministic`:
+
+- `retro_serialize` writes the UNSYNCHRONIZED form, the one the core's own run-ahead uses
+  (cothread stacks included; libco's amd64, x86, arm and aarch64 backends are serializable,
+  fiber and sjlj are not and fall back to synchronized). A load is exact, but **the state is
+  valid only inside the process that wrote it**: never ship it to a peer, never write it to
+  disk. So the row needs `state_transfer: false` (no late join, no resync) until
+  libretro-godot answers `RETRO_ENVIRONMENT_GET_SAVESTATE_CONTEXT`, which it does not today
+  (`EnvironmentNotImplemented`). Then the ring asks for RUNAHEAD_SAME_INSTANCE and anything
+  that leaves the process for NORMAL. Also mind that session pins persist in the player's
+  `bsnes.opt`, and an offline savestate taken with the option still on would crash its next
+  load.
+- SameBoy's audio accumulators (`sample_cycles`, `cycles_since_render`, `sample_fraction`)
+  go into the ICD's state. They sit outside SameBoy's save sections; without them
+  `GB_apu_run` asserts (`sample_fraction < 4 << 28`) a few frames into the first rewinds.
+  **That run looked like a silent stall**: the emulation thread was parked on msvcrt's assert
+  message box, which a headless run never shows. MSYS2's `gdb -p <pid> -batch -ex "thread
+  apply all bt"` found it in one go.
+- SameBoy's RTC runs on emulated cycles (a clock cartridge through the adapter would
+  otherwise read the host's time), and a memory map publishes SNES WRAM plus the Game Boy's
+  WRAM, HRAM, VRAM, OAM and IO, so the ordinary RAM checksum works. Unconditionally, entropy
+  None seeds Random with 0.
+
+Measured with the fork, Windows x86_64, RAM checksum every 10 frames, every comparison
+between separate processes:
+
+| Run | Result |
+|---|---|
+| two cold starts, 4800 frames | 480/480 equal |
+| reload at 2400, replay to 3600 | 120/120 |
+| rollback, confirmations 3 late (796 rewinds) | equals lockstep, 480/480 |
+| lag 0 (a save every frame, no rewinds) | 480/480 |
+| lag 6 (748 rewinds) | 480/480 |
+| play seed 2, lag 3, 6000 frames (1067 rewinds) | 600/600 |
+| play seed 3, lag 5, 6000 frames (981 rewinds) | 600/600 |
+| SGB2 cartridge, lag 3 (772 rewinds) | 480/480 against SGB2 lockstep |
+| control: same build, synchronized saves, lag 3 | 193 of 213 differ from frame 20, then the crash |
+
+The whole-state CRC stays useless across a reload even on the fork (the saved stacks hold
+bytes a replay does not reproduce) while RAM agrees at 120/120, so use the RAM checksum.
+
+**Plain `StartContent` boots the adapter**, contrary to §2h's note: with `SGB1.sfc` in
+`system/bsnes`, a bare `.gb` comes up as a Super Game Boy (256x224, the game's border) from
+the `bsnes_sgb_bios` option. So a session could keep `net_start_core` single-path and pin
+`bsnes_sgb_bios` to the unit (`SGB1.sfc` / `SGB2.sfc`).
+
+**What a real session still needs** (traced in code, nothing below has been run):
+
+- A `bsnes` row: the fork's pins (`bsnes_entropy`, `bsnes_netplay_deterministic`,
+  `bsnes_sgb_bios`), `state_transfer: false`, and a pin gate like fbneo's
+  `rollback_needs_pins`. Stock bsnes is worse than lockstep-only: with no oracle, even
+  lockstep would report a desync at every checkpoint.
+- `_netplay_eligible` runs from `toggle_power` before `power_on` sets `rom_path` to the Game
+  Boy ROM, so a Super Game Boy console that has never been powered offers no boot media.
+  And the client's `net_resolve_rom` looks only in `rom_dir_for_system("snes")`.
+- `_requires_lockstep_input` demotes rollback for any pickable port holder that is not an
+  `InputReceiver`, and `RetroMultitap` is one. So the four-player case drops to lockstep
+  before the core is asked.
+- Port devices are not on an agreed frame in a session: `net_start_core` announces none,
+  and the later re-announces go through the emulation-thread queue with no frame attached.
+  A multitap seen on frame 0 by one peer and frame 3 by another is a desync. Set them before
+  `StartContent` on every peer, from the spec, as the probe does.
+- Publishing: a RetroXR/bsnes-libretro repo, release workflow, `CoreSources` row; the
+  Android build; a Quest run; the x86_64 to arm64 question (`cross_play: false` until then).
