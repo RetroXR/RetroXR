@@ -747,9 +747,13 @@ func _apply_hinge_updates_body(updates: Array) -> Array:
 					continue
 				(control as VRKnob).set_value(value)
 			"slider":
-				if not control is VRSlider:
+				if control is VRKnob:
+					# A volume wheel a peer's older build still sends as a slider.
+					(control as VRKnob).set_value(value)
+				elif control is VRSlider:
+					(control as VRSlider).set_value(value)
+				else:
 					continue
-				(control as VRSlider).set_value(value)
 			_:
 				continue
 		accepted.append(rec)

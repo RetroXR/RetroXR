@@ -1758,6 +1758,10 @@ func _restore_articulated_controls(root: Node, records: Array) -> void:
 				if control is VRSlider \
 						and not control.is_in_group(RetroSystemModel.POWER_SWITCH_GROUP):
 					(control as VRSlider).set_value(value)
+				elif control is VRKnob:
+					# A handheld's volume saved while it was a slider, now its
+					# thumbwheel: the same path and the same 0..1.
+					(control as VRKnob).set_value(value)
 		control.remove_meta("net_restore_in_progress")
 
 

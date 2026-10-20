@@ -34,6 +34,10 @@ var cart_size := Vector3(0.057, 0.065, 0.008)
 var _screen: MeshInstance3D = null
 var _power_switch: VRSlider = null
 var _volume_slider: VRSlider = null
+## A thumbwheel's volume: the same node, VolumeSlider, as a VRKnob on the wheel's
+## own axle (the Game Boys' wheels), whose angle the model turns its wheel by. A
+## handheld has one or the other; volume_control() is whichever it has.
+var _volume_knob: VRKnob = null
 var _host: Node3D = null
 
 # Per-device LCD display filter (e.g. the DMG dot-matrix look). A subclass may
@@ -157,6 +161,7 @@ func _cache_shell_nodes() -> void:
 	if _screen != null:
 		_screen_off_material = _screen.get_surface_override_material(0)
 	_volume_slider = get_node_or_null("VolumeSlider") as VRSlider
+	_volume_knob = get_node_or_null("VolumeSlider") as VRKnob
 	_power_switch = get_node_or_null("PowerSwitch") as VRSlider
 	# Authored rather than built here, so it joins the group by hand — see
 	# RetroSystemModel.POWER_SWITCH_GROUP for what reads it.
@@ -502,8 +507,9 @@ func configure_handheld_body(host: Node3D) -> void:
 ## this only connects their signals.
 func configure_handheld_controls(host: Node3D) -> void:
 	_host = host
-	if _volume_slider:
-		_volume_slider.value_changed.connect(func(v: float) -> void:
+	var volume := volume_control()
+	if volume != null:
+		volume.connect(&"value_changed", func(v: float) -> void:
 			if _host and _host.has_method("set_audio_volume"):
 				_host.set_audio_volume(v))
 	if _power_switch is VRSpringReturnSlider:
@@ -542,8 +548,32 @@ func on_power_on() -> void:
 		(_power_switch as VRSpringReturnSlider).system_on = true
 	elif _power_switch:
 		_power_switch.set_value_no_signal(1.0)
-	if _volume_slider and _host and _host.has_method("set_audio_volume"):
-		_host.set_audio_volume(_volume_slider.value)
+	var volume := volume_control()
+	if volume != null and _host and _host.has_method("set_audio_volume"):
+		_host.set_audio_volume(float(volume.get("value")))
+
+
+## The handheld's own volume control: its thumbwheel (a VRKnob) or its slider, or
+## null for one with neither.
+func volume_control() -> Area3D:
+	if _volume_knob != null:
+		return _volume_knob
+	return _volume_slider
+
+
+## The volume its own control is set to, 0..1, or -1 for a handheld with none. The
+## system menu's slider reads this, never the system's audio: a TV sets that too.
+func get_volume() -> float:
+	var volume := volume_control()
+	return float(volume.get("value")) if volume != null else -1.0
+
+
+## Set the volume as a hand on the control would: the control moves, the wheel
+## with it, and the system hears (the menu's slider).
+func set_volume(v: float) -> void:
+	var volume := volume_control()
+	if volume != null:
+		volume.call(&"set_value", clampf(v, 0.0, 1.0))
 
 
 func on_power_off() -> void:

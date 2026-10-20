@@ -4,6 +4,7 @@
 [ext_resource type="Script" uid="uid://d2fhmqypnc4e4" path="res://Scripts/Objects/widgets/vr_slider.gd" id="2_slider"]
 [ext_resource type="PackedScene" uid="uid://d23hkb0sx8qye" path="res://imported-assets/consoles/game_boy_advance/gba_console.glb" id="3_shell"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="4_linkport"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_knob.gd" id="5_knob"]
 
 ; The GLB's own LCD quad is 61.2 x 40.8 mm. This one sits exactly on it; the model
 ; script hides the GLB's and gives this the GLB's unlit-LCD material.
@@ -96,21 +97,23 @@ surface_material_override/0 = SubResource("Mat_knob")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.008)
 shape = SubResource("BoxShape3D_powerswitch")
 
-; At the thumbwheel's rim where it shows through the bottom edge (x = 54 mm,
-; 30.4 mm down). A thumb rolls it along X; the model script turns the wheel by the
-; distance the rim travels. Louder is +X, where the moulded volume ramp is tall.
+; The thumbwheel, a knob on its own axle: the GLB's VolumeWheel, 9 mm across, its
+; axle 25.9 mm down at x = 54 mm and its rim showing through the bottom edge. Laid
+; over by R_x(-90), so the knob's Z is the axle (the screen's +Y, the GLB's +Z) and
+; the model script turns the wheel by the knob's angle. Louder rolls the rim toward
+; +X, where the moulded volume ramp is tall: 153 degrees from silent to full, the
+; rim's 12 mm of throw. Its box covers the rim where it shows.
 [node name="VolumeSlider" type="Area3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.054, -0.000163, 0.030401)
+transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0.054, -0.000163, 0.0259)
 collision_layer = 1048577
-script = ExtResource("2_slider")
-travel = 0.012
+script = ExtResource("5_knob")
+deg_at_zero = -152.8
+deg_at_one = 0.0
 engage_radius = 0.025
 value = 1.0
 
-[node name="KnobMesh" type="MeshInstance3D" parent="VolumeSlider"]
-mesh = SubResource("BoxMesh_knob")
-surface_material_override/0 = SubResource("Mat_knob")
+[node name="KnobPivot" type="Node3D" parent="VolumeSlider"]
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="VolumeSlider"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.008)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0045, 0)
 shape = SubResource("BoxShape3D_volumeslider")

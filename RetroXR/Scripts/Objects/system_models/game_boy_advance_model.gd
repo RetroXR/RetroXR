@@ -20,9 +20,6 @@ const _BUTTON_TRAVEL := 0.0008
 const _DPAD_TILT := 0.07
 const _SHOULDER_TURN := {"Shoulder_L": 0.06, "Shoulder_R": -0.06}
 const _ANIM_W := 0.35
-## The thumbwheel is 9 mm across. It turns by the distance its rim moves under the
-## thumb, so a full sweep of the volume slider is 0.012 / 0.0045 rad, about 150°.
-const _WHEEL_RADIUS := 0.0045
 ## The power lamp: green while the machine runs, unlit (the GLB's own dark lens)
 ## while it is off.
 const _LED_COLOR := Color(0.25, 1.0, 0.35)
@@ -73,12 +70,8 @@ func _on_shell_ready() -> void:
 		return
 	_take_lcd_look()
 	_adopt_knob(_power_switch, "PowerSwitch")
-	# The wheel turns rather than slides, so it is not handed to the slider as its
-	# knob (that would carry it along the edge). The slider's placeholder goes.
-	if _volume_slider != null:
-		var knob := _volume_slider.get_node_or_null("KnobMesh") as Node3D
-		if knob != null:
-			knob.visible = false
+	# The thumbwheel is a VRKnob on its axle (the scene): the GLB's wheel takes its
+	# angle (_process).
 	_wheel = _glb.find_child("VolumeWheel", true, false) as Node3D
 	if _wheel != null:
 		_wheel_rest = _wheel.transform
@@ -144,15 +137,16 @@ func _ease(node: Node3D, target: Transform3D) -> void:
 	node.transform = node.transform.interpolate_with(target, _ANIM_W)
 
 
-## The wheel follows the slider's VALUE every frame rather than its signal, so a
-## value set without one (a restore, a peer's switch) turns it too. It sits as
-## modelled at full volume, where the slider starts.
+## The wheel follows the knob's VALUE every frame rather than its signal, so a value
+## set without one (a restore, a peer's wheel) turns it too. It sits as modelled at
+## full volume, where the knob starts, and turns by the knob's angle about the same
+## axle (the knob's Z is the GLB's +Z).
 func _process(delta: float) -> void:
 	super(delta)
-	if _wheel == null or _volume_slider == null or _volume_slider.value == _wheel_value:
+	if _wheel == null or _volume_knob == null or _volume_knob.value == _wheel_value:
 		return
-	_wheel_value = _volume_slider.value
-	var turn := (_wheel_value - 1.0) * _volume_slider.travel / _WHEEL_RADIUS
+	_wheel_value = _volume_knob.value
+	var turn := deg_to_rad(lerpf(_volume_knob.deg_at_zero, _volume_knob.deg_at_one, _wheel_value))
 	_wheel.transform = Transform3D(Basis(Vector3.BACK, turn) * _wheel_rest.basis, _wheel_rest.origin)
 
 

@@ -1034,6 +1034,57 @@ func _test_power() -> void:
 	_ok(paths.has(str(gb.get_path_to(vol))),
 		"power/the volume slider is saved as before")
 
+	# The Game Boy Advance's thumbwheel is a knob on its own axle: the system menu's
+	# slider and a hand on the wheel set the same level, and the GLB's wheel turns.
+	var gba: RetroSystem = preload("res://Scenes/Objects/system.tscn").instantiate()
+	gba.systemid = "gba"
+	add_child(gba)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var wheel_knob := gba.find_child("VolumeSlider", true, false) as VRKnob
+	var gba_model := gba.get_model()
+	_ok(wheel_knob != null and gba_model != null and gba_model.has_method("set_volume"),
+		"volume/the Game Boy Advance's volume is a wheel on its axle")
+	if wheel_knob != null and gba_model != null:
+		var wheel := gba_model.find_child("VolumeWheel", true, false) as Node3D
+		var rest := wheel.transform if wheel != null else Transform3D()
+		# Turned about the wheel's own axle, the same way round (a hand turns it as
+		# the wheel turns), its touch box out on the rim at the bottom edge (+Z).
+		var to_model := gba_model.global_transform.affine_inverse()
+		var touch := wheel_knob.get_node_or_null("CollisionShape3D") as Node3D
+		_ok(wheel != null and touch != null
+			and wheel_knob.global_basis.z.normalized().dot((wheel.get_parent() as Node3D).global_basis.z.normalized()) > 0.999
+			and (to_model * touch.global_position).z > (to_model * wheel_knob.global_position).z + 0.003,
+			"volume/the knob turns about the wheel's own axle, its box out on the rim")
+		gba_model.call("set_volume", 0.25)
+		await get_tree().process_frame
+		_ok(is_equal_approx(float(gba_model.call("get_volume")), 0.25) and is_equal_approx(wheel_knob.value, 0.25),
+			"volume/the menu's level is the wheel's")
+		_ok(wheel != null and not wheel.transform.basis.is_equal_approx(rest.basis),
+			"volume/and the wheel turns to it")
+		# A slot written while the wheel was a slider still lands on it.
+		ScenePersistence.new("arcade")._restore_articulated_controls(gba,
+			[{"path": str(gba.get_path_to(wheel_knob)), "kind": "slider", "value": 0.6}])
+		_ok(is_equal_approx(wheel_knob.value, 0.6), "volume/an older slot's slider record turns the wheel")
+	gba.queue_free()
+	# The System tab's Volume row, both ways.
+	var opts := preload("res://Scenes/UI/core_options_2d.tscn").instantiate() as CoreOptions2D
+	add_child(opts)
+	await get_tree().process_frame
+	opts.populate_system(false, true, false, "", 0, 0.4)
+	_ok(opts._volume_box.visible and is_equal_approx(opts._volume_slider.value, 40.0),
+		"volume/the System tab shows the handheld's level")
+	var heard := [-1.0]
+	opts.volume_changed.connect(func(v: float) -> void: heard[0] = v)
+	opts._volume_slider.value = 70.0
+	_ok(is_equal_approx(heard[0], 0.7), "volume/and moving its slider asks for that level")
+	opts.show_volume(0.2)
+	_ok(is_equal_approx(opts._volume_slider.value, 20.0) and is_equal_approx(heard[0], 0.7),
+		"volume/a turned wheel moves it without asking back")
+	opts.populate_system(false, false, false)
+	_ok(not opts._volume_box.visible, "volume/a machine without its own control has no row")
+	opts.queue_free()
+
 	# Every slot written before this carries the switch, so the restore has to
 	# refuse it too — applying it would lift the cap AND toggle the machine.
 	sw.set_value_no_signal(0.0)

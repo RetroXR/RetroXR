@@ -27,6 +27,8 @@ var _cart_panel: CartridgeOptionsPanel = null
 var _saves_panel: MemoryCardPanel = null
 ## Which of the machine's memories the Saves tab is showing.
 var _saves_index := 0
+## The handheld volume the System tab's slider last showed (-1: none).
+var _shown_volume := -1.0
 
 @onready var _viewport_node: XRToolsViewport2DIn3D = $CoreOptionsViewport
 
@@ -88,6 +90,7 @@ func _ensure_ui_connected() -> void:
 	ui.pad_device_changed.connect(_on_pad_device_changed)
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
+	ui.volume_changed.connect(_on_volume_changed)
 	ui.close_requested.connect(hide_panel)
 	ui.saves_source_picked.connect(_on_saves_source_picked)
 	_ui_connected = true
@@ -109,8 +112,9 @@ func _populate() -> void:
 	ui.populate(_system._options_definitions, _system._options_values, _system._controller_info,
 		_system.forced_core_options(), _system._options_unavailable,
 		_system._resolve_core())
+	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
-		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal)
+		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
 	var core := _system._resolve_core()
@@ -210,6 +214,36 @@ func _on_options_reset_requested() -> void:
 func _on_video_out_toggled(enabled: bool) -> void:
 	if _system and is_instance_valid(_system):
 		_system.set_video_out_enabled(enabled)
+
+
+## System-tab slider: the handheld's volume, set through its own control so the
+## wheel turns with it and the system hears it as from a hand.
+func _on_volume_changed(v: float) -> void:
+	var model := _system.get_model() if _system and is_instance_valid(_system) else null
+	if model != null and model.has_method("set_volume"):
+		model.call(&"set_volume", v)
+		_shown_volume = v
+
+
+## The level the device's own volume control is at, or -1 for one without.
+func _device_volume() -> float:
+	var model := _system.get_model() if _system and is_instance_valid(_system) else null
+	return float(model.call(&"get_volume")) if model != null and model.has_method("get_volume") else -1.0
+
+
+## The Volume row follows the device's own wheel while the panel is open.
+func _process(delta: float) -> void:
+	super(delta)
+	if not visible or _system == null or not is_instance_valid(_system):
+		return
+	var v := _device_volume()
+	if is_equal_approx(v, _shown_volume):
+		return
+	_shown_volume = v
+	var vp := _viewport_node.get_node_or_null("Viewport") as SubViewport
+	var ui := vp.get_child(0) as CoreOptions2D if vp and vp.get_child_count() > 0 else null
+	if ui != null:
+		ui.show_volume(v)
 
 
 ## System-tab toggle: float in place where dropped.

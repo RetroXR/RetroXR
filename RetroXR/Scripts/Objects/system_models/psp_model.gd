@@ -230,6 +230,16 @@ func _configure_volume_buttons() -> void:
 		btn.button_pressed.connect(func() -> void: _step_volume(step))
 
 
+## The system menu's slider: the level the buttons step, read and set here.
+func get_volume() -> float:
+	return _volume
+
+
+func set_volume(v: float) -> void:
+	_volume = clampf(v, 0.0, 1.0)
+	_push_volume()
+
+
 func _step_volume(delta: float) -> void:
 	var was := _volume
 	_volume = clampf(_volume + delta, 0.0, 1.0)

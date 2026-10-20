@@ -24,6 +24,9 @@ signal pad_device_changed(guid: String, ordinal: int)
 signal video_out_toggled(enabled: bool)
 ## System-tab toggle: float in place where dropped (no gravity).
 signal ignore_gravity_toggled(enabled: bool)
+## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
+## sets.
+signal volume_changed(value: float)
 signal close_requested
 
 # ── Palette ────────────────────────────────────────────────────────────────────
@@ -52,6 +55,9 @@ var _pad_guid := ""
 var _pad_ordinal := 0
 var _system_scroll: ScrollContainer
 var _video_out_row: HBoxContainer = null
+var _volume_box: VBoxContainer = null
+var _volume_slider: HSlider = null
+var _volume_value: Label = null
 var _video_out_check: VRToggle = null
 var _ignore_grav_check: VRToggle = null
 var _tabs: TabContainer = null
@@ -251,6 +257,20 @@ func _build_ui() -> void:
 	sys_rows.add_theme_constant_override("separation", 4)
 	_system_scroll.add_child(sys_rows)
 
+	# A handheld's volume: a second way to its own wheel or slider, which it
+	# follows while the panel is open. Hidden for a machine without one.
+	_volume_box = VBoxContainer.new()
+	_volume_box.add_theme_constant_override("separation", 2)
+	sys_rows.add_child(_volume_box)
+	var vol: Array = MenuStyle.slider_row(_volume_box, "Volume", 0.0, 100.0, 1.0)
+	_volume_slider = vol[0]
+	_volume_value = vol[1]
+	(vol[2] as Label).add_theme_color_override("font_color", COLOR_ROW)
+	_volume_slider.value_changed.connect(func(v: float) -> void:
+		_volume_value.text = "%d%%" % roundi(v)
+		if not _suppress_signal:
+			volume_changed.emit(v / 100.0))
+
 	_video_out_row = HBoxContainer.new()
 	_video_out_row.custom_minimum_size = Vector2(0, 56)
 	_video_out_row.add_theme_constant_override("separation", 8)
@@ -423,8 +443,10 @@ func populate_firmware(core_name: String, rows: Array[Dictionary]) -> void:
 
 
 ## The pad picker rides `show_video_out`: both are "this machine is a handheld".
+## `volume` is the handheld's own control's level, 0..1, or -1 to hide the row.
 func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
-		pad_guid: String = "", pad_ordinal: int = 0) -> void:
+		pad_guid: String = "", pad_ordinal: int = 0, volume: float = -1.0) -> void:
+	show_volume(volume)
 	_suppress_signal = true
 	var picker_changed := _show_pad_picker != show_video_out \
 		or _pad_guid != pad_guid or _pad_ordinal != pad_ordinal
@@ -439,6 +461,20 @@ func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		_video_out_check.button_pressed = video_out
 	if _ignore_grav_check:
 		_ignore_grav_check.button_pressed = ignore_grav
+	_suppress_signal = false
+
+
+## The Volume row at `volume` (0..1) without telling anyone, or hidden at -1: the
+## panel calls this as the device's own wheel turns.
+func show_volume(volume: float) -> void:
+	if _volume_box == null:
+		return
+	_volume_box.visible = volume >= 0.0
+	if volume < 0.0:
+		return
+	_suppress_signal = true
+	_volume_slider.value = volume * 100.0
+	_volume_value.text = "%d%%" % roundi(volume * 100.0)
 	_suppress_signal = false
 
 
