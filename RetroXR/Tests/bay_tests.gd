@@ -22,6 +22,8 @@
 ##   other/   a deck with no push tray is untouched by any of it
 ##   pak/     the expansion port on an N64 controller, and what each pak asks the
 ##            running core to fit to that port
+##   floppy/  the PC tower's two floppy drives: a 5.25 in machine's disk and where
+##            it seats, and a 3.5 in machine left as it was
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -1001,6 +1003,73 @@ func _run() -> void:
 		await _group_other()
 	if _want("pak"):
 		await _group_pak()
+	if _want("floppy"):
+		await _group_floppy()
+
+
+# --- floppy ---------------------------------------------------------------------
+
+## A machine whose disk was the 5.25-inch one (MediaDimensions.FLOPPY_525_SYSTEMS)
+## gets that disk, printed the way ECMA-70 draws it, and the tower seats it in its
+## 5.25-inch drive: flat, label up, head window leading, the label strip standing
+## out of the slit and the hub inside it. Every other floppy machine keeps the
+## 3.5-inch disk and its drive.
+func _group_floppy() -> void:
+	for sid: String in MediaDimensions.FLOPPY_525_SYSTEMS:
+		_ok(MediaDimensions.uses_floppy(sid)
+				and MediaDimensions.cart_size(sid) == MediaDimensions.FLOPPY_525_SIZE,
+			"floppy/%s is a 5.25 in floppy machine" % sid)
+	for sid: String in ["dos", "pc98", "x1", "vic20", "amiga"]:
+		_ok(MediaDimensions.cart_size(sid) == MediaDimensions.FLOPPY_SIZE,
+			"floppy/%s keeps the 3.5 in disk" % sid)
+
+	var disk := await _cart("c64")
+	var body := disk.get_node("CartridgeMesh") as MeshInstance3D
+	_ok((body.mesh as BoxMesh).size.is_equal_approx(MediaDimensions.FLOPPY_525_SIZE),
+		"floppy/a C64 game is the 133.3 mm jacket")
+	_ok(body.has_node("Minifloppy/HeadWindow") and not disk.has_node("Shutter"),
+		"floppy/with a head window and no shutter")
+	var label := disk.get_node("LabelMesh") as MeshInstance3D
+	var head := body.get_node("Minifloppy/HeadWindow") as Node3D
+	_ok(label.position.y > 0.04 and head.position.y < -0.04,
+		"floppy/its label strip across the top, the head window below the hub")
+	_ok((label.mesh as BoxMesh).size.is_equal_approx(Vector3(0.105, 0.031, 0.0002)),
+		"floppy/the label is ECMA's 105 x 31 mm strip")
+	# The sizing pass runs again on every drop; the dress must not pile up.
+	disk._apply_system_size()
+	disk._apply_system_size()
+	_ok(body.get_child_count() == 1, "floppy/and dressing it again builds nothing twice")
+
+	var sys := await _console("pc_tower", "c64")
+	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
+	var model := sys._model as Node3D
+	slot.pick_up_object(disk)
+	await _wait(40)
+	_ok(sys._snapped_cartridge == disk, "floppy/the tower takes the disk")
+	var t := model.global_transform.affine_inverse() * disk.global_transform
+	_ok(t.basis.z.dot(Vector3.UP) > 0.99, "floppy/seated flat, label up")
+	_ok(t.basis.y.dot(Vector3.BACK) > 0.99, "floppy/its head window leading into the drive")
+	var drive := model.get_node("Front/Floppy525") as MeshInstance3D
+	var slit := (drive.mesh as BoxMesh).size
+	var face := drive.position.z + slit.z * 0.5
+	var s := MediaDimensions.FLOPPY_525_SIZE
+	_ok(absf(t.origin.y - drive.position.y) < 0.001 and s.x < slit.x,
+		"floppy/in the 5.25 in drive's slit, which is wide enough for it")
+	_ok((t * Vector3(0.0, s.y * 0.5, 0.0)).z > face + 0.04,
+		"floppy/its label edge standing out of the drive")
+	_ok((t * Vector3(0.0, 0.01985, 0.0)).z < face,
+		"floppy/and its hub window inside it")
+	await _clear()
+
+	var dos := await _console("pc_tower", "dos")
+	var dslot := dos.get_node("CartridgeSlot") as Node3D
+	var dseat := (dos._model as Node3D).get_node("Front/FloppySeat") as Node3D
+	_ok(dslot.global_transform.is_equal_approx(dseat.global_transform),
+		"floppy/a DOS machine still seats in the 3.5 in drive")
+	var floppy := await _cart("dos")
+	_ok(floppy.has_node("Shutter") and not floppy.has_node("CartridgeMesh/Minifloppy"),
+		"floppy/and its disk is still the 3.5 in one")
+	await _clear()
 
 
 # --- pak/ : the expansion port on the back of an N64 controller ----------------

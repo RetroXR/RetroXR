@@ -632,7 +632,8 @@ func _apply_system_size() -> void:
 
 
 ## A 3.5-inch disk instead of a moulded cartridge, for the machines that loaded
-## from one (MediaDimensions.FLOPPY_SYSTEMS). The body is already the right slab
+## from one (MediaDimensions.FLOPPY_SYSTEMS; the 5.25-inch ones are dressed by
+## _apply_minifloppy_shell instead). The body is already the right slab
 ## by the time this runs — what is left is what tells a disk from a cart at a
 ## glance: black shell, sprung metal shutter on the leading edge, paper label.
 ##
@@ -645,6 +646,9 @@ func _apply_system_size() -> void:
 ## shared sub_resources, so tinting one would repaint every cartridge in the room.
 func _apply_floppy_shell() -> void:
 	if not MediaDimensions.uses_floppy(systemid) or has_node("CartModel"):
+		return
+	if MediaDimensions.uses_floppy_525(systemid):
+		_apply_minifloppy_shell()
 		return
 	var s := _cart_size()
 
@@ -714,6 +718,108 @@ func _apply_floppy_shell() -> void:
 			lbl.position = Vector3(label_mesh.position.x, label_mesh.position.y,
 				label_mesh.position.z + 0.0007)
 			lbl.width = lm.size.x * 2000.0
+
+
+## The 5.25-inch disk instead, for the machines in MediaDimensions.FLOPPY_525_SYSTEMS:
+## a black jacket with its brown disk showing at the hub and the head window, and a
+## paper strip across the top. Idempotent for the same reason as the 3.5-inch dress
+## above; the Minifloppy node's absence says it has not been built yet.
+##
+## Laid out on ECMA-70's drawing, the label side facing +Z and the label strip at
+## +Y: the head window on the centre line below the hub, the index window right of
+## it. The head window's edge goes into the drive first, so this disk leads with
+## -Y, where a cart's connector is -- the other end from the 3.5-inch disk's
+## shutter. See Floppy525Seat in pc_tower.tscn for what that does to the seat.
+##
+## The openings are discs and a stadium standing a hair proud of both faces, in the
+## disk's oxide brown, rather than holes: the body is the cartridge's box and its
+## collision too, and cutting it buys nothing at arm's length. They hang off
+## CartridgeMesh, so a real shell that hides the jacket hides them with it.
+func _apply_minifloppy_shell() -> void:
+	var s := _cart_size()
+	var body := get_node_or_null("CartridgeMesh") as MeshInstance3D
+	if body != null and body.get_node_or_null("Minifloppy") == null:
+		var jacket := StandardMaterial3D.new()
+		jacket.albedo_color = Color(0.06, 0.06, 0.065)
+		jacket.roughness = 0.62
+		body.set_surface_override_material(0, jacket)
+		var oxide := StandardMaterial3D.new()
+		oxide.albedo_color = Color(0.21, 0.17, 0.14)
+		oxide.roughness = 0.3
+		var ring := StandardMaterial3D.new()
+		ring.albedo_color = Color(0.66, 0.58, 0.44)
+		ring.roughness = 0.6
+		var hole := StandardMaterial3D.new()
+		hole.albedo_color = Color(0.02, 0.02, 0.02)
+		hole.roughness = 0.9
+		var dress := Node3D.new()
+		dress.name = "Minifloppy"
+		body.add_child(dress)
+		# The 39.7 mm window, the tan reinforcing ring (28.57..35 mm) and the disk's
+		# 28.57 mm hole, each a step prouder than the one under it so that none of
+		# them fights the next for the same depth.
+		_minifloppy_disc(dress, "HubWindow", 0.01985, s.z + 0.0001, Vector2.ZERO, oxide)
+		_minifloppy_disc(dress, "HubRing", 0.0175, s.z + 0.0002, Vector2.ZERO, ring)
+		_minifloppy_disc(dress, "CenterHole", 0.014285, s.z + 0.0003, Vector2.ZERO, hole)
+		_minifloppy_disc(dress, "IndexWindow", 0.003175, s.z + 0.0001,
+			Vector2(0.02455, -0.00665), oxide)
+		# 12.7 x 35 mm with round ends, 3.3 mm in from the leading edge: a slab and
+		# two discs. Not a capsule pressed flat, whose section is an ellipse that
+		# clears the jacket's faces only along its middle 4 mm.
+		var r := 0.00635
+		var head := MeshInstance3D.new()
+		head.name = "HeadWindow"
+		var slab := BoxMesh.new()
+		slab.size = Vector3(2.0 * r, 0.035 - 2.0 * r, s.z + 0.0001)
+		head.mesh = slab
+		head.set_surface_override_material(0, oxide)
+		head.position = Vector3(0.0, -s.y * 0.5 + 0.0033 + 0.0175, 0.0)
+		dress.add_child(head)
+		for i in 2:
+			_minifloppy_disc(head, "End%d" % i, r, s.z + 0.0001,
+				Vector2(0.0, (i * 2 - 1) * slab.size.y * 0.5), oxide)
+
+	# ECMA's label area: a 105 x 31 mm strip, 2.5 mm under the top edge and 4 mm in
+	# from the left, so it stops short of the write-enable notch on the right.
+	# ScreenScraper's art for these disks is a strip of the same kind, 2.8 to 3.8
+	# times as wide as it is tall, and _apply_label_art fits it inside this box
+	# without stretching it. Left alone once that has swapped the box for its quad.
+	var label_mesh := get_node_or_null("LabelMesh") as MeshInstance3D
+	if label_mesh != null and label_mesh.mesh is BoxMesh:
+		var lm := label_mesh.mesh.duplicate() as BoxMesh
+		lm.size = Vector3(0.105, 0.031, 0.0002)
+		label_mesh.mesh = lm
+		label_mesh.position = Vector3(-s.x * 0.5 + 0.004 + lm.size.x * 0.5,
+			s.y * 0.5 - 0.0025 - lm.size.y * 0.5, s.z * 0.5 + lm.size.z * 0.5)
+		var lmat := StandardMaterial3D.new()
+		lmat.resource_local_to_scene = true
+		lmat.albedo_color = Color(0.92, 0.91, 0.87)
+		lmat.roughness = 0.85
+		label_mesh.set_surface_override_material(0, lmat)
+		var lbl := get_node_or_null("GameLabel") as Label3D
+		if lbl != null:
+			lbl.position = Vector3(label_mesh.position.x, label_mesh.position.y,
+				label_mesh.position.z + 0.0005)
+			lbl.width = lm.size.x * 2000.0
+
+
+## One round opening in the 5.25-inch jacket: a disc through it, `through` thick so
+## it stands just proud of both faces, centred at `at` on the face.
+func _minifloppy_disc(parent: Node3D, node_name: String, radius: float, through: float,
+		at: Vector2, mat: Material) -> void:
+	var cyl := CylinderMesh.new()
+	cyl.top_radius = radius
+	cyl.bottom_radius = radius
+	cyl.height = through
+	cyl.radial_segments = 48 if radius > 0.01 else 16
+	cyl.rings = 0
+	var mi := MeshInstance3D.new()
+	mi.name = node_name
+	mi.mesh = cyl
+	mi.set_surface_override_material(0, mat)
+	# A cylinder stands on Y; this one lies in the jacket, its axis on Z.
+	mi.transform = Transform3D(Basis(Vector3.RIGHT, PI * 0.5), Vector3(at.x, at.y, 0.0))
+	parent.add_child(mi)
 
 
 ## Seated in a console's bay the pointer target is the cart itself, re-centred.

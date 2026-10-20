@@ -55,12 +55,14 @@ func _build() -> void:
 			continue
 		_place(_spawn_for(sid), sid, i, MediaDimensions.cart_size(sid))
 		i += 1
-	# One tile for the floppy, standing for all seventeen systems in
-	# MediaDimensions.FLOPPY_SYSTEMS: they share FLOPPY_SIZE exactly, and this
-	# image exists to compare SIZES, so seventeen identical squares would only
-	# shrink every other item to fit them in.
-	var floppy: String = str(MediaDimensions.FLOPPY_SYSTEMS.keys()[0])
-	_place(_spawn_for(floppy), "3.5in floppy", i, MediaDimensions.FLOPPY_SIZE)
+	# One tile for each floppy, standing for every system that loads from it: the
+	# 3.5-inch ones share FLOPPY_SIZE exactly and the 5.25-inch ones FLOPPY_525_SIZE,
+	# and this image exists to compare SIZES, so a square per system would only
+	# shrink every other item to fit them in. Named, not the table's first key: that
+	# is the 64DD, whose disk is a model of its own and already in the cart rows.
+	_place(_spawn_for("dos"), "3.5in floppy", i, MediaDimensions.FLOPPY_SIZE)
+	i += 1
+	_place(_spawn_for("c64"), "5.25in floppy", i, MediaDimensions.FLOPPY_525_SIZE)
 	i += 1
 	# Start the disc row on a fresh line so the two families read apart.
 	i += (COLS - (i % COLS)) % COLS

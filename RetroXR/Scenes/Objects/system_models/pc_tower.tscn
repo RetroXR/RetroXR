@@ -1,4 +1,4 @@
-[gd_scene load_steps=20 format=3]
+[gd_scene load_steps=21 format=3]
 
 [ext_resource type="Script" path="res://Scripts/Objects/system_models/pc_tower_model.gd" id="1_pctower"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/vga_port.tscn" id="2_vgaport"]
@@ -25,6 +25,10 @@ size = Vector3(0.136, 0.035, 0.008)
 
 [sub_resource type="BoxMesh" id="Mesh_floppy"]
 size = Vector3(0.104, 0.012, 0.008)
+
+; 138 mm: the 133.3 mm jacket of a 5.25 in disk, with room either side.
+[sub_resource type="BoxMesh" id="Mesh_floppy525"]
+size = Vector3(0.138, 0.006, 0.008)
 
 ; The tray, sized against the 120 mm disc it carries: 5 mm margin at the sides,
 ; 7 mm front and back. It used to be 112 x 160 — NARROWER than the disc, so the
@@ -87,6 +91,14 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, 0.335, 0.2305)
 mesh = SubResource("Mesh_bay")
 surface_material_override/0 = SubResource("Mat_dark")
 
+; 5.25 in floppy drive under the optical bay and in line with it, for the machines
+; whose disk was that one (MediaDimensions.FLOPPY_525_SYSTEMS). The gap between the
+; bay and the 3.5 in slot is 43 mm, and a half-height drive is 41.3.
+[node name="Floppy525" type="MeshInstance3D" parent="Front"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.012, 0.296, 0.2305)
+mesh = SubResource("Mesh_floppy525")
+surface_material_override/0 = SubResource("Mat_dark")
+
 ; 3.5 in floppy slot below it, because a tower without one is not a 90s tower.
 [node name="Floppy" type="MeshInstance3D" parent="Front"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.268, 0.2305)
@@ -104,7 +116,8 @@ mesh = SubResource("Mesh_led")
 surface_material_override/0 = SubResource("Mat_dark")
 
 ; Where a floppy sits in the 3.5 in drive — the seat for every machine this tower
-; stands in for EXCEPT scummvm, whose games are on CD and belong in the tray below.
+; stands in for EXCEPT scummvm, whose games are on CD and belong in the tray below,
+; and the 5.25 in machines, whose seat is Floppy525Seat after this one.
 ; A disk is media, not a disc, so it must never be seated in the optical well: that
 ; well is inside the case at rest, and a cartridge snapped into it disappears.
 ;
@@ -122,6 +135,19 @@ surface_material_override/0 = SubResource("Mat_dark")
 ; room and to take hold of without reaching into the case.
 [node name="FloppySeat" type="Marker3D" parent="Front"]
 transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, 0.268, 0.2415)
+
+; Where a 5.25 in disk sits in the drive above. Basis is R_y(180) R_x(-90): flat,
+; label up, and its head window leading. That window is on the disk's -Y edge (see
+; _apply_minifloppy_shell), the end opposite the 3.5 in disk's shutter, so this is
+; FloppySeat's basis turned half round. The title then reads upside down from in
+; front of the machine, as a real one does: the label is printed to read with the
+; head window down, and that is the edge that goes in first.
+;
+; z 0.21315: the slit's face is at 0.2345, and a 133.3 mm disk bitten 88 mm deep
+; centres 21.35 mm behind it. That leaves 45.3 mm standing out, the label strip
+; and the jacket under it, with the hub window just inside the drive.
+[node name="Floppy525Seat" type="Marker3D" parent="Front"]
+transform = Transform3D(-1, 0, 0, 0, 0, 1, 0, 1, 0, -0.012, 0.296, 0.21315)
 
 ; Anchors, not geometry — RetroSystem's own VRButtons are moved onto these, so the
 ; button meshes it already carries are the visible caps.

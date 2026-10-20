@@ -97,10 +97,37 @@ const CART_SIZE_SFC := Vector3(0.128, 0.0875, 0.020)
 const CART_SIZE_GBC := Vector3(0.057, 0.065, 0.009)
 
 ## The 3.5-inch disk: 90 mm across, 94 mm deep, 3.3 mm thick — the real thing.
-## One constant rather than a row per system, because every machine below loaded
-## from the same disk. Axes match a cartridge: the shutter edge is -Y (where a
-## cart's connector is) and the paper label faces +Z.
+## One constant rather than a row per system, because every machine below that is
+## not in FLOPPY_525_SYSTEMS loaded from the same disk. Axes match a cartridge: the
+## paper label faces +Z (the shutter is on +Y; see _apply_floppy_shell).
 const FLOPPY_SIZE := Vector3(0.090, 0.094, 0.0033)
+
+## The 5.25-inch disk: a 133.3 mm square jacket, 1.6 mm thick (ECMA-70; the
+## standard bounds the thickness at 1.2..2.1). The paper label faces +Z like the
+## 3.5-inch disk's, but this disk is printed the other way up: its label strip runs
+## across the +Y edge and the head window is toward -Y, on the edge that goes into
+## the drive first. That is how the jacket is drawn in ECMA-70, and how
+## ScreenScraper's support-2D template draws it.
+const FLOPPY_525_SIZE := Vector3(0.1333, 0.1333, 0.0016)
+
+## Floppy systems whose disk was the 5.25-inch one, out of FLOPPY_SYSTEMS below.
+## Each is checked against ScreenScraper (2026-10-20), whose support-2D art draws a
+## game's disk on a template of its kind: every disk title surveyed for these
+## machines is on the 5.25-inch template, the PC-88 three of four. The
+## Commodore 128 has no system of its own there; its disks are the C64's, 1541 and
+## 1571 images filed under the C64.
+##
+## Left on the 3.5-inch disk, and why: DOS is mixed (11 titles on 5.25, 7 on 3.5,
+## and CDs), the PC-98 is mostly 3.5 (13 of 18), the X1 has no disk art there at
+## all, and the VIC-20's games are cartridges and tapes.
+const FLOPPY_525_SYSTEMS: Dictionary = {
+	"apple2": true,
+	"atari800": true,
+	"c64": true,
+	"commodore_c128": true,
+	"pc88": true,
+	"x68000": true,
+}
 
 ## Systems whose media is a SHUTTERED DISK rather than a cartridge -- a sliding
 ## metal cover over a head window, and a shell that goes into a slot rather than
@@ -112,10 +139,11 @@ const FLOPPY_SIZE := Vector3(0.090, 0.094, 0.0033)
 ## lists them too: this is a const table and SystemInfo is a loaded resource, so a
 ## new computer system has to be added here as well as given its .tres.
 ##
-## Not every one of them really used a 3.5-inch disk — a VIC-20 took cartridges, a
-## ZX81 a cassette — but the tower is already an admitted stand-in for eighteen
-## machines and it has exactly one 3.5-inch drive on its bezel. One medium per
-## shell beats sixteen exceptions to it.
+## Not every one of them really used a floppy — a VIC-20 took cartridges, a ZX81 a
+## cassette — but the tower is already an admitted stand-in for eighteen machines,
+## and a floppy is the medium it has drives for. The ones whose disk was the
+## 5.25-inch one are FLOPPY_525_SYSTEMS above, and go in the tower's 5.25-inch
+## drive; the rest share the 3.5-inch disk.
 const FLOPPY_SYSTEMS: Dictionary = {
 	# Not PC media, and not the tower's: a 64DD disk and a Famicom Disk System
 	# disk are both shuttered magnetic disks that slide into a drive, and both
@@ -284,16 +312,26 @@ static func is_disc_system(systemid: String) -> bool:
 
 
 ## True when this system's media is a floppy disk (a dark shell with a sprung
-## metal shutter) rather than a moulded cartridge.
+## metal shutter, or a 5.25-inch jacket) rather than a moulded cartridge.
 static func uses_floppy(systemid: String) -> bool:
 	if _mod_media.has(systemid):
 		return bool(_mod_media[systemid].get("floppy", false))
 	return FLOPPY_SYSTEMS.has(systemid)
 
 
+## True when this system's floppy is the 5.25-inch disk rather than the 3.5-inch
+## one. A mod's descriptor replaces the system's row, and its `floppy` is the
+## 3.5-inch disk.
+static func uses_floppy_525(systemid: String) -> bool:
+	if _mod_media.has(systemid):
+		return false
+	return FLOPPY_525_SYSTEMS.has(systemid)
+
+
 ## True when a real-world size is known for this system's media, so the generic
 ## cartridge body is worth resizing to it. Ask this rather than CART_SIZES.has():
-## a floppy system carries its size in FLOPPY_SIZE and is in neither table.
+## a floppy system carries its size in FLOPPY_SIZE or FLOPPY_525_SIZE and is in
+## neither table.
 static func has_cart_size(systemid: String) -> bool:
 	if _mod_media.has(systemid):
 		var m: Dictionary = _mod_media[systemid]
@@ -326,7 +364,7 @@ static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vec
 			return m["cart_size"] as Vector3
 	# A floppy system with a row of its own (the 64DD) is sized by that row.
 	if FLOPPY_SYSTEMS.has(systemid) and not CART_SIZES.has(systemid):
-		return FLOPPY_SIZE
+		return FLOPPY_525_SIZE if FLOPPY_525_SYSTEMS.has(systemid) else FLOPPY_SIZE
 	if systemid == SnesCartShell.SYSTEMID and body_model == SnesCartShell.BODY_SFC:
 		return CART_SIZE_SFC
 	if GbCartShell.is_shell(systemid) and GbcCartShell.is_body(body_model):

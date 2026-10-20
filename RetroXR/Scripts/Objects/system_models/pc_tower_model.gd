@@ -213,10 +213,11 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 		reset_btn.set_active(false)
 
 
-## This tower has two drives, and which one a machine loads from is a property of
+## This tower has three drives, and which one a machine loads from is a property of
 ## the MACHINE, not of the shell: scummvm's games are on CD and go in the optical
-## tray, and the other seventeen platforms wearing this tower load from a 3.5 in
-## floppy and go in the drive below it.
+## tray, the platforms whose disk was the 5.25 in one
+## (MediaDimensions.FLOPPY_525_SYSTEMS) go in the 5.25 in drive under it, and the
+## rest load from a 3.5 in floppy and go in the drive below that.
 ##
 ## Seating a floppy system's media in the tray is what put it INSIDE the tower: at
 ## rest the tray is drawn back into the case, so a cartridge snapped to DiscSeat is
@@ -234,6 +235,10 @@ func configure_cartridge_slot(slot: Node3D) -> void:
 	if MediaDimensions.is_disc_system(_host_systemid()):
 		var pivot: Node3D = $TrayPivot
 		slot.position = pivot.transform * (pivot.get_node("DiscSeat") as Node3D).position
+	elif MediaDimensions.uses_floppy_525(_host_systemid()):
+		# The same arrangement as FloppySeat below, with its own basis and an 88 mm
+		# bite — see Floppy525Seat's note in pc_tower.tscn.
+		slot.transform = ($Front/Floppy525Seat as Node3D).transform
 	else:
 		# Authored, like every other seat on this model — see FloppySeat's note in
 		# pc_tower.tscn for the basis and the 40 mm bite. Front is a bare Node3D at
