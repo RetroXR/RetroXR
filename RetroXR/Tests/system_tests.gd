@@ -1159,6 +1159,20 @@ func _test_multitap_switch() -> void:
 	await get_tree().process_frame
 	var tap_plug: Node3D = tap.get("_cable_plug")
 	_ok(tap_plug != null and tap.mode == RetroMultitap.MODE_5P, "multitap/it comes at 5P, with its cord")
+	# The desktop pointer reaches the switch, from above and at a slant, rather
+	# than the tap's own body round it.
+	var knob := tap.get_node_or_null("SelectSwitch") as Node3D
+	if knob != null:
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var space := tap.get_world_3d().direct_space_state
+		for dir: Vector3 in [Vector3.UP, Vector3(0.0, 1.0, 1.0).normalized(), Vector3(0.0, 0.42, 0.91)]:
+			var at := knob.global_position
+			var target := InteractionResolver.resolve_desktop(space, at + dir * 0.6, at - dir * 0.02, null)
+			_ok(target.kind == InteractionTarget.KIND_POINTER and target.pointer_event_target == knob,
+				"multitap/the desktop pointer from %s takes the switch (%s)" % [str(dir.snapped(Vector3.ONE * 0.01)), target.kind])
+	else:
+		_ok(false, "multitap/it has its switch")
 	if tap_plug == null:
 		tap.queue_free()
 		sys.free()
