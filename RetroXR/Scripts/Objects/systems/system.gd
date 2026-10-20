@@ -2506,9 +2506,18 @@ func all_forced_options(core: String) -> Dictionary:
 	var out: Dictionary = _model.get_forced_core_options() if _model != null else {}
 	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _expansions.hardware_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
+	out.merge(ForcedCoreOptions.lightgun(core, _has_lightgun()), true)
 	for storage: ConsoleStorage in _storages:
 		out.merge(storage.forced_options_for(core), true)
 	return out
+
+
+## Whether any port holds a light gun (a cabinet's own, or one plugged in).
+func _has_lightgun() -> bool:
+	for c: Variant in _ports.controllers:
+		if c is LightGun:
+			return true
+	return false
 
 
 ## Whether a card is in each slot this console shows.
@@ -2845,8 +2854,9 @@ func _on_content_load_failed(reason: String) -> void:
 	if toast != null:
 		var detail := _load_failed_detail(reason, absent)
 		# An arcade game that names a missing file needs its BIOS or device set beside it.
-		if ArcadeProfiles.is_arcade_system(systemid) and reason.contains("NOT FOUND"):
-			detail += "\nMAME/FBNeo games need their BIOS or device ROM sets (qsound.zip, cps2.zip, neogeo.zip...) in the same roms folder as the game."
+		# MAME says "NOT FOUND", FinalBurn Neo "is required".
+		if ArcadeProfiles.is_cabinet_system(systemid) and (reason.contains("NOT FOUND") or reason.contains("is required")):
+			detail += "\nMAME/FBNeo games need their BIOS or device ROM sets (neogeo.zip, qsound.zip...). Get them from the core's BIOS list, or put them in the same roms folder as the game."
 		toast.show_notice(_display_name(), "Could not start", detail, AchievementToast.ACCENT_NOTICE)
 
 

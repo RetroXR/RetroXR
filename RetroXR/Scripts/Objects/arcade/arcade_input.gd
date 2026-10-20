@@ -185,7 +185,8 @@ func _process(delta: float) -> void:
 	var controllers: Array = _host.get_port_controllers() if _host.has_method("get_port_controllers") else []
 	var players := maxi(_controls.size(), 2)
 	for p in players:
-		var owned := p < controllers.size() and controllers[p] != null
+		var holder: Variant = controllers[p] if p < controllers.size() else null
+		var owned := holder != null
 		var coin := false
 		if _pulses.has(p):
 			coin = (_pulses[p] as ArcadeInputState.CoinPulse).advance(delta)
@@ -193,9 +194,21 @@ func _process(delta: float) -> void:
 		if attached.has(p):
 			state = _direct_state()
 		var mask := ArcadeInputState.compose(0, int(state["btn"]), coin, _unsupported())
+		# A momentary panel (a gun cabinet's START) is read while it is pressed.
+		if p < _controls.size() and _controls[p] != null and _controls[p].start_held():
+			mask |= 1 << ArcadeProfiles.START_BIT
 		if p < _controls.size() and _controls[p] != null:
 			_controls[p].show_state(mask)
 		if owned:
+			# A gun in the port is not a joypad: it aims and fires itself. The cabinet's START and
+			# coin reach the core TWICE: as the gun's own START and SELECT, and as the joypad's
+			# START and SELECT on that port, which is where MAME and FinalBurn read a credit and
+			# a start even in a light-gun game (the extension answers a core's joypad query
+			# whatever device the port announced). Only those two bits: the gun writes no pad.
+			if holder is LightGun:
+				_forward_to_gun(holder as LightGun, mask)
+				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT)
+				_send(p, mask & aux, {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0})
 			continue
 		_send(p, mask, state)
 
@@ -233,6 +246,12 @@ func _sync_desktop_scope() -> void:
 	elif _owns_desktop_scope:
 		_owns_desktop_scope = false
 		DesktopBindings.apply_for_system("")
+
+
+## START and the coin, as the buttons a light gun has for them. The gun ORs them with its own.
+func _forward_to_gun(gun: LightGun, mask: int) -> void:
+	gun.set_external_button(ControllerBindings.LIGHTGUN_START, (mask >> ArcadeProfiles.START_BIT) & 1 == 1)
+	gun.set_external_button(ControllerBindings.LIGHTGUN_SELECT, (mask >> ArcadeProfiles.COIN_BIT) & 1 == 1)
 
 
 func _unsupported() -> int:

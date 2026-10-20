@@ -13,6 +13,8 @@ class_name ArcadePanelGrip
 extends Area3D
 
 signal toggled(attached: bool)
+## A momentary panel (`momentary`) is held while it is pressed.
+signal held_changed(held: bool)
 
 const POINTABLE_LAYER := 1 << 20
 const HOVER_COLOR := Color(0.35, 1.0, 0.45, 0.16)       # WidgetOutline.HOVER_COLOR
@@ -25,7 +27,14 @@ const GRIP_OFF := 0.4
 ## The lit area, width x height in the panel's own frame.
 @export var panel_size := Vector2(0.285, 0.185)
 
+## A panel with nothing to take hold of (a gun cabinet's START buttons: the gun is the
+## controller): a press does not attach anyone, it HOLDS the panel for as long as it lasts, and
+## the cabinet reads that as START.
+@export var momentary := false
+
 var attached := false
+## Whether a momentary panel is being pressed now.
+var held := false
 
 var _hovered := false
 var _plate: MeshInstance3D = null
@@ -66,10 +75,26 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			_hovered = true
 		XRToolsPointerEvent.Type.EXITED:
 			_hovered = false
+			if momentary:
+				set_held(false)
 		XRToolsPointerEvent.Type.PRESSED:
 			_hovered = true
-			set_attached(not attached)
+			if momentary:
+				set_held(true)
+			else:
+				set_attached(not attached)
+		XRToolsPointerEvent.Type.RELEASED:
+			if momentary:
+				set_held(false)
 	_refresh()
+
+
+func set_held(on: bool) -> void:
+	if on == held:
+		return
+	held = on
+	_refresh()
+	held_changed.emit(on)
 
 
 func set_attached(on: bool) -> void:
@@ -95,11 +120,16 @@ func _process(_delta: float) -> void:
 		if not was and grip > GRIP_ON:
 			_squeezing[id] = true
 			if PokeTip.tip_of(ctrl).distance_to(global_position) <= REACH:
-				set_attached(not attached)
+				if momentary:
+					set_held(true)
+				else:
+					set_attached(not attached)
 				_hovered = false
 				_refresh()
 		elif was and grip < GRIP_OFF:
 			_squeezing[id] = false
+			if momentary:
+				set_held(false)
 	# A hand near the panel lights it, as a pointer does.
 	if not _controllers.is_empty():
 		var near := false
@@ -118,5 +148,5 @@ var _vr_near := false
 func _refresh() -> void:
 	if _plate == null:
 		return
-	_plate.visible = attached or _hovered or _vr_near
-	_material.albedo_color = ATTACHED_COLOR if attached else HOVER_COLOR
+	_plate.visible = attached or held or _hovered or _vr_near
+	_material.albedo_color = ATTACHED_COLOR if (attached or held) else HOVER_COLOR

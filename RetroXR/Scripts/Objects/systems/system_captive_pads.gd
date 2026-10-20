@@ -101,6 +101,9 @@ func _build_controller_well(index: int, rest: Transform3D, pad: Node3D) -> void:
 	_host.add_child(well)
 	well.transform = rest
 	_controller_wells.append(well)
+	# A gun goes back in its holster when let go (LightGun._return_to_well).
+	if "captive_well" in pad:
+		pad.set("captive_well", well)
 	well.pick_up_object(pad)
 
 

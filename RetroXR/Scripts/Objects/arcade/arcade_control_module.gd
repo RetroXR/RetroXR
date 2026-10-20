@@ -7,7 +7,9 @@
 ## attached, your own controller plays this player (ArcadeInput).
 ##
 ## Parts are found by name inside this module's subtree: `Btn1`..`Btn6`, `Start` (meshes),
-## `StickPivot` (a Node3D the shaft and ball hang from) and `PanelGrip` (the pointable box).
+## `StickPivot` (a Node3D the shaft and ball hang from), `DialPivot` (a Node3D a paddle knob
+## hangs from, turned by LEFT and RIGHT) and `PanelGrip` (the pointable box). Every one is
+## optional: a Neo Geo panel has four buttons, a gun cabinet's has only START.
 class_name ArcadeControlModule
 extends ArcadeModule
 
@@ -19,11 +21,16 @@ const STICK_TILT_DEG := 16.0
 const STICK_BLEND := 0.35
 ## How far a pressed cap sinks into the deck.
 const CAP_PRESS := 0.006
+## How fast a held LEFT or RIGHT turns a dial, radians a second (about one turn a second).
+const DIAL_SPEED := TAU
 
 var _caps: Array[Node3D] = []
 var _cap_rest: Array[Vector3] = []
 var _cap_bits: Array[int] = []
 var _stick: Node3D = null
+var _dial: Node3D = null
+var _dial_dir := 0.0
+var _dial_angle := 0.0
 var _grip: ArcadePanelGrip = null
 var _stick_target := Vector2.ZERO
 var _stick_current := Vector2.ZERO
@@ -42,6 +49,7 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 		_add_cap("Btn%d" % (i + 1), ArcadeProfiles.BUTTON_BITS[i])
 	_add_cap("Start", ArcadeProfiles.START_BIT)
 	_stick = find_child("StickPivot", true, false) as Node3D
+	_dial = find_child("DialPivot", true, false) as Node3D
 	_grip = find_child("PanelGrip", true, false) as ArcadePanelGrip
 	if _grip != null:
 		_grip.toggled.connect(func(on: bool) -> void: attach_changed.emit(player, on))
@@ -66,6 +74,11 @@ func is_attached() -> bool:
 	return _grip != null and _grip.attached
 
 
+## Whether this is a momentary panel (a gun cabinet's START) and it is being pressed now.
+func start_held() -> bool:
+	return _grip != null and _grip.momentary and _grip.held
+
+
 func grip() -> ArcadePanelGrip:
 	return _grip
 
@@ -81,9 +94,13 @@ func show_state(mask: int) -> void:
 	var y := float((mask >> ControllerBindings.JOYPAD_DOWN) & 1) \
 		- float((mask >> ControllerBindings.JOYPAD_UP) & 1)
 	_stick_target = Vector2(x, y)
+	_dial_dir = x
 
 
-func tick(_delta: float) -> void:
+func tick(delta: float) -> void:
+	if _dial != null and _dial_dir != 0.0:
+		_dial_angle = wrapf(_dial_angle + _dial_dir * DIAL_SPEED * delta, -PI, PI)
+		_dial.basis = Basis(Vector3.BACK, _dial_angle)
 	if _stick == null:
 		return
 	_stick_current = _stick_current.lerp(_stick_target, STICK_BLEND)
