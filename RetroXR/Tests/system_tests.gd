@@ -145,6 +145,7 @@ func _ready() -> void:
 	await _test_front_tray_spin()
 	_test_media_removal()
 	_test_expanded_port_binding()
+	await _test_multitap_switch()
 	_test_belongs_here()
 	_test_core_resolution()
 	_test_forced_options_merge()
@@ -1128,6 +1129,77 @@ func _test_expanded_port_binding() -> void:
 	_ok(sys.port_holder(0) == null, "expanded/a negative port binds nothing")
 
 	gun.free()
+	sys.free()
+
+
+# ---------------------------------------------------------------------------
+# A multitap's SELECT switch. At 5P the tap is its port's device (bsnes knows a
+# "Multitap" on the Super NES's second port only, and polls libretro ports 1-4
+# through it) and its four sockets are players 2-5; at 2P it is an extension
+# cord, its first socket the only live one, the pad there announced as itself.
+# The tap's own plug is bound into the console's second socket by the same call
+# the socket makes; the socket itself needs a snap zone.
+# ---------------------------------------------------------------------------
+
+## bsnes's ports as it declares them: the multitap on port 1 alone.
+const BSNES_PORTS: Array = [
+	{"port": 0, "controllers": [{"name": "SNES Joypad", "id": 1}, {"name": "SNES Mouse", "id": 2}]},
+	{"port": 1, "controllers": [{"name": "SNES Joypad", "id": 1}, {"name": "SNES Mouse", "id": 2},
+		{"name": "Multitap", "id": 257}, {"name": "SuperScope", "id": 516}]},
+]
+
+
+func _test_multitap_switch() -> void:
+	var sys := _system("snes")
+	sys._controller_info = BSNES_PORTS.duplicate(true)
+	var tap := (load("res://Scenes/Objects/controllers/retro_multitap.tscn") as PackedScene).instantiate() as RetroMultitap
+	add_child(tap)
+	# The cord is made on a deferred call.
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var tap_plug: Node3D = tap.get("_cable_plug")
+	_ok(tap_plug != null and tap.mode == RetroMultitap.MODE_5P, "multitap/it comes at 5P, with its cord")
+	if tap_plug == null:
+		tap.queue_free()
+		sys.free()
+		return
+	var pads: Array = []
+	for i in RetroMultitap.SUB_PORTS:
+		var pad := FakeSeated.new()
+		pads.append(pad)
+		(tap.get("_sub_plugs") as Array)[i] = pad
+
+	sys._bind_port(1, tap_plug, 1)
+	_eq(sys._controller_info[1].get("current_id", -1), 257, "multitap/at 5P the second port is bsnes's multitap")
+	_ok(sys.port_holder(1) == pads[0] and sys.port_holder(2) == pads[1] and sys.port_holder(3) == pads[2]
+		and sys.port_holder(4) == pads[3], "multitap/and its sockets are players 2 to 5, the fifth stored too")
+	sys._reannounce_port_devices()
+	_eq(sys._controller_info[1]["current_id"], 257, "multitap/a core start leaves the multitap on its port")
+
+	tap.set_mode(RetroMultitap.MODE_2P)
+	_eq(sys._controller_info[1]["current_id"], 1, "multitap/at 2P its first socket's pad is the port's, as itself")
+	_ok(sys.port_holder(1) == pads[0] and sys.port_holder(2) == null and sys.port_holder(4) == null,
+		"multitap/and only that socket is live")
+	sys._reannounce_port_devices()
+	_eq(sys._controller_info[1]["current_id"], 1, "multitap/a core start keeps the pad there")
+	tap.call("_on_sub_released", 0)
+	pads[0].free()
+	sys.reannounce_port(1)
+	_eq(sys._controller_info[1]["current_id"], 0, "multitap/at 2P with no pad in it, the port has nothing")
+
+	tap.set_mode(RetroMultitap.MODE_5P)
+	_eq(sys._controller_info[1]["current_id"], 257, "multitap/thrown back to 5P, the multitap again")
+	_ok(sys.port_holder(2) == pads[1] and sys.port_holder(4) == pads[3], "multitap/with players 3 to 5")
+	tap.call("_on_sub_released", 3)
+	_eq(sys._controller_info[1]["current_id"], 257, "multitap/a pad pulled from it leaves the multitap on the port")
+
+	for i in range(1, pads.size()):
+		if is_instance_valid(pads[i]):
+			pads[i].free()
+	var cable: Node = tap.get("_cable_instance")
+	if is_instance_valid(cable):
+		cable.queue_free()
+	tap.queue_free()
 	sys.free()
 
 

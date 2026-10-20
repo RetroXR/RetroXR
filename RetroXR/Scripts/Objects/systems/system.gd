@@ -373,7 +373,11 @@ var _controller_wells: Array = []
 ## as the libretro port the core sees). Populated by the snap/release handlers
 ## so rumble signals can be routed back to the physical holder without a
 ## node tree scan on every core callback.
-var _port_controllers: Array = [null, null, null, null]
+##
+## Eight, not four: a multitap fans one port out to four, and the Super NES's
+## second port then reaches libretro port 4 (player 5), which a four-slot table
+## never stored.
+var _port_controllers: Array = [null, null, null, null, null, null, null, null]
 
 ## The ControllerPlug seated in each cabinet port. Kept alongside the controller
 ## because the two are not interchangeable on the way out: has_dropped names
@@ -4159,9 +4163,27 @@ func _reannounce_port_devices() -> void:
 			_announce_port(k)
 
 
+## Tell the core what is on cabinet port `i` again, now: a multitap's SELECT
+## switch thrown with it plugged in changes what the port is.
+func reannounce_port(i: int) -> void:
+	if i >= 0 and i < _port_controllers.size():
+		_announce_cabinet_port(i)
+
+
 ## Tell the core what the peripheral in cabinet slot `i` is, if one is there.
 func _announce_cabinet_port(i: int) -> void:
 	var ctrl: Node = _port_controllers[i]
+	# A multitap at 5P is the port's device, whatever pad is in its first socket
+	# (that pad is what _port_controllers holds, for rumble and netplay): it is
+	# what the cabinet socket's plug belongs to.
+	var cab_plug: Node = _port_plugs[i] if i < _port_plugs.size() else null
+	if is_instance_valid(cab_plug) and cab_plug.has_method("get_controller"):
+		var tap: Node = cab_plug.get_controller()
+		# At 2P the pad in its first socket is the port's device, and with none
+		# there the tap's own (nothing) is.
+		if tap is RetroMultitap and ((tap as RetroMultitap).mode == RetroMultitap.MODE_5P
+				or not is_instance_valid(ctrl)):
+			ctrl = tap
 	if not is_instance_valid(ctrl):
 		return
 	var dev: int = ctrl.get("device_type") if "device_type" in ctrl else 1
@@ -4577,14 +4599,17 @@ func _on_port_released(port_index: int) -> void:
 
 ## Attach a controller (by its cable plug) to an EXPANDED libretro port that has
 ## no cabinet snap zone — used by a multitap plugged into a native port to fan
-## out to consecutive ports.
-func attach_expanded_controller(port: int, plug: Node3D) -> void:
-	_bind_port(port, plug, -1)
+## out to consecutive ports. `announce` false leaves the port's device as it is:
+## a multitap at 5P owns its own port's device, the pad in its first socket only
+## feeds it.
+func attach_expanded_controller(port: int, plug: Node3D, announce := true) -> void:
+	_bind_port(port, plug, -1, announce)
 
 
-## Detach a controller from an expanded port (see attach_expanded_controller).
-func detach_expanded_controller(port: int, plug: Node3D) -> void:
-	_unbind_port(port, plug, -1)
+## Detach a controller from an expanded port (see attach_expanded_controller;
+## `announce` false leaves the port's device to the multitap that owns it).
+func detach_expanded_controller(port: int, plug: Node3D, announce := true) -> void:
+	_unbind_port(port, plug, -1, announce)
 
 
 ## Bind a peripheral to a libretro port, from either direction: `cabinet_index`
@@ -4595,7 +4620,7 @@ func detach_expanded_controller(port: int, plug: Node3D) -> void:
 ## Written once because the expanded copy used to be an abridged one, and the
 ## abridgement is what dropped the device translation: a light gun on a multitap
 ## announced RETRO_DEVICE_LIGHTGUN, which fceumm turns into a gamepad.
-func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
+func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := true) -> void:
 	if lib_port < 0 or not is_instance_valid(plug):
 		return
 	var device_type: int = plug.get("device_type") if "device_type" in plug else 1
@@ -4615,7 +4640,7 @@ func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
 		[cabinet_index, device_type, lib_port, announce])
 	# A device in the USB socket of this number is what the core is told about:
 	# it keeps the pad on the port besides (see _announce_port).
-	if _claims_port_device(device_type) and _usb_plug_at(lib_port) == null:
+	if announce_device and _claims_port_device(device_type) and _usb_plug_at(lib_port) == null:
 		set_controller_port_device(lib_port, announce)
 	# The bound node is a ControllerPlug (cable end). Unwrap to the actual
 	# RetroController so rumble can be routed to its set_rumble() method.
@@ -4634,7 +4659,7 @@ func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
 
 
 ## Release a peripheral from a libretro port. See _bind_port for `cabinet_index`.
-func _unbind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
+func _unbind_port(lib_port: int, plug: Node3D, cabinet_index: int, announce_device := true) -> void:
 	if lib_port < 0:
 		return
 	print("[RetroSystem] port %d released" % cabinet_index)
@@ -4650,7 +4675,7 @@ func _unbind_port(lib_port: int, plug: Node3D, cabinet_index: int) -> void:
 	var slot := cabinet_index if cabinet_index >= 0 else lib_port
 	if slot < _port_controllers.size():
 		_port_controllers[slot] = null
-	if _claims_port_device(device_type):
+	if announce_device and _claims_port_device(device_type):
 		if _usb_plug_at(lib_port) != null:
 			_announce_port(lib_port)
 		else:
