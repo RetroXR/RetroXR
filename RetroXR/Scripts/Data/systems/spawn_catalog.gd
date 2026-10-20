@@ -362,7 +362,7 @@ const _TRS_KIT: Array = [
 ## rather than by the system's name, so a platform with two models says which is
 ## which. Kept in the signature because the menu passes it.
 static func items_for(systemid: String) -> Array:
-	return _with_offered_variants(_items_for(systemid))
+	return _with_offered_variants(_items_for(systemid), systemid)
 
 
 # ── Colors of a row a mod does not own ────────────────────────────────────────
@@ -372,12 +372,20 @@ static func items_for(systemid: String) -> Array:
 # controller that is the game's own, which a mod only dresses, has a row the
 # mod cannot reach: it offers that row its variants here, by the row's token.
 
-## spawn token -> {"variants": Array, "owner": String}
+## spawn token, or "<systemid>|<spawn token>" for one card's row alone ->
+## {"variants": Array, "owner": String}
 static var _offered_variants: Dictionary = {}
 
 
 ## Offer `variants` for the row that spawns `spawn`. "" on success, else why not.
-static func register_mod_row_variants(spawn: String, variants: Array, owner_id: String) -> String:
+##
+## With `systemid`, that card's row alone. A token can be shared by rows that
+## spawn different things: every console's "Memory Card" row is "memory_card",
+## and each spawns the card of its own console's family, so a PlayStation 2
+## card's colors offered by the token alone would be offered on the PlayStation,
+## GameCube and Wii pages too. A card's own offer wins over the token's.
+static func register_mod_row_variants(spawn: String, variants: Array, owner_id: String,
+		systemid: String = "") -> String:
 	if spawn.is_empty():
 		return "no spawn token"
 	if variants.is_empty():
@@ -385,20 +393,24 @@ static func register_mod_row_variants(spawn: String, variants: Array, owner_id: 
 	var err := SystemModelRegistry.variants_error(variants)
 	if not err.is_empty():
 		return err
-	if _offered_variants.has(spawn):
-		return "'%s' already has variants from mod '%s'" % [spawn, _offered_variants[spawn]["owner"]]
-	_offered_variants[spawn] = {"variants": variants.duplicate(true), "owner": owner_id}
+	var key := spawn if systemid.is_empty() else "%s|%s" % [systemid, spawn]
+	if _offered_variants.has(key):
+		return "'%s' already has variants from mod '%s'" % [key, _offered_variants[key]["owner"]]
+	_offered_variants[key] = {"variants": variants.duplicate(true), "owner": owner_id}
 	return ""
 
 
-static func _with_offered_variants(items: Array) -> Array:
+static func _with_offered_variants(items: Array, systemid: String = "") -> Array:
 	if _offered_variants.is_empty():
 		return items
 	for item: Variant in items:
 		var row := item as Dictionary
 		var spawn := str(row.get("spawn", ""))
-		if row.get("kind", "system") == "peripheral" and not row.has("variants") and _offered_variants.has(spawn):
-			row["variants"] = (_offered_variants[spawn]["variants"] as Array).duplicate(true)
+		var key := "%s|%s" % [systemid, spawn]
+		if not _offered_variants.has(key):
+			key = spawn
+		if row.get("kind", "system") == "peripheral" and not row.has("variants") and _offered_variants.has(key):
+			row["variants"] = (_offered_variants[key]["variants"] as Array).duplicate(true)
 	return items
 
 

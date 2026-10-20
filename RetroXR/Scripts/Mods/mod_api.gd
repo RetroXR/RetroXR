@@ -307,6 +307,18 @@ func offer_variants(spawn: String, variants: Array) -> bool:
 	return true
 
 
+## offer_variants for one card's row alone, when its token is shared by rows that
+## spawn different things: every console's "Memory Card" row spawns
+## "memory_card", the card of that console's own family, so a PlayStation 2
+## card's colors are offered with `systemid` "ps2" and appear on that page only.
+func offer_variants_on(systemid: String, spawn: String, variants: Array) -> bool:
+	var err := SpawnCatalog.register_mod_row_variants(spawn, variants, id, systemid)
+	if not err.is_empty():
+		return _fail("variants %s on %s: %s" % [spawn, systemid, err])
+	_note("variants", "%s on %s (%d)" % [spawn, systemid, variants.size()])
+	return true
+
+
 # ── services ──────────────────────────────────────────────────────────────────
 
 ## A built-in display shader by name — "crt", "vcr", "static", "window",

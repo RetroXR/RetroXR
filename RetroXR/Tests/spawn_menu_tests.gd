@@ -482,6 +482,16 @@ func _group_colors() -> void:
 		if str(item.get("spawn", "")) == "light_gun":
 			gun = item
 	_eq((gun.get("variants", []) as Array).size(), 2, "colors/and so does the game's own row, wherever it is carded")
+	# A token several cards share, each row spawning its own console's thing: offered
+	# on one card, the others' rows are left as they were.
+	_eq(SpawnCatalog.register_mod_row_variants("memory_card", pad_colors, OWNER, "ps2"), "",
+		"colors/a shared token can be offered colors on one card")
+	var card_colors := {}
+	for card_sys: String in ["ps2", "psx", "gc"]:
+		for item: Dictionary in SpawnCatalog.items_for(card_sys):
+			if str(item.get("spawn", "")) == "memory_card":
+				card_colors[card_sys] = (item.get("variants", []) as Array).size()
+	_eq(card_colors, {"ps2": 2, "psx": 0, "gc": 0}, "colors/and only that card's row carries them")
 	var pad_page := VBoxContainer.new()
 	holder.add_child(pad_page)
 	view._populate_systems_detail(SYS, pad_page)
