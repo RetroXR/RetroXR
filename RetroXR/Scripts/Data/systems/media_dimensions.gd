@@ -43,6 +43,13 @@ const CART_SIZES: Dictionary = {
 	# tallest part. Real boards were every size, so this is one that stands for
 	# them all. The 111 mm comb (28 contacts a side at 3.96 mm) sits in the edge.
 	"arcade":        Vector3(0.200, 0.300, 0.035),
+	# The Neo Geo MVS cassette (neogeo_cart.tscn): the edge connector is documented (240
+	# contacts, about 152 mm), the shell's 200 x 130 x 22 mm is an ESTIMATE.
+	"neogeo":        Vector3(0.200, 0.130, 0.022),
+	# The laserdisc and discrete-logic cabinets take the bare board (their real discs and
+	# shells are not modelled yet), so they stand the same size in the bay.
+	"daphne":        Vector3(0.200, 0.300, 0.035),
+	"dice":          Vector3(0.200, 0.300, 0.035),
 	# A 32X game is a Mega Drive cartridge -- same shell, same slot, and it goes
 	# into the 32X's own slot the way a plain cart goes into the console's. Listed
 	# so it is not handed CART_SIZE_DEFAULT, which is a different shape entirely
@@ -499,7 +506,7 @@ static func disc_loader(systemid: String) -> int:
 static func load_label_texture(systemid: String, rom_path: String) -> Texture2D:
 	# An arcade board's sticker shows the game's COVER (or a real label), not the cabinet
 	# render the scraper used to leave in the label slot.
-	if ArcadeProfiles.is_arcade_system(systemid):
+	if ArcadeProfiles.is_cabinet_system(systemid):
 		var art := ArcadeProfiles.board_art(load_media_image(systemid, rom_path, "box"),
 			load_media_image(systemid, rom_path, "label"))
 		if art == null:

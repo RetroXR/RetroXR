@@ -104,7 +104,12 @@ static func apply_for_system(systemid: String) -> void:
 	_apply_layer(data.get("global", {}) as Dictionary)
 	if not systemid.is_empty():
 		var per_sys: Dictionary = data.get("per_system", {}) as Dictionary
-		_apply_layer(per_sys.get(BindingStore.scope_of(systemid), {}) as Dictionary)
+		var scope := BindingStore.scope_of(systemid)
+		if per_sys.has(scope):
+			_apply_layer(per_sys[scope] as Dictionary)
+		elif ArcadeProfiles.is_cabinet_system(systemid):
+			# A cabinet with no map of its own plays from MAME's layout, not the numpad.
+			_apply_layer(ArcadeProfiles.DESKTOP_KEYS)
 
 
 ## Load saved bindings and apply the global scope. Safe with no file present.

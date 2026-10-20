@@ -86,18 +86,25 @@ const _CART_MODELS := {
 	"genesis": "res://imported-assets/carts/genesis/genesis_cart.glb",
 	# A JAMMA board is a bare PCB, not a shell: see Tools/gen/gen_arcade_board.gd.
 	"arcade": ArcadeProfiles.BOARD_SCENE,
+	# The other cabinets' media: a Neo Geo MVS game is a plastic cassette (neogeo_cart.tscn); a
+	# laserdisc game's and a discrete-logic game's are bare boards (no disc or shell is modelled).
+	"neogeo": ArcadeProfiles.NEOGEO_CART_SCENE,
+	"daphne": ArcadeProfiles.BOARD_SCENE,
+	"dice": ArcadeProfiles.BOARD_SCENE,
 }
 
 ## Models authored with real PBR values, which ModelMaterialFix must leave alone:
 ## the N64, Game Boy, DS/3DS, 32X, Genesis and NES cartridges' contacts and screws are metal,
 ## and so is the 64DD disk's hub.
 const _AUTHORED_MATERIALS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true, "nes": true, "n64dd": true, "arcade": true}
+	"sega32x": true, "genesis": true, "nes": true, "n64dd": true, "arcade": true,
+	"neogeo": true, "daphne": true, "dice": true}
 
 ## Models whose label mesh is UV-mapped as the sticker itself, so the art is
 ## painted onto it rather than laid over it on a quad.
 const _UV_LABELS := {"n64": true, "gb": true, "gbc": true, "nds": true, "n3ds": true, "snes": true,
-	"sega32x": true, "genesis": true, "nes": true, "arcade": true}
+	"sega32x": true, "genesis": true, "nes": true, "arcade": true,
+	"neogeo": true, "daphne": true, "dice": true}
 
 ## Names of the model's swappable label face, which _apply_label_art covers with
 ## the scraped art. The Sketchfab carts call it media_label; our own GBA scan
