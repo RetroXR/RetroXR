@@ -250,9 +250,11 @@ beam.
 - **Gambatte is the Game Boy Color's recommended core on desktop now** (it was
   SameBoy; Quest was already Gambatte). `CoreRecommendations` `gbc`, pinned by
   `cores_data_tests`: the row must name a core that carries `gbc-ir-1` on every
-  platform. The Game Boy's row keeps SameBoy -- it has no window. A clock file is
-  per core (`saves.md`), so a Gold or Silver cartridge that ran on SameBoy asks
-  for the time again under Gambatte; the battery is per system and carries over.
+  platform. The Game Boy's row kept SameBoy -- it has no window -- until
+  2026-10-20, when it moved to Gambatte too, for the cable: a lead into a SameBoy
+  unit joins nothing. A clock file is per core (`saves.md`), so a Gold or Silver
+  cartridge that ran on SameBoy asks for the time again under Gambatte; the
+  battery is per system and carries over.
 
 `Tests/ir_tests` (119 cases, no core) is the geometry, the pairing, the dwell
 and hysteresis, sight against real colliders, the netplay hand-off against a

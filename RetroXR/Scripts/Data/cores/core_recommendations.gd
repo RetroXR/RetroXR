@@ -87,17 +87,16 @@ const RECOMMENDED := {
 
 	# ── Nintendo handhelds ───────────────────────────────────────────────────
 	# Game Boy Color is a tile of its own (the Game Boy cores' overlays name
-	# `gbc` in secondary_systemids), and the same cores run both. The two
-	# entries were identical until 2026-10-13, when the Game Boy Color's stopped
-	# being SameBoy on desktop: the machine has an infrared window, and only our
-	# Gambatte and mGBA forks put anything behind it (docs/dev/gb-link.md). A
-	# core with no port leaves two machines pointed at each other linked to
-	# nothing. The Game Boy has no window, so its entry keeps the accuracy.
+	# `gbc` in secondary_systemids), and the same cores run both. On 2026-10-13
+	# the Game Boy Color's desktop pick moved from SameBoy to Gambatte: the
+	# machine has an infrared window, and only our Gambatte and mGBA forks put
+	# anything behind it (docs/dev/gb-link.md). A core with no port leaves two
+	# machines pointed at each other linked to nothing. On 2026-10-20 the Game
+	# Boy's followed, for its cable rather than a window, so both machines run
+	# our Gambatte on every platform.
 	"gb": {
-		"core":    "sameboy",
-		"why":     "The most accurate GB/GBC core, and cheap enough to spend the accuracy on desktop",
-		"android": "gambatte",
-		"why_android": "SameBoy's sub-frame accuracy costs more than it shows on a handheld screen; Gambatte is mature and much lighter",
+		"core": "gambatte",
+		"why":  "RetroXR's own build, on desktop and Quest alike: mature, light, and the far end of every Game Boy cable in the room; SameBoy is more exact, and a lead plugged into it joins nothing",
 	},
 	"gbc": {
 		"core": "gambatte",
@@ -117,11 +116,12 @@ const RECOMMENDED := {
 	},
 
 	# ── Nintendo consoles ────────────────────────────────────────────────────
+	# Desktop was Mesen until 2026-10-20. FCEUmm is our fork (CoreSources) and
+	# already the Famicom's and the Disk System's core, so one core now runs the
+	# whole NES family on every platform.
 	"nes": {
-		"core":    "mesen",
-		"why":     "Cycle-accurate, and the reference for NES behaviour",
-		"android": "fceumm",
-		"why_android": "Mesen's accuracy is not free; FCEUmm has the widest mapper coverage of the light cores",
+		"core": "fceumm",
+		"why":  "RetroXR's own build, on desktop and Quest alike: the widest mapper coverage of the light cores, the only NES core verified for netplay, and the same core the Famicom and its Disk System run",
 	},
 	"famicom": {
 		"core": "fceumm",

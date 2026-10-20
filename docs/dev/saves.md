@@ -111,9 +111,9 @@ before the change fails both, with `last_time=0` and day 0. **Still owed:** no g
 reading a clock through the pak — Pokémon Stadium 2 with a Gold, Silver or Crystal cartridge is
 the case — and the fork change reaches players only with a new release and a `known_tag` bump.
 
-**A clock does not follow a cartridge between cores** — desktop runs a Game Boy on sameboy, the
-Quest on gambatte, and the pak on mupen64plus — which would take a converter between the
-layouts above.
+**A clock does not follow a cartridge between cores** — a Game Boy runs on gambatte on both
+platforms (desktop was sameboy until 2026-10-20), and the pak on mupen64plus — which would take a
+converter between the layouts above.
 
 **Measured 2026-09-16** with `Tools/cores/rtc_probe`, which builds its own cartridge (MBC3 +
 TIMER + RAM + BATTERY) whose program sets the clock to day 100 on the first boot and copies the

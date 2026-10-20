@@ -477,8 +477,9 @@ const SOURCES := {
 	# while the frontend holds it, which is the flicker games look for, nullifies
 	# Start at $4017, and keeps the bit's phase in the savestate.
 	#
-	# This is the Android default NES core and the only netplay-verified one, so
-	# the fork has to stay a drop-in: with the option off it is the stock core.
+	# This is the default NES core on every platform and the only netplay-verified
+	# one, so the fork has to stay a drop-in: with the option off it is the stock
+	# core.
 	#
 	# FCEUmm is GPLv2, so the source for these binaries sits on the tag.
 	"fceumm": {
