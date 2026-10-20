@@ -435,6 +435,8 @@ func _mount_and_register(rec: ModRecord) -> void:
 		rec.fail("the pack could not be mounted")
 		return
 	rec.mounted = true
+	# Before anything of it loads: its scenes name their textures by UID.
+	ModUids.register(rec.id)
 	if not ResourceLoader.exists(manifest.entry):
 		rec.fail("entry script is missing: %s" % manifest.entry)
 		return

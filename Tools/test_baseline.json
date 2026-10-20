@@ -32,6 +32,7 @@
     "microphone_tests": 74,
     "mod_browser_tests": 369,
     "mod_tests": 331,
+    "mod_uids_tests": 26,
     "motion_tests": 64,
     "n64_cart_tests": 118,
     "n64_vru_tests": 37,
