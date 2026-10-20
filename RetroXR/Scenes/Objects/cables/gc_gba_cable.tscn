@@ -216,3 +216,7 @@ self_collision = true
 end_align_stiffness = 0.7
 end_stiffness = 0.3
 end_stiff_segments = 2
+; A thin link cord's weight, not the default's (an A/V lead's): at 0.04 kg/m its
+; push on a 25 to 30 g plug, whose cord leaves it 30 mm and more behind its middle
+; (the mods' plugs), outran the plug's own turn and spun it on the floor for good.
+linear_density = 0.01
