@@ -60,6 +60,16 @@ static func ethernet_adapter(core: String, systemid: String, expansions: Array) 
 		return {"dolphin_gc_sp1": "15" if bba else "255"}
 	if core == "pcsx2" and systemid == "ps2":
 		return {"pcsx2_dev9_eth": "link" if expansions.has("ps2_network_adapter") else "disabled"}
+
+## A light gun in a port. Current MAME reads a gun only when `mame_lightgun_mode` says so (its default,
+## `none`, ignores a gun on the port: the cabinet's guns "did not work"), and it lists NO light-gun
+## device among its controllers, so announcing one does nothing by itself. Pinned for the run while
+## any port holds a gun; FinalBurn Neo lists a "Lightgun" device and needs nothing. Measured:
+## arcade_load_probe --controllers on both cores. Other MAME-based cores name this option differently
+## and are not covered.
+static func lightgun(core: String, has_gun: bool) -> Dictionary:
+	if has_gun and core == "mame":
+		return {"mame_lightgun_mode": "lightgun"}
 	return {}
 
 

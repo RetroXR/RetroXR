@@ -110,6 +110,36 @@ var _cable_plug: ControllerPlug = null
 var _cable_rope: VerletRope = null
 var _max_rope_length: float = 0.0
 
+## The cord's rest length, 0 for the scene's own. A cabinet's gun hangs on a cord of its own.
+@export var cable_length: float = 0.0
+
+## True for a gun the machine is WIRED to rather than socketed for: an arcade cabinet's guns
+## hang in their holsters on a cord that goes into the cabinet, with no plug to pull. Built
+## with the machine and freed with it, so it stays out of the "spawned" group that
+## persistence and object sync sweep (a save would otherwise bring back a SECOND gun on
+## every load). Set before add_child, so this gun's own _ready never joins the group.
+var captive := false
+
+## The path this gun's cord takes at rest, in WORLD space, from the gun to the machine's
+## cord entry. RetroSystem hands one to a captive gun before the cord exists; empty
+## elsewhere, which leaves the rope its straight lay. See CaptiveCord.
+var captive_cord_route: PackedVector3Array = PackedVector3Array()
+
+## The holster this captive gun came out of (a snap zone the machine built round it). Let go, it goes
+## back in by itself: a cabinet's gun does not lie on the floor on its cord.
+var captive_well: XRToolsSnapZone = null
+
+
+## The cord spawned for this gun, or null. Parented to the scene root, not to the gun, so
+## whatever disposes of the gun has to dispose of this too.
+func cable_instance() -> Node3D:
+	return _cable_instance
+
+
+## The plug on the end of the cord, or null until the cord has been made (a deferred call).
+func get_plug() -> ControllerPlug:
+	return _cable_plug
+
 # Pending port restore (set before cable is ready)
 var _pending_port_restore: Dictionary = {}
 
@@ -180,7 +210,8 @@ func wants_ray_handoff() -> bool:
 func _ready() -> void:
 	super._ready()
 	press_to_hold = false
-	add_to_group("spawned")
+	if not captive:
+		add_to_group("spawned")
 	add_to_group(ControllerBindings.CONSUMER_GROUP)
 	grabbed.connect(_on_grabbed_signal)
 	dropped.connect(_on_dropped_signal)
@@ -213,10 +244,12 @@ func _find_vr_nodes() -> void:
 # ── Toggle-hold ───────────────────────────────────────────────────────────────
 
 func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
-	if _hint:
-		_hint.on_grabbed(by)
 	var pickup := by as XRToolsFunctionPickup
 	var ctrl := pickup.get_controller() if pickup else null as XRController3D
+	# Only a HAND holding the gun shows how to put it down: a snap zone taking it (a holster)
+	# is not a hold, and the hint hung over a gun in its holster.
+	if _hint and (pickup != null or by.is_in_group("desktop_hand")):
+		_hint.on_grabbed(by)
 	if ctrl == null:
 		# Desktop pickup: just flag desktop-held mode, don't set up VR toggle-hold
 		if by.is_in_group("desktop_hand"):
@@ -245,6 +278,22 @@ func _on_dropped_signal(_pickable: Node3D) -> void:
 		_desktop_held = false
 		_laser_dot.visible = false
 		_update_locomotion_block()
+		# A cabinet's gun goes back in its holster when let go. Deferred, so that a hand taking it
+		# out of the holster (the zone lets go, then the hand picks it up, in the same frame) is
+		# not undone, and so that the zone is free to take it.
+		if captive:
+			_return_to_well.call_deferred()
+
+
+## Back in the holster, unless something has taken it again. Only a gun that came out of one.
+func _return_to_well() -> void:
+	if not captive or not is_instance_valid(captive_well) or not captive_well.enabled:
+		return
+	if is_picked_up() or captive_well.picked_up_object == self:
+		return
+	linear_velocity = Vector3.ZERO
+	angular_velocity = Vector3.ZERO
+	captive_well.pick_up_object(self)
 
 
 func _rehold() -> void:
@@ -329,16 +378,24 @@ func _spawn_cable() -> void:
 
 func _add_cable_to_scene() -> void:
 	get_tree().current_scene.add_child(_cable_instance)
-	_cable_instance.add_to_group("spawned")
+	if not captive:
+		_cable_instance.add_to_group("spawned")
 	_cable_plug = _cable_instance.get_node("ControllerPlug") as ControllerPlug
 	_cable_rope = _cable_instance.get_node("VerletRope") as VerletRope
 	_cable_plug.set_controller(self)
 	if not plug_mesh_path.is_empty():
 		_cable_plug.set_plug_mesh(plug_mesh_path)
+	# A hardwired cord disappears into the cabinet: no plug to see, none to pull, and the
+	# rope ends where the cord entry is instead of 40 mm behind it.
+	if captive:
+		_cable_plug.hide()
 	_cable_plug.add_collision_exception_with(self)
 	_cable_plug.global_position = _cable_attach_point.global_position + Vector3(0, 0, -0.12)
 	_cable_rope.start_node = _cable_attach_point
 	_cable_rope.end_node = _cable_plug
+	if captive:
+		_cable_rope.end_anchor_offset = Vector3.ZERO
+	CaptiveCord.resize(_cable_rope, cable_length)
 	_cable_rope._init_points()
 	_max_rope_length = _cable_rope.segment_count * _cable_rope.segment_length
 
@@ -348,6 +405,10 @@ func _add_cable_to_scene() -> void:
 		_pending_port_restore = {}
 		if is_instance_valid(sys) and idx >= 0:
 			sys.restore_controller_plug(idx, _cable_plug)
+	# After the seat, not before: the lay ends at the socket.
+	if captive and captive_cord_route.size() >= 2:
+		if not CaptiveCord.lay(_cable_rope, captive_cord_route):
+			push_warning("LightGun: captive cord route refused by the rope")
 
 
 ## Cache the control meshes. Absent on an older scene, in which case the gun just
@@ -487,10 +548,15 @@ func on_unplugged() -> void:
 ## another set while the gun stays plugged in, and a cabinet mod swaps its own
 ## tube in once the set is ready.
 func _current_aim() -> ScreenAim:
-	if _connected_system == null or _connected_system.connected_tv == null:
+	if _connected_system == null:
 		_aim = null
 		return null
-	var mesh := _connected_system.connected_tv.get_screen_mesh()
+	var mesh: MeshInstance3D = null
+	if _connected_system.connected_tv != null:
+		mesh = _connected_system.connected_tv.get_screen_mesh()
+	elif _connected_system.get_model() != null:
+		# No set to aim at: a cabinet's own tube is the glass (a handheld's, likewise).
+		mesh = _connected_system.get_model().get_builtin_screen()
 	if mesh == null or mesh.mesh == null:
 		_aim = null
 		return null
@@ -615,7 +681,28 @@ func _apply_aim_hit(libretro: Libretro, ray_origin: Vector3, ray_dir: Vector3) -
 	_laser_dot.global_position = (hit["point"] as Vector3) - ray_dir.normalized() * 0.002
 
 
+## Buttons pressed from OUTSIDE the gun, by the machine it is wired to: a cabinet's START
+## buttons and its coin (lightgun id -> down). ORed with what the hand does, because the gun
+## writes every mapped button every frame and would otherwise take them back.
+var _external: Dictionary = {}
+
+
+## A button pressed by the machine, not by a hand. See _external.
+func set_external_button(lid: int, down: bool) -> void:
+	if bool(_external.get(lid, false)) == down:
+		return
+	_external[lid] = down
+	if _connected_system != null and _port_index >= 0:
+		_set_button(_connected_system.get_libretro_node(), lid, false)
+
+
+## The machine-pressed state of one button, for the tests.
+func external_button(lid: int) -> bool:
+	return bool(_external.get(lid, false))
+
+
 func _set_button(libretro: Libretro, button: int, pressed: bool) -> void:
+	pressed = pressed or bool(_external.get(button, false))
 	if not NetworkManager.netplay_set_lightgun_button(_connected_system, _port_index,
 			button, pressed):
 		libretro.SetLightgunButton(_port_index, button, pressed)
