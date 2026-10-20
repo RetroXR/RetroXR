@@ -1,0 +1,60 @@
+[gd_resource type="Resource" script_class="CartridgeShellPalette" format=3]
+
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_palette.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Data/cartridge_shell_preset.gd" id="2"]
+
+[sub_resource type="Resource" id="camera_blue"]
+script = ExtResource("2")
+id = &"camera_blue"
+display_name = "Blue"
+color = Color(0.1412, 0.2549, 0.6118, 1)
+roughness = 0.5
+
+[sub_resource type="Resource" id="camera_red"]
+script = ExtResource("2")
+id = &"camera_red"
+display_name = "Red"
+color = Color(0.8314, 0.1647, 0.1686, 1)
+roughness = 0.5
+
+[sub_resource type="Resource" id="camera_yellow"]
+script = ExtResource("2")
+id = &"camera_yellow"
+display_name = "Yellow"
+color = Color(0.9412, 0.7686, 0.098, 1)
+roughness = 0.5
+
+[sub_resource type="Resource" id="camera_green"]
+script = ExtResource("2")
+id = &"camera_green"
+display_name = "Green"
+color = Color(0.1725, 0.5412, 0.3333, 1)
+roughness = 0.5
+
+[sub_resource type="Resource" id="camera_gold"]
+script = ExtResource("2")
+id = &"camera_gold"
+display_name = "Gold (The Legend of Zelda)"
+finish = 1
+color = Color(0.66, 0.55, 0.4, 1)
+roughness = 0.4
+flake_color = Color(0.94, 0.85, 0.69, 1)
+flake_density = 0.3
+flake_size_mm = 0.3
+flake_intensity = 0.8
+flake_roughness = 0.2
+flake_tilt = 0.4
+
+[sub_resource type="Resource" id="camera_clear_purple"]
+script = ExtResource("2")
+id = &"camera_clear_purple"
+display_name = "Clear Purple (Pocket Camera)"
+color = Color(0.4314, 0.3608, 0.6275, 1)
+roughness = 0.2
+opacity = 0.55
+frost = 0.3
+
+[resource]
+script = ExtResource("1")
+source = "Game Boy Camera colors (GbCameraShell.PALETTE): the back half and the \"Nintendo\" half of the ball are in the color, the front half and the eye half stay charcoal (GbCameraShell.FRONT), as on every retail unit; a clear edition is clear on both. The colors are those of the model (RetroXR-models nintendo/gb/camera, colors.json and research/editions.md): red sampled from the user's unit, blue from Ashley Pomeroy's photographs (Wikimedia Commons), gold a pale champagne metal flake plastic (its sheen in flash photographs: the flat shell 199, 168, 131 to 216, 185, 150; the base here is darker and the flakes bright, as the Pokemon Gold cartridge's); yellow and green are of low confidence. The plain ROM is blue as it comes; the gold ROM (title GAMEBOYCAMERA G) is gold."
+presets = Array[ExtResource("2")]([SubResource("camera_blue"), SubResource("camera_red"), SubResource("camera_yellow"), SubResource("camera_green"), SubResource("camera_gold"), SubResource("camera_clear_purple")])

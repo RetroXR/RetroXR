@@ -89,6 +89,8 @@ func _ready() -> void:
 		await _test_seated()
 	if _wants("menu"):
 		_test_menu()
+	if _wants("colors"):
+		await _test_colors()
 	if _wants("eye"):
 		await _test_eye()
 	if _wants("feed"):
@@ -195,7 +197,16 @@ func _model_path(cart: RetroCartridge) -> String:
 
 func _albedo(cart: Node, part: String) -> Color:
 	var mi := cart.get_node("CartModel").find_child(part, true, false) as MeshInstance3D
-	return (mi.get_active_material(0) as BaseMaterial3D).albedo_color
+	var m := mi.get_active_material(0)
+	if m is ShaderMaterial:                 # a metal flake finish: the gold edition
+		return (m as ShaderMaterial).get_shader_parameter("albedo")
+	return (m as BaseMaterial3D).albedo_color
+
+
+func _is_flake(cart: Node, part: String) -> bool:
+	var mi := cart.get_node("CartModel").find_child(part, true, false) as MeshInstance3D
+	var m := mi.get_active_material(0) as ShaderMaterial
+	return m != null and m.shader == CartridgeColor.FLAKE_SHADER
 
 
 func _gb_preset(id: StringName) -> CartridgeShellPreset:
@@ -297,8 +308,8 @@ func _test_body() -> void:
 		# the axle stands upright. Written as its transpose it lies along the label.
 		_ok((knob.transform.basis.z - Vector3.UP).length() < 0.0001, "body/the ball's axle stands upright",
 			str(knob.transform.basis.z))
-		_ok(is_equal_approx(knob.deg_at_zero, -180.0) and is_equal_approx(knob.deg_at_one, 180.0)
-			and is_equal_approx(knob.get_value(), 0.5), "body/half a turn either way, and it starts at the front")
+		_ok(is_equal_approx(knob.deg_at_zero, 0.0) and is_equal_approx(knob.deg_at_one, -180.0)
+			and is_equal_approx(knob.get_value(), 0.0), "body/half a turn clockwise from above, and it starts at the front")
 	body.free()
 
 
@@ -352,8 +363,9 @@ func _test_cartridge() -> void:
 		_ok(camera.get_node_or_null("PointerArea/OverhangMovingShape") == null,
 			"cartridge/and none to be aimed at, which would stand in front of its own grab")
 
-	_ok(_albedo(camera, "Tongue") == _gb_preset(&"blue").color and _albedo(camera, "HeadBase") == _gb_preset(&"blue").color,
-		"cartridge/it is blue, cartridge and head")
+	var blue := CartridgeColor.get_palette(GbCameraShell.PALETTE).find(GbCameraShell.DEFAULT_PRESET)
+	_ok(_albedo(camera, "Tongue") == blue.color and _albedo(camera, "HeadBase") == blue.color,
+		"cartridge/it is the camera's blue, cartridge and head")
 	_ok(_albedo(red, "Tongue") == _gb_preset(&"red").color and _albedo(red, "HeadBase") == _gb_preset(&"red").color,
 		"cartridge/a forced Game Boy shell repaints both")
 	_ok(_albedo(mixed, "HeadBase") == Color("#3fa34d"), "cartridge/and so does a mixed colour")
@@ -380,48 +392,47 @@ func _test_ball() -> void:
 	await get_tree().process_frame
 	var knob := cart.get_node(KNOB_PATH) as VRKnob
 	_ok(_lens(cart).z > 0.999, "ball/at rest the lens looks out of the label side", str(_lens(cart)))
-	# A latched hand taking the ball by the lens and carrying it round one side to
-	# the back. The real one swivels about its upright axle: the lens stays level.
+	# A latched hand taking the ball by the lens and carrying it round to the back:
+	# clockwise seen from above, the lens passing the cartridge's -X, as the real
+	# one goes. It swivels about its upright axle: the lens stays level.
 	var worst := 1.0
 	var tipped := 0.0
 	var at_side := Vector3.ZERO
 	knob._begin_track(_hand(cart, 0.0))
 	for step in range(1, 19):
-		knob._track_world_point(_hand(cart, float(step) * 10.0))
-		worst = minf(worst, _lens(cart).dot(_arc(float(step) * 10.0)))
+		knob._track_world_point(_hand(cart, -float(step) * 10.0))
+		worst = minf(worst, _lens(cart).dot(_arc(-float(step) * 10.0)))
 		tipped = maxf(tipped, absf(_lens(cart).y))
 		if step == 9:
 			at_side = _lens(cart)
-	_ok(at_side.x > 0.999, "ball/a quarter turn points it out of the side, not up over the top", str(at_side))
+	_ok(at_side.x < -0.999, "ball/a quarter turn points it out of the -X side, not up over the top", str(at_side))
 	_ok(tipped < 0.0001, "ball/the lens stays level the whole way: it swivels, it does not tip", "%.5f" % tipped)
 	_ok(worst > 0.999, "ball/and stays under the hand the whole way round", "worst alignment %.4f" % worst)
 	_ok(is_equal_approx(knob.get_value(), 1.0) and _lens(cart).z < -0.999,
 		"ball/half a turn ends looking out of the back", "value %.3f, %s" % [knob.get_value(), _lens(cart)])
 	for step in range(19, 25):
-		knob._track_world_point(_hand(cart, float(step) * 10.0))
+		knob._track_world_point(_hand(cart, -float(step) * 10.0))
 	_ok(is_equal_approx(knob.get_value(), 1.0) and _lens(cart).z < -0.999, "ball/and no further, wherever the hand goes",
 		"value %.3f" % knob.get_value())
-	# Back through the front and on round the other side.
-	var other_side := Vector3.ZERO
-	for step in range(24, -19, -1):
-		knob._track_world_point(_hand(cart, float(step) * 10.0))
+	# Back the same way to the front, and it stops there: it does not go round the
+	# other side.
+	for step in range(24, -10, -1):
+		knob._track_world_point(_hand(cart, -float(step) * 10.0))
 		tipped = maxf(tipped, absf(_lens(cart).y))
 		if step == 0:
-			_ok(is_equal_approx(knob.get_value(), 0.5) and _lens(cart).z > 0.999, "ball/it comes back the same way to the front")
-		if step == -9:
-			other_side = _lens(cart)
-	_ok(other_side.x < -0.999, "ball/and goes round the other side as well", str(other_side))
-	_ok(is_equal_approx(knob.get_value(), 0.0) and _lens(cart).z < -0.999 and tipped < 0.0001,
-		"ball/to the back again, level, and stops", "value %.3f" % knob.get_value())
+			_ok(is_equal_approx(knob.get_value(), 0.0) and _lens(cart).z > 0.999, "ball/it comes back the same way to the front")
+	_ok(is_equal_approx(knob.get_value(), 0.0) and _lens(cart).z > 0.999 and tipped < 0.0001,
+		"ball/and no further round the +X side: it stops at the front", "value %.3f, %s" % [knob.get_value(), _lens(cart)])
 	knob.set_value_no_signal(0.5)
 
 	# A hand that takes hold anywhere round the ball turns it by how far the hand
-	# moves; it does not snap the lens to the hand.
-	knob._begin_track(_hand(cart, 120.0))
+	# moves; it does not snap the lens to the hand. Halfway, the lens looks out of
+	# the -X side.
+	knob._begin_track(_hand(cart, 60.0))
 	_ok(is_equal_approx(knob.get_value(), 0.5), "ball/taking hold does not move it")
-	knob._track_world_point(_hand(cart, 150.0))
-	_ok(absf(_lens(cart).dot(_arc(30.0)) - 1.0) < 0.0001, "ball/thirty degrees of hand is thirty degrees of ball", str(_lens(cart)))
-	knob.set_value_no_signal(0.5)
+	knob._track_world_point(_hand(cart, 30.0))
+	_ok(absf(_lens(cart).dot(_arc(-120.0)) - 1.0) < 0.0001, "ball/thirty degrees of hand is thirty degrees of ball", str(_lens(cart)))
+	knob.set_value_no_signal(0.0)
 
 	# The desktop's way: press the ball with the reticle, then roll the wheel.
 	var pivot := _pivot(cart)
@@ -431,11 +442,11 @@ func _test_ball() -> void:
 	notch.button_index = MOUSE_BUTTON_WHEEL_UP
 	notch.pressed = true
 	knob._unhandled_input(notch)
-	_ok(absf(_lens(cart).y) < 0.0001 and absf(_lens(cart).x) > 0.2 and _lens(cart).z > 0.0,
-		"ball/a notch of the wheel starts it round sideways", str(_lens(cart)))
-	for i in 9:
+	_ok(absf(_lens(cart).y) < 0.0001 and _lens(cart).x < -0.1 and _lens(cart).z > 0.0,
+		"ball/a notch of the wheel starts it round sideways, the way it goes", str(_lens(cart)))
+	for i in 19:
 		knob._unhandled_input(notch)
-	_ok(_lens(cart).z < -0.999, "ball/and ten take it to the back", str(_lens(cart)))
+	_ok(_lens(cart).z < -0.999, "ball/and twenty take it to the back", str(_lens(cart)))
 	knob.pointer_event(XRToolsPointerEvent.new(XRToolsPointerEvent.Type.RELEASED, cart, knob,
 		pivot.global_position, pivot.global_position))
 	cart.queue_free()
@@ -458,7 +469,8 @@ func _test_saved() -> void:
 	persistence._restore_articulated_controls(again, records)
 	_ok(is_equal_approx((again.get_node(KNOB_PATH) as VRKnob).get_value(), 0.875),
 		"saved/and a restored cartridge's ball is turned back there")
-	_ok(absf(_lens(again).dot(_arc(135.0)) - 1.0) < 0.0001, "saved/lens and all", str(_lens(again)))
+	# 0.875 of the half turn clockwise from above: -157.5 degrees
+	_ok(absf(_lens(again).dot(_arc(-157.5)) - 1.0) < 0.0001, "saved/lens and all", str(_lens(again)))
 	# What netplay binds, by the same walk.
 	_ok(cart.find_children("*", "VRKnob", true, false).has(knob), "saved/the knob is found from the cartridge")
 	cart.queue_free()
@@ -519,7 +531,7 @@ func _test_seated() -> void:
 		var glass := pivot.get_node("LensGlass") as Node3D
 		var out := (to_sys.basis * (glass.global_position - pivot.global_position)).normalized()
 		_ok(out.y < -0.999, "seated/%s: at rest the lens looks out of the back of the console" % systemid, str(out))
-		knob.set_value(0.75)
+		knob.set_value(0.5)
 		out = (to_sys.basis * (glass.global_position - pivot.global_position)).normalized()
 		_ok(absf(out.x) > 0.999, "seated/%s: a quarter turn, along the top edge" % systemid, str(out))
 		knob.set_value(1.0)
@@ -538,6 +550,153 @@ func _test_seated() -> void:
 
 
 ## The hold sub-menu of a gb or gbc row offers the camera as a body.
+## The camera's own colors: which a ROM came in, a color bringing the camera body,
+## a mod's shells keeping the camera a camera, the two halves of a real camera
+## painted apart, its front label printed in the color's ground, and the colors on
+## the hold menu.
+func _test_colors() -> void:
+	var gold_rom := _header("GAMEBOYCAMERA G", GbCameraShell.CART_TYPE_CAMERA)
+	_ok(GbCameraShell.preset_for_header(gold_rom) == GbCameraShell.GOLD_PRESET,
+		"colors/the gold edition's ROM is gold")
+	_ok(GbCameraShell.preset_for_header(_camera()) == GbCameraShell.DEFAULT_PRESET,
+		"colors/the plain one's is blue")
+	var pocket_rom := _header("POCKETCAMERA", GbCameraShell.CART_TYPE_CAMERA)
+	pocket_rom[GbCartShell.DESTINATION_AT] = GbCartShell.DESTINATION_JAPAN
+	_ok(GbCameraShell.is_japanese(pocket_rom) and not GbCameraShell.is_japanese(_camera())
+		and not GbCameraShell.is_japanese(gold_rom), "colors/the Pocket Camera's ROM is Japan's, the others overseas")
+	_ok(GbCameraShell.preset_for_header(pocket_rom) == GbCameraShell.JAPAN_PRESET,
+		"colors/and it is red")
+	_ok(GbCameraShell.is_preset(&"camera_red") and not GbCameraShell.is_preset(&"red")
+		and not GbCameraShell.is_preset(&""), "colors/the camera's ids are its own, apart from the Game Boy's")
+	_ok(GbcCartShell.body_model_for("", &"camera_red", _game()) == GbCameraShell.BODY,
+		"colors/a camera color asked of a game brings the camera body")
+
+	var gold := await _spawn(_write_rom("gold.gb", gold_rom))
+	var gold_preset := CartridgeColor.get_palette(GbCameraShell.PALETTE).find(GbCameraShell.GOLD_PRESET)
+	_ok(_model_path(gold) == GbCameraShell.BODY and _albedo(gold, "HeadBase") == gold_preset.color,
+		"colors/the gold ROM spawns a gold camera", str(_albedo(gold, "HeadBase")))
+	_ok(gold_preset.finish == CartridgeShellPreset.Finish.METAL_FLAKE and _is_flake(gold, "HeadBase"),
+		"colors/its gold is metal flake plastic, as the real one's is")
+	gold.queue_free()
+	var pocket := await _spawn(_write_rom("pocket.gb", pocket_rom))
+	var pocket_red := CartridgeColor.get_palette(GbCameraShell.PALETTE).find(GbCameraShell.JAPAN_PRESET)
+	_ok(_model_path(pocket) == GbCameraShell.BODY and _albedo(pocket, "HeadBase") == pocket_red.color,
+		"colors/the Pocket Camera's ROM spawns a red camera", str(_albedo(pocket, "HeadBase")))
+	pocket.queue_free()
+
+	# A mod that brings the Game Boy's shells: its camera body if it has one, the
+	# game's stand-in if it has none, never a plain cartridge with no lens.
+	var rom := _write_rom("modded.gb", _camera())
+	var plain := {"id": "t.gbcam:gb", "label": "Game Boy", "size": Vector3(0.057, 0.065, 0.0075),
+		"model": GbCartShell.BODY}
+	ModCartShells.register("gb", {"bodies": [plain]}, "t.gbcam")
+	_ok(RetroCartridge.body_model_for("gb", rom, "", &"") == GbCameraShell.BODY,
+		"colors/under a mod with no camera of its own, the camera ROM keeps the game's camera")
+	ModCartShells.drop_mod("t.gbcam")
+	var own := {"id": "t.gbcam:camera", "label": "Game Boy Camera", "size": Vector3(0.057, 0.065, 0.0083),
+		"model": CART_SCENE.resource_path}
+	ModCartShells.register("gb", {"bodies": [plain, own]}, "t.gbcam")
+	_ok(RetroCartridge.body_model_for("gb", rom, "", &"") == CART_SCENE.resource_path,
+		"colors/and wears the mod's own camera when it has one")
+	_ok(RetroCartridge.body_model_for("gb", _write_rom("modded_game.gb", _game()), "", &"camera_green")
+		== CART_SCENE.resource_path, "colors/as a game asked for in a camera color does")
+	ModCartShells.drop_mod("t.gbcam")
+
+	# A real camera's two plastics, as a mod's model names them, and its label.
+	var model := Node3D.new()
+	add_child(model)
+	var parts := {}
+	for part: Array in [["Front", GbCameraShell.FRONT_PLASTIC], ["Back", GbCameraShell.BACK_PLASTIC],
+			["BallFront", GbCameraShell.BALL_FRONT_PLASTIC], ["BallBack", GbCameraShell.BALL_BACK_PLASTIC],
+			[GbCameraShell.LABEL_MESH, &"Label"], [GbCameraShell.BOARD_NODE, &"PCB_Green"]]:
+		var mi := MeshInstance3D.new()
+		mi.name = part[0]
+		mi.mesh = BoxMesh.new()
+		var mat := StandardMaterial3D.new()
+		mat.resource_name = part[1]
+		mi.mesh.surface_set_material(0, mat)
+		model.add_child(mi)
+		parts[part[0]] = mi
+	model.add_child(GbCameraEye.new())
+	var labels := GDScript.new()
+	labels.source_code = "extends Node3D\nfunc label_art() -> Dictionary:\n\treturn {&\"camera_red\": \"%s\"}\n" \
+		% RetroTV.GLASS_WEAR_TEXTURE.resource_path
+	labels.reload()
+	model.set_script(labels)
+	_ok(GbCameraShell.is_camera_model(model) and not GbCameraShell.is_camera_model(parts["Front"]),
+		"colors/a body with the lens in it is a camera")
+	var red := CartridgeColor.get_palette(GbCameraShell.PALETTE).find(&"camera_red")
+	RetroCartridge.paint_camera(model, red, &"camera_red")
+	var front: Material = (parts["Front"] as MeshInstance3D).get_active_material(0)
+	var back: Material = (parts["Back"] as MeshInstance3D).get_active_material(0)
+	_ok(front is BaseMaterial3D and (front as BaseMaterial3D).albedo_color.is_equal_approx(GbCameraShell.FRONT),
+		"colors/the front half stays charcoal")
+	_ok(back is BaseMaterial3D and (back as BaseMaterial3D).albedo_color.is_equal_approx(red.color),
+		"colors/the back half takes the color")
+	var bf := (parts["BallFront"] as MeshInstance3D).get_active_material(0) as BaseMaterial3D
+	var bb := (parts["BallBack"] as MeshInstance3D).get_active_material(0) as BaseMaterial3D
+	_ok(bf != null and bb != null and bf.albedo_color.is_equal_approx(GbCameraShell.FRONT) and bb.albedo_color.is_equal_approx(red.color),
+		"colors/the ball's halves follow them: charcoal at the eye, the color behind")
+	_ok(not (parts[GbCameraShell.BOARD_NODE] as Node3D).visible, "colors/the board inside is hidden behind an opaque shell")
+	var printed := (parts[GbCameraShell.LABEL_MESH] as MeshInstance3D).get_active_material(0) as BaseMaterial3D
+	_ok(printed != null and printed.albedo_texture != null
+		and printed.albedo_texture.resource_path == RetroTV.GLASS_WEAR_TEXTURE.resource_path,
+		"colors/and the front label is the one printed in that color's ground")
+	RetroCartridge.paint_camera(model, CartridgeColor.get_palette(GbCameraShell.PALETTE).find(&"camera_clear_purple"),
+		&"camera_clear_purple")
+	front = (parts["Front"] as MeshInstance3D).get_active_material(0)
+	_ok(not (front is BaseMaterial3D and (front as BaseMaterial3D).albedo_color.is_equal_approx(GbCameraShell.FRONT)),
+		"colors/a clear edition is clear in front too")
+	var pair: Array = GbCameraShell.CLEAR_BALL[&"camera_clear_purple"]
+	var ball_front: Material = (parts["BallFront"] as MeshInstance3D).get_active_material(0)
+	var ball_back: Material = (parts["BallBack"] as MeshInstance3D).get_active_material(0)
+	_ok(ball_front is BaseMaterial3D and ball_back is BaseMaterial3D
+		and (ball_front as BaseMaterial3D).albedo_color.is_equal_approx(pair[0])
+		and (ball_back as BaseMaterial3D).albedo_color.is_equal_approx(pair[1])
+		and (ball_front as BaseMaterial3D).transparency == BaseMaterial3D.TRANSPARENCY_DISABLED,
+		"colors/the clear purple's ball is opaque: violet at the eye, light gray behind",
+		"%s %s" % [str(ball_front), str(ball_back)])
+	_ok((parts[GbCameraShell.BOARD_NODE] as Node3D).visible, "colors/and its board shows through the clear shell")
+	# A model that dresses itself by region: asked which, its answer prints the label.
+	var regional := GDScript.new()
+	regional.source_code = "extends Node3D\nvar japan = null\nfunc label_art() -> Dictionary:\n\treturn {}\n" \
+		+ "func dress_region(jp: bool) -> Dictionary:\n\tjapan = jp\n\treturn {&\"camera_red\": \"%s\"} if jp else {}\n" \
+		% RetroTV.GLASS_WEAR_TEXTURE.resource_path
+	regional.reload()
+	model.set_script(regional)
+	(parts[GbCameraShell.LABEL_MESH] as MeshInstance3D).set_surface_override_material(0, null)
+	RetroCartridge.paint_camera(model, red, &"camera_red")
+	_ok(model.get("japan") == false and (parts[GbCameraShell.LABEL_MESH] as MeshInstance3D).get_surface_override_material(0) == null,
+		"colors/a model that dresses by region is asked for the overseas one by default")
+	RetroCartridge.paint_camera(model, red, &"camera_red", true)
+	printed = (parts[GbCameraShell.LABEL_MESH] as MeshInstance3D).get_active_material(0) as BaseMaterial3D
+	_ok(model.get("japan") == true and printed != null and printed.albedo_texture != null
+		and printed.albedo_texture.resource_path == RetroTV.GLASS_WEAR_TEXTURE.resource_path,
+		"colors/and for Japan's on a Pocket Camera, whose label it prints")
+	model.queue_free()
+
+	# The colors on a Game Boy ROM's hold menu, with and without a mod's shells.
+	var holder := Control.new()
+	add_child(holder)
+	var view := SpawnMenuSpawnView.new()
+	holder.add_child(view)
+	var spawn := func(_options: Dictionary) -> void: pass
+	for modded: bool in [false, true]:
+		if modded:
+			ModCartShells.register("gb", {"bodies": [plain, own], "tint": [&"Gray_ABS_Textured"],
+				"palette": "res://Resources/gb_cartridge_shells.tres"}, "t.gbcam")
+		view._show_cart_spawn_options("gb", "Selftest", spawn)
+		var texts := PackedStringArray()
+		for b: Node in view._spawn_options_panel.find_children("*", "Button", true, false):
+			texts.append((b as Button).text.strip_edges())
+		_ok(texts.has("Gold (The Legend of Zelda)") and texts.has("Clear Purple (Pocket Camera)"),
+			"colors/the hold menu offers the camera's colors%s" % (" under a mod's shells" if modded else ""), str(texts))
+		view._close_spawn_options_panel()
+	ModCartShells.drop_mod("t.gbcam")
+	holder.queue_free()
+	await get_tree().process_frame
+
+
 func _test_menu() -> void:
 	var holder := Control.new()
 	add_child(holder)
@@ -638,7 +797,7 @@ func _test_eye() -> void:
 		_ok(up.dot(Vector3.UP) > 0.9999, "eye/at %.2f its top is the top of the cartridge" % value, str(up))
 		_ok(right.dot(fwd.cross(up)) > 0.9999, "eye/at %.2f its right is the right of a camera, so nothing is mirrored" % value,
 			str(right))
-	knob.set_value(0.5)
+	knob.set_value(0.0)
 	# Behind the label and looking out of it, the right of a camera is -X of the
 	# cartridge: the side that is the RIGHT of the screen once seated, so the
 	# viewfinder is the room as seen through the console.

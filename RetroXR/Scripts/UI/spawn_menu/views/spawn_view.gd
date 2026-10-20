@@ -3445,7 +3445,11 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 			palettes = [["", CartridgeColor.get_palette(systemid)]]
 		if GbCartShell.is_shell(systemid) and not ModCartShells.has(systemid):
 			palettes = [["Game Boy", CartridgeColor.get_palette(GbCartShell.SYSTEMID)],
+					["Game Boy Camera", CartridgeColor.get_palette(GbCameraShell.PALETTE)],
 					["Game Boy Color", CartridgeColor.get_palette(GbcCartShell.PALETTE)]]
+		elif GbCartShell.is_shell(systemid):
+			# A mod's shells, and the camera's colors, which bring its camera body.
+			palettes.append(["Game Boy Camera", CartridgeColor.get_palette(GbCameraShell.PALETTE)])
 		for entry: Array in palettes:
 			var palette: CartridgeShellPalette = entry[1]
 			for section: Array in [

@@ -42,6 +42,8 @@ const PALETTE_PATHS := {
 	"snes": "res://Resources/snes_cartridge_shells.tres",
 	"gbc": "res://Resources/gbc_cartridge_shells.tres",
 	"nes": "res://Resources/nes_cartridge_shells.tres",
+	# The Game Boy Camera's own colors (GbCameraShell.PALETTE).
+	"gb_camera": "res://Resources/gb_camera_shells.tres",
 }
 const FLAKE_SHADER := preload("res://Shaders/cartridge_flake_plastic.gdshader")
 const CLEAR_SHADER := preload("res://Shaders/cartridge_clear_plastic.gdshader")
@@ -81,12 +83,15 @@ const FLAKE_FLOOR := 0.05
 ## stippled halves and its smooth moulded lettering and ridges, faces and walls.
 ## Then the NES cart's stippled faces, its smooth moldings (sides, bevel, rib
 ## channel, grips) and its rear plaque, whose lettering is a baked normal map.
-## Last the Game Boy Camera stand-in's one plastic, cartridge and head alike.
+## Then the Game Boy Camera's ball halves (a mod's model: GbCameraShell paints
+## them opaque even on the clear edition), last the camera stand-in's one plastic,
+## cartridge and head alike.
 const EXTERIOR_PLASTIC: Array[StringName] = [&"Shell_Plastic", &"Molded_Smooth_Plastic", &"Nintendo_Molded_SVG",
 	&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth", &"Shell_Seam_Shadow",
 	&"Tintable_Front_Plastic", &"Tintable_Rear_Plastic", &"SNES_Shell_Plastic", &"SNES_Smooth_Plastic",
 	&"SNES_Shell_Plastic_Ribbed", &"GBC_Shell_Front", &"GBC_Shell_Rear", &"GBC_Shell_Smooth",
-	&"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked", &"GBCamera_Shell"]
+	&"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked",
+	&"GBCAM_BallFront", &"GBCAM_BallBack", &"GBCamera_Shell"]
 
 ## A moulding authored lighter or darker than the rest of its shell, as a factor
 ## on the colour painted: the Game Boy cart's ratios to its front shell. Every
@@ -105,7 +110,8 @@ const SHADE := {
 const OWN_ROUGHNESS: Array[StringName] = [&"Gray_ABS_Textured", &"Rear_ABS_Rough", &"Gray_ABS_Smooth",
 	&"Shell_Seam_Shadow", &"Tintable_Front_Plastic", &"Tintable_Rear_Plastic",
 	&"SNES_Shell_Plastic", &"SNES_Smooth_Plastic", &"SNES_Shell_Plastic_Ribbed",
-	&"GBC_Shell_Smooth", &"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked"]
+	&"GBC_Shell_Smooth", &"GBC_Shell_Edge", &"NES_Shell_Plastic", &"NES_Shell_Smooth", &"NES_Plaque_Baked",
+	&"GBCAM_BallFront", &"GBCAM_BallBack"]
 
 ## The half each moulded part belongs to, by node-name prefix. The Nintendo logo
 ## patch and the bottom latch tabs are part of the rear moulding. A part not

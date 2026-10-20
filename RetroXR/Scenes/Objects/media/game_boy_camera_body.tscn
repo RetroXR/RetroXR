@@ -109,18 +109,19 @@ surface_material_override/0 = SubResource("Mat_shell")
 ; lists a basis by rows). In this frame +X is the cartridge's +X, +Y is the
 ; cartridge's -Z, and the lens is on -Y, which is the label side.
 ;
-; The real ball stops at the front and goes round one side only. Which side is
-; not known here, so this one goes round either: value 0.5 is the front, 0 and 1
-; are the back, reached by the cartridge's -X and +X.
+; The real ball stops at the front and goes round one side only: half a turn
+; clockwise seen from above with the label toward you, the lens passing the
+; cartridge's -X, and back (Nintendo: "180 degrees clockwise and back"; the
+; Funtography Guide; Nintendo's trade video). Value 0 is the front, 1 the back.
 [node name="LensKnob" type="Area3D" parent="Overhang" unique_id=242714617]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0.063, 0)
 collision_layer = 1048576
 collision_mask = 0
 script = ExtResource("1_knob")
-deg_at_zero = -180.0
-deg_at_one = 180.0
+deg_at_zero = 0.0
+deg_at_one = -180.0
 engage_radius = 0.03
-value = 0.5
+value = 0.0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="Overhang/LensKnob" unique_id=252861072]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.002)

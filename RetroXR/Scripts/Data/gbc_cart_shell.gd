@@ -65,11 +65,13 @@ static func board_body(header: PackedByteArray) -> String:
 ## silver).
 ##
 ## Before any of that, the Game Boy Camera: its own body when it is forced, or
-## when no body is and the header is the camera's. A forced shell only repaints
-## it, where on a game it would bring the body its palette belongs to.
+## when no body is and the header is the camera's or the shell is one of the
+## camera's colors (a swatch brings its body, as the others' do). A Game Boy
+## shell only repaints it, where on a game it would bring the body its palette
+## belongs to.
 static func body_model_for(body_region: String, shell_preset: StringName, header: PackedByteArray) -> String:
-	if body_region == GbCameraShell.BODY_CAMERA \
-			or (body_region.is_empty() and GbCameraShell.is_camera(header)):
+	if body_region == GbCameraShell.BODY_CAMERA or (body_region.is_empty()
+			and (GbCameraShell.is_camera(header) or GbCameraShell.is_preset(shell_preset))):
 		return GbCameraShell.BODY
 	var clear := is_cgb_only(header) and GbCartShell.preset_for_header(header) == GbCartShell.DEFAULT_PRESET
 	if body_region == BODY_GBC:

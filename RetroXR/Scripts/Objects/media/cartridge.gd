@@ -230,8 +230,13 @@ func _body_model() -> String:
 ## a Quest (an N64 cart in a room restore) when it was not.
 static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region: String,
 		p_shell_preset: StringName) -> String:
-	# A mod's shells for this system stand in for the game's own, all of them.
+	# A mod's shells for this system stand in for the game's own, all of them. The
+	# camera stays a camera: its ROM, or one of its colors, asks for the mod's camera
+	# body, or the game's if the mod has none.
 	if ModCartShells.has(p_systemid):
+		if GbCartShell.is_shell(p_systemid) and p_body_region.is_empty() \
+				and (GbCameraShell.is_preset(p_shell_preset) or GbCameraShell.is_camera_rom(p_rom_path)):
+			return camera_body_for(p_systemid)
 		return ModCartShells.model_for(p_systemid, p_rom_path, p_body_region)
 	if p_systemid == "n64":
 		return N64CartShell.body_model_for_region(p_body_region, N64CartShell.market(p_systemid, p_rom_path))
@@ -291,16 +296,16 @@ func _apply_cart_model() -> void:
 		ModelMaterialFix.demetal(glb)
 	if systemid == "n64dd" and Nintendo64DD.is_dev_disk(rom_path):
 		ModelMaterialFix.retexture(glb, "shell", Nintendo64DD.DISK_DEV_ALBEDO)
-	if mod_shell:
+	# The camera, the game's or a mod's: in the camera's own colors (GbCameraShell).
+	if GbCartShell.is_shell(systemid) and GbCameraShell.is_camera_model(glb):
+		_paint_camera(glb)
+	elif mod_shell:
 		# Only where the mod said which of its materials are shell plastic;
 		# otherwise the body keeps its own materials whatever was asked for.
 		if ModCartShells.tintable(systemid):
 			_paint_shell(glb, systemid, ModCartShells.preset_for(systemid, rom_path))
 	elif systemid == "n64":
 		_paint_shell(glb, "n64", N64CartShell.preset_for_rom(rom_path, market))
-	elif GbCartShell.is_shell(systemid) and GbCameraShell.is_body(path):
-		# One ROM for every colour it was sold in, so the header has no shell to give.
-		_paint_shell(glb, GbCartShell.SYSTEMID, GbCameraShell.DEFAULT_PRESET)
 	elif GbCartShell.is_shell(systemid) and GbcCartShell.is_body(path):
 		_paint_shell(glb, GbcCartShell.PALETTE, GbcCartShell.preset_for_rom(rom_path))
 	elif GbCartShell.is_shell(systemid):
@@ -326,6 +331,82 @@ func _apply_cart_model() -> void:
 	var shutter := get_node_or_null("Shutter")
 	if shutter != null:
 		shutter.queue_free()
+
+
+## The camera's color: a mixed one, else the one forced if it is the camera's or the
+## Game Boy's, else the one its ROM came in (gold for the gold edition's, red for
+## the Pocket Camera's). A Pocket Camera's ROM dresses it as a Japanese unit.
+func _paint_camera(glb: Node3D) -> void:
+	var header := GbCartShell.read_header(rom_path)
+	var japan := GbCameraShell.is_japanese(header)
+	if Color.html_is_valid(shell_color):
+		paint_camera(glb, Color.html(shell_color), &"", japan)
+		return
+	var id := GbCameraShell.preset_for_header(header)
+	var palette := CartridgeColor.get_palette(GbCameraShell.PALETTE)
+	var gb := CartridgeColor.get_palette(GbCartShell.SYSTEMID)
+	if palette.find(shell_preset) != null:
+		id = shell_preset
+	elif gb != null and gb.find(shell_preset) != null:
+		paint_camera(glb, gb.find(shell_preset), shell_preset, japan)
+		return
+	paint_camera(glb, palette.find(id), id, japan)
+
+
+## The camera body a Game Boy cartridge of `systemid` spawns as: a mod's, when the
+## mod that brings that system's shells has one (a body whose id ends ":camera"),
+## else the game's stand-in. A mod's shells for a system stand in for the game's,
+## and without one of its own the camera would have lost its lens.
+static func camera_body_for(systemid: String) -> String:
+	for body: Dictionary in ModCartShells.bodies(systemid):
+		if str(body.get("id", "")).ends_with(":camera"):
+			return str(body["model"])
+	return GbCameraShell.BODY
+
+
+## Paint a camera body in `finish`: a CartridgeShellPreset (the camera's own, or the
+## Game Boy's) or a mixed Color. On a real camera's two plastics the back takes it
+## and the front stays charcoal, unless the preset is clear, which is clear front
+## and back; the ball's halves follow them but are always opaque, a clear edition's
+## in its own colors (GbCameraShell.CLEAR_BALL); the stand-in's one plastic takes it
+## whole. The main board inside shows only through a clear shell. `preset_id`
+## picks the front label a mod's model prints for that color, if it has one, and
+## `japan` asks a model that can (dress_region) for a Pocket Camera's labels and
+## back. Here and not in GbCameraShell, which may name none of these classes.
+static func paint_camera(model: Node, finish: Variant, preset_id: StringName, japan := false) -> void:
+	if finish == null:
+		return
+	var clear: bool = (finish is CartridgeShellPreset and (finish as CartridgeShellPreset).opacity < 0.999) 		or (finish is Color and (finish as Color).a < 0.999)
+	var color: Color = (finish as CartridgeShellPreset).color if finish is CartridgeShellPreset else Color(finish)
+	var ball: Array = GbCameraShell.CLEAR_BALL.get(preset_id, [GbCameraShell.FRONT, Color(color, 1.0)]) if clear else []
+	for s: Dictionary in CartridgeColor.shell_surfaces(model):
+		var mi: MeshInstance3D = s["mesh"]
+		var i: int = s["surface"]
+		var source := CartridgeColor._source_of(mi, i)
+		var plastic := StringName(source.resource_name) if source != null else &""
+		var paint: Variant = finish
+		if plastic == GbCameraShell.BALL_FRONT_PLASTIC:
+			paint = ball[0] if clear else GbCameraShell.FRONT
+		elif plastic == GbCameraShell.BALL_BACK_PLASTIC:
+			paint = ball[1] if clear else finish
+		elif plastic == GbCameraShell.FRONT_PLASTIC and not clear:
+			paint = GbCameraShell.FRONT
+		CartridgeColor._paint_surface(mi, i, paint)
+	# the board may come in pieces (a mod's: its tab in the head, under the overhang): every one named for it
+	for board: Node in model.find_children(GbCameraShell.BOARD_NODE + "*", "Node3D", true, false):
+		(board as Node3D).visible = clear
+	var art: Dictionary = {}
+	if model.has_method("dress_region"):
+		art = model.call("dress_region", japan)
+	elif model.has_method("label_art"):
+		art = model.call("label_art")
+	var label := model.find_child(GbCameraShell.LABEL_MESH, true, false) as MeshInstance3D
+	if label != null and art.has(preset_id) and ResourceLoader.exists(str(art[preset_id])):
+		var mat := label.get_active_material(0) as BaseMaterial3D
+		if mat != null:
+			var printed := mat.duplicate() as BaseMaterial3D
+			printed.albedo_texture = load(str(art[preset_id])) as Texture2D
+			label.set_surface_override_material(0, printed)
 
 
 ## The shell the model wears: the colour the player mixed, else the preset they

@@ -26,9 +26,10 @@
 ## pictures at a core that could take 2110. What it costs on a headset is not
 ## measured yet.
 ##
-## The lens is drawn as it is modelled: straight out of the ball. The real one is
-## set at an angle so it looks ahead with the console held tilted; the stand-in's
-## does not, and this follows the stand-in.
+## The lens looks the way its body's aperture is bored. The game's stand-in's goes
+## straight out of the ball; the real one's is raised 7.8 degrees above square to
+## the axle (the laser scan of nintendo/gb/camera), which a body says in
+## tilt_degrees.
 class_name GbCameraEye
 extends Node3D
 
@@ -46,6 +47,10 @@ const FOV_DEGREES := 43.0
 ## Past the glass and the rim of the bezel, so the ball is never in its own shot.
 const NEAR := 0.02
 const FAR := 100.0
+
+## How far the lens looks up from square to the axle, toward the axle's top: the
+## real aperture's 7.8, the stand-in's 0.
+@export var tilt_degrees := 0.0
 
 ## Pictures a second at most. The game's own viewfinder redraws a few times a
 ## second, so neither is slow to look at; 12 is one frame in six on a Quest at 72.
@@ -74,7 +79,7 @@ var _feeding: Object = null
 
 
 func _ready() -> void:
-	basis = LENS_BASIS
+	basis = Basis(Vector3.RIGHT, deg_to_rad(-tilt_degrees)) * LENS_BASIS
 	_cartridge = _find_cartridge()
 	# A body with no cartridge round it is a model on show -- the warmer's, a
 	# probe's -- and films nothing.
