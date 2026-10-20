@@ -80,6 +80,12 @@ var _right_vr_ctrl: XRController3D = null
 
 ## What was last sent per port, for the probe and the tests.
 var last_sent: Dictionary = {}
+## What the CORE last heard per port (port -> mask, and axes as a Vector4i): an input the core already
+## holds is not pushed again. Cleared when the machine goes off, so a restart is told afresh.
+var _heard_mask: Dictionary = {}
+var _heard_axes: Dictionary = {}
+## A port nobody is playing: shared, read only.
+const _NEUTRAL := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
 
 
 ## `host` is the RetroSystem, `model` the cabinet's model, `controls` one module per
@@ -181,6 +187,9 @@ func _process(delta: float) -> void:
 			for panel in _controls:
 				if panel != null:
 					panel.set_attached(false)
+		if not _heard_mask.is_empty():
+			_heard_mask.clear()
+			_heard_axes.clear()
 		return
 	var controllers: Array = _host.get_port_controllers() if _host.has_method("get_port_controllers") else []
 	var players := maxi(_controls.size(), 2)
@@ -208,7 +217,7 @@ func _process(delta: float) -> void:
 			if holder is LightGun:
 				_forward_to_gun(holder as LightGun, mask)
 				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT)
-				_send(p, mask & aux, {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0})
+				_send(p, mask & aux, _NEUTRAL)
 			continue
 		_send(p, mask, state)
 
@@ -263,8 +272,12 @@ func _send(port: int, mask: int, state: Dictionary) -> void:
 	if NetworkManager.netplay_route(_host, port, {"btn": mask, "alx": state["alx"],
 			"aly": state["aly"], "arx": state["arx"], "ary": state["ary"]}):
 		return
-	_host.get_libretro_node().SetJoypadState(port, mask, state["alx"], state["aly"],
-		state["arx"], state["ary"])
+	var axes := Vector4i(int(state["alx"]), int(state["aly"]), int(state["arx"]), int(state["ary"]))
+	if _heard_mask.get(port, -1) == mask and _heard_axes.get(port, Vector4i.ZERO) == axes:
+		return
+	_heard_mask[port] = mask
+	_heard_axes[port] = axes
+	_host.get_libretro_node().SetJoypadState(port, mask, axes.x, axes.y, axes.z, axes.w)
 
 
 # ── Direct input: the player's own controller ────────────────────────────────
