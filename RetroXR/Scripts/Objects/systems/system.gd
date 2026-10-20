@@ -1383,6 +1383,9 @@ func _exit_tree() -> void:
 ## re-resolve where the picture and the sound go (SystemAvPorts).
 func on_av_topology_changed(_reported: Array) -> void:
 	_av.on_topology_changed()
+	# A cabinet's composite INPUT sockets (ArcadeAvInModule) answer to this machine: tell its model a cord moved.
+	if _model != null and _model.has_method("on_av_in_changed"):
+		_model.call("on_av_in_changed")
 
 
 ## True when this system offers the Enable Video Out toggle: the machine has a
@@ -3592,6 +3595,113 @@ func restore_cartridge(cartridge: Node3D, yaw: float = 0.0) -> void:
 ## Which child holds the cartridge stays this machine's business.
 func net_release_cartridge() -> void:
 	_cartridge_slot.drop_object()
+
+
+# ── A detachable media bay (arcade cabinets) ──────────────────────────────────
+#
+# An arcade cabinet's slot can be a bay's (ArcadeBayUnit) rather than its own: clipped into the
+# cabinet's mount, or joined to it by a JAMMA lead. The cabinet stays the machine -- the core, the
+# input, the picture, the saves -- and only two things follow the bay: WHERE the board stands (this
+# machine's `_cartridge_slot` becomes the bay's snap zone) and WHICH system it plays (`systemid`
+# becomes the bay's kind's). Taking the bay away gives the slot back to the cabinet's own (shut and
+# empty) and the board goes with the bay, so the cabinet stops: pulling the board is pulling the game.
+
+## The slot this machine was built with, kept while a bay's is in use.
+var _home_slot: XRToolsSnapZone = null
+var _bay: ArcadeBayUnit = null
+var _bay_how := ""
+
+
+## The bay this machine plays from, or null.
+func get_bay() -> ArcadeBayUnit:
+	return _bay if is_instance_valid(_bay) else null
+
+
+## How the bay is joined (ArcadeBayUnit.DOCK / CABLE), "" with none.
+func bay_link_kind() -> String:
+	return _bay_how if get_bay() != null else ""
+
+
+## Play from `bay`. Returns false when it cannot be taken. A machine holds one bay: a second takes
+## the place of a docked one and is refused while a cabled one is in.
+func link_bay(bay: ArcadeBayUnit, how: String) -> bool:
+	if bay == null or not is_instance_valid(bay) or bay.slot == null:
+		return false
+	if _bay == bay:
+		return true
+	if get_bay() != null:
+		if how == ArcadeBayUnit.CABLE:
+			return false
+		unlink_bay(null)
+	var sid := bay.primary_system()
+	if not sid.is_empty() and sid != systemid:
+		# The machine is whatever the bay in it plays. A power-on has not happened yet (the old
+		# bay's leaving stopped the machine), so nothing is running under the old name.
+		systemid = sid
+		if _model != null and _model.has_method("on_machine_system_changed"):
+			_model.call("on_machine_system_changed")
+	if _home_slot == null:
+		_home_slot = _cartridge_slot
+	_home_slot.enabled = false
+	_bay = bay
+	_bay_how = how
+	_swap_cartridge_slot(bay.slot)
+	bay.attach_host(self, how)
+	if _model != null and _model.has_method("on_bay_linked"):
+		_model.call("on_bay_linked", bay, how)
+	return true
+
+
+## Stop playing from the bay (`bay` null means whichever it is). The board stays in the bay.
+func unlink_bay(bay: ArcadeBayUnit) -> void:
+	var gone := get_bay()
+	if gone == null:
+		_bay = null
+		return
+	if bay != null and bay != gone:
+		return
+	_bay = null
+	_bay_how = ""
+	if _home_slot != null:
+		_swap_cartridge_slot(_home_slot)
+		_home_slot.enabled = false
+	gone.detach_host()
+	if _model != null and _model.has_method("on_bay_unlinked"):
+		_model.call("on_bay_unlinked", gone)
+
+
+## A saved cabinet's bay, clipped back into its mount (a cabled one is joined by its lead's restore).
+func restore_bay(bay: ArcadeBayUnit) -> void:
+	if bay == null or _model == null or not _model.has_method("restore_bay_mount"):
+		return
+	_restoring_media = true
+	_model.call("restore_bay_mount", bay)
+	_restoring_media = false
+
+
+## Make `zone` this machine's cartridge slot. What is in the old one leaves with it (the machine
+## hears it go, as a hand pulling it would), and what is already in the new one arrives (the machine
+## hears that too: a snap zone says nothing about a board that was there before it was listened to).
+func _swap_cartridge_slot(zone: XRToolsSnapZone) -> void:
+	if zone == null or zone == _cartridge_slot:
+		return
+	if _snapped_cartridge != null:
+		_on_cartridge_removed()
+	var old := _cartridge_slot
+	if is_instance_valid(old):
+		if old.has_picked_up.is_connected(_on_cartridge_inserted):
+			old.has_picked_up.disconnect(_on_cartridge_inserted)
+		if old.has_dropped.is_connected(_on_cartridge_removed):
+			old.has_dropped.disconnect(_on_cartridge_removed)
+	_cartridge_slot = zone
+	zone.has_picked_up.connect(_on_cartridge_inserted)
+	zone.has_dropped.connect(_on_cartridge_removed)
+	zone.snap_filter = _accepts_media
+	if not zone.is_in_group(ExpansionPort.GROUP_CART_SLOT):
+		zone.add_to_group(ExpansionPort.GROUP_CART_SLOT)
+	var held := zone.picked_up_object as Node3D
+	if held != null:
+		_on_cartridge_inserted(held)
 
 
 ## The same, for a memory card. `slot` is an index into MEMCARD_SLOT_NODES and

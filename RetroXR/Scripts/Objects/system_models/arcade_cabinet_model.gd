@@ -35,6 +35,7 @@ const SIZE_CENTER := Vector3(0.0, 0.90, 0.035)
 var _modules: Array[ArcadeModule] = []
 var _screen: ArcadeScreenModule = null
 var _bay: ArcadeBayModule = null
+var _av_in: ArcadeAvInModule = null
 var _sockets: ArcadeSocketModule = null
 var _controls: Array[ArcadeControlModule] = []
 var _coins: Array[ArcadeCoinModule] = []
@@ -57,6 +58,8 @@ func _ready() -> void:
 				_screen = m as ArcadeScreenModule
 			ArcadeProfiles.KIND_BAY:
 				_bay = m as ArcadeBayModule
+			ArcadeProfiles.KIND_AV_IN:
+				_av_in = m as ArcadeAvInModule
 			ArcadeProfiles.KIND_SOCKETS:
 				_sockets = m as ArcadeSocketModule
 			ArcadeProfiles.KIND_STICK_BUTTONS:
@@ -67,6 +70,7 @@ func _ready() -> void:
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
 	if marquee != null and marquee.mesh != null and marquee.mesh.material is StandardMaterial3D:
 		_marquee_mat = marquee.mesh.material as StandardMaterial3D
+	ArcadeShadowBudget.trim(self)
 
 
 func _process(delta: float) -> void:
@@ -308,6 +312,152 @@ func configure_controller_ports(port_zones: Array) -> void:
 func configure_cartridge_slot(slot: Node3D) -> void:
 	if _bay != null:
 		_bay.configure_slot(slot)
+		var marker := _bay.mount_marker()
+		if marker != null:
+			_build_bay_mount(marker)
+
+
+# ── the bay is a separate object ─────────────────────────────────────────────
+
+const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
+
+## The compartment's mount: a snap zone that takes an ArcadeBayUnit and holds it rigid, the way the
+## 32X's accessory mount holds a spacer. Null on a cabinet whose scene has no `BayMount`.
+var _mount: XRToolsSnapZone = null
+## The bay clipped in, kept so its collision exception can be undone after it is gone.
+var _docked: ArcadeBayUnit = null
+
+
+## A snap zone at the mount marker. 12 cm of reach: the bay is a box a hand brings, and the zone
+## sits in a compartment whose door is the only way to it.
+func _build_bay_mount(marker: Node3D) -> void:
+	_mount = SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
+	_mount.name = "BayMountZone"
+	_mount.snap_require = ArcadeBayUnit.GROUP
+	_mount.grab_distance = 0.12
+	_mount.snap_filter = _accepts_bay
+	marker.add_child(_mount)
+	_mount.has_picked_up.connect(_on_bay_docked)
+	_mount.has_dropped.connect(_on_bay_undocked)
+	var sys := get_parent()
+	if sys != null and not bool(sys.get("_restoring_from_save")):
+		_seed_default_bay.call_deferred()
+
+
+## One bay in the mount, and only one this cabinet could be playing: not one a cable already gives
+## to another cabinet.
+func _accepts_bay(obj: Node3D) -> bool:
+	var unit := obj as ArcadeBayUnit
+	if unit == null:
+		return false
+	var host := unit.get_host()
+	return host == null or host == get_parent()
+
+
+## A fresh cabinet comes with its own kind of bay already in the mount -- never on a restore, which
+## is the whole truth about what is in there (the saved bay, a different one, or none).
+func _seed_default_bay() -> void:
+	if _mount == null or not is_instance_valid(_mount) or _mount.has_snapped_object():
+		return
+	var kind := _bay.bay_kind if _bay != null else ArcadeProfiles.BAY_JAMMA
+	var packed := ArcadeBayUnit.scene_for(kind)
+	var sys := get_parent() as Node3D
+	if packed == null or sys == null or not sys.is_inside_tree():
+		return
+	var unit := packed.instantiate() as ArcadeBayUnit
+	# Where an expansion's default occupant goes: the room. A test builds its machines under a root of
+	# its own, so the machine's own parent is the fallback.
+	var home: Node = sys.get_tree().current_scene
+	if home == null:
+		home = sys.get_parent()
+	home.add_child(unit)
+	unit.global_position = sys.global_position
+	_mount.pick_up_object(unit)
+
+
+## Put a saved bay back in the mount (RetroSystem.restore_bay), bypassing the reach.
+func restore_bay_mount(unit: ArcadeBayUnit) -> void:
+	if _mount != null and unit != null:
+		_mount.pick_up_object(unit)
+
+
+## The bay in the mount, or null.
+func docked_bay() -> ArcadeBayUnit:
+	return _docked if is_instance_valid(_docked) else null
+
+
+func _on_bay_docked(what: Node3D) -> void:
+	var unit := what as ArcadeBayUnit
+	var sys := get_parent() as RetroSystem
+	if unit == null or sys == null:
+		return
+	_docked = unit
+	# It stands inside the cabinet's own box: neither pushes the other.
+	sys.add_collision_exception_with(unit)
+	sys.link_bay(unit, ArcadeBayUnit.DOCK)
+
+
+func _on_bay_undocked() -> void:
+	var unit := _docked
+	_docked = null
+	var sys := get_parent() as RetroSystem
+	if sys == null:
+		return
+	if is_instance_valid(unit):
+		sys.remove_collision_exception_with(unit)
+	if sys.bay_link_kind() == ArcadeBayUnit.DOCK:
+		sys.unlink_bay(null)
+
+
+## RetroSystem told us a bay is the one now in use: the door gates a docked bay's slot (a cabled
+## one stands open to whoever reaches it).
+func on_bay_linked(bay: ArcadeBayUnit, how: String) -> void:
+	if _bay == null:
+		return
+	if how == ArcadeBayUnit.DOCK:
+		_bay.set_gated_slot(bay.slot)
+	else:
+		_bay.set_gated_slot(null)
+		bay.slot.enabled = true
+
+
+func on_bay_unlinked(_bay_unit: ArcadeBayUnit) -> void:
+	if _bay != null:
+		_bay.set_gated_slot(null)
+
+
+## What the screen shows: the board's picture, or -- while the compartment holds no unit -- whatever machine is
+## cabled to the cabinet's composite input (ArcadeAvInModule.external_picture). Nothing cabled, nothing in
+## the bay: the dark tube, as before.
+func host_picture() -> Texture2D:
+	var own := super.host_picture()
+	if _av_in == null:
+		return own
+	var ext := _av_in.external_picture()
+	return ext if ext != null else own
+
+
+## True while the screen is showing a cabled machine rather than the board (its aspect is the picture's own).
+func external_picture_active() -> bool:
+	return _av_in != null and _av_in.external_picture() != null
+
+
+## The cabinet's composite input block, or null on a cabinet that has none.
+func av_in() -> ArcadeAvInModule:
+	return _av_in
+
+
+## RetroSystem told us a cord moved on one of the cabinet's A/V sockets.
+func on_av_in_changed() -> void:
+	if _av_in != null:
+		_av_in.refresh()
+
+
+## The cabinet is playing a different system now (RetroSystem.link_bay): the panels read their key
+## and button maps by system, so they are read again.
+func on_machine_system_changed() -> void:
+	if _input != null:
+		_input.reload_bindings()
 
 
 func configure_cable_attach(attach_point: Node3D) -> void:
@@ -340,7 +490,13 @@ func configure_collision(host: Node3D) -> void:
 		AABB(Vector3(-hw, 0.10, -0.40), Vector3(0.02, 0.40, 0.80)),      # left of the bay
 		AABB(Vector3(hw - 0.02, 0.10, -0.40), Vector3(0.02, 0.40, 0.80)),       # right of the bay
 		AABB(Vector3(-hw, 0.10, -0.40), Vector3(w, 0.40, 0.02)),      # behind the bay
-		AABB(Vector3(-hw, 0.50, -0.40), Vector3(w, cabinet_height - 0.50, screen_front_z + 0.40)),      # everything above it
+		# The upper body is a HOLLOW shell, not a block: a player leaning into the cabinet reaches the bay
+		# from above (the compartment has no ceiling), and a solid block over it was an invisible wall.
+		AABB(Vector3(-hw, 0.50, -0.40), Vector3(0.02, cabinet_height - 0.50, screen_front_z + 0.40)),      # left wall
+		AABB(Vector3(hw - 0.02, 0.50, -0.40), Vector3(0.02, cabinet_height - 0.50, screen_front_z + 0.40)),      # right wall
+		AABB(Vector3(-hw, 0.50, -0.40), Vector3(w, cabinet_height - 0.50, 0.02)),      # back wall
+		AABB(Vector3(-hw, 0.50, screen_front_z - 0.05), Vector3(w, cabinet_height - 0.50, 0.05)),      # front wall
+		AABB(Vector3(-hw, cabinet_height - 0.02, -0.40), Vector3(w, 0.02, screen_front_z + 0.40)),      # roof
 		AABB(Vector3(-hw, 0.78, 0.40), Vector3(w, 0.14, 0.07)),       # control panel overhang
 	]
 	# A straight screen stands back from the coin face: the front between them needs its own box.
@@ -380,10 +536,20 @@ func _build_pointer_shapes(host: Node3D) -> void:
 		AABB(Vector3(-hw, 0.10, -0.40), Vector3(0.03, 0.40, 0.77)),   # left of the bay
 		AABB(Vector3(hw - 0.03, 0.10, -0.40), Vector3(0.03, 0.40, 0.77)),    # right of the bay
 		AABB(Vector3(-hw, 0.10, -0.40), Vector3(w, 0.40, 0.03)),   # behind the bay
-		AABB(Vector3(-hw, 0.50, -0.40), Vector3(w, 0.28, 0.77)),   # coin area, behind the plates
-		AABB(Vector3(-hw, 0.78, -0.40), Vector3(w, 0.14, 0.84)),   # apron, behind the sockets
-		AABB(Vector3(-hw, 0.92, -0.40), Vector3(w, marquee_bottom - 0.92, glass_back_z + 0.40)),   # deck and monitor, behind the glass
-		AABB(Vector3(-hw, marquee_bottom, -0.40), Vector3(w, cabinet_height - marquee_bottom, marquee_front_z + 0.40)),   # marquee
+		# The upper body is a hollow shell for a pointer too (the compartment is open to the top, and a
+		# player leaning in aims down into it): both side walls, the back (which a ray from the front, past
+		# every control, still ends on, so pointing at plain panel reaches the cabinet as before) and the roof.
+		AABB(Vector3(-hw, 0.50, -0.40), Vector3(0.03, cabinet_height - 0.50, 0.84)),   # left wall
+		AABB(Vector3(hw - 0.03, 0.50, -0.40), Vector3(0.03, cabinet_height - 0.50, 0.84)),   # right wall
+		AABB(Vector3(-hw, 0.50, -0.40), Vector3(w, cabinet_height - 0.50, 0.03)),   # back wall
+		AABB(Vector3(-hw, cabinet_height - 0.03, -0.40), Vector3(w, 0.03, 0.84)),   # roof
+		# The front, as thin plates BEHIND everything that can be operated (the coin face, the apron, the
+		# glass, the marquee), so a ray from the front still ends on the cabinet where it is aimed at plain
+		# panel, and a ray from inside, aimed down into the bay, is not stopped by any of them.
+		AABB(Vector3(-hw, 0.50, 0.30), Vector3(w, 0.28, 0.08)),   # coin area
+		AABB(Vector3(-hw, 0.78, 0.30), Vector3(w, 0.14, 0.14)),   # apron
+		AABB(Vector3(-hw, 0.92, glass_back_z - 0.05), Vector3(w, marquee_bottom - 0.92, 0.05)),   # behind the glass
+		AABB(Vector3(-hw, marquee_bottom, marquee_front_z - 0.05), Vector3(w, cabinet_height - marquee_bottom, 0.05)),   # marquee
 	]
 	for i in boxes.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()

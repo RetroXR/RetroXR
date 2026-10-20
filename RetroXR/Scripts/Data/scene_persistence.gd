@@ -72,6 +72,8 @@ const _REFERENCE_FIELDS := [
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
 	# The clip-on accessory on an expansion unit -- the 32X's Model 2 spacer.
 	"accessory",
+	# An arcade cabinet's bay, and the board standing in a bay.
+	"bay", "board",
 ]
 ## Stamped on a mod prop when it spawns, so serialize_node can recognise it
 ## without a class to test against. The value is the registered type string.
@@ -211,6 +213,12 @@ const ILINK_HUB_SCENE        := preload("res://Scenes/Objects/cables/ilink_hub.t
 const GB_PRINTER_SCENE       := preload("res://Scenes/Objects/peripherals/gb_printer.tscn")
 const ETHERNET_CABLE_SCENE   := preload("res://Scenes/Objects/cables/ethernet_cable.tscn")
 const ETHERNET_HUB_SCENE     := preload("res://Scenes/Objects/cables/ethernet_hub.tscn")
+
+const JAMMA_CABLE_SCENE      := preload("res://Scenes/Objects/cables/jamma_cable.tscn")
+const ARCADE_BAY_JAMMA_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_jamma.tscn")
+const ARCADE_BAY_MVS_SCENE   := preload("res://Scenes/Objects/peripherals/arcade_bay_mvs.tscn")
+const ARCADE_BAY_LASERDISC_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_laserdisc.tscn")
+const ARCADE_BAY_DISCRETE_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_discrete.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const TRAVEL_ADAPTER_SCENE   := preload("res://Scenes/Objects/appliances/travel_adapter.tscn")
@@ -300,6 +308,9 @@ const LEAD_SCENES := {
 	"jag_link_cable": JAG_LINK_CABLE_SCENE,
 	"ilink_cable": ILINK_CABLE_SCENE,
 	"ethernet_cable": ETHERNET_CABLE_SCENE,
+
+	# A JAMMA harness lead: a cabinet's back socket to a bay's.
+	"jamma_cable": JAMMA_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
 	"antenna": ANTENNA_SCENE,
 	# A headset whose captive cord ends in a 3.5 mm plug (Headphones): a lead with a body on one end, like the aerial.
@@ -350,6 +361,13 @@ const PLAIN_SCENES := {
 	"gb_printer": GB_PRINTER_SCENE,
 	# Pose only, for the i.LINK hub's reason.
 	"ethernet_hub": ETHERNET_HUB_SCENE,
+
+	# The arcade cabinet's bay, one scene per kind. A pose and the board standing in it; which cabinet
+	# plays from it is recorded on the CABINET's entry ("bay"), or by a JAMMA lead's plug.
+	"arcade_bay_jamma": ARCADE_BAY_JAMMA_SCENE,
+	"arcade_bay_mvs": ARCADE_BAY_MVS_SCENE,
+	"arcade_bay_laserdisc": ARCADE_BAY_LASERDISC_SCENE,
+	"arcade_bay_discrete": ARCADE_BAY_DISCRETE_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
 	# Slots written before the rename say "ray_gun".
 	"ray_gun": LIGHT_GUN_SCENE,
@@ -1619,6 +1637,7 @@ static func _restore_kind_rows() -> Array:
 		return _restore_kinds
 	_restore_kinds = [
 		[RetroSystem, &"_restore_system"],
+		[ArcadeBayUnit, &"_restore_arcade_bay"],
 		[RetroExpansion, &"_restore_expansion"],
 		[TransferPak, &"_restore_transfer_pak"],
 		[RetroTV, &"_restore_tv"],
@@ -1666,6 +1685,10 @@ func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: 
 		var ch_tv := _resolve_ref(root, spawned, extra[i]) as RetroTV
 		if ch_tv:
 			sys.restore_cable_connection(ch_tv, i + 1, _tv_input(tv_inputs, i + 1))
+	# Its bay first, so the board is seated into the bay's slot and not the cabinet's shut one.
+	var bay := _resolve_ref(root, spawned, rec.get("bay")) as ArcadeBayUnit
+	if bay:
+		sys.restore_bay(bay)
 	var cart := _resolve_ref(root, spawned, rec.get("cartridge")) as RetroCartridge
 	if cart:
 		sys.restore_cartridge(cart, float(rec.get("cartridge_yaw", 0.0)))
@@ -1716,6 +1739,15 @@ func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: 
 		sys.set_screen_light(bool(rec["screen_light"]))
 	if rec.has("screen_glow"):
 		sys.set_screen_glow(bool(rec["screen_glow"]))
+
+
+func _restore_arcade_bay(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	# The board standing in it. Idempotent with the cabinet that plays from it: a snap zone
+	# already holding the board does nothing, so whichever restore comes first wins.
+	var board := _resolve_ref(root, spawned, rec.get("board")) as Node3D
+	var unit := obj as ArcadeBayUnit
+	if board and unit.slot != null and unit.get_board() == null:
+		unit.slot.pick_up_object(board)
 
 
 func _restore_expansion(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -2178,6 +2210,13 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		"video_out": sys.video_out_enabled,
 		"ignore_gravity": sys.ignore_gravity,
 	})
+	# A cabinet playing from a separate bay: the board is the BAY's (its entry names it), and the
+	# bay is recorded here when it is clipped into the mount. A cabled one is the lead's.
+	var bay := sys.get_bay()
+	if bay != null:
+		result["cartridge"] = _ref(node_to_id, null)
+		if sys.bay_link_kind() == ArcadeBayUnit.DOCK:
+			result["bay"] = _ref(node_to_id, bay)
 	# Which image the memory built into it is. Omitted on a machine with none, so
 	# no room without a Saturn or a 3DO in it changes at all.
 	if sys.console_memory() != null:
@@ -2412,6 +2451,8 @@ static func _save_kind_rows() -> Array:
 		# The pose and the roll it is loaded with.
 		[GbPrinter, "gb_printer", &"_gb_printer_fields"],
 		[EthernetHub, "ethernet_hub"],
+		# The pose and the board standing in it; its type is its kind's.
+		[ArcadeBayUnit, "", &"_arcade_bay_entry"],
 		[Table, "table"],
 		[RetroExpansion, "expansion", &"_expansion_fields"],
 		# MUST precede the RetroCartridge row — RetroDisc extends it.
@@ -2569,6 +2610,13 @@ func _transfer_pak_fields(pak: TransferPak, node_to_id: Dictionary) -> Dictionar
 func _battery_entry(cell: BatteryCell, id: int, n3d: Node3D,
 		_node_to_id: Dictionary) -> Dictionary:
 	return _base(id, cell.save_type(), n3d)
+
+
+## The pose and the board standing in it. Whether it is in a cabinet's mount is on the
+## cabinet's entry, and a cabled one is the lead's; the board is here because a bay standing
+## alone with a game in it has nobody else to remember it.
+func _arcade_bay_entry(bay: ArcadeBayUnit, id: int, n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
+	return _base(id, bay.type_id, n3d).merged({"board": _ref(node_to_id, bay.get_board())})
 
 
 func _gc_microphone_fields(mic: GcMicrophone, node_to_id: Dictionary) -> Dictionary:

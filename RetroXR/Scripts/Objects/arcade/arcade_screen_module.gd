@@ -87,12 +87,20 @@ func tick(_delta: float) -> void:
 		_material.set_shader_parameter("source_tex", tex)
 	if _screen.get_surface_override_material(0) != _material:
 		_screen.set_surface_override_material(0, _material)
-	_refresh_geometry(tex)
+	var external := cabinet.has_method("external_picture_active") and bool(cabinet.call("external_picture_active"))
+	_refresh_geometry(tex, external)
 
 
-func _refresh_geometry(tex: Texture2D) -> void:
+func _refresh_geometry(tex: Texture2D, external: bool = false) -> void:
 	var lib: Object = _libretro()
 	var aspect := 0.0
+	if external:
+		# A machine cabled to the bay: the board's geometry says nothing about this picture.
+		_serial = -1
+		_content_aspect = fallback_aspect(Vector2(tex.get_size()))
+		_last_fit = fit_for(_content_aspect, glass_size)
+		_material.set_shader_parameter("fit_scale", _last_fit)
+		return
 	if lib != null and lib.has_method("GetVideoGeometrySerial"):
 		var serial: int = lib.GetVideoGeometrySerial()
 		if serial == _serial and _content_aspect > 0.0:
