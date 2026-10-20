@@ -321,6 +321,8 @@ func _apply_cart_model() -> void:
 	glb.scale = k
 	glb.position = -(ab.position + ab.size * 0.5) * k
 	_add_overhang_shapes(glb)
+	if path == ArcadeProfiles.BOARD_SCENE:
+		ArcadeShadowBudget.trim(glb)    # a bare PCB: its chips and capacitors are all under 10 cm
 	# Moulded plastic exported with a high metallicFactor reads as a dark mirror
 	# rather than a grey shell — the NES cart ships metallic 0.76.
 	var mod_shell := ModCartShells.has(systemid)

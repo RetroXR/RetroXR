@@ -161,3 +161,95 @@ autoload made a class cycle that broke 13 suites). The desktop room otherwise dr
 at the panel's refresh, about 100-120 fps on the laptop in `ps2-ilink.md`, on the same
 fast cores the consoles need; what a cap buys them there is not yet measured.
 `spawn_menu_tests --only=frame_cap`.
+
+
+## Arcade cabinets (2026-10-20)
+
+Reported: four cabinets spawned lag a lot, and one game (Cadillacs) played for minutes lags at the first
+boss. `Tools/perf/arcade_scale_probe` (cost of N cabinets, scenes only or with a core running) and
+`arcade_soak_probe` (one run of minutes, one CSV row every 5 s, and which series GROW) measure it;
+`run_arcade_matrix.py` runs the first over a matrix, one Godot process per row (never loop cores in a
+process), repeated and interleaved, and prints the table. `arcade_mesh_census` lists every mesh of a
+cabinet with its triangles and shadow mode. `arcade_perf_common.gd` is the shared stage and readings.
+
+```bash
+# on a shell whose libc is older than the extensions' (a flatpak VS Code) add --wrap "flatpak-spawn --host"
+python RetroXR/Tools/perf/run_arcade_matrix.py --godot "$godot" --rom ~/retroxr/roms/mame/dino.zip \
+    --phase all --repeat 2 --out /tmp/arcade_matrix          # `--phase scene|core`, `--quick`, `--only=`
+"$godot" --path RetroXR --display-driver x11 --disable-vsync --resolution 640x360 \
+    res://Tools/perf/arcade_soak_probe.tscn -- --core=fbneo --n=4 --minutes=12 --rom=<dino.zip> --shots=<dir>
+```
+
+**What a number means here (each cost a wrong conclusion once):**
+- **The window's own GPU time is mostly the wait for the compositor** (about half the frame whatever the scene
+  held), so the scene is drawn in a SubViewport and ITS time is read. And **a window is paced by the compositor** whatever
+  `--disable-vsync` says (60, sometimes 120 fps): read `main cpu ms/frame` (main-thread CPU from `/proc`,
+  per frame) and the GPU cost, not fps. fps is a symptom.
+- **On a laptop the integrated GPU's clock is not a constant, and it is what moves.** The same scene read 12 ms
+  and 80 ms of GPU depending on what the CPU was doing. Every window therefore records the GPU clock
+  (`gt_act_freq_mhz`), the package temperature, the CPU clock and how many cores the REST of the machine was using
+  (`other cores busy`); `gpu_mcycles` is GPU ms x MHz, which is comparable across windows. Compare rows only at
+  the same `other cores busy` (about 0.4-0.6), and repeat. **A transcoder running beside the first matrix, and a
+  probe that hung in teardown and kept drawing, both made fps read 10-115 in one family of rows**; the runner now
+  reaps stray probes. Never `pkill -f` a pattern that is also in your own command line: it kills the shell.
+- A paced core always reads 60 fps; **`XENU_UNTHROTTLED=1`** (the `unthrottled` rows) shows what it costs.
+- A soak player that attaches the panel TOGGLES it (a second press lets go and nobody plays), and a coin close to
+  START is the chord that opens Cadillacs' I/O TEST screen; the first 10-minute run sat in it for nine.
+
+**Measured** (Iris Xe laptop, 1280x720 viewport, a stage with a directional and four omni lights casting shadows,
+FBNeo and MAME running Cadillacs; `other cores busy` 0.4-0.6; 2 repeats):
+
+| | scene only (door shut) | FBNeo running | MAME running |
+|---|---|---|---|
+| 1 cabinet, main-thread CPU ms/frame | 3.2 (0 cabinets: 1.8) | 4.2 | 4.2 |
+| 4 cabinets, main-thread CPU ms/frame | 3.9 | 6.0 | 6.9 |
+| 4 cabinets, process cores busy | 0.47 | 0.82 | 1.08 |
+| `retro_run` ms/frame per core (60 fps) | - | 1.3 | 2.2 |
+| core cost flat out, 1 core: fps | - | ~1000 | ~570 |
+| draw calls / triangles, 4 cabinets | 261 / 233k | 588 / 378k | 590 / 378k |
+| RSS, 4 cabinets | 786 MB | 1.19 GB | 2.05 GB |
+
+- **A cabinet is cheap; the machine is what throttles.** About 0.5 ms of main-thread CPU a cabinet idle and about 0.6 running,
+  0.3 M GPU cycles; a core 1.3 ms (FBNeo) or 2.2 ms (MAME) of a 16.7 ms frame; texture upload 0.1 ms a frame. What lags
+  is the package: the integrated GPU ran 460 MHz with one cabinet, 320-440 with four and **100 MHz when the four cores ran flat
+  out (4.4 cores busy)**, at 70-80 C with the CPU at 1.3-2.2 GHz, so anything that burns CPU also slows the GPU
+  and frames that the GPU cannot finish are what the player sees as lag. `cast_shadow` off on every mesh changed the GPU cost
+  by under 1 ms (the shadow RECEIVERS, the lit floor and the lit panels, are the fragment cost, not the cabinets' casters).
+- **Nothing grows.** 12 minutes with four cabinets (the screenshots show a street, a green screen, a dark scene and, from about
+  minute 9, the I/O TEST screen again: the scripted player is not a faithful one, and what ends it there was not found), and 4 minutes
+  of one cabinet played in the street: nodes, objects, resources, orphans, static
+  memory and RSS flat, `retro_run` flat (1.05-1.3 ms; worst call under 27 ms), the core logs 0.04 KB/s. The dips
+  (fps 24-30 for two minutes) lined up with `other cores busy` rising to 1.2-1.8 and the GPU clock falling to 220-360 MHz.
+  **The lag at the first boss is NOT reproduced**: the scripted player never gets past the first street (it holds RIGHT and
+  mashes attack and does not fight), so a boss screen with its extra sprites and QSound voices has not been measured; what
+  the run shows is that nothing in the room or the bridge degrades with time, and that a hot, power-limited machine
+  (70-72 C from the first minute here) is the likely cause. To check in the room: `XENU_PACE_TRACE=1` and read
+  `user://logs/pace_trace.log` through the boss (`run` per machine and the room's `proc` ms), and
+  `cat /sys/class/drm/card*/gt_act_freq_mhz` beside it.
+- **MAME vs FinalBurn Neo:** MAME costs 1.7x the CPU per core (2.2 vs 1.3 ms), 0.86 GB more RAM for four cabinets (2.05 vs 1.19 GB), and a 4-cabinet room
+  at 1.08 cores vs 0.82 slowed the GPU clock from 437 to 324 MHz. MAME also refuses `dino` without `qsound.zip` BESIDE the
+  romset (the probe's scratch folder holds a copy; the player's `roms/mame/` does not). The user's `core_defaults.json` maps
+  `arcade` to MAME and the shipped default is FinalBurn Neo.
+
+**Kept** (each by an A/B on the same machine, alternating the old and new code; the gains are small, 3-5%, which is
+what a cabinet's own scripts are worth here):
+- `ArcadeControlModule.show_state` and the stick settle: a panel redrew its seven caps and its stick every frame for ever (a
+  `position =` dirties the transform and goes to the renderer even when it holds the value); it now draws when the mask changes, and the lerp snaps and stops.
+- `ArcadeInput._send`: the core is told an input once (`_heard_mask`/`_heard_axes`), cleared when the machine is off.
+- `ArcadeShadowBudget`: parts under 10 cm cast no shadow (cabinet, bay and board: 71 of 134 shadow draws per light a
+  cabinet); the shell, deck and door keep theirs. Four cabinets with every light casting: draws 261 -> 186, triangles 233k -> 113k; the picture does not change, and the GPU
+  time on this machine does not measurably either (the A/B read 7.6 -> 7.4 M cycles, inside the noise). It is a Quest-shaped saving, OWED there.
+
+**Tried, not kept:** telling the core nothing shows its picture (`GET_AUDIO_VIDEO_ENABLE` without VIDEO, and dropping any frame it still
+hands over): FBNeo `retro_run` 0.99 -> 0.78 ms (-21%), MAME 1.77 -> 1.62 (-8%), the upload to zero, main thread 7.5 -> 6.7 ms.
+That is 0.2 ms a cabinet out of view on desktop; it needs a visibility test in the room (`VisibleOnScreenNotifier3D` in a headset is
+unproven here) and a rebuild for windows AND android, so the extension change was dropped. What it would take: `Wrapper::SetVideoMuted`
+(an atomic), `GetAudioVideoEnable` answering without `RETRO_AV_ENABLE_VIDEO`, `RefreshCallback` returning (after
+`CompleteFrameWithoutReadback`) before it converts anything, `Libretro.SetVideoMuted`; `arcade_scale_probe --mute=video` measures it.
+
+**A run writes the cores' saves** (`dino.hi`, `dino.nv` under `libretro/save/fbneo/fbneo/`): `run_arcade_matrix.py` snapshots and restores `core_options/` and the
+save folders, the soak probe and ad-hoc runs do NOT, so take a copy of the folder first.
+
+**OWED:** the Quest (4 cores plus the render thread compete there; the cores cost several times more per frame than on this laptop,
+so core cost per cabinet and the muted-video idea matter more), a headset, a boss screen, and a second, unthrottled-by-heat
+machine to see what the same scene costs when the GPU gets its clock.
