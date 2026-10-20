@@ -135,6 +135,12 @@ const SLUG_MAP := {
 
 	# SNK
 	"neogeo": "neogeo",
+	# RomM's two Neo Geo cartridge platforms (the MVS arcade board's and the AES home console's)
+	# are one system here: the same game data, run by the same cores.
+	"neogeomvs": "neogeo",
+	"neogeoaes": "neogeo",
+	"neo-geo-mvs": "neogeo",
+	"neo-geo-aes": "neogeo",
 	"neogeocd": "neogeocd",
 	"neo-geo-cd": "neogeocd",
 	"ngp": "ngp",
