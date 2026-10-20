@@ -17,9 +17,11 @@ size = Vector3(0.0144, 0.0144, 0.054)
 bounce = 0.0
 friction = 0.8
 
-; Laser target, wider than the physics box — a plug is a small thing to hit
-; with a beam. Roomier than the composite lead's, since this one has a single
-; cord and no neighbours to pick between.
+; The laser target only until the plug is in the room: PointerFit then makes it
+; a box of what the plug draws (its connector, or a model a mod has put on it)
+; and nothing more. Padded so that a beam from across the room could find a
+; small plug, it stopped the desktop laser in the air beside the plug and handed
+; over the plug instead of whatever was aimed at.
 [sub_resource type="SphereShape3D" id="SphereShape3D_pointer"]
 radius = 0.036
 

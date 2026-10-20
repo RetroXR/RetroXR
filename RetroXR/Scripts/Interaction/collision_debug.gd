@@ -186,6 +186,9 @@ func _decorate(body: CollisionObject3D, owner_id: int, shape_id: int, layer: int
 	overlay.material_override = _material_for(layer)
 	overlay.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	overlay.set_meta(&"owner_id", owner_id)
+	# A picture of a box is not part of the thing: a plug's pointer target is fitted
+	# to what it draws, and measuring this would grow it to the box it shows.
+	overlay.add_to_group(PointerFit.EXCLUDE_GROUP)
 	overlay.transform = body.shape_owner_get_transform(owner_id)
 	# The overlay rides the body it describes, so a swinging flap or a carried
 	# console takes its boxes with it for free.

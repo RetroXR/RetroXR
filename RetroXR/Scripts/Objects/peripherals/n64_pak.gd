@@ -34,6 +34,12 @@ func _ready() -> void:
 	add_to_group("controller_plug")
 	add_to_group("n64_pak")
 	_hint = HeldHint.attach(self, true, HINT_HEIGHT)
+	# Aimed at by what it draws, tongue and all. The box it had stood 5 mm clear of
+	# the pak and stopped about 30 mm short of the end of its tongue, so most of the
+	# part of a loose pak that goes into the controller could not be pointed at.
+	# Seated, the tongue is inside the controller's own box, which a ray reaches
+	# first (pointer_fit_tests, seated/).
+	PointerFit.watch(self)
 
 
 ## The value this pak asks its port's core option to take. The core's own

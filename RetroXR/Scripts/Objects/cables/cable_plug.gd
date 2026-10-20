@@ -51,6 +51,8 @@ func _ready() -> void:
 	add_to_group("composite_plug")
 	_derive_cable_anchor()
 	_apply_plug_color()
+	# Aimed at by what it draws: the connector, or a model a mod has put on it.
+	PointerFit.watch(self)
 	picked_up.connect(func(_p: Variant) -> void: PlugAim.aim(self))
 
 

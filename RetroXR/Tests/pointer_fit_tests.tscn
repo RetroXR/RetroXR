@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://pointer_fit_tests_0001"]
+
+[ext_resource type="Script" path="res://Tests/pointer_fit_tests.gd" id="1_fittests"]
+
+[node name="PointerFitTests" type="Node"]
+script = ExtResource("1_fittests")

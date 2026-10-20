@@ -37,6 +37,7 @@
     "n64_vru_tests": 37,
     "netplay_tests": 685,
     "object_sync_tests": 140,
+    "pointer_fit_tests": 323,
     "poster_tests": 112,
     "prop_lighting_tests": 23,
     "ra_tests": 29,

@@ -10,9 +10,11 @@
 [sub_resource type="BoxShape3D" id="BoxShape3D_card"]
 size = Vector3(0.0382, 0.0074, 0.0560)
 
-; The LOOSE pointer target: the card plus 10 mm on every face, so a small flat
-; object is still findable on a shelf. memory_card.gd swaps this for a box the
-; size of the card itself while a console is holding it.
+; The pointer target only until the card is in the room: PointerFit then makes
+; it a box of what the card draws, loose or seated, a mod's shell included. It
+; was the card plus 10 mm on every face so a small flat object could be found
+; on a shelf, and a laser stopped in the air beside the card took the one next
+; to it.
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.060, 0.030, 0.078)
 

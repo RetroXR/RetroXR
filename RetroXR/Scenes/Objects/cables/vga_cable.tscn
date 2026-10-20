@@ -17,9 +17,11 @@ size = Vector3(0.034, 0.018, 0.05)
 bounce = 0.0
 friction = 0.8
 
-; Laser target, deliberately larger than the physics box — a plug is a small thing
-; to hit with a beam from across the room, and this shape only answers the pointer
-; (mask 0). Roughly 1.5x, the ratio memory_card.tscn and tv_remote.tscn use.
+; The laser target only until the plug is in the room: PointerFit then makes it
+; a box of what the plug draws (its connector, or a model a mod has put on it)
+; and nothing more. Padded so that a beam from across the room could find a
+; small plug, it stopped the desktop laser in the air beside the plug and handed
+; over the plug instead of whatever was aimed at.
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.05, 0.03, 0.066)
 

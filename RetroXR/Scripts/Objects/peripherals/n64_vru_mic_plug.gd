@@ -24,6 +24,8 @@ func _ready() -> void:
 	super._ready()
 	add_to_group("spawned")
 	add_to_group(GROUP)
+	# Aimed at by what it draws: a 3.5 mm plug is small, and its target is no bigger.
+	PointerFit.watch(self)
 
 
 func set_microphone(mic: N64VruMic) -> void:

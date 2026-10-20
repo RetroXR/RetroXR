@@ -73,6 +73,8 @@ func _ready() -> void:
 		minted = true
 	_update_label()
 	_hint = HeldHint.attach(self, true, HINT_HEIGHT)
+	# Aimed at by what it draws, as every card is.
+	PointerFit.watch(self)
 
 
 func slot_option_value() -> String:

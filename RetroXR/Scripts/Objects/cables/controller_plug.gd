@@ -43,6 +43,9 @@ func _ready() -> void:
 	_generic_exit = PlugExit.of_node(self)
 	cable_anchor = _generic_exit.origin
 	cable_exit_axis = -_generic_exit.basis.z.normalized()
+	# Aimed at by what it draws: the generic molding, the connector a pad hands it
+	# (set_plug_mesh), or a model a mod has put on it.
+	PointerFit.watch(self)
 	picked_up.connect(func(_p: Variant) -> void: PlugAim.aim(self))
 
 
@@ -94,6 +97,10 @@ func set_plug_mesh(path: String) -> void:
 		exit = PlugExit.of_resource(res)
 	if previous == null and mesh == null:
 		return          # nothing to swap in and nothing to swap out
+	# The pointer target follows the connector. The fit waits for the end of the
+	# frame, so it measures what this puts on, and anything a caller then does to
+	# it (a mod turning it half round, or setting it back on the plug).
+	PointerFit.watch(self)
 	if previous != null:
 		remove_child(previous)
 		previous.queue_free()

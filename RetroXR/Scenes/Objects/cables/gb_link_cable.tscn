@@ -55,10 +55,11 @@ size = Vector3(0.013, 0.009, 0.027)
 bounce = 0.0
 friction = 0.8
 
-; Laser target, deliberately far larger than the physics box. Same reasoning as
-; the TRS lead: this is a small connector and a beam from across the room has to
-; be able to find it. Only the pointer answers this shape (mask 0), so nothing
-; else notices it is generous.
+; The laser target only until the plug is in the room: PointerFit then makes it
+; a box of what the plug draws (its connector, or a model a mod has put on it)
+; and nothing more. Padded so that a beam from across the room could find a
+; small plug, it stopped the desktop laser in the air beside the plug and handed
+; over the plug instead of whatever was aimed at.
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.035, 0.035, 0.06)
 

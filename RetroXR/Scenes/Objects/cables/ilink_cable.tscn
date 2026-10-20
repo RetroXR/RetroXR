@@ -41,8 +41,11 @@ size = Vector3(0.01, 0.007, 0.026)
 bounce = 0.0
 friction = 0.8
 
-; Laser target, larger than the physics box so a beam from across the room finds
-; a plug on the back of a console. Only the pointer answers it (mask 0).
+; The laser target only until the plug is in the room: PointerFit then makes it
+; a box of what the plug draws (its connector, or a model a mod has put on it)
+; and nothing more. Padded so that a beam from across the room could find a
+; small plug, it stopped the desktop laser in the air beside the plug and handed
+; over the plug instead of whatever was aimed at.
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.04, 0.04, 0.06)
 

@@ -21,6 +21,8 @@ var _microphone: WeakRef = null
 func _ready() -> void:
 	super._ready()
 	add_to_group("memory_card")
+	# Aimed at by what it draws, as a card is.
+	PointerFit.watch(self)
 
 
 func set_microphone(microphone: Node3D) -> void:

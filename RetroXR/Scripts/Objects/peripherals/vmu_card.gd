@@ -207,6 +207,9 @@ func _ready() -> void:
 		minted = true
 	_update_label()
 	_hint = HeldHint.attach(self, true, HINT_HEIGHT)
+	# Aimed at by what it draws, the stand-in or a mod's shell. Its pointer box stood
+	# 5 mm clear of the slab at its sides and 4 mm in front of its keys.
+	PointerFit.watch(self)
 
 	_lcd = get_node_or_null("Lcd") as MeshInstance3D
 	if _lcd != null:

@@ -51,6 +51,8 @@ func _ready() -> void:
 	for group: String in Connectors.groups_of(connector):
 		add_to_group(group)
 	_derive_cable_anchor()
+	# Aimed at by what it draws: the connector, or a model a mod has put on it.
+	PointerFit.watch(self)
 	picked_up.connect(func(_p: Variant) -> void: PlugAim.aim(self))
 
 
