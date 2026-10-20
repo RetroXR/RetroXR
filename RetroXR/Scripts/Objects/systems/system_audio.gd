@@ -794,6 +794,14 @@ func update_position() -> void:
 			var right := tv.global_transform.basis.x.normalized() * _host.audio_speaker_separation
 			left_pos = tv.global_position - right
 			right_pos = tv.global_position + right
+		elif _host.get_model() != null and _host.get_model().has_method("audio_speaker_positions"):
+			# A cabinet has speakers of its own, set in its front, and its sound comes out of
+			# them, facing the player (its local +Z), not from the middle of the body.
+			var spk: PackedVector3Array = _host.get_model().audio_speaker_positions()
+			left_pos = _host.global_transform * spk[0]
+			right_pos = _host.global_transform * spk[1]
+			emit_forward = _host.global_transform.basis.z.normalized()
+			emit_up = _host.global_transform.basis.y.normalized()
 		else:
 			# Unplugged, so the hardware radiates for itself -- and then the gap
 			# has to come from the hardware's own size. A flat 9 cm is a console
