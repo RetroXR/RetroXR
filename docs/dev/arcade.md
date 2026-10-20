@@ -42,7 +42,7 @@ families is the BAY (JAMMA today; JVS, MVS) and a cabinet scene, never a systemi
 
 Issue XargonWan/RetroXR#1. `mame` and `fbneo` (now both `arcade`, see below) used to be data only: a generic box, a
 generic pad and a ROM spawned as an anonymous cartridge slab. They now play in a
-**Generic Arcade Cabinet**, and a ROM is drawn as a **JAMMA board**.
+**Primitive Arcade Cabinet**, and a ROM is drawn as a **JAMMA board**.
 
 ## What a cabinet is, in code
 
@@ -56,15 +56,17 @@ powers off (the existing cartridge-deck behaviour), a coin is a credit. The regi
 it is final. "Board = machine" stays open as an evolution and breaks nothing saved.
 
 The cabinet draws its own body (`brings_own_body`), has its own screen and no video-out
-lead (`_OWN_AV_LEAD` in `spawn_catalog.gd`), and is too big to hold: `spawns_on_floor()`
-makes the spawn menu stand it a stride away on the floor instead of handing it to a hand,
-and it is NOT locked: the player can pick it up and carry it, but only by **holding the grab on
-it for one second** (`HoldToGrab`: a ring fills, around the crosshair on desktop and at the hand in
-VR; an object opts in by answering `grab_hold_seconds()`, so a stray squeeze or click never carries a
-1.8 m box off). While it is in a hand it is **see-through** (`GeometryInstance3D.transparency`, dithered
-per instance: no sorting or blending of a huge surface, no material to swap) so the room behind it can be
-seen. Only yaw is free (`axis_lock_angular_x/z`), so one set down off-level does not tip onto its
-marquee; the lock in the object's options still pins it where it stands. Origin on the floor at the centre of the base, front toward +Z,
+lead (`_OWN_AV_LEAD` in `spawn_catalog.gd`). **Spawned, it is handed to the hand that asked for it, like any machine, and the
+player stands it where they want it** (`spawns_on_floor()` is false; it used to be set on the floor a stride away, and the
+hook stays for a model that wants it). It is NOT locked: it is carried by **holding the grab on it for one second** (`HoldToGrab`:
+a ring fills, around the crosshair on desktop and at the hand in VR; an object opts in by answering `grab_hold_seconds()`, so a stray
+squeeze or click never carries a 1.8 m box off; a spawn hands it over directly, no ring). While it is in a hand it is **see-through**
+(`GeometryInstance3D.transparency`, dithered per instance: no sorting or blending of a huge surface, no material to swap) so the room
+behind it can be seen. **A cabinet always comes to STAND**: its centre of mass is low (`CENTER_OF_MASS_Y`, the base and the board,
+not the marquee) and, while nobody holds it, `_physics_process` turns it back upright about the horizontal at a rate proportional to
+its tilt (`right_angular_velocity`, capped), leaving its HEADING alone. Released upright it stays upright; released leaning, or let
+fall, it rights itself. The old yaw-only axis lock kept whatever tilt it was let go at, which is why it was dropped. A frozen or
+locked cabinet is never touched: the lock in the object's options still pins it where it stands. Origin on the floor at the centre of the base, front toward +Z,
 0.66 x 1.80 x 0.87 m.
 
 ## The module contract (`ArcadeProfiles.CONTRACT_VERSION` = 1)
@@ -237,7 +239,7 @@ same roms folder (`roms/mame/`). Without them the core refuses the game, and the
 arcade systems saying where such sets go (`RetroSystem._on_content_load_failed`). The files themselves are the
 player's to supply; RetroXR does not download ROM sets. `Tools/cores/arcade_load_probe` (needs a real core and
 a romset) starts a set in the cabinet and prints the reason. Cadillacs & Dinosaurs (`dino.zip`) is the case that
-found it: it wants `qsound.zip`.
+found it: **current MAME** wants `qsound.zip`; FinalBurn Neo has the QSound DSP built in and runs the same zip. `arcade`'s default core is MAME, so pin the core with `--core=fbneo|mame`. The probe's `--audio` (with `--play` for a coin and START) prints the loudest bus peak: a silent attract screen reads -200 dB and is not a fault (dino on FBNeo: -200 dB until a coin and START, then -14 dB; Bubble Bobble and SF2 sound at once). Needs a windowed run and the probe's own camera: a 3D voice nobody listens to also reads silence.
 
 ## The title on the board
 
@@ -266,3 +268,108 @@ board art; a `ModApi` wrapper for bay kinds; a grabbable stick behind a "physica
 (off by default); the geometry for `RetroTV`.
 
 **Attaching claims the keyboard (2026-10-18).** `ArcadeInput` first copied `HandheldInput` but not the two things that made a pad's keys arrive: the system's key map in the global InputMap (`DesktopBindings.apply_for_system`, applied only while the capture holds it, as `RetroController._sync_desktop_scope`) and the capture itself. A pad needs Scroll Lock/F3 as well, but a panel you pressed has no other way to say it, so `_on_attach_changed` turns the capture on (`ScrollLockCapture.set_active(true)`; it needs the machine powered, which is why a panel attached to a machine that is off lets go). Pinned by `arcade_tests attach/` (a key plays only the attached player's port).
+
+**The keyboard layout and the speakers (2026-10-19).** A cabinet with no key map of its own plays from `ArcadeProfiles.DESKTOP_KEYS` (MAME's: Ctrl, Alt, Space, Z, X, C for the six buttons, START on 1, the coin on 5), applied by `DesktopBindings.apply_for_system` after the global layer and only when the player has saved no map for `arcade`. The stock map put the buttons on the numpad and the coin on Shift, so a keyboard with no keypad could not hit a button. Pinned by `arcade_tests input/` (no two actions share a key; the six buttons and START and the coin have one). **Speakers:** a cabinet's sound comes from a stereo pair in its own front, `SPEAKER_L`/`SPEAKER_R` (x ±0.22, y 0.34, z 0.44, facing the player), on the apron and kick panel either side of the coin door, and `SystemAudio` uses them when no TV is connected (it used to be the middle of the body, 9 cm apart). Upright cabinets carry a stereo pair low in the front; JAMMA itself is one mono channel, so a mono board drives both speakers at once. There is no centre or sub: that is not a cabinet layout. Pinned by `arcade_tests cabinet/` (a pair, left and right, low and in front). The wiring in `SystemAudio` is NOT pinned by a case; listening is OWED.
+
+**BIOS and device sets are firmware (2026-10-19).** RetroXR knows a BIOS only if the core's `.info` declares it (`FirmwareRequirements`), and finds it on RomM's firmware list by file NAME (`RommFirmware`). FinalBurn Neo's declares 23 (all optional); MAME's vendored `.info` declared none, so `neogeo.zip`/`qsound.zip` were nowhere on the BIOS list and nothing could download them. `libretro-core-info-retroxr/mame_libretro.info` (a whole copy plus a firmware block) now declares fifteen, all optional and all `mame/bios/<name>.zip`: MAME searches the ROM folder, `SYSTEMDIR/mame/bios` and `SYSTEMDIR/mame/roms`, and a stand-in `neogeo.zip` in `system/mame/mame/bios/` was found by the core (the error changed from NOT FOUND to WRONG LENGTH, measured). The set follows FinalBurn's plus `qsound.zip` (every QSound game and every CPS-2 one, MAME only: FinalBurn has the DSP built in) and `stvbios.zip`. Which sets a given game wants is MAME's own information and is NOT derived from file names; a refused game still names the missing files in its notice. The notice now also fires for FinalBurn's "is required" wording. Pinned by `arcade_tests profiles/` (the overlay removed turns three cases red). Whether the files really arrive from a RomM that holds them is OWED: no server was reachable.
+
+## The other cabinets (2026-10-19)
+
+The generic upright is one of six, all the same shell: **never a fork of the model script**, only a scene (baked by
+`Tools/gen/gen_arcade_cabinet.gd -- --variant=<name>`, the variants are DATA in `_variants()`) and a registry row
+(`model_registry.gd`; THE IDS ARE PERSISTED). Generic stays first of the `arcade` rows, so it is the tile's default.
+
+| id | system | panel | bay | guns |
+|---|---|---|---|---|
+| `arcade_cabinet_generic` | `arcade` | stick + 6 buttons, x2 | `jamma` | sockets |
+| `arcade_cabinet_lightgun` | `arcade` | START alone, x2 | `jamma` | 2, holsters; pedal drawn |
+| `arcade_cabinet_neogeo` | `neogeo` | stick + 4 buttons (A B C D), x2 | `mvs` | sockets |
+| `arcade_cabinet_daphne` | `daphne` | stick + the sword button, x1 | `laserdisc` | sockets |
+| `arcade_cabinet_daphne_gun` | `daphne` | START alone, x2 | `laserdisc` | 2, holsters |
+| `arcade_cabinet_dice` | `dice` | a paddle dial + START, x2 | `discrete` | sockets |
+
+**Cabinet is not romset family.** `ArcadeProfiles.is_arcade_system` (the family: `core_serves_machine` lets the cores of one
+run the others' games) stays `arcade`; `is_cabinet_system` is every system some bay takes (board art, the cabinet key layout,
+the missing-BIOS notice). A bay row with `romsets: false` is a cabinet only. Putting Neo Geo in the family would have listed
+geolith and neocd on the generic cabinet. `SystemInfo` for `daphne` and `dice` now exist; no core of either is installed
+here, and no `roms/daphne` or `roms/dice` folder: nothing of either was run.
+
+**Guns are captive, like the Famicom's pads.** The gun cabinets' `Sockets` module carries `PortSeat` (where the cord goes in)
+and `Holster` markers; the model's `captive_controllers()` makes one `arcade_light_gun.tscn` per holster
+(`Tools/gen/gen_arcade_gun.gd`: the classic optical-gun shape, orange muzzle, no buttons, a 1.4 m cord) and `RetroSystem`
+builds them with the machine, plugs them, locks the ports and keeps them out of `spawned`. What made it work, each one a bug
+found on the way: **`LightGun` had no `captive`** (`pad.set("captive")` is silent on a property that is not there), so it
+joined the group a save sweeps; **a snap zone seats an object by its GRAB POINT**, so the well is the holster marker times
+`GUN_GRAB` (it hung 6.2 cm off before); **`LightGun` aimed only at a connected TV's glass**, so a cabinet's guns read off-screen
+for ever (`_current_aim` now falls back to the model's built-in screen, and `ScreenAim` meets the quad through the CRT
+shader's `fit_scale` like any other glass); **a gun rewrites its mapped buttons every frame**, so the cabinet's START and coin
+go in through `LightGun.set_external_button`, ORed with the hand; the held-hint no longer hangs over a gun a holster took
+(only a hand holding shows it). The cord is laid down the front, round a U and back up (`captive_cord_routes`, solved against
+the rope's length, `CaptiveCord`, shared with `RetroController`) and was measured settling asleep 14 cm off the floor.
+**START on a gun cabinet is a `momentary` `PanelGrip`** (a press holds it; there is no controller to attach to) and reaches the
+core as the gun's own `LIGHTGUN_START`, the coin as its `LIGHTGUN_SELECT`. UNVERIFIED with a real core: that MAME/FinalBurn read
+a lightgun port's START/SELECT as start and coin (no light-gun romset was at hand).
+
+**The pedal is drawn and NOT active** (`ArcadePedalModule`, kind `pedal`, `active = false`, `is_pressed()` always false). It is on
+the light-gun cabinet only. The analysis is its own task: the open questions are (1) Time Crisis reads it as a held state
+(pressed = out of cover, shooting; released = hidden, reloading), which MAME maps to a keyboard-style input that a lightgun
+port does not carry; (2) a VR player has no foot, so it is a button (grip? a held button on the other hand) or a floor
+`VRButton` a foot-tracker could press; (3) it must go through `netplay_route`. Which games use one at all is the games',
+not the cabinet's (Point Blank and House of the Dead do not).
+
+**What the research could and could not say** (a web search, thin: arcade-museum, StrategyWiki, Wikipedia, a parts seller):
+guns hang in HOLSTERS, not mounted (Point Blank); HotD2's panel lists one "Fire" button and reloads off-screen; Time Crisis is
+one player with one pedal; Area 51 has a trigger and a grenade input; Operation Wolf's gun has a grenade button. NOT FOUND, so
+the numbers here are choices, not facts: where the holster sits, the cord's length, the guns' real size and colour, the
+pedal's place. Virtua Cop 2's cabinet was listed at 109 x 90 x 185 cm, a seller's figure. The panel layouts of the laserdisc
+(Dragon's Lair: a stick and the sword button) and DICE (Pong: a dial) are from general knowledge, not looked up.
+
+**Not done, and cabinets that are missing:** Naomi / Naomi 2 / Atomiswave (flycast; JVS cabinets, the Atomiswave's own small
+one), Sega Model 2 and 3 and ST-V (all `arcade`-folder systems today, but their cabinets are sit-down or wide), racing
+cabinets with a wheel, pedals and a seat (a seat/wheel/pedal module set and an analog input struct), dance and drum cabinets,
+a Neo Geo MVS with two, four or six slots (the cabinet has the one-slot unit), the laserdisc
+player as a visible unit in the bay, and a cocktail table. Pinball and claw machines are not libretro-shaped. OWED for all six: a
+real game, the headset, the Quest cost (the boot warms every row without `requires`: six cabinets now), and netplay.
+
+**The Neo Geo MVS is a box with a cassette, not a JAMMA board (2026-10-19).** A Neo Geo game spawns as `neogeo_cart.tscn`
+(`Tools/gen/gen_neogeo_cart.gd`): a plastic cassette with the board's edge standing out of the bottom, a red band, a recessed label
+and grip ribs, cart frame as every cart (connector -Y, label +Z, `Label` UV-painted). The `mvs` bay holds a RECTANGULAR unit
+(`_build_mvs_unit`: a metal tray, the green motherboard, chips and a power block) with the cartridge slot standing up from its
+middle, the cassette's edge 20 mm into it, label to the front (a vertical-slot MVS). **What is documented and what is guessed:** the
+connector is documented (wiki.neogeodev.org: 240 contacts, 2 rows x 60 a side, 2.54 mm pitch, so about 152 mm; the cassette draws
+exactly 240); the cassette's 200 x 130 x 22 mm, its charcoal colour, the band and ribs, and the unit's 340 x 200 mm are ESTIMATES: the
+two research passes (a Haiku agent, then pages read by hand) found no dimensions, colour or insertion detail. The naming is real: MV0
+(no slot, JAMMA-style edge), MV1 (one slot, listed as horizontal H or vertical V by revision: this models a V one), MV2, MV4, MV6.
+Replace the numbers with a measured cartridge and board when there are photos with a ruler. `arcade_variants_tests neogeo/` pins the
+shape's invariants (240 contacts, size table = the scene, wider than tall, edge into the slot, no JAMMA socket).
+
+## Shooter fixes, the Neo Geo console and the names (2026-10-19, later)
+
+**The guns did not work under MAME.** Current MAME reads a gun only when `mame_lightgun_mode` says so (default `none`: values none,
+lightgun, touchscreen) and lists NO light-gun device among its controllers (`arcade_load_probe --controllers`: RetroPad, Keyboard,
+None), so announcing device 4 did nothing. FinalBurn Neo lists "Lightgun" (id 4) and needs nothing. `ForcedCoreOptions.lightgun` pins
+`mame_lightgun_mode = lightgun` for the run while any port holds a gun (`RetroSystem._has_lightgun`); other MAME-based cores name it
+differently and are NOT covered. **The coin did not count on a gun cabinet:** a port with a gun was given the cabinet's START/coin only as the
+gun's own `LIGHTGUN_START/SELECT`; the cores read a credit from the JOYPAD's SELECT (the extension answers a joypad query whatever device
+the port announced), so `ArcadeInput` now sends both: the gun's buttons AND the START/SELECT bits of the joypad state on that port (the gun
+writes no pad, so nothing fights).
+
+**The shooter is another body.** `gen_arcade_cabinet.gd` has two `_shapes()`: `upright` (every older cabinet, byte-for-byte its numbers) and
+`wide` (the gun cabinets): 0.90 wide, 1.90 tall, the glass STRAIGHT (vertical, at z 0.30), a 0.72 x 0.54 tube (35", half as wide again as the
+upright's 0.44 x 0.33; a 29" tube was the usual size and a 50" projection the big one, which is what the research found for House of the
+Dead), the holsters 90 mm in from the sides. The model reads the shape from its scene (`cabinet_width`, `cabinet_height`, `marquee_bottom`,
+`glass_back_z`, `marquee_front_z`, `screen_front_z`: collision, pointer boxes, speakers and the options panel follow it, and a straight
+screen gets a collision box of its own for the coin face it leaves open). A marquee title longer than "ARCADE" is set smaller to fit.
+**A gun let go goes back in its holster:** `LightGun.captive_well` (the system hands it the zone it built) and `_return_to_well`, deferred, so
+a hand taking it out (the zone lets go, then the hand picks it up, one frame) is not undone.
+
+**The consolized Neo Geo MVS is a console** (`neogeo_mvs_console`, `RetroSystemModelNeoGeoConsole`, `Tools/gen/gen_neogeo_console.gd`): a
+rectangular dark box (340 x 220 x 60 mm, an ESTIMATE) that takes the same MVS cassettes in a slot on its roof, two controller ports and POWER/RESET
+on the front, three phono jacks on the back, so the card offers the composite lead like a SNES. **No such console was ever sold by SNK:** the
+research found only community builds and kits (the Orthros MCS-01, a 2023 Kickstarter "MVS Consolizer Kit"); the official home machine was the
+Neo Geo AES (325 x 237 x 60 mm, 19 x 14 x 2.5 cm cartridges that do NOT fit an MVS, RF/composite/RGB out, removable memory card), which is not
+modelled. AES and MVS carry the same game data (the cores take one romset for either; the BIOS differs: sp-s2.sp1 against neo-epo.sp1; MAME's
+AES is a separate software list). The Neo Geo tile now offers the cabinet (still the default) AND the console; the cabinet row says
+`"sockets": []` so the card offers the lead only for the console, and `neogeo` left `_OWN_AV_LEAD`. **Names:** RomM lists `neogeomvs` and
+`neogeoaes`; ES-DE has one `neogeo` folder. Both RomM names and both folders are the one `neogeo` system (`SystemIds.FOLDER_ALIASES`,
+`RommPlatforms.SLUG_MAP`): one system, one romset. Replace the estimates with measurements when photos with a ruler exist.
