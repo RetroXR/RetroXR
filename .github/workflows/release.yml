@@ -1,8 +1,8 @@
 name: Release
 
 # Builds the six GDExtensions, exports the signed Quest APK and the Windows
-# desktop build, publishes them to a GitHub Release, and points the SideQuest
-# listing at the new APK.
+# desktop build, publishes them to a GitHub Release (which the repository's
+# SideQuest webhook passes on), and reports what the SideQuest listing serves.
 #
 # A tag build does all of it. A manual dispatch defaults to build-and-artifact
 # only, so the whole pipeline can be exercised without cutting a release or
@@ -1123,19 +1123,18 @@ jobs:
           fi
           gh release view "$TAG" --json isDraft,assets --jq '"draft: \(.isDraft)", (.assets[] | "\(.name): \(.size) bytes")'
 
-      # SideQuest's GitHub integration no longer takes a push from CI, so this
-      # step reports rather than acts. version-webhook answers 410 Gone to every
-      # request (a deliberately fake token included, which is how its death was
-      # told apart from a bad credential). release-webhook is still routed but
-      # answers 200 whatever happens - a malformed payload comes back 200
-      # "No! repo", and a well-formed one came back 200 with an empty body while
-      # leaving the listing untouched, on v0.3.0 and again on v0.5.0-rc.
-      #
-      # Two no-ops on two releases is enough: the POST is gone. What is left is
-      # the only thing that was ever true - ask the public listing what SideQuest
-      # is serving, and if it is not this tag, say so and print the manual steps.
-      # This never fails the job. The release is already published by this point,
-      # and the portal visit is a human action either way.
+      # SideQuest hears of a release from the repository itself: its release
+      # webhook (App Studio > Distribution > GitHub releases > Copy webhook URL)
+      # is a GitHub repository webhook on RetroXR/RetroXR, "Releases" events
+      # only, JSON, as sidequestvr.com/github-releases says. POSTing the same
+      # payload to it from this workflow did nothing on v0.3.0, v0.5.0-rc and
+      # v0.10.0, and its answer is no oracle (200 whatever happens). Until
+      # 2026-10-21 the listing's GitHub owner also still read XenuIsWatching,
+      # from before the repository moved; saving it as RetroXR is what pulled
+      # v0.10.0 in. So the workflow sends nothing: it asks the public listing
+      # what SideQuest is serving, and if it is not this tag, says so and prints
+      # the manual steps. This never fails the job. The release is already
+      # published by this point, and the portal visit is a human action.
       - name: Report what SideQuest is serving
         env:
           TAG: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', needs.preflight.outputs.version_name) }}
@@ -1149,9 +1148,10 @@ jobs:
               | jq -r '[.urls[] | select(.provider == "Github Release") | .link_url] | join(" ")'
           }
 
-          # The listing does update itself when Release is left on [ latest ],
-          # so give it a minute before assuming it needs a hand.
-          for _ in $(seq 1 6); do
+          # The webhook updates the listing while Release is left on [ latest ],
+          # but not at once, so give it a few minutes before assuming it needs a
+          # hand.
+          for _ in $(seq 1 18); do
             now=$(serving || true)
             case "$now" in
               *"/download/$TAG/"*)
@@ -1168,12 +1168,16 @@ jobs:
             echo
             echo "The listing is not serving \`$TAG\` yet. Set it by hand:"
             echo
-            echo "Developer Portal > RetroXR > Edit listing > Distribution > **Release**,"
-            echo "choose \`$TAG\`, then *Save & publish*. That dropdown reads the repo's"
-            echo "releases directly, so \`$TAG\` is already in it, and the sync pulls every"
-            echo "asset on the release (the Windows .zip comes along with the APK)."
+            echo "App Studio > RetroXR > Distribution > **GitHub releases**: check the"
+            echo "owner and repository read \`RetroXR\` / \`RetroXR\` and Release reads"
+            echo "\`[ latest ]\`, then *Save changes* (the button is in the bar at the"
+            echo "bottom). Saving reads the repo's releases again and pulls every asset"
+            echo "on the newest one (the Windows and macOS zips come along with the APK)."
             echo
-            echo "Note it leaves Release pinned to that tag rather than \`[ latest ]\`,"
-            echo "so the next release needs the same visit."
+            echo "Choosing \`$TAG\` itself instead of \`[ latest ]\` pins the listing to"
+            echo "that tag, and the webhook stops moving it on."
+            echo
+            echo "Also check the repository's webhook deliveries (Settings > Webhooks)"
+            echo "for this release's: SideQuest's answer is there."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::SideQuest is not serving $TAG - set it by hand in the Developer Portal (steps in the job summary)"
+          echo "::notice::SideQuest is not serving $TAG - save the listing's GitHub releases in App Studio (steps in the job summary)"

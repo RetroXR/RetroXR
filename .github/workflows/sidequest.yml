@@ -1,16 +1,17 @@
 name: SideQuest
 
-# SideQuest's GitHub integration takes no push from CI any more, so this is a
-# reporter, not a notifier. Its release-webhook answers 200 whatever happens -
-# a malformed payload comes back 200 "No! repo", a well-formed one comes back
-# 200 with an empty body and changes nothing (v0.3.0, v0.5.0-rc) - and the
-# version-webhook it used to pair with answers 410 Gone to every request, a
-# deliberately fake token included. Neither status code was ever an oracle.
+# A reporter, not a notifier. SideQuest hears of a release from the repository
+# itself: its release-webhook is a GitHub repository webhook on RetroXR/RetroXR
+# ("Releases" events only, JSON), as sidequestvr.com/github-releases says.
+# POSTing the payload to it from CI changed nothing (v0.3.0, v0.5.0-rc,
+# v0.10.0), and its answer was never an oracle: 200 whatever happens, a
+# malformed payload 200 "No! repo". The version-webhook it used to pair with
+# answers 410 Gone to every request, a deliberately fake token included.
 #
-# What is left that IS true: the public listing says what SideQuest serves, and
-# the Developer Portal's Release dropdown reads the repo's releases live. So
-# this checks the release carries an APK, checks what the listing serves, and
-# prints the manual steps when the two disagree.
+# What is true: the public listing says what SideQuest serves, and App Studio's
+# GitHub releases settings read the repo's releases live. So this checks the
+# release carries an APK, gives the webhook a few minutes, checks what the
+# listing serves, and prints the manual steps when the two disagree.
 #
 # SideQuest only accepts a build whose Android versionCode is HIGHER than the
 # one already listed. That lives in RetroXR/export_presets.cfg (`version/code`)
@@ -50,14 +51,24 @@ jobs:
           set -uo pipefail
 
           # api.sidequestvr.com 403s a bare urllib-style client; curl is fine.
-          now=$(curl -sS --max-time 30 "https://api.sidequestvr.com/v2/apps/$APP_ID" \
-                  | jq -r '[.urls[] | select(.provider == "Github Release") | .link_url] | join(" ")' || true)
-          case "$now" in
-            *"/download/$TAG/"*)
-              echo "SideQuest is serving $TAG:"
-              echo "  $now"
-              exit 0 ;;
-          esac
+          serving() {
+            curl -sS --max-time 30 "https://api.sidequestvr.com/v2/apps/$APP_ID" \
+              | jq -r '[.urls[] | select(.provider == "Github Release") | .link_url] | join(" ")'
+          }
+
+          # The webhook updates the listing while Release is left on [ latest ],
+          # but not at once, so give it a few minutes before assuming it needs a
+          # hand.
+          for _ in $(seq 1 18); do
+            now=$(serving || true)
+            case "$now" in
+              *"/download/$TAG/"*)
+                echo "SideQuest is serving $TAG:"
+                echo "  $now"
+                exit 0 ;;
+            esac
+            sleep 10
+          done
 
           echo "listing serves: ${now:-<unreadable>}"
           {
@@ -65,9 +76,16 @@ jobs:
             echo
             echo "The listing is not serving \`$TAG\` yet. Set it by hand:"
             echo
-            echo "Developer Portal > RetroXR > Edit listing > Distribution > **Release**,"
-            echo "choose \`$TAG\`, then *Save & publish*. That dropdown reads the repo's"
-            echo "releases directly, so \`$TAG\` is already in it, and the sync pulls every"
-            echo "asset on the release (the Windows .zip comes along with the APK)."
+            echo "App Studio > RetroXR > Distribution > **GitHub releases**: check the"
+            echo "owner and repository read \`RetroXR\` / \`RetroXR\` and Release reads"
+            echo "\`[ latest ]\`, then *Save changes* (the button is in the bar at the"
+            echo "bottom). Saving reads the repo's releases again and pulls every asset"
+            echo "on the newest one (the Windows and macOS zips come along with the APK)."
+            echo
+            echo "Choosing \`$TAG\` itself instead of \`[ latest ]\` pins the listing to"
+            echo "that tag, and the webhook stops moving it on."
+            echo
+            echo "Also check the repository's webhook deliveries (Settings > Webhooks)"
+            echo "for this release's: SideQuest's answer is there."
           } >> "$GITHUB_STEP_SUMMARY"
-          echo "::notice::SideQuest is not serving $TAG - set it by hand in the Developer Portal (steps in the job summary)"
+          echo "::notice::SideQuest is not serving $TAG - save the listing's GitHub releases in App Studio (steps in the job summary)"
