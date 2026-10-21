@@ -24,6 +24,8 @@ var _rooms_panel:   Control         = null
 var _states_panel:  Control         = null
 var _rooms_grid:    GridContainer   = null
 var _passthrough_card: Control      = null
+## room_id -> card, for the rooms mods registered. See _sync_mod_room_cards.
+var _mod_room_cards: Dictionary     = {}
 var _rooms_scroll:  ScrollContainer = null
 var _states_scroll: ScrollContainer = null
 var _states_vbox:   VBoxContainer   = null
@@ -99,6 +101,9 @@ func _build() -> void:
 	# _sync_passthrough_card.
 	_sync_passthrough_card()
 
+	# Rooms mods brought, after the shipped ones. See _sync_mod_room_cards.
+	_sync_mod_room_cards()
+
 	# ── Level 2: States panel ─────────────────────────────────────────────────
 	var states_root := VBoxContainer.new()
 	states_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -161,6 +166,7 @@ func _build() -> void:
 
 func show_rooms() -> void:
 	_sync_passthrough_card()
+	_sync_mod_room_cards()
 	if _rooms_panel:
 		_rooms_panel.visible = true
 	if _states_panel:
@@ -185,6 +191,34 @@ func _sync_passthrough_card() -> void:
 	_passthrough_card = _make_room_card("Passthrough AR", Color(0.85, 0.85, 0.9),
 		show_states.bind("passthrough"))
 	_rooms_grid.add_child(_passthrough_card)
+
+
+## A card for every room a mod registered, and none for a mod that has gone.
+## Re-run each time the tab opens, like the passthrough card: this view is built
+## once, from the player rig's _ready(), and Mods.apply_live can mount a mod (and
+## with it a room) long after that. Before this the tab had a card only for the
+## shipped rooms, so a room registered through ModApi.register_room could not be
+## reached at all. A room with slots opens its grid, like the arcade; one without
+## switches straight to it, like the den.
+func _sync_mod_room_cards() -> void:
+	if _rooms_grid == null:
+		return
+	for room_id: String in _mod_room_cards.keys():
+		if not RoomCatalog.is_mod_room(room_id):
+			var gone: Control = _mod_room_cards[room_id]
+			_rooms_grid.remove_child(gone)
+			gone.queue_free()
+			_mod_room_cards.erase(room_id)
+	for room_id: String in RoomCatalog.ids():
+		if not RoomCatalog.is_mod_room(room_id) or _mod_room_cards.has(room_id):
+			continue
+		var on_press: Callable = show_states.bind(room_id) if RoomCatalog.has_slots(room_id) \
+				else scene_change_requested.emit.bind(room_id)
+		# The thumb's color from the id, so two mod rooms do not share one.
+		var tint := Color.from_hsv(float(room_id.hash() % 360) / 360.0, 0.55, 0.35)
+		var card := _make_room_card(RoomCatalog.menu_title_of(room_id), tint, on_press)
+		_rooms_grid.add_child(card)
+		_mod_room_cards[room_id] = card
 
 
 ## Open the slot grid for one room. Bound into that room's card, so which grid

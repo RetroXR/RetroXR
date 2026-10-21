@@ -23,9 +23,16 @@ extends Node3D
 enum Target {
 	CEILING,        ## the "ceiling_light" fixtures and their "light_glow" shades
 	STRING,         ## every StringLights strand in the "string_light" group
+	GROUP,          ## every node in `group` that answers set_lit(): a mod room's lamps
 }
 
 @export var target: Target = Target.CEILING
+
+## The group a GROUP gang drives. A mod room puts its own lamps in a group of its
+## own and points a gang at it; each member is called with set_lit(on), and one
+## that has no such method is skipped. Saving and netplay key a switch by its node
+## path and need nothing more.
+@export var group: StringName = &""
 
 ## Starting state. The room is authored lit, so this is true.
 @export var lights_on: bool = true
@@ -107,5 +114,10 @@ func _apply() -> void:
 				var strand := node as StringLights
 				if strand != null:
 					strand.set_lit(lights_on)
+		Target.GROUP:
+			if group != &"":
+				for node in get_tree().get_nodes_in_group(group):
+					if node.has_method("set_lit"):
+						node.call("set_lit", lights_on)
 	if _lever != null:
 		_lever.rotation.x = -LEVER_TILT if lights_on else LEVER_TILT

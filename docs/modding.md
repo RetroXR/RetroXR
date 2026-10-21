@@ -386,6 +386,20 @@ A **room**'s own `.tscn` must set its `XRInit.scene_id` to the same namespaced i
 contents you authored, or a save slot will restore spawned objects into a room
 that already has its own.
 
+The room gets a card in the SCENE tab after the shipped rooms: one with slots
+opens its slot grid, one without switches straight to it. A mod mounted while the
+game runs gets its card the next time the tab is opened. Its slots live in
+`user://scenes/<room id, URI-encoded>/` (`xenu.mod%3Aattic`), since Windows
+refuses a `:` in a folder name — **the room id is permanent once anyone has saved
+in it**, like a prop's type.
+
+A room's **wall switch** is the game's own `LightSwitch` (the bedroom's two-gang
+plate is `res://Scenes/Objects/room/switch_plate_2gang.res` and
+`switch_toggle.res`). Set `target = GROUP` and `group = &"xenu_mod_lamps"`, and a
+throw calls `set_lit(on)` on every node in that group that has the method. It is
+saved with the slot and replicated over netplay by its node path, like the
+shipped switches, so keep the path stable.
+
 A **prop**'s type string is written into save files — permanent once anyone has
 used it. Renaming it orphans every copy in every slot.
 
