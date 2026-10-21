@@ -94,6 +94,7 @@ func _ensure_ui_connected() -> void:
 	ui.pad_device_changed.connect(_on_pad_device_changed)
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
+	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
 	ui.volume_changed.connect(_on_volume_changed)
 	ui.core_selected.connect(_on_core_selected)
 	ui.close_requested.connect(hide_panel)
@@ -119,7 +120,8 @@ func _populate() -> void:
 		_system._resolve_core())
 	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
-		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
+		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume,
+		_system.supports_cabinet_art_toggle(), _system.cabinet_art_enabled)
 	ui.populate_cores(_system.core_choices(), _system.core_name, _system.default_core_name())
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
@@ -255,6 +257,12 @@ func _while_shown(_delta: float) -> void:
 func _on_ignore_gravity_toggled(enabled: bool) -> void:
 	if _system and is_instance_valid(_system):
 		_system.set_ignore_gravity(enabled)
+
+
+## System-tab toggle (cabinets): the game's art on the marquee and sides.
+func _on_cabinet_art_toggled(enabled: bool) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_cabinet_art_enabled(enabled)
 
 
 func _on_port_device_changed(port: int, device_id: int) -> void:

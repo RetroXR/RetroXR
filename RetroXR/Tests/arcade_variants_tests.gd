@@ -28,6 +28,7 @@
 ##   neogeo/     the MVS game is a plastic cassette, the MVS a rectangular unit with the slot the cassette stands in
 ##   stand/      a cabinet comes to stand: released upright it stays, released leaning it rights itself
 ##   seat/       each cabinet takes the board of ITS system, and gives the game up when it is pulled
+##   art/        a board in the bay dresses the cabinet in the game's wheel and cover, and pulling it undresses it
 ##   card/       what the spawn card offers for each of the cabinets' systems
 extends Node
 
@@ -156,6 +157,9 @@ func _run() -> void:
 		await _clear()
 	if _want("seat"):
 		await _group_seat()
+		await _clear()
+	if _want("art"):
+		await _group_art()
 		await _clear()
 	if _want("card"):
 		await _group_card()
@@ -616,6 +620,177 @@ func _group_seat() -> void:
 		await _wait(4)
 		_ok(sys.rom_path.is_empty(), "seat: pulling it takes the game away")
 		await _clear()
+
+
+# --- art -----------------------------------------------------------------------
+
+## A texture with a corner marked, so a flipped or mirrored picture would not pass for the right one.
+func _tex(w: int, h: int, c: Color) -> ImageTexture:
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	img.fill(c)
+	img.set_pixel(0, 0, Color.WHITE)
+	return ImageTexture.create_from_image(img)
+
+
+func _art_of(model: Node, node_name: String) -> MeshInstance3D:
+	return model.find_child(node_name, true, false) as MeshInstance3D
+
+
+func _art_tex(mi: MeshInstance3D) -> Texture2D:
+	var m := mi.material_override as StandardMaterial3D
+	return m.albedo_texture if m != null else null
+
+
+func _group_art() -> void:
+	var wheel := _tex(60, 20, Color.RED)
+	var cover := _tex(30, 41, Color.BLUE)
+	for id: String in VARIANTS:
+		var info: Array = VARIANTS[id]
+		var sys := await _machine(id, info[0], 20)
+		var model := sys.get_model() as RetroSystemModelArcadeCabinet
+		var mq := _art_of(model, "MarqueeArt")
+		var sl := _art_of(model, "SideArtL")
+		var sr := _art_of(model, "SideArtR")
+		_ok(mq != null and sl != null and sr != null, "art: %s has the marquee and both side slots" % id)
+		if mq == null or sl == null or sr == null:
+			continue
+		var title := _art_of(model, "Marquee").get_node("MarqueeTitle") as Label3D
+		_ok(not mq.visible and not sl.visible and not sr.visible and title.visible,
+			"art: %s starts plain, with its title" % id)
+		# Each side's art is its own silhouette, outside the panel and facing out: the normal says which way.
+		var nl := ((sl.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_NORMAL] as PackedVector3Array)[0]
+		var nr := ((sr.mesh as ArrayMesh).surface_get_arrays(0)[Mesh.ARRAY_NORMAL] as PackedVector3Array)[0]
+		_ok(nl.dot(Vector3.LEFT) > 0.99 and nr.dot(Vector3.RIGHT) > 0.99, "art: %s's side art faces outward on each side" % id)
+		var bl := sl.global_transform * sl.get_aabb()
+		var br := sr.global_transform * sr.get_aabb()
+		_ok(bl.position.x < model.global_position.x - model.cabinet_width * 0.49
+			and br.position.x > model.global_position.x + model.cabinet_width * 0.49,
+			"art: %s's side art stands on the outside of the panels" % id)
+		# And it covers the whole flank: as tall as the cabinet, as deep as its silhouette.
+		_ok(absf(bl.size.y - model.cabinet_height) < 0.01 and bl.size.z > 0.8,
+			"art: %s's side art covers the whole flank (%s)" % [id, str(bl.size)])
+
+		model.apply_art(wheel, cover)
+		_ok(mq.visible and _art_tex(mq) == wheel and not title.visible,
+			"art: %s's marquee shows the wheel, not the title" % id)
+		_ok(sl.visible and sr.visible and _art_tex(sl) == cover and _art_tex(sr) == cover,
+			"art: %s's sides show the cover" % id)
+		# A cover is cropped to the flank, centred, never stretched: the part kept has the flank's proportions.
+		var flank: float = sl.get_meta("aspect")
+		var ml := sl.material_override as StandardMaterial3D
+		var kept := (ml.uv1_scale.x * 30.0) / (ml.uv1_scale.y * 41.0)
+		_ok(absf(kept - flank) < 0.001 and ml.uv1_scale.x <= 1.0 and ml.uv1_scale.y <= 1.0
+			and absf(ml.uv1_offset.x - (1.0 - ml.uv1_scale.x) * 0.5) < 0.001 and sl.scale.is_equal_approx(Vector3.ONE),
+			"art: %s's cover fills the flank, cropped to it (flank %.3f, kept %.3f)" % [id, flank, kept])
+		var mbox: Vector2 = mq.get_meta("box")
+		_ok(absf(mq.scale.x / mq.scale.y - 3.0) < 0.001 and mq.scale.x <= mbox.x + 0.001 and mq.scale.y <= mbox.y + 0.001,
+			"art: %s's wheel keeps its proportions inside the marquee" % id)
+
+		# Powered, the marquee art glows with the marquee; the sides never do.
+		model.on_power_on()
+		_ok((mq.material_override as StandardMaterial3D).emission_enabled
+			and not (sl.material_override as StandardMaterial3D).emission_enabled,
+			"art: %s's marquee art lights with the machine" % id)
+		model.on_power_off()
+		_ok(not (mq.material_override as StandardMaterial3D).emission_enabled, "art: %s's marquee art goes dark with it" % id)
+
+		# Carried: the art is a BaseMaterial3D, so it dithers with the cabinet instead of hiding, and comes back.
+		model._set_ghost_materials(RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)
+		_ok(mq.visible and sl.visible and _is_ghosted(mq) and _is_ghosted(sl), "art: %s's art is see-through while carried" % id)
+		model._set_ghost_materials(0.0)
+		_ok(_art_tex(mq) == wheel and _art_tex(sl) == cover, "art: %s's art is back when it is put down" % id)
+
+		# The fallbacks: no wheel -> the cover; no cover -> the wheel on the marquee alone; neither -> plain.
+		model.apply_art(null, cover)
+		_ok(mq.visible and _art_tex(mq) == cover, "art: %s's marquee falls back to the cover" % id)
+		model.on_media_cleared()
+		model.apply_art(wheel, null)
+		_ok(mq.visible and _art_tex(mq) == wheel and not sl.visible and not sr.visible,
+			"art: %s with only a wheel dresses the marquee and leaves the sides" % id)
+		model.on_media_cleared()
+		model.apply_art(null, null)
+		_ok(not mq.visible and not sl.visible and title.visible, "art: %s with no art stays plain, title and all" % id)
+
+		# "Cabinet Art" off: naked whatever is in the bay; on again: dressed from what was kept.
+		model.apply_art(wheel, cover)
+		sys.set_cabinet_art_enabled(false)
+		_ok(not mq.visible and not sl.visible and not sr.visible and title.visible and not sys.cabinet_art_enabled,
+			"art: %s goes naked when Cabinet Art is switched off" % id)
+		model.apply_art(wheel, cover)
+		_ok(not mq.visible and not sl.visible and title.visible, "art: %s stays naked when a game goes in with it off" % id)
+		sys.set_cabinet_art_enabled(true)
+		_ok(mq.visible and _art_tex(mq) == wheel and sl.visible and _art_tex(sr) == cover and not title.visible,
+			"art: %s is dressed again when it is switched back on" % id)
+		model.on_media_cleared()
+
+		# The real path: a board seated in the bay dresses it, and pulling it undresses it.
+		var rom := "/tmp/variant_art_board.zip"
+		ArcadeCabinetArt.test_art[rom] = {"wheel": wheel, "cover": cover}
+		var slot := _slot_of(sys)
+		model.set_lid_angle_deg(90.0)
+		var cart := CART_SCENE.instantiate() as Node3D
+		cart.systemid = info[0]
+		cart.rom_path = rom
+		cart.position = Vector3(0, 3, 0)
+		cart.freeze = true
+		add_child(cart)
+		_spawned.append(cart)
+		await _wait(8)
+		slot.pick_up_object(cart)
+		await _wait(6)
+		_ok(mq.visible and _art_tex(mq) == wheel and sl.visible and not title.visible,
+			"art: %s is dressed when its board goes in" % id)
+		slot.drop_object()
+		await _wait(4)
+		_ok(not mq.visible and not sl.visible and not sr.visible and title.visible,
+			"art: %s is plain again when the board is pulled" % id)
+		ArcadeCabinetArt.test_art.erase(rom)
+		await _clear()
+
+	# The System tab's row: shown for a cabinet, hidden for any other machine, and it asks the machine.
+	var opts := preload("res://Scenes/UI/core_options_2d.tscn").instantiate() as CoreOptions2D
+	add_child(opts)
+	await get_tree().process_frame
+	opts.populate_system(false, false, false, "", 0, -1.0, true, true)
+	_ok(opts._cabinet_art_row.visible and opts._cabinet_art_check.button_pressed, "art: the System tab shows Cabinet Art, on")
+	opts.populate_system(false, false, false, "", 0, -1.0, true, false)
+	_ok(not opts._cabinet_art_check.button_pressed, "art: and shows it off for a cabinet whose art is off")
+	var asked := [null]
+	opts.cabinet_art_toggled.connect(func(on: bool) -> void: asked[0] = on)
+	opts._cabinet_art_check.button_pressed = true
+	_ok(asked[0] == true, "art: switching the row asks for it")
+	opts.populate_system(false, false, false)
+	_ok(not opts._cabinet_art_row.visible, "art: a machine that is not a cabinet has no such row")
+	opts.queue_free()
+	var plain := await _machine("", "snes", 6)
+	_ok(not plain.supports_cabinet_art_toggle(), "art: only a cabinet offers the toggle")
+	var cab := await _machine("arcade_cabinet_generic", "arcade", 8)
+	_ok(cab.supports_cabinet_art_toggle() and cab.cabinet_art_enabled, "art: a cabinet offers it, on by default")
+	# Saved only when off, and read back: the default room file is unchanged.
+	var persist := ScenePersistence.new("arcade")
+	var entry := persist._serialize_system(cab, 1, cab, {})
+	_ok(not entry.has("cabinet_art"), "art: a cabinet with art on adds nothing to the saved room")
+	cab.set_cabinet_art_enabled(false)
+	entry = persist._serialize_system(cab, 1, cab, {})
+	_ok(entry.get("cabinet_art", true) == false, "art: a cabinet with art off is saved that way")
+	await _clear()
+
+	# A cabinet baked before the slots (a mod's) takes the call and does nothing.
+	var bare := RetroSystemModelArcadeCabinet.new()
+	bare.apply_art(wheel, cover)
+	bare.on_media_cleared()
+	_ok(true, "art: a cabinet with no art slots is left alone")
+	bare.free()
+
+	# The sidecars -> an id by file name; a folder has no extension; a half-written index gives nothing.
+	var by_name := ArcadeCabinetArt.ids_by_name(PackedInt32Array([6897, 6902, 6898]),
+		PackedStringArray(["1941", "imgs", "1942"]), PackedStringArray(["zip", "", "zip"]))
+	_ok(by_name.get("1941.zip") == 6897 and by_name.get("imgs") == 6902 and by_name.get("1942.zip") == 6898,
+		"art: RomM ids are found by file name")
+	_ok(ArcadeCabinetArt.ids_by_name(PackedInt32Array([1]), PackedStringArray(["a", "b"]), PackedStringArray()).is_empty(),
+		"art: a half-written index gives no ids")
+	_ok(ArcadeCabinetArt.fit(Vector2(30, 41), Vector2(0.44, 1.5)).is_equal_approx(Vector2(0.44, 0.44 * 41.0 / 30.0)),
+		"art: fit takes the limiting side")
 
 
 # --- card ----------------------------------------------------------------------

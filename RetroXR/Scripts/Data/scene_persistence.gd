@@ -55,7 +55,7 @@ const _NUMBER_FIELDS := [
 	"cord_length",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
-	"locked", "hardback",
+	"locked", "hardback", "cabinet_art",
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
 	"shell_flake"]
 const _REFERENCE_FIELDS := [
@@ -2072,6 +2072,9 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		"video_out": sys.video_out_enabled,
 		"ignore_gravity": sys.ignore_gravity,
 	})
+	# A cabinet with its art taken off; omitted while it is on (the default), so no room changes.
+	if not sys.cabinet_art_enabled:
+		result["cabinet_art"] = false
 	# A cabinet playing from a separate bay: the board is the BAY's (its entry names it), and the
 	# bay is recorded here when it is clipped into the mount. A cabled one is the lead's.
 	var bay := sys.get_bay()
@@ -2978,6 +2981,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				sys.pad_ordinal = int(data.get("pad_ordinal", 0))
 				sys.core_name = str(data.get("core_name", ""))
 				sys.ignore_gravity = bool(data.get("ignore_gravity", false))
+				sys.cabinet_art_enabled = bool(data.get("cabinet_art", true))
 				sys.console_memory_id = str(data.get("console_memory", ""))
 				# Before the caller adds it to the tree, like the fields above:
 				# _build_expansion_hardware runs from _ready and seeds a bay's

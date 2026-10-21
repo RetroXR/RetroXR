@@ -265,6 +265,73 @@ func _build_shell(cab: Node3D) -> void:
 	var under: Array = mq["under"]
 	if not under.is_empty():
 		U.box(_root, cab, "MarqueeUnder", Vector3(_in_w, 0.012, under[0]), Vector3(0, under[1], under[2]), _dark)
+	_build_art(cab, marquee, mq)
+
+
+## The slots a game's art is hung in when its board is in the bay (RetroSystemModelArcadeCabinet
+## `on_media_inserted`): the marquee's face and the outside of each side. Unit quads, hidden, scaled
+## by the model to the art's proportions inside the `box` metadata (metres) for the marquee; the sides' are
+## their own silhouette. A BoxMesh and the extruded sides carry no UVs for a picture, so these stand a hair in front.
+func _build_art(cab: Node3D, marquee: Node3D, mq: Dictionary) -> void:
+	var mq_art := U.quad(_root, marquee, "MarqueeArt", Vector2.ONE, Vector3(0, 0, 0.0068), _art_mat())
+	mq_art.visible = false
+	mq_art.set_meta("box", Vector2(_in_w - 0.04, float(mq["h"]) - 0.04))
+	# Each side's art is the side's own silhouette, a hair outside the panel, with UVs laid flat over its
+	# bounds: the picture fills the whole flank and the model crops it (uv1_scale/offset), so a cover
+	# of any proportions covers it and what does not fit is cut.
+	for sx in [-1.0, 1.0]:
+		var art := U.node(_root, cab, "MeshInstance3D", "SideArtL" if sx < 0 else "SideArtR", Vector3.ZERO) as MeshInstance3D
+		art.mesh = _side_art_mesh(sx)
+		art.mesh.surface_set_material(0, _art_mat())
+		art.visible = false
+		var lo := Vector2(INF, INF)
+		var hi := Vector2(-INF, -INF)
+		for p: Vector2 in _sh["profile"]:
+			lo = lo.min(p)
+			hi = hi.max(p)
+		# Width over height of the flank as it stands in the world (z over y): what a picture is cropped to.
+		art.set_meta("aspect", (hi.x - lo.x) / (hi.y - lo.y))
+
+
+## The outside face of a side panel: the silhouette (z, y) at x = sx * (w/2 + 0.5 mm), facing out, UV 0..1
+## over its bounds, left to right as a person standing at that side sees it (the front is on the right
+## of the left flank, on the left of the right one), top of the picture up.
+func _side_art_mesh(sx: float) -> ArrayMesh:
+	var poly := PackedVector2Array(_sh["profile"])
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	for p in poly:
+		lo = lo.min(p)
+		hi = hi.max(p)
+	var span := hi - lo
+	var x := sx * (_w * 0.5 + 0.0005)
+	var normal := Vector3(sx, 0, 0)
+	var tris := Geometry2D.triangulate_polygon(poly)
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for t in range(0, tris.size(), 3):
+		var vs: Array[Vector3] = []
+		var uvs: Array[Vector2] = []
+		for k in 3:
+			var p := poly[tris[t + k]]
+			vs.append(Vector3(x, p.y, p.x))
+			var u := (p.x - lo.x) / span.x
+			uvs.append(Vector2(u if sx < 0.0 else 1.0 - u, 1.0 - (p.y - lo.y) / span.y))
+		# Clockwise seen from outside is the front: flip a triangle wound the other way.
+		if (vs[1] - vs[0]).cross(vs[2] - vs[0]).dot(normal) > 0.0:
+			vs.reverse()
+			uvs.reverse()
+		for k in 3:
+			st.set_normal(normal)
+			st.set_uv(uvs[k])
+			st.add_vertex(vs[k])
+	return st.commit()
+
+
+func _art_mat() -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = Color.WHITE
+	return m
 
 
 # ── monitor ─────────────────────────────────────────────────────────────────
@@ -545,7 +612,8 @@ func _build_av_in() -> void:
 	tag.basis = Basis(Vector3.RIGHT, -PI * 0.5)       # lies flat on the plate, reads from the front
 	tag.text = "COMPOSITE IN"
 	tag.pixel_size = 0.00075
-	tag.font_size = 32
+	# Small enough to sit inside the 15 cm plate with a margin (arcade_tests measures it); at 32 it ran off the end.
+	tag.font_size = 22
 	tag.modulate = Color(0.05, 0.05, 0.06)
 	tag.outline_size = 0
 	var led := U.box(_root, mod, "InLed", Vector3(0.014, 0.014, 0.002), Vector3(cx + 0.055, floor_y + 0.07, cz + 0.071),

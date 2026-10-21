@@ -7,6 +7,9 @@
 ## --model=<registry id> and --system=<systemid> photograph another cabinet (the default is
 ## arcade_cabinet_generic on `arcade`); the extra shots `holster` and `pedal` are for the gun cabinets.
 ##
+## --rom=<file name> dresses the cabinet in that game's scraped art (`artfront`, `artright`, `artleft`
+## shots), read from the player's data root; `--art=wheel|cover|none` leaves one half out.
+##
 ## One PNG per shot, named <shot>.png in --out. Shots: front, three, side, panel, bay,
 ## landscape, portrait, coin, holster, pedal. The monitor shots feed the screen module a test card
 ## (a circle and a grid, so a stretch shows as an ellipse) of the shape a core would
@@ -23,6 +26,8 @@ var _out := "/tmp"
 var _model_id := "arcade_cabinet_generic"
 var _systemid := "arcade"
 var _shots: Array[String] = ["front", "three", "panel", "bay", "landscape", "portrait", "coin", "board", "boardside", "hover", "toast", "side"]
+var _rom := "sf2.zip"
+var _art := ""
 var _cam: Camera3D
 var _sys: Node3D
 var _model: RetroSystemModelArcadeCabinet
@@ -36,6 +41,10 @@ func _ready() -> void:
 			_model_id = a.substr(8)
 		elif a.begins_with("--system="):
 			_systemid = a.substr(9)
+		elif a.begins_with("--rom="):
+			_rom = a.substr(6)
+		elif a.begins_with("--art="):
+			_art = a.substr(6)
 		elif a.begins_with("--shots="):
 			_shots.clear()
 			for s in a.substr(8).split(","):
@@ -158,6 +167,48 @@ func _shot_front() -> void:
 	_model.on_power_on()
 	_look(Vector3(0, 1.05, 3.0), Vector3(0, 0.9, 0))
 	await _save("front")
+
+
+## The game's art on the marquee and sides, from the data root's scraped media (or a RomM cover).
+func _dress() -> void:
+	var art := ArcadeCabinetArt.for_rom(_systemid, _rom)
+	print("[probe] art for ", _rom, ": wheel=", art["wheel"], " cover=", art["cover"])
+	if _art == "wheel":
+		art["cover"] = null
+	elif _art == "cover":
+		art["wheel"] = null
+	elif _art == "none":
+		art = {"wheel": null, "cover": null}
+	_model.apply_art(art["wheel"], art["cover"])
+
+
+## The composite input's plate on the bay floor, from above and the front.
+func _shot_avin() -> void:
+	_model.set_lid_angle_deg(90.0)
+	await _frames(4)
+	_look(Vector3(-0.2, 0.62, 0.35), Vector3(-0.2, 0.11, -0.2))
+	await _save("avin")
+
+
+func _shot_artfront() -> void:
+	_dress()
+	_glass(384, 224)
+	_model.on_power_on()
+	_look(Vector3(0, 1.3, 3.0), Vector3(0, 1.1, 0))
+	await _save("artfront")
+
+
+func _shot_artright() -> void:
+	_dress()
+	_model.on_power_on()
+	_look(Vector3(3.0, 1.3, 1.6), Vector3(0, 0.95, 0))
+	await _save("artright")
+
+
+func _shot_artleft() -> void:
+	_dress()
+	_look(Vector3(-3.0, 1.3, 1.6), Vector3(0, 0.95, 0))
+	await _save("artleft")
 
 
 func _shot_three() -> void:

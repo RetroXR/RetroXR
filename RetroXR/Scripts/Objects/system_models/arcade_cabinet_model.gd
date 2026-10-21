@@ -41,6 +41,17 @@ var _controls: Array[ArcadeControlModule] = []
 var _coins: Array[ArcadeCoinModule] = []
 var _input: ArcadeInput = null
 var _marquee_mat: StandardMaterial3D = null
+## The slots a game's art hangs in (gen_arcade_cabinet.gd `_build_art`); null on a scene baked before them.
+var _art_marquee: MeshInstance3D = null
+var _art_sides: Array[MeshInstance3D] = []
+var _marquee_title: Label3D = null
+var _art_marquee_mat: StandardMaterial3D = null
+var _lit := false
+## The System tab's "Cabinet Art": off leaves the cabinet plain whatever is in its bay. What was
+## last hung is kept, so switching it back on needs no second read of the disk.
+var _art_enabled := true
+var _art_wheel: Texture2D = null
+var _art_cover: Texture2D = null
 ## The pointer slab behind a shut door: off while the door is open.
 var _pointer_door: CollisionShape3D = null
 
@@ -70,6 +81,13 @@ func _ready() -> void:
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
 	if marquee != null and marquee.mesh != null and marquee.mesh.material is StandardMaterial3D:
 		_marquee_mat = marquee.mesh.material as StandardMaterial3D
+	_art_marquee = find_child("MarqueeArt", true, false) as MeshInstance3D
+	_marquee_title = find_child("MarqueeTitle", true, false) as Label3D
+	_art_sides.clear()
+	for n in ["SideArtL", "SideArtR"]:
+		var side := find_child(n, true, false) as MeshInstance3D
+		if side != null:
+			_art_sides.append(side)
 	ArcadeShadowBudget.trim(self)
 
 
@@ -874,6 +892,114 @@ func is_lid_open() -> bool:
 	return _bay != null and _bay.is_open()
 
 
+# ── the game's art ──────────────────────────────────────────────────────────
+
+## The board (or cassette) went into the bay: dress the cabinet in its art (system.gd
+## `_on_cartridge_inserted`, which every drop, restore and re-dock reaches).
+func on_media_inserted(cart: Node) -> void:
+	on_media_cleared()
+	if cart == null or not cart.has_method("get_rom_path"):
+		return
+	var art := ArcadeCabinetArt.for_rom(str(cart.get("systemid")), str(cart.call("get_rom_path")))
+	apply_art(art["wheel"] as Texture2D, art["cover"] as Texture2D)
+
+
+## The board left: the plain cabinet again, with its title.
+func on_media_cleared() -> void:
+	_art_wheel = null
+	_art_cover = null
+	_strip_art()
+
+
+func _strip_art() -> void:
+	for slot in [_art_marquee] + _art_sides:
+		if slot != null:
+			slot.visible = false
+			slot.material_override = null
+	_art_marquee_mat = null
+	if _marquee_title != null:
+		_marquee_title.visible = true
+
+
+## The System tab's toggle: the art comes off (or goes back on) at once, the game staying in the bay.
+func set_art_enabled(on: bool) -> void:
+	if on == _art_enabled:
+		return
+	_art_enabled = on
+	_strip_art()
+	if on:
+		_hang_art()
+
+
+func is_art_enabled() -> bool:
+	return _art_enabled
+
+
+## Hang the pictures: the marquee shows the wheel, else the cover, else keeps its title; the sides
+## show the cover. Each fits its slot at its own proportions.
+func apply_art(wheel: Texture2D, cover: Texture2D) -> void:
+	_art_wheel = wheel
+	_art_cover = cover
+	_strip_art()
+	_hang_art()
+
+
+func _hang_art() -> void:
+	if not _art_enabled:
+		return
+	var wheel := _art_wheel
+	var cover := _art_cover
+	var marquee_tex: Texture2D = wheel if wheel != null else cover
+	if _art_marquee != null and marquee_tex != null:
+		_art_marquee_mat = _art_material(marquee_tex, wheel != null)
+		_art_marquee_mat.emission_enabled = _lit
+		_art_marquee_mat.emission_texture = marquee_tex
+		_art_marquee_mat.emission_energy_multiplier = 0.9
+		_hang(_art_marquee, marquee_tex, _art_marquee_mat)
+		if _marquee_title != null:
+			_marquee_title.visible = false
+	if cover != null:
+		for side in _art_sides:
+			_fill(side, cover, _art_material(cover, false))
+
+
+## A side's art fills the whole flank (its mesh is the silhouette, UV 0..1) and the picture is cropped to
+## the flank's proportions, centred: what does not fit is cut, never stretched.
+func _fill(slot: MeshInstance3D, tex: Texture2D, mat: StandardMaterial3D) -> void:
+	var flank: float = slot.get_meta("aspect", 1.0)
+	var size := tex.get_size()
+	var pic := size.x / maxf(size.y, 1.0)
+	var keep := Vector2.ONE
+	if pic > flank:
+		keep.x = flank / pic
+	else:
+		keep.y = pic / flank
+	mat.uv1_scale = Vector3(keep.x, keep.y, 1.0)
+	mat.uv1_offset = Vector3((1.0 - keep.x) * 0.5, (1.0 - keep.y) * 0.5, 0.0)
+	slot.material_override = mat
+	slot.visible = true
+
+
+func _hang(slot: MeshInstance3D, tex: Texture2D, mat: StandardMaterial3D) -> void:
+	var box: Vector2 = slot.get_meta("box", Vector2.ONE)
+	var size := ArcadeCabinetArt.fit(tex.get_size(), box)
+	slot.scale = Vector3(size.x, size.y, 1.0)
+	slot.material_override = mat
+	slot.visible = true
+
+
+## A StandardMaterial3D, never a ShaderMaterial: a held cabinet dithers BaseMaterial3Ds and HIDES the
+## rest (`_set_ghost_materials`). A wheel has alpha, a cover does not.
+func _art_material(tex: Texture2D, alpha: bool) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.roughness = 0.6
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if alpha:
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	return m
+
+
 # ── power ───────────────────────────────────────────────────────────────────
 
 func on_power_on() -> void:
@@ -885,6 +1011,9 @@ func on_power_off() -> void:
 
 
 func _light_marquee(on: bool) -> void:
+	_lit = on
+	if _art_marquee_mat != null:
+		_art_marquee_mat.emission_enabled = on
 	if _marquee_mat == null:
 		return
 	_marquee_mat.emission_enabled = on

@@ -542,13 +542,16 @@ static func load_media_image(systemid: String, rom_path: String, folder: String)
 	var base := rom_path.get_file().get_basename()
 	if base.is_empty():
 		return null
-	var media_dir := RomLibrary.rom_dir_for_system(systemid).path_join("media").path_join(folder)
-	for ext in [".png", ".jpg", ".jpeg", ".webp"]:
-		var path := media_dir.path_join(base + ext)
-		if FileAccess.file_exists(path):
-			var img := Image.load_from_file(path)
-			if img:
-				return img
+	# Every folder the system's ROMs live under, not only the first: an arcade game scraped from the
+	# `mame` tile has its art in mame/media while `arcade/` (the primary) exists and is empty.
+	for rom_dir in RomLibrary.rom_dirs_for_system(systemid):
+		var media_dir := rom_dir.path_join("media").path_join(folder)
+		for ext in [".png", ".jpg", ".jpeg", ".webp"]:
+			var path := media_dir.path_join(base + ext)
+			if FileAccess.file_exists(path):
+				var img := Image.load_from_file(path)
+				if img:
+					return img
 	return null
 
 
