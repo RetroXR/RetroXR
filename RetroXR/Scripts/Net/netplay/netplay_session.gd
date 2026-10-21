@@ -1687,6 +1687,18 @@ func covers(machine: Object) -> bool:
 	return _running and _group.find(machine) >= 0
 
 
+## True when this peer drives `port` of `machine` in the running session: its
+## presses are the ones every peer's core will see. A machine that acts on a press
+## locally as well as through the gate (a Game Boy Printer's tear writes a file
+## and spawns a printout here) asks this first, so it acts only where the press
+## counts.
+func owns_port(machine: Object, port: int) -> bool:
+	if not _running:
+		return false
+	var global := _global_port(machine, port)
+	return global >= 0 and _owners.has(global) and int(_owners[global]) == _self_id()
+
+
 ## True while this session is switching its cabled machines on apart and has
 ## not joined their lead yet. A lead re-resolves whenever one of its machines
 ## powers on, and a session starting them is exactly that -- but the session is

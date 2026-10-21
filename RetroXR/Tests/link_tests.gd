@@ -2109,6 +2109,9 @@ const _LINK_SOCKETS := {
 	"res://Scenes/Objects/cables/saturn_link_port.tscn": "saturn_link_plug",
 	"res://Scenes/Objects/cables/jag_link_port.tscn": "jag_link_plug",
 	"res://Scenes/Objects/cables/ilink_port.tscn": "ilink_plug",
+	# Not a machine with a CPU but a socket all the same: the Game Boy Printer's
+	# EXT.IN takes the Game Boy's own lead and nothing else.
+	"res://Scenes/Objects/peripherals/gb_printer.tscn": "link_plug",
 }
 
 ## Spawn id -> the family both its ends (and any junction) must be.

@@ -9,9 +9,10 @@
 # two buttons are the printer's: A is FEED, B is TEAR (left stick X the number of
 # lines to tear). Built from RetroXR/gbprinter-libretro, MIT.
 #
-# systemid "gbprinter" files it under a platform of its own, so it is grouped and
-# offered the way every other core is; GbPrinter starts it by name and nothing
-# lists games for it.
+# No systemid, on purpose. A systemid is a platform: a tile on the spawn menu and
+# a roms folder, and a printer runs no games. It is offered where it belongs
+# instead -- the printer on the Game Boy cards, its core on the Game Boy pages of
+# OPTIONS > Cores > BIOS / Extras -- and GbPrinter starts it by name.
 
 # Software Information
 display_name = "Nintendo - Game Boy Printer (retroXR)"
@@ -26,7 +27,6 @@ display_version = "1.0.0"
 manufacturer = "Nintendo"
 categories = "Emulator"
 systemname = "Game Boy Printer"
-systemid = "gbprinter"
 
 # Libretro Features
 supports_no_game = "true"

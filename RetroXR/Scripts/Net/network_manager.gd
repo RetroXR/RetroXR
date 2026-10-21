@@ -609,6 +609,12 @@ func netplay_covers(machine: Object) -> bool:
 	return _netplay != null and _netplay.covers(machine)
 
 
+## Whether this peer drives `port` of `machine` in the running session
+## (NetplaySession.owns_port). False with no session.
+func netplay_owns_port(machine: Object, port: int) -> bool:
+	return _netplay != null and _netplay.owns_port(machine, port)
+
+
 ## Whether a starting session is holding this machine's lead off the wire until
 ## its scheduled join (NetplaySession.holds_cable).
 func netplay_holds_cable(machine: Object) -> bool:

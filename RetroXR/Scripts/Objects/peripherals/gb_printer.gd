@@ -73,6 +73,8 @@ var _paper_mat: ShaderMaterial = null
 var _paper_quad: QuadMesh = null
 var _paper_box: BoxShape3D = null
 var _toast: AchievementToast = null
+## Said once per press, not every frame it is held.
+var _feed_refused := false
 var _voices := PackedInt32Array()
 var _gain := -1.0
 var _mx: Object = null
@@ -244,7 +246,13 @@ func _process(_delta: float) -> void:
 	var mask := 0
 	var alx := 0
 	if _feed.is_held():
-		mask |= BTN_A
+		if _presses_count():
+			mask |= BTN_A
+		elif not _feed_refused:
+			_feed_refused = true
+			_notice("Printer", "Pick the printer up to feed paper during a session.")
+	else:
+		_feed_refused = false
 	if _tear_frames > 0:
 		_tear_frames -= 1
 		mask |= BTN_B
@@ -296,12 +304,27 @@ func _update_audio() -> void:
 
 
 ## What reaches the core. In a session the port is the session's, so a press goes
-## through it and every peer's printer sees it on the same frame.
+## through it and every peer's printer sees it on the same frame -- and NEVER
+## straight into this peer's core, even when the session swallows it because
+## another peer drives the port: a press only one peer's printer saw is paper
+## only one peer has.
 func _push_input(mask: int, alx: int) -> void:
 	_mask = mask
 	_alx = alx
-	if not NetworkManager.netplay_route(self, 0, {"btn": mask, "alx": alx}):
-		_lib.SetJoypadState(0, mask, alx, 0, 0, 0)
+	if _in_session():
+		NetworkManager.netplay_route(self, 0, {"btn": mask, "alx": alx})
+		return
+	_lib.SetJoypadState(0, mask, alx, 0, 0, 0)
+
+
+func _in_session() -> bool:
+	return NetworkManager.netplay_running() and NetworkManager.netplay_covers(self)
+
+
+## Whether a press here reaches the printer: always alone, and in a session only
+## for the peer that drives its port -- whoever is holding it.
+func _presses_count() -> bool:
+	return not _in_session() or NetworkManager.netplay_owns_port(self, 0)
 
 
 ## Size the strip to `lines` of paper and show `tex` on it. The pivot sits at the
@@ -328,6 +351,9 @@ func _lay_paper(tex: Texture2D, lines: int) -> void:
 ## going into the bin unseen.
 func tear() -> void:
 	if not is_powered_on or _lib == null or _tear_frames > 0:
+		return
+	if not _presses_count():
+		_notice("Printer", "Pick the printer up to tear the paper off during a session.")
 		return
 	var img: Image = _lib.GetVideoImage()
 	if img == null or img.is_empty() or img.get_width() != GbPrinterPaper.DOTS:

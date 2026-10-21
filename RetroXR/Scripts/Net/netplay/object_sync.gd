@@ -940,8 +940,9 @@ func _held_pose(net_id: int, pos: Vector3, quat: Quaternion) -> void:
 func _maybe_handoff_port(node: Node, peer_id: int) -> void:
 	if _nm.is_host() and _is_port_peripheral(node):
 		_nm.netplay_handoff(node, peer_id)
-	elif _nm.is_host() and node is VmuCard:
+	elif _nm.is_host() and (node is VmuCard or node is GbPrinter):
 		# A standalone VMU is the machine AND its pad: port 0 follows the hand.
+		# So is a Game Boy Printer, whose FEED and TEAR are port 0's buttons.
 		_nm.netplay_handoff_port(node, 0, peer_id)
 
 
@@ -950,7 +951,7 @@ func _maybe_handoff_port(node: Node, peer_id: int) -> void:
 func _maybe_release_port(node: Node) -> void:
 	if _nm.is_host() and _is_port_peripheral(node):
 		_nm.netplay_handoff(node, 0)
-	elif _nm.is_host() and node is VmuCard:
+	elif _nm.is_host() and (node is VmuCard or node is GbPrinter):
 		_nm.netplay_handoff_port(node, 0, 0)
 
 
@@ -1442,6 +1443,12 @@ func _file_desc(node: Node) -> Dictionary:
 		# single-file images (.iso/.img) carry a hash at all — a VIDEO_TS folder
 		# has no single md5, so it neither transfers nor resolves on a peer.
 		return {"kind": "dvd", "prop": "dvd_path"}
+	if node is Poster:
+		# Listed as transferable in FileTransfer.TRANSFER_KINDS all along, and
+		# never described here, so a poster's picture never reached a peer. A
+		# Game Boy Printer's printout is one (GbPrinter), written on the peer
+		# that tore it.
+		return {"kind": "poster", "prop": "image_path"}
 	if node is AudioDisc or node is AudioCassette or node is VinylRecord:
 		# Music albums are folders or playlists (no single hash): a peer's own
 		# album of the same name is used first, and one without it fetches the

@@ -132,6 +132,26 @@ const CORES: Dictionary = {
 			"serial_link": "disabled",
 		},
 	},
+	# The Game Boy Printer (GbPrinter), RetroXR's own core. Never the anchor of a
+	# session: it comes in as a member of a Game Boy's group through the lead, and
+	# a Game Boy pair is LOCKSTEP (no link_rollback), so that is all it offers. Its
+	# frames are the Game Boy's to the tick and it is input-driven only (FEED and
+	# TEAR), so every peer prints the same paper. Measured by
+	# Tools/netplay/gb_printer_netplay_probe: two replicated GB + printer pairs,
+	# the cable seated with every core held, paper and savestates byte-identical
+	# to frame 2400 on gambatte and mGBA (core retroxr-gbprinter-libretro-v1). No
+	# SYSTEM_RAM, so the CRC is a savestate's. state_transfer is unmeasured: a
+	# Game Boy's link clock is not in ITS savestate, so late join over a cable is
+	# owed for the pair, not just the printer.
+	"gbprinter": {
+		"verified": true,
+		"state_transfer": false,
+		"strategies": [Strategy.LOCKSTEP],
+		"cross_play": false,
+		"crc_from_state": true,
+		"systems": [],
+		"options": {},
+	},
 	# The Atari Lynx on RetroXR's fork (beetle-lynx-libretro, retroxr branch),
 	# which carries ComLynx. `link_rollback`: a cabled group of these can roll
 	# back TOGETHER (Wrapper::NetplayGroupIteration) instead of dropping to
