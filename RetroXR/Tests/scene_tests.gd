@@ -161,6 +161,8 @@ func _ready() -> void:
 		await _test_cords()
 	if _want_group("storage"):
 		await _test_storage()
+	if _want_group("plug"):
+		_test_plug()
 	if _want_group("strip"):
 		await _test_power_strip()
 	if _want_group("stack"):
@@ -1701,6 +1703,31 @@ func _test_power_strip() -> void:
 	remove_child(room)
 	room.queue_free()
 	await get_tree().process_frame
+
+
+## The controller plug names no console, controller or expansion class in its code.
+## A cable scene holds controller_plug.gd, and naming RetroSystem compiled
+## system.gd, whose preloads reach expansion.tscn -> wiimote.tscn ->
+## nunchuk_cable.tscn and so the plug's script again while it was still loading:
+## when early class compiles walked into that loop at boot, every pad's cable scene
+## loaded empty and no controller had its cord. Read from the source, comments left
+## out, as the vlc/ group reads its own.
+func _test_plug() -> void:
+	var src := FileAccess.get_file_as_string("res://Scripts/Objects/cables/controller_plug.gd")
+	var code := PackedStringArray()
+	for line in src.split("\n"):
+		var at := line.find("#")
+		code.append(line.substr(0, at) if at >= 0 else line)
+	var body := "\n".join(code)
+	_ok(body.contains("class_name ControllerPlug"), "plug/the plug's source reads")
+	for cls: String in ["RetroSystem", "RetroController", "LightGun", "RetroExpansion", "Wiimote"]:
+		_ok(RegEx.create_from_string("\\b%s\\b" % cls).search(body) == null, "plug/its code names no %s" % cls)
+	# The scenes that hold it load whole, the Nunchuk's at the end of the old loop.
+	for path: String in ["res://Scenes/Objects/cables/controller_cable.tscn",
+			"res://Scenes/Objects/controllers/wii/nunchuk_cable.tscn",
+			"res://Scenes/Objects/system_models/wii/sensor_bar_cable.tscn"]:
+		var scene := load(path) as PackedScene
+		_ok(scene != null and scene.get_state().get_node_count() > 0, "plug/%s loads with its nodes" % path.get_file())
 
 
 func _ok(cond: bool, what: String) -> void:

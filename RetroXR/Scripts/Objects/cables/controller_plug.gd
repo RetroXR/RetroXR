@@ -1,6 +1,13 @@
 ## ControllerPlug — the grabbable plug at the end of a retro controller's cable.
 ## In the "controller_plug" group, which every controller port requires, and fits
 ## the ports whose connector is its own (Connectors.of; RetroSystem._accepts_plug).
+##
+## It names no console or controller class in code, only in comments: a cable
+## scene holds this script, and naming RetroSystem compiled system.gd, whose
+## preloads reach expansion.tscn -> wiimote.tscn -> nunchuk_cable.tscn and so this
+## script again while it was still loading. When early class compiles walked into
+## that loop at boot, every pad's cable scene loaded empty and no controller had
+## its cord. scene_tests' plug/ group holds this.
 class_name ControllerPlug
 extends XRToolsPickable
 
@@ -130,7 +137,9 @@ func set_controller(controller: Node3D) -> void:
 	_controller = controller
 	if "device_type" in controller:
 		device_type = controller.device_type
-	device_names = RetroSystem.device_names_of(controller)
+	# What RetroSystem.device_names_of reads, read here (see the class note).
+	var names: Variant = controller.get("device_names") if "device_names" in controller else null
+	device_names = names if names is PackedStringArray else PackedStringArray()
 	# What this plug fits. The port zone's snap filter reads it off the plug
 	# rather than chasing the cable back to the controller.
 	if "systemid" in controller:
@@ -138,8 +147,9 @@ func set_controller(controller: Node3D) -> void:
 	connector = Connectors.of(controller)
 
 
-## Called by system.gd when this plug snaps into a port.
-func on_plugged_in(system: RetroSystem, port_index: int) -> void:
+## Called by system.gd when this plug snaps into a port. `system` is the RetroSystem,
+## untyped here (see the class note).
+func on_plugged_in(system: Node3D, port_index: int) -> void:
 	_plugged_in = true
 	if is_instance_valid(_controller) and _controller.has_method("on_plugged_in"):
 		_controller.on_plugged_in(system, port_index)
