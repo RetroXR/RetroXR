@@ -16,6 +16,7 @@ signal turn_style_changed(value: String)
 signal snap_angle_changed(degrees: float)
 signal height_offset_changed(offset: float)
 signal fov_changed(degrees: float)
+signal zoom_changed(factor: float)
 signal world_scale_changed(scale: float)
 signal auto_save_changed(enabled: bool)
 ## A performance HUD switch moved. Carries nothing: the controller re-reads
@@ -243,6 +244,19 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 		fov_slider.value_changed.connect(func(v: float) -> void:
 			fov_val.text = "%d°" % int(v)
 			fov_changed.emit(v)
+		)
+
+		# Zoom (desktop only): 1.00x is the Field of View above exactly; more shows
+		# everything closer. Saved, unlike the field of view.
+		var zoom_row := MenuStyle.menu_slider_row(vbox, "Zoom",
+			QualityManager.ZOOM_MIN, QualityManager.ZOOM_MAX, 0.05, 70)
+		var zoom_slider: HSlider = zoom_row[0]
+		var zoom_val: Label = zoom_row[1]
+		zoom_slider.value = QualityManager.zoom
+		zoom_val.text = "%.2f×" % QualityManager.zoom
+		zoom_slider.value_changed.connect(func(v: float) -> void:
+			zoom_val.text = "%.2f×" % v
+			zoom_changed.emit(v)
 		)
 
 		vbox.add_child(HSeparator.new())

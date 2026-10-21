@@ -301,6 +301,14 @@ var resolution: String = ""
 ## runtime paces the frames (apply_frame_cap).
 var frame_cap: int = 0
 const FRAME_CAPS: Array[int] = [0, 30, 60, 90, 120, 144]
+## The desktop camera's zoom: 1 is the Field of View as set, higher shows everything
+## that much closer (DesktopWindow.zoomed_fov). Saved; never applied in a headset. The
+## desktop starts at 1x, the Field of View as set (a 2x start was too cramped, 2026-10-22).
+const ZOOM_MIN := 1.0
+const ZOOM_MAX := 4.0
+const ZOOM_DEFAULT := 1.0
+var zoom: float = ZOOM_DEFAULT
+var _zoom_save_token := 0
 
 var _desktop: bool
 ## Resolved by detect_device(), which cannot run in _ready(): XR_META_headset_id
@@ -1301,6 +1309,30 @@ func set_window_state(mode: String, res: String) -> void:
 	save_prefs()
 
 
+## Desktop only, and only once the room knows it is not in a headset (xr_init.gd
+## calls it): bring back the saved window mode and size, then keep saving whatever
+## the player does to the window. Idempotent -- every room load calls it.
+func begin_window_tracking() -> void:
+	if not _desktop:
+		return
+	DesktopWindow.restore()
+	if DesktopWindow.instance == null:
+		var tracker := DesktopWindow.new()
+		tracker.name = "DesktopWindow"
+		add_child(tracker)
+
+
+## Remembered, but written once the slider has been still for a moment: dragging it
+## is dozens of values a second.
+func set_zoom(value: float) -> void:
+	zoom = clampf(value, ZOOM_MIN, ZOOM_MAX)
+	_zoom_save_token += 1
+	var mine := _zoom_save_token
+	get_tree().create_timer(0.5).timeout.connect(func() -> void:
+		if mine == _zoom_save_token:
+			save_prefs())
+
+
 func set_frame_cap(fps: int) -> void:
 	frame_cap = maxi(fps, 0)
 	apply_frame_cap()
@@ -1542,6 +1574,7 @@ func _load_prefs() -> void:
 	window_mode = str(data.get("window_mode", window_mode))
 	resolution = str(data.get("resolution", resolution))
 	frame_cap = maxi(JsonStore.get_int(data, "frame_cap", frame_cap), 0)
+	zoom = clampf(JsonStore.get_float(data, "zoom", zoom), ZOOM_MIN, ZOOM_MAX)
 	# Forced to 1.0 on the mobile backend, so a value saved on desktop and synced
 	# to a headset cannot bring the broken path back with it. On Forward+ it is
 	# kept even when this session is PCVR and cannot use it:
@@ -1581,6 +1614,7 @@ func save_prefs() -> void:
 		"window_mode": window_mode,
 		"resolution": resolution,
 		"frame_cap": frame_cap,
+		"zoom": zoom,
 		"shadow_quality": int(shadow_quality),
 		"ao_quality": int(ao_quality),
 		"render_scale": render_scale,
