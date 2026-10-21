@@ -65,6 +65,10 @@ const _REFERENCE_FIELDS := [
 ## Stamped on a mod prop when it spawns, so _serialize_node can recognise it
 ## without a class to test against. The value is the registered type string.
 const MOD_TYPE_META := &"mod_object_type"
+## A snap zone a mod put somewhere that is not its own prop -- hung on a shipped
+## object by a hook, or authored in a mod's room. Whatever it holds is saved as
+## held there (see _attachment_field).
+const MOD_ZONE_GROUP := &"mod_zone"
 
 ## type -> {scene: String, owner: String}, contributed by mods.
 ##
@@ -1696,18 +1700,26 @@ func _base(id: int, type_name: String, n3d: Node3D) -> Dictionary:
 	return out
 
 
-## Which snap zone a mod prop sits in, so a stack of them (one part on another, a
-## prop on its stand, a prop in a bay a mod hung on a console) comes back held
-## rather than as loose bodies standing in the same places. A shipped object
-## names its own media by its own fields; a mod prop has no class to give it
-## any, so this is the one they all share.
+## Which snap zone holds an object, so what a mod built to hold things -- one
+## part on another, a console in a stand, a prop on a shelf a mod hung on the
+## TV -- comes back holding them rather than as loose bodies standing in the
+## same places.
+##
+## Written for anything held by a MOD's zone: one whose nearest spawned object is
+## a mod prop, or one in MOD_ZONE_GROUP (a zone a mod's hook hung on a shipped
+## object, or one in a mod's room). The game's own sockets are left out: a
+## cartridge in a slot, a plug in a port, a card in a pad each have a field of
+## their own and a restore call that does more than seat them (a cartridge's
+## yaw, the bay flap, the core), which a bare pick_up_object would get ahead of.
+## A plain mod prop has no such field anywhere, so it passes `any_zone` and is
+## recorded whatever holds it.
 ##
 ## `{"attached": {"to": <ref>, "zone": <path>}}`, or empty when nothing holds it.
 ## `to` is the spawned object the zone belongs to and `zone` its path inside that
 ## object, because a zone inside an object has no id of its own. A zone that is
 ## part of the ROOM has no such object: `to` is then the zone's own path and
 ## `zone` is ".".
-func _attachment_field(n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
+func _attachment_field(n3d: Node3D, node_to_id: Dictionary, any_zone: bool = false) -> Dictionary:
 	var pickable := n3d as XRToolsPickable
 	if pickable == null:
 		return {}
@@ -1717,6 +1729,8 @@ func _attachment_field(n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
 	var host: Node = zone
 	while host != null and not host.is_in_group("spawned"):
 		host = host.get_parent()
+	if not any_zone and not _is_mod_zone(zone, host):
+		return {}
 	if host == null:
 		return {"attached": {"to": _ref(node_to_id, zone), "zone": "."}}
 	# A spawned host outside the map is a partial serialize (ObjectSync ships one
@@ -1726,7 +1740,16 @@ func _attachment_field(n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
 	return {"attached": {"to": node_to_id[host], "zone": str(host.get_path_to(zone))}}
 
 
-## Put a mod prop back in the snap zone _attachment_field recorded. Through the
+## A zone a mod owns. A mod pad or gun is not a host here even though it carries
+## the stamp: its sockets are the game's (a VMU slot, a pak port), restored by
+## their own fields.
+static func _is_mod_zone(zone: Node, host: Node) -> bool:
+	if zone.is_in_group(MOD_ZONE_GROUP):
+		return true
+	return host != null and host.has_meta(MOD_TYPE_META) 		and not (host is RetroController or host is LightGun)
+
+
+## Put an object back in the snap zone _attachment_field recorded. Through the
 ## zone's own pick_up_object, the call a hand's release ends in, so a restored
 ## stack is the same object graph as a built one.
 func _restore_attachment(root: Node, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
@@ -1738,8 +1761,8 @@ func _restore_attachment(root: Node, obj: Node, spawned: Dictionary, d: Dictiona
 		return
 	var zone := host.get_node_or_null(NodePath(str((rec as Dictionary).get("zone", "."))))
 	if not zone is XRToolsSnapZone:
-		# The mod moved or renamed the zone since the save; the prop stays where
-		# it was left, loose.
+		# The mod moved or renamed the zone since the save; the object stays
+		# where it was left, loose.
 		push_warning("[ScenePersistence] %s: no snap zone at '%s'" % [obj.name, rec["zone"]])
 		return
 	(zone as XRToolsSnapZone).pick_up_object(obj as Node3D)
@@ -1941,6 +1964,9 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		var variant := SystemModelRegistry.variant_of(node)
 		if not variant.is_empty():
 			entry["model_variant"] = variant
+		# A plain mod prop has already said what holds it, from any zone.
+		if not entry.has("attached"):
+			entry.merge(_attachment_field(node as Node3D, node_to_id))
 	return entry
 
 
@@ -1969,7 +1995,7 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		var lead := _serialize_lead(node, id, n3d, node_to_id)
 		if lead.is_empty():
 			var prop := _base(id, mod_type, n3d)
-			prop.merge(_attachment_field(n3d, node_to_id))
+			prop.merge(_attachment_field(n3d, node_to_id, true))
 			return prop
 		lead["type"] = mod_type
 		return lead

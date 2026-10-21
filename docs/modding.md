@@ -394,11 +394,20 @@ A prop can **snap onto** another: give the host an `XRToolsSnapZone`
 `snap_require` names, and a prop released over it is held there and moves with
 it. A save records which zone holds each prop -- the host and the zone's path
 inside it, or the zone's own path for one that is part of a room -- and a load
-puts it back in that zone, so a stack of props comes back a stack. The zone's
-**path is part of the save**: rename or move it and saved props come back loose
-where they were left. A prop whose host's mod is gone comes back loose too.
-Live netplay does not yet send a snap as it happens; a player joining later
-gets it from the room's snapshot.
+puts it back in that zone, so a stack of props comes back a stack.
+
+The game's own objects work the same way in **your** zones: a console in your
+stand, a pad on your rack. A zone counts as yours when it is inside a prop you
+registered, or when it is in the `mod_zone` group -- put it there for a zone your
+hook hangs on one of the game's objects, or one authored in your room. The
+game's own sockets are not yours, and what sits in them saves as it always did.
+A zone's `snap_filter` (`func(obj) -> bool`) narrows what it takes, e.g.
+`func(o): return o is RetroSystem and o.systemid == "wii"`.
+
+The zone's **path is part of the save**: rename or move it and what it held comes
+back loose where it was left. So does anything whose host's mod is gone. Live
+netplay does not yet send a snap as it happens; a player joining later gets it
+from the room's snapshot.
 
 A **cabinet** extends `RetroTVShell`: geometry plus `Marker3D` seats, while every
 functional part stays on the television. Two optional overrides, both defaulting

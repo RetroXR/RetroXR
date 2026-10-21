@@ -26,7 +26,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 401
+const EXPECTED_CASES := 407
 
 var _pass := 0
 var _fail := 0
@@ -179,6 +179,60 @@ func _group_attach() -> void:
 	if again != null:
 		again.free()
 	room_zone.free()
+
+	# A SHIPPED object in a mod's zone -- a console in a stand -- saves the same
+	# way, and comes back held.
+	var stand := ScenePersistence._instantiate_mod_object("t.att:part")
+	var console := (load("res://Scenes/Objects/system.tscn") as PackedScene).instantiate() as RetroSystem
+	for n: Node3D in [stand, console]:
+		add_child(n)
+		n.add_to_group("spawned")
+	(stand.get_node("Top") as XRToolsSnapZone).pick_up_object(console)
+	var stand_map := {stand: 0, console: 1}
+	var console_entry := store._serialize_node(console, 1, stand_map)
+	var stand_entry := store._serialize_node(stand, 0, stand_map)
+	_eq(console_entry.get("attached", {}), {"to": 0, "zone": "Top"},
+		"attach/a console in a mod's stand names the stand")
+	_eq(ScenePersistence._objects_validation_error([stand_entry, console_entry]), "",
+		"attach/and validates")
+	stand.free()
+	console.free()
+	var stood := store.instantiate_objects(self, [console_entry, stand_entry])
+	var back_stand := stood.get(0) as Node3D
+	var back_console := stood.get(1) as RetroSystem
+	_ok(back_console != null and back_stand != null
+		and back_console.get_picked_up_by() == back_stand.get_node("Top"),
+		"attach/a load puts the console back in the stand")
+	for n: Variant in stood.values():
+		(n as Node).free()
+
+	# The game's own zones are not a mod's: what they hold has fields of its own,
+	# restored by calls that do more than seat it. A plain pickable with a zone
+	# stands in for a console's slot.
+	var shipped := XRToolsPickable.new()
+	var socket := XRToolsSnapZone.new()
+	socket.name = "Socket"
+	shipped.add_child(socket)
+	var held_console := (load("res://Scenes/Objects/system.tscn") as PackedScene).instantiate() as RetroSystem
+	var held_part := ScenePersistence._instantiate_mod_object("t.att:part")
+	for n: Node3D in [shipped, held_console, held_part]:
+		add_child(n)
+		n.add_to_group("spawned")
+	var shipped_map := {shipped: 0, held_console: 1, held_part: 2}
+	socket.pick_up_object(held_console)
+	_ok(not store._serialize_node(held_console, 1, shipped_map).has("attached"),
+		"attach/a shipped object in the game's own zone saves no attachment")
+	# Unless a mod hung that zone there and said so.
+	socket.add_to_group(ScenePersistence.MOD_ZONE_GROUP)
+	_eq(store._serialize_node(held_console, 1, shipped_map).get("attached", {}),
+		{"to": 0, "zone": "Socket"}, "attach/a zone in the mod_zone group is a mod's")
+	socket.remove_from_group(ScenePersistence.MOD_ZONE_GROUP)
+	# A plain mod prop has no field of its own anywhere, so any zone counts.
+	socket.pick_up_object(held_part)
+	_eq(store._serialize_node(held_part, 2, shipped_map).get("attached", {}),
+		{"to": 0, "zone": "Socket"}, "attach/a mod prop in the game's zone still saves it")
+	for n: Node in [held_part, held_console, shipped]:
+		n.free()
 
 	# The host's mod is gone: the prop loads, loose, rather than failing the slot.
 	var orphan := top_entry.duplicate(true)
