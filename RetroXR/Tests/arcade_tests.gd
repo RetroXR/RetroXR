@@ -31,6 +31,27 @@
 ##   keep/       a room saved with the cabinet in it brings it back
 extends Node
 
+
+## A stand-in for a LibretroOptionDefinition: the two values the row steps through.
+class _FakeVal:
+	var _v: String
+	func _init(v: String) -> void:
+		_v = v
+	func GetValue() -> String:
+		return _v
+	func GetLabel() -> String:
+		return _v
+
+
+class _FakeDef:
+	func GetValues() -> Array:
+		return [_FakeVal.new("1 Coin"), _FakeVal.new("2 Coins")]
+	func GetDescriptionCategorized() -> String:
+		return "Coinage"
+	func GetDescription() -> String:
+		return "Coinage"
+
+
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const PAD_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
@@ -475,8 +496,81 @@ func _group_cabinet() -> void:
 	var at := model.to_local(power.global_position)
 	_ok(absf(at.x) < 0.30 and at.y > 0.10 and at.y < 0.50 and absf(at.z) < 0.38,
 		"cabinet: and it is inside the bay, beside the JAMMA socket (%s)" % at)
-	_ok(not (sys.get_node("ResetButton") as Node3D).visible and not (sys.get_node("EjectButton") as Node3D).visible,
-		"cabinet: and reset and open are gone")
+	_ok(not (sys.get_node("EjectButton") as Node3D).visible, "cabinet: and open is gone")
+	# The composite input's legend stays inside its yellow plate, with a margin either side.
+	var legend := model.find_child("InLegend", true, false) as Label3D
+	var plate := model.find_child("InPlate", true, false) as MeshInstance3D
+	var lw := legend.get_aabb().size.x * legend.global_transform.basis.get_scale().x
+	var pw := plate.get_aabb().size.x * plate.global_transform.basis.get_scale().x
+	_ok(lw > 0.0 and lw < pw - 0.02, "cabinet: the COMPOSITE IN legend fits inside its plate (%.3f of %.3f m)" % [lw, pw])
+	var lh := legend.get_aabb().size.y * legend.global_transform.basis.get_scale().y
+	_ok(lh < 0.030, "cabinet: and its text is shorter than the plate is deep (%.3f m)" % lh)
+	_ok(not (sys.get_node("ResetButton") as Node3D).visible, "cabinet: and reset is gone (the DIP switch is a tab, not a button)")
+	_ok(model.find_child("DipSwitch", true, false) == null, "cabinet: no DIP switch is drawn in the bay")
+
+	# The menu's DIP Switch tab: a cabinet's, with the core's own DIP screen (MAME) or its DIP options (FBNeo).
+	_ok(sys.has_dip_tab(), "dip: a cabinet has the DIP Switch tab")
+	var panel := sys.get_node("CoreOptionsPanel") as Node3D
+	sys.toggle_options_ui(null)
+	await _wait(6)
+	var ui := (panel.get("_viewport_node") as Node).get_node("Viewport").get_child(0) as CoreOptions2D
+	_ok(not ui._tabs.is_tab_hidden(ui._dip_tab_idx), "dip: the tab is shown in the cabinet's menu")
+	# A core with no screen of its own (FBNeo): the DIP options, and only those, are listed in the tab.
+	ui.populate_dip(true, false, true, false)
+	ui._definitions = {}
+	ui._refresh_dip()
+	await _wait(2)
+	var said: Array = ui._dip_rows.get_children().filter(func(c: Node) -> bool: return not c.is_queued_for_deletion())
+	_ok(said.size() == 1 and said[0] is Label, "dip: with no DIP options published the tab says so")
+	ui._definitions = {"fbneo-dipswitch-dino-Coinage": _FakeDef.new(), "fbneo-dipswitch-dino-Lives": _FakeDef.new(),
+		"fbneo-vertical-mode": _FakeDef.new()}
+	ui._values = {"fbneo-dipswitch-dino-Coinage": "2 Coins"}
+	ui._refresh_dip()
+	await _wait(2)
+	var listed := 0
+	for c in ui._dip_rows.get_children():
+		if not c.is_queued_for_deletion() and c is HBoxContainer:
+			listed += 1
+	_ok(listed == 2, "dip: the tab lists the two DIP options, not the other (%d rows)" % listed)
+	sys.toggle_options_ui(null)
+	# A machine that is not a cabinet has no such tab.
+	var snes := SYSTEM_SCENE.instantiate() as RetroSystem
+	snes.systemid = "snes"
+	snes.freeze = true
+	add_child(snes)
+	await _wait(6)
+	_ok(not snes.has_dip_tab(), "dip: only a cabinet has the tab")
+	snes.queue_free()
+	# MAME has its own DIP screen: the tab's button taps Tab, Down, Return into the core.
+	var sent: Array = []
+	sys.core_key_sink = func(code: int, down: bool) -> void: sent.append([code, down])
+	sys.core_name = "mame"
+	sys.is_powered_on = true
+	_ok(sys.core_dip_menu_available(), "dip: a running MAME has a DIP screen to open")
+	ui.populate_dip(true, true, true, false)
+	await _wait(2)
+	var rows: Array = ui._dip_rows.get_children().filter(func(c: Node) -> bool: return not c.is_queued_for_deletion())
+	_ok(rows.size() == 2 and rows[1] is Button and (rows[1] as Button).text == "Open DIP Switches",
+		"dip: the tab offers to open it")
+	var asked := [0]
+	ui.dip_menu_requested.connect(func() -> void: asked[0] += 1)
+	(rows[1] as Button).pressed.emit()
+	_ok(asked[0] == 1, "dip: pressing the button asks for it")
+	sys.toggle_core_dip_menu()
+	await get_tree().create_timer(1.2).timeout
+	_ok(sent == [[9, true], [9, false], [274, true], [274, false], [13, true], [13, false]],
+		"dip: opening it taps Tab, Down, Return into the core (%s)" % str(sent))
+	_ok(sys.core_dip_menu_open(), "dip: and the machine knows it is open")
+	sent.clear()
+	sys.toggle_core_dip_menu()
+	await get_tree().create_timer(0.7).timeout
+	_ok(sent == [[9, true], [9, false]] and not sys.core_dip_menu_open(), "dip: pressing again taps Tab to shut it (%s)" % str(sent))
+	sys.power_off()
+	sys.is_powered_on = false
+	_ok(not sys.core_dip_menu_available(), "dip: a cabinet that is off has no screen to open")
+	# FBNeo has none: its DIPs are options, and the tab lists exactly those.
+	sys.core_name = "fbneo"
+	_ok(not sys.core_dip_menu_available(), "dip: FBNeo has no DIP screen of its own")
 	await _clear()
 
 

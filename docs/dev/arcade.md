@@ -115,7 +115,7 @@ flat PCB with a gold comb on one short edge, chips and connectors on top, and no
 were every shape): 200 x 300 x 35 mm, `CART_SIZES["arcade"]`, cartridge frame
 (connector on -Y, label on +Z), a `Label` sticker UV-mapped 0..1 that `CartridgeLabel` paints.
 The label shows whatever the existing path gives (art in `<roms>/<systemid>/media/label/`,
-else the printed title). **No new scraping.** Per-game boards are a later evaluation.
+else the printed title). **No new scraping.** Per-game boards are a later evaluation. (The cabinet itself wears the game's art, see "The game's art on the cabinet" below.)
 
 The board stands in the socket facing the front; the slot is gated by the door and keyed by
 `systemid`, like any cartridge ("JAMMA" is the contract for future bays, not a connector
@@ -486,3 +486,54 @@ that need no extension were compiled. Run `arcade_bay_tests`, `arcade_tests` and
 replicate docking or the cable (each peer seeds its own default bay on a restored room's cabinet only when it is a fresh one; a
 bay moved by hand is local until `EV_*` events are added), the external sound, a headset, a Quest, and the plug/port geometry (boxes,
 estimates) are all still to do. The jamma plug is the i.LINK scene's with bigger boxes, not a measured connector.
+
+## The game's art on the cabinet (2026-10-21)
+
+When a board (or MVS cassette) goes into the bay, the cabinet dresses itself in the game's scraped art; pulling it
+undresses it. **Marquee**: the WHEEL (a logo, with alpha), else the cover, else the baked title as before (the
+`MarqueeTitle` Label3D is hidden only while a picture is up). **Sides**: the COVER on the outside of each panel.
+Cover = the front of the scraped `box` (`ArcadeProfiles.board_art`), else the scraped `label`, else a RomM cover the
+spawn menu already cached (`media/romm/<id>_s.*`, id found by file name in the platform's `.romm/index.{ids,fsnames,exts}`
+sidecars, `ArcadeCabinetArt.romm_id`). **Nothing is fetched or scraped for this**: a game with none of them leaves the cabinet plain.
+
+- **Slots** are baked by `gen_arcade_cabinet.gd` `_build_art` into every variant, hidden. `MarqueeArt` (child of `Marquee`, 6.8 mm in front of its
+  face) is a UNIT quad with a `box` metadata (metres); `_hang` scales the NODE to the picture's proportions inside it (the QuadMesh is a sub-resource
+  shared by every instance of the scene, so never resize the mesh). `SideArtL`/`SideArtR` are the side's own SILHOUETTE (`_side_art_mesh`, 0.5 mm outside
+  the panel, normal out, UV 0..1 over the silhouette's bounds, the front on the right of the left flank and on the left of the right one) and FILL the
+  whole flank: `_fill` crops the picture to the flank's `aspect` metadata (uv1_scale/offset, centred, what does not fit is cut, never stretched).
+  Each puts a per-instance `material_override` on its slot. The extruded sides have no UVs and a BoxMesh cannot show one picture across a face,
+  which is why these are separate meshes.
+- **Hook**: `RetroSystem._on_cartridge_inserted` / `_on_cartridge_removed` call the model's `on_media_inserted(cart)` / `on_media_cleared()`
+  (behind `has_method`; every drop, saved-room restore and re-dock reaches them through `_swap_cartridge_slot`). `apply_art(wheel, cover)`
+  is the part a suite drives with its own textures (`ArcadeCabinetArt.test_art` hangs art on a ROM path without touching the data root).
+- **Materials are StandardMaterial3D, never a ShaderMaterial**: a carried cabinet dithers BaseMaterial3Ds and HIDES everything else
+  (`_set_ghost_materials`). The marquee art takes `emission_texture` = its own picture, switched with `_light_marquee`, so it glows
+  with the machine like the marquee did; the sides do not.
+- **`MediaDimensions.load_media_image` searches every `RomLibrary.rom_dirs_for_system` folder**, not only the primary one: a game scraped
+  from the `mame` tile has its art in `mame/media` while `arcade/` exists, is the primary, and is empty (the board's sticker could not find it either).
+- A scene baked before the slots (a mod's cabinet) has no such nodes: the calls are no-ops.
+- `arcade_variants_tests` `art/` (106 checks over the six variants: slots hidden and facing out, wheel/cover/fallbacks, power glow, ghosting, the real
+  seat/pull path). Look: `Tools/models/arcade_cabinet_probe` shots `artfront`/`artright`/`artleft` (`--rom=sf2.zip`, windowed). Measured with SF2's real
+  wheel and cover (both sides read the same way round, so neither is mirrored). Headset, Quest and a game with only a RomM cover OWED.
+- Not done: third-party consoles on the composite input; the scraper does not fetch marquee/screenshot art (`screenmarquee`, `ss`) and RomM's are not parsed.
+
+### The DIP Switch tab and the "Cabinet Art" toggle (2026-10-21/22)
+
+- **DIP Switch tab** in the cabinet's menu (`CoreOptions2D`, hidden on every other machine: `RetroSystem.has_dip_tab`, `populate_dip`). There is NO
+  physical DIP button (a first version had one beside the power switch, reusing the reset button; it was dropped, the reset button is hidden again).
+  What the tab holds depends on the core:
+  - **MAME** has the "DIP Switches" screen on the game's own screen, so the tab is one button, "Open DIP Switches" (`RetroSystem.toggle_core_dip_menu`):
+    it taps Tab, Down, Return into the core on port 0 (`DIP_MENU_KEYS`, libretro `RETROK_` codes, through the netplay key schedule like a keyboard;
+    0.12 s held, 0.25 s apart) and the button then reads "Close DIP Switches", which taps Tab. MEASURED with `Tools/cores/arcade_dip_probe` (sf2,
+    `--keys=tab,down,return`): Tab opens MAME's menu (Input Settings, **DIP Switches**, Bookkeeping Info...), the sequence lands on the DIP screen.
+    `_core_menu_open` is tracked, cleared on power-off; if the player closed the screen with Esc the next press opens the main menu, harmless.
+  - **FBNeo** has no such screen (Tab, F2 and F3 do nothing visible, measured on dino). Its DIPs are core options (`fbneo-dipswitch-<game>-...`,
+    `DIP_OPTION_MARK`), so the tab LISTS those rows, and only those, with the same stepper as the Options tab (the same `option_changed` path).
+  - A core that publishes no DIPs, or a cabinet that is off with no options read yet, gets a one-line note. Another core's DIP screen is a row in
+    `DIP_MENU_KEYS` once measured with the probe. Look: `Tools/models/dip_tab_probe` (windowed). The tab's real behaviour against a running MAME
+    through the in-room menu is OWED (the keys are measured through the probe; the tab calls the same code).
+- **Cabinet Art** (System tab, on by default): off takes the wheel and cover off the marquee and sides (title back) whatever is in the
+  bay, and on hangs them again from the textures kept (`_art_wheel`/`_art_cover`), with no second read of the disk. `RetroSystem.cabinet_art_enabled`
+  is saved in the room as `cabinet_art` ONLY when off (a default room file does not change), restored before the model is built. The row is
+  shown only when the model has `set_art_enabled` (`supports_cabinet_art_toggle`), through `CoreOptions2D.populate_system`'s two trailing arguments.
+

@@ -106,6 +106,7 @@ func _ensure_ui_connected() -> void:
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	ui.screen_glow_toggled.connect(_on_screen_glow_toggled)
 	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
+	ui.dip_menu_requested.connect(_on_dip_menu_requested)
 	ui.volume_changed.connect(_on_volume_changed)
 	ui.core_selected.connect(_on_core_selected)
 	ui.close_requested.connect(hide_panel)
@@ -138,6 +139,7 @@ func _populate() -> void:
 	_controls_state = _system.controls_state()
 	ui.populate_controls(_controls_state)
 	ui.populate_debug(_system.debug_state())
+	_populate_dip_tab(ui)
 	ui.populate_cores(_system.core_choices(), _system.core_name, _system.default_core_name())
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
@@ -349,6 +351,20 @@ func _on_ignore_gravity_toggled(enabled: bool) -> void:
 func _on_screen_glow_toggled(enabled: bool) -> void:
 	if _system and is_instance_valid(_system):
 		_system.set_screen_glow(enabled)
+
+
+## The cabinet's DIP Switch tab: the core's own DIP screen to open on the game's screen (MAME), or the
+## core's DIP options to set here (FBNeo). Hidden on any other machine.
+func _populate_dip_tab(ui: CoreOptions2D) -> void:
+	ui.populate_dip(_system.has_dip_tab(), _system.core_dip_menu_available(), _system.is_powered_on,
+		_system.core_dip_menu_open())
+
+
+## DIP tab button: the core's DIP screen opens (or shuts) on the cabinet's own screen.
+func _on_dip_menu_requested() -> void:
+	if _system and is_instance_valid(_system):
+		_system.toggle_core_dip_menu()
+		_populate()
 
 
 ## System-tab toggle (cabinets): the game's art on the marquee and sides.
