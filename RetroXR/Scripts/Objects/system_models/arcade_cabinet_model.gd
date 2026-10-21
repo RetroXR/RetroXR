@@ -92,9 +92,12 @@ const UPRIGHT_EPS := 0.0035
 ## While nobody holds it, a cabinet tends to STAND: released upright it stays upright; released
 ## leaning, or let fall, it turns back up about the horizontal. Its heading (the turn about UP) is
 ## left alone, the player's to choose. A hand, a frozen or locked cabinet is never touched.
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	var body := get_parent() as RigidBody3D
-	if body == null or body.freeze:
+	if body == null:
+		return
+	_update_ghost(body, delta)
+	if body.freeze:
 		return
 	if body.has_method("is_picked_up") and bool(body.call("is_picked_up")):
 		return
@@ -618,20 +621,240 @@ const HELD_TRANSPARENCY := 0.65
 
 
 func _on_host_grabbed(_pickable: Variant = null, _by: Variant = null) -> void:
+	print("[ArcadeCabinet] grabbed: going see-through (per-instance fade=%s)" % str(_per_instance_fade()))
+	_signal_held = true
+	_ghost_on = true
 	_set_transparency(HELD_TRANSPARENCY)
 
 
+## Let go: it stays a ghost while it settles (`_update_ghost` takes it from there), so a cabinet that
+## is dropped, thrown or pushed does not flash solid in front of the face on its way down.
 func _on_host_dropped(_pickable: Variant = null) -> void:
-	_set_transparency(0.0)
+	_signal_held = false
+	_ghost_settle = GHOST_SETTLE
+
+
+## A ghost while it is carried, however it was picked up (the signals can miss a path: a ray pull, a
+## spawn handed to a hand, the hold ring), and while it MOVES: pushed, dropped or falling, until it has
+## been still for GHOST_SETTLE seconds. Read off the body each physics tick, which costs nothing.
+const GHOST_SETTLE := 0.6
+const GHOST_SPEED := 0.15
+var _signal_held := false
+var _ghost_settle := 0.0
+var _ghost_on := false
+
+
+## Held by the VR ray (the laser grab), which is its own state in this fork's hand: the body is frozen
+## and moved onto its picked-up layer, but `pick_up()` is never called, so no `grabbed` is emitted and
+## `is_picked_up()` stays false (measured on the Quest: a cabinet carried that way stayed solid while
+## the signal paths saw nothing). The layer is the tell: any hold puts the body on `picked_up_layer`,
+## and a release puts it back on `original_collision_layer`.
+static func _ray_held(body: RigidBody3D) -> bool:
+	if not ("picked_up_layer" in body and "original_collision_layer" in body):
+		return false
+	var held_layer: int = body.get("picked_up_layer")
+	return body.collision_layer == held_layer and body.collision_layer != int(body.get("original_collision_layer"))
+
+
+func _update_ghost(body: RigidBody3D, delta: float) -> void:
+	var held := _signal_held or (body.has_method("is_picked_up") and bool(body.call("is_picked_up"))) \
+		or _ray_held(body)
+	var moving := not body.freeze and body.linear_velocity.length() > GHOST_SPEED
+	if held or moving:
+		_ghost_settle = GHOST_SETTLE
+	else:
+		_ghost_settle = maxf(0.0, _ghost_settle - delta)
+	var want := held or _ghost_settle > 0.0
+	# A bay docked or a board seated while it is a ghost (a fresh cabinet seeds its bay a moment after it
+	# spawns, which is exactly when it is in the hand) is dressed too.
+	if want and _ghost_on:
+		_relay_ghost()
+	if want != _ghost_on:
+		_ghost_on = want
+		print("[ArcadeCabinet] %s (held=%s moving=%s)" % ["see-through" if want else "solid again", str(held), str(moving)])
+		_set_transparency(HELD_TRANSPARENCY if want else 0.0)
 
 
 func _set_transparency(amount: float) -> void:
-	for n in find_children("*", "GeometryInstance3D", true, false):
-		(n as GeometryInstance3D).transparency = amount
+	if _per_instance_fade():
+		for n in find_children("*", "GeometryInstance3D", true, false):
+			(n as GeometryInstance3D).transparency = amount
+		return
+	_set_ghost_materials(amount)
 
+
+## Whether this renderer honours GeometryInstance3D.transparency. Forward+ does. The Quest runs the
+## mobile renderer, where a cabinet that was set to 0.65 stayed fully solid (reported 2026-10-21, a
+## 1.8 m box in front of the face), and the Compatibility renderer ignores it by its own docs.
+func _per_instance_fade() -> bool:
+	return RenderingServer.get_current_rendering_method() not in ["mobile", "gl_compatibility"]
+
+
+## The same look without the per-instance fade, done by a shader of our own: each opaque part wears,
+## while held, a copy of its material that DISCARDS most pixels in a fixed screen-space dither (no
+## alpha, no sorting and no blending of a huge surface, so nothing for a renderer to ignore: the
+## `ALPHA_HASH` copies this replaced were reported to leave the cabinet solid on the Quest, cause not
+## found, which is why the grab logs what it did).
+##
+## It covers everything that moves with the cabinet, not only the model: the machine's own parts (the
+## power button), the docked bay with the board standing in it, and the guns hanging in their
+## holsters (`_ghost_roots`). Per part: a `material_override` or a surface material that is a
+## BaseMaterial3D (the baked scene's, or one set from code) is swapped for a shared copy; a part with
+## no material wears a default grey; a ShaderMaterial (the monitor's picture, a board's sticker) cannot
+## be dithered, so that part is HIDDEN while the cabinet is a ghost; a Label3D is faded by its
+## modulate (text is small and a blend costs nothing). Shadows are switched off on every mesh. Each
+## change is recorded in `_ghosted`, so it can be undone exactly.
+func _set_ghost_materials(amount: float) -> void:
+	if amount <= 0.0:
+		for entry: Dictionary in _ghosted:
+			var node: Node = entry["node"]
+			if not is_instance_valid(node):
+				continue
+			match String(entry["kind"]):
+				"override":
+					(node as MeshInstance3D).material_override = entry["original"] as Material
+				"surface":
+					(node as MeshInstance3D).set_surface_override_material(int(entry["surface"]), entry["original"] as Material)
+				"hide":
+					(node as Node3D).visible = true
+				"label":
+					(node as Label3D).modulate = entry["original"] as Color
+				"shadow":
+					(node as GeometryInstance3D).cast_shadow = int(entry["original"]) as GeometryInstance3D.ShadowCastingSetting
+		_ghosted.clear()
+		return
+	if not _ghosted.is_empty():
+		return
+	var cache: Dictionary = {}
+	var plain := StandardMaterial3D.new()
+	plain.albedo_color = Color(0.78, 0.78, 0.8)
+	var roots := _ghost_roots()
+	_ghost_root_count = roots.size()
+	for root: Node in roots:
+		for n in root.find_children("*", "GeometryInstance3D", true, false):
+			_ghost_part(n as GeometryInstance3D, amount, cache, plain)
+	print("[ArcadeCabinet] held: %d changes over %d materials (renderer %s)"
+		% [_ghosted.size(), cache.size(), RenderingServer.get_current_rendering_method()])
+
+
+## Whatever moves with the cabinet and draws: the machine node (this model, its power button...), the
+## bay docked in it with the board in its slot, and each gun that is hanging in its holster.
+func _ghost_roots() -> Array[Node]:
+	var roots: Array[Node] = []
+	var host := get_parent()
+	roots.append(host if host != null else self)
+	if host != null and host.has_method("get_bay"):
+		var bay: Node = host.call("get_bay")
+		if bay != null:
+			roots.append(bay)
+			var slot: Variant = bay.get("slot")
+			if slot is XRToolsSnapZone and is_instance_valid((slot as XRToolsSnapZone).picked_up_object):
+				roots.append((slot as XRToolsSnapZone).picked_up_object)
+	if host != null and host.has_method("captive_controllers"):
+		for gun: Variant in host.call("captive_controllers"):
+			var well: Variant = gun.get("captive_well") if gun is Node else null
+			if well is XRToolsSnapZone and (well as XRToolsSnapZone).picked_up_object == gun:
+				roots.append(gun as Node)
+	return roots
+
+
+func _ghost_part(g: GeometryInstance3D, amount: float, cache: Dictionary, plain: BaseMaterial3D) -> void:
+	# No shadow from a ghost: the shadow pass over a 1.8 m box is the dearest thing it does.
+	if g.cast_shadow != GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+		_ghosted.append({"kind": "shadow", "node": g, "original": int(g.cast_shadow)})
+		g.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	if g is Label3D:
+		var label := g as Label3D
+		_ghosted.append({"kind": "label", "node": label, "original": label.modulate})
+		label.modulate = Color(label.modulate.r, label.modulate.g, label.modulate.b, label.modulate.a * (1.0 - amount))
+		return
+	var mi := g as MeshInstance3D
+	if mi == null or mi.mesh == null:
+		return
+	if mi.material_override != null:
+		if mi.material_override is BaseMaterial3D:
+			_ghosted.append({"kind": "override", "node": mi, "original": mi.material_override})
+			mi.material_override = _ghost_of(mi.material_override as BaseMaterial3D, amount, cache)
+		else:
+			_hide(mi)
+		return
+	for i in mi.mesh.get_surface_count():
+		var current: Material = mi.get_surface_override_material(i)
+		if current == null:
+			current = mi.mesh.surface_get_material(i)
+		if current == null:
+			current = plain
+		if current is BaseMaterial3D:
+			_ghosted.append({"kind": "surface", "node": mi, "surface": i, "original": mi.get_surface_override_material(i)})
+			mi.set_surface_override_material(i, _ghost_of(current as BaseMaterial3D, amount, cache))
+		else:
+			_hide(mi)
+			return
+
+
+## A part that cannot be dithered goes out of sight for as long as the cabinet is a ghost.
+func _hide(node: Node3D) -> void:
+	if node.visible:
+		_ghosted.append({"kind": "hide", "node": node})
+		node.visible = false
+
+
+const _GHOST_CODE := """
+shader_type spatial;
+render_mode unshaded, cull_back, fog_disabled;
+uniform vec4 albedo : source_color = vec4(1.0);
+uniform float keep = 0.35;
+void fragment() {
+	// Interleaved gradient noise: a fixed screen-space pattern, one pixel in `keep` survives. Flat
+	// colour and no light or texture on purpose: held, the cabinet is a ghost, and a Quest pays for
+	// every pixel of a 1.8 m box twice over in stereo.
+	float n = fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715))));
+	if (n > keep) {
+		discard;
+	}
+	ALBEDO = albedo.rgb;
+}
+"""
+
+## The one shader every ghost copy shares.
+static var _ghost_shader: Shader = null
+
+
+func _ghost_of(src: BaseMaterial3D, amount: float, cache: Dictionary) -> ShaderMaterial:
+	var ghost: ShaderMaterial = cache.get(src)
+	if ghost != null:
+		return ghost
+	if _ghost_shader == null:
+		_ghost_shader = Shader.new()
+		_ghost_shader.code = _GHOST_CODE
+	ghost = ShaderMaterial.new()
+	ghost.shader = _ghost_shader
+	ghost.set_shader_parameter("albedo", src.albedo_color)
+	ghost.set_shader_parameter("keep", 1.0 - amount)
+	cache[src] = ghost
+	return ghost
+
+
+## Lay the material ghost again when what moves with the cabinet is no longer what it was laid over.
+## Nothing to do with the per-instance fade (no `_ghosted` then).
+func _relay_ghost() -> void:
+	if _ghosted.is_empty() or _ghost_roots().size() == _ghost_root_count:
+		return
+	_set_ghost_materials(0.0)
+	_set_ghost_materials(HELD_TRANSPARENCY)
+
+
+## How many things were dressed as ghosts (the machine, its bay, its board, its guns): when it differs
+## from what moves with the cabinet now, the ghost is laid again.
+var _ghost_root_count := 0
+
+## What the ghost changed, to undo it: {kind (override|surface|hide|label|shadow), node, original, surface}.
+var _ghosted: Array[Dictionary] = []
 
 ## The transparency the cabinet's body is at, for the tests.
 func held_transparency() -> float:
+	if not _ghosted.is_empty():
+		return HELD_TRANSPARENCY
 	var body := find_child("SideL", true, false) as GeometryInstance3D
 	return body.transparency if body != null else 0.0
 

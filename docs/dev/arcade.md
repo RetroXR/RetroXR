@@ -380,6 +380,69 @@ AES is a separate software list). The Neo Geo tile now offers the cabinet (still
 `neogeoaes`; ES-DE has one `neogeo` folder. Both RomM names and both folders are the one `neogeo` system (`SystemIds.FOLDER_ALIASES`,
 `RommPlatforms.SLUG_MAP`): one system, one romset. Replace the estimates with measurements when photos with a ruler exist.
 
+## Quest 3 findings (2026-10-21)
+
+Five things found with the cabinets in a headset; what was done and what is still open.
+
+- **The gun always shot the middle.** The Quest's arcade core is `mame2003_plus` (`CoreRecommendations`), and every MAME core
+  before current MAME reads a game's X-Y from the MOUSE unless an option says otherwise: a gun that never moves a mouse leaves
+  the crosshair, and every shot, in the middle. `ForcedCoreOptions.LIGHTGUN_OPTION` now pins it for the run while any port holds
+  a gun: `mame` `mame_lightgun_mode`, `mame2003_plus` `mame2003-plus_xy_device`, `mame2010` `mame_current_xy_type` (names read out
+  of the cores' binaries; MAME 2010's values `mouse|lightgun|none` were read from the core itself, 2003-Plus's `lightgun` is from
+  its documentation, NOT measured: a probe of the real core's option table crashed in this sandbox). `mame2003` and
+  `mame2003_midway` have only a mouse-device option and are not covered. Along the way: `ScreenAim.picture_at` ignored the
+  arcade monitor's `fit_scale`, so a pillarboxed (vertical) game aimed off by the bars; and `light_gun.gd` carried two
+  `cable_instance()` (a rebase artefact: two commits had both added it), which is a parse error that takes `LightGun` and
+  `system.gd` with it. `arcade_variants_tests aim/` and `pedal/` pin all three.
+- **The holster held on.** A snap zone is taken by a hand only inside its `grab_distance`, measured to the zone's origin, and the
+  gun wells were 6 cm: the hand had to be put right on the seat. A gun's well is `RetroSystem.GUN_WELL_REACH` (13 cm) now. Not
+  measured in a headset: if it still feels sticky, the number is the lever.
+- **Every arcade core on Android.** Checked against the buildbot's `android/latest/arm64-v8a` listing (read 2026-10-21): every
+  arcade core it publishes files under `arcade` except `fbalpha` (the last full FB Alpha), which libretro's core-info set has no
+  entry for; `libretro-core-info-retroxr/fbalpha_libretro.info` adds it. `mamemess` is `mess`, a softlist build, and was left out.
+  `arcade_tests cores/` walks the list by its Android file names.
+- **Solid cabinets on the Quest.** `GeometryInstance3D.transparency` did nothing on the mobile renderer, so the held cabinet
+  stayed a solid 1.8 m box. Forward+ keeps the per-instance fade; mobile and Compatibility swap the body's `material_override`s
+  (the baked cabinet uses those, not mesh materials) for `ALPHA_HASH` copies while it is held and put them back after
+  (`_set_ghost_materials`). A part with an override of its own (the monitor) and parts with no material are left alone. The
+  first grab compiles the hashed shader variant on the device: a hitch, not measured. Test the headset path on a desktop with
+  `--rendering-method mobile`.
+- **No sound from the MAME cores on Quest: NOT FOUND.** The cabinet's routing (`SystemAudio`) was read end to end: it is not
+  socketed, its speakers are `audio_speaker_positions()`, and the Meta XR voices take a pose and a distance gain like any
+  machine's. Nothing arcade-specific explains silence there, and desktop plays (FBNeo `--audio` measured). Open leads: a core
+  too slow for the Quest (mame2015/2016 on a System 12 game would be) never fills the sink; and the single-sample
+  `retro_audio_sample` path pushes frames at the core's rate without resampling. `bind()` now logs one line
+  (`[SystemAudio] … bound N Meta XR voices, live=…, level=…`); the next logcat answers whether the voices were bound and live.
+
+### Second Quest pass (2026-10-21, from the logcat)
+
+The first fixes shipped, the run was read off the headset (`adb logcat -d`), and four things were still wrong:
+
+- **The Quest's current MAME is `mamearcade`**, not `mame` (the buildbot's Android name; MAME 0.289, 28 options, the same as `mame`
+  on the desktop). `ForcedCoreOptions.LIGHTGUN_OPTION` only knew `mame`, so no gun option was pinned. It now has `mamearcade` and
+  `mamemess`.
+- **Which MAME cores read a gun, measured** with `arcade_load_probe --options` (a core running `sf2.zip` on the gun cabinet; one core
+  per process): `mame` `mame_lightgun_mode` none|lightgun|touchscreen (default **none**); `mame2003_plus` `mame2003-plus_xy_device`
+  mouse|pointer|lightgun|disabled (default **mouse**); `mame2010` `mame_current_xy_type` mouse|lightgun|none (default **mouse**); FinalBurn Neo
+  lists a "Lightgun" device (id 4) and needs nothing. All of those are pinned and the run held the pinned value. `mame2003` has NO
+  gun value (`mame2003_mouse_device` mouse|pointer|disabled): it is pinned to `pointer` and `LightGun` reports its aim as a pointer
+  too (`ForcedCoreOptions.GUN_AS_POINTER`); `mame2003_midway` the same on its own key. Neither of those two was run with a gun game
+  (the only gun romsets here are modern). `mame2000` registered no options. NOT checked, no core to hand: `mame2015`, `mame2016`,
+  `hbmame` (Android-only builds), whose option names are unknown.
+- **START did not work on the gun in MAME 0.289.** A gun in a hand sends its stick click as the gun's own START and the grip as SELECT;
+  `mame2003_plus` reads those, MAME 0.289 reads a start and a credit off the JOYPAD only. `ArcadeInput` now also sends the HAND's START
+  and SELECT as the joypad's on that port (`LightGun.hand_button`), as it already did for the cabinet's own panel. A game that shows
+  nothing and plays no sound in attract mode until a credit and a start (many do, Point Blank 2 among them probably) looked "silent"
+  because it could not be started: the audio report of the same run may be this. `SystemAudio` now logs a health line 4 s and 14 s
+  after a bind (sink fill, brake, mixer underruns, active voices, gains) to tell a quiet game from a broken bridge.
+- **A cabinet's gun is held like any object.** The console gun's toggle-hold (the grip lets go and the gun is picked straight up again
+  until the drop combo) felt stuck on a cabinet, and the "back in the holster from anywhere" made it magnetic. A captive gun now falls
+  when let go and goes back only if it is let go AT the holster, whose snap zone takes it (`holster` group).
+- **Held cabinets are a dithered ghost on the mobile renderer, and cheap.** The `ALPHA_HASH` copies did not show on the Quest (cause not
+  found; the first logcat had no line to say whether the code ran, so there is one now: `[ArcadeCabinet] grabbed…` and
+  `held: N surfaces dithered…`). The copies are now ONE shared unshaded flat-colour shader that discards pixels in a screen-space
+  pattern (no alpha, no light, no texture), and the cabinet's shadow casting is switched off while it is held and restored after.
+
 ## The bay is its own object (2026-10-20)
 
 **What changed.** The bay (slot, board seat, harness socket) used to be baked into the cabinet. It is an `ArcadeBayUnit` now

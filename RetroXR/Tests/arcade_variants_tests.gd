@@ -126,6 +126,8 @@ func _run() -> void:
 	if _want("settle"):
 		await _group_settle()
 		await _clear()
+	if _want("ghost"):
+		await _group_ghost()
 	if _want("fire"):
 		await _group_fire()
 		await _clear()
@@ -361,6 +363,83 @@ func _group_settle() -> void:
 	await _clear()
 
 
+# --- ghost ---------------------------------------------------------------------
+
+## Everything that draws, under the machine and what is docked or hung on it.
+func _drawn_parts(sys: RetroSystem) -> Array[Node]:
+	var roots: Array[Node] = [sys]
+	var bay := sys.get_bay()
+	if bay != null:
+		roots.append(bay)
+	for gun in sys.captive_controllers():
+		roots.append(gun)
+	var out: Array[Node] = []
+	for r in roots:
+		for n in r.find_children("*", "GeometryInstance3D", true, false):
+			out.append(n)
+	return out
+
+
+func _is_ghosted(n: GeometryInstance3D) -> bool:
+	if n is Label3D:
+		return (n as Label3D).modulate.a < 0.5
+	var mi := n as MeshInstance3D
+	if mi == null or mi.mesh == null:
+		return false
+	var is_ghost := func(m: Material) -> bool:
+		return m is ShaderMaterial and (m as ShaderMaterial).shader != null \
+			and (m as ShaderMaterial).shader.code.contains("keep")
+	if is_ghost.call(mi.material_override):
+		return true
+	if mi.material_override != null:
+		return false
+	for i in mi.mesh.get_surface_count():
+		if not is_ghost.call(mi.get_surface_override_material(i)):
+			return false
+	return mi.mesh.get_surface_count() > 0
+
+
+## Every part of every cabinet goes see-through when it is carried: the model, the machine's own
+## button, the docked bay, the guns in their holsters. (A part that cannot be dithered is hidden,
+## which takes it out of what is counted here.) A Quest owner found parts left solid in 2026-10-21.
+func _group_ghost() -> void:
+	for id: String in VARIANTS:
+		var info: Array = VARIANTS[id]
+		var sys := await _machine(id, info[0], 30)
+		var model := sys.get_model() as RetroSystemModelArcadeCabinet
+		var before := _drawn_parts(sys).filter(func(n: Node) -> bool: return n.is_visible_in_tree()).size()
+		model._set_ghost_materials(RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)
+		var solid: Array[String] = []
+		var shown := 0
+		for n in _drawn_parts(sys):
+			if not n.is_visible_in_tree():
+				continue
+			shown += 1
+			if not _is_ghosted(n as GeometryInstance3D):
+				solid.append("%s %s" % [n.get_class(), str(n.get_path())])
+		_ok(solid.is_empty(), "ghost: %s has no part left solid while carried (%d of %d shown, left: %s)"
+			% [id, shown, before, str(solid.slice(0, 6))])
+		_ok(sys.get_bay() == null or _all_ghost_bay(sys), "ghost: %s's docked bay is see-through with it" % id)
+		# A bay that arrives (or a board seated) while it is a ghost is dressed too: a fresh cabinet seeds its
+		# bay a moment after it spawns, which is when it is in the hand.
+		model._ghost_root_count = 0
+		model._relay_ghost()
+		_ok(model._ghost_root_count > 0 and _all_ghost_bay(sys),
+			"ghost: %s lays the ghost again when what moves with it changes" % id)
+		model._set_ghost_materials(0.0)
+		var restored := _drawn_parts(sys).filter(func(n: Node) -> bool: return n.is_visible_in_tree()).size()
+		_ok(restored == before, "ghost: %s shows everything again when put down (%d, was %d)" % [id, restored, before])
+		await _clear()
+
+
+func _all_ghost_bay(sys: RetroSystem) -> bool:
+	for n in sys.get_bay().find_children("*", "MeshInstance3D", true, false):
+		var mi := n as MeshInstance3D
+		if mi.is_visible_in_tree() and mi.mesh != null and not _is_ghosted(mi):
+			return false
+	return true
+
+
 # --- fire ----------------------------------------------------------------------
 
 func _group_fire() -> void:
@@ -404,6 +483,21 @@ func _group_fire() -> void:
 	_ok(seen, "fire: a coin reaches the gun as its SELECT")
 	_ok(joypad_coin, "fire: and as the JOYPAD's SELECT on that port, the credit the cores count")
 	_ok(not gun.external_button(ControllerBindings.LIGHTGUN_SELECT), "fire: and is let go again")
+	# The gun in a HAND has START (stick click) and SELECT (grip) of its own. MAME 0.289 reads a start and a
+	# credit off the joypad only, so they are sent as the joypad's too (this was the Quest's "START does
+	# not work" on the shooting cabinet).
+	input.last_sent.clear()
+	gun._pressed_out[ControllerBindings.LIGHTGUN_START] = true
+	input._process(0.0)
+	_ok((int(input.last_sent.get(0, 0)) & (1 << ArcadeProfiles.START_BIT)) != 0,
+		"fire: START pressed on the gun in the hand is the joypad's START too")
+	_ok((int(input.last_sent.get(0, 0)) & (1 << ArcadeProfiles.COIN_BIT)) == 0, "fire: and only START")
+	gun._pressed_out.clear()
+	gun._pressed_out[ControllerBindings.LIGHTGUN_SELECT] = true
+	input._process(0.0)
+	_ok((int(input.last_sent.get(0, 0)) & (1 << ArcadeProfiles.COIN_BIT)) != 0,
+		"fire: and SELECT is the joypad's credit")
+	gun._pressed_out.clear()
 	sys.is_powered_on = false
 
 
@@ -431,6 +525,17 @@ func _group_aim() -> void:
 	var right := xf.basis.x.normalized() * (quad.size.x * 0.25 * xf.basis.x.length())
 	var hit2 := aim.hit(xf.origin + right + normal * 0.6, -normal)
 	_ok(not hit2.is_empty() and (hit2["picture"] as Vector2).x > 0.6, "aim: to the right of centre reads right of centre")
+	# A vertical game is pillarboxed on the glass (fit_scale.x < 1): a quarter of the glass to the right of
+	# centre is then further out in the PICTURE (0.75 of the glass is the picture: 0.5 + 0.25 / 0.75).
+	var fitted := ShaderMaterial.new()
+	fitted.shader = ArcadeScreenModule.SHADER
+	fitted.set_shader_parameter("fit_scale", Vector2(0.75, 1.0))
+	var kept := screen.get_surface_override_material(0)
+	screen.set_surface_override_material(0, fitted)
+	var hit3 := aim.hit(xf.origin + right + normal * 0.6, -normal)
+	_ok(not hit3.is_empty() and absf((hit3["picture"] as Vector2).x - 0.8333) < 0.02,
+		"aim: and a pillarboxed picture is measured on the picture, not the glass")
+	screen.set_surface_override_material(0, kept)
 	var miss := aim.hit(xf.origin + normal * 0.6 + Vector3(0, 3, 0), -normal)
 	_ok(miss.is_empty(), "aim: a ray past the glass reads off-screen")
 
@@ -454,6 +559,19 @@ func _group_pedal() -> void:
 		"pedal: MAME is told to read a gun when there is one")
 	_ok(ForcedCoreOptions.lightgun("mame", false).is_empty() and ForcedCoreOptions.lightgun("fbneo", true).is_empty(),
 		"pedal: and neither with no gun nor for FinalBurn Neo, which lists its own gun device")
+	# The Quest's arcade core and the older MAME read a game's X-Y from the MOUSE unless told: a gun that
+	# never moves a mouse left the crosshair, and every shot, in the middle.
+	_ok(ForcedCoreOptions.lightgun("mame2003_plus", true) == {"mame2003-plus_xy_device": "lightgun"},
+		"pedal: MAME 2003-Plus is told to read the gun for its X-Y device")
+	_ok(ForcedCoreOptions.lightgun("mamearcade", true) == {"mame_lightgun_mode": "lightgun"},
+		"pedal: and the Quest's current MAME, mamearcade, is told like mame")
+	_ok(ForcedCoreOptions.lightgun("mame2003", true) == {"mame2003_mouse_device": "pointer"}
+		and ForcedCoreOptions.gun_feeds_pointer("mame2003") and not ForcedCoreOptions.gun_feeds_pointer("mame2003_plus"),
+		"pedal: MAME 2003 has no gun value, so its gun is read as a pointer")
+	_ok(ForcedCoreOptions.lightgun("mame2010", true) == {"mame_current_xy_type": "lightgun"},
+		"pedal: and so is MAME 2010")
+	_ok(ForcedCoreOptions.lightgun("mame2003_plus", false).is_empty(),
+		"pedal: and neither with no gun")
 	_ok(gun_cab._all_forced_options("mame").get("mame_lightgun_mode", "") == "lightgun",
 		"pedal: the gun cabinet pins it for the run")
 	_ok(not generic._all_forced_options("mame").has("mame_lightgun_mode"),
@@ -772,6 +890,7 @@ func _group_holster() -> void:
 		var gun := guns[i] as LightGun
 		var well := gun.captive_well
 		_ok(well != null and well.picked_up_object == gun, "holster: gun %d sits in its holster to begin with" % (i + 1))
+		_ok(gun.press_to_hold, "holster: gun %d is held while the button is held, so letting go lets go" % (i + 1))
 		if well == null:
 			continue
 		var home := gun.global_position
@@ -785,10 +904,18 @@ func _group_holster() -> void:
 		gun.freeze = false
 		await _wait(2)
 		_ok(gun.global_position.distance_to(home) > 0.5, "holster: and carried a metre off")
-		# Let go: it goes back.
+		# Let go a metre away: it is NOT pulled back into the holster, it falls where it is.
 		gun.captive_well = well
 		gun.dropped.emit(gun)
 		await _wait(40)
-		_ok(well.picked_up_object == gun, "holster: let go, gun %d goes back in its holster" % (i + 1))
+		_ok(well.picked_up_object != gun, "holster: let go away from it, gun %d is not pulled back (it falls)" % (i + 1))
+		_ok(not gun._allow_drop, "holster: and the drop is not left armed for the next grab")
+		# Let go AT the holster: the zone takes it, exactly where it hung.
+		gun.global_position = home
+		gun.linear_velocity = Vector3.ZERO
+		await _wait(4)
+		gun.dropped.emit(gun)
+		await _wait(40)
+		_ok(well.picked_up_object == gun, "holster: let go at the holster, gun %d goes in" % (i + 1))
 		_ok(gun.global_position.distance_to(home) < 0.03, "holster: exactly where it hung (%.3f m off)" % gun.global_position.distance_to(home))
 		_ok(gun.get_connected_system() == sys, "holster: and is still plugged in")

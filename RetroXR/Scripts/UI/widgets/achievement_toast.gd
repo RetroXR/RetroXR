@@ -26,6 +26,9 @@ const PIXELS_PER_METRE := 1400.0
 
 const PANEL_W := 520.0
 const PANEL_H := 132.0
+## The tallest a card grows for a long message (a refused game names the core's own words, the files
+## it wants and where they go). Past this the text is cut, which is a card taller than a person.
+const PANEL_H_MAX := 900.0
 
 ## Trim colour per kind of card: gold for an unlock, red for a fault the player
 ## cannot fix from where they stand, orange for one they can (nothing in the
@@ -49,6 +52,9 @@ var _machine: Node3D = null
 ## Placement is stale for one frame after a show; physics interpolation would
 ## otherwise lerp the quad in from wherever it last sat.
 var _needs_interpolation_reset := false
+
+## The card's height now: PANEL_H, or taller when the message needs it (see _fit_height).
+var _panel_h := PANEL_H
 
 
 ## Attach a toast host to a cabinet. `screen` is the screen mesh it floats above,
@@ -144,7 +150,7 @@ func _place() -> void:
 
 	# Clear of the bezel, then half the panel so the gap is to its bottom edge,
 	# then a little proud of the screen plane so it never z-fights the picture.
-	var offset := frame.y * (ABOVE_SCREEN + (PANEL_H / PIXELS_PER_METRE) * 0.5) \
+	var offset := frame.y * (ABOVE_SCREEN + (_panel_h / PIXELS_PER_METRE) * 0.5) \
 		+ frame.z * 0.01
 
 	global_transform = Transform3D(frame, top_centre + offset)
@@ -164,11 +170,15 @@ func _detached_spot() -> Variant:
 ## Float at `spot`: a Transform3D hangs exactly there (parallel to whatever it was taken from);
 ## a Vector3 is turned to face the player and kept level.
 func _place_at(spot: Variant) -> void:
+	# The spot is where a standard card's CENTRE goes: a taller card keeps its bottom edge there and
+	# grows upward, so a long message does not sink into whatever the card floats in front of.
+	var grow := (_panel_h - PANEL_H) * 0.5 / PIXELS_PER_METRE
 	if spot is Transform3D:
 		var xf := spot as Transform3D
-		global_transform = Transform3D(xf.basis.orthonormalized(), xf.origin)
+		var frame := xf.basis.orthonormalized()
+		global_transform = Transform3D(frame, xf.origin + frame.y * grow)
 		return
-	global_position = spot as Vector3
+	global_position = (spot as Vector3) + Vector3.UP * grow
 	var cam := get_viewport().get_camera_3d()
 	if cam == null:
 		return
@@ -197,7 +207,7 @@ func _place_over_machine() -> void:
 		top_y = float(_machine.call("body_top_y"))
 	var origin := _machine.global_position
 	global_position = Vector3(origin.x,
-		top_y + ABOVE_MACHINE + (PANEL_H / PIXELS_PER_METRE) * 0.5,
+		top_y + ABOVE_MACHINE + (_panel_h / PIXELS_PER_METRE) * 0.5,
 		origin.z)
 
 	var cam := get_viewport().get_camera_3d()
@@ -269,11 +279,57 @@ func _next() -> void:
 	visible = true
 	set_process(true)
 
-	await get_tree().create_timer(DWELL).timeout
+	# Long enough to READ what is on it: a card for a refused game carries a paragraph.
+	var words := str(entry.get("title", "")).length() + str(entry.get("description", "")).length()
+	await get_tree().create_timer(dwell_for(words)).timeout
 	# The cabinet may have been powered off or freed while the toast was up.
 	if not is_inside_tree():
 		return
 	_next()
+
+
+## Seconds a card with this many characters stays up: DWELL, and a second more per 40 characters
+## past the first hundred, to 20.
+static func dwell_for(characters: int) -> float:
+	return minf(20.0, DWELL + maxf(0.0, float(characters - 100)) / 40.0)
+
+
+## How tall a card has to be for these lines, at the card's own width. The text is measured with the
+## theme's font and wrapped as the labels wrap it; a little is added for the difference between this
+## and what the labels settle on, and _refine_height takes it from there.
+static func height_for(title: String, description: String, has_badge: bool) -> float:
+	var font := ThemeDB.fallback_font
+	var inner := PANEL_W - 24.0 - 6.0 - (110.0 if has_badge else 0.0)
+	var h := font.get_height(15)
+	if not title.is_empty():
+		h += font.get_multiline_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, inner, 22).y
+	if not description.is_empty():
+		h += font.get_multiline_string_size(description, HORIZONTAL_ALIGNMENT_LEFT, inner, 15).y
+	return clampf(h * 1.08 + 24.0 + 6.0 + 8.0, PANEL_H, PANEL_H_MAX)
+
+
+## Size the card, the viewport that draws it and the quad that shows it to `h` pixels tall.
+func _fit_height(h: float) -> void:
+	_panel_h = h
+	_viewport.viewport_size = Vector2(PANEL_W, h)
+	_viewport.screen_size = Vector2(PANEL_W, h) / PIXELS_PER_METRE
+	if is_instance_valid(_root):
+		_root.custom_minimum_size = Vector2(PANEL_W, h)
+
+
+## One frame after the card is laid out, grow it if the labels came out taller than the estimate.
+func _refine_height() -> void:
+	await get_tree().process_frame
+	if not is_instance_valid(_root) or not is_instance_valid(_viewport):
+		return
+	var needed := clampf(_root.get_combined_minimum_size().y, PANEL_H, PANEL_H_MAX)
+	# The minimum includes the size this card was already given: only a label that wants more shows.
+	var wanted := 0.0
+	for label in _root.find_children("*", "Label", true, false):
+		wanted += (label as Label).get_minimum_size().y
+	wanted = clampf(wanted + 24.0 + 6.0 + 8.0, PANEL_H, PANEL_H_MAX)
+	if maxf(needed, wanted) > _panel_h + 1.0:
+		_fit_height(maxf(needed, wanted))
 
 
 ## Follow the machine. A cabinet is furniture but a handheld gets picked up and
@@ -364,3 +420,5 @@ func _render(entry: Dictionary) -> void:
 		push_warning("[AchievementToast] Viewport2DIn3D has no Viewport child")
 		return
 	sub.add_child(_root)
+	_fit_height(height_for(str(entry.get("title", "")), str(entry.get("description", "")), badge != null))
+	_refine_height()

@@ -698,7 +698,61 @@ func _group_hold() -> void:
 	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
 		"hold: in a hand it is see-through, so the room behind a 1.8 m box can be seen")
 	sys.emit_signal("dropped", sys)
-	_ok(cab.held_transparency() == 0.0, "hold: and solid again once put down")
+	await get_tree().create_timer(1.0).timeout
+	_ok(cab.held_transparency() == 0.0, "hold: and solid again once put down and still")
+	# However it is moved: no signal, just a body that is going somewhere.
+	sys.freeze = false
+	sys.linear_velocity = Vector3(1.0, 0.0, 0.0)
+	cab._update_ghost(sys, 0.016)
+	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
+		"hold: a cabinet that is MOVING is see-through too, with no grab at all")
+	sys.linear_velocity = Vector3.ZERO
+	sys.freeze = true
+	for i in 60:
+		cab._update_ghost(sys, 0.016)
+	_ok(cab.held_transparency() == 0.0, "hold: and solid again once it has been still")
+	# The VR ray grab never calls pick_up(): no signal, is_picked_up() false, the body frozen on its
+	# picked-up layer. That is a cabinet in the hand too (the Quest's "stays solid while I carry it").
+	sys.original_collision_layer = 1 << 3
+	sys.picked_up_layer = 1 << 16
+	sys.collision_layer = 1 << 16
+	sys.freeze = true
+	cab._update_ghost(sys, 0.016)
+	_ok(not sys.is_picked_up() and _near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
+		"hold: a cabinet carried on the laser (no pick_up, no signal) is see-through")
+	for i in 60:
+		cab._update_ghost(sys, 0.016)
+	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
+		"hold: and stays so for as long as it is carried, not just for a moment")
+	sys.collision_layer = sys.original_collision_layer
+	for i in 60:
+		cab._update_ghost(sys, 0.016)
+	_ok(cab.held_transparency() == 0.0, "hold: and solid again after the laser lets go")
+	# The Quest's mobile renderer ignored the per-instance fade, leaving a solid 1.8 m box in front of
+	# the face: there the body is swapped to dithered copies of its own materials while held.
+	var side := cab.find_child("SideL", true, false) as MeshInstance3D
+	var before := side.material_override
+	var shadow_before := side.cast_shadow
+	cab._set_ghost_materials(RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)
+	_ok(side.cast_shadow == GeometryInstance3D.SHADOW_CASTING_SETTING_OFF, "hold: and casts no shadow while it is a ghost")
+	var ghost := side.material_override as ShaderMaterial
+	_ok(ghost != null and absf(float(ghost.get_shader_parameter("keep")) - (1.0 - RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY)) < 0.001,
+		"hold: without the per-instance fade the body wears dithered copies")
+	_ok(_near(cab.held_transparency(), RetroSystemModelArcadeCabinet.HELD_TRANSPARENCY),
+		"hold: and says it is see-through")
+	var screen_mi := cab.get_builtin_screen()
+	# Dark, the glass is a plain material and is dithered like the rest; with a picture it is a shader
+	# that cannot be, and is out of sight while it is carried.
+	var glass := screen_mi.get_surface_override_material(0)
+	_ok(not screen_mi.visible or (glass is ShaderMaterial and (glass as ShaderMaterial).shader.code.contains("keep")),
+		"hold: the monitor is out of sight or dithered while it is carried")
+	cab._set_ghost_materials(0.0)
+	_ok(screen_mi.visible and not (screen_mi.get_surface_override_material(0) is ShaderMaterial
+		and (screen_mi.get_surface_override_material(0) as ShaderMaterial).shader.code.contains("keep")),
+		"hold: the monitor comes back")
+	_ok(side.cast_shadow == shadow_before, "hold: the shadow comes back with it")
+	_ok(side.material_override == before and cab.held_transparency() == 0.0,
+		"hold: and the copies go when it is put down")
 	var plain := SYSTEM_SCENE.instantiate() as Node3D
 	plain.model_id = "placeholder"
 	plain.systemid = "nes"
@@ -780,6 +834,29 @@ func _group_panel() -> void:
 		"panel: and so is the one over its screen")
 	_ok(plain.toast_anchor_world() == null, "panel: other machines keep their notices where they were")
 
+	# A long notice (a refused game quotes the core, the files it wants, where they go) is shown WHOLE:
+	# the card grows with the message instead of cutting it off at 132 px (Quest, 2026-10-21).
+	_ok(is_equal_approx(AchievementToast.height_for("Could not start", "Short.", false), AchievementToast.PANEL_H),
+		"toast: a short message keeps the standard card")
+	var long_text := "This core refused the game.\n"
+	for i in 4:
+		long_text += "daphne-libretro: In retro_load_game, path is: /sdcard/Android/data/com.xenu.retroxr.side/files/roms/daphne/lair.zip\n"
+	var bottom_before := mt.global_position.y - AchievementToast.PANEL_H * 0.5 / AchievementToast.PIXELS_PER_METRE
+	mt.show_notice("Arcade (Daphne)", "Could not start", long_text)
+	await _wait(4)
+	_ok(mt._panel_h > AchievementToast.PANEL_H + 50.0, "toast: a long notice makes the card taller (%.0f px)" % mt._panel_h)
+	_ok(absf(mt._viewport.viewport_size.y - mt._panel_h) < 0.5
+		and absf(mt._viewport.screen_size.y * AchievementToast.PIXELS_PER_METRE - mt._panel_h) < 0.5,
+		"toast: the viewport and the quad are that tall")
+	var text_h := 0.0
+	for label in mt._root.find_children("*", "Label", true, false):
+		text_h += (label as Label).get_minimum_size().y
+	_ok(text_h + 30.0 <= mt._panel_h + 1.0, "toast: and the text fits in it (%.0f of %.0f px)" % [text_h, mt._panel_h])
+	var bottom_after := mt.global_position.y - mt._panel_h * 0.5 / AchievementToast.PIXELS_PER_METRE
+	_ok(absf(bottom_after - bottom_before) < 0.02, "toast: it grows upward, its bottom edge stays where it was")
+	_ok(AchievementToast.dwell_for(10) == AchievementToast.DWELL and AchievementToast.dwell_for(500) > AchievementToast.DWELL,
+		"toast: a longer message stays up longer")
+
 	# The System tab picks the core THIS machine runs.
 	var ui := preload("res://Scenes/UI/core_options_2d.tscn").instantiate() as CoreOptions2D
 	add_child(ui)
@@ -856,6 +933,18 @@ func _group_art() -> void:
 	_ok(not RetroSystem.core_serves_machine(["nes"], "mame"), "cores: but not a console's")
 	_ok(RetroSystem.core_serves_machine(["nes"], "nes") and not RetroSystem.core_serves_machine(["fbneo"], "nes"),
 		"cores: and any other machine keeps its own system's cores only")
+	# Every arcade core the libretro buildbot publishes for Android (arm64-v8a, read 2026-10-21) is one
+	# the app knows by its Android file name and files under the arcade cabinet.
+	var droid := PackedStringArray(["_libretro_android"])
+	var db := CoreInfoDatabase.shared()
+	for cn: String in ["fbalpha", "fbalpha2012", "fbalpha2012_cps1", "fbalpha2012_cps2", "fbalpha2012_cps3",
+			"fbalpha2012_neogeo", "fbneo", "hbmame", "mame2000", "mame2003", "mame2003_midway",
+			"mame2003_plus", "mame2010", "mame2015", "mame2016", "mamearcade"]:
+		_ok(CoreDownloadManager.core_name_from_lib_filename(cn + "_libretro_android.so", droid, ".so") == cn,
+			"android cores: %s's library file is read back as its name" % cn)
+		var sids := CoreInfoDatabase.systemids_of(db.get_by_core_name(cn))
+		_ok(RetroSystem.core_serves_machine(sids, "arcade"),
+			"android cores: %s is an arcade core (%s)" % [cn, str(sids)])
 
 
 # --- seat ----------------------------------------------------------------------

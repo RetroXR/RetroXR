@@ -84,6 +84,10 @@ func _captive_cord_length(pad: Node3D) -> float:
 	return declared if declared > 0.0 else 1.8
 
 
+## How far from a holster's seat a hand still takes the gun out of it, in metres.
+const GUN_WELL_REACH := 0.13
+
+
 ## The recess a captive pad lies in, as a snap zone, so it can be put back where
 ## it came from. Its transform IS the rest: a pad carries no snap grab point, so
 ## a zone seats one at its own basis (measured, not assumed).
@@ -97,7 +101,9 @@ func _build_controller_well(index: int, rest: Transform3D, pad: Node3D) -> void:
 	well.name = "ControllerWell%d" % (index + 1)
 	well.snap_require = "hand_held_device"
 	well.snap_filter = _accepts_captive_pad.bind(index)
-	well.grab_distance = 0.06
+	# A gun is taken from the hand's reach at its grip, not by hunting for the one point the zone
+	# sits on: 6 cm made a holster feel magnetic, the hand had to be pulled right onto it.
+	well.grab_distance = GUN_WELL_REACH if pad is LightGun else 0.06
 	_host.add_child(well)
 	well.transform = rest
 	_controller_wells.append(well)

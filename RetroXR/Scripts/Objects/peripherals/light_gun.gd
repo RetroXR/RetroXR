@@ -130,12 +130,6 @@ var captive_cord_route: PackedVector3Array = PackedVector3Array()
 var captive_well: XRToolsSnapZone = null
 
 
-## The cord spawned for this gun, or null. Parented to the scene root, not to the gun, so
-## whatever disposes of the gun has to dispose of this too.
-func cable_instance() -> Node3D:
-	return _cable_instance
-
-
 ## The plug on the end of the cord, or null until the cord has been made (a deferred call).
 func get_plug() -> ControllerPlug:
 	return _cable_plug
@@ -209,7 +203,9 @@ func wants_ray_handoff() -> bool:
 
 func _ready() -> void:
 	super._ready()
-	press_to_hold = false
+	# A console's gun is a toggle (take it, it stays until the drop combo); a cabinet's is held while the
+	# button is held: let go and the hand lets go, so it falls (or goes in the holster it is over).
+	press_to_hold = captive
 	if not captive:
 		add_to_group("spawned")
 	add_to_group(ControllerBindings.CONSUMER_GROUP)
@@ -260,6 +256,12 @@ func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 
 
 func _on_dropped_signal(_pickable: Node3D) -> void:
+	# A cabinet's gun is held like any object: let go of it and it FALLS, unless it is let go at the
+	# holster, whose snap zone takes it itself. The toggle-hold below (the grip lets go and the gun
+	# is picked straight up again, until the drop combo) is the console gun's, and made a cabinet's
+	# feel stuck to the hand; the old "goes back in its holster from anywhere" made it magnetic.
+	if captive:
+		_allow_drop = true
 	if not _allow_drop and is_instance_valid(_saved_by):
 		PokeTip.begin_rehold(_holding_ctrl)
 		call_deferred("_rehold")
@@ -274,22 +276,6 @@ func _on_dropped_signal(_pickable: Node3D) -> void:
 		_desktop_held = false
 		_laser_dot.visible = false
 		_update_locomotion_block()
-		# A cabinet's gun goes back in its holster when let go. Deferred, so that a hand taking it
-		# out of the holster (the zone lets go, then the hand picks it up, in the same frame) is
-		# not undone, and so that the zone is free to take it.
-		if captive:
-			_return_to_well.call_deferred()
-
-
-## Back in the holster, unless something has taken it again. Only a gun that came out of one.
-func _return_to_well() -> void:
-	if not captive or not is_instance_valid(captive_well) or not captive_well.enabled:
-		return
-	if is_picked_up() or captive_well.picked_up_object == self:
-		return
-	linear_velocity = Vector3.ZERO
-	angular_velocity = Vector3.ZERO
-	captive_well.pick_up_object(self)
 
 
 func _rehold() -> void:
@@ -692,6 +678,8 @@ func _apply_aim_hit(libretro: Libretro, ray_origin: Vector3, ray_dir: Vector3) -
 	var hit := aim.hit(ray_origin, ray_dir) if aim != null else {}
 	if hit.is_empty():
 		_set_aim(libretro, 0, 0, true)
+		if _feeds_pointer():
+			libretro.SetPointerState(_port_index, 0, 0, false)
 		_laser_dot.visible = false
 		return
 
@@ -699,6 +687,9 @@ func _apply_aim_hit(libretro: Libretro, ray_origin: Vector3, ray_dir: Vector3) -
 	var lx := int((picture.x * 2.0 - 1.0) * 32767)
 	var ly := int((picture.y * 2.0 - 1.0) * 32767)
 	_set_aim(libretro, lx, ly, false)
+	if _feeds_pointer():
+		libretro.SetPointerState(_port_index, lx, ly,
+			hand_button(ControllerBindings.LIGHTGUN_TRIGGER) or external_button(ControllerBindings.LIGHTGUN_TRIGGER))
 
 	# On the glass where the ray met it, just proud of it toward the gun.
 	_laser_dot.visible = show_laser_dot
@@ -718,6 +709,28 @@ func set_external_button(lid: int, down: bool) -> void:
 	_external[lid] = down
 	if _connected_system != null and _port_index >= 0:
 		_set_button(_connected_system.get_libretro_node(), lid, false)
+
+
+## Whether the HAND is holding a button down (the machine's own presses, set_external_button, left
+## out). ArcadeInput reads START and SELECT here to send them as the joypad's as well.
+func hand_button(lid: int) -> bool:
+	return bool(_pressed_out.get(lid, false))
+
+
+## Whether this gun's core can only read an aimed gun as a pointer (ForcedCoreOptions.GUN_AS_POINTER).
+## Asked of the machine twice a second, not per frame.
+var _pointer_checked_at := -1000
+var _pointer_core := false
+
+
+func _feeds_pointer() -> bool:
+	if _connected_system == null:
+		return false
+	var now := Engine.get_process_frames()
+	if now - _pointer_checked_at > 30:
+		_pointer_checked_at = now
+		_pointer_core = ForcedCoreOptions.gun_feeds_pointer(String(_connected_system.call("_resolve_core")))
+	return _pointer_core
 
 
 ## The machine-pressed state of one button, for the tests.
