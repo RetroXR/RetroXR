@@ -664,6 +664,23 @@ func build_serial_port(_host: Node3D, _systemid: String) -> void:
 	pass
 
 
+## Whether this shell has an RJ45 socket of its own -- a slim PlayStation 2 has
+## its network adapter built in, where a fat one takes a card -- and if so the
+## link-bus port its core attaches it on (1 for a PS2); -1 for a console whose
+## adapter is a card, or that has none. RetroSystem then builds the socket and
+## the console counts as having its adapter in (ForcedCoreOptions.ethernet_adapter).
+func builtin_ethernet_port() -> int:
+	return -1
+
+
+## Where a built-in RJ45 socket goes. A shell that draws one puts it there; this
+## puts it at the end of the back panel, turned as the serial socket is so its +Z
+## points out of the panel.
+func place_builtin_ethernet_port(port: Node3D) -> void:
+	port.position = Vector3(-0.075, 0.0, -0.126)
+	port.rotation = Vector3(PI, 0.0, 0.0)
+
+
 func build_disc_slit(_host: Node3D, _systemid: String) -> void:
 	pass
 

@@ -519,6 +519,8 @@ func _build() -> void:
 		["JagLink Cable",  "jag_link_cable"],
 		["i.LINK Cable",   "ilink_cable"],
 		["i.LINK Hub",     "ilink_hub"],
+		["Ethernet Cable", "ethernet_cable"],
+		["Ethernet Hub",   "ethernet_hub"],
 		["Speakers",       "speaker_pair"],
 		# A surround rig: a satellite per channel and one subwoofer, each cabled to
 		# a socket on the back of the set with a speaker lead.

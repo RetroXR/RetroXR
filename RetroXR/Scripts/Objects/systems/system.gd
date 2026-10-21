@@ -732,6 +732,7 @@ func _load_system_model() -> void:
 	# the same reason the A/V sockets are: it goes on the back panel, and only
 	# the thing that draws the back panel knows where that is.
 	_model.build_serial_port(self, systemid)
+	_build_builtin_ethernet_port()
 	_model.configure_collision(self)
 	_build_port_zones()
 	_build_usb_ports()
@@ -3247,7 +3248,7 @@ func _removable_media_options(core: String) -> Dictionary:
 
 func _all_forced_options(core: String) -> Dictionary:
 	var out: Dictionary = _model.get_forced_core_options() if _model != null else {}
-	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, expansion_ids(),
+	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _hardware_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
 	if _sega_cd != null:
 		out.merge(_sega_cd.forced_options_for(core), true)
@@ -3498,6 +3499,7 @@ func attach_expansion(unit: RetroExpansion) -> void:
 	if not unit.card_swiped.is_connected(_on_expansion_card_swiped):
 		unit.card_swiped.connect(_on_expansion_card_swiped)
 	_update_name_label()
+	_notice_adapter_change(unit, true)
 
 
 func detach_expansion(unit: RetroExpansion) -> void:
@@ -3507,6 +3509,19 @@ func detach_expansion(unit: RetroExpansion) -> void:
 		unit.card_swiped.disconnect(_on_expansion_card_swiped)
 	_expansions.erase(unit)
 	_update_name_label()
+	_notice_adapter_change(unit, false)
+
+
+## A network adapter changes what the core is told at power-on and nothing while
+## it runs -- both cores read their adapter option once, at load -- so a card put
+## in or taken out of a running console says when it will count.
+func _notice_adapter_change(unit: RetroExpansion, seated: bool) -> void:
+	if not is_powered_on or ExpansionCatalog.ethernet_port_of(unit.expansion_id) < 0:
+		return
+	_machine_toast().show_notice(display_name_for_toast(),
+		"%s %s" % [ExpansionCatalog.label_of(unit.expansion_id), "in" if seated else "out"],
+		"Switch the console off and on again for it to count.",
+		AchievementToast.ACCENT_WAITING)
 
 
 ## A dotcode card was slid through an expansion's groove.
@@ -3624,6 +3639,32 @@ func expansion_ids() -> Array[String]:
 		if is_instance_valid(unit) and not unit.expansion_id.is_empty():
 			ids.append(unit.expansion_id)
 	return ExpansionCatalog.sorted_ids(ids)
+
+
+## What the hardware pins are worked out from: the units seated, and the network
+## adapter a shell has built in (a slim PS2's) as if it were the card. Not
+## expansion_ids itself, which also names what is SEATED for boot recipes and
+## saves, and a built-in socket is neither.
+func _hardware_ids() -> Array[String]:
+	var ids := expansion_ids()
+	if _model != null and _model.builtin_ethernet_port() >= 0:
+		var card := ExpansionCatalog.network_adapter_for(systemid)
+		if not card.is_empty() and not ids.has(card):
+			ids.append(card)
+	return ids
+
+
+## A shell's own RJ45 socket, for a model that says it has one (a slim PS2).
+func _build_builtin_ethernet_port() -> void:
+	var link_port := _model.builtin_ethernet_port()
+	if link_port < 0 or get_node_or_null("EthernetPort") != null:
+		return
+	var scene := load("res://Scenes/Objects/cables/ethernet_port.tscn") as PackedScene
+	var port := scene.instantiate() as EthernetPort
+	port.name = "EthernetPort"
+	port.link_port = link_port
+	add_child(port)
+	_model.place_builtin_ethernet_port(port)
 
 
 ## The units themselves, for whoever needs the objects rather than the names.

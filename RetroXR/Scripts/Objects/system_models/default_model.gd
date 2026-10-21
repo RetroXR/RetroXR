@@ -60,8 +60,16 @@ func configure_expansion_socket(socket: Node3D) -> void:
 ## A Saturn's Video CD Card goes in flat through the back panel, at the end away
 ## from the A/V row and the serial socket (x 0.045 and up), with the end of it left
 ## out as a handle. The real slot is behind the battery door; the box has none.
+##
+## So does a network adapter, for the same reason: the fat PS2's expansion bay and
+## the GameCube's Serial Port 1 (which is really underneath) at the end of the back
+## panel clear of the A/V row and the i.LINK socket, its RJ45 on the end left out.
+## The base's back-centre would put the PS2's card across the i.LINK plate.
+const _BACK_CARD_SOCKETS := ["mpeg_card", "expansion_bay", "serial_port_1"]
+
+
 func configure_unit_socket(socket_id: String, socket: Node3D) -> void:
-	if socket_id != "mpeg_card" or not (socket is XRToolsSnapZone):
+	if not _BACK_CARD_SOCKETS.has(socket_id) or not (socket is XRToolsSnapZone):
 		super(socket_id, socket)
 		return
 	ProceduralDiscBay.seat_back_card_slot(socket as XRToolsSnapZone,

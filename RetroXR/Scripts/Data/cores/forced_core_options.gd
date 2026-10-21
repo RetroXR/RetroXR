@@ -36,7 +36,31 @@ static func all(core: String, systemid: String, rom_path: String,
 	out.merge(microphone_hotkey(core, systemid), true)
 	out.merge(dolphin_console(core, systemid), true)
 	out.merge(game_boy_model(core, systemid), true)
+	out.merge(ethernet_adapter(core, systemid, expansions), true)
 	return out
+
+
+## A network adapter in the console: its socket is the frontend's link bus
+## (EthernetBus), protocol "ethernet-1", so an Ethernet cable from it to a hub
+## puts the console on a LAN. Both directions, for the Expansion Pak's reason:
+## a console with no adapter has no network, whatever a previous run left in the
+## option file.
+##
+## Dolphin's SP1 device: "15" is the Ethernet Link Cable (the fork's
+## EXIDeviceType::EthernetLink), "255" nothing. Pinned on the Wii too, which
+## shares the one dolphin.opt with the GameCube: a "15" left by a GameCube run
+## would otherwise reach a Wii playing a GameCube disc. Read at boot.
+##
+## The PS2 fork's pcsx2_dev9_eth: "link" is the cable, "disabled" no adapter.
+## "enabled" (Sockets, the host's network) is not a piece of hardware and is not
+## offered by the room. Read when content loads.
+static func ethernet_adapter(core: String, systemid: String, expansions: Array) -> Dictionary:
+	if core.begins_with("dolphin") and (systemid == "gc" or systemid == "wii"):
+		var bba := systemid == "gc" and expansions.has("gamecube_broadband_adapter")
+		return {"dolphin_gc_sp1": "15" if bba else "255"}
+	if core == "pcsx2" and systemid == "ps2":
+		return {"pcsx2_dev9_eth": "link" if expansions.has("ps2_network_adapter") else "disabled"}
+	return {}
 
 
 ## Which Game Boy mGBA is. Left on Autodetect it reads the cartridge, and a

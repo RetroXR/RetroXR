@@ -208,6 +208,8 @@ const JAG_LINK_CABLE_SCENE  := preload("res://Scenes/Objects/cables/jag_link_cab
 const ILINK_CABLE_SCENE      := preload("res://Scenes/Objects/cables/ilink_cable.tscn")
 const ILINK_HUB_SCENE        := preload("res://Scenes/Objects/cables/ilink_hub.tscn")
 const GB_PRINTER_SCENE       := preload("res://Scenes/Objects/peripherals/gb_printer.tscn")
+const ETHERNET_CABLE_SCENE   := preload("res://Scenes/Objects/cables/ethernet_cable.tscn")
+const ETHERNET_HUB_SCENE     := preload("res://Scenes/Objects/cables/ethernet_hub.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
@@ -287,6 +289,7 @@ const LEAD_SCENES := {
 	"saturn_link_cable": SATURN_LINK_CABLE_SCENE,
 	"jag_link_cable": JAG_LINK_CABLE_SCENE,
 	"ilink_cable": ILINK_CABLE_SCENE,
+	"ethernet_cable": ETHERNET_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
 	"antenna": ANTENNA_SCENE,
 	"power_cord": POWER_CORD_SCENE,
@@ -316,6 +319,8 @@ const PLAIN_SCENES := {
 	# Pose only, like the hub: the lead in its EXT.IN socket is saved by the LEAD,
 	# and it comes back switched off. Paper already torn off is a poster of its own.
 	"gb_printer": GB_PRINTER_SCENE,
+	# Pose only, for the i.LINK hub's reason.
+	"ethernet_hub": ETHERNET_HUB_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
 	# Slots written before the rename say "ray_gun".
 	"ray_gun": LIGHT_GUN_SCENE,
@@ -2139,6 +2144,8 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	elif node is GbPrinter:
 		# Pose only, for the hub's reason.
 		return _base(id, "gb_printer", n3d)
+	elif node is EthernetHub:
+		return _base(id, "ethernet_hub", n3d)
 	elif node is Table:
 		# Pose only. Being in PLAIN_SCENES is not enough on its own — that map is
 		# read when LOADING, so without this branch a table is never written and

@@ -1,0 +1,138 @@
+# Gran Turismo 4 (USA), two PlayStation 2s on the room's Ethernet hub, through to
+# the course select of a Multi-LAN Race. For lan_probe.tscn:
+#   --core=pcsx2 --count=2 --rom=".../Gran Turismo 4 (USA).chd" --cmd=<this file>
+# Each root's pcsx2.opt needs pcsx2_dev9_eth = "link"; the run that recorded this
+# used the Software (HW) renderer (the hardware Vulkan GS faults the GPU at the LAN
+# car select -- docs/dev/ethernet-lan.md) and fast boot.
+# Recorded against each console's own memory card already holding a GT4 save, so
+# the walk lands on the same menus; a different card lands on different ones.
+# Console 1 connects first (a client); console 0 creates the network configuration
+# (DHCP), sets itself Host with two players under Option > Options > LAN Settings
+# -- not kept across a reboot -- and connects last. RetroPad B is CROSS.
+wait 500
+press all start
+wait 120
+press all start
+wait 120
+press all start
+wait 120
+press all start
+wait 120
+press all start
+wait 300
+shot s_title
+press all b
+wait 300
+shot s_mode
+press 1 right
+wait 30
+press 1 down
+wait 30
+press 1 b
+press 0 b
+wait 300
+press 1 down
+press 0 b
+wait 30
+press 1 b
+wait 60
+press 1 down
+wait 30
+press 1 down
+wait 30
+shot s_c1connect
+press 1 b
+press 0 b
+wait 300
+press 0 b
+wait 300
+press 0 b
+wait 200
+press 0 b
+wait 200
+press 0 b
+wait 300
+press 0 b
+wait 300
+press 0 b
+wait 800
+shot s_racemenu
+press 0 right
+wait 30
+press 0 right
+wait 30
+press 0 right
+wait 30
+press 0 b
+wait 300
+press 0 down
+wait 30
+press 0 right
+wait 30
+press 0 right
+wait 30
+press 0 b
+wait 200
+press 0 down
+wait 30
+press 0 b
+wait 40
+press 0 up
+wait 30
+press 0 b
+wait 40
+press 0 down
+wait 30
+press 0 b
+wait 30
+press 0 right
+wait 30
+press 0 b
+wait 30
+press 0 up
+wait 30
+press 0 up
+wait 30
+press 0 up
+wait 30
+shot s_lanset
+press 0 b
+wait 200
+press 0 down
+wait 30
+press 0 right
+wait 30
+press 0 right
+wait 30
+press 0 right
+wait 30
+press 0 right
+wait 30
+press 0 b
+wait 100
+press 0 b
+wait 500
+press 0 right
+wait 30
+press 0 b
+wait 400
+press 0 x
+wait 300
+press 0 right
+wait 30
+press 0 down
+wait 30
+press 0 b
+wait 300
+press 0 down
+wait 30
+press 0 b
+wait 60
+press 0 down
+wait 30
+press 0 down
+wait 30
+shot s_c0connect
+press 0 b
+wait 1500
+shot s_course

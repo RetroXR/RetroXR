@@ -286,6 +286,17 @@ const _ILINK_CABLE: Dictionary = {"kind": "peripheral", "label": "i.LINK Cable",
 const _ILINK_HUB: Dictionary = {"kind": "peripheral", "label": "i.LINK Hub",
 	"spawn": "ilink_hub"}
 
+## LAN play (EthernetBus): a patch lead and the hub that puts up to eight
+## consoles on one LAN. Offered on both platforms that had a network adapter
+## games used for LAN play -- the GameCube's Broadband Adapter (Mario Kart:
+## Double Dash!!) and the PlayStation 2's (Gran Turismo 4) -- and they share the
+## one hub and the one lead, as they would on a real LAN.
+const _ETHERNET_CABLE: Dictionary = {"kind": "peripheral", "label": "Ethernet Cable",
+	"spawn": "ethernet_cable"}
+const _ETHERNET_HUB: Dictionary = {"kind": "peripheral", "label": "Ethernet Hub",
+	"spawn": "ethernet_hub"}
+const _ETHERNET_PLATFORMS: Array = ["gc", "ps2"]
+
 ## ComLynx chains: every cable has a pass-through socket on its plug, so a third
 ## Lynx (up to eight) joins where the last one plugs in. That is the GBA lead's
 ## shape -- two ends and a junction -- under Atari's name, keyed to Lynxes alone.
@@ -585,6 +596,9 @@ static func _items_for(systemid: String) -> Array:
 		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
 	if systemid == "ps2":
 		items.append(_ILINK_HUB.duplicate())
+	if _ETHERNET_PLATFORMS.has(systemid):
+		items.append(_ETHERNET_CABLE.duplicate())
+		items.append(_ETHERNET_HUB.duplicate())
 	if _GC_GBA_PLATFORMS.has(systemid):
 		items.append(_GC_GBA_CABLE.duplicate())
 	var info := SystemInfo.for_system(systemid)

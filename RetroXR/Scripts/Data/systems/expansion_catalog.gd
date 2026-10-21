@@ -100,6 +100,12 @@
 ##               a cartridge goes in and out of the slot behind the lid. The console
 ##               grows the socket (RetroSystem._build_unit_sockets) and the model
 ##               places it (RetroSystemModel.configure_unit_socket). Absent, "".
+##   ethernet_port
+##               a network adapter's RJ45 socket, on the face left outside the
+##               console, and the link-bus port its core attaches the cable on:
+##               4 for the GameCube's Broadband Adapter, 1 for the PS2's Network
+##               Adapter. The unit grows an EthernetPort; EthernetBus walks from it
+##               to the console it is seated on. Absent, no socket.
 ##   default_occupant
 ##               this unit comes pre-installed on a bare console — a Jumper
 ##               Pak, not something a player goes looking for. RetroSystem
@@ -160,6 +166,8 @@ const _UNITS: Array = [
 	preload("res://Scripts/Data/systems/expansions/ereader.gd"),
 	preload("res://Scripts/Data/systems/expansions/ereader_plus.gd"),
 	preload("res://Scripts/Data/systems/expansions/ereader_usa.gd"),
+	preload("res://Scripts/Data/systems/expansions/gamecube_broadband_adapter.gd"),
+	preload("res://Scripts/Data/systems/expansions/ps2_network_adapter.gd"),
 ]
 
 ## The canonical order of the units, and it is LOAD-BEARING: sorted_ids() hands
@@ -174,6 +182,7 @@ const _ORDER: Array = [
 	"sega_saturn_ram_cart", "sega_saturn_extram_1m", "sega_saturn_extram_4m",
 	"sega_saturn_kof95_rom", "sega_saturn_ultraman_rom", "sega_saturn_vcd_card",
 	"pc_engine_cd", "jaguar_cd", "ereader", "ereader_plus", "ereader_usa",
+	"gamecube_broadband_adapter", "ps2_network_adapter",
 ]
 
 
@@ -883,6 +892,22 @@ static func host_takes_top_unit(host: String) -> bool:
 ## they share, else the name of one of its own. See the row docs above.
 static func socket_of(id: String) -> String:
 	return str(row(id).get("socket", ""))
+
+
+## For a network adapter, the link-bus port its core attaches the Ethernet cable
+## on (EthernetPort.link_port); -1 for a unit with no RJ45 socket. The row's
+## `ethernet_port`.
+static func ethernet_port_of(id: String) -> int:
+	return int(row(id).get("ethernet_port", -1))
+
+
+## The network adapter card a console takes, or "" for one that takes none. What a
+## shell with the socket built in counts as having seated.
+static func network_adapter_for(host: String) -> String:
+	for id: String in ids_for_host(host):
+		if ethernet_port_of(id) >= 0:
+			return id
+	return ""
 
 
 ## The size a console's socket of its own has to take: the largest unit that goes

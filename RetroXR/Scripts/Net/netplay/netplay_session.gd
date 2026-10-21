@@ -1843,7 +1843,10 @@ func _all_cores_at_link_boundary(frame: int) -> bool:
 ## decides which conversation it is having: another handheld on a link cable, or
 ## a console on a GameCube lead. The frontend keeps a port per conversation and
 ## the cable picks which one it means.
-const LINK_PORTS: Array[int] = [0, 1]
+##
+## And 4: a GameCube's Broadband Adapter, on a LAN (EthernetBus). The PS2's network
+## adapter is 1, beside its i.LINK 0, so it is already counted.
+const LINK_PORTS: Array[int] = [0, 1, 4]
 
 
 ## Whether this session's machines can roll back as one cabled group: more

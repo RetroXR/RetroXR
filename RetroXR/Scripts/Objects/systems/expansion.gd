@@ -123,6 +123,7 @@ func _ready() -> void:
 	_build_connector()
 	_build_media_bay()
 	_build_accessory_mount()
+	_build_ethernet_port()
 	_update_label()
 	_build_panel()
 
@@ -1043,6 +1044,76 @@ func _build_accessory_mount() -> void:
 	zone.has_picked_up.connect(_on_accessory_in)
 	zone.has_dropped.connect(_on_accessory_out)
 	_accessory_mount = zone
+
+
+# ── a network adapter's socket ────────────────────────────────────────────────
+
+const _ETHERNET_PORT_SCENE := preload("res://Scenes/Objects/cables/ethernet_port.tscn")
+
+## The RJ45 socket on a network adapter -- the row's `ethernet_port` -- or null.
+var _ethernet_port: EthernetPort = null
+## The plug in it, so a release can undo the exemption its seating made.
+var _ethernet_plug: PhysicsBody3D = null
+
+
+## On the face left outside the console. ExpansionPort.seat_through_back turns a
+## unit so its +Y runs out of the back panel and its -Y face is the one the socket
+## takes, so the end left showing is +Y, and the socket is turned for its +Z --
+## where a plug arrives from -- to point along it. Named, because a save records a
+## seated plug by its socket's name (CompositeCable.port_named).
+func _build_ethernet_port() -> void:
+	var link_port := ExpansionCatalog.ethernet_port_of(expansion_id)
+	if link_port < 0:
+		return
+	var port := _ETHERNET_PORT_SCENE.instantiate() as EthernetPort
+	port.name = "EthernetPort"
+	port.link_port = link_port
+	add_child(port)
+	var s := size()
+	port.position = Vector3(0.0, s.y * 0.5 + 0.0015, 0.0)
+	port.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+	port.has_picked_up.connect(_on_ethernet_plug_in)
+	port.has_dropped.connect(_on_ethernet_plug_out)
+	host_changed.connect(_on_ethernet_host_changed)
+	_ethernet_port = port
+
+
+## The network adapter's socket, or null on any other unit.
+func get_ethernet_port() -> EthernetPort:
+	return _ethernet_port
+
+
+## Seated in a console or taken out of one with a lead still in it: the walk from
+## this socket now ends at a different machine, or none, so the LAN the lead is on
+## is worked out again. Nothing else would ask -- the lead itself did not move.
+func _on_ethernet_host_changed(_sys: RetroSystem) -> void:
+	var plug := _ethernet_port.picked_up_object as RcaPlug
+	if plug != null and is_instance_valid(plug.cable) and plug.cable.has_method("_resolve"):
+		plug.cable.call("_resolve")
+
+
+## A seated plug's body goes most of its length into this box and is frozen, so
+## left colliding it would shove the unit out of its slot -- ILinkHub's reason.
+func _on_ethernet_plug_in(what: Node) -> void:
+	var body := what as PhysicsBody3D
+	if body == null:
+		return
+	add_collision_exception_with(body)
+	_ethernet_plug = body
+
+
+func _on_ethernet_plug_out() -> void:
+	if is_instance_valid(_ethernet_plug):
+		remove_collision_exception_with(_ethernet_plug)
+	_ethernet_plug = null
+
+
+## Let go of a lead in the adapter's socket before going, or it is left pointing
+## at a freed snap zone -- ILinkHub.drop_and_free.
+func drop_and_free() -> void:
+	if _ethernet_port != null and _ethernet_port.picked_up_object != null:
+		_ethernet_port.drop_object()
+	super.drop_and_free()
 
 
 ## The accessory clipped to this unit, or null.
