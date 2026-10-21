@@ -532,6 +532,13 @@ func resolve_interaction_target() -> InteractionTarget:
 		ray_cast.global_transform.origin,
 		ray_cast.to_global(ray_cast.target_position),
 		_get_desktop_grabber())
+	# LOCAL PATCH (RetroXR): a control on what is in the hand lights when the crosshair passes
+	# close to it, even if the ray meets the object's shell first.
+	var pickup := get_parent()
+	if pickup != null and pickup.has_method("held_object"):
+		resolved_target = InteractionResolver.assist_held(pickup.call("held_object") as Node3D,
+			ray_cast.global_transform.origin, ray_cast.to_global(ray_cast.target_position),
+			resolved_target)
 	return resolved_target
 
 

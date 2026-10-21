@@ -70,6 +70,7 @@ const OUTLINE_HULL_PRIMER_BENT_SHADER := preload("res://Shaders/outline_hull_pri
 @export_range(0.0, 10.0, 0.1) var fade_start: float = 0.0
 @export_range(0.1, 50.0, 0.1) var fade_end: float = 10.0
 
+var _suppressed := false
 var _overlays: Array[MeshInstance3D] = []
 var _overlay_sources: Array[MeshInstance3D] = []  # parallel to _overlays
 var _outline_material: ShaderMaterial = null      # shared — all overlays use the same instance
@@ -242,7 +243,9 @@ func _on_ray_dropped(pickup: Node) -> void:
 # --- State machine ---
 
 func _update_state() -> void:
-	if _is_in_trash:
+	if _suppressed and not _is_in_trash and not _is_snap_preview:
+		_set_overlays_visible(false)
+	elif _is_in_trash:
 		_set_color(trash_color)
 		_set_overlays_visible(true)
 	elif _is_snap_preview:
@@ -262,6 +265,16 @@ func _update_state() -> void:
 		_set_overlays_visible(true)
 	else:
 		_set_overlays_visible(false)
+
+
+## The desktop hand turns the held object's outline OFF while the crosshair is on one of its
+## controls, so the control is the one thing lit (a console's power switch under a yellow console
+## outline read as "the console is what I am aiming at"). Trash and snap warnings still show.
+func set_suppressed(on: bool) -> void:
+	if _suppressed == on:
+		return
+	_suppressed = on
+	_update_state()
 
 
 ## Called by StorageBox when this object enters or exits the trash detection area.

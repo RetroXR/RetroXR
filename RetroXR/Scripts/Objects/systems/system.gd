@@ -633,6 +633,45 @@ func _place_name_label() -> void:
 		lbl.position = Vector3(cx, top_y + EPS, front_z - la.size.y * s * 0.6)
 
 
+## How a handheld is held on the desktop once it is in the hand, as a basis in CAMERA space
+## for a machine at `at` (camera space too): its screen toward the eye, the screen's top edge
+## up. The screen is the +Y face and its top edge points -Z (the +Z strip is the one below it),
+## on every handheld shell. Anything that is not a handheld returns null and keeps its own
+## orientation. (A clamshell is held by its base, with its lid leaning back.)
+func desktop_hold_basis(at: Vector3) -> Variant:
+	if _model == null or not _model.is_handheld():
+		return null
+	return DesktopPickup.screen_facing_basis(at)
+
+
+## What a handheld's screen is, for holding it by the SCREEN on the desktop: {center, width, radius} in this
+## machine's own space -- the middle of the built-in display and how wide it is along the machine's
+## X. null for anything without one. The hand puts that middle at the crosshair, not the middle of
+## the body, and stands the machine close enough that the screen fills a good part of the view.
+func desktop_hold_focus() -> Variant:
+	if _model == null or not _model.is_handheld():
+		return null
+	var screen := _model.get_builtin_screen()
+	if screen == null or screen.mesh == null:
+		return null
+	var to_local := global_transform.affine_inverse() * screen.global_transform
+	var box := screen.mesh.get_aabb()
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for i in 8:
+		var p := to_local * box.get_endpoint(i)
+		lo = Vector3(minf(lo.x, p.x), minf(lo.y, p.y), minf(lo.z, p.z))
+		hi = Vector3(maxf(hi.x, p.x), maxf(hi.y, p.y), maxf(hi.z, p.z))
+	var centre := (lo + hi) * 0.5
+	# How far the machine reaches from that middle (its farthest corner), so the hand can be
+	# slack enough to look at any part of it.
+	var body := body_aabb()
+	var reach := 0.0
+	for i in 8:
+		reach = maxf(reach, (body.get_endpoint(i) - centre).length())
+	return {"center": centre, "width": hi.x - lo.x, "radius": reach}
+
+
 ## World-space Y of the top of the hardware body.
 ##
 ## Floating panels sit above this rather than at a fixed height off the origin.

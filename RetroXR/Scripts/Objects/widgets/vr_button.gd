@@ -342,6 +342,15 @@ func _activate() -> void:
 ## button being left has already drawn this frame and stays lit alongside the new
 ## one — two outlines, a room apart, for a frame. PickableHighlight has always
 ## repainted on the signal edge; this is the same rule.
+## What a desktop crosshair is held to (InteractionResolver.assist_held): the button's mesh bounds,
+## in the mesh's own space, and that space's scale. {} while there is no mesh.
+func desktop_aim_volume() -> Dictionary:
+	if not is_instance_valid(_mesh) or _mesh.mesh == null:
+		return {}
+	return {"to_local": _mesh.global_transform.affine_inverse(), "box": _mesh.mesh.get_aabb(),
+		"scale": maxf(_mesh.global_transform.basis.get_scale().x, 0.0001)}
+
+
 func pointer_event(event: XRToolsPointerEvent) -> void:
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:

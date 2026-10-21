@@ -867,10 +867,11 @@ func _compute_ray_grab_rotation(delta: float) -> Basis:
 	if _ray_grab_other_controller and _ray_grab_other_controller.get_is_active():
 		var stick := _ray_grab_other_controller.get_vector2("primary")
 		if stick.length_squared() > 0.01:
-			# Aircraft semantics (nose = far side of the object, pointing away):
-			# stick right → nose yaws right, stick up → nose pitches up.
-			var yaw := -stick.x * RAY_GRAB_ROTATE_SPEED * delta
-			var pitch := stick.y * RAY_GRAB_ROTATE_SPEED * delta
+			# LOCAL PATCH (RetroXR): the REVERSE of aircraft semantics (nose = far side
+			# of the object, pointing away), because the player found those wrong:
+			# stick right → nose yaws left, stick up → nose pitches down.
+			var yaw := stick.x * RAY_GRAB_ROTATE_SPEED * delta
+			var pitch := -stick.y * RAY_GRAB_ROTATE_SPEED * delta
 
 			# Rotate from the player's viewpoint using the HOLDING controller as the
 			# reference (not the headset): left/right yaws around world up (a stable
@@ -886,13 +887,13 @@ func _compute_ray_grab_rotation(delta: float) -> Basis:
 				pitch_axis = roll_axis.cross(Vector3.UP).normalized()
 
 			# Roll mode: squeeze grip on the rotating hand — stick X then rolls the
-			# object around the ray axis (right = roll right, i.e. clockwise from
+			# object around the ray axis (right = roll left, i.e. counter-clockwise from
 			# the player's view since the nose points away) instead of yawing it.
 			var roll_mode := \
 					_ray_grab_other_controller.get_float(pickup_axis_action) > _grip_threshold
 
 			if roll_mode:
-				var roll := stick.x * RAY_GRAB_ROTATE_SPEED * delta
+				var roll := -stick.x * RAY_GRAB_ROTATE_SPEED * delta
 				if absf(roll) > 0.001:
 					basis = Basis(roll_axis, roll) * basis
 			elif absf(yaw) > 0.001:

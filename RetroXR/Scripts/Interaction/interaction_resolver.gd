@@ -45,6 +45,26 @@ const QUERY_MASK := (1 << 0) | (1 << 2) | (1 << 20) | (1 << 22)
 ## already does.
 const ENCLOSURE_DEPTH := 0.005
 
+## How near (degrees of view) the crosshair must pass to a control on the thing in the hand for
+## it to count as "looked at", and the least that is in metres. A held object's own shell is hit
+## first almost anywhere on it, and a control sunk into it -- a power switch in its recess -- is
+## only reached by a ray that threads the opening; this is what makes the control light when the
+## crosshair is on it as the eye sees it.
+const ASSIST_ANGLE_DEG := 1.25
+const ASSIST_MIN_GAP := 0.003
+const ASSIST_REACH := 1.5
+## How far behind the point where the ray meets the held object's own body a control may sit and
+## still be in sight: a recess, not the far side. A switch on the back of a console must not be
+## worked through the console.
+const ASSIST_HIDDEN_DEPTH := 0.015
+## How long the list of the held object's controls is kept before it is walked again (a model can
+## finish loading after the grab).
+const ASSIST_CONTROLS_TTL_MS := 1000
+
+static var _assist_held_id := 0
+static var _assist_controls: Array[Node3D] = []
+static var _assist_walked_ms := 0
+
 ## Hits to walk before giving up. Only volumes overlapping at one spot cost steps.
 const MAX_STEPS := 8
 
@@ -170,7 +190,7 @@ static func _classify(
 
 		if node.has_method("pointer_event") or node.has_signal("pointer_event"):
 			var pointer_target := node as Node3D
-			if pointer_target != null and _accepts_pointer(pointer_target, hit.position):
+			if pointer_target != null and _accepts_pointer(pointer_target, hit.position, ray_from):
 				return _make_target(InteractionTarget.KIND_POINTER, hit.collider as Node3D,
 					pointer_target, null, pointer_target,
 					hit.position, distance, true, false)
@@ -187,7 +207,14 @@ static func _classify(
 ## because the caps have no colliders of their own. Declining leaves the walk to
 ## carry on to whatever is behind — the board itself — so the parts of it with no
 ## key under them can still be picked up.
-static func _accepts_pointer(node: Node3D, at: Vector3) -> bool:
+##
+## Two ways to ask. `accepts_pointer_at(at)` judges the point the ray reached the box at.
+## `accepts_pointer_ray(from, at)` is for a control whose box is a fat shell around something
+## small (a slider's knob): the point on the shell is nowhere near the thing, so it is given the
+## ray itself and asked whether the ray touches it.
+static func _accepts_pointer(node: Node3D, at: Vector3, ray_from: Vector3 = Vector3.ZERO) -> bool:
+	if node.has_method("accepts_pointer_ray"):
+		return bool(node.call("accepts_pointer_ray", ray_from, at))
 	if node.has_method("accepts_pointer_at"):
 		return bool(node.call("accepts_pointer_at", at))
 	return true
@@ -246,3 +273,118 @@ static func _make_target(
 	target.can_activate = can_activate
 	target.can_grab = can_grab
 	return target
+
+
+# ── Controls on what is held ──────────────────────────────────────────────────
+
+## `current` -- what the ray resolved to -- unless that is no control and the crosshair passes
+## close to one on the HELD object, in which case that control. Wherever the ray reaches a
+## control itself the walk above has already said so and this changes nothing.
+static func assist_held(held: Node3D, from: Vector3, to: Vector3,
+		current: InteractionTarget) -> InteractionTarget:
+	if not is_instance_valid(held):
+		return current
+	var direction := (to - from)
+	if direction.length_squared() < 0.000001:
+		return current
+	direction = direction.normalized()
+	# Nothing behind the held object's own body is in sight -- the resolver's ray does not see a
+	# held body, so a control on its far side can be reached through it by either path.
+	var hidden_past := held_body_distance(held, from, to) + ASSIST_HIDDEN_DEPTH
+	if current != null and current.is_valid() and current.can_activate:
+		var on_held := is_instance_valid(current.hit_node) \
+			and (current.hit_node == held or held.is_ancestor_of(current.hit_node))
+		if not on_held or current.distance <= hidden_past:
+			return current
+		current = InteractionTarget.none()
+	var tolerance := tan(deg_to_rad(ASSIST_ANGLE_DEG))
+	var best: Node3D = null
+	var best_score := INF
+	var best_t := 0.0
+	for node: Node3D in _held_controls(held):
+		if not is_instance_valid(node) or not node.is_visible_in_tree():
+			continue
+		var volume: Dictionary = node.call("desktop_aim_volume")
+		if volume.is_empty():
+			continue
+		var gap := ray_box_gap(from, direction, volume["to_local"], float(volume["scale"]),
+			volume["box"], ASSIST_REACH)
+		var allowed := maxf(ASSIST_MIN_GAP, tolerance * float(gap["t"]))
+		if float(gap["gap"]) > allowed or float(gap["t"]) > hidden_past:
+			continue
+		var score := float(gap["gap"]) / allowed
+		if score < best_score:
+			best_score = score
+			best = node as Node3D
+			best_t = float(gap["t"])
+	if best == null:
+		return current
+	return _make_target(InteractionTarget.KIND_POINTER, best, best, best, best,
+		from + direction * best_t, best_t, true, false)
+
+
+## The held object's controls (whatever answers pointer_event and desktop_aim_volume). Asked every
+## physics frame while something is held, so the walk is kept for the object and redone only when
+## another is held or ASSIST_CONTROLS_TTL_MS has passed.
+static func _held_controls(held: Node3D) -> Array[Node3D]:
+	var now := Time.get_ticks_msec()
+	if held.get_instance_id() == _assist_held_id and now - _assist_walked_ms < ASSIST_CONTROLS_TTL_MS:
+		return _assist_controls
+	_assist_held_id = held.get_instance_id()
+	_assist_walked_ms = now
+	_assist_controls.clear()
+	for node: Node in held.find_children("*", "Node3D", true, false):
+		if node.has_method("pointer_event") and node.has_method("desktop_aim_volume"):
+			_assist_controls.append(node as Node3D)
+	return _assist_controls
+
+
+## How far along `from` -> `to` the ray first meets the held object's own body (its collision
+## shapes, or any body under it), INF where it misses or the object is not in a world.
+static func held_body_distance(held: Node3D, from: Vector3, to: Vector3) -> float:
+	var body := held as CollisionObject3D
+	if body == null or not held.is_inside_tree():
+		return INF
+	var space := held.get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(from, to, body.collision_layer)
+	query.collide_with_areas = false
+	var exclude: Array[RID] = []
+	for i in MAX_STEPS:
+		query.exclude = exclude
+		var hit := space.intersect_ray(query)
+		if hit.is_empty():
+			return INF
+		var collider := hit.get("collider") as Node
+		if collider != null and (collider == held or held.is_ancestor_of(collider)):
+			return from.distance_to(hit["position"])
+		exclude.append(hit["rid"])
+	return INF
+
+
+## How near the ray `from` + t * `direction` (t in 0..`reach`) comes to a box, and at which t:
+## {gap, t}. `to_local` takes world points into the box's own space and `scale` is that space's
+## scale (so the gap comes out in metres). The distance from a point on the ray to a box is
+## convex in t, so a ternary search finds the least; it is 0 when the ray goes through the box.
+static func ray_box_gap(from: Vector3, direction: Vector3, to_local: Transform3D, scale: float,
+		box: AABB, reach: float) -> Dictionary:
+	var lo := 0.0
+	var hi := reach
+	var local_from := to_local * from
+	var local_dir := to_local.basis * direction
+	for i in 40:
+		var a := lo + (hi - lo) / 3.0
+		var b := hi - (hi - lo) / 3.0
+		if _box_distance(box, local_from + local_dir * a) < _box_distance(box, local_from + local_dir * b):
+			hi = b
+		else:
+			lo = a
+	var t := (lo + hi) * 0.5
+	return {"gap": _box_distance(box, local_from + local_dir * t) * scale, "t": t}
+
+
+static func _box_distance(box: AABB, p: Vector3) -> float:
+	var end := box.position + box.size
+	var d := Vector3(maxf(maxf(box.position.x - p.x, 0.0), p.x - end.x),
+		maxf(maxf(box.position.y - p.y, 0.0), p.y - end.y),
+		maxf(maxf(box.position.z - p.z, 0.0), p.z - end.z))
+	return d.length()

@@ -206,9 +206,11 @@ func _on_picked_up(pickable: Variant) -> void:
 	if hint == null:
 		return
 	hint.add_row(&"rotate_yaw", HeldHint.PLATFORM_DESKTOP, DESKTOP_ROTATE_GLYPHS,
-		"Use {g} to pitch and yaw", HeldHint.WHEN_HELD)
+		"Use {g}, or hold left click and drag, to pitch and yaw", HeldHint.WHEN_HELD)
 	hint.add_row(&"rotate_roll", HeldHint.PLATFORM_DESKTOP, DESKTOP_ROLL_GLYPHS,
 		"Use {g} to pitch and roll", HeldHint.WHEN_HELD)
+	hint.add_row(&"hand_hold_desktop", HeldHint.PLATFORM_DESKTOP, DESKTOP_ROTATE_GLYPHS,
+		"Keep scrolling down to hold it in your hand; scroll down again to square it up", HeldHint.WHEN_HELD)
 
 	# Objects with a hint of their own call this from their own grab handler, and
 	# a second call only rebuilds the same panel. Objects without one — a
