@@ -61,6 +61,27 @@ static func attach(host: Node3D, eligible: Callable, glyph: int,
 	return cap
 
 
+## The captures that are on right now (instance id -> WeakRef), for whoever wants to know whether
+## the keyboard is playing a held device at all (the desktop crosshair hides: it sat in front of
+## the screen).
+static var _on: Dictionary = {}
+
+
+## True while some held device has the keyboard (F3 / Scroll Lock) and the player is not typing.
+## Asked as is_active() asks, still eligible: a device switched off or let go without a refresh()
+## must not keep the crosshair hidden and the pad off the hand.
+static func any_active() -> bool:
+	if _suspended:
+		return false
+	for id: int in _on.keys():
+		var cap := (_on[id] as WeakRef).get_ref() as ScrollLockCapture
+		if cap == null:
+			_on.erase(id)
+		elif cap._active and cap._can_capture():
+			return true
+	return false
+
+
 ## Set while the player is typing into a text field — see TypingGuard. Global
 ## rather than per-instance: the keyboard is one device, so if it is composing
 ## text it is not driving any held device.
@@ -124,6 +145,7 @@ func refresh() -> void:
 ## Drop the locomotion block; for the host's _exit_tree.
 func release() -> void:
 	_active = false
+	_on.erase(get_instance_id())
 	if _loco != null:
 		_loco.set_block(_owner(), LocomotionManager.CHANNEL_DESKTOP_MOVE, false)
 	if is_instance_valid(_icon):
@@ -131,6 +153,10 @@ func release() -> void:
 
 
 func _apply() -> void:
+	if _active:
+		_on[get_instance_id()] = weakref(self)
+	else:
+		_on.erase(get_instance_id())
 	if is_instance_valid(_icon):
 		if _active:
 			_place_icon()
