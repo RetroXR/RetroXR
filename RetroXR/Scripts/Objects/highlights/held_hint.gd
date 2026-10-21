@@ -107,6 +107,11 @@ var _ever_shown: Dictionary = {}
 ## What the panel is currently drawing, as _signature reports it. Empty until the
 ## first build.
 var _built_sig := ""
+## The rows on show are the desktop's, and what was last asked for, so a change of input device
+## (DesktopPad: the keyboard last, or the pad) can draw the same rows again in the other's glyphs.
+var _desktop_rows := false
+var _last_rows: Array = []
+var _last_right := true
 
 
 static func attach(host: Node3D, vr_combo_drop: bool, height := 0.18) -> HeldHint:
@@ -116,6 +121,9 @@ static func attach(host: Node3D, vr_combo_drop: bool, height := 0.18) -> HeldHin
 	hint._vr_combo_drop = vr_combo_drop
 	hint._height = height
 	host.add_child(hint)
+	var pad := hint.get_node_or_null("/root/DesktopPad")
+	if pad != null:
+		pad.device_changed.connect(hint._on_device_changed)
 	return hint
 
 
@@ -161,7 +169,8 @@ func remove_row(id: StringName) -> void:
 ## both of these verbs are on.
 func show_unheld() -> void:
 	_used_this_hold.clear()
-	var due := _due_rows(PLATFORM_DESKTOP if not _is_vr() else PLATFORM_VR, WHEN_PLACED)
+	_desktop_rows = not _is_vr()
+	var due := _due_rows(PLATFORM_DESKTOP if _desktop_rows else PLATFORM_VR, WHEN_PLACED)
 	if due.is_empty():
 		hide_now()
 		return
@@ -239,6 +248,7 @@ func on_grabbed(by: Node3D) -> void:
 		if is_instance_valid(ctrl):
 			right = ctrl.tracker != &"left_hand"
 
+	_desktop_rows = desktop
 	var due := _due_rows(PLATFORM_DESKTOP if desktop else PLATFORM_VR, WHEN_HELD)
 	if due.is_empty():
 		hide_now()
@@ -365,6 +375,10 @@ func _needs_desktop_modifier() -> bool:
 ## unchanged signature simply re-shows what is already there; UPDATE_ONCE leaves
 ## the render target holding the last draw, so there is nothing to redraw.
 func _build(rows: Array, right_hand: bool) -> void:
+	_last_rows = rows
+	_last_right = right_hand
+	if _desktop_rows and _pad_prompts():
+		rows = _as_pad_rows(rows)
 	# Ahead of the early-out: note_used refuses to count a verb this popup never
 	# put on screen, and a re-show is still it being on screen.
 	for row: Array in rows:
@@ -423,6 +437,30 @@ func _build(rows: Array, right_hand: bool) -> void:
 	# headless run, and this content only changes when the rows do.
 	_viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 	_built_sig = sig
+
+
+## True when the desktop prompts should be the pad's: it is the player's and was used last.
+func _pad_prompts() -> bool:
+	var pad := get_node_or_null("/root/DesktopPad")
+	return pad != null and pad.prompts_use_pad()
+
+
+## The same rows in the pad's glyphs (DesktopPadService.pad_row).
+func _as_pad_rows(rows: Array) -> Array:
+	var out: Array = []
+	for row: Array in rows:
+		var pad_row := DesktopPadService.pad_row(row[0], row[2], String(row[3]))
+		var copy := row.duplicate()
+		copy[2] = pad_row[0]
+		copy[3] = pad_row[1]
+		out.append(copy)
+	return out
+
+
+## The keyboard and the pad take turns: what is on screen is drawn again in the new one's glyphs.
+func _on_device_changed(_pad: bool) -> void:
+	if visible and _desktop_rows and not _last_rows.is_empty():
+		_build(_last_rows, _last_right)
 
 
 ## Everything the build above turns into pixels: the rows in order, with the

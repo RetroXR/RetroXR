@@ -422,6 +422,8 @@ func _process_desktop_joypad() -> void:
 	var m := _merge_pad_state(btn,
 		int(lx * ANALOG_SCALE), int(-ly * ANALOG_SCALE),
 		int(rx * ANALOG_SCALE), int(-ry * ANALOG_SCALE))
+	# The player's own pad (DesktopPad) plays it as the keyboard does, while it has the keys.
+	m = DesktopPadService.merge(m, DesktopPad.held_state(_pad_button_map, _pad_stick_map))
 	_send_joypad(m["btn"], m["alx"], m["aly"], m["arx"], m["ary"])
 
 
@@ -437,16 +439,8 @@ func _process_desktop_joypad() -> void:
 func _merge_pad_state(btn: int, alx: int, aly: int, arx: int, ary: int) -> Dictionary:
 	var device := GamepadBindings.resolve_device(_host.pad_guid, _host.pad_ordinal)
 	var pad := GamepadBindings.poll(_pad_button_map, _pad_stick_map, device)
-	btn |= int(pad["btn"])
-	var plx: int = pad["alx"]
-	var ply: int = pad["aly"]
-	var prx: int = pad["arx"]
-	var pry: int = pad["ary"]
-	if plx * plx + ply * ply > alx * alx + aly * aly:
-		alx = plx; aly = ply
-	if prx * prx + pry * pry > arx * arx + ary * ary:
-		arx = prx; ary = pry
-	return {"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}
+	return DesktopPadService.merge(
+		{"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}, pad)
 
 
 func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
