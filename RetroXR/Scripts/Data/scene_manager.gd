@@ -272,9 +272,14 @@ func reload_room(prepare: Callable = Callable(), keep_player := true) -> String:
 ## gone, however it went. Waiting matters on PCVR too: a second instance started
 ## while this one still holds the OpenXR session would come up without a headset.
 ##
+## `relaunch` replaces the stock waiter: called with (pid, exe, args) it returns
+## the [program, arguments] to start instead. An update uses it to swap the new
+## build in before the app comes back (AppUpdateService); the guards, the carried
+## room and the fallback are the same either way.
+##
 ## Returns "" once the quit is under way, else why not.
 func restart_app(extra_user_args: PackedStringArray = PackedStringArray(),
-		before_restart: Callable = Callable()) -> String:
+		before_restart: Callable = Callable(), relaunch: Callable = Callable()) -> String:
 	if has_node("/root/NetworkManager") and NetworkManager.is_active():
 		return "Leave the netplay session first."
 	if _transitioning or not is_scene_content_ready(current_scene_id):
@@ -294,12 +299,24 @@ func restart_app(extra_user_args: PackedStringArray = PackedStringArray(),
 	var args := restart_args(OS.has_feature("android"), OS.has_feature("template"),
 		OS.get_cmdline_args(), user,
 		ProjectSettings.globalize_path("res://"))
-	var waiter := relaunch_command(OS.get_name(), OS.get_process_id(),
-		OS.get_executable_path(), args)
+	var exe := own_launcher(OS.get_executable_path(), OS.get_environment("APPIMAGE"))
+	var waiter: Array = []
+	if relaunch.is_valid():
+		waiter = relaunch.call(OS.get_process_id(), exe, args)
+	else:
+		waiter = relaunch_command(OS.get_name(), OS.get_process_id(), exe, args)
 	if waiter.is_empty() or OS.create_process(str(waiter[0]), waiter[1]) == -1:
 		OS.set_restart_on_exit(true, args)
 	get_tree().quit()
 	return ""
+
+
+## What to start to get this app again. Inside an AppImage the executable is a
+## path into the image's mount, which goes away with this process -- the waiter
+## would find nothing at it -- so the AppImage file itself (the APPIMAGE variable)
+## is what relaunches it.
+static func own_launcher(exe: String, appimage: String) -> String:
+	return appimage if not appimage.is_empty() else exe
 
 
 ## The waiter restart_app starts on a desktop: [program, arguments], which waits

@@ -101,9 +101,15 @@ const SECTIONS: Array = [
 
 const DONATE_URL := "https://ko-fi.com/ryanmcclelland"
 
+var _menu: Node = null
+var _update_status: Label = null
+var _update_actions: HBoxContainer = null
+var _svc: AppUpdateService = null
 
-static func create() -> SpawnMenuAboutView:
+
+static func create(menu: Node = null) -> SpawnMenuAboutView:
 	var v := SpawnMenuAboutView.new()
+	v._menu = menu
 	v._build()
 	return v
 
@@ -147,6 +153,8 @@ func _build() -> void:
 	target_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	vbox.add_child(target_lbl)
 
+	_build_update_section(vbox)
+
 	vbox.add_child(MenuStyle.spacer(18))
 
 	# Author credit
@@ -183,6 +191,72 @@ func _build() -> void:
 			note_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(note_lbl)
 		vbox.add_child(MenuStyle.spacer(12 if i == SECTIONS.size() - 1 else 6))
+
+
+
+## The version check: what this build is, what GitHub says is newest, a button to
+## ask now, and the switch for asking at startup. Desktop installs only -- a
+## headset updates through its store, so there the section is not built.
+func _build_update_section(vbox: VBoxContainer) -> void:
+	# Built before it is in the tree, so the autoload is reached through the root
+	# rather than an absolute path (which errors from outside the tree).
+	if Engine.get_main_loop() is SceneTree:
+		_svc = (Engine.get_main_loop() as SceneTree).root.get_node_or_null("AppUpdate") \
+			as AppUpdateService
+	if _svc == null or not _svc.supported():
+		return
+	vbox.add_child(MenuStyle.spacer(10))
+	vbox.add_child(MenuStyle.header("UPDATES"))
+	_update_status = MenuStyle.label("", 18, MenuStyle.COLOR_LICENSE)
+	_update_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(_update_status)
+	_update_actions = MenuStyle.hbox(10)
+	vbox.add_child(_update_actions)
+	var sw := MenuStyle.switch_row(vbox, "Check for updates at startup", _svc.check_on_start)
+	sw.toggled.connect(func(on: bool) -> void: _svc.set_check_on_start(on))
+	vbox.add_child(MenuStyle.hint("Asks GitHub which release is newest when RetroXR starts. "
+		+ "Nothing is downloaded or installed unless you press Update."))
+	_svc.state_changed.connect(_refresh_update_section)
+	_refresh_update_section()
+
+
+func _refresh_update_section() -> void:
+	if _update_status == null or _svc == null:
+		return
+	for c in _update_actions.get_children():
+		_update_actions.remove_child(c)
+		c.queue_free()
+	var S := AppUpdateService.State
+	var busy := _svc.state in [S.CHECKING, S.DOWNLOADING, S.VERIFYING, S.INSTALLING]
+	match _svc.state:
+		S.CHECKING:
+			_update_status.text = "Checking GitHub…"
+		S.UP_TO_DATE:
+			_update_status.text = "RetroXR %s is the newest release." % _svc.current_version
+		S.AVAILABLE, S.READY:
+			_update_status.text = "RetroXR %s is available  (this is %s)." \
+				% [_svc.available_version(), _svc.current_version]
+		S.DOWNLOADING, S.VERIFYING, S.INSTALLING:
+			_update_status.text = "Updating to RetroXR %s…" % _svc.available_version()
+		S.FAILED:
+			_update_status.text = _svc.error
+		_:
+			_update_status.text = "This is RetroXR %s." % _svc.current_version
+	var check := _action("Check for updates", func() -> void: _svc.check(true))
+	check.disabled = busy
+	_update_actions.add_child(check)
+	if _svc.state == S.AVAILABLE:
+		_update_actions.add_child(_action(
+			"Update now" if _svc.can_auto_install() else "Open download page",
+			func() -> void: SpawnMenuUpdateBanner.request_install(_menu, _svc)))
+
+
+static func _action(text: String, on_press: Callable) -> Button:
+	var b := MenuStyle.row_button(text, 20, 260, 52, false)
+	b.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	b.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_REUP, 6))
+	b.pressed.connect(on_press)
+	return b
 
 
 ## One credit line: title over author on the left, licence on the right.

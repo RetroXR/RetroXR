@@ -381,6 +381,10 @@ func _build_ui() -> void:
 
 	root_vbox.add_child(HSeparator.new())
 
+	# Asks whether to update, over every tab. Empty and hidden unless a newer
+	# release has been found (AppUpdate).
+	root_vbox.add_child(SpawnMenuUpdateBanner.create(self))
+
 	# Top nav bar
 	var nav_bar := HBoxContainer.new()
 	nav_bar.add_theme_constant_override("separation", 6)
@@ -530,7 +534,7 @@ func _build_ui() -> void:
 		if _mods_view.visible:
 			_active_scroll = sc)
 
-	_about_view = SpawnMenuAboutView.create()
+	_about_view = SpawnMenuAboutView.create(self)
 	_about_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	content.add_child(_about_view)
 

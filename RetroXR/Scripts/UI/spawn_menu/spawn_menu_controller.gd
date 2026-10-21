@@ -75,6 +75,16 @@ var _connect_retry_count: int = 0
 
 # Scroll state — driven by whichever stick whose controller points at the menu
 var _smoothed_scroll_y: float = 0.0
+## The Field of View slider's value (OPTIONS); the camera shows it divided by the zoom.
+var _fov_base := 75.0
+
+## How far in front of the camera the menu stands, before any zoom.
+const MENU_DISTANCE := 0.9
+## What is left between a menu pushed out by the zoom and the wall behind it.
+const MENU_WALL_GAP := 0.2
+## The room's own walls and furniture: layer 1, "World".
+const MENU_WORLD_MASK := 1
+
 const _SCROLL_SPEED    := 700.0   # pixels per second at full tilt
 const _SCROLL_DEADZONE := 0.25    # stick Y dead zone (0..1)
 const _SCROLL_MIN_PX   := 1.5     # discard sub-pixel nudges
@@ -146,6 +156,7 @@ func _deferred_setup() -> void:
 		# Cache the un-scaled desktop eye height, then apply the default world scale.
 		_base_eye_height = _camera.transform.origin.y
 		_apply_world_scale(DEFAULT_WORLD_SCALE)
+		_apply_desktop_fov()
 		_build_hud_toasts()
 
 	# Find left and right XRController3D in a single pass
@@ -237,6 +248,7 @@ func _connect_menu_signals() -> void:
 	menu.options_view().snap_angle_changed.connect(_on_snap_angle_changed)
 	menu.options_view().height_offset_changed.connect(_on_height_offset_changed)
 	menu.options_view().fov_changed.connect(_on_fov_changed)
+	menu.options_view().zoom_changed.connect(_on_zoom_changed)
 	menu.options_view().world_scale_changed.connect(_on_world_scale_changed)
 	menu.controller_bindings_changed.connect(_on_controller_bindings_changed)
 	menu.rebind_started.connect(_on_rebind_started)
@@ -717,6 +729,25 @@ func _toggle_menu() -> void:
 		_show_menu()
 
 
+## Where the menu stands in front of the player. A desktop camera that is zoomed sees
+## everything bigger, so the menu is put further off by the zoom's factor
+## (DesktopWindow.menu_distance_factor) -- but never into a wall: the ray out to it is
+## cut short of the first thing in the world, and the menu never comes nearer than usual.
+func _menu_distance(forward: Vector3) -> float:
+	if _camera == null or get_viewport().use_xr:
+		return MENU_DISTANCE
+	var want := MENU_DISTANCE * DesktopWindow.menu_distance_factor(QualityManager.zoom)
+	if want <= MENU_DISTANCE:
+		return MENU_DISTANCE
+	var from := _camera.global_position
+	var query := PhysicsRayQueryParameters3D.create(from, from + forward * (want + MENU_WALL_GAP),
+		MENU_WORLD_MASK)
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if not hit.is_empty():
+		want = minf(want, from.distance_to(hit["position"] as Vector3) - MENU_WALL_GAP)
+	return maxf(want, MENU_DISTANCE)
+
+
 func _show_menu() -> void:
 	if _camera:
 		var forward := -_camera.global_transform.basis.z
@@ -724,7 +755,9 @@ func _show_menu() -> void:
 		if forward.length_squared() < 0.001:
 			forward = Vector3.FORWARD
 		forward = forward.normalized()
-		global_position = _camera.global_position + forward * 0.9 + Vector3(0, -0.05, 0)
+		var distance := _menu_distance(forward)
+		global_position = _camera.global_position + forward * distance \
+			+ Vector3(0, -0.05 * distance / MENU_DISTANCE, 0)
 		# look_at makes -Z face the camera; rotate 180° so +Z (the UV face) faces the player
 		look_at(_camera.global_position, Vector3.UP)
 		rotate_object_local(Vector3.UP, PI)
@@ -1392,8 +1425,21 @@ func _on_height_offset_changed(offset: float) -> void:
 
 
 func _on_fov_changed(degrees: float) -> void:
-	if _camera:
-		_camera.fov = degrees
+	_fov_base = degrees
+	_apply_desktop_fov()
+
+
+func _on_zoom_changed(factor: float) -> void:
+	QualityManager.set_zoom(factor)
+	_apply_desktop_fov()
+
+
+## The desktop camera's field of view: the slider's, brought in by the zoom. A headset
+## has neither -- its field of view is the lenses' -- so it is left alone there.
+func _apply_desktop_fov() -> void:
+	if _camera == null or get_viewport().use_xr:
+		return
+	_camera.fov = DesktopWindow.zoomed_fov(_fov_base, QualityManager.zoom)
 
 
 func _on_world_scale_changed(factor: float) -> void:
@@ -1488,6 +1534,29 @@ func _build_hud_toasts() -> void:
 	_net_notifier.name = "NetHudNotifier"
 	add_child(_net_notifier)
 	_net_notifier.setup(NetworkManager, _hud_toasts.stack())
+	_watch_updates()
+
+
+## The HUD's word that a newer release is out, so a player who never opens the menu
+## still hears it; the menu's banner is where they answer. The service announces
+## once per run, so a room change that rebuilds this node asks it again instead.
+func _watch_updates() -> void:
+	var svc := get_node_or_null("/root/AppUpdate") as AppUpdateService
+	if svc == null:
+		return
+	if not svc.announced.is_connected(_announce_update):
+		svc.announced.connect(_announce_update)
+	if svc.state == AppUpdateService.State.AVAILABLE and svc.wants_attention():
+		_announce_update()
+
+
+func _announce_update() -> void:
+	var svc := get_node_or_null("/root/AppUpdate") as AppUpdateService
+	if svc == null or _hud_toasts == null:
+		return
+	_hud_toasts.stack().notify("update:available", "⬆️",
+		"RetroXR %s is available — open the menu to update." % svc.available_version(),
+		-1.0, 10.0)
 
 
 ## The performance HUD. Built on first use — every section can be off, and most
