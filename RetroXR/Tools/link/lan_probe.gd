@@ -6,6 +6,9 @@
 ##       "--rom=C:/…/Gran Turismo 4 (USA).chd" --roots=C:/…/lanroots \
 ##       --cmd=C:/…/lan_cmd.txt --out=C:/…/lan_out
 ##
+## --stagger=<seconds> starts the consoles that far apart. Six PS2s started in one
+## frame have taken the process down at startup with nothing logged.
+##
 ## A probe: it wants real cores and commercial discs, so it cannot live in Tests/.
 ## WINDOWED, never --headless: both cores render in hardware and the dummy
 ## renderer has no context for them to draw into.
@@ -64,6 +67,8 @@ var cmd_path := ""
 var out_dir := ""
 var cabled_at_start := true
 var status_every := 600
+## Seconds between one console's start and the next; 0 starts them all at once.
+var stagger := 0.0
 
 var _consoles: Array[Node] = []
 var _masks: Array[int] = []
@@ -101,6 +106,8 @@ func _ready() -> void:
 			cabled_at_start = false
 		elif arg.begins_with("--status-every="):
 			status_every = maxi(60, int(arg.trim_prefix("--status-every=")))
+		elif arg.begins_with("--stagger="):
+			stagger = maxf(0.0, float(arg.trim_prefix("--stagger=")))
 	_want_cable = cabled_at_start
 	if rom.is_empty() or roots.is_empty():
 		print("[lan] --rom and --roots are required")
@@ -110,6 +117,10 @@ func _ready() -> void:
 		DirAccess.make_dir_recursive_absolute(out_dir)
 
 	for i in range(count):
+		# Six PS2s bringing up six Vulkan devices in one frame has taken the
+		# process down with nothing logged; one at a time, it starts.
+		if stagger > 0.0 and i > 0:
+			await get_tree().create_timer(stagger).timeout
 		var obj: Object = ClassDB.instantiate("Libretro")
 		var lib: Node = obj as Node
 		add_child(lib)
@@ -140,7 +151,7 @@ func _process(_d: float) -> void:
 		for lib: Node in _consoles:
 			lib.SetControllerPortDevice(0, 1)
 
-	while _furthest() >= _wait_until and not _queue.is_empty():
+	while _consoles.size() == count and _furthest() >= _wait_until and not _queue.is_empty():
 		_run(_queue.pop_front())
 
 	for i in range(_consoles.size()):
@@ -169,6 +180,8 @@ func _furthest() -> int:
 
 
 func _all_up() -> bool:
+	if _consoles.size() < count:
+		return false
 	for lib: Node in _consoles:
 		if (lib.GetCoreIdentity() as Dictionary).is_empty():
 			return false

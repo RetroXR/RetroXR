@@ -109,9 +109,22 @@ its header has the usage):
   Settings (Host: Yes, No. of Players: N), which does not survive a reboot; clients
   Connect first, the host last. `Tools/link/gt4_lan_two.txt` is the scripted walk.
 
-Not yet run: six PS2s on GT4, more than two GameCubes, and a GameCube and a PS2 on one
-hub with cores (the room's walk for that is tested; the cores ignore each other's
-frames by design).
+- **Gran Turismo 4**, **six** PlayStation 2s, GT4's most: host at No. of Players 6, five
+  clients waiting, all six on one Course Select, Car Select and grid, P1 to P6 live,
+  race clocks within 17 ms, ~178,000 frames each way by mid-lap. About 31 fps locked
+  together in the race (six software GS in one process on a 10-core Ryzen AI 9; menus
+  hold 60). It took two things outside the cable: the PS2 fork's `NearHold`
+  (`pcsx2/Memory.cpp`, commit `2c06374fa`) -- six copies of the core in one process
+  could not place their code cache in reach of their image, and the fourth to sixth
+  died with `0xC0000409` before the cable was even plugged in -- and the probe's
+  `--stagger=3`, since six consoles brought up in one frame also took the process
+  down. **A network configuration belongs to the console that made it**: a memory
+  card copied from another console has its configuration refused ("created on
+  another console") and must make its own (Name via START's on-screen keyboard).
+
+Not yet run: more than two GameCubes, and a GameCube and a PS2 on one hub with cores
+(the room's walk for that is tested; the cores ignore each other's frames by design),
+and six PS2s inside the room itself rather than the probe.
 
 ## Known issues
 
