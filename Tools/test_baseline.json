@@ -12,6 +12,8 @@
     "cores_data_tests": 70,
     "data_paths_tests": 87,
     "deck_tests": 98,
+    "desktop_hold_tests": 61,
+    "desktop_window_tests": 88,
     "ds_cart_tests": 33,
     "ereader_tests": 203,
     "expansion_tests": 422,
@@ -27,7 +29,7 @@
     "genesis_cart_tests": 26,
     "nes_cart_tests": 41,
     "link_tests": 190,
-    "loading_overlay_tests": 39,
+    "loading_overlay_tests": 44,
     "locomotion_tests": 24,
     "microphone_tests": 74,
     "mod_browser_tests": 369,
@@ -58,6 +60,7 @@
     "systems_data_tests": 85,
     "tv_fullscreen_tests": 91,
     "tv_resize_tests": 53,
+    "update_tests": 105,
     "web_server_tests": 70,
     "xbox_tests": 176
   }
