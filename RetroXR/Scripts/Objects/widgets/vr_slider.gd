@@ -109,6 +109,9 @@ var _rearmed: Dictionary = {}
 # the geometry is actually MODELLED at. Anchoring on that rather than on
 # mid-travel means value == anchor reproduces the modelled pose exactly, by
 # construction — which matters once the knob turns as well as slides.
+## The desktop pointer pressed a two-position switch and flipped it; held until the button is
+## released so that moving the crosshair along the slot does not flip it back.
+var _pointer_flipped := false
 var _knob_axis: Vector3 = Vector3.RIGHT
 var _knob_turn_axis: Vector3 = Vector3.UP
 var _knob_anchor: Transform3D = Transform3D()
@@ -350,6 +353,56 @@ func _tip_in_box(tip: Vector3) -> bool:
 	return box.has_point(_knob.global_transform.affine_inverse() * tip)
 
 
+## How far past the knob's track the DESKTOP crosshair still counts as on it (metres). The
+## interaction box is grown by interact_margin for a fingertip, 2 cm on every side, which is
+## generous in a hand and far too much for a crosshair: at 45 cm and a 2x zoom the power switch
+## lit up with the crosshair 50 px away from it.
+const DESKTOP_AIM_MARGIN := 0.005
+
+
+## What a desktop crosshair is held to: the TRACK the knob rides, not just the knob where it is now
+## -- {to_local, box, scale}, the box in this node's own space (the knob's mesh bounds at both
+## ends of its travel, merged, grown by DESKTOP_AIM_MARGIN). A power switch is worked by pointing
+## at the end of the slot you want it at, so the slot has to count; the 2 cm fingertip box was far
+## too much and the knob alone far too little. null while there is no knob.
+func desktop_aim_volume() -> Dictionary:
+	if not is_instance_valid(_knob) or _knob.mesh == null:
+		return {}
+	var inverse := global_transform.affine_inverse()
+	var to_slider := inverse * _knob.global_transform
+	var mesh_box := _knob.mesh.get_aabb()
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	for i in 8:
+		var p := to_slider * mesh_box.get_endpoint(i)
+		lo = Vector3(minf(lo.x, p.x), minf(lo.y, p.y), minf(lo.z, p.z))
+		hi = Vector3(maxf(hi.x, p.x), maxf(hi.y, p.y), maxf(hi.z, p.z))
+	var here := AABB(lo, hi - lo)
+	var axis := axis_local.normalized()
+	var track := here
+	for end_value: float in [0.0, 1.0]:
+		track = track.merge(AABB(lo + axis * (end_value - value) * travel, hi - lo))
+	var scale := maxf(global_transform.basis.get_scale().x, 0.0001)
+	return {"to_local": inverse, "box": track.grow(DESKTOP_AIM_MARGIN / scale), "scale": scale}
+
+
+## The resolver's question (InteractionResolver._accepts_pointer): does the ray that reached this
+## area's box really touch the knob's track? The box is a shell around the cap, so the point
+## where the ray met it says nothing -- the RAY is tested against the track. A ray that misses
+## declines, and carries on to whatever is behind.
+func accepts_pointer_ray(from: Vector3, at: Vector3) -> bool:
+	var volume := desktop_aim_volume()
+	if volume.is_empty():
+		return true
+	var box: AABB = volume["box"]
+	var inverse: Transform3D = volume["to_local"]
+	var local_from := inverse * from
+	var direction := (inverse * at) - local_from
+	if direction.length_squared() < 0.0000001:
+		return box.has_point(local_from)
+	return box.has_point(local_from) or box.intersects_ray(local_from, direction.normalized()) != null
+
+
 ## Desktop reticle / VR laser support (same contract as VRButton), including
 ## repainting the outline on the event rather than on the next _process — see
 ## VRButton.pointer_event for why the handover cannot wait a frame.
@@ -360,14 +413,23 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.PRESSED:
 			_pointer_hovered = true
 			_pointer_engaged = true
-			_track_pointer_point(event.position)
+			if steps == 2:
+				# A two-position switch is flipped by pressing it, wherever along the slot the
+				# crosshair is: which half of the slot you pointed at was never something to
+				# aim for, and pointing at the end it already sits at did nothing at all.
+				_pointer_flipped = true
+				_set_from_raw(0.0 if value > 0.5 else 1.0)
+			else:
+				_track_pointer_point(event.position)
 		XRToolsPointerEvent.Type.MOVED:
-			if _pointer_engaged:
+			if _pointer_engaged and not _pointer_flipped:
 				_track_pointer_point(event.position)
 		XRToolsPointerEvent.Type.RELEASED:
 			_pointer_engaged = false
+			_pointer_flipped = false
 		XRToolsPointerEvent.Type.EXITED:
 			_pointer_engaged = false
+			_pointer_flipped = false
 			_pointer_hovered = false
 	_sync_outline()
 

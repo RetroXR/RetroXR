@@ -378,7 +378,14 @@ func _test_gc() -> void:
 	gc.is_powered_on = false
 	click.shift_pressed = true
 	desktop._unhandled_input(click)
-	_ok(not mic.is_picked_up(), "gc/Shift+click puts it down")
+	# Let go when the button comes back UP, so a press on one of the held thing's own
+	# controls works that control instead (desktop_pickup.gd).
+	_ok(mic.is_picked_up(), "gc/Shift+click does not put it down until the button is released")
+	var up := InputEventMouseButton.new()
+	up.button_index = MOUSE_BUTTON_LEFT
+	up.pressed = false
+	desktop._unhandled_input(up)
+	_ok(not mic.is_picked_up(), "gc/Shift+click puts it down on release")
 	desktop.queue_free()
 
 	gc.queue_free()
