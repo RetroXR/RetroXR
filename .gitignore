@@ -158,6 +158,9 @@ RetroXR/surround-godot/*surround_godot.*.dylib
 # Claude Code machine-local settings (absolute paths, per-machine allow-list)
 .claude/settings.local.json
 
+# TODOs
+TODO*.md
+
 # Its own repo, cloned beside the tools that build its core.
 Tools/azahar-libretro-vr/
 
@@ -174,3 +177,6 @@ scorecard.png
 
 # Python bytecode from running the repo-root Tools/ scripts.
 __pycache__/
+
+# Local export and packaging output (APK, Linux build, AppImage).
+build_out/
