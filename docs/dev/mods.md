@@ -229,6 +229,14 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   `https://mod.io/report/mods/<id>/widget`, which takes a report without a login).
   Remove neither.
 - **Nothing reaches mod.io until the tab is first opened** (`ensure_fetched`).
+- **Every exchange with mod.io is logged**: `[ModioClient]` for each API GET (sent,
+  OK with bytes/rows/ms, failed with result/code/retry-after and the first 300 bytes
+  of mod.io's error body, or not sent because the terms are not agreed),
+  `[ModDownloader]` for each download hop, redirect, response, retry and outcome,
+  `[ModioConsent]` for agree/withdraw/terms changed, `[ModArtCache]` for failed
+  images only. The API key is logged as `api_key=…` (`ModioClient.loggable`) and a
+  download's signed query string as `?…` (`ModDownloader._loggable`): a signature
+  is a credential while it lives. On a Quest: `adb logcat -s godot:* | grep Modio`.
 - **A download address is asked for again at the press** (`get_mod`), never taken
   from the listing: mod.io signs each one and lets it expire.
 - **The redirect is followed on the GET**, not probed with a HEAD as

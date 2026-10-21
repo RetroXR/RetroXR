@@ -402,38 +402,73 @@ static func describe(result: int, code: int, retry_after: String = "") -> String
 	return "mod.io refused the request (%d)" % code
 
 
+## A request as the log shows it: the API key is no secret, but it is noise in
+## every line, so it is replaced by its name.
+static func loggable(path: String) -> String:
+	var at := path.find("api_key=")
+	if at < 0:
+		return path
+	var end := path.find("&", at)
+	return path.substr(0, at) + "api_key=…" + ("" if end < 0 else path.substr(end))
+
+
 ## callback(ok: bool, parsed: Variant, error: String)
 func _fetch_json(path: String, callback: Callable, needs_consent: bool = true) -> void:
+	var shown := loggable(path)
 	if needs_consent and not consent.granted():
+		print("[ModioClient] Not sent, terms not agreed: GET %s" % shown)
 		callback.call(false, null, NEEDS_CONSENT)
 		return
 	if not is_inside_tree():
+		print("[ModioClient] Not sent, client outside the tree: GET %s" % shown)
 		callback.call(false, null, "Cannot reach mod.io")
 		return
 	var http := HTTPRequest.new()
 	http.use_threads = true
 	http.timeout = REQUEST_TIMEOUT
 	add_child(http)
+	var started := Time.get_ticks_msec()
 	http.request_completed.connect(
 		func(result: int, code: int, headers: PackedStringArray, raw: PackedByteArray) -> void:
 			http.queue_free()
+			var ms := Time.get_ticks_msec() - started
 			if result != HTTPRequest.RESULT_SUCCESS or code < 200 or code >= 300:
 				var retry := ""
 				for h: String in headers:
 					if h.to_lower().begins_with("retry-after:"):
 						retry = h.substr(12).strip_edges()
-				callback.call(false, null, describe(result, code, retry))
+				var error := describe(result, code, retry)
+				print("[ModioClient] Failed: GET %s -> result=%d code=%d%s in %d ms: %s" % [
+					shown, result, code, "" if retry.is_empty() else " retry-after=" + retry,
+					ms, error])
+				# mod.io's error body says why in its own words (error.message).
+				if not raw.is_empty():
+					print("[ModioClient]   body: %s" % raw.get_string_from_utf8().left(300))
+				callback.call(false, null, error)
 				return
 			var json := JSON.new()
 			if json.parse(raw.get_string_from_utf8()) != OK:
+				print("[ModioClient] Bad JSON: GET %s -> code=%d, %d bytes in %d ms: %s" % [
+					shown, code, raw.size(), ms, json.get_error_message()])
 				callback.call(false, null, "Unexpected reply from mod.io")
 				return
-			callback.call(true, json.data, ""))
+			var data: Variant = json.data
+			var rows := ""
+			if data is Dictionary and (data as Dictionary).has("result_total"):
+				var page: Variant = (data as Dictionary).get("data", [])
+				rows = ", %d of %d rows" % [(page as Array).size() if page is Array else 0,
+					int((data as Dictionary)["result_total"])]
+			print("[ModioClient] OK: GET %s -> %d, %d bytes%s in %d ms" % [
+				shown, code, raw.size(), rows, ms])
+			callback.call(true, data, ""))
 	# Says who is asking, as the core downloader does for GitHub.
 	var headers := PackedStringArray(["Accept: application/json", "User-Agent: RetroXR"])
 	if not platform_header().is_empty():
 		headers.append("X-Modio-Platform: " + platform_header())
+	print("[ModioClient] GET %s%s (platform %s)" % [base_url, shown,
+		platform_header() if not platform_header().is_empty() else "none"])
 	var err := http.request(base_url + path, headers)
 	if err != OK:
+		print("[ModioClient] Not sent, HTTPRequest error %d: GET %s" % [err, shown])
 		http.queue_free()
 		callback.call(false, null, "Cannot reach mod.io")

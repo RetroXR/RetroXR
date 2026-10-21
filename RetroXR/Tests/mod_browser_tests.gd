@@ -862,6 +862,12 @@ func _group_scan() -> void:
 	_eq(ModioClient.platform_header("Android"), "oculus", "scan/a Quest names its platform")
 	_eq(ModioClient.platform_header("Windows"), "windows", "scan/so does a desktop")
 	_eq(ModioClient.platform_header("Haiku"), "", "scan/an unknown one sends none")
+	_eq(ModioClient.loggable("/games/1/mods?api_key=abc123&_limit=24"),
+		"/games/1/mods?api_key=…&_limit=24", "scan/a logged request leaves the key out")
+	_eq(ModioClient.loggable("/authenticate/terms?api_key=abc123"),
+		"/authenticate/terms?api_key=…", "scan/so does one where it is last")
+	_eq(ModDownloader._loggable("https://binary.modcdn.io/mods/a/b.zip?verify=sig"),
+		"https://binary.modcdn.io/mods/a/b.zip?…", "scan/a logged download leaves its signature out")
 
 
 # ── policy/ ───────────────────────────────────────────────────────────────────

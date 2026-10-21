@@ -139,6 +139,9 @@ func _pump() -> void:
 	_current_key = str(job["key"])
 	# Resolved here, on the main thread: the worker must not reach for an autoload.
 	job["part"] = _part_path(_current_key)
+	print("[ModDownloader] Start %s (%s): %s, %d bytes, md5 %s" % [_current_key,
+		str(job["label"]), _loggable(str(job["url"])), int(job["size"]),
+		str(job.get("md5", "")) if not str(job.get("md5", "")).is_empty() else "none"])
 	job_started.emit(_current_key, str(job["label"]), int(job["size"]))
 	_thread = Thread.new()
 	_thread.start(_worker.bind(job))
@@ -188,6 +191,9 @@ func _worker(job: Dictionary) -> void:
 func _install(job: Dictionary, staged: String) -> void:
 	var hook := install_hook if install_hook.is_valid() else Callable(Mods, "install")
 	var result: Dictionary = hook.call(staged, job["source"])
+	print("[ModDownloader] Downloaded %s; install %s%s" % [str(job["key"]),
+		"ok" if bool(result.get("ok", false)) else "refused",
+		"" if str(result.get("error", "")).is_empty() else ": " + str(result["error"])])
 	_current_key = ""
 	job_finished.emit(str(job["key"]), bool(result.get("ok", false)),
 		str(result.get("error", "")), result)
@@ -195,12 +201,15 @@ func _install(job: Dictionary, staged: String) -> void:
 
 
 func _finish(job: Dictionary, ok: bool, error: String) -> void:
+	print("[ModDownloader] %s %s%s" % ["Finished" if ok else "Failed", str(job["key"]),
+		"" if error.is_empty() else ": " + error])
 	_current_key = ""
 	job_finished.emit(str(job["key"]), ok, error, {})
 	_pump()
 
 
 func _cancelled(key: String) -> void:
+	print("[ModDownloader] Cancelled %s" % key)
 	_current_key = ""
 	job_cancelled.emit(key)
 	_pump()
@@ -226,6 +235,8 @@ func _transfer(job: Dictionary, part: String) -> Dictionary:
 		if _abort:
 			return {"state": "cancelled", "error": ""}
 		if attempt > 0:
+			print("[ModDownloader] Retry %d/%d of %s after: %s" % [attempt + 1, MAX_RETRIES,
+				key, last_error])
 			_retrying.call_deferred(key, attempt + 1, MAX_RETRIES, last_error)
 			# Sliced so a cancel lands during the backoff, not after it.
 			var wait_ms := int(pow(2.0, attempt) * float(backoff_ms))
@@ -239,6 +250,9 @@ func _transfer(job: Dictionary, part: String) -> Dictionary:
 		var res := _attempt(job, part)
 		var status := str(res["status"])
 		last_error = str(res.get("error", ""))
+		if status != "ok" and status != "cancelled":
+			print("[ModDownloader] Attempt %d/%d of %s: %s, %s" % [attempt + 1, MAX_RETRIES,
+				key, status, last_error])
 		if status == "ok":
 			return {"state": "ok", "error": ""}
 		if status == "cancelled":
@@ -279,12 +293,16 @@ func _attempt(job: Dictionary, part: String) -> Dictionary:
 		if split.is_empty():
 			f.close()
 			return {"status": "terminal", "error": "Bad download address"}
+		print("[ModDownloader] GET %s%s" % [_loggable(url),
+			" from byte %d" % have if have > 0 else ""])
 		var http := RommHttp.new()
 		var opened := http.open(str(split["base_url"]), func() -> bool: return _abort)
 		if opened == RommHttp.Result.ABORTED:
 			f.close()
 			return {"status": "cancelled"}
 		if opened != RommHttp.Result.OK:
+			print("[ModDownloader] Cannot connect to %s (RommHttp result %d)" % [
+				str(split["base_url"]), opened])
 			f.close()
 			return {"status": "transient", "error": "Cannot reach the download server"}
 		out = http.download_to_file(str(split["path"]),
@@ -296,6 +314,7 @@ func _attempt(job: Dictionary, part: String) -> Dictionary:
 				or not (hop_code in [301, 302, 303, 307, 308]):
 			break
 		var location := RommHttp.header_value(out.get("headers", {}), "location")
+		print("[ModDownloader] Redirect %d -> %s" % [hop_code, _loggable(location)])
 		if location.is_empty():
 			f.close()
 			return {"status": "terminal", "error": "The server redirected nowhere"}
@@ -308,6 +327,8 @@ func _attempt(job: Dictionary, part: String) -> Dictionary:
 
 	var result := int(out["result"])
 	var code := int(out.get("code", 0))
+	print("[ModDownloader] Response: RommHttp result %d, code %d, %d bytes on disk" % [
+		result, code, ByteSize.on_disk(part)])
 	if result == RommHttp.Result.ABORTED:
 		return {"status": "cancelled"}
 	if result == RommHttp.Result.WRITE_FAILED:
@@ -344,3 +365,10 @@ func _attempt(job: Dictionary, part: String) -> Dictionary:
 	if not want.is_empty() and FileAccess.get_md5(part).to_lower() != want:
 		return {"status": "restart", "error": "The downloaded file was corrupt"}
 	return {"status": "ok"}
+
+
+## A download address as the log shows it: mod.io signs each one in its query
+## string, which is a credential for as long as it lives, so it is left out.
+static func _loggable(url: String) -> String:
+	var q := url.find("?")
+	return url if q < 0 else url.substr(0, q) + "?…"

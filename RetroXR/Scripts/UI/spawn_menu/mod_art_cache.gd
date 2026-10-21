@@ -92,12 +92,14 @@ func _start_fetch(url: String) -> void:
 			_active.erase(url)
 			http.queue_free()
 			if result != HTTPRequest.RESULT_SUCCESS or code < 200 or code >= 300:
+				print("[ModArtCache] Image failed: %s -> result=%d code=%d" % [url, result, code])
 				_dead[url] = true
 				if FileAccess.file_exists(disk):
 					DirAccess.remove_absolute(ProjectSettings.globalize_path(disk))
 				return
 			_start_decode(url, disk))
 	if http.request(url) != OK:
+		print("[ModArtCache] Image not requested: %s" % url)
 		_active.erase(url)
 		http.queue_free()
 		_dead[url] = true

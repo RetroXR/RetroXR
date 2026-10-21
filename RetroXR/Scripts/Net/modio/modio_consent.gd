@@ -32,6 +32,7 @@ func grant(terms_text: String) -> void:
 	_load()
 	_agreed = true
 	_terms_md5 = terms_text.md5_text()
+	print("[ModioConsent] Terms agreed (md5 %s)" % _terms_md5)
 	JsonStore.write_dict(state_path, {"agreed": true, "terms_md5": _terms_md5,
 		"agreed_at": int(Time.get_unix_time_from_system())}, STATE_OWNER)
 
@@ -40,6 +41,7 @@ func withdraw() -> void:
 	_loaded = true
 	_agreed = false
 	_terms_md5 = ""
+	print("[ModioConsent] Agreement withdrawn")
 	if FileAccess.file_exists(state_path):
 		DirAccess.remove_absolute(state_path)
 
@@ -48,7 +50,11 @@ func withdraw() -> void:
 ## evidence of a change: a failed fetch must not sign anybody out.
 func terms_changed(terms_text: String) -> bool:
 	_load()
-	return _agreed and not terms_text.is_empty() and terms_text.md5_text() != _terms_md5
+	var changed := _agreed and not terms_text.is_empty() and terms_text.md5_text() != _terms_md5
+	if changed:
+		print("[ModioConsent] mod.io's terms changed since they were agreed (md5 %s -> %s)" % [
+			_terms_md5, terms_text.md5_text()])
+	return changed
 
 
 func _load() -> void:
