@@ -1,0 +1,46 @@
+# Nintendo Game Boy Printer (gbprinter-libretro), retroXR's own core.
+#
+# Not an override: libretro has no such core, so this whole entry is ours and
+# CoreInfoDatabase.load_overlay appends it.
+#
+# The core runs no CPU and loads no game. It joins the frontend's link bus on
+# the "gb-sio-1" wire the retroXR builds of gambatte and mGBA speak, answers the
+# Game Boy the way the MGB-007 does, and shows the paper as its video frame. Its
+# two buttons are the printer's: A is FEED, B is TEAR (left stick X the number of
+# lines to tear). Built from RetroXR/gbprinter-libretro, MIT.
+#
+# systemid "gbprinter" files it under a platform of its own, so it is grouped and
+# offered the way every other core is; GbPrinter starts it by name and nothing
+# lists games for it.
+
+# Software Information
+display_name = "Nintendo - Game Boy Printer (retroXR)"
+authors = "RetroXR"
+supported_extensions = ""
+corename = "Game Boy Printer (retroXR)"
+license = "MIT"
+permissions = ""
+display_version = "1.0.0"
+
+# Hardware Information
+manufacturer = "Nintendo"
+categories = "Emulator"
+systemname = "Game Boy Printer"
+systemid = "gbprinter"
+
+# Libretro Features
+supports_no_game = "true"
+savestate = "true"
+savestate_features = "deterministic"
+cheats = "false"
+input_descriptors = "true"
+memory_descriptors = "false"
+libretro_saves = "false"
+core_options = "false"
+load_subsystem = "false"
+hw_render = "false"
+needs_fullpath = "false"
+disk_control = "false"
+is_experimental = "false"
+
+description = "The Game Boy Printer as a peripheral on the frontend's Game Boy link cable bus. Prints from any Game Boy game on gambatte or mGBA (retroXR builds)."

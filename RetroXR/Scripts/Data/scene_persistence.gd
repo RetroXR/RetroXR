@@ -207,6 +207,7 @@ const SATURN_LINK_CABLE_SCENE := preload("res://Scenes/Objects/cables/saturn_lin
 const JAG_LINK_CABLE_SCENE  := preload("res://Scenes/Objects/cables/jag_link_cable.tscn")
 const ILINK_CABLE_SCENE      := preload("res://Scenes/Objects/cables/ilink_cable.tscn")
 const ILINK_HUB_SCENE        := preload("res://Scenes/Objects/cables/ilink_hub.tscn")
+const GB_PRINTER_SCENE       := preload("res://Scenes/Objects/peripherals/gb_printer.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
@@ -312,6 +313,9 @@ const PLAIN_SCENES := {
 	# Pose only: the hub has no state of its own. Which lead is in which of its
 	# sockets is recorded by each LEAD, naming this hub and "PortN".
 	"ilink_hub": ILINK_HUB_SCENE,
+	# Pose only, like the hub: the lead in its EXT.IN socket is saved by the LEAD,
+	# and it comes back switched off. Paper already torn off is a poster of its own.
+	"gb_printer": GB_PRINTER_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
 	# Slots written before the rename say "ray_gun".
 	"ray_gun": LIGHT_GUN_SCENE,
@@ -622,9 +626,13 @@ func clear_scene(root: Node) -> void:
 
 # ── Private helpers ────────────────────────────────────────────────────────────
 
-## Where this room's slots live.
+## Where this room's slots live. The folder is the room id URI-encoded, because a
+## mod's room is "<mod>:<name>" and Windows refuses a ':' in a folder name: the
+## first save in a mod room failed to create the folder (ERR_CANT_CREATE) and the
+## manifest after it. Every shipped id is plain [a-z] and encodes to itself, so
+## their folders do not move; uri_decode() gives the id back.
 func slot_dir() -> String:
-	return "%s/%s" % [ROOMS_DIR, room_id]
+	return "%s/%s" % [ROOMS_DIR, room_id.uri_encode()]
 
 
 func _manifest_file() -> String:
@@ -2108,6 +2116,9 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	elif node is ILinkHub:
 		# Pose only, and needs this branch for the table's reason below.
 		return _base(id, "ilink_hub", n3d)
+	elif node is GbPrinter:
+		# Pose only, for the hub's reason.
+		return _base(id, "gb_printer", n3d)
 	elif node is Table:
 		# Pose only. Being in PLAIN_SCENES is not enough on its own — that map is
 		# read when LOADING, so without this branch a table is never written and

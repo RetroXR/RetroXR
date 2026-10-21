@@ -971,6 +971,10 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 	vbox.add_child(path_row)
 	vbox.add_child(HSeparator.new())
 
+	for extra: Dictionary in _BIOS_EXTRA_CORES.get(systemid, []):
+		vbox.add_child(_build_bios_core_row(extra))
+		vbox.add_child(HSeparator.new())
+
 	for entry: Dictionary in cores:
 		var cn: String = entry["core_name"]
 		var rows := _bios_rows_for_core(cn)
@@ -991,6 +995,38 @@ func _populate_bios_detail(systemid: String, vbox: VBoxContainer) -> void:
 				vbox.add_child(_build_bios_picker(r, systemid))
 
 		vbox.add_child(HSeparator.new())
+
+
+## Cores that belong to a machine without being its emulator: a peripheral with a
+## core of its own, offered on the page of the machine it plugs into rather than
+## as a platform of its own (its .info names no systemid, so it has no tile).
+const _PRINTER_EXTRA := {
+	"core": "gbprinter",
+	"title": "Game Boy Printer",
+	"desc": "The printer's own core. Spawn the printer from the Game Boy's card and cable it to a Game Boy on gambatte or mGBA.",
+}
+const _BIOS_EXTRA_CORES := {
+	"gb": [_PRINTER_EXTRA],
+	"gbc": [_PRINTER_EXTRA],
+}
+
+
+## A core offered as an extra: installed or not, and one button to fetch it from
+## its own releases, through the same downloader the Download tab uses.
+func _build_bios_core_row(extra: Dictionary) -> Control:
+	var core_name := str(extra["core"])
+	var installed := not CoreDownloadManager.installed_core_lib(core_name).is_empty()
+	return _build_bios_download_row(CoreDownloadManager.job_key(core_name),
+		str(extra["title"]), str(extra.get("desc", "")), installed,
+		"Download this core",
+		func(_key: String) -> void:
+			if download_manager != null:
+				download_manager.enqueue_core(core_name, "", str(extra["title"])),
+		func(_key: String) -> bool:
+			return download_manager != null and download_manager.is_queued(core_name),
+		func(_key: String) -> void:
+			if download_manager != null and download_manager.current_key() == CoreDownloadManager.job_key(core_name):
+				download_manager.cancel_current())
 
 
 ## The one-tap route for cores whose support files libretro redistributes.
@@ -1075,8 +1111,19 @@ func _build_wii_menu_row() -> Control:
 ## One download that fills in something at once: a title, an optional line under
 ## it, "Installed" once it is there, and a button that downloads, repairs or
 ## cancels.
+##
+## `queued` and `cancel` say where the job lives when it is not the firmware
+## installer's -- a core fetched from this page is the core downloader's.
 func _build_bios_download_row(key: String, title: String, desc: String, installed: bool,
-		download_tooltip: String, enqueue: Callable) -> Control:
+		download_tooltip: String, enqueue: Callable, queued := Callable(),
+		cancel := Callable()) -> Control:
+	if not queued.is_valid():
+		queued = func(k: String) -> bool:
+			return _firmware_installer != null and _firmware_installer.is_queued(k)
+	if not cancel.is_valid():
+		cancel = func(k: String) -> void:
+			if _firmware_installer != null:
+				_firmware_installer.cancel(k)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 	row.custom_minimum_size = Vector2(0, 60)
@@ -1102,7 +1149,7 @@ func _build_bios_download_row(key: String, title: String, desc: String, installe
 		sub.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		text.add_child(sub)
 
-	var running := _firmware_installer != null and _firmware_installer.is_queued(key)
+	var running: bool = queued.call(key)
 
 	if installed and not running:
 		var done := Label.new()
@@ -1131,15 +1178,13 @@ func _build_bios_download_row(key: String, title: String, desc: String, installe
 		btn.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
 		btn.tooltip_text = download_tooltip
 	btn.pressed.connect(func() -> void:
-		if _firmware_installer == null:
-			return
-		if _firmware_installer.is_queued(key):
+		if bool(queued.call(key)):
 			# By key: a job still waiting its turn is not the current one, and
 			# cancel_current would stop somebody else's download.
-			_firmware_installer.cancel(key)
+			cancel.call(key)
 			return
 		enqueue.call(key)
-		if not _firmware_installer.is_queued(key):
+		if not bool(queued.call(key)):
 			return
 		_bios_job_buttons[key] = btn
 		btn.text = "0%"
@@ -2210,6 +2255,7 @@ func _on_core_job_retrying(key: String, attempt: int, total: int, reason: String
 
 
 func _on_core_job_cancelled(key: String) -> void:
+	_refresh_bios_soon()
 	_job_labels.erase(key)
 	notify_clear(key)
 	_refresh_download_button(_core_from_key(key))
@@ -2217,6 +2263,8 @@ func _on_core_job_cancelled(key: String) -> void:
 
 
 func _on_core_job_finished(key: String, ok: bool, error: String) -> void:
+	# A core fetched from BIOS / Extras flips its row there too.
+	_refresh_bios_soon()
 	var core_name := _core_from_key(key)
 	var label := _job_label(key)
 	_job_labels.erase(key)

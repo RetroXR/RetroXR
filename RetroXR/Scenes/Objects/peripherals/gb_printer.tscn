@@ -1,0 +1,224 @@
+[gd_scene load_steps=22 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/gb_printer.gd" id="1_script"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="2_port"]
+[ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_button.gd" id="3_button"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
+
+; PLACEHOLDER GEOMETRY, generated, so it carries no licence: the Game Boy
+; Printer (MGB-007) as boxes, at the real unit's 135 x 70 x 60 mm (Science
+; Museum object co8184142). Long axis on Z, the front (+Z) where the controls
+; and the paper are, the EXT.IN socket on the back. No Nintendo marks.
+;
+; Along the top, front to back: POWER and FEED, the serrated tear edge, the
+; paper slot, and the cover over the roll. Where those sit is from descriptions
+; of the unit, not measured off one.
+
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.07, 0.06, 0.135)
+
+[sub_resource type="StandardMaterial3D" id="Mat_body"]
+albedo_color = Color(0.74, 0.74, 0.72, 1)
+roughness = 0.6
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_body"]
+size = Vector3(0.07, 0.06, 0.135)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_body"]
+bounce = 0.0
+friction = 0.9
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.08, 0.07, 0.145)
+
+; The cover over the paper roll: a raised darker panel on the rear two thirds.
+[sub_resource type="BoxMesh" id="BoxMesh_cover"]
+size = Vector3(0.062, 0.003, 0.08)
+
+[sub_resource type="StandardMaterial3D" id="Mat_cover"]
+albedo_color = Color(0.52, 0.53, 0.56, 1)
+roughness = 0.5
+
+; The slot the paper comes up out of, and the serrated edge in front of it.
+[sub_resource type="BoxMesh" id="BoxMesh_slot"]
+size = Vector3(0.044, 0.0012, 0.004)
+
+[sub_resource type="StandardMaterial3D" id="Mat_dark"]
+albedo_color = Color(0.06, 0.06, 0.07, 1)
+roughness = 0.9
+
+[sub_resource type="BoxMesh" id="BoxMesh_tear"]
+size = Vector3(0.046, 0.003, 0.0025)
+
+[sub_resource type="StandardMaterial3D" id="Mat_tear"]
+albedo_color = Color(0.2, 0.2, 0.22, 1)
+metallic = 0.4
+roughness = 0.4
+
+[sub_resource type="BoxMesh" id="BoxMesh_switch"]
+size = Vector3(0.011, 0.004, 0.007)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_feed"]
+top_radius = 0.0055
+bottom_radius = 0.0055
+height = 0.004
+
+[sub_resource type="StandardMaterial3D" id="Mat_button"]
+albedo_color = Color(0.22, 0.22, 0.27, 1)
+roughness = 0.5
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_switch"]
+size = Vector3(0.014, 0.008, 0.01)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_feed"]
+size = Vector3(0.013, 0.008, 0.013)
+
+[sub_resource type="BoxMesh" id="BoxMesh_led"]
+size = Vector3(0.003, 0.0012, 0.003)
+
+; Unique to each printer at run time (the script swaps in its own); this one is
+; only so the button has a mesh to read when it comes up.
+[sub_resource type="QuadMesh" id="QuadMesh_paper"]
+size = Vector2(0.038, 0.004)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_paper"]
+size = Vector3(0.038, 0.004, 0.003)
+
+[sub_resource type="StandardMaterial3D" id="Mat_led"]
+resource_local_to_scene = true
+albedo_color = Color(0.25, 0.05, 0.05, 1)
+emission = Color(1, 0.1, 0.05, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxMesh" id="BoxMesh_battery"]
+size = Vector3(0.06, 0.0008, 0.09)
+
+[node name="GbPrinter" type="RigidBody3D"]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_body")
+mass = 0.35
+freeze_mode = 1
+script = ExtResource("1_script")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+shape = SubResource("BoxShape3D_body")
+
+[node name="BodyMesh" type="MeshInstance3D" parent="."]
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("Mat_body")
+
+[node name="RollCover" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0315, -0.022)
+mesh = SubResource("BoxMesh_cover")
+surface_material_override/0 = SubResource("Mat_cover")
+
+[node name="PaperSlot" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0302, 0.026)
+mesh = SubResource("BoxMesh_slot")
+surface_material_override/0 = SubResource("Mat_dark")
+
+[node name="TearEdge" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0315, 0.0295)
+mesh = SubResource("BoxMesh_tear")
+surface_material_override/0 = SubResource("Mat_tear")
+
+; The paper rises out of the slot from here, its newest line at the head. The
+; script leans it back and sizes it to the paper the core has fed.
+[node name="PaperPivot" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0305, 0.026)
+
+; Trigger on the paper tears it off. A trigger, not a touch: a hand brushing the
+; strip must not throw the print away.
+[node name="Paper" type="Area3D" parent="PaperPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.002, 0)
+collision_layer = 1048577
+script = ExtResource("3_button")
+require_trigger = true
+interact_margin = 0.012
+depress_depth = 0.0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PaperPivot/Paper"]
+shape = SubResource("BoxShape3D_paper")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="PaperPivot/Paper"]
+mesh = SubResource("QuadMesh_paper")
+
+[node name="PowerSwitch" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.02, 0.032, 0.05)
+collision_layer = 1048577
+script = ExtResource("3_button")
+trigger_radius = 0.008
+depress_depth = 0.0015
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PowerSwitch"]
+shape = SubResource("BoxShape3D_switch")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="PowerSwitch"]
+mesh = SubResource("BoxMesh_switch")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="FeedButton" type="Area3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.02, 0.032, 0.05)
+collision_layer = 1048577
+script = ExtResource("3_button")
+trigger_radius = 0.008
+depress_depth = 0.0015
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="FeedButton"]
+shape = SubResource("BoxShape3D_feed")
+
+[node name="ButtonMesh" type="MeshInstance3D" parent="FeedButton"]
+mesh = SubResource("CylinderMesh_feed")
+surface_material_override/0 = SubResource("Mat_button")
+
+[node name="PowerLed" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.031, 0.0303, 0.05)
+mesh = SubResource("BoxMesh_led")
+surface_material_override/0 = SubResource("Mat_led")
+
+; Lying on the top, reading from the front: R_x(-90) in the .tscn's ROW form,
+; copied from ilink_hub.tscn's verified label.
+[node name="PowerLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, -0.02, 0.0302, 0.0595)
+pixel_size = 6.25e-05
+billboard = 0
+modulate = Color(0.15, 0.15, 0.18, 1)
+text = "POWER"
+font_size = 48
+
+[node name="FeedLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0.02, 0.0302, 0.0595)
+pixel_size = 6.25e-05
+billboard = 0
+modulate = Color(0.15, 0.15, 0.18, 1)
+text = "FEED"
+font_size = 48
+
+; EXT.IN, on the back. A socket's +Z is the way a plug arrives from, which here
+; is the box's -Z: turned half round about Y.
+[node name="LinkPort" parent="." instance=ExtResource("2_port")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, -0.004, -0.0685)
+
+[node name="ExtLabel" type="Label3D" parent="."]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0.007, -0.0678)
+pixel_size = 6.25e-05
+billboard = 0
+modulate = Color(0.15, 0.15, 0.18, 1)
+text = "EXT.IN"
+font_size = 48
+
+[node name="BatteryDoor" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0304, 0)
+mesh = SubResource("BoxMesh_battery")
+surface_material_override/0 = SubResource("Mat_cover")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("4_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+shape = SubResource("BoxShape3D_pointer")

@@ -66,6 +66,9 @@ func _run() -> void:
 	for i in range(2):
 		var sys := (load(SYS_SCENE) as PackedScene).instantiate() as RetroSystem
 		sys.systemid = "gb"
+		# By name: with no model a machine is the generic box, which has no
+		# link socket.
+		sys.model_id = "game_boy_primitive"
 		sys.core_name = CORE
 		sys.name = "GB%d" % i
 		add_child(sys)
@@ -80,7 +83,10 @@ func _run() -> void:
 
 	var ports: Array[LinkPort] = []
 	for sys in _systems:
-		ports.append(sys.find_child("LinkPort", true, false) as LinkPort)
+		# By TYPE: the first node merely NAMED LinkPort under a machine is not
+		# the socket (PickableHighlight mirrors the model's nodes by name).
+		var found := sys.find_children("*", "LinkPort", true, false)
+		ports.append(found[0] as LinkPort if not found.is_empty() else null)
 	_ok("the Game Boy model carries a link socket", ports.count(null) == 0)
 	if ports.count(null) > 0:
 		return _finish()

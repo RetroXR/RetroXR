@@ -78,6 +78,15 @@ const _PERIPHERALS: Dictionary = {
 	"xbox": [
 		{"kind": "peripheral", "label": "Memory Unit", "spawn": "xbox_mu"},
 	],
+	# The printer is the far end of a Game Boy link lead, so it is offered where
+	# the lead is. It runs a core of its own (gbprinter), fetched from the Game
+	# Boy's BIOS / Extras page.
+	"gb": [
+		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer"},
+	],
+	"gbc": [
+		{"kind": "peripheral", "label": "Game Boy Printer", "spawn": "gb_printer"},
+	],
 	# The pad is named here because it is the only one with an expansion port, and
 	# all three paks are useless without it. The paks themselves are listed rather
 	# than left to the console's own card row: they go into a CONTROLLER, so none

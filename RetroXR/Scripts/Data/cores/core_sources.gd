@@ -427,6 +427,21 @@ const SOURCES := {
 			"macOS":   "vemulator_libretro_{arch}.dylib.zip",
 		},
 	},
+	# The Game Boy Printer (GbPrinter), RetroXR's own core: no CPU and no game, a
+	# printer on the far end of the gb-sio-1 wire that gambatte and mGBA already
+	# speak, with the paper as its video frame. Written for RetroXR, so the
+	# buildbot has no row and _list_own_core lists it. MIT.
+	"gbprinter": {
+		"repo":  "RetroXR/gbprinter-libretro",
+		"known_tag": "retroxr-gbprinter-libretro-v1",
+		"label": "Game Boy Printer (retroXR)",
+		"assets": {
+			"Windows": "gbprinter_libretro.dll.zip",
+			"Android": "gbprinter_libretro_android.so.zip",
+			"Linux":   "gbprinter_libretro.so.zip",
+			"macOS":   "gbprinter_libretro_{arch}.dylib.zip",
+		},
+	},
 	# flycast, so a VMU's screen can be on the VMU.
 	#
 	# Stock flycast has no second video output. Its only way of showing a VMU
