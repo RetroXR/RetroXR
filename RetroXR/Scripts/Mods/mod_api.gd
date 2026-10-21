@@ -91,6 +91,11 @@ func override_model(model_id: String, row: Dictionary) -> bool:
 ## moves the shell off the middle of its bounds, for one whose locating part --
 ## the body that goes in a pocket -- is not the middle of the whole.
 ##
+## `variants` is {variant id: fields}, for a unit sold as other moldings in other
+## markets (the Super Game Boy's Super Famicom shell): a unit of that variant --
+## its row held for it, as offer_variants offers -- wears that shell, each field
+## laid over these. ExpansionCatalog.shell_key says which a unit reads.
+##
 ## What the unit is does not change: its host, its media and the dump it runs
 ## stay the game's. One mod holds a unit; a second is told who has it.
 func override_expansion_shell(unit_id: String, fields: Dictionary) -> bool:

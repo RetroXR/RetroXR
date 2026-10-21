@@ -275,11 +275,20 @@ static func core_of(spec: Dictionary, mobile: bool) -> String:
 ## The row for an id, or an empty Dictionary. With a mod's shell for the unit
 ## laid over it: every accessor below reads through here, so the shell, its size
 ## and where its tongue and card channel are all change together or not at all.
+##
+## The id may name one of that shell's variants, "<unit>@<variant>" (shell_key):
+## the variant's fields are laid over the shell's.
 static func row(id: String) -> Dictionary:
+	var variant := ""
+	var at := id.find(VARIANT_MARK)
+	if at >= 0:
+		variant = id.substr(at + 1)
+		id = id.substr(0, at)
 	if not _mod_shells.has(id):
 		return ROWS.get(id, {})
 	var merged: Dictionary = (ROWS.get(id, {}) as Dictionary).duplicate()
 	merged.merge(_mod_shells[id]["fields"] as Dictionary, true)
+	merged.merge((_mod_shells[id]["variants"] as Dictionary).get(variant, {}) as Dictionary, true)
 	return merged
 
 
@@ -294,8 +303,23 @@ const _SHELL_FIELDS := {
 	"shell_offset": TYPE_VECTOR3,
 }
 
-## unit id -> {owner, fields}.
+## unit id -> {owner, fields, variants: {variant id -> fields}}.
 static var _mod_shells: Dictionary = {}
+
+## Between a unit's id and one of its shell's variants in a shell_key.
+const VARIANT_MARK := "@"
+
+
+## The id to read a unit's shell by, for a unit that is `variant` (its row's
+## color or market, SystemModelRegistry.variant_of): the unit's id, or
+## "<unit>@<variant>" when the mod's shell it wears has a shell of that variant's
+## own -- a market whose unit was another molding, at another size. Every
+## accessor below takes either.
+static func shell_key(id: String, variant: String) -> String:
+	if variant.is_empty() or not _mod_shells.has(id) \
+			or not (_mod_shells[id]["variants"] as Dictionary).has(variant):
+		return id
+	return id + VARIANT_MARK + variant
 
 
 ## How far a unit's shell sits from the middle of its own bounds, in the unit's
@@ -309,7 +333,7 @@ static func shell_offset_of(id: String) -> Vector3:
 
 ## The mod whose shell this unit wears, or "".
 static func shell_owner_of(id: String) -> String:
-	return str((_mod_shells.get(id, {}) as Dictionary).get("owner", ""))
+	return str((_mod_shells.get(id.get_slice(VARIANT_MARK, 0), {}) as Dictionary).get("owner", ""))
 
 
 ## "" on success, else why the shell was refused.
@@ -317,11 +341,51 @@ static func shell_owner_of(id: String) -> String:
 ## `shell` and `size` are required; the rest default to the unit's own, which is
 ## right for a model in the same frame as the game's (the same shell with its
 ## branding on, say). `size` is the model's true bounds, fitted per axis.
+##
+## `variants` is {variant id: fields}, for a unit whose markets were different
+## moldings: the shell a unit of that variant wears (shell_key), each field over
+## the shell's. One with a shell of its own and no `shell_lods` has one level.
 static func register_mod_shell(id: String, fields: Dictionary, owner_id: String) -> String:
 	if not ROWS.has(id):
 		return "'%s' is not an expansion unit" % id
+	var own := fields.duplicate()
+	var variants: Variant = own.get("variants", {})
+	own.erase("variants")
 	var checked := {}
-	for key: String in fields:
+	var err := _check_shell_fields(own, checked)
+	if not err.is_empty():
+		return err
+	if not checked.has("shell"):
+		return "shell does not exist: "
+	if not checked.has("size"):
+		return "size is required: the shell's true bounds, in metres"
+	# The game's lower levels and its recolour belong to the game's shell.
+	if not checked.has("shell_lods"):
+		checked["shell_lods"] = []
+	checked["shell_albedo"] = ""
+	if not (variants is Dictionary):
+		return "variants is {variant id: shell fields}"
+	var by_variant := {}
+	for vid: Variant in (variants as Dictionary):
+		var vname := str(vid)
+		var given: Variant = (variants as Dictionary)[vid]
+		if not (vid is String) or vname.is_empty() or vname.contains(VARIANT_MARK) or not (given is Dictionary):
+			return "variants is {variant id: shell fields}, and an id has no '%s'" % VARIANT_MARK
+		var theirs := {}
+		err = _check_shell_fields(given as Dictionary, theirs)
+		if not err.is_empty():
+			return "variant %s: %s" % [vname, err]
+		if theirs.has("shell") and not theirs.has("shell_lods"):
+			theirs["shell_lods"] = []
+		by_variant[vname] = theirs
+	_mod_shells[id] = {"owner": owner_id, "fields": checked, "variants": by_variant}
+	return ""
+
+
+## Copies `fields` into `checked`, or says what is wrong with them: each one a
+## shell can set, of its type, and a model that is there at a size that is one.
+static func _check_shell_fields(fields: Dictionary, checked: Dictionary) -> String:
+	for key: Variant in fields:
 		if not _SHELL_FIELDS.has(key):
 			return "'%s' is not something a shell can set (%s)" % [key, ", ".join(_SHELL_FIELDS.keys())]
 		var value: Variant = fields[key]
@@ -330,23 +394,18 @@ static func register_mod_shell(id: String, fields: Dictionary, owner_id: String)
 		if typeof(value) != _SHELL_FIELDS[key]:
 			return "%s is the wrong type" % key
 		checked[key] = value
-	var shell := str(checked.get("shell", ""))
-	if shell.is_empty() or not ResourceLoader.exists(shell):
-		return "shell does not exist: %s" % shell
-	if not checked.has("size"):
-		return "size is required: the shell's true bounds, in metres"
-	var size: Vector3 = checked["size"]
-	if size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
-		return "size must be positive on every axis"
+	if checked.has("shell"):
+		var shell := str(checked["shell"])
+		if shell.is_empty() or not ResourceLoader.exists(shell):
+			return "shell does not exist: %s" % shell
+	if checked.has("size"):
+		var size: Vector3 = checked["size"]
+		if size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
+			return "size must be positive on every axis"
 	for level: Variant in (checked.get("shell_lods", []) as Array):
 		if not (level is Array) or (level as Array).size() != 2 \
 				or not ResourceLoader.exists(str((level as Array)[0])):
 			return "a shell_lods entry is [model path, metres], and its model must exist"
-	# The game's lower levels and its recolour belong to the game's shell.
-	if not checked.has("shell_lods"):
-		checked["shell_lods"] = []
-	checked["shell_albedo"] = ""
-	_mod_shells[id] = {"owner": owner_id, "fields": checked}
 	return ""
 
 

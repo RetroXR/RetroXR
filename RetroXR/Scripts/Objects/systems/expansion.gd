@@ -185,7 +185,14 @@ func ensure_saves_panel() -> MemoryCardPanel:
 
 
 func size() -> Vector3:
-	return ExpansionCatalog.size_of(expansion_id)
+	return ExpansionCatalog.size_of(_shell_id())
+
+
+## The id this unit's shell is read by: its own, or the one of its variant's shell
+## where a mod's shell has a molding for that market (ExpansionCatalog.shell_key).
+## Set before the unit enters the room, as its variant is.
+func _shell_id() -> String:
+	return ExpansionCatalog.shell_key(expansion_id, SystemModelRegistry.variant_of(self))
 
 
 func _build_body() -> void:
@@ -243,7 +250,7 @@ func _build_body() -> void:
 ## box it replaces, so every socket, mouth and button placed from `size` still
 ## lands on it.
 func _build_shell(s: Vector3) -> void:
-	var path := ExpansionCatalog.shell_of(expansion_id)
+	var path := ExpansionCatalog.shell_of(_shell_id())
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var packed := load(path) as PackedScene
@@ -258,11 +265,11 @@ func _build_shell(s: Vector3) -> void:
 		return
 	var k := Vector3(s.x / ab.size.x, s.y / ab.size.y, s.z / ab.size.z)
 	shell.scale = k
-	shell.position = -(ab.position + ab.size * 0.5) * k + ExpansionCatalog.shell_offset_of(expansion_id)
+	shell.position = -(ab.position + ab.size * 0.5) * k + ExpansionCatalog.shell_offset_of(_shell_id())
 	_shell = shell
 	_body.visible = false
 	_build_shell_lods(shell)
-	var albedo := ExpansionCatalog.shell_albedo_of(expansion_id)
+	var albedo := ExpansionCatalog.shell_albedo_of(_shell_id())
 	if not albedo.is_empty():
 		ModelMaterialFix.retexture(shell, "shell", albedo)
 
@@ -287,7 +294,7 @@ const LOD_HYSTERESIS := 0.1
 ## bounds, which is what lets its numbers carry over. Markers (SocketMarker,
 ## AccessLed, ...) are only ever read off the full shell.
 func _build_shell_lods(shell: Node3D) -> void:
-	var lods := ExpansionCatalog.shell_lods_of(expansion_id)
+	var lods := ExpansionCatalog.shell_lods_of(_shell_id())
 	if lods.is_empty():
 		return
 	var levels: Array[Node3D] = [shell]
@@ -441,7 +448,7 @@ func _update_label() -> void:
 ## _LABEL_MAX_GLYPH), so every unit that already looked right is untouched and
 ## only the small ones move.
 func _fit_label() -> void:
-	var s := ExpansionCatalog.size_of(expansion_id)
+	var s := size()
 	if s.x <= 0.0 or _label.font_size <= 0:
 		return
 	var chars := maxi(_label.text.length(), 1)
@@ -493,7 +500,7 @@ func _build_connector() -> void:
 	if ExpansionCatalog.mount_of(expansion_id) == ExpansionCatalog.MOUNT_BELOW:
 		# The console stands on us: we hold the socket, and only the console this
 		# unit was made for is allowed into it.
-		var seat_y := ExpansionCatalog.seat_y_of(expansion_id)
+		var seat_y := ExpansionCatalog.seat_y_of(_shell_id())
 		_socket = ExpansionPort.build_socket(self, s.y * 0.5 if is_nan(seat_y) else seat_y, span,
 			ExpansionPort.GROUP_SYSTEM, _accepts_host, _shell == null)
 		_socket.has_picked_up.connect(_on_host_seated)
@@ -530,12 +537,12 @@ func _aim_connector(zone: XRToolsSnapZone) -> void:
 	# The seat composes this point's whole transform, so turning it turns the unit
 	# in the slot (snap_pose_for). The e-Reader goes in facing the other way from a
 	# cartridge's label.
-	_connector.basis = Basis(Vector3.UP, deg_to_rad(ExpansionCatalog.seat_yaw_of(expansion_id)))
+	_connector.basis = Basis(Vector3.UP, deg_to_rad(ExpansionCatalog.seat_yaw_of(_shell_id())))
 	# A unit whose modelled tongue goes INTO the slot, the way a cartridge's does
 	# (the e-Reader), names the point the seat takes: where a cartridge's middle
 	# would be if the tongue were one. Every console's slot already seats a
 	# cartridge there, so no console needs measuring.
-	var fixed: Variant = ExpansionCatalog.connector_of(expansion_id)
+	var fixed: Variant = ExpansionCatalog.connector_of(_shell_id())
 	if fixed is Vector3:
 		_connector.position = fixed
 		return
@@ -736,7 +743,7 @@ func _build_swipe_slit(s: Vector3, media: String) -> void:
 	var card := MediaDimensions.cart_size(media)
 	# A shell with a card channel of its own says where it is, and which way a
 	# card lies in it; anything else gets a groove cut in its roof.
-	var frame: Variant = ExpansionCatalog.swipe_slit_of(expansion_id)
+	var frame: Variant = ExpansionCatalog.swipe_slit_of(_shell_id())
 	var place := Transform3D.IDENTITY
 	if frame is Transform3D:
 		place = frame

@@ -30,6 +30,8 @@
 ##            needs, and the dump gate
 ##   vcdcard/ the Saturn's Video CD Card: a socket of its own in the back panel,
 ##            in beside a cartridge and staying in when the cartridge comes out
+##   markets/ a mod's shell for a unit with another market's molding: a unit of
+##            that market wears its own, at its own size, by its own tongue
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -105,9 +107,11 @@ func _restored_console(systemid: String) -> RetroSystem:
 	return sys
 
 
-func _unit(expansion_id: String) -> RetroExpansion:
+## `variant`: the market or color its row was held for, given before it enters.
+func _unit(expansion_id: String, variant := "") -> RetroExpansion:
 	var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
 	unit.expansion_id = expansion_id
+	SystemModelRegistry.set_variant_of(unit, variant)
 	unit.position = Vector3(_spawned.size() * 2.0, 1, 0)
 	unit.freeze = true
 	add_child(unit)
@@ -1439,6 +1443,8 @@ func _run() -> void:
 		await _group_vcdcard()
 	if _want("spacer"):
 		await _group_spacer()
+	if _want("markets"):
+		await _group_markets()
 
 
 # ── spacer/ — the 32X's Model 2 spacer, a clip-on accessory ───────────────────
@@ -2845,3 +2851,75 @@ func _group_slot2() -> void:
 	_ok(ds.get_slot2_cartridge() == null, "slot2/ and net_release_slot2_cartridge lets it go")
 
 	await _clear()
+
+
+# ── markets/ — a mod's shell with another market's molding ────────────────────
+
+## A unit sold in two moldings (the Super Game Boy: the North American shell and
+## the Super Famicom one, in Japan and Europe): a mod's shell carries the other as
+## a variant of its row. A unit of that variant wears it, at its own size, seated
+## by its own tongue; every other wears the shell's own. What the unit is stays.
+func _group_markets() -> void:
+	var id := "super_game_boy"
+	var owner := "t.markets"
+	var plain: Dictionary = ExpansionCatalog.row(id).duplicate(true)
+	# Any two of the game's models will do, at sizes that are neither's own.
+	var model := ExpansionCatalog.shell_of("ereader_usa")
+	var other := ExpansionCatalog.shell_of("sega_32x")
+	var us := Vector3(0.13, 0.12, 0.022)
+	var jp := Vector3(0.12, 0.125, 0.025)
+	var tongue := Vector3(0.0, -0.02, -0.003)
+	_ok(not model.is_empty() and not other.is_empty() and model != other,
+		"markets/ two shells to dress the unit in")
+	_ok(not ExpansionCatalog.register_mod_shell(id, {"shell": model, "size": us,
+		"variants": {"jpn": {"shell": "res://nope.glb"}}}, owner).is_empty(),
+		"markets/ a market's shell that is not there is refused")
+	_ok(not ExpansionCatalog.register_mod_shell(id, {"shell": model, "size": us,
+		"variants": {"jpn": {"media": "gb"}}}, owner).is_empty(),
+		"markets/ and a market cannot say what the unit is")
+	_ok(not ExpansionCatalog.register_mod_shell(id, {"shell": model, "size": us,
+		"variants": {"j@n": {"size": jp}}}, owner).is_empty(),
+		"markets/ nor be named with the mark that joins it to the unit")
+	_ok(not ExpansionCatalog.register_mod_shell(id, {"shell": model, "size": us,
+		"variants": [jp]}, owner).is_empty(), "markets/ nor be anything but a dictionary")
+	_ok(ExpansionCatalog.row(id) == plain, "markets/ none of which dressed the unit")
+
+	var err := ExpansionCatalog.register_mod_shell(id, {"shell": model, "size": us,
+		"variants": {"jpn": {"shell": other, "size": jp, "connector": tongue}}}, owner)
+	_ok(err.is_empty(), "markets/ a shell may carry another market's molding %s" % err)
+	var key := ExpansionCatalog.shell_key(id, "jpn")
+	_ok(key == id + ExpansionCatalog.VARIANT_MARK + "jpn", "markets/ a unit of that market reads its own")
+	_ok(ExpansionCatalog.shell_key(id, "") == id and ExpansionCatalog.shell_key(id, "usa") == id,
+		"markets/ any other the shell's")
+	_ok(ExpansionCatalog.shell_key("super_game_boy_2", "jpn") == "super_game_boy_2",
+		"markets/ and a unit whose shell has no such market its own")
+	_ok(ExpansionCatalog.shell_of(key) == other and ExpansionCatalog.size_of(key) == jp
+		and ExpansionCatalog.connector_of(key) == tongue and ExpansionCatalog.shell_lods_of(key).is_empty(),
+		"markets/ the market's molding at its size, by its tongue, at one level")
+	_ok(ExpansionCatalog.shell_of(id) == model and ExpansionCatalog.size_of(id) == us
+		and ExpansionCatalog.connector_of(id) == plain.get("connector"),
+		"markets/ the shell's own at its size, by the game's tongue")
+	_ok(ExpansionCatalog.host_of(key) == ExpansionCatalog.host_of(id)
+		and ExpansionCatalog.media_of(key) == ExpansionCatalog.media_of(id)
+		and ExpansionCatalog.label_of(key) == ExpansionCatalog.label_of(id), "markets/ still the same unit")
+	_ok(ExpansionCatalog.shell_owner_of(key) == owner, "markets/ whose it is")
+
+	# In the room: given its market before it enters, as a held row and a load do.
+	var japan := await _unit(id, "jpn")
+	var america := await _unit(id)
+	var shell := japan.get_node_or_null("Shell") as Node3D
+	_ok(japan.size() == jp and shell != null and shell.scene_file_path == other,
+		"markets/ the Japanese unit wears its molding at its size")
+	_ok(america.size() == us and (america.get_node("Shell") as Node3D).scene_file_path == model,
+		"markets/ and the other the shell's own at its")
+	var seat := japan.get_node_or_null("CartridgeConnector") as Node3D
+	_ok(seat != null and seat.position.is_equal_approx(tongue), "markets/ seated by its own tongue")
+	var sfc := await _console("snes")
+	var slot := sfc._cartridge_slot as XRToolsSnapZone
+	_ok(slot != null and slot.snap_filter.call(japan) and slot.snap_filter.call(america),
+		"markets/ and either goes in the console's slot")
+	await _clear()
+
+	ExpansionCatalog.drop_mod(owner)
+	_ok(ExpansionCatalog.row(id) == plain and ExpansionCatalog.row(key) == plain
+		and ExpansionCatalog.shell_key(id, "jpn") == id, "markets/ withdrawn, the unit is exactly what it was")
