@@ -9,6 +9,17 @@
 ## The save is COPIED to a scratch file before the core sees it: the player's
 ## photos are never the core's to write. With no --sav the camera starts blank.
 ##
+## Any other printing game too: --rom=<file in the gb or gbc library, or a path>
+## --core=gambatte|mgba (mGBA by default; gambatte cannot run the Camera). Then
+## --steps has no default, and screenshots are named gb_camera_<name> all the same.
+##
+## Super Mario Bros. Deluxe, the Toy Box calendar, from a fresh save (found by
+## screenshot; on either core, and the two papers come out identical):
+##   --rom="Super Mario Bros. Deluxe (USA, Europe) (Rev 2).gbc" --core=gambatte
+##   --steps=w400,START,w120,DOWNx3,w30,RIGHTx2,w30,A,w120,A,w120,A,w90,RIGHT,w30,A,printed
+## It runs its link in double speed, so it is also the check that an answer lands
+## inside a 4096-tick byte (gbprinter v1 answered late: "Error 02").
+##
 ## --steps is a comma list, run in order, timed in the Game Boy's own frames so
 ## the same list replays the same way however fast the window draws:
 ##
@@ -36,13 +47,16 @@ extends Node
 const PRINT_FIRST_PHOTO := "w300,A,w60,RIGHT,w30,A,w150,A,w150,A,w150,shot:photo," \
 		+ "SELECT,w60,UP,w60,A,w90,A,w45,shot:printing,printed,shot:after"
 
-const CORE := "mgba"
+var CORE := "mgba"
+var OPTIONS: Array = []
 const PRINTER_CORE := "gbprinter"
 const ROM_NAME := "Game Boy Camera (USA, Europe) (SGB Enhanced).gb"
-const OPTIONS := [
-	["mgba_link_cable", "ON"], ["mgba_use_bios", "OFF"],
-	["mgba_gb_model", "Game Boy"], ["mgba_sgb_borders", "OFF"],
-]
+const CORE_OPTIONS := {
+	"mgba": [["mgba_link_cable", "ON"], ["mgba_use_bios", "OFF"],
+		["mgba_gb_model", "Game Boy"], ["mgba_sgb_borders", "OFF"]],
+	"gambatte": [["gambatte_gb_link_mode", "Link Cable"], ["gambatte_gb_bootloader", "disabled"]],
+}
+
 const KEYS := {
 	"B": 0, "SELECT": 2, "START": 3, "UP": 4, "DOWN": 5, "LEFT": 6, "RIGHT": 7, "A": 8,
 }
@@ -67,12 +81,20 @@ func _ready() -> void:
 
 func _run() -> void:
 	var sav := ""
-	var steps := PRINT_FIRST_PHOTO
+	var steps := ""
+	var rom_arg := ""
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--sav="):
 			sav = arg.substr(6)
 		elif arg.begins_with("--steps="):
 			steps = arg.substr(8)
+		elif arg.begins_with("--rom="):
+			rom_arg = arg.substr(6)
+		elif arg.begins_with("--core="):
+			CORE = arg.substr(7)
+	if rom_arg.is_empty() and steps.is_empty():
+		steps = PRINT_FIRST_PHOTO
+	OPTIONS = (CORE_OPTIONS.get(CORE, []) as Array).duplicate(true)
 	var root := CoreDownloadManager.default_core_root()
 	for core in [CORE, PRINTER_CORE]:
 		if CoreDownloadManager.installed_core_lib(core).is_empty():
@@ -80,6 +102,16 @@ func _run() -> void:
 			get_tree().quit(0)
 			return
 	var rom := RomLibrary.rom_dir_for_system("gb").path_join(ROM_NAME)
+	if not rom_arg.is_empty():
+		rom = rom_arg
+		for sid in ["gbc", "gb"]:
+			var p := RomLibrary.rom_dir_for_system(sid).path_join(rom_arg)
+			if FileAccess.file_exists(p):
+				rom = p
+		if CORE == "mgba" and rom.get_extension().to_lower() == "gbc":
+			for pair: Array in OPTIONS:
+				if pair[0] == "mgba_gb_model":
+					pair[1] = "Game Boy Color"
 	if not FileAccess.file_exists(rom):
 		print("[cam-print] SKIP  no %s" % rom)
 		get_tree().quit(0)

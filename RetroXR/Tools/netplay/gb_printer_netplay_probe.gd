@@ -17,6 +17,13 @@
 ## so neither waits on the other however long they run. A printer with a frame of
 ## its own length would drift on the bus and wedge the gate (netplay_link_probe).
 ##
+## At each checkpoint only the PRINTERS are held at the frame; the Game Boys are
+## fed two frames past it, as inputs run ahead of the cores in a live session.
+## Holding every core at one frame while they are cabled is what a session does
+## only for a lead pulled mid-game, and on mGBA that can wedge (gb-printer.md);
+## the cable is seated here with every core held, as a session seats one, which
+## is the case that matters for a print.
+##
 ## FEED and TEAR go in as agreed input on chosen frames, as a holder's presses
 ## reach every peer in a session.
 ##
@@ -48,7 +55,10 @@ const CHECKPOINTS := [950, 1050, 1100, 1200, 2400]
 var _core := "gambatte"
 ## [gb_A, printer_A, gb_B, printer_B]
 var _libs: Array = []
-var _posted := 0
+## Frames posted so far: the Game Boys', and the printers', which stop at each
+## checkpoint while the Game Boys run on.
+var _posted_gb := 0
+var _posted_pr := 0
 var _fail := 0
 var _pass := 0
 var _opt_path := ""
@@ -94,7 +104,7 @@ func _run() -> void:
 	# frame edges on the same tick of the bus: the bus anchors each one's clock
 	# where it stands when the wire is made. Seated at an arbitrary moment, the
 	# two would be out of step by however far apart they happened to be.
-	if not await _run_to(SEAT_AT):
+	if not await _run_to(SEAT_AT, 0):
 		_bad("the cores never reached frame %d to be cabled: %s" % [SEAT_AT, _frames()])
 		_finish()
 		return
@@ -140,40 +150,58 @@ func _run() -> void:
 var _fed_height := -1
 
 
-## Post agreed inputs up to `frame` and wait until every core is held there.
-func _run_to(frame: int) -> bool:
+## Post agreed inputs up to `frame` for the printers -- `frame + lead` for the
+## Game Boys -- and wait until the printers are held there and the Game Boys have
+## stopped moving. `lead` 0 holds every core at the frame (the cable is seated
+## that way).
+func _run_to(frame: int, lead := 2) -> bool:
 	var flat := PackedInt32Array()
 	flat.resize(FLAT_SIZE)
 	var deadline := Time.get_ticks_msec() + 120000
 	while true:
 		# Keep a few frames posted ahead, as a session's input delay does, but
 		# never past the checkpoint.
-		var lowest := frame
+		var lowest := frame + lead
 		for lib: Node in _libs:
 			lowest = mini(lowest, int(lib.GetFrameCount()))
-		while _posted < frame and _posted < lowest + 8:
-			_post(_posted, flat)
-			_posted += 1
-		if lowest >= frame:
+		while _posted_gb < frame + lead and _posted_gb < lowest + 8:
+			_post_gb(_posted_gb, flat)
+			_posted_gb += 1
+		while _posted_pr < frame and _posted_pr < lowest + 8:
+			_post_pr(_posted_pr, flat)
+			_posted_pr += 1
+		var printers_there: bool = int(_libs[1].GetFrameCount()) >= frame 			and int(_libs[3].GetFrameCount()) >= frame
+		if printers_there and int(_libs[0].GetFrameCount()) >= frame 				and int(_libs[2].GetFrameCount()) >= frame:
 			break
 		if Time.get_ticks_msec() > deadline:
 			return false
 		await get_tree().process_frame
-	# Every core's last presented frame is the one before the gate.
-	for _i in range(4):
+	# Until the Game Boys stand still: each blocks where the held printer's
+	# horizon stops it, the same tick on both peers.
+	var last := []
+	var still := 0
+	while still < 6 and Time.get_ticks_msec() < deadline:
 		await get_tree().process_frame
+		var now := _frames()
+		still = still + 1 if now == last else 0
+		last = now
 	return true
 
 
-func _post(frame: int, flat: PackedInt32Array) -> void:
+func _post_gb(frame: int, flat: PackedInt32Array) -> void:
+	_libs[0].PostNetplayInputs(frame, flat)
+	_libs[2].PostNetplayInputs(frame, flat)
+
+
+func _post_pr(frame: int, flat: PackedInt32Array) -> void:
 	var pr := flat.duplicate()
 	if frame >= FEED_FROM and frame < FEED_TO:
 		pr[0] = BTN_A
 	if frame >= TEAR_AT and frame < TEAR_AT + 4:
 		pr[0] = BTN_B
 		pr[1] = TEAR_LINES
-	for i in range(4):
-		_libs[i].PostNetplayInputs(frame, pr if i % 2 == 1 else flat)
+	_libs[1].PostNetplayInputs(frame, pr)
+	_libs[3].PostNetplayInputs(frame, pr)
 
 
 func _paper(lib: Node) -> Image:

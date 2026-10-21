@@ -431,9 +431,13 @@ const SOURCES := {
 	# printer on the far end of the gb-sio-1 wire that gambatte and mGBA already
 	# speak, with the paper as its video frame. Written for RetroXR, so the
 	# buildbot has no row and _list_own_core lists it. MIT.
+	#
+	# v2: answers land within 2048 ticks of the clock again. v1 promised a
+	# 4096-tick horizon for netplay's sake and answered too late for a Game Boy
+	# Color in double speed: Super Mario Bros. Deluxe reported Error 02.
 	"gbprinter": {
 		"repo":  "RetroXR/gbprinter-libretro",
-		"known_tag": "retroxr-gbprinter-libretro-v1",
+		"known_tag": "retroxr-gbprinter-libretro-v2",
 		"label": "Game Boy Printer (retroXR)",
 		"assets": {
 			"Windows": "gbprinter_libretro.dll.zip",

@@ -139,7 +139,7 @@ const CORES: Dictionary = {
 	# TEAR), so every peer prints the same paper. Measured by
 	# Tools/netplay/gb_printer_netplay_probe: two replicated GB + printer pairs,
 	# the cable seated with every core held, paper and savestates byte-identical
-	# to frame 2400 on gambatte and mGBA (core retroxr-gbprinter-libretro-v1). No
+	# to frame 2400 on gambatte and mGBA (core retroxr-gbprinter-libretro-v2). No
 	# SYSTEM_RAM, so the CRC is a savestate's. state_transfer is unmeasured: a
 	# Game Boy's link clock is not in ITS savestate, so late join over a cable is
 	# owed for the pair, not just the printer.

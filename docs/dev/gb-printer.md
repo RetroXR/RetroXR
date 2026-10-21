@@ -34,21 +34,26 @@ Timing (all in link ticks, 8388608 a second):
 - **Frames are the Game Boy's**: 140448 ticks (70224 cycles) a `retro_run`, at
   4194304/70224 fps. A frame of any other length drifts on the bus and wedges a
   lockstep session.
-- **GRAIN** 2048 between rendezvous, **REPLY** 2048 after the clock that asked,
-  **HORIZON** 4096 promised. Every send is stamped no earlier than the furthest
-  horizon promised, so a reply lands 2048-6144 ticks after the Game Boy started
-  the byte: always before it can clock the next.
-- **It publishes its position at the end of every frame**, and **anchors a grain
-  into its first frame on a new wire**. Both exist for one case: a netplay session
-  holding every core at one frame (a cable landing, `_all_cores_at_link_boundary`).
-  Without the first, its last promise fell up to a grain short of the frame edge
-  (140448 is not a multiple of 2048) and a Game Boy waited on it for ever. Without
-  the second, the bus anchored mGBA's clock at mGBA's first timing event after the
-  rebuild, up to a grain into the frame, so mGBA's frame edges sat before the
-  printer's and the printer waited for ever instead. gambatte calls in at its
-  frame start and was fine either way. Measured both ways round by
-  `Tools/netplay/gb_printer_netplay_probe` (the Game Boys stuck at 949; then the
-  mGBA leg's printers).
+- **GRAIN, REPLY and HORIZON are all 2048**, and REPLY can be no later: a Game
+  Boy Color in double speed takes a byte in 4096 ticks, and its clock reaches the
+  printer 2048 in, so an answer has 2048 ticks to land. Super Mario Bros. Deluxe
+  runs its link that way. v1 promised a 4096-tick horizon (below) and every
+  answer was late: the game said **Error 02**. 2048 is enough because the printer
+  publishes a horizon past a tick only once it has answered every clock up to it.
+  The core's wire test runs back to back at double speed; a 4096 horizon fails it.
+- **It publishes its position at the end of every frame.** A session holding
+  every core at one frame (`_all_cores_at_link_boundary`) needs each machine's
+  promise to reach the frame edge; without this the printer's fell up to a grain
+  short (140448 is not a multiple of 2048) and a Game Boy waited on it for ever.
+- **KNOWN LIMIT, mGBA:** the bus anchors a machine's clock where it first calls in
+  after a cable is made. gambatte calls in at its frame start, as the printer does,
+  so their frame edges coincide. mGBA calls in at its next timing event, up to a
+  grain into its frame, so its edges can sit before the printer's -- and a session
+  holding every core at one frame WHILE they are cabled (a lead PULLED mid-game)
+  can wedge. Seating a lead, and printing, are unaffected (both cores 20/20 in
+  `gb_printer_netplay_probe`). v1 closed this with a late anchor and a 4096
+  horizon, which is what broke double speed; the real fix is mGBA's driver calling
+  in at its frame start, or the coordinator anchoring on a frame edge. OWED.
 
 ## The protocol
 
@@ -129,17 +134,25 @@ the same paper from the same agreed inputs.
 - `Tools/link/gb_camera_print_probe` (mGBA, `--sav=` a Camera save, copied
   first): the Game Boy Camera prints a saved photo. The print command is behind
   SELECT on an open photo (radial menu: print up). 208 lines, matching the screen.
+  `--rom=` and `--core=` drive any other game: **Super Mario Bros. Deluxe** prints
+  its Toy Box calendar from a fresh save on gambatte AND mGBA, the two papers
+  identical (`w400,START,w120,DOWNx3,w30,RIGHTx2,w30,A,w120,A,w120,A,w90,RIGHT,w30,A,printed`:
+  title, the icon row, TOY BOX, the calendar, A for Mark/Print, RIGHT to Print).
+  Its Album is all locked on a fresh save; its pictures need a save with progress
+  (no trustworthy complete save was found online).
 - `Tools/link/gb_printer_room_probe` (windowed, `--frames` for an mp4): a Game Boy
   stand-in cabled to the printer with the real lead, print, tear. 20/20 both
   cores. Writes into the REAL prints folder and removes it.
 - `Tools/netplay/gb_printer_netplay_probe` (headless): two replicated pairs,
-  gated, the cable seated with every core held; paper, Game Boy screens and the
-  printer's savestate byte-identical across peers at every checkpoint to frame
-  2400, FEED and TEAR as agreed input. 20/20 both cores.
+  gated, the cable seated with every core held; then only the printers are held at
+  each checkpoint while the Game Boys run on (inputs ahead of the cores, as in a
+  live session); paper, Game Boy screens and the printer's savestate
+  byte-identical across peers at every checkpoint to frame 2400, FEED and TEAR as
+  agreed input. 20/20 both cores.
 - `Tests/gb_printer_tests` (headless, no core) and the printer's row in
   `link_tests`' socket matrix.
 
-**OWED:** the headset (how the strip and the tear feel), the Quest (the core's
+**OWED:** a pulled lead mid-session on mGBA (above), the headset (how the strip and the tear feel), the Quest (the core's
 Android build is in its release; never run on device), a real two-headset
 session, a late join, other printing games (Pokemon's Pokedex, Zelda DX), and a
 recording of the real sound.
