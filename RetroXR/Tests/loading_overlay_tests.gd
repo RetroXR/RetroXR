@@ -204,9 +204,17 @@ func _test_panel() -> void:
 	panel.set_detail(PackedStringArray(["ROW ONE", "ROW TWO"]))
 	_eq(panel.get_node("Screen/DetailLabel").text, "ROW ONE\nROW TWO",
 		"panel/detail rows are shown one per line")
+	# Not in a headset, so the screen is the flat one: centred over the picture, with the 3D
+	# quads out of the way (hidden, not freed -- the rig and the overlay still drive them).
+	_ok(panel.shows_2d(), "panel/off a headset the screen is the flat one")
+	_ok(not (panel.get_node("Screen") as Node3D).visible, "panel/and the 3D screen is hidden then")
+	_eq(panel._c_detail.text, "ROW ONE\nROW TWO", "panel/the flat screen shows the same detail rows")
+	panel.set_title("SOMEWHERE")
+	_eq(panel._c_title.text, "SOMEWHERE", "panel/and the same title")
 	panel.show_load_error("BROKEN")
 	panel.set_progress(1.0)
 	_ok(true, "panel/progress after a failure does not clear the failure")
+	_eq(panel._c_title.text, "LOAD FAILED", "panel/a failure is said on the flat screen too")
 
 	# Two panels can be alive at once — the rig's and the overlay's, mid-handoff.
 	# The bar's material is a sub-resource, and sub-resources are SHARED between
