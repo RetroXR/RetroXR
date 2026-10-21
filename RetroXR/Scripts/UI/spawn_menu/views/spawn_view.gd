@@ -2426,7 +2426,52 @@ func _populate_controllers_tab() -> void:
 		var id := GamepadBindings.identify_device(device)
 		var label := "%s Receiver" % str(id["name"])
 		var token := "pad_receiver:%s:%d" % [str(id["guid"]), int(id["ordinal"])]
-		_controllers_vbox.add_child(_spawn_row(label, token))
+		_controllers_vbox.add_child(_pad_receiver_row(label, token,
+			str(id["guid"]), int(id["ordinal"])))
+
+
+## The row for a pad's receiver. On a desktop the first pad is the PLAYER's (DesktopPad): a
+## receiver for it makes it an external controller, so the first press asks before it spawns.
+func _pad_receiver_row(label: String, token: String, guid: String, ordinal: int) -> Control:
+	var box := VBoxContainer.new()
+	var btn := _spawn_row(label, token)
+	box.add_child(btn)
+	var warn := VBoxContainer.new()
+	warn.visible = false
+	warn.add_child(MenuStyle.hint(
+		"This is the controller you play with. A receiver for it treats it as an EXTERNAL "
+		+ "controller: it stops moving you and working your hand until the receiver is put "
+		+ "away. The keyboard does that meanwhile."))
+	var buttons := HBoxContainer.new()
+	var go := Button.new()
+	go.text = "  Continue  "
+	go.custom_minimum_size = Vector2(0, 64)
+	go.add_theme_font_size_override("font_size", 24)
+	var cancel := Button.new()
+	cancel.text = "  Cancel  "
+	cancel.custom_minimum_size = Vector2(0, 64)
+	cancel.add_theme_font_size_override("font_size", 24)
+	buttons.add_child(go)
+	buttons.add_child(cancel)
+	warn.add_child(buttons)
+	box.add_child(warn)
+	# Replaces the plain row's own press: it spawns at once only when nothing is at stake.
+	for c in btn.pressed.get_connections():
+		btn.pressed.disconnect(c["callable"])
+	btn.pressed.connect(func() -> void:
+		if DesktopPad.would_go_external(guid, ordinal):
+			btn.visible = false
+			warn.visible = true
+		else:
+			spawn_requested.emit(token))
+	go.pressed.connect(func() -> void:
+		warn.visible = false
+		btn.visible = true
+		spawn_requested.emit(token))
+	cancel.pressed.connect(func() -> void:
+		warn.visible = false
+		btn.visible = true)
+	return box
 
 
 func _spawn_row(label: String, token: String) -> Button:

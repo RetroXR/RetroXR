@@ -83,6 +83,9 @@ func get_port_index() -> int:
 
 # Active bindings (loaded from ControllerBindings on plug-in)
 var _button_map: Dictionary = ControllerBindings.DEFAULT_BUTTON_MAP.duplicate()
+## The physical pad's map, for the player's own pad while this has the keyboard (DesktopPad).
+var _pad_button_map: Dictionary = GamepadBindings.DEFAULT_BUTTON_MAP.duplicate()
+var _pad_stick_map: Dictionary = GamepadBindings.DEFAULT_STICK_MAP.duplicate()
 var _stick_map:  Dictionary = ControllerBindings.DEFAULT_STICK_MAP.duplicate()
 
 # Cable
@@ -689,6 +692,9 @@ func _load_bindings() -> void:
 	var bindings := ControllerBindings.get_for_system(sysid)
 	_button_map = bindings["buttons"]
 	_stick_map  = bindings["sticks"]
+	var pad := GamepadBindings.get_for_system(sysid)
+	_pad_button_map = pad["buttons"]
+	_pad_stick_map = pad["sticks"]
 
 
 ## Hysteresis for the analog sources above — see InputLatch. Without it a single
@@ -925,6 +931,16 @@ func _process_desktop_joypad() -> void:
 		aly = int(-ly * ANALOG_SCALE)
 		arx = int(rx * ANALOG_SCALE)
 		ary = int(-ry * ANALOG_SCALE)
+		# The player's own pad (DesktopPad) plays it too, as the keyboard does while it has the
+		# keys. Any OTHER pad still reaches a core only through its PadReceiver.
+		var m := DesktopPadService.merge(
+			{"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary},
+			DesktopPad.held_state(_pad_button_map, _pad_stick_map))
+		btn = m["btn"]
+		alx = m["alx"]
+		aly = m["aly"]
+		arx = m["arx"]
+		ary = m["ary"]
 
 	_send_joypad(btn, alx, aly, arx, ary)
 
