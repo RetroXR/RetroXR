@@ -4,7 +4,12 @@
 ## Requires project setting xr/openxr/extensions/meta/passthrough=true so the
 ## XR_FB_passthrough extension wrapper is registered and ALPHA_BLEND is available.
 ## See: https://docs.godotengine.org/en/4.6/tutorials/xr/ar_passthrough.html
-extends Node3D
+##
+## An XRInit like every other room's root. A launch opens in the last room the
+## player stood in, so this can be the first room of the process, and nothing
+## before the room marks the viewport use_xr: as a plain Node3D it relied on the
+## arcade having done so, and a launch into passthrough drew nothing at all.
+extends "res://Scripts/XR/xr_init.gd"
 
 ## Locomotion can be suspended for as long as passthrough is on: you are standing
 ## in your actual room and can see it, so sliding the world past you puts the two
@@ -24,12 +29,13 @@ var _passthrough_on := false
 
 
 func _ready() -> void:
+	super()
 	var xr_interface := XRServer.find_interface("OpenXR")
 	if not xr_interface or not xr_interface.is_initialized():
 		push_warning("PassthroughInit: OpenXR not initialized, running in flat screen mode")
 		return
 
-	# XR is already running from the arcade scene (use_xr, roomscale were set there).
+	# XRInit has just set use_xr and roomscale tracking.
 	# Defer so the viewport is fully settled after the scene change.
 	call_deferred("_enable_passthrough")
 

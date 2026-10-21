@@ -15,6 +15,7 @@ ambient_light_energy = 0.4
 
 [node name="Root" type="Node3D"]
 script = ExtResource("1_ptinit")
+scene_id = "passthrough"
 
 [node name="PlayerRig" parent="." instance=ExtResource("2_playerrig")]
 

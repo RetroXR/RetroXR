@@ -28,6 +28,8 @@ const SCENE_MANAGER := preload("res://Scripts/Data/scene_manager.gd")
 const SLOT_A := "__scene_selftest_a"
 const SLOT_B := "__scene_selftest_b"
 const MANIFEST_FILE := "user://scenes/arcade/manifest.json"
+## Every room's root script, which turns XR rendering on.
+const XR_INIT := "res://Scripts/XR/xr_init.gd"
 
 var _fail := 0
 var _ran := 0
@@ -90,6 +92,31 @@ func _scene_script_path(scene_path: String) -> String:
 		'\\[ext_resource type="Script"[^\\]]*path="([^"]+)"')
 	var m := re.search(text)
 	return m.get_string(1) if m != null else ""
+
+
+## The script a .tscn attaches to its ROOT node. Not simply the first one it names:
+## a room lists its props' scripts as well.
+func _root_script_path(scene_path: String) -> String:
+	var text := FileAccess.get_file_as_string(scene_path)
+	var root := RegEx.create_from_string("(?s)\\n\\[node [^\\n]*\\]\\n(.*?)(?:\\n\\[|$)").search(text)
+	if root == null:
+		return ""
+	var ref := RegEx.create_from_string('(?m)^script = ExtResource\\("([^"]+)"\\)').search(root.get_string(1))
+	if ref == null:
+		return ""
+	var res := RegEx.create_from_string(
+		'\\[ext_resource type="Script"[^\\]]*path="([^"]+)"[^\\]]*id="%s"\\]' % ref.get_string(1)).search(text)
+	return res.get_string(1) if res != null else ""
+
+
+## Whether `script_path` is `base_path` or extends it, however far down.
+func _script_extends(script_path: String, base_path: String) -> bool:
+	var at: Script = null if script_path.is_empty() else load(script_path) as Script
+	while at != null:
+		if at.resource_path == base_path:
+			return true
+		at = at.get_base_script()
+	return false
 
 
 ## Walk `extends` up the chain to see whether a script is a RetroController.
@@ -248,6 +275,14 @@ func _test_boot() -> void:
 	_eq(SceneManager.boot_room(),
 		"passthrough" if SceneManager.is_passthrough_supported() else platform_default,
 		"boot/passthrough opens only where it is supported")
+
+	# Any room can be the one a launch opens in, and nothing before it marks the
+	# viewport use_xr: the room's XRInit root does. Passthrough's root was a plain
+	# Node3D that counted on the arcade having done it, so a launch remembered in
+	# passthrough drew nothing at all in the headset (2026-10-21, on a Quest 3).
+	for id in RoomCatalog.ids():
+		_ok(_script_extends(_root_script_path(RoomCatalog.path_of(id)), XR_INIT),
+			"boot/%s's root is an XRInit" % id)
 
 	# Remembered when a room a transition installed stands with its contents in
 	# place, not when it is asked for.

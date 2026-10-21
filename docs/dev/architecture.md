@@ -85,6 +85,14 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   is never recorded. The root is still readying its children when the boot
   scene's `_ready` runs, so the swap is deferred: a room's `_ready` runs inside the first
   `SceneTree.process`, after that frame's `xrWaitFrame`, not inside `SceneTree.initialize`.
+- **Every room's root is an `XRInit`** (`Scripts/XR/xr_init.gd`, or a script extending it,
+  as `passthrough_init.gd` does) with its `scene_id` set. That root marks the viewport
+  `use_xr` and applies the headset's quality defaults; nothing before the room does, and
+  any room can be the first of a launch. Passthrough's root was a plain `Node3D` counting on
+  the arcade having done it, so a launch remembered in passthrough ran on a Quest with
+  every frame empty (`OpenXR: No viewport was marked with use_xr, there is no rendered
+  output!` each frame, the app alive at 72 fps): the 2026-10-21 "freeze when passthrough
+  was the last environment". `scene_tests boot/` walks every room's root.
 - `RetroXR/Scripts/Objects/systems/system.gd` — Per-arcade-cabinet controller. Has `@onready var _libretro: Libretro = $Libretro` wired to a child `Libretro` node in the scene tree.
 - `RetroXR/Scenes/Objects/system.tscn` — Cabinet scene. Contains a `Libretro` child node. Its `unique_id` is the value 4000000010, but Godot writes it SIGNED, so the file reads `unique_id=-294967286` — grep for that, not for the decimal above.
 - GDExtension registration at `MODULE_INITIALIZATION_LEVEL_SCENE`.
