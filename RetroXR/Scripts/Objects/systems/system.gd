@@ -156,6 +156,10 @@ func force_video_out(on: bool) -> void:
 ## there. Toggled from the options panel's System tab; default off.
 var ignore_gravity: bool = false
 
+## A cabinet's scraped art (marquee, sides) while a game is in its bay. On by default; the System tab's
+## "Cabinet Art" toggle turns it off for whoever wants it naked. Saved in the room only when off.
+var cabinet_art_enabled: bool = true
+
 # Cached core options (populated when options_ready fires)
 var _options_definitions: Dictionary = {}
 var _options_values: Dictionary = {}
@@ -725,6 +729,8 @@ func _load_system_model() -> void:
 	if is_bespoke:
 		_system_body.hide()
 	_model.configure_buttons(_power_button, _reset_button, _eject_button)
+	if _model.has_method("set_art_enabled"):
+		_model.call("set_art_enabled", cabinet_art_enabled)
 	_model.configure_controller_ports(_ports.zones)
 	_build_video_channels()
 	_model.configure_cartridge_slot(_cartridge_slot)
@@ -1400,6 +1406,17 @@ func supports_video_out_toggle() -> bool:
 	if _model == null:
 		return false
 	return _model.is_handheld() or _model.get_builtin_screen() != null
+
+
+## Only a cabinet has art to take off (the System tab shows the row for it alone).
+func supports_cabinet_art_toggle() -> bool:
+	return _model != null and _model.has_method("set_art_enabled")
+
+
+func set_cabinet_art_enabled(on: bool) -> void:
+	cabinet_art_enabled = on
+	if supports_cabinet_art_toggle():
+		_model.call("set_art_enabled", on)
 
 
 ## Toggle floating: on = freeze right where it is (or where it's next dropped);
@@ -3847,6 +3864,9 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 	# resolve the core) — a cart inserted into an NES is an NES cart.
 	if "systemid" in cartridge and str(cartridge.get("systemid")).is_empty():
 		cartridge.set("systemid", systemid)
+	# A cabinet dresses itself in the game's art (marquee, sides).
+	if _model != null and _model.has_method("on_media_inserted"):
+		_model.call("on_media_inserted", cartridge)
 	# A push-tray bay already slid the cart home when it was laid in — this moment
 	# is the tray latching, which moves nothing.
 	if not _model.has_push_tray():
@@ -3887,6 +3907,8 @@ func _on_cartridge_removed() -> void:
 			remove_collision_exception_with(_snapped_cartridge)
 			SeatedCollision.withdraw(self, _snapped_cartridge as CollisionObject3D)
 		_snapped_cartridge = null
+		if _model != null and _model.has_method("on_media_cleared"):
+			_model.call("on_media_cleared")
 	_disc_tray.spin = 0.0
 	# Taking the media out never interrupts the run. A console does not stop when
 	# a disc leaves the drive — that is what lets Monster Rancher read whatever

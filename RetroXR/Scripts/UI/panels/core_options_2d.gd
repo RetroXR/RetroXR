@@ -30,6 +30,8 @@ signal video_out_toggled(enabled: bool)
 signal ignore_gravity_toggled(enabled: bool)
 ## System-tab toggle: a reflective-LCD handheld's screen lights itself.
 signal screen_glow_toggled(enabled: bool)
+## System-tab toggle (cabinets): wear the game's scraped art on the marquee and sides.
+signal cabinet_art_toggled(enabled: bool)
 ## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
 ## sets.
 signal volume_changed(value: float)
@@ -72,6 +74,8 @@ var _video_out_check: VRToggle = null
 var _ignore_grav_check: VRToggle = null
 var _screen_glow_row: Control = null
 var _screen_glow_check: VRToggle = null
+var _cabinet_art_row: HBoxContainer = null
+var _cabinet_art_check: VRToggle = null
 var _tabs: TabContainer = null
 ## The slotted cartridge's UI, embedded as a tab. Driven by the cartridge's own
 ## CartridgeOptionsPanel, which owns all the save/sync/achievement logic.
@@ -351,6 +355,27 @@ func _build_ui() -> void:
 		if not _suppress_signal:
 			screen_glow_toggled.emit(on))
 	glow_row.add_child(_screen_glow_check)
+
+	# A cabinet's art: hidden on every other machine.
+	_cabinet_art_row = HBoxContainer.new()
+	_cabinet_art_row.custom_minimum_size = Vector2(0, 56)
+	_cabinet_art_row.add_theme_constant_override("separation", 8)
+	_cabinet_art_row.visible = false
+	sys_rows.add_child(_cabinet_art_row)
+
+	var art_lbl := Label.new()
+	art_lbl.text = "Cabinet Art"
+	art_lbl.tooltip_text = "The game's marquee and side art on the cabinet. Off leaves it plain."
+	art_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	art_lbl.add_theme_font_size_override("font_size", 18)
+	art_lbl.add_theme_color_override("font_color", COLOR_ROW)
+	art_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_cabinet_art_row.add_child(art_lbl)
+
+	_cabinet_art_check = VRToggle.create(true, func(on: bool):
+		if not _suppress_signal:
+			cabinet_art_toggled.emit(on))
+	_cabinet_art_row.add_child(_cabinet_art_check)
 
 	# Track which scroll container is active for stick-driven scrolling
 	_active_scroll = _controls_scroll
@@ -681,7 +706,8 @@ func populate_cores(choices: Array, selected: String, default_core: String) -> v
 ## The pad picker rides `show_video_out`: both are "this machine is a handheld".
 ## `volume` is the handheld's own control's level, 0..1, or -1 to hide the row.
 func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
-		pad_guid: String = "", pad_ordinal: int = 0, volume: float = -1.0) -> void:
+		pad_guid: String = "", pad_ordinal: int = 0, volume: float = -1.0,
+		show_cabinet_art: bool = false, cabinet_art: bool = true) -> void:
 	show_volume(volume)
 	_suppress_signal = true
 	var picker_changed := _show_pad_picker != show_video_out \
@@ -697,6 +723,10 @@ func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		_video_out_check.button_pressed = video_out
 	if _ignore_grav_check:
 		_ignore_grav_check.button_pressed = ignore_grav
+	if _cabinet_art_row:
+		_cabinet_art_row.visible = show_cabinet_art
+	if _cabinet_art_check:
+		_cabinet_art_check.button_pressed = cabinet_art
 	_suppress_signal = false
 
 

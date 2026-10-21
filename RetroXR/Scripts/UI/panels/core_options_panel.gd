@@ -105,6 +105,7 @@ func _ensure_ui_connected() -> void:
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	ui.screen_glow_toggled.connect(_on_screen_glow_toggled)
+	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
 	ui.volume_changed.connect(_on_volume_changed)
 	ui.core_selected.connect(_on_core_selected)
 	ui.close_requested.connect(hide_panel)
@@ -131,7 +132,8 @@ func _populate() -> void:
 		_system.forced_core_options(), str(snap["unavailable"]), str(snap["core"]))
 	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
-		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
+		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume,
+		_system.supports_cabinet_art_toggle(), _system.cabinet_art_enabled)
 	ui.populate_screen_glow(_system.get_screen_glow())
 	_controls_state = _system.controls_state()
 	ui.populate_controls(_controls_state)
@@ -347,6 +349,12 @@ func _on_ignore_gravity_toggled(enabled: bool) -> void:
 func _on_screen_glow_toggled(enabled: bool) -> void:
 	if _system and is_instance_valid(_system):
 		_system.set_screen_glow(enabled)
+
+
+## System-tab toggle (cabinets): the game's art on the marquee and sides.
+func _on_cabinet_art_toggled(enabled: bool) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_cabinet_art_enabled(enabled)
 
 
 func _on_port_device_changed(port: int, device_id: int) -> void:
