@@ -26,7 +26,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 390
+const EXPECTED_CASES := 401
 
 var _pass := 0
 var _fail := 0
@@ -59,6 +59,7 @@ func _ready() -> void:
 	if _want("cartshell"):   await _group_cartshell()
 	if _want("expshell"):    _group_expshell()
 	if _want("tvdefaults"):  _group_tv_defaults()
+	if _want("attach"):      _group_attach()
 
 	_cleanup()
 	# A case that never RAN is not a case that passed: GDScript has no try/catch,
@@ -102,6 +103,90 @@ func _group_tv_defaults() -> void:
 	_eq(fresh.get_crt_params()["crt_halation"], 0.06, "tvdefaults/readback does not expose mutable state")
 	for tv: RetroTV in [fresh, restored, stock]:
 		tv.free()
+
+
+## A mod prop sitting in a snap zone saves WHICH zone, and a load puts it back
+## in it -- a part on a part, not two parts standing where they were.
+func _group_attach() -> void:
+	# A pickable with one snap zone, "Top", standing in for a mod's stackable part.
+	var proto := XRToolsPickable.new()
+	proto.name = "Part"
+	var top_zone := XRToolsSnapZone.new()
+	top_zone.name = "Top"
+	proto.add_child(top_zone)
+	top_zone.owner = proto
+	var packed := PackedScene.new()
+	packed.pack(proto)
+	proto.free()
+	var scene := "%s/attach_part.tscn" % _dir
+	ResourceSaver.save(packed, scene)
+	_eq(ScenePersistence.register_mod_object("t.att:part", scene, "t.att"), "",
+		"attach/a part registers")
+	var store := ScenePersistence.new("__mod_selftest")
+
+	var base := ScenePersistence._instantiate_mod_object("t.att:part")
+	var top := ScenePersistence._instantiate_mod_object("t.att:part")
+	for n: Node3D in [base, top]:
+		add_child(n)
+		n.add_to_group("spawned")
+	var map := {base: 0, top: 1}
+	_ok(not store._serialize_node(top, 1, map).has("attached"),
+		"attach/a loose prop saves no attachment")
+	(base.get_node("Top") as XRToolsSnapZone).pick_up_object(top)
+	var top_entry := store._serialize_node(top, 1, map)
+	var base_entry := store._serialize_node(base, 0, map)
+	_eq(top_entry.get("attached", {}), {"to": 0, "zone": "Top"},
+		"attach/a snapped prop names its host's id and the zone's path in it")
+	_ok(not base_entry.has("attached"), "attach/the host itself is loose")
+	_eq(ScenePersistence._objects_validation_error([base_entry, top_entry]), "",
+		"attach/an attached entry validates")
+	_ok(not ScenePersistence._objects_validation_error([top_entry]).is_empty(),
+		"attach/a dangling host is refused")
+	var bad := top_entry.duplicate(true)
+	bad["attached"]["zone"] = 3
+	_ok(not ScenePersistence._objects_validation_error([base_entry, bad]).is_empty(),
+		"attach/a zone that is not a path is refused")
+	for n: Node in [base, top]:
+		n.free()
+
+	# Pass 1 then pass 2, as a slot load runs them: entries in the order that
+	# puts the held prop FIRST, so its host must already exist by pass 2 only.
+	var spawned := store.instantiate_objects(self, [top_entry, base_entry])
+	var back_base := spawned.get(0) as XRToolsPickable
+	var back_top := spawned.get(1) as XRToolsPickable
+	_ok(back_top != null and back_base != null
+		and back_top.get_picked_up_by() == back_base.get_node("Top"),
+		"attach/a load puts the prop back in its host's zone")
+	for n: Variant in spawned.values():
+		(n as Node).free()
+
+	# A zone that is part of the room, not of a spawned object, is named by path.
+	var room_zone := XRToolsSnapZone.new()
+	room_zone.name = "RoomZone"
+	add_child(room_zone)
+	var loose := ScenePersistence._instantiate_mod_object("t.att:part")
+	add_child(loose)
+	loose.add_to_group("spawned")
+	room_zone.pick_up_object(loose)
+	var room_entry := store._serialize_node(loose, 0, {loose: 0})
+	_eq(room_entry.get("attached", {}), {"to": str(room_zone.get_path()), "zone": "."},
+		"attach/a room's zone is named by its own path")
+	loose.free()
+	var room_back := store.instantiate_objects(self, [room_entry])
+	var again := room_back.get(0) as XRToolsPickable
+	_ok(again != null and again.get_picked_up_by() == room_zone,
+		"attach/and a load finds it there")
+	if again != null:
+		again.free()
+	room_zone.free()
+
+	# The host's mod is gone: the prop loads, loose, rather than failing the slot.
+	var orphan := top_entry.duplicate(true)
+	var gone := {"id": 0, "type": "t.gone:plate", "position": [0, 0, 0], "rotation": [0, 0, 0]}
+	var pruned := ScenePersistence._prune_unknown_types([gone, orphan], "attach")
+	_ok(pruned.size() == 1 and not (pruned[0] as Dictionary).has("attached"),
+		"attach/a host whose mod is gone leaves the prop loose")
+	ScenePersistence.drop_mod_objects("t.att")
 
 
 func _want(group: String) -> bool:

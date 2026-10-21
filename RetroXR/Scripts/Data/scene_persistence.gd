@@ -961,6 +961,12 @@ static func _prune_unknown_types(objects: Array, path: String) -> Array:
 			var ref: Variant = entry[field]
 			if _is_integer(ref) and dropped_ids.has(int(ref)):
 				entry[field] = null
+		# A prop sitting in a dropped mod's object is simply loose.
+		var attached: Variant = entry.get("attached")
+		if attached is Dictionary:
+			var to: Variant = (attached as Dictionary).get("to")
+			if _is_integer(to) and dropped_ids.has(int(to)):
+				entry.erase("attached")
 	var summary := PackedStringArray()
 	var dropped_count := 0
 	for obj_type: String in dropped_types:
@@ -1069,6 +1075,15 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 		var plugs_error := _pose_records_validation_error(entry["plugs"], ids, true)
 		if not plugs_error.is_empty():
 			return "plugs %s" % plugs_error
+	if entry.has("attached"):
+		if not entry["attached"] is Dictionary:
+			return "attached is not a dictionary"
+		var attached := entry["attached"] as Dictionary
+		var ref_error := _reference_validation_error(attached.get("to"), ids)
+		if not ref_error.is_empty():
+			return "attached.to %s" % ref_error
+		if not attached.get("zone") is String:
+			return "attached.zone is not a string"
 	if entry.has("body"):
 		if not entry["body"] is Dictionary:
 			return "body is not a dictionary"
@@ -1447,6 +1462,7 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	var obj: Node = spawned[id]
 	var d: Dictionary = entries[id]
 	_restore_articulated_controls(obj, d.get("articulated", d.get("hinges", [])))
+	_restore_attachment(root, obj, spawned, d)
 
 	if obj is RetroSystem:
 		var sys := obj as RetroSystem
@@ -1680,6 +1696,55 @@ func _base(id: int, type_name: String, n3d: Node3D) -> Dictionary:
 	return out
 
 
+## Which snap zone a mod prop sits in, so a stack of them (one part on another, a
+## prop on its stand, a prop in a bay a mod hung on a console) comes back held
+## rather than as loose bodies standing in the same places. A shipped object
+## names its own media by its own fields; a mod prop has no class to give it
+## any, so this is the one they all share.
+##
+## `{"attached": {"to": <ref>, "zone": <path>}}`, or empty when nothing holds it.
+## `to` is the spawned object the zone belongs to and `zone` its path inside that
+## object, because a zone inside an object has no id of its own. A zone that is
+## part of the ROOM has no such object: `to` is then the zone's own path and
+## `zone` is ".".
+func _attachment_field(n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
+	var pickable := n3d as XRToolsPickable
+	if pickable == null:
+		return {}
+	var zone := pickable.get_picked_up_by() as XRToolsSnapZone
+	if zone == null:
+		return {}
+	var host: Node = zone
+	while host != null and not host.is_in_group("spawned"):
+		host = host.get_parent()
+	if host == null:
+		return {"attached": {"to": _ref(node_to_id, zone), "zone": "."}}
+	# A spawned host outside the map is a partial serialize (ObjectSync ships one
+	# object at a time), and _ref has nothing it could name it by.
+	if not node_to_id.has(host):
+		return {}
+	return {"attached": {"to": node_to_id[host], "zone": str(host.get_path_to(zone))}}
+
+
+## Put a mod prop back in the snap zone _attachment_field recorded. Through the
+## zone's own pick_up_object, the call a hand's release ends in, so a restored
+## stack is the same object graph as a built one.
+func _restore_attachment(root: Node, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var rec: Variant = d.get("attached")
+	if not rec is Dictionary:
+		return
+	var host := _resolve_ref(root, spawned, (rec as Dictionary).get("to"))
+	if host == null:
+		return
+	var zone := host.get_node_or_null(NodePath(str((rec as Dictionary).get("zone", "."))))
+	if not zone is XRToolsSnapZone:
+		# The mod moved or renamed the zone since the save; the prop stays where
+		# it was left, loose.
+		push_warning("[ScenePersistence] %s: no snap zone at '%s'" % [obj.name, rec["zone"]])
+		return
+	(zone as XRToolsSnapZone).pick_up_object(obj as Node3D)
+
+
 ## Articulated child transforms are not represented by the spawned object's
 ## root pose. Persist every VRHinge by its stable path inside the object so a
 ## snapshot/reload preserves handheld lids, console flaps and battery covers.
@@ -1903,7 +1968,9 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# entry under the mod's type; both restore passes read a lead by class.
 		var lead := _serialize_lead(node, id, n3d, node_to_id)
 		if lead.is_empty():
-			return _base(id, mod_type, n3d)
+			var prop := _base(id, mod_type, n3d)
+			prop.merge(_attachment_field(n3d, node_to_id))
+			return prop
 		lead["type"] = mod_type
 		return lead
 

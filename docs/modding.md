@@ -389,6 +389,17 @@ that already has its own.
 A **prop**'s type string is written into save files — permanent once anyone has
 used it. Renaming it orphans every copy in every slot.
 
+A prop can **snap onto** another: give the host an `XRToolsSnapZone`
+(`res://addons/godot-xr-tools/objects/snap_zone.tscn`) and the prop a group its
+`snap_require` names, and a prop released over it is held there and moves with
+it. A save records which zone holds each prop -- the host and the zone's path
+inside it, or the zone's own path for one that is part of a room -- and a load
+puts it back in that zone, so a stack of props comes back a stack. The zone's
+**path is part of the save**: rename or move it and saved props come back loose
+where they were left. A prop whose host's mod is gone comes back loose too.
+Live netplay does not yet send a snap as it happens; a player joining later
+gets it from the room's snapshot.
+
 A **cabinet** extends `RetroTVShell`: geometry plus `Marker3D` seats, while every
 functional part stays on the television. Two optional overrides, both defaulting
 to doing nothing:
