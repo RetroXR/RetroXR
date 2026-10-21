@@ -22,6 +22,7 @@ func _ready() -> void:
 	await _assist_hidden()
 	_stale_left()
 	_rules()
+	_capture_hides_reticle()
 	print("[hold] %d cases, %s" % [_ran, "PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
 	get_tree().quit(0 if _fail == 0 else 1)
 
@@ -222,6 +223,32 @@ func _bounds() -> void:
 	a.rotation = Vector3.ZERO
 	_ok(DesktopPickup.visual_bounds(root).get_center().is_equal_approx(Vector3(1.0, 0.0, 0.0)), "bounds/the box is in the root's space however the root sits")
 	root.free()
+
+
+func _capture_hides_reticle() -> void:
+	# The crosshair hides while a held device has the keyboard (F3), and comes back with it.
+	var host := Node3D.new()
+	add_child(host)
+	var eligible := [true]
+	var cap := ScrollLockCapture.attach(host, func() -> bool: return eligible[0], 0xF11C)
+	_ok(not ScrollLockCapture.any_active(), "reticle/nothing captured: the crosshair stays")
+	cap.set_active(true)
+	eligible[0] = false
+	_ok(not ScrollLockCapture.any_active(),
+		"reticle/the device stops being eligible with no refresh(): it is back")
+	eligible[0] = true
+	cap.set_active(false)
+	cap.set_active(true)
+	_ok(ScrollLockCapture.any_active(), "reticle/a device has the keyboard: the crosshair hides")
+	ScrollLockCapture.set_suspended(true)
+	_ok(not ScrollLockCapture.any_active(), "reticle/typing in a text field: it is back")
+	ScrollLockCapture.set_suspended(false)
+	cap.set_active(false)
+	_ok(not ScrollLockCapture.any_active(), "reticle/capture off: it is back")
+	cap.set_active(true)
+	cap.release()
+	_ok(not ScrollLockCapture.any_active(), "reticle/the device let go: it is back")
+	host.free()
 
 
 func _rules() -> void:

@@ -21,6 +21,14 @@ func _ready() -> void:
 	visible = not get_viewport().use_xr
 
 
+func _process(_delta: float) -> void:
+	# Also while a held device has the keyboard (F3 / Scroll Lock, "controller mode"): the
+	# player is playing it, and the crosshair would sit in front of its screen.
+	var want := not get_viewport().use_xr and not ScrollLockCapture.any_active()
+	if want != visible:
+		visible = want
+
+
 func _draw() -> void:
 	var c  := size * 0.5
 	var col := Color(1.0, 1.0, 1.0, 0.85)
