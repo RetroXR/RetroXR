@@ -433,6 +433,35 @@ the `ScreenSeat`) gets the picture on that mesh's FRONT faces only. Leave it
 wound facing out of the cabinet, the way an exporter writes it; wound the other
 way it is not drawn at all.
 
+#### A TV/VCR or TV/DVD combination
+
+A cabinet can have the VCR, the DVD player or both **built in**. Add a `Marker3D`
+named `VcrSeat` and/or `DvdSeat` to the shell scene. Nothing else needs a script.
+
+- The marker is where the deck's body goes: the centre of the stock deck's box,
+  with its tape slot or disc tray 125 mm along +Z and its buttons on top. Put it
+  where that box would sit inside your cabinet, its front flush with yours.
+- The deck takes the composite input after your phono row: VCR first, then DVD.
+  `av_inputs = 1` with both decks gives COMPOSITE 1, VCR, DVD. SOURCE shows the
+  deck's name, and the back panel prints no sockets for a deck's input. Phono rows
+  and decks share four inputs; a deck with none left is not built, and the log
+  says so.
+- The deck's grey box is hidden, because your cabinet is its housing. Its slot,
+  buttons and the VCR's clock stay. Set `deck_housing = true` while laying out, to
+  see where the boxes land.
+- The stock decks keep their buttons on **top**, which is buried inside a
+  cabinet. Add `VcrControls` / `DvdControls` to carry the panel out. The marker is
+  the centre of the deck's top face, and its +Y is the way the caps face. Turned
+  `R_x(+90)` (`.tscn` rows `1,0,0, 0,0,-1, 0,1,0`), it stands the panel up on
+  the front, with the row nearest the deck's front edge lowest.
+- The deck is part of the set. It cannot be picked up, carries no lead, is saved
+  with the set and follows it over netplay. What is in its slot or tray is saved
+  too. The remote and the options menu reach it by pointing at it, as they would
+  a loose deck.
+
+`res://Tests/fixtures/combo_tv_shell.tscn` is a complete example with both decks
+and both control panels.
+
 A **controller** is a scene rooted at `RetroController`, and a **light gun** one
 rooted at `LightGun`. Persistence already records its scene path and falls back
 to the generic pad if your mod is gone; nothing extra is needed. What it plugs

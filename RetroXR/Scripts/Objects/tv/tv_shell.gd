@@ -27,6 +27,19 @@
 ##                    its tube instead, since half an authored stereo image is
 ##                    worse than none. Left is the listener's left, i.e. -X on a
 ##                    set facing +Z.
+##   VcrSeat        — a VCR built into this cabinet, posed here: a TV/VCR combo.
+##   DvdSeat          The same for a DVD player. Name either or both. The pose is
+##                    the deck's own origin — the centre of the stock deck's body,
+##                    its tape slot or disc tray 125 mm along +Z and its buttons on
+##                    top — so put the marker where that body would sit inside the
+##                    cabinet. See TvDecks for what a built-in deck is and is not.
+##   VcrControls    — where that deck's buttons go. The stock decks carry them on
+##   DvdControls      TOP, which inside a cabinet is buried, so name this to bring
+##                    the panel out: the marker is the centre of the deck's top
+##                    face, its +Y the way the caps face. A marker turned so its +Y
+##                    is the cabinet's +Z (`R_x(+90)`: rows 1,0,0, 0,0,-1, 0,1,0)
+##                    stands the panel up on the front, the row nearest the deck's
+##                    front edge lowest. Absent leaves them on top of the deck.
 class_name RetroTVShell
 extends Node3D
 
@@ -102,6 +115,13 @@ extends Node3D
 ## keeps its plate. A shell with a genuinely flat back panel turns this on.
 @export var av_legend_plate: bool = false
 
+## Whether a built-in deck (VcrSeat / DvdSeat) keeps the stock deck's own grey box
+## and name plate. OFF by default: the cabinet IS the deck's housing, and the box
+## would stand through it. The slot, the buttons and the VCR's clock stay either
+## way, because they are the deck's working parts. On is for a cabinet still being
+## laid out, so the deck can be seen where the marker put it.
+@export var deck_housing: bool = false
+
 
 func _ready() -> void:
 	if hide_meshes.is_empty():
@@ -125,6 +145,12 @@ func ambilight_seat() -> Variant:   return _seat("AmbilightSeat")
 func button_row_seat() -> Variant:  return _seat("ButtonRow")
 func speaker_l_seat() -> Variant:   return _seat("SpeakerLSeat")
 func speaker_r_seat() -> Variant:   return _seat("SpeakerRSeat")
+## Absent on every shipped shell. Present is the switch, as VgaPortSeat is for the
+## DE-15: a cabinet with the marker has the deck built in.
+func vcr_seat() -> Variant:         return _seat("VcrSeat")
+func dvd_seat() -> Variant:         return _seat("DvdSeat")
+func vcr_controls_seat() -> Variant: return _seat("VcrControls")
+func dvd_controls_seat() -> Variant: return _seat("DvdControls")
 
 
 ## Transform of a named marker relative to this shell's root, or null if absent.

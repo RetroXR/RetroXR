@@ -70,3 +70,50 @@ the bar. `Tools/av/lightgun_aim_probe` (headless; `--shell=` any installed cabin
 if the control shows none: Panasonic 61 px → 0.12, stock 26 px → 0.11. Dropping the fit
 or the warp from `ScreenAim` fails it (13.7 and 24.4 px). The Wiimote's pointer
 (`wiimote.gd`) still meets the old plane.
+
+### Combination sets: a deck built into the cabinet (2026-10-21)
+
+A cabinet carrying a `VcrSeat` / `DvdSeat` marker gets that deck built in (`TvDecks`,
+`MediaTransport.build_into`). It is the ordinary `VCRPlayer` / `DVDPlayer`, instanced
+under the set as `BuiltInVcr` / `BuiltInDvd`, rather than a second copy. Everything
+the player touches is the deck's own code: the slot, the transport, the scan, the
+remote and the netplay transport sync. What changes when it is built in:
+
+- **Input.** It takes the composite slot after the cabinet's phono rows, so no
+  `RetroTV.Source` value is added. That enum is on disk and on the wire
+  (`EV_TV_SOURCE`). `TvPanel._builtin` files the deck there, because
+  `_input_for_device` has no lead to find it by. The slot's sockets stay off, since
+  `disable_absent_inputs` already turns off everything past the phono rows. SOURCE
+  names the input with `RetroTV.source_name()`, which every banner and log now uses
+  instead of `SOURCE_NAMES[...]`.
+- **Body.** Not pickable, frozen STATIC (kinematic drifts under the host's rotation,
+  as MediaSlot found), collision layer and mask 0. Its slot's `host` becomes the
+  SET, so the media is collision-excepted against the body it is actually inside.
+  Its `PointerArea` stays, so the remote targets it.
+- **No lead.** Its A/V outputs are switched off, and `on_av_topology_changed` returns
+  early. The feed is fixed: picture plus L/R onto speakers 0/1.
+- **Save.** Its media is saved on the TV record as `"decks": {kind: {media, yaw}}`,
+  and only when something is in a deck, so every other set writes the same bytes as
+  before. The deck is never in `spawned`, and `_serialize_node` also refuses it, so
+  ObjectSync cannot register it as an object of its own.
+- **Netplay.** A node with no `net_id` but a registered ancestor goes on the wire as
+  `{"$id": <set>, "$sub": "BuiltInVcr"}`. The old fallback was the absolute path,
+  which named whatever the set happened to be called on the sending peer.
+  `_media_state` gained a `sub` argument for the same reason (an RPC signature
+  change; peers must be on the same build anyway). The heartbeat walks each
+  registered set's decks.
+- **Buttons.** The stock decks carry them on top. `VcrControls` / `DvdControls`
+  carry the whole panel, rigidly, from the top face's centre to the marker.
+  `ButtonRow` (the set's own caps) is different: the caps keep their basis and the
+  row walks the marker's axes, so that marker must NOT be turned. A turned one sent
+  rows two to four into the cabinet in the first photo.
+
+`combo_tv_tests` (13 cases) uses the reference cabinet
+`Tests/fixtures/combo_tv_shell.tscn`, plus a copy with three phono rows written to
+`user://` for the "no input left" case. `Tools/av/combo_tv_probe` (windowed,
+`--out=`, `--housing` the control that shows the decks' boxes) is the picture.
+
+Headless runs of a set with a VCR and a DVD player sometimes print
+`Initializing already initialized RID` and a few dummy `mesh_storage` null errors. A
+stock set with LOOSE decks does the same (1 run in 8), so it is not the built-in
+path. Not chased further.

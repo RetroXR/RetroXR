@@ -1554,6 +1554,15 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 			(obj as TransferPak).restore_cart(gb)
 	elif obj is RetroTV:
 		(obj as RetroTV).restore_control_state(d.get("controls", {}))
+		# The tape or disc in a combination set's own deck. The deck is not an
+		# object of its own in the file -- the cabinet builds it -- so what is in it
+		# is saved on the set, by the deck's kind.
+		var decks: Dictionary = d.get("decks", {})
+		for kind: String in decks:
+			var entry: Dictionary = decks[kind]
+			var media := _resolve_ref(root, spawned, entry.get("media")) as Node3D
+			if media:
+				(obj as RetroTV).decks().restore_media(kind, media, float(entry.get("yaw", 0.0)))
 	elif obj is VCRPlayer:
 		var tape := _resolve_ref(root, spawned, d.get("tape")) as VCRTape
 		if tape:
@@ -1884,6 +1893,17 @@ func _serialize_rope_layouts(root: Node3D) -> Array:
 	return layouts
 
 
+## What is in a combination set's built-in decks, as {"decks": {kind: {media, yaw}}},
+## or nothing at all for a set without one -- so every other set writes the same
+## bytes it always did.
+func _tv_decks_field(tv: RetroTV, node_to_id: Dictionary) -> Dictionary:
+	if tv.decks() == null:
+		return {}
+	var state := tv.decks().media_state(func(media: Node) -> Variant:
+		return _ref(node_to_id, media))
+	return {"decks": state} if not state.is_empty() else {}
+
+
 ## An ordered chain, not a lookup table: `is` matches every ancestor, so a
 ## subtype has to be tested before the type it extends. The two places that
 ## matters are marked below.
@@ -2022,7 +2042,7 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"scale_factor": tv.scale_factor,
 			"stereo_mode": tv.stereo_mode,
 			"controls": tv.get_control_state(),
-		})
+		}).merged(_tv_decks_field(tv, node_to_id))
 	elif node is SensorBar:
 		# Pose, plus which console is powering it. Unlike the Nunchuk this end DOES
 		# mean something: the bar is what a remote looks at, and a bar restored
@@ -2187,6 +2207,11 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"page_state": int(page.get("state", 0)),
 			"page_leaf": int(page.get("leaf", 0)),
 		})
+	elif node is MediaTransport and (node as MediaTransport).built_into != null:
+		# A deck built into a set is the set's, and saved on it (_tv_decks_field).
+		# Never in "spawned" today; refused here too, so a set restored with one
+		# could never come back with a second, loose copy beside it.
+		return {}
 	elif node is VCRPlayer:
 		# The deck's own TV link is not saved: the lead is a separate object now, so
 		# the connection lives in a spawned cable's plugs. Same for the DVD player.

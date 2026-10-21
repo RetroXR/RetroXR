@@ -92,7 +92,6 @@ const REW_END_MARGIN := 1.0
 # by the shared MediaSlot; see media_slot.gd. The tape rides in 10 cm and lies flat
 # (the mesh is authored standing, so it's rotated -90° about the slot's X axis).
 const SLOT_INSET := 0.10        # how far inside the VCR a loaded tape rides
-var _slot: MediaSlot = null
 
 @onready var _tape_slot: XRToolsSnapZone = $TapeSlot
 @onready var _play_button: VRButton = $PlayButton
@@ -154,6 +153,10 @@ func _ready() -> void:
 func _update_name_label() -> void:
 	if _name_label:
 		_name_label.text = vcr_label.to_upper()
+
+
+func _housing() -> Array[Node3D]:
+	return [$VCRBody, _name_label]
 
 
 func _process(delta: float) -> void:

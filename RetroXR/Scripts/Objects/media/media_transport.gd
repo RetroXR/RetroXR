@@ -30,6 +30,15 @@ extends XRToolsPickable
 ## _apply_av_feed, which is the one place the cable graph is turned into routing.
 var connected_tv: RetroTV = null
 
+## The set this deck is built into, or null for a deck standing on its own. Set
+## once, by TvDecks, before anything is played. A built-in deck is the same deck
+## with no body and no lead — see build_into.
+var built_into: RetroTV = null
+
+## The tape or disc bay, built by each deck's own _ready. Declared here because
+## build_into hands it the set's body to be collision-excepted against.
+var _slot: MediaSlot = null
+
 ## VlcPlayer (GDExtension). Object rather than a typed reference so a build
 ## without the extension still loads the scene.
 var _vlc: Object = null
@@ -117,7 +126,84 @@ func _emit_through(tv: Node3D) -> void:
 		_emitter.set_emit_direction(tv.get_screen_normal(), tv.get_screen_up())
 
 
+## Make this deck part of `tv`, a combination set: the picture and both channels
+## go straight to it, with no lead, and the deck stops being a thing of its own.
+##
+## What it stops being, one line each:
+## - a pickable: a hand cannot take the VCR out of a TV/VCR;
+## - a body: the cabinet is the body, and a frozen box inside the set's collider
+##   would only be something for the set to fight. STATIC rather than kinematic,
+##   for the reason MediaSlot gives — kinematic drifts under its host's rotation;
+## - a source on the cable graph: its A/V outputs are switched off, so no lead can
+##   take the picture somewhere else, and on_av_topology_changed stops listening;
+## - the grey box, unless the cabinet asks for it (RetroTVShell.deck_housing).
+##
+## What it keeps is everything a player touches — the slot, the buttons, the
+## clock, the options panel, and the PointerArea the remote aims at.
+##
+## `controls` is where the button panel goes, in the set's frame, or null to leave
+## it on top of the deck (RetroTVShell.VcrControls / DvdControls).
+func build_into(tv: RetroTV, keep_housing: bool, controls: Variant = null) -> void:
+	built_into = tv
+	enabled = false
+	freeze_mode = RigidBody3D.FREEZE_MODE_STATIC
+	freeze = true
+	collision_layer = 0
+	collision_mask = 0
+	# The media rides inside the set's collider now, so it is the SET it must not
+	# shove.
+	if _slot != null:
+		_slot.host = tv
+	for port_name: String in ["VideoOut", "AudioLOut", "AudioROut"]:
+		var port := get_node_or_null(port_name) as XRToolsSnapZone
+		if port != null:
+			port.visible = false
+			port.enabled = false
+	var legend := get_node_or_null("AvLegend") as Node3D
+	if legend != null:
+		legend.visible = false
+	if not keep_housing:
+		for node: Node3D in _housing():
+			node.visible = false
+	if controls is Transform3D:
+		_move_controls(controls)
+	_apply_av_feed(tv, true, 0, 1)
+
+
+## Carry the button panel, as one rigid piece, from the deck's top face to
+## `at` (the set's frame): the top face's centre lands on `at`, and its up on
+## at's +Y. Every cap keeps its place in the layout, its glyph and its wiring —
+## only where the panel is changes.
+##
+## The top face is the plane the caps stand on: their highest origin, since
+## every cap on a stock deck sits at the same height.
+func _move_controls(at: Transform3D) -> void:
+	var buttons: Array[VRButton] = []
+	var top := -INF
+	for child in get_children():
+		if child is VRButton:
+			buttons.append(child as VRButton)
+			top = maxf(top, (child as VRButton).position.y)
+	if buttons.is_empty():
+		return
+	# deck <- set <- panel <- top face, so each cap's own transform is kept relative
+	# to the top face's centre and that centre is carried to `at`.
+	var carry := transform.affine_inverse() * at \
+		* Transform3D(Basis.IDENTITY, Vector3(0.0, -top, 0.0))
+	for button in buttons:
+		button.transform = carry * button.transform
+
+
+## The nodes that make up this deck's own box, hidden in a cabinet that is its
+## housing. Each deck names its own.
+func _housing() -> Array[Node3D]:
+	return []
+
+
 func on_av_topology_changed(_links: Array) -> void:
+	# Built in: there is no lead, and the feed build_into set is the whole of it.
+	if built_into != null:
+		return
 	# The reported list is this ONE cable's cords. AvSource asks every cable this
 	# deck's own sockets touch: a deck with its picture on one lead and its sound
 	# on another had whichever resolved last overwrite the whole of its routing,

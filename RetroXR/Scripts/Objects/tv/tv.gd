@@ -301,6 +301,8 @@ var _audio: TvAudio = null
 # The back panel: its sockets, their legends, and which host is on which input —
 # see tv_panel.gd.
 var _panel: TvPanel = null
+# The VCR or DVD player built into a combination set's cabinet — see tv_decks.gd.
+var _decks: TvDecks = null
 var _tv_enabled: bool = true
 
 # Selected input and the built-in tuner. The tuner is created on first use rather
@@ -376,6 +378,11 @@ func display() -> TvDisplay:
 
 func panel() -> TvPanel:
 	return _panel
+
+
+## The decks built into this cabinet. Always there; empty on a set without any.
+func decks() -> TvDecks:
+	return _decks
 
 
 func osd() -> TvOsd:
@@ -476,6 +483,10 @@ func _init() -> void:
 	_display.name = "TvDisplay"
 	add_child(_display)
 	_display.setup(self)
+	_decks = TvDecks.new()
+	_decks.name = "TvDecks"
+	add_child(_decks)
+	_decks.setup(self)
 
 
 func _ready() -> void:
@@ -497,11 +508,18 @@ func _ready() -> void:
 	# and so a cabinet that carries fewer than four has already said so.
 	_panel.disable_absent_inputs()
 	_panel.print_legends()
+	# After the phono inputs are settled, because a built-in deck takes the first
+	# composite input past them.
+	_decks.build()
 	# The set defaults to Composite 1 and a cabinet need not have it, so land on one
 	# it does before anything reads current_source. _seat_vga_port has already run
 	# inside load_shell, which is what decides whether Composite 1 counts here.
 	if not _source_available(current_source):
 		current_source = _first_available_source()
+	# A built-in deck was given its level as it arrived, against whatever input the
+	# set had then; tell it again now the input is settled.
+	if not _decks.decks().is_empty():
+		_audio.apply_volume()
 	# TV = power: it runs the power-on animation and flashes POWER on the OSD.
 	TransportGlyphs.label_buttons(self, {
 		"MuteButton": "mute", "AudioModeButton": "audio_stereo",
@@ -1187,7 +1205,7 @@ func cycle_source() -> void:
 ## coax hole. The retired TV input is on no cabinet — see Source.
 func _source_available(source: Source) -> bool:
 	if source < COMPOSITE_INPUTS:
-		return source < _panel.panel_inputs()
+		return source < _panel.panel_inputs() or _panel.builtin_deck(source) != null
 	if source == Source.RF:
 		return _panel.has_aerial()
 	if source == Source.VGA:
@@ -1259,7 +1277,16 @@ func _source_banner() -> String:
 		# and NO SIGNAL is the difference between "nothing is plugged in" and "you
 		# are on the wrong one of two channels", which the static alone cannot say.
 		return "RF  CH %d%s" % [rf_channel, "" if _panel.rf_tuned() else "  NO SIGNAL"]
-	return SOURCE_NAMES[current_source]
+	return source_name(current_source)
+
+
+## What SOURCE calls an input on THIS set: the deck's own name for an input a
+## built-in deck is on ("VCR", "DVD"), SOURCE_NAMES for every other.
+func source_name(source: int) -> String:
+	var deck_label := _decks.label_for(source) if _decks != null else ""
+	if not deck_label.is_empty():
+		return deck_label
+	return SOURCE_NAMES[clampi(source, 0, SOURCE_NAMES.size() - 1)]
 
 
 ## The tuner is built on first use — a set that never leaves COMPONENT should not

@@ -28,7 +28,6 @@ const SCAN_SEEK_INTERVAL := 0.08
 # Front-loading disc bay (insert ride, eject, grab hand-off, collision) — all owned
 # by the shared MediaSlot; see media_slot.gd. Disc rides in 10 cm, lies flat.
 const SLOT_INSET := 0.10       # how far inside the player a loaded disc rides
-var _slot: MediaSlot = null
 
 
 # Cached track counts for the remote's audio/subtitle greying (-1 = not yet
@@ -179,6 +178,10 @@ func _refresh_box_buttons() -> void:
 func _update_name_label() -> void:
 	if _name_label:
 		_name_label.text = dvd_label.to_upper()
+
+
+func _housing() -> Array[Node3D]:
+	return [$DVDBody, _name_label]
 
 
 func _process(delta: float) -> void:

@@ -766,7 +766,7 @@ func paint_screen(who: Object, mat: Material) -> bool:
 		if _refused != who:
 			_refused = who
 			push_error("[RetroTV] %s tried to paint %s while it is showing %s"
-				% [who, name, RetroTV.SOURCE_NAMES[_tv.current_source]])
+				% [who, name, _tv.source_name(_tv.current_source)])
 		return false
 	_refused = null
 	_screen_owner = who

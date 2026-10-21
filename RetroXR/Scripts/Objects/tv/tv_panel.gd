@@ -50,6 +50,11 @@ var _snapped_plugs: Array = []
 ## directly to assert what the set thinks is cabled to it.
 var _connected_systems: Array = []
 
+## Decks built into the cabinet, input -> deck (see TvDecks). Kept apart from
+## _snapped_plugs because there is no plug: a built-in deck reaches its input with
+## no lead at all, so neither the captive-lead lookup nor the cable graph finds it.
+var _builtin: Dictionary = {}
+
 ## The six speaker outputs, in RcaPort.SPEAKER_OUT_CHANNELS order.
 ##
 ## An array of its own rather than another entry in _av_ports, which is indexed by
@@ -164,6 +169,18 @@ func panel_inputs() -> int:
 	# Floored at ZERO, not at one: a cabinet is allowed to carry no phono sockets at
 	# all, and the computer monitor is one. See TVShell.av_inputs.
 	return clampi(_tv.shell().av_inputs, 0, RetroTV.COMPOSITE_INPUTS)
+
+
+## File a deck built into the cabinet on its input. TvDecks calls it before the
+## deck announces itself, which is what lets source_found place it.
+func attach_builtin(deck: Node3D, input: int) -> void:
+	_builtin[input] = deck
+
+
+## The deck built into one input, or null.
+func builtin_deck(input: int) -> Node3D:
+	var deck: Node3D = _builtin.get(input)
+	return deck if is_instance_valid(deck) else null
 
 
 ## Whether this cabinet carries the aerial socket. The stock body does; a fitted
@@ -570,6 +587,10 @@ func source_lost(source: Node3D) -> void:
 func _input_for_device(dev: Node3D) -> int:
 	if dev == null or not is_instance_valid(dev):
 		return -1
+	# A deck built into the cabinet has no lead to find it by.
+	for input: int in _builtin:
+		if _builtin[input] == dev:
+			return input
 	# A captive lead names its own host and carries no CompositeCable at all, so it
 	# is not in the graph. Over every input the set has sockets for, which includes
 	# the aerial one: a console reached through an RF switch is found here exactly

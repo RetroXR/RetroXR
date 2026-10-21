@@ -1352,8 +1352,15 @@ func _encode_args(args: Dictionary) -> Dictionary:
 		var v: Variant = args[k]
 		if v is Node:
 			var id := id_of(v)
+			var holder := _registered_holder(v as Node) if id < 0 else null
 			if id >= 0:
 				out[k] = {"$id": id}
+			elif holder != null:
+				# Part of a registered object rather than one itself: a deck built
+				# into a combination set. Every peer builds the same cabinet, so the
+				# path inside it names the same node everywhere, where its absolute
+				# path names whatever the set happens to be called on this peer.
+				out[k] = {"$id": id_of(holder), "$sub": str(holder.get_path_to(v as Node))}
 			else:
 				out[k] = {"$path": str((v as Node).get_path())}
 		else:
@@ -1361,12 +1368,31 @@ func _encode_args(args: Dictionary) -> Dictionary:
 	return out
 
 
+## The nearest registered ancestor of a node that is not registered itself, or
+## null. Only a node that is PART of a synced object has one: a built-in deck.
+func _registered_holder(node: Node) -> Node:
+	var p := node.get_parent()
+	while p != null:
+		if id_of(p) >= 0:
+			return p
+		p = p.get_parent()
+	return null
+
+
+## A registered object, or a node inside one when `sub` names it.
+func _resolve_id(net_id: int, sub: String) -> Node:
+	var node: Node = _registry.get(net_id)
+	if not is_instance_valid(node) or sub.is_empty():
+		return node
+	return node.get_node_or_null(NodePath(sub))
+
+
 func _decode_args(wire: Dictionary) -> Dictionary:
 	var out := {}
 	for k: Variant in wire:
 		var v: Variant = wire[k]
 		if v is Dictionary and (v as Dictionary).has("$id"):
-			out[k] = _registry.get(int(v["$id"]))
+			out[k] = _resolve_id(int(v["$id"]), str((v as Dictionary).get("$sub", "")))
 		elif v is Dictionary and (v as Dictionary).has("$path"):
 			out[k] = get_node_or_null(NodePath(str(v["$path"])))
 		else:
@@ -1391,23 +1417,37 @@ func _decode_args(wire: Dictionary) -> Dictionary:
 func send_media_state(deck: Node) -> void:
 	if not _nm.is_host():
 		return
-	var id := id_of(deck)
-	if id < 0 or not deck.has_method("net_get_state"):
+	if not deck.has_method("net_get_state"):
 		return
-	_media_state.rpc(id, deck.net_get_state())
+	# A deck built into a set is named through the set, as an event names it.
+	var id := id_of(deck)
+	var sub := ""
+	if id < 0:
+		var holder := _registered_holder(deck)
+		if holder == null:
+			return
+		id = id_of(holder)
+		sub = str(holder.get_path_to(deck))
+	_media_state.rpc(id, sub, deck.net_get_state())
 
 
 func _host_media_heartbeat() -> void:
 	for id: int in _registry:
 		var node: Node = _registry[id]
-		if is_instance_valid(node) and node.has_method("net_get_state") \
-				and bool(node.get("is_playing")):
+		if not is_instance_valid(node):
+			continue
+		if node.has_method("net_get_state") and bool(node.get("is_playing")):
 			send_media_state(node)
+		# A combination set's own decks, which are not registered objects.
+		if node is RetroTV:
+			for deck: MediaTransport in (node as RetroTV).decks().decks():
+				if bool(deck.get("is_playing")):
+					send_media_state(deck)
 
 
 @rpc("authority", "call_remote", "reliable", 0)
-func _media_state(net_id: int, state: Dictionary) -> void:
-	var node: Node = _registry.get(net_id)
+func _media_state(net_id: int, sub: String, state: Dictionary) -> void:
+	var node := _resolve_id(net_id, sub)
 	if is_instance_valid(node) and node.has_method("net_apply_state"):
 		_suppressed(node.call.bind("net_apply_state", state))
 
