@@ -180,3 +180,5 @@ __pycache__/
 
 # Local export and packaging output (APK, Linux build, AppImage).
 build_out/
+retroxr-release.keystore
+retroxr-release.keystore.password

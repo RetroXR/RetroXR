@@ -215,9 +215,17 @@ func _process(delta: float) -> void:
 			# a start even in a light-gun game (the extension answers a core's joypad query
 			# whatever device the port announced). Only those two bits: the gun writes no pad.
 			if holder is LightGun:
-				_forward_to_gun(holder as LightGun, mask)
+				var held_gun := holder as LightGun
+				_forward_to_gun(held_gun, mask)
+				# The gun in a hand has START and SELECT of its own (stick click and grip). MAME 0.289
+				# reads a start and a credit off the joypad only, so they are sent as the joypad's too.
+				var from_hand := mask
+				if held_gun.hand_button(ControllerBindings.LIGHTGUN_START):
+					from_hand |= 1 << ArcadeProfiles.START_BIT
+				if held_gun.hand_button(ControllerBindings.LIGHTGUN_SELECT):
+					from_hand |= 1 << ArcadeProfiles.COIN_BIT
 				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT)
-				_send(p, mask & aux, _NEUTRAL)
+				_send(p, from_hand & aux, _NEUTRAL)
 			continue
 		_send(p, mask, state)
 

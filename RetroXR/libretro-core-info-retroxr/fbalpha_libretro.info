@@ -1,0 +1,22 @@
+# Software Information
+display_name = "Arcade (FB Alpha)"
+authors = "Team FB Alpha"
+supported_extensions = "iso|zip|7z"
+corename = "FB Alpha"
+license = "Non-commercial"
+permissions = ""
+display_version = "v0.2.97.43"
+categories = "Emulator"
+
+# Hardware Information
+manufacturer = "Various"
+systemname = "Arcade (various)"
+systemid = "arcade"
+
+# Libretro Features
+supports_no_game = "false"
+savestate = "true"
+savestate_features = "serialized"
+notes = "(!) The BIOS files must be inside the ROM directory."
+
+description = "The last full FB Alpha release (v0.2.97.43), before the project became FinalBurn Neo. The libretro buildbot still publishes it, for Android as well, but libretro's own core-info set has no entry for it, so it was not recognised as an arcade core. This file is RetroXR's, in the overlay."

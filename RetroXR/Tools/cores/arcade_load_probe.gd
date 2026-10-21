@@ -18,6 +18,10 @@
 ##
 ## --controllers prints the devices the core lists for each port (its own ids for a gun, a pad...).
 ##
+## --options prints, once the core runs, every option that has to do with a gun, a mouse or an X-Y
+## device (its values, its default and what the run actually holds) next to what the app pins for a
+## gun in a port (ForcedCoreOptions.lightgun): the check that a core's gun option is the one we pin.
+##
 ## --core= pins the core (`mame`, `fbneo`, ...); without it the system's own pick is used,
 ## which for `arcade` is current MAME. The probe prints the core it really ran.
 extends Node3D
@@ -33,6 +37,7 @@ func _ready() -> void:
 	var model_id := "arcade_cabinet_generic"
 	var audio := false
 	var controllers := false
+	var options := false
 	var play := false
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--rom="):
@@ -49,6 +54,8 @@ func _ready() -> void:
 			play = true
 		elif a == "--controllers":
 			controllers = true
+		elif a == "--options":
+			options = true
 	if rom.is_empty() or not FileAccess.file_exists(rom):
 		print("[probe] pass --rom=<an existing romset zip>")
 		get_tree().quit(1)
@@ -125,6 +132,26 @@ func _ready() -> void:
 			fill_min = mini(fill_min, f)
 		print("[probe] audio: loudest bus peak %.1f dB over 40 s, sink fill %d..%d%%, ready=%s"
 			% [loudest, fill_min, fill_max, str(lib.IsAudioReady()) if lib.has_method("IsAudioReady") else "?"])
+		get_tree().quit(0)
+		return
+	if options:
+		await get_tree().create_timer(10.0).timeout
+		var core_used: String = sys._resolve_core()
+		print("[probe] core=%s pinned for a gun: %s" % [core_used, str(ForcedCoreOptions.lightgun(core_used, true))])
+		print("[probe] the run pins: %s" % str(sys._all_forced_options(core_used)))
+		var defs: Dictionary = sys._options_definitions
+		print("[probe] %d option definitions" % defs.size())
+		for key: Variant in defs:
+			var low := String(key).to_lower()
+			if low.contains("gun") or low.contains("mouse") or low.contains("xy") or low.contains("pointer") \
+					or low.contains("crosshair") or low.contains("input") or low.contains("device"):
+				var vals: Array = []
+				for v in defs[key].GetValues():
+					vals.append(v.GetValue())
+				print("[probe]   %s = %s  values=%s default=%s" % [key, str(sys._options_values.get(key, "?")),
+					str(vals), str(defs[key].GetDefaultValue())])
+		for entry: Dictionary in sys._controller_info:
+			print("[probe] controllers port %s: %s" % [entry.get("port"), JSON.stringify(entry.get("controllers", []))])
 		get_tree().quit(0)
 		return
 	if controllers:
