@@ -1,7 +1,11 @@
 # The first gamepad, off a headset
 
-**Status: PLAN, nothing built yet (2026-10-21).** The spec is the player's (pasted 2026-10-21); the
-decisions marked **ASSUMED** are mine and want a yes or a correction before they are built.
+**Status: BUILT (2026-10-21), no real pad tried.** `DesktopPad` (autoload, `Scripts/Desktop/desktop_pad.gd`,
+class `DesktopPadService`) makes the first pad the player's input. The spec is the player's; the mapping
+below is the ASSUMED default I chose, so a correction is cheap. Tested with synthetic events only
+(`Tests/desktop_pad_tests`, 72 cases; `Tools/room/pad_hand_probe`, windowed, through the real hand): **no
+real pad has been plugged into this work**, so feel (look speed, dead zones, the trigger thresholds) and
+the real `Input.get_joy_*` path (`held_state` -> `GamepadBindings.poll`) are OWED.
 
 ## The spec
 
@@ -14,6 +18,68 @@ Off a headset:
    an EXTERNAL controller, for a player who wants keyboard and controller at once.
 4. Spawning the adapter for controller 1 from the menu first shows a **warning**: this treats the
    controller as external, so it stops being the main movement until the item in the game is put away.
+
+## How it works
+
+The pad is made into the input the game already reads, not given code paths of its own.
+
+- **`main_device`**: the first of `GamepadBindings.usable_pads()`, or -1 when a headset is on, there is
+  no pad, or **a `PadReceiver` for that pad is in the room** (the adapter rule, 3-4: one place decides it,
+  so the keyboard-only fallback is automatic while the item exists, and the pad is the player's again the
+  moment it is freed). `would_go_external(guid, ordinal)` is what the menu asks.
+- **`last_is_pad`** / `device_changed(pad)`: a key, mouse button or mouse move over 2 px is the keyboard; a
+  joypad button or an axis past 0.5 on `main_device` is the pad. The events the pad makes itself carry
+  `SYNTH_DEVICE` and are skipped, or the pad would read as the mouse. No main pad: always the keyboard.
+- **InputMap actions** get the pad's events ADDED while a pad is main and taken off after: the left stick
+  walks (`desktop_move_*`), Start `desktop_spawn_menu`, Back `desktop_tv_fullscreen`, B `action_crouch`, L3
+  `action_walk`. Everything in the engine that already reads these needs no change.
+- **The hand and looking round read the MOUSE**, so the pad sends mouse events: RT = left button (grab,
+  press a control, drop on release, left-drag turns), LT = middle button (turn the held thing), D-pad up /
+  down = wheel up / down (push / pull / catch; held, it repeats), the right stick = mouse motion
+  (`LOOK_SPEED` 750 px/s, ~150 deg/s; `TURN_SCALE` 0.4 while LT), LB = Shift on all of it (roll; LB + RT
+  drops a gun). `MovementDesktopTurn` already ignores the mouse while a button is held; it reads mouse
+  motion, so the look and the turn needed nothing either.
+- **R3 sends F3**, the keyboard's own "this device has my keys" (`ScrollLockCapture`). While a held device
+  has them (`ScrollLockCapture.any_active()`, which asks each capture whether it is still eligible) the pad
+  stops sending hand events AND its InputMap events come off (Start would otherwise open the spawn menu
+  over the game it pauses, B crouch, A jump), **the pad is the game's**:
+  `handheld_input.gd` and `retro_controller.gd` merge `DesktopPad.held_state(...)` (the same
+  `GamepadBindings.poll` a `PadReceiver` uses, the machine's own pad map) into what the keyboard drives, the
+  left stick not walking because capture already blocks locomotion.
+- **Prompts**: `HeldHint` draws its desktop rows again in the pad's glyphs on `device_changed`
+  (`DesktopPadService.pad_row`: `PAD_ROWS` rewrites a row whole -- rotate, hand hold, capture, drop -- and
+  `PAD_GLYPHS` maps any other keyboard / mouse glyph one for one). **Only the Xbox set is whole** in
+  `Textures/InputPrompts` (PlayStation lacks the face buttons, Switch the triggers and sticks), so one set
+  serves every pad; `pad_family` from `Input.get_joy_name` is for when those fill in.
+- **The warning**: `spawn_view._pad_receiver_row`. The first press on the main pad's receiver row swaps it
+  for the explanation and Continue / Cancel; a row for any other pad spawns at once.
+
+### Mapping
+
+| keyboard / mouse | controller 1 |
+|---|---|
+| WASD | left stick |
+| mouse look | right stick |
+| left click: grab / press a control / drop on release | RT |
+| wheel: push / pull / catch | D-pad up / down |
+| middle button: turn the held thing (with mouse motion) | LT + right stick |
+| Shift: roll / drop a gun | LB |
+| F3 / Scroll Lock: the held device has the keys | R3 |
+| Tab: spawn menu | Start |
+| crouch | B |
+| walk | L3 |
+| F11: TV full screen | Back |
+| a held handheld / controller, captured | the pad plays it (A is NOT the left button: it is a game button) |
+
+Not mapped: jump (`ui_accept` is also the GUI's accept), menu navigation by pad (the menu is a pointer UI,
+RT works it), a second pad (any other pad stays external: only a `PadReceiver` takes it to a console).
+
+### Known limits
+
+- Godot's `InputMap` does not tell two pads apart for an action, so with TWO pads the second also walks
+  the player and presses crouch (the mouse events and the capture merge ARE per device).
+- A wheel notch is sent as a press AND its release, as a real wheel's is (a press alone left the wheel's
+  bit in `Input`'s button mask).
 
 ## What there is now
 
@@ -31,62 +97,10 @@ The old "merge the pad into whatever you hold" is gone on purpose (`pad_receiver
 occupied and two pads could not be two players. This is a different thing -- the pad as the PLAYER's input, not
 a prop's -- and must not bring that merge back.
 
-## Proposed design
-
-One service, `DesktopPad` (autoload, after `AppPrefs`), and everything else asks it.
-
-- `main_device() -> int`: the joypad index of controller 1 (first of `GamepadBindings.usable_pads()`), or -1:
-  no pad, a headset session, the pref off, or **an external receiver bound to that pad exists** (the adapter
-  rule, point 3-4; one place decides it, so the keyboard-only fallback is automatic when the item is spawned
-  and the pad is main again the moment it is put away / freed).
-- `last_device` (KEYBOARD_MOUSE | GAMEPAD) from `_input`: a key, mouse button or mouse motion over 2 px is the
-  first; a joypad button or an axis past 0.5 on `main_device` is the second. Signal `device_changed`.
-- `pad_family` (xbox | playstation | switch | generic) from `Input.get_joy_name`, picks the glyph set.
-- It adds/removes the joypad events on the InputMap actions that already exist, so locomotion needs no new
-  code path and the "external" rule is one add/remove.
-
-### Mapping  (**ASSUMED** -- Xbox names; PlayStation/Switch glyphs by `pad_family`)
-
-| keyboard / mouse | controller 1 |
-|---|---|
-| WASD (move) | left stick |
-| mouse look | right stick (turn + pitch), same sensitivity pref |
-| left click: grab / press a control / drop on release | RT (also A) |
-| wheel: push / pull / catch into the hand | D-pad up / down |
-| middle-drag: turn the held thing | LT held + right stick |
-| Shift: roll / drop modifier | LB |
-| Tab: spawn menu | Menu (Start) |
-| crouch | B |
-| sprint / walk toggle | L3 |
-| F11: picture fills the window | View (Back) |
-| (holding a handheld or a controller: the game) | the pad drives it, the same way the keyboard does |
-
-Menu navigation by pad (D-pad + A/B over the spawn menu) is **not** in this plan: the menu is a pointer UI.
-
-### Stages  (each leaves the game working)
-
-1. `DesktopPad`: last-device tracking, `main_device`, `pad_family`, the external rule; unit tests with synthetic
-   `InputEventJoypad*` events.
-2. Locomotion + look + menu + crouch/sprint by pad.
-3. The hand by pad: grab / drop-on-release / push / pull / catch / turn (`desktop_pickup.gd`'s input becomes a
-   handful of verbs the mouse and the pad both call).
-4. Game control: a held handheld / controller is played by the main pad as by the keyboard.
-5. Prompts: `HeldHint` and the menu hint rows re-draw on `device_changed`; a table maps each keyboard/mouse
-   glyph to its pad glyph per family.
-6. The warning when the menu spawns a `PadReceiver` for the main pad.
-
-## Questions
-
-1. **Mapping** above: right as a default? Which of crouch / sprint / jump do you want, and on which buttons?
-2. **"Controller 1"** = the first usable pad. With two pads, is the second ONLY ever an external one?
-3. **Game control**: should the pad drive the game in your hand even with a PadReceiver spawned elsewhere for
-   the SAME pad? (As written, no: that pad is external, the keyboard moves you.)
-4. **The warning**: a confirm dialog (Continue / Cancel), or a toast and the spawn goes ahead?
-5. **When the pad is external and the item is put away**: main again immediately, or only after a button press?
-6. Glyph sets: detect Xbox / PlayStation / Switch from the pad's name, or one set for all?
-
 ## Not testable here
 
 No pad is attached to the development machine, and Godot's `Input.get_joy_*` reads the OS state, which a
-synthetic event does not move. The service reads InputMap ACTIONS (which synthetic events do drive), so stages
-1-3 are tested; stage 4 touches `GamepadBindings.poll`, which is not, and stays OWED a real pad.
+synthetic event does not move. The service reads events and InputMap actions (which synthetic events do
+drive), so the main pad, the last device, the map, the mouse events it sends, the prompts and the merge are
+all tested; `held_state` -> `GamepadBindings.poll` (the held game actually reading a real pad) and the feel
+of the sticks are not, and stay OWED a real pad.
