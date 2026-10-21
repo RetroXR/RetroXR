@@ -62,8 +62,9 @@ func _ready() -> void:
 		print("  Tab = spawn menu")
 		print("  F11 = picture on the screen you look at fills the window")
 		print("=====================================")
-		# Ensure the window starts with a sensible resolution for desktop play
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+		# The saved window mode and size (or, with none, the default fitted to the
+		# screen), and from here on whatever the player does to the window.
+		QualityManager.begin_window_tracking()
 
 
 ## Report what the session actually came up with, so a bad eye-buffer size is

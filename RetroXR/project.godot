@@ -61,6 +61,11 @@ gdscript/warnings/missing_tool=0
 
 window/size/viewport_width=2560
 window/size/viewport_height=1440
+; The window OPENS small and is sized afterwards (DesktopWindow.restore). Opened at the 2560x1440
+; above on a shorter screen, the window manager clamps it, and GNOME then holds it maximised
+; along that axis, which the engine cannot see and a later size request cannot undo.
+window/size/window_width_override=1280
+window/size/window_height_override=720
 
 [dotnet]
 

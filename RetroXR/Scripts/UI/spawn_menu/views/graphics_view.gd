@@ -10,6 +10,8 @@
 class_name SpawnMenuGraphicsView
 extends ScrollContainer
 
+var _win_opt:     VRDropdown = null
+var _res_opt:     VRDropdown = null
 var _preset_opt:  VRDropdown = null
 var _msaa_opt:    VRDropdown = null
 var _post_aa_opt: VRDropdown = null
@@ -33,89 +35,18 @@ static func create(vr_mode: bool) -> SpawnMenuGraphicsView:
 
 
 # ── Desktop window mode / resolution ──────────────────────────────────────────
+# The window itself is DesktopWindow's. These rows only choose; whatever the player
+# does to the window afterwards (dragging its edge, maximising it) reaches the rows
+# through DesktopWindow.settled, so they never show a stale size.
 
-static func current_window_mode() -> String:
-	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN \
-			or DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
-		return "fullscreen"
-	return "borderless" if DisplayServer.window_get_flag(DisplayServer.WINDOW_FLAG_BORDERLESS) else "windowed"
-
-
-static func current_resolution_key() -> String:
-	var sz := DisplayServer.window_get_size()
-	return "%dx%d" % [sz.x, sz.y]
-
-
-static func apply_window_mode(mode: String) -> void:
-	match mode:
-		"fullscreen":
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
-		"borderless":
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, true)
-		_:
-			DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
-			DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_BORDERLESS, false)
-
-
-static func apply_resolution(key: String) -> void:
-	var parts := key.split("x")
-	if parts.size() != 2:
-		return
-	var win_size := Vector2i(int(parts[0]), int(parts[1]))
-	# Only meaningful in windowed/borderless; leave fullscreen alone.
-	if DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN \
-			or DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN:
-		return
-	DisplayServer.window_set_size(win_size)
-	# Re-centre on the current screen so a bigger window doesn't spill off-screen.
-	var screen := DisplayServer.window_get_current_screen()
-	var origin := DisplayServer.screen_get_position(screen)
-	var usable := DisplayServer.screen_get_size(screen)
-	@warning_ignore("integer_division")
-	var centred := origin + (usable - win_size) / 2
-	DisplayServer.window_set_position(centred)
-
-
-## Sizes the display can actually take, rather than a fixed list that capped out
-## below the monitor. Godot exposes the native size but no mode enumeration, so
-## the standard sizes are filtered against it and the native one always ends the
-## list — on a 4K panel that is where 3840x2160 comes from. The current window
-## size is folded in too, so the dropdown never opens on a blank value.
-static func resolution_options() -> Array:
-	var native := DisplayServer.screen_get_size(DisplayServer.window_get_current_screen())
-	var sizes: Array[Vector2i] = []
-	for candidate in [Vector2i(1280, 720), Vector2i(1600, 900), Vector2i(1920, 1080),
-			Vector2i(1920, 1200), Vector2i(2560, 1440), Vector2i(2560, 1600),
-			Vector2i(3440, 1440), Vector2i(3840, 2160)]:
-		if candidate.x <= native.x and candidate.y <= native.y:
-			sizes.append(candidate)
-	for extra in [DisplayServer.window_get_size(), native]:
-		if extra.x > 0 and extra.y > 0 and not sizes.has(extra):
-			sizes.append(extra)
-	sizes.sort_custom(func(a: Vector2i, b: Vector2i) -> bool: return a.x * a.y < b.x * b.y)
-
-	var options: Array = []
-	for candidate_size: Vector2i in sizes:
-		var label := "%d×%d" % [candidate_size.x, candidate_size.y]
-		if candidate_size == native:
-			label += "  (native)"
-		options.append([label, "%dx%d" % [candidate_size.x, candidate_size.y]])
-	return options
-
-
-## QualityManager persists the desktop window state; the DisplayServer calls stay
-## here where they already live, so the stored values are pulled rather than
-## pushed — an autoload's _ready runs long before this menu exists to hear a
-## signal. Static because the menu restores the window before it builds any view.
+## QualityManager persists the desktop window state; the DisplayServer calls live in
+## DesktopWindow. Static because the menu restores the window before it builds any
+## view, and harmless to repeat -- the window is restored once per process.
 static func restore_window_state() -> void:
 	QualityManager.apply_frame_cap()
 	if MenuStyle.is_vr_mode():
 		return
-	if not QualityManager.window_mode.is_empty():
-		apply_window_mode(QualityManager.window_mode)
-	if not QualityManager.resolution.is_empty():
-		apply_resolution(QualityManager.resolution)
+	QualityManager.begin_window_tracking()
 
 
 # ── Build ─────────────────────────────────────────────────────────────────────
@@ -134,21 +65,35 @@ func _build(vr_mode: bool) -> void:
 
 		# Window mode (desktop only). VRDropdown, not OptionButton — the menu is a
 		# Viewport2Din3D and OptionButton double-fires there.
-		var win_opt := VRDropdown.create("Window Mode",
-			[["Windowed", "windowed"], ["Borderless", "borderless"], ["Fullscreen", "fullscreen"]],
-			current_window_mode(), 3, Vector2(170, 52), 20)
-		win_opt.item_selected.connect(func(id: Variant) -> void:
-			apply_window_mode(str(id))
-			QualityManager.set_window_state(str(id), ""))
-		vbox.add_child(win_opt)
+		_win_opt = VRDropdown.create("Window Mode",
+			[["Windowed", "windowed"], ["Maximized", "maximized"],
+			 ["Borderless", "borderless"], ["Fullscreen", "fullscreen"]],
+			DesktopWindow.current_mode(), 4, Vector2(170, 52), 20)
+		_win_opt.item_selected.connect(func(id: Variant) -> void:
+			DesktopWindow.apply_mode(str(id))
+			QualityManager.set_window_state(str(id), "")
+			# A size picked while fullscreen could not be applied then; this is
+			# when it can.
+			if str(id) in ["windowed", "borderless"]:
+				DesktopWindow.apply_size(QualityManager.resolution, false, true))
+		vbox.add_child(_win_opt)
 
-		# Resolution (applies while windowed/borderless; ignored in fullscreen).
-		var res_opt := VRDropdown.create("Resolution", resolution_options(),
-			current_resolution_key(), 2, Vector2(190, 52), 20)
-		res_opt.item_selected.connect(func(id: Variant) -> void:
-			apply_resolution(str(id))
-			QualityManager.set_window_state("", str(id)))
-		vbox.add_child(res_opt)
+		# Resolution: the window's size while it is windowed or borderless. Dragging
+		# the window's edge moves it too, and this row follows (_on_window_settled).
+		_res_opt = VRDropdown.create("Resolution", _resolution_options(),
+			DesktopWindow.current_key(), 2, Vector2(300, 52), 20)
+		_res_opt.item_selected.connect(func(id: Variant) -> void:
+			QualityManager.set_window_state("", str(id))
+			DesktopWindow.apply_size(str(id), false, true))
+		vbox.add_child(_res_opt)
+
+		vbox.add_child(MenuStyle.hint("The window can also be resized by dragging its edge, "
+			+ "and the size is remembered. Fullscreen ignores it, and brings it back when "
+			+ "you leave. For a sharper or cheaper picture at the same window size, use "
+			+ "Render Scale below."))
+
+		if DesktopWindow.instance != null:
+			DesktopWindow.instance.settled.connect(_on_window_settled)
 
 		var cap_opts: Array = []
 		for fps: int in QualityManager.FRAME_CAPS:
@@ -398,6 +343,21 @@ func _build(vr_mode: bool) -> void:
 		+ "they reach, so on a headset it starts off; the desktop keeps it."))
 
 	vbox.add_child(HSeparator.new())
+
+
+func _resolution_options() -> Array:
+	var screen := DisplayServer.window_get_current_screen()
+	return DesktopWindow.resolution_options(DisplayServer.screen_get_size(screen),
+		DisplayServer.window_get_size(), DisplayServer.screen_get_usable_rect(screen).size)
+
+
+## The window changed under the rows (a drag, a maximise, the compositor). Skipped
+## while a list is open: rebuilding it would close it under the player's finger.
+func _on_window_settled(key: String) -> void:
+	if _res_opt != null and not _res_opt.is_open():
+		_res_opt.set_options(_resolution_options(), key)
+	if _win_opt != null and not _win_opt.is_open():
+		_win_opt.select_id(DesktopWindow.current_mode())
 
 
 ## The same four levels for both domains, in the order the OpenXR enum declares
