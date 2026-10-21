@@ -1920,7 +1920,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		hold.clicked.connect(spawn.bind({}))
 		# Held for a second: choose the shell and the body before it spawns.
 		hold.hold_enabled = _has_spawn_options(systemid)
-		hold.held.connect(_show_cart_spawn_options.bind(systemid, label, spawn))
+		hold.held.connect(_show_cart_spawn_options.bind(systemid, label, spawn, local_path))
 	elif romm_client.is_reachable():
 		# Not downloaded yet — tapping the title fetches it, same as the icon.
 		main.pressed.connect(func() -> void: romm_downloader.enqueue(entry, systemid))
@@ -3393,13 +3393,25 @@ static func _paint_swatch(btn: Button, color: Color) -> void:
 ## Shell, and for an N64, Super NES or Game Boy the body, of a cartridge (an NES
 ## cartridge has one body, so only its shell: grey, or the Zelda gold). Picked
 ## and then SPAWN is pressed; `spawn` takes the options dictionary. The swatches are
-## the system's own CartridgeColor palette -- a Game Boy or Game Boy Color ROM gets
-## both shells' palettes, and a swatch brings its shell's body -- then a colour the
-## player mixes.
-func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) -> void:
+## the colors of what `rom_path` will spawn as (_shell_palettes) -- the system's own
+## CartridgeColor palette, a Game Boy or Game Boy Color cartridge both shells', the
+## Game Boy Camera only its own -- then a colour the player mixes.
+func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable, rom_path := "") -> void:
 	var vbox := _open_spawn_options_panel(label)
 	var chosen := {"shell_preset": "", "shell_color": "", "shell_flake": false, "body_region": ""}
 	var auto_color := Color(0.18, 0.18, 0.35)
+
+	# A mod's shells are only offered colours when it said what they go on. Made
+	# before the Body row, whose choice can turn a cartridge into a camera and so
+	# refill the swatches.
+	var shell_group := ButtonGroup.new()
+	var auto_shell: Button = null
+	var swatches: VBoxContainer = null
+	if not ModCartShells.has(systemid) or ModCartShells.tintable(systemid):
+		auto_shell = _swatch_button("Auto (from the ROM)", auto_color, shell_group)
+		auto_shell.button_pressed = true
+		auto_shell.pressed.connect(_pick_shell.bind(chosen, "", "", false))
+		swatches = MenuStyle.vbox(10)
 
 	# The first body is the default, and leaves body_region empty.
 	var body_options: Array = []
@@ -3428,57 +3440,17 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 		for body: Array in body_options:
 			var body_btn := _swatch_button(body[0], auto_color, body_group)
 			body_btn.button_pressed = body[1] == ""
-			body_btn.pressed.connect(func() -> void: chosen["body_region"] = body[1])
+			body_btn.pressed.connect(func() -> void:
+				chosen["body_region"] = body[1]
+				if swatches != null:
+					_fill_shell_swatches(swatches, systemid, rom_path, chosen, auto_shell))
 			bodies.add_child(body_btn)
 
-	# A mod's shells are only offered colours when it said what they go on.
-	if not ModCartShells.has(systemid) or ModCartShells.tintable(systemid):
+	if swatches != null:
 		vbox.add_child(MenuStyle.header("Shell"))
-		var shell_group := ButtonGroup.new()
-		var auto_btn := _swatch_button("Auto (from the ROM)", auto_color, shell_group)
-		auto_btn.button_pressed = true
-		auto_btn.pressed.connect(_pick_shell.bind(chosen, "", "", false))
-		vbox.add_child(auto_btn)
-		var palettes: Array = []
-		# Null for a mod's shells that came with no colours of their own.
-		if CartridgeColor.get_palette(systemid) != null:
-			palettes = [["", CartridgeColor.get_palette(systemid)]]
-		if GbCartShell.is_shell(systemid) and not ModCartShells.has(systemid):
-			palettes = [["Game Boy", CartridgeColor.get_palette(GbCartShell.SYSTEMID)],
-					["Game Boy Camera", CartridgeColor.get_palette(GbCameraShell.PALETTE)],
-					["Game Boy Color", CartridgeColor.get_palette(GbcCartShell.PALETTE)]]
-		elif GbCartShell.is_shell(systemid):
-			# A mod's shells, and the camera's colors, which bring its camera body.
-			palettes.append(["Game Boy Camera", CartridgeColor.get_palette(GbCameraShell.PALETTE)])
-		for entry: Array in palettes:
-			var palette: CartridgeShellPalette = entry[1]
-			for section: Array in [
-					["Standard", CartridgeShellPreset.Availability.STANDARD],
-					["Released", CartridgeShellPreset.Availability.RELEASED],
-					# Offered by Nintendo and never used: listed after the released ones,
-					# untitled.
-					["", CartridgeShellPreset.Availability.OFFERED_ONLY]]:
-				var presets := palette.with_availability(section[1])
-				if presets.is_empty():
-					continue
-				var title: String = section[0]
-				if not entry[0].is_empty() and not title.is_empty():
-					title = "%s, %s" % [entry[0], title.to_lower()]
-				if not title.is_empty():
-					vbox.add_child(MenuStyle.hint(title))
-				var grid := GridContainer.new()
-				grid.columns = 4
-				grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				grid.add_theme_constant_override("h_separation", 10)
-				grid.add_theme_constant_override("v_separation", 10)
-				vbox.add_child(grid)
-				for preset: CartridgeShellPreset in presets:
-					# A two-tone shell is shown by its front half, the one facing the player.
-					var shown := palette.find(preset.front) if preset.is_two_tone() else preset
-					var swatch := _swatch_button(preset.display_name,
-						(shown if shown != null else preset).color, shell_group)
-					swatch.pressed.connect(_pick_shell.bind(chosen, String(preset.id), "", false))
-					grid.add_child(swatch)
+		vbox.add_child(auto_shell)
+		vbox.add_child(swatches)
+		_fill_shell_swatches(swatches, systemid, rom_path, chosen, auto_shell)
 		_add_custom_shell(vbox, shell_group, chosen)
 
 	vbox.add_child(MenuStyle.spacer(6))
@@ -3493,6 +3465,76 @@ func _show_cart_spawn_options(systemid: String, label: String, spawn: Callable) 
 		_close_spawn_options_panel()
 		spawn.call(options))
 	vbox.add_child(go)
+
+
+## The palettes a hold menu offers, [title, palette] each: the Game Boy Camera's
+## own colors on a camera, and on a cartridge the system's, which for the game's
+## Game Boy shells are both shells' (a swatch brings its shell's body). Never the
+## camera's on a cartridge or a cartridge's on the camera.
+static func _shell_palettes(systemid: String, camera: bool) -> Array:
+	if camera:
+		return [["Game Boy Camera", CartridgeColor.get_palette(GbCameraShell.PALETTE)]]
+	if GbCartShell.is_shell(systemid) and not ModCartShells.has(systemid):
+		return [["Game Boy", CartridgeColor.get_palette(GbCartShell.SYSTEMID)],
+				["Game Boy Color", CartridgeColor.get_palette(GbcCartShell.PALETTE)]]
+	# Null for a mod's shells that came with no colours of their own.
+	var own := CartridgeColor.get_palette(systemid)
+	return [["", own]] if own != null else []
+
+
+## Whether a Game Boy ROM's hold menu spawns the camera with `body_region` forced:
+## the camera's ROM left on Auto, or the camera's body chosen, the game's or a mod's.
+static func _spawns_camera(systemid: String, rom_path: String, body_region: String) -> bool:
+	if not GbCartShell.is_shell(systemid):
+		return false
+	var model := RetroCartridge.body_model_for(systemid, rom_path, body_region, &"")
+	return model == GbCameraShell.BODY or model == RetroCartridge.camera_body_for(systemid)
+
+
+## A hold menu's shell swatches, into `box`, for what `chosen` spawns. Asked again
+## on every Body pick, and refilled only when it turns a cartridge into the camera
+## or back; a swatch that goes with the old ones gives the choice back to Auto.
+static func _fill_shell_swatches(box: VBoxContainer, systemid: String, rom_path: String,
+		chosen: Dictionary, auto_shell: Button) -> void:
+	var camera := _spawns_camera(systemid, rom_path, str(chosen["body_region"]))
+	if box.has_meta(&"camera") and bool(box.get_meta(&"camera")) == camera:
+		return
+	box.set_meta(&"camera", camera)
+	if not str(chosen["shell_preset"]).is_empty():
+		auto_shell.button_pressed = true
+		_pick_shell(chosen, "", "", false)
+	for child in box.get_children():
+		box.remove_child(child)
+		child.queue_free()
+	for entry: Array in _shell_palettes(systemid, camera):
+		var palette: CartridgeShellPalette = entry[1]
+		for section: Array in [
+				["Standard", CartridgeShellPreset.Availability.STANDARD],
+				["Released", CartridgeShellPreset.Availability.RELEASED],
+				# Offered by Nintendo and never used: listed after the released ones,
+				# untitled.
+				["", CartridgeShellPreset.Availability.OFFERED_ONLY]]:
+			var presets := palette.with_availability(section[1])
+			if presets.is_empty():
+				continue
+			var title: String = section[0]
+			if not entry[0].is_empty() and not title.is_empty():
+				title = "%s, %s" % [entry[0], title.to_lower()]
+			if not title.is_empty():
+				box.add_child(MenuStyle.hint(title))
+			var grid := GridContainer.new()
+			grid.columns = 4
+			grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			grid.add_theme_constant_override("h_separation", 10)
+			grid.add_theme_constant_override("v_separation", 10)
+			box.add_child(grid)
+			for preset: CartridgeShellPreset in presets:
+				# A two-tone shell is shown by its front half, the one facing the player.
+				var shown := palette.find(preset.front) if preset.is_two_tone() else preset
+				var swatch := _swatch_button(preset.display_name,
+					(shown if shown != null else preset).color, auto_shell.button_group)
+				swatch.pressed.connect(_pick_shell.bind(chosen, String(preset.id), "", false))
+				grid.add_child(swatch)
 
 
 ## One shell choice replaces the last: a preset id, or a mixed "#rrggbb" and
@@ -3891,7 +3933,7 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 		var rom_hold := HoldPress.attach(rom_btn)
 		rom_hold.hold_enabled = _has_spawn_options(systemid)
 		rom_hold.clicked.connect(rom_spawn.bind({}))
-		rom_hold.held.connect(_show_cart_spawn_options.bind(systemid, rom_label, rom_spawn))
+		rom_hold.held.connect(_show_cart_spawn_options.bind(systemid, rom_label, rom_spawn, abs_path))
 
 		# Which disc this file is, in the title's bottom-right corner: a game's
 		# discs share one wheel, so the rows are otherwise identical.
@@ -3953,7 +3995,7 @@ func _show_rom_variants_panel(game: Dictionary, systemid: String) -> void:
 		var spawn_hold := HoldPress.attach(spawn_btn)
 		spawn_hold.hold_enabled = _has_spawn_options(systemid)
 		spawn_hold.clicked.connect(rom_spawn.bind({}))
-		spawn_hold.held.connect(_show_cart_spawn_options.bind(systemid, rom_label, rom_spawn))
+		spawn_hold.held.connect(_show_cart_spawn_options.bind(systemid, rom_label, rom_spawn, abs_path))
 		row.add_child(spawn_btn)
 
 		vbox.add_child(row)

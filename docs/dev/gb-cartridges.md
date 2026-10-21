@@ -50,8 +50,12 @@ and `demetal` does not run (contacts and screw are metal).
 
 **Forcing a shell**: held for a second, a `gb` or `gbc` ROM row opens
 `_show_cart_spawn_options`, the N64's sub-menu with a Body row of the two shells
-(Auto, Game Boy, Game Boy Color), then the swatches of the Game Boy palette and the
-Game Boy Color one. The id lands in `RetroCartridge.shell_preset` (saved by
+and the camera (Auto, Game Boy, Game Boy Color, Game Boy Camera), then the swatches of
+what it will spawn (`_shell_palettes`): the Game Boy palette and the Game Boy Color
+one for a cartridge, the camera's own and no other for the camera (`_spawns_camera`:
+its ROM on Auto, or the camera body chosen, the game's or a mod's). The hold rows pass
+the ROM's path for that. A Body pick that turns a cartridge into the camera or back
+refills them, and a swatch picked from the old ones goes back to Auto. The id lands in `RetroCartridge.shell_preset` (saved by
 `scene_persistence`) and brings the body whose palette holds it (below); an id
 neither palette holds, an N64 one included, is ignored and the ROM's own shell is
 used. The sub-menu's Custom

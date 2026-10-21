@@ -675,22 +675,53 @@ func _test_colors() -> void:
 		"colors/and for Japan's on a Pocket Camera, whose label it prints")
 	model.queue_free()
 
-	# The colors on a Game Boy ROM's hold menu, with and without a mod's shells.
+	# The colors on a Game Boy ROM's hold menu, with and without a mod's shells: the
+	# camera's own on what spawns as the camera, and only a cartridge's on the rest.
 	var holder := Control.new()
 	add_child(holder)
 	var view := SpawnMenuSpawnView.new()
 	holder.add_child(view)
-	var spawn := func(_options: Dictionary) -> void: pass
+	var sent := {"options": null}
+	var spawn := func(options: Dictionary) -> void: sent["options"] = options
+	var texts := func() -> PackedStringArray:
+		var shown := PackedStringArray()
+		for b: Node in view._spawn_options_panel.find_children("*", "Button", true, false):
+			shown.append((b as Button).text.strip_edges())
+		return shown
+	var press_text := func(text: String) -> void:
+		for b: Node in view._spawn_options_panel.find_children("*", "Button", true, false):
+			if (b as Button).text.strip_edges() == text:
+				(b as Button).pressed.emit()
+				return
+	var camera_rom := _write_rom("hold_camera.gb", _camera())
+	var game_rom := _write_rom("hold_game.gb", _game())
+	var camera_gold := CartridgeColor.get_palette(GbCameraShell.PALETTE).find(GbCameraShell.GOLD_PRESET).display_name
+	var cart_gold := _gb_preset(&"gold").display_name
 	for modded: bool in [false, true]:
+		var under := " under a mod's shells" if modded else ""
 		if modded:
 			ModCartShells.register("gb", {"bodies": [plain, own], "tint": [&"Gray_ABS_Textured"],
 				"palette": "res://Resources/gb_cartridge_shells.tres"}, "t.gbcam")
-		view._show_cart_spawn_options("gb", "Selftest", spawn)
-		var texts := PackedStringArray()
-		for b: Node in view._spawn_options_panel.find_children("*", "Button", true, false):
-			texts.append((b as Button).text.strip_edges())
-		_ok(texts.has("Gold (The Legend of Zelda)") and texts.has("Clear Purple (Pocket Camera)"),
-			"colors/the hold menu offers the camera's colors%s" % (" under a mod's shells" if modded else ""), str(texts))
+		view._show_cart_spawn_options("gb", "Selftest", spawn, camera_rom)
+		var shown: PackedStringArray = texts.call()
+		_ok(shown.has(camera_gold) and shown.has("Clear Purple (Pocket Camera)") and not shown.has(cart_gold),
+			"colors/the camera's hold menu offers only the camera's colors%s" % under, str(shown))
+		press_text.call(camera_gold)
+		press_text.call("Game Boy")
+		shown = texts.call()
+		_ok(shown.has(cart_gold) and not shown.has(camera_gold),
+			"colors/and a cartridge's once a cartridge body is chosen%s" % under, str(shown))
+		press_text.call("+  SPAWN")
+		_ok(sent["options"] == {"body_region": "t.gbcam:gb" if modded else GbcCartShell.BODY_GB},
+			"colors/the camera color picked before goes with its swatches%s" % under, str(sent["options"]))
+		view._show_cart_spawn_options("gb", "Selftest", spawn, game_rom)
+		shown = texts.call()
+		_ok(shown.has(cart_gold) and not shown.has(camera_gold),
+			"colors/a game's hold menu offers only a cartridge's colors%s" % under, str(shown))
+		press_text.call("Game Boy Camera")
+		shown = texts.call()
+		_ok(shown.has(camera_gold) and not shown.has(cart_gold),
+			"colors/and the camera's once the camera body is chosen%s" % under, str(shown))
 		view._close_spawn_options_panel()
 	ModCartShells.drop_mod("t.gbcam")
 	holder.queue_free()
