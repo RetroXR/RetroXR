@@ -3436,10 +3436,14 @@ func _accepts_expansion(obj: Node3D) -> bool:
 
 
 ## The same gate for one socket: a unit mounts here when it is this console's and
-## names this socket ("" for the shared ExpansionSocket).
+## names this socket ("" for the shared ExpansionSocket). A network card does not
+## go into a shell with the jack built in -- a slim PS2 has no bay to take one.
 func _accepts_expansion_in(obj: Node3D, socket_id: String) -> bool:
 	var unit := obj as RetroExpansion
 	if unit == null:
+		return false
+	if _model != null and _model.builtin_ethernet_port() >= 0 \
+			and ExpansionCatalog.ethernet_port_of(unit.expansion_id) >= 0:
 		return false
 	return ExpansionCatalog.host_of(unit.expansion_id) == systemid \
 		and ExpansionCatalog.mount_of(unit.expansion_id) == ExpansionCatalog.MOUNT_ABOVE \

@@ -73,7 +73,9 @@ console runs shows a toast: switch it off and on for it to count.
 `RetroSystemModel.builtin_ethernet_port()` (default -1) and places the socket in
 `place_builtin_ethernet_port`; `RetroSystem` then builds it on the console, and
 `_hardware_ids()` counts the Network Adapter as present for the forced options without
-naming a card among what is seated (`expansion_ids()` is for boot recipes and saves).
+naming a card among what is seated (`expansion_ids()` is for boot recipes and saves). Such a shell takes no network card: it has no bay
+(`RetroSystem._accepts_expansion_in`). `xenu.ps2slim` 0.5.0 opts in, on its shell's
+`NetworkPort` marker.
 
 **No lead decides its own LAN.** `EthernetBus.settle` walks every lead, unions each
 lead's two ends (a console through its adapter, or a hub), and calls
@@ -122,7 +124,7 @@ frames by design).
 
 ## Tests
 
-`ethernet_tests` (186 checks): plug gating both ways against i.LINK, the cable scene
+`ethernet_tests` (188 checks): plug gating both ways against i.LINK, the cable scene
 and its sweep group, the spawn and save rows, the catalog rows and forced options, the
 hub's eight sockets with facing and a seated plug outside the box, each adapter's socket
 on the table and seated (owner, save round trip, facing out of the console, the core's
