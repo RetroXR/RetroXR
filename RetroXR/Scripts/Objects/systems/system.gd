@@ -2779,6 +2779,7 @@ func _release_cache_protection() -> void:
 
 ## Power off: stop the running core
 func power_off() -> void:
+	_core_menu_open = false
 	if not is_powered_on:
 		return
 	print("[RetroSystem] Powering off")
@@ -4094,6 +4095,68 @@ func _on_options_ready(_categories: Dictionary, definitions: Dictionary, current
 	reapply_pad_types()
 	if _options_panel.visible:
 		_options_panel.refresh()
+
+
+## Keys that open a core's OWN DIP switch screen, as libretro.h's RETROK_ codes, by core. MAME: Tab opens
+## its menu, whose second line is DIP Switches (measured: Input Settings, DIP Switches, Bookkeeping...),
+## so Tab, Down, Return; Tab alone shuts it again. FBNeo has no such screen (Tab, F2 and F3 do nothing
+## visible, measured): its DIPs are core options (`fbneo-dipswitch-<game>-...`), which the DIP tab lists.
+const DIP_MENU_KEYS := {"mame": [9, 274, 13]}
+const DIP_MENU_CLOSE := [9]
+## What marks a DIP among a core's options (the key names carry it).
+const DIP_OPTION_MARK := "dipswitch"
+const _KEY_HOLD := 0.12
+const _KEY_GAP := 0.25
+
+var _core_menu_open := false
+var _core_keys_busy := false
+## A suite's stand-in for the core's keyboard: called with (keycode, down) instead of the libretro node.
+var core_key_sink: Callable = Callable()
+
+
+## The menu's DIP Switch tab is a cabinet's (a machine whose model is the arcade cabinet).
+func has_dip_tab() -> bool:
+	return _model is RetroSystemModelArcadeCabinet
+
+
+## The running core has a DIP screen of its own that the tab can open on the game's screen.
+func core_dip_menu_available() -> bool:
+	return is_powered_on and DIP_MENU_KEYS.has(_resolve_core())
+
+
+func core_dip_menu_open() -> bool:
+	return _core_menu_open
+
+
+## The tab's button: open the running core's own DIP screen, or shut it again.
+func toggle_core_dip_menu() -> void:
+	if not core_dip_menu_available() or _core_keys_busy:
+		return
+	var keys: Array = DIP_MENU_CLOSE if _core_menu_open else DIP_MENU_KEYS[_resolve_core()]
+	_core_menu_open = not _core_menu_open
+	_tap_core_keys(keys)
+
+
+func _tap_core_keys(keys: Array) -> void:
+	_core_keys_busy = true
+	for code: int in keys:
+		_core_key(code, true)
+		await get_tree().create_timer(_KEY_HOLD).timeout
+		_core_key(code, false)
+		await get_tree().create_timer(_KEY_GAP).timeout
+	_core_keys_busy = false
+
+
+## One key to the core, the way a keyboard does it (keyboard_receiver `_send_key`): through the netplay
+## schedule when a session is running, else straight to port 0.
+func _core_key(code: int, down: bool) -> void:
+	if core_key_sink.is_valid():
+		core_key_sink.call(code, down)
+		return
+	if NetworkManager.netplay_queue_key(self, code, down, 0):
+		return
+	if _libretro != null:
+		_libretro.SetKeyState(0, code, down, 0)
 
 
 ## Toggle the core options panel open or closed.

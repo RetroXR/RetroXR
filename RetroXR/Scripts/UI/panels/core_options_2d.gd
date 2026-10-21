@@ -26,6 +26,8 @@ signal video_out_toggled(enabled: bool)
 signal ignore_gravity_toggled(enabled: bool)
 ## System-tab toggle (cabinets): wear the game's scraped art on the marquee and sides.
 signal cabinet_art_toggled(enabled: bool)
+## DIP tab (cabinets): open or shut the running core's own DIP screen on the game's screen.
+signal dip_menu_requested
 ## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
 ## sets.
 signal volume_changed(value: float)
@@ -65,6 +67,13 @@ var _volume_value: Label = null
 var _video_out_check: VRToggle = null
 var _ignore_grav_check: VRToggle = null
 var _cabinet_art_row: HBoxContainer = null
+var _dip_tab_idx := -1
+var _dip_scroll: ScrollContainer = null
+var _dip_rows: VBoxContainer = null
+## What the DIP tab was last told: the core has a screen of its own, the cabinet is on, that screen is open.
+var _dip_has_menu := false
+var _dip_powered := false
+var _dip_menu_open := false
 var _cabinet_art_check: VRToggle = null
 var _tabs: TabContainer = null
 ## The slotted cartridge's UI, embedded as a tab. Driven by the cartridge's own
@@ -254,6 +263,23 @@ func _build_ui() -> void:
 	_saves_ui.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	saves_outer.add_child(_saves_ui)
 
+	# DIP Switch tab, a cabinet's: hidden on every other machine (set_dip_tab_visible keeps the indices put).
+	var dip_outer := VBoxContainer.new()
+	dip_outer.name = "DIP Switch"
+	tabs.add_child(dip_outer)
+	_dip_tab_idx = tabs.get_tab_count() - 1
+	tabs.set_tab_hidden(_dip_tab_idx, true)
+	_dip_scroll = ScrollContainer.new()
+	_dip_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_dip_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_dip_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	MenuStyle.fat_vscroll_bar(_dip_scroll)
+	dip_outer.add_child(_dip_scroll)
+	_dip_rows = VBoxContainer.new()
+	_dip_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dip_rows.add_theme_constant_override("separation", 4)
+	_dip_scroll.add_child(_dip_rows)
+
 	_system_scroll = ScrollContainer.new()
 	_system_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_system_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -349,6 +375,8 @@ func _build_ui() -> void:
 			_active_scroll = _system_scroll
 		elif idx == _bios_tab_idx:
 			_active_scroll = _bios_scroll
+		elif idx == _dip_tab_idx:
+			_active_scroll = _dip_scroll
 		else:
 			# The Cartridge tab hosts a whole CartridgeOptions2D with ribbons of
 			# its own, so it knows which of them is showing and this does not.
@@ -378,6 +406,7 @@ func populate(definitions: Dictionary, current_values: Dictionary, controller_in
 	print("[CoreOptions2D] populate() — %d options, %d ports" % [definitions.size(), controller_info.size()])
 	_refresh_options()
 	_refresh_controllers()
+	_refresh_dip()
 
 
 ## Sync the System tab to the device's current state (no signal re-emit).
@@ -394,6 +423,59 @@ func set_cartridge_tab_visible(shown: bool) -> void:
 	if _tabs == null or _cart_tab_idx < 0:
 		return
 	_tabs.set_tab_hidden(_cart_tab_idx, not shown)
+
+
+## The DIP Switch tab. `shown`: this machine is a cabinet. `has_menu`: the running core has a DIP screen of
+## its own, which the button opens on the game's screen; otherwise the core's DIP options are listed here.
+func populate_dip(shown: bool, has_menu: bool, powered: bool, menu_open: bool) -> void:
+	_dip_has_menu = has_menu
+	_dip_powered = powered
+	_dip_menu_open = menu_open
+	if _tabs != null and _dip_tab_idx >= 0:
+		_tabs.set_tab_hidden(_dip_tab_idx, not shown)
+	_refresh_dip()
+
+
+func _refresh_dip() -> void:
+	if _dip_rows == null:
+		return
+	for c in _dip_rows.get_children():
+		c.queue_free()
+	if _dip_has_menu:
+		_dip_note("This game's DIP switches are on its own screen. Open them there, move with the stick or arrows, and press the button again to close.")
+		var btn := Button.new()
+		btn.text = "Close DIP Switches" if _dip_menu_open else "Open DIP Switches"
+		btn.custom_minimum_size = Vector2(0, 64)
+		btn.add_theme_font_size_override("font_size", 20)
+		btn.pressed.connect(func() -> void: dip_menu_requested.emit())
+		_dip_rows.add_child(btn)
+		return
+	var keys: Array = []
+	for key in _definitions:
+		if String(key).to_lower().contains(RetroSystem.DIP_OPTION_MARK):
+			keys.append(key)
+	keys.sort()
+	if keys.is_empty():
+		_dip_note("This core publishes no DIP switches%s." % ("" if _dip_powered else " until the game is running (turn the cabinet on)"))
+		return
+	for key in keys:
+		var current := String(_values.get(key, ""))
+		if _forced.has(key):
+			current = str(_forced[key])
+		CoreOptionRow.add(_dip_rows, key, _definitions[key], current, _forced.has(key),
+			"(fixed by this system)", func(k: String, v: String) -> void:
+				print("[CoreOptions2D] DIP '%s' -> '%s'" % [k, v])
+				option_changed.emit(k, v))
+
+
+func _dip_note(text: String) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_color_override("font_color", COLOR_ROW)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(0, 60)
+	_dip_rows.add_child(lbl)
 
 
 ## The Saves tab's page, driven by the attached unit's MemoryCardPanel.
