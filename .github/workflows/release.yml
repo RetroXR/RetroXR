@@ -50,6 +50,13 @@ jobs:
           [ -n "$name" ] && [ -n "$code" ] || { echo "::error::could not parse version/name+code from $cfg"; exit 1; }
           echo "preset: name=$name code=$code"
 
+          # The running app reads its own version from project.godot
+          # (AppUpdateService), not the preset: if the two part, every install of
+          # this build sees its own tag as newer and offers it for ever.
+          app_ver=$(sed -n 's/^config\/version="\(.*\)"$/\1/p' RetroXR/project.godot | head -1)
+          [ "$app_ver" = "$name" ] || {
+            echo "::error::project.godot config/version=$app_ver does not match version/name=$name"; exit 1; }
+
           # custom_features pairs with a run/main_scene.<tag> override. Check
           # the shipping Quest preset specifically: separate probe presets are
           # expected to select their own tagged entry points.
