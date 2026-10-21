@@ -303,6 +303,16 @@ with only the game key (measured 2026-10-06, on an empty catalogue):
   Replaces, conflicts between members and with installed mods, what was skipped,
   and "Enable all", OFF. A member that fails is skipped; the rest
   carry on.
+- **Packs QUEUE** (2026-10-21; it used to refuse with "Another pack is being
+  installed."). The page keeps `_batches` in the order Install was pressed and
+  hands every member to `ModDownloader` at once, which already fetches one file at
+  a time; a member another queued pack is already bringing is skipped ("comes with
+  X, queued before it"). Each pack's question opens in turn: a pack that finishes
+  while another's is on screen waits `ready` (its page offers Review and install),
+  and answering one opens the next (`_after_review`). A queued pack has Remove from
+  queue, a started one Cancel; one cancelled part way still offers what came down.
+  One toast per pack (`mods:pack:<id>`). `mod_browser_tests packqueue/` drives the
+  page with a stub downloader.
 - **A mod's `source` records who wants it**: `collections` (pack ids) and
   `individual`. A mod that was here before a pack named it is the player's own.
   **Removing a pack removes only what it alone brought** (`plan_remove`).

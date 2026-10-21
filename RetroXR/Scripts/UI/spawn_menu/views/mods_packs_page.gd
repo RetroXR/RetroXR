@@ -11,8 +11,13 @@
 ## (ModCollectionPlan.plan_remove).
 ##
 ## The page is built into a column the view owns, and borrows the view's tiles,
-## pictures, toasts and download review. It keeps the batch: which downloads
-## belong to the pack being installed, and what became of each.
+## pictures, toasts and download review. It keeps the batches: which downloads
+## belong to each pack being installed, and what became of each.
+##
+## Packs QUEUE. Install on a second pack while the first is still coming down
+## puts its members in the downloader's queue behind the first's (it fetches one
+## file at a time anyway), and each pack's question is asked in turn, in the
+## order Install was pressed. A queued pack can be taken off the queue.
 class_name SpawnMenuModsPacksPage
 extends RefCounted
 
@@ -43,15 +48,20 @@ var _members_total := 0
 var _members_state := ""              ## "" asking, "ok", or the error
 var _member_serial := 0
 
-## The pack being installed: {id, name, keys, done, staged, skip, have}.
-##   keys    job key -> the member mod, for every download asked for
-##   done    job keys that finished, either way
-##   staged  job keys whose pack was fetched, vetted and waits for the answer
-##   skip    Array of {name, why}
-##   have    members already here at mod.io's file
-var _batch: Dictionary = {}
-## Asking mod.io what the pack's mods need, before its batch begins.
-var _asking_needs := false
+## The packs being installed, in the order Install was pressed. Each is
+## {id, name, keys, done, staged, skip, have, ready, cancelled}:
+##   keys       job key -> the member mod, for every download asked for
+##   done       job keys that finished, either way
+##   staged     job keys whose pack was fetched, vetted and waits for the answer
+##   skip       Array of {name, why}
+##   have       members already here at mod.io's file
+##   ready      every download is in and the pack waits for its question
+##   cancelled  the player took it back
+var _batches: Array[Dictionary] = []
+## The batch whose question is on screen, {} for none.
+var _reviewing: Dictionary = {}
+## pack id -> true while mod.io is asked what its mods need, before its batch.
+var _asking: Dictionary = {}
 
 
 func _init(view: SpawnMenuModsView, into: VBoxContainer, scroll: ScrollContainer) -> void:
@@ -71,7 +81,36 @@ func _init(view: SpawnMenuModsView, into: VBoxContainer, scroll: ScrollContainer
 ## True for a download this page asked for, so the view leaves its toasts and
 ## its single-mod review alone.
 func owns(key: String) -> bool:
-	return not _batch.is_empty() and (_batch["keys"] as Dictionary).has(key)
+	return not _batch_owning(key).is_empty()
+
+
+## The batch that asked for download `key`, {} for none.
+func _batch_owning(key: String) -> Dictionary:
+	for batch: Dictionary in _batches:
+		if (batch["keys"] as Dictionary).has(key):
+			return batch
+	return {}
+
+
+## The batch installing pack `pack_id`, {} for none.
+func _batch_of(pack_id: int) -> Dictionary:
+	for batch: Dictionary in _batches:
+		if int(batch["id"]) == pack_id:
+			return batch
+	return {}
+
+
+## Every pack id with a batch, in queue order. For the suite.
+func queued_packs() -> Array[int]:
+	var ids: Array[int] = []
+	for batch: Dictionary in _batches:
+		ids.append(int(batch["id"]))
+	return ids
+
+
+## The pack whose question is on screen, 0 for none. For the suite.
+func reviewing_pack() -> int:
+	return int(_reviewing.get("id", 0))
 
 
 func ensure_fetched() -> void:
@@ -81,6 +120,10 @@ func ensure_fetched() -> void:
 
 ## The player withdrew their agreement: nothing fetched before it may stay.
 func forget() -> void:
+	# The view has already cancelled the downloads and thrown the reviews away.
+	_batches.clear()
+	_reviewing = {}
+	_asking.clear()
 	_fetched = false
 	_packs.clear()
 	_total = 0
@@ -101,6 +144,13 @@ func _show(which: Control) -> void:
 	for panel: Control in [_list, _detail, _review]:
 		panel.visible = panel == which
 	_scroll.scroll_vertical = 0
+
+
+func _back_to_list() -> void:
+	_open_pack = {}
+	_show(_list)
+	if _fetched:
+		_rebuild_grid()
 
 
 # ── the list ──────────────────────────────────────────────────────────────────
@@ -291,11 +341,7 @@ func _fill_detail() -> void:
 	var pack := _open_pack
 	var pack_id := int(pack["id"])
 	var back := SpawnMenuModsView._narrow(MenuStyle.row_button("←  All packs", 20, 220, 52, false))
-	back.pressed.connect(func() -> void:
-		_open_pack = {}
-		_show(_list)
-		if _fetched:
-			_rebuild_grid())
+	back.pressed.connect(_back_to_list)
 	_detail.add_child(back)
 
 	var head := MenuStyle.hbox(16)
@@ -318,7 +364,7 @@ func _fill_detail() -> void:
 	var fetch: Array = plan["fetch"]
 	var skip: Array = plan["skip"]
 	var state := ModCollectionPlan.pack_state(_members, installed)
-	var running := not _batch.is_empty()
+	var batch := _batch_of(pack_id)
 
 	var lines := PackedStringArray()
 	if _members_state == "ok":
@@ -340,24 +386,17 @@ func _fill_detail() -> void:
 
 	var actions := MenuStyle.hbox(10)
 	facts.add_child(actions)
-	if running:
-		var progress := "Downloading %d of %d" % [
-			mini((_batch["done"] as Array).size() + 1, (_batch["keys"] as Dictionary).size()),
-			(_batch["keys"] as Dictionary).size()]
-		facts.add_child(MenuStyle.label(
-			progress if int(_batch["id"]) == pack_id else "Another pack is being installed.",
-			16, MenuStyle.COLOR_DESC))
-		if int(_batch["id"]) == pack_id:
-			var cancel := MenuStyle.row_button("Cancel", 20, 200, 56, false)
-			cancel.pressed.connect(_cancel_batch)
-			actions.add_child(cancel)
+	if not batch.is_empty():
+		_batch_status(batch, facts, actions)
+	elif _asking.has(pack_id):
+		facts.add_child(MenuStyle.label("Asking mod.io what its mods need…", 16, MenuStyle.COLOR_DESC))
 	elif _members_state == "ok" and (not fetch.is_empty() or _untagged(plan["have"], pack_id)):
 		var label := "Update pack" if state == "update" else "Install pack"
 		var get_btn := MenuStyle.row_button(label, 20, 220, 56, false)
 		get_btn.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
 		get_btn.pressed.connect(func() -> void: _install(pack))
 		actions.add_child(get_btn)
-	if not running and not installed_from(pack_id).is_empty():
+	if batch.is_empty() and not installed_from(pack_id).is_empty():
 		# Two presses, as on a single mod: this deletes files.
 		var remove := MenuStyle.row_button("Remove pack", 20, 220, 56, false)
 		remove.pressed.connect(func() -> void:
@@ -436,120 +475,247 @@ func _member_row(mod: Dictionary, installed: Dictionary, why: Dictionary) -> But
 # ── installing a pack ─────────────────────────────────────────────────────────
 
 func _install(pack: Dictionary) -> void:
-	if not _batch.is_empty() or _asking_needs or _view.downloader == null or _members_state != "ok":
+	var pack_id := int(pack["id"])
+	if not _batch_of(pack_id).is_empty() or _asking.has(pack_id) \
+			or _view.downloader == null or _members_state != "ok":
 		return
-	if not _members.any(func(m: Dictionary) -> bool: return bool(m.get("dependencies", false))):
-		_install_mods(pack, _members)
+	# The members as they are NOW: the player may open another pack before
+	# mod.io answers, and _members is the open pack's.
+	var members := _members.duplicate()
+	if not members.any(func(m: Dictionary) -> bool: return bool(m.get("dependencies", false))):
+		_install_mods(pack, members)
 		return
 	# What its mods need comes down with them, as members, whether or not the
 	# pack lists it: a member without it would arrive unable to run.
-	_asking_needs = true
-	_view.notify("mods:pack", "⏳", "Asking mod.io what %s needs…" % str(pack["name"]))
-	_view.fetch_needs(_members, func(ok: bool, needs: Array[Dictionary], error: String) -> void:
-		_asking_needs = false
+	_asking[pack_id] = true
+	_view.notify(_toast(pack_id), "⏳", "Asking mod.io what %s needs…" % str(pack["name"]))
+	_fill_detail()
+	_view.fetch_needs(members, func(ok: bool, needs: Array[Dictionary], error: String) -> void:
+		_asking.erase(pack_id)
 		if not ok:
-			_view.notify("mods:pack", "❌", "%s: mod.io did not say what its mods need (%s)" % [
+			_view.notify(_toast(pack_id), "❌", "%s: mod.io did not say what its mods need (%s)" % [
 				str(pack["name"]), error], -1.0, MenuToasts.DWELL_FAIL)
+			if _detail.visible:
+				_fill_detail()
 			return
-		_install_mods(pack, ModCollectionPlan.with_needs(_members, needs)))
+		_install_mods(pack, ModCollectionPlan.with_needs(members, needs)))
 
 
 func _install_mods(pack: Dictionary, mods: Array) -> void:
-	if not _batch.is_empty():
+	if not _batch_of(int(pack["id"])).is_empty():
 		return
 	var plan := ModCollectionPlan.plan_install(mods, installed_files())
-	_batch = {"id": int(pack["id"]), "name": str(pack["name"]), "keys": {}, "done": [],
+	var batch := {"id": int(pack["id"]), "name": str(pack["name"]), "keys": {}, "done": [],
 		"staged": [], "skip": (plan["skip"] as Array).duplicate(true),
-		"have": (plan["have"] as Array).duplicate(true)}
+		"have": (plan["have"] as Array).duplicate(true), "ready": false, "cancelled": false}
 	for mod: Dictionary in (plan["fetch"] as Array):
 		var key := SpawnMenuModsView._job_key(int(mod["id"]))
 		# A member already on its way down for some other reason is not fetched
 		# twice, and is not this pack's to answer for.
+		var other := _batch_owning(key)
+		if not other.is_empty():
+			(batch["skip"] as Array).append({"name": str(mod["name"]),
+				"why": "comes with %s, queued before it" % str(other["name"])})
+			continue
 		if _view.downloader.is_queued(key) or _view.has_review(key):
-			(_batch["skip"] as Array).append({"name": str(mod["name"]),
+			(batch["skip"] as Array).append({"name": str(mod["name"]),
 				"why": "is already being downloaded"})
 			continue
-		(_batch["keys"] as Dictionary)[key] = mod
-	if (_batch["keys"] as Dictionary).is_empty():
-		_finish_batch()
+		(batch["keys"] as Dictionary)[key] = mod
+	_batches.append(batch)
+	if (batch["keys"] as Dictionary).is_empty():
+		_finish_batch(batch)
 		return
-	_view.notify("mods:pack", "⏳", "Downloading %s" % str(pack["name"]), 0.0)
-	for key: String in (_batch["keys"] as Dictionary):
-		var mod: Dictionary = (_batch["keys"] as Dictionary)[key]
+	for key: String in (batch["keys"] as Dictionary):
+		var mod: Dictionary = (batch["keys"] as Dictionary)[key]
 		_view.downloader.enqueue(key, str(mod["name"]), str(mod["download_url"]),
 			int(mod["file_size"]), str(mod["file_md5"]),
 			{"modio_id": int(mod["id"]), "file_id": int(mod["file_id"]),
 				"profile_url": str(mod["profile_url"])})
+	var count := (batch["keys"] as Dictionary).size()
+	if _started(batch):
+		_view.notify(_toast(int(batch["id"])), "⏳", "Downloading %s" % str(batch["name"]), 0.0)
+	else:
+		_view.notify(_toast(int(batch["id"])), "⏳", "%s queued — %d mod%s" % [
+			str(batch["name"]), count, "" if count == 1 else "s"], -1.0, MenuToasts.DWELL_INFO)
 	_fill_detail()
 
 
-## One of the batch's downloads ended. `staged` is true when its pack was
+## One toast per pack, so two in the queue do not write over each other.
+static func _toast(pack_id: int) -> String:
+	return "mods:pack:%d" % pack_id
+
+
+## Whether any of the batch's downloads has begun.
+func _started(batch: Dictionary) -> bool:
+	if not (batch["done"] as Array).is_empty():
+		return true
+	return _view.downloader != null \
+		and (batch["keys"] as Dictionary).has(_view.downloader.current_key())
+
+
+## Where a pack in the queue has got to, and the button that answers for it.
+func _batch_status(batch: Dictionary, facts: VBoxContainer, actions: HBoxContainer) -> void:
+	if bool(batch["ready"]):
+		facts.add_child(MenuStyle.label("Downloaded — review it to install", 16, Color(0.95, 0.75, 0.35)))
+		if _reviewing.is_empty() or int(_reviewing["id"]) != int(batch["id"]):
+			var review := MenuStyle.row_button("Review and install", 20, 280, 56, false)
+			review.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
+			review.pressed.connect(func() -> void: _open_review_of(batch))
+			actions.add_child(review)
+		return
+	var total := (batch["keys"] as Dictionary).size()
+	var started := _started(batch)
+	var text := ""
+	if started:
+		text = "Downloading %d of %d" % [mini((batch["done"] as Array).size() + 1, total), total]
+	else:
+		var ahead := 0
+		for other: Dictionary in _batches:
+			if int(other["id"]) == int(batch["id"]):
+				break
+			if not bool(other["ready"]):
+				ahead += 1
+		text = "Queued — %d mod%s, " % [total, "" if total == 1 else "s"]
+		text += ("behind %d pack%s" % [ahead, "" if ahead == 1 else "s"]) if ahead > 0 \
+			else "behind the downloads ahead of it"
+	facts.add_child(MenuStyle.label(text, 16, MenuStyle.COLOR_DESC))
+	var cancel := MenuStyle.row_button("Cancel" if started else "Remove from queue",
+		20, 200 if started else 260, 56, false)
+	cancel.pressed.connect(func() -> void: _cancel_batch(batch))
+	actions.add_child(cancel)
+
+
+## A download began. The first of a queued pack moves it from Queued to
+## Downloading, on the page and in its toast.
+func on_job_started(key: String) -> void:
+	var batch := _batch_owning(key)
+	if batch.is_empty():
+		return
+	if (batch["done"] as Array).is_empty():
+		_view.notify(_toast(int(batch["id"])), "⏳", "Downloading %s" % str(batch["name"]), 0.0)
+	if _detail.visible:
+		_fill_detail()
+
+
+## One of a batch's downloads ended. `staged` is true when its pack was
 ## fetched and vetted and now waits in the view's reviews.
 func on_job_done(key: String, staged: bool, error: String) -> void:
-	if not owns(key) or (_batch["done"] as Array).has(key):
+	var batch := _batch_owning(key)
+	if batch.is_empty() or (batch["done"] as Array).has(key):
 		return
-	(_batch["done"] as Array).append(key)
-	var mod: Dictionary = (_batch["keys"] as Dictionary)[key]
+	(batch["done"] as Array).append(key)
+	var mod: Dictionary = (batch["keys"] as Dictionary)[key]
 	if staged:
-		(_batch["staged"] as Array).append(key)
+		(batch["staged"] as Array).append(key)
 	else:
-		(_batch["skip"] as Array).append({"name": str(mod["name"]),
+		(batch["skip"] as Array).append({"name": str(mod["name"]),
 			"why": error if not error.is_empty() else "the download was cancelled"})
-	var total := (_batch["keys"] as Dictionary).size()
-	var done := (_batch["done"] as Array).size()
+	var total := (batch["keys"] as Dictionary).size()
+	var done := (batch["done"] as Array).size()
 	if done < total:
-		_view.notify("mods:pack", "⏳", "Downloading %s — %d of %d" % [
-			str(_batch["name"]), done + 1, total], float(done) / float(total))
+		if not bool(batch["cancelled"]):
+			_view.notify(_toast(int(batch["id"])), "⏳", "Downloading %s — %d of %d" % [
+				str(batch["name"]), done + 1, total], float(done) / float(total))
 		if _detail.visible:
 			_fill_detail()
 		return
-	_finish_batch()
+	_finish_batch(batch)
 
 
-func _cancel_batch() -> void:
-	if _batch.is_empty():
+## Stop a pack: what is downloading and what is still queued. What already
+## came down is still offered, as a pack cut short.
+func _cancel_batch(batch: Dictionary) -> void:
+	if _batch_of(int(batch["id"])).is_empty() or bool(batch["ready"]):
 		return
-	for key: String in (_batch["keys"] as Dictionary):
-		if not (_batch["done"] as Array).has(key):
+	batch["cancelled"] = true
+	for key: String in (batch["keys"] as Dictionary).keys():
+		if not (batch["done"] as Array).has(key):
 			_view.downloader.cancel(key)
 
 
-## Every download is in. Ask the one question, or say why there is none to ask.
-func _finish_batch() -> void:
-	if (_batch["staged"] as Array).is_empty():
-		var skipped := (_batch["skip"] as Array).size()
-		_tag_have()
-		var name := str(_batch["name"])
-		_batch = {}
-		if skipped > 0:
-			_view.notify("mods:pack", "❌", "%s: nothing could be installed (%d skipped)" % [
+## Every download of `batch` is in. Ask its question (now, or when the one on
+## screen is answered), or say why there is none to ask.
+func _finish_batch(batch: Dictionary) -> void:
+	var toast := _toast(int(batch["id"]))
+	if (batch["staged"] as Array).is_empty():
+		var skipped := (batch["skip"] as Array).size()
+		_tag_have(batch)
+		_drop(batch)
+		var name := str(batch["name"])
+		if bool(batch["cancelled"]):
+			_view.notify(toast, "❌", "%s cancelled" % name, -1.0, MenuToasts.DWELL_INFO)
+		elif skipped > 0:
+			_view.notify(toast, "❌", "%s: nothing could be installed (%d skipped)" % [
 				name, skipped], -1.0, MenuToasts.DWELL_FAIL)
 		else:
-			_view.notify("mods:pack", "✅", "%s is already installed" % name, -1.0, MenuToasts.DWELL_OK)
+			_view.notify(toast, "✅", "%s is already installed" % name, -1.0, MenuToasts.DWELL_OK)
 		if _detail.visible:
 			_fill_detail()
 		return
-	_view.notify("mods:pack", "✅", "%s is downloaded — review it to install" % str(_batch["name"]),
+	batch["ready"] = true
+	_view.notify(toast, "✅", "%s is downloaded — review it to install" % str(batch["name"]),
 		-1.0, MenuToasts.DWELL_FAIL)
+	if _reviewing.is_empty():
+		_open_review_of(batch)
+	elif _detail.visible:
+		_fill_detail()
+
+
+func _drop(batch: Dictionary) -> void:
+	for i in range(_batches.size()):
+		if int(_batches[i]["id"]) == int(batch["id"]):
+			_batches.remove_at(i)
+			return
+
+
+func _open_review_of(batch: Dictionary) -> void:
+	_reviewing = batch
 	_fill_review()
 	_show(_review)
 
 
+## The question on screen was answered: the next pack waiting for one, in
+## queue order, else the pack the player had open, else the list they went
+## back to while it came down (the detail page draws nothing with no pack open).
+func _after_review() -> void:
+	_reviewing = {}
+	for batch: Dictionary in _batches:
+		if bool(batch["ready"]):
+			_open_review_of(batch)
+			return
+	if _open_pack.is_empty():
+		_back_to_list()
+		return
+	_fill_detail()
+	_show(_detail)
+
+
 ## Members that were already here are this pack's too, from now on.
-func _tag_have() -> void:
-	for mod: Dictionary in (_batch["have"] as Array):
+func _tag_have(batch: Dictionary) -> void:
+	for mod: Dictionary in (batch["have"] as Array):
 		var rec := Mods.find_by_source("modio_id", int(mod["id"]))
 		if rec != null:
 			Mods.set_source(rec.id, ModCollectionPlan.source_after_install(Mods.source(rec.id),
-				int(mod["id"]), int(mod["file_id"]), str(mod["profile_url"]), int(_batch["id"])))
+				int(mod["id"]), int(mod["file_id"]), str(mod["profile_url"]), int(batch["id"])))
 
 
 func _fill_review() -> void:
 	SpawnMenuModsView._clear(_review)
-	var staged: Array = _batch["staged"]
-	var title := MenuStyle.label("Install the pack %s?" % str(_batch["name"]), 26, MenuStyle.COLOR_TITLE)
+	var batch := _reviewing
+	var staged: Array = batch["staged"]
+	var title := MenuStyle.label("Install the pack %s?" % str(batch["name"]), 26, MenuStyle.COLOR_TITLE)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_review.add_child(title)
+	if bool(batch["cancelled"]):
+		_review.add_child(MenuStyle.hint("Cancelled part way: only what came down is here."))
+	var waiting := 0
+	for other: Dictionary in _batches:
+		if bool(other["ready"]) and int(other["id"]) != int(batch["id"]):
+			waiting += 1
+	if waiting > 0:
+		_review.add_child(MenuStyle.hint("%d more pack%s waiting to be reviewed after this one." % [
+			waiting, "" if waiting == 1 else "s"]))
 	_review.add_child(MenuStyle.hint(SpawnMenuModsView.TRUST_WARNING))
 
 	# What each member replaces, and where two mods want the same file: the
@@ -566,10 +732,10 @@ func _fill_review() -> void:
 	for line: String in ModCollectionPlan.conflicts(claims):
 		_review.add_child(MenuStyle.label("! " + line, 16, MenuStyle.COLOR_BTN_UPD))
 
-	var have: Array = _batch["have"]
+	var have: Array = batch["have"]
 	if not have.is_empty():
 		_review.add_child(MenuStyle.hint("%d already installed." % have.size()))
-	for entry: Dictionary in (_batch["skip"] as Array):
+	for entry: Dictionary in (batch["skip"] as Array):
 		_review.add_child(MenuStyle.label("Skipped %s: %s" % [str(entry["name"]), str(entry["why"])],
 			15, MenuStyle.COLOR_BTN_UPD))
 
@@ -588,17 +754,18 @@ func _fill_review() -> void:
 
 
 func _confirm(enable: bool) -> void:
-	if _batch.is_empty():
+	if _reviewing.is_empty():
 		return
-	var pack_id := int(_batch["id"])
+	var batch := _reviewing
+	var pack_id := int(batch["id"])
 	var installed := 0
 	var restart := false
 	var failed := PackedStringArray()
 	# The whole pack is one change to the loader: one write, one rebuild of the
 	# lists, not one of each per member in the frame the button was pressed.
 	Mods.hold_changes()
-	for key: String in (_batch["staged"] as Array):
-		var mod: Dictionary = (_batch["keys"] as Dictionary)[key]
+	for key: String in (batch["staged"] as Array):
+		var mod: Dictionary = (batch["keys"] as Dictionary)[key]
 		var manifest: ModManifest = _view.review(key)["manifest"]
 		var source := ModCollectionPlan.source_after_install(Mods.source(manifest.id),
 			int(mod["id"]), int(mod["file_id"]), str(mod["profile_url"]), pack_id)
@@ -608,32 +775,33 @@ func _confirm(enable: bool) -> void:
 			restart = restart or bool(out.get("restart", false))
 		else:
 			failed.append("%s (%s)" % [str(mod["name"]), str(out.get("error", ""))])
-	_tag_have()
-	var name := str(_batch["name"])
-	_batch = {}
+	_tag_have(batch)
+	var name := str(batch["name"])
+	_drop(batch)
 	Mods.release_changes()
+	var toast := _toast(pack_id)
 	if not failed.is_empty():
-		_view.notify("mods:pack", "❌", "%s: not installed — %s" % [name, ", ".join(failed)],
+		_view.notify(toast, "❌", "%s: not installed — %s" % [name, ", ".join(failed)],
 			-1.0, MenuToasts.DWELL_FAIL)
 	elif restart or enable:
-		_view.notify("mods:pack", "✅", "%s installed — apply it under Installed" % name,
+		_view.notify(toast, "✅", "%s installed — apply it under Installed" % name,
 			-1.0, MenuToasts.DWELL_FAIL)
 	else:
-		_view.notify("mods:pack", "✅", "%s installed (%d mod%s) — enable them under Installed" % [
+		_view.notify(toast, "✅", "%s installed (%d mod%s) — enable them under Installed" % [
 			name, installed, "" if installed == 1 else "s"], -1.0, MenuToasts.DWELL_FAIL)
-	_fill_detail()
-	_show(_detail)
+	_after_review()
 
 
 func _discard() -> void:
-	if _batch.is_empty():
+	if _reviewing.is_empty():
 		return
-	for key: String in (_batch["staged"] as Array):
+	var batch := _reviewing
+	for key: String in (batch["staged"] as Array):
 		_view.discard_review(key)
-	_batch = {}
-	_view.notify("mods:pack", "❌", "Pack discarded", -1.0, MenuToasts.DWELL_INFO)
-	_fill_detail()
-	_show(_detail)
+	_drop(batch)
+	_view.notify(_toast(int(batch["id"])), "❌", "%s discarded" % str(batch["name"]),
+		-1.0, MenuToasts.DWELL_INFO)
+	_after_review()
 
 
 # ── removing a pack ───────────────────────────────────────────────────────────

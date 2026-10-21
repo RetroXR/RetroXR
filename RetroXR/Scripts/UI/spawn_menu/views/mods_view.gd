@@ -872,6 +872,7 @@ func _on_job_started(key: String, label: String, _total: int) -> void:
 	_last_pct.erase(key)
 	notify(_toast_key(key), "⏳", "Downloading %s" % label, 0.0)
 	_refresh_open_mod(key)
+	_packs_page.on_job_started(key)
 
 
 func _on_job_progress(key: String, received: int, total: int) -> void:

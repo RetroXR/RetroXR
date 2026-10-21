@@ -19,6 +19,8 @@
 ##   scan/      a file mod.io has not scanned clean is not offered
 ##   policy/    a download may not carry a game or a program
 ##   collection/ packs: what installing and removing one comes to
+##   packqueue/ packs queue behind each other, and are asked about in turn
+##   packreturn/ a pack's question answered goes back to where the player was
 ##   consent/   NOTHING BUT THE TERMS IS ASKED OF MOD.IO BEFORE THE PLAYER AGREES
 ##   bundle/    one upload holding a build per platform, or a wrapped .pck
 ##   review/    a download waits for the player's answer, and for nothing else
@@ -67,6 +69,8 @@ func _ready() -> void:
 	if _want("scan"):      _group_scan()
 	if _want("policy"):    _group_policy()
 	if _want("collection"): _group_collection()
+	if _want("packqueue"): _group_pack_queue()
+	if _want("packreturn"): _group_pack_return()
 	if _want("consent"):   await _group_consent()
 	if _want("bundle"):    _group_bundle()
 	if _want("review"):    _group_review()
@@ -922,6 +926,158 @@ func _group_policy() -> void:
 
 
 # ── collection/ ───────────────────────────────────────────────────────────────
+
+# ── packqueue/ ────────────────────────────────────────────────────────────────
+
+## A downloader that runs nothing: it remembers what it was given, and the first
+## job handed to it while idle is the one "downloading".
+class QueueStub extends ModDownloader:
+	var queued: Array[String] = []
+	var running := ""
+
+	func enqueue(key: String, _label: String, _url: String, _size: int, _md5: String,
+			_source: Dictionary) -> void:
+		if queued.has(key):
+			return
+		queued.append(key)
+		if running.is_empty():
+			running = key
+
+	func is_queued(key: String) -> bool:
+		return queued.has(key)
+
+	func current_key() -> String:
+		return running
+
+	func cancel(key: String) -> void:
+		if queued.has(key):
+			queued.erase(key)
+			job_cancelled.emit(key)
+
+
+func _group_pack_queue() -> void:
+	var m := _fresh()
+	var view := SpawnMenuModsView.create(null)
+	var stub := QueueStub.new()
+	view.downloader = stub
+	view.reviews.manager = m
+	stub.job_cancelled.connect(view._on_job_cancelled)
+	var page: SpawnMenuModsPacksPage = view._packs_page
+	var member := func(id: int) -> Dictionary:
+		return ModioClient.parse_mod(_modio_mod(id, "M%d" % id, id * 10))
+	var park := func(id: int, mod_id: String) -> void:
+		view.reviews.stage(_stage(m, "modio-%d.zip" % id, _pack(mod_id, "1.0.0")), {"modio_id": id})
+
+	var pack_a := {"id": 3, "name": "Shelf A"}
+	var pack_b := {"id": 4, "name": "Shelf B"}
+	page._install_mods(pack_a, [member.call(101), member.call(102)])
+	_eq(page.queued_packs(), [3], "packqueue/the first pack is taken")
+	# A second pack while the first is still coming down: it QUEUES, where it
+	# used to be refused with "Another pack is being installed."
+	page._install_mods(pack_b, [member.call(201), member.call(102)])
+	_eq(page.queued_packs(), [3, 4], "packqueue/a second pack queues behind it")
+	_eq(stub.queued, ["modio-101", "modio-102", "modio-201"] as Array[String],
+		"packqueue/its downloads go in behind the first's, and a shared member only once")
+	_ok(not page._started(page._batch_of(4)), "packqueue/and it has not started")
+	_ok(str((page._batch_of(4)["skip"] as Array)[0]["why"]).contains("Shelf A"),
+		"packqueue/the shared member is said to come with the pack ahead")
+	page._install_mods(pack_b, [member.call(201)])
+	_eq(page.queued_packs(), [3, 4], "packqueue/a second press on a queued pack adds nothing")
+
+	# The first pack's downloads land: its question is asked.
+	park.call(101, "t.qa1")
+	page.on_job_done("modio-101", true, "")
+	_eq(page.reviewing_pack(), 0, "packqueue/no question while a pack is still downloading")
+	park.call(102, "t.qa2")
+	page.on_job_done("modio-102", true, "")
+	_eq(page.reviewing_pack(), 3, "packqueue/the first pack's question once it is all in")
+
+	# The second lands while the first's question is on screen: it waits its turn.
+	stub.running = "modio-201"
+	park.call(201, "t.qb1")
+	page.on_job_done("modio-201", true, "")
+	_eq(page.reviewing_pack(), 3, "packqueue/a pack ready behind it does not take the screen")
+	_ok(bool(page._batch_of(4)["ready"]), "packqueue/it waits, ready")
+
+	page._discard()
+	_ok(not view.has_review("modio-101") and not view.has_review("modio-102"),
+		"packqueue/discarding the first throws its downloads away")
+	_eq(page.reviewing_pack(), 4, "packqueue/and the next pack's question follows")
+	page._confirm(false)
+	_ok(m.mod("t.qb1") != null, "packqueue/answering it installs that pack")
+	_eq(page.queued_packs(), [] as Array[int], "packqueue/and the queue is empty")
+	_eq(page.reviewing_pack(), 0, "packqueue/with no question left")
+
+	# Taken off the queue before it began: nothing of it stays.
+	stub.queued.clear()
+	stub.running = "modio-999"
+	page._install_mods({"id": 5, "name": "Shelf C"}, [member.call(301), member.call(302)])
+	_ok(not page._started(page._batch_of(5)), "packqueue/a pack behind another download waits")
+	page._cancel_batch(page._batch_of(5))
+	_eq(page.queued_packs(), [] as Array[int], "packqueue/removed from the queue, it is gone")
+	_eq(stub.queued, [] as Array[String], "packqueue/with every download it had queued")
+	_eq(page.reviewing_pack(), 0, "packqueue/and nothing to answer for")
+
+	stub.free()
+	view.free()
+	m.free()
+
+
+# ── packreturn/ ───────────────────────────────────────────────────────────────
+
+## Install on a pack, back to the list to browse while it comes down, and its
+## question takes the page. Answering it used to leave an empty pack page (no
+## pack open, so nothing drawn, and no way back) until the game was restarted.
+func _group_pack_return() -> void:
+	var m := _fresh()
+	var view := SpawnMenuModsView.create(null)
+	var stub := QueueStub.new()
+	view.downloader = stub
+	view.reviews.manager = m
+	var page: SpawnMenuModsPacksPage = view._packs_page
+	var member := func(id: int) -> Dictionary:
+		return ModioClient.parse_mod(_modio_mod(id, "M%d" % id, id * 10))
+	# One member, installed and landed: its question is on screen.
+	var land := func(pack: Dictionary, id: int, mod_id: String) -> void:
+		stub.queued.clear()
+		stub.running = ""
+		page._install_mods(pack, [member.call(id)])
+		view.reviews.stage(_stage(m, "modio-%d.zip" % id, _pack(mod_id, "1.0.0")), {"modio_id": id})
+		page.on_job_done("modio-%d" % id, true, "")
+	# What the "←  All packs" button does.
+	var back := func() -> void:
+		page._open_pack = {}
+		page._show(page._list)
+
+	var pack_a := ModioClient.parse_collection({"id": 3, "name": "Shelf A"})
+	page._open_pack = pack_a
+	page._show(page._detail)
+	back.call()
+	land.call(pack_a, 101, "t.ra1")
+	_ok(page._review.visible, "packreturn/the question takes the page")
+	page._confirm(false)
+	_ok(m.mod("t.ra1") != null, "packreturn/answering it installs the pack")
+	_ok(page._list.visible and not page._detail.visible,
+		"packreturn/and the list is back, where the player was")
+
+	back.call()
+	land.call({"id": 4, "name": "Shelf B"}, 201, "t.rb1")
+	page._discard()
+	_ok(page._list.visible and not page._detail.visible,
+		"packreturn/discarding goes back to the list too")
+
+	# A pack the player still had open is where they go back to.
+	page._open_pack = pack_a
+	page._show(page._detail)
+	land.call({"id": 5, "name": "Shelf C"}, 301, "t.rc1")
+	page._discard()
+	_ok(page._detail.visible and page._detail.get_child_count() > 0,
+		"packreturn/with a pack open, back to that pack")
+
+	stub.free()
+	view.free()
+	m.free()
+
 
 func _group_collection() -> void:
 	var pack := ModioClient.parse_collection({"id": 3, "name": "Sony shelf",

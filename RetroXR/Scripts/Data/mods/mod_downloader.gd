@@ -60,6 +60,11 @@ func is_busy() -> bool:
 	return _current_key != ""
 
 
+## The job downloading now, "" for none.
+func current_key() -> String:
+	return _current_key
+
+
 func is_queued(key: String) -> bool:
 	if _current_key == key:
 		return true
