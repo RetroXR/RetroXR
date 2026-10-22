@@ -963,10 +963,12 @@ func _download_fresh(key: String, fresh: Dictionary) -> void:
 
 # ── Update all ────────────────────────────────────────────────────────────────
 
-## Every installed mod that came from mod.io, asked for again one at a time, and
-## each whose file mod.io has changed downloaded as its tile's Update would. Each
-## still waits for its own review. Mods with an update already staged, coming
-## down or waiting are left out.
+## Every installed mod that came from mod.io, asked about in ONE request
+## (ModioClient.get_mods), and each whose file mod.io has changed downloaded at
+## once, as its tile's Update would. Each still waits for its own review. Mods
+## with an update already staged, coming down or waiting are left out. It asked
+## get_mod for each mod in turn once, which took a request's round trip per mod
+## before the first download began.
 func update_all() -> void:
 	if client == null or downloader == null or _checking_updates:
 		return
@@ -978,7 +980,18 @@ func update_all() -> void:
 	_sync_update_all_btn()
 	notify(UPDATE_ALL_KEY, "⏳", "Checking %d mod%s for updates…" % [
 		ids.size(), "" if ids.size() == 1 else "s"])
-	_check_updates_from(ids, 0, [] as Array[Dictionary], [0])
+	client.get_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+		_checking_updates = false
+		_sync_update_all_btn()
+		if not ok:
+			notify(UPDATE_ALL_KEY, "❌", "Could not ask mod.io for updates: %s" % error,
+				-1.0, MenuToasts.DWELL_FAIL)
+			return
+		var found: Array[Dictionary] = []
+		for fresh: Dictionary in mods:
+			if browse_state(fresh, false, false, _manager()) == "update":
+				found.append(fresh)
+		_finish_update_all(found, ids.size() - mods.size()))
 
 
 ## The mod.io id of each installed mod an update could be fetched for now.
@@ -996,28 +1009,15 @@ func modio_installed() -> Array[int]:
 	return out
 
 
-func _check_updates_from(ids: Array[int], i: int, found: Array[Dictionary], failed: Array) -> void:
-	if i >= ids.size():
-		_finish_update_all(found, int(failed[0]))
-		return
-	client.get_mod(ids[i], func(ok: bool, fresh: Dictionary, _error: String) -> void:
-		if not ok:
-			failed[0] = int(failed[0]) + 1
-		elif browse_state(fresh, false, false, _manager()) == "update":
-			found.append(fresh)
-		_check_updates_from(ids, i + 1, found, failed))
-
-
-func _finish_update_all(found: Array[Dictionary], failed: int) -> void:
-	_checking_updates = false
-	_sync_update_all_btn()
+## `missing`: how many mod.io did not return (removed, or hidden from the game).
+func _finish_update_all(found: Array[Dictionary], missing: int) -> void:
 	for fresh: Dictionary in found:
 		_download_fresh(_job_key(int(fresh["id"])), fresh)
-	var tail := "" if failed == 0 else " (%d could not be checked)" % failed
+	var tail := "" if missing == 0 else " (%d no longer on mod.io)" % missing
 	if found.is_empty():
-		notify(UPDATE_ALL_KEY, "✅" if failed == 0 else "❌",
+		notify(UPDATE_ALL_KEY, "✅" if missing == 0 else "❌",
 			"Every mod from mod.io is up to date%s" % tail, -1.0,
-			MenuToasts.DWELL_INFO if failed == 0 else MenuToasts.DWELL_FAIL)
+			MenuToasts.DWELL_INFO if missing == 0 else MenuToasts.DWELL_FAIL)
 	else:
 		notify(UPDATE_ALL_KEY, "⏳", "Updating %d mod%s%s" % [found.size(),
 			"" if found.size() == 1 else "s", tail], -1.0, MenuToasts.DWELL_INFO)

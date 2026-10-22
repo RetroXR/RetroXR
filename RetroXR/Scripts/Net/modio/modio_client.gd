@@ -86,6 +86,44 @@ func list_mods(search: String, sort: String, offset: int, callback: Callable,
 			callback.call(true, mods, int((data as Dictionary).get("result_total", mods.size())), ""))
 
 
+## Many mods at once, by mod.io id: one request for up to MEMBER_PAGE of them
+## (`id-in`), a page at a time beyond that. A listing fetched this moment has
+## download addresses as fresh as get_mod's, so Update all asks this once rather
+## than get_mod for every installed mod. An id mod.io does not return (removed,
+## hidden) is simply missing from `mods`.
+## callback(ok: bool, mods: Array[Dictionary], error: String)
+func get_mods(ids: Array[int], callback: Callable) -> void:
+	_get_mods_from(ids, 0, _no_rows(), callback)
+
+
+func _get_mods_from(ids: Array[int], start: int, so_far: Array[Dictionary], callback: Callable) -> void:
+	if start >= ids.size():
+		callback.call(true, so_far, "")
+		return
+	var chunk := ids.slice(start, start + MEMBER_PAGE)
+	_fetch_json(mods_by_id_path(chunk, api_key),
+		func(ok: bool, data: Variant, error: String) -> void:
+			if not ok or not (data is Dictionary):
+				callback.call(false, _no_rows(), error if not error.is_empty() else "Unexpected reply from mod.io")
+				return
+			var rows: Variant = (data as Dictionary).get("data", [])
+			if rows is Array:
+				for row: Variant in (rows as Array):
+					if row is Dictionary:
+						var mod := parse_mod(row)
+						if int(mod["id"]) > 0:
+							so_far.append(mod)
+			_get_mods_from(ids, start + MEMBER_PAGE, so_far, callback))
+
+
+static func mods_by_id_path(ids: Array, key: String = API_KEY) -> String:
+	var parts := PackedStringArray()
+	for id: Variant in ids:
+		parts.append(str(int(id)))
+	return "/games/%d/mods?api_key=%s&_limit=%d&id-in=%s" % [GAME_ID, key, MEMBER_PAGE,
+		",".join(parts)]
+
+
 ## One mod, asked for again just before a download: mod.io signs each download
 ## address and lets it expire, so the one in a listing fetched a while ago may
 ## already be dead.

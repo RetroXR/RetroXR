@@ -1029,6 +1029,8 @@ func _group_pack_queue() -> void:
 class ClientStub extends ModioClient:
 	var replies: Dictionary = {}
 	var asked: Array[int] = []
+	## Each get_mods call's ids, so a case can count the requests.
+	var batches: Array = []
 
 	func get_mod(mod_id: int, callback: Callable) -> void:
 		asked.append(mod_id)
@@ -1036,6 +1038,14 @@ class ClientStub extends ModioClient:
 			callback.call(true, replies[mod_id], "")
 		else:
 			callback.call(false, {}, "Not found")
+
+	func get_mods(ids: Array[int], callback: Callable) -> void:
+		batches.append(ids.duplicate())
+		var mods: Array[Dictionary] = []
+		for id: int in ids:
+			if replies.has(id):
+				mods.append(replies[id])
+		callback.call(true, mods, "")
 
 
 # ── tiles/ ────────────────────────────────────────────────────────────────────
@@ -1097,16 +1107,21 @@ func _group_tiles() -> void:
 	client.replies[502] = mod_of.call(502, 20)
 	client.asked.clear()
 	view.update_all()
-	var asked := client.asked.duplicate()
+	_eq(client.batches.size(), 1, "updateall/mod.io is asked ONCE, not once per mod")
+	var asked: Array = (client.batches[0] as Array).duplicate()
 	asked.sort()
-	_eq(asked, [501, 502, 503] as Array[int], "updateall/each installed mod.io mod is asked about once")
+	_eq(asked, [501, 502, 503], "updateall/about every installed mod.io mod")
+	_eq(client.asked, [] as Array[int], "updateall/with no get_mod per mod")
 	_eq(stub.queued, ["modio-501"] as Array[String], "updateall/only the one mod.io has changed is downloaded")
 	_ok(not view._checking_updates and not view._update_all_btn.disabled,
-		"updateall/the button is back once mod.io has answered for all of them")
-	client.asked.clear()
+		"updateall/the button is back once mod.io has answered")
+	client.batches.clear()
 	view.update_all()
-	_ok(not client.asked.has(501), "updateall/a mod already coming down is not asked about again")
+	_ok(not (client.batches[0] as Array).has(501), "updateall/a mod already coming down is not asked about again")
 	_eq(stub.queued, ["modio-501"] as Array[String], "updateall/nor downloaded twice")
+	var path := ModioClient.mods_by_id_path([501, 502], "k")
+	_ok(path.contains("id-in=501,502") and path.contains("_limit=%d" % ModioClient.MEMBER_PAGE),
+		"updateall/the request filters by id, a whole page of them", path)
 
 	client.free()
 	stub.free()

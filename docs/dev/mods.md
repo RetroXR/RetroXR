@@ -207,7 +207,10 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   the click before the tile does.
 - **Update all** (Browse, on the status line under the toolbar, `update_all`): every installed mod with a mod.io
   source (`modio_installed`: not already staged, coming down or waiting for review) is
-  asked for again ONE at a time (`get_mod`), and each whose file differs
+  asked about in ONE request (`ModioClient.get_mods`, `id-in`, 100 a page; a listing
+  fetched that moment carries download addresses as fresh as `get_mod`'s -- one
+  `get_mod` per mod made the first download wait a round trip per mod), and each
+  whose file differs
   (`browse_state` == `"update"`) goes through `_download_fresh` -- the scan, what it
   needs, the queue -- and still waits for its own review. `browse_state` takes the
   loader to ask, so `mod_browser_tests tiles/` runs it against a scratch one.
