@@ -421,8 +421,9 @@ the junction walk, the bus head (the adapter, which hangs off nothing), saves an
 netplay all hold unchanged. Its collider stops 8 mm behind the mating face: the
 small plug's nose enters the block, and a loose adapter and the frozen plug in it
 would otherwise shove each other. The `gb` card offers the DMG-04, the `gbc` card
-the CGB-003, and both the adapter. The large shell's millimetres are an ESTIMATE
-(nothing published gives them). `link_tests` `adapter/` cases: a Color, its lead,
+the CGB-003, and both the adapter. Sizes are RetroXR-models' (`nintendo/gb/link-plug`,
+`nintendo/gbc/universal-link-adapter` MEASUREMENTS.md): the DMG-04 nose 12.0 x 5.6 in
+the Game Boy's 12.4 x 5.9 mouth, the DMG-14 an 18 x 10 x 22 mm black block. `link_tests` `adapter/` cases: a Color, its lead,
 the adapter and an original make a bus of two, joined once, saved against the
 adapter, and nothing once it is pulled. Headset feel and a real two-core link
 through the adapter are OWED.

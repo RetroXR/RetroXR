@@ -9,26 +9,27 @@
 ; The DMG-14 Universal Game Link Adapter. PLACEHOLDER GEOMETRY, boxes like every
 ; link connector in the room.
 ;
-; A small grey dongle with the original Game Boy's LARGE plug on its front and a
+; A small black block with the original Game Boy's LARGE plug on its front and a
 ; socket for the SMALL plug in its back. A Game Boy Color's lead (gb_link_cable)
 ; goes into it, and it goes into an original Game Boy or a Game Boy Printer, so a
 ; Color, a Pocket-sized lead and a GBA in Game Boy mode reach the large socket. It
 ; has no cord: the real one is a block that clips onto the end of the lead.
 ;
-; The large nose is dmg_link_cable.tscn's, so it seats where a DMG-04 does. The
-; body's size is an ESTIMATE.
+; The large nose is the DMG-04's 12.0 x 5.6, so it seats where a DMG-04 does.
+; Sizes from RetroXR-models' MEASUREMENTS.md for nintendo/gb/link-plug and
+; nintendo/gbc/universal-link-adapter (read off photographs, scaled by the nose).
 
-; The block, running back 16 mm from the mating face.
+; The block, 18 x 10, running back 22 mm from the mating face to the socket end.
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
-size = Vector3(0.02, 0.013, 0.016)
+size = Vector3(0.018, 0.01, 0.022)
 
-[sub_resource type="StandardMaterial3D" id="Mat_shell_grey"]
-albedo_color = Color(0.6, 0.6, 0.58, 1)
-roughness = 0.6
+[sub_resource type="StandardMaterial3D" id="Mat_shell_black"]
+albedo_color = Color(0.07, 0.07, 0.08, 1)
+roughness = 0.55
 
-; The large keyed nose, 8 mm proud of the face.
+; The nickel nose, standing 9.9 mm proud of the face.
 [sub_resource type="BoxMesh" id="BoxMesh_nose"]
-size = Vector3(0.014, 0.0075, 0.008)
+size = Vector3(0.012, 0.0056, 0.0099)
 
 [sub_resource type="StandardMaterial3D" id="Mat_nose"]
 albedo_color = Color(0.72, 0.71, 0.69, 1)
@@ -36,12 +37,12 @@ metallic = 0.25
 metallic_specular = 0.75
 roughness = 0.4
 
-; Nose and the FRONT half of the block only, -8 mm to +8 mm. The small plug seated
+; Nose and the block bar its last 8 mm, -14 mm to +9.9 mm. The small plug seated
 ; in the back socket puts its 7 mm nose into the block, and a collider reaching it
 ; would have the adapter lying loose on the floor and the frozen plug in it shove
 ; each other for ever.
 [sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
-size = Vector3(0.02, 0.013, 0.016)
+size = Vector3(0.018, 0.01, 0.0239)
 
 [sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
 bounce = 0.0
@@ -67,15 +68,16 @@ script = ExtResource("2_plugscript")
 connector = "dmg_link_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.00205)
 shape = SubResource("BoxShape3D_plug")
 
 [node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.008)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.011)
 mesh = SubResource("BoxMesh_body")
-surface_material_override/0 = SubResource("Mat_shell_grey")
+surface_material_override/0 = SubResource("Mat_shell_black")
 
 [node name="PlugNose" type="MeshInstance3D" parent="PlugB0"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.004)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.00495)
 mesh = SubResource("BoxMesh_nose")
 surface_material_override/0 = SubResource("Mat_nose")
 
@@ -98,4 +100,4 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 ; plug's frame turned half round Y. Its zone is where a seated small plug's mating
 ; face belongs, flush with the back of the block.
 [node name="LinkPort" parent="PlugB0" instance=ExtResource("5_linkport")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.016)
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.022)

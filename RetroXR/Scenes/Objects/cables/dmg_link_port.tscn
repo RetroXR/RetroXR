@@ -8,13 +8,15 @@
 ; does not go into them -- a small lead reaches this socket through the DMG-14
 ; adapter (gb_link_adapter.tscn).
 ;
-; Sized 1 mm proud of the large plug's nose all round (dmg_link_cable.tscn). The
-; large shell's size is an ESTIMATE: nothing published gives it in millimetres.
+; The mouth is the Game Boy's 12.4 x 5.9 mm, drawn 1 mm proud all round as the
+; small socket is; the ghost is the DMG-04's body (dmg_link_cable.tscn). Sizes
+; from RetroXR-models' MEASUREMENTS.md for nintendo/gb/link-plug and
+; nintendo/gbc/universal-link-adapter (read off photographs, scaled by the nose).
 [sub_resource type="BoxMesh" id="BoxMesh_jack"]
-size = Vector3(0.016, 0.0095, 0.005)
+size = Vector3(0.0134, 0.0069, 0.005)
 
 [sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
-size = Vector3(0.018, 0.011, 0.024)
+size = Vector3(0.0178, 0.0098, 0.0257)
 
 [node name="LinkPort" instance=ExtResource("1_base")]
 connector = "dmg_link_plug"
@@ -23,5 +25,5 @@ connector = "dmg_link_plug"
 mesh = SubResource("BoxMesh_jack")
 
 [node name="HighlightMesh" parent="SnapHighlight"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01285)
 mesh = SubResource("BoxMesh_plug_ghost")
