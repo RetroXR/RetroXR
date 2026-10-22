@@ -70,6 +70,9 @@ var _ready_done := false
 
 
 func _ready() -> void:
+	# The first of RetroXR's own autoloads, so the log opens with what is running:
+	# the About plate's version and target lines, which a report quoting a log needs.
+	print("[Boot] RetroXR %s (%s)" % [BuildInfo.describe(), BuildInfo.target_line()])
 	_hooks = ModHooks.new(get_tree())
 	_load_state()
 	# A test suite boots with no mods. What the player has installed is not what a
