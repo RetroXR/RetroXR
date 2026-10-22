@@ -273,6 +273,10 @@ func _hide_panels() -> void:
 				break
 		if not wanted:
 			(n as VisualInstance3D).visible = false
+	# Off a headset the loading screen is a flat layer over everything (desktop.md),
+	# and the probe's machines never finish a room's load to take it down.
+	for o in LoadingOverlay.owners():
+		LoadingOverlay.end(o)
 
 
 func _shot(name: String) -> void:
