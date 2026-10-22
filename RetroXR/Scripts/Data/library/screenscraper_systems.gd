@@ -140,6 +140,17 @@ static func is_arcade_systemeid(systemeid: int) -> bool:
 	return false
 
 
+## The same for every system that plays in a cabinet, a Neo Geo MVS among them (is_arcade_systemeid is the
+## romset families only).
+static func is_cabinet_systemeid(systemeid: int) -> bool:
+	if systemeid <= 0:
+		return false
+	for sid: String in ArcadeProfiles.cabinet_systems():
+		if get_systemeid(sid) == systemeid:
+			return true
+	return false
+
+
 static func get_systemeid(systemid: String) -> int:
 	if _mod_map.has(systemid):
 		return int(_mod_map[systemid])
