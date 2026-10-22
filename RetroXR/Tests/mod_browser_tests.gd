@@ -71,6 +71,7 @@ func _ready() -> void:
 	if _want("collection"): _group_collection()
 	if _want("packqueue"): _group_pack_queue()
 	if _want("packreturn"): _group_pack_return()
+	if _want("tiles"):     _group_tiles()
 	if _want("consent"):   await _group_consent()
 	if _want("bundle"):    _group_bundle()
 	if _want("review"):    _group_review()
@@ -1018,6 +1019,95 @@ func _group_pack_queue() -> void:
 	_eq(stub.queued, [] as Array[String], "packqueue/with every download it had queued")
 	_eq(page.reviewing_pack(), 0, "packqueue/and nothing to answer for")
 
+	stub.free()
+	view.free()
+	m.free()
+
+
+## mod.io answering get_mod from a table, with no network. A missing id fails.
+class ClientStub extends ModioClient:
+	var replies: Dictionary = {}
+	var asked: Array[int] = []
+
+	func get_mod(mod_id: int, callback: Callable) -> void:
+		asked.append(mod_id)
+		if replies.has(mod_id):
+			callback.call(true, replies[mod_id], "")
+		else:
+			callback.call(false, {}, "Not found")
+
+
+# ── tiles/ ────────────────────────────────────────────────────────────────────
+
+## A Browse tile is a fixed size and carries its own Download / Update button, and
+## Update all fetches every installed mod.io mod whose file mod.io has changed.
+func _group_tiles() -> void:
+	var m := _fresh()
+	var view := SpawnMenuModsView.create(null)
+	var stub := QueueStub.new()
+	view.downloader = stub
+	view.reviews.manager = m
+	stub.job_cancelled.connect(view._on_job_cancelled)
+	var client := ClientStub.new()
+	view.client = client
+	var mod_of := func(id: int, file_id: int) -> Dictionary:
+		return ModioClient.parse_mod(_modio_mod(id, "M%d" % id, file_id))
+	var show := func(mods: Array) -> Button:
+		view._mods.assign(mods)
+		view._rebuild_grid()
+		return view._grid.get_child(0) as Button
+	var action_of := func(tile: Button) -> Button:
+		return tile.find_child("TileAction", true, false) as Button
+
+	var tile: Button = show.call([mod_of.call(501, 10)])
+	_ok(view._grid is HFlowContainer, "tiles/the grid flows: a wider menu fits more tiles")
+	_eq(tile.custom_minimum_size, Vector2(SpawnMenuModsView.TILE_W, SpawnMenuModsView.TILE_H),
+		"tiles/a tile is one fixed size")
+	_ok((tile.size_flags_horizontal & Control.SIZE_EXPAND) == 0, "tiles/and is not stretched")
+	var action: Button = action_of.call(tile)
+	_ok(action != null and action.text == "%s  Download" % String.chr(MenuIcons.DOWNLOAD),
+		"tiles/a mod not here has a Download button with its icon", action.text if action != null else "none")
+
+	m.install(_stage(m, "dl-501.zip", _pack("t.tile", "1.0.0")), {"modio_id": 501, "file_id": 10})
+	tile = show.call([mod_of.call(501, 10)])
+	_ok(action_of.call(tile) == null, "tiles/installed at mod.io's file: no button")
+	tile = show.call([mod_of.call(501, 11)])
+	action = action_of.call(tile)
+	_ok(action != null and action.text == "%s  Update" % String.chr(MenuIcons.UPDATE),
+		"tiles/mod.io has a new file: an Update button with its icon", action.text if action != null else "none")
+
+	client.replies[501] = mod_of.call(501, 11)
+	action.pressed.emit()
+	_eq(stub.queued, ["modio-501"] as Array[String], "tiles/pressing it downloads that mod")
+	_eq(view._grid.get_child_count(), 1, "tiles/the tile is redrawn in place")
+	action = action_of.call(view._grid.get_child(0) as Button)
+	_ok(action != null and action.text.ends_with("Cancel"), "tiles/while it comes down the button cancels",
+		action.text if action != null else "none")
+	action.pressed.emit()
+	_eq(stub.queued, [] as Array[String], "tiles/cancelled")
+	action = action_of.call(view._grid.get_child(0) as Button)
+	_ok(action != null and action.text.ends_with("Update"), "tiles/and the tile offers the update again")
+
+	# Update all: 501 has a new file on mod.io, 502 does not, 503 cannot be asked
+	# about, and a hand-installed mod has no mod.io source to ask with.
+	m.install(_stage(m, "dl-502.zip", _pack("t.same", "1.0.0")), {"modio_id": 502, "file_id": 20})
+	m.install(_stage(m, "dl-503.zip", _pack("t.gone", "1.0.0")), {"modio_id": 503, "file_id": 30})
+	m.install(_stage(m, "hand.zip", _pack("t.hand", "1.0.0")))
+	client.replies[502] = mod_of.call(502, 20)
+	client.asked.clear()
+	view.update_all()
+	var asked := client.asked.duplicate()
+	asked.sort()
+	_eq(asked, [501, 502, 503] as Array[int], "updateall/each installed mod.io mod is asked about once")
+	_eq(stub.queued, ["modio-501"] as Array[String], "updateall/only the one mod.io has changed is downloaded")
+	_ok(not view._checking_updates and not view._update_all_btn.disabled,
+		"updateall/the button is back once mod.io has answered for all of them")
+	client.asked.clear()
+	view.update_all()
+	_ok(not client.asked.has(501), "updateall/a mod already coming down is not asked about again")
+	_eq(stub.queued, ["modio-501"] as Array[String], "updateall/nor downloaded twice")
+
+	client.free()
 	stub.free()
 	view.free()
 	m.free()

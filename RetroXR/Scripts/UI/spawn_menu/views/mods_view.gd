@@ -34,9 +34,14 @@ signal scroll_changed(scroll: ScrollContainer)
 ## restarting the app (`restart`) or by loading the new mods into this room.
 signal apply_requested(restart: bool)
 
-const COLUMNS := 3
-const TILE_H := 286
+## A tile is one size whatever the menu's width: the grids are HFlowContainers,
+## so a wider menu fits more tiles on a row instead of stretching three.
+const TILE_W := 326
+const TILE_H := 300
 const ART_H := 176
+const TILE_BTN_H := 40
+const TILE_BTN_W := 150
+const UPDATE_ALL_KEY := "mods:updateall"
 const SEARCH_DEBOUNCE := 0.6
 const FETCH_KEY := "mods:fetch"
 
@@ -64,7 +69,10 @@ var _search_edit: LineEdit = null
 var _search_timer: Timer = null
 var _sort := str(ModioClient.SORTS[0][1])
 var _status_lbl: Label = null
-var _grid: GridContainer = null
+var _grid: HFlowContainer = null
+var _update_all_btn: Button = null
+## True while Update all is asking mod.io about each installed mod.
+var _checking_updates := false
 var _prev_btn: Button = null
 var _next_btn: Button = null
 var _page_lbl: Label = null
@@ -419,12 +427,23 @@ func _build_browse(vbox: VBoxContainer) -> void:
 	refresh_btn.pressed.connect(func() -> void: _fetch(_offset))
 	bar.add_child(refresh_btn)
 
+	# Update all sits on the status line, not in the toolbar, where it squeezed the
+	# search box on a narrow menu.
+	var status_row := MenuStyle.hbox(10)
+	_browse_list.add_child(status_row)
 	_status_lbl = MenuStyle.label("", 16, MenuStyle.COLOR_DESC)
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_browse_list.add_child(_status_lbl)
+	_status_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_status_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	status_row.add_child(_status_lbl)
+	_update_all_btn = MenuStyle.row_button("", 18, 170, 48, false)
+	_update_all_btn.name = "UpdateAllButton"
+	_update_all_btn.add_theme_font_override("font", MenuIcons.symbols())
+	_update_all_btn.pressed.connect(update_all)
+	status_row.add_child(_update_all_btn)
+	_sync_update_all_btn()
 
-	_grid = GridContainer.new()
-	_grid.columns = COLUMNS
+	_grid = HFlowContainer.new()
 	_grid.add_theme_constant_override("h_separation", 12)
 	_grid.add_theme_constant_override("v_separation", 12)
 	_browse_list.add_child(_grid)
@@ -540,11 +559,75 @@ func _browse_tile(mod: Dictionary) -> Button:
 	var sub := str(mod["author"])
 	if int(mod["file_size"]) > 0:
 		sub += ("  ·  " if not sub.is_empty() else "") + MenuStyle.human_bytes(int(mod["file_size"]))
-	var state := browse_state(mod, false, has_review(_job_key(int(mod["id"]))))
-	var tile := _make_tile(str(mod["name"]), sub, state_text(state), _state_color(state))
+	var key := _job_key(int(mod["id"]))
+	var busy := downloader != null and downloader.is_queued(key)
+	var state := browse_state(mod, busy, has_review(key), _manager())
+	var tile := _make_tile(str(mod["name"]), sub, state_text(state), _state_color(state),
+		_tile_action(mod, state))
 	_bind_art(tile, str(mod["logo_small"]))
 	tile.pressed.connect(func() -> void: _open_browse_detail(mod))
 	return tile
+
+
+## The button on a Browse tile, so a mod can be fetched without opening its page:
+## Download or Update, Cancel while it comes down, Review once it waits. Null for
+## any other state. The same calls as the mod's own page.
+func _tile_action(mod: Dictionary, state: String) -> Button:
+	var key := _job_key(int(mod["id"]))
+	var glyph := 0
+	var caption := ""
+	var on_press := Callable()
+	match state:
+		"", "update":
+			glyph = MenuIcons.UPDATE if state == "update" else MenuIcons.DOWNLOAD
+			caption = "Update" if state == "update" else "Download"
+			on_press = func() -> void: _download(mod)
+		"busy":
+			glyph = MenuIcons.CLOSE
+			caption = "Cancel"
+			on_press = func() -> void: downloader.cancel(key)
+		"review":
+			glyph = MenuIcons.CHECK
+			caption = "Review"
+			on_press = func() -> void:
+				_open_mod = mod
+				_open_single_review(key)
+		_:
+			return null
+	var btn := MenuStyle.row_button("%s  %s" % [String.chr(glyph), caption], 16, TILE_BTN_W,
+		TILE_BTN_H, false)
+	btn.name = "TileAction"
+	btn.add_theme_font_override("font", MenuIcons.symbols())
+	if state in ["", "update", "review"]:
+		btn.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
+	btn.pressed.connect(on_press)
+	return btn
+
+
+## Redraw the one Browse tile a download belongs to, in place: rebuilding the grid
+## would throw the page back to its top.
+func _refresh_tile(key: String) -> void:
+	if _grid == null:
+		return
+	for i in _mods.size():
+		if _job_key(int(_mods[i]["id"])) != key:
+			continue
+		if i >= _grid.get_child_count():
+			return
+		var old := _grid.get_child(i)
+		var tile := _browse_tile(_mods[i])
+		_grid.add_child(tile)
+		_grid.move_child(tile, i)
+		_grid.remove_child(old)
+		old.queue_free()
+		return
+
+
+## The loader the page reads: the Mods autoload, or a suite's scratch one.
+func _manager() -> Node:
+	if reviews != null and reviews.manager != null:
+		return reviews.manager
+	return Mods
 
 
 ## Where one mod.io mod stands on this device:
@@ -556,12 +639,15 @@ func _browse_tile(mod: Dictionary) -> Button:
 ##   "busy"      being downloaded now
 ##   "review"    downloaded, and waiting for the player's answer
 ##   "unscanned" mod.io's scan of the file it offers has not finished clean
-static func browse_state(mod: Dictionary, busy: bool = false, review: bool = false) -> String:
+## `manager` is the loader to ask, the Mods autoload when null.
+static func browse_state(mod: Dictionary, busy: bool = false, review: bool = false,
+		manager: Node = null) -> String:
 	if busy:
 		return "busy"
 	if review:
 		return "review"
-	var rec := Mods.find_by_source("modio_id", int(mod.get("id", 0)))
+	var m: Node = manager if manager != null else Mods
+	var rec := m.find_by_source("modio_id", int(mod.get("id", 0))) as ModRecord
 	if rec == null:
 		if int(mod.get("file_id", 0)) <= 0:
 			return "nofile"
@@ -569,7 +655,7 @@ static func browse_state(mod: Dictionary, busy: bool = false, review: bool = fal
 	if not rec.update_staged.is_empty():
 		return "staged"
 	if int(mod.get("file_id", 0)) > 0 \
-			and int(Mods.source(rec.id).get("file_id", 0)) != int(mod["file_id"]):
+			and int((m.source(rec.id) as Dictionary).get("file_id", 0)) != int(mod["file_id"]):
 		# A newer file that is not scanned yet is not an update to offer.
 		return "update" if ModioClient.scan_problem(mod).is_empty() else "installed"
 	return "installed"
@@ -657,7 +743,7 @@ func _fill_browse_detail() -> void:
 			16, MenuStyle.COLOR_DESC))
 
 	var busy := downloader != null and downloader.is_queued(_job_key(mod_id))
-	var state := browse_state(mod, busy, has_review(_job_key(mod_id)))
+	var state := browse_state(mod, busy, has_review(_job_key(mod_id)), _manager())
 	var state_lbl := MenuStyle.label(state_text(state), 18, _state_color(state))
 	state_lbl.visible = not state_lbl.text.is_empty()
 	facts.add_child(state_lbl)
@@ -737,32 +823,114 @@ func _download(mod: Dictionary) -> void:
 		if not ok:
 			notify(_toast_key(key), "❌", error, -1.0, MenuToasts.DWELL_FAIL)
 			return
-		if int(fresh["file_id"]) <= 0 or str(fresh["download_url"]).is_empty():
-			notify(_toast_key(key), "❌", "%s has no file to download yet" % str(fresh["name"]),
-				-1.0, MenuToasts.DWELL_FAIL)
+		_download_fresh(key, fresh))
+
+
+## The rest of a download, once mod.io has just answered for the mod (`fresh`):
+## the checks, what it needs, and the queue. Update all comes in here too, with
+## the answer it asked for itself.
+func _download_fresh(key: String, fresh: Dictionary) -> void:
+	var mod_id := int(fresh["id"])
+	if downloader.is_queued(key):
+		return
+	if int(fresh["file_id"]) <= 0 or str(fresh["download_url"]).is_empty():
+		notify(_toast_key(key), "❌", "%s has no file to download yet" % str(fresh["name"]),
+			-1.0, MenuToasts.DWELL_FAIL)
+		return
+	# Asked of the FRESH reply: a file can be flagged after the page was listed.
+	var scan := ModioClient.scan_problem(fresh)
+	if not scan.is_empty():
+		notify(_toast_key(key), "❌", "%s: %s" % [str(fresh["name"]), scan],
+			-1.0, MenuToasts.DWELL_FAIL)
+		return
+	if not bool(fresh.get("dependencies", false)):
+		_enqueue(key, fresh)
+		_refresh_tile(key)
+		if int(_open_mod.get("id", 0)) == mod_id:
+			_fill_browse_detail()
+		return
+	# It needs other mods: they come down with it, or it would arrive unable
+	# to run (ModManager.dependency_problem).
+	notify(_toast_key(key), "⏳", "Asking mod.io what %s needs…" % str(fresh["name"]))
+	fetch_needs([fresh], func(nok: bool, needs: Array[Dictionary], nerror: String) -> void:
+		if not nok:
+			notify(_toast_key(key), "❌", "%s: mod.io did not say what it needs (%s)" % [
+				str(fresh["name"]), nerror], -1.0, MenuToasts.DWELL_FAIL)
 			return
-		# Asked of the FRESH reply: a file can be flagged after the page was listed.
-		var scan := ModioClient.scan_problem(fresh)
-		if not scan.is_empty():
-			notify(_toast_key(key), "❌", "%s: %s" % [str(fresh["name"]), scan],
-				-1.0, MenuToasts.DWELL_FAIL)
+		if downloader.is_queued(key):
 			return
-		if not bool(fresh.get("dependencies", false)):
-			_enqueue(key, fresh)
-			if int(_open_mod.get("id", 0)) == mod_id:
-				_fill_browse_detail()
-			return
-		# It needs other mods: they come down with it, or it would arrive unable
-		# to run (ModManager.dependency_problem).
-		notify(_toast_key(key), "⏳", "Asking mod.io what %s needs…" % str(fresh["name"]))
-		fetch_needs([fresh], func(nok: bool, needs: Array[Dictionary], nerror: String) -> void:
-			if not nok:
-				notify(_toast_key(key), "❌", "%s: mod.io did not say what it needs (%s)" % [
-					str(fresh["name"]), nerror], -1.0, MenuToasts.DWELL_FAIL)
-				return
-			if downloader.is_queued(key):
-				return
-			_fetch_with_needs(key, fresh, needs)))
+		_fetch_with_needs(key, fresh, needs)
+		_refresh_tile(key))
+
+
+# ── Update all ────────────────────────────────────────────────────────────────
+
+## Every installed mod that came from mod.io, asked for again one at a time, and
+## each whose file mod.io has changed downloaded as its tile's Update would. Each
+## still waits for its own review. Mods with an update already staged, coming
+## down or waiting are left out.
+func update_all() -> void:
+	if client == null or downloader == null or _checking_updates:
+		return
+	var ids := modio_installed()
+	if ids.is_empty():
+		notify(UPDATE_ALL_KEY, "✅", "No mods from mod.io to update", -1.0, MenuToasts.DWELL_INFO)
+		return
+	_checking_updates = true
+	_sync_update_all_btn()
+	notify(UPDATE_ALL_KEY, "⏳", "Checking %d mod%s for updates…" % [
+		ids.size(), "" if ids.size() == 1 else "s"])
+	_check_updates_from(ids, 0, [] as Array[Dictionary], [0])
+
+
+## The mod.io id of each installed mod an update could be fetched for now.
+func modio_installed() -> Array[int]:
+	var out: Array[int] = []
+	var m := _manager()
+	for rec: ModRecord in m.all_mods():
+		var mid := int((m.source(rec.id) as Dictionary).get("modio_id", 0))
+		if mid <= 0 or not rec.update_staged.is_empty():
+			continue
+		var key := _job_key(mid)
+		if (downloader != null and downloader.is_queued(key)) or has_review(key):
+			continue
+		out.append(mid)
+	return out
+
+
+func _check_updates_from(ids: Array[int], i: int, found: Array[Dictionary], failed: Array) -> void:
+	if i >= ids.size():
+		_finish_update_all(found, int(failed[0]))
+		return
+	client.get_mod(ids[i], func(ok: bool, fresh: Dictionary, _error: String) -> void:
+		if not ok:
+			failed[0] = int(failed[0]) + 1
+		elif browse_state(fresh, false, false, _manager()) == "update":
+			found.append(fresh)
+		_check_updates_from(ids, i + 1, found, failed))
+
+
+func _finish_update_all(found: Array[Dictionary], failed: int) -> void:
+	_checking_updates = false
+	_sync_update_all_btn()
+	for fresh: Dictionary in found:
+		_download_fresh(_job_key(int(fresh["id"])), fresh)
+	var tail := "" if failed == 0 else " (%d could not be checked)" % failed
+	if found.is_empty():
+		notify(UPDATE_ALL_KEY, "✅" if failed == 0 else "❌",
+			"Every mod from mod.io is up to date%s" % tail, -1.0,
+			MenuToasts.DWELL_INFO if failed == 0 else MenuToasts.DWELL_FAIL)
+	else:
+		notify(UPDATE_ALL_KEY, "⏳", "Updating %d mod%s%s" % [found.size(),
+			"" if found.size() == 1 else "s", tail], -1.0, MenuToasts.DWELL_INFO)
+
+
+func _sync_update_all_btn() -> void:
+	if _update_all_btn == null:
+		return
+	_update_all_btn.disabled = _checking_updates
+	_update_all_btn.text = "%s  %s" % [String.chr(MenuIcons.UPDATE),
+		"Checking…" if _checking_updates else "Update all"]
 
 
 func _enqueue(key: String, mod: Dictionary) -> void:
@@ -869,6 +1037,7 @@ func _drop_needs(key: String, discard: bool) -> void:
 
 
 func _on_job_started(key: String, label: String, _total: int) -> void:
+	_refresh_tile(key)
 	_last_pct.erase(key)
 	notify(_toast_key(key), "⏳", "Downloading %s" % label, 0.0)
 	_refresh_open_mod(key)
@@ -891,6 +1060,7 @@ func _on_job_retrying(key: String, attempt: int, max_attempts: int, reason: Stri
 
 
 func _on_job_cancelled(key: String) -> void:
+	_refresh_tile(key)
 	if _packs_page.owns(key):
 		notify_clear(_toast_key(key))
 		_packs_page.on_job_done(key, false, "")
@@ -906,6 +1076,7 @@ func _on_job_cancelled(key: String) -> void:
 
 
 func _on_job_finished(key: String, ok: bool, error: String, result: Dictionary) -> void:
+	_refresh_tile(key)
 	var waiting := ok and bool(result.get("review", false))
 	# A pack's members are answered for together, by the pack, and what a mod
 	# needs by that mod's review.
@@ -957,6 +1128,7 @@ func finish_review(key: String, source: Dictionary, enable: bool) -> Dictionary:
 
 func discard_review(key: String) -> void:
 	reviews.discard(key)
+	_refresh_tile(key)
 
 
 ## name -> the shipped paths each installed mod replaces, for spotting two mods
@@ -1174,8 +1346,7 @@ func refresh_installed() -> void:
 				Mods.enable_all()
 				refresh_installed())
 			_installed_list.add_child(enable_all)
-		var grid := GridContainer.new()
-		grid.columns = COLUMNS
+		var grid := HFlowContainer.new()
 		grid.add_theme_constant_override("h_separation", 12)
 		grid.add_theme_constant_override("v_separation", 12)
 		_installed_list.add_child(grid)
@@ -1499,10 +1670,12 @@ static func _status_color(status: int) -> Color:
 ## One tile: a 16:9 picture over a name, a line of small print and a badge. A
 ## Button, so the whole tile is the target -- everything inside ignores the
 ## pointer and lets it through.
-func _make_tile(title: String, subtitle: String, badge: String, badge_color: Color) -> Button:
+func _make_tile(title: String, subtitle: String, badge: String, badge_color: Color,
+		action: Button = null) -> Button:
 	var tile := Button.new()
-	tile.custom_minimum_size = Vector2(0, TILE_H)
-	tile.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	# Fixed: a wider menu fits more tiles on a row, it does not stretch them.
+	tile.custom_minimum_size = Vector2(TILE_W, TILE_H)
+	tile.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
 	tile.clip_contents = true
 
 	var margin := MarginContainer.new()
@@ -1528,9 +1701,19 @@ func _make_tile(title: String, subtitle: String, badge: String, badge_color: Col
 	sub_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	sub_lbl.clip_text = true
 	box.add_child(sub_lbl)
+	var row := MenuStyle.hbox(6)
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.custom_minimum_size = Vector2(0, TILE_BTN_H)
+	box.add_child(row)
 	var badge_lbl := MenuStyle.label(badge, 15, badge_color)
+	badge_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	badge_lbl.clip_text = true
-	box.add_child(badge_lbl)
+	badge_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	badge_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(badge_lbl)
+	# Its own press, not the tile's: a Button inside the tile takes the click first.
+	if action != null:
+		row.add_child(action)
 	return tile
 
 

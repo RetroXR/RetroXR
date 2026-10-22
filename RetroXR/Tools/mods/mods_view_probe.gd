@@ -77,9 +77,15 @@ class StubMenu extends Node:
 
 
 func _ready() -> void:
-	get_tree().create_timer(25.0).timeout.connect(func() -> void:
+	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		print("[probe] TIMEOUT"); get_tree().quit(1))
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT))
+	# Off a headset the start-up loading screen is a 2D layer over everything,
+	# and with no room ever loaded here nothing would take it down: every shot
+	# would be the loading panel. Its owners are registered a frame in.
+	await get_tree().process_frame
+	for owner: Variant in LoadingOverlay.owners():
+		LoadingOverlay.end(owner)
 
 	var bg := ColorRect.new()
 	bg.color = MenuStyle.COLOR_BG

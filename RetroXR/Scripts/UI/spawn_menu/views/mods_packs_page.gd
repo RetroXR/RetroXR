@@ -31,7 +31,7 @@ var _search_edit: LineEdit = null
 var _search_timer: Timer = null
 var _sort := str(ModioClient.COLLECTION_SORTS[0][1])
 var _status_lbl: Label = null
-var _grid: GridContainer = null
+var _grid: HFlowContainer = null
 var _prev_btn: Button = null
 var _next_btn: Button = null
 var _page_lbl: Label = null
@@ -192,8 +192,7 @@ func _build_list() -> void:
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_list.add_child(_status_lbl)
 
-	_grid = GridContainer.new()
-	_grid.columns = SpawnMenuModsView.COLUMNS
+	_grid = HFlowContainer.new()
 	_grid.add_theme_constant_override("h_separation", 12)
 	_grid.add_theme_constant_override("v_separation", 12)
 	_list.add_child(_grid)

@@ -197,6 +197,20 @@ now and lives as long as the downloader does. Three sub-tabs: **Browse** (mod.io
 catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
 **Installed** (what was Options > Mods, moved whole).
 
+- **Tiles are one fixed size** (`TILE_W` x `TILE_H`) in an `HFlowContainer` on all three
+  pages (2026-10-22): a wider menu fits more on a row instead of stretching three
+  columns. A Browse tile carries its own button (`_tile_action`), drawn in the Nerd Font
+  (`MenuIcons.DOWNLOAD` / `UPDATE`, `CLOSE`, `CHECK`): Download or Update, Cancel while
+  it comes down, Review once it waits. It goes through the same `_download` as the
+  mod's page, and the tile is redrawn IN PLACE on every job event (`_refresh_tile`);
+  `_rebuild_grid` would throw the page back to its top. A Button inside the tile takes
+  the click before the tile does.
+- **Update all** (Browse, on the status line under the toolbar, `update_all`): every installed mod with a mod.io
+  source (`modio_installed`: not already staged, coming down or waiting for review) is
+  asked for again ONE at a time (`get_mod`), and each whose file differs
+  (`browse_state` == `"update"`) goes through `_download_fresh` -- the scan, what it
+  needs, the queue -- and still waits for its own review. `browse_state` takes the
+  loader to ask, so `mod_browser_tests tiles/` runs it against a scratch one.
 - **mod.io game 14432**, `https://g-14432.modapi.io/v1`, REST from GDScript. The
   only maintained Godot plugin is a desktop-only Rust extension with no Android
   build. mod.io's C++ SDK is not used: it builds for Android only through CMake
