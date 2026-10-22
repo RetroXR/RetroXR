@@ -32,6 +32,8 @@ signal ignore_gravity_toggled(enabled: bool)
 signal screen_glow_toggled(enabled: bool)
 ## System-tab toggle (cabinets): wear the game's scraped art on the marquee and sides.
 signal cabinet_art_toggled(enabled: bool)
+## The cabinet's own say over the arcade attract option (ArcadeAttract.OVERRIDE_*).
+signal attract_override_changed(mode: int)
 ## DIP tab (cabinets): open or shut the running core's own DIP screen on the game's screen.
 signal dip_menu_requested
 ## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
@@ -85,6 +87,9 @@ var _dip_has_menu := false
 var _dip_powered := false
 var _dip_menu_open := false
 var _cabinet_art_check: VRToggle = null
+var _attract_row: HBoxContainer = null
+var _attract_button: Button = null
+var _attract_mode: int = 0
 var _tabs: TabContainer = null
 ## The slotted cartridge's UI, embedded as a tab. Driven by the cartridge's own
 ## CartridgeOptionsPanel, which owns all the save/sync/achievement logic.
@@ -402,6 +407,33 @@ func _build_ui() -> void:
 		if not _suppress_signal:
 			cabinet_art_toggled.emit(on))
 	_cabinet_art_row.add_child(_cabinet_art_check)
+
+	# A cabinet's attract mode: follow the global pref, or force it on or off for this one.
+	_attract_row = HBoxContainer.new()
+	_attract_row.custom_minimum_size = Vector2(0, 56)
+	_attract_row.add_theme_constant_override("separation", 8)
+	_attract_row.visible = false
+	sys_rows.add_child(_attract_row)
+
+	var attract_lbl := Label.new()
+	attract_lbl.text = "Attract Mode"
+	attract_lbl.tooltip_text = "Show the game's video while the cabinet is on, until a coin or a controller is used."
+	attract_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	attract_lbl.add_theme_font_size_override("font_size", 18)
+	attract_lbl.add_theme_color_override("font_color", COLOR_ROW)
+	attract_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_attract_row.add_child(attract_lbl)
+
+	_attract_button = Button.new()
+	_attract_button.custom_minimum_size = Vector2(190, 44)
+	_attract_button.add_theme_font_size_override("font_size", 16)
+	_attract_button.pressed.connect(func():
+		if _suppress_signal:
+			return
+		_attract_mode = (_attract_mode + 1) % 3
+		_attract_button.text = _attract_text(_attract_mode)
+		attract_override_changed.emit(_attract_mode))
+	_attract_row.add_child(_attract_button)
 
 	# Track which scroll container is active for stick-driven scrolling
 	_active_scroll = _controls_scroll
@@ -789,7 +821,8 @@ func populate_cores(choices: Array, selected: String, default_core: String) -> v
 ## `volume` is the handheld's own control's level, 0..1, or -1 to hide the row.
 func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		pad_guid: String = "", pad_ordinal: int = 0, volume: float = -1.0,
-		show_cabinet_art: bool = false, cabinet_art: bool = true) -> void:
+		show_cabinet_art: bool = false, cabinet_art: bool = true,
+		attract_mode: int = -1) -> void:
 	show_volume(volume)
 	_suppress_signal = true
 	var picker_changed := _show_pad_picker != show_video_out \
@@ -809,6 +842,11 @@ func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		_cabinet_art_row.visible = show_cabinet_art
 	if _cabinet_art_check:
 		_cabinet_art_check.button_pressed = cabinet_art
+	if _attract_row:
+		# -1 hides the row (every machine but a cabinet).
+		_attract_row.visible = attract_mode >= 0
+		_attract_mode = maxi(attract_mode, 0)
+		_attract_button.text = _attract_text(_attract_mode)
 	_suppress_signal = false
 
 
@@ -821,6 +859,16 @@ func populate_screen_glow(state: int) -> void:
 	_suppress_signal = true
 	_screen_glow_check.button_pressed = state == 1
 	_suppress_signal = false
+
+
+## The attract row's button: what this cabinet does with the global option.
+static func _attract_text(mode: int) -> String:
+	match mode:
+		ArcadeAttract.OVERRIDE_ON:
+			return "Always on"
+		ArcadeAttract.OVERRIDE_OFF:
+			return "Always off"
+	return "Follow global"
 
 
 ## The Volume row at `volume` (0..1) without telling anyone, or hidden at -1: the

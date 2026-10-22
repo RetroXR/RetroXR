@@ -555,6 +555,24 @@ static func load_media_image(systemid: String, rom_path: String, folder: String)
 	return null
 
 
+## The path of a ROM's file in one of its media folders (<rom dir>/media/<folder>/<rom basename>.<ext>),
+## for the first of `exts` that exists in any folder the system's ROMs live under, or "". The same search
+## as load_media_image, for a medium that is not an image (a video snap).
+static func media_file_path(systemid: String, rom_path: String, folder: String, exts: PackedStringArray) -> String:
+	if systemid.is_empty() or rom_path.is_empty():
+		return ""
+	var base := rom_path.get_file().get_basename()
+	if base.is_empty():
+		return ""
+	for rom_dir in RomLibrary.rom_dirs_for_system(systemid):
+		var media_dir := rom_dir.path_join("media").path_join(folder)
+		for ext in exts:
+			var path := media_dir.path_join(base + ext)
+			if FileAccess.file_exists(path):
+				return path
+	return ""
+
+
 # ── mod media ─────────────────────────────────────────────────────────────────
 
 ## Media descriptors contributed by mods, one per systemid, replacing what the

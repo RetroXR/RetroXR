@@ -451,11 +451,25 @@ func on_bay_unlinked(_bay_unit: ArcadeBayUnit) -> void:
 ## cabled to the cabinet's composite input (ArcadeAvInModule.external_picture). Nothing cabled, nothing in
 ## the bay: the dark tube, as before.
 func host_picture() -> Texture2D:
+	if _attracting():
+		return get_parent().call("attract_picture") as Texture2D
 	var own := super.host_picture()
 	if _av_in == null:
 		return own
 	var ext := _av_in.external_picture()
 	return ext if ext != null else own
+
+
+## The cabinet is on and only SHOWING its game (RetroSystem.attracting): no core runs, the glass shows the
+## game's video or its still.
+func _attracting() -> bool:
+	var host := get_parent()
+	return host != null and bool(host.get("attracting")) and host.has_method("attract_picture")
+
+
+## True while the glass shows the attract's picture (its aspect is the picture's own).
+func attract_picture_active() -> bool:
+	return _attracting() and get_parent().call("attract_picture") != null
 
 
 ## True while the screen is showing a cabled machine rather than the board (its aspect is the picture's own).
@@ -616,6 +630,9 @@ func attach_to_host(host: Node3D) -> void:
 	for c in _controls:
 		controls.append(c)
 	_input.setup(host, self, controls, coins)
+	_input.first_use.connect(func(kind: StringName) -> void:
+		if is_instance_valid(host) and host.has_method("attract_first_use"):
+			host.call("attract_first_use", kind))
 	# While it is in a hand it turns see-through, so the player can see the room behind a
 	# 1.8 m box they are carrying. Per-instance dithered transparency, not a transparent
 	# material: no sorting, no blending of a huge surface, and no material to swap and restore.

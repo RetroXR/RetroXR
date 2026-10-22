@@ -537,3 +537,41 @@ sidecars, `ArcadeCabinetArt.romm_id`). **Nothing is fetched or scraped for this*
   is saved in the room as `cabinet_art` ONLY when off (a default room file does not change), restored before the model is built. The row is
   shown only when the model has `set_art_enabled` (`supports_cabinet_art_toggle`), through `CoreOptions2D.populate_system`'s two trailing arguments.
 
+
+## Attract mode: a cabinet that is on shows its game instead of running it (2026-10-22)
+
+`feat/attract-mode`. **OFF by default** (`AppPrefs.arcade_attract_mode`; Options > the toggle under "Override BIOS Boot Options"), because a video decode per cabinet is real
+work, most of all on a Quest. Each cabinet has its own say over it (System tab > "Attract Mode": Follow global / Always on / Always off,
+`RetroSystem.attract_override`, saved in the room as `attract` ONLY when not "follow").
+
+- **When it applies** (`ArcadeAttract.wanted`, `RetroSystem.attract_applies`): the option is on for this cabinet, a board is in the bay (or its docked/cabled bay), no console is cabled
+  to its A/V input (`external_picture_active`) and no netplay session is running. No game or bay: the cabinet behaves exactly as before ("No game inserted").
+  `power_on` then does NOT call `StartContent`: it sets `RetroSystem.attracting` (`is_powered_on` stays **false**, which is what every "is a core running" reader means) and
+  the cabinet's `ArcadeAttract` child shows the game. The power button reads STOP, the marquee is lit.
+- **What it shows**: the video snap (`media/video/<rom>.mp4`, any of mp4/mkv/webm/avi/mov), else the `title` image, else the `wheel`, else the cover (`box` front, else `label`) --
+  `ArcadeAttract.resolve_media`. A still costs nothing per frame. The screen module fits the picture at its OWN shape (`attract_picture_active`; the core's geometry says nothing yet),
+  and `ArcadeCabinetModel.host_picture()` is where the swap happens.
+- **When the game really starts** (`ArcadeInput.first_use`, one signal, handled by `RetroSystem.attract_first_use`, which sets `_attract_released` for ONE `power_on`): a coin that DROPS
+  (`ArcadeCoinModule.coin_inserted`), a panel attached (`attach_changed`), or a gun/pad in a HAND (polled: `ArcadeInput.held_by_hand`; a gun lying in its holster is picked up by the
+  zone, not by a hand, and a pad merely plugged in is nobody). The coin that started it is held `ArcadeAttract.COIN_BOOT_DELAY` (2 s) and then delivered: a credit at boot is lost.
+  `ArcadeInput` keeps panels attached while attracting (it used to let go whenever `is_powered_on` was false).
+- **Back to the attract**: libretro has NO game-over / back-to-title signal and neither MAME nor FinalBurn Neo expose one, so it is a plain idle timer
+  (`ArcadeAttract.IDLE_SECONDS` = 120): nobody at the cabinet (no panel attached, no gun or pad in a hand, no coin) -> `RetroSystem.attract_return` stops the core and the attract
+  resumes. Only for a core the attract started (`attract_session`); a game started with the option off is never put away. A player attached but standing still never times out (intended).
+  An arcade game has no save to lose.
+- **What it costs, bounded three ways** (`ArcadeAttract._rank_room`, every 0.25 s for all of them): only the `video_budget()` NEAREST cabinets decode a video (desktop 4, Android 1; the rest
+  show the still, silent); a screen out of view (`screen_visible`: frustum, plus the glass must face the head) uploads no frames, but its sound goes on; a cabinet past `MAX_AUDIO` (15 m)
+  pauses its player, and one beyond `NEAR_AUDIO` (6 m) pulls its sound every 0.1 s. Sound is ONE mono voice per cabinet (`SpatialAudioEmitter`, `speaker_separation` 0), so it also spares
+  the room's 32 shared Meta XR Audio voices. libVLC still DECODES a video the screen is not showing (`VlcPlayer` has no "video off" call; adding one is C++ and a rebuild of both targets).
+- **Scraping, on demand** (`ScreenscraperClient.extra_media` / `media_filter`, `AutoScraper.request_media`): the scraper normally fetches only wheel/box/label/manual. With the attract on, inserting
+  a board that has no video asks for THAT game's `video` and `title` (ScreenScraper `video`, `sstitle`) -- arcade games only (`ScreenscraperClient._extract_media_urls` checks the system is arcade, `request_attract_media`
+  checks `ArcadeProfiles.is_cabinet_system`), one request, only those two files, and only when Auto-scrape is on (no request leaves the app unasked). The cabinet reaches the scraper through the
+  `attract_media_listener` group (`SpawnMenu2D.request_attract_media`) because the scraper lives in the menu, and is told when a file lands (`arcade_attract` group, `on_media_arrived`) so a still gives way to the video.
+  A cabinet restored already switched on asks BEFORE the menu (and its scraper) exists, so a want with nobody to hear it waits in `ArcadeAttract.pending_media` and the menu takes it in `_init_scraper`
+  (the first AppImage lost every such request: no cabinet scraped anything, 2026-10-22). A game already waiting for an ordinary scrape joins it (`ScrapeQueue.add_extra_media`, item key `extra`: fetches the usual art AND the extras);
+  one already running does not. Every step logs (`[Attract]`, `[AutoScraper]`): "asking for", "auto-scrape is off", "file is not there", "already queued".
+  **ScreenScraper files many arcade games under a SUB-system** (Point Blank answers as 155 "Namco Classics", `parentid` 75): `_parse_jeu` judged the game by 155 alone, found it no arcade game and dropped the extras without a word -- the second real run scraped nothing again. It is arcade/cabinet now by the system it answers under, that system's PARENT, or the system the scrape asked about (`_requested_systemeid`; `ScreenscraperSystems.is_cabinet_systemeid` adds the Neo Geo MVS). This also moves the LABEL of such games from the cabinet render (`support-texture`) to `support-2D`, which is what the board sticker wants. `video-normalized` (2.6 MB for Point Blank) is preferred to `video` (6.9 MB). Pinned by `scrape_tests cabinet_media/`; found by running the real parser on a saved real response, which is the way to check the next media type.
+  **Reconsider this if video scraping is ever structured and switched on for everything**: it is deliberately narrow now to save data.
+- Tests: `arcade_attract_tests` (groups `rules media state screen use idle leave keep panel`; each case was broken and watched go red -- note a made-up ROM makes the core refuse and power the machine off a moment later,
+  so the suite disconnects `content_load_failed` and reads `attract_session` in the `first_use` handler), `scrape_tests cabinet_media/`. How it LOOKS and SOUNDS is not in the suite.
+- OWED: a real video (VLC) in the room, the Quest (H.264 decode and the budget of 1), a headset, listening to a far cabinet, a real ScreenScraper video download, two peers (attract is off in a session).

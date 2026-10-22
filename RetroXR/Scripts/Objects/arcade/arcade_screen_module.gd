@@ -88,12 +88,20 @@ func tick(_delta: float) -> void:
 	if _screen.get_surface_override_material(0) != _material:
 		_screen.set_surface_override_material(0, _material)
 	var external := cabinet.has_method("external_picture_active") and bool(cabinet.call("external_picture_active"))
-	_refresh_geometry(tex, external)
+	var attract := cabinet.has_method("attract_picture_active") and bool(cabinet.call("attract_picture_active"))
+	_refresh_geometry(tex, external, attract)
 
 
-func _refresh_geometry(tex: Texture2D, external: bool = false) -> void:
+func _refresh_geometry(tex: Texture2D, external: bool = false, attract: bool = false) -> void:
 	var lib: Object = _libretro()
 	var aspect := 0.0
+	if attract:
+		# The game on show, not running: a video snap or a still, whose shape is its own.
+		_serial = -1
+		_content_aspect = float(tex.get_width()) / float(maxi(tex.get_height(), 1))
+		_last_fit = fit_for(_content_aspect, glass_size)
+		_material.set_shader_parameter("fit_scale", _last_fit)
+		return
 	if external:
 		# A machine cabled to the bay: the board's geometry says nothing about this picture.
 		_serial = -1
