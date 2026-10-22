@@ -75,6 +75,7 @@ func _ready() -> void:
 	if _want("installall"): _group_install_all()
 	if _want("holes"):     _group_holes()
 	if _want("holes2"):    await _group_holes2()
+	if _want("scroll"):    await _group_scroll()
 	if _want("consent"):   await _group_consent()
 	if _want("bundle"):    _group_bundle()
 	if _want("review"):    _group_review()
@@ -1458,6 +1459,43 @@ func _group_holes2() -> void:
 	stub.free()
 	view.free()
 	m.free()
+
+
+# ── scroll/ ───────────────────────────────────────────────────────────────────
+
+## An install (any mods_changed) redraws the Browse grid; the player stays where
+## they had scrolled to. Laid out for real: the view is in the tree at a menu's
+## size, which headless lays out though it draws nothing.
+func _group_scroll() -> void:
+	var view := SpawnMenuModsView.create(null)
+	view.size = Vector2(1100, 840)
+	add_child(view)
+	view._browse_gate.visible = false
+	view._show_browse(view._browse_list)
+	var mods: Array[Dictionary] = []
+	for i in 24:
+		mods.append(ModioClient.parse_mod(_modio_mod(2000 + i, "M%d" % i, 20000 + i)))
+	view._mods = mods
+	view._total = mods.size()
+	view._fetched = true
+	view._rebuild_grid()
+	for i in 3:
+		await get_tree().process_frame
+	var scroll: ScrollContainer = view._pages[0]
+	scroll.scroll_vertical = 900
+	await get_tree().process_frame
+	var was := scroll.scroll_vertical
+	_ok(was > 0, "scroll/the page is long enough to scroll", str(was))
+	view._on_mods_changed()
+	for i in 3:
+		await get_tree().process_frame
+	_eq(scroll.scroll_vertical, was, "scroll/an install keeps the Browse grid where the player had scrolled")
+	view._rebuild_grid()
+	for i in 2:
+		await get_tree().process_frame
+	_eq(scroll.scroll_vertical, 0, "scroll/a new page of results still starts at the top")
+	view.queue_free()
+	await get_tree().process_frame
 
 
 # ── packreturn/ ───────────────────────────────────────────────────────────────

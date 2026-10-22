@@ -273,7 +273,9 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
     a transfer still running; one that landed anyway is discarded).
   - `drop_tags_for` forgets a pack's claim on a member whose own download failed or was
     discarded; a pack with nothing to confirm settles its tags in `_finish_batch`.
-  - `_rebuild_grid(true)` keeps the scroll for a change made in place (an install).
+  - `_rebuild_grid(true)` keeps the scroll for a change made in place (an install);
+    `scroll/` checks it with the view laid out in the tree (headless lays out, it only
+    does not draw), a new page of results still starting at the top.
   - **`ModManager._swap_in`**: a container being replaced is moved ASIDE (`.old`) and
     deleted only once the new file is in; a failed move puts it back. `_apply_pending`
     keeps an op it could not make (and its staged file, which the sweep skips) for the
