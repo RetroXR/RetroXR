@@ -211,6 +211,13 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   (`browse_state` == `"update"`) goes through `_download_fresh` -- the scan, what it
   needs, the queue -- and still waits for its own review. `browse_state` takes the
   loader to ask, so `mod_browser_tests tiles/` runs it against a scratch one.
+- **Install all** (beside Update all, shown only while something waits: "Install all
+  (N)") installs every download parked for its review that is ready and answered for
+  by no one else (`installable_reviews`: not a pack's member, not another mod's need,
+  nothing it needs still coming down), each through `_install_reviewed` -- the review's
+  own Install, lifted out. They land as a download always does, OFF unless the mod was
+  already on, so the switch under Installed is still the player's consent; the single
+  review stays the place to read what a mod claims. `mod_browser_tests installall/`.
 - **mod.io game 14432**, `https://g-14432.modapi.io/v1`, REST from GDScript. The
   only maintained Godot plugin is a desktop-only Rust extension with no Android
   build. mod.io's C++ SDK is not used: it builds for Android only through CMake

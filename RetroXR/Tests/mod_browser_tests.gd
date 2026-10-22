@@ -72,6 +72,7 @@ func _ready() -> void:
 	if _want("packqueue"): _group_pack_queue()
 	if _want("packreturn"): _group_pack_return()
 	if _want("tiles"):     _group_tiles()
+	if _want("installall"): _group_install_all()
 	if _want("consent"):   await _group_consent()
 	if _want("bundle"):    _group_bundle()
 	if _want("review"):    _group_review()
@@ -1108,6 +1109,51 @@ func _group_tiles() -> void:
 	_eq(stub.queued, ["modio-501"] as Array[String], "updateall/nor downloaded twice")
 
 	client.free()
+	stub.free()
+	view.free()
+	m.free()
+
+
+# ── installall/ ───────────────────────────────────────────────────────────────
+
+## Downloads park for their review one at a time; Install all installs every one
+## that is ready and nobody else answers for, each switched off as a download is.
+func _group_install_all() -> void:
+	var m := _fresh()
+	var view := SpawnMenuModsView.create(null)
+	var stub := QueueStub.new()
+	view.downloader = stub
+	view.reviews.manager = m
+	var park := func(id: int, mod_id: String) -> void:
+		view.reviews.stage(_stage(m, "modio-%d.zip" % id, _pack(mod_id, "1.0.0")),
+			{"modio_id": id, "file_id": id * 10, "profile_url": ""})
+
+	view._sync_install_all_btn()
+	_ok(not view._install_all_btn.visible, "installall/nothing waiting: no button")
+	park.call(601, "t.ia1")
+	park.call(602, "t.ia2")
+	park.call(603, "t.ia3")
+	# 603 came down as something 601 needs: it goes in with 601's own review.
+	view._needed_for["modio-603"] = "modio-601"
+	view._sync_install_all_btn()
+	_eq(view.installable_reviews(), ["modio-601", "modio-602"] as Array[String],
+		"installall/the downloads that wait, not what another mod needs")
+	_ok(view._install_all_btn.visible and view._install_all_btn.text.ends_with("Install all (2)"),
+		"installall/the button counts them", view._install_all_btn.text)
+
+	view._install_all_btn.pressed.emit()
+	_ok(m.mod("t.ia1") != null and m.mod("t.ia2") != null, "installall/both are installed")
+	_ok(not m.is_enabled("t.ia1") and not m.is_enabled("t.ia2"),
+		"installall/switched off, as a download lands: the switch is still the player's")
+	_eq(int(m.source("t.ia1").get("modio_id", 0)), 601, "installall/with where it came from")
+	_ok(not view.has_review("modio-601") and not view.has_review("modio-602"),
+		"installall/and nothing of them waits any more")
+	_ok(view.has_review("modio-603") and m.mod("t.ia3") == null,
+		"installall/a mod's need is left for that mod's review")
+	_ok(not view._install_all_btn.visible, "installall/the button goes once nothing it can install waits")
+
+	view._needed_for.clear()
+	view.discard_review("modio-603")
 	stub.free()
 	view.free()
 	m.free()

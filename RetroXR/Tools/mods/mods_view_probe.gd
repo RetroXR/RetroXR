@@ -7,7 +7,8 @@
 ## is never asked -- with each logo seeded straight into ModArtCache's disk
 ## cache, and writes PNGs to user://mods_view_probe/: consent (mod.io's terms,
 ## before anything else is shown), declined, browse, detail, review (the question
-## before a download is installed), detail_needs and review_needs /
+## before a download is installed), browse_waiting (the list with it still
+## waiting: Install all), detail_needs and review_needs /
 ## review_needs_ready (a mod that needs others, while they come down and once
 ## they are in), packs, pack, pack_review, installed and installed_detail. The
 ## Installed pages are the machine's real mods; `-- --installed=<id>` picks
@@ -178,8 +179,14 @@ func _ready() -> void:
 	view._open_single_review(key)
 	await get_tree().create_timer(0.6).timeout
 	await _shot("review")
-	view.reviews._parked.erase(key)
+	# Back on the list with it still waiting: Install all says how many.
 	view._close_single_review()
+	view._close_browse_detail()
+	view._sync_install_all_btn()
+	await get_tree().create_timer(0.3).timeout
+	await _shot("browse_waiting")
+	view.reviews._parked.erase(key)
+	view._sync_install_all_btn()
 
 	# A mod that needs others: its page says so, and its review answers for them
 	# -- one in, one still coming down, one mod.io will not give -- and holds the

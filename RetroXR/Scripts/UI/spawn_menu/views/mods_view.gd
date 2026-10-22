@@ -71,6 +71,7 @@ var _sort := str(ModioClient.SORTS[0][1])
 var _status_lbl: Label = null
 var _grid: HFlowContainer = null
 var _update_all_btn: Button = null
+var _install_all_btn: Button = null
 ## True while Update all is asking mod.io about each installed mod.
 var _checking_updates := false
 var _prev_btn: Button = null
@@ -442,6 +443,13 @@ func _build_browse(vbox: VBoxContainer) -> void:
 	_update_all_btn.pressed.connect(update_all)
 	status_row.add_child(_update_all_btn)
 	_sync_update_all_btn()
+	_install_all_btn = MenuStyle.row_button("", 18, 200, 48, false)
+	_install_all_btn.name = "InstallAllButton"
+	_install_all_btn.add_theme_font_override("font", MenuIcons.symbols())
+	_install_all_btn.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
+	_install_all_btn.pressed.connect(install_all)
+	status_row.add_child(_install_all_btn)
+	_sync_install_all_btn()
 
 	_grid = HFlowContainer.new()
 	_grid.add_theme_constant_override("h_separation", 12)
@@ -826,6 +834,96 @@ func _download(mod: Dictionary) -> void:
 		_download_fresh(key, fresh))
 
 
+## Install the download parked under `key` as the review's Install does: what it
+## needs first, switched as the player says with it (ModManager.set_enabled takes
+## them along), then the mod itself. Returns ModManager.install's answer plus
+## `also_failed`, the needs that would not go in.
+func _install_reviewed(key: String, enable: bool) -> Dictionary:
+	var m := _manager()
+	var parked: Dictionary = review(key)
+	var manifest: ModManifest = parked["manifest"]
+	var source: Dictionary = parked["source"]
+	m.hold_changes()
+	var also_failed := PackedStringArray()
+	var entry: Dictionary = _with_needs.get(key, {})
+	for dkey: String in (entry.get("staged", []) as Array):
+		if not has_review(dkey):
+			continue
+		var dep: Dictionary = (entry["deps"] as Dictionary)[dkey]
+		var dm: ModManifest = review(dkey)["manifest"]
+		var dout := finish_review(dkey, ModCollectionPlan.source_after_single(
+			m.source(dm.id), int(dep["id"]), int(dep["file_id"]), str(dep["profile_url"])), false)
+		if not bool(dout.get("ok", false)):
+			also_failed.append("%s (%s)" % [dm.name, str(dout.get("error", ""))])
+	_drop_needs(key, false)
+	var out := finish_review(key, ModCollectionPlan.source_after_single(
+		m.source(manifest.id), int(source.get("modio_id", 0)),
+		int(source.get("file_id", 0)), str(source.get("profile_url", ""))), enable)
+	m.release_changes()
+	out["also_failed"] = also_failed
+	return out
+
+
+# ── Install all ───────────────────────────────────────────────────────────────
+
+## The downloads Install all would install: each one parked for its review, ready
+## (nothing it needs still coming down), and answered for by no one else -- a
+## pack's members by the pack's question, a mod's needs by that mod's.
+func installable_reviews() -> Array[String]:
+	var out: Array[String] = []
+	for key: String in reviews.keys():
+		if (_packs_page != null and _packs_page.owns(key)) or _needed_for.has(key) \
+				or _needs_waiting(key) > 0:
+			continue
+		out.append(key)
+	out.sort()
+	return out
+
+
+## Install every download that waits for its review, each as its own Install
+## would. They land as a download always does -- switched OFF unless the mod was
+## already on -- so the Enable switch under Installed is still the player's say.
+func install_all() -> void:
+	var keys := installable_reviews()
+	if keys.is_empty():
+		return
+	var m := _manager()
+	m.hold_changes()
+	var done := 0
+	var restart := false
+	var failed := PackedStringArray()
+	for key: String in keys:
+		var label := (review(key)["manifest"] as ModManifest).name
+		var out := _install_reviewed(key, false)
+		notify_clear(_toast_key(key))
+		if not bool(out.get("ok", false)):
+			failed.append("%s (%s)" % [label, str(out.get("error", ""))])
+			continue
+		done += 1
+		restart = restart or bool(out.get("restart", false))
+		for need: String in (out.get("also_failed", PackedStringArray()) as PackedStringArray):
+			failed.append("%s, needed by %s" % [need, label])
+	m.release_changes()
+	if _browse_review.visible and not reviews.has(_open_review):
+		_close_single_review()
+	_sync_install_all_btn()
+	if not failed.is_empty():
+		notify("mods:installall", "❌", "Installed %d; not installed: %s" % [done, ", ".join(failed)],
+			-1.0, MenuToasts.DWELL_FAIL)
+	else:
+		notify("mods:installall", "✅", "Installed %d mod%s — %s under Installed" % [done,
+			"" if done == 1 else "s", "apply them" if restart else "enable them"],
+			-1.0, MenuToasts.DWELL_FAIL)
+
+
+func _sync_install_all_btn() -> void:
+	if _install_all_btn == null:
+		return
+	var n := installable_reviews().size()
+	_install_all_btn.visible = n > 0
+	_install_all_btn.text = "%s  Install all (%d)" % [String.chr(MenuIcons.CHECK), n]
+
+
 ## The rest of a download, once mod.io has just answered for the mod (`fresh`):
 ## the checks, what it needs, and the queue. Update all comes in here too, with
 ## the answer it asked for itself.
@@ -1077,6 +1175,7 @@ func _on_job_cancelled(key: String) -> void:
 
 func _on_job_finished(key: String, ok: bool, error: String, result: Dictionary) -> void:
 	_refresh_tile(key)
+	_sync_install_all_btn.call_deferred()
 	var waiting := ok and bool(result.get("review", false))
 	# A pack's members are answered for together, by the pack, and what a mod
 	# needs by that mod's review.
@@ -1123,12 +1222,15 @@ func review(key: String) -> Dictionary:
 
 
 func finish_review(key: String, source: Dictionary, enable: bool) -> Dictionary:
-	return reviews.finish(key, source, enable)
+	var out := reviews.finish(key, source, enable)
+	_sync_install_all_btn()
+	return out
 
 
 func discard_review(key: String) -> void:
 	reviews.discard(key)
 	_refresh_tile(key)
+	_sync_install_all_btn()
 
 
 ## name -> the shipped paths each installed mod replaces, for spotting two mods
@@ -1170,7 +1272,6 @@ func _fill_single_review() -> void:
 		return
 	var parked: Dictionary = reviews.parked(key)
 	var manifest: ModManifest = parked["manifest"]
-	var source: Dictionary = parked["source"]
 	var old := Mods.mod(manifest.id)
 
 	var back := _narrow(MenuStyle.row_button("←  Decide later", 20, 240, 52, false))
@@ -1235,26 +1336,8 @@ func _fill_single_review() -> void:
 	install.disabled = waiting > 0
 	install.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
 	install.pressed.connect(func() -> void:
-		# What it needs goes in first, switched as the player says with it: the
-		# switch below takes them with it (ModManager.set_enabled).
-		Mods.hold_changes()
-		var also_failed := PackedStringArray()
-		var entry: Dictionary = _with_needs.get(key, {})
-		for dkey: String in (entry.get("staged", []) as Array):
-			if not has_review(dkey):
-				continue
-			var dep: Dictionary = (entry["deps"] as Dictionary)[dkey]
-			var dm: ModManifest = review(dkey)["manifest"]
-			var dout := finish_review(dkey, ModCollectionPlan.source_after_single(
-				Mods.source(dm.id), int(dep["id"]), int(dep["file_id"]), str(dep["profile_url"])), false)
-			if not bool(dout.get("ok", false)):
-				also_failed.append("%s (%s)" % [dm.name, str(dout.get("error", ""))])
-		_drop_needs(key, false)
-		var out := finish_review(key, ModCollectionPlan.source_after_single(
-			Mods.source(manifest.id), int(source.get("modio_id", 0)),
-			int(source.get("file_id", 0)), str(source.get("profile_url", ""))),
-			enable != null and enable.button_pressed)
-		Mods.release_changes()
+		var out := _install_reviewed(key, enable != null and enable.button_pressed)
+		var also_failed: PackedStringArray = out.get("also_failed", PackedStringArray())
 		if bool(out.get("ok", false)) and not also_failed.is_empty():
 			notify(_toast_key(key), "❌", "Installed, but not what it needs: %s" % ", ".join(also_failed),
 				-1.0, MenuToasts.DWELL_FAIL)
@@ -1300,6 +1383,7 @@ func _build_installed(vbox: VBoxContainer) -> void:
 
 func _on_mods_changed() -> void:
 	refresh_installed()
+	_sync_install_all_btn()
 	if _browse_detail.visible and not _open_mod.is_empty():
 		_fill_browse_detail()
 	elif _fetched and _browse_list.visible:
