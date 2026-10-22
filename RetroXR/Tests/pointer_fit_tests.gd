@@ -28,7 +28,7 @@ extends Node
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself. A case that never ran is not one that
 ## passed: bump this when adding cases.
-const EXPECTED_CASES := 322
+const EXPECTED_CASES := 330
 
 ## Close enough to call two boxes the same: a tenth of a millimeter.
 const TOLERANCE := 0.0001

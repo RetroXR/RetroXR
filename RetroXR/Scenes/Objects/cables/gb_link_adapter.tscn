@@ -96,8 +96,11 @@ script = ExtResource("3_pickhigh")
 transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 
 ; The small socket on the BACK face, mouth outward: a port's +Z points out of what
-; it is a socket on, and out of this block's back is the plug's -Z, so it is the
-; plug's frame turned half round Y. Its zone is where a seated small plug's mating
-; face belongs, flush with the back of the block.
+; it is a socket on, and out of this block's back is the plug's -Z. Turned half
+; round X rather than Y, so its key (+Y) is on the side away from this plug's own
+; +Y: a plug seats with its +Y against the socket's -Y, which puts the small plug's
+; lettered face on the adapter's GAME BOY face, as on the real one (RetroXR-models
+; nintendo/gbc/universal-link-adapter, PlugSeat). 1 mm proud of the 22 mm block's
+; back, as every link socket stands proud of its mouth.
 [node name="LinkPort" parent="PlugB0" instance=ExtResource("5_linkport")]
-transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.022)
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, -0.023)

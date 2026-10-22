@@ -2228,6 +2228,10 @@ func _test_dmg_adapter_scene() -> void:
 		var out := port.transform.basis.z
 		_ok(out.z < -0.9, "adapter/ the socket faces out of the back", "port +Z in the plug's frame %s" % str(out))
 		_ok(port.position.z < 0.0, "adapter/ and sits behind the mating face", "%.1f mm" % (port.position.z * 1000.0))
+		# Its key away from the adapter's own +Y, so a small plug's lettered face
+		# lands on the GAME BOY face; turned about Y instead it lands on the other.
+		_ok(port.transform.basis.y.y < -0.9, "adapter/ with the small plug's lettering on its GAME BOY side",
+			"port +Y in the plug's frame %s" % str(port.transform.basis.y))
 	_ok(ScenePersistence.LEAD_SCENES.has("gb_link_adapter"), "adapter/ a saved room can rebuild it")
 	for sys: String in ["gb", "gbc"]:
 		_ok(SpawnCatalog.items_for(sys).any(func(i: Dictionary) -> bool:
