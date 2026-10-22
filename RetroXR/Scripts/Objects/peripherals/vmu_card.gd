@@ -649,13 +649,16 @@ func is_running_standalone() -> bool:
 
 
 ## This card's screen for the desktop fullscreen overlay, in the panel shape
-## TvFullscreen.panels_for builds for a handheld. Empty while the screen is dark.
+## TvFullscreen.panels_for builds for a handheld. Listed whatever is on it, as a
+## handheld lists its screen switched off: the picture is null while the LCD is
+## dark, and the overlay draws nothing for it. (It used to list nothing then, so
+## "has a screen" and "shows a picture now" were one answer, and the desktop hand,
+## which holds a thing by its screen, did not see the card's.)
 ## A seated card sits upside down in its pad, so its picture is turned half round
 ## to read the right way up.
 func fullscreen_panels() -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
-	var pic := _picture()
-	if _lcd == null or pic.is_empty():
+	if _lcd == null:
 		return out
 	out.append({
 		"mesh": _lcd,

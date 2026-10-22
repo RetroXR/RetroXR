@@ -100,7 +100,7 @@ func _machine(label: String, systemid: String, model_id: String) -> void:
 	_cam.set("_grab_dist", 0.15)
 	await _catch()
 	var caught: bool = _cam.get("_hand_hold")
-	var handheld: bool = sys.has_method("desktop_hold_focus") and sys.call("desktop_hold_focus") != null
+	var handheld: bool = not DesktopPickup.screens_of(sys).is_empty()
 	var controls := _controls(sys)
 	print("[act] == %s (%s%s): held %s, caught %s, handheld-hold %s, %d control(s)" % [label, systemid,
 		" / " + model_id if not model_id.is_empty() else "", _cam.call("held_object") != null, caught, handheld, controls.size()])

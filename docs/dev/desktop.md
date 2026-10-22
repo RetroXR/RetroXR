@@ -124,13 +124,29 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
   crosshair could sweep across a console to a switch on its edge -- but the object then sat well off
   to the side, trailing the view, and the player did not want that (2026-10-22). A control on an edge
   is reached by tipping the object towards you (middle-drag / LT). Do not widen it again without asking.
-- **A handheld is held by its SCREEN, close** (`RetroSystem.desktop_hold_focus`: {center, width, radius}):
-  the screen's middle is the held point, at the crosshair, `focus_distance` ahead so that the screen
-  fills `HAND_SCREEN_FRACTION` (42%) of the view's width, clamped to 10-40 cm (a GBA at 2x zoom: 11 cm,
-  screen 42% of the width, middle exactly on the view centre -- measured). Turning it turns it about
-  that point. Anything without a screen is held by its origin at `HAND_LOCAL` as before. A console
-  held that close reaches ~36 deg from the held point, far outside the dead zone: its edge controls
-  are reached by tipping it, not by looking across it.
+- **Anything with a screen is held by it, close**, and the hand finds screens the way F11 does:
+  `DesktopPickup.screens_of` reads `TvFullscreen.panels_for(device, even_dark=true)` -- one query for a
+  handheld, a DS's two, a VMU's LCD, a mod's `fullscreen_panels`. (2026-10-22: the PR added
+  `RetroSystem.desktop_hold_focus` / `desktop_hold_basis` beside that query instead, so only a console's
+  screen counted, its facing was ASSUMED to be the body's +Y, and a VMU -- whose LCD faces +Z -- was held
+  40 cm out like a pad. Both are gone.) `screen_hold` reads each screen off its own node and mesh
+  (`_screen_axes`: a QuadMesh faces +Z, top +Y): the held point is the middle of them all, the width the
+  widest across its own face, and the facing that of the screen lying flattest on the body, so a
+  clamshell is held by its base with its lid leaning back. `screen_hold_basis` turns that face toward
+  the eye; `screen_facing_basis` is now its +Y special case, and every shipped handheld's screen is
+  built that way, so they turn exactly as before (`desktop_hold_tests screens/`). `focus_distance`
+  stands it so the screen fills `HAND_SCREEN_FRACTION` of the view's width, clamped to 14-40 cm.
+  A screen is listed lit or not: the VMU's `fullscreen_panels` used to list nothing while dark, mixing
+  "has a screen" with "shows a picture", and now lists its LCD as a switched-off handheld lists its
+  screen (F11 draws nothing for a null picture). `even_dark` only lists a handheld whose picture is out
+  on a TV, which F11 skips. Turning it turns it about that point.
+- **Anything without a screen** is held a little below the line of sight: something small comes in
+  until it fills `HAND_OBJECT_FRACTION` (40%) of the view's width, no nearer than 14 cm and no further
+  than `HAND_LOCAL`'s 40 cm (`object_distance`; everything used to sit at 40 cm whatever its size), and
+  something bigger than `HAND_ROOM_REACH` further off in proportion, as before. A console held close
+  reaches ~36 deg from the held point, far outside the dead zone: its edge controls are reached by
+  tipping it, not by looking across it. `hold_probe -- --vmu` / `--sys=gbc --catch-only` photograph
+  the two side by side (2026-10-22: both 0.140 m, the VMU's LCD facing the eye, connector up).
 - **A control on the held object lights when the crosshair passes near it**, even where the ray meets
   the object's shell first (`InteractionResolver.assist_held`, called from the pointer's
   `resolve_interaction_target`): the ray's closest approach to the control's mesh bounds

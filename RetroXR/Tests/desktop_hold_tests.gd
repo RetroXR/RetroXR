@@ -21,6 +21,7 @@ func _ready() -> void:
 	_assist()
 	await _assist_hidden()
 	_stale_left()
+	_screens()
 	_rules()
 	_capture_hides_reticle()
 	print("[hold] %d cases, %s" % [_ran, "PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
@@ -179,6 +180,74 @@ func desktop_aim_volume() -> Dictionary:
 
 ## A left press whose release went somewhere else (a menu opened mid-press) ends anyway once the
 ## button is not down, or every later mouse motion would turn the held object.
+## Held by its screens, found as F11 finds them -- for everything with one, not only consoles
+## (a VMU's LCD used to count for nothing, so the card sat 40 cm out like a pad).
+func _screens() -> void:
+	# A handheld's screen: a quad turned so its face is the body's +Y and its top edge -Z,
+	# exactly as every handheld shell builds it (game_boy_color_primitive's HandheldScreen).
+	var root := Node3D.new()
+	add_child(root)
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.044, 0.040)
+	var shell_screen := MeshInstance3D.new()
+	shell_screen.mesh = quad
+	shell_screen.transform = Transform3D(Basis(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0)),
+		Vector3(0, 0.0151, -0.0347))
+	root.add_child(shell_screen)
+	var hold := DesktopPickup.screen_hold(root, [shell_screen] as Array[MeshInstance3D])
+	_ok((hold["normal"] as Vector3).is_equal_approx(Vector3.UP) and (hold["up"] as Vector3).is_equal_approx(Vector3.FORWARD),
+		"screens/a handheld's screen is read off its quad: face +Y, top -Z", str(hold))
+	_ok(absf(float(hold["width"]) - 0.044) < 0.0001 and (hold["center"] as Vector3).is_equal_approx(Vector3(0, 0.0151, -0.0347)),
+		"screens/its width and middle", str(hold))
+	# The old hand's rule, written out as it was, for every handheld: unchanged.
+	for at: Vector3 in [Vector3(0, 0, -0.14), Vector3(0.05, -0.08, -0.2), Vector3(-0.1, 0.1, -0.3)]:
+		var eye := (-at).normalized()
+		var up := (Vector3.UP - eye * Vector3.UP.dot(eye)).normalized()
+		var old := Basis(eye.cross(-up), eye, -up)
+		var now := DesktopPickup.screen_hold_basis(at, hold["normal"], hold["up"])
+		_ok(now.x.is_equal_approx(old.x) and now.y.is_equal_approx(old.y) and now.z.is_equal_approx(old.z),
+			"screens/a handheld is turned exactly as before at %s" % at, "%s vs %s" % [now, old])
+
+	# A clamshell: the base's screen faces +Y, the lid's leans back. Held by its base.
+	var lid := MeshInstance3D.new()
+	lid.mesh = quad
+	lid.transform = Transform3D(Basis.from_euler(Vector3(deg_to_rad(-20), 0, 0)), Vector3(0, 0.06, -0.05))
+	root.add_child(lid)
+	var both := DesktopPickup.screen_hold(root, [lid, shell_screen] as Array[MeshInstance3D])
+	_ok((both["normal"] as Vector3).is_equal_approx(Vector3.UP),
+		"screens/a clamshell is held by its base, its lid leaning back", str(both["normal"]))
+	root.free()
+
+	# The VMU: its LCD faces +Z, top +Y. Found through the F11 query even while it is dark.
+	var vmu := (load("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn") as PackedScene).instantiate() as Node3D
+	add_child(vmu)
+	_ok(TvFullscreen.panels_for(vmu).size() == 1,
+		"screens/a dark VMU lists its LCD, as a switched-off handheld lists its screen")
+	var lcd := DesktopPickup.screens_of(vmu)
+	_ok(lcd.size() == 1, "screens/and the hand finds it", str(lcd.size()))
+	var card := DesktopPickup.screen_hold(vmu, lcd)
+	_ok(not card.is_empty() and absf(float(card["width"]) - 0.037) < 0.0005
+		and (card["center"] as Vector3).is_equal_approx(Vector3(0, 0.0105, 0.0089)),
+		"screens/the LCD's real 37 mm and its middle", str(card))
+	_ok(not card.is_empty() and (card["normal"] as Vector3).is_equal_approx(Vector3.BACK)
+		and (card["up"] as Vector3).is_equal_approx(Vector3.UP), "screens/read as facing +Z, top +Y")
+	if not card.is_empty():
+		var turned := DesktopPickup.screen_hold_basis(Vector3(0, 0, -0.14), card["normal"], card["up"])
+		_ok((turned * Vector3.BACK).is_equal_approx(Vector3.BACK) and (turned * Vector3.UP).is_equal_approx(Vector3.UP),
+			"screens/and turned with its LCD toward the eye, connector end up", str(turned))
+		_ok(is_equal_approx(DesktopPickup.focus_distance(float(card["width"]), 75.0, 16.0 / 9.0),
+			DesktopPickup.HAND_FOCUS_MIN), "screens/held as close as a handheld")
+	vmu.free()
+
+	# Nothing with a screen: a small thing comes in, a big one stays where it was.
+	var near := DesktopPickup.object_distance(0.06, 75.0, 16.0 / 9.0)
+	var mid := DesktopPickup.object_distance(0.30, 75.0, 16.0 / 9.0)
+	var far := DesktopPickup.object_distance(2.0, 75.0, 16.0 / 9.0)
+	_ok(is_equal_approx(near, DesktopPickup.HAND_FOCUS_MIN), "screens/something small with no screen comes in close", str(near))
+	_ok(mid > near and mid < -DesktopPickup.HAND_LOCAL.z, "screens/something mid-sized in between", str(mid))
+	_ok(is_equal_approx(far, -DesktopPickup.HAND_LOCAL.z), "screens/and nothing is held further out than before", str(far))
+
+
 func _stale_left() -> void:
 	var pickup := DesktopPickup.new()
 	DesktopPickup.left_drag = true

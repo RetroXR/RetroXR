@@ -128,7 +128,12 @@ static func device_from_node(node: Node) -> Node3D:
 
 
 ## One panel per picture quad on the device, or none when it has nothing to show.
-static func panels_for(device: Node) -> Array[Dictionary]:
+## A screen is listed whether or not it is lit (a switched-off handheld's, a VMU
+## with nothing running); a handheld whose picture is out on a TV is not, since the
+## TV shows it -- unless `even_dark`, which the desktop hand asks for: it holds a
+## thing by its screen SURFACE (DesktopPickup.screens_of), and that is still on the
+## front.
+static func panels_for(device: Node, even_dark: bool = false) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	# A device that describes its own screens, in this same panel shape.
 	if device.has_method("fullscreen_panels"):
@@ -148,7 +153,7 @@ static func panels_for(device: Node) -> Array[Dictionary]:
 	if device is RetroSystem:
 		var sys := device as RetroSystem
 		var model := sys.get_model()
-		if model == null or not model.is_handheld() or model.host_picture_on_tv() \
+		if model == null or not model.is_handheld() or (model.host_picture_on_tv() and not even_dark) \
 				or not model.has_method("channel_screens"):
 			return out
 		var screens: Array[MeshInstance3D] = model.channel_screens()

@@ -8,6 +8,8 @@
 ##      switch, and aims the crosshair at them;
 ##   3. presses and releases left there: the switch's, the hand keeps the console;
 ##   4. looks away and clicks: the console is let go when the button comes back UP.
+## --vmu instead catches a loose VMU card the same way (held by its LCD, as a handheld is by its
+## screen, found through TvFullscreen.panels_for) and writes vmu_catch.png.
 ## WINDOWED, scratch XDG_DATA_HOME:
 ##
 ##     XDG_DATA_HOME=/tmp/scratch "$godot" --path RetroXR --resolution 1280x720 \
@@ -35,6 +37,10 @@ func _ready() -> void:
 	add_child(SCENE.instantiate())
 	await get_tree().create_timer(10.0).timeout
 	var cam := get_viewport().get_camera_3d()
+	if OS.get_cmdline_user_args().has("--vmu"):
+		await _vmu_catch(cam)
+		get_tree().quit(0)
+		return
 	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
 	sys.systemid = "gba"
 	for a in OS.get_cmdline_user_args():
@@ -331,3 +337,24 @@ func _left_drag_run(cam: Camera3D, sys: RetroSystem) -> void:
 	_mouse(MOUSE_BUTTON_LEFT, false)
 	await get_tree().create_timer(0.4).timeout
 	print("[hold] a click without moving: held %s (want false)" % _held(cam))
+
+
+## A loose VMU, picked up and caught as --catch-only catches a console.
+func _vmu_catch(cam: Camera3D) -> void:
+	var vmu := (load("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn") as PackedScene).instantiate() as Node3D
+	get_tree().current_scene.add_child(vmu)
+	vmu.add_to_group("spawned")
+	await get_tree().create_timer(1.0).timeout
+	vmu.global_position = cam.global_position + (-cam.global_transform.basis.z) * _dist
+	cam.call("grab_spawned", vmu)
+	await get_tree().create_timer(1.0).timeout
+	cam.set("_grab_dist", 0.15)
+	_mouse(MOUSE_BUTTON_WHEEL_DOWN, true)
+	await get_tree().create_timer(1.2).timeout
+	var lcd := vmu.get_node("Lcd") as Node3D
+	var to_eye := (cam.global_position - lcd.global_position).normalized()
+	print("[hold] vmu caught %s; LCD %.3f m from the camera, facing the eye %.3f (1 = straight at it), connector up %.3f" % [
+		cam.get("_hand_hold"), lcd.global_position.distance_to(cam.global_position),
+		lcd.global_basis.z.normalized().dot(to_eye), vmu.global_basis.y.normalized().dot(cam.global_basis.y)])
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(_out.path_join("vmu_catch.png"))

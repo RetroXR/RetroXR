@@ -68,6 +68,10 @@ const HAND_FOLLOW_RATE := 12.0
 ## Anything bigger than this (its reach from the held point, metres) is held further off, in
 ## proportion, so it does not fill the view or pass through the camera.
 const HAND_ROOM_REACH := 0.25
+## Something with no screen and smaller than that comes in until it fills this much of the
+## view's width (object_distance), no nearer than HAND_FOCUS_MIN: it used to sit at HAND_LOCAL,
+## 40 cm out, whatever its size, so a small thing was as far off as a pad.
+const HAND_OBJECT_FRACTION := 0.40
 ## A handheld is held by its SCREEN: that point sits at the crosshair, `HAND_SCREEN_FRACTION`
 ## of the view's width wide, as near as HAND_FOCUS_MIN and no further than HAND_FOCUS_MAX.
 const HAND_SCREEN_FRACTION := 0.30
@@ -475,12 +479,16 @@ func _catch() -> void:
 	_hand_focus_local = Vector3.ZERO
 	_hand_focus_width = 0.0
 	_hand_focus_radius = 0.0
-	if _held_object.has_method("desktop_hold_focus"):
-		var focus: Variant = _held_object.call("desktop_hold_focus")
-		if focus is Dictionary and float((focus as Dictionary).get("width", 0.0)) > 0.0:
-			_hand_focus_local = (focus as Dictionary)["center"]
-			_hand_focus_width = float((focus as Dictionary)["width"])
-			_hand_focus_radius = float((focus as Dictionary).get("radius", 0.0))
+	# Held by its screen(s), found the way F11 finds them: a handheld, a DS's two, a VMU's LCD,
+	# a mod's -- anything with a picture surface, with nothing to implement for the hand.
+	var facing := screen_hold(_held_object, screens_of(_held_object))
+	if not facing.is_empty():
+		_hand_focus_local = facing["center"]
+		_hand_focus_width = float(facing["width"])
+		var seen_all := visual_bounds(_held_object)
+		for i in 8:
+			_hand_focus_radius = maxf(_hand_focus_radius,
+				(seen_all.get_endpoint(i) - _hand_focus_local).length())
 	if _hand_focus_width <= 0.0:
 		# Nothing with a screen (a cable's plug, a pad, a cartridge): held by the middle of what can
 		# be SEEN of it, a little below the centre of the view, so that a plug at the end of a cord is
@@ -489,11 +497,8 @@ func _catch() -> void:
 		if seen.size != Vector3.ZERO:
 			_hand_focus_local = seen.get_center()
 			_hand_focus_radius = seen.size.length() * 0.5
-	var hold: Variant = null
-	if _held_object.has_method("desktop_hold_basis"):
-		hold = _held_object.call("desktop_hold_basis", _hand_point())
-	if hold is Basis:
-		_hand_cam_basis = hold as Basis
+	if not facing.is_empty():
+		_hand_cam_basis = screen_hold_basis(_hand_point(), facing["normal"], facing["up"])
 	else:
 		_hand_cam_basis = _hand_frame().inverse() * _hand_pivot.global_basis
 	_hand_default_basis = _hand_cam_basis
@@ -520,18 +525,92 @@ func _release_to_ray() -> void:
 	_grab_dist = MIN_DIST
 
 
-## The orientation that holds a screen toward the eye, as a basis in the hand's frame, for a
-## thing whose middle is at `at` in that frame: its +Y (the screen) along the line to the eye,
-## its -Z (the screen's top edge) as near straight up as that allows. Pure, so a test can hold
-## it to the numbers; RetroSystem.desktop_hold_basis uses it for every handheld.
+## The screens `obj` has, as TvFullscreen finds them for F11, lit or not. One query for every
+## device with a picture; the hand used to ask RetroSystem for methods of its own, so only a
+## console's screen counted and a VMU's LCD did not.
+static func screens_of(obj: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	var device := TvFullscreen.device_from_node(obj)
+	if device == null:
+		return out
+	for panel: Dictionary in TvFullscreen.panels_for(device, true):
+		var mesh := panel.get("mesh") as MeshInstance3D
+		if is_instance_valid(mesh) and mesh.mesh != null and not out.has(mesh):
+			out.append(mesh)
+	return out
+
+
+## How `root` is held by `screens`, in root's own space: {center, width, normal, up}, or {} for
+## no screen. center: the middle of them all (a DS by both). width: the widest one across its
+## own face. normal / up: the face and top edge of the one lying flattest on the body (+Y up),
+## so a clamshell is held by its base with its lid leaning back. Read off each screen's own
+## transform and mesh, never assumed: a handheld's faces the body's +Y, a VMU's +Z. Pure.
+static func screen_hold(root: Node3D, screens: Array[MeshInstance3D]) -> Dictionary:
+	if screens.is_empty():
+		return {}
+	var to_root := root.global_transform.affine_inverse()
+	var lo := Vector3(INF, INF, INF)
+	var hi := Vector3(-INF, -INF, -INF)
+	var width := 0.0
+	var best := -INF
+	var normal := Vector3.UP
+	var up := Vector3.FORWARD
+	for screen: MeshInstance3D in screens:
+		var xf := to_root * screen.global_transform
+		var axes := _screen_axes(screen.mesh)
+		var n := (xf.basis * axes[0]).normalized()
+		var u := (xf.basis * axes[1]).normalized()
+		var right := u.cross(n).normalized()
+		var box := screen.mesh.get_aabb()
+		var a := INF
+		var b := -INF
+		for i in 8:
+			var p := xf * box.get_endpoint(i)
+			lo = Vector3(minf(lo.x, p.x), minf(lo.y, p.y), minf(lo.z, p.z))
+			hi = Vector3(maxf(hi.x, p.x), maxf(hi.y, p.y), maxf(hi.z, p.z))
+			a = minf(a, p.dot(right))
+			b = maxf(b, p.dot(right))
+		width = maxf(width, b - a)
+		if n.dot(Vector3.UP) > best:
+			best = n.dot(Vector3.UP)
+			normal = n
+			up = u
+	return {"center": (lo + hi) * 0.5, "width": width, "normal": normal, "up": up}
+
+
+## A screen mesh's face and top edge in its own space. A QuadMesh or PlaneMesh says by its
+## `orientation` (a QuadMesh faces +Z with its top at +Y; a PlaneMesh faces +Y, top at -Z);
+## any other mesh is taken as a QuadMesh would be.
+static func _screen_axes(mesh: Mesh) -> Array[Vector3]:
+	if mesh is PlaneMesh:
+		match (mesh as PlaneMesh).orientation:
+			PlaneMesh.FACE_X:
+				return [Vector3.RIGHT, Vector3.UP]
+			PlaneMesh.FACE_Y:
+				return [Vector3.UP, Vector3.FORWARD]
+	return [Vector3.BACK, Vector3.UP]
+
+
+## The orientation, as a basis in the hand's frame, that turns a screen facing `normal` with its
+## top toward `up` (both in the thing's own space) toward the eye, top as near straight up as
+## that allows, for a thing whose middle is at `at` in the hand's frame. Pure.
+static func screen_hold_basis(at: Vector3, normal: Vector3, up: Vector3) -> Basis:
+	var eye := (-at).normalized()
+	var upright := Vector3.UP - eye * Vector3.UP.dot(eye)
+	if upright.length_squared() < 0.0001:
+		upright = Vector3.BACK
+	upright = upright.normalized()
+	var n := normal.normalized()
+	var u := (up - n * up.dot(n)).normalized()
+	var own := Basis(u.cross(n), u, n)
+	var want := Basis(upright.cross(eye), upright, eye)
+	return want * own.inverse()
+
+
+## screen_hold_basis for a screen on the +Y face with its top edge at -Z: how every handheld
+## shell is built. Kept because the facing tests hold the general case to these numbers.
 static func screen_facing_basis(at: Vector3) -> Basis:
-	var normal := (-at).normalized()
-	var up := Vector3.UP - normal * Vector3.UP.dot(normal)
-	if up.length_squared() < 0.0001:
-		up = Vector3.BACK
-	up = up.normalized()
-	var z_axis := -up
-	return Basis(normal.cross(z_axis), normal, z_axis)
+	return screen_hold_basis(at, Vector3.UP, Vector3.FORWARD)
 
 
 ## The box around everything of `root` that can be seen, in root's own space: its visible
@@ -582,6 +661,14 @@ func _follow_gaze(delta: float) -> void:
 
 ## How far ahead a screen of this width must stand to fill `fraction` of the view's width, for a
 ## camera of this vertical field of view and aspect, kept between the near and far limits.
+## How far ahead something with no screen and `size` across stands so that it fills
+## HAND_OBJECT_FRACTION of the view's width: no nearer than HAND_FOCUS_MIN, no further than
+## HAND_LOCAL's 40 cm, where everything used to sit.
+static func object_distance(size: float, vfov_degrees: float, aspect: float) -> float:
+	var view := 2.0 * tan(deg_to_rad(clampf(vfov_degrees, 5.0, 170.0)) * 0.5) * maxf(aspect, 0.1)
+	return clampf(size / (HAND_OBJECT_FRACTION * view), HAND_FOCUS_MIN, -HAND_LOCAL.z)
+
+
 static func focus_distance(width: float, vfov_degrees: float, aspect: float) -> float:
 	var view := 2.0 * tan(deg_to_rad(clampf(vfov_degrees, 5.0, 170.0)) * 0.5) * maxf(aspect, 0.1)
 	return clampf(width / (HAND_SCREEN_FRACTION * view), HAND_FOCUS_MIN, HAND_FOCUS_MAX)
@@ -590,14 +677,17 @@ static func focus_distance(width: float, vfov_degrees: float, aspect: float) -> 
 ## Where the held point sits, in the hand's frame: straight ahead at the crosshair for a handheld
 ## held by its screen, the usual spot below it for anything else.
 func _hand_point() -> Vector3:
-	if _hand_focus_width <= 0.0:
-		# Out to arm's length, further for something big, and a little below the line of sight.
-		var scale := maxf(_hand_focus_radius / HAND_ROOM_REACH, 1.0)
-		return HAND_LOCAL * scale
 	var size := get_viewport().get_visible_rect().size
 	var aspect := size.x / maxf(size.y, 1.0)
 	var cam := get_viewport().get_camera_3d()
-	return Vector3(0.0, 0.0, -focus_distance(_hand_focus_width, cam.fov if cam != null else 75.0, aspect))
+	var fov := cam.fov if cam != null else 75.0
+	if _hand_focus_width <= 0.0:
+		# A little below the line of sight: further for something big, nearer for something
+		# small, so either way it is in the view at a size you can see.
+		if _hand_focus_radius > HAND_ROOM_REACH:
+			return HAND_LOCAL * (_hand_focus_radius / HAND_ROOM_REACH)
+		return HAND_LOCAL * (object_distance(_hand_focus_radius * 2.0, fov, aspect) / -HAND_LOCAL.z)
+	return Vector3(0.0, 0.0, -focus_distance(_hand_focus_width, fov, aspect))
 
 
 ## Where the pivot is while the object is in the hand, `t` of the way from where it was caught.
