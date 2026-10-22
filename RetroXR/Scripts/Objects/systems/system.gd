@@ -402,11 +402,16 @@ const USB_SLOT_BASE := 16
 ## (The GBA plays original Game Boy and Game Boy Color carts — and mgba runs
 ## them; each Color handheld plays its predecessor's.)
 ##
+## The Game Boy takes a Color cartridge as well: they are the same shape, the
+## black dual-mode ones play, and a Color-only one puts up its own "Game Boy
+## Color only" screen (ForcedCoreOptions.game_boy_model runs the core as a DMG).
+##
 ## The Wii row is not just cosmetic: with a GameCube disc in the tray the core's
 ## IsWii() goes false, and that changes how the whole cabinet is wired — see
 ## _wii_mode().
 const _MEDIA_COMPAT: Dictionary = {
 	"gba": ["gb", "gbc"],
+	"gb": ["gbc"],
 	"gbc": ["gb"],
 	"ngpc": ["ngp"],
 	"wonderswancolor": ["wonderswan"],

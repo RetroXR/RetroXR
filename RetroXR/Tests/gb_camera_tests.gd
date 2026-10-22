@@ -1066,8 +1066,17 @@ func _test_core() -> void:
 		"core/on a Game Boy Color, a Game Boy Color", str(ForcedCoreOptions.game_boy_model("mgba", "gbc")))
 	_ok(ForcedCoreOptions.game_boy_model("mgba", "gba") == {"mgba_sgb_borders": "OFF"},
 		"core/a Game Boy Advance loses the border and keeps its own model", str(ForcedCoreOptions.game_boy_model("mgba", "gba")))
-	_ok(ForcedCoreOptions.game_boy_model("gambatte", "gb").is_empty() and ForcedCoreOptions.game_boy_model("mgba", "ereader").is_empty(),
-		"core/no other core is told anything, and mGBA nothing for another machine")
+	# Gambatte: a Game Boy is a DMG whatever is in it, so a Color-only game shows its
+	# own refusal; a Game Boy Color colors an original game, a Game Boy does not.
+	_ok(ForcedCoreOptions.game_boy_model("gambatte", "gb") == {"gambatte_gb_hwmode": "GB", "gambatte_gb_colorization": "disabled"},
+		"core/on a Game Boy, gambatte is a DMG and leaves the color to the green panel", str(ForcedCoreOptions.game_boy_model("gambatte", "gb")))
+	_ok(ForcedCoreOptions.game_boy_model("gambatte", "gbc") == {"gambatte_gb_hwmode": "GBC", "gambatte_gb_colorization": "GBC"},
+		"core/on a Game Boy Color, a Color with its own palettes for Game Boy games", str(ForcedCoreOptions.game_boy_model("gambatte", "gbc")))
+	for key: String in ForcedCoreOptions.game_boy_model("gambatte", "gb"):
+		_ok(CoreOptionsStore.HARDWARE_PINNED.has(key), "core/the core manager locks %s too" % key)
+	_ok(ForcedCoreOptions.game_boy_model("sameboy", "gb").is_empty() and ForcedCoreOptions.game_boy_model("mgba", "ereader").is_empty()
+		and ForcedCoreOptions.game_boy_model("gambatte", "snes").is_empty(),
+		"core/no other core is told anything, and neither core anything for another machine")
 
 	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
 	sys.systemid = "gbc"

@@ -74,7 +74,28 @@ static func ethernet_adapter(core: String, systemid: String, expansions: Array) 
 ## recolour every Game Boy cartridge on the core that machine runs by default,
 ## which is a change to make on its own evidence, not in passing.
 ## gb_camera_feed_probe reads the picture size back from the core.
+##
+## Gambatte's model is gambatte_gb_hwmode, which defaults to Auto: a Color
+## cartridge in a Game Boy would boot in color. "GB" is the core's FORCE_DMG,
+## the machine a Color cartridge actually finds: a dual-mode game (Pokemon Gold)
+## plays in four shades, and a Color-only one puts up its own "Game Boy Color
+## only" screen. "GBC" is Auto unless the player has a gbc_bios.bin and boots it,
+## when it forces the Color's boot ROM even for an original Game Boy game.
+##
+## A Game Boy Color colors an original Game Boy game itself, from the boot
+## ROM's table of per-game palettes: that is gambatte_gb_colorization "GBC". The
+## Game Boy keeps it off. Its panel (gameboy_lcd) quantizes brightness into the
+## DMG's four greens, which a palette would only muddy. Both are pinned, because
+## the two machines share one gambatte.opt and a Color's palette would otherwise
+## follow the next cartridge into a Game Boy. gb_model_probe reads both back.
 static func game_boy_model(core: String, systemid: String) -> Dictionary:
+	if core.begins_with("gambatte"):
+		match systemid:
+			"gb":
+				return {"gambatte_gb_hwmode": "GB", "gambatte_gb_colorization": "disabled"}
+			"gbc":
+				return {"gambatte_gb_hwmode": "GBC", "gambatte_gb_colorization": "GBC"}
+		return {}
 	if not core.begins_with("mgba"):
 		return {}
 	match systemid:

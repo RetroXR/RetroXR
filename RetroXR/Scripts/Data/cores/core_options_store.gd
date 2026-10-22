@@ -31,6 +31,10 @@ const HARDWARE_PINNED := {
 	"desmume_screens_layout": true,
 	"vb_3dmode": true,
 	"vb_sidebyside_separation": true,
+	# ForcedCoreOptions.game_boy_model: which Game Boy gambatte is, and whether it
+	# colors an original Game Boy game. Gambatte runs only the two Game Boys.
+	"gambatte_gb_hwmode": true,
+	"gambatte_gb_colorization": true,
 }
 
 

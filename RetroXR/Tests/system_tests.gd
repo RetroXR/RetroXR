@@ -1341,6 +1341,19 @@ func _test_belongs_here() -> void:
 	_ok(gba._accepts_media(cart), "belongs/a GBA takes a Game Boy cart")
 	gba.free()
 
+	# Both Game Boys take each other's cartridges: a Color game in a Game Boy boots,
+	# and a Color-only one says so on its own screen.
+	var dmg := _system("gb")
+	cart.systemid = "gbc"
+	_ok(dmg._accepts_media(cart), "belongs/a Game Boy takes a Game Boy Color cart")
+	dmg.free()
+	var cgb := _system("gbc")
+	cart.systemid = "gb"
+	_ok(cgb._accepts_media(cart), "belongs/a Game Boy Color takes a Game Boy cart")
+	cart.systemid = "gba"
+	_ok(not cgb._accepts_media(cart), "belongs/but not an Advance cart")
+	cgb.free()
+
 	plain.free()
 	cart.free()
 
