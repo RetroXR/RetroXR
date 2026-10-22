@@ -1656,7 +1656,7 @@ func next_step(many: bool = false) -> String:
 		return "see the bar above"
 	if bool(plan["restart"]):
 		return "restart to finish from the bar above"
-	if not (plan["live"] as Array).is_empty():
+	if _plan_is_live(plan):
 		return "apply %s from the bar above" % it
 	return ""
 
@@ -1670,7 +1670,7 @@ func _fill_banner_into(box: VBoxContainer) -> void:
 	var plan: Dictionary = m.apply_plan()
 	var live: Array = plan["live"]
 	var restart := bool(plan["restart"])
-	box.visible = not off.is_empty() or restart or not live.is_empty()
+	box.visible = not off.is_empty() or restart or _plan_is_live(plan)
 	if not box.visible:
 		return
 	if not off.is_empty():
@@ -1699,8 +1699,8 @@ func _fill_banner_into(box: VBoxContainer) -> void:
 		return
 	var text := "Some of your changes need RetroXR to restart."
 	if not restart:
-		text = "%s ready to load. Applying reloads this room, and everything in it comes back where it was." \
-			% ", ".join(live.map(func(r: ModRecord) -> String: return r.manifest.name))
+		text = "%s. Applying reloads this room, and everything in it comes back where it was." \
+			% live_summary(plan)
 	var head2 := MenuStyle.label(text, 18, MenuStyle.COLOR_RECOMMENDED)
 	head2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(head2)
@@ -1720,6 +1720,33 @@ func _fill_banner_into(box: VBoxContainer) -> void:
 	if not why.is_empty():
 		box.add_child(MenuStyle.hint(why))
 	box.add_child(HSeparator.new())
+
+
+## True when applying would change something in this room without a restart.
+static func _plan_is_live(plan: Dictionary) -> bool:
+	return not (plan["live"] as Array).is_empty() or not (plan.get("unload", []) as Array).is_empty() \
+		or not (plan.get("update", []) as Array).is_empty()
+
+
+## What Apply now will do, for the bar: "Load A; update B to 2.0; switch off C".
+static func live_summary(plan: Dictionary) -> String:
+	var parts := PackedStringArray()
+	var names := func(recs: Array) -> String:
+		return ", ".join(recs.map(func(r: ModRecord) -> String: return r.manifest.name))
+	if not (plan["live"] as Array).is_empty():
+		parts.append("load " + names.call(plan["live"]))
+	for r: ModRecord in (plan.get("update", []) as Array):
+		parts.append("update %s to %s" % [r.manifest.name, r.update_staged])
+	var off: Array = (plan.get("unload", []) as Array).filter(func(r: ModRecord) -> bool:
+		return not r.removal_staged)
+	var gone: Array = (plan.get("unload", []) as Array).filter(func(r: ModRecord) -> bool:
+		return r.removal_staged)
+	if not off.is_empty():
+		parts.append("switch off " + names.call(off))
+	if not gone.is_empty():
+		parts.append("remove " + names.call(gone))
+	var text := "; ".join(parts)
+	return text.substr(0, 1).to_upper() + text.substr(1)
 
 
 ## Switch on what was just installed, then apply as the bar's Apply does.
@@ -1743,7 +1770,7 @@ func _enable_and_apply(ids: Array[String]) -> void:
 	if not cannot.is_empty():
 		notify("mods:apply", "❌", "Switched on, but cannot load — %s" % "; ".join(cannot),
 			-1.0, MenuToasts.DWELL_FAIL)
-		if not bool(plan["restart"]) and (plan["live"] as Array).is_empty():
+		if not bool(plan["restart"]) and not _plan_is_live(plan):
 			return
 	if bool(plan["restart"]):
 		# The bar said "load it into this room"; a restart is a different promise
@@ -1760,7 +1787,7 @@ func _enable_and_apply(ids: Array[String]) -> void:
 func _on_apply_pressed() -> void:
 	var plan: Dictionary = _manager().apply_plan()
 	var restart := bool(plan["restart"])
-	if not restart and (plan["live"] as Array).is_empty():
+	if not restart and not _plan_is_live(plan):
 		_fill_banner()
 		return
 	var why := str(plan["blocked"])
@@ -1802,7 +1829,9 @@ func _installed_tile(rec: ModRecord) -> Button:
 ## is: a mod on its way out reads as that, not as "Loaded".
 static func installed_status_text(rec: ModRecord) -> String:
 	if rec.removal_staged:
-		return "Removed at next restart"
+		# Unloaded live: nothing of it runs now, only its file is left to delete.
+		return "Removed — its file goes at the next launch" if not rec.loaded \
+			else "Removed at next restart"
 	if not rec.update_staged.is_empty():
 		# The same version number again is a new copy, not an update to it: a
 		# re-download, or an author who re-uploaded without bumping the number.

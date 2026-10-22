@@ -285,8 +285,12 @@ for windows debug, imports, fails on any script/shader error, runs `Tools/run_te
 One `.zip`/`.pck` in `<data root>/mods/`. Loader in `Scripts/Mods/`; the `Mods` autoload
 must come BEFORE `AppPrefs` (`autoload_order_tests` enforces the boot order). A pack is read and validated WITHOUT
 mounting (mounting cannot be undone). **A newly enabled mod loads in place** (Installed's Apply now:
-`reload_room` mounts it BETWEEN rooms, as a boot does, and the room comes back from a one-shot carry);
-disabling, updating or removing a running pack still needs a restart, which the app does itself
+`reload_room` mounts it BETWEEN rooms, as a boot does, and the room comes back from a one-shot carry).
+**So does switching off, removing or updating a running pack, and a new pack replacing shipped RESOURCES**
+(2026-10-22: `ModApi.withdraw` takes a mod's registrations back, an update is mounted over the old copy and
+cached files are refreshed in place; the pack stays mounted, unread, and file moves wait for the next launch).
+A pack replacing shipped SCRIPTS, or switching off/updating/removing one that replaces shipped files, still
+needs a restart, which the app does itself
 (desktop: a waiter process that relaunches once this one is GONE, because a quit with objects in the
 room sometimes crashes in teardown; Android: `OS.set_restart_on_exit`, which it honours whatever
 Godot's docs say). Everything a

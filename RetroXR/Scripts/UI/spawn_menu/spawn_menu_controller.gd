@@ -1604,7 +1604,8 @@ func _on_mods_apply_requested(restart: bool) -> void:
 ## loud: its page has the reason, but nobody is looking at the page now.
 func _apply_mods_live() -> void:
 	for rec: ModRecord in Mods.apply_live():
-		if rec.status == ModRecord.Status.LOADED:
+		# LOADED, or switched off / removed on purpose (unloaded live).
+		if rec.status == ModRecord.Status.LOADED or (rec.unloaded and not rec.loaded):
 			continue
 		var msg := "%s did not load: %s" % [rec.manifest.name, rec.reason]
 		if _hud_toasts != null:

@@ -476,15 +476,25 @@ func _group_apply() -> void:
 	_eq(_ids(m.apply_plan()["live"]), ["t.b", "t.c", "t.a"],
 		"apply/in a boot's order: priority, then id")
 
-	# One that replaces a shipped file is mounted with replace_files, and the
-	# shipped copy may already be cached: that takes a restart.
-	var claimed := _pack_with("t.shadow", {"claims": ["res://Scenes/Objects/tv.tscn"]})
-	claimed["Scenes/Objects/tv.tscn"] = "[gd_scene format=3]"
+	# One that replaces a shipped RESOURCE loads live: the cached copy is updated
+	# in place (ModManager._refresh_cached). One that replaces a shipped SCRIPT
+	# takes a restart -- a script cannot be swapped under the objects running it.
+	var scened := _pack_with("t.shadowres", {"claims": ["res://Scenes/Objects/tv.tscn"]})
+	scened["Scenes/Objects/tv.tscn"] = "[gd_scene format=3]"
+	_write_zip(_root.path_join("t.shadowres.zip"), scened)
+	m.rescan()
+	m.set_enabled("t.shadowres", true)
+	plan = m.apply_plan()
+	_ok(_ids(plan["live"]).has("t.shadowres") and not bool(plan["restart"]),
+		"apply/a mod replacing a shipped resource loads live")
+	m.set_enabled("t.shadowres", false)
+	var claimed := _pack_with("t.shadow", {"claims": ["res://Scripts/UI/spawn_menu/menu_icons.gd"]})
+	claimed["Scripts/UI/spawn_menu/menu_icons.gd"] = "extends RefCounted"
 	_write_zip(_root.path_join("t.shadow.zip"), claimed)
 	m.rescan()
 	m.set_enabled("t.shadow", true)
 	plan = m.apply_plan()
-	_ok(bool(plan["restart"]), "apply/a mod replacing a shipped file needs a restart")
+	_ok(bool(plan["restart"]), "apply/a mod replacing a shipped script needs a restart")
 	_ok(not _ids(plan["live"]).has("t.shadow"), "apply/and is not loaded live")
 	m.free()
 
@@ -500,9 +510,11 @@ func _group_apply() -> void:
 	run.loaded = true
 	r.set_enabled("t.run", false)
 	_eq(run.status, ModRecord.Status.PENDING, "apply/a running mod switched off waits")
-	_ok(bool(r.apply_plan()["restart"]), "apply/for a restart")
+	var off_plan: Dictionary = r.apply_plan()
+	_ok(_ids(off_plan["unload"]) == ["t.run"] and not bool(off_plan["restart"]),
+		"apply/to be unloaded live, not for a restart")
 	_eq(r.fingerprint(), PackedStringArray(["t.run@1.0.0"]),
-		"apply/and is still in this session's fingerprint")
+		"apply/and is still in this session's fingerprint until it is")
 	r.set_enabled("t.run", true)
 	_eq(run.status, ModRecord.Status.LOADED, "apply/switched back on it is simply loaded")
 	_ok(not r.changes_waiting(), "apply/and nothing waits")
@@ -513,13 +525,22 @@ func _group_apply() -> void:
 	r.set_enabled("t.run", true)
 	_eq(run.status, ModRecord.Status.FAILED, "apply/a failed mount stays failed either way")
 	_ok(not r.changes_waiting(), "apply/and asks for nothing")
-	# A move parked for the next launch is a restart.
+	# A removal parked for the next launch is unloaded live; an update parked
+	# without `live_ok` (one copy replaces a shipped file) still needs a restart.
+	run.status = ModRecord.Status.LOADED
+	run.loaded = true
 	r._pending.append({"op": "remove", "id": "t.run", "files": ["t.run.zip"]})
-	_ok(bool(r.apply_plan()["restart"]), "apply/a parked move needs a restart")
+	_ok(_ids(r.apply_plan()["unload"]) == ["t.run"] and not bool(r.apply_plan()["restart"]),
+		"apply/a running mod removed is unloaded live")
+	r._pending.clear()
+	r._pending.append({"op": "install", "id": "t.run", "from": "t.run.zip", "to": "t.run.zip",
+		"live_ok": false})
+	_ok(bool(r.apply_plan()["restart"]), "apply/an update that cannot go live needs a restart")
 	r.free()
 
 	_group_apply_rescan()
 	_group_apply_live()
+	_group_apply_unload_update()
 
 
 ## Packs that arrive after boot -- by hand, over adb, through the LAN server.
@@ -625,6 +646,114 @@ func _group_apply_live() -> void:
 	m.free()
 
 
+## Off, removed, updated and replacing a shipped resource -- all without a
+## restart. REAL mounts, like apply/'s, each pack in a folder of its own outside
+## _dir (Windows holds a mounted zip open until the process exits). The shipped
+## material it replaces stays replaced for the rest of this run, which is why
+## apply/ is the suite's last group.
+func _group_apply_unload_update() -> void:
+	var live_dir := _dir + "_live2"
+	_remove_tree(live_dir)
+	var root := live_dir.path_join("mods")
+	DirAccess.make_dir_recursive_absolute(root)
+	var m: Node = MANAGER.new()
+	m.mods_root_override = root
+	m.state_path_override = live_dir.path_join("mods.json")
+	m._hooks = ModHooks.new(get_tree())
+	DirAccess.make_dir_recursive_absolute(m.incoming_dir())
+	var entry := func(mod_id: String, shell: String, extra: String = "") -> String:
+		return "extends RetroMod\n\nfunc register(api: ModApi) -> void:\n" \
+			+ "\tapi.register_tv_shell(\"%s\", \"res://mods/%s/crt.tscn\", \"%s\")\n" % [shell, mod_id, shell] \
+			+ extra
+	var pack := func(mod_id: String, version: String, shell: String, extra: String = "") -> Dictionary:
+		var d := _pack(mod_id, version)
+		d["mods/%s/m.gd" % mod_id] = entry.call(mod_id, shell, extra)
+		d["mods/%s/crt.tscn" % mod_id] = "[gd_scene format=3]\n\n[node name=\"Crt\" type=\"Node3D\"]\n"
+		return d
+
+	# ── switched off while running: unloaded live, and back on again live ──
+	var on_room := "\tapi.on_scene_content_ready(_room)\n\nstatic func _room(_id: String) -> void:\n\tpass\n"
+	_write_zip(root.path_join("t.off.zip"), pack.call("t.off", "1.0.0", "t.off:crt", on_room))
+	m._discover()
+	var rooms_before := SceneManager.scene_content_ready.get_connections().size()
+	m.set_enabled("t.off", true)
+	m.apply_live()
+	var off: ModRecord = m.mod("t.off")
+	_ok(off.loaded and _has_tv_shell("t.off:crt"), "live/a mod is running")
+	_eq(SceneManager.scene_content_ready.get_connections().size(), rooms_before + 1,
+		"live/and waits for rooms")
+	m.set_enabled("t.off", false)
+	var plan: Dictionary = m.apply_plan()
+	_ok(_ids(plan["unload"]) == ["t.off"] and not bool(plan["restart"]),
+		"live/switched off, it can be unloaded without a restart")
+	m.apply_live()
+	_ok(not off.loaded and off.unloaded and not _has_tv_shell("t.off:crt"),
+		"live/unloaded, nothing it registered is left")
+	_eq(SceneManager.scene_content_ready.get_connections().size(), rooms_before,
+		"live/and it no longer hears about rooms")
+	_eq(off.status, ModRecord.Status.DISABLED, "live/it reads as off")
+	_ok(not m.fingerprint().has("t.off@1.0.0"), "live/and netplay is no longer told it runs")
+	_ok(not m.changes_waiting(), "live/nothing waits")
+	m.set_enabled("t.off", true)
+	_ok(_ids(m.apply_plan()["live"]) == ["t.off"], "live/switched on again it loads live")
+	m.apply_live()
+	_ok(off.loaded and _has_tv_shell("t.off:crt"), "live/from the pack still mounted")
+
+	# ── removed while running: unloaded now, the file goes next launch ──
+	m.remove("t.off")
+	_ok(_ids(m.apply_plan()["unload"]) == ["t.off"] and not bool(m.apply_plan()["restart"]),
+		"live/removed, it is unloaded without a restart")
+	m.apply_live()
+	_ok(not _has_tv_shell("t.off:crt") and not m.changes_waiting(),
+		"live/gone now, and nothing waits")
+	_ok(bool(m._pending_op("t.off", "remove").get("live", false)),
+		"live/its file is still deleted at the next launch")
+	_eq(SpawnMenuModsView.installed_status_text(off), "Removed — its file goes at the next launch",
+		"live/and its page says so")
+
+	# ── updated while running: the new copy registers, no restart ──
+	_write_zip(root.path_join("t.up.zip"), pack.call("t.up", "1.0.0", "t.up:v1"))
+	m.rescan()
+	m.set_enabled("t.up", true)
+	m.apply_live()
+	var up: ModRecord = m.mod("t.up")
+	_ok(up.loaded and _has_tv_shell("t.up:v1"), "live/version 1 runs")
+	var v2 := _write_zip(m.incoming_dir().path_join("dl-up.zip"), pack.call("t.up", "2.0.0", "t.up:v2"))
+	m.install(v2, {"modio_id": 77})
+	plan = m.apply_plan()
+	_ok(_ids(plan["update"]) == ["t.up"] and not bool(plan["restart"]),
+		"live/its update can be applied without a restart")
+	m.apply_live()
+	_ok(not _has_tv_shell("t.up:v1") and _has_tv_shell("t.up:v2"),
+		"live/version 2's registrations replace version 1's (its cached entry script reloaded)")
+	_eq(up.manifest.version, "2.0.0", "live/the record is the new version")
+	_eq(m.fingerprint().has("t.up@2.0.0"), true, "live/and netplay is told the new version")
+	_ok(not m.changes_waiting() and up.update_staged.is_empty(), "live/nothing waits")
+
+	# ── a new mod replacing a shipped resource: loaded live, the cache updated in place ──
+	var path := "res://addons/godot-xr-tools/materials/capsule.tres"
+	var held := load(path) as StandardMaterial3D
+	var before := held.albedo_color
+	var shadow := _pack_with("t.tint", {"claims": [path]})
+	shadow["addons/godot-xr-tools/materials/capsule.tres"] = "[gd_resource type=\"StandardMaterial3D\" format=3]\n\n" \
+		+ "[resource]\nalbedo_color = Color(1, 0, 0, 1)\n"
+	_write_zip(root.path_join("t.tint.zip"), shadow)
+	m.rescan()
+	m.set_enabled("t.tint", true)
+	_ok(_ids(m.apply_plan()["live"]) == ["t.tint"] and not bool(m.apply_plan()["restart"]),
+		"live/a mod replacing a shipped resource loads without a restart")
+	m.apply_live()
+	_ok(m.mod("t.tint").loaded, "live/it loads")
+	_ok(held.albedo_color.is_equal_approx(Color(1, 0, 0, 1)) and not before.is_equal_approx(held.albedo_color),
+		"live/and the copy the game already held is the mod's now (updated in place)", str(held.albedo_color))
+
+	for id: String in ["t.off", "t.up", "t.tint"]:
+		var rec: ModRecord = m.mod(id)
+		if rec != null and rec.api != null:
+			rec.api.withdraw()
+	m.free()
+
+
 # ── depends/ ──────────────────────────────────────────────────────────────────
 
 ## A mod that needs another. Nothing is mounted here (apply/ mounts the real
@@ -710,8 +839,9 @@ func _group_depends() -> void:
 	_eq(_ids(m.apply_plan()["live"]), ["t.plug", "t.gun", "t.other"], "depends/and both apply now")
 
 	# A dependency that needs a restart holds back what needs it.
-	var shadow := _pack_with("t.plug2", {"claims": ["res://Scenes/Objects/tv.tscn"]})
-	shadow["Scenes/Objects/tv.tscn"] = "[gd_scene format=3]"
+	# A shipped SCRIPT replaced: a resource can be updated in place now, a script cannot.
+	var shadow := _pack_with("t.plug2", {"claims": ["res://Scripts/UI/spawn_menu/menu_icons.gd"]})
+	shadow["Scripts/UI/spawn_menu/menu_icons.gd"] = "extends RefCounted"
 	_write_zip(_root.path_join("t.plug2.zip"), shadow)
 	_write_zip(_root.path_join("t.gun2.zip"), _pack_with("t.gun2", {"dependencies": ["t.plug2"]}))
 	m.rescan()
@@ -1364,7 +1494,8 @@ func _group_holes2() -> void:
 	applied.clear()
 	park.call(1003, "t.restart")
 	view.finish_review("modio-1003", {"modio_id": 1003, "file_id": 10030}, false)
-	m._pending.append({"op": "remove", "files": []})
+	# A move only a restart can make: an update of a mod replacing shipped files.
+	m._pending.append({"op": "install", "id": "t.elsewhere", "from": "x.zip", "to": "x.zip"})
 	view._enable_and_apply(view.switched_off_new())
 	_ok(applied.is_empty() and toasts.heard("Restart now"),
 		"holes2/when a restart is needed it stops at Restart now instead of quitting", str(toasts.said))

@@ -33,6 +33,10 @@ var _problems: PackedStringArray = []
 var _errors: PackedStringArray = []
 
 
+## The callbacks this mod hung on SceneManager.scene_content_ready.
+var _room_callbacks: Array[Callable] = []
+
+
 func _init(a_manifest: ModManifest, hooks: ModHooks) -> void:
 	manifest = a_manifest
 	id = a_manifest.id
@@ -364,13 +368,20 @@ func dress(cls: StringName, key: String, cb: Callable) -> bool:
 ## Call `cb(scene_id)` once a room has finished restoring its saved contents —
 ## the right moment to add something to a finished room.
 func on_scene_content_ready(cb: Callable) -> void:
-	var loop := Engine.get_main_loop() as SceneTree
-	var sm: Node = loop.root.get_node_or_null("SceneManager") if loop != null else null
+	var sm := _scene_manager()
 	if sm == null:
 		_warn("on_scene_content_ready: SceneManager is not available")
 		return
 	sm.scene_content_ready.connect(cb)
+	# Kept, so withdraw() can take it back: a mod unloaded live (switched off,
+	# removed, or updated) would otherwise go on being told about every room.
+	_room_callbacks.append(cb)
 	_note("hook", "waits for a room")
+
+
+func _scene_manager() -> Node:
+	var loop := Engine.get_main_loop() as SceneTree
+	return loop.root.get_node_or_null("SceneManager") if loop != null else null
 
 
 ## A writable folder of this mod's own, for settings. Use it with JsonStore.
@@ -419,6 +430,12 @@ func errors_text() -> String:
 ## adding a register_* method and forgetting to make it withdrawable is one
 ## file's mistake instead of two.
 func withdraw() -> void:
+	var sm := _scene_manager()
+	if sm != null:
+		for cb: Callable in _room_callbacks:
+			if sm.scene_content_ready.is_connected(cb):
+				sm.scene_content_ready.disconnect(cb)
+	_room_callbacks.clear()
 	SystemModelRegistry.drop_mod(id)
 	SystemInfo.drop_mod(id)
 	ConsolePadArt.drop_mod(id)

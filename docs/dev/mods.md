@@ -20,8 +20,9 @@ undone: mounting to find out what a mod is would commit to every mod on disk.
 Reading without mounting is also what lets the Mods page show a disabled mod's
 name and art, which is when the player is deciding whether to trust it. A pack
 that was never mounted can still be mounted later in the session (see "Applying
-without a restart" below); disabling, updating or removing one that IS mounted
-takes effect on the NEXT launch, and the page says which is which.
+without a restart" below). One that IS mounted can be switched off, removed or
+updated live too (2026-10-22) unless it replaces a shipped file -- its pack stays
+mounted, unread, and the file move waits for the next launch.
 
 **`ModPackReader` handles both containers.** Zip is `ZIPReader`. Pck parses the
 pack directory and reads members at their recorded offsets — written against a
@@ -490,6 +491,45 @@ before; the loader only ever read.
   offers a different file.
 
 ### Applying without a restart (2026-10-14)
+
+**2026-10-22: off, removed, updated and shipped-resource mods go live too.** A
+mounted pack still cannot be unmounted, but every way a mod changes the game goes
+through `ModApi` and `withdraw()` takes all of it back (the eleven tables, the node
+hooks, and now its `on_scene_content_ready` connections, which it used to leave
+connected). So `apply_plan()` returns `unload` and `update` beside `live`:
+
+- **unload** -- a running mod switched off or removed that replaces no shipped file:
+  `_unload_live` withdraws it and marks the record `unloaded` (mounted, nothing of it
+  read). `_status_for` reads that as DISABLED, or PENDING once switched on again --
+  and then it registers again live from the pack still mounted. A removal's file
+  still goes at the next launch; its op is marked `live` and asks for no restart.
+  `fingerprint()` drops it at once (it keys on `loaded`).
+- **update** -- a running mod whose update is parked, neither copy replacing a
+  shipped file (`install` marks the op `live_ok`): `_update_live` mounts the new
+  copy OVER the old (a later `load_resource_pack` with `replace_files` wins for the
+  same paths), withdraws the old registrations, brings what of the mod is cached up
+  to date (`_refresh_cached`: resources by `CACHE_MODE_REPLACE`, which the engine
+  applies IN PLACE through `Resource::copy_from`; scripts by setting `source_code`
+  from the newly mounted file and `reload()`, because `copy_from` does not carry a
+  script's source), and registers the new entry script loaded past the cache
+  (`CACHE_MODE_IGNORE_DEEP`). A script that cannot be reloaded -- the engine refuses
+  while instances of it live -- marks the op `live_failed`, says so on the record,
+  and the update waits for Restart now.
+- **live** now also takes a NEW mod that replaces shipped files, as long as none of
+  them is a script (`_claims_live_ok`): after its `replace_files` mount each claim
+  already in the cache is updated in place, so what the game already holds becomes
+  the mod's.
+- Still a restart: switching off, removing or updating a mod that replaces shipped
+  files (its replacements stay mounted and the originals cannot be re-read), a
+  script claim, a mounted mod that failed, a mod staying loaded that needs one
+  going out, and an update `live_failed`.
+
+The bar says what Apply now will do (`SpawnMenuModsView.live_summary`: "Load A;
+update B to 2.0; switch off C"), and the controller does not report an unloaded mod
+as one that "did not load". `mod_browser_tests apply/` mounts real fixture packs for
+all of it (`_group_apply_unload_update`, which replaces the shipped
+`capsule.tres` for the rest of the run -- apply/ stays the last group). Still OWED:
+`mods_apply_probe` driving an unload and an update in the real app.
 
 The Installed page has ONE button over everything waiting (`_fill_banner`, drawn
 above the list AND above a mod's own page, which is where its switch is):

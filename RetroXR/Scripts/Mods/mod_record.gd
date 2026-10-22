@@ -47,6 +47,11 @@ var mounted := false
 ## switched off goes on running until the next launch, and its peers must still
 ## be told it is there.
 var loaded := false
+## Mounted, and switched off or removed LIVE (ModManager.apply_live): everything
+## it registered is withdrawn, so nothing of it runs, though its pack stays
+## mounted until the app exits (a pack cannot be unmounted). Switched on again it
+## registers again, live, from the pack that is still there.
+var unloaded := false
 ## Version of an update that is downloaded and waiting for the next launch, ""
 ## for none. The record keeps describing the pack that is actually mounted, so
 ## the netplay fingerprint goes on telling the truth about this session.

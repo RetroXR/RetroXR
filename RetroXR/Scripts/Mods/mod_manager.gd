@@ -428,19 +428,36 @@ func _should_load(rec: ModRecord) -> bool:
 func _mount_and_register(rec: ModRecord) -> void:
 	var manifest := rec.manifest
 	var shadowing := manifest.shadowing_claims()
-	# replace_files only when a claim actually lands on a shipped path. A mod
-	# claiming nothing therefore provably cannot touch one.
-	var replace := not shadowing.is_empty()
-	if not ProjectSettings.load_resource_pack(rec.path, replace):
-		rec.fail("the pack could not be mounted")
-		return
-	rec.mounted = true
-	# Before anything of it loads: its scenes name their textures by UID.
-	ModUids.register(rec.id)
+	if not rec.mounted:
+		# replace_files only when a claim actually lands on a shipped path. A mod
+		# claiming nothing therefore provably cannot touch one.
+		var replace := not shadowing.is_empty()
+		if not ProjectSettings.load_resource_pack(rec.path, replace):
+			rec.fail("the pack could not be mounted")
+			return
+		rec.mounted = true
+		# Before anything of it loads: its scenes name their textures by UID.
+		ModUids.register(rec.id)
+		# A shipped file it replaces may be in the cache already -- it is, when the
+		# mod is applied live -- and would go on being served from there. Each one
+		# is brought up to date IN PLACE (the engine copies the new data into the
+		# object everything already holds). Scripts never reach here live: a
+		# script cannot be swapped under the objects running it (_claims_live_ok).
+		_refresh_cached(shadowing)
+	_register(rec)
+
+
+## Run a mounted mod's entry script and keep what it registered. `fresh`: an
+## update was just mounted over the old copy, and the cached entry script (and
+## what it preloads) is the OLD code -- it is loaded past the cache instead.
+func _register(rec: ModRecord, fresh: bool = false) -> void:
+	var manifest := rec.manifest
+	var shadowing := manifest.shadowing_claims()
 	if not ResourceLoader.exists(manifest.entry):
 		rec.fail("entry script is missing: %s" % manifest.entry)
 		return
-	var script := ResourceLoader.load(manifest.entry) as GDScript
+	var script := ResourceLoader.load(manifest.entry, "",
+		ResourceLoader.CACHE_MODE_IGNORE_DEEP if fresh else ResourceLoader.CACHE_MODE_REUSE) as GDScript
 	if script == null:
 		rec.fail("entry script did not compile: %s" % manifest.entry)
 		return
@@ -464,10 +481,134 @@ func _mount_and_register(rec: ModRecord) -> void:
 		return
 	rec.api = api
 	rec.loaded = true
+	rec.unloaded = false
 	rec.status = ModRecord.Status.LOADED
 	if not shadowing.is_empty():
 		rec.reason = "replaces %d shipped file(s)" % shadowing.size()
 	print("[mods] loaded %s %s — %s" % [manifest.id, manifest.version, api.summary()])
+
+
+## Bring each of `paths` that is in the resource cache up to date with what is
+## mounted now, in place. Returns the ones that could not be: a script with live
+## instances cannot be recompiled under them.
+static func _refresh_cached(paths: PackedStringArray) -> PackedStringArray:
+	var stale := PackedStringArray()
+	for path: String in paths:
+		if not ResourceLoader.has_cached(path):
+			continue
+		if _is_script_path(path):
+			# copy_from does not carry a script's source: it is set from the file
+			# now mounted (the newest pack wins) and the script recompiled, which the
+			# engine refuses while instances of it are alive.
+			var script := ResourceLoader.load(path) as GDScript
+			var source := FileAccess.get_file_as_string(path)
+			if script == null or source.is_empty():
+				stale.append(path)
+				continue
+			script.source_code = source
+			if script.reload() != OK:
+				stale.append(path)
+		else:
+			ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_REPLACE)
+	return stale
+
+
+static func _is_script_path(path: String) -> bool:
+	return path.get_extension().to_lower() in ["gd", "gdc", "cs", "gdextension"]
+
+
+## A mod replacing shipped files can be loaded live only if none of them is a
+## script: a resource can be updated in place, a script under live objects cannot.
+static func _claims_live_ok(manifest: ModManifest) -> bool:
+	for path: String in manifest.shadowing_claims():
+		if _is_script_path(path):
+			return false
+	return true
+
+
+## Every res:// path a pack's members load as: an imported file by its source
+## path, a script or scene as itself. Its .uid/.import side files and the
+## import cache are not loaded by path.
+static func _res_paths(files: PackedStringArray) -> PackedStringArray:
+	var out := PackedStringArray()
+	for f: String in files:
+		if f.begins_with(".godot/") or f.ends_with(".uid"):
+			continue
+		var p := f
+		if p.ends_with(".import"):
+			p = p.trim_suffix(".import")
+		elif p.ends_with(".remap"):
+			p = p.trim_suffix(".remap")
+		var res := p if p.begins_with("res://") else "res://" + p
+		if not out.has(res):
+			out.append(res)
+	return out
+
+
+## Switched off or removed while running: withdraw everything it registered.
+## Its pack stays mounted (that cannot be undone) but nothing reads it; a removal's
+## file still goes at the next launch.
+func _unload_live(rec: ModRecord) -> void:
+	if rec.api != null:
+		rec.api.withdraw()
+	rec.api = null
+	rec.loaded = false
+	rec.unloaded = true
+	rec.reason = ""
+	rec.status = _status_for(rec, is_enabled(rec.id))
+	var op := _pending_op(rec.id, "remove")
+	if not op.is_empty():
+		op["live"] = true
+	print("[mods] unloaded %s live" % rec.id)
+
+
+## An update to a running mod, applied now: the new pack is mounted OVER the old
+## (a later mount wins for the same paths), the old registrations are withdrawn,
+## what of the mod is still cached is brought up to date in place, and the new
+## entry script registers. The files still move at the next launch. If a script
+## of it could not be reloaded (instances alive) the update is not trusted and
+## stays waiting for a restart.
+func _update_live(rec: ModRecord, op: Dictionary) -> void:
+	var staged := incoming_dir().path_join(str(op.get("from", "")).get_file())
+	var info := inspect(staged)
+	if not str(info["error"]).is_empty() or info["manifest"] == null:
+		op["live_failed"] = true
+		return
+	if not ProjectSettings.load_resource_pack(staged, true):
+		op["live_failed"] = true
+		return
+	if rec.api != null:
+		rec.api.withdraw()
+	rec.api = null
+	rec.loaded = false
+	ModUids.register(rec.id)
+	var stale := _refresh_cached(_res_paths(info["files"]))
+	rec.manifest = info["manifest"]
+	if rec.update_thumbnail != null:
+		rec.thumbnail = rec.update_thumbnail
+	if rec.update_size > 0:
+		rec.size = rec.update_size
+		rec.files = rec.update_files
+	rec.update_staged = ""
+	rec.update_thumbnail = null
+	rec.update_size = 0
+	rec.update_files = 0
+	rec.reason = ""
+	_register(rec, true)
+	if stale.is_empty():
+		op["live"] = true
+	else:
+		op["live_failed"] = true
+		rec.reason = "parts of it are still the old version until a restart: %s" % ", ".join(stale)
+	print("[mods] updated %s to %s live" % [rec.id, rec.manifest.version])
+
+
+## The op waiting for the next launch for this mod, of this kind, {} for none.
+func _pending_op(id: String, kind: String) -> Dictionary:
+	for op: Dictionary in _pending:
+		if str(op.get("id", "")) == id and str(op.get("op", "")) == kind:
+			return op
+	return {}
 
 
 # ── enable state ──────────────────────────────────────────────────────────────
@@ -645,6 +786,9 @@ static func _status_for(rec: ModRecord, enabled: bool) -> Status:
 		return Status.REFUSED
 	if rec.loaded:
 		return Status.LOADED if enabled else Status.PENDING
+	if rec.mounted and rec.unloaded:
+		# Withdrawn live: switched on again, it can register again live.
+		return Status.PENDING if enabled else Status.DISABLED
 	if rec.mounted:
 		# Mounted, and its entry failed. Neither position of the switch changes
 		# anything this session, and the reason is what the page should show.
@@ -667,54 +811,106 @@ static func _status_for(rec: ModRecord, enabled: bool) -> Status:
 ## row, a cartridge or expansion shell -- first come, first served) the next
 ## launch may settle it the other way.
 func apply_live() -> Array[ModRecord]:
-	var mounted: Array[ModRecord] = []
+	var touched: Array[ModRecord] = []
 	var plan := apply_plan()
 	if not str(plan["blocked"]).is_empty():
-		return mounted
+		return touched
+	# Out first, then the new copies, then what is new: a mod loaded below may
+	# need one updated just above.
+	for rec: ModRecord in (plan["unload"] as Array):
+		_unload_live(rec)
+		touched.append(rec)
+	for rec: ModRecord in (plan["update"] as Array):
+		_update_live(rec, _pending_op(rec.id, "install"))
+		touched.append(rec)
 	for rec: ModRecord in (plan["live"] as Array):
 		# Listed either way, so the caller says out loud why one did not load.
 		if not _block_if_needed(rec):
 			_mount_and_register(rec)
-		mounted.append(rec)
-	if mounted.is_empty():
-		return mounted
+		touched.append(rec)
+	if touched.is_empty():
+		return touched
 	# It caches misses, and a new platform's art can arrive with its pack.
 	SystemIcons.forget()
+	_save_state()
 	mods_applied.emit()
 	_notify_changed()
-	return mounted
+	return touched
 
 
-## True when some switch, install or removal has not taken effect yet.
+## True when some switch, install or removal has not taken effect yet. A file
+## move left for the next launch after its change was applied live is not one.
 func changes_waiting() -> bool:
-	if not _pending.is_empty():
-		return true
-	for rec: ModRecord in _mods.values():
-		if rec.status == ModRecord.Status.PENDING:
-			return true
-	return false
+	var plan := apply_plan()
+	return bool(plan["restart"]) or not (plan["live"] as Array).is_empty() \
+		or not (plan["unload"] as Array).is_empty() or not (plan["update"] as Array).is_empty()
 
 
 ## What applying the waiting changes would take:
-##   live     the mods that can be mounted NOW, in load order: switched on, never
-##            mounted, and replacing no file the game ships (one that does is
-##            mounted with replace_files, and a shipped file already in the
-##            resource cache would go on being served from it)
-##   restart  something only a restart can apply: a mounted pack switched off,
-##            updated or removed, or a mod that is not `live`
+##   live     the mods that can be mounted NOW, in load order: switched on and
+##            not running, whose shipped-file claims (if any) are not scripts --
+##            a replaced resource is updated in place in the cache, a script
+##            cannot be swapped under the objects running it
+##   unload   running mods switched off or removed that replace no shipped file:
+##            what they registered is withdrawn (the pack stays mounted, unread)
+##   update   running mods with an update downloaded, neither copy replacing a
+##            shipped file: the new copy is mounted over the old and registers
+##   restart  something only a restart can apply: a mod replacing shipped files
+##            switched off, updated or removed, a script claim, a mod still
+##            loaded that needs one being unloaded, an update a live apply could
+##            not trust
 ##   blocked  why neither may happen now, "" when they may
 ## A mod is `live` only with everything it needs running or `live` too, and
-## mounted after it.
+## mounted after it. A file move kept for the next launch after its change was
+## applied live (op `live`) asks for nothing.
 func apply_plan() -> Dictionary:
 	var live: Array[ModRecord] = []
-	var restart := not _pending.is_empty()
-	for rec: ModRecord in _mods.values():
-		if rec.status != ModRecord.Status.PENDING:
+	var unload: Array[ModRecord] = []
+	var update: Array[ModRecord] = []
+	var restart := false
+	for op: Dictionary in _pending:
+		if bool(op.get("live", false)):
 			continue
-		if _loads_live(rec):
+		var rec: ModRecord = _mods.get(str(op.get("id", "")))
+		match str(op.get("op", "")):
+			"remove":
+				if rec != null and _unloads_live(rec):
+					unload.append(rec)
+				elif rec == null or not rec.loaded:
+					pass        # nothing of it runs: only the file goes, next launch
+				else:
+					restart = true
+			"install":
+				if rec != null and _updates_live(rec, op):
+					update.append(rec)
+				elif rec != null and not rec.loaded and not is_enabled(rec.id):
+					pass        # off: the new file takes over at the next launch
+				else:
+					restart = true
+			_:
+				restart = true
+	for rec: ModRecord in _mods.values():
+		if rec.status != ModRecord.Status.PENDING or unload.has(rec) or update.has(rec):
+			continue
+		if rec.loaded:
+			# Running, and switched off.
+			if _unloads_live(rec):
+				unload.append(rec)
+			else:
+				restart = true
+		elif _loads_live(rec):
 			live.append(rec)
 		else:
 			restart = true
+	# A mod staying loaded that needs one going out can only part from it at a
+	# restart (switching one off switches off what needs it, so this is rare).
+	for rec: ModRecord in _mods.values():
+		if not rec.loaded or unload.has(rec):
+			continue
+		for dep: Dictionary in rec.manifest.dependencies:
+			var other: ModRecord = _mods.get(str(dep["id"]))
+			if other != null and unload.has(other):
+				restart = true
 	var dropped := true
 	while dropped:
 		dropped = false
@@ -728,16 +924,27 @@ func apply_plan() -> Dictionary:
 					break
 	live = _in_load_order(live)
 	var blocked := ""
-	if (restart or not live.is_empty()) and _in_netplay():
+	if (restart or not live.is_empty() or not unload.is_empty() or not update.is_empty()) \
+			and _in_netplay():
 		# Peers compared fingerprints once, at the handshake, and a host's reload
 		# would leave every client standing in the old room.
 		blocked = "Leave the netplay session to apply your changes."
-	return {"live": live, "restart": restart, "blocked": blocked}
+	return {"live": live, "unload": unload, "update": update, "restart": restart,
+		"blocked": blocked}
+
+
+func _unloads_live(rec: ModRecord) -> bool:
+	return rec.loaded and rec.manifest.shadowing_claims().is_empty()
+
+
+func _updates_live(rec: ModRecord, op: Dictionary) -> bool:
+	return rec.loaded and is_enabled(rec.id) and rec.manifest.shadowing_claims().is_empty() \
+		and bool(op.get("live_ok", false)) and not bool(op.get("live_failed", false))
 
 
 func _loads_live(rec: ModRecord) -> bool:
-	return not rec.mounted and _should_load(rec) \
-		and rec.manifest.shadowing_claims().is_empty()
+	return (not rec.mounted or (rec.unloaded and not rec.loaded)) and _should_load(rec) \
+		and not rec.removal_staged and _claims_live_ok(rec.manifest)
 
 
 ## Read through the tree rather than by the autoload's name, so a ModManager the
@@ -918,8 +1125,11 @@ func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -
 				DirAccess.remove_absolute(staged)
 				return {"ok": false, "id": id, "restart": false,
 					"error": "Cannot write to the mods folder"}
+		# live_ok: neither copy replaces a shipped file, so apply_live can mount
+		# this one over the running one instead of waiting for a restart.
 		_pending.append({"op": "install", "id": id, "from": final_name,
-			"to": final_name, "replaces": old_names})
+			"to": final_name, "replaces": old_names,
+			"live_ok": manifest.shadowing_claims().is_empty()})
 		old.update_staged = manifest.version
 		old.update_thumbnail = info["thumbnail"]
 		old.update_size = ByteSize.on_disk(parked)
