@@ -201,6 +201,8 @@ const VGA_CABLE_SCENE        := preload("res://Scenes/Objects/cables/vga_cable.t
 const TRS_CABLE_SCENE        := preload("res://Scenes/Objects/cables/trs_cable.tscn")
 const LINK_CABLE_SCENE       := preload("res://Scenes/Objects/cables/link_cable.tscn")
 const GB_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/gb_link_cable.tscn")
+const DMG_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/dmg_link_cable.tscn")
+const GB_LINK_ADAPTER_SCENE  := preload("res://Scenes/Objects/cables/gb_link_adapter.tscn")
 const GG_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/gg_link_cable.tscn")
 const WS_LINK_CABLE_SCENE    := preload("res://Scenes/Objects/cables/ws_link_cable.tscn")
 const NGP_LINK_CABLE_SCENE   := preload("res://Scenes/Objects/cables/ngp_link_cable.tscn")
@@ -284,6 +286,8 @@ const LEAD_SCENES := {
 	"trs_cable": TRS_CABLE_SCENE,
 	"link_cable": LINK_CABLE_SCENE,
 	"gb_link_cable": GB_LINK_CABLE_SCENE,
+	"dmg_link_cable": DMG_LINK_CABLE_SCENE,
+	"gb_link_adapter": GB_LINK_ADAPTER_SCENE,
 	"gg_link_cable": GG_LINK_CABLE_SCENE,
 	"ws_link_cable": WS_LINK_CABLE_SCENE,
 	"ngp_link_cable": NGP_LINK_CABLE_SCENE,

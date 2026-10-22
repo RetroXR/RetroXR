@@ -21,8 +21,9 @@ extends RcaPort
 ## drives is addressed by port from the start.
 @export var link_port: int = 0
 
-## Game Boy and GBA sockets keep "link_plug"; a Game Gear, WonderSwan, Lynx or Neo
-## Geo Pocket sets its own `connector` in its scene, so only its own lead fits.
+## Game Boy Color and GBA sockets keep "link_plug"; the original Game Boy and the
+## Printer (dmg_link_port.tscn), a Game Gear, WonderSwan, Lynx or Neo Geo Pocket
+## set their own `connector` in their scenes, so only their own lead fits.
 func _init() -> void:
 	connector = "link_plug"
 

@@ -72,6 +72,8 @@ func _ready() -> void:
 	await _test_console_leads_join_the_sweep()
 	_test_every_lead_fits_only_its_own_machines()
 	await _test_every_lead_states_its_bus()
+	_test_dmg_adapter_scene()
+	await _test_a_color_reaches_an_original_through_the_adapter()
 	_test_no_reset_path()
 	print("[link] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
@@ -196,6 +198,7 @@ func _test_every_lead_states_its_bus() -> void:
 		"res://Scenes/Objects/cables/gc_gba_cable.tscn": "the GameCube lead",
 		"res://Scenes/Objects/cables/psx_link_cable.tscn": "the PlayStation lead",
 		"res://Scenes/Objects/cables/ilink_cable.tscn": "the i.LINK lead",
+		"res://Scenes/Objects/cables/gb_link_adapter.tscn": "the Game Boy link adapter",
 	}
 	for path: String in leads:
 		var scene := load(path) as PackedScene
@@ -2095,7 +2098,9 @@ func _test_no_reset_path() -> void:
 
 ## Socket scenes, each with the family its LinkPort (or subclass) must take.
 const _LINK_SOCKETS := {
-	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "link_plug",
+	# The original Game Boy's connector is the LARGE one; the Pocket and the Color
+	# shrank it, and the Advance kept theirs.
+	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "dmg_link_plug",
 	"res://Scenes/Objects/system_models/game_boy_color_primitive.tscn": "link_plug",
 	"res://Scenes/Objects/system_models/game_boy_advance.tscn": "link_plug",
 	"res://Scenes/Objects/system_models/game_boy_advance_primitive.tscn": "link_plug",
@@ -2110,14 +2115,15 @@ const _LINK_SOCKETS := {
 	"res://Scenes/Objects/cables/jag_link_port.tscn": "jag_link_plug",
 	"res://Scenes/Objects/cables/ilink_port.tscn": "ilink_plug",
 	# Not a machine with a CPU but a socket all the same: the Game Boy Printer's
-	# EXT.IN takes the Game Boy's own lead and nothing else.
-	"res://Scenes/Objects/peripherals/gb_printer.tscn": "link_plug",
+	# EXT.IN is the original Game Boy's large socket.
+	"res://Scenes/Objects/peripherals/gb_printer.tscn": "dmg_link_plug",
 }
 
 ## Spawn id -> the family both its ends (and any junction) must be.
 const _LINK_LEADS := {
 	"link_cable": "link_plug",
 	"gb_link_cable": "link_plug",
+	"dmg_link_cable": "dmg_link_plug",
 	"gg_link_cable": "gg_link_plug",
 	"ws_link_cable": "ws_link_plug",
 	"comlynx_cable": "comlynx_plug",
@@ -2131,7 +2137,7 @@ const _LINK_LEADS := {
 
 ## What the spawn menu offers each machine.
 const _LINK_OFFERS := {
-	"gb": "gb_link_cable", "gba": "link_cable", "gamegear": "gg_link_cable",
+	"gb": "dmg_link_cable", "gbc": "gb_link_cable", "gba": "link_cable", "gamegear": "gg_link_cable",
 	"wonderswan": "ws_link_cable", "atarilynx": "comlynx_cable", "ngp": "ngp_link_cable",
 	"virtualboy": "vb_link_cable",
 	"psx": "psx_link_cable", "saturn": "saturn_link_cable", "atarijaguar": "jag_link_cable",
@@ -2189,6 +2195,121 @@ func _test_every_lead_fits_only_its_own_machines() -> void:
 				_eq(spawn, _LINK_OFFERS[sys], "%s is offered %s" % [sys, _LINK_OFFERS[sys]])
 				offered = offered or spawn == _LINK_OFFERS[sys]
 		_ok(offered, "%s is offered its link lead" % sys)
+
+
+# ---------------------------------------------------------------------------
+# The DMG-14 adapter. The Color's lead is the small connector at both ends and
+# the original Game Boy's socket is the large one, so a Color reaches an original
+# (or the Printer) only through this: a large plug with a small socket in its
+# back, which conducts as a lead's junction does.
+
+const DMG_ADAPTER_SCENE := "res://Scenes/Objects/cables/gb_link_adapter.tscn"
+const GBC_CABLE_SCENE := "res://Scenes/Objects/cables/gb_link_cable.tscn"
+
+
+func _test_dmg_adapter_scene() -> void:
+	var adapter := (load(DMG_ADAPTER_SCENE) as PackedScene).instantiate() as LinkAdapter
+	_ok(adapter != null, "adapter/ the scene is a LinkAdapter")
+	if adapter == null:
+		return
+	var found: Array = []
+	_link_nodes(adapter, found)
+	var plugs := found.filter(func(n: Node) -> bool: return n is RcaPlug)
+	var ports := found.filter(func(n: Node) -> bool: return n is LinkPort)
+	_eq(plugs.size(), 1, "adapter/ it has one plug and no cord")
+	_eq(ports.size(), 1, "adapter/ and one socket")
+	if plugs.size() == 1 and ports.size() == 1:
+		_eq(plugs[0].get("connector"), "dmg_link_plug", "adapter/ the plug is the large one")
+		_eq(ports[0].get("connector"), "link_plug", "adapter/ the socket takes the small one")
+		_ok(adapter.junction_port() == ports[0], "adapter/ and that socket is its junction")
+		# A port's +Z is the way out of what it is on: out of the BACK, which is
+		# the plug's -Z, or a seated lead would come out through the large nose.
+		var port := ports[0] as Node3D
+		var out := port.transform.basis.z
+		_ok(out.z < -0.9, "adapter/ the socket faces out of the back", "port +Z in the plug's frame %s" % str(out))
+		_ok(port.position.z < 0.0, "adapter/ and sits behind the mating face", "%.1f mm" % (port.position.z * 1000.0))
+	_ok(ScenePersistence.LEAD_SCENES.has("gb_link_adapter"), "adapter/ a saved room can rebuild it")
+	for sys: String in ["gb", "gbc"]:
+		_ok(SpawnCatalog.items_for(sys).any(func(i: Dictionary) -> bool:
+				return str(i.get("spawn", "")) == "gb_link_adapter"),
+			"adapter/ the %s card offers it" % sys)
+	adapter.free()
+
+
+func _test_a_color_reaches_an_original_through_the_adapter() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	var dmg: Node3D = sys_scene.instantiate()
+	dmg.systemid = "gb"
+	dmg.name = "Dmg"
+	dmg.position = Vector3(-0.4, 1, 0)
+	add_child(dmg)
+	var cgb: Node3D = sys_scene.instantiate()
+	cgb.systemid = "gbc"
+	cgb.name = "Cgb"
+	cgb.position = Vector3(0.4, 1, 0)
+	add_child(cgb)
+	var adapter: LinkAdapter = load(DMG_ADAPTER_SCENE).instantiate()
+	add_child(adapter)
+	var lead: LinkCable = load(GBC_CABLE_SCENE).instantiate()
+	add_child(lead)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var dmg_port := dmg.find_child("LinkPort", true, false) as LinkPort
+	var cgb_port := cgb.find_child("LinkPort", true, false) as LinkPort
+	_ok(dmg_port != null and cgb_port != null, "adapter/ both handhelds wear a socket")
+	if dmg_port == null or cgb_port == null:
+		for n: Node in [dmg, cgb, adapter, lead]:
+			n.queue_free()
+		return
+	_eq(dmg_port.connector, "dmg_link_plug", "adapter/ the original's socket is the large one")
+	_eq(cgb_port.connector, "link_plug", "adapter/ the Color's the small one")
+	var small := lead.get_node("PlugB0") as RcaPlug
+	var large := adapter.get_node("PlugB0") as RcaPlug
+	# What a snap zone filters on: its snap_require, as a group the plug is in.
+	_ok(not small.is_in_group(dmg_port.snap_require), "adapter/ the Color's lead is refused by the original")
+	_ok(large.is_in_group(dmg_port.snap_require), "adapter/ the adapter is taken by it")
+	_ok(not large.is_in_group(cgb_port.snap_require), "adapter/ and refused by the Color")
+	_ok(small.is_in_group(adapter.junction_port().snap_require), "adapter/ which takes the Color's lead")
+
+	dmg_port.pick_up_object(large)
+	cgb_port.pick_up_object(lead.get_node("PlugA0"))
+	adapter.junction_port().pick_up_object(small)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	lead._resolve()
+	adapter._resolve()
+
+	for spec in [[lead, "the Color's lead"], [adapter, "the adapter"]]:
+		var bus: Array = spec[0].linked_machines()
+		_eq(bus.size(), 2, "adapter/ %s states a bus of two" % spec[1])
+		_ok(bus.any(func(e: Dictionary) -> bool: return e.get("machine") == dmg)
+				and bus.any(func(e: Dictionary) -> bool: return e.get("machine") == cgb),
+			"adapter/ %s puts the original and the Color on it" % spec[1])
+	_eq((adapter.held_machines() as Array).size(), 2, "adapter/ the bus is joined, by the head")
+	_eq((lead.held_machines() as Array).size(), 0, "adapter/ and once: the lead in it is not the head")
+	_eq(cgb.net_link_bus().size(), 2, "adapter/ netplay's sweep finds the original from the Color")
+
+	# Saved as a junction's is: by the lead the socket is on.
+	var seat := {}
+	for s: Dictionary in lead.seating():
+		if s.get("plug") == small:
+			seat = s
+	_ok(seat.get("device") == adapter, "adapter/ a plug in it is saved against the adapter")
+	_ok(CompositeCable.port_named(adapter, str(seat.get("port", ""))) == adapter.junction_port(),
+		"adapter/ and found again on load")
+
+	# Out of the original: nothing joined, by either.
+	_pull(dmg_port)
+	await get_tree().process_frame
+	adapter._resolve()
+	_eq((adapter.linked_machines() as Array).size(), 0, "adapter/ pulled, it joins nothing")
+	_eq((adapter.held_machines() as Array).size(), 0, "adapter/ and holds nothing")
+	_eq((lead.held_machines() as Array).size(), 0, "adapter/ nor does the lead in it")
+
+	for n: Node in [dmg, cgb, adapter, lead]:
+		n.queue_free()
+	await get_tree().process_frame
 
 
 # ---------------------------------------------------------------------------

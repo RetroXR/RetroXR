@@ -16,7 +16,7 @@
 extends Node3D
 
 const SYS_SCENE := "res://Scenes/Objects/system.tscn"
-const CABLE_SCENE := "res://Scenes/Objects/cables/gb_link_cable.tscn"
+const CABLE_SCENE := "res://Scenes/Objects/cables/dmg_link_cable.tscn"
 const CORE := "gambatte"
 const LINK_KEY := "gambatte_gb_link_mode"
 const BOOT_KEY := "gambatte_gb_bootloader"

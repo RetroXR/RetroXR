@@ -1,0 +1,56 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/gb_link_cable.tscn" id="1_base"]
+
+; The DMG-04 Game Link Cable: the original Game Boy's lead, the large connector on
+; both ends. The base lead's cord and colours (black, as the DMG-04 is) with the
+; large shell and its own plug family, so it seats in an original Game Boy or a
+; Game Boy Printer (dmg_link_port.tscn) and in nothing smaller. A Game Boy Color
+; joins the same wire with its own lead through the DMG-14 adapter.
+;
+; The large shell's size is an ESTIMATE, scaled up from the small one: nothing
+; published gives it in millimetres. The plug's origin is still its mating face.
+
+; The shell, running back 24 mm from the mating face.
+[sub_resource type="BoxMesh" id="BoxMesh_body_dmg"]
+size = Vector3(0.018, 0.011, 0.024)
+
+; The keyed nose, 8 mm proud of the face.
+[sub_resource type="BoxMesh" id="BoxMesh_nose_dmg"]
+size = Vector3(0.014, 0.0075, 0.008)
+
+; Shell and nose together, 32 mm end to end, centred 8 mm behind the face.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug_dmg"]
+size = Vector3(0.018, 0.011, 0.032)
+
+[node name="LinkCable" instance=ExtResource("1_base")]
+
+[node name="PlugA0" parent="."]
+connector = "dmg_link_plug"
+
+[node name="CollisionShape3D" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.008)
+shape = SubResource("BoxShape3D_plug_dmg")
+
+[node name="PlugTip" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
+mesh = SubResource("BoxMesh_body_dmg")
+
+[node name="PlugNose" parent="PlugA0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.004)
+mesh = SubResource("BoxMesh_nose_dmg")
+
+[node name="PlugB0" parent="."]
+connector = "dmg_link_plug"
+
+[node name="CollisionShape3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.008)
+shape = SubResource("BoxShape3D_plug_dmg")
+
+[node name="PlugTip" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
+mesh = SubResource("BoxMesh_body_dmg")
+
+[node name="PlugNose" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.004)
+mesh = SubResource("BoxMesh_nose_dmg")

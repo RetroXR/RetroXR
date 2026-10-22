@@ -24,6 +24,7 @@ const SCENES := {
 	"controller_cable": "res://Scenes/Objects/cables/controller_cable.tscn",
 	"gc_gba_cable": "res://Scenes/Objects/cables/gc_gba_cable.tscn",
 	"gb_link_cable": "res://Scenes/Objects/cables/gb_link_cable.tscn",
+	"dmg_link_cable": "res://Scenes/Objects/cables/dmg_link_cable.tscn",
 	"power_cord": "res://Scenes/Objects/cables/power_cord.tscn",
 	"retro_controller": "res://Scenes/Objects/controllers/retro_controller.tscn",
 	"nes_controller": "res://Scenes/Objects/controllers/nes/nes_controller.tscn",

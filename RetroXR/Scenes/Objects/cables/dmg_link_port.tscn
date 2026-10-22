@@ -1,0 +1,27 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="1_base"]
+
+; The original Game Boy's EXT. socket: the large Game Link connector, which the
+; Game Boy Printer wears too. The Pocket, the Color and the Advance kept the pin
+; assignment and shrank the shell, so their leads do not go in here and a DMG-04
+; does not go into them -- a small lead reaches this socket through the DMG-14
+; adapter (gb_link_adapter.tscn).
+;
+; Sized 1 mm proud of the large plug's nose all round (dmg_link_cable.tscn). The
+; large shell's size is an ESTIMATE: nothing published gives it in millimetres.
+[sub_resource type="BoxMesh" id="BoxMesh_jack"]
+size = Vector3(0.016, 0.0095, 0.005)
+
+[sub_resource type="BoxMesh" id="BoxMesh_plug_ghost"]
+size = Vector3(0.018, 0.011, 0.024)
+
+[node name="LinkPort" instance=ExtResource("1_base")]
+connector = "dmg_link_plug"
+
+[node name="LinkJack" parent="."]
+mesh = SubResource("BoxMesh_jack")
+
+[node name="HighlightMesh" parent="SnapHighlight"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.012)
+mesh = SubResource("BoxMesh_plug_ghost")

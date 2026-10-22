@@ -1,0 +1,101 @@
+[gd_scene load_steps=13 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link_adapter.gd" id="1_adapterscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link_plug.gd" id="2_plugscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
+[ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="4_snapgp"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="5_linkport"]
+
+; The DMG-14 Universal Game Link Adapter. PLACEHOLDER GEOMETRY, boxes like every
+; link connector in the room.
+;
+; A small grey dongle with the original Game Boy's LARGE plug on its front and a
+; socket for the SMALL plug in its back. A Game Boy Color's lead (gb_link_cable)
+; goes into it, and it goes into an original Game Boy or a Game Boy Printer, so a
+; Color, a Pocket-sized lead and a GBA in Game Boy mode reach the large socket. It
+; has no cord: the real one is a block that clips onto the end of the lead.
+;
+; The large nose is dmg_link_cable.tscn's, so it seats where a DMG-04 does. The
+; body's size is an ESTIMATE.
+
+; The block, running back 16 mm from the mating face.
+[sub_resource type="BoxMesh" id="BoxMesh_body"]
+size = Vector3(0.02, 0.013, 0.016)
+
+[sub_resource type="StandardMaterial3D" id="Mat_shell_grey"]
+albedo_color = Color(0.6, 0.6, 0.58, 1)
+roughness = 0.6
+
+; The large keyed nose, 8 mm proud of the face.
+[sub_resource type="BoxMesh" id="BoxMesh_nose"]
+size = Vector3(0.014, 0.0075, 0.008)
+
+[sub_resource type="StandardMaterial3D" id="Mat_nose"]
+albedo_color = Color(0.72, 0.71, 0.69, 1)
+metallic = 0.25
+metallic_specular = 0.75
+roughness = 0.4
+
+; Nose and the FRONT half of the block only, -8 mm to +8 mm. The small plug seated
+; in the back socket puts its 7 mm nose into the block, and a collider reaching it
+; would have the adapter lying loose on the floor and the frozen plug in it shove
+; each other for ever.
+[sub_resource type="BoxShape3D" id="BoxShape3D_plug"]
+size = Vector3(0.02, 0.013, 0.016)
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_plug"]
+bounce = 0.0
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
+size = Vector3(0.035, 0.035, 0.05)
+
+[node name="LinkCable" type="Node3D"]
+script = ExtResource("1_adapterscript")
+
+; End B, the only end: end A is CAPTIVE, which is how a lead says it has no
+; connector there (CompositeCable._plug_at).
+[node name="PlugB0" type="RigidBody3D" parent="."]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_plug")
+mass = 0.012
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("2_plugscript")
+connector = "dmg_link_plug"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
+shape = SubResource("BoxShape3D_plug")
+
+[node name="PlugTip" type="MeshInstance3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.008)
+mesh = SubResource("BoxMesh_body")
+surface_material_override/0 = SubResource("Mat_shell_grey")
+
+[node name="PlugNose" type="MeshInstance3D" parent="PlugB0"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0.004)
+mesh = SubResource("BoxMesh_nose")
+surface_material_override/0 = SubResource("Mat_nose")
+
+[node name="PointerArea" type="StaticBody3D" parent="PlugB0"]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0/PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.004)
+shape = SubResource("BoxShape3D_pointer")
+
+[node name="PickableHighlight" type="Node3D" parent="PlugB0"]
+script = ExtResource("3_pickhigh")
+
+[node name="SnapGrabPoint" parent="PlugB0" instance=ExtResource("4_snapgp")]
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
+
+; The small socket on the BACK face, mouth outward: a port's +Z points out of what
+; it is a socket on, and out of this block's back is the plug's -Z, so it is the
+; plug's frame turned half round Y. Its zone is where a seated small plug's mating
+; face belongs, flush with the back of the block.
+[node name="LinkPort" parent="PlugB0" instance=ExtResource("5_linkport")]
+transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, -0.016)

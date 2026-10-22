@@ -5,7 +5,7 @@
 ##
 ## gb_printer_probe drives the two cores directly. This drives the path a PLAYER
 ## uses: a Game Boy stand-in and a GbPrinter side by side, the printer switched on
-## by its own power path, the ordinary gb_link_cable pushed into both sockets
+## by its own power path, the ordinary dmg_link_cable pushed into both sockets
 ## through their snap zones -- and then the printer's own strip, its tear, and the
 ## printout that tear leaves standing in the room.
 ##
@@ -18,7 +18,7 @@
 extends Node3D
 
 const SYS_SCENE := "res://Scenes/Objects/system.tscn"
-const CABLE_SCENE := "res://Scenes/Objects/cables/gb_link_cable.tscn"
+const CABLE_SCENE := "res://Scenes/Objects/cables/dmg_link_cable.tscn"
 const PRINTER_SCENE := "res://Scenes/Objects/peripherals/gb_printer.tscn"
 const ROM := "res://Tools/gblink/printer.gb"
 const EXPECTED := "res://Tools/gblink/printer_expected.png"

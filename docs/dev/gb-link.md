@@ -400,3 +400,29 @@ name, so every one of them seated in every one of those handhelds and the wire
 caught the mismatch only as a log line. Each now has its own plug family
 (the plug's `connector`, matched by the `LinkPort`'s `connector`), so a lead fits its
 own machines and nothing else; `link_tests` walks the whole lead x socket matrix.
+
+#### The original Game Boy's connector is the large one -- 2026-10-22
+
+The Game Boy family had ONE family too, `link_plug`, so a Color's lead seated in an
+original Game Boy. The Pocket and the Color kept the pins and shrank the shell, so on
+the hardware it does not:
+
+| Lead / socket | Spawn id / scene | Connector |
+|---|---|---|
+| Original Game Boy's EXT., the Printer's EXT.IN | `dmg_link_port.tscn` (on `game_boy_primitive`, `gb_printer`) | `dmg_link_plug` |
+| DMG-04, large at both ends | `dmg_link_cable` (inherits `gb_link_cable`, large shell) | `dmg_link_plug` |
+| CGB-003, small at both ends | `gb_link_cable` (the id stays, so saved Color pairs still load) | `link_plug` |
+| DMG-14 Universal Game Link Adapter | `gb_link_adapter` | plug `dmg_link_plug`, back socket `link_plug` |
+
+The DMG-14 is a dongle, not a cable: a small lead goes into its back and it goes
+into a large socket. It is a `LinkAdapter` (`link_adapter.gd`), a `LinkCable` with a
+CAPTIVE end A, no rope, and its back socket as the junction (`junction_port()`), so
+the junction walk, the bus head (the adapter, which hangs off nothing), saves and
+netplay all hold unchanged. Its collider stops 8 mm behind the mating face: the
+small plug's nose enters the block, and a loose adapter and the frozen plug in it
+would otherwise shove each other. The `gb` card offers the DMG-04, the `gbc` card
+the CGB-003, and both the adapter. The large shell's millimetres are an ESTIMATE
+(nothing published gives them). `link_tests` `adapter/` cases: a Color, its lead,
+the adapter and an original make a bus of two, joined once, saved against the
+adapter, and nothing once it is pulled. Headset feel and a real two-core link
+through the adapter are OWED.

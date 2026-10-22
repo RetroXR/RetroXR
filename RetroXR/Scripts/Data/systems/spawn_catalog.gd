@@ -256,13 +256,21 @@ const _VGA_CABLE: Dictionary = {"kind": "peripheral", "label": "VGA Cable",
 ## handhelds and one cable is the whole of GBA multiplayer, and that lead carries
 ## a junction so a third and fourth can chain on.
 ##
-## The Game Boy's is a different lead: black, and with nothing in the middle,
-## because a Game Boy link is two machines and no more. The PlayStation's is
-## different again -- different connector, different protocol -- so the three are
-## three entries and can never be offered as one.
+## The Game Boy's are different leads: with nothing in the middle, because a Game
+## Boy link is two machines and no more. And two of them, because the Pocket and
+## the Color shrank the original's connector: the DMG-04 is large at both ends and
+## fits an original Game Boy and the Printer, the CGB-003 small at both and fits a
+## Color (or an Advance). The DMG-14 adapter takes a small plug in its back and
+## goes into a large socket, so it is offered on both cards: it is how a Color
+## reaches an original or the Printer. The PlayStation's is different again --
+## different connector, different protocol -- so none is ever offered as another.
 const _LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable", "spawn": "link_cable"}
+const _DMG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+	"spawn": "dmg_link_cable"}
 const _GB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "gb_link_cable"}
+const _GB_LINK_ADAPTER: Dictionary = {"kind": "peripheral", "label": "Link Cable Adapter",
+	"spawn": "gb_link_adapter"}
 const _PSX_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "psx_link_cable"}
 ## The WonderSwan's Communication Cable is two units and no more, like the Game
@@ -326,7 +334,7 @@ const _GC_GBA_PLATFORMS: Array = ["gc", "gba"]
 ## socket.
 const _LINK_LEADS: Dictionary = {
 	"gba": _LINK_CABLE,
-	"gb": _GB_LINK_CABLE,
+	"gb": _DMG_LINK_CABLE,
 	"gbc": _GB_LINK_CABLE,
 	"psx": _PSX_LINK_CABLE,
 	"wonderswan": _WS_LINK_CABLE,
@@ -594,6 +602,8 @@ static func _items_for(systemid: String) -> Array:
 		items.append(_LIGHT_GUN.duplicate())
 	if _LINK_LEADS.has(systemid):
 		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
+	if systemid == "gb" or systemid == "gbc":
+		items.append(_GB_LINK_ADAPTER.duplicate())
 	if systemid == "ps2":
 		items.append(_ILINK_HUB.duplicate())
 	if _ETHERNET_PLATFORMS.has(systemid):

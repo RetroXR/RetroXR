@@ -27,10 +27,11 @@ extends RcaPlug
 ## is its pair's head window.
 const ANY_GROUP := "any_link_plug"
 
-## The GBA and Game Boy leads are "link_plug", which is the default; the Game
-## Gear, WonderSwan, Lynx, Neo Geo Pocket and Virtual Boy leads share this scene's
-## shape but each sets its own `connector` in its cable scene, so a Gear-to-Gear
-## cable will not seat in a WonderSwan.
+## The GBA and Game Boy Color leads are "link_plug", which is the default; the
+## original Game Boy's large connector, the Game Gear, WonderSwan, Lynx, Neo Geo
+## Pocket and Virtual Boy leads share this scene's shape but each sets its own
+## `connector` in its cable scene, so a Gear-to-Gear cable will not seat in a
+## WonderSwan, nor a Color's lead in an original Game Boy.
 func _init() -> void:
 	connector = "link_plug"
 

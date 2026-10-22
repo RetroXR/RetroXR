@@ -17,7 +17,8 @@
 ; standing 7 mm proud of the mating face. Replacing this with a model that keeps
 ; those dimensions needs no other change.
 ;
-; The colours are a DMG-04: black cord, black shells, bare metal on both noses.
+; Black cord, black shells, bare metal on both noses. The original Game Boy's
+; DMG-04 (dmg_link_cable.tscn) inherits this scene with the large shell.
 
 ; The shell, running BACK from the mating face. The plug's ORIGIN is that face,
 ; which is the convention every port in the room places against, so the body is
@@ -63,8 +64,10 @@ friction = 0.8
 [sub_resource type="BoxShape3D" id="BoxShape3D_pointer"]
 size = Vector3(0.035, 0.035, 0.06)
 
-; A Game Boy link cable: ONE cord, a link plug at each end, and nothing in the
-; middle.
+; A Game Boy Color link cable (CGB-003): ONE cord, the SMALL link plug at each
+; end, and nothing in the middle. The Pocket and the Color shrank the original's
+; connector, so this fits a Color or an Advance and not an original Game Boy or
+; the Printer -- those take the DMG-04, or this lead through the DMG-14 adapter.
 ;
 ; A separate lead from the Game Boy Advance's rather than a recolour of it,
 ; because the two differ in the one way that shows: the GBA lead carries an

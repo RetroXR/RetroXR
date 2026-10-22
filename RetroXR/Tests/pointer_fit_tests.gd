@@ -52,6 +52,8 @@ const SCENES: Array[String] = [
 	"res://Scenes/Objects/cables/composite_cable.tscn",
 	"res://Scenes/Objects/cables/controller_cable.tscn",
 	"res://Scenes/Objects/cables/comlynx_cable.tscn",
+	"res://Scenes/Objects/cables/dmg_link_cable.tscn",
+	"res://Scenes/Objects/cables/gb_link_adapter.tscn",
 	"res://Scenes/Objects/cables/gb_link_cable.tscn",
 	"res://Scenes/Objects/cables/gc_gba_cable.tscn",
 	"res://Scenes/Objects/cables/gg_link_cable.tscn",

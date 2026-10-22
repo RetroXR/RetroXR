@@ -124,7 +124,8 @@ const PULLED_CLEAR := 0.12
 ## Ends of the lead, used only to name things.
 enum End { A, B }
 
-@onready var _rope: VerletRope = $VerletRope
+## Null on a lead with no cord at all (LinkAdapter), which every use checks for.
+@onready var _rope: VerletRope = get_node_or_null("VerletRope")
 
 # Plugs, [end][cord]. Populated in _ready from the scene's fixed node names. On a
 # SHARED end every entry is the same node — see _count_cords.
