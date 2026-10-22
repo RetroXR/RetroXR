@@ -409,9 +409,10 @@ the hardware it does not:
 
 | Lead / socket | Spawn id / scene | Connector |
 |---|---|---|
-| Original Game Boy's EXT., the Printer's EXT.IN | `dmg_link_port.tscn` (on `game_boy_primitive`, `gb_printer`) | `dmg_link_plug` |
+| Original Game Boy's EXT. | `dmg_link_port.tscn` (on `game_boy_primitive`) | `dmg_link_plug` |
+| Color, Advance, SP, and the Printer's EXT.IN | `link_port.tscn` | `link_plug` |
 | DMG-04, large at both ends | `dmg_link_cable` (inherits `gb_link_cable`, large shell) | `dmg_link_plug` |
-| CGB-003, small at both ends | `gb_link_cable` (the id stays, so saved Color pairs still load) | `link_plug` |
+| CGB-003, small at both ends | `gb_link_cable` (the id stays, so saved Color pairs still load), on both cards | `link_plug` |
 | DMG-14 Universal Game Link Adapter | `gb_link_adapter` | plug `dmg_link_plug`, back socket `link_plug` |
 
 The DMG-14 is a dongle, not a cable: a small lead goes into its back and it goes
@@ -421,7 +422,12 @@ the junction walk, the bus head (the adapter, which hangs off nothing), saves an
 netplay all hold unchanged. Its collider stops 8 mm behind the mating face: the
 small plug's nose enters the block, and a loose adapter and the frozen plug in it
 would otherwise shove each other. The `gb` card offers the DMG-04, the `gbc` card
-the CGB-003, and both the adapter. Sizes are RetroXR-models' (`nintendo/gb/link-plug`,
+the CGB-003, and both the adapter; the `gb` card offers the CGB-003 as well, for its
+printer. **The Printer's EXT.IN is the SMALL socket** (it is a Pocket-era part:
+Nintendo's support page, the Japanese box, `RetroXR-models` nintendo/gb/printer
+notes section 5), so an original Game Boy prints through the adapter, as the
+Universal Game Link Cable it came with in the US and Europe did; it was the large
+one for an afternoon, which was wrong. `gb_printer_room_probe` cables it that way. Sizes are RetroXR-models' (`nintendo/gb/link-plug`,
 `nintendo/gbc/universal-link-adapter` MEASUREMENTS.md): the DMG-04 nose 12.0 x 5.6 in
 the Game Boy's 12.4 x 5.9 mouth, the DMG-14 an 18 x 10 x 22 mm black block. `link_tests` `adapter/` cases: a Color, its lead,
 the adapter and an original make a bus of two, joined once, saved against the

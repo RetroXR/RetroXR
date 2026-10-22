@@ -5,9 +5,11 @@
 ##
 ## gb_printer_probe drives the two cores directly. This drives the path a PLAYER
 ## uses: a Game Boy stand-in and a GbPrinter side by side, the printer switched on
-## by its own power path, the ordinary dmg_link_cable pushed into both sockets
-## through their snap zones -- and then the printer's own strip, its tear, and the
-## printout that tear leaves standing in the room.
+## by its own power path, cabled as the printer came cabled in the US and Europe:
+## the small lead (the Universal Game Link Cable's small plugs) from EXT.IN into
+## the DMG-14 adapter seated in the original Game Boy, all through their snap
+## zones -- and then the printer's own strip, its tear, and the printout that tear
+## leaves standing in the room.
 ##
 ## WINDOWED, never --headless: the dummy renderer hands back blank frames, and the
 ## pictures are the proof (probe_out/gb_printer_room_*.png; --frames also writes
@@ -18,7 +20,8 @@
 extends Node3D
 
 const SYS_SCENE := "res://Scenes/Objects/system.tscn"
-const CABLE_SCENE := "res://Scenes/Objects/cables/dmg_link_cable.tscn"
+const CABLE_SCENE := "res://Scenes/Objects/cables/gb_link_cable.tscn"
+const ADAPTER_SCENE := "res://Scenes/Objects/cables/gb_link_adapter.tscn"
 const PRINTER_SCENE := "res://Scenes/Objects/peripherals/gb_printer.tscn"
 const ROM := "res://Tools/gblink/printer.gb"
 const EXPECTED := "res://Tools/gblink/printer_expected.png"
@@ -115,14 +118,19 @@ func _run() -> void:
 	var pr_port := printer.get_node("LinkPort") as LinkPort
 	_ok("the Game Boy has a link socket", gb_port != null)
 	_ok("the printer's EXT.IN is a link socket", pr_port != null)
-	_eq("which takes the Game Boy's lead", pr_port.connector, "link_plug")
+	_eq("which takes the small lead", pr_port.connector, "link_plug")
+	_eq("and the Game Boy's is the large one", gb_port.connector, "dmg_link_plug")
 
 	var lead := (load(CABLE_SCENE) as PackedScene).instantiate() as LinkCable
 	lead.name = "Lead"
 	add_child(lead)
-	_keep.append_array([gb.get_node_or_null("GameBoyPrimitive"), printer, lead])
+	var adapter := (load(ADAPTER_SCENE) as PackedScene).instantiate() as LinkAdapter
+	adapter.name = "Adapter"
+	add_child(adapter)
+	_keep.append_array([gb.get_node_or_null("GameBoyPrimitive"), printer, lead, adapter])
 	await _settle(2)
-	(gb_port as XRToolsSnapZone).pick_up_object(lead.get_node("PlugA0"))
+	(gb_port as XRToolsSnapZone).pick_up_object(adapter.get_node("PlugB0"))
+	adapter.junction_port().pick_up_object(lead.get_node("PlugA0"))
 	(pr_port as XRToolsSnapZone).pick_up_object(lead.get_node("PlugB0"))
 	await _settle(8)
 

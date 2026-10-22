@@ -66,8 +66,9 @@ size = Vector3(0.035, 0.035, 0.06)
 
 ; A Game Boy Color link cable (CGB-003): ONE cord, the SMALL link plug at each
 ; end, and nothing in the middle. The Pocket and the Color shrank the original's
-; connector, so this fits a Color or an Advance and not an original Game Boy or
-; the Printer -- those take the DMG-04, or this lead through the DMG-14 adapter.
+; connector, so this fits a Color, an Advance and the Game Boy Printer's EXT.IN,
+; and not an original Game Boy -- that takes the DMG-04, or this lead through the
+; DMG-14 adapter, as the Universal Game Link Cable the printer came with did.
 ;
 ; A separate lead from the Game Boy Advance's rather than a recolour of it,
 ; because the two differ in the one way that shows: the GBA lead carries an

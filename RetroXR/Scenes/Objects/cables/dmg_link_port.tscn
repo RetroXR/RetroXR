@@ -2,11 +2,11 @@
 
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="1_base"]
 
-; The original Game Boy's EXT. socket: the large Game Link connector, which the
-; Game Boy Printer wears too. The Pocket, the Color and the Advance kept the pin
-; assignment and shrank the shell, so their leads do not go in here and a DMG-04
-; does not go into them -- a small lead reaches this socket through the DMG-14
-; adapter (gb_link_adapter.tscn).
+; The original Game Boy's EXT. socket: the large Game Link connector. The Pocket,
+; the Color, the Advance and the Game Boy Printer (a Pocket-era accessory) kept the
+; pin assignment and the smaller shell, so their leads do not go in here and a
+; DMG-04 does not go into them -- a small lead reaches this socket through the
+; DMG-14 adapter (gb_link_adapter.tscn).
 ;
 ; The mouth is the Game Boy's 12.4 x 5.9 mm, drawn 1 mm proud all round as the
 ; small socket is; the ghost is the DMG-04's body (dmg_link_cable.tscn). Sizes

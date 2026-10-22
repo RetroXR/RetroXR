@@ -259,11 +259,14 @@ const _VGA_CABLE: Dictionary = {"kind": "peripheral", "label": "VGA Cable",
 ## The Game Boy's are different leads: with nothing in the middle, because a Game
 ## Boy link is two machines and no more. And two of them, because the Pocket and
 ## the Color shrank the original's connector: the DMG-04 is large at both ends and
-## fits an original Game Boy and the Printer, the CGB-003 small at both and fits a
-## Color (or an Advance). The DMG-14 adapter takes a small plug in its back and
-## goes into a large socket, so it is offered on both cards: it is how a Color
-## reaches an original or the Printer. The PlayStation's is different again --
-## different connector, different protocol -- so none is ever offered as another.
+## fits an original Game Boy, the CGB-003 small at both and fits a Color, an
+## Advance and the Game Boy Printer, which is a Pocket-era accessory. The DMG-14
+## adapter takes a small plug in its back and goes into a large socket, so it is
+## offered on both cards: it is how a Color reaches an original. The original's
+## card offers the small lead too, because the printer it also offers takes no
+## other: in the US and Europe the printer came with the Universal Game Link Cable,
+## small plugs and the adapter. The PlayStation's is different again -- different
+## connector, different protocol -- so none is ever offered as another.
 const _LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable", "spawn": "link_cable"}
 const _DMG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "dmg_link_cable"}
@@ -271,6 +274,9 @@ const _GB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "gb_link_cable"}
 const _GB_LINK_ADAPTER: Dictionary = {"kind": "peripheral", "label": "Link Cable Adapter",
 	"spawn": "gb_link_adapter"}
+## The small lead on the original Game Boy's card, named for what it is there.
+const _GBC_LINK_CABLE_ON_DMG: Dictionary = {"kind": "peripheral",
+	"label": "Game Boy Color Link Cable", "spawn": "gb_link_cable"}
 const _PSX_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
 	"spawn": "psx_link_cable"}
 ## The WonderSwan's Communication Cable is two units and no more, like the Game
@@ -602,6 +608,8 @@ static func _items_for(systemid: String) -> Array:
 		items.append(_LIGHT_GUN.duplicate())
 	if _LINK_LEADS.has(systemid):
 		items.append((_LINK_LEADS[systemid] as Dictionary).duplicate())
+	if systemid == "gb":
+		items.append(_GBC_LINK_CABLE_ON_DMG.duplicate())
 	if systemid == "gb" or systemid == "gbc":
 		items.append(_GB_LINK_ADAPTER.duplicate())
 	if systemid == "ps2":

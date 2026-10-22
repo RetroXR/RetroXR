@@ -1,9 +1,9 @@
 ## A link adapter: one plug, with a socket for another lead moulded into its back.
 ##
 ## Nintendo's DMG-14 is the case. The Pocket, the Color and the Advance shrank the
-## Game Boy's link connector and kept its pins, so a small lead reaches an
-## original Game Boy, or a Game Boy Printer, by plugging into this and this
-## plugging in there. It conducts and nothing else: no core, no cord.
+## Game Boy's link connector and kept its pins, so a small lead -- a Color's, or
+## the one from a Game Boy Printer -- reaches an original Game Boy by plugging into
+## this and this plugging in there. It conducts and nothing else: no core, no cord.
 ##
 ## So it is a LinkCable with a CAPTIVE end A (CompositeCable._plug_at) and no
 ## rope, and its socket is that lead's junction. Everything the junction walk

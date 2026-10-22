@@ -4,9 +4,9 @@
 
 ; The DMG-04 Game Link Cable: the original Game Boy's lead, the large connector on
 ; both ends. The base lead's cord and colours (black, as the DMG-04 is) with the
-; large shell and its own plug family, so it seats in an original Game Boy or a
-; Game Boy Printer (dmg_link_port.tscn) and in nothing smaller. A Game Boy Color
-; joins the same wire with its own lead through the DMG-14 adapter.
+; large shell and its own plug family, so it seats in an original Game Boy
+; (dmg_link_port.tscn) and in nothing smaller. A Game Boy Color, or the Game Boy
+; Printer, joins the same wire with the small lead through the DMG-14 adapter.
 ;
 ; Sizes from RetroXR-models' MEASUREMENTS.md for nintendo/gb/link-plug and
 ; nintendo/gbc/universal-link-adapter (read off photographs, scaled by the nose).

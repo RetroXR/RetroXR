@@ -89,9 +89,10 @@ func _test_scene_shape() -> void:
 	_eq(ports.size(), 1, "the printer wears one link socket, EXT.IN")
 	if ports.size() == 1:
 		var port := ports[0] as LinkPort
-		# The original Game Boy's LARGE socket: a DMG-04, or a Color's lead
-		# through the DMG-14 adapter, never a small plug straight in.
-		_eq(port.connector, "dmg_link_plug", "and it takes the original Game Boy's lead")
+		# The SMALL socket, the Pocket's: a Pocket-era accessory. An original Game
+		# Boy reaches it through the DMG-14 adapter, as the Universal Game Link
+		# Cable it came with did; a DMG-04 does not go in.
+		_eq(port.connector, "link_plug", "and it takes the small Game Boy lead")
 		_ok(port.get_machine() == printer, "whose machine is the printer")
 		# On the back, facing out of it: a plug arrives along the socket's +Z.
 		var out := port.global_transform.basis.z.normalized()

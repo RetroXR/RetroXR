@@ -11,9 +11,9 @@
 ;
 ; A small black block with the original Game Boy's LARGE plug on its front and a
 ; socket for the SMALL plug in its back. A Game Boy Color's lead (gb_link_cable)
-; goes into it, and it goes into an original Game Boy or a Game Boy Printer, so a
-; Color, a Pocket-sized lead and a GBA in Game Boy mode reach the large socket. It
-; has no cord: the real one is a block that clips onto the end of the lead.
+; goes into it, and it goes into an original Game Boy, so a Color, the Game Boy
+; Printer and a GBA in Game Boy mode reach the large socket. It has no cord: the
+; real one is a block that clips onto the end of the lead.
 ;
 ; The large nose is the DMG-04's 12.0 x 5.6, so it seats where a DMG-04 does.
 ; Sizes from RetroXR-models' MEASUREMENTS.md for nintendo/gb/link-plug and

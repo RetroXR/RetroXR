@@ -2115,8 +2115,9 @@ const _LINK_SOCKETS := {
 	"res://Scenes/Objects/cables/jag_link_port.tscn": "jag_link_plug",
 	"res://Scenes/Objects/cables/ilink_port.tscn": "ilink_plug",
 	# Not a machine with a CPU but a socket all the same: the Game Boy Printer's
-	# EXT.IN is the original Game Boy's large socket.
-	"res://Scenes/Objects/peripherals/gb_printer.tscn": "dmg_link_plug",
+	# EXT.IN is the Pocket's small socket (Nintendo: "the size of the Game Boy
+	# Pocket's link cable socket (small)"), not the original Game Boy's.
+	"res://Scenes/Objects/peripherals/gb_printer.tscn": "link_plug",
 }
 
 ## Spawn id -> the family both its ends (and any junction) must be.
@@ -2135,9 +2136,10 @@ const _LINK_LEADS := {
 	"ilink_cable": "ilink_plug",
 }
 
-## What the spawn menu offers each machine.
+## What the spawn menu offers each machine. The original Game Boy's card has the
+## small lead as well, for the printer it also offers.
 const _LINK_OFFERS := {
-	"gb": "dmg_link_cable", "gbc": "gb_link_cable", "gba": "link_cable", "gamegear": "gg_link_cable",
+	"gb": ["dmg_link_cable", "gb_link_cable"], "gbc": "gb_link_cable", "gba": "link_cable", "gamegear": "gg_link_cable",
 	"wonderswan": "ws_link_cable", "atarilynx": "comlynx_cable", "ngp": "ngp_link_cable",
 	"virtualboy": "vb_link_cable",
 	"psx": "psx_link_cable", "saturn": "saturn_link_cable", "atarijaguar": "jag_link_cable",
@@ -2188,19 +2190,21 @@ func _test_every_lead_fits_only_its_own_machines() -> void:
 
 	# And the menu hands each machine its own lead.
 	for sys: String in _LINK_OFFERS:
-		var offered := false
+		var want: Array = _LINK_OFFERS[sys] if _LINK_OFFERS[sys] is Array else [_LINK_OFFERS[sys]]
+		var got: Array = []
 		for item: Dictionary in SpawnCatalog.items_for(sys):
 			var spawn := str(item.get("spawn", ""))
 			if _LINK_LEADS.has(spawn):
-				_eq(spawn, _LINK_OFFERS[sys], "%s is offered %s" % [sys, _LINK_OFFERS[sys]])
-				offered = offered or spawn == _LINK_OFFERS[sys]
-		_ok(offered, "%s is offered its link lead" % sys)
+				_ok(want.has(spawn), "%s is offered %s, one of %s" % [sys, spawn, str(want)])
+				got.append(spawn)
+		for spawn: String in want:
+			_ok(got.has(spawn), "%s is offered %s" % [sys, spawn])
 
 
 # ---------------------------------------------------------------------------
 # The DMG-14 adapter. The Color's lead is the small connector at both ends and
-# the original Game Boy's socket is the large one, so a Color reaches an original
-# (or the Printer) only through this: a large plug with a small socket in its
+# the original Game Boy's socket is the large one, so a Color (or the Printer)
+# reaches an original only through this: a large plug with a small socket in its
 # back, which conducts as a lead's junction does.
 
 const DMG_ADAPTER_SCENE := "res://Scenes/Objects/cables/gb_link_adapter.tscn"
