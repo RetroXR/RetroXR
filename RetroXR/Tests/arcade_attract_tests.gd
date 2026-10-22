@@ -277,15 +277,36 @@ func _group_rules() -> void:
 	_ok(ArcadeAttract.pick_budget(PackedFloat32Array([1.0]), 4).size() == 1 and ArcadeAttract.pick_budget(PackedFloat32Array(), 4).is_empty(),
 		"rules: a budget larger than the room hands out what there is")
 	_ok(ArcadeAttract.pick_budget(PackedFloat32Array([1.0, 2.0]), 0).is_empty(), "rules: a budget of none hands out none")
-	_ok(ArcadeAttract.video_budget() >= 1, "rules: there is always at least one video")
+	_ok(ArcadeAttract.visible_cap() >= 4 and ArcadeAttract.audio_only_cap() >= 1,
+		"rules: every screen in view plays, the cap is only a safety (%d in view, %d heard)" % [ArcadeAttract.visible_cap(), ArcadeAttract.audio_only_cap()])
 
-	_ok(ArcadeAttract.audio_tier(1.0) == ArcadeAttract.Tier.NEAR and ArcadeAttract.audio_tier(ArcadeAttract.NEAR_AUDIO) == ArcadeAttract.Tier.NEAR,
-		"rules: near the sound is served in full")
-	_ok(ArcadeAttract.audio_tier(ArcadeAttract.NEAR_AUDIO + 0.5) == ArcadeAttract.Tier.FAR
-		and ArcadeAttract.audio_tier(ArcadeAttract.MAX_AUDIO - 0.5) == ArcadeAttract.Tier.FAR,
-		"rules: far it is approximated")
+	# The plan: every cabinet in view plays, whatever its distance; those out of view play only while heard.
+	# Seven cabinets in a row, as in the room: the player looks at four of them, three are behind or aside.
+	var d7 := PackedFloat32Array([3.0, 3.2, 3.5, 4.0, 5.0, 6.0, 20.0])
+	var v7: Array = [true, true, true, true, false, false, false]
+	var s7: Array = [false, false, false, false, false, false, true]
+	var all := ArcadeAttract.plan(d7, v7, s7, 16, 4)
+	_ok(all.has(0) and all.has(1) and all.has(2) and all.has(3),
+		"rules: every screen that is in view plays (%s)" % str(all))
+	_ok(all.has(4) and all.has(5), "rules: and those out of view but heard keep playing for their sound")
+	_ok(not all.has(6), "rules: one out of view and out of hearing does not")
+	# The Quest's old budget was ONE video, handed to the nearest: the four in view must not be cut to it.
+	_ok(ArcadeAttract.plan(d7, v7, s7, 16, 4).size() == 6, "rules: six play, none of the four in view left on its still")
+	var capped := ArcadeAttract.plan(d7, v7, s7, 2, 1)
+	_ok(capped.size() == 3 and capped.has(0) and capped.has(1) and capped.has(4),
+		"rules: the caps bite nearest first (%s)" % str(capped))
+	# In view and past hearing: seen, so it plays (silently).
+	var far_seen := ArcadeAttract.plan(PackedFloat32Array([30.0]), [true], [true], 16, 4)
+	_ok(far_seen == PackedInt32Array([0]), "rules: a far screen that is in view still plays")
+	_ok(ArcadeAttract.plan(PackedFloat32Array(), [], [], 16, 4).is_empty(), "rules: no cabinets, nothing to play")
+
+	_ok(ArcadeAttract.audio_tier(1.0) == ArcadeAttract.Tier.NEAR and ArcadeAttract.audio_tier(ArcadeAttract.MAX_AUDIO - 0.5) == ArcadeAttract.Tier.NEAR,
+		"rules: within hearing the sound is served in full, at every distance (no gulps)")
 	_ok(ArcadeAttract.audio_tier(ArcadeAttract.MAX_AUDIO) == ArcadeAttract.Tier.SILENT and ArcadeAttract.audio_tier(100.0) == ArcadeAttract.Tier.SILENT,
 		"rules: past hearing it is not served at all")
+	_ok(ArcadeAttract.audio_tier(ArcadeAttract.MAX_AUDIO - 0.5, true) == ArcadeAttract.Tier.SILENT
+		and ArcadeAttract.audio_tier(ArcadeAttract.MAX_AUDIO - ArcadeAttract.AUDIO_HYSTERESIS - 0.1, true) == ArcadeAttract.Tier.NEAR,
+		"rules: a cabinet at the edge of hearing comes back a metre inside, not with every step")
 
 	# Who is at the cabinet: a pad in a hand, not in its holster.
 	var pad := StubPad.new()
