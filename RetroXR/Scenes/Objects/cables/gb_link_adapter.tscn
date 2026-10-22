@@ -100,7 +100,8 @@ transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0)
 ; round X rather than Y, so its key (+Y) is on the side away from this plug's own
 ; +Y: a plug seats with its +Y against the socket's -Y, which puts the small plug's
 ; lettered face on the adapter's GAME BOY face, as on the real one (RetroXR-models
-; nintendo/gbc/universal-link-adapter, PlugSeat). 1 mm proud of the 22 mm block's
-; back, as every link socket stands proud of its mouth.
+; nintendo/gbc/universal-link-adapter, PlugSeat). At the 22 mm block's back: a
+; model dressed on this plug sits 1 mm ahead of it, as on every link plug, which
+; leaves the socket 1 mm proud of the model's mouth, as every link socket stands.
 [node name="LinkPort" parent="PlugB0" instance=ExtResource("5_linkport")]
-transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, -0.023)
+transform = Transform3D(1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, -0.022)
