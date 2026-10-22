@@ -65,8 +65,12 @@ const SKIP := {
 	# POWER is a VRSlider's knob and EJECT the UMD latch's slider, both set up
 	# by RetroSystem's configure_* calls.
 	"psp": ["PowerButton", "EjectButton"],
-	# Pulled by the holding hand's own trigger, not poked.
+	# Pulled by the holding hand's own trigger, not poked. Keyed by kind, so a
+	# gun pack's trigger is let off too.
 	"lightgun": ["Trigger"],
+	# Any object: an extension plug's release latch (the Classic Controller
+	# pack's) frees the plug and is no control at all.
+	"*": ["LatchButton"],
 }
 
 const CAP_NAME := "(?i)(button|btn|dpad|d_pad|shoulder|trigger|start|select|home|fire)"
@@ -160,7 +164,7 @@ func _test_object(key: String, path: String, kind: String) -> void:
 	var hands: Array[Node3D] = [_hand]
 	poke.set_controllers(hands)
 
-	_test_cover(key, obj, poke)
+	_test_cover(key, kind, obj, poke)
 	var drive := _driver(obj, kind)
 	for i in poke.targets.size():
 		var t: Dictionary = poke.targets[i]
@@ -202,7 +206,7 @@ func _driver(obj: Node, kind: String) -> Callable:
 
 # ── cover/ ──────────────────────────────────────────────────────────────────
 
-func _test_cover(key: String, obj: Node, poke: ControlPoke) -> void:
+func _test_cover(key: String, kind: String, obj: Node, poke: ControlPoke) -> void:
 	var owned := {}
 	for t: Dictionary in poke.targets:
 		var n: Node = t["node"]
@@ -218,7 +222,9 @@ func _test_cover(key: String, obj: Node, poke: ControlPoke) -> void:
 			var v: Variant = w.get(p["name"])
 			if v is MeshInstance3D:
 				owned[v] = true
-	var skip: Array = SKIP.get(key, [])
+	var skip: Array = []
+	for k: String in [key, kind, "*"]:
+		skip.append_array(SKIP.get(k, []))
 	var missed: PackedStringArray = []
 	for m: Node in obj.find_children("*", "MeshInstance3D", true, false):
 		if owned.has(m) or not (m as MeshInstance3D).visible:
