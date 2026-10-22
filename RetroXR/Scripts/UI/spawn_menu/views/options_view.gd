@@ -1364,7 +1364,7 @@ func _build_arcade_attract(vbox: VBoxContainer) -> void:
 
 	col.add_child(MenuStyle.label("Arcade Attract Mode", 22, MenuStyle.COLOR_TITLE))
 	col.add_child(MenuStyle.label(
-		"Cabinets show their game's video until a coin or controller is used. Costs performance in VR",
+		"Cabinets, when turned on, show their game's video instead of starting the core until a coin or controller is used.",
 		16, MenuStyle.COLOR_LICENSE))
 
 	row.add_child(VRToggle.create(AppPrefs.arcade_attract_mode, func(on: bool) -> void:
