@@ -115,6 +115,23 @@ static func source_after_single(before: Dictionary, mod_id: int, file_id: int,
 	return out
 
 
+## The same for a NEW FILE of a mod that is here already -- an update, from its
+## tile, its page or Update all. Only where the file came from changes: who wanted
+## it (its packs, and whether it was asked for on its own) stays as it was. With
+## source_after_single an update marked a pack's mod as wanted on its own, and
+## removing the pack then left it behind.
+static func source_after_update(before: Dictionary, mod_id: int, file_id: int,
+		profile_url: String) -> Dictionary:
+	var out := before.duplicate(true)
+	out["modio_id"] = mod_id
+	out["file_id"] = file_id
+	out["profile_url"] = profile_url
+	if before.is_empty():
+		# Installed by hand before: nothing but the player wanted it.
+		out["individual"] = true
+	return out
+
+
 ## What removing pack `collection_id` does to each installed mod.
 ##   sources  mod id -> source, for every installed mod
 ## Returns {remove: Array[String], keep: Dictionary of id -> its new source}.

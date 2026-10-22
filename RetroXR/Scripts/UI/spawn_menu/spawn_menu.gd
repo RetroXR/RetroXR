@@ -696,7 +696,8 @@ func notify_clear(key: String) -> void:
 ## is deleted by the next launch (ModManager._sweep_incoming).
 func busy_reason() -> String:
 	if mod_reviews != null and not mod_reviews.keys().is_empty():
-		return "A mod download is waiting for your answer under Browse."
+		var where := _mods_view.review_place() if _mods_view != null else "Browse"
+		return "A mod download is waiting for your answer under %s." % where
 	for job: Variant in [mod_downloader, download_manager, romm_downloader]:
 		if job != null and job.is_busy():
 			return "Wait for the downloads to finish."

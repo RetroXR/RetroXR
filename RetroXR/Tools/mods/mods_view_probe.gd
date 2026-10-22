@@ -8,7 +8,8 @@
 ## cache, and writes PNGs to user://mods_view_probe/: consent (mod.io's terms,
 ## before anything else is shown), declined, browse, detail, review (the question
 ## before a download is installed), browse_waiting (the list with it still
-## waiting: Install all), detail_needs and review_needs /
+## waiting: Install all), browse_installed (one just installed, off: the apply
+## bar's Enable and apply now), detail_needs and review_needs /
 ## review_needs_ready (a mod that needs others, while they come down and once
 ## they are in), packs, pack, pack_review, installed and installed_detail. The
 ## Installed pages are the machine's real mods; `-- --installed=<id>` picks
@@ -187,6 +188,34 @@ func _ready() -> void:
 	await _shot("browse_waiting")
 	view.reviews._parked.erase(key)
 	view._sync_install_all_btn()
+
+	# Installed from here and landed off: the bar offers to load it right here.
+	# Into a scratch loader in OUT -- the player's own mods are never touched.
+	var scratch: Node = load("res://Scripts/Mods/mod_manager.gd").new()
+	scratch.mods_root_override = OUT.path_join("scratch_mods")
+	scratch.state_path_override = OUT.path_join("scratch_mods.json")
+	DirAccess.make_dir_recursive_absolute(scratch.incoming_dir())
+	var zip_path: String = scratch.incoming_dir().path_join("probe.zip")
+	var zip := ZIPPacker.new()
+	zip.open(zip_path)
+	zip.start_file("mods/probe.saturn/mod.json")
+	zip.write_file(JSON.stringify({"id": "probe.saturn", "api_version": 1, "version": "1.0.0",
+		"name": "Sega Saturn", "entry": "res://mods/probe.saturn/m.gd"}).to_utf8_buffer())
+	zip.close_file()
+	zip.start_file("mods/probe.saturn/m.gd")
+	zip.write_file("extends RetroMod".to_utf8_buffer())
+	zip.close_file()
+	zip.close()
+	view.reviews.manager = scratch
+	var saturn_key := SpawnMenuModsView._job_key(101)
+	view.reviews.stage(zip_path, {"modio_id": 101, "file_id": 501, "profile_url": ""})
+	view.finish_review(saturn_key, {"modio_id": 101, "file_id": 501, "profile_url": ""}, false)
+	await get_tree().create_timer(0.3).timeout
+	await _shot("browse_installed")
+	view.reviews.manager = null
+	view._just_installed.clear()
+	view._fill_banner()
+	scratch.free()
 
 	# A mod that needs others: its page says so, and its review answers for them
 	# -- one in, one still coming down, one mod.io will not give -- and holds the

@@ -32,6 +32,11 @@ var _search_timer: Timer = null
 var _sort := str(ModioClient.COLLECTION_SORTS[0][1])
 var _status_lbl: Label = null
 var _grid: HFlowContainer = null
+## Members a pack skipped because they were already coming down another way:
+## {pack, mod, confirmed}. Once the pack is installed AND the member is, the
+## member is recorded as the pack's too (tag_pending) -- else removing the pack
+## would leave it behind.
+var _pending_tags: Array = []
 var _prev_btn: Button = null
 var _next_btn: Button = null
 var _page_lbl: Label = null
@@ -122,6 +127,7 @@ func ensure_fetched() -> void:
 func forget() -> void:
 	# The view has already cancelled the downloads and thrown the reviews away.
 	_batches.clear()
+	_pending_tags.clear()
 	_reviewing = {}
 	_asking.clear()
 	_fetched = false
@@ -503,6 +509,8 @@ func _install(pack: Dictionary) -> void:
 func _install_mods(pack: Dictionary, mods: Array) -> void:
 	if not _batch_of(int(pack["id"])).is_empty():
 		return
+	if _view.client != null and not _view.has_consent():
+		return
 	var plan := ModCollectionPlan.plan_install(mods, installed_files())
 	var batch := {"id": int(pack["id"]), "name": str(pack["name"]), "keys": {}, "done": [],
 		"staged": [], "skip": (plan["skip"] as Array).duplicate(true),
@@ -515,10 +523,12 @@ func _install_mods(pack: Dictionary, mods: Array) -> void:
 		if not other.is_empty():
 			(batch["skip"] as Array).append({"name": str(mod["name"]),
 				"why": "comes with %s, queued before it" % str(other["name"])})
+			_pending_tags.append({"pack": int(pack["id"]), "mod": mod, "confirmed": false})
 			continue
 		if _view.downloader.is_queued(key) or _view.has_review(key):
 			(batch["skip"] as Array).append({"name": str(mod["name"]),
 				"why": "is already being downloaded"})
+			_pending_tags.append({"pack": int(pack["id"]), "mod": mod, "confirmed": false})
 			continue
 		(batch["keys"] as Dictionary)[key] = mod
 	_batches.append(batch)
@@ -692,11 +702,40 @@ func _after_review() -> void:
 
 ## Members that were already here are this pack's too, from now on.
 func _tag_have(batch: Dictionary) -> void:
+	var m := _view._manager()
 	for mod: Dictionary in (batch["have"] as Array):
-		var rec := Mods.find_by_source("modio_id", int(mod["id"]))
+		var rec := m.find_by_source("modio_id", int(mod["id"])) as ModRecord
 		if rec != null:
-			Mods.set_source(rec.id, ModCollectionPlan.source_after_install(Mods.source(rec.id),
+			m.set_source(rec.id, ModCollectionPlan.source_after_install(m.source(rec.id),
 				int(mod["id"]), int(mod["file_id"]), str(mod["profile_url"]), int(batch["id"])))
+
+
+## Record each skipped member whose pack is installed and that is here now as
+## that pack's too. Run when a pack is confirmed and after every install.
+func tag_pending() -> void:
+	if _pending_tags.is_empty():
+		return
+	var m := _view._manager()
+	var left: Array = []
+	for t: Dictionary in _pending_tags:
+		var mod: Dictionary = t["mod"]
+		var rec := m.find_by_source("modio_id", int(mod["id"])) as ModRecord
+		if not bool(t["confirmed"]) or rec == null:
+			left.append(t)
+			continue
+		m.set_source(rec.id, ModCollectionPlan.source_after_install(m.source(rec.id),
+			int(mod["id"]), int(mod["file_id"]), str(mod["profile_url"]), int(t["pack"])))
+	_pending_tags = left
+
+
+## Show the question download `key` is answered in: its pack's review once the
+## pack has all come down (or the one ahead of it in the queue), else the pack
+## page as it stands while the rest comes down.
+func show_review_of(key: String) -> void:
+	var batch := _batch_owning(key)
+	if batch.is_empty() or not bool(batch["ready"]):
+		return
+	_open_review_of(_reviewing if not _reviewing.is_empty() else batch)
 
 
 func _fill_review() -> void:
@@ -721,6 +760,8 @@ func _fill_review() -> void:
 	# pack's own members, and the mods already installed.
 	var claims := SpawnMenuModsView.installed_claims()
 	for key: String in staged:
+		if not _view.has_review(key):
+			continue
 		var review := _view.review(key)
 		var manifest: ModManifest = review["manifest"]
 		claims[manifest.name] = Array(manifest.shadowing_claims())
@@ -758,36 +799,43 @@ func _confirm(enable: bool) -> void:
 	var batch := _reviewing
 	var pack_id := int(batch["id"])
 	var installed := 0
-	var restart := false
 	var failed := PackedStringArray()
+	var m := _view._manager()
 	# The whole pack is one change to the loader: one write, one rebuild of the
 	# lists, not one of each per member in the frame the button was pressed.
-	Mods.hold_changes()
+	m.hold_changes()
 	for key: String in (batch["staged"] as Array):
+		# A member whose review is gone was answered some other way: reading it
+		# here stopped the install half way with the loader's changes still held,
+		# and nothing was saved or redrawn for the rest of the session.
+		if not _view.has_review(key):
+			continue
 		var mod: Dictionary = (batch["keys"] as Dictionary)[key]
 		var manifest: ModManifest = _view.review(key)["manifest"]
-		var source := ModCollectionPlan.source_after_install(Mods.source(manifest.id),
+		var source := ModCollectionPlan.source_after_install(m.source(manifest.id),
 			int(mod["id"]), int(mod["file_id"]), str(mod["profile_url"]), pack_id)
 		var out := _view.finish_review(key, source, enable)
 		if bool(out.get("ok", false)):
 			installed += 1
-			restart = restart or bool(out.get("restart", false))
 		else:
 			failed.append("%s (%s)" % [str(mod["name"]), str(out.get("error", ""))])
 	_tag_have(batch)
+	for t: Dictionary in _pending_tags:
+		if int(t["pack"]) == pack_id:
+			t["confirmed"] = true
+	tag_pending()
 	var name := str(batch["name"])
 	_drop(batch)
-	Mods.release_changes()
+	m.release_changes()
 	var toast := _toast(pack_id)
+	var step := _view.next_step(installed != 1)
 	if not failed.is_empty():
 		_view.notify(toast, "❌", "%s: not installed — %s" % [name, ", ".join(failed)],
 			-1.0, MenuToasts.DWELL_FAIL)
-	elif restart or enable:
-		_view.notify(toast, "✅", "%s installed — apply it under Installed" % name,
-			-1.0, MenuToasts.DWELL_FAIL)
 	else:
-		_view.notify(toast, "✅", "%s installed (%d mod%s) — enable them under Installed" % [
-			name, installed, "" if installed == 1 else "s"], -1.0, MenuToasts.DWELL_FAIL)
+		_view.notify(toast, "✅", "%s installed (%d mod%s)%s" % [name, installed,
+			"" if installed == 1 else "s", "" if step.is_empty() else " — " + step],
+			-1.0, MenuToasts.DWELL_FAIL)
 	_after_review()
 
 
@@ -797,6 +845,9 @@ func _discard() -> void:
 	var batch := _reviewing
 	for key: String in (batch["staged"] as Array):
 		_view.discard_review(key)
+	# A pack not installed claims none of the members it skipped.
+	_pending_tags = _pending_tags.filter(func(t: Dictionary) -> bool:
+		return int(t["pack"]) != int(batch["id"]))
 	_drop(batch)
 	_view.notify(_toast(int(batch["id"])), "❌", "%s discarded" % str(batch["name"]),
 		-1.0, MenuToasts.DWELL_INFO)

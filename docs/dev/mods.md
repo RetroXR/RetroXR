@@ -221,6 +221,41 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   own Install, lifted out. They land as a download always does, OFF unless the mod was
   already on, so the switch under Installed is still the player's consent; the single
   review stays the place to read what a mod claims. `mod_browser_tests installall/`.
+- **The apply bar is on all three pages** (`_fill_banner` fills `_installed_banner`,
+  `_browse_banner` and `_packs_banner` from one plan): a mod installed from the browser can
+  be loaded where it was installed. A download lands OFF and an off mod is not in
+  `apply_plan`, so the bar ALSO lists the mods installed this session that are still off
+  (`switched_off_new`, from `_just_installed`, which `finish_review` fills for NEW mods
+  only -- an update keeps the player's switch) with **Enable and apply now** (switch them
+  on, then the bar's own Apply) and **Leave off**. Before this the player had to find
+  each one under Installed and switch it on before there was anything to apply. Install
+  toasts take their next step from the same plan (`next_step`), so they cannot disagree
+  with the bar (a running mod's update said "apply" where the bar said Restart now).
+- **A parked download is answered by whoever asked for it** (`_review_from_tile`): a
+  pack's member in the pack's review, what a mod needs in that mod's. Its tile's Review
+  (and its page's Review and install) used to open its OWN review, and answering it
+  there pulled it out from under the pack: `_confirm` then read a review that was gone,
+  died mid-install with `hold_changes` still held, and nothing was saved or redrawn for
+  the rest of the session. `_confirm` and `_fill_review` also skip a member whose review
+  is gone.
+- **`_needed_for` is dependency -> EVERY mod that needs it.** It held the last one only,
+  so when two downloads needed the same mod the first was never told it arrived (its
+  Install stuck on "Downloading what it needs…", left out of Install all, its parked
+  review holding off Restart now). `_drop_needs` cancels a dependency only when no mod
+  still needs it, and quietly (`_quiet_cancel`: one toast for the mod, not one each).
+- **Withdrawing consent drops what was in flight** (`_consent_serial`): a press's
+  `get_mod`, `fetch_needs` and Update all's answer that land after it are ignored even if
+  the player has agreed again by then; `_enqueue` and a pack's `_install_mods` refuse
+  without consent; a download that finishes after it is discarded, not parked behind the
+  terms gate. `_withdraw` also clears the need bookkeeping and redraws both buttons. A
+  terms change says what it discarded (a toast), where it used to be silent.
+- **An update keeps who wanted the mod**: a single install of a mod that is HERE goes
+  through `ModCollectionPlan.source_after_update` (only the file changes), not
+  `source_after_single`, which marked a pack's mod as wanted on its own so removing the
+  pack left it behind. A member a pack skipped because it was already coming down is
+  recorded as the pack's once both have landed (`_pending_tags`, `tag_pending`).
+- `busy_reason` says where the waiting downloads are asked about (`review_place`:
+  Browse, Packs, or both). `mod_browser_tests holes/` (20 cases, three mutation-checked).
 - **mod.io game 14432**, `https://g-14432.modapi.io/v1`, REST from GDScript. The
   only maintained Godot plugin is a desktop-only Rust extension with no Android
   build. mod.io's C++ SDK is not used: it builds for Android only through CMake

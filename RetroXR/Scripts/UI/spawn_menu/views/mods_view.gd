@@ -114,6 +114,17 @@ var reviews: ModReviews = null
 var _with_needs: Dictionary = {}
 ## A download asked for because another needs it: its job key -> that one's.
 var _needed_for: Dictionary = {}
+## Dependency downloads cancelled because the mod that needed them went: their
+## cancel is not news (one toast for the mod, not one per thing it brought).
+var _quiet_cancel: Dictionary = {}
+## Bumped when consent is withdrawn. A mod.io answer that set off before that
+## (a press's get_mod, what a mod needs, Update all) is dropped when it lands.
+var _consent_serial := 0
+## Mods installed from the browser this session that landed switched off: the
+## apply bar offers to switch them on and load them (switched_off_new).
+var _just_installed: Array[String] = []
+var _browse_banner: VBoxContainer = null
+var _packs_banner: VBoxContainer = null
 
 # Installed
 ## What is waiting and the button that applies it, above the list AND above one
@@ -270,7 +281,18 @@ func _recheck_terms() -> void:
 	client.get_terms(func(ok: bool, terms: Dictionary, _error: String) -> void:
 		if ok and client.consent.terms_changed(str(terms["text"])):
 			_terms = terms
-			_withdraw())
+			var waiting := reviews.keys().size()
+			var busy := downloader != null and downloader.is_busy()
+			_withdraw()
+			if waiting > 0 or busy:
+				var lost := PackedStringArray()
+				if waiting > 0:
+					lost.append("%d downloaded mod%s waiting for review %s discarded" % [
+						waiting, "" if waiting == 1 else "s", "was" if waiting == 1 else "were"])
+				if busy:
+					lost.append("the download in progress was stopped")
+				notify("mods:terms", "❌", "mod.io's terms have changed, so %s. Agree to them again under Browse."
+					% " and ".join(lost), -1.0, MenuToasts.DWELL_FAIL))
 
 
 func _fill_gate(gate: VBoxContainer) -> void:
@@ -344,9 +366,16 @@ func _withdraw() -> void:
 	if client == null:
 		return
 	client.consent.withdraw()
+	_consent_serial += 1
 	if downloader != null:
 		downloader.cancel_all()
 	reviews.discard_all()
+	_with_needs.clear()
+	_needed_for.clear()
+	_quiet_cancel.clear()
+	_checking_updates = false
+	_sync_update_all_btn()
+	_sync_install_all_btn()
 	_request_serial += 1
 	_fetching = false
 	_fetched = false
@@ -367,6 +396,9 @@ func _build_packs(vbox: VBoxContainer) -> void:
 	_packs_gate = MenuStyle.vbox(12)
 	_packs_gate.visible = false
 	vbox.add_child(_packs_gate)
+	_packs_banner = MenuStyle.vbox(8)
+	_packs_banner.visible = false
+	vbox.add_child(_packs_banner)
 	_packs_body = MenuStyle.vbox(10)
 	vbox.add_child(_packs_body)
 	_packs_page = SpawnMenuModsPacksPage.new(self, _packs_body, _pages[PACKS_TAB])
@@ -382,6 +414,10 @@ func _build_browse(vbox: VBoxContainer) -> void:
 	_browse_gate = MenuStyle.vbox(12)
 	_browse_gate.visible = false
 	vbox.add_child(_browse_gate)
+	# The same apply bar as Installed's: a mod installed here can be loaded here.
+	_browse_banner = MenuStyle.vbox(8)
+	_browse_banner.visible = false
+	vbox.add_child(_browse_banner)
 	_browse_list = MenuStyle.vbox(10)
 	vbox.add_child(_browse_list)
 	_browse_detail = MenuStyle.vbox(10)
@@ -599,7 +635,7 @@ func _tile_action(mod: Dictionary, state: String) -> Button:
 			caption = "Review"
 			on_press = func() -> void:
 				_open_mod = mod
-				_open_single_review(key)
+				_review_from_tile(key)
 		_:
 			return null
 	var btn := MenuStyle.row_button("%s  %s" % [String.chr(glyph), caption], 16, TILE_BTN_W,
@@ -629,6 +665,41 @@ func _refresh_tile(key: String) -> void:
 		_grid.remove_child(old)
 		old.queue_free()
 		return
+
+
+## Open the question a parked download is answered in. A pack's member is
+## answered by the pack's review and what a mod needs by that mod's: answering
+## either on its own pulled it out from under them (the pack's install then read
+## a review that was gone, mid-install, with the loader's changes held).
+func _review_from_tile(key: String) -> void:
+	if _packs_page.owns(key):
+		_tabs.current_tab = PACKS_TAB
+		_packs_page.show_review_of(key)
+		return
+	for owner: Variant in (_needed_for.get(key, []) as Array):
+		if has_review(str(owner)):
+			_open_single_review(str(owner))
+			return
+	if _needed_for.has(key):
+		notify(_toast_key(key), "⏳", "It installs with the mod that needs it, once that has downloaded",
+			-1.0, MenuToasts.DWELL_INFO)
+		return
+	_open_single_review(key)
+
+
+## Where the downloads waiting for an answer are asked about, for the menu's
+## "a restart would lose this" line.
+func review_place() -> String:
+	var browse := false
+	var packs := false
+	for key: String in reviews.keys():
+		if _packs_page.owns(key):
+			packs = true
+		else:
+			browse = true
+	if browse and packs:
+		return "Browse and Packs"
+	return "Packs" if packs else "Browse"
 
 
 ## The loader the page reads: the Mods autoload, or a suite's scratch one.
@@ -765,7 +836,7 @@ func _fill_browse_detail() -> void:
 	elif state == "review":
 		var review_btn := MenuStyle.row_button("Review and install", 20, 280, 56, false)
 		review_btn.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
-		review_btn.pressed.connect(func() -> void: _open_single_review(_job_key(mod_id)))
+		review_btn.pressed.connect(func() -> void: _review_from_tile(_job_key(mod_id)))
 		actions.add_child(review_btn)
 	elif state == "" or state == "update":
 		var get_btn := MenuStyle.row_button(
@@ -825,9 +896,13 @@ func _download(mod: Dictionary) -> void:
 	if client == null or downloader == null or downloader.is_queued(key):
 		return
 	notify(_toast_key(key), "⏳", "Asking mod.io for %s…" % str(mod["name"]))
+	var serial := _consent_serial
 	# Asked again rather than taken from the listing: mod.io signs a download
 	# address and lets it expire, and the page may have been open for a while.
 	client.get_mod(mod_id, func(ok: bool, fresh: Dictionary, error: String) -> void:
+		if serial != _consent_serial:
+			notify_clear(_toast_key(key))
+			return
 		if not ok:
 			notify(_toast_key(key), "❌", error, -1.0, MenuToasts.DWELL_FAIL)
 			return
@@ -851,17 +926,25 @@ func _install_reviewed(key: String, enable: bool) -> Dictionary:
 			continue
 		var dep: Dictionary = (entry["deps"] as Dictionary)[dkey]
 		var dm: ModManifest = review(dkey)["manifest"]
-		var dout := finish_review(dkey, ModCollectionPlan.source_after_single(
-			m.source(dm.id), int(dep["id"]), int(dep["file_id"]), str(dep["profile_url"])), false)
+		var dout := finish_review(dkey, _source_for(dm.id, int(dep["id"]), int(dep["file_id"]),
+			str(dep["profile_url"])), false)
 		if not bool(dout.get("ok", false)):
 			also_failed.append("%s (%s)" % [dm.name, str(dout.get("error", ""))])
 	_drop_needs(key, false)
-	var out := finish_review(key, ModCollectionPlan.source_after_single(
-		m.source(manifest.id), int(source.get("modio_id", 0)),
+	var out := finish_review(key, _source_for(manifest.id, int(source.get("modio_id", 0)),
 		int(source.get("file_id", 0)), str(source.get("profile_url", ""))), enable)
 	m.release_changes()
 	out["also_failed"] = also_failed
 	return out
+
+
+## Where a single install records the mod came from: a mod here already takes an
+## update (who wanted it stays as it was), a new one is wanted on its own.
+func _source_for(id: String, modio_id: int, file_id: int, profile_url: String) -> Dictionary:
+	var m := _manager()
+	if m.mod(id) != null:
+		return ModCollectionPlan.source_after_update(m.source(id), modio_id, file_id, profile_url)
+	return ModCollectionPlan.source_after_single(m.source(id), modio_id, file_id, profile_url)
 
 
 # ── Install all ───────────────────────────────────────────────────────────────
@@ -890,7 +973,6 @@ func install_all() -> void:
 	var m := _manager()
 	m.hold_changes()
 	var done := 0
-	var restart := false
 	var failed := PackedStringArray()
 	for key: String in keys:
 		var label := (review(key)["manifest"] as ModManifest).name
@@ -900,7 +982,6 @@ func install_all() -> void:
 			failed.append("%s (%s)" % [label, str(out.get("error", ""))])
 			continue
 		done += 1
-		restart = restart or bool(out.get("restart", false))
 		for need: String in (out.get("also_failed", PackedStringArray()) as PackedStringArray):
 			failed.append("%s, needed by %s" % [need, label])
 	m.release_changes()
@@ -911,8 +992,9 @@ func install_all() -> void:
 		notify("mods:installall", "❌", "Installed %d; not installed: %s" % [done, ", ".join(failed)],
 			-1.0, MenuToasts.DWELL_FAIL)
 	else:
-		notify("mods:installall", "✅", "Installed %d mod%s — %s under Installed" % [done,
-			"" if done == 1 else "s", "apply them" if restart else "enable them"],
+		var step := next_step(done != 1)
+		notify("mods:installall", "✅", "Installed %d mod%s%s" % [done,
+			"" if done == 1 else "s", "" if step.is_empty() else " — " + step],
 			-1.0, MenuToasts.DWELL_FAIL)
 
 
@@ -980,7 +1062,11 @@ func update_all() -> void:
 	_sync_update_all_btn()
 	notify(UPDATE_ALL_KEY, "⏳", "Checking %d mod%s for updates…" % [
 		ids.size(), "" if ids.size() == 1 else "s"])
+	var serial := _consent_serial
 	client.get_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+		if serial != _consent_serial:
+			notify_clear(UPDATE_ALL_KEY)
+			return
 		_checking_updates = false
 		_sync_update_all_btn()
 		if not ok:
@@ -1032,6 +1118,8 @@ func _sync_update_all_btn() -> void:
 
 
 func _enqueue(key: String, mod: Dictionary) -> void:
+	if client != null and not has_consent():
+		return
 	downloader.enqueue(key, str(mod["name"]), str(mod["download_url"]),
 		int(mod["file_size"]), str(mod["file_md5"]),
 		{"modio_id": int(mod["id"]), "file_id": int(mod["file_id"]),
@@ -1045,7 +1133,12 @@ func _enqueue(key: String, mod: Dictionary) -> void:
 func fetch_needs(mods: Array, callback: Callable) -> void:
 	var asking := mods.filter(func(m: Dictionary) -> bool: return bool(m.get("dependencies", false)))
 	var none: Array[Dictionary] = []
-	_fetch_needs_from(asking, 0, none, callback)
+	var serial := _consent_serial
+	_fetch_needs_from(asking, 0, none,
+		func(ok: bool, needs: Array[Dictionary], error: String) -> void:
+			# Withdrawn while mod.io was answering: whatever this was for is gone.
+			if serial == _consent_serial:
+				callback.call(ok, needs, error))
 
 
 func _fetch_needs_from(mods: Array, i: int, so_far: Array[Dictionary], callback: Callable) -> void:
@@ -1077,7 +1170,10 @@ func _fetch_with_needs(key: String, mod: Dictionary, needs: Array) -> void:
 				"why": "it is being installed with a pack; install that too"})
 			continue
 		(entry["deps"] as Dictionary)[dkey] = dep
-		_needed_for[dkey] = key
+		var needers: Array = _needed_for.get(dkey, [])
+		if not needers.has(key):
+			needers.append(key)
+		_needed_for[dkey] = needers
 		if has_review(dkey):
 			# Fetched already, on its own, and waiting: this review answers for it.
 			(entry["done"] as Array).append(dkey)
@@ -1093,21 +1189,25 @@ func _fetch_with_needs(key: String, mod: Dictionary, needs: Array) -> void:
 		_fill_browse_detail()
 
 
-## One of the downloads a mod brought with it ended; `staged` when it was fetched
-## and vetted and now waits in that mod's review.
+## One of the downloads mods brought with them ended; `staged` when it was fetched
+## and vetted and now waits in their reviews. EVERY mod that needs it is told: it
+## used to be recorded against the last one only, and the first then waited on it
+## for ever ("Downloading what it needs…").
 func _need_done(dkey: String, staged: bool, error: String) -> void:
-	var key := str(_needed_for[dkey])
-	var entry: Dictionary = _with_needs.get(key, {})
-	if entry.is_empty() or (entry["done"] as Array).has(dkey):
-		return
-	(entry["done"] as Array).append(dkey)
-	if staged:
-		(entry["staged"] as Array).append(dkey)
-	else:
-		(entry["skip"] as Array).append({"name": str(((entry["deps"] as Dictionary)[dkey] as Dictionary)["name"]),
-			"why": error if not error.is_empty() else "the download was cancelled"})
-	if _open_review == key:
-		_fill_single_review()
+	for owner: Variant in (_needed_for.get(dkey, []) as Array):
+		var key := str(owner)
+		var entry: Dictionary = _with_needs.get(key, {})
+		if entry.is_empty() or (entry["done"] as Array).has(dkey):
+			continue
+		(entry["done"] as Array).append(dkey)
+		if staged:
+			(entry["staged"] as Array).append(dkey)
+		else:
+			(entry["skip"] as Array).append({"name": str(((entry["deps"] as Dictionary)[dkey] as Dictionary)["name"]),
+				"why": error if not error.is_empty() else "the download was cancelled"})
+		if _open_review == key:
+			_fill_single_review()
+	_sync_install_all_btn()
 
 
 ## How many of what `key` brought with it are still coming down.
@@ -1120,16 +1220,22 @@ func _needs_waiting(key: String) -> int:
 
 ## Forget what `key` brought with it. What is still coming down is cancelled, and
 ## with `discard` what came down and waits is thrown away -- all but what was
-## already on its way on its own.
+## already on its way on its own, and what another mod still needs.
 func _drop_needs(key: String, discard: bool) -> void:
 	var entry: Dictionary = _with_needs.get(key, {})
 	_with_needs.erase(key)
 	for dkey: String in (entry.get("deps", {}) as Dictionary):
+		var needers: Array = _needed_for.get(dkey, [])
+		needers.erase(key)
+		if not needers.is_empty():
+			continue
 		_needed_for.erase(dkey)
 		if (entry["adopted"] as Array).has(dkey):
 			continue
 		if not (entry["done"] as Array).has(dkey):
-			downloader.cancel(dkey)
+			if downloader.is_queued(dkey):
+				_quiet_cancel[dkey] = true
+				downloader.cancel(dkey)
 		elif discard and (entry["staged"] as Array).has(dkey):
 			discard_review(dkey)
 
@@ -1159,6 +1265,10 @@ func _on_job_retrying(key: String, attempt: int, max_attempts: int, reason: Stri
 
 func _on_job_cancelled(key: String) -> void:
 	_refresh_tile(key)
+	if _quiet_cancel.has(key):
+		_quiet_cancel.erase(key)
+		notify_clear(_toast_key(key))
+		return
 	if _packs_page.owns(key):
 		notify_clear(_toast_key(key))
 		_packs_page.on_job_done(key, false, "")
@@ -1174,6 +1284,14 @@ func _on_job_cancelled(key: String) -> void:
 
 
 func _on_job_finished(key: String, ok: bool, error: String, result: Dictionary) -> void:
+	if client != null and not has_consent():
+		# It finished after consent was withdrawn: nothing of it is kept, or it
+		# would wait for an answer behind the terms gate and hold off a restart.
+		if has_review(key):
+			reviews.discard(key)
+		notify_clear(_toast_key(key))
+		_refresh_tile(key)
+		return
 	_refresh_tile(key)
 	_sync_install_all_btn.call_deferred()
 	var waiting := ok and bool(result.get("review", false))
@@ -1222,8 +1340,18 @@ func review(key: String) -> Dictionary:
 
 
 func finish_review(key: String, source: Dictionary, enable: bool) -> Dictionary:
+	var parked := reviews.parked(key)
+	var id := (parked["manifest"] as ModManifest).id if not parked.is_empty() else ""
+	var new := not id.is_empty() and _manager().mod(id) == null
 	var out := reviews.finish(key, source, enable)
+	if bool(out.get("ok", false)) and not id.is_empty():
+		# A NEW mod that landed off is offered to the apply bar; an update keeps
+		# whatever the player chose for it.
+		if new and not _manager().is_enabled(id) and not _just_installed.has(id):
+			_just_installed.append(id)
+		_packs_page.tag_pending()
 	_sync_install_all_btn()
+	_fill_banner()
 	return out
 
 
@@ -1272,7 +1400,7 @@ func _fill_single_review() -> void:
 		return
 	var parked: Dictionary = reviews.parked(key)
 	var manifest: ModManifest = parked["manifest"]
-	var old := Mods.mod(manifest.id)
+	var old: ModRecord = _manager().mod(manifest.id)
 
 	var back := _narrow(MenuStyle.row_button("←  Decide later", 20, 240, 52, false))
 	back.pressed.connect(_close_single_review)
@@ -1326,7 +1454,7 @@ func _fill_single_review() -> void:
 	_browse_review.add_child(HSeparator.new())
 	# An update keeps whatever the player already chose for this mod.
 	var enable: VRToggle = null
-	if not Mods.is_enabled(manifest.id):
+	if not _manager().is_enabled(manifest.id):
 		enable = MenuStyle.switch_row(_browse_review, "Enable", false)
 	var actions := MenuStyle.hbox(10)
 	_browse_review.add_child(actions)
@@ -1346,11 +1474,9 @@ func _fill_single_review() -> void:
 		if not bool(out.get("ok", false)):
 			notify(_toast_key(key), "❌", "Not installed: %s" % str(out.get("error", "")),
 				-1.0, MenuToasts.DWELL_FAIL)
-		elif bool(out.get("restart", false)):
-			notify(_toast_key(key), "✅", "Installed — apply it under Installed",
-				-1.0, MenuToasts.DWELL_FAIL)
 		else:
-			notify(_toast_key(key), "✅", "Installed — enable it under Installed",
+			var step := next_step()
+			notify(_toast_key(key), "✅", "Installed" + ("" if step.is_empty() else " — " + step),
 				-1.0, MenuToasts.DWELL_FAIL)
 		_close_single_review())
 	actions.add_child(install)
@@ -1455,42 +1581,120 @@ func refresh_installed() -> void:
 ## one off, updating or removing it, or a mod that replaces a shipped file --
 ## takes a restart, which the app does itself; that button applies the lot.
 func _fill_banner() -> void:
-	if _installed_banner == null:
+	for box: VBoxContainer in [_installed_banner, _browse_banner, _packs_banner]:
+		_fill_banner_into(box)
+
+
+## Mods installed from the browser this session that are still off and could be
+## switched on. One the player has switched on since is dropped for good.
+func switched_off_new() -> Array[String]:
+	var m := _manager()
+	var off: Array = m.switchable_off()
+	var keep: Array[String] = []
+	var out: Array[String] = []
+	for id: String in _just_installed:
+		if m.mod(id) == null or m.is_enabled(id):
+			continue
+		keep.append(id)
+		if off.has(id):
+			out.append(id)
+	_just_installed = keep
+	return out
+
+
+## What the apply bar says to do next, for the toast after an install: "" when
+## nothing waits. Read off the same plan the bar is drawn from, so the two agree.
+func next_step(many: bool = false) -> String:
+	var it := "them" if many else "it"
+	if not switched_off_new().is_empty():
+		return "enable and apply %s from the bar above" % it
+	var plan: Dictionary = _manager().apply_plan()
+	if not str(plan["blocked"]).is_empty():
+		return "see the bar above"
+	if bool(plan["restart"]):
+		return "restart to finish from the bar above"
+	if not (plan["live"] as Array).is_empty():
+		return "apply %s from the bar above" % it
+	return ""
+
+
+func _fill_banner_into(box: VBoxContainer) -> void:
+	if box == null:
 		return
-	_clear(_installed_banner)
-	var plan: Dictionary = Mods.apply_plan()
+	_clear(box)
+	var m := _manager()
+	var off := switched_off_new()
+	var plan: Dictionary = m.apply_plan()
 	var live: Array = plan["live"]
 	var restart := bool(plan["restart"])
-	_installed_banner.visible = restart or not live.is_empty()
-	if not _installed_banner.visible:
+	box.visible = not off.is_empty() or restart or not live.is_empty()
+	if not box.visible:
+		return
+	if not off.is_empty():
+		# A download lands OFF, and an off mod is not in the plan: without this the
+		# player had to find each one under Installed and switch it on before
+		# there was anything to apply.
+		var names := off.map(func(id: String) -> String: return str(m.mod(id).manifest.name))
+		var head := MenuStyle.label("%s %s installed and switched off. Enable %s to load %s into this room." % [
+			", ".join(names), "is" if off.size() == 1 else "are", "it" if off.size() == 1 else "them",
+			"it" if off.size() == 1 else "them"], 18, MenuStyle.COLOR_RECOMMENDED)
+		head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(head)
+		var row := MenuStyle.hbox(10)
+		box.add_child(row)
+		var go := MenuStyle.row_button("Enable and apply now", 20, 300, 56, false)
+		go.name = "EnableApplyButton"
+		go.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
+		go.pressed.connect(func() -> void: _enable_and_apply(off))
+		row.add_child(go)
+		var later := MenuStyle.row_button("Leave off", 20, 200, 56, false)
+		later.pressed.connect(func() -> void:
+			_just_installed.clear()
+			_fill_banner())
+		row.add_child(later)
+		box.add_child(HSeparator.new())
 		return
 	var text := "Some of your changes need RetroXR to restart."
 	if not restart:
-		text = "%s ready to load. Applying reloads this room, and everything in it comes back where it was." 			% ", ".join(live.map(func(r: ModRecord) -> String: return r.manifest.name))
-	var head := MenuStyle.label(text, 18, MenuStyle.COLOR_RECOMMENDED)
-	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_installed_banner.add_child(head)
+		text = "%s ready to load. Applying reloads this room, and everything in it comes back where it was." \
+			% ", ".join(live.map(func(r: ModRecord) -> String: return r.manifest.name))
+	var head2 := MenuStyle.label(text, 18, MenuStyle.COLOR_RECOMMENDED)
+	head2.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	box.add_child(head2)
 	var blocked := str(plan["blocked"])
 	if not blocked.is_empty():
-		_installed_banner.add_child(MenuStyle.hint(blocked))
-		_installed_banner.add_child(HSeparator.new())
+		box.add_child(MenuStyle.hint(blocked))
+		box.add_child(HSeparator.new())
 		return
 	var why := _apply_blocker(restart)
 	var button := _narrow(MenuStyle.row_button(
 		"Restart now" if restart else "Apply now", 20, 260, 56, false))
+	button.name = "ApplyButton"
 	button.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
 	button.disabled = not why.is_empty()
 	button.pressed.connect(_on_apply_pressed)
-	_installed_banner.add_child(button)
+	box.add_child(button)
 	if not why.is_empty():
-		_installed_banner.add_child(MenuStyle.hint(why))
-	_installed_banner.add_child(HSeparator.new())
+		box.add_child(MenuStyle.hint(why))
+	box.add_child(HSeparator.new())
+
+
+## Switch on what was just installed, then apply as the bar's Apply does.
+func _enable_and_apply(ids: Array[String]) -> void:
+	var m := _manager()
+	m.hold_changes()
+	for id: String in ids:
+		m.set_enabled(id, true)
+	m.release_changes()
+	_just_installed.clear()
+	_fill_banner()
+	_on_apply_pressed()
 
 
 ## Asked again at the press: the banner was drawn a while ago, and a download may
 ## have started or the room begun to change since.
 func _on_apply_pressed() -> void:
-	var plan: Dictionary = Mods.apply_plan()
+	var plan: Dictionary = _manager().apply_plan()
 	var restart := bool(plan["restart"])
 	if not restart and (plan["live"] as Array).is_empty():
 		_fill_banner()

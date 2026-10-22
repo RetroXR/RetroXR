@@ -73,6 +73,7 @@ func _ready() -> void:
 	if _want("packreturn"): _group_pack_return()
 	if _want("tiles"):     _group_tiles()
 	if _want("installall"): _group_install_all()
+	if _want("holes"):     _group_holes()
 	if _want("consent"):   await _group_consent()
 	if _want("bundle"):    _group_bundle()
 	if _want("review"):    _group_review()
@@ -1032,8 +1033,21 @@ class ClientStub extends ModioClient:
 	## Each get_mods call's ids, so a case can count the requests.
 	var batches: Array = []
 
+	## With `hold` on, get_mod answers only when release() is called.
+	var hold := false
+	var held: Array[Callable] = []
+
+	func release() -> void:
+		var waiting := held.duplicate()
+		held.clear()
+		for answer: Callable in waiting:
+			answer.call()
+
 	func get_mod(mod_id: int, callback: Callable) -> void:
 		asked.append(mod_id)
+		if hold:
+			held.append(func() -> void: callback.call(true, replies.get(mod_id, {}), ""))
+			return
 		if replies.has(mod_id):
 			callback.call(true, replies[mod_id], "")
 		else:
@@ -1169,6 +1183,126 @@ func _group_install_all() -> void:
 
 	view._needed_for.clear()
 	view.discard_review("modio-603")
+	stub.free()
+	view.free()
+	m.free()
+
+
+# ── holes/ ────────────────────────────────────────────────────────────────────
+
+## The install flow's missed branches (2026-10-22 review): nothing to apply after
+## an install, a pack's install dying on a member answered elsewhere, a shared
+## dependency crediting one mod, answers landing after consent was withdrawn, and
+## an update making a pack's mod the player's own.
+func _group_holes() -> void:
+	var m := _fresh()
+	var view := SpawnMenuModsView.create(null)
+	var stub := QueueStub.new()
+	view.downloader = stub
+	view.reviews.manager = m
+	stub.job_cancelled.connect(view._on_job_cancelled)
+	var mod_of := func(id: int, file_id: int) -> Dictionary:
+		return ModioClient.parse_mod(_modio_mod(id, "M%d" % id, file_id))
+	var park := func(id: int, mod_id: String) -> void:
+		view.reviews.stage(_stage(m, "modio-%d.zip" % id, _pack(mod_id, "1.0.0")),
+			{"modio_id": id, "file_id": id * 10, "profile_url": ""})
+	var button_in := func(box: Node, button_name: String) -> Button:
+		return box.find_child(button_name, true, false) as Button
+
+	# ── an install offers to load it, right where it happened ──
+	park.call(801, "t.ap1")
+	view.finish_review("modio-801", {"modio_id": 801, "file_id": 8010}, false)
+	_eq(view.switched_off_new(), ["t.ap1"] as Array[String], "holes/a new mod that landed off is remembered")
+	_ok(view._browse_banner.visible and button_in.call(view._browse_banner, "EnableApplyButton") != null,
+		"holes/Browse offers Enable and apply now, not only Installed")
+	_ok(button_in.call(view._packs_banner, "EnableApplyButton") != null
+		and button_in.call(view._installed_banner, "EnableApplyButton") != null,
+		"holes/and so do Packs and Installed")
+	_ok(view.next_step().begins_with("enable and apply"), "holes/the install toast says the same", view.next_step())
+	(button_in.call(view._browse_banner, "EnableApplyButton") as Button).pressed.emit()
+	_ok(m.is_enabled("t.ap1"), "holes/pressing it switches the mod on")
+	_ok(button_in.call(view._browse_banner, "ApplyButton") != null,
+		"holes/and the bar moves on to applying it (held here: the room is not ready)")
+	_ok(view.switched_off_new().is_empty(), "holes/a mod switched on is no longer offered")
+
+	# ── a pack's member answered on its own does not break the pack's install ──
+	var page: SpawnMenuModsPacksPage = view._packs_page
+	page._install_mods({"id": 3, "name": "Shelf"}, [mod_of.call(101, 1010), mod_of.call(102, 1020)])
+	park.call(101, "t.pk1")
+	page.on_job_done("modio-101", true, "")
+	park.call(102, "t.pk2")
+	page.on_job_done("modio-102", true, "")
+	view._review_from_tile("modio-101")
+	# The tab switch itself needs the view in a tree (a TabContainer outside one
+	# ignores current_tab); what can be seen here is which review is open.
+	_ok(view._open_review.is_empty() and page._review.visible and page.reviewing_pack() == 3,
+		"holes/a member's Review opens the pack's review, not its own")
+	view.discard_review("modio-101")
+	page._confirm(false)
+	_ok(m.mod("t.pk2") != null, "holes/a member whose review is gone is skipped, the rest install")
+	_eq(int(m._hold), 0, "holes/and the loader's changes are released (they were held for the session)")
+
+	# ── one dependency, two mods that need it ──
+	var dep: Dictionary = mod_of.call(903, 9030)
+	view._fetch_with_needs("modio-901", mod_of.call(901, 9010), [dep])
+	view._fetch_with_needs("modio-902", mod_of.call(902, 9020), [dep])
+	_eq(view._needed_for.get("modio-903", []), ["modio-901", "modio-902"],
+		"holes/a dependency remembers every mod that needs it")
+	view._drop_needs("modio-901", true)
+	_ok(stub.queued.has("modio-903"), "holes/dropping one leaves it coming down for the other")
+	park.call(903, "t.dep")
+	view._on_job_finished("modio-903", true, "", {"review": true})
+	_eq(view._needs_waiting("modio-902"), 0, "holes/its arrival is credited to the mod still waiting")
+	view._fetch_with_needs("modio-904", mod_of.call(904, 9040), [mod_of.call(905, 9050)])
+	view._fetch_with_needs("modio-906", mod_of.call(906, 9060), [mod_of.call(905, 9050)])
+	park.call(905, "t.dep2")
+	view._on_job_finished("modio-905", true, "", {"review": true})
+	_ok(view._needs_waiting("modio-904") == 0 and view._needs_waiting("modio-906") == 0,
+		"holes/both mods that need it are told it arrived (the first used to wait for ever)")
+
+	# ── an answer that lands after consent was withdrawn queues nothing ──
+	var client := ClientStub.new()
+	client.consent.state_path = _dir.path_join("consent.json")
+	client.consent.grant("terms")
+	view.client = client
+	client.hold = true
+	client.replies[950] = mod_of.call(950, 9500)
+	stub.queued.clear()
+	view._download(mod_of.call(950, 9500))
+	view._withdraw()
+	# Agreed to again before the old answer lands: consent is granted when it
+	# does, so only the press's own serial can tell it belongs to the old one.
+	client.consent.grant("terms")
+	client.release()
+	_eq(stub.queued, [] as Array[String],
+		"holes/a press from before consent was withdrawn downloads nothing, even once agreed again")
+	_ok(view._with_needs.is_empty() and view._needed_for.is_empty(),
+		"holes/withdrawing forgets what downloads were bringing with them")
+	_ok(not view._install_all_btn.visible, "holes/and the Install all count is redrawn")
+	view.client = null
+
+	# ── an update keeps who wanted the mod ──
+	var pack_src := ModCollectionPlan.source_after_install({}, 1, 10, "u", 3)
+	var updated := ModCollectionPlan.source_after_update(pack_src, 1, 11, "u")
+	_ok(not ModCollectionPlan.is_individual(updated) and ModCollectionPlan.collections_of(updated) == [3]
+		and int(updated["file_id"]) == 11, "holes/an update keeps a pack's mod the pack's")
+	_ok(ModCollectionPlan.is_individual(ModCollectionPlan.source_after_update({}, 1, 11, "u")),
+		"holes/a hand-installed mod updated from mod.io is the player's own")
+
+	# ── a member a pack skipped as already coming down is still the pack's ──
+	stub.queued.clear()
+	stub.running = ""
+	stub.enqueue("modio-151", "M151", "", 0, "", {})
+	page._install_mods({"id": 7, "name": "Shelf B"}, [mod_of.call(150, 1500), mod_of.call(151, 1510)])
+	park.call(150, "t.p150")
+	page.on_job_done("modio-150", true, "")
+	page._confirm(false)
+	park.call(151, "t.p151")
+	view.finish_review("modio-151", ModCollectionPlan.source_after_single({}, 151, 1510, ""), false)
+	_ok(ModCollectionPlan.collections_of(m.source("t.p151")).has(7),
+		"holes/a member skipped because it was already downloading is recorded as the pack's too")
+
+	client.free()
 	stub.free()
 	view.free()
 	m.free()
