@@ -184,6 +184,8 @@ const CABLE_SCENE := preload("res://Scenes/Objects/cables/cable.tscn")
 const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
 # The lid over an expansion bay — see _seed_expansion_cover.
 const EXPANSION_COVER_SCENE := preload("res://Scenes/Objects/expansion_cover.tscn")
+# The cover over a unit's own socket -- see seed_port_covers.
+const PORT_COVER_SCENE := preload("res://Scenes/Objects/port_cover.tscn")
 # Window material for TVs on multi-output hardware (dual-screen handhelds).
 const SCREEN_WINDOW_SHADER := preload("res://Shaders/screen_window.gdshader")
 
@@ -3463,6 +3465,60 @@ func _build_unit_sockets(aabb: AABB, span: Vector2) -> void:
 		socket.has_picked_up.connect(_on_expansion_seated)
 		socket.has_dropped.connect(_on_expansion_lifted)
 		_model.configure_unit_socket(socket_id, socket)
+		# A NEW socket only: building again after the player took the cover off
+		# must not put a fresh one back. A restore's covers are the save's.
+		if not _restoring_from_save:
+			_seed_port_cover(socket_id)
+
+
+## Puts the covers on a console's own unit sockets, for a model whose shell has
+## them (RetroSystemModel.build_port_cover_slot): every slot that is empty over a
+## socket that is empty. A fresh console gets them as its sockets are built; a
+## room saved before covers existed gets them from its restore
+## (ScenePersistence), since it never said they were off.
+func seed_port_covers() -> void:
+	_build_expansion_hardware()
+	if _model == null:
+		return
+	for socket_id: String in _model.port_cover_sockets():
+		_seed_port_cover(socket_id)
+
+
+## In the console's own color, given before it enters the room: that is when a
+## mod's hook dresses it.
+func _seed_port_cover(socket_id: String) -> void:
+	var zone := _model.port_cover_slot(socket_id) if _model != null else null
+	var socket := _unit_socket(socket_id)
+	if zone == null or zone.has_snapped_object() or (socket != null and socket.has_snapped_object()):
+		return
+	var cover := PORT_COVER_SCENE.instantiate() as PortCover
+	cover.socket_id = socket_id
+	cover.size = _model.port_cover_size(socket_id)
+	cover.model_variant = model_variant
+	get_tree().current_scene.add_child(cover)
+	cover.add_to_group("spawned")
+	cover.global_transform = zone.global_transform
+	zone.pick_up_object(cover)
+
+
+## Each unit socket that has a cover slot, and the cover in it or null -- what a
+## save records. Empty on a model with none.
+func get_port_covers() -> Dictionary:
+	var out := {}
+	if _model == null:
+		return out
+	for socket_id: String in _model.port_cover_sockets():
+		out[socket_id] = _model.port_cover_slot(socket_id).picked_up_object as Node3D
+	return out
+
+
+## Put a saved cover back over `socket_id`, building the sockets first when a
+## restore gets here before they are -- restore_expansion_cover's arrangement.
+func restore_port_cover(socket_id: String, cover: Node3D) -> void:
+	_build_expansion_hardware()
+	var zone := _model.port_cover_slot(socket_id) if _model != null else null
+	if zone != null and cover != null:
+		zone.pick_up_object(cover)
 
 
 ## The socket a MOUNT_ABOVE unit naming `socket_id` goes into, or null.

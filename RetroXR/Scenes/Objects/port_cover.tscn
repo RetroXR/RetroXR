@@ -1,0 +1,39 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/port_cover.gd" id="1_cover"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+
+; The shapes and the plain block are made by port_cover.gd from its `size`, which
+; the console's model gives it: a cover is as big as the opening it closes. The
+; rest is expansion_cover.tscn's.
+
+[sub_resource type="StandardMaterial3D" id="Mat_cover"]
+albedo_color = Color(0.44, 0.45, 0.48, 1)
+roughness = 0.55
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_cover"]
+bounce = 0.0
+friction = 0.8
+
+[node name="PortCover" type="RigidBody3D" groups=["port_cover"]]
+collision_layer = 4
+collision_mask = 196613
+physics_material_override = SubResource("PhysMat_cover")
+linear_damp = 5.0
+angular_damp = 8.0
+freeze_mode = 1
+script = ExtResource("1_cover")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+
+[node name="Mesh" type="MeshInstance3D" parent="."]
+surface_material_override/0 = SubResource("Mat_cover")
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]

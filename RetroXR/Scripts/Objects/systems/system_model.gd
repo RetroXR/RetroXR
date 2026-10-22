@@ -789,6 +789,83 @@ func expansion_cover_slot() -> XRToolsSnapZone:
 	return null
 
 
+# ── the covers over a unit's own socket ───────────────────────────────────────
+
+## Not SNAP_ZONE_SCENE: a model of the game's (the N64's) and models in mods
+## declare that name themselves, and a subclass may not redeclare a constant.
+const _PORT_COVER_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
+
+## unit socket id -> the slot its cover goes back into, and how big that cover is.
+var _port_cover_slots: Dictionary = {}
+var _port_cover_sizes: Dictionary = {}
+
+
+## Put a cover over one of the console's own unit sockets (ExpansionCatalog's
+## row `socket`), for a shell whose real opening has one: the GameCube's Serial
+## Port 1 under its cover, the fat PlayStation 2's EXPANSION BAY behind its own.
+## Called from configure_unit_socket, once the socket is placed.
+##
+## `seat` is where the cover's middle goes, in this model's frame, its +Y out of
+## the console; `size` is the cover's box (PortCover.size). The console seeds a
+## cover into the slot on a fresh console (RetroSystem.seed_port_covers) and a
+## save records whether it is on.
+##
+## The gate runs both ways. With the cover in, the socket is shut: a card held
+## up to it does not go in, as it does not on the real console until the cover is
+## off. With a card in, the slot is shut: the card is where the cover went.
+func build_port_cover_slot(socket_id: String, socket: XRToolsSnapZone, seat: Transform3D,
+		size: Vector3) -> XRToolsSnapZone:
+	var zone := _port_cover_slots.get(socket_id) as XRToolsSnapZone
+	if zone != null and is_instance_valid(zone):
+		return zone
+	zone = _PORT_COVER_ZONE_SCENE.instantiate() as XRToolsSnapZone
+	zone.name = socket_id.to_pascal_case() + "CoverSlot"
+	zone.snap_require = PortCover.group_for(socket_id)
+	# Close, as the N64's lid slot is: a cover is pressed back into its own
+	# opening, not lowered onto the console from across the table.
+	zone.grab_distance = 0.06
+	add_child(zone)
+	zone.transform = seat
+	_port_cover_slots[socket_id] = zone
+	_port_cover_sizes[socket_id] = size
+	var gate := _gate_port_cover.bind(socket_id, socket)
+	zone.has_picked_up.connect(gate.unbind(1))
+	zone.has_dropped.connect(gate)
+	socket.has_picked_up.connect(gate.unbind(1))
+	socket.has_dropped.connect(gate)
+	gate.call()
+	return zone
+
+
+## The slot a unit socket's cover goes into, or null for a socket with no cover
+## -- every socket on a model that never called build_port_cover_slot.
+func port_cover_slot(socket_id: String) -> XRToolsSnapZone:
+	var zone := _port_cover_slots.get(socket_id) as XRToolsSnapZone
+	return zone if zone != null and is_instance_valid(zone) else null
+
+
+## The sockets that have a cover slot, in the order they were built.
+func port_cover_sockets() -> Array[String]:
+	var out: Array[String] = []
+	for socket_id: String in _port_cover_slots:
+		if port_cover_slot(socket_id) != null:
+			out.append(socket_id)
+	return out
+
+
+## How big the cover over `socket_id` is (PortCover.size), or ZERO for none.
+func port_cover_size(socket_id: String) -> Vector3:
+	return _port_cover_sizes.get(socket_id, Vector3.ZERO)
+
+
+func _gate_port_cover(socket_id: String, socket: XRToolsSnapZone) -> void:
+	var zone := port_cover_slot(socket_id)
+	if zone == null or not is_instance_valid(socket):
+		return
+	socket.enabled = not zone.has_snapped_object()
+	zone.enabled = not socket.has_snapped_object()
+
+
 ## The world-space direction a cartridge travels when being inserted.
 ## Returned as a unit vector; the animation moves FROM final_pos - dir*depth TO final_pos.
 func get_cartridge_insert_direction() -> Vector3:

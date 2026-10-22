@@ -1069,9 +1069,19 @@ func _build_ethernet_port() -> void:
 	port.name = "EthernetPort"
 	port.link_port = link_port
 	add_child(port)
-	var s := size()
-	port.position = Vector3(0.0, s.y * 0.5 + 0.0015, 0.0)
-	port.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
+	# A mod's shell with its jack modelled says where the jack is, so the lead goes
+	# into the jack and not into the middle of the end.
+	var jack: Variant = ExpansionCatalog.ethernet_jack_of(_shell_id())
+	if jack is Transform3D:
+		port.transform = jack
+		# The shell draws the jack's mouth and face; the socket's own would sit
+		# in them.
+		port.show_recess = false
+		port.show_legend = false
+	else:
+		var s := size()
+		port.position = Vector3(0.0, s.y * 0.5 + 0.0015, 0.0)
+		port.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
 	port.has_picked_up.connect(_on_ethernet_plug_in)
 	port.has_dropped.connect(_on_ethernet_plug_out)
 	host_changed.connect(_on_ethernet_host_changed)

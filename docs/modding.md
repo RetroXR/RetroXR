@@ -369,6 +369,46 @@ a second is told who has it on its page in the MODS tab and is not used. A
 console seats a cartridge by the system's size, so bodies much larger than the
 real cartridge will not sit in the slot.
 
+### Expansion units' shells, and the covers over their sockets
+
+An expansion unit -- an e-Reader, a 32X, a network adapter -- is the game's, drawn
+as a block. A mod gives it a real shell without changing what it is:
+
+```gdscript
+api.override_expansion_shell("gamecube_broadband_adapter", {
+    "shell": "res://mods/xenu.gcbba/model/gc_bba_usa.glb",
+    "size": Vector3(0.1093, 0.0486, 0.02215),     # the model's true bounds
+    "jack": Transform3D(...),                     # a network adapter's RJ45, in the unit's frame
+    "variants": {"jp": {"shell": "res://mods/xenu.gcbba/model/gc_bba_jpn.glb"}},
+})
+api.offer_variants("expansion:gamecube_broadband_adapter", markets)
+```
+
+The unit's frame is the shell centred on the middle of its bounds; it is seated by
+its -Y face. `shell_offset` moves the shell off that middle (for a variant of
+another depth), `connector`/`seat_yaw` place a unit that goes in a cartridge slot.
+`jack` puts a network adapter's socket where the model's jack is: +Z out of the
+mouth, +Y toward the plug's latch, the origin on the mouth's face. The socket then
+draws nothing of its own. One mod holds a unit's shell.
+
+**A card that goes in place of a cover** (a GameCube's Serial Port 1, a fat PS2's
+EXPANSION BAY) is the console mod's business. Its model places the card's socket
+in `configure_unit_socket(socket_id, socket)` and, if the shell has a cover there,
+hides the shell's cover and calls
+
+```gdscript
+build_port_cover_slot(socket_id, socket, seat, size)
+```
+
+`seat` is the cover's middle in the model's frame with its +Y out of the console,
+`size` its box. The game seeds a `PortCover` there on a fresh console (and on a
+console from a room saved before the slot existed), in the console's
+`model_variant`, and saves whether it is on. While it is on the socket takes no
+card; while a card is in, the cover cannot go back. The cover is a plain block
+until a mod dresses it: `api.dress(&"PortCover", socket_id, cb)`, and check
+`cover.socket_id` in `cb`, which is called for every cover. It fits that socket and
+no other. xenu.gamecube and xenu.ps2 are the worked examples.
+
 ## Rooms, props, cabinets and controllers
 
 ```gdscript

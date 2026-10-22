@@ -17,6 +17,10 @@
 ## would put nothing on the LAN; and a card pulled out of a console with its lead
 ## still in it moves no lead, so nothing re-walked the room and the console stayed
 ## on a LAN it had no adapter for.
+##
+## And the covers (`cover/`): a shell whose opening has a cover (xenu.gamecube's
+## Serial Port 1, xenu.ps2's EXPANSION BAY) gives the card's socket a PortCover
+## that has to come off before the card goes in, and cannot go back while it is in.
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -64,6 +68,10 @@ func _ready() -> void:
 		await _test_gamecubes_and_ps2s_share_a_hub()
 	if _want("card_out"):
 		await _test_card_out_takes_the_console_off()
+	if _want("cover"):
+		await _test_port_covers()
+	if _want("jack"):
+		await _test_shell_jack()
 	print("[eth] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
 
@@ -542,4 +550,146 @@ func _test_card_out_takes_the_console_off() -> void:
 	await _wait(10)
 	_eq((lead.linked_machines() as Array).size(), 2, "card_out/ put back with the lead still in it, the LAN is back")
 	_eq((lead.held_machines() as Array).size(), 2, "card_out/ and joined")
+	await _clear()
+
+
+# ── the covers over a card's socket ───────────────────────────────────────────
+
+const COVER_SOCKET := "serial_port_1"
+const COVER_SIZE := Vector3(0.1, 0.02, 0.04)
+## Any model will do for a shell that only has to exist and load.
+const TEST_SHELL := "res://imported-assets/bedroom/exterior/house_a.glb"
+
+
+## The stand-in box with a cover over its card socket, as a mod's shell has.
+class _CoveredShell extends RetroSystemModelDefault:
+	pass
+
+
+func _covered_console(label: String) -> RetroSystem:
+	var sys := await _console("gc", label)
+	var socket := sys._unit_socket(COVER_SOCKET)
+	var shell := _CoveredShell.new()
+	sys.add_child(shell)
+	shell.build_port_cover_slot(COVER_SOCKET, socket,
+		Transform3D(Basis.IDENTITY, socket.position + Vector3(0.0, 0.05, 0.0)), COVER_SIZE)
+	sys._model = shell
+	return sys
+
+
+func _test_port_covers() -> void:
+	var sys := await _covered_console("CoveredGC")
+	sys.model_variant = "spice"
+	var socket := sys._unit_socket(COVER_SOCKET)
+	var slot := sys._model.port_cover_slot(COVER_SOCKET)
+	_ok(slot != null, "cover/ the shell builds a slot over the card's socket")
+	if slot == null:
+		await _clear()
+		return
+	_eq(slot.snap_require, PortCover.group_for(COVER_SOCKET), "cover/ which only a cover for that socket fits")
+	_ok(socket.enabled and slot.enabled, "cover/ with both empty, both are open")
+
+	sys.seed_port_covers()
+	await _wait(5)
+	var cover := slot.picked_up_object as PortCover
+	_ok(cover != null, "cover/ the console is given its cover")
+	if cover == null:
+		await _clear()
+		return
+	_spawned.append(cover)
+	_eq(cover.socket_id, COVER_SOCKET, "cover/ for that socket")
+	_eq(cover.size, COVER_SIZE, "cover/ at the size the shell says")
+	var shape := cover.get_node("CollisionShape3D") as CollisionShape3D
+	_ok(shape.shape is BoxShape3D and (shape.shape as BoxShape3D).size == COVER_SIZE,
+		"cover/ and collides at that size")
+	_eq(cover.model_variant, "spice", "cover/ in the console's color")
+	_ok(cover.is_in_group(PortCover.group_for(COVER_SOCKET))
+		and not cover.is_in_group(PortCover.group_for("expansion_bay")),
+		"cover/ it fits its own socket and not another console's")
+	_ok(not cover.is_in_group(ExpansionCover.GROUP) and not ((cover as Object) is ExpansionCover),
+		"cover/ and is no N64 lid, which a mod dressing lids would dress")
+	_ok(not socket.enabled, "cover/ with the cover on, the socket takes no card")
+	sys.seed_port_covers()
+	await _wait(3)
+	_eq(get_tree().get_nodes_in_group(PortCover.GROUP).size(), 1, "cover/ seeding again adds no second cover")
+	_eq(sys.get_port_covers(), {COVER_SOCKET: cover}, "cover/ a save records it on")
+
+	slot.drop_object()
+	cover.freeze = true
+	await _wait(3)
+	_ok(socket.enabled, "cover/ the cover off, the socket is open")
+	_ok(slot.enabled, "cover/ and so is the cover's slot")
+	_eq(sys.get_port_covers(), {COVER_SOCKET: null}, "cover/ a save records it off")
+
+	var card := await _unit(BBA)
+	sys.restore_expansion(card)
+	await _wait(5)
+	_eq(card.get_host(), sys, "cover/ the card goes in where the cover was")
+	_ok(not slot.enabled, "cover/ and while it is in, the cover cannot go back on")
+	sys.seed_port_covers()
+	await _wait(3)
+	_ok(not slot.has_snapped_object(), "cover/ an old room given its covers leaves a seated card alone")
+	socket.forget_object(card)
+	socket.drop_object()
+	await _wait(5)
+	_ok(slot.enabled, "cover/ the card out, the cover can go back")
+	sys.restore_port_cover(COVER_SOCKET, cover)
+	await _wait(3)
+	_eq(slot.picked_up_object, cover, "cover/ a saved cover goes back on")
+	_ok(not socket.enabled, "cover/ and shuts the socket again")
+
+	var sp := ScenePersistence.new()
+	var rec: Dictionary = JSON.parse_string(JSON.stringify(sp._serialize_node(cover, 7, {})))
+	_eq(rec.get("type"), "port_cover", "cover/ saved as a cover")
+	_eq(rec.get("cover_socket"), COVER_SOCKET, "cover/ with its socket")
+	_eq(rec.get("model_variant"), "spice", "cover/ and its color")
+	var back := sp._deserialize_object(rec) as PortCover
+	_ok(back != null and back.socket_id == COVER_SOCKET and back.size.is_equal_approx(COVER_SIZE)
+		and back.model_variant == "spice", "cover/ and a load builds the same cover")
+	if back != null:
+		_ok(back.is_in_group(PortCover.group_for(COVER_SOCKET)), "cover/ that fits the same socket")
+		back.free()
+	var sys_rec: Dictionary = sp._serialize_node(sys, 1, {cover: 7})
+	_eq(sys_rec.get("port_covers"), {COVER_SOCKET: 7}, "cover/ the console's record names its cover")
+	var ids := {1: true, 7: true}
+	var base := {"id": 1, "type": "system", "position": [0, 0, 0], "rotation": [0, 0, 0]}
+	_eq(ScenePersistence._entry_validation_error(base.merged({"port_covers": {COVER_SOCKET: 7}}), ids), "",
+		"cover/ a record naming its cover is valid")
+	_ok(not ScenePersistence._entry_validation_error(base.merged({"port_covers": [7]}), ids).is_empty(),
+		"cover/ covers that are not by socket are refused")
+	_ok(not ScenePersistence._entry_validation_error(base.merged({"port_covers": {COVER_SOCKET: 9}}), ids).is_empty(),
+		"cover/ and a cover that is not in the save")
+	_ok(not ScenePersistence._entry_validation_error({"id": 7, "type": "port_cover",
+		"position": [0, 0, 0], "rotation": [0, 0, 0], "cover_size": [0.1, 0.02]}, ids).is_empty(),
+		"cover/ and a cover whose size is not three numbers")
+	var plain := await _console("gc", "PlainGC")
+	_ok(not sp._serialize_node(plain, 2, {}).has("port_covers"),
+		"cover/ a console whose shell has no covers saves as it did")
+	await _clear()
+
+
+## A mod's shell says where its jack is, and the socket goes there, drawn by the
+## shell rather than by itself.
+func _test_shell_jack() -> void:
+	var size := Vector3(0.1093, 0.0486, 0.02215)
+	var jack := Transform3D(Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)),
+		Vector3(-0.05415, 0.0, -0.002825))
+	_ok(not ExpansionCatalog.register_mod_shell(BBA,
+		{"shell": TEST_SHELL, "size": size, "jack": Vector3.ZERO}, "ethernet_tests").is_empty(),
+		"jack/ a shell's jack is a transform and nothing else")
+	_eq(ExpansionCatalog.register_mod_shell(BBA,
+		{"shell": TEST_SHELL, "size": size, "jack": jack}, "ethernet_tests"), "",
+		"jack/ a mod's shell may say where its jack is")
+	var card := await _unit(BBA)
+	var port := card.get_ethernet_port()
+	_ok(port != null and port.transform.is_equal_approx(jack), "jack/ and the socket is in it",
+		str(port.transform if port != null else null))
+	_ok(port != null and not port.show_recess and not port.show_legend,
+		"jack/ with the shell drawing the jack's mouth, not the socket")
+	ExpansionCatalog._mod_shells.erase(BBA)
+	var plain := await _unit(BBA)
+	var plain_port := plain.get_ethernet_port()
+	_ok(plain_port != null and plain_port.show_recess
+		and plain.to_local(plain_port.global_position).y >= plain.size().y * 0.5,
+		"jack/ without one, the socket is on the end as before")
 	await _clear()

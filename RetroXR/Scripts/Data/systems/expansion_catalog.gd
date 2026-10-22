@@ -106,6 +106,11 @@
 ##               4 for the GameCube's Broadband Adapter, 1 for the PS2's Network
 ##               Adapter. The unit grows an EthernetPort; EthernetBus walks from it
 ##               to the console it is seated on. Absent, no socket.
+##   jack        for a unit with an `ethernet_port` whose shell has its jack modelled:
+##               the socket's frame in the unit's frame, its +Z out of the jack's
+##               mouth (where a plug arrives from) and its +Y the side the plug's
+##               latch is on. A mod's shell sets it (override_expansion_shell).
+##               Absent, the socket is in the middle of the face left showing.
 ##   default_occupant
 ##               this unit comes pre-installed on a bare console — a Jumper
 ##               Pak, not something a player goes looking for. RetroSystem
@@ -309,7 +314,7 @@ static func row(id: String) -> Dictionary:
 const _SHELL_FIELDS := {
 	"shell": TYPE_STRING, "size": TYPE_VECTOR3, "shell_lods": TYPE_ARRAY,
 	"connector": TYPE_VECTOR3, "swipe_slit": TYPE_TRANSFORM3D, "seat_yaw": TYPE_FLOAT,
-	"shell_offset": TYPE_VECTOR3,
+	"shell_offset": TYPE_VECTOR3, "jack": TYPE_TRANSFORM3D,
 }
 
 ## unit id -> {owner, fields, variants: {variant id -> fields}}.
@@ -338,6 +343,12 @@ static func shell_key(id: String, variant: String) -> String:
 ## cap that overhangs the other. Zero for every shell the game ships.
 static func shell_offset_of(id: String) -> Vector3:
 	return row(id).get("shell_offset", Vector3.ZERO)
+
+
+## Where a network adapter's socket is in the unit's frame (the row docs'
+## `jack`), or null for the middle of the face left outside the console.
+static func ethernet_jack_of(id: String) -> Variant:
+	return row(id).get("jack", null)
 
 
 ## The mod whose shell this unit wears, or "".

@@ -88,6 +88,24 @@ separate bookkeeping so a settle of one wire never parts the other's buses. A le
 rejoins a LAN once per frame however many spokes ask. A console switching back on
 re-states its LAN after `RESTATE_COOLDOWN` frames, for `ILinkBus.watch`'s reason.
 
+**The real consoles' openings have covers, and the card goes in place of one.**
+A model whose shell has the cover calls `RetroSystemModel.build_port_cover_slot`
+from its `configure_unit_socket` (xenu.gamecube on `SerialPort1`, xenu.ps2 on
+`ExpansionConnector`; the SCPH-10000 has no bay and shuts the socket). The cover is
+a `PortCover` (`Scripts/Objects/port_cover.gd`) -- NOT an `ExpansionCover`: a mod
+that dresses that class dresses every subclass too (`ModHooks._matches`), so the
+N64 mod would have put its lid on a GameCube. It fits only its own socket (group
+`port_cover:<socket>`, the slot's `snap_require`). The gate is the base model's and
+runs both ways: cover on, the socket is `enabled = false`; card in, the slot is.
+`RetroSystem._seed_port_cover` puts one on a NEW socket only (never after the
+player took it off), in the console's `model_variant`; a save writes
+`port_covers: {socket: ref|null}` for every console with slots, so a console with
+no such key is from before covers and gets them on load (`seed_port_covers`). The
+cover's own record is `port_cover` with `cover_socket` and `cover_size`. The stand-in
+box has no covers. The adapters' real shells are `xenu.gcbba` and
+`xenu.ps2netadapter`; a shell's `jack` (`ExpansionCatalog.ethernet_jack_of`) puts the
+`EthernetPort` in the model's jack and turns its own recess and plate off.
+
 Spawn menu: the cable and the hub under the GameCube and the PlayStation 2. Saves: the
 lead is a `LEAD_SCENES` row, the hub a pose-only `PLAIN_SCENES` row; a plug records its
 socket as the card (`EthernetPort.get_device()` stops at a `RetroExpansion`), the hub
@@ -137,10 +155,13 @@ and six PS2s inside the room itself rather than the probe.
 
 ## Tests
 
-`ethernet_tests` (188 checks): plug gating both ways against i.LINK, the cable scene
+`ethernet_tests` (226 checks): plug gating both ways against i.LINK, the cable scene
 and its sweep group, the spawn and save rows, the catalog rows and forced options, the
 hub's eight sockets with facing and a seated plug outside the box, each adapter's socket
 on the table and seated (owner, save round trip, facing out of the console, the core's
 option on and off), a slim shell's built-in socket, a three-PS2 LAN through a hub
 (pull a spoke, then another), two GameCubes and a PS2 across two chained hubs with
-their own ports, and a card pulled out of a console taking it off the LAN and back.
+their own ports, and a card pulled out of a console taking it off the LAN and back. `cover/`: the
+two-way gate, seeding (fresh, again, over a seated card), keying against other
+sockets and N64 lids, the save record round trip and its validation; `jack/`: a
+mod shell's jack (mutation-checked: an always-open socket fails two cases).

@@ -151,6 +151,10 @@ const _SPECIALIZED_TYPES := [
 	# whether it is ON a console or lying where a player put it down comes from
 	# that console's entry, same as the units above.
 	"expansion_cover",
+	# The cover over a unit's own socket (a GameCube's Serial Port 1, a fat PS2's
+	# expansion bay): which socket it fits and how big it is. Whether it is on a
+	# console comes from that console's "port_covers".
+	"port_cover",
 ]
 
 ## Bumped by every async restore as it starts. Because those yield frames, a
@@ -163,6 +167,7 @@ static var _restore_generation := 0
 const SYSTEM_SCENE           := preload("res://Scenes/Objects/system.tscn")
 const EXPANSION_SCENE        := preload("res://Scenes/Objects/expansion.tscn")
 const EXPANSION_COVER_SCENE  := preload("res://Scenes/Objects/expansion_cover.tscn")
+const PORT_COVER_SCENE       := preload("res://Scenes/Objects/port_cover.tscn")
 const TV_SCENE               := preload("res://Scenes/Objects/tv.tscn")
 const CART_SCENE             := preload("res://Scenes/Objects/media/cartridge.tscn")
 const DISC_SCENE             := preload("res://Scenes/Objects/media/disc.tscn")
@@ -978,6 +983,12 @@ static func _prune_unknown_types(objects: Array, path: String) -> Array:
 			var ref: Variant = entry[field]
 			if _is_integer(ref) and dropped_ids.has(int(ref)):
 				entry[field] = null
+		var covers: Variant = entry.get("port_covers")
+		if covers is Dictionary:
+			for socket: Variant in (covers as Dictionary):
+				var cover_ref: Variant = (covers as Dictionary)[socket]
+				if _is_integer(cover_ref) and dropped_ids.has(int(cover_ref)):
+					(covers as Dictionary)[socket] = null
 		# A prop sitting in a dropped mod's object is simply loose.
 		var attached: Variant = entry.get("attached")
 		if attached is Dictionary:
@@ -1052,6 +1063,19 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 			var ref_error := _reference_validation_error(ref, ids)
 			if not ref_error.is_empty():
 				return "expansions member %s" % ref_error
+	if entry.has("port_covers"):
+		if not entry["port_covers"] is Dictionary:
+			return "port_covers is not a dictionary"
+		for socket: Variant in entry["port_covers"]:
+			var ref_error := _reference_validation_error(entry["port_covers"][socket], ids)
+			if not ref_error.is_empty():
+				return "port_covers %s %s" % [socket, ref_error]
+	if entry.has("cover_size"):
+		var size_error := _vec3_validation_error(entry["cover_size"])
+		if not size_error.is_empty():
+			return "cover_size %s" % size_error
+	if entry.has("cover_socket") and not entry["cover_socket"] is String:
+		return "cover_socket is not a string"
 	if entry.has("extra_tvs"):
 		if not entry["extra_tvs"] is Array:
 			return "extra_tvs is not an array"
@@ -1526,6 +1550,18 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		var cover := _resolve_ref(root, spawned, d.get("expansion_cover")) as ExpansionCover
 		if cover:
 			sys.restore_expansion_cover(cover)
+		# The covers over its own sockets. A console saved before there were any
+		# never said its covers were off, so it gets them, over every socket the
+		# save left empty; one saved since says which are on, and a cover that is
+		# off is restored loose from its own entry.
+		if d.has("port_covers"):
+			var covers: Dictionary = d["port_covers"]
+			for socket: Variant in covers:
+				var port_cover := _resolve_ref(root, spawned, covers[socket]) as PortCover
+				if port_cover:
+					sys.restore_port_cover(str(socket), port_cover)
+		else:
+			sys.seed_port_covers()
 		# After the media, and deferred: seating a cartridge swings the bay open (the
 		# NES flap) and tweens it there, either of which would otherwise win over the
 		# pose the system restored when its model loaded.
@@ -1955,6 +1991,16 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		units.append(_ref(node_to_id, unit))
 	if not units.is_empty():
 		result["expansions"] = units
+	# Written for every console whose model has covers, null for one that is off,
+	# so that a console with no "port_covers" at all is one saved before covers
+	# and is given them on load. Omitted on every other console, which changes no
+	# room without one.
+	var covers := sys.get_port_covers()
+	if not covers.is_empty():
+		var refs := {}
+		for socket: String in covers:
+			refs[socket] = _ref(node_to_id, covers[socket] as Node)
+		result["port_covers"] = refs
 	# Which physical gamepad drives it, for handhelds — they have no port to
 	# take a PadReceiver, so the choice lives on the machine. Written only
 	# when one is set, so nothing changes for the rooms that never touch it.
@@ -2194,6 +2240,12 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# console's own "expansion_cover" reference. (Its color, for a lid that
 		# was given one, is written by _serialize_node as anything's is.)
 		return _base(id, "expansion_cover", n3d)
+	elif node is PortCover:
+		var port_cover := node as PortCover
+		return _base(id, "port_cover", n3d).merged({
+			"cover_socket": port_cover.socket_id,
+			"cover_size": [port_cover.size.x, port_cover.size.y, port_cover.size.z],
+		})
 	elif node is Poster:
 		var poster := node as Poster
 		return _base(id, "poster", n3d).merged({
@@ -2781,6 +2833,13 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				obj = card
 			"expansion_cover":
 				obj = EXPANSION_COVER_SCENE.instantiate() as ExpansionCover
+			"port_cover":
+				var port_cover := PORT_COVER_SCENE.instantiate() as PortCover
+				port_cover.socket_id = str(data.get("cover_socket", ""))
+				var cover_size: Array = data.get("cover_size", [])
+				if cover_size.size() == 3:
+					port_cover.size = Vector3(float(cover_size[0]), float(cover_size[1]), float(cover_size[2]))
+				obj = port_cover
 			"poster":
 				var poster := POSTER_SCENE.instantiate() as Poster
 				# Size and mode BEFORE the path: the image setter derives the
