@@ -912,7 +912,7 @@ jobs:
   # runtime for either).
   macos:
     needs: preflight
-    runs-on: macos-14
+    runs-on: macos-15
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
