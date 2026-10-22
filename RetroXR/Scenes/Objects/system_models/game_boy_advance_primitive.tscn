@@ -174,3 +174,4 @@ font_size = 16
 ; shell, and that face stops almost flush against the socket's rim.
 [node name="LinkPort" parent="." instance=ExtResource("9_linkport")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, -0.045, 0, -0.038)
+connector = "agb_link_plug"

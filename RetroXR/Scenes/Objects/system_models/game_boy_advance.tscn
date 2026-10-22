@@ -76,6 +76,7 @@ surface_material_override/0 = SubResource("Mat_seat")
 ; seated link plug's origin is its shell's front face.
 [node name="LinkPort" parent="." instance=ExtResource("4_linkport")]
 transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0.0087, 0.006587, -0.041999)
+connector = "agb_link_plug"
 
 ; On its real cap. Slides 4 mm along the cap's own +X, which follows the bottom
 ; edge 17.8 degrees up toward the corner; +X is ON (the "OFF . . ON" legend). The

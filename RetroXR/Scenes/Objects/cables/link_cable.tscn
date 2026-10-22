@@ -110,6 +110,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("2_plugscript")
+connector = "agb_link_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugA0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0065)
@@ -151,6 +152,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("2_plugscript")
+connector = "agb_link_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0065)
@@ -208,6 +210,7 @@ surface_material_override/0 = SubResource("Mat_junction")
 ; plug having been swallowed rather than as anything being the wrong way about.
 [node name="LinkPort" parent="Junction" instance=ExtResource("5_linkport")]
 transform = Transform3D(0, 0, 1, 0, 1, 0, -1, 0, 0, 0.0085, 0, 0)
+connector = "agb_link_plug"
 
 ; 40 x 30 mm = 1.20 m, the length a GBA link cable ships at, against 0.96 m
 ; between the plugs so it hangs rather than pulling straight.

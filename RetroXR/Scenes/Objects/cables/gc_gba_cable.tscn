@@ -169,6 +169,7 @@ linear_damp = 5.0
 angular_damp = 8.0
 freeze_mode = 1
 script = ExtResource("3_gbaplug")
+connector = "agb_link_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="PlugB0"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0065)

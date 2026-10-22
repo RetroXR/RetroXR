@@ -36,7 +36,8 @@ const LABELS := {
 	"dc_av_plug": "a Dreamcast AV OUT plug",
 	"genesis_av_plug": "a Sega A/V OUT plug",
 	"ps2_av_multi": "a PlayStation 2 AV MULTI plug",
-	"link_plug": "a Game Boy Advance or Color link plug",
+	"link_plug": "a Game Boy Color link plug",
+	"agb_link_plug": "a Game Boy Advance link plug",
 	"dmg_link_plug": "an original Game Boy link plug",
 	"gg_link_plug": "a Gear-to-Gear cable plug",
 	"ws_link_plug": "a WonderSwan communication cable plug",
@@ -73,9 +74,16 @@ const LABELS := {
 ## powered. Stated one way round on purpose: a 5-15P's ground pin has nowhere to
 ## go in a two-slot outlet, so a grounded plug still has to find a grounded
 ## socket, and a C7 is not a mains blade at all.
+##
+## The Game Boy link connector is the same rule again. The Advance kept the
+## Pocket and Color socket and added a key to its own lead's plug, so a Color's
+## small plug goes into a Game Boy Advance (and plays in Game Boy mode) while the
+## Advance's lead, its tab with nowhere to go, does not enter a Color, a Pocket
+## or the Printer.
 const ALSO_FITS := {
 	"nema_1_15_plug": ["nema_5_15_plug"],
 	"nema_1_15_polarized_plug": ["nema_5_15_plug"],
+	"link_plug": ["agb_link_plug"],
 }
 
 ## The controller port each console has, by systemid: what a pad's plug has to be

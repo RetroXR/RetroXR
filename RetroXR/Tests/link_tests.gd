@@ -74,6 +74,7 @@ func _ready() -> void:
 	await _test_every_lead_states_its_bus()
 	_test_dmg_adapter_scene()
 	await _test_a_color_reaches_an_original_through_the_adapter()
+	await _test_a_color_lead_goes_into_an_advance()
 	_test_no_reset_path()
 	print("[link] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
@@ -152,11 +153,12 @@ func _test_gc_gba_cable() -> void:
 		return
 
 	# The whole point of the two ends being different. A console socket filters
-	# on "controller_plug" and a handheld's EXT port on "link_plug", and neither
+	# on "controller_plug" and a GBA's EXT port on "agb_link_plug", and neither
 	# end answers to both, so neither can be pushed into the wrong machine.
 	_ok(gc_end.is_in_group("controller_plug"), "the console end answers a controller socket")
 	_ok(gc_end.connector != gba_end.connector, "and is not a handheld plug")
-	_ok(gba_end.is_in_group("link_plug"), "the handheld end answers an EXT port")
+	_ok(gba_end.is_in_group("agb_link_plug"), "the handheld end answers a GBA's EXT port")
+	_ok(not gba_end.is_in_group("link_plug"), "and not a Color's, which its key keeps it out of")
 	_ok(not gba_end.is_in_group("controller_plug"), "and is not a controller plug")
 
 	# Which console's ports will take it. A GameCube lead is not a Wii lead, and
@@ -505,8 +507,10 @@ func _test_cable_scene() -> void:
 
 	# Both ends answer to the group their sockets require, which is the whole of
 	# what decides where this lead will go.
-	_ok(a.is_in_group("link_plug"), "end A is in the link group")
-	_ok(b.is_in_group("link_plug"), "end B is in the link group")
+	_ok(a.is_in_group("agb_link_plug"), "end A is in the GBA link group")
+	_ok(b.is_in_group("agb_link_plug"), "end B is in the GBA link group")
+	_ok(not a.is_in_group("link_plug") and not b.is_in_group("link_plug"),
+		"and neither goes into a Color's socket")
 
 	# The trap the two-mesh split exists for. RcaPlug derives the cord's exit from
 	# PlugTip's AABB alone, so folding the keyed nose into that mesh would drag
@@ -541,7 +545,7 @@ func _test_cable_scene() -> void:
 	var j := cable.junction_port()
 	_ok(j != null, "the lead carries a junction")
 	if j != null:
-		_eq(j.snap_require, "link_plug", "it takes the same plugs the machines do")
+		_eq(j.snap_require, "agb_link_plug", "it takes the same plugs a GBA does")
 		# The two kinds of socket have to be told apart during the chain walk:
 		# a machine port answers get_machine, a junction answers get_cable.
 		_eq(j.get_machine(), null, "it belongs to no machine")
@@ -905,14 +909,14 @@ func _test_the_lead_will_seat() -> void:
 	# Remove the handheld end as an alternate discovery route. The cable remains
 	# physically seated and can still state its bus; only the GameCube end's
 	# controller_plug membership can make the room-wide scan find it now.
-	gba_end.remove_from_group("link_plug")
+	gba_end.remove_from_group("agb_link_plug")
 	var console_bus: Array = console.net_link_bus()
 	_eq(console_bus.size(), 2, "netplay finds a bus through the controller socket")
 	_ok(console_bus.any(func(entry: Dictionary) -> bool: return entry.get("machine") == console),
 		"and that bus contains the GameCube")
 	_ok(console_bus.any(func(entry: Dictionary) -> bool: return entry.get("machine") == handheld),
 		"and that bus contains the handheld")
-	gba_end.add_to_group("link_plug")
+	gba_end.add_to_group("agb_link_plug")
 
 	console.queue_free()
 	handheld.queue_free()
@@ -2102,9 +2106,10 @@ const _LINK_SOCKETS := {
 	# shrank it, and the Advance kept theirs.
 	"res://Scenes/Objects/system_models/game_boy_primitive.tscn": "dmg_link_plug",
 	"res://Scenes/Objects/system_models/game_boy_color_primitive.tscn": "link_plug",
-	"res://Scenes/Objects/system_models/game_boy_advance.tscn": "link_plug",
-	"res://Scenes/Objects/system_models/game_boy_advance_primitive.tscn": "link_plug",
-	"res://Scenes/Objects/system_models/game_boy_advance_sp_primitive.tscn": "link_plug",
+	# The Advance's own keyed plug, which a Color's lead fits as well.
+	"res://Scenes/Objects/system_models/game_boy_advance.tscn": "agb_link_plug",
+	"res://Scenes/Objects/system_models/game_boy_advance_primitive.tscn": "agb_link_plug",
+	"res://Scenes/Objects/system_models/game_boy_advance_sp_primitive.tscn": "agb_link_plug",
 	"res://Scenes/Objects/system_models/game_gear.tscn": "gg_link_plug",
 	"res://Scenes/Objects/system_models/wonderswan.tscn": "ws_link_plug",
 	"res://Scenes/Objects/system_models/atari_lynx.tscn": "comlynx_plug",
@@ -2122,7 +2127,7 @@ const _LINK_SOCKETS := {
 
 ## Spawn id -> the family both its ends (and any junction) must be.
 const _LINK_LEADS := {
-	"link_cable": "link_plug",
+	"link_cable": "agb_link_plug",
 	"gb_link_cable": "link_plug",
 	"dmg_link_cable": "dmg_link_plug",
 	"gg_link_cable": "gg_link_plug",
@@ -2181,10 +2186,14 @@ func _test_every_lead_fits_only_its_own_machines() -> void:
 		_eq(plugs.size(), 2, "%s has two ends" % id)
 		for n: Node in found:
 			_eq(n.get("connector"), _LINK_LEADS[id], "%s: %s is %s" % [id, n.name, _LINK_LEADS[id]])
-		# The whole matrix: a plug of this lead fits exactly the sockets of its family.
+		# The whole matrix: a plug of this lead fits exactly the sockets of its
+		# family -- and the one socket the hardware lets another family into, a
+		# Color's small plug in an Advance, said here outright rather than read
+		# back from Connectors.ALSO_FITS, so dropping that row goes red.
 		for path: String in socket_family:
-			var fits: bool = plugs.size() > 0 and socket_family[path] == plugs[0].get("connector")
-			var should: bool = _LINK_SOCKETS[path] == _LINK_LEADS[id]
+			var fits: bool = plugs.size() > 0 and Connectors.groups_of(str(plugs[0].get("connector"))).has(socket_family[path])
+			var should: bool = _LINK_SOCKETS[path] == _LINK_LEADS[id] \
+					or (_LINK_LEADS[id] == "link_plug" and _LINK_SOCKETS[path] == "agb_link_plug")
 			_eq(fits, should, "%s %s %s" % [id, "fits" if should else "is refused by", path.get_file()])
 		cable.free()
 
@@ -2316,6 +2325,48 @@ func _test_a_color_reaches_an_original_through_the_adapter() -> void:
 	_eq((lead.held_machines() as Array).size(), 0, "adapter/ nor does the lead in it")
 
 	for n: Node in [dmg, cgb, adapter, lead]:
+		n.queue_free()
+	await get_tree().process_frame
+
+
+# A Color's lead in an Advance, as on the hardware, and an Advance's lead kept
+# out of a Color by its key -- through the real sockets, not the connector table.
+func _test_a_color_lead_goes_into_an_advance() -> void:
+	var sys_scene := load("res://Scenes/Objects/system.tscn") as PackedScene
+	var agb: Node3D = sys_scene.instantiate()
+	agb.systemid = "gba"
+	agb.position = Vector3(-0.4, 1, 2)
+	add_child(agb)
+	var cgb: Node3D = sys_scene.instantiate()
+	cgb.systemid = "gbc"
+	cgb.position = Vector3(0.4, 1, 2)
+	add_child(cgb)
+	var color_lead: LinkCable = load(GBC_CABLE_SCENE).instantiate()
+	add_child(color_lead)
+	var agb_lead: LinkCable = load(CABLE_SCENE).instantiate()
+	add_child(agb_lead)
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	var agb_port := agb.find_child("LinkPort", true, false) as LinkPort
+	var cgb_port := cgb.find_child("LinkPort", true, false) as LinkPort
+	_ok(agb_port != null and cgb_port != null, "agb/ both handhelds wear a socket")
+	if agb_port != null and cgb_port != null:
+		var small := color_lead.get_node("PlugA0") as RcaPlug
+		var keyed := agb_lead.get_node("PlugA0") as RcaPlug
+		_ok(small.is_in_group(agb_port.snap_require), "agb/ a Color's lead fits an Advance")
+		_ok(not keyed.is_in_group(cgb_port.snap_require), "agb/ an Advance's lead does not fit a Color")
+		agb_port.pick_up_object(small)
+		cgb_port.pick_up_object(color_lead.get_node("PlugB0"))
+		await get_tree().process_frame
+		await get_tree().process_frame
+		color_lead._resolve()
+		_ok(agb_port.picked_up_object == small, "agb/ seated in the Advance")
+		var bus: Array = color_lead.linked_machines()
+		_ok(bus.size() == 2 and bus.any(func(e: Dictionary) -> bool: return e.get("machine") == agb)
+				and bus.any(func(e: Dictionary) -> bool: return e.get("machine") == cgb),
+			"agb/ and the Color's lead puts the Advance and the Color on one wire")
+	for n: Node in [agb, cgb, color_lead, agb_lead]:
 		n.queue_free()
 	await get_tree().process_frame
 
