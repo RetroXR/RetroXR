@@ -72,6 +72,17 @@ class FakeClient extends ScreenscraperClient:
 				return
 
 
+## A client whose downloads are written down instead of made.
+class RecordingClient extends ScreenscraperClient:
+	var got: Array[Dictionary] = []
+
+	func _ready() -> void:
+		pass
+
+	func download_media(media_type: String, url: String, dest_path: String) -> void:
+		got.append({"type": media_type, "url": url, "dest": dest_path})
+
+
 func _ready() -> void:
 	for a: String in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
@@ -91,6 +102,7 @@ func _ready() -> void:
 	await _run_group("auto", _group_auto)
 	await _run_group("config", _group_config)
 	await _run_group("priority", _group_priority)
+	await _run_group("cabinet_media", _group_cabinet_media)
 	_teardown()
 	_finish()
 
@@ -712,3 +724,150 @@ func _group_priority() -> void:
 	d.close()
 	_ok(not d.is_open() and not d._inline.visible, "close hides the card")
 	d.queue_free()
+
+
+# ── A cabinet's attract mode: video and title, on demand, arcade only ───────────
+
+func _group_cabinet_media() -> void:
+	var medias := [
+		{"type": "wheel", "url": "https://x/w.png", "region": "wor"},
+		{"type": "video", "url": "https://x/v.mp4", "region": "wor"},
+		{"type": "sstitle", "url": "https://x/t.png", "region": "wor"},
+	]
+	var client := ScreenscraperClient.new()
+	client.config = ScraperConfig.new()
+	var plain: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, true)
+	_check(not plain.has("video") and not plain.has("title"),
+		"cabinet media: a scrape that asks for nothing extra finds no video or title")
+	_check(plain["wheel"] == "https://x/w.png", "cabinet media: and still finds the wheel")
+	client.extra_media = ScreenscraperClient.CABINET_MEDIA
+	var arcade: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, true)
+	_check(arcade["video"] == "https://x/v.mp4" and arcade["title"] == "https://x/t.png",
+		"cabinet media: asked for, an arcade game gives its video snap and its title")
+	var console: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, false)
+	_check(not console.has("video") and not console.has("title"),
+		"cabinet media: a game that is not arcade gives neither, even asked")
+	client.extra_media = ["video", "marquee"]
+	var odd: Dictionary = client._extract_media_urls(medias, ["wor"], 0, 0, true)
+	_check(odd.has("video") and not odd.has("title") and not odd.has("marquee"),
+		"cabinet media: only the kinds the client knows are taken")
+	client.extra_media = ["video"]
+	var both := [
+		{"type": "video", "url": "https://x/big.mp4", "region": ""},
+		{"type": "video-normalized", "url": "https://x/small.mp4", "region": ""},
+	]
+	var pick: Dictionary = client._extract_media_urls(both, [], 0, 0, true)
+	_check(pick["video"] == "https://x/small.mp4", "cabinet media: the smaller normalized video is taken when there is one")
+	pick = client._extract_media_urls([both[0]], [], 0, 0, true)
+	_check(pick["video"] == "https://x/big.mp4", "cabinet media: and the plain one when there is not")
+	client.free()
+
+	# ScreenScraper files many arcade games under a SUB-system of Arcade (Point Blank answers as 155 "Namco
+	# Classics", parent 75). Judged by 155 alone the game was no arcade game and its extras were dropped
+	# without a word (the attract mode's first real run, 2026-10-22).
+	var jeu := {"id": "42538", "noms": [{"region": "wor", "text": "Point Blank"}],
+		"systeme": {"id": "155", "text": "Namco Classics", "parentid": "75"},
+		"medias": medias}
+	var sub := ScreenscraperClient.new()
+	sub.config = ScraperConfig.new()
+	sub.extra_media = ScreenscraperClient.CABINET_MEDIA
+	var got: Dictionary = (sub._parse_jeu(jeu) as Dictionary)["media"]
+	_check(got.has("video") and got.has("title"), "cabinet media: a game answering under a sub-system of Arcade (parent 75) is an arcade game")
+	var bare := jeu.duplicate(true)
+	bare["systeme"] = {"id": "155", "text": "Namco Classics"}
+	got = (sub._parse_jeu(bare) as Dictionary)["media"]
+	_check(not got.has("video"), "cabinet media: with no parent and nothing asked about, it is judged by its own system alone")
+	sub._requested_systemeid = ScreenscraperSystems.get_systemeid("arcade")
+	got = (sub._parse_jeu(bare) as Dictionary)["media"]
+	_check(got.has("video") and got.has("title"), "cabinet media: or by the system the scrape asked about")
+	sub._requested_systemeid = ScreenscraperSystems.get_systemeid("neogeo")
+	got = (sub._parse_jeu(bare) as Dictionary)["media"]
+	_check(got.has("video"), "cabinet media: a Neo Geo MVS cabinet's game counts too")
+	sub._requested_systemeid = ScreenscraperSystems.get_systemeid("nes")
+	bare["systeme"] = {"id": "3", "text": "NES", "parentid": "0"}
+	got = (sub._parse_jeu(bare) as Dictionary)["media"]
+	_check(not got.has("video") and not got.has("title"), "cabinet media: a console game gets neither")
+	sub.free()
+
+	var rec := RecordingClient.new()
+	rec.config = ScraperConfig.new()
+	add_child(rec)
+	var result := {"media": {"wheel": "https://x/w.png", "box": "https://x/b.png",
+		"video": "https://x/v.mp4", "title": "https://x/t.png"}}
+	await rec.download_all_media(result, TEST_SYSTEM, "game")
+	var types: Array = rec.got.map(func(g: Dictionary) -> String: return g["type"])
+	_check(types.has("wheel") and types.has("box") and types.has("video") and types.has("title"),
+		"cabinet media: with no filter every type in the result is fetched")
+	rec.got.clear()
+	rec.media_filter = ["video", "title"]
+	await rec.download_all_media(result, TEST_SYSTEM, "game")
+	types = rec.got.map(func(g: Dictionary) -> String: return g["type"])
+	_check(types.size() == 2 and types.has("video") and types.has("title"),
+		"cabinet media: filtered, a game that has its art pays for the video and title alone (%s)" % str(types))
+	var video: Dictionary = rec.got.filter(func(g: Dictionary) -> bool: return g["type"] == "video")[0]
+	_check(str(video["dest"]).ends_with("/media/video/game.mp4"),
+		"cabinet media: the video lands in media/video/<rom>.mp4")
+	var title: Dictionary = rec.got.filter(func(g: Dictionary) -> bool: return g["type"] == "title")[0]
+	_check(str(title["dest"]).ends_with("/media/title/game.png"),
+		"cabinet media: the title in media/title/<rom>.png")
+	rec.got.clear()
+	rec.media_filter = []
+	await rec.download_all_media({"media": {"video": "https://x/clip.bin?x=1.exe"}}, TEST_SYSTEM, "game")
+	_check(str(rec.got[0]["dest"]).ends_with("/game.mp4"),
+		"cabinet media: a tail that is no video extension does not name the file")
+	rec.queue_free()
+
+	# Through the queue: an already-scraped game is asked again for its media alone.
+	var q := _queue(false)
+	var auto := AutoScraper.new()
+	add_child(auto)
+	auto.setup(q, _gamelist, _config)
+	var rom := _rom("cab_media.bin")
+	_gamelist.add_or_merge_rom(TEST_SYSTEM, {"game_id": "42", "name": "Done", "scraped": true},
+		{"path": "./cab_media.bin", "romname": "cab_media.bin"})
+	_check(auto.already_scraped(rom, TEST_SYSTEM), "cabinet media: the game is already scraped")
+	_config.auto_scrape = false
+	auto.request_media(rom, TEST_SYSTEM, ScreenscraperClient.CABINET_MEDIA)
+	_check(not q.is_queued(rom), "cabinet media: with auto-scrape off no request is made")
+	_config.auto_scrape = true
+	auto.request(rom, TEST_SYSTEM)
+	_check(not q.is_queued(rom), "cabinet media: the ordinary request skips a game already scraped")
+	auto.request_media(rom, TEST_SYSTEM, ScreenscraperClient.CABINET_MEDIA)
+	_check(q.is_queued(rom), "cabinet media: but its video and title are asked for")
+	await _until_held(1)
+	var c := _client_for(rom)
+	_check(c != null and c.extra_media == ScreenscraperClient.CABINET_MEDIA and c.media_filter == ScreenscraperClient.CABINET_MEDIA,
+		"cabinet media: the client is told to fetch those kinds and only those")
+	if c != null:
+		c.resolve(rom, _result("Done"))
+		await _frames(4)
+	var other := _rom("cab_plain.bin")
+	auto.request(other, TEST_SYSTEM)
+	await _until_held(1)
+	var c2 := _client_for(other)
+	_check(c2 != null and c2.extra_media.is_empty() and c2.media_filter.is_empty(),
+		"cabinet media: an ordinary scrape after it asks for nothing extra")
+	# A game already waiting for an ordinary scrape brings the extras too, and still fetches its usual art.
+	var third := _rom("cab_wait.bin")
+	q.cancel_all()
+	await _frames(2)
+	var blockers: Array[String] = []
+	for i in 8:
+		var b := _rom("cab_block_%d.bin" % i)
+		blockers.append(b)
+		q.enqueue(b, TEST_SYSTEM)
+	q.enqueue(third, TEST_SYSTEM)
+	_check(q.is_queued(third), "cabinet media: a game is in the queue for an ordinary scrape")
+	auto.request_media(third, TEST_SYSTEM, ScreenscraperClient.CABINET_MEDIA)
+	var waiting_item := {}
+	for item: Dictionary in q._queue:
+		if str(item["rom"]) == third:
+			waiting_item = item
+	if not waiting_item.is_empty():
+		_check(waiting_item.get("extra", []) == ScreenscraperClient.CABINET_MEDIA and (waiting_item.get("media", []) as Array).is_empty(),
+			"cabinet media: it brings the extras and is not narrowed to them (the wheel and box still come)")
+	else:
+		_check(true, "cabinet media: (the game had already started; nothing to join)")
+	_check(not q.add_extra_media(_rom("never_queued.bin"), ["video"]), "cabinet media: a game that is not waiting cannot join")
+	auto.queue_free()
+	q.queue_free()

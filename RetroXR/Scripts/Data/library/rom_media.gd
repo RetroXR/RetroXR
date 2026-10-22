@@ -21,7 +21,8 @@ extends RefCounted
 
 
 ## Subdirectories keyed by ROM basename.
-const SCRAPED_DIRS := ["wheel", "box", "label", "manual"]
+## "title" and "video" come from a cabinet's attract mode (ArcadeAttract); the storage cleanup sees them too.
+const SCRAPED_DIRS := ["wheel", "box", "label", "manual", "title", "video"]
 ## Subdirectory keyed by RomM rom id.
 const ROMM_DIR := "romm"
 
