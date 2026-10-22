@@ -1425,8 +1425,10 @@ func _animate_controls(pressed: Dictionary) -> void:
 ## on show whether or not they can be pressed. set_active would hide them and
 ## leave a blank white slab whenever the remote is put down.
 func _set_face_buttons_active(active: bool) -> void:
+	# The face caps are game buttons, so the Options switch for pressing those by
+	# touch (AppPrefs.poke_controls) takes them out too. POWER is not one.
 	for key: String in _face_buttons:
-		(_face_buttons[key] as VRButton).set_interactive(active)
+		(_face_buttons[key] as VRButton).set_interactive(active and AppPrefs.poke_controls)
 	# POWER goes with them. It is on the pointable layer too, and a remote across
 	# the room whose red key answers the laser is a remote you cannot pick up by
 	# pointing at it without switching a console off.
@@ -1606,9 +1608,11 @@ func _pressed_now() -> Dictionary:
 	# A poke is an OR, not an override: pressing 1 on the shell while the bound
 	# hand input is also down must not cancel it. The keyboard joins on the same
 	# terms, so a desktop player and a poking hand cannot cancel each other either.
-	for key: String in _face_buttons:
-		if (_face_buttons[key] as VRButton).is_held():
-			out[key] = true
+	# Gated here as well as on pick-up, so switching it off mid-hold takes at once.
+	if AppPrefs.poke_controls:
+		for key: String in _face_buttons:
+			if (_face_buttons[key] as VRButton).is_held():
+				out[key] = true
 	for key: String in _desktop_pressed():
 		out[key] = true
 	return out

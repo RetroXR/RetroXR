@@ -56,6 +56,9 @@ var mains_region: String = ""
 ## if it moves), "us" / "eu" / "jp", or "original" for the cores' own names
 ## (cartridges then still follow the outlet region).
 var region_names: String = ""
+## Whether a fingertip presses the buttons on pads, handhelds and the like
+## (ControlPoke). On by default; read every frame, so a change takes at once.
+var poke_controls:    bool = true
 var system_filter:    bool = true
 ## Whether the player may move the core options that make a machine show its own
 ## boot screen. Off means BiosBoot's measured values are pinned every launch and
@@ -327,6 +330,7 @@ func _load_prefs() -> void:
 		MOUSE_SENSITIVITY_MIN, MOUSE_SENSITIVITY_MAX)
 	xr_display_mode = _prefs_xr_display_mode(data, "xr_display_mode", xr_display_mode)
 	controller_hands = JsonStore.get_bool(data, "controller_hands", controller_hands)
+	poke_controls    = JsonStore.get_bool(data, "poke_controls",    poke_controls)
 	system_filter    = JsonStore.get_bool(data, "system_filter",    system_filter)
 	bios_boot_override = JsonStore.get_bool(data, "bios_boot_override", bios_boot_override)
 	menu_curved      = JsonStore.get_bool(data, "menu_curved",      menu_curved)
@@ -372,6 +376,7 @@ func save_prefs() -> bool:
 		"mouse_sensitivity": mouse_sensitivity,
 		"xr_display_mode":  xr_display_mode,
 		"controller_hands": controller_hands,
+		"poke_controls":    poke_controls,
 		"system_filter":    system_filter,
 		"bios_boot_override": bios_boot_override,
 		"menu_curved":      menu_curved,

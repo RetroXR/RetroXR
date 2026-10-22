@@ -815,6 +815,25 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		controller_hands_changed.emit(on)
 	))
 
+	# Pressing a pad's or handheld's own buttons with a fingertip (default on).
+	# No signal: ControlPoke reads AppPrefs every frame.
+	var poke_row := HBoxContainer.new()
+	poke_row.add_theme_constant_override("separation", 10)
+	poke_row.custom_minimum_size = Vector2(0, 68)
+	vbox.add_child(poke_row)
+
+	var poke_lbl := Label.new()
+	poke_lbl.text = "Press Controller Buttons by Touch"
+	poke_lbl.add_theme_font_size_override("font_size", 22)
+	poke_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+	poke_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	poke_row.add_child(poke_lbl)
+
+	poke_row.add_child(VRToggle.create(AppPrefs.poke_controls, func(on: bool) -> void:
+		AppPrefs.poke_controls = on
+		AppPrefs.save_prefs()
+	))
+
 ## The DEBUG sub-tab: which build this is, the overlays that draw over the room,
 ## and the graphics API a core is offered.
 ##

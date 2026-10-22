@@ -379,6 +379,7 @@ func _pressed_now() -> Dictionary:
 			var lid: int = DESKTOP_LIGHTGUN_BUTTONS[action_name]
 			if lid >= 0:
 				out[lid] = Input.is_action_pressed(action_name)
+		_merge_poke(out)
 		return out
 	var vr: bool = is_instance_valid(_holding_ctrl)
 	for vr_source: String in _lightgun_map:
@@ -390,7 +391,38 @@ func _pressed_now() -> Dictionary:
 		var key := "%d:%s" % [_holding_ctrl.get_instance_id() if vr else 0, vr_source]
 		var value: float = _holding_ctrl.get_float(vr_source) if vr else 0.0
 		out[lid] = _latch.pressed(key, value, float(INPUT_THRESHOLDS.get(vr_source, 0.5)))
+	_merge_poke(out)
 	return out
+
+
+## The shell's caps (not the trigger, which the holding hand pulls) also give
+## under a fingertip — see ControlPoke. A target's bits are LIGHTGUN_* ids here,
+## not RetroPad bits. Bound on first use rather than in _ready, so a gun that adds
+## caps of its own to _anim_btns gets them too.
+var _poke: ControlPoke = null
+
+
+func _merge_poke(out: Dictionary) -> void:
+	if _poke == null:
+		_poke = ControlPoke.new(self)
+		for e: Dictionary in _anim_btns:
+			_poke.targets.append({"node": e["node"], "rest": e["rest"],
+				"dir": e.get("dir", Vector3.DOWN), "bit": int(e["lid"])})
+		_poke.targets.append_array(_extra_poke_targets())
+	var poked := int(_poke.poll()["btn"])
+	var lid := 0
+	while poked != 0:
+		if poked & 1:
+			out[lid] = true
+		poked >>= 1
+		lid += 1
+
+
+## Controls a gun moves outside _anim_btns (a d-pad), as ControlPoke targets whose
+## bits are LIGHTGUN_* ids. Its own hook, so a gun pack overrides it with no
+## super() to call, which a pack still loading in an older build could not do.
+func _extra_poke_targets() -> Array[Dictionary]:
+	return []
 
 
 func _animate_controls(pressed: Dictionary) -> void:
@@ -530,11 +562,12 @@ func _process(_delta: float) -> void:
 		_process_desktop_lightgun(libretro, pressed)
 		return
 
-	# VR mode: no controller held → report offscreen and clear buttons
+	# VR mode: no controller held → report offscreen. The only buttons down are
+	# the caps a fingertip is pressing on the shell (_merge_poke).
 	if not is_instance_valid(_holding_ctrl):
 		_set_aim(libretro, 0, 0, true)
 		for lid: int in pressed:
-			_set_button(libretro, lid, false)
+			_set_button(libretro, lid, pressed[lid])
 		if _lightgun_map.get("stick", "none") == "dpad":
 			for lid: int in DPAD_IDS:
 				_set_button(libretro, lid, false)

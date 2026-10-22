@@ -27,6 +27,9 @@ const ANIM_LERP: float     = 20.0
 # face is the same problem as a pad's. The bindings below are views onto it, so a
 # subclass's _cache_meshes() fills them exactly as it always did.
 var _anim := ControlAnimator.new()
+# The same controls, pressed with a fingertip (see ControlPoke). Built from _anim
+# after _cache_meshes(), so a pad's caps are pokeable exactly where they move.
+var _poke: ControlPoke = null
 
 # Cached animated meshes. Each button entry: {node, rest, bit, depth}.
 @warning_ignore("unused_private_class_variable")
@@ -65,6 +68,25 @@ var _got_input: bool = false
 func _ready() -> void:
 	super._ready()
 	_cache_meshes()
+	_bind_poke()
+
+
+## Every animated control becomes a poke target, plus any the pad adds itself.
+func _bind_poke() -> void:
+	# Which arm of the cross is UP is the pitch sign's, which _animate only hands
+	# the animator on its first frame — the poke reads it now.
+	_anim.dpad_pitch_sign = _dpad_pitch_sign()
+	_poke = ControlPoke.new(self)
+	_poke.add_animator(_anim)
+	_poke.targets.append_array(_extra_poke_targets())
+
+
+## Controls this pad moves outside the animator (a trigger it swings itself, a
+## cap with no input behind it), as ControlPoke targets — see ControlPoke for the
+## shape. Its own hook, so a pad pack overrides it with no super() to call, which
+## a pack still loading in an older build could not do.
+func _extra_poke_targets() -> Array[Dictionary]:
+	return []
 
 
 # ── Node caching ────────────────────────────────────────────────────────────
@@ -127,7 +149,11 @@ func _dpad_pitch_sign() -> float:
 # ── Input capture + animation ───────────────────────────────────────────────
 
 # Capture the exact merged per-frame state, then forward to the base behaviour.
+# A poked cap joins here, so the core, netplay and the animation all see it.
 func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
+	if _poke != null:
+		var m := _poke.merge_into(btn, alx, aly, arx, ary, ANALOG_SCALE)
+		btn = m["btn"]; alx = m["alx"]; aly = m["aly"]; arx = m["arx"]; ary = m["ary"]
 	_cur_btn = btn
 	_cur_lstick = Vector2(float(alx) / ANALOG_SCALE, float(aly) / ANALOG_SCALE)
 	_cur_rstick = Vector2(float(arx) / ANALOG_SCALE, float(ary) / ANALOG_SCALE)
@@ -139,9 +165,12 @@ func _process(delta: float) -> void:
 	_got_input = false
 	super._process(delta)          # runs hold/drop/plug logic; calls _send_joypad when active
 	if not _got_input:             # not plugged/held → relax to rest
-		_cur_btn = 0
-		_cur_lstick = Vector2.ZERO
-		_cur_rstick = Vector2.ZERO
+		# A pad plugged into nothing still gives under a finger: the cap moves,
+		# there is just no core to tell.
+		var s: Dictionary = _poke.poll() if _poke != null else {}
+		_cur_btn = int(s.get("btn", 0))
+		_cur_lstick = s.get("lstick", Vector2.ZERO)
+		_cur_rstick = s.get("rstick", Vector2.ZERO)
 	_animate(delta)
 
 
