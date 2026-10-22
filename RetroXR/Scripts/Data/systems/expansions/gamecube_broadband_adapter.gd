@@ -11,8 +11,18 @@ const ID := "gamecube_broadband_adapter"
 # socket on the face left showing at the back. The bay is its own socket
 # ("serial_port_1"); a model whose shell has the real opening places it there
 # (RetroSystemModel.configure_unit_socket), and the stand-in box takes it through
-# its back panel at the end clear of the A/V row. `size` is width x depth in x
-# thickness, from the real card's 81 x 55 x 16 mm.
+# its back panel at the end clear of the A/V row. `size` is the real card's
+# bounds, 109.3 long x 48.6 across x 22.15 thick (RetroXR-models'
+# nintendo/gamecube/network-adapter: the published 109.3 x 45 x 21.6 with its
+# latch tabs and labels), in the frame the console models seat it by: X along
+# it, seated by its -Y long side, its outer face +Z.
+#
+# `jack` is where the real card's RJ45 is: in its -X end, 13.5 under the outer
+# face, the latch slot toward that face, so on a modelled console a lead goes in
+# where the real one does even on the plain box. Its mouth is on the box's end
+# face (a plain box draws none of its own, so the socket keeps its recess). On
+# the stand-in console the card goes in end-on through the back panel, and there
+# the socket is on the end left outside instead (RetroExpansion._place_ethernet_port).
 #
 # What seating it does is ForcedCoreOptions.ethernet_adapter: SP1 becomes the
 # Ethernet Link Cable device, whose socket is the frontend's link bus, protocol
@@ -24,9 +34,11 @@ const ROW := {
 	"host": "gc",
 	"mount": ExpansionDefs.MOUNT_ABOVE,
 	"socket": "serial_port_1",
-	"size": Vector3(0.081, 0.055, 0.016),
+	"size": Vector3(0.1093, 0.0486, 0.02215),
 	"loader": MediaDimensions.LOADER_NONE,
 	"ethernet_port": 4,
+	"jack": Transform3D(Basis(Vector3(0, -1, 0), Vector3(0, 0, 1), Vector3(-1, 0, 0)),
+		Vector3(-0.1093 * 0.5 - 0.0015, 0.0, 0.010675 - 0.0135)),
 }
 
 

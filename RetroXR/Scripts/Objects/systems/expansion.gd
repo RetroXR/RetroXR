@@ -1056,11 +1056,10 @@ var _ethernet_port: EthernetPort = null
 var _ethernet_plug: PhysicsBody3D = null
 
 
-## On the face left outside the console. ExpansionPort.seat_through_back turns a
-## unit so its +Y runs out of the back panel and its -Y face is the one the socket
-## takes, so the end left showing is +Y, and the socket is turned for its +Z --
-## where a plug arrives from -- to point along it. Named, because a save records a
-## seated plug by its socket's name (CompositeCable.port_named).
+## Where the real card's jack is (the row's or a mod shell's `jack`), so on a
+## modelled console the lead goes in where the real one does; with none, on the
+## face left outside the console. Named, because a save records a seated plug by
+## its socket's name (CompositeCable.port_named).
 func _build_ethernet_port() -> void:
 	var link_port := ExpansionCatalog.ethernet_port_of(expansion_id)
 	if link_port < 0:
@@ -1069,23 +1068,33 @@ func _build_ethernet_port() -> void:
 	port.name = "EthernetPort"
 	port.link_port = link_port
 	add_child(port)
-	# A mod's shell with its jack modelled says where the jack is, so the lead goes
-	# into the jack and not into the middle of the end.
-	var jack: Variant = ExpansionCatalog.ethernet_jack_of(_shell_id())
-	if jack is Transform3D:
-		port.transform = jack
-		# The shell draws the jack's mouth and face; the socket's own would sit
-		# in them.
+	# A mod's shell draws the jack's mouth and face; the socket's own would sit in
+	# them. The plain box draws none, so there the socket keeps its own.
+	if _shell != null and ExpansionCatalog.ethernet_jack_of(_shell_id()) is Transform3D:
 		port.show_recess = false
 		port.show_legend = false
-	else:
-		var s := size()
-		port.position = Vector3(0.0, s.y * 0.5 + 0.0015, 0.0)
-		port.rotation = Vector3(-PI * 0.5, 0.0, 0.0)
 	port.has_picked_up.connect(_on_ethernet_plug_in)
 	port.has_dropped.connect(_on_ethernet_plug_out)
 	host_changed.connect(_on_ethernet_host_changed)
 	_ethernet_port = port
+	_place_ethernet_port(null)
+
+
+## The socket in the jack the row or the shell gives -- unless the plain box is
+## in the stand-in console's back panel: ExpansionPort.seat_through_back turns a
+## unit so its +Y runs out of the back panel and only that end is left showing,
+## and a jack placed for the real card's face would be inside the console. There
+## it is on the +Y end, turned for its +Z -- where a plug arrives from -- to point
+## along it. A shell keeps its jack wherever it is seated: its mouth is molded.
+func _place_ethernet_port(host: RetroSystem) -> void:
+	var jack: Variant = ExpansionCatalog.ethernet_jack_of(_shell_id())
+	var stand_in_console := host != null and host.get_model() is RetroSystemModelDefault
+	if jack is Transform3D and not (stand_in_console and _shell == null):
+		_ethernet_port.transform = jack
+	else:
+		var s := size()
+		_ethernet_port.transform = Transform3D(Basis.from_euler(Vector3(-PI * 0.5, 0.0, 0.0)),
+			Vector3(0.0, s.y * 0.5 + 0.0015, 0.0))
 
 
 ## The network adapter's socket, or null on any other unit.
@@ -1096,7 +1105,8 @@ func get_ethernet_port() -> EthernetPort:
 ## Seated in a console or taken out of one with a lead still in it: the walk from
 ## this socket now ends at a different machine, or none, so the LAN the lead is on
 ## is worked out again. Nothing else would ask -- the lead itself did not move.
-func _on_ethernet_host_changed(_sys: RetroSystem) -> void:
+func _on_ethernet_host_changed(sys: RetroSystem) -> void:
+	_place_ethernet_port(sys)
 	var plug := _ethernet_port.picked_up_object as RcaPlug
 	if plug != null and is_instance_valid(plug.cable) and plug.cable.has_method("_resolve"):
 		plug.cable.call("_resolve")

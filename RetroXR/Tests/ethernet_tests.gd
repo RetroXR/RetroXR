@@ -351,15 +351,27 @@ func _test_adapter(systemid: String, unit_id: String, link_port: int, core: Stri
 	_eq(port.get_device(), card, tag + "a lead in it is saved against the card")
 	_eq(CompositeCable.port_named(card, port.name), port, tag + "and finds the socket again on load")
 	var s := card.size()
-	var out := card.to_local(port.global_position + port.global_basis.z) - card.to_local(port.global_position)
-	_ok(out.y > 0.9 and card.to_local(port.global_position).y >= s.y * 0.5,
-		tag + "on the end of the card left showing, facing out of it", "at %s, +Z %s" % [card.to_local(port.global_position), out])
+	var jack: Variant = ExpansionCatalog.ethernet_jack_of(unit_id)
+	_ok(jack is Transform3D and port.transform.is_equal_approx(jack),
+		tag + "on the table, in the real card's jack (the row's)", "%s, row %s" % [port.transform, jack])
+	if jack is Transform3D:
+		var at_jack := (jack as Transform3D).origin.abs()
+		_ok(at_jack.x >= s.x * 0.5 or at_jack.y >= s.y * 0.5 or at_jack.z >= s.z * 0.5,
+			tag + "its mouth on the box's face, not inside it", "at %s, size %s" % [(jack as Transform3D).origin, s])
+	_ok(port.show_recess, tag + "the plain box draws no mouth, so the socket keeps its own")
 
 	var sys := await _console(systemid)
 	_eq(sys._all_forced_options(core).get(option), off, tag + "a bare console has its adapter off")
 	sys.restore_expansion(card)
 	await _wait(10)
 	_eq(card.get_host(), sys, tag + "the card seats")
+	# The stand-in console takes the card end-on through its back panel: only its +Y
+	# end is left showing, and the socket moves there.
+	var out := card.to_local(port.global_position + port.global_basis.z) - card.to_local(port.global_position)
+	_ok(not sys.get_model() is RetroSystemModelDefault
+		or (out.y > 0.9 and card.to_local(port.global_position).y >= s.y * 0.5),
+		tag + "in the stand-in console, on the end of the card left showing, facing out of it",
+		"at %s, +Z %s" % [card.to_local(port.global_position), out])
 	_eq(port.get_machine(), sys, tag + "and then the socket on it is the console's")
 	_eq(sys._all_forced_options(core).get(option), on, tag + "with the core's adapter on")
 	_ok(sys.expansion_ids().has(unit_id), tag + "and the card is named among what is seated")
@@ -689,7 +701,8 @@ func _test_shell_jack() -> void:
 	ExpansionCatalog._mod_shells.erase(BBA)
 	var plain := await _unit(BBA)
 	var plain_port := plain.get_ethernet_port()
-	_ok(plain_port != null and plain_port.show_recess
-		and plain.to_local(plain_port.global_position).y >= plain.size().y * 0.5,
-		"jack/ without one, the socket is on the end as before")
+	var row_jack: Variant = ExpansionCatalog.ethernet_jack_of(BBA)
+	_ok(plain_port != null and plain_port.show_recess and row_jack is Transform3D
+		and plain_port.transform.is_equal_approx(row_jack),
+		"jack/ without a shell, the plain box has the socket in the row's jack, its recess its own")
 	await _clear()
