@@ -1,4 +1,4 @@
-# §2z — The arcade cabinet, its JAMMA board and the video geometry
+# §2z-arc — The arcade cabinet, its JAMMA board and the video geometry
 
 ## One system, many cores (2026-10-18)
 
