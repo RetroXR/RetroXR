@@ -61,10 +61,18 @@ var playing: bool:
 
 signal playing_changed(on: bool)
 
+## Somebody used the cabinet while it was only showing its game (RetroSystem.attracting): a coin, a panel
+## pressed, a gun or a pad taken in hand. `kind` is &"coin", &"panel" or &"grab". RetroSystem starts the
+## real core on it.
+signal first_use(kind: StringName)
+
 var _host: Node3D = null
 var _model: RetroSystemModel = null
 var _controls: Array[ArcadeControlModule] = []
 var _pulses: Dictionary = {}
+## Coins put in while the cabinet was only showing its game (player -> seconds until they are delivered):
+## the core those coins started needs a moment before it reads a credit.
+var _deferred_coins: Dictionary = {}
 
 var _button_map: Dictionary = ControllerBindings.DEFAULT_BUTTON_MAP.duplicate()
 var _stick_map: Dictionary = ControllerBindings.DEFAULT_STICK_MAP.duplicate()
@@ -151,9 +159,50 @@ func _find_vr_nodes() -> void:
 	_update_locomotion_block()
 
 
-func _on_coin(_player: int, pulse: ArcadeInputState.CoinPulse) -> void:
-	if _host != null and bool(_host.get("is_powered_on")):
+func _on_coin(player: int, pulse: ArcadeInputState.CoinPulse) -> void:
+	if _host == null:
+		return
+	if bool(_host.get("attracting")):
+		# The coin starts the game and then counts in it: handed over once the core is up.
+		_deferred_coins[player] = ArcadeAttract.COIN_BOOT_DELAY
+		first_use.emit(&"coin")
+		return
+	if bool(_host.get("is_powered_on")):
 		pulse.insert()
+		if _host.has_method("attract_touch"):
+			_host.call("attract_touch")
+
+
+## Is anyone at the cabinet? A panel attached, or a gun or pad in a HAND (a gun lying in its holster is
+## in the port and is nobody's). The idle clock that puts the core away reads this.
+func engaged() -> bool:
+	if playing:
+		return true
+	if _host == null or not _host.has_method("get_port_controllers"):
+		return false
+	for holder: Variant in _host.get_port_controllers():
+		if holder != null and is_instance_valid(holder) and held_by_hand(holder):
+			return true
+	return false
+
+
+## True when `holder` (a pad or gun) is carried by a hand rather than sitting in a socket or a holster.
+static func held_by_hand(holder: Object) -> bool:
+	if not holder.has_method("is_picked_up") or not holder.call("is_picked_up"):
+		return false
+	if "captive_well" in holder:
+		var well: Variant = holder.get("captive_well")
+		if well != null and is_instance_valid(well) and (well as Object).get("picked_up_object") == holder:
+			return false
+	return true
+
+
+## While the cabinet only shows its game: has anything been taken in hand or attached?
+func _watch_for_use() -> void:
+	if playing:
+		first_use.emit(&"panel")
+	elif engaged():
+		first_use.emit(&"grab")
 
 
 func _can_capture() -> bool:
@@ -181,12 +230,16 @@ func _process(delta: float) -> void:
 	if _host == null:
 		return
 	_sync_desktop_scope()
+	if bool(_host.get("attracting")):
+		_watch_for_use()
+		return
 	var powered := bool(_host.get("is_powered_on"))
 	if not powered:
 		if playing:
 			for panel in _controls:
 				if panel != null:
 					panel.set_attached(false)
+		_deferred_coins.clear()
 		if not _heard_mask.is_empty():
 			_heard_mask.clear()
 			_heard_axes.clear()
@@ -198,6 +251,11 @@ func _process(delta: float) -> void:
 		var owned := holder != null
 		var coin := false
 		if _pulses.has(p):
+			if _deferred_coins.has(p):
+				_deferred_coins[p] = float(_deferred_coins[p]) - delta
+				if float(_deferred_coins[p]) <= 0.0:
+					_deferred_coins.erase(p)
+					(_pulses[p] as ArcadeInputState.CoinPulse).insert()
 			coin = (_pulses[p] as ArcadeInputState.CoinPulse).advance(delta)
 		var state := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
 		if attached.has(p):
@@ -244,6 +302,8 @@ func _on_attach_changed(player: int, on: bool) -> void:
 	if was != playing:
 		_update_locomotion_block()
 		playing_changed.emit(playing)
+	if on and _host != null and bool(_host.get("attracting")):
+		first_use.emit(&"panel")
 	# Attaching IS the claim on the keyboard (a pad you pick up needs Scroll Lock as well,
 	# but a panel you pressed has no other way to say it): the keys play this player at once.
 	if on and _capture != null:

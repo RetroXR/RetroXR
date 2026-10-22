@@ -95,6 +95,7 @@ func _ensure_ui_connected() -> void:
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
+	ui.attract_override_changed.connect(_on_attract_override_changed)
 	ui.dip_menu_requested.connect(_on_dip_menu_requested)
 	ui.volume_changed.connect(_on_volume_changed)
 	ui.core_selected.connect(_on_core_selected)
@@ -122,7 +123,8 @@ func _populate() -> void:
 	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
 		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume,
-		_system.supports_cabinet_art_toggle(), _system.cabinet_art_enabled)
+		_system.supports_cabinet_art_toggle(), _system.cabinet_art_enabled,
+		_system.attract_override if _system.supports_cabinet_art_toggle() else -1)
 	_populate_dip_tab(ui)
 	ui.populate_cores(_system.core_choices(), _system.core_name, _system.default_core_name())
 	# Re-evaluated on every open so a file dropped into the system dir by hand
@@ -273,6 +275,12 @@ func _on_dip_menu_requested() -> void:
 	if _system and is_instance_valid(_system):
 		_system.toggle_core_dip_menu()
 		_populate()
+
+
+## System-tab row (cabinets): this cabinet's say over the arcade attract option.
+func _on_attract_override_changed(mode: int) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_attract_override(mode)
 
 
 ## System-tab toggle (cabinets): the game's art on the marquee and sides.

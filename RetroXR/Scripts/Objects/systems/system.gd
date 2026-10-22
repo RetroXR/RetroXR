@@ -122,6 +122,19 @@ var ignore_gravity: bool = false
 ## "Cabinet Art" toggle turns it off for whoever wants it naked. Saved in the room only when off.
 var cabinet_art_enabled: bool = true
 
+## A cabinet that is on but unused shows its game instead of running it (ArcadeAttract). `attract_override`
+## is this cabinet's say over the global pref (ArcadeAttract.OVERRIDE_*): follow it, force on, force off.
+## Saved in the room only when it is not "follow".
+var attract_override: int = ArcadeAttract.OVERRIDE_FOLLOW
+## True while it is on and only SHOWING its game: no core is running, `is_powered_on` stays false.
+var attracting: bool = false
+## True while the core running is one an attract started: nobody at the cabinet for ArcadeAttract.IDLE_SECONDS
+## puts it away again.
+var attract_session: bool = false
+var _attract: ArcadeAttract = null
+## Set for the one power_on that a use of the cabinet asked for, so it loads the core instead of attracting.
+var _attract_released: bool = false
+
 # Cached core options (populated when options_ready fires)
 var _options_definitions: Dictionary = {}
 var _options_values: Dictionary = {}
@@ -557,11 +570,12 @@ func _update_power_button_visual() -> void:
 		return
 	# Only the generic placeholder cap gets the green/red START/STOP tint; a
 	# modelled button (set_button_mesh) keeps its own material.
+	var lit := is_powered_on or attracting
 	if _power_button.state_tint:
-		_power_button.set_color(Color(1.0, 0.0, 0.0) if is_powered_on else Color(0.0, 1.0, 0.0))
+		_power_button.set_color(Color(1.0, 0.0, 0.0) if lit else Color(0.0, 1.0, 0.0))
 	var lbl := _power_button.get_node_or_null("ButtonLabel") as Label3D
 	if lbl:
-		lbl.text = "STOP" if is_powered_on else "START"
+		lbl.text = "STOP" if lit else "START"
 
 
 ## What this machine calls itself — the scene's own label, else the systemname
@@ -1834,6 +1848,9 @@ func on_av_topology_changed(_reported: Array) -> void:
 	# A cabinet's composite INPUT sockets (ArcadeAvInModule) answer to this machine: tell its model a cord moved.
 	if _model != null and _model.has_method("on_av_in_changed"):
 		_model.call("on_av_in_changed")
+		# A console cabled to the cabinet owns its screen: the game on show gives way and the cabinet goes dark.
+		if attracting and bool(_model.call("external_picture_active")):
+			power_off()
 
 
 func _apply_av_feed(video_devs: Array[RetroTV], audio_dev: Node3D, l: int, r: int) -> void:
@@ -2117,6 +2134,16 @@ func set_cabinet_art_enabled(on: bool) -> void:
 		_model.call("set_art_enabled", on)
 
 
+## The System tab's Attract Mode row: follow the global option, or force it on or off for this cabinet.
+## What is already showing changes at once: a cabinet that is on gives the game up (or starts showing it).
+func set_attract_override(mode: int) -> void:
+	attract_override = clampi(mode, ArcadeAttract.OVERRIDE_FOLLOW, ArcadeAttract.OVERRIDE_OFF)
+	if attracting and not attract_applies():
+		power_off()
+		power_on()
+	request_attract_media()
+
+
 ## Toggle floating: on = freeze right where it is (or where it's next dropped);
 ## off = normal physics resumes (unless currently held or being restored).
 func set_ignore_gravity(on: bool) -> void:
@@ -2380,10 +2407,118 @@ func _clamp_plug(plug: CablePlug, attach_pos: Vector3, max_len: float) -> void:
 	PlugTether.reel_in(plug, plug.global_position, attach_pos, max_len)
 
 
+# ── attract: a cabinet that is on shows its game instead of running it ─────────
+
+## Does switching this machine on show its game rather than start it? Only an arcade cabinet, with the
+## option on (its own override, else the global pref), a game in its bay, no console cabled to its A/V
+## input and no netplay session (ArcadeAttract.wanted).
+func attract_applies() -> bool:
+	if not _is_cabinet_model():
+		return false
+	var has_game := _snapped_cartridge != null and not rom_path.is_empty()
+	return ArcadeAttract.wanted(AppPrefs.arcade_attract_mode, attract_override, has_game,
+		bool(_model.call("external_picture_active")), NetworkManager.is_active())
+
+
+## An arcade cabinet's model (by what it answers: the class itself would make this script and its model
+## need each other to compile).
+func _is_cabinet_model() -> bool:
+	return _model != null and _model.has_method("attract_picture_active")
+
+
+func _enter_attract() -> void:
+	print("[RetroSystem] Attract: showing %s" % rom_path.get_file())
+	if _attract == null:
+		_attract = ArcadeAttract.new()
+		_attract.name = "ArcadeAttract"
+		add_child(_attract)
+	attracting = true
+	_attract.start(self)
+	_update_power_button_visual()
+	_model.on_power_on()
+	request_attract_media()
+
+
+## Stop showing the game (power button, board out, a console cabled in) and go dark. No core to stop.
+func _leave_attract() -> void:
+	attracting = false
+	if _attract != null:
+		_attract.stop()
+	_update_power_button_visual()
+	_model.on_power_off()
+
+
+## Somebody used the cabinet while it only showed its game: a coin, a panel pressed, a gun or pad in hand
+## (ArcadeInput.first_use). The game starts for real, and the coin that asked for it counts in it.
+func attract_first_use(kind: StringName) -> void:
+	if not attracting:
+		return
+	print("[RetroSystem] Attract: %s -- starting %s" % [kind, rom_path.get_file()])
+	_leave_attract()
+	_attract_released = true
+	power_on()
+	_attract_released = false
+
+
+## Nobody has been at the cabinet for ArcadeAttract.IDLE_SECONDS: the core goes away and the game is shown
+## again (libretro tells us nothing of game over, so idleness is what there is).
+func attract_return() -> void:
+	if not is_powered_on or not attract_session:
+		return
+	print("[RetroSystem] Attract: nobody at the cabinet -- back to the attract")
+	power_off()
+	if attract_applies():
+		_enter_attract()
+
+
+## Somebody coined up or pressed something: the idle clock starts over.
+func attract_touch() -> void:
+	if _attract != null:
+		_attract.touch()
+
+
+## What the glass shows while attracting, or null.
+func attract_picture() -> Texture2D:
+	return _attract.picture() if attracting and _attract != null else null
+
+
+func attract_picture_aspect() -> float:
+	return _attract.picture_aspect() if attracting and _attract != null else 0.0
+
+
+## The attract's video and title come from the scraper, and only when this cabinet would use them and
+## the game has no video yet: one scrape per game, once, not a library's worth (arcade.md "Attract").
+func request_attract_media() -> void:
+	if not _is_cabinet_model() or _snapped_cartridge == null or rom_path.is_empty():
+		return
+	if not ArcadeAttract.effective_pref(AppPrefs.arcade_attract_mode, attract_override):
+		return
+	var board_sys := str(_snapped_cartridge.get("systemid")) if "systemid" in _snapped_cartridge else ""
+	if board_sys.is_empty():
+		board_sys = systemid
+	if not ArcadeProfiles.is_cabinet_system(board_sys):
+		return
+	if ArcadeAttract.has_video(board_sys, rom_path):
+		return
+	# Left where the menu will find it if it is not up yet; the menu takes it off the list when it asks.
+	ArcadeAttract.pending_media[rom_path] = board_sys
+	if get_tree().get_nodes_in_group(&"attract_media_listener").is_empty():
+		print("[Attract] %s has no video yet; the scraper is not up, so it waits" % rom_path.get_file())
+		return
+	get_tree().call_group(&"attract_media_listener", &"request_attract_media", rom_path, board_sys)
+
+
 ## Power on: start this system's libretro core
 func power_on() -> void:
-	if is_powered_on:
+	if is_powered_on or attracting:
 		return
+	# A use of the cabinet (a coin, a pressed panel, a gun in hand) asked for the real game this time.
+	var released := _attract_released
+	_attract_released = false
+	if not released and attract_applies():
+		_enter_attract()
+		return
+	attract_session = released
 	# A console with no TV connected still powers on and runs — the core renders to
 	# its own texture regardless, and a set plugged in later simply starts sampling
 	# it. Handhelds always have a panel, so they never take this branch.
@@ -2780,6 +2915,9 @@ func _release_cache_protection() -> void:
 ## Power off: stop the running core
 func power_off() -> void:
 	_core_menu_open = false
+	if attracting:
+		_leave_attract()
+		return
 	if not is_powered_on:
 		return
 	print("[RetroSystem] Powering off")
@@ -2814,6 +2952,7 @@ func _stop_core() -> void:
 	_release_cache_protection()
 	_audio.on_core_stopped()
 	is_powered_on = false
+	attract_session = false
 	# StopContent returned but the core has not finished: a card the core owns is
 	# written during the teardown that follows. Keep watching for a while.
 	stop_card_polling_soon()
@@ -2875,7 +3014,7 @@ func toggle_power() -> void:
 			# Non-netplay core: emulation runs on the host only — send the intent.
 			NetworkManager.report_event(NetEvents.Event.EV_SYS_POWER, {"sys": self})
 			return
-	if is_powered_on:
+	if is_powered_on or attracting:
 		power_off()
 	else:
 		power_on()
@@ -5740,6 +5879,7 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 	# A cabinet dresses itself in the game's art (marquee, sides).
 	if _model != null and _model.has_method("on_media_inserted"):
 		_model.call("on_media_inserted", cartridge)
+	request_attract_media()
 	# A push-tray bay already slid the cart home when it was laid in — this moment
 	# is the tray latching, which moves nothing.
 	if not _model.has_push_tray():
@@ -5809,7 +5949,7 @@ func _on_cartridge_removed() -> void:
 			_request_disk_op(DISK_OP_EJECT, "")
 		NetworkManager.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": self})
 		return
-	if is_powered_on:
+	if is_powered_on or attracting:
 		power_off()
 	rom_path = ""
 	NetworkManager.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": self})

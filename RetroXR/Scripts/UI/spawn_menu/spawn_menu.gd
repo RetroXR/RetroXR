@@ -269,6 +269,26 @@ func _init_scraper() -> void:
 	add_child(auto_scraper)
 	auto_scraper.setup(scrape_queue, gamelist_manager, scraper_config)
 
+	# An arcade cabinet's attract mode asks for its game's video and title through the group (it
+	# cannot reach this menu), and is told when a file lands so it can swap its still for the video.
+	add_to_group(&"attract_media_listener")
+	scrape_queue.media_downloaded.connect(_on_attract_media_downloaded)
+	# Cabinets that came back switched on, before this menu existed, have been waiting for it.
+	for rom: String in ArcadeAttract.pending_media.keys():
+		request_attract_media(rom, str(ArcadeAttract.pending_media[rom]))
+
+
+## A cabinet with attract mode on wants this game's video and title (RetroSystem.request_attract_media).
+func request_attract_media(rom_path: String, systemid: String) -> void:
+	ArcadeAttract.pending_media.erase(rom_path)
+	if auto_scraper != null:
+		auto_scraper.request_media(rom_path, systemid, ScreenscraperClient.CABINET_MEDIA)
+
+
+func _on_attract_media_downloaded(rom_path: String, _systemid: String, media_type: String, _path: String) -> void:
+	if media_type == "video" or media_type == "title":
+		get_tree().call_group(&"arcade_attract", &"on_media_arrived", rom_path)
+
 
 ## RomM: config + client + catalog + downloader + art cache, all wired to the
 ## toast stack. Nothing here touches the network at startup — the heaviest thing
