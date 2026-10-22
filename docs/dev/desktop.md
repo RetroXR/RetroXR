@@ -112,7 +112,8 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
 ## The hand (`desktop_pickup.gd`)
 
 - **Pulled all the way in, one more notch CATCHES the object into the hand** (`_catch`; wheel up lets it
-  back out onto the ray at `HAND_EXIT_DIST`). It settles into `HAND_LOCAL` (camera-right 0, down 7 cm,
+  back out onto the ray at `MIN_DIST`, the pull-in limit, so one notch in catches it again; it used to
+  resume at 45 cm, four notches out). It settles into `HAND_LOCAL` (camera-right 0, down 7 cm,
   40 cm ahead) over ~0.17 s (`ease_in_out`). A **handheld** takes `DesktopPickup.screen_facing_basis`:
   screen (+Y, on every handheld shell) at the eye, top edge (-Z) as upright as the view allows;
   anything else keeps its orientation. Middle-drag still turns it, in the hand's own frame, so a

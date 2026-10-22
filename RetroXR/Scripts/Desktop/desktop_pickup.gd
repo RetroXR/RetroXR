@@ -75,8 +75,6 @@ const HAND_FOCUS_MIN := 0.14
 const HAND_FOCUS_MAX := 0.40
 ## How fast a caught object settles into the hand (1 / seconds).
 const HAND_BLEND_RATE := 6.0
-## Where the ray hold resumes when the object is sent back out of the hand.
-const HAND_EXIT_DIST := 0.45
 
 ## FPS-snap local offset from camera: right, down, forward.
 ## Applied as a Transform3D in camera-local space so the weapon is always
@@ -514,9 +512,12 @@ func _reset_hand_pose() -> void:
 
 
 ## Send a caught object back out to float on the ray, where the hand had it.
+## Back out onto the ray at the pull-in limit, where it was caught: one notch out leaves the hand
+## and one notch in catches it again. It used to resume 45 cm out, four notches further than the
+## player expected (2026-10-22).
 func _release_to_ray() -> void:
 	_hand_hold = false
-	_grab_dist = clampf(HAND_EXIT_DIST, MIN_DIST, MAX_DIST)
+	_grab_dist = MIN_DIST
 
 
 ## The orientation that holds a screen toward the eye, as a basis in the hand's frame, for a

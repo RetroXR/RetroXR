@@ -252,8 +252,14 @@ func _capture_hides_reticle() -> void:
 
 
 func _rules() -> void:
-	_ok(DesktopPickup.MIN_DIST < DesktopPickup.HAND_EXIT_DIST, "rules/leaving the hand puts it further out than the pull-in limit")
-	_ok(DesktopPickup.HAND_EXIT_DIST < DesktopPickup.MAX_DIST, "rules/and inside the reach")
+	var pickup := DesktopPickup.new()
+	pickup._hand_hold = true
+	pickup._grab_dist = 1.0
+	pickup._release_to_ray()
+	_ok(not pickup._hand_hold, "rules/a notch out of the hand puts it back on the ray")
+	_ok(is_equal_approx(pickup._grab_dist, DesktopPickup.MIN_DIST),
+		"rules/at the pull-in limit, one notch from catching it again", str(pickup._grab_dist))
+	pickup.free()
 	_ok(DesktopPickup.HAND_LOCAL.z < 0.0, "rules/the hand is in front of the camera")
 	_ok(DesktopPickup.HAND_DEADZONE_YAW > 0.0 and DesktopPickup.HAND_DEADZONE_YAW <= 8.0
 		and DesktopPickup.HAND_DEADZONE_PITCH > 0.0 and DesktopPickup.HAND_DEADZONE_PITCH <= 8.0,
