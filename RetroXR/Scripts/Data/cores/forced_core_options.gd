@@ -60,6 +60,8 @@ static func ethernet_adapter(core: String, systemid: String, expansions: Array) 
 		return {"dolphin_gc_sp1": "15" if bba else "255"}
 	if core == "pcsx2" and systemid == "ps2":
 		return {"pcsx2_dev9_eth": "link" if expansions.has("ps2_network_adapter") else "disabled"}
+	return {}
+
 
 ## A light gun in a port. Current MAME reads a gun only when `mame_lightgun_mode` says so (its default,
 ## `none`, ignores a gun on the port: the cabinet's guns "did not work"), and it lists NO light-gun
