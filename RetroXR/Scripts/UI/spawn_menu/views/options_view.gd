@@ -259,6 +259,20 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 			zoom_changed.emit(v)
 		)
 
+		# Mouse sensitivity (desktop only): how far the view turns per pixel of
+		# mouse-look. Saved; read by the turn provider on every motion event.
+		var ms_row := MenuStyle.menu_slider_row(vbox, "Mouse Sensitivity",
+			AppPrefs.MOUSE_SENSITIVITY_MIN, AppPrefs.MOUSE_SENSITIVITY_MAX, 0.05, 70)
+		var ms_slider: HSlider = ms_row[0]
+		var ms_val: Label = ms_row[1]
+		ms_slider.value = AppPrefs.mouse_sensitivity
+		ms_val.text = "%.2f×" % AppPrefs.mouse_sensitivity
+		ms_slider.value_changed.connect(func(v: float) -> void:
+			ms_val.text = "%.2f×" % v
+			AppPrefs.mouse_sensitivity = v
+			AppPrefs.save_prefs()
+		)
+
 		vbox.add_child(HSeparator.new())
 
 	# Height Offset slider

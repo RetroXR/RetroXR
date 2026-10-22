@@ -71,7 +71,8 @@ func _unhandled_input(event):
 		# RetroXR: left held on the thing in the hand turns IT (desktop_pickup.gd).
 		if DesktopPickup.left_drag:
 			return
-		event.relative*=.1
+		# RetroXR: scaled by the player's Mouse Sensitivity (Options, desktop only).
+		event.relative*=.1 * AppPrefs.mouse_sensitivity
 		if invert_y:
 			event.relative.y *= -1
 		mouse_move_vector += event.relative

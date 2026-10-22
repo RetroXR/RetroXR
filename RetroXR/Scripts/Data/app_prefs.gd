@@ -24,6 +24,11 @@ var autosave_interval: float = 60.0
 const AUTOSAVE_INTERVAL_MIN := 15.0
 const AUTOSAVE_INTERVAL_MAX := 300.0
 var aim_crosshair:    bool = false
+## Desktop mouse-look speed, a multiplier on the turn provider's own scale
+## (1.0 is how it always turned). Clamped to the slider's range on load.
+var mouse_sensitivity: float = 1.0
+const MOUSE_SENSITIVITY_MIN := 0.1
+const MOUSE_SENSITIVITY_MAX := 3.0
 enum XRDisplayMode {
 	CONTROLLERS,
 	HANDS,
@@ -258,6 +263,8 @@ func _load_prefs() -> void:
 	# on PerfHud's statics and is off again every launch. A "show_fps" left in an
 	# old file is simply ignored.
 	aim_crosshair    = JsonStore.get_bool(data, "aim_crosshair",    aim_crosshair)
+	mouse_sensitivity = clampf(JsonStore.get_float(data, "mouse_sensitivity", mouse_sensitivity),
+		MOUSE_SENSITIVITY_MIN, MOUSE_SENSITIVITY_MAX)
 	xr_display_mode = _prefs_xr_display_mode(data, "xr_display_mode", xr_display_mode)
 	controller_hands = JsonStore.get_bool(data, "controller_hands", controller_hands)
 	system_filter    = JsonStore.get_bool(data, "system_filter",    system_filter)
@@ -291,6 +298,7 @@ func save_prefs() -> bool:
 		"autosave_periodic": autosave_periodic,
 		"autosave_interval": autosave_interval,
 		"aim_crosshair":    aim_crosshair,
+		"mouse_sensitivity": mouse_sensitivity,
 		"xr_display_mode":  xr_display_mode,
 		"controller_hands": controller_hands,
 		"system_filter":    system_filter,
