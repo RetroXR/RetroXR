@@ -8,7 +8,7 @@ core changed.
 
 | Piece | Where | What it is |
 |---|---|---|
-| The core | `RetroXR/gbprinter-libretro` (MIT, its own repo, `~/libretro-cores-retroxr/gbprinter-libretro`) | No CPU, no game. Joins the link bus (env 94) on `gb-sio-1`, the wire gambatte and mGBA already speak, and answers as the printer. Its video frame is the paper, its sound the motor and head, its input FEED and TEAR. |
+| The core | `RetroXR/gbprinter-libretro` (MIT, its own repo, `~/libretro-cores-retroxr/gbprinter-libretro`) | No CPU, no game. Joins the link bus (env 94) on `gb-sio`, the wire gambatte and mGBA already speak, and answers as the printer. Its video frame is the paper, its sound the motor and head, its input FEED and TEAR. |
 | The room object | `Scripts/Objects/peripherals/gb_printer.gd` (`GbPrinter`), `Scenes/Objects/peripherals/gb_printer.tscn` | A pickable with its own `Libretro` node (VmuCard's arrangement, not a RetroSystem), an EXT.IN `LinkPort` on the back, POWER, FEED, and the strip out of the slot. |
 | The print | `GbPrinterPaper` (`gb_printer_paper.gd`) | A torn print as a file: the 160 dots centred on the real 38 mm sheet, written to `<data root>/prints/`. The printout itself is a `Poster`. |
 | Plumbing | `CoreSources` row `gbprinter`; `libretro-core-info-retroxr/gbprinter_libretro.info`; `NetplayCores` row; the `gb`/`gbc` rows of `SpawnCatalog._PERIPHERALS`; `cores_view._BIOS_EXTRA_CORES` | |

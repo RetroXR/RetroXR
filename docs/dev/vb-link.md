@@ -27,7 +27,7 @@ line and there is no private header (v2; v1 vendored the gambatte fork's
   separately (`C-Int-Inh`, `CC-Int-Inh`).
 - **COMCNT** is an open line either unit pulls low: `CC-Rd` is this unit's
   `CC-Wr` AND the other's, live; `CC-Smp` samples it when an exchange ends.
-- **The wire:** `vb-comm-1` at 20 000 000 Hz, the V810's clock. Three messages:
+- **The wire:** `vb-comm` at 20 000 000 Hz, the V810's clock. Three messages:
   a COMCNT state, a clock (with the byte), and the answer to a clock (the byte
   back, and whether the unit was waiting at all). **The clocked unit decides
   whether the exchange happened**, so the two ends cannot disagree about a byte;

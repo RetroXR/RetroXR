@@ -13,7 +13,7 @@ empty cable. `mednafen/ngp/link.c` puts SIO0 on the link bus through
 `RETRO_ENVIRONMENT_GET_LINK_INTERFACE`. `link_interface.h` is the gambatte fork's,
 byte-identical.
 
-- **The wire:** `ngp-sio-1` at 6 144 000 Hz, the TLCS-900H clock that
+- **The wire:** `ngp-sio` at 6 144 000 Hz, the TLCS-900H clock that
   `TLCS900h_interpret()` counts in (515 a scanline). `ngp_link_ran()` runs after
   every instruction and rendezvouses once a grain, which is 2060 ticks (four
   scanlines).

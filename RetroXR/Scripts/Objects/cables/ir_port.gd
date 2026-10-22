@@ -18,7 +18,7 @@ class_name IrPort
 extends Node3D
 
 ## Which of the machine's link ports its core put the transceiver on. The Game
-## Boy Color's is 1 (`gbc-ir-1`); port 0 is its link cable.
+## Boy Color's is 1 (`gbc-ir`); port 0 is its link cable.
 @export var link_port: int = 1
 
 ## Windows of one family see each other and nothing else, which is what a

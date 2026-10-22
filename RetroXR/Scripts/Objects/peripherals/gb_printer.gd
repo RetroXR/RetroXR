@@ -3,7 +3,7 @@
 ## A machine of its own the way a standalone VMU is: it grows a Libretro node and
 ## runs a core, `gbprinter`, which is RetroXR's own (RetroXR/gbprinter-libretro).
 ## That core has no CPU and loads nothing. It joins the frontend's link bus on the
-## "gb-sio-1" wire the Game Boy cores already speak, and answers a Game Boy the way
+## "gb-sio" wire the Game Boy cores already speak, and answers a Game Boy the way
 ## the printer does -- so cabling this to a Game Boy with the ordinary link lead
 ## is all it takes for a game to print, on gambatte or mGBA alike, and neither of
 ## them knows the far end is not another Game Boy.

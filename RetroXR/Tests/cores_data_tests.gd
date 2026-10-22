@@ -463,7 +463,7 @@ func _group_recommended() -> void:
 	# The Game Boy Color is the one machine here with an infrared window, and a
 	# pick with no port behind it leaves two of them pointed at each other and
 	# linked to nothing, silently (docs/dev/gb-link.md). Only our Gambatte and
-	# mGBA forks carry `gbc-ir-1`, so its row names one of them on EVERY
+	# mGBA forks carry `gbc-ir`, so its row names one of them on EVERY
 	# platform -- both keys are read here, whichever this run is on.
 	var gbc: Dictionary = table.get("gbc", {})
 	for platform: String in ["core", "android"]:

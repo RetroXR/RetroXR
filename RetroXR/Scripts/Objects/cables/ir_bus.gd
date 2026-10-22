@@ -20,7 +20,7 @@
 ## reason for.
 ##
 ## The core side is the Game Boy Color's RP register (docs/dev/gb-link.md):
-## both forks put it on link port 1, `gbc-ir-1`, and a machine whose link cable
+## both forks put it on link port 1, `gbc-ir`, and a machine whose link cable
 ## carries a peer is DEAF on it, because a machine waits on one bus. So a
 ## cabled machine is left out of the pairing here rather than joined to a bus
 ## it would not listen to.

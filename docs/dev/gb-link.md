@@ -16,7 +16,7 @@ Probes rather than tests: they want a real core and, for Tetris, a real ROM.
 ```
 
 **Both cores, and between them.** gambatte and mGBA each carry a Game Boy, both
-answer `RETRO_ENVIRONMENT_GET_LINK_INTERFACE`, and both call the wire `gb-sio-1`
+answer `RETRO_ENVIRONMENT_GET_LINK_INTERFACE`, and both call the wire `gb-sio`
 with the same message layout -- so a gambatte Game Boy and an mGBA one join the
 same cable, which `--core2` is there to prove. mGBA needs its GB driver as well
 as its GBA one: they are separate cores with separate serial ports, and before
@@ -53,8 +53,8 @@ a `GBInfraredDriver` beside the serial one). Neither emulated the port before --
 gambatte kept the byte written to `FF56` and nothing else, mGBA called it an
 unknown register and read `FF` -- so Mystery Gift flashed into the dark.
 
-**Link port 1, protocol `gbc-ir-1`**, at the cable's 8388608 Hz. The cable stays
-port 0, `gb-sio-1`. ONE message of eight bytes: `[0] = 1` (an LED level), `[1]` the
+**Link port 1, protocol `gbc-ir`**, at the cable's 8388608 Hz. The cable stays
+port 0, `gb-sio`. ONE message of eight bytes: `[0] = 1` (an LED level), `[1]` the
 sender's bus index, `[2]` 0 or 1, stamped with the tick the edge LANDS on. The two
 cores share the id and the layout, so a unit of each see each other, and nothing
 limits the bus to a pair: the receiver reads lit while ANY other unit's LED is.
@@ -249,7 +249,7 @@ beam.
   photograph showed a bright red panel beside the power lamp.
 - **Gambatte is the Game Boy Color's recommended core on desktop now** (it was
   SameBoy; Quest was already Gambatte). `CoreRecommendations` `gbc`, pinned by
-  `cores_data_tests`: the row must name a core that carries `gbc-ir-1` on every
+  `cores_data_tests`: the row must name a core that carries `gbc-ir` on every
   platform. The Game Boy's row kept SameBoy -- it has no window -- until
   2026-10-20, when it moved to Gambatte too, for the cable: a lead into a SameBoy
   unit joins nothing. A clock file is per core (`saves.md`), so a Gold or Silver
@@ -299,7 +299,7 @@ Any game but Gold and Silver.
 ### The Game Gear's Gear-to-Gear cable
 
 genesis_plus_gx carries it (RetroXR fork, `libretro/gg_link.c`, branch `retroxr` at `b41f14e`) on wire
-`gg-ext-1`, through the link API exactly as libretro/RetroArch#19454 adds it to
+`gg-ext`, through the link API exactly as libretro/RetroArch#19454 adds it to
 `libretro.h` -- no private header. Both halves of the EXT port cross:
 
 - **UART** (`$03`-`$05`), what most games use. A byte lands in the peer's `$04`

@@ -3,7 +3,7 @@
 The Jaguar's JagLink / CatBox cable is JERRY's UART (`$F10030`–`$F10034`) out
 of the DSP port. RetroXR's `virtualjaguar` fork carries it over the
 frontend's link bus (env 94, the API of libretro/RetroArch#19454) as protocol
-**`jag-uart-1`**, one message per character.
+**`jag-uart`**, one message per character.
 
 - Core: `~/libretro-cores-retroxr/virtualjaguar-libretro`, branch `retroxr`
   (upstream libretro/virtualjaguar-libretro v3.6.1). `src/jerry/jlink_linkbus.c`

@@ -26,7 +26,7 @@ const ID := "gamecube_broadband_adapter"
 #
 # What seating it does is ForcedCoreOptions.ethernet_adapter: SP1 becomes the
 # Ethernet Link Cable device, whose socket is the frontend's link bus, protocol
-# "ethernet-1" on port 4 (`ethernet_port`), and an EthernetCable from it to a hub
+# "ethernet" on port 4 (`ethernet_port`), and an EthernetCable from it to a hub
 # puts the console on a LAN (EthernetBus). Mario Kart: Double Dash!! shows LAN
 # MODE on its title menu only while one is in.
 const ROW := {

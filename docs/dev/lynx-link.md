@@ -2,7 +2,7 @@
 
 Two to eight Atari Lynxes on one ComLynx lead, on `mednafen_lynx` from
 **RetroXR/beetle-lynx-libretro** (branch `retroxr`, tag
-`retroxr-mednafen_lynx-libretro-vN`), wire `comlynx-1` at 16 MHz.
+`retroxr-mednafen_lynx-libretro-vN`), wire `comlynx` at 16 MHz.
 
 **The core.** Mikey's UART already had a transmit hook nothing was attached to,
 and modelled the wire's loopback. `mednafen/lynx/link.cpp` puts the UART on the

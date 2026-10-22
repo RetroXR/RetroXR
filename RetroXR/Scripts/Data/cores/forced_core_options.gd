@@ -41,7 +41,7 @@ static func all(core: String, systemid: String, rom_path: String,
 
 
 ## A network adapter in the console: its socket is the frontend's link bus
-## (EthernetBus), protocol "ethernet-1", so an Ethernet cable from it to a hub
+## (EthernetBus), protocol "ethernet", so an Ethernet cable from it to a hub
 ## puts the console on a LAN. Both directions, for the Expansion Pak's reason:
 ## a console with no adapter has no network, whatever a previous run left in the
 ## option file.

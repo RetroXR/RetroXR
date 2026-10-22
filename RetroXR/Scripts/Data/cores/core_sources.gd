@@ -91,7 +91,7 @@ const SOURCES := {
 	# handheld at all.
 	#
 	# Since v8 the Game Boy Color's infrared port rides the same bus, on link
-	# port 1 as `gbc-ir-1` (the cable is port 0) -- upstream called RP an unknown
+	# port 1 as `gbc-ir` (the cable is port 0) -- upstream called RP an unknown
 	# register. gambatte's driver speaks the same id and message, so a unit run by
 	# either core sees one run by the other. That build also mends two things a
 	# loaded state did to a Game Boy, both of which rollback meets: the timer's
@@ -157,7 +157,7 @@ const SOURCES := {
 	# driver, and cabled consoles line their frames up on the cable, which took
 	# Time Crisis II's linked second area from 36 fps to 48-60 (ps2-ilink.md).
 	# v5 adds the network adapter's Ethernet cable (pcsx2_dev9_eth = "link",
-	# protocol ethernet-1 on link port 1), which the room's Network Adapter card
+	# protocol ethernet on link port 1), which the room's Network Adapter card
 	# and Ethernet hub drive -- Gran Turismo 4's Multi-LAN Race, six consoles
 	# verified -- and lets six copies of the core share one process
 	# (docs/dev/ethernet-lan.md).
@@ -177,7 +177,7 @@ const SOURCES := {
 	# gambatte, the other end of every Game Boy cable in the room.
 	#
 	# The Game Boy's serial port is two wires and a clock, and libretro has never
-	# had anywhere to put the far end of them. Our build speaks `gb-sio-1` over a
+	# had anywhere to put the far end of them. Our build speaks `gb-sio` over a
 	# bus the frontend hosts, and gambatte_gb_link_mode gains a fourth value,
 	# "Link Cable", which is the DEFAULT — with no bus, or a bus with nothing
 	# cabled to it, the driver hands back the 0xFF of an open line, which is
@@ -197,7 +197,7 @@ const SOURCES := {
 	# of rollback netplay.
 	#
 	# Since v4 it carries the Game Boy Color's infrared port as well: link port 1,
-	# `gbc-ir-1`, where the cable is port 0. The stock core kept the byte written
+	# `gbc-ir`, where the cable is port 0. The stock core kept the byte written
 	# to RP and nothing else, so Mystery Gift flashed into the dark. Every Game
 	# Boy Color attaches the port, behind no option, and it is inert until the
 	# room puts two units in view of each other -- which nothing does yet
@@ -219,7 +219,7 @@ const SOURCES := {
 	# genesis_plus_gx, for the Game Gear's Gear-to-Gear Cable.
 	#
 	# The stock core's EXT port has no far end. Our build puts it on the
-	# frontend's link bus as `gg-ext-1` (the RetroArch#19454 interface): the UART
+	# frontend's link bus as `gg-ext` (the RetroArch#19454 interface): the UART
 	# delivers a byte ten bit times after it is written, and the parallel pins
 	# cross the way the real cable wires them. Uncabled it behaves exactly as the
 	# stock core does, so there is no option to turn it on. The same core runs the
@@ -240,7 +240,7 @@ const SOURCES := {
 	#
 	# The stock core's serial port completes every byte into thin air and never
 	# receives one. Our build puts the UART on the frontend's link bus as
-	# `ws-sio-1` (the RetroArch#19454 interface): a byte is stamped with the tick
+	# `ws-sio` (the RetroArch#19454 interface): a byte is stamped with the tick
 	# its stop bit leaves, 3200 CPU cycles at 9600 baud and 800 at 38400, and the
 	# far unit latches it when its own clock gets there. Uncabled it behaves
 	# exactly as the stock core does, so there is no option to turn it on.
@@ -260,7 +260,7 @@ const SOURCES := {
 	# mednafen_lynx, for ComLynx.
 	#
 	# Stock Mikey had a transmit hook nothing was attached to. Our build puts the
-	# UART on the frontend's link bus as `comlynx-1`, modelled as the one
+	# UART on the frontend's link bus as `comlynx`, modelled as the one
 	# open-collector wire it is: a byte is broadcast when written, stamped with
 	# the tick its stop bit leaves, and every unit -- the sender included --
 	# hears the same bytes in the same order, overlapping frames ANDed. Up to
@@ -280,7 +280,7 @@ const SOURCES := {
 	# mednafen_ngp, for the SNK link cable.
 	#
 	# NeoPop stubbed its comms hooks, so a Neo Geo Pocket never saw the other end
-	# of a cable. Our build puts SIO0 on the frontend's link bus as `ngp-sio-1`
+	# of a cable. Our build puts SIO0 on the frontend's link bus as `ngp-sio`
 	# at the 6.144 MHz CPU clock, bytes paced at 19200 baud, the /RTS-/CTS pair
 	# carried as its own message, and NeoPop's swapped INTRX0/INTTX0 put right
 	# (KOF R-1/R-2 and SNK vs. Capcom run their own serial handlers and never
@@ -301,7 +301,7 @@ const SOURCES := {
 	#
 	# Beetle VB never emulated the EXT. port: its four registers read 0 and a
 	# transfer never ran, so no game saw the other end of a cable. Our build
-	# implements it on the frontend's link bus as `vb-comm-1` at the 20 MHz CPU
+	# implements it on the frontend's link bus as `vb-comm` at the 20 MHz CPU
 	# clock -- the clocked 8-bit exchange, both interrupt requests, and the
 	# COMCNT line with its edges kept in time (Mario's Tennis signals with
 	# pulses eight cycles wide). Two fixes linked software needs ride with it:
@@ -327,7 +327,7 @@ const SOURCES := {
 	#
 	# SIO1 — the port at 1F801050h that the official Link Cable plugs into — had
 	# never been emulated at all: sio1ReadStat16 returned a bare 0xa0 and there
-	# was nothing behind it. Our build implements the port and speaks `psx-sio-1`
+	# was nothing behind it. Our build implements the port and speaks `psx-sio`
 	# over the frontend's bus.
 	#
 	# With no bus the port still answers 0xa0, which is what every existing
@@ -353,7 +353,7 @@ const SOURCES := {
 	# Mednafen had never emulated the SH-2's serial port -- the SCI behind the
 	# Communication Connector -- so a cable had nothing to plug into. Our build
 	# implements it (and the DMA a port can pace, which Daytona USA CE sends its
-	# packets with) and speaks `saturn-sci-1` over the frontend's bus, joining
+	# packets with) and speaks `saturn-sci` over the frontend's bus, joining
 	# only the slave SH-2's lines: crossing the master's hangs both consoles in
 	# the boot library's dev-host probe. beetle_saturn_link_cable is on by
 	# default and not restart-time; off is the stock core.
@@ -433,7 +433,7 @@ const SOURCES := {
 		},
 	},
 	# The Game Boy Printer (GbPrinter), RetroXR's own core: no CPU and no game, a
-	# printer on the far end of the gb-sio-1 wire that gambatte and mGBA already
+	# printer on the far end of the gb-sio wire that gambatte and mGBA already
 	# speak, with the paper as its video frame. Written for RetroXR, so the
 	# buildbot has no row and _list_own_core lists it. MIT.
 	#
@@ -603,7 +603,7 @@ const SOURCES := {
 	# virtualjaguar, for JagLink.
 	#
 	# The Jaguar's JagLink/CatBox cable is JERRY's UART out of the DSP port. Our
-	# build carries it over the frontend's link bus as `jag-uart-1`: a character
+	# build carries it over the frontend's link bus as `jag-uart`: a character
 	# is posted when it starts shifting out, stamped at its stop bit, and lands
 	# in the partner's receive register at that tick. The core's
 	# virtualjaguar_netlink option defaults to `auto`, which takes the bus

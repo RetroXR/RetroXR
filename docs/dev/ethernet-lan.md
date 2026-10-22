@@ -6,7 +6,7 @@ from that socket to a hub — or straight to another console's — puts the cons
 one LAN, the way a LAN party was cabled. Mario Kart: Double Dash!! shows **LAN MODE**
 on its title menu, and Gran Turismo 4's **Multi-LAN Race** links up to six consoles.
 
-## The wire: `ethernet-1`
+## The wire: `ethernet`
 
 Both cores speak the same protocol on the frontend's link bus (LinkCoordinator, the
 serial-link API the other leads use):
@@ -20,7 +20,7 @@ serial-link API the other leads use):
   locally, with an address only it holds (`10.x.y.z/8`, the tail of its MAC; gateway
   `10.0.0.1`, where nothing answers), so a game's "obtain automatically" just works.
 
-Because both cores speak `ethernet-1`, a GameCube and a PlayStation 2 can share one
+Because both cores speak `ethernet`, a GameCube and a PlayStation 2 can share one
 hub. They hear each other's broadcasts and ignore them.
 
 ## The core halves

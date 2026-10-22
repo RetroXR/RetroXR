@@ -30,7 +30,7 @@ block verbatim until libretro-common has it).
   FTCSR-style read-before-clear (`SSRM`), ERI/RXI/TXI/TEI at IPRB[15:12] via
   VCRA/VCRB. Timing rides `FRT_WDT_NextTS`, which the JIT honours too — no new
   scheduler event, so the savestate layout is unchanged.
-- Wire `saturn-sci-1`, clocked in **master cycles** (`timestamp × cur_clock_div`,
+- Wire `saturn-sci`, clocked in **master cycles** (`timestamp × cur_clock_div`,
   61 or 65 by resolution, accumulated per frame) — CPU cycles change with the
   video mode.
 - Only the **slave SH-2** is wired (`SL_WIRED`). See the table.

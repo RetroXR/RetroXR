@@ -13,7 +13,7 @@ receives one. The fork puts the UART on the link bus through
 libretro/RetroArch#19454, whose block `mednafen/wswan/link_interface.h` copies
 verbatim.
 
-- Protocol `ws-sio-1` at 3 072 000 Hz. A message is one byte, stamped with the
+- Protocol `ws-sio` at 3 072 000 Hz. A message is one byte, stamped with the
   tick its stop bit leaves the wire: 3200 cycles at 9600 baud, 800 at 38400.
   The far unit latches it when its own clock gets there.
 - The link clock counts 256 cycles a scanline, because the port is serviced once

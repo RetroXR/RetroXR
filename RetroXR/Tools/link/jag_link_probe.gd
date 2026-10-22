@@ -4,7 +4,7 @@
 ##       "--rom=Z:/roms/atarijaguar/Doom (World).j64" --game=doom
 ##
 ## A probe, not a test: it wants the RetroXR virtualjaguar fork (JERRY UART on
-## the link bus, protocol `jag-uart-1`) and commercial cartridges.
+## the link bus, protocol `jag-uart`) and commercial cartridges.
 ##
 ## `--game=` picks the menu walk for doom / aircars / battlesphere; `--steps=`
 ## overrides it with a script of comma-separated steps, which is how the walks

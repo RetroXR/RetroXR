@@ -1546,7 +1546,7 @@ func _test_psx_cable_joins_a_pair() -> void:
 # A PlayStation lead's shape -- two consoles, peers, no junction -- plugged into
 # the Saturn's Communication Connector instead of a serial socket. What the room
 # has to get right is that the two leads do not fit each other's consoles: the
-# connectors are nothing alike, and the cores' wires (saturn-sci-1, psx-sio-1)
+# connectors are nothing alike, and the cores' wires (saturn-sci, psx-sio)
 # would refuse the join one layer down anyway, as a log line nobody reads.
 
 const SATURN_CABLE_SCENE := "res://Scenes/Objects/cables/saturn_link_cable.tscn"
@@ -1697,7 +1697,7 @@ func _test_console_leads_join_the_sweep() -> void:
 # --- the JagLink cable ------------------------------------------------------
 #
 # The Saturn lead's shape again, into an Atari Jaguar's DSP port. The core's
-# wire is jag-uart-1; what the room must get right is the plug group.
+# wire is jag-uart; what the room must get right is the plug group.
 
 const JAG_CABLE_SCENE := "res://Scenes/Objects/cables/jag_link_cable.tscn"
 

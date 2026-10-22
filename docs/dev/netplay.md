@@ -214,7 +214,7 @@ order: `SetControllerPortDevice(port, (7 << 8) | 0)` then
 ```
 
 First run, 2026-08-21, Four Swords Adventures against Super Mario Advance:
-Dolphin attaches `gba-joy-1` at 486 MHz, mGBA at 16777216 Hz, `bus 0 [P1 on,
+Dolphin attaches `gba-joy` at 486 MHz, mGBA at 16777216 Hz, `bus 0 [P1 on,
 P2 on]`, peers 2/2, and **6247/6248 messages** over 1574 frames with both cores
 in step. So the console-port end of the lead works with real cores.
 
@@ -472,7 +472,7 @@ x86_64 → arm64 state leg; publishing the fork (repo, release workflow, tag,
 
 ### The Game Boy Color's infrared port under netplay — 2026-10-13: lockstep measured, a real session owed
 
-The port is a link like any other (`gb-link.md`): link port 1, `gbc-ir-1`, two
+The port is a link like any other (`gb-link.md`): link port 1, `gbc-ir`, two
 cores in one process and nothing over the network. The room joins it now
 (`IrBus`, two windows in sight of each other), and hands every change to a
 session exactly as a lead does. What follows is what was measured at the cores

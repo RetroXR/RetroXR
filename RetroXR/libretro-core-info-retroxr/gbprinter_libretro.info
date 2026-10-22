@@ -4,7 +4,7 @@
 # CoreInfoDatabase.load_overlay appends it.
 #
 # The core runs no CPU and loads no game. It joins the frontend's link bus on
-# the "gb-sio-1" wire the retroXR builds of gambatte and mGBA speak, answers the
+# the "gb-sio" wire the retroXR builds of gambatte and mGBA speak, answers the
 # Game Boy the way the MGB-007 does, and shows the paper as its video frame. Its
 # two buttons are the printer's: A is FEED, B is TEAR (left stick X the number of
 # lines to tear). Built from RetroXR/gbprinter-libretro, MIT.

@@ -7,7 +7,7 @@
 ## every lead, worked out for the whole room at once. See ILinkBus for why that
 ## is one static resolver rather than per-lead state; everything here follows it.
 ##
-## What differs is the far end. Both cores speak protocol "ethernet-1" -- one
+## What differs is the far end. Both cores speak protocol "ethernet" -- one
 ## message is one Ethernet frame, broadcast to the bus as a hub repeats it -- but
 ## each attaches its own link port: the PS2 fork's network adapter on 1 (beside
 ## i.LINK's 0), Dolphin's broadband adapter on 4 (beside the four controller

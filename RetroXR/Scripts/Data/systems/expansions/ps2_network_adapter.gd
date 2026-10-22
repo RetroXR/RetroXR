@@ -26,7 +26,7 @@ const ID := "ps2_network_adapter"
 # (RetroExpansion._place_ethernet_port).
 #
 # What seating it does is ForcedCoreOptions.ethernet_adapter: the SPEED
-# expansion's ethernet is the frontend's link bus, protocol "ethernet-1" on port
+# expansion's ethernet is the frontend's link bus, protocol "ethernet" on port
 # 1 (`ethernet_port`), beside i.LINK's 0, and an EthernetCable from it to a hub
 # puts the console on a LAN (EthernetBus) -- Gran Turismo 4's Multi-LAN Race takes
 # six. A slim PlayStation 2 has the socket built in and needs no card; that is
