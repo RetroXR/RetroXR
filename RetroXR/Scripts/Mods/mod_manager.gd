@@ -931,15 +931,8 @@ func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -
 		_notify_changed()
 		return {"ok": true, "id": id, "error": "", "restart": true}
 
-	for file_name: String in old_names:
-		var old_path := mods_root().path_join(file_name)
-		if FileAccess.file_exists(old_path) and DirAccess.remove_absolute(old_path) != OK:
-			DirAccess.remove_absolute(staged)
-			return {"ok": false, "id": id, "restart": false,
-				"error": "Cannot replace %s" % file_name}
 	var final_path := mods_root().path_join(final_name)
-	DirAccess.remove_absolute(final_path)
-	if DirAccess.rename_absolute(staged, final_path) != OK:
+	if not _swap_in(staged, mods_root(), final_name, old_names):
 		DirAccess.remove_absolute(staged)
 		return {"ok": false, "id": id, "restart": false,
 			"error": "Cannot write to the mods folder"}
@@ -1062,10 +1055,15 @@ func _drop_pending_for(id: String) -> void:
 ## is read from a JSON file, and a path in it must not be able to reach outside
 ## the mods root.
 func _apply_pending() -> void:
+	_recover_aside(mods_root())
 	if _pending.is_empty():
 		_sweep_incoming()
 		return
 	var root := mods_root()
+	# A move that cannot be made now is kept, with its file, for the next launch:
+	# clearing it let the sweep below delete the only copy of the update.
+	var failed: Array[Dictionary] = []
+	var keep_files: Array[String] = []
 	for op: Dictionary in _pending:
 		match str(op.get("op", "")):
 			"remove":
@@ -1079,26 +1077,77 @@ func _apply_pending() -> void:
 					continue
 				if not FileAccess.file_exists(staged):
 					continue
+				var replaces: Array[String] = []
 				for file_name: Variant in (op.get("replaces", []) as Array):
-					_delete_container(root, str(file_name))
-				DirAccess.remove_absolute(root.path_join(to))
-				DirAccess.rename_absolute(staged, root.path_join(to))
-	_pending.clear()
+					replaces.append(str(file_name).get_file())
+				if not _swap_in(staged, root, to, replaces):
+					push_warning("[Mods] could not move %s into place; kept for the next launch" % from)
+					failed.append(op)
+					keep_files.append(from)
+	_pending = failed
 	_save_state()
-	_sweep_incoming()
+	_sweep_incoming(keep_files)
 
 
 ## Delete downloads nobody finished with: a pack fetched and never confirmed, or
 ## one whose install was interrupted. Whatever was parked for this launch has
 ## just been moved out by _apply_pending. A `.part` is kept, so an interrupted
 ## download can still resume.
-func _sweep_incoming() -> void:
+func _sweep_incoming(keep: Array[String] = []) -> void:
 	var dir := DirAccess.open(incoming_dir())
 	if dir == null:
 		return
 	for file_name: String in dir.get_files():
-		if _is_container(file_name):
+		if _is_container(file_name) and not keep.has(file_name):
 			dir.remove(file_name)
+
+
+## Put `staged` in place as `root/to`, replacing `to` and every one of `replaces`
+## (file names in root). The files it replaces are moved ASIDE (name + ".old")
+## first and deleted only once the new one is in; if any step fails they are put
+## back and false is returned, so a failed move never loses the mod. A crash in
+## between leaves the ".old" for _recover_aside.
+static func _swap_in(staged: String, root: String, to: String, replaces: Array) -> bool:
+	var names: Array[String] = []
+	for file_name: Variant in replaces + [to]:
+		var leaf := str(file_name).get_file()
+		if _is_container(leaf) and not names.has(leaf) and FileAccess.file_exists(root.path_join(leaf)):
+			names.append(leaf)
+	var aside: Array[String] = []
+	for leaf: String in names:
+		var path := root.path_join(leaf)
+		DirAccess.remove_absolute(path + ".old")
+		if DirAccess.rename_absolute(path, path + ".old") != OK:
+			_put_back(aside)
+			return false
+		aside.append(path)
+	if DirAccess.rename_absolute(staged, root.path_join(to)) != OK:
+		_put_back(aside)
+		return false
+	for path: String in aside:
+		DirAccess.remove_absolute(path + ".old")
+	return true
+
+
+static func _put_back(aside: Array[String]) -> void:
+	for path: String in aside:
+		DirAccess.rename_absolute(path + ".old", path)
+
+
+## After a crash mid-move: a container left aside (".old") with nothing in its
+## place goes back; one whose replacement made it in is deleted.
+static func _recover_aside(root: String) -> void:
+	var dir := DirAccess.open(root)
+	if dir == null:
+		return
+	for file_name: String in dir.get_files():
+		if not file_name.ends_with(".old") or not _is_container(file_name.trim_suffix(".old")):
+			continue
+		var path := root.path_join(file_name.trim_suffix(".old"))
+		if FileAccess.file_exists(path):
+			DirAccess.remove_absolute(path + ".old")
+		else:
+			DirAccess.rename_absolute(path + ".old", path)
 
 
 static func _delete_container(root: String, file_name: String) -> void:

@@ -50,7 +50,13 @@ func stage(staged: String, source: Dictionary) -> Dictionary:
 	var manifest: ModManifest = info["manifest"]
 	var key := job_key(int(source.get("modio_id", 0)))
 	# A second download of the same mod replaces the first's file, never joins it.
-	discard(key)
+	# Both land at the same path (incoming/modio-<id>.zip): when they do, the old
+	# entry is only forgotten -- deleting "its" file deleted the one just vetted,
+	# and the new review pointed at nothing.
+	if _parked.has(key) and str((_parked[key] as Dictionary)["staged"]) == str(info["path"]):
+		_parked.erase(key)
+	else:
+		discard(key)
 	# `path` is the pack itself: the download, or the build picked out of a bundle.
 	# `vetted` is the whole answer, kept so the install that follows a yes does
 	# not have to ask it of the same file again.

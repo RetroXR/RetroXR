@@ -74,6 +74,7 @@ func _ready() -> void:
 	if _want("tiles"):     _group_tiles()
 	if _want("installall"): _group_install_all()
 	if _want("holes"):     _group_holes()
+	if _want("holes2"):    await _group_holes2()
 	if _want("consent"):   await _group_consent()
 	if _want("bundle"):    _group_bundle()
 	if _want("review"):    _group_review()
@@ -1303,6 +1304,157 @@ func _group_holes() -> void:
 		"holes/a member skipped because it was already downloading is recorded as the pack's too")
 
 	client.free()
+	stub.free()
+	view.free()
+	m.free()
+
+
+## Takes the toasts a view would show, so a case can read what the player was told.
+class ToastStub extends Node:
+	var said: Array[String] = []
+
+	func notify(_key: String, _icon: String, msg: String, _progress: float = -1.0,
+			_seconds: float = 0.0) -> void:
+		said.append(msg)
+
+	func heard(part: String) -> bool:
+		return said.any(func(m: String) -> bool: return m.contains(part))
+
+
+# ── holes2/ ───────────────────────────────────────────────────────────────────
+
+## The second review's findings (2026-10-22).
+func _group_holes2() -> void:
+	var m := _fresh()
+	var view := SpawnMenuModsView.create(null)
+	var stub := QueueStub.new()
+	view.downloader = stub
+	view.reviews.manager = m
+	stub.job_cancelled.connect(view._on_job_cancelled)
+	var toasts := ToastStub.new()
+	view._menu = toasts
+	var applied: Array = []
+	view.apply_requested.connect(func(restart: bool) -> void: applied.append(restart))
+	view.room_ready_override = true
+	var mod_of := func(id: int, file_id: int) -> Dictionary:
+		return ModioClient.parse_mod(_modio_mod(id, "M%d" % id, file_id))
+	var park := func(id: int, mod_id: String) -> void:
+		view.reviews.stage(_stage(m, "modio-%d.zip" % id, _pack(mod_id, "1.0.0")),
+			{"modio_id": id, "file_id": id * 10, "profile_url": ""})
+
+	# ── 1. downloaded again while it waits: the file it parks is still there ──
+	park.call(1001, "t.again")
+	park.call(1001, "t.again")
+	var parked: Dictionary = view.review("modio-1001")
+	_ok(not parked.is_empty() and FileAccess.file_exists(str(parked["staged"])),
+		"holes2/a second download of a waiting mod keeps the file it just checked")
+	_ok(bool(view.finish_review("modio-1001", {"modio_id": 1001, "file_id": 10010}, false).get("ok", false)),
+		"holes2/and it installs")
+	park.call(1002, "t.wait")
+	stub.queued.clear()
+	view._download_fresh("modio-1002", mod_of.call(1002, 10020))
+	_eq(stub.queued, [] as Array[String], "holes2/a mod waiting for its review is not fetched again")
+
+	# ── 2. Enable and apply never restarts the app without saying so ──
+	view.switched_off_new()
+	view._just_installed.assign(["t.again"])
+	view._enable_and_apply(view.switched_off_new())
+	_eq(applied, [false], "holes2/Enable and apply loads into the room when nothing needs a restart")
+	applied.clear()
+	park.call(1003, "t.restart")
+	view.finish_review("modio-1003", {"modio_id": 1003, "file_id": 10030}, false)
+	m._pending.append({"op": "remove", "files": []})
+	view._enable_and_apply(view.switched_off_new())
+	_ok(applied.is_empty() and toasts.heard("Restart now"),
+		"holes2/when a restart is needed it stops at Restart now instead of quitting", str(toasts.said))
+	m._pending.clear()
+
+	# ── 5. a mod that cannot run says why ──
+	var needy := _pack("t.needy", "1.0.0")
+	needy["mods/t.needy/mod.json"] = JSON.stringify({"id": "t.needy", "api_version": 1, "version": "1.0.0",
+		"name": "t.needy", "entry": "res://mods/t.needy/m.gd", "dependencies": ["t.nowhere"]})
+	view.reviews.stage(_stage(m, "modio-1004.zip", needy), {"modio_id": 1004, "file_id": 10040})
+	view.finish_review("modio-1004", {"modio_id": 1004, "file_id": 10040}, false)
+	# Only it: the mods switched on above would (rightly) still be applied.
+	m.set_enabled("t.again", false)
+	m.set_enabled("t.restart", false)
+	applied.clear()
+	toasts.said.clear()
+	view._enable_and_apply(["t.needy"] as Array[String])
+	_ok(applied.is_empty() and toasts.heard("cannot load"),
+		"holes2/Enable and apply on a mod missing what it needs says so, not nothing", str(toasts.said))
+
+	# ── 3. a mod being removed is not updated back ──
+	m.install(_stage(m, "dl-1005.zip", _pack("t.gone", "1.0.0")), {"modio_id": 1005, "file_id": 10050})
+	m.mod("t.gone").removal_staged = true
+	_ok(not view.modio_installed().has(1005), "holes2/Update all leaves a mod being removed alone")
+	_eq(SpawnMenuModsView.browse_state(mod_of.call(1005, 10051), false, false, m), "",
+		"holes2/and its tile does not offer it an update")
+
+	# ── 4. a dependency that fails lets go of what it was bringing ──
+	var dep_a: Dictionary = mod_of.call(1011, 10110)
+	var dep_d: Dictionary = mod_of.call(1012, 10120)
+	stub.queued.clear()
+	view._fetch_with_needs("modio-1011", dep_a, [dep_d])
+	view._fetch_with_needs("modio-1013", mod_of.call(1013, 10130), [dep_a, dep_d])
+	park.call(1012, "t.dd")
+	view._on_job_finished("modio-1012", true, "", {"review": true})
+	view._on_job_finished("modio-1011", false, "not built for this machine", {})
+	view._drop_needs("modio-1013", true)
+	_ok(not view._needed_for.has("modio-1012"), "holes2/a dependency whose mods are all gone is nobody's")
+	_ok(view.installable_reviews().has("modio-1012"),
+		"holes2/so it can be installed on its own, not stranded holding off a restart")
+	view._review_from_tile("modio-1012")
+	_eq(view._open_review, "modio-1012", "holes2/and its Review opens its own question")
+	view._close_single_review()
+	view.discard_review("modio-1012")
+
+	# ── 6. a quiet cancel that arrived too late is spent ──
+	park.call(1021, "t.late")
+	view._quiet_cancel["modio-1021"] = true
+	view._on_job_finished("modio-1021", true, "", {"review": true})
+	_ok(not view._quiet_cancel.has("modio-1021") and not view.has_review("modio-1021"),
+		"holes2/a cancelled dependency that landed anyway is dropped, and the cancel is spent")
+	view._quiet_cancel["modio-1022"] = true
+	view._on_job_started("modio-1022", "x", 0)
+	_ok(not view._quiet_cancel.has("modio-1022"), "holes2/a new run of a key clears its old quiet cancel")
+
+	# ── 7 + 8. a pack's member: no stale page, and no stale claim ──
+	var page: SpawnMenuModsPacksPage = view._packs_page
+	page._install_mods({"id": 31, "name": "Shelf"}, [mod_of.call(1031, 10310)])
+	park.call(1031, "t.member")
+	page.on_job_done("modio-1031", true, "")
+	view._open_mod = {}
+	view._review_from_tile("modio-1031", mod_of.call(1031, 10310))
+	_ok(view._open_mod.is_empty(), "holes2/a pack member's Review leaves the Browse page as it was")
+	page._discard()
+	stub.queued.clear()
+	stub.running = ""
+	stub.enqueue("modio-1041", "M1041", "", 0, "", {})
+	page._install_mods({"id": 32, "name": "Shelf C"}, [mod_of.call(1041, 10410)])
+	_eq(page._pending_tags.size(), 1, "holes2/a member already downloading is noted for the pack")
+	view.discard_review("modio-1041")
+	_ok(page._pending_tags.is_empty(), "holes2/and forgotten when its own download is thrown away")
+
+	# ── 10. a file move never loses the mod ──
+	var root := _dir.path_join("swap")
+	DirAccess.make_dir_recursive_absolute(root)
+	_write_zip(root.path_join("t.swap.zip"), {"old": "1"})
+	var fresh_zip := _write_zip(_dir.path_join("swap_new.zip"), {"new": "2"})
+	_ok(MANAGER._swap_in(fresh_zip, root, "t.swap.zip", []) and FileAccess.get_file_as_bytes(
+		root.path_join("t.swap.zip")).size() > 0 and not FileAccess.file_exists(root.path_join("t.swap.zip.old")),
+		"holes2/a move puts the new file in and leaves nothing aside")
+	var before := FileAccess.get_file_as_bytes(root.path_join("t.swap.zip"))
+	_ok(not MANAGER._swap_in(_dir.path_join("not_there.zip"), root, "t.swap.zip", []),
+		"holes2/a move that cannot be made says so")
+	_eq(FileAccess.get_file_as_bytes(root.path_join("t.swap.zip")), before,
+		"holes2/and the file it would have replaced is back where it was")
+	DirAccess.rename_absolute(root.path_join("t.swap.zip"), root.path_join("t.swap.zip.old"))
+	MANAGER._recover_aside(root)
+	_ok(FileAccess.file_exists(root.path_join("t.swap.zip")), "holes2/a file left aside by a crash is put back")
+
+	await get_tree().process_frame
+	toasts.free()
 	stub.free()
 	view.free()
 	m.free()

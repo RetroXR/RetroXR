@@ -256,6 +256,31 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   recorded as the pack's once both have landed (`_pending_tags`, `tag_pending`).
 - `busy_reason` says where the waiting downloads are asked about (`review_place`:
   Browse, Packs, or both). `mod_browser_tests holes/` (20 cases, three mutation-checked).
+- **Second review (2026-10-22, `mod_browser_tests holes2/`):**
+  - Every download of a mod lands at the SAME path (`incoming/modio-<id>.zip`), so a second
+    one while the first waits must not `discard` the first's file: that was the file just
+    vetted (`ModReviews.stage` only forgets the old entry when the paths match), and a
+    mod waiting for its review is never fetched again (`_download_fresh`).
+  - **Enable and apply never restarts unannounced**: when switching on needs a restart (a
+    shipped file replaced, or another change waiting) it stops at the bar's Restart now;
+    a mod that cannot run (a need missing) is toasted with `dependency_problem`.
+  - A mod whose removal is staged is not updated (`modio_installed`) and its tile treats
+    it as gone: installing it again silently cancelled the removal.
+  - A dependency that fails or is cancelled drops its OWN needs (`_drop_needs`), and a
+    dependency with nobody left to answer for it is reviewed on its own, never stranded
+    under a gone owner holding off Restart now.
+  - A quiet cancel is spent by the next start or finish of that key (cancel only stops
+    a transfer still running; one that landed anyway is discarded).
+  - `drop_tags_for` forgets a pack's claim on a member whose own download failed or was
+    discarded; a pack with nothing to confirm settles its tags in `_finish_batch`.
+  - `_rebuild_grid(true)` keeps the scroll for a change made in place (an install).
+  - **`ModManager._swap_in`**: a container being replaced is moved ASIDE (`.old`) and
+    deleted only once the new file is in; a failed move puts it back. `_apply_pending`
+    keeps an op it could not make (and its staged file, which the sweep skips) for the
+    next launch; `_recover_aside` puts back a `.old` a crash left with nothing in its
+    place. Both moves used to delete the old file first.
+  - `room_ready_override` (tests): a suite has no room, so "applied" and "blocked" looked
+    the same.
 - **mod.io game 14432**, `https://g-14432.modapi.io/v1`, REST from GDScript. The
   only maintained Godot plugin is a desktop-only Rust extension with no Android
   build. mod.io's C++ SDK is not used: it builds for Android only through CMake

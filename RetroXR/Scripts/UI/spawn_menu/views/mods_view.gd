@@ -124,6 +124,9 @@ var _consent_serial := 0
 ## apply bar offers to switch them on and load them (switched_off_new).
 var _just_installed: Array[String] = []
 var _browse_banner: VBoxContainer = null
+## Tests: whether the room counts as ready to apply into (null = ask SceneManager).
+## A suite has no room, so without it "applied" and "blocked" look the same.
+var room_ready_override: Variant = null
 var _packs_banner: VBoxContainer = null
 
 # Installed
@@ -564,7 +567,11 @@ func _fetch(offset: int) -> void:
 			_rebuild_grid(), _tag)
 
 
-func _rebuild_grid() -> void:
+## `keep_scroll`: redrawn for a change made while the player was looking (an
+## install, a switch) rather than a new page of results, so it stays where it was.
+func _rebuild_grid(keep_scroll: bool = false) -> void:
+	var scroll := _pages[0]
+	var was := scroll.scroll_vertical
 	for child in _grid.get_children():
 		_grid.remove_child(child)
 		child.queue_free()
@@ -583,8 +590,11 @@ func _rebuild_grid() -> void:
 	else:
 		_status_lbl.text = "%d mod%s on mod.io" % [_total, "" if _total == 1 else "s"]
 	_update_pager()
-	var scroll := _pages[0]
-	scroll.scroll_vertical = 0
+	if keep_scroll:
+		# The new tiles have no size until the next layout pass.
+		scroll.set_deferred("scroll_vertical", was)
+	else:
+		scroll.scroll_vertical = 0
 
 
 func _update_pager() -> void:
@@ -633,9 +643,7 @@ func _tile_action(mod: Dictionary, state: String) -> Button:
 		"review":
 			glyph = MenuIcons.CHECK
 			caption = "Review"
-			on_press = func() -> void:
-				_open_mod = mod
-				_review_from_tile(key)
+			on_press = func() -> void: _review_from_tile(key, mod)
 		_:
 			return null
 	var btn := MenuStyle.row_button("%s  %s" % [String.chr(glyph), caption], 16, TILE_BTN_W,
@@ -671,19 +679,24 @@ func _refresh_tile(key: String) -> void:
 ## answered by the pack's review and what a mod needs by that mod's: answering
 ## either on its own pulled it out from under them (the pack's install then read
 ## a review that was gone, mid-install, with the loader's changes held).
-func _review_from_tile(key: String) -> void:
+func _review_from_tile(key: String, mod: Dictionary = {}) -> void:
 	if _packs_page.owns(key):
 		_tabs.current_tab = PACKS_TAB
 		_packs_page.show_review_of(key)
 		return
+	var owner_coming := false
 	for owner: Variant in (_needed_for.get(key, []) as Array):
 		if has_review(str(owner)):
 			_open_single_review(str(owner))
 			return
-	if _needed_for.has(key):
+		owner_coming = owner_coming or downloader.is_queued(str(owner))
+	if owner_coming:
 		notify(_toast_key(key), "⏳", "It installs with the mod that needs it, once that has downloaded",
 			-1.0, MenuToasts.DWELL_INFO)
 		return
+	# Nobody left to answer for it: it is asked about on its own, never stranded.
+	if not mod.is_empty():
+		_open_mod = mod
 	_open_single_review(key)
 
 
@@ -727,6 +740,9 @@ static func browse_state(mod: Dictionary, busy: bool = false, review: bool = fal
 		return "review"
 	var m: Node = manager if manager != null else Mods
 	var rec := m.find_by_source("modio_id", int(mod.get("id", 0))) as ModRecord
+	if rec != null and rec.removal_staged:
+		# On its way out at the next restart: as far as this page goes it is gone.
+		rec = null
 	if rec == null:
 		if int(mod.get("file_id", 0)) <= 0:
 			return "nofile"
@@ -1013,6 +1029,12 @@ func _download_fresh(key: String, fresh: Dictionary) -> void:
 	var mod_id := int(fresh["id"])
 	if downloader.is_queued(key):
 		return
+	if has_review(key):
+		# Fetched already and waiting for its answer (it may have landed while
+		# Update all was asking mod.io): a second copy would only replace it.
+		notify(_toast_key(key), "✅", "%s is downloaded already — review it to install" % str(fresh["name"]),
+			-1.0, MenuToasts.DWELL_INFO)
+		return
 	if int(fresh["file_id"]) <= 0 or str(fresh["download_url"]).is_empty():
 		notify(_toast_key(key), "❌", "%s has no file to download yet" % str(fresh["name"]),
 			-1.0, MenuToasts.DWELL_FAIL)
@@ -1086,7 +1108,8 @@ func modio_installed() -> Array[int]:
 	var m := _manager()
 	for rec: ModRecord in m.all_mods():
 		var mid := int((m.source(rec.id) as Dictionary).get("modio_id", 0))
-		if mid <= 0 or not rec.update_staged.is_empty():
+		# Being removed: updating it would install it again and undo the removal.
+		if mid <= 0 or not rec.update_staged.is_empty() or rec.removal_staged:
 			continue
 		var key := _job_key(mid)
 		if (downloader != null and downloader.is_queued(key)) or has_review(key):
@@ -1241,6 +1264,8 @@ func _drop_needs(key: String, discard: bool) -> void:
 
 
 func _on_job_started(key: String, label: String, _total: int) -> void:
+	# A new run of it: whatever quiet cancel was meant for the last one is spent.
+	_quiet_cancel.erase(key)
 	_refresh_tile(key)
 	_last_pct.erase(key)
 	notify(_toast_key(key), "⏳", "Downloading %s" % label, 0.0)
@@ -1276,6 +1301,10 @@ func _on_job_cancelled(key: String) -> void:
 	if _needed_for.has(key):
 		notify_clear(_toast_key(key))
 		_need_done(key, false, "")
+		# A dependency can need mods of its own: they go with it, or they are left
+		# parked under an owner that is gone, unanswerable, holding off a restart.
+		_drop_needs(key, true)
+		_packs_page.drop_tags_for(key)
 		return
 	# What it was bringing with it goes with it.
 	_drop_needs(key, true)
@@ -1287,6 +1316,15 @@ func _on_job_finished(key: String, ok: bool, error: String, result: Dictionary) 
 	if client != null and not has_consent():
 		# It finished after consent was withdrawn: nothing of it is kept, or it
 		# would wait for an answer behind the terms gate and hold off a restart.
+		if has_review(key):
+			reviews.discard(key)
+		notify_clear(_toast_key(key))
+		_refresh_tile(key)
+		return
+	if _quiet_cancel.has(key):
+		# Cancelled because nothing needs it any more, but the transfer had already
+		# ended (cancel only stops one still running): what landed is not wanted.
+		_quiet_cancel.erase(key)
 		if has_review(key):
 			reviews.discard(key)
 		notify_clear(_toast_key(key))
@@ -1304,9 +1342,13 @@ func _on_job_finished(key: String, ok: bool, error: String, result: Dictionary) 
 	if _needed_for.has(key):
 		notify_clear(_toast_key(key))
 		_need_done(key, waiting, error)
+		if not waiting:
+			_drop_needs(key, true)
+			_packs_page.drop_tags_for(key)
 		return
 	if not waiting:
 		_drop_needs(key, true)
+		_packs_page.drop_tags_for(key)
 	if not ok:
 		# The loader's own sentence when it refused the pack, the transfer's
 		# otherwise. Either way the player learns why nothing was installed.
@@ -1357,6 +1399,7 @@ func finish_review(key: String, source: Dictionary, enable: bool) -> Dictionary:
 
 func discard_review(key: String) -> void:
 	reviews.discard(key)
+	_packs_page.drop_tags_for(key)
 	_refresh_tile(key)
 	_sync_install_all_btn()
 
@@ -1513,7 +1556,7 @@ func _on_mods_changed() -> void:
 	if _browse_detail.visible and not _open_mod.is_empty():
 		_fill_browse_detail()
 	elif _fetched and _browse_list.visible:
-		_rebuild_grid()
+		_rebuild_grid(true)
 	_packs_page.on_mods_changed()
 
 
@@ -1688,6 +1731,27 @@ func _enable_and_apply(ids: Array[String]) -> void:
 	m.release_changes()
 	_just_installed.clear()
 	_fill_banner()
+	var plan: Dictionary = m.apply_plan()
+	# Switched on but unable to run (a mod it needs is missing): there is nothing
+	# to load, and the bar would just vanish. Say why instead.
+	var cannot := PackedStringArray()
+	for id: String in ids:
+		var rec: ModRecord = m.mod(id)
+		var why: String = m.dependency_problem(rec) if rec != null else ""
+		if not why.is_empty():
+			cannot.append("%s: %s" % [rec.manifest.name, why])
+	if not cannot.is_empty():
+		notify("mods:apply", "❌", "Switched on, but cannot load — %s" % "; ".join(cannot),
+			-1.0, MenuToasts.DWELL_FAIL)
+		if not bool(plan["restart"]) and (plan["live"] as Array).is_empty():
+			return
+	if bool(plan["restart"]):
+		# The bar said "load it into this room"; a restart is a different promise
+		# (it replaces a shipped file, or another change is waiting). It is now
+		# the bar's own Restart now, for the player to press.
+		notify("mods:apply", "⏳", "Switched on — it needs RetroXR to restart: press Restart now",
+			-1.0, MenuToasts.DWELL_FAIL)
+		return
 	_on_apply_pressed()
 
 
@@ -1714,7 +1778,9 @@ func _on_apply_pressed() -> void:
 ## whatever is downloading, and the downloads parked for review (the next launch
 ## sweeps those away).
 func _apply_blocker(restart: bool) -> String:
-	if not SceneManager.is_scene_content_ready(SceneManager.current_scene_id):
+	var ready: bool = bool(room_ready_override) if room_ready_override != null \
+		else SceneManager.is_scene_content_ready(SceneManager.current_scene_id)
+	if not ready:
 		return "Wait for the room to finish loading."
 	if restart and _menu != null and _menu.has_method("busy_reason"):
 		return str(_menu.busy_reason())

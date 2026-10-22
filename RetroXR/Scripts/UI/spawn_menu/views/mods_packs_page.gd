@@ -650,6 +650,14 @@ func _finish_batch(batch: Dictionary) -> void:
 	if (batch["staged"] as Array).is_empty():
 		var skipped := (batch["skip"] as Array).size()
 		_tag_have(batch)
+		# Nothing of its own to confirm: the pack counts as installed for the
+		# members it skipped, unless it was cancelled.
+		for t: Dictionary in _pending_tags:
+			if int(t["pack"]) == int(batch["id"]):
+				t["confirmed"] = not bool(batch["cancelled"])
+		_pending_tags = _pending_tags.filter(func(t: Dictionary) -> bool:
+			return int(t["pack"]) != int(batch["id"]) or bool(t["confirmed"]))
+		tag_pending()
 		_drop(batch)
 		var name := str(batch["name"])
 		if bool(batch["cancelled"]):
@@ -726,6 +734,13 @@ func tag_pending() -> void:
 		m.set_source(rec.id, ModCollectionPlan.source_after_install(m.source(rec.id),
 			int(mod["id"]), int(mod["file_id"]), str(mod["profile_url"]), int(t["pack"])))
 	_pending_tags = left
+
+
+## Forget any pack's claim on the member downloaded as `key`: its own download
+## failed or was thrown away, so a LATER install of it is not the pack's doing.
+func drop_tags_for(key: String) -> void:
+	_pending_tags = _pending_tags.filter(func(t: Dictionary) -> bool:
+		return SpawnMenuModsView._job_key(int((t["mod"] as Dictionary)["id"])) != key)
 
 
 ## Show the question download `key` is answered in: its pack's review once the
