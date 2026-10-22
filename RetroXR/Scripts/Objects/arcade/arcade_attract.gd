@@ -8,12 +8,18 @@
 ## game-over signal, MAME and FinalBurn expose none, so idleness is what we can know).
 ##
 ## The option is a global pref with a per-cabinet override (`wanted`). It is off by default: a video
-## decode per cabinet is real work, most of all on a Quest, so the cost is bounded three ways:
-##   - a video only decodes for the nearest `video_budget()` cabinets; the rest hold the still;
-##   - a screen out of view uploads no frames (the sound goes on);
-##   - a cabinet past hearing range pauses its player, and a far one pulls its sound less often.
-## The sound is one mono voice per cabinet (a real arcade cabinet's speaker is), which also spares
-## the room's shared Meta XR Audio voices.
+## decode per cabinet is real work, most of all on a Quest. Nothing here runs for a cabinet that is off, or
+## that the option does not apply to: this node only exists once a cabinet has attracted, and only a cabinet
+## that is attracting is ranked. What decodes (`plan`):
+##   - EVERY screen the player can see plays its video, nearest first up to a safety cap (`visible_cap()`);
+##     what is seen is read through the real projection of each eye;
+##   - a screen out of view is not shown, but is heard: it keeps playing for its sound while within
+##     hearing range (`MAX_AUDIO`), up to `audio_only_cap()`, and holds its still beyond it;
+##   - a screen in view uploads a frame, one out of view does not.
+## The sound is one mono voice per cabinet (a real arcade cabinet's speaker is), pulled EVERY frame: a
+## voice keeps only a short queue, and serving it in gulps (it was every 0.1 s past 6 m) made it stutter.
+## Volume and direction are the emitter's own, per frame; a cheaper law for far cabinets was left out, as
+## it would not have changed what a frame costs.
 ##
 ## RetroSystem owns the state (`attracting`) and the entry points; this node owns the picture.
 class_name ArcadeAttract
@@ -24,14 +30,17 @@ const GROUP := &"arcade_attract"
 ## Seconds with nobody at the cabinet before its core is put away and the attract returns.
 const IDLE_SECONDS := 120.0
 ## How often the room is re-ranked (nearest first), and how often a far cabinet pulls its sound.
-const ARBITRATE_INTERVAL := 0.25
-const FAR_PULL_INTERVAL := 0.1
-## Where sound stops being worth a full-rate pull, and where it stops being heard at all.
-const NEAR_AUDIO := 6.0
+const ARBITRATE_INTERVAL := 0.15
+## Where a cabinet stops being heard, and how far back it must come before it is heard again (a
+## cabinet at the edge must not pause and resume with every step).
 const MAX_AUDIO := 15.0
-## Simultaneous video decodes: the Quest's CPU cannot afford more than one.
-const VIDEO_BUDGET_DESKTOP := 4
-const VIDEO_BUDGET_ANDROID := 1
+const AUDIO_HYSTERESIS := 1.0
+## Safety caps on simultaneous decodes. Every screen in view plays, so these only bite in a room with
+## more cabinets in sight than a machine can decode; screens heard but not seen are far fewer.
+const VISIBLE_CAP_DESKTOP := 16
+const VISIBLE_CAP_ANDROID := 8
+const AUDIO_ONLY_DESKTOP := 4
+const AUDIO_ONLY_ANDROID := 2
 ## How far past the picture's edge, as a fraction of the picture, the glass may be and still count as in view.
 const VIEW_MARGIN := 0.15
 ## The glass is tilted and framed; its box is taken a little larger than its size.
@@ -55,7 +64,7 @@ const WHEEL := "wheel"
 const BOX := "box"
 
 ## Audio tiers (audio_tier).
-enum Tier { SILENT, FAR, NEAR }
+enum Tier { SILENT, NEAR }
 
 ## A suite hands a ROM its picture without writing the player's data root. Empty in the app.
 static var test_still: Dictionary = {}
@@ -77,11 +86,10 @@ var _has_video: bool = false
 var _video_path: String = ""
 var _media_key: String = ""
 var _opened_msec: int = 0
-var _video_ok: bool = true
+var _play_ok: bool = true
 var _tier: int = Tier.NEAR
 var _in_view: bool = true
 var _playing: bool = false
-var _pull_clock: float = 0.0
 var _idle: float = 0.0
 
 
@@ -171,18 +179,41 @@ static func pick_budget(dists: PackedFloat32Array, max_videos: int) -> PackedInt
 	return out
 
 
-## How the sound is served at `distance`: not at all past hearing, a lighter pull beyond NEAR_AUDIO,
-## the full rate nearer.
-static func audio_tier(distance: float) -> int:
-	if distance >= MAX_AUDIO:
-		return Tier.SILENT
-	if distance > NEAR_AUDIO:
-		return Tier.FAR
-	return Tier.NEAR
+## Which cabinets play, as indices: every one in view (nearest first, to `visible_cap`), then those out of
+## view but within hearing (nearest first, to `audio_cap`). `silent[i]` is true past hearing range.
+static func plan(dists: PackedFloat32Array, in_view: Array, silent: Array, visible_cap: int, audio_cap: int) -> PackedInt32Array:
+	var seen := PackedFloat32Array()
+	var seen_idx := PackedInt32Array()
+	var heard := PackedFloat32Array()
+	var heard_idx := PackedInt32Array()
+	for i in dists.size():
+		if in_view[i]:
+			seen.append(dists[i])
+			seen_idx.append(i)
+		elif not silent[i]:
+			heard.append(dists[i])
+			heard_idx.append(i)
+	var out := PackedInt32Array()
+	for k in pick_budget(seen, visible_cap):
+		out.append(seen_idx[k])
+	for k in pick_budget(heard, audio_cap):
+		out.append(heard_idx[k])
+	return out
 
 
-static func video_budget() -> int:
-	return VIDEO_BUDGET_ANDROID if OS.has_feature("android") else VIDEO_BUDGET_DESKTOP
+## How the sound is served at `distance`: not at all past hearing, else in full. `was_silent` keeps a
+## cabinet at the edge of hearing from switching with every step: it comes back a metre inside.
+static func audio_tier(distance: float, was_silent: bool = false) -> int:
+	var edge := MAX_AUDIO - (AUDIO_HYSTERESIS if was_silent else 0.0)
+	return Tier.SILENT if distance >= edge else Tier.NEAR
+
+
+static func visible_cap() -> int:
+	return VISIBLE_CAP_ANDROID if OS.has_feature("android") else VISIBLE_CAP_DESKTOP
+
+
+static func audio_only_cap() -> int:
+	return AUDIO_ONLY_ANDROID if OS.has_feature("android") else AUDIO_ONLY_DESKTOP
 
 
 ## What a game shows, best first: { "kind": "video" | "image" | "", "path": String, "folder": String }.
@@ -396,15 +427,16 @@ func _process(delta: float) -> void:
 	_rank_room(get_tree())
 	if _vlc == null or not _has_video:
 		return
-	# Asked every frame, not with the ranking: a head turns faster than a quarter second, and a screen that
-	# comes into view should not show the last picture it had until the next ranking.
-	if _playing:
-		_in_view = _screen_in_view()
-		if _in_view:
-			_vlc.update_frame()
-	if _emitter != null and _playing:
+	# Asked every frame, playing or not: the ranking that starts a screen's video reads it, and a head
+	# turns faster than the ranking runs.
+	_in_view = _screen_in_view()
+	if not _playing:
+		return
+	if _in_view:
+		_vlc.update_frame()
+	if _emitter != null and _tier != Tier.SILENT:
 		_follow_speaker()
-		_pull_audio(delta)
+		_pull_audio()
 
 
 ## Re-rank every attract cabinet, nearest first, at most ARBITRATE_INTERVAL apart; whichever cabinet's
@@ -419,9 +451,17 @@ static func _rank_room(tree: SceneTree) -> void:
 		return
 	var listener := _listener_position(tree)
 	var dists := PackedFloat32Array()
+	var seen: Array = []
+	var silent: Array = []
 	for m in members:
-		dists.append((m as ArcadeAttract).distance_to(listener))
-	var allowed := pick_budget(dists, video_budget())
+		var a := m as ArcadeAttract
+		var d := a.distance_to(listener)
+		dists.append(d)
+		# A cabinet showing a still has no video to play: it takes no place in the plan.
+		var has_video := a._vlc != null and a._has_video
+		seen.append(has_video and a._in_view)
+		silent.append(not has_video or audio_tier(d, a._tier == Tier.SILENT) == Tier.SILENT)
+	var allowed := plan(dists, seen, silent, visible_cap(), audio_only_cap())
 	for i in members.size():
 		(members[i] as ArcadeAttract).apply_rank(allowed.has(i), dists[i])
 
@@ -439,13 +479,13 @@ func distance_to(listener: Vector3) -> float:
 	return _speaker_position().distance_to(listener) if _host != null else INF
 
 
-## Take the verdict of a ranking: whether this cabinet is among the nearest, and how far it is.
-func apply_rank(video_ok: bool, distance: float) -> void:
-	_video_ok = video_ok
-	_tier = audio_tier(distance)
+## Take the verdict of a ranking: whether this cabinet plays (it is seen, or heard), and how far it is.
+func apply_rank(play_ok: bool, distance: float) -> void:
+	_play_ok = play_ok
+	_tier = audio_tier(distance, _tier == Tier.SILENT)
 	if _vlc == null or not _has_video:
 		return
-	var play := _video_ok and _tier != Tier.SILENT
+	var play := _play_ok
 	if play != _playing:
 		_playing = play
 		_vlc.set_paused(not play)
@@ -509,13 +549,8 @@ func _follow_speaker() -> void:
 	_emitter.set_emit_direction(_host.global_transform.basis.z.normalized())
 
 
-func _pull_audio(delta: float) -> void:
-	# A far cabinet is served in bigger, rarer gulps; the emitter's queue holds a quarter second.
-	if _tier == Tier.FAR:
-		_pull_clock += delta
-		if _pull_clock < FAR_PULL_INTERVAL:
-			return
-		_pull_clock = 0.0
+## Every frame, whatever the distance: the voice holds a short queue and a gulp every so often leaves it dry.
+func _pull_audio() -> void:
 	var want := _emitter.frames_wanted()
 	if want <= 0:
 		return

@@ -19,7 +19,7 @@ const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const SCRATCH := "__attract_probe"
 
 var _out := "/tmp"
-var _shots: Array[String] = ["still", "video", "away", "off"]
+var _shots: Array[String] = ["still", "video", "away", "off", "row"]
 var _cam: Camera3D
 var _sys: RetroSystem
 var _model: RetroSystemModelArcadeCabinet
@@ -231,3 +231,54 @@ func _shot_off() -> void:
 func _shot_side() -> void:
 	_look(Vector3(2.0, 1.2, 1.0), Vector3(0, 1.0, 0))
 	await _save("side")
+
+
+## A row of cabinets in front of the camera and one off to the side, all attracting the same game: every
+## screen in view must play its video, and the one out of view plays only for its sound.
+func _shot_row() -> void:
+	var cabs: Array[RetroSystem] = [_sys]
+	for x in [-1.0, 1.0, 6.5]:
+		cabs.append(await _extra_cabinet(x))
+	for c in cabs:
+		c.power_on()
+	_sys.power_on()
+	var waited := 0.0
+	while waited < 8.0:
+		await get_tree().create_timer(0.25).timeout
+		waited += 0.25
+		var ready := 0
+		for c in cabs:
+			var a := c.get_node_or_null("ArcadeAttract") as ArcadeAttract
+			if a != null and a._vlc != null and a._vlc.get_frame_count() > 5:
+				ready += 1
+		if ready == cabs.size():
+			break
+	_look(Vector3(0.0, 1.3, 3.4), Vector3(0.0, 1.0, 0.0))
+	await get_tree().create_timer(1.0).timeout
+	for c in cabs:
+		var a := c.get_node("ArcadeAttract") as ArcadeAttract
+		print("[probe] row: x=%.1f playing=%s in_view=%s video=%s" % [c.position.x, a._playing, a._in_view, a.is_video_playing()])
+	await _save("row")
+
+
+func _extra_cabinet(x: float) -> RetroSystem:
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.model_id = "arcade_cabinet_generic"
+	sys.systemid = "arcade"
+	sys.freeze = true
+	sys.position = Vector3(x, 0, 0)
+	add_child(sys)
+	await _frames(8)
+	(sys.get_model() as RetroSystemModelArcadeCabinet).set_lid_angle_deg(90.0)
+	var cart := CART_SCENE.instantiate() as Node3D
+	cart.systemid = SCRATCH
+	cart.rom_path = _rom
+	cart.position = Vector3(x, 3, 0)
+	cart.freeze = true
+	add_child(cart)
+	await _frames(8)
+	sys.get_bay().slot.pick_up_object(cart)
+	await _frames(6)
+	(sys.get_model() as RetroSystemModelArcadeCabinet).set_lid_angle_deg(0.0)
+	await _frames(4)
+	return sys
