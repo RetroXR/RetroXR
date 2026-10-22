@@ -32,10 +32,12 @@ const MAX_AUDIO := 15.0
 ## Simultaneous video decodes: the Quest's CPU cannot afford more than one.
 const VIDEO_BUDGET_DESKTOP := 4
 const VIDEO_BUDGET_ANDROID := 1
-## How far the cabinet must see past the frustum's edge to count a screen as in view, in metres.
-const VIEW_MARGIN := 0.25
-## When a head's field of view cannot be read (a headset's camera reports none that means anything).
-const XR_FOV_DEGREES := 110.0
+## How far past the picture's edge, as a fraction of the picture, the glass may be and still count as in view.
+const VIEW_MARGIN := 0.15
+## The glass is tilted and framed; its box is taken a little larger than its size.
+const GLASS_GROW := 1.3
+## The visible glass of a cabinet's monitor, metres (ArcadeScreenModule.glass_size).
+const GLASS_SIZE := Vector2(0.38, 0.285)
 
 ## Override values on RetroSystem.attract_override.
 const OVERRIDE_FOLLOW := 0
@@ -102,28 +104,55 @@ static func wanted(pref: bool, override_mode: int, has_game: bool, external: boo
 	return effective_pref(pref, override_mode) and has_game and not external and not netplay
 
 
-## Is a screen at `screen_xf` (its +Z the way it faces), `size` metres across, in front of a camera and
-## inside its frustum? `v_fov_deg` is the vertical field of view and `aspect` width over height.
-## Generous by VIEW_MARGIN: a screen is a flat rectangle, not a point, and a late pop-in is worse than
-## a few frames decoded for nothing.
-static func screen_visible(cam: Transform3D, v_fov_deg: float, aspect: float,
-		screen_xf: Transform3D, size: Vector2) -> bool:
-	var centre := screen_xf.origin
-	# Seen from behind it is the cabinet's back (or its inside), never the glass.
-	var facing := screen_xf.basis.z.normalized().dot(cam.origin - centre)
-	if facing <= 0.0:
+## Is the glass inside what a view SEES? `views` is what the player looks through: one { "xf": the eye's
+## world transform, "proj": its projection } for a desktop camera, TWO for a headset, whose eyes are each
+## far wider than a flat screen's field of view and not symmetric (Quest 3: about 110 deg across, less
+## up and down, each eye turned a little outward). `screen_xf` is the glass (its +Z the way it faces),
+## `size` its width and height in metres.
+##
+## The glass is a RECTANGLE: its four corners go through each view's projection and the box they cover on
+## the picture is tested against the picture, so a screen close enough to fill the view, or standing half
+## out of it at the edge, counts as seen, and a point test on its centre would say it was not. Grown by
+## VIEW_MARGIN (a fraction of the picture) because a head turns faster than a decode can be woken.
+## From behind it is the cabinet's back, never the glass.
+static func screen_in_view(views: Array, screen_xf: Transform3D, size: Vector2) -> bool:
+	var half := Vector2(size.x, size.y) * 0.5 * GLASS_GROW
+	var corners: Array[Vector3] = []
+	for sx: float in [-1.0, 1.0]:
+		for sy: float in [-1.0, 1.0]:
+			corners.append(screen_xf.origin + screen_xf.basis.x.normalized() * (sx * half.x) \
+				+ screen_xf.basis.y.normalized() * (sy * half.y))
+	var normal := screen_xf.basis.z.normalized()
+	for view: Dictionary in views:
+		var xf: Transform3D = view["xf"]
+		if normal.dot(xf.origin - screen_xf.origin) <= 0.0:
+			continue
+		if _rect_in_picture(xf.affine_inverse(), view["proj"] as Projection, corners):
+			return true
+	return false
+
+
+## The corners (world) against one view: do their box on the picture and the picture overlap?
+static func _rect_in_picture(world_to_eye: Transform3D, proj: Projection, corners: Array[Vector3]) -> bool:
+	var lo := Vector2(INF, INF)
+	var hi := Vector2(-INF, -INF)
+	var behind := 0
+	for c in corners:
+		var e: Vector3 = world_to_eye * c
+		var clip: Vector4 = proj * Vector4(e.x, e.y, e.z, 1.0)
+		if clip.w <= 0.0001:
+			behind += 1
+			continue
+		lo = Vector2(minf(lo.x, clip.x / clip.w), minf(lo.y, clip.y / clip.w))
+		hi = Vector2(maxf(hi.x, clip.x / clip.w), maxf(hi.y, clip.y / clip.w))
+	if behind == corners.size():
 		return false
-	var local := cam.affine_inverse() * centre
-	var depth := -local.z
-	var radius := size.length() * 0.5 + VIEW_MARGIN
-	if depth + radius <= 0.0:
-		return false
-	var d := maxf(depth, 0.05)
-	var half_v := tan(deg_to_rad(clampf(v_fov_deg, 10.0, 170.0)) * 0.5)
-	var half_h := half_v * maxf(aspect, 0.1)
-	if absf(local.y) > half_v * d + radius:
-		return false
-	return absf(local.x) <= half_h * d + radius
+	# A corner behind the eye stretches the box without limit: with the others in front, the glass crosses
+	# the view's plane and is as good as seen.
+	if behind > 0:
+		return true
+	var edge := 1.0 + VIEW_MARGIN
+	return hi.x >= -edge and lo.x <= edge and hi.y >= -edge and lo.y <= edge
 
 
 ## The `max_videos` nearest of `dists` (metres), as indices. Ties go to the lower index so the choice
@@ -367,8 +396,12 @@ func _process(delta: float) -> void:
 	_rank_room(get_tree())
 	if _vlc == null or not _has_video:
 		return
-	if _playing and _in_view:
-		_vlc.update_frame()
+	# Asked every frame, not with the ranking: a head turns faster than a quarter second, and a screen that
+	# comes into view should not show the last picture it had until the next ranking.
+	if _playing:
+		_in_view = _screen_in_view()
+		if _in_view:
+			_vlc.update_frame()
 	if _emitter != null and _playing:
 		_follow_speaker()
 		_pull_audio(delta)
@@ -418,18 +451,34 @@ func apply_rank(video_ok: bool, distance: float) -> void:
 		_vlc.set_paused(not play)
 		if not play and _emitter != null:
 			_emitter.flush()
-	_in_view = _screen_in_view()
 
 
+## Is the glass inside what the player sees right now? Through the real projection(s): both eyes of a
+## headset (each with the field of view the runtime reports, not a number of ours), the camera's own on
+## a desktop. With nothing to look through (a suite, a probe without a camera) it counts as seen.
 func _screen_in_view() -> bool:
-	var cam := get_viewport().get_camera_3d() if is_inside_tree() else null
-	if cam == null or _host == null:
+	if _host == null or not is_inside_tree():
 		return true
-	var xr := cam is XRCamera3D
-	var fov := XR_FOV_DEGREES if xr else cam.fov
-	var vp := get_viewport().get_visible_rect().size
-	var aspect := 1.0 if xr or vp.y <= 0.0 else vp.x / vp.y
-	return screen_visible(cam.global_transform, fov, aspect, _screen_transform(), Vector2(0.38, 0.285))
+	var views := _views()
+	if views.is_empty():
+		return true
+	return screen_in_view(views, _screen_transform(), GLASS_SIZE)
+
+
+## What the player looks through: { "xf", "proj" } per eye in a headset, or the current camera's.
+func _views() -> Array:
+	var out: Array = []
+	var iface := XRServer.primary_interface
+	if iface != null and iface.is_initialized() and iface.get_view_count() > 0:
+		var origin := XRServer.world_origin
+		for v in iface.get_view_count():
+			out.append({"xf": iface.get_transform_for_view(v, origin),
+				"proj": iface.get_projection_for_view(v, 1.0, 0.05, 100.0)})
+		return out
+	var cam := get_viewport().get_camera_3d()
+	if cam != null:
+		out.append({"xf": cam.global_transform, "proj": cam.get_camera_projection()})
+	return out
 
 
 ## The glass in world space: where the screen mesh is, facing the way the cabinet does (its +Z).

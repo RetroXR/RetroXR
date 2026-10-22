@@ -215,25 +215,59 @@ func _group_rules() -> void:
 	_ok(not ArcadeAttract.wanted(true, OFF, true, false, false), "rules: forced off, it does not")
 	_ok(not ArcadeAttract.wanted(false, ON, false, false, false), "rules: and forced on still needs a game")
 
-	# In view: a camera at the origin looking down -Z, a screen 2 m ahead facing it (+Z toward the camera).
-	var cam := Transform3D.IDENTITY
-	var screen := Transform3D(Basis.IDENTITY, Vector3(0, 0, -2))
-	var size := Vector2(0.38, 0.285)
-	_ok(ArcadeAttract.screen_visible(cam, 70.0, 1.0, screen, size), "rules: a screen straight ahead is in view")
-	_ok(not ArcadeAttract.screen_visible(cam, 70.0, 1.0, Transform3D(Basis.IDENTITY, Vector3(0, 0, 2)), size),
+	# In view. A desktop camera: 70 deg up and down, 16:9. A headset eye: wide and not symmetric (Quest 3 is
+	# about 110 deg across and 96 up and down, an eye turned a few degrees outward).
+	var size := ArcadeAttract.GLASS_SIZE
+	var desk := Projection.create_perspective(70.0, 16.0 / 9.0, 0.05, 100.0)
+	var n := 0.05
+	var hmd := Projection.create_frustum(-1.33 * n, 1.0 * n, -0.95 * n, 1.05 * n, n, 100.0)    # an eye: -53 to +45 deg across
+	var eye := Transform3D.IDENTITY
+	var ahead := Transform3D(Basis.IDENTITY, Vector3(0, 0, -2))
+	_ok(ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], ahead, size), "rules: a screen straight ahead is in view")
+	_ok(not ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], Transform3D(Basis.IDENTITY, Vector3(0, 0, 2)), size),
 		"rules: one behind the head is not")
-	_ok(not ArcadeAttract.screen_visible(cam, 70.0, 1.0, Transform3D(Basis.IDENTITY, Vector3(6, 0, -2)), size),
+	_ok(not ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], Transform3D(Basis.IDENTITY, Vector3(8, 0, -2)), size),
 		"rules: one far off to the side is not")
-	_ok(not ArcadeAttract.screen_visible(cam, 70.0, 1.0, Transform3D(Basis.IDENTITY, Vector3(0, 6, -2)), size),
+	_ok(not ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], Transform3D(Basis.IDENTITY, Vector3(0, 8, -2)), size),
 		"rules: nor one far above")
-	_ok(ArcadeAttract.screen_visible(cam, 70.0, 1.0, Transform3D(Basis.IDENTITY, Vector3(1.2, 0, -2)), size),
-		"rules: a screen inside the edge of the view is in view")
-	# Turned its back to us (+Z away from the camera): the cabinet's rear is no glass.
+	# The point of reading the real projection: 50 deg to the side is outside a narrow view and inside a
+	# headset eye, whose field of view is the runtime's and not a number of ours.
+	var wide := Transform3D(Basis.IDENTITY, Vector3(-3.6, 0, -3.0))                  # 50 deg to the left
+	var narrow := Projection.create_perspective(40.0, 16.0 / 9.0, 0.05, 100.0)       # a 40 deg desktop view
+	_ok(not ArcadeAttract.screen_in_view([{"xf": eye, "proj": narrow}], wide, size),
+		"rules: 50 deg to the side is outside a narrow desktop view")
+	_ok(ArcadeAttract.screen_in_view([{"xf": eye, "proj": hmd}], wide, size),
+		"rules: and inside a headset eye, which sees that far across")
+	var past := Transform3D(Basis.IDENTITY, Vector3(-6.0, 0, -3.0))                  # 63 deg left: past the eye's -53
+	_ok(not ArcadeAttract.screen_in_view([{"xf": eye, "proj": hmd}], past, size),
+		"rules: but not past the eye's own edge")
+	# Two eyes: seen by either counts. The right eye turned outward sees what the left does not.
+	var left := {"xf": Transform3D(Basis(Vector3.UP, deg_to_rad(4.0)), Vector3(-0.032, 0, 0)), "proj": hmd}
+	var right := {"xf": Transform3D(Basis(Vector3.UP, deg_to_rad(-4.0)), Vector3(0.032, 0, 0)), "proj": hmd}
+	var far_right := Transform3D(Basis.IDENTITY, Vector3(3.6, 0, -3.0))              # 50 deg to the right
+	_ok(ArcadeAttract.screen_in_view([left, right], far_right, size) \
+		and ArcadeAttract.screen_in_view([right], far_right, size) \
+		and not ArcadeAttract.screen_in_view([left], far_right, size),
+		"rules: with two eyes a screen only the outer eye reaches is in view")
+	# A rectangle, not a point: through a 10 deg view at 2 m the glass is wider than the picture, so every
+	# corner is outside it and the centre is inside; a corner test would call it unseen.
+	var tiny := Projection.create_perspective(10.0, 1.0, 0.05, 100.0)
+	_ok(ArcadeAttract.screen_in_view([{"xf": eye, "proj": tiny}], ahead, size),
+		"rules: a glass wider than the picture, every corner outside it, is in view")
+	# Its centre 18% past the picture's edge (past the margin), the glass's near side only 8% past it.
+	var edge_x := 2.0 * tan(deg_to_rad(35.0)) * 16.0 / 9.0
+	var half_out := Transform3D(Basis.IDENTITY, Vector3(edge_x * 1.18, 0, -2.0))
+	_ok(ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], half_out, size),
+		"rules: a screen whose centre is out of the picture but whose glass reaches it counts")
+	_ok(not ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], Transform3D(Basis.IDENTITY, Vector3(edge_x * 1.6, 0, -2.0)), size),
+		"rules: and one wholly past the edge does not")
+	# Facing away is not the glass, however centred.
 	var turned := Transform3D(Basis(Vector3.UP, PI), Vector3(0, 0, -2))
-	_ok(not ArcadeAttract.screen_visible(cam, 70.0, 1.0, turned, size),
+	_ok(not ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], turned, size),
 		"rules: a screen facing away is not in view, however centred")
-	_ok(ArcadeAttract.screen_visible(cam, 70.0, 1.0, Transform3D(Basis.IDENTITY, Vector3(0.0, 0, -0.1)), size),
+	_ok(ArcadeAttract.screen_in_view([{"xf": eye, "proj": desk}], Transform3D(Basis.IDENTITY, Vector3(0.0, 0, -0.1)), size),
 		"rules: and one right at the face still is")
+	_ok(not ArcadeAttract.screen_in_view([], ahead, size), "rules: with nothing to look through, nothing is seen (the cabinet decides what that means)")
 
 	# Who gets a video: the nearest, ties to the lower index.
 	var picked := ArcadeAttract.pick_budget(PackedFloat32Array([5.0, 1.0, 9.0, 2.0]), 2)
