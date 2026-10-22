@@ -156,11 +156,16 @@ const SOURCES := {
 	# top: a console switched on first no longer waits for its partner's i.LINK
 	# driver, and cabled consoles line their frames up on the cable, which took
 	# Time Crisis II's linked second area from 36 fps to 48-60 (ps2-ilink.md).
+	# v5 adds the network adapter's Ethernet cable (pcsx2_dev9_eth = "link",
+	# protocol ethernet-1 on link port 1), which the room's Network Adapter card
+	# and Ethernet hub drive -- Gran Turismo 4's Multi-LAN Race, six consoles
+	# verified -- and lets six copies of the core share one process
+	# (docs/dev/ethernet-lan.md).
 	#
 	# GPL-3.0, so the tag beside the binary is the source obligation, as Dolphin's.
 	"pcsx2": {
 		"repo":  "RetroXR/ps2",
-		"known_tag": "retroxr-pcsx2-libretro-v4",
+		"known_tag": "retroxr-pcsx2-libretro-v5",
 		"label": "LRPS2 (retroXR build)",
 		"assets": {
 			"Windows": "pcsx2_libretro.dll.zip",
