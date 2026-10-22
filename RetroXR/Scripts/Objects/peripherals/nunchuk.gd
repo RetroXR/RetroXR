@@ -112,6 +112,7 @@ func _ready() -> void:
 	_c_rest = _c_button.transform
 	_z_rest = _z_button.transform
 	_stick_rest = _stick.transform
+	_bind_poke()
 	_load_bindings()
 	_spawn_cable()
 	call_deferred("_find_locomotion")
@@ -320,11 +321,29 @@ func _exit_tree() -> void:
 ## through accel_in_nunchuk_frame, and no longer doubles as a button.
 func get_state() -> Dictionary:
 	var vr := is_instance_valid(_holding_ctrl)
+	# C and Z also give under a fingertip (see ControlPoke). They are not RetroPad
+	# buttons, so the poke carries them on two private bits of its own.
+	var poked: int = int(_poke.poll()["btn"]) if _poke != null else 0
 	return {
 		"stick": _holding_ctrl.get_vector2("primary") if vr else Vector2.ZERO,
-		"c":     _held(_nunchuk_map.get("c", "ax_button")),
-		"z":     _held(_nunchuk_map.get("z", "trigger")),
+		"c":     _held(_nunchuk_map.get("c", "ax_button")) or (poked & _POKE_C) != 0,
+		"z":     _held(_nunchuk_map.get("z", "trigger")) or (poked & _POKE_Z) != 0,
 	}
+
+
+const _POKE_C := 1 << 0
+const _POKE_Z := 1 << 1
+var _poke: ControlPoke = null
+
+
+## C and Z as poke targets. Each cap is tipped back ~58° on the brow, its face
+## along its own +Y, so a finger presses it along its own -Y — not along the +Z
+## the animation slides it by, which would aim at the corner of the cap.
+func _bind_poke() -> void:
+	_poke = ControlPoke.new(self)
+	for cap: MeshInstance3D in [_c_button, _z_button]:
+		var into := -(cap.transform.basis * Vector3.UP).normalized()
+		_poke.targets.append(ControlPoke.button(cap, 0 if cap == _c_button else 1, into))
 
 
 ## Hysteresis for the analog VR sources — see InputLatch. Without it a single

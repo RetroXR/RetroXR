@@ -451,6 +451,10 @@ func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
 	# on the same bits, so the buttons the hardware never had are dropped here
 	# rather than unbound in three separate maps.
 	var sys_model := model as RetroSystemModel
+	# A cap pressed with a fingertip joins every other source here.
+	if model != null and model.has_method("poke_merge"):
+		var poked: Dictionary = model.poke_merge(btn, alx, aly, arx, ary, ANALOG_SCALE)
+		btn = poked["btn"]; alx = poked["alx"]; aly = poked["aly"]; arx = poked["arx"]; ary = poked["ary"]
 	if sys_model != null:
 		btn &= ~sys_model.get_unsupported_button_mask()
 	if model != null and model.has_method("animate_controls"):

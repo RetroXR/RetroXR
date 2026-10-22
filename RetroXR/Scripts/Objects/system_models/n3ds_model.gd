@@ -348,6 +348,26 @@ func _cache_anim_meshes() -> void:
 		_anim_dpad = {"node": dpad, "rest": dpad.transform, "pivot": pivot}
 
 
+## The shell's controls as poke targets, from the bindings animate_controls uses:
+## each cap along its own "dir", the cross turning about -X for UP and -Z for
+## RIGHT. HOME has no input behind it and simply gives. The circle pad and C-Stick
+## are pushed, not pressed, so they are left out.
+func _poke_targets() -> Array[Dictionary]:
+	if not _anim_cached:
+		_cache_anim_meshes()
+	var out := super._poke_targets()
+	for e: Dictionary in _anim_btns:
+		out.append({"node": e["node"], "rest": e["rest"],
+			"dir": e.get("dir", _ANIM_PRESS_DIR), "bit": int(e["bit"])})
+	if not _anim_dpad.is_empty():
+		out.append(ControlPoke.rocker(_anim_dpad["node"], _anim_dpad["rest"], _anim_dpad["pivot"],
+			_ANIM_PRESS_DIR, Vector3.LEFT, Vector3.FORWARD))
+	var home := find_child("HomeButton", true, false) as MeshInstance3D
+	if home != null:
+		out.append(ControlPoke.button(home, -1, _ANIM_PRESS_DIR, {"depth": _FACE_PRESS}))
+	return out
+
+
 ## btn = RETRO_JOYPAD bitmask; lstick/rstick are the analog values (−1..1) as sent
 ## to the core (y already screen-negated). Lerps the meshes toward that state.
 func animate_controls(btn: int, lstick: Vector2, rstick: Vector2) -> void:

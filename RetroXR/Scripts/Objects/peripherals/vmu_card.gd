@@ -120,6 +120,8 @@ const _CONTROLS: Array = [
 ]
 
 var _anim: ControlAnimator = null
+## The same controls, pressed with a fingertip (see ControlPoke).
+var _poke: ControlPoke = null
 ## The button mask last pushed in, which is what the controls animate from.
 var _btn := 0
 ## Frames since anything needed driving. A released control lerps back to rest
@@ -252,6 +254,14 @@ func _bind_controls() -> void:
 	var pivot := get_node_or_null("DpadMount/DpadPivot") as Node3D
 	if pivot != null:
 		_anim.dpad = {"node": pivot, "rest": pivot.transform, "pivot": Vector3.ZERO}
+	_poke = ControlPoke.new(self)
+	_poke.add_animator(_anim)
+
+
+## The caps a fingertip is pressing this frame, as a RetroPad mask. VmuInput ORs
+## it into what reaches set_input, so a poke animates and plays as a press does.
+func poke_mask() -> int:
+	return int(_poke.poll()["btn"]) if _poke != null else 0
 
 
 ## Push the button state this card's controls should show, and — while it is

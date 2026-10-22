@@ -203,12 +203,15 @@ func _process(_delta: float) -> void:
 	var active := _running() and _held()
 	if active != _active:
 		_set_active(active)
+	# A cap pressed with a fingertip counts whether or not a hand holds the card:
+	# one lying on the table, or docked in a pad, still gives under a finger.
+	var poked: int = int(_card.call("poke_mask")) if _card.has_method("poke_mask") else 0
 	if not active:
-		if _last_mask != 0:
-			_last_mask = 0
-			_card.call("set_input", 0)
+		if poked != _last_mask:
+			_last_mask = poked
+			_card.call("set_input", poked)
 		return
-	var mask := 0
+	var mask := poked
 	if _desktop_held:
 		mask = _desktop_mask()
 	for ctrl in _holders:

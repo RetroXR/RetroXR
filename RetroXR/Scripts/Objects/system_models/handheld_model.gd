@@ -715,6 +715,75 @@ func animate_controls(btn: int, lstick: Vector2, rstick: Vector2) -> void:
 	_standin.animate(btn, lstick, rstick, _STANDIN_ANIM_W)
 
 
+# --- poking the controls ------------------------------------------------------
+#
+# Every cap animate_controls moves can also be pressed with a fingertip (see
+# ControlPoke). HandheldInput merges the poke into what it sends, so a poked cap
+# reaches the core, netplay and the animation above as a mapped button does.
+
+var _poke: ControlPoke = null
+
+
+## Merge this frame's poked controls into an input state (HandheldInput's).
+func poke_merge(btn: int, alx: int, aly: int, arx: int, ary: int, scale: int) -> Dictionary:
+	if _poke == null:
+		if _standin == null:
+			_bind_standin_controls()
+		_poke = ControlPoke.new(self)
+		_poke.add_animator(_standin)
+		_poke.targets.append_array(_poke_targets())
+		_poke.targets.append_array(_extra_poke_targets())
+	return _poke.merge_into(btn, alx, aly, arx, ary, scale)
+
+
+## Caps a shell pack adds to what the model already pokes. A pack overrides this
+## rather than _poke_targets because it need not call super(), which a pack still
+## loading in an older build (which has no such method to call) cannot do.
+func _extra_poke_targets() -> Array[Dictionary]:
+	return []
+
+
+## The caps a model drives itself, outside the stand-in pass, as ControlPoke
+## targets. A cap with no input behind it (a Home key) goes here too, with a
+## "depth", and ControlPoke moves it.
+##
+## The default reads the detailed-shell convention the RetroXR-models handhelds
+## share (the GBA here; the Game Boy, Game Boy Color and DS packs): `_presses`
+## rows [node, rest, bit, ...] pressing along -Z, a `_dpad` (+ `_dpad_rest`)
+## turned about -X for UP and +Y for RIGHT, and shoulder caps on the top edge in
+## `_hinges` or `_swings` rows [node, rest, bit, ...] — all in the GLB's frame,
+## +Z out of the face and +Y up it. Read by name, so a pack written against an
+## older build needs nothing new to be poked.
+func _poke_targets() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for e: Array in _shell_rows("_presses"):
+		out.append({"node": e[0], "rest": e[1], "dir": Vector3.FORWARD, "bit": int(e[2])})
+	for edge: String in ["_hinges", "_swings"]:
+		for e: Array in _shell_rows(edge):
+			out.append({"node": e[0], "rest": e[1], "dir": Vector3.DOWN, "bit": int(e[2])})
+	var dpad: Variant = get("_dpad")
+	var dpad_rest: Variant = get("_dpad_rest")
+	if dpad is Node3D and dpad_rest is Transform3D:
+		out.append(ControlPoke.rocker(dpad, dpad_rest, (dpad_rest as Transform3D).origin,
+			Vector3.FORWARD, Vector3.LEFT, Vector3.UP))
+	return out
+
+
+## The rows of member `member` that have the detailed-shell shape [node, rest,
+## bit, ...]. Only those: a pack may use the same name for rows of its own (the
+## 3DS XL packs keep dictionaries in `_presses` and `_swings`).
+func _shell_rows(member: String) -> Array:
+	var out: Array = []
+	var rows: Variant = get(member)
+	if not (rows is Array):
+		return out
+	for e: Variant in rows:
+		if e is Array and (e as Array).size() >= 3 and e[0] is Node3D \
+				and e[1] is Transform3D and (e[2] is int or e[2] is float):
+			out.append(e)
+	return out
+
+
 ## Some converted shells ship emissiveFactor 1,1,1 with no emissive texture,
 ## which Godot takes literally — the Arctic White GBA glowed like a lightbulb.
 ## The live picture is drawn on our own quad, so nothing on the shell itself

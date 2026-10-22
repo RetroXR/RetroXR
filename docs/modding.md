@@ -521,6 +521,39 @@ rooted at `LightGun`. Persistence already records its scene path and falls back
 to the generic pad if your mod is gone; nothing extra is needed. What it plugs
 into is below.
 
+### Buttons a fingertip presses
+
+Every button on a pad, handheld, VMU, Nunchuk or light gun can be pressed with a
+fingertip as well as from the hand holding it (Options > "Press Controller
+Buttons by Touch", on by default). The game finds the caps itself wherever it
+already animates them, so a pad that fills `_buttons` / `_dpad` in
+`_cache_meshes()`, a gun that fills `_anim_btns`, and a handheld shell that keeps
+the detailed-shell rows (`_presses` as `[node, rest, bit, …]` pressing along -Z,
+`_dpad` + `_dpad_rest` turned about -X for UP and +Y for RIGHT, shoulder rows in
+`_hinges` or `_swings`, in a frame with +Z out of the face) need nothing more.
+
+A control you move yourself, outside those lists, is invisible to it. Return it
+from `func _extra_poke_targets() -> Array[Dictionary]` (pads, guns and handhelds
+all have the hook; it needs no `super()`, so it is safe in a pack that still loads
+in older builds, which never call it). Each target is a plain dictionary, every
+vector in the control's PARENT frame:
+
+```gdscript
+{"node": cap, "rest": cap.transform, "dir": Vector3(0, 0, -1), "bit": ControllerBindings.JOYPAD_L}
+{"node": home, "rest": home.transform, "dir": into, "depth": 0.0004}   # no input: it only goes in
+{"node": cross, "rest": rest, "dir": into, "rocker": true, "pivot": rest.origin,
+    "up": into.cross(turn_for_up), "right": into.cross(turn_for_right)}
+```
+
+`dir` is the way the cap goes INTO the shell. For a cross, the arm a turn sinks is
+`dir × turn`, so pass the axis your own animation turns it about for UP and for
+RIGHT (sign included) and the arms come out right. A handheld whose controls fit
+none of the conventions above can override `_poke_targets()` whole instead (the
+3DS packs do). `Tests/control_poke_tests.tscn -- --only=none
+--extra=key|handheld|res://mods/<id>/<scene>.tscn` runs the game's checks on a
+staged shell, including the one that drives your animation with each d-pad bit
+and pokes the arm it sank.
+
 ### Sockets, plugs and what fits
 
 Every socket and every plug in the room has a **connector**, and a plug goes into

@@ -152,6 +152,25 @@ func _cache_anim_meshes() -> void:
 			"pivot": dpad.transform * dpad.get_aabb().get_center()}
 
 
+## The shell's controls as poke targets, from the bindings animate_controls uses:
+## caps press along _PRESS_DIR, and the cross turns about -X for UP and -Z for
+## RIGHT. The stand-in's light button has no input behind it and simply gives.
+func _poke_targets() -> Array[Dictionary]:
+	if not _anim_cached:
+		_cache_anim_meshes()
+	# super first: a shell pack binds its caps in the base's detailed-shell form.
+	var out := super._poke_targets()
+	for e: Dictionary in _anim_btns:
+		out.append({"node": e["node"], "rest": e["rest"], "dir": _PRESS_DIR, "bit": int(e["bit"])})
+	if not _anim_dpad.is_empty():
+		out.append(ControlPoke.rocker(_anim_dpad["node"], _anim_dpad["rest"], _anim_dpad["pivot"],
+			_PRESS_DIR, Vector3.LEFT, Vector3.FORWARD))
+	var light := find_child("BrightnessButton", true, false) as MeshInstance3D
+	if light != null:
+		out.append(ControlPoke.button(light, -1, _PRESS_DIR, {"depth": _SMALL_PRESS}))
+	return out
+
+
 ## btn = RETRO_JOYPAD bitmask; the sticks are unused (the SP has no analog).
 ##
 ## The stand-in's controls are named for the shared stand-in vocabulary, which the
