@@ -127,6 +127,11 @@ var _browse_banner: VBoxContainer = null
 ## Tests: whether the room counts as ready to apply into (null = ask SceneManager).
 ## A suite has no room, so without it "applied" and "blocked" look the same.
 var room_ready_override: Variant = null
+## Tests: whether a download installs and switches on by itself (null = ask
+## AppPrefs.mods_auto_install). A suite must not read or write the player's.
+var auto_install_override: Variant = null
+## The "Install and enable downloads" switches, one per page, kept in step.
+var _auto_switches: Array[VRToggle] = []
 var _packs_banner: VBoxContainer = null
 
 # Installed
@@ -510,6 +515,7 @@ func _build_browse(vbox: VBoxContainer) -> void:
 	pager.add_child(_next_btn)
 
 	_browse_list.add_child(HSeparator.new())
+	add_auto_install_switch(_browse_list)
 	_browse_list.add_child(MenuStyle.hint("Mods are hosted by mod.io. " + TRUST_WARNING))
 	var withdraw := _narrow(MenuStyle.row_button("Withdraw mod.io consent", 16, 300, 48, false))
 	withdraw.pressed.connect(func() -> void:
@@ -963,6 +969,62 @@ func _source_for(id: String, modio_id: int, file_id: int, profile_url: String) -
 	return ModCollectionPlan.source_after_single(m.source(id), modio_id, file_id, profile_url)
 
 
+# ── Install and enable as soon as it lands ────────────────────────────────────
+
+## Whether a finished download skips its review: installed straight away, and
+## switched on when it is new (an update keeps whatever the player chose for it).
+func auto_installs() -> bool:
+	if auto_install_override != null:
+		return bool(auto_install_override)
+	return AppPrefs.mods_auto_install
+
+
+## Install the download parked under `key` as the review's Install would, with
+## Enable on for a new mod, and say how it went.
+func _auto_install(key: String) -> void:
+	var id := (review(key)["manifest"] as ModManifest).id
+	_report_install(key, _install_reviewed(key, _manager().mod(id) == null))
+	if _open_review == key:
+		_close_single_review()
+	else:
+		_refresh_open_mod(key)
+
+
+## The toast after one mod's install, by review or by itself.
+func _report_install(key: String, out: Dictionary) -> void:
+	var also_failed: PackedStringArray = out.get("also_failed", PackedStringArray())
+	if not bool(out.get("ok", false)):
+		notify(_toast_key(key), "❌", "Not installed: %s" % str(out.get("error", "")),
+			-1.0, MenuToasts.DWELL_FAIL)
+	elif not also_failed.is_empty():
+		notify(_toast_key(key), "❌", "Installed, but not what it needs: %s" % ", ".join(also_failed),
+			-1.0, MenuToasts.DWELL_FAIL)
+	else:
+		var step := next_step()
+		notify(_toast_key(key), "✅", "Installed" + ("" if step.is_empty() else " — " + step),
+			-1.0, MenuToasts.DWELL_FAIL)
+
+
+## The switch for AppPrefs.mods_auto_install, under `parent`. Every page that
+## has one shows the same answer.
+func add_auto_install_switch(parent: Container) -> VRToggle:
+	var sw := MenuStyle.switch_row(parent, "Install and enable downloads", auto_installs(), 18, 56,
+		"On: a mod installs and switches on as soon as it downloads. Off: each one waits "
+		+ "for you to review what it replaces and what it needs, and lands switched off.")
+	sw.name = "AutoInstallSwitch"
+	_auto_switches.append(sw)
+	sw.toggled.connect(func(on: bool) -> void:
+		if auto_install_override != null:
+			auto_install_override = on
+		else:
+			AppPrefs.mods_auto_install = on
+			AppPrefs.save_prefs()
+		for other: VRToggle in _auto_switches:
+			if other != sw and is_instance_valid(other):
+				other.set_pressed_no_signal(on))
+	return sw
+
+
 # ── Install all ───────────────────────────────────────────────────────────────
 
 ## The downloads Install all would install: each one parked for its review, ready
@@ -980,8 +1042,9 @@ func installable_reviews() -> Array[String]:
 
 
 ## Install every download that waits for its review, each as its own Install
-## would. They land as a download always does -- switched OFF unless the mod was
-## already on -- so the Enable switch under Installed is still the player's say.
+## would. They land switched OFF unless the mod was already on -- so the Enable
+## switch under Installed is still the player's say -- except that with
+## auto_installs a new one goes in on, as it would have had it not waited.
 func install_all() -> void:
 	var keys := installable_reviews()
 	if keys.is_empty():
@@ -991,8 +1054,9 @@ func install_all() -> void:
 	var done := 0
 	var failed := PackedStringArray()
 	for key: String in keys:
-		var label := (review(key)["manifest"] as ModManifest).name
-		var out := _install_reviewed(key, false)
+		var manifest: ModManifest = review(key)["manifest"]
+		var label := manifest.name
+		var out := _install_reviewed(key, auto_installs() and m.mod(manifest.id) == null)
 		notify_clear(_toast_key(key))
 		if not bool(out.get("ok", false)):
 			failed.append("%s (%s)" % [label, str(out.get("error", ""))])
@@ -1217,7 +1281,8 @@ func _fetch_with_needs(key: String, mod: Dictionary, needs: Array) -> void:
 ## used to be recorded against the last one only, and the first then waited on it
 ## for ever ("Downloading what it needs…").
 func _need_done(dkey: String, staged: bool, error: String) -> void:
-	for owner: Variant in (_needed_for.get(dkey, []) as Array):
+	# A copy: installing an owner here drops it from this very list.
+	for owner: Variant in (_needed_for.get(dkey, []) as Array).duplicate():
 		var key := str(owner)
 		var entry: Dictionary = _with_needs.get(key, {})
 		if entry.is_empty() or (entry["done"] as Array).has(dkey):
@@ -1228,7 +1293,10 @@ func _need_done(dkey: String, staged: bool, error: String) -> void:
 		else:
 			(entry["skip"] as Array).append({"name": str(((entry["deps"] as Dictionary)[dkey] as Dictionary)["name"]),
 				"why": error if not error.is_empty() else "the download was cancelled"})
-		if _open_review == key:
+		if auto_installs() and has_review(key) and _needs_waiting(key) == 0 \
+				and not _packs_page.owns(key) and not _needed_for.has(key):
+			_auto_install(key)
+		elif _open_review == key:
 			_fill_single_review()
 	_sync_install_all_btn()
 
@@ -1353,6 +1421,13 @@ func _on_job_finished(key: String, ok: bool, error: String, result: Dictionary) 
 		# The loader's own sentence when it refused the pack, the transfer's
 		# otherwise. Either way the player learns why nothing was installed.
 		notify(_toast_key(key), "❌", "Not installed: %s" % error, -1.0, MenuToasts.DWELL_FAIL)
+	elif waiting and auto_installs():
+		if _needs_waiting(key) == 0:
+			_auto_install(key)
+			return
+		# _need_done installs it when the last of what it needs lands.
+		notify(_toast_key(key), "⏳", "Downloaded — installing once what it needs is here",
+			-1.0, MenuToasts.DWELL_INFO)
 	elif waiting:
 		notify(_toast_key(key), "✅", "Downloaded — review it to install",
 			-1.0, MenuToasts.DWELL_FAIL)
@@ -1507,20 +1582,7 @@ func _fill_single_review() -> void:
 	install.disabled = waiting > 0
 	install.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 6))
 	install.pressed.connect(func() -> void:
-		var out := _install_reviewed(key, enable != null and enable.button_pressed)
-		var also_failed: PackedStringArray = out.get("also_failed", PackedStringArray())
-		if bool(out.get("ok", false)) and not also_failed.is_empty():
-			notify(_toast_key(key), "❌", "Installed, but not what it needs: %s" % ", ".join(also_failed),
-				-1.0, MenuToasts.DWELL_FAIL)
-			_close_single_review()
-			return
-		if not bool(out.get("ok", false)):
-			notify(_toast_key(key), "❌", "Not installed: %s" % str(out.get("error", "")),
-				-1.0, MenuToasts.DWELL_FAIL)
-		else:
-			var step := next_step()
-			notify(_toast_key(key), "✅", "Installed" + ("" if step.is_empty() else " — " + step),
-				-1.0, MenuToasts.DWELL_FAIL)
+		_report_install(key, _install_reviewed(key, enable != null and enable.button_pressed))
 		_close_single_review())
 	actions.add_child(install)
 	var discard := MenuStyle.row_button("Discard", 20, 200, 56, false)

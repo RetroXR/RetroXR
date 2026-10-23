@@ -24,6 +24,8 @@
 ##   consent/   NOTHING BUT THE TERMS IS ASKED OF MOD.IO BEFORE THE PLAYER AGREES
 ##   bundle/    one upload holding a build per platform, or a wrapped .pck
 ##   review/    a download waits for the player's answer, and for nothing else
+##   autoinstall/ with the browser's switch on, a download installs and switches
+##              on by itself (an update keeps its switch); off, it waits as before
 ##   space/     a file that will not fit is refused before it is fetched
 ##   thumbnail/ the preview image the packer insists on
 ##   download/  a fetch from a local server: redirect, checksum, install, refusal
@@ -79,6 +81,7 @@ func _ready() -> void:
 	if _want("consent"):   await _group_consent()
 	if _want("bundle"):    _group_bundle()
 	if _want("review"):    _group_review()
+	if _want("autoinstall"): _group_auto_install()
 	if _want("space"):     await _group_space()
 	if _want("thumbnail"): _group_thumbnail()
 	if _want("depends"):   _group_depends()
@@ -1093,6 +1096,7 @@ class QueueStub extends ModDownloader:
 func _group_pack_queue() -> void:
 	var m := _fresh()
 	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = false
 	var stub := QueueStub.new()
 	view.downloader = stub
 	view.reviews.manager = m
@@ -1201,6 +1205,7 @@ class ClientStub extends ModioClient:
 func _group_tiles() -> void:
 	var m := _fresh()
 	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = false
 	var stub := QueueStub.new()
 	view.downloader = stub
 	view.reviews.manager = m
@@ -1282,6 +1287,7 @@ func _group_tiles() -> void:
 func _group_install_all() -> void:
 	var m := _fresh()
 	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = false
 	var stub := QueueStub.new()
 	view.downloader = stub
 	view.reviews.manager = m
@@ -1329,6 +1335,7 @@ func _group_install_all() -> void:
 func _group_holes() -> void:
 	var m := _fresh()
 	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = false
 	var stub := QueueStub.new()
 	view.downloader = stub
 	view.reviews.manager = m
@@ -1452,12 +1459,101 @@ class ToastStub extends Node:
 		return said.any(func(m: String) -> bool: return m.contains(part))
 
 
+# ── autoinstall/ ──────────────────────────────────────────────────────────────
+
+func _group_auto_install() -> void:
+	var m := _fresh()
+	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = true
+	var stub := QueueStub.new()
+	view.downloader = stub
+	view.reviews.manager = m
+	var toasts := ToastStub.new()
+	view._menu = toasts
+	view.room_ready_override = true
+	var mod_of := func(id: int, file_id: int) -> Dictionary:
+		return ModioClient.parse_mod(_modio_mod(id, "M%d" % id, file_id))
+	var park := func(id: int, mod_id: String, version: String = "1.0.0") -> void:
+		view.reviews.stage(_stage(m, "modio-%d.zip" % id, _pack(mod_id, version)),
+			{"modio_id": id, "file_id": id * 10, "profile_url": ""})
+
+	# ── a new mod goes straight in, switched on ──
+	park.call(1101, "t.auto")
+	view._on_job_finished("modio-1101", true, "", {"review": true})
+	_ok(m.mod("t.auto") != null and not view.has_review("modio-1101"),
+		"autoinstall/a finished download is installed without its review")
+	_ok(m.is_enabled("t.auto"), "autoinstall/and switched on")
+	_eq(int(m.source("t.auto").get("modio_id", 0)), 1101, "autoinstall/with where it came from")
+	_ok(toasts.heard("Installed"), "autoinstall/and the player is told", str(toasts.said))
+	_ok(view.switched_off_new().is_empty(), "autoinstall/the bar does not offer to enable it again")
+
+	# ── an update keeps the switch the player left it at ──
+	m.set_enabled("t.auto", false)
+	park.call(1101, "t.auto", "1.1.0")
+	view._on_job_finished("modio-1101", true, "", {"review": true})
+	_ok(not view.has_review("modio-1101") and not m.is_enabled("t.auto"),
+		"autoinstall/an update of a mod switched off installs and stays off")
+
+	# ── a mod that needs another waits for it, then both go in ──
+	view._fetch_with_needs("modio-1111", mod_of.call(1111, 11110), [mod_of.call(1112, 11120)])
+	park.call(1111, "t.owner")
+	toasts.said.clear()
+	view._on_job_finished("modio-1111", true, "", {"review": true})
+	_ok(view.has_review("modio-1111") and m.mod("t.owner") == null,
+		"autoinstall/a mod whose needs are still coming down waits for them")
+	_ok(toasts.heard("once what it needs"), "autoinstall/and says so", str(toasts.said))
+	park.call(1112, "t.need")
+	view._on_job_finished("modio-1112", true, "", {"review": true})
+	_ok(m.mod("t.owner") != null and m.mod("t.need") != null,
+		"autoinstall/the last of what it needs landing installs both")
+	_ok(m.is_enabled("t.owner") and not view.has_review("modio-1111") and not view.has_review("modio-1112"),
+		"autoinstall/switched on, and nothing of them waits")
+	_ok(view._with_needs.is_empty() and view._needed_for.is_empty(),
+		"autoinstall/and nothing is left remembering them")
+
+	# ── a pack installs its members, switched on ──
+	var page: SpawnMenuModsPacksPage = view._packs_page
+	page._install_mods({"id": 41, "name": "Shelf A"}, [mod_of.call(1131, 11310)])
+	park.call(1131, "t.packed")
+	page.on_job_done("modio-1131", true, "")
+	_ok(m.mod("t.packed") != null and m.is_enabled("t.packed"),
+		"autoinstall/a pack's members install and switch on when the last lands")
+	_ok(page._batch_of(41).is_empty() and page._reviewing.is_empty(),
+		"autoinstall/and the pack asks no question")
+
+	# ── switched off, a download waits for its review as it always did ──
+	view.auto_install_override = false
+	park.call(1121, "t.manual")
+	toasts.said.clear()
+	view._on_job_finished("modio-1121", true, "", {"review": true})
+	_ok(view.has_review("modio-1121") and m.mod("t.manual") == null,
+		"autoinstall/off, a download waits for its review")
+	_ok(toasts.heard("review it to install"), "autoinstall/and says so", str(toasts.said))
+	view.discard_review("modio-1121")
+
+	# ── the switches: every page's agrees, and a suite leaves the player's pref be ──
+	var pref := AppPrefs.mods_auto_install
+	_eq(view._auto_switches.size(), 2, "autoinstall/Browse and Packs each have the switch")
+	# Built before the override was set, so showing the player's pref.
+	view._auto_switches[0].set_pressed_no_signal(false)
+	view._auto_switches[0].button_pressed = true
+	_ok(view.auto_installs() and view._auto_switches[1].button_pressed,
+		"autoinstall/flipping one turns it on and moves the other")
+	_eq(AppPrefs.mods_auto_install, pref, "autoinstall/the override keeps the player's pref untouched")
+
+	stub.free()
+	view.free()
+	toasts.free()
+	m.free()
+
+
 # ── holes2/ ───────────────────────────────────────────────────────────────────
 
 ## The second review's findings (2026-10-22).
 func _group_holes2() -> void:
 	var m := _fresh()
 	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = false
 	var stub := QueueStub.new()
 	view.downloader = stub
 	view.reviews.manager = m
@@ -1599,6 +1695,7 @@ func _group_holes2() -> void:
 ## size, which headless lays out though it draws nothing.
 func _group_scroll() -> void:
 	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = false
 	view.size = Vector2(1100, 840)
 	add_child(view)
 	view._browse_gate.visible = false
@@ -1637,6 +1734,7 @@ func _group_scroll() -> void:
 func _group_pack_return() -> void:
 	var m := _fresh()
 	var view := SpawnMenuModsView.create(null)
+	view.auto_install_override = false
 	var stub := QueueStub.new()
 	view.downloader = stub
 	view.reviews.manager = m

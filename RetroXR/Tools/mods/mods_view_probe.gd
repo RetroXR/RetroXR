@@ -270,14 +270,14 @@ func _ready() -> void:
 	var key2 := SpawnMenuModsView._job_key(101)
 	view.reviews._parked[key] = {"staged": "", "manifest": manifest, "thumbnail": null, "source": {}}
 	view.reviews._parked[key2] = {"staged": "", "manifest": second, "thumbnail": null, "source": {}}
-	page._batch = {"id": 30, "name": "Sony shelf", "keys": {key: client.mods[0], key2: client.mods[1]},
+	page._reviewing = {"id": 30, "name": "Sony shelf", "cancelled": false, "keys": {key: client.mods[0], key2: client.mods[1]},
 		"done": [key, key2], "staged": [key, key2], "have": [client.mods[2]],
 		"skip": [{"name": "Sega Saturn", "why": "mod.io has not finished scanning this file"}]}
 	page._fill_review()
 	page._show(page._review)
 	await get_tree().create_timer(0.6).timeout
 	await _shot("pack_review")
-	page._batch = {}
+	page._reviewing = {}
 	view.reviews._parked.clear()
 
 	view._tabs.current_tab = SpawnMenuModsView.INSTALLED_TAB

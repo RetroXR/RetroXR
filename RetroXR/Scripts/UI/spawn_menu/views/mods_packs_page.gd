@@ -218,9 +218,10 @@ func _build_list() -> void:
 	pager.add_child(_next_btn)
 
 	_list.add_child(HSeparator.new())
+	_view.add_auto_install_switch(_list)
 	_list.add_child(MenuStyle.hint(
 		"A pack is a list of mods somebody put together on mod.io. Installing "
-		+ "one installs its mods, and nothing in it runs until you enable it."))
+		+ "one installs its mods, switched on or not as the switch above says."))
 	_update_pager()
 
 
@@ -670,6 +671,12 @@ func _finish_batch(batch: Dictionary) -> void:
 		if _detail.visible:
 			_fill_detail()
 		return
+	if _view.auto_installs():
+		_install_batch(batch, true)
+		# The question on screen, if any, is another pack's and stays up.
+		if _reviewing.is_empty() and _detail.visible:
+			_fill_detail()
+		return
 	batch["ready"] = true
 	_view.notify(toast, "✅", "%s is downloaded — review it to install" % str(batch["name"]),
 		-1.0, MenuToasts.DWELL_FAIL)
@@ -811,7 +818,14 @@ func _fill_review() -> void:
 func _confirm(enable: bool) -> void:
 	if _reviewing.is_empty():
 		return
-	var batch := _reviewing
+	_install_batch(_reviewing, enable)
+	_after_review()
+
+
+## Install what `batch` brought down, every member switched on with `enable`,
+## and say how it went. Its review's Install, or the download's end when the
+## browser installs downloads by itself.
+func _install_batch(batch: Dictionary, enable: bool) -> void:
 	var pack_id := int(batch["id"])
 	var installed := 0
 	var failed := PackedStringArray()
@@ -851,7 +865,6 @@ func _confirm(enable: bool) -> void:
 		_view.notify(toast, "✅", "%s installed (%d mod%s)%s" % [name, installed,
 			"" if installed == 1 else "s", "" if step.is_empty() else " — " + step],
 			-1.0, MenuToasts.DWELL_FAIL)
-	_after_review()
 
 
 func _discard() -> void:

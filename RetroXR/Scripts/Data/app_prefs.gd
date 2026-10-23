@@ -111,6 +111,11 @@ var show_hidden_systems: bool = false
 ## core count, no source badge. One pref for both, like the hidden list: it is a
 ## statement about how you want to read a grid, not about one tab.
 var compact_tiles: bool = false
+## Whether a mod downloaded from the mod.io browser installs and switches on as
+## soon as it lands. Off, each one waits for its review (what it replaces, what
+## it needs) and lands switched off, as every download used to. The switch is on
+## the browser's own pages.
+var mods_auto_install: bool = true
 
 ## The bedroom's time-of-day lever, 0 = morning .. 1 = night. 0.75 is the dusk the
 ## room was authored at, so an unset pref opens the room exactly as it always was.
@@ -304,6 +309,7 @@ func _load_prefs() -> void:
 			hidden_systems.append(SystemIds.canonical(hidden))
 	show_hidden_systems = JsonStore.get_bool(data, "show_hidden_systems", show_hidden_systems)
 	compact_tiles       = JsonStore.get_bool(data, "compact_tiles",       compact_tiles)
+	mods_auto_install   = JsonStore.get_bool(data, "mods_auto_install",   mods_auto_install)
 	bedroom_time_of_day = clampf(JsonStore.get_float(data, "bedroom_time_of_day",
 		bedroom_time_of_day), 0.0, 1.0)
 	hw_render_overrides = JsonStore.get_dict(data, "hw_render_overrides", hw_render_overrides)
@@ -336,6 +342,7 @@ func save_prefs() -> bool:
 		"hidden_systems":    hidden_systems,
 		"show_hidden_systems": show_hidden_systems,
 		"compact_tiles":     compact_tiles,
+		"mods_auto_install": mods_auto_install,
 		"bedroom_time_of_day": bedroom_time_of_day,
 		"hw_render_overrides": hw_render_overrides,
 		"spawn_defaults": spawn_defaults,
