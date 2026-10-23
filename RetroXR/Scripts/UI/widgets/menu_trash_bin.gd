@@ -29,11 +29,25 @@ const ZONE := 0.16
 const ZONE_MASK := 65540
 const POLL_GRACE_FRAMES := 4
 
-const COLOR_IDLE := Color(0.42, 0.45, 0.55)
-const COLOR_ARMED := Color(0.95, 0.22, 0.2)
+## Ribbed gray plastic with a white trash symbol, wrapped once round the can
+## with the symbol facing the player (the panel's +Z). Made with an image
+## generator, then widened with its own ribs to the can's 3.1:1 so the symbol
+## is not stretched.
+const WRAP_TEXTURE := "res://Textures/trash_can_wrap.png"
+## The can narrows toward its foot, like a real one.
+const FOOT_SCALE := 0.82
+## The lid stands open on a hinge at the back, past upright: the outline of a
+## pedal bin reads as a bin from across the room, and the mouth stays clear.
+const LID_OPEN_DEG := 105.0
+const TRIM_COLOR := Color(0.36, 0.38, 0.41)
+const INSIDE_COLOR := Color(0.07, 0.075, 0.08)
+## Armed, every part takes this glow on top of its own color.
+const ARMED_GLOW := Color(0.9, 0.08, 0.05)
+const ARMED_TINT := Color(1.0, 0.4, 0.36)
 
 var _area: Area3D = null
-var _mat: StandardMaterial3D = null
+## The lit materials, each with its own color in meta "base".
+var _mats: Array[StandardMaterial3D] = []
 ## Pickables currently outlined red (held and inside the zone), as a set.
 var _armed: Dictionary = {}
 ## Bodies the zone has reported in and not yet out; the poll only runs while
@@ -44,36 +58,47 @@ var _active := false
 
 
 func _ready() -> void:
-	_mat = StandardMaterial3D.new()
-	_mat.albedo_color = COLOR_IDLE
-	_mat.roughness = 0.6
-	# Open-topped: the inside of the can has to draw too.
-	_mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var wall := _material(Color.WHITE)
+	wall.albedo_texture = load(WRAP_TEXTURE) as Texture2D
+	var trim := _material(TRIM_COLOR)
+	# The inside is seen only from within, through the mouth: back faces of a
+	# slightly smaller wall, unlit so it reads as shadow from any angle.
+	var inside := StandardMaterial3D.new()
+	inside.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	inside.albedo_color = INSIDE_COLOR
+	inside.cull_mode = BaseMaterial3D.CULL_FRONT
 
-	var can := CylinderMesh.new()
-	can.top_radius = RADIUS
-	can.bottom_radius = RADIUS * 0.82
-	can.height = HEIGHT
-	can.cap_top = false
-	can.radial_segments = 24
-	can.rings = 1
-	var can_mi := MeshInstance3D.new()
-	can_mi.name = "Can"
-	can_mi.mesh = can
-	can_mi.material_override = _mat
-	add_child(can_mi)
+	_add_part("Can", _wall_mesh(RADIUS), wall)
+	_add_part("Inside", _wall_mesh(RADIUS - 0.002), inside)
+	var floor_disk := CylinderMesh.new()
+	floor_disk.top_radius = RADIUS * FOOT_SCALE - 0.002
+	floor_disk.bottom_radius = floor_disk.top_radius
+	floor_disk.height = 0.002
+	floor_disk.radial_segments = 32
+	_add_part("Floor", floor_disk, inside).position.y = -HEIGHT * 0.5 + 0.002
 
 	var rim := TorusMesh.new()
-	rim.inner_radius = RADIUS - 0.004
-	rim.outer_radius = RADIUS + 0.004
-	rim.rings = 24
+	rim.inner_radius = RADIUS - 0.003
+	rim.outer_radius = RADIUS + 0.005
+	rim.rings = 32
 	rim.ring_segments = 8
-	var rim_mi := MeshInstance3D.new()
-	rim_mi.name = "Rim"
-	rim_mi.mesh = rim
-	rim_mi.material_override = _mat
-	rim_mi.position.y = HEIGHT * 0.5
-	add_child(rim_mi)
+	_add_part("Rim", rim, trim).position.y = HEIGHT * 0.5
+
+	# Lid: a disc hinged on the back of the rim, with a handle across its top.
+	var hinge := Node3D.new()
+	hinge.name = "LidHinge"
+	hinge.position = Vector3(0.0, HEIGHT * 0.5, -RADIUS)
+	hinge.rotation.x = -deg_to_rad(LID_OPEN_DEG)
+	add_child(hinge)
+	var lid := CylinderMesh.new()
+	lid.top_radius = RADIUS + 0.004
+	lid.bottom_radius = RADIUS + 0.006
+	lid.height = 0.007
+	lid.radial_segments = 32
+	_add_part("Lid", lid, trim, hinge).position = Vector3(0.0, 0.0035, RADIUS)
+	var handle := BoxMesh.new()
+	handle.size = Vector3(0.032, 0.007, 0.009)
+	_add_part("Handle", handle, trim, hinge).position = Vector3(0.0, 0.0105, RADIUS)
 
 	_area = Area3D.new()
 	_area.name = "TrashArea"
@@ -110,7 +135,7 @@ func _set_active(on: bool) -> void:
 		_armed.clear()
 		_zone_bodies.clear()
 		_poll_frames = 0
-		_mat.albedo_color = COLOR_IDLE
+		_set_armed_look(false)
 
 
 ## True while the bin is live and has something red over it.
@@ -176,4 +201,62 @@ func _process(_delta: float) -> void:
 			print("[MenuTrashBin] deleting '%s'" % pickable.name)
 			Trash.delete_with_dependents(pickable)
 
-	_mat.albedo_color = COLOR_ARMED if not _armed.is_empty() else COLOR_IDLE
+	_set_armed_look(not _armed.is_empty())
+
+
+func _set_armed_look(on: bool) -> void:
+	for m in _mats:
+		var base: Color = m.get_meta("base")
+		m.albedo_color = base * ARMED_TINT if on else base
+		m.emission = ARMED_GLOW if on else Color.BLACK
+
+
+func _material(color: Color) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.roughness = 0.7
+	m.emission_enabled = true
+	m.emission = Color.BLACK
+	m.set_meta("base", color)
+	_mats.append(m)
+	return m
+
+
+func _add_part(part_name: String, mesh: Mesh, mat: Material, parent: Node3D = self) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	mi.name = part_name
+	mi.mesh = mesh
+	mi.material_override = mat
+	parent.add_child(mi)
+	return mi
+
+
+## The tapered wall, open at both ends, with its texture wrapped once round:
+## u runs round from the back so u = 0.5, the middle of the image, faces +Z.
+func _wall_mesh(radius: float) -> ArrayMesh:
+	const SEGMENTS := 40
+	var foot := radius * FOOT_SCALE
+	var h := HEIGHT * 0.5
+	# The wall leans in toward the foot; its normal leans out by the same slope.
+	var slope := (radius - foot) / HEIGHT
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i in SEGMENTS:
+		var u0 := float(i) / SEGMENTS
+		var u1 := float(i + 1) / SEGMENTS
+		var t0 := (u0 - 0.5) * TAU
+		var t1 := (u1 - 0.5) * TAU
+		var d0 := Vector3(sin(t0), 0.0, cos(t0))
+		var d1 := Vector3(sin(t1), 0.0, cos(t1))
+		var n0 := (d0 + Vector3(0.0, slope, 0.0)).normalized()
+		var n1 := (d1 + Vector3(0.0, slope, 0.0)).normalized()
+		var a := [d0 * radius + Vector3(0, h, 0), Vector2(u0, 0.0), n0]   # top left
+		var b := [d0 * foot - Vector3(0, h, 0), Vector2(u0, 1.0), n0]     # foot left
+		var c := [d1 * radius + Vector3(0, h, 0), Vector2(u1, 0.0), n1]   # top right
+		var d := [d1 * foot - Vector3(0, h, 0), Vector2(u1, 1.0), n1]     # foot right
+		# Clockwise seen from outside: Godot's front face.
+		for v: Array in [a, c, d, a, d, b]:
+			st.set_normal(v[2])
+			st.set_uv(v[1])
+			st.add_vertex(v[0])
+	return st.commit()
