@@ -477,6 +477,22 @@ drooped away under it.
 - The rigid binding's overlay is given nothing (all-zero = no bend) and follows the sag because
   it follows its node. Page sheets, the turning leaf and the fan are `outline_exclude`.
 
+### What a pointer meets: the book as drawn, no padding
+
+The body box, the `PointerArea` box and the two page zones' boxes are fitted to the book AS
+DRAWN in each state (`_drawn_z_span()`; x/y the visible outline): the desktop resolver walks
+the body (layer 3) as well as the pointer layer, the XR laser only the latter. Each used to
+stand out past the book — the `PointerArea` 2 cm past every edge, the body padded to a 4 cm
+floor (`MIN_COLLISION_DEPTH`, "keeps thin books stable"; a 2.2 mm book dropped flat, edge-first
+and tilted from up to 1.5 m lands and sleeps on the floor without it), and each page zone 3.5 cm
+off both faces because its shape was sized from `reach`, which is the POKE TIP's volume and is
+checked analytically, not through the shape. A zone's box now runs from 1 mm under its page to
+`PAGE_GRAB_LIFT` (1 mm) over the TOP of the book: it must still be the first thing the laser
+meets on its page, and on the thinner half of an open book the other half's block — and the
+`PointerArea` with it — stands higher. Mid-book turns refit through `_update_stack_thickness`.
+`book_tests` rays just past each edge and just over/under each face, in all three states.
+Collision does not follow the flop bend.
+
 ### A page dragged with a pointer
 
 The desktop reticle and the VR laser latch a page with PRESSED and used to move it on MOVED —

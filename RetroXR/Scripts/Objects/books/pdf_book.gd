@@ -223,8 +223,7 @@ const COVER_GAP := 0.001            # gap between page stack face and cover quad
 const STACK_BASE_DEPTH := 0.005     # BoxMesh baseline depth used as scale divisor
 const ZFIGHT_MARGIN := 0.0005       # tiny margin to prevent Z-fighting on coplanar faces
 const HINT_LABEL_OFFSET := 0.02     # distance outside the book edge for hint labels
-const MIN_COLLISION_DEPTH := 0.04   # minimum collision shape Z — keeps thin books stable on surfaces
-const POINTER_MARGIN := 0.02        # how far the pointer target stands out past the book's edge, per side
+const PAGE_GRAB_LIFT := 0.001       # how far a page-turn zone's pointer box stands over the top of the book
 
 # ── Paper rendering ───────────────────────────────────────────────────────────
 
@@ -1473,13 +1472,13 @@ func _fit_collision_to_cover() -> void:
 	var quad: QuadMesh = _cover_mesh.mesh as QuadMesh if _cover_mesh else null
 	var w: float = quad.size.x if quad else 0.18
 	var h: float = quad.size.y if quad else 0.25
-	(col_shape.shape as BoxShape3D).size = Vector3(w, h, MIN_COLLISION_DEPTH)
-	col_shape.position = Vector3(_cover_mesh.position.x, _cover_mesh.position.y, 0.0)
+	var depth := LEAF_THICKNESS * 2.0 + COVER_GAP * 2.0
+	(col_shape.shape as BoxShape3D).size = Vector3(w, h, depth)
+	col_shape.position = _cover_mesh.position
 	var pointer_shape := $PointerArea/CollisionShape3D as CollisionShape3D
 	if pointer_shape and pointer_shape.shape is BoxShape3D:
 		pointer_shape.shape = pointer_shape.shape.duplicate()
-		var box := pointer_shape.shape as BoxShape3D
-		box.size = Vector3(w + POINTER_MARGIN * 2.0, h + POINTER_MARGIN * 2.0, box.size.z)
+		(pointer_shape.shape as BoxShape3D).size = Vector3(w, h, depth)
 		pointer_shape.position = col_shape.position
 
 
@@ -1489,32 +1488,43 @@ func _update_collision_shape() -> void:
 	if not col_shape or not col_shape.shape is BoxShape3D:
 		return
 	var half_w := _book_width / 2.0
-	var total_thick := maxf(_leaf_count * LEAF_THICKNESS, LEAF_THICKNESS * 2)
-	var depth := maxf(total_thick + COVER_THICKNESS + COVER_GAP * 2 + ZFIGHT_MARGIN, MIN_COLLISION_DEPTH)
+	# The depth as drawn, not padded: the desktop pointer hits this body, and a
+	# 4 cm floor had it answering 2 cm off both faces of a 3 mm manual.
+	var span := _drawn_z_span()
+	var depth := span.y - span.x
+	var mid_z := (span.x + span.y) * 0.5
 	match _state:
 		BookState.CLOSED:
 			# Only the right stack + spine + cover is visible
 			(col_shape.shape as BoxShape3D).size = Vector3(_book_width + _spine_width(), book_height, depth)
-			col_shape.position = Vector3(half_w, 0, 0)
+			col_shape.position = Vector3(half_w, 0, mid_z)
 		BookState.OPEN:
 			# Both page stacks visible, spanning the full open width
 			(col_shape.shape as BoxShape3D).size = Vector3(_book_width * 2.0 + _spine_width(), book_height, depth)
-			col_shape.position = Vector3.ZERO
+			col_shape.position = Vector3(0, 0, mid_z)
 		BookState.LAST_PAGE:
 			# Only the left stack + spine + back cover is visible
 			(col_shape.shape as BoxShape3D).size = Vector3(_book_width + _spine_width(), book_height, depth)
-			col_shape.position = Vector3(-half_w, 0, 0)
-	# The pointer target follows the same outline. Left at its authored size it
-	# is an open spread centred on the spine whatever the state, so a closed
-	# book answered the laser from a page-width of empty air beside it and
-	# took the click meant for whatever was there.
+			col_shape.position = Vector3(-half_w, 0, mid_z)
+	# The pointer target IS the outline, with no margin: padded out 2 cm a side
+	# it lit the book with the ray in the air beside it. Left at its authored
+	# size it was an open spread centred on the spine whatever the state.
 	var pointer_shape := $PointerArea/CollisionShape3D as CollisionShape3D
 	if pointer_shape and pointer_shape.shape is BoxShape3D:
-		var body_size := (col_shape.shape as BoxShape3D).size
-		var pointer_box := pointer_shape.shape as BoxShape3D
-		pointer_box.size = Vector3(body_size.x + POINTER_MARGIN * 2.0,
-			body_size.y + POINTER_MARGIN * 2.0, pointer_box.size.z)
+		(pointer_shape.shape as BoxShape3D).size = (col_shape.shape as BoxShape3D).size
 		pointer_shape.position = col_shape.position
+	_size_page_grab_shapes()
+
+
+## Bottom (x) and top (y) of the book as drawn, in book-local Z. Shut, the two
+## covers; open, the back cover of the deeper block to the higher of the two
+## pages — each block hangs from Z=0 by its own thickness.
+func _drawn_z_span() -> Vector2:
+	if _state != BookState.OPEN:
+		var half := maxf(_leaf_count * LEAF_THICKNESS, LEAF_THICKNESS * 2) * 0.5 + COVER_GAP
+		return Vector2(-half, half)
+	var thick := maxf(_side_thickness(1), _side_thickness(-1))
+	return Vector2(-(thick * 0.5 + COVER_GAP), thick * 0.5 + LEAF_Z_GAP)
 
 
 ## Closed book: the spine is the outward binding, flush with the two covers.
@@ -1780,6 +1790,9 @@ func _update_stack_thickness() -> void:
 	# A page moving across changes how heavy and how stiff each half is, and
 	# where every surface sits relative to the gutter it hangs from.
 	_refresh_flop()
+	# ...and how deep the book is, which the body and pointer boxes follow.
+	if _state == BookState.OPEN:
+		_update_collision_shape()
 
 
 # ── Page turning ──────────────────────────────────────────────────────────────
@@ -1896,10 +1909,29 @@ func _layout_page_grabs() -> void:
 		var dir: float = pair[1]
 		_seat_page_grab(zone, int(dir))
 		zone.reach = reach
-		var shape := zone.get_child(0) as CollisionShape3D
-		(shape.shape as BoxShape3D).size = reach * 2.0
+	_size_page_grab_shapes()
 	_grab_right.set_enabled(_page_count > 0 and _state != BookState.LAST_PAGE)
 	_grab_left.set_enabled(_page_count > 0 and _state != BookState.CLOSED)
+
+
+## A zone's pointer box: the outer band of its page, from the page up to just
+## over the top of the book. `reach` is the poke tip's volume and stays generous;
+## sized from it, the box stood 3.5 cm off both faces and the ray turned pages
+## from the air. It still has to be the FIRST thing the ray meets on its page:
+## on the thinner half of an open book the other half's block stands higher, and
+## the PointerArea (the book's whole outline) with it.
+func _size_page_grab_shapes() -> void:
+	if _grab_right == null:
+		return
+	var top := _drawn_z_span().y + PAGE_GRAB_LIFT
+	for pair: Array in [[_grab_right, 1], [_grab_left, -1]]:
+		var zone: PageGrab = pair[0]
+		var plane := _page_plane_z(pair[1])
+		var bottom := plane - PAGE_GRAB_LIFT
+		var shape := zone.get_child(0) as CollisionShape3D
+		(shape.shape as BoxShape3D).size = Vector3(_book_width * GRAB_BAND, book_height, top - bottom)
+		# The zone itself sits ON its page (_seat_page_grab), so this is relative.
+		shape.position = Vector3(0, 0, (top + bottom) * 0.5 - plane)
 
 
 ## Put a grab zone on its page — where the page actually is. Centred on the outer

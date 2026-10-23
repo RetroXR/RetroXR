@@ -12,6 +12,7 @@ extends Node3D
 
 const BOOK_SCENE := preload("res://Scenes/Objects/media/pdf_book.tscn")
 const POINTABLE_LAYER := 1 << 20
+const PICKABLE_LAYER := 1 << 2
 const CBZ_PATH := "user://__book_tests.cbz"
 const MANUAL_NAME := "__book_tests_manual.cbz"
 
@@ -26,6 +27,7 @@ func _ready() -> void:
 
 	await _test_unloadable_book()
 	await _test_loaded_book()
+	await _test_pointer_hugs_the_book()
 	await _test_a_cached_page_never_decodes_on_the_main_thread()
 	await _test_a_half_written_manual_recovers()
 	await _test_an_oversized_page_is_capped()
@@ -46,7 +48,7 @@ func _test_unloadable_book() -> void:
 	for zone: PageGrab in _zones(book):
 		_ok(not zone.is_enabled(), "unloadable/%s is off" % zone.name)
 		_ok(_shape_of(zone).disabled, "unloadable/%s shape is out of the world" % zone.name)
-	# 0.3 m to the side: outside the book's own PointerArea (half-width 0.2),
+	# 0.3 m to the side: outside the book's own PointerArea (half-width 0.18),
 	# well inside a default 1 m BoxShape3D.
 	_ok(_ray_at(0.3) == null, "unloadable/a ray beside the book reaches what is behind it")
 	_ok(not (_ray_at(0.0) is PageGrab), "unloadable/a ray at the book finds the book")
@@ -65,8 +67,11 @@ func _test_unloadable_book() -> void:
 	_ok(is_equal_approx((body.shape as BoxShape3D).size.x, cover_w),
 		"unloadable/...and is no wider than the one mesh the book still shows")
 	_ok(is_equal_approx(pointer.position.x, cover.position.x)
-			and is_equal_approx((pointer.shape as BoxShape3D).size.x, cover_w + 0.04),
-		"unloadable/the pointer box follows it")
+			and is_equal_approx((pointer.shape as BoxShape3D).size.x, cover_w),
+		"unloadable/the pointer box follows it, no wider")
+	_ok((body.shape as BoxShape3D).size.z < 0.005 and (pointer.shape as BoxShape3D).size.z < 0.005,
+		"unloadable/...and no deeper than a cover (%.4f, %.4f)"
+			% [(body.shape as BoxShape3D).size.z, (pointer.shape as BoxShape3D).size.z])
 	# A push_error is invisible in a headset, so a silent navy slab reads as
 	# "still loading" forever.
 	_ok(book._net_status_label != null and book._net_status_label.visible
@@ -132,6 +137,85 @@ func _test_loaded_book() -> void:
 	await _settle()
 	_remove_tree("user://pdf_cache/" + cbz.md5_text())
 	DirAccess.remove_absolute(cbz)
+
+
+## The pointer finds the book exactly where it is drawn and nowhere else, in
+## every state, through both things a ray can meet: the pointer layer (the XR
+## laser's PointerArea and page zones) and the body (the desktop resolver also
+## walks layer 3). It once answered 2 cm past every edge, 2 cm off both faces
+## (a 4 cm floor on the body), and 3.5 cm off the pages (zones sized from the
+## poke tip's reach) — a reticle in the air beside the book lit it.
+func _test_pointer_hugs_the_book() -> void:
+	_write_cbz(CBZ_PATH)
+	var cbz := ProjectSettings.globalize_path(CBZ_PATH)
+	var book := _spawn_book(cbz)
+	await _settle()
+	await _drain_renders(book)
+
+	const OFF := 0.005  # well clear of the paper, well inside the old padding
+	var half_h: float = book.book_height * 0.5
+	var w: float = book._book_width
+	var reach_x := w + book._spine_width() * 0.5
+	for leg: Array in [["closed", PDFBook.BookState.CLOSED, 0, 0.0, reach_x],
+			["open", PDFBook.BookState.OPEN, 0, -reach_x, reach_x],
+			["last page", PDFBook.BookState.LAST_PAGE, 1, -reach_x, 0.0]]:
+		var tag: String = leg[0]
+		book.set_page(leg[1], leg[2])
+		await _settle()
+		var x0: float = leg[3]
+		var x1: float = leg[4]
+		# The outer edges, from the front, in x and in y.
+		var outer_x := x1 if x1 > 0.0 else x0
+		var sign_x := signf(outer_x)
+		_ok(_front_hit(outer_x - sign_x * OFF, 0.0) != null, "%s/just inside the fore edge is the book" % tag)
+		_ok(_front_hit(outer_x + sign_x * OFF, 0.0) == null, "%s/just outside the fore edge is not" % tag)
+		var mid_x := outer_x * 0.5
+		_ok(_front_hit(mid_x, half_h - OFF) != null, "%s/just inside the head is the book" % tag)
+		_ok(_front_hit(mid_x, half_h + OFF) == null, "%s/just outside the head is not" % tag)
+		_ok(_front_hit(mid_x, -half_h - OFF) == null, "%s/just outside the tail is not" % tag)
+		# Depth: what a ray meets from the front is the drawn top, give or take
+		# the page zone's millimetre.
+		var top := _drawn_top(book)
+		var hit := _hit(Vector3(mid_x, 0.0, 2.0), Vector3(mid_x, 0.0, -2.0))
+		var hit_z: float = (hit.get("position", Vector3.INF) as Vector3).z
+		_ok(absf(hit_z - top) < 0.002,
+			"%s/the ray meets the book at its face (hit z %.4f, drawn %.4f)" % [tag, hit_z, top])
+		# And from the side, just over the face, the ray passes clean over it.
+		_ok(_hit(Vector3(2.0, 0.0, top + OFF), Vector3(-2.0, 0.0, top + OFF)).is_empty(),
+			"%s/a ray skimming over the face does not stop on air" % tag)
+		_ok(_hit(Vector3(2.0, 0.0, -top - OFF), Vector3(-2.0, 0.0, -top - OFF)).is_empty(),
+			"%s/nor one skimming under the back" % tag)
+
+	# The thinner half of an open book still turns from the laser: its zone is
+	# the first thing met, though the other half's block stands higher.
+	book.set_page(PDFBook.BookState.OPEN, 0)
+	await _settle()
+	var zone_x := (book.get_node("PageGrabLeft") as Node3D).position.x
+	_ok(_ray_at(zone_x) == book.get_node("PageGrabLeft"), "open/the thin half's page answers first")
+
+	book.queue_free()
+	await _settle()
+	_remove_tree("user://pdf_cache/" + cbz.md5_text())
+	DirAccess.remove_absolute(cbz)
+
+
+## The highest drawn surface: a shut book's cover, an open book's higher page.
+func _drawn_top(book: PDFBook) -> float:
+	if book._state != PDFBook.BookState.OPEN:
+		return absf((book.get_node("Cover") as Node3D).position.z)
+	return maxf(book._page_plane_z(1), book._page_plane_z(-1))
+
+
+func _front_hit(x: float, y: float) -> Object:
+	return _hit(Vector3(x, y, 2.0), Vector3(x, y, -2.0)).get("collider") as Object
+
+
+## Pointer layer AND the pickable body: everything a pointer of either kind can meet.
+func _hit(from: Vector3, to: Vector3) -> Dictionary:
+	var query := PhysicsRayQueryParameters3D.create(from, to, POINTABLE_LAYER | PICKABLE_LAYER)
+	query.collide_with_areas = true
+	query.collide_with_bodies = true
+	return get_world_3d().direct_space_state.intersect_ray(query)
 
 
 ## A page rendered on some earlier run is sitting in the cache dir, and reading
