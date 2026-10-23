@@ -28,6 +28,11 @@ room and sync services. First launch uses the default root. Always go through
 do not branch-per-feature by default; commit and (when asked) push straight to `master`.
 Branch only when the user explicitly requests it.
 
+**Keep history linear: never create a merge commit.** When `master` is behind `origin`
+before a push, check the incoming commits touch none of the checkout's uncommitted files,
+then `git pull --rebase --autostash` (the checkout usually holds other sessions' unfinished
+work) and push. If a dirty file overlaps, ask the user rather than merging.
+
 ## Build — full notes: `docs/dev/building.md`, `docs/dev/extensions.md`
 
 Needs SCons + MSVC (Windows), GCC/Clang (Linux), Xcode CLT (macOS) or the Android NDK, and
