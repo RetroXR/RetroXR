@@ -210,7 +210,6 @@ var _loading: bool = false  # re-entry guard for load_pdf ↔ setter
 var _controllers: Array = []
 var _turn_cooldown: float = 0.0
 const SPINE_WIDTH := 0.0035         # width of the spine binding strip
-const SPINE_HEIGHT_MARGIN := 0.004  # how much taller spine is than pages
 const LEAF_THICKNESS := 0.0001      # meters of depth per leaf (~0.1mm, realistic paper)
 const COVER_THICKNESS := 0.004      # combined depth contribution of front + back covers
 const COVER_GAP := 0.001            # gap between page stack face and cover quad
@@ -1086,7 +1085,7 @@ func _configure_meshes() -> void:
 	var total_thick := maxf(_leaf_count * LEAF_THICKNESS, LEAF_THICKNESS * 2)
 	if _spine_mesh and _spine_mesh.mesh is BoxMesh:
 		_spine_mesh.mesh = _spine_mesh.mesh.duplicate()
-		(_spine_mesh.mesh as BoxMesh).size = Vector3(SPINE_WIDTH, book_height + SPINE_HEIGHT_MARGIN, total_thick)
+		(_spine_mesh.mesh as BoxMesh).size = Vector3(SPINE_WIDTH, book_height, total_thick)
 	_ensure_spine_material()
 	_set_spine_closed(total_thick)
 
@@ -1620,7 +1619,7 @@ func _ensure_spine_material() -> void:
 		mat = ShaderMaterial.new()
 		mat.shader = SPINE_SHADER
 		_spine_mesh.set_surface_override_material(0, mat)
-	mat.set_shader_parameter("spine_height", book_height + SPINE_HEIGHT_MARGIN)
+	mat.set_shader_parameter("spine_height", book_height)
 	mat.set_shader_parameter("spine_width", SPINE_WIDTH)
 
 
@@ -3031,30 +3030,42 @@ func _draw_loading_page() -> void:
 	_shared_loading.update(img)
 
 
-func _create_hint_labels() -> void:
-	_next_label = Label3D.new()
-	_next_label.text = "Next Page →"
-	_next_label.font_size = 32
-	_next_label.pixel_size = 0.001
-	_next_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_next_label.no_depth_test = true
-	_next_label.modulate = Color(1, 1, 1, 0.8)
-	_next_label.outline_modulate = Color(0, 0, 0, 0.6)
-	_next_label.outline_size = 4
-	_next_label.visible = false
-	add_child(_next_label)
+## The page hints are one icon, not words: next is the glyph as drawn, prev the
+## same glyph mirrored.
+const HINT_ICON := 0xF15D6            # nf-md-book_open_page_variant_outline
+const HINT_ICON_SIZE := 48
 
-	_prev_label = Label3D.new()
-	_prev_label.text = "← Prev Page"
-	_prev_label.font_size = 32
-	_prev_label.pixel_size = 0.001
-	_prev_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	_prev_label.no_depth_test = true
-	_prev_label.modulate = Color(1, 1, 1, 0.8)
-	_prev_label.outline_modulate = Color(0, 0, 0, 0.6)
-	_prev_label.outline_size = 4
-	_prev_label.visible = false
-	add_child(_prev_label)
+
+func _create_hint_labels() -> void:
+	_next_label = _make_hint_label(false)
+	_prev_label = _make_hint_label(true)
+
+
+## A billboard keeps only the size of its node's scale, so a negative scale.x
+## would not mirror it: the flip goes on the glyph, through the font. That flips
+## it about its pen position, a whole advance left of where it was laid out, so
+## the offset puts it back over the node.
+func _make_hint_label(mirrored: bool) -> Label3D:
+	var label := Label3D.new()
+	label.text = char(HINT_ICON)
+	if mirrored:
+		var flipped := FontVariation.new()
+		flipped.base_font = SYMBOL_FONT
+		flipped.variation_transform = Transform2D(Vector2(-1, 0), Vector2(0, 1), Vector2.ZERO)
+		label.font = flipped
+		label.offset.x = SYMBOL_FONT.get_char_size(HINT_ICON, HINT_ICON_SIZE).x
+	else:
+		label.font = SYMBOL_FONT
+	label.font_size = HINT_ICON_SIZE
+	label.pixel_size = 0.001
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.no_depth_test = true
+	label.modulate = Color(1, 1, 1, 0.8)
+	label.outline_modulate = Color(0, 0, 0, 0.6)
+	label.outline_size = 4
+	label.visible = false
+	add_child(label)
+	return label
 
 
 ## Pre-render pages near the current spread so they're ready before the user turns.
