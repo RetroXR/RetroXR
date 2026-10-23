@@ -1,0 +1,139 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/room/seat.gd" id="1_kqvmf"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_ysofx"]
+[ext_resource type="Script" path="res://Scripts/Objects/room/seat_trigger.gd" id="3_culqx"]
+
+[sub_resource type="PhysicsMaterial" id="PhysicsMaterial_y4egq"]
+friction = 0.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_m0lul"]
+albedo_color = Color(0.14, 0.14, 0.16, 1)
+metallic = 0.5
+roughness = 0.45
+
+[sub_resource type="BoxMesh" id="BoxMesh_m3v0c"]
+material = SubResource("StandardMaterial3D_m0lul")
+size = Vector3(0.5, 0.04, 0.8)
+
+[sub_resource type="BoxMesh" id="BoxMesh_1h0qt"]
+material = SubResource("StandardMaterial3D_m0lul")
+size = Vector3(0.44, 0.1, 0.46)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_juw12"]
+albedo_color = Color(0.07, 0.07, 0.08, 1)
+roughness = 0.6
+
+[sub_resource type="BoxMesh" id="BoxMesh_v8d1d"]
+material = SubResource("StandardMaterial3D_juw12")
+size = Vector3(0.4, 0.1, 0.42)
+
+[sub_resource type="BoxMesh" id="BoxMesh_4hdhj"]
+material = SubResource("StandardMaterial3D_juw12")
+size = Vector3(0.42, 0.55, 0.1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_nost1"]
+material = SubResource("StandardMaterial3D_juw12")
+size = Vector3(0.07, 0.3, 0.38)
+
+[sub_resource type="BoxMesh" id="BoxMesh_d22ft"]
+material = SubResource("StandardMaterial3D_juw12")
+size = Vector3(0.07, 0.3, 0.38)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_l2l6n"]
+albedo_color = Color(0.85, 0.12, 0.12, 1)
+roughness = 0.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_stpeo"]
+material = SubResource("StandardMaterial3D_l2l6n")
+size = Vector3(0.05, 0.5, 0.012)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_t0hdh"]
+size = Vector3(0.5, 0.3, 0.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pis0f"]
+size = Vector3(0.44, 0.55, 0.12)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_vqcov"]
+size = Vector3(0.5, 0.3, 0.8)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_o635n"]
+size = Vector3(0.44, 0.55, 0.12)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_dit6m"]
+size = Vector3(0.4, 0.03, 0.42)
+
+[node name="Seat" type="RigidBody3D" unique_id=1278132893]
+collision_layer = 4
+collision_mask = 196613
+mass = 15.0
+physics_material_override = SubResource("PhysicsMaterial_y4egq")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_kqvmf")
+type_id = "seat_racing"
+
+[node name="Rails" type="MeshInstance3D" parent="." unique_id=722832574]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.02, 0)
+mesh = SubResource("BoxMesh_m3v0c")
+
+[node name="Base" type="MeshInstance3D" parent="." unique_id=698294623]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.09, 0.05)
+mesh = SubResource("BoxMesh_1h0qt")
+
+[node name="Cushion" type="MeshInstance3D" parent="." unique_id=1807428896]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.25, 0.04)
+mesh = SubResource("BoxMesh_v8d1d")
+
+[node name="Back" type="MeshInstance3D" parent="." unique_id=1093414851]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0.3)
+mesh = SubResource("BoxMesh_4hdhj")
+
+[node name="BolsterL" type="MeshInstance3D" parent="." unique_id=532731462]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.215, 0.43, 0.1)
+mesh = SubResource("BoxMesh_nost1")
+
+[node name="BolsterR" type="MeshInstance3D" parent="." unique_id=667319930]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.215, 0.43, 0.1)
+mesh = SubResource("BoxMesh_d22ft")
+
+[node name="Stitch" type="MeshInstance3D" parent="." unique_id=1498063377]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0.245)
+mesh = SubResource("BoxMesh_stpeo")
+
+[node name="Col1" type="CollisionShape3D" parent="." unique_id=642031092]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("BoxShape3D_t0hdh")
+
+[node name="Col2" type="CollisionShape3D" parent="." unique_id=2116266131]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0.3)
+shape = SubResource("BoxShape3D_pis0f")
+
+[node name="PickableHighlight" type="Node3D" parent="." unique_id=594489034]
+script = ExtResource("2_ysofx")
+
+[node name="PointerArea" type="StaticBody3D" parent="." unique_id=1824008459]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="Shape1" type="CollisionShape3D" parent="PointerArea" unique_id=474393816]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.15, 0)
+shape = SubResource("BoxShape3D_vqcov")
+
+[node name="Shape2" type="CollisionShape3D" parent="PointerArea" unique_id=1155916725]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.58, 0.3)
+shape = SubResource("BoxShape3D_o635n")
+
+[node name="SeatTrigger" type="Area3D" parent="." unique_id=47733809]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.305, 0.04)
+script = ExtResource("3_culqx")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="SeatTrigger" unique_id=494607450]
+shape = SubResource("BoxShape3D_dit6m")
+
+[node name="EyePoint" type="Marker3D" parent="." unique_id=1015016271]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.02, 0.04)
+
+[node name="StandPoint" type="Marker3D" parent="." unique_id=1751864332]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.62, 0, 0)
