@@ -642,7 +642,7 @@ card shows each object once.
 | socket | the game's lead |
 |---|---|
 | `ps2_av_multi` | Primitive AV Cable |
-| `n64_av_plug` | Stereo Composite Cable |
+| `n64_av_plug` | Stereo AV Cable |
 | `genesis_av_plug` | A/V Cable |
 | `wii_av_plug` | AV Cable |
 | `dc_av_plug` | Stereo AV Cable |

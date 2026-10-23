@@ -165,7 +165,7 @@ const GAME_LEADS := {
 	# A plain lead for a socket of a console the game itself has no model of, so
 	# a PlayStation 2 mod installed without its lead mod can still reach a set.
 	"ps2_av_multi": {"spawn": "ps2_av_cable", "label": "Primitive AV Cable"},
-	"n64_av_plug": {"spawn": "n64_av_cable", "label": "Stereo Composite Cable"},
+	"n64_av_plug": {"spawn": "n64_av_cable", "label": "Stereo AV Cable"},
 	# A Saturn mod names the Genesis Model 2's socket too: the Saturn's 10-pin A/V
 	# OUT is a round mini-DIN of the same look, and the game has no lead of its own
 	# for that socket.

@@ -100,8 +100,7 @@ const _PERIPHERALS: Dictionary = {
 		# An AV MULTI OUT at the machine and three phonos at the set, so a plain
 		# composite lead fits the television and nothing at this end. Nintendo's
 		# SNS-008, shared by the Super Nintendo, the N64 and the GameCube.
-		{"kind": "peripheral", "label": "Stereo Composite Cable",
-			"spawn": "n64_av_cable"},
+		{"kind": "peripheral", "label": "Stereo AV Cable", "spawn": "n64_av_cable"},
 	],
 	# The remote is named here even though it fits no socket: it is the Wii's
 	# controller, and a player who spawns a Wii should be offered one without
@@ -169,6 +168,10 @@ const _PERIPHERALS: Dictionary = {
 	# SNES console model or pad yet, so they are still the way to play it.
 	"snes": [
 		{"kind": "peripheral", "label": "SNES Mouse", "spawn": "snes_mouse"},
+		# The N64's lead: Nintendo's SNS-008 shipped with the Super Nintendo first.
+		# The primitive box on this card wears a Multi Out to take it rather than
+		# phono jacks (RetroSystemModelDefault), as every Super NES model does.
+		{"kind": "peripheral", "label": "Stereo AV Cable", "spawn": "n64_av_cable"},
 	],
 	# The Model 2's A/V OUT is a 9-pin mini-DIN, so the generic composite lead fits
 	# the television and nothing at this end. Sega's own lead: the round plug at the
@@ -211,8 +214,9 @@ const _NO_STANDIN_CONSOLE: Array[String] = ["dreamcast", "genesis"]
 ## The Famicom is here for a stronger reason than the other three: it has no
 ## composite socket at all, so the generic lead would fit its television and
 ## nothing on the console. Its card lists the RF switch instead. The Genesis, for
-## the Wii's and N64's reason: its one socket is a 9-pin mini-DIN.
-const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis"]
+## the Wii's and N64's reason: its one socket is a 9-pin mini-DIN. The Super NES for
+## the N64's: even its primitive box wears a Multi Out.
+const _OWN_AV_LEAD: Array[String] = ["nes", "famicom", "wii", "n64", "genesis", "snes"]
 
 ## Hardware whose picture leaves on a captive pigtail rather than through sockets
 ## (av_port_channels() is empty), so a spawned lead has nothing to enter at that

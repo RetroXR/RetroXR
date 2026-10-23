@@ -140,6 +140,7 @@ func _run() -> void:
 		["routing/an N64 wears ONE multi-out, not a phono row", _r_n64_multi_out],
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
+		["routing/the primitive Super NES wears the N64's multi-out and takes its lead", _r_snes_box_multi_out],
 		["routing/a Genesis wears one 9-pin socket, not a captive lead", _r_genesis_socket],
 		["routing/its lead carries all three signals down the mini-DIN", _r_genesis_lead],
 		["routing/a Genesis lead fits only a Genesis", _r_genesis_keying],
@@ -651,6 +652,64 @@ func _r_n64_lead() -> void:
 	# The sound, read through the console's own accessor. All three signals came
 	# down ONE shell, so a wrong cord map here would surface as a machine that is
 	# seen and not heard, or heard on one side only.
+	var route: Dictionary = sys.audio_speakers()
+	_check_eq(route.get("left"), 0, "left channel lands on the left speaker")
+	_check_eq(route.get("right"), 1, "right channel lands on the right speaker")
+
+
+## The stand-in box on the Super NES card wears that console's own socket, the
+## Multi Out it shares with the N64, rather than the phono row every other box
+## wears, so the one lead the card offers is the Stereo AV Cable and it plays.
+func _r_snes_box_multi_out() -> void:
+	var tv := _tv()
+	var sys := SYSTEM_SCENE.instantiate() as Node3D
+	sys.systemid = "snes"
+	sys.model_id = SystemModelRegistry.PLACEHOLDER_ID
+	sys.freeze = true
+	sys.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(sys)
+	sys.add_to_group("spawned")
+	_spawned.append(sys)
+	await _wait(60)
+	_ok(not sys._model.brings_own_body(), "the console under test is the primitive box")
+	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
+	_ok(multi is MultiAvPort and multi.connector == "n64_av_plug",
+		"it wears a Multi Out that takes the SNS-008")
+	var phonos := 0
+	for node in sys.find_children("*", "RcaPort", true, false):
+		if node != multi:
+			phonos += 1
+	_check_eq(phonos, 0, "and no phono row beside it")
+	if multi != null:
+		var local := (sys as Node3D).to_local(multi.global_position)
+		_ok(absf(local.z + 0.127) < 0.0005 and multi.global_basis.z.dot(-sys.global_basis.z) > 0.99
+			and multi.global_basis.y.dot(sys.global_basis.y) > 0.99,
+			"on the back panel, facing out of it, upright (%s)" % str(local))
+
+	var labels: Array = []
+	for item: Dictionary in SpawnCatalog.items_for("snes"):
+		labels.append(str(item.get("label", "")))
+	# An installed Super NES mod takes the box off the card; the lead stays.
+	var boxed := SystemModelRegistry.rows_for("snes").is_empty()
+	_ok(labels.has("Primitive System") == boxed and labels.count("Stereo AV Cable") == 1
+		and not labels.has("Composite Cable"),
+		"its card offers the Stereo AV Cable once and not the composite lead (%s)" % str(labels))
+	if multi == null:
+		return
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_4)
+	var lead := N64_AV_CABLE.instantiate() as Node3D
+	lead.position = Vector3(1.0, 1, -0.5)
+	add_child(lead)
+	_spawned.append(lead)
+	await _wait(20)
+	multi.pick_up_object(lead.get_node("PlugA0") as RcaPlug)
+	await _wait(6)
+	for c in 3:
+		(ins[c] as RcaPort).pick_up_object(lead.get_node("PlugB%d" % c) as RcaPlug)
+		await _wait(6)
+	await _wait(30)
+	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPOSITE_4,
+		"the set files the box on the input its lead reaches")
 	var route: Dictionary = sys.audio_speakers()
 	_check_eq(route.get("left"), 0, "left channel lands on the left speaker")
 	_check_eq(route.get("right"), 1, "right channel lands on the right speaker")

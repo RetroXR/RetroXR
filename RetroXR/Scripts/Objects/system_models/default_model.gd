@@ -149,6 +149,29 @@ func av_port_channels() -> Array:
 	return [RcaPort.Channel.VIDEO, RcaPort.Channel.AUDIO_L, RcaPort.Channel.AUDIO_R]
 
 
+## Platforms whose picture leaves by Nintendo's AV Multi Out, so the box wears that
+## socket in place of the phono row and takes the console's own lead, the
+## Stereo AV Cable. The Super NES is where Nintendo started using it; the N64's
+## model already wears the same socket.
+const _MULTI_OUT_PLATFORMS: Array[String] = ["snes"]
+const _MULTI_OUT_SCENE := "res://Scenes/Objects/system_models/nintendo_64/n64_av_port.tscn"
+
+
+## The same three signals either way; only the number of holes differs.
+func av_ports_are_multi_way() -> bool:
+	return _MULTI_OUT_PLATFORMS.has(_systemid())
+
+
+func av_multi_port_scene() -> String:
+	return _MULTI_OUT_SCENE if av_ports_are_multi_way() else ""
+
+
+## The cabinet this box dresses, which knows what it is standing in for.
+func _systemid() -> String:
+	var host := get_parent()
+	return str(host.get("systemid")) if host != null else ""
+
+
 ## Lay them across the back panel of the 0.3 x 0.1 x 0.25 box, on 18 mm centres —
 ## the spacing the NES moulds and the decks now use.
 ##
@@ -156,7 +179,16 @@ func av_port_channels() -> Array:
 ## makes it the primitive one), and the ports are already children of the system.
 ## Turned 180 degrees about X so each socket's local +Z points out of the back,
 ## which is where a plug arrives from.
+##
+## A Multi Out goes where the middle phono jack would, turned about Y rather than
+## X, as the N64 seats it, so its key stays on top. Its zone is the plug's shroud
+## face, 2 mm proud of the panel (n64_av_port.tscn), and the panel is at z -0.125.
 func configure_av_ports(ports: Array) -> void:
+	if av_ports_are_multi_way():
+		if not ports.is_empty():
+			(ports[0] as Node3D).transform = Transform3D(Basis(Vector3.UP, PI),
+				Vector3(0.1, 0.0, -0.127))
+		return
 	for i in ports.size():
 		var port: Node3D = ports[i]
 		# Centred on x = 0.1, where the captive lead's attach point used to sit.
