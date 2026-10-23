@@ -301,6 +301,8 @@ func preview_pose_for(obj: Node3D, amount: float = 1.0,
 static func find_preview_zone(obj: Node3D, at: Vector3, radius: float = 0.0) -> XRToolsSnapZone:
 	var best: XRToolsSnapZone = null
 	var best_d := INF
+	# Sockets the hand is at that would not show the ghost, for the log below.
+	var turned_down: Array[XRToolsSnapZone] = []
 	for z: XRToolsSnapZone in _live_zones:
 		if not is_instance_valid(z):
 			continue
@@ -308,6 +310,8 @@ static func find_preview_zone(obj: Node3D, at: Vector3, radius: float = 0.0) -> 
 		if z.global_position.distance_squared_to(at) > reach * reach:
 			continue
 		if not z.can_preview(obj):
+			if z.global_position.distance_to(at) < z.grab_distance + radius:
+				turned_down.append(z)
 			continue
 		# Ranked by the pose the object would OCCUPY, the same measure
 		# _on_target_dropped uses. Ranking by zone origin here and by snapped pose
@@ -319,7 +323,57 @@ static func find_preview_zone(obj: Node3D, at: Vector3, radius: float = 0.0) -> 
 			best = z
 	# Remembered so the release can honour it — see _on_target_dropped.
 	_preview_zone = best
+	if best == null and not turned_down.is_empty():
+		_log_no_preview(obj, turned_down)
 	return best
+
+
+## LOCAL PATCH (RetroXR): the sockets each held object has already been told
+## about in this hold, by its instance id: {zone: true}. Cleared when it is let
+## go (report_release), so the next hold says it again.
+static var _preview_logged: Dictionary = {}
+
+
+## The hand has a held object at sockets and none of them lights the ghost:
+## say once per socket per hold which socket and why, so a plug that "will not
+## go in" says so while it is still in the hand. Sockets of its kind are named
+## alone when there are any (a link plug at a console is not told about the
+## cartridge slot as well), and catch-all zones, which never preview, not at all.
+static func _log_no_preview(obj: Node3D, zones: Array[XRToolsSnapZone]) -> void:
+	var fitting: Array[XRToolsSnapZone] = []
+	var others: Array[XRToolsSnapZone] = []
+	for z in zones:
+		if z.snap_require.is_empty() or z.is_ancestor_of(obj) or obj.is_ancestor_of(z):
+			continue
+		if z._fits_kind(obj):
+			fitting.append(z)
+		elif z.enabled:
+			others.append(z)
+	var shown := fitting if not fitting.is_empty() else others
+	var id := obj.get_instance_id()
+	var told: Dictionary = _preview_logged.get(id, {})
+	for z in shown:
+		if told.has(z):
+			continue
+		told[z] = true
+		print("[Snap] held %s at %s: no preview -- %s" % [
+			_object_label(obj), _zone_label(z), z._why_no_preview(obj)])
+	_preview_logged[id] = told
+
+
+## Why can_preview says no, test by test.
+func _why_no_preview(obj: Node3D) -> String:
+	if not enabled:
+		return "switched off"
+	if is_instance_valid(picked_up_object):
+		return "already holds %s" % picked_up_object.name
+	if not obj.is_in_group(snap_require):
+		return "takes %s only, and this is %s" % [snap_require, _kind_of(obj)]
+	if not snap_exclude.is_empty() and obj.is_in_group(snap_exclude):
+		return "refuses %s" % snap_exclude
+	if snap_filter.is_valid() and not snap_filter.call(obj):
+		return "its own test (%s) refused it" % snap_filter.get_method()
+	return "no reason found"
 
 
 func _ready():
@@ -738,7 +792,10 @@ func _note_refusal(target: Node3D, reason: String) -> void:
 ## one [Snap] line says why each of them did not take it. Nothing is printed for
 ## an object put down away from every socket, or one that went in.
 static func report_release(obj: Node3D) -> void:
-	if not is_instance_valid(obj) or not obj.is_inside_tree():
+	if not is_instance_valid(obj):
+		return
+	_preview_logged.erase(obj.get_instance_id())
+	if not obj.is_inside_tree():
 		return
 	obj.get_tree().create_timer(RELEASE_REPORT_DELAY, true, true).timeout.connect(
 		_report_release_now.bind(obj.get_instance_id()))
