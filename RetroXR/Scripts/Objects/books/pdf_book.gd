@@ -176,6 +176,8 @@ const SETTLE_FALLS_OVER_ABOVE := deg_to_rad(5.0)
 const REMOTE_TURN_TIME := 0.45
 ## Q / E on a held book play the same turn, quicker: a key is a flick.
 const KEY_TURN_TIME := 0.3
+## Most sheets a run of key presses keeps in the air at once.
+const MAX_FLIGHTS := 12
 ## Gap between a spread page and the block it lies on. Was 0.8 mm to keep the
 ## two off each other in the depth buffer, which is most of a nine-leaf stack —
 ## the page floated clear of its own block and had that much further to dive.
@@ -566,6 +568,7 @@ func _apply_dimensions() -> void:
 		return
 	# Resizing rebuilds every mesh, so a page in someone's hand has to go first.
 	_abort_grab()
+	_clear_flights()
 	_book_width = _base_width * size_scale
 	book_height = _base_height * size_scale
 	_configure_meshes()
@@ -601,6 +604,7 @@ func set_page(state: int, leaf: int) -> void:
 	if _grab_dir != 0:
 		_pending_page = {"state": state, "leaf": leaf}
 		return
+	_clear_flights()
 	if _animate_page_step(state, leaf):
 		return
 	_despawn_active_leaf()
@@ -644,6 +648,115 @@ func _play_turn(dir: int, target: Dictionary, duration: float) -> bool:
 	_push_fold(1.0)
 	_settle_leaf(true, duration)
 	return true
+
+
+## Q / E pressed faster than a page turns: every press launches its own sheet,
+## so several are in the air at once, fanning over like a riffled book.
+##
+## The page steps the moment a sheet LIFTS, not when it lands, so the next press
+## turns the page after it: the block it leaves shows the page uncovered, as it
+## should. The block it lands on must not: there the spread would show the last
+## sheet's page before the first had arrived. _flight_shown holds that side on
+## the page it showed, and each sheet as it lands hands it its own back.
+##
+## Only a page between two open spreads flies. Every sheet is the same roll the
+## single turn springs a page through, from the fore edge to the gutter.
+var _flights: Array[Dictionary] = []
+## Per side (0 left, 1 right): the page a block keeps showing while sheets are
+## landing on it, or -1 to show the spread.
+var _flight_shown: Array[int] = [-1, -1]
+
+
+func _launch_flight(dir: int) -> bool:
+	if _state != BookState.OPEN or _flights.size() >= MAX_FLIGHTS:
+		return false
+	if not _flights.is_empty() and int(_flights[0]["dir"]) != dir:
+		return false
+	# Only spread to spread: from the last open spread forward, or the first one
+	# back, is a cover.
+	if dir > 0 and _current_leaf + 1 >= _leaf_count - 1:
+		return false
+	if dir < 0 and _current_leaf - 1 < 0:
+		return false
+	var plan := _leaf_plan(dir)
+	if plan.is_empty() or plan.get("hide") != null or plan.get("hide_block") != null:
+		return false
+
+	var land := 0 if dir > 0 else 1
+	if _flight_shown[land] < 0:
+		_flight_shown[land] = _current_leaf * 2 + 1 if dir > 0 else (_current_leaf + 1) * 2
+	var front := int(plan["front"])
+	var back := int(plan["back"])
+	var leaf := _new_leaf(dir, front, back)
+	# Where it lands is the block as it stands, before this page is added to it,
+	# which is what the single turn measures as well.
+	var to_z := _page_plane_z(-dir) - CURL_CLOSED * 2.0 + LEAF_LIFT
+	var from_z := leaf.position.z
+	var flight := {"leaf": leaf, "dir": dir, "front": front, "back": back}
+	_flights.append(flight)
+	if dir > 0:
+		turn_page_forward()
+	else:
+		turn_page_backward()
+	_push_flop(true)
+
+	var from_origin := Vector2(float(dir) * (_book_width * 0.5 + 0.01), 0.0)
+	var to_origin := Vector2(-float(dir) * (_book_width * 0.5 + _spine_width() * 0.5), 0.0)
+	var normal := Vector2(float(dir), 0.0)
+	var from_radius := CURL_MAX * 0.5
+	_push_fold_into(leaf, 1.0, from_origin, normal, from_radius, CURL_TAPER, 0.0)
+	if _sfx:
+		_sfx.play_riffle(1.15)
+	var tween := create_tween()
+	tween.set_ease(Tween.EASE_OUT)
+	tween.set_trans(Tween.TRANS_CUBIC)
+	tween.tween_method(
+		func(t: float) -> void:
+			if not is_instance_valid(leaf):
+				return
+			leaf.position.z = lerpf(from_z, to_z, t)
+			_push_fold_into(leaf, 1.0, from_origin.lerp(to_origin, t), normal,
+				lerpf(from_radius, CURL_CLOSED, t), lerpf(CURL_TAPER, 0.0, t), 0.0),
+		0.0, 1.0, KEY_TURN_TIME)
+	tween.tween_callback(func() -> void: _land_flight(flight))
+	flight["tween"] = tween
+	return true
+
+
+func _land_flight(flight: Dictionary) -> void:
+	var at := _flights.find(flight)
+	if at < 0:
+		return
+	_flights.remove_at(at)
+	var leaf := flight["leaf"] as MeshInstance3D
+	if is_instance_valid(leaf):
+		leaf.queue_free()
+	var land := 0 if int(flight["dir"]) > 0 else 1
+	# Sheets land in the order they lifted: the next one still in the air is
+	# coming down on this one.
+	_flight_shown[land] = int(flight["back"]) if not _flights.is_empty() else -1
+	if _sfx:
+		_sfx.play_settle()
+	if _state == BookState.OPEN:
+		_update_spread_textures()
+
+
+## Drop every sheet in the air: the page has already stepped, so the spread
+## left behind is the right one.
+func _clear_flights() -> void:
+	if _flights.is_empty():
+		return
+	for flight: Dictionary in _flights:
+		var tween := flight.get("tween") as Tween
+		if tween and tween.is_valid():
+			tween.kill()
+		var leaf := flight["leaf"] as MeshInstance3D
+		if is_instance_valid(leaf):
+			leaf.queue_free()
+	_flights.clear()
+	_flight_shown = [-1, -1]
+	if _state == BookState.OPEN and _page_count > 0:
+		_update_spread_textures()
 
 
 ## +1 / -1 if the requested spread is exactly one page either side of the
@@ -1725,6 +1838,14 @@ func _update_spread_textures() -> void:
 		_set_fan_faces(mat, right_page_idx + 2 * k, right_page_idx + 2 * k + 1)
 	left_page_idx -= 2 * _fan_shown[0]
 	right_page_idx += 2 * _fan_shown[1]
+	if _flight_shown[0] >= 0:
+		left_page_idx = _flight_shown[0]
+	if _flight_shown[1] >= 0:
+		right_page_idx = _flight_shown[1]
+	for flight: Dictionary in _flights:
+		var fmat := (flight["leaf"] as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+		fmat.set_shader_parameter("front_texture", _get_page_texture(int(flight["front"])))
+		fmat.set_shader_parameter("back_texture", _get_page_texture(int(flight["back"])))
 
 	var left_tex := _get_page_texture(left_page_idx)
 	_apply_texture(_left_stack_top, left_tex)
@@ -2039,39 +2160,9 @@ func _spawn_leaf(dir: int) -> bool:
 	_flop.suppress_fan(dir, true)
 	_sync_fan(dir)
 
-	var leaf := MeshInstance3D.new()
-	leaf.name = "ActiveLeaf"
-	var quad := QuadMesh.new()
-	quad.size = Vector2(_book_width, book_height)
-	var subdiv := LEAF_SUBDIV_DESKTOP if QualityManager.is_desktop() else LEAF_SUBDIV_QUEST
-	quad.subdivide_width = subdiv.x
-	quad.subdivide_depth = subdiv.y
-	leaf.mesh = quad
-	_set_paper_aabb(leaf, _book_width, book_height)
-	# The leaf deforms every frame; an inverted-hull outline copy would not.
-	leaf.add_to_group("outline_exclude")
-
-	var mat := ShaderMaterial.new()
-	mat.shader = PAPER_SHADER
-	mat.set_shader_parameter("page_size", Vector2(_book_width, book_height))
-	mat.set_shader_parameter("spine_sign", float(dir))
-	mat.set_shader_parameter("grain_texture", _paper_grain())
-	_apply_finish_to(mat, false)
-	mat.set_shader_parameter("gutter_dive", _gutter_dive_for(_page_plane_z(dir)))
-	mat.set_shader_parameter("bow_amount", REST_BOW)
-	mat.set_shader_parameter("fore_droop", REST_DROOP)
-	mat.set_shader_parameter("edge_curl", REST_EDGE_CURL)
-	mat.set_shader_parameter("gutter_falloff", REST_GUTTER_FALLOFF)
-	mat.set_shader_parameter("curl_taper", CURL_TAPER)
-	mat.set_shader_parameter("front_texture", _get_page_texture(int(plan["front"])))
 	var back_idx := int(plan["back"])
-	if back_idx >= 0 and back_idx < _page_count:
-		mat.set_shader_parameter("back_texture", _get_page_texture(back_idx))
-	leaf.set_surface_override_material(0, mat)
-
-	var stack_x := _book_width / 2.0 + _spine_width() / 2.0
-	leaf.position = Vector3(dir * stack_x, 0.0, _page_plane_z(dir) + LEAF_LIFT)
-	_active_leaf_container.add_child(leaf)
+	var leaf := _new_leaf(dir, int(plan["front"]), back_idx)
+	leaf.name = "ActiveLeaf"
 	_active_leaf = leaf
 	_is_turning = true
 	_turn_direction = dir
@@ -2098,6 +2189,43 @@ func _spawn_leaf(dir: int) -> bool:
 			# Nothing behind it — the stack's own cream top reads as blank paper.
 			under.visible = false
 	return true
+
+
+## A turning leaf on `dir`'s block, wearing `front` up and `back_idx` under, added
+## to the leaf container. Nothing else is touched: the caller decides what it is.
+func _new_leaf(dir: int, front: int, back_idx: int) -> MeshInstance3D:
+	var leaf := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = Vector2(_book_width, book_height)
+	var subdiv := LEAF_SUBDIV_DESKTOP if QualityManager.is_desktop() else LEAF_SUBDIV_QUEST
+	quad.subdivide_width = subdiv.x
+	quad.subdivide_depth = subdiv.y
+	leaf.mesh = quad
+	_set_paper_aabb(leaf, _book_width, book_height)
+	# The leaf deforms every frame; an inverted-hull outline copy would not.
+	leaf.add_to_group("outline_exclude")
+
+	var mat := ShaderMaterial.new()
+	mat.shader = PAPER_SHADER
+	mat.set_shader_parameter("page_size", Vector2(_book_width, book_height))
+	mat.set_shader_parameter("spine_sign", float(dir))
+	mat.set_shader_parameter("grain_texture", _paper_grain())
+	_apply_finish_to(mat, false)
+	mat.set_shader_parameter("gutter_dive", _gutter_dive_for(_page_plane_z(dir)))
+	mat.set_shader_parameter("bow_amount", REST_BOW)
+	mat.set_shader_parameter("fore_droop", REST_DROOP)
+	mat.set_shader_parameter("edge_curl", REST_EDGE_CURL)
+	mat.set_shader_parameter("gutter_falloff", REST_GUTTER_FALLOFF)
+	mat.set_shader_parameter("curl_taper", CURL_TAPER)
+	mat.set_shader_parameter("front_texture", _get_page_texture(front))
+	if back_idx >= 0 and back_idx < _page_count:
+		mat.set_shader_parameter("back_texture", _get_page_texture(back_idx))
+	leaf.set_surface_override_material(0, mat)
+
+	var stack_x := _book_width / 2.0 + _spine_width() / 2.0
+	leaf.position = Vector3(dir * stack_x, 0.0, _page_plane_z(dir) + LEAF_LIFT)
+	_active_leaf_container.add_child(leaf)
+	return leaf
 
 
 ## What the turn in progress is showing: the two faces of the leaf, and the
@@ -2152,20 +2280,26 @@ func _despawn_active_leaf() -> void:
 
 ## Push the current fold into the leaf's material.
 func _push_fold(strength: float) -> void:
-	if _active_leaf == null:
+	_push_fold_into(_active_leaf, strength, _fold_origin, _fold_normal,
+		_curl_radius, _curl_taper, _leaf_lift)
+
+
+func _push_fold_into(leaf: MeshInstance3D, strength: float, origin: Vector2,
+		normal: Vector2, radius: float, taper: float, lift: float) -> void:
+	if leaf == null:
 		return
-	var mat := _active_leaf.get_surface_override_material(0) as ShaderMaterial
+	var mat := leaf.get_surface_override_material(0) as ShaderMaterial
 	if mat == null:
 		return
 	mat.set_shader_parameter("fold_strength", strength)
-	mat.set_shader_parameter("fold_origin", _fold_origin)
-	mat.set_shader_parameter("fold_normal", _fold_normal)
-	mat.set_shader_parameter("curl_radius", _curl_radius)
-	mat.set_shader_parameter("curl_taper", _curl_taper)
+	mat.set_shader_parameter("fold_origin", origin)
+	mat.set_shader_parameter("fold_normal", normal)
+	mat.set_shader_parameter("curl_radius", radius)
+	mat.set_shader_parameter("curl_taper", taper)
 	# The settle lowers the leaf onto the stack it lands on, and the bend is
 	# measured from the book's neutral plane, not the leaf's own origin.
-	mat.set_shader_parameter("flop_origin_z", _active_leaf.position.z)
-	mat.set_shader_parameter("flop_lift", _leaf_lift)
+	mat.set_shader_parameter("flop_origin_z", leaf.position.z)
+	mat.set_shader_parameter("flop_lift", lift)
 
 
 ## How far the leaf swings up on its hinge at the gutter.
@@ -2524,7 +2658,7 @@ func _abort_grab() -> void:
 
 
 func _on_page_grab_begin(dir: int, world_pos: Vector3) -> void:
-	if _grab_dir != 0 or _page_count == 0:
+	if _grab_dir != 0 or _page_count == 0 or not _flights.is_empty():
 		return
 	if not _spawn_leaf(dir):
 		return
@@ -2825,14 +2959,9 @@ func _push_flop(force: bool) -> void:
 			var mat: ShaderMaterial = entry[0]
 			mat.set_shader_parameter("flop_own", right if int(entry[1]) > 0 else left)
 		if _active_leaf:
-			var leaf_mat := _active_leaf.get_surface_override_material(0) as ShaderMaterial
-			if leaf_mat:
-				leaf_mat.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
-				# The one sheet that crosses the gutter in mid-air.
-				leaf_mat.set_shader_parameter("flop_cross", 1.0)
-				leaf_mat.set_shader_parameter("flop_origin_z", _active_leaf.position.z)
-				leaf_mat.set_shader_parameter("flop_own", right if _turn_direction > 0 else left)
-				leaf_mat.set_shader_parameter("flop_far", left if _turn_direction > 0 else right)
+			_push_leaf_flop(_active_leaf, _turn_direction, left, right)
+		for flight: Dictionary in _flights:
+			_push_leaf_flop(flight["leaf"], int(flight["dir"]), left, right)
 		if _grab_right:
 			_seat_page_grab(_grab_right, 1)
 			_seat_page_grab(_grab_left, -1)
@@ -2845,6 +2974,19 @@ func _push_flop(force: bool) -> void:
 	# The fan moves on its own springs, so it is not covered by the test above.
 	_sync_fan(-1)
 	_sync_fan(1)
+
+
+## A sheet crossing the gutter in mid-air hangs off both halves of the book.
+func _push_leaf_flop(leaf: MeshInstance3D, dir: int, left: Vector4, right: Vector4) -> void:
+	var leaf_mat := leaf.get_surface_override_material(0) as ShaderMaterial
+	if leaf_mat == null:
+		return
+	leaf_mat.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
+	# The one sheet that crosses the gutter in mid-air.
+	leaf_mat.set_shader_parameter("flop_cross", 1.0)
+	leaf_mat.set_shader_parameter("flop_origin_z", leaf.position.z)
+	leaf_mat.set_shader_parameter("flop_own", right if dir > 0 else left)
+	leaf_mat.set_shader_parameter("flop_far", left if dir > 0 else right)
 
 
 # ── Fan: loose leaves that peel off when the book is tipped over ──────────────
@@ -2941,6 +3083,12 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	get_viewport().set_input_as_handled()
 	if _grab_dir != 0 or _active_leaf != null:
+		return
+	if _launch_flight(dir):
+		return
+	# A cover moves the cover meshes, which only the single turn knows how to
+	# do, so it waits until every sheet in the air has landed.
+	if not _flights.is_empty():
 		return
 	if not _play_turn(dir, {}, KEY_TURN_TIME):
 		if dir > 0:
