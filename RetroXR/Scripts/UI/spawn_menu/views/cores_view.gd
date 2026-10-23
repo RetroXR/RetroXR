@@ -38,6 +38,7 @@ var _download_widgets: Dictionary = {}
 var _download_browser: SystemGridBrowser = null
 var _download_cores_by_system: Dictionary = {}
 var _recommend_all_btn: Button = null
+var _update_all_btn: Button = null
 
 # Manager tab — drill-down browser + installed cores grouped by systemid:
 # sid -> Array[{ "core_name", "display_name" }]
@@ -1910,6 +1911,18 @@ func _build_download_tab() -> Control:
 	_recommend_all_btn.focus_mode = Control.FOCUS_NONE
 	_recommend_all_btn.pressed.connect(_on_download_all_recommended)
 	_download_browser.home_toolbar().add_child(_recommend_all_btn)
+
+	# To its right, and only while the buildbot has a newer build of something
+	# installed: an "Update All" that does nothing would be a second disabled
+	# button saying the same thing as the first.
+	_update_all_btn = Button.new()
+	_update_all_btn.custom_minimum_size = Vector2(0, 56)
+	_update_all_btn.add_theme_font_size_override("font_size", 18)
+	_update_all_btn.add_theme_color_override("font_color", MenuIcons.TINT_WARN)
+	_update_all_btn.focus_mode = Control.FOCUS_NONE
+	_update_all_btn.visible = false
+	_update_all_btn.pressed.connect(_on_update_all_cores)
+	_download_browser.home_toolbar().add_child(_update_all_btn)
 	_refresh_recommend_all_button()
 
 	return outer
@@ -2050,6 +2063,7 @@ func _refresh_recommend_all_soon() -> void:
 ## identically from the count alone, and calling the first one done would tell a
 ## player with no network that they have every core.
 func _refresh_recommend_all_button() -> void:
+	_refresh_update_all_button()
 	if not is_instance_valid(_recommend_all_btn):
 		return
 	if download_manager.available_cores.is_empty():
@@ -2067,6 +2081,49 @@ func _refresh_recommend_all_button() -> void:
 	_recommend_all_btn.tooltip_text = \
 		"One core per system, the best default for this platform. Cores you already have are skipped."
 	_recommend_all_btn.disabled = false
+
+
+const UPDATE_ALL_KEY := "cores:update_all"
+
+
+## Installed cores the buildbot has a newer build of, as {core_name, remote_date}.
+##
+## The same test the per-core button draws its update glyph from, so the count
+## always matches the rows showing one. That reads the manifest's stored date, so
+## a core dropped in by hand is never offered — there is no date to compare.
+func _pending_updates() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for entry: Dictionary in download_manager.available_cores:
+		var cn := str(entry.get("core_name", ""))
+		var remote := str(entry.get("remote_date", ""))
+		if download_manager.get_core_state(cn, remote) == "UPDATE":
+			out.append({"core_name": cn, "remote_date": remote})
+	return out
+
+
+## Queue every core with a newer build. Same double-press reasoning as
+## _on_download_all_recommended: queued cores read BUSY, so the refresh hides it.
+func _on_update_all_cores() -> void:
+	var pending := _pending_updates()
+	if pending.is_empty():
+		return
+	for entry: Dictionary in pending:
+		_on_download_pressed(str(entry["core_name"]), str(entry["remote_date"]))
+	_romm_notify_or_queue(UPDATE_ALL_KEY, String.chr(MenuIcons.UPDATE),
+		"Updating %d core%s" % [pending.size(), "" if pending.size() == 1 else "s"],
+		MenuToasts.DWELL_OK)
+	_refresh_recommend_all_button()
+
+
+func _refresh_update_all_button() -> void:
+	if not is_instance_valid(_update_all_btn):
+		return
+	var n := 0 if download_manager.available_cores.is_empty() else _pending_updates().size()
+	_update_all_btn.visible = n > 0
+	if n == 0:
+		return
+	_update_all_btn.text = "  Update All Cores  (%d)  " % n
+	_update_all_btn.tooltip_text = "Download the newer build of every installed core that has one"
 
 
 ## Core names sitting in the cores dir, as a set.
