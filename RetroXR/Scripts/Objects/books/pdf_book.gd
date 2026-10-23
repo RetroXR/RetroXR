@@ -646,7 +646,7 @@ func _play_turn(dir: int, target: Dictionary, duration: float) -> bool:
 	_curl_radius = CURL_MAX * 0.5
 	_curl_taper = CURL_TAPER
 	_push_fold(1.0)
-	_settle_leaf(true, duration)
+	_settle_leaf(true, duration, true)
 	return true
 
 
@@ -698,6 +698,7 @@ func _launch_flight(dir: int) -> bool:
 		turn_page_forward()
 	else:
 		turn_page_backward()
+	_seat_flights()
 	_push_flop(true)
 
 	var from_origin := Vector2(float(dir) * (_book_width * 0.5 + 0.01), 0.0)
@@ -714,7 +715,8 @@ func _launch_flight(dir: int) -> bool:
 		func(t: float) -> void:
 			if not is_instance_valid(leaf):
 				return
-			leaf.position.z = lerpf(from_z, to_z, t)
+			leaf.position.z = _descent(from_z, to_z, t)
+			_seat_flights()
 			_push_fold_into(leaf, 1.0, from_origin.lerp(to_origin, t), normal,
 				lerpf(from_radius, CURL_CLOSED, t), lerpf(CURL_TAPER, 0.0, t), 0.0),
 		0.0, 1.0, KEY_TURN_TIME)
@@ -735,10 +737,47 @@ func _land_flight(flight: Dictionary) -> void:
 	# Sheets land in the order they lifted: the next one still in the air is
 	# coming down on this one.
 	_flight_shown[land] = int(flight["back"]) if not _flights.is_empty() else -1
+	_seat_flights()
 	if _sfx:
 		_sfx.play_settle()
 	if _state == BookState.OPEN:
 		_update_spread_textures()
+
+
+## Height of a leaf rolled over from rest, `t` through the roll (eased, 0..1).
+##
+## Where it lands is BELOW the page it lands on by two closed crease radii (the
+## finished roll lifts the flipped half by that much), so it is also below the
+## block it lifts from — and lerped straight there with an ease-out, most of the
+## drop came in the first frames, while most of the sheet was still lying flat on
+## that block: the turning page sank through the page under it as it lifted. It
+## stays up until the fold has crossed the gutter (halfway through the roll),
+## then comes down. A landing ABOVE where it lifted from may rise at once.
+static func _descent(from_z: float, to_z: float, t: float) -> float:
+	return maxf(lerpf(from_z, to_z, t), lerpf(from_z, to_z, smoothstep(0.5, 1.0, t)))
+
+
+## Every page dives into the binding to ONE valley (_valley_z), and that valley
+## is set by both blocks' thicknesses, so every page a sheet steps moves it. A
+## sheet that kept the dive it lifted with ended its gutter edge where the old
+## valley was, and when the valley rose it passed UNDER the page it lay on there
+## (a sliver of the next page showed beside the spine as it lifted). Each sheet
+## dives to the valley as it stands, LEAF_LIFT above it as the single turn's
+## leaf is, and an older sheet a gap higher again, since it lies on the newer.
+## From where the sheet IS, every frame of its flight: it comes down onto the far
+## block (_descent) while the strip between the gutter and the fold still lies
+## on the near one, and a dive set from where it lifted took that strip down too.
+func _seat_flights() -> void:
+	var n := _flights.size()
+	if n == 0:
+		return
+	var valley := _valley_z()
+	for i in n:
+		var flight: Dictionary = _flights[i]
+		var mat := (flight["leaf"] as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
+		var binding := valley + LEAF_LIFT + float(n - 1 - i) * LEAF_Z_GAP
+		var leaf := flight["leaf"] as MeshInstance3D
+		mat.set_shader_parameter("gutter_dive", maxf(leaf.position.z - binding, 0.0))
 
 
 ## Drop every sheet in the air: the page has already stepped, so the spread
@@ -1733,6 +1772,7 @@ func _update_gutter_depth() -> void:
 			edge.set_shader_parameter("fore_droop", REST_DROOP)
 			edge.set_shader_parameter("edge_curl", REST_EDGE_CURL)
 	_set_cover_droop(REST_DROOP)
+	_seat_flights()
 
 
 ## The covers sag at the fore edge exactly as far as the block lying on them does.
@@ -2543,7 +2583,8 @@ func _turn_progress() -> float:
 
 
 ## Spring the page the rest of the way over, or back where it came from.
-func _settle_leaf(commit: bool, duration: float = LEAF_SETTLE_TIME) -> void:
+func _settle_leaf(commit: bool, duration: float = LEAF_SETTLE_TIME,
+		from_rest := false) -> void:
 	if _active_leaf == null or _grab_dir == 0:
 		return
 	var dir := float(_grab_dir)
@@ -2618,7 +2659,12 @@ func _settle_leaf(commit: bool, duration: float = LEAF_SETTLE_TIME) -> void:
 			# undone (0); falling over, it is carried the rest of the way (PI).
 			_leaf_lift = lerpf(from_lift, to_lift, t)
 			if is_instance_valid(leaf):
-				leaf.position.z = lerpf(from_z, to_z, t)
+				leaf.position.z = _descent(from_z, to_z, t) if from_rest else lerpf(from_z, to_z, t)
+				if from_rest:
+					# The strip still flat on the near block stays on its binding as
+					# the leaf comes down (_seat_flights says why).
+					(leaf.get_surface_override_material(0) as ShaderMaterial).set_shader_parameter(
+						"gutter_dive", maxf(leaf.position.z - LEAF_LIFT - _valley_z(), 0.0))
 			_push_fold(1.0),
 		0.0, 1.0, duration)
 	var settled_dir := _grab_dir
