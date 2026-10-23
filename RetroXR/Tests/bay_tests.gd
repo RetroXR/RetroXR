@@ -1005,6 +1005,8 @@ func _run() -> void:
 		await _group_pak()
 	if _want("floppy"):
 		await _group_floppy()
+	if _want("cartdrop"):
+		await _group_cartdrop()
 
 
 # --- floppy ---------------------------------------------------------------------
@@ -1088,6 +1090,130 @@ func _pak(scene: PackedScene) -> Node3D:
 	add_child(pak)
 	_spawned.append(pak)
 	return pak
+
+
+## A seated pak is frozen with no collision mask, so the PAD has to carry its box
+## (SeatedCollision), and the cartridge's through it. Without that a pad dropped
+## pak-down settled on its own shell and the pak went through the table.
+func _check_pak_collision(pad: Node3D, port: XRToolsSnapZone, tpak: Node3D,
+		bay: XRToolsSnapZone, gb: Node3D) -> void:
+	# Held still, or the pak's driver trails a falling pad by a tick.
+	(pad as RigidBody3D).freeze = true
+	await _wait(4)
+	var pak_box := tpak.get_node("CollisionShape3D") as CollisionShape3D
+	var lent_pak := SeatedCollision.lent_shapes(pad, tpak)
+	var from_pak: CollisionShape3D = null
+	var from_cart: CollisionShape3D = null
+	for s in lent_pak:
+		if s.get_meta(SeatedCollision._ORIGIN) == tpak.get_instance_id():
+			from_pak = s
+		elif s.get_meta(SeatedCollision._ORIGIN) == gb.get_instance_id():
+			from_cart = s
+	_ok(from_pak != null, "pak/the pad carries the seated pak's box")
+	_ok(from_cart != null, "pak/and the cartridge's, passed on through the pak")
+	if from_pak != null:
+		var own := _box_aabb_in(pad, pak_box)
+		var lent := _box_aabb_in(pad, from_pak)
+		_ok(own.get_center().distance_to(lent.get_center()) < 0.001,
+			"pak/where the pak really is (%s vs %s)" % [lent.get_center(), own.get_center()])
+		_ok(own.encloses(lent) and own.size.x - lent.size.x < 0.003,
+			"pak/a hair inside the pak's own box, so a ray meets the pak first")
+	if from_cart != null:
+		var cart_box := gb.get_node("CollisionShape3D") as CollisionShape3D
+		_ok(_box_aabb_in(pad, cart_box).get_center().distance_to(
+				_box_aabb_in(pad, from_cart).get_center()) < 0.001,
+			"pak/and where the cartridge really is")
+	var body := pad as PhysicsBody3D
+	_ok((pad as RigidBody3D).max_contacts_reported > 0,
+		"pak/the pad reports contacts while lending, so Jolt keeps the pak's")
+	var own_contacts := 0
+	_ok(tpak in body.get_collision_exceptions() and gb in body.get_collision_exceptions(),
+		"pak/the pad ignores the frozen pak and cartridge its copies overlap")
+
+	# Dropped pak-down onto a floor: the pak has to end up ON it.
+	var rb := pad as RigidBody3D
+	await _drop_part_down(rb, pak_box, "pak/a pad dropped pak-down")
+
+	bay.drop_object()
+	await _wait(4)
+	var left := SeatedCollision.lent_shapes(pad, tpak)
+	var cart_gone := true
+	for s in left:
+		if s.get_meta(SeatedCollision._ORIGIN) == gb.get_instance_id():
+			cart_gone = false
+	_ok(cart_gone and left.size() == 1, "pak/pulling the cartridge takes its box off the pad")
+	_ok(not gb in body.get_collision_exceptions(), "pak/and the pad collides with it again")
+	port.drop_object()
+	await _wait(4)
+	_ok(SeatedCollision.lent_shapes(pad, tpak).is_empty(),
+		"pak/pulling the pak leaves the pad its own shapes alone")
+	_ok(not tpak in body.get_collision_exceptions(), "pak/and the pad collides with the pak again")
+	_ok(rb.max_contacts_reported == own_contacts,
+		"pak/and has its own contact reporting back (Jolt reduces again)")
+	# Put things back the way the rest of the group expects them.
+	rb.freeze = true
+	port.pick_up_object(tpak)
+	await _wait(6)
+
+
+## Drop `body` onto a fresh floor turned so `part` (a box on something seated in
+## it) hangs straight under it, and check the part comes to rest ON the floor.
+## Only the body is solved: what is seated in it is frozen and collides with
+## nothing, so this passes only if the body carries the part's shape.
+func _drop_part_down(body: RigidBody3D, part: CollisionShape3D, what: String) -> void:
+	var floor_body := StaticBody3D.new()
+	var floor_shape := CollisionShape3D.new()
+	var slab := BoxShape3D.new()
+	slab.size = Vector3(1, 0.1, 1)
+	floor_shape.shape = slab
+	floor_body.add_child(floor_shape)
+	add_child(floor_body)
+	_spawned.append(floor_body)
+	floor_body.global_position = body.global_position + Vector3(0, -0.25, 0)
+	var floor_top := floor_body.global_position.y + 0.05
+	var down := (part.global_position - body.global_position).normalized()
+	body.freeze = false
+	body.linear_velocity = Vector3.ZERO
+	body.angular_velocity = Vector3.ZERO
+	body.global_transform = Transform3D(Basis(Quaternion(down, Vector3.DOWN)) * body.global_transform.basis,
+		Vector3(floor_body.global_position.x, floor_top + 0.3, floor_body.global_position.z))
+	await _wait(1)
+	_ok(_world_aabb(part).position.y > floor_top + 0.1, "%s starts well clear of the floor" % what)
+	await _wait(150)
+	var bottom := _world_aabb(part).position.y
+	_ok(bottom > floor_top - 0.004,
+		"%s rests it on the floor (bottom %.4f, floor %.4f)" % [what, bottom, floor_top])
+	body.freeze = true
+
+
+func _world_aabb(shape: CollisionShape3D) -> AABB:
+	var size: Vector3 = (shape.shape as BoxShape3D).size
+	return shape.global_transform * AABB(-size * 0.5, size)
+
+
+# --- cartdrop/ : a cartridge standing out of a machine that falls ----------------
+
+## A seated cartridge is frozen and collides with nothing, so the machine carries
+## its box (SeatedCollision): a handheld dropped cartridge-down rests on the
+## cartridge's stub instead of pushing it into the table.
+func _group_cartdrop() -> void:
+	for row: Array in [["game_boy_primitive", "gb"], ["game_boy_advance", "gba"]]:
+		var sys := await _console(row[0], row[1])
+		var slot := sys.get("_cartridge_slot") as XRToolsSnapZone
+		var cart := await _cart(row[1])
+		slot.pick_up_object(cart)
+		await _wait(6)
+		var lent := SeatedCollision.lent_shapes(sys, cart)
+		_ok(not lent.is_empty(), "cartdrop/%s carries its seated cartridge's box" % row[0])
+		var part := cart.get_node("CollisionShape3D") as CollisionShape3D
+		await _drop_part_down(sys as RigidBody3D, part, "cartdrop/%s dropped cartridge-down" % row[0])
+		slot.drop_object()
+		await _wait(4)
+		_ok(SeatedCollision.lent_shapes(sys, cart).is_empty(),
+			"cartdrop/%s gives the box back when the cartridge comes out" % row[0])
+		_ok((sys as RigidBody3D).max_contacts_reported == 0,
+			"cartdrop/%s and its own contact reporting" % row[0])
+		await _clear()
 
 
 func _group_pak() -> void:
@@ -1205,6 +1331,8 @@ func _group_pak() -> void:
 		var label := gb.get_node_or_null("LabelMesh") as Node3D
 		_ok(label != null and tpak.to_local(label.global_position).z < -0.031,
 			"pak/so its printed end clears the mouth instead of hiding inside")
+
+		await _check_pak_collision(pad, port, tpak, bay, gb)
 
 	# The decision itself, against both N64 cores' real vocabularies. A pak the
 	# running core cannot serve must leave the port alone rather than fit

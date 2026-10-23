@@ -62,6 +62,9 @@ func _accepts_cart(obj: Node3D) -> bool:
 func _on_cart_seated(cart: Node3D) -> void:
 	_cart = cart
 	add_collision_exception_with(cart)
+	# The cartridge's box goes on the pak, and through it on to the pad.
+	if cart is CollisionObject3D:
+		SeatedCollision.lend(self, cart as CollisionObject3D, _bay)
 	cart_changed.emit(_cart)
 
 
@@ -70,6 +73,8 @@ func _on_cart_seated(cart: Node3D) -> void:
 func _on_cart_removed() -> void:
 	if is_instance_valid(_cart):
 		remove_collision_exception_with(_cart)
+		if _cart is CollisionObject3D:
+			SeatedCollision.withdraw(self, _cart as CollisionObject3D)
 	_cart = null
 	cart_changed.emit(null)
 

@@ -4912,6 +4912,7 @@ func _on_slot2_inserted(cartridge: Node3D) -> void:
 	if "systemid" in cartridge and str(cartridge.get("systemid")).is_empty():
 		cartridge.set("systemid", Slot2Catalog.media_of(systemid))
 	_model.play_cartridge_insert(cartridge, _slot2)
+	_lend_cart_collision(cartridge, _slot2)
 	NetworkManager.report_event(NetEvents.Event.EV_SLOT2_INSERT,
 		{"sys": self, "cart": cartridge})
 
@@ -4922,8 +4923,16 @@ func _on_slot2_removed() -> void:
 	if _slot2_cartridge != null:
 		_model.play_cartridge_eject(_slot2_cartridge, _slot2)
 		remove_collision_exception_with(_slot2_cartridge)
+		SeatedCollision.withdraw(self, _slot2_cartridge as CollisionObject3D)
 		_slot2_cartridge = null
 	NetworkManager.report_event(NetEvents.Event.EV_SLOT2_REMOVE, {"sys": self})
+
+
+## A seated cartridge is frozen and collides with nothing, so the part of it
+## standing out of the machine would go through a table: the machine carries it.
+func _lend_cart_collision(cartridge: Node3D, zone: Node3D) -> void:
+	if cartridge is CollisionObject3D:
+		SeatedCollision.lend(self, cartridge as CollisionObject3D, zone)
 
 
 func get_slot2_cartridge() -> Node3D:
@@ -5366,6 +5375,10 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 	# is the tray latching, which moves nothing.
 	if not _model.has_push_tray():
 		_model.play_cartridge_insert(cartridge, _cartridge_slot)
+	# After the model has had its say: a handheld cuts a seated cartridge's box
+	# down to the stub that shows, and the stub is what there is to lend.
+	if _slot == null and _tray == null:
+		_lend_cart_collision(cartridge, _cartridge_slot)
 	# (Slot/tray loaders already seated the disc and set its grabbability through
 	# MediaSlot/MediaTray — the disc's enabled state follows the lid there.)
 	# Hot swap: a powered disc console with its virtual tray open takes the new
@@ -5405,6 +5418,7 @@ func _on_cartridge_removed() -> void:
 		# exception until the disc is grabbed clear — don't drop it here.
 		if _slot == null and _tray == null:
 			remove_collision_exception_with(_snapped_cartridge)
+			SeatedCollision.withdraw(self, _snapped_cartridge as CollisionObject3D)
 		_snapped_cartridge = null
 	_disc_spin = 0.0
 	# Taking the media out never interrupts the run. A console does not stop when

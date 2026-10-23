@@ -95,6 +95,20 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   was the last environment". `scene_tests boot/` walks every room's root.
 - `RetroXR/Scripts/Objects/systems/system.gd` — Per-arcade-cabinet controller. Has `@onready var _libretro: Libretro = $Libretro` wired to a child `Libretro` node in the scene tree.
 - `RetroXR/Scenes/Objects/system.tscn` — Cabinet scene. Contains a `Libretro` child node. Its `unique_id` is the value 4000000010, but Godot writes it SIGNED, so the file reads `unique_id=-294967286` — grep for that, not for the decimal above.
+- **What a snap zone holds collides with NOTHING** (`pick_up` freezes it, mask 0, and a
+  grab driver drags it), so anything standing out of a LOOSE body went through the table:
+  a Transfer Pak under an N64 pad sank 2 cm while staying attached (2026-10-23).
+  `SeatedCollision.lend(host, guest, zone)` on the zone's `has_picked_up` puts inset copies
+  of the guest's shapes on the host (and collision exceptions with every body they stand
+  for); `withdraw` on `has_dropped`. Nesting re-lends upward (a cartridge in a pak in a
+  pad). Wired: `N64PakPort`, the Transfer Pak's bay, a console's plain cartridge deck and
+  the DS Slot-2. **Copies alone are not enough under Jolt**: manifold reduction keeps the
+  four contact points spanning the most area per floor, the corners of the host's shell,
+  and the part hanging under the middle loses its points. Jolt reduces only for a body
+  reporting no contacts, so a lending host gets `max_contacts_reported >= 1` and its own
+  value back when it lends nothing. `bay_tests pak/` and `cartdrop/` drop the body
+  part-down onto a floor; both mutations (copies off, reduction on) go red. Not wired yet:
+  a Wii Remote's MotionPlus/Nunchuk, VMUs, expansions bolted on a cartridge slot.
 - GDExtension registration at `MODULE_INITIALIZATION_LEVEL_SCENE`.
 
 ## Dependencies

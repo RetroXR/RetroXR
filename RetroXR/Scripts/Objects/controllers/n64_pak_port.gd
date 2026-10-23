@@ -61,6 +61,9 @@ func _on_seated(obj: Node3D) -> void:
 	if _pak != null:
 		if _owner is CollisionObject3D:
 			(_owner as CollisionObject3D).add_collision_exception_with(_pak)
+			# Seated, the pak is frozen and collides with nothing; the pad carries
+			# its shape instead, or a pak underneath sinks through the table.
+			SeatedCollision.lend(_owner as CollisionObject3D, _pak, _zone)
 		# A Transfer Pak's cartridge can change without the pak moving, and this
 		# port has to re-announce when it does — so the host follows the pak's
 		# own signal, the way a Wii Remote follows a chained Nunchuk's.
@@ -79,6 +82,7 @@ func _on_removed() -> void:
 	if is_instance_valid(_pak):
 		if _owner is CollisionObject3D:
 			(_owner as CollisionObject3D).remove_collision_exception_with(_pak)
+			SeatedCollision.withdraw(_owner as CollisionObject3D, _pak)
 		if _pak is TransferPak and _pak.cart_changed.is_connected(_on_cart_changed):
 			_pak.cart_changed.disconnect(_on_cart_changed)
 	_pak = null
