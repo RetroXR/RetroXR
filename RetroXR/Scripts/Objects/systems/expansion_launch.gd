@@ -52,6 +52,13 @@ func expansion_boot() -> Dictionary:
 		spec = spec.duplicate()
 		spec.erase("core")
 		return spec
+	# A cartridge the unit passes straight through (a Genesis game in a 32X) is the
+	# console's own game, and boots on the console's own core: on the hardware the
+	# 32X sits idle under it.
+	if _passed_through():
+		spec = spec.duplicate()
+		spec.erase("core")
+		return spec
 	# `core` is a desktop core_name, and the buildbot does not publish every core
 	# under one name on every platform -- mupen64plus_next is plain on Windows and
 	# only _gles2/_gles3 on Android. A row naming one of those carries an
@@ -63,6 +70,17 @@ func expansion_boot() -> Dictionary:
 		spec = spec.duplicate()
 		spec["core"] = resolved
 	return spec
+
+
+## True when a unit's bay holds media it only passes through to the console --
+## ExpansionCatalog.passes_of -- such as a Genesis cartridge in a 32X.
+func _passed_through() -> bool:
+	for unit in _host.get_expansions():
+		var m := unit.get_media()
+		if m != null and "systemid" in m \
+				and ExpansionCatalog.passes_of(unit.expansion_id).has(str(m.get("systemid"))):
+			return true
+	return false
 
 
 ## What is in the CONSOLE's own slot -- read from the cartridge, not from

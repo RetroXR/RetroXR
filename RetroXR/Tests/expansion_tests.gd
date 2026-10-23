@@ -802,6 +802,41 @@ func _group_media() -> void:
 		"media/ and boots from the FM unit's bay")
 	await _clear()
 
+	# A Genesis cartridge in a 32X plays as it would in the bare console: the 32X
+	# passes the cartridge through, so it boots on the console's own core.
+	var x32 := await _unit("sega_32x")
+	var md := await _console("genesis")
+	md.restore_cartridge(x32)
+	await _wait(5)
+	var empty_seat: Vector3 = x32._bays[0].position
+	var md_cart := await _cart("genesis", "/roms/genesis/sonic.md")
+	_ok(x32._accepts_media(md_cart), "media/ the 32X's slot takes a Genesis cartridge")
+	_ok(x32._accepts_media(await _cart("sega32x", "/roms/sega32x/x.32x")),
+		"media/ as well as its own")
+	_ok(not x32._accepts_media(await _cart("mastersystem", "/roms/mastersystem/x.sms")),
+		"media/ and refuses a Master System one")
+	x32.restore_media(md_cart)
+	await _wait(5)
+	var pass_boot := md.expansion_boot()
+	_ok(not pass_boot.has("core") and md.resolve_core_name() == md._bare_core_default(),
+		"media/ a Genesis game in a 32X runs on the console's own core, not picodrive")
+	_ok(md._expansion_launch.expansion_roms(pass_boot) == ["/roms/genesis/sonic.md"],
+		"media/ and boots from the 32X's slot")
+	var drop: float = empty_seat.y - x32._bays[0].position.y
+	_ok(is_equal_approx(drop, (MediaDimensions.cart_size("sega32x").y
+			- MediaDimensions.cart_size("genesis").y) * 0.5),
+		"media/ and stands on the slot's floor at its own height (dropped %.4f)" % drop)
+	await _clear()
+
+	var own_x32 := await _unit("sega_32x")
+	var own_md := await _console("genesis")
+	own_md.restore_cartridge(own_x32)
+	own_x32.restore_media(await _cart("sega32x", "/roms/sega32x/knuckles.32x"))
+	await _wait(5)
+	_ok(str(own_md.expansion_boot().get("core", "")) == "picodrive",
+		"media/ while a 32X game still runs on picodrive")
+	await _clear()
+
 
 # ── launch ────────────────────────────────────────────────────────────────────
 
@@ -1585,6 +1620,22 @@ func _group_scd_boot() -> void:
 	_ok(tower.expansion_ids() == ["sega_cd", "sega_32x"]
 		and tower._expansion_launch.expansion_roms(tower.expansion_boot()).is_empty(),
 		"scd_boot/ the 32X tower on picodrive is not handed genesis_plus_gx's BIOS")
+	tower_cd.restore_media(await _cart("segacd", "/roms/segacd/tower.chd"))
+	await _wait(5)
+	tower._expansion_launch.apply_expansion_launch()
+	_ok(tower.rom_path == "/roms/segacd/tower.chd", "scd_boot/ the tower boots its disc")
+	var tower_cart := await _cart("genesis", "/roms/genesis/tower.md")
+	x32.restore_media(tower_cart)
+	await _wait(5)
+	tower._expansion_launch.apply_expansion_launch()
+	_ok(tower.rom_path == "/roms/genesis/tower.md"
+		and not tower.expansion_boot().has("core"),
+		"scd_boot/ until a Genesis cartridge in its 32X boots first, on the console's core")
+	await _unbolt(x32._bays[0], tower_cart)
+	tower._expansion_launch.apply_expansion_launch()
+	_ok(tower.rom_path == "/roms/segacd/tower.chd"
+		and str(tower.expansion_boot().get("core", "")) == "picodrive",
+		"scd_boot/ and with it out, the disc again on picodrive")
 	await _clear()
 
 

@@ -462,6 +462,13 @@ static func media_of(id: String) -> String:
 	return str(row(id).get("media", ""))
 
 
+## Other systems' media the unit's bay takes and hands straight to the console,
+## as the 32X does a Genesis cartridge. Such a cartridge boots on the console's
+## own core (ExpansionLaunch.expansion_boot).
+static func passes_of(id: String) -> Array:
+	return row(id).get("passes", []) as Array
+
+
 static func mount_of(id: String) -> int:
 	return int(row(id).get("mount", MOUNT_BELOW))
 

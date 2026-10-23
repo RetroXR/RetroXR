@@ -38,6 +38,10 @@ const ROW := {
 	# Sega32xSpacer.GROUP. Its model shares the shell's frame, so the mount at the
 	# shell's origin seats it exactly under the unit.
 	"accessory_group": "sega32x_spacer",
+	# A Genesis cartridge goes in the 32X's slot too, and plays as if the unit were
+	# not there: the 32X passes the cartridge bus straight through to the console.
+	# ExpansionLaunch boots one on the console's own core, not the 32X's.
+	"passes": ["genesis"],
 }
 
 const SHELL := "res://imported-assets/consoles/sega_32x/sega32x.glb"
@@ -55,10 +59,12 @@ const BOOT := {
 		"core": "picodrive",
 		"roms": ["expansion:sega_32x"],
 	},
-	# UNVERIFIED. The full tower, where the disc is still what boots. The disc
-	# alone: the plain form would fall back to genesis_plus_gx's BIOS file.
+	# UNVERIFIED. The full tower: a cartridge in the 32X boots first, as a
+	# cartridge in a Mega Drive boots before the Mega-CD's disc; with none, the
+	# disc. Both explicit forms: the plain one would fall back to the 32X's ROM or
+	# genesis_plus_gx's BIOS file.
 	"genesis|sega_cd|sega_32x": {
 		"core": "picodrive",
-		"roms": ["expansion_media:sega_cd"],
+		"roms": ["expansion_media:sega_32x", "expansion_media:sega_cd"],
 	},
 }

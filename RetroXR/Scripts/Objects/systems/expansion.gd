@@ -908,8 +908,8 @@ func _build_well_bay(s: Vector3, media: String, loader: int) -> void:
 	for i in n:
 		var x: float = (float(i) - float(n - 1) * 0.5) * pitch
 		if floor_marker != null and n == 1:
-			var h: float = MediaDimensions.cart_size(media).y
-			_bays[i].position = to_local(floor_marker.global_position) + Vector3(0.0, h * 0.5, 0.0)
+			_floor_seat = to_local(floor_marker.global_position)
+			_seat_on_floor(media)
 		else:
 			_bays[i].position = Vector3(x, s.y * 0.5, 0.0)
 			ExpansionShell.build_well(_body, s, media, loader, x)
@@ -917,6 +917,20 @@ func _build_well_bay(s: Vector3, media: String, loader: int) -> void:
 		# write the same entry and the second cartridge is invisible.
 		_bays[i].has_picked_up.connect(_on_media_in.bind(i))
 		_bays[i].has_dropped.connect(_on_media_out.bind(i))
+
+
+## The floor of a shell-modelled slot, in this unit's frame; null without one.
+var _floor_seat: Variant = null
+
+
+## Stand the one bay of a shell-modelled slot on its floor at the height of a
+## `media` cartridge: the bay holds a cartridge by its middle, and a Genesis
+## cartridge in a 32X is 6 mm shorter than the 32X's own.
+func _seat_on_floor(media: String) -> void:
+	if _floor_seat == null or _bays.size() != 1:
+		return
+	var h: float = MediaDimensions.cart_size(media).y
+	_bays[0].position = (_floor_seat as Vector3) + Vector3(0.0, h * 0.5, 0.0)
 
 
 ## Bay gate: is this the media this unit takes? Media with no systemid of its own
@@ -928,6 +942,9 @@ func _accepts_media(obj: Node3D) -> bool:
 	var mid := str(obj.get("systemid"))
 	var media := ExpansionCatalog.media_of(expansion_id)
 	if mid.is_empty() or mid == media:
+		return true
+	# A cartridge the unit passes through to the console (a Genesis game in a 32X).
+	if ExpansionCatalog.passes_of(expansion_id).has(mid):
 		return true
 	# A Game Boy bay (the Super Game Boys') takes the Color library's cartridges
 	# as well, as the hardware does: the black dual-mode ones play, and a
@@ -948,6 +965,8 @@ func _on_media_in(media: Node3D, slot := 0) -> void:
 	# Back-fill, exactly as a console does: a disk put into a 64DD is a 64DD disk.
 	if "systemid" in media and str(media.get("systemid")).is_empty():
 		media.set("systemid", ExpansionCatalog.media_of(expansion_id))
+	if "systemid" in media:
+		_seat_on_floor(str(media.get("systemid")))
 	_swing_flaps(true)
 	_notify_host_media()
 
@@ -960,6 +979,7 @@ func _on_media_out(slot := 0) -> void:
 		remove_collision_exception_with(was)
 		SeatedCollision.withdraw(self, was as CollisionObject3D)
 	_media[slot] = null
+	_seat_on_floor(ExpansionCatalog.media_of(expansion_id))
 	_swing_flaps(false)
 	_notify_host_media()
 
