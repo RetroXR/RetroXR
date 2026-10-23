@@ -149,6 +149,14 @@ var _poster_thumb_order: Array[String] = []
 ## systemid -> {lowercase basename: rom}. A directory listing, so it is cached
 ## and dropped whenever something writes to a ROM dir.
 var _local_scan_cache: Dictionary = {}
+## systemid -> games in its ROM folders, for the corner of a tile the RomM badge
+## does not cover. Counted on a worker (_request_local_counts) and kept until
+## something writes to that folder.
+var _local_counts: Dictionary = {}
+## The WorkerThreadPool task counting now, or -1.
+var _local_count_task: int = -1
+## Systemids asked for while a count was running; counted once it lands.
+var _local_count_pending: Dictionary = {}
 
 # ── Tabs ──────────────────────────────────────────────────────────────────────
 ## Per-tab ScrollContainers, indexed by tab index. Systems and Cartridges own
@@ -1003,6 +1011,18 @@ func _populate_cartridges_tab(rerun_detail: bool = true) -> void:
 			# the RomM mark above it promises.
 			if romm_cache != null:
 				s["badge_here"] = romm_cache.rom_ids_for_system(sid).size()
+		elif int(_local_counts.get(sid, 0)) > 0:
+			# No server count to pair with — RomM not set up, or this platform is
+			# not on it — so the corner says what is on this device on its own.
+			s["badge_local"] = int(_local_counts[sid])
+
+	# Systems not counted yet are counted off the frame; the tiles redraw when
+	# the numbers land.
+	var uncounted: Array[String] = []
+	for s: Dictionary in systems:
+		if not _local_counts.has(str(s["systemid"])):
+			uncounted.append(str(s["systemid"]))
+	_request_local_counts(uncounted)
 
 	# One directory scan, shared by both passes.
 	var by_system := FirmwareRequirements.installed_cores_by_system()
@@ -1548,10 +1568,127 @@ func _invalidate_local_scan(systemid: String = "") -> void:
 		_local_scan_cache.clear()
 	else:
 		_local_scan_cache.erase(systemid)
+	# The tile counts go stale with the listing. Recounted rather than dropped, so
+	# a tile keeps its old number until the new one lands instead of blinking.
+	if systemid.is_empty():
+		var all: Array[String] = []
+		all.assign(_local_counts.keys())
+		_request_local_counts(all)
+	elif _local_counts.has(systemid):
+		_request_local_counts([systemid] as Array[String])
 	# The adapter probe is a scan of the same folders and goes stale with them:
 	# a reader dump copied in has to stop being a game and start being a machine
 	# on the same refresh, not on the next launch.
 	AdapterRoms.invalidate()
+
+
+## Count these systems' local games on a worker, then redraw the tiles that
+## changed. A listing per system is too slow for the frame on Quest storage, and
+## the grid is rebuilt often — so this runs once per system per session, and again
+## only for a folder something wrote to.
+##
+## Everything the worker needs is resolved here first: RomLibrary's folder cache
+## and the core database are not the worker's to touch.
+func _request_local_counts(systemids: Array[String]) -> void:
+	for sid: String in systemids:
+		_local_count_pending[sid] = true
+	if _local_count_task >= 0 or _local_count_pending.is_empty():
+		return
+	var jobs: Array[Dictionary] = []
+	for sid: String in _local_count_pending:
+		# The e-Reader's shelf is cards, grouped by name off a scan of its own —
+		# not a folder of games to count.
+		if sid == EReaderCards.SYSTEMID:
+			continue
+		var exts := CoreInfoDatabase.extensions_for_systemid(sid)
+		if exts.is_empty():
+			_local_counts[sid] = 0
+			continue
+		var info := SystemInfo.for_system(sid)
+		jobs.append({
+			"systemid": sid,
+			"dirs": RomLibrary.rom_dirs_for_system(sid),
+			"exts": exts,
+			"folders": info != null and info.folder_content,
+		})
+	_local_count_pending.clear()
+	if jobs.is_empty():
+		return
+	_local_count_task = WorkerThreadPool.add_task(func() -> void:
+		var counts: Dictionary = {}
+		for job: Dictionary in jobs:
+			counts[job["systemid"]] = _count_local_games(
+				job["dirs"], job["exts"], job["folders"])
+		_on_local_counts_ready.call_deferred(counts)
+	, false, "Local ROM counts")
+
+
+func _on_local_counts_ready(counts: Dictionary) -> void:
+	if _local_count_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_local_count_task)
+		_local_count_task = -1
+	var changed := false
+	for sid: String in counts:
+		if int(_local_counts.get(sid, -1)) != int(counts[sid]):
+			_local_counts[sid] = int(counts[sid])
+			changed = true
+	if changed:
+		_owe(false, true, false)
+	# Whatever was asked for while this one ran.
+	_request_local_counts([] as Array[String])
+
+
+## Games in a system's ROM folders, counted the way its page lists them: one per
+## file stem with an extension a core loads, so a .cue and its .bin are one game
+## and the gamelist and scraped media beside them are none. A folder-content
+## system (ScummVM) also counts each subfolder holding a file it loads.
+##
+## Pure DirAccess and nothing shared, so it is safe on a worker. It does not ask
+## AdapterRoms, so a reader's own dump on the Game Boy Advance shelf is counted
+## as a game here; one too many is the price of keeping that probe off the thread.
+static func _count_local_games(dirs: PackedStringArray, exts: Array[String],
+		folders: bool) -> int:
+	var stems: Dictionary = {}
+	var games := 0
+	for dir_path: String in dirs:
+		var dir := DirAccess.open(dir_path)
+		if not dir:
+			continue
+		dir.list_dir_begin()
+		var f := dir.get_next()
+		while f != "":
+			if f.begins_with("."):
+				pass
+			elif dir.current_is_dir():
+				if folders and _folder_has_game(dir_path.path_join(f), exts):
+					games += 1
+			elif f.get_extension().to_lower() in exts:
+				stems[f.get_basename().to_lower()] = true
+			f = dir.get_next()
+		dir.list_dir_end()
+	return games + stems.size()
+
+
+static func _folder_has_game(path: String, exts: Array[String]) -> bool:
+	var dir := DirAccess.open(path)
+	if not dir:
+		return false
+	dir.list_dir_begin()
+	var f := dir.get_next()
+	while f != "":
+		if not dir.current_is_dir() and not f.begins_with(".") \
+				and f.get_extension().to_lower() in exts:
+			dir.list_dir_end()
+			return true
+		f = dir.get_next()
+	dir.list_dir_end()
+	return false
+
+
+func _exit_tree() -> void:
+	if _local_count_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_local_count_task)
+		_local_count_task = -1
 
 
 func _romm_row_passes(source: String, regions: PackedStringArray) -> bool:

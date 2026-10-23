@@ -49,6 +49,7 @@ func _ready() -> void:
 	_group_art_lookup()
 	await _group_idle()
 	await _group_tiles()
+	await _group_local_counts()
 	_group_frame_cap()
 
 	for n: Node in _spawned:
@@ -74,6 +75,94 @@ func _ok(cond: bool, what: String, detail := "") -> void:
 
 func _eq(got: Variant, want: Variant, what: String) -> void:
 	_ok(got == want, what, "got %s, want %s" % [got, want])
+
+
+# ── local_counts/ — a tile with no RomM badge still says what is on the device ─
+
+const LOCAL_COUNT_ROOT := "user://__spawn_menu_local_count_selftest"
+
+
+## With no server to pair a number with, the Cartridges tile shows the games in
+## its own ROM folders. Counted the way the page lists them: one per stem a core
+## loads, so a save beside its game, a .bin beside its .cue and the gamelist are
+## not games.
+func _group_local_counts() -> void:
+	var root := ProjectSettings.globalize_path(LOCAL_COUNT_ROOT)
+	var one := root.path_join("snes")
+	var two := root.path_join("sfc")
+	DirAccess.make_dir_recursive_absolute(one.path_join("Folder Game"))
+	DirAccess.make_dir_recursive_absolute(two)
+	for path: String in [
+			one.path_join("Alpha.sfc"), one.path_join("Alpha.srm"),
+			one.path_join("Beta.cue"), one.path_join("Beta.bin"),
+			one.path_join("gamelist.json"), one.path_join(".hidden.sfc"),
+			one.path_join("Folder Game/inner.sfc"),
+			two.path_join("Gamma.SFC"), two.path_join("alpha.sfc")]:
+		FileAccess.open(path, FileAccess.WRITE).close()
+	var exts: Array[String] = ["sfc", "cue", "bin"]
+	var dirs := PackedStringArray([one, two])
+	_eq(SpawnMenuSpawnView._count_local_games(dirs, exts, false), 3,
+		"local_counts/one per game stem across both folders")
+	_eq(SpawnMenuSpawnView._count_local_games(dirs, exts, true), 4,
+		"local_counts/a folder-content system also counts a folder holding a game")
+	_eq(SpawnMenuSpawnView._count_local_games(PackedStringArray([root.path_join("none")]),
+		exts, false), 0, "local_counts/a missing folder is no games")
+	_remove_local_count_tree(root)
+
+	# The count runs on a worker and comes back on the main thread. Read-only on
+	# the real roms root: the number is the player's, its arrival is the check.
+	var view := SpawnMenuSpawnView.new()
+	add_child(view)
+	_spawned.append(view)
+	view._request_local_counts(["nes"] as Array[String])
+	_ok(view._local_count_task >= 0, "local_counts/a count is handed to a worker")
+	for i in 120:
+		if view._local_counts.has("nes"):
+			break
+		await get_tree().process_frame
+	_ok(view._local_counts.has("nes") and view._local_count_task == -1,
+		"local_counts/and its number lands back on the view")
+
+	var browser := SystemGridBrowser.new()
+	add_child(browser)
+	_spawned.append(browser)
+	await get_tree().process_frame
+	var mark := PlaceholderTexture2D.new()
+	browser.set_systems([
+		{"systemid": "nes", "name": "NES", "badge_local": 7},
+		{"systemid": "snes", "name": "SNES", "badge_local": 5,
+			"badge_icon": mark, "badge_count": 40, "badge_here": 2},
+		{"systemid": "gb", "name": "Game Boy", "badge_local": 0},
+	])
+	# Sorted by name: Game Boy, NES, SNES.
+	_eq(_badge_texts(browser._tile_nodes[1]), ["7"],
+		"local_counts/no RomM badge: the corner shows the local count")
+	_eq(_badge_texts(browser._tile_nodes[2]), ["2", " / ", "40"],
+		"local_counts/a RomM badge keeps its pair and the local count stays out")
+	_eq(_badge_texts(browser._tile_nodes[0]), [],
+		"local_counts/nothing on the device: no corner number")
+
+
+## The corner badge's numbers on one tile, in drawing order.
+func _badge_texts(tile: Control) -> Array:
+	var out: Array = []
+	for node: Node in tile.find_children("*", "Label", true, false):
+		var lbl := node as Label
+		if lbl.has_theme_font_size_override("font_size") \
+				and lbl.get_theme_font_size("font_size") == 14:
+			out.append(lbl.text)
+	return out
+
+
+func _remove_local_count_tree(path: String) -> void:
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return
+	for sub: String in dir.get_directories():
+		_remove_local_count_tree(path.path_join(sub))
+	for f: String in dir.get_files():
+		DirAccess.remove_absolute(path.path_join(f))
+	DirAccess.remove_absolute(path)
 
 
 ## The GRAPHICS tab's desktop frame cap: offered on the desktop and nowhere else,

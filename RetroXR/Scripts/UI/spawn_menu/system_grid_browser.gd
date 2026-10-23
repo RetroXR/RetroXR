@@ -91,6 +91,8 @@ const CORNER_GLYPH_RESERVE_PX := 34.0
 # ── State ──────────────────────────────────────────────────────────────────────
 # Each entry: { "systemid": String, "name": String, "badge": String (optional),
 #               "alt_tile": bool (optional),
+#               "badge_icon": Texture2D, "badge_count": int, "badge_here": int,
+#               "badge_local": int (all optional),
 #               "corner_glyph": String, "corner_glyph_color": Color,
 #               "corner_glyph_tip": String (all optional) }
 var _systems: Array = []
@@ -660,6 +662,10 @@ func _make_tile(s: Dictionary) -> Button:
 	# always had, while a host that genuinely counted zero still shows "0 / N".
 	var mark_here := int(s.get("badge_here", -1))
 	var has_pair := has_mark and mark_here >= 0
+	# With no source mark — no server, or a platform the server does not have —
+	# the corner still says how many games are on this device, alone and green.
+	var local_count := int(s.get("badge_local", 0))
+	var has_local := not has_mark and local_count > 0
 
 	# A glyph for the top-right corner, supplied by the host the same way the
 	# source badge is. Kept as text plus a colour rather than a lookup here, so
@@ -676,7 +682,7 @@ func _make_tile(s: Dictionary) -> Button:
 	var right_reserve := -12.0
 	if has_mark:
 		right_reserve = -BADGE_RESERVE_PX
-	elif has_glyph:
+	elif has_glyph or has_local:
 		right_reserve = -CORNER_GLYPH_RESERVE_PX
 	row.offset_right = right_reserve
 	row.add_theme_constant_override("separation", 10)
@@ -785,6 +791,14 @@ func _make_tile(s: Dictionary) -> Button:
 			pair.add_child(_badge_number(_compact_count(mark_count), COLOR_LICENSE))
 		else:
 			corner.add_child(_badge_number(_compact_count(mark_count), COLOR_LICENSE))
+	elif has_local:
+		var here := _badge_number(_compact_count(local_count), COLOR_BADGE_HERE)
+		here.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
+		here.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+		here.grow_vertical = Control.GROW_DIRECTION_BEGIN
+		here.offset_right = -8
+		here.offset_bottom = -6
+		btn.add_child(here)
 
 	style_tile(btn, alt)
 	btn.pressed.connect(open_system.bind(sid))
