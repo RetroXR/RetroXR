@@ -44,7 +44,11 @@ var _controllers: Array[XRController3D] = []
 var _rearmed: Dictionary = {}
 var _ctrl: XRController3D = null
 var _pointer_held := false
-var _pointer_hover := false
+## The pointers on this (a laser per hand, or the desktop reticle). Hover is
+## any of them, so one leaving does not unlight what the other is still on.
+var _hover_pointers: Dictionary = {}
+var _pointer_hover: bool:
+	get: return not _hover_pointers.is_empty()
 ## The pointer that latched (desktop reticle or VR laser), for its ray.
 var _pointer: Node3D = null
 
@@ -157,7 +161,7 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		return
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:
-			_pointer_hover = true
+			_hover_pointers[event.pointer] = true
 		XRToolsPointerEvent.Type.PRESSED:
 			if _ctrl == null:
 				_pointer_held = true
@@ -172,7 +176,7 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			if _pointer_held:
 				_release()
 		XRToolsPointerEvent.Type.EXITED:
-			_pointer_hover = false
+			_hover_pointers.erase(event.pointer)
 
 
 ## Where the latched pointer's ray puts the dragging hand, or null if there is no

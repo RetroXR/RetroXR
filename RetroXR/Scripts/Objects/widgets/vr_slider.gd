@@ -94,7 +94,11 @@ var _grab_offset: float = 0.0
 ## how deep the fingertip has pressed. Only ever falls while engaged.
 var _min_perp: float = 0.0
 var _pointer_engaged := false
-var _pointer_hovered := false
+## The pointers on this (a laser per hand, or the desktop reticle). Hover is
+## any of them, so one leaving does not unlight what the other is still on.
+var _hover_pointers: Dictionary = {}
+var _pointer_hovered: bool:
+	get: return not _hover_pointers.is_empty()
 var _controllers: Array[XRController3D] = []
 var _suppress_signal := false
 
@@ -409,9 +413,9 @@ func accepts_pointer_ray(from: Vector3, at: Vector3) -> bool:
 func pointer_event(event: XRToolsPointerEvent) -> void:
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:
-			_pointer_hovered = true
+			_hover_pointers[event.pointer] = true
 		XRToolsPointerEvent.Type.PRESSED:
-			_pointer_hovered = true
+			_hover_pointers[event.pointer] = true
 			_pointer_engaged = true
 			if steps == 2:
 				# A two-position switch is flipped by pressing it, wherever along the slot the
@@ -430,7 +434,7 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.EXITED:
 			_pointer_engaged = false
 			_pointer_flipped = false
-			_pointer_hovered = false
+			_hover_pointers.erase(event.pointer)
 	_sync_outline()
 
 

@@ -29,10 +29,16 @@ var _mouse : Node3D
 # Last mouse position
 var _mouse_last := Vector2.ZERO
 
+# LOCAL MODIFICATION (RetroXR): hover for the pointers that are not the mouse,
+# and where each pointer last was, for one that stops being the mouse.
+var _hover : PointerHover
+var _hover_at := {}
+
 
 func _ready():
 	# Get viewport node
 	_viewport = get_node("../Viewport")
+	_hover = PointerHover.new(_viewport)
 
 	# Subscribe to pointer events
 	pointer_event.connect(_on_pointer_event)
@@ -121,6 +127,10 @@ func _on_pointer_event(event : XRToolsPointerEvent) -> void:
 	# neither focused it nor opened the overlay keyboard. The pointer that
 	# pressed is the one the user means.
 
+	# Whether this pointer was the mouse before any handover below.
+	var was_mouse := pointer == _mouse
+	var old_mouse := _mouse
+
 	# If the current mouse isn't pressed then consider switching to a new one
 	if not _presses.has(_mouse):
 		if type == XRToolsPointerEvent.Type.PRESSED:
@@ -133,7 +143,20 @@ func _on_pointer_event(event : XRToolsPointerEvent) -> void:
 			# No mouse, pick the dominant
 			_mouse = _dominant
 
+	# LOCAL MODIFICATION (RetroXR) — reapply if this addon is updated.
+	#
+	# Only the mouse hovers: Godot's GUI never lights a Control for a touch, so
+	# with a laser on each hand only one tile lit. PointerHover sends the other
+	# pointers' Controls the enter/exit a mouse would, and keeps a Control lit
+	# while any pointer is on it (sync_mouse re-enters what the mouse just left
+	# under another pointer). A pointer that has become the mouse hands its
+	# hover back first, and is moved to where it is, as a real mouse would be
+	# before it clicked.
 	if pointer == _mouse:
+		_hover.release(pointer)
+		if not was_mouse and type != XRToolsPointerEvent.Type.MOVED:
+			_report_mouse_move(false, at, at)
+
 		# Fire mouse events
 		match type:
 			XRToolsPointerEvent.Type.PRESSED:
@@ -144,7 +167,17 @@ func _on_pointer_event(event : XRToolsPointerEvent) -> void:
 
 			XRToolsPointerEvent.Type.MOVED:
 				_report_mouse_move(pressed, last, at)
+
+		_hover.sync_mouse()
+
+		# The pointer this one took the mouse from is still on the panel: it
+		# hovers as the others do from here.
+		if old_mouse != pointer and is_instance_valid(old_mouse) 				and _hover_at.has(old_mouse):
+			_hover.move(old_mouse, _hover_at[old_mouse])
 	else:
+		if type != XRToolsPointerEvent.Type.EXITED:
+			_hover.move(pointer, at)
+
 		# Dispatch touch events
 		match type:
 			XRToolsPointerEvent.Type.PRESSED:
@@ -155,6 +188,8 @@ func _on_pointer_event(event : XRToolsPointerEvent) -> void:
 
 			XRToolsPointerEvent.Type.MOVED:
 				_report_touch_move(index, pressed, last, at)
+
+	_hover_at[pointer] = at
 
 	# Clear pointer information on exit
 	if type == XRToolsPointerEvent.Type.EXITED:
@@ -170,6 +205,17 @@ func _on_pointer_event(event : XRToolsPointerEvent) -> void:
 				_report_mouse_up(at)
 			else:
 				_report_touch_up(index, at)
+
+		# LOCAL MODIFICATION (RetroXR) — reapply if this addon is updated.
+		#
+		# Upstream never told the viewport the mouse had gone, so the Control
+		# under it stayed hovered — a tile stayed lit after its laser left the
+		# panel. Move the mouse off the panel, which drops the engine's hover.
+		if was_mouse:
+			_report_mouse_leave(at)
+			_hover.sync_mouse()
+		_hover.release(pointer)
+		_hover_at.erase(pointer)
 
 		# Clear pointer information
 		_touches.erase(pointer)
@@ -238,6 +284,16 @@ func _report_mouse_move(pressed : bool, from : Vector2, to : Vector2) -> void:
 	event.relative = to - from
 	event.button_mask = 1 if pressed else 0
 	event.pressure = 1.0 if pressed else 0.0
+	_viewport.push_input(event)
+
+
+# LOCAL MODIFICATION (RetroXR): the mouse has left the panel. A motion to a
+# point off the viewport finds no Control, so the engine drops its hover.
+func _report_mouse_leave(from : Vector2) -> void:
+	var event := InputEventMouseMotion.new()
+	event.position = Vector2(-1.0, -1.0)
+	event.global_position = event.position
+	event.relative = event.position - from
 	_viewport.push_input(event)
 
 

@@ -101,7 +101,7 @@ func _on_released() -> void:
 func pointer_event(event: XRToolsPointerEvent) -> void:
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:
-			_pointer_hover = true
+			_hover_pointers[event.pointer] = true
 		XRToolsPointerEvent.Type.PRESSED:
 			if _can_engage():
 				_pointer_held = true
@@ -112,5 +112,5 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.RELEASED:
 			_pointer_held = false
 		XRToolsPointerEvent.Type.EXITED:
-			_pointer_hover = false
+			_hover_pointers.erase(event.pointer)
 	_update_icon()

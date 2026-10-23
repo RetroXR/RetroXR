@@ -82,7 +82,11 @@ var _touch_ctrl: XRController3D = null         # hand holding this button down
 var _touch_lost: float = 0.0                   # seconds outside the release radius
 var _touch_pressed: bool = false
 var _pointer_pressed: bool = false
-var _pointer_hovered: bool = false
+## The pointers on this (a laser per hand, or the desktop reticle). Hover is
+## any of them, so one leaving does not unlight what the other is still on.
+var _hover_pointers: Dictionary = {}
+var _pointer_hovered: bool:
+	get: return not _hover_pointers.is_empty()
 var _latched_pressed: bool = false
 
 # TRIGGER mode state
@@ -354,14 +358,14 @@ func desktop_aim_volume() -> Dictionary:
 func pointer_event(event: XRToolsPointerEvent) -> void:
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:
-			_pointer_hovered = true
+			_hover_pointers[event.pointer] = true
 			_update_visual_state()
 		XRToolsPointerEvent.Type.EXITED:
-			_pointer_hovered = false
+			_hover_pointers.erase(event.pointer)
 			_pointer_pressed = false
 			_update_visual_state()
 		XRToolsPointerEvent.Type.PRESSED:
-			_pointer_hovered = true
+			_hover_pointers[event.pointer] = true
 			_pointer_pressed = true
 			_update_visual_state()
 			# Null for the desktop reticle, which has no hand to rumble.
@@ -471,7 +475,7 @@ func set_interactive(active: bool) -> void:
 		_trigger_pressed = false
 		_engaged_ctrl = null
 		_pointer_pressed = false
-		_pointer_hovered = false
+		_hover_pointers.clear()
 		_sync_outline()
 
 

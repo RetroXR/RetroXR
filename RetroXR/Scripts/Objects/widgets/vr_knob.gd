@@ -88,7 +88,11 @@ var _grab_raw_prev: float = 0.0
 # Controller instance ids whose trigger has dropped since they last latched.
 var _rearmed: Dictionary = {}
 var _pointer_held := false               # desktop pointer latched
-var _pointer_hover := false              # desktop reticle over the grab box
+## The pointers on this (a laser per hand, or the desktop reticle). Hover is
+## any of them, so one leaving does not unlight what the other is still on.
+var _hover_pointers: Dictionary = {}
+var _pointer_hover: bool:              # a pointer over the grab box
+	get: return not _hover_pointers.is_empty()
 var _controllers: Array[XRController3D] = []
 var _icon: Label3D = null
 
@@ -171,7 +175,7 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 	var vr := get_viewport().use_xr
 	match event.event_type:
 		XRToolsPointerEvent.Type.ENTERED:
-			_pointer_hover = true
+			_hover_pointers[event.pointer] = true
 		XRToolsPointerEvent.Type.PRESSED:
 			_pointer_held = true
 			if vr:
@@ -182,7 +186,7 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 		XRToolsPointerEvent.Type.RELEASED:
 			_pointer_held = false
 		XRToolsPointerEvent.Type.EXITED:
-			_pointer_hover = false
+			_hover_pointers.erase(event.pointer)
 			# NB: keep _pointer_held — a drag is allowed to leave the cap.
 	_update_icon()
 
