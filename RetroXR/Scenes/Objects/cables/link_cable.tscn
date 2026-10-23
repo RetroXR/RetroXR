@@ -227,7 +227,12 @@ connector = "agb_link_plug"
 segment_count = 40
 segment_length = 0.03
 constraint_iterations = 8
-bend_stiffness = 0.15
+stretch_stiffness = 1.0
+bend_stiffness = 0.1
+damping = 0.01
+end_align_stiffness = 0.14
+end_stiffness = 0.2
+end_stiff_segments = 1
 tube_radius = 0.0018
 tube_sides = 8
 smoothing = 2
@@ -235,9 +240,6 @@ rope_color = Color(0.54, 0.54, 0.52, 1.0)
 surface_collision_mask = 7
 collision_radius = 0.003
 self_collision = true
-end_align_stiffness = 0.7
-end_stiffness = 0.3
-end_stiff_segments = 2
 ; A thin link cord's weight, not the default's (an A/V lead's): at 0.04 kg/m its
 ; push on a 25 to 30 g plug, whose cord leaves it 30 mm and more behind its middle
 ; (the mods' plugs), outran the plug's own turn and spun it on the floor for good.
