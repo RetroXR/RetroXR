@@ -657,6 +657,10 @@ func _test_colors() -> void:
 		"colors/the clear purple's ball is opaque: violet at the eye, light gray behind",
 		"%s %s" % [str(ball_front), str(ball_back)])
 	_ok((parts[GbCameraShell.BOARD_NODE] as Node3D).visible, "colors/and its board shows through the clear shell")
+	var frosted: Material = (parts[GbCameraShell.BOARD_NODE] as MeshInstance3D).get_active_material(0)
+	_ok(frosted is ShaderMaterial and (frosted as ShaderMaterial).shader == CartridgeColor.FROST_SHADER
+		and float((frosted as ShaderMaterial).get_shader_parameter("blur")) > 0.0,
+		"colors/out of focus behind the frost, as a clear Game Boy Color cartridge's board is", str(frosted))
 	# A model that dresses itself by region: asked which, its answer prints the label.
 	var regional := GDScript.new()
 	regional.source_code = "extends Node3D\nvar japan = null\nfunc label_art() -> Dictionary:\n\treturn {}\n" \
@@ -668,6 +672,9 @@ func _test_colors() -> void:
 	RetroCartridge.paint_camera(model, red, &"camera_red")
 	_ok(model.get("japan") == false and (parts[GbCameraShell.LABEL_MESH] as MeshInstance3D).get_surface_override_material(0) == null,
 		"colors/a model that dresses by region is asked for the overseas one by default")
+	var board_own: Material = (parts[GbCameraShell.BOARD_NODE] as MeshInstance3D).get_active_material(0)
+	_ok(board_own is StandardMaterial3D and board_own.resource_name == &"PCB_Green",
+		"colors/and an opaque shell gives the board back its own material", str(board_own))
 	RetroCartridge.paint_camera(model, red, &"camera_red", true)
 	printed = (parts[GbCameraShell.LABEL_MESH] as MeshInstance3D).get_active_material(0) as BaseMaterial3D
 	_ok(model.get("japan") == true and printed != null and printed.albedo_texture != null

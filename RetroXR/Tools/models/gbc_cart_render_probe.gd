@@ -4,7 +4,7 @@
 ##     "$godot" --path RetroXR --resolution 1600x900 --position 20,20 \
 ##         res://Tools/models/gbc_cart_render_probe.tscn -- --out=<dir> \
 ##         [--fit] [--smoke-label=<png>] [--crystal-label=<png>] \
-##         [--smoke=r,g,b[,opacity,frost]] [--crystal=r,g,b[,opacity,frost]] [--camera]
+##         [--smoke=r,g,b[,opacity,frost]] [--crystal=r,g,b[,opacity,frost]] \n##         [--camera [--camera-color=r,g,b[,opacity,frost]] [--frames=N]]
 ##
 ## Windowed: the headless renderer returns a blank image at the right size.
 ##
@@ -38,6 +38,7 @@ func _ready() -> void:
 	out_dir = OS.get_user_data_dir().path_join(FIXTURE)
 	var fit := false
 	var camera := false
+	var frames := 120
 	var label_src := {}
 	for arg in OS.get_cmdline_user_args():
 		var a := str(arg)
@@ -47,6 +48,16 @@ func _ready() -> void:
 			fit = true
 		elif a == "--camera":
 			camera = true
+		elif a.begins_with("--frames="):
+			frames = int(a.trim_prefix("--frames="))
+		elif a.begins_with("--camera-color="):
+			var v: Array = Array(a.trim_prefix("--camera-color=").split(",")).map(func(x: String) -> float: return float(x))
+			var preset := CartridgeColor.get_palette(GbCameraShell.PALETTE).find(&"camera_clear_purple")
+			preset.color = Color(v[0], v[1], v[2])
+			if v.size() >= 5:
+				preset.opacity = v[3]
+				preset.frost = v[4]
+			print("[gbcrender] camera_clear_purple colour %s opacity %.2f frost %.2f" % [preset.color, preset.opacity, preset.frost])
 		elif a.begins_with("--smoke-label="):
 			label_src["smoke"] = a.trim_prefix("--smoke-label=").replace("\\", "/")
 		elif a.begins_with("--crystal-label="):
@@ -71,7 +82,7 @@ func _ready() -> void:
 	for o in LoadingOverlay.owners():
 		LoadingOverlay.end(o)
 	if camera:
-		await _camera_film()
+		await _camera_film(frames)
 	elif fit:
 		await _fit(label_src)
 	else:
@@ -234,7 +245,7 @@ func _review_lights() -> void:
 # ── camera ───────────────────────────────────────────────────────────────────
 
 
-func _camera_film() -> void:
+func _camera_film(frames: int) -> void:
 	_review_lights()
 	var floor_mesh := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
@@ -262,7 +273,6 @@ func _camera_film() -> void:
 		await get_tree().process_frame
 	var film := out_dir.path_join("film")
 	DirAccess.make_dir_recursive_absolute(film)
-	var frames := 120
 	for f in frames:
 		var k := 0.5 - 0.5 * cos(float(f) / frames * TAU)
 		var yaw := sin(float(f) / frames * TAU) * 0.6

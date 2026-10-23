@@ -267,10 +267,11 @@ static func _frost_of(finish: Variant) -> float:
 
 
 ## The parts inside go out of focus behind a frosted shell, and back to their own
-## materials when it is not.
-static func _frost_interior(cartridge: Node, frost: float) -> void:
+## materials when it is not. `parts` are node-name prefixes: FROSTED_PARTS for a
+## cartridge, the board for the Game Boy Camera.
+static func _frost_interior(cartridge: Node, frost: float, parts: Array[String] = FROSTED_PARTS) -> void:
 	for mi in _meshes(cartridge):
-		if not FROSTED_PARTS.any(func(prefix: String) -> bool: return String(mi.name).begins_with(prefix)):
+		if not parts.any(func(prefix: String) -> bool: return String(mi.name).begins_with(prefix)):
 			continue
 		for i in mi.mesh.get_surface_count():
 			var slot := _slot(mi, i)

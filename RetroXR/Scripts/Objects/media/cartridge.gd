@@ -374,7 +374,8 @@ static func camera_body_for(systemid: String) -> String:
 ## and the front stays charcoal, unless the preset is clear, which is clear front
 ## and back; the ball's halves follow them but are always opaque, a clear edition's
 ## in its own colors (GbCameraShell.CLEAR_BALL); the stand-in's one plastic takes it
-## whole. The main board inside shows only through a clear shell. `preset_id`
+## whole. The main board inside shows only through a clear shell, blurred by its
+## frost as a clear cartridge's board is. `preset_id`
 ## picks the front label a mod's model prints for that color, if it has one, and
 ## `japan` asks a model that can (dress_region) for a Pocket Camera's labels and
 ## back. Here and not in GbCameraShell, which may name none of these classes.
@@ -400,6 +401,9 @@ static func paint_camera(model: Node, finish: Variant, preset_id: StringName, ja
 	# the board may come in pieces (a mod's: its tab in the head, under the overhang): every one named for it
 	for board: Node in model.find_children(GbCameraShell.BOARD_NODE + "*", "Node3D", true, false):
 		(board as Node3D).visible = clear
+	# and goes out of focus behind the frost, as a clear Game Boy Color cartridge's does: at half the
+	# shell's, since a pale board (xenu.gbcart's is a scan) flattens to a smudge at full frost
+	CartridgeColor._frost_interior(model, CartridgeColor._frost_of(finish) * 0.5, [GbCameraShell.BOARD_NODE])
 	var art: Dictionary = {}
 	if model.has_method("dress_region"):
 		art = model.call("dress_region", japan)

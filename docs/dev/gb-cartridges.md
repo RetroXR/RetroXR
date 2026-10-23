@@ -278,6 +278,19 @@ other shells or a mixed colour repaint cartridge and head. The ball, the lens an
 sticker are never painted. The sticker is a `Label` quad, UV 0-1, so the scraped label is
 painted on it like any Game Boy cartridge's, and the title stands in when there is none.
 
+**The clear purple is the clear Game Boy Color cartridge's plastic** (2026-10-23). It was a
+deep violet at opacity 0.55, frost 0.3, over a sharp board, and on xenu.gbcart's real model
+(cart, head and hood each a wall, so the top is several walls deep) every wall multiplied
+the dye again at up to three times its depth at a grazing eye: dark bands flared and
+faded across the top as the camera came in and went out, beside smoke shells that stay
+pale. It is now the smoke preset's opacity 0.75, frost 0.45, roughness 0.15 in a pale
+violet (`0.74, 0.66, 0.90`, set by eye, not fitted to a photo), and `paint_camera` frosts
+the `Board*` meshes as `_paint` frosts a cartridge's `Interior_` parts -- at HALF the
+shell's frost, because the model's board is a pale scan that full frost flattens to a
+grey smudge (the GBC boards are dark photos). `gbc_cart_render_probe -- --camera`
+(windowed, the player's mods) films it beside smoke and Crystal; `--camera-color=` tries a
+colour, `--frames=0` takes the stills alone.
+
 **It is a camera, on mGBA** (2026-10-14). The lens is a `GbCameraEye`
 (`CartModel/Overhang/LensKnob/KnobPivot/LensEye`), a node a tenth of a millimetre outside
 the glass. While the cartridge is in a running machine's own slot and the core has

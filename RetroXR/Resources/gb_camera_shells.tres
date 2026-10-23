@@ -49,10 +49,10 @@ flake_tilt = 0.4
 script = ExtResource("2")
 id = &"camera_clear_purple"
 display_name = "Clear Purple (Pocket Camera)"
-color = Color(0.4314, 0.3608, 0.6275, 1)
-roughness = 0.2
-opacity = 0.55
-frost = 0.3
+color = Color(0.74, 0.66, 0.9, 1)
+roughness = 0.15
+opacity = 0.75
+frost = 0.45
 
 [resource]
 script = ExtResource("1")
