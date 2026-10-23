@@ -167,6 +167,8 @@ const SETTLE_FALLS_OVER_ABOVE := deg_to_rad(5.0)
 ## A replayed remote turn covers the whole page, so it runs slower than the
 ## settle that finishes a drag already most of the way over.
 const REMOTE_TURN_TIME := 0.45
+## Q / E on a held book play the same turn, quicker: a key is a flick.
+const KEY_TURN_TIME := 0.3
 ## Gap between a spread page and the block it lies on. Was 0.8 mm to keep the
 ## two off each other in the depth buffer, which is most of a nine-leaf stack —
 ## the page floated clear of its own block and had that much further to dive.
@@ -207,7 +209,6 @@ var _loading: bool = false  # re-entry guard for load_pdf ↔ setter
 # VR page turning
 var _controllers: Array = []
 var _turn_cooldown: float = 0.0
-const TURN_COOLDOWN_TIME := 0.5
 const SPINE_WIDTH := 0.0035         # width of the spine binding strip
 const SPINE_HEIGHT_MARGIN := 0.004  # how much taller spine is than pages
 const LEAF_THICKNESS := 0.0001      # meters of depth per leaf (~0.1mm, realistic paper)
@@ -609,16 +610,23 @@ func _animate_page_step(state: int, leaf: int) -> bool:
 	var dir := _step_direction(target_state, target_leaf)
 	if dir == 0:
 		return false
+	return _play_turn(dir, {"state": target_state, "leaf": target_leaf}, REMOTE_TURN_TIME)
+
+
+## Turn one page with no hand on it: lift the leaf at its fore edge and spring
+## it over to the far stack. `target` is the spread to land on (a replayed turn);
+## empty means step locally and report it, as a hand-made turn does.
+func _play_turn(dir: int, target: Dictionary, duration: float) -> bool:
 	if not _spawn_leaf(dir):
 		return false
 	_grab_dir = dir
-	_animate_target = {"state": target_state, "leaf": target_leaf}
+	_animate_target = target
 	_fold_origin = Vector2(float(dir) * (_book_width * 0.5 + 0.01), 0.0)
 	_fold_normal = Vector2(float(dir), 0.0)
 	_curl_radius = CURL_MAX * 0.5
 	_curl_taper = CURL_TAPER
 	_push_fold(1.0)
-	_settle_leaf(true, REMOTE_TURN_TIME)
+	_settle_leaf(true, duration)
 	return true
 
 
@@ -2871,17 +2879,26 @@ func _sync_fan(dir: int) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# Desktop page turning: E = next page, Q = previous page.
 	# Reuses RETRO_JOYPAD_R (E key) and RETRO_JOYPAD_L (Q key) actions.
-	# Only fires when the book is held and not mid-turn.
+	# Only fires when the book is held and not mid-turn. The page is animated
+	# over (_play_turn); it jumps only if no leaf can be laid for that side.
 	if not is_picked_up() or _page_count == 0 or _turn_cooldown > 0.0:
 		return
+	var dir := 0
 	if event.is_action_pressed("RETRO_JOYPAD_R"):
-		turn_page_forward()
-		_turn_cooldown = TURN_COOLDOWN_TIME
-		get_viewport().set_input_as_handled()
+		dir = 1
 	elif event.is_action_pressed("RETRO_JOYPAD_L"):
-		turn_page_backward()
-		_turn_cooldown = TURN_COOLDOWN_TIME
-		get_viewport().set_input_as_handled()
+		dir = -1
+	if dir == 0:
+		return
+	get_viewport().set_input_as_handled()
+	if _grab_dir != 0 or _active_leaf != null:
+		return
+	if not _play_turn(dir, {}, KEY_TURN_TIME):
+		if dir > 0:
+			turn_page_forward()
+		else:
+			turn_page_backward()
+	_turn_cooldown = KEY_TURN_TIME
 
 
 ## Show the page hints.
