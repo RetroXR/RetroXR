@@ -48,6 +48,8 @@ const _NUMBER_FIELDS := [
 	"page_leaf", "sensitivity", "stick_distance", "device_type", "port_index",
 	"volume", "cords",
 	"pad_ordinal", "fit_mode", "roll",
+	# A multitap's SELECT switch: 2 or 5 (RetroMultitap.MODE_2P / MODE_5P).
+	"tap_mode",
 	# The length a player forced on a lead at spawn, in metres. Absent means the
 	# scene's own -- see CompositeCable.cord_length.
 	"cord_length",
@@ -143,6 +145,10 @@ const _SPECIALIZED_TYPES := [
 	"retro_controller", "retro_mouse", "snes_mouse", "vcr_tape", "dvd_disc",
 	"composite_cable", "audio_disc", "audio_cassette", "vinyl_record",
 	"pad_receiver", "keyboard_receiver", "mouse_receiver", "poster",
+	# Which console port its plug is in, its SELECT switch, and the pad in each of
+	# its four sockets. The pads' own entries name no port: the tap's is the end
+	# that means something.
+	"retro_multitap",
 	# The machines that bolt onto a console. A unit's own entry says which unit
 	# it is and what is in its bay; which console it is attached to is restored
 	# from the CONSOLE's entry, the way a memory card's slot is.
@@ -179,6 +185,7 @@ const BOOK_SCENE             := preload("res://Scenes/Objects/media/pdf_book.tsc
 const POSTER_SCENE           := preload("res://Scenes/Objects/media/poster.tscn")
 const RETRO_CONTROLLER_SCENE := preload("res://Scenes/Objects/controllers/retro_controller.tscn")
 const LIGHT_GUN_SCENE        := preload("res://Scenes/Objects/peripherals/light_gun.tscn")
+const RETRO_MULTITAP_SCENE   := preload("res://Scenes/Objects/controllers/retro_multitap.tscn")
 const VCR_SCENE              := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const TAPE_SCENE             := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const DVD_SCENE              := preload("res://Scenes/Objects/appliances/dvd_player.tscn")
@@ -993,6 +1000,13 @@ static func _prune_unknown_types(objects: Array, path: String) -> Array:
 				var cover_ref: Variant = (covers as Dictionary)[socket]
 				if _is_integer(cover_ref) and dropped_ids.has(int(cover_ref)):
 					(covers as Dictionary)[socket] = null
+		# A dropped mod's pad in a multitap socket leaves the socket empty.
+		var sockets: Variant = entry.get("sockets")
+		if sockets is Array:
+			for i in (sockets as Array).size():
+				var socket_ref: Variant = (sockets as Array)[i]
+				if _is_integer(socket_ref) and dropped_ids.has(int(socket_ref)):
+					(sockets as Array)[i] = null
 		# A prop sitting in a dropped mod's object is simply loose.
 		var attached: Variant = entry.get("attached")
 		if attached is Dictionary:
@@ -1087,6 +1101,13 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 			var ref_error := _reference_validation_error(ref, ids)
 			if not ref_error.is_empty():
 				return "extra_tvs member %s" % ref_error
+	if entry.has("sockets"):
+		if not entry["sockets"] is Array:
+			return "sockets is not an array"
+		for ref: Variant in entry["sockets"]:
+			var ref_error := _reference_validation_error(ref, ids)
+			if not ref_error.is_empty():
+				return "sockets member %s" % ref_error
 	if entry.has("tv_inputs"):
 		if not entry["tv_inputs"] is Array:
 			return "tv_inputs is not an array"
@@ -1684,6 +1705,24 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 			push_warning("[ScenePersistence] pad receiver id=%d: system not found" % id)
 			return
 		(obj as InputReceiver).restore_port_connection(rx_sys, rx_port)
+	elif obj is RetroMultitap:
+		# The pads in its sockets, then its own plug. Both wait for a cord made a
+		# frame after spawning, and whichever lands second binds the pads, once.
+		var tap := obj as RetroMultitap
+		var sockets: Variant = d.get("sockets", [])
+		if sockets is Array:
+			for i in mini((sockets as Array).size(), RetroMultitap.SUB_PORTS):
+				var held := _resolve_ref(root, spawned, (sockets as Array)[i])
+				if held != null:
+					tap.restore_socket(i, held)
+		var tap_port := int(d.get("port_index", -1))
+		if tap_port < 0:
+			return
+		var tap_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+		if tap_sys == null:
+			push_warning("[ScenePersistence] multitap id=%d: system not found" % id)
+			return
+		tap.restore_port_connection(tap_sys, tap_port)
 	elif obj is RetroController or obj is LightGun or obj is RetroMouse \
 			or obj is RetroKeyboard or obj is Wiimote:
 		# The remote's Nunchuk is restored whether or not it was paired to a
@@ -1802,13 +1841,14 @@ func _attachment_field(n3d: Node3D, node_to_id: Dictionary, any_zone: bool = fal
 	return {"attached": {"to": node_to_id[host], "zone": str(host.get_path_to(zone))}}
 
 
-## A zone a mod owns. A mod pad or gun is not a host here even though it carries
-## the stamp: its sockets are the game's (a VMU slot, a pak port), restored by
-## their own fields.
+## A zone a mod owns. A mod pad, gun or multitap is not a host here even though
+## it carries the stamp: its sockets are the game's (a VMU slot, a pak port, a
+## tap's controller sockets), restored by their own fields.
 static func _is_mod_zone(zone: Node, host: Node) -> bool:
 	if zone.is_in_group(MOD_ZONE_GROUP):
 		return true
-	return host != null and host.has_meta(MOD_TYPE_META) 		and not (host is RetroController or host is LightGun)
+	return host != null and host.has_meta(MOD_TYPE_META) \
+		and not (host is RetroController or host is LightGun or host is RetroMultitap)
 
 
 ## Put an object back in the snap zone _attachment_field recorded. Through the
@@ -2068,8 +2108,9 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	# is told apart, and with it the port it is plugged into. Written here as a
 	# bare pose, a mod's pad came back as the right pad, unplugged. A mod's LIGHT
 	# GUN is the same case: it is in a port too, and that branch is where the port
-	# is written.
-	if node.has_meta(MOD_TYPE_META) and not (node is RetroController or node is LightGun):
+	# is written. So is a mod's MULTITAP, which has pads in it besides.
+	if node.has_meta(MOD_TYPE_META) \
+			and not (node is RetroController or node is LightGun or node is RetroMultitap):
 		var mod_type := str(node.get_meta(MOD_TYPE_META))
 		# A mod's LEAD is still a lead. Written as a pose alone it came back as
 		# the right scene lying on the floor with nothing plugged in, because
@@ -2339,6 +2380,8 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	elif node is RetroController or node is LightGun or node is RetroMouse \
 			or node is RetroKeyboard or node is Wiimote:
 		return _serialize_peripheral(node, id, n3d, node_to_id)
+	elif node is RetroMultitap:
+		return _serialize_multitap(node as RetroMultitap, id, n3d, node_to_id)
 	elif node is Loudspeaker:
 		# Pose only: one cabinet, and which channel it carries is not its own
 		# state — it is decided by the television socket its lead sits in, and the
@@ -2455,6 +2498,12 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 	elif node is RetroKeyboard:
 		obj_type = "retro_keyboard"
 	var connected_sys: Node = node.get_connected_system()
+	# A pad in a multitap's socket is the TAP's to put back (its "sockets"). The
+	# console files it under the port the tap fans out to, a number that is also
+	# one of the console's own sockets, so writing it here plugged the pad
+	# straight into the console on the next load.
+	if connected_sys != null and _multitap_holding(node, node_to_id) != null:
+		connected_sys = null
 	# The CABINET socket, which is what restore_controller_plug takes — not the
 	# peripheral's own _port_index, which is the libretro port and is pinned to 0
 	# for a mouse on a computer system. Falls back to it for anything the cabinet
@@ -2508,6 +2557,51 @@ func _serialize_peripheral(node: Node, id: int, n3d: Node3D, node_to_id: Diction
 		if not vmus.is_empty():
 			entry["vmus"] = vmus
 	return entry
+
+
+## The multitap whose socket holds `peripheral`, or null.
+func _multitap_holding(peripheral: Node, node_to_id: Dictionary) -> RetroMultitap:
+	for node: Variant in node_to_id:
+		var tap := node as RetroMultitap
+		if is_instance_valid(tap) and tap.socket_of(peripheral) >= 0:
+			return tap
+	return null
+
+
+## A multitap: the console port its plug is in (as a pad's is), its SELECT
+## switch, and what is in each socket -- one reference per socket, null for an
+## empty one.
+func _serialize_multitap(tap: RetroMultitap, id: int, n3d: Node3D,
+		node_to_id: Dictionary) -> Dictionary:
+	var connected_sys: RetroSystem = tap.get_connected_system()
+	var port_index := tap.get_cabinet_port()
+	var sockets: Array = []
+	for peripheral: Variant in tap.socket_peripherals():
+		sockets.append(_ref(node_to_id, peripheral as Node))
+	var entry := _base(id, "retro_multitap", n3d).merged({
+		"system": _ref(node_to_id, connected_sys if port_index >= 0 else null),
+		"port_index": port_index,
+		"tap_mode": tap.mode,
+		"sockets": sockets,
+	})
+	# A tap a mod dressed in a model of its own, told apart as a pad is.
+	if tap.scene_file_path != RETRO_MULTITAP_SCENE.resource_path:
+		entry["scene"] = tap.scene_file_path
+	return entry
+
+
+## The tap the entry names, or the plain one (see _instantiate_controller).
+func _instantiate_multitap(data: Dictionary) -> Node3D:
+	var path: String = str(data.get("scene", ""))
+	if not path.is_empty() and is_known_controller_scene(path) and ResourceLoader.exists(path):
+		var packed := ResourceLoader.load(path) as PackedScene
+		var inst := packed.instantiate() as Node3D if packed != null else null
+		if inst is RetroMultitap:
+			return inst
+		if inst != null:
+			push_warning("ScenePersistence: '%s' is not a multitap" % path)
+			inst.queue_free()
+	return RETRO_MULTITAP_SCENE.instantiate() as Node3D
 
 
 ## What is in each of a host's Dreamcast slots, one reference per slot and null
@@ -2867,6 +2961,13 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				obj = book
 			"retro_controller":
 				obj = _instantiate_controller(data)
+			"retro_multitap":
+				var tap := _instantiate_multitap(data) as RetroMultitap
+				# Before _ready, which builds the switch and the device from it.
+				var tap_mode := int(data.get("tap_mode", RetroMultitap.MODE_5P))
+				if tap_mode == RetroMultitap.MODE_2P or tap_mode == RetroMultitap.MODE_5P:
+					tap.mode = tap_mode
+				obj = tap
 			"retro_mouse":
 				var mouse := RETRO_MOUSE_SCENE.instantiate() as RetroMouse
 				mouse.sensitivity = data.get("sensitivity", 2400.0)

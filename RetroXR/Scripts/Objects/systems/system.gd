@@ -4587,6 +4587,18 @@ func port_socket(plug: Node, port_index: int) -> Node3D:
 	return null
 
 
+## The cabinet socket `plug` is seated in, or -1. By the PLUG, not the device:
+## the holder of a multitap's port is the pad in its first socket at 5P, so
+## cabinet_port_of cannot find the tap itself.
+func cabinet_port_of_plug(plug: Node) -> int:
+	if plug == null:
+		return -1
+	for i in _port_plugs.size():
+		if _port_plugs[i] == plug:
+			return i
+	return -1
+
+
 ## Every port's holder, port order, null where nothing is plugged in.
 ##
 ## The companion to port_holder for callers that have to walk all of them —

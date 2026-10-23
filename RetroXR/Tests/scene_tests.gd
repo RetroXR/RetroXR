@@ -192,6 +192,8 @@ func _ready() -> void:
 		_test_plug()
 	if _want_group("strip"):
 		await _test_power_strip()
+	if _want_group("multitap"):
+		await _test_multitap()
 	if _want_group("stack"):
 		await _test_stack()
 	if _want_group("spacer"):
@@ -1738,6 +1740,146 @@ func _test_power_strip() -> void:
 	remove_child(room)
 	room.queue_free()
 	await get_tree().process_frame
+
+
+## A multitap in a console's port, with pads in its sockets, saved and loaded.
+## The tap was saved as nothing at all, so it vanished; and each pad in it was
+## saved under the port the tap fans out to, which is also one of the console's
+## own sockets, so the pad in the tap's first socket came back plugged straight
+## into the console's second port.
+func _test_multitap() -> void:
+	var room := Node3D.new()
+	add_child(room)
+	var built := await _multitap_room(room)
+	var sys := built[0] as RetroSystem
+	var tap := built[1] as RetroMultitap
+	var pad_a := built[2] as RetroController
+	var pad_b := built[3] as RetroController
+	if tap == null:
+		remove_child(room)
+		room.queue_free()
+		return
+	tap.restore_port_connection(sys, 1)
+	tap.restore_socket(0, pad_a)
+	tap.restore_socket(2, pad_b)
+	await _frames(6)
+	_ok(tap.get_connected_system() == sys and tap.get_cabinet_port() == 1,
+		"multitap/the tap is in the console's second port")
+	_ok(sys.port_holder(1) == pad_a and sys.port_holder(3) == pad_b,
+		"multitap/and its first and third sockets are players 2 and 4")
+
+	var sp := ScenePersistence.new("arcade")
+	var objects: Array = sp._collect_objects(room)
+	var mine: Array = []
+	var by_type := {}
+	# The ids are positions in the "spawned" group, so read them back by node.
+	var nodes := get_tree().get_nodes_in_group("spawned")
+	for o: Dictionary in objects:
+		var node: Node = nodes[int(o["id"])]
+		if node in [sys, tap, pad_a, pad_b]:
+			mine.append(o)
+			by_type[node] = o
+	_eq(mine.size(), 4, "multitap/the console, the tap and both pads are saved")
+	_eq(ScenePersistence._objects_validation_error(mine), "", "multitap/and the save validates")
+	var tap_entry: Dictionary = by_type.get(tap, {})
+	_eq(str(tap_entry.get("type", "")), "retro_multitap", "multitap/the tap has an entry of its own")
+	_eq(tap_entry.get("system"), (by_type.get(sys, {}) as Dictionary).get("id"),
+		"multitap/naming the console")
+	_eq(int(tap_entry.get("port_index", -1)), 1, "multitap/and the port it is in")
+	_eq(int(tap_entry.get("tap_mode", 0)), RetroMultitap.MODE_5P, "multitap/at 5P")
+	var sockets: Array = tap_entry.get("sockets", [])
+	_ok(sockets.size() == 4 and sockets[0] == (by_type.get(pad_a, {}) as Dictionary).get("id")
+		and sockets[1] == null and sockets[2] == (by_type.get(pad_b, {}) as Dictionary).get("id")
+		and sockets[3] == null, "multitap/with each socket's pad, null where empty (%s)" % [sockets])
+	for pad: Node in [pad_a, pad_b]:
+		var pe: Dictionary = by_type.get(pad, {})
+		_ok(int(pe.get("port_index", -1)) == -1 and pe.get("system") == null,
+			"multitap/a pad in it names no console port of its own (%s)" % pe.get("port_index"))
+
+	# As a load clears the room it is about to fill.
+	sp.clear_scene(room)
+	await _frames(3)
+	var spawned: Dictionary = sp.instantiate_objects(room, mine)
+	for node: Variant in spawned.values():
+		_freeze_all(node as Node)
+	await _frames(8)
+	var sys2: RetroSystem = null
+	var tap2: RetroMultitap = null
+	for entry: Dictionary in mine:
+		var node: Node = spawned.get(int(entry["id"]))
+		if node is RetroSystem:
+			sys2 = node
+		elif node is RetroMultitap:
+			tap2 = node
+	var pad_a2: Node = spawned.get(int((by_type[pad_a] as Dictionary)["id"]))
+	var pad_b2: Node = spawned.get(int((by_type[pad_b] as Dictionary)["id"]))
+	_ok(sys2 != null and tap2 != null and pad_a2 != null and pad_b2 != null,
+		"multitap/the console, the tap and both pads come back")
+	if sys2 != null and tap2 != null:
+		_ok(tap2.get_connected_system() == sys2 and tap2.get_cabinet_port() == 1,
+			"multitap/the tap is plugged back into the console's second port")
+		_eq(tap2.mode, RetroMultitap.MODE_5P, "multitap/at 5P")
+		_ok(tap2.socket_of(pad_a2) == 0 and tap2.socket_of(pad_b2) == 2,
+			"multitap/each pad is back in its own socket")
+		_ok(sys2.port_holder(1) == pad_a2 and sys2.port_holder(3) == pad_b2,
+			"multitap/and they are players 2 and 4 again")
+		_ok(sys2.port_holder(0) == null, "multitap/the console's first port is still empty")
+
+	# The SELECT switch is the tap's before it is ready, so 2P comes back as 2P.
+	var two := tap_entry.duplicate(true)
+	two["tap_mode"] = RetroMultitap.MODE_2P
+	var tap_2p := sp._deserialize_object(two) as RetroMultitap
+	_ok(tap_2p != null and tap_2p.mode == RetroMultitap.MODE_2P, "multitap/a tap saved at 2P loads at 2P")
+	if tap_2p != null:
+		tap_2p.free()
+
+	sp.clear_scene(room)
+	await _frames(3)
+	remove_child(room)
+	room.queue_free()
+	await _frames(3)
+
+
+## A frozen SNES, a multitap and two pads in `room`, each with its cord made.
+## [system, tap, pad, pad], or nulls when a cord never appears.
+func _multitap_room(room: Node3D) -> Array:
+	var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+	sys.systemid = "snes"
+	sys.position = Vector3(0.0, 1.0, -1.0)
+	room.add_child(sys)
+	sys.add_to_group("spawned")
+	var tap := preload("res://Scenes/Objects/controllers/retro_multitap.tscn").instantiate() as RetroMultitap
+	tap.position = Vector3(0.0, 1.0, -0.6)
+	room.add_child(tap)
+	var pads: Array = []
+	for x: float in [-0.2, 0.2]:
+		var pad := preload("res://Scenes/Objects/controllers/retro_controller.tscn").instantiate() as RetroController
+		pad.position = Vector3(x, 1.0, -0.3)
+		room.add_child(pad)
+		pad.add_to_group("spawned")
+		pads.append(pad)
+	await _frames(3)
+	for node: Node in [sys, tap] + pads:
+		_freeze_all(node)
+	if tap.cable_instance() == null or not tap.cable_instance().is_inside_tree() \
+			or (pads[0] as RetroController).cable_instance() == null:
+		_ok(false, "multitap/the tap and pads make their cords")
+		return [sys, null, null, null]
+	return [sys, tap, pads[0], pads[1]]
+
+
+func _frames(n: int) -> void:
+	for i in n:
+		await get_tree().process_frame
+
+
+## Nothing here has a floor under it.
+func _freeze_all(node: Node) -> void:
+	if not is_instance_valid(node):
+		return
+	for b: Node in node.find_children("*", "RigidBody3D", true, false) + [node]:
+		if b is RigidBody3D:
+			(b as RigidBody3D).freeze = true
 
 
 ## The controller plug names no console, controller or expansion class in its code.

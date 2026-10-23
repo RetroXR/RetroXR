@@ -238,7 +238,11 @@ func _update_labels() -> void:
 func _on_sub_snapped(i: int, plug: Node3D) -> void:
 	_sub_plugs[i] = plug
 	if _connected_system != null and _base_port >= 0:
+		if not socket_live(i):
+			print("[RetroMultitap] sub-port %d seated, dead at %dP: reaches no console port" % [i + 1, mode])
 		_attach_socket(_connected_system, _base_port, i)
+	else:
+		print("[RetroMultitap] sub-port %d seated; the tap is plugged into nothing" % (i + 1))
 
 
 func _on_sub_released(i: int) -> void:
@@ -247,7 +251,10 @@ func _on_sub_released(i: int) -> void:
 	if not is_instance_valid(plug):
 		return
 	if _connected_system != null and _base_port >= 0 and _bound[i]:
+		print("[RetroMultitap] sub-port %d unplugged, console port %d released" % [i + 1, _base_port + i])
 		_connected_system.detach_expanded_controller(_base_port + i, plug, _announces(i))
+	else:
+		print("[RetroMultitap] sub-port %d unplugged" % (i + 1))
 	_bound[i] = false
 
 
@@ -302,9 +309,91 @@ func on_unplugged() -> void:
 
 func restore_port_connection(system: RetroSystem, port_index: int) -> void:
 	if _cable_plug != null:
+		print("[RetroMultitap] restoring plug into console port %d" % port_index)
 		system.restore_controller_plug(port_index, _cable_plug)
+		if _connected_system != system:
+			push_warning("[RetroMultitap] console port %d did not take the plug back (occupied or missing)" % port_index)
 	else:
+		print("[RetroMultitap] restoring plug into console port %d once the cord is made" % port_index)
 		_pending_port_restore = {"system": system, "port_index": port_index}
+
+
+# ── Saving (ScenePersistence) ─────────────────────────────────────────────────
+
+## The console this tap's plug is in, or null.
+func get_connected_system() -> RetroSystem:
+	return _connected_system
+
+
+## The console socket this tap's plug is in, or -1. Asked of the console by the
+## plug, since at 5P the port's holder is the pad in the first socket; the base
+## port (the libretro port) is the fallback, as a pad's get_port_index is.
+func get_cabinet_port() -> int:
+	if _connected_system == null:
+		return -1
+	var socket := _connected_system.cabinet_port_of_plug(_cable_plug)
+	return socket if socket >= 0 else _base_port
+
+
+## The device seated in each socket (the pad, not its plug), null where empty.
+func socket_peripherals() -> Array:
+	var out: Array = []
+	for plug: Variant in _sub_plugs:
+		var ctrl: Node = null
+		if is_instance_valid(plug):
+			var p := plug as Node
+			ctrl = p.get_controller() if p.has_method("get_controller") else p
+		out.append(ctrl)
+	return out
+
+
+## Which socket holds `peripheral`, or -1. The console files a socket's pad under
+## the port the tap fans out to, as if it were in a socket of its own, so a save
+## asks here first or the pad comes back in the console's port of that number.
+func socket_of(peripheral: Node) -> int:
+	var held := socket_peripherals()
+	for i in held.size():
+		if held[i] != null and held[i] == peripheral:
+			return i
+	return -1
+
+
+## Seat `peripheral` back in socket `i`. Its cord is made a frame after it
+## spawns, so this waits for it (bounded, as Wiimote._reseat_nunchuk does).
+func restore_socket(i: int, peripheral: Node) -> void:
+	if i < 0 or i >= SUB_PORTS or not is_instance_valid(peripheral):
+		return
+	_reseat_socket.call_deferred(i, peripheral, RESEAT_RETRIES)
+
+
+const RESEAT_RETRIES := 8
+
+
+## A peripheral as a log line names it: its scene (a restored pad's node name is
+## an engine-made "@RigidBody3D@36"), else its node name.
+static func _describe(peripheral: Node) -> String:
+	var scene := peripheral.scene_file_path.get_file()
+	return scene if not scene.is_empty() else str(peripheral.name)
+
+func _reseat_socket(i: int, peripheral: Node, tries_left: int) -> void:
+	if not is_instance_valid(peripheral) or i >= _sub_zones.size():
+		return
+	var cable: Node = peripheral.call("cable_instance") \
+		if peripheral.has_method("cable_instance") else null
+	var plug := cable.get_node_or_null("ControllerPlug") as Node3D \
+		if is_instance_valid(cable) else null
+	if plug != null and plug.is_inside_tree():
+		var zone: XRToolsSnapZone = _sub_zones[i]
+		if is_instance_valid(zone.picked_up_object):
+			push_warning("[RetroMultitap] socket %d already holds a plug; %s left out" % [i + 1, _describe(peripheral)])
+			return
+		print("[RetroMultitap] restoring %s into sub-port %d" % [_describe(peripheral), i + 1])
+		zone.pick_up_object(plug)
+		return
+	if tries_left <= 0:
+		push_warning("[RetroMultitap] socket %d: the pad's cord never appeared; left out" % (i + 1))
+		return
+	_reseat_socket.call_deferred(i, peripheral, tries_left - 1)
 
 
 # ── Cable (mirrors RetroController / RetroKeyboard) ───────────────────────────
@@ -333,7 +422,10 @@ func _add_cable_to_scene() -> void:
 		var idx: int = _pending_port_restore.get("port_index", -1)
 		_pending_port_restore = {}
 		if is_instance_valid(sys) and idx >= 0:
+			print("[RetroMultitap] cord made; restoring plug into console port %d" % idx)
 			sys.restore_controller_plug(idx, _cable_plug)
+			if _connected_system != sys:
+				push_warning("[RetroMultitap] console port %d did not take the plug back (occupied or missing)" % idx)
 
 
 ## The cable is not a child, so a despawn would otherwise leave its plug and
