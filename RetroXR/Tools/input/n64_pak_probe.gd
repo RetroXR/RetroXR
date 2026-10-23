@@ -412,8 +412,9 @@ func _check_pak(pad: Node3D, zone: Node3D, name: String, mouth: float) -> void:
 ## slot" in a render. Note that a HALF turn cannot be checked this way at all:
 ## it is its own transpose.
 ##
-## MediaDimensions authors a Game Boy cartridge standing up, 57 x 65 x 8, label
-## toward +Y and edge connector at -Y.
+## The Game Boy cartridge is authored standing up, 57 x 65 x 7.5, label on +Z
+## and edge connector at -Y. Its label must face OUT of the pak (-Y), under the
+## clear cover: the flat check passes either way up, so it is asked separately.
 func _check_cartridge_bay(pak: Node3D) -> void:
 	var bay: Node3D = pak.get_node_or_null("CartridgeBay")
 	_ok("TransferPak/has a cartridge bay", bay != null)
@@ -428,6 +429,9 @@ func _check_cartridge_bay(pak: Node3D) -> void:
 	_ok("TransferPak/cartridge lies flat rather than upright",
 		absf(face.dot(Vector3(0, 1, 0))) > 0.99,
 		"broad face ends up pointing %v, wanted +/-Y" % face)
+	_ok("TransferPak/cartridge label faces out of the pak, away from the controller",
+		face.dot(Vector3(0, -1, 0)) > 0.99,
+		"label ends up pointing %v, wanted -Y" % face)
 
 
 func _local_aabb(pad: Node3D, mi: MeshInstance3D) -> AABB:

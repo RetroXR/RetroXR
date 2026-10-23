@@ -39,13 +39,13 @@ friction = 0.8
 ;
 ;   prong     0.0020 ..  0.0370   (51 x 14, inside the controller once seated)
 ;   face                 0.0020
-;   body     -0.0240 ..  0.0020   (63 wide x 52 deep, centred 14 mm rearward)
-;   cart slot           -0.0140   (a cartridge's ORIGIN, lying flat)
+;   body     -0.0260 ..  0.0020   (63 wide x 52 deep, centred 14 mm rearward)
+;   cart slot           -0.0213   (a cartridge's ORIGIN, lying flat on the clear floor)
 [sub_resource type="BoxShape3D" id="BoxShape3D_body"]
-size = Vector3(0.063, 0.026, 0.052)
+size = Vector3(0.063, 0.028, 0.052)
 
 [sub_resource type="BoxMesh" id="BoxMesh_body"]
-size = Vector3(0.063, 0.026, 0.052)
+size = Vector3(0.063, 0.028, 0.052)
 
 ; The cartridge slot is a void, not a moulding: it gets no grain and almost no
 ; albedo, so it reads as an opening rather than a dark painted panel. Not pure
@@ -78,11 +78,11 @@ angular_damp = 8.0
 script = ExtResource("1_pakscript")
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.011, -0.014)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, -0.014)
 shape = SubResource("BoxShape3D_body")
 
 [node name="Body" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.011, -0.014)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, -0.014)
 mesh = SubResource("BoxMesh_body")
 surface_material_override/0 = ExtResource("9_plastic")
 
@@ -95,7 +95,7 @@ mesh = SubResource("BoxMesh_tongue")
 surface_material_override/0 = ExtResource("9_plastic")
 
 [node name="WellMouth" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.014, -0.0405)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0213, -0.0405)
 mesh = SubResource("BoxMesh_mouth")
 surface_material_override/0 = SubResource("Mat_recess")
 
@@ -103,28 +103,31 @@ surface_material_override/0 = SubResource("Mat_recess")
 ; FLAT inside the pak, its broad faces up and down — see the note at the top for
 ; the sources that settle that.
 ;
-; Turned a quarter turn about X, which is what makes it true. MediaDimensions
-; gives the cartridge as 57 x 65 x 8, authored standing up with its label toward
-; +Y and its edge connector at -Y. R_x(-90) sends that connector to +Z, so the
-; cartridge slides in contacts-first from the rear and its label ends up facing
-; down, readable when the controller is turned over.
+; The cartridge (gb_cart.glb, 57 x 65 x 7.5) is authored standing up with its
+; edge connector at -Y and its LABEL ON +Z. The basis sends the connector to +Z,
+; so it slides in contacts-first from the rear, and the label to -Y: OUT, away
+; from the controller, under the clear smoke cover, as on the real pak ("label
+; side out", RetroXR-models nintendo/n64/transfer-pak tp_params BAY). It is the
+; Game Boy's own CartSeat basis, for the same reason: label outside, contacts in.
+; It once sent the label to +Y, into the grey half, from a comment that had the
+; label on +Y; a flat check cannot see that, which is why the probe now asks
+; which way the label points.
 ;
-; The basis below is written by ROWS, which is what a .tscn stores, and this is
-; NOT a symmetric matrix — a quarter turn reads differently under the two
-; conventions, so it cannot silently be its own transpose the way a half turn
-; can. n64_pak_probe.tscn asserts the seated cartridge really does lie flat with
-; its connector toward +Z rather than trusting these nine numbers.
+; The basis below is written by ROWS, which is what a .tscn stores.
+; n64_pak_probe.tscn asserts the seated cartridge lies flat, connector toward +Z
+; and label toward -Y, rather than trusting these nine numbers.
 ;
-; The zone sits at the cartridge's ORIGIN, so seating one leaves about 18 mm of
-; a 65 mm cartridge standing out of the mouth — enough to grab and to read, and
-; little enough that the pak looks like it is holding the cartridge rather than
-; balancing it.
+; The origin is the review cartridge of that model (render_blend.py --cart,
+; checked against photos of a seated one) through xenu.n64paks' shell placement
+; (x, 0.0423 - y, 0.0069 - z): resting on the clear floor (model Y 59.8) with
+; its top 59.8 mm along the slot axis, which leaves about 18 mm of it out of the
+; slot end.
 ;
 ; snap_require is load-bearing, not decoration: can_preview refuses to draw the
 ; snap ghost for a zone without one, and a ray grab has no path to a socket the
 ; ghost never lit -- the cartridge falls to the floor instead of seating.
 [node name="CartridgeBay" parent="." instance=ExtResource("6_snapzone")]
-transform = Transform3D(1, 0, 0, 0, -4.371139e-08, 1, 0, -1, -4.371139e-08, 0, -0.014, -0.0255)
+transform = Transform3D(-1, 0, 0, 0, 0, -1, 0, -1, 0, 0, -0.0213, -0.0204)
 grab_distance = 0.04
 snap_require = "cartridge"
 

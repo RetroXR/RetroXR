@@ -1314,9 +1314,9 @@ func _group_pak() -> void:
 		# before plugging the Pak into the controller. It does NOT swallow the
 		# cartridge lengthways in line with its own plug.
 		#
-		# A cartridge is authored standing up, label toward +Y and edge
-		# connector at -Y, so seating it flat means a quarter turn: contacts
-		# toward the pak's +Z, broad faces up and down.
+		# A cartridge is authored standing up, label on +Z and edge connector
+		# at -Y, so seating it flat means a quarter turn: contacts toward the
+		# pak's +Z, broad faces up and down.
 		var pak_basis: Basis = tpak.global_transform.basis
 		var cart_basis: Basis = gb.global_transform.basis
 		# The connector is the cartridge's -Y end.
@@ -1328,9 +1328,11 @@ func _group_pak() -> void:
 		# row/column mix-up in the .tscn either.
 		_ok(absf(cart_basis.z.dot(pak_basis.y)) > 0.9,
 			"pak/and lies flat in the pak rather than standing upright")
-		var label := gb.get_node_or_null("LabelMesh") as Node3D
-		_ok(label != null and tpak.to_local(label.global_position).z < -0.031,
-			"pak/so its printed end clears the mouth instead of hiding inside")
+		# And WHICH way up: label side OUT, away from the controller, under the
+		# real pak's clear cover (RetroXR-models' transfer-pak photos). Flat
+		# passes either way up; the bay once had the label facing in.
+		_ok(cart_basis.z.dot(-pak_basis.y) > 0.9,
+			"pak/with its label facing out of the pak, away from the controller")
 
 		await _check_pak_collision(pad, port, tpak, bay, gb)
 
