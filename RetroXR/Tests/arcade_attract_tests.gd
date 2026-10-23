@@ -19,6 +19,7 @@
 ##   leave/    the board pulled, the power button and the cabinet's own override end the attract
 ##   media_ask/ a cabinet with a game and no video asks the scraper (through its group) for that game only
 ##   keep/     the cabinet's override is saved when set and left out when it follows the global option
+##   switch/   with the option on the power button is a latched ON / OFF switch, left ON it is saved and found on again
 ##   panel/    the System tab's row, shown for a cabinet only
 extends Node
 
@@ -101,6 +102,8 @@ func _run() -> void:
 		await _group_media_ask()
 	if _want("keep"):
 		await _group_keep()
+	if _want("switch"):
+		await _group_switch()
 	if _want("panel"):
 		await _group_panel()
 
@@ -376,7 +379,7 @@ func _group_state() -> void:
 	_ok(not sys.attract_session, "state: (no core is the attract's to put away)")
 	_ok(sys.get_node_or_null("ArcadeAttract") != null, "state: the attract is a node of the cabinet")
 	var lbl := sys.get_node_or_null("PowerButton/ButtonLabel") as Label3D
-	_ok(lbl == null or lbl.text == "STOP", "state: the power button reads STOP, as the machine is on")
+	_ok(lbl == null or lbl.text == "ON", "state: the power button is a switch and reads ON, as the machine is on")
 	sys.power_on()
 	_ok(sys.attracting and not sys.is_powered_on, "state: switching on again changes nothing")
 	sys.toggle_power()
@@ -722,6 +725,103 @@ func _group_keep() -> void:
 	await _wait(6)
 	_ok(back != null and back.attract_override == ArcadeAttract.OVERRIDE_OFF, "keep: and it comes back as it was left")
 	await _clear()
+
+
+# ── switch ──────────────────────────────────────────────────────────────────
+
+func _latched(sys: RetroSystem) -> bool:
+	return sys._power_button._latched_pressed
+
+
+func _group_switch() -> void:
+	# The option off: the button is what it always was, a start button.
+	AppPrefs.arcade_attract_mode = false
+	var sys := await _cabinet_with_board()
+	_ok(not sys.power_is_switch() and not _latched(sys), "switch: with the option off the button is no switch")
+	sys._libretro.content_load_failed.disconnect(sys._on_content_load_failed)
+	sys.power_on()
+	_ok(not _latched(sys), "switch: and it is not latched while the game runs")
+	sys.power_off()
+	await _clear()
+
+	# The option on: an ON / OFF switch that stays down while the cabinet is on.
+	AppPrefs.arcade_attract_mode = true
+	sys = await _cabinet()
+	_ok(not sys.power_is_switch(), "switch: a cabinet with no game in has nothing to show: no switch yet")
+	await _clear()
+	sys = await _cabinet_with_board()
+	_ok(sys.power_is_switch() and not _latched(sys), "switch: with a game in and the option on it is a switch, up")
+	_ok(not sys.attract_switched_on(), "switch: ... and off")
+	sys._libretro.content_load_failed.disconnect(sys._on_content_load_failed)
+	sys.toggle_power()
+	_ok(sys.attracting and _latched(sys) and sys.attract_switched_on(), "switch: pressed it goes ON and stays down")
+	var lbl := sys._power_button.get_node_or_null("ButtonLabel") as Label3D
+	if lbl != null:
+		_ok(lbl.text == "ON", "switch: reading ON (%s)" % lbl.text)
+	sys.toggle_power()
+	_ok(not sys.attracting and not _latched(sys) and not sys.attract_switched_on(), "switch: pressed again it goes OFF and comes up")
+	if lbl != null:
+		_ok(lbl.text == "OFF", "switch: reading OFF (%s)" % lbl.text)
+	# What decides it is redrawn at once.
+	sys.toggle_power()
+	sys.set_attract_override(ArcadeAttract.OVERRIDE_OFF)
+	_ok(not sys.power_is_switch() and not _latched(sys), "switch: forcing the cabinet's attract off turns the switch back into a button")
+	sys.set_attract_override(ArcadeAttract.OVERRIDE_FOLLOW)
+	_ok(sys.power_is_switch(), "switch: and following the option again makes it a switch")
+	AppPrefs.arcade_attract_mode = false
+	sys.refresh_power_switch()
+	_ok(not sys.power_is_switch() and not _latched(sys), "switch: the Options toggle redraws it (through the spawned group)")
+	AppPrefs.arcade_attract_mode = true
+	sys.refresh_power_switch()
+	_slot_of(sys).drop_object()
+	await _wait(6)
+	_ok(not sys.power_is_switch(), "switch: pulling the board leaves nothing to switch on")
+	await _clear()
+
+	# A cabinet left ON is saved so, an OFF one is not, and the room finds it on again.
+	sys = await _attracting_cabinet()
+	var off := await _cabinet_with_board("/tmp/attract_test_board_2.zip")
+	# The boards are spawned objects in a room: they are saved with it.
+	for n in _spawned:
+		if n is RetroCartridge:
+			n.add_to_group("spawned")
+	var sp := ScenePersistence.new("arcade_attract_tests")
+	var on_entries := 0
+	var off_entries := 0
+	for o in sp._collect_objects(self):
+		if o.get("type") != "system":
+			continue
+		if bool(o.get("attract_on", false)):
+			on_entries += 1
+		else:
+			off_entries += 1
+	_ok(on_entries == 1 and off_entries == 1, "switch: only the cabinet left on is saved as on (%d on, %d off)" % [on_entries, off_entries])
+	var objects: Array[Dictionary] = sp._collect_objects(self)
+	await _clear()
+	var finished := [false]
+	var run := func() -> void:
+		await sp.instantiate_objects_async(self, objects)
+		finished[0] = true
+	run.call()
+	var waited := 0
+	while not finished[0] and waited < 600:
+		await get_tree().process_frame
+		waited += 1
+	await _wait(10)
+	var attracting_back := 0
+	var dark_back := 0
+	for n in get_children():
+		if n is RetroSystem:
+			_spawned.append(n)
+			if (n as RetroSystem).attracting:
+				attracting_back += 1
+			else:
+				dark_back += 1
+		elif n is RetroCartridge:
+			_spawned.append(n)
+	_ok(attracting_back == 1 and dark_back == 1, "switch: the room finds the one left on on again, and the other off (%d on, %d off)" % [attracting_back, dark_back])
+	await _clear()
+	AppPrefs.arcade_attract_mode = _pref_before
 
 
 func _saved(sp: ScenePersistence) -> Dictionary:

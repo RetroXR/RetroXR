@@ -1369,6 +1369,8 @@ func _build_arcade_attract(vbox: VBoxContainer) -> void:
 
 	row.add_child(VRToggle.create(AppPrefs.arcade_attract_mode, func(on: bool) -> void:
 		AppPrefs.arcade_attract_mode = on
+		# Every cabinet's power button is a switch or a start button by this option.
+		get_tree().call_group("spawned", "refresh_power_switch")
 		AppPrefs.save_prefs()
 	))
 
