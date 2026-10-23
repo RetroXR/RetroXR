@@ -1,5 +1,6 @@
 ## CurvedPanel — lets an XRToolsViewport2DIn3D wrap toward the viewer, with a
-## flat/curved toggle sitting just outside its lower-right corner.
+## flat/curved toggle sitting just outside its lower-right corner and a trash bin
+## (MenuTrashBin) outside its lower-left one.
 ##
 ## The spawn menu is 1.1 m wide at 0.9 m, so it subtends ~63 deg and its corners
 ## sit ~17% further from the eye than its centre. Wrapping it onto a cylinder
@@ -59,6 +60,8 @@ var _screen_size := Vector2(1.1, 0.75)
 
 var _btn_flat: VRButton = null
 var _btn_curved: VRButton = null
+
+var _trash_bin: MenuTrashBin = null
 
 var _grip: PanelResizeGrip = null
 var _grip_mesh: MeshInstance3D = null
@@ -139,6 +142,7 @@ func _ready() -> void:
 	if show_controls:
 		call_deferred("_build_toggle")
 		call_deferred("_build_grip")
+		call_deferred("_build_trash_bin")
 	if follow_prefs:
 		curved = AppPrefs.menu_curved
 	_curve = 1.0 if curved else 0.0
@@ -233,6 +237,7 @@ func _rebuild(update_collision := true) -> void:
 
 	_place_buttons()
 	_place_grip()
+	_place_trash_bin()
 	curve_changed.emit()
 
 
@@ -557,6 +562,28 @@ func _place_grip() -> void:
 	var s := _screen_size.x * 0.5 + GRIP_OUT
 	_grip.position = _arc_point(s, _corner_baseline())
 	_grip.rotation = Vector3(0.0, _yaw_at(s), 0.0)
+
+
+# ── Trash bin ─────────────────────────────────────────────────────────────────
+
+## The MenuTrashBin, in the free corner: the lower-right one has the grip and
+## the curve toggles.
+func _build_trash_bin() -> void:
+	_trash_bin = MenuTrashBin.new()
+	_trash_bin.name = "TrashBin"
+	add_child(_trash_bin)
+	_place_trash_bin()
+
+
+## Beside the left edge with its foot level with the bottom one, on the arc and
+## facing along it like the rest of the corner furniture.
+func _place_trash_bin() -> void:
+	if _trash_bin == null:
+		return
+	var s := -(_screen_size.x * 0.5 + GRIP_OUT + MenuTrashBin.RADIUS)
+	var y := -_screen_size.y * 0.5 + MenuTrashBin.HEIGHT * 0.5
+	_trash_bin.position = _arc_point(s, y)
+	_trash_bin.rotation = Vector3(0.0, _yaw_at(s), 0.0)
 
 
 ## Called by the grip on PRESSED. Remembers which pointer owns the drag.

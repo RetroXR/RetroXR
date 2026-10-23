@@ -51,6 +51,7 @@ func _ready() -> void:
 	await _group_tiles()
 	await _group_local_counts()
 	_group_frame_cap()
+	await _group_trash()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -1124,6 +1125,118 @@ class _CountingToastPanel extends ToastPanel:
 
 	func refresh() -> void:
 		refreshes += 1
+
+
+## A pickable whose grip the test holds: is_picked_up() is what a hand or desktop
+## grab answers, without a grab driver behind it.
+class _HeldPickable extends XRToolsPickable:
+	var held := false
+
+	func is_picked_up() -> bool:
+		return held
+
+
+## A laser that claims one object. Every lifecycle hook is stubbed — the real
+## pickup wants a controller above it.
+class _RayStub extends XRToolsFunctionPickup:
+	var target: XRToolsPickable = null
+
+	func _ready() -> void:
+		pass
+
+	func _enter_tree() -> void:
+		pass
+
+	func _process(_delta: float) -> void:
+		pass
+
+	func _physics_process(_delta: float) -> void:
+		pass
+
+	func is_ray_grabbing_target(t: XRToolsPickable) -> bool:
+		return t != null and t == target
+
+
+func _trash_body(at: Vector3, spawned: bool) -> _HeldPickable:
+	var body := _HeldPickable.new()
+	body.freeze = true
+	body.freeze_mode = RigidBody3D.FREEZE_MODE_KINEMATIC
+	body.collision_layer = 4
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.05, 0.05, 0.05)
+	shape.shape = box
+	body.add_child(shape)
+	if spawned:
+		body.add_to_group("spawned")
+	add_child(body)
+	_spawned.append(body)
+	body.global_position = at
+	return body
+
+
+func _trash_settle() -> void:
+	for i in 4:
+		await get_tree().physics_frame
+		await get_tree().process_frame
+
+
+## The bin at the menu's corner: an object carried into it turns red, one carried
+## out again is left alone, and one let go inside it is deleted — whether it came
+## in by hand or on the laser. Things not spawned pass through, and a hidden menu
+## takes no bin with it.
+func _group_trash() -> void:
+	var holder := Node3D.new()
+	add_child(holder)
+	_spawned.append(holder)
+	var bin := MenuTrashBin.new()
+	holder.add_child(bin)
+	holder.global_position = Vector3(0, 50, 0)
+	await _trash_settle()
+	var at := bin.global_position
+	var away := at + Vector3(1, 0, 0)
+
+	var hand := _trash_body(at, true)
+	hand.held = true
+	await _trash_settle()
+	_ok(bin.is_armed(), "trash/a held object over the bin arms it")
+	hand.global_position = away
+	await _trash_settle()
+	_ok(not bin.is_armed(), "trash/carried out again it disarms")
+	hand.held = false
+	await _trash_settle()
+	_ok(is_instance_valid(hand) and not Vanish.is_vanishing(hand),
+		"trash/and letting go outside deletes nothing")
+	hand.held = true
+	hand.global_position = at
+	await _trash_settle()
+	hand.held = false
+	await _trash_settle()
+	_ok(not is_instance_valid(hand) or Vanish.is_vanishing(hand),
+		"trash/let go over the bin, it is deleted")
+
+	var laser := _RayStub.new()
+	laser.add_to_group(XRToolsFunctionPickup.PICKUP_GROUP)
+	add_child(laser)
+	_spawned.append(laser)
+	var rayed := _trash_body(at, true)
+	laser.target = rayed
+	await _trash_settle()
+	_ok(bin.is_armed(), "trash/a laser-carried object arms it too")
+	laser.target = null
+	await _trash_settle()
+	_ok(not is_instance_valid(rayed) or Vanish.is_vanishing(rayed),
+		"trash/and is deleted when the laser lets go")
+
+	var fixture := _trash_body(at, false)
+	fixture.held = true
+	await _trash_settle()
+	_ok(not bin.is_armed(), "trash/an object nobody spawned is not taken")
+	fixture.held = false
+
+	bin.visible = false
+	await _trash_settle()
+	_ok(not bin.get_node("TrashArea").monitoring, "trash/hidden, the bin stops watching")
 
 
 class _CountingCurve extends CurvedPanel:

@@ -9,7 +9,7 @@
 ##
 ## ── Why it IS a CompositeCable ───────────────────────────────────────────────
 ## For every reason RfSwitch gives, and they are not repeated here: binning a plug
-## bins the lead (StorageBox._free_lead casts plug.cable), ScenePersistence saves
+## bins the lead (Trash.free_lead casts plug.cable), ScenePersistence saves
 ## and restores on `is CompositeCable`, and the netplay seat/release events are
 ## inherited. A slim sibling would have to grow all three.
 ##
