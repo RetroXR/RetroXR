@@ -15,6 +15,9 @@ extends Node3D
 ## PowerCord's numbering, so a save's "end" means the same thing for both.
 const END_WALL := PowerCord.End.WALL
 
+## Every strip in the tree, so a change of mains region reaches them.
+const GROUP := "power_strip"
+
 @onready var _body: RigidBody3D = $Body
 @onready var _attach: Node3D = $Body/Shell/PowerStrip/CordAnchor
 @onready var rope: VerletRope = $VerletRope
@@ -23,8 +26,13 @@ const END_WALL := PowerCord.End.WALL
 var _reach := 0.0
 var _rope_built := false
 
+## The region the strip was last made as; "" before _ready.
+var region := ""
+
 
 func _ready() -> void:
+	add_to_group(GROUP)
+	set_region(AppPrefs.mains_region)
 	wall_plug.cable = self
 	# A dangling plug must not shove its own strip across the floor.
 	wall_plug.add_collision_exception_with(_body)
@@ -59,6 +67,37 @@ func _physics_process(_delta: float) -> void:
 	var back := CableHaul.haul(_body, from, to, _reach)
 	if back != Vector3.ZERO:
 		_body.global_position += back
+
+
+## Make the strip `id`'s: its sockets and its own plug become that region's, as
+## a strip bought there would be (MainsRegions' "strip" entry; a region with none
+## keeps the scene's US one). Plugs that stop fitting fall out, its own included.
+func set_region(id: String) -> void:
+	var want := MainsRegions.resolve(id)
+	if want == region:
+		return
+	region = want
+	var spec: Dictionary = MainsRegions.of(want).get("strip", {})
+	if spec.is_empty():
+		spec = MainsRegions.of(MainsRegions.DEFAULT).get("strip", {})
+	for s in sockets():
+		s.set_connector(str(spec.get("socket", s.connector)))
+	wall_plug.set_connector(str(spec.get("plug", wall_plug.connector)))
+	var tip := wall_plug.get_node_or_null("PlugTip") as MeshInstance3D
+	var mesh_path := str(spec.get("plug_mesh", ""))
+	if tip != null and not mesh_path.is_empty():
+		tip.mesh = load(mesh_path) as Mesh
+	var holder := PowerCord.socket_holding(wall_plug)
+	if holder != null and not wall_plug.is_in_group(holder.snap_require):
+		holder.drop_object()
+
+
+## Remake every strip in `tree` as `id`'s. Before WallOutlet.apply_region, so a
+## strip's plug left in the wall is already the new region's when the plate asks
+## whether it still fits.
+static func apply_region(tree: SceneTree, id: String) -> void:
+	for node in tree.get_nodes_in_group(GROUP):
+		(node as PowerStrip).set_region(id)
 
 
 func on_plug_seating_changed() -> void:
@@ -135,7 +174,7 @@ func _apply_seating(seats: Array) -> void:
 				or not is_instance_valid(device) or port_name.is_empty():
 			continue
 		var port := CompositeCable.port_named(device, port_name)
-		if port != null:
+		if port != null and wall_plug.is_in_group(port.snap_require):
 			port.pick_up_object(wall_plug)
 
 

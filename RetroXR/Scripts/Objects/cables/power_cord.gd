@@ -148,7 +148,9 @@ func _apply_seating(seats: Array) -> void:
 				or port_name.is_empty():
 			continue
 		# A socket that cannot be found leaves the plug where it was saved. A loose
-		# end on the floor beats one seated in the wrong machine.
+		# end on the floor beats one seated in the wrong machine. So does one the
+		# socket would no longer take: a wall outlet saved under another mains
+		# region (MainsRegions) keeps its socket's name but not its shape.
 		var port := CompositeCable.port_named(device, port_name)
-		if port != null:
+		if port != null and plug.is_in_group(port.snap_require):
 			port.pick_up_object(plug)

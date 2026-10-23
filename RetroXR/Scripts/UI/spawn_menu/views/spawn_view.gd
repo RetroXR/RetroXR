@@ -160,6 +160,7 @@ var _cartridges_browser: SystemGridBrowser = null
 ## Held because its tail is one row per connected gamepad, rebuilt whenever a pad
 ## is paired or unpaired.
 var _controllers_vbox: VBoxContainer = null
+var _power_vbox: VBoxContainer
 var _books_vbox: VBoxContainer = null
 ## The TVs tab's rows. Kept so a mod applied mid-session can add its cabinets.
 var _tvs_vbox: VBoxContainer = null
@@ -552,15 +553,7 @@ func _build() -> void:
 	# picks one is the shape of the socket on the back of the machine, not what
 	# the machine is for, and a player hunting the right plug should not have to
 	# read past the record player to find it.
-	_add_spawn_tab(tabs, "Power", [
-		["NEMA 5-15P to C13 Cable", "power_cord"],
-		["NEMA 1-15P to C7 Cable", "nema_1_15_to_c7_cord"],
-		["Polarized NEMA 1-15P to C7P Cable",
-			"nema_1_15_polarized_to_c7_polarized_cord"],
-		# Six more grounded sockets on a 3 ft cord — including, if you like, for
-		# its own plug.
-		["6-Outlet Power Strip", "power_strip"],
-	])
+	_power_vbox = _add_spawn_tab(tabs, "Power", _power_items())
 
 	# Rebuilt at runtime, unlike the other const tabs: its tail is one row per
 	# physical gamepad currently connected, which nothing knows at build time.
@@ -2335,6 +2328,36 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 	for item: Array in items:
 		vbox.add_child(_spawn_tab_button(item))
 	return vbox
+
+
+## Every mains lead the game ships, the player's region's first: the ones whose
+## wall plug fits the room's outlets, then the rest, which still spawn -- an
+## import's cord is a real thing to own -- but go into nothing on this wall.
+func _power_items() -> Array:
+	var all := [
+		["NEMA 5-15P to C13 Cable", "power_cord"],
+		["NEMA 1-15P to C7 Cable", "nema_1_15_to_c7_cord"],
+		["Polarized NEMA 1-15P to C7P Cable",
+			"nema_1_15_polarized_to_c7_polarized_cord"],
+		# Six more grounded sockets on a 3 ft cord — including, if you like, for
+		# its own plug.
+		["6-Outlet Power Strip", "power_strip"],
+	]
+	var own: Array = MainsRegions.of(AppPrefs.mains_region).get("cords", [])
+	var first := []
+	var rest := []
+	for item: Array in all:
+		(first if own.has(item[1]) else rest).append(item)
+	return first + rest
+
+
+## Re-sort the Power tab after the region changed.
+func refresh_power_tab() -> void:
+	if _power_vbox == null or not is_instance_valid(_power_vbox):
+		return
+	_clear_vbox(_power_vbox)
+	for item: Array in _power_items():
+		_power_vbox.add_child(_spawn_tab_button(item))
 
 
 ## One `[label, token]` row of a plain spawn tab.

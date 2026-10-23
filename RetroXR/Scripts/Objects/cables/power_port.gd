@@ -18,6 +18,16 @@ func _ready() -> void:
 	super._ready()
 
 
+## Take `to` from now on, letting go of a seated plug that no longer fits.
+func set_connector(to: String) -> void:
+	connector = to
+	if is_inside_tree():
+		snap_require = to
+		var plug := picked_up_object
+		if plug != null and not plug.is_in_group(to):
+			drop_object()
+
+
 ## The plug sitting in this socket, or null when it is empty.
 func seated_plug() -> PowerPlug:
 	return picked_up_object as PowerPlug

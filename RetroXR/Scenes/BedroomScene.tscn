@@ -17,7 +17,7 @@
 [ext_resource type="Texture2D" uid="uid://drkfqndtfkw2y" path="res://imported-assets/bedroom/materials/Carpet016_1K-JPG_NormalGL.jpg" id="24_rug_nrm"]
 [ext_resource type="Texture2D" uid="uid://crd3kyq60eiic" path="res://imported-assets/bedroom/materials/Carpet016_1K-JPG_Roughness.jpg" id="25_rug_rgh"]
 [ext_resource type="Texture2D" uid="uid://bae2nlfxaoux" path="res://imported-assets/bedroom/materials/Carpet016_1K-JPG_AmbientOcclusion.jpg" id="26_rug_ao"]
-[ext_resource type="ArrayMesh" path="res://Scenes/Objects/room/wall_outlet_duplex.res" id="28_outlet"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/room/wall_outlet.tscn" id="28_outlet"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/room/switch_plate_2gang.res" id="28_plate"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/room/switch_toggle.res" id="28_toggle"]
 [ext_resource type="Script" uid="uid://coejx45dmdik6" path="res://Scripts/Objects/room/light_switch.gd" id="29_switchscript"]
@@ -49,7 +49,6 @@
 [ext_resource type="Texture2D" uid="uid://cq80huhlnexke" path="res://imported-assets/bedroom/materials/Ground048_1K-JPG_AmbientOcclusion.jpg" id="82_soil_ao"]
 [ext_resource type="PackedScene" uid="uid://btkrc8cbbqbaq" path="res://imported-assets/bedroom/props/periwinkle_plant_1k.gltf" id="83_periwinkle"]
 [ext_resource type="PackedScene" uid="uid://d2hlcfwhangp6" path="res://imported-assets/bedroom/props/potted_plant_04_1k.gltf" id="84_pot"]
-[ext_resource type="PackedScene" path="res://Scenes/Objects/cables/power_port.tscn" id="85_powerport"]
 
 [sub_resource type="ProceduralSkyMaterial" id="Sky_dusk"]
 sky_top_color = Color(0.06, 0.11, 0.3, 1)
@@ -783,41 +782,14 @@ shape = SubResource("Shape_bat")
 [node name="ButtonMesh" type="MeshInstance3D" parent="Furniture/SwitchPlate/Strings/Button" unique_id=474561330]
 mesh = ExtResource("28_toggle")
 
-[node name="WallOutlet" type="MeshInstance3D" parent="Furniture" unique_id=1946717230]
+[node name="WallOutlet" parent="Furniture" unique_id=1946717230 instance=ExtResource("28_outlet")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.65, 0.3, -2.125)
-mesh = ExtResource("28_outlet")
 
-[node name="TopPort" parent="Furniture/WallOutlet" unique_id=1821578438 instance=ExtResource("85_powerport")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.022, 0.0086)
-connector = "nema_5_15_plug"
-
-[node name="BottomPort" parent="Furniture/WallOutlet" unique_id=1534469115 instance=ExtResource("85_powerport")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.0086)
-connector = "nema_5_15_plug"
-
-[node name="WallOutlet2" type="MeshInstance3D" parent="Furniture" unique_id=842137466]
+[node name="WallOutlet2" parent="Furniture" unique_id=842137466 instance=ExtResource("28_outlet")]
 transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, 1.65, 0.3, 2.1289425)
-mesh = ExtResource("28_outlet")
 
-[node name="TopPort" parent="Furniture/WallOutlet2" unique_id=1848600241 instance=ExtResource("85_powerport")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.022, 0.0086)
-connector = "nema_5_15_plug"
-
-[node name="BottomPort" parent="Furniture/WallOutlet2" unique_id=422144343 instance=ExtResource("85_powerport")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.0086)
-connector = "nema_5_15_plug"
-
-[node name="WallOutlet3" type="MeshInstance3D" parent="Furniture" unique_id=443960643]
+[node name="WallOutlet3" parent="Furniture" unique_id=443960643 instance=ExtResource("28_outlet")]
 transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -2.526556, 0.4354713, 0.4778514)
-mesh = ExtResource("28_outlet")
-
-[node name="TopPort" parent="Furniture/WallOutlet3" unique_id=1956728341 instance=ExtResource("85_powerport")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.022, 0.0086)
-connector = "nema_5_15_plug"
-
-[node name="BottomPort" parent="Furniture/WallOutlet3" unique_id=1117028565 instance=ExtResource("85_powerport")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.0086)
-connector = "nema_5_15_plug"
 
 [node name="TimeLever" type="Node3D" parent="Furniture" unique_id=1740983137]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -2.525, 1.15, 0.25)

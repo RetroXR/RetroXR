@@ -10,6 +10,10 @@
 ## the JSON keeps its default rather than reading as false.
 extends Node
 
+## The mains region moved (set_mains_region). The room's plates and strips follow
+## it through SpawnMenuController; a mod listens with ModApi.on_mains_region_changed.
+signal mains_region_changed(region: String)
+
 const PREFS_PATH := "user://app_prefs.json"
 
 var auto_save_scene:  bool = true
@@ -40,6 +44,11 @@ enum XRDisplayMode {
 ## controller-only presentation.
 var xr_display_mode: XRDisplayMode = XRDisplayMode.BOTH
 var controller_hands: bool = false
+## Which region's wall outlets the room has (a MainsRegions id). Empty until the
+## first load, which picks one from the system locale; an id no shipped table or
+## installed mod knows is kept as is, so a region a mod brings survives a launch
+## without that mod, and MainsRegions.resolve falls back to the default meanwhile.
+var mains_region: String = ""
 var system_filter:    bool = true
 ## Whether the player may move the core options that make a machine show its own
 ## boot screen. Off means BiosBoot's measured values are pinned every launch and
@@ -163,8 +172,19 @@ func set_system_hidden(systemid: String, hidden: bool) -> void:
 	save_prefs()
 
 
+## Change the mains region, save it, and say so.
+func set_mains_region(id: String) -> void:
+	if id == mains_region:
+		return
+	mains_region = id
+	save_prefs()
+	mains_region_changed.emit(id)
+
+
 func _ready() -> void:
 	_load_prefs()
+	if mains_region.is_empty() or Connectors.problem(mains_region) != "":
+		mains_region = MainsRegions.for_locale(OS.get_locale())
 	ControllerModel.draw_hands = controller_hands
 	SystemFilter.enabled = system_filter
 	# Spatial audio is deliberately NOT applied here: SpatialAudioListener is a
@@ -287,6 +307,7 @@ func _load_prefs() -> void:
 	bedroom_time_of_day = clampf(JsonStore.get_float(data, "bedroom_time_of_day",
 		bedroom_time_of_day), 0.0, 1.0)
 	hw_render_overrides = JsonStore.get_dict(data, "hw_render_overrides", hw_render_overrides)
+	mains_region = JsonStore.get_string(data, "mains_region", mains_region)
 	spawn_defaults = JsonStore.get_dict(data, "spawn_defaults", spawn_defaults)
 
 
@@ -318,6 +339,7 @@ func save_prefs() -> bool:
 		"bedroom_time_of_day": bedroom_time_of_day,
 		"hw_render_overrides": hw_render_overrides,
 		"spawn_defaults": spawn_defaults,
+		"mains_region": mains_region,
 	}, "AppPrefs")
 
 

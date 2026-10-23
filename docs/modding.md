@@ -599,6 +599,20 @@ platform's and is not listed (a model whose ports are not overrides
 `get_controller_connector()`). The first time the console is built, its mod's page
 in the MODS tab says if the list and the console disagree.
 
+**Wall outlets follow the player's region.** OPTIONS > General > Outlet Region
+picks which region's plates the room's wall outlets and power strips are
+(`MainsRegions`: a US duplex, a Schuko pair, a UK twin, ...), and a mains plug
+goes into one only when it would on the hardware. A room puts one in by
+instancing `res://Scenes/Objects/room/wall_outlet.tscn` (set `region_override`
+to pin a plate to one region). An AC adapter that should wear the plug of the
+player's region asks for it, and hears when it changes:
+
+```gdscript
+var region := api.mains_region()            # "na", "uk", "jp", ...
+api.on_mains_region_changed(func(r: String) -> void: _wear_plug_for(r))
+api.register_mains_region("xenu.mains:ar", {...})  # a MainsRegions.REGIONS entry
+```
+
 ### What the spawn card offers
 
 Nothing above is said to the menu separately. The game reads each object a mod

@@ -384,6 +384,29 @@ func _scene_manager() -> Node:
 	return loop.root.get_node_or_null("SceneManager") if loop != null else null
 
 
+## The player's mains region (a MainsRegions id, such as "na", "uk" or "jp"):
+## which wall outlets the room has, so an AC adapter can wear the plug that fits.
+func mains_region() -> String:
+	return MainsRegions.resolve(AppPrefs.mains_region)
+
+
+## Call `cb(region: String)` whenever the player changes the mains region.
+func on_mains_region_changed(cb: Callable) -> void:
+	AppPrefs.mains_region_changed.connect(func(region: String) -> void:
+		cb.call(MainsRegions.resolve(region)))
+
+
+## Offer a mains region of this mod's own on the OPTIONS dropdown, keyed and shaped
+## like a MainsRegions.REGIONS entry. A shipped region of the same id is replaced.
+func register_mains_region(region_id: String, spec: Dictionary) -> bool:
+	var problem := Connectors.problem(region_id)
+	if not problem.is_empty():
+		return _fail("register_mains_region: " + problem)
+	MainsRegions.extra[region_id] = spec.duplicate(true)
+	_note("mains_regions", region_id)
+	return true
+
+
 ## A writable folder of this mod's own, for settings. Use it with JsonStore.
 func store() -> String:
 	var dir := "user://mods/%s" % id

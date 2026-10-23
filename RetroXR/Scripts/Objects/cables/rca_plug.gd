@@ -56,6 +56,20 @@ func _ready() -> void:
 	picked_up.connect(func(_p: Variant) -> void: PlugAim.aim(self))
 
 
+## Become a plug of `to` while in the tree: leave the groups of the old connector
+## and join the new one's. A wall plug that follows the player's mains region
+## (PowerStrip) is the one plug that changes what it is after _ready.
+func set_connector(to: String) -> void:
+	if to == connector:
+		return
+	if is_inside_tree():
+		for group: String in Connectors.groups_of(connector):
+			remove_from_group(group)
+		for group: String in Connectors.groups_of(to):
+			add_to_group(group)
+	connector = to
+
+
 func _derive_cable_anchor() -> void:
 	var tip := get_node_or_null("PlugTip") as MeshInstance3D
 	if tip == null or tip.mesh == null:

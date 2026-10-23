@@ -617,6 +617,20 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 	vbox.add_child(HSeparator.new())
 
+	# Which region's wall outlets the room has. Every row on both desktop and VR:
+	# the plates are in the room either way.
+	var regions: Array = []
+	for id: String in MainsRegions.ids():
+		regions.append([MainsRegions.label_of(id), id])
+	var region_drop := VRDropdown.create("Outlet Region", regions,
+		MainsRegions.resolve(AppPrefs.mains_region), 1, Vector2(340, 52), 18)
+	region_drop.item_selected.connect(func(id: Variant) -> void:
+		# AppPrefs says so itself: the room and any mod listen there.
+		AppPrefs.set_mains_region(str(id))
+	)
+	vbox.add_child(region_drop)
+	vbox.add_child(HSeparator.new())
+
 	# Physical XR device presentation. The mode updates the live rig; the runtime
 	# hand mesh falls back to controller art if joints or geometry are absent.
 	if MenuStyle.is_vr_mode():

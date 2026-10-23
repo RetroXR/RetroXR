@@ -245,6 +245,7 @@ func _connect_menu_signals() -> void:
 	menu.options_view().passthrough_locomotion_changed.connect(_on_passthrough_locomotion_changed)
 	menu.options_view().xr_display_mode_changed.connect(_on_xr_display_mode_changed)
 	menu.options_view().controller_hands_changed.connect(_on_controller_hands_changed)
+	AppPrefs.mains_region_changed.connect(_on_mains_region_changed)
 	menu.options_view().snap_angle_changed.connect(_on_snap_angle_changed)
 	menu.options_view().height_offset_changed.connect(_on_height_offset_changed)
 	menu.options_view().fov_changed.connect(_on_fov_changed)
@@ -1503,6 +1504,17 @@ func _on_xr_display_mode_changed(_mode: int) -> void:
 	for ctrl: XRController3D in [_left_ctrl, _right_ctrl]:
 		if is_instance_valid(ctrl) and ctrl.has_method("refresh_xr_display_mode"):
 			ctrl.call("refresh_xr_display_mode")
+
+
+## Every plate and strip in the room swaps its receptacles; the menu re-sorts its
+## Power tab so the region's own cords come first. Nothing to apply at startup:
+## each reads AppPrefs.mains_region as it enters the tree.
+func _on_mains_region_changed(region: String) -> void:
+	PowerStrip.apply_region(get_tree(), region)
+	WallOutlet.apply_region(get_tree(), region)
+	var menu := _get_menu()
+	if menu != null:
+		menu.spawn_view().refresh_power_tab()
 
 
 func _on_controller_hands_changed(enabled: bool) -> void:
