@@ -334,7 +334,12 @@ A real PACK is still OWED — never present the fake-server cases as that.
 ## Android plugin
 
 `qr-scanner-android/` is a Gradle/Kotlin Godot Android plugin (not a GDExtension, not
-built by `Tools/build.py`); its Godot half is `RetroXR/addons/retroxr_qr`.
+built by `Tools/build.py`); its Godot half is `RetroXR/addons/retroxr_qr`. It serves both
+the QR scan (`QrScanner`) and the Game Boy Camera's passthrough feed
+(`PassthroughCamera`), sharing one camera. Rebuild after a Kotlin change and commit the
+AARs: `JAVA_HOME=C:/android/jdk-17.0.20.1+1 ANDROID_HOME=C:/android/sdk ./gradlew
+assembleDebug assembleRelease` in `qr-scanner-android/`, then copy
+`build/outputs/aar/retroxr-qr-{debug,release}.aar` into `RetroXR/addons/retroxr_qr/bin/`.
 `RetroXR/addons/retroxr_build_stamp` writes the `res://build_info.json` that
 `Scripts/Data/build_info.gd` reads.
 

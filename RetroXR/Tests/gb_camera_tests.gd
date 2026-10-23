@@ -65,6 +65,25 @@ class FakeMachine:
 		return lib
 
 
+## The RetroXRQr plugin's feed, as far as PassthroughCamera can tell.
+class FakeCameraPlugin:
+	extends Object
+	signal camera_frame(luma: PackedByteArray, width: int, height: int, age_us: int)
+	var starts := 0
+	var stops := 0
+	var info := {}
+
+	func startFeed(_width: int, _height: int) -> bool:
+		starts += 1
+		return true
+
+	func stopFeed() -> void:
+		stops += 1
+
+	func getCameraInfo() -> Dictionary:
+		return info
+
+
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
@@ -99,6 +118,8 @@ func _ready() -> void:
 		_test_binding()
 	if _wants("core"):
 		await _test_core()
+	if _wants("passthrough"):
+		await _test_passthrough()
 
 	_clear_fixtures()
 	await _settle_warm()
@@ -1141,3 +1162,138 @@ func _test_core() -> void:
 	sys.queue_free()
 	for i in 5:
 		await get_tree().process_frame
+
+
+## The headset's camera behind the lens in passthrough: where a point falls in a
+## frame, the calibration as it maps onto one, the lens on the head, the head
+## kept for when a frame was taken, the feed shared between holders, and the
+## lens that holds it only while it films in a real room. No headset here: the
+## plugin is FakeCameraPlugin and the head is a list of poses.
+func _test_passthrough() -> void:
+	PassthroughCamera.reset()
+	# A camera at the origin looking down -Z, its image centered.
+	var k := Vector4(0.5, 0.6, 0.5, 0.5)
+	var center := PassthroughCamera.project(Vector3(0, 0, -2), Transform3D.IDENTITY, k)
+	_ok(center.is_equal_approx(Vector2(0.5, 0.5)), "passthrough/a point on the axis falls on the image's center", str(center))
+	var right := PassthroughCamera.project(Vector3(0.4, 0, -2), Transform3D.IDENTITY, k)
+	var up := PassthroughCamera.project(Vector3(0, 0.4, -2), Transform3D.IDENTITY, k)
+	_ok(right.x > 0.5 and is_equal_approx(right.y, 0.5) and up.y < 0.5 and is_equal_approx(up.x, 0.5),
+		"passthrough/right is right and up is up, with v down the image", "%s %s" % [right, up])
+	_ok(is_equal_approx(right.x, 0.5 + 0.5 * 0.4 / 2.0), "passthrough/a point lands at fx * x / z from the center", str(right))
+	_ok(PassthroughCamera.project(Vector3(0, 0, 2), Transform3D.IDENTITY, k) == Vector2(-1, -1),
+		"passthrough/a point behind the camera falls nowhere")
+	var turned := Transform3D(Basis(Vector3.UP, PI / 2), Vector3(1, 0, 0))
+	_ok(PassthroughCamera.project(Vector3(-1, 0, 0), turned, k).is_equal_approx(Vector2(0.5, 0.5)),
+		"passthrough/and the camera's pose in the world is undone first")
+
+	# A square sensor, a 4:3 capture: the frame is the sensor's middle rows.
+	var info := {
+		"intrinsics": PackedFloat32Array([640, 640, 640, 640, 0]),
+		"active_array": PackedInt32Array([0, 0, 1280, 1280]),
+		"capture_size": PackedInt32Array([1280, 960]),
+		# Half a turn about the head's x: the optical axis (z) is the head's -Z
+		# and the image's down (y) the head's -Y, a camera looking ahead upright.
+		"pose_rotation": PackedFloat32Array([1, 0, 0, 0]),
+		"pose_translation": PackedFloat32Array([-0.03, -0.01, -0.05]),
+	}
+	var uv := PassthroughCamera.intrinsics_uv(info)
+	_ok(uv.is_equal_approx(Vector4(0.5, 640.0 / 960.0, 0.5, 0.5)),
+		"passthrough/the calibration is mapped onto the cropped frame, its center still the center", str(uv))
+	_ok(PassthroughCamera.intrinsics_uv({}) == Vector4.ZERO, "passthrough/no calibration maps to nothing")
+	var lens := PassthroughCamera.lens_from_head(info)
+	_ok((lens.basis * Vector3.FORWARD).is_equal_approx(Vector3.FORWARD) and (lens.basis * Vector3.UP).is_equal_approx(Vector3.UP),
+		"passthrough/an optical axis along the head's -Z is a lens looking the way the head does, up kept up",
+		"%s %s" % [lens.basis * Vector3.FORWARD, lens.basis * Vector3.UP])
+	_ok(lens.origin.is_equal_approx(Vector3(-0.03, -0.01, -0.05)), "passthrough/where it sits on the head is the pose's translation")
+	var plain := PassthroughCamera.lens_from_head({"pose_rotation": PackedFloat32Array([0, 0, 0, 1])})
+	_ok((plain.basis * Vector3.FORWARD).is_equal_approx(Vector3.BACK),
+		"passthrough/no rotation at all is an optical axis down the head's +Z, Camera2's z out of the lens")
+
+	# The head as it was when a frame was exposed.
+	var clock := {"now": 1_000_000}
+	var head := {"pose": Transform3D.IDENTITY}
+	PassthroughCamera.clock_source = func() -> int: return int(clock["now"])
+	PassthroughCamera.head_source = func() -> Variant: return head["pose"]
+	_ok(PassthroughCamera.head_at(0) == null, "passthrough/no head kept, no head at any moment")
+	PassthroughCamera.tick()
+	clock["now"] = 1_100_000
+	head["pose"] = Transform3D(Basis(), Vector3(1, 0, 0))
+	PassthroughCamera.tick()
+	var between: Variant = PassthroughCamera.head_at(1_050_000)
+	_ok(between is Transform3D and (between as Transform3D).origin.is_equal_approx(Vector3(0.5, 0, 0)),
+		"passthrough/a moment between two kept poses is between them", str(between))
+	_ok((PassthroughCamera.head_at(0) as Transform3D).origin == Vector3.ZERO
+		and (PassthroughCamera.head_at(9_000_000) as Transform3D).origin == Vector3(1, 0, 0),
+		"passthrough/before the oldest is the oldest, after the newest the newest")
+	clock["now"] = 1_100_000 + PassthroughCamera.HISTORY_USEC + 1
+	PassthroughCamera.tick()
+	_ok((PassthroughCamera.head_at(1_000_000) as Transform3D).origin == Vector3(1, 0, 0),
+		"passthrough/poses older than the history are let go")
+
+	# The feed, shared.
+	var plugin := FakeCameraPlugin.new()
+	plugin.info = info
+	PassthroughCamera.plugin_source = func() -> Object: return plugin
+	var a := RefCounted.new()
+	var b := RefCounted.new()
+	_ok(PassthroughCamera.acquire(a) and PassthroughCamera.acquire(b) and PassthroughCamera.acquire(a)
+		and plugin.starts == 1, "passthrough/two holders start one feed", "%d starts" % plugin.starts)
+	_ok(not PassthroughCamera.has_frame() and PassthroughCamera.world_from_camera() == null,
+		"passthrough/before a frame there is nothing to show")
+	var luma := PackedByteArray()
+	luma.resize(8 * 6)
+	luma.fill(200)
+	plugin.camera_frame.emit(luma, 8, 6, 20_000)
+	_ok(not PassthroughCamera.has_frame(), "passthrough/a frame is taken on the main thread, never in the plugin's signal")
+	await get_tree().process_frame
+	_ok(PassthroughCamera.has_frame() and PassthroughCamera.texture().get_size() == Vector2(8, 6),
+		"passthrough/then it is the texture shown")
+	_ok(PassthroughCamera.intrinsics().is_equal_approx(uv), "passthrough/and the first frame brings what the plugin read of the lens")
+	var pose: Variant = PassthroughCamera.world_from_camera()
+	_ok(pose is Transform3D and (pose as Transform3D).origin.is_equal_approx(Vector3(1, 0, 0) + lens.origin),
+		"passthrough/the frame's camera is the head when it was exposed, times the lens on the head", str(pose))
+	plugin.camera_frame.emit(PackedByteArray([1, 2, 3]), 8, 6, 0)
+	await get_tree().process_frame
+	_ok(PassthroughCamera.texture().get_image().get_pixel(0, 0).r8 == 200, "passthrough/a frame of the wrong length is dropped")
+	clock["now"] = int(clock["now"]) + PassthroughCamera.STALE_USEC
+	_ok(not PassthroughCamera.has_frame(), "passthrough/a frame gone stale is not shown")
+	clock["now"] = int(clock["now"]) + PassthroughCamera.RETRY_USEC
+	PassthroughCamera.tick()
+	_ok(plugin.starts == 2, "passthrough/a feed that stopped coming is asked for again", "%d starts" % plugin.starts)
+	PassthroughCamera.release(a)
+	_ok(plugin.stops == 0 and PassthroughCamera.is_held(), "passthrough/one holder letting go stops nothing")
+	PassthroughCamera.release(b)
+	PassthroughCamera.release(b)
+	_ok(plugin.stops == 1 and not PassthroughCamera.is_held() and PassthroughCamera.texture() == null,
+		"passthrough/the last one stops the feed, once")
+
+	# The lens holds it only while it films, and only in a real room.
+	var body := _loose_body()
+	var eye := _eye_of(body)
+	var machine := FakeMachine.new()
+	var real := {"on": false}
+	eye.machine_source = func() -> Object: return machine
+	eye.picture_source = func(size: Vector2i) -> Image: return _still(size)
+	eye.real_source = func() -> bool: return bool(real["on"])
+	eye._process(0.0)
+	_ok(not eye.is_filming_real() and plugin.starts == 2, "passthrough/in a room that is not real the lens films the scene")
+	real["on"] = true
+	eye._process(0.0)
+	_ok(not eye.is_filming_real(), "passthrough/the room is asked about once a second, not every frame")
+	eye._process(GbCameraEye.REAL_CHECK_PERIOD)
+	_ok(eye.is_filming_real() and plugin.starts == 3, "passthrough/in a real room it holds the headset's camera")
+	machine.is_powered_on = false
+	eye._process(0.0)
+	_ok(not eye.is_filming_real() and plugin.stops == 2, "passthrough/and lets it go when the machine is switched off")
+	machine.is_powered_on = true
+	eye._process(0.0)
+	_ok(eye.is_filming_real() and plugin.starts == 4, "passthrough/switched on again in a real room, it is asked for at once")
+	body.queue_free()
+	await get_tree().process_frame
+	_ok(not PassthroughCamera.is_held() and plugin.stops == 3, "passthrough/a lens taken out of the room lets it go")
+
+	PassthroughCamera.reset()
+	PassthroughCamera.plugin_source = Callable()
+	PassthroughCamera.head_source = Callable()
+	PassthroughCamera.clock_source = Callable()
+	plugin.free()

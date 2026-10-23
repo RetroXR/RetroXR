@@ -30,6 +30,15 @@
 ## straight out of the ball; the real one's is raised 7.8 degrees above square to
 ## the axle (the laser scan of nintendo/gb/camera), which a body says in
 ## tilt_degrees.
+##
+## In passthrough the room is the real one, so the picture is too: while the
+## player sees the headset's view of their room, the lens holds the headset's
+## camera (PassthroughCamera) and draws its frame behind the scene, reprojected
+## to where the lens points (Shaders/gb_camera_passthrough). The headset camera
+## sees only what is in front of the face, so a lens turned round or aimed away
+## sees black there. Quest 3 / 3S, with the headset-camera permission, which is
+## asked for the first time a camera films in passthrough; without it, or
+## anywhere else, the lens films the scene as before.
 class_name GbCameraEye
 extends Node3D
 
@@ -59,15 +68,30 @@ const FAR := 100.0
 const RATE_MOBILE := 12.0
 const RATE_DESKTOP := 30.0
 
+## The layer the lens camera leaves out and every other camera keeps, which is how
+## the backdrop shader tells the lens from the rest (bit 18, layer 19). Nothing
+## is put on it.
+const LENS_ONLY_LAYER := 1 << 18
+## Seconds between asking whether the room is real. Permissions are a JNI call.
+const REAL_CHECK_PERIOD := 1.0
+const BACKDROP_SHADER := preload("res://Shaders/gb_camera_passthrough.gdshader")
+## How far the backdrop is taken to be. The headset camera is a few centimeters
+## from the lens, so what is nearer or farther than this is drawn a little off.
+const BACKDROP_DISTANCE := 1.5
+
 ## The machine whose own slot holds the cartridge, or null. A suite supplies one.
 var machine_source := Callable()
 ## The picture for a pass of the given size, or null when there is none. A suite
 ## supplies a still; the room's comes from the viewport.
 var picture_source := Callable()
+## Whether to film the real room, or null to ask the headset. A suite supplies one.
+var real_source := Callable()
 
 ## The process frame some eye last armed its viewport on: one a frame, so two
 ## cameras in a room never draw it twice more in the same one.
 static var _armed_on_frame := -1
+## The headset-camera permission is asked for once a run, not once a camera.
+static var _asked_permission := false
 
 var _cartridge: RetroCartridge = null
 var _viewport: SubViewport = null
@@ -76,6 +100,9 @@ var _armed := false
 ## Seconds until the next picture may be taken.
 var _wait := 0.0
 var _feeding: Object = null
+var _backdrop: MeshInstance3D = null
+var _holding_real := false
+var _real_check_wait := 0.0
 
 
 func _ready() -> void:
@@ -90,6 +117,7 @@ func _ready() -> void:
 
 func _exit_tree() -> void:
 	_feeding = null
+	_hold_real(false)
 
 
 func _process(delta: float) -> void:
@@ -97,8 +125,17 @@ func _process(delta: float) -> void:
 	if lib != _feeding:
 		_feeding = lib
 		_armed = false
+		_real_check_wait = 0.0
 		if lib == null:
 			_rest_viewport()
+	_real_check_wait -= delta
+	if lib == null:
+		_hold_real(false)
+	elif _real_check_wait <= 0.0:
+		_real_check_wait = REAL_CHECK_PERIOD
+		_hold_real(wants_real())
+	if _holding_real:
+		PassthroughCamera.tick()
 	if lib == null:
 		return
 	_wait -= delta
@@ -123,6 +160,39 @@ func feed_target() -> Object:
 	if lib == null or not lib.has_method("IsCameraActive") or not lib.IsCameraActive():
 		return null
 	return lib
+
+
+## Whether the lens films the real room: the player is in passthrough, on a
+## headset whose camera a game may use, and has allowed it. The first time the
+## answer is no for want of the permission alone, it is asked for.
+func wants_real() -> bool:
+	if real_source.is_valid():
+		return bool(real_source.call())
+	if not PassthroughCamera.room_is_real() or not QrScanner.is_available():
+		return false
+	if QrScanner.has_permission():
+		return true
+	if not _asked_permission:
+		_asked_permission = true
+		QrScanner.request_permission()
+	return false
+
+
+## Whether this lens holds the headset camera now.
+func is_filming_real() -> bool:
+	return _holding_real
+
+
+func _hold_real(want: bool) -> void:
+	if want == _holding_real:
+		return
+	if want:
+		_holding_real = PassthroughCamera.acquire(self)
+	else:
+		PassthroughCamera.release(self)
+		_holding_real = false
+		if _backdrop != null:
+			_backdrop.visible = false
 
 
 ## Hand `picture` to `lib` as a core takes one: exactly `size`, RGBA8, top row
@@ -179,6 +249,7 @@ func _arm(size: Vector2i) -> void:
 	if _viewport.size != size:
 		_viewport.size = size
 	_aim()
+	_place_backdrop()
 	# Disabled first: UPDATE_ONCE is consumed by the renderer, but assigning the
 	# same enum again is not a reliable dirty signal on every backend.
 	_viewport.render_target_update_mode = SubViewport.UPDATE_DISABLED
@@ -221,10 +292,43 @@ func _ensure_viewport() -> void:
 	# Posed from _process just before it is drawn. Interpolated between physics
 	# ticks it would be drawn where the lens WAS, and the engine says so.
 	_camera.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
+	# Everything but the one layer that tells the backdrop it is the lens's.
+	_camera.cull_mask = 0xFFFFF & ~LENS_ONLY_LAYER
 	_viewport.add_child(_camera)
 	add_child(_viewport)
 	# The flag: make_current() does not work inside a SubViewport.
 	_camera.current = true
+
+
+## Show the headset camera's latest frame behind the scene, as it was where it
+## was taken, or nothing when there is no such frame.
+func _place_backdrop() -> void:
+	var pose: Variant = PassthroughCamera.world_from_camera() \
+		if _holding_real and PassthroughCamera.has_frame() else null
+	if pose == null:
+		if _backdrop != null:
+			_backdrop.visible = false
+		return
+	if _backdrop == null:
+		_backdrop = MeshInstance3D.new()
+		_backdrop.name = "Backdrop"
+		var quad := QuadMesh.new()
+		quad.size = Vector2(2, 2)
+		_backdrop.mesh = quad
+		# The shader puts it over the whole view, wherever the mesh "is".
+		_backdrop.custom_aabb = AABB(Vector3.ONE * -1000.0, Vector3.ONE * 2000.0)
+		_backdrop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		_backdrop.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		var material := ShaderMaterial.new()
+		material.shader = BACKDROP_SHADER
+		_backdrop.material_override = material
+		_camera.add_child(_backdrop)
+	var material := _backdrop.material_override as ShaderMaterial
+	material.set_shader_parameter("feed", PassthroughCamera.texture())
+	material.set_shader_parameter("camera_from_world", Projection((pose as Transform3D).affine_inverse()))
+	material.set_shader_parameter("intrinsics", PassthroughCamera.intrinsics())
+	material.set_shader_parameter("distance", BACKDROP_DISTANCE)
+	_backdrop.visible = true
 
 
 func _rest_viewport() -> void:
