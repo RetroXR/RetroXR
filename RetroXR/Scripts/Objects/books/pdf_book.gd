@@ -216,7 +216,7 @@ var _loading: bool = false  # re-entry guard for load_pdf ↔ setter
 # VR page turning
 var _controllers: Array = []
 var _turn_cooldown: float = 0.0
-const SPINE_WIDTH := 0.0035         # width of the spine binding strip
+const SPINE_WIDTH := 0.0035         # width of the spine binding strip at size_scale 1 (_spine_width)
 const LEAF_THICKNESS := 0.0001      # meters of depth per leaf (~0.1mm, realistic paper)
 const COVER_THICKNESS := 0.004      # combined depth contribution of front + back covers
 const COVER_GAP := 0.001            # gap between page stack face and cover quad
@@ -581,6 +581,11 @@ func _apply_dimensions() -> void:
 ## One page's size in metres (width, height), as the book stands now.
 func page_size() -> Vector2:
 	return Vector2(_book_width, book_height)
+
+
+## The spine's width, scaled with the book like everything else on it.
+func _spine_width() -> float:
+	return SPINE_WIDTH * size_scale
 
 
 # ── Page state (persistence + multiplayer sync) ──────────────────────────────
@@ -1044,7 +1049,7 @@ func _trim_texture_cache() -> void:
 ## Configure mesh sizes and create unique materials for each mesh.
 func _configure_meshes() -> void:
 	var half_w := _book_width / 2.0
-	var spine_half := SPINE_WIDTH / 2.0
+	var spine_half := _spine_width() / 2.0
 	# Stack center X: pages start at the outer edge of the spine
 	var stack_x := half_w + spine_half
 
@@ -1098,7 +1103,7 @@ func _configure_meshes() -> void:
 	var total_thick := maxf(_leaf_count * LEAF_THICKNESS, LEAF_THICKNESS * 2)
 	if _spine_mesh and _spine_mesh.mesh is BoxMesh:
 		_spine_mesh.mesh = _spine_mesh.mesh.duplicate()
-		(_spine_mesh.mesh as BoxMesh).size = Vector3(SPINE_WIDTH, book_height, total_thick)
+		(_spine_mesh.mesh as BoxMesh).size = Vector3(_spine_width(), book_height, total_thick)
 	_ensure_spine_material()
 	_set_spine_closed(total_thick)
 
@@ -1348,7 +1353,7 @@ func _apply_back_texture(mesh_node: MeshInstance3D, tex: Texture2D) -> void:
 func _set_state(new_state: BookState) -> void:
 	_state = new_state
 	var half_w := _book_width / 2.0
-	var stack_x := half_w + SPINE_WIDTH / 2.0
+	var stack_x := half_w + _spine_width() / 2.0
 	var total_thick := maxf(_leaf_count * LEAF_THICKNESS, LEAF_THICKNESS * 2)
 
 	match new_state:
@@ -1489,15 +1494,15 @@ func _update_collision_shape() -> void:
 	match _state:
 		BookState.CLOSED:
 			# Only the right stack + spine + cover is visible
-			(col_shape.shape as BoxShape3D).size = Vector3(_book_width + SPINE_WIDTH, book_height, depth)
+			(col_shape.shape as BoxShape3D).size = Vector3(_book_width + _spine_width(), book_height, depth)
 			col_shape.position = Vector3(half_w, 0, 0)
 		BookState.OPEN:
 			# Both page stacks visible, spanning the full open width
-			(col_shape.shape as BoxShape3D).size = Vector3(_book_width * 2.0 + SPINE_WIDTH, book_height, depth)
+			(col_shape.shape as BoxShape3D).size = Vector3(_book_width * 2.0 + _spine_width(), book_height, depth)
 			col_shape.position = Vector3.ZERO
 		BookState.LAST_PAGE:
 			# Only the left stack + spine + back cover is visible
-			(col_shape.shape as BoxShape3D).size = Vector3(_book_width + SPINE_WIDTH, book_height, depth)
+			(col_shape.shape as BoxShape3D).size = Vector3(_book_width + _spine_width(), book_height, depth)
 			col_shape.position = Vector3(-half_w, 0, 0)
 	# The pointer target follows the same outline. Left at its authored size it
 	# is an open spread centred on the spine whatever the state, so a closed
@@ -1633,7 +1638,7 @@ func _ensure_spine_material() -> void:
 		mat.shader = SPINE_SHADER
 		_spine_mesh.set_surface_override_material(0, mat)
 	mat.set_shader_parameter("spine_height", book_height)
-	mat.set_shader_parameter("spine_width", SPINE_WIDTH)
+	mat.set_shader_parameter("spine_width", _spine_width())
 
 
 func _update_cover_texture() -> void:
@@ -1769,7 +1774,7 @@ func _update_stack_thickness() -> void:
 
 	# Position covers just behind their respective stacks
 	var half_w := _book_width / 2.0
-	var stack_x := half_w + SPINE_WIDTH / 2.0
+	var stack_x := half_w + _spine_width() / 2.0
 	_cover_mesh.position = Vector3(-stack_x, 0, -(left_thick / 2.0 + COVER_GAP))
 	_back_cover_mesh.position = Vector3(stack_x, 0, -(right_thick / 2.0 + COVER_GAP))
 	# A page moving across changes how heavy and how stiff each half is, and
@@ -1883,7 +1888,7 @@ func _page_plane_z(dir: int) -> float:
 func _layout_page_grabs() -> void:
 	if _grab_right == null:
 		return
-	var spine_half := SPINE_WIDTH * 0.5
+	var spine_half := _spine_width() * 0.5
 	var half_x := _book_width * GRAB_BAND * 0.5
 	var reach := Vector3(half_x, book_height * 0.5, 0.035)
 	for pair: Array in [[_grab_right, 1.0], [_grab_left, -1.0]]:
@@ -1903,7 +1908,7 @@ func _layout_page_grabs() -> void:
 ## the air several centimetres above the fore edge it is meant to be.
 func _seat_page_grab(zone: PageGrab, dir: int) -> void:
 	var flat := Vector3(
-		float(dir) * (SPINE_WIDTH * 0.5 + _book_width * (1.0 - GRAB_BAND * 0.5)),
+		float(dir) * (_spine_width() * 0.5 + _book_width * (1.0 - GRAB_BAND * 0.5)),
 		0.0,
 		_page_plane_z(dir))
 	zone.position = _flop.bend(flat)
@@ -1932,7 +1937,7 @@ func _page_drag_point(origin: Vector3, toward: Vector3) -> Variant:
 	if along <= 0.0:
 		return null
 	var at := o + d * along
-	var reach := _book_width + SPINE_WIDTH * 0.5
+	var reach := _book_width + _spine_width() * 0.5
 	at.x = clampf(at.x, -reach - 0.05, reach + 0.05)
 	at.y = clampf(at.y, -book_height * 0.6, book_height * 0.6)
 	var over_gutter := smoothstep(0.0, 1.0, clampf(1.0 - absf(at.x) / reach, 0.0, 1.0))
@@ -2032,7 +2037,7 @@ func _spawn_leaf(dir: int) -> bool:
 		mat.set_shader_parameter("back_texture", _get_page_texture(back_idx))
 	leaf.set_surface_override_material(0, mat)
 
-	var stack_x := _book_width / 2.0 + SPINE_WIDTH / 2.0
+	var stack_x := _book_width / 2.0 + _spine_width() / 2.0
 	leaf.position = Vector3(dir * stack_x, 0.0, _page_plane_z(dir) + LEAF_LIFT)
 	_active_leaf_container.add_child(leaf)
 	_active_leaf = leaf
@@ -2158,7 +2163,7 @@ func _solve_leaf_lift(world_pos: Vector3) -> float:
 		return 0.0
 	var dir := float(_grab_dir)
 	# All the paper there is to reach with, less the stub the binding keeps flat.
-	var paper := dir * _grab_anchor.x + _book_width * 0.5 + SPINE_WIDTH * 0.5 - FOLD_GUTTER_MARGIN
+	var paper := dir * _grab_anchor.x + _book_width * 0.5 + _spine_width() * 0.5 - FOLD_GUTTER_MARGIN
 	# The hand about the gutter, on the FLAT book. The lift is a rigid hinge in that
 	# frame and the book's droop goes on top of it, so this is exact — for the
 	# page lying on its block and for a hand 25 cm above it alike.
@@ -2335,7 +2340,7 @@ func _update_fold_from_hand(world_pos: Vector3) -> void:
 	# leaf's own frame: over the gutter the leaf is up on its hinge, the hand is
 	# foreshortened across it, and the turn read 0.42 and stalled there for the
 	# whole width of the gutter instead of passing through a half.
-	var paper := dir * _grab_anchor.x + _book_width * 0.5 + SPINE_WIDTH * 0.5
+	var paper := dir * _grab_anchor.x + _book_width * 0.5 + _spine_width() * 0.5
 	_grip_travel = clampf((paper - _hand_across) / maxf(2.0 * paper, 1e-5), 0.0, 1.0)
 	var fold := _fold_for(hand)
 	if fold.is_empty():
@@ -2408,7 +2413,7 @@ func _settle_leaf(commit: bool, duration: float = LEAF_SETTLE_TIME) -> void:
 	elif commit:
 		# Fold line exactly on the book's gutter: the page lands mirrored onto
 		# the opposite stack.
-		to_origin = Vector2(-dir * (_book_width * 0.5 + SPINE_WIDTH * 0.5), 0.0)
+		to_origin = Vector2(-dir * (_book_width * 0.5 + _spine_width() * 0.5), 0.0)
 		to_radius = CURL_CLOSED
 		to_taper = 0.0
 		to_z = _page_plane_z(-_grab_dir) - CURL_CLOSED * 2.0 + LEAF_LIFT
@@ -2671,7 +2676,7 @@ func _refresh_flop() -> void:
 	var fan_max := FAN_LEAVES_DESKTOP if QualityManager.is_desktop() else FAN_LEAVES_QUEST
 	_flop.floppiness = floppiness
 	_flop.hardback = hardback
-	_flop.configure(_book_width + SPINE_WIDTH * 0.5, left, right, covers_left, covers_right, open,
+	_flop.configure(_book_width + _spine_width() * 0.5, left, right, covers_left, covers_right, open,
 		mini(left - 1, fan_max) if open else 0, mini(right - 1, fan_max) if open else 0)
 
 	_flop_sheets.clear()
@@ -2688,7 +2693,7 @@ func _refresh_flop() -> void:
 		edge.set_shader_parameter("page_size", Vector2(_book_width, book_height))
 		edge.set_shader_parameter("spine_sign", float(dir))
 		edge.set_shader_parameter("z_scale", stack.scale.z)
-		edge.set_shader_parameter("flop_gutter_gap", SPINE_WIDTH * 0.5)
+		edge.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
 		edge.set_shader_parameter("flop_origin_z", stack.position.z)
 		# Local space, so the box's own Z scale has to be divided back out.
 		var reach := (_book_width + PAPER_AABB_MARGIN) / maxf(stack.scale.z, 1e-4)
@@ -2738,7 +2743,7 @@ func _outline_param(src: MeshInstance3D, param: StringName, value: Variant) -> v
 ## which way its +X points away from the gutter, its Z scale).
 func _outline_frame(src: MeshInstance3D, frame: Vector4) -> void:
 	_outline_param(src, &"flop_frame", frame)
-	_outline_param(src, &"flop_page", Vector2(_book_width, SPINE_WIDTH * 0.5))
+	_outline_param(src, &"flop_page", Vector2(_book_width, _spine_width() * 0.5))
 
 
 ## Where a node sits relative to the book, without going through global space
@@ -2757,7 +2762,7 @@ func _register_flop_sheet(sheet: MeshInstance3D) -> void:
 	if mat == null:
 		return
 	var xf := _book_xform(sheet)
-	mat.set_shader_parameter("flop_gutter_gap", SPINE_WIDTH * 0.5)
+	mat.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
 	mat.set_shader_parameter("flop_origin_z", xf.origin.z)
 	# The covers are turned 180 degrees about Y in most states, which points
 	# their own +Z at the book's -Z.
@@ -2790,7 +2795,7 @@ func _push_flop(force: bool) -> void:
 		if _active_leaf:
 			var leaf_mat := _active_leaf.get_surface_override_material(0) as ShaderMaterial
 			if leaf_mat:
-				leaf_mat.set_shader_parameter("flop_gutter_gap", SPINE_WIDTH * 0.5)
+				leaf_mat.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
 				# The one sheet that crosses the gutter in mid-air.
 				leaf_mat.set_shader_parameter("flop_cross", 1.0)
 				leaf_mat.set_shader_parameter("flop_origin_z", _active_leaf.position.z)
@@ -2841,13 +2846,13 @@ func _build_fan() -> void:
 			_fan_root.add_child(leaf)
 			var mat := _ensure_paper_material(leaf, false)
 			mat.set_shader_parameter("spine_sign", 1.0 if i == 1 else -1.0)
-			mat.set_shader_parameter("flop_gutter_gap", SPINE_WIDTH * 0.5)
+			mat.set_shader_parameter("flop_gutter_gap", _spine_width() * 0.5)
 			_fan_leaves[i].append(leaf)
 
 
 ## Lay the loose leaves on their blocks, top sheet highest.
 func _seat_fan() -> void:
-	var stack_x := _book_width / 2.0 + SPINE_WIDTH / 2.0
+	var stack_x := _book_width / 2.0 + _spine_width() / 2.0
 	for i in 2:
 		var dir := 1 if i == 1 else -1
 		var leaves: Array = _fan_leaves[i]
