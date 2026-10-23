@@ -29,6 +29,7 @@
 ##   coin/       a coin door tosses a coin and says so when it lands
 ##   restore/    the ASYNC restore (what the loading overlay waits on) finishes with a cabinet in the room
 ##   keep/       a room saved with the cabinet in it brings it back
+##   game/       the cabinet follows the game in its bay: panels, caps, labels, coin doors (ArcadeGameProfile)
 extends Node
 
 
@@ -176,6 +177,9 @@ func _run() -> void:
 		await _group_restore()
 	if _want("keep"):
 		await _group_keep()
+	if _want("game"):
+		_group_game_profile()
+		await _group_game_cabinet()
 	if _want("perf"):
 		await _group_perf()
 	await _clear()
@@ -1449,4 +1453,178 @@ func _group_perf() -> void:
 	sys.is_powered_on = false
 	await _wait(3)
 	_ok(input._heard_mask.is_empty(), "perf: switched off, nothing is remembered: a restart is told afresh")
+	await _clear()
+
+
+# --- game ----------------------------------------------------------------------
+
+## What FBNeo published for dino (Tools/cores/arcade_descriptors_probe, measured 2026-10-22), player 1 only:
+## the game's own words and exactly the pad ids it reads.
+func _fbneo_dino() -> Array:
+	var rows: Array = []
+	for port in 2:
+		for d: Array in [[2, "Coin"], [3, "Start"], [4, "Up"], [5, "Down"], [6, "Left"], [7, "Right"],
+				[0, "Attack"], [8, "Jump"]]:
+			rows.append({"port": port, "device": 1, "index": 0, "id": d[0], "description": d[1]})
+	return rows
+
+
+## What the MAME core publishes for every game: the whole RetroPad under generic names.
+func _mame_generic() -> Array:
+	var rows: Array = []
+	for port in 2:
+		for id in 16:
+			rows.append({"port": port, "device": 1, "index": 0, "id": id, "description": "Button %d" % id})
+	return rows
+
+
+func _group_game_profile() -> void:
+	_ok(ArcadeGameProfile.table_size() > 20000, "game: the table holds the arcade romsets (%d)" % ArcadeGameProfile.table_size())
+	var sf2 := ArcadeGameProfile.for_romset("sf2")
+	_ok(sf2.known and sf2.players == 2 and sf2.coins == 2 and sf2.buttons == 6 and sf2.ways == 8 and sf2.has_kind("joy"),
+		"game: Street Fighter II is 2 players, 2 coins, 6 buttons, an 8-way stick (%s)" % sf2.summary())
+	var dino := ArcadeGameProfile.for_romset("dino")
+	_ok(dino.buttons == 2 and dino.players == 3, "game: Cadillacs and Dinosaurs has 2 buttons and 3 players")
+	_ok(ArcadeGameProfile.for_romset("hotd2").is_gun() and ArcadeGameProfile.for_romset("ptblank").is_gun(),
+		"game: the light-gun games are guns")
+	_ok(ArcadeGameProfile.for_romset("daytona").is_driving() and ArcadeGameProfile.for_romset("outrun").is_driving(),
+		"game: a paddle with a pedal is a driving game")
+	_ok(not sf2.is_driving() and not sf2.is_gun(), "game: and a fighter is neither")
+	var pong := ArcadeGameProfile.for_romset("pong")
+	_ok(pong.coins == 1 and pong.buttons == 0 and pong.has_kind("paddle") and pong.stick_visible(),
+		"game: Pong has one coin, no buttons and keeps the stick (left and right steer a paddle)")
+	_ok(not ArcadeGameProfile.for_romset("hotd2").stick_visible(), "game: a gun game has no stick on the panel")
+	var path := ArcadeGameProfile.for_rom_path("/home/me/retroxr/roms/mame/SF2.zip")
+	_ok(path.known and path.romset == "sf2", "game: a board's path is read as its romset, any case and extension")
+	var unknown := ArcadeGameProfile.for_romset("not_a_real_romset")
+	_ok(not unknown.known and unknown.panel_visible(1) and unknown.stick_visible() and unknown.coin_doors() == 2,
+		"game: a romset the table lacks leaves the whole cabinet")
+	var every := true
+	for i in ArcadeProfiles.BUTTON_COUNT:
+		every = every and unknown.button_visible(0, i) and unknown.button_label(0, i).is_empty()
+	_ok(every, "game: ... every cap, and no labels")
+	_ok(not ArcadeGameProfile.for_romset("daytona").panel_visible(1) and ArcadeGameProfile.for_romset("daytona").panel_visible(0),
+		"game: a one-player game has no second panel")
+	_ok(sf2.button_visible(0, 5) and not dino.button_visible(0, 2) and dino.button_visible(0, 1),
+		"game: the table's button count is how many caps show")
+	# The core's own words.
+	var d := ArcadeGameProfile.for_romset("dino")
+	d.apply_descriptors(_fbneo_dino())
+	_ok(d.is_described() and d.panel_visible(0) and d.panel_visible(1) and not d.panel_visible(2),
+		"game: FBNeo's descriptors name the ports the game reads")
+	_ok(d.button_visible(0, 0) and d.button_visible(0, 1) and not d.button_visible(0, 2) and not d.button_visible(0, 5),
+		"game: and the caps it uses (B and A), not the rest")
+	_ok(d.button_label(0, 0) == "Attack" and d.button_label(0, 1) == "Jump" and d.button_label(0, 2).is_empty(),
+		"game: with the game's words on them")
+	_ok(d.coin_word(0) == "Coin" and ArcadeProfiles.COIN_BIT == ControllerBindings.JOYPAD_SELECT,
+		"game: FBNeo calls pad id 2 Coin, which is the bit a coin has always been sent as")
+	var m := ArcadeGameProfile.for_romset("sf2")
+	m.apply_descriptors(_mame_generic())
+	_ok(not m.is_described() and m.button_visible(0, 5) and m.button_label(0, 0).is_empty(),
+		"game: the MAME core describes the whole pad for every game, which says nothing and is ignored")
+	var gun := ArcadeGameProfile.for_romset("hotd2")
+	gun.apply_descriptors([{"port": 0, "device": 4, "index": 0, "id": 3, "description": "Trigger"}])
+	_ok(not gun.is_described(), "game: a port that only describes a gun adds no panel words")
+	d.clear_descriptors()
+	_ok(not d.is_described() and d.button_visible(0, 1) and not d.button_visible(0, 2),
+		"game: when the run ends the table alone stands again")
+	_ok(ArcadeGameProfile.shorten("Medium Punch") == "Medium\nPunch" and ArcadeGameProfile.shorten("Weak Kick") == "Weak\nKick"
+		and ArcadeGameProfile.shorten("Attack") == "Attack" and ArcadeGameProfile.shorten("Jumpingjack") == "Jumpin"
+		and ArcadeGameProfile.shorten("Buttons 3x Punch") == "Button\n3x" and ArcadeGameProfile.shorten("  ").is_empty(),
+		"game: a name is cut to fit a cap, two lines of six")
+
+
+## A board of `romset` standing in the bay of `sys`.
+func _board(sys: Node3D, romset: String) -> Node3D:
+	var cart := CART_SCENE.instantiate() as Node3D
+	cart.systemid = "arcade"
+	cart.rom_path = "/tmp/%s.zip" % romset
+	cart.position = Vector3(0, 3, 0)
+	cart.freeze = true
+	add_child(cart)
+	_spawned.append(cart)
+	await _wait(8)
+	_slot_of(sys).pick_up_object(cart)
+	await _wait(6)
+	return cart
+
+
+func _group_game_cabinet() -> void:
+	var sys := await _cabinet("arcade")
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	(model as RetroSystemModelArcadeCabinet).set_lid_angle_deg(90.0)
+	var panels: Array = model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
+	var doors: Array = model.modules_of_kind(ArcadeProfiles.KIND_COIN)
+	var p1 := panels[0] as ArcadeControlModule
+	var p2 := panels[1] as ArcadeControlModule
+	_ok(model.game_profile() == null and p1.cap_shown(5) and p2.stick_shown(), "game: an empty cabinet shows the whole panel")
+	await _board(sys, "sf2")
+	_ok(model.game_profile() != null and model.game_profile().romset == "sf2", "game: the board in the bay sets the cabinet's profile")
+	var all6 := true
+	for i in 6:
+		all6 = all6 and p1.cap_shown(i) and p2.cap_shown(i)
+	_ok(all6 and p2.visible and p1.stick_shown(), "game: Street Fighter II keeps both panels and all six caps")
+	await _clear()
+
+	sys = await _cabinet("arcade")
+	model = sys.get_model() as RetroSystemModelArcadeCabinet
+	model.set_lid_angle_deg(90.0)
+	panels = model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
+	doors = model.modules_of_kind(ArcadeProfiles.KIND_COIN)
+	p1 = panels[0] as ArcadeControlModule
+	p2 = panels[1] as ArcadeControlModule
+	var cart := await _board(sys, "dino")
+	_ok(p1.cap_shown(0) and p1.cap_shown(1) and not p1.cap_shown(2) and not p1.cap_shown(5) and not p2.cap_shown(3),
+		"game: a two-button game draws two caps on each panel")
+	# The core's descriptors arrive: the game's own words go on the caps.
+	var game := model.game_profile()
+	game.apply_descriptors(_fbneo_dino())
+	model.apply_game_profile(game)
+	_ok(p1.cap_label(0) == "Attack" and p1.cap_label(1) == "Jump" and p1.cap_label(2).is_empty() and p2.cap_label(0) == "Attack",
+		"game: and its words are written on them (%s / %s)" % [p1.cap_label(0), p1.cap_label(1)])
+	var cap_label_node := p1.find_child("CapLabel", true, false) as Label3D
+	var cap1 := p1.find_child("Btn1", true, false) as Node3D
+	_ok(cap_label_node != null and cap_label_node.get_parent() == cap1.get_parent()
+			and cap_label_node.position.y != cap1.position.y and cap_label_node.position.x == cap1.position.x,
+		"game: a label is printed on the deck beside its cap, in its column")
+	_slot_of(sys).drop_object()
+	await _wait(6)
+	_ok(model.game_profile() == null and p1.cap_shown(5) and p1.cap_label(0).is_empty() and p2.visible,
+		"game: pulling the board puts the whole panel back and wipes the words")
+	cart.queue_free()
+	await _clear()
+
+	sys = await _cabinet("arcade")
+	model = sys.get_model() as RetroSystemModelArcadeCabinet
+	model.set_lid_angle_deg(90.0)
+	panels = model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
+	doors = model.modules_of_kind(ArcadeProfiles.KIND_COIN)
+	p1 = panels[0] as ArcadeControlModule
+	p2 = panels[1] as ArcadeControlModule
+	await _board(sys, "daytona")
+	_ok(p1.visible and not p2.visible, "game: a one-player game takes the second panel off")
+	_ok(p2.grip().collision_layer == 0 and p1.grip().collision_layer != 0, "game: and it cannot be aimed at")
+	p2.set_attached(true)
+	_ok(not p2.is_attached(), "game: ... nor attached to (the panel is gone)")
+	_slot_of(sys).drop_object()
+	await _wait(6)
+	_ok(p2.visible and p2.grip().collision_layer != 0, "game: the panel and its grip come back with the whole cabinet")
+	await _board(sys, "pong")
+	var d2 := doors[1] as ArcadeCoinModule
+	_ok((doors[0] as ArcadeCoinModule).door_enabled() and not d2.door_enabled(), "game: a one-coin game has one coin door")
+	_ok(d2.find_child("CoinSlot", true, false).collision_layer == 0, "game: and the other cannot be aimed at")
+	_slot_of(sys).drop_object()
+	await _wait(6)
+	_ok(d2.door_enabled() and d2.find_child("CoinSlot", true, false).collision_layer != 0, "game: both doors come back")
+	await _board(sys, "hotd2")
+	_ok(not p1.stick_shown() and not p2.stick_shown(), "game: a gun game takes the sticks off the generic panel")
+	_slot_of(sys).drop_object()
+	await _wait(6)
+	await _board(sys, "zzz_homebrew")
+	_ok(model.game_profile() != null and not model.game_profile().known and p1.cap_shown(5) and p2.visible and p1.stick_shown(),
+		"game: a romset the table does not know leaves the cabinet whole")
+	# The input is never filtered by what is drawn.
+	var input := model.arcade_input()
+	_ok(input != null and ArcadeInputState.compose(0, 1 << ArcadeProfiles.BUTTON_BITS[5], false) == 1 << ArcadeProfiles.BUTTON_BITS[5],
+		"game: a cap that is not drawn still plays from a controller")
 	await _clear()

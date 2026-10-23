@@ -37,3 +37,13 @@ func host() -> Node:
 ## Per-frame work, called by the cabinet model's _process. Most modules need none.
 func tick(_delta: float) -> void:
 	pass
+
+
+## Take a pointable box out of the pointer's reach (or put it back) without freeing it: the
+## layer it had is remembered the first time, so a part the game does not use cannot be aimed at.
+static func set_pointable(box: CollisionObject3D, on: bool) -> void:
+	if box == null:
+		return
+	if not box.has_meta(&"arcade_layer"):
+		box.set_meta(&"arcade_layer", box.collision_layer)
+	box.collision_layer = int(box.get_meta(&"arcade_layer")) if on else 0
