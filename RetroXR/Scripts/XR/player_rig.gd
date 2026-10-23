@@ -45,6 +45,8 @@ func _enable_simultaneous_hands() -> void:
 ## over the gap spends the whole crossing in free fall — 51 metres of it, at the
 ## rate a Quest loads a room.
 func leave_world() -> void:
+	# Whoever sits keeps no seat across rooms; the body is put away just below.
+	Seat.release_all()
 	for node: Node in find_children("*", "XRToolsFunctionPickup", true, false):
 		var pickup := node as XRToolsFunctionPickup
 		# is_instance_valid, not != null: a freed object still reads as non-null.

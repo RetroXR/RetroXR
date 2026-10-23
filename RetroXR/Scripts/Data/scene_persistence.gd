@@ -238,6 +238,12 @@ const CONSOLE_STAND_SCENE    := preload("res://Scenes/Objects/stands/console_sta
 const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const STORAGE_BOX_SCENE      := preload("res://Scenes/Objects/appliances/storage_box.tscn")
 const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.tscn")
+const SEAT_RACING_SCENE      := preload("res://Scenes/Objects/furniture/seat_racing.tscn")
+const SEAT_STOOL_SCENE       := preload("res://Scenes/Objects/furniture/seat_stool.tscn")
+const SEAT_CHAIR_SCENE       := preload("res://Scenes/Objects/furniture/seat_chair.tscn")
+const SEAT_CUSHION_SCENE     := preload("res://Scenes/Objects/furniture/seat_cushion.tscn")
+const SEAT_SOFA_SCENE        := preload("res://Scenes/Objects/furniture/seat_sofa.tscn")
+const SEAT_BED_SCENE         := preload("res://Scenes/Objects/furniture/seat_bed.tscn")
 const RETRO_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/retro_mouse.tscn")
 const SNES_MOUSE_SCENE       := preload("res://Scenes/Objects/peripherals/snes_mouse.tscn")
 const RETRO_KEYBOARD_SCENE   := preload("res://Scenes/Objects/peripherals/retro_keyboard.tscn")
@@ -355,6 +361,13 @@ const PLAIN_SCENES := {
 	"speaker_stand_100": SPEAKER_STAND_100,
 	"trash_can": STORAGE_BOX_SCENE,
 	"table": TABLE_SCENE,
+	# Pose only: where the player is sitting is this session's, never saved.
+	"seat_racing": SEAT_RACING_SCENE,
+	"seat_stool": SEAT_STOOL_SCENE,
+	"seat_chair": SEAT_CHAIR_SCENE,
+	"seat_cushion": SEAT_CUSHION_SCENE,
+	"seat_sofa": SEAT_SOFA_SCENE,
+	"seat_bed": SEAT_BED_SCENE,
 	# Pose only: the hub has no state of its own. Which lead is in which of its
 	# sockets is recorded by each LEAD, naming this hub and "PortN".
 	"ilink_hub": ILINK_HUB_SCENE,
@@ -2473,6 +2486,9 @@ static func _save_kind_rows() -> Array:
 		# The pose and the board standing in it; its type is its kind's.
 		[ArcadeBayUnit, "", &"_arcade_bay_entry"],
 		[Table, "table"],
+		# Pose only, and in the table for the table's reason: PLAIN_SCENES is read when LOADING. The
+		# scene says which seat it is (`type_id`); that the player sits on it is this session's.
+		[Seat, "", &"_seat_entry"],
 		[RetroExpansion, "expansion", &"_expansion_fields"],
 		# MUST precede the RetroCartridge row — RetroDisc extends it.
 		[RetroDisc, "disc", &"_media_fields"],
@@ -2629,6 +2645,10 @@ func _transfer_pak_fields(pak: TransferPak, node_to_id: Dictionary) -> Dictionar
 func _battery_entry(cell: BatteryCell, id: int, n3d: Node3D,
 		_node_to_id: Dictionary) -> Dictionary:
 	return _base(id, cell.save_type(), n3d)
+
+
+func _seat_entry(seat: Seat, id: int, n3d: Node3D, _node_to_id: Dictionary) -> Dictionary:
+	return _base(id, seat.type_id, n3d)
 
 
 ## The pose and the board standing in it. Whether it is in a cabinet's mount is on the

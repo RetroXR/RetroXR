@@ -866,6 +866,13 @@ static var _game_lead_connectors := PackedStringArray()
 ## NES and Famicom's RF Switch) is offered on that console's card (items_for), not here.
 const OBJECTS := [
 	["Table",           "table"],
+	# Somewhere to sit: press the cushion to sit, again to get up; hold on it to carry it.
+	["Racing Seat",     "seat_racing"],
+	["Stool",           "seat_stool"],
+	["Chair",           "seat_chair"],
+	["Floor Cushion",   "seat_cushion"],
+	["Sofa",            "seat_sofa"],
+	["Bed",             "seat_bed"],
 	["Storage Box",     "trash_can"],
 	["VCR",             "vcr_player"],
 	["DVD Player",      "dvd_player"],
