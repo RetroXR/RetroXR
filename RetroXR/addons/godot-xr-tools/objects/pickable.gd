@@ -468,6 +468,9 @@ func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3)
 	# let interested parties know
 	dropped.emit(self)
 
+	# LOCAL PATCH (RetroXR): if this went into no socket it was near, say why.
+	XRToolsSnapZone.report_release(self)
+
 
 ## Get the node currently holding this object
 func get_picked_up_by() -> Node3D:

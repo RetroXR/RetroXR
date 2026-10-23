@@ -201,6 +201,7 @@ func _unhandled_input(event: InputEvent) -> void:
 						# their own LEFT button while held.
 						if _crosshair_on_control():
 							_drop_armed = false
+							_log_click_kept()
 						elif mbe.shift_pressed or not (_is_fps_snap() or _needs_shift_drop()):
 							_drop_armed = true
 							_left_drag = 0.0
@@ -731,6 +732,21 @@ func _crosshair_on_control() -> bool:
 	var t := _resolve_interaction_target(true)
 	return t != null and t.is_valid() and t.can_activate \
 		and is_instance_valid(t.pointer_event_target)
+
+
+## The click went to a control under the crosshair, so what the hand holds stays
+## in it: said in the log, because from the chair it looks like a socket refusing
+## a plug. Shift+click is the control's too; looking off it drops.
+func _log_click_kept() -> void:
+	var t := _resolve_interaction_target(true)
+	var control := "?"
+	if t != null and is_instance_valid(t.pointer_event_target):
+		control = str(t.pointer_event_target.name)
+		var owner_node := t.pointer_event_target.get_parent()
+		if owner_node != null:
+			control = "%s/%s" % [owner_node.name, control]
+	print("[Desktop] the click went to %s under the crosshair, so %s stays in the hand (look off the control to drop it)" % [
+		control, _held_object.name if _held_object else "?"])
 
 
 ## Drop the currently held object.

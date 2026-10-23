@@ -646,10 +646,12 @@ func _update_snap_mode() -> void:
 func _on_target_dropped(target: Node3D) -> void:
 	# Skip if not enabled
 	if not enabled:
+		_note_refusal(target, "switched off")
 		return
 
 	# Skip if already holding a valid object
 	if is_instance_valid(picked_up_object):
+		_note_refusal(target, "already holds %s" % picked_up_object.name)
 		return
 
 	# Skip if the target is not valid
@@ -679,6 +681,7 @@ func _on_target_dropped(target: Node3D) -> void:
 	var ghost_can_take: bool = is_instance_valid(ghost) and ghost.enabled 		and not is_instance_valid(ghost.picked_up_object) 		and ghost._object_in_grab_area.has(target)
 	if ghost_can_take:
 		if ghost != self:
+			_note_refusal(target, "the preview showed it going into %s" % _zone_label(ghost))
 			return
 	else:
 		# Nothing previewed — an object let go without a ghost ever lighting. Fall
@@ -693,8 +696,164 @@ func _on_target_dropped(target: Node3D) -> void:
 			if not z._object_in_grab_area.has(target):
 				continue
 			if z.snap_pose_for(target).origin.distance_squared_to(target.global_position) < mine:
+				_note_refusal(target, "%s was nearer, and nothing was previewed" % _zone_label(z))
 				return
 
 	# Pick up the target if we can
 	if target.can_pick_up(self):
 		pick_up_object(target)
+	else:
+		_note_refusal(target, "the object would not go in (can_pick_up refused)")
+
+
+# --- LOCAL PATCH (RetroXR): why a release went into no socket -----------------
+
+## How far past a zone's own grab sphere an object let go still counts as let go
+## AT that zone, for the report. Generous: the question it answers is "I was
+## aiming at that socket", and a hand that never reached the sphere is the
+## commonest answer.
+const RELEASE_REPORT_REACH := 0.15
+
+## How long after a release the report waits. The zones take a release in
+## deferred `dropped` handlers, and a socket's own seating can take a physics
+## tick after that, so the object's state is read only once all of it has run.
+const RELEASE_REPORT_DELAY := 0.1
+
+## What each zone that was handed a release said, by the object's instance id:
+## {zone: reason}. Written in _on_target_dropped, read and cleared by the report.
+static var _release_refusals: Dictionary = {}
+
+
+func _note_refusal(target: Node3D, reason: String) -> void:
+	if not is_instance_valid(target):
+		return
+	var id := target.get_instance_id()
+	if not _release_refusals.has(id):
+		_release_refusals[id] = {}
+	(_release_refusals[id] as Dictionary)[self] = reason
+
+
+## Called by XRToolsPickable.let_go once the object has been let go by its last
+## hand. If shortly afterwards it is in no socket, and there were sockets near it,
+## one [Snap] line says why each of them did not take it. Nothing is printed for
+## an object put down away from every socket, or one that went in.
+static func report_release(obj: Node3D) -> void:
+	if not is_instance_valid(obj) or not obj.is_inside_tree():
+		return
+	obj.get_tree().create_timer(RELEASE_REPORT_DELAY, true, true).timeout.connect(
+		_report_release_now.bind(obj.get_instance_id()))
+
+
+static func _report_release_now(id: int) -> void:
+	var recorded: Dictionary = _release_refusals.get(id, {})
+	_release_refusals.erase(id)
+	var obj := instance_from_id(id) as Node3D
+	if obj == null or not obj.is_inside_tree():
+		return
+	# In a socket (or back in a hand): nothing went wrong.
+	if obj.has_method("is_picked_up") and obj.is_picked_up():
+		return
+	var near: Array[XRToolsSnapZone] = []
+	for z: XRToolsSnapZone in _live_zones:
+		if not is_instance_valid(z) or not z.is_inside_tree() or z.is_ancestor_of(obj) or obj.is_ancestor_of(z):
+			continue
+		# A switched-off zone of another kind is a socket the machine does not
+		# have (a handheld's unused card and controller slots): not worth a word.
+		if not z.enabled and not z._fits_kind(obj):
+			continue
+		if z.global_position.distance_to(obj.global_position) <= z.grab_distance + RELEASE_REPORT_REACH:
+			near.append(z)
+	if near.is_empty():
+		return
+	# A socket of its kind nearby is the one the player meant: report those alone,
+	# so a plug let go at a console's link socket is not buried under the console's
+	# A/V and controller sockets saying they take something else.
+	var fitting: Array[XRToolsSnapZone] = []
+	for z in near:
+		if z._fits_kind(obj):
+			fitting.append(z)
+	var shown := fitting if not fitting.is_empty() else near
+	var parts: PackedStringArray = []
+	for z in shown:
+		var why: String = recorded.get(z, "")
+		if why.is_empty():
+			why = z._why_not(obj)
+		parts.append("%s: %s" % [_zone_label(z), why])
+	print("[Snap] %s let go near %d socket%s and went into none%s -- %s" % [
+		_object_label(obj), near.size(), "" if near.size() == 1 else "s",
+		"" if not fitting.is_empty() else " (none of them takes this kind)",
+		"; ".join(parts)])
+
+
+## Whether `obj` is the kind this zone takes, by the zone's group tests alone.
+func _fits_kind(obj: Node3D) -> bool:
+	if not obj.has_method("pick_up"):
+		return false
+	if not snap_require.is_empty() and not obj.is_in_group(snap_require):
+		return false
+	if not snap_exclude.is_empty() and obj.is_in_group(snap_exclude):
+		return false
+	return true
+
+
+## Why this zone would not take `obj`, worked out from its acceptance tests in
+## the order _on_snap_zone_body_entered and _on_target_dropped make them. For a
+## zone the release never reached, which is most often a hand that stopped short.
+func _why_not(obj: Node3D) -> String:
+	if not enabled:
+		return "switched off"
+	if is_instance_valid(picked_up_object):
+		return "already holds %s" % picked_up_object.name
+	if not obj.has_method("pick_up"):
+		return "cannot take an object that is not pickable"
+	if not snap_require.is_empty() and not obj.is_in_group(snap_require):
+		return "takes %s only, and this is %s" % [snap_require, _kind_of(obj)]
+	if not snap_exclude.is_empty() and obj.is_in_group(snap_exclude):
+		return "refuses %s" % snap_exclude
+	if snap_filter.is_valid() and not snap_filter.call(obj):
+		return "its own test (%s) refused it" % snap_filter.get_method()
+	if obj is XRToolsClimbable:
+		return "cannot take a climbable"
+	var body := obj as CollisionObject3D
+	if body != null and (body.collision_layer & collision_mask) == 0:
+		return "does not see its collision layer (layer %d, the socket watches %d)" % [
+			body.collision_layer, collision_mask]
+	if not _object_in_grab_area.has(obj):
+		return "it never reached the socket: %.0f mm from it, and the socket takes within about %.0f mm" % [
+			global_position.distance_to(obj.global_position) * 1000.0, grab_distance * 1000.0]
+	if snap_mode != SnapMode.DROPPED:
+		return "takes on reach, not on release"
+	if obj.has_method("can_pick_up") and not obj.can_pick_up(self):
+		return "the object would not go in (can_pick_up refused)"
+	return "no reason found; it was in reach and of its kind"
+
+
+## The socket, by the node that owns it and its own name: "GameBoyColor/LinkPort".
+static func _zone_label(z: XRToolsSnapZone) -> String:
+	if not is_instance_valid(z):
+		return "?"
+	var owner_node := z.get_parent()
+	while owner_node != null and owner_node.get_parent() != null and not (owner_node is RigidBody3D):
+		owner_node = owner_node.get_parent()
+	var where := str(owner_node.name) if owner_node != null else "?"
+	return "%s/%s" % [where, str(owner_node.get_path_to(z)) if owner_node != null else str(z.name)]
+
+
+## The object, with what kind of thing it is when it says.
+static func _object_label(obj: Node3D) -> String:
+	var lead := obj.get_parent()
+	var name_part := "%s/%s" % [lead.name, obj.name] if lead != null and not (lead is Window) else str(obj.name)
+	return "%s (%s)" % [name_part, _kind_of(obj)]
+
+
+## A plug's connector when it has one, else the groups it is in that are not the
+## engine's own.
+static func _kind_of(obj: Node3D) -> String:
+	var connector: Variant = obj.get("connector")
+	if connector is String and not (connector as String).is_empty():
+		return "plug %s" % connector
+	var groups: PackedStringArray = []
+	for g in obj.get_groups():
+		if not str(g).begins_with("_"):
+			groups.append(str(g))
+	return "in groups [%s]" % ", ".join(groups) if not groups.is_empty() else "in no group"
