@@ -9,6 +9,27 @@ extends SceneTree
 
 const PlugMats := preload("res://Tools/gen/plug_materials.gd")
 const DIR := "res://Scenes/Objects/cables/"
+const Specs := preload("res://Tools/gen/mains_specs.gd")
+
+## The wall plugs of the other mains regions, baked from MainsSpecs' numbers: how
+## deep each body is behind its face, the cord it ends in (radius), and its colour.
+## Pins, sleeves and the face come from the spec, so the plug drawn is the plug the
+## fit test seats.
+const SPEC_PLUGS := {
+	"cee_7_7_plug": {"depth": 0.030, "cord": 0.0040, "tone": Color(0.05, 0.05, 0.05)},
+	"cee_7_16_plug": {"depth": 0.022, "cord": 0.0030, "tone": Color(0.05, 0.05, 0.05)},
+	"bs_1363_plug": {"depth": 0.026, "cord": 0.0040, "tone": Color(0.06, 0.06, 0.06)},
+	"as_3112_plug": {"depth": 0.026, "cord": 0.0040, "tone": Color(0.05, 0.05, 0.05)},
+	"as_3112_2pin_plug": {"depth": 0.022, "cord": 0.0030, "tone": Color(0.05, 0.05, 0.05)},
+	"sev_1011_plug": {"depth": 0.026, "cord": 0.0040, "tone": Color(0.06, 0.06, 0.06)},
+	"cei_23_50_plug": {"depth": 0.026, "cord": 0.0040, "tone": Color(0.05, 0.05, 0.05)},
+	"ds_k_plug": {"depth": 0.028, "cord": 0.0040, "tone": Color(0.06, 0.06, 0.06)},
+	"sans_164_2_plug": {"depth": 0.026, "cord": 0.0040, "tone": Color(0.05, 0.05, 0.05)},
+	"nbr_14136_plug": {"depth": 0.026, "cord": 0.0040, "tone": Color(0.05, 0.05, 0.05)},
+	"bs_546_plug": {"depth": 0.034, "cord": 0.0045, "tone": Color(0.05, 0.05, 0.05)},
+	"is_1293_plug": {"depth": 0.030, "cord": 0.0040, "tone": Color(0.05, 0.05, 0.05)},
+	"si_32_plug": {"depth": 0.026, "cord": 0.0040, "tone": Color(0.05, 0.05, 0.05)},
+}
 
 func _init() -> void:
 	_bake_nema()
@@ -20,35 +41,43 @@ func _init() -> void:
 	_bake_c7(true)
 	_bake_c8(false)
 	_bake_c8(true)
+	for id: String in SPEC_PLUGS:
+		_bake_spec(id)
 	quit()
 
 ## NEMA WD-6 blade geometry: 12.7 mm centre spacing, 1.5 mm thickness,
 ## 6.35 mm line blade and 7.9 mm polarized neutral blade. The moulding is a
 ## compact one-piece vinyl style, not the much larger rewireable plug body.
+##
+## The blades sit 4.2 above the plug's origin, on the 5-15R's slot line, so the
+## socket a two-prong plug is seated in puts them in its slots (MainsSpecs). A
+## seated plug is turned half round about Y, so the neutral the outlet wants on
+## its LEFT is on the plug's +X.
 func _bake_nema_1_15(polarized: bool) -> void:
 	var plastic := _begin(PlugMats.matte_vertex(Color(0.050,0.048,0.045)))
+	var lift := Vector3(0, 0.0042, 0)
 	var body := [
-		_round_ring(0.000,0.0130,0.0084,0.0042),
-		_round_ring(-0.003,0.0140,0.0090,0.0045),
-		_round_ring(-0.025,0.0132,0.0085,0.0042),
-		_round_ring(-0.029,0.0095,0.0064,0.0038),
+		_shift(_round_ring(0.000,0.0130,0.0084,0.0042), lift),
+		_shift(_round_ring(-0.003,0.0140,0.0090,0.0045), lift),
+		_shift(_round_ring(-0.025,0.0132,0.0085,0.0042), lift),
+		_shift(_round_ring(-0.029,0.0095,0.0064,0.0038), lift),
 	]
-	_loft_chain(plastic,body,100); _cap(plastic,body[0],Vector3.ZERO,true)
+	_loft_chain(plastic,body,100); _cap(plastic,body[0],lift,true)
 	# Low-profile ribs ease the moulding into 18/2 SPT zip cord. The 7.2 x 3.6
 	# mm exit matches two touching 1.8 mm-radius ribbon strands exactly.
 	var boot := [
 		body[-1],
-		_round_ring(-0.033,0.0078,0.0052,0.0032),
-		_round_ring(-0.036,0.0083,0.0056,0.0034),
-		_round_ring(-0.040,0.0055,0.0035,0.0025),
-		_round_ring(-0.043,0.0060,0.0038,0.0027),
-		_round_ring(-0.047,0.0036,0.0018,0.0018),
+		_shift(_round_ring(-0.033,0.0078,0.0052,0.0032), lift),
+		_shift(_round_ring(-0.036,0.0083,0.0056,0.0034), lift),
+		_shift(_round_ring(-0.040,0.0055,0.0035,0.0025), lift),
+		_shift(_round_ring(-0.043,0.0060,0.0038,0.0027), lift),
+		_shift(_round_ring(-0.047,0.0036,0.0018,0.0018), lift),
 	]
-	_loft_chain(plastic,boot,110); _cap(plastic,boot[-1],Vector3(0,0,-0.047),false)
+	_loft_chain(plastic,boot,110); _cap(plastic,boot[-1],Vector3(0,0,-0.047)+lift,false)
 	var metal := _part(plastic,PlugMats.metal_vertex(Color(0.72,0.52,0.20)))
 	var neutral_width := 0.0079 if polarized else 0.00635
-	_box(plastic,Vector3(-0.00635,0,0.0080),Vector3(0.0015,neutral_width,0.0160))
-	_box(plastic,Vector3( 0.00635,0,0.0080),Vector3(0.0015,0.00635,0.0160))
+	_box(plastic,Vector3( 0.00635,0.0042,0.0080),Vector3(0.0015,neutral_width,0.0160))
+	_box(plastic,Vector3(-0.00635,0.0042,0.0080),Vector3(0.0015,0.00635,0.0160))
 	var suffix := "_polarized" if polarized else ""
 	_save(DIR + "nema_1_15%s_plug.res" % suffix,plastic,metal)
 
@@ -283,6 +312,176 @@ func _c7_ring(z: float, polarized: bool, scale: float) -> PackedVector3Array:
 		var a := lerpf(PI+theta,3.0*PI-theta,float(sample)/12.0)
 		out.append(Vector3(d+cos(a)*r,sin(a)*r,z))
 	return out
+
+func _shift(ring: PackedVector3Array, by: Vector3) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for p in ring: out.append(p + by)
+	return out
+
+## A wall plug from its MainsSpecs entry. The spec is written where the plug sits
+## once seated, facing the wall; the plug's own frame is that turned half round
+## about Y, so every X is mirrored here and nowhere else.
+##
+## The face outline lofts back into the body, the body into a boot round the cord,
+## and the cord leaves straight back -- or out of the bottom edge for a plug whose
+## spec says so (BS 1363), where the boot runs down instead. Pins are plastic for
+## their sleeve and metal beyond it; a half-round earth (Danish) is a D prism; a
+## face hole (CEE 7/7's earth socket) is a dark well; a CEE 7/7 wears its two
+## earthing strips at top and bottom, where a Schuko socket's clips meet them.
+func _bake_spec(id: String) -> void:
+	var spec: Dictionary = Specs.PLUGS[id]
+	var look: Dictionary = SPEC_PLUGS[id]
+	var depth := float(look["depth"])
+	var cord := float(look["cord"])
+	var plastic := _begin(PlugMats.matte_vertex(look["tone"]))
+	var face := Specs.outline(spec)
+	var centre := Vector2.ZERO
+	for p in face: centre += p
+	centre /= face.size()
+	var mid := Vector3(-centre.x, centre.y, 0) * 0.001
+	var n := 24
+	var face0 := _spec_ring(face, centre, 0.0, 1.0, n)
+	var face1 := _spec_ring(face, centre, -0.003, 1.04, n)
+	var back := _spec_ring(face, centre, -depth, 0.94, n)
+	_loft(plastic, face0, face1, 300); _loft(plastic, face1, back, 301)
+	_cap(plastic, face0, mid, true)
+	if str(spec.get("cord_exit", "back")) == "bottom":
+		_cap(plastic, back, mid + Vector3(0, 0, -depth), false)
+		var low := INF
+		for p in face1: low = minf(low, p.y)
+		var z := -depth * 0.55
+		var boot := []
+		for k in 5:
+			var t := float(k) / 4.0
+			var r := lerpf(cord * 2.4, cord, t)
+			boot.append(_ring_y(Vector3(mid.x, low - 0.012 * t, z), r, n))
+		_loft_chain_y(plastic, boot, 310)
+		_cap(plastic, boot[-1], Vector3(mid.x, low - 0.012, z), true)
+	else:
+		var boot := [back]
+		var steps := [[-depth - 0.004, cord * 2.3], [-depth - 0.008, cord * 2.0],
+			[-depth - 0.012, cord * 1.5], [-depth - 0.016, cord]]
+		for st: Array in steps:
+			boot.append(_ring_z(mid + Vector3(0, 0, float(st[0])), float(st[1]), n))
+		_loft_chain(plastic, boot, 310)
+		_cap(plastic, boot[-1], mid + Vector3(0, 0, -depth - 0.016), false)
+	# Sleeves: the plastic part of each pin, from the face.
+	for pin: Dictionary in spec.get("pins", []):
+		var sleeve := float(pin.get("sleeve", 0.0)) * 0.001
+		if sleeve > 0.0:
+			_spec_pin(plastic, pin, 0.0, sleeve, 1.0)
+	var metal := _part(plastic, PlugMats.metal_vertex(Color(0.72, 0.70, 0.66)))
+	for pin: Dictionary in spec.get("pins", []):
+		var sleeve := float(pin.get("sleeve", 0.0)) * 0.001
+		_spec_pin(plastic, pin, sleeve, float(pin["len"]) * 0.001, 0.98 if sleeve > 0.0 else 1.0)
+	if id == "cee_7_7_plug":
+		var r := float((spec["body_size"] as Vector2).x) * 0.0005
+		for y: float in [r, -r]:
+			_box(plastic, Vector3(0, y, -0.009), Vector3(0.006, 0.0008, 0.016))
+	# The CEE 7/7's earth socket: the metal contact lining it, flush in the face.
+	for hole: Dictionary in spec.get("face_holes", []):
+		var at: Vector2 = hole["at"]
+		_cylinder(plastic, Vector3(-at.x * 0.001, at.y * 0.001, 0.0002),
+			float(hole["d"]) * 0.0005, 0.0004, 16)
+	_save(DIR + id + ".res", plastic, metal)
+
+
+## The face outline, mirrored into the plug's frame and sampled as `n` points by
+## angle round its centre, so every ring of one plug lofts into the next.
+func _spec_ring(face: PackedVector2Array, centre: Vector2, z: float, scale: float,
+		n: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for i in n:
+		# Mirrored: walk the angles the other way so the ring stays anticlockwise
+		# in the plug's own frame.
+		var dir := Vector2.from_angle(-TAU * float(i) / float(n) + PI)
+		var hit := centre
+		for k in face.size():
+			var x: Variant = Geometry2D.segment_intersects_segment(centre, centre + dir * 500.0,
+				face[k], face[(k + 1) % face.size()])
+			if x != null:
+				hit = x
+				break
+		var p := centre + (hit - centre) * scale
+		out.append(Vector3(-p.x, p.y, 0) * 0.001 + Vector3(0, 0, z))
+	return out
+
+
+func _ring_z(c: Vector3, r: float, n: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		out.append(c + Vector3(cos(a), sin(a), 0) * r)
+	return out
+
+
+## A ring across the Y axis, for a boot that runs down out of the body.
+func _ring_y(c: Vector3, r: float, n: int) -> PackedVector3Array:
+	var out := PackedVector3Array()
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		out.append(c + Vector3(cos(a), 0, sin(a)) * r)
+	return out
+
+
+func _loft_chain_y(st: SurfaceTool, rings: Array, group: int) -> void:
+	# Rings advancing in -Y wind the other way from rings advancing in -Z.
+	for i in rings.size() - 1:
+		_loft(st, rings[i + 1], rings[i], group + i)
+
+
+## One pin of a spec, from `z0` to `z1` out of the face, `scale` across.
+func _spec_pin(st: SurfaceTool, pin: Dictionary, z0: float, z1: float, scale: float) -> void:
+	var at: Vector2 = pin["at"]
+	var length := z1 - z0
+	var full := float(pin["len"]) * 0.001
+	if str(pin["shape"]) == "round":
+		# The Europlug's pins lean in toward their tips: centre the piece where
+		# the pin is halfway along it.
+		var tip: Vector2 = pin.get("tip", at)
+		var t := (z0 + z1) * 0.5 / full
+		var p := at.lerp(tip, t)
+		_cylinder(st, Vector3(-p.x * 0.001, p.y * 0.001, (z0 + z1) * 0.5),
+			float(pin["d"]) * 0.0005 * scale, length, 16)
+		return
+	var c := Vector3(-at.x * 0.001, at.y * 0.001, (z0 + z1) * 0.5)
+	var size: Vector2 = pin["size"]
+	if bool(pin.get("half_round", false)):
+		# Flat side toward the live pins (up), round side away from them.
+		var pts := PackedVector2Array()
+		for i in 9:
+			var a := PI + PI * float(i) / 8.0
+			pts.append(Vector2(cos(a) * size.x * 0.5, size.y * 0.5 + sin(a) * size.y))
+		_prism(st, Vector2(c.x, c.y), pts, z0, z1, scale)
+		return
+	# Mirroring X turns an anticlockwise angle clockwise.
+	var angle := -deg_to_rad(float(pin.get("angle", 0.0)))
+	_obox(st, c, Vector3(size.x * 0.001 * scale, size.y * 0.001 * scale, length), angle)
+
+
+## A box turned `angle` about Z.
+func _obox(st: SurfaceTool, c: Vector3, s: Vector3, angle: float) -> void:
+	var tmp := SurfaceTool.new(); tmp.begin(Mesh.PRIMITIVE_TRIANGLES)
+	_box(tmp, Vector3.ZERO, s)
+	var verts: PackedVector3Array = tmp.commit_to_arrays()[Mesh.ARRAY_VERTEX]
+	var basis := Basis(Vector3.BACK, angle)
+	for v in verts: st.add_vertex(c + basis * v)
+
+
+## A prism of the outline `pts` (millimetres about `at`, metres), from z0 to z1.
+func _prism(st: SurfaceTool, at: Vector2, pts: PackedVector2Array, z0: float, z1: float,
+		scale: float) -> void:
+	var lo := PackedVector3Array()
+	var hi := PackedVector3Array()
+	# Mirrored, so walked backwards to keep the faces outward.
+	for i in range(pts.size() - 1, -1, -1):
+		var p := pts[i]
+		var q := at + Vector2(-p.x, p.y) * 0.001 * scale
+		lo.append(Vector3(q.x, q.y, z1)); hi.append(Vector3(q.x, q.y, z0))
+	_loft(st, lo, hi, 400)
+	_cap(st, lo, Vector3(at.x, at.y, z1), true)
+	_cap(st, hi, Vector3(at.x, at.y, z0), false)
+
 
 func _rotate_ring(ring: PackedVector3Array, offset: int) -> PackedVector3Array:
 	var out := PackedVector3Array()

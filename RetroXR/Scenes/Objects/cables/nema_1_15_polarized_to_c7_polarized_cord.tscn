@@ -35,7 +35,7 @@ script = ExtResource("2_plug")
 connector = "nema_1_15_polarized_plug"
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug"]
-transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0,-0.0155)
+transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0.0042,-0.0155)
 shape = SubResource("Shape_nema")
 
 [node name="PlugTip" type="MeshInstance3D" parent="WallPlug"]
@@ -46,7 +46,7 @@ collision_layer = 1048576
 collision_mask = 0
 
 [node name="CollisionShape3D" type="CollisionShape3D" parent="WallPlug/PointerArea"]
-transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0,-0.0155)
+transform = Transform3D(1,0,0,0,1,0,0,0,1,0,0.0042,-0.0155)
 shape = SubResource("Shape_pointer")
 
 [node name="PickableHighlight" type="Node3D" parent="WallPlug"]

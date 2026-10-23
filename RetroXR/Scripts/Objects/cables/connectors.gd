@@ -60,6 +60,19 @@ const LABELS := {
 	"iec_c13_plug": "an IEC C13 appliance connector",
 	"iec_c7_plug": "an IEC C7 figure-eight connector",
 	"iec_c7_polarized_plug": "a polarized IEC C7 connector",
+	"cee_7_7_plug": "a Schuko plug",
+	"cee_7_16_plug": "a Europlug",
+	"bs_1363_plug": "a UK three-pin plug",
+	"as_3112_plug": "an Australian three-pin plug",
+	"as_3112_2pin_plug": "an Australian two-pin plug",
+	"sev_1011_plug": "a Swiss three-pin plug",
+	"cei_23_50_plug": "an Italian three-pin plug",
+	"ds_k_plug": "a Danish three-pin plug",
+	"sans_164_2_plug": "a South African three-pin plug",
+	"nbr_14136_plug": "a Brazilian three-pin plug",
+	"bs_546_plug": "a 15 A round-pin plug",
+	"is_1293_plug": "an Indian 6 A plug",
+	"si_32_plug": "an Israeli three-pin plug",
 }
 
 ## A plug that also goes into another connector's socket, as on the hardware. Said
@@ -80,9 +93,34 @@ const LABELS := {
 ## small plug goes into a Game Boy Advance (and plays in Game Boy mode) while the
 ## Advance's lead, its tab with nowhere to go, does not enter a Color, a Pocket
 ## or the Printer.
+##
+## The world's wall outlets (MainsRegions) are the same rule at length. A socket
+## whose name is not a plug's ("cee_7_3_socket") takes more than one family, and
+## every plug it takes is listed here. Each row is what the pins and the face
+## physically allow, and Tools/gen/mains_specs.gd holds the numbers: the mains
+## region suite seats every plug in every socket by them and fails if this table
+## says otherwise. So a Europlug goes into nearly anything with round 19 mm
+## holes, a Schuko into a French socket because it has the socket for the earth
+## pin, a Brazilian plug into a South African socket but not the reverse, and a
+## polarized US plug into a Japanese outlet (now polarized itself) but not into
+## a Chinese one, whose slots are both narrow.
 const ALSO_FITS := {
-	"nema_1_15_plug": ["nema_5_15_plug"],
-	"nema_1_15_polarized_plug": ["nema_5_15_plug"],
+	"nema_1_15_plug": ["nema_5_15_plug", "jis_c8303_socket", "gb_1002_2pin_socket"],
+	"nema_1_15_polarized_plug": ["nema_5_15_plug", "jis_c8303_socket"],
+	"cee_7_7_plug": ["cee_7_3_socket", "cee_7_5_socket", "ds_k_socket", "is_1293_socket",
+		"si_32_socket"],
+	"cee_7_16_plug": ["cee_7_3_socket", "cee_7_5_socket", "sev_1011_socket",
+		"cei_23_50_socket", "ds_k_socket", "sans_164_2_socket", "nbr_14136_socket",
+		"is_1293_socket", "si_32_socket"],
+	"as_3112_plug": ["as_3112_socket"],
+	"as_3112_2pin_plug": ["as_3112_socket"],
+	"sev_1011_plug": ["sev_1011_socket"],
+	"cei_23_50_plug": ["cei_23_50_socket"],
+	"ds_k_plug": ["ds_k_socket"],
+	"sans_164_2_plug": ["sans_164_2_socket"],
+	"nbr_14136_plug": ["nbr_14136_socket", "sans_164_2_socket"],
+	"is_1293_plug": ["is_1293_socket"],
+	"si_32_plug": ["si_32_socket"],
 	"link_plug": ["agb_link_plug"],
 }
 
@@ -115,7 +153,9 @@ const CONTROLLER_PORTS := {
 ## Composite Cable is the game's own answer to a phono jack.
 const ROOM := ["composite_plug", "coax_plug", "trs_plug", "vga_plug", "nema_5_15_plug",
 	"nema_1_15_plug", "nema_1_15_polarized_plug", "iec_c13_plug", "iec_c7_plug",
-	"iec_c7_polarized_plug"]
+	"iec_c7_polarized_plug", "cee_7_7_plug", "cee_7_16_plug", "bs_1363_plug",
+	"as_3112_plug", "as_3112_2pin_plug", "sev_1011_plug", "cei_23_50_plug", "ds_k_plug",
+	"sans_164_2_plug", "nbr_14136_plug", "bs_546_plug", "is_1293_plug", "si_32_plug"]
 
 ## The leads the game ships for a console's own socket, offered on the card of a
 ## console that has one when no installed mod brings a lead for it. Game content,

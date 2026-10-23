@@ -8,6 +8,7 @@ extends Node
 ## a two-prong one still does.
 
 const TEST_REGION := "zz_two_slot"
+const SPECS := preload("res://Tools/gen/mains_specs.gd")
 
 var _failed := 0
 var _ran := 0
@@ -33,6 +34,8 @@ func _ready() -> void:
 	}
 
 	_test_table()
+	_test_fit_matrix()
+	await _test_plug_meshes()
 	_test_locale()
 	await _test_outlet()
 	await _test_strip()
@@ -72,6 +75,100 @@ func _test_table() -> void:
 	_eq(MainsRegions.resolve("no_such_region"), MainsRegions.DEFAULT,
 		"table/an unknown region resolves to the default")
 	_ok(MainsRegions.ids().has(TEST_REGION), "table/a mod's region is listed")
+
+
+## The fit table and the geometry agree: every plug in every socket, by the pins
+## and faces in Tools/gen/mains_specs.gd, goes in exactly when Connectors says so.
+func _test_fit_matrix() -> void:
+	for socket: String in SPECS.SOCKETS:
+		for plug: String in SPECS.PLUGS:
+			var fits: bool = SPECS.fits(plug, socket)
+			var said := Connectors.groups_of(plug).has(socket)
+			_ok(fits == said, "fit/%s %s %s (geometry: %s)" % [plug,
+				"in" if said else "not in", socket, SPECS.why_not(plug, socket)
+				if not fits else "goes in"])
+	for id: String in MainsRegions.REGIONS:
+		var spec: Dictionary = MainsRegions.REGIONS[id]
+		for socket: Dictionary in spec["sockets"]:
+			_ok(SPECS.SOCKETS.has(str(socket["connector"])),
+				"fit/%s %s has a spec" % [id, socket["name"]])
+		_ok(SPECS.SOCKETS.has(str(spec["strip"]["socket"])), "fit/%s strip has a spec" % id)
+		# A region whose own plugs fit none of its sockets would ship a dead wall.
+		var own := 0
+		for token: String in spec.get("cords", []):
+			if token == "power_strip":
+				continue
+			var plug := _cord_plug(token)
+			for socket: Dictionary in spec["sockets"]:
+				if Connectors.groups_of(plug).has(str(socket["connector"])):
+					own += 1
+		_ok(own > 0, "fit/%s's cords go into its plate" % id)
+	for token: String in MainsRegions.CORDS:
+		_ok(ScenePersistence.LEAD_SCENES.has(token), "fit/%s spawns and restores" % token)
+
+
+## Every cord's wall plug as baked, seated through its own grab point in a socket
+## it fits: whatever of it stands in front of its face lands inside the socket's
+## holes. Catches a mesh mirrored the wrong way, a pin on the wrong side, or a
+## spec edited without rebaking.
+func _test_plug_meshes() -> void:
+	var room := Node3D.new()
+	add_child(room)
+	for token: String in MainsRegions.CORDS:
+		var cord := (ScenePersistence.LEAD_SCENES[token] as PackedScene).instantiate() as PowerCord
+		room.add_child(cord)
+		var plug := cord.wall_plug as PowerPlug
+		var socket_id := ""
+		for s: String in SPECS.SOCKETS:
+			if Connectors.groups_of(plug.connector).has(s):
+				socket_id = s
+				break
+		var port := preload("res://Scenes/Objects/cables/power_port.tscn").instantiate() as PowerPort
+		port.connector = socket_id
+		room.add_child(port)
+		await get_tree().process_frame
+		var seat := port.global_transform.affine_inverse() * port.snap_pose_for(plug)
+		var tip := plug.get_node("PlugTip") as MeshInstance3D
+		var stray := 0
+		var checked := 0
+		var holes: Array = SPECS.SOCKETS[socket_id]["holes"]
+		for v: Vector3 in tip.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]:
+			if v.z <= 0.0005:
+				continue
+			var at := seat * (tip.transform * v)
+			checked += 1
+			if not _in_holes(Vector2(at.x, at.y) * 1000.0, holes):
+				stray += 1
+		_ok(checked > 0 and stray == 0, "mesh/%s's pins land in %s's holes (%d of %d out)"
+			% [token, socket_id, stray, checked])
+		port.queue_free()
+		cord.queue_free()
+	await get_tree().process_frame
+	room.queue_free()
+	await get_tree().process_frame
+
+
+## Within 0.1 mm of one of the holes' parts.
+func _in_holes(p: Vector2, holes: Array) -> bool:
+	for hole: Array in holes:
+		for part: Dictionary in hole:
+			var poly: PackedVector2Array
+			if str(part["shape"]) == "round":
+				poly = SPECS._circle(part["at"], float(part["d"]) * 0.5 + 0.1)
+			else:
+				poly = SPECS._rect(part["at"], part["size"] + Vector2(0.2, 0.2),
+					float(part.get("angle", 0.0)))
+			if Geometry2D.is_point_in_polygon(p, poly):
+				return true
+	return false
+
+
+## The connector at a cord's wall end, from its scene.
+func _cord_plug(token: String) -> String:
+	var cord := (ScenePersistence.LEAD_SCENES[token] as PackedScene).instantiate()
+	var plug := str(cord.get_node("WallPlug").get("connector"))
+	cord.free()
+	return plug
 
 
 func _test_locale() -> void:
@@ -195,6 +292,26 @@ func _test_strip() -> void:
 	_ok(strip.wall_plug.is_in_group("nema_5_15_plug") \
 			and not strip.wall_plug.is_in_group("nema_1_15_plug"),
 		"strip/and back to a grounded plug")
+	_ok(strip.get_node_or_null("Body/RegionDeck") == null or \
+			strip.get_node("Body/RegionDeck").is_queued_for_deletion(),
+		"strip/a US strip wears no deck")
+
+	# A UK strip: its deck, and only every other socket, since a BS 1363 plug is
+	# wider than the US strip's pitch.
+	strip.set_region("uk")
+	var deck := strip.get_node_or_null("Body/RegionDeck") as MeshInstance3D
+	_ok(deck != null and deck.mesh != null, "strip/a UK strip wears its deck")
+	var live := 0
+	for s in strip.sockets():
+		if s.enabled:
+			live += 1
+			_eq(s.snap_require, "bs_1363_plug", "strip/a UK socket takes a UK plug")
+	_eq(live, 3, "strip/a UK strip uses every other socket")
+	strip.set_region(MainsRegions.DEFAULT)
+	live = 0
+	for s in strip.sockets():
+		live += 1 if s.enabled else 0
+	_eq(live, 6, "strip/a US strip all six again")
 	await _clear(room)
 
 

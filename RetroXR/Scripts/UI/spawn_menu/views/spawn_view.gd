@@ -2334,15 +2334,12 @@ func _add_spawn_tab(tabs: TabContainer, tab_title: String, items: Array) -> VBox
 ## wall plug fits the room's outlets, then the rest, which still spawn -- an
 ## import's cord is a real thing to own -- but go into nothing on this wall.
 func _power_items() -> Array:
-	var all := [
-		["NEMA 5-15P to C13 Cable", "power_cord"],
-		["NEMA 1-15P to C7 Cable", "nema_1_15_to_c7_cord"],
-		["Polarized NEMA 1-15P to C7P Cable",
-			"nema_1_15_polarized_to_c7_polarized_cord"],
-		# Six more grounded sockets on a 3 ft cord — including, if you like, for
-		# its own plug.
-		["6-Outlet Power Strip", "power_strip"],
-	]
+	var all := []
+	for token: String in MainsRegions.CORDS:
+		all.append([str((MainsRegions.CORDS[token] as Dictionary)["label"]), token])
+	# Six more sockets on a 3 ft cord, of whatever region the room is --
+	# including, if you like, for its own plug.
+	all.append(["6-Outlet Power Strip", "power_strip"])
 	var own: Array = MainsRegions.of(AppPrefs.mains_region).get("cords", [])
 	var first := []
 	var rest := []

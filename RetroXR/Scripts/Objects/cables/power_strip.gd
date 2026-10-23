@@ -18,6 +18,15 @@ const END_WALL := PowerCord.End.WALL
 ## Every strip in the tree, so a change of mains region reaches them.
 const GROUP := "power_strip"
 
+## The body's top face, and the US sockets' height in it.
+const TOP := 0.038
+const US_SOCKET_Y := 0.036
+## Where a region's deck sits: centred over the six sockets, clear of the switch.
+## The deck mesh is authored as a wall plate (+Z up out of it), so it is turned
+## to lie on the strip: plate X along the strip, plate Y toward -Z, plate Z up.
+const DECK_AT := Transform3D(Vector3(1, 0, 0), Vector3(0, 0, -1), Vector3(0, 1, 0),
+	Vector3(-0.0215, TOP, 0))
+
 @onready var _body: RigidBody3D = $Body
 @onready var _attach: Node3D = $Body/Shell/PowerStrip/CordAnchor
 @onready var rope: VerletRope = $VerletRope
@@ -80,8 +89,32 @@ func set_region(id: String) -> void:
 	var spec: Dictionary = MainsRegions.of(want).get("strip", {})
 	if spec.is_empty():
 		spec = MainsRegions.of(MainsRegions.DEFAULT).get("strip", {})
+	var deck_path := str(spec.get("deck", ""))
+	var deck := _body.get_node_or_null("RegionDeck") as MeshInstance3D
+	if deck_path.is_empty():
+		if deck != null:
+			deck.queue_free()
+	else:
+		if deck == null:
+			deck = MeshInstance3D.new()
+			deck.name = "RegionDeck"
+			deck.transform = DECK_AT
+			_body.add_child(deck)
+		deck.mesh = load(deck_path) as Mesh
+	var y := TOP + float(spec.get("port", 0.0)) * 0.001 if not deck_path.is_empty() else US_SOCKET_Y
+	var every := maxi(1, int(spec.get("every", 1)))
+	var i := 0
 	for s in sockets():
 		s.set_connector(str(spec.get("socket", s.connector)))
+		s.position.y = y
+		# A socket the region's plugs are too wide to use next to another is not
+		# on this strip at all.
+		var used := i % every == 0
+		if not used and s.picked_up_object != null:
+			s.drop_object()
+		s.enabled = used
+		s.visible = used
+		i += 1
 	wall_plug.set_connector(str(spec.get("plug", wall_plug.connector)))
 	var tip := wall_plug.get_node_or_null("PlugTip") as MeshInstance3D
 	var mesh_path := str(spec.get("plug_mesh", ""))
