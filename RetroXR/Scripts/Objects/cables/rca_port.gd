@@ -105,9 +105,22 @@ const GROUP := "rca_port"
 @export var connector: String = Connectors.PHONO
 
 
+## The family a socket subclass always takes, or "" for a phono jack's own
+## RcaPort. A subclass sets `connector` in _init as well, but that is not enough
+## in an exported build: converting scenes to binary writes RcaPort's default
+## (Connectors.PHONO) onto a socket that a scene instances inside another scene,
+## over what _init set, and every Color, Printer and link socket asked for a phono
+## plug. None of these sockets is ever a phono jack, so PHONO there means that.
+func _own_connector() -> String:
+	return ""
+
+
 func _ready() -> void:
 	super._ready()
 	add_to_group(GROUP)
+	var own := _own_connector()
+	if not own.is_empty() and connector == Connectors.PHONO:
+		connector = own
 	snap_require = connector
 	_tint_jack()
 	var jack := get_node_or_null("RcaJack") as Node3D

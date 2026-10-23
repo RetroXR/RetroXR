@@ -28,10 +28,17 @@ emission_energy_multiplier = 0.4
 ; grab_distance is 0.035, NOT the phono row's 0.06. The set's aerial socket sits
 ; beside four composite groups, and a zone reaching further than the gap to its
 ; neighbour swallows rays aimed at that neighbour.
+; `connector` is written HERE and not left to the script's _init: exporting turns this
+; scene binary, which writes the base class's default (composite_plug) onto a node
+; that instances another scene and swaps its script, over whatever _init set. Every
+; exported build had this socket asking for a phono plug (link_tests checks the line).
+; A scene that instances this one gets the same done to it, which RcaPort._ready
+; undoes (_own_connector).
 [node name="CoaxPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.035
 snap_require = "coax_plug"
 script = ExtResource("2_portscript")
+connector = "coax_plug"
 
 [node name="CoaxJack" parent="." instance=ExtResource("3_coaxjack")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.01)

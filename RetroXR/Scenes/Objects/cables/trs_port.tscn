@@ -27,9 +27,16 @@ emission_energy_multiplier = 0.4
 ; plug's origin is the front face of its moulded handle, and that face stops against
 ; the green collar's rim, which stands 2 mm proud of the panel — see the MATING note
 ; in Tools/gen/gen_trs.gd. Every connector has its own number here.
+; `connector` is written HERE and not left to the script's _init: exporting turns this
+; scene binary, which writes the base class's default (composite_plug) onto a node
+; that instances another scene and swaps its script, over whatever _init set. Every
+; exported build had this socket asking for a phono plug (link_tests checks the line).
+; A scene that instances this one gets the same done to it, which RcaPort._ready
+; undoes (_own_connector).
 [node name="TrsPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.05
 script = ExtResource("2_portscript")
+connector = "trs_plug"
 
 [node name="TrsJack" parent="." instance=ExtResource("3_trsjack")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.002)

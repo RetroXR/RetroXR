@@ -18,6 +18,11 @@ func _init() -> void:
 	connector = "ilink_plug"
 
 
+## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+func _own_connector() -> String:
+	return "ilink_plug"
+
+
 ## The i.LINK socket on a console, or null. Not find_child("ILinkPort") on its
 ## own: a modelled shell may carry a MARKER of that name where the socket goes
 ## (xenu.ps2's does), and being in the model it comes first, so the first match

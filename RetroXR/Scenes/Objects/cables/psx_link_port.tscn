@@ -91,9 +91,16 @@ emission_energy_multiplier = 0.4
 ; small and on a handheld the player is holding; this is a panel socket on the
 ; back of a console standing on a shelf, and it gets reached for the same way the
 ; A/V sockets beside it do.
+; `connector` is written HERE and not left to the script's _init: exporting turns this
+; scene binary, which writes the base class's default (composite_plug) onto a node
+; that instances another scene and swaps its script, over whatever _init set. Every
+; exported build had this socket asking for a phono plug (link_tests checks the line).
+; A scene that instances this one gets the same done to it, which RcaPort._ready
+; undoes (_own_connector).
 [node name="PsxLinkPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.06
 script = ExtResource("2_portscript")
+connector = "psx_link_plug"
 
 ; Named PsxLinkJack, not RcaJack, deliberately: RcaPort's _tint_jack and
 ; show_jack both look for a child called RcaJack, so this one is invisible to

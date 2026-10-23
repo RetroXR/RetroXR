@@ -76,6 +76,8 @@ func _ready() -> void:
 	await _test_a_color_reaches_an_original_through_the_adapter()
 	await _test_a_color_lead_goes_into_an_advance()
 	_test_no_reset_path()
+	_test_sockets_write_their_connector()
+	await _test_a_baked_default_still_takes_its_own_plug()
 	print("[link] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
 
@@ -2686,3 +2688,48 @@ func _psx_port(connector: String) -> PsxLinkPort:
 	var port := PsxLinkPort.new()
 	port.connector = connector
 	return port
+
+
+## A socket's family has to be in its own SCENE, not only in its script's _init.
+## Exporting converts scenes to binary, and for a node that instances another
+## scene and swaps its script the converter writes the base class's default
+## `connector` (a phono plug) over what _init set -- so every exported build had
+## the Color, the Printer and every other socket below refusing its own lead,
+## while every run from source, these tests included, saw them right. Read off
+## the scene state, which is what the export keeps.
+const SOCKET_SCENES := {
+	"res://Scenes/Objects/cables/coax_port.tscn": "coax_plug",
+	"res://Scenes/Objects/cables/ethernet_port.tscn": "ethernet_plug",
+	"res://Scenes/Objects/cables/ilink_port.tscn": "ilink_plug",
+	"res://Scenes/Objects/cables/link_port.tscn": "link_plug",
+	"res://Scenes/Objects/cables/dmg_link_port.tscn": "dmg_link_plug",
+	"res://Scenes/Objects/cables/psx_link_port.tscn": "psx_link_plug",
+	"res://Scenes/Objects/cables/trs_port.tscn": "trs_plug",
+	"res://Scenes/Objects/cables/vga_port.tscn": "vga_plug",
+}
+
+
+func _test_sockets_write_their_connector() -> void:
+	for path: String in SOCKET_SCENES:
+		var state := (load(path) as PackedScene).get_state()
+		var written := ""
+		for i in state.get_node_property_count(0):
+			if state.get_node_property_name(0, i) == &"connector":
+				written = str(state.get_node_property_value(0, i))
+		_eq(written, SOCKET_SCENES[path], "%s writes its connector in the scene" % path.get_file())
+
+
+## A scene that instances one of these sockets is converted the same way, and
+## the socket arrives with the phono default no matter what its own scene says.
+## Arrive that way here: each socket must still ask for its own plug, and the
+## Game Boy's, whose family was set on purpose, must keep it.
+func _test_a_baked_default_still_takes_its_own_plug() -> void:
+	for path: String in SOCKET_SCENES:
+		var port := (load(path) as PackedScene).instantiate() as RcaPort
+		var meant := port.connector
+		if path.get_file() != "dmg_link_port.tscn":
+			port.connector = Connectors.PHONO
+		add_child(port)
+		await get_tree().process_frame
+		_eq(port.snap_require, meant, "%s arriving with the phono default asks for %s" % [path.get_file(), meant])
+		port.queue_free()

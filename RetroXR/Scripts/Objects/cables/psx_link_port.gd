@@ -64,3 +64,8 @@ func _apply_recess() -> void:
 
 func _init() -> void:
 	connector = "psx_link_plug"
+
+
+## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+func _own_connector() -> String:
+	return "psx_link_plug"

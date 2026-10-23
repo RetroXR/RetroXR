@@ -29,6 +29,11 @@ func _init() -> void:
 	connector = "link_plug"
 
 
+## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+func _own_connector() -> String:
+	return "link_plug"
+
+
 func _ready() -> void:
 	super._ready()
 	channel = RcaPort.Channel.VIDEO

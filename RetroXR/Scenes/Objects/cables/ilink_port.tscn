@@ -51,9 +51,16 @@ emission_energy_multiplier = 0.4
 
 ; The zone sits where a seated plug's ORIGIN belongs -- its mating face, a
 ; millimetre proud of the panel -- exactly as saturn_link_port does.
+; `connector` is written HERE and not left to the script's _init: exporting turns this
+; scene binary, which writes the base class's default (composite_plug) onto a node
+; that instances another scene and swaps its script, over whatever _init set. Every
+; exported build had this socket asking for a phono plug (link_tests checks the line).
+; A scene that instances this one gets the same done to it, which RcaPort._ready
+; undoes (_own_connector).
 [node name="ILinkPort" instance=ExtResource("1_snapzone")]
 grab_distance = 0.06
 script = ExtResource("2_portscript")
+connector = "ilink_plug"
 
 ; Named PsxLinkJack so PsxLinkPort.show_recess finds it.
 [node name="PsxLinkJack" type="MeshInstance3D" parent="."]

@@ -26,6 +26,11 @@ func _init() -> void:
 	connector = "ethernet_plug"
 
 
+## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+func _own_connector() -> String:
+	return "ethernet_plug"
+
+
 func _ready() -> void:
 	super()
 	has_picked_up.connect(func(_what: Node) -> void: _light(true))
