@@ -74,6 +74,15 @@ static func plugin() -> Object:
 	return QrScanner.singleton()
 
 
+## Whether `p` has `method`. An Android plugin is a JNISingleton, whose Java
+## methods has_method() does not see (it answers false for every one of them);
+## has_java_method() does. A plugin built before the feed existed has neither.
+static func plugin_has(p: Object, method: String) -> bool:
+	if p.has_method(method):
+		return true
+	return p.has_method("has_java_method") and bool(p.call("has_java_method", method))
+
+
 static func now_usec() -> int:
 	return int(clock_source.call()) if clock_source.is_valid() else Time.get_ticks_usec()
 
@@ -93,7 +102,7 @@ static func acquire(owner: Object) -> bool:
 	if _owners.has(id):
 		return true
 	var p := plugin()
-	if p == null or not p.has_method("startFeed"):
+	if p == null or not plugin_has(p, "startFeed"):
 		return false
 	_owners[id] = true
 	if _owners.size() == 1:
@@ -264,7 +273,7 @@ static func _accept_frame(luma: PackedByteArray, width: int, height: int, age_us
 	else:
 		_texture.update(image)
 	_frame_usec = received_usec - (age_us if age_us >= 0 else DEFAULT_LATENCY_USEC)
-	if _info.is_empty() and _plugin != null and _plugin.has_method("getCameraInfo"):
+	if _info.is_empty() and _plugin != null and plugin_has(_plugin, "getCameraInfo"):
 		var info: Dictionary = _plugin.getCameraInfo()
 		if not info.is_empty():
 			set_info(info)

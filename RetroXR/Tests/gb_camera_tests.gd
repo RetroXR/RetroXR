@@ -84,6 +84,15 @@ class FakeCameraPlugin:
 		return info
 
 
+## How an Android plugin answers for its Java methods: through has_java_method,
+## never has_method.
+class FakeJniSingleton:
+	extends RefCounted
+
+	func has_java_method(method: String) -> bool:
+		return method == "startFeed"
+
+
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
@@ -1229,6 +1238,14 @@ func _test_passthrough() -> void:
 	PassthroughCamera.tick()
 	_ok((PassthroughCamera.head_at(1_000_000) as Transform3D).origin == Vector3(1, 0, 0),
 		"passthrough/poses older than the history are let go")
+
+	# An Android plugin's methods are found by has_java_method: a feed was never
+	# started on a Quest 3 while this asked has_method alone.
+	var jni := FakeJniSingleton.new()
+	_ok(PassthroughCamera.plugin_has(jni, "startFeed") and not PassthroughCamera.plugin_has(jni, "getCameraInfo"),
+		"passthrough/an Android plugin's Java methods are found the way it answers for them")
+	_ok(not PassthroughCamera.plugin_has(RefCounted.new(), "startFeed"),
+		"passthrough/and a plugin from before the feed has none")
 
 	# The feed, shared.
 	var plugin := FakeCameraPlugin.new()
