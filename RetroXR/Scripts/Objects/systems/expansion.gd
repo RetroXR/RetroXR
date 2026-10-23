@@ -576,9 +576,12 @@ func _on_host_seated(obj: Node3D) -> void:
 	if sys == null:
 		return
 	_bind_host(sys)
+	# The console standing on us is frozen while it does: we carry its box.
+	SeatedCollision.lend(self, sys, _socket)
 
 
 func _on_host_lifted() -> void:
+	SeatedCollision.withdraw_zone(self, _socket)
 	_unbind_host()
 
 
@@ -597,6 +600,12 @@ func _bind_host(sys: RetroSystem) -> void:
 	# Our plug fills the opening its cover came off: the cover cannot go back
 	# while the console stands on us.
 	sys.block_port_cover(ExpansionCatalog.cover_socket_of(expansion_id), true)
+	# Seated in one of the console's sockets (a Super Game Boy or a 32X in the
+	# cartridge slot), this unit is frozen and stands well out of it: the console
+	# carries its box, and through it whatever is in this unit's own bay.
+	var zone := _holding_zone()
+	if zone != null:
+		SeatedCollision.lend(sys, self, zone)
 	_update_label()
 	host_changed.emit(sys)
 
@@ -607,12 +616,23 @@ func _unbind_host() -> void:
 	var was := _host
 	_host = null
 	if is_instance_valid(was):
+		SeatedCollision.withdraw(was, self)
 		remove_collision_exception_with(was)
 		_except_accessory_from(was, false)
 		was.detach_expansion(self)
 		was.block_port_cover(ExpansionCatalog.cover_socket_of(expansion_id), false)
 	_update_label()
 	host_changed.emit(null)
+
+
+## The console's socket holding this unit, or null for a unit the console stands on.
+func _holding_zone() -> Node3D:
+	if ExpansionCatalog.mount_of(expansion_id) == ExpansionCatalog.MOUNT_BELOW:
+		return null
+	var driver: Variant = VrHold.grab_driver(self)
+	if driver == null or not is_instance_valid(driver.primary):
+		return null
+	return driver.primary.by as XRToolsSnapZone
 
 
 ## The console this unit is joined to, or null.
@@ -921,6 +941,10 @@ func _on_media_in(media: Node3D, slot := 0) -> void:
 	_media[slot] = media
 	if _slot == null:
 		add_collision_exception_with(media)
+		# A cartridge standing out of the roof (a Game Boy's in a Super Game Boy)
+		# rides frozen: this unit carries its box, and passes it on to the console.
+		if media is CollisionObject3D:
+			SeatedCollision.lend(self, media as CollisionObject3D, _bays[slot])
 	# Back-fill, exactly as a console does: a disk put into a 64DD is a 64DD disk.
 	if "systemid" in media and str(media.get("systemid")).is_empty():
 		media.set("systemid", ExpansionCatalog.media_of(expansion_id))
@@ -934,6 +958,7 @@ func _on_media_out(slot := 0) -> void:
 	var was: Node3D = _media[slot]
 	if is_instance_valid(was) and _slot == null:
 		remove_collision_exception_with(was)
+		SeatedCollision.withdraw(self, was as CollisionObject3D)
 	_media[slot] = null
 	_swing_flaps(false)
 	_notify_host_media()
@@ -1170,9 +1195,11 @@ func _on_accessory_in(what: Node3D) -> void:
 	add_collision_exception_with(_accessory)
 	if get_host() != null:
 		get_host().add_collision_exception_with(_accessory)
+	SeatedCollision.lend(self, _accessory, _accessory_mount)
 
 
 func _on_accessory_out() -> void:
+	SeatedCollision.withdraw_zone(self, _accessory_mount)
 	if is_instance_valid(_accessory):
 		remove_collision_exception_with(_accessory)
 		if get_host() != null:

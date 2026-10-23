@@ -61,6 +61,9 @@ func _ready() -> void:
 	_expansion_port.snap_filter = _accepts_nunchuk
 	_expansion_port.has_picked_up.connect(_on_nunchuk_seated)
 	_expansion_port.has_dropped.connect(_on_nunchuk_removed)
+	# The Nunchuk's plug rides in the pass-through: the dongle carries its box,
+	# and through it the remote.
+	SeatedCollision.follow(self, _expansion_port)
 
 
 # ── The pass-through port ─────────────────────────────────────────────────────

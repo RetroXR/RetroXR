@@ -101,14 +101,20 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   `SeatedCollision.lend(host, guest, zone)` on the zone's `has_picked_up` puts inset copies
   of the guest's shapes on the host (and collision exceptions with every body they stand
   for); `withdraw` on `has_dropped`. Nesting re-lends upward (a cartridge in a pak in a
-  pad). Wired: `N64PakPort`, the Transfer Pak's bay, a console's plain cartridge deck and
-  the DS Slot-2. **Copies alone are not enough under Jolt**: manifold reduction keeps the
+  pad). Wired: `N64PakPort`, the Transfer Pak's bay, a console's plain cartridge deck, the
+  DS Slot-2, every MOUNT_ABOVE expansion in whichever socket holds it (lent in
+  `RetroExpansion._bind_host`, taken back in `_unbind_host`, so a direct unbind cleans up
+  too) and the cartridge in its own bay, a console standing on a MOUNT_BELOW unit (the
+  64DD carries the console), the 32X spacer, a Wii Remote's and a MotionPlus's extension
+  port, and the VMU/Memory Unit slots. A socket with nothing else to do uses
+  `SeatedCollision.follow(host, zone)`; `withdraw_zone` takes back by zone for a
+  `has_dropped` that does not say what left. **Copies alone are not enough under Jolt**: manifold reduction keeps the
   four contact points spanning the most area per floor, the corners of the host's shell,
   and the part hanging under the middle loses its points. Jolt reduces only for a body
   reporting no contacts, so a lending host gets `max_contacts_reported >= 1` and its own
   value back when it lends nothing. `bay_tests pak/` and `cartdrop/` drop the body
-  part-down onto a floor; both mutations (copies off, reduction on) go red. Not wired yet:
-  a Wii Remote's MotionPlus/Nunchuk, VMUs, expansions bolted on a cartridge slot.
+  part-down onto a floor; both mutations (copies off, reduction on) go red. Without the
+  copies a Super Famicom turned over sank its Super Game Boy's cartridge 12 cm.
 - GDExtension registration at `MODULE_INITIALIZATION_LEVEL_SCENE`.
 
 ## Dependencies

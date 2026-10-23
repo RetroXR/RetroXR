@@ -32,6 +32,9 @@ const _LENT_FROM := &"seated_collision_from"
 ## gets a collision exception with it, or that frozen body would shove the host
 ## off its own copy of it.
 const _ORIGIN := &"seated_collision_origin"
+## On a lent CollisionShape3D: the instance id of the zone that seated its guest,
+## so a zone that only says it emptied can still take back what it lent.
+const _ZONE := &"seated_collision_zone"
 ## On a guest while it lends: {host, zone}.
 const _SEAT := &"seated_collision_seat"
 ## On a host while it holds lent shapes: its own max_contacts_reported.
@@ -71,9 +74,46 @@ static func lend(host: CollisionObject3D, guest: CollisionObject3D, zone: Node3D
 		copy.transform = seat * src.transform
 		copy.set_meta(_LENT_FROM, guest.get_instance_id())
 		copy.set_meta(_ORIGIN, origin_id)
+		copy.set_meta(_ZONE, zone.get_instance_id())
 		host.add_child(copy)
 	_keep_every_contact(host)
 	_relend_up(host)
+
+
+## Lend whatever `zone` seats to `host`, and take it back when the zone empties.
+##
+## For a socket whose own handlers have nothing to add. Connected after them, so
+## a handler that reshapes what was seated runs first.
+static func follow(host: CollisionObject3D, zone: XRToolsSnapZone) -> void:
+	if host == null or zone == null:
+		return
+	zone.has_picked_up.connect(func(what: Node3D) -> void:
+		if what is CollisionObject3D:
+			lend(host, what as CollisionObject3D, zone))
+	zone.has_dropped.connect(func() -> void: withdraw_zone(host, zone))
+
+
+## Take back whatever `zone` seated and lent `host`. For a zone's has_dropped,
+## which says it emptied but not what left.
+static func withdraw_zone(host: CollisionObject3D, zone: Node3D) -> void:
+	if not is_instance_valid(host) or zone == null:
+		return
+	var zone_id := zone.get_instance_id()
+	var guests := {}
+	for child in host.get_children():
+		if child.has_meta(_LENT_FROM) and child.get_meta(_ZONE, 0) == zone_id:
+			guests[child.get_meta(_LENT_FROM)] = true
+	for id: int in guests:
+		var guest := instance_from_id(id) as CollisionObject3D
+		if guest != null:
+			withdraw(host, guest)
+		else:
+			for child in host.get_children():
+				if child.get_meta(_LENT_FROM, 0) == id:
+					child.remove_meta(_LENT_FROM)
+					(child as CollisionShape3D).disabled = true
+					child.queue_free()
+			_keep_every_contact(host)
 
 
 ## Take back what `guest` lent `host`. Call from the zone's has_dropped.

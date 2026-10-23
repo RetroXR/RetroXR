@@ -190,6 +190,9 @@ func _build() -> void:
 		(zone as Node3D).transform = _seats[slot]
 		zone.has_picked_up.connect(_on_seated.bind(slot))
 		zone.has_dropped.connect(_on_removed.bind(slot))
+		# A card stands out of the pad's top and rides frozen: the pad carries it.
+		if _owner is CollisionObject3D:
+			SeatedCollision.follow(_owner as CollisionObject3D, zone)
 		_zones.append(zone)
 	_cards.resize(_seats.size())
 	_cards.fill(null)

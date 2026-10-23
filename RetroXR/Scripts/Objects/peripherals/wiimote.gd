@@ -425,6 +425,9 @@ func _ready() -> void:
 	_expansion_port.snap_filter = _accepts_extension
 	_expansion_port.has_picked_up.connect(_on_extension_seated)
 	_expansion_port.has_dropped.connect(_on_extension_removed)
+	# A MotionPlus or a Nunchuk's plug rides frozen in the port: the remote
+	# carries its box, or a remote dropped dongle-down sinks it into the floor.
+	SeatedCollision.follow(self, _expansion_port)
 	_sync_button.button_pressed.connect(_on_sync_pressed)
 	_sync_button.set_active(false)
 	_battery_cover.rotation_changed.connect(_on_cover_moved)

@@ -33,6 +33,10 @@ const N64_PAD_SCENE := preload("res://Scenes/Objects/controllers/n64/n64_control
 const RUMBLE_PAK_SCENE := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
 const CONTROLLER_PAK_SCENE := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const TRANSFER_PAK_SCENE := preload("res://Scenes/Objects/controllers/n64/transfer_pak.tscn")
+const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
+const WIIMOTE_SCENE := preload("res://Scenes/Objects/controllers/wii/wiimote.tscn")
+const MOTION_PLUS_SCENE := preload("res://Scenes/Objects/controllers/wii/motion_plus.tscn")
+const VMU_SCENE := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 
 var _checks := 0
 var _failed := 0
@@ -1214,6 +1218,106 @@ func _group_cartdrop() -> void:
 		_ok((sys as RigidBody3D).max_contacts_reported == 0,
 			"cartdrop/%s and its own contact reporting" % row[0])
 		await _clear()
+
+	# A Super Game Boy in a Super Famicom, a Game Boy cartridge in it, the whole
+	# stack turned over: the console carries the adapter, and through it the
+	# cartridge standing out of the adapter's roof.
+	var sfc := await _console("", "snes")
+	var sgb := await _unit("super_game_boy")
+	var gb := await _cart("gb")
+	sfc.call("restore_cartridge", sgb)
+	sgb.call("restore_media", gb)
+	await _wait(6)
+	_ok(_carries(sfc, sgb), "cartdrop/a Super Famicom carries its Super Game Boy's box")
+	_ok(_carries(sfc, gb), "cartdrop/and the Game Boy cartridge's, passed on through it")
+	await _drop_part_down(sfc as RigidBody3D, gb.get_node("CollisionShape3D") as CollisionShape3D,
+		"cartdrop/a Super Famicom turned over with a Super Game Boy in it")
+	(sgb.get_node("MediaBay") as XRToolsSnapZone).drop_object()
+	await _wait(4)
+	_ok(not _carries(sfc, gb) and _carries(sfc, sgb),
+		"cartdrop/pulling the cartridge takes its box off the console, the adapter's stays")
+	await _clear()
+
+	# A console standing on its 64DD: the unit carries the console.
+	var dd := await _unit("nintendo_64dd")
+	var n64 := await _console("nintendo_64", "n64")
+	(dd.call("get_socket") as XRToolsSnapZone).pick_up_object(n64)
+	await _wait(6)
+	_ok(_carries(dd, n64), "cartdrop/a 64DD carries the console standing on it")
+	await _drop_part_down(dd as RigidBody3D, n64.get_node("CollisionShape3D") as CollisionShape3D,
+		"cartdrop/a 64DD turned over with its console on")
+	(dd.call("get_socket") as XRToolsSnapZone).drop_object()
+	await _wait(4)
+	_ok(not _carries(dd, n64), "cartdrop/lifting the console off gives its box back")
+	await _clear()
+
+	# A MotionPlus in a Wii Remote.
+	var remote := WIIMOTE_SCENE.instantiate() as RigidBody3D
+	remote.freeze = true
+	add_child(remote)
+	_spawned.append(remote)
+	remote.global_position = Vector3(8, 1, 0)
+	var mp := MOTION_PLUS_SCENE.instantiate() as RigidBody3D
+	mp.freeze = true
+	add_child(mp)
+	_spawned.append(mp)
+	await _wait(6)
+	(remote.get_node("ExpansionPort") as XRToolsSnapZone).pick_up_object(mp)
+	await _wait(6)
+	_ok(_carries(remote, mp), "cartdrop/a Wii Remote carries its MotionPlus")
+	await _drop_part_down(remote, mp.get_node("CollisionShape3D") as CollisionShape3D,
+		"cartdrop/a Wii Remote dropped dongle-down")
+	(remote.get_node("ExpansionPort") as XRToolsSnapZone).drop_object()
+	await _wait(4)
+	_ok(not _carries(remote, mp), "cartdrop/pulling the MotionPlus gives its box back")
+	await _clear()
+
+	# A VMU in a Dreamcast pad.
+	var dc := PAD_SCENE.instantiate() as RigidBody3D
+	dc.set("systemid", "dreamcast")
+	dc.freeze = true
+	add_child(dc)
+	_spawned.append(dc)
+	dc.global_position = Vector3(10, 1, 0)
+	var vmu := VMU_SCENE.instantiate() as RigidBody3D
+	vmu.freeze = true
+	add_child(vmu)
+	_spawned.append(vmu)
+	await _wait(6)
+	var vmu_slot := dc.get_node_or_null("VmuSlot1") as XRToolsSnapZone
+	_ok(vmu_slot != null, "cartdrop/a Dreamcast pad has a VMU slot")
+	if vmu_slot != null:
+		vmu_slot.pick_up_object(vmu)
+		await _wait(6)
+		_ok(_carries(dc, vmu), "cartdrop/a Dreamcast pad carries its VMU")
+		await _drop_part_down(dc, vmu.get_node("CollisionShape3D") as CollisionShape3D,
+			"cartdrop/a Dreamcast pad dropped VMU-down")
+		# Slot 2 sits beside slot 1 in RANGE mode and takes a card let go next to
+		# it, which is the port working, not the box staying behind.
+		(dc.get_node("VmuSlot2") as XRToolsSnapZone).enabled = false
+		vmu_slot.drop_object()
+		await _wait(4)
+		_ok(not _carries(dc, vmu), "cartdrop/pulling the VMU gives its box back")
+	await _clear()
+
+
+## Does `host` carry a lent copy of a shape that is really `body`'s?
+func _carries(host: Node, body: Node) -> bool:
+	for child in host.get_children():
+		if child.has_meta(SeatedCollision._LENT_FROM) 				and child.get_meta(SeatedCollision._ORIGIN, 0) == body.get_instance_id():
+			return true
+	return false
+
+
+func _unit(expansion_id: String) -> Node3D:
+	var unit := EXPANSION_SCENE.instantiate() as RigidBody3D
+	unit.set("expansion_id", expansion_id)
+	unit.position = Vector3(_spawned.size() * 2.0, 1, 0)
+	unit.freeze = true
+	add_child(unit)
+	_spawned.append(unit)
+	await _wait(10)
+	return unit
 
 
 func _group_pak() -> void:
