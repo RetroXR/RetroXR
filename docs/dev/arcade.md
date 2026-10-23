@@ -660,3 +660,32 @@ nothing shows: it is dropped as ever. The aim is the holding controller's -Z in 
 it gave); the floor is the XR origin's height. `arcade_tests ground/` (mutation-tested), `arcade_cabinet_probe --shots=ground`.
 OWED: a headset, a real hold with a laser and with the desktop hand, a cabinet carried in netplay (the pose is local), the Quest.
 The MIN_DOWN (17 degrees below level) and the 4 m reach are estimates; the marker does not know about walls or furniture.
+
+## The cabinet follows the game in its bay (2026-10-22)
+
+A fixed panel (stick + six buttons, x2, two coin doors) is wrong for most games. `ArcadeGameProfile`
+(`Scripts/Data/systems/arcade_game_profile.gd`) says what THIS game needs and the modules draw only that: a one-player game has no second
+panel, a two-button game two caps, a gun game no stick, a one-coin game one door, and FBNeo's own words on the caps. **Only what is DRAWN
+follows the game; the input is never filtered**, so a cap hidden by a wrong guess still plays from a controller or the keyboard.
+
+- **Two sources, the second wins where it speaks.** (1) MAME's `-listxml`, boiled down by `Tools/arcade/gen_game_index.py` into
+  `ArcadeGameTable` (28,701 romsets / 692 profiles from MAME 0.289, 278 KB as one string constant; a profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>`,
+  kinds `joy stick paddle pedal gun dial ball btn other`; `python Tools/arcade/gen_game_index.py mame0289.xml`, the XML from the release's `mame0289lx.zip`,
+  checksum-verified against its SHA256SUMS). (2) The core's `SET_INPUT_DESCRIPTORS` through `Libretro.GetInputDescriptors()` (`[{port, device, index, id,
+  description}]`; the C++ already stored them in `InputHandler::m_devices`, nothing read them). `RetroSystemModelArcadeCabinet._poll_descriptors` asks twice a second from power-on until the
+  first non-empty answer.
+- **MEASURED (`Tools/cores/arcade_descriptors_probe`, one core per process): FBNeo describes THIS game** (sf2: 14 pad ids per port named "Weak Punch" ... "Coin"; dino: "Attack",
+  "Jump"), **MAME describes the whole RetroPad for every game** (160 rows, all 16 ids, "A", "B", "Joy Left"). So a port that publishes all sixteen ids is ignored
+  and the table stands. FBNeo calls pad id 2 **"Coin"**: that CONFIRMS `ArcadeProfiles.COIN_BIT` = SELECT (it was a standard guess). The ports and
+  caps follow the descriptors when they speak; `ptblank` and `hotd` give FBNeo no descriptors at all (not its games), so the table does it.
+- **Where it applies.** `on_media_inserted` for the `arcade` family only (the Neo Geo, Daphne and DICE cabinets keep their own panels); an unknown romset leaves the cabinet whole.
+  `ArcadeControlModule.apply_profile` (panel, stick, caps, labels), `ArcadeCoinModule.set_door_enabled`. A panel the game does not use is out of the pointer's reach
+  (`ArcadeModule.set_pointable`) and refuses `set_attached`. A coin door uses `VRButton.set_interactive`.
+- **Labels** are printed on the DECK, not on the caps (a cap is 31 mm and tilts away; words on it were unreadable in the first picture): the monitor-side row of caps is labelled above, the
+  rest below (`_mean_cap_y`), or the top row's words land on the bottom row's caps. Two lines of six letters (`ArcadeGameProfile.shorten`). The panel's cap order is the historic bit order
+  (B A Y X L R), so a fighter's kicks and punches are not in a tidy row: the labels make that visible, they do not change it.
+- Tests: `arcade_tests game/` (profiles: table, descriptors in both flavours, the control leg of MAME's generic pad; cabinet: caps, panels, doors, labels, board out). Mutation-tested
+  (`button_visible`/`panel_visible` forced true: 7 cases red). Picture: `arcade_cabinet_probe --shots=game` (windowed).
+- **Not done:** a steering wheel, pedals (the pedal on the gun cabinet is still drawn and NOT active) and a racing cabinet scene; `paddle`+`pedal` games (`ArcadeGameProfile.is_driving`) keep the stick
+  on the generic panel. No driving romset was at hand to measure which pad ids MAME/FBNeo read a wheel and pedals from. The Quest is OWED: Android was not rebuilt, so `GetInputDescriptors` does not exist
+  there until it is (the cabinet does not check `has_method`: rebuild both targets).
