@@ -4,7 +4,7 @@
 ##     "$godot" --path RetroXR --resolution 1600x900 --position 20,20 \
 ##         res://Tools/models/gbc_cart_render_probe.tscn -- --out=<dir> \
 ##         [--fit] [--smoke-label=<png>] [--crystal-label=<png>] \
-##         [--smoke=r,g,b[,opacity,frost]] [--crystal=r,g,b[,opacity,frost]]
+##         [--smoke=r,g,b[,opacity,frost]] [--crystal=r,g,b[,opacity,frost]] [--camera]
 ##
 ## Windowed: the headless renderer returns a blank image at the right size.
 ##
@@ -37,6 +37,7 @@ var _overrides := {}
 func _ready() -> void:
 	out_dir = OS.get_user_data_dir().path_join(FIXTURE)
 	var fit := false
+	var camera := false
 	var label_src := {}
 	for arg in OS.get_cmdline_user_args():
 		var a := str(arg)
@@ -44,6 +45,8 @@ func _ready() -> void:
 			out_dir = a.trim_prefix("--out=").replace("\\", "/")
 		elif a == "--fit":
 			fit = true
+		elif a == "--camera":
+			camera = true
 		elif a.begins_with("--smoke-label="):
 			label_src["smoke"] = a.trim_prefix("--smoke-label=").replace("\\", "/")
 		elif a.begins_with("--crystal-label="):
@@ -67,7 +70,9 @@ func _ready() -> void:
 		print("[gbcrender] %s colour %s opacity %.2f frost %.2f" % [id, preset.color, preset.opacity, preset.frost])
 	for o in LoadingOverlay.owners():
 		LoadingOverlay.end(o)
-	if fit:
+	if camera:
+		await _camera_film()
+	elif fit:
 		await _fit(label_src)
 	else:
 		await _review(label_src)
@@ -172,23 +177,7 @@ func _median(img: Image, shell: bool) -> Color:
 
 
 func _review(label_src: Dictionary) -> void:
-	var env := WorldEnvironment.new()
-	env.environment = Environment.new()
-	env.environment.background_mode = Environment.BG_COLOR
-	env.environment.background_color = Color(0.30, 0.31, 0.34)
-	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.environment.ambient_light_color = Color(0.55, 0.55, 0.58)
-	env.environment.tonemap_mode = Environment.TONE_MAPPER_AGX
-	add_child(env)
-	var key := DirectionalLight3D.new()
-	key.rotation_degrees = Vector3(-35, 30, 0)
-	key.light_energy = 1.4
-	key.shadow_enabled = true
-	add_child(key)
-	var fill := DirectionalLight3D.new()
-	fill.rotation_degrees = Vector3(-20, 200, 0)
-	fill.light_energy = 0.6
-	add_child(fill)
+	_review_lights()
 	# [file, header, forced preset, mixed colour, flake]
 	var carts := [
 		["smoke_small.gbc", _header("SHREK", 0xC0, 0x19, false), "", "", false],
@@ -222,6 +211,74 @@ func _review(label_src: Dictionary) -> void:
 	await _shot(sv, cam, Vector3(0.02, 0.07, -0.19), Vector3(0.0375, 0.0, 0.0), "crystal_back_close.png")
 
 
+func _review_lights() -> void:
+	var env := WorldEnvironment.new()
+	env.environment = Environment.new()
+	env.environment.background_mode = Environment.BG_COLOR
+	env.environment.background_color = Color(0.30, 0.31, 0.34)
+	env.environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	env.environment.ambient_light_color = Color(0.55, 0.55, 0.58)
+	env.environment.tonemap_mode = Environment.TONE_MAPPER_AGX
+	add_child(env)
+	var key := DirectionalLight3D.new()
+	key.rotation_degrees = Vector3(-35, 30, 0)
+	key.light_energy = 1.4
+	key.shadow_enabled = true
+	add_child(key)
+	var fill := DirectionalLight3D.new()
+	fill.rotation_degrees = Vector3(-20, 200, 0)
+	fill.light_energy = 0.6
+	add_child(fill)
+
+
+# ── camera ───────────────────────────────────────────────────────────────────
+
+
+func _camera_film() -> void:
+	_review_lights()
+	var floor_mesh := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(1, 1)
+	floor_mesh.mesh = plane
+	var white := StandardMaterial3D.new()
+	white.albedo_color = Color(0.85, 0.85, 0.85)
+	floor_mesh.material_override = white
+	add_child(floor_mesh)
+	floor_mesh.position.y = -0.06
+	var camera := _spawn("camera.gb", _header("GAMEBOYCAMERA", 0x00, GbCameraShell.CART_TYPE_CAMERA, true),
+		&"camera_clear_purple", "", false, GbCartShell.SYSTEMID)
+	camera.global_position = Vector3(-0.07, 0, 0)
+	_spawn("smoke.gbc", _header("ZELDA", 0xC0, 0x1B, true)).global_position = Vector3.ZERO
+	_spawn("crystal.gbc", _header("PM_CRYSTAL", 0xC0, 0x10, true)).global_position = Vector3(0.07, 0, 0)
+	await _settle()
+	var model := camera.get_node_or_null("CartModel")
+	print("[gbcrender] camera: %s" % (model.scene_file_path if model != null else "no model"))
+	var sv := _viewport(Vector2i(960, 540))
+	var cam := Camera3D.new()
+	cam.fov = 40.0
+	cam.near = 0.01
+	sv.add_child(cam)
+	for i in 60:
+		await get_tree().process_frame
+	var film := out_dir.path_join("film")
+	DirAccess.make_dir_recursive_absolute(film)
+	var frames := 120
+	for f in frames:
+		var k := 0.5 - 0.5 * cos(float(f) / frames * TAU)
+		var yaw := sin(float(f) / frames * TAU) * 0.6
+		var target := Vector3(-0.07 * k, 0, 0)
+		cam.look_at_from_position(target + Vector3(sin(yaw), 0.35, cos(yaw)).normalized() * lerpf(0.45, 0.10, k),
+			target, Vector3.UP)
+		cam.current = true
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var img := sv.get_texture().get_image()
+		img.convert(Image.FORMAT_RGB8)
+		img.save_png(film.path_join("f%03d.png" % f))
+	await _shot(sv, cam, Vector3(-0.035, 0.06, 0.17), Vector3(-0.035, 0, 0), "camera_front.png")
+	await _shot(sv, cam, Vector3(-0.035, 0.06, -0.17), Vector3(-0.035, 0, 0), "camera_back.png")
+
+
 func _shot(sv: SubViewport, cam: Camera3D, eye: Vector3, target: Vector3, file: String) -> void:
 	cam.look_at_from_position(eye, target, Vector3.UP)
 	cam.current = true
@@ -252,9 +309,10 @@ func _settle() -> void:
 		await get_tree().physics_frame
 
 
-func _spawn(file_name: String, header: PackedByteArray, preset := &"", color := "", flake := false) -> RetroCartridge:
+func _spawn(file_name: String, header: PackedByteArray, preset := &"", color := "", flake := false,
+		systemid := GbcCartShell.PALETTE) -> RetroCartridge:
 	var cart := CART_SCENE.instantiate() as RetroCartridge
-	cart.systemid = GbcCartShell.PALETTE
+	cart.systemid = systemid
 	cart.rom_path = _write_rom(FIXTURE + "_" + file_name, header)
 	cart.shell_preset = preset
 	cart.shell_color = color
