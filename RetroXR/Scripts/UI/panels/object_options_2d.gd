@@ -22,6 +22,8 @@ var _title: Label = null
 var _panel: Control = null
 ## The object's facts, under the title.
 var _info: VBoxContainer = null
+## RopeTuning's sliders, when the debug switch is on and this is a cord's plug.
+var _tuning: VBoxContainer = null
 
 
 func _ready() -> void:
@@ -50,6 +52,11 @@ func _build_ui() -> void:
 	_info.add_theme_constant_override("separation", 6)
 	_info.visible = false
 	vbox.add_child(_info)
+
+	_tuning = VBoxContainer.new()
+	_tuning.add_theme_constant_override("separation", 2)
+	_tuning.visible = false
+	vbox.add_child(_tuning)
 
 
 func populate(title: String) -> void:
@@ -82,6 +89,26 @@ func set_info(rows: Array) -> void:
 		(row.get_child(0) as Label).text = str(pair[0])
 		(row.get_child(1) as Label).text = str(pair[1])
 	_info.visible = not rows.is_empty()
+
+
+## Rebuild the rope tuning section for `rope`, or take it away for null.
+func set_tuning(rope: VerletRope) -> void:
+	if _tuning == null:
+		return
+	for child: Node in _tuning.get_children():
+		_tuning.remove_child(child)
+		child.queue_free()
+	if rope != null:
+		RopeTuning.build(_tuning, rope)
+	_tuning.visible = rope != null
+
+
+## How many pixels of the page the rope tuning section takes, 0 when it is off.
+func tuning_height() -> float:
+	if _tuning == null or not _tuning.visible:
+		return 0.0
+	return _tuning.size.y + float((_tuning.get_parent() as VBoxContainer)
+			.get_theme_constant("separation"))
 
 
 ## How tall the page has to be to show all of it, in pixels. Only right once the

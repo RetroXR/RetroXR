@@ -54,7 +54,22 @@ func show_for(obj: Node3D, camera: Node3D) -> void:
 func _anchor() -> Vector3:
 	if _object == null or not is_instance_valid(_object):
 		return global_position
-	return _object.global_position + Vector3(0, _top_offset() + CLEARANCE, 0)
+	return _object.global_position + Vector3(0, _top_offset() + CLEARANCE + _tuning_lift(), 0)
+
+
+## Half the rope tuning section's height, in meters. The page is centered on the
+## anchor and grows both ways, and that section is tall enough (half a meter) that
+## the lower half went into the desk the cable lay on; lifting by half of it keeps
+## the page's bottom where it was without the section.
+func _tuning_lift() -> float:
+	var vp := _ui_viewport()
+	if vp == null or vp.get_child_count() == 0:
+		return 0.0
+	var ui := vp.get_child(0) as ObjectOptions2D
+	var v := $ObjectOptionsViewport as XRToolsViewport2DIn3D
+	if ui == null or v.viewport_size.y <= 0.0:
+		return 0.0
+	return 0.5 * ui.tuning_height() * v.screen_size.y / v.viewport_size.y
 
 
 ## How far above the object's origin its highest drawn point is. Zero for
@@ -89,6 +104,7 @@ func _populate() -> void:
 		ui.close_requested.connect(hide_panel)
 		_ui_connected = true
 	ui.populate(_display_name())
+	ui.set_tuning(RopeTuning.rope_of(_object) if RopeTuning.enabled else null)
 	_info_drawn = []
 	_refresh_info()
 

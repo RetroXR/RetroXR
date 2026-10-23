@@ -725,6 +725,16 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 	))
 
 	vbox.add_child(HSeparator.new())
+	vbox.add_child(MenuStyle.header("CABLES", 20))
+
+	MenuStyle.switch_row(vbox, "Rope tuning on Tab", RopeTuning.enabled) 		.toggled.connect(func(on: bool) -> void:
+			RopeTuning.enabled = on)
+	vbox.add_child(MenuStyle.hint(
+		"Not saved. Point at a cable's plug and press Tab: its menu gets sliders "
+		+ "for the rope's stiffness, and Copy puts the values on the clipboard "
+		+ "as .tscn lines."))
+
+	vbox.add_child(HSeparator.new())
 	vbox.add_child(MenuStyle.header("NETPLAY", 20))
 
 	# The allowlist refuses to start an unvetted core rather than risk a silent
