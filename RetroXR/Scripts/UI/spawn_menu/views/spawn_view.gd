@@ -1686,6 +1686,18 @@ static func _folder_has_game(path: String, exts: Array[String]) -> bool:
 
 
 func _exit_tree() -> void:
+	_finish_local_count()
+
+
+## A view freed without ever entering the tree (spawn_menu_tests builds one
+## bare) gets no _exit_tree, and the count's worker then calls back into a
+## freed object: a segfault at quit.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:
+		_finish_local_count()
+
+
+func _finish_local_count() -> void:
 	if _local_count_task >= 0:
 		WorkerThreadPool.wait_for_task_completion(_local_count_task)
 		_local_count_task = -1
