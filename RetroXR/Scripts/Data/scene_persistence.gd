@@ -1010,12 +1010,13 @@ static func _prune_unknown_types(objects: Array, path: String) -> Array:
 			var ref: Variant = entry[field]
 			if _is_integer(ref) and dropped_ids.has(int(ref)):
 				entry[field] = null
-		var covers: Variant = entry.get("port_covers")
-		if covers is Dictionary:
-			for socket: Variant in (covers as Dictionary):
-				var cover_ref: Variant = (covers as Dictionary)[socket]
-				if _is_integer(cover_ref) and dropped_ids.has(int(cover_ref)):
-					(covers as Dictionary)[socket] = null
+		for cover_field: String in ["port_covers", "cover_slots"]:
+			var covers: Variant = entry.get(cover_field)
+			if covers is Dictionary:
+				for socket: Variant in (covers as Dictionary):
+					var cover_ref: Variant = (covers as Dictionary)[socket]
+					if _is_integer(cover_ref) and dropped_ids.has(int(cover_ref)):
+						(covers as Dictionary)[socket] = null
 		# A dropped mod's pad in a multitap socket leaves the socket empty.
 		var sockets: Variant = entry.get("sockets")
 		if sockets is Array:
@@ -1097,13 +1098,15 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 			var ref_error := _reference_validation_error(ref, ids)
 			if not ref_error.is_empty():
 				return "expansions member %s" % ref_error
-	if entry.has("port_covers"):
-		if not entry["port_covers"] is Dictionary:
-			return "port_covers is not a dictionary"
-		for socket: Variant in entry["port_covers"]:
-			var ref_error := _reference_validation_error(entry["port_covers"][socket], ids)
+	for cover_field: String in ["port_covers", "cover_slots"]:
+		if not entry.has(cover_field):
+			continue
+		if not entry[cover_field] is Dictionary:
+			return "%s is not a dictionary" % cover_field
+		for socket: Variant in entry[cover_field]:
+			var ref_error := _reference_validation_error(entry[cover_field][socket], ids)
 			if not ref_error.is_empty():
-				return "port_covers %s %s" % [socket, ref_error]
+				return "%s %s %s" % [cover_field, socket, ref_error]
 	if entry.has("cover_size"):
 		var size_error := _vec3_validation_error(entry["cover_size"])
 		if not size_error.is_empty():
@@ -1362,6 +1365,9 @@ func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dict
 	var obj := _deserialize_object(d)
 	if obj == null:
 		return
+	# Before it enters the room, where a mod's hook builds its covers' slots: a
+	# restored object's covers are the save's, not fresh ones (CoverSlots).
+	obj.set_meta(CoverSlots.RESTORING, true)
 	root.add_child(obj)
 	obj.add_to_group("spawned")
 	_hold_still(obj, held)
@@ -1545,6 +1551,7 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	var d: Dictionary = entries[id]
 	_restore_articulated_controls(obj, d.get("articulated", d.get("hinges", [])))
 	_restore_attachment(root, obj, spawned, d)
+	_restore_cover_slots(root, obj, spawned, d)
 
 	if obj is RetroSystem:
 		var sys := obj as RetroSystem
@@ -2106,7 +2113,37 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# A plain mod prop has already said what holds it, from any zone.
 		if not entry.has("attached"):
 			entry.merge(_attachment_field(node as Node3D, node_to_id))
+		var cover_slots := _cover_slots_field(node, node_to_id)
+		if not cover_slots.is_empty():
+			entry["cover_slots"] = cover_slots
 	return entry
+
+
+## The removable covers a mod gave an object (CoverSlots): each slot and its
+## cover, null for one that is off. Written for every object with a slot, so one
+## with no "cover_slots" at all is one saved before it had covers, and is given
+## them on load. Omitted on everything else, which saves exactly as it did.
+func _cover_slots_field(node: Node, node_to_id: Dictionary) -> Dictionary:
+	var slots := CoverSlots.of(node)
+	if slots == null:
+		return {}
+	var refs := {}
+	var covers := slots.covers()
+	for socket: String in covers:
+		refs[socket] = _ref(node_to_id, covers[socket] as Node)
+	return refs
+
+
+## Hand an object's covers back, whether its slots are built yet or not
+## (CoverSlots.told): the save's cover for each, null for one that was off, and
+## nothing for a slot the save does not name, which gets a fresh cover.
+func _restore_cover_slots(root: Node, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var saved := {}
+	var rec: Variant = d.get("cover_slots")
+	if rec is Dictionary:
+		for socket: Variant in (rec as Dictionary):
+			saved[str(socket)] = _resolve_ref(root, spawned, (rec as Dictionary)[socket])
+	CoverSlots.told(obj, saved)
 
 
 func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:

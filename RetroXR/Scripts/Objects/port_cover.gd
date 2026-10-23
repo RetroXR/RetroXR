@@ -62,7 +62,38 @@ func _ready() -> void:
 
 ## The pointer target is the cover plus a margin on every face, so a thin flat
 ## thing put down on a shelf is still findable -- memory_card.tscn's reason.
-const _POINTER_MARGIN := Vector3(0.02, 0.022, 0.02)
+const POINTER_MARGIN := Vector3(0.02, 0.022, 0.02)
+var _pointer_margin := POINTER_MARGIN
+
+
+## The margin the pointer target stands out of the cover by. CoverSlots draws a
+## cover seated on a handheld tight, or its margin takes the aims at the console
+## round it, and gives it POINTER_MARGIN back when it comes off.
+func set_pointer_margin(margin: Vector3) -> void:
+	if margin == _pointer_margin:
+		return
+	_pointer_margin = margin
+	if is_node_ready():
+		_apply_size()
+
+
+func pointer_margin() -> Vector3:
+	return _pointer_margin
+
+
+## The shape of what the cover draws, in its own frame, for a cover a mod has
+## dressed in a shell's part (CoverSlots.wear). Seated (a margin under the loose
+## one), the pointer finds the cover by it: a curved cover's box stands proud of
+## the shell round it. Loose, by the box and its margin, as ever.
+var _hull: Shape3D = null
+var _hull_at := Transform3D()
+
+
+func set_pointer_hull(hull: Shape3D, at: Transform3D) -> void:
+	_hull = hull
+	_hull_at = at
+	if is_node_ready():
+		_apply_size()
 
 
 func _apply_size() -> void:
@@ -78,6 +109,11 @@ func _apply_size() -> void:
 		mesh.mesh = block
 	var pointer := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pointer != null:
+		if _hull != null and _pointer_margin != POINTER_MARGIN:
+			pointer.shape = _hull
+			pointer.transform = _hull_at
+			return
 		var target := BoxShape3D.new()
-		target.size = size + _POINTER_MARGIN
+		target.size = size + _pointer_margin
 		pointer.shape = target
+		pointer.transform = Transform3D.IDENTITY
