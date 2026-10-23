@@ -75,6 +75,8 @@ const LENS_ONLY_LAYER := 1 << 18
 ## Seconds between asking whether the room is real. Permissions are a JNI call.
 const REAL_CHECK_PERIOD := 1.0
 const BACKDROP_SHADER := preload("res://Shaders/gb_camera_passthrough.gdshader")
+## Loaded, never preloaded: see backdrop_material().
+const BACKDROP_DEPTH_SHADER := "res://Shaders/gb_camera_passthrough_depth.gdshader"
 ## How far the room is taken to be from the headset camera: a sphere it stays on
 ## while the cartridge moves, so holding the lens out toward it zooms in (half a
 ## meter nearer is half as much again). What is nearer or farther than this is
@@ -103,6 +105,8 @@ var _armed := false
 var _wait := 0.0
 var _feeding: Object = null
 var _backdrop: MeshInstance3D = null
+var _sphere_material: ShaderMaterial = null
+var _depth_material: ShaderMaterial = null
 var _holding_real := false
 var _real_check_wait := 0.0
 
@@ -190,8 +194,12 @@ func _hold_real(want: bool) -> void:
 		return
 	if want:
 		_holding_real = PassthroughCamera.acquire(self)
+		# Real surfaces where Meta's depth can run; the sphere where it cannot.
+		if _holding_real:
+			EnvironmentDepth.acquire(self)
 	else:
 		PassthroughCamera.release(self)
+		EnvironmentDepth.release(self)
 		_holding_real = false
 		if _backdrop != null:
 			_backdrop.visible = false
@@ -321,16 +329,32 @@ func _place_backdrop() -> void:
 		_backdrop.custom_aabb = AABB(Vector3.ONE * -1000.0, Vector3.ONE * 2000.0)
 		_backdrop.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		_backdrop.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
-		var material := ShaderMaterial.new()
-		material.shader = BACKDROP_SHADER
-		_backdrop.material_override = material
 		_camera.add_child(_backdrop)
-	var material := _backdrop.material_override as ShaderMaterial
+	var material := backdrop_material()
+	_backdrop.material_override = material
 	material.set_shader_parameter("feed", PassthroughCamera.texture())
 	material.set_shader_parameter("camera_from_world", Projection((pose as Transform3D).affine_inverse()))
 	material.set_shader_parameter("intrinsics", PassthroughCamera.intrinsics())
 	material.set_shader_parameter("radius", BACKDROP_RADIUS)
+	if material == _depth_material:
+		material.set_shader_parameter("tracking_from_world",
+			Projection(PassthroughCamera.tracking_from_world()))
 	_backdrop.visible = true
+
+
+## The depth backdrop while Meta's depth is running for this lens, the sphere one
+## otherwise. The depth shader names the plugin's globals and compiles only where
+## they exist, so it is loaded the first time depth is running, never before.
+func backdrop_material() -> ShaderMaterial:
+	if _holding_real and EnvironmentDepth.is_running():
+		if _depth_material == null:
+			_depth_material = ShaderMaterial.new()
+			_depth_material.shader = load(BACKDROP_DEPTH_SHADER) as Shader
+		return _depth_material
+	if _sphere_material == null:
+		_sphere_material = ShaderMaterial.new()
+		_sphere_material.shader = BACKDROP_SHADER
+	return _sphere_material
 
 
 func _rest_viewport() -> void:

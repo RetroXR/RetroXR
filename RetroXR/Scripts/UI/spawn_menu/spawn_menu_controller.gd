@@ -243,6 +243,7 @@ func _connect_menu_signals() -> void:
 	menu.options_view().aim_crosshair_changed.connect(_on_aim_crosshair_changed)
 	menu.options_view().locomotion_mode_changed.connect(_on_locomotion_mode_changed)
 	menu.options_view().passthrough_locomotion_changed.connect(_on_passthrough_locomotion_changed)
+	menu.options_view().passthrough_occlusion_changed.connect(_on_passthrough_occlusion_changed)
 	menu.options_view().xr_display_mode_changed.connect(_on_xr_display_mode_changed)
 	menu.options_view().controller_hands_changed.connect(_on_controller_hands_changed)
 	AppPrefs.mains_region_changed.connect(_on_mains_region_changed)
@@ -1489,6 +1490,15 @@ func _on_passthrough_locomotion_changed(_enabled: bool) -> void:
 	var scene := get_tree().current_scene
 	if scene != null and scene.has_method("refresh_locomotion"):
 		scene.call("refresh_locomotion")
+
+
+## Whether the real room hides what is behind it: handed to the standing room for
+## the locomotion switch's reason. PassthroughInit's RealRoom reads the pref itself
+## when passthrough comes up.
+func _on_passthrough_occlusion_changed(_enabled: bool) -> void:
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_method("refresh_occlusion"):
+		scene.call("refresh_occlusion")
 
 
 func _on_aim_crosshair_changed(enabled: bool) -> void:

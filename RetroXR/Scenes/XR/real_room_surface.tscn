@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://Scripts/XR/real_room_surface.gd" id="1_surface"]
+
+[node name="RealRoomSurface" type="StaticBody3D"]
+collision_mask = 0
+script = ExtResource("1_surface")

@@ -34,6 +34,14 @@ const RETRY_USEC := 5_000_000
 ## Turns a Camera2 optical frame (x right, y down, z out of the lens) into a
 ## Godot camera's (x right, y up, looking down -z): half a turn about x.
 const OPTICAL_TO_GODOT := Basis(Vector3(1, 0, 0), Vector3(0, -1, 0), Vector3(0, 0, -1))
+## The depth march (march_depth, and the shader that does it per pixel): from
+## just past the lens to the far side of a room, in steps that grow so they are
+## finest near, then narrowed this many times. 48 steps make ~9 cm at a meter,
+## and four halvings ~6 mm.
+const MARCH_NEAR := 0.05
+const MARCH_FAR := 4.0
+const MARCH_STEPS := 48
+const MARCH_REFINE := 4
 
 ## The plugin, or a stand-in. A suite supplies one.
 static var plugin_source := Callable()
@@ -42,6 +50,8 @@ static var plugin_source := Callable()
 static var head_source := Callable()
 ## Microseconds, as Time.get_ticks_usec(). A suite supplies one.
 static var clock_source := Callable()
+## The XROrigin3D's global transform. A suite supplies one.
+static var origin_source := Callable()
 
 static var _owners: Dictionary = {}
 static var _plugin: Object = null
@@ -252,6 +262,49 @@ static func surface_point(origin: Vector3, dir: Vector3, world_from_cam: Transfo
 		return null
 	var t := -b + sqrt(disc)
 	return origin + d * t if t > 0.0 else null
+
+
+## The world to the XR tracking space: the inverse of the XROrigin3D the head is
+## under. Meta's depth matrices take a point in the tracking space, which moves
+## with the origin when the player is moved. Identity off XR.
+static func tracking_from_world() -> Transform3D:
+	if origin_source.is_valid():
+		return (origin_source.call() as Transform3D).affine_inverse()
+	var tree := Engine.get_main_loop() as SceneTree
+	var camera := tree.root.get_camera_3d() if tree != null and tree.root != null else null
+	var origin := camera.get_parent() as XROrigin3D if camera != null else null
+	return origin.global_transform.affine_inverse() if origin != null else Transform3D.IDENTITY
+
+
+## Where a ray from `origin` along `dir` meets the real room as Meta's depth sees
+## it, or null when the depth says nothing along it (the caller falls back to
+## surface_point). `behind` takes a world point and answers 1 when it is behind
+## the measured surface, 0 in front of it, -1 where there is no depth. Steps grow
+## geometrically from MARCH_NEAR to MARCH_FAR, finer near the lens, and the first
+## step past the surface is narrowed by bisection. A step with no depth is passed
+## over, not given up at: a lens held out to the side starts its ray outside the
+## depth's view and only comes into it farther out. The depth backdrop shader's
+## steps (Shaders/gb_camera_passthrough_depth).
+static func march_depth(origin: Vector3, dir: Vector3, behind: Callable) -> Variant:
+	var d := dir.normalized()
+	var ratio := pow(MARCH_FAR / MARCH_NEAR, 1.0 / float(MARCH_STEPS))
+	var t_prev := 0.0
+	var t := MARCH_NEAR
+	for i in MARCH_STEPS:
+		var answer := int(behind.call(origin + d * t))
+		if answer == 1:
+			var lo := t_prev
+			var hi := t
+			for j in MARCH_REFINE:
+				var mid := (lo + hi) * 0.5
+				if int(behind.call(origin + d * mid)) == 1:
+					hi = mid
+				else:
+					lo = mid
+			return origin + d * hi
+		t_prev = t
+		t *= ratio
+	return null
 
 
 ## Back to nothing held and nothing known. For suites.

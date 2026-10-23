@@ -26,6 +26,8 @@ var _loco: LocomotionManager = null
 ## together, so flipping the switch from the menu can only move the player while
 ## they are really in passthrough.
 var _passthrough_on := false
+## The real room's colliders and occlusion, while passthrough is on.
+var _real_room: RealRoom = null
 
 
 func _ready() -> void:
@@ -62,6 +64,14 @@ func _enable_passthrough() -> void:
 	_passthrough_on = true
 	refresh_locomotion()
 
+	# The real room behind the passthrough: furniture to rest things on, and
+	# what hides what. Asks for the player's consent the first time.
+	if _real_room == null:
+		_real_room = RealRoom.new()
+		_real_room.name = "RealRoom"
+		add_child(_real_room)
+	_real_room.start()
+
 	print("PassthroughInit: passthrough enabled (blend_mode=%d)" % xr_interface.environment_blend_mode)
 
 
@@ -71,6 +81,9 @@ func _disable_passthrough() -> void:
 	# unable to move.
 	_passthrough_on = false
 	_block_locomotion(false)
+	if is_instance_valid(_real_room):
+		_real_room.queue_free()
+	_real_room = null
 
 	var xr_interface: XRInterface = XRServer.primary_interface
 	if not xr_interface:
@@ -85,6 +98,12 @@ func _disable_passthrough() -> void:
 
 func _exit_tree() -> void:
 	_disable_passthrough()
+
+
+## Re-read the occlusion pref. Called by the OPTIONS switch, as refresh_locomotion.
+func refresh_occlusion() -> void:
+	if is_instance_valid(_real_room):
+		_real_room.refresh_occlusion()
 
 
 ## Re-read the pref and block or release accordingly. Called by the OPTIONS switch,

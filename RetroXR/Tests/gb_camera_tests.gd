@@ -84,6 +84,28 @@ class FakeCameraPlugin:
 		return info
 
 
+## OpenXRMetaEnvironmentDepthExtension, as far as EnvironmentDepth asks.
+class FakeDepthExtension:
+	extends RefCounted
+	var started := false
+	var starts := 0
+	var stops := 0
+
+	func is_environment_depth_supported() -> bool:
+		return true
+
+	func is_environment_depth_started() -> bool:
+		return started
+
+	func start_environment_depth() -> void:
+		starts += 1
+		started = true
+
+	func stop_environment_depth() -> void:
+		stops += 1
+		started = false
+
+
 ## How an Android plugin answers for its Java methods: through has_java_method,
 ## never has_method.
 class FakeJniSingleton:
@@ -1211,6 +1233,32 @@ func _test_passthrough() -> void:
 	_ok(PassthroughCamera.surface_point(Vector3(0, 0, -3), Vector3.FORWARD, Transform3D.IDENTITY, 1.5) == null,
 		"passthrough/a lens past the room looking away meets nothing")
 
+	# Meta's depth: the ray is marched until it passes behind a measured surface.
+	var wall_at := func(z: float) -> Callable:
+		return func(p: Vector3) -> int: return 1 if p.z < z else 0
+	var hit: Variant = PassthroughCamera.march_depth(Vector3.ZERO, Vector3.FORWARD, wall_at.call(-0.3))
+	_ok(hit is Vector3 and absf((hit as Vector3).z + 0.3) < 0.01,
+		"passthrough/a hand 30 cm away is met where it is, within a centimeter", str(hit))
+	hit = PassthroughCamera.march_depth(Vector3.ZERO, Vector3.FORWARD, wall_at.call(-3.0))
+	_ok(hit is Vector3 and absf((hit as Vector3).z + 3.0) < 0.03, "passthrough/and the far wall at 3 m", str(hit))
+	_ok(PassthroughCamera.march_depth(Vector3.ZERO, Vector3.FORWARD, func(_p: Vector3) -> int: return -1) == null,
+		"passthrough/where depth says nothing, nothing is met: the sphere is used")
+	_ok(PassthroughCamera.march_depth(Vector3.ZERO, Vector3.FORWARD, func(_p: Vector3) -> int: return 0) == null,
+		"passthrough/nor past the end of the march")
+	var off_map := func(p: Vector3) -> int: return -1 if p.z < -0.5 else 0
+	_ok(PassthroughCamera.march_depth(Vector3.ZERO, Vector3.FORWARD, off_map) == null,
+		"passthrough/a ray that leaves the depth map before a surface falls back too")
+	var comes_into_view := func(p: Vector3) -> int:
+		return -1 if p.z > -0.2 else (1 if p.z < -0.6 else 0)
+	hit = PassthroughCamera.march_depth(Vector3.ZERO, Vector3.FORWARD, comes_into_view)
+	_ok(hit is Vector3 and absf((hit as Vector3).z + 0.6) < 0.02,
+		"passthrough/a ray that starts outside the depth's view still meets what it comes to", str(hit))
+	var origin_at := Transform3D(Basis(), Vector3(2, 0, 1))
+	PassthroughCamera.origin_source = func() -> Transform3D: return origin_at
+	_ok((PassthroughCamera.tracking_from_world() * Vector3(2, 0, 1)).is_zero_approx(),
+		"passthrough/the depth's tracking space is the origin's")
+	PassthroughCamera.origin_source = Callable()
+
 	# A square sensor, a 4:3 capture: the frame is the sensor's middle rows.
 	var info := {
 		"intrinsics": PackedFloat32Array([640, 640, 640, 640, 0]),
@@ -1321,9 +1369,33 @@ func _test_passthrough() -> void:
 	machine.is_powered_on = true
 	eye._process(0.0)
 	_ok(eye.is_filming_real() and plugin.starts == 4, "passthrough/switched on again in a real room, it is asked for at once")
+	_ok(not EnvironmentDepth.is_held() and eye.backdrop_material().shader == GbCameraEye.BACKDROP_SHADER,
+		"passthrough/with no depth on this headset, the room is the sphere")
+
+	# Where depth runs, the lens holds it along with the camera.
+	var depth := FakeDepthExtension.new()
+	EnvironmentDepth.extension_source = func() -> Object: return depth
+	EnvironmentDepth.available_source = func() -> bool: return false
+	SpatialPermission.granted_source = func() -> PackedStringArray:
+		return PackedStringArray(["com.oculus.permission.USE_SCENE"])
+	machine.is_powered_on = false
+	eye._process(0.0)
+	machine.is_powered_on = true
+	eye._process(0.0)
+	_ok(EnvironmentDepth.is_held() and depth.starts == 1, "passthrough/given depth, the lens starts it with the camera")
+	_ok(eye.backdrop_material().shader == GbCameraEye.BACKDROP_SHADER,
+		"passthrough/but stays on the sphere until a depth frame has come")
+	machine.is_powered_on = false
+	eye._process(0.0)
+	_ok(not EnvironmentDepth.is_held() and depth.stops == 1, "passthrough/and lets it go with the camera")
+	machine.is_powered_on = true
+	eye._process(0.0)
 	body.queue_free()
 	await get_tree().process_frame
-	_ok(not PassthroughCamera.is_held() and plugin.stops == 3, "passthrough/a lens taken out of the room lets it go")
+	_ok(not PassthroughCamera.is_held() and not EnvironmentDepth.is_held() and depth.stops == 2,
+		"passthrough/a lens taken out of the room lets both go")
+	EnvironmentDepth.reset()
+	SpatialPermission.reset()
 
 	PassthroughCamera.reset()
 	PassthroughCamera.plugin_source = Callable()

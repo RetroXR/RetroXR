@@ -28,6 +28,7 @@ signal locomotion_mode_changed(teleport: bool)
 ## Whether the sticks keep working while passthrough is on. Only the passthrough
 ## room can act on it, so the controller hands it to whatever room is standing.
 signal passthrough_locomotion_changed(enabled: bool)
+signal passthrough_occlusion_changed(enabled: bool)
 signal xr_display_mode_changed(mode: int)
 signal controller_hands_changed(enabled: bool)
 ## The system filter was toggled — the CORES download list is built from it.
@@ -545,6 +546,27 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 				AppPrefs.passthrough_locomotion = on
 				AppPrefs.save_prefs()
 				passthrough_locomotion_changed.emit(on)
+		))
+
+		# Whether the real room hides what is behind it (RealRoom's occlusion,
+		# from Meta's depth). Inert where there is no depth, for Move's reason.
+		var occ_row := HBoxContainer.new()
+		occ_row.add_theme_constant_override("separation", 10)
+		occ_row.custom_minimum_size = Vector2(0, 68)
+		vbox.add_child(occ_row)
+
+		var occ_lbl := Label.new()
+		occ_lbl.text = "Real Objects Hide Virtual"
+		occ_lbl.add_theme_font_size_override("font_size", 22)
+		occ_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+		occ_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		occ_row.add_child(occ_lbl)
+
+		occ_row.add_child(VRToggle.create(AppPrefs.passthrough_occlusion,
+			func(on: bool) -> void:
+				AppPrefs.passthrough_occlusion = on
+				AppPrefs.save_prefs()
+				passthrough_occlusion_changed.emit(on)
 		))
 
 		var fpt_row := HBoxContainer.new()

@@ -94,6 +94,10 @@ var locomotion_teleport: bool = false
 ## the size of the one you are furnishing, so walking alone is not enough to reach
 ## everything and the default is to leave locomotion working.
 var passthrough_locomotion: bool = true
+## Whether, in passthrough, the real room hides what is behind it: a hand in front
+## of a console covers it (RealRoom, from Meta's depth). On by default; edges are
+## ragged and it costs the GPU something, so it can be switched off.
+var passthrough_occlusion: bool = true
 ## Whether VR focus mode shows the real room through passthrough around its screen
 ## instead of black. Falls back to black where passthrough is unavailable.
 var focus_passthrough: bool = false
@@ -302,6 +306,7 @@ func _load_prefs() -> void:
 	microphone_device = JsonStore.get_string(data, "microphone_device", microphone_device)
 	locomotion_teleport = JsonStore.get_bool(data, "locomotion_teleport", locomotion_teleport)
 	passthrough_locomotion = JsonStore.get_bool(data, "passthrough_locomotion", passthrough_locomotion)
+	passthrough_occlusion = JsonStore.get_bool(data, "passthrough_occlusion", passthrough_occlusion)
 	focus_passthrough = JsonStore.get_bool(data, "focus_passthrough", focus_passthrough)
 	hidden_systems      = PackedStringArray()
 	for hidden: String in JsonStore.get_strings(data, "hidden_systems"):
@@ -338,6 +343,7 @@ func save_prefs() -> bool:
 		"microphone_device": microphone_device,
 		"locomotion_teleport": locomotion_teleport,
 		"passthrough_locomotion": passthrough_locomotion,
+		"passthrough_occlusion": passthrough_occlusion,
 		"focus_passthrough": focus_passthrough,
 		"hidden_systems":    hidden_systems,
 		"show_hidden_systems": show_hidden_systems,
