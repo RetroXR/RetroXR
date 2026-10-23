@@ -238,6 +238,22 @@ static func project(world_point: Vector3, world_from_cam: Transform3D, k: Vector
 	return Vector2(k.x * p.x / z + k.z, k.y * -p.y / z + k.w)
 
 
+## Where a ray from `origin` along `dir` (world) meets the room, taken to be a
+## sphere of `radius` round the headset camera at `world_from_cam`; null when it
+## meets it nowhere ahead. The sphere stays where the head put it, so a lens held
+## out toward it covers less of it: the picture zooms as the cartridge is moved
+## away from the face. The backdrop shader's steps.
+static func surface_point(origin: Vector3, dir: Vector3, world_from_cam: Transform3D, radius: float) -> Variant:
+	var o := origin - world_from_cam.origin
+	var d := dir.normalized()
+	var b := o.dot(d)
+	var disc := b * b - (o.dot(o) - radius * radius)
+	if disc < 0.0:
+		return null
+	var t := -b + sqrt(disc)
+	return origin + d * t if t > 0.0 else null
+
+
 ## Back to nothing held and nothing known. For suites.
 static func reset() -> void:
 	for id: int in _owners.keys():

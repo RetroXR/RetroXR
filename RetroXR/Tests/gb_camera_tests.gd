@@ -1195,6 +1195,22 @@ func _test_passthrough() -> void:
 	_ok(PassthroughCamera.project(Vector3(-1, 0, 0), turned, k).is_equal_approx(Vector2(0.5, 0.5)),
 		"passthrough/and the camera's pose in the world is undone first")
 
+	# The room is a sphere round the headset camera, and stays put while the lens moves.
+	var at_eye: Variant = PassthroughCamera.surface_point(Vector3.ZERO, Vector3.FORWARD, Transform3D.IDENTITY, 1.5)
+	_ok(at_eye is Vector3 and (at_eye as Vector3).is_equal_approx(Vector3(0, 0, -1.5)),
+		"passthrough/a lens at the headset camera meets the room the radius away", str(at_eye))
+	var held_out: Variant = PassthroughCamera.surface_point(Vector3(0, 0, -0.5), Vector3.FORWARD, Transform3D.IDENTITY, 1.5)
+	_ok(held_out is Vector3 and (held_out as Vector3).is_equal_approx(Vector3(0, 0, -1.5)),
+		"passthrough/held out half a meter, straight ahead is the same spot of the room", str(held_out))
+	var slant := Vector3(0.2, 0, -1).normalized()
+	var near_uv := PassthroughCamera.project(PassthroughCamera.surface_point(Vector3.ZERO, slant, Transform3D.IDENTITY, 1.5), Transform3D.IDENTITY, k)
+	var far_uv := PassthroughCamera.project(PassthroughCamera.surface_point(Vector3(0, 0, -0.5), slant, Transform3D.IDENTITY, 1.5), Transform3D.IDENTITY, k)
+	_ok(far_uv.x > 0.5 and far_uv.x - 0.5 < (near_uv.x - 0.5) * 0.75,
+		"passthrough/but a ray off the axis lands nearer the middle of the frame: held out, the lens zooms in",
+		"%.3f at the face, %.3f held out" % [near_uv.x, far_uv.x])
+	_ok(PassthroughCamera.surface_point(Vector3(0, 0, -3), Vector3.FORWARD, Transform3D.IDENTITY, 1.5) == null,
+		"passthrough/a lens past the room looking away meets nothing")
+
 	# A square sensor, a 4:3 capture: the frame is the sensor's middle rows.
 	var info := {
 		"intrinsics": PackedFloat32Array([640, 640, 640, 640, 0]),

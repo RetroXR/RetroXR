@@ -75,9 +75,11 @@ const LENS_ONLY_LAYER := 1 << 18
 ## Seconds between asking whether the room is real. Permissions are a JNI call.
 const REAL_CHECK_PERIOD := 1.0
 const BACKDROP_SHADER := preload("res://Shaders/gb_camera_passthrough.gdshader")
-## How far the backdrop is taken to be. The headset camera is a few centimeters
-## from the lens, so what is nearer or farther than this is drawn a little off.
-const BACKDROP_DISTANCE := 1.5
+## How far the room is taken to be from the headset camera: a sphere it stays on
+## while the cartridge moves, so holding the lens out toward it zooms in (half a
+## meter nearer is half as much again). What is nearer or farther than this is
+## drawn a little off, the more so the farther the lens is from the face.
+const BACKDROP_RADIUS := 1.5
 
 ## The machine whose own slot holds the cartridge, or null. A suite supplies one.
 var machine_source := Callable()
@@ -327,7 +329,7 @@ func _place_backdrop() -> void:
 	material.set_shader_parameter("feed", PassthroughCamera.texture())
 	material.set_shader_parameter("camera_from_world", Projection((pose as Transform3D).affine_inverse()))
 	material.set_shader_parameter("intrinsics", PassthroughCamera.intrinsics())
-	material.set_shader_parameter("distance", BACKDROP_DISTANCE)
+	material.set_shader_parameter("radius", BACKDROP_RADIUS)
 	_backdrop.visible = true
 
 

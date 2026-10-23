@@ -2,9 +2,13 @@
 //
 // A quad under the lens's Camera3D (GbCameraEye) that covers its whole view at
 // the far end of the depth range, so everything in the scene draws over it. Each
-// pixel's ray out of the lens is followed to DISTANCE and that point looked up in
-// the headset camera's latest frame (PassthroughCamera.project, the same steps).
-// What the headset camera did not see is black.
+// pixel's ray out of the lens is followed to where it meets a sphere of RADIUS
+// round the headset camera -- the room, taken to be that far from the face --
+// and that point looked up in the headset camera's latest frame
+// (PassthroughCamera.surface_point and project, the same steps). The sphere stays
+// put while the cartridge moves, so a lens held out toward the room sees less of
+// it, larger: it zooms the way a camera walked toward a wall does. What the
+// headset camera did not see is black.
 //
 // Only the lens draws it. Its camera leaves out one layer no other camera does
 // (GbCameraEye.LENS_ONLY_LAYER), and every other camera -- the player's own eyes
@@ -24,7 +28,8 @@ uniform sampler2D feed : filter_linear, repeat_disable;
 uniform mat4 camera_from_world;
 // fu, fv, cu, cv: x/z and y/z to 0..1 UVs, v down (PassthroughCamera.intrinsics).
 uniform vec4 intrinsics;
-uniform float distance = 1.5;
+// How far the room is taken to be from the headset camera, in meters.
+uniform float radius = 1.5;
 
 varying vec2 ndc;
 
@@ -41,11 +46,17 @@ void vertex() {
 void fragment() {
 	vec4 on_ray = INV_PROJECTION_MATRIX * vec4(ndc, 1.0, 1.0);
 	vec3 dir = normalize((INV_VIEW_MATRIX * vec4(on_ray.xyz / on_ray.w, 0.0)).xyz);
-	vec3 point = INV_VIEW_MATRIX[3].xyz + dir * distance;
-	vec3 p = (camera_from_world * vec4(point, 1.0)).xyz;
+	// In the headset camera's space, where the sphere is centered: o + t d.
+	vec3 o = (camera_from_world * vec4(INV_VIEW_MATRIX[3].xyz, 1.0)).xyz;
+	vec3 d = mat3(camera_from_world) * dir;
+	float b = dot(o, d);
+	float disc = b * b - (dot(o, o) - radius * radius);
 	vec3 color = vec3(0.0);
+	// The far crossing: the lens is inside the sphere, a reach from the face.
+	float t = disc >= 0.0 ? -b + sqrt(disc) : -1.0;
+	vec3 p = o + d * t;
 	float z = -p.z;
-	if (z > 0.0001) {
+	if (t > 0.0 && z > 0.0001) {
 		vec2 uv = vec2(intrinsics.x * p.x / z + intrinsics.z, intrinsics.y * -p.y / z + intrinsics.w);
 		if (uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0) {
 			float l = texture(feed, uv).r;
