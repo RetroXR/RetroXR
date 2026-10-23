@@ -561,6 +561,11 @@ func _ready() -> void:
 	set_physics_process(false)
 
 
+## The colours of a cabinet's power SWITCH (power_is_switch): lit green when on, a dark red when off.
+const POWER_SWITCH_ON := Color(0.15, 1.0, 0.35)
+const POWER_SWITCH_OFF := Color(0.45, 0.04, 0.04)
+
+
 ## The power button always reflects run state: green START when off, red STOP
 ## while running. Owned here (not per-model) so bespoke models that override
 ## on_power_on/off for their own visuals — the Virtual Boy's eyepiece shader —
@@ -571,11 +576,22 @@ func _update_power_button_visual() -> void:
 	# Only the generic placeholder cap gets the green/red START/STOP tint; a
 	# modelled button (set_button_mesh) keeps its own material.
 	var lit := is_powered_on or attracting
+	# A cabinet that shows its game when it is switched on (attract) has a SWITCH, not a start button: it
+	# stays down while on, reads ON / OFF and is lit green when on, so a row of cabinets says at a glance
+	# which are on. Everything else keeps the green START / red STOP.
+	var as_switch := power_is_switch()
+	_power_button.set_latched_pressed(as_switch and lit)
 	if _power_button.state_tint:
-		_power_button.set_color(Color(1.0, 0.0, 0.0) if lit else Color(0.0, 1.0, 0.0))
+		if as_switch:
+			_power_button.set_color(POWER_SWITCH_ON if lit else POWER_SWITCH_OFF)
+		else:
+			_power_button.set_color(Color(1.0, 0.0, 0.0) if lit else Color(0.0, 1.0, 0.0))
 	var lbl := _power_button.get_node_or_null("ButtonLabel") as Label3D
 	if lbl:
-		lbl.text = "STOP" if lit else "START"
+		if as_switch:
+			lbl.text = "ON" if lit else "OFF"
+		else:
+			lbl.text = "STOP" if lit else "START"
 
 
 ## What this machine calls itself — the scene's own label, else the systemname
@@ -2142,6 +2158,7 @@ func set_attract_override(mode: int) -> void:
 		power_off()
 		power_on()
 	request_attract_media()
+	_update_power_button_visual()
 
 
 ## Toggle floating: on = freeze right where it is (or where it's next dropped);
@@ -2424,6 +2441,46 @@ func attract_applies() -> bool:
 ## need each other to compile).
 func _is_cabinet_model() -> bool:
 	return _model != null and _model.has_method("attract_picture_active")
+
+
+## Is the power button a SWITCH? An arcade cabinet that would show its game when switched on (attract_applies):
+## the button is a latched ON / OFF and its state is saved in the room (`attract_on`).
+func power_is_switch() -> bool:
+	return attract_applies()
+
+
+## What a room should remember of this cabinet's switch: it is on, whether it is only showing its game or a
+## player has started it. Only for a cabinet whose button is a switch.
+func attract_switched_on() -> bool:
+	return power_is_switch() and (attracting or is_powered_on)
+
+
+## A saved room had this cabinet switched on: it comes on again as soon as its board is in (the board can
+## arrive after this cabinet's own entry, from its bay's). begin_ marks it, the board's arrival tries it,
+## and finish_ (the end of the restore) gives up on a cabinet that never got one.
+var _attract_restore := false
+
+
+func begin_attract_restore() -> void:
+	_attract_restore = true
+
+
+func finish_attract_restore() -> void:
+	_try_attract_restore()
+	_attract_restore = false
+
+
+func _try_attract_restore() -> void:
+	if not _attract_restore or attracting or is_powered_on or not attract_applies():
+		return
+	_attract_restore = false
+	power_on()
+
+
+## The option, the cabinet's own override or a board coming or going decides whether the button is a
+## switch: redraw it (the Options toggle reaches every machine through the `spawned` group).
+func refresh_power_switch() -> void:
+	_update_power_button_visual()
 
 
 func _enter_attract() -> void:
@@ -5880,6 +5937,10 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 	if _model != null and _model.has_method("on_media_inserted"):
 		_model.call("on_media_inserted", cartridge)
 	request_attract_media()
+	# With a game in, the button of a cabinet that attracts becomes its switch; a restored room's cabinet
+	# that was left on comes on now.
+	_update_power_button_visual()
+	_try_attract_restore()
 	# A push-tray bay already slid the cart home when it was laid in — this moment
 	# is the tray latching, which moves nothing.
 	if not _model.has_push_tray():
@@ -5952,6 +6013,7 @@ func _on_cartridge_removed() -> void:
 	if is_powered_on or attracting:
 		power_off()
 	rom_path = ""
+	_update_power_button_visual()
 	NetworkManager.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": self})
 
 

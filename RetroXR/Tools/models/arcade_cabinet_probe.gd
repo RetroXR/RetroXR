@@ -267,6 +267,30 @@ func _shot_panel() -> void:
 	await _save("panel")
 
 
+## The power button as a latched ON / OFF switch (attract on, a game in the bay): off, then on. switch_off.png, switch_on.png.
+func _shot_switch() -> void:
+	AppPrefs.arcade_attract_mode = true
+	_model.set_lid_angle_deg(90.0)
+	var cart := CART_SCENE.instantiate() as Node3D
+	cart.systemid = _systemid
+	cart.rom_path = "/tmp/sf2.zip"
+	cart.freeze = true
+	cart.position = Vector3(0, 3, 0)
+	add_child(cart)
+	await _frames(8)
+	(_sys as RetroSystem).get_bay().slot.pick_up_object(cart)
+	await _frames(8)
+	var button := (_sys as RetroSystem).get_node("PowerButton") as Node3D
+	var at := button.global_position
+	_look(at + Vector3(0.0, 0.18, 0.28), at)
+	await _save("switch_off")
+	(_sys as RetroSystem).toggle_power()
+	await _frames(6)
+	await _save("switch_on")
+	(_sys as RetroSystem).toggle_power()
+	AppPrefs.arcade_attract_mode = false
+
+
 func _shot_bay() -> void:
 	_model.set_lid_angle_deg(90.0)
 	var cart := CART_SCENE.instantiate() as Node3D

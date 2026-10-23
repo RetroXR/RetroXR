@@ -57,7 +57,7 @@ const _NUMBER_FIELDS := [
 	"cord_length",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
-	"locked", "hardback", "cabinet_art",
+	"locked", "hardback", "cabinet_art", "attract_on",
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
 	"shell_flake"]
 const _REFERENCE_FIELDS := [
@@ -1549,6 +1549,10 @@ func _still_ours(root: Variant, generation: int) -> bool:
 
 
 func _report_restored(spawned: Dictionary) -> void:
+	# A cabinet left switched on comes on once its board is in; one whose board never came stays off.
+	for id: int in spawned:
+		if is_instance_valid(spawned[id]) and spawned[id] is RetroSystem:
+			(spawned[id] as RetroSystem).finish_attract_restore()
 	if spawned.size() > 0:
 		print("[ScenePersistence] instantiated %d objects" % spawned.size())
 
@@ -2080,6 +2084,10 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	# A cabinet that was told to attract or not to; omitted while it follows the global pref.
 	if sys.attract_override != ArcadeAttract.OVERRIDE_FOLLOW:
 		result["attract"] = sys.attract_override
+	# A cabinet whose power button is a switch, left ON: it is found on again when the room loads.
+	# Omitted while it is off, so no room without a switched-on cabinet changes.
+	if sys.attract_switched_on():
+		result["attract_on"] = true
 	# A cabinet playing from a separate bay: the board is the BAY's (its entry names it), and the
 	# bay is recorded here when it is clipped into the mount. A cabled one is the lead's.
 	var bay := sys.get_bay()
@@ -2989,6 +2997,8 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				sys.cabinet_art_enabled = bool(data.get("cabinet_art", true))
 				sys.attract_override = clampi(int(data.get("attract", ArcadeAttract.OVERRIDE_FOLLOW)),
 					ArcadeAttract.OVERRIDE_FOLLOW, ArcadeAttract.OVERRIDE_OFF)
+				if bool(data.get("attract_on", false)):
+					sys.begin_attract_restore()
 				sys.console_memory_id = str(data.get("console_memory", ""))
 				# Before the caller adds it to the tree, like the fields above:
 				# _build_expansion_hardware runs from _ready and seeds a bay's
