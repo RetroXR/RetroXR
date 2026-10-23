@@ -28,6 +28,7 @@ const ROW := {
 	"seat_y": DECK_Y,
 	"loader": MediaDimensions.LOADER_SLOT,
 	"shell": SHELL,
+	"cover_socket": COVER_SOCKET,
 }
 
 ## The drive's deck, where the N64's feet rest: 31.7 mm above its middle, 7.6 mm
@@ -37,6 +38,10 @@ const ROW := {
 ## the rim of its recess there, the other feet are 0.4 to 1.9 mm over theirs, and
 ## the pins go up into the N64's feet as on the real pair.
 const DECK_Y := 0.03174
+
+## The opening in the N64's floor the drive's EXT plug goes up into. It has a
+## cover of its own, and the console only stands on the drive once it is off.
+const COVER_SOCKET := "n64_ext"
 
 const SHELL := "res://imported-assets/consoles/nintendo_64dd/n64dd_drive.glb"
 ## RetroXR-models' disk (nintendo/n64/64dd-disk), its debranded first mobile

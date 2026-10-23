@@ -3372,6 +3372,7 @@ func _build_expansion_hardware() -> void:
 			_seed_expansion_cover()
 
 	_build_unit_sockets(aabb, span)
+	_build_cover_sockets()
 
 	if ExpansionCatalog.host_stands_on_unit(systemid) \
 			and get_node_or_null("ExpansionFoot") == null:
@@ -3474,6 +3475,49 @@ func _build_unit_sockets(aabb: AABB, span: Vector2) -> void:
 		# must not put a fresh one back. A restore's covers are the save's.
 		if not _restoring_from_save:
 			_seed_port_cover(socket_id)
+
+
+## The covered openings in the console's floor that a unit it stands on fills
+## (ExpansionCatalog's `cover_socket`: the N64's EXT, a Super NES's EXT). The
+## model builds the cover's slot where its shell has the cover; a model with none
+## builds nothing, and the console stands on the unit as it always did.
+func _build_cover_sockets() -> void:
+	for socket_id: String in ExpansionCatalog.cover_sockets_for_host(systemid):
+		if _model.port_cover_slot(socket_id) != null:
+			continue
+		_model.configure_cover_socket(socket_id)
+		if _model.port_cover_slot(socket_id) != null and not _restoring_from_save:
+			_seed_port_cover(socket_id)
+
+
+## True while the cover over `socket_id` is in its slot on this console. False
+## for an opening this console's model does not cover.
+func port_cover_on(socket_id: String) -> bool:
+	if socket_id.is_empty() or _model == null:
+		return false
+	var zone := _model.port_cover_slot(socket_id)
+	return zone != null and zone.has_snapped_object()
+
+
+## Shut a floor opening's cover slot while this console stands on the unit that
+## fills it, and open it again when the console is lifted off. A cover still in
+## the slot when the console is joined -- a room saved before covers, whose
+## restore seeded one under a console already standing on its drive -- is taken
+## out and laid beside the console: on the real pair it could not be there.
+func block_port_cover(socket_id: String, blocked: bool) -> void:
+	if socket_id.is_empty() or _model == null:
+		return
+	var zone := _model.port_cover_slot(socket_id)
+	if zone == null:
+		return
+	if blocked and zone.has_snapped_object():
+		var cover := zone.picked_up_object as Node3D
+		zone.drop_object()
+		if is_instance_valid(cover):
+			var aside := body_aabb()
+			cover.global_position = global_transform * Vector3(
+				aside.end.x + 0.04, aside.position.y + 0.01, aside.get_center().z)
+	_model.block_port_cover(socket_id, blocked)
 
 
 ## Puts the covers on a console's own unit sockets, for a model whose shell has

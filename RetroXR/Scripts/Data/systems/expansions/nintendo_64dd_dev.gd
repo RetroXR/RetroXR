@@ -18,6 +18,7 @@ const ROW := {
 	"seat_y": _RETAIL.DECK_Y,
 	"loader": MediaDimensions.LOADER_SLOT,
 	"shell": _RETAIL.SHELL,
+	"cover_socket": _RETAIL.COVER_SOCKET,
 	"shell_albedo": "res://imported-assets/consoles/nintendo_64dd/n64dd_drive_color_dev.png",
 }
 

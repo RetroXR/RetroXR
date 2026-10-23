@@ -106,6 +106,14 @@
 ##               4 for the GameCube's Broadband Adapter, 1 for the PS2's Network
 ##               Adapter. The unit grows an EthernetPort; EthernetBus walks from it
 ##               to the console it is seated on. Absent, no socket.
+##   cover_socket
+##               for a MOUNT_BELOW unit, the opening in the console's floor its plug
+##               goes up into, when the console's model covers that opening
+##               (RetroSystemModel.configure_cover_socket): "n64_ext" under the N64,
+##               "snes_ext" under a Super NES. The cover is a PortCover in the
+##               console's slot for that id; the unit takes no console whose cover
+##               is on, and the slot is shut while the console stands on the unit.
+##               Absent, the console stands on the unit as it always did.
 ##   jack        for a unit with an `ethernet_port` whose shell has its jack modelled:
 ##               the socket's frame in the unit's frame, its +Z out of the jack's
 ##               mouth (where a plug arrives from) and its +Y the side the plug's
@@ -315,6 +323,9 @@ const _SHELL_FIELDS := {
 	"shell": TYPE_STRING, "size": TYPE_VECTOR3, "shell_lods": TYPE_ARRAY,
 	"connector": TYPE_VECTOR3, "swipe_slit": TYPE_TRANSFORM3D, "seat_yaw": TYPE_FLOAT,
 	"shell_offset": TYPE_VECTOR3, "jack": TYPE_TRANSFORM3D,
+	# Where a console standing on the unit rests, for a shell whose deck is not
+	# its top: the Super Famicom sinks 19 mm into the Satellaview's tray.
+	"seat_y": TYPE_FLOAT,
 }
 
 ## unit id -> {owner, fields, variants: {variant id -> fields}}.
@@ -409,7 +420,7 @@ static func _check_shell_fields(fields: Dictionary, checked: Dictionary) -> Stri
 		if not _SHELL_FIELDS.has(key):
 			return "'%s' is not something a shell can set (%s)" % [key, ", ".join(_SHELL_FIELDS.keys())]
 		var value: Variant = fields[key]
-		if key == "seat_yaw" and value is int:
+		if (key == "seat_yaw" or key == "seat_y") and value is int:
 			value = float(value)
 		if typeof(value) != _SHELL_FIELDS[key]:
 			return "%s is the wrong type" % key
@@ -928,6 +939,23 @@ static func socket_size(host: String, socket: String) -> Vector3:
 	for id: String in ids_for_host(host):
 		if socket_of(id) == socket:
 			out = out.max(size_of(id))
+	return out
+
+
+## The opening in its console's floor a MOUNT_BELOW unit plugs into (the row's
+## `cover_socket`), or "" for a unit that names none.
+static func cover_socket_of(id: String) -> String:
+	return str(row(id).get("cover_socket", ""))
+
+
+## The covered openings in this console's floor that a unit it stands on fills,
+## in ROWS order and each once.
+static func cover_sockets_for_host(host: String) -> Array[String]:
+	var out: Array[String] = []
+	for id: String in ids_for_host(host):
+		var socket := cover_socket_of(id)
+		if mount_of(id) == MOUNT_BELOW and not socket.is_empty() and not out.has(socket):
+			out.append(socket)
 	return out
 
 

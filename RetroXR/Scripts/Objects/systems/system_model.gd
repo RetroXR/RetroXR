@@ -798,6 +798,9 @@ const _PORT_COVER_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/sna
 ## unit socket id -> the slot its cover goes back into, and how big that cover is.
 var _port_cover_slots: Dictionary = {}
 var _port_cover_sizes: Dictionary = {}
+## Covered openings shut from outside: the console is standing on the unit that
+## fills one (RetroSystem.block_port_cover), so its cover cannot go back.
+var _port_cover_blocked: Dictionary = {}
 
 
 ## Put a cover over one of the console's own unit sockets (ExpansionCatalog's
@@ -828,6 +831,12 @@ func build_port_cover_slot(socket_id: String, socket: XRToolsSnapZone, seat: Tra
 	zone.transform = seat
 	_port_cover_slots[socket_id] = zone
 	_port_cover_sizes[socket_id] = size
+	# A null socket is an opening in the console's floor that a unit it stands
+	# on fills (configure_cover_socket): there the unit asks the slot, and the
+	# slot is shut by block_port_cover while the console stands on it.
+	if socket == null:
+		_gate_port_cover(socket_id, null)
+		return zone
 	var gate := _gate_port_cover.bind(socket_id, socket)
 	zone.has_picked_up.connect(gate.unbind(1))
 	zone.has_dropped.connect(gate)
@@ -835,6 +844,22 @@ func build_port_cover_slot(socket_id: String, socket: XRToolsSnapZone, seat: Tra
 	socket.has_dropped.connect(gate)
 	gate.call()
 	return zone
+
+
+## Cover one of the openings in the console's floor that a unit it stands on
+## plugs into (ExpansionCatalog's row `cover_socket`: the N64's EXT under the
+## 64DD, a Super NES's EXT under the Satellaview). A model whose shell has that
+## cover calls build_port_cover_slot(socket_id, null, seat, size) here; the
+## default has none, and the console stands on the unit as it always did.
+func configure_cover_socket(_socket_id: String) -> void:
+	pass
+
+
+## Shut or open a floor opening's cover slot from outside: shut while the console
+## stands on the unit that fills the opening.
+func block_port_cover(socket_id: String, blocked: bool) -> void:
+	_port_cover_blocked[socket_id] = blocked
+	_gate_port_cover(socket_id, null)
 
 
 ## The slot a unit socket's cover goes into, or null for a socket with no cover
@@ -860,7 +885,12 @@ func port_cover_size(socket_id: String) -> Vector3:
 
 func _gate_port_cover(socket_id: String, socket: XRToolsSnapZone) -> void:
 	var zone := port_cover_slot(socket_id)
-	if zone == null or not is_instance_valid(socket):
+	if zone == null:
+		return
+	if socket == null:
+		zone.enabled = not bool(_port_cover_blocked.get(socket_id, false))
+		return
+	if not is_instance_valid(socket):
 		return
 	socket.enabled = not zone.has_snapped_object()
 	zone.enabled = not socket.has_snapped_object()

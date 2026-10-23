@@ -564,6 +564,10 @@ func _accepts_host(obj: Node3D) -> bool:
 	var sys := obj as RetroSystem
 	if sys == null:
 		return false
+	# The opening our plug goes up into is shut while its cover is on, as on the
+	# real console: the cover has to come off before the console stands on us.
+	if sys.port_cover_on(ExpansionCatalog.cover_socket_of(expansion_id)):
+		return false
 	return sys.systemid == ExpansionCatalog.host_of(expansion_id)
 
 
@@ -590,6 +594,9 @@ func _bind_host(sys: RetroSystem) -> void:
 	add_collision_exception_with(sys)
 	_except_accessory_from(sys, true)
 	sys.attach_expansion(self)
+	# Our plug fills the opening its cover came off: the cover cannot go back
+	# while the console stands on us.
+	sys.block_port_cover(ExpansionCatalog.cover_socket_of(expansion_id), true)
 	_update_label()
 	host_changed.emit(sys)
 
@@ -603,6 +610,7 @@ func _unbind_host() -> void:
 		remove_collision_exception_with(was)
 		_except_accessory_from(was, false)
 		was.detach_expansion(self)
+		was.block_port_cover(ExpansionCatalog.cover_socket_of(expansion_id), false)
 	_update_label()
 	host_changed.emit(null)
 
