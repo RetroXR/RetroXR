@@ -103,8 +103,10 @@ func _build_ui() -> void:
 	)
 	hard_row.add_child(_hardback_check)
 
-	# Size slider row: [label + value] then a full-width slider under it.
-	var size_row := MenuStyle.slider_row(rows, "Book size", 0.5, 2.5, 0.05, 70, 18, 48)
+	# Size slider row: [label + value] then a full-width slider under it. The
+	# value reads the factor and, once the book says (show_size), a page in cm.
+	var size_row := MenuStyle.slider_row(rows, "Book size",
+		PDFBook.SIZE_MIN, PDFBook.SIZE_MAX, 0.05, 240, 18, 48)
 	_size_slider = size_row[0]
 	_size_val = size_row[1]
 	_size_slider.value = 1.0
@@ -136,6 +138,12 @@ func populate(half_pages: bool, size_scale := 1.0, hardback := false) -> void:
 		_size_slider.value = size_scale
 		_size_val.text = "%.2f×" % size_scale
 	_suppress_signal = false
+
+
+## Show the size factor with one page's size, `page` in metres (width, height).
+func show_size(size_scale: float, page: Vector2) -> void:
+	if _size_val:
+		_size_val.text = "%.2f×  ·  %.1f × %.1f cm" % [size_scale, page.x * 100.0, page.y * 100.0]
 
 
 ## Drive the active scroll container from an external stick input.

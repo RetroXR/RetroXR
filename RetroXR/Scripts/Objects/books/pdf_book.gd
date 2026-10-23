@@ -4,6 +4,13 @@
 class_name PDFBook
 extends XRToolsPickable
 
+## The book's page size changed: a resize, or a (re)load with new pages.
+signal dimensions_changed
+
+## Bounds of size_scale, shared with the settings slider.
+const SIZE_MIN := 0.1
+const SIZE_MAX := 2.5
+
 ## Path to the PDF file to display.
 @export_global_file("*.pdf") var pdf_path: String = "":
 	set(value):
@@ -29,9 +36,9 @@ extends XRToolsPickable
 
 ## Uniform size multiplier (aspect ratio always preserved). Driven live by the
 ## settings-panel slider; also restored from saves and synced in multiplayer.
-@export_range(0.5, 2.5) var size_scale: float = 1.0:
+@export_range(0.1, 2.5) var size_scale: float = 1.0:
 	set(value):
-		size_scale = clampf(value, 0.5, 2.5)
+		size_scale = clampf(value, SIZE_MIN, SIZE_MAX)
 		if not _loading and is_inside_tree() and _page_count > 0:
 			_apply_dimensions()
 
@@ -568,6 +575,12 @@ func _apply_dimensions() -> void:
 	_set_state(_state)
 	if _net_status_label:
 		_net_status_label.position = Vector3(0, book_height * 0.8 + 0.05, 0)
+	dimensions_changed.emit()
+
+
+## One page's size in metres (width, height), as the book stands now.
+func page_size() -> Vector2:
+	return Vector2(_book_width, book_height)
 
 
 # ── Page state (persistence + multiplayer sync) ──────────────────────────────

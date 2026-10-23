@@ -23,6 +23,9 @@ func show_for(book: PDFBook, camera: Node3D) -> void:
 	_camera = camera
 	if _book:
 		global_position = _book.global_position + Vector3(0, FLOAT_HEIGHT, 0)
+		# A resize, or a half-page reload with differently shaped pages.
+		if not _book.dimensions_changed.is_connected(_show_size):
+			_book.dimensions_changed.connect(_show_size)
 	visible = true
 	_ensure_ui_connected()
 	_populate()
@@ -60,6 +63,17 @@ func _populate() -> void:
 		call_deferred("_populate")
 		return
 	ui.populate(_book.half_page_mode, _book.size_scale, _book.hardback)
+	_show_size()
+
+
+## The size readout: the factor and a page in cm. A book with no pages loaded
+## has no size yet, so it keeps the factor alone.
+func _show_size() -> void:
+	if not _book or not is_instance_valid(_book) or _book.page_size().x <= 0.0:
+		return
+	var ui := _get_ui()
+	if ui:
+		ui.show_size(_book.size_scale, _book.page_size())
 
 
 func _on_half_page_toggled(enabled: bool) -> void:
