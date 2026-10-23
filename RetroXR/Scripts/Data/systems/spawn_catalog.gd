@@ -646,8 +646,16 @@ static func _items_for(systemid: String) -> Array:
 		if not _listed(items, spawn) and not _listed(mod_rows, spawn):
 			items.append({"kind": "peripheral", "label": str(lead["label"]), "spawn": spawn})
 	# Mod peripherals go LAST, after the stand-ins and the shipped accessories,
-	# so a mod adds to a console's card rather than reordering it.
-	items.append_array(mod_rows.duplicate(true))
+	# so a mod adds to a console's card rather than reordering it. A row the card
+	# already has, by name and spawn, is not listed twice: two mods modelling the
+	# same machine both list what goes with it (both Super NES mods offer the RF
+	# switch). Two names for one spawn are two rows.
+	for row: Dictionary in mod_rows:
+		var same := func(i: Dictionary) -> bool:
+			return str(i.get("spawn", "")) == str(row.get("spawn", "")) \
+				and str(i.get("label", "")) == str(row.get("label", ""))
+		if not items.any(same):
+			items.append(row.duplicate(true))
 	# Then whatever else is for this card, from mods that listed it elsewhere or
 	# nowhere: another author's pad for this console, a lead for its socket.
 	for f: Dictionary in made_for + fitting:
