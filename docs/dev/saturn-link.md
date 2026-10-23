@@ -76,10 +76,10 @@ placeholder with a COMMUNICATION legend.
 ## Shipping
 
 `CoreSources` names `mednafen_saturn` → `RetroXR/beetle-saturn-libretro`, tag
-`retroxr-beetle-saturn-libretro-v4` (Windows, Android, Linux x86_64, macOS
+`retroxr-beetle-saturn-libretro-v5` (Windows, Android, Linux x86_64, macOS
 arm64/x86_64, CI-built from the tag; v1 was Windows + Android, v2 added Linux and
 macOS, v3 is the netplay rollback below, v4 adds lighter savestates, a zero-copy
-CD sector cache and rendering into the frontend's framebuffer), replacing the buildbot's build in place, so `system/mednafen_saturn` and every
+CD sector cache and rendering into the frontend's framebuffer, v5 drops the -1 from the wire name, now `saturn-sci`), replacing the buildbot's build in place, so `system/mednafen_saturn` and every
 save stay where they were. Android still defaults to YabaSanshiro.
 
 ## The room probe
