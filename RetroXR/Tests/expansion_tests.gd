@@ -695,14 +695,15 @@ func _group_media() -> void:
 	_ok(panel.get_node_or_null("LedAccess") != null, "led/ and an ACCESS lamp")
 
 	# Named on the case, and far enough apart to be read. At the spacing the two
-	# lamps started at, POWER and ACCESS overlapped into one word.
+	# lamps started at, POWER and ACCESS overlapped into one word. The set's
+	# manual puts them 27.3 mm apart; half of each name is about 6 and 7.5 mm.
 	var pl := panel.get_node_or_null("LabelPower") as Label3D
 	var al := panel.get_node_or_null("LabelAccess") as Label3D
 	_ok(pl != null and pl.text == "POWER", "led/ POWER is named under its lamp")
 	_ok(al != null and al.text == "ACCESS", "led/ and ACCESS under its own")
 	if pl != null and al != null:
 		var gap: float = absf(al.position.x - pl.position.x)
-		_ok(gap > 0.03, "led/ the two names are far enough apart not to run together")
+		_ok(gap > 0.025, "led/ the two names are far enough apart not to run together")
 		_ok(pl.position.y < (panel.get_node("LedPower") as Node3D).position.y,
 			"led/ and they sit UNDER the lamps they name")
 

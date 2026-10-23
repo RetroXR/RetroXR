@@ -16,6 +16,11 @@
 ##
 ## Emissive meshes, not lights: a tiny near-surface omni dies on the Quest mobile
 ## backend (see the note on lamp glows elsewhere in this project).
+##
+## A unit wearing a shell with its own lamps (meshes named LampPower and
+## LampAccess: the lenses in the bosses on its face, their names molded beside
+## them) has those lit instead, and the stand-in domes and plates are not made.
+## Not AccessLed: RetroExpansion paints any lamp of that name the 64DD's red.
 class_name SatellaviewPanel
 extends Node3D
 
@@ -27,6 +32,9 @@ const CORE_LED_ACCESS := 0
 ## two are spaced to fit their own names -- at the 17 mm they started at, POWER
 ## and ACCESS ran into each other and read as one word.
 const LED_LABEL_Y := 0.0155
+## Across the face, from its middle (the set's manual).
+const LAMP_X_POWER := 0.0608
+const LAMP_X_ACCESS := 0.0335
 
 ## The unit this face belongs to, and the console under it.
 var _unit: RetroExpansion = null
@@ -38,6 +46,8 @@ var _led_access_mat: StandardMaterial3D = null
 var _access_on := false
 ## Last POWER state painted, so the lamp is only repainted when it changes.
 var _lamp_powered := false
+## A shell lens's own color while it is dark, by its material.
+var _dark: Dictionary = {}
 
 
 ## The unit is this panel's parent -- ExpansionCatalog names the scene and
@@ -51,13 +61,22 @@ func _ready() -> void:
 		return
 	# One measurement for all four fixtures. size() is a catalog lookup, and the
 	# face they sit on is the same face for every one of them.
-	var face_z := _unit.size().z * 0.5
-	_led_power_mat = _make_led(-0.126, 0.024, face_z, "LedPower")
-	_led_access_mat = _make_led(-0.080, 0.024, face_z, "LedAccess")
-	# Named on the case, as they are on the real unit -- raised lettering there,
-	# a plate here. A lamp nobody can read is decoration.
-	_make_led_label(-0.126, face_z, "POWER", "LabelPower")
-	_make_led_label(-0.080, face_z, "ACCESS", "LabelAccess")
+	var shell := _unit.get_node_or_null("Shell")
+	var lens_power := shell.find_child("LampPower", true, false) as MeshInstance3D if shell != null else null
+	var lens_access := shell.find_child("LampAccess", true, false) as MeshInstance3D if shell != null else null
+	if lens_power != null and lens_access != null:
+		_led_power_mat = _adopt_lens(lens_power)
+		_led_access_mat = _adopt_lens(lens_access)
+	else:
+		var face_z := _unit.size().z * 0.5
+		# On the right of the face, as the manual draws them: ACCESS 33.5 mm right
+		# of the middle, POWER 60.8.
+		_led_power_mat = _make_led(LAMP_X_POWER, 0.024, face_z, "LedPower")
+		_led_access_mat = _make_led(LAMP_X_ACCESS, 0.024, face_z, "LedAccess")
+		# Named on the case, as they are on the real unit -- raised lettering
+		# there, a plate here. A lamp nobody can read is decoration.
+		_make_led_label(LAMP_X_POWER, face_z, "POWER", "LabelPower")
+		_make_led_label(LAMP_X_ACCESS, face_z, "ACCESS", "LabelAccess")
 	_unit.host_changed.connect(_on_host_changed)
 	# A console can already be bolted on: a restore binds the host through the
 	# same calls a hand does, and it need not wait for this node to exist.
@@ -121,6 +140,20 @@ func _make_led_label(x: float, face_z: float, text: String, tag: String) -> void
 	add_child(lbl)
 
 
+## Light a shell's own lens: a copy of its material, so that dark it looks as it
+## was made and lit it glows, and no other unit wearing the shell lights with it.
+func _adopt_lens(lens: MeshInstance3D) -> StandardMaterial3D:
+	var made := lens.get_active_material(0) as StandardMaterial3D
+	var mat := made.duplicate() as StandardMaterial3D if made != null else StandardMaterial3D.new()
+	mat.emission_enabled = true
+	mat.emission = Color(0, 0, 0)
+	mat.emission_energy_multiplier = 0.0
+	_dark[mat] = mat.albedo_color
+	for s in lens.get_surface_override_material_count():
+		lens.set_surface_override_material(s, mat)
+	return mat
+
+
 ## A small domed LED on the front face (+Z). Emissive so it glows without a light.
 func _make_led(x: float, y: float, face_z: float, tag: String) -> StandardMaterial3D:
 	var led := MeshInstance3D.new()
@@ -160,13 +193,12 @@ func _is_powered() -> bool:
 
 ## Paint both lamps from the machine's own state.
 ##
-## Colours are a choice: the labels are documented on the real front panel but I
-## have no photometric reference for them, so POWER is the green every other
-## powered thing in this room uses and ACCESS is the amber of an activity light.
+## The colors are the manual's (the Satellaview set's, p.18): POWER lights red
+## while the console is on, ACCESS green while the tuner moves data.
 func _update_lamps() -> void:
 	_lamp_powered = _is_powered()
-	_set_led(_led_power_mat, Color(0.10, 1.0, 0.20), 2.5 if _lamp_powered else 0.0)
-	_set_led(_led_access_mat, Color(1.0, 0.72, 0.12), 3.0 if _access_on else 0.0)
+	_set_led(_led_power_mat, Color(1.0, 0.08, 0.04), 2.5 if _lamp_powered else 0.0)
+	_set_led(_led_access_mat, Color(0.10, 1.0, 0.20), 3.0 if _access_on else 0.0)
 
 
 func _set_led(mat: StandardMaterial3D, color: Color, energy: float) -> void:
@@ -175,4 +207,5 @@ func _set_led(mat: StandardMaterial3D, color: Color, energy: float) -> void:
 	mat.emission = color
 	mat.emission_energy_multiplier = energy
 	# A lit LED's body reads as its own colour; a dark one as near-black plastic.
-	mat.albedo_color = color.darkened(0.6) if energy > 0.01 else Color(0.05, 0.05, 0.05)
+	var dark: Color = _dark.get(mat, Color(0.05, 0.05, 0.05))
+	mat.albedo_color = color.darkened(0.6) if energy > 0.01 else dark

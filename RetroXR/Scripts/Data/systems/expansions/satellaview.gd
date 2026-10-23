@@ -27,10 +27,15 @@ const ROW := {
 	"host": "snes",
 	"media": "satellaview",
 	"mount": ExpansionDefs.MOUNT_BELOW,
-	"size": Vector3(0.29, 0.07, 0.24),
+	# 201 x 66 x 253 mm (W x H x D), the set's manual (p.18): the Super Famicom's
+	# width, 10.6 mm deeper. It was 290 x 70 x 240, a guess.
+	"size": Vector3(0.201, 0.066, 0.253),
 	"loader": MediaDimensions.LOADER_NONE,
 	"media_in_host": true,
 	"panel": "res://Scenes/Objects/satellaview_panel.tscn",
+	# The EXT port in the Super Famicom's floor, under its own cover: the cover
+	# comes off and the unit's plug goes up in its place.
+	"cover_socket": "snes_ext",
 }
 
 
