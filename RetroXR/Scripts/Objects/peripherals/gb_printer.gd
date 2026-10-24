@@ -112,10 +112,18 @@ var paper_roll: String = GbPrinterPaper.ROLLS[0]["id"]:
 var _lib: Node = null
 var _mask := -1
 var _alx := -1
+var _aly := -1
 var _tear_frames := 0
 var _tear_lines := 0
+var _tear_code := 0
 var _shown_tex: Texture2D = null
 var _shown_lines := -1
+## The strip as the room keeps it, from a core sending windows of it
+## (GbPaperLines); `_windowed` once one has. A core from before sends the
+## whole strip, shown straight off its frame.
+var _paper_lines := GbPaperLines.new()
+var _windowed := false
+var _end_seen := 0
 var _paper_mat: ShaderMaterial = null
 var _paper_arrays: ArrayMesh = null
 ## The highlight round the paper (GbPaperRim), shown as the tear trigger's
@@ -232,6 +240,7 @@ func power_on() -> bool:
 		return false
 	if not _ensure_lib():
 		return false
+	_ask_for_windows()
 	_lib.StartContent(CoreDownloadManager.default_core_root(), CORE, "")
 	_started()
 	return true
@@ -263,9 +272,13 @@ func _started() -> void:
 	is_powered_on = true
 	_mask = -1
 	_alx = -1
+	_aly = -1
 	_tear_frames = 0
 	_shown_tex = null
 	_shown_lines = -1
+	_paper_lines.clear()
+	_windowed = false
+	_end_seen = 0
 	_show_power()
 	_rejoin_lead()
 
@@ -277,6 +290,13 @@ func _stopped() -> void:
 	_show_power()
 	_lay_paper(null, 0)
 	_rejoin_lead()
+
+
+## The strip a window at a time, kept here (GbPaperLines): set before the core
+## starts, held until it says what it understands. A core from before has no
+## such option and sends the whole strip as it always did.
+func _ask_for_windows() -> void:
+	_lib.SetCoreOption(GbPaperLines.OPTION, GbPaperLines.WINDOWS)
 
 
 ## Made once and KEPT, as VmuCard's is: freeing a Libretro node whose emulation
@@ -333,6 +353,7 @@ func _process(delta: float) -> void:
 func _drive_core() -> void:
 	var mask := 0
 	var alx := 0
+	var aly := 0
 	if _feed.is_held():
 		if _presses_count():
 			mask |= BTN_A
@@ -345,17 +366,27 @@ func _drive_core() -> void:
 		_tear_frames -= 1
 		mask |= BTN_B
 		alx = _tear_lines
-	if mask != _mask or alx != _alx:
-		_push_input(mask, alx)
+		aly = _tear_code
+	if mask != _mask or alx != _alx or aly != _aly:
+		_push_input(mask, alx, aly)
 
-	var tex: Texture2D = _lib.GetVideoTexture()
-	var lines := 0
-	if tex != null and tex.get_width() == GbPrinterPaper.DOTS:
-		lines = tex.get_height()
-	if lines > _lines_seen:
-		motor_ran()
-	_lines_seen = lines
-	_lay_paper(tex if lines > 0 else null, lines)
+	var took := _paper_lines.take(_lib.GetVideoImage())
+	if took >= 0:
+		_windowed = true
+		if _paper_lines.end > _end_seen:
+			motor_ran()
+		_end_seen = _paper_lines.end
+		if took > 0:
+			_lay_lines()
+	else:
+		var tex: Texture2D = _lib.GetVideoTexture()
+		var lines := 0
+		if tex != null and tex.get_width() == GbPrinterPaper.DOTS:
+			lines = tex.get_height()
+		if lines > _lines_seen:
+			motor_ran()
+		_lines_seen = lines
+		_lay_paper(tex if lines > 0 else null, lines)
 	_update_audio()
 
 
@@ -399,13 +430,14 @@ func _update_audio() -> void:
 ## straight into this peer's core, even when the session swallows it because
 ## another peer drives the port: a press only one peer's printer saw is paper
 ## only one peer has.
-func _push_input(mask: int, alx: int) -> void:
+func _push_input(mask: int, alx: int, aly := 0) -> void:
 	_mask = mask
 	_alx = alx
+	_aly = aly
 	if _in_session():
-		NetworkManager.netplay_route(self, 0, {"btn": mask, "alx": alx})
+		NetworkManager.netplay_route(self, 0, {"btn": mask, "alx": alx, "aly": aly})
 		return
-	_lib.SetJoypadState(0, mask, alx, 0, 0, 0)
+	_lib.SetJoypadState(0, mask, alx, aly, 0, 0)
 
 
 func _in_session() -> bool:
@@ -427,7 +459,26 @@ func _lay_paper(tex: Texture2D, lines: int) -> void:
 	_shown_tex = tex
 	_shown_lines = lines
 	_strip.set_length(maxf(STUB_LENGTH, lines * DOT_PITCH))
+	_paper_mat.set_shader_parameter("layered", false)
 	_paper_mat.set_shader_parameter("print_tex", tex)
+	_draw_paper()
+
+
+## The strip the room keeps (GbPaperLines) onto the paper: the chunks a frame
+## touched uploaded, and the paper as long as the lines out.
+func _lay_lines() -> void:
+	if _paper_lines.upload():
+		_paper_mat.set_shader_parameter("print_layers", _paper_lines.texture)
+	var lines := _paper_lines.lines()
+	_paper_mat.set_shader_parameter("layered", true)
+	_paper_mat.set_shader_parameter("layer_count", _paper_lines.layers)
+	_paper_mat.set_shader_parameter("line_first", _paper_lines.first)
+	_paper_mat.set_shader_parameter("line_count", lines)
+	_shown_tex = null
+	if lines == _shown_lines:
+		return
+	_shown_lines = lines
+	_strip.set_length(maxf(STUB_LENGTH, lines * DOT_PITCH))
 	_draw_paper()
 
 
@@ -730,7 +781,7 @@ func tear() -> void:
 	if not _presses_count():
 		_notice("Printer", "Pick the printer up to tear the paper off during a session.")
 		return
-	var img: Image = _lib.GetVideoImage()
+	var img: Image = _paper_lines.image() if _windowed else _lib.GetVideoImage()
 	if img == null or img.is_empty() or img.get_width() != GbPrinterPaper.DOTS:
 		return
 	var lines := img.get_height()
@@ -741,12 +792,15 @@ func tear() -> void:
 		push_warning("[GbPrinter] could not write the print")
 	else:
 		_hand_over(_spawn_printout(path, lines))
-	_tear_lines = lines
+	# A count (LX) for a core that sends the whole strip; where the strip ended
+	# (LY) for one sending windows, the count no longer fitting an axis.
+	_tear_lines = mini(lines, 32767)
+	_tear_code = _paper_lines.tear_code() if _windowed else 0
 	_tear_frames = TEAR_FRAMES
 	# What is left in the slot flicks back as the print comes away.
 	_strip.jolt(TEAR_FLICK)
 	if _mask >= 0:
-		_push_input(_mask | BTN_B, lines)
+		_push_input(_mask | BTN_B, _tear_lines, _tear_code)
 
 
 ## A Poster the size of the paper, carrying the print. Placed at the free end of
@@ -872,6 +926,7 @@ func net_start_core(_core: String, port_mask: int, start_frame: int,
 	# The gate before StartContent, so the core holds at the start frame until
 	# inputs post -- as RetroSystem.net_start_core does.
 	_lib.SetNetplayMode(true, port_mask, start_frame)
+	_ask_for_windows()
 	_lib.StartContent(CoreDownloadManager.default_core_root(), CORE, "")
 	_started()
 	return _lib

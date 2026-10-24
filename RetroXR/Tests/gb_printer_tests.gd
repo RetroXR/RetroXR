@@ -32,6 +32,7 @@ func _ready() -> void:
 	_test_spawns_and_saves_by_its_token()
 	await _test_scene_shape()
 	await _test_paper_is_as_long_as_the_core_fed()
+	await _test_paper_lines_from_windows()
 	_test_print_sheet()
 	_test_print_file()
 	_test_rolls_are_nintendos()
@@ -589,9 +590,13 @@ func _test_a_torn_print_keeps_its_bend() -> void:
 	poster.freeze = true
 	poster.global_position = Vector3(0, 2, 0)
 	# One frame: the bend it came with is where it starts. (It relaxes to its own
-	# shape within a few frames, no faster than paper moves through air.)
-	await get_tree().process_frame
+	# shape within a few frames, no faster than paper moves through air.) A frame
+	# of a headset's length, stepped here: the suite's own first frame can be long
+	# enough to relax it past straight, and then this failed one run in three.
 	var flop := poster.get_node_or_null(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	if flop != null:
+		flop.set_process(false)
+		flop._process(1.0 / 90.0)
 	_ok(flop != null and not poster.has_meta(GbPrintoutFlop.BEND_META), "a torn print takes the bend it came with")
 	if flop != null:
 		_ok(flop._up.mean_curvature() < 0.0 and flop._down.mean_curvature() < 0.0,
@@ -678,6 +683,124 @@ func _test_paper_grows_and_tears() -> void:
 	_ok(shape_kept, "a line fed pushes the paper out without throwing its shape")
 	s.set_length(GbPrinter.STUB_LENGTH)
 	_ok(s.motion() == 0.0 and s.angles[0] == 0.0, "torn, a fresh end of roll at rest")
+
+
+## Line n's dots as gbprinter-libretro's own test burns them: no two lines
+## alike, so one in the wrong place shows.
+static func _line_dot(n: int, x: int) -> int:
+	return (n * 7 + x * 13 + (n >> 8) * 3) & 0xFF
+
+
+## A window frame as the core sends one (libretro.c send_window): the header row,
+## then lines [from, from + rows) and bare paper below them.
+static func _window(first: int, end: int, from: int, rows: int) -> Image:
+	var w := GbPrinterPaper.DOTS
+	var data := PackedByteArray()
+	data.resize(w * 129 * 4)
+	data.fill(0xFF)
+	var head := [GbPaperLines.MAGIC, GbPaperLines.FORMAT, first & 0xFFFFFF, first >> 24,
+		end & 0xFFFFFF, end >> 24, from & 0xFFFFFF, from >> 24, rows]
+	for i in w:
+		var v: int = head[i] if i < head.size() else 0
+		data[i * 4] = (v >> 16) & 0xFF
+		data[i * 4 + 1] = (v >> 8) & 0xFF
+		data[i * 4 + 2] = v & 0xFF
+	for k in rows:
+		for x in w:
+			var g := _line_dot(from + k, x)
+			var o := ((1 + k) * w + x) * 4
+			data[o] = g
+			data[o + 1] = g
+			data[o + 2] = g
+	return Image.create_from_data(w, 129, false, Image.FORMAT_RGBA8, data)
+
+
+## The newest window, then older ones back to `floor`, as the core sends them.
+static func _send_strip(lines: GbPaperLines, first: int, end: int, floor: int) -> void:
+	var to := end
+	while true:
+		var from := maxi(floor, to - 128)
+		lines.take(_window(first, end, from, to - from))
+		if from <= floor:
+			break
+		to = from
+
+
+func _strip_is(lines: GbPaperLines, from: int, to: int) -> bool:
+	var img := lines.image()
+	if img == null or img.get_height() != to - from or img.get_format() != Image.FORMAT_L8:
+		return false
+	var d := img.get_data()
+	for n in range(from, to):
+		for x in [0, 1, 77, 159]:
+			if d[(n - from) * GbPrinterPaper.DOTS + x] != _line_dot(n, x):
+				return false
+	return true
+
+
+func _test_paper_lines_from_windows() -> void:
+	var lines := GbPaperLines.new()
+	var whole := Image.create(GbPrinterPaper.DOTS, 208, false, Image.FORMAT_RGBA8)
+	whole.fill(Color.WHITE)
+	_eq(lines.take(whole), -1, "a whole-strip frame is not a window")
+	_eq(lines.take(null), -1, "nor is no frame")
+
+	var empty := _window(0, 0, 0, 0)
+	_eq(lines.take(empty), 1, "a window is read")
+	_eq(lines.take(empty), 0, "and the same one again is nothing new")
+	_eq(lines.lines(), 0, "with no paper out")
+	_ok(lines.image() == null, "and no print to tear")
+
+	# 600 lines, older windows after the newest: every line where it belongs, the
+	# grey exactly what the core sent.
+	_send_strip(lines, 0, 600, 0)
+	_eq(lines.lines(), 600, "600 lines out")
+	_ok(_strip_is(lines, 0, 600), "every line of the 600 kept in order, dot for dot")
+	_ok(lines.upload(), "the first upload makes the texture")
+	_eq(lines.layers, 4, "three chunks fit four layers")
+	_eq(lines.texture.get_layers(), 4, "and the texture has them")
+	_ok(not lines.upload(), "after which a frame only updates layers")
+
+	# Torn to line 500: what stays is the newest; the chunks below it go.
+	_send_strip(lines, 500, 610, 500)
+	_eq(lines.lines(), 110, "torn to 500 and 10 more burned, 110 out")
+	_ok(_strip_is(lines, 500, 610), "and they are lines 500 to 609")
+	_eq(lines._chunks.size(), 2, "the chunks of torn paper are let go")
+	_eq(lines.tear_code(), 1 + 610 % GbPaperLines.TEAR_MOD, "a tear names where the strip ends")
+
+	# Long: far past what the core keeps, a window each time as it prints.
+	var at := 610
+	while at < 9000:
+		var to := at + 100
+		lines.take(_window(500, to, maxi(500, to - 128), to - maxi(500, to - 128)))
+		at = to
+	_eq(at, 9010, "printed on to line 9010")
+	_ok(_strip_is(lines, 500, at), "8510 lines kept, more than the core holds")
+	_ok(lines.upload(), "a strip longer than its layers makes a bigger texture")
+	_eq(lines.layers, 64, "35 chunks in 64 layers")
+
+	# The strip going back (a core switched on again) leaves nothing of the old.
+	lines.take(_window(0, 3, 0, 3))
+	_eq(lines.lines(), 3, "a strip started again is its own lines")
+	_ok(_strip_is(lines, 0, 3), "and they are the new ones")
+	_eq(lines._chunks.size(), 1, "nothing of the old strip kept")
+
+	# On the printer: the paper as long as the lines, drawn from the layers.
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	await get_tree().process_frame
+	printer._paper_lines.take(_window(40, 340, 212, 128))
+	printer._lay_lines()
+	_ok(is_equal_approx(printer.paper_length(), 300 * GbPrinter.DOT_PITCH),
+		"300 lines out is 300 lines of paper (%.4f m)" % printer.paper_length())
+	var mat := printer._paper_mat
+	_eq(mat.get_shader_parameter("layered"), true, "drawn from the room's lines")
+	_eq(mat.get_shader_parameter("line_first"), 40, "from the first out")
+	_eq(mat.get_shader_parameter("line_count"), 300, "all 300 of them")
+	_ok(mat.get_shader_parameter("print_layers") == printer._paper_lines.texture, "off its layers")
+	printer._lay_paper(null, 0)
+	_eq(mat.get_shader_parameter("layered"), false, "switched off, the roll's end and no lines")
+	printer.free()
 
 
 func _test_print_sheet() -> void:

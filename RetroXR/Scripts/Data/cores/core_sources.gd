@@ -446,9 +446,11 @@ const SOURCES := {
 	# jolt the paper in step (GbPrinter.TURN_S). Savestate version 3.
 	# v5: 56 cm of paper kept (4096 lines) instead of 14; the growing strip is
 	# sent every 4th frame. Savestate version 4.
+	# v6: window frames on request (gbprinter_paper_frames), so the room keeps the
+	# strip itself, up to about 9 m (GbPaperLines); TEAR by LY. Savestate version 5.
 	"gbprinter": {
 		"repo":  "RetroXR/gbprinter-libretro",
-		"known_tag": "retroxr-gbprinter-libretro-v5",
+		"known_tag": "retroxr-gbprinter-libretro-v6",
 		"label": "Game Boy Printer (retroXR)",
 		"assets": {
 			"Windows": "gbprinter_libretro.dll.zip",

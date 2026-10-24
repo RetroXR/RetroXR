@@ -78,11 +78,31 @@ unit.
 
 ## The paper
 
-The core's video frame is the strip hanging out of the slot: 160 dots wide, one
+The core's video frame was the strip hanging out of the slot: 160 dots wide, one
 row a line, oldest at the top, the newest at the head; no paper is a 1x1 frame,
-and a frame is sent only when the strip changes. `GbPrinter` draws it on a strip
-coming out of the slot (`gb_printer_paper.gdshader`), as long as the lines times
-the dot pitch, sent 8 degrees back by the slot.
+and a frame is sent only when the strip changes. That is still what a frontend
+gets by default (every installed game takes the core's latest release), up to
+4096 lines. But it cost the whole strip a frame, some 2.6 MB at 56 cm for two or
+three new lines, and a NEW texture each time, as the frame grew a row at a time.
+
+So `GbPrinter` asks for window frames (core option `gbprinter_paper_frames` =
+`window`, set before `StartContent`; the extension holds it until the core
+declares it): a frame that never changes size, 160 x 129, a header row then 128
+lines. The newest go whenever the strip changes; once it stops, the core sends
+older windows back over the 4096 lines it keeps, each held 4 frames, so lines in
+frames the extension collapsed (it uploads only the newest of a backlog) come
+back a moment later. `GbPaperLines` (`gb_paper_lines.gd`) keeps every line by the
+printer's own numbering in 256-line chunks, one layer each of a `Texture2DArray`,
+and uploads only the chunk a frame touched. The core keeps only its newest 4096
+lines, so the strip can be far longer than it: 65280 lines, about 9 m (255
+chunks, so it never spans more than the 256 layers every GPU takes). A core from
+before windows never answers the option and the printer draws its whole frame
+as it did. Measured through the real extension: 12 s of FEED, 407 lines, 329
+window uploads in 2.2 ms all told.
+
+`GbPrinter` draws the strip coming out of the slot (`gb_printer_paper.gdshader`,
+`layered` for the room's lines), as long as the lines times the dot pitch, sent
+8 degrees back by the slot.
 
 **How it bends** is `GbPrinterStrip` (`gb_printer_strip.gd`), pure and stepped by
 the printer every frame: a 2D elastica in the printer's YZ plane, up to 48 hinged
@@ -191,9 +211,11 @@ themselves travel as files, colors and all.
 **Tearing:** TRIGGER on the paper (never a touch, a brush of the hand must not
 throw a print away). The room reads the frame NOW, writes it as a print, spawns a
 Poster at the paper's size into the tearing hand, and presses TEAR with left stick
-X = how many lines it captured. The core tears exactly those off the OLD end, so a
-line burned between the look and the press stays on the roll. Switching the
-printer off tears off whatever is hanging out first.
+X = how many lines it captured, and, on window frames, left stick Y = 1 + the line
+its strip ended at, modulo 32767 (a count of a 9 m strip does not fit an axis).
+The core tears exactly those off the OLD end, so a line burned between the look
+and the press stays on the roll. Switching the printer off tears off whatever is
+hanging out first.
 
 ## Sound
 
