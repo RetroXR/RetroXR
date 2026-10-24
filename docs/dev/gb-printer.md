@@ -175,7 +175,10 @@ frame), deterministic, in the savestate and in step with the paper. FITTED TO A
 RECORDING of a real MGB-007 printing (core 3641ded): every tone in it is a
 harmonic of one 127.7 Hz stepper rate, the 9th, 10th, 18th, 20th, 24th, 36th and
 40th ringing loudest (1.2-5.1 kHz), over a 1-7 kHz hiss that pulses with the
-steps; every 146 steps (1.14 s) the gear knocks (a 3 ms ring near 5 kHz with a
+steps; once a turn of the gear, every 146 steps (1.14 s), all those tones fall
+away together by 8-15 dB for a quarter of a second and come back while the step
+rate wanders 127.0-128.4 Hz (the winding heard turn after turn: tables over the
+turn, measured; core 84cdbf6), and the gear knocks (a 3 ms ring near 5 kHz with a
 burst of noise, about 2.6 times the motor) and swells softly at 3-4 kHz half way
 round the turn. The motor steps on its own clock at that rate while paper moves;
 the line timing games see is unchanged. The head's tick per inked line is kept
