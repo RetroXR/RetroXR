@@ -4,7 +4,7 @@
 ## Not the controller bus. That is SIO0, it is on the front, and it carries pads
 ## and memory cards; the two share a register layout and a name and nothing else.
 ##
-## Subclassed off LinkPort rather than off RcaPort directly, because everything
+## Subclassed off LinkPort rather than off Port directly, because everything
 ## this socket needs it already has: finding the machine that owns it by walking
 ## up the tree, and the core running inside that machine. What differs is the one
 ## string that decides which plugs fit, and a PlayStation has exactly one of
@@ -24,7 +24,7 @@ extends LinkPort
 ## on. A console with a shell of its own has the legend MOULDED INTO the back
 ## panel already, and the plate then lands as a black rectangle pasted over the
 ## console's own print -- so RetroSystemModelPlayStation turns this off, the same
-## way it turns off RcaPort.show_jack for sockets the shell already draws.
+## way it turns off an RcaPort's show_jack for sockets the shell already draws.
 @export var show_legend: bool = true:
 	set(value):
 		show_legend = value
@@ -66,6 +66,6 @@ func _init() -> void:
 	connector = "psx_link_plug"
 
 
-## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+## What an export's scene conversion can undo of _init (Port._own_connector).
 func _own_connector() -> String:
 	return "psx_link_plug"

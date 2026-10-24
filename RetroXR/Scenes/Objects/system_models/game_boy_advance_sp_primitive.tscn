@@ -229,8 +229,4 @@ surface_material_override/0 = SubResource("Mat_seat")
 [node name="LinkPort" parent="." unique_id=660090029 instance=ExtResource("9_linkport")]
 transform = Transform3D(1, 0, 0, 0, -1, 8.742278e-08, 0, -8.742278e-08, -1, -0.029, -0.0005099056, -0.04190069)
 link_port = 0
-channel = 0
 connector = "agb_link_plug"
-direction = 1
-show_jack = true
-rf_feed = false

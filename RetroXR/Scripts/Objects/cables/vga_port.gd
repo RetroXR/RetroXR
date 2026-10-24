@@ -1,7 +1,7 @@
 ## One DE-15 socket on a device — the tower's video out, the monitor's video in.
 ##
 ## An RcaPort with a different mouth. Everything the A/V topology needs is already
-## there: RcaPort.GROUP membership so a plug can find the socket holding it,
+## there: Port.ANY_GROUP membership so a plug can find the socket holding it,
 ## get_device() so the link resolves to the deck or the set, and the OUT/IN
 ## direction that decides which way a cord carries. CompositeCable._resolve reads
 ## RcaPort, and this is one.
@@ -23,7 +23,7 @@ func _init() -> void:
 	connector = "vga_plug"
 
 
-## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+## What an export's scene conversion can undo of _init (Port._own_connector).
 func _own_connector() -> String:
 	return "vga_plug"
 

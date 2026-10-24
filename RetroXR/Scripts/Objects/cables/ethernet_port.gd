@@ -26,7 +26,7 @@ func _init() -> void:
 	connector = "ethernet_plug"
 
 
-## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+## What an export's scene conversion can undo of _init (Port._own_connector).
 func _own_connector() -> String:
 	return "ethernet_plug"
 
@@ -62,7 +62,7 @@ func get_hub() -> EthernetHub:
 
 ## What a save and a netplay plug event name this socket against.
 ##
-## RcaPort walks for an A/V device, and an adapter is not one: the walk would go
+## Port.get_device walks for an A/V device, and an adapter is not one: the walk would go
 ## past the unit into the room and come back empty, so a lead seated in an
 ## adapter would be saved loose and its seating never sent to peers. The unit is
 ## a spawned, saved object in its own right, so it is the device.

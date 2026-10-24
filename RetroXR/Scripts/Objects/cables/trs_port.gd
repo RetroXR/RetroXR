@@ -1,7 +1,7 @@
 ## One 3.5 mm TRS socket on a device — the tower's line out, the speakers' line in.
 ##
 ## An RcaPort with a different mouth. Everything the A/V topology needs is already
-## there: RcaPort.GROUP membership so a plug can find the socket holding it,
+## there: Port.ANY_GROUP membership so a plug can find the socket holding it,
 ## get_device() so a link resolves to the machine that owns the socket, and the
 ## OUT/IN direction that decides which way a cord carries.
 ##
@@ -23,7 +23,7 @@ func _init() -> void:
 	connector = "trs_plug"
 
 
-## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+## What an export's scene conversion can undo of _init (Port._own_connector).
 func _own_connector() -> String:
 	return "trs_plug"
 

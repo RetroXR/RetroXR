@@ -42,7 +42,7 @@ func sockets() -> Array[ILinkPort]:
 	return out
 
 
-## So RcaPort.get_device() finds an owner for these sockets, which is what a save
+## So Port.get_device() finds an owner for these sockets, which is what a save
 ## records a seated plug against. A no-op for RfSwitch's reason: nothing about
 ## picture or sound passes through here.
 func on_av_topology_changed(_links: Array) -> void:

@@ -189,9 +189,9 @@ func _traffic(index: int) -> int:
 ## Pull a plug out and get it clear; a dropped plug falls straight back in, so
 ## every socket is shut for the move (the GB room probe's helper, for the same reason).
 func _pull(plug: RcaPlug) -> void:
-	var shut: Array[RcaPort] = []
-	for node in get_tree().get_nodes_in_group(RcaPort.GROUP):
-		var p := node as RcaPort
+	var shut: Array[Port] = []
+	for node in get_tree().get_nodes_in_group(Port.ANY_GROUP):
+		var p := node as Port
 		if p != null and p.enabled:
 			p.enabled = false
 			shut.append(p)

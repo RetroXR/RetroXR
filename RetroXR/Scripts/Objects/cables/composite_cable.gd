@@ -551,8 +551,10 @@ func _resolve() -> void:
 		var plug_b := _plug_at(End.B, c)
 		if plug_a == null or plug_b == null:
 			continue        # a captive end joins nothing to anything
-		var pa: RcaPort = plug_a.seated_port()
-		var pb: RcaPort = plug_b.seated_port()
+		# A link lead is a CompositeCable too, and its ends sit in LinkPorts, which
+		# carry no direction: they come back null here and the cord routes nothing.
+		var pa := plug_a.seated_port() as RcaPort
+		var pb := plug_b.seated_port() as RcaPort
 		if pa == null or pb == null:
 			continue
 		var out_port: RcaPort = null
@@ -659,7 +661,7 @@ func seating() -> Array[Dictionary]:
 ##   * A console's CONTROLLER socket is a plain snap zone, not an RcaPort, so
 ##     seated_port() finds nothing at all. The plug is the only thing that knows,
 ##     because RetroSystem tells it when it seats.
-##   * A lead's JUNCTION is a real RcaPort, but it belongs to a CABLE, and
+##   * A lead's JUNCTION is a real Port, but it belongs to a CABLE, and
 ##     get_device() walks for a device. It answers get_cable() instead.
 ##
 ## Both come back as a node the save file can reference and a name to find under
@@ -813,7 +815,7 @@ func net_release_plug(end: int, cord: int) -> void:
 ## Let the deferred drop handler and the area's body_exited both run before the
 ## socket is live again. Deliberately not awaited by the caller: the release has
 ## already happened, and this only reopens the socket behind it.
-func _reopen_port(port: RcaPort) -> void:
+func _reopen_port(port: Port) -> void:
 	await get_tree().physics_frame
 	await get_tree().physics_frame
 	if is_instance_valid(port):
@@ -861,8 +863,8 @@ func links() -> Array[Dictionary]:
 		var plug_b := _plug_at(End.B, c)
 		if plug_a == null or plug_b == null:
 			continue
-		var pa: RcaPort = plug_a.seated_port()
-		var pb: RcaPort = plug_b.seated_port()
+		var pa := plug_a.seated_port() as RcaPort
+		var pb := plug_b.seated_port() as RcaPort
 		if pa == null or pb == null:
 			continue
 		if pa.direction == RcaPort.Direction.OUT and pb.direction == RcaPort.Direction.IN:

@@ -97,9 +97,12 @@ func is_held() -> bool:
 ## and not something to depend on, while `picked_up_object` is the zone's own
 ## account of what it has. A plug that is dropped, stolen by another zone or freed
 ## therefore cannot leave a stale port behind.
-func seated_port() -> RcaPort:
-	for node in get_tree().get_nodes_in_group(RcaPort.GROUP):
-		var port := node as RcaPort
+##
+## Any kind of socket: an A/V jack, a link port, a mains outlet. A caller that
+## wants an A/V one casts (`as RcaPort`), and a link lead's end comes back null.
+func seated_port() -> Port:
+	for node in get_tree().get_nodes_in_group(Port.ANY_GROUP):
+		var port := node as Port
 		if port != null and port.seated_plug() == self:
 			return port
 	return null

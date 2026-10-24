@@ -572,10 +572,17 @@ func _test_port_scene() -> void:
 	# merely reports it.
 	_eq(port.snap_require, "link_plug", "it requires a link plug")
 
-	# Named LinkJack rather than RcaJack on purpose, so the inherited channel
-	# tinting cannot repaint a socket that carries no signal.
-	_ok(port.get_node_or_null("RcaJack") == null, "its jack is out of RcaPort's reach")
+	# Named LinkJack rather than RcaJack, as it was when the channel tinting was
+	# inherited; it still says which jack is the link's own.
+	_ok(port.get_node_or_null("RcaJack") == null, "its jack is no RcaJack")
 	_ok(port.get_node_or_null("LinkJack") != null, "but it has one")
+
+	# A Port beside RcaPort, not one of them: a plug finds it, the A/V graph
+	# does not, and its seating line names its plug rather than a channel.
+	_ok(not ((port as Object) is RcaPort), "it is not an A/V socket")
+	_ok(port.is_in_group(Port.ANY_GROUP), "a plug can find it among every socket")
+	_ok(not port.is_in_group(RcaPort.GROUP), "the A/V sweeps never visit it")
+	_eq(port.port_label(), "a Game Boy Color link plug", "its seating line names its plug, not VIDEO")
 
 	port.queue_free()
 	await get_tree().process_frame
@@ -1024,9 +1031,9 @@ func _test_a_junction_plug_keeps_up() -> void:
 	holder_b.collision_mask = 0
 	room.add_child(holder_b)
 	holder_b.global_position = Vector3(0.35, 0.9, 0)
-	var port_a: RcaPort = load(PORT_SCENE).instantiate()
+	var port_a: LinkPort = load(PORT_SCENE).instantiate()
 	holder_a.add_child(port_a)
-	var port_b: RcaPort = load(PORT_SCENE).instantiate()
+	var port_b: LinkPort = load(PORT_SCENE).instantiate()
 	holder_b.add_child(port_b)
 
 	# The lead hangs between the two sockets, the way it does between two
@@ -1099,7 +1106,7 @@ func _test_the_junction_does_not_snap_through_vertical() -> void:
 	holder.collision_mask = 0
 	room.add_child(holder)
 	holder.global_position = Vector3(0, 1.6, 0)
-	var port: RcaPort = load(PORT_SCENE).instantiate()
+	var port: LinkPort = load(PORT_SCENE).instantiate()
 	holder.add_child(port)
 
 	# Held at one end only, so the cord hangs straight down through the junction.
@@ -2045,13 +2052,13 @@ func _first_face_z(machine: Node3D, shell: Node3D, at: Vector3) -> float:
 ## serial at 0.0440 -- leaves barely 20 mm. That is the hardware, not a spacing
 ## anyone chose, and it is why this asserts a clearance rather than a position.
 ##
-## LinkPort is EXCLUDED, and has to be: PsxLinkPort extends LinkPort extends
-## RcaPort, so a plain `is RcaPort` finds the serial socket itself and reports it
-## as being 0 mm from the A/V row -- a clearance test that can never pass.
+## Only RcaPorts count. The serial socket is a LinkPort, a Port beside RcaPort
+## rather than one of them, so it is never measured against itself -- it was
+## once, when LinkPort extended RcaPort, and had to be left out by hand.
 func _nearest_av_gap(machine: Node3D, x: float) -> float:
 	var best := INF
 	for n in machine.find_children("*", "Node3D", true, false):
-		if n is RcaPort and not (n is LinkPort):
+		if n is RcaPort:
 			best = minf(best, absf((n as Node3D).position.x - x))
 	return best if is_finite(best) else INF
 
@@ -2720,16 +2727,19 @@ func _test_sockets_write_their_connector() -> void:
 
 
 ## A scene that instances one of these sockets is converted the same way, and
-## the socket arrives with the phono default no matter what its own scene says.
-## Arrive that way here: each socket must still ask for its own plug, and the
+## the socket arrives with the declared default no matter what its own scene says.
+## That default is Port's "" now, and was RcaPort's phono before Port existed, so
+## arrive both ways here: each socket must still ask for its own plug, and the
 ## Game Boy's, whose family was set on purpose, must keep it.
 func _test_a_baked_default_still_takes_its_own_plug() -> void:
-	for path: String in SOCKET_SCENES:
-		var port := (load(path) as PackedScene).instantiate() as RcaPort
-		var meant := port.connector
-		if path.get_file() != "dmg_link_port.tscn":
-			port.connector = Connectors.PHONO
-		add_child(port)
-		await get_tree().process_frame
-		_eq(port.snap_require, meant, "%s arriving with the phono default asks for %s" % [path.get_file(), meant])
-		port.queue_free()
+	for baked: String in ["", Connectors.PHONO]:
+		for path: String in SOCKET_SCENES:
+			var port := (load(path) as PackedScene).instantiate() as Port
+			var meant := port.connector
+			if path.get_file() != "dmg_link_port.tscn":
+				port.connector = baked
+			add_child(port)
+			await get_tree().process_frame
+			_eq(port.snap_require, meant, "%s arriving with the default %s asks for %s"
+				% [path.get_file(), "\"\"" if baked.is_empty() else baked, meant])
+			port.queue_free()

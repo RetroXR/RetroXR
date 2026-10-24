@@ -37,7 +37,7 @@ func sockets() -> Array[EthernetPort]:
 	return out
 
 
-## So RcaPort.get_device() finds an owner for these sockets, which is what a save
+## So Port.get_device() finds an owner for these sockets, which is what a save
 ## records a seated plug against. Nothing about picture or sound passes here.
 func on_av_topology_changed(_links: Array) -> void:
 	pass

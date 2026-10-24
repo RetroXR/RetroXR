@@ -175,9 +175,9 @@ func _peers(index: int) -> int:
 ## and the plug is frozen where it is put; the A/V suite carries the same helper
 ## for the same reason.
 func _pull(plug: RcaPlug) -> void:
-	var shut: Array[RcaPort] = []
-	for node in get_tree().get_nodes_in_group(RcaPort.GROUP):
-		var port := node as RcaPort
+	var shut: Array[Port] = []
+	for node in get_tree().get_nodes_in_group(Port.ANY_GROUP):
+		var port := node as Port
 		if port != null and port.enabled:
 			port.enabled = false
 			shut.append(port)

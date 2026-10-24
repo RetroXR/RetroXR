@@ -769,8 +769,12 @@ func _check_listed_sockets() -> void:
 	if not row.has("sockets") or SystemModelRegistry.owner_of(id).is_empty():
 		return
 	var built: Array = []
-	for node: Node in find_children("*", "RcaPort", true, false):
-		var c := (node as RcaPort).connector
+	# Every lead's socket, A/V and link alike; not the mains inlet, which no row
+	# lists because the power cord is the game's own.
+	for node: Node in find_children("*", "Port", true, false):
+		if node is PowerPort:
+			continue
+		var c := (node as Port).connector
 		if not built.has(c):
 			built.append(c)
 	SpawnCatalog.note_built_sockets(SystemModelRegistry.owner_of(id), id,

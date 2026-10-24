@@ -23,7 +23,7 @@ var device_type: int = DEVICE_GBA_LINK
 
 ## The console and port this end is sitting in, or null and -1. Set by the
 ## console itself, which is the only thing that knows: a controller socket is a
-## plain snap zone rather than an RcaPort, so the usual walk to find the port a
+## plain snap zone rather than a Port, so the usual walk to find the port a
 ## plug sits in has nothing to find.
 var seated_system: Node3D = null
 var seated_port_index: int = -1

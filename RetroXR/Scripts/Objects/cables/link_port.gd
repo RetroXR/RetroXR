@@ -1,9 +1,9 @@
 ## The serial socket on a handheld — the GBA's link port.
 ##
-## An RcaPort with a different mouth and a different consequence. Everything the
-## seating machinery needs is already inherited: RcaPort.GROUP membership so a
-## plug can find the socket holding it, the has_picked_up / has_dropped hooks,
-## and the `connector` gate so a link lead will not go into a phono jack.
+## A Port with a different consequence. Everything the seating machinery needs is
+## inherited: Port.ANY_GROUP membership so a plug can find the socket holding it,
+## the has_picked_up / has_dropped hooks, and the `connector` gate so a link lead
+## will not go into a phono jack.
 ##
 ## What differs is what a seated cable MEANS. An A/V lead resolves through
 ## AvGraph into a routing decision; this one resolves into two emulator cores
@@ -11,10 +11,11 @@
 ## socket's. All this adds is a way to find the machine that owns the socket and
 ## the core running inside it.
 ##
-## `channel` is inherited but meaningless here, so it is pinned rather than left
-## for a scene to set wrong: a link cable carries neither picture nor sound.
+## Not an RcaPort, so it carries no A/V channel, direction or jack, and the A/V
+## sweeps (AvGraph over RcaPort.GROUP) never visit it: a link cable carries
+## neither picture nor sound.
 class_name LinkPort
-extends RcaPort
+extends Port
 
 ## Which of the machine's link ports this socket is. A Game Boy Advance has one;
 ## the export exists because a GameCube has four, and the API this ultimately
@@ -29,20 +30,14 @@ func _init() -> void:
 	connector = "link_plug"
 
 
-## What an export's scene conversion can undo of _init (RcaPort._own_connector).
+## What an export's scene conversion can undo of _init (Port._own_connector).
 func _own_connector() -> String:
 	return "link_plug"
 
 
-func _ready() -> void:
-	super._ready()
-	channel = RcaPort.Channel.VIDEO
-	show_jack = false
-
-
 ## The machine this socket belongs to.
 ##
-## RcaPort.get_device() walks for a node that answers on_av_topology_changed,
+## Port.get_device() walks for a node that answers on_av_topology_changed,
 ## which is the A/V graph's question and finds televisions and decks. A link
 ## cable wants the thing running a core instead, so it walks for that.
 func get_machine() -> Node3D:
