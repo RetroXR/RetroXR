@@ -34,6 +34,7 @@ var _elapsed: float = 0.0
 
 func _ready() -> void:
 	get_tree().create_timer(120.0).timeout.connect(func() -> void: get_tree().quit(0))
+	_register_depth_globals()
 
 	var xri: XRInterface = XRServer.find_interface("OpenXR")
 	var initialized: bool = xri != null and xri.is_initialized()
@@ -66,6 +67,39 @@ func _ready() -> void:
 	await get_tree().create_timer(3.0).timeout
 	print("[spatial] ===== probe complete =====")
 	get_tree().quit(0)
+
+
+## The vendors plugin sets these every frame once environment_depth is on, and
+## expects them declared: the editor writes them as shader_globals/ when the
+## setting is switched on there. Switched on for a feature tag alone they never
+## are, and the plugin logs a failure every frame (the first probe run, 2026-10-24).
+## Declared here, before anything renders, with the types its shaders use.
+func _register_depth_globals() -> void:
+	const MAT4 := RenderingServer.GLOBAL_VAR_TYPE_MAT4
+	var wanted := {
+		"META_ENVIRONMENT_DEPTH_TEXTURE": RenderingServer.GLOBAL_VAR_TYPE_SAMPLER2DARRAY,
+		"META_ENVIRONMENT_DEPTH_TEXEL_SIZE": RenderingServer.GLOBAL_VAR_TYPE_VEC2,
+		"META_ENVIRONMENT_DEPTH_AVAILABLE": RenderingServer.GLOBAL_VAR_TYPE_BOOL,
+		"META_ENVIRONMENT_DEPTH_FROM_CAMERA_PROJECTION_LEFT": MAT4,
+		"META_ENVIRONMENT_DEPTH_FROM_CAMERA_PROJECTION_RIGHT": MAT4,
+		"META_ENVIRONMENT_DEPTH_TO_CAMERA_PROJECTION_LEFT": MAT4,
+		"META_ENVIRONMENT_DEPTH_TO_CAMERA_PROJECTION_RIGHT": MAT4,
+		"META_ENVIRONMENT_DEPTH_PROJECTION_VIEW_LEFT": MAT4,
+		"META_ENVIRONMENT_DEPTH_PROJECTION_VIEW_RIGHT": MAT4,
+		"META_ENVIRONMENT_DEPTH_INV_PROJECTION_VIEW_LEFT": MAT4,
+		"META_ENVIRONMENT_DEPTH_INV_PROJECTION_VIEW_RIGHT": MAT4,
+	}
+	var have := RenderingServer.global_shader_parameter_get_list()
+	var added: PackedStringArray = []
+	for g: String in wanted:
+		if g in have:
+			continue
+		var t: int = wanted[g]
+		var value: Variant = Projection.IDENTITY if t == MAT4 else (Vector2.ZERO if t == RenderingServer.GLOBAL_VAR_TYPE_VEC2
+			else (false if t == RenderingServer.GLOBAL_VAR_TYPE_BOOL else null))
+		RenderingServer.global_shader_parameter_add(g, t, value)
+		added.append(g)
+	print("[spatial] depth globals: %d already declared, added %s" % [wanted.size() - added.size(), str(added)])
 
 
 ## Heartbeat: distinguishes "process died" from "process alive but not ticking".

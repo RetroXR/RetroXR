@@ -18,19 +18,24 @@ class_name EnvironmentDepth
 extends RefCounted
 
 const EXTENSION := "OpenXRMetaEnvironmentDepthExtension"
-## Set by the plugin once a depth frame has arrived.
-const AVAILABLE_GLOBAL := "META_ENVIRONMENT_DEPTH_AVAILABLE"
+## The project declares the plugin's globals here (the editor writes them when
+## environment_depth is switched on there). Without them the plugin fails to set
+## them every frame, and on a Quest 3 the app hung coming back from the consent
+## dialog (spatial probe, 2026-10-24); a shader naming them would not compile.
+const DECLARED_SETTING := "shader_globals/META_ENVIRONMENT_DEPTH_TEXTURE"
+## How long after starting before depth is taken to be there. The probe saw its
+## first frames within a frame or two; reading the plugin's
+## META_ENVIRONMENT_DEPTH_AVAILABLE back is an editor-only call that Godot warns
+## "can severely damage performance", so the time is used instead.
+const WARMUP_MS := 500
 
 ## The extension singleton, or a stand-in. A suite supplies one.
 static var extension_source := Callable()
-## Whether the plugin's globals hold a depth frame. A suite supplies one.
+## Whether a depth frame is there, or null to go by WARMUP_MS. A suite supplies one.
 static var available_source := Callable()
 
-const AVAILABLE_CHECK_MS := 500
-
 static var _owners: Dictionary = {}
-static var _available := false
-static var _available_at_ms := -AVAILABLE_CHECK_MS
+static var _started_ms := -1
 
 
 static func extension() -> Object:
@@ -43,7 +48,8 @@ static func extension() -> Object:
 ## game read it.
 static func is_supported() -> bool:
 	var ext := extension()
-	return ext != null and bool(ext.call("is_environment_depth_supported")) and SpatialPermission.usable()
+	return ext != null and bool(ext.call("is_environment_depth_supported")) and SpatialPermission.usable() \
+		and (extension_source.is_valid() or ProjectSettings.has_setting(DECLARED_SETTING))
 
 
 static func holds(owner: Object) -> bool:
@@ -74,6 +80,7 @@ static func acquire(owner: Object) -> bool:
 		var ext := extension()
 		if not bool(ext.call("is_environment_depth_started")):
 			ext.call("start_environment_depth")
+		_started_ms = Time.get_ticks_msec()
 	return true
 
 
@@ -99,20 +106,12 @@ static func is_running() -> bool:
 		return false
 	if available_source.is_valid():
 		return bool(available_source.call())
-	# Reading a global back can stall the render thread, so it is asked twice a
-	# second at most, whatever asks.
-	var now := Time.get_ticks_msec()
-	if now - _available_at_ms >= AVAILABLE_CHECK_MS:
-		_available_at_ms = now
-		_available = AVAILABLE_GLOBAL in RenderingServer.global_shader_parameter_get_list() \
-			and bool(RenderingServer.global_shader_parameter_get(AVAILABLE_GLOBAL))
-	return _available
+	return _started_ms >= 0 and Time.get_ticks_msec() - _started_ms >= WARMUP_MS
 
 
 ## For suites.
 static func reset() -> void:
 	_owners.clear()
-	_available = false
-	_available_at_ms = -AVAILABLE_CHECK_MS
+	_started_ms = -1
 	extension_source = Callable()
 	available_source = Callable()
