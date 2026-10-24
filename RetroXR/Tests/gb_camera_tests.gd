@@ -1389,11 +1389,30 @@ func _test_passthrough() -> void:
 	machine.is_powered_on = false
 	eye._process(0.0)
 	_ok(not EnvironmentDepth.is_held() and depth.stops == 1, "passthrough/and lets it go with the camera")
+	# Debug > Libretro Camera Subviewport: the fixed sphere asks for no depth.
+	var mode := {"v": "sphere"}
+	eye.backdrop_mode_source = func() -> String: return mode["v"]
 	machine.is_powered_on = true
 	eye._process(0.0)
+	_ok(eye.is_filming_real() and not EnvironmentDepth.is_held() and depth.starts == 1,
+		"passthrough/on Fixed 1.5 m the lens films the real room and asks for no depth")
+	EnvironmentDepth.available_source = func() -> bool: return true
+	_ok(eye.backdrop_material().shader == GbCameraEye.BACKDROP_SHADER,
+		"passthrough/and stays on the sphere though depth could run")
+	mode["v"] = "depth"
+	eye._process(GbCameraEye.REAL_CHECK_PERIOD)
+	_ok(EnvironmentDepth.holds(eye) and depth.starts == 2,
+		"passthrough/switched to Depth while filming, depth is asked for within the second")
+	mode["v"] = "sphere"
+	eye._process(GbCameraEye.REAL_CHECK_PERIOD)
+	_ok(not EnvironmentDepth.is_held() and depth.stops == 2,
+		"passthrough/and back to Fixed 1.5 m, let go")
+	EnvironmentDepth.available_source = func() -> bool: return false
+	mode["v"] = "depth"
+	eye._process(GbCameraEye.REAL_CHECK_PERIOD)
 	body.queue_free()
 	await get_tree().process_frame
-	_ok(not PassthroughCamera.is_held() and not EnvironmentDepth.is_held() and depth.stops == 2,
+	_ok(not PassthroughCamera.is_held() and not EnvironmentDepth.is_held() and depth.stops == 3,
 		"passthrough/a lens taken out of the room lets both go")
 	EnvironmentDepth.reset()
 	SpatialPermission.reset()

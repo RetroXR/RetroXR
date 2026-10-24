@@ -90,6 +90,8 @@ var machine_source := Callable()
 var picture_source := Callable()
 ## Whether to film the real room, or null to ask the headset. A suite supplies one.
 var real_source := Callable()
+## "depth" or "sphere", or null to read AppPrefs. A suite supplies one.
+var backdrop_mode_source := Callable()
 
 ## The process frame some eye last armed its viewport on: one a frame, so two
 ## cameras in a room never draw it twice more in the same one.
@@ -140,10 +142,10 @@ func _process(delta: float) -> void:
 	elif _real_check_wait <= 0.0:
 		_real_check_wait = REAL_CHECK_PERIOD
 		_hold_real(wants_real())
-		# Room data switched on (or back on) while filming: depth is asked for
-		# again, as it is when filming starts.
-		if _holding_real and not EnvironmentDepth.holds(self):
-			EnvironmentDepth.acquire(self)
+		# Room data, or the depth backdrop, switched on (or back on) while filming:
+		# depth is asked for again, as it is when filming starts; the fixed
+		# sphere chosen instead, it is let go.
+		_hold_depth(_holding_real and uses_depth())
 	if _holding_real:
 		PassthroughCamera.tick()
 	if lib == null:
@@ -198,15 +200,33 @@ func _hold_real(want: bool) -> void:
 		return
 	if want:
 		_holding_real = PassthroughCamera.acquire(self)
-		# Real surfaces where Meta's depth can run; the sphere where it cannot.
-		if _holding_real:
-			EnvironmentDepth.acquire(self)
+		# Real surfaces where Meta's depth can run; the sphere where it cannot,
+		# or where the player chose it.
+		_hold_depth(_holding_real and uses_depth())
 	else:
 		PassthroughCamera.release(self)
-		EnvironmentDepth.release(self)
+		_hold_depth(false)
 		_holding_real = false
 		if _backdrop != null:
 			_backdrop.visible = false
+
+
+func _hold_depth(want: bool) -> void:
+	if want and not EnvironmentDepth.holds(self):
+		EnvironmentDepth.acquire(self)
+	elif not want and EnvironmentDepth.holds(self):
+		EnvironmentDepth.release(self)
+
+
+## Debug > "Libretro Camera Subviewport" (AppPrefs.libretro_camera_backdrop):
+## "depth" finds the real room's surfaces with Meta's depth, "sphere" takes the
+## room to be BACKDROP_RADIUS from the headset camera everywhere, the first way
+## this was done, and asks for no depth.
+func uses_depth() -> bool:
+	if backdrop_mode_source.is_valid():
+		return str(backdrop_mode_source.call()) == "depth"
+	var prefs := get_node_or_null("/root/AppPrefs") if is_inside_tree() else null
+	return prefs == null or str(prefs.get("libretro_camera_backdrop")) != "sphere"
 
 
 ## Hand `picture` to `lib` as a core takes one: exactly `size`, RGBA8, top row
@@ -350,7 +370,7 @@ func _place_backdrop() -> void:
 ## otherwise. The depth shader names the plugin's globals and compiles only where
 ## they exist, so it is loaded the first time depth is running, never before.
 func backdrop_material() -> ShaderMaterial:
-	if _holding_real and EnvironmentDepth.is_running():
+	if _holding_real and uses_depth() and EnvironmentDepth.is_running():
 		if _depth_material == null:
 			_depth_material = ShaderMaterial.new()
 			_depth_material.shader = load(BACKDROP_DEPTH_SHADER) as Shader

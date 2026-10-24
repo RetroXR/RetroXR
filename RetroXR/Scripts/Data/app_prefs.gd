@@ -107,6 +107,11 @@ var passthrough_spatial: bool = true
 ## drawn in Space Setup -- level, and cheap; on, a Quest 3's scanned mesh of
 ## every surface, thousands of triangles, lumpy where the scan is.
 var passthrough_room_mesh: bool = false
+## How a libretro camera's subviewport (the Game Boy Camera's lens, GbCameraEye)
+## finds the real room behind its picture in passthrough: "depth", Meta's depth
+## of what is really there; "sphere", the room taken to be 1.5 m from the
+## headset camera everywhere -- the first method, and no depth asked for.
+var libretro_camera_backdrop: String = "depth"
 ## Whether VR focus mode shows the real room through passthrough around its screen
 ## instead of black. Falls back to black where passthrough is unavailable.
 var focus_passthrough: bool = false
@@ -318,6 +323,9 @@ func _load_prefs() -> void:
 	passthrough_occlusion = JsonStore.get_bool(data, "passthrough_occlusion", passthrough_occlusion)
 	passthrough_spatial = JsonStore.get_bool(data, "passthrough_spatial", passthrough_spatial)
 	passthrough_room_mesh = JsonStore.get_bool(data, "passthrough_room_mesh", passthrough_room_mesh)
+	libretro_camera_backdrop = JsonStore.get_string(data, "libretro_camera_backdrop", libretro_camera_backdrop)
+	if libretro_camera_backdrop not in ["depth", "sphere"]:
+		libretro_camera_backdrop = "depth"
 	focus_passthrough = JsonStore.get_bool(data, "focus_passthrough", focus_passthrough)
 	hidden_systems      = PackedStringArray()
 	for hidden: String in JsonStore.get_strings(data, "hidden_systems"):
@@ -357,6 +365,7 @@ func save_prefs() -> bool:
 		"passthrough_occlusion": passthrough_occlusion,
 		"passthrough_spatial": passthrough_spatial,
 		"passthrough_room_mesh": passthrough_room_mesh,
+		"libretro_camera_backdrop": libretro_camera_backdrop,
 		"focus_passthrough": focus_passthrough,
 		"hidden_systems":    hidden_systems,
 		"show_hidden_systems": show_hidden_systems,

@@ -846,6 +846,24 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 		+ "the scanned mesh orange. Faint where things don't rest on it."))
 
 	vbox.add_child(HSeparator.new())
+	vbox.add_child(MenuStyle.header("LIBRETRO CAMERA", 20))
+
+	# How a core's camera subviewport (the Game Boy Camera's lens) finds the real
+	# room in passthrough. Saved: it changes what the camera sees, not just a look.
+	var cam_drop := VRDropdown.create("Libretro Camera Subviewport",
+		[["Depth (real surfaces)", "depth"], ["Fixed 1.5 m", "sphere"]],
+		AppPrefs.libretro_camera_backdrop,
+		1, Vector2(300, 56), MenuStyle.MENU_NAME_SIZE)
+	cam_drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.libretro_camera_backdrop = str(id)
+		AppPrefs.save_prefs())
+	vbox.add_child(cam_drop)
+	vbox.add_child(MenuStyle.hint(
+		"In passthrough, what the camera sees is the headset camera's view taken to "
+		+ "where its lens points. Depth finds the real surfaces with Meta's depth "
+		+ "(Quest 3); Fixed 1.5 m takes everything to be 1.5 m away, the first way."))
+
+	vbox.add_child(HSeparator.new())
 	vbox.add_child(MenuStyle.header("CABLES", 20))
 
 	MenuStyle.menu_switch_row(vbox, "Rope tuning on Tab", RopeTuning.enabled) 		.toggled.connect(func(on: bool) -> void:
