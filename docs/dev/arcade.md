@@ -626,3 +626,9 @@ pair works exactly as a downloaded one. A board needs a disc exactly when that f
 - OWED: a real RomM holding a game with a CHD (the layout of RomM's multi-file archive is handled either way, never seen), a real game
   with a CHD in the core (which MAME sets need which file is MAME's), the look of the drive in a headset, the Quest, netplay (the disc is
   not replicated; a session refuses nothing for it), cache eviction pairing the two groups.
+
+## Buttons (2026-10-24)
+
+A button on the deck is the cap AND a flange of the same colour round it (`<name>Rim`, a short cone 22% wider than the cap, fixed): the
+cap sinks into it when its bit is held (`CAP_PRESS` 6 mm, the flange 5 mm proud), as a moulded pushbutton does. The cap tapers a little
+toward its top. `gen_arcade_cabinet.gd _cap`; the control module still finds only `BtnN` and `Start`.

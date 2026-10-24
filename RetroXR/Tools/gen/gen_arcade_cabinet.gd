@@ -25,6 +25,8 @@ const U := preload("res://Tools/gen/arcade_gen_util.gd")
 const OUT_DIR := "res://Scenes/Objects/system_models/"
 
 const SIDE_T := 0.02
+## The flange a button stands in: how proud of the plate it is, so a pressed cap sinks into it.
+const RIM_H := 0.005
 const TUBE_DEPTH := 0.07
 
 ## The two bodies. `upright` is the generic cabinet and every old one: 0.66 wide, 1.80 tall, the glass
@@ -465,11 +467,21 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		gshape.size = Vector3(width, 0.185, 0.08)
 
 
-## A button cap on the deck: a cylinder that sinks when its bit is held. Not pokeable by itself.
+## A button on the deck, as a pushbutton is made: the cap, which sinks when its bit is held, in a
+## flange of the same colour that stays where it is (`<name>Rim`, a short cone wider than the cap, so
+## the cap reads as standing in a rim of its own colour instead of a bare cylinder sticking out of
+## the plate). Not pokeable by itself. Returns the cap, the node the control module moves.
 func _cap(parent: Node3D, node_name: String, pos: Vector3, radius: float,
 		color: Color, height: float) -> MeshInstance3D:
-	return U.cylinder(_root, parent, node_name, radius, height, pos + Vector3(0, 0, height * 0.5),
-		U.mat(color, 0.0, 0.3), Vector3.BACK)
+	var mat := U.mat(color, 0.0, 0.3)
+	var rim := U.cylinder(_root, parent, node_name + "Rim", radius * 1.22, RIM_H,
+		pos + Vector3(0, 0, RIM_H * 0.5), mat, Vector3.BACK)
+	(rim.mesh as CylinderMesh).top_radius = radius * 1.10
+	# The cap's own sides lean in a little toward its top, as a moulded button's do.
+	var cap := U.cylinder(_root, parent, node_name, radius, height, pos + Vector3(0, 0, height * 0.5),
+		mat, Vector3.BACK)
+	(cap.mesh as CylinderMesh).top_radius = radius * 0.88
+	return cap
 
 
 # ── coin doors ──────────────────────────────────────────────────────────────
