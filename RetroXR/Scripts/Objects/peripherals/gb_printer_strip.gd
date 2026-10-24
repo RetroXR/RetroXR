@@ -321,8 +321,13 @@ func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 			speeds[i] *= slow
 		_lay_points()
 	_contact()
+	# What each hinge did over the step, the short way round: contact reads a
+	# hinge back wrapped to half a turn either way, so one folded right back
+	# jumps from +PI to -PI, and taken as a speed that was a turn every few
+	# milliseconds, which the next step carried on: the fold spun without end,
+	# through its own paper.
 	for i in n:
-		speeds[i] = (angles[i] - before[i]) / h
+		speeds[i] = wrapf(angles[i] - before[i], -PI, PI) / h
 
 
 ## Put every point out of what it is in, follow-the-leader: from the slot out,

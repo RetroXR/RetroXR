@@ -43,6 +43,7 @@ func _ready() -> void:
 	_test_paper_gives_way_to_its_weight()
 	_test_paper_lies_on_what_is_under_it()
 	_test_paper_grows_and_tears()
+	_test_a_fold_comes_to_rest()
 	_test_paper_flops()
 	_test_paper_meets_the_room()
 	await _test_printer_finds_the_room()
@@ -673,6 +674,27 @@ func _test_paper_flops() -> void:
 	_ok(past > 0.003, "stopped, it swings back past its rest (%.1f mm)" % (past * 1000.0))
 	_ok(s.motion() < 0.01, "and settles (%.4f)" % s.motion())
 	_ok(s.points[s.points.size() - 1].distance_to(rest) < 0.002, "where it was")
+
+
+func _test_a_fold_comes_to_rest() -> void:
+	# A print's half hanging straight down onto a surface at the hand has to
+	# double back along it. One hinge folded half a turn, read back as the other
+	# way round, took that for a speed, and spun without end through its own paper.
+	for length: float in [0.06, 0.1]:
+		var s := GbPrinterStrip.new()
+		s.set_length(length)
+		s.place(Vector2.ZERO, 0.0)
+		var g := Vector2(9.81, 0.0)
+		var n := -g.normalized()
+		s.patches.append([n, 0.0, Vector2.ZERO, 0.3])
+		var rng := RandomNumberGenerator.new()
+		rng.seed = 3
+		var late := 0.0
+		for f in 576:
+			s.step(1.0 / 72.0, g, rng.randf_range(-40.0, 40.0) if f < 144 else 0.0)
+			if f > 432:
+				late = maxf(late, s.motion())
+		_ok(late < 0.05, "a %.0f cm half doubled back on a surface comes to rest (%.3f rad/s)" % [length * 100.0, late])
 
 
 func _test_paper_grows_and_tears() -> void:
