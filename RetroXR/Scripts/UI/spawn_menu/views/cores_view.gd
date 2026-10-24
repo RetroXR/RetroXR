@@ -1017,6 +1017,10 @@ const _BIOS_EXTRA_CORES := {
 func _build_bios_core_row(extra: Dictionary) -> Control:
 	var core_name := str(extra["core"])
 	var installed := not CoreDownloadManager.installed_core_lib(core_name).is_empty()
+	# A core row asks what the Cores tab asks: is there a newer release than the
+	# one installed. Without it the row only knew installed or not, and showed
+	# the re-download glyph over a printer core a release behind.
+	var update := installed and core_update_available(download_manager, core_name)
 	return _build_bios_download_row(CoreDownloadManager.job_key(core_name),
 		str(extra["title"]), str(extra.get("desc", "")), installed,
 		"Download this core",
@@ -1027,7 +1031,24 @@ func _build_bios_core_row(extra: Dictionary) -> Control:
 			return download_manager != null and download_manager.is_queued(core_name),
 		func(_key: String) -> void:
 			if download_manager != null and download_manager.current_key() == CoreDownloadManager.job_key(core_name):
-				download_manager.cancel_current())
+				download_manager.cancel_current(),
+		update)
+
+
+## Whether `dm` has a newer release of `core_name` than the one it installed:
+## the release the last listing found, or this build's own known tag when no
+## listing has come in yet (CoreSources.version_of). False with no manager.
+static func core_update_available(dm: CoreDownloadManager, core_name: String) -> bool:
+	if dm == null:
+		return false
+	var remote := ""
+	for entry: Dictionary in dm.available_cores:
+		if str(entry.get("core_name", "")) == core_name:
+			remote = str(entry.get("remote_date", ""))
+			break
+	if remote.is_empty():
+		remote = CoreSources.version_of(core_name)
+	return dm.manifest != null and dm.get_core_state(core_name, remote) == "UPDATE"
 
 
 ## The one-tap route for cores whose support files libretro redistributes.
@@ -1117,7 +1138,7 @@ func _build_wii_menu_row() -> Control:
 ## installer's -- a core fetched from this page is the core downloader's.
 func _build_bios_download_row(key: String, title: String, desc: String, installed: bool,
 		download_tooltip: String, enqueue: Callable, queued := Callable(),
-		cancel := Callable()) -> Control:
+		cancel := Callable(), update := false) -> Control:
 	if not queued.is_valid():
 		queued = func(k: String) -> bool:
 			return _firmware_installer != null and _firmware_installer.is_queued(k)
@@ -1154,9 +1175,9 @@ func _build_bios_download_row(key: String, title: String, desc: String, installe
 
 	if installed and not running:
 		var done := Label.new()
-		done.text = "Installed"
+		done.text = "Update available" if update else "Installed"
 		done.add_theme_font_size_override("font_size", 15)
-		done.add_theme_color_override("font_color", MenuIcons.TINT_OK)
+		done.add_theme_color_override("font_color", MenuIcons.TINT_WARN if update else MenuIcons.TINT_OK)
 		done.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		row.add_child(done)
 
@@ -1168,6 +1189,11 @@ func _build_bios_download_row(key: String, title: String, desc: String, installe
 		btn.text = String.chr(MenuIcons.BUSY)
 		btn.add_theme_color_override("font_color", MenuIcons.TINT_BUSY)
 		btn.tooltip_text = "Downloading — press to cancel"
+	elif update:
+		# The Cores tab's glyph for the same news (_style_dl_button).
+		btn.text = String.chr(MenuIcons.UPDATE)
+		btn.add_theme_color_override("font_color", MenuIcons.TINT_WARN)
+		btn.tooltip_text = "A newer build is available"
 	elif installed:
 		# Still pressable: re-running the archive is how you repair a file that
 		# went bad, so the affordance stays and only its reading changes.

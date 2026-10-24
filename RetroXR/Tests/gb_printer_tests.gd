@@ -54,6 +54,7 @@ func _ready() -> void:
 	_test_netplay_row()
 	_test_core_source_and_info()
 	_test_bios_extras_row()
+	_test_bios_extras_row_offers_updates()
 	_test_poster_pictures_travel()
 	print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
@@ -704,6 +705,25 @@ func _test_core_source_and_info() -> void:
 	# No platform of its own: no tile on the spawn menu, no roms folder.
 	var sids := CoreInfoDatabase.systemids_of(info)
 	_ok(sids.is_empty() or sids == ["unknown"], "and names no platform (%s)" % str(sids))
+
+
+func _test_bios_extras_row_offers_updates() -> void:
+	# The printer's row on BIOS / Extras says when a newer release is out, as the
+	# Cores tab does; it only ever showed the re-download glyph.
+	var view: GDScript = load("res://Scripts/UI/spawn_menu/views/cores_view.gd")
+	var dm := CoreDownloadManager.new()
+	dm.manifest = DownloadManifest.new()
+	dm.manifest.set_downloaded(GbPrinter.CORE, "retroxr-gbprinter-libretro-v3")
+	dm.available_cores = [{"core_name": GbPrinter.CORE, "remote_date": "retroxr-gbprinter-libretro-v4"}]
+	_ok(bool(view.call("core_update_available", dm, GbPrinter.CORE)), "v3 installed with v4 out is an update")
+	dm.manifest.set_downloaded(GbPrinter.CORE, "retroxr-gbprinter-libretro-v4")
+	_ok(not bool(view.call("core_update_available", dm, GbPrinter.CORE)), "v4 installed is not")
+	dm.available_cores = []
+	dm.manifest.set_downloaded(GbPrinter.CORE, "retroxr-gbprinter-libretro-v1")
+	_ok(bool(view.call("core_update_available", dm, GbPrinter.CORE)),
+		"with no listing yet, this build's own tag says what is newer")
+	_ok(not bool(view.call("core_update_available", null, GbPrinter.CORE)), "and with no manager, nothing is")
+	dm.free()
 
 
 func _test_bios_extras_row() -> void:
