@@ -536,6 +536,28 @@ func _test_release() -> void:
 				% aimed.global_position.z)
 	aimed.queue_free()
 
+	# 4b. A Game Boy Printer's print is paper in the hand, reeled about on the
+	#     beam: a wall the beam crosses must not take it. Only brought up to one.
+	var print_far := _make_poster()
+	print_far.printout = true
+	await get_tree().process_frame
+	print_far.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(70.0)),
+		Vector3(0, 1.5, -0.6))
+	print_far.set_aim_direction(Vector3(0, 0, -1))
+	_ok(print_far.predict_stick().is_empty(), "release/a print 1.3 m out does not reach for the wall")
+	await _release(print_far)
+	_ok(not print_far.is_stuck(), "release/and is not stuck to it when let go")
+	print_far.queue_free()
+	var print_near := _make_poster()
+	print_near.printout = true
+	await get_tree().process_frame
+	print_near.global_transform = Transform3D(Basis(Vector3.UP, deg_to_rad(70.0)),
+		Vector3(0, 1.5, -1.7))
+	print_near.set_aim_direction(Vector3(0, 0, -1))
+	await _release(print_near)
+	_ok(print_near.is_stuck(), "release/a print brought up to the wall sticks to it")
+	print_near.queue_free()
+
 	# 5. An OBJECT, not the room. A television is an XRToolsPickable on the
 	#    Pickable layer, not world geometry — a probe that searched only World
 	#    stuck to every wall and passed straight through every machine.

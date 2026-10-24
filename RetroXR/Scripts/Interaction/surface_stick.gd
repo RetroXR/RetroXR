@@ -57,6 +57,12 @@ var _orig_freeze_mode: int = RigidBody3D.FREEZE_MODE_STATIC
 ## of its own face finds empty room — the surface the player means is the one
 ## under the laser, which can be metres away. Aim wins when it is set.
 var aim_direction := Vector3.ZERO
+## How far along the aim to look: AIM_REACH for a poster, placed across a room.
+## A sheet the player handles rather than places (a Game Boy Printer's print)
+## looks only REACH out, so a wall the beam happens to cross does not take it out
+## of the hand: with the preview parked on the wall, reeling it in or out on the
+## beam seemed to do nothing.
+var aim_reach := AIM_REACH
 ## In-plane spin, in radians about the surface normal. Sticking squares a sheet
 ## up to world-up, which is right for a first placement and wrong as the only
 ## option — a poster hung on a slant is a deliberate look.
@@ -117,7 +123,7 @@ func predict() -> Dictionary:
 	# a ray-held sheet floats at the beam's hold distance facing however it was
 	# grabbed, so its own face usually looks at nothing.
 	if aim_direction.length_squared() > 0.0001:
-		var ah := _cast(space, from, aim_direction, AIM_REACH)
+		var ah := _cast(space, from, aim_direction, aim_reach)
 		if not ah.is_empty():
 			return ah
 

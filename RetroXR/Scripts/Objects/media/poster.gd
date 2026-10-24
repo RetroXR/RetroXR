@@ -269,7 +269,7 @@ func _process(delta: float) -> void:
 	# stick runs the grab is already over — so the aim has to be kept, not asked
 	# for afterwards.
 	if holder != null and _stick != null:
-		_stick.aim_direction = -holder.global_transform.basis.z
+		set_aim_direction(-holder.global_transform.basis.z)
 		# A beam grab emits nothing on the pickable — no `picked_up`, no
 		# `dropped` — so a stuck poster has to notice the beam itself, or it
 		# stays parented to the wall while the laser drags it around.
@@ -413,10 +413,12 @@ func peel() -> void:
 	_show_flat()
 
 
-## Where the holder is aiming, for the laser placement path.
+## Where the holder is aiming, for the laser placement path. A print is placed
+## only when brought to the surface (SurfaceStick.aim_reach).
 func set_aim_direction(dir: Vector3) -> void:
 	if _stick != null:
 		_stick.aim_direction = dir
+		_stick.aim_reach = SurfaceStick.REACH if printout else SurfaceStick.AIM_REACH
 
 
 # ── Hover outline ─────────────────────────────────────────────────────────────
