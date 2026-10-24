@@ -82,6 +82,8 @@ material = SubResource("StandardMaterial3D_etlqb")
 top_radius = 0.019
 bottom_radius = 0.019
 height = 0.026
+radial_segments = 15
+rings = 1
 
 [sub_resource type="BoxMesh" id="BoxMesh_d60mp"]
 material = SubResource("StandardMaterial3D_842xf")
@@ -109,6 +111,8 @@ material = SubResource("StandardMaterial3D_mmwxc")
 top_radius = 0.011
 bottom_radius = 0.011
 height = 0.02
+radial_segments = 12
+rings = 1
 
 [node name="ArcadeLightGun" type="RigidBody3D" unique_id=118498511 groups=["hand_held_device"]]
 collision_layer = 4
@@ -198,34 +202,34 @@ visible = false
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04, 0.048)
 visible = false
 
-[node name="RecoilHousing" type="MeshInstance3D" parent="." unique_id=2024885532]
+[node name="RecoilHousing" type="MeshInstance3D" parent="." unique_id=1360049608]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.003, -0.08)
 mesh = SubResource("BoxMesh_gbloc")
 
-[node name="RecoilBand" type="MeshInstance3D" parent="." unique_id=637854605]
+[node name="RecoilBand" type="MeshInstance3D" parent="." unique_id=299829903]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.003, -0.135)
 mesh = SubResource("BoxMesh_tbpju")
 
-[node name="Muzzle" type="MeshInstance3D" parent="." unique_id=1259560179]
+[node name="Muzzle" type="MeshInstance3D" parent="." unique_id=908434618]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.034, -0.158)
 mesh = SubResource("CylinderMesh_5bjg0")
 
-[node name="FrontSight" type="MeshInstance3D" parent="." unique_id=1843297096]
+[node name="FrontSight" type="MeshInstance3D" parent="." unique_id=1029759510]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.065, -0.132)
 mesh = SubResource("BoxMesh_d60mp")
 
-[node name="RearSight" type="MeshInstance3D" parent="." unique_id=899960039]
+[node name="RearSight" type="MeshInstance3D" parent="." unique_id=550330778]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.063, 0.036)
 mesh = SubResource("BoxMesh_2l0tg")
 
-[node name="GuardBottom" type="MeshInstance3D" parent="." unique_id=1397351234]
+[node name="GuardBottom" type="MeshInstance3D" parent="." unique_id=47440455]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.004)
 mesh = SubResource("BoxMesh_8mtj4")
 
-[node name="GuardFront" type="MeshInstance3D" parent="." unique_id=1338873126]
+[node name="GuardFront" type="MeshInstance3D" parent="." unique_id=164263208]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.008, -0.019)
 mesh = SubResource("BoxMesh_vkkg5")
 
-[node name="CordBoot" type="MeshInstance3D" parent="." unique_id=1723368843]
+[node name="CordBoot" type="MeshInstance3D" parent="." unique_id=1007402518]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.092, 0.052)
 mesh = SubResource("CylinderMesh_mwgmg")
