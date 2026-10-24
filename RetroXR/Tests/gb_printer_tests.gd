@@ -43,6 +43,8 @@ func _ready() -> void:
 	_test_paper_lies_on_what_is_under_it()
 	_test_paper_grows_and_tears()
 	_test_paper_flops()
+	_test_paper_meets_the_room()
+	await _test_printer_finds_the_room()
 	_test_paper_moves_smoothly()
 	await _test_netplay_surface()
 	_test_netplay_row()
@@ -397,6 +399,76 @@ func _test_paper_moves_smoothly() -> void:
 				worst = maxf(worst, (c[i] - 2.0 * b[i] + a[i]).length())
 	_ok(worst < 0.02, "lifted and set down, the paper never jumps (%.1f mm)" % (worst * 1000.0))
 	_eq(inside, 0, "nor ends up in or under the printer")
+
+
+func _test_paper_meets_the_room() -> void:
+	# A table under the printer that ends 10 cm behind it, as patches the room's
+	# rays would find: a long print hangs over the edge and down past it. On one
+	# whole surface, as the paper had before, it could not.
+	# Every ROOM_SAMPLE down the table to its last point before the edge, each
+	# patch reaching PATCH_REACH: as the printer's rays would find it.
+	var table: Array = []
+	var z := 0.08
+	while z > -0.10:
+		table.append([Vector2(1.0, 0.0), -0.0285, Vector2(-0.0285, z), GbPrinter.PATCH_REACH])
+		z -= GbPrinter.ROOM_SAMPLE
+	var s := _on_the_shell(0.30)
+	s.planes = []
+	s.patches = table
+	for i in 900:
+		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var lowest := 0.0
+	var past_edge := 0.0
+	for p in s.points:
+		lowest = minf(lowest, p.x)
+		past_edge = minf(past_edge, p.y)
+	_ok(past_edge < -0.10 and lowest < -0.06,
+		"a long print hangs over the table's edge (lowest %.3f, back to %.3f)" % [lowest, past_edge])
+	var whole := _on_the_shell(0.30)
+	for i in 900:
+		whole.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var whole_lowest := 0.0
+	for p in whole.points:
+		whole_lowest = minf(whole_lowest, p.x)
+	_ok(whole_lowest > -0.031, "on one whole surface it could not (%.3f)" % whole_lowest)
+	# A wall 12 cm behind the printer, facing it: the print stops against it.
+	var walled := _on_the_shell(0.30)
+	walled.planes = []
+	walled.patches = table + [[Vector2(0.0, 1.0), -0.12, Vector2(0.0, -0.12), 0.08]]
+	for i in 900:
+		walled.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var through := 0
+	for p in walled.points:
+		if p.y < -0.123 and p.x > -0.08 and p.x < 0.08:
+			through += 1
+	_eq(through, 0, "nor goes through a wall behind the printer")
+
+
+func _test_printer_finds_the_room() -> void:
+	# A real table under a real printer: its rays find it under its feet.
+	var table := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(1.0, 0.02, 1.0)
+	shape.shape = box
+	table.add_child(shape)
+	table.position = Vector3(0.0, -0.01, 0.0)
+	add_child(table)
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	printer.freeze = true
+	printer.global_position = Vector3(0.0, 0.0285, 0.0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	printer._find_obstacles()
+	printer._place_room(printer.global_transform)
+	var up := 0
+	for piece: Array in printer._strip.patches:
+		if (piece[0] as Vector2).is_equal_approx(Vector2(1.0, 0.0)):
+			up += 1
+	_ok(up >= 3, "a printer finds the table under its back, slot and front (%d)" % up)
+	printer.free()
+	table.free()
 
 
 func _test_paper_flops() -> void:

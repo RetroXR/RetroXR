@@ -46,9 +46,19 @@ const PAPER_REDRAW := 0.00005
 ## The tear trigger is at least this thick, so a strip standing edge-on to the
 ## pointer can still be pointed at.
 const PAPER_HIT_THICKNESS := 0.003
-## How often the surface under the slot is looked for, seconds, and how far down.
+## How often the room round the paper is looked for, seconds, and how far down
+## under the printer.
 const FLOOR_EVERY := 0.2
 const FLOOR_REACH := 1.5
+## Down from every ROOM_SAMPLE of paper, from ROOM_LIFT above it to ROOM_DROP
+## below, meters; and each patch found reaches PATCH_REACH each way along it,
+## a little over half the spacing so neighbors meet. No further: a patch found
+## at a table's edge reaches past it into the air, and at 4 cm a long print's end
+## lay out on nothing beyond the edge instead of hanging over it.
+const ROOM_SAMPLE := 0.02
+const ROOM_LIFT := 0.01
+const ROOM_DROP := 0.15
+const PATCH_REACH := 0.012
 ## The slot's speed and acceleration, and the printer's spin and its change, are
 ## each smoothed over this long, seconds, and never taken as more than the
 ## MAXes: a printer snapped to a hand is not a printer shaken. Faster than
@@ -111,8 +121,8 @@ var _slot_spin := 0.0
 var _slot_spin_accel := 0.0
 var _slot_known := false
 var _floor_wait := 0.0
-## What the last look under the slot found (intersect_ray's result), in the room.
-var _floor_hit := {}
+## What the last looks round the paper found, in the room: [position, normal].
+var _room_hits: Array = []
 @onready var _pivot: Node3D = $PaperPivot
 var _toast: AchievementToast = null
 ## Said once per press, not every frame it is held.
@@ -478,9 +488,9 @@ func _move_paper(delta: float) -> void:
 	if _floor_wait <= 0.0:
 		_floor_wait = FLOOR_EVERY
 		_find_obstacles()
-	# The surface is where it is in the room: placed against the printer every
-	# frame, so a printer tipping over it never meets it a fifth of a second late.
-	_place_floor(xf)
+	# The room is where it is: placed against the printer every frame, so a
+	# printer tipping over it never meets it a fifth of a second late.
+	_place_room(xf)
 	_aim_strip()
 	var shove := basis.inverse() * -_slot_accel
 	_strip.step(delta, Vector2(g.y, g.z), _slot_spin_accel, Vector2(shove.y, shove.z))
@@ -494,11 +504,22 @@ func _aim_strip() -> void:
 	_strip.place(Vector2(_pivot.position.y, _pivot.position.z), atan2(-up.z, up.y))
 
 
-## What the paper lies on: the printer's own boxes (the scene's, or the ones a
-## shell fitted round itself) and whatever is under the slot, kept as it is in
-## the room (_place_floor puts it against the printer).
+## What the paper meets: the printer's own boxes (the scene's, or the ones a
+## shell fitted round itself), and the room, as patches of surface found by short
+## rays and kept as they are in the room (_place_room puts them against the
+## printer each frame):
+##   under the printer's back, its slot and its front, straight down, for what it
+##   stands on;
+##   down from every few centimeters of the paper, for what the paper hangs over
+##   (a table's top, or nothing past its edge);
+##   from each of those points of the paper to the next, for what it runs into
+##   (a wall, the Game Boy beside it).
+## One whole surface under the slot was the paper's only room: it could not hang
+## over a table's edge, and went through everything else.
 func _find_obstacles() -> void:
 	_strip.boxes.clear()
+	var z_lo := INF
+	var z_hi := -INF
 	for child in get_children():
 		var shape := child as CollisionShape3D
 		if shape == null or not (shape.shape is BoxShape3D):
@@ -506,34 +527,57 @@ func _find_obstacles() -> void:
 		var size := (shape.shape as BoxShape3D).size
 		var c := shape.position
 		_strip.boxes.append(Rect2(Vector2(c.y - size.y * 0.5, c.z - size.z * 0.5), Vector2(size.y, size.z)))
-	_floor_hit = {}
+		z_lo = minf(z_lo, c.z - size.z * 0.5)
+		z_hi = maxf(z_hi, c.z + size.z * 0.5)
+	_room_hits.clear()
 	if not is_inside_tree():
 		return
-	var from := _pivot.global_position
-	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * FLOOR_REACH)
+	var space := get_world_3d().direct_space_state
 	# Not the printer, nor its own bodies (its pointer target is a StaticBody3D
 	# round the deck, which the paper would otherwise lie on in the air).
 	var own: Array[RID] = [get_rid()]
 	for body in find_children("*", "CollisionObject3D", true, false):
 		own.append((body as CollisionObject3D).get_rid())
-	query.exclude = own
-	_floor_hit = get_world_3d().direct_space_state.intersect_ray(query)
+	var cast := func(from: Vector3, to: Vector3) -> void:
+		var query := PhysicsRayQueryParameters3D.create(from, to)
+		query.exclude = own
+		var hit := space.intersect_ray(query)
+		if not hit.is_empty():
+			_room_hits.append([hit["position"], hit["normal"]])
+	var feet: Array[float] = [_pivot.position.z]
+	if z_lo < z_hi:
+		feet = [z_lo, _pivot.position.z, z_hi]
+	for z: float in feet:
+		var from := to_global(Vector3(_pivot.position.x, _pivot.position.y, z))
+		cast.call(from, from + Vector3.DOWN * FLOOR_REACH)
+	var down := (ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3.DOWN) as Vector3).normalized()
+	var pts := _strip.points
+	var every := maxi(1, ceili(ROOM_SAMPLE / (_strip.length / maxi(_strip.segments, 1))))
+	var last := Vector3.INF
+	for i in range(every, pts.size(), every):
+		var at := to_global(Vector3(_pivot.position.x, pts[i].x, pts[i].y))
+		cast.call(at - down * ROOM_LIFT, at + down * ROOM_DROP)
+		if last != Vector3.INF:
+			cast.call(last, at)
+		last = at
 
 
-## The surface under the slot (_find_obstacles), in the frame of the printer
-## drawn at `xf` this frame, across the middle of the paper.
-func _place_floor(xf: Transform3D) -> void:
+## The room's patches (_find_obstacles), in the frame of the printer drawn at
+## `xf` this frame, across the middle of the paper.
+func _place_room(xf: Transform3D) -> void:
 	_strip.planes.clear()
-	if _floor_hit.is_empty():
-		return
-	var n: Vector3 = xf.basis.orthonormalized().inverse() * (_floor_hit["normal"] as Vector3)
-	var at := xf.affine_inverse() * (_floor_hit["position"] as Vector3)
-	var n2 := Vector2(n.y, n.z)
-	# A printer on its side bends its paper in a plane the surface is not across.
-	if n2.length() < 0.3:
-		return
-	var offset := n.dot(at) - n.x * _pivot.position.x
-	_strip.planes.append([n2 / n2.length(), offset / n2.length()])
+	_strip.patches.clear()
+	var inv := xf.affine_inverse()
+	var turn := xf.basis.orthonormalized().inverse()
+	for hit: Array in _room_hits:
+		var n: Vector3 = turn * (hit[1] as Vector3)
+		var at: Vector3 = inv * (hit[0] as Vector3)
+		var n2 := Vector2(n.y, n.z)
+		# A surface the paper's plane is not across: the printer on its side.
+		if n2.length() < 0.3:
+			continue
+		var offset := n.dot(at) - n.x * _pivot.position.x
+		_strip.patches.append([n2 / n2.length(), offset / n2.length(), Vector2(at.y, at.z), PATCH_REACH])
 
 
 ## Lay the strip's mesh, the tear trigger and its box from the bend, once some

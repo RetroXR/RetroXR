@@ -67,6 +67,9 @@ const CONTACT_FROM := 0.008
 ## How many times a point is pushed out and set back on its segment, at most:
 ## set back, it can land in something again.
 const CONTACT_PASSES := 3
+## How far behind a patch of surface paper still counts as in it, meters: past
+## that it is on the far side (under the table it hangs over), not in it.
+const PATCH_DEPTH := 0.03
 ## How far under each box counts as the box, meters: all the way to the table.
 const UNDER_BOX := 1.0
 ## The fastest any point of the paper moves against the printer of its own
@@ -96,6 +99,12 @@ var points := PackedVector2Array()
 ## surfaces as [normal (unit), offset] where normal . p >= offset is outside.
 var boxes: Array[Rect2] = []
 var planes: Array = []
+## Pieces of surface found in the room: [normal (unit), offset, center, reach],
+## a plane as above but only for paper within `reach` of `center` along it and
+## no deeper behind it than PATCH_DEPTH. A whole plane under the slot kept a
+## long print from hanging over a table's edge, and nothing else in the room
+## was there at all.
+var patches: Array = []
 
 
 ## Set the paper's length. New paper comes out of the slot with the roll's curl
@@ -297,7 +306,7 @@ func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 ## only the hinge behind could not lift a point whose segment ran along the push,
 ## which left the curled end of a long strip inside the printer.
 func _contact() -> void:
-	if boxes.is_empty() and planes.is_empty():
+	if boxes.is_empty() and planes.is_empty() and patches.is_empty():
 		return
 	var ds := length / segments
 	var first := maxi(1, ceili(CONTACT_FROM / ds))
@@ -384,7 +393,25 @@ func _off_surface(p: Vector2) -> Vector2:
 		if under > deepest:
 			deepest = under
 			out = normal * under
+	for piece: Array in patches:
+		var under := _in_patch(piece, p)
+		if under > deepest:
+			deepest = under
+			out = (piece[0] as Vector2) * under
 	return out
+
+
+## How far `p` is into a patch of surface, or 0 or less when it is not (beside
+## it, or past PATCH_DEPTH behind it).
+static func _in_patch(piece: Array, p: Vector2) -> float:
+	var normal: Vector2 = piece[0]
+	var under: float = float(piece[1]) + SKIN - normal.dot(p)
+	if under <= 0.0 or under > PATCH_DEPTH:
+		return 0.0
+	var along := Vector2(normal.y, -normal.x)
+	if absf(along.dot(p - (piece[2] as Vector2))) > float(piece[3]):
+		return 0.0
+	return under
 
 
 ## A box as the paper meets it: a skin bigger, and reaching all the way down.
@@ -406,4 +433,6 @@ func _under(p: Vector2) -> float:
 	for plane: Array in planes:
 		var normal: Vector2 = plane[0]
 		deepest = maxf(deepest, float(plane[1]) + SKIN - normal.dot(p))
-	return deepest if not planes.is_empty() else 0.0
+	for piece: Array in patches:
+		deepest = maxf(deepest, _in_patch(piece, p))
+	return deepest if deepest != -INF else 0.0
