@@ -478,8 +478,15 @@ func _make_pair() -> Pair:
 	remote.name = "SnapshotWiimote"
 	p.host_root.add_child(remote)
 	remote.add_to_group("spawned")
-	var hinge := remote.get_node("CoverPivot/BatteryCover") as VRHinge
-	hinge.set_rotation_deg_no_signal(73.0)
+	# Its battery cover, taken off and put down: a removable cover is a thing of
+	# its own, and a late joiner's remote must have it off too, not a fresh one.
+	await get_tree().process_frame
+	var cover_slot := CoverSlots.of(remote).slot(Wiimote.BATTERY_COVER)
+	var cover := cover_slot.picked_up_object as Node3D
+	cover_slot.drop_object()
+	cover.reparent(p.host_root)
+	cover.name = "SnapshotCover"
+	cover.global_position = Vector3(0.6, 1.2, -0.3)
 	var tv := TV.instantiate() as RetroTV
 	tv.name = "SnapshotTV"
 	tv.stereo_mode = 1
@@ -565,9 +572,13 @@ func _test_snapshot(p: Pair) -> void:
 		"snapshot/root position survives")
 	_ok((client_card as RigidBody3D).freeze,
 		"snapshot/client rigid bodies start frozen under host authority")
-	var client_hinge := client_remote.get_node("CoverPivot/BatteryCover") as VRHinge
-	_num(client_hinge.get_rotation_deg(), 73.0,
-		"snapshot/an articulated hinge angle survives the snapshot", 0.05)
+	var client_covers := CoverSlots.of(client_remote)
+	var client_slot := client_covers.slot(Wiimote.BATTERY_COVER) if client_covers != null else null
+	_ok(client_slot != null and not client_slot.has_snapped_object(),
+		"snapshot/a removable cover taken off is off on the client too")
+	_ok(p.client_root.get_tree().get_nodes_in_group(PortCover.GROUP).filter(func(c: Node) -> bool:
+		return p.client_root.is_ancestor_of(c)).size() == 1,
+		"snapshot/and there is one cover in the client's room, the host's")
 	var tv_state := client_tv.get_control_state()
 	_ok(not bool(tv_state["enabled"]) and is_equal_approx(float(tv_state["volume"]), 0.4)
 		and bool(tv_state["muted"]) and bool(tv_state["widescreen"])

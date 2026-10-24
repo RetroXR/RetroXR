@@ -118,8 +118,14 @@ const DESKTOP_DPAD: Dictionary = {
 	"RETRO_JOYPAD_RIGHT": ControllerBindings.JOYPAD_RIGHT,
 }
 
-## How far the battery cover must swing before SYNC is reachable, in degrees.
-const COVER_OPEN_DEG := 45.0
+## The battery cover comes off whole, as a Game Boy's does: the game's removable
+## cover (CoverSlots, a PortCover in a slot where the shell's cover was). SYNC is
+## on the bay's floor, so it is reachable only while the cover is off. A mod's
+## shell builds the slot round its own cover as the remote enters the tree; the
+## stand-in's is built in _ready. Saves name the socket: never rename it.
+const BATTERY_COVER := "wiimote_battery_cover"
+## The cover's outer face, in CoverPivot's frame (and a mod shell's): the back.
+const COVER_OUT := Vector3(0.0, -1.0, 0.0)
 
 ## The trigger's swing. Negative about +X so the blade sweeps back toward the
 ## palm, same sign and reasoning as the light gun's. (The face caps set their own
@@ -360,9 +366,6 @@ const DPAD_THRESHOLD := 0.35
 ## controller input maps to it, so the only way to work it is a finger on the cap
 ## (or the pointer, on desktop). That is what makes the hold below meaningful.
 @onready var _power_button: VRButton = $PowerButton
-## Under CoverPivot, not beside it: the hinge's grab box has to ride the cover it
-## swings, or it stays over the shut position while the lid moves out from under it.
-@onready var _battery_cover: VRHinge = $CoverPivot/BatteryCover
 @onready var _trigger_pivot: Node3D = $TriggerPivot
 @onready var _dpad: Node3D = $DPad
 @onready var _leds: Node3D = $PlayerLEDs
@@ -430,7 +433,7 @@ func _ready() -> void:
 	SeatedCollision.follow(self, _expansion_port)
 	_sync_button.button_pressed.connect(_on_sync_pressed)
 	_sync_button.set_active(false)
-	_battery_cover.rotation_changed.connect(_on_cover_moved)
+	_mount_battery_cover()
 	# A mod's shell fits its own (its hook runs as the remote enters the tree).
 	if not _collision_fitted:
 		fit_collision(SHELL_BOUNDS, COVER_BOUNDS)
@@ -682,17 +685,51 @@ func _cache_screen_geometry() -> void:
 
 # ── Battery cover / SYNC access ───────────────────────────────────────────────
 
+## The cover's slot: a mod shell's, if it has built one, else round the
+## stand-in's cover. Either way SYNC follows it.
+func _mount_battery_cover() -> void:
+	var slots := CoverSlots.of(self)
+	var zone := slots.slot(BATTERY_COVER) if slots != null else null
+	if zone == null:
+		var part := get_node_or_null("CoverPivot/CoverMesh") as MeshInstance3D
+		if part != null:
+			zone = CoverSlots.shell_cover(part, BATTERY_COVER, COVER_OUT)
+	if zone == null:
+		_sync_button.set_active(true)
+		return
+	zone.has_picked_up.connect(_on_cover_seated)
+	zone.has_dropped.connect(_on_cover_moved)
+	_on_cover_moved()
+
+
 ## SYNC only exists once the cover is off it. Hiding the cap is not enough —
 ## VRButton.set_active is what takes it off the pointable layer and stops it
 ## polling fingertips, so a closed cover really does cover it.
-func _on_cover_moved(degrees: float) -> void:
-	_follow_cover()
-	_sync_button.set_active(degrees >= COVER_OPEN_DEG)
+func _on_cover_moved() -> void:
+	var slots := CoverSlots.of(self)
+	_sync_button.set_active(slots == null or not slots.is_on(BATTERY_COVER))
+
+
+## A cover put on that nothing has dressed (no mod shell: the stand-in remote's
+## own) wears a copy of the stand-in's cover. One lying loose stays the plain block
+## until it is put back on a remote.
+func _on_cover_seated(what: Node3D) -> void:
+	_on_cover_moved()
+	var cover := what as PortCover
+	var part := get_node_or_null("CoverPivot/CoverMesh") as MeshInstance3D
+	if cover == null or part == null or cover.has_node("Shell") or has_node("Shell"):
+		return
+	var holder := Node3D.new()
+	var copy := part.duplicate() as MeshInstance3D
+	holder.add_child(copy)
+	copy.transform = part.transform
+	CoverSlots.wear(cover, copy, COVER_OUT)
+	holder.free()
 
 
 # ── Collision ────────────────────────────────────────────────────────────────
 
-## The stand-in's shell, and its battery cover shut, in the remote's frame:
+## The stand-in's shell, and its battery cover on, in the remote's frame:
 ## wiimote_shell.res, and wiimote_cover.res where CoverPivot hangs it.
 const SHELL_BOUNDS := AABB(Vector3(-0.018, -0.015, -0.074), Vector3(0.036, 0.03, 0.148))
 const COVER_BOUNDS := AABB(Vector3(-0.015, -0.015, -0.012), Vector3(0.03, 0.0034, 0.081))
@@ -701,20 +738,17 @@ const WALL_MIN := 0.001
 
 ## Whether a shell has fitted the collision yet (the stand-in's is fitted in _ready).
 var _collision_fitted := false
-## The cover's boxes, each with its holder and where it sits in CoverPivot's frame.
-var _cover_pieces: Array[Dictionary] = []
 
 
 ## Fit the remote's collision, for its body and for a pointer alike, to a shell:
-## a box for the shell above the battery bay, its ends and walls beside the bay,
-## and one for the bay's cover that swings with the cover. With the cover open
-## the bay is open, so SYNC on its floor can be pointed at and a hand goes in.
+## a box for the shell above the battery bay, and its ends and walls beside the
+## bay. The cover is a body of its own (CoverSlots), so with it off the bay is
+## open: SYNC on its floor can be pointed at, and a hand and the cells go in.
 ##
 ## The pointer used to have one box of its own standing 12 mm clear of the shell
 ## all round, which held SYNC 17 mm inside it: the desktop pointer at the open
 ## bay picked the remote up. A shell that is not the game's calls this with its
-## own bounds (both in the remote's frame, the cover shut), once its CoverPivot
-## is where its cover hinges.
+## own bounds (both in the remote's frame, the cover on).
 func fit_collision(shell: AABB, cover: AABB) -> void:
 	_collision_fitted = true
 	var floor_y := cover.end.y
@@ -729,10 +763,7 @@ func fit_collision(shell: AABB, cover: AABB) -> void:
 			Vector3(cover.position.x - shell.position.x, low, cover.size.z)),
 		"Right": AABB(Vector3(cover.end.x, shell.position.y, cover.position.z),
 			Vector3(shell.end.x - cover.end.x, low, cover.size.z)),
-		"Cover": cover,
 	}
-	var pivot := get_node_or_null("CoverPivot") as Node3D
-	_cover_pieces.clear()
 	for holder: Node3D in [self, get_node_or_null("PointerArea") as Node3D]:
 		if holder == null:
 			continue
@@ -755,23 +786,7 @@ func fit_collision(shell: AABB, cover: AABB) -> void:
 			var shape := BoxShape3D.new()
 			shape.size = box.size
 			piece.shape = shape
-			var at := Transform3D(Basis(), box.get_center())
-			piece.transform = to_holder * at
-			if key == "Cover" and pivot != null:
-				_cover_pieces.append({"piece": piece, "to_holder": to_holder,
-					"rest": pivot.transform.affine_inverse() * at})
-	_follow_cover()
-
-
-## Stand the cover's boxes where the cover is now.
-func _follow_cover() -> void:
-	var pivot := get_node_or_null("CoverPivot") as Node3D
-	if pivot == null:
-		return
-	for entry: Dictionary in _cover_pieces:
-		var piece := entry["piece"] as CollisionShape3D
-		if is_instance_valid(piece):
-			piece.transform = (entry["to_holder"] as Transform3D) * pivot.transform * (entry["rest"] as Transform3D)
+			piece.transform = to_holder * Transform3D(Basis(), box.get_center())
 
 
 # ── Nunchuk ───────────────────────────────────────────────────────────────────

@@ -7,7 +7,6 @@
 [ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_grip_left.tscn" id="5_lhand"]
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="6_snapzone"]
 [ext_resource type="Script" uid="uid://d3iq3gmwxpvjl" path="res://Scripts/Objects/widgets/vr_button.gd" id="7_vrbtn"]
-[ext_resource type="Script" uid="uid://bkw0pkdhlp1m4" path="res://Scripts/Objects/widgets/vr_hinge.gd" id="8_vrhinge"]
 [ext_resource type="Texture2D" uid="uid://3mexuod8ggki" path="res://Textures/Controllers/wii_marks/wii_mark_a.svg" id="9_mk_a"]
 [ext_resource type="Texture2D" uid="uid://b6n7ijajy15si" path="res://Textures/Controllers/wii_marks/wii_mark_home.svg" id="9_mk_home"]
 [ext_resource type="Texture2D" uid="uid://cttbbitqv0t6g" path="res://Textures/Controllers/wii_marks/wii_mark_minus.svg" id="9_mk_minus"]
@@ -211,9 +210,6 @@ size = Vector3(0.004, 0.001, 0.002)
 
 [sub_resource type="StandardMaterial3D" id="Mat_led"]
 albedo_color = Color(0.06, 0.07, 0.12, 1)
-
-[sub_resource type="BoxShape3D" id="BoxShape3D_cover"]
-size = Vector3(0.032, 0.008, 0.058)
 
 [sub_resource type="CylinderShape3D" id="CylShape_sync"]
 height = 0.006
@@ -494,18 +490,6 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.0149, -0.012)
 [node name="CoverMesh" type="MeshInstance3D" parent="CoverPivot" unique_id=2077439746]
 mesh = ExtResource("20_cover")
 surface_material_override/0 = SubResource("Mat_shell")
-
-[node name="BatteryCover" type="Area3D" parent="CoverPivot" unique_id=1021499179 node_paths=PackedStringArray("target")]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.004, 0.076)
-collision_layer = 0
-collision_mask = 0
-script = ExtResource("8_vrhinge")
-target = NodePath("..")
-max_deg = 105.0
-engage_radius = 0.03
-
-[node name="CollisionShape3D" type="CollisionShape3D" parent="CoverPivot/BatteryCover" unique_id=2131649599]
-shape = SubResource("BoxShape3D_cover")
 
 [node name="SyncButton" type="Area3D" parent="." unique_id=284873252]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.006, -0.0125, 0.056)
