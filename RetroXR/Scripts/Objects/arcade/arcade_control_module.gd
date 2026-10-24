@@ -31,6 +31,8 @@ const CAP_RADIUS := 0.0155
 const DIAL_SPEED := TAU
 
 var _caps: Array[Node3D] = []
+## Each cap's flange (`<cap>Rim`, fixed, of the cap's colour), or null where a scene has none.
+var _cap_rims: Array[Node3D] = []
 var _cap_rest: Array[Vector3] = []
 var _cap_bits: Array[int] = []
 ## Which of the six buttons each cap is (0-based), or -1 for START, which every game has.
@@ -58,6 +60,7 @@ func _init() -> void:
 func attach(p_cabinet: RetroSystemModel) -> void:
 	super.attach(p_cabinet)
 	_caps.clear()
+	_cap_rims.clear()
 	_cap_rest.clear()
 	_cap_bits.clear()
 	_cap_button.clear()
@@ -76,6 +79,7 @@ func _add_cap(node_name: String, bit: int, button: int) -> void:
 	if cap == null:
 		return
 	_caps.append(cap)
+	_cap_rims.append(find_child(node_name + "Rim", true, false) as Node3D)
 	_cap_rest.append(cap.position)
 	_cap_bits.append(bit)
 	_cap_button.append(button)
@@ -97,6 +101,9 @@ func apply_profile(profile: ArcadeGameProfile) -> void:
 		if button < 0:
 			continue
 		_caps[i].visible = profile == null or profile.button_visible(player, button)
+		# A button the game does not have leaves no empty flange behind.
+		if _cap_rims[i] != null:
+			_cap_rims[i].visible = _caps[i].visible
 		_label_cap(i, "" if profile == null else profile.button_label(player, button))
 
 
@@ -128,8 +135,11 @@ func _label_cap(index: int, text: String) -> void:
 		label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM if above else VERTICAL_ALIGNMENT_TOP
 		label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		var radius := CAP_RADIUS
-		if cap is MeshInstance3D and (cap as MeshInstance3D).mesh != null:
-			var box := (cap as MeshInstance3D).get_aabb()
+		# Measured on the flange where the button has one: it is the widest part, and a word printed
+		# inside it would be under it.
+		var shape := _cap_rims[index] if _cap_rims[index] != null else cap
+		if shape is MeshInstance3D and (shape as MeshInstance3D).mesh != null:
+			var box := (shape as MeshInstance3D).get_aabb()
 			radius = maxf(box.size.x, box.size.y) * 0.5
 		label.position = _cap_rest[index] + Vector3(0.0, (radius + 0.002) * (1.0 if above else -1.0), LABEL_LIFT)
 		holder.add_child(label)
