@@ -45,6 +45,7 @@ func _ready() -> void:
 	_test_paper_flops()
 	_test_paper_meets_the_room()
 	await _test_printer_finds_the_room()
+	await _test_printouts_are_paper()
 	_test_paper_moves_smoothly()
 	await _test_netplay_surface()
 	_test_netplay_row()
@@ -469,6 +470,53 @@ func _test_printer_finds_the_room() -> void:
 	_ok(up >= 3, "a printer finds the table under its back, slot and front (%d)" % up)
 	printer.free()
 	table.free()
+
+
+func _test_printouts_are_paper() -> void:
+	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	_ok(not GbPrintoutFlop.is_printout(poster), "a poster is not a print")
+	poster.image_path = DataPaths.media_root(GbPrinter.PRINTS_DIR).path_join("print_x.png")
+	_ok(GbPrintoutFlop.is_printout(poster), "a picture in the prints folder is (a print saved before the mark)")
+	poster.image_path = ""
+	poster.printout = true
+	_ok(GbPrintoutFlop.is_printout(poster), "and so is one marked a print")
+	var store := ScenePersistence.new()
+	var entry := store._serialize_node(poster, 1, {poster: 1})
+	_eq(entry.get("printout"), true, "a save says it is a print")
+	var back := store._deserialize_object(entry) as Poster
+	_ok(back != null and back.printout, "and a load keeps it one")
+	poster.printout = false
+	_ok(not store._serialize_node(poster, 1, {poster: 1}).has("printout"),
+		"an ordinary poster saves as it always did")
+	for n: Node in [poster, back]:
+		if n != null:
+			n.free()
+
+	# Loose in the room, a print is drawn bent: the flat sheet hidden, the paper
+	# its own length along its bend. An ordinary poster stays the flat sheet.
+	var print_poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	print_poster.printout = true
+	print_poster.size_scale = 0.12 / Poster.BASE_LONG_EDGE
+	add_child(print_poster)
+	print_poster.freeze = true
+	print_poster.global_position = Vector3(0, 2, 0)
+	var plain := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	add_child(plain)
+	for i in 10:
+		await get_tree().process_frame
+	var flop := print_poster.get_node_or_null("Surface/FlopMesh") as MeshInstance3D
+	_ok(flop != null and flop.visible, "a loose print is drawn bent")
+	_ok(not (print_poster.get_node("Surface/FlatMesh") as MeshInstance3D).visible, "with the flat sheet hidden")
+	if flop != null and flop.mesh != null and flop.mesh.get_surface_count() == 1:
+		var verts: PackedVector3Array = flop.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		var run := 0.0
+		for i in range(2, verts.size(), 2):
+			run += verts[i].distance_to(verts[i - 2])
+		var want := print_poster.get_sheet_size().y
+		_ok(absf(run - want) < 0.002, "as long along its bend as the paper (%.4f, %.4f)" % [run, want])
+	_ok(not plain.has_node("PrintoutFlop"), "an ordinary poster is not given one")
+	print_poster.free()
+	plain.free()
 
 
 func _test_paper_flops() -> void:

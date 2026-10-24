@@ -59,15 +59,6 @@ const ROOM_SAMPLE := 0.02
 const ROOM_LIFT := 0.01
 const ROOM_DROP := 0.15
 const PATCH_REACH := 0.012
-## The slot's speed and acceleration, and the printer's spin and its change, are
-## each smoothed over this long, seconds, and never taken as more than the
-## MAXes: a printer snapped to a hand is not a printer shaken. Faster than
-## JUMP_SPEED, m/s, is a jump, not a move.
-const ACCEL_SMOOTH := 0.08
-const ACCEL_MAX := 20.0
-const SPIN_MAX := 12.0
-const SPIN_ACCEL_MAX := 150.0
-const JUMP_SPEED := 4.0
 
 ## Libretro joypad ids, as bits of the mask: the core's FEED and TEAR.
 const BTN_B := 1 << 0
@@ -113,13 +104,7 @@ var _paper_box: BoxShape3D = null
 var _strip := GbPrinterStrip.new()
 var _drawn := PackedVector2Array()
 ## The slot as it was last frame, for its acceleration and turn.
-var _slot_pos := Vector3.ZERO
-var _slot_vel := Vector3.ZERO
-var _slot_accel := Vector3.ZERO
-var _slot_basis := Basis()
-var _slot_spin := 0.0
-var _slot_spin_accel := 0.0
-var _slot_known := false
+var _motion := GbPaperMotion.new()
 var _floor_wait := 0.0
 ## What the last looks round the paper found, in the room: [position, normal].
 var _room_hits: Array = []
@@ -437,53 +422,11 @@ func options_choose(row: int, item: int) -> void:
 func _move_paper(delta: float) -> void:
 	if delta <= 0.0:
 		return
-	# The pose the printer is DRAWN at, not its last physics tick: a held printer
-	# moves only on ticks, and a frame sees one tick's move or two (90 ticks a
-	# second against 72, 90 or 120 frames), so read off the ticks its speed
-	# stutters frame to frame and the paper buzzes with it. The paper is drawn on
-	# the drawn printer, so this is also the motion it is seen to follow.
+	# How the printer is moving (GbPaperMotion: off the pose it is drawn at, and
+	# smoothed), at the slot.
 	var xf := get_global_transform_interpolated()
-	var basis := xf.basis.orthonormalized()
-	var slot := xf * _pivot.position
-	if not _slot_known:
-		_slot_known = true
-		_slot_pos = slot
-		_slot_vel = Vector3.ZERO
-		_slot_accel = Vector3.ZERO
-		_slot_basis = basis
-	# Speed, then its change, each smoothed: a hand's tracking jitters by a
-	# millimeter or so a frame, and differenced twice that is meters per second
-	# squared of shaking the paper would buzz to. What is left is the hand's real
-	# moves.
-	var k := clampf(delta / ACCEL_SMOOTH, 0.0, 1.0)
-	var vel := (slot - _slot_pos) / delta
-	var vel_f := _slot_vel.lerp(vel, k)
-	var accel := (vel_f - _slot_vel) / delta
-	# A jump (a teleport, a snap into a hand) is not a push.
-	if vel.length() > JUMP_SPEED:
-		vel_f = Vector3.ZERO
-		accel = Vector3.ZERO
-	_slot_accel = _slot_accel.lerp(accel.limit_length(ACCEL_MAX), k)
-	_slot_vel = vel_f
-	_slot_pos = slot
-	# The printer's turn about its own X, the paper's hinge line, the same way:
-	# its rate smoothed, and how that rate changes handed to the strip.
-	var turn := (_slot_basis.inverse() * basis).get_rotation_quaternion()
-	_slot_basis = basis
-	var turn_x := turn.get_axis().x * turn.get_angle() if turn.get_angle() > 1e-6 else 0.0
-	var spin := turn_x / delta
-	var spin_f := lerpf(_slot_spin, spin, k)
-	var spin_accel := (spin_f - _slot_spin) / delta
-	# Nor is a turn too quick for a wrist: a snap into a hand's grip.
-	if absf(spin) > SPIN_MAX or vel.length() > JUMP_SPEED:
-		spin_f = 0.0
-		spin_accel = 0.0
-	_slot_spin = spin_f
-	_slot_spin_accel = lerpf(_slot_spin_accel, clampf(spin_accel, -SPIN_ACCEL_MAX, SPIN_ACCEL_MAX), k)
-
-	var gravity := ProjectSettings.get_setting("physics/3d/default_gravity", 9.8) as float \
-		* (ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3.DOWN) as Vector3)
-	var g := basis.inverse() * (gravity - _slot_accel)
+	_motion.update(xf, _pivot.position, delta)
+	var g := _motion.gravity
 	_floor_wait -= delta
 	if _floor_wait <= 0.0:
 		_floor_wait = FLOOR_EVERY
@@ -492,8 +435,8 @@ func _move_paper(delta: float) -> void:
 	# printer tipping over it never meets it a fifth of a second late.
 	_place_room(xf)
 	_aim_strip()
-	var shove := basis.inverse() * -_slot_accel
-	_strip.step(delta, Vector2(g.y, g.z), _slot_spin_accel, Vector2(shove.y, shove.z))
+	var shove := _motion.shove
+	_strip.step(delta, Vector2(g.y, g.z), _motion.spin_accel, Vector2(shove.y, shove.z))
 	_draw_paper()
 
 
@@ -689,6 +632,8 @@ func _spawn_printout(path: String, lines: int) -> Poster:
 	# Before image_path: the setter loads the picture and sizes the sheet from
 	# size_scale as it stands.
 	poster.size_scale = long_edge / Poster.BASE_LONG_EDGE
+	# Paper, not a board: it bends in the hand (GbPrintoutFlop).
+	poster.printout = true
 	poster.image_path = path
 	var scene := get_tree().current_scene
 	scene.add_child(poster)

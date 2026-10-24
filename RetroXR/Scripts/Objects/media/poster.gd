@@ -69,6 +69,9 @@ var _stick: SurfaceStick = null
 ## Set from a save before _ready, so a restored poster re-parks itself instead of
 ## dropping off the wall while the room finishes loading.
 var stuck_from_save := false
+## A print torn off the Game Boy Printer: loose, it bends as paper
+## (GbPrintoutFlop). Set before the tree, as a save or the printer does.
+var printout := false
 ## Set while a ray-held resize is in progress, so the sheet can be re-fitted once.
 var _resized_while_held := false
 var _conform_mesh: MeshInstance3D = null
@@ -91,6 +94,8 @@ func _ready() -> void:
 		_end_preview()
 		apply_fit())
 	_find_vr_nodes.call_deferred()
+	if GbPrintoutFlop.is_printout(self):
+		GbPrintoutFlop.attach(self)
 	_build_outline()
 	_build_hint()
 	highlight_updated.connect(_on_highlight)

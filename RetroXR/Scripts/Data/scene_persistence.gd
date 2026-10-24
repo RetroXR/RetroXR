@@ -2346,13 +2346,17 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		})
 	elif node is Poster:
 		var poster := node as Poster
-		return _base(id, "poster", n3d).merged({
+		var entry := _base(id, "poster", n3d).merged({
 			"image_path": poster.image_path,
 			"size_scale": poster.size_scale,
 			"fit_mode": int(poster.fit_mode),
 			"roll": poster.roll_degrees,
 			"stuck": poster.is_stuck(),
 		})
+		# Only on a Game Boy Printer's print, so every other poster saves as it did.
+		if poster.printout:
+			entry["printout"] = true
+		return entry
 	elif node is PDFBook:
 		var book := node as PDFBook
 		var page := book.net_get_page()
@@ -3004,6 +3008,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				poster.roll_degrees = float(data.get("roll", 0.0))
 				poster.image_path = str(data.get("image_path", ""))
 				poster.stuck_from_save = bool(data.get("stuck", false))
+				poster.printout = bool(data.get("printout", false))
 				obj = poster
 			"book":
 				var book := BOOK_SCENE.instantiate() as PDFBook
