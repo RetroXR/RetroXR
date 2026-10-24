@@ -173,6 +173,10 @@ func build(socket_id: String, parent: Node3D, seat: Transform3D, size: Vector3) 
 	_sizes[socket_id] = size
 	zone.has_picked_up.connect(_on_seated)
 	_settle(socket_id)
+	# The object's battery bays shut while this is on (CellSlots).
+	var cells := CellSlots.of(get_parent())
+	if cells != null:
+		cells.watch_covers(self)
 	return zone
 
 

@@ -1,0 +1,11 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
+[ext_resource type="Script" path="res://Scripts/Objects/cell_slot.gd" id="2_cellslot"]
+
+; One battery's place in a bay (CellSlots builds these at a model's seats). The
+; group it takes, and where it sits, are set by CellSlots.
+
+[node name="CellSlot" instance=ExtResource("1_snapzone")]
+grab_distance = 0.02
+script = ExtResource("2_cellslot")

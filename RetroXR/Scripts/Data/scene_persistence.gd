@@ -250,6 +250,8 @@ const SEGA32X_SPACER_SCENE   := preload("res://Scenes/Objects/peripherals/sega32
 const CONTROLLER_PAK_SCENE   := preload("res://Scenes/Objects/controllers/n64/controller_pak.tscn")
 const VMU_SCENE              := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 const JUMP_PACK_SCENE        := preload("res://Scenes/Objects/controllers/dreamcast/jump_pack.tscn")
+const BATTERY_AA_SCENE       := preload("res://Scenes/Objects/batteries/battery_aa.tscn")
+const BATTERY_AAA_SCENE      := preload("res://Scenes/Objects/batteries/battery_aaa.tscn")
 const XBOX_MU_SCENE          := preload("res://Scenes/Objects/controllers/xbox/xbox_mu.tscn")
 const DC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/dreamcast/dc_microphone.tscn")
 const GC_MICROPHONE_SCENE    := preload("res://Scenes/Objects/controllers/gamecube/gc_microphone.tscn")
@@ -393,6 +395,10 @@ const PLAIN_SCENES := {
 	# Pose only, like the Rumble Pak: which slot it is in is saved on the
 	# controller holding it, not here.
 	"jump_pack": JUMP_PACK_SCENE,
+	# Pose only: which bay a cell is in, and at what roll, is saved on the thing
+	# whose bay it is (cell_slots).
+	"battery_aa": BATTERY_AA_SCENE,
+	"battery_aaa": BATTERY_AAA_SCENE,
 	# Pose only, like the pack: which slot it is in is saved on the pad holding
 	# it, not here.
 	"dc_microphone": DC_MICROPHONE_SCENE,
@@ -1017,6 +1023,14 @@ static func _prune_unknown_types(objects: Array, path: String) -> Array:
 					var cover_ref: Variant = (covers as Dictionary)[socket]
 					if _is_integer(cover_ref) and dropped_ids.has(int(cover_ref)):
 						(covers as Dictionary)[socket] = null
+		# A dropped mod's cell leaves its battery seat empty.
+		var cell_slots: Variant = entry.get("cell_slots")
+		if cell_slots is Dictionary:
+			for seat: Variant in (cell_slots as Dictionary).keys():
+				var one: Variant = (cell_slots as Dictionary)[seat]
+				var cell_ref: Variant = (one as Dictionary).get("cell") if one is Dictionary else null
+				if _is_integer(cell_ref) and dropped_ids.has(int(cell_ref)):
+					(cell_slots as Dictionary).erase(seat)
 		# A dropped mod's pad in a multitap socket leaves the socket empty.
 		var sockets: Variant = entry.get("sockets")
 		if sockets is Array:
@@ -1107,6 +1121,18 @@ static func _entry_validation_error(entry: Dictionary, ids: Dictionary) -> Strin
 			var ref_error := _reference_validation_error(entry[cover_field][socket], ids)
 			if not ref_error.is_empty():
 				return "%s %s %s" % [cover_field, socket, ref_error]
+	if entry.has("cell_slots"):
+		if not entry["cell_slots"] is Dictionary:
+			return "cell_slots is not a dictionary"
+		for seat: Variant in entry["cell_slots"]:
+			var one: Variant = entry["cell_slots"][seat]
+			if not one is Dictionary:
+				return "cell_slots %s is not a dictionary" % seat
+			var ref_error := _reference_validation_error((one as Dictionary).get("cell"), ids)
+			if not ref_error.is_empty():
+				return "cell_slots %s %s" % [seat, ref_error]
+			if (one as Dictionary).has("roll") and not _is_finite_number((one as Dictionary)["roll"]):
+				return "cell_slots %s roll is not a finite number" % seat
 	if entry.has("cover_size"):
 		var size_error := _vec3_validation_error(entry["cover_size"])
 		if not size_error.is_empty():
@@ -1552,6 +1578,7 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	_restore_articulated_controls(obj, d.get("articulated", d.get("hinges", [])))
 	_restore_attachment(root, obj, spawned, d)
 	_restore_cover_slots(root, obj, spawned, d)
+	_restore_cell_slots(root, obj, spawned, d)
 
 	if obj is RetroSystem:
 		var sys := obj as RetroSystem
@@ -1850,6 +1877,9 @@ func _attachment_field(n3d: Node3D, node_to_id: Dictionary, any_zone: bool = fal
 	var zone := pickable.get_picked_up_by() as XRToolsSnapZone
 	if zone == null:
 		return {}
+	# A cell in a battery bay: its object's "cell_slots" says so, roll and all.
+	if zone.is_in_group(CellSlots.SLOT_GROUP):
+		return {}
 	var host: Node = zone
 	while host != null and not host.is_in_group("spawned"):
 		host = host.get_parent()
@@ -2116,6 +2146,9 @@ func _serialize_node(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		var cover_slots := _cover_slots_field(node, node_to_id)
 		if not cover_slots.is_empty():
 			entry["cover_slots"] = cover_slots
+		var cell_slots := _cell_slots_field(node, node_to_id)
+		if not cell_slots.is_empty():
+			entry["cell_slots"] = cell_slots
 	return entry
 
 
@@ -2144,6 +2177,41 @@ func _restore_cover_slots(root: Node, obj: Node, spawned: Dictionary, d: Diction
 		for socket: Variant in (rec as Dictionary):
 			saved[str(socket)] = _resolve_ref(root, spawned, (rec as Dictionary)[socket])
 	CoverSlots.told(obj, saved)
+
+
+## The battery cells in an object's bays (CellSlots): each seat with a cell in it,
+## the cell and the roll it went in at, in degrees. Empty seats are left out, and
+## so is the field on an object with none in.
+func _cell_slots_field(node: Node, node_to_id: Dictionary) -> Dictionary:
+	var slots := CellSlots.of(node)
+	if slots == null:
+		return {}
+	var out := {}
+	var cells := slots.cells()
+	for seat: String in cells:
+		var rec := cells[seat] as Array
+		var ref: Variant = _ref(node_to_id, rec[0] as Node)
+		if ref == null:
+			continue
+		out[seat] = {"cell": ref, "roll": snappedf(rad_to_deg(float(rec[1])), 0.01)}
+	return out
+
+
+## Hand an object's cells back, whether its slots are built yet or not
+## (CellSlots.told): seat -> [the cell, its roll in radians].
+func _restore_cell_slots(root: Node, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var rec: Variant = d.get("cell_slots")
+	if not rec is Dictionary:
+		return
+	var saved := {}
+	for seat: Variant in (rec as Dictionary):
+		var one: Variant = (rec as Dictionary)[seat]
+		if not one is Dictionary:
+			continue
+		var cell := _resolve_ref(root, spawned, (one as Dictionary).get("cell"))
+		if cell != null:
+			saved[str(seat)] = [cell, deg_to_rad(float((one as Dictionary).get("roll", 0.0)))]
+	CellSlots.told(obj, saved)
 
 
 func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
@@ -2251,6 +2319,10 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# own. It needs a branch here all the same, because PLAIN_SCENES is
 		# only read when LOADING -- without this it saves as nothing.
 		return _base(id, "jump_pack", n3d)
+	elif node is BatteryCell:
+		# Pose only, for the Jump Pack's reason; the bay it is in is on the thing
+		# the bay belongs to.
+		return _base(id, (node as BatteryCell).save_type(), n3d)
 	elif node is DcMicrophone:
 		# Pose only, and it needs a branch for the same reason: which slot it is
 		# in is recorded by the pad holding it.

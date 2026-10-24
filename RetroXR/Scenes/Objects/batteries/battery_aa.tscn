@@ -1,0 +1,49 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/battery_cell.gd" id="1_cell"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
+[ext_resource type="PackedScene" path="res://imported-assets/batteries/battery_aa.glb" id="3_glb"]
+
+; An AA cell (IEC LR6, 14.2 x 50.2 mm, 23.0 g), built in
+; RetroXR-models generic/battery. Its middle at the origin, its + end toward +Z,
+; the label's front toward +Y, as a BatteryAA<n> / BatteryAAA<n> seat is. Its
+; group is what that size's slots take (CellSlots.group_for).
+
+[sub_resource type="CylinderShape3D" id="Shape_cell"]
+height = 0.0502
+radius = 0.0071
+
+[sub_resource type="CylinderShape3D" id="Shape_pointer"]
+height = 0.0622
+radius = 0.0121
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_cell"]
+bounce = 0.1
+friction = 0.7
+
+[node name="BatteryAA" type="RigidBody3D" groups=["battery_cell:aa"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.023
+physics_material_override = SubResource("PhysMat_cell")
+angular_damp = 2.0
+freeze_mode = 1
+script = ExtResource("1_cell")
+size = "AA"
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+shape = SubResource("Shape_cell")
+
+[node name="Model" parent="." instance=ExtResource("3_glb")]
+
+[node name="PickableHighlight" type="Node3D" parent="."]
+script = ExtResource("2_pickhigh")
+
+[node name="PointerArea" type="StaticBody3D" parent="."]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, 0)
+shape = SubResource("Shape_pointer")

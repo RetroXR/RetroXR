@@ -2494,7 +2494,9 @@ func _power_items() -> Array:
 	var rest := []
 	for item: Array in all:
 		(first if own.has(item[1]) else rest).append(item)
-	return first + rest
+	# And the cells a handheld, a printer, a Wii Remote or a Rumble Pak runs on,
+	# whatever the region: they go in a battery bay (CellSlots).
+	return first + rest + [["AA Battery", "battery_aa"], ["AAA Battery", "battery_aaa"]]
 
 
 ## Re-sort the Power tab after the region changed.
