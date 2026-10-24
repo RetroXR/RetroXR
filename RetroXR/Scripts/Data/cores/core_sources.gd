@@ -444,9 +444,11 @@ const SOURCES := {
 	# harmonics, the gear's turn with its pitch winding down and back, its knock,
 	# a darker rattle); the turn starts at its knock with the motor so the room can
 	# jolt the paper in step (GbPrinter.TURN_S). Savestate version 3.
+	# v5: 56 cm of paper kept (4096 lines) instead of 14; the growing strip is
+	# sent every 4th frame. Savestate version 4.
 	"gbprinter": {
 		"repo":  "RetroXR/gbprinter-libretro",
-		"known_tag": "retroxr-gbprinter-libretro-v4",
+		"known_tag": "retroxr-gbprinter-libretro-v5",
 		"label": "Game Boy Printer (retroXR)",
 		"assets": {
 			"Windows": "gbprinter_libretro.dll.zip",
