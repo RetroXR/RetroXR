@@ -130,6 +130,8 @@ func _ready() -> void:
 		_test_prefs()
 	if _wants("setup"):
 		await _test_setup()
+	if _wants("rig"):
+		await _test_rig()
 	if _wants("project"):
 		_test_project()
 
@@ -401,6 +403,41 @@ func _test_occlusion() -> void:
 	_ok(not room2.has_occlusion(), "occlusion/without consent there is none")
 	room2.queue_free()
 	_free_rig(rig2)
+	await get_tree().process_frame
+	_reset_statics()
+
+
+## The player's body found as the passthrough room has it: RealRoom beside the
+## rig, the body an XRToolsPlayerBody under the XROrigin3D. Asked of RealRoom
+## itself, XRToolsPlayerBody.find_instance found nothing, the room mesh pushed
+## the body, and on a Quest 3 everything in view slid away (2026-10-24).
+func _test_rig() -> void:
+	var granted := {"on": true}
+	SpatialPermission.wanted_source = func() -> bool: return true
+	SpatialPermission.granted_source = func() -> PackedStringArray:
+		return PackedStringArray(["com.oculus.permission.USE_SCENE"])
+	var origin := XROrigin3D.new()
+	var camera := XRCamera3D.new()
+	origin.add_child(camera)
+	var body := CharacterBody3D.new()
+	body.set_script(load("res://addons/godot-xr-tools/player/player_body.gd"))
+	body.name = "PlayerBody"
+	origin.add_child(body)
+	add_child(origin)
+	var room := RealRoom.new()
+	room.manager_factory = func() -> Object: return FakeManager.new()
+	room.camera_source = func() -> Node3D: return camera
+	room.notice_sink = func(_t: String, _x: String) -> void: pass
+	add_child(room)
+	room.start()
+	var manager := origin.get_node_or_null("RealRoomScene") as FakeManager
+	_ok(manager != null, "rig/the manager goes under the rig's origin, found through its camera")
+	if manager != null:
+		var mesh := manager.make_anchor(FakeEntity.new(PackedStringArray(["GLOBAL_MESH"]), true))
+		_ok(body is XRToolsPlayerBody and mesh in body.get_collision_exceptions(),
+			"rig/the player's own body, under the origin, passes through the room's mesh")
+	room.queue_free()
+	origin.queue_free()
 	await get_tree().process_frame
 	_reset_statics()
 

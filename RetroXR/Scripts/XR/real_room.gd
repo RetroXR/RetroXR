@@ -279,10 +279,20 @@ func _pref_occlusion() -> bool:
 	return prefs == null or bool(prefs.get("passthrough_occlusion"))
 
 
+## Found under the origin, never from here: XRToolsPlayerBody.find_instance looks
+## for an origin among this node's ancestors and children, and this room is beside
+## the rig, not in it. Asked that way it found nothing, the room mesh stood round
+## the player's body, and pushing it out moved everything in view at once.
 func _player_body() -> PhysicsBody3D:
 	if player_body_source.is_valid():
 		return player_body_source.call() as PhysicsBody3D
-	return XRToolsPlayerBody.find_instance(self) if is_inside_tree() else null
+	var origin := _origin()
+	if origin == null:
+		return null
+	for n in origin.find_children("*", "CharacterBody3D", true, false):
+		if n is XRToolsPlayerBody:
+			return n as PhysicsBody3D
+	return null
 
 
 func _origin() -> Node:
