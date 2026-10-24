@@ -1,17 +1,20 @@
 ## ObjectOptions2D — 2D UI for the generic object menu.
 ##
 ## Deliberately almost empty: a title, a ✕, whatever facts the object has about
-## itself (set_info — a tape's place and file), and whatever FloatingObjectPanel3D
-## adds. It exists so that a table, a trash can or any other plain pickable has
+## itself (set_info — a tape's place and file), whatever few choices it offers
+## (set_choices — a Game Boy Printer's paper roll), and whatever
+## FloatingObjectPanel3D adds. It exists so that a table, a trash can or any other plain pickable has
 ## a menu to put the "lock in place" row into, rather than that row being the
 ## privilege of the ten objects that happened to grow a settings panel.
 ##
 ## Emits:
 ##   close_requested — user pressed ✕
+##   choice_made(row, item) — user picked `item` of the object's choice `row`
 class_name ObjectOptions2D
 extends Control
 
 signal close_requested
+signal choice_made(row: int, item: int)
 
 const COLOR_BG := Color(0.08, 0.08, 0.16, 0.96)
 const COLOR_TITLE := Color(0.9, 0.9, 1.0)
@@ -22,6 +25,8 @@ var _title: Label = null
 var _panel: Control = null
 ## The object's facts, under the title.
 var _info: VBoxContainer = null
+## The object's choices (set_choices), under its facts.
+var _choices: VBoxContainer = null
 ## RopeTuning's sliders, when the debug switch is on and this is a cord's plug.
 var _tuning: VBoxContainer = null
 
@@ -52,6 +57,11 @@ func _build_ui() -> void:
 	_info.add_theme_constant_override("separation", 6)
 	_info.visible = false
 	vbox.add_child(_info)
+
+	_choices = VBoxContainer.new()
+	_choices.add_theme_constant_override("separation", 8)
+	_choices.visible = false
+	vbox.add_child(_choices)
 
 	_tuning = VBoxContainer.new()
 	_tuning.add_theme_constant_override("separation", 2)
@@ -89,6 +99,41 @@ func set_info(rows: Array) -> void:
 		(row.get_child(0) as Label).text = str(pair[0])
 		(row.get_child(1) as Label).text = str(pair[1])
 	_info.visible = not rows.is_empty()
+
+
+## Show `rows`, each one choice the object offers: a caption, a row of buttons
+## (`items`, the `selected` one down) and, if it has one, a `note` under them. A
+## press says which row and item (choice_made); the object's answer comes back
+## as the next set_choices.
+func set_choices(rows: Array) -> void:
+	if _choices == null:
+		return
+	for child: Node in _choices.get_children():
+		_choices.remove_child(child)
+		child.queue_free()
+	for r in rows.size():
+		var row: Dictionary = rows[r]
+		var box := VBoxContainer.new()
+		box.add_theme_constant_override("separation", 4)
+		box.add_child(MenuStyle.label(str(row.get("caption", "")), 13, COLOR_CAPTION))
+		var buttons := MenuStyle.hbox(6)
+		var group := ButtonGroup.new()
+		var items: Array = row.get("items", [])
+		for i in items.size():
+			var b := MenuStyle.row_button(str(items[i]), 18, 0, 44, false)
+			b.toggle_mode = true
+			b.button_group = group
+			b.button_pressed = i == int(row.get("selected", -1))
+			b.pressed.connect(func() -> void: choice_made.emit(r, i))
+			buttons.add_child(b)
+		box.add_child(buttons)
+		var note := str(row.get("note", ""))
+		if not note.is_empty():
+			var l := MenuStyle.label(note, 13, COLOR_CAPTION)
+			l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			box.add_child(l)
+		_choices.add_child(box)
+	_choices.visible = not rows.is_empty()
 
 
 ## Rebuild the rope tuning section for `rope`, or take it away for null.

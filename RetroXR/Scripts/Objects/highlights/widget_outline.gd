@@ -50,6 +50,8 @@ var _source: MeshInstance3D = null
 # Source mesh the current overlay was built from, so sync() can notice a swap
 # (set_button_mesh / set_knob_mesh adopt GLB geometry after load).
 var _built_from: Mesh = null
+# The source's geometry changed in place since the overlay was built (source_changed).
+var _stale := false
 
 
 ## Build an outline overlay and parent it to owner_node.
@@ -129,6 +131,16 @@ func set_source(src: MeshInstance3D) -> void:
 	_rebuild()
 
 
+## The source mesh was rebuilt in place (same resource, new geometry). The copy
+## traced from it is dropped, and a new one traced the next time it shows: the
+## Game Boy Printer's paper redraws while it swings, and nobody needs an outline
+## of each of those shapes.
+func source_changed() -> void:
+	if is_instance_valid(_source) and _source.mesh != null:
+		PickableHighlight.forget_outline_mesh(_source.mesh)
+	_stale = true
+
+
 func set_color(color: Color) -> void:
 	if _outline_material:
 		_outline_material.set_shader_parameter("outline_color", color)
@@ -151,7 +163,8 @@ func sync(shown: bool) -> void:
 		visible = false
 		return
 	# Pick up a runtime mesh swap on the source itself.
-	if _source.mesh != _built_from:
+	if _source.mesh != _built_from or (_stale and shown):
+		_stale = false
 		_rebuild()
 	if not shown or mesh == null \
 			or not (outline_hidden_source or _source.is_visible_in_tree()):

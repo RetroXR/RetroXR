@@ -353,6 +353,13 @@ func _sync_material_params() -> void:
 
 # --- Outline mesh construction ---
 
+## Drop the copy traced from `src_mesh`, whose geometry changed in place: the next
+## overlay asking for it traces it again.
+static func forget_outline_mesh(src_mesh: Mesh) -> void:
+	if src_mesh != null:
+		_outline_mesh_cache.erase(src_mesh.get_rid())
+
+
 static func _get_outline_mesh(src_mesh: Mesh) -> Mesh:
 	if src_mesh == null:
 		return null

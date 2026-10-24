@@ -21,6 +21,8 @@ const CLEARANCE := 0.18
 var _object: Node3D = null
 ## The rows last handed to the UI, so a frame where nothing moved lays nothing out.
 var _info_drawn: Array = []
+## The same for the object's choices (`options_choices()`).
+var _choices_drawn: Array = []
 ## How much taller than it would otherwise be the page has been made, to hold
 ## those rows.
 var _info_px := 0.0
@@ -102,11 +104,20 @@ func _populate() -> void:
 		return
 	if not _ui_connected:
 		ui.close_requested.connect(hide_panel)
+		ui.choice_made.connect(_on_choice_made)
 		_ui_connected = true
 	ui.populate(_display_name())
 	ui.set_tuning(RopeTuning.rope_of(_object) if RopeTuning.enabled else null)
 	_info_drawn = []
+	_choices_drawn = []
 	_refresh_info()
+
+
+## A choice pressed on the page, handed to the object (`options_choose(row,
+## item)`); the page shows its answer on the next frame's _refresh_info.
+func _on_choice_made(row: int, item: int) -> void:
+	if _object != null and is_instance_valid(_object) and _object.has_method("options_choose"):
+		_object.call("options_choose", row, item)
 
 
 func _ui_viewport() -> SubViewport:
@@ -133,6 +144,15 @@ func _refresh_info() -> void:
 	if rows != _info_drawn:
 		_info_drawn = rows
 		ui.set_info(rows)
+		return
+	# What the object offers to choose, [{caption, items, selected, note}], laid
+	# out again only when it changed, and measured a frame later as the rows are.
+	var choices: Array = []
+	if _object.has_method("options_choices"):
+		choices = _object.call("options_choices")
+	if choices != _choices_drawn:
+		_choices_drawn = choices
+		ui.set_choices(choices)
 		return
 	_fit_page(ui)
 

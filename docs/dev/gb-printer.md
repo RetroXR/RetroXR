@@ -80,9 +80,42 @@ unit.
 
 The core's video frame is the strip hanging out of the slot: 160 dots wide, one
 row a line, oldest at the top, the newest at the head; no paper is a 1x1 frame,
-and a frame is sent only when the strip changes. `GbPrinter` draws it on a quad
-standing out of the slot (`gb_printer_paper.gdshader`), as long as the lines times
-the dot pitch, leaning 8 degrees back.
+and a frame is sent only when the strip changes. `GbPrinter` draws it on a strip
+coming out of the slot (`gb_printer_paper.gdshader`), as long as the lines times
+the dot pitch, sent 8 degrees back by the slot.
+
+**How it bends** is `GbPrinterStrip` (`gb_printer_strip.gd`), pure and stepped by
+the printer every frame: a 2D elastica in the printer's YZ plane, up to 48 hinged
+segments of about 4 mm. Each hinge springs toward the roll's curl (radius 6 cm)
+and carries the weight and inertia of the paper past it; the stiffness (EI 3.2e-5
+N m^2) and weight (5.7 g/m) put the length at which it gives way at about 8 cm. So
+a short print stands curling back toward the roll cover, and a long one flops
+over, lies on the cover and drapes down the back to the table. Gravity is taken in
+the printer's frame less the slot's acceleration, and a turn of the printer about
+its X turns the paper back at the slot, so carrying, tipping or shaking the
+printer swings the paper. Springs and damping are implicit per hinge, which keeps
+it stable however short the tip's segments. Contact is a projection afterwards:
+the printer's own collision boxes (the scene's, or the two `xenu.gbprinter`
+fits round its shell) and the surface a ray finds under the slot (the printer's
+own bodies excluded: its pointer target is a StaticBody3D). A point is never
+pushed out of a box into that surface; the shell stands half a millimeter off the
+table, and the paper crept in under it through the gap. New lines push the strip
+out keeping its shape from the free end; a tear starts a fresh end of roll. The
+mesh, the tear trigger's box and the hover outline are laid again only once a
+point has moved 0.05 mm (`VRButton.mesh_changed` drops the outline's cached copy).
+
+**Rolls:** `GbPrinterPaper.ROLLS`, the three Nintendo sold: white printing sepia,
+yellow printing black (the roll in the printer's box) and blue printing black
+(Japanese Wikipedia, ポケットプリンタ). The tones are judged, not measured. Chosen in
+the printer's object menu (`options_choices`/`options_choose`, the generic
+`ObjectOptionsPanel` choice row) and saved with the room as `"paper"`; a save from
+before rolls loads white, the paper the printer always had. A dot is the paper as
+far toward the ink as it is dark, blended in sRGB in the shader and in
+`GbPrinterPaper.sheet` alike, so a print looks the same torn off as on the strip.
+The colors are baked into the print's file at the tear, so a print keeps its roll
+whatever the printer is loaded with later. A roll changed mid-session reaches the
+other peers with the next snapshot (the printer is not synced live); the prints
+themselves travel as files, colors and all.
 
 **Tearing:** TRIGGER on the paper (never a touch, a brush of the hand must not
 throw a print away). The room reads the frame NOW, writes it as a print, spawns a

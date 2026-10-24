@@ -2286,8 +2286,8 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# Pose only, and needs this branch for the table's reason below.
 		return _base(id, "ilink_hub", n3d)
 	elif node is GbPrinter:
-		# Pose only, for the hub's reason.
-		return _base(id, "gb_printer", n3d)
+		# The pose (this branch for the hub's reason) and the roll it is loaded with.
+		return _base(id, "gb_printer", n3d).merged({"paper": (node as GbPrinter).paper_roll})
 	elif node is EthernetHub:
 		return _base(id, "ethernet_hub", n3d)
 	elif node is Table:
@@ -2913,6 +2913,10 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		if unit != null:
 			unit.card_id = str(data.get("card_id", ""))
 			unit.card_label = str(data.get("card_label", XboxMuCard.DEFAULT_LABEL))
+		# A Game Boy Printer's roll; a save from before rolls has the first.
+		var printer := obj as GbPrinter
+		if printer != null:
+			printer.paper_roll = str(data.get("paper", ""))
 	else:
 		match obj_type:
 			"system":

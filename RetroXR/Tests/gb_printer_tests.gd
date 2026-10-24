@@ -30,6 +30,14 @@ func _ready() -> void:
 	await _test_paper_is_as_long_as_the_core_fed()
 	_test_print_sheet()
 	_test_print_file()
+	_test_rolls_are_nintendos()
+	_test_a_print_keeps_its_roll()
+	await _test_roll_from_the_menu_and_the_save()
+	_test_menu_offers_choices()
+	_test_paper_curls_back()
+	_test_paper_gives_way_to_its_weight()
+	_test_paper_lies_on_what_is_under_it()
+	_test_paper_grows_and_tears()
 	await _test_netplay_surface()
 	_test_netplay_row()
 	_test_core_source_and_info()
@@ -116,23 +124,224 @@ func _test_paper_is_as_long_as_the_core_fed() -> void:
 	add_child(printer)
 	await get_tree().process_frame
 	var paper := printer.get_node("PaperPivot/Paper") as Node3D
-	var mesh := (printer.get_node("PaperPivot/Paper/ButtonMesh") as MeshInstance3D).mesh as QuadMesh
-	_ok(is_equal_approx(mesh.size.y, GbPrinter.STUB_LENGTH), "switched off, only the end of the roll shows")
+	var mesh := (printer.get_node("PaperPivot/Paper/ButtonMesh") as MeshInstance3D).mesh
+	_ok(is_equal_approx(printer.paper_length(), GbPrinter.STUB_LENGTH), "switched off, only the end of the roll shows")
 
 	var img := Image.create(GbPrinterPaper.DOTS, 208, false, Image.FORMAT_RGB8)
 	img.fill(Color.WHITE)
 	var tex := ImageTexture.create_from_image(img)
 	printer._lay_paper(tex, 208)
-	_ok(is_equal_approx(mesh.size.y, 208 * GbPrinter.DOT_PITCH),
-		"208 lines fed is 208 lines of paper (%.4f m)" % mesh.size.y)
-	_ok(is_equal_approx(mesh.size.x, GbPrinter.PAPER_WIDTH), "38 mm wide")
-	_ok(is_equal_approx(paper.position.y, mesh.size.y * 0.5),
-		"standing up out of the slot, its newest line at the head")
+	_ok(is_equal_approx(printer.paper_length(), 208 * GbPrinter.DOT_PITCH),
+		"208 lines fed is 208 lines of paper (%.4f m)" % printer.paper_length())
+	_ok(mesh != null and mesh.get_surface_count() == 1, "drawn as one bent sheet")
+	if mesh != null and mesh.get_surface_count() == 1:
+		var verts: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+		var uvs: PackedVector2Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_TEX_UV]
+		_ok(is_equal_approx(verts[0].distance_to(verts[1]), GbPrinter.PAPER_WIDTH), "38 mm wide")
+		# The first row is the slot's (the newest line, v = 1), at the pivot.
+		var at_slot := paper.position + (verts[0] + verts[1]) * 0.5
+		_ok(at_slot.length() < 1e-5 and is_equal_approx(uvs[0].y, 1.0),
+			"coming out of the slot, its newest line at the head (%s)" % at_slot)
+		var run := 0.0
+		for i in range(2, verts.size(), 2):
+			run += verts[i].distance_to(verts[i - 2])
+		_ok(absf(run - printer.paper_length()) < 1e-5, "and as long along its bend as the paper is")
 	var pivot := printer.get_node("PaperPivot") as Node3D
-	_ok(pivot.rotation.x < 0.0, "leaning back toward the roll cover, not over the front")
+	_ok(pivot.rotation.x < 0.0, "the slot sends it back toward the roll cover, not over the front")
 	printer._lay_paper(null, 0)
-	_ok(is_equal_approx(mesh.size.y, GbPrinter.STUB_LENGTH), "torn off, the roll's end again")
+	_ok(is_equal_approx(printer.paper_length(), GbPrinter.STUB_LENGTH), "torn off, the roll's end again")
 	printer.free()
+
+
+func _test_rolls_are_nintendos() -> void:
+	var ids: Array = GbPrinterPaper.ROLLS.map(func(r: Dictionary) -> String: return r["id"])
+	_eq(ids, ["white", "yellow", "blue"], "the three rolls Nintendo sold, white first as the printer always had")
+	var white := GbPrinterPaper.roll("white")
+	_ok(_near(white["paper"], GbPrinterPaper.PAPER), "white is the paper the printer always drew")
+	var sepia: Color = white["ink"]
+	_ok(sepia.r > sepia.g and sepia.g > sepia.b and sepia.r < 0.6, "and prints sepia (%s)" % sepia)
+	for id: String in ["yellow", "blue"]:
+		var ink: Color = GbPrinterPaper.roll(id)["ink"]
+		_ok(ink.get_luminance() < 0.1, "%s prints black" % id)
+	var yellow: Color = GbPrinterPaper.roll("yellow")["paper"]
+	var blue: Color = GbPrinterPaper.roll("blue")["paper"]
+	_ok(yellow.b < yellow.r and yellow.b < yellow.g, "yellow paper is yellow (%s)" % yellow)
+	_ok(blue.b > blue.r, "blue paper is blue (%s)" % blue)
+	_eq(GbPrinterPaper.roll("pink")["id"], "white", "a roll this does not know is the first")
+
+
+func _test_a_print_keeps_its_roll() -> void:
+	var r := GbPrinterPaper.roll("yellow")
+	var dots := Image.create(GbPrinterPaper.DOTS, 2, false, Image.FORMAT_L8)
+	dots.fill(Color.WHITE)
+	dots.set_pixel(0, 0, Color.BLACK)
+	var left := (GbPrinterPaper.sheet_width() - GbPrinterPaper.DOTS) / 2
+	var sheet := GbPrinterPaper.sheet(dots, r["paper"], r["ink"])
+	_ok(_near(sheet.get_pixel(0, 0), r["paper"]), "a yellow roll's print is yellow paper")
+	_ok(_near(sheet.get_pixel(left, 0), r["ink"]), "with its ink where the dots burned")
+	var sepia := GbPrinterPaper.roll("white")
+	var half := Image.create(GbPrinterPaper.DOTS, 1, false, Image.FORMAT_L8)
+	half.fill(Color(0.5, 0.5, 0.5))
+	var g := GbPrinterPaper.sheet(half, sepia["paper"], sepia["ink"]).get_pixel(left, 0)
+	_ok(_near(g, (sepia["ink"] as Color).lerp(sepia["paper"], half.get_pixel(0, 0).r)),
+		"a gray dot is the paper half way to the ink")
+	# Written, the colors are in the file: nothing the printer does later reaches them.
+	var dir := ProjectSettings.globalize_path("user://gb_printer_test_rolls")
+	var path := GbPrinterPaper.save_print(dots, dir, r["paper"], r["ink"])
+	var back := Image.load_from_file(path) if not path.is_empty() else null
+	_ok(back != null and _near(back.get_pixel(0, 0), r["paper"])
+		and _near(back.get_pixel(left, 0), r["ink"]), "and the file torn off keeps them")
+	for f: String in DirAccess.get_files_at(dir):
+		DirAccess.remove_absolute(dir.path_join(f))
+	DirAccess.remove_absolute(dir)
+
+
+func _test_roll_from_the_menu_and_the_save() -> void:
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	await get_tree().process_frame
+	_eq(printer.paper_roll, "white", "a new printer has the white roll")
+	_eq(printer.display_name, "Game Boy Printer", "its menu is titled for it, not its node")
+	var choices: Array = printer.options_choices()
+	_eq(choices.size(), 1, "its menu offers one choice")
+	if choices.size() == 1:
+		_eq(choices[0]["items"], ["White", "Yellow", "Blue"], "the roll, of Nintendo's three")
+		_eq(choices[0]["selected"], 0, "with the loaded one down")
+	printer.options_choose(0, 2)
+	_eq(printer.paper_roll, "blue", "choosing one loads it")
+	_eq(printer.options_choices()[0]["selected"], 2, "and the menu says so")
+	var mat := (printer.get_node("PaperPivot/Paper/ButtonMesh") as MeshInstance3D).material_override as ShaderMaterial
+	var blue: Color = GbPrinterPaper.roll("blue")["paper"]
+	_ok(mat != null and (mat.get_shader_parameter("paper_color") as Vector3).is_equal_approx(
+		Vector3(blue.r, blue.g, blue.b)), "the strip on the printer is the new roll at once")
+	printer.options_choose(0, 9)
+	_eq(printer.paper_roll, "blue", "a choice that is not there changes nothing")
+
+	var store := ScenePersistence.new()
+	var entry := store._serialize_node(printer, 1, {printer: 1})
+	_eq(entry.get("paper"), "blue", "a save says which roll is in it")
+	var back := store._deserialize_object(entry) as GbPrinter
+	_ok(back != null and back.paper_roll == "blue", "and a load puts it back")
+	entry.erase("paper")
+	var old := store._deserialize_object(entry) as GbPrinter
+	_ok(old != null and old.paper_roll == "white", "a save from before rolls loads the white one")
+	for n: Node in [back, old, printer]:
+		if n != null:
+			n.free()
+
+
+func _test_menu_offers_choices() -> void:
+	var ui := ObjectOptions2D.new()
+	add_child(ui)
+	var got: Array = []
+	ui.choice_made.connect(func(row: int, item: int) -> void: got.append([row, item]))
+	ui.set_choices([{"caption": "Paper roll", "items": ["A", "B", "C"], "selected": 1, "note": "n"}])
+	var buttons := ui.find_children("*", "Button", true, false).filter(
+		func(b: Node) -> bool: return (b as Button).toggle_mode)
+	_eq(buttons.size(), 3, "a choice is a row of buttons, one an item")
+	if buttons.size() == 3:
+		_ok((buttons[1] as Button).button_pressed and not (buttons[0] as Button).button_pressed,
+			"the selected one down")
+		(buttons[2] as Button).pressed.emit()
+		_eq(got, [[0, 2]], "and a press says which row and item")
+	ui.free()
+
+
+## A strip settled for `seconds` under ordinary gravity, straight up out of a slot
+## at the origin.
+func _settled(length: float, seconds: float, gravity := Vector2(-9.8, 0.0),
+		boxes: Array[Rect2] = [], planes: Array = []) -> GbPrinterStrip:
+	var s := GbPrinterStrip.new()
+	s.place(Vector2.ZERO, 0.0)
+	s.boxes = boxes
+	s.planes = planes
+	s.set_length(length)
+	for i in int(seconds * 60.0):
+		s.step(1.0 / 60.0, gravity)
+	return s
+
+
+func _test_paper_curls_back() -> void:
+	# Weightless, the paper takes the roll's curl: an arc of CURL_RADIUS, bending
+	# toward -Z (the roll cover's side).
+	var s := _settled(0.08, 3.0, Vector2.ZERO)
+	var tip := s.points[s.points.size() - 1]
+	var turn := 0.08 / GbPrinterStrip.CURL_RADIUS
+	var want := Vector2(sin(turn), -(1.0 - cos(turn))) * GbPrinterStrip.CURL_RADIUS
+	_ok(tip.distance_to(want) < 0.004, "weightless, the paper curls as the roll left it (%s, %s)" % [tip, want])
+	# A short piece stands up out of the slot, curling back.
+	s = _settled(0.03, 3.0)
+	tip = s.points[s.points.size() - 1]
+	_ok(tip.x > 0.02 and tip.y < -0.003, "a short piece stands, curling back (%s)" % tip)
+	_ok(s.motion() < 0.01, "and comes to rest (%.4f)" % s.motion())
+
+
+func _test_paper_gives_way_to_its_weight() -> void:
+	var s := _settled(0.25, 5.0)
+	var tip := s.points[s.points.size() - 1]
+	_ok(tip.x < -0.05, "a long strip flops over and hangs (%s)" % tip)
+	_ok(s.motion() < 0.05, "and settles (%.4f)" % s.motion())
+	var weightless := _settled(0.25, 5.0, Vector2.ZERO)
+	_ok(weightless.points[weightless.points.size() - 1].x > tip.x + 0.05,
+		"lower than the same paper weightless")
+	# Tipped forward (gravity toward the printer's +Z), the paper falls the other way.
+	var forward := _settled(0.25, 5.0, Vector2(-6.9, 6.9))
+	_ok(forward.points[forward.points.size() - 1].y > 0.0, "the printer tipped forward, it falls forward")
+	# A shake moves it.
+	for i in 6:
+		s.step(1.0 / 60.0, Vector2(-9.8, 30.0))
+	_ok(s.motion() > 0.5, "shaken, it swings (%.3f)" % s.motion())
+
+
+func _test_paper_lies_on_what_is_under_it() -> void:
+	# The roll cover behind the slot, its top 1 cm above it.
+	var cover := Rect2(Vector2(-0.1, -0.2), Vector2(0.11, 0.195))
+	var s := _settled(0.15, 5.0, Vector2(-9.8, 0.0), [cover])
+	var inside := 0
+	var on_top := false
+	for i in range(1, s.points.size()):
+		var p := s.points[i]
+		if cover.grow(-0.0005).has_point(p):
+			inside += 1
+		if absf(p.x - cover.end.x) < 0.003 and p.y < cover.end.y and p.y > cover.position.y:
+			on_top = true
+	_eq(inside, 0, "the paper does not go into the cover")
+	_ok(on_top, "it lies on top of it")
+	# A table 5 cm under the slot.
+	s = _settled(0.4, 5.0, Vector2(-9.8, 0.0), [], [[Vector2(1.0, 0.0), -0.05]])
+	var lowest := 0.0
+	for p in s.points:
+		lowest = minf(lowest, p.x)
+	_ok(lowest > -0.0515, "nor through the table under it (%.4f)" % lowest)
+	# The shell's own boxes and slot (xenu.gbprinter), on a table half a millimeter
+	# under its feet: the paper drapes down the back and lies on the table, and
+	# does not creep in under the printer through that gap.
+	var body := Rect2(Vector2(-0.02801, -0.0686), Vector2(0.045, 0.1372))
+	var hump := Rect2(Vector2(0.01699, -0.0686), Vector2(0.01102, 0.0468))
+	s = GbPrinterStrip.new()
+	s.place(Vector2(0.01739, -0.0123), 0.1396)
+	s.boxes = [body, hump]
+	s.planes = [[Vector2(1.0, 0.0), -0.0285]]
+	s.set_length(0.25)
+	for i in 300:
+		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var under_it := 0
+	for i in range(3, s.points.size()):
+		if body.grow(-0.0005).has_point(s.points[i]) or hump.grow(-0.0005).has_point(s.points[i]):
+			under_it += 1
+	var tip := s.points[s.points.size() - 1]
+	_eq(under_it, 0, "paper on the table stays out from under the printer")
+	_ok(tip.y < body.position.y and tip.x < -0.02, "it hangs down the back to the table (%s)" % tip)
+
+
+func _test_paper_grows_and_tears() -> void:
+	var s := _settled(0.05, 2.0)
+	var before := s.points[s.points.size() - 1]
+	s.set_length(0.05 + GbPrinter.DOT_PITCH)
+	var shape_kept := s.points[s.points.size() - 1].distance_to(before) < 0.002
+	_ok(shape_kept, "a line fed pushes the paper out without throwing its shape")
+	s.set_length(GbPrinter.STUB_LENGTH)
+	_ok(s.motion() == 0.0 and s.angles[0] == 0.0, "torn, a fresh end of roll at rest")
 
 
 func _test_print_sheet() -> void:

@@ -402,6 +402,13 @@ func set_button_mesh(mesh: MeshInstance3D) -> void:
 	_update_visual_state()
 
 
+## The mesh's geometry changed in place (the Game Boy Printer's paper bends): the
+## outline traces it again.
+func mesh_changed() -> void:
+	if _outline:
+		_outline.source_changed()
+
+
 ## Derive the depress axis from a GLB "Finger Button" empty node.
 ## GLTF finger-button empties are oriented so their local -Z points in the direction
 ## of travel.  This converts that to the button mesh's local space.

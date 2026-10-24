@@ -38,8 +38,21 @@ const DOT_PITCH := 0.0001375
 const PAPER_WIDTH := 0.038
 ## What stands out of the slot with nothing printed: the end of the roll.
 const STUB_LENGTH := 0.004
-## How far the strip leans back from upright, toward the roll cover.
+## How far the slot sends the paper back from upright, toward the roll cover.
+## From there it bends as paper does (GbPrinterStrip).
 const PAPER_LEAN_DEG := 8.0
+## The strip's mesh is laid again once a point of it has moved this far, meters.
+const PAPER_REDRAW := 0.00005
+## The tear trigger is at least this thick, so a strip standing edge-on to the
+## pointer can still be pointed at.
+const PAPER_HIT_THICKNESS := 0.003
+## How often the surface under the slot is looked for, seconds, and how far down.
+const FLOOR_EVERY := 0.2
+const FLOOR_REACH := 1.5
+## The slot's acceleration is smoothed over this long, seconds, and never taken
+## as more than ACCEL_MAX: a printer snapped to a hand is not a printer shaken.
+const ACCEL_SMOOTH := 0.05
+const ACCEL_MAX := 25.0
 
 ## Libretro joypad ids, as bits of the mask: the core's FEED and TEAR.
 const BTN_B := 1 << 0
@@ -57,10 +70,19 @@ const PRINTS_DIR := "prints"
 const POSTER_SCENE := preload("res://Scenes/Objects/media/poster.tscn")
 const PAPER_SHADER := preload("res://Shaders/gb_printer_paper.gdshader")
 
+## What its menu (ObjectOptionsPanel) is titled.
+var display_name := "Game Boy Printer"
 ## Read by LinkCable._watch, like RetroSystem's.
 var is_powered_on := false
 ## Why net_prepare_boot last refused, in words the session shows the player.
 var net_boot_failure: String = ""
+## The roll it is loaded with, an id of GbPrinterPaper.ROLLS; saved with the room.
+## The strip on it shows the roll at once. A print already torn off keeps the
+## roll it came off: its colors are in its file.
+var paper_roll: String = GbPrinterPaper.ROLLS[0]["id"]:
+	set(value):
+		paper_roll = str(GbPrinterPaper.roll(value)["id"])
+		_show_roll()
 
 var _lib: Node = null
 var _mask := -1
@@ -70,8 +92,19 @@ var _tear_lines := 0
 var _shown_tex: Texture2D = null
 var _shown_lines := -1
 var _paper_mat: ShaderMaterial = null
-var _paper_quad: QuadMesh = null
+var _paper_arrays: ArrayMesh = null
 var _paper_box: BoxShape3D = null
+## The paper's bend, and the points its mesh was last laid from.
+var _strip := GbPrinterStrip.new()
+var _drawn := PackedVector2Array()
+## The slot as it was last frame, for its acceleration and turn.
+var _slot_pos := Vector3.ZERO
+var _slot_vel := Vector3.ZERO
+var _slot_accel := Vector3.ZERO
+var _slot_basis := Basis()
+var _slot_known := false
+var _floor_wait := 0.0
+@onready var _pivot: Node3D = $PaperPivot
 var _toast: AchievementToast = null
 ## Said once per press, not every frame it is held.
 var _feed_refused := false
@@ -101,23 +134,26 @@ func _ready() -> void:
 	_port.has_picked_up.connect(_on_plug_seated)
 	_port.has_dropped.connect(_on_plug_pulled)
 
-	# Each printer its own mesh, shape and material: the strip's length is per
-	# printer, and a shared QuadMesh would grow on every printer in the room.
-	_paper_quad = QuadMesh.new()
-	_paper_mesh.mesh = _paper_quad
+	# Each printer its own mesh, shape and material: the strip's length and bend
+	# are per printer.
+	_paper_arrays = ArrayMesh.new()
+	_paper_mesh.mesh = _paper_arrays
 	_paper_box = BoxShape3D.new()
 	_paper_shape.shape = _paper_box
 	_paper_mat = ShaderMaterial.new()
 	_paper_mat.shader = PAPER_SHADER
 	_paper_mat.set_shader_parameter("dots_frac", GbPrinterPaper.DOTS * DOT_PITCH / PAPER_WIDTH)
-	_paper_mesh.set_surface_override_material(0, _paper_mat)
-	# Leaning back off the slot a little, as paper does once it has some length.
-	# Set here rather than written into the scene as a matrix (CLAUDE.md's row/
-	# column trap); a positive pitch would lean it over the front instead.
-	($PaperPivot as Node3D).rotation.x = -deg_to_rad(PAPER_LEAN_DEG)
+	_paper_mesh.material_override = _paper_mat
+	_show_roll()
+	# Leaning back off the slot a little, the way the slot sends it. Set here
+	# rather than written into the scene as a matrix (CLAUDE.md's row/column
+	# trap); a positive pitch would lean it over the front instead.
+	_pivot.rotation.x = -deg_to_rad(PAPER_LEAN_DEG)
 	_lay_paper(null, 0)
 	_show_power()
-	set_process(false)
+	# Always processing: the paper swings and settles whether or not the printer
+	# is on. Off, it is the roll's end, and costs next to nothing.
+	set_process(true)
 
 
 func _exit_tree() -> void:
@@ -182,7 +218,6 @@ func _started() -> void:
 	_shown_tex = null
 	_shown_lines = -1
 	_show_power()
-	set_process(true)
 	_rejoin_lead()
 
 
@@ -192,7 +227,6 @@ func _stopped() -> void:
 	is_powered_on = false
 	_show_power()
 	_lay_paper(null, 0)
-	set_process(false)
 	_rejoin_lead()
 
 
@@ -240,9 +274,14 @@ func _notice(title: String, text: String) -> void:
 
 # --- Buttons and paper ------------------------------------------------------------
 
-func _process(_delta: float) -> void:
-	if not is_powered_on or _lib == null:
-		return
+func _process(delta: float) -> void:
+	if is_powered_on and _lib != null:
+		_drive_core()
+	_move_paper(delta)
+
+
+## FEED and TEAR into the core, and the paper and sound out of it.
+func _drive_core() -> void:
 	var mask := 0
 	var alx := 0
 	if _feed.is_held():
@@ -328,19 +367,206 @@ func _presses_count() -> bool:
 
 
 ## Size the strip to `lines` of paper and show `tex` on it. The pivot sits at the
-## slot and the strip rises from it, so the newest line is always at the head.
+## slot and the strip comes out of it, so the newest line is always at the head.
+## How it bends is _move_paper's.
 func _lay_paper(tex: Texture2D, lines: int) -> void:
 	if tex == _shown_tex and lines == _shown_lines:
 		return
 	_shown_tex = tex
 	_shown_lines = lines
-	var length := maxf(STUB_LENGTH, lines * DOT_PITCH)
-	_paper_quad.size = Vector2(PAPER_WIDTH, length)
-	_paper_box.size = Vector3(PAPER_WIDTH, length, 0.003)
+	_strip.set_length(maxf(STUB_LENGTH, lines * DOT_PITCH))
+	_paper_mat.set_shader_parameter("print_tex", tex)
+	_draw_paper()
+
+
+## The length of paper out of the slot, meters.
+func paper_length() -> float:
+	return _strip.length
+
+
+## The roll's colors onto the strip.
+func _show_roll() -> void:
+	if _paper_mat == null:
+		return
+	var r := GbPrinterPaper.roll(paper_roll)
+	var paper: Color = r["paper"]
+	var ink: Color = r["ink"]
+	_paper_mat.set_shader_parameter("paper_color", Vector3(paper.r, paper.g, paper.b))
+	_paper_mat.set_shader_parameter("ink_color", Vector3(ink.r, ink.g, ink.b))
+
+
+## What the generic object menu offers to choose (ObjectOptionsPanel): the roll.
+func options_choices() -> Array:
+	var names: Array = []
+	var at := 0
+	for i in GbPrinterPaper.ROLLS.size():
+		names.append(GbPrinterPaper.ROLLS[i]["name"])
+		if GbPrinterPaper.ROLLS[i]["id"] == paper_roll:
+			at = i
+	return [{"caption": "Paper roll", "items": names, "selected": at,
+		"note": "Nintendo's three: white prints sepia, yellow (the roll in the box) and blue print black. A print keeps the roll it came off."}]
+
+
+func options_choose(row: int, item: int) -> void:
+	if row == 0 and item >= 0 and item < GbPrinterPaper.ROLLS.size():
+		paper_roll = GbPrinterPaper.ROLLS[item]["id"]
+
+
+## Step the paper's bend: gravity as the printer is turned, less the slot's own
+## acceleration so a shaken printer shakes it, the printer's turn about the
+## paper's hinge line so the paper lags it, and what is in its way. Drawn again
+## only once it has visibly moved.
+func _move_paper(delta: float) -> void:
+	if delta <= 0.0:
+		return
+	var basis := global_transform.basis.orthonormalized()
+	var slot := _pivot.global_position
+	if not _slot_known:
+		_slot_known = true
+		_slot_pos = slot
+		_slot_vel = Vector3.ZERO
+		_slot_accel = Vector3.ZERO
+		_slot_basis = basis
+	var vel := (slot - _slot_pos) / delta
+	var accel := (vel - _slot_vel) / delta
+	# A jump (a teleport, a snap into a hand) is not a push.
+	if accel.length() > ACCEL_MAX * 4.0:
+		accel = Vector3.ZERO
+	_slot_accel = _slot_accel.lerp(accel.limit_length(ACCEL_MAX), clampf(delta / ACCEL_SMOOTH, 0.0, 1.0))
+	_slot_vel = vel
+	_slot_pos = slot
+	# The printer's turn since last frame about its own X, the paper's hinge line:
+	# the paper keeps its heading in the room, so against the printer it turns back.
+	var turn := (_slot_basis.inverse() * basis).get_rotation_quaternion()
+	_slot_basis = basis
+	var turn_x := turn.get_axis().x * turn.get_angle() if turn.get_angle() > 1e-6 else 0.0
+	_strip.turn_root(clampf(turn_x, -0.5, 0.5))
+
+	var gravity := ProjectSettings.get_setting("physics/3d/default_gravity", 9.8) as float \
+		* (ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3.DOWN) as Vector3)
+	var g := basis.inverse() * (gravity - _slot_accel)
+	_floor_wait -= delta
+	if _floor_wait <= 0.0:
+		_floor_wait = FLOOR_EVERY
+		_find_obstacles(basis)
+	_aim_strip()
+	_strip.step(delta, Vector2(g.y, g.z))
+	_draw_paper()
+
+
+## Where the slot is and which way it points the paper, in the printer's (Y, Z).
+## The pivot only ever turns about X.
+func _aim_strip() -> void:
+	var up := _pivot.transform.basis.y
+	_strip.place(Vector2(_pivot.position.y, _pivot.position.z), atan2(-up.z, up.y))
+
+
+## What the paper lies on: the printer's own boxes (the scene's, or the ones a
+## shell fitted round itself) and whatever is under the slot.
+func _find_obstacles(basis: Basis) -> void:
+	_strip.boxes.clear()
+	for child in get_children():
+		var shape := child as CollisionShape3D
+		if shape == null or not (shape.shape is BoxShape3D):
+			continue
+		var size := (shape.shape as BoxShape3D).size
+		var c := shape.position
+		_strip.boxes.append(Rect2(Vector2(c.y - size.y * 0.5, c.z - size.z * 0.5), Vector2(size.y, size.z)))
+	_strip.planes.clear()
+	if not is_inside_tree():
+		return
+	var from := _pivot.global_position
+	var query := PhysicsRayQueryParameters3D.create(from, from + Vector3.DOWN * FLOOR_REACH)
+	# Not the printer, nor its own bodies (its pointer target is a StaticBody3D
+	# round the deck, which the paper would otherwise lie on in the air).
+	var own: Array[RID] = [get_rid()]
+	for body in find_children("*", "CollisionObject3D", true, false):
+		own.append((body as CollisionObject3D).get_rid())
+	query.exclude = own
+	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	if hit.is_empty():
+		return
+	# The surface in the printer's frame, across the middle of the paper.
+	var n: Vector3 = basis.inverse() * (hit["normal"] as Vector3)
+	var at := to_local(hit["position"] as Vector3)
+	var n2 := Vector2(n.y, n.z)
+	# A printer on its side bends its paper in a plane the surface is not across.
+	if n2.length() < 0.3:
+		return
+	var offset := n.dot(at) - n.x * _pivot.position.x
+	_strip.planes.append([n2 / n2.length(), offset / n2.length()])
+
+
+## Lay the strip's mesh, the tear trigger and its box from the bend, once some
+## point of it has moved. In the pivot's frame, as the pivot holds them: each
+## point is (across, Y, Z) in the printer's, then into the pivot's.
+func _draw_paper() -> void:
+	if _paper_arrays == null:
+		return
+	_aim_strip()
+	var pts := _strip.points
+	if pts.size() == _drawn.size():
+		var moved := false
+		for i in pts.size():
+			if pts[i].distance_squared_to(_drawn[i]) > PAPER_REDRAW * PAPER_REDRAW:
+				moved = true
+				break
+		if not moved:
+			return
+	_drawn = pts.duplicate()
+	var n := pts.size()
+	var dirs := _strip.directions()
+	var to_pivot := _pivot.transform.affine_inverse()
+	var x := _pivot.position.x
+	var half := PAPER_WIDTH * 0.5
+	var mid := PackedVector3Array()
+	mid.resize(n)
+	var box := AABB()
+	for i in n:
+		mid[i] = to_pivot * Vector3(x, pts[i].x, pts[i].y)
+		var row := AABB(mid[i] - Vector3(half, 0, 0), Vector3(PAPER_WIDTH, 0, 0))
+		box = row if i == 0 else box.merge(row)
+	var thick := Vector3(0.0, maxf(0.0, PAPER_HIT_THICKNESS - box.size.y),
+		maxf(0.0, PAPER_HIT_THICKNESS - box.size.z))
+	box = AABB(box.position - thick * 0.5, box.size + thick)
 	# The AREA moves, not its mesh: VRButton puts its ButtonMesh back where it
 	# found it every frame it animates, so an offset on the mesh would not last.
-	_paper.position = Vector3(0.0, length * 0.5, 0.0)
-	_paper_mat.set_shader_parameter("print_tex", tex)
+	var center := box.get_center()
+	_paper.position = center
+	_paper_box.size = box.size
+
+	var verts := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var index := PackedInt32Array()
+	verts.resize(n * 2)
+	normals.resize(n * 2)
+	uvs.resize(n * 2)
+	for i in n:
+		var t := dirs[i]
+		# The printed face: the paper's +Z when it stands straight up out of the slot.
+		var face := (to_pivot.basis * Vector3(0.0, -t.y, t.x)).normalized()
+		var p := mid[i] - center
+		var v := 1.0 - float(i) / float(n - 1)
+		# Right then left, as QuadMesh lays a row: clockwise seen from the face.
+		verts[i * 2] = p + Vector3(half, 0, 0)
+		verts[i * 2 + 1] = p - Vector3(half, 0, 0)
+		normals[i * 2] = face
+		normals[i * 2 + 1] = face
+		uvs[i * 2] = Vector2(1.0, v)
+		uvs[i * 2 + 1] = Vector2(0.0, v)
+	for i in n - 1:
+		var r := i * 2
+		index.append_array([r, r + 1, r + 2, r + 1, r + 3, r + 2])
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_INDEX] = index
+	_paper_arrays.clear_surfaces()
+	_paper_arrays.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	_paper.mesh_changed()
 
 
 ## Tear the paper off at the serrated edge.
@@ -359,7 +585,9 @@ func tear() -> void:
 	if img == null or img.is_empty() or img.get_width() != GbPrinterPaper.DOTS:
 		return
 	var lines := img.get_height()
-	var path := GbPrinterPaper.save_print(img, DataPaths.media_root(PRINTS_DIR))
+	var r := GbPrinterPaper.roll(paper_roll)
+	var path := GbPrinterPaper.save_print(img, DataPaths.media_root(PRINTS_DIR),
+		r["paper"], r["ink"])
 	if path.is_empty():
 		push_warning("[GbPrinter] could not write the print")
 	else:
@@ -370,8 +598,8 @@ func tear() -> void:
 		_push_input(_mask | BTN_B, lines)
 
 
-## A Poster the size of the paper, carrying the print. Placed at the top of the
-## strip it came from.
+## A Poster the size of the paper, carrying the print. Placed at the free end of
+## the strip it came from, facing as that end did.
 func _spawn_printout(path: String, lines: int) -> Poster:
 	var poster := POSTER_SCENE.instantiate() as Poster
 	var long_edge := maxf(PAPER_WIDTH, lines * DOT_PITCH)
@@ -382,9 +610,14 @@ func _spawn_printout(path: String, lines: int) -> Poster:
 	var scene := get_tree().current_scene
 	scene.add_child(poster)
 	poster.add_to_group("spawned")
-	var top := _paper.global_transform * Vector3(0.0, _paper_quad.size.y * 0.5, 0.0)
-	poster.global_transform = Transform3D(_paper.global_transform.basis.orthonormalized(),
-		top + Vector3.UP * 0.02)
+	var tip := _strip.points[_strip.points.size() - 1]
+	var dirs := _strip.directions()
+	var along := dirs[dirs.size() - 1]
+	var basis := global_transform.basis.orthonormalized()
+	var x := basis.x
+	var y := (basis * Vector3(0.0, along.x, along.y)).normalized()
+	var top := to_global(Vector3(_pivot.position.x, tip.x, tip.y))
+	poster.global_transform = Transform3D(Basis(x, y, x.cross(y)), top + Vector3.UP * 0.02)
 	NetworkManager.on_local_spawn(poster)
 	return poster
 
