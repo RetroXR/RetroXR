@@ -623,6 +623,11 @@ pair works exactly as a downloaded one. A board needs a disc exactly when that f
   belongs to another game...". The delay (`DISC_GAP_DELAY`) is so a room being restored, which seats the board and the disc in turn, is
   not told a game is missing the half that arrives a frame later. Attract mode needs no disc (it runs no core); the coin that starts the
   real game does. **A restored room saves the disc in the bay's entry** (`"disc"`, only while loaded).
+- **A disc folder already on disk is not fetched again** (`RommDownloader.disc_folder_on_disk`): the worker first asks RomM for the folder's
+  file list (names, sizes, `folder_files_of`) and, when every file is under `<folder>/` at that size, registers the cache group and finishes
+  at once (a board deleted and downloaded afresh, a disc copied in by hand). Sizes only (a CHD is a container MAME checks itself); an
+  unreachable server or an empty list downloads as before. `romm_tests held/ again/` (the second runs the worker against a server that only
+  answers the file list and would hang if it asked for the content).
 - Tests: `arcade_bay_tests disc/` (each case was broken and watched go red), `romm_tests disc/ prefix/`.
 - OWED: a real RomM holding a game with a CHD (the layout of RomM's multi-file archive is handled either way, never seen), a real game
   with a CHD in the core (which MAME sets need which file is MAME's), the look of the drive in a headset, the Quest, netplay (the disc is
