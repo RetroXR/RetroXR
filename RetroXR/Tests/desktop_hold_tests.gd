@@ -23,6 +23,7 @@ func _ready() -> void:
 	_stale_left()
 	_screens()
 	_rules()
+	await _inspect()
 	_capture_hides_reticle()
 	print("[hold] %d cases, %s" % [_ran, "PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
 	get_tree().quit(0 if _fail == 0 else 1)
@@ -318,6 +319,49 @@ func _capture_hides_reticle() -> void:
 	cap.release()
 	_ok(not ScrollLockCapture.any_active(), "reticle/the device let go: it is back")
 	host.free()
+
+
+## Shift+click on a light gun or a Wii Remote picks it up to LOOK AT: on the ray like anything
+## else, turnable, and not playing. A plain click still raises it to aim.
+func _inspect() -> void:
+	for path: String in ["res://Scenes/Objects/peripherals/light_gun.tscn",
+			"res://Scenes/Objects/controllers/wii/wiimote.tscn"]:
+		await _inspect_one(path)
+
+
+func _inspect_one(path: String) -> void:
+	var name := path.get_file().get_basename()
+	var stage := Node3D.new()
+	add_child(stage)
+	var pickup := DesktopPickup.new()
+	stage.add_child(pickup)
+	var gun := (load(path) as PackedScene).instantiate() as XRToolsPickable
+	stage.add_child(gun)
+	gun.global_position = Vector3(0, 0, -1.0)
+	await get_tree().physics_frame
+
+	pickup._grab_target(gun, true)
+	_ok(pickup.held_object() == gun, "inspect/%s: Shift+click picks it up" % name)
+	_ok(not pickup._is_fps_snap(), "inspect/%s: held on the ray, not raised to the FPS slot" % name)
+	_ok(DesktopPickup.inspecting(gun), "inspect/%s: it is told it is being looked at" % name)
+	_ok(gun.get("_desktop_held") == false, "inspect/%s: it does not take the game's input" % name)
+	_ok(not pickup._needs_shift_drop(), "inspect/%s: a plain click drops it" % name)
+	var before := pickup._hand_pivot.global_basis
+	var turn := InputEventMouseMotion.new()
+	turn.relative = Vector2(40, 0)
+	pickup._turn_held(turn)
+	_ok(not pickup._hand_pivot.global_basis.is_equal_approx(before), "inspect/%s: it can be turned" % name)
+	pickup._drop()
+	_ok(not DesktopPickup.inspecting(gun) and not pickup._inspect, "inspect/%s: ends with the drop" % name)
+
+	await get_tree().physics_frame
+	pickup._grab_target(gun, false)
+	_ok(pickup._is_fps_snap(), "inspect/%s: a plain click still raises it to aim" % name)
+	_ok(gun.get("_desktop_held") == true and not DesktopPickup.inspecting(gun),
+		"inspect/%s: and then it plays" % name)
+	pickup._drop()
+	stage.queue_free()
+	await get_tree().process_frame
 
 
 func _rules() -> void:

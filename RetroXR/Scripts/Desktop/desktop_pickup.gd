@@ -2,6 +2,9 @@
 ##
 ## Attach to XRCamera3D.  When XR is not active:
 ##   Left-click             — pick up the XRToolsPickable under the cursor.
+##   Shift + Left-click     — on an FPS-snap object (light gun, Wii Remote): pick it
+##                       up to LOOK AT, held on the ray like anything else, not
+##                       raised to aim (see FPS-snap mode).
 ##   Shift + Left-click     — drop the currently held object.
 ##   Scroll up/down    — push/pull the held object along the camera ray.
 ##                       Pulled all the way in, one more notch CATCHES it into the
@@ -22,6 +25,11 @@
 ##   locked to a fixed lower-right offset from the camera instead of floating
 ##   freely on the ray.  This gives an FPS-style weapon view.  The hand pivot's
 ##   orientation matches the camera so the weapon always aims where you look.
+##
+##   Picked up with Shift held, it is not raised to aim but INSPECTED: held as any
+##   other object is (on the ray, scrolled along it, turned, caught into the hand,
+##   and dropped by a plain click), and it does not play — the object reads
+##   DesktopPickup.inspecting(self) and leaves the game's input alone.
 ##
 ##   An FPS-snap object may also name a COMPANION — a second object it arrives
 ##   with, which gets the mirrored lower-LEFT slot, i.e. the player's other hand.
@@ -91,6 +99,11 @@ const FPS_SNAP_LOCAL := Transform3D(Basis.IDENTITY, Vector3(0.20, -0.22, -0.45))
 const FPS_SNAP_COMPANION_LOCAL := Transform3D(Basis.IDENTITY, Vector3(-0.20, -0.22, -0.45))
 
 var _held_object : XRToolsPickable = null
+## The held FPS-snap object was picked up with Shift, to look at rather than to aim.
+var _inspect : bool = false
+
+## Set on an object while it is inspected, for its own script and its hint to read.
+const INSPECT_META := &"desktop_inspect"
 var _grab_dist   : float = 1.5
 
 var _hand_pivot  : Node3D    = null
@@ -145,6 +158,7 @@ var _hovered_target : Node3D = null
 ## click, travel first is a pull — so the grab has to wait for one or the other.
 var _pending_click : Node3D = null
 var _pending_grab  : Node3D = null
+var _pending_inspect : bool = false
 var _click_drag    : float = 0.0
 
 
@@ -208,7 +222,7 @@ func _unhandled_input(event: InputEvent) -> void:
 							left_drag = true
 							get_viewport().set_input_as_handled()
 					else:
-						_try_grab()
+						_try_grab(mbe.shift_pressed)
 				elif _left_turning:
 					# The drag that turned it ends; nothing is dropped.
 					_left_turning = false
@@ -262,7 +276,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			_pending_click = null
 			_pending_grab = null
 			if is_instance_valid(target):
-				_grab_target(target)
+				_grab_target(target, _pending_inspect)
 
 	elif event is InputEventMouseMotion and _drop_armed and _held_object != null \
 			and not _is_fps_snap() and not _needs_shift_drop():
@@ -368,8 +382,9 @@ func grab_spawned(pickable: XRToolsPickable) -> void:
 	_grab_target(pickable)
 
 
-## Cast ray and grab the first XRToolsPickable hit.
-func _try_grab() -> void:
+## Cast ray and grab the first XRToolsPickable hit. `inspect` (Shift held): an FPS-snap
+## object is held to look at, not to aim.
+func _try_grab(inspect := false) -> void:
 	if _held_object:
 		_drop()
 		return
@@ -388,10 +403,11 @@ func _try_grab() -> void:
 	if clickable != null:
 		_pending_click = clickable
 		_pending_grab = interaction.action_node
+		_pending_inspect = inspect
 		_click_drag = 0.0
 		return
 
-	_grab_target(interaction.action_node)
+	_grab_target(interaction.action_node, inspect)
 
 
 ## The object under the pointer that wants the click for itself, or null. A snap
@@ -752,6 +768,7 @@ func _log_click_kept() -> void:
 ## Drop the currently held object.
 func _drop() -> void:
 	_release_companion()
+	_end_inspect()
 	if _held_object:
 		# Only when the modifier was actually required — a plain-click drop taught
 		# the player nothing.
@@ -773,6 +790,7 @@ func _drop() -> void:
 ## grabber of a drop (e.g. from a snap zone or external pickable.drop() call).
 func _on_pivot_drop_object() -> void:
 	_release_companion()
+	_end_inspect()
 	if _held_object and _held_object.is_picked_up() and _held_object.get_picked_up_by() == _hand_pivot:
 		var obj := _held_object
 		_held_object = null
@@ -792,9 +810,23 @@ func _on_pivot_drop_object() -> void:
 	left_drag = false
 
 
-## Returns true when the held object wants FPS-snap positioning.
+## Returns true when the held object wants FPS-snap positioning, and was not picked up to
+## look at.
 func _is_fps_snap() -> bool:
-	return _held_object != null and _held_object.get("desktop_fps_snap")
+	return _held_object != null and not _inspect and _held_object.get("desktop_fps_snap")
+
+
+## True while `obj` is held on desktop to look at (picked up with Shift), not to play: an
+## FPS-snap device asks in its grab handler, and does not take the game's input.
+static func inspecting(obj: Node) -> bool:
+	return is_instance_valid(obj) and obj.get_meta(INSPECT_META, false) == true
+
+
+## The inspect hold ends with the hold, whichever way it ends.
+func _end_inspect() -> void:
+	if is_instance_valid(_held_object) and _held_object.has_meta(INSPECT_META):
+		_held_object.remove_meta(INSPECT_META)
+	_inspect = false
 
 
 ## True when the held object claims plain left-click as its own input
@@ -857,7 +889,7 @@ func _set_hovered_target(target: Node3D) -> void:
 		_hovered_target.request_highlight(self, true)
 
 
-func _grab_target(target: Node3D) -> void:
+func _grab_target(target: Node3D, inspect := false) -> void:
 	var pickable: XRToolsPickable = null
 	var snap_zone := target as XRToolsSnapZone
 	if snap_zone:
@@ -891,6 +923,10 @@ func _grab_target(target: Node3D) -> void:
 	_drop_armed = false
 	_left_turning = false
 	left_drag = false
+	# Before pick_up: the object's grab handler asks whether it is being inspected.
+	_inspect = inspect and pickable.get("desktop_fps_snap") == true
+	if _inspect:
+		pickable.set_meta(INSPECT_META, true)
 	pickable.pick_up(_hand_pivot)
 	_held_object = pickable
 

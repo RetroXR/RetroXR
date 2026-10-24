@@ -218,8 +218,9 @@ func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 	var pickup := by as XRToolsFunctionPickup
 	var ctrl := pickup.get_controller() if pickup else null as XRController3D
 	if ctrl == null:
-		# Desktop pickup: just flag desktop-held mode, don't set up VR toggle-hold
-		if by.is_in_group("desktop_hand"):
+		# Desktop pickup: just flag desktop-held mode, don't set up VR toggle-hold.
+		# Picked up with Shift to look at, it is held as anything else is, and does not play.
+		if by.is_in_group("desktop_hand") and not DesktopPickup.inspecting(self):
 			_desktop_held = true
 			_laser_dot.visible = _connected_system != null and show_laser_dot
 		return

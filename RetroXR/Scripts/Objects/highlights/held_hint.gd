@@ -357,6 +357,9 @@ func _drop_row(platform: int) -> Array:
 func _needs_desktop_modifier() -> bool:
 	if not is_instance_valid(_host):
 		return false
+	# Picked up with Shift to look at: held as anything else is, a plain click drops it.
+	if DesktopPickup.inspecting(_host):
+		return false
 	# Compared against true rather than coerced: a host that has neither property
 	# — every handheld and controller — returns null from get(), and null is not
 	# something bool() will take.

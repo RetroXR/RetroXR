@@ -176,7 +176,7 @@ func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 	var pickup := by as XRToolsFunctionPickup
 	var ctrl := pickup.get_controller() if pickup else null as XRController3D
 	if ctrl == null:
-		if by.is_in_group("desktop_hand"):
+		if by.is_in_group("desktop_hand") and not DesktopPickup.inspecting(self):
 			_desktop_held = true
 		return
 	_saved_by = by
