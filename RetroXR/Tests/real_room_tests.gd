@@ -132,6 +132,8 @@ func _ready() -> void:
 		await _test_setup()
 	if _wants("rig"):
 		await _test_rig()
+	if _wants("overlay"):
+		await _test_overlay()
 	if _wants("project"):
 		_test_project()
 
@@ -413,6 +415,40 @@ func _test_occlusion() -> void:
 	_ok(not room2.has_occlusion(), "occlusion/without consent there is none")
 	room2.queue_free()
 	_free_rig(rig2)
+	await get_tree().process_frame
+	_reset_statics()
+
+
+## Debug > Overlays > Real Room Surfaces.
+func _test_overlay() -> void:
+	var rig := _rig()
+	var room := _room({"on": true}, rig)
+	room.start()
+	var manager := (rig["origin"] as Node).get_node("RealRoomScene") as FakeManager
+	var table := manager.make_anchor(FakeEntity.new(PackedStringArray(["TABLE"])))
+	var mesh := manager.make_anchor(FakeEntity.new(PackedStringArray(["GLOBAL_MESH"]), true))
+	var door := manager.make_anchor(FakeEntity.new(PackedStringArray(["DOOR_FRAME"])))
+	_ok(not table.has_debug_mesh() and not mesh.has_debug_mesh(), "overlay/off by default: nothing drawn")
+	RealRoomSurface.set_debug_visible(get_tree(), true)
+	var table_draw := table.get_node_or_null("DebugOverlay") as MeshInstance3D
+	var mesh_draw := mesh.get_node_or_null("DebugOverlay") as MeshInstance3D
+	_ok(table.has_debug_mesh() and table_draw != null and table_draw.mesh != null
+		and mesh.has_debug_mesh() and mesh_draw.mesh.get_faces().size() == 3,
+		"overlay/on: each surface drawn as its shape, the scanned mesh as its own triangles")
+	_ok(not door.has_debug_mesh(), "overlay/and nothing for what is nothing")
+	var table_color := (table_draw.material_override as StandardMaterial3D).albedo_color
+	var mesh_color := (mesh_draw.material_override as StandardMaterial3D).albedo_color
+	_ok(table.is_solid() and is_equal_approx(table_color.a, RealRoomSurface.DEBUG_ALPHA_SOLID)
+		and not mesh.is_solid() and is_equal_approx(mesh_color.a, RealRoomSurface.DEBUG_ALPHA_NOT_SOLID)
+		and not table_color.is_equal_approx(mesh_color),
+		"overlay/coloured by kind, bold where things rest on it and faint where they don't")
+	var later := manager.make_anchor(FakeEntity.new(PackedStringArray(["WALL_FACE"])))
+	_ok(later.has_debug_mesh(), "overlay/a surface made while it is on is drawn too")
+	RealRoomSurface.set_debug_visible(get_tree(), false)
+	_ok(not table.has_debug_mesh() and not mesh.has_debug_mesh() and not later.has_debug_mesh(),
+		"overlay/off again: all of it hidden")
+	room.queue_free()
+	_free_rig(rig)
 	await get_tree().process_frame
 	_reset_statics()
 

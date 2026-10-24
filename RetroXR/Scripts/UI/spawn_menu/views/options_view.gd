@@ -835,6 +835,16 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 		CollisionDebug.set_enabled(self, on)
 	))
 
+	# What the passthrough room made of the real one (RealRoomSurface): furniture
+	# blue, floor and walls green, the scanned mesh orange, faint where nothing
+	# rests on it. Not persisted, for the collision overlay's reason.
+	MenuStyle.menu_switch_row(vbox, "Real Room Surfaces", RealRoomSurface.debug_visible) \
+		.toggled.connect(func(on: bool) -> void:
+			RealRoomSurface.set_debug_visible(get_tree(), on))
+	vbox.add_child(MenuStyle.hint(
+		"In passthrough with room data on: furniture blue, floor and walls green, "
+		+ "the scanned mesh orange. Faint where things don't rest on it."))
+
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(MenuStyle.header("CABLES", 20))
 

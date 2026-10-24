@@ -25,8 +25,28 @@ const WALL_LABELS: PackedStringArray = ["WALL_FACE", "INVISIBLE_WALL_FACE"]
 const POSTER_GROUP := &"poster_flat"
 const GROUP := &"real_room_surface"
 
+## Debug > Overlays > Real Room Surfaces: every surface drawn as what it is, so
+## what the game has made of the room can be looked at in it. Not saved, like
+## the collision overlay. Per kind, and bolder where things rest on it.
+static var debug_visible := false
+const DEBUG_COLORS := {
+	Kind.MESH: Color(1.0, 0.55, 0.15),
+	Kind.FURNITURE: Color(0.25, 0.55, 1.0),
+	Kind.FACE: Color(0.3, 0.9, 0.4),
+}
+const DEBUG_ALPHA_SOLID := 0.35
+const DEBUG_ALPHA_NOT_SOLID := 0.08
+
 var kind := Kind.NONE
 var labels := PackedStringArray()
+var _debug_mesh: MeshInstance3D = null
+
+
+## Show or hide every surface's overlay, now and for surfaces made later.
+static func set_debug_visible(tree: SceneTree, on: bool) -> void:
+	debug_visible = on
+	if tree != null:
+		tree.call_group(GROUP, "refresh_debug")
 
 
 ## What `labels` (Meta's semantic labels, any case) make of a surface.
@@ -61,7 +81,88 @@ func setup_scene(entity: Object) -> void:
 		if l.to_upper() in WALL_LABELS:
 			add_to_group(POSTER_GROUP)
 			break
+	refresh_debug()
 
 
 func set_solid(on: bool) -> void:
 	collision_layer = WORLD_LAYER if on else 0
+	refresh_debug()
+
+
+func is_solid() -> bool:
+	return collision_layer != 0
+
+
+func has_debug_mesh() -> bool:
+	return _debug_mesh != null and _debug_mesh.visible
+
+
+## Build, tint or hide this surface's overlay to match debug_visible.
+func refresh_debug() -> void:
+	if not debug_visible or kind == Kind.NONE:
+		if _debug_mesh != null:
+			_debug_mesh.visible = false
+		return
+	if _debug_mesh == null:
+		var mesh := _overlay_mesh()
+		if mesh == null:
+			return
+		_debug_mesh = MeshInstance3D.new()
+		_debug_mesh.name = "DebugOverlay"
+		_debug_mesh.mesh = mesh
+		_debug_mesh.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_debug_mesh.material_override = mat
+		add_child(_debug_mesh)
+	var color: Color = DEBUG_COLORS.get(kind, Color.WHITE)
+	color.a = DEBUG_ALPHA_SOLID if is_solid() else DEBUG_ALPHA_NOT_SOLID
+	(_debug_mesh.material_override as StandardMaterial3D).albedo_color = color
+	_debug_mesh.visible = true
+
+
+## The surface's collision shape as something to draw, where its CollisionShape3D
+## sits: a box for a box, the triangles themselves for the scanned mesh.
+func _overlay_mesh() -> Mesh:
+	for c in get_children():
+		if not (c is CollisionShape3D) or (c as CollisionShape3D).shape == null:
+			continue
+		var shape := (c as CollisionShape3D).shape
+		var at := (c as CollisionShape3D).transform
+		if shape is BoxShape3D:
+			var box := BoxMesh.new()
+			box.size = (shape as BoxShape3D).size
+			return _placed(box, at)
+		if shape is ConcavePolygonShape3D:
+			var faces := (shape as ConcavePolygonShape3D).get_faces()
+			if faces.is_empty():
+				return null
+			var arrays := []
+			arrays.resize(Mesh.ARRAY_MAX)
+			var placed := PackedVector3Array()
+			placed.resize(faces.size())
+			for i in faces.size():
+				placed[i] = at * faces[i]
+			arrays[Mesh.ARRAY_VERTEX] = placed
+			var am := ArrayMesh.new()
+			am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+			return am
+	return null
+
+
+## A primitive moved to where the collision shape is, baked into an ArrayMesh.
+func _placed(primitive: PrimitiveMesh, at: Transform3D) -> Mesh:
+	if at.is_equal_approx(Transform3D.IDENTITY):
+		return primitive
+	var arrays := primitive.get_mesh_arrays()
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	for i in verts.size():
+		verts[i] = at * verts[i]
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_NORMAL] = null
+	arrays[Mesh.ARRAY_TANGENT] = null
+	var am := ArrayMesh.new()
+	am.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return am
