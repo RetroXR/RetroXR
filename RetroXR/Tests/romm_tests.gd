@@ -919,6 +919,11 @@ func _test_disc_folder_single_file() -> void:
 		% body.size()).to_utf8_buffer()
 	var downloaded := RommCacheManifest.local_path(SID, "azumanga.download")
 	DirAccess.make_dir_recursive_absolute(downloaded.get_base_dir())
+	# What an earlier build left: the disc saved as a plain file called azumanga, in the way of the folder.
+	var stray := RommCacheManifest.local_path(SID, "azumanga")
+	var sf := FileAccess.open(stray, FileAccess.WRITE)
+	sf.store_buffer("MComprHD".to_utf8_buffer())
+	sf.close()
 	var f := FileAccess.open(downloaded, FileAccess.WRITE)
 	f.store_buffer("MComprHD".to_utf8_buffer())
 	f.close()
@@ -943,6 +948,8 @@ func _test_disc_folder_single_file() -> void:
 	_eq(str(out.get("relative", "")), "azumanga/gdl-0018.chd", "disc/under the folder of its name, by its own name")
 	_ok(FileAccess.file_exists(target), "disc/the file is there")
 	_ok(not FileAccess.file_exists(downloaded), "disc/and the download under its temporary name is gone")
+	_ok(DirAccess.dir_exists_absolute(RommCacheManifest.local_path(SID, "azumanga")),
+		"disc/azumanga is a folder now, the stray file an earlier build left is gone")
 	dl.free()
 	DirAccess.remove_absolute(target)
 	DirAccess.remove_absolute(target.get_base_dir())
