@@ -191,7 +191,11 @@ func _worker(args: Dictionary) -> void:
 	var launch_path := dest
 	var members: Array[Dictionary] = []
 	if bool(entry.get("multi", false)):
-		var extracted := _extract_multi(dest, systemid, owned, archive_extractor)
+		# An arcade game's disc folder (thisgame, beside thisgame.zip) must unpack INTO a folder of
+		# that name, whether or not RomM's archive carries one: MAME looks for the CHD there.
+		var folder_prefix := fs_name if ArcadeDiscs.applies(systemid) \
+			and fs_name.get_extension().is_empty() else ""
+		var extracted := _extract_multi(dest, systemid, owned, archive_extractor, folder_prefix)
 		if not str(extracted.get("error", "")).is_empty():
 			if _abort:
 				_emit_cancelled.call_deferred(rom_id)
@@ -216,7 +220,9 @@ func _worker(args: Dictionary) -> void:
 	var launch_relative := RommCacheManifest.relative_path(systemid, launch_path)
 	_register_group.call_deferred(systemid, fs_name, launch_relative,
 		rom_id, members, str(entry.get("md5_hash", "")).to_lower())
-	_merge_gamelist.call_deferred(systemid, entry, launch_relative)
+	# A disc folder is no game of its own: the board's row stands for it.
+	if not ArcadeDiscs.applies(systemid) or not fs_name.get_extension().is_empty():
+		_merge_gamelist.call_deferred(systemid, entry, launch_relative)
 
 	_emit_finished.call_deferred(rom_id, true, launch_path, "")
 
@@ -391,14 +397,14 @@ func _attempt_download(args: Dictionary, dest: String, part: String, rom_id: int
 ## uncompressed total before writing, then return the launch path plus every
 ## exact member the cache group owns.
 func _extract_multi(zip_path: String, systemid: String,
-		keep: PackedStringArray, extractor: RommArchiveExtractor) -> Dictionary:
+		keep: PackedStringArray, extractor: RommArchiveExtractor, prefix := "") -> Dictionary:
 	var reader := ZIPReader.new()
 	if reader.open(zip_path) != OK:
 		DirAccess.remove_absolute(zip_path)
 		return {"launch": "", "members": [], "error": "Could not open multi-file ROM"}
 
 	var dest_dir := RomLibrary.rom_dir_for_system(systemid)
-	var plan := _archive_plan(reader, dest_dir)
+	var plan := _archive_plan(reader, dest_dir, prefix)
 	reader.close()
 	if plan.is_empty():
 		DirAccess.remove_absolute(zip_path)
@@ -454,7 +460,9 @@ func _extract_multi(zip_path: String, systemid: String,
 ## Validate every member before the first mkdir/write. ZIP names are untrusted:
 ## RomM may index user-supplied archives, and path_join() alone accepts ../,
 ## absolute paths and Windows separators that can escape the ROM directory.
-static func _archive_plan(reader: ZIPReader, dest_dir: String) -> Array[Dictionary]:
+##
+## `prefix` puts every member under that folder unless the archive already names it first.
+static func _archive_plan(reader: ZIPReader, dest_dir: String, prefix := "") -> Array[Dictionary]:
 	var plan: Array[Dictionary] = []
 	var claimed: Dictionary = {}
 	var root := dest_dir.replace("\\", "/").simplify_path().trim_suffix("/")
@@ -466,6 +474,8 @@ static func _archive_plan(reader: ZIPReader, dest_dir: String) -> Array[Dictiona
 		if relative.is_empty():
 			push_warning("[RommDownloader] refusing unsafe archive member '%s'" % raw_name)
 			return []
+		if not prefix.is_empty() and not relative.to_lower().begins_with(prefix.to_lower() + "/"):
+			relative = prefix.path_join(relative)
 
 		var folded := relative.to_lower()
 		if claimed.has(folded):

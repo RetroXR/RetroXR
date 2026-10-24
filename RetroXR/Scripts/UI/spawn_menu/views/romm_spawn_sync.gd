@@ -307,7 +307,8 @@ func _on_romm_dl_started(rom_id: int, label: String, total_bytes: int) -> void:
 	_dl_row_index = -1
 	var rows := _view._romm_rows
 	for i in rows.size():
-		if _view.romm_catalog.rom_id_at(int(rows[i].get("index", -1))) == rom_id:
+		if _view.romm_catalog.rom_id_at(int(rows[i].get("index", -1))) == rom_id \
+				or _view.romm_catalog.rom_id_at(int(rows[i].get("disc_index", -1))) == rom_id:
 			_dl_row_index = i
 			break
 
@@ -368,8 +369,10 @@ func _on_romm_dl_finished(rom_id: int, ok: bool, path: String, error: String) ->
 		# scraper is rate-limited and a batch download would outrun it.
 		if menu != null and "auto_scraper" in menu:
 			var scraper: AutoScraper = menu.get("auto_scraper")
-			if scraper != null:
-				scraper.request(path, AutoScraper.systemid_for_path(path))
+			var scrape_sid := AutoScraper.systemid_for_path(path)
+			# An arcade disc has no entry of its own to scrape: its board is the game.
+			if scraper != null and not (ArcadeDiscs.applies(scrape_sid) and ArcadeDiscs.is_disc_path(path)):
+				scraper.request(path, scrape_sid)
 	else:
 		_romm_notify_or_queue(key, "❌", "%s — %s" % [_romm_dl_label(rom_id), error],
 			MenuToasts.DWELL_FAIL)

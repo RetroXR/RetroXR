@@ -39,6 +39,18 @@ func can_visually_spin() -> bool:
 	return true
 
 
+## An arcade game's CHD is a RetroDisc under the board's systemid, and that systemid names a PCB
+## model and a board's box (CART_SIZES): neither is this disc's.
+func _has_box_size() -> bool:
+	return not ArcadeDiscs.applies(systemid) and super()
+
+
+func _apply_cart_model() -> void:
+	if ArcadeDiscs.applies(systemid):
+		return
+	super()
+
+
 ## The baked platter closest to this diameter. A miss beyond a couple of
 ## millimetres means a system was added to DISC_DIAMETERS without a mesh to go
 ## with it, which would otherwise show up as a disc quietly rendered at the wrong

@@ -63,6 +63,8 @@ func _ready() -> void:
 	_test_scan_roms()
 	_test_index_by_basename()
 	_test_saves_beside_games()
+	_test_arcade_disc_folders()
+	_test_archive_plan_prefix()
 	_test_region_flags()
 	_test_gamelist_removal()
 	_test_media_and_cleanup()
@@ -880,6 +882,53 @@ func _test_saves_beside_games() -> void:
 	_eq([flags[8], flags[9]], [1, 0], "saves/a .zip game hides its save and keeps its row")
 	_eq([flags[10], flags[11]], [0, 0], "saves/a disc's cue and track are not saves")
 	_eq(RommCatalog.count_shown(bases, exts), 6, "saves/the tile count agrees with the list")
+
+
+## An arcade game's CHD is a folder RomM lists beside the board's zip. The list shows ONE row, the
+## zip's; the folder rides along with it (ArcadeDiscs).
+func _test_arcade_disc_folders() -> void:
+	var bases := PackedStringArray(["thisgame", "thisgame", "plain", "orphan", "other", "other"])
+	var exts := PackedStringArray(["", "zip", "zip", "", "zip", ""])
+	var flags := RommCatalog.compute_hidden_flags(bases, exts, true)
+	_eq(flags[0], 1, "disc/the folder beside its zip is hidden")
+	_eq(flags[1], 0, "disc/and the zip keeps its row")
+	_eq(flags[2], 0, "disc/a zip with no folder is a plain board")
+	_eq(flags[3], 0, "disc/a folder with no zip beside it stays visible")
+	_eq([flags[4], flags[5]], [0, 1], "disc/the pairing is by name wherever the rows sit")
+	var off := RommCatalog.compute_hidden_flags(bases, exts)
+	_eq(off[0], 0, "disc/on any other platform a folder is a game of its own")
+	_eq(RommCatalog.count_shown(bases, exts, true), 4, "disc/the tile count agrees with the list")
+	_eq(RommCatalog.count_shown(bases, exts), 6, "disc/and counts every row elsewhere")
+	var pairs := ArcadeDiscs.pair_folders(bases, exts)
+	_eq([pairs[1], pairs[2], pairs[4]], [0, -1, 5], "disc/a board row names its folder's row")
+	_ok(ArcadeDiscs.applies("mame") and ArcadeDiscs.applies("arcade") and not ArcadeDiscs.applies("psx"),
+		"disc/only the arcade family pairs (a legacy id reads as arcade)")
+
+
+## The disc folder unpacks INTO a folder of its name, whether or not RomM's archive carries one.
+func _test_archive_plan_prefix() -> void:
+	var path := OS.get_cache_dir().path_join("romm_prefix_test.zip")
+	var packer := ZIPPacker.new()
+	if packer.open(path) != OK:
+		_ok(false, "prefix/could not write the test archive")
+		return
+	for entry: String in ["flat.chd", "thisgame/nested.chd"]:
+		packer.start_file(entry)
+		packer.write_file("x".to_utf8_buffer())
+		packer.close_file()
+	packer.close()
+	var reader := ZIPReader.new()
+	reader.open(path)
+	var root := OS.get_cache_dir().path_join("romm_prefix_root")
+	var plain := RommDownloader._archive_plan(reader, root)
+	var folded := RommDownloader._archive_plan(reader, root, "thisgame")
+	reader.close()
+	DirAccess.remove_absolute(path)
+	var plain_rel: Array = plain.map(func(p: Dictionary) -> String: return str(p["relative"]))
+	var folded_rel: Array = folded.map(func(p: Dictionary) -> String: return str(p["relative"]))
+	_eq(plain_rel, ["flat.chd", "thisgame/nested.chd"], "prefix/no prefix leaves the layout alone")
+	_eq(folded_rel, ["thisgame/flat.chd", "thisgame/nested.chd"],
+		"prefix/a flat archive goes under the folder and a nested one is not nested twice")
 
 
 ## The flag on a ROM row and in the variants list. The region values are the

@@ -99,9 +99,9 @@ size = Vector3(0.34, 0.006, 0.002)
 size = Vector3(0.34, 0.065, 0.2)
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_8qvr2"]
-size = Vector3(0.36, 0.085, 0.22)
+size = Vector3(0.36, 0.085, 0.2)
 
-[node name="ArcadeBay" type="RigidBody3D" unique_id=533044564]
+[node name="ArcadeBay" type="RigidBody3D" unique_id=1569559958]
 collision_layer = 4
 collision_mask = 196613
 mass = 2.0
@@ -113,62 +113,62 @@ script = ExtResource("1_x0nb1")
 bay_kind = "mvs"
 type_id = "arcade_bay_mvs"
 
-[node name="MvsTray" type="MeshInstance3D" parent="." unique_id=762278405]
+[node name="MvsTray" type="MeshInstance3D" parent="." unique_id=1458179221]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0175, 0)
 mesh = SubResource("BoxMesh_22gak")
 
-[node name="MvsBoard" type="MeshInstance3D" parent="." unique_id=690822717]
+[node name="MvsBoard" type="MeshInstance3D" parent="." unique_id=1221741059]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0365, 0)
 mesh = SubResource("BoxMesh_pvxpe")
 
-[node name="MvsSlot" type="MeshInstance3D" parent="." unique_id=232751817]
+[node name="MvsSlot" type="MeshInstance3D" parent="." unique_id=1751683923]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.053, 0)
 mesh = SubResource("BoxMesh_6rc36")
 
-[node name="MvsSlotMouth" type="MeshInstance3D" parent="." unique_id=1113176521]
+[node name="MvsSlotMouth" type="MeshInstance3D" parent="." unique_id=189706755]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0681, 0)
 mesh = SubResource("BoxMesh_eutem")
 
-[node name="MvsChipL1" type="MeshInstance3D" parent="." unique_id=68753941]
+[node name="MvsChipL1" type="MeshInstance3D" parent="." unique_id=958161215]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.125, 0.042, -0.055)
 mesh = SubResource("BoxMesh_el3pf")
 
-[node name="MvsChipL2" type="MeshInstance3D" parent="." unique_id=215006953]
+[node name="MvsChipL2" type="MeshInstance3D" parent="." unique_id=1878491991]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.123, 0.042, -0.01)
 mesh = SubResource("BoxMesh_54hak")
 
-[node name="MvsChipL3" type="MeshInstance3D" parent="." unique_id=1150997176]
+[node name="MvsChipL3" type="MeshInstance3D" parent="." unique_id=1940026095]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.121, 0.042, 0.035)
 mesh = SubResource("BoxMesh_p7lx8")
 
-[node name="MvsChipR1" type="MeshInstance3D" parent="." unique_id=508203709]
+[node name="MvsChipR1" type="MeshInstance3D" parent="." unique_id=1196110361]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 0.0415, -0.055)
 mesh = SubResource("BoxMesh_c0v6d")
 
-[node name="MvsChipR2" type="MeshInstance3D" parent="." unique_id=1552319050]
+[node name="MvsChipR2" type="MeshInstance3D" parent="." unique_id=1437847867]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 0.0415, -0.01)
 mesh = SubResource("BoxMesh_mu3lv")
 
-[node name="MvsChipR3" type="MeshInstance3D" parent="." unique_id=1776764310]
+[node name="MvsChipR3" type="MeshInstance3D" parent="." unique_id=234707381]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.125, 0.0415, 0.035)
 mesh = SubResource("BoxMesh_frxl6")
 
-[node name="MvsEdgeConn" type="MeshInstance3D" parent="." unique_id=745678863]
+[node name="MvsEdgeConn" type="MeshInstance3D" parent="." unique_id=321883140]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.041, -0.088)
 mesh = SubResource("BoxMesh_nhv7y")
 
-[node name="MvsPower" type="MeshInstance3D" parent="." unique_id=612311606]
+[node name="MvsPower" type="MeshInstance3D" parent="." unique_id=702114848]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.14, 0.0455, 0.075)
 mesh = SubResource("BoxMesh_87lpq")
 
-[node name="CartSeat" type="Marker3D" parent="." unique_id=1749892775]
+[node name="CartSeat" type="Marker3D" parent="." unique_id=1408965890]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.113, 0)
 
-[node name="Stripe" type="MeshInstance3D" parent="." unique_id=1026783607]
+[node name="Stripe" type="MeshInstance3D" parent="." unique_id=1344348061]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.027, 0.101)
 mesh = SubResource("BoxMesh_hlfhv")
 
-[node name="Legend" type="Label3D" parent="." unique_id=2132605228]
+[node name="Legend" type="Label3D" parent="." unique_id=980250199]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0175, 0.1025)
 pixel_size = 0.0006
 modulate = Color(0.95, 0.93, 0.85, 1)
@@ -176,7 +176,7 @@ text = "NEO GEO"
 font_size = 48
 outline_size = 0
 
-[node name="JammaPort" parent="." unique_id=37652676 instance=ExtResource("2_22gak")]
+[node name="JammaPort" parent="." unique_id=756572582 instance=ExtResource("2_22gak")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0175, 0.104)
 channel = 0
 direction = 1
@@ -184,21 +184,21 @@ show_jack = true
 rf_feed = false
 connector = "jamma_plug"
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=1866213069]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=97766135]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0325, 0)
 shape = SubResource("BoxShape3D_7e25k")
 
-[node name="PointerArea" type="StaticBody3D" parent="." unique_id=366865052]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0325, 0)
+[node name="PointerArea" type="StaticBody3D" parent="." unique_id=395678716]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0325, -0.01)
 collision_layer = 1048576
 collision_mask = 0
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea" unique_id=1286639802]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea" unique_id=1040202261]
 shape = SubResource("BoxShape3D_8qvr2")
 
-[node name="GrabPoint" type="Marker3D" parent="." unique_id=284146205]
+[node name="GrabPoint" type="Marker3D" parent="." unique_id=1838640615]
 visible = false
 script = ExtResource("4_pvxpe")
 
-[node name="PickableHighlight" type="Node3D" parent="." unique_id=1397173107]
+[node name="PickableHighlight" type="Node3D" parent="." unique_id=580972294]
 script = ExtResource("5_qk0oj")

@@ -1698,6 +1698,9 @@ func _rebuild_romm_rows() -> void:
 				"index": i,
 				"path": str(local.get("path", "")),
 				"label": label,
+				# Arcade: the folder of CHDs RomM lists beside this board's zip, which is hidden
+				# from the list and downloaded, shown and deleted with the board.
+				"disc_index": romm_catalog.disc_row_for(i),
 			})
 
 	# 3. Local-only files the server doesn't know about. The extension filter
@@ -2196,6 +2199,15 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	var label := str(model["label"])
 	var rom_id := int(entry.get("id", 0))
 	var local_path := str(model["path"])
+	# An arcade game with a disc: the server's folder for it (hidden from the list), and the image
+	# on disk. The row stands for the board AND the disc.
+	var disc_index := int(model.get("disc_index", -1))
+	var disc_entry: Dictionary = romm_catalog.row(disc_index) if disc_index >= 0 else {}
+	var disc_id := int(disc_entry.get("id", 0))
+	var local_disc := ""
+	if ArcadeDiscs.applies(systemid) and not local_path.is_empty():
+		local_disc = ArcadeDiscs.disc_for(local_path)
+	var disc_missing := disc_id > 0 and local_disc.is_empty()
 
 	var state := row.get_node("State") as Button
 	var pct := state.get_node("Pct") as Label
@@ -2276,7 +2288,8 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		main.set_marquee_text("  " + label)
 
 	# ── Leading state icon ──────────────────────────────────────────────────
-	var downloading := rom_id > 0 and romm_downloader.current_rom_id() == rom_id
+	var current_dl := romm_downloader.current_rom_id()
+	var downloading := current_dl != 0 and (current_dl == rom_id or current_dl == disc_id)
 	pct.visible = false
 
 	if downloading:
@@ -2285,7 +2298,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		state.tooltip_text = "Cancel download"
 		pct.visible = true
 		pct.add_theme_color_override("font_color", MenuIcons.TINT_BUSY)
-		pct.text = "%d%%" % _romm_sync.progress_pct(rom_id)
+		pct.text = "%d%%" % _romm_sync.progress_pct(current_dl)
 		state.pressed.connect(func() -> void: romm_downloader.cancel_current())
 	elif source == "server":
 		# The cloud glyph is visually lighter than the trash glyphs at the same
@@ -2294,8 +2307,9 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		if romm_client.is_reachable():
 			state.text = String.chr(MenuIcons.DOWNLOAD)
 			state.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
-			state.tooltip_text = "Download from RomM (%s)" % ByteSize.human(int(entry.get("fs_size_bytes", 0)))
-			state.pressed.connect(func() -> void: romm_downloader.enqueue(entry, systemid))
+			state.tooltip_text = "Download from RomM (%s)" % ByteSize.human(
+				int(entry.get("fs_size_bytes", 0)) + int(disc_entry.get("fs_size_bytes", 0)))
+			state.pressed.connect(_enqueue_game.bind(entry, disc_entry, systemid))
 		else:
 			# The index is on disk, so these keep listing with the server down.
 			# The row is the only place that can say so: the unreachable toast is
@@ -2305,6 +2319,14 @@ func _bind_rom_row(row: Control, index: int) -> void:
 			state.tooltip_text = "RomM is unreachable — this title is on the server only"
 			state.disabled = true
 			row.modulate = UNREACHABLE_DIM
+	elif disc_missing and romm_client.is_reachable():
+		# The board is here and its disc is not (evicted for space, or the first run stopped between
+		# the two): the game cannot start, so the row offers what is missing and not the delete.
+		state.add_theme_font_size_override("font_size", 44)
+		state.text = String.chr(MenuIcons.DOWNLOAD)
+		state.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
+		state.tooltip_text = "Download the disc (%s)" % ByteSize.human(int(disc_entry.get("fs_size_bytes", 0)))
+		state.pressed.connect(func() -> void: romm_downloader.enqueue(disc_entry, systemid))
 	else:
 		state.add_theme_font_size_override("font_size", 40)
 		var forever := source == "local"
@@ -2334,13 +2356,17 @@ func _bind_rom_row(row: Control, index: int) -> void:
 				romm_cache.touch(systemid,
 					RommCacheManifest.relative_path(systemid, local_path))
 			spawn_cartridge_requested.emit(local_path, label, systemid, options)
-		hold.clicked.connect(spawn.bind({}))
+		if not local_disc.is_empty():
+			# Two things to take out of the box: the board and its disc.
+			hold.clicked.connect(_show_arcade_game_choice.bind(label, spawn, local_disc, systemid))
+		else:
+			hold.clicked.connect(spawn.bind({}))
 		# Held for a second: choose the shell and the body before it spawns.
 		hold.hold_enabled = _has_spawn_options(systemid)
 		hold.held.connect(_show_cart_spawn_options.bind(systemid, label, spawn, local_path))
 	elif romm_client.is_reachable():
 		# Not downloaded yet — tapping the title fetches it, same as the icon.
-		main.pressed.connect(func() -> void: romm_downloader.enqueue(entry, systemid))
+		main.pressed.connect(_enqueue_game.bind(entry, disc_entry, systemid))
 	else:
 		main.disabled = true
 
@@ -2459,6 +2485,14 @@ func _on_rom_delete_pressed(index: int, state: Button) -> void:
 		and romm_cache.remove_for_file(systemid, relative) >= 0
 	if not removed_group and FileAccess.file_exists(local_path):
 		DirAccess.remove_absolute(local_path)
+	# An arcade game's disc goes with its board: the cache's group for the folder, then the folder.
+	var had_disc := false
+	if ArcadeDiscs.applies(systemid):
+		var disc_path := ArcadeDiscs.disc_for(local_path)
+		had_disc = not disc_path.is_empty()
+		if had_disc and romm_cache != null:
+			romm_cache.remove_for_file(systemid, RommCacheManifest.relative_path(systemid, disc_path))
+		ArcadeDiscs.delete_for(local_path)
 
 	# Library row and artwork go with it. Saves deliberately do not: a game can be
 	# fetched again and a save cannot, so orphaned saves are surfaced by the
@@ -2469,7 +2503,7 @@ func _on_rom_delete_pressed(index: int, state: Button) -> void:
 	if gamelist_manager != null:
 		gamelist_manager.invalidate(systemid)
 
-	show_notice("Deleted %s%s" % [fname,
+	show_notice("Deleted %s%s%s" % [fname, " and its disc" if had_disc else "",
 		"" if metadata.is_empty() else " and %d metadata file%s (%s)" % [
 			metadata.size(), "" if metadata.size() == 1 else "s",
 			ByteSize.human(freed)]], 2.5)
@@ -3446,6 +3480,34 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 		sliders[0].value = h * 360.0
 		sliders[1].value = s * 100.0
 		refresh.call(true))
+
+
+## Fetch a game: its board, and the disc folder RomM lists beside it when there is one. The
+## downloader works one at a time, so the disc follows the board.
+func _enqueue_game(entry: Dictionary, disc_entry: Dictionary, systemid: String) -> void:
+	romm_downloader.enqueue(entry, systemid)
+	if not disc_entry.is_empty():
+		romm_downloader.enqueue(disc_entry, systemid)
+
+
+## An arcade game that has a disc: spawn the board or the disc. They are two objects, and the
+## cabinet's bay wants both.
+func _show_arcade_game_choice(label: String, spawn_board: Callable, disc_path: String,
+		systemid: String) -> void:
+	var vbox := _open_spawn_options_panel(label)
+	vbox.add_child(MenuStyle.hint("This game runs from a board and a disc. A cabinet needs both in its bay."))
+	var board_btn := MenuStyle.row_button("  +  Spawn %s" % ArcadeDiscs.BOARD_NAME, 26, 0, 80, false)
+	board_btn.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
+	board_btn.pressed.connect(func() -> void:
+		_close_spawn_options_panel()
+		spawn_board.call({}))
+	vbox.add_child(board_btn)
+	var disc_btn := MenuStyle.row_button("  +  Spawn %s" % ArcadeDiscs.DISC_NAME, 26, 0, 80, false)
+	disc_btn.add_theme_stylebox_override("normal", MenuStyle.rounded(MenuStyle.COLOR_BTN_DL, 8))
+	disc_btn.pressed.connect(func() -> void:
+		_close_spawn_options_panel()
+		spawn_cartridge_requested.emit(disc_path, label, systemid, {}))
+	vbox.add_child(disc_btn)
 
 
 ## Which of its colors to spawn a console in: one swatch for each of the

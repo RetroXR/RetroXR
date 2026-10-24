@@ -585,12 +585,18 @@ func _update_label() -> void:
 		spine.text = game_label
 
 
+## Does this cartridge take its box from MediaDimensions.CART_SIZES? A disc of the arcade system
+## does not, though its systemid has a row there: the row is the BOARD's.
+func _has_box_size() -> bool:
+	return MediaDimensions.has_cart_size(systemid)
+
+
 ## Resize the generic cartridge to this system's real-world dimensions
 ## (MediaDimensions.CART_SIZES). All mesh/shape resources are DUPLICATED before
 ## mutation — tscn sub_resources are shared across instances, so editing them
 ## in place would resize every cartridge in the room.
 func _apply_system_size() -> void:
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	var s := _cart_size()
 
@@ -877,7 +883,7 @@ func _snap_zone_holder() -> XRToolsSnapZone:
 ## Pointer target on the cart itself, so nothing of it stands proud of the
 ## machine holding it.
 func _tighten_pointer_box() -> void:
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	var pcol := get_node_or_null("PointerArea/CollisionShape3D") as CollisionShape3D
 	if pcol == null or not (pcol.shape is BoxShape3D):
@@ -935,7 +941,7 @@ func _aim_foreign_seat(zone: XRToolsSnapZone) -> void:
 ## through the thin shell and swallows clicks meant for the device itself.
 ## `depth` is the exposed length along the cart's +Y (grip) end.
 func set_seated_grab_stub(depth: float) -> void:
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	_stub_seated = true
 	var s := _cart_size()
@@ -961,7 +967,7 @@ func set_seated_grab_stub(depth: float) -> void:
 ## Restore the normal (padded) grab shapes after leaving a handheld slot.
 func reset_grab_shapes() -> void:
 	_stub_seated = false
-	if not MediaDimensions.has_cart_size(systemid):
+	if not _has_box_size():
 		return
 	var col := get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col:

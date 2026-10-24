@@ -14,6 +14,8 @@
 ##   cable/     a JAMMA lead joins a free bay to a cabinet, is refused for a docked one, and lets go when pulled
 ##   inside/    from INSIDE the cabinet, above the compartment, a pointer ray and a hand reach the bay: no wall
 ##   ext/       a machine cabled to the bay's phono IN is the cabinet's picture source, and only while cabled
+##   disc/      the JAMMA bay has a CD-ROM bay under it: a disc rides in and out, EJECT pushes it half out,
+##              a game with a disc will not start without both, and each says what it is missing
 ##   names/     the four kinds have scenes, labels and a card row, and the lead is a lead the room can restore
 extends Node
 
@@ -131,8 +133,140 @@ func _run() -> void:
 		await _group_inside()
 	if _want("ext"):
 		await _group_ext()
+	if _want("disc"):
+		await _group_disc()
 	if _want("names"):
 		_group_names()
+
+
+# --- disc ----------------------------------------------------------------------
+
+const DISC_SCENE := preload("res://Scenes/Objects/media/disc.tscn")
+const DISC_ROOT := "user://arcade_disc_test"
+
+
+## roms/arcade as a game with a disc leaves it: thisgame.zip + thisgame/a.chd, other.zip + other/b.chd,
+## and a plain board with no folder.
+func _disc_fixture() -> void:
+	DirAccess.make_dir_recursive_absolute(DISC_ROOT.path_join("thisgame"))
+	DirAccess.make_dir_recursive_absolute(DISC_ROOT.path_join("other"))
+	for f: String in ["thisgame.zip", "other.zip", "plain.zip", "thisgame/a.chd", "other/b.chd"]:
+		var h := FileAccess.open(DISC_ROOT.path_join(f), FileAccess.WRITE)
+		h.store_8(1)
+		h.close()
+
+
+func _disc_cleanup() -> void:
+	for f: String in ["thisgame/a.chd", "other/b.chd", "thisgame.zip", "other.zip", "plain.zip"]:
+		DirAccess.remove_absolute(DISC_ROOT.path_join(f))
+	for d: String in ["thisgame", "other"]:
+		DirAccess.remove_absolute(DISC_ROOT.path_join(d))
+	DirAccess.remove_absolute(DISC_ROOT)
+
+
+func _disc(rom: String) -> RetroDisc:
+	var disc := DISC_SCENE.instantiate() as RetroDisc
+	disc.systemid = "arcade"
+	disc.rom_path = ProjectSettings.globalize_path(DISC_ROOT.path_join(rom))
+	disc.game_label = rom
+	disc.position = Vector3(0, 3, 0)
+	disc.freeze = true
+	add_child(disc)
+	_spawned.append(disc)
+	await _wait(6)
+	return disc
+
+
+func _group_disc() -> void:
+	_disc_fixture()
+	var root := ProjectSettings.globalize_path(DISC_ROOT)
+	# What ArcadeDiscs says about the files.
+	_ok(ArcadeDiscs.needs_disc(root.path_join("thisgame.zip")), "disc: a zip with a folder of CHDs needs a disc")
+	_ok(not ArcadeDiscs.needs_disc(root.path_join("plain.zip")), "disc: a zip with none is a plain board")
+	_ok(ArcadeDiscs.belongs_to(root.path_join("thisgame/a.chd"), root.path_join("thisgame.zip")), "disc: its CHD belongs to it")
+	_ok(not ArcadeDiscs.belongs_to(root.path_join("other/b.chd"), root.path_join("thisgame.zip")), "disc: another game's does not")
+	_ok(ArcadeDiscs.board_for(root.path_join("thisgame/a.chd")) == root.path_join("thisgame.zip"), "disc: a CHD names its board")
+
+	var sys := await _cabinet("arcade_cabinet_generic", "arcade")
+	var bay := sys.get_bay()
+	if bay == null:
+		_ok(false, "disc: no bay")
+		_disc_cleanup()
+		return
+	_ok(bay.has_drive() and bay.disc_slot != null, "disc: the JAMMA bay has a CD-ROM bay under it")
+	_ok(bay.find_child("EjectButton", true, false) != null, "disc: with an EJECT button")
+	_ok(sys.arcade_disc_gap().is_empty(), "disc: an empty cabinet is missing nothing")
+
+	# A plain board plays alone.
+	var plain := await _board("arcade", Vector3(0, 3, 0))
+	plain.rom_path = root.path_join("plain.zip")
+	bay.slot.pick_up_object(plain)
+	await _wait(6)
+	_ok(sys.arcade_disc_gap().is_empty(), "disc: a board with no disc folder needs no disc")
+	bay.slot.drop_object()
+	await _wait(4)
+
+	# The board of a disc game, alone: the disc is what is missing.
+	var board := await _board("arcade", Vector3(0, 3, 0))
+	board.rom_path = root.path_join("thisgame.zip")
+	bay.slot.pick_up_object(board)
+	await _wait(6)
+	_ok(sys.arcade_disc_gap() == "This game also requires a Disc, please insert Disc.",
+		"disc: the board alone says it needs the Disc (%s)" % sys.arcade_disc_gap())
+	# The control: it must not start. (Started with no core installed, the verdict would be about the core.)
+	var disc := await _disc("thisgame/a.chd")
+	_ok(not bay.accepts_board(disc), "disc: the board's slot refuses a disc")
+	_ok(not sys.call("_accepts_media", disc), "disc: and so does the cabinet's own gate")
+	_ok(bay.accepts_disc(disc) and not bay.accepts_disc(board), "disc: the drive takes a disc and not a board")
+	bay.disc_slot.pick_up_object(disc)
+	await _wait(40)
+	_ok(bay.get_disc() == disc, "disc: the disc rides into the drive (%s)" % bay.get_disc())
+	_ok(sys.arcade_disc_gap().is_empty(), "disc: board and disc together, nothing is missing")
+
+	# EJECT pushes it half out; it is no longer read.
+	bay.eject_disc()
+	await _wait(60)
+	_ok(bay.get_disc() == null, "disc: EJECT, and the drive reads nothing")
+	_ok(sys.arcade_disc_gap() == "This game also requires a Disc, please insert Disc.",
+		"disc: the game is missing its disc again")
+	var mouth := bay.disc_slot.global_position
+	_ok(disc.global_position.distance_to(mouth) < 0.03,
+		"disc: it waits at the slot's mouth, half out (%.3f m from it)" % disc.global_position.distance_to(mouth))
+	bay.eject_disc()
+	await _wait(60)
+	_ok(bay.get_disc() == disc and sys.arcade_disc_gap().is_empty(), "disc: EJECT again draws it back in")
+
+	await _clear()
+
+	# Another game's disc is not this game's.
+	sys = await _cabinet("arcade_cabinet_generic", "arcade")
+	bay = sys.get_bay()
+	board = await _board("arcade", Vector3(0, 3, 0))
+	board.rom_path = root.path_join("thisgame.zip")
+	bay.slot.pick_up_object(board)
+	var wrong := await _disc("other/b.chd")
+	bay.restore_disc(wrong)
+	await _wait(10)
+	_ok(sys.arcade_disc_gap().begins_with("This Disc belongs to another game"),
+		"disc: the wrong game's disc is refused by name (%s)" % sys.arcade_disc_gap())
+	await _clear()
+
+	# A disc alone.
+	sys = await _cabinet("arcade_cabinet_generic", "arcade")
+	bay = sys.get_bay()
+	var alone := await _disc("thisgame/a.chd")
+	bay.restore_disc(alone)
+	await _wait(10)
+	_ok(sys.arcade_disc_gap() == "This game also requires a JAMMA Board, please insert JAMMA Board.",
+		"disc: a disc alone says it needs the JAMMA Board (%s)" % sys.arcade_disc_gap())
+	await _clear()
+
+	# Only the JAMMA bay has a drive.
+	for kind: String in ["mvs", "laserdisc", "discrete"]:
+		var other := await _bay(kind, Vector3(0, 0, 3))
+		_ok(not other.has_drive(), "disc: the %s bay has no CD-ROM bay" % kind)
+	await _clear()
+	_disc_cleanup()
 
 
 # --- default -------------------------------------------------------------------

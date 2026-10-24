@@ -12,6 +12,11 @@
 ## the Neo Geo's cassette slot for the MVS. Origin on the floor at the middle of the base, front +Z, so
 ## the cabinet's mount marker (the compartment's floor) is where the bay's origin stands.
 ##
+## The JAMMA bay is two boxes in one block: a CD-ROM bay under (a slot-loading drive for the CHD a few
+## games need, with an EJECT button that pushes the disc half out), and the JAMMA shelf and board seat
+## above it, lifted by the drive's height. They are one object, not separable. The other kinds have no
+## drive: nothing they play has a disc.
+##
 ## The sizes are ESTIMATES, like the cabinet's: no source gave a bay box's size.
 extends SceneTree
 
@@ -28,6 +33,11 @@ const PORT_SCENE := "res://Scenes/Objects/cables/jamma_port.tscn"
 ## (CART_SIZES arcade: 300 mm tall), so the seat is the socket's top plus half of it.
 const SOCKET_TOP := 0.07
 const BOARD_H := 0.30
+
+## The CD-ROM bay under the JAMMA shelf: its height, and how far its slot's mouth sits up the front face.
+const DRIVE_H := 0.05
+const SLOT_Y := 0.026
+const SCRIPT_BUTTON := "res://Scripts/Objects/widgets/vr_button.gd"
 
 
 ## kind -> its look and its size: base W x H x D, the colours, the legend on the front.
@@ -79,12 +89,18 @@ func _initialize() -> void:
 
 	var top := size.y
 	var seat: Marker3D
+	# Only the JAMMA bay carries the CD-ROM bay; everything else of it stands on top.
+	var lift := DRIVE_H if kind == "jamma" else 0.0
+	var deck: Node3D = root
+	if lift > 0.0:
+		deck = U.node(root, root, "Node3D", "Deck", Vector3(0, lift, 0)) as Node3D
+		_build_drive(root, size, dark, metal, trim)
 	if kind == "mvs":
 		seat = _build_mvs(root, size, body, dark, metal)
 		top = 0.035 + 0.030
 	else:
-		seat = _build_jamma_board(root, size, v["pcb"], dark, metal)
-		top = SOCKET_TOP
+		seat = _build_jamma_board(root, deck, size, v["pcb"], dark, metal)
+		top = SOCKET_TOP + lift
 	seat.name = "CartSeat"
 	if kind == "mvs":
 		U.box(root, root, "Stripe", Vector3(size.x, 0.006, 0.002), Vector3(0, size.y - 0.008, size.z * 0.5 + 0.001), trim)
@@ -96,8 +112,8 @@ func _initialize() -> void:
 		legend.outline_size = 0
 	else:
 		# A coloured strip along the shelf's front edge, and the board's name silk-screened on it.
-		U.box(root, root, "Stripe", Vector3(size.x, 0.004, 0.002), Vector3(0, 0.009, size.z * 0.5 + 0.001), trim)
-		var silk := U.node(root, root, "Label3D", "Legend", Vector3(-0.07, 0.0365, 0.115)) as Label3D
+		U.box(root, deck, "Stripe", Vector3(size.x, 0.004, 0.002), Vector3(0, 0.009, size.z * 0.5 + 0.001), trim)
+		var silk := U.node(root, deck, "Label3D", "Legend", Vector3(-0.07, 0.0365, 0.115)) as Label3D
 		silk.basis = Basis(Vector3.RIGHT, -PI * 0.5)
 		silk.text = str(v["legend"])
 		silk.pixel_size = 0.0007
@@ -112,7 +128,7 @@ func _initialize() -> void:
 	if port_scene != null:
 		var port := port_scene.instantiate(PackedScene.GEN_EDIT_STATE_INSTANCE) as Node3D
 		port.name = "JammaPort"
-		root.add_child(port)
+		deck.add_child(port)
 		port.owner = root
 		port.position = Vector3(0, port_y, size.z * 0.5 + 0.004)
 
@@ -121,12 +137,14 @@ func _initialize() -> void:
 	var shape := BoxShape3D.new()
 	shape.size = Vector3(size.x, top, size.z)
 	col.shape = shape
-	var pointer := U.node(root, root, "StaticBody3D", "PointerArea", Vector3(0, top * 0.5, 0)) as StaticBody3D
+	# Set back 10 mm from the front face: a ray finds the NEAREST pointable, and a box proud of the face
+	# would hide the drive's EJECT button behind it.
+	var pointer := U.node(root, root, "StaticBody3D", "PointerArea", Vector3(0, top * 0.5, -0.01)) as StaticBody3D
 	pointer.collision_layer = 1048576
 	pointer.collision_mask = 0
 	var pcol := U.node(root, pointer, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
 	var pshape := BoxShape3D.new()
-	pshape.size = Vector3(size.x + 0.02, top + 0.02, size.z + 0.02)
+	pshape.size = Vector3(size.x + 0.02, top + 0.02, size.z)
 	pcol.shape = pshape
 
 	# IDENTITY grab point: a snap zone composes it, so the bay's origin lands exactly on the mount.
@@ -146,7 +164,8 @@ func _initialize() -> void:
 ## supply's +5 V / +12 V / GND leads fork onto, and the usual crowd of chips, capacitors and a crystal.
 ## Nothing here is a measured part: the connector's pitch (3.96 mm, 28 a side) is the one real number.
 ## The seat is the connector's top plus half a board (SOCKET_TOP + BOARD_H / 2); returns CartSeat.
-func _build_jamma_board(root: Node, size: Vector3, pcb: Color, dark: Material, metal: Material) -> Marker3D:
+## Everything is parented to `deck`, which stands on the CD-ROM bay's top for the JAMMA kind.
+func _build_jamma_board(root: Node, deck: Node3D, size: Vector3, pcb: Color, dark: Material, metal: Material) -> Marker3D:
 	var wood := U.mat(Color(0.52, 0.40, 0.27), 0.0, 0.85)
 	var green := U.mat(pcb, 0.0, 0.5)
 	var trace := U.mat(pcb.lightened(0.18), 0.0, 0.45)
@@ -155,53 +174,99 @@ func _build_jamma_board(root: Node, size: Vector3, pcb: Color, dark: Material, m
 	var chip := U.mat(Color(0.06, 0.06, 0.07), 0.0, 0.45)
 	var brass := U.mat(Color(0.75, 0.60, 0.25), 0.9, 0.35)
 	# The shelf and the bracket along its back.
-	U.box(root, root, "Base", Vector3(size.x, 0.018, size.z), Vector3(0, 0.009, 0), wood)
-	U.box(root, root, "Bracket", Vector3(size.x, 0.05, 0.003), Vector3(0, 0.025, -size.z * 0.5 + 0.0015), metal)
+	U.box(root, deck, "Base", Vector3(size.x, 0.018, size.z), Vector3(0, 0.009, 0), wood)
+	U.box(root, deck, "Bracket", Vector3(size.x, 0.05, 0.003), Vector3(0, 0.025, -size.z * 0.5 + 0.0015), metal)
 	# A second bracket along the FRONT, carrying the sockets a hand and a cord reach.
-	U.box(root, root, "FrontBracket", Vector3(size.x, 0.05, 0.003), Vector3(0, 0.025 + 0.018, size.z * 0.5 - 0.0015), metal)
+	U.box(root, deck, "FrontBracket", Vector3(size.x, 0.05, 0.003), Vector3(0, 0.025 + 0.018, size.z * 0.5 - 0.0015), metal)
 	# The PCB on four standoffs.
 	var pw := size.x - 0.04
 	var pd := size.z - 0.06
 	var pcb_y := 0.0335
-	U.box(root, root, "Pcb", Vector3(pw, 0.003, pd), Vector3(0, pcb_y, 0.01), green)
+	U.box(root, deck, "Pcb", Vector3(pw, 0.003, pd), Vector3(0, pcb_y, 0.01), green)
 	for sx in [-1.0, 1.0]:
 		for sz in [-1.0, 1.0]:
-			U.cylinder(root, root, "Standoff%s%s" % ["L" if sx < 0 else "R", "B" if sz < 0 else "F"], 0.004, 0.016,
+			U.cylinder(root, deck, "Standoff%s%s" % ["L" if sx < 0 else "R", "B" if sz < 0 else "F"], 0.004, 0.016,
 				Vector3(sx * (pw * 0.5 - 0.008), 0.026, 0.01 + sz * (pd * 0.5 - 0.008)), brass)
 	# Traces: lighter strips running between the parts.
 	for i in 7:
-		U.box(root, root, "Trace%d" % i, Vector3(pw - 0.06, 0.0004, 0.0016),
+		U.box(root, deck, "Trace%d" % i, Vector3(pw - 0.06, 0.0004, 0.0016),
 			Vector3(0, pcb_y + 0.0017, -0.09 + i * 0.026), trace)
 	for i in 5:
-		U.box(root, root, "TraceV%d" % i, Vector3(0.0016, 0.0004, pd - 0.06),
+		U.box(root, deck, "TraceV%d" % i, Vector3(0.0016, 0.0004, pd - 0.06),
 			Vector3(-0.14 + i * 0.07, pcb_y + 0.0017, 0.01), trace)
 	# The edge connector: an ivory housing the board's comb goes into, a slot on top, contacts down both long sides.
-	U.box(root, root, "JammaSocket", Vector3(0.12, 0.035, 0.045), Vector3(0, pcb_y + 0.0015 + 0.0175, 0.0), ivory)
-	U.box(root, root, "SocketSlot", Vector3(0.112, 0.002, 0.006), Vector3(0, SOCKET_TOP + 0.0001, 0.0), U.mat(Color(0, 0, 0), 0.0, 0.9))
+	U.box(root, deck, "JammaSocket", Vector3(0.12, 0.035, 0.045), Vector3(0, pcb_y + 0.0015 + 0.0175, 0.0), ivory)
+	U.box(root, deck, "SocketSlot", Vector3(0.112, 0.002, 0.006), Vector3(0, SOCKET_TOP + 0.0001, 0.0), U.mat(Color(0, 0, 0), 0.0, 0.9))
 	for side in [-1.0, 1.0]:
-		U.box(root, root, "Contacts%s" % ("B" if side < 0 else "F"), Vector3(0.108, 0.006, 0.0008),
+		U.box(root, deck, "Contacts%s" % ("B" if side < 0 else "F"), Vector3(0.108, 0.006, 0.0008),
 			Vector3(0, SOCKET_TOP - 0.006, side * 0.0229), gold)
 	# Power terminals at the front left: three screw posts on a green block, red / yellow / black.
-	U.box(root, root, "PowerBlock", Vector3(0.05, 0.014, 0.016), Vector3(0.13, pcb_y + 0.0085, 0.10), U.mat(Color(0.10, 0.45, 0.20), 0.0, 0.6))
+	U.box(root, deck, "PowerBlock", Vector3(0.05, 0.014, 0.016), Vector3(0.13, pcb_y + 0.0085, 0.10), U.mat(Color(0.10, 0.45, 0.20), 0.0, 0.6))
 	for i in 3:
-		U.cylinder(root, root, "Terminal%d" % (i + 1), 0.0045, 0.006, Vector3(0.115 + i * 0.015, pcb_y + 0.017, 0.10),
+		U.cylinder(root, deck, "Terminal%d" % (i + 1), 0.0045, 0.006, Vector3(0.115 + i * 0.015, pcb_y + 0.017, 0.10),
 			U.mat([Color(0.85, 0.12, 0.10), Color(0.92, 0.75, 0.10), Color(0.08, 0.08, 0.09)][i], 0.3, 0.5))
 	# The CPU, other chips, a crystal and capacitors.
-	U.box(root, root, "Cpu", Vector3(0.052, 0.008, 0.016), Vector3(-0.09, pcb_y + 0.0055, -0.07), chip)
-	U.box(root, root, "Gfx", Vector3(0.030, 0.006, 0.030), Vector3(0.10, pcb_y + 0.0045, -0.06), chip)
+	U.box(root, deck, "Cpu", Vector3(0.052, 0.008, 0.016), Vector3(-0.09, pcb_y + 0.0055, -0.07), chip)
+	U.box(root, deck, "Gfx", Vector3(0.030, 0.006, 0.030), Vector3(0.10, pcb_y + 0.0045, -0.06), chip)
 	for i in 4:
-		U.box(root, root, "Chip%d" % (i + 1), Vector3(0.026, 0.005, 0.009), Vector3(0.07 + i * 0.001, pcb_y + 0.004, 0.06 + i * 0.016 - 0.02), chip)
-	U.box(root, root, "Crystal", Vector3(0.012, 0.004, 0.005), Vector3(-0.03, pcb_y + 0.0035, -0.10), metal)
+		U.box(root, deck, "Chip%d" % (i + 1), Vector3(0.026, 0.005, 0.009), Vector3(0.07 + i * 0.001, pcb_y + 0.004, 0.06 + i * 0.016 - 0.02), chip)
+	U.box(root, deck, "Crystal", Vector3(0.012, 0.004, 0.005), Vector3(-0.03, pcb_y + 0.0035, -0.10), metal)
 	for i in 5:
-		U.cylinder(root, root, "Cap%d" % (i + 1), 0.007, 0.018, Vector3(-0.15 + i * 0.019, pcb_y + 0.0105, -0.115),
+		U.cylinder(root, deck, "Cap%d" % (i + 1), 0.007, 0.018, Vector3(-0.15 + i * 0.019, pcb_y + 0.0105, -0.115),
 			U.mat(Color(0.10, 0.16, 0.42) if i % 2 == 0 else Color(0.06, 0.06, 0.07), 0.2, 0.5))
 	# The harness: a bundle of coloured wires from the back of the connector out through the bracket.
 	var wires := [Color(0.85, 0.12, 0.10), Color(0.92, 0.75, 0.10), Color(0.12, 0.45, 0.20),
 		Color(0.15, 0.30, 0.75), Color(0.90, 0.90, 0.90), Color(0.08, 0.08, 0.09)]
 	for i in wires.size():
-		U.cylinder(root, root, "Wire%d" % (i + 1), 0.0035, 0.20,
+		U.cylinder(root, deck, "Wire%d" % (i + 1), 0.0035, 0.20,
 			Vector3(-0.02 + i * 0.008, pcb_y + 0.012 + (i % 2) * 0.004, -0.17), U.mat(wires[i], 0.0, 0.6), Vector3.BACK)
-	return U.node(root, root, "Marker3D", "CartSeat", Vector3(0, SOCKET_TOP + BOARD_H * 0.5, 0.0)) as Marker3D
+	return U.node(root, deck, "Marker3D", "CartSeat", Vector3(0, SOCKET_TOP + BOARD_H * 0.5, 0.0)) as Marker3D
+
+
+## The CD-ROM bay: a slot-loading drive under the JAMMA shelf, the same width and depth. Its faceplate
+## (front, +Z) has the slot a disc goes into, an EJECT button and a light; `DiscSeat` is the slot's mouth,
+## where ArcadeBayUnit puts a snap zone. A disc rides in through it flat, label up, and EJECT pushes it
+## half out again for a hand to take. Nothing of the mechanism inside is drawn: the case is solid.
+func _build_drive(root: Node, size: Vector3, dark: Material, metal: Material, trim: Material) -> void:
+	var case_mat := U.mat(Color(0.74, 0.73, 0.68), 0.0, 0.55)    # beige computer-case plastic
+	var front_z := size.z * 0.5
+	U.box(root, root, "DriveCase", Vector3(size.x, DRIVE_H, size.z), Vector3(0, DRIVE_H * 0.5, 0), case_mat)
+	U.box(root, root, "DriveTrim", Vector3(size.x, 0.003, 0.002), Vector3(0, DRIVE_H - 0.0015, front_z + 0.001), trim)
+	# The slot: a dark lip across the face, wide enough for a 120 mm disc.
+	U.box(root, root, "DiscSlot", Vector3(0.14, 0.005, 0.004), Vector3(0, SLOT_Y, front_z + 0.001), dark)
+	U.box(root, root, "DiscSlotLip", Vector3(0.15, 0.0015, 0.003), Vector3(0, SLOT_Y + 0.0035, front_z + 0.001), metal)
+	var legend := U.node(root, root, "Label3D", "DriveLegend", Vector3(-0.12, 0.012, front_z + 0.0025)) as Label3D
+	legend.text = "CD-ROM"
+	legend.pixel_size = 0.0004
+	legend.font_size = 48
+	legend.modulate = Color(0.12, 0.12, 0.14)
+	legend.outline_size = 0
+	# A light that glows while the drive holds a disc (ArcadeBayUnit lights it).
+	U.box(root, root, "DriveLed", Vector3(0.008, 0.004, 0.002), Vector3(0.10, 0.012, front_z + 0.001),
+		U.mat(Color(0.1, 0.1, 0.1), 0.0, 0.4, Color(0.2, 1.0, 0.3), 0.0))
+	# EJECT: a VRButton poked from the front, on the right of the face.
+	var btn := U.node(root, root, "Area3D", "EjectButton", Vector3(0.15, 0.025, front_z + 0.001)) as Area3D
+	btn.set_script(load(SCRIPT_BUTTON))
+	btn.collision_layer = 0
+	btn.collision_mask = 0
+	btn.set("trigger_radius", 0.014)
+	btn.set("depress_depth", 0.003)
+	btn.set("depress_axis", Vector3(0, 0, -1))
+	var col := U.node(root, btn, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var shape := BoxShape3D.new()
+	shape.size = Vector3(0.04, 0.03, 0.04)
+	col.shape = shape
+	col.position = Vector3(0, 0, 0.012)
+	U.box(root, btn, "ButtonMesh", Vector3(0.026, 0.012, 0.004), Vector3(0, 0, 0.002),
+		U.mat(Color(0.86, 0.84, 0.78), 0.0, 0.45))
+	var tag := U.node(root, root, "Label3D", "EjectLegend", Vector3(0.15, 0.009, front_z + 0.0025)) as Label3D
+	tag.text = "EJECT"
+	tag.pixel_size = 0.0004
+	tag.font_size = 40
+	tag.modulate = Color(0.12, 0.12, 0.14)
+	tag.outline_size = 0
+	# The slot's mouth: the snap zone sits here, and a seated disc's centre rides in from here.
+	U.node(root, root, "Marker3D", "DiscSeat", Vector3(0, SLOT_Y, front_z))
 
 
 ## The Neo Geo MVS unit: a metal tray holding the green motherboard, with the cartridge slot standing

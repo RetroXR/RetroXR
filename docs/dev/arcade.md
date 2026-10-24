@@ -586,3 +586,43 @@ work, most of all on a Quest. Each cabinet has its own say over it (System tab >
 - Tests: `arcade_attract_tests` (groups `rules media state screen use idle leave keep switch panel`; each case was broken and watched go red -- note a made-up ROM makes the core refuse and power the machine off a moment later,
   so the suite disconnects `content_load_failed` and reads `attract_session` in the `first_use` handler), `scrape_tests cabinet_media/`. How it LOOKS and SOUNDS is not in the suite.
 - OWED: a real video (VLC) in the room, the Quest (H.264 decode and the budget of 1), a headset, listening to a far cabinet, a real ScreenScraper video download, two peers (attract is off in a session).
+
+## Games with a disc: CHD, the CD-ROM bay (2026-10-24)
+
+A few arcade games (MAME) need a hard-disc / CD-ROM image beside their board: `roms/arcade/thisgame.zip` and
+`roms/arcade/thisgame/anything.chd`. **`ArcadeDiscs` (`Scripts/Data/systems/arcade_discs.gd`) is the one answer to
+"what disc goes with this board"**: by NAME and PLACE (the folder beside the zip, never a table of games), so a hand-copied
+pair works exactly as a downloaded one. A board needs a disc exactly when that folder holds a `.chd`.
+
+- **RomM lists two entries** (the zip, and the folder as a multi-file ROM). **The list shows one, the zip's**:
+  `RommCatalog.compute_hidden_flags(.., disc_folders)` hides a row with no extension whose stem a `.zip`/`.7z` row also carries,
+  on the arcade platform ONLY (`ArcadeDiscs.applies`, a legacy `mame` reads as `arcade`); a folder with no zip beside it stays a row of
+  its own. `disc_row_for(i)` answers the hidden folder's row for a board's. The badge count agrees (`index.meta.json` `disc_folders`;
+  an index counted before it is recounted when warmed). The pairing uses the catalog's lowercase stem sidecar, so a set name with a dot
+  in it would not pair: MAME's never have one.
+- **Download / delete take both.** The row's download (and its tap) queues the zip and then the folder (`_enqueue_game`; the
+  downloader runs one at a time). The folder unpacks INTO `roms/arcade/<folder>/` whether or not RomM's archive carries the folder name
+  (`_archive_plan(.., prefix)`; `romm_tests prefix/`), and merges no gamelist row (the board's stands for it). Delete removes the zip,
+  the cache group of the folder and the folder (`ArcadeDiscs.delete_for`). A board whose disc is gone (cache eviction is per group, so
+  it can happen) offers "Download the disc" instead of the bin: the game cannot start without it.
+- **Tapping a game that has a disc opens a choice**, Spawn JAMMA Board / Spawn Disc (`_show_arcade_game_choice`), instead of spawning
+  at once. The disc is a `RetroDisc` under the `arcade` systemid with the `.chd` path: `_has_box_size()`/`_apply_cart_model` keep it off
+  the board's PCB model and box (`CART_SIZES["arcade"]` is the BOARD's). `ArcadeDiscs.is_disc_object` is the test everywhere; **a disc
+  must never be accepted where a board stands** (`ArcadeBayUnit.accepts_board`, `RetroSystem._accepts_media`).
+- **The JAMMA bay is one block with a CD-ROM bay under it** (`gen_arcade_bay.gd`: `DriveCase`, a `Deck` node carrying the old shelf, board
+  seat and sockets lifted by `DRIVE_H` 50 mm; the origin is still the floor, so docking is unchanged). Only the JAMMA kind has one; mvs,
+  laserdisc and discrete do not. `DiscSeat` is the slot's mouth: `ArcadeBayUnit._build_drive` puts a snap zone there and hands it to the
+  same `MediaSlot` a console's slot is (the disc rides in flat, label up; 85 mm in so a 120 mm disc is wholly inside a 300 mm drive).
+  **EJECT** (`EjectButton`, a `VRButton` on the face) is `toggle_eject`: the disc rides to the mouth and waits, half out, grabbable;
+  pressed again it is drawn back. A parked disc is NOT read (`get_disc()` is null). The bay's pointer box is set back 10 mm from the face
+  or it hides the button from a ray. The LED lights while a disc is in.
+- **The cabinet will not start a disc game without both halves** (`RetroSystem.arcade_disc_gap()`, checked in `power_on` and, a
+  moment after a board or disc arrives, announced once through the machine's toast): board only -> "This game also requires a Disc,
+  please insert Disc."; disc only -> "...requires a JAMMA Board, please insert JAMMA Board."; the wrong game's disc -> "This Disc
+  belongs to another game...". The delay (`DISC_GAP_DELAY`) is so a room being restored, which seats the board and the disc in turn, is
+  not told a game is missing the half that arrives a frame later. Attract mode needs no disc (it runs no core); the coin that starts the
+  real game does. **A restored room saves the disc in the bay's entry** (`"disc"`, only while loaded).
+- Tests: `arcade_bay_tests disc/` (each case was broken and watched go red), `romm_tests disc/ prefix/`.
+- OWED: a real RomM holding a game with a CHD (the layout of RomM's multi-file archive is handled either way, never seen), a real game
+  with a CHD in the core (which MAME sets need which file is MAME's), the look of the drive in a headset, the Quest, netplay (the disc is
+  not replicated; a session refuses nothing for it), cache eviction pairing the two groups.

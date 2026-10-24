@@ -1747,6 +1747,12 @@ func power_on() -> void:
 	# those read rom_path.
 	rom_path = _disc_tray.boot_disc_path()
 	_disc_tray.left_running = false
+	# A game that runs from a board AND a disc starts with both in the bay.
+	var disc_gap := arcade_disc_gap()
+	if not disc_gap.is_empty():
+		push_error("RetroSystem: Cannot power on - %s" % disc_gap)
+		_announce_disc_gap(disc_gap)
+		return
 	var stack_spec := _expansion_launch.apply_expansion_launch()
 	var resolved_core := _resolve_core()
 	var resolved_dir := _resolve_dir()
@@ -3723,6 +3729,9 @@ func _belongs_here(obj: Node3D, compat: Dictionary) -> bool:
 ## Slot gate: does this piece of media (cartridge/disc) belong in this system?
 ## The cartridge slot's snap filter, public for the spawner and the suites.
 func accepts_media(obj: Node3D) -> bool:
+	# An arcade game's disc goes in the CD-ROM bay under the JAMMA bay, never where a board stands.
+	if ArcadeDiscs.is_disc_object(obj):
+		return false
 	# A cartridge-shaped expansion goes in this slot and fills it, the way it does
 	# on the hardware: a Mega Drive holds a 32X or a game, never both.
 	var unit := obj as RetroExpansion
@@ -3884,6 +3893,9 @@ func net_release_cartridge() -> void:
 
 ## The slot this machine was built with, kept while a bay's is in use.
 var _home_slot: XRToolsSnapZone = null
+var _disc_gap_pending := false
+var _disc_gap_told := ""
+const DISC_GAP_DELAY := 0.8
 var _bay: ArcadeBayUnit = null
 var _bay_how := ""
 
@@ -3944,6 +3956,53 @@ func unlink_bay(bay: ArcadeBayUnit) -> void:
 	gone.detach_host()
 	if _model != null and _model.has_method("on_bay_unlinked"):
 		_model.call("on_bay_unlinked", gone)
+
+
+## What a disc game still needs from the bay, as the sentence the player reads, or "" when nothing is
+## missing. A game needs a disc exactly when a folder of CHDs stands beside its board (ArcadeDiscs);
+## the disc must be loaded in the CD-ROM bay and must be that game's. A disc with no board in is as
+## unfinished as a board with no disc. Only a cabinet has a bay to ask.
+func arcade_disc_gap() -> String:
+	if not _is_cabinet_model() or not ArcadeDiscs.applies(systemid):
+		return ""
+	var bay := get_bay()
+	var disc := bay.get_disc() if bay != null else null
+	var disc_path := str(disc.call("get_rom_path")) if disc != null and disc.has_method("get_rom_path") else ""
+	var board_path := rom_path
+	if board_path.is_empty() and _snapped_cartridge != null and _snapped_cartridge.has_method("get_rom_path"):
+		board_path = str(_snapped_cartridge.call("get_rom_path"))
+	if board_path.is_empty():
+		return ArcadeDiscs.requires_notice(ArcadeDiscs.BOARD_NAME) if not disc_path.is_empty() else ""
+	if not ArcadeDiscs.needs_disc(board_path):
+		return ""
+	if disc_path.is_empty():
+		return ArcadeDiscs.requires_notice(ArcadeDiscs.DISC_NAME)
+	if not ArcadeDiscs.belongs_to(disc_path, board_path):
+		return "This Disc belongs to another game, please insert the right Disc."
+	return ""
+
+
+## The bay's drive gained or lost a disc, or a board arrived: say what is still missing, once. Looked
+## at again a moment later, not now: a room being restored seats the board and the disc in turn, and
+## the first of them is not a game missing the second.
+func arcade_disc_changed() -> void:
+	if _disc_gap_pending or not is_inside_tree():
+		return
+	_disc_gap_pending = true
+	get_tree().create_timer(DISC_GAP_DELAY).timeout.connect(func() -> void:
+		_disc_gap_pending = false
+		var gap := arcade_disc_gap() if is_inside_tree() else ""
+		if gap.is_empty():
+			_disc_gap_told = ""
+		elif gap != _disc_gap_told:
+			_disc_gap_told = gap
+			_announce_disc_gap(gap))
+
+
+func _announce_disc_gap(gap: String) -> void:
+	var toast := _machine_toast()
+	if toast != null:
+		toast.show_notice(_display_name(), "Could not start", gap, AchievementToast.ACCENT_NOTICE)
 
 
 ## A saved cabinet's bay, clipped back into its mount (a cabled one is joined by its lead's restore).
@@ -4126,6 +4185,7 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 	# A cabinet dresses itself in the game's art (marquee, sides).
 	if _model != null and _model.has_method("on_media_inserted"):
 		_model.call("on_media_inserted", cartridge)
+	arcade_disc_changed()
 	request_attract_media()
 	# With a game in, the button of a cabinet that attracts becomes its switch; a restored room's cabinet
 	# that was left on comes on now.

@@ -1754,6 +1754,9 @@ func _restore_arcade_bay(root: Node, _id: int, obj: Node, spawned: Dictionary, r
 	var unit := obj as ArcadeBayUnit
 	if board and unit.slot != null and unit.get_board() == null:
 		unit.slot.pick_up_object(board)
+	var disc := _resolve_ref(root, spawned, rec.get("disc")) as Node3D
+	if disc:
+		unit.restore_disc(disc)
 
 
 func _restore_expansion(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
@@ -2632,7 +2635,10 @@ func _battery_entry(cell: BatteryCell, id: int, n3d: Node3D,
 ## cabinet's entry, and a cabled one is the lead's; the board is here because a bay standing
 ## alone with a game in it has nobody else to remember it.
 func _arcade_bay_entry(bay: ArcadeBayUnit, id: int, n3d: Node3D, node_to_id: Dictionary) -> Dictionary:
-	return _base(id, bay.type_id, n3d).merged({"board": _ref(node_to_id, bay.get_board())})
+	return _base(id, bay.type_id, n3d).merged({"board": _ref(node_to_id, bay.get_board()),
+		# The disc in its CD-ROM bay, where the JAMMA bay has one. A room saved before there was a
+		# drive has no key, and a disc pushed half out is a loose disc, not the drive's.
+		"disc": _ref(node_to_id, bay.get_disc())})
 
 
 func _gc_microphone_fields(mic: GcMicrophone, node_to_id: Dictionary) -> Dictionary:

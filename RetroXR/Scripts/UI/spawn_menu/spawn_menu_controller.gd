@@ -1349,13 +1349,16 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 		return
 	# Disc-based systems get a RetroDisc (same contract, disc-shaped body).
 	# The PSP UMD is the one non-round disc — its own RetroUMD subclass/scene.
-	var is_disc := MediaDimensions.is_disc_system(systemid)
+	# An arcade game's CHD is a disc too, though its board (the zip) is not: it goes in the CD-ROM bay
+	# under the JAMMA bay.
+	var arcade_disc := ArcadeDiscs.applies(systemid) and ArcadeDiscs.is_disc_path(rom_path)
+	var is_disc := MediaDimensions.is_disc_system(systemid) or arcade_disc
 	var disc_scene := UMD_DISC_SCENE if systemid == "psp" else DISC_SCENE
 	# The body GLB comes in on the loader threads before the cartridge is built:
 	# RetroCartridge loads it synchronously in _ready, and a cold one froze the
 	# headset for the length of the load. Free once it is held.
-	var body := RetroCartridge.body_model_for(systemid, rom_path, str(options.get("body_region", "")),
-		StringName(str(options.get("shell_preset", ""))))
+	var body := "" if arcade_disc else RetroCartridge.body_model_for(systemid, rom_path,
+		str(options.get("body_region", "")), StringName(str(options.get("shell_preset", ""))))
 	if not body.is_empty() and ResourceLoader.exists(body):
 		await ModelWarmer.acquire(body)
 	# And the PAL rear sticker a Super Famicom-shaped cartridge wears, likewise.
