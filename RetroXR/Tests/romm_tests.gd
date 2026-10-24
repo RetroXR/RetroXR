@@ -76,6 +76,7 @@ func _ready() -> void:
 	_test_core_uninstall()
 	_test_backup_switch()
 	_test_state_schema()
+	await _test_disc_folder_single_file()
 	await _test_state_upload_body()
 	await _test_save_upload_still_works()
 	await _test_xbox_archive_upload()
@@ -906,6 +907,49 @@ func _test_arcade_disc_folders() -> void:
 		"disc/a folder RomM lists with no files in it is not (azumanga: 'No files found for ROM')")
 	_ok(ArcadeDiscs.applies("mame") and ArcadeDiscs.applies("arcade") and not ArcadeDiscs.applies("psx"),
 		"disc/only the arcade family pairs (a legacy id reads as arcade)")
+
+
+## RomM serves a folder that holds ONE file as that file (`has_nested_single_file`), not as a zip: the
+## downloader asks which file it is and puts it at <folder>/<its name>. A scripted server answers the
+## one question; the stand-in system keeps the player's real roms folders out of it.
+func _test_disc_folder_single_file() -> void:
+	const SID := "__disc_selftest"
+	var body := '{"id": 7, "files": [{"file_name": "gdl-0018.chd"}]}'.to_utf8_buffer()
+	var head := ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
+		% body.size()).to_utf8_buffer()
+	var downloaded := RommCacheManifest.local_path(SID, "azumanga.download")
+	DirAccess.make_dir_recursive_absolute(downloaded.get_base_dir())
+	var f := FileAccess.open(downloaded, FileAccess.WRITE)
+	f.store_buffer("MComprHD".to_utf8_buffer())
+	f.close()
+	var dl := RommDownloader.new()
+	var srv := FakeServer.new()
+	if not srv.start([[0, head + body]]):
+		_ok(false, "disc/could not listen")
+		return
+	var box := {"out": {"error": "no answer"}}
+	var args := {"base_url": "http://127.0.0.1:%d" % srv.port, "headers": PackedStringArray()}
+	var t := Thread.new()
+	t.start(func() -> void: box["out"] = dl._place_single_file(args, downloaded, SID, "azumanga", 7))
+	var deadline := Time.get_ticks_msec() + 15000
+	while t.is_alive() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	srv.stop()
+	t.wait_to_finish()
+	var got := {"out": box["out"]}
+	var out: Dictionary = got["out"]
+	var target := RommCacheManifest.local_path(SID, "azumanga/gdl-0018.chd")
+	_eq(str(out.get("error", "x")), "", "disc/a one-file folder is placed without an error")
+	_eq(str(out.get("relative", "")), "azumanga/gdl-0018.chd", "disc/under the folder of its name, by its own name")
+	_ok(FileAccess.file_exists(target), "disc/the file is there")
+	_ok(not FileAccess.file_exists(downloaded), "disc/and the download under its temporary name is gone")
+	dl.free()
+	DirAccess.remove_absolute(target)
+	DirAccess.remove_absolute(target.get_base_dir())
+	DirAccess.remove_absolute(downloaded.get_base_dir())
+	_ok(RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "arcade"), "disc/a no-extension name on arcade is a disc folder")
+	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga.zip"}, "arcade"), "disc/a zip is not")
+	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "psx"), "disc/nor is a folder on another system")
 
 
 ## The disc folder unpacks INTO a folder of its name, whether or not RomM's archive carries one.
