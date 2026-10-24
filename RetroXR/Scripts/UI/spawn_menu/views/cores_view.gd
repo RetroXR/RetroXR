@@ -2187,7 +2187,10 @@ func _build_core_entry(systemid: String, core_name: String, remote_date: String,
 	name_lbl.text = display_name
 	name_lbl.add_theme_font_size_override("font_size", 18)
 	name_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	name_lbl.clip_contents = true
+	# Wrapped, not left on one line: an unwrapped Label is as wide as its text,
+	# and MesenCE's name lists sixteen systems, so it pushed the row (and the
+	# button at its end) past the panel on every page it serves.
+	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	left.add_child(name_lbl)
 
 	# Recommended first when a core is both: the pick for this system is the more
