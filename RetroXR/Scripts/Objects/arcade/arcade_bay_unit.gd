@@ -14,6 +14,11 @@
 ##
 ## One scene per kind (`bay_kind`, ArcadeProfiles.BAY_*): JAMMA, Neo Geo MVS, laserdisc, discrete.
 ## They differ in what is drawn round the seat, nothing else; Tools/gen/gen_arcade_bay.gd bakes them.
+##
+## The JAMMA bay is built as one block with a CD-ROM bay under it (a scene with a `DiscSeat`): a
+## slot-loading drive, the same MediaSlot a console's slot is, for the disc a few arcade games need
+## beside their board (ArcadeDiscs). The block is one object; the drive is not a part you can take off.
+## The EJECT button pushes the disc half out of the slot for a hand to take.
 class_name ArcadeBayUnit
 extends XRToolsPickable
 
@@ -21,6 +26,13 @@ extends XRToolsPickable
 const GROUP := "arcade_bay"
 
 const SNAP_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
+
+## How far past the slot's mouth the disc's centre rides when it is in: a 120 mm disc lies wholly inside
+## a 300 mm drive (60 mm radius plus 25 mm).
+const DISC_INSERT_DEPTH := 0.085
+
+## Emitted when the drive gains a disc or loses one (an eject counts as losing it).
+signal disc_changed
 
 ## How a bay is joined to its cabinet.
 const DOCK := "dock"
@@ -51,7 +63,10 @@ const LABELS := {
 ## The snap zone the board stands in. Built here, as a console's is built by its scene: 70 mm of
 ## reach and the `cartridge` group, which every board and cassette is in.
 var slot: XRToolsSnapZone = null
+## The snap zone at the CD-ROM bay's slot, null on a bay with no drive.
+var disc_slot: XRToolsSnapZone = null
 
+var _drive: MediaSlot = null
 var _host: Node3D = null
 var _how := ""
 var _hint: HeldHint = null
@@ -78,6 +93,7 @@ func _ready() -> void:
 	add_to_group("spawned")
 	add_to_group(GROUP)
 	_build_slot()
+	_build_drive()
 	ArcadeShadowBudget.trim(self)
 	_hint = HeldHint.attach(self, true, 0.20)
 	tree_exiting.connect(_on_leaving)
@@ -96,6 +112,110 @@ func _build_slot() -> void:
 		slot.transform = global_transform.affine_inverse() * seat.global_transform
 
 
+## The CD-ROM bay's slot, where a scene has a `DiscSeat`: a snap zone at its mouth, handed to a
+## MediaSlot that rides the disc in and out and keeps it a frozen child of this bay in between.
+func _build_drive() -> void:
+	var seat := find_child("DiscSeat", true, false) as Node3D
+	if seat == null:
+		return
+	disc_slot = SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
+	disc_slot.name = "DiscSnapZone"
+	disc_slot.grab_distance = 0.07
+	disc_slot.snap_require = "cartridge"
+	disc_slot.snap_filter = accepts_disc
+	add_child(disc_slot)
+	disc_slot.transform = global_transform.affine_inverse() * seat.global_transform
+	# The zone's ghost is a board's box; a disc is a flat platter.
+	var ghost := disc_slot.get_node_or_null("SnapHighlight/HighlightMesh") as MeshInstance3D
+	if ghost != null:
+		var ghost_mesh := CylinderMesh.new()
+		ghost_mesh.top_radius = MediaDimensions.disc_diameter(ArcadeDiscs.SYSTEMID) / 2.0
+		ghost_mesh.bottom_radius = ghost_mesh.top_radius
+		ghost_mesh.height = 0.004
+		ghost.mesh = ghost_mesh
+	_drive = MediaSlot.new()
+	_drive.host = self
+	_drive.slot = disc_slot
+	_drive.insert_depth = DISC_INSERT_DEPTH
+	add_child(_drive)
+	_drive.inserted.connect(_on_disc_inserted)
+	_drive.removed.connect(_on_disc_removed)
+	var eject := find_child("EjectButton", true, false) as VRButton
+	if eject != null:
+		eject.button_pressed.connect(eject_disc)
+
+
+## Does this bay have a CD-ROM bay under it?
+func has_drive() -> bool:
+	return _drive != null
+
+
+## The disc in the drive, read and ready: null with none, and null while it is pushed half out (an
+## ejected disc is not being read).
+func get_disc() -> Node3D:
+	if _drive == null or not _drive.has_media() or _drive.is_parked():
+		return null
+	var d := _drive.get_media()
+	return d if is_instance_valid(d) else null
+
+
+## EJECT: the disc rides out to the mouth and waits there to be taken; pressed again before it is, it
+## is drawn back in.
+func eject_disc() -> void:
+	if _drive != null:
+		_drive.toggle_eject()
+
+
+## A saved disc back in the drive, seated at once (the room's restore).
+func restore_disc(disc: Node3D) -> void:
+	if _drive != null and disc != null and not _drive.has_media():
+		_drive.restore(disc)
+
+
+## Does the drive take `obj`? Only a disc made for the arcade (a CHD).
+func accepts_disc(obj: Node3D) -> bool:
+	return ArcadeDiscs.is_disc_object(obj)
+
+
+func _on_disc_inserted(_disc: Node3D) -> void:
+	_light_drive(true)
+	disc_changed.emit()
+	_tell_host()
+
+
+func _on_disc_removed() -> void:
+	_light_drive(false)
+	disc_changed.emit()
+	_tell_host()
+
+
+## The cabinet checks that a game with a disc has both halves, whichever arrived last.
+func _tell_host() -> void:
+	var host := get_host()
+	if host != null and host.has_method("arcade_disc_changed"):
+		host.call("arcade_disc_changed")
+
+
+func _light_drive(on: bool) -> void:
+	var led := find_child("DriveLed", true, false) as MeshInstance3D
+	if led == null:
+		return
+	if not (led.mesh is BoxMesh):
+		return
+	# The baked scene's mesh and material are shared by every bay in the room: take our own copy once.
+	if not led.has_meta(&"own_light"):
+		var own := (led.mesh as BoxMesh).duplicate() as BoxMesh
+		if own.material != null:
+			own.material = own.material.duplicate()
+		led.mesh = own
+		led.set_meta(&"own_light", true)
+	var mat := (led.mesh as BoxMesh).material as StandardMaterial3D
+	if mat == null:
+		return
+	mat.emission_enabled = on
+	mat.emission_energy_multiplier = 1.2 if on else 0.0
+
+
 ## The systems whose boards stand in this bay, by its kind.
 func systems() -> Array:
 	return (ArcadeProfiles.bay_kinds().get(bay_kind, {}).get("systems", []) as Array).duplicate()
@@ -110,6 +230,9 @@ func primary_system() -> String:
 ## Does this bay take `obj` (a board or a cassette)? An unlabelled one does, as in a console.
 func accepts_board(obj: Node3D) -> bool:
 	if obj == null or not ("systemid" in obj):
+		return false
+	# A game's disc goes in the CD-ROM bay, never where its board stands.
+	if ArcadeDiscs.is_disc_object(obj):
 		return false
 	var sid := str(obj.get("systemid"))
 	return sid.is_empty() or ArcadeProfiles.bay_accepts(bay_kind, sid)

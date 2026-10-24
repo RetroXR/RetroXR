@@ -84,6 +84,9 @@ var _exts := PackedStringArray()
 ## 1 where the row is a save beside its game rather than a game of its own.
 ## Built on first use because most platforms never ask.
 var _hidden_flags := PackedByteArray()
+## Arcade only: for each row, the row of the disc FOLDER that goes with it (ArcadeDiscs), else -1.
+## Built with the hidden flags, which hide those folders.
+var _disc_pairs := PackedInt32Array()
 var _index_file: FileAccess = null
 
 ## Platforms whose sidecars have been pulled into the file cache this session.
@@ -319,13 +322,16 @@ static func _backfill_sidecars(dir: String) -> void:
 ## it wrote, so the caller knows a badge changed. Worker-thread only.
 static func _backfill_shown_count(systemid: String, dir: String) -> bool:
 	var meta := read_meta(systemid)
-	if meta.is_empty() or meta.has("shown"):
+	# An arcade index counted before the disc folders were hidden has a count that includes them.
+	if meta.is_empty() or (meta.has("shown")
+			and (meta.has("disc_folders") or not ArcadeDiscs.applies(systemid))):
 		return false
 	var fs_bases := _read_lines(dir.path_join("index.fsnames"))
 	var exts := _read_lines(dir.path_join("index.exts"))
 	if fs_bases.is_empty() or fs_bases.size() != exts.size():
 		return false
-	meta["shown"] = count_shown(fs_bases, exts)
+	meta["shown"] = count_shown(fs_bases, exts, ArcadeDiscs.applies(systemid))
+	meta["disc_folders"] = ArcadeDiscs.applies(systemid)
 	_write_text_atomic(meta_path(systemid), JSON.stringify(meta, "\t"))
 	return true
 
@@ -407,6 +413,7 @@ func unload_index() -> void:
 	_regions = PackedStringArray()
 	_exts = PackedStringArray()
 	_hidden_flags = PackedByteArray()
+	_disc_pairs = PackedInt32Array()
 
 
 func loaded_systemid() -> String:
@@ -481,23 +488,46 @@ func is_hidden_at(i: int) -> bool:
 
 
 func _build_hidden_flags() -> void:
+	_disc_pairs = PackedInt32Array()
 	if _exts.size() != _offsets.size() or _fs_names.size() != _offsets.size():
 		_hidden_flags = PackedByteArray()
 		_hidden_flags.resize(_offsets.size())
 		return
-	_hidden_flags = compute_hidden_flags(_fs_names, _exts)
+	var discs := ArcadeDiscs.applies(_loaded_systemid)
+	_hidden_flags = compute_hidden_flags(_fs_names, _exts, discs)
+	if discs:
+		_disc_pairs = ArcadeDiscs.pair_folders(_fs_names, _exts)
+
+
+## Arcade only: the row of the disc folder that goes with board row `i` (the folder RomM lists
+## beside `thisgame.zip`, which the list hides), or -1 when the game has none. Its rom id is what
+## a download, a cache lookup and a delete take along with the board's.
+func disc_row_for(i: int) -> int:
+	if i < 0 or i >= _offsets.size() or not ArcadeDiscs.applies(_loaded_systemid):
+		return -1
+	if _hidden_flags.size() != _offsets.size():
+		_build_hidden_flags()
+	return _disc_pairs[i] if i < _disc_pairs.size() else -1
 
 
 ## A save or savestate row whose stem some other, non-save row also carries.
 ## Static so the sync and the badge count reach the same verdict as the list
 ## does; a second implementation would drift. Returns early on a platform with
 ## no saves at all, which is most of them.
-static func compute_hidden_flags(fs_bases: PackedStringArray,
-								 exts: PackedStringArray) -> PackedByteArray:
+##
+## `disc_folders` is true on the arcade platform only: a folder RomM lists beside its board's zip
+## (`thisgame` next to `thisgame.zip`, the game's CHD) is that game's disc and is hidden too,
+## because the board's row stands for both (ArcadeDiscs).
+static func compute_hidden_flags(fs_bases: PackedStringArray, exts: PackedStringArray,
+								 disc_folders := false) -> PackedByteArray:
 	var flags := PackedByteArray()
 	flags.resize(exts.size())
 	if fs_bases.size() != exts.size():
 		return flags
+	if disc_folders:
+		for folder: int in ArcadeDiscs.pair_folders(fs_bases, exts):
+			if folder >= 0:
+				flags[folder] = 1
 
 	var saves_by_stem := {}
 	for i in exts.size():
@@ -524,8 +554,9 @@ static func _is_save_ext(ext: String) -> bool:
 
 
 ## Rows the browse list will actually show: every row compute_hidden_flags keeps.
-static func count_shown(fs_bases: PackedStringArray, exts: PackedStringArray) -> int:
-	var flags := compute_hidden_flags(fs_bases, exts)
+static func count_shown(fs_bases: PackedStringArray, exts: PackedStringArray,
+						disc_folders := false) -> int:
+	var flags := compute_hidden_flags(fs_bases, exts, disc_folders)
 	var n := 0
 	for f: int in flags:
 		if f == 0:
@@ -762,6 +793,7 @@ func _sync_worker(args: Dictionary) -> void:
 	_write_text(meta_path(systemid), JSON.stringify({
 		"total": int(written["total"]),
 		"shown": int(written["shown"]),
+		"disc_folders": ArcadeDiscs.applies(systemid),
 		"updated_after": max_updated,
 		"synced_at": Time.get_datetime_string_from_system(true),
 		# Recorded, though nothing reads it, because it is the one way to tell an
@@ -979,7 +1011,7 @@ static func _write_index(dir: String, rows: Array) -> Dictionary:
 			"total": 0, "shown": 0}
 
 	return {"error": "", "total": rows.size(),
-		"shown": count_shown(fs_bases, fs_exts)}
+		"shown": count_shown(fs_bases, fs_exts, ArcadeDiscs.applies(dir.get_base_dir().get_file()))}
 
 
 ## Drop rows by RomM id, rewriting the index and its sidecars. Returns how many
@@ -1012,6 +1044,7 @@ func remove_rows(systemid: String, ids: Array) -> int:
 	var meta := read_meta(systemid)
 	meta["total"] = int(written["total"])
 	meta["shown"] = int(written["shown"])
+	meta["disc_folders"] = ArcadeDiscs.applies(systemid)
 	_write_text(meta_path(systemid), JSON.stringify(meta, "\t"))
 	return gone
 

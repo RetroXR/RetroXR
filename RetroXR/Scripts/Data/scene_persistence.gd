@@ -1651,6 +1651,9 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		var unit := obj as ArcadeBayUnit
 		if board and unit.slot != null and unit.get_board() == null:
 			unit.slot.pick_up_object(board)
+		var disc := _resolve_ref(root, spawned, d.get("disc")) as Node3D
+		if disc:
+			unit.restore_disc(disc)
 	elif obj is RetroExpansion:
 		# The disk, disc or cartridge in this unit's own bay. Independent of the
 		# order the stack is rebuilt in: a bay seats its media as a pose relative
@@ -2351,7 +2354,10 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		# cabinet's entry, and a cabled one is the lead's; the board is here because a bay standing
 		# alone with a game in it has nobody else to remember it.
 		var bay := node as ArcadeBayUnit
-		return _base(id, bay.type_id, n3d).merged({"board": _ref(node_to_id, bay.get_board())})
+		return _base(id, bay.type_id, n3d).merged({"board": _ref(node_to_id, bay.get_board()),
+			# The disc in its CD-ROM bay, where the JAMMA bay has one. A room saved before there was a
+			# drive has no key, and a disc pushed half out is a loose disc, not the drive's.
+			"disc": _ref(node_to_id, bay.get_disc())})
 	elif node is Table:
 		# Pose only. Being in PLAIN_SCENES is not enough on its own — that map is
 		# read when LOADING, so without this branch a table is never written and
