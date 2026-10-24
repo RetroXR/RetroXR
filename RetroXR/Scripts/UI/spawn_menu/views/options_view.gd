@@ -29,6 +29,7 @@ signal locomotion_mode_changed(teleport: bool)
 ## room can act on it, so the controller hands it to whatever room is standing.
 signal passthrough_locomotion_changed(enabled: bool)
 signal passthrough_occlusion_changed(enabled: bool)
+signal passthrough_spatial_changed(enabled: bool)
 signal xr_display_mode_changed(mode: int)
 signal controller_hands_changed(enabled: bool)
 ## The system filter was toggled — the CORES download list is built from it.
@@ -548,8 +549,32 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 				passthrough_locomotion_changed.emit(on)
 		))
 
+		# Plain passthrough, or passthrough that reads the room (RealRoom): things
+		# rest on the real furniture, Meta's depth for the Game Boy Camera and for
+		# occlusion. Off by default; switching it on asks for the spatial-data
+		# consent the first time.
+		var spt_row := HBoxContainer.new()
+		spt_row.add_theme_constant_override("separation", 10)
+		spt_row.custom_minimum_size = Vector2(0, 68)
+		vbox.add_child(spt_row)
+
+		var spt_lbl := Label.new()
+		spt_lbl.text = "Use Room Data in Passthrough"
+		spt_lbl.add_theme_font_size_override("font_size", 22)
+		spt_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+		spt_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		spt_row.add_child(spt_lbl)
+
+		spt_row.add_child(VRToggle.create(AppPrefs.passthrough_spatial,
+			func(on: bool) -> void:
+				AppPrefs.passthrough_spatial = on
+				AppPrefs.save_prefs()
+				passthrough_spatial_changed.emit(on)
+		))
+
 		# Whether the real room hides what is behind it (RealRoom's occlusion,
-		# from Meta's depth). Inert where there is no depth, for Move's reason.
+		# from Meta's depth). Inert where there is no depth, or with room data
+		# off, for Move's reason.
 		var occ_row := HBoxContainer.new()
 		occ_row.add_theme_constant_override("separation", 10)
 		occ_row.custom_minimum_size = Vector2(0, 68)

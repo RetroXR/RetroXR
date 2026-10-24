@@ -140,6 +140,10 @@ func _process(delta: float) -> void:
 	elif _real_check_wait <= 0.0:
 		_real_check_wait = REAL_CHECK_PERIOD
 		_hold_real(wants_real())
+		# Room data switched on (or back on) while filming: depth is asked for
+		# again, as it is when filming starts.
+		if _holding_real and not EnvironmentDepth.holds(self):
+			EnvironmentDepth.acquire(self)
 	if _holding_real:
 		PassthroughCamera.tick()
 	if lib == null:

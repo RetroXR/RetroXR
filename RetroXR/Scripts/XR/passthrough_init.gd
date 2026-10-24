@@ -106,6 +106,12 @@ func refresh_occlusion() -> void:
 		_real_room.refresh_occlusion()
 
 
+## Re-read "Use Room Data in Passthrough". Called by the OPTIONS switch.
+func refresh_spatial() -> void:
+	if is_instance_valid(_real_room):
+		_real_room.refresh_spatial()
+
+
 ## Re-read the pref and block or release accordingly. Called by the OPTIONS switch,
 ## which lands on SpawnMenuController while this room is the current scene.
 func refresh_locomotion() -> void:

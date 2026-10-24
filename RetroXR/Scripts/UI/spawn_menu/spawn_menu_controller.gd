@@ -244,6 +244,7 @@ func _connect_menu_signals() -> void:
 	menu.options_view().locomotion_mode_changed.connect(_on_locomotion_mode_changed)
 	menu.options_view().passthrough_locomotion_changed.connect(_on_passthrough_locomotion_changed)
 	menu.options_view().passthrough_occlusion_changed.connect(_on_passthrough_occlusion_changed)
+	menu.options_view().passthrough_spatial_changed.connect(_on_passthrough_spatial_changed)
 	menu.options_view().xr_display_mode_changed.connect(_on_xr_display_mode_changed)
 	menu.options_view().controller_hands_changed.connect(_on_controller_hands_changed)
 	AppPrefs.mains_region_changed.connect(_on_mains_region_changed)
@@ -1499,6 +1500,14 @@ func _on_passthrough_occlusion_changed(_enabled: bool) -> void:
 	var scene := get_tree().current_scene
 	if scene != null and scene.has_method("refresh_occlusion"):
 		scene.call("refresh_occlusion")
+
+
+## Plain passthrough or the room read too: handed to the standing room as the
+## two switches above.
+func _on_passthrough_spatial_changed(_enabled: bool) -> void:
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_method("refresh_spatial"):
+		scene.call("refresh_spatial")
 
 
 func _on_aim_crosshair_changed(enabled: bool) -> void:

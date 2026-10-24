@@ -104,6 +104,8 @@ func _ready() -> void:
 		_test_depth()
 	if _wants("occlusion"):
 		await _test_occlusion()
+	if _wants("spatial"):
+		await _test_spatial()
 	if _wants("prefs"):
 		_test_prefs()
 
@@ -133,6 +135,9 @@ func _reset_statics() -> void:
 
 ## A RealRoom with every outside thing stood in for, and what it was handed.
 func _room(granted: Dictionary, rig: Dictionary) -> RealRoom:
+	# "Use Room Data in Passthrough" on, unless a case says otherwise.
+	if not SpatialPermission.wanted_source.is_valid():
+		SpatialPermission.wanted_source = func() -> bool: return true
 	SpatialPermission.granted_source = func() -> PackedStringArray:
 		return PackedStringArray(["com.oculus.permission.USE_SCENE"]) if granted["on"] else PackedStringArray()
 	var room := RealRoom.new()
@@ -255,6 +260,8 @@ func _test_depth() -> void:
 	EnvironmentDepth.extension_source = func() -> Object: return ext
 	var available := {"on": false}
 	EnvironmentDepth.available_source = func() -> bool: return available["on"]
+	var wanted := {"on": true}
+	SpatialPermission.wanted_source = func() -> bool: return wanted["on"]
 	SpatialPermission.granted_source = func() -> PackedStringArray: return PackedStringArray()
 	var a := RefCounted.new()
 	var b := RefCounted.new()
@@ -273,6 +280,62 @@ func _test_depth() -> void:
 	_ok(ext.stops == 1 and not EnvironmentDepth.is_running(), "depth/the last stops it, once")
 	ext.supported = false
 	_ok(not EnvironmentDepth.acquire(a), "depth/a headset without it is never started")
+	ext.supported = true
+	wanted["on"] = false
+	_ok(not EnvironmentDepth.acquire(a), "depth/nor with room data switched off, consent or not")
+	wanted["on"] = true
+	_ok(EnvironmentDepth.acquire(a) and EnvironmentDepth.acquire(b) and EnvironmentDepth.holds(a), "depth/on again, it is")
+	var stops_before := ext.stops
+	EnvironmentDepth.drop_all()
+	_ok(not EnvironmentDepth.is_held() and ext.stops == stops_before + 1 and not EnvironmentDepth.holds(a),
+		"depth/switched off mid-session, every holder's depth stops at once")
+	EnvironmentDepth.release(a)
+	_ok(ext.stops == stops_before + 1, "depth/and a holder letting go after stops nothing more")
+	_reset_statics()
+
+
+## Plain passthrough, or the room read too: "Use Room Data in Passthrough".
+func _test_spatial() -> void:
+	var granted := {"on": false}
+	var wanted := {"on": false}
+	var asked: Array = []
+	SpatialPermission.wanted_source = func() -> bool: return wanted["on"]
+	SpatialPermission.request_sink = func(p: String) -> void: asked.append(p)
+	var ext := FakeDepth.new()
+	EnvironmentDepth.extension_source = func() -> Object: return ext
+	var rig := _rig()
+	var room := _room(granted, rig)
+	room.occlusion_pref_source = func() -> bool: return true
+	room.occlusion_factory = func() -> Object: return MeshInstance3D.new()
+	room.start()
+	_ok(asked.is_empty() and not room.has_manager() and not room.has_occlusion(),
+		"spatial/off by default: plain passthrough asks for nothing and reads nothing")
+	wanted["on"] = true
+	room.refresh_spatial()
+	_ok(asked.size() == SpatialPermission.PERMISSIONS.size() and not room.has_manager(),
+		"spatial/switched on, the consent is asked for")
+	granted["on"] = true
+	room.notification(Node.NOTIFICATION_APPLICATION_FOCUS_IN)
+	_ok(room.has_manager() and room.has_occlusion() and ext.starts == 1,
+		"spatial/given, the room is read: furniture, depth, occlusion")
+	var manager := (rig["origin"] as Node).get_node("RealRoomScene") as FakeManager
+	var table := manager.make_anchor(FakeEntity.new(PackedStringArray(["TABLE"])))
+	var body := rig["body"] as CharacterBody3D
+	wanted["on"] = false
+	room.refresh_spatial()
+	await get_tree().process_frame
+	_ok(not room.has_manager() and not is_instance_valid(manager) and not room.has_occlusion(),
+		"spatial/switched off, all of it is put away")
+	_ok(ext.stops == 1 and not EnvironmentDepth.is_held() and body.get_collision_exceptions().is_empty(),
+		"spatial/its depth stopped, and the player's body excepts nothing")
+	_ok(not is_instance_valid(table), "spatial/and the real table is gone with it")
+	wanted["on"] = true
+	room.refresh_spatial()
+	_ok(room.has_manager() and room.has_occlusion() and ext.starts == 2,
+		"spatial/switched on again with consent given, it is all back at once")
+	room.queue_free()
+	_free_rig(rig)
+	await get_tree().process_frame
 	_reset_statics()
 
 
@@ -327,3 +390,7 @@ func _test_prefs() -> void:
 	_ok("\"passthrough_occlusion\": passthrough_occlusion" in src
 		and "get_bool(data, \"passthrough_occlusion\"" in src,
 		"prefs/and it is saved and read back with the rest")
+	_ok(prefs.get("passthrough_spatial") is bool and "var passthrough_spatial: bool = false" in src
+		and "\"passthrough_spatial\": passthrough_spatial" in src
+		and "get_bool(data, \"passthrough_spatial\"" in src,
+		"prefs/room data is a pref too, off unless the player turns it on, saved and read back")

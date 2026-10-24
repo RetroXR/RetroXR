@@ -1376,6 +1376,7 @@ func _test_passthrough() -> void:
 	var depth := FakeDepthExtension.new()
 	EnvironmentDepth.extension_source = func() -> Object: return depth
 	EnvironmentDepth.available_source = func() -> bool: return false
+	SpatialPermission.wanted_source = func() -> bool: return true
 	SpatialPermission.granted_source = func() -> PackedStringArray:
 		return PackedStringArray(["com.oculus.permission.USE_SCENE"])
 	machine.is_powered_on = false

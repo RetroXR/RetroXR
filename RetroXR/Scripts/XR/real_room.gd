@@ -55,11 +55,24 @@ var _excepted_body: PhysicsBody3D = null
 ## room as far as it is.
 func start() -> void:
 	_started = true
+	if not SpatialPermission.is_wanted():
+		return
 	if not SpatialPermission.has():
 		SpatialPermission.request_once()
 		return
 	_ensure_manager()
 	refresh_occlusion()
+
+
+## Follow "Use Room Data in Passthrough": on, the room is read (asking for the
+## permission first if need be); off, everything read from it is put away and the
+## room is plain passthrough again.
+func refresh_spatial() -> void:
+	if SpatialPermission.is_wanted():
+		start()
+	else:
+		_put_away()
+		EnvironmentDepth.drop_all()
 
 
 func _notification(what: int) -> void:
@@ -71,6 +84,12 @@ func _notification(what: int) -> void:
 
 func _exit_tree() -> void:
 	_started = false
+	_put_away()
+
+
+## Free what was made from the room: the manager (and with it every surface),
+## the player's exceptions, the occlusion.
+func _put_away() -> void:
 	if is_instance_valid(_excepted_body):
 		for s in _surfaces:
 			if is_instance_valid(s):
@@ -94,7 +113,7 @@ func surfaces() -> Array[RealRoomSurface]:
 func refresh_occlusion() -> void:
 	var wanted: bool = bool(occlusion_pref_source.call()) if occlusion_pref_source.is_valid() \
 		else _pref_occlusion()
-	var want := _started and wanted and SpatialPermission.has() \
+	var want := _started and wanted and SpatialPermission.usable() \
 		and (occlusion_factory.is_valid() or ClassDB.class_exists(OCCLUSION_CLASS))
 	if want and _occlusion == null:
 		if not EnvironmentDepth.acquire(self):

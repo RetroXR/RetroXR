@@ -9,7 +9,8 @@
 ## it, the occlusion node over their own eyes (RealRoom). Depth runs while
 ## anything holds it.
 ##
-## Needs xr/openxr/extensions/meta/environment_depth and SpatialPermission. Off a
+## Needs xr/openxr/extensions/meta/environment_depth and SpatialPermission.usable()
+## (the player's "Use Room Data in Passthrough", and their consent). Off a
 ## Quest 3, or without either, acquire() is false and a holder carries on
 ## without it. A shader that names the globals does not compile where the
 ## extension is off, so one is loaded only once is_running() is true.
@@ -38,10 +39,27 @@ static func extension() -> Object:
 	return Engine.get_singleton(EXTENSION) if Engine.has_singleton(EXTENSION) else null
 
 
-## The headset has depth and the player has let the game read their room.
+## The headset has depth, and the player wants their room used and has let the
+## game read it.
 static func is_supported() -> bool:
 	var ext := extension()
-	return ext != null and bool(ext.call("is_environment_depth_supported")) and SpatialPermission.has()
+	return ext != null and bool(ext.call("is_environment_depth_supported")) and SpatialPermission.usable()
+
+
+static func holds(owner: Object) -> bool:
+	return _owners.has(owner.get_instance_id())
+
+
+## Stop depth for every holder at once: the player switched room data off. A
+## holder that releases afterwards releases nothing; one that still wants depth
+## asks again (GbCameraEye does, once a second).
+static func drop_all() -> void:
+	if _owners.is_empty():
+		return
+	_owners.clear()
+	var ext := extension()
+	if ext != null and bool(ext.call("is_environment_depth_started")):
+		ext.call("stop_environment_depth")
 
 
 ## Start depth for `owner` if no one has. False when it cannot run here.
@@ -74,7 +92,7 @@ static func is_held() -> bool:
 
 ## Held, started, and a depth frame has arrived: a shader may sample it now.
 static func is_running() -> bool:
-	if not is_held():
+	if not is_held() or not SpatialPermission.usable():
 		return false
 	var ext := extension()
 	if ext == null or not bool(ext.call("is_environment_depth_started")):

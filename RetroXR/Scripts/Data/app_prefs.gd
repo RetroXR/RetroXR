@@ -98,6 +98,11 @@ var passthrough_locomotion: bool = true
 ## of a console covers it (RealRoom, from Meta's depth). On by default; edges are
 ## ragged and it costs the GPU something, so it can be switched off.
 var passthrough_occlusion: bool = true
+## Whether passthrough uses what the Quest knows of the player's room: furniture
+## to rest things on, Meta's depth for the Game Boy Camera and for occlusion
+## (RealRoom, EnvironmentDepth). Off by default: plain passthrough asks for no
+## spatial-data consent and reads nothing.
+var passthrough_spatial: bool = false
 ## Whether VR focus mode shows the real room through passthrough around its screen
 ## instead of black. Falls back to black where passthrough is unavailable.
 var focus_passthrough: bool = false
@@ -307,6 +312,7 @@ func _load_prefs() -> void:
 	locomotion_teleport = JsonStore.get_bool(data, "locomotion_teleport", locomotion_teleport)
 	passthrough_locomotion = JsonStore.get_bool(data, "passthrough_locomotion", passthrough_locomotion)
 	passthrough_occlusion = JsonStore.get_bool(data, "passthrough_occlusion", passthrough_occlusion)
+	passthrough_spatial = JsonStore.get_bool(data, "passthrough_spatial", passthrough_spatial)
 	focus_passthrough = JsonStore.get_bool(data, "focus_passthrough", focus_passthrough)
 	hidden_systems      = PackedStringArray()
 	for hidden: String in JsonStore.get_strings(data, "hidden_systems"):
@@ -344,6 +350,7 @@ func save_prefs() -> bool:
 		"locomotion_teleport": locomotion_teleport,
 		"passthrough_locomotion": passthrough_locomotion,
 		"passthrough_occlusion": passthrough_occlusion,
+		"passthrough_spatial": passthrough_spatial,
 		"focus_passthrough": focus_passthrough,
 		"hidden_systems":    hidden_systems,
 		"show_hidden_systems": show_hidden_systems,
