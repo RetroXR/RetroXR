@@ -419,6 +419,9 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		var sm := SphereMesh.new()
 		sm.radius = 0.022
 		sm.height = 0.044
+		# 24 x 12 (Godot's default 64 x 32 is 4224 triangles for a ball of 4.4 cm).
+		sm.radial_segments = 24
+		sm.rings = 12
 		ball.mesh = sm
 		ball.material_override = U.mat(Color(0.85, 0.10, 0.10) if index == 0 else Color(0.10, 0.25, 0.85), 0.0, 0.3)
 		left = minf(left, stick_x - 0.045)

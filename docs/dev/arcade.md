@@ -633,6 +633,15 @@ pair works exactly as a downloaded one. A board needs a disc exactly when that f
   with a CHD in the core (which MAME sets need which file is MAME's), the look of the drive in a headset, the Quest, netplay (the disc is
   not replicated; a session refuses nothing for it), cache eviction pairing the two groups.
 
+## Cost of a cabinet (2026-10-24)
+
+`arcade_mesh_census` counts a cabinet's parts. **Godot's default CylinderMesh is 64 sides and 4 rings, 768 triangles for a button 3 cm
+across, and a cabinet has dozens of them, each a draw call, in a room that may hold twenty cabinets in attract.** The generators'
+`ArcadeGenUtil.cylinder` now gives a part the sides its size can show (12 at 1.5 cm up to 40 at 5 cm, one ring) and the stick ball is
+24 x 12: a cabinet went from 86,184 to 21,072 triangles (64,680 before the CD-ROM bay and the button rims), draw calls unchanged (226;
+the bay and the rims added 28). Re-bake every `gen_arcade_*` after touching the helper. What is left is draw calls, not triangles:
+merging the small parts of a panel is the next lever, and nobody has measured the room of twenty on a Quest.
+
 ## Buttons (2026-10-24)
 
 A button on the deck is the cap AND a flange of the same colour round it (`<name>Rim`, a short cone 22% wider than the cap, fixed): the

@@ -55,6 +55,11 @@ static func cylinder(root: Node, parent: Node, node_name: String, radius: float,
 	cm.top_radius = radius
 	cm.bottom_radius = radius
 	cm.height = height
+	# Godot's default is 64 sides and 4 rings: 768 triangles for a button 3 cm across. A cabinet has dozens
+	# of these and each is a draw call in a room that may hold twenty cabinets, so a part gets the sides its
+	# size can show (12 at 1.5 cm, 40 at 5 cm and up) and no inner rings.
+	cm.radial_segments = clampi(int(radius * 800.0), 12, 40)
+	cm.rings = 1
 	cm.material = material
 	mi.mesh = cm
 	if not axis.is_equal_approx(Vector3.UP):

@@ -91,6 +91,8 @@ material = SubResource("StandardMaterial3D_m3yrx")
 top_radius = 0.009
 bottom_radius = 0.009
 height = 0.0334
+radial_segments = 12
+rings = 1
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_k2ymp"]
 albedo_color = Color(0.72, 0.72, 0.75, 1)
@@ -102,89 +104,93 @@ material = SubResource("StandardMaterial3D_k2ymp")
 top_radius = 0.004
 bottom_radius = 0.004
 height = 0.011
+radial_segments = 12
+rings = 1
 
 [sub_resource type="CylinderMesh" id="CylinderMesh_3eycj"]
 material = SubResource("StandardMaterial3D_k2ymp")
 top_radius = 0.004
 bottom_radius = 0.004
 height = 0.011
+radial_segments = 12
+rings = 1
 
 [sub_resource type="BoxMesh" id="BoxMesh_rpjio"]
 material = SubResource("StandardMaterial3D_jj6xc")
 size = Vector3(0.046, 0.008, 0.012)
 
-[node name="ArcadeBoard" type="Node3D" unique_id=683338468]
+[node name="ArcadeBoard" type="Node3D" unique_id=1518476436]
 
-[node name="PCB" type="MeshInstance3D" parent="." unique_id=1133483239]
+[node name="PCB" type="MeshInstance3D" parent="." unique_id=1896361037]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.0167)
 mesh = SubResource("BoxMesh_oksmo")
 
-[node name="CombTop" type="MultiMeshInstance3D" parent="." unique_id=1937550178]
+[node name="CombTop" type="MultiMeshInstance3D" parent="." unique_id=2095976902]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1395, -0.0158)
 material_override = SubResource("StandardMaterial3D_ooc7u")
 multimesh = SubResource("MultiMesh_6bbic")
 
-[node name="CombBottom" type="MultiMeshInstance3D" parent="." unique_id=154405995]
+[node name="CombBottom" type="MultiMeshInstance3D" parent="." unique_id=81852561]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1395, -0.0176)
 material_override = SubResource("StandardMaterial3D_ooc7u")
 multimesh = SubResource("MultiMesh_aqqx6")
 
-[node name="RomBlock" type="MeshInstance3D" parent="." unique_id=32810439]
+[node name="RomBlock" type="MeshInstance3D" parent="." unique_id=630836799]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, -0.0119)
 mesh = SubResource("BoxMesh_ckgmq")
 
-[node name="Label" type="MeshInstance3D" parent="." unique_id=930318314]
+[node name="Label" type="MeshInstance3D" parent="." unique_id=98594217]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.035, -0.0077)
 mesh = SubResource("QuadMesh_1vp1m")
 
-[node name="Cpu" type="MeshInstance3D" parent="." unique_id=227247599]
+[node name="Cpu" type="MeshInstance3D" parent="." unique_id=1806578529]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.112, -0.01265)
 mesh = SubResource("BoxMesh_mtl0u")
 
-[node name="Rom1" type="MeshInstance3D" parent="." unique_id=27292807]
+[node name="Rom1" type="MeshInstance3D" parent="." unique_id=1750133148]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.07, 0.138, -0.0134)
 mesh = SubResource("BoxMesh_i8n8q")
 
-[node name="Rom2" type="MeshInstance3D" parent="." unique_id=163773525]
+[node name="Rom2" type="MeshInstance3D" parent="." unique_id=1873273176]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.023, 0.138, -0.0134)
 mesh = SubResource("BoxMesh_ga1o2")
 
-[node name="Rom3" type="MeshInstance3D" parent="." unique_id=1250547482]
+[node name="Rom3" type="MeshInstance3D" parent="." unique_id=898342805]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.024, 0.138, -0.0134)
 mesh = SubResource("BoxMesh_mjs3i")
 
-[node name="Rom4" type="MeshInstance3D" parent="." unique_id=1493202308]
+[node name="Rom4" type="MeshInstance3D" parent="." unique_id=325561310]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.071, 0.138, -0.0134)
 mesh = SubResource("BoxMesh_ewapm")
 
-[node name="Logic1" type="MeshInstance3D" parent="." unique_id=1290351574]
+[node name="Logic1" type="MeshInstance3D" parent="." unique_id=929545209]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.06, -0.055, -0.0139)
 mesh = SubResource("BoxMesh_c63ug")
 
-[node name="Logic2" type="MeshInstance3D" parent="." unique_id=1248308605]
+[node name="Logic2" type="MeshInstance3D" parent="." unique_id=431222616]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.002, -0.055, -0.0139)
 mesh = SubResource("BoxMesh_qolxs")
 
-[node name="Logic3" type="MeshInstance3D" parent="." unique_id=1741206576]
+[node name="Logic3" type="MeshInstance3D" parent="." unique_id=1307046067]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.056, -0.055, -0.0139)
 mesh = SubResource("BoxMesh_hhpnq")
 
-[node name="Sound" type="MeshInstance3D" parent="." unique_id=1320485893]
+[node name="Sound" type="MeshInstance3D" parent="." unique_id=334154745]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.07, -0.02, -0.0134)
 mesh = SubResource("BoxMesh_aqqqm")
 
-[node name="Electrolytic" type="MeshInstance3D" parent="." unique_id=778946668]
+[node name="Electrolytic" type="MeshInstance3D" parent="." unique_id=2029299160]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0.08, 0.08, 0.0008)
 mesh = SubResource("CylinderMesh_pb4sv")
 
-[node name="Cap1" type="MeshInstance3D" parent="." unique_id=1545397243]
+[node name="Cap1" type="MeshInstance3D" parent="." unique_id=1826623844]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.085, -0.04, -0.0104)
 mesh = SubResource("CylinderMesh_8syka")
 
-[node name="Cap2" type="MeshInstance3D" parent="." unique_id=1414765010]
+[node name="Cap2" type="MeshInstance3D" parent="." unique_id=527088855]
 transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, -0.085, -0.026, -0.0104)
 mesh = SubResource("CylinderMesh_3eycj")
 
-[node name="Header" type="MeshInstance3D" parent="." unique_id=2048465841]
+[node name="Header" type="MeshInstance3D" parent="." unique_id=1773283669]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.045, -0.1, -0.0099)
 mesh = SubResource("BoxMesh_rpjio")
