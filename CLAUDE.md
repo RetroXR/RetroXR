@@ -383,6 +383,25 @@ first: `git log --oneline -- RetroXR/addons/godot-xr-tools`.
 - Option data reaches GDScript as `LibretroOptionCategory` / `Definition` / `Value` objects.
 - Write code that matches the surrounding file's comment density and idiom.
 
+## Logging — do it
+
+**Logging is important: add it as you write the code, not after a bug.** Most failures
+here are diagnosed from a log the user or a probe already captured (a Quest logcat, a
+desktop run, a headless probe), and a path that logs nothing can't be diagnosed after the
+fact. When you add or change behavior, log it:
+
+- **State changes and decisions** — a plug seating or refusing, a core loading/stopping,
+  a save staged or drained, a fallback taken, a mode picked — with the values that decided
+  it, so the line answers "why" and not only "what".
+- **Every failure and early return** — a missing file, a refused connection, a guard
+  that bails. Never fail silently; a silent `return` is the costliest bug to find.
+- **Tag each line** with its area in brackets (`[Boot]`, `[Netplay]`, …) so it can be
+  grepped and filtered; probe output must be `[prefix]`-tagged or `run_probe` drops it.
+- Keep per-frame paths quiet (log on change, or rate-limit) — logcat rotates in under a
+  minute, and spam buries the line that matters.
+- C++: `Log` / `LogWarning` / `LogError`; a core's diagnostic line must be **WARN** or
+  libretro-godot drops it.
+
 ## Tools — full notes: `docs/dev/tools.md`
 
 Repo-root `Tools/` holds out-of-band scripts (`RetroXR/Tools/` holds probe scenes).
