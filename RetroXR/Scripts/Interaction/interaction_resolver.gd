@@ -234,7 +234,13 @@ static func _is_socketed(collider: Object) -> bool:
 static func _snap_zone_holding(pickable: XRToolsPickable) -> XRToolsSnapZone:
 	if not is_instance_valid(pickable) or not pickable.is_picked_up():
 		return null
-	return pickable.get_picked_up_by() as XRToolsSnapZone
+	# Through a Variant, for held_pickable's reason: a holder freed under the
+	# pickable (a receptacle rebuilt for a new mains region) is a dead reference,
+	# and casting it throws.
+	var by: Variant = pickable.get_picked_up_by()
+	if not is_instance_valid(by):
+		return null
+	return by as XRToolsSnapZone
 
 
 ## What a snap zone is holding, or null — including when it is still pointing at

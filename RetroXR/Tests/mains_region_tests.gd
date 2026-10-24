@@ -38,6 +38,7 @@ func _ready() -> void:
 	await _test_plug_meshes()
 	_test_locale()
 	await _test_outlet()
+	await _test_outlet_switch_live()
 	await _test_strip()
 	_test_prefs()
 
@@ -253,6 +254,44 @@ func _test_outlet() -> void:
 	_ok(PowerCord.socket_holding(grounded.wall_plug) == plate.get_node("TopPort"),
 		"restore/and one that fits is seated")
 
+	await _clear(room)
+
+
+## The region changed with plugs in the wall, as a player does it: physics running
+## between the seating, the change and what follows. A plug that no longer fits
+## comes out, and nothing is left saying it is held by a receptacle that has been
+## freed -- the pointer asks every plug it passes over who holds it, and casting
+## the freed one threw "Trying to cast a freed object" in the resolver.
+func _test_outlet_switch_live() -> void:
+	var room := Node3D.new()
+	add_child(room)
+	var plate := preload("res://Scenes/Objects/room/wall_outlet.tscn").instantiate() as WallOutlet
+	room.add_child(plate)
+	plate.position = Vector3(0, 1, 0)
+	var grounded := preload("res://Scenes/Objects/cables/power_cord.tscn").instantiate() as PowerCord
+	room.add_child(grounded)
+	var two_prong := preload("res://Scenes/Objects/cables/nema_1_15_to_c7_cord.tscn") 		.instantiate() as PowerCord
+	room.add_child(two_prong)
+	await get_tree().process_frame
+	# One plug, in the top receptacle: the empty one below it is watching its
+	# grab sphere, and the plug is in it.
+	plate.ports()[0].pick_up_object(grounded.wall_plug)
+	two_prong.wall_plug.global_position = plate.global_position + Vector3(0.5, 0, 0.3)
+	for i in 10:
+		await get_tree().physics_frame
+	plate.set_region("eu")
+	for i in 10:
+		await get_tree().physics_frame
+	await get_tree().process_frame
+	for plug: PowerPlug in [grounded.wall_plug as PowerPlug, two_prong.wall_plug as PowerPlug]:
+		_ok(not plug.is_picked_up(),
+			"live switch/%s is not left held, by a freed receptacle or any" % plug.connector)
+		_ok(PowerCord.socket_holding(plug) == null, "live switch/%s does not fit a Schuko plate: it is out" % plug.connector)
+		_ok(InteractionResolver._snap_zone_holding(plug) == null,
+			"live switch/the pointer asking who holds %s gets nothing, and no error" % plug.connector)
+	plate.set_region(MainsRegions.DEFAULT)
+	for i in 5:
+		await get_tree().physics_frame
 	await _clear(room)
 
 

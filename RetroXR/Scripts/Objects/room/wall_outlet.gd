@@ -45,6 +45,12 @@ func set_region(id: String) -> void:
 	_plate.mesh = load(str(spec.get("mesh", ""))) as Mesh
 
 	var held := {}
+	# Every old receptacle shut first. One let go of inside the other's reach (a
+	# plug in the top one, the bottom one empty and watching) was caught by it on
+	# the way out, and then freed with it: the plug went on saying it was held by
+	# a receptacle that no longer existed, and the pointer threw on it.
+	for port in ports():
+		port.enabled = false
 	for port in ports():
 		if port.picked_up_object != null:
 			held[String(port.name)] = port.picked_up_object
