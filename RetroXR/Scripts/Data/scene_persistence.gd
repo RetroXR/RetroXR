@@ -1422,6 +1422,15 @@ func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dict
 ## on a 24-object slot: one to three seconds of that before pass 2 catches up. The
 ## whole room appeared to rain into place.
 ##
+## And touching nothing (collision_mask 0) until the restore hands it back. A unit
+## seated in a console comes back at its seated pose, inside the console's slot,
+## and until pass 2 seats it the two are not excepted from each other: Jolt pushed
+## them apart, and the console went down into its table — as far as the 2 cm
+## penetration slop lets a body sink, a little further each load. A Super Game
+## Boy's SNES was 13.8 mm in after one load and 20 mm after two. The mask is free
+## to borrow: XRToolsPickable keeps the one it read in _ready, which is what it
+## hands back when it is let go of, and sets 0 itself while it is held.
+##
 ## Gravity rather than `freeze`, deliberately. Three other things own that flag and
 ## would fight over it: XRToolsPickable snapshots it at pick-up and hands it back on
 ## release — so a cartridge seated in pass 2 while frozen would stay frozen in
@@ -1436,8 +1445,9 @@ func _hold_still(node: Node, held: Dictionary) -> void:
 		# and would otherwise record the zero this already wrote as what the body
 		# arrived with, so _let_go would hand back no gravity at all.
 		if not held.has(id):
-			held[id] = {"body": body, "gravity": body.gravity_scale}
+			held[id] = {"body": body, "gravity": body.gravity_scale, "mask": body.collision_mask}
 			body.gravity_scale = 0.0
+			body.collision_mask = 0
 			body.linear_velocity = Vector3.ZERO
 			body.angular_velocity = Vector3.ZERO
 	for child in node.get_children():
@@ -1476,6 +1486,11 @@ func _let_go(held: Dictionary) -> void:
 			continue
 		var rb := body as RigidBody3D
 		rb.gravity_scale = rec["gravity"]
+		# Solid again — unless pass 2 seated it, and the zone holding it owns the
+		# mask now (0, until it is taken out), or something else has set one.
+		var seated := rb is XRToolsPickable and (rb as XRToolsPickable).is_picked_up()
+		if rb.collision_mask == 0 and not seated:
+			rb.collision_mask = int(rec.get("mask", rb.collision_mask))
 		rb.sleeping = false
 	held.clear()
 
