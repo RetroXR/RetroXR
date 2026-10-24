@@ -59,6 +59,11 @@ var _resume_at: float = 0.0
 ## Carry on from the recording's END instead: a rewind that has run off the start
 ## of one recording into the one before it.
 var _resume_end := false
+## Playing (or winding) the blank tape after the last recording: the player is
+## stopped, the set has no picture, and the tape's place runs on by itself to the
+## cassette's end (VCRTape.blank_seconds), where the deck stops and the tape has
+## to be rewound.
+var _blank := false
 ## The tape in the deck, kept from the moment it goes in: by the time the slot
 ## says a tape has left, it no longer has it to ask for.
 var _tape: Node = null
@@ -173,18 +178,27 @@ func _process(delta: float) -> void:
 			_emitter.clear_speaker_positions()
 			_emitter.clear_emit_position()
 			_emitter.clear_emit_direction()
-	_update_scan(delta)
-	_resume_tape()
-	_note_tape()
+	if _blank:
+		_run_blank(delta)
+	else:
+		_update_scan(delta)
+		# A scan that has just run off the recording into the blank tape leaves
+		# the player stopped: its time is not the tape's any more.
+		if not _blank:
+			_resume_tape()
+			_note_tape()
 	if _clock == null:
 		return
-	if is_playing:
+	if is_playing and _blank:
+		# Past the recording the counter runs on into the blank tape.
+		_clock.set_times(_tape_time() + _tape_blank(), _tape_time() + _blank_room())
+	elif is_playing:
 		_last_total = _vlc_length_sec()
 		_clock.set_times(_vlc_time_sec(), _last_total)
 	elif not video_path.is_empty():
 		# Tape inserted but stopped — show where the tape stands (0 for one at
 		# its start) against the last known length (unknown until first played).
-		_clock.set_times(_tape_time(), _last_total)
+		_clock.set_times(_tape_time() + _tape_blank(), _last_total)
 	else:
 		_last_total = -1.0
 		_clock.set_blank()
@@ -252,6 +266,14 @@ func _update_scan(delta: float) -> void:
 	elif length > 0.0 and pos >= length:
 		if _rec_idx + 1 < _recordings.size():
 			_switch_recording(_rec_idx + 1, false)
+			return
+		# Off the end of the last recording into the blank tape after it, still
+		# winding on.
+		if _blank_room() > 0.0:
+			if is_instance_valid(_tape):
+				_tape.set("tape_time", length)
+			_enter_blank(0.0)
+			_net_push_state()
 			return
 		_vlc_seek_sec(length)
 		_end_scan_hold()   # reached the end; hold here
@@ -348,7 +370,9 @@ func net_get_state() -> Dictionary:
 		"playing": is_playing,
 		"paused": is_playing and _paused,
 		"rec": _rec_idx,
-		"pos": _vlc_time_sec() if is_playing else 0.0,
+		"pos": _vlc_time_sec() if is_playing and not _blank else 0.0,
+		# Seconds into the blank tape after the recordings, or -1 in them.
+		"blank": _tape_blank() if is_playing and _blank else -1.0,
 	}
 
 
@@ -362,6 +386,26 @@ func net_apply_state(state: Dictionary) -> void:
 		if is_playing:
 			stop()
 		return
+	# The host is on the blank tape after the recordings: so is this deck, with
+	# no picture, its place kept near the host's.
+	var blank := float(state.get("blank", -1.0))
+	if blank >= 0.0:
+		if not is_instance_valid(_tape):
+			return
+		_ensure_recordings()
+		is_playing = true
+		_paused = paused
+		if not _blank:
+			_enter_blank(blank)
+		elif absf(_tape_blank() - blank) > NET_DRIFT_TOLERANCE:
+			_tape.set("tape_blank", blank)
+		return
+	if _blank:
+		# The host has wound back out of the blank into the recording.
+		_blank = false
+		is_playing = false
+		if is_instance_valid(_tape):
+			_tape.set("tape_blank", 0.0)
 	# Ensure we have a local file — the tape's path is remapped/downloaded by
 	# object_sync; refresh in case the transfer landed after insertion.
 	var tape := _slot.get_media()
@@ -439,6 +483,10 @@ func _on_play_pressed() -> void:
 		_osd("PLAY", false)
 		_net_push_state()
 		return
+	# A tape played to its end plays nothing until it is wound back.
+	if not is_playing and _tape_at_end():
+		_osd("REWIND TAPE", false)
+		return
 	play()
 
 
@@ -464,11 +512,29 @@ func _on_stop_pressed() -> void:
 
 
 ## Rewind button: toggle reverse scan (press again, or Play/Pause, to exit).
+## From stop it plays from where the tape is and scans back from there: a tape
+## played to its end from the end of its last recording.
 func _on_rewind_pressed() -> void:
 	_log_event("pressed REW")
 	if _net_forward_cmd("rew"):
 		return
 	if not is_playing:
+		if not is_instance_valid(_tape) or video_path.is_empty():
+			return
+		# A cassette with blank tape after its recordings stands in that blank:
+		# play() starts it there, and the scan winds back through it.
+		if _tape_at_end() and _tape_blank() <= 0.0:
+			_ensure_recordings()
+			_rec_idx = maxi(_recordings.size() - 1, 0)
+			_resume_at = 0.0
+			_resume_end = true
+		elif _rec_idx == 0 and _tape_time() <= 0.0 and _tape_blank() <= 0.0:
+			return   # already at the start
+		play()
+		if not is_playing:
+			return
+		_set_scan(-1)
+		_osd("<< REW", true)
 		return
 	if _scan_dir == -1:
 		_set_scan(0)
@@ -540,6 +606,16 @@ func play() -> void:
 		push_error("VCRPlayer: Cannot play - no recording on the tape is there: ", video_path)
 		_osd("BLANK TAPE", false)
 		return
+	if _tape_blank() > 0.0:
+		# The tape stands in the blank after its recordings: it plays on there.
+		is_playing = true
+		_paused = false
+		_scan_dir = 0
+		_enter_blank(_tape_blank())
+		_apply_volume()
+		_osd("PLAY", false)
+		_net_push_state()
+		return
 	_rec_idx = clampi(_rec_idx, 0, _recordings.size() - 1)
 	if not _open_recording():
 		return
@@ -561,6 +637,9 @@ func stop() -> void:
 	_resume_at = _tape_time()
 	_resume_end = false
 	_scan_dir = 0
+	_blank = false
+	if is_instance_valid(_tape):
+		_tape.set("tape_speed", 0.0)
 	if _vlc:
 		_vlc.stop()
 	is_playing = false
@@ -654,11 +733,12 @@ func set_audio_channel_mode(mode: int) -> void:
 # painter now.
 
 
-## The tape's live frame, or null when there is nothing to show: stopped, or the
-## picture cord is not in the set's video socket. A different object after a
-## resolution change, so the set re-reads it per frame.
+## The tape's live frame, or null when there is nothing to show: stopped, on the
+## blank tape after the recording, or the picture cord is not in the set's video
+## socket. A different object after a resolution change, so the set re-reads it
+## per frame.
 func get_video_texture() -> Texture2D:
-	if _vlc == null or not is_playing or not _feed_video:
+	if _vlc == null or not is_playing or _blank or not _feed_video:
 		return null
 	return _vlc.get_texture()
 
@@ -704,16 +784,26 @@ func _on_video_finished() -> void:
 		_switch_recording(_rec_idx + 1, false)
 		_net_push_state()
 		return
-	# Leave the last frame; mark as not playing so Play restarts from the top.
-	# The end of the tape: it is wound back to its start, which is what makes
-	# Play restart it.
+	# The end of the recording, with blank tape after it: the deck plays on into
+	# that, with no picture, to the end of the cassette.
+	if is_playing and _blank_room() > 0.0:
+		var ran := _vlc_length_sec()
+		if ran > 0.0 and is_instance_valid(_tape):
+			_tape.set("tape_time", ran)
+		_enter_blank(0.0)
+		_net_push_state()
+		return
+	# The end of the tape: leave the last frame, and the tape where it ran out.
+	# It has to be rewound before it plays again (_on_play_pressed,
+	# _on_rewind_pressed), and it keeps that place out of the deck and in a save.
 	_resume_at = 0.0
 	_resume_end = false
-	_rec_idx = 0
 	if is_instance_valid(_tape):
-		_tape.set("tape_track", 0)
-		_tape.set("tape_time", 0.0)
-		_tape.set("tape_progress", 0.0)
+		_tape.set("tape_track", _rec_idx)
+		var length := _vlc_length_sec()
+		if length > 0.0:
+			_tape.set("tape_time", length)
+		_tape.set("tape_progress", 1.0)
 		_tape.set("tape_speed", 0.0)
 	_log_event("end of tape")
 	is_playing = false
@@ -742,6 +832,92 @@ func _take_tape_place(tape: Node) -> void:
 	_resume_at = maxf(0.0, float(_tape.get("tape_time"))) if _tape != null else 0.0
 	_resume_end = false
 	_rec_idx = maxi(0, int(_tape.get("tape_track"))) if _tape != null and "tape_track" in _tape else 0
+
+
+## True when the tape in the deck has been played to its end and not wound back.
+func _tape_at_end() -> bool:
+	if not is_instance_valid(_tape):
+		return false
+	if _tape.has_method("at_tape_end"):
+		return bool(_tape.call("at_tape_end"))
+	return "tape_progress" in _tape and float(_tape.get("tape_progress")) >= 1.0
+
+
+## How far into the blank tape after the recordings the tape in the deck stands,
+## in seconds; 0 in its recordings.
+func _tape_blank() -> float:
+	if not is_instance_valid(_tape) or not ("tape_blank" in _tape):
+		return 0.0
+	return float(_tape.get("tape_blank"))
+
+
+## How much blank tape follows the recordings on the cassette in the deck.
+func _blank_room() -> float:
+	if not is_instance_valid(_tape) or not _tape.has_method("blank_seconds"):
+		return 0.0
+	return float(_tape.call("blank_seconds"))
+
+
+## Go on into the blank tape after the last recording, `at` seconds into it. The
+## transport (playing, paused, a scan) carries on as it was; only the picture and
+## the sound stop.
+func _enter_blank(at: float) -> void:
+	_blank = true
+	_resume_at = 0.0
+	_resume_end = false
+	_rec_idx = maxi(_recordings.size() - 1, 0)
+	if _vlc:
+		_vlc.stop()
+	if _emitter:
+		_emitter.flush()
+	if is_instance_valid(_tape):
+		_tape.set("tape_track", _rec_idx)
+		_tape.set("tape_progress", 1.0)
+		_tape.set("tape_blank", clampf(at, 0.0, _blank_room()))
+
+
+## Run the tape on through the blank: at play speed, at scan speed either way, or
+## not at all while paused. Off its end the deck stops; wound back off its start
+## it goes back into the last recording, at its end, still winding back.
+func _run_blank(delta: float) -> void:
+	if not is_playing or not is_instance_valid(_tape):
+		_blank = false
+		return
+	var speed := 0.0
+	if _scan_dir != 0:
+		speed = scan_speed * float(_scan_dir)
+	elif not _paused:
+		speed = 1.0
+	_tape.set("tape_speed", speed)
+	var at := _tape_blank() + delta * speed
+	var room := _blank_room()
+	if at >= room:
+		_tape.set("tape_blank", room)
+		_end_of_tape()
+	elif at <= 0.0 and speed < 0.0:
+		_tape.set("tape_blank", 0.0)
+		_blank = false
+		_switch_recording(_rec_idx, true)
+	else:
+		_tape.set("tape_blank", at)
+
+
+## The end of the cassette: the deck stops, with the tape run out, and nothing
+## plays until it is rewound.
+func _end_of_tape() -> void:
+	_log_event("end of tape")
+	_blank = false
+	_scan_dir = 0
+	is_playing = false
+	_paused = false
+	_resume_at = 0.0
+	_resume_end = false
+	_apply_volume()
+	if is_instance_valid(_tape):
+		_tape.set("tape_speed", 0.0)
+	if connected_tv:
+		connected_tv.hide_osd()
+	_net_push_state()
 
 
 ## Where the tape in the deck stands, in seconds into its recording; 0 with none in it.
@@ -777,12 +953,31 @@ func _note_tape() -> void:
 	var length := _vlc_length_sec()
 	_tape.set("tape_track", _rec_idx)
 	_tape.set("tape_time", at)
+	_tape.set("tape_blank", 0.0)
 	if length > 0.0:
 		_tape.set("tape_progress", RetroAudioPlayer.album_progress(_rec_bytes, _rec_idx, at / length))
+		_measure_tape(length)
 	if _paused and _scan_dir == 0:
 		_tape.set("tape_speed", 0.0)
 	else:
 		_tape.set("tape_speed", scan_speed * float(_scan_dir) if _scan_dir != 0 else 1.0)
+
+
+## A tape whose recordings' header said nothing of their length (not an MP4 or
+## a WAV) is measured here, by the recording playing, `length` seconds long: the
+## whole of one file, or for a playlist, that one scaled up by its share of the
+## tape's size on disk. The first length known picks the tape's cassette.
+func _measure_tape(length: float) -> void:
+	if not _tape.has_method("note_recording_seconds") or float(_tape.get("recording_seconds")) > 0.0:
+		return
+	var whole := length
+	if _recordings.size() > 1:
+		var share := RetroAudioPlayer.album_progress(_rec_bytes, _rec_idx, 1.0) \
+			- RetroAudioPlayer.album_progress(_rec_bytes, _rec_idx, 0.0)
+		if share <= 0.0:
+			return
+		whole = length / share
+	_tape.call("note_recording_seconds", whole)
 
 
 # --- Save/load restore (mirrors RetroSystem) ---

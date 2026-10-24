@@ -2461,6 +2461,11 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"tape_track": tape.tape_track,
 			"tape_time": tape.tape_time,
 			"tape_progress": tape.tape_progress,
+			# Which cassette it is, how long its recordings are, and how far
+			# into the blank tape after them it stands.
+			"cassette": tape.cassette,
+			"recording_seconds": tape.recording_seconds,
+			"tape_blank": tape.tape_blank,
 		})
 	elif node is DVDPlayer:
 		var dvdp := node as DVDPlayer
@@ -3133,6 +3138,13 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				tape.tape_track = maxi(0, int(data.get("tape_track", 0)))
 				tape.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
 				tape.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
+				# A room saved before tapes had cassettes keeps the one its
+				# recording's header gave it as its path was set.
+				if int(data.get("cassette", 0)) > 0:
+					tape.cassette = int(data["cassette"])
+				if float(data.get("recording_seconds", 0.0)) > 0.0:
+					tape.recording_seconds = float(data["recording_seconds"])
+				tape.tape_blank = maxf(0.0, float(data.get("tape_blank", 0.0)))
 				obj = tape
 			"dvd_disc":
 				var disc := DVD_DISC_SCENE.instantiate() as DVDDisc

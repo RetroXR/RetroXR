@@ -187,6 +187,13 @@ func _test_tape() -> void:
 	_spawned.append(video)
 	_ok(video.tape_time == 0.0 and video.tape_progress == 0.0 and video.tape_speed == 0.0,
 		"tape/a new video tape is at its start, and still")
+	# Offered at the mouth the way the bay will seat it: lying flat, label up,
+	# not stood on its end by the tape's own snap grab point as well.
+	var mouth := vcr.get_node("TapeSlot") as XRToolsSnapZone
+	var ghost := mouth.preview_pose_for(video)
+	var seat := mouth.global_transform * Transform3D(vcr._slot.media_local_basis, Vector3.ZERO)
+	_ok(ghost.basis.is_equal_approx(seat.basis) and ghost.origin.is_equal_approx(seat.origin),
+		"tape/the slot's preview lies the way the tape is seated")
 	video.tape_time = 754.0
 	video.tape_progress = 0.21
 	vcr._take_tape_place(video)
@@ -202,8 +209,11 @@ func _test_tape() -> void:
 		"tape/taken out, the video tape is still and keeps its place")
 	vcr._take_tape_place(video)
 	vcr._on_video_finished()
-	_ok(video.tape_time == 0.0 and video.tape_progress == 0.0 and vcr._resume_at == 0.0,
-		"tape/played to its end, a video tape is wound back to its start")
+	_ok(video.tape_progress == 1.0 and video.tape_speed == 0.0 and vcr._resume_at == 0.0 and vcr._tape_at_end(),
+		"tape/played to its end, a video tape stays at its end")
+	vcr._on_play_pressed()
+	_ok(not vcr.is_playing and video.tape_progress == 1.0,
+		"tape/and Play does not play it until it is rewound")
 	vcr._on_media_removed()
 	video.tape_time = 754.0
 	video.tape_progress = 0.21
@@ -216,6 +226,66 @@ func _test_tape() -> void:
 	if v_back != null:
 		v_back.free()
 
+	# A recording goes on the shortest real cassette that holds it, and plays out
+	# into the blank tape after it to that cassette's end.
+	_eq([VCRTape.cassette_for(10.0), VCRTape.cassette_for(301.0), VCRTape.cassette_for(7200.0),
+		VCRTape.cassette_for(7201.0), VCRTape.cassette_for(99999.0)], [5, 10, 120, 160, 210],
+		"cassette/a recording goes on the shortest cassette that holds it, or the longest")
+	var clip := ProjectSettings.globalize_path("user://deck_tests_clip.mp4")
+	var mp4 := FileAccess.open(clip, FileAccess.WRITE)
+	mp4.big_endian = true
+	mp4.store_32(16)
+	mp4.store_buffer("ftypisom".to_ascii_buffer())
+	mp4.store_32(0)
+	mp4.store_32(116)
+	mp4.store_buffer("moov".to_ascii_buffer())
+	mp4.store_32(108)
+	mp4.store_buffer("mvhd".to_ascii_buffer())
+	for v: int in [0, 0, 0, 600, 6000]:
+		mp4.store_32(v)
+	var pad := PackedByteArray()
+	pad.resize(80)
+	mp4.store_buffer(pad)
+	mp4.close()
+	_ok(is_equal_approx(VCRTape.file_length(clip), 10.0), "cassette/an MP4's length is read off its movie header")
+	var short := VCR_TAPE.instantiate() as VCRTape
+	_spawned.append(short)
+	short.video_path = clip
+	_ok(is_equal_approx(short.recording_seconds, 10.0) and short.cassette == 5
+		and is_equal_approx(short.blank_seconds(), 290.0),
+		"cassette/a ten-second clip is a T-5 as it is spawned, with 4 min 50 s of blank tape after it")
+	add_child(short)
+	vcr._take_tape_place(short)
+	vcr.is_playing = true
+	vcr._on_video_finished()
+	_ok(vcr.is_playing and vcr._blank and short.tape_progress == 1.0 and short.tape_blank == 0.0
+		and not short.at_tape_end() and vcr.get_video_texture() == null,
+		"cassette/at the end of the recording the deck plays on into the blank tape, with no picture")
+	vcr._run_blank(2.0)
+	_ok(is_equal_approx(short.tape_blank, 2.0) and short.tape_speed == 1.0
+		and is_equal_approx(short.tape_seconds(), 12.0), "cassette/and the tape runs on through it at play speed")
+	vcr._paused = true
+	vcr._run_blank(2.0)
+	_ok(is_equal_approx(short.tape_blank, 2.0) and short.tape_speed == 0.0, "cassette/paused, it stands still")
+	vcr._paused = false
+	var blank_state := vcr.net_get_state()
+	_ok(is_equal_approx(float(blank_state.get("blank", -1.0)), 2.0), "cassette/a session hears where in the blank the deck is")
+	vcr._run_blank(1000.0)
+	_ok(not vcr.is_playing and not vcr._blank and is_equal_approx(short.tape_blank, 290.0) and short.at_tape_end()
+		and is_equal_approx(short.tape_seconds(), 300.0),
+		"cassette/at the end of the cassette the deck stops, with all five minutes across")
+	vcr._on_play_pressed()
+	_ok(not vcr.is_playing, "cassette/and Play does nothing until it is rewound")
+	var s_entry := store._serialize_node(short, 3, {short: 3})
+	var s_back := store._deserialize_object(s_entry) as VCRTape
+	_ok(s_back != null and s_back.cassette == 5 and is_equal_approx(s_back.recording_seconds, 10.0)
+		and is_equal_approx(s_back.tape_blank, 290.0) and s_back.at_tape_end(),
+		"cassette/a save keeps the cassette, its recording's length and the blank tape wound")
+	if s_back != null:
+		s_back.free()
+	vcr._on_media_removed()
+	DirAccess.remove_absolute(clip)
+
 	# The menu a tape opens (the generic one, ObjectOptionsPanel) says where it
 	# stands and what it carries. Before this it said only "Lock in place", and a
 	# video tape's was titled with its node name, not the video.
@@ -223,14 +293,17 @@ func _test_tape() -> void:
 	_spawned.append(shown)
 	shown.video_path = "C:/retroxr/videos/Home Movies.mp4"
 	shown.video_label = "Home Movies"
-	_eq(shown.options_info(), [["Position", "00:00:00"], ["Path", "C:/retroxr/videos/Home Movies.mp4"]],
-		"tape/a new video tape's menu: at the start, and no share of a length no deck has measured")
+	_eq(shown.options_info(), [["Cassette", "Not known until played"], ["Position", "00:00:00"],
+		["Path", "C:/retroxr/videos/Home Movies.mp4"]],
+		"tape/a new video tape's menu: at the start, and no share or cassette of a length no deck has measured")
 	shown.tape_time = 3754.4
 	shown.tape_progress = 0.372
-	_eq(shown.options_info()[0], ["Position", "01:02:34  (37%)"],
+	_eq(shown.options_info()[1], ["Position", "01:02:34  (37%)"],
 		"tape/a played one: the deck's own counter, and how far through the tape")
+	shown.note_recording_seconds(4000.0)
+	_eq(shown.options_info()[0], ["Cassette", "T-90"], "tape/and which cassette it is on, once its length is known")
 	shown.video_path = ""
-	_eq(shown.options_info()[1], ["Path", "None"], "tape/a tape with no file says so")
+	_eq(shown.options_info()[2], ["Path", "None"], "tape/a tape with no file says so")
 	var menu := ObjectOptionsPanel.new()
 	menu._object = shown
 	_eq(menu._display_name(), "Home Movies", "tape/a video tape's menu is titled with its video")
@@ -764,19 +837,31 @@ func _test_playlist() -> void:
 		"playlist/fast-forwarding off the end of one winds on into the next, still scanning")
 	vcr._scan_pos = 99.5
 	vcr._update_scan(0.1)
-	_ok(vcr._rec_idx == 1 and vcr._scan_dir == 0, "playlist/off the end of the last it stops, as a tape of one does")
+	_ok(tape.cassette > 0 and vcr._blank and vcr._scan_dir == 1 and vcr._rec_idx == 1
+		and tape.tape_track == 1 and tape.tape_progress == 1.0,
+		"playlist/off the end of the last it winds on into the blank tape after it, still scanning (T-%d)" % tape.cassette)
+	vcr._scan_dir = -1
+	tape.tape_blank = 0.1
+	vcr._run_blank(1.0)
+	_ok(not vcr._blank and vcr._rec_idx == 1 and str(fake.opened.back()) == v1 and vcr._resume_end
+		and tape.tape_blank == 0.0, "playlist/wound back off the blank's start, it goes back into the last recording at its end")
 
+	vcr._scan_dir = 0
+	vcr._resume_end = false
 	vcr._opened_msec = -100000
 	vcr.is_playing = true
 	vcr._on_video_finished()
-	_ok(vcr._rec_idx == 0 and tape.tape_track == 0 and tape.tape_time == 0.0 and not vcr.is_playing,
-		"playlist/the end of the last recording winds the whole tape back to the first")
-	_eq(vcr.net_get_state().get("rec", -1), 0, "playlist/a session hears which recording the deck is in")
+	_ok(vcr._rec_idx == 1 and tape.tape_track == 1 and is_equal_approx(tape.tape_time, 100.0)
+		and tape.tape_progress == 1.0 and vcr.is_playing and vcr._blank and not vcr._tape_at_end(),
+		"playlist/the end of the last recording plays on into the blank tape")
+	_eq(vcr.net_get_state().get("rec", -1), 1, "playlist/a session hears which recording the deck is in")
+	vcr.stop()
 
 	tape.tape_track = 1
 	tape.tape_time = 12.0
 	tape.tape_progress = 0.0
-	_eq(tape.options_info()[0], ["Position", "Recording 2, 00:00:12"],
+	tape.tape_blank = 0.0
+	_eq(tape.options_info()[1], ["Position", "Recording 2, 00:00:12"],
 		"playlist/a playlist tape's menu says which recording it is in")
 	var store := ScenePersistence.new()
 	var back := store._deserialize_object(store._serialize_node(tape, 3, {tape: 3})) as VCRTape
