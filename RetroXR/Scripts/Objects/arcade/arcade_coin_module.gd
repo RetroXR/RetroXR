@@ -68,6 +68,17 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 		_slot_button.button_pressed.connect(insert_coin)
 
 
+## A game with one coin input has one coin door: the other is taken off the front and cannot be aimed at.
+func set_door_enabled(on: bool) -> void:
+	visible = on
+	if _slot_button != null:
+		_slot_button.set_interactive(on)
+
+
+func door_enabled() -> bool:
+	return visible
+
+
 ## Toss a coin. Also the entry point for anything else that inserts one.
 func insert_coin() -> void:
 	if _spawn == null or _drop == null or not is_inside_tree():

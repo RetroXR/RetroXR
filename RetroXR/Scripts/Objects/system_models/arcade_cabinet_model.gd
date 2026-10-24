@@ -94,6 +94,11 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	for m in _modules:
 		m.tick(delta)
+	if _watch_descriptors:
+		_descriptor_wait -= delta
+		if _descriptor_wait <= 0.0:
+			_descriptor_wait = DESCRIPTOR_POLL
+			_poll_descriptors()
 
 
 ## Where a cabinet's weight is, up from the floor: the heavy base and the board and PSU in the bay,
@@ -939,6 +944,12 @@ func on_media_inserted(cart: Node) -> void:
 		return
 	var art := ArcadeCabinetArt.for_rom(str(cart.get("systemid")), str(cart.call("get_rom_path")))
 	apply_art(art["wheel"] as Texture2D, art["cover"] as Texture2D)
+	# The generic cabinet follows the game: only a MAME-style romset has a profile (the Neo Geo,
+	# Daphne and DICE cabinets keep their own panels).
+	if ArcadeProfiles.is_arcade_system(str(cart.get("systemid"))):
+		apply_game_profile(ArcadeGameProfile.for_rom_path(str(cart.call("get_rom_path"))))
+		_watch_descriptors = true
+		_descriptor_wait = 0.0
 
 
 ## The board left: the plain cabinet again, with its title.
@@ -946,6 +957,51 @@ func on_media_cleared() -> void:
 	_art_wheel = null
 	_art_cover = null
 	_strip_art()
+	_watch_descriptors = false
+	apply_game_profile(null)
+
+
+# ── the game's needs ────────────────────────────────────────────────────────
+
+## How often, while the machine runs, to ask the core whether it has described its inputs yet.
+const DESCRIPTOR_POLL := 0.5
+
+var _game: ArcadeGameProfile = null
+var _watch_descriptors := false
+var _descriptor_wait := 0.0
+
+
+## The profile the cabinet is dressed for, or null when it shows the whole panel.
+func game_profile() -> ArcadeGameProfile:
+	return _game
+
+
+## Show what this game uses and no more (ArcadeGameProfile): each panel, its stick and caps and the
+## words on them, and the coin doors. Null puts everything back. Only what is DRAWN follows the
+## game; the input is never filtered, so a cap hidden by a wrong guess still plays from a
+## controller or the keyboard.
+func apply_game_profile(profile: ArcadeGameProfile) -> void:
+	_game = profile
+	for c in _controls:
+		c.apply_profile(profile)
+	for door in _coins:
+		door.set_door_enabled(profile == null or door.player < profile.coin_doors())
+
+
+## Ask the running core for its descriptors; the first answer settles it (they arrive during load).
+func _poll_descriptors() -> void:
+	var sys := get_parent()
+	if _game == null or sys == null or not bool(sys.get("is_powered_on")) or not sys.has_method("get_libretro_node"):
+		return
+	var lib := sys.call("get_libretro_node") as Libretro
+	if lib == null:
+		return
+	var described: Array = lib.GetInputDescriptors()
+	if described.is_empty():
+		return
+	_watch_descriptors = false
+	_game.apply_descriptors(described)
+	apply_game_profile(_game)
 
 
 func _strip_art() -> void:
@@ -1041,10 +1097,17 @@ func _art_material(tex: Texture2D, alpha: bool) -> StandardMaterial3D:
 
 func on_power_on() -> void:
 	_light_marquee(true)
+	_watch_descriptors = _game != null
+	_descriptor_wait = 0.0
 
 
 func on_power_off() -> void:
 	_light_marquee(false)
+	# The core's words are about the run that just ended; the table alone stands.
+	if _game != null and _game.is_described():
+		_game.clear_descriptors()
+		apply_game_profile(_game)
+	_watch_descriptors = false
 
 
 func _light_marquee(on: bool) -> void:

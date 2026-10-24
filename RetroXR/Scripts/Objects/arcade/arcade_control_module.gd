@@ -21,12 +21,24 @@ const STICK_TILT_DEG := 16.0
 const STICK_BLEND := 0.35
 ## How far a pressed cap sinks into the deck.
 const CAP_PRESS := 0.006
+## A cap's label: font size in pixels, metres a pixel, how far above the deck it is printed, and the
+## cap's radius when its mesh cannot say.
+const LABEL_FONT := 20
+const LABEL_PIXEL := 0.00045
+const LABEL_LIFT := 0.0015
+const CAP_RADIUS := 0.0155
 ## How fast a held LEFT or RIGHT turns a dial, radians a second (about one turn a second).
 const DIAL_SPEED := TAU
 
 var _caps: Array[Node3D] = []
+## Each cap's flange (`<cap>Rim`, fixed, of the cap's colour), or null where a scene has none.
+var _cap_rims: Array[Node3D] = []
 var _cap_rest: Array[Vector3] = []
 var _cap_bits: Array[int] = []
+## Which of the six buttons each cap is (0-based), or -1 for START, which every game has.
+var _cap_button: Array[int] = []
+## The label on a cap, made the first time a core names one (Label3D, a child of the cap so it sinks with it).
+var _cap_labels: Dictionary = {}
 var _stick: Node3D = null
 var _dial: Node3D = null
 var _dial_dir := 0.0
@@ -48,11 +60,13 @@ func _init() -> void:
 func attach(p_cabinet: RetroSystemModel) -> void:
 	super.attach(p_cabinet)
 	_caps.clear()
+	_cap_rims.clear()
 	_cap_rest.clear()
 	_cap_bits.clear()
+	_cap_button.clear()
 	for i in ArcadeProfiles.BUTTON_COUNT:
-		_add_cap("Btn%d" % (i + 1), ArcadeProfiles.BUTTON_BITS[i])
-	_add_cap("Start", ArcadeProfiles.START_BIT)
+		_add_cap("Btn%d" % (i + 1), ArcadeProfiles.BUTTON_BITS[i], i)
+	_add_cap("Start", ArcadeProfiles.START_BIT, -1)
 	_stick = find_child("StickPivot", true, false) as Node3D
 	_dial = find_child("DialPivot", true, false) as Node3D
 	_grip = find_child("PanelGrip", true, false) as ArcadePanelGrip
@@ -60,18 +74,116 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 		_grip.toggled.connect(func(on: bool) -> void: attach_changed.emit(player, on))
 
 
-func _add_cap(node_name: String, bit: int) -> void:
+func _add_cap(node_name: String, bit: int, button: int) -> void:
 	var cap := find_child(node_name, true, false) as Node3D
 	if cap == null:
 		return
 	_caps.append(cap)
+	_cap_rims.append(find_child(node_name + "Rim", true, false) as Node3D)
 	_cap_rest.append(cap.position)
 	_cap_bits.append(bit)
+	_cap_button.append(button)
+
+
+## Show only what the game in the bay has: the panel at all (a one-player game has no second),
+## the stick, the caps it reads, and the words the core gave them. `profile` null, or a game the
+## table does not know, puts the whole panel back.
+func apply_profile(profile: ArcadeGameProfile) -> void:
+	var on_panel := profile == null or profile.panel_visible(player)
+	visible = on_panel
+	ArcadeModule.set_pointable(_grip, on_panel)
+	if not on_panel:
+		set_attached(false)
+	if _stick != null:
+		_stick.visible = profile == null or profile.stick_visible()
+	for i in _caps.size():
+		var button := _cap_button[i]
+		if button < 0:
+			continue
+		_caps[i].visible = profile == null or profile.button_visible(player, button)
+		# A button the game does not have leaves no empty flange behind.
+		if _cap_rims[i] != null:
+			_cap_rims[i].visible = _caps[i].visible
+		_label_cap(i, "" if profile == null else profile.button_label(player, button))
+
+
+## Put words on a cap, or take them off. The words are printed on the deck just under the cap (a cap is
+## 31 mm across and tilts away from a player, so words on its top cannot be read); they do not sink with it.
+func _label_cap(index: int, text: String) -> void:
+	var label := _cap_labels.get(index) as Label3D
+	if text.is_empty():
+		if label != null:
+			label.visible = false
+		return
+	if label == null:
+		var cap := _caps[index]
+		var holder := cap.get_parent() as Node3D
+		if holder == null:
+			return
+		label = Label3D.new()
+		label.name = "CapLabel"
+		label.font_size = LABEL_FONT
+		label.pixel_size = LABEL_PIXEL
+		label.outline_size = 8
+		label.modulate = Color.WHITE
+		label.outline_modulate = Color(0.0, 0.0, 0.0, 0.9)
+		label.shaded = false
+		label.double_sided = false
+		# The monitor-side row of caps is labelled above its caps, the rest below theirs: two rows of
+		# caps are only ~50 mm apart, and words under the top row land on the bottom row.
+		var above := _cap_rest[index].y > _mean_cap_y() + 0.005
+		label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM if above else VERTICAL_ALIGNMENT_TOP
+		label.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		var radius := CAP_RADIUS
+		# Measured on the flange where the button has one: it is the widest part, and a word printed
+		# inside it would be under it.
+		var shape := _cap_rims[index] if _cap_rims[index] != null else cap
+		if shape is MeshInstance3D and (shape as MeshInstance3D).mesh != null:
+			var box := (shape as MeshInstance3D).get_aabb()
+			radius = maxf(box.size.x, box.size.y) * 0.5
+		label.position = _cap_rest[index] + Vector3(0.0, (radius + 0.002) * (1.0 if above else -1.0), LABEL_LIFT)
+		holder.add_child(label)
+		_cap_labels[index] = label
+	label.text = text
+	label.visible = true
+
+
+## The mean height of the six buttons' caps on the panel (0 with none).
+func _mean_cap_y() -> float:
+	var sum := 0.0
+	var n := 0
+	for i in _caps.size():
+		if _cap_button[i] >= 0:
+			sum += _cap_rest[i].y
+			n += 1
+	return sum / float(n) if n > 0 else 0.0
+
+
+## The label text on a cap (0-based, the six buttons), or "" when it has none, for the tests.
+func cap_label(button: int) -> String:
+	for i in _caps.size():
+		if _cap_button[i] == button:
+			var label := _cap_labels.get(i) as Label3D
+			return label.text if label != null and label.visible else ""
+	return ""
+
+
+## Is the cap for button `button` (0-based) drawn, for the tests.
+func cap_shown(button: int) -> bool:
+	for i in _caps.size():
+		if _cap_button[i] == button:
+			return _caps[i].visible
+	return false
+
+
+func stick_shown() -> bool:
+	return _stick != null and _stick.visible
 
 
 ## Attach to (or let go of) this panel, as a press on it does.
 func set_attached(on: bool) -> void:
-	if _grip != null:
+	# A panel the game does not use (apply_profile) is not there to attach to.
+	if _grip != null and (visible or not on):
 		_grip.set_attached(on)
 
 

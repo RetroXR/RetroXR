@@ -504,6 +504,13 @@ func _build() -> void:
 
 	_add_spawn_tab(tabs, "Objects", [
 		["Table",           "table"],
+		# Somewhere to sit: press the cushion to sit, again to get up; hold on it to carry it.
+		["Racing Seat",     "seat_racing"],
+		["Stool",           "seat_stool"],
+		["Chair",           "seat_chair"],
+		["Floor Cushion",   "seat_cushion"],
+		["Sofa",            "seat_sofa"],
+		["Bed",             "seat_bed"],
 		["Storage Box",     "trash_can"],
 		["VCR",             "vcr_player"],
 		["DVD Player",      "dvd_player"],

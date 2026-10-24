@@ -21,6 +21,7 @@ extends Node3D
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
+const DISC_SCENE := preload("res://Scenes/Objects/media/disc.tscn")
 
 var _out := "/tmp"
 var _model_id := "arcade_cabinet_generic"
@@ -262,8 +263,8 @@ func _shot_pedal() -> void:
 	await _save("pedal")
 
 
-## The yellow rectangle a held cabinet shows on the floor where it will be set down (GroundPlacement), a row of
-## two with a cabinet already stood beside it.
+## The yellow rectangle a held cabinet shows on the floor where it will be set down (GroundPlacement), beside the
+## cabinet already standing there.
 func _shot_ground() -> void:
 	var placer := _sys.get_node_or_null("GroundPlacement") as GroundPlacement
 	if placer == null:
@@ -275,6 +276,41 @@ func _shot_ground() -> void:
 	_look(Vector3(1.6, 1.5, 3.6), Vector3(0.6, 0.4, 1.0))
 	await _save("ground")
 	placer.preview({})
+
+
+## The buttons close up: the cap and the flange of its own colour.
+func _shot_buttons() -> void:
+	_look(Vector3(-0.12, 1.18, 0.78), Vector3(-0.12, 0.99, 0.40))
+	await _save("buttons")
+
+
+## The CD-ROM bay under the JAMMA bay with a disc pushed half out by EJECT, and the board standing on it.
+func _shot_drive() -> void:
+	_model.set_lid_angle_deg(90.0)
+	var bay: ArcadeBayUnit = _sys.get_bay()
+	if bay == null or not bay.has_drive():
+		print("[probe] no drive in this bay")
+		return
+	var cart := CART_SCENE.instantiate() as Node3D
+	cart.systemid = _systemid
+	cart.rom_path = "/tmp/sf2.zip"
+	cart.game_label = "STREET FIGHTER II"
+	cart.freeze = true
+	add_child(cart)
+	var disc := DISC_SCENE.instantiate() as RetroDisc
+	disc.systemid = "arcade"
+	disc.rom_path = "/tmp/sf2/disc.chd"
+	disc.game_label = "STREET FIGHTER II"
+	disc.freeze = true
+	add_child(disc)
+	await _frames(8)
+	bay.slot.pick_up_object(cart)
+	bay.restore_disc(disc)
+	await _frames(6)
+	bay.eject_disc()
+	await _frames(70)
+	_look(Vector3(0.45, 0.62, 1.05), Vector3(0, 0.22, 0.12))
+	await _save("drive")
 
 
 func _shot_panel() -> void:
@@ -304,6 +340,29 @@ func _shot_switch() -> void:
 	await _save("switch_on")
 	(_sys as RetroSystem).toggle_power()
 	AppPrefs.arcade_attract_mode = false
+
+
+## The panel dressed for several games (ArcadeGameProfile): the table alone, then with the words FBNeo
+## publishes (measured with Tools/cores/arcade_descriptors_probe). One PNG per game: game_<name>.png.
+func _shot_game() -> void:
+	var fbneo_sf2 := [[2, "Coin"], [3, "Start"], [4, "Up"], [5, "Down"], [6, "Left"], [7, "Right"], [1, "Weak Punch"],
+		[9, "Medium Punch"], [10, "Strong Punch"], [0, "Weak Kick"], [8, "Medium Kick"], [11, "Strong Kick"]]
+	var fbneo_dino := [[2, "Coin"], [3, "Start"], [4, "Up"], [5, "Down"], [6, "Left"], [7, "Right"], [0, "Attack"], [8, "Jump"]]
+	var games := [["sf2_table", "sf2", []], ["sf2_words", "sf2", fbneo_sf2], ["dino_words", "dino", fbneo_dino],
+		["hotd2", "hotd2", []], ["pong", "pong", []], ["daytona", "daytona", []]]
+	for g: Array in games:
+		var profile := ArcadeGameProfile.for_romset(str(g[1]))
+		var rows: Array = []
+		for port in 2:
+			for d: Array in g[2]:
+				rows.append({"port": port, "device": 1, "index": 0, "id": d[0], "description": d[1]})
+		if not rows.is_empty():
+			profile.apply_descriptors(rows)
+		_model.apply_game_profile(profile)
+		await _frames(3)
+		_look(Vector3(0, 1.45, 1.05), Vector3(0, 0.98, 0.42))
+		await _save("game_%s" % g[0])
+	_model.apply_game_profile(null)
 
 
 func _shot_bay() -> void:
