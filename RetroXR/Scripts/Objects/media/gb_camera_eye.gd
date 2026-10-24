@@ -218,15 +218,15 @@ func _hold_depth(want: bool) -> void:
 		EnvironmentDepth.release(self)
 
 
-## Debug > "Libretro Camera Subviewport" (AppPrefs.libretro_camera_backdrop):
-## "depth" finds the real room's surfaces with Meta's depth, "sphere" takes the
-## room to be BACKDROP_RADIUS from the headset camera everywhere, the first way
-## this was done, and asks for no depth.
+## General > "Libretro Camera Subviewport" (AppPrefs.libretro_camera_backdrop):
+## "sphere", the default, takes the room to be BACKDROP_RADIUS from the headset
+## camera everywhere and asks for no depth; "depth" finds the real room's
+## surfaces with Meta's depth.
 func uses_depth() -> bool:
 	if backdrop_mode_source.is_valid():
 		return str(backdrop_mode_source.call()) == "depth"
 	var prefs := get_node_or_null("/root/AppPrefs") if is_inside_tree() else null
-	return prefs == null or str(prefs.get("libretro_camera_backdrop")) != "sphere"
+	return prefs != null and str(prefs.get("libretro_camera_backdrop")) == "depth"
 
 
 ## Hand `picture` to `lib` as a core takes one: exactly `size`, RGBA8, top row

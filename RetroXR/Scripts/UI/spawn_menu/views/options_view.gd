@@ -641,6 +641,21 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 				passthrough_occlusion_changed.emit(on)
 		))
 
+		# How a core's camera subviewport (the Game Boy Camera's lens) finds the
+		# real room in passthrough (GbCameraEye.uses_depth).
+		var cam_drop := VRDropdown.create("Libretro Camera Subviewport",
+			[["Fixed 1.5 m", "sphere"], ["Depth (real surfaces)", "depth"]],
+			AppPrefs.libretro_camera_backdrop,
+			1, Vector2(300, 56), MenuStyle.MENU_NAME_SIZE)
+		cam_drop.item_selected.connect(func(id: Variant) -> void:
+			AppPrefs.libretro_camera_backdrop = str(id)
+			AppPrefs.save_prefs())
+		vbox.add_child(cam_drop)
+		vbox.add_child(MenuStyle.hint(
+			"In passthrough a camera cartridge sees the headset camera's view where its "
+			+ "lens points. Fixed 1.5 m takes everything to be 1.5 m away; Depth finds "
+			+ "the real surfaces with Meta's depth (Quest 3, room data on)."))
+
 		var fpt_row := HBoxContainer.new()
 		fpt_row.add_theme_constant_override("separation", 10)
 		fpt_row.custom_minimum_size = Vector2(0, 68)
@@ -844,24 +859,6 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(MenuStyle.hint(
 		"In passthrough with room data on: furniture blue, floor and walls green, "
 		+ "the scanned mesh orange. Faint where things don't rest on it."))
-
-	vbox.add_child(HSeparator.new())
-	vbox.add_child(MenuStyle.header("LIBRETRO CAMERA", 20))
-
-	# How a core's camera subviewport (the Game Boy Camera's lens) finds the real
-	# room in passthrough. Saved: it changes what the camera sees, not just a look.
-	var cam_drop := VRDropdown.create("Libretro Camera Subviewport",
-		[["Depth (real surfaces)", "depth"], ["Fixed 1.5 m", "sphere"]],
-		AppPrefs.libretro_camera_backdrop,
-		1, Vector2(300, 56), MenuStyle.MENU_NAME_SIZE)
-	cam_drop.item_selected.connect(func(id: Variant) -> void:
-		AppPrefs.libretro_camera_backdrop = str(id)
-		AppPrefs.save_prefs())
-	vbox.add_child(cam_drop)
-	vbox.add_child(MenuStyle.hint(
-		"In passthrough, what the camera sees is the headset camera's view taken to "
-		+ "where its lens points. Depth finds the real surfaces with Meta's depth "
-		+ "(Quest 3); Fixed 1.5 m takes everything to be 1.5 m away, the first way."))
 
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(MenuStyle.header("CABLES", 20))

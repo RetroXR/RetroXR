@@ -1372,7 +1372,19 @@ func _test_passthrough() -> void:
 	_ok(not EnvironmentDepth.is_held() and eye.backdrop_material().shader == GbCameraEye.BACKDROP_SHADER,
 		"passthrough/with no depth on this headset, the room is the sphere")
 
-	# Where depth runs, the lens holds it along with the camera.
+	# The fixed sphere unless the player picks Depth (General > Libretro Camera
+	# Subviewport).
+	var prefs_src := FileAccess.get_file_as_string("res://Scripts/Data/app_prefs.gd")
+	var saved_mode: String = AppPrefs.libretro_camera_backdrop
+	AppPrefs.libretro_camera_backdrop = "sphere"
+	var on_sphere := eye.uses_depth()
+	AppPrefs.libretro_camera_backdrop = "depth"
+	var on_depth := eye.uses_depth()
+	AppPrefs.libretro_camera_backdrop = saved_mode
+	_ok("var libretro_camera_backdrop: String = \"sphere\"" in prefs_src and not on_sphere and on_depth,
+		"passthrough/by default the camera takes the room to be 1.5 m away; Depth is the player's to pick")
+	# Where depth runs and is picked, the lens holds it along with the camera.
+	eye.backdrop_mode_source = func() -> String: return "depth"
 	var depth := FakeDepthExtension.new()
 	EnvironmentDepth.extension_source = func() -> Object: return depth
 	EnvironmentDepth.available_source = func() -> bool: return false
