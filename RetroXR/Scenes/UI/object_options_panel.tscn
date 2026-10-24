@@ -8,8 +8,8 @@
 script = ExtResource("1_panelscript")
 
 [node name="ObjectOptionsViewport" parent="." instance=ExtResource("2_viewport2d3d")]
-screen_size = Vector2(0.34, 0.1)
+screen_size = Vector2(0.34, 0.06)
 scene = ExtResource("3_objectopts2d")
-viewport_size = Vector2(340, 100)
+viewport_size = Vector2(340, 60)
 transparent = 1
 unshaded = true
