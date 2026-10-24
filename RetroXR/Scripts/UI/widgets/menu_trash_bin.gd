@@ -36,9 +36,14 @@ const POLL_GRACE_FRAMES := 4
 const WRAP_TEXTURE := "res://Textures/trash_can_wrap.png"
 ## The can narrows toward its foot, like a real one.
 const FOOT_SCALE := 0.82
-## The lid stands open on a hinge at the back, past upright: the outline of a
-## pedal bin reads as a bin from across the room, and the mouth stays clear.
+## The lid rests shut and swings open on its hinge at the back, past upright,
+## while something to delete is over the bin — so the bin answers the object
+## before the outline does. After a delete it stays open while the object
+## shrinks away (Vanish takes 0.3 s), then shuts.
 const LID_OPEN_DEG := 105.0
+const LID_HOLD_SECONDS := 0.45
+## Easing rate toward the target angle: about 0.2 s to get there.
+const LID_RATE := 14.0
 const TRIM_COLOR := Color(0.36, 0.38, 0.41)
 const INSIDE_COLOR := Color(0.07, 0.075, 0.08)
 ## Armed, every part takes this glow on top of its own color.
@@ -55,6 +60,11 @@ var _armed: Dictionary = {}
 var _zone_bodies: Dictionary = {}
 var _poll_frames: int = 0
 var _active := false
+var _hinge: Node3D = null
+## Hinge angle in radians, 0 shut. Kept here rather than read off the node.
+var _lid_angle := 0.0
+## Seconds left to stay open after a delete.
+var _lid_hold := 0.0
 
 
 func _ready() -> void:
@@ -88,17 +98,17 @@ func _ready() -> void:
 	var hinge := Node3D.new()
 	hinge.name = "LidHinge"
 	hinge.position = Vector3(0.0, HEIGHT * 0.5, -RADIUS)
-	hinge.rotation.x = -deg_to_rad(LID_OPEN_DEG)
 	add_child(hinge)
+	_hinge = hinge
 	var lid := CylinderMesh.new()
 	lid.top_radius = RADIUS + 0.004
 	lid.bottom_radius = RADIUS + 0.006
 	lid.height = 0.007
 	lid.radial_segments = 32
-	_add_part("Lid", lid, trim, hinge).position = Vector3(0.0, 0.0035, RADIUS)
+	_add_part("Lid", lid, trim, hinge).position = Vector3(0.0, 0.005, RADIUS)
 	var handle := BoxMesh.new()
 	handle.size = Vector3(0.032, 0.007, 0.009)
-	_add_part("Handle", handle, trim, hinge).position = Vector3(0.0, 0.0105, RADIUS)
+	_add_part("Handle", handle, trim, hinge).position = Vector3(0.0, 0.012, RADIUS)
 
 	_area = Area3D.new()
 	_area.name = "TrashArea"
@@ -136,6 +146,8 @@ func _set_active(on: bool) -> void:
 		_zone_bodies.clear()
 		_poll_frames = 0
 		_set_armed_look(false)
+		_lid_hold = 0.0
+		_set_lid(0.0)
 
 
 ## True while the bin is live and has something red over it.
@@ -143,15 +155,9 @@ func is_armed() -> bool:
 	return _active and not _armed.is_empty()
 
 
-## Whether `body` is something the bin may delete: it, or a node above it (a
-## lead's plug, a cover on its slot), is in the "spawned" group.
-static func binnable(body: Node) -> bool:
-	var n := body
-	while n != null:
-		if n.is_in_group("spawned"):
-			return true
-		n = n.get_parent()
-	return false
+## How far open the lid is, 0 shut to 1 fully open.
+func lid_openness() -> float:
+	return _lid_angle / deg_to_rad(LID_OPEN_DEG)
 
 
 func _on_zone_body_entered(body: Node3D) -> void:
@@ -165,17 +171,40 @@ func _on_zone_body_exited(body: Node3D) -> void:
 	_poll_frames = POLL_GRACE_FRAMES
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not _active:
 		return
-	if _zone_bodies.is_empty() and _armed.is_empty() and _poll_frames <= 0:
+	if not (_zone_bodies.is_empty() and _armed.is_empty() and _poll_frames <= 0):
+		_poll()
+	_animate_lid(delta)
+
+
+func _animate_lid(delta: float) -> void:
+	if _lid_hold > 0.0:
+		_lid_hold -= delta
+	var open := not _armed.is_empty() or _lid_hold > 0.0
+	var target := deg_to_rad(LID_OPEN_DEG) if open else 0.0
+	if is_equal_approx(_lid_angle, target):
 		return
+	var angle := lerpf(_lid_angle, target, 1.0 - exp(-delta * LID_RATE))
+	if absf(angle - target) < 0.002:
+		angle = target
+	_set_lid(angle)
+
+
+func _set_lid(angle: float) -> void:
+	_lid_angle = angle
+	if _hinge != null:
+		_hinge.rotation.x = -angle
+
+
+func _poll() -> void:
 	if _poll_frames > 0:
 		_poll_frames -= 1
 
 	var in_area := {}
 	for body in _area.get_overlapping_bodies():
-		if body is XRToolsPickable and binnable(body):
+		if Trash.can_delete(body):
 			in_area[body] = true
 	for body in _zone_bodies.keys():
 		if not is_instance_valid(body):
@@ -200,6 +229,7 @@ func _process(_delta: float) -> void:
 			Trash.set_highlight(pickable, false)
 			print("[MenuTrashBin] deleting '%s'" % pickable.name)
 			Trash.delete_with_dependents(pickable)
+			_lid_hold = LID_HOLD_SECONDS
 
 	_set_armed_look(not _armed.is_empty())
 

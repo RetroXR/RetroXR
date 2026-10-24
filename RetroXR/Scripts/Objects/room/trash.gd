@@ -29,6 +29,21 @@ static func is_held(body: XRToolsPickable) -> bool:
 	return false
 
 
+## Whether `node` is something a bin or a menu may delete: a pickable that
+## belongs to something spawned (it, or a node above it — a lead's plug, a cover
+## on its slot — is in the "spawned" group), and not a captive cable end, which
+## delete_with_dependents would refuse anyway. The room's own furniture is not.
+static func can_delete(node: Node) -> bool:
+	if not (node is XRToolsPickable) or node is CablePlug or node is ControllerPlug:
+		return false
+	var n := node
+	while n != null:
+		if n.is_in_group("spawned"):
+			return true
+		n = n.get_parent()
+	return false
+
+
 ## Red outline on (or off) a pickable over a bin.
 static func set_highlight(pickable: XRToolsPickable, in_trash: bool) -> void:
 	if not is_instance_valid(pickable):

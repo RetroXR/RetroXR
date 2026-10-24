@@ -52,6 +52,7 @@ func _ready() -> void:
 	await _group_local_counts()
 	_group_frame_cap()
 	await _group_trash()
+	_group_item_delete()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -1196,13 +1197,18 @@ func _group_trash() -> void:
 	var at := bin.global_position
 	var away := at + Vector3(1, 0, 0)
 
+	_ok(bin.lid_openness() < 0.01, "trash/the lid rests shut")
 	var hand := _trash_body(at, true)
 	hand.held = true
 	await _trash_settle()
 	_ok(bin.is_armed(), "trash/a held object over the bin arms it")
+	await get_tree().create_timer(0.5).timeout
+	_ok(bin.lid_openness() > 0.95, "trash/and the lid swings open", str(bin.lid_openness()))
 	hand.global_position = away
 	await _trash_settle()
 	_ok(not bin.is_armed(), "trash/carried out again it disarms")
+	await get_tree().create_timer(0.5).timeout
+	_ok(bin.lid_openness() < 0.05, "trash/and the lid shuts", str(bin.lid_openness()))
 	hand.held = false
 	await _trash_settle()
 	_ok(is_instance_valid(hand) and not Vanish.is_vanishing(hand),
@@ -1210,10 +1216,15 @@ func _group_trash() -> void:
 	hand.held = true
 	hand.global_position = at
 	await _trash_settle()
+	await get_tree().create_timer(0.5).timeout
 	hand.held = false
 	await _trash_settle()
 	_ok(not is_instance_valid(hand) or Vanish.is_vanishing(hand),
 		"trash/let go over the bin, it is deleted")
+	_ok(bin.lid_openness() > 0.5, "trash/the lid stays open while it shrinks away",
+		str(bin.lid_openness()))
+	await get_tree().create_timer(1.0).timeout
+	_ok(bin.lid_openness() < 0.05, "trash/then shuts", str(bin.lid_openness()))
 
 	var laser := _RayStub.new()
 	laser.add_to_group(XRToolsFunctionPickup.PICKUP_GROUP)
@@ -1237,6 +1248,71 @@ func _group_trash() -> void:
 	bin.visible = false
 	await _trash_settle()
 	_ok(not bin.get_node("TrashArea").monitoring, "trash/hidden, the bin stops watching")
+
+
+## An item menu over whatever it belongs to, with the 2D page swapped for a bare
+## box: the rows are built into whatever _lock_box hands back, and a real
+## Viewport2Din3D hangs headless.
+class _ItemPanel extends FloatingObjectPanel3D:
+	var subject: Node3D = null
+	var box: VBoxContainer = null
+
+	func _target_node() -> Node3D:
+		return subject
+
+	func _lock_box() -> BoxContainer:
+		return box
+
+
+func _item_panel(subject: Node3D) -> _ItemPanel:
+	var panel := _ItemPanel.new()
+	panel.subject = subject
+	panel.box = VBoxContainer.new()
+	add_child(panel)
+	panel.add_child(panel.box)
+	_spawned.append(panel)
+	panel._ensure_lock_row()
+	return panel
+
+
+func _row_names(box: BoxContainer) -> Array:
+	var names: Array = []
+	for c in box.get_children():
+		names.append(str(c.name))
+	return names
+
+
+## Every item menu whose object a bin could take has Delete, just above Lock in
+## place. One press only asks; a second within a few seconds deletes and closes
+## the menu.
+func _group_item_delete() -> void:
+	var thing := _trash_body(Vector3(3, 50, 0), true)
+	var panel := _item_panel(thing)
+	_eq(_row_names(panel.box), ["DeleteRow", "LockRow"],
+		"item_delete/a spawned object's menu has Delete just above the lock")
+	panel.visible = true
+	var btn: Button = panel._delete_btn
+	_ok(btn.text.ends_with("Delete"), "item_delete/the row reads Delete", btn.text)
+	btn.pressed.emit()
+	_ok(is_instance_valid(thing) and not Vanish.is_vanishing(thing),
+		"item_delete/one press deletes nothing")
+	_ok(btn.text.ends_with("Tap again to delete"), "item_delete/it asks again", btn.text)
+	panel._tick_delete_prompt(DELETE_WAIT)
+	_ok(btn.text.ends_with("Delete") and panel._delete_confirm == 0.0,
+		"item_delete/left alone, the question lapses", btn.text)
+	btn.pressed.emit()
+	btn.pressed.emit()
+	_ok(not is_instance_valid(thing) or Vanish.is_vanishing(thing),
+		"item_delete/two presses delete it")
+	_ok(not panel.visible, "item_delete/and close its menu")
+
+	var fixture := _trash_body(Vector3(4, 50, 0), false)
+	var fixed_panel := _item_panel(fixture)
+	_eq(_row_names(fixed_panel.box), ["LockRow"],
+		"item_delete/the room's own furniture can be locked but not deleted")
+
+
+const DELETE_WAIT := FloatingObjectPanel3D.DELETE_CONFIRM_SECONDS + 0.1
 
 
 class _CountingCurve extends CurvedPanel:

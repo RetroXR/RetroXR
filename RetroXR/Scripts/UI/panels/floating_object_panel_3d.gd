@@ -48,6 +48,7 @@ func _process(delta: float) -> void:
 	if is_instance_valid(target):
 		global_position = _anchor()
 	_ensure_lock_row()
+	_tick_delete_prompt(delta)
 	if is_instance_valid(_camera):
 		look_at(_camera.global_position, Vector3.UP)
 		rotate_object_local(Vector3.UP, PI)
@@ -64,6 +65,8 @@ func _while_shown(_delta: float) -> void:
 
 func hide_panel() -> void:
 	resize_end()
+	_delete_confirm = 0.0
+	_set_delete_prompt(false)
 	visible = false
 
 
@@ -138,6 +141,9 @@ func _ensure_lock_row() -> void:
 	_lock_btn.add_theme_font_override("font", MenuIcons.symbols())
 	_lock_btn.toggled.connect(_on_lock_toggled)
 	row.add_child(_lock_btn)
+	# Delete goes in first, so it sits just above the lock.
+	if Trash.can_delete(target):
+		_build_delete_row(box)
 	box.add_child(row)
 
 	_grow_for_lock_row()
@@ -166,6 +172,77 @@ func _refresh_lock_row() -> void:
 		"Locked in place" if locked else "Lock in place"]
 	_lock_btn.add_theme_color_override("font_color",
 		_COLOR_ON if locked else _COLOR_ROW)
+
+
+# ── Delete ────────────────────────────────────────────────────────────────────
+#
+# Above the lock, on every panel whose subject a bin could take (Trash.can_delete:
+# spawned, and not a captive cable end). The same delete as the bins, so a
+# controller goes with its console, a lead with both ends, and netplay and the
+# saved room hear of it the same way.
+#
+# Two presses: the first turns the row into "Tap again to delete" for a few
+# seconds, so a laser sweeping across the menu cannot bin a console. A locked
+# object can still be deleted here; opening its menu and pressing twice is not
+# an accident.
+
+const DELETE_ROW_PX := 52
+const DELETE_CONFIRM_SECONDS := 3.0
+const _COLOR_DELETE := Color(0.95, 0.5, 0.47)
+const _COLOR_DELETE_CONFIRM := Color(1.0, 0.22, 0.18)
+
+var _delete_btn: Button = null
+var _delete_grown := false
+## Seconds left on "Tap again to delete"; 0 when the row is not asking.
+var _delete_confirm := 0.0
+
+
+func _build_delete_row(box: BoxContainer) -> void:
+	var row := HBoxContainer.new()
+	row.name = "DeleteRow"
+	_delete_btn = Button.new()
+	_delete_btn.custom_minimum_size = Vector2(0, 40)
+	_delete_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_delete_btn.add_theme_font_override("font", MenuIcons.symbols())
+	_delete_btn.pressed.connect(_on_delete_pressed)
+	row.add_child(_delete_btn)
+	box.add_child(row)
+	if not _delete_grown:
+		_delete_grown = true
+		_grow_page(DELETE_ROW_PX)
+	_delete_confirm = 0.0
+	_set_delete_prompt(false)
+
+
+func _on_delete_pressed() -> void:
+	var target := _target_node()
+	if not Trash.can_delete(target):
+		return
+	if _delete_confirm <= 0.0:
+		_delete_confirm = DELETE_CONFIRM_SECONDS
+		_set_delete_prompt(true)
+		return
+	print("[ObjectMenu] deleting '%s'" % target.name)
+	hide_panel()
+	Trash.delete_with_dependents(target as XRToolsPickable)
+
+
+func _tick_delete_prompt(delta: float) -> void:
+	if _delete_confirm <= 0.0:
+		return
+	_delete_confirm -= delta
+	if _delete_confirm <= 0.0:
+		_delete_confirm = 0.0
+		_set_delete_prompt(false)
+
+
+func _set_delete_prompt(asking: bool) -> void:
+	if _delete_btn == null or not is_instance_valid(_delete_btn):
+		return
+	_delete_btn.text = "%s  %s" % [String.chr(MenuIcons.DELETE),
+		"Tap again to delete" if asking else "Delete"]
+	_delete_btn.add_theme_color_override("font_color",
+		_COLOR_DELETE_CONFIRM if asking else _COLOR_DELETE)
 
 
 ## The 2D UI's outermost box — panel_root gives every menu here a
