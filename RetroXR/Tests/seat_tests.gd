@@ -11,6 +11,7 @@
 ##   pose/     the arithmetic: the camera lands on the eye point, a stand-up puts the camera over the floor point
 ##   sit/      a rig sits and stands: eyes, heading, locomotion held, the body held, one seat at a time
 ##   press/    the cushion's pointer event sits and stands; the body of the seat does not
+##   arrow/    a seat in a hand shows a yellow arrow along its facing, and only while it is held
 ##   family/   every seat scene has the script, its markers, a cushion and an eye height that is a sitting one
 ##   save/     a seat is a plain scene saved by its token and spawned by it
 extends Node
@@ -67,6 +68,8 @@ func _run() -> void:
 		await _group_sit()
 	if _want("press"):
 		await _group_press()
+	if _want("arrow"):
+		await _group_arrow()
 	if _want("family"):
 		await _group_family()
 	if _want("save"):
@@ -255,6 +258,43 @@ func _group_press() -> void:
 	seat.free()
 	_drop_rig()
 	await _frames(2)
+
+
+# --- arrow ---------------------------------------------------------------------
+
+func _group_arrow() -> void:
+	var seat := _seat("seat_sofa", Vector3(1.0, 0.0, 1.0), 0.8)
+	await _frames(2)
+	_ok(seat.facing_arrow() == null and seat.find_child("FacingArrow", true, false) == null, "arrow: a seat on the floor shows none")
+	seat.picked_up.emit(seat)
+	var arrow := seat.facing_arrow()
+	_ok(arrow != null and arrow.is_inside_tree() and arrow.get_parent() == seat, "arrow: taken in a hand, it shows one, riding the seat")
+	var parts := arrow.find_children("*", "MeshInstance3D", false, false)
+	var yellow := parts.size() == 2
+	for part in parts:
+		var m := ((part as MeshInstance3D).mesh.material as StandardMaterial3D)
+		yellow = yellow and m.albedo_color.r > 0.9 and m.albedo_color.g > 0.7 and m.albedo_color.b < 0.3
+	_ok(yellow, "arrow: yellow, a shaft and a head")
+	var eye := seat.eye_transform()
+	var along := -arrow.global_transform.basis.z
+	var facing := -eye.basis.z
+	_ok(along.dot(facing) > 0.999, "arrow: it points the way the seat faces (%s vs %s)" % [along, facing])
+	var tip := arrow.global_position + along * Seat.ARROW_LENGTH
+	_ok(arrow.global_position.distance_to(Vector3(eye.origin.x, arrow.global_position.y, eye.origin.z)) < 1e-3
+			and tip.distance_to(arrow.global_position) > 0.5, "arrow: from the middle of the cushion, half a metre out")
+	seat.picked_up.emit(seat)
+	_ok(seat.find_children("FacingArrow", "Node3D", true, false).size() == 1, "arrow: taking it again makes no second one")
+	seat.rotate_y(1.0)
+	var along2 := -arrow.global_transform.basis.z
+	_ok(along2.dot(-seat.eye_transform().basis.z) > 0.999, "arrow: and it turns with the seat")
+	seat.dropped.emit(seat)
+	await _frames(2)
+	_ok(seat.facing_arrow() == null and seat.find_child("FacingArrow", true, false) == null, "arrow: let go, it is gone")
+	seat.picked_up.emit(seat)
+	_ok(seat.facing_arrow() != null, "arrow: and comes again the next time")
+	seat.free()
+	await _frames(2)
+	_ok(true, "arrow: a seat freed in a hand takes it with it")
 
 
 # --- family --------------------------------------------------------------------
