@@ -196,9 +196,13 @@ func _report_fb() -> void:
 	if mgr.has_signal("openxr_fb_scene_anchor_created"):
 		mgr.connect("openxr_fb_scene_anchor_created",
 			func(node: Variant, entity: Variant) -> void:
-				print("[spatial] fb SIGNAL anchor_created %s %s" % [str(node), str(entity)]))
+				var labels: Variant = (entity as Object).call("get_semantic_labels") if entity is Object else null
+				print("[spatial] fb SIGNAL anchor_created %s %s labels=%s" % [str(node), str(entity), str(labels)]))
 	# Under the origin, as the game will put it: anchors are in tracking space.
 	mgr.name = "FbSceneManager"
+	# The game's own surface, as RealRoom hands it over. Without a scene the
+	# manager found the room's 20 anchors and made no node of any (2026-10-24).
+	mgr.set("default_scene", load("res://Scenes/XR/real_room_surface.tscn"))
 	var origin := get_node_or_null("XROrigin3D")
 	(origin if origin != null else self).add_child(mgr)
 	print("[spatial] fb: OpenXRFbSceneManager added to tree (survived) auto_create=%s" % str(mgr.get("auto_create")))
@@ -229,6 +233,22 @@ func _report_fb_anchors() -> void:
 		var line := "[spatial] fb anchor %s node=%s" % [str(uuid), str(node)]
 		if node is Node3D:
 			line += " at=%s" % str((node as Node3D).global_position)
+		# What the game's RealRoomSurface made of it.
+		if node is Node:
+			for s in (node as Node).find_children("*", "RealRoomSurface", true, false):
+				var rs := s as RealRoomSurface
+				var shape_kind := "none"
+				for c in rs.get_children():
+					if c is CollisionShape3D and (c as CollisionShape3D).shape != null:
+						var sh := (c as CollisionShape3D).shape
+						shape_kind = sh.get_class()
+						if sh is ConcavePolygonShape3D:
+							shape_kind += "(%d faces)" % ((sh as ConcavePolygonShape3D).get_faces().size() / 3)
+						elif sh is BoxShape3D:
+							shape_kind += str((sh as BoxShape3D).size)
+				print("[spatial] surface labels=%s kind=%s solid=%s shape=%s at=%s" % [
+					str(rs.labels), RealRoomSurface.Kind.keys()[rs.kind], rs.collision_layer != 0,
+					shape_kind, str(rs.global_position)])
 		if entity is Object:
 			var e := entity as Object
 			line += " labels=%s components=%s" % [str(e.call("get_semantic_labels")), str(e.call("get_supported_components"))]

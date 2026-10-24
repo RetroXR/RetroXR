@@ -108,6 +108,8 @@ func _ready() -> void:
 		await _test_spatial()
 	if _wants("prefs"):
 		_test_prefs()
+	if _wants("project"):
+		_test_project()
 
 	_reset_statics()
 	print("[room] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -379,6 +381,29 @@ func _test_occlusion() -> void:
 	_free_rig(rig2)
 	await get_tree().process_frame
 	_reset_statics()
+
+
+## What the Quest build needs switched on, and declared: the plugin sets the depth
+## globals every frame and hung the app without them (spatial probe, 2026-10-24).
+func _test_project() -> void:
+	_ok(bool(ProjectSettings.get_setting("xr/openxr/extensions/meta/scene_api", false))
+		and bool(ProjectSettings.get_setting("xr/openxr/extensions/meta/environment_depth", false)),
+		"project/the room and its depth are switched on for the game")
+	var types := {
+		"META_ENVIRONMENT_DEPTH_TEXTURE": "sampler2DArray",
+		"META_ENVIRONMENT_DEPTH_TEXEL_SIZE": "vec2",
+		"META_ENVIRONMENT_DEPTH_AVAILABLE": "bool",
+	}
+	for side in ["LEFT", "RIGHT"]:
+		for m in ["FROM_CAMERA_PROJECTION", "TO_CAMERA_PROJECTION", "PROJECTION_VIEW", "INV_PROJECTION_VIEW"]:
+			types["META_ENVIRONMENT_DEPTH_%s_%s" % [m, side]] = "mat4"
+	var wrong: PackedStringArray = []
+	for g: String in types:
+		var v: Variant = ProjectSettings.get_setting("shader_globals/" + g, null)
+		if not (v is Dictionary) or str((v as Dictionary).get("type", "")) != types[g]:
+			wrong.append(g)
+	_ok(wrong.is_empty() and ProjectSettings.has_setting(EnvironmentDepth.DECLARED_SETTING),
+		"project/and every depth global the plugin sets is declared, with its shaders' type", str(wrong))
 
 
 func _test_prefs() -> void:
