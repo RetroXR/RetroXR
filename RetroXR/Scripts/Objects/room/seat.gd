@@ -56,7 +56,10 @@ func _ready() -> void:
 	super._ready()
 	add_to_group("spawned")
 	add_to_group(GROUP)
-	picked_up.connect(func(_p: Variant) -> void: stand())
+	picked_up.connect(func(_p: Variant) -> void:
+		stand()
+		_show_facing_arrow())
+	dropped.connect(func(_p: Variant) -> void: _hide_facing_arrow())
 	set_physics_process(false)
 
 
@@ -76,6 +79,69 @@ func _physics_process(_delta: float) -> void:
 		return
 	if _rig.origin.global_position.distance_squared_to(_pin) > 1.0e-6:
 		_rig.origin.global_position = _pin
+
+
+## While the seat is in a hand a yellow arrow shows which way the player will face when they sit on it, so it can be
+## set down the right way round. It is only an indicator: made when the seat is taken, freed when it is let go, never
+## saved and never part of the scene.
+const ARROW_COLOR := Color(1.0, 0.85, 0.1)
+const ARROW_LENGTH := 0.55
+const ARROW_HEAD := 0.16
+
+var _arrow: Node3D = null
+
+
+## The arrow while it is showing, or null (for the tests).
+func facing_arrow() -> Node3D:
+	return _arrow
+
+
+func _show_facing_arrow() -> void:
+	if _arrow != null:
+		return
+	var eye := find_child("EyePoint", true, false) as Node3D
+	var trigger := find_child("SeatTrigger", true, false) as Node3D
+	# From the middle of the cushion, level with it, along the way the eyes look.
+	var base := Vector3(eye.position.x if eye != null else 0.0, trigger.position.y + 0.05 if trigger != null else 0.5,
+		eye.position.z if eye != null else 0.0)
+	var basis := eye.basis if eye != null else Basis.IDENTITY
+	_arrow = Node3D.new()
+	_arrow.name = "FacingArrow"
+	_arrow.transform = Transform3D(basis, base)
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.albedo_color = ARROW_COLOR
+	# Seen through the seat's own cushion and back, or a sofa would hide most of it.
+	mat.no_depth_test = true
+	mat.render_priority = 10
+	var shaft_len := ARROW_LENGTH - ARROW_HEAD
+	var shaft := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = Vector3(0.05, 0.015, shaft_len)
+	box.material = mat
+	shaft.mesh = box
+	shaft.position = Vector3(0.0, 0.0, -shaft_len * 0.5)
+	shaft.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_arrow.add_child(shaft)
+	var head := MeshInstance3D.new()
+	var cone := CylinderMesh.new()
+	cone.top_radius = 0.0
+	cone.bottom_radius = 0.09
+	cone.height = ARROW_HEAD
+	cone.material = mat
+	head.mesh = cone
+	# A cylinder stands along +Y: laid so its point leads along -Z.
+	head.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	head.position = Vector3(0.0, 0.0, -shaft_len - ARROW_HEAD * 0.5)
+	head.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_arrow.add_child(head)
+	add_child(_arrow)
+
+
+func _hide_facing_arrow() -> void:
+	if _arrow != null:
+		_arrow.queue_free()
+		_arrow = null
 
 
 ## A seat is carried by holding on it, never by a stray press: the press is the sitting.
