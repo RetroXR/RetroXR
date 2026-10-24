@@ -434,6 +434,8 @@ func _test_rig() -> void:
 	body.name = "PlayerBody"
 	origin.add_child(body)
 	add_child(origin)
+	# Its own step wants a whole player rig; the case only needs it to collide.
+	body.set_physics_process(false)
 	var room := RealRoom.new()
 	room.manager_factory = func() -> Object: return FakeManager.new()
 	room.camera_source = func() -> Node3D: return camera
@@ -446,6 +448,30 @@ func _test_rig() -> void:
 		var mesh := manager.make_anchor(FakeEntity.new(PackedStringArray(["GLOBAL_MESH"]), true))
 		_ok(body is XRToolsPlayerBody and mesh in body.get_collision_exceptions(),
 			"rig/the player's own body, under the origin, passes through the room's mesh")
+		# A table right over the player's head, and the head probe cast up through it.
+		var table := manager.make_anchor(FakeEntity.new(PackedStringArray(["TABLE"])))
+		(table.get_parent() as Node3D).global_position = body.global_position + Vector3.UP * 1.5
+		var control := StaticBody3D.new()
+		var control_shape := CollisionShape3D.new()
+		control_shape.shape = BoxShape3D.new()
+		control.add_child(control_shape)
+		add_child(control)
+		control.global_position = body.global_position + Vector3.UP * 3.5
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		var head := body.get("_head_shape_cast") as ShapeCast3D
+		var hit_table := true
+		var hit_control := false
+		if head != null:
+			head.position = Vector3(0, 0.5, 0)
+			head.target_position = Vector3.UP * 4.0
+			head.force_shapecast_update()
+			hit_table = head.is_colliding() and head.get_collider(0) == table
+			hit_control = head.is_colliding() and head.get_collider(0) == control
+		_ok(head != null and not hit_table and hit_control,
+			"rig/and so does its head probe, which the body's exceptions do not reach",
+			"hit table=%s, hit the control above it=%s" % [hit_table, hit_control])
+		control.queue_free()
 	room.queue_free()
 	origin.queue_free()
 	await get_tree().process_frame

@@ -92,11 +92,7 @@ func _exit_tree() -> void:
 ## Free what was made from the room: the manager (and with it every surface),
 ## the player's exceptions, the occlusion.
 func _put_away() -> void:
-	if is_instance_valid(_excepted_body):
-		for s in _surfaces:
-			if is_instance_valid(s):
-				_excepted_body.remove_collision_exception_with(s)
-	_surfaces.clear()
+	_let_go_of_surfaces()
 	if is_instance_valid(_manager):
 		_manager.queue_free()
 	_manager = null
@@ -129,11 +125,7 @@ func request_room_setup() -> String:
 func _on_capture_completed(_success: Variant = null) -> void:
 	if _manager == null:
 		return
-	if is_instance_valid(_excepted_body):
-		for s in _surfaces:
-			if is_instance_valid(s):
-				_excepted_body.remove_collision_exception_with(s)
-	_surfaces.clear()
+	_let_go_of_surfaces()
 	if _manager.has_method("remove_scene_anchors"):
 		_manager.call("remove_scene_anchors")
 	if _manager.has_method("create_scene_anchors"):
@@ -236,7 +228,30 @@ func add_surface(surface: RealRoomSurface) -> void:
 	if body != null:
 		_excepted_body = body
 		body.add_collision_exception_with(surface)
+		# Its head probe (how tall it may stand, where the head may lean) is a
+		# ShapeCast3D, which a body's exceptions do not reach.
+		var head := _head_cast(body)
+		if head != null:
+			head.add_exception(surface)
 	_settle_kinds()
+
+
+## The player's body and its head probe stop passing through the surfaces, which
+## are forgotten.
+func _let_go_of_surfaces() -> void:
+	if is_instance_valid(_excepted_body):
+		var head := _head_cast(_excepted_body)
+		for s in _surfaces:
+			if is_instance_valid(s):
+				_excepted_body.remove_collision_exception_with(s)
+				if head != null:
+					head.remove_exception(s)
+	_surfaces.clear()
+
+
+func _head_cast(body: PhysicsBody3D) -> ShapeCast3D:
+	var head: Variant = body.get("_head_shape_cast")
+	return head as ShapeCast3D if head is ShapeCast3D else null
 
 
 ## Which shape things rest on (AppPrefs.passthrough_room_mesh). Flat, the default:
