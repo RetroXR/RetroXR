@@ -76,6 +76,22 @@ const CONNECTOR := Vector3(0.0, -0.03914, -0.01641)
 const SWIPE_SLIT := Transform3D(
 	Basis(Vector3(-1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), Vector3(0.0, 1.0, 0.0)),
 	Vector3(0.0, 0.04139, -0.00379))
+# The EXT socket on the top strip, which is the console's own link port carried
+# up through the reader: the male plug under the housing fills the console's
+# socket, and a lead goes in up here instead (RetroExpansion._take_link_port).
+# Read off the model: the mouth's metal spans x 3.67..15.33 mm and z -12.29..
+# -6.26 mm, flush with the top face at y 55.98 mm. The frame is a LinkPort's:
+# +Z out of the mouth, 1 mm proud of it, and +Y toward the reader's front, the
+# side its key is on -- which, seated, is the side the console's own socket's
+# key is on, so a lead goes in the same way round in both.
+const LINK_SOCKET := Transform3D(
+	Basis(Vector3(-1.0, 0.0, 0.0), Vector3(0.0, 0.0, 1.0), Vector3(0.0, 1.0, 0.0)),
+	Vector3(0.0095, 0.05698, -0.00928))
+# Where that male plug leaves the housing: 9 x 5 mm, centered at x 7.5 mm and
+# z -2.79 mm, its 6 mm running down from y -21.59 mm. Seated in a console whose
+# link port is not where this lands -- the Game Boy Advance SP's is on the top
+# edge, its slot on the bottom one -- the reader carries nothing up.
+const LINK_PLUG := Vector3(0.0075, -0.02159, -0.00279)
 const ROW := {
 	"label": "Card e-Reader",
 	"host": "gba",

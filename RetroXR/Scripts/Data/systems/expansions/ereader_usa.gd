@@ -31,6 +31,9 @@ const ROW := {
 	"seat_yaw": _READER.SEAT_YAW,
 	"swipe_slit": _READER.SWIPE_SLIT,
 	"loader": MediaDimensions.LOADER_SWIPE,
+	# See ereader.gd: the console's link port, carried up to the reader's top.
+	"link_socket": _READER.LINK_SOCKET,
+	"link_plug": _READER.LINK_PLUG,
 	# See ereader.gd: the header code is what a library dump is recognised by.
 	"rom_code": "PSAE",
 }

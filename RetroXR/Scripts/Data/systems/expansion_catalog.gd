@@ -119,6 +119,16 @@
 ##               mouth (where a plug arrives from) and its +Y the side the plug's
 ##               latch is on. A mod's shell sets it (override_expansion_shell).
 ##               Absent, the socket is in the middle of the face left showing.
+##   link_socket, link_plug
+##               for a unit that plugs into its console's link port and passes it
+##               through to a socket of its own -- the e-Reader's EXT on its top:
+##               that socket's frame in the unit's frame (a LinkPort's, +Z out of
+##               the mouth, +Y the key side) and the point where the unit's plug
+##               leaves its housing. Seated where that plug lands in the console's
+##               LinkPort, the console's port is moved up into the socket
+##               (RetroExpansion._take_link_port); elsewhere -- an SP -- it stays.
+##               A mod's shell may move either, on a unit whose row has them.
+##               Absent, the unit has no link socket.
 ##   default_occupant
 ##               this unit comes pre-installed on a bare console — a Jumper
 ##               Pak, not something a player goes looking for. RetroSystem
@@ -323,6 +333,9 @@ const _SHELL_FIELDS := {
 	"shell": TYPE_STRING, "size": TYPE_VECTOR3, "shell_lods": TYPE_ARRAY,
 	"connector": TYPE_VECTOR3, "swipe_slit": TYPE_TRANSFORM3D, "seat_yaw": TYPE_FLOAT,
 	"shell_offset": TYPE_VECTOR3, "jack": TYPE_TRANSFORM3D,
+	# Where the shell's link socket and plug are -- on a unit whose row has them;
+	# a shell does not give a unit a socket its hardware never had.
+	"link_socket": TYPE_TRANSFORM3D, "link_plug": TYPE_VECTOR3,
 	# Where a console standing on the unit rests, for a shell whose deck is not
 	# its top: the Super Famicom sinks 19 mm into the Satellaview's tray.
 	"seat_y": TYPE_FLOAT,
@@ -360,6 +373,18 @@ static func shell_offset_of(id: String) -> Vector3:
 ## `jack`), or null for the middle of the face left outside the console.
 static func ethernet_jack_of(id: String) -> Variant:
 	return row(id).get("jack", null)
+
+
+## The socket that carries the console's link port up through the unit (the row
+## docs' `link_socket`), or null for a unit that passes none through.
+static func link_socket_of(id: String) -> Variant:
+	return row(id).get("link_socket", null)
+
+
+## Where the unit's own plug into the console's link port is (the row docs'
+## `link_plug`), or null.
+static func link_plug_of(id: String) -> Variant:
+	return row(id).get("link_plug", null)
 
 
 ## The mod whose shell this unit wears, or "".

@@ -124,6 +124,7 @@ func _ready() -> void:
 	_build_media_bay()
 	_build_accessory_mount()
 	_build_ethernet_port()
+	_build_link_relay()
 	_update_label()
 	_build_panel()
 
@@ -1186,7 +1187,121 @@ func _on_ethernet_plug_out() -> void:
 func drop_and_free() -> void:
 	if _ethernet_port != null and _ethernet_port.picked_up_object != null:
 		_ethernet_port.drop_object()
+	# The console's link port, and any lead in it, go back where they came from.
+	_release_link_port()
 	super.drop_and_free()
+
+
+# ── the console's link port, carried through ──────────────────────────────────
+
+## How far this unit's plug may land from the console's LinkPort and still be in
+## it. The port's origin is 1 mm proud of its rim and the e-Reader's plug lands
+## within 1.6 mm of the GBA's socket's middle; an SP's port is 96 mm away.
+const _LINK_PLUG_REACH := 0.005
+
+## Holds the console's LinkPort in this unit's socket while it is in it.
+var _link_relay: RemoteTransform3D = null
+## The console's LinkPort while it is in this unit's socket, and where it was.
+var _link_port: LinkPort = null
+var _link_port_home := Transform3D.IDENTITY
+## The port's placeholder jack, hidden while a shell's molded mouth is round it.
+var _link_jack: Node3D = null
+## The lead's plug in it, so a release can undo the exemption its seating made.
+var _link_plug: PhysicsBody3D = null
+
+
+## A unit whose row has a `link_socket` (the e-Reader USA and +) takes its
+## console's link port up into that socket whenever it is seated.
+func _build_link_relay() -> void:
+	if ExpansionCatalog.link_socket_of(expansion_id) == null:
+		return
+	host_changed.connect(_on_link_host_changed)
+
+
+func _on_link_host_changed(sys: RetroSystem) -> void:
+	_release_link_port()
+	if sys != null:
+		_take_link_port(sys)
+
+
+## The real reader's plug fills the console's EXT socket and its own socket on
+## top is wired straight through, so the console's port MOVES here rather than a
+## second one appearing: the lead still belongs to the console's port, the link
+## bus walks from it to the same machine, and a save still names it LinkPort. A
+## lead already in it rides along, as it stays connected on the hardware.
+##
+## Only where this unit's plug lands in that port. On an SP the reader seats in
+## the slot but its plug meets the shell, and the SP's port stays where it is.
+func _take_link_port(sys: RetroSystem) -> void:
+	var socket: Variant = ExpansionCatalog.link_socket_of(_shell_id())
+	var plug: Variant = ExpansionCatalog.link_plug_of(_shell_id())
+	var zone := _holding_zone() as XRToolsSnapZone
+	var model := sys.get_model()
+	if not socket is Transform3D or not plug is Vector3 or zone == null or model == null:
+		return
+	var port := model.get_node_or_null("LinkPort") as LinkPort
+	if port == null:
+		return
+	# The pose the seat gives this unit, not where it is now: a restore seats it in
+	# the same call, before the grab driver has moved it anywhere.
+	var seated := zone.snap_pose_for(self)
+	if (seated * (plug as Vector3)).distance_to(port.global_position) > _LINK_PLUG_REACH:
+		return
+	_link_port = port
+	_link_port_home = port.transform
+	# The shell molds the socket's mouth, which the placeholder jack would sit in.
+	var jack := port.get_node_or_null("LinkJack") as Node3D
+	if _shell != null and jack != null and jack.visible:
+		jack.visible = false
+		_link_jack = jack
+	_link_relay = RemoteTransform3D.new()
+	_link_relay.name = "LinkSocket"
+	_link_relay.update_scale = false
+	add_child(_link_relay)
+	_link_relay.transform = socket
+	_link_relay.remote_path = _link_relay.get_path_to(port)
+	port.has_picked_up.connect(_on_link_plug_in)
+	port.has_dropped.connect(_on_link_plug_out)
+	_on_link_plug_in(port.picked_up_object)
+
+
+## Hand the console's port back to the console, where it was.
+func _release_link_port() -> void:
+	if _link_relay != null:
+		_link_relay.remote_path = NodePath()
+		_link_relay.queue_free()
+		_link_relay = null
+	_on_link_plug_out()
+	if is_instance_valid(_link_port):
+		_link_port.has_picked_up.disconnect(_on_link_plug_in)
+		_link_port.has_dropped.disconnect(_on_link_plug_out)
+		_link_port.transform = _link_port_home
+	if is_instance_valid(_link_jack):
+		_link_jack.visible = true
+	_link_port = null
+	_link_jack = null
+
+
+## A seated plug's body goes 6 mm into this unit's box -- the Ethernet socket's
+## reason for the exemption.
+func _on_link_plug_in(what: Node) -> void:
+	var body := what as PhysicsBody3D
+	if body == null:
+		return
+	_on_link_plug_out()
+	add_collision_exception_with(body)
+	_link_plug = body
+
+
+func _on_link_plug_out() -> void:
+	if is_instance_valid(_link_plug):
+		remove_collision_exception_with(_link_plug)
+	_link_plug = null
+
+
+## The console's LinkPort while it is carried up into this unit's socket, or null.
+func get_link_port() -> LinkPort:
+	return _link_port if is_instance_valid(_link_port) else null
 
 
 ## The accessory clipped to this unit, or null.

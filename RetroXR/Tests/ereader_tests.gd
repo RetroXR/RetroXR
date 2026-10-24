@@ -98,6 +98,8 @@ func _run() -> void:
 		_group_program()
 	if _want("swipe"):
 		await _group_swipe()
+	if _want("link"):
+		await _group_link()
 
 
 # ── data/ ────────────────────────────────────────────────────────────────────
@@ -1005,3 +1007,77 @@ func _group_library() -> void:
 		if not p.is_empty():
 			DirAccess.remove_absolute(p)
 	EReaderCards.invalidate()
+
+
+# ── link/ ────────────────────────────────────────────────────────────────────
+
+## The console's link port, carried up into the reader's EXT socket: on a Game Boy
+## Advance, where the reader's plug fills the console's socket, and on no SP,
+## where it meets the shell; by a reader with a socket, and not the original PEAJ.
+## Seated the way a save seats it, which is before the grab driver moves the unit.
+func _group_link() -> void:
+	var world := Node3D.new()
+	add_child(world)
+	var x := 0.0
+	for model_id: String in ["game_boy_advance", "game_boy_advance_primitive", "game_boy_advance_sp_primitive"]:
+		for rid: String in ["ereader_usa", "ereader"]:
+			x += 0.5
+			var sys := preload("res://Scenes/Objects/system.tscn").instantiate() as RetroSystem
+			sys.systemid = "gba"
+			sys.model_id = model_id
+			sys.position = Vector3(x, 1.0, 0.0)
+			sys.ignore_gravity = true
+			world.add_child(sys)
+			await _wait(30)
+			var port: LinkPort = null
+			if sys.get_model() != null:
+				port = sys.get_model().get_node_or_null("LinkPort") as LinkPort
+			_ok(port != null, "link/ %s has a LinkPort" % model_id)
+			if port == null:
+				sys.queue_free()
+				continue
+			var home := port.transform
+			var jack := port.get_node_or_null("LinkJack") as Node3D
+			var jack_shown := jack != null and jack.visible
+			var unit := preload("res://Scenes/Objects/expansion.tscn").instantiate() as RetroExpansion
+			unit.expansion_id = rid
+			unit.position = Vector3(x, 1.3, 0.0)
+			world.add_child(unit)
+			await _wait(20)
+			sys.restore_expansion(unit)
+			await _wait(40)
+			_ok(unit.get_host() == sys, "link/ %s seats in the %s" % [rid, model_id])
+			var plug: Variant = ExpansionCatalog.link_plug_of(rid)
+			if plug is Vector3:
+				print("[erd] link/ %s in %s: plug %.2f mm from the port" % [rid, model_id,
+					(unit.global_transform * (plug as Vector3)).distance_to(sys.get_model().global_transform * home.origin) * 1000.0])
+			var socket: Variant = ExpansionCatalog.link_socket_of(rid)
+			# Only the modelled Advance has its port where the real one is. The SP's is
+			# on its top edge beside the slot, and the stand-in Advance's is in its far
+			# corner, 55 mm from where the plug lands.
+			var carried := socket is Transform3D and model_id == "game_boy_advance"
+			if carried:
+				var want := unit.global_transform * (socket as Transform3D)
+				_ok(port.global_position.distance_to(want.origin) < 0.0002,
+					"link/ the %s's port is in the %s's socket" % [model_id, rid])
+				_ok(port.global_basis.z.dot(want.basis.z) > 0.999 and port.global_basis.y.dot(want.basis.y) > 0.999,
+					"link/ and turned as that socket is, key toward the reader's front")
+				# The same side the console's own socket keys on, so a lead goes in
+				# the same way round in both.
+				var own_y := sys.get_model().global_basis * home.basis.y
+				_ok(port.global_basis.y.dot(own_y) > 0.999, "link/ which is the side the console's own key is on")
+				_ok(port.get_machine() == sys, "link/ and it is still the console's port")
+				_ok(unit.get_link_port() == port, "link/ the reader says it carries it")
+			else:
+				_ok(port.transform.is_equal_approx(home), "link/ the %s's port stays put under %s" % [model_id, rid])
+				_ok(unit.get_link_port() == null, "link/ and %s carries none" % rid)
+			(sys.get("_cartridge_slot") as XRToolsSnapZone).drop_object()
+			await _wait(10)
+			_ok(port.transform.is_equal_approx(home), "link/ out of the %s, the port is back where it was" % model_id)
+			_ok(unit.get_link_port() == null, "link/ and the reader lets it go")
+			if jack != null:
+				_eq(jack.visible, jack_shown, "link/ with its jack as it was")
+			unit.queue_free()
+			sys.queue_free()
+			await _wait(3)
+	world.queue_free()
