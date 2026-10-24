@@ -25,9 +25,17 @@ var _fail := 0
 
 
 func _ready() -> void:
-	get_tree().create_timer(60.0).timeout.connect(func() -> void:
+	get_tree().create_timer(120.0).timeout.connect(func() -> void:
 		print("[gb-printer] TIMEOUT")
 		get_tree().quit(1))
+	if OS.get_cmdline_user_args().has("--only=thermal"):
+		_test_thermal_ribbon()
+		_test_contact_motion_is_not_sleep()
+		_test_released_print_keeps_its_shape()
+		_test_exact_tear_handoff()
+		print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
+		get_tree().quit(1 if _fail > 0 else 0)
+		return
 	_test_offered_on_the_game_boy_cards_only()
 	_test_spawns_and_saves_by_its_token()
 	await _test_scene_shape()
@@ -53,6 +61,13 @@ func _ready() -> void:
 	await _test_a_torn_print_keeps_its_bend()
 	await _test_paper_is_outlined_round_not_over()
 	_test_paper_moves_smoothly()
+	_test_contact_does_not_kick()
+	_test_paper_cannot_cross_itself()
+	await _test_fast_paper_crosses_a_surface()
+	_test_released_print_keeps_its_shape()
+	_test_thermal_ribbon()
+	_test_contact_motion_is_not_sleep()
+	_test_exact_tear_handoff()
 	await _test_netplay_surface()
 	_test_netplay_row()
 	_test_core_source_and_info()
@@ -600,8 +615,8 @@ func _test_a_torn_print_keeps_its_bend() -> void:
 		flop._process(1.0 / 90.0)
 	_ok(flop != null and not poster.has_meta(GbPrintoutFlop.BEND_META), "a torn print takes the bend it came with")
 	if flop != null:
-		_ok(flop._up.mean_curvature() < 0.0 and flop._down.mean_curvature() < 0.0,
-			"and starts bent (%.1f, %.1f)" % [flop._up.mean_curvature(), flop._down.mean_curvature()])
+		_ok(flop._ribbon.mean_curvature() < 0.0,
+			"and starts with the inherited bend (%.1f)" % flop._ribbon.mean_curvature())
 	poster.free()
 
 
@@ -705,6 +720,238 @@ func _test_paper_grows_and_tears() -> void:
 	_ok(shape_kept, "a line fed pushes the paper out without throwing its shape")
 	s.set_length(GbPrinter.STUB_LENGTH)
 	_ok(s.motion() == 0.0 and s.angles[0] == 0.0, "torn, a fresh end of roll at rest")
+
+
+func _test_contact_does_not_kick() -> void:
+	var s := _settled(0.10, 2.0)
+	var finger := s.points[s.segments / 2] + Vector2(0.0, 0.004)
+	s.fingers = [[finger, 0.009]]
+	var fastest := 0.0
+	for frame in 120:
+		var before := s.points.duplicate()
+		s.step(1.0 / 120.0, Vector2(-9.8, 0.0))
+		for i in s.points.size():
+			fastest = maxf(fastest, s.points[i].distance_to(before[i]) * 120.0)
+	_ok(fastest <= GbPrinterStrip.TERMINAL_SPEED + 0.001,
+		"a suddenly introduced finger cannot bypass the speed limit (%.3f m/s)" % fastest)
+	var nearest := INF
+	for i in range(3, s.points.size()):
+		nearest = minf(nearest, s.points[i].distance_to(finger))
+	_ok(nearest > 0.0085, "bounded contact still recovers out of the finger")
+
+
+func _crossings(s: GbPrinterStrip) -> int:
+	var count := 0
+	for i in s.segments:
+		for j in range(i + 2, s.segments):
+			if Geometry2D.segment_intersects_segment(s.points[i], s.points[i + 1], s.points[j], s.points[j + 1]) != null:
+				count += 1
+	return count
+
+
+func _test_paper_cannot_cross_itself() -> void:
+	# More than one circumference, initially straight: curling in zero gravity
+	# must rest against the earlier paper rather than pass through it.
+	var s := GbPrinterStrip.new()
+	s.set_length(0.9)
+	_eq(_crossings(s), 0, "a long print restored at once starts without crossing itself")
+	s.bend_to(0.0)
+	var worst := 0
+	for frame in 360:
+		s.step(1.0 / 60.0, Vector2.ZERO)
+		worst = maxi(worst, _crossings(s))
+	_eq(worst, 0, "a long curling strip never crosses an earlier segment")
+	_ok(s.points[-1].distance_to(Vector2(0.9, 0.0)) > 0.2, "self-contact still lets the strip bend")
+	var run := 0.0
+	for i in s.segments:
+		run += s.points[i].distance_to(s.points[i + 1])
+	_ok(absf(run - s.length) < 1e-5, "self-contact preserves paper length")
+	# A torn print is two strips sharing a grip. They must also meet each other.
+	var up := GbPrinterStrip.new()
+	var down := GbPrinterStrip.new()
+	for half: GbPrinterStrip in [up, down]:
+		half.set_length(0.45)
+		half.bend_to(0.0)
+	var between := 0
+	for frame in 360:
+		up.meet_other_half(down)
+		up.step(1.0 / 60.0, Vector2.ZERO)
+		down.meet_other_half(up)
+		down.step(1.0 / 60.0, Vector2.ZERO)
+		for i in up.segments:
+			for j in down.segments:
+				if i == 0 and j == 0:
+					continue
+				var a := Vector2(-down.points[j].x, down.points[j].y)
+				var b := Vector2(-down.points[j + 1].x, down.points[j + 1].y)
+				if Geometry2D.segment_intersects_segment(up.points[i], up.points[i + 1], a, b) != null:
+					between += 1
+	_eq(between, 0, "the two halves of a torn print cannot cross each other")
+
+
+func _test_fast_paper_crosses_a_surface() -> void:
+	var table := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(0.2, 0.01, 0.2)
+	shape.shape = box
+	table.add_child(shape)
+	table.position = Vector3(5.0, -0.005, 0.0)
+	add_child(table)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var sweep := GbPaperSweep.new()
+	var space := table.get_world_3d().direct_space_state
+	sweep.update(space, PackedVector3Array([Vector3(5.0, 0.02, 0.0)]), [], 0.012)
+	sweep.update(space, PackedVector3Array([Vector3(5.0, -0.06, 0.0)]), [], 0.012)
+	_ok(not sweep.hits.is_empty(), "a fast crossing finds a table even beyond patch depth")
+	if not sweep.hits.is_empty():
+		var depth: float = sweep.hits[0][2]
+		var patch := [Vector2.RIGHT, 0.0, Vector2.ZERO, 0.012, depth]
+		_ok(GbPrinterStrip._in_patch(patch, Vector2(-0.06, 0.0)) > 0.06,
+			"the crossed surface keeps enough depth to recover the paper")
+	sweep.update(space, PackedVector3Array([Vector3(5.0, -0.05, 0.0)]), [], 0.012)
+	_ok(not sweep.hits.is_empty(), "deep contact survives the next frame while recovering")
+	sweep.update(space, PackedVector3Array([Vector3(5.0, 0.002, 0.0)]), [], 0.012)
+	_ok(sweep.hits.is_empty(), "clearing the table releases the swept contact")
+	sweep.reset()
+	sweep.update(space, PackedVector3Array([Vector3(5.15, 0.02, 0.0)]), [], 0.012)
+	sweep.update(space, PackedVector3Array([Vector3(5.15, -0.06, 0.0)]), [], 0.012)
+	_ok(sweep.hits.is_empty(), "past the table edge there is no phantom surface")
+	table.free()
+
+
+func _test_thermal_ribbon() -> void:
+	var sheet := GbThermalRibbon.new()
+	sheet.configure(0.12, 0.038, 0.0)
+	var center := GbThermalRibbon._mean(sheet.positions)
+	for frame in 180:
+		sheet.step(1.0 / 60.0, Vector3.ZERO)
+	_ok(sheet.mean_curvature() > 12.0 and sheet.mean_curvature() < 18.0,
+		"flattened thermal paper returns to its remembered curl (%.2f rad/m)" % sheet.mean_curvature())
+	_ok(GbThermalRibbon._mean(sheet.positions).distance_to(center) < 1e-5, "internal curl does not translate the free sheet")
+	var mid := sheet.centers()
+	var run := 0.0
+	var width_error := 0.0
+	for i in sheet.segments:
+		run += mid[i].distance_to(mid[i + 1])
+	for row in sheet.segments + 1:
+		width_error = maxf(width_error, absf(sheet.positions[2 * row].distance_to(sheet.positions[2 * row + 1]) - sheet.width))
+	_ok(absf(run - sheet.length) < 0.001 and width_error < 0.0002, "curl keeps the paper's length and width")
+	# Identical released states must evolve identically, regardless of the old
+	# material point the hand held. There is no retained midpoint constraint.
+	var a := GbThermalRibbon.new()
+	var b := GbThermalRibbon.new()
+	a.restore(sheet.snapshot())
+	b.restore(sheet.snapshot())
+	a.pin_nearest(Vector3(0, 0.04, 0))
+	b.pin_nearest(Vector3(0, -0.03, 0))
+	a.unpin()
+	b.unpin()
+	for frame in 30:
+		a.step(1.0 / 60.0, Vector3(0, 0, -9.8))
+		b.step(1.0 / 60.0, Vector3(0, 0, -9.8))
+	_eq(a.positions, b.positions, "the previous grip cannot choose the released sheet's resting shape")
+	sheet.pin_nearest(Vector3.ZERO)
+	var held := sheet.pin_positions.duplicate()
+	for frame in 60:
+		sheet.step(1.0 / 60.0, Vector3(0, 0, -9.8), Vector3(0, 30, 0))
+	var axis := sheet.across()
+	_ok(absf(axis[0].z) > 0.005 or absf(axis[-1].z) > 0.005, "turning the grip twists the sheet out of its original plane")
+	_ok(sheet.positions[2 * sheet.pin_row].distance_to(held[0]) < 1e-6,
+		"the actual held edge stays in the hand")
+	sheet.unpin()
+	for frame in 180:
+		sheet.step(1.0 / 60.0, Vector3.ZERO)
+	_ok(sheet.move_speed < 0.002 and sheet.mean_curvature() > 10.0,
+		"released twist settles back toward thermal curl (%.4f m/s, %.2f rad/m)" % [sheet.move_speed, sheet.mean_curvature()])
+
+
+func _test_contact_motion_is_not_sleep() -> void:
+	var s := _settled(0.12, 3.0, Vector2.ZERO)
+	s.fingers = [[s.points[s.segments / 2] + Vector2(0, 0.004), 0.009]]
+	s.step(1.0 / 60.0, Vector2.ZERO)
+	_ok(s.motion() > 0.002, "positional contact repair cannot report itself asleep")
+	var sheet := GbThermalRibbon.new()
+	sheet.configure(0.12, 0.038)
+	for frame in 180:
+		sheet.step(1.0 / 60.0, Vector3.ZERO)
+	var floor_z := sheet.centers()[-1].z * 0.5
+	sheet.patches = [[Vector3.BACK, floor_z, Vector3(0, 0, floor_z), 0.3, 0.1]]
+	sheet.step(1.0 / 60.0, Vector3.ZERO)
+	_ok(sheet.move_speed > GbPrintoutFlop.SETTLED, "a recovering ribbon remains awake based on actual vertex movement")
+
+
+func _test_exact_tear_handoff() -> void:
+	var image := Image.create(GbPrinterPaper.sheet_width(), 873, false, Image.FORMAT_RGB8)
+	image.fill(Color.WHITE)
+	var path := "user://gb_paper_tear_regression.png"
+	image.save_png(path)
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	printer.set_process(false)
+	printer.freeze = true
+	printer.position = Vector3(1, 2, 3)
+	printer.rotation = Vector3(0.2, 0.3, -0.1)
+	printer._strip.set_length(873 * GbPrinter.DOT_PITCH)
+	for i in printer._strip.segments:
+		printer._strip.angles[i] += 0.03 * sin(i * 0.4)
+		printer._strip.speeds[i] = 0.05 * cos(i * 0.3)
+	printer._strip._lay_points()
+	printer.linear_velocity = Vector3(0.1, 0.2, 0.3)
+	printer.angular_velocity = Vector3(0.3, 0.2, 0.1)
+	var velocity := printer._strip.point_velocities()
+	var poster := printer._spawn_printout(path, 873)
+	poster.freeze = true
+	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	flop.set_process(false)
+	var error := 0.0
+	var speed_error := 0.0
+	var pivot := printer.get_node("PaperPivot") as Node3D
+	for i in printer._strip.points.size():
+		var p := printer._strip.points[i]
+		var original := Vector3(pivot.position.x, p.x, p.y)
+		var expected := printer.to_global(original)
+		var actual := poster.to_global(flop._ribbon.centers()[i])
+		error = maxf(error, expected.distance_to(actual))
+		var want_v := printer.linear_velocity + printer.angular_velocity.cross(printer.global_basis * original) \
+			+ printer.global_basis * Vector3(0, velocity[i].x, velocity[i].y)
+		var got_v := poster.linear_velocity + poster.angular_velocity.cross(actual - poster.global_position) \
+			+ poster.global_basis * flop._ribbon.velocities[2 * i]
+		speed_error = maxf(speed_error, want_v.distance_to(got_v))
+	_ok(error < 1e-5, "tearing preserves every bend in world space (%.6f m)" % error)
+	_ok(speed_error < 1e-5, "tearing carries rigid and bending velocities (%.6f m/s)" % speed_error)
+	_ok((poster.get_node("CollisionShape3D") as CollisionShape3D).disabled,
+		"loose print has no invisible flat collision board")
+	_eq(flop._body_segments.size(), flop._ribbon.segments, "collision segments follow the curved paper")
+	poster.free()
+	printer.free()
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+
+
+func _test_released_print_keeps_its_shape() -> void:
+	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	poster.printout = true
+	poster.size_scale = 0.12 / Poster.BASE_LONG_EDGE
+	add_child(poster)
+	poster.freeze = true
+	poster.position = Vector3(0, 2, 0)
+	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	flop.set_process(false)
+	flop._process(1.0 / 90.0)
+	# Release a held row without rebuilding or resampling either edge.
+	flop._ribbon.configure(0.12, 0.038, -10.0)
+	flop._ribbon.pin_nearest(Vector3(0.0, 0.04, 0.0))
+	flop._was_held = true
+	var before := flop._ribbon.positions.duplicate()
+	flop._process(1.0 / 10000.0)
+	_eq(flop._ribbon.pin_row, -1, "release removes the grip constraint")
+	var moved := 0.0
+	for i in before.size():
+		moved = maxf(moved, before[i].distance_to(flop._ribbon.positions[i]))
+	_ok(moved < 0.0001, "release preserves the existing shape without a pop")
+	_ok(flop._ribbon.mean_curvature() < 0.0, "release preserves the inherited reverse bend")
+	poster.free()
 
 
 ## Line n's dots as gbprinter-libretro's own test burns them: no two lines

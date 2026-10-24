@@ -6,13 +6,9 @@
 ## hand moves and stops; lying on a table face down its ends curl up off it, face
 ## up they are pressed flat.
 ##
-## Two GbPrinterStrips from the grip, one up the sheet (its +Y) and one down it,
-## each the printer's own: the same curl, weight, swing and air (the lower one in
-## the sheet's frame turned over in Y, so the curl goes the same way, toward the
-## sheet's back, -Z). Drawn on a mesh beside the Poster's flat one under its
-## Surface, which it hides while it bends; the Poster's body, pointer target and
-## sticking are untouched. Asleep, it costs nothing: a print that has settled and
-## is not moving is not stepped.
+## A single 3D thermal ribbon carries both edges. Only a held row is pinned;
+## release preserves every particle and velocity and removes that pin. The
+## body's segment colliders follow the ribbon instead of retaining a flat board.
 class_name GbPrintoutFlop
 extends Node
 
@@ -20,13 +16,15 @@ const NODE_NAME := "PrintoutFlop"
 ## A print torn off the printer carries the bend it had there (rad/m) as this
 ## meta, and starts bent so, then relaxes as it hangs.
 const BEND_META := &"gb_printout_bend"
-## Settled below this (rad/s, both strips) and still, it sleeps.
-const SETTLED := 0.002
+const STATE_META := &"gb_printout_state"
+## Actual vertex displacement must stay quiet for this long before sleeping.
+const SETTLED := 0.0005
+const SETTLE_TIME := 0.5
 ## How often the surface under a loose print is looked for, seconds, how far
 ## down, and how far each way the patch found reaches.
 const FLOOR_EVERY := 0.25
 const FLOOR_REACH := 0.3
-const PATCH_REACH := 0.3
+const PATCH_REACH := 0.025
 ## How wide the highlight round the print is, meters (GbPaperRim).
 const RIM := 0.0015
 ## A point of the mesh moving less than this (meters) is not worth redrawing.
@@ -36,16 +34,21 @@ var _poster: Poster
 var _flat: MeshInstance3D
 var _mesh: MeshInstance3D
 var _arrays := ArrayMesh.new()
-var _up := GbPrinterStrip.new()
-var _down := GbPrinterStrip.new()
+var _ribbon := GbThermalRibbon.new()
+var _quiet := 0.0
+var _body_segments: Array[CollisionShape3D] = []
+var _flat_body: CollisionShape3D
+var _body_was_disabled := false
+var _body_owned := false
 var _motion := GbPaperMotion.new()
-var _grip := 0.0
 var _was_held := false
+var _was_stuck := false
 var _floor_hit: Array = []
+var _paper_sweep := GbPaperSweep.new()
 var _floor_wait := 0.0
 var _size := Vector2.ZERO
 var _last_pose := Transform3D()
-var _drawn := PackedVector2Array()
+var _drawn := PackedVector3Array()
 ## The highlight round the print while it bends (the Poster's flat rim, behind
 ## a flat sheet, covered a bent one held in the hand), and whether it is ours.
 var _rim: MeshInstance3D
@@ -75,6 +78,7 @@ static func attach(poster: Poster) -> void:
 func _ready() -> void:
 	_poster = get_parent() as Poster
 	_flat = _poster.get_node_or_null("Surface/FlatMesh") as MeshInstance3D
+	_flat_body = _poster.get_node("CollisionShape3D") as CollisionShape3D
 	if _poster == null or _flat == null:
 		set_process(false)
 		return
@@ -94,151 +98,181 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	if delta <= 0.0:
+		return
 	if _poster.is_stuck():
-		# A sticker: flat, as the Poster draws it, its own rim too.
 		_mesh.visible = false
 		_flat.visible = true
 		_own_rim(false)
+		_own_body(false)
 		_motion.reset()
+		_paper_sweep.reset()
+		_quiet = 0.0
+		_was_held = false
+		_was_stuck = true
 		return
 	var size := _poster.get_sheet_size()
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
+	if _poster.has_meta(STATE_META):
+		adopt_state(_poster.get_meta(STATE_META), size)
+		_poster.remove_meta(STATE_META)
+	elif _size != size or _was_stuck:
+		_size = size
+		var bend := 0.0 if _was_stuck else float(_poster.get_meta(BEND_META, 1.0 / GbThermalRibbon.CURL_RADIUS))
+		if _poster.has_meta(BEND_META):
+			_poster.remove_meta(BEND_META)
+		_ribbon.configure(size.y, size.x, bend)
+		_drawn.clear()
+		_quiet = 0.0
+	_was_stuck = false
 	var held := _poster.is_picked_up()
 	if held and not _was_held:
-		_grip = _grip_at()
-	elif not held:
-		_grip = 0.0
+		var by := _poster.get_picked_up_by()
+		_ribbon.pin_nearest(_poster.to_local(by.global_position) if by != null else Vector3.ZERO)
+		_quiet = 0.0
+	elif not held and _was_held:
+		_ribbon.unpin()
+		_quiet = 0.0
 	_was_held = held
-	var half := size.y * 0.5
-	_grip = clampf(_grip, -half + 0.002, half - 0.002)
-	if size != _size:
-		_size = size
-		_up = GbPrinterStrip.new()
-		_down = GbPrinterStrip.new()
-		_drawn = PackedVector2Array()
-	_up.set_length(half - _grip)
-	_down.set_length(half + _grip)
-	if _poster.has_meta(BEND_META):
-		var bend := float(_poster.get_meta(BEND_META))
-		_poster.remove_meta(BEND_META)
-		_up.bend_to(bend)
-		_down.bend_to(bend)
-	_up.place(Vector2(_grip, 0.0), 0.0)
-	_down.place(Vector2(-_grip, 0.0), 0.0)
-
 	var xf := _poster.get_global_transform_interpolated()
 	var still := xf.is_equal_approx(_last_pose)
 	_last_pose = xf
-	if still and not held and _up.motion() < SETTLED and _down.motion() < SETTLED and not _drawn.is_empty():
-		return
-	_motion.update(xf, Vector3(0.0, _grip, 0.0), delta)
 	_floor_wait -= delta
+	# Periodically wake even a still print: the table beneath it can move.
+	if still and not held and _quiet >= SETTLE_TIME and _floor_wait > 0.0:
+		return
+	_motion.update(xf, Vector3.ZERO, delta)
 	if _floor_wait <= 0.0:
 		_floor_wait = FLOOR_EVERY
 		_find_floor(xf)
+	_sweep_floor(xf)
 	_place_floor(xf)
-	var g := _motion.gravity
-	var shove := _motion.shove
-	var spin := _motion.spin_accel
-	_up.step(delta, Vector2(g.y, g.z), spin, Vector2(shove.y, shove.z))
-	_down.step(delta, Vector2(-g.y, g.z), -spin, Vector2(-shove.y, shove.z))
+	_ribbon.step(delta, _motion.gravity, _motion.angular_accel)
+	_quiet = _quiet + delta if still and not held and _ribbon.move_speed < SETTLED else 0.0
 	_draw(size)
 
 
-## Where along the sheet (its Y) the hand that took it holds it.
-func _grip_at() -> float:
-	var by := _poster.get_picked_up_by()
-	if by == null:
-		return 0.0
-	return _poster.to_local(by.global_position).y
+func adopt_state(state: Dictionary, size: Vector2) -> void:
+	_ribbon.restore(state)
+	_size = size
+	_drawn.clear()
+	_quiet = 0.0
+	_draw(size)
 
 
-## The surface under the print, found every FLOOR_EVERY and kept in the room.
+## Sample along both edges, so an overhanging end does not rest on an imagined
+## 60 cm wide patch under the center of the sheet.
 func _find_floor(xf: Transform3D) -> void:
-	_floor_hit = []
-	if not is_inside_tree():
-		return
-	var at := xf.origin
-	var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.02, at + Vector3.DOWN * FLOOR_REACH)
-	# Not the print, nor its own bodies: its pointer target is a StaticBody3D a
-	# centimeter round the sheet, and taken for a surface it stood half the print
-	# up off the table.
+	_floor_hit.clear()
+	var own := _own_rids()
+	for i in range(0, _ribbon.positions.size(), 4):
+		var at := xf * _ribbon.positions[i]
+		var query := PhysicsRayQueryParameters3D.create(at + Vector3.UP * 0.015, at + Vector3.DOWN * FLOOR_REACH)
+		query.exclude = own
+		var hit := _poster.get_world_3d().direct_space_state.intersect_ray(query)
+		if not hit.is_empty():
+			_floor_hit.append([hit["position"], hit["normal"]])
+
+
+func _own_rids() -> Array[RID]:
 	var own: Array[RID] = [_poster.get_rid()]
 	for body in _poster.find_children("*", "CollisionObject3D", true, false):
 		own.append((body as CollisionObject3D).get_rid())
-	query.exclude = own
-	var hit := _poster.get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty():
-		_floor_hit = [hit["position"], hit["normal"]]
+	return own
 
 
-## That surface against the sheet as it is drawn now, one patch to each strip
-## (the lower one's turned over in Y, as its strip is).
 func _place_floor(xf: Transform3D) -> void:
-	_up.patches.clear()
-	_down.patches.clear()
-	if _floor_hit.is_empty():
-		return
-	var n: Vector3 = xf.basis.orthonormalized().inverse() * (_floor_hit[1] as Vector3)
-	var at: Vector3 = xf.affine_inverse() * (_floor_hit[0] as Vector3)
-	var n2 := Vector2(n.y, n.z)
-	if n2.length() < 0.3:
-		return
-	var off := n.dot(at) / n2.length()
-	n2 /= n2.length()
-	_up.patches.append([n2, off, Vector2(at.y, at.z), PATCH_REACH])
-	_down.patches.append([Vector2(-n2.x, n2.y), off, Vector2(-at.y, at.z), PATCH_REACH])
+	_ribbon.patches.clear()
+	for hit: Array in _floor_hit + _paper_sweep.hits:
+		var covector: Vector3 = xf.basis.transposed() * (hit[1] as Vector3)
+		var normal := covector.normalized()
+		var at: Vector3 = xf.affine_inverse() * (hit[0] as Vector3)
+		var depth := (float(hit[2]) if hit.size() > 2 else 0.03) / covector.length()
+		_ribbon.patches.append([normal, normal.dot(at), at, PATCH_REACH, depth])
 
 
-## The sheet from the bottom of the lower strip, through the grip, to the top of
-## the upper one, the picture laid along it by distance down the paper.
-func _draw(size: Vector2) -> void:
-	var rows := PackedVector2Array()
-	var dist := PackedFloat64Array()
-	var dn := _down.points
-	for i in range(dn.size() - 1, -1, -1):
-		rows.append(Vector2(-dn[i].x, dn[i].y))
-		dist.append(_grip - i * (_down.length / maxi(_down.segments, 1)))
-	var up := _up.points
-	for i in range(1, up.size()):
-		rows.append(up[i])
-		dist.append(_grip + i * (_up.length / maxi(_up.segments, 1)))
-	if rows.size() == _drawn.size():
+func _sweep_floor(xf: Transform3D) -> void:
+	var pts := PackedVector3Array()
+	for p in _ribbon.positions:
+		pts.append(xf * p)
+	_paper_sweep.update(_poster.get_world_3d().direct_space_state, pts, _own_rids(), PATCH_REACH)
+
+
+func _own_body(on: bool) -> void:
+	if _body_owned == on:
+		return
+	if on:
+		_body_was_disabled = _flat_body.disabled
+	_flat_body.disabled = true if on else _body_was_disabled
+	for shape in _body_segments:
+		shape.disabled = not on
+	if not on:
+		_poster._apply_dimensions()
+		(_poster.get_node("PointerArea/CollisionShape3D") as CollisionShape3D).position = Vector3.ZERO
+	_body_owned = on
+
+
+## One thin oriented box per segment. The body's support and the pointer bounds
+## follow the curved sheet, including twist. Sticking restores the flat body.
+func _fit_body(centers: PackedVector3Array, across: PackedVector3Array) -> void:
+	while _body_segments.size() > _ribbon.segments:
+		var old := _body_segments.pop_back() as CollisionShape3D
+		_poster.remove_child(old)
+		old.queue_free()
+	while _body_segments.size() < _ribbon.segments:
+		var shape := CollisionShape3D.new()
+		shape.name = "PaperSegment%d" % _body_segments.size()
+		shape.shape = BoxShape3D.new()
+		_poster.add_child(shape)
+		_body_segments.append(shape)
+	for i in _ribbon.segments:
+		var y := (centers[i + 1] - centers[i]).normalized()
+		var x := (across[i] + across[i + 1]).normalized()
+		var z := x.cross(y).normalized()
+		x = y.cross(z).normalized()
+		var shape := _body_segments[i]
+		(shape.shape as BoxShape3D).size = Vector3(_size.x, centers[i].distance_to(centers[i + 1]), 0.0008)
+		shape.transform = Transform3D(Basis(x, y, z), (centers[i] + centers[i + 1]) * 0.5)
+	_own_body(true)
+	_poster.mass = maxf(0.0001, _ribbon.length * 0.0057 * _ribbon.width / 0.038)
+	var bounds := AABB(_ribbon.positions[0], Vector3.ZERO)
+	for p in _ribbon.positions:
+		bounds = bounds.expand(p)
+	var pointer := _poster.get_node("PointerArea/CollisionShape3D") as CollisionShape3D
+	pointer.position = bounds.get_center()
+	(pointer.shape as BoxShape3D).size = bounds.size + Vector3.ONE * 0.004
+
+
+func _draw(_sheet_size: Vector2) -> void:
+	var verts := _ribbon.positions
+	if verts.size() == _drawn.size():
 		var moved := false
-		for i in rows.size():
-			if rows[i].distance_squared_to(_drawn[i]) > REDRAW * REDRAW:
+		for i in verts.size():
+			if verts[i].distance_squared_to(_drawn[i]) > REDRAW * REDRAW:
 				moved = true
 				break
-		if not moved:
+		if not moved and _body_owned:
 			return
-	_drawn = rows.duplicate()
-	var half_w := size.x * 0.5
-	var n := rows.size()
-	var verts := PackedVector3Array()
+	_drawn = verts.duplicate()
+	var centers := _ribbon.centers()
+	var across := _ribbon.across()
 	var normals := PackedVector3Array()
 	var uvs := PackedVector2Array()
+	var along := PackedVector3Array()
+	var vs := PackedFloat32Array()
 	var index := PackedInt32Array()
-	verts.resize(n * 2)
-	normals.resize(n * 2)
-	uvs.resize(n * 2)
-	for i in n:
-		var a := rows[maxi(i - 1, 0)]
-		var b := rows[mini(i + 1, n - 1)]
-		var t := (b - a).normalized()
-		# The picture's face: the sheet's +Z when it lies flat.
-		var face := Vector3(0.0, -t.y, t.x)
-		var p := Vector3(0.0, rows[i].x, rows[i].y)
-		var v := 0.5 - dist[i] / size.y
-		verts[i * 2] = p + Vector3(half_w, 0, 0)
-		verts[i * 2 + 1] = p - Vector3(half_w, 0, 0)
-		normals[i * 2] = face
-		normals[i * 2 + 1] = face
-		uvs[i * 2] = Vector2(1.0, v)
-		uvs[i * 2 + 1] = Vector2(0.0, v)
-	for i in n - 1:
-		var r := i * 2
-		index.append_array([r, r + 1, r + 2, r + 1, r + 3, r + 2])
+	for i in centers.size():
+		var tangent := (centers[mini(i + 1, _ribbon.segments)] - centers[maxi(i - 1, 0)]).normalized()
+		var normal := across[i].cross(tangent).normalized()
+		var v := 1.0 - float(i) / _ribbon.segments
+		along.append(tangent)
+		vs.append(v)
+		normals.append_array(PackedVector3Array([normal, normal]))
+		uvs.append_array(PackedVector2Array([Vector2(1.0, v), Vector2(0.0, v)]))
+		if i < _ribbon.segments:
+			var r := i * 2
+			index.append_array([r, r + 1, r + 2, r + 1, r + 3, r + 2])
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = verts
@@ -250,18 +284,9 @@ func _draw(size: Vector2) -> void:
 	_mesh.material_override = _flat.get_surface_override_material(0)
 	_mesh.visible = true
 	_flat.visible = false
-	var centers := PackedVector3Array()
-	var along := PackedVector3Array()
-	var vs := PackedFloat32Array()
-	for i in n:
-		var a := rows[maxi(i - 1, 0)]
-		var b := rows[mini(i + 1, n - 1)]
-		var t := (b - a).normalized()
-		centers.append(Vector3(0.0, rows[i].x, rows[i].y))
-		along.append(Vector3(0.0, t.x, t.y))
-		vs.append(0.5 - dist[i] / size.y)
-	_rim.mesh = GbPaperRim.build(centers, along, Vector3.RIGHT, half_w, RIM, vs)
+	_rim.mesh = GbPaperRim.build(centers, along, Vector3.RIGHT, _size.x * 0.5, RIM, vs, across)
 	_own_rim(true)
+	_fit_body(centers, across)
 
 
 ## Whether this draws the print's rim (bent) or the Poster does (flat, stuck).

@@ -148,6 +148,7 @@ var _controllers: Array[XRController3D] = []
 var _floor_wait := 0.0
 ## What the last looks round the paper found, in the room: [position, normal].
 var _room_hits: Array = []
+var _paper_sweep := GbPaperSweep.new()
 @onready var _pivot: Node3D = $PaperPivot
 var _toast: AchievementToast = null
 ## Said once per press, not every frame it is held.
@@ -530,6 +531,7 @@ func _move_paper(delta: float) -> void:
 	if _floor_wait <= 0.0:
 		_floor_wait = FLOOR_EVERY
 		_find_obstacles()
+	_sweep_room(xf)
 	# The room is where it is: placed against the printer every frame, so a
 	# printer tipping over it never meets it a fifth of a second late.
 	_place_room(xf)
@@ -677,7 +679,7 @@ func _place_room(xf: Transform3D) -> void:
 	_strip.patches.clear()
 	var inv := xf.affine_inverse()
 	var turn := xf.basis.orthonormalized().inverse()
-	for hit: Array in _room_hits:
+	for hit: Array in _room_hits + _paper_sweep.hits:
 		var n: Vector3 = turn * (hit[1] as Vector3)
 		var at: Vector3 = inv * (hit[0] as Vector3)
 		var n2 := Vector2(n.y, n.z)
@@ -685,7 +687,20 @@ func _place_room(xf: Transform3D) -> void:
 		if n2.length() < 0.3:
 			continue
 		var offset := n.dot(at) - n.x * _pivot.position.x
-		_strip.patches.append([n2 / n2.length(), offset / n2.length(), Vector2(at.y, at.z), PATCH_REACH])
+		var depth := float(hit[2]) if hit.size() > 2 else GbPrinterStrip.PATCH_DEPTH
+		_strip.patches.append([n2 / n2.length(), offset / n2.length(), Vector2(at.y, at.z), PATCH_REACH, depth / n2.length()])
+
+
+func _sweep_room(xf: Transform3D) -> void:
+	if not is_inside_tree():
+		return
+	var pts := PackedVector3Array()
+	for p in _strip.points:
+		pts.append(xf * Vector3(_pivot.position.x, p.x, p.y))
+	var own: Array[RID] = [get_rid()]
+	for body in find_children("*", "CollisionObject3D", true, false):
+		own.append((body as CollisionObject3D).get_rid())
+	_paper_sweep.update(get_world_3d().direct_space_state, pts, own, PATCH_REACH)
 
 
 ## Lay the strip's mesh, the tear trigger and its box from the bend, once some
@@ -803,30 +818,47 @@ func tear() -> void:
 		_push_input(_mask | BTN_B, _tear_lines, _tear_code)
 
 
-## A Poster the size of the paper, carrying the print. Placed at the free end of
-## the strip it came from, facing as that end did.
+## Transfer the actual two edges and their velocities. The new body's origin
+## is the sheet's center of mass; the visible vertices stay exactly where they
+## were on the printer, including nonuniform bends and folds.
 func _spawn_printout(path: String, lines: int) -> Poster:
 	var poster := POSTER_SCENE.instantiate() as Poster
 	var long_edge := maxf(PAPER_WIDTH, lines * DOT_PITCH)
 	# Before image_path: the setter loads the picture and sizes the sheet from
 	# size_scale as it stands.
 	poster.size_scale = long_edge / Poster.BASE_LONG_EDGE
-	# Paper, not a board: it bends in the hand (GbPrintoutFlop), starting as bent
-	# as the strip it came off.
 	poster.printout = true
-	poster.set_meta(GbPrintoutFlop.BEND_META, _strip.mean_curvature())
+	var positions := PackedVector3Array()
+	var velocities := PackedVector3Array()
+	var point_velocities := _strip.point_velocities()
+	var center := Vector3.ZERO
+	var mean_velocity := Vector3.ZERO
+	for i in _strip.points.size():
+		var point := Vector3(_pivot.position.x, _strip.points[i].x, _strip.points[i].y)
+		var velocity := Vector3(0.0, point_velocities[i].x, point_velocities[i].y)
+		positions.append(point + Vector3.RIGHT * PAPER_WIDTH * 0.5)
+		positions.append(point - Vector3.RIGHT * PAPER_WIDTH * 0.5)
+		velocities.append_array(PackedVector3Array([velocity, velocity]))
+		center += point
+		mean_velocity += velocity
+	center /= _strip.points.size()
+	mean_velocity /= _strip.points.size()
+	for i in positions.size():
+		positions[i] -= center
+		velocities[i] -= mean_velocity
+	var state := {"positions": positions, "velocities": velocities, "length": _strip.length, "width": PAPER_WIDTH}
+	poster.set_meta(GbPrintoutFlop.STATE_META, state)
 	poster.image_path = path
 	var scene := get_tree().current_scene
 	scene.add_child(poster)
 	poster.add_to_group("spawned")
-	var tip := _strip.points[_strip.points.size() - 1]
-	var dirs := _strip.directions()
-	var along := dirs[dirs.size() - 1]
 	var basis := global_transform.basis.orthonormalized()
-	var x := basis.x
-	var y := (basis * Vector3(0.0, along.x, along.y)).normalized()
-	var top := to_global(Vector3(_pivot.position.x, tip.x, tip.y))
-	poster.global_transform = Transform3D(Basis(x, y, x.cross(y)), top + Vector3.UP * 0.02)
+	poster.global_transform = Transform3D(basis, to_global(center))
+	poster.linear_velocity = linear_velocity + angular_velocity.cross(basis * center) + basis * mean_velocity
+	poster.angular_velocity = angular_velocity
+	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	flop.adopt_state(state, poster.get_sheet_size())
+	poster.remove_meta(GbPrintoutFlop.STATE_META)
 	NetworkManager.on_local_spawn(poster)
 	return poster
 

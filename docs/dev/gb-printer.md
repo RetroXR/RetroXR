@@ -145,11 +145,20 @@ moves the printer on physics ticks and takes the strip where it is drawn):
   printer, a step's whole bend scaled down until none does. The hinges each
   settle almost at once on their own, and together they snapped a long tail from
   lying on the table to curled up the printer's back in two frames (13 cm).
+  The limit includes contact correction, and corrected hinges do not turn that
+  positional repair into velocity. A regression introducing a finger into the
+  strip reached 1.02 m/s before this fix (2026-10-24).
 - Contact is follow-the-leader (as for hair): from the slot out, each point is
   carried by its leader's move, pushed out of what it is in, and set back one
   segment from its leader; the hinges are read back off the points. Turning
   hinges to push points out was a lever that threw the free end about, and could
   not lift a point whose segment ran along the push.
+- Nonadjacent paper segments also make contact, checking segment crossings as
+  well as endpoint clearance. The two halves of a torn print meet each other
+  after mirroring into the same frame. Short monotone strips skip self-contact
+  searches, and bounds reject segments far from the other half.
+  A long strip initialized all at once starts short of a closed loop; its
+  springs then recover the roll's curl while respecting contact.
 - The printer's boxes are one solid (a way out of one must be clear of all; the
   cover's hump and the body sent a point back and forth between them), and reach
   all the way down: under the printer is never where paper goes (it crept into
@@ -175,6 +184,11 @@ the next -- each hit a patch of surface reaching 1.2 cm each way and only for
 paper within 3 cm behind it (`GbPrinterStrip.patches`). So a print hangs over a
 table's edge and stops against a wall. At 4 cm a patch found at the edge reached
 past it into the air, and a render caught a print's end lying out on nothing.
+`GbPaperSweep` also casts between consecutive rendered positions every frame.
+A crossed surface stays active beyond the ordinary 3 cm cutoff until the paper
+has recovered or moved past the patch. Recovery ignores the opposite face of
+the same collider, so a thin tabletop cannot trap the paper between its top
+and underside. The printer and loose printouts both use these sweeps.
 
 **Fingers** (`_place_fingers`): every controller's poke tip (`PokeTip.tip_of`)
 across the paper's width and near the slot is a round obstacle, 9 mm, so a hand
@@ -185,15 +199,32 @@ nudges, flicks or holds up the paper; tearing still needs the trigger.
 the stub back.
 
 **Prints are paper** (`GbPrintoutFlop`, on a Poster marked `printout`, or one
-whose picture is in the prints folder): loose, a print is two `GbPrinterStrip`s
-from the grip, one each way along it, the printer's own curl, weight, swing and
-air, so it hangs from the hand and swings as it moves and stops; lying on a table
-face down its ends lift, face up it lies flat. It starts as bent as the strip it
-came off and relaxes. Stuck to something it is the flat sticker it always was. It
-sleeps while nothing moves. `GbPaperMotion` reads how a thing is moving for both
-(off the pose it is drawn at, smoothed). The print's own pointer target, a
-StaticBody3D round the sheet, is left out of its look at the table: taken for a
-surface, it stood half the print up.
+whose picture is in the prints folder): loose, a print is one `GbThermalRibbon`,
+a sheet of two rails (both edges) held to its length and width, bending toward
+the roll's curl and free to bend sideways and twist. It hangs from the hand and
+swings as it moves and stops; lying on a table face down its ends lift, face up
+it lies flat. Only the row in the hand is pinned: letting go unpins it and moves
+nothing (two halves anchored at the grip used to stay anchored there after
+release, so where it was last held chose how it lay). A tear hands over the
+strip's actual points and velocities, so the print starts exactly as it was on
+the printer. The body's colliders are segments that follow the sheet, not a
+flat board. Stuck to something it is the flat sticker it always was. It sleeps
+once its points have moved less than 0.5 mm/s for half a second -- not on hinge
+speeds, which contact repair zeroes: a print once slept 37 mm short of its curl.
+`GbPaperMotion` reads how a thing is moving for both (off the pose it is drawn
+at, smoothed). The print's own pointer target, a StaticBody3D round the sheet,
+is left out of its look at the table: taken for a surface, it stood half the
+print up.
+
+**Two curls:** a torn print curls at 6.5 cm (`GbThermalRibbon.CURL_RADIUS`), the
+strip still on the printer at 13 cm. At 6.5, 8 and 9 cm a long strip's end curled
+in under the printer's base: the gap between the case and the table is half a
+millimeter, and contact capped at the air's speed limit cannot get it back out
+(uncapped, the paper jumps 24 mm a frame). No radius from 6.5 to 13 passed every
+strip check, so the strip keeps the one that did. One curl for both needs the
+strip's contact against the case reworked. A strip lying on the case buzzes
+about 0.1 mm a frame for ever; `motion()` ignores contact repair below
+`REST_SPEED` (12 mm/s).
 
 **Rolls:** `GbPrinterPaper.ROLLS`, the three Nintendo sold: white printing sepia,
 yellow printing black (the roll in the printer's box) and blue printing black

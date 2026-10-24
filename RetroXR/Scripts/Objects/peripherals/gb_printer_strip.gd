@@ -14,9 +14,9 @@
 ## spring and damping implicit, which is what keeps it stable however short the
 ## segments: the tip's hinges, with almost nothing beyond them, simply sit where
 ## their spring and load balance. Contact is a projection after each step: a
-## point found inside an obstacle is turned out of it by the hinges behind it,
-## and the hinges' speeds are what their angles did over the step, so paper laid
-## on something stays laid on it.
+## point found inside an obstacle is moved out along the chain, within the same
+## speed limit as free motion. Corrected hinges do not carry that repair as a
+## velocity, so contact cannot kick the paper away on the following step.
 ##
 ## Pure: the printer hands in where the slot is, which way gravity pulls and what
 ## is in the way, all in its own frame. Nothing here touches the tree, so a suite
@@ -33,7 +33,9 @@ const MASS_PER_M := 0.0057
 ## The curl the roll leaves in it, as a radius, meters. Judged, not measured: a
 ## long print in photographs makes a loose, open curve. At 6 cm a 22 cm print
 ## closed most of a circle, and wherever the printer was its end came back to the
-## printer's base, pressed there as if stuck.
+## printer's base, pressed there as if stuck -- measured again at 6.5 cm, 8 and 9
+## (2026-10-24), its end curled in under the base. A torn print is free of the
+## case and takes the tighter GbThermalRibbon.CURL_RADIUS.
 const CURL_RADIUS := 0.13
 ## The paper's swing, as BookFlop swings a book's pages: one springy, lightly
 ## damped pendulum for the whole strip, kicked by the printer's moves and turns,
@@ -75,6 +77,10 @@ const UNDER_BOX := 1.0
 ## The fastest any point of the paper moves against the printer of its own
 ## accord, m/s: about a sheet of paper's speed falling through air.
 const TERMINAL_SPEED := 0.5
+## Contact repair slower than this (m/s, the fastest point over a step) is the
+## paper settling against what it lies on, not motion: a long strip on the case
+## buzzes about 6 mm/s for ever, a tenth of a millimeter a frame.
+const REST_SPEED := 0.012
 ## Half the paper's thickness and a little: how far off a surface it lies.
 const SKIN := 0.0008
 
@@ -88,6 +94,7 @@ var speeds := PackedFloat64Array()
 ## The swing (SWAY_W2), rad over the whole strip, and its speed.
 var sway := 0.0
 var sway_speed := 0.0
+var _contact_motion := 0.0
 ## The slot, in the printer's (Y, Z), and the angle it points the paper at
 ## (0 straight up the printer's +Y, growing toward -Z).
 var root := Vector2.ZERO
@@ -101,13 +108,18 @@ var boxes: Array[Rect2] = []
 var planes: Array = []
 ## Pieces of surface found in the room: [normal (unit), offset, center, reach],
 ## a plane as above but only for paper within `reach` of `center` along it and
-## no deeper behind it than PATCH_DEPTH. A whole plane under the slot kept a
+## no deeper behind it than PATCH_DEPTH (or an optional fifth recovery depth).
+## A whole plane under the slot kept a
 ## long print from hanging over a table's edge, and nothing else in the room
 ## was there at all.
 var patches: Array = []
 ## Fingertips in the paper's way: [center, radius], round. A finger pushes the
 ## paper aside and the paper lies against it: nudged, flicked, held up.
 var fingers: Array = []
+## The other half of a torn print, mirrored into this strip's frame. It starts
+## at the shared grip, so only the two segments at that grip are adjacent.
+var other_paper := PackedVector2Array()
+var _other_bounds := Rect2()
 
 
 ## Set the paper's length. New paper comes out of the slot with the roll's curl
@@ -126,7 +138,9 @@ func set_length(new_length: float) -> void:
 	var new_speeds := PackedFloat64Array()
 	new_angles.resize(n)
 	new_speeds.resize(n)
-	new_angles.fill(curl)
+	# A print restored at its full length must start without a loop through
+	# itself. Its normal curl remains the spring target and settles by contact.
+	new_angles.fill(minf(curl, (TAU - 0.1) / n) if fresh else curl)
 	new_speeds.fill(0.0)
 	new_angles[0] = 0.0
 	if not fresh:
@@ -174,9 +188,16 @@ func step(dt: float, gravity: Vector2, spin_accel := 0.0, shove := Vector2.ZERO)
 		return
 	var n_steps := maxi(1, ceili(dt / MAX_STEP))
 	var h := dt / n_steps
+	_contact_motion = 0.0
+	var was := points.duplicate()
 	for _s in n_steps:
 		_swing(h, shove, spin_accel)
 		_substep(h, gravity, spin_accel)
+	var farthest := 0.0
+	for i in points.size():
+		farthest = maxf(farthest, points[i].distance_squared_to(was[i]))
+	if sqrt(farthest) < REST_SPEED * dt:
+		_contact_motion = 0.0
 
 
 ## Step the swing: the shove across the strip (the way its middle points) and the
@@ -203,13 +224,14 @@ func jolt(by: float) -> void:
 
 
 ## Bend every hinge to `curvature` (rad/m) and hold it still: a strip taken
-## from paper that was already bent (a print torn off the printer).
+## from paper that was already bent (a print torn off the printer). A uniform
+## arc is capped short of a full loop so its initial pose cannot cross itself.
 func bend_to(curvature: float) -> void:
 	if segments == 0:
 		return
 	var ds := length / segments
 	for i in range(1, segments):
-		angles[i] = curvature * ds
+		angles[i] = clampf(curvature * ds, -(TAU - 0.1) / segments, (TAU - 0.1) / segments)
 		speeds[i] = 0.0
 	_lay_points()
 
@@ -226,7 +248,7 @@ func mean_curvature() -> float:
 
 ## The highest any hinge is turning, or the swing, rad/s: zero is at rest.
 func motion() -> float:
-	var top := absf(sway_speed)
+	var top := maxf(absf(sway_speed), _contact_motion)
 	for v in speeds:
 		top = maxf(top, absf(v))
 	return top
@@ -306,28 +328,54 @@ func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 		angles[i] += h * w
 	var was := points.duplicate()
 	_lay_points()
-	# Air: no point of the paper goes faster than TERMINAL_SPEED against the
-	# printer, the whole step's bend scaled down until none does. Each hinge
-	# settles almost at once on its own, so together they snapped a long tail
-	# from lying on the table to curled up the printer's back in two frames.
-	var fastest := 0.0
-	for i in points.size():
-		fastest = maxf(fastest, points[i].distance_squared_to(was[i]))
-	fastest = sqrt(fastest)
-	if fastest > TERMINAL_SPEED * h:
-		var slow := TERMINAL_SPEED * h / fastest
-		for i in n:
-			angles[i] = before[i] + (angles[i] - before[i]) * slow
-			speeds[i] *= slow
-		_lay_points()
+	_limit_move(before, was, TERMINAL_SPEED * h)
+	var free_angles := angles.duplicate()
 	_contact()
+	# Projection is positional repair, not an impulse. Limit the COMPLETE move,
+	# including contact, and don't turn the repair into a kick next substep.
+	var contacted := PackedByteArray()
+	contacted.resize(n)
+	for i in n:
+		contacted[i] = int(absf(wrapf(angles[i] - free_angles[i], -PI, PI)) > 1e-7)
+	_limit_move(before, was, TERMINAL_SPEED * h)
 	# What each hinge did over the step, the short way round: contact reads a
 	# hinge back wrapped to half a turn either way, so one folded right back
 	# jumps from +PI to -PI, and taken as a speed that was a turn every few
 	# milliseconds, which the next step carried on: the fold spun without end,
 	# through its own paper.
 	for i in n:
-		speeds[i] = wrapf(angles[i] - before[i], -PI, PI) / h
+		_contact_motion = maxf(_contact_motion, absf(wrapf(angles[i] - before[i], -PI, PI)) / h)
+		speeds[i] = 0.0 if contacted[i] else wrapf(angles[i] - before[i], -PI, PI) / h
+
+
+## Local particle velocities for an exact tear handoff. Each upstream hinge
+## contributes its angular speed to every downstream segment.
+func point_velocities() -> PackedVector2Array:
+	var out := PackedVector2Array([Vector2.ZERO])
+	var velocity := Vector2.ZERO
+	var phi := root_angle
+	var omega := 0.0
+	for i in segments:
+		phi += angles[i]
+		omega += speeds[i]
+		velocity += Vector2(-sin(phi), -cos(phi)) * omega * length / segments
+		out.append(velocity)
+	return out
+
+
+## Angles interpolate along their short arc; a wrapped contact angle must not
+## send the strip on a full turn. Repeat because endpoint motion is nonlinear.
+func _limit_move(before: PackedFloat64Array, was: PackedVector2Array, limit: float) -> void:
+	for _pass in 8:
+		var farthest := 0.0
+		for i in points.size():
+			farthest = maxf(farthest, points[i].distance_to(was[i]))
+		if farthest <= limit + 1e-7:
+			return
+		var fraction := minf(0.9, limit / farthest * 0.95)
+		for i in segments:
+			angles[i] = before[i] + wrapf(angles[i] - before[i], -PI, PI) * fraction
+		_lay_points()
 
 
 ## Put every point out of what it is in, follow-the-leader: from the slot out,
@@ -342,18 +390,36 @@ func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 ## only the hinge behind could not lift a point whose segment ran along the push,
 ## which left the curled end of a long strip inside the printer.
 func _contact() -> void:
-	if boxes.is_empty() and planes.is_empty() and patches.is_empty() and fingers.is_empty():
+	# Headings contained in a half turn make a monotone curve, which cannot
+	# intersect itself. Most short prints need no pairwise contact work at all.
+	var phi_min := 0.0
+	var phi_max := 0.0
+	var heading := 0.0
+	for angle in angles:
+		heading += angle
+		phi_min = minf(phi_min, heading)
+		phi_max = maxf(phi_max, heading)
+	var self_contact := phi_max - phi_min >= PI - 0.05
+	var external := not (boxes.is_empty() and planes.is_empty() and patches.is_empty() and fingers.is_empty())
+	if not self_contact and not external and other_paper.is_empty():
 		return
 	var ds := length / segments
 	var first := maxi(1, ceili(CONTACT_FROM / ds))
 	var shift := Vector2.ZERO
 	var any := false
 	var out := points.duplicate()
-	for j in range(first, segments + 1):
+	for j in range(1, segments + 1):
 		var was := points[j]
 		var p := was + shift
 		for _try in CONTACT_PASSES:
-			var push := _push_out(p)
+			var push := _push_out(p) if j >= first else Vector2.ZERO
+			if self_contact or any:
+				push += _self_push(p + push, out, j)
+			if not other_paper.is_empty() and _other_bounds.intersects(Rect2(out[j - 1], p + push - out[j - 1]).abs(), true):
+				for k in range(other_paper.size() - 1):
+					if j == 1 and k == 0:
+						continue
+					push += _segment_push(out[j - 1], p + push, other_paper[k], other_paper[k + 1])
 			if push == Vector2.ZERO:
 				break
 			any = true
@@ -371,6 +437,45 @@ func _contact() -> void:
 		angles[i] = wrapf(seg_phi - phi, -PI, PI)
 		phi += angles[i]
 	_lay_points()
+
+
+## A later segment rests against the earlier paper. Test the whole segment for
+## a crossing as well as the endpoint for thickness: endpoint-only tests miss
+## an X-shaped fold whose four ends are all clear. Adjacent segments share a
+## hinge and are deliberately excluded.
+func _self_push(p: Vector2, out: PackedVector2Array, j: int) -> Vector2:
+	var start := out[j - 1]
+	var push := Vector2.ZERO
+	for k in range(j - 2):
+		push += _segment_push(start, p + push, out[k], out[k + 1])
+	return push
+
+
+func _segment_push(start: Vector2, end: Vector2, a: Vector2, b: Vector2) -> Vector2:
+	var skin := minf(SKIN * 2.0, length / segments * 0.25)
+	if minf(start.x, end.x) > maxf(a.x, b.x) + skin or maxf(start.x, end.x) < minf(a.x, b.x) - skin \
+			or minf(start.y, end.y) > maxf(a.y, b.y) + skin or maxf(start.y, end.y) < minf(a.y, b.y) - skin:
+		return Vector2.ZERO
+	var near := Geometry2D.get_closest_point_to_segment(end, a, b)
+	var d := end - near
+	if Geometry2D.segment_intersects_segment(start, end, a, b) != null:
+		var along := (b - a).normalized()
+		var normal := Vector2(-along.y, along.x)
+		if normal.dot(start - a) < 0.0:
+			normal = -normal
+		return normal * maxf(0.0, skin - normal.dot(end - a))
+	if d.length_squared() < skin * skin:
+		var normal := d.normalized() if d.length_squared() > 1e-14 else (start - near).normalized()
+		return normal * (skin - d.length())
+	return Vector2.ZERO
+
+
+func meet_other_half(other: GbPrinterStrip) -> void:
+	other_paper.resize(other.points.size())
+	for i in other.points.size():
+		other_paper[i] = Vector2(-other.points[i].x, other.points[i].y)
+		_other_bounds = Rect2(other_paper[i], Vector2.ZERO) if i == 0 else _other_bounds.expand(other_paper[i])
+	_other_bounds = _other_bounds.grow(SKIN * 2.0)
 
 
 ## How far, and which way, `p` has to go to be clear of everything: the deepest
@@ -450,7 +555,10 @@ func _off_surface(p: Vector2) -> Vector2:
 static func _in_patch(piece: Array, p: Vector2) -> float:
 	var normal: Vector2 = piece[0]
 	var under: float = float(piece[1]) + SKIN - normal.dot(p)
-	if under <= 0.0 or under > PATCH_DEPTH:
+	# A swept hit can retain a deeper contact until the paper has recovered.
+	# Ordinary patches keep their depth cutoff so paper can hang under an edge.
+	var depth := float(piece[4]) if piece.size() > 4 else PATCH_DEPTH
+	if under <= 0.0 or under > depth:
 		return 0.0
 	var along := Vector2(normal.y, -normal.x)
 	if absf(along.dot(p - (piece[2] as Vector2))) > float(piece[3]):

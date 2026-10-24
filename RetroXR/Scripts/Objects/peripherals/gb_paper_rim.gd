@@ -21,7 +21,7 @@ extends RefCounted
 ## lies across in (the paper does not twist), `v` each row's place down the
 ## picture (0 at one end, 1 at the other) for a material that samples it.
 static func build(centers: PackedVector3Array, along: PackedVector3Array, across: Vector3,
-		half_width: float, rim: float, v: PackedFloat32Array) -> ArrayMesh:
+		half_width: float, rim: float, v: PackedFloat32Array, row_across := PackedVector3Array()) -> ArrayMesh:
 	var mesh := ArrayMesh.new()
 	var n := centers.size()
 	if n < 2:
@@ -32,10 +32,11 @@ static func build(centers: PackedVector3Array, along: PackedVector3Array, across
 	# Each row: outer left, inner left, inner right, outer right.
 	for i in n:
 		var c := centers[i]
-		verts.append(c - across * (half_width + rim))
-		verts.append(c - across * half_width)
-		verts.append(c + across * half_width)
-		verts.append(c + across * (half_width + rim))
+		var axis := row_across[i] if row_across.size() == n else across
+		verts.append(c - axis * (half_width + rim))
+		verts.append(c - axis * half_width)
+		verts.append(c + axis * half_width)
+		verts.append(c + axis * (half_width + rim))
 		uvs.append(Vector2(0.0, v[i]))
 		uvs.append(Vector2(0.0, v[i]))
 		uvs.append(Vector2(1.0, v[i]))
@@ -51,8 +52,9 @@ static func build(centers: PackedVector3Array, along: PackedVector3Array, across
 		var out := -along[0] if end == 0 else along[n - 1]
 		var c := centers[end] + out * rim
 		var base := verts.size()
-		verts.append(c - across * (half_width + rim))
-		verts.append(c + across * (half_width + rim))
+		var axis := row_across[end] if row_across.size() == n else across
+		verts.append(c - axis * (half_width + rim))
+		verts.append(c + axis * (half_width + rim))
 		var vv := v[end]
 		uvs.append(Vector2(0.0, vv))
 		uvs.append(Vector2(1.0, vv))

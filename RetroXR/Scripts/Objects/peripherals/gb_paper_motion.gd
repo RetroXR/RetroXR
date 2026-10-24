@@ -31,6 +31,9 @@ var gravity := Vector3.ZERO
 var shove := Vector3.ZERO
 ## How fast the turn about the frame's X is speeding up, rad/s^2.
 var spin_accel := 0.0
+## Full local angular acceleration for the ribbon's bending and torsion.
+var angular_accel := Vector3.ZERO
+var _spin3 := Vector3.ZERO
 
 var _pos := Vector3.ZERO
 var _vel := Vector3.ZERO
@@ -60,6 +63,8 @@ func update(xf: Transform3D, point: Vector3, delta: float) -> void:
 		_basis = basis
 		_spin = 0.0
 		spin_accel = 0.0
+		angular_accel = Vector3.ZERO
+		_spin3 = Vector3.ZERO
 	var k := clampf(delta / ACCEL_SMOOTH, 0.0, 1.0)
 	var vel := (at - _pos) / delta
 	var vel_f := _vel.lerp(vel, k)
@@ -81,6 +86,14 @@ func update(xf: Transform3D, point: Vector3, delta: float) -> void:
 		change = 0.0
 	_spin = spin_f
 	spin_accel = lerpf(spin_accel, clampf(change, -SPIN_ACCEL_MAX, SPIN_ACCEL_MAX), k)
+	var spin3 := turn.get_axis() * turn.get_angle() / delta if turn.get_angle() > 1e-6 else Vector3.ZERO
+	var filtered := _spin3.lerp(spin3, k)
+	var angular_change := (filtered - _spin3) / delta
+	if spin3.length() > SPIN_MAX or vel.length() > JUMP_SPEED:
+		filtered = Vector3.ZERO
+		angular_change = Vector3.ZERO
+	_spin3 = filtered
+	angular_accel = angular_accel.lerp(angular_change.limit_length(SPIN_ACCEL_MAX), k)
 	var g := ProjectSettings.get_setting("physics/3d/default_gravity", 9.8) as float \
 		* (ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3.DOWN) as Vector3)
 	gravity = basis.inverse() * (g - _accel)
