@@ -54,7 +54,8 @@ func show_for(host: XRToolsViewport2DIn3D, toggle_rect: Rect2, options: Array,
 	var ui := _ensure_ui() as DropdownOptions2D
 	if ui == null:
 		return
-	_size_to(host, toggle_rect, DropdownOptions2D.wanted_size(options.size(), columns))
+	_size_to(host, toggle_rect, DropdownOptions2D.wanted_size(options.size(), columns,
+		DropdownOptions2D.column_px(options, font, 22)))
 	ui.set_options(options, current_id, font, 22, columns)
 	_place(host, toggle_rect)
 

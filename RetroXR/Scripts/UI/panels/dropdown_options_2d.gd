@@ -87,6 +87,24 @@ static func wanted_size(option_count: int, columns: int, col_px: float = 300.0) 
 	return Vector2(PAD * 2 + cols * col_px, PAD * 2 + rows * (ROW_H + 4))
 
 
+## How wide one column must be for its widest option, as set_options draws it:
+## the tick's room and the label in `font` at `font_size`, an icon, the button's
+## own margins, and the scroll bar beside the list. Never under `at_least`. The
+## list used to be the toggle's width whatever it held, and a long option such as
+## "Australia / New Zealand (Type I)" ran off its right edge.
+static func column_px(options: Array, font: Font, font_size: int = 22, at_least: float = 300.0) -> float:
+	var f := MenuIcons.with_symbols(font)
+	var widest := 0.0
+	for entry: Array in options:
+		var text := "%s %s" % [String.chr(MenuIcons.CHECK), str(entry[0])]
+		var w := f.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		if entry.size() > 2 and entry[2] is Texture2D:
+			w += 32 + 4
+		widest = maxf(widest, w)
+	# The button's style margins, and the fat scroll bar (MenuStyle.fat_vscroll_bar, 24).
+	return maxf(at_least, widest + 2 * 12 + 24 + 8)
+
+
 func _choose(id: Variant) -> void:
 	var frame := Engine.get_process_frames()
 	if frame == _last_activate_frame:

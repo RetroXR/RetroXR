@@ -33,6 +33,7 @@ const DEFAULT := "na"
 const REGIONS := {
 	"na": {
 		"label": "North America",
+		"glyph": 0xF07E9,  # md-power_socket_us
 		"types": "Type A/B",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_duplex.res",
 		"sockets": [
@@ -48,6 +49,7 @@ const REGIONS := {
 	},
 	"jp": {
 		"label": "Japan",
+		"glyph": 0xF1109,  # md-power_socket_jp
 		"types": "Type A",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_jp.res",
 		"sockets": [
@@ -65,6 +67,7 @@ const REGIONS := {
 	},
 	"eu": {
 		"label": "Europe (Schuko)",
+		"glyph": 0xF1107,  # md-power_socket_de
 		"types": "Type C/F",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_eu.res",
 		"sockets": [
@@ -81,6 +84,7 @@ const REGIONS := {
 	},
 	"fr": {
 		"label": "France / Belgium",
+		"glyph": 0xF1108,  # md-power_socket_fr
 		"types": "Type C/E",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_fr.res",
 		"sockets": [
@@ -97,6 +101,7 @@ const REGIONS := {
 	},
 	"uk": {
 		"label": "UK / Ireland",
+		"glyph": 0xF07E8,  # md-power_socket_uk
 		"types": "Type G",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_uk.res",
 		"sockets": [
@@ -113,6 +118,7 @@ const REGIONS := {
 	},
 	"au": {
 		"label": "Australia / New Zealand",
+		"glyph": 0xF0905,  # md-power_socket_au
 		"types": "Type I",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_au.res",
 		"sockets": [
@@ -129,6 +135,7 @@ const REGIONS := {
 	},
 	"cn": {
 		"label": "China",
+		"glyph": 0xF0905,  # md-power_socket_au: Type I, as there
 		"types": "Type A/I",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_cn.res",
 		"sockets": [
@@ -147,6 +154,7 @@ const REGIONS := {
 	},
 	"ch": {
 		"label": "Switzerland",
+		"glyph": 0xF0FB3,  # md-power_socket_ch
 		"types": "Type C/J",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_ch.res",
 		"sockets": [
@@ -163,6 +171,7 @@ const REGIONS := {
 	},
 	"it": {
 		"label": "Italy",
+		"glyph": 0xF14FF,  # md-power_socket_it
 		"types": "Type C/L",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_it.res",
 		"sockets": [
@@ -180,6 +189,7 @@ const REGIONS := {
 	},
 	"dk": {
 		"label": "Denmark",
+		"glyph": 0xF0427,  # md-power_socket: the set has no Type K
 		"types": "Type C/K",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_dk.res",
 		"sockets": [
@@ -196,6 +206,7 @@ const REGIONS := {
 	},
 	"za": {
 		"label": "South Africa",
+		"glyph": 0xF0427,  # md-power_socket: the set has no Type M/N
 		"types": "Type C/M/N",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_za.res",
 		"sockets": [
@@ -212,6 +223,7 @@ const REGIONS := {
 	},
 	"in": {
 		"label": "India",
+		"glyph": 0xF0427,  # md-power_socket: the set has no Type D
 		"types": "Type C/D/M",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_in.res",
 		"sockets": [
@@ -228,6 +240,7 @@ const REGIONS := {
 	},
 	"il": {
 		"label": "Israel",
+		"glyph": 0xF0427,  # md-power_socket: the set has no Type H
 		"types": "Type C/H",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_il.res",
 		"sockets": [
@@ -244,6 +257,7 @@ const REGIONS := {
 	},
 	"br": {
 		"label": "Brazil",
+		"glyph": 0xF0FB3,  # md-power_socket_ch: Type N is the Swiss J's shape
 		"types": "Type C/N",
 		"mesh": "res://Scenes/Objects/room/wall_outlet_br.res",
 		"sockets": [
@@ -357,6 +371,12 @@ static func of(id: String) -> Dictionary:
 static func label_of(id: String) -> String:
 	var spec := of(id)
 	return "%s (%s)" % [spec.get("label", id), spec.get("types", "")]
+
+
+## The region's outlet as a Nerd Font glyph (the symbols font, MenuIcons): its
+## own power_socket where the set has one, else the plain socket.
+static func glyph_of(id: String) -> int:
+	return int(of(id).get("glyph", 0xF0427))
 
 
 ## The region for a locale such as "en_GB" or "ja", or DEFAULT.

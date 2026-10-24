@@ -713,9 +713,12 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 	# Which region's wall outlets the room has. Every row on both desktop and VR:
 	# the plates are in the room either way.
+	# Each led by its outlet's Nerd Font glyph, so the selector shows the region's
+	# socket on its left and the list shows each one's (the dropdown's buttons draw
+	# in the symbols font).
 	var regions: Array = []
 	for id: String in MainsRegions.ids():
-		regions.append([MainsRegions.label_of(id), id])
+		regions.append(["%s  %s" % [String.chr(MainsRegions.glyph_of(id)), MainsRegions.label_of(id)], id])
 	var region_drop := VRDropdown.create("Outlet Region", regions,
 		MainsRegions.resolve(AppPrefs.mains_region), 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
 	region_drop.item_selected.connect(func(id: Variant) -> void:
