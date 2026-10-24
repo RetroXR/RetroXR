@@ -263,8 +263,8 @@ func _shot_pedal() -> void:
 	await _save("pedal")
 
 
-## The yellow rectangle a held cabinet shows on the floor where it will be set down (GroundPlacement), a row of
-## two with a cabinet already stood beside it.
+## The yellow rectangle a held cabinet shows on the floor where it will be set down (GroundPlacement), beside the
+## cabinet already standing there.
 func _shot_ground() -> void:
 	var placer := _sys.get_node_or_null("GroundPlacement") as GroundPlacement
 	if placer == null:
@@ -276,6 +276,7 @@ func _shot_ground() -> void:
 	_look(Vector3(1.6, 1.5, 3.6), Vector3(0.6, 0.4, 1.0))
 	await _save("ground")
 	placer.preview({})
+
 
 ## The buttons close up: the cap and the flange of its own colour.
 func _shot_buttons() -> void:
