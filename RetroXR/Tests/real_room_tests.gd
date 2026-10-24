@@ -173,6 +173,7 @@ func _room(granted: Dictionary, rig: Dictionary) -> RealRoom:
 	room.origin_source = func() -> Node: return rig["origin"]
 	room.camera_source = func() -> Node3D: return rig["camera"]
 	room.player_body_source = func() -> PhysicsBody3D: return rig["body"]
+	room.mesh_pref_source = func() -> bool: return bool(rig.get("mesh", false))
 	room.notice_sink = func(title: String, text: String) -> void:
 		(rig["notices"] as Array).append([title, text])
 	add_child(room)
@@ -260,13 +261,22 @@ func _test_surfaces() -> void:
 	_ok(door.collision_layer == 0 and door.get_child_count() == 0, "surfaces/a door frame is nothing")
 
 	var mesh := manager.make_anchor(FakeEntity.new(PackedStringArray(["GLOBAL_MESH"]), true))
-	_ok(mesh.collision_layer == RealRoomSurface.WORLD_LAYER
+	_ok(mesh.collision_layer == 0 and table.collision_layer == RealRoomSurface.WORLD_LAYER
 		and (mesh.get_child(0) as CollisionShape3D).shape is ConcavePolygonShape3D,
-		"surfaces/the room's mesh is solid, its real shape")
+		"surfaces/flat by default: the table's box is solid and the scanned mesh is not")
+	rig["mesh"] = true
+	room.refresh_room_shape()
+	_ok(mesh.collision_layer == RealRoomSurface.WORLD_LAYER,
+		"surfaces/with Detailed Room Mesh, the room's mesh is solid, its real shape")
 	_ok(table.collision_layer == 0 and wall.collision_layer == RealRoomSurface.WORLD_LAYER,
-		"surfaces/with the mesh, the table's box is not: things rest where the desk's things are")
+		"surfaces/and the table's box is not: things rest where the desk's things are; walls stay")
 	var couch := manager.make_anchor(FakeEntity.new(PackedStringArray(["COUCH"])))
-	_ok(couch.collision_layer == 0, "surfaces/and furniture scanned after the mesh is not solid either")
+	_ok(couch.collision_layer == 0, "surfaces/furniture scanned after the mesh is not solid either")
+	rig["mesh"] = false
+	room.refresh_room_shape()
+	_ok(mesh.collision_layer == 0 and table.collision_layer == RealRoomSurface.WORLD_LAYER
+		and couch.collision_layer == RealRoomSurface.WORLD_LAYER,
+		"surfaces/switched back to flat, the boxes are solid again and the mesh is not")
 
 	manager.openxr_fb_scene_data_missing.emit()
 	manager.openxr_fb_scene_data_missing.emit()
@@ -520,3 +530,7 @@ func _test_prefs() -> void:
 		and "\"passthrough_spatial\": passthrough_spatial" in src
 		and "get_bool(data, \"passthrough_spatial\"" in src,
 		"prefs/room data is a pref too, on unless the player turns it off, saved and read back")
+	_ok(prefs.get("passthrough_room_mesh") is bool and "var passthrough_room_mesh: bool = false" in src
+		and "\"passthrough_room_mesh\": passthrough_room_mesh" in src
+		and "get_bool(data, \"passthrough_room_mesh\"" in src,
+		"prefs/the detailed mesh is a pref, off (flat furniture) unless turned on, saved and read back")

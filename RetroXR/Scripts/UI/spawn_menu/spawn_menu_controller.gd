@@ -246,6 +246,7 @@ func _connect_menu_signals() -> void:
 	menu.options_view().passthrough_occlusion_changed.connect(_on_passthrough_occlusion_changed)
 	menu.options_view().passthrough_spatial_changed.connect(_on_passthrough_spatial_changed)
 	menu.options_view().room_setup_requested.connect(_on_room_setup_requested)
+	menu.options_view().passthrough_room_mesh_changed.connect(_on_passthrough_room_mesh_changed)
 	menu.options_view().xr_display_mode_changed.connect(_on_xr_display_mode_changed)
 	menu.options_view().controller_hands_changed.connect(_on_controller_hands_changed)
 	AppPrefs.mains_region_changed.connect(_on_mains_region_changed)
@@ -1509,6 +1510,13 @@ func _on_passthrough_spatial_changed(_enabled: bool) -> void:
 	var scene := get_tree().current_scene
 	if scene != null and scene.has_method("refresh_spatial"):
 		scene.call("refresh_spatial")
+
+
+## Flat furniture or the scanned mesh: handed to the standing room, as above.
+func _on_passthrough_room_mesh_changed(_enabled: bool) -> void:
+	var scene := get_tree().current_scene
+	if scene != null and scene.has_method("refresh_room_shape"):
+		scene.call("refresh_room_shape")
 
 
 ## Space Setup, from the OPTIONS button. The passthrough room is the one with a

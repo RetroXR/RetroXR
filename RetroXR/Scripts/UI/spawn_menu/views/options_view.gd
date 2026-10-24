@@ -31,6 +31,7 @@ signal passthrough_locomotion_changed(enabled: bool)
 signal passthrough_occlusion_changed(enabled: bool)
 signal passthrough_spatial_changed(enabled: bool)
 signal room_setup_requested
+signal passthrough_room_mesh_changed(enabled: bool)
 signal xr_display_mode_changed(mode: int)
 signal controller_hands_changed(enabled: bool)
 ## The system filter was toggled — the CORES download list is built from it.
@@ -571,6 +572,27 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 				AppPrefs.passthrough_spatial = on
 				AppPrefs.save_prefs()
 				passthrough_spatial_changed.emit(on)
+		))
+
+		# What things rest on: the flat furniture boxes (off), or the Quest 3's
+		# scanned mesh of every surface (on). RealRoom._settle_kinds.
+		var mesh_row := HBoxContainer.new()
+		mesh_row.add_theme_constant_override("separation", 10)
+		mesh_row.custom_minimum_size = Vector2(0, 68)
+		vbox.add_child(mesh_row)
+
+		var mesh_lbl := Label.new()
+		mesh_lbl.text = "Detailed Room Mesh"
+		mesh_lbl.add_theme_font_size_override("font_size", 22)
+		mesh_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+		mesh_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		mesh_row.add_child(mesh_lbl)
+
+		mesh_row.add_child(VRToggle.create(AppPrefs.passthrough_room_mesh,
+			func(on: bool) -> void:
+				AppPrefs.passthrough_room_mesh = on
+				AppPrefs.save_prefs()
+				passthrough_room_mesh_changed.emit(on)
 		))
 
 		# Meta's Space Setup, opened from here (RealRoom.request_room_setup): the

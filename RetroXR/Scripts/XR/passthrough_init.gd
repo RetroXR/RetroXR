@@ -112,6 +112,12 @@ func refresh_spatial() -> void:
 		_real_room.refresh_spatial()
 
 
+## Re-read "Detailed Room Mesh". Called by the OPTIONS switch.
+func refresh_room_shape() -> void:
+	if is_instance_valid(_real_room):
+		_real_room.refresh_room_shape()
+
+
 ## Open Meta's Space Setup. Called by the OPTIONS button; "" when it opened, or
 ## why it could not.
 func request_room_setup() -> String:

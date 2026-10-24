@@ -38,6 +38,8 @@ var origin_source := Callable()
 var camera_source := Callable()
 ## Whether occlusion is wanted, or null to read AppPrefs. A suite supplies one.
 var occlusion_pref_source := Callable()
+## Whether the detailed mesh is wanted, or null to read AppPrefs. A suite supplies one.
+var mesh_pref_source := Callable()
 ## Called with the notice's title and text instead of a toast. A suite supplies one.
 var notice_sink := Callable()
 
@@ -237,18 +239,38 @@ func add_surface(surface: RealRoomSurface) -> void:
 	_settle_kinds()
 
 
-## The mesh has the furniture's real shape, so with a mesh the furniture's boxes
-## are not solid: a desk with things on it is rested on where its things are, not
-## on the lid of a box round all of them.
+## Which shape things rest on (AppPrefs.passthrough_room_mesh). Flat, the default:
+## the furniture's boxes, level and cheap, and the mesh not solid. Detailed: the
+## mesh, which has the furniture's real shape, so its boxes are not solid -- a
+## desk with things on it is rested on where its things are, not on the lid of a
+## box round all of them. Without a mesh (a Quest 2, a room scanned without one)
+## the boxes either way. The floor, walls and ceiling are solid in both.
 func _settle_kinds() -> void:
 	var has_mesh := false
 	for s in _surfaces:
 		if is_instance_valid(s) and s.kind == RealRoomSurface.Kind.MESH:
 			has_mesh = true
 			break
+	var use_mesh := has_mesh and wants_mesh()
 	for s in _surfaces:
-		if is_instance_valid(s) and s.kind == RealRoomSurface.Kind.FURNITURE:
-			s.set_solid(not has_mesh)
+		if not is_instance_valid(s):
+			continue
+		if s.kind == RealRoomSurface.Kind.FURNITURE:
+			s.set_solid(not use_mesh)
+		elif s.kind == RealRoomSurface.Kind.MESH:
+			s.set_solid(use_mesh)
+
+
+## Re-read "Detailed Room Mesh". Called by the OPTIONS switch, through the room.
+func refresh_room_shape() -> void:
+	_settle_kinds()
+
+
+func wants_mesh() -> bool:
+	if mesh_pref_source.is_valid():
+		return bool(mesh_pref_source.call())
+	var prefs := get_node_or_null("/root/AppPrefs") if is_inside_tree() else null
+	return prefs != null and bool(prefs.get("passthrough_room_mesh"))
 
 
 func _on_data_missing() -> void:
