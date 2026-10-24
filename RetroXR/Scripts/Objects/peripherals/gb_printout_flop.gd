@@ -27,6 +27,8 @@ const SETTLED := 0.002
 const FLOOR_EVERY := 0.25
 const FLOOR_REACH := 0.3
 const PATCH_REACH := 0.3
+## How wide the highlight round the print is, meters (GbPaperRim).
+const RIM := 0.0015
 ## A point of the mesh moving less than this (meters) is not worth redrawing.
 const REDRAW := 0.00005
 
@@ -44,6 +46,10 @@ var _floor_wait := 0.0
 var _size := Vector2.ZERO
 var _last_pose := Transform3D()
 var _drawn := PackedVector2Array()
+## The highlight round the print while it bends (the Poster's flat rim, behind
+## a flat sheet, covered a bent one held in the hand), and whether it is ours.
+var _rim: MeshInstance3D
+var _rim_owned := false
 
 
 ## Whether `poster` is a print off the Game Boy Printer: marked so when torn off,
@@ -77,13 +83,22 @@ func _ready() -> void:
 	_mesh.mesh = _arrays
 	_flat.get_parent().add_child(_mesh)
 	_mesh.transform = _flat.transform
+	_rim = MeshInstance3D.new()
+	_rim.name = "FlopRim"
+	_rim.add_to_group("outline_exclude")
+	_rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_rim.visible = false
+	_rim.material_override = GbPaperRim.material(Poster.OUTLINE_COLOR)
+	_flat.get_parent().add_child(_rim)
+	_rim.transform = _flat.transform
 
 
 func _process(delta: float) -> void:
 	if _poster.is_stuck():
-		# A sticker: flat, as the Poster draws it.
+		# A sticker: flat, as the Poster draws it, its own rim too.
 		_mesh.visible = false
 		_flat.visible = true
+		_own_rim(false)
 		_motion.reset()
 		return
 	var size := _poster.get_sheet_size()
@@ -235,3 +250,31 @@ func _draw(size: Vector2) -> void:
 	_mesh.material_override = _flat.get_surface_override_material(0)
 	_mesh.visible = true
 	_flat.visible = false
+	var centers := PackedVector3Array()
+	var along := PackedVector3Array()
+	var vs := PackedFloat32Array()
+	for i in n:
+		var a := rows[maxi(i - 1, 0)]
+		var b := rows[mini(i + 1, n - 1)]
+		var t := (b - a).normalized()
+		centers.append(Vector3(0.0, rows[i].x, rows[i].y))
+		along.append(Vector3(0.0, t.x, t.y))
+		vs.append(0.5 - dist[i] / size.y)
+	_rim.mesh = GbPaperRim.build(centers, along, Vector3.RIGHT, half_w, RIM, vs)
+	_own_rim(true)
+
+
+## Whether this draws the print's rim (bent) or the Poster does (flat, stuck).
+func _own_rim(on: bool) -> void:
+	if on == _rim_owned:
+		return
+	_rim_owned = on
+	_poster.outline_drawn_by = self if on else null
+	if not on:
+		_rim.visible = false
+	_poster._refresh_outline()
+
+
+## The Poster's answer to whether its rim shows now (outline_drawn_by).
+func show_outline(on: bool) -> void:
+	_rim.visible = on and _rim_owned

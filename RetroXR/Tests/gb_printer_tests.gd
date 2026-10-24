@@ -49,6 +49,7 @@ func _ready() -> void:
 	_test_fingers_push_the_paper()
 	await _test_gear_knocks_with_the_core()
 	await _test_a_torn_print_keeps_its_bend()
+	await _test_paper_is_outlined_round_not_over()
 	_test_paper_moves_smoothly()
 	await _test_netplay_surface()
 	_test_netplay_row()
@@ -595,6 +596,58 @@ func _test_a_torn_print_keeps_its_bend() -> void:
 	if flop != null:
 		_ok(flop._up.mean_curvature() < 0.0 and flop._down.mean_curvature() < 0.0,
 			"and starts bent (%.1f, %.1f)" % [flop._up.mean_curvature(), flop._down.mean_curvature()])
+	poster.free()
+
+
+func _test_paper_is_outlined_round_not_over() -> void:
+	# The rim goes round the paper: every point of it at or past the paper's edge,
+	# and past both its ends; none over the paper.
+	var centers := PackedVector3Array([Vector3(0, 0, 0), Vector3(0, 0.05, 0), Vector3(0, 0.1, -0.01)])
+	var along := PackedVector3Array([Vector3.UP, Vector3.UP, Vector3(0, 0.98, -0.2).normalized()])
+	var mesh := GbPaperRim.build(centers, along, Vector3.RIGHT, 0.019, 0.0015, PackedFloat32Array([1.0, 0.5, 0.0]))
+	var verts: PackedVector3Array = mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX]
+	var over := 0
+	var lowest := INF
+	var highest := -INF
+	for v in verts:
+		if absf(v.x) < 0.019 - 1e-6:
+			over += 1
+		lowest = minf(lowest, v.y)
+		highest = maxf(highest, v.y)
+	_eq(over, 0, "the rim is round the paper, none of it over it")
+	_ok(lowest < -0.001 and highest > 0.1, "and past both its ends")
+
+	# The printer's strip: the tear trigger's own (inflated) outline off, the rim
+	# shown only while it is aimed at.
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	await get_tree().process_frame
+	var paper := printer.get_node("PaperPivot/Paper") as VRButton
+	_ok(not paper.builtin_outline, "the paper's trigger draws no outline of its own")
+	var rim := printer.get_node_or_null("PaperPivot/Paper/PaperRim") as MeshInstance3D
+	_ok(rim != null and rim.mesh != null and rim.mesh.get_surface_count() == 1, "the paper has a rim")
+	_eq(paper.outline_color().a, 0.0, "nothing aimed at it, no outline color")
+	printer._show_paper_rim()
+	_ok(rim != null and not rim.visible, "and no rim showing")
+	printer.free()
+
+	# A print bending as paper: its own rim, the Poster's flat one hidden.
+	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	poster.printout = true
+	poster.size_scale = 0.12 / Poster.BASE_LONG_EDGE
+	add_child(poster)
+	poster.freeze = true
+	poster.global_position = Vector3(0, 2, 0)
+	for i in 3:
+		await get_tree().process_frame
+	var flop := poster.get_node_or_null(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	_ok(flop != null and poster.outline_drawn_by == flop, "a loose print draws its own rim")
+	poster._highlight_requested = true
+	poster._refresh_outline()
+	var flat_rim := poster.get_node_or_null("Surface/HoverOutline") as MeshInstance3D
+	var bent_rim := poster.get_node_or_null("Surface/FlopRim") as MeshInstance3D
+	_ok(flat_rim != null and not flat_rim.visible, "aimed at, the flat rim behind it stays hidden")
+	_ok(bent_rim != null and bent_rim.visible, "and the rim round the bent paper shows")
 	poster.free()
 
 

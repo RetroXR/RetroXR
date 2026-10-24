@@ -46,6 +46,8 @@ const PAPER_REDRAW := 0.00005
 ## The tear trigger is at least this thick, so a strip standing edge-on to the
 ## pointer can still be pointed at.
 const PAPER_HIT_THICKNESS := 0.003
+## How wide the highlight round the paper is, meters (GbPaperRim).
+const PAPER_RIM := 0.0015
 ## How often the room round the paper is looked for, seconds, and how far down
 ## under the printer.
 const FLOOR_EVERY := 0.2
@@ -116,6 +118,10 @@ var _shown_tex: Texture2D = null
 var _shown_lines := -1
 var _paper_mat: ShaderMaterial = null
 var _paper_arrays: ArrayMesh = null
+## The highlight round the paper (GbPaperRim), shown as the tear trigger's
+## outline would be, and its material.
+var _paper_rim: MeshInstance3D = null
+var _paper_rim_mat: StandardMaterial3D = null
 var _paper_box: BoxShape3D = null
 ## The paper's bend, and the points its mesh was last laid from.
 var _strip := GbPrinterStrip.new()
@@ -174,6 +180,17 @@ func _ready() -> void:
 	_paper_mat.shader = PAPER_SHADER
 	_paper_mat.set_shader_parameter("dots_frac", GbPrinterPaper.DOTS * DOT_PITCH / PAPER_WIDTH)
 	_paper_mesh.material_override = _paper_mat
+	# Its outline round it, not over it (GbPaperRim): the tear trigger's own
+	# inflated hull covered the strip in its color.
+	_paper.builtin_outline = false
+	_paper_rim = MeshInstance3D.new()
+	_paper_rim.name = "PaperRim"
+	_paper_rim.add_to_group("outline_exclude")
+	_paper_rim.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_paper_rim.visible = false
+	_paper_rim_mat = GbPaperRim.material(WidgetOutline.HOVER_COLOR)
+	_paper_rim.material_override = _paper_rim_mat
+	_paper.add_child(_paper_rim)
 	_show_roll()
 	# Leaning back off the slot a little, the way the slot sends it. Set here
 	# rather than written into the scene as a matrix (CLAUDE.md's row/column
@@ -467,10 +484,22 @@ func _move_paper(delta: float) -> void:
 	_place_room(xf)
 	_aim_strip()
 	turn_gear(delta)
+	_show_paper_rim()
 	_place_fingers(xf)
 	var shove := _motion.shove
 	_strip.step(delta, Vector2(g.y, g.z), _motion.spin_accel, Vector2(shove.y, shove.z))
 	_draw_paper()
+
+
+## The rim round the paper, as the tear trigger's outline would show: green
+## armed or aimed at, amber with the trigger down.
+func _show_paper_rim() -> void:
+	if _paper_rim == null:
+		return
+	var c := _paper.outline_color()
+	_paper_rim.visible = c.a > 0.0
+	if _paper_rim.visible:
+		_paper_rim_mat.albedo_color = c
 
 
 ## Paper came out: the motor runs on for MOTOR_TAIL_S, and if it had stopped,
@@ -678,6 +707,15 @@ func _draw_paper() -> void:
 	_paper_arrays.clear_surfaces()
 	_paper_arrays.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 	_paper.mesh_changed()
+	if _paper_rim != null:
+		var centers := PackedVector3Array()
+		var along := PackedVector3Array()
+		var vs := PackedFloat32Array()
+		for i in n:
+			centers.append(mid[i] - center)
+			along.append((to_pivot.basis * Vector3(0.0, dirs[i].x, dirs[i].y)).normalized())
+			vs.append(1.0 - float(i) / float(n - 1))
+		_paper_rim.mesh = GbPaperRim.build(centers, along, Vector3.RIGHT, half, PAPER_RIM, vs)
 
 
 ## Tear the paper off at the serrated edge.

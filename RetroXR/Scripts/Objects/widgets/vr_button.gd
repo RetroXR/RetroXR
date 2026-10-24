@@ -544,11 +544,28 @@ func _apply_mesh_color(color: Color) -> void:
 	(mat as StandardMaterial3D).albedo_color = color
 
 
+## Off for a widget that draws its own outline from outline_color(): a sheet of
+## paper (the Game Boy Printer's), which the inflated hull covers rather than
+## outlines (GbPaperRim).
+var builtin_outline := true
+
+
+## The color the outline should be now, or clear when there is none to show:
+## what the built-in one shows (_sync_outline), for an owner drawing its own.
+func outline_color() -> Color:
+	if not (_armed or _trigger_pressed or _pointer_hovered):
+		return Color(0, 0, 0, 0)
+	return WidgetOutline.ACTIVE_COLOR if _trigger_pressed else WidgetOutline.HOVER_COLOR
+
+
 ## Green while armed (the trigger will act here), amber while the trigger is down.
 ## The pointer-hover outline is unchanged by require_trigger — the laser has always
 ## highlighted what it is over.
 func _sync_outline() -> void:
 	if _outline == null:
+		return
+	if not builtin_outline:
+		_outline.visible = false
 		return
 	if _trigger_pressed != _outline_amber:
 		_outline_amber = _trigger_pressed

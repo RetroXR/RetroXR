@@ -72,6 +72,10 @@ var stuck_from_save := false
 ## A print torn off the Game Boy Printer: loose, it bends as paper
 ## (GbPrintoutFlop). Set before the tree, as a save or the printer does.
 var printout := false
+## Something drawing the hover rim itself (GbPrintoutFlop: a print bent as
+## paper, which the flat rim behind it covered instead of outlined): told when
+## to show it through show_outline(on), the flat rim staying hidden.
+var outline_drawn_by: Object = null
 ## Set while a ray-held resize is in progress, so the sheet can be re-fitted once.
 var _resized_while_held := false
 var _conform_mesh: MeshInstance3D = null
@@ -467,7 +471,12 @@ func _on_highlight(_p: Node3D, on: bool) -> void:
 func _refresh_outline() -> void:
 	if _outline == null:
 		return
-	_outline.visible = _highlight_requested or (freeze and not is_stuck())
+	var want := _highlight_requested or (freeze and not is_stuck())
+	if outline_drawn_by != null and is_instance_valid(outline_drawn_by):
+		_outline.visible = false
+		outline_drawn_by.call("show_outline", want)
+		return
+	_outline.visible = want
 
 
 # ── Placement preview ─────────────────────────────────────────────────────────
