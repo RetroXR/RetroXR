@@ -1932,7 +1932,9 @@ func _bind_rom_row(row: Control, index: int) -> void:
 	# on disk. The row stands for the board AND the disc.
 	var disc_index := int(model.get("disc_index", -1))
 	var disc_entry: Dictionary = romm_catalog.row(disc_index) if disc_index >= 0 else {}
-	var disc_id := int(disc_entry.get("id", 0))
+	# A folder RomM lists with nothing in it is no disc (ArcadeDiscs.server_holds_disc): it is neither
+	# fetched nor waited for, so the board is an ordinary row and can be deleted.
+	var disc_id := int(disc_entry.get("id", 0)) if ArcadeDiscs.server_holds_disc(disc_entry) else 0
 	var local_disc := ""
 	if ArcadeDiscs.applies(systemid) and not local_path.is_empty():
 		local_disc = ArcadeDiscs.disc_for(local_path)
@@ -2037,7 +2039,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 			state.text = String.chr(MenuIcons.DOWNLOAD)
 			state.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
 			state.tooltip_text = "Download from RomM (%s)" % MenuStyle.human_bytes(
-				int(entry.get("fs_size_bytes", 0)) + int(disc_entry.get("fs_size_bytes", 0)))
+				int(entry.get("fs_size_bytes", 0)) + (int(disc_entry.get("fs_size_bytes", 0)) if disc_id > 0 else 0))
 			state.pressed.connect(_enqueue_game.bind(entry, disc_entry, systemid))
 		else:
 			# The index is on disk, so these keep listing with the server down.
@@ -3875,8 +3877,15 @@ func _add_custom_shell(vbox: VBoxContainer, shell_group: ButtonGroup, chosen: Di
 ## downloader works one at a time, so the disc follows the board.
 func _enqueue_game(entry: Dictionary, disc_entry: Dictionary, systemid: String) -> void:
 	romm_downloader.enqueue(entry, systemid)
-	if not disc_entry.is_empty():
+	if disc_entry.is_empty():
+		return
+	if ArcadeDiscs.server_holds_disc(disc_entry):
 		romm_downloader.enqueue(disc_entry, systemid)
+	else:
+		# Said, not skipped in silence: the game will run without its disc and the player should know why.
+		notify("romm:disc:%d" % int(entry.get("id", 0)), "⚠",
+			"%s: RomM lists a disc folder for it but holds no files in it. Rescan the platform in RomM."
+			% str(entry.get("name", "This game")), -1.0, MenuToasts.DWELL_FAIL)
 
 
 ## An arcade game that has a disc: spawn the board or the disc. They are two objects, and the

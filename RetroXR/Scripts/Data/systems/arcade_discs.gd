@@ -137,6 +137,13 @@ static func _delete_tree(dir_path: String) -> int:
 	return removed
 
 
+## Does RomM actually hold anything in this disc folder? A server can list the folder as a ROM and have
+## registered none of its files (size 0, `files` empty): there is nothing to download and a request
+## for it answers 404 "No files found". Such a folder is no disc, whatever its name says.
+static func server_holds_disc(folder_entry: Dictionary) -> bool:
+	return int(folder_entry.get("fs_size_bytes", 0)) > 0
+
+
 ## What the cabinet says when a disc game is started with only one half in. `missing` is the half
 ## that is not there: BOARD_NAME or DISC_NAME.
 static func requires_notice(missing: String) -> String:

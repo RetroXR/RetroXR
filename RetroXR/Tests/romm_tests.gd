@@ -917,6 +917,9 @@ func _test_arcade_disc_folders() -> void:
 	_eq(RommCatalog.count_shown(bases, exts), 6, "disc/and counts every row elsewhere")
 	var pairs := ArcadeDiscs.pair_folders(bases, exts)
 	_eq([pairs[1], pairs[2], pairs[4]], [0, -1, 5], "disc/a board row names its folder's row")
+	_ok(ArcadeDiscs.server_holds_disc({"fs_size_bytes": 1455804311}), "disc/a folder with files in it is a disc")
+	_ok(not ArcadeDiscs.server_holds_disc({"fs_size_bytes": 0, "multi": false}),
+		"disc/a folder RomM lists with no files in it is not (azumanga: 'No files found for ROM')")
 	_ok(ArcadeDiscs.applies("mame") and ArcadeDiscs.applies("arcade") and not ArcadeDiscs.applies("psx"),
 		"disc/only the arcade family pairs (a legacy id reads as arcade)")
 
