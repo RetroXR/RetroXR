@@ -330,7 +330,25 @@ func configure_controller_ports(port_zones: Array) -> void:
 	hide_port_placeholders(port_zones)
 
 
+## The base the cabinet stands on, for setting it down by pointing at the floor (GroundPlacement): the
+## shell's width by its 0.80 m depth, origin in the middle on the floor.
+func ground_footprint() -> Vector2:
+	return Vector2(cabinet_width, 0.80)
+
+
+func _add_ground_placement() -> void:
+	var sys := get_parent()
+	if sys == null or sys.get_node_or_null("GroundPlacement") != null:
+		return
+	var placer := GroundPlacement.new()
+	placer.name = "GroundPlacement"
+	placer.host = sys as Node3D
+	placer.footprint = ground_footprint()
+	sys.add_child.call_deferred(placer)
+
+
 func configure_cartridge_slot(slot: Node3D) -> void:
+	_add_ground_placement()
 	if _bay != null:
 		_bay.configure_slot(slot)
 		var marker := _bay.mount_marker()

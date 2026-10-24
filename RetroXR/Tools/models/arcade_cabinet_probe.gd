@@ -262,6 +262,21 @@ func _shot_pedal() -> void:
 	await _save("pedal")
 
 
+## The yellow rectangle a held cabinet shows on the floor where it will be set down (GroundPlacement), a row of
+## two with a cabinet already stood beside it.
+func _shot_ground() -> void:
+	var placer := _sys.get_node_or_null("GroundPlacement") as GroundPlacement
+	if placer == null:
+		print("[probe] no placer on this cabinet")
+		return
+	var eye := Vector3(0.0, 1.6, 3.0)
+	placer.preview(GroundPlacement.placement_for(Vector3(0.9, 1.2, 2.0), Vector3(0.0, -1.0, -1.0), 0.0, eye))
+	await _frames(4)
+	_look(Vector3(1.6, 1.5, 3.6), Vector3(0.6, 0.4, 1.0))
+	await _save("ground")
+	placer.preview({})
+
+
 func _shot_panel() -> void:
 	_look(Vector3(0, 1.55, 1.15), Vector3(0, 0.98, 0.4))
 	await _save("panel")
