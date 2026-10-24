@@ -89,7 +89,66 @@ static func free_node(node: Node, duration: float = DURATION) -> void:
 
 	tween.finished.connect(func() -> void:
 		if is_instance_valid(spatial):
-			spatial.queue_free())
+			_bury(spatial))
+
+
+# ── Freeing a little at a time ────────────────────────────────────────────────
+#
+# Freeing a machine on the spot cost ~2 ms in one frame on a desktop (an N64:
+# 175 nodes, 17 bodies), a third of it leaving the tree and two thirds the free
+# itself — on a Quest's CPU, a dropped frame every time something was deleted.
+# The tree exit stays in one piece: it is what tells everyone the object is gone
+# (ObjectSync's tree_exiting despawn, the "spawned" group the save reads, every
+# _exit_tree that unplugs a cable). What is left after it is a detached subtree
+# nothing can reach, and that is taken apart over the following frames instead,
+# a millisecond of it per frame, children first.
+
+## Wall-clock budget per frame for freeing detached nodes, in microseconds.
+const REAP_BUDGET_USEC := 1000
+
+static var _graveyard: Array[Node] = []
+static var _reaping := false
+
+
+## Take `node` out of the tree now, and free it over the next frames.
+static func _bury(node: Node) -> void:
+	var parent := node.get_parent()
+	if parent == null:
+		node.queue_free()
+		return
+	var tree := node.get_tree()
+	parent.remove_child(node)
+	if tree == null:
+		node.free()
+		return
+	_graveyard.append(node)
+	if not _reaping:
+		_reaping = true
+		tree.process_frame.connect(_reap)
+
+
+static func _reap() -> void:
+	var start := Time.get_ticks_usec()
+	while not _graveyard.is_empty() and Time.get_ticks_usec() - start < REAP_BUDGET_USEC:
+		var node: Node = _graveyard.back()
+		if not is_instance_valid(node):
+			_graveyard.pop_back()
+			continue
+		var n := node.get_child_count()
+		if n > 0:
+			# Children first, one subtree at a time: unhooking a child from a parent
+			# that is out of the tree is cheap, and each lands on the pile itself.
+			var child := node.get_child(n - 1)
+			node.remove_child(child)
+			_graveyard.append(child)
+			continue
+		_graveyard.pop_back()
+		node.free()
+	if _graveyard.is_empty():
+		_reaping = false
+		var tree := Engine.get_main_loop() as SceneTree
+		if tree != null and tree.process_frame.is_connected(_reap):
+			tree.process_frame.disconnect(_reap)
 
 
 ## Take the object out of the simulation without stopping its processing — a
@@ -110,6 +169,11 @@ static func _neutralise(node: Node3D) -> void:
 		if area != null:
 			area.set_deferred("monitoring", false)
 			area.set_deferred("monitorable", false)
+		# Shapes off too, not just their layers: the shrink rescales the body every
+		# frame, and a shape it still has is rebuilt at the new scale each time.
+		var shape := child as CollisionShape3D
+		if shape != null:
+			shape.set_deferred("disabled", true)
 
 
 static func _self_and_descendants(node: Node) -> Array[Node]:
