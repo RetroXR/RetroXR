@@ -440,9 +440,13 @@ const SOURCES := {
 	# v2: answers land within 2048 ticks of the clock again. v1 promised a
 	# 4096-tick horizon for netplay's sake and answered too late for a Game Boy
 	# Color in double speed: Super Mario Bros. Deluxe reported Error 02.
+	# v4: the printer's sound fitted to a recording of a real one (the motor's
+	# harmonics, the gear's turn with its pitch winding down and back, its knock,
+	# a darker rattle); the turn starts at its knock with the motor so the room can
+	# jolt the paper in step (GbPrinter.TURN_S). Savestate version 3.
 	"gbprinter": {
 		"repo":  "RetroXR/gbprinter-libretro",
-		"known_tag": "retroxr-gbprinter-libretro-v3",
+		"known_tag": "retroxr-gbprinter-libretro-v4",
 		"label": "Game Boy Printer (retroXR)",
 		"assets": {
 			"Windows": "gbprinter_libretro.dll.zip",
