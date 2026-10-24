@@ -515,7 +515,7 @@ func _build() -> void:
 		["Mono Composite Cable", "mono_composite_cable"],
 		["VGA Cable",       "vga_cable"],
 		["3.5 mm Cable",   "trs_cable"],
-		["Link Cable",     "link_cable"],
+		["Game Boy Advance Link Cable", "link_cable"],
 		["GB Link Cable",  "dmg_link_cable"],
 		["GBC Link Cable", "gb_link_cable"],
 		["GB Link Cable Adapter", "gb_link_adapter"],

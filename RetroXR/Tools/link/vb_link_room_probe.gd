@@ -73,7 +73,7 @@ func _run() -> void:
 
 	var entry := {}
 	for item in SpawnCatalog.items_for("virtualboy"):
-		if str(item.get("label", "")) == "Link Cable":
+		if str(item.get("label", "")) == "Virtual Boy Link Cable":
 			entry = item
 	_ok("the spawn menu offers a Link Cable", not entry.is_empty())
 	var scene := ScenePersistence.LEAD_SCENES.get(str(entry.get("spawn", ""))) as PackedScene

@@ -271,17 +271,17 @@ const _VGA_CABLE: Dictionary = {"kind": "peripheral", "label": "VGA Cable",
 ## other: in the US and Europe the printer came with the Universal Game Link Cable,
 ## small plugs and the adapter. The PlayStation's is different again -- different
 ## connector, different protocol -- so none is ever offered as another.
-const _LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable", "spawn": "link_cable"}
-const _DMG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+const _LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Game Boy Advance Link Cable", "spawn": "link_cable"}
+const _DMG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Game Boy Link Cable",
 	"spawn": "dmg_link_cable"}
-const _GB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+const _GB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Game Boy Color Link Cable",
 	"spawn": "gb_link_cable"}
 const _GB_LINK_ADAPTER: Dictionary = {"kind": "peripheral", "label": "Link Cable Adapter",
 	"spawn": "gb_link_adapter"}
 ## The small lead on the original Game Boy's card, named for what it is there.
 const _GBC_LINK_CABLE_ON_DMG: Dictionary = {"kind": "peripheral",
 	"label": "Game Boy Color Link Cable", "spawn": "gb_link_cable"}
-const _PSX_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+const _PSX_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "PlayStation Link Cable",
 	"spawn": "psx_link_cable"}
 ## The WonderSwan's Communication Cable is two units and no more, like the Game
 ## Boy's, so it is the same two-ended lead under Bandai's name -- keyed to the
@@ -292,7 +292,7 @@ const _WS_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Communicatio
 ## two-ended lead again, under Sega's name, keyed to Game Gears alone.
 const _GG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Gear-to-Gear Cable",
 	"spawn": "gg_link_cable"}
-const _SATURN_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+const _SATURN_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Sega Saturn Link Cable",
 	"spawn": "saturn_link_cable"}
 const _JAG_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "JagLink Cable",
 	"spawn": "jag_link_cable"}
@@ -322,12 +322,12 @@ const _COMLYNX_CABLE: Dictionary = {"kind": "peripheral", "label": "ComLynx Cabl
 	"spawn": "comlynx_cable"}
 ## The SNK link cable joins two Neo Geo Pockets (either model, one core, one
 ## wire) and no more, so it is the same two-ended lead, keyed to NGPs alone.
-const _NGP_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+const _NGP_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Neo Geo Pocket Link Cable",
 	"spawn": "ngp_link_cable"}
 ## The Virtual Boy's link cable joins two units by their EXT. sockets. Nintendo
 ## never sold one and no retail game used it; what does is homebrew, and Mario's
 ## Tennis with its two-player code patched back in (docs/dev/vb-link.md).
-const _VB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Link Cable",
+const _VB_LINK_CABLE: Dictionary = {"kind": "peripheral", "label": "Virtual Boy Link Cable",
 	"spawn": "vb_link_cable"}
 
 ## The console-to-handheld lead, offered on BOTH platforms it joins. A player
