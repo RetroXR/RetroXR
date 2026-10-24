@@ -22,7 +22,6 @@ const Specs := preload("res://Tools/gen/mains_specs.gd")
 const BEVEL := 0.0025
 const SEG := 6
 
-const IVORY := Color(0.62, 0.60, 0.55)
 const WHITE := Color(0.80, 0.80, 0.78)
 
 ## The plates, in millimetres. "thick" is the plate face's height off the wall:
@@ -33,7 +32,7 @@ const WHITE := Color(0.80, 0.80, 0.78)
 ## "switches" and "screws" are where those go on the plate.
 const PLATES := {
 	# Standard plate 2-3/4 x 4-1/2 in, openings 28.6 x 34.1 (Kyle Switch Plates).
-	"na": {"size": Vector2(69.85, 114.3), "radius": 6.0, "thick": 7.0, "tone": IVORY,
+	"na": {"size": Vector2(69.85, 114.3), "radius": 6.0, "thick": 7.0, "tone": WHITE,
 		"face": "oval", "face_size": Vector2(28.6, 34.1), "screws": [Vector2.ZERO]},
 	# Panasonic WTF7003W plate 70 x 120 x 8.8; the receptacle modules stand 8.8.
 	"jp": {"size": Vector2(70, 120), "radius": 3.0, "thick": 7.5, "tone": WHITE,
