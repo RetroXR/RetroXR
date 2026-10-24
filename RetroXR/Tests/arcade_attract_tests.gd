@@ -98,6 +98,8 @@ func _run() -> void:
 		await _group_idle()
 	if _want("leave"):
 		await _group_leave()
+	if _want("fail"):
+		await _group_fail()
 	if _want("media_ask"):
 		await _group_media_ask()
 	if _want("keep"):
@@ -610,6 +612,54 @@ func _group_leave() -> void:
 	_ok(not ArcadeAttract.wanted(true, ArcadeAttract.OVERRIDE_FOLLOW, true, true, false),
 		"leave: a console cabled to its input means no attract")
 	await _clear()
+
+
+# ── fail ────────────────────────────────────────────────────────────────────
+
+## A game that will not start puts the cabinet back to showing it. Two ways it can not start: refused at
+## once by the cabinet (a disc game with no disc in its bay) and refused by the core a moment later
+## (`content_load_failed`).
+func _group_fail() -> void:
+	AppPrefs.arcade_attract_mode = true
+	var dir := ProjectSettings.globalize_path("user://arcade_attract_fail")
+	DirAccess.make_dir_recursive_absolute(dir.path_join("needsdisc"))
+	for f: String in ["needsdisc.zip", "needsdisc/a.chd"]:
+		var h := FileAccess.open(dir.path_join(f), FileAccess.WRITE)
+		h.store_8(1)
+		h.close()
+
+	# Refused at once: the game has a disc and the bay has none.
+	var sys := await _cabinet_with_board(dir.path_join("needsdisc.zip"))
+	sys._libretro.content_load_failed.disconnect(sys._on_content_load_failed)
+	sys.power_on()
+	_ok(sys.attracting, "fail: switched on it shows the game")
+	sys.attract_first_use(&"coin")
+	_ok(sys.attracting and not sys.is_powered_on,
+		"fail: a coin on a game that cannot start (no disc) puts it back to showing the game")
+	await _clear()
+
+	# Refused by the core: the handler runs as it would from the core's own signal.
+	sys = await _cabinet_with_board()
+	sys._libretro.content_load_failed.disconnect(sys._on_content_load_failed)
+	sys.power_on()
+	sys.attract_first_use(&"coin")
+	sys.is_powered_on = true
+	sys._on_content_load_failed("could not open the game")
+	_ok(sys.attracting and not sys.is_powered_on, "fail: a core that refuses the game puts it back too")
+	await _clear()
+
+	# Control: with the option off nothing attracts, so a refusal leaves a dark cabinet as it always did.
+	AppPrefs.arcade_attract_mode = false
+	sys = await _cabinet_with_board()
+	sys._libretro.content_load_failed.disconnect(sys._on_content_load_failed)
+	sys.is_powered_on = true
+	sys._on_content_load_failed("could not open the game")
+	_ok(not sys.attracting, "fail: with the attract off a refusal shows nothing")
+	await _clear()
+	for f: String in ["needsdisc/a.chd", "needsdisc.zip"]:
+		DirAccess.remove_absolute(dir.path_join(f))
+	DirAccess.remove_absolute(dir.path_join("needsdisc"))
+	DirAccess.remove_absolute(dir)
 
 
 # ── media_ask ───────────────────────────────────────────────────────────────
