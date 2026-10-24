@@ -200,6 +200,8 @@ func _worker(args: Dictionary) -> void:
 	var members: Array[Dictionary] = []
 	# A folder RomM holds ONE file in (`has_nested_single_file`) is served as that file, not as an
 	# archive, whatever its flags say; a folder with several is served as a zip.
+	if folder:
+		_clear_stray_folder_file(systemid, fs_name)
 	if folder and not _is_archive(dest):
 		var placed := _place_single_file(args, dest, systemid, fs_name, rom_id)
 		if not str(placed.get("error", "")).is_empty():
@@ -249,11 +251,22 @@ static func is_disc_folder(entry: Dictionary, systemid: String) -> bool:
 		and not str(entry.get("fs_name", "")).is_empty()
 
 
+## A disc folder's name must be a FOLDER. An earlier build saved a one-file folder's disc as a plain file
+## called that (`arcade/azumanga`, a CHD with no extension), which would stop the folder being made: it is
+## ours (the cache holds it under that name), so it goes.
+func _clear_stray_folder_file(systemid: String, fs_name: String) -> void:
+	var stray := RommCacheManifest.local_path(systemid, fs_name)
+	if FileAccess.file_exists(stray):
+		push_warning("RommDownloader: replacing %s, a disc saved as a file by an earlier build" % stray)
+		DirAccess.remove_absolute(stray)
+
+
 ## A disc folder that arrived as the one file in it: move it to `<fs_name>/<its own name>`, the name
 ## RomM keeps it under (asked of the server: the download carries none we read). Returns
 ## {launch, relative, error}.
 func _place_single_file(args: Dictionary, downloaded: String, systemid: String, fs_name: String,
 		rom_id: int) -> Dictionary:
+	_clear_stray_folder_file(systemid, fs_name)
 	var http := RommHttp.new()
 	if http.open(args["base_url"], func() -> bool: return _abort) != RommHttp.Result.OK:
 		DirAccess.remove_absolute(downloaded)
