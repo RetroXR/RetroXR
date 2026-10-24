@@ -51,6 +51,11 @@ const COLOR_BTN_LOAD       := Color(0.15, 0.30, 0.55)
 const COLOR_SLOT_ACTIVE    := Color(0.20, 0.42, 0.20)
 const COLOR_SLOT_NORMAL    := Color(0.12, 0.12, 0.27)
 
+## The spawn menu's OPTIONS type scale: a setting's name, and what it is set to
+## (a slider's readout, a dropdown's choice, a text field's contents).
+const MENU_NAME_SIZE  := 22
+const MENU_VALUE_SIZE := 20
+
 
 # ── Builders ──────────────────────────────────────────────────────────────────
 
@@ -189,6 +194,20 @@ static func check(text: String, font_size := 18, height := 38) -> CheckBox:
 ## its name carry one.
 static func switch_row(parent: Container, text: String, initial_on := false,
 		font_size := 18, height := 56, tooltip := "") -> VRToggle:
+	return _switch_row(parent, text, initial_on, font_size, COLOR_LICENSE,
+		height, tooltip)
+
+
+## The same row at the spawn menu's scale, matching menu_slider_row: every
+## setting's name in OPTIONS is the bright TITLE at 22, whatever widget it heads.
+static func menu_switch_row(parent: Container, text: String, initial_on := false,
+		tooltip := "") -> VRToggle:
+	return _switch_row(parent, text, initial_on, MENU_NAME_SIZE, COLOR_TITLE,
+		68, tooltip)
+
+
+static func _switch_row(parent: Container, text: String, initial_on: bool,
+		font_size: int, color: Color, height: int, tooltip: String) -> VRToggle:
 	var row := HBoxContainer.new()
 	row.custom_minimum_size = Vector2(0, height)
 	row.add_theme_constant_override("separation", 8)
@@ -198,7 +217,7 @@ static func switch_row(parent: Container, text: String, initial_on := false,
 	lbl.text = text
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.add_theme_font_size_override("font_size", font_size)
-	lbl.add_theme_color_override("font_color", COLOR_LICENSE)
+	lbl.add_theme_color_override("font_color", color)
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.tooltip_text = tooltip
 	row.add_child(lbl)
@@ -238,7 +257,7 @@ static func slider_row(parent: Container, text: String, minv: float, maxv: float
 static func menu_slider_row(parent: Container, text: String, minv: float, maxv: float,
 		step: float, value_width := 80) -> Array:
 	return _slider_row(parent, text, minv, maxv, step, value_width,
-		22, 20, COLOR_TITLE, COLOR_LICENSE, 48, 10)
+		MENU_NAME_SIZE, MENU_VALUE_SIZE, COLOR_TITLE, COLOR_LICENSE, 48, 10)
 
 
 static func _slider_row(parent: Container, text: String, minv: float, maxv: float,

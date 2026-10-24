@@ -221,7 +221,7 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 		# Turn Style option (XR only)
 		var turn_opt := VRDropdown.create("Turn Style",
 			[["SNAP", "SNAP"], ["SMOOTH", "SMOOTH"]], "SNAP",
-			1, Vector2(220, 56), 22)
+			1, Vector2(220, 56), MenuStyle.MENU_NAME_SIZE)
 		turn_opt.item_selected.connect(func(id: Variant) -> void:
 			turn_style_changed.emit(str(id))
 		)
@@ -230,7 +230,7 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 		# Snap Turn Angle option (XR only)
 		var sa_opt := VRDropdown.create("Snap Angle",
 			[["30°", 30.0], ["45°", 45.0], ["60°", 60.0]], 45.0,
-			1, Vector2(140, 56), 22)
+			1, Vector2(140, 56), MenuStyle.MENU_NAME_SIZE)
 		sa_opt.item_selected.connect(func(id: Variant) -> void:
 			snap_angle_changed.emit(float(id))
 		)
@@ -333,7 +333,7 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 	# Named for when it fires now that there is a second auto-save below it: on its
 	# own, "Auto-save Scene" reads as though it covers both.
 	as_lbl.text = "Auto-save on Room Change"
-	as_lbl.add_theme_font_size_override("font_size", 22)
+	as_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 	as_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	as_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	as_row.add_child(as_lbl)
@@ -356,7 +356,7 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 
 	var ap_lbl := Label.new()
 	ap_lbl.text = "Auto-save Periodically"
-	ap_lbl.add_theme_font_size_override("font_size", 22)
+	ap_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 	ap_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	ap_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	ap_row.add_child(ap_lbl)
@@ -441,7 +441,7 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 
 		var spatial_lbl := Label.new()
 		spatial_lbl.text = "Meta XR Spatial Audio"
-		spatial_lbl.add_theme_font_size_override("font_size", 22)
+		spatial_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 		spatial_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 		spatial_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		spatial_row.add_child(spatial_lbl)
@@ -464,7 +464,7 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 
 	var mic_lbl := Label.new()
 	mic_lbl.text = "Microphone"
-	mic_lbl.add_theme_font_size_override("font_size", 22)
+	mic_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 	mic_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	mic_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	mic_row.add_child(mic_lbl)
@@ -497,7 +497,7 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 	if not saved_mic.is_empty() and not (saved_mic in inputs):
 		mic_items.append(["%s (not connected)" % _input_label(saved_mic, inputs), saved_mic])
 	var mic_drop := VRDropdown.create("Input", mic_items, saved_mic,
-		1, Vector2(340, 52), 16)
+		1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
 	mic_drop.item_selected.connect(func(id: Variant) -> void:
 		AppPrefs.microphone_device = str(id)
 		AppPrefs.save_prefs()
@@ -512,7 +512,7 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 	var move_drop := VRDropdown.create("Movement",
 		[["Slide", "slide"], ["Teleport", "teleport"]],
 		"teleport" if AppPrefs.locomotion_teleport else "slide",
-		2, Vector2(220, 52), 18)
+		2, Vector2(220, 52), MenuStyle.MENU_NAME_SIZE)
 	move_drop.item_selected.connect(func(id: Variant) -> void:
 		AppPrefs.locomotion_teleport = str(id) == "teleport"
 		AppPrefs.save_prefs()
@@ -539,7 +539,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		var ptm_lbl := Label.new()
 		ptm_lbl.text = "Move in Passthrough"
-		ptm_lbl.add_theme_font_size_override("font_size", 22)
+		ptm_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 		ptm_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 		ptm_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		ptm_row.add_child(ptm_lbl)
@@ -562,7 +562,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		var spt_lbl := Label.new()
 		spt_lbl.text = "Use Room Data in Passthrough"
-		spt_lbl.add_theme_font_size_override("font_size", 22)
+		spt_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 		spt_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 		spt_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		spt_row.add_child(spt_lbl)
@@ -583,7 +583,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		var mesh_lbl := Label.new()
 		mesh_lbl.text = "Detailed Room Mesh"
-		mesh_lbl.add_theme_font_size_override("font_size", 22)
+		mesh_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 		mesh_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 		mesh_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		mesh_row.add_child(mesh_lbl)
@@ -605,7 +605,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		var scan_lbl := Label.new()
 		scan_lbl.text = "Room Scan"
-		scan_lbl.add_theme_font_size_override("font_size", 22)
+		scan_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 		scan_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 		scan_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		scan_row.add_child(scan_lbl)
@@ -629,7 +629,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		var occ_lbl := Label.new()
 		occ_lbl.text = "Real Objects Hide Virtual"
-		occ_lbl.add_theme_font_size_override("font_size", 22)
+		occ_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 		occ_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 		occ_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		occ_row.add_child(occ_lbl)
@@ -648,7 +648,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		var fpt_lbl := Label.new()
 		fpt_lbl.text = "Passthrough in Focus Mode"
-		fpt_lbl.add_theme_font_size_override("font_size", 22)
+		fpt_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 		fpt_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 		fpt_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		fpt_row.add_child(fpt_lbl)
@@ -673,7 +673,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 	var xhair_lbl := Label.new()
 	xhair_lbl.text = "Light Gun Crosshair"
-	xhair_lbl.add_theme_font_size_override("font_size", 22)
+	xhair_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 	xhair_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	xhair_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	xhair_row.add_child(xhair_lbl)
@@ -694,7 +694,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 	var hints_lbl := Label.new()
 	hints_lbl.text = "Held Device Hints"
-	hints_lbl.add_theme_font_size_override("font_size", 22)
+	hints_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 	hints_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	hints_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hints_row.add_child(hints_lbl)
@@ -717,7 +717,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 	for id: String in MainsRegions.ids():
 		regions.append([MainsRegions.label_of(id), id])
 	var region_drop := VRDropdown.create("Outlet Region", regions,
-		MainsRegions.resolve(AppPrefs.mains_region), 1, Vector2(340, 52), 18)
+		MainsRegions.resolve(AppPrefs.mains_region), 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
 	region_drop.item_selected.connect(func(id: Variant) -> void:
 		# AppPrefs says so itself: the room and any mod listen there.
 		AppPrefs.set_mains_region(str(id))
@@ -732,7 +732,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 			["Controllers", AppPrefs.XRDisplayMode.CONTROLLERS],
 			["Hands", AppPrefs.XRDisplayMode.HANDS],
 			["Controllers + Hands", AppPrefs.XRDisplayMode.BOTH],
-		], AppPrefs.xr_display_mode, 1, Vector2(300, 52), 18)
+		], AppPrefs.xr_display_mode, 1, Vector2(300, 52), MenuStyle.MENU_NAME_SIZE)
 		display_drop.item_selected.connect(func(id: Variant) -> void:
 			AppPrefs.xr_display_mode = int(id) as AppPrefs.XRDisplayMode
 			AppPrefs.save_prefs()
@@ -750,7 +750,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 	var hands_lbl := Label.new()
 	hands_lbl.text = "Hands on Game Controllers"
-	hands_lbl.add_theme_font_size_override("font_size", 22)
+	hands_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 	hands_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	hands_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	hands_row.add_child(hands_lbl)
@@ -778,19 +778,19 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 	# A switch per section rather than one for the lot: they answer different
 	# questions, and a section that is off is never sampled, so leaving the
 	# expensive ones out has a real cost attached to it.
-	MenuStyle.switch_row(vbox, "Frame rate and timing", PerfHud.show_frame) \
+	MenuStyle.menu_switch_row(vbox, "Frame rate and timing", PerfHud.show_frame) \
 		.toggled.connect(func(on: bool) -> void:
 			PerfHud.show_frame = on
 			hud_changed.emit())
-	MenuStyle.switch_row(vbox, "Memory", PerfHud.show_memory) \
+	MenuStyle.menu_switch_row(vbox, "Memory", PerfHud.show_memory) \
 		.toggled.connect(func(on: bool) -> void:
 			PerfHud.show_memory = on
 			hud_changed.emit())
-	MenuStyle.switch_row(vbox, "Scene load", PerfHud.show_scene) \
+	MenuStyle.menu_switch_row(vbox, "Scene load", PerfHud.show_scene) \
 		.toggled.connect(func(on: bool) -> void:
 			PerfHud.show_scene = on
 			hud_changed.emit())
-	MenuStyle.switch_row(vbox, "Emulation", PerfHud.show_emulation) \
+	MenuStyle.menu_switch_row(vbox, "Emulation", PerfHud.show_emulation) \
 		.toggled.connect(func(on: bool) -> void:
 			PerfHud.show_emulation = on
 			hud_changed.emit())
@@ -801,7 +801,7 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 		var mount := VRDropdown.create("Mount",
 			[["In view", "head"], ["Left wrist", "wrist"]],
 			"wrist" if PerfHud.wrist_mount else "head",
-			1, Vector2(220, 56), 22)
+			1, Vector2(220, 56), MenuStyle.MENU_NAME_SIZE)
 		mount.item_selected.connect(func(id: Variant) -> void:
 			PerfHud.wrist_mount = str(id) == "wrist"
 			hud_changed.emit())
@@ -823,7 +823,7 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 
 	var col_lbl := Label.new()
 	col_lbl.text = "Collision Shapes"
-	col_lbl.add_theme_font_size_override("font_size", 22)
+	col_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
 	col_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	col_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col_row.add_child(col_lbl)
@@ -835,7 +835,7 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(HSeparator.new())
 	vbox.add_child(MenuStyle.header("CABLES", 20))
 
-	MenuStyle.switch_row(vbox, "Rope tuning on Tab", RopeTuning.enabled) 		.toggled.connect(func(on: bool) -> void:
+	MenuStyle.menu_switch_row(vbox, "Rope tuning on Tab", RopeTuning.enabled) 		.toggled.connect(func(on: bool) -> void:
 			RopeTuning.enabled = on)
 	vbox.add_child(MenuStyle.hint(
 		"Not saved. Point at a cable's plug and press Tab: its menu gets sliders "
@@ -848,7 +848,7 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 	# The allowlist refuses to start an unvetted core rather than risk a silent
 	# desync, which also forecloses its own evidence: a core cannot be shown
 	# deterministic if nothing may run it. This is how one gets measured.
-	MenuStyle.switch_row(vbox, "Allow unvetted cores",
+	MenuStyle.menu_switch_row(vbox, "Allow unvetted cores",
 		NetplayCores.debug_allow_unverified) \
 		.toggled.connect(func(on: bool) -> void:
 			NetplayCores.debug_allow_unverified = on)
@@ -1362,7 +1362,7 @@ func _build_system_filter_options(vbox: VBoxContainer) -> void:
 	sf_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sf_row.add_child(sf_col)
 
-	sf_col.add_child(MenuStyle.label("Libretro System Filter", 22, MenuStyle.COLOR_TITLE))
+	sf_col.add_child(MenuStyle.label("Libretro System Filter", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE))
 
 	sf_col.add_child(MenuStyle.label("Hide %d non-console systems" % SystemFilter.hidden_ids().size(), 16, MenuStyle.COLOR_LICENSE))
 
@@ -1393,7 +1393,7 @@ func _build_bios_boot_override(vbox: VBoxContainer) -> void:
 	bb_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bb_row.add_child(bb_col)
 
-	bb_col.add_child(MenuStyle.label("Override BIOS Boot Options", 22, MenuStyle.COLOR_TITLE))
+	bb_col.add_child(MenuStyle.label("Override BIOS Boot Options", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE))
 	bb_col.add_child(MenuStyle.label(
 		"Let the core options that play a machine's boot screen be changed",
 		16, MenuStyle.COLOR_LICENSE))
@@ -1415,8 +1415,8 @@ func _build_file_server_options(vbox: VBoxContainer) -> void:
 
 	var fs_lbl := Label.new()
 	fs_lbl.text = "Web File Manager"
-	fs_lbl.add_theme_font_size_override("font_size", 20)
-	fs_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+	fs_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
+	fs_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	fs_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	fs_row.add_child(fs_lbl)
 
@@ -1462,7 +1462,7 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 	threads_row.add_theme_constant_override("separation", 10)
 	threads_row.custom_minimum_size = Vector2(0, 40)
 	vbox.add_child(threads_row)
-	_scrape_threads_label = MenuStyle.label("Scrape threads: 1", 18, MenuStyle.COLOR_DESC)
+	_scrape_threads_label = MenuStyle.label("Scrape threads: 1", MenuStyle.MENU_VALUE_SIZE, MenuStyle.COLOR_LICENSE)
 	threads_row.add_child(_scrape_threads_label)
 	if _scrape_queue != null:
 		_scrape_threads_label.text = "Scrape threads: %d" % _scrape_queue.thread_count()
@@ -1475,7 +1475,7 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 	approve_row.add_theme_constant_override("separation", 10)
 	approve_row.custom_minimum_size = Vector2(0, 56)
 	vbox.add_child(approve_row)
-	var approve_lbl := MenuStyle.label("Approve scrapes before saving", 18, MenuStyle.COLOR_TITLE)
+	var approve_lbl := MenuStyle.label("Approve scrapes before saving", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE)
 	approve_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	approve_row.add_child(approve_lbl)
 	approve_row.add_child(VRToggle.create(scraper_config.approve_scrapes, func(on: bool) -> void:
@@ -1489,7 +1489,7 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 	auto_row.add_theme_constant_override("separation", 10)
 	auto_row.custom_minimum_size = Vector2(0, 56)
 	vbox.add_child(auto_row)
-	var auto_lbl := MenuStyle.label("Auto-scrape downloaded games", 18, MenuStyle.COLOR_TITLE)
+	var auto_lbl := MenuStyle.label("Auto-scrape downloaded games", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE)
 	auto_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	auto_row.add_child(auto_lbl)
 	auto_row.add_child(VRToggle.create(scraper_config.auto_scrape, func(on: bool) -> void:
@@ -1570,15 +1570,15 @@ func _save_romm_config() -> void:
 func _build_romm_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(MenuStyle.spacer(10))
 
-	MenuStyle.switch_row(vbox, "Enable RomM library", romm_config.enabled, 20, 68) \
+	MenuStyle.menu_switch_row(vbox, "Enable RomM library", romm_config.enabled) \
 		.toggled.connect(func(on: bool) -> void:
 			romm_config.enabled = on
 			_save_romm_config()
 			if on:
 				romm_platforms_requested.emit())
 
-	MenuStyle.switch_row(vbox, "Back up saves and states", romm_config.backup_enabled,
-			20, 68, "Upload battery saves and save states to RomM as they are written") \
+	MenuStyle.menu_switch_row(vbox, "Back up saves and states", romm_config.backup_enabled,
+			"Upload battery saves and save states to RomM as they are written") \
 		.toggled.connect(func(on: bool) -> void:
 			romm_config.backup_enabled = on
 			_save_romm_config())
@@ -1624,7 +1624,7 @@ func _build_romm_options(vbox: VBoxContainer) -> void:
 	_romm_mode_drop = VRDropdown.create("Sign in with",
 		[["API token", RommConfig.AUTH_TOKEN],
 		 ["Username + password", RommConfig.AUTH_BASIC]],
-		romm_config.auth_mode, 1, Vector2(300, 56), 18)
+		romm_config.auth_mode, 1, Vector2(300, 56), MenuStyle.MENU_NAME_SIZE)
 	_romm_mode_drop.item_selected.connect(func(id: Variant) -> void:
 		romm_config.auth_mode = str(id)
 		_save_romm_config()
@@ -2061,15 +2061,15 @@ func _add_options_text_field(parent: VBoxContainer, label_text: String,
 
 	var lbl := Label.new()
 	lbl.text = label_text
-	lbl.add_theme_font_size_override("font_size", 18)
-	lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+	lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
+	lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(lbl)
 
 	var edit := LineEdit.new()
 	edit.text = initial_value
 	edit.custom_minimum_size = Vector2(260, 48)
-	edit.add_theme_font_size_override("font_size", 16)
+	edit.add_theme_font_size_override("font_size", MenuStyle.MENU_VALUE_SIZE)
 	edit.secret = secret
 
 	if digits:
@@ -2110,8 +2110,8 @@ func _build_retroachievements_options(vbox: VBoxContainer) -> void:
 
 	var enable_lbl := Label.new()
 	enable_lbl.text = "Enable RetroAchievements"
-	enable_lbl.add_theme_font_size_override("font_size", 20)
-	enable_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+	enable_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
+	enable_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	enable_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	enable_row.add_child(enable_lbl)
 
@@ -2124,7 +2124,7 @@ func _build_retroachievements_options(vbox: VBoxContainer) -> void:
 	_ra_mode_drop = VRDropdown.create("Sign in with",
 		[["Username + password", RaConfig.AUTH_PASSWORD],
 		 ["Connect token", RaConfig.AUTH_TOKEN]],
-		RA.config.auth_mode, 1, Vector2(300, 56), 18)
+		RA.config.auth_mode, 1, Vector2(300, 56), MenuStyle.MENU_NAME_SIZE)
 	_ra_mode_drop.item_selected.connect(func(id: Variant) -> void:
 		RA.config.auth_mode = str(id)
 		RA.config.save_config()
@@ -2201,8 +2201,8 @@ func _build_retroachievements_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(notify_row)
 	var notify_lbl := Label.new()
 	notify_lbl.text = "Show unlock notifications"
-	notify_lbl.add_theme_font_size_override("font_size", 20)
-	notify_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+	notify_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
+	notify_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	notify_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	notify_row.add_child(notify_lbl)
 	notify_row.add_child(VRToggle.create(RA.config.show_notifications, func(on: bool) -> void:
@@ -2216,8 +2216,8 @@ func _build_retroachievements_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(presence_row)
 	var presence_lbl := Label.new()
 	presence_lbl.text = "Rich presence"
-	presence_lbl.add_theme_font_size_override("font_size", 20)
-	presence_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
+	presence_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
+	presence_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
 	presence_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	presence_row.add_child(presence_lbl)
 	presence_row.add_child(VRToggle.create(RA.config.rich_presence, func(on: bool) -> void:
