@@ -183,6 +183,20 @@ func _worker(args: Dictionary) -> void:
 	var folder := bool(args.get("folder", false))
 	var dest := RommCacheManifest.local_path(systemid, fs_name + (".download" if folder else ""))
 
+	# A disc folder that is already on disk, whole, is not fetched again: a board deleted and downloaded
+	# afresh, or a disc copied in by hand, finds its disc where MAME looks for it. Asked of the server
+	# (its files and their sizes) and compared with what is there; any doubt downloads as before.
+	if folder:
+		var held := disc_folder_on_disk(_folder_files(args, rom_id, fs_name), systemid, fs_name)
+		if bool(held["complete"]):
+			print("[RommDownloader] %s is already on disk, %d file(s): not downloading it again"
+				% [fs_name, (held["members"] as Array).size()])
+			_register_group.call_deferred(systemid, fs_name,
+				RommCacheManifest.relative_path(systemid, str(held["launch"])),
+				rom_id, held["members"], str(entry.get("md5_hash", "")).to_lower())
+			_emit_finished.call_deferred(rom_id, true, str(held["launch"]), "")
+			return
+
 	var outcome := _transfer(args, dest, rom_id)
 	match str(outcome["status"]):
 		"ok":
@@ -251,6 +265,65 @@ static func is_disc_folder(entry: Dictionary, systemid: String) -> bool:
 		and not str(entry.get("fs_name", "")).is_empty()
 
 
+## The files RomM holds in a disc folder, [{name, size, relative}] with `relative` the path inside the
+## folder, or [] when the server could not be asked or has none. One small request, on the worker.
+func _folder_files(args: Dictionary, rom_id: int, fs_name: String) -> Array:
+	var http := RommHttp.new()
+	if http.open(args["base_url"], func() -> bool: return _abort) != RommHttp.Result.OK:
+		return []
+	var resp := http.get_json("/api/roms/%d" % rom_id, args["headers"], func() -> bool: return _abort)
+	http.close()
+	if int(resp["result"]) != RommHttp.Result.OK or not resp["data"] is Dictionary:
+		return []
+	return folder_files_of((resp["data"] as Dictionary).get("files", []), fs_name)
+
+
+## RomM's file records for a folder as [{name, size, relative}]: `relative` is the path under the folder
+## (its `file_path` names the folder the file sits in, `<platform>/<folder>[/<sub>]`). Records whose names
+## are not safe to write are dropped.
+static func folder_files_of(records: Variant, fs_name: String) -> Array:
+	var out: Array = []
+	if not records is Array:
+		return out
+	for record: Variant in records:
+		if not record is Dictionary:
+			continue
+		var name := str((record as Dictionary).get("file_name", ""))
+		var pieces := str((record as Dictionary).get("file_path", "")).split("/", false)
+		var at := pieces.rfind(fs_name)
+		var sub := "/".join(pieces.slice(at + 1)) if at >= 0 else ""
+		var relative := sub.path_join(name) if not sub.is_empty() else name
+		if ArchiveSafety.safe_member(relative).is_empty():
+			continue
+		out.append({"name": name, "size": int((record as Dictionary).get("file_size_bytes", 0)),
+			"relative": relative})
+	return out
+
+
+## Is every file of the server's folder already under `<folder>/` here, at the size the server gives?
+## {complete, members, launch}: `members` are the cache group's ({path, size}, paths from the roms root)
+## and `launch` the disc to run (a CHD, else the first). Nothing known of the folder is not complete.
+## Sizes only: a CHD is a container MAME checks itself when it opens it.
+static func disc_folder_on_disk(files: Array, systemid: String, fs_name: String) -> Dictionary:
+	var out := {"complete": false, "members": [], "launch": ""}
+	if files.is_empty():
+		return out
+	var members: Array = []
+	var launch := ""
+	for f: Dictionary in files:
+		var relative := fs_name.path_join(str(f["relative"]))
+		var path := RommCacheManifest.local_path(systemid, relative)
+		if not FileAccess.file_exists(path) or ByteSize.on_disk(path) != int(f["size"]):
+			return out
+		members.append({"path": relative, "size": int(f["size"])})
+		if launch.is_empty() or (ArcadeDiscs.is_disc_path(path) and not ArcadeDiscs.is_disc_path(launch)):
+			launch = path
+	out["complete"] = true
+	out["members"] = members
+	out["launch"] = launch
+	return out
+
+
 ## A disc folder's name must be a FOLDER. An earlier build saved a one-file folder's disc as a plain file
 ## called that (`arcade/azumanga`, a CHD with no extension), which would stop the folder being made: it is
 ## ours (the cache holds it under that name), so it goes.
@@ -267,17 +340,8 @@ func _clear_stray_folder_file(systemid: String, fs_name: String) -> void:
 func _place_single_file(args: Dictionary, downloaded: String, systemid: String, fs_name: String,
 		rom_id: int) -> Dictionary:
 	_clear_stray_folder_file(systemid, fs_name)
-	var http := RommHttp.new()
-	if http.open(args["base_url"], func() -> bool: return _abort) != RommHttp.Result.OK:
-		DirAccess.remove_absolute(downloaded)
-		return {"error": "Could not reach the server"}
-	var resp := http.get_json("/api/roms/%d" % rom_id, args["headers"], func() -> bool: return _abort)
-	http.close()
-	var inner := ""
-	if int(resp["result"]) == RommHttp.Result.OK and resp["data"] is Dictionary:
-		var files: Array = (resp["data"] as Dictionary).get("files", [])
-		if files.size() == 1:
-			inner = str((files[0] as Dictionary).get("file_name", ""))
+	var files := _folder_files(args, rom_id, fs_name)
+	var inner := str((files[0] as Dictionary)["relative"]) if files.size() == 1 else ""
 	if ArchiveSafety.safe_member(inner).is_empty():
 		DirAccess.remove_absolute(downloaded)
 		return {"error": "RomM did not name the disc file"}
