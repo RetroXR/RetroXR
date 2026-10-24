@@ -1649,6 +1649,18 @@ func attract_first_use(kind: StringName) -> void:
 	_attract_released = true
 	power_on()
 	_attract_released = false
+	# The game would not start (a missing disc, a missing BIOS, a refused core): the glass shows the game
+	# again rather than going dark under the player who just put a coin in.
+	_return_to_attract_if_idle()
+
+
+## A cabinet that attracts and has nothing running shows its game. The one way back from a start that
+## failed, whether it was refused at once (power_on) or by the core a moment later.
+func _return_to_attract_if_idle() -> void:
+	if is_powered_on or attracting or not attract_applies():
+		return
+	print("[RetroSystem] Attract: the game did not start -- back to showing it")
+	_enter_attract()
 
 
 ## Nobody has been at the cabinet for ArcadeAttract.IDLE_SECONDS: the core goes away and the game is shown
@@ -3081,6 +3093,7 @@ func _on_content_load_failed(reason: String) -> void:
 		if ArcadeProfiles.is_cabinet_system(systemid) and (reason.contains("NOT FOUND") or reason.contains("is required")):
 			detail += "\nMAME/FBNeo games need their BIOS or device ROM sets (neogeo.zip, qsound.zip...). Get them from the core's BIOS list, or put them in the same roms folder as the game."
 		toast.show_notice(_display_name(), "Could not start", detail, AchievementToast.ACCENT_NOTICE)
+	_return_to_attract_if_idle()
 
 
 ## What a refused load says. A game that needs a regional BIOS some of which is
