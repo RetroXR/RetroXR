@@ -581,7 +581,9 @@ func _build_pointer_shapes(host: Node3D) -> void:
 		# The front, as thin plates BEHIND everything that can be operated (the coin face, the apron, the
 		# glass, the marquee), so a ray from the front still ends on the cabinet where it is aimed at plain
 		# panel, and a ray from inside, aimed down into the bay, is not stopped by any of them.
-		AABB(Vector3(-hw, 0.50, 0.30), Vector3(w, 0.28, 0.08)),   # coin area
+		# Starts 5 cm above the compartment's top: the bay is a JAMMA shelf on a CD-ROM bay (DRIVE_H), so the
+		# board stands that much higher and a ray aimed down at it from the front passes just under this plate.
+		AABB(Vector3(-hw, 0.55, 0.30), Vector3(w, 0.23, 0.08)),   # coin area
 		AABB(Vector3(-hw, 0.78, 0.30), Vector3(w, 0.14, 0.14)),   # apron
 		AABB(Vector3(-hw, 0.92, glass_back_z - 0.05), Vector3(w, marquee_bottom - 0.92, 0.05)),   # behind the glass
 		AABB(Vector3(-hw, marquee_bottom, marquee_front_z - 0.05), Vector3(w, cabinet_height - marquee_bottom, 0.05)),   # marquee
