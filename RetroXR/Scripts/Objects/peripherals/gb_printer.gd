@@ -49,10 +49,15 @@ const PAPER_HIT_THICKNESS := 0.003
 ## How often the surface under the slot is looked for, seconds, and how far down.
 const FLOOR_EVERY := 0.2
 const FLOOR_REACH := 1.5
-## The slot's acceleration is smoothed over this long, seconds, and never taken
-## as more than ACCEL_MAX: a printer snapped to a hand is not a printer shaken.
-const ACCEL_SMOOTH := 0.05
-const ACCEL_MAX := 25.0
+## The slot's speed and acceleration, and the printer's spin and its change, are
+## each smoothed over this long, seconds, and never taken as more than the
+## MAXes: a printer snapped to a hand is not a printer shaken. Faster than
+## JUMP_SPEED, m/s, is a jump, not a move.
+const ACCEL_SMOOTH := 0.08
+const ACCEL_MAX := 20.0
+const SPIN_MAX := 12.0
+const SPIN_ACCEL_MAX := 150.0
+const JUMP_SPEED := 4.0
 
 ## Libretro joypad ids, as bits of the mask: the core's FEED and TEAR.
 const BTN_B := 1 << 0
@@ -102,8 +107,12 @@ var _slot_pos := Vector3.ZERO
 var _slot_vel := Vector3.ZERO
 var _slot_accel := Vector3.ZERO
 var _slot_basis := Basis()
+var _slot_spin := 0.0
+var _slot_spin_accel := 0.0
 var _slot_known := false
 var _floor_wait := 0.0
+## What the last look under the slot found (intersect_ray's result), in the room.
+var _floor_hit := {}
 @onready var _pivot: Node3D = $PaperPivot
 var _toast: AchievementToast = null
 ## Said once per press, not every frame it is held.
@@ -403,8 +412,7 @@ func options_choices() -> Array:
 		names.append(GbPrinterPaper.ROLLS[i]["name"])
 		if GbPrinterPaper.ROLLS[i]["id"] == paper_roll:
 			at = i
-	return [{"caption": "Paper roll", "items": names, "selected": at,
-		"note": "Nintendo's three: white prints sepia, yellow (the roll in the box) and blue print black. A print keeps the roll it came off."}]
+	return [{"caption": "Paper roll", "items": names, "selected": at}]
 
 
 func options_choose(row: int, item: int) -> void:
@@ -419,28 +427,49 @@ func options_choose(row: int, item: int) -> void:
 func _move_paper(delta: float) -> void:
 	if delta <= 0.0:
 		return
-	var basis := global_transform.basis.orthonormalized()
-	var slot := _pivot.global_position
+	# The pose the printer is DRAWN at, not its last physics tick: a held printer
+	# moves only on ticks, and a frame sees one tick's move or two (90 ticks a
+	# second against 72, 90 or 120 frames), so read off the ticks its speed
+	# stutters frame to frame and the paper buzzes with it. The paper is drawn on
+	# the drawn printer, so this is also the motion it is seen to follow.
+	var xf := get_global_transform_interpolated()
+	var basis := xf.basis.orthonormalized()
+	var slot := xf * _pivot.position
 	if not _slot_known:
 		_slot_known = true
 		_slot_pos = slot
 		_slot_vel = Vector3.ZERO
 		_slot_accel = Vector3.ZERO
 		_slot_basis = basis
+	# Speed, then its change, each smoothed: a hand's tracking jitters by a
+	# millimeter or so a frame, and differenced twice that is meters per second
+	# squared of shaking the paper would buzz to. What is left is the hand's real
+	# moves.
+	var k := clampf(delta / ACCEL_SMOOTH, 0.0, 1.0)
 	var vel := (slot - _slot_pos) / delta
-	var accel := (vel - _slot_vel) / delta
+	var vel_f := _slot_vel.lerp(vel, k)
+	var accel := (vel_f - _slot_vel) / delta
 	# A jump (a teleport, a snap into a hand) is not a push.
-	if accel.length() > ACCEL_MAX * 4.0:
+	if vel.length() > JUMP_SPEED:
+		vel_f = Vector3.ZERO
 		accel = Vector3.ZERO
-	_slot_accel = _slot_accel.lerp(accel.limit_length(ACCEL_MAX), clampf(delta / ACCEL_SMOOTH, 0.0, 1.0))
-	_slot_vel = vel
+	_slot_accel = _slot_accel.lerp(accel.limit_length(ACCEL_MAX), k)
+	_slot_vel = vel_f
 	_slot_pos = slot
-	# The printer's turn since last frame about its own X, the paper's hinge line:
-	# the paper keeps its heading in the room, so against the printer it turns back.
+	# The printer's turn about its own X, the paper's hinge line, the same way:
+	# its rate smoothed, and how that rate changes handed to the strip.
 	var turn := (_slot_basis.inverse() * basis).get_rotation_quaternion()
 	_slot_basis = basis
 	var turn_x := turn.get_axis().x * turn.get_angle() if turn.get_angle() > 1e-6 else 0.0
-	_strip.turn_root(clampf(turn_x, -0.5, 0.5))
+	var spin := turn_x / delta
+	var spin_f := lerpf(_slot_spin, spin, k)
+	var spin_accel := (spin_f - _slot_spin) / delta
+	# Nor is a turn too quick for a wrist: a snap into a hand's grip.
+	if absf(spin) > SPIN_MAX or vel.length() > JUMP_SPEED:
+		spin_f = 0.0
+		spin_accel = 0.0
+	_slot_spin = spin_f
+	_slot_spin_accel = lerpf(_slot_spin_accel, clampf(spin_accel, -SPIN_ACCEL_MAX, SPIN_ACCEL_MAX), k)
 
 	var gravity := ProjectSettings.get_setting("physics/3d/default_gravity", 9.8) as float \
 		* (ProjectSettings.get_setting("physics/3d/default_gravity_vector", Vector3.DOWN) as Vector3)
@@ -448,9 +477,12 @@ func _move_paper(delta: float) -> void:
 	_floor_wait -= delta
 	if _floor_wait <= 0.0:
 		_floor_wait = FLOOR_EVERY
-		_find_obstacles(basis)
+		_find_obstacles()
+	# The surface is where it is in the room: placed against the printer every
+	# frame, so a printer tipping over it never meets it a fifth of a second late.
+	_place_floor(xf)
 	_aim_strip()
-	_strip.step(delta, Vector2(g.y, g.z))
+	_strip.step(delta, Vector2(g.y, g.z), _slot_spin_accel)
 	_draw_paper()
 
 
@@ -462,8 +494,9 @@ func _aim_strip() -> void:
 
 
 ## What the paper lies on: the printer's own boxes (the scene's, or the ones a
-## shell fitted round itself) and whatever is under the slot.
-func _find_obstacles(basis: Basis) -> void:
+## shell fitted round itself) and whatever is under the slot, kept as it is in
+## the room (_place_floor puts it against the printer).
+func _find_obstacles() -> void:
 	_strip.boxes.clear()
 	for child in get_children():
 		var shape := child as CollisionShape3D
@@ -472,7 +505,7 @@ func _find_obstacles(basis: Basis) -> void:
 		var size := (shape.shape as BoxShape3D).size
 		var c := shape.position
 		_strip.boxes.append(Rect2(Vector2(c.y - size.y * 0.5, c.z - size.z * 0.5), Vector2(size.y, size.z)))
-	_strip.planes.clear()
+	_floor_hit = {}
 	if not is_inside_tree():
 		return
 	var from := _pivot.global_position
@@ -483,12 +516,17 @@ func _find_obstacles(basis: Basis) -> void:
 	for body in find_children("*", "CollisionObject3D", true, false):
 		own.append((body as CollisionObject3D).get_rid())
 	query.exclude = own
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
-	if hit.is_empty():
+	_floor_hit = get_world_3d().direct_space_state.intersect_ray(query)
+
+
+## The surface under the slot (_find_obstacles), in the frame of the printer
+## drawn at `xf` this frame, across the middle of the paper.
+func _place_floor(xf: Transform3D) -> void:
+	_strip.planes.clear()
+	if _floor_hit.is_empty():
 		return
-	# The surface in the printer's frame, across the middle of the paper.
-	var n: Vector3 = basis.inverse() * (hit["normal"] as Vector3)
-	var at := to_local(hit["position"] as Vector3)
+	var n: Vector3 = xf.basis.orthonormalized().inverse() * (_floor_hit["normal"] as Vector3)
+	var at := xf.affine_inverse() * (_floor_hit["position"] as Vector3)
 	var n2 := Vector2(n.y, n.z)
 	# A printer on its side bends its paper in a plane the surface is not across.
 	if n2.length() < 0.3:

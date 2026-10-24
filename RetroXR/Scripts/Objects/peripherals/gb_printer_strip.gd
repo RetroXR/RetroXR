@@ -35,21 +35,27 @@ const CURL_RADIUS := 0.06
 ## The slot holds the paper's direction this many times as firmly as the paper
 ## holds its own shape.
 const ROOT_HOLD := 6.0
-## Each hinge's damping as a fraction of critical: paper in air settles in a
-## swing or two.
-const DAMPING := 0.45
+## Each hinge's damping as a fraction of critical: critical, as paper in air
+## settles without swinging back. At 0.45 the hinges, each settling on its own,
+## overshot together: on a printer held in a hand (a probe with tracking noise)
+## a short strip's tip turned back 73 times in 6 s, against 28.
+const DAMPING := 1.0
 ## The longest a segment is let be, and the most segments.
 const SEGMENT := 0.004
 const MAX_SEGMENTS := 48
 ## The step the chain takes at most, seconds: a frame is cut into as many.
-const MAX_STEP := 1.0 / 120.0
+const MAX_STEP := 1.0 / 240.0
 ## Paper this near the slot is the slot's, never pushed by contact: the slot is
 ## in the printer's top, and its first millimeters are inside its body's box.
 const CONTACT_FROM := 0.008
-## How many hinges behind a point share turning it out of an obstacle, and the
-## most any one turns for it in a step.
-const CONTACT_HINGES := 8
-const CONTACT_MAX_TURN := 0.3
+## How many times a point is pushed out and set back on its segment, at most:
+## set back, it can land in something again.
+const CONTACT_PASSES := 3
+## How far under each box counts as the box, meters: all the way to the table.
+const UNDER_BOX := 1.0
+## The fastest any point of the paper moves against the printer of its own
+## accord, m/s: about a sheet of paper's speed falling through air.
+const TERMINAL_SPEED := 0.5
 ## Half the paper's thickness and a little: how far off a surface it lies.
 const SKIN := 0.0008
 
@@ -123,26 +129,18 @@ func place(at: Vector2, angle: float) -> void:
 	_lay_points()
 
 
-## The printer has turned `by` rad about the hinges' line under the paper (its
-## +X). The paper keeps its heading in the room for that instant, so against the
-## printer it turns the other way, at the slot, and the slot's hold brings it
-## round after.
-func turn_root(by: float) -> void:
-	if segments == 0:
-		return
-	angles[0] += by
-	_lay_points()
-
-
 ## Step `dt` seconds under `gravity` (m/s^2 in the printer's (Y, Z), the slot's
-## acceleration already taken off it).
-func step(dt: float, gravity: Vector2) -> void:
+## acceleration already taken off it) while the printer's turn about its +X (the
+## hinges' line) speeds up by `spin_accel` rad/s^2. The paper is slow to follow
+## that, so against the printer it lags: each hinge takes the turn's change times
+## the inertia past it, the other way.
+func step(dt: float, gravity: Vector2, spin_accel := 0.0) -> void:
 	if segments == 0 or dt <= 0.0:
 		return
 	var n_steps := maxi(1, ceili(dt / MAX_STEP))
 	var h := dt / n_steps
 	for _s in n_steps:
-		_substep(h, gravity)
+		_substep(h, gravity, spin_accel)
 
 
 ## The highest any hinge is turning, rad/s: zero is at rest.
@@ -170,11 +168,6 @@ static func _dir(phi: float) -> Vector2:
 	return Vector2(cos(phi), -sin(phi))
 
 
-## What a turn of +1 rad about `pivot` does to a point `r` from it.
-static func _swing(r: Vector2) -> Vector2:
-	return Vector2(r.y, -r.x)
-
-
 func _lay_points() -> void:
 	points.resize(segments + 1)
 	var ds := length / segments
@@ -187,7 +180,7 @@ func _lay_points() -> void:
 		points[i + 1] = p
 
 
-func _substep(h: float, gravity: Vector2) -> void:
+func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 	var n := segments
 	var ds := length / n
 	var m := MASS_PER_M * ds
@@ -225,75 +218,145 @@ func _substep(h: float, gravity: Vector2) -> void:
 		var rest := 0.0 if i == 0 else curl
 		var inert := inertia[i]
 		var c := 2.0 * DAMPING * sqrt(ki * inert)
-		var w := (inert * speeds[i] + h * (torque[i] - ki * (angles[i] - rest))) \
+		var load := torque[i] + spin_accel * inert
+		var w := (inert * speeds[i] + h * (load - ki * (angles[i] - rest))) \
 			/ (inert + h * c + h * h * ki)
 		speeds[i] = w
 		angles[i] += h * w
+	var was := points.duplicate()
 	_lay_points()
+	# Air: no point of the paper goes faster than TERMINAL_SPEED against the
+	# printer, the whole step's bend scaled down until none does. Each hinge
+	# settles almost at once on its own, so together they snapped a long tail
+	# from lying on the table to curled up the printer's back in two frames.
+	var fastest := 0.0
+	for i in points.size():
+		fastest = maxf(fastest, points[i].distance_squared_to(was[i]))
+	fastest = sqrt(fastest)
+	if fastest > TERMINAL_SPEED * h:
+		var slow := TERMINAL_SPEED * h / fastest
+		for i in n:
+			angles[i] = before[i] + (angles[i] - before[i]) * slow
+			speeds[i] *= slow
+		_lay_points()
 	_contact()
 	for i in n:
 		speeds[i] = (angles[i] - before[i]) / h
 
 
-## Turn every point found inside an obstacle back out of it, root first, by the
-## hinges behind it, each as far as it moves the point out.
+## Put every point out of what it is in, follow-the-leader: from the slot out,
+## each point is first carried by however far the one before it was moved (so
+## the paper past a push keeps its heading and only shifts), then pushed out of
+## what it is in, then set back one segment from the one before, toward where it
+## was pushed. The hinges are read back off the points after.
+##
+## Local by construction, and it cannot stretch the paper. Turning hinges to
+## push points out swung all the paper past them like a lever, which threw a long
+## strip's free end a tenth of a meter in a frame over the table; and turning
+## only the hinge behind could not lift a point whose segment ran along the push,
+## which left the curled end of a long strip inside the printer.
 func _contact() -> void:
 	if boxes.is_empty() and planes.is_empty():
 		return
 	var ds := length / segments
 	var first := maxi(1, ceili(CONTACT_FROM / ds))
+	var shift := Vector2.ZERO
+	var any := false
+	var out := points.duplicate()
 	for j in range(first, segments + 1):
-		var push := _push_out(points[j])
-		if push == Vector2.ZERO:
-			continue
-		var depth := push.length()
-		var normal := push / depth
-		var lo := maxi(1, j - CONTACT_HINGES)
-		var gains := PackedFloat64Array()
-		gains.resize(j - lo)
-		var total := 0.0
-		for i in range(lo, j):
-			var g := normal.dot(_swing(points[j] - points[i]))
-			gains[i - lo] = g
-			total += g * g
-		if total < 1e-12:
-			continue
-		for i in range(lo, j):
-			angles[i] += clampf(depth * gains[i - lo] / total, -CONTACT_MAX_TURN, CONTACT_MAX_TURN)
-		_lay_points()
+		var was := points[j]
+		var p := was + shift
+		for _try in CONTACT_PASSES:
+			var push := _push_out(p)
+			if push == Vector2.ZERO:
+				break
+			any = true
+			var d := (p + push) - out[j - 1]
+			p = out[j - 1] + d.normalized() * ds if d.length_squared() > 1e-14 else p + push
+		out[j] = p
+		shift = p - was
+	if not any:
+		return
+	# The hinges back off the points: each the turn from the segment before.
+	var phi := root_angle
+	for i in segments:
+		var d := out[i + 1] - out[i]
+		var seg_phi := atan2(-d.y, d.x)
+		angles[i] = wrapf(seg_phi - phi, -PI, PI)
+		phi += angles[i]
+	_lay_points()
 
 
 ## How far, and which way, `p` has to go to be clear of everything: the deepest
-## obstacle's way out, or zero when it is clear. Never out of a box into a
-## surface: the printer stands a hair off the table, and paper pushed out of its
-## bottom went under the table, back up, and so on until it was under the printer.
+## obstacle's way out, or zero when it is clear.
+##
+## The boxes are one solid, the printer: a way out of one is taken only if it is
+## clear of all of them. Each box on its own sent a point under the cover's hump
+## up out of the body's top, into the hump, and the hump sent it back down; the
+## two pushes cancelled and the paper stayed inside the printer.
+##
+## A box reaches all the way down (the printer's -Y): under the printer is never
+## where paper goes. The printer stands a hair off the table, and paper crept
+## into that gap; lifted and set down again, the printer then pinched it there,
+## and it thrashed.
+##
+## Nor is a way out taken that goes deeper into a surface than the point already
+## is. Deeper, not into at all: paper lying ON the table touches it, and a rule
+## against any touch shut it out of its way out sideways.
 func _push_out(p: Vector2) -> Vector2:
 	var best := Vector2.ZERO
+	var inside := false
+	var now_under := maxf(_under(p), 0.0)
+	var fallback := Vector2.ZERO
 	for box: Rect2 in boxes:
-		var r := box.grow(SKIN)
+		var r := _solid(box)
 		if not r.has_point(p):
 			continue
-		var outs := [
-			Vector2(r.position.x - p.x, 0.0), Vector2(r.end.x - p.x, 0.0),
-			Vector2(0.0, r.position.y - p.y), Vector2(0.0, r.end.y - p.y)]
-		var way := Vector2.ZERO
-		for o: Vector2 in outs:
-			# Half a skin's grace: paper lying on the table beside the box is where
-			# it should be, not under it.
-			if _under(p + o) > SKIN * 0.5:
+		inside = true
+		for o: Vector2 in [
+				Vector2(r.position.x - p.x, 0.0), Vector2(r.end.x - p.x, 0.0),
+				Vector2(0.0, r.position.y - p.y), Vector2(0.0, r.end.y - p.y)]:
+			if fallback == Vector2.ZERO or o.length_squared() < fallback.length_squared():
+				fallback = o
+			if best != Vector2.ZERO and o.length_squared() >= best.length_squared():
 				continue
-			if way == Vector2.ZERO or o.length_squared() < way.length_squared():
-				way = o
-		if way.length_squared() > best.length_squared():
-			best = way
-	var under := _under(p)
-	if under > 0.0 and under * under > best.length_squared():
-		for plane: Array in planes:
-			var normal: Vector2 = plane[0]
-			if float(plane[1]) + SKIN - normal.dot(p) >= under:
-				best = normal * under
-				break
-	return best
+			# Just past the face, so the box it leaves does not count it in.
+			var to := p + o + o.normalized() * 1e-6
+			if _under(to) > now_under + SKIN * 0.5 or _in_solid(to):
+				continue
+			best = o
+	if inside and best == Vector2.ZERO:
+		best = fallback
+	# Out of the printer, then off the table from there: a point in the corner of
+	# the two goes into the corner in one push, where pushing it out of one and
+	# then out of the other, a pass at a time, ping-ponged it.
+	return best + _off_surface(p + best)
+
+
+## Up out of whichever surface `p` is deepest in, or zero when it is in none.
+func _off_surface(p: Vector2) -> Vector2:
+	var out := Vector2.ZERO
+	var deepest := 0.0
+	for plane: Array in planes:
+		var normal: Vector2 = plane[0]
+		var under: float = float(plane[1]) + SKIN - normal.dot(p)
+		if under > deepest:
+			deepest = under
+			out = normal * under
+	return out
+
+
+## A box as the paper meets it: a skin bigger, and reaching all the way down.
+static func _solid(box: Rect2) -> Rect2:
+	var r := box.grow(SKIN)
+	return Rect2(r.position - Vector2(UNDER_BOX, 0.0), r.size + Vector2(UNDER_BOX, 0.0))
+
+
+func _in_solid(p: Vector2) -> bool:
+	for box: Rect2 in boxes:
+		if _solid(box).has_point(p):
+			return true
+	return false
 
 
 ## How far `p` is into the surface it is deepest in, or 0 or less when it is in none.

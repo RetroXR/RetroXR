@@ -91,18 +91,51 @@ and carries the weight and inertia of the paper past it; the stiffness (EI 3.2e-
 N m^2) and weight (5.7 g/m) put the length at which it gives way at about 8 cm. So
 a short print stands curling back toward the roll cover, and a long one flops
 over, lies on the cover and drapes down the back to the table. Gravity is taken in
-the printer's frame less the slot's acceleration, and a turn of the printer about
-its X turns the paper back at the slot, so carrying, tipping or shaking the
-printer swings the paper. Springs and damping are implicit per hinge, which keeps
-it stable however short the tip's segments. Contact is a projection afterwards:
-the printer's own collision boxes (the scene's, or the two `xenu.gbprinter`
-fits round its shell) and the surface a ray finds under the slot (the printer's
-own bodies excluded: its pointer target is a StaticBody3D). A point is never
-pushed out of a box into that surface; the shell stands half a millimeter off the
-table, and the paper crept in under it through the gap. New lines push the strip
-out keeping its shape from the free end; a tear starts a fresh end of roll. The
-mesh, the tear trigger's box and the hover outline are laid again only once a
-point has moved 0.05 mm (`VRButton.mesh_changed` drops the outline's cached copy).
+the printer's frame less the slot's acceleration, and the printer's angular
+acceleration about its X loads each hinge by the inertia past it, so carrying,
+tipping or shaking the printer swings the paper. Springs and damping are implicit
+per hinge, which keeps it stable however short the tip's segments; damping is
+critical, as paper in air does not swing back.
+
+**Smooth, not jumpy** (the first version was; numbers from a throwaway probe that
+moves the printer on physics ticks and takes the strip where it is drawn):
+- The printer's motion is read off `get_global_transform_interpolated()`, not
+  `global_transform`. A held printer moves only on physics ticks (90 a second);
+  a frame at 72, 60 or 120 Hz sees one tick's move or two, so the speed read off
+  the ticks stutters, and differenced into an acceleration it shook the paper.
+- Speed and acceleration, and the turn rate and its change, are each smoothed
+  over 80 ms; faster than 4 m/s or 12 rad/s is a jump (a snap into a hand), not a
+  push. The turn used to be dumped into the slot's hinge each frame, which kicked
+  the paper with every millimeter of tracking jitter.
+- The surface under the slot is found every 0.2 s but kept as it is in the room
+  and put against the printer every frame, so a tipping printer never meets it a
+  fifth of a second late.
+- `TERMINAL_SPEED`, 0.5 m/s: no point of the paper moves faster against the
+  printer, a step's whole bend scaled down until none does. The hinges each
+  settle almost at once on their own, and together they snapped a long tail from
+  lying on the table to curled up the printer's back in two frames (13 cm).
+- Contact is follow-the-leader (as for hair): from the slot out, each point is
+  carried by its leader's move, pushed out of what it is in, and set back one
+  segment from its leader; the hinges are read back off the points. Turning
+  hinges to push points out was a lever that threw the free end about, and could
+  not lift a point whose segment ran along the push.
+- The printer's boxes are one solid (a way out of one must be clear of all; the
+  cover's hump and the body sent a point back and forth between them), and reach
+  all the way down: under the printer is never where paper goes (it crept into
+  the half millimeter the shell stands off the table, and was pinched there when
+  the printer was set down). A way out is never deeper into the table than the
+  point already is, and a point in the corner of printer and table goes into the
+  corner in one push.
+- Measured on that probe, first version against this one: a 10 cm strip on a
+  printer held with tracking noise turned its tip back 246 times in 6 s, now 28
+  (worst jerk 15 mm, now 5); tipped back and forth, 188 times, now 4. A 22 cm
+  strip's worst frame-to-frame jerk, tipped on the table, held, or snapped into a
+  hand: 119, 119 and 111 mm, now 10, 12 and 10.
+
+New lines push the strip out keeping its shape from the free end; a tear starts a
+fresh end of roll. The mesh, the tear trigger's box and the hover outline are laid
+again only once a point has moved 0.05 mm (`VRButton.mesh_changed` drops the
+outline's cached copy).
 
 **Rolls:** `GbPrinterPaper.ROLLS`, the three Nintendo sold: white printing sepia,
 yellow printing black (the roll in the printer's box) and blue printing black

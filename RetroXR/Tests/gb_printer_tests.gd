@@ -15,6 +15,10 @@
 extends Node
 
 const PRINTER_SCENE := "res://Scenes/Objects/peripherals/gb_printer.tscn"
+## xenu.gbprinter's two collision boxes in the printer's (Y, Z): the body to the
+## deck, and the paper cover's hump standing on it.
+const SHELL_BODY := Rect2(Vector2(-0.02801, -0.0686), Vector2(0.045, 0.1372))
+const SHELL_HUMP := Rect2(Vector2(0.01699, -0.0686), Vector2(0.01102, 0.0468))
 
 var _pass := 0
 var _fail := 0
@@ -38,6 +42,7 @@ func _ready() -> void:
 	_test_paper_gives_way_to_its_weight()
 	_test_paper_lies_on_what_is_under_it()
 	_test_paper_grows_and_tears()
+	_test_paper_moves_smoothly()
 	await _test_netplay_surface()
 	_test_netplay_row()
 	_test_core_source_and_info()
@@ -287,10 +292,18 @@ func _test_paper_gives_way_to_its_weight() -> void:
 	# Tipped forward (gravity toward the printer's +Z), the paper falls the other way.
 	var forward := _settled(0.25, 5.0, Vector2(-6.9, 6.9))
 	_ok(forward.points[forward.points.size() - 1].y > 0.0, "the printer tipped forward, it falls forward")
-	# A shake moves it.
-	for i in 6:
+	# A shake moves it, and no faster than paper moves through air.
+	var hung := s.points[s.points.size() - 1]
+	var fastest := 0.0
+	var last := hung
+	for i in 12:
 		s.step(1.0 / 60.0, Vector2(-9.8, 30.0))
-	_ok(s.motion() > 0.5, "shaken, it swings (%.3f)" % s.motion())
+		var now := s.points[s.points.size() - 1]
+		fastest = maxf(fastest, now.distance_to(last) * 60.0)
+		last = now
+	_ok(last.distance_to(hung) > 0.02, "shaken, it swings (%.3f m)" % last.distance_to(hung))
+	_ok(fastest <= GbPrinterStrip.TERMINAL_SPEED + 0.01,
+		"never faster than paper through air (%.2f m/s)" % fastest)
 
 
 func _test_paper_lies_on_what_is_under_it() -> void:
@@ -314,24 +327,74 @@ func _test_paper_lies_on_what_is_under_it() -> void:
 		lowest = minf(lowest, p.x)
 	_ok(lowest > -0.0515, "nor through the table under it (%.4f)" % lowest)
 	# The shell's own boxes and slot (xenu.gbprinter), on a table half a millimeter
-	# under its feet: the paper drapes down the back and lies on the table, and
-	# does not creep in under the printer through that gap.
-	var body := Rect2(Vector2(-0.02801, -0.0686), Vector2(0.045, 0.1372))
-	var hump := Rect2(Vector2(0.01699, -0.0686), Vector2(0.01102, 0.0468))
-	s = GbPrinterStrip.new()
-	s.place(Vector2(0.01739, -0.0123), 0.1396)
-	s.boxes = [body, hump]
-	s.planes = [[Vector2(1.0, 0.0), -0.0285]]
-	s.set_length(0.25)
-	for i in 300:
+	# under its feet: the paper drapes down the back onto the table, never into
+	# the printer or under it through that gap, and comes to rest.
+	s = _on_the_shell(0.25)
+	for i in 600:
 		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
-	var under_it := 0
+	_eq(_in_the_printer(s), 0, "paper on the table stays out of and from under the printer")
+	var on_table := false
+	for p in s.points:
+		on_table = on_table or p.x < -0.026
+	_ok(on_table, "it reaches the table")
+	_ok(s.motion() < 0.01, "and comes to rest (%.4f)" % s.motion())
+
+
+## A strip out of the shell's slot (xenu.gbprinter), with its two boxes, on a
+## table half a millimeter under its feet.
+func _on_the_shell(length: float) -> GbPrinterStrip:
+	var s := GbPrinterStrip.new()
+	s.place(Vector2(0.01739, -0.0123), 0.1396)
+	s.boxes = [SHELL_BODY, SHELL_HUMP]
+	s.planes = [[Vector2(1.0, 0.0), -0.0285]]
+	s.set_length(length)
+	return s
+
+
+## How many of the strip's points (past the slot's own) are in the shell's boxes
+## or under them, by more than `slack` meters: where the paper turns sharply
+## from the printer's back onto the table a point can sit a millimeter or two in,
+## out of sight under the paper, where the bugs this guards against put it
+## centimeters in.
+func _in_the_printer(s: GbPrinterStrip, slack := 0.002) -> int:
+	var n := 0
 	for i in range(3, s.points.size()):
-		if body.grow(-0.0005).has_point(s.points[i]) or hump.grow(-0.0005).has_point(s.points[i]):
-			under_it += 1
-	var tip := s.points[s.points.size() - 1]
-	_eq(under_it, 0, "paper on the table stays out from under the printer")
-	_ok(tip.y < body.position.y and tip.x < -0.02, "it hangs down the back to the table (%s)" % tip)
+		var p := s.points[i]
+		for box: Rect2 in [SHELL_BODY, SHELL_HUMP]:
+			var r := box.grow(-slack)
+			if p.y > r.position.y and p.y < r.end.y and p.x < r.end.x:
+				n += 1
+				break
+	return n
+
+
+func _test_paper_moves_smoothly() -> void:
+	# The printer lifted 2 cm off the table and set down again, a long strip
+	# draped down its back onto it. Each frame, how far any point's motion changed
+	# (its second difference): the paper was thrown 13 cm in a frame here, flipping
+	# between lying on the table and curled up the printer's back.
+	var s := _on_the_shell(0.22)
+	for i in 600:
+		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var hist: Array = []
+	var worst := 0.0
+	var inside := 0
+	for f in 240:
+		var t := f / 60.0
+		var off := -0.02 * (smoothstep(0.0, 1.0, t) - smoothstep(2.0, 3.0, t))
+		s.planes = [[Vector2(1.0, 0.0), -0.0285 + off]]
+		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+		# Set down onto the paper, the base's edge pinches it 3.6 mm in for a moment.
+		inside = maxi(inside, _in_the_printer(s, 0.005))
+		hist.append(s.points.duplicate())
+		if hist.size() >= 3:
+			var a: PackedVector2Array = hist[-3]
+			var b: PackedVector2Array = hist[-2]
+			var c: PackedVector2Array = hist[-1]
+			for i in c.size():
+				worst = maxf(worst, (c[i] - 2.0 * b[i] + a[i]).length())
+	_ok(worst < 0.02, "lifted and set down, the paper never jumps (%.1f mm)" % (worst * 1000.0))
+	_eq(inside, 0, "nor ends up in or under the printer")
 
 
 func _test_paper_grows_and_tears() -> void:
