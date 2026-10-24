@@ -5,7 +5,7 @@
 ## an old and a new name) and its own "Allow access to spatial data?" dialog.
 ## RealRoom needs it for furniture to rest on, EnvironmentDepth for depth. It is
 ## asked for once a run, the first time the player is in passthrough with "Use
-## Room Data in Passthrough" on (off by default: plain passthrough asks nothing);
+## Room Data in Passthrough" on (the default; off, plain passthrough asks nothing);
 ## the dialog is answered outside the app, so a holder re-checks has() when the
 ## app gets its focus back.
 ##

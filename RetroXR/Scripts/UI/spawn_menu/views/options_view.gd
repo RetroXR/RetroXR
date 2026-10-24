@@ -551,8 +551,8 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		# Plain passthrough, or passthrough that reads the room (RealRoom): things
 		# rest on the real furniture, Meta's depth for the Game Boy Camera and for
-		# occlusion. Off by default; switching it on asks for the spatial-data
-		# consent the first time.
+		# occlusion. On by default; on, the spatial-data consent is asked for the
+		# first time passthrough comes up.
 		var spt_row := HBoxContainer.new()
 		spt_row.add_theme_constant_override("separation", 10)
 		spt_row.custom_minimum_size = Vector2(0, 68)

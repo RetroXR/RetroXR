@@ -309,7 +309,7 @@ func _test_spatial() -> void:
 	room.occlusion_factory = func() -> Object: return MeshInstance3D.new()
 	room.start()
 	_ok(asked.is_empty() and not room.has_manager() and not room.has_occlusion(),
-		"spatial/off by default: plain passthrough asks for nothing and reads nothing")
+		"spatial/switched off: plain passthrough asks for nothing and reads nothing")
 	wanted["on"] = true
 	room.refresh_spatial()
 	_ok(asked.size() == SpatialPermission.PERMISSIONS.size() and not room.has_manager(),
@@ -390,7 +390,7 @@ func _test_prefs() -> void:
 	_ok("\"passthrough_occlusion\": passthrough_occlusion" in src
 		and "get_bool(data, \"passthrough_occlusion\"" in src,
 		"prefs/and it is saved and read back with the rest")
-	_ok(prefs.get("passthrough_spatial") is bool and "var passthrough_spatial: bool = false" in src
+	_ok(prefs.get("passthrough_spatial") is bool and "var passthrough_spatial: bool = true" in src
 		and "\"passthrough_spatial\": passthrough_spatial" in src
 		and "get_bool(data, \"passthrough_spatial\"" in src,
-		"prefs/room data is a pref too, off unless the player turns it on, saved and read back")
+		"prefs/room data is a pref too, on unless the player turns it off, saved and read back")

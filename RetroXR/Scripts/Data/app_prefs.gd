@@ -100,9 +100,9 @@ var passthrough_locomotion: bool = true
 var passthrough_occlusion: bool = true
 ## Whether passthrough uses what the Quest knows of the player's room: furniture
 ## to rest things on, Meta's depth for the Game Boy Camera and for occlusion
-## (RealRoom, EnvironmentDepth). Off by default: plain passthrough asks for no
-## spatial-data consent and reads nothing.
-var passthrough_spatial: bool = false
+## (RealRoom, EnvironmentDepth). On by default; off, passthrough is plain: it asks
+## for no spatial-data consent and reads nothing.
+var passthrough_spatial: bool = true
 ## Whether VR focus mode shows the real room through passthrough around its screen
 ## instead of black. Falls back to black where passthrough is unavailable.
 var focus_passthrough: bool = false
