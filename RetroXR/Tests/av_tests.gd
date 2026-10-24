@@ -141,6 +141,7 @@ func _run() -> void:
 		["routing/its lead carries all three signals down one shell", _r_n64_lead],
 		["routing/a Wii lead does not fit an N64, nor the reverse", _r_multi_out_keying],
 		["routing/the primitive Super NES wears the N64's multi-out and takes its lead", _r_snes_box_multi_out],
+		["routing/a deleted handheld takes its video-out lead with it", _r_handheld_lead_deleted],
 		["routing/a Genesis wears one 9-pin socket, not a captive lead", _r_genesis_socket],
 		["routing/its lead carries all three signals down the mini-DIN", _r_genesis_lead],
 		["routing/a Genesis lead fits only a Genesis", _r_genesis_keying],
@@ -780,6 +781,39 @@ func _genesis() -> Node3D:
 	_spawned.append(sys)
 	await _wait(60)
 	return sys
+
+
+## A handheld with video out switched on wears a lead that hangs off the room,
+## not the machine. Binning the handheld left that lead lying where it was, its
+## plug still in the set.
+func _r_handheld_lead_deleted() -> void:
+	var tv := _tv()
+	var gba := SYSTEM_SCENE.instantiate() as RetroSystem
+	gba.systemid = "gba"
+	gba.freeze = true
+	gba.force_video_out(true)
+	gba.position = Vector3(_spawned.size() * 3.0 + 2.0, 1, 0)
+	add_child(gba)
+	gba.add_to_group("spawned")
+	_spawned.append(gba)
+	await _wait(60)
+	var cable := gba._channels[0].cable as Node3D
+	var plug := gba._channels[0].plug as CablePlug
+	_ok(cable != null and cable.is_inside_tree() and cable.visible,
+		"a handheld with video out on wears its lead")
+	if cable == null or plug == null:
+		return
+	var port: RcaPort = _input_ports(tv, RetroTV.Source.COMPOSITE_4)[0]
+	port.pick_up_object(plug)
+	await _wait(35)
+	_ok(port.picked_up_object == plug, "its picture plug seats in the set")
+
+	Trash.delete_with_dependents(gba)
+	await get_tree().create_timer(0.6).timeout
+	await _wait(2)
+	_ok(not is_instance_valid(gba), "the handheld is deleted")
+	_ok(not is_instance_valid(cable), "and its video-out lead goes with it")
+	_ok(not is_instance_valid(port.picked_up_object), "and the set's socket is empty again")
 
 
 func _r_genesis_socket() -> void:

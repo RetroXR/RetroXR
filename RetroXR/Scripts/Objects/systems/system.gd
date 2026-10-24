@@ -1606,7 +1606,29 @@ func _exit_tree() -> void:
 	_release_cache_protection()
 	for i in _channels.size():
 		_remove_touch_surface(i)
+	_free_video_cables()
 	super._exit_tree()
+
+
+## The video-out lead hangs off the room, not the machine — a rope between two
+## bodies cannot be parented to either — so a deleted machine left its lead lying
+## where it was, still seated in the television if it had been plugged in. Each
+## end is dropped out of whatever socket holds it first, so the set hears the
+## unplug, as ScenePersistence.clear_scene does. A lead not yet hung on the room
+## (its add is deferred) is freed all the same.
+func _free_video_cables() -> void:
+	for i in _channels.size():
+		var inst := _live(_channels[i].cable) as Node
+		if inst == null:
+			continue
+		var ends: Array = [_channels[i].plug]
+		ends.append_array(_channels[i].audio_plugs)
+		for e: Variant in ends:
+			var p := _live(e) as CablePlug
+			if p != null:
+				p.drop()
+		inst.queue_free()
+		_channels[i].cable = null
 
 
 # --- Cable management ---
