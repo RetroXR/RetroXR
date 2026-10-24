@@ -633,3 +633,16 @@ pair works exactly as a downloaded one. A board needs a disc exactly when that f
 A button on the deck is the cap AND a flange of the same colour round it (`<name>Rim`, a short cone 22% wider than the cap, fixed): the
 cap sinks into it when its bit is held (`CAP_PRESS` 6 mm, the flange 5 mm proud), as a moulded pushbutton does. The cap tapers a little
 toward its top. `gen_arcade_cabinet.gd _cap`; the control module still finds only `BtnN` and `Start`.
+
+## Setting a cabinet down by aiming at the floor (2026-10-24)
+
+A cabinet is handed to the hand that spawned or took it (`spawns_on_floor` is false), and dropped from a hand it lands wherever
+it falls. **`GroundPlacement` (`Scripts/Interaction/ground_placement.gd`, added by the model's `configure_cartridge_slot`) lets the
+player aim it down instead**: while the cabinet is held and the aim points at the floor, a yellow rectangle the size of its base
+(`ground_footprint`, width x 0.80 m, a bar along the FRONT) shows where it will stand; letting go stands it there, upright, at rest,
+front toward the player, with no fall (`apply`, through `PhysicsServer3D` like `let_go`). Aim level, up or farther than 4 m and
+nothing shows: it is dropped as ever. The aim is the holding controller's -Z in a headset, the camera's on the desktop.
+`placement_for` is pure and is the whole decision (the rectangle shows what a release does because a release uses the last answer
+it gave); the floor is the XR origin's height. `arcade_tests ground/` (mutation-tested), `arcade_cabinet_probe --shots=ground`.
+OWED: a headset, a real hold with a laser and with the desktop hand, a cabinet carried in netplay (the pose is local), the Quest.
+The MIN_DOWN (17 degrees below level) and the 4 m reach are estimates; the marker does not know about walls or furniture.

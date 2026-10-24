@@ -158,6 +158,8 @@ func _run() -> void:
 		await _group_attach()
 	if _want("hold"):
 		await _group_hold()
+	if _want("ground"):
+		await _group_ground()
 	if _want("panel"):
 		await _group_panel()
 	if _want("art"):
@@ -752,6 +754,62 @@ func _group_attach() -> void:
 
 
 # --- hold ----------------------------------------------------------------------
+
+## Setting a cabinet down by aiming at the floor (GroundPlacement): what the rectangle says, and what a
+## release does with it.
+func _group_ground() -> void:
+	var eye := Vector3(0, 1.6, 0)
+	# Aimed down and forward: the spot is where the ray meets the floor, and the front turns to the player.
+	var p := GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, -1, -1), 0.0, eye)
+	_ok(not p.is_empty(), "ground: aimed at the floor it gives a spot")
+	var at: Vector3 = p.get("position", Vector3.ONE * 99.0)
+	_ok(_near(at.x, 0.0) and _near(at.y, 0.0) and _near(at.z, -1.2),
+		"ground: where the ray meets the floor (%s)" % at)
+	var front := GroundPlacement.pose_of(p).basis.z
+	_ok(front.dot(Vector3(0, 0, 1)) > 0.99, "ground: its front (+Z) faces the player who aimed from -Z of it")
+	var to_side := GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(1, -1, 0), 0.0, eye)
+	_ok(GroundPlacement.pose_of(to_side).basis.z.dot(Vector3(-1, 0, 0)) > 0.95,
+		"ground: and it turns to wherever the player is, not a fixed way")
+	# The aims that are NOT at the floor drop it as ever.
+	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, 0, -1), 0.0, eye).is_empty(),
+		"ground: held level it is just in hand")
+	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, 1, -1), 0.0, eye).is_empty(),
+		"ground: held up, nothing")
+	_ok(GroundPlacement.placement_for(Vector3(0, 0.5, 0), Vector3(0, -0.2, -1), 0.0, eye).is_empty(),
+		"ground: a shallow dip is not pointing at the ground")
+	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3(0, -0.4, -1), 0.0, eye).is_empty() == false,
+		"ground: but a steeper one is")
+	_ok(GroundPlacement.placement_for(Vector3(0, 2.0, 0), Vector3(0, -0.4, -1), 0.0, eye).is_empty(),
+		"ground: and a spot beyond reach is refused (5 m off, the limit is %.0f)" % GroundPlacement.MAX_REACH)
+	_ok(GroundPlacement.placement_for(Vector3(0, 1.2, 0), Vector3.ZERO, 0.0, eye).is_empty(), "ground: no aim, no spot")
+	# A floor that is not at zero (a raised room, the XR origin's height).
+	var raised := GroundPlacement.placement_for(Vector3(0, 1.7, 0), Vector3(0, -1, -1), 0.5, eye)
+	_ok(_near((raised["position"] as Vector3).y, 0.5), "ground: it stands at the floor's own height")
+
+	# On the cabinet: it carries the component, sized to its base, and a release stands it at the spot.
+	var sys := await _cabinet("arcade")
+	await _wait(3)
+	var placer := sys.get_node_or_null("GroundPlacement") as GroundPlacement
+	_ok(placer != null and placer.host == sys, "ground: the cabinet has its placer")
+	if placer == null:
+		return
+	var cab := sys.get_model() as RetroSystemModelArcadeCabinet
+	_ok(placer.footprint == cab.ground_footprint() and _near(placer.footprint.x, cab.cabinet_width),
+		"ground: sized to the cabinet's base")
+	sys.global_position = Vector3(3, 1.0, 3)
+	sys.rotate_x(0.7)
+	placer.apply(p)
+	await _wait(2)
+	_ok(sys.global_position.distance_to(at) < 0.01, "ground: set down at the spot, with no fall (%s)" % sys.global_position)
+	_ok(sys.global_basis.y.dot(Vector3.UP) > 0.999, "ground: upright, whatever it was held at")
+	_ok(sys.linear_velocity.length() < 0.01, "ground: at rest")
+	# A release with nothing showing leaves it where the hand put it.
+	sys.global_position = Vector3(5, 1.0, 5)
+	placer._on_dropped(sys)
+	await _wait(2)
+	_ok(sys.global_position.distance_to(Vector3(5, 1.0, 5)) < 0.5, "ground: let go with no spot, it is not moved")
+	placer.queue_free()
+
 
 func _group_hold() -> void:
 	var h := HoldToGrab.new()
