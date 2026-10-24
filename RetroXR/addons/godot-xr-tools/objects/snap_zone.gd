@@ -259,6 +259,14 @@ var preview_offset: Vector3 = Vector3.ZERO
 var preview_basis: Basis = Basis.IDENTITY
 
 
+## LOCAL PATCH (RetroXR): the ghost is drawn at the zone's own origin, turned by
+## `preview_basis` alone, without the object's grab point. Set by a bay that
+## seats its media that way (MediaSlot): the VHS tape's snap grab point is
+## turned 90 degrees to lay it flat, the bay lays it flat again, and a ghost
+## that did both was offered on its end.
+var preview_at_seat := false
+
+
 ## LOCAL PATCH (RetroXR): "no hand" for preview_pose_for's `held`. A zero
 ## basis rather than identity, because identity is a pose a hand can hold.
 const NO_HAND := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
@@ -278,7 +286,7 @@ const NO_HAND := Basis(Vector3.ZERO, Vector3.ZERO, Vector3.ZERO)
 ## authored pose.
 func preview_pose_for(obj: Node3D, amount: float = 1.0,
 		held: Basis = NO_HAND) -> Transform3D:
-	var t := snap_pose_for(obj)
+	var t := global_transform if preview_at_seat else snap_pose_for(obj)
 	# In the ZONE's frame, not the object's: the seat is written as a slot-local
 	# pose, so the ghost has to be turned the same way about the same origin.
 	if preview_basis != Basis.IDENTITY:

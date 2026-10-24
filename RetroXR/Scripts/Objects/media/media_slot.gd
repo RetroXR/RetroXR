@@ -68,10 +68,13 @@ func _ready() -> void:
 		# slot does not seat by the grab point -- it writes _mouth_pose(), which
 		# carries media_local_basis -- so without this the preview draws the media
 		# as authored and it turns the moment it is released. A 64DD disk was
-		# offered on its end and lay flat on let-go; a VHS tape does the same
-		# thing. One assignment here covers every bay that has one, which is why
-		# it is not in the callers.
+		# offered on its end and lay flat on let-go. One assignment here covers
+		# every bay that has one, which is why it is not in the callers.
 		slot.preview_basis = media_local_basis
+		# And at the slot's origin, as _mouth_pose() is, not by the media's grab
+		# point: the VHS tape's grab point already lays it flat, and the ghost
+		# was turned twice, standing on its end.
+		slot.preview_at_seat = true
 
 
 func has_media() -> bool:
