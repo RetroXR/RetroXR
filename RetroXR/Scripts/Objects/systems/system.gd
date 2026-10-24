@@ -118,6 +118,23 @@ func force_video_out(enabled: bool) -> void:
 ## there. Toggled from the options panel's System tab; default off.
 var ignore_gravity: bool = false
 
+## A cabinet's scraped art (marquee, sides) while a game is in its bay. On by default; the System tab's
+## "Cabinet Art" toggle turns it off for whoever wants it naked. Saved in the room only when off.
+var cabinet_art_enabled: bool = true
+
+## A cabinet that is on but unused shows its game instead of running it (ArcadeAttract). `attract_override`
+## is this cabinet's say over the global pref (ArcadeAttract.OVERRIDE_*): follow it, force on, force off.
+## Saved in the room only when it is not "follow".
+var attract_override: int = ArcadeAttract.OVERRIDE_FOLLOW
+## True while it is on and only SHOWING its game: no core is running, `is_powered_on` stays false.
+var attracting: bool = false
+## True while the core running is one an attract started: nobody at the cabinet for ArcadeAttract.IDLE_SECONDS
+## puts it away again.
+var attract_session: bool = false
+var _attract: ArcadeAttract = null
+## Set for the one power_on that a use of the cabinet asked for, so it loads the core instead of attracting.
+var _attract_released: bool = false
+
 # Cached core options (populated when options_ready fires)
 var _options_definitions: Dictionary = {}
 var _options_values: Dictionary = {}
@@ -544,6 +561,11 @@ func _ready() -> void:
 	set_physics_process(false)
 
 
+## The colours of a cabinet's power SWITCH (power_is_switch): lit green when on, a dark red when off.
+const POWER_SWITCH_ON := Color(0.15, 1.0, 0.35)
+const POWER_SWITCH_OFF := Color(0.45, 0.04, 0.04)
+
+
 ## The power button always reflects run state: green START when off, red STOP
 ## while running. Owned here (not per-model) so bespoke models that override
 ## on_power_on/off for their own visuals — the Virtual Boy's eyepiece shader —
@@ -553,11 +575,23 @@ func _update_power_button_visual() -> void:
 		return
 	# Only the generic placeholder cap gets the green/red START/STOP tint; a
 	# modelled button (set_button_mesh) keeps its own material.
+	var lit := is_powered_on or attracting
+	# A cabinet that shows its game when it is switched on (attract) has a SWITCH, not a start button: it
+	# stays down while on, reads ON / OFF and is lit green when on, so a row of cabinets says at a glance
+	# which are on. Everything else keeps the green START / red STOP.
+	var as_switch := power_is_switch()
+	_power_button.set_latched_pressed(as_switch and lit)
 	if _power_button.state_tint:
-		_power_button.set_color(Color(1.0, 0.0, 0.0) if is_powered_on else Color(0.0, 1.0, 0.0))
+		if as_switch:
+			_power_button.set_color(POWER_SWITCH_ON if lit else POWER_SWITCH_OFF)
+		else:
+			_power_button.set_color(Color(1.0, 0.0, 0.0) if lit else Color(0.0, 1.0, 0.0))
 	var lbl := _power_button.get_node_or_null("ButtonLabel") as Label3D
 	if lbl:
-		lbl.text = "STOP" if is_powered_on else "START"
+		if as_switch:
+			lbl.text = "ON" if lit else "OFF"
+		else:
+			lbl.text = "STOP" if lit else "START"
 
 
 ## What this machine calls itself — the scene's own label, else the systemname
@@ -727,6 +761,8 @@ func _load_system_model() -> void:
 	if is_bespoke:
 		_system_body.hide()
 	_model.configure_buttons(_power_button, _reset_button, _eject_button)
+	if _model.has_method("set_art_enabled"):
+		_model.call("set_art_enabled", cabinet_art_enabled)
 	_model.configure_controller_ports(_port_zones)
 	_build_video_channels()
 	_model.configure_cartridge_slot(_cartridge_slot)
@@ -741,6 +777,7 @@ func _load_system_model() -> void:
 	_model.build_serial_port(self, systemid)
 	_build_builtin_ethernet_port()
 	_model.configure_collision(self)
+	_model.attach_to_host(self)
 	_build_port_zones()
 	_build_usb_ports()
 	_spawn_captive_controllers()
@@ -825,7 +862,7 @@ func _build_port_zones() -> void:
 	if not _model.is_handheld():
 		port_count = _model.get_controller_port_count()
 		var info := SystemInfo.for_system(systemid)
-		if info and info.native_ports > 0:
+		if info and info.native_ports > 0 and not _model.port_count_is_fixed():
 			port_count = info.native_ports
 		port_count = clampi(port_count, 1, _port_zones.size())
 	for i in range(_port_zones.size()):
@@ -931,6 +968,10 @@ func _captive_cord_length(pad: Node3D) -> float:
 	return declared if declared > 0.0 else 1.8
 
 
+## How far from a holster's seat a hand still takes the gun out of it, in metres.
+const GUN_WELL_REACH := 0.13
+
+
 ## The recess a captive pad lies in, as a snap zone, so it can be put back where
 ## it came from. Its transform IS the rest: a pad carries no snap grab point, so
 ## a zone seats one at its own basis (measured, not assumed).
@@ -944,10 +985,15 @@ func _build_controller_well(index: int, rest: Transform3D, pad: Node3D) -> void:
 	well.name = "ControllerWell%d" % (index + 1)
 	well.snap_require = "hand_held_device"
 	well.snap_filter = _accepts_captive_pad.bind(index)
-	well.grab_distance = 0.06
+	# A gun is taken from the hand's reach at its grip, not by hunting for the one point the zone
+	# sits on: 6 cm made a holster feel magnetic, the hand had to be pulled right onto it.
+	well.grab_distance = GUN_WELL_REACH if pad is LightGun else 0.06
 	add_child(well)
 	well.transform = rest
 	_controller_wells.append(well)
+	# A gun goes back in its holster when let go (LightGun._return_to_well).
+	if "captive_well" in pad:
+		pad.set("captive_well", well)
 	well.pick_up_object(pad)
 
 
@@ -1182,6 +1228,93 @@ func grip_anchor(is_left: bool) -> Variant:
 	if _model != null and _model.has_method("get_grip_anchor"):
 		return _model.get_grip_anchor(is_left)
 	return null
+
+
+## Where the options panel goes, in world space, when the hardware wants it somewhere other
+## than over its top (see RetroSystemModel.options_panel_anchor); null for the default.
+func options_panel_anchor(panel_size: Vector2) -> Variant:
+	if _model == null:
+		return null
+	var local: Variant = _model.options_panel_anchor(panel_size)
+	return null if local == null else global_transform * (local as Vector3)
+
+
+## Where notices about this machine go, in world space, when its hardware wants them somewhere
+## other than the default (RetroSystemModel.toast_anchor); null for the default.
+func toast_anchor_world() -> Variant:
+	if _model == null:
+		return null
+	var local: Variant = _model.toast_anchor()
+	if local is Transform3D:
+		return global_transform * (local as Transform3D)
+	return null if local == null else global_transform * (local as Vector3)
+
+
+## The cores installed that can run this machine's system, recommended first, as
+## [{core_name, label}]. What the System tab's core picker offers.
+func core_choices() -> Array:
+	var out: Array = []
+	var db := CoreInfoDatabase.shared()
+	for cn: String in CoreDownloadManager.installed_core_names():
+		var sids := CoreInfoDatabase.systemids_of(db.get_by_core_name(cn))
+		if core_serves_machine(sids, systemid):
+			out.append({"core_name": cn, "label": RomCompat.core_label(cn)})
+	return CoreRecommendations.first(systemid, out)
+
+
+## Whether a core that declares `core_systemids` can run a machine of system `machine_systemid`.
+## Usually the machine's own system; but an ARCADE cabinet runs a romset, and MAME and FBNeo
+## both run those: the cabinet of one tile can take the other's core (and the older MAME and
+## FBAlpha cores some .info files file under the plain `arcade` id).
+static func core_serves_machine(core_systemids: Array, machine_systemid: String) -> bool:
+	# Both sides through canonical(): a saved cabinet may still say `mame`, the cores say `arcade`,
+	# and comparing the raw strings left every arcade core out of the cabinet's list.
+	var machine := SystemIds.canonical(machine_systemid)
+	for sid: Variant in core_systemids:
+		if SystemIds.canonical(str(sid)) == machine:
+			return true
+	if ArcadeProfiles.is_arcade_system(machine):
+		for sid: Variant in core_systemids:
+			if ArcadeProfiles.is_arcade_system(str(sid)) or ArcadeProfiles.ARCADE_ALIASES.has(str(sid)):
+				return true
+	return false
+
+
+## The core this machine runs when nothing is picked on it: the CORES panel's default.
+func default_core_name() -> String:
+	var defaults := CoreDefaults.new()
+	defaults.setup(CoreDefaults.default_path())
+	return defaults.get_default_core(systemid)
+
+
+## Pick the core THIS machine runs ("" = the default for its system). A running machine
+## is switched off first: a core cannot be swapped under a game. The options the panel shows
+## are the new core's, and the choice is saved with the room.
+func set_core_choice(core: String) -> void:
+	if core == core_name:
+		return
+	print("[RetroSystem] core for '%s': '%s' -> '%s'" % [name, core_name, core])
+	if is_powered_on:
+		power_off()
+	core_name = core
+	_options_definitions = {}
+	_options_values = {}
+	_load_prelaunch_options()
+	if _options_panel != null and _options_panel.visible:
+		_options_panel.refresh()
+
+
+## How long the grab has to be held on this machine before it is picked up (HoldToGrab):
+## 0 for an ordinary console, a couple of seconds for something that must not be carried
+## off by accident.
+func grab_hold_seconds() -> float:
+	return _model.grab_hold_seconds() if _model != null else 0.0
+
+
+## Whether this hardware is too big to hold, so the spawn menu stands it on the floor
+## rather than putting it in a hand.
+func spawns_on_floor() -> bool:
+	return _model != null and _model.spawns_on_floor()
 
 
 ## Interior open angle of a clamshell handheld's lid (0 shut … 180 flat), or
@@ -1728,6 +1861,12 @@ func on_av_topology_changed(_reported: Array) -> void:
 	var feed := AvSource.resolve(self, _av_stereo)
 	_av_cord_summary = feed.summary()
 	_apply_av_feed(feed.video_sinks, feed.audio_sink, feed.left, feed.right)
+	# A cabinet's composite INPUT sockets (ArcadeAvInModule) answer to this machine: tell its model a cord moved.
+	if _model != null and _model.has_method("on_av_in_changed"):
+		_model.call("on_av_in_changed")
+		# A console cabled to the cabinet owns its screen: the game on show gives way and the cabinet goes dark.
+		if attracting and bool(_model.call("external_picture_active")):
+			power_off()
 
 
 func _apply_av_feed(video_devs: Array[RetroTV], audio_dev: Node3D, l: int, r: int) -> void:
@@ -2000,6 +2139,28 @@ func supports_video_out_toggle() -> bool:
 	return _model.is_handheld() or _model.get_builtin_screen() != null
 
 
+## Only a cabinet has art to take off (the System tab shows the row for it alone).
+func supports_cabinet_art_toggle() -> bool:
+	return _model != null and _model.has_method("set_art_enabled")
+
+
+func set_cabinet_art_enabled(on: bool) -> void:
+	cabinet_art_enabled = on
+	if supports_cabinet_art_toggle():
+		_model.call("set_art_enabled", on)
+
+
+## The System tab's Attract Mode row: follow the global option, or force it on or off for this cabinet.
+## What is already showing changes at once: a cabinet that is on gives the game up (or starts showing it).
+func set_attract_override(mode: int) -> void:
+	attract_override = clampi(mode, ArcadeAttract.OVERRIDE_FOLLOW, ArcadeAttract.OVERRIDE_OFF)
+	if attracting and not attract_applies():
+		power_off()
+		power_on()
+	request_attract_media()
+	_update_power_button_visual()
+
+
 ## Toggle floating: on = freeze right where it is (or where it's next dropped);
 ## off = normal physics resumes (unless currently held or being restored).
 func set_ignore_gravity(on: bool) -> void:
@@ -2263,10 +2424,170 @@ func _clamp_plug(plug: CablePlug, attach_pos: Vector3, max_len: float) -> void:
 	PlugTether.reel_in(plug, plug.global_position, attach_pos, max_len)
 
 
+# ── attract: a cabinet that is on shows its game instead of running it ─────────
+
+## Does switching this machine on show its game rather than start it? Only an arcade cabinet, with the
+## option on (its own override, else the global pref), a game in its bay, no console cabled to its A/V
+## input and no netplay session (ArcadeAttract.wanted).
+func attract_applies() -> bool:
+	if not _is_cabinet_model():
+		return false
+	var has_game := _snapped_cartridge != null and not rom_path.is_empty()
+	return ArcadeAttract.wanted(AppPrefs.arcade_attract_mode, attract_override, has_game,
+		bool(_model.call("external_picture_active")), NetworkManager.is_active())
+
+
+## An arcade cabinet's model (by what it answers: the class itself would make this script and its model
+## need each other to compile).
+func _is_cabinet_model() -> bool:
+	return _model != null and _model.has_method("attract_picture_active")
+
+
+## Is the power button a SWITCH? An arcade cabinet that would show its game when switched on (attract_applies):
+## the button is a latched ON / OFF and its state is saved in the room (`attract_on`).
+func power_is_switch() -> bool:
+	return attract_applies()
+
+
+## What a room should remember of this cabinet's switch: it is on, whether it is only showing its game or a
+## player has started it. Only for a cabinet whose button is a switch.
+func attract_switched_on() -> bool:
+	return power_is_switch() and (attracting or is_powered_on)
+
+
+## A saved room had this cabinet switched on: it comes on again as soon as its board is in (the board can
+## arrive after this cabinet's own entry, from its bay's). begin_ marks it, the board's arrival tries it,
+## and finish_ (the end of the restore) gives up on a cabinet that never got one.
+var _attract_restore := false
+
+
+func begin_attract_restore() -> void:
+	_attract_restore = true
+
+
+func finish_attract_restore() -> void:
+	_try_attract_restore()
+	_attract_restore = false
+
+
+func _try_attract_restore() -> void:
+	if not _attract_restore or attracting or is_powered_on or not attract_applies():
+		return
+	_attract_restore = false
+	power_on()
+
+
+## The option, the cabinet's own override or a board coming or going decides whether the button is a
+## switch: redraw it (the Options toggle reaches every machine through the `spawned` group).
+func refresh_power_switch() -> void:
+	_update_power_button_visual()
+
+
+func _enter_attract() -> void:
+	print("[RetroSystem] Attract: showing %s" % rom_path.get_file())
+	if _attract == null:
+		_attract = ArcadeAttract.new()
+		_attract.name = "ArcadeAttract"
+		add_child(_attract)
+	attracting = true
+	_attract.start(self)
+	_update_power_button_visual()
+	_model.on_power_on()
+	request_attract_media()
+
+
+## Stop showing the game (power button, board out, a console cabled in) and go dark. No core to stop.
+func _leave_attract() -> void:
+	attracting = false
+	if _attract != null:
+		_attract.stop()
+	_update_power_button_visual()
+	_model.on_power_off()
+
+
+## Somebody used the cabinet while it only showed its game: a coin, a panel pressed, a gun or pad in hand
+## (ArcadeInput.first_use). The game starts for real, and the coin that asked for it counts in it.
+func attract_first_use(kind: StringName) -> void:
+	if not attracting:
+		return
+	print("[RetroSystem] Attract: %s -- starting %s" % [kind, rom_path.get_file()])
+	_leave_attract()
+	_attract_released = true
+	power_on()
+	_attract_released = false
+	# The game would not start (a missing disc, a missing BIOS, a refused core): the glass shows the game
+	# again rather than going dark under the player who just put a coin in.
+	_return_to_attract_if_idle()
+
+
+## A cabinet that attracts and has nothing running shows its game. The one way back from a start that
+## failed, whether it was refused at once (power_on) or by the core a moment later.
+func _return_to_attract_if_idle() -> void:
+	if is_powered_on or attracting or not attract_applies():
+		return
+	print("[RetroSystem] Attract: the game did not start -- back to showing it")
+	_enter_attract()
+
+
+## Nobody has been at the cabinet for ArcadeAttract.IDLE_SECONDS: the core goes away and the game is shown
+## again (libretro tells us nothing of game over, so idleness is what there is).
+func attract_return() -> void:
+	if not is_powered_on or not attract_session:
+		return
+	print("[RetroSystem] Attract: nobody at the cabinet -- back to the attract")
+	power_off()
+	if attract_applies():
+		_enter_attract()
+
+
+## Somebody coined up or pressed something: the idle clock starts over.
+func attract_touch() -> void:
+	if _attract != null:
+		_attract.touch()
+
+
+## What the glass shows while attracting, or null.
+func attract_picture() -> Texture2D:
+	return _attract.picture() if attracting and _attract != null else null
+
+
+func attract_picture_aspect() -> float:
+	return _attract.picture_aspect() if attracting and _attract != null else 0.0
+
+
+## The attract's video and title come from the scraper, and only when this cabinet would use them and
+## the game has no video yet: one scrape per game, once, not a library's worth (arcade.md "Attract").
+func request_attract_media() -> void:
+	if not _is_cabinet_model() or _snapped_cartridge == null or rom_path.is_empty():
+		return
+	if not ArcadeAttract.effective_pref(AppPrefs.arcade_attract_mode, attract_override):
+		return
+	var board_sys := str(_snapped_cartridge.get("systemid")) if "systemid" in _snapped_cartridge else ""
+	if board_sys.is_empty():
+		board_sys = systemid
+	if not ArcadeProfiles.is_cabinet_system(board_sys):
+		return
+	if ArcadeAttract.has_video(board_sys, rom_path):
+		return
+	# Left where the menu will find it if it is not up yet; the menu takes it off the list when it asks.
+	ArcadeAttract.pending_media[rom_path] = board_sys
+	if get_tree().get_nodes_in_group(&"attract_media_listener").is_empty():
+		print("[Attract] %s has no video yet; the scraper is not up, so it waits" % rom_path.get_file())
+		return
+	get_tree().call_group(&"attract_media_listener", &"request_attract_media", rom_path, board_sys)
+
+
 ## Power on: start this system's libretro core
 func power_on() -> void:
-	if is_powered_on:
+	if is_powered_on or attracting:
 		return
+	# A use of the cabinet (a coin, a pressed panel, a gun in hand) asked for the real game this time.
+	var released := _attract_released
+	_attract_released = false
+	if not released and attract_applies():
+		_enter_attract()
+		return
+	attract_session = released
 	# A console with no TV connected still powers on and runs — the core renders to
 	# its own texture regardless, and a set plugged in later simply starts sampling
 	# it. Handhelds always have a panel, so they never take this branch.
@@ -2290,6 +2611,12 @@ func power_on() -> void:
 	# those read rom_path.
 	rom_path = _boot_disc_path()
 	_disc_left_running = false
+	# A game that runs from a board AND a disc starts with both in the bay.
+	var disc_gap := arcade_disc_gap()
+	if not disc_gap.is_empty():
+		push_error("RetroSystem: Cannot power on - %s" % disc_gap)
+		_announce_disc_gap(disc_gap)
+		return
 	var stack_spec := _expansion_launch.apply_expansion_launch()
 	var resolved_core := _resolve_core()
 	var resolved_dir := _resolve_dir()
@@ -2662,6 +2989,10 @@ func _release_cache_protection() -> void:
 
 ## Power off: stop the running core
 func power_off() -> void:
+	_core_menu_open = false
+	if attracting:
+		_leave_attract()
+		return
 	if not is_powered_on:
 		return
 	print("[RetroSystem] Powering off")
@@ -2696,6 +3027,7 @@ func _stop_core() -> void:
 	_release_cache_protection()
 	_audio.on_core_stopped()
 	is_powered_on = false
+	attract_session = false
 	# StopContent returned but the core has not finished: a card the core owns is
 	# written during the teardown that follows. Keep watching for a while.
 	stop_card_polling_soon()
@@ -2757,7 +3089,7 @@ func toggle_power() -> void:
 			# Non-netplay core: emulation runs on the host only — send the intent.
 			NetworkManager.report_event(NetEvents.Event.EV_SYS_POWER, {"sys": self})
 			return
-	if is_powered_on:
+	if is_powered_on or attracting:
 		power_off()
 	else:
 		power_on()
@@ -3279,6 +3611,7 @@ func _all_forced_options(core: String) -> Dictionary:
 	var out: Dictionary = _model.get_forced_core_options() if _model != null else {}
 	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _hardware_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
+	out.merge(ForcedCoreOptions.lightgun(core, _has_lightgun()), true)
 	if _sega_cd != null:
 		out.merge(_sega_cd.forced_options_for(core), true)
 	if _saturn != null:
@@ -3286,6 +3619,14 @@ func _all_forced_options(core: String) -> Dictionary:
 	if _three_do != null:
 		out.merge(_three_do.forced_options_for(core), true)
 	return out
+
+
+## Whether any port holds a light gun (a cabinet's own, or one plugged in).
+func _has_lightgun() -> bool:
+	for c: Variant in _port_controllers:
+		if c is LightGun:
+			return true
+	return false
 
 
 ## Whether a card is in each slot this console shows.
@@ -3928,8 +4269,13 @@ func _on_content_load_failed(reason: String) -> void:
 	var absent := BiosBoot.absent_media_boot_roms(_resolve_core(), _media_systemid())
 	var toast := _machine_toast()
 	if toast != null:
-		toast.show_notice(_display_name(), "Could not start",
-			_load_failed_detail(reason, absent), AchievementToast.ACCENT_NOTICE)
+		var detail := _load_failed_detail(reason, absent)
+		# An arcade game that names a missing file needs its BIOS or device set beside it.
+		# MAME says "NOT FOUND", FinalBurn Neo "is required".
+		if ArcadeProfiles.is_cabinet_system(systemid) and (reason.contains("NOT FOUND") or reason.contains("is required")):
+			detail += "\nMAME/FBNeo games need their BIOS or device ROM sets (neogeo.zip, qsound.zip...). Get them from the core's BIOS list, or put them in the same roms folder as the game."
+		toast.show_notice(_display_name(), "Could not start", detail, AchievementToast.ACCENT_NOTICE)
+	_return_to_attract_if_idle()
 
 
 ## What a refused load says. A game that needs a regional BIOS some of which is
@@ -3964,6 +4310,68 @@ func _on_options_ready(_categories: Dictionary, definitions: Dictionary, current
 	reapply_pad_types()
 	if _options_panel.visible:
 		_options_panel.refresh()
+
+
+## Keys that open a core's OWN DIP switch screen, as libretro.h's RETROK_ codes, by core. MAME: Tab opens
+## its menu, whose second line is DIP Switches (measured: Input Settings, DIP Switches, Bookkeeping...),
+## so Tab, Down, Return; Tab alone shuts it again. FBNeo has no such screen (Tab, F2 and F3 do nothing
+## visible, measured): its DIPs are core options (`fbneo-dipswitch-<game>-...`), which the DIP tab lists.
+const DIP_MENU_KEYS := {"mame": [9, 274, 13]}
+const DIP_MENU_CLOSE := [9]
+## What marks a DIP among a core's options (the key names carry it).
+const DIP_OPTION_MARK := "dipswitch"
+const _KEY_HOLD := 0.12
+const _KEY_GAP := 0.25
+
+var _core_menu_open := false
+var _core_keys_busy := false
+## A suite's stand-in for the core's keyboard: called with (keycode, down) instead of the libretro node.
+var core_key_sink: Callable = Callable()
+
+
+## The menu's DIP Switch tab is a cabinet's (a machine whose model is the arcade cabinet).
+func has_dip_tab() -> bool:
+	return _model is RetroSystemModelArcadeCabinet
+
+
+## The running core has a DIP screen of its own that the tab can open on the game's screen.
+func core_dip_menu_available() -> bool:
+	return is_powered_on and DIP_MENU_KEYS.has(_resolve_core())
+
+
+func core_dip_menu_open() -> bool:
+	return _core_menu_open
+
+
+## The tab's button: open the running core's own DIP screen, or shut it again.
+func toggle_core_dip_menu() -> void:
+	if not core_dip_menu_available() or _core_keys_busy:
+		return
+	var keys: Array = DIP_MENU_CLOSE if _core_menu_open else DIP_MENU_KEYS[_resolve_core()]
+	_core_menu_open = not _core_menu_open
+	_tap_core_keys(keys)
+
+
+func _tap_core_keys(keys: Array) -> void:
+	_core_keys_busy = true
+	for code: int in keys:
+		_core_key(code, true)
+		await get_tree().create_timer(_KEY_HOLD).timeout
+		_core_key(code, false)
+		await get_tree().create_timer(_KEY_GAP).timeout
+	_core_keys_busy = false
+
+
+## One key to the core, the way a keyboard does it (keyboard_receiver `_send_key`): through the netplay
+## schedule when a session is running, else straight to port 0.
+func _core_key(code: int, down: bool) -> void:
+	if core_key_sink.is_valid():
+		core_key_sink.call(code, down)
+		return
+	if NetworkManager.netplay_queue_key(self, code, down, 0):
+		return
+	if _libretro != null:
+		_libretro.SetKeyState(0, code, down, 0)
 
 
 ## Toggle the core options panel open or closed.
@@ -5065,6 +5473,9 @@ func _belongs_here(obj: Node3D, compat: Dictionary) -> bool:
 
 ## Slot gate: does this piece of media (cartridge/disc) belong in this system?
 func _accepts_media(obj: Node3D) -> bool:
+	# An arcade game's disc goes in the CD-ROM bay under the JAMMA bay, never where a board stands.
+	if ArcadeDiscs.is_disc_object(obj):
+		return false
 	# A cartridge-shaped expansion goes in this slot and fills it, the way it does
 	# on the hardware: a Mega Drive holds a 32X or a game, never both.
 	var unit := obj as RetroExpansion
@@ -5233,6 +5644,163 @@ func restore_cartridge(cartridge: Node3D, yaw: float = 0.0) -> void:
 ## Which child holds the cartridge stays this machine's business.
 func net_release_cartridge() -> void:
 	_cartridge_slot.drop_object()
+
+
+# ── A detachable media bay (arcade cabinets) ──────────────────────────────────
+#
+# An arcade cabinet's slot can be a bay's (ArcadeBayUnit) rather than its own: clipped into the
+# cabinet's mount, or joined to it by a JAMMA lead. The cabinet stays the machine -- the core, the
+# input, the picture, the saves -- and only two things follow the bay: WHERE the board stands (this
+# machine's `_cartridge_slot` becomes the bay's snap zone) and WHICH system it plays (`systemid`
+# becomes the bay's kind's). Taking the bay away gives the slot back to the cabinet's own (shut and
+# empty) and the board goes with the bay, so the cabinet stops: pulling the board is pulling the game.
+
+## The slot this machine was built with, kept while a bay's is in use.
+var _home_slot: XRToolsSnapZone = null
+var _disc_gap_pending := false
+var _disc_gap_told := ""
+const DISC_GAP_DELAY := 0.8
+var _bay: ArcadeBayUnit = null
+var _bay_how := ""
+
+
+## The bay this machine plays from, or null.
+func get_bay() -> ArcadeBayUnit:
+	return _bay if is_instance_valid(_bay) else null
+
+
+## How the bay is joined (ArcadeBayUnit.DOCK / CABLE), "" with none.
+func bay_link_kind() -> String:
+	return _bay_how if get_bay() != null else ""
+
+
+## Play from `bay`. Returns false when it cannot be taken. A machine holds one bay: a second takes
+## the place of a docked one and is refused while a cabled one is in.
+func link_bay(bay: ArcadeBayUnit, how: String) -> bool:
+	if bay == null or not is_instance_valid(bay) or bay.slot == null:
+		return false
+	if _bay == bay:
+		return true
+	if get_bay() != null:
+		if how == ArcadeBayUnit.CABLE:
+			return false
+		unlink_bay(null)
+	var sid := bay.primary_system()
+	if not sid.is_empty() and sid != systemid:
+		# The machine is whatever the bay in it plays. A power-on has not happened yet (the old
+		# bay's leaving stopped the machine), so nothing is running under the old name.
+		systemid = sid
+		if _model != null and _model.has_method("on_machine_system_changed"):
+			_model.call("on_machine_system_changed")
+	if _home_slot == null:
+		_home_slot = _cartridge_slot
+	_home_slot.enabled = false
+	_bay = bay
+	_bay_how = how
+	_swap_cartridge_slot(bay.slot)
+	bay.attach_host(self, how)
+	if _model != null and _model.has_method("on_bay_linked"):
+		_model.call("on_bay_linked", bay, how)
+	return true
+
+
+## Stop playing from the bay (`bay` null means whichever it is). The board stays in the bay.
+func unlink_bay(bay: ArcadeBayUnit) -> void:
+	var gone := get_bay()
+	if gone == null:
+		_bay = null
+		return
+	if bay != null and bay != gone:
+		return
+	_bay = null
+	_bay_how = ""
+	if _home_slot != null:
+		_swap_cartridge_slot(_home_slot)
+		_home_slot.enabled = false
+	gone.detach_host()
+	if _model != null and _model.has_method("on_bay_unlinked"):
+		_model.call("on_bay_unlinked", gone)
+
+
+## What a disc game still needs from the bay, as the sentence the player reads, or "" when nothing is
+## missing. A game needs a disc exactly when a folder of CHDs stands beside its board (ArcadeDiscs);
+## the disc must be loaded in the CD-ROM bay and must be that game's. A disc with no board in is as
+## unfinished as a board with no disc. Only a cabinet has a bay to ask.
+func arcade_disc_gap() -> String:
+	if not _is_cabinet_model() or not ArcadeDiscs.applies(systemid):
+		return ""
+	var bay := get_bay()
+	var disc := bay.get_disc() if bay != null else null
+	var disc_path := str(disc.call("get_rom_path")) if disc != null and disc.has_method("get_rom_path") else ""
+	var board_path := rom_path
+	if board_path.is_empty() and _snapped_cartridge != null and _snapped_cartridge.has_method("get_rom_path"):
+		board_path = str(_snapped_cartridge.call("get_rom_path"))
+	if board_path.is_empty():
+		return ArcadeDiscs.requires_notice(ArcadeDiscs.BOARD_NAME) if not disc_path.is_empty() else ""
+	if not ArcadeDiscs.needs_disc(board_path):
+		return ""
+	if disc_path.is_empty():
+		return ArcadeDiscs.requires_notice(ArcadeDiscs.DISC_NAME)
+	if not ArcadeDiscs.belongs_to(disc_path, board_path):
+		return "This Disc belongs to another game, please insert the right Disc."
+	return ""
+
+
+## The bay's drive gained or lost a disc, or a board arrived: say what is still missing, once. Looked
+## at again a moment later, not now: a room being restored seats the board and the disc in turn, and
+## the first of them is not a game missing the second.
+func arcade_disc_changed() -> void:
+	if _disc_gap_pending or not is_inside_tree():
+		return
+	_disc_gap_pending = true
+	get_tree().create_timer(DISC_GAP_DELAY).timeout.connect(func() -> void:
+		_disc_gap_pending = false
+		var gap := arcade_disc_gap() if is_inside_tree() else ""
+		if gap.is_empty():
+			_disc_gap_told = ""
+		elif gap != _disc_gap_told:
+			_disc_gap_told = gap
+			_announce_disc_gap(gap))
+
+
+func _announce_disc_gap(gap: String) -> void:
+	var toast := _machine_toast()
+	if toast != null:
+		toast.show_notice(_display_name(), "Could not start", gap, AchievementToast.ACCENT_NOTICE)
+
+
+## A saved cabinet's bay, clipped back into its mount (a cabled one is joined by its lead's restore).
+func restore_bay(bay: ArcadeBayUnit) -> void:
+	if bay == null or _model == null or not _model.has_method("restore_bay_mount"):
+		return
+	_restoring_media = true
+	_model.call("restore_bay_mount", bay)
+	_restoring_media = false
+
+
+## Make `zone` this machine's cartridge slot. What is in the old one leaves with it (the machine
+## hears it go, as a hand pulling it would), and what is already in the new one arrives (the machine
+## hears that too: a snap zone says nothing about a board that was there before it was listened to).
+func _swap_cartridge_slot(zone: XRToolsSnapZone) -> void:
+	if zone == null or zone == _cartridge_slot:
+		return
+	if _snapped_cartridge != null:
+		_on_cartridge_removed()
+	var old := _cartridge_slot
+	if is_instance_valid(old):
+		if old.has_picked_up.is_connected(_on_cartridge_inserted):
+			old.has_picked_up.disconnect(_on_cartridge_inserted)
+		if old.has_dropped.is_connected(_on_cartridge_removed):
+			old.has_dropped.disconnect(_on_cartridge_removed)
+	_cartridge_slot = zone
+	zone.has_picked_up.connect(_on_cartridge_inserted)
+	zone.has_dropped.connect(_on_cartridge_removed)
+	zone.snap_filter = _accepts_media
+	if not zone.is_in_group(ExpansionPort.GROUP_CART_SLOT):
+		zone.add_to_group(ExpansionPort.GROUP_CART_SLOT)
+	var held := zone.picked_up_object as Node3D
+	if held != null:
+		_on_cartridge_inserted(held)
 
 
 ## The same, for a memory card. `slot` is an index into MEMCARD_SLOT_NODES and
@@ -5437,6 +6005,15 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 	# resolve the core) — a cart inserted into an NES is an NES cart.
 	if "systemid" in cartridge and str(cartridge.get("systemid")).is_empty():
 		cartridge.set("systemid", systemid)
+	# A cabinet dresses itself in the game's art (marquee, sides).
+	if _model != null and _model.has_method("on_media_inserted"):
+		_model.call("on_media_inserted", cartridge)
+	arcade_disc_changed()
+	request_attract_media()
+	# With a game in, the button of a cabinet that attracts becomes its switch; a restored room's cabinet
+	# that was left on comes on now.
+	_update_power_button_visual()
+	_try_attract_restore()
 	# A push-tray bay already slid the cart home when it was laid in — this moment
 	# is the tray latching, which moves nothing.
 	if not _model.has_push_tray():
@@ -5486,6 +6063,8 @@ func _on_cartridge_removed() -> void:
 			remove_collision_exception_with(_snapped_cartridge)
 			SeatedCollision.withdraw(self, _snapped_cartridge as CollisionObject3D)
 		_snapped_cartridge = null
+		if _model != null and _model.has_method("on_media_cleared"):
+			_model.call("on_media_cleared")
 	_disc_spin = 0.0
 	# Taking the media out never interrupts the run. A console does not stop when
 	# a disc leaves the drive — that is what lets Monster Rancher read whatever
@@ -5504,9 +6083,10 @@ func _on_cartridge_removed() -> void:
 			_request_disk_op(DISK_OP_EJECT, "")
 		NetworkManager.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": self})
 		return
-	if is_powered_on:
+	if is_powered_on or attracting:
 		power_off()
 	rom_path = ""
+	_update_power_button_visual()
 	NetworkManager.report_event(NetEvents.Event.EV_CART_REMOVE, {"sys": self})
 
 

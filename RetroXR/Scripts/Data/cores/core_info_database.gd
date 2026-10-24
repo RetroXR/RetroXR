@@ -208,6 +208,12 @@ const SYSTEM_LABELS := {
 	"gb": "Game Boy",
 	"ngp": "Neo Geo Pocket",
 	"wonderswan": "WonderSwan",
+	# Five systemids used to be named "Arcade (various)" by whichever core was
+	# indexed first (and "CP System I" when that was a CPS-only build). One is
+	# Arcade now; the two that are not MAME/FinalBurn romsets say what they are.
+	"arcade": "Arcade",
+	"daphne": "Arcade (Daphne)",
+	"dice": "Arcade (DICE)",
 }
 
 

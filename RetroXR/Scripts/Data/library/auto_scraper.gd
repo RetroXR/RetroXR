@@ -82,6 +82,28 @@ func request(rom_path: String, systemid: String) -> void:
 	_queue.enqueue(rom_path, systemid, {"tag": ScrapeQueue.TAG_AUTO})
 
 
+## Fetch only `kinds` (ScreenscraperClient.CABINET_MEDIA: "video", "title") for a ROM, even one whose
+## metadata is already scraped: that costs one request, once, for the single game a cabinet's attract
+## mode is about to show. Respects the Auto-scrape switch (no request leaves the app unasked).
+func request_media(rom_path: String, systemid: String, kinds: Array) -> void:
+	if rom_path.is_empty() or systemid.is_empty() or kinds.is_empty():
+		return
+	if not is_enabled():
+		print("[AutoScraper] %s: %s wanted, but auto-scrape is off" % [rom_path.get_file(), str(kinds)])
+		return
+	if not FileAccess.file_exists(rom_path):
+		print("[AutoScraper] %s: %s wanted, but the file is not there" % [rom_path.get_file(), str(kinds)])
+		return
+	if _queue.is_queued(rom_path):
+		# Already on its way for an ordinary scrape: if it has not started, it brings these too.
+		var joined := _queue.add_extra_media(rom_path, kinds)
+		print("[AutoScraper] %s: %s wanted; it is queued already, %s" % [rom_path.get_file(), str(kinds),
+			"and now brings them" if joined else "and running, so they wait for the next time"])
+		return
+	print("[AutoScraper] %s: asking for %s" % [rom_path.get_file(), str(kinds)])
+	_queue.enqueue(rom_path, systemid, {"tag": ScrapeQueue.TAG_AUTO, "media": kinds})
+
+
 ## True when this ROM already has metadata, so scraping it again would spend a
 ## request to learn nothing.
 func already_scraped(rom_path: String, systemid: String) -> bool:

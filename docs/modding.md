@@ -226,6 +226,37 @@ true only while both cores are on the bus. The Game Boy Color in RetroXR-models
 OVER the window (`material_overlay`) because its own paint code owns the window's
 material.
 
+### Arcade cabinets
+
+Every MAME and FinalBurn Neo core plays in one **Primitive Arcade Cabinet** (`arcade_cabinet_generic`), and a
+ROM is drawn as a JAMMA board. Five more cabinets ship, all the same upright with other controls and a bay for
+another system: a **light-gun** cabinet (`arcade_cabinet_lightgun`, two guns in holsters on cords, START alone on
+the panel, a drawn pedal), the **Neo Geo MVS** (`arcade_cabinet_neogeo`, platform `neogeo`, four buttons), a
+**laserdisc** cabinet (`arcade_cabinet_daphne`, platform `daphne`, a stick and one button) and its gun version
+(`arcade_cabinet_daphne_gun`), and a **DICE** cabinet (`arcade_cabinet_dice`, platform `dice`, a paddle dial each).
+A cabinet of your own (a 4-player upright, a cocktail table, a tate cabinet) is an ordinary row:
+`api.register_model` (or `override_model` on a shipped id) with `platform: "arcade"` (or another system a bay takes)
+and a scene whose root runs `res://Scripts/Objects/system_models/arcade_cabinet_model.gd`. The model finds the
+cabinet's parts by **type**, never by node name: put an `ArcadeModule` for each part in the scene, each finding ITS
+OWN parts by name inside its own subtree. The shipped ones are baked by
+`Tools/gen/gen_arcade_cabinet.gd -- --variant=<name>`.
+
+| module (`res://Scripts/Objects/arcade/`) | `kind` | parts it finds |
+|---|---|---|
+| `arcade_screen_module.gd` | `screen` | `CabinetScreen` (a quad) |
+| `arcade_control_module.gd` | `stick_buttons` | `Btn1`..`Btn6`, `Start` (caps), `StickPivot` (a stick), `DialPivot` (a paddle dial turned by LEFT/RIGHT), `PanelGrip`; all optional; set `player`. A `PanelGrip` with `momentary` is a START button, not a controller to attach to |
+| `arcade_coin_module.gd` | `coin` | `CoinSlot` (VRButton), `CoinSpawn`, `CoinDrop`; set `player` |
+| `arcade_bay_module.gd` | `bay` | `DoorPivot`, `DoorGrab` (a VRHinge), `CartSeat`, `PowerSwitch`; set `bay_kind` |
+| `arcade_socket_module.gd` | `sockets` | `PortSeat1..N`, rolled 180 degrees about Z like the NES's; `Holster1..N` (where a gun hangs, aiming down its own -Z) make the cabinet's guns captive |
+| `arcade_pedal_module.gd` | `pedal` | a foot pedal: drawn only, `active` stays false |
+
+The contract is versioned (`ArcadeProfiles.CONTRACT_VERSION`) and **additive only**: a cabinet
+that lacks an optional module is valid. The screen takes its shape from the core's reported
+geometry, not from your quad's size, so give the glass its real `glass_size`; a vertical game
+is pillarboxed in it. The door's angle is saved like any lid and the hinge replicates in a
+shared room. `ArcadeProfiles.register_bay_kind` adds a bay kind (which systems a bay takes);
+it has no `ModApi` wrapper yet. See `docs/dev/arcade.md`.
+
 ### Colors and editions on one row
 
 A machine sold in ten colors is one row, not ten. Give the row a `variants` list

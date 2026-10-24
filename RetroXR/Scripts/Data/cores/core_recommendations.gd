@@ -272,12 +272,6 @@ const RECOMMENDED := {
 	},
 
 	# ── SNK ──────────────────────────────────────────────────────────────────
-	# Keyed on fbneo rather than neogeo: FinalBurn Neo files itself under
-	# fbneo, and the neogeo tile holds only Geolith.
-	"fbneo": {
-		"core": "fbneo",
-		"why":  "The maintained FinalBurn line, and where Neo Geo AES/MVS support actually lives",
-	},
 	"neogeocd": {
 		"core": "neocd",
 		"why":  "The only Neo Geo CD core here",
@@ -340,9 +334,15 @@ const RECOMMENDED := {
 	},
 
 	# ── Arcade ───────────────────────────────────────────────────────────────
-	"mame": {
-		"core":    "mame",
-		"why":     "Current MAME — the widest romset support, and desktop can carry it",
+	# One tile for every MAME and FinalBurn core (docs/dev/arcade.md). FinalBurn Neo is the
+	# default on desktop: it works with the least setup (its sets are self-contained, the
+	# QSound DSP and the BIOS sets it needs are built in or optional) and starts a game the
+	# player drops in at once. MAME runs more sets but is picky about its romset version and
+	# its device ROMs (a CPS-2 game wants qsound.zip); it is one pick away on the System tab.
+	# FinalBurn Neo is also the only core vetted for netplay rollback (NetplayCores).
+	"arcade": {
+		"core":    "fbneo",
+		"why":     "FinalBurn Neo — the most games that start the moment you drop them in, with the least romset fuss",
 		"android": "mame2003_plus",
 		"why_android": "Current MAME is far past a phone SoC's budget; 2003-Plus is the tuned ARM set and covers the arcade era this room is built around",
 	},

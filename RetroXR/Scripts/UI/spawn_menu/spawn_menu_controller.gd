@@ -993,7 +993,12 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 	if fwd.length_squared() < 0.001:
 		fwd = Vector3.FORWARD
 	fwd = fwd.normalized()
-	obj.global_position = global_position + fwd * 0.5
+	# A thing too big to hold stands on the floor a stride away instead of being handed to
+	# a hand (an arcade cabinet is 1.8 m tall and weighs what it weighs).
+	var on_floor: bool = obj.has_method("spawns_on_floor") and bool(obj.call("spawns_on_floor"))
+	obj.global_position = global_position + fwd * (1.3 if on_floor else 0.5)
+	if on_floor:
+		obj.global_position.y = _floor_y()
 	# Face the player. Nothing set the basis before this, so every object came
 	# out on its scene-default heading wherever it was spawned. Yaw only: the
 	# turn is about UP, so a console can never spawn pitched or rolled.
@@ -1016,12 +1021,24 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 	NetworkManager.on_local_spawn(obj)
 	# Hand it over — except on a netplay client, whose local copy was just
 	# queue_freed by on_local_spawn (the host mints the real one, placed).
-	if grabber != null and not NetworkManager.is_client() \
+	if grabber != null and not NetworkManager.is_client() and not on_floor \
 			and is_instance_valid(obj) and obj is XRToolsPickable:
 		_give_to_grabber(grabber, obj as XRToolsPickable)
 
 	if is_instance_valid(obj):
 		_teach_verbs(obj)
+
+
+## The floor under the player: the XR origin's height, or the world's zero when the
+## camera is not under one.
+func _floor_y() -> float:
+	var cam := get_viewport().get_camera_3d()
+	var node: Node = cam.get_parent() if cam != null else null
+	while node != null:
+		if node is XROrigin3D:
+			return (node as XROrigin3D).global_position.y
+		node = node.get_parent()
+	return 0.0
 
 
 ## Both verbs on the left thumbstick (Tab on desktop), taught on the object the
@@ -1340,13 +1357,16 @@ func _on_spawn_cartridge_requested(rom_path: String, game_label: String, systemi
 		return
 	# Disc-based systems get a RetroDisc (same contract, disc-shaped body).
 	# The PSP UMD is the one non-round disc — its own RetroUMD subclass/scene.
-	var is_disc := MediaDimensions.is_disc_system(systemid)
+	# An arcade game's CHD is a disc too, though its board (the zip) is not: it goes in the CD-ROM bay
+	# under the JAMMA bay.
+	var arcade_disc := ArcadeDiscs.applies(systemid) and ArcadeDiscs.is_disc_path(rom_path)
+	var is_disc := MediaDimensions.is_disc_system(systemid) or arcade_disc
 	var disc_scene := UMD_DISC_SCENE if systemid == "psp" else DISC_SCENE
 	# The body GLB comes in on the loader threads before the cartridge is built:
 	# RetroCartridge loads it synchronously in _ready, and a cold one froze the
 	# headset for the length of the load. Free once it is held.
-	var body := RetroCartridge.body_model_for(systemid, rom_path, str(options.get("body_region", "")),
-		StringName(str(options.get("shell_preset", ""))))
+	var body := "" if arcade_disc else RetroCartridge.body_model_for(systemid, rom_path,
+		str(options.get("body_region", "")), StringName(str(options.get("shell_preset", ""))))
 	if not body.is_empty() and ResourceLoader.exists(body):
 		await ModelWarmer.acquire(body)
 	# And the PAL rear sticker a Super Famicom-shaped cartridge wears, likewise.

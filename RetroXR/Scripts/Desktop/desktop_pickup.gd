@@ -143,6 +143,8 @@ var _hovered_target : Node3D = null
 ## Left button down over something that answers to a click (a cart lying in a push
 ## tray). Held until the button comes back up — a release without travel is the
 ## click, travel first is a pull — so the grab has to wait for one or the other.
+## A grab that has to be held for a few seconds (HoldToGrab): which target, and for how long.
+var _hold := HoldToGrab.new()
 var _pending_click : Node3D = null
 var _pending_grab  : Node3D = null
 var _click_drag    : float = 0.0
@@ -218,6 +220,10 @@ func _unhandled_input(event: InputEvent) -> void:
 					if _held_object:
 						_drop()
 					get_viewport().set_input_as_handled()
+				elif _hold.is_active():
+					# Let go before the ring was full: it was not a grab.
+					_hold.cancel()
+					_show_hold_progress(0.0)
 				elif _pending_click != null:
 					# Came back up without travelling: it was a click.
 					var clicked := _pending_click
@@ -327,6 +333,7 @@ func _turn_held(motion: InputEventMouseMotion) -> void:
 func _physics_process(delta: float) -> void:
 	_clear_stale_left()
 	_update_reticle_highlight()
+	_tick_hold(delta)
 
 	if not _held_object:
 		return
@@ -391,7 +398,33 @@ func _try_grab() -> void:
 		_click_drag = 0.0
 		return
 
+	# An object that asks for a long grab (an arcade cabinet) is taken by HOLDING the
+	# button on it: a ring fills around the crosshair and the grab lands when it is full.
+	var hold_s := HoldToGrab.seconds_for(interaction.action_node)
+	if hold_s > 0.0:
+		_hold.begin(interaction.action_node, hold_s)
+		return
+
 	_grab_target(interaction.action_node)
+
+
+## Advance a long grab while the button stays down on the same object.
+func _tick_hold(delta: float) -> void:
+	if not _hold.is_active():
+		return
+	var down := Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT) and not _held_object
+	var aimed := false
+	if down:
+		var now := _resolve_interaction_target(true)
+		aimed = is_instance_valid(now.action_node) and now.action_node == _hold.target
+	var done := _hold.advance(delta, down, aimed)
+	_show_hold_progress(_hold.progress() if _hold.is_active() else 0.0)
+	if done and is_instance_valid(_hold.finished_target):
+		_grab_target(_hold.finished_target)
+
+
+func _show_hold_progress(p: float) -> void:
+	get_tree().call_group("desktop_reticle", "set_hold_progress", p)
 
 
 ## The object under the pointer that wants the click for itself, or null. A snap

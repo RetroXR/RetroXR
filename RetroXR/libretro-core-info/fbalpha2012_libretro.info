@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Various"
 systemname = "Arcade (various)"
-systemid = "fbneo"
+systemid = "arcade"
 
 # Libretro Features
 supports_no_game = "false"

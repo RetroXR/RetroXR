@@ -155,6 +155,12 @@ var _handoff_block_owner : StringName = &"ray_handoff"
 var _handoff_loco_blocked : bool = false
 var _pointer_muted : bool = false          # we disabled the sibling pointer's button dispatch
 
+# LOCAL PATCH (RetroXR): a grab that has to be HELD for a few seconds (HoldToGrab) --
+# an arcade cabinet, which a stray squeeze must not carry off. Which target, and the
+# ring that fills as the grip stays down.
+var _hold := HoldToGrab.new()
+var _hold_ring : HoldRing = null
+
 # Socket preview while ray-holding
 var _ray_preview_zone : XRToolsSnapZone = null
 var _ray_preview_blend : float = 0.0
@@ -284,6 +290,8 @@ func _process(delta):
 	elif (!grip_pressed and grip_value > (_grip_threshold + 0.1)):
 		grip_pressed = true
 		_on_grip_pressed()
+
+	_tick_hold(delta)
 
 	# Calculate average velocity (also tracks ray-grabbed objects for throw)
 	if is_instance_valid(picked_up_object) and picked_up_object.is_picked_up():
@@ -678,13 +686,57 @@ func _on_grip_pressed() -> void:
 		drop_object()
 	elif is_instance_valid(closest_object):
 		# Proximity grab takes priority over the laser
+		if _begin_hold(closest_object, false):
+			return
 		_pick_up_object(closest_object)
 	elif is_instance_valid(_pointer_highlighted) and not is_instance_valid(picked_up_object):
 		# Nothing close — grab along the ray
+		if _begin_hold(_pointer_highlighted, true):
+			return
 		_start_ray_grab(_pointer_highlighted)
 
 
+# LOCAL PATCH (RetroXR): begin holding on a target that wants a long grab; false (and
+# nothing started) for an ordinary one, which the caller grabs at once.
+func _begin_hold(target: Node3D, ranged: bool) -> bool:
+	var seconds := HoldToGrab.seconds_for(target)
+	if seconds <= 0.0:
+		return false
+	_hold.begin(target, seconds, ranged)
+	return true
+
+
+# Advance the long grab: it holds while the grip stays down and the same object stays the
+# one in reach (or under the laser), shows its ring at the hand, and lands when full.
+func _tick_hold(delta: float) -> void:
+	if not _hold.is_active():
+		_hide_hold_ring()
+		return
+	var same := (is_instance_valid(_pointer_highlighted) and _pointer_highlighted == _hold.target) \
+		if _hold.ranged else (is_instance_valid(closest_object) and closest_object == _hold.target)
+	var done := _hold.advance(delta, grip_pressed and not is_instance_valid(picked_up_object), same)
+	if _hold.is_active():
+		if _hold_ring == null:
+			_hold_ring = HoldRing.new()
+			get_tree().current_scene.add_child(_hold_ring)
+		_hold_ring.show_at(global_position + Vector3.UP * 0.07, _hold.progress())
+	else:
+		_hide_hold_ring()
+	if done and is_instance_valid(_hold.finished_target):
+		if _hold.finished_ranged:
+			_start_ray_grab(_hold.finished_target as XRToolsPickable)
+		else:
+			_pick_up_object(_hold.finished_target)
+
+
+func _hide_hold_ring() -> void:
+	if _hold_ring != null:
+		_hold_ring.hide_ring()
+
+
 func _on_grip_release() -> void:
+	_hold.cancel()
+	_hide_hold_ring()
 	if is_instance_valid(_ray_grab_object):
 		_end_ray_grab()
 	elif is_instance_valid(picked_up_object) and picked_up_object.press_to_hold:

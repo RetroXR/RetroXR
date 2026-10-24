@@ -1402,6 +1402,34 @@ func _build_system_filter_options(vbox: VBoxContainer) -> void:
 	))
 
 	_build_bios_boot_override(vbox)
+	_build_arcade_attract(vbox)
+
+
+## The switch that makes a switched-on arcade cabinet show its game instead of running it.
+func _build_arcade_attract(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.custom_minimum_size = Vector2(0, 68)
+	vbox.add_child(row)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(col)
+
+	col.add_child(MenuStyle.label("Arcade Attract Mode", 22, MenuStyle.COLOR_TITLE))
+	col.add_child(MenuStyle.label(
+		"Cabinets, when turned on, show their game's video instead of starting the core until a coin or controller is used.",
+		16, MenuStyle.COLOR_LICENSE))
+
+	row.add_child(VRToggle.create(AppPrefs.arcade_attract_mode, func(on: bool) -> void:
+		AppPrefs.arcade_attract_mode = on
+		# Every cabinet's power button is a switch or a start button by this option.
+		get_tree().call_group("spawned", "refresh_power_switch")
+		AppPrefs.save_prefs()
+	))
 
 
 ## The switch that hands the BIOS-boot core options back to the player.

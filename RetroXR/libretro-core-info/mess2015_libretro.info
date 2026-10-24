@@ -11,7 +11,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Various"
 systemname = "Multi (various)"
-systemid = "mame"
+systemid = "arcade"
 
 # Libretro Features
 supports_no_game = "false"

@@ -65,6 +65,8 @@ func _ready() -> void:
 	_test_scan_roms()
 	_test_index_by_basename()
 	_test_saves_beside_games()
+	_test_arcade_disc_folders()
+	_test_archive_plan_prefix()
 	_test_region_flags()
 	_test_gamelist_removal()
 	_test_media_and_cleanup()
@@ -76,6 +78,9 @@ func _ready() -> void:
 	_test_core_uninstall()
 	_test_backup_switch()
 	_test_state_schema()
+	await _test_disc_folder_single_file()
+	await _test_disc_folder_not_fetched_again()
+	_test_disc_folder_on_disk()
 	await _test_state_upload_body()
 	await _test_save_upload_still_works()
 	await _test_xbox_archive_upload()
@@ -896,6 +901,199 @@ func _test_saves_beside_games() -> void:
 	_eq([flags[8], flags[9]], [1, 0], "saves/a .zip game hides its save and keeps its row")
 	_eq([flags[10], flags[11]], [0, 0], "saves/a disc's cue and track are not saves")
 	_eq(RommCatalog.count_shown(bases, exts), 6, "saves/the tile count agrees with the list")
+
+
+## An arcade game's CHD is a folder RomM lists beside the board's zip. The list shows ONE row, the
+## zip's; the folder rides along with it (ArcadeDiscs).
+func _test_arcade_disc_folders() -> void:
+	var bases := PackedStringArray(["thisgame", "thisgame", "plain", "orphan", "other", "other"])
+	var exts := PackedStringArray(["", "zip", "zip", "", "zip", ""])
+	var flags := RommCatalog.compute_hidden_flags(bases, exts, true)
+	_eq(flags[0], 1, "disc/the folder beside its zip is hidden")
+	_eq(flags[1], 0, "disc/and the zip keeps its row")
+	_eq(flags[2], 0, "disc/a zip with no folder is a plain board")
+	_eq(flags[3], 0, "disc/a folder with no zip beside it stays visible")
+	_eq([flags[4], flags[5]], [0, 1], "disc/the pairing is by name wherever the rows sit")
+	var off := RommCatalog.compute_hidden_flags(bases, exts)
+	_eq(off[0], 0, "disc/on any other platform a folder is a game of its own")
+	_eq(RommCatalog.count_shown(bases, exts, true), 4, "disc/the tile count agrees with the list")
+	_eq(RommCatalog.count_shown(bases, exts), 6, "disc/and counts every row elsewhere")
+	var pairs := ArcadeDiscs.pair_folders(bases, exts)
+	_eq([pairs[1], pairs[2], pairs[4]], [0, -1, 5], "disc/a board row names its folder's row")
+	_ok(ArcadeDiscs.server_holds_disc({"fs_size_bytes": 1455804311}), "disc/a folder with files in it is a disc")
+	_ok(not ArcadeDiscs.server_holds_disc({"fs_size_bytes": 0, "multi": false}),
+		"disc/a folder RomM lists with no files in it is not (azumanga: 'No files found for ROM')")
+	_ok(ArcadeDiscs.applies("mame") and ArcadeDiscs.applies("arcade") and not ArcadeDiscs.applies("psx"),
+		"disc/only the arcade family pairs (a legacy id reads as arcade)")
+
+
+## The worker, end to end against a scripted server that answers only the file list: with the folder
+## whole on disk it finishes at once and never asks for the content (the server would have no second
+## answer, and the .download file would appear).
+func _test_disc_folder_not_fetched_again() -> void:
+	const SID := "__disc_again_selftest"
+	var root := RommCacheManifest.local_path(SID, "azumanga")
+	DirAccess.make_dir_recursive_absolute(root)
+	var chd := root.path_join("gdl-0018.chd")
+	var h := FileAccess.open(chd, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3, 4, 5, 6, 7, 8]))
+	h.close()
+	var body := '{"id": 7, "files": [{"file_name": "gdl-0018.chd", "file_path": "roms/arcade/azumanga", "file_size_bytes": 8}]}'.to_utf8_buffer()
+	var head := ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
+		% body.size()).to_utf8_buffer()
+	var srv := FakeServer.new()
+	if not srv.start([[0, head + body]]):
+		_ok(false, "again/could not listen")
+		return
+	var dl := RommDownloader.new()
+	var done := {"n": 0, "ok": false, "path": ""}
+	dl.download_finished.connect(func(_id: int, ok: bool, path: String, _err: String) -> void:
+		done["n"] = int(done["n"]) + 1
+		done["ok"] = ok
+		done["path"] = path)
+	var args := {"entry": {"id": 7, "fs_name": "azumanga", "multi": false, "md5_hash": ""}, "systemid": SID,
+		"base_url": "http://127.0.0.1:%d" % srv.port, "headers": PackedStringArray(), "folder": true,
+		"archive_extractor": null}
+	var t := Thread.new()
+	t.start(func() -> void: dl._worker(args))
+	var deadline := Time.get_ticks_msec() + 15000
+	while t.is_alive() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	t.wait_to_finish()
+	for i in 3:
+		await get_tree().process_frame
+	srv.stop()
+	var asked := _printable(srv.received)
+	_eq(int(done["n"]), 1, "again/it finishes once")
+	_ok(bool(done["ok"]) and str(done["path"]) == chd, "again/with the CHD already there as the result (%s)" % done["path"])
+	_ok(asked.contains("GET /api/roms/7 ") and not asked.contains("/content/"),
+		"again/having asked only for the file list, never the content")
+	_ok(not FileAccess.file_exists(RommCacheManifest.local_path(SID, "azumanga.download.part")),
+		"again/and no download was started")
+	dl.free()
+	DirAccess.remove_absolute(chd)
+	DirAccess.remove_absolute(root)
+	DirAccess.remove_absolute(root.get_base_dir())
+
+
+## A disc folder already on disk is not fetched again: the server's file list is compared with what is
+## under <folder>/ by name and size.
+func _test_disc_folder_on_disk() -> void:
+	const SID := "__disc_held_selftest"
+	var records := [
+		{"file_name": "gdl-0018.chd", "file_path": "roms/arcade/azumanga", "file_size_bytes": 8},
+		{"file_name": "extra.bin", "file_path": "roms/arcade/azumanga/sub", "file_size_bytes": 3},
+		{"file_name": "../evil", "file_path": "roms/arcade/azumanga", "file_size_bytes": 1}]
+	var files := RommDownloader.folder_files_of(records, "azumanga")
+	_eq(files.map(func(f: Dictionary) -> String: return str(f["relative"])), ["gdl-0018.chd", "sub/extra.bin"],
+		"held/the file list reads each file's place under the folder, and drops an unsafe name")
+	_eq(RommDownloader.folder_files_of("not a list", "azumanga"), [], "held/nothing known is no files")
+
+	var root := RommCacheManifest.local_path(SID, "azumanga")
+	DirAccess.make_dir_recursive_absolute(root.path_join("sub"))
+	var chd := root.path_join("gdl-0018.chd")
+	var extra := root.path_join("sub/extra.bin")
+	var h := FileAccess.open(chd, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3, 4, 5, 6, 7, 8]))
+	h.close()
+	_eq(RommDownloader.disc_folder_on_disk(files, SID, "azumanga")["complete"], false,
+		"held/a file of the folder missing is not complete")
+	h = FileAccess.open(extra, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3]))
+	h.close()
+	var held := RommDownloader.disc_folder_on_disk(files, SID, "azumanga")
+	_ok(bool(held["complete"]), "held/every file there at the server's size is complete")
+	_eq(str(held["launch"]), chd, "held/and it launches the CHD, not the first file listed")
+	_eq((held["members"] as Array).map(func(m: Dictionary) -> String: return str(m["path"])),
+		["azumanga/gdl-0018.chd", "azumanga/sub/extra.bin"], "held/its members are named from the roms root")
+	h = FileAccess.open(chd, FileAccess.WRITE)
+	h.store_buffer(PackedByteArray([1, 2, 3]))
+	h.close()
+	_eq(RommDownloader.disc_folder_on_disk(files, SID, "azumanga")["complete"], false,
+		"held/a file of another size is fetched again")
+	_eq(RommDownloader.disc_folder_on_disk([], SID, "azumanga")["complete"], false,
+		"held/a server that gave no files is not trusted to say it is all there")
+	DirAccess.remove_absolute(chd)
+	DirAccess.remove_absolute(extra)
+	DirAccess.remove_absolute(root.path_join("sub"))
+	DirAccess.remove_absolute(root)
+	DirAccess.remove_absolute(root.get_base_dir())
+
+
+## RomM serves a folder that holds ONE file as that file (`has_nested_single_file`), not as a zip: the
+## downloader asks which file it is and puts it at <folder>/<its name>. A scripted server answers the
+## one question; the stand-in system keeps the player's real roms folders out of it.
+func _test_disc_folder_single_file() -> void:
+	const SID := "__disc_selftest"
+	var body := '{"id": 7, "files": [{"file_name": "gdl-0018.chd"}]}'.to_utf8_buffer()
+	var head := ("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %d\r\n\r\n"
+		% body.size()).to_utf8_buffer()
+	var downloaded := RommCacheManifest.local_path(SID, "azumanga.download")
+	DirAccess.make_dir_recursive_absolute(downloaded.get_base_dir())
+	# What an earlier build left: the disc saved as a plain file called azumanga, in the way of the folder.
+	var stray := RommCacheManifest.local_path(SID, "azumanga")
+	var sf := FileAccess.open(stray, FileAccess.WRITE)
+	sf.store_buffer("MComprHD".to_utf8_buffer())
+	sf.close()
+	var f := FileAccess.open(downloaded, FileAccess.WRITE)
+	f.store_buffer("MComprHD".to_utf8_buffer())
+	f.close()
+	var dl := RommDownloader.new()
+	var srv := FakeServer.new()
+	if not srv.start([[0, head + body]]):
+		_ok(false, "disc/could not listen")
+		return
+	var box := {"out": {"error": "no answer"}}
+	var args := {"base_url": "http://127.0.0.1:%d" % srv.port, "headers": PackedStringArray()}
+	var t := Thread.new()
+	t.start(func() -> void: box["out"] = dl._place_single_file(args, downloaded, SID, "azumanga", 7))
+	var deadline := Time.get_ticks_msec() + 15000
+	while t.is_alive() and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	srv.stop()
+	t.wait_to_finish()
+	var got := {"out": box["out"]}
+	var out: Dictionary = got["out"]
+	var target := RommCacheManifest.local_path(SID, "azumanga/gdl-0018.chd")
+	_eq(str(out.get("error", "x")), "", "disc/a one-file folder is placed without an error")
+	_eq(str(out.get("relative", "")), "azumanga/gdl-0018.chd", "disc/under the folder of its name, by its own name")
+	_ok(FileAccess.file_exists(target), "disc/the file is there")
+	_ok(not FileAccess.file_exists(downloaded), "disc/and the download under its temporary name is gone")
+	_ok(DirAccess.dir_exists_absolute(RommCacheManifest.local_path(SID, "azumanga")),
+		"disc/azumanga is a folder now, the stray file an earlier build left is gone")
+	dl.free()
+	DirAccess.remove_absolute(target)
+	DirAccess.remove_absolute(target.get_base_dir())
+	DirAccess.remove_absolute(downloaded.get_base_dir())
+	_ok(RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "arcade"), "disc/a no-extension name on arcade is a disc folder")
+	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga.zip"}, "arcade"), "disc/a zip is not")
+	_ok(not RommDownloader.is_disc_folder({"fs_name": "azumanga"}, "psx"), "disc/nor is a folder on another system")
+
+
+## The disc folder unpacks INTO a folder of its name, whether or not RomM's archive carries one.
+func _test_archive_plan_prefix() -> void:
+	var path := OS.get_cache_dir().path_join("romm_prefix_test.zip")
+	var packer := ZIPPacker.new()
+	if packer.open(path) != OK:
+		_ok(false, "prefix/could not write the test archive")
+		return
+	for entry: String in ["flat.chd", "thisgame/nested.chd"]:
+		packer.start_file(entry)
+		packer.write_file("x".to_utf8_buffer())
+		packer.close_file()
+	packer.close()
+	var reader := ZIPReader.new()
+	reader.open(path)
+	var root := OS.get_cache_dir().path_join("romm_prefix_root")
+	var plain := RommDownloader._archive_plan(reader, root)
+	var folded := RommDownloader._archive_plan(reader, root, "thisgame")
+	reader.close()
+	DirAccess.remove_absolute(path)
+	var plain_rel: Array = plain.map(func(p: Dictionary) -> String: return str(p["relative"]))
+	var folded_rel: Array = folded.map(func(p: Dictionary) -> String: return str(p["relative"]))
+	_eq(plain_rel, ["flat.chd", "thisgame/nested.chd"], "prefix/no prefix leaves the layout alone")
+	_eq(folded_rel, ["thisgame/flat.chd", "thisgame/nested.chd"],
+		"prefix/a flat archive goes under the folder and a nested one is not nested twice")
 
 
 ## The flag on a ROM row and in the variants list. The region values are the

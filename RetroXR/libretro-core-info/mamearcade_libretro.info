@@ -11,7 +11,7 @@ display_version = "Git"
 # Hardware Information
 manufacturer = "Various"
 systemname = "Arcade (various)"
-systemid = "mame"
+systemid = "arcade"
 
 # Libretro Features
 supports_no_game = "false"

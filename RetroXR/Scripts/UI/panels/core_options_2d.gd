@@ -24,9 +24,17 @@ signal pad_device_changed(guid: String, ordinal: int)
 signal video_out_toggled(enabled: bool)
 ## System-tab toggle: float in place where dropped (no gravity).
 signal ignore_gravity_toggled(enabled: bool)
+## System-tab toggle (cabinets): wear the game's scraped art on the marquee and sides.
+signal cabinet_art_toggled(enabled: bool)
+## The cabinet's own say over the arcade attract option (ArcadeAttract.OVERRIDE_*).
+signal attract_override_changed(mode: int)
+## DIP tab (cabinets): open or shut the running core's own DIP screen on the game's screen.
+signal dip_menu_requested
 ## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
 ## sets.
 signal volume_changed(value: float)
+## The core picked for this machine on the System tab; "" is the system's default.
+signal core_selected(core_name: String)
 signal close_requested
 
 # ── Palette ────────────────────────────────────────────────────────────────────
@@ -60,6 +68,18 @@ var _volume_slider: HSlider = null
 var _volume_value: Label = null
 var _video_out_check: VRToggle = null
 var _ignore_grav_check: VRToggle = null
+var _cabinet_art_row: HBoxContainer = null
+var _dip_tab_idx := -1
+var _dip_scroll: ScrollContainer = null
+var _dip_rows: VBoxContainer = null
+## What the DIP tab was last told: the core has a screen of its own, the cabinet is on, that screen is open.
+var _dip_has_menu := false
+var _dip_powered := false
+var _dip_menu_open := false
+var _cabinet_art_check: VRToggle = null
+var _attract_row: HBoxContainer = null
+var _attract_button: Button = null
+var _attract_mode: int = 0
 var _tabs: TabContainer = null
 ## The slotted cartridge's UI, embedded as a tab. Driven by the cartridge's own
 ## CartridgeOptionsPanel, which owns all the save/sync/achievement logic.
@@ -81,6 +101,9 @@ var _bios_rows: VBoxContainer = null
 var _bios_tab_idx := -1
 var _active_scroll: ScrollContainer = null
 # Guard so populate_system() doesn't re-emit when it sets control values.
+## The System tab's rows, and the core picker built into them by populate_cores().
+var _system_rows: VBoxContainer = null
+var _core_picker: Control = null
 var _suppress_signal := false
 
 var _definitions: Dictionary = {}
@@ -245,6 +268,23 @@ func _build_ui() -> void:
 	_saves_ui.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	saves_outer.add_child(_saves_ui)
 
+	# DIP Switch tab, a cabinet's: hidden on every other machine (set_dip_tab_visible keeps the indices put).
+	var dip_outer := VBoxContainer.new()
+	dip_outer.name = "DIP Switch"
+	tabs.add_child(dip_outer)
+	_dip_tab_idx = tabs.get_tab_count() - 1
+	tabs.set_tab_hidden(_dip_tab_idx, true)
+	_dip_scroll = ScrollContainer.new()
+	_dip_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_dip_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_dip_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	MenuStyle.fat_vscroll_bar(_dip_scroll)
+	dip_outer.add_child(_dip_scroll)
+	_dip_rows = VBoxContainer.new()
+	_dip_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_dip_rows.add_theme_constant_override("separation", 4)
+	_dip_scroll.add_child(_dip_rows)
+
 	_system_scroll = ScrollContainer.new()
 	_system_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_system_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -253,6 +293,7 @@ func _build_ui() -> void:
 	sys_outer.add_child(_system_scroll)
 
 	var sys_rows := VBoxContainer.new()
+	_system_rows = sys_rows
 	sys_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sys_rows.add_theme_constant_override("separation", 4)
 	_system_scroll.add_child(sys_rows)
@@ -307,6 +348,54 @@ func _build_ui() -> void:
 			ignore_gravity_toggled.emit(on))
 	grav_row.add_child(_ignore_grav_check)
 
+	# A cabinet's art: hidden on every other machine.
+	_cabinet_art_row = HBoxContainer.new()
+	_cabinet_art_row.custom_minimum_size = Vector2(0, 56)
+	_cabinet_art_row.add_theme_constant_override("separation", 8)
+	_cabinet_art_row.visible = false
+	sys_rows.add_child(_cabinet_art_row)
+
+	var art_lbl := Label.new()
+	art_lbl.text = "Cabinet Art"
+	art_lbl.tooltip_text = "The game's marquee and side art on the cabinet. Off leaves it plain."
+	art_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	art_lbl.add_theme_font_size_override("font_size", 18)
+	art_lbl.add_theme_color_override("font_color", COLOR_ROW)
+	art_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_cabinet_art_row.add_child(art_lbl)
+
+	_cabinet_art_check = VRToggle.create(true, func(on: bool):
+		if not _suppress_signal:
+			cabinet_art_toggled.emit(on))
+	_cabinet_art_row.add_child(_cabinet_art_check)
+
+	# A cabinet's attract mode: follow the global pref, or force it on or off for this one.
+	_attract_row = HBoxContainer.new()
+	_attract_row.custom_minimum_size = Vector2(0, 56)
+	_attract_row.add_theme_constant_override("separation", 8)
+	_attract_row.visible = false
+	sys_rows.add_child(_attract_row)
+
+	var attract_lbl := Label.new()
+	attract_lbl.text = "Attract Mode"
+	attract_lbl.tooltip_text = "Show the game's video while the cabinet is on, until a coin or a controller is used."
+	attract_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	attract_lbl.add_theme_font_size_override("font_size", 18)
+	attract_lbl.add_theme_color_override("font_color", COLOR_ROW)
+	attract_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_attract_row.add_child(attract_lbl)
+
+	_attract_button = Button.new()
+	_attract_button.custom_minimum_size = Vector2(190, 44)
+	_attract_button.add_theme_font_size_override("font_size", 16)
+	_attract_button.pressed.connect(func():
+		if _suppress_signal:
+			return
+		_attract_mode = (_attract_mode + 1) % 3
+		_attract_button.text = _attract_text(_attract_mode)
+		attract_override_changed.emit(_attract_mode))
+	_attract_row.add_child(_attract_button)
+
 	# Track which scroll container is active for stick-driven scrolling
 	_active_scroll = _options_scroll
 	tabs.tab_changed.connect(func(idx: int):
@@ -318,6 +407,8 @@ func _build_ui() -> void:
 			_active_scroll = _system_scroll
 		elif idx == _bios_tab_idx:
 			_active_scroll = _bios_scroll
+		elif idx == _dip_tab_idx:
+			_active_scroll = _dip_scroll
 		else:
 			# The Cartridge tab hosts a whole CartridgeOptions2D with ribbons of
 			# its own, so it knows which of them is showing and this does not.
@@ -347,6 +438,7 @@ func populate(definitions: Dictionary, current_values: Dictionary, controller_in
 	print("[CoreOptions2D] populate() — %d options, %d ports" % [definitions.size(), controller_info.size()])
 	_refresh_options()
 	_refresh_controllers()
+	_refresh_dip()
 
 
 ## Sync the System tab to the device's current state (no signal re-emit).
@@ -363,6 +455,59 @@ func set_cartridge_tab_visible(shown: bool) -> void:
 	if _tabs == null or _cart_tab_idx < 0:
 		return
 	_tabs.set_tab_hidden(_cart_tab_idx, not shown)
+
+
+## The DIP Switch tab. `shown`: this machine is a cabinet. `has_menu`: the running core has a DIP screen of
+## its own, which the button opens on the game's screen; otherwise the core's DIP options are listed here.
+func populate_dip(shown: bool, has_menu: bool, powered: bool, menu_open: bool) -> void:
+	_dip_has_menu = has_menu
+	_dip_powered = powered
+	_dip_menu_open = menu_open
+	if _tabs != null and _dip_tab_idx >= 0:
+		_tabs.set_tab_hidden(_dip_tab_idx, not shown)
+	_refresh_dip()
+
+
+func _refresh_dip() -> void:
+	if _dip_rows == null:
+		return
+	for c in _dip_rows.get_children():
+		c.queue_free()
+	if _dip_has_menu:
+		_dip_note("This game's DIP switches are on its own screen. Open them there, move with the stick or arrows, and press the button again to close.")
+		var btn := Button.new()
+		btn.text = "Close DIP Switches" if _dip_menu_open else "Open DIP Switches"
+		btn.custom_minimum_size = Vector2(0, 64)
+		btn.add_theme_font_size_override("font_size", 20)
+		btn.pressed.connect(func() -> void: dip_menu_requested.emit())
+		_dip_rows.add_child(btn)
+		return
+	var keys: Array = []
+	for key in _definitions:
+		if String(key).to_lower().contains(RetroSystem.DIP_OPTION_MARK):
+			keys.append(key)
+	keys.sort()
+	if keys.is_empty():
+		_dip_note("This core publishes no DIP switches%s." % ("" if _dip_powered else " until the game is running (turn the cabinet on)"))
+		return
+	for key in keys:
+		var current := String(_values.get(key, ""))
+		if _forced.has(key):
+			current = str(_forced[key])
+		CoreOptionRow.add(_dip_rows, key, _definitions[key], current, _forced.has(key),
+			"(fixed by this system)", func(k: String, v: String) -> void:
+				print("[CoreOptions2D] DIP '%s' -> '%s'" % [k, v])
+				option_changed.emit(k, v))
+
+
+func _dip_note(text: String) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 16)
+	lbl.add_theme_color_override("font_color", COLOR_ROW)
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl.custom_minimum_size = Vector2(0, 60)
+	_dip_rows.add_child(lbl)
 
 
 ## The Saves tab's page, driven by the attached unit's MemoryCardPanel.
@@ -442,10 +587,43 @@ func populate_firmware(core_name: String, rows: Array[Dictionary]) -> void:
 		_bios_rows.add_child(row)
 
 
+## The core picker on the System tab: the cores installed for this machine's system, plus
+## "Default", which follows the CORES panel. `choices` is [{core_name, label}], `selected` the
+## machine's own pick ("" = default), `default_core` what "Default" resolves to. Built with a
+## VRDropdown for the reason the port rows are (an OptionButton's popup is a Window, and the
+## VR viewport's duplicated press dismisses it on the click that opens it).
+func populate_cores(choices: Array, selected: String, default_core: String) -> void:
+	if _system_rows == null:
+		return
+	if is_instance_valid(_core_picker):
+		_core_picker.queue_free()
+		_core_picker = null
+	if choices.is_empty():
+		return
+	var default_label := default_core
+	for c: Dictionary in choices:
+		if str(c["core_name"]) == default_core:
+			default_label = str(c["label"])
+	var options: Array = [["Default (%s)" % default_label if not default_label.is_empty() else "Default", ""]]
+	var current := ""
+	for c: Dictionary in choices:
+		options.append([str(c["label"]), str(c["core_name"])])
+		if str(c["core_name"]) == selected:
+			current = selected
+	var drop := VRDropdown.create("Core", options, current, 1, Vector2(300, 48), 16)
+	drop.item_selected.connect(func(value: Variant) -> void:
+		core_selected.emit(str(value)))
+	_core_picker = drop
+	_system_rows.add_child(drop)
+	_system_rows.move_child(drop, 0)
+
+
 ## The pad picker rides `show_video_out`: both are "this machine is a handheld".
 ## `volume` is the handheld's own control's level, 0..1, or -1 to hide the row.
 func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
-		pad_guid: String = "", pad_ordinal: int = 0, volume: float = -1.0) -> void:
+		pad_guid: String = "", pad_ordinal: int = 0, volume: float = -1.0,
+		show_cabinet_art: bool = false, cabinet_art: bool = true,
+		attract_mode: int = -1) -> void:
 	show_volume(volume)
 	_suppress_signal = true
 	var picker_changed := _show_pad_picker != show_video_out \
@@ -461,7 +639,26 @@ func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		_video_out_check.button_pressed = video_out
 	if _ignore_grav_check:
 		_ignore_grav_check.button_pressed = ignore_grav
+	if _cabinet_art_row:
+		_cabinet_art_row.visible = show_cabinet_art
+	if _cabinet_art_check:
+		_cabinet_art_check.button_pressed = cabinet_art
+	if _attract_row:
+		# -1 hides the row (every machine but a cabinet).
+		_attract_row.visible = attract_mode >= 0
+		_attract_mode = maxi(attract_mode, 0)
+		_attract_button.text = _attract_text(_attract_mode)
 	_suppress_signal = false
+
+
+## The attract row's button: what this cabinet does with the global option.
+static func _attract_text(mode: int) -> String:
+	match mode:
+		ArcadeAttract.OVERRIDE_ON:
+			return "Always on"
+		ArcadeAttract.OVERRIDE_OFF:
+			return "Always off"
+	return "Follow global"
 
 
 ## The Volume row at `volume` (0..1) without telling anyone, or hidden at -1: the

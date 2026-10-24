@@ -63,6 +63,48 @@ static func ethernet_adapter(core: String, systemid: String, expansions: Array) 
 	return {}
 
 
+## A light gun in a port. Current MAME reads a gun only when `mame_lightgun_mode` says so (its default,
+## `none`, ignores a gun on the port: the cabinet's guns "did not work"), and it lists NO light-gun
+## device among its controllers, so announcing one does nothing by itself. Pinned for the run while
+## any port holds a gun; FinalBurn Neo lists a "Lightgun" device and needs nothing. Measured:
+## arcade_load_probe --controllers on both cores.
+##
+## The older MAME cores name the same choice differently, and each defaults to the MOUSE for a game's
+## X-Y input: with a gun that never moves a mouse, the crosshair sat in the middle and every shot went
+## there (Quest 3, 2026-10-21; mame2003_plus is the Quest's arcade core). Option names read out of the
+## cores' own binaries and then measured with `arcade_load_probe --options` on 2026-10-21: mame2003_plus
+## `mame2003-plus_xy_device` (mouse|pointer|lightgun|disabled, default mouse), mame2010
+## `mame_current_xy_type` (mouse|lightgun|none, default mouse), mame `mame_lightgun_mode` (none|lightgun|
+## touchscreen, default none). mame2003 / mame2003_midway: see GUN_AS_POINTER (not measured with a game).
+const LIGHTGUN_OPTION: Dictionary = {
+	"mame": {"mame_lightgun_mode": "lightgun"},
+	# Current MAME's other builds (the Quest's `mamearcade` is MAME 0.289 and registered the same 28
+	# options as `mame` does here; the MESS build shares the source).
+	"mamearcade": {"mame_lightgun_mode": "lightgun"},
+	"mamemess": {"mame_lightgun_mode": "lightgun"},
+	"mame2003_plus": {"mame2003-plus_xy_device": "lightgun"},
+	"mame2010": {"mame_current_xy_type": "lightgun"},
+	# MAME 2003 has no gun value at all: its X-Y device is mouse | pointer | disabled. The gun is
+	# read as a POINTER, which LightGun feeds alongside its own state (gun_feeds_pointer).
+	"mame2003": {"mame2003_mouse_device": "pointer"},
+	"mame2003_midway": {"mame2003-mouse_device": "pointer"},
+}
+
+## The cores that can only read an aimed gun as an absolute POINTER.
+const GUN_AS_POINTER: Array[String] = ["mame2003", "mame2003_midway"]
+
+
+static func lightgun(core: String, has_gun: bool) -> Dictionary:
+	if has_gun and LIGHTGUN_OPTION.has(core):
+		return (LIGHTGUN_OPTION[core] as Dictionary).duplicate()
+	return {}
+
+
+## Whether a gun on this core's port has to be reported as a pointer too.
+static func gun_feeds_pointer(core: String) -> bool:
+	return GUN_AS_POINTER.has(core)
+
+
 ## Which Game Boy mGBA is. Left on Autodetect it reads the cartridge, and a
 ## header that says "Super Game Boy enhanced" (0x146 = 03, which the Game Boy
 ## Camera's does) boots as a Super Game Boy; `mgba_sgb_borders` defaults ON, so

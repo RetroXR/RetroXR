@@ -33,7 +33,7 @@ const _STRING_FIELDS := [
 	"systemid", "model_id", "model_variant", "tv_model", "rom_path", "game_label", "save_id",
 	"cart_systemid", "card_id", "card_label", "pdf_path", "scene", "video_path",
 	"video_label", "dvd_path", "dvd_label", "album_path", "album_label", "kind",
-	"pad_guid", "pad_name", "image_path",
+	"pad_guid", "pad_name", "image_path", "core_name",
 	# Which expansion a unit is -- a key in ExpansionCatalog.ROWS.
 	"expansion_id",
 	# The image of the memory built into a console -- see ConsoleMemory.
@@ -50,12 +50,14 @@ const _NUMBER_FIELDS := [
 	"pad_ordinal", "fit_mode", "roll",
 	# A multitap's SELECT switch: 2 or 5 (RetroMultitap.MODE_2P / MODE_5P).
 	"tap_mode",
+	# A cabinet's own say over the arcade attract option -- see RetroSystem.attract_override.
+	"attract",
 	# The length a player forced on a lead at spawn, in metres. Absent means the
 	# scene's own -- see CompositeCable.cord_length.
 	"cord_length",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
-	"locked", "hardback",
+	"locked", "hardback", "cabinet_art", "attract_on",
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
 	"shell_flake"]
 const _REFERENCE_FIELDS := [
@@ -63,6 +65,8 @@ const _REFERENCE_FIELDS := [
 	"nunchuk", "motion_plus", "expansion_cover", "pak", "gb_cart",
 	# The clip-on accessory on an expansion unit -- the 32X's Model 2 spacer.
 	"accessory",
+	# An arcade cabinet's bay, and the board standing in a bay.
+	"bay", "board",
 ]
 ## Stamped on a mod prop when it spawns, so _serialize_node can recognise it
 ## without a class to test against. The value is the registered type string.
@@ -224,6 +228,12 @@ const ILINK_HUB_SCENE        := preload("res://Scenes/Objects/cables/ilink_hub.t
 const GB_PRINTER_SCENE       := preload("res://Scenes/Objects/peripherals/gb_printer.tscn")
 const ETHERNET_CABLE_SCENE   := preload("res://Scenes/Objects/cables/ethernet_cable.tscn")
 const ETHERNET_HUB_SCENE     := preload("res://Scenes/Objects/cables/ethernet_hub.tscn")
+
+const JAMMA_CABLE_SCENE      := preload("res://Scenes/Objects/cables/jamma_cable.tscn")
+const ARCADE_BAY_JAMMA_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_jamma.tscn")
+const ARCADE_BAY_MVS_SCENE   := preload("res://Scenes/Objects/peripherals/arcade_bay_mvs.tscn")
+const ARCADE_BAY_LASERDISC_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_laserdisc.tscn")
+const ARCADE_BAY_DISCRETE_SCENE := preload("res://Scenes/Objects/peripherals/arcade_bay_discrete.tscn")
 const POWER_CORD_SCENE       := preload("res://Scenes/Objects/cables/power_cord.tscn")
 const POWER_STRIP_SCENE      := preload("res://Scenes/Objects/appliances/power_strip.tscn")
 const NEMA_1_15_C7_CORD_SCENE := preload(
@@ -239,6 +249,12 @@ const SPEAKER_STAND_100      := preload("res://Scenes/Objects/appliances/speaker
 const SPEAKER_CABLE_SCENE    := preload("res://Scenes/Objects/cables/speaker_cable.tscn")
 const STORAGE_BOX_SCENE      := preload("res://Scenes/Objects/appliances/storage_box.tscn")
 const TABLE_SCENE            := preload("res://Scenes/Objects/furniture/table.tscn")
+const SEAT_RACING_SCENE      := preload("res://Scenes/Objects/furniture/seat_racing.tscn")
+const SEAT_STOOL_SCENE       := preload("res://Scenes/Objects/furniture/seat_stool.tscn")
+const SEAT_CHAIR_SCENE       := preload("res://Scenes/Objects/furniture/seat_chair.tscn")
+const SEAT_CUSHION_SCENE     := preload("res://Scenes/Objects/furniture/seat_cushion.tscn")
+const SEAT_SOFA_SCENE        := preload("res://Scenes/Objects/furniture/seat_sofa.tscn")
+const SEAT_BED_SCENE         := preload("res://Scenes/Objects/furniture/seat_bed.tscn")
 const RETRO_MOUSE_SCENE      := preload("res://Scenes/Objects/peripherals/retro_mouse.tscn")
 const SNES_MOUSE_SCENE       := preload("res://Scenes/Objects/peripherals/snes_mouse.tscn")
 const RETRO_KEYBOARD_SCENE   := preload("res://Scenes/Objects/peripherals/retro_keyboard.tscn")
@@ -306,6 +322,9 @@ const LEAD_SCENES := {
 	"jag_link_cable": JAG_LINK_CABLE_SCENE,
 	"ilink_cable": ILINK_CABLE_SCENE,
 	"ethernet_cable": ETHERNET_CABLE_SCENE,
+
+	# A JAMMA harness lead: a cabinet's back socket to a bay's.
+	"jamma_cable": JAMMA_CABLE_SCENE,
 	"rf_switch": RF_SWITCH_SCENE,
 	"antenna": ANTENNA_SCENE,
 	"power_cord": POWER_CORD_SCENE,
@@ -345,6 +364,13 @@ const PLAIN_SCENES := {
 	"speaker_stand_100": SPEAKER_STAND_100,
 	"trash_can": STORAGE_BOX_SCENE,
 	"table": TABLE_SCENE,
+	# Pose only: where the player is sitting is this session's, never saved.
+	"seat_racing": SEAT_RACING_SCENE,
+	"seat_stool": SEAT_STOOL_SCENE,
+	"seat_chair": SEAT_CHAIR_SCENE,
+	"seat_cushion": SEAT_CUSHION_SCENE,
+	"seat_sofa": SEAT_SOFA_SCENE,
+	"seat_bed": SEAT_BED_SCENE,
 	# Pose only: the hub has no state of its own. Which lead is in which of its
 	# sockets is recorded by each LEAD, naming this hub and "PortN".
 	"ilink_hub": ILINK_HUB_SCENE,
@@ -353,6 +379,13 @@ const PLAIN_SCENES := {
 	"gb_printer": GB_PRINTER_SCENE,
 	# Pose only, for the i.LINK hub's reason.
 	"ethernet_hub": ETHERNET_HUB_SCENE,
+
+	# The arcade cabinet's bay, one scene per kind. A pose and the board standing in it; which cabinet
+	# plays from it is recorded on the CABINET's entry ("bay"), or by a JAMMA lead's plug.
+	"arcade_bay_jamma": ARCADE_BAY_JAMMA_SCENE,
+	"arcade_bay_mvs": ARCADE_BAY_MVS_SCENE,
+	"arcade_bay_laserdisc": ARCADE_BAY_LASERDISC_SCENE,
+	"arcade_bay_discrete": ARCADE_BAY_DISCRETE_SCENE,
 	"light_gun": LIGHT_GUN_SCENE,
 	# Slots written before the rename say "ray_gun".
 	"ray_gun": LIGHT_GUN_SCENE,
@@ -1529,6 +1562,10 @@ func _still_ours(root: Variant, generation: int) -> bool:
 
 
 func _report_restored(spawned: Dictionary) -> void:
+	# A cabinet left switched on comes on once its board is in; one whose board never came stays off.
+	for id: int in spawned:
+		if is_instance_valid(spawned[id]) and spawned[id] is RetroSystem:
+			(spawned[id] as RetroSystem).finish_attract_restore()
 	if spawned.size() > 0:
 		print("[ScenePersistence] instantiated %d objects" % spawned.size())
 
@@ -1570,6 +1607,10 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 			var ch_tv := _resolve_ref(root, spawned, extra[i]) as RetroTV
 			if ch_tv:
 				sys.restore_cable_connection(ch_tv, i + 1, _tv_input(tv_inputs, i + 1))
+		# Its bay first, so the board is seated into the bay's slot and not the cabinet's shut one.
+		var bay := _resolve_ref(root, spawned, d.get("bay")) as ArcadeBayUnit
+		if bay:
+			sys.restore_bay(bay)
 		var cart := _resolve_ref(root, spawned, d.get("cartridge")) as RetroCartridge
 		if cart:
 			sys.restore_cartridge(cart, float(d.get("cartridge_yaw", 0.0)))
@@ -1616,6 +1657,16 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		var lid_angle := float(d.get("lid_angle", -1.0))
 		if lid_angle >= 0.0:
 			sys.set_lid_angle_deg.call_deferred(lid_angle)
+	elif obj is ArcadeBayUnit:
+		# The board standing in it. Idempotent with the cabinet that plays from it: a snap zone
+		# already holding the board does nothing, so whichever restore comes first wins.
+		var board := _resolve_ref(root, spawned, d.get("board")) as Node3D
+		var unit := obj as ArcadeBayUnit
+		if board and unit.slot != null and unit.get_board() == null:
+			unit.slot.pick_up_object(board)
+		var disc := _resolve_ref(root, spawned, d.get("disc")) as Node3D
+		if disc:
+			unit.restore_disc(disc)
 	elif obj is RetroExpansion:
 		# The disk, disc or cartridge in this unit's own bay. Independent of the
 		# order the stack is rebuilt in: a bay seats its media as a pose relative
@@ -2043,6 +2094,23 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		"video_out": sys.video_out_enabled,
 		"ignore_gravity": sys.ignore_gravity,
 	})
+	# A cabinet with its art taken off; omitted while it is on (the default), so no room changes.
+	if not sys.cabinet_art_enabled:
+		result["cabinet_art"] = false
+	# A cabinet that was told to attract or not to; omitted while it follows the global pref.
+	if sys.attract_override != ArcadeAttract.OVERRIDE_FOLLOW:
+		result["attract"] = sys.attract_override
+	# A cabinet whose power button is a switch, left ON: it is found on again when the room loads.
+	# Omitted while it is off, so no room without a switched-on cabinet changes.
+	if sys.attract_switched_on():
+		result["attract_on"] = true
+	# A cabinet playing from a separate bay: the board is the BAY's (its entry names it), and the
+	# bay is recorded here when it is clipped into the mount. A cabled one is the lead's.
+	var bay := sys.get_bay()
+	if bay != null:
+		result["cartridge"] = _ref(node_to_id, null)
+		if sys.bay_link_kind() == ArcadeBayUnit.DOCK:
+			result["bay"] = _ref(node_to_id, bay)
 	# Which image the memory built into it is. Omitted on a machine with none, so
 	# no room without a Saturn or a 3DO in it changes at all.
 	if sys.console_memory() != null:
@@ -2074,6 +2142,9 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	if not sys.pad_guid.is_empty():
 		result["pad_guid"] = sys.pad_guid
 		result["pad_ordinal"] = sys.pad_ordinal
+	# The core the player picked for THIS machine (empty = its system's default).
+	if not sys.core_name.is_empty():
+		result["core_name"] = sys.core_name
 	# Clamshell lid angle (DS/3DS); omitted for systems without a lid.
 	var lid_angle := sys.get_lid_angle_deg()
 	if lid_angle >= 0.0:
@@ -2290,11 +2361,25 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		return _base(id, "gb_printer", n3d).merged({"paper": (node as GbPrinter).paper_roll})
 	elif node is EthernetHub:
 		return _base(id, "ethernet_hub", n3d)
+
+	elif node is ArcadeBayUnit:
+		# The pose and the board standing in it. Whether it is in a cabinet's mount is on the
+		# cabinet's entry, and a cabled one is the lead's; the board is here because a bay standing
+		# alone with a game in it has nobody else to remember it.
+		var bay := node as ArcadeBayUnit
+		return _base(id, bay.type_id, n3d).merged({"board": _ref(node_to_id, bay.get_board()),
+			# The disc in its CD-ROM bay, where the JAMMA bay has one. A room saved before there was a
+			# drive has no key, and a disc pushed half out is a loose disc, not the drive's.
+			"disc": _ref(node_to_id, bay.get_disc())})
 	elif node is Table:
 		# Pose only. Being in PLAIN_SCENES is not enough on its own — that map is
 		# read when LOADING, so without this branch a table is never written and
 		# there is nothing to load back.
 		return _base(id, "table", n3d)
+	elif node is Seat:
+		# Pose only, and the branch is needed for the table's reason: PLAIN_SCENES is read when
+		# LOADING. The scene says which seat it is (`type_id`); that the player sits on it is not saved.
+		return _base(id, (node as Seat).type_id, n3d)
 	elif node is RetroExpansion:
 		# The unit, and whatever is in its OWN bay. Which console it is bolted
 		# to is deliberately not written here -- it is in that console's entry,
@@ -2930,7 +3015,13 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				sys.model_variant = str(data.get("model_variant", ""))
 				sys.pad_guid = str(data.get("pad_guid", ""))
 				sys.pad_ordinal = int(data.get("pad_ordinal", 0))
+				sys.core_name = str(data.get("core_name", ""))
 				sys.ignore_gravity = bool(data.get("ignore_gravity", false))
+				sys.cabinet_art_enabled = bool(data.get("cabinet_art", true))
+				sys.attract_override = clampi(int(data.get("attract", ArcadeAttract.OVERRIDE_FOLLOW)),
+					ArcadeAttract.OVERRIDE_FOLLOW, ArcadeAttract.OVERRIDE_OFF)
+				if bool(data.get("attract_on", false)):
+					sys.begin_attract_restore()
 				sys.console_memory_id = str(data.get("console_memory", ""))
 				# Before the caller adds it to the tree, like the fields above:
 				# _build_expansion_hardware runs from _ready and seeds a bay's

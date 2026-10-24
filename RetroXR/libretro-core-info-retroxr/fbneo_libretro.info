@@ -23,7 +23,7 @@ categories = "Emulator"
 # Hardware Information
 manufacturer = "Various"
 systemname = "Arcade (various)"
-systemid = "fbneo"
+systemid = "arcade"
 # Neo Geo AES/MVS sets are filed under `neogeo` (geolith and neocd declare it),
 # and FinalBurn Neo runs them from the same zips. Without this the Neo Geo tile
 # never offers fbneo -- which is the only Neo Geo core vetted for rollback

@@ -346,14 +346,7 @@ func _spawn_cable() -> void:
 ## Doing it the other way — same count, longer segments — would move the boot
 ## taper and the minimum bend radius, which are tuned in millimetres.
 func _resize_cable() -> void:
-	if _cable_rope == null or cable_length <= 0.0:
-		return
-	var seg: float = _cable_rope.segment_length
-	if seg <= 0.0:
-		return
-	var count: int = maxi(2, int(round(cable_length / seg)))
-	_cable_rope.segment_count = count
-	_cable_rope.segment_length = cable_length / float(count)
+	CaptiveCord.resize(_cable_rope, cable_length)
 
 
 ## The plug on the end of this pad's cord, or null until the cord has been made
@@ -411,28 +404,7 @@ func _add_cable_to_scene() -> void:
 func _lay_captive_cord() -> void:
 	if captive_cord_route.size() < 2 or _cable_rope == null:
 		return
-	var count: int = _cable_rope.point_count()
-	if count < 2:
-		return
-	var spans: PackedFloat32Array = PackedFloat32Array()
-	var total := 0.0
-	for i in range(1, captive_cord_route.size()):
-		var d: float = captive_cord_route[i].distance_to(captive_cord_route[i - 1])
-		spans.append(d)
-		total += d
-	if total <= 0.0:
-		return
-	var points: PackedVector3Array = PackedVector3Array()
-	var span := 0
-	var walked := 0.0
-	for k in count:
-		var want: float = total * float(k) / float(count - 1)
-		while span < spans.size() - 1 and walked + spans[span] < want:
-			walked += spans[span]
-			span += 1
-		var t: float = 0.0 if spans[span] <= 0.0 else clampf((want - walked) / spans[span], 0.0, 1.0)
-		points.append(captive_cord_route[span].lerp(captive_cord_route[span + 1], t))
-	if not _cable_rope.restore_points(points):
+	if not CaptiveCord.lay(_cable_rope, captive_cord_route):
 		push_warning("RetroController: captive cord route refused by the rope")
 
 

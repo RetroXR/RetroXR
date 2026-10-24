@@ -1,6 +1,9 @@
 {
   "_comment": "Case counts per suite. A DROP fails the run: a suite whose group quietly stops running still passes every case it did run and still exits 0, which is the one failure a green CI cannot show you. Counts rise as cases are added -- rerun with --update-baseline and commit this alongside them.",
   "suites": {
+    "arcade_attract_tests": 142,
+    "arcade_tests": 392,
+    "arcade_variants_tests": 301,
     "archive_safety_tests": 28,
     "archive_tests": 83,
     "autoload_order_tests": 9,
@@ -51,6 +54,7 @@
     "scene_tests": 202,
     "scrape_tests": 88,
     "screen_cast_light_tests": 11,
+    "seat_tests": 98,
     "sega32x_cart_tests": 20,
     "sfc_cart_tests": 159,
     "snes_cart_tests": 122,

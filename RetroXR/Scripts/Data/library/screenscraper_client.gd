@@ -53,6 +53,26 @@ var config: ScraperConfig = null
 
 var _last_request_time_ms: int = 0
 var _scrape_http: HTTPRequest = null
+
+## Media beyond the four every scrape fetches, asked for by the caller: a cabinet's attract mode wants a
+## video snap and a title screen (CABINET_MEDIA), and only for an ARCADE game. Empty (the default) is the
+## scrape this client always did. NOTE (2026-10): fetched on demand for the one game that needs it, to
+## save data; if video scraping is ever structured and switched on for everything, rethink this.
+var extra_media: Array = []
+## Only these media types are downloaded for the scrape (empty: all of them). A game that already has
+## its art asks for its video alone and does not pay for the wheel and the box again.
+var media_filter: Array = []
+
+## The ScreenScraper system the scrape in flight was asked about (scrape_rom), for _parse_jeu: a game answers
+## under a SUB-system of the one asked (Point Blank comes back as 155 "Namco Classics", parent 75 Arcade).
+var _requested_systemeid: int = -1
+
+const CABINET_MEDIA := ["video", "title"]
+## The files a media type may arrive as; anything else in a URL's tail is not an extension.
+const MEDIA_EXTS := {
+	"video": ["mp4", "mkv", "webm", "avi", "mov"],
+	"title": ["png", "jpg", "jpeg"],
+}
 var _user_info_http: HTTPRequest = null
 var _media_downloads: Dictionary = {}  # media_type -> HTTPRequest
 
@@ -79,6 +99,7 @@ func scrape_rom(rom_path: String, systemid: String, checksums: Dictionary) -> vo
 		scrape_failed.emit("Could not read ROM file checksums")
 		return
 
+	_requested_systemeid = systemeid
 	print("[ScreenscraperClient] systemeid=%d  MD5=%s" % [systemeid, checksums.get("md5", "?")])
 	# Rate limit
 	await _wait_for_rate_limit()
@@ -435,8 +456,23 @@ func _parse_jeu(jeu: Dictionary) -> Dictionary:
 	result["releasedate"] = _pick_by_region(jeu.get("dates", []))
 
 	# Media URLs — pass ROM region codes so media selection prefers the ROM's own region
+	# An arcade game's `support-texture` is a render of its CABINET, which is no label: the
+	# board's sticker takes the cover (the box image) or a `support-2D` label instead.
+	var systeme: Variant = jeu.get("systeme", {})
+	var systemeid := int(str((systeme as Dictionary).get("id", jeu.get("systemeid", 0)))) \
+		if systeme is Dictionary else int(str(jeu.get("systemeid", 0)))
+	# Arcade by the system the game answers under, by that system's PARENT (Namco Classics -> Arcade), or by
+	# the system we asked about: ScreenScraper files a lot of arcade games under a sub-system, and judging by
+	# the first alone treated them as consoles (their cabinet render as the label, and no video or title).
+	var parent_id := int(str((systeme as Dictionary).get("parentid", 0))) if systeme is Dictionary else 0
+	var is_arcade := ScreenscraperSystems.is_arcade_systemeid(systemeid) \
+		or ScreenscraperSystems.is_arcade_systemeid(parent_id) \
+		or ScreenscraperSystems.is_arcade_systemeid(_requested_systemeid)
+	var is_cabinet := is_arcade or ScreenscraperSystems.is_cabinet_systemeid(systemeid) \
+		or ScreenscraperSystems.is_cabinet_systemeid(parent_id) \
+		or ScreenscraperSystems.is_cabinet_systemeid(_requested_systemeid)
 	result["media"] = _extract_media_urls(
-		jeu.get("medias", []), regions_short, disc_num, result["disc_total"])
+		jeu.get("medias", []), regions_short, disc_num, result["disc_total"], is_arcade, is_cabinet)
 
 	return result
 
@@ -515,8 +551,12 @@ static func media_region_order(rom_region_codes: Array,
 
 
 func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0,
-						 disc_total: int = 0) -> Dictionary:
+						 disc_total: int = 0, arcade: bool = false, cabinet: bool = false) -> Dictionary:
 	var result := {"wheel": "", "box": "", "label": "", "manual": ""}
+	# Video and title only when the caller asked, and only for an arcade game.
+	var extras: Array = extra_media.filter(func(k: Variant) -> bool: return (arcade or cabinet) and CABINET_MEDIA.has(k))
+	for kind in extras:
+		result[kind] = ""
 	if not medias is Array:
 		return result
 
@@ -525,6 +565,8 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 
 	# Collect candidates per type
 	var candidates := {"wheel": [], "box": [], "label": [], "manual": []}
+	for kind in extras:
+		candidates[kind] = []
 
 	for entry in medias:
 		if not entry is Dictionary:
@@ -539,12 +581,25 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 			candidates["wheel"].append({"url": url, "region": region, "type": mtype})
 		elif mtype == "box-texture":
 			candidates["box"].append({"url": url, "region": region})
-		elif mtype == "support-texture":
+		elif mtype == "support-texture" and not arcade:
+			candidates["label"].append({
+				"url": url, "region": region, "support": int(entry.get("support", 0)),
+			})
+		elif mtype == "support-2D" and arcade:
 			candidates["label"].append({
 				"url": url, "region": region, "support": int(entry.get("support", 0)),
 			})
 		elif mtype == "manuel":
 			candidates["manual"].append({"url": url, "region": region})
+		elif mtype == "video-normalized" and extras.has("video"):
+			# The smaller, level-matched encode (Point Blank: 2.6 MB against 6.9): first in line, so it wins
+			# a tie on region and the plain `video` is only the fallback. A cabinet's video is data spent on
+			# one game.
+			candidates["video"].insert(0, {"url": url, "region": region})
+		elif mtype == "video" and extras.has("video"):
+			candidates["video"].append({"url": url, "region": region})
+		elif mtype == "sstitle" and extras.has("title"):
+			candidates["title"].append({"url": url, "region": region})
 
 	# A multi-disc game carries one support-texture per disc, keyed by the media
 	# entry's "support" number, which must match the ROM's own romnumsupport.
@@ -675,16 +730,23 @@ func download_all_media(scrape_result: Dictionary, systemid: String, rom_basenam
 		"box": {"dir": "box", "ext": ".png"},
 		"label": {"dir": "label", "ext": ".png"},
 		"manual": {"dir": "manual", "ext": ".pdf"},
+		"video": {"dir": "video", "ext": ".mp4"},
+		"title": {"dir": "title", "ext": ".png"},
 	}
 
 	for mtype: String in type_map:
 		var url: String = media.get(mtype, "")
 		if url.is_empty():
 			continue
+		if not media_filter.is_empty() and not media_filter.has(mtype):
+			continue
 		# Determine file extension from URL if possible
 		var ext: String = type_map[mtype]["ext"]
 		var url_ext := url.get_extension().to_lower()
-		if not url_ext.is_empty() and url_ext.length() <= 4:
+		if MEDIA_EXTS.has(mtype):
+			if (MEDIA_EXTS[mtype] as Array).has(url_ext):
+				ext = "." + url_ext
+		elif not url_ext.is_empty() and url_ext.length() <= 4:
 			ext = "." + url_ext
 		var dir_name: String = type_map[mtype]["dir"]
 		var dest := media_root.path_join(dir_name).path_join(rom_basename + ext)

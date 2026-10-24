@@ -37,6 +37,10 @@ var _shown_volume := -1.0
 ## Half the panel is added because global_position is its centre — placing the
 ## centre at the clearance height is what put the lower half inside the tower.
 func _anchor() -> Vector3:
+	# A tall machine (an arcade cabinet) hangs its panel beside itself, where it can be read.
+	var beside: Variant = _system.options_panel_anchor(_viewport_node.screen_size)
+	if beside != null:
+		return beside as Vector3
 	var origin := _system.global_position
 	var half_height := _viewport_node.screen_size.y * 0.5
 	return Vector3(origin.x,
@@ -90,7 +94,11 @@ func _ensure_ui_connected() -> void:
 	ui.pad_device_changed.connect(_on_pad_device_changed)
 	ui.video_out_toggled.connect(_on_video_out_toggled)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
+	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
+	ui.attract_override_changed.connect(_on_attract_override_changed)
+	ui.dip_menu_requested.connect(_on_dip_menu_requested)
 	ui.volume_changed.connect(_on_volume_changed)
+	ui.core_selected.connect(_on_core_selected)
 	ui.close_requested.connect(hide_panel)
 	ui.saves_source_picked.connect(_on_saves_source_picked)
 	_ui_connected = true
@@ -114,7 +122,11 @@ func _populate() -> void:
 		_system._resolve_core())
 	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
-		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
+		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume,
+		_system.supports_cabinet_art_toggle(), _system.cabinet_art_enabled,
+		_system.attract_override if _system.supports_cabinet_art_toggle() else -1)
+	_populate_dip_tab(ui)
+	ui.populate_cores(_system.core_choices(), _system.core_name, _system.default_core_name())
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
 	var core := _system._resolve_core()
@@ -251,10 +263,43 @@ func _on_ignore_gravity_toggled(enabled: bool) -> void:
 		_system.set_ignore_gravity(enabled)
 
 
+## The cabinet's DIP Switch tab: the core's own DIP screen to open on the game's screen (MAME), or the
+## core's DIP options to set here (FBNeo). Hidden on any other machine.
+func _populate_dip_tab(ui: CoreOptions2D) -> void:
+	ui.populate_dip(_system.has_dip_tab(), _system.core_dip_menu_available(), _system.is_powered_on,
+		_system.core_dip_menu_open())
+
+
+## DIP tab button: the core's DIP screen opens (or shuts) on the cabinet's own screen.
+func _on_dip_menu_requested() -> void:
+	if _system and is_instance_valid(_system):
+		_system.toggle_core_dip_menu()
+		_populate()
+
+
+## System-tab row (cabinets): this cabinet's say over the arcade attract option.
+func _on_attract_override_changed(mode: int) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_attract_override(mode)
+
+
+## System-tab toggle (cabinets): the game's art on the marquee and sides.
+func _on_cabinet_art_toggled(enabled: bool) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_cabinet_art_enabled(enabled)
+
+
 func _on_port_device_changed(port: int, device_id: int) -> void:
 	if _system and is_instance_valid(_system):
 		print("[CoreOptionsPanel] port %d device → %d" % [port, device_id])
 		_system.set_controller_port_device(port, device_id)
+
+
+## System-tab picker: which core runs this machine.
+func _on_core_selected(core: String) -> void:
+	if _system and is_instance_valid(_system):
+		_system.set_core_choice(core)
+		_populate()
 
 
 func _on_pad_device_changed(guid: String, ordinal: int) -> void:
