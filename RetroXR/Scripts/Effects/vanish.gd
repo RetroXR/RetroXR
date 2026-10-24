@@ -37,6 +37,41 @@ const META := "vanishing"
 ## in the same function that raised it.
 static var instant := false
 
+## Where the objects freed inside an exit-style scope go while they shrink.
+## FALL is the default: down through the floor. SHRINK stays put — the item
+## menu's Delete, where nothing was let go of, so nothing should drop. INTO
+## heads for a point — the corner trash can's mouth, so the object is seen going
+## into the can.
+enum Exit { FALL, SHRINK, INTO }
+
+## Set only for the length of shrink_in_place() / shrink_into(). Deleting one
+## object reaches free_node() from many places — every drop_and_free() ends in
+## one, and what is snapped into it goes too — so the style is a scope around
+## the delete rather than a parameter threaded through all of them.
+static var _exit := Exit.FALL
+static var _into: Node3D = null
+
+
+## Run `delete` with every object it frees shrinking where it stands.
+static func shrink_in_place(delete: Callable) -> void:
+	_scoped(Exit.SHRINK, null, delete)
+
+
+## Run `delete` with every object it frees shrinking toward `target` (followed
+## while it moves, so the can can be carried along with the menu).
+static func shrink_into(target: Node3D, delete: Callable) -> void:
+	_scoped(Exit.INTO, target, delete)
+
+
+static func _scoped(exit: Exit, target: Node3D, delete: Callable) -> void:
+	var was_exit := _exit
+	var was_into := _into
+	_exit = exit
+	_into = target
+	delete.call()
+	_exit = was_exit
+	_into = was_into
+
 
 ## True once free_node() has taken this object. Callers that walk a set of
 ## objects can use it to skip one that is already going.
@@ -68,24 +103,43 @@ static func free_node(node: Node, duration: float = DURATION) -> void:
 	tween.tween_property(spatial, "scale", Vector3.ONE * 0.001, duration) \
 		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 
-	# And it falls while it goes, instead of hanging in the air.
-	#
-	# Integrated here rather than handed back to the physics server, which is not
-	# a preference: a RigidBody's transform is written from the server every tick
-	# and that transform carries no scale, so an unfrozen body would have the
-	# shrink wiped out from under it each frame. The body stays frozen and the
-	# drop is authored — real gravity, from a standing start, which over the
-	# 0.3 s of the animation is about 0.44 m.
-	#
-	# It keeps no collision (see _neutralise), so it falls THROUGH the box's base
-	# and the floor rather than landing on them. That is the point: something
-	# being deleted should sink out of the world, not settle onto it.
 	var start := spatial.global_position
-	tween.tween_method(func(t: float) -> void:
-		if not is_instance_valid(spatial):
-			return
-		spatial.global_position = start - Vector3(0.0, 0.5 * FALL_GRAVITY * t * t, 0.0),
-		0.0, duration, duration)
+	match _exit:
+		Exit.SHRINK:
+			pass
+		Exit.INTO:
+			# Toward the target's mouth, easing in like the shrink so the two land
+			# together: most of the travel comes as the object is already small.
+			var target := _into
+			var last := target.global_position if is_instance_valid(target) else start
+			tween.tween_method(func(t: float) -> void:
+				if not is_instance_valid(spatial):
+					return
+				if is_instance_valid(target):
+					last = target.global_position
+				var k := Tween.interpolate_value(0.0, 1.0, t, duration,
+					Tween.TRANS_CUBIC, Tween.EASE_IN_OUT) as float
+				spatial.global_position = start.lerp(last, k),
+				0.0, duration, duration)
+		_:
+			# And it falls while it goes, instead of hanging in the air.
+			#
+			# Integrated here rather than handed back to the physics server, which is
+			# not a preference: a RigidBody's transform is written from the server
+			# every tick and that transform carries no scale, so an unfrozen body
+			# would have the shrink wiped out from under it each frame. The body
+			# stays frozen and the drop is authored — real gravity, from a standing
+			# start, which over the 0.3 s of the animation is about 0.44 m.
+			#
+			# It keeps no collision (see _neutralise), so it falls THROUGH the box's
+			# base and the floor rather than landing on them. That is the point:
+			# something being deleted should sink out of the world, not settle onto
+			# it.
+			tween.tween_method(func(t: float) -> void:
+				if not is_instance_valid(spatial):
+					return
+				spatial.global_position = start - Vector3(0.0, 0.5 * FALL_GRAVITY * t * t, 0.0),
+				0.0, duration, duration)
 
 	tween.finished.connect(func() -> void:
 		if is_instance_valid(spatial):

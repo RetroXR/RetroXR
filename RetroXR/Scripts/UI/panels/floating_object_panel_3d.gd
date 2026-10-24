@@ -224,7 +224,8 @@ func _on_delete_pressed() -> void:
 		return
 	print("[ObjectMenu] deleting '%s'" % target.name)
 	hide_panel()
-	Trash.delete_with_dependents(target as XRToolsPickable)
+	# Nothing was let go of, so nothing drops: it shrinks away where it stands.
+	Vanish.shrink_in_place(Trash.delete_with_dependents.bind(target as XRToolsPickable))
 
 
 func _tick_delete_prompt(delta: float) -> void:

@@ -61,6 +61,8 @@ var _zone_bodies: Dictionary = {}
 var _poll_frames: int = 0
 var _active := false
 var _hinge: Node3D = null
+## The middle of the rim: what a deleted object shrinks into.
+var _mouth: Node3D = null
 ## Hinge angle in radians, 0 shut. Kept here rather than read off the node.
 var _lid_angle := 0.0
 ## Seconds left to stay open after a delete.
@@ -93,6 +95,10 @@ func _ready() -> void:
 	rim.rings = 32
 	rim.ring_segments = 8
 	_add_part("Rim", rim, trim).position.y = HEIGHT * 0.5
+	_mouth = Node3D.new()
+	_mouth.name = "Mouth"
+	_mouth.position.y = HEIGHT * 0.5
+	add_child(_mouth)
 
 	# Lid: a disc hinged on the back of the rim, with a handle across its top.
 	var hinge := Node3D.new()
@@ -228,7 +234,7 @@ func _poll() -> void:
 			_armed.erase(body)
 			Trash.set_highlight(pickable, false)
 			print("[MenuTrashBin] deleting '%s'" % pickable.name)
-			Trash.delete_with_dependents(pickable)
+			Vanish.shrink_into(_mouth, Trash.delete_with_dependents.bind(pickable))
 			_lid_hold = LID_HOLD_SECONDS
 
 	_set_armed_look(not _armed.is_empty())

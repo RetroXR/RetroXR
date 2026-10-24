@@ -52,7 +52,7 @@ func _ready() -> void:
 	await _group_local_counts()
 	_group_frame_cap()
 	await _group_trash()
-	_group_item_delete()
+	await _group_item_delete()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -1223,6 +1223,13 @@ func _group_trash() -> void:
 		"trash/let go over the bin, it is deleted")
 	_ok(bin.lid_openness() > 0.5, "trash/the lid stays open while it shrinks away",
 		str(bin.lid_openness()))
+	var mouth := bin.get_node("Mouth") as Node3D
+	await get_tree().create_timer(0.26).timeout
+	_ok(is_instance_valid(hand) and hand.global_position.distance_to(mouth.global_position) < 0.02
+			and hand.scale.x < 0.6,
+		"trash/it shrinks into the can's mouth rather than falling",
+		str(hand.global_position - mouth.global_position) if is_instance_valid(hand) else "freed")
+	_eq(Vanish._exit, Vanish.Exit.FALL, "trash/and other deletes fall as before")
 	await get_tree().create_timer(1.0).timeout
 	_ok(bin.lid_openness() < 0.05, "trash/then shuts", str(bin.lid_openness()))
 
@@ -1305,6 +1312,13 @@ func _group_item_delete() -> void:
 	_ok(not is_instance_valid(thing) or Vanish.is_vanishing(thing),
 		"item_delete/two presses delete it")
 	_ok(not panel.visible, "item_delete/and close its menu")
+	var stood := Vector3(3, 50, 0)
+	await get_tree().create_timer(0.26).timeout
+	_ok(is_instance_valid(thing) and thing.global_position.distance_to(stood) < 0.001
+			and thing.scale.x < 0.6,
+		"item_delete/it shrinks where it stands rather than falling",
+		str(thing.global_position - stood) if is_instance_valid(thing) else "freed")
+	_eq(Vanish._exit, Vanish.Exit.FALL, "item_delete/and other deletes fall as before")
 
 	var fixture := _trash_body(Vector3(4, 50, 0), false)
 	var fixed_panel := _item_panel(fixture)
