@@ -241,6 +241,7 @@ func _on_menu_pressed() -> void:
 func _on_media_inserted(disc: Node3D) -> void:
 	if disc.has_method("get_dvd_path"):
 		dvd_path = disc.get_dvd_path()
+	_log_event("disc in: %s" % dvd_path)
 	NetworkManager.report_event(NetEvents.Event.EV_DVD_INSERT,
 		{"dvd": self, "disc": disc, "yaw": disc_seat_yaw()})
 
@@ -250,10 +251,12 @@ func _on_media_inserted(disc: Node3D) -> void:
 func _on_media_removed() -> void:
 	stop()
 	dvd_path = ""
+	_log_event("disc out")
 	NetworkManager.report_event(NetEvents.Event.EV_DVD_REMOVE, {"dvd": self})
 
 
 func _on_eject_pressed() -> void:
+	_log_event("pressed EJECT")
 	_slot.toggle_eject()
 
 
@@ -264,12 +267,17 @@ func remote_pause() -> void: _on_pause_pressed()
 func remote_stop() -> void: _on_stop_pressed()
 func remote_ff() -> void: _on_ff_pressed()
 func remote_rewind() -> void: _on_rewind_pressed()
-func remote_eject() -> void: _slot.toggle_eject()
+func remote_eject() -> void: _on_eject_pressed()
 ## True when a disc is loaded (the remote greys its Eject cell otherwise).
 func has_media() -> bool: return _slot.has_media()
 
 
+func _log_tag() -> String:
+	return "DVD"
+
+
 func _on_play_pressed() -> void:
+	_log_event("pressed PLAY")
 	if _net_forward_cmd("play"):
 		return
 	if not is_playing:
@@ -284,6 +292,7 @@ func _on_play_pressed() -> void:
 
 
 func _on_pause_pressed() -> void:
+	_log_event("pressed PAUSE")
 	if _net_forward_cmd("pause"):
 		return
 	if is_playing and _vlc:
@@ -297,6 +306,7 @@ func _on_pause_pressed() -> void:
 ## Fast-forward button: toggle forward scan (press again, or Play/Pause, to exit).
 ## No-op while showing a disc menu (there's nothing to scan through there).
 func _on_ff_pressed() -> void:
+	_log_event("pressed FF")
 	if _net_forward_cmd("ff"):
 		return
 	if not is_playing or is_in_menu():
@@ -311,6 +321,7 @@ func _on_ff_pressed() -> void:
 
 ## Rewind button: toggle reverse scan (press again, or Play/Pause, to exit).
 func _on_rewind_pressed() -> void:
+	_log_event("pressed REW")
 	if _net_forward_cmd("rew"):
 		return
 	if not is_playing or is_in_menu():
@@ -371,6 +382,7 @@ func _end_scan_hold() -> void:
 
 
 func _on_stop_pressed() -> void:
+	_log_event("pressed STOP")
 	if _net_forward_cmd("stop"):
 		return
 	stop()
@@ -378,6 +390,7 @@ func _on_stop_pressed() -> void:
 
 func play() -> void:
 	if _vlc == null:
+		push_error("DVDPlayer: VlcPlayer unavailable (extension not loaded)")
 		return
 	if connected_tv == null:
 		push_error("DVDPlayer: cannot play - no TV connected")
@@ -399,6 +412,7 @@ func play() -> void:
 	if _emitter:
 		_emitter.flush()
 		_emitter.set_volume(_volume_linear)
+	_log_event("playing %s" % dvd_path)
 	_osd("DVD")
 	_net_push_state()
 
@@ -421,42 +435,49 @@ func stop() -> void:
 
 
 func _on_disc_finished() -> void:
+	_log_event("disc finished")
 	is_playing = false
 
 
 # --- DVD menu / chapter control (called by the remote) ---
 
 func dvd_menu_up() -> void:
+	_log_event("pressed UP")
 	if _net_forward_cmd("menu_up"): return
 	if _vlc: _vlc.menu_up()
 	_net_push_state()
 
 
 func dvd_menu_down() -> void:
+	_log_event("pressed DOWN")
 	if _net_forward_cmd("menu_down"): return
 	if _vlc: _vlc.menu_down()
 	_net_push_state()
 
 
 func dvd_menu_left() -> void:
+	_log_event("pressed LEFT")
 	if _net_forward_cmd("menu_left"): return
 	if _vlc: _vlc.menu_left()
 	_net_push_state()
 
 
 func dvd_menu_right() -> void:
+	_log_event("pressed RIGHT")
 	if _net_forward_cmd("menu_right"): return
 	if _vlc: _vlc.menu_right()
 	_net_push_state()
 
 
 func dvd_ok() -> void:
+	_log_event("pressed OK")
 	if _net_forward_cmd("ok"): return
 	if _vlc: _vlc.menu_activate()
 	_net_push_state()
 
 
 func dvd_root_menu() -> void:
+	_log_event("pressed MENU")
 	if _net_forward_cmd("root"): return
 	if _vlc:
 		# Real "Menu" button: return to the disc's root menu from anywhere (a
@@ -467,6 +488,7 @@ func dvd_root_menu() -> void:
 
 
 func dvd_next_chapter() -> void:
+	_log_event("pressed NEXT CHAPTER")
 	if _net_forward_cmd("next_ch"): return
 	if _vlc:
 		_vlc.next_chapter()
@@ -475,6 +497,7 @@ func dvd_next_chapter() -> void:
 
 
 func dvd_prev_chapter() -> void:
+	_log_event("pressed PREV CHAPTER")
 	if _net_forward_cmd("prev_ch"): return
 	if _vlc:
 		_vlc.prev_chapter()
@@ -490,12 +513,14 @@ func is_in_menu() -> bool:
 # --- Audio-track / subtitle cycling (called by the remote) ---
 
 func dvd_cycle_audio() -> void:
+	_log_event("pressed AUDIO")
 	if _net_forward_cmd("audio"): return
 	_cycle_audio_local()
 	_net_push_state()
 
 
 func dvd_cycle_subtitle() -> void:
+	_log_event("pressed SUBTITLE")
 	if _net_forward_cmd("subtitle"): return
 	_cycle_subtitle_local()
 	_net_push_state()
@@ -511,6 +536,7 @@ func _cycle_audio_local() -> void:
 		return
 	var id := _next_track_id(tracks, _vlc.get_audio_track())
 	_vlc.set_audio_track(id)
+	_log_event("audio track %s" % _track_name(tracks, id))
 	_osd("AUDIO: " + _track_name(tracks, id))
 	_refresh_track_counts()
 
@@ -526,6 +552,7 @@ func _cycle_subtitle_local() -> void:
 		return
 	var id := _next_track_id(tracks, _vlc.get_subtitle())
 	_vlc.set_subtitle(id)
+	_log_event("subtitles %s" % _track_name(tracks, id))
 	_osd("SUB: " + _track_name(tracks, id))
 	_refresh_track_counts()
 
@@ -708,6 +735,7 @@ func get_audio_track() -> int:
 
 
 func set_audio_track(id: int) -> void:
+	_log_event("audio track set to %d" % id)
 	if _vlc:
 		_vlc.set_audio_track(id)
 
@@ -721,6 +749,7 @@ func get_subtitle() -> int:
 
 
 func set_subtitle(id: int) -> void:
+	_log_event("subtitles set to %d" % id)
 	if _vlc:
 		_vlc.set_subtitle(id)
 

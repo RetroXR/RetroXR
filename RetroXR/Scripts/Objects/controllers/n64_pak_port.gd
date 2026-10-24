@@ -59,6 +59,7 @@ func _accepts(obj: Node3D) -> bool:
 func _on_seated(obj: Node3D) -> void:
 	_pak = obj as N64Pak
 	if _pak != null:
+		print("[N64Pak] %s: %s in" % [_owner.name, _pak.pak_label()])
 		if _owner is CollisionObject3D:
 			(_owner as CollisionObject3D).add_collision_exception_with(_pak)
 			# Seated, the pak is frozen and collides with nothing; the pad carries
@@ -80,6 +81,7 @@ func _on_cart_changed(_cart: Node3D) -> void:
 ## left. Which is enough — the port holds one thing and _pak is it.
 func _on_removed() -> void:
 	if is_instance_valid(_pak):
+		print("[N64Pak] %s: %s out" % [_owner.name, _pak.pak_label()])
 		if _owner is CollisionObject3D:
 			(_owner as CollisionObject3D).remove_collision_exception_with(_pak)
 			SeatedCollision.withdraw(_owner as CollisionObject3D, _pak)

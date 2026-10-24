@@ -61,6 +61,7 @@ func _accepts_cart(obj: Node3D) -> bool:
 
 func _on_cart_seated(cart: Node3D) -> void:
 	_cart = cart
+	print("[TransferPak] %s: game in: %s" % [name, cart_rom_path()])
 	add_collision_exception_with(cart)
 	# The cartridge's box goes on the pak, and through it on to the pad.
 	if cart is CollisionObject3D:
@@ -72,6 +73,7 @@ func _on_cart_seated(cart: Node3D) -> void:
 ## not what left. Which is enough — the bay holds one thing and _cart is it.
 func _on_cart_removed() -> void:
 	if is_instance_valid(_cart):
+		print("[TransferPak] %s: game out: %s" % [name, cart_rom_path()])
 		remove_collision_exception_with(_cart)
 		if _cart is CollisionObject3D:
 			SeatedCollision.withdraw(self, _cart as CollisionObject3D)

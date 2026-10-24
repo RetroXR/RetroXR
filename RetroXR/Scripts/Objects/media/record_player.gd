@@ -112,6 +112,10 @@ func _ready() -> void:
 	_cache_controllers()
 
 
+func _log_tag() -> String:
+	return "Turntable"
+
+
 func deck_save_type() -> String:
 	return "record_player"
 
@@ -191,11 +195,13 @@ func _on_arm_moved(value: float) -> void:
 ## release — never by a restore.
 func _on_arm_released(value: float) -> void:
 	if value <= arm_park:
+		_log_event("needle lifted")
 		if is_playing:
 			if not _net_forward_cmd("stop"):
 				stop()
 		return
 	var idx := _track_at(value)
+	_log_event("needle down on track %d" % (idx + 1))
 	if _net_forward_cmd_at("track", idx):
 		return
 	remote_goto_track(idx)
@@ -276,6 +282,7 @@ func _target_omega() -> float:
 ## as well would have two mechanisms driving one value.
 func _on_speed_changed(value: float) -> void:
 	_speed_45 = value > 0.5
+	_log_event("speed %s" % ("45" if _speed_45 else "33"))
 	_apply_rate()
 	_update_status()
 

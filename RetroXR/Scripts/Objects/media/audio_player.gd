@@ -126,6 +126,18 @@ func is_paused() -> bool:
 	return _paused
 
 
+## One line in the log for something done to the deck: a button pressed, a
+## cassette, CD or record going in or out, what it opened to play. Playing well prints nothing
+## else, so this is how a log shows what was tried before whatever went wrong.
+func _log_event(what: String) -> void:
+	print("[%s] %s: %s" % [_log_tag(), name, what])
+
+
+## The deck's name in those lines; each deck says its own.
+func _log_tag() -> String:
+	return "AudioPlayer"
+
+
 ## Build the spatialised audio player fed by VlcPlayer's PCM ring buffer. As a
 ## child of the (pickable) unit it follows the device around automatically.
 func _setup_audio() -> void:
@@ -303,6 +315,7 @@ func _media_loaded(media: Node3D) -> void:
 	_snapped_media = media
 	if media.has_method("get_album_path"):
 		album_path = media.get_album_path()
+	_log_event("in: %s" % album_path)
 	_track_idx = 0
 	_rebuild_tracks()
 	_take_tape_place(media)
@@ -330,6 +343,7 @@ func _media_unloaded() -> void:
 	stop()
 	album_path = ""
 	_tracks = PackedStringArray()
+	_log_event("out")
 	NetworkManager.report_event(NetEvents.Event.EV_AUDIO_REMOVE, {"player": self})
 	_update_status()
 
@@ -397,6 +411,7 @@ func remote_goto_track(idx: int) -> void:
 
 
 func _on_play_pressed() -> void:
+	_log_event("pressed PLAY")
 	if _net_forward_cmd("play"):
 		return
 	if is_playing and (_scan_dir != 0 or _paused):
@@ -412,6 +427,7 @@ func _on_play_pressed() -> void:
 
 
 func _on_pause_pressed() -> void:
+	_log_event("pressed PAUSE")
 	if _net_forward_cmd("pause"):
 		return
 	if is_playing:
@@ -425,12 +441,14 @@ func _on_pause_pressed() -> void:
 
 
 func _on_stop_pressed() -> void:
+	_log_event("pressed STOP")
 	if _net_forward_cmd("stop"):
 		return
 	stop()
 
 
 func _on_rewind_pressed() -> void:
+	_log_event("pressed REW")
 	if not has_scan():
 		return
 	if _net_forward_cmd("rew"):
@@ -444,6 +462,7 @@ func _on_rewind_pressed() -> void:
 
 
 func _on_ff_pressed() -> void:
+	_log_event("pressed FF")
 	if not has_scan():
 		return
 	if _net_forward_cmd("ff"):
@@ -457,6 +476,7 @@ func _on_ff_pressed() -> void:
 
 
 func _on_next_pressed() -> void:
+	_log_event("pressed NEXT")
 	if not has_track_skip():
 		return
 	if _net_forward_cmd("next"):
@@ -465,6 +485,7 @@ func _on_next_pressed() -> void:
 
 
 func _on_prev_pressed() -> void:
+	_log_event("pressed PREV")
 	if not has_track_skip():
 		return
 	if _net_forward_cmd("prev"):
@@ -491,6 +512,7 @@ func _goto_track(idx: int) -> void:
 
 func play() -> void:
 	if _vlc == null:
+		push_error("RetroAudioPlayer: VlcPlayer unavailable (extension not loaded)")
 		return
 	if _tracks.is_empty():
 		_rebuild_tracks()
@@ -503,6 +525,7 @@ func play() -> void:
 	if not _vlc.open(ProjectSettings.globalize_path(_tracks[_track_idx]), false):
 		push_error("RetroAudioPlayer: VlcPlayer.open failed for ", _tracks[_track_idx])
 		return
+	_log_event("playing track %d of %d: %s" % [_track_idx + 1, _tracks.size(), _tracks[_track_idx]])
 	_vlc.play()
 	_vlc.set_volume(100)
 	is_playing = true
@@ -543,6 +566,7 @@ func _on_track_finished() -> void:
 		_track_idx += 1
 		play()
 	else:
+		_log_event("end of album")
 		# The end of the tape. It is wound back to the start, so that PLAY plays
 		# it again: the deck has no way to wind a whole album back by hand.
 		var tape := _tape()

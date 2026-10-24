@@ -4978,6 +4978,7 @@ func _accepts_slot2_media(obj: Node3D) -> bool:
 
 func _on_slot2_inserted(cartridge: Node3D) -> void:
 	_slot2_cartridge = cartridge
+	print("[RetroSystem] %s (%s): slot 2 game in: %s" % [name, systemid, cartridge.get("rom_path")])
 	add_collision_exception_with(cartridge)
 	if "systemid" in cartridge and str(cartridge.get("systemid")).is_empty():
 		cartridge.set("systemid", Slot2Catalog.media_of(systemid))
@@ -4991,6 +4992,7 @@ func _on_slot2_inserted(cartridge: Node3D) -> void:
 ## and simply no longer sees the pak, as it does on the hardware.
 func _on_slot2_removed() -> void:
 	if _slot2_cartridge != null:
+		print("[RetroSystem] %s (%s): slot 2 game out: %s" % [name, systemid, _slot2_cartridge.get("rom_path")])
 		_model.play_cartridge_eject(_slot2_cartridge, _slot2)
 		remove_collision_exception_with(_slot2_cartridge)
 		SeatedCollision.withdraw(self, _slot2_cartridge as CollisionObject3D)
@@ -5465,6 +5467,7 @@ func _on_cartridge_inserted(cartridge: Node3D) -> void:
 		print("[RetroSystem] Hot swap: image slot %d -> %s" % [_disc_index, rom_path])
 		_request_disk_op(1, rom_path)
 		_protect_active_rom()
+	print("[RetroSystem] %s (%s): game in: %s" % [name, systemid, rom_path])
 	NetworkManager.report_event(NetEvents.Event.EV_CART_INSERT,
 		{"sys": self, "cart": cartridge, "yaw": cartridge_seat_yaw()})
 
@@ -5479,6 +5482,7 @@ func _on_cartridge_removed() -> void:
 			return
 
 	if _snapped_cartridge:
+		print("[RetroSystem] %s (%s): game out: %s" % [name, systemid, rom_path])
 		# On a push-tray bay this fires when the tray is LIFTED, with the cart still
 		# lying in it — the eject belongs to the cart actually leaving, which
 		# _on_cart_taken_from_tray plays.

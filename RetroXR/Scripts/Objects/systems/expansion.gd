@@ -593,6 +593,7 @@ func _bind_host(sys: RetroSystem) -> void:
 		return
 	_unbind_host()
 	_host = sys
+	print("[RetroExpansion] %s: on %s (%s)" % [expansion_id, sys.name, sys.systemid])
 	# The seated machine is frozen and rides us through the scene graph; without
 	# this the two boxes fight at the face they are pressed together at.
 	add_collision_exception_with(sys)
@@ -617,6 +618,7 @@ func _unbind_host() -> void:
 	var was := _host
 	_host = null
 	if is_instance_valid(was):
+		print("[RetroExpansion] %s: off %s (%s)" % [expansion_id, was.name, was.systemid])
 		SeatedCollision.withdraw(was, self)
 		remove_collision_exception_with(was)
 		_except_accessory_from(was, false)
@@ -957,6 +959,7 @@ func _on_media_in(media: Node3D, slot := 0) -> void:
 	if slot >= _media.size():
 		return
 	_media[slot] = media
+	print("[RetroExpansion] %s: game in bay %d: %s" % [expansion_id, slot + 1, media.get("rom_path")])
 	if _slot == null:
 		add_collision_exception_with(media)
 		# A cartridge standing out of the roof (a Game Boy's in a Super Game Boy)
@@ -976,6 +979,8 @@ func _on_media_out(slot := 0) -> void:
 	if slot >= _media.size():
 		return
 	var was: Node3D = _media[slot]
+	if is_instance_valid(was):
+		print("[RetroExpansion] %s: game out of bay %d: %s" % [expansion_id, slot + 1, was.get("rom_path")])
 	if is_instance_valid(was) and _slot == null:
 		remove_collision_exception_with(was)
 		SeatedCollision.withdraw(self, was as CollisionObject3D)

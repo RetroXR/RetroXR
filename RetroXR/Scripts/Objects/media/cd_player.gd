@@ -74,6 +74,10 @@ func remove_media() -> void:
 		_tray.release()
 
 
+func _log_tag() -> String:
+	return "CD"
+
+
 func deck_save_type() -> String:
 	return "cd_player"
 

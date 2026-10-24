@@ -242,6 +242,18 @@ func is_paused() -> bool:
 	return _paused
 
 
+## One line in the log for something done to the deck: a button pressed, a
+## tape or disc going in or out, what it opened to play. Playing well prints nothing
+## else, so this is how a log shows what was tried before whatever went wrong.
+func _log_event(what: String) -> void:
+	print("[%s] %s: %s" % [_log_tag(), name, what])
+
+
+## The deck's name in those lines; each deck says its own.
+func _log_tag() -> String:
+	return "Deck"
+
+
 ## Ignore-gravity: the device floats where it is put instead of falling. Restored
 ## from a save through this flag, which FloatLock reads once at _ready.
 func get_ignore_gravity() -> bool:

@@ -56,5 +56,9 @@ func remove_media() -> void:
 		_slot.eject()
 
 
+func _log_tag() -> String:
+	return "Cassette"
+
+
 func deck_save_type() -> String:
 	return "cassette_player"

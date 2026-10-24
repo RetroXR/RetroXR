@@ -289,6 +289,7 @@ func toggle_options_ui(camera: Node3D) -> void:
 func _on_media_inserted(tape: Node3D) -> void:
 	if tape.has_method("get_video_path"):
 		video_path = tape.get_video_path()
+	_log_event("tape in: %s" % video_path)
 	_take_tape_place(tape)
 	NetworkManager.report_event(NetEvents.Event.EV_TAPE_INSERT,
 		{"vcr": self, "tape": tape})
@@ -307,10 +308,12 @@ func _on_media_removed() -> void:
 	_recordings = PackedStringArray()
 	_recordings_of = ""
 	_rec_idx = 0
+	_log_event("tape out")
 	NetworkManager.report_event(NetEvents.Event.EV_TAPE_REMOVE, {"vcr": self})
 
 
 func _on_eject_pressed() -> void:
+	_log_event("pressed EJECT")
 	_slot.eject()
 
 
@@ -411,7 +414,7 @@ func remote_rewind() -> void:
 
 
 func remote_eject() -> void:
-	_slot.eject()
+	_on_eject_pressed()
 
 
 ## True when a tape is loaded (the remote greys its Eject cell otherwise).
@@ -419,7 +422,12 @@ func has_media() -> bool:
 	return _slot.has_media()
 
 
+func _log_tag() -> String:
+	return "VCR"
+
+
 func _on_play_pressed() -> void:
+	_log_event("pressed PLAY")
 	if _net_forward_cmd("play"):
 		return
 	if is_playing and (_scan_dir != 0 or _paused):
@@ -435,6 +443,7 @@ func _on_play_pressed() -> void:
 
 
 func _on_pause_pressed() -> void:
+	_log_event("pressed PAUSE")
 	if _net_forward_cmd("pause"):
 		return
 	if is_playing:
@@ -448,6 +457,7 @@ func _on_pause_pressed() -> void:
 
 
 func _on_stop_pressed() -> void:
+	_log_event("pressed STOP")
 	if _net_forward_cmd("stop"):
 		return
 	stop()
@@ -455,6 +465,7 @@ func _on_stop_pressed() -> void:
 
 ## Rewind button: toggle reverse scan (press again, or Play/Pause, to exit).
 func _on_rewind_pressed() -> void:
+	_log_event("pressed REW")
 	if _net_forward_cmd("rew"):
 		return
 	if not is_playing:
@@ -469,6 +480,7 @@ func _on_rewind_pressed() -> void:
 
 ## Fast-forward button: toggle forward scan (press again, or Play/Pause, to exit).
 func _on_ff_pressed() -> void:
+	_log_event("pressed FF")
 	if _net_forward_cmd("ff"):
 		return
 	if not is_playing:
@@ -588,6 +600,7 @@ func _open_recording() -> bool:
 	# Full internal gain — level is controlled by the Godot 3D player (TV knob).
 	_vlc.set_volume(100)
 	_opened_msec = Time.get_ticks_msec()
+	_log_event("playing %s" % path)
 	return true
 
 
@@ -702,6 +715,7 @@ func _on_video_finished() -> void:
 		_tape.set("tape_time", 0.0)
 		_tape.set("tape_progress", 0.0)
 		_tape.set("tape_speed", 0.0)
+	_log_event("end of tape")
 	is_playing = false
 	_paused = false
 	if _emitter:
