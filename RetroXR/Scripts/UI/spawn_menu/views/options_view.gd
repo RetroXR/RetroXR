@@ -30,6 +30,7 @@ signal locomotion_mode_changed(teleport: bool)
 signal passthrough_locomotion_changed(enabled: bool)
 signal passthrough_occlusion_changed(enabled: bool)
 signal passthrough_spatial_changed(enabled: bool)
+signal room_setup_requested
 signal xr_display_mode_changed(mode: int)
 signal controller_hands_changed(enabled: bool)
 ## The system filter was toggled — the CORES download list is built from it.
@@ -571,6 +572,30 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 				AppPrefs.save_prefs()
 				passthrough_spatial_changed.emit(on)
 		))
+
+		# Meta's Space Setup, opened from here (RealRoom.request_room_setup): the
+		# room is read again when the player comes back. Works from the
+		# passthrough room; anywhere else the menu says where to go.
+		var scan_row := HBoxContainer.new()
+		scan_row.add_theme_constant_override("separation", 10)
+		scan_row.custom_minimum_size = Vector2(0, 68)
+		vbox.add_child(scan_row)
+
+		var scan_lbl := Label.new()
+		scan_lbl.text = "Room Scan"
+		scan_lbl.add_theme_font_size_override("font_size", 22)
+		scan_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
+		scan_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scan_row.add_child(scan_lbl)
+
+		var room_btn := Button.new()
+		room_btn.text = "Set Up Room"
+		room_btn.add_theme_font_size_override("font_size", 20)
+		room_btn.custom_minimum_size = Vector2(200, 48)
+		room_btn.focus_mode = Control.FOCUS_NONE
+		room_btn.tooltip_text = "Open the Quest's Space Setup to scan this room"
+		room_btn.pressed.connect(func() -> void: room_setup_requested.emit())
+		scan_row.add_child(room_btn)
 
 		# Whether the real room hides what is behind it (RealRoom's occlusion,
 		# from Meta's depth). Inert where there is no depth, or with room data

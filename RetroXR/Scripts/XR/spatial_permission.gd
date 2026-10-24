@@ -70,6 +70,17 @@ static func request_once() -> bool:
 	return true
 
 
+## Raise the consent dialog now, asked or not: the player pressed something that
+## needs it.
+static func request_now() -> void:
+	_asked = true
+	for p in PERMISSIONS:
+		if request_sink.is_valid():
+			request_sink.call(p)
+		else:
+			OS.request_permission(p)
+
+
 ## For suites.
 static func reset() -> void:
 	_asked = false

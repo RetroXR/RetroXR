@@ -112,6 +112,14 @@ func refresh_spatial() -> void:
 		_real_room.refresh_spatial()
 
 
+## Open Meta's Space Setup. Called by the OPTIONS button; "" when it opened, or
+## why it could not.
+func request_room_setup() -> String:
+	if not is_instance_valid(_real_room):
+		return "Passthrough isn't on in this headset."
+	return _real_room.request_room_setup()
+
+
 ## Re-read the pref and block or release accordingly. Called by the OPTIONS switch,
 ## which lands on SpawnMenuController while this room is the current scene.
 func refresh_locomotion() -> void:

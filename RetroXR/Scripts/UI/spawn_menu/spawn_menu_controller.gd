@@ -245,6 +245,7 @@ func _connect_menu_signals() -> void:
 	menu.options_view().passthrough_locomotion_changed.connect(_on_passthrough_locomotion_changed)
 	menu.options_view().passthrough_occlusion_changed.connect(_on_passthrough_occlusion_changed)
 	menu.options_view().passthrough_spatial_changed.connect(_on_passthrough_spatial_changed)
+	menu.options_view().room_setup_requested.connect(_on_room_setup_requested)
 	menu.options_view().xr_display_mode_changed.connect(_on_xr_display_mode_changed)
 	menu.options_view().controller_hands_changed.connect(_on_controller_hands_changed)
 	AppPrefs.mains_region_changed.connect(_on_mains_region_changed)
@@ -1508,6 +1509,19 @@ func _on_passthrough_spatial_changed(_enabled: bool) -> void:
 	var scene := get_tree().current_scene
 	if scene != null and scene.has_method("refresh_spatial"):
 		scene.call("refresh_spatial")
+
+
+## Space Setup, from the OPTIONS button. The passthrough room is the one with a
+## RealRoom to open it and read the room again after; anywhere else the player
+## is told to go there. What cannot be done is said in the menu.
+func _on_room_setup_requested() -> void:
+	var scene := get_tree().current_scene
+	var why := "Go to the passthrough room to set up your room."
+	if scene != null and scene.has_method("request_room_setup"):
+		why = str(scene.call("request_room_setup"))
+	var menu := _get_menu()
+	if not why.is_empty() and menu != null:
+		menu.show_notice(why, 4.0)
 
 
 func _on_aim_crosshair_changed(enabled: bool) -> void:

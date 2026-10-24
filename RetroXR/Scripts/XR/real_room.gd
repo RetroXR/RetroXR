@@ -101,6 +101,43 @@ func _put_away() -> void:
 	_drop_occlusion()
 
 
+## Open Meta's Space Setup so the player can scan (or rescan) this room; the room
+## is read again when it closes. "" when it opened, else why it could not, in
+## words for the menu.
+func request_room_setup() -> String:
+	if not SpatialPermission.is_wanted():
+		return "Turn on Use Room Data in Passthrough first."
+	if not SpatialPermission.has():
+		SpatialPermission.request_now()
+		return "Allow spatial data, then press Set Up Room again."
+	_started = true
+	_ensure_manager()
+	if _manager == null:
+		return "Room setup isn't available on this headset."
+	if _manager.has_method("is_scene_capture_supported") and not _manager.call("is_scene_capture_supported"):
+		return "This headset can't open Space Setup from a game."
+	# Only a false is a refusal: the call may answer nothing.
+	var opened: Variant = _manager.call("request_scene_capture")
+	if opened is bool and not opened:
+		return "Space Setup didn't open. Try again from the Quest's settings."
+	return ""
+
+
+## Space Setup has closed: what was read of the room is put away and read anew.
+func _on_capture_completed(_success: Variant = null) -> void:
+	if _manager == null:
+		return
+	if is_instance_valid(_excepted_body):
+		for s in _surfaces:
+			if is_instance_valid(s):
+				_excepted_body.remove_collision_exception_with(s)
+	_surfaces.clear()
+	if _manager.has_method("remove_scene_anchors"):
+		_manager.call("remove_scene_anchors")
+	if _manager.has_method("create_scene_anchors"):
+		_manager.call("create_scene_anchors")
+
+
 func has_manager() -> bool:
 	return _manager != null
 
@@ -169,6 +206,8 @@ func _ensure_manager() -> void:
 	_manager.set("auto_create", true)
 	_manager.connect("openxr_fb_scene_anchor_created", _on_anchor_created)
 	_manager.connect("openxr_fb_scene_data_missing", _on_data_missing)
+	if _manager.has_signal("openxr_fb_scene_capture_completed"):
+		_manager.connect("openxr_fb_scene_capture_completed", _on_capture_completed)
 	origin.add_child(_manager)
 
 
@@ -217,7 +256,7 @@ func _on_data_missing() -> void:
 		return
 	_told_missing = true
 	var title := "No room scan"
-	var text := "Set up your room in the Quest's Space Setup so things can rest on your furniture."
+	var text := "Press Set Up Room in the menu's Options to scan it, so things can rest on your furniture."
 	if notice_sink.is_valid():
 		notice_sink.call(title, text)
 		return

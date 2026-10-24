@@ -50,8 +50,28 @@ class FakeManager:
 	extends Node3D
 	signal openxr_fb_scene_anchor_created(node: Object, entity: Object)
 	signal openxr_fb_scene_data_missing
+	signal openxr_fb_scene_capture_completed(success: bool)
 	var default_scene: PackedScene = null
 	var auto_create := false
+	var captures := 0
+	var capture_supported := true
+	var removes := 0
+	var creates := 0
+
+	func is_scene_capture_supported() -> bool:
+		return capture_supported
+
+	func request_scene_capture() -> bool:
+		captures += 1
+		return true
+
+	func remove_scene_anchors() -> void:
+		removes += 1
+		for c in get_children():
+			c.queue_free()
+
+	func create_scene_anchors() -> void:
+		creates += 1
 
 	func make_anchor(entity: FakeEntity) -> RealRoomSurface:
 		var anchor := Node3D.new()
@@ -108,6 +128,8 @@ func _ready() -> void:
 		await _test_spatial()
 	if _wants("prefs"):
 		_test_prefs()
+	if _wants("setup"):
+		await _test_setup()
 	if _wants("project"):
 		_test_project()
 
@@ -247,7 +269,7 @@ func _test_surfaces() -> void:
 	manager.openxr_fb_scene_data_missing.emit()
 	manager.openxr_fb_scene_data_missing.emit()
 	var notices: Array = rig["notices"]
-	_ok(notices.size() == 1 and "Space Setup" in str(notices[0][1]),
+	_ok(notices.size() == 1 and "Set Up Room" in str(notices[0][1]),
 		"surfaces/no room scanned: the player is told where to scan it, once", str(notices))
 
 	room.queue_free()
@@ -379,6 +401,48 @@ func _test_occlusion() -> void:
 	_ok(not room2.has_occlusion(), "occlusion/without consent there is none")
 	room2.queue_free()
 	_free_rig(rig2)
+	await get_tree().process_frame
+	_reset_statics()
+
+
+## Options' Set Up Room: Meta's Space Setup opened from the game, and the room
+## read again when it closes.
+func _test_setup() -> void:
+	var granted := {"on": false}
+	var wanted := {"on": false}
+	var asked: Array = []
+	SpatialPermission.wanted_source = func() -> bool: return wanted["on"]
+	SpatialPermission.request_sink = func(p: String) -> void: asked.append(p)
+	var rig := _rig()
+	var room := _room(granted, rig)
+	room.start()
+	_ok("Use Room Data" in room.request_room_setup() and not room.has_manager(),
+		"setup/with room data off, the player is told to turn it on")
+	wanted["on"] = true
+	SpatialPermission.request_once()
+	asked.clear()
+	var why := room.request_room_setup()
+	_ok("Allow" in why and asked.size() == SpatialPermission.PERMISSIONS.size(),
+		"setup/without consent it is asked for again, though it was asked before", why)
+	granted["on"] = true
+	why = room.request_room_setup()
+	var manager := (rig["origin"] as Node).get_node_or_null("RealRoomScene") as FakeManager
+	_ok(why.is_empty() and manager != null and manager.captures == 1,
+		"setup/given, Space Setup is opened", why)
+	var table := manager.make_anchor(FakeEntity.new(PackedStringArray(["TABLE"])))
+	var body := rig["body"] as CharacterBody3D
+	manager.openxr_fb_scene_capture_completed.emit(true)
+	await get_tree().process_frame
+	_ok(manager.removes == 1 and manager.creates == 1 and not is_instance_valid(table)
+		and room.surfaces().is_empty() and body.get_collision_exceptions().is_empty(),
+		"setup/closed, the old room is put away and the new one asked for")
+	manager.make_anchor(FakeEntity.new(PackedStringArray(["COUCH"])))
+	_ok(room.surfaces().size() == 1, "setup/and what it makes is taken in as before")
+	manager.capture_supported = false
+	_ok("can't" in room.request_room_setup() and manager.captures == 1,
+		"setup/a headset that cannot open it from a game says so")
+	room.queue_free()
+	_free_rig(rig)
 	await get_tree().process_frame
 	_reset_statics()
 
