@@ -30,8 +30,24 @@ extends RefCounted
 const BEND_STIFFNESS := 3.2e-5
 ## kg per meter of strip: 38 mm of about 150 g/m^2.
 const MASS_PER_M := 0.0057
-## The curl the roll leaves in it, as a radius, meters.
-const CURL_RADIUS := 0.06
+## The curl the roll leaves in it, as a radius, meters. Judged, not measured: a
+## long print in photographs makes a loose, open curve. At 6 cm a 22 cm print
+## closed most of a circle, and wherever the printer was its end came back to the
+## printer's base, pressed there as if stuck.
+const CURL_RADIUS := 0.13
+## The paper's swing, as BookFlop swings a book's pages: one springy, lightly
+## damped pendulum for the whole strip, kicked by the printer's moves and turns,
+## its angle spread along the strip as extra bend for the hinges to follow. The
+## bend alone settles without ever swinging back; this is the flop. SWAY_W2 is its
+## spring (rad^2/s^2, about a swing a second) for a SWAY_REF_LENGTH strip, softer
+## for a longer one; SWAY_GAIN turns a shove (m/s^2) into a push on it for a
+## meter of paper, more for a shorter one; SWAY_SPIN the same for a turn.
+const SWAY_W2 := 40.0
+const SWAY_REF_LENGTH := 0.1
+const SWAY_ZETA := 0.3
+const SWAY_GAIN := 0.3
+const SWAY_SPIN := 0.15
+const SWAY_MAX := 0.8
 ## The slot holds the paper's direction this many times as firmly as the paper
 ## holds its own shape.
 const ROOT_HOLD := 6.0
@@ -66,6 +82,9 @@ var segments := 0
 ## and its speed. Angles grow toward the back, -Z: the way the curl goes.
 var angles := PackedFloat64Array()
 var speeds := PackedFloat64Array()
+## The swing (SWAY_W2), rad over the whole strip, and its speed.
+var sway := 0.0
+var sway_speed := 0.0
 ## The slot, in the printer's (Y, Z), and the angle it points the paper at
 ## (0 straight up the printer's +Y, growing toward -Z).
 var root := Vector2.ZERO
@@ -113,6 +132,9 @@ func set_length(new_length: float) -> void:
 			var t := clampf(at - lo, 0.0, 1.0)
 			new_angles[i] = lerpf(angles[lo], angles[hi], t) * ds / old_ds
 			new_speeds[i] = lerpf(speeds[lo], speeds[hi], t) * ds / old_ds
+	if fresh:
+		sway = 0.0
+		sway_speed = 0.0
 	length = new_length
 	segments = n
 	angles = new_angles
@@ -133,19 +155,38 @@ func place(at: Vector2, angle: float) -> void:
 ## acceleration already taken off it) while the printer's turn about its +X (the
 ## hinges' line) speeds up by `spin_accel` rad/s^2. The paper is slow to follow
 ## that, so against the printer it lags: each hinge takes the turn's change times
-## the inertia past it, the other way.
-func step(dt: float, gravity: Vector2, spin_accel := 0.0) -> void:
+## the inertia past it, the other way. `shove` is the slot's acceleration alone,
+## taken off (m/s^2, the printer's (Y, Z)): what swings the paper (sway).
+func step(dt: float, gravity: Vector2, spin_accel := 0.0, shove := Vector2.ZERO) -> void:
 	if segments == 0 or dt <= 0.0:
 		return
 	var n_steps := maxi(1, ceili(dt / MAX_STEP))
 	var h := dt / n_steps
 	for _s in n_steps:
+		_swing(h, shove, spin_accel)
 		_substep(h, gravity, spin_accel)
 
 
-## The highest any hinge is turning, rad/s: zero is at rest.
+## Step the swing: the shove across the strip (the way its middle points) and the
+## printer's turn push it; its spring and damping bring it back, past, and home.
+func _swing(h: float, shove: Vector2, spin_accel: float) -> void:
+	var mid := points[points.size() / 2] - root
+	var across := Vector2.ZERO
+	if mid.length_squared() > 1e-10:
+		var phi := atan2(-mid.y, mid.x)
+		across = Vector2(-sin(phi), -cos(phi))
+	var w2 := SWAY_W2 * clampf(SWAY_REF_LENGTH / length, 0.4, 3.0)
+	var push := SWAY_GAIN / maxf(length, 0.02) * shove.dot(across) + SWAY_SPIN * spin_accel
+	sway_speed += (push - w2 * sway - 2.0 * SWAY_ZETA * sqrt(w2) * sway_speed) * h
+	sway += sway_speed * h
+	if absf(sway) > SWAY_MAX:
+		sway = clampf(sway, -SWAY_MAX, SWAY_MAX)
+		sway_speed = 0.0
+
+
+## The highest any hinge is turning, or the swing, rad/s: zero is at rest.
 func motion() -> float:
-	var top := 0.0
+	var top := absf(sway_speed)
 	for v in speeds:
 		top = maxf(top, absf(v))
 	return top
@@ -215,7 +256,7 @@ func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 
 	for i in n:
 		var ki := k * ROOT_HOLD if i == 0 else k
-		var rest := 0.0 if i == 0 else curl
+		var rest := 0.0 if i == 0 else curl + sway / (n - 1)
 		var inert := inertia[i]
 		var c := 2.0 * DAMPING * sqrt(ki * inert)
 		var load := torque[i] + spin_accel * inert

@@ -42,6 +42,7 @@ func _ready() -> void:
 	_test_paper_gives_way_to_its_weight()
 	_test_paper_lies_on_what_is_under_it()
 	_test_paper_grows_and_tears()
+	_test_paper_flops()
 	_test_paper_moves_smoothly()
 	await _test_netplay_surface()
 	_test_netplay_row()
@@ -291,7 +292,8 @@ func _test_paper_gives_way_to_its_weight() -> void:
 		"lower than the same paper weightless")
 	# Tipped forward (gravity toward the printer's +Z), the paper falls the other way.
 	var forward := _settled(0.25, 5.0, Vector2(-6.9, 6.9))
-	_ok(forward.points[forward.points.size() - 1].y > 0.0, "the printer tipped forward, it falls forward")
+	var fwd_tip := forward.points[forward.points.size() - 1]
+	_ok(fwd_tip.y > tip.y + 0.05, "the printer tipped forward, it falls forward (%s against %s)" % [fwd_tip, tip])
 	# A shake moves it, and no faster than paper moves through air.
 	var hung := s.points[s.points.size() - 1]
 	var fastest := 0.0
@@ -309,7 +311,7 @@ func _test_paper_gives_way_to_its_weight() -> void:
 func _test_paper_lies_on_what_is_under_it() -> void:
 	# The roll cover behind the slot, its top 1 cm above it.
 	var cover := Rect2(Vector2(-0.1, -0.2), Vector2(0.11, 0.195))
-	var s := _settled(0.15, 5.0, Vector2(-9.8, 0.0), [cover])
+	var s := _settled(0.25, 8.0, Vector2(-9.8, 0.0), [cover])
 	var inside := 0
 	var on_top := false
 	for i in range(1, s.points.size()):
@@ -330,7 +332,7 @@ func _test_paper_lies_on_what_is_under_it() -> void:
 	# under its feet: the paper drapes down the back onto the table, never into
 	# the printer or under it through that gap, and comes to rest.
 	s = _on_the_shell(0.25)
-	for i in 600:
+	for i in 900:
 		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
 	_eq(_in_the_printer(s), 0, "paper on the table stays out of and from under the printer")
 	var on_table := false
@@ -395,6 +397,25 @@ func _test_paper_moves_smoothly() -> void:
 				worst = maxf(worst, (c[i] - 2.0 * b[i] + a[i]).length())
 	_ok(worst < 0.02, "lifted and set down, the paper never jumps (%.1f mm)" % (worst * 1000.0))
 	_eq(inside, 0, "nor ends up in or under the printer")
+
+
+func _test_paper_flops() -> void:
+	# Pushed and let go, as BookFlop's pages are: the printer carried forward for a
+	# quarter second and stopped, the paper lags, swings back past where it rests,
+	# and settles. The bend alone never swung back past its rest.
+	var s := _settled(0.10, 3.0)
+	var rest := s.points[s.points.size() - 1]
+	for i in 15:
+		s.step(1.0 / 60.0, Vector2(-9.8, -6.0), 0.0, Vector2(0.0, -6.0))
+	var pushed := s.points[s.points.size() - 1]
+	_ok(pushed.y < rest.y - 0.005, "carried forward, the paper lags behind (%.1f mm)" % ((rest.y - pushed.y) * 1000.0))
+	var past := 0.0
+	for i in 240:
+		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+		past = maxf(past, s.points[s.points.size() - 1].y - rest.y)
+	_ok(past > 0.003, "stopped, it swings back past its rest (%.1f mm)" % (past * 1000.0))
+	_ok(s.motion() < 0.01, "and settles (%.4f)" % s.motion())
+	_ok(s.points[s.points.size() - 1].distance_to(rest) < 0.002, "where it was")
 
 
 func _test_paper_grows_and_tears() -> void:

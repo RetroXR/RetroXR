@@ -482,7 +482,8 @@ func _move_paper(delta: float) -> void:
 	# frame, so a printer tipping over it never meets it a fifth of a second late.
 	_place_floor(xf)
 	_aim_strip()
-	_strip.step(delta, Vector2(g.y, g.z), _slot_spin_accel)
+	var shove := basis.inverse() * -_slot_accel
+	_strip.step(delta, Vector2(g.y, g.z), _slot_spin_accel, Vector2(shove.y, shove.z))
 	_draw_paper()
 
 

@@ -86,16 +86,27 @@ the dot pitch, sent 8 degrees back by the slot.
 
 **How it bends** is `GbPrinterStrip` (`gb_printer_strip.gd`), pure and stepped by
 the printer every frame: a 2D elastica in the printer's YZ plane, up to 48 hinged
-segments of about 4 mm. Each hinge springs toward the roll's curl (radius 6 cm)
-and carries the weight and inertia of the paper past it; the stiffness (EI 3.2e-5
-N m^2) and weight (5.7 g/m) put the length at which it gives way at about 8 cm. So
-a short print stands curling back toward the roll cover, and a long one flops
-over, lies on the cover and drapes down the back to the table. Gravity is taken in
-the printer's frame less the slot's acceleration, and the printer's angular
-acceleration about its X loads each hinge by the inertia past it, so carrying,
-tipping or shaking the printer swings the paper. Springs and damping are implicit
-per hinge, which keeps it stable however short the tip's segments; damping is
-critical, as paper in air does not swing back.
+segments of about 4 mm. Each hinge springs toward the roll's curl (radius 13 cm,
+judged from photographs of long prints, which make a loose, open curve; at 6 cm a
+22 cm print closed most of a circle and its end came back to the printer's base
+wherever the printer was, pressed there as if stuck) and carries the weight and
+inertia of the paper past it; the stiffness (EI 3.2e-5 N m^2) and weight
+(5.7 g/m) put the length at which it gives way at about 8 cm. So a short print
+stands curling back toward the roll cover, and a long one arcs over it and drops
+down behind the printer onto the table. Gravity is taken in the printer's frame
+less the slot's acceleration, and the printer's angular acceleration about its X
+loads each hinge by the inertia past it. Springs and damping are implicit per
+hinge, which keeps it stable however short the tip's segments; damping is
+critical, so the bend itself never swings back.
+
+**The flop** is a swing on top of the bend, as `BookFlop` swings a book's pages:
+one springy, lightly damped pendulum for the whole strip (`sway`: about a swing a
+second for 10 cm of paper, softer for longer, damping 0.3 of critical), pushed by
+the slot's smoothed acceleration across the strip and by the printer's turn, its
+angle spread along the strip as extra rest bend for the hinges to follow, so
+contact still holds. Carried and stopped, the paper lags, swings back past its
+rest and settles. Its push is `shove`, the slot's acceleration alone, apart from
+the gravity the bend already takes it in.
 
 **Smooth, not jumpy** (the first version was; numbers from a throwaway probe that
 moves the printer on physics ticks and takes the strip where it is drawn):
