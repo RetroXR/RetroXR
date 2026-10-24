@@ -146,7 +146,7 @@ func _pump() -> void:
 
 	_thread = Thread.new()
 	_active_archive_extractor = null
-	if bool(entry.get("multi", false)):
+	if bool(entry.get("multi", false)) or is_disc_folder(entry, systemid):
 		_active_archive_extractor = RommArchiveExtractor.new()
 	var args := {
 		"entry": entry,
@@ -154,6 +154,8 @@ func _pump() -> void:
 		"base_url": config.base_url,
 		"headers": config.auth_headers(),
 		"archive_extractor": _active_archive_extractor,
+		# An arcade game's disc folder: whatever RomM serves for it, it ends up in a folder of its name.
+		"folder": is_disc_folder(entry, systemid),
 	}
 	if _thread.start(_worker.bind(args)) != OK:
 		_thread = null
@@ -176,7 +178,10 @@ func _worker(args: Dictionary) -> void:
 		args.get("archive_extractor") as RommArchiveExtractor
 
 	RomLibrary.ensure_rom_dir(systemid)
-	var dest := RommCacheManifest.local_path(systemid, fs_name)
+	# A disc folder lands under another name: the folder it becomes is `fs_name`, and a file cannot be
+	# called what a folder will be.
+	var folder := bool(args.get("folder", false))
+	var dest := RommCacheManifest.local_path(systemid, fs_name + (".download" if folder else ""))
 
 	var outcome := _transfer(args, dest, rom_id)
 	match str(outcome["status"]):
@@ -193,11 +198,19 @@ func _worker(args: Dictionary) -> void:
 	var owned := PackedStringArray([fs_name])
 	var launch_path := dest
 	var members: Array[Dictionary] = []
-	if bool(entry.get("multi", false)):
+	# A folder RomM holds ONE file in (`has_nested_single_file`) is served as that file, not as an
+	# archive, whatever its flags say; a folder with several is served as a zip.
+	if folder and not _is_archive(dest):
+		var placed := _place_single_file(args, dest, systemid, fs_name, rom_id)
+		if not str(placed.get("error", "")).is_empty():
+			_emit_finished.call_deferred(rom_id, false, "", str(placed["error"]))
+			return
+		launch_path = str(placed["launch"])
+		members.append({"path": str(placed["relative"]), "size": ByteSize.on_disk(launch_path)})
+	elif bool(entry.get("multi", false)) or folder:
 		# An arcade game's disc folder (thisgame, beside thisgame.zip) must unpack INTO a folder of
 		# that name, whether or not RomM's archive carries one: MAME looks for the CHD there.
-		var folder_prefix := fs_name if ArcadeDiscs.applies(systemid) \
-			and fs_name.get_extension().is_empty() else ""
+		var folder_prefix := fs_name if folder else ""
 		var extracted := _extract_multi(dest, systemid, owned, archive_extractor, folder_prefix)
 		if not str(extracted.get("error", "")).is_empty():
 			if _abort:
@@ -228,6 +241,42 @@ func _worker(args: Dictionary) -> void:
 		_merge_gamelist.call_deferred(systemid, entry, launch_relative)
 
 	_emit_finished.call_deferred(rom_id, true, launch_path, "")
+
+
+## Is this entry an arcade game's disc folder (`thisgame`, no extension, on the arcade platform)?
+static func is_disc_folder(entry: Dictionary, systemid: String) -> bool:
+	return ArcadeDiscs.applies(systemid) and str(entry.get("fs_name", "")).get_extension().is_empty() \
+		and not str(entry.get("fs_name", "")).is_empty()
+
+
+## A disc folder that arrived as the one file in it: move it to `<fs_name>/<its own name>`, the name
+## RomM keeps it under (asked of the server: the download carries none we read). Returns
+## {launch, relative, error}.
+func _place_single_file(args: Dictionary, downloaded: String, systemid: String, fs_name: String,
+		rom_id: int) -> Dictionary:
+	var http := RommHttp.new()
+	if http.open(args["base_url"], func() -> bool: return _abort) != RommHttp.Result.OK:
+		DirAccess.remove_absolute(downloaded)
+		return {"error": "Could not reach the server"}
+	var resp := http.get_json("/api/roms/%d" % rom_id, args["headers"], func() -> bool: return _abort)
+	http.close()
+	var inner := ""
+	if int(resp["result"]) == RommHttp.Result.OK and resp["data"] is Dictionary:
+		var files: Array = (resp["data"] as Dictionary).get("files", [])
+		if files.size() == 1:
+			inner = str((files[0] as Dictionary).get("file_name", ""))
+	if ArchiveSafety.safe_member(inner).is_empty():
+		DirAccess.remove_absolute(downloaded)
+		return {"error": "RomM did not name the disc file"}
+	var relative := fs_name.path_join(inner)
+	var target := RommCacheManifest.local_path(systemid, relative)
+	DirAccess.make_dir_recursive_absolute(target.get_base_dir())
+	if FileAccess.file_exists(target):
+		DirAccess.remove_absolute(target)
+	if DirAccess.rename_absolute(downloaded, target) != OK:
+		DirAccess.remove_absolute(downloaded)
+		return {"error": "Could not place the disc"}
+	return {"launch": target, "relative": relative, "error": ""}
 
 
 ## Retry wrapper around one file. Returns {status, error} with status
@@ -373,7 +422,8 @@ func _attempt_download(args: Dictionary, dest: String, part: String, rom_id: int
 	# archives get their members' CRCs checked by the streaming extractor; an
 	# ordinary archive may be content in its own right for the selected core and
 	# must remain unopened.
-	if not expected_md5.is_empty() and not archive:
+	# A folder's hash is RomM's for the folder, not for the one file it serves.
+	if not expected_md5.is_empty() and not archive and not bool(args.get("folder", false)):
 		var sums := RomHasher.compute_checksums(part)
 		var md5 := str(sums.get("md5", "")).to_lower()
 		if not md5.is_empty() and md5 != expected_md5:
