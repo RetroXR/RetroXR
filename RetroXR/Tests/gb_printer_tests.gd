@@ -46,6 +46,9 @@ func _ready() -> void:
 	_test_paper_meets_the_room()
 	await _test_printer_finds_the_room()
 	await _test_printouts_are_paper()
+	_test_fingers_push_the_paper()
+	await _test_gear_knocks_with_the_core()
+	await _test_a_torn_print_keeps_its_bend()
 	_test_paper_moves_smoothly()
 	await _test_netplay_surface()
 	_test_netplay_row()
@@ -517,6 +520,81 @@ func _test_printouts_are_paper() -> void:
 	_ok(not plain.has_node("PrintoutFlop"), "an ordinary poster is not given one")
 	print_poster.free()
 	plain.free()
+
+
+func _test_fingers_push_the_paper() -> void:
+	# A fingertip where the paper stands: the paper bends round it, none of it in.
+	var s := _settled(0.10, 3.0)
+	var mid := s.points[s.points.size() / 2]
+	var finger := mid + Vector2(0.0, 0.004)
+	s.fingers = [[finger, 0.009]]
+	for i in 60:
+		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	var inside := 0
+	for i in range(3, s.points.size()):
+		if s.points[i].distance_to(finger) < 0.0085:
+			inside += 1
+	_eq(inside, 0, "a fingertip in the paper's way pushes it aside")
+	s.fingers = []
+	for i in 300:
+		s.step(1.0 / 60.0, Vector2(-9.8, 0.0))
+	_ok(s.points[s.points.size() / 2].distance_to(mid) < 0.003, "and taken away, the paper goes back")
+
+
+func _test_gear_knocks_with_the_core() -> void:
+	# The room counts the core's turns: from the motor's start at the knock,
+	# TURN_S and its offsets, jolting the paper as each knocks.
+	var printer := (load(PRINTER_SCENE) as PackedScene).instantiate() as GbPrinter
+	add_child(printer)
+	await get_tree().process_frame
+	printer.set_process(false)
+	var dt := 1.0 / 240.0
+	var knocks: Array[float] = []
+	var t := 0.0
+	while t < 2.5:
+		printer.motor_ran()
+		var swing_before := printer._strip.sway_speed
+		if printer.turn_gear(dt):
+			knocks.append(t + dt)
+			if knocks.size() == 1:
+				_ok(printer._strip.sway_speed > swing_before, "a knock jolts the paper")
+		t += dt
+	_eq(knocks.size(), 2, "two knocks in two and a half seconds")
+	if knocks.size() == 2:
+		var first := GbPrinter.TURN_S + GbPrinter.TURN_OFFSET_S[0]
+		var second := first + GbPrinter.TURN_S + GbPrinter.TURN_OFFSET_S[1]
+		_ok(absf(knocks[0] - first) < 2.0 * dt and absf(knocks[1] - second) < 2.0 * dt,
+			"at the turns the core makes (%.4f, %.4f against %.4f, %.4f)" % [knocks[0], knocks[1], first, second])
+	var after := 0
+	for i in 2000:
+		if printer.turn_gear(dt):
+			after += 1
+	_eq(after, 0, "and none once the motor has stopped")
+	printer.free()
+
+
+func _test_a_torn_print_keeps_its_bend() -> void:
+	var s := GbPrinterStrip.new()
+	s.set_length(0.1)
+	s.bend_to(12.0)
+	_ok(absf(s.mean_curvature() - 12.0) < 0.01, "a strip takes a bend and says what it is (%.2f)" % s.mean_curvature())
+	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	poster.printout = true
+	poster.size_scale = 0.12 / Poster.BASE_LONG_EDGE
+	# Bent the other way from the roll's own curl, which a strip has unasked.
+	poster.set_meta(GbPrintoutFlop.BEND_META, -10.0)
+	add_child(poster)
+	poster.freeze = true
+	poster.global_position = Vector3(0, 2, 0)
+	# One frame: the bend it came with is where it starts. (It relaxes to its own
+	# shape within a few frames, no faster than paper moves through air.)
+	await get_tree().process_frame
+	var flop := poster.get_node_or_null(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	_ok(flop != null and not poster.has_meta(GbPrintoutFlop.BEND_META), "a torn print takes the bend it came with")
+	if flop != null:
+		_ok(flop._up.mean_curvature() < 0.0 and flop._down.mean_curvature() < 0.0,
+			"and starts bent (%.1f, %.1f)" % [flop._up.mean_curvature(), flop._down.mean_curvature()])
+	poster.free()
 
 
 func _test_paper_flops() -> void:

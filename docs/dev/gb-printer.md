@@ -148,6 +148,33 @@ fresh end of roll. The mesh, the tear trigger's box and the hover outline are la
 again only once a point has moved 0.05 mm (`VRButton.mesh_changed` drops the
 outline's cached copy).
 
+**The room** (`_find_obstacles`): short rays every fifth of a second, kept in
+the room and placed against the printer each frame -- down under its back, slot
+and front; down from every 2 cm of the paper; and from each of those points to
+the next -- each hit a patch of surface reaching 1.2 cm each way and only for
+paper within 3 cm behind it (`GbPrinterStrip.patches`). So a print hangs over a
+table's edge and stops against a wall. At 4 cm a patch found at the edge reached
+past it into the air, and a render caught a print's end lying out on nothing.
+
+**Fingers** (`_place_fingers`): every controller's poke tip (`PokeTip.tip_of`)
+across the paper's width and near the slot is a round obstacle, 9 mm, so a hand
+nudges, flicks or holds up the paper; tearing still needs the trigger.
+
+**The knock and the tear:** the room counts the gear's turns as the core does
+(above, under Sound) and kicks the paper's swing as each knocks; tearing flicks
+the stub back.
+
+**Prints are paper** (`GbPrintoutFlop`, on a Poster marked `printout`, or one
+whose picture is in the prints folder): loose, a print is two `GbPrinterStrip`s
+from the grip, one each way along it, the printer's own curl, weight, swing and
+air, so it hangs from the hand and swings as it moves and stops; lying on a table
+face down its ends lift, face up it lies flat. It starts as bent as the strip it
+came off and relaxes. Stuck to something it is the flat sticker it always was. It
+sleeps while nothing moves. `GbPaperMotion` reads how a thing is moving for both
+(off the pose it is drawn at, smoothed). The print's own pointer target, a
+StaticBody3D round the sheet, is left out of its look at the table: taken for a
+surface, it stood half the print up.
+
 **Rolls:** `GbPrinterPaper.ROLLS`, the three Nintendo sold: white printing sepia,
 yellow printing black (the roll in the printer's box) and blue printing black
 (Japanese Wikipedia, ポケットプリンタ). The tones are judged, not measured. Chosen in
@@ -172,20 +199,33 @@ printer off tears off whatever is hanging out first.
 
 `src/sound.c` in the core, 32768 Hz (256 ticks a sample, 548.625 samples a
 frame), deterministic, in the savestate and in step with the paper. FITTED TO A
-RECORDING of a real MGB-007 printing (core 3641ded): every tone in it is a
-harmonic of one 127.7 Hz stepper rate, the 9th, 10th, 18th, 20th, 24th, 36th and
-40th ringing loudest (1.2-5.1 kHz), over a 1-7 kHz hiss that pulses with the
-steps; once a turn of the gear, every 146 steps (1.14 s), all those tones fall
-away together by 8-15 dB for a quarter of a second and come back while the step
-rate wanders 127.0-128.4 Hz (the winding heard turn after turn: tables over the
-turn, measured; core 84cdbf6), and the gear knocks (a 3 ms ring near 5 kHz with a
-burst of noise, about 2.6 times the motor) and swells softly at 3-4 kHz half way
-round the turn. The motor steps on its own clock at that rate while paper moves;
-the line timing games see is unchanged. The head's tick per inked line is kept
-from the first synthesis (not separable in the recording). Against the recording
-the bands from 600 Hz to 16 kHz agree within about 3 dB. `render_wav out.wav` in
-the core repo renders a print to listen to. The room poses the core's voices on
-the printer (VmuCard's standalone pose).
+RECORDING of a real MGB-007 printing, measured twice, the second time
+independently (Codex), which found what the first missed:
+
+- The motor: harmonics of the step rate, the 9th, 10th, 18th, 20th, 24th, 36th,
+  39th and 40th standing out (1.2-5.1 kHz), over a rattle across 1-7 kHz that
+  rises and falls gently with the steps (four low-pass stages: the first fit's
+  bright, even hiss was heard as white noise).
+- The gear's turn, 1.1407 s, a few milliseconds longer or shorter each turn: the
+  step rate holds near 127.8 Hz for a third of the turn, winds down to 119.5 Hz
+  by half way and snaps back past 129 -- the winding heard turn after turn --
+  while the tones give way to rattle and the whole stays about as loud; a broad
+  swell at 3-6 kHz as it winds down; and a knock as it comes round (a 2.2 ms
+  ring near 5 kHz with a burst of noise, about 24 dB over the motor). The first
+  fit tracked each harmonic in a window too narrow to follow the pitch down,
+  read the harmonics leaving the window as the motor going quiet, and made a
+  loudness dip that is not there; a harmonic-comb fit over the turn now puts
+  the synth within about 1 Hz of the recording at every point.
+- The turn is its own clock, not the lines': the line timing games see is
+  unchanged. The gear starts at its knock whenever the motor starts and each
+  turn's give or take is a fixed pattern, so the room can count the same turns
+  and jolt the paper as each knocks (`GbPrinter.TURN_S`/`TURN_OFFSET_S`, kept
+  the same as the core's).
+- The head's tick per inked line is kept from the first synthesis (not
+  separable in the recording).
+
+`render_wav out.wav` in the core repo renders a print to listen to. The room
+poses the core's voices on the printer (VmuCard's standalone pose).
 
 ## Netplay
 

@@ -59,6 +59,23 @@ const ROOM_SAMPLE := 0.02
 const ROOM_LIFT := 0.01
 const ROOM_DROP := 0.15
 const PATCH_REACH := 0.012
+## The gear's turn, as the core keeps it (gbprinter-libretro src/sound.c: keep
+## these and its TURN_S and TURN_OFFSET_S the same): 1.1407 s a turn, each a
+## little longer or shorter by a fixed pattern, starting at the knock when the
+## motor starts. The room cannot hear the core, so it counts the same turns
+## from the same start and jolts the paper as each knocks. The motor runs on a
+## line and a half after the last (the core's MOTOR_TAIL).
+const TURN_S := 1.1407
+const TURN_OFFSET_S: Array[float] = [0.004, -0.009, 0.002, 0.011, -0.005, -0.001, 0.008, -0.010]
+const MOTOR_TAIL_S := 1.5 * 240000.0 / 8388608.0
+## The knock's kick to the paper's swing, rad/s; the stub's flick back as the
+## print tears off it.
+const KNOCK_JOLT := 1.2
+const TEAR_FLICK := -2.5
+## A fingertip, as the paper meets it: round, this radius, meters; and only
+## within FINGER_NEAR of the slot.
+const FINGER_RADIUS := 0.009
+const FINGER_NEAR := 0.5
 
 ## Libretro joypad ids, as bits of the mask: the core's FEED and TEAR.
 const BTN_B := 1 << 0
@@ -105,6 +122,15 @@ var _strip := GbPrinterStrip.new()
 var _drawn := PackedVector2Array()
 ## The slot as it was last frame, for its acceleration and turn.
 var _motion := GbPaperMotion.new()
+## The gear's turn (TURN_S): how far round, how many since the motor started,
+## how long this one takes, and how long the motor runs on.
+var _turn := 0.0
+var _turns := 0
+var _turn_s := TURN_S
+var _motor_left := 0.0
+var _lines_seen := 0
+## The hands whose fingertips push the paper (XRController3D, found once).
+var _controllers: Array[XRController3D] = []
 var _floor_wait := 0.0
 ## What the last looks round the paper found, in the room: [position, normal].
 var _room_hits: Array = []
@@ -158,6 +184,8 @@ func _ready() -> void:
 	# Always processing: the paper swings and settles whether or not the printer
 	# is on. Off, it is the roll's end, and costs next to nothing.
 	set_process(true)
+	# Controllers arrive a frame after the room does (VRButton's reason).
+	_find_controllers.call_deferred()
 
 
 func _exit_tree() -> void:
@@ -307,6 +335,9 @@ func _drive_core() -> void:
 	var lines := 0
 	if tex != null and tex.get_width() == GbPrinterPaper.DOTS:
 		lines = tex.get_height()
+	if lines > _lines_seen:
+		motor_ran()
+	_lines_seen = lines
 	_lay_paper(tex if lines > 0 else null, lines)
 	_update_audio()
 
@@ -435,9 +466,63 @@ func _move_paper(delta: float) -> void:
 	# printer tipping over it never meets it a fifth of a second late.
 	_place_room(xf)
 	_aim_strip()
+	turn_gear(delta)
+	_place_fingers(xf)
 	var shove := _motion.shove
 	_strip.step(delta, Vector2(g.y, g.z), _motion.spin_accel, Vector2(shove.y, shove.z))
 	_draw_paper()
+
+
+## Paper came out: the motor runs on for MOTOR_TAIL_S, and if it had stopped,
+## it starts at the knock, as the core's does.
+func motor_ran() -> void:
+	if _motor_left <= 0.0:
+		_turn = 0.0
+		_turns = 0
+		_turn_s = TURN_S + TURN_OFFSET_S[0]
+	_motor_left = MOTOR_TAIL_S
+
+
+## Turn the gear `delta` seconds while the motor runs; true when it knocked,
+## and the paper is jolted.
+func turn_gear(delta: float) -> bool:
+	if _motor_left <= 0.0:
+		return false
+	_motor_left -= delta
+	_turn += delta / _turn_s
+	if _turn < 1.0:
+		return false
+	_turn -= 1.0
+	_turns += 1
+	_turn_s = TURN_S + TURN_OFFSET_S[_turns % TURN_OFFSET_S.size()]
+	_strip.jolt(KNOCK_JOLT)
+	return true
+
+
+func _find_controllers() -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	for node in get_tree().root.find_children("*", "XRController3D", true, false):
+		_controllers.append(node as XRController3D)
+
+
+## The fingertips across the paper's width, near the slot, as round obstacles
+## in the printer's (Y, Z), placed against the printer drawn at `xf`.
+func _place_fingers(xf: Transform3D) -> void:
+	_strip.fingers.clear()
+	var inv := xf.affine_inverse()
+	for ctrl in _controllers:
+		if not is_instance_valid(ctrl):
+			continue
+		var tip := inv * PokeTip.tip_of(ctrl)
+		if absf(tip.x - _pivot.position.x) > PAPER_WIDTH * 0.5 + FINGER_RADIUS:
+			continue
+		if tip.distance_to(_pivot.position) > FINGER_NEAR:
+			continue
+		_strip.fingers.append([Vector2(tip.y, tip.z), FINGER_RADIUS])
 
 
 ## Where the slot is and which way it points the paper, in the printer's (Y, Z).
@@ -620,6 +705,8 @@ func tear() -> void:
 		_hand_over(_spawn_printout(path, lines))
 	_tear_lines = lines
 	_tear_frames = TEAR_FRAMES
+	# What is left in the slot flicks back as the print comes away.
+	_strip.jolt(TEAR_FLICK)
 	if _mask >= 0:
 		_push_input(_mask | BTN_B, lines)
 
@@ -632,8 +719,10 @@ func _spawn_printout(path: String, lines: int) -> Poster:
 	# Before image_path: the setter loads the picture and sizes the sheet from
 	# size_scale as it stands.
 	poster.size_scale = long_edge / Poster.BASE_LONG_EDGE
-	# Paper, not a board: it bends in the hand (GbPrintoutFlop).
+	# Paper, not a board: it bends in the hand (GbPrintoutFlop), starting as bent
+	# as the strip it came off.
 	poster.printout = true
+	poster.set_meta(GbPrintoutFlop.BEND_META, _strip.mean_curvature())
 	poster.image_path = path
 	var scene := get_tree().current_scene
 	scene.add_child(poster)

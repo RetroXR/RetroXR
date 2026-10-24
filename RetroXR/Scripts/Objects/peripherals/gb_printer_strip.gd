@@ -105,6 +105,9 @@ var planes: Array = []
 ## long print from hanging over a table's edge, and nothing else in the room
 ## was there at all.
 var patches: Array = []
+## Fingertips in the paper's way: [center, radius], round. A finger pushes the
+## paper aside and the paper lies against it: nudged, flicked, held up.
+var fingers: Array = []
 
 
 ## Set the paper's length. New paper comes out of the slot with the roll's curl
@@ -191,6 +194,34 @@ func _swing(h: float, shove: Vector2, spin_accel: float) -> void:
 	if absf(sway) > SWAY_MAX:
 		sway = clampf(sway, -SWAY_MAX, SWAY_MAX)
 		sway_speed = 0.0
+
+
+## Give the swing a kick, rad/s: the gear's knock coming through the printer,
+## or the stub flicking back as the print tears off it.
+func jolt(by: float) -> void:
+	sway_speed += by
+
+
+## Bend every hinge to `curvature` (rad/m) and hold it still: a strip taken
+## from paper that was already bent (a print torn off the printer).
+func bend_to(curvature: float) -> void:
+	if segments == 0:
+		return
+	var ds := length / segments
+	for i in range(1, segments):
+		angles[i] = curvature * ds
+		speeds[i] = 0.0
+	_lay_points()
+
+
+## How much it bends, on average, rad/m (its hinges past the slot's).
+func mean_curvature() -> float:
+	if segments < 2 or length <= 0.0:
+		return 0.0
+	var total := 0.0
+	for i in range(1, segments):
+		total += angles[i]
+	return total / (length * float(segments - 1) / float(segments))
 
 
 ## The highest any hinge is turning, or the swing, rad/s: zero is at rest.
@@ -306,7 +337,7 @@ func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 ## only the hinge behind could not lift a point whose segment ran along the push,
 ## which left the curled end of a long strip inside the printer.
 func _contact() -> void:
-	if boxes.is_empty() and planes.is_empty() and patches.is_empty():
+	if boxes.is_empty() and planes.is_empty() and patches.is_empty() and fingers.is_empty():
 		return
 	var ds := length / segments
 	var first := maxi(1, ceili(CONTACT_FROM / ds))
@@ -380,7 +411,15 @@ func _push_out(p: Vector2) -> Vector2:
 	# Out of the printer, then off the table from there: a point in the corner of
 	# the two goes into the corner in one push, where pushing it out of one and
 	# then out of the other, a pass at a time, ping-ponged it.
-	return best + _off_surface(p + best)
+	best += _off_surface(p + best)
+	# Round a finger, from where the point would be.
+	for finger: Array in fingers:
+		var d: Vector2 = p + best - (finger[0] as Vector2)
+		var reach := float(finger[1]) + SKIN
+		if d.length_squared() < reach * reach:
+			var l := d.length()
+			best += (d / l if l > 1e-6 else Vector2(0.0, -1.0)) * (reach - l)
+	return best
 
 
 ## Up out of whichever surface `p` is deepest in, or zero when it is in none.

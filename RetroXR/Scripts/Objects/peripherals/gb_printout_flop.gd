@@ -17,6 +17,9 @@ class_name GbPrintoutFlop
 extends Node
 
 const NODE_NAME := "PrintoutFlop"
+## A print torn off the printer carries the bend it had there (rad/m) as this
+## meta, and starts bent so, then relaxes as it hangs.
+const BEND_META := &"gb_printout_bend"
 ## Settled below this (rad/s, both strips) and still, it sleeps.
 const SETTLED := 0.002
 ## How often the surface under a loose print is looked for, seconds, how far
@@ -101,6 +104,11 @@ func _process(delta: float) -> void:
 		_drawn = PackedVector2Array()
 	_up.set_length(half - _grip)
 	_down.set_length(half + _grip)
+	if _poster.has_meta(BEND_META):
+		var bend := float(_poster.get_meta(BEND_META))
+		_poster.remove_meta(BEND_META)
+		_up.bend_to(bend)
+		_down.bend_to(bend)
 	_up.place(Vector2(_grip, 0.0), 0.0)
 	_down.place(Vector2(-_grip, 0.0), 0.0)
 
