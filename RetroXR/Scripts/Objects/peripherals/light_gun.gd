@@ -130,6 +130,76 @@ var captive_cord_route: PackedVector3Array = PackedVector3Array()
 var captive_well: XRToolsSnapZone = null
 
 
+# ── on a swivel mount ─────────────────────────────────────────────────────────
+
+## The pivot a gun on a swivel mount turns about, or null for a gun that can be carried. Silent Scope's rifle and
+## Operation Wolf's Uzi are FIXED to their cabinets (a post, a ball joint or a yoke) and only turn in their
+## housing, as the real ones do: a hand takes hold and swings the gun about the pivot, and nothing it does takes the gun
+## off the cabinet. A Marker3D on the cabinet whose own basis is the way the gun faces at rest (-Z, at the screen).
+var mount: Node3D = null
+## Where the pivot is in the gun's own frame: ahead of the grip, under the forestock, where the yoke is.
+var mount_pivot := Vector3.ZERO
+## A VR hand turns the gun by where it is (the lever of a long stock: the barrel points from the hand through the
+## pivot); false takes the way the hand points. A hand too close to the pivot to tell by falls back to pointing.
+var mount_lever := false
+## How far it turns: either way about the vertical, and down and up (radians), in the mount's own frame.
+const MOUNT_YAW_LIMIT := deg_to_rad(40.0)
+const MOUNT_PITCH_LIMIT := Vector2(deg_to_rad(-12.0), deg_to_rad(28.0))
+## A hand nearer the pivot than this (metres) says nothing of which way the lever points.
+const MOUNT_LEVER_MIN := 0.18
+var _mount_yaw := 0.0
+var _mount_pitch := 0.0
+
+
+## Fix this gun to `pivot` (a marker on a cabinet) so it turns about it and goes nowhere else. `local` is the pivot's
+## place in the gun's own frame. It is frozen where it stands, never falls, and is taken only by a hand that is near.
+func fix_to_mount(pivot: Node3D, local: Vector3, by_lever: bool) -> void:
+	mount = pivot
+	mount_pivot = local
+	mount_lever = by_lever
+	release_mode = XRToolsPickable.ReleaseMode.FROZEN
+	ranged_grab_method = XRToolsPickable.RangedMethod.NONE
+	second_hand_grab = XRToolsPickable.SecondHandGrab.IGNORE
+	freeze = true
+	global_transform = mount_transform()
+
+
+func is_mounted() -> bool:
+	return mount != null and is_instance_valid(mount)
+
+
+## The mount's own heading and the gun's turn now, as (yaw, pitch) in radians.
+func mount_turn() -> Vector2:
+	return Vector2(_mount_yaw, _mount_pitch)
+
+
+## Where the gun is for a turn about its pivot: the pivot fixed on the mount, the gun turned by yaw (about the
+## mount's up) then pitch (about its right).
+func mount_transform() -> Transform3D:
+	var turn := Basis(Vector3.UP, _mount_yaw) * Basis(Vector3.RIGHT, _mount_pitch)
+	var basis := mount.global_basis * turn
+	return Transform3D(basis, mount.global_position - basis * mount_pivot)
+
+
+## The grab driver's hook (XRToolsGrabDriver, a RetroXR patch): where a hold puts the gun. Whatever the hand wants,
+## it is the gun turned about its pivot toward where the hand aims it, within its travel. `holder` is the hand (the
+## driver's own, `get_picked_up_by()`, when null).
+func constrain_grab(destination: Transform3D, holder: Node3D = null) -> Transform3D:
+	if not is_mounted():
+		return destination
+	var by := holder if holder != null else get_picked_up_by()
+	# The way the hand aims it: the barrel of the pose the hold WANTS (the grab point's tilt is in it).
+	var aim := -destination.basis.z
+	if mount_lever and by != null and not by.is_in_group("desktop_hand"):
+		var lever := mount.global_position - by.global_position
+		if lever.length() >= MOUNT_LEVER_MIN:
+			aim = lever.normalized()
+	var local := mount.global_basis.inverse() * aim
+	_mount_yaw = clampf(atan2(-local.x, -local.z), -MOUNT_YAW_LIMIT, MOUNT_YAW_LIMIT)
+	_mount_pitch = clampf(asin(clampf(local.y, -1.0, 1.0)), MOUNT_PITCH_LIMIT.x, MOUNT_PITCH_LIMIT.y)
+	return mount_transform()
+
+
 ## The plug on the end of the cord, or null until the cord has been made (a deferred call).
 func get_plug() -> ControllerPlug:
 	return _cable_plug
@@ -518,6 +588,13 @@ func _animate_controls(pressed: Dictionary) -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	# A gun on a mount goes where its cabinet goes: carried off, knocked, it stays on its pivot. A hand turning it
+	# is the grab driver's (constrain_grab), which lands on the same place.
+	if is_mounted() and not is_picked_up():
+		freeze = true
+		var home := mount_transform()
+		if not global_transform.is_equal_approx(home):
+			global_transform = home
 	if _cable_plug == null or _cable_attach_point == null or _max_rope_length <= 0.0:
 		return
 	if _cable_plug.is_picked_up() or _connected_system != null:

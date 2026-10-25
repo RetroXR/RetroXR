@@ -40,6 +40,10 @@ var _preview_zone : XRToolsSnapZone = null
 ## LOCAL PATCH (RetroXR): false until this driver has driven its target at
 ## least once. See the early-out in _physics_process.
 var _pushed_once := false
+## LOCAL PATCH (RetroXR): does `target` constrain its own hold (see the patch in _physics_process)? Looked up once per
+## target, not per tick.
+var _constrain_target: Object = null
+var _constrains := false
 
 var _preview_blend : float = 0.0
 # Cached bounding radius of the target so the preview engages at the same range
@@ -213,6 +217,15 @@ func _physics_process(delta : float) -> void:
 			var want := _priority_for(primary)
 			if want != process_physics_priority:
 				process_physics_priority = want
+
+	# LOCAL PATCH (RetroXR): a held object that is TURNED by the hand rather than carried says where the hold really
+	# puts it (`constrain_grab(destination) -> Transform3D`): a light gun on a swivel mount (Silent Scope's rifle,
+	# Operation Wolf's Uzi) is fixed to its cabinet and turns about its mount, whatever the hand does.
+	if target != _constrain_target:
+		_constrain_target = target
+		_constrains = is_instance_valid(target) and target.has_method("constrain_grab")
+	if _constrains:
+		destination = target.call("constrain_grab", destination)
 
 	# LOCAL PATCH (RetroXR): always push once, however the driver was built.
 	#

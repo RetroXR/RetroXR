@@ -361,7 +361,8 @@ Dead), the holsters 90 mm in from the sides. The model reads the shape from its 
 `glass_back_z`, `marquee_front_z`, `screen_front_z`: collision, pointer boxes, speakers and the options panel follow it, and a straight
 screen gets a collision box of its own for the coin face it leaves open). A marquee title longer than "ARCADE" is set smaller to fit.
 **A gun let go goes back in its holster:** `LightGun.captive_well` (the system hands it the zone it built) and `_return_to_well`, deferred, so
-a hand taking it out (the zone lets go, then the hand picks it up, one frame) is not undone.
+a hand taking it out (the zone lets go, then the hand picks it up, one frame) is not undone. (Only a gun in a HOLSTER: a gun on a post or a rifle is
+fixed to its swivel and has no well, "Guns on a swivel".)
 
 **The consolized Neo Geo MVS is a console** (`neogeo_mvs_console`, `RetroSystemModelNeoGeoConsole`, `Tools/gen/gen_neogeo_console.gd`): a
 rectangular dark box (340 x 220 x 60 mm, an ESTIMATE) that takes the same MVS cassettes in a slot on its roof, two controller ports and POWER/RESET
@@ -766,8 +767,8 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   middle: Operation Wolf's Uzi, Terminator 2, Beast Busters' three); `rifle`: one rifle on a taller post in the middle (Silent Scope, Golgo 13),
   `Scenes/Objects/peripherals/arcade_light_rifle.tscn` (`gen_arcade_gun.gd -- --variant=rifle`: the pistol's grip, trigger and cord boss in the
   same place, so the cabinet seats and cords it with the pistol's numbers; a barrel, a forestock, a stock and a scope tube; its muzzle stops 3 cm
-  short of the glass). A post does not hold a gun that is aimed: in the hand it aims freely and goes back onto its post when let go
-  (`LightGun._return_to_well`). **Pedals only where the game had them** (`f`: Time Crisis): one under each gun, or one in the middle for one gun;
+  short of the glass). **A gun on a post is FIXED to it** (2026-10-25: it used to be taken off the post like a pistol and put back; the real ones
+  are bolted to the cabinet and only turn in their housing): see "Guns on a swivel" below. **Pedals only where the game had them** (`f`: Time Crisis): one under each gun, or one in the middle for one gun;
   each its player's button 2 ("The pedal"). Three guns put the coin doors either side of the middle holster.
 - **A sit-down driving cockpit** (`race`; `ArcadeCabinetBuilder._build_cockpit`): the `racer` body (a lower monitor, leaning back, its middle at
   1.1 m for a SEATED driver) and in front of it, clear of the bay door's swing, a platform, the seat, a dash holding the wheel, the gas and brake
@@ -886,6 +887,33 @@ panel changes); 2. more screens and panels and the cocktail table (107 multi-scr
 and tank on the driving seat (about 30); 4. striking (about 11, the most natural in VR); 5. rhythm (about 50 Bemani sets, each with its disk image and instrument);
 6. the hologram stage (Time Traveler, Holosseum: one floating-plane trick); 7. the body platforms (ski, board, boat, ride-on: the best fit, about 8 working); 8. fishing (3).
 Not verified: Silent Scope's scope screen, Lucky & Wild's guns (light or positional), Desert Tank's, Jet Wave's and Ski Champ's controls, Hang Pilot's second screen.
+
+## Guns on a swivel (2026-10-25)
+
+**Silent Scope's rifle is fixed to the cabinet and turns about its pivot; so are Operation Wolf's Uzi, Terminator 2's and Beast Busters'** (the
+`mounted` and `rifle` forms). Verified against what could be read: the search summaries the research could reach say the rifle is "affixed directly to
+the cabinet" (Giant Bomb's wiki: "a hefty plastic rifle fixed onto the machine itself"; KLOV/MOG: "a sniper rifle fixed to the cabinet") and that the game
+"learns where it points from the analog hard mount beneath it"; none of them says it comes off, and Operation Wolf's is "a fixed swivel mounted light gun
+controller attached to the cabinet". What no source gave: the mount's type, its travel in degrees, its height and the cabinet's dimensions. **Every
+number here is an estimate** (the web research for this was blocked twice: the egress proxy refuses the arcade sites, and the search budget of the turn was
+spent), and a photograph of the real cabinet is still wanted before the 3D structure is called faithful.
+
+- **How it is built** (`ArcadeCabinetBuilder._gun_mount`): a post on the deck's front edge, a collar and a BALL on its head (no cradle: a cradle's cheeks
+  were in the way of a turning gun), and the `Pivot<n>` marker at the ball's middle, which the gun is bolted to; `Holster<n>` is where the gun's origin
+  lies at rest, a rifle's grip 25 cm behind the pivot (a pistol-shaped gun's 8 cm), so the gun's body lies in the same place as before.
+- **How it is held** (`LightGun.fix_to_mount`, `constrain_grab`; RetroSystem calls it for a gun with a mount instead of building a well): the gun has NO
+  snap zone, is `FROZEN` on release (it never falls, never goes anywhere), cannot be called from afar and ignores a second hand. A hand that takes it
+  turns it about the pivot: **the grab driver asks the gun where the hold puts it** (`XRToolsGrabDriver`, a RetroXR patch before the pose is pushed:
+  `constrain_grab(destination)`), and the answer is the gun with its pivot on the post and turned by yaw (40 degrees either way) and pitch (12 down, 28 up) to
+  where the hand aims it, never rolled. A VR hand holding a RIFLE turns it by where the hand IS (the lever: the barrel runs from the hand through the pivot,
+  so a few centimetres of the hand are a few degrees, as on a real stock); a hand within 18 cm of the pivot, a short gun, and the desktop (the camera's way)
+  go by the way the hand points. Let go, the gun stays as it was aimed and goes with its cabinet (`LightGun._physics_process` pins it to the mount while no
+  hand holds it). Carried off by the hand it cannot be: the pivot stays on the post whatever the hand wants (`arcade_form_tests mount/` drives the real
+  grab driver with a hand two metres off).
+- **Not changed:** a pistol in a holster is still taken out and carried (Time Crisis, Point Blank, House of the Dead), and its well still puts it back where it
+  was let go near. The cord follows the gun's cord boss as before.
+- **Owed:** a real hand on a real headset (the lever's feel, the travel, how the hidden controller reads); a second hand on the forestock; that the 2-screen game
+  shows its second screen in the SCOPE and not beside the main picture (the cabinet draws two tubes side by side for `s2`); photographs of the real cabinet.
 
 ## Service switches (2026-10-25)
 

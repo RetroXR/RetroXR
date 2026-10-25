@@ -45,6 +45,12 @@ func holster_transform(index: int) -> Transform3D:
 	return h.global_transform if h != null else Transform3D.IDENTITY
 
 
+## The pivot gun `index` is fixed to (a `Pivot<n>` marker beside its holster: a swivel mount's), or null for a gun
+## that hangs in a holster and can be carried. The marker's own basis is the way the gun faces at rest.
+func pivot_node(index: int) -> Node3D:
+	return find_child("Pivot%d" % (index + 1), true, false) as Node3D
+
+
 ## Where gun `index`'s cord goes in, as a global position.
 func cord_entry(index: int) -> Vector3:
 	var seat := find_child("PortSeat%d" % (index + 1), true, false) as Node3D

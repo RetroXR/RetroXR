@@ -791,23 +791,35 @@ func _holster(sockets: Node3D, i: int, sx: float) -> void:
 		Vector3(sx, 0.725, 0.505), _metal)
 
 
-## A post on the front of the deck with a cradle on top, the gun resting level in it and aimed at the screen
-## (its own -Z the cabinet's -Z): a machine gun's swivel mount, or a rifle's taller one. In the hand it aims
-## freely and is let go back onto the post (the post does not hold it while it is aimed).
+## A post on the front of the deck with a swivel on top that the gun is FIXED to (Operation Wolf's Uzi, a rifle
+## on a taller post: Silent Scope's), aimed at the screen at rest (its own -Z the cabinet's -Z). The gun does not
+## leave it: a hand turns it about the swivel (`Pivot<n>`, the marker the gun is bolted to; LightGun.fix_to_mount) and
+## nothing it does takes it off the cabinet. The swivel is a ball in a collar over the post's head, so the gun's body
+## can turn on it without a cradle's cheeks in its way.
 func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
 	var foot := Vector3(sx, 0.92, 0.47)
 	var tall := 0.20 if rifle else 0.13
 	var top := foot + Vector3(0, tall, 0)
 	ArcadeParts.cylinder(_owner, sockets, "MountBase%d" % (i + 1), 0.05, 0.02, foot + Vector3(0, 0.01, 0), _metal, Vector3.UP)
 	ArcadeParts.cylinder(_owner, sockets, "MountPost%d" % (i + 1), 0.018, tall, foot + Vector3(0, tall * 0.5, 0), _dark, Vector3.UP)
-	# The yoke the gun's body lies in, ahead of its grip, and a cheek either side of it.
-	ArcadeParts.box(_owner, sockets, "MountYoke%d" % (i + 1), Vector3(0.06, 0.012, 0.06), top + Vector3(0, 0.006, 0.0), _metal)
-	for k in [-1.0, 1.0]:
-		ArcadeParts.box(_owner, sockets, "MountCheek%d%s" % [i + 1, "L" if k < 0 else "R"], Vector3(0.006, 0.035, 0.05),
-			top + Vector3(k * 0.024, 0.0295, 0.0), _metal)
-	# The gun's origin over the yoke: the underside of its body (1 cm under the origin) rests in it, a pistol's
-	# recoil housing 8 cm ahead of the origin, the front of a rifle's forestock 25 cm (so its muzzle stops 3 cm
-	# short of the glass); the grip hangs behind the post.
+	# The collar on the post's head and the ball the gun swivels on, a hand's breadth of travel either way.
+	ArcadeParts.cylinder(_owner, sockets, "MountCollar%d" % (i + 1), 0.032, 0.016, top - Vector3(0, 0.012, 0), _metal, Vector3.UP)
+	var ball := ArcadeParts.node(_owner, sockets, "MeshInstance3D", "MountBall%d" % (i + 1), top + Vector3(0, 0.004, 0)) as MeshInstance3D
+	var sphere := SphereMesh.new()
+	sphere.radius = 0.028
+	sphere.height = 0.056
+	sphere.radial_segments = 16
+	sphere.rings = 8
+	sphere.material = _metal
+	ball.mesh = sphere
+	# The pivot: what the gun is bolted to, the ball's middle, under the gun's body: a rifle's 25 cm ahead of its
+	# grip and a pistol-shaped gun's 8 cm (so a rifle's muzzle stops 3 cm short of the glass at rest).
+	var pivot := ArcadeParts.node(_owner, sockets, "Marker3D", "Pivot%d" % (i + 1), top + Vector3(0, 0.004, 0.0)) as Marker3D
+	pivot.basis = Basis.IDENTITY
+	# A rifle's long stock is a lever (the barrel points from the hand through the pivot); a short gun is turned by
+	# the way the hand points.
+	pivot.set_meta("lever", rifle)
+	# The gun's origin at rest, behind the pivot.
 	var rest := ArcadeParts.node(_owner, sockets, "Marker3D", "Holster%d" % (i + 1),
 		top + Vector3(0, 0.022, 0.25 if rifle else 0.08)) as Marker3D
 	rest.basis = Basis.IDENTITY

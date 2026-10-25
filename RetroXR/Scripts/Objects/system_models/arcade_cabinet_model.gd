@@ -274,6 +274,25 @@ func captive_controller_rests() -> Array[Transform3D]:
 	return out
 
 
+## The swivel each gun is FIXED to, in the order of the guns: {"pivot": the marker, "local": the pivot's place in the
+## gun's own frame, "lever": whether a hand turns it by where it is}, or {} for a gun that hangs in a holster and
+## can be carried (an Operation Wolf Uzi or a Silent Scope rifle never leaves the cabinet: RetroSystem fixes it with
+## LightGun.fix_to_mount).
+func captive_gun_mounts() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if _sockets == null:
+		return out
+	for i in _sockets.holster_count():
+		var pivot := _sockets.pivot_node(i)
+		if pivot == null:
+			out.append({})
+			continue
+		var rest := _sockets.find_child("Holster%d" % (i + 1), true, false) as Node3D
+		out.append({"pivot": pivot, "local": rest.global_basis.inverse() * (pivot.global_position - rest.global_position),
+			"lever": bool(pivot.get_meta("lever", false))})
+	return out
+
+
 ## Where each gun's origin hangs, in this model's frame: the holster markers.
 func gun_origins() -> Array[Transform3D]:
 	var out: Array[Transform3D] = []
@@ -891,6 +910,9 @@ func _ghost_roots() -> Array[Node]:
 		for gun: Variant in host.call("captive_controllers"):
 			var well: Variant = gun.get("captive_well") if gun is Node else null
 			if well is XRToolsSnapZone and (well as XRToolsSnapZone).picked_up_object == gun:
+				roots.append(gun as Node)
+			elif gun is LightGun and (gun as LightGun).is_mounted():
+				# A gun on a swivel mount is part of the cabinet and goes see-through with it.
 				roots.append(gun as Node)
 	return roots
 

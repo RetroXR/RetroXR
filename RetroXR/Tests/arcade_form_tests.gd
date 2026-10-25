@@ -21,6 +21,7 @@
 ##   wide/      three to six players: the BODY is as wide as the deck they need, doors and sockets under their panels
 ##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
+##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
@@ -97,6 +98,9 @@ func _run() -> void:
 		await _clear()
 	if _want("service"):
 		await _group_service()
+		await _clear()
+	if _want("mount"):
+		await _group_mount()
 		await _clear()
 	if _want("reach"):
 		await _group_reach()
@@ -776,6 +780,98 @@ func _group_service() -> void:
 	await get_tree().create_timer(0.5).timeout
 	_ok(keys == [[296, true], [296, false]], "service: and a core that names it on a key gets that key (%s)" % str(keys))
 	sys.is_powered_on = false
+
+
+# --- mount ---------------------------------------------------------------------
+
+func _group_mount() -> void:
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	await _board(sys, "sscope")
+	await _wait(10)
+	var rifle := sys.captive_controllers()[0] as LightGun
+	_ok(rifle.is_mounted() and rifle.captive_well == null and rifle.freeze
+			and rifle.release_mode == XRToolsPickable.ReleaseMode.FROZEN
+			and rifle.ranged_grab_method == XRToolsPickable.RangedMethod.NONE and rifle.mount_lever,
+		"mount: Silent Scope's rifle is FIXED to its post: no well to be taken out of, never let fall, never called from afar, turned by its lever")
+	_ok(model.captive_gun_mounts().size() == 1 and (model.captive_gun_mounts()[0]["local"] as Vector3).z < -0.2
+			and (model.captive_gun_mounts()[0]["local"] as Vector3).z > -0.3,
+		"mount: its pivot is under the forestock, a quarter of a metre ahead of the grip (%s)" % str(model.captive_gun_mounts()[0]["local"]))
+	var home := model.global_transform.affine_inverse() * rifle.global_transform
+	_ok(home.is_equal_approx(model.gun_origins()[0]) and rifle.mount_turn() == Vector2.ZERO,
+		"mount: at rest it is on its post, level, aimed at the screen")
+	# The pivot stays where it is, whatever a hand wants (a hold a metre off, above, behind).
+	var pivot := rifle.mount.global_position
+	var stays := true
+	var worst := 0.0
+	for want: Vector3 in [Vector3(0, 0, -1), Vector3(1, 0.2, -1), Vector3(-1, -0.5, -0.3), Vector3(0, 1, 0), Vector3(0, -1, 0.2), Vector3(0.3, 0, 1)]:
+		var held := Transform3D(Basis.looking_at(want.normalized(), Vector3.UP), pivot + Vector3(0.7, 0.5, 0.9))
+		var posed := rifle.constrain_grab(held)
+		var off := (posed * rifle.mount_pivot).distance_to(pivot)
+		worst = maxf(worst, off)
+		stays = stays and off < 1e-4
+	_ok(stays, "mount: whatever a hand wants, the pivot stays on the post (off by %.6f m at worst)" % worst)
+	# It turns the way the hand aims it, within its travel, and never rolls.
+	var turned := rifle.constrain_grab(Transform3D(Basis.looking_at(Vector3(-1, 0.3, -2).normalized(), Vector3.UP), Vector3.ZERO))
+	var ahead := -turned.basis.z
+	_ok(ahead.dot(Vector3(-1, 0.3, -2).normalized()) > 0.999 and absf(turned.basis.x.y) < 1e-4,
+		"mount: it turns the way the hand points it (yaw %.1f, pitch %.1f degrees) and never rolls" % [rad_to_deg(rifle.mount_turn().x), rad_to_deg(rifle.mount_turn().y)])
+	rifle.constrain_grab(Transform3D(Basis.looking_at(Vector3(-5, 0, -0.5).normalized(), Vector3.UP), Vector3.ZERO))
+	_ok(is_equal_approx(rifle.mount_turn().x, LightGun.MOUNT_YAW_LIMIT), "mount: it turns no further than its housing lets it (yaw %.1f degrees)" % rad_to_deg(rifle.mount_turn().x))
+	rifle.constrain_grab(Transform3D(Basis.looking_at(Vector3(0, 5, -1).normalized(), Vector3.UP), Vector3.ZERO))
+	_ok(is_equal_approx(rifle.mount_turn().y, LightGun.MOUNT_PITCH_LIMIT.y), "mount: ... nor lifts further than its stop (pitch %.1f degrees)" % rad_to_deg(rifle.mount_turn().y))
+	rifle.constrain_grab(Transform3D(Basis.looking_at(Vector3(0, -5, -1).normalized(), Vector3.UP), Vector3.ZERO))
+	_ok(is_equal_approx(rifle.mount_turn().y, LightGun.MOUNT_PITCH_LIMIT.x), "mount: ... nor drops further than its stop (pitch %.1f degrees)" % rad_to_deg(rifle.mount_turn().y))
+	# A rifle's long stock is a lever: with the hand behind and to the right of the pivot the barrel swings left.
+	var hand := Node3D.new()
+	add_child(hand)
+	hand.global_position = pivot + Vector3(0.1, 0.0, 0.3)
+	var by_lever := rifle.constrain_grab(Transform3D(Basis.IDENTITY, Vector3.ZERO), hand)
+	var lever_dir := (pivot - hand.global_position).normalized()
+	_ok((-by_lever.basis.z).dot(lever_dir) > 0.999 and rifle.mount_turn().x > deg_to_rad(10.0) and rifle.mount_turn().x < deg_to_rad(25.0),
+		"mount: a rifle follows its lever: the barrel runs from the hand through the pivot (yaw %.1f degrees)" % rad_to_deg(rifle.mount_turn().x))
+	hand.global_position = pivot + Vector3(0.05, 0.0, 0.05)
+	rifle.constrain_grab(Transform3D(Basis.looking_at(Vector3(0, 0, -1), Vector3.UP), Vector3.ZERO), hand)
+	_ok(is_zero_approx(rifle.mount_turn().x), "mount: a hand too near the pivot to tell by does not swing it: it goes by the way the hand points")
+	hand.free()
+	# The real grab driver (patched): what holds it on the post is the hook, not the hand.
+	var by := Node3D.new()
+	add_child(by)
+	by.global_transform = rifle.global_transform
+	var grab := Grab.new(Grabber.new(by), rifle, null, true)
+	var driver := XRToolsGrabDriver.create_snap(rifle, grab)
+	# As the pickable's own pick_up leaves it: held, so the gun's own pin to its post stands aside for the driver.
+	rifle._grab_driver = driver
+	await _wait(2)
+	# The hand carries it off.
+	by.global_position = pivot + Vector3(2.0, 1.0, 2.0)
+	await _wait(3)
+	_ok((rifle.global_transform * rifle.mount_pivot).distance_to(pivot) < 1e-3 and rifle.global_position.distance_to(by.global_position) > 1.0,
+		"mount: held by a hand two metres off, the gun is still on its post (the driver's hook)")
+	rifle._grab_driver = null
+	driver.discard()
+	by.free()
+	# Let go it stays, and it goes where its cabinet goes.
+	await _wait(3)
+	var before := rifle.global_position
+	sys.global_position += Vector3(0.0, 0.0, 1.5)
+	await _wait(4)
+	_ok(rifle.global_position.distance_to(before + Vector3(0.0, 0.0, 1.5)) < 0.02 and rifle.freeze,
+		"mount: the cabinet moved, the rifle went with it, frozen on its post")
+	# Beast Busters' Uzis and Operation Wolf's are fixed too; a holstered gun is not.
+	await _pull(sys)
+	await _board(sys, "bbusters")
+	await _wait(10)
+	var all_fixed := sys.captive_controllers().size() == 3
+	for g: Variant in sys.captive_controllers():
+		all_fixed = all_fixed and (g as LightGun).is_mounted() and not (g as LightGun).mount_lever and (g as LightGun).captive_well == null
+	_ok(all_fixed, "mount: Beast Busters' three guns are fixed to their swivels, turned by the way a hand points them")
+	await _pull(sys)
+	await _board(sys, "timecris")
+	await _wait(10)
+	var holstered := sys.captive_controllers()[0] as LightGun
+	_ok(not holstered.is_mounted() and holstered.captive_well != null and holstered.mount_turn() == Vector2.ZERO,
+		"mount: a gun in a holster (Time Crisis) is not fixed: it is taken out and carried")
 
 
 # --- guns ----------------------------------------------------------------------
