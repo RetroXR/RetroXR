@@ -1527,6 +1527,38 @@ func _group_game_profile() -> void:
 	_ok(pong.coins == 1 and pong.buttons == 0 and pong.has_kind("paddle") and pong.stick_visible(),
 		"game: Pong has one coin, no buttons and keeps the stick (left and right steer a paddle)")
 	_ok(not ArcadeGameProfile.for_romset("hotd2").stick_visible(), "game: a gun game has no stick on the panel")
+	# What the cabinet looked like, from the table's attributes.
+	var P := ArcadeGameProfile
+	_ok(P.for_romset("kurikint").alternating() and not sf2.alternating(),
+		"game: Kuri Kinton's upright had ONE panel the two players took turns on; Street Fighter II has two")
+	var pac := P.for_romset("pacman")
+	_ok(pac.is_vertical() and pac.rotation() in [90, 270] and pac.alternating() and pac.monitor_inches() == 19,
+		"game: Pac-Man's monitor stood on its side, a 19-inch tube, one panel for both players")
+	_ok(not sf2.is_vertical() and sf2.monitor_inches() == 25 and sf2.screens() == 1, "game: Street Fighter II's lay flat, 25 inches, one screen")
+	var scope := P.for_romset("sscope")
+	_ok(scope.form() == P.FORM_RIFLE and scope.screens() == 2 and scope.is_gun() and not scope.stick_visible(),
+		"game: Silent Scope is a rifle on a mount, with a second screen (its scope), and no stick")
+	var tc := P.for_romset("timecris")
+	_ok(tc.form() == P.FORM_GUN and tc.gun_count() == 1 and tc.gun_pedal(), "game: Time Crisis is one gun and a foot pedal")
+	_ok(P.for_romset("ptblank").gun_count() == 2 and not P.for_romset("ptblank").gun_pedal(), "game: Point Blank is two guns and no pedal")
+	var t2 := P.for_romset("term2")
+	_ok(t2.form() == P.FORM_GUN_MOUNTED and t2.is_gun() and not t2.stick_visible(),
+		"game: Terminator 2's guns are on mounts, a gun game though MAME reads them as sticks")
+	_ok(P.for_romset("daytona").form() == P.FORM_RACE and P.for_romset("finallap").form() == P.FORM_STAND
+		and P.for_romset("finalap3").form() == P.FORM_RACE, "game: Daytona and Final Lap 3 are sit-down cockpits, Final Lap a stand-up")
+	_ok(P.for_romset("daytona2").has_roof() and not P.for_romset("daytona").has_roof(), "game: a roof over the seat only where the table says")
+	_ok(P.for_romset("hangon").form() == P.FORM_BIKE and P.for_romset("ddrmax").form() == P.FORM_DANCE
+		and P.for_romset("pumpit1").form() == P.FORM_PUMP, "game: Hang-On is a bike, DDR a four-arrow stage, Pump It Up a five-panel one")
+	_ok(P.for_romset("timetrv").form() == P.FORM_ODD and P.for_romset("panicprk").form() == P.FORM_ODD
+		and P.for_romset("propcycl").form() == P.FORM_ODD, "game: Time Traveler, Panic Park and Prop Cycle are on the unusual list")
+	var touch := P.for_romset("megat")
+	_ok(touch.has_kind(P.KIND_TOUCH) and not touch.is_gun() and touch.gun_count() == 0,
+		"game: a touch screen MAME files as a light gun is not a gun (Megatouch)")
+	_ok(P.for_romset("robotron").has_kind(P.KIND_TWIN), "game: Robotron's two sticks are a twin stick")
+	_ok(P.for_romset("xmen6p").players == 6, "game: six players are six (the table used to stop at four)")
+	var nobody := P.for_romset("not_a_real_romset")
+	_ok(nobody.form() == P.FORM_UPRIGHT and nobody.rotation() == 0 and nobody.screens() == 1 and not nobody.alternating(),
+		"game: a romset the table lacks is a plain upright")
 	var slow := ArcadeGameProfile.from_key("slow", "p2c2b6w8:joy;k12")
 	_ok(slow.known and slow.kinds == PackedStringArray(["joy"]) and is_equal_approx(slow.boot_seconds(), 12.0),
 		"game: a key's attributes follow its kinds (k12: twelve seconds to boot), the kinds unchanged")

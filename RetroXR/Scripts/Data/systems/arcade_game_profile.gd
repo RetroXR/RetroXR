@@ -38,10 +38,15 @@ const KIND_PEDAL := "pedal"
 const KIND_GUN := "gun"
 const KIND_DIAL := "dial"
 const KIND_BALL := "ball"
+## Two sticks a player (Robotron, Smash TV, Battlezone's treads).
+const KIND_TWIN := "twin"
+## A touch screen, which MAME files as a light gun (Megatouch, the JPM quiz machines): not a gun.
+const KIND_TOUCH := "touch"
+const KIND_BUTTONS := "btn"
 
 ## Kinds a stick on the panel stands in for: a digital stick, an analog one, and the
 ## left/right a dial, a paddle or a trackball is steered with on a keyboard.
-const _STICK_KINDS: Array[String] = [KIND_JOY, KIND_STICK, KIND_DIAL, KIND_PADDLE, KIND_BALL]
+const _STICK_KINDS: Array[String] = [KIND_JOY, KIND_STICK, KIND_DIAL, KIND_PADDLE, KIND_BALL, KIND_TWIN]
 
 static var _index: Dictionary = {}
 static var _loaded := false
@@ -134,6 +139,71 @@ func boot_seconds() -> float:
 	return float(k) if k.is_valid_float() and float(k) > 0.0 else ArcadeProfiles.BOOT_SECONDS
 
 
+# ── what the cabinet looked like (the table's attributes; docs/dev/arcade.md "The cabinet follows the game") ──
+
+## The kinds of cabinet a game came in (`t`), besides the plain upright.
+const FORM_UPRIGHT := "upright"
+const FORM_GUN := "gun"            ## guns on cords, hung in holsters
+const FORM_GUN_MOUNTED := "gunm"   ## guns on swivel mounts (Operation Wolf's Uzi)
+const FORM_RIFLE := "rifle"        ## one rifle on a mount, with a scope (Silent Scope)
+const FORM_RACE := "race"          ## a sit-down driving cockpit
+const FORM_STAND := "stand"        ## a stand-up driving cabinet (the wheel on the panel, pedals at its foot)
+const FORM_BIKE := "bike"          ## a ride-on motorbike
+const FORM_DANCE := "dance"        ## a dance stage, four arrows a player
+const FORM_PUMP := "pump"          ## a dance stage, five panels a player
+const FORM_MUSIC := "music"        ## a rhythm game's own controller (turntable, drums, guitar): not built yet
+const FORM_ODD := "odd"            ## a unique cabinet (docs/dev/arcade.md "Unusual cabinets"): not built yet
+
+
+## The kind of cabinet: one of FORM_*. A game the table does not know, or one with nothing special, is an upright.
+func form() -> String:
+	var t := str(attrs.get("t", ""))
+	return t if known and not t.is_empty() else FORM_UPRIGHT
+
+
+## The main screen's rotation in degrees (0, 90, 180, 270): MAME's, for the monitor as it stood in the cabinet.
+func rotation() -> int:
+	return int(str(attrs.get("r", "0"))) if known else 0
+
+
+## Did the monitor stand on its side (a "tate" game: Pac-Man, Galaga, most shooters of the 80s)?
+func is_vertical() -> bool:
+	var r := rotation()
+	return r == 90 or r == 270
+
+
+## How many screens the game drives (Darius three, Silent Scope two: the main one and the scope's).
+func screens() -> int:
+	return maxi(int(str(attrs.get("s", "1"))), 1) if known else 1
+
+
+## How many light guns (players with one); touch screens are not guns (kind `touch`).
+func gun_count() -> int:
+	return int(str(attrs.get("g", "0"))) if known else 0
+
+
+## A gun game with a foot pedal (Time Crisis: step on it to come out of cover).
+func gun_pedal() -> bool:
+	return known and attrs.has("f")
+
+
+## A driving cockpit with a roof over the seat.
+func has_roof() -> bool:
+	return known and attrs.has("o")
+
+
+## Two players taking turns on ONE panel (the upright of an alternating game: Pac-Man, Donkey Kong).
+func alternating() -> bool:
+	return known and attrs.has("a")
+
+
+## The monitor's class in inches: 19 for the early games, else 25 (a gun or driving cabinet's own is bigger,
+## which is the cabinet's to say: ArcadeCabinetSpecs.screen_inches).
+func monitor_inches() -> int:
+	var m := str(attrs.get("m", ""))
+	return int(m) if known and m.is_valid_int() else 25
+
+
 ## Take the core's own description of its inputs (Libretro.GetInputDescriptors: an Array of
 ## {port, device, index, id, description}). A port that publishes the whole pad is ignored.
 func apply_descriptors(descriptors: Array) -> void:
@@ -168,14 +238,23 @@ func has_kind(kind: String) -> bool:
 	return kinds.has(kind)
 
 
-## A gun game: the panel has no stick, the gun is the control.
+## A gun game: the panel has no stick, the gun is the control. A positional gun on a mount reads like an
+## analog stick to MAME (Terminator 2), which the table's form says is a gun all the same.
 func is_gun() -> bool:
-	return known and has_kind(KIND_GUN) and not _wants_stick()
+	if not known:
+		return false
+	var f := form()
+	if f == FORM_GUN or f == FORM_GUN_MOUNTED or f == FORM_RIFLE:
+		return true
+	return has_kind(KIND_GUN) and not _wants_stick()
 
 
-## A driving game: a wheel and pedals (MAME calls them a paddle and a pedal).
+## A driving game: a wheel and pedals (MAME calls them a paddle and a pedal; Pole Position's wheel is a dial).
 func is_driving() -> bool:
-	return known and has_kind(KIND_PADDLE) and has_kind(KIND_PEDAL)
+	if not known:
+		return false
+	var f := form()
+	return f == FORM_RACE or f == FORM_STAND or (has_kind(KIND_PADDLE) and has_kind(KIND_PEDAL))
 
 
 func _wants_stick() -> bool:
@@ -202,7 +281,7 @@ func stick_visible() -> bool:
 					ControllerBindings.JOYPAD_LEFT, ControllerBindings.JOYPAD_RIGHT]:
 				any = any or ids.has(bit)
 		return any
-	return not known or _wants_stick()
+	return not known or (_wants_stick() and not is_gun())
 
 
 ## Is cap `index` (0-based, ArcadeProfiles.BUTTON_BITS order) on player `player`'s panel?
