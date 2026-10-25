@@ -38,6 +38,8 @@ const KIND_SOCKETS := &"sockets"
 const KIND_AV_IN := &"av_in"
 ## A foot pedal, wired to its player's button 2 (ArcadePedalModule): Time Crisis's.
 const KIND_PEDAL := &"pedal"
+## The TEST and SERVICE switches in the compartment (ArcadeServiceModule), beside the power switch's opposite.
+const KIND_SERVICE := &"service"
 
 ## Bay kinds: what a bay takes. `systems` are the systemids whose boards fit. `romsets` is
 ## whether those systems run MAME-style romsets, i.e. are one family with `arcade` (the

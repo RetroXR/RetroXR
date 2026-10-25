@@ -34,6 +34,8 @@ not the default, `;`-separated attributes (a letter and a value):
   a         two players take turns on ONE panel (an alternating game whose upright had a
             single set of controls: MAME's Cabinet DIP offers a cocktail, the upright one),
   m<in>     the monitor's class in inches where it is not the 25" default (19 before 1985),
+  v         the game reads a service / test switch (MAME's `<input service="yes">`: the TEST button
+            inside the coin door, which toggles the game's own operator menu),
 Everything in `t`, `o`, `f` and `a` that MAME does not say is a choice made here from
 the lists below and a little general knowledge; docs/dev/arcade.md says which is which.
 
@@ -230,6 +232,8 @@ def profile_of(machine, parent):
         attrs.append("f")
     if alternating(machine if parent is None else parent, players) or alternating(machine, players):
         attrs.append("a")
+    if inp.get("service") == "yes":
+        attrs.append("v")
     year = machine.findtext("year") or ""
     if year[:4].isdigit() and int(year[:4]) < 1985 and displays and displays[0].get("type") != "vector":
         attrs.append("m19")

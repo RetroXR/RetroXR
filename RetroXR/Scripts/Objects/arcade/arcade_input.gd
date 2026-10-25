@@ -119,6 +119,9 @@ var _start_hold := 0.0
 var _queued_start: Dictionary = {}
 ## Ports being sent that one START now (port -> seconds left).
 var _start_pulse: Dictionary = {}
+## Pad ids held for a moment on a port by something other than a hand (a cabinet's TEST or SERVICE switch):
+## port -> {pad id: seconds left}.
+var _taps: Dictionary = {}
 
 var _button_map: Dictionary = ControllerBindings.DEFAULT_BUTTON_MAP.duplicate()
 var _stick_map: Dictionary = ControllerBindings.DEFAULT_STICK_MAP.duplicate()
@@ -230,6 +233,32 @@ func _find_vr_nodes() -> void:
 	_left_vr_ctrl = rig["left"]
 	_right_vr_ctrl = rig["right"]
 	_update_locomotion_block()
+
+
+## How long a tapped pad id is held: a few frames, as a finger's press (the same as a key tap).
+const TAP_SECONDS := 0.12
+
+
+## Hold pad id `bit` on `port` for a moment, as a press of a switch the cabinet has that the pad does not
+## (RetroSystem.press_core_service: a core that names its service input on a pad id).
+func tap_pad_bit(port: int, bit: int, seconds: float = TAP_SECONDS) -> void:
+	if bit < 0 or bit >= ArcadeGameProfile.PAD_IDS:
+		return
+	if not _taps.has(port):
+		_taps[port] = {}
+	(_taps[port] as Dictionary)[bit] = seconds
+
+
+## The pad ids being tapped on `port` now, as a mask; each runs down by `delta`.
+func _tap_mask(port: int, delta: float) -> int:
+	var held := _taps.get(port, {}) as Dictionary
+	var mask := 0
+	for bit: int in held.keys():
+		mask |= 1 << bit
+		held[bit] = float(held[bit]) - delta
+		if float(held[bit]) <= 0.0:
+			held.erase(bit)
+	return mask
 
 
 func _on_coin(player: int, pulse: ArcadeInputState.CoinPulse) -> void:
@@ -417,6 +446,7 @@ func _process(delta: float) -> void:
 		if not _heard_mask.is_empty():
 			_heard_mask.clear()
 			_heard_axes.clear()
+		_taps.clear()
 		return
 	if _run_base < 0:
 		_run_base = _frame_count()
@@ -458,6 +488,8 @@ func _process(delta: float) -> void:
 		var owned := holder != null
 		var mask := masks[p]
 		var hand := hands[p]
+		var tapped := _tap_mask(p, delta)
+		mask |= tapped
 		if _pulses.has(p) and (_pulses[p] as ArcadeInputState.CoinPulse).advance(delta):
 			mask |= 1 << ArcadeProfiles.COIN_BIT
 		if hold_start:
@@ -489,6 +521,7 @@ func _process(delta: float) -> void:
 				var bits := (mask | hand) & aux
 				if pedal_down:
 					bits |= 1 << ControllerBindings.JOYPAD_A
+				bits |= tapped
 				_send(p, bits, _NEUTRAL)
 			continue
 		_send(p, mask, states[p])

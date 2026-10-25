@@ -3211,6 +3211,32 @@ func toggle_core_dip_menu() -> void:
 	_tap_core_keys(keys)
 
 
+## A suite's stand-in for the core's input descriptors (what Libretro.GetInputDescriptors would say), or null.
+var core_descriptors_override: Variant = null
+
+
+## A cabinet's TEST or SERVICE switch (ArcadeServiceModule): the running core's own operator input. What the core
+## calls it (ArcadeServiceKeys.lookup over its input descriptors) is what is pressed: a pad id held a moment on
+## its port, or a key tapped; a core that names nothing gets MAME's own keys (F2 the service mode, 9 the service
+## credit). False when no core runs or the keyboard is busy with a menu's keys. NEVER run against a real core here.
+func press_core_service(which: StringName) -> bool:
+	if not is_powered_on or _core_keys_busy:
+		return false
+	var descriptors: Array = []
+	if core_descriptors_override != null:
+		descriptors = core_descriptors_override
+	elif _libretro != null and _libretro.has_method("GetInputDescriptors"):
+		descriptors = _libretro.GetInputDescriptors()
+	var found := ArcadeServiceKeys.lookup(descriptors, which)
+	if not found.is_empty() and int(found["device"]) == ArcadeServiceKeys.DEVICE_JOYPAD and _model is RetroSystemModelArcadeCabinet:
+		var input := (_model as RetroSystemModelArcadeCabinet).arcade_input()
+		if input != null:
+			input.tap_pad_bit(int(found["port"]), int(found["id"]))
+			return true
+	_tap_core_keys([int(found["id"]) if not found.is_empty() else ArcadeServiceKeys.default_key(which)])
+	return true
+
+
 func _tap_core_keys(keys: Array) -> void:
 	_core_keys_busy = true
 	for code: int in keys:

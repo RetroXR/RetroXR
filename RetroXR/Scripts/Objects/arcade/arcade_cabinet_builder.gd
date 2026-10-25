@@ -38,6 +38,7 @@ const SCRIPTS := {
 	"hinge": "res://Scripts/Objects/widgets/vr_hinge.gd",
 	"pedal": "res://Scripts/Objects/arcade/arcade_pedal_module.gd",
 	"av_in": "res://Scripts/Objects/arcade/arcade_av_in_module.gd",
+	"service": "res://Scripts/Objects/arcade/arcade_service_module.gd",
 	"seat": "res://Scripts/Objects/room/cockpit_seat.gd",
 	"seat_trigger": "res://Scripts/Objects/room/seat_trigger.gd",
 }
@@ -112,6 +113,7 @@ func bake() -> void:
 	_build_coin_doors()
 	_build_guns_or_sockets()
 	_build_bay()
+	_build_service()
 	_build_av_in()
 	_build_extras()
 	apply_metrics()
@@ -1115,6 +1117,46 @@ func _build_av_in() -> void:
 		# A colour disc under each socket (yellow video, white left, red right), as a console's jacks are marked.
 		ArcadeParts.cylinder(_owner, mod, "InDisc%d" % (i + 1), 0.0125, 0.0015, Vector3(x, top + 0.00075, cz - 0.012),
 			ArcadeParts.mat([Color(0.95, 0.80, 0.10), Color(0.92, 0.92, 0.92), Color(0.85, 0.10, 0.10)][i], 0.0, 0.5))
+
+
+# ── service switches ────────────────────────────────────────────────────────
+
+## The TEST and SERVICE switches on a small bracket on the compartment's floor, at the side OPPOSITE the power switch
+## (which is at x +0.17: these are at -0.17), standing up out of the shelf as it does so a hand or a ray from above
+## reaches them with the door open. Each is a VRButton whose frame has +Z up and sinks along -Z; the module
+## (ArcadeServiceModule) says which one was pressed. Baked with the cabinet: every real one had them, and the game's
+## profile only says whether they are on show.
+func _build_service() -> void:
+	var mod := ArcadeParts.node(_owner, _top, "Node3D", "Service", Vector3.ZERO) as Node3D
+	mod.set_script(load(SCRIPTS["service"]))
+	var floor_y := 0.105
+	var z := 0.22
+	ArcadeParts.box(_owner, mod, "ServicePlate", Vector3(0.20, 0.004, 0.085), Vector3(-0.17, floor_y + 0.002, z + 0.020), _metal)
+	for item in [["TestButton", "TEST", -0.22, Color(0.85, 0.12, 0.12)], ["ServiceButton", "SERVICE", -0.12, Color(0.95, 0.75, 0.10)]]:
+		var x: float = item[2]
+		var btn := ArcadeParts.node(_owner, mod, "Area3D", str(item[0]), Vector3(x, floor_y + 0.004, z)) as Area3D
+		btn.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+		btn.set_script(load(SCRIPTS["button"]))
+		btn.collision_layer = 0
+		btn.collision_mask = 0
+		btn.set("trigger_radius", 0.018)
+		btn.set("depress_depth", 0.004)
+		btn.set("depress_axis", Vector3(0, 0, -1))
+		var col := ArcadeParts.node(_owner, btn, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+		var shape := BoxShape3D.new()
+		shape.size = Vector3(0.05, 0.05, 0.05)
+		col.shape = shape
+		col.position = Vector3(0, 0, 0.020)
+		ArcadeParts.cylinder(_owner, btn, "ButtonMesh", 0.012, 0.012, Vector3(0, 0, 0.006),
+			ArcadeParts.mat(item[3] as Color, 0.0, 0.4), Vector3.BACK)
+		var tag := ArcadeParts.node(_owner, mod, "Label3D", "%sLabel" % str(item[1]).capitalize(),
+			Vector3(x, floor_y + 0.0045, z + 0.050)) as Label3D
+		tag.basis = Basis(Vector3.RIGHT, -PI * 0.5)       # lies flat on the bracket, reads from the front
+		tag.text = str(item[1])
+		tag.pixel_size = 0.0006
+		tag.font_size = 44
+		tag.modulate = Color(0.05, 0.05, 0.06)
+		tag.outline_size = 0
 
 
 # ── bay ─────────────────────────────────────────────────────────────────────

@@ -20,6 +20,7 @@
 ##   tate/      a monitor on its side gets the tall body and a window cut to the picture; every body is one silhouette
 ##   wide/      three to six players: the BODY is as wide as the deck they need, doors and sockets under their panels
 ##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
+##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
@@ -93,6 +94,9 @@ func _run() -> void:
 		await _clear()
 	if _want("pedals"):
 		await _group_pedals()
+		await _clear()
+	if _want("service"):
+		await _group_service()
 		await _clear()
 	if _want("reach"):
 		await _group_reach()
@@ -689,6 +693,89 @@ func _group_pedals() -> void:
 		p1.tick(0.05)
 	_ok(not gas.basis.is_equal_approx(gas_rest) and brake.basis.is_equal_approx(brake_rest),
 		"pedals: and the gas tips when R2 is pressed, the brake not")
+
+
+# --- service -------------------------------------------------------------------
+
+func _desc(device: int, id: int, words: String, port: int = 0) -> Dictionary:
+	return {"port": port, "device": device, "index": 0, "id": id, "description": words}
+
+
+func _group_service() -> void:
+	# What MAME says, in the table: the flag is `<input service="yes">`.
+	_ok(P.for_romset("sscope").has_service() and P.for_romset("sf2").has_service() and P.for_romset("sscope2").has_service(),
+		"service: Silent Scope and Street Fighter II read a service switch (MAME's `service`)")
+	_ok(not P.for_romset("timecris").has_service() and not P.for_romset("pacman").has_service() and not P.for_romset("zzz_homebrew").has_service(),
+		"service: Time Crisis and Pac-Man read none, and a game the table does not know is not said to")
+	# What the core calls it.
+	var K := ArcadeServiceKeys
+	var fbneo := [_desc(1, 2, "Coin"), _desc(1, 3, "Start"), _desc(1, 14, "Service"), _desc(1, 15, "Diagnostic"), _desc(1, 0, "Weak Kick")]
+	_ok(int(K.lookup(fbneo, K.SERVICE).get("id", -1)) == 14 and int(K.lookup(fbneo, K.TEST).get("id", -1)) == 15,
+		"service: a core that says \"Service\" and \"Diagnostic\" on pad ids is believed: SERVICE is 14, TEST 15")
+	var mameish := [_desc(1, 12, "Service Mode"), _desc(1, 13, "Service 1"), _desc(3, 283, "Test")]
+	_ok(int(K.lookup(mameish, K.TEST).get("id", -1)) in [12, 283] and int(K.lookup(mameish, K.SERVICE).get("id", -1)) == 13,
+		"service: \"Service Mode\" is the test switch and \"Service 1\" the credit, never the same input")
+	_ok(K.lookup([_desc(1, 2, "Coin"), _desc(4, 0, "Service"), _desc(2, 1, "Test")], K.TEST).is_empty()
+			and K.lookup([_desc(1, 2, "Coin")], K.SERVICE).is_empty(),
+		"service: a light gun's or a mouse's ids are not a switch, and a core that names none gives {} (the fallback keys)")
+	_ok(int(K.lookup([_desc(1, 9, "Service", 1), _desc(1, 14, "Service", 0)], K.SERVICE).get("id", -1)) == 14,
+		"service: player 1's port is believed first")
+	_ok(K.default_key(K.TEST) == 283 and K.default_key(K.SERVICE) == 57, "service: MAME's own keys are F2 and 9 (libretro.h's RETROK codes)")
+	# Built on a real cabinet.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var services := model.modules_of_kind(ArcadeProfiles.KIND_SERVICE)
+	_ok(services.size() == 1 and (services[0] as ArcadeServiceModule).button(K.TEST) != null
+			and (services[0] as ArcadeServiceModule).button(K.SERVICE) != null,
+		"service: the cabinet has one service module with a TEST and a SERVICE button")
+	var service := services[0] as ArcadeServiceModule
+	var power := model.get_node("Bay").find_child("PowerSwitch", true, false) as Node3D
+	var test_at := model.to_local(service.button(K.TEST).global_position)
+	var credit_at := model.to_local(service.button(K.SERVICE).global_position)
+	_ok(test_at.x < -0.1 and credit_at.x < -0.05 and power.position.x > 0.1,
+		"service: they stand on the OTHER side of the compartment from the power switch (%.2f, %.2f against %.2f)" % [test_at.x, credit_at.x, power.position.x])
+	_ok(absf(test_at.y - power.position.y) < 0.02 and absf(credit_at.y - power.position.y) < 0.02 and test_at.z > 0.1 and test_at.z < 0.38,
+		"service: in the compartment, on its floor at the power switch's height, in reach of the door (z %.2f)" % test_at.z)
+	# A game dresses them: there for Silent Scope, gone for Time Crisis, back for another.
+	await _board(sys, "sscope")
+	_ok(service.is_enabled() and service.button(K.TEST).collision_layer != 0, "service: with Silent Scope in the bay they are there and can be aimed at")
+	await _pull(sys)
+	await _board(sys, "timecris")
+	_ok(not service.is_enabled() and service.button(K.TEST).collision_layer == 0 and service.button(K.SERVICE).collision_layer == 0,
+		"service: with Time Crisis in the bay (MAME reads none) they are gone and cannot be aimed at")
+	await _pull(sys)
+	await _board(sys, "sf2")
+	_ok(service.is_enabled(), "service: and back for the next game that reads one")
+	# A press goes to the machine and into the core: the keys, with nothing named.
+	var keys: Array = []
+	sys.core_key_sink = func(code: int, down: bool) -> void: keys.append([code, down])
+	_ok(not sys.press_core_service(K.TEST) and keys.is_empty(), "service: with no core running nothing is pressed")
+	sys.is_powered_on = true
+	sys.core_descriptors_override = []
+	service.press(K.TEST)
+	await get_tree().create_timer(0.5).timeout
+	_ok(keys == [[283, true], [283, false]], "service: TEST taps F2, the way MAME reads Service Mode (%s)" % str(keys))
+	keys.clear()
+	service.button(K.SERVICE).button_pressed.emit()
+	await get_tree().create_timer(0.5).timeout
+	_ok(keys == [[57, true], [57, false]], "service: the SERVICE button taps 9, MAME's Service 1 (%s)" % str(keys))
+	# A core that names it on a pad id gets that id held on its port a moment: through the cabinet's input.
+	keys.clear()
+	sys.core_descriptors_override = [_desc(1, 14, "Service")]
+	var input := model.arcade_input()
+	input.frame_override = input.wait_frames()
+	service.press(K.SERVICE)
+	input._process(0.01)
+	_ok(keys.is_empty() and (int(input.last_sent.get(0, 0)) & (1 << 14)) != 0,
+		"service: a core that names it on pad id 14 hears it there, not on a key")
+	input._process(0.5)
+	input._process(0.01)
+	_ok((int(input.last_sent.get(0, 0)) & (1 << 14)) == 0, "service: and only for a moment")
+	sys.core_descriptors_override = [_desc(3, 296, "Diagnostic")]
+	service.press(K.TEST)
+	await get_tree().create_timer(0.5).timeout
+	_ok(keys == [[296, true], [296, false]], "service: and a core that names it on a key gets that key (%s)" % str(keys))
+	sys.is_powered_on = false
 
 
 # --- guns ----------------------------------------------------------------------

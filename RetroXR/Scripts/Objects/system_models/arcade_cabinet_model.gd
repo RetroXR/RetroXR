@@ -40,6 +40,7 @@ var _sockets: ArcadeSocketModule = null
 var _controls: Array[ArcadeControlModule] = []
 var _coins: Array[ArcadeCoinModule] = []
 var _pedals: Array[ArcadePedalModule] = []
+var _services: Array[ArcadeServiceModule] = []
 var _input: ArcadeInput = null
 var _marquee_mat: StandardMaterial3D = null
 ## The slots a game's art hangs in (gen_arcade_cabinet.gd `_build_art`); null on a scene baked before them.
@@ -79,6 +80,7 @@ func _collect_modules() -> void:
 	_controls.clear()
 	_coins.clear()
 	_pedals.clear()
+	_services.clear()
 	_screen = null
 	_sockets = null
 	for n in find_children("*", "ArcadeModule", true, false):
@@ -86,6 +88,8 @@ func _collect_modules() -> void:
 		_modules.append(m)
 		if not known.has(m):
 			m.attach(self)
+			if m is ArcadeServiceModule:
+				(m as ArcadeServiceModule).pressed.connect(_on_service_pressed)
 		match m.kind:
 			ArcadeProfiles.KIND_SCREEN:
 				_screen = m as ArcadeScreenModule
@@ -101,6 +105,8 @@ func _collect_modules() -> void:
 				_coins.append(m as ArcadeCoinModule)
 			ArcadeProfiles.KIND_PEDAL:
 				_pedals.append(m as ArcadePedalModule)
+			ArcadeProfiles.KIND_SERVICE:
+				_services.append(m as ArcadeServiceModule)
 	_controls.sort_custom(func(a: ArcadeControlModule, b: ArcadeControlModule) -> bool: return a.player < b.player)
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
 	_marquee_mat = null
@@ -1187,6 +1193,16 @@ func apply_game_profile(profile: ArcadeGameProfile) -> void:
 		c.apply_profile(profile)
 	for door in _coins:
 		door.set_door_enabled(profile == null or door.player < profile.coin_doors())
+	# The TEST and SERVICE switches are there when MAME says the game reads one (or nothing is known of it).
+	for service in _services:
+		service.set_enabled(profile == null or not profile.known or profile.has_service())
+
+
+## A TEST or SERVICE switch was pressed in the compartment: the machine presses what the core calls it.
+func _on_service_pressed(which: StringName) -> void:
+	var host := get_parent()
+	if host != null and host.has_method("press_core_service"):
+		host.call("press_core_service", which)
 
 
 ## Ask the running core for its descriptors; the first answer settles it (they arrive during load).

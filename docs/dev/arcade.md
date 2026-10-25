@@ -674,7 +674,8 @@ follows the game; the input is never filtered**, so a cap hidden by a wrong gues
   `ArcadeGameTable` (28,701 romsets / 1,328 profiles from MAME 0.289, 299 KB as one string constant; a profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>`,
   kinds `joy twin stick paddle pedal gun touch dial ball btn other`, then since 2026-10-25 the attributes of the cabinet the game came in: `r` the
   monitor's rotation, `s` its screens, `g` its light guns, `t` its form, `o` a cockpit's roof, `f` a gun pedal, `a` one panel for alternating players,
-  `m` the tube's class; every clone tied to its parent (`sf2=sf2ua`, `sf2ce<sf2`); the lists and which of it is MAME's are in the
+  `v` the game reads a service / test switch (MAME's `<input service="yes">`: 14,977 of the 28,701 romsets, Silent Scope and Street Fighter II among them,
+  Time Crisis and Pac-Man not), `m` the tube's class; every clone tied to its parent (`sf2=sf2ua`, `sf2ce<sf2`); the lists and which of it is MAME's are in the
   script's docstring. `python Tools/arcade/gen_game_index.py mame0289.xml`, the XML from the release's `mame0289lx.zip`, checksum-verified against
   its SHA256SUMS). (2) The core's `SET_INPUT_DESCRIPTORS` through `Libretro.GetInputDescriptors()` (`[{port, device, index, id,
   description}]`; the C++ already stored them in `InputHandler::m_devices`, nothing read them). `RetroSystemModelArcadeCabinet._poll_descriptors` asks twice a second from power-on until the
@@ -885,6 +886,30 @@ panel changes); 2. more screens and panels and the cocktail table (107 multi-scr
 and tank on the driving seat (about 30); 4. striking (about 11, the most natural in VR); 5. rhythm (about 50 Bemani sets, each with its disk image and instrument);
 6. the hologram stage (Time Traveler, Holosseum: one floating-plane trick); 7. the body platforms (ski, board, boat, ride-on: the best fit, about 8 working); 8. fishing (3).
 Not verified: Silent Scope's scope screen, Lucky & Wild's guns (light or positional), Desert Tank's, Jet Wave's and Ski Champ's controls, Hang Pilot's second screen.
+
+## Service switches (2026-10-25)
+
+**TEST and SERVICE stand in the compartment, on the side opposite the power switch** (`ArcadeServiceModule`, kind `service`, baked with every
+cabinet; the module contract grew one kind, additive as the contract says). Every JAMMA cabinet had them, inside the coin door or on a bracket in
+the cabinet: TEST toggles the game's own operator menu (a Silent Scope cabinet wants it to set the scope up) and SERVICE puts a credit in without a
+coin. They are VRButtons that stand up out of the compartment's floor as the power switch does (at x -0.22 and -0.12 against the power switch's +0.17), so a
+hand or a laser reaches them from above once the door is open; a small bracket carries them and a legend lies flat in front of each.
+
+- **When they are there.** MAME says whether the game reads a service switch: `<input service="yes">` in `-listxml`, the table's `v`
+  (`ArcadeGameProfile.has_service`). A game that reads none has them taken away and out of the pointer's reach
+  (`ArcadeServiceModule.set_enabled`, from `apply_game_profile`, as an unused coin door is); no game, or one the table does not know, shows both.
+  MAME's `tilt` is not a switch a player works (a pendulum in the cabinet) and is not built.
+- **What a press does** (`RetroSystem.press_core_service`, then `ArcadeServiceKeys`). **What the core calls it is believed over a guess**: the
+  descriptors (`Libretro.GetInputDescriptors`) are searched for words that say test (`Test`, `Diagnostic`, `Service Mode`) or service (`Service`,
+  `Service 1`, which are never the test input), joypad ids and keyboard keys only. A pad id is held on its port for 0.12 s through the cabinet's input
+  (`ArcadeInput.tap_pad_bit`, so a gun port gets it too); a key is tapped through the same path the DIP screen's keys take (`_tap_core_keys`, netplay-aware).
+  A core that names nothing gets MAME's own keys: F2 (`IPT_SERVICE`, Service Mode) and 9 (`IPT_SERVICE1`). No core running, nothing is pressed.
+- **NEVER RUN AGAINST A CORE here** (the sandbox has no core and no ROM). Measured elsewhere in this file: FBNeo does nothing visible on F2 on dino and its pad
+  descriptors for sf2 do not include a service input (`arcade_cabinet_probe`'s recorded lists end at the six buttons and the directions); whether it names the
+  service input on a key descriptor, and what Silent Scope does with F2 under MAME, are OWED to a real run with `Tools/cores/arcade_descriptors_probe`.
+- Tests: `arcade_form_tests service/` (the flag for Silent Scope, Street Fighter II, Time Crisis, Pac-Man and an unknown romset; the descriptor lookup; the
+  switches on the other side of the compartment from the power switch, on its floor; there for Silent Scope, gone for Time Crisis and back for the next; F2 and 9 with
+  nothing named, a pad id and a key when the core names them, a tap that lets go; nothing with no core). Each case was broken and watched go red.
 
 ## The pedal (2026-10-25)
 

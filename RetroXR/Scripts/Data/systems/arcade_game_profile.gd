@@ -201,6 +201,12 @@ func gun_pedal() -> bool:
 	return known and attrs.has("f")
 
 
+## The game reads a service / test switch (MAME's `<input service="yes">`, the table's `v`): the cabinet shows the
+## TEST and SERVICE switches in its compartment (ArcadeServiceModule), and takes them away for a game that reads none.
+func has_service() -> bool:
+	return known and attrs.has("v")
+
+
 ## A driving cockpit with a roof over the seat.
 func has_roof() -> bool:
 	return known and attrs.has("o")
