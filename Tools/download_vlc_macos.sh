@@ -16,8 +16,8 @@
 # runs it once before opening the project.
 #
 # VideoLAN ships libVLC inside the ordinary VLC.app rather than as an SDK, so
-# this mounts the universal .dmg and takes the two libraries and the plugin
-# categories the Windows tree keeps (RetroXR/vlc-godot/plugins/README.md). It is
+# this mounts the universal .dmg and takes the two libraries and the plugins the
+# Windows tree keeps (RetroXR/vlc-godot/plugins/README.md), by name. It is
 # the same VLC release as the vendored Windows and header files, so one bump
 # moves all three.
 #
@@ -34,13 +34,12 @@ DMG="vlc-$VLC_VERSION-universal.dmg"
 DMG_SHA256="56ee657c3aaf5c71b4ab7d6e4f4a77f6eca54633e0bf42a93b8116eb1d1f6ec9"
 URL="https://download.videolan.org/pub/videolan/vlc/$VLC_VERSION/macosx/$DMG"
 
-# The categories the Windows tree keeps: what the VCR, the DVD player and the
-# audio decks decode with, and nothing of VLC's own interface, Lua or streaming.
-CATEGORIES=(access audio_filter audio_output codec demux misc packetizer
-            stream_filter video_chroma video_filter video_output)
-
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEST="$REPO/RetroXR/vlc-godot/macos"
+# The committed Windows tree is the list of plugins to take: what the VCR, the
+# DVD player and the audio decks decode with, and nothing of VLC's own
+# interface, Lua or streaming.
+WIN_PLUGINS="$REPO/RetroXR/vlc-godot/plugins"
 
 die() { printf '%s\n' "error: $*" >&2; exit 1; }
 note() { printf '%s\n' "$*"; }
@@ -90,16 +89,26 @@ rm -rf "$DEST"
 mkdir -p "$DEST/plugins"
 # -L: VLC.app links libvlc.dylib -> libvlc.5.dylib; the copy is the file itself.
 cp -L "$src/lib/libvlc.dylib" "$src/lib/libvlccore.dylib" "$DEST/"
-for cat in "${CATEGORIES[@]}"; do
-    if [[ -d "$src/plugins/$cat" ]]; then
-        cp -RL "$src/plugins/$cat" "$DEST/plugins/"
+# VLC.app keeps its plugins flat, with no category folders. Take the ones the
+# Windows tree ships, by name (codec/libavcodec_plugin.dll is
+# libavcodec_plugin.dylib), into the same categories: both platforms then decode
+# with the same set, laid out the same way.
+missing=()
+while IFS= read -r dll; do
+    rel="${dll#"$WIN_PLUGINS/"}"
+    cat="$(dirname "$rel")"
+    name="$(basename "$rel" .dll).dylib"
+    found="$(find "$src/plugins" -name "$name" -type f | head -1)"
+    if [[ -n "$found" ]]; then
+        mkdir -p "$DEST/plugins/$cat"
+        cp -L "$found" "$DEST/plugins/$cat/"
     else
-        note "  (no $cat plugins in this VLC)"
+        missing+=("$cat/$name")
     fi
-done
-# Older VLCs keep the plugins flat; fail loudly rather than ship an empty tree.
+done < <(find "$WIN_PLUGINS" -name '*.dll' -type f | sort)
 count="$(find "$DEST/plugins" -name '*.dylib' | wc -l | tr -d ' ')"
-[[ "$count" -gt 50 ]] || die "only $count plugins found under $src/plugins"
+[[ ${#missing[@]} -eq 0 ]] || note "  not in this VLC for macOS (${#missing[@]}): ${missing[*]}"
+[[ "$count" -gt 50 ]] || die "only $count of the Windows tree's plugins found under $src/plugins"
 # The plugin cache lists VLC.app's whole set by path and size, and libVLC
 # rescans when it does not match; leaving it out costs one scan at startup.
 rm -f "$DEST/plugins/plugins.dat"
