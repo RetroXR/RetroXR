@@ -144,6 +144,36 @@ def run_one(name: str, subdir: str, platform: str, arch: str, target: str,
                      scons, env, jobs, extra)
 
 
+## A release export ships each extension's library under the name it was built
+## with, so the name a player sees in the game's folder is decided here. A build
+## names its library for its platform, target and arch, so that every build can
+## share the project folder; the release one is then copied to the plain name
+## the .gdextension files give release exports (vlc_godot.dll, libvlc_godot.so,
+## libvlc_godot.dylib). Debug and Android builds keep the long names: no player
+## sees them, and an Android and a Linux release are both .so. macOS ships one
+## universal library, made here once both arches are built.
+def release_names(out: Path, platform: str, arch: str) -> list[str]:
+    made: list[str] = []
+    if platform in ("windows", "linux"):
+        middle = f".{platform}.template_release.{arch}"
+        ext = ".dll" if platform == "windows" else ".so"
+        for built in sorted(out.glob(f"*{middle}{ext}")):
+            plain = out / built.name.replace(middle, "")
+            shutil.copy2(built, plain)
+            made.append(plain.name)
+    elif platform == "macos":
+        middle = ".macos.template_release."
+        for arm in sorted(out.glob(f"*{middle}arm64.dylib")):
+            x64 = arm.with_name(arm.name.replace("arm64.dylib", "x86_64.dylib"))
+            if not x64.is_file():
+                continue
+            plain = out / arm.name.replace(middle + "arm64", "")
+            subprocess.run(["lipo", "-create", str(arm), str(x64), "-output", str(plain)],
+                           check=True)
+            made.append(plain.name)
+    return made
+
+
 def to_wsl_path(p: Path) -> str:
     """C:\\Users\\x\\repo -> /mnt/c/Users/x/repo"""
     s = str(p).replace("\\", "/")
@@ -280,10 +310,13 @@ def main() -> int:
             continue
 
         extension_args = [profile_arg, "build_library=no", *args.scons_args]
-        for name, subdir, _out, _plats in exts:
+        for name, subdir, out, _plats in exts:
             ok, secs = run_one(name, subdir, args.platform, arch, target,
                                scons, env, args.jobs, extension_args)
             results.append((name, target, ok, secs))
+            if ok and target == "template_release":
+                for plain in release_names(REPO / out, args.platform, arch):
+                    print(f"    release name: {out}/{plain}", flush=True)
 
     print("\n" + "=" * 62)
     for name, target, ok, secs in results:

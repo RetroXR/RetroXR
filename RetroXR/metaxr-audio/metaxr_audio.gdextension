@@ -7,7 +7,7 @@ reloadable = true
 [libraries]
 
 windows.debug.x86_64 = "metaxr-audio.windows.template_debug.x86_64.dll"
-windows.release.x86_64 = "metaxr-audio.windows.template_release.x86_64.dll"
+windows.release.x86_64 = "metaxr-audio.dll"
 android.debug.arm64 = "libmetaxr-audio.android.template_debug.arm64.so"
 android.release.arm64 = "libmetaxr-audio.android.template_release.arm64.so"
 

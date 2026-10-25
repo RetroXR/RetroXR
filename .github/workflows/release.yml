@@ -741,6 +741,11 @@ jobs:
             if patchelf --print-needed "$so" | grep -qx 'libdl.so'; then
               patchelf --replace-needed libdl.so libdl.so.2 "$so"
               echo "patched: $so"
+              # build.py copied the release one to the plain name exports ship.
+              case "$so" in *.linux.template_release.arm64.so)
+                cp "$so" "${so%.linux.template_release.arm64.so}.so"
+                echo "  and its release name ${so%.linux.template_release.arm64.so}.so" ;;
+              esac
               found=1
             fi
           done < <(find RetroXR -name '*.linux.template_*.arm64.so' -type f)
@@ -982,6 +987,12 @@ jobs:
             echo "lipo: ${base}.universal.dylib"
           done
           file RetroXR/*/lib*.macos.template_release.universal.dylib
+          # What a release export ships: the universal library under its plain
+          # name, which build.py lipo'd once both arches were built.
+          for u in RetroXR/*/lib*.macos.template_release.universal.dylib; do
+            plain="${u%.macos.template_release.universal.dylib}.dylib"
+            [ -f "$plain" ] || { echo "::error::build.py made no $plain"; exit 1; }
+          done
 
       - name: Install Godot ${{ env.GODOT_VERSION }} and its export templates
         shell: bash
@@ -1050,7 +1061,7 @@ jobs:
           for f in libvlc.dylib libvlccore.dylib plugins/codec; do
             [ -e "$fw/$f" ] || { echo "::error::the app has no Contents/Frameworks/$f"; ls "$fw"; exit 1; }
           done
-          otool -L "$fw"/libvlc_godot.macos.template_release.universal.dylib | grep vlc
+          otool -L "$fw"/libvlc_godot.dylib | grep vlc
           command -v ffmpeg >/dev/null || brew install --quiet ffmpeg
           ffmpeg -loglevel error -f lavfi -i testsrc=duration=3:size=320x240:rate=30 \
             -f lavfi -i sine=duration=3 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "$RUNNER_TEMP/clip.mp4"

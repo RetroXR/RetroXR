@@ -143,6 +143,28 @@ RetroXR/metaxr-audio/*metaxr-audio.*.so
 RetroXR/surround-godot/*surround_godot.*.dll
 RetroXR/surround-godot/*surround_godot.*.so
 RetroXR/surround-godot/*surround_godot.*.dylib
+# The plain names release exports ship (Tools/build.py release_names).
+RetroXR/libretro-godot/*libretro_godot.dll
+RetroXR/libretro-godot/*libretro_godot.so
+RetroXR/libretro-godot/*libretro_godot.dylib
+RetroXR/archive-godot/*archive_godot.dll
+RetroXR/archive-godot/*archive_godot.so
+RetroXR/archive-godot/*archive_godot.dylib
+RetroXR/verlet-rope/*verlet_rope.dll
+RetroXR/verlet-rope/*verlet_rope.so
+RetroXR/verlet-rope/*verlet_rope.dylib
+RetroXR/vlc-godot/*vlc_godot.dll
+RetroXR/vlc-godot/*vlc_godot.so
+RetroXR/vlc-godot/*vlc_godot.*.dylib
+RetroXR/vlc-godot/*vlc_godot.dylib
+RetroXR/godot-pdfium/*godot-pdfium.dll
+RetroXR/godot-pdfium/*godot-pdfium.so
+RetroXR/godot-pdfium/*godot-pdfium.dylib
+RetroXR/metaxr-audio/*metaxr-audio.dll
+RetroXR/metaxr-audio/*metaxr-audio.so
+RetroXR/surround-godot/*surround_godot.dll
+RetroXR/surround-godot/*surround_godot.so
+RetroXR/surround-godot/*surround_godot.dylib
 
 # Windows ReplaceFile() backups. The Win32 call that swaps a file in place leaves
 # the old copy behind as `~<name>~RF<hex>.TMP`, and something re-writes the OpenXR
