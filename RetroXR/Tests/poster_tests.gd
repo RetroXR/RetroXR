@@ -61,6 +61,8 @@ func _ready() -> void:
 		await _test_conform()
 	if _want("menu"):
 		await _test_menu()
+	if _want("nostick"):
+		await _test_nostick()
 	if _want("persist"):
 		await _test_persist()
 
@@ -212,6 +214,7 @@ func _test_persist() -> void:
 	p.global_transform = Transform3D(Basis(), Vector3(0.4, 1.5, -1.88))
 	await _release(p)
 	_ok(p.is_stuck(), "persist/stuck before saving")
+	p.set_sticks(false)
 
 	_ok(sp.save_slot(self, SLOT), "persist/saved")
 
@@ -227,6 +230,7 @@ func _test_persist() -> void:
 	_ok(str(entry.get("image_path", "")) == _img_path, "persist/image_path recorded")
 	_ok(absf(float(entry.get("size_scale", 0.0)) - 1.75) < 0.001, "persist/size recorded")
 	_ok(bool(entry.get("stuck", false)), "persist/stuck recorded")
+	_ok(entry.has("sticks") and not bool(entry["sticks"]), "persist/sticking off recorded")
 
 	sp.clear_scene(self)
 	for i in range(20):
@@ -248,6 +252,7 @@ func _test_persist() -> void:
 		_ok(absf(back.get_sheet_size().x - 0.875) < 0.002,
 			"persist/dimensions re-derived from the restored size")
 		_ok(back.is_stuck(), "persist/came back stuck to the wall")
+		_ok(not back.sticks, "persist/sticking off came back")
 		# The restore hands gravity back to everything it froze; a stuck poster
 		# must not take that as permission to fall.
 		var settled: Vector3 = back.global_position
@@ -500,6 +505,63 @@ func _test_menu() -> void:
 	_ok(not p.is_stuck(), "menu/peeling an unstuck poster is safe")
 
 	p.queue_free()
+	await get_tree().process_frame
+
+
+# ── Sticking switched off ─────────────────────────────────────────────────────
+
+func _test_nostick() -> void:
+	var wall := _make_wall(Vector3(0, 1.5, -2.0))
+	await get_tree().physics_frame
+
+	# Held right up against the wall, aimed at it: everything that would stick it.
+	var p := _make_poster()
+	await get_tree().process_frame
+	p.set_sticks(false)
+	p.global_transform = Transform3D(Basis(), Vector3(0, 1.5, -1.88))
+	p.set_aim_direction(Vector3(0, 0, -1))
+	p.freeze = true
+	for i in range(4):
+		await get_tree().process_frame
+	_ok(not p.is_previewing(), "nostick/no landing preview while held")
+	p.freeze = false
+	for i in range(14):
+		await get_tree().physics_frame
+	_ok(not p.is_stuck(), "nostick/let go against a wall, it does not stick")
+	_ok(p.get_parent() != wall, "nostick/and is not riding the wall")
+	_ok(not p.freeze, "nostick/it is a loose body, free to fall")
+
+	# Switched off while already on a wall: it stays there; only the next release
+	# is affected.
+	var q := _make_poster()
+	await get_tree().process_frame
+	q.global_transform = Transform3D(Basis(), Vector3(0.8, 1.5, -1.88))
+	await _release(q)
+	_ok(q.is_stuck(), "nostick/control: the same release sticks with it on")
+	q.set_sticks(false)
+	for i in range(10):
+		await get_tree().physics_frame
+	_ok(q.is_stuck(), "nostick/switching it off leaves a stuck poster where it is")
+
+	# The menu's row reflects the setting and drives it.
+	var ui := (load("res://Scenes/UI/poster_options_2d.tscn") as PackedScene) 		.instantiate() as PosterOptions2D
+	add_child(ui)
+	await get_tree().process_frame
+	var got: Array = []
+	ui.sticks_toggled.connect(func(on: bool) -> void: got.append(on))
+	ui.populate(0, 1.0, false, false)
+	_ok(got.is_empty(), "nostick/populate fires nothing")
+	var on_btn: Button = ui._stick_btns[0]
+	var off_btn: Button = ui._stick_btns[1]
+	_ok(off_btn.button_pressed and not on_btn.button_pressed, "nostick/menu shows Off")
+	_ok(not on_btn.disabled, "nostick/the row is live on an unstuck poster")
+	on_btn.pressed.emit()
+	_eq(got, [true], "nostick/menu On asks for sticking back")
+	ui.queue_free()
+
+	p.queue_free()
+	q.queue_free()
+	wall.queue_free()
 	await get_tree().process_frame
 
 

@@ -58,6 +58,18 @@ const EMISSION_ENERGY := 0.1
 			if is_inside_tree() and fit_mode == FitMode.CONFORM:
 				apply_fit()
 
+## Whether letting go sticks it to the surface it is against. Off, it is a loose
+## sheet that drops where it is let go — for a poster leant on a shelf or laid on a
+## desk, which sticking would otherwise take off to the nearest wall. Default on:
+## a wall is where most posters go.
+@export var sticks: bool = true:
+	set(value):
+		sticks = value
+		if _stick != null:
+			_stick.enabled = value
+		if not value:
+			_end_preview()
+
 @onready var _surface: Node3D = $Surface
 @onready var _flat_mesh: MeshInstance3D = $Surface/FlatMesh
 @onready var _body_shape: CollisionShape3D = $CollisionShape3D
@@ -91,6 +103,7 @@ func _ready() -> void:
 	add_to_group("poster")
 	_stick = SurfaceStick.attach(self, _ray)
 	_stick.roll = deg_to_rad(roll_degrees)
+	_stick.enabled = sticks
 	# Keep the exported angle in step when a landing adopts one, so the menu reads
 	# right and the save records what is actually on the wall.
 	_stick.roll_inherited.connect(func(deg: float) -> void: roll_degrees = deg)
@@ -298,7 +311,7 @@ func _process(delta: float) -> void:
 	# `freeze` is the predicate every hold sets — hand, snap zone and beam alike —
 	# so this shows the landing for a hand placement too, and it does not depend
 	# on a controller being found.
-	_update_preview(delta, freeze and not is_stuck())
+	_update_preview(delta, sticks and freeze and not is_stuck())
 	_desktop_resize(delta)
 	_refresh_outline()
 	var rotator := _rotating_controller_for(holder)
@@ -365,6 +378,14 @@ func apply_fit() -> void:
 		return
 	if fit_mode == FitMode.CONFORM:
 		_build_conform()
+
+
+func set_sticks(on: bool) -> void:
+	if on == sticks:
+		return
+	sticks = on
+	print("[Poster] %s: sticking %s%s" % [name, "on" if on else "off",
+		" (stays where it is until picked up)" if is_stuck() and not on else ""])
 
 
 func set_fit_mode(mode: FitMode) -> void:

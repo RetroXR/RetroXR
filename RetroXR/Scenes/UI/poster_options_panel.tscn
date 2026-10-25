@@ -8,8 +8,8 @@
 script = ExtResource("1_panelscript")
 
 [node name="PosterOptionsViewport" parent="." instance=ExtResource("2_viewport2d3d")]
-screen_size = Vector2(0.42, 0.24)
+screen_size = Vector2(0.42, 0.3)
 scene = ExtResource("3_posteropts2d")
-viewport_size = Vector2(420, 240)
+viewport_size = Vector2(420, 300)
 transparent = 1
 unshaded = true

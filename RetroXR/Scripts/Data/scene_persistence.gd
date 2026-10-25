@@ -55,7 +55,7 @@ const _NUMBER_FIELDS := [
 	"cord_length",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
-	"locked", "hardback",
+	"locked", "hardback", "sticks",
 	# A mixed shell colour forced as metal flake -- see RetroCartridge.shell_flake.
 	"shell_flake"]
 const _REFERENCE_FIELDS := [
@@ -2446,6 +2446,9 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 			"roll": poster.roll_degrees,
 			"stuck": poster.is_stuck(),
 		})
+		# Only when switched off, so every other poster saves as it did.
+		if not poster.sticks:
+			entry["sticks"] = false
 		# Only on a Game Boy Printer's print, so every other poster saves as it did.
 		if poster.printout:
 			entry["printout"] = true
@@ -3107,6 +3110,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				poster.image_path = str(data.get("image_path", ""))
 				poster.stuck_from_save = bool(data.get("stuck", false))
 				poster.printout = bool(data.get("printout", false))
+				poster.sticks = bool(data.get("sticks", true))
 				obj = poster
 			"book":
 				var book := BOOK_SCENE.instantiate() as PDFBook

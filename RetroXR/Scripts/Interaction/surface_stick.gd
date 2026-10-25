@@ -67,6 +67,11 @@ var aim_reach := AIM_REACH
 ## up to world-up, which is right for a first placement and wrong as the only
 ## option — a poster hung on a slant is a deliberate look.
 var roll := 0.0
+## Whether letting go sticks it at all. Off, a release just drops the body as the
+## loose object it is. Only the RELEASE asks: a restore still re-parks a sheet that
+## was saved stuck, and switching this off leaves one already on a wall where it is
+## until it is next picked up.
+var enabled := true
 
 
 static func attach(body: RigidBody3D, ray: RayCast3D) -> SurfaceStick:
@@ -98,6 +103,8 @@ func _physics_process(_delta: float) -> void:
 		return
 	if _was_held:
 		_was_held = false
+		if not enabled:
+			return
 		# Deferred: the release restores a freeze snapshot and applies throw
 		# velocity, and both would land on top of anything done here.
 		try_stick.call_deferred()

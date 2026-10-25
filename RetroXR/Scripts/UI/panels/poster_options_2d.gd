@@ -6,6 +6,7 @@
 ##   fit_selected(mode)      — Flat / Conform / Decal picked
 ##   size_changed(value)     — slider moved (fires live while dragging)
 ##   size_committed(value)   — slider drag finished
+##   sticks_toggled(on)      — stick to surfaces when let go, or not
 ##   peel_requested          — take it off the surface
 ##   close_requested         — user pressed ✕
 class_name PosterOptions2D
@@ -15,6 +16,7 @@ signal fit_selected(mode: int)
 signal size_changed(value: float)
 signal size_committed(value: float)
 signal rotate_requested(clockwise: bool)
+signal sticks_toggled(on: bool)
 signal peel_requested
 signal close_requested
 
@@ -30,6 +32,7 @@ var _size_slider: HSlider = null
 var _size_val: Label = null
 var _fit_buttons: Array[Button] = []
 var _peel_btn: Button = null
+var _stick_btns: Array[Button] = []
 var _rot_btns: Array[Button] = []
 var _suppress_signal := false
 
@@ -123,6 +126,31 @@ func _build_ui() -> void:
 		rot_row.add_child(rb)
 		_rot_btns.append(rb)
 
+	# Whether letting go sticks it. Live whether or not it is stuck now: it is about
+	# the NEXT release, so a poster in the hand is exactly when it is wanted.
+	var stick_row := HBoxContainer.new()
+	stick_row.add_theme_constant_override("separation", 6)
+	vbox.add_child(stick_row)
+	var stick_lbl := Label.new()
+	stick_lbl.text = "Stick"
+	stick_lbl.add_theme_color_override("font_color", COLOR_ROW)
+	stick_lbl.add_theme_font_size_override("font_size", 18)
+	stick_lbl.custom_minimum_size = Vector2(52, 0)
+	stick_row.add_child(stick_lbl)
+	for spec: Array in [["On", true], ["Off", false]]:
+		var sb := Button.new()
+		sb.text = spec[0]
+		sb.toggle_mode = true
+		sb.custom_minimum_size = Vector2(0, 38)
+		sb.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var on: bool = spec[1]
+		sb.pressed.connect(func() -> void:
+			if not _suppress_signal:
+				sticks_toggled.emit(on)
+		)
+		stick_row.add_child(sb)
+		_stick_btns.append(sb)
+
 	_peel_btn = Button.new()
 	_peel_btn.text = "Peel off"
 	_peel_btn.custom_minimum_size = Vector2(0, 40)
@@ -134,7 +162,8 @@ func _build_ui() -> void:
 ##
 ## `stuck` greys the rows that only mean something on a surface: a poster in the
 ## hand has nothing to conform to and nothing to peel off.
-func populate(fit_mode: int, size_scale: float, stuck: bool) -> void:
+func populate(fit_mode: int, size_scale: float, stuck: bool,
+		sticks: bool = true) -> void:
 	_suppress_signal = true
 	for i in range(_fit_buttons.size()):
 		var b := _fit_buttons[i]
@@ -144,6 +173,11 @@ func populate(fit_mode: int, size_scale: float, stuck: bool) -> void:
 			COLOR_ON if i == fit_mode else COLOR_ROW)
 	_size_slider.value = clampf(size_scale, MIN_SIZE, MAX_SIZE)
 	_size_val.text = "%.2f×" % _size_slider.value
+	for i in range(_stick_btns.size()):
+		var on := i == 0
+		_stick_btns[i].button_pressed = (on == sticks)
+		_stick_btns[i].add_theme_color_override("font_color",
+			COLOR_ON if on == sticks else COLOR_ROW)
 	_peel_btn.disabled = not stuck
 	for rb: Button in _rot_btns:
 		rb.disabled = not stuck

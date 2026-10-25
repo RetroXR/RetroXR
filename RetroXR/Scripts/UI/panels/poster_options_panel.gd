@@ -54,6 +54,7 @@ func _ensure_ui_connected() -> void:
 	ui.size_committed.connect(_on_size_committed)
 	ui.rotate_requested.connect(_on_rotate)
 	ui.peel_requested.connect(_on_peel)
+	ui.sticks_toggled.connect(_on_sticks_toggled)
 	ui.close_requested.connect(hide_panel)
 	_ui_connected = true
 
@@ -65,7 +66,8 @@ func _populate() -> void:
 	if not ui:
 		call_deferred("_populate")
 		return
-	ui.populate(int(_poster.fit_mode), _poster.size_scale, _poster.is_stuck())
+	ui.populate(int(_poster.fit_mode), _poster.size_scale, _poster.is_stuck(),
+		_poster.sticks)
 
 
 func _on_fit_selected(mode: int) -> void:
@@ -94,6 +96,12 @@ func _on_rotate(clockwise: bool) -> void:
 			_poster.rotate_cw()
 		else:
 			_poster.rotate_ccw()
+
+
+func _on_sticks_toggled(on: bool) -> void:
+	if _poster and is_instance_valid(_poster):
+		_poster.set_sticks(on)
+		_populate()
 
 
 func _on_peel() -> void:
