@@ -119,10 +119,17 @@ only picks the NAME the tile wears, from Options > Systems > Console Names.
 - **Dropdown rows are `[label, id]`; `REGIONS` rows are `[id, label]`.** Passed through
   unswapped, the list read `us`/`eu`/`jp` and every pick was refused -- the dropdown did
   nothing. `game_search_tests rows/` builds the real list and checks each id.
-- **Netplay**: the fallback is each peer's own, so an unknown-region SNES ROM can be an SFC
-  body on one peer and a Type A on the other (different sizes). Cosmetic; not on the wire.
+- **Netplay agrees through the pin.** A session spawn and a late joiner's snapshot are the
+  same `ScenePersistence` entries a save writes, and the cartridge pins in `_ready`, before
+  `object_sync.local_spawn` serializes it -- so the SPAWNING peer's market rides in the entry
+  and every peer builds that body, whatever its own region. Before, each peer fell back to
+  its own: an SFC shell on one, a Type A (another size) on the next. `game_search_tests
+  wire/` does the round trip, with the field stripped as its control. What it does not
+  cover: a peer whose copy of the ROM NAMES a region the spawner's did not (a different file
+  name or scrape) uses its own ROM's market, as known-region cartridges always have.
 - The base game ships no regional CONSOLE or controller models (`imported-assets/consoles`
   has none); the regional ones are the mods' variants above.
 - **Not yet**: a machine already in the room keeps its nameplate until respawned
-  (`system.gd` reads the name at spawn); the scraper's `region_priorities` stays US-first
-  whatever the region; and mods cannot add regional names (`NAMES` has no overlay).
+  (`system.gd` reads the name at spawn), and mods cannot add regional names (`NAMES` has
+  no overlay). The scraper's Region Priority (Options > Scraper) is a separate setting by
+  design: it orders which region's ART a scrape picks, and does not follow this one.

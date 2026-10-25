@@ -11,7 +11,7 @@ extends Node
 
 ## Cases in this file, NOT counting the guard below -- a case that never RAN is
 ## not a case that passed.
-const EXPECTED_CASES := 101
+const EXPECTED_CASES := 106
 
 var _passed := 0
 var _failed := 0
@@ -32,6 +32,7 @@ func _ready() -> void:
 	_group_cart_fallback()
 	_group_options_pages()
 	_group_region_objects()
+	_group_cart_on_the_wire()
 	_group_index()
 	_group_search_all()
 
@@ -307,6 +308,60 @@ func _group_region_objects() -> void:
 	RegionalNames.test_region = ""
 	_eq(ExpansionCatalog.display_label_of("sega_32x"), "32X", "addon/Original keeps the label")
 	_eq(SegaCdCardFormat.new().label(), "Sega CD", "addon/...and the card's name")
+	RegionalNames.test_region = was
+
+
+# ── a session agrees on an unknown-region cartridge ───────────────────────────
+
+## A netplay spawn and a late joiner's snapshot are ScenePersistence entries, the
+## same ones a room save writes, so the pin travels in the entry: the peer that
+## spawned the cartridge decides its body, and every other peer -- whatever its
+## own region -- builds that body. Before the pin each peer fell back to its own
+## region, so one saw a Super Famicom shell and another a Type A, different sizes.
+func _group_cart_on_the_wire() -> void:
+	var was := RegionalNames.test_region
+	var sp := ScenePersistence.new("arcade")
+	var unknown := "/nonexistent/Some Game.sfc"
+
+	# The spawning peer is Japanese: its cartridge pins "jp" as it enters the tree,
+	# before object_sync's local_spawn serializes it.
+	RegionalNames.test_region = "jp"
+	var cart := ScenePersistence.CART_SCENE.instantiate() as RetroCartridge
+	cart.systemid = "snes"
+	cart.rom_path = unknown
+	cart.freeze = true
+	add_child(cart)
+	var entry := sp._serialize_node(cart, 0, {})
+	_eq(str(entry.get("fallback_market", "")), "jp", "wire/the spawn entry carries the spawner's pin")
+	remove_child(cart)
+	cart.free()
+
+	# The receiving peer is American.
+	RegionalNames.test_region = "us"
+	var got := sp.instantiate_objects(self, [entry])
+	var peer: RetroCartridge = null
+	for id: Variant in got:
+		peer = got[id] as RetroCartridge
+	_ok(peer != null, "wire/the receiving peer builds the cartridge")
+	if peer != null:
+		_eq(peer.fallback_market, "jp", "wire/...keeping the spawner's pin, not its own region")
+		_eq(peer._body_model(), SnesCartShell.BODY_SFC, "wire/...and so the spawner's body")
+		remove_child(peer)
+		peer.free()
+
+	# Control: the same entry without the field is what every peer did before --
+	# fall back to its own region, which here is a different body.
+	var bare := entry.duplicate(true)
+	bare.erase("fallback_market")
+	got = sp.instantiate_objects(self, [bare])
+	var own: RetroCartridge = null
+	for id: Variant in got:
+		own = got[id] as RetroCartridge
+	_eq(own._body_model() if own != null else "", SnesCartShell.BODY_TYPE_A,
+		"wire/without the pin the peer used its own region (the old mismatch)")
+	if own != null:
+		remove_child(own)
+		own.free()
 	RegionalNames.test_region = was
 
 
