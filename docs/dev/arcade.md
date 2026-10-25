@@ -564,7 +564,7 @@ work, most of all on a Quest. Each cabinet has its own say over it (System tab >
   An arcade game has no save to lose.
 - **What it costs** (`ArcadeAttract.plan`, every 0.15 s for all attracting cabinets; nothing runs for a cabinet that is off or that the option does not apply to -- the node only exists once a cabinet has attracted):
   **EVERY screen the player can see plays its video** (nearest first, up to a safety cap `visible_cap()`: 16 desktop, 8 Android), and a screen out of view is not shown but keeps playing for its SOUND while within
-  hearing range (`MAX_AUDIO` 15 m, a metre of hysteresis, up to `audio_only_cap()`: 4 desktop, 2 Android), then holds its still. A screen in view uploads a frame, one out of view does not
+  hearing range (`MAX_AUDIO` 15 m, a metre of hysteresis, up to `audio_only_cap()`: 4 desktop, 2 Android), then holds its still. It plays at `VIDEO_VOLUME` 70% (about -3 dB: at 100 it covered the cabinets that were running). A screen in view uploads a frame, one out of view does not
   (`ArcadeAttract.screen_in_view`, asked EVERY frame for every cabinet with a video: the glass's four corners go through the real projection of each EYE -- a headset's two, asymmetric and far wider than a flat screen's, read from `XRServer.primary_interface`;
   the camera's own on a desktop -- and their box is tested against the picture, so a glass wider than the view, or half out of it, counts as seen; it must also face the head).
   **The first Quest build gave ONE video to the NEAREST cabinet** (`VIDEO_BUDGET_ANDROID` 1), so of seven cabinets in view only the closest ran (Metal Slug, not the one in front). Seen is what decides now, not nearest.

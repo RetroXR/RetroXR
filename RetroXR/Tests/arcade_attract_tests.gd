@@ -322,6 +322,8 @@ func _group_rules() -> void:
 	_ok(far_seen == PackedInt32Array([0]), "rules: a far screen that is in view still plays")
 	_ok(ArcadeAttract.plan(PackedFloat32Array(), [], [], 16, 4).is_empty(), "rules: no cabinets, nothing to play")
 
+	_ok(ArcadeAttract.VIDEO_VOLUME >= 50 and ArcadeAttract.VIDEO_VOLUME <= 85,
+		"rules: the attract video plays a touch under its own level, so it does not cover the cabinets that are running (%d%%)" % ArcadeAttract.VIDEO_VOLUME)
 	_ok(ArcadeAttract.audio_tier(1.0) == ArcadeAttract.Tier.NEAR and ArcadeAttract.audio_tier(ArcadeAttract.MAX_AUDIO - 0.5) == ArcadeAttract.Tier.NEAR,
 		"rules: within hearing the sound is served in full, at every distance (no gulps)")
 	_ok(ArcadeAttract.audio_tier(ArcadeAttract.MAX_AUDIO) == ArcadeAttract.Tier.SILENT and ArcadeAttract.audio_tier(100.0) == ArcadeAttract.Tier.SILENT,

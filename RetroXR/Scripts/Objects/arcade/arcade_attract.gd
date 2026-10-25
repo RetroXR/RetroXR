@@ -35,6 +35,10 @@ const ARBITRATE_INTERVAL := 0.15
 ## cabinet at the edge must not pause and resume with every step).
 const MAX_AUDIO := 15.0
 const AUDIO_HYSTERESIS := 1.0
+## How loud a cabinet's video plays, percent of the video's own level (libVLC's scale): a touch under the
+## video as recorded (about -3 dB), because an attract video is mastered loud and covered the cabinets that
+## are actually running when both were heard at once.
+const VIDEO_VOLUME := 70
 ## Safety caps on simultaneous decodes. Every screen in view plays, so these only bite in a room with
 ## more cabinets in sight than a machine can decode; screens heard but not seen are far fewer.
 const VISIBLE_CAP_DESKTOP := 16
@@ -362,7 +366,7 @@ func _open_video(path: String) -> void:
 		push_warning("ArcadeAttract: VlcPlayer.open failed for %s" % path)
 		_stop_playback()
 		return
-	_vlc.set_volume(100)
+	_vlc.set_volume(VIDEO_VOLUME)
 	_vlc.play()
 	_has_video = true
 	_video_path = path
@@ -418,7 +422,7 @@ func _restart() -> void:
 	_opened_msec = Time.get_ticks_msec()
 	if _vlc.open(ProjectSettings.globalize_path(_video_path), false):
 		_vlc.play()
-		_vlc.set_volume(100)
+		_vlc.set_volume(VIDEO_VOLUME)
 		if _emitter != null:
 			_emitter.flush()
 
