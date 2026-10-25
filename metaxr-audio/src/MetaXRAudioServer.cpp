@@ -6,6 +6,7 @@
 #include <godot_cpp/classes/audio_server.hpp>
 #include <godot_cpp/classes/audio_stream_polyphonic.hpp>
 #include <godot_cpp/classes/engine.hpp>
+#include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/scene_tree.hpp>
 #include <godot_cpp/classes/window.hpp>
@@ -25,15 +26,19 @@ MetaXRAudioServer* MetaXRAudioServer::s_singleton = nullptr;
 
 namespace
 {
-/// Where the vendored native library sits once exported. res:// is inside the
-/// pck in an exported build, so the library has to be resolved through
-/// ProjectSettings::globalize_path, which yields a real filesystem path for
-/// files excluded from the pck (Windows) or unpacked into the APK's lib dir
-/// (Android, where the loader finds it by soname alone).
+/// Where the vendored native library sits. In the editor that is the project's
+/// metaxr-audio folder. An exported build has no res:// folder on disk, and
+/// globalize_path hands back a relative path there that names nothing: the
+/// export copies the library beside the executable (the dependencies in
+/// metaxr_audio.gdextension), or into the APK's lib dir on Android, where the
+/// loader finds it by soname alone.
 String NativeLibraryPath()
 {
 #if defined(_WIN32)
-    return ProjectSettings::get_singleton()->globalize_path("res://metaxr-audio/MetaXRAudioUnity.dll");
+    const String path = ProjectSettings::get_singleton()->globalize_path("res://metaxr-audio/MetaXRAudioUnity.dll");
+    if (!path.is_relative_path() && FileAccess::file_exists(path))
+        return path;
+    return OS::get_singleton()->get_executable_path().get_base_dir().path_join("MetaXRAudioUnity.dll");
 #elif defined(__ANDROID__)
     // Packed into the APK's lib/arm64-v8a by the [dependencies] block in the
     // .gdextension, so the dynamic loader resolves it by name.
