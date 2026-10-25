@@ -32,8 +32,6 @@ signal ignore_gravity_toggled(enabled: bool)
 signal screen_glow_toggled(enabled: bool)
 ## System-tab toggle (cabinets): wear the game's scraped art on the marquee and sides.
 signal cabinet_art_toggled(enabled: bool)
-## A cabinet that takes the shape of the game in its bay (RetroSystemModelArcadeCabinet.morph_to), or keeps its own.
-signal cabinet_shape_toggled(enabled: bool)
 ## The cabinet's own say over the arcade attract option (ArcadeAttract.OVERRIDE_*).
 signal attract_override_changed(mode: int)
 ## DIP tab (cabinets): open or shut the running core's own DIP screen on the game's screen.
@@ -89,8 +87,6 @@ var _dip_has_menu := false
 var _dip_powered := false
 var _dip_menu_open := false
 var _cabinet_art_check: VRToggle = null
-var _cabinet_shape_row: HBoxContainer = null
-var _cabinet_shape_check: VRToggle = null
 var _attract_row: HBoxContainer = null
 var _attract_button: Button = null
 var _attract_mode: int = 0
@@ -411,27 +407,6 @@ func _build_ui() -> void:
 		if not _suppress_signal:
 			cabinet_art_toggled.emit(on))
 	_cabinet_art_row.add_child(_cabinet_art_check)
-
-	# A cabinet's shape: the game's own cabinet (its panels, guns, cockpit or stage), or the one it was spawned as.
-	_cabinet_shape_row = HBoxContainer.new()
-	_cabinet_shape_row.custom_minimum_size = Vector2(0, 56)
-	_cabinet_shape_row.add_theme_constant_override("separation", 8)
-	_cabinet_shape_row.visible = false
-	sys_rows.add_child(_cabinet_shape_row)
-
-	var shape_lbl := Label.new()
-	shape_lbl.text = "Cabinet Shape"
-	shape_lbl.tooltip_text = "The cabinet takes the shape of the game in it: its panels, guns, cockpit or stage. Off keeps it as it is."
-	shape_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	shape_lbl.add_theme_font_size_override("font_size", 18)
-	shape_lbl.add_theme_color_override("font_color", COLOR_ROW)
-	shape_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_cabinet_shape_row.add_child(shape_lbl)
-
-	_cabinet_shape_check = VRToggle.create(true, func(on: bool):
-		if not _suppress_signal:
-			cabinet_shape_toggled.emit(on))
-	_cabinet_shape_row.add_child(_cabinet_shape_check)
 
 	# A cabinet's attract mode: follow the global pref, or force it on or off for this one.
 	_attract_row = HBoxContainer.new()
@@ -847,7 +822,7 @@ func populate_cores(choices: Array, selected: String, default_core: String) -> v
 func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		pad_guid: String = "", pad_ordinal: int = 0, volume: float = -1.0,
 		show_cabinet_art: bool = false, cabinet_art: bool = true,
-		attract_mode: int = -1, cabinet_shape: int = -1) -> void:
+		attract_mode: int = -1) -> void:
 	show_volume(volume)
 	_suppress_signal = true
 	var picker_changed := _show_pad_picker != show_video_out \
@@ -867,11 +842,6 @@ func populate_system(video_out: bool, show_video_out: bool, ignore_grav: bool,
 		_cabinet_art_row.visible = show_cabinet_art
 	if _cabinet_art_check:
 		_cabinet_art_check.button_pressed = cabinet_art
-	if _cabinet_shape_row:
-		# -1 hides the row (every machine but a cabinet that can take a game's shape).
-		_cabinet_shape_row.visible = cabinet_shape >= 0
-	if _cabinet_shape_check:
-		_cabinet_shape_check.button_pressed = cabinet_shape != 0
 	if _attract_row:
 		# -1 hides the row (every machine but a cabinet).
 		_attract_row.visible = attract_mode >= 0

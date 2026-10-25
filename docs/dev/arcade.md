@@ -693,7 +693,7 @@ follows the game; the input is never filtered**, so a cap hidden by a wrong gues
 - Tests: `arcade_tests game/` (profiles: table, descriptors in both flavours, the control leg of MAME's generic pad; cabinet: caps, panels, doors, labels, board out). Mutation-tested
   (`button_visible`/`panel_visible` forced true: 7 cases red). Picture: `arcade_cabinet_probe --shots=game` (windowed).
 - **Since 2026-10-25 the cabinet also takes the game's SHAPE** (its panels, guns, cockpit or stage, its monitor): "The cabinet takes the shape of the game" below. What this section
-  describes is still what a cabinet does inside its form, and all of it a cabinet does whose "Cabinet Shape" is off. The Quest is OWED: Android was not rebuilt, so `GetInputDescriptors`
+  describes is still what a cabinet does inside its form, and all of it a cabinet does that has no row to follow (a mod's, an unknown romset). The Quest is OWED: Android was not rebuilt, so `GetInputDescriptors`
   does not exist there until it is (the cabinet does not check `has_method`: rebuild both targets).
 
 ## Coins wait for the game; RETURN gives one back (2026-10-25)
@@ -791,13 +791,13 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   a stage with their own feet. Those parts are POINTER boxes (`FORM_BOXES_META`, aimed at they are the cabinet, to hold and carry) and the footprint
   (`FOOTPRINT_META`, a Rect2 in x/z).
 - **Pulling the board gives the cabinet its own form back.** A clone takes its parent's form (the table gives it the same key).
-- **System tab > "Cabinet Shape"** (`RetroSystem.cabinet_shape_enabled`, saved in the room as `cabinet_shape: false` ONLY when off): off keeps the
-  cabinet's own form whatever is in its bay, which then only hides the parts the game does not use, as before. The row shows only for a cabinet baked
-  from a row (`supports_cabinet_shape_toggle`); a mod's cabinet with no row keeps its form.
-- **Netplay**: the form is derived from the board, so two peers build the same one; the toggle is each peer's own and a session should keep it the
-  same on both (it decides whether a port is a gun or a socket). Not measured with two peers.
-- Tests: `arcade_form_tests` (groups `specs layout build board guns ports input animate toggle running boxes footprint bezel`; the old `arcade_tests game/`
-  switches the shape off and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
+- **There is no switch for it** (the System tab's "Cabinet Shape" was removed 2026-10-25, with its `cabinet_shape` key in the room): the cabinet
+  always follows the game. A cabinet baked from no row (a mod's) keeps its form, and the model keeps `set_morph_enabled(false)` as a seam for the
+  tests and the probes, which look at what the profile alone hides.
+- **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
+  with two peers.
+- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel`; `arcade_tests game/`
+  switches the shape off through the seam and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
   (windowed; `form_<romset>.png` and `formside_<romset>.png`).
 - **The test games asked for** (none run here: no ROMs, no cores): `timetrv` and `panicprk` are `odd` (uprights for now; Panic Park is NOT working in MAME
@@ -895,9 +895,9 @@ cabinets are two boards linked).
 - **The plate** (`ArcadePedalModule`): `show_pressed` with what was sent, eased 15 degrees down about `PedalHinge` in 0.08 s (toe first,
   the heel on its pin) and back to exactly where it rested. Local: a peer does not see another player's foot.
 - **Wiring**: a pedal is a switch on its player's button 2, as on a real cabinet converted to another game: `active` (true unless a
-  scene says otherwise) and `port()`, its player, or player 1 for one that names none (the shipped gun cabinet's single pedal). So with
-  Cabinet Shape off that pedal presses player 1's button 2 whatever the game (Operation Wolf's grenade); with it on, a game with no
-  pedal gets none (`for_game`). Switched off or only showing its game, every pedal comes up and no gun keeps it pressed.
+  scene says otherwise) and `port()`, its player, or player 1 for one that names none (the shipped gun cabinet's single pedal). So a
+  cabinet that does not follow the game (a mod's, or the base form a test keeps) has its pedal press player 1's button 2 whatever the game
+  (Operation Wolf's grenade); one that follows it gives a game with no pedal none (`for_game`). Switched off or only showing its game, every pedal comes up and no gun keeps it pressed.
 - **The ways that were weighed and not built**: holding A/X to step OUT (the first version; tiring), aiming the gun off the screen to
   hide (no button, but every hide costs the aim). The free hand's grip (see above). Ducking is the most natural and the most tiring:
   hundreds of hides a game.

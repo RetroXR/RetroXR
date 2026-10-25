@@ -22,7 +22,6 @@
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
 ##   input/     the input drives the new panels, and a third or fourth coin door reaches its port
 ##   animate/   a wheel turns, pedals tip, a bike leans, a second stick leans, a dancer's arrows sink
-##   toggle/    Cabinet Shape off keeps the cabinet's own form; on, it follows again; saved only when off
 ##   running/   a form asked for while a core runs is built when it stops
 ##   boxes/     collision and pointer boxes are laid again, not added to; a cockpit has pointer boxes only
 ##   footprint/ the rectangle on the floor covers a cockpit or a stage
@@ -97,9 +96,6 @@ func _run() -> void:
 		await _clear()
 	if _want("animate"):
 		await _group_animate()
-		await _clear()
-	if _want("toggle"):
-		await _group_toggle()
 		await _clear()
 	if _want("running"):
 		await _group_running()
@@ -693,43 +689,6 @@ func _group_animate() -> void:
 	_ok(not s2.basis.is_equal_approx(Basis.IDENTITY), "animate: the face buttons lean Robotron's fire stick")
 
 
-# --- toggle --------------------------------------------------------------------
-
-func _group_toggle() -> void:
-	var sys := await _machine()
-	var model := sys.get_model() as RetroSystemModelArcadeCabinet
-	_ok(sys.supports_cabinet_shape_toggle() and sys.cabinet_shape_enabled, "toggle: a cabinet offers Cabinet Shape, on")
-	sys.set_cabinet_shape_enabled(false)
-	await _board(sys, "tmnt")
-	_ok(_panels(model).size() == 2 and str(model.form_spec().get("form", "")) == "",
-		"toggle: off, a four-player board leaves the cabinet's own two panels")
-	_ok((_panels(model)[0] as ArcadeControlModule).visible and (_panels(model)[1] as ArcadeControlModule).visible,
-		"toggle: (both of them shown: TMNT has four players)")
-	sys.set_cabinet_shape_enabled(true)
-	await _wait(2)
-	_ok(_panels(model).size() == 4, "toggle: on again, it takes the game's form at once")
-	var persist := ScenePersistence.new("arcade")
-	var saved := persist._serialize_system(sys, 1, sys, {})
-	_ok(not saved.has("cabinet_shape"), "toggle: on is not written into the room")
-	sys.set_cabinet_shape_enabled(false)
-	saved = persist._serialize_system(sys, 1, sys, {})
-	_ok(saved.get("cabinet_shape", true) == false, "toggle: off is")
-	await _wait(2)
-	_ok(_panels(model).size() == 2, "toggle: and switching it off puts the cabinet's own form back")
-	var opts := preload("res://Scenes/UI/core_options_2d.tscn").instantiate() as CoreOptions2D
-	add_child(opts)
-	await get_tree().process_frame
-	opts.populate_system(false, false, false, "", 0, -1.0, true, true, 0, 1)
-	_ok(opts._cabinet_shape_row.visible and opts._cabinet_shape_check.button_pressed, "toggle: the System tab shows Cabinet Shape, on")
-	opts.populate_system(false, false, false, "", 0, -1.0, true, true, 0, 0)
-	_ok(opts._cabinet_shape_row.visible and not opts._cabinet_shape_check.button_pressed, "toggle: ... and off")
-	opts.populate_system(false, false, false, "", 0, -1.0, false, true, -1, -1)
-	_ok(not opts._cabinet_shape_row.visible, "toggle: and no row for a machine that is not such a cabinet")
-	opts.queue_free()
-	var console := await _machine("", "snes")
-	_ok(not console.supports_cabinet_shape_toggle(), "toggle: a console has no shape to follow")
-
-
 # --- running -------------------------------------------------------------------
 
 func _group_running() -> void:
@@ -915,11 +874,11 @@ func _group_bezel() -> void:
 		var uv := Vector2(m.uv1_offset.x + m.uv1_scale.x * at.x / q.size.x, m.uv1_offset.y + m.uv1_scale.y * (1.0 - at.y / q.size.y))
 		_ok(uv.is_equal_approx(Vector2(0.5, 0.25 + 1.0 / 6.0)) or uv.distance_to(Vector2(0.5, 1.0 / 6.0 + 0.25)) < 0.01,
 			"bezel: the hole is centred on the tube (uv %s)" % str(uv))
-	sys.set_cabinet_shape_enabled(false)
+	model.set_morph_enabled(false)
 	await _wait(2)
 	screen = model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
 	frame = screen.find_child("FrameSideL", false, false) as Node3D
-	_ok(screen.bezel() != null and not frame.visible, "bezel: a new form (the cabinet's own, the shape switched off) hangs it on its new tube")
+	_ok(screen.bezel() != null and not frame.visible, "bezel: a new form (the cabinet's own form again) hangs it on its new tube")
 	sys.set_cabinet_art_enabled(false)
 	_ok(screen.bezel() == null and frame.visible, "bezel: Cabinet Art off takes it down")
 	sys.set_cabinet_art_enabled(true)

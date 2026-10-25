@@ -1054,15 +1054,15 @@ func _strip_game() -> void:
 var _base_spec: Dictionary = {}
 ## The spec the standing form was built from.
 var _form_spec: Dictionary = {}
-## The System tab's "Cabinet Shape": off keeps the cabinet's own form whatever is in its bay (the parts the
-## game does not use are still hidden, as before the forms).
+## Whether the cabinet takes the shape of the game in its bay. Always, for a player: it is a seam for the tests
+## and the probes, which keep a cabinet's own form to look at what the profile alone hides.
 var _morph_enabled := true
 ## A form asked for while a core runs on this one: built when the machine goes off.
 var _pending_form: Variant = null
 
 
 ## The spec this cabinet takes for a game (ArcadeCabinetSpecs.for_game), or its own row when it does not
-## follow the game (no row, the toggle off, no profile).
+## follow the game (no row, following switched off by a test, no profile).
 func form_for(profile: ArcadeGameProfile) -> Dictionary:
 	if _base_spec.is_empty() or not _morph_enabled or profile == null:
 		return _base_spec
@@ -1074,7 +1074,7 @@ func form_spec() -> Dictionary:
 	return _form_spec
 
 
-## Turn following the game on or off; what is standing changes at once.
+## Turn following the game on or off (tests and probes); what is standing changes at once.
 func set_morph_enabled(on: bool) -> void:
 	if on == _morph_enabled:
 		return

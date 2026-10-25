@@ -106,7 +106,6 @@ func _ensure_ui_connected() -> void:
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
 	ui.screen_glow_toggled.connect(_on_screen_glow_toggled)
 	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
-	ui.cabinet_shape_toggled.connect(_on_cabinet_shape_toggled)
 	ui.attract_override_changed.connect(_on_attract_override_changed)
 	ui.dip_menu_requested.connect(_on_dip_menu_requested)
 	ui.volume_changed.connect(_on_volume_changed)
@@ -137,8 +136,7 @@ func _populate() -> void:
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
 		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume,
 		_system.supports_cabinet_art_toggle(), _system.cabinet_art_enabled,
-		_system.attract_override if _system.supports_cabinet_art_toggle() else -1,
-		(1 if _system.cabinet_shape_enabled else 0) if _system.supports_cabinet_shape_toggle() else -1)
+		_system.attract_override if _system.supports_cabinet_art_toggle() else -1)
 	ui.populate_screen_glow(_system.get_screen_glow())
 	_controls_state = _system.controls_state()
 	ui.populate_controls(_controls_state)
@@ -375,12 +373,6 @@ func _on_dip_menu_requested() -> void:
 func _on_attract_override_changed(mode: int) -> void:
 	if _system and is_instance_valid(_system):
 		_system.set_attract_override(mode)
-
-
-## System-tab toggle (cabinets): the cabinet takes the shape of the game in its bay.
-func _on_cabinet_shape_toggled(enabled: bool) -> void:
-	if _system and is_instance_valid(_system):
-		_system.set_cabinet_shape_enabled(enabled)
 
 
 ## System-tab toggle (cabinets): the game's art on the marquee and sides.
