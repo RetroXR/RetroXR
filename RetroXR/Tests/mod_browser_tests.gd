@@ -1211,6 +1211,10 @@ func _group_tiles() -> void:
 	view.reviews.manager = m
 	stub.job_cancelled.connect(view._on_job_cancelled)
 	var client := ClientStub.new()
+	# Agreed in the test's own folder: the player's answer in user:// is theirs,
+	# and a fresh device (CI) has none, so every download would be dropped.
+	client.consent.state_path = _dir.path_join("consent.json")
+	client.consent.grant("terms")
 	view.client = client
 	var mod_of := func(id: int, file_id: int) -> Dictionary:
 		return ModioClient.parse_mod(_modio_mod(id, "M%d" % id, file_id))
