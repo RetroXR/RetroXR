@@ -771,6 +771,12 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   or the face buttons (Robotron's fire stick is the diamond), a dancer's arrows sink. Eased, and a settled part is not written again.
 
 **How a form changes** (`RetroSystemModelArcadeCabinet._request_form` -> `morph_to`):
+- **A form is built on a stage that is NOT in the tree and moved onto the cabinet whole** (`ArcadeCabinetBuilder.build_form`). A node scripted
+  AFTER it entered the tree never runs its `_ready`, and a baked scene never shows it (its scripts and properties are saved, so `_ready` runs
+  fully set up on load): the grip that makes itself pointable in `_ready`, the coin slot and RETURN buttons, a hinge. Built directly under the
+  cabinet, as the first morph was, every panel, wheel, bike bar and coin button a morph built was DEAD: it could not be aimed at, lit or taken
+  hold of, the RETURN gave nothing back, and only the baked cabinet's could (found 2026-10-25: Cotton's panels, every wheel; `arcade_form_tests
+  reach/` casts a laser at every panel and coin button of every form). Never `set_script` on a node that is already in the tree.
 - **Deferred and coalesced**: built at the end of the frame, once; never inside the callback that asked (a snap zone handing over a board does it
   while the tree is busy with the nodes it moves: removing a form there failed with "Parent node is busy"). **Never under a running core**: its
   ports and the guns on them are in use; a form asked for then is built when it stops (`on_power_off`). The attract runs no core, so a board in

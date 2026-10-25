@@ -2,7 +2,7 @@
   "_comment": "Case counts per suite. A DROP fails the run: a suite whose group quietly stops running still passes every case it did run and still exits 0, which is the one failure a green CI cannot show you. Counts rise as cases are added -- rerun with --update-baseline and commit this alongside them.",
   "suites": {
     "arcade_attract_tests": 174,
-    "arcade_form_tests": 178,
+    "arcade_form_tests": 235,
     "arcade_tests": 435,
     "arcade_variants_tests": 511,
     "archive_safety_tests": 28,

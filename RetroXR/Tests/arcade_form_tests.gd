@@ -17,6 +17,7 @@
 ##   layout/    panels across the deck: the generic two where they always were, more crowd it and grow wings
 ##   build/     each form built on a real cabinet: its modules, parts and screen
 ##   board/     the real path: a board in the bay changes the form, pulling it gives the cabinet's own back
+##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
 ##   input/     the input drives the new panels, and a third or fourth coin door reaches its port
@@ -81,6 +82,9 @@ func _run() -> void:
 		await _clear()
 	if _want("board"):
 		await _group_board()
+		await _clear()
+	if _want("reach"):
+		await _group_reach()
 		await _clear()
 	if _want("guns"):
 		await _group_guns()
@@ -495,6 +499,71 @@ func _group_guns() -> void:
 		for i in 6:
 			tc_pedal.tick(0.02)
 		_ok(tc_plate.transform.is_equal_approx(tc_rest), "guns: and back up")
+
+
+# --- reach ---------------------------------------------------------------------
+
+## What a VR laser hits (XRToolsFunctionPointer.DEFAULT_MASK): the pointable layer and the one that blocks it.
+const POINTER_MASK := 0b0000_0000_0101_0000_0000_0000_0000_0000
+
+
+## The first thing a laser aimed from `from` at `to` meets, or null.
+func _first_hit(sys: RetroSystem, from: Vector3, to: Vector3) -> Object:
+	var q := PhysicsRayQueryParameters3D.create(from, to)
+	q.collision_mask = POINTER_MASK
+	q.collide_with_areas = true
+	q.collide_with_bodies = true
+	var r := sys.get_world_3d().direct_space_state.intersect_ray(q)
+	return r.get("collider") as Object if not r.is_empty() else null
+
+
+## Where a hand aims from at something on a cabinet: in front of it, a little above, as a player stands.
+func _hand_for(sys: RetroSystem, target: Vector3) -> Vector3:
+	return target + sys.global_transform.basis * Vector3(0.0, 0.30, 0.55)
+
+
+## A panel a morph built was once dead: its nodes were scripted AFTER they entered the tree, so the grip's _ready
+## (which makes it pointable) never ran, and neither did the coin buttons'. Only the baked panels could be taken
+## hold of; Cotton's, a wheel, a bike's bars and every panel of a four-player game could not. Every form, every
+## panel, every coin button: pointable, and the first thing under a laser aimed from where a player stands.
+func _group_reach() -> void:
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var games: Array = ["sf2", "cotton", "1943", "pacman", "tmnt", "xmen6p", "timecris", "ptblank", "opwolf", "sscope",
+		"polepos", "daytona", "scud", "hangon", "ddrusa", "pumpipx2", "robotron", "centiped", "pong"]
+	for romset: String in games:
+		model.morph_to(_spec(romset))
+		await _wait(3)
+		var panels := _panels(model)
+		var live := 0
+		var aimable := 0
+		var lit := 0
+		var grips := 0
+		for panel: ArcadeControlModule in panels:
+			var grip := panel.grip()
+			grips += 1 if grip != null else 0
+			if grip == null or not panel.is_visible_in_tree():
+				continue
+			live += 1
+			lit += 1 if (grip.collision_layer & ArcadePanelGrip.POINTABLE_LAYER) != 0 and grip.find_child("PanelHighlight", false, false) != null else 0
+			aimable += 1 if _first_hit(sys, _hand_for(sys, grip.global_position), grip.global_position) == grip else 0
+		_ok(grips == panels.size() and live >= 1 and lit == live,
+			"reach: %s: every panel's grip is live (pointable, with its glow: %d of %d)" % [romset, lit, live])
+		_ok(aimable == live, "reach: %s: a laser aimed at each panel from where a player stands meets its grip first (%d of %d)" % [romset, aimable, live])
+		var buttons := 0
+		var reached := 0
+		for door: ArcadeCoinModule in _doors(model):
+			if not door.door_enabled():
+				continue
+			for button_name in ["CoinReturn", "CoinSlot"]:
+				var button := door.find_child(button_name, true, false) as VRButton
+				if button == null:
+					continue
+				buttons += 1
+				var centre := button.global_transform * Vector3(0, 0, 0.008)
+				reached += 1 if _first_hit(sys, _hand_for(sys, centre), centre) == button else 0
+		_ok(buttons >= 2 and reached == buttons,
+			"reach: %s: every coin door's slot and RETURN can be aimed at (%d of %d)" % [romset, reached, buttons])
 
 
 # --- ports ---------------------------------------------------------------------

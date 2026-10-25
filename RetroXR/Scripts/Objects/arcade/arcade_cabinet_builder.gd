@@ -57,6 +57,9 @@ const CORD_ENTRY_Y := 0.74
 const CORD_ENTRY_Z := 0.402
 
 var _root: Node3D
+## Where the top-level nodes of what is being built go: the root itself when baking, a stage that is not in the
+## tree while a form is built in the room (build_form).
+var _top: Node3D
 ## The node every part is owned by: the scene root when baking, null in the room.
 var _owner: Node = null
 var _v: Dictionary = {}
@@ -81,6 +84,7 @@ var form_boxes: Array[AABB] = []
 func _init(spec: Dictionary, root: Node3D, bake: bool = false) -> void:
 	_v = spec
 	_root = root
+	_top = root
 	_owner = root if bake else null
 	_sh = ArcadeCabinetSpecs.shapes()[str(_v.get("shape", "upright"))]
 	# The width is the cabinet's (a spec may keep it across forms), the shape the form's.
@@ -99,7 +103,7 @@ func _init(spec: Dictionary, root: Node3D, bake: bool = false) -> void:
 ## The whole cabinet as the generator bakes it, in the order the shipped scenes were always laid out.
 func bake() -> void:
 	_root.set_meta(VARIANT_META, str(_v.get("variant", "")))
-	var cab := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Cabinet") as Node3D)
+	var cab := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Cabinet") as Node3D)
 	_build_shell(cab)
 	_build_monitor()
 	_build_deck()
@@ -113,14 +117,27 @@ func bake() -> void:
 
 ## Only the parts a form owns, for a cabinet in the room that changes shape: everything bake() makes
 ## but the bay, the JAMMA socket and the composite input.
+##
+## Built on a stage that is NOT in the tree and moved onto the cabinet whole, as a loaded scene arrives: a node
+## that is scripted and configured BEFORE it enters the tree gets its _ready (a panel's grip, which makes itself
+## pointable there, and a button or a hinge, which make themselves ready to be worked). Scripted after it had
+## entered, as these once were, none ran: every panel and wheel a morph built could not be aimed at or taken
+## hold of, and only the baked ones could.
 func build_form() -> void:
-	var cab := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Cabinet") as Node3D)
+	var stage := Node3D.new()
+	_top = stage
+	var cab := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Cabinet") as Node3D)
 	_build_shell(cab)
 	_build_monitor()
 	_build_deck()
 	_build_coin_doors()
 	_build_guns_or_sockets()
 	_build_extras()
+	_top = _root
+	for part in stage.get_children():
+		stage.remove_child(part)
+		_root.add_child(part)
+	stage.free()
 	apply_metrics()
 
 
@@ -327,7 +344,7 @@ func _build_monitor() -> void:
 	var along := b - a
 	var theta := atan2(along.x, along.y)   # rotation about X taking +Y onto `along` (z, y)
 	var basis := Basis(Vector3.RIGHT, theta)
-	var mod := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Screen", Vector3(0, mid.y, mid.x))) as Node3D
+	var mod := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Screen", Vector3(0, mid.y, mid.x))) as Node3D
 	mod.set_script(load(SCRIPTS["screen"]))
 	mod.basis = basis
 	if _v.has("screen"):
@@ -371,7 +388,7 @@ func _build_deck() -> void:
 	var mid := (a + b) * 0.5
 	var along := b - a
 	var theta := atan2(along.x, along.y)
-	var deck := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Deck", Vector3(0, mid.y, mid.x))) as Node3D
+	var deck := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Deck", Vector3(0, mid.y, mid.x))) as Node3D
 	deck.basis = Basis(Vector3.RIGHT, theta)
 	var players: Array = _v["players"]
 	# Three or more players' panels do not fit between the sides: the plate grows WINGS past them, as the
@@ -604,7 +621,7 @@ func _build_coin_doors() -> void:
 	var xs: Array = _v["coins"]
 	for i in xs.size():
 		var x: float = xs[i]
-		var door := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "CoinDoor%d" % (i + 1), Vector3(x, 0.64, 0.40))) as Node3D
+		var door := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "CoinDoor%d" % (i + 1), Vector3(x, 0.64, 0.40))) as Node3D
 		door.set_script(load(SCRIPTS["coin"]))
 		door.set("player", i)
 		ArcadeParts.box(_owner, door, "Plate", Vector3(0.10, 0.20, 0.006), Vector3(0, 0, 0.003), _metal)
@@ -660,7 +677,7 @@ func _build_coin_doors() -> void:
 # ── front sockets ───────────────────────────────────────────────────────────
 
 func _build_front_sockets() -> void:
-	var sockets := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Sockets", Vector3.ZERO)) as Node3D
+	var sockets := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Sockets", Vector3.ZERO)) as Node3D
 	sockets.set_script(load(SCRIPTS["sockets"]))
 	# Rolled 180 degrees about Z with +Z out of the face, as the NES authors its
 	# seats, so a plug seats connector-in and upright. Two at the apron's ends; a cabinet for three or four
@@ -684,7 +701,7 @@ func _build_front_sockets() -> void:
 ## markers where the guns rest; the model builds the guns and hangs them there
 ## (RetroSystemModelArcadeCabinet.captive_controllers).
 func _build_gun_holsters() -> void:
-	var sockets := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Sockets", Vector3.ZERO)) as Node3D
+	var sockets := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Sockets", Vector3.ZERO)) as Node3D
 	sockets.set_script(load(SCRIPTS["sockets"]))
 	var style := str(_v.get("gun_style", "holster"))
 	if style == "rifle":
@@ -764,7 +781,7 @@ func _build_pedal(index: int = -1) -> void:
 	var under: Array = _v.get("gun_pedals", [])
 	var x := 0.0 if index < 0 or under.size() < 2 else float(under[index]) * 0.75
 	var node_name := "Pedal" if index < 0 else "Pedal%d" % (index + 1)
-	var pedal := _form_node(ArcadeParts.node(_owner, _root, "Node3D", node_name, Vector3(x, 0.0, 0.80))) as Node3D
+	var pedal := _form_node(ArcadeParts.node(_owner, _top, "Node3D", node_name, Vector3(x, 0.0, 0.80))) as Node3D
 	pedal.set_script(load(SCRIPTS["pedal"]))
 	if index >= 0:
 		pedal.set("player", index)
@@ -793,7 +810,7 @@ const COCKPIT_Z1 := 2.10
 ## controller (Player1, taken hold of at the wheel), as a panel is. No collision: a player walks in and sits
 ## on their own chair.
 func _build_cockpit(spec: Dictionary) -> void:
-	var cp := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Cockpit", Vector3.ZERO)) as Node3D
+	var cp := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Cockpit", Vector3.ZERO)) as Node3D
 	var depth := COCKPIT_Z1 - COCKPIT_Z0
 	var zc := (COCKPIT_Z0 + COCKPIT_Z1) * 0.5
 	ArcadeParts.box(_owner, cp, "Platform", Vector3(_w, 0.10, depth), Vector3(0, 0.05, zc), _body)
@@ -862,7 +879,7 @@ func _build_cockpit(spec: Dictionary) -> void:
 ## straddle on a stand, the seat, the tank, and the handlebars. The bike leans with the steering
 ## (`LeanPivot`, as the real one tipped under the rider), and the rider takes hold of it at the bars.
 func _build_bike(spec: Dictionary) -> void:
-	var bk := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Bike", Vector3.ZERO)) as Node3D
+	var bk := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Bike", Vector3.ZERO)) as Node3D
 	ArcadeParts.box(_owner, bk, "BikeStand", Vector3(0.40, 0.10, 1.10), Vector3(0, 0.05, 1.45), _dark)
 	ArcadeParts.box(_owner, bk, "BikeStandTrim", Vector3(0.404, 0.012, 1.104), Vector3(0, 0.084, 1.45), _trim)
 	var mod := ArcadeParts.node(_owner, bk, "Node3D", "Player1") as Node3D
@@ -913,7 +930,7 @@ const STAGE_SIDE := 0.90
 ## controller, ArcadeCabinetBuilder._arrows); this is what does not move. Barely off the floor, and no
 ## collision: a player stands on it with their own feet.
 func _build_stage(spec: Dictionary) -> void:
-	var st := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Stage", Vector3.ZERO)) as Node3D
+	var st := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Stage", Vector3.ZERO)) as Node3D
 	var xs: Array = spec.get("xs", [0.0])
 	for i in xs.size():
 		var x := float(xs[i])
@@ -976,7 +993,7 @@ func _arrows(parent: Node3D, to_parent: Transform3D, at: Vector3, arrows: int, i
 ## are the cabinet's, not any bay unit's.
 func _build_av_in() -> void:
 	var rca := load("res://Scenes/Objects/cables/rca_port.tscn") as PackedScene
-	var mod := ArcadeParts.node(_owner, _root, "Node3D", "AvIn", Vector3.ZERO) as Node3D
+	var mod := ArcadeParts.node(_owner, _top, "Node3D", "AvIn", Vector3.ZERO) as Node3D
 	mod.set_script(load(SCRIPTS["av_in"]))
 	var cx := -0.20
 	var cz := -0.29
@@ -1018,7 +1035,7 @@ func _build_av_in() -> void:
 # ── bay ─────────────────────────────────────────────────────────────────────
 
 func _build_bay() -> void:
-	var bay := ArcadeParts.node(_owner, _root, "Node3D", "Bay", Vector3.ZERO) as Node3D
+	var bay := ArcadeParts.node(_owner, _top, "Node3D", "Bay", Vector3.ZERO) as Node3D
 	bay.set_script(load(SCRIPTS["bay"]))
 	bay.set("bay_kind", str(_v["bay"]))
 	var interior := ArcadeParts.mat(Color(0.05, 0.05, 0.06), 0.0, 0.9)
