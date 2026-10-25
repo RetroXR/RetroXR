@@ -17,9 +17,9 @@ linux.release.arm64 = "libretro_godot.so"
 macos.debug.universal = "libretro_godot.macos.template_debug.universal.dylib"
 macos.release.universal = "libretro_godot.dylib"
 macos.debug.arm64 = "libretro_godot.macos.template_debug.arm64.dylib"
-macos.release.arm64 = "libretro_godot.macos.template_release.arm64.dylib"
+macos.release.arm64 = "libretro_godot.dylib"
 macos.debug.x86_64 = "libretro_godot.macos.template_debug.x86_64.dylib"
-macos.release.x86_64 = "libretro_godot.macos.template_release.x86_64.dylib"
+macos.release.x86_64 = "libretro_godot.dylib"
 
 [dependencies]
 
