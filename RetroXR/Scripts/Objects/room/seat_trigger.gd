@@ -1,4 +1,4 @@
-## SeatTrigger — the part of a seat you press to sit on it.
+## SeatTrigger — the part of a seat (Seat, CockpitSeat) you press to sit on it.
 ##
 ## A pointable Area3D laid over the seat's cushion: a desktop click or the laser's trigger
 ## arrives as a pointer_event and sits (or gets up). It is a thin slab on the SURFACE the
@@ -44,9 +44,10 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			if _hover != null:
 				_hover.visible = false
 		XRToolsPointerEvent.Type.PRESSED:
-			var seat := get_parent() as Seat
-			if seat != null:
-				seat.toggle()
+			# Whatever it is laid over: a Seat, or a driving cabinet's own CockpitSeat.
+			var seat := get_parent()
+			if seat != null and seat.has_method("toggle"):
+				seat.call("toggle")
 
 
 func is_hovered() -> bool:

@@ -744,8 +744,9 @@ func _pedal_presses(sys: RetroSystem, pedal: ArcadePedalModule) -> void:
 	var toe_down := (plate.transform * toe).y
 	_ok(pedal.plate_down() == 1.0 and toe_down < toe_rest - 0.02,
 		"pedal: the plate goes down, toe first (%.3f -> %.3f m)" % [toe_rest, toe_down])
-	_ok(absf((plate.transform * Vector3(0, 0, 0.10)).y - (rest * Vector3(0, 0, 0.10)).y) < 0.012,
-		"pedal: about its hinge: the heel stays where it was")
+	_ok((plate.transform * Vector3.ZERO).is_equal_approx(rest * Vector3.ZERO)
+			and absf((plate.transform * Vector3(0, 0, 0.02)).y - (rest * Vector3(0, 0, 0.02)).y) < 0.008,
+		"pedal: about its hinge (the plate's own origin): the heel stays where it was")
 	# The gun hand's A (or X), through the real binding, takes cover: the game hears the pedal come up, not the
 	# hand's Aux A, which the cabinet has taken over.
 	var hand := _fake_hand()

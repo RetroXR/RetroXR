@@ -38,6 +38,8 @@ const SCRIPTS := {
 	"hinge": "res://Scripts/Objects/widgets/vr_hinge.gd",
 	"pedal": "res://Scripts/Objects/arcade/arcade_pedal_module.gd",
 	"av_in": "res://Scripts/Objects/arcade/arcade_av_in_module.gd",
+	"seat": "res://Scripts/Objects/room/cockpit_seat.gd",
+	"seat_trigger": "res://Scripts/Objects/room/seat_trigger.gd",
 }
 
 ## The rifle a `rifle` gun cabinet rests on its post (Tools/gen/gen_arcade_gun.gd `--variant=rifle`).
@@ -583,20 +585,44 @@ func _shifter(parent: Node3D, pos: Vector3, basis: Basis) -> void:
 	knob.material_override = ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.35)
 
 
-## A driver's two pedals on a footplate: BRAKE left, GAS right, each a plate on a hinge (`BrakePivot`,
-## `GasPivot`) that tips down when pressed. `at` is the footplate's centre on the floor in the CABINET's
-## frame, `to_parent` carries that into `parent`'s frame.
+## A driver's two pedals: organ pedals hinged on an axle across a pressed-steel footplate with a rubber heel
+## mat, BRAKE on the left (the wider pad) and GAS on the right, each a pivot (`BrakePivot`, `GasPivot`) at its
+## heel that tips down when pressed. `at` is the footplate's centre on the floor in the CABINET's frame,
+## `to_parent` carries that into `parent`'s frame.
 func _pedals(parent: Node3D, to_parent: Transform3D, at: Vector3) -> void:
-	var plate := ArcadeParts.box(_owner, parent, "Footplate", Vector3(0.30, 0.03, 0.30), Vector3.ZERO, _dark)
+	var rubber := ArcadeParts.mat(Color(0.05, 0.05, 0.055), 0.0, 0.9)
+	var plate := ArcadeParts.box(_owner, parent, "Footplate", Vector3(0.34, 0.03, 0.32), Vector3.ZERO, _dark)
 	plate.transform = to_parent * Transform3D(Basis.IDENTITY, at + Vector3(0, 0.015, 0))
-	for p in [["BrakePivot", -0.075, Color(0.75, 0.75, 0.78), 0.10], ["GasPivot", 0.075, Color(0.75, 0.75, 0.78), 0.08]]:
-		var pivot := ArcadeParts.node(_owner, parent, "Node3D", str(p[0])) as Node3D
-		# The hinge at the heel, the plate rising toe-up 20 degrees toward the cabinet.
-		pivot.transform = to_parent * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(20.0)),
-			at + Vector3(float(p[1]), 0.04, 0.10))
-		ArcadeParts.box(_owner, pivot, str(p[0]).trim_suffix("Pivot") + "Plate", Vector3(float(p[3]), 0.012, 0.18),
-			Vector3(0, 0.006, -0.09), ArcadeParts.mat(p[2] as Color, 0.6, 0.4))
-	form_boxes.append(AABB(at + Vector3(-0.15, 0.0, -0.15), Vector3(0.30, 0.10, 0.30)))
+	var heel := ArcadeParts.box(_owner, parent, "FootMat", Vector3(0.30, 0.004, 0.09), Vector3.ZERO, rubber)
+	heel.transform = to_parent * Transform3D(Basis.IDENTITY, at + Vector3(0, 0.032, 0.115))
+	# The axle both pedals hinge on, held by a post at each end.
+	var axle := ArcadeParts.cylinder(_owner, parent, "PedalAxle", 0.008, 0.30, Vector3.ZERO, _metal, Vector3.RIGHT)
+	axle.transform = to_parent * Transform3D(axle.basis, at + Vector3(0, 0.052, 0.07))
+	for k in [-1.0, 1.0]:
+		var post := ArcadeParts.box(_owner, parent, "PedalPost%s" % ("L" if k < 0 else "R"), Vector3(0.02, 0.04, 0.03),
+			Vector3.ZERO, _metal)
+		post.transform = to_parent * Transform3D(Basis.IDENTITY, at + Vector3(k * 0.15, 0.04, 0.07))
+	for p in [["Brake", -0.075, 0.100], ["Gas", 0.075, 0.075]]:
+		var pivot := ArcadeParts.node(_owner, parent, "Node3D", "%sPivot" % str(p[0])) as Node3D
+		# On the axle, the pad rising toward the screen 32 degrees, as a car's does.
+		pivot.transform = to_parent * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(32.0)),
+			at + Vector3(float(p[1]), 0.052, 0.07))
+		_pedal_tread(pivot, str(p[0]), float(p[2]), 0.21)
+	form_boxes.append(AABB(at + Vector3(-0.17, 0.0, -0.16), Vector3(0.34, 0.17, 0.32)))
+
+
+## A pedal's tread, reaching along -Z from the hinge at `parent`'s origin (the heel) for `length`: a steel
+## under-plate, a ribbed black rubber face and a lip at the toe that keeps a shoe from sliding off. Part of
+## `parent`, so it tips with it. Named `<prefix>Deck`, `Pad`, `Rib<n>`, `ToeLip`.
+func _pedal_tread(parent: Node3D, prefix: String, width: float, length: float) -> void:
+	var rubber := ArcadeParts.mat(Color(0.05, 0.05, 0.055), 0.0, 0.9)
+	ArcadeParts.box(_owner, parent, prefix + "Deck", Vector3(width, 0.012, length), Vector3(0, 0.0, -length * 0.5), _metal)
+	ArcadeParts.box(_owner, parent, prefix + "Pad", Vector3(width - 0.012, 0.006, length - 0.02),
+		Vector3(0, 0.009, -length * 0.5), rubber)
+	for i in int((length - 0.03) / 0.035):
+		ArcadeParts.box(_owner, parent, "%sRib%d" % [prefix, i + 1], Vector3(width - 0.012, 0.004, 0.009),
+			Vector3(0, 0.0125, -0.025 - 0.035 * float(i)), rubber)
+	ArcadeParts.box(_owner, parent, prefix + "ToeLip", Vector3(width, 0.024, 0.010), Vector3(0, 0.009, -length + 0.005), _metal)
 
 
 ## A button on the deck, as a pushbutton is made: the cap, which sinks when its bit is held, in a
@@ -787,6 +813,11 @@ func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
 
 # ── foot pedals ─────────────────────────────────────────────────────────────
 
+## Where a gun pedal's middle stands in front of the cabinet: its tread's toe just inside the reach of the bay
+## door lying open (0.40 m out from the coin face).
+const PEDAL_Z := 0.90
+
+
 ## A Time Crisis-style foot pedal on the floor in front of the deck, with its cable running to the
 ## cabinet: one in the middle, or one under each gun of a game that has them (`gun_pedals`, player `index`).
 ## Wired: ArcadePedalModule presses its player's button 2, and tips `PedalPlate` down about `PedalHinge`,
@@ -795,18 +826,27 @@ func _build_pedal(index: int) -> void:
 	# A pedal under each of two or three guns; one gun's in the middle, where its one player stands.
 	var under: Array = _v.get("gun_pedals", [])
 	var x := 0.0 if under.size() < 2 else float(under[index]) * 0.75
-	var pedal := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Pedal%d" % (index + 1), Vector3(x, 0.0, 0.80))) as Node3D
+	var pedal := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Pedal%d" % (index + 1), Vector3(x, 0.0, PEDAL_Z))) as Node3D
 	pedal.set_script(load(SCRIPTS["pedal"]))
 	pedal.set("player", index)
-	# The base plate, the hinge, and the footplate raised toe-up on its heel.
-	ArcadeParts.box(_owner, pedal, "PedalBase", Vector3(0.16, 0.012, 0.26), Vector3(0, 0.006, 0.0), _dark)
-	ArcadeParts.cylinder(_owner, pedal, "PedalHinge", 0.010, 0.15, Vector3(0, 0.020, 0.09), _metal, Vector3.RIGHT)
-	var plate := ArcadeParts.box(_owner, pedal, "PedalPlate", Vector3(0.13, 0.014, 0.20), Vector3(0, 0.050, -0.01),
-		ArcadeParts.mat(Color(0.75, 0.10, 0.10), 0.0, 0.45))
-	plate.basis = Basis(Vector3.RIGHT, deg_to_rad(18.0))
-	# The cable, flat on the floor, back toward the cabinet.
-	ArcadeParts.box(_owner, pedal, "PedalCable", Vector3(0.012, 0.008, 0.30), Vector3(0, 0.004, -0.28), _dark)
-	form_boxes.append(AABB(Vector3(x - 0.08, 0.0, 0.67), Vector3(0.16, 0.08, 0.26)))
+	# A pressed-steel base bolted to the floor, a cheek each side of the hinge, the pin, and the tread hinged
+	# at its heel (toward the player) with its toe, toward the screen, raised 22 degrees on its spring.
+	var steel := ArcadeParts.mat(Color(0.20, 0.20, 0.22), 0.75, 0.45)
+	ArcadeParts.box(_owner, pedal, "PedalBase", Vector3(0.20, 0.010, 0.34), Vector3(0, 0.005, 0.0), steel)
+	for sx in [-1.0, 1.0]:
+		ArcadeParts.box(_owner, pedal, "PedalCheek%s" % ("L" if sx < 0 else "R"), Vector3(0.012, 0.075, 0.11),
+			Vector3(sx * 0.094, 0.0475, 0.12), steel)
+		for sz in [-1.0, 1.0]:
+			ArcadeParts.cylinder(_owner, pedal, "PedalBolt%s%s" % ["L" if sx < 0 else "R", "F" if sz < 0 else "B"],
+				0.007, 0.004, Vector3(sx * 0.085, 0.012, sz * 0.15), _metal, Vector3.UP)
+	ArcadeParts.cylinder(_owner, pedal, "PedalHinge", 0.009, 0.20, Vector3(0, 0.052, 0.12), _metal, Vector3.RIGHT)
+	var plate := ArcadeParts.node(_owner, pedal, "Node3D", "PedalPlate", Vector3(0, 0.052, 0.12)) as Node3D
+	plate.basis = Basis(Vector3.RIGHT, deg_to_rad(22.0))
+	_pedal_tread(plate, "Pedal", 0.15, 0.25)
+	# The lead: a strain-relief boot on the base's cabinet end, the cord on across the floor to the cabinet.
+	ArcadeParts.cylinder(_owner, pedal, "PedalBoot", 0.012, 0.04, Vector3(0, 0.016, -0.18), _dark, Vector3.BACK)
+	ArcadeParts.cylinder(_owner, pedal, "PedalCable", 0.005, 0.30, Vector3(0, 0.005, -0.35), _dark, Vector3.BACK)
+	form_boxes.append(AABB(Vector3(x - 0.10, 0.0, PEDAL_Z - 0.17), Vector3(0.20, 0.10, 0.34)))
 
 
 # ── a sit-down driving cockpit ──────────────────────────────────────────────
@@ -832,15 +872,7 @@ func _build_cockpit(spec: Dictionary) -> void:
 	ArcadeParts.box(_owner, cp, "Dash", Vector3(_w - 0.10, 0.60, 0.20), Vector3(0, 0.40, 0.98), _body)
 	var dash_top := ArcadeParts.box(_owner, cp, "DashTop", Vector3(_w - 0.08, 0.02, 0.26), Vector3(0, 0.71, 1.00), _dark)
 	dash_top.basis = Basis(Vector3.RIGHT, deg_to_rad(18.0))
-	# The seat: a base, the cushion and a back leaning back, with a headrest.
-	var seat_mat := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.7)
-	ArcadeParts.box(_owner, cp, "SeatBase", Vector3(0.36, 0.30, 0.36), Vector3(0, 0.25, 1.80), _dark)
-	ArcadeParts.box(_owner, cp, "SeatCushion", Vector3(0.48, 0.08, 0.46), Vector3(0, 0.44, 1.78), seat_mat)
-	# The back leans BACK, away from the screen (+Z), and the headrest on top of it.
-	var back := ArcadeParts.box(_owner, cp, "SeatBack", Vector3(0.48, 0.62, 0.08), Vector3(0, 0.78, 2.02), seat_mat)
-	back.basis = Basis(Vector3.RIGHT, deg_to_rad(14.0))
-	var head := ArcadeParts.box(_owner, cp, "SeatHead", Vector3(0.30, 0.16, 0.08), Vector3(0, 1.17, 2.12), seat_mat)
-	head.basis = back.basis
+	_build_driver_seat(cp)
 	# The gear lever's console, by the driver's right hand.
 	ArcadeParts.box(_owner, cp, "ShifterConsole", Vector3(0.12, 0.44, 0.30), Vector3(_w * 0.5 - 0.10, 0.32, 1.52), _body)
 	if bool(spec.get("roof", false)):
@@ -878,11 +910,52 @@ func _build_cockpit(spec: Dictionary) -> void:
 	var gshape := BoxShape3D.new()
 	gshape.size = Vector3(0.36, 0.36, 0.16)
 	gcol.shape = gshape
-	# Where a seated driver's eyes are, for when the seat can be sat on (seats.md).
-	ArcadeParts.node(_owner, cp, "Marker3D", "EyePoint", Vector3(0, 1.12, 1.82))
 	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, COCKPIT_Z0), Vector3(_w, 0.10, depth)))
-	form_boxes.append(AABB(Vector3(-0.24, 0.10, 1.55), Vector3(0.48, 1.15, 0.62)))
+	# The seat is aimed at as the cabinet except on its cushion, which is the seat's own (a sitting press): a box over
+	# the whole seat would stand between the laser and the trigger that lies 3 cm proud of the cushion. So the base
+	# under the cushion and the back behind it, and nothing above.
+	var cushion_top := ((_sh["glass_a"] as Vector2).y + (_sh["glass_b"] as Vector2).y) * 0.5 - EYE_ABOVE_CUSHION
+	form_boxes.append(AABB(Vector3(-0.24, PLATFORM_TOP, SEAT_Z - 0.23), Vector3(0.48, cushion_top - 0.03 - PLATFORM_TOP, 0.46)))
+	form_boxes.append(AABB(Vector3(-0.24, cushion_top, SEAT_Z + 0.23), Vector3(0.48, 1.25 - cushion_top, 0.17)))
 	form_boxes.append(AABB(Vector3(-(_w - 0.10) * 0.5, 0.10, 0.88), Vector3(_w - 0.10, 0.62, 0.20)))
+
+
+## Where the driver's seat stands, front to back (the cushion's middle), and the platform's top it stands on.
+const SEAT_Z := 1.78
+const PLATFORM_TOP := 0.10
+## A sitting adult's eye height above the cushion (the racing seat furniture's own, gen_seats.gd).
+const EYE_ABOVE_CUSHION := 0.72
+
+
+## The driver's seat, one that can be sat in (CockpitSeat; seats.md): a base, the cushion, a back leaning back and
+## a headrest, with the markers a seat needs. THE EYES ARE AT THE MIDDLE OF THE GLASS: the `racer` body is built
+## for a seated driver to look straight into its monitor (1.12 m), and the cushion is an adult's eye height under
+## them. MAME says nothing of where a driver sat, so the screen is what a seat is fitted to. The node stands on the
+## platform, at the cushion; the parts and markers are in its frame.
+func _build_driver_seat(cp: Node3D) -> void:
+	var eye_y := ((_sh["glass_a"] as Vector2).y + (_sh["glass_b"] as Vector2).y) * 0.5
+	var cushion := eye_y - EYE_ABOVE_CUSHION - PLATFORM_TOP     # the cushion's top, above the platform
+	var seat := ArcadeParts.node(_owner, cp, "Node3D", "DriverSeat", Vector3(0, PLATFORM_TOP, SEAT_Z)) as Node3D
+	seat.set_script(load(SCRIPTS["seat"]))
+	var seat_mat := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.7)
+	var base_h := cushion - 0.08
+	ArcadeParts.box(_owner, seat, "SeatBase", Vector3(0.36, base_h, 0.36), Vector3(0, base_h * 0.5, 0.02), _dark)
+	ArcadeParts.box(_owner, seat, "SeatCushion", Vector3(0.48, 0.08, 0.46), Vector3(0, cushion - 0.04, 0.0), seat_mat)
+	# The back leans BACK, away from the screen (+Z), and the headrest on top of it.
+	var back := ArcadeParts.box(_owner, seat, "SeatBack", Vector3(0.48, 0.62, 0.08), Vector3(0, cushion + 0.30, 0.24), seat_mat)
+	back.basis = Basis(Vector3.RIGHT, deg_to_rad(14.0))
+	var head := ArcadeParts.box(_owner, seat, "SeatHead", Vector3(0.30, 0.16, 0.08), Vector3(0, cushion + 0.69, 0.34), seat_mat)
+	head.basis = back.basis
+	# The cushion you press: 3 cm proud of the surface (a seat's own rule, gen_seats.gd).
+	var trigger := ArcadeParts.node(_owner, seat, "Area3D", "SeatTrigger", Vector3(0, cushion + 0.005, 0.0)) as Area3D
+	trigger.set_script(load(SCRIPTS["seat_trigger"]))
+	var tcol := ArcadeParts.node(_owner, trigger, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var tshape := BoxShape3D.new()
+	tshape.size = Vector3(0.46, 0.03, 0.44)
+	tcol.shape = tshape
+	ArcadeParts.node(_owner, seat, "Marker3D", "EyePoint", Vector3(0, eye_y - PLATFORM_TOP, 0.04))
+	# Getting up is to the driver's side (the left): the front is the dash and the right the gear lever.
+	ArcadeParts.node(_owner, seat, "Marker3D", "StandPoint", Vector3(-0.62, -PLATFORM_TOP, 0.02))
 
 
 # ── a ride-on motorbike ─────────────────────────────────────────────────────

@@ -19,6 +19,7 @@
 ##   board/     the real path: a board in the bay changes the form, pulling it gives the cabinet's own back
 ##   tate/      a monitor on its side gets the tall body and a window cut to the picture; every body is one silhouette
 ##   wide/      three to six players: the BODY is as wide as the deck they need, doors and sockets under their panels
+##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
@@ -89,6 +90,9 @@ func _run() -> void:
 		await _clear()
 	if _want("wide"):
 		await _group_wide()
+		await _clear()
+	if _want("pedals"):
+		await _group_pedals()
 		await _clear()
 	if _want("reach"):
 		await _group_reach()
@@ -622,6 +626,69 @@ func _group_wide() -> void:
 	model.morph_to(_spec("timecris"))
 	await _wait(2)
 	_ok(model.find_child("LowerFaceL", true, false) != null, "wide: a gun cabinet's 0.90 m body is closed beside the door too")
+
+
+# --- pedals --------------------------------------------------------------------
+
+## How many of `node`'s descendants have a name that begins with `prefix`.
+func _named(node: Node, prefix: String) -> int:
+	var n := 0
+	for c in node.find_children("%s*" % prefix, "", true, false):
+		n += 1
+	return n
+
+
+func _group_pedals() -> void:
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	# A gun game's pedal: a base on the floor, a cheek each side of the hinge, the pin, a tread hinged at its heel
+	# with ribs, a toe lip and a rubber face, and its lead.
+	model.morph_to(_spec("timecris"))
+	await _wait(2)
+	var pedal := model.find_child("Pedal1", true, false) as ArcadePedalModule
+	var plate := pedal.get_node("PedalPlate") as Node3D
+	var hinge := pedal.get_node("PedalHinge") as Node3D
+	_ok(pedal.find_child("PedalBase", false, false) != null and pedal.find_child("PedalCheekL", false, false) != null
+			and pedal.find_child("PedalCheekR", false, false) != null and _named(plate, "PedalRib") >= 5
+			and plate.find_child("PedalToeLip", false, false) != null and plate.find_child("PedalPad", false, false) != null
+			and pedal.find_child("PedalBoot", false, false) != null and pedal.find_child("PedalCable", false, false) != null,
+		"pedals: a gun pedal has a base, two cheeks, a tread with ribs, a toe lip and a rubber face, a boot and a cord (%d ribs)" % _named(plate, "PedalRib"))
+	_ok(plate.position.is_equal_approx(hinge.position), "pedals: the tread turns on its pin: its origin is the hinge's")
+	var rest_deg := rad_to_deg(asin(clampf(-plate.basis.z.y, -1.0, 1.0)))
+	_ok(rest_deg > 15.0 and rest_deg < 30.0, "pedals: and rests toe up on its spring (%.0f degrees)" % rest_deg)
+	var pad := plate.find_child("PedalPad", false, false) as MeshInstance3D
+	var mat := (pad.mesh as BoxMesh).material as StandardMaterial3D
+	_ok(mat.albedo_color.v < 0.15 and mat.roughness > 0.8 and mat.metallic < 0.1, "pedals: the face is matt black rubber, not a coloured plate")
+	var toe_z := pedal.to_local(plate.to_global(Vector3(0, 0, -0.25))).z
+	_ok(model.to_local(pedal.global_position).z + toe_z > 0.76 and (pedal.get_node("PedalBase") as MeshInstance3D).position.y < 0.01,
+		"pedals: the toe is clear of the bay door lying open (0.80 m out of the cabinet's front)")
+	# A driver's two: organ pedals on one axle over a footplate with a heel mat, brake wider than gas.
+	model.morph_to(_spec("daytona"))
+	await _wait(2)
+	var gas := model.find_child("GasPivot", true, false) as Node3D
+	var brake := model.find_child("BrakePivot", true, false) as Node3D
+	var axle := model.find_child("PedalAxle", true, false) as Node3D
+	_ok(gas != null and brake != null and axle != null and model.find_child("FootMat", true, false) != null
+			and model.find_child("Footplate", true, false) != null,
+		"pedals: a driver's two pedals hang on an axle over a footplate with a heel mat")
+	_ok(absf(gas.global_position.y - axle.global_position.y) < 0.001 and absf(brake.global_position.y - axle.global_position.y) < 0.001
+			and absf(gas.global_position.z - axle.global_position.z) < 0.001,
+		"pedals: both pivot on the axle")
+	var gas_w := ((gas.find_child("GasDeck", false, false) as MeshInstance3D).mesh as BoxMesh).size.x
+	var brake_w := ((brake.find_child("BrakeDeck", false, false) as MeshInstance3D).mesh as BoxMesh).size.x
+	_ok(brake_w > gas_w + 0.01 and brake.position.x < gas.position.x, "pedals: the brake is the wider pad, on the left (%.3f against %.3f m)" % [brake_w, gas_w])
+	var tilt := rad_to_deg(asin(clampf(-gas.basis.z.y, -1.0, 1.0)))
+	_ok(tilt > 25.0 and tilt < 45.0 and _named(gas, "GasRib") >= 4 and gas.find_child("GasToeLip", false, false) != null,
+		"pedals: the pads rise toward the screen like a car's, ribbed, with a lip at the toe (%.0f degrees, %d ribs)" % [tilt, _named(gas, "GasRib")])
+	# They still move: the control module tips them with the pedals' axes.
+	var p1 := _panels(model)[0] as ArcadeControlModule
+	var gas_rest := gas.basis
+	var brake_rest := brake.basis
+	p1.show_state(1 << ControllerBindings.JOYPAD_R2)
+	for i in 8:
+		p1.tick(0.05)
+	_ok(not gas.basis.is_equal_approx(gas_rest) and brake.basis.is_equal_approx(brake_rest),
+		"pedals: and the gas tips when R2 is pressed, the brake not")
 
 
 # --- guns ----------------------------------------------------------------------

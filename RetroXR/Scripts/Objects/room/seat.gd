@@ -27,6 +27,9 @@
 ## its cushion to sit. Its pose is its whole saved state (the player's being seated is
 ## nobody's but this session's: it is never saved and never on the wire).
 ##
+## The sitting itself (the pose, the pin, the camera's height, the locomotion block) is SeatSitting, which a sit-down
+## driving cabinet's own seat (CockpitSeat) uses as well; this is the furniture: a thing you carry about.
+##
 ## The scenes are baked by Tools/gen/gen_seats.gd; a mod's seat is any scene with this script
 ## and an `EyePoint` and a `StandPoint` marker.
 class_name Seat
@@ -38,18 +41,18 @@ signal seated_changed(on: bool)
 const GROUP := "seat"
 const BLOCK_OWNER := &"seat"
 
-## The seat the player is in, or null. One player, one seat.
-static var current: Seat = null
+## The seat the player is in (a Seat or a CockpitSeat), or null. One player, one seat.
+static var current: Node = null
 
 ## The ScenePersistence PLAIN_SCENES key this scene is saved and spawned under.
 @export var type_id := "seat_chair"
 
-## Where the origin was put when the player sat: held there every physics frame while they are in it.
-var _pin := Vector3.ZERO
-## The player's pieces as found when they sat, so the per-frame pin does not search the tree.
-var _rig: PlayerPieces = null
-## The desktop camera's height before the seat set it, to put back; negative when it was not touched.
-var _saved_camera_y := -1.0
+var _sitting: SeatSitting
+
+
+func _init() -> void:
+	_sitting = SeatSitting.new(self)
+	_sitting.seated_changed.connect(func(on: bool) -> void: seated_changed.emit(on))
 
 
 func _ready() -> void:
@@ -73,12 +76,7 @@ func _physics_process(_delta: float) -> void:
 	if current != self:
 		set_physics_process(false)
 		return
-	# Whatever moved the origin since the last frame (a provider that was not held back, the body
-	# being pushed) is undone: the head is free, the body is not.
-	if _rig == null or not is_instance_valid(_rig.origin):
-		return
-	if _rig.origin.global_position.distance_squared_to(_pin) > 1.0e-6:
-		_rig.origin.global_position = _pin
+	_sitting.pin()
 
 
 ## While the seat is in a hand a yellow arrow shows which way the player will face when they sit on it, so it can be
@@ -153,6 +151,11 @@ func is_occupied() -> bool:
 	return current == self
 
 
+## The sitting (SeatSitting.release reaches a seat through this).
+func sitting() -> SeatSitting:
+	return _sitting
+
+
 ## Sit down, or stand up if this is the seat the player is in.
 func toggle() -> void:
 	if is_occupied():
@@ -179,57 +182,19 @@ func stand_point() -> Vector3:
 	return global_transform * Vector3(0.0, 0.0, -0.5)
 
 
+## The height of the floor under the seat: its own origin stands on it.
+func floor_y() -> float:
+	return global_position.y
+
+
 ## Carry the player onto this seat. False when there is no player to carry (no camera).
 func sit() -> bool:
-	var rig := PlayerPieces.find(self)
-	if rig.camera == null or rig.origin == null:
-		return false
-	if current != null and current != self:
-		current.stand()
-	var eye := eye_transform()
-	var floor_y := global_position.y
-	_saved_camera_y = -1.0
-	if not MenuStyle.is_vr_mode():
-		# The desktop eye height is the camera's own height above the origin.
-		_saved_camera_y = rig.camera.position.y
-		rig.camera.position.y = eye.origin.y - floor_y
-	rig.origin.global_transform = origin_for_eye(rig.origin.global_transform, rig.camera.global_transform, eye, floor_y)
-	_pin = rig.origin.global_position
-	_rig = rig
-	_put_body_under_camera(rig)
-	_block_locomotion(true)
-	current = self
-	set_physics_process(true)
-	seated_changed.emit(true)
-	return true
+	return _sitting.sit()
 
 
 ## Let the player up, onto the StandPoint. Does nothing when this is not the seat they are in.
 func stand() -> void:
-	if current != self:
-		return
-	current = null
-	set_physics_process(false)
-	var rig := _rig if _rig != null and is_instance_valid(_rig.origin) else PlayerPieces.find(self)
-	_rig = null
-	_block_locomotion(false)
-	if rig.camera != null and rig.origin != null:
-		if _saved_camera_y >= 0.0:
-			rig.camera.position.y = _saved_camera_y
-		rig.origin.global_transform = origin_for_stand(rig.origin.global_transform, rig.camera.global_transform, stand_point())
-		_put_body_under_camera(rig)
-	_saved_camera_y = -1.0
-	seated_changed.emit(false)
-
-
-## The body is put on the floor under the head where the player now is, as a teleport does, or it
-## would sweep there from where it was, through whatever is between.
-func _put_body_under_camera(rig: PlayerPieces) -> void:
-	if rig.body == null or rig.camera == null or rig.origin == null:
-		return
-	var head := rig.camera.global_position
-	rig.body.global_position = Vector3(head.x, rig.origin.global_position.y, head.z)
-	rig.body.velocity = Vector3.ZERO
+	_sitting.stand()
 
 
 ## The room is being changed: whoever sits keeps no seat (the next room has none of these). Only
@@ -239,24 +204,9 @@ static func release_all() -> void:
 		return
 	var seat := current
 	current = null
-	seat.set_physics_process(false)
-	seat._block_locomotion(false)
-	if seat._saved_camera_y >= 0.0 and seat._rig != null and is_instance_valid(seat._rig.camera):
-		seat._rig.camera.position.y = seat._saved_camera_y
-	seat._rig = null
-	seat._saved_camera_y = -1.0
-	seat.seated_changed.emit(false)
-
-
-func _block_locomotion(on: bool) -> void:
-	var loco := get_tree().root.find_child("LocomotionManager", true, false) as LocomotionManager
-	if loco == null:
-		return
-	if on:
-		loco.set_block(BLOCK_OWNER, LocomotionManager.CHANNEL_ALL, true)
-		loco.set_block(BLOCK_OWNER, LocomotionManager.CHANNEL_DESKTOP_MOVE, true)
-	else:
-		loco.clear_owner(BLOCK_OWNER)
+	var sitting := seat.call("sitting") as SeatSitting
+	if sitting != null:
+		sitting.release()
 
 
 # ── the pose, pure ──────────────────────────────────────────────────────────

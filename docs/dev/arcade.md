@@ -772,6 +772,16 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   1.1 m for a SEATED driver) and in front of it, clear of the bay door's swing, a platform, the seat, a dash holding the wheel, the gas and brake
   pedals in the footwell, a gear lever by the right hand and START on the dash; a ROOF over the seat for the Model 3 twins (`o`: Scud Race, Le
   Mans 24, Daytona 2...). The driver's controls are ONE controller (Player1, taken hold of at the wheel), as a panel is.
+  **The seat is a seat** (2026-10-25, `CockpitSeat`, seats.md "A cockpit's own seat"): press the cushion to sit; **the eyes are at the height of
+  the middle of the glass** (1.12 m: the `racer` body is built for it; MAME says nothing of where a driver sat, so the screen is what a seat is
+  fitted to) and a sitting adult's eye height (0.72 m, the racing seat furniture's) above the cushion; you get up beside it on the driver's side.
+  The eyes are still 1.5 m from the glass (a real cab was about 1 m): the platform starts where the bay door's swing ends, and moving it nearer
+  wants the door's clearance rethought. `Tools/models/arcade_cabinet_probe --forms=daytona` takes the view from the seat (`formseat_`).
+  **The pedals** (both gun and driving) are real-pedal shaped since the same day: a gun pedal is a pressed-steel base with a cheek each side of
+  the hinge pin, a tread hinged at its heel (toward the player) with its toe toward the screen raised 22 degrees, a matt black ribbed rubber face and
+  a toe lip, and a boot and a cord to the cabinet; a driver's two are organ pedals on one axle over a footplate with a heel mat, brake (left) the
+  wider pad, rising 32 degrees toward the screen. Every proportion is an estimate: no photograph of Namco's or Sega's pedals could be fetched
+  from here (the egress proxy). `arcade_form_tests pedals/`.
 - **A stand-up driving cabinet** (`stand`: Pole Position, Out Run, Final Lap): the wheel stands out of the panel, a gear lever beside it, and the
   two pedals on the floor in front, clear of the bay door (the real ones were on the kick panel: the door is there).
 - **A ride-on bike** (`bike`: Hang-On, Harley-Davidson, Manx TT): a motorbike on a stand in front of the `racer` body; it LEANS with the steering

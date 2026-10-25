@@ -13,6 +13,7 @@
 ##   press/    the cushion's pointer event sits and stands; the body of the seat does not
 ##   arrow/    a seat in a hand shows a yellow arrow along its facing, and only while it is held
 ##   family/   every seat scene has the script, its markers, a cushion and an eye height that is a sitting one
+##   cockpit/  a sit-down driving cabinet's own seat: eyes level with the middle of its glass, pressed to sit, one seat at a time
 ##   save/     a seat is a plain scene saved by its token and spawned by it
 extends Node
 
@@ -72,6 +73,8 @@ func _run() -> void:
 		await _group_arrow()
 	if _want("family"):
 		await _group_family()
+	if _want("cockpit"):
+		await _group_cockpit()
 	if _want("save"):
 		await _group_save()
 
@@ -316,6 +319,113 @@ func _group_family() -> void:
 		_ok(_near(stand.position.y, 0.0) and absf(stand.position.x) >= 0.45, "family: %s lets you up on the floor, beside it" % id)
 		_ok(seat.is_in_group("spawned") and (seat as RigidBody3D).collision_layer == 4, "family: %s is on the pickable layer like the table" % id)
 		seat.free()
+
+
+# --- cockpit -------------------------------------------------------------------
+
+## A sit-down cabinet's cockpit built as the room builds it (a form on a cabinet), under a stand-in cabinet at `at`
+## turned by `yaw`: a bare Node3D (the builder needs nothing more), optionally a pickable one.
+func _cockpit(at: Vector3, yaw: float, pickable: bool = false) -> Dictionary:
+	var base := ArcadeCabinetSpecs.variant("generic")
+	base["variant"] = "generic"
+	var spec := ArcadeCabinetSpecs.for_game(base, ArcadeGameProfile.for_romset("daytona"))
+	var cab: Node3D = XRToolsPickable.new() if pickable else Node3D.new()
+	cab.transform = Transform3D(Basis(Vector3.UP, yaw), at)
+	add_child(cab)
+	var builder := ArcadeCabinetBuilder.new(spec, cab)
+	builder.build_form()
+	return {"cab": cab, "seat": cab.find_child("DriverSeat", true, false), "boxes": builder.form_boxes, "spec": spec}
+
+
+func _group_cockpit() -> void:
+	_make_rig()
+	await _frames(2)
+	_body.enabled = true
+	var built := _cockpit(Vector3(2.0, 0.0, -3.0), 0.7)
+	var cab := built["cab"] as Node3D
+	var seat := built["seat"] as CockpitSeat
+	await _frames(2)
+	_ok(seat != null and seat.find_child("EyePoint", false, false) != null and seat.find_child("StandPoint", false, false) != null
+			and seat.find_child("SeatTrigger", false, false) is SeatTrigger,
+		"cockpit: a sit-down cabinet's seat is a CockpitSeat with its EyePoint, StandPoint and SeatTrigger")
+	var as_node: Node = seat
+	_ok(not seat.is_in_group("spawned") and not seat.is_in_group(Seat.GROUP) and not (as_node is XRToolsPickable),
+		"cockpit: it is part of the cabinet: no object of its own, never saved by itself")
+	# THE EYES ARE AT THE MIDDLE OF THE GLASS: a seated driver looks straight into the monitor.
+	var racer: Dictionary = ArcadeCabinetSpecs.shapes()["racer"]
+	var glass_mid := ((racer["glass_a"] as Vector2).y + (racer["glass_b"] as Vector2).y) * 0.5
+	var eye := seat.eye_transform()
+	var eye_local := cab.to_local(eye.origin)
+	_ok(_near(eye_local.y, glass_mid, 0.005), "cockpit: the eyes are level with the middle of the glass (%.3f m, glass %.3f m)" % [eye_local.y, glass_mid])
+	var cushion := seat.find_child("SeatCushion", false, false) as Node3D
+	var cushion_top := cab.to_local(cushion.global_position).y + 0.04
+	_ok(_near(eye_local.y - cushion_top, 0.72, 0.005),
+		"cockpit: and a sitting adult's eye height above the cushion, as the racing seat furniture's (%.2f m)" % (eye_local.y - cushion_top))
+	_ok(_near(Seat.yaw_of(eye.basis), Seat.yaw_of(cab.global_basis), 1e-3), "cockpit: looking the way the cabinet faces, at the screen")
+	# Sitting.
+	var seen: Array = []
+	seat.seated_changed.connect(func(on: bool) -> void: seen.append(on))
+	_ok(seat.sit() and seat.is_occupied() and Seat.current == seat, "cockpit: sitting takes the seat")
+	await _frames(2)
+	_ok(_camera.global_position.distance_to(eye.origin) < 0.02, "cockpit: the head is at the seat's eyes (%s vs %s)" % [_camera.global_position, eye.origin])
+	_ok(_near(_camera.position.y, eye.origin.y - seat.global_position.y), "cockpit: on the desktop the camera is as tall as the seat's eyes are above its floor")
+	_ok(_loco.is_blocked(LocomotionManager.CHANNEL_ALL) and _body.enabled, "cockpit: walking is held back and the body stays ON")
+	var pinned := _origin.global_position
+	_origin.global_position += Vector3(0.3, 0.0, -0.4)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_ok(_origin.global_position.distance_to(pinned) < 1e-3, "cockpit: whatever moves the origin is undone: the body is held in the seat")
+	# One seat at a time, a chair's or a cockpit's.
+	var chair := _seat("seat_chair", Vector3(-3.0, 0.0, 2.0), 0.0)
+	await _frames(2)
+	chair.sit()
+	_ok(Seat.current == chair and not seat.is_occupied() and seen == [true, false], "cockpit: sitting in a chair gets up from the cockpit's seat")
+	seat.sit()
+	_ok(Seat.current == seat and not chair.is_occupied(), "cockpit: and the cockpit's seat takes the player from the chair")
+	chair.free()
+	# Getting up puts the player beside the seat, on the floor, and gives the camera back.
+	var stand_at := seat.stand_point()
+	seat.stand()
+	await _frames(2)
+	_ok(Seat.current == null and _near(_camera.global_position.x, stand_at.x, 1e-3) and _near(_camera.global_position.z, stand_at.z, 1e-3),
+		"cockpit: getting up puts the player on the StandPoint")
+	_ok(_near(cab.to_local(stand_at).x, -0.62, 0.01) and _near(cab.to_local(stand_at).y, 0.0, 0.01),
+		"cockpit: ... on the driver's side, on the floor (%s)" % str(cab.to_local(stand_at)))
+	_ok(not _loco.is_blocked(LocomotionManager.CHANNEL_ALL) and _near(_camera.position.y, 1.6), "cockpit: locomotion and the camera's height come back")
+	# The press does it.
+	var trigger := seat.find_child("SeatTrigger", false, false) as SeatTrigger
+	trigger.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, trigger))
+	_ok(seat.is_occupied(), "cockpit: a press on the cushion sits")
+	trigger.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, trigger))
+	_ok(not seat.is_occupied(), "cockpit: and the next press gets up")
+	# The trigger is reachable: nothing the cabinet is aimed at by stands over the cushion.
+	var slab := trigger.get_node("CollisionShape3D") as CollisionShape3D
+	var slab_box := AABB(trigger.position + seat.position + slab.position - (slab.shape as BoxShape3D).size * 0.5,
+		(slab.shape as BoxShape3D).size)
+	var covered := false
+	for box: AABB in built["boxes"]:
+		covered = covered or box.intersects(slab_box)
+	_ok(not covered, "cockpit: no pointer box of the cabinet stands over the cushion, where the trigger is (a laser reaches it)")
+	# The form changing under the player, and the cabinet taken in a hand, let them go.
+	seat.sit()
+	seat.get_parent().remove_child(seat)
+	seat.free()
+	await _frames(2)
+	_ok(Seat.current == null and not _loco.is_blocked(LocomotionManager.CHANNEL_ALL) and _near(_camera.position.y, 1.6),
+		"cockpit: a form taken down with the player in it lets go of them")
+	cab.free()
+	var carried := _cockpit(Vector3(-2.0, 0.0, -3.0), 0.0, true)
+	var carried_seat := carried["seat"] as CockpitSeat
+	await _frames(2)
+	carried_seat.sit()
+	(carried["cab"] as XRToolsPickable).picked_up.emit(carried["cab"])
+	_ok(Seat.current == null and _near(_camera.position.y, 1.6), "cockpit: the cabinet taken in a hand lets the player go")
+	carried_seat.sit()
+	Seat.release_all()
+	_ok(Seat.current == null and not _loco.is_blocked(LocomotionManager.CHANNEL_ALL), "cockpit: leaving the room lets go of it too")
+	(carried["cab"] as Node).free()
+	_drop_rig()
+	await _frames(2)
 
 
 # --- save ----------------------------------------------------------------------

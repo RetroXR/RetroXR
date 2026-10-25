@@ -21,5 +21,15 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
 - **Saving.** Pose only (`ScenePersistence` branch `node is Seat`, token = `type_id`). That the player is seated is this session's: never saved, never on the wire (the input a seat leads to goes through
   `netplay_route` as any input does).
 - **What it is for.** A steering wheel and pedals (not built yet, see arcade.md "The cabinet follows the game") want a player who is held in front of them; a seat is that player. A seat per cabinet
-  is not wired: the racing seat is a separate object the player puts in front of it.
-- Tests: `seat_tests` (groups `pose sit press family save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).
+  is wired only for a sit-down driving cabinet (below): elsewhere a seat is a separate object the player puts in front of it.
+- **A cockpit's own seat (2026-10-25).** A sit-down driving cabinet (`ArcadeCabinetBuilder._build_cockpit`) is built with a seat you can press and sit in
+  (`CockpitSeat`, node `DriverSeat`), where its seat was a decoration. The sitting is not the furniture's: it was lifted out of `Seat` into `SeatSitting`
+  (pose, pin, camera height, locomotion block), which a `Seat` and a `CockpitSeat` each own one of; `Seat.current` is now a `Node` (either) and
+  one player sits in one seat whichever kind (a chair's `sit()` gets up from the cockpit's). A `CockpitSeat` is part of the cabinet and no object of its
+  own: not a pickable, not in the `spawned` or `seat` groups, never saved by itself; the cabinet being picked up, its form changing under the
+  player or the room being left lets them go. **The eyes are at the middle of the glass** (`EyePoint` at the `racer` body's glass centre, 1.12 m,
+  and 0.72 m above the cushion, the racing seat furniture's `eye_above`); the player gets up on the driver's side (`StandPoint` 0.62 m to the left, on
+  the floor). **The cabinet's pointer boxes leave the cushion open**: a box over the whole seat stood between the laser and the trigger that lies
+  3 cm proud of it (the base under the cushion and the back behind it are boxes; nothing above). `seat_tests cockpit/`; the view from the seat is
+  `arcade_cabinet_probe --forms=daytona` (`formseat_`). A headset and the Quest are OWED, as for the furniture.
+- Tests: `seat_tests` (groups `pose sit press family cockpit save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).
