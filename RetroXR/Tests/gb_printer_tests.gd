@@ -65,6 +65,7 @@ func _ready() -> void:
 	_test_paper_cannot_cross_itself()
 	await _test_fast_paper_crosses_a_surface()
 	_test_released_print_keeps_its_shape()
+	await _test_wall_preview_is_the_flat_sticker()
 	_test_thermal_ribbon()
 	_test_contact_motion_is_not_sleep()
 	_test_exact_tear_handoff()
@@ -952,6 +953,51 @@ func _test_released_print_keeps_its_shape() -> void:
 	_ok(moved < 0.0001, "release preserves the existing shape without a pop")
 	_ok(flop._ribbon.mean_curvature() < 0.0, "release preserves the inherited reverse bend")
 	poster.free()
+
+
+## Held up to a wall, the Poster shows where the print would stick. The curled
+## paper rides on the Surface that preview moves, so it has to step aside for the
+## flat sticker and stop moving, then come back as it was when the wall is gone.
+func _test_wall_preview_is_the_flat_sticker() -> void:
+	var wall := StaticBody3D.new()
+	var cs := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(4, 3, 0.15)
+	cs.shape = box
+	wall.add_child(cs)
+	add_child(wall)
+	wall.global_position = Vector3(0, 1.5, -2.0)
+	var poster := (load("res://Scenes/Objects/media/poster.tscn") as PackedScene).instantiate() as Poster
+	poster.printout = true
+	poster.size_scale = 0.12 / Poster.BASE_LONG_EDGE
+	add_child(poster)
+	poster.freeze = true
+	poster.global_transform = Transform3D(Basis(), Vector3(0, 1.5, -1.6))
+	poster.set_aim_direction(Vector3(0, 0, -1))
+	await get_tree().physics_frame
+	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+	flop.set_process(false)
+	poster._process(1.0 / 90.0)
+	_ok(poster.is_previewing(), "preview/a print held up to a wall previews sticking to it")
+	flop._process(1.0 / 90.0)
+	var flat := poster.get_node("Surface/FlatMesh") as MeshInstance3D
+	_ok(flat.visible and not flop._mesh.visible, "preview/the preview is the flat sticker, not the curled paper")
+	var before := flop._ribbon.positions.duplicate()
+	for i in 30:
+		flop._process(1.0 / 90.0)
+	var moved := 0.0
+	for i in before.size():
+		moved = maxf(moved, before[i].distance_to(flop._ribbon.positions[i]))
+	_ok(moved == 0.0, "preview/and the paper does not run while it previews (%.5f m)" % moved)
+	poster.set_aim_direction(Vector3(0, 0, 1))
+	poster.global_transform = Transform3D(Basis(), Vector3(0, 1.5, 1.0))
+	await get_tree().physics_frame
+	poster._process(1.0 / 90.0)
+	flop._process(1.0 / 90.0)
+	_ok(not poster.is_previewing() and flop._mesh.visible and not flat.visible,
+		"preview/taken away from the wall it is curled paper again")
+	poster.free()
+	wall.free()
 
 
 ## Line n's dots as gbprinter-libretro's own test burns them: no two lines

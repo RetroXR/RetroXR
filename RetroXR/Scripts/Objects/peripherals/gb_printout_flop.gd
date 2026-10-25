@@ -111,6 +111,20 @@ func _process(delta: float) -> void:
 		_was_held = false
 		_was_stuck = true
 		return
+	if _poster.is_previewing():
+		# The Poster has slid its Surface to where the print would stick, and the
+		# bent mesh rides on that Surface: show the flat sticker there instead,
+		# and hold the paper as it was until the hand takes it away again.
+		if _mesh.visible:
+			print("[GbPrinter] print previews a stick: flat sheet shown, paper paused")
+		_mesh.visible = false
+		_flat.visible = true
+		_own_rim(false)
+		_motion.reset()
+		_paper_sweep.reset()
+		_drawn.clear()
+		_quiet = 0.0
+		return
 	var size := _poster.get_sheet_size()
 	if size.x <= 0.0 or size.y <= 0.0:
 		return

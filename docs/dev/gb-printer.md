@@ -208,7 +208,12 @@ nothing (two halves anchored at the grip used to stay anchored there after
 release, so where it was last held chose how it lay). A tear hands over the
 strip's actual points and velocities, so the print starts exactly as it was on
 the printer. The body's colliders are segments that follow the sheet, not a
-flat board. Stuck to something it is the flat sticker it always was. It sleeps
+flat board. Stuck to something it is the flat sticker it always was, and so is
+its stick PREVIEW (`Poster.is_previewing()`): the preview slides the Poster's
+`Surface` to the landing, and the bent mesh is a child of that `Surface`, so it
+used to show the curled paper still simulating on the wall. While previewing the
+flop shows the flat sheet and holds the ribbon still, and the paper picks up
+exactly where it was when the wall leaves reach. It sleeps
 once its points have moved less than 0.5 mm/s for half a second -- not on hinge
 speeds, which contact repair zeroes: a print once slept 37 mm short of its curl.
 `GbPaperMotion` reads how a thing is moving for both (off the pose it is drawn

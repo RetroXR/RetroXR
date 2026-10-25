@@ -541,6 +541,13 @@ func _end_preview() -> void:
 		_hint.visible = false
 
 
+## Whether the sheet is drawn at its landing now rather than in the hand. A
+## print's flop shows the flat sheet while this holds, since the preview is the
+## sticker on the wall and not the paper being carried.
+func is_previewing() -> bool:
+	return _previewing
+
+
 ## Where this would land if let go now, and the pose it would take there. The
 ## preview draws from these, so anything checking the preview checks the commit.
 func predict_stick() -> Dictionary:
