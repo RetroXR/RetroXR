@@ -240,6 +240,15 @@ func _build_shell(cab: Node3D) -> void:
 	ArcadeParts.box(_owner, cab, "KickPlate", Vector3(_in_w, 0.09, 0.02), Vector3(0, 0.045, 0.34), _dark)
 	# Coin area: the front between the bay door and the control panel.
 	ArcadeParts.box(_owner, cab, "CoinFace", Vector3(_in_w, 0.28, 0.02), Vector3(0, 0.64, 0.39), _body)
+	# A body wider than the bay's door (a form wider than the cabinet it is built on: three or four players, a gun
+	# cabinet's wide body) is closed beside it: the bay is baked with the cabinet and a form never rebuilds it,
+	# so its door keeps the width it had (`door_width`, ArcadeCabinetSpecs.for_game).
+	var door_w := float(_v.get("door_width", _in_w - 0.02))
+	if _in_w > door_w + 0.03:
+		var cheek := (_in_w - door_w) * 0.5
+		for sx in [-1.0, 1.0]:
+			ArcadeParts.box(_owner, cab, "LowerFace%s" % ("L" if sx < 0 else "R"), Vector3(cheek, 0.41, 0.02),
+				Vector3(sx * (door_w * 0.5 + cheek * 0.5), 0.295, 0.39), _body)
 	ArcadeParts.box(_owner, cab, "ApronUnder", Vector3(_in_w, 0.05, 0.07), Vector3(0, 0.785, 0.435), _body)
 	ArcadeParts.box(_owner, cab, "Apron", Vector3(_in_w, 0.12, 0.02), Vector3(0, 0.86, 0.46), _body)
 	ArcadeParts.box(_owner, cab, "ApronTrim", Vector3(_in_w, 0.012, 0.022), Vector3(0, 0.806, 0.462), _trim)
@@ -394,20 +403,9 @@ func _build_deck() -> void:
 	var deck := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Deck", Vector3(0, mid.y, mid.x))) as Node3D
 	deck.basis = Basis(Vector3.RIGHT, theta)
 	var players: Array = _v["players"]
-	# Three or more players' panels do not fit between the sides: the plate grows WINGS past them, as the
-	# four-player kits on a standard upright did. (Within a centimetre they still fit: the generic panel's
-	# last cap reaches 30.3 cm from the middle of a 62 cm deck.)
-	var span := ArcadeCabinetSpecs.panels_span(players)
-	var plate_w := _in_w if span <= _in_w + 0.01 else span + 0.02
+	# The body is as wide as its panels need (ArcadeCabinetSpecs.body_width), so the plate runs side to side.
 	var depth := along.length()
-	ArcadeParts.box(_owner, deck, "DeckPlate", Vector3(plate_w, depth, 0.012), Vector3(0, 0, -0.006), _dark)
-	if plate_w > _in_w + 0.001:
-		var wing := (plate_w - _in_w) * 0.5
-		for sx in [-1.0, 1.0]:
-			# The wing's edge and its underside, in the body's colour, so the plate reads as part of the cabinet.
-			ArcadeParts.box(_owner, deck, "DeckWing%s" % ("L" if sx < 0 else "R"), Vector3(wing, depth, 0.05),
-				Vector3(sx * (_in_w * 0.5 + wing * 0.5), 0, -0.037), _body)
-		form_boxes.append(AABB(Vector3(-plate_w * 0.5, mid.y - 0.06, a.x - 0.18), Vector3(plate_w, 0.10, 0.18)))
+	ArcadeParts.box(_owner, deck, "DeckPlate", Vector3(_in_w, depth, 0.012), Vector3(0, 0, -0.006), _dark)
 
 	for i in players.size():
 		_build_player(deck, i, players[i])
@@ -686,13 +684,27 @@ func _build_front_sockets() -> void:
 	# seats, so a plug seats connector-in and upright. Two at the apron's ends; a cabinet for three or four
 	# players has a socket for each, spread between them.
 	var count := clampi(int(_v.get("socket_count", 2)), 2, 4)
+	var xs := _socket_xs(count)
 	for i in count:
-		var x := -0.24 + 0.48 * float(i) / float(count - 1)
+		var x: float = xs[i]
 		var seat := ArcadeParts.node(_owner, sockets, "Marker3D", "PortSeat%d" % (i + 1),
 			Vector3(x, 0.86, 0.47)) as Marker3D
 		seat.basis = Basis(Vector3.BACK, PI)
 		ArcadeParts.box(_owner, sockets, "Recess%d" % (i + 1), Vector3(0.034, 0.026, 0.004),
 			Vector3(x, 0.86, 0.4685), _dark)
+
+
+## Where `count` pad sockets go along the apron: two at its ends; more, one under each player's panel when
+## there is a panel for each, else spread over the body.
+func _socket_xs(count: int) -> Array:
+	var centres := ArcadeCabinetSpecs.panel_centres(_v["players"])
+	if count > 2 and centres.size() == count:
+		return centres
+	var half := 0.24 + maxf(_in_w - 0.62, 0.0) * 0.4
+	var out: Array = []
+	for i in count:
+		out.append(-half + 2.0 * half * float(i) / float(count - 1))
+	return out
 
 
 # ── guns ────────────────────────────────────────────────────────────────────

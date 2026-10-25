@@ -735,8 +735,13 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
 - **Players and panels** (`layout_panels`): a panel per player, each the kind of control the game has (`panel_kind`: two sticks `twin`, a
   trackball `ball`, a paddle `dial`, `buttons` alone, else a `stick`) with exactly its buttons (`button_grid`: a row of up to three, Neo Geo's
   arched four, three over two, two rows of three). Two players stand where the generic cabinet's always did (the layout reproduces its numbers
-  exactly, which is what keeps a six-button two-player game from rebuilding); three to six crowd the deck, which grows WINGS past the sides
-  (the four-player kits). **An alternating game** (the table's `a`: Pac-Man, Donkey Kong, Kuri Kinton) has ONE panel in the middle, labelled
+  exactly, which is what keeps a six-button two-player game from rebuilding); three to six make the BODY wider (`body_width`: the panels' span and
+  8 cm, at least 30 cm of deck a player: 0.90 m for three, 1.20 for four, 1.92 for six, as the real ones were: Konami's four-player was 1.2 m,
+  the monitor in the middle and the marquee as wide as the body). **Never a plate with wings on a standard upright**: that was the long ugly bar
+  of 2026-10-25 and its wings are gone. A form never rebuilds the bay (it is baked with the cabinet, `door_width` is the door's own, 0.60 m on the
+  generic one), so a body wider than the door is closed beside it (`LowerFaceL/R`); the same closes a gun cabinet's 0.90 m front. Coin doors stand
+  under their player's panel when there is one for each (a game with fewer slots, Cotton 2's two, spreads them over the body), and so do the pad
+  sockets (otherwise spread over the apron). `arcade_form_tests wide/`. **An alternating game** (the table's `a`: Pac-Man, Donkey Kong, Kuri Kinton) has ONE panel in the middle, labelled
   1P, and a momentary START labelled 2P beside it, which is player 2's START (MAME reads player 1's controls for both turns on an upright).
   A front socket per player, up to the four ports a machine has (`socket_count`).
 - **Coin doors**: as many as the game has coin slots, no more than it has panels, up to four, each to its own player's port (a game with more
@@ -797,7 +802,7 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   the guns of the new form are built and plugged in, the collision and pointer boxes are laid again (removed first: `configure_collision` and
   `_build_pointer_shapes` run again on every morph), the art and the game's profile are hung again, the cabinet stays see-through if it is in a
   hand, and the rectangle on the floor follows (`GroundPlacement.set_footprint(size, center)`: a cockpit's base reaches 2 m forward).
-- **No collision for what the form adds** (a cockpit, a stage, deck wings): a player walks into a cockpit and sits on their own chair, steps onto
+- **No collision for what the form adds** (a cockpit, a stage): a player walks into a cockpit and sits on their own chair, steps onto
   a stage with their own feet. Those parts are POINTER boxes (`FORM_BOXES_META`, aimed at they are the cabinet, to hold and carry) and the footprint
   (`FOOTPRINT_META`, a Rect2 in x/z).
 - **Pulling the board gives the cabinet its own form back.** A clone takes its parent's form (the table gives it the same key).

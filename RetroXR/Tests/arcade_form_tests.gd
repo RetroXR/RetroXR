@@ -14,10 +14,11 @@
 ##
 ## Groups:
 ##   specs/     the spec each kind of game asks for: panels, doors, guns, screen, cockpit, stage
-##   layout/    panels across the deck: the generic two where they always were, more crowd it and grow wings
+##   layout/    panels across the deck: the generic two where they always were, more make the BODY wider
 ##   build/     each form built on a real cabinet: its modules, parts and screen
 ##   board/     the real path: a board in the bay changes the form, pulling it gives the cabinet's own back
 ##   tate/      a monitor on its side gets the tall body and a window cut to the picture; every body is one silhouette
+##   wide/      three to six players: the BODY is as wide as the deck they need, doors and sockets under their panels
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
@@ -85,6 +86,9 @@ func _run() -> void:
 		await _clear()
 	if _want("tate"):
 		await _group_tate()
+		await _clear()
+	if _want("wide"):
+		await _group_wide()
 		await _clear()
 	if _want("reach"):
 		await _group_reach()
@@ -217,7 +221,17 @@ func _group_specs() -> void:
 	var tmnt := _spec("tmnt")
 	_ok((tmnt["players"] as Array).size() == 4 and (tmnt["coins"] as Array).size() == 4,
 		"specs: TMNT has four panels and four coin doors")
-	_ok(S.panels_span(tmnt["players"]) > 0.62 + 0.01, "specs: four panels are wider than the deck (it grows wings)")
+	_ok(S.panels_span(tmnt["players"]) > 0.62 + 0.01 and float(tmnt["width"]) - 0.04 >= S.panels_span(tmnt["players"]) + 0.03,
+		"specs: four panels are wider than the generic deck, so the BODY is wider (%.2f m), with a hand's width to spare each side"
+			% float(tmnt["width"]))
+	var door_xs: Array = tmnt["coins"]
+	var centres := S.panel_centres(tmnt["players"])
+	var under := door_xs.size() == centres.size()
+	for i in mini(door_xs.size(), centres.size()):
+		under = under and absf(float(door_xs[i]) - float(centres[i])) < 0.001
+	_ok(under, "specs: and each coin door stands under its player's panel (%s)" % str(door_xs))
+	_ok(is_equal_approx(float(tmnt["door_width"]), 0.60) and is_equal_approx(float(_spec("sf2").get("width", 0.66)), 0.66),
+		"specs: the bay door keeps the 0.60 m it was baked with; a two-player game keeps the generic body")
 	var two_buttons := true
 	for p: Dictionary in tmnt["players"]:
 		two_buttons = two_buttons and (p["buttons"] as Array).size() == 2
@@ -237,10 +251,10 @@ func _group_specs() -> void:
 	# Gun games: the wide body, the guns, their style and their pedals.
 	var tc := _spec("timecris")
 	_ok(str(tc["shape"]) == "wide" and int(tc["guns"]) == 1 and str(tc["gun_style"]) == "holster"
-			and (tc.get("gun_pedals", []) as Array).size() == 1 and not bool(tc["pedal"]) and not bool(tc["sockets"]),
+			and (tc.get("gun_pedals", []) as Array).size() == 1 and not bool(tc["sockets"]),
 		"specs: Time Crisis: the gun body, one gun in a holster, one pedal, no sockets")
 	var pb := _spec("ptblank")
-	_ok(int(pb["guns"]) == 2 and not pb.has("gun_pedals") and not bool(pb["pedal"]), "specs: Point Blank: two guns, no pedal")
+	_ok(int(pb["guns"]) == 2 and not pb.has("gun_pedals"), "specs: Point Blank: two guns, no pedal")
 	_ok(str(_spec("opwolf")["gun_style"]) == "mounted" and int(_spec("opwolf")["guns"]) == 1,
 		"specs: Operation Wolf: one gun on a mount")
 	var bb := _spec("bbusters")
@@ -323,11 +337,12 @@ func _group_build() -> void:
 			and model.find_child("StartLabel", true, false) != null,
 		"build: one shared panel and a momentary 2P START, each START labelled")
 	_ok(_doors(model).size() == 1, "build: one coin door")
-	# Four players: four panels on a deck with wings.
+	# Four players: four panels on a body as wide as they need, no wings.
 	model.morph_to(_spec("tmnt"))
 	await _wait(2)
-	_ok(_panels(model).size() == 4 and model.find_child("DeckWingL", true, false) != null and _doors(model).size() == 4,
-		"build: TMNT builds four panels on a winged deck and four coin doors")
+	_ok(_panels(model).size() == 4 and model.find_child("DeckWingL", true, false) == null and _doors(model).size() == 4
+			and is_equal_approx(model.cabinet_width, float(_spec("tmnt")["width"])),
+		"build: TMNT builds four panels and four coin doors on a body %.2f m wide, with no wings on the deck" % model.cabinet_width)
 	var players_ok := true
 	for i in 4:
 		players_ok = players_ok and (_panels(model)[i] as ArcadeControlModule).player == i
@@ -513,6 +528,100 @@ func _group_tate() -> void:
 			and (pac["tube"] as Vector2).y > (pac["tube"] as Vector2).x
 			and is_equal_approx((pac["glass"] as Vector2).y, (pac["tube"] as Vector2).y + 0.06),
 		"tate: Pac-Man's 19 inch tube is smaller than Batsugun's in a window cut to it (%s in %s)" % [pac["tube"], pac["glass"]])
+
+
+# --- wide ----------------------------------------------------------------------
+
+func _group_wide() -> void:
+	# The body is the shape's while the panels fit its deck, else as wide as they need.
+	_ok(is_equal_approx(S.body_width(0.66, S.variant("generic")["players"]), 0.66),
+		"wide: the generic two panels fit the generic body")
+	var last := 0.0
+	for romset in ["dino", "tmnt", "xmen6p"]:
+		var spec := _spec(romset)
+		var w := float(spec["width"])
+		var span := S.panels_span(spec["players"])
+		_ok(is_equal_approx(w, span + 0.08) and w > last,
+			"wide: %s's body is %.2f m, its panels' span and 8 cm (%.2f), wider than the one before" % [romset, w, span])
+		last = w
+	# A player has a third of a metre of the deck at least (a real four-player cabinet was 1.2 m: twelve inches a head).
+	var pitch_ok := true
+	for romset in ["dino", "tmnt", "xmen6p"]:
+		var cs := S.panel_centres(_spec(romset)["players"])
+		for i in range(1, cs.size()):
+			pitch_ok = pitch_ok and float(cs[i]) - float(cs[i - 1]) >= 0.299
+	_ok(pitch_ok, "wide: three, four and six players each have at least 30 cm of the deck")
+	# Four players and two coin slots (Cotton 2): the two doors are spread over its body, not left bunched in the
+	# middle where the generic cabinet's two stand.
+	var cot := _spec("cotton2")
+	_ok((cot["players"] as Array).size() == 4 and (cot["coins"] as Array).size() == 2 and absf(float(cot["coins"][0])) > 0.2,
+		"wide: Cotton 2 has four panels and two coin slots, the doors spread over its body (%s)" % str(cot["coins"]))
+	_ok(is_equal_approx(float(_spec("timecris", "daphne_gun")["door_width"]), 0.84)
+			and is_equal_approx(float(_spec("tmnt")["door_width"]), 0.60),
+		"wide: the bay's door keeps the width its cabinet was baked with (a wide base's is its own)")
+	# Built on a real cabinet.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	for romset in ["dino", "tmnt", "xmen6p"]:
+		var spec := _spec(romset)
+		model.morph_to(spec)
+		await _wait(2)
+		var in_w := float(spec["width"]) - 0.04
+		var plate := model.find_child("DeckPlate", true, false) as MeshInstance3D
+		var starts_in := true
+		var lowest := 9.0
+		for panel: ArcadeControlModule in _panels(model):
+			var x := model.to_local((panel.find_child("Start", true, false) as Node3D).global_position).x
+			starts_in = starts_in and absf(x) <= in_w * 0.5 - 0.01
+			lowest = minf(lowest, x)
+		_ok(is_equal_approx((plate.mesh as BoxMesh).size.x, in_w) and starts_in and is_equal_approx(model.cabinet_width, float(spec["width"]))
+				and model.find_child("DeckWingL", true, false) == null and model.ground_footprint().x < float(spec["width"]) + 0.01,
+			"wide: %s's deck runs side to side of a %.2f m body, every START on it, no wings (footprint %s)"
+				% [romset, float(spec["width"]), str(model.ground_footprint())])
+		var centres := S.panel_centres(spec["players"])
+		var doors := _doors(model)
+		var under := true
+		var door_lo := 9.0
+		var door_hi := -9.0
+		for i in doors.size():
+			var dx := (doors[i] as Node3D).position.x
+			door_lo = minf(door_lo, dx)
+			door_hi = maxf(door_hi, dx)
+			# A door for every panel stands under it; fewer doors (X-Men 6P has four slots) are spread, centred.
+			if doors.size() == centres.size():
+				under = under and absf(dx - float(centres[i])) < 0.002
+		under = under and absf(door_lo + door_hi) < 0.01 and door_hi < in_w * 0.5 and door_hi > 0.1
+		_ok(under, "wide: %s: %d coin door(s), centred on the body and each under its panel when there is one for each (%.2f..%.2f)"
+			% [romset, doors.size(), door_lo, door_hi])
+		var seats := model.modules_of_kind(ArcadeProfiles.KIND_SOCKETS)[0] as ArcadeSocketModule
+		var seat_ok := seats.seat_count() == int(spec.get("socket_count", 2))
+		var seat_lo := 9.0
+		var seat_hi := -9.0
+		for i in seats.seat_count():
+			var sx := model.to_local((seats.find_child("PortSeat%d" % (i + 1), true, false) as Node3D).global_position).x
+			seat_ok = seat_ok and absf(sx) < in_w * 0.5
+			seat_lo = minf(seat_lo, sx)
+			seat_hi = maxf(seat_hi, sx)
+		var seat_under := seats.seat_count() != centres.size()
+		if not seat_under:
+			seat_under = true
+			for i in seats.seat_count():
+				var seat_x := model.to_local((seats.find_child("PortSeat%d" % (i + 1), true, false) as Node3D).global_position).x
+				seat_under = seat_under and absf(seat_x - float(centres[i])) < 0.002
+		seat_ok = seat_ok and seat_under and seat_lo < -in_w * 0.25
+		_ok(seat_ok and seat_hi > in_w * 0.25 and absf(seat_lo + seat_hi) < 0.01,
+			"wide: %s: the pad sockets are spread over the apron, centred (%.2f..%.2f)" % [romset, seat_lo, seat_hi])
+		var face := model.find_child("LowerFaceL", true, false) as MeshInstance3D
+		_ok(face != null and is_equal_approx((face.mesh as BoxMesh).size.x, (in_w - 0.60) * 0.5)
+				and is_equal_approx(model.to_local(face.global_position).x, -(0.30 + (in_w - 0.60) * 0.25)),
+			"wide: %s: the front beside the bay's 0.60 m door is closed" % romset)
+	# The generic body (no lower face to close), and a wide gun body built on it (a lower face to close).
+	model.morph_to(model._base_spec)
+	await _wait(2)
+	_ok(model.find_child("LowerFaceL", true, false) == null, "wide: the generic body has nothing beside the door to close")
+	model.morph_to(_spec("timecris"))
+	await _wait(2)
+	_ok(model.find_child("LowerFaceL", true, false) != null, "wide: a gun cabinet's 0.90 m body is closed beside the door too")
 
 
 # --- guns ----------------------------------------------------------------------

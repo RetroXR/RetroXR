@@ -178,9 +178,11 @@ const MAX_PANELS := 6
 const MAX_COIN_DOORS := 4
 ## The most guns a gun cabinet carries (Beast Busters had three).
 const MAX_GUNS := 3
-## The pitch between two players' panels on a two-player deck (the generic cabinet's), the gap left between
-## two panels that crowd a wider deck, and how far a panel's stick stands in from its left edge.
+## The pitch between two players' panels on a two-player deck (the generic cabinet's), the least pitch of three
+## or more (a player's share of a four-player deck: 30 cm, a real one's twelve inches), the gap left between two
+## panels that would crowd it, and how far a panel's stick stands in from its left edge.
 const PANEL_PITCH := 0.31
+const PANEL_PITCH_MULTI := 0.30
 const PANEL_GAP := 0.03
 const STICK_IN := 0.04625
 ## A button column's pitch, and the first column's distance from the stick.
@@ -227,6 +229,26 @@ static func panels_span(players: Array) -> float:
 		var e := panel_extent(panel)
 		reach = maxf(reach, maxf(-e.x, e.y))
 	return reach * 2.0
+
+
+## The x of each panel's middle on the deck: where its player stands, and so where the coin door under it and the
+## socket for its pad go.
+static func panel_centres(players: Array) -> Array:
+	var out: Array = []
+	for panel: Dictionary in players:
+		var e := panel_extent(panel)
+		out.append((e.x + e.y) * 0.5)
+	return out
+
+
+## How wide the body is for these panels: the shape's own while they fit its deck (within a centimetre: the
+## generic panel's last cap reaches 30.3 cm from the middle of a 62 cm deck), else as wide as the deck needs
+## them, with 2 cm to spare either side. A three- or four-player cabinet was a real one WIDE all the way up
+## (Konami's was 1.2 m, the monitor in the middle and the marquee as wide as the body), never a standard
+## upright with a long plate stuck on the front.
+static func body_width(shape_width: float, players: Array) -> float:
+	var span := panels_span(players)
+	return shape_width if span <= shape_width - 0.04 + 0.01 else span + 0.08
 
 
 ## The kind of panel a game's controls want: two sticks, a trackball, a paddle dial, buttons alone, or a stick.
@@ -358,7 +380,7 @@ static func layout_panels(kind: String, players: int, buttons: int, alternating:
 			only["label"] = "1P"
 			out.append({"kind": "start", "start_x": panel_extent(only).y + 0.05, "player": 1, "label": "2P"})
 		return out
-	var pitch := maxf(PANEL_PITCH, w + 0.0175) if n == 2 else w + PANEL_GAP
+	var pitch := maxf(PANEL_PITCH, w + 0.0175) if n == 2 else maxf(PANEL_PITCH_MULTI, w + PANEL_GAP)
 	for i in n:
 		out.append(panel(kind, buttons, (float(i) - float(n - 1) * 0.5) * pitch, i))
 	return out
@@ -459,7 +481,10 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		shape = "tate"
 	spec["shape"] = shape
 	var sh: Dictionary = shapes()[shape]
-	spec["width"] = float(sh["w"])
+	var width := body_width(float(sh["w"]), spec["players"])
+	spec["width"] = width
+	# The bay is baked with the cabinet and a form never rebuilds it: its door keeps the width the base had.
+	spec["door_width"] = float(base.get("width", shapes()[base_shape]["w"])) - 0.06
 	var doors := (spec["players"] as Array).size()
 	if spec.has("cockpit") or spec.has("bike") or spec.has("stage"):
 		doors = clampi(players, 1, 2)
@@ -470,10 +495,14 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		# A gun hangs in the middle of the front: two doors, either side of its holster.
 		doors = mini(doors, 2)
 		spec["coins"] = [-0.13, 0.13] if doors == 2 else [-0.13]
-	elif doors == (base.get("coins", []) as Array).size() and shape == base_shape:
+	elif doors == (base.get("coins", []) as Array).size() and shape == base_shape \
+			and is_equal_approx(width, float(base.get("width", sh["w"]))):
 		spec["coins"] = (base["coins"] as Array).duplicate()
+	elif doors >= 3 and doors == (spec["players"] as Array).size():
+		# A door under each player's panel.
+		spec["coins"] = panel_centres(spec["players"])
 	else:
-		spec["coins"] = coin_xs(doors, float(sh["w"]) - 0.04)
+		spec["coins"] = coin_xs(doors, width - 0.04)
 	var inches := screen_inches(profile)
 	var screen := {"vertical": profile.is_vertical(), "screens": profile.screens()}
 	if inches > 0 and inches != int(sh.get("inches", 25)):
