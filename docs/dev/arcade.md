@@ -438,6 +438,10 @@ The first fixes shipped, the run was read off the headset (`adb logcat -d`), and
 - **A cabinet's gun is held like any object.** The console gun's toggle-hold (the grip lets go and the gun is picked straight up again
   until the drop combo) felt stuck on a cabinet, and the "back in the holster from anywhere" made it magnetic. A captive gun now falls
   when let go and goes back only if it is let go AT the holster, whose snap zone takes it (`holster` group).
+- **Holding a cabinet's gun held its coin down (found 2026-10-25).** The grip is SELECT on a console's gun, which stays in the hand by
+  itself. A captive gun is held only while the grip is (`press_to_hold`), so its SELECT, sent as the gun's own and, since the START fix
+  above, as the joypad's credit, was held all the while: every grab was a credit and the coin switch stayed down. A captive gun's grip
+  is the hold and nothing else now (`LightGun._pressed_now`); a cabinet's credit is its coin door's. `arcade_variants_tests fire/`.
 - **Held cabinets are a dithered ghost on the mobile renderer, and cheap.** The `ALPHA_HASH` copies did not show on the Quest (cause not
   found; the first logcat had no line to say whether the code ran, so there is one now: `[ArcadeCabinet] grabbed…` and
   `held: N surfaces dithered…`). The copies are now ONE shared unshaded flat-colour shader that discards pixels in a screen-space

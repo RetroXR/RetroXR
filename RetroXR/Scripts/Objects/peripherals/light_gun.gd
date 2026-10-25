@@ -425,6 +425,12 @@ func _pressed_now() -> Dictionary:
 		var lid: int = _lightgun_map[vr_source]
 		if lid < 0:
 			continue
+		# A cabinet's gun is held only while the grip is (press_to_hold): there the grip is the hold and
+		# nothing else. Bound to SELECT, as it is by default, it held the coin down for as long as the gun
+		# was in the hand, and every grab was a credit.
+		if captive and vr_source == "grip":
+			out[lid] = bool(out.get(lid, false))
+			continue
 		var key := "%d:%s" % [_holding_ctrl.get_instance_id() if vr else 0, vr_source]
 		var value: float = _holding_ctrl.get_float(vr_source) if vr else 0.0
 		out[lid] = _latch.pressed(key, value, float(INPUT_THRESHOLDS.get(vr_source, 0.5)))

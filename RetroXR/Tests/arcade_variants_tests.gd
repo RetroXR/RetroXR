@@ -18,7 +18,8 @@
 ##   guns/       captive guns: built with the machine, plugged in, not saved, in their holsters
 ##   cord/       the cord's route, laid to the cord's own length
 ##   settle/     the cords come to rest: above the floor, anchored at both ends, not stretched
-##   fire/       START and the coin reach a gun's port as the gun's own buttons
+##   fire/       START and the coin reach a gun's port as the gun's own buttons; the grip that holds a
+##               cabinet's gun is no button
 ##   aim/        a gun aims at the cabinet's own tube
 ##   pedal/      a pedal is drawn, and is not active
 ##   console/    the consolized Neo Geo MVS: a console that takes the same cassette, with pads and phono AV out
@@ -506,7 +507,44 @@ func _group_fire() -> void:
 	_ok((int(input.last_sent.get(0, 0)) & (1 << ArcadeProfiles.COIN_BIT)) != 0,
 		"fire: and SELECT is the joypad's credit")
 	gun._pressed_out.clear()
+	# A cabinet's gun is held only while the grip is (press_to_hold). The grip is SELECT on a console's gun,
+	# and held all the while, it held the coin down: every grab was a credit.
+	var hand := _fake_hand()
+	gun._holding_ctrl = hand["ctrl"]
+	(hand["tracker"] as XRControllerTracker).set_input(&"grip", 1.0)
+	gun.captive = false
+	var console_select: bool = gun._pressed_now().get(ControllerBindings.LIGHTGUN_SELECT, false)
+	gun.captive = true
+	var cabinet_select: bool = gun._pressed_now().get(ControllerBindings.LIGHTGUN_SELECT, true)
+	_ok(console_select, "fire: (on a console's gun, which stays in the hand by itself, the grip is SELECT)")
+	_ok(not cabinet_select, "fire: on a cabinet's gun the grip only holds it: no SELECT")
+	input.last_sent.clear()
+	input._process(0.0)
+	_ok((int(input.last_sent.get(0, 0)) & (1 << ArcadeProfiles.COIN_BIT)) == 0,
+		"fire: so holding it puts no coin in")
+	_drop_fake_hand(gun, hand)
 	sys.is_powered_on = false
+
+
+## A right hand the suite works by hand: an XRController3D bound to a tracker whose inputs it sets.
+func _fake_hand() -> Dictionary:
+	var origin := XROrigin3D.new()
+	add_child(origin)
+	var ctrl := XRController3D.new()
+	ctrl.tracker = &"right_hand"
+	ctrl.pose = &"default"
+	origin.add_child(ctrl)
+	var tracker := XRControllerTracker.new()
+	tracker.name = &"right_hand"
+	XRServer.add_tracker(tracker)
+	return {"origin": origin, "ctrl": ctrl, "tracker": tracker}
+
+
+func _drop_fake_hand(gun: LightGun, hand: Dictionary) -> void:
+	gun._holding_ctrl = null
+	gun._pressed_out.clear()
+	XRServer.remove_tracker(hand["tracker"] as XRControllerTracker)
+	(hand["origin"] as Node).free()
 
 
 # --- aim -----------------------------------------------------------------------
