@@ -202,7 +202,11 @@ func _unhandled_input(event: InputEvent) -> void:
 				if not mbe.pressed:
 					left_drag = false
 				if mbe.pressed:
-					if _held_object:
+					if is_turning():
+						# A click mid-turn is neither a drop nor a press on whatever the turn
+						# has brought under the crosshair.
+						get_viewport().set_input_as_handled()
+					elif _held_object:
 						# The click drops what is held -- but on the way UP, so that a press
 						# on one of the object's own controls (a console's power switch) is
 						# THAT control's: it is lit under the crosshair and the pointer works
@@ -368,6 +372,13 @@ func _physics_process(delta: float) -> void:
 ## True while the desktop hand is holding something (spawn-into-hand gate).
 func is_holding() -> bool:
 	return _held_object != null
+
+
+## True while the held object is being turned (the middle drag, or the left one past
+## CLICK_DRAG_PX). The pointer aims at nothing meanwhile: left live, a control the turn swung
+## under the crosshair lit up and took the next click.
+func is_turning() -> bool:
+	return _held_object != null and not _is_fps_snap() and (_middle_held or _left_turning)
 
 
 ## What the desktop hand is holding, or null.

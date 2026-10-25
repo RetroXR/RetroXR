@@ -523,6 +523,12 @@ func resolve_interaction_target() -> InteractionTarget:
 	if $SuppressArea.has_overlapping_bodies() or $SuppressArea.has_overlapping_areas():
 		resolved_target = InteractionTargetType.none()
 		return resolved_target
+	# LOCAL PATCH (RetroXR): while the held object is being turned the pointer aims at nothing,
+	# or the turn sweeps its controls under the crosshair and lights (and arms) them.
+	var pickup := get_parent()
+	if pickup != null and pickup.has_method("is_turning") and pickup.call("is_turning"):
+		resolved_target = InteractionTargetType.none()
+		return resolved_target
 
 	# One ray, the one the laser draws. The resolver queries its own union mask —
 	# the pointer's own collision_mask still drives $RayCast, which is now only
@@ -534,7 +540,6 @@ func resolve_interaction_target() -> InteractionTarget:
 		_get_desktop_grabber())
 	# LOCAL PATCH (RetroXR): a control on what is in the hand lights when the crosshair passes
 	# close to it, even if the ray meets the object's shell first.
-	var pickup := get_parent()
 	if pickup != null and pickup.has_method("held_object"):
 		resolved_target = InteractionResolver.assist_held(pickup.call("held_object") as Node3D,
 			ray_cast.global_transform.origin, ray_cast.to_global(ray_cast.target_position),

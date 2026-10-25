@@ -21,6 +21,7 @@ func _ready() -> void:
 	_assist()
 	await _assist_hidden()
 	_stale_left()
+	_turning()
 	_screens()
 	_rules()
 	await _inspect()
@@ -257,6 +258,26 @@ func _stale_left() -> void:
 	pickup._clear_stale_left()
 	_ok(not DesktopPickup.left_drag and not pickup._drop_armed and not pickup._left_turning,
 		"left/a release that never arrived: the drag and the turn end with the button up")
+	pickup.free()
+
+
+func _turning() -> void:
+	var pickup := DesktopPickup.new()
+	var held := XRToolsPickable.new()
+	_ok(not pickup.is_turning(), "turning/nothing held, a middle drag turns nothing")
+	pickup._middle_held = true
+	_ok(not pickup.is_turning(), "turning/and the pointer stays live for it")
+	pickup._held_object = held
+	_ok(pickup.is_turning(), "turning/held and middle-dragged: the pointer aims at nothing")
+	pickup._middle_held = false
+	_ok(not pickup.is_turning(), "turning/the drag ends: its controls can be aimed at again")
+	pickup._left_turning = true
+	_ok(pickup.is_turning(), "turning/a left drag past the click is a turn too")
+	pickup._left_turning = false
+	pickup._drop_armed = true
+	_ok(not pickup.is_turning(), "turning/a left press short of the drag is still a click")
+	pickup._held_object = null
+	held.free()
 	pickup.free()
 
 

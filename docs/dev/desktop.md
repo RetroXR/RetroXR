@@ -181,6 +181,12 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
   ignores the mouse meanwhile -- without it the camera turned with the object (it asks the same way about
   the middle button). Objects whose plain click is their own (`desktop_shift_drop`, the light gun) are left
   out. `hold_probe --leftdrag`; note a synthetic motion event's `relative` is scaled by 0.1 in a probe, send 80.
+- **Turning a held object switches the pointer off** (`DesktopPickup.is_turning()`: held, not FPS-snap,
+  middle down or `_left_turning`; `function_desktop_pointer.resolve_interaction_target` returns none).
+  Left live, the turn swept the object's own controls under the crosshair, each lit up as it passed, and
+  a left click mid-turn went to whichever one the angle left there (2026-10-25). A
+  left press during a middle turn is swallowed: neither a drop nor a press. Nothing held, the pointer
+  is untouched. `desktop_hold_tests turning/`.
 - **A control under the crosshair is the only thing lit**: `PickableHighlight.set_suppressed`, driven by
   `_dim_held_outline`, turns the held object's yellow outline OFF while the pointer is on one of its
   controls. Left on, the console's outline read as the thing aimed at and the switch's own green ring
