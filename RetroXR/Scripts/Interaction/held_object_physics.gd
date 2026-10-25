@@ -340,8 +340,13 @@ func _report_if_stuck(body: XRToolsPickable, from: Vector3) -> void:
 		+ ("picked_up=%s held_by=%s" % [body.is_picked_up(), held_by]))
 
 
-func _escape(body: XRToolsPickable) -> void:
-	if not is_instance_valid(body) or not body.is_inside_tree():
+func _escape(target: Variant) -> void:
+	# Untyped: a body freed between its release and this deferred call (a cabinet's captive gun, taken away
+	# with the form it hung on) cannot be converted to a typed argument, and the engine logs an error for it.
+	if not is_instance_valid(target):
+		return
+	var body := target as XRToolsPickable
+	if body == null or not body.is_inside_tree():
 		return
 	# A snap zone that claimed it on release has picked it up again; leaving is
 	# the whole point of a slot, so nothing to escape from.
