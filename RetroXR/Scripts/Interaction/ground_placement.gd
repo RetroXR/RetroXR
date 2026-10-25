@@ -23,9 +23,11 @@ const HEIGHT := 0.012
 
 ## The pickable this places (a RetroSystem).
 var host: Node3D = null
-## The base of the thing, metres: width across its front, depth front to back. Its origin is the
-## middle of that rectangle, on the floor, with its front toward +Z.
+## The base of the thing, metres: width across its front, depth front to back, with its front toward +Z.
 var footprint := Vector2(0.66, 0.80)
+## Where the middle of that rectangle is from the thing's origin, (x, z): zero when the origin is its middle,
+## forward of it for a cabinet whose cockpit or stage stands in front.
+var footprint_center := Vector2.ZERO
 
 var _marker: Node3D = null
 var _placement := {}
@@ -59,6 +61,20 @@ static func pose_of(placement: Dictionary) -> Transform3D:
 func _ready() -> void:
 	if host != null and host.has_signal("dropped"):
 		host.connect("dropped", _on_dropped)
+
+
+## A new base (a cabinet that took another form): the rectangle is drawn again the next time it shows.
+func set_footprint(size: Vector2, center: Vector2 = Vector2.ZERO) -> void:
+	if size.is_equal_approx(footprint) and center.is_equal_approx(footprint_center):
+		return
+	footprint = size
+	footprint_center = center
+	if is_instance_valid(_marker):
+		var shown := _marker.visible
+		_marker.queue_free()
+		_marker = null
+		if shown:
+			_show(true)
 
 
 func _exit_tree() -> void:
@@ -172,12 +188,13 @@ func _build_marker() -> void:
 	var fill := _mat(Color(YELLOW, 0.22))
 	var w := footprint.x
 	var d := footprint.y
-	_box(Vector3(w, 0.002, d), Vector3.ZERO, fill)
+	var c := Vector3(footprint_center.x, 0.0, footprint_center.y)
+	_box(Vector3(w, 0.002, d), c, fill)
 	for side in [-1.0, 1.0]:
-		_box(Vector3(EDGE, HEIGHT * 0.5, d), Vector3(side * (w - EDGE) * 0.5, 0, 0), edge)
-		_box(Vector3(w, HEIGHT * 0.5, EDGE), Vector3(0, 0, side * (d - EDGE) * 0.5), edge)
+		_box(Vector3(EDGE, HEIGHT * 0.5, d), c + Vector3(side * (w - EDGE) * 0.5, 0, 0), edge)
+		_box(Vector3(w, HEIGHT * 0.5, EDGE), c + Vector3(0, 0, side * (d - EDGE) * 0.5), edge)
 	# The front (+Z): a second, wider bar just inside the edge.
-	_box(Vector3(w * 0.6, HEIGHT * 0.5, EDGE * 2.0), Vector3(0, 0, d * 0.5 - EDGE * 3.0), edge)
+	_box(Vector3(w * 0.6, HEIGHT * 0.5, EDGE * 2.0), c + Vector3(0, 0, d * 0.5 - EDGE * 3.0), edge)
 
 
 func _box(size: Vector3, at: Vector3, material: Material) -> void:

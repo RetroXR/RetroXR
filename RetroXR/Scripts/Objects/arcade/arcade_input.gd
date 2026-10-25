@@ -71,6 +71,9 @@ var _model: RetroSystemModel = null
 var _controls: Array[ArcadeControlModule] = []
 var _pulses: Dictionary = {}
 var _doors: Array[ArcadeCoinModule] = []
+## How many ports the coin doors reach (a door's player + 1, the highest): a game with more coin slots than
+## panels (Robotron's three) still has each door's coin sent.
+var _door_ports := 0
 ## Coins the cabinet has taken that the GAME has not had yet: put in while it only showed its game, or
 ## while the core was still coming up (a credit dropped into a board running its power-on tests is lost).
 ## They go in once the game can count them (game_ready), or at once when somebody presses START on a game
@@ -118,28 +121,47 @@ const _NEUTRAL := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
 func setup(host: Node3D, model: RetroSystemModel, controls: Array, coins: Array) -> void:
 	_host = host
 	_model = model
+	_wire(controls, coins)
+	_load_bindings()
+	_capture = ScrollLockCapture.attach(host, _can_capture, ICON_CAPTURE, ICON_SIZE)
+	add_to_group(ControllerBindings.CONSUMER_GROUP)
+	_find_vr_nodes.call_deferred()
+
+
+## The cabinet built a new form (RetroSystemModelArcadeCabinet.morph_to): its panels and coin doors are new
+## nodes. Whoever was attached lets go (that panel is gone); coins held for a player stay held.
+func rewire(controls: Array, coins: Array) -> void:
+	var was := playing
+	attached.clear()
+	if was:
+		_update_locomotion_block()
+		playing_changed.emit(false)
+	_wire(controls, coins)
+	_show_held()
+
+
+func _wire(controls: Array, coins: Array) -> void:
 	_controls.clear()
 	for c in controls:
 		var panel := c as ArcadeControlModule
 		_controls.append(panel)
-		if panel != null:
+		if panel != null and not panel.attach_changed.is_connected(_on_attach_changed):
 			panel.attach_changed.connect(_on_attach_changed)
 	_doors.clear()
+	_door_ports = 0
 	for coin in coins:
 		var door := coin as ArcadeCoinModule
 		if door == null:
 			continue
 		_doors.append(door)
+		_door_ports = maxi(_door_ports, door.player + 1)
 		var pulse: ArcadeInputState.CoinPulse = _pulses.get(door.player)
 		if pulse == null:
 			pulse = ArcadeInputState.CoinPulse.new()
 			_pulses[door.player] = pulse
-		door.coin_inserted.connect(_on_coin.bind(pulse))
-		door.return_pressed.connect(_on_return_pressed)
-	_load_bindings()
-	_capture = ScrollLockCapture.attach(host, _can_capture, ICON_CAPTURE, ICON_SIZE)
-	add_to_group(ControllerBindings.CONSUMER_GROUP)
-	_find_vr_nodes.call_deferred()
+		if not door.return_pressed.is_connected(_on_return_pressed):
+			door.coin_inserted.connect(_on_coin.bind(pulse))
+			door.return_pressed.connect(_on_return_pressed)
 
 
 func _ready() -> void:
@@ -371,7 +393,7 @@ func _process(delta: float) -> void:
 		_run_seconds = 0.0
 	_run_seconds += delta
 	var controllers: Array = _host.get_port_controllers() if _host.has_method("get_port_controllers") else []
-	var players := maxi(_controls.size(), 2)
+	var players := maxi(maxi(_controls.size(), 2), _door_ports)
 	# What every player is pressing first, then the coins and START: a held coin goes in before a START.
 	var masks: Array[int] = []
 	var hands: Array[int] = []
@@ -419,7 +441,8 @@ func _process(delta: float) -> void:
 			if float(_start_pulse[p]) <= 0.0:
 				_start_pulse.erase(p)
 		if p < _controls.size() and _controls[p] != null:
-			_controls[p].show_state(mask)
+			var st: Dictionary = states[p]
+			_controls[p].show_state(mask, Vector4i(int(st["alx"]), int(st["aly"]), int(st["arx"]), int(st["ary"])))
 		if owned:
 			# A gun in the port is not a joypad: it aims and fires itself. The cabinet's START and
 			# coin reach the core TWICE: as the gun's own START and SELECT, and as the joypad's

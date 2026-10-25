@@ -17,6 +17,10 @@
 ##
 ## The board in the bay wears printed-title art, the door is opened through its own
 ## hinge, and the coin is a real ArcadeCoinModule toss caught in the air.
+##
+## --forms=<romset>,<romset>... photographs the cabinet in the form each game asks for
+## (ArcadeCabinetSpecs.for_game: its panels, guns, cockpit or stage), one `form_<romset>.png` each from
+## the front three-quarter, and a `formside_<romset>.png` from the side, framed to what the form covers.
 extends Node3D
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -29,6 +33,7 @@ var _systemid := "arcade"
 var _shots: Array[String] = ["front", "three", "panel", "bay", "landscape", "portrait", "coin", "board", "boardside", "hover", "toast", "side"]
 var _rom := "sf2.zip"
 var _art := ""
+var _forms: Array[String] = []
 var _cam: Camera3D
 var _sys: Node3D
 var _model: RetroSystemModelArcadeCabinet
@@ -50,6 +55,10 @@ func _ready() -> void:
 			_shots.clear()
 			for s in a.substr(8).split(","):
 				_shots.append(s)
+		elif a.begins_with("--forms="):
+			for s in a.substr(8).split(","):
+				_forms.append(s)
+			_shots = ["forms"]
 	get_tree().create_timer(120.0).timeout.connect(func() -> void: get_tree().quit(2))
 	_stage()
 	# The app's loading panel stands in front of whatever a probe draws until the room
@@ -161,6 +170,34 @@ func _glass(w: int, h: int) -> void:
 	screen._serial = -1
 	screen._refresh_geometry(tex)
 	print("[probe] glass %dx%d aspect=%.3f fit=%s" % [w, h, screen.current_aspect(), screen.current_fit()])
+
+
+## Each game's form, built as a board in the bay would build it, from the front three-quarter and the side.
+func _shot_forms() -> void:
+	for romset in _forms:
+		var profile := ArcadeGameProfile.for_romset(romset)
+		_model.morph_to(_model.form_for(profile))
+		_model.apply_game_profile(profile)
+		await _frames(10)
+		_model = _sys.get_model() as RetroSystemModelArcadeCabinet
+		_model.set_process(false)
+		if profile.is_vertical():
+			_glass(224, 288)
+		else:
+			_glass(384, 224)
+		_model.on_power_on()
+		var size := _model.ground_footprint()
+		var center := _model.ground_footprint_center()
+		var mid := Vector3(center.x, 0.85, center.y)
+		var reach := maxf(size.y, size.x) * 0.9 + 1.6
+		_look(mid + Vector3(reach * 0.55, 1.15, reach * 0.85), mid)
+		print("[probe] form %s: %s, %d panel(s), footprint %s about %s" % [romset,
+			str(_model.form_spec().get("form", "own")), _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS).size(),
+			str(size), str(center)])
+		await _save("form_" + romset)
+		_look(mid + Vector3(reach * 0.95, 0.75, 0.0), mid)
+		await _save("formside_" + romset)
+		_model.on_power_off()
 
 
 func _shot_front() -> void:

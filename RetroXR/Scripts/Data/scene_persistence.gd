@@ -61,7 +61,7 @@ const _NUMBER_FIELDS := [
 	"cord_length",
 ]
 const _BOOL_FIELDS := ["video_out", "ignore_gravity", "crt_enabled", "half_pages", "stuck",
-	"locked", "hardback", "sticks", "cabinet_art", "attract_on",
+	"locked", "hardback", "sticks", "cabinet_art", "cabinet_shape", "attract_on",
 	# A GBA SP's light switch (RetroSystem.get_screen_light); absent = on.
 	"screen_light",
 	# A reflective-LCD handheld's "Self-Lit Screen" (RetroSystem.get_screen_glow);
@@ -2235,6 +2235,9 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 	# A cabinet with its art taken off; omitted while it is on (the default), so no room changes.
 	if not sys.cabinet_art_enabled:
 		result["cabinet_art"] = false
+	# A cabinet kept in its own shape whatever game is in it; omitted while it follows the game (the default).
+	if not sys.cabinet_shape_enabled:
+		result["cabinet_shape"] = false
 	# A cabinet that was told to attract or not to; omitted while it follows the global pref.
 	if sys.attract_override != ArcadeAttract.OVERRIDE_FOLLOW:
 		result["attract"] = sys.attract_override
@@ -3387,6 +3390,7 @@ func _load_system(data: Dictionary) -> Node3D:
 	sys.core_name = str(data.get("core_name", ""))
 	sys.ignore_gravity = bool(data.get("ignore_gravity", false))
 	sys.cabinet_art_enabled = bool(data.get("cabinet_art", true))
+	sys.cabinet_shape_enabled = bool(data.get("cabinet_shape", true))
 	sys.attract_override = clampi(int(data.get("attract", ArcadeAttract.OVERRIDE_FOLLOW)),
 		ArcadeAttract.OVERRIDE_FOLLOW, ArcadeAttract.OVERRIDE_OFF)
 	if bool(data.get("attract_on", false)):

@@ -1621,6 +1621,8 @@ func _board(sys: Node3D, romset: String) -> Node3D:
 
 func _group_game_cabinet() -> void:
 	var sys := await _cabinet("arcade")
+	# A cabinet kept in its own form hides what the game does not use (arcade_form_tests has the forms).
+	(sys as RetroSystem).set_cabinet_shape_enabled(false)
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	(model as RetroSystemModelArcadeCabinet).set_lid_angle_deg(90.0)
 	var panels: Array = model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
@@ -1637,6 +1639,7 @@ func _group_game_cabinet() -> void:
 	await _clear()
 
 	sys = await _cabinet("arcade")
+	(sys as RetroSystem).set_cabinet_shape_enabled(false)
 	model = sys.get_model() as RetroSystemModelArcadeCabinet
 	model.set_lid_angle_deg(90.0)
 	panels = model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
@@ -1665,6 +1668,7 @@ func _group_game_cabinet() -> void:
 	await _clear()
 
 	sys = await _cabinet("arcade")
+	(sys as RetroSystem).set_cabinet_shape_enabled(false)
 	model = sys.get_model() as RetroSystemModelArcadeCabinet
 	model.set_lid_angle_deg(90.0)
 	panels = model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)

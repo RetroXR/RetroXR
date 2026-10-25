@@ -15,25 +15,33 @@
 ##
 ## The arcade guns have no buttons on them, so the light gun's three aux/start caps are hidden:
 ## START and the coin are the cabinet's (ArcadeInput forwards them to the gun).
+##
+## `-- --variant=rifle` bakes the rifle a rifle cabinet rests on its post instead (Silent Scope, Golgo 13:
+## Scenes/Objects/peripherals/arcade_light_rifle.tscn): the same pistol grip, trigger and cord boss in the
+## same place (so the cabinet seats and cords it with the pistol's numbers), a long barrel, a stock to the
+## shoulder and a scope on top. The scope is a tube: the second screen Silent Scope shows in it is not drawn.
 extends SceneTree
 
 const U := preload("res://Tools/gen/arcade_gen_util.gd")
 
 const BASE := "res://Scenes/Objects/peripherals/light_gun.tscn"
 const OUT := "res://Scenes/Objects/peripherals/arcade_light_gun.tscn"
+const OUT_RIFLE := "res://Scenes/Objects/peripherals/arcade_light_rifle.tscn"
 
 ## Where the cord leaves the gun, in the gun's frame (the butt of the grip). The cabinet reads
 ## the same number to lay the cord (RetroSystemModelArcadeCabinet.GUN_CORD_BOSS).
 const CORD_BOSS := Vector3(0.0, -0.098, 0.056)
 ## The muzzle, where the aim ray starts.
 const MUZZLE := Vector3(0.0, 0.034, -0.182)
+const RIFLE_MUZZLE := Vector3(0.0, 0.034, -0.392)
 
 var _root: Node3D
 
 
 func _initialize() -> void:
+	var rifle := "--variant=rifle" in OS.get_cmdline_user_args()
 	_root = (load(BASE) as PackedScene).instantiate() as Node3D
-	_root.name = "ArcadeLightGun"
+	_root.name = "ArcadeLightRifle" if rifle else "ArcadeLightGun"
 
 	var black := U.mat(Color(0.065, 0.065, 0.075), 0.0, 0.42)
 	var grey := U.mat(Color(0.19, 0.20, 0.22), 0.0, 0.5)
@@ -57,11 +65,32 @@ func _initialize() -> void:
 	# Where the steel-reinforced cord goes into the butt.
 	U.cylinder(_root, _root, "CordBoot", 0.011, 0.020, CORD_BOSS + Vector3(0, 0.006, -0.004), metal, Vector3.UP)
 
+	if rifle:
+		# The rifle: the barrel runs on 21 cm past the pistol's, a forestock under it (what the post holds),
+		# a stock back to the shoulder, and a scope on two rings.
+		_reshape("Barrel", Vector3(0.040, 0.044, 0.42), Vector3(0, 0.034, -0.170), black)
+		U.box(_root, _root, "Forestock", Vector3(0.046, 0.030, 0.20), Vector3(0, 0.004, -0.150), grey)
+		var stock := U.box(_root, _root, "Stock", Vector3(0.040, 0.075, 0.24), Vector3(0, 0.000, 0.190), black)
+		stock.basis = Basis(Vector3.RIGHT, deg_to_rad(8.0))
+		U.box(_root, _root, "ButtPad", Vector3(0.042, 0.090, 0.016), Vector3(0, -0.012, 0.312), grey)
+		U.cylinder(_root, _root, "Scope", 0.019, 0.20, Vector3(0, 0.094, -0.060), black, Vector3.BACK)
+		U.cylinder(_root, _root, "ScopeEye", 0.023, 0.03, Vector3(0, 0.094, 0.050), black, Vector3.BACK)
+		U.cylinder(_root, _root, "ScopeLens", 0.023, 0.03, Vector3(0, 0.094, -0.170), grey, Vector3.BACK)
+		for z in [-0.11, 0.0]:
+			U.box(_root, _root, "ScopeRing%d" % (1 if z < 0.0 else 2), Vector3(0.016, 0.032, 0.012),
+				Vector3(0, 0.070, z), metal)
+		U.cylinder(_root, _root, "RifleMuzzle", 0.017, 0.022, RIFLE_MUZZLE + Vector3(0, 0, 0.011), orange, Vector3.BACK)
+		for n in ["Muzzle", "RecoilHousing", "RecoilBand", "FrontSight", "RearSight"]:
+			var part := _root.get_node_or_null(n) as Node3D
+			if part != null:
+				_root.remove_child(part)
+				part.free()
+
 	# No buttons on an arcade gun.
 	for n in ["AuxAButton", "AuxBButton", "StartButton"]:
 		(_root.get_node(n) as Node3D).visible = false
 
-	(_root.get_node("BarrelTip") as Node3D).position = MUZZLE
+	(_root.get_node("BarrelTip") as Node3D).position = RIFLE_MUZZLE if rifle else MUZZLE
 	(_root.get_node("CableAttachPoint") as Node3D).position = CORD_BOSS
 	# The grab point the cabinet's wells seat the gun by (RetroSystemModelArcadeCabinet.GUN_GRAB).
 	for n in ["GrabPoint", "HandRight", "HandLeft"]:
@@ -69,18 +98,18 @@ func _initialize() -> void:
 
 	# A larger body to collide with and to point at.
 	var body := BoxShape3D.new()
-	body.size = Vector3(0.05, 0.17, 0.25)
+	body.size = Vector3(0.05, 0.17, 0.25) if not rifle else Vector3(0.05, 0.17, 0.72)
 	var col := _root.get_node("CollisionShape3D") as CollisionShape3D
 	col.shape = body
-	col.position = Vector3(0, -0.012, -0.040)
+	col.position = Vector3(0, -0.012, -0.040) if not rifle else Vector3(0, -0.012, -0.040)
 	var pointer := BoxShape3D.new()
-	pointer.size = Vector3(0.07, 0.19, 0.28)
+	pointer.size = Vector3(0.07, 0.19, 0.28) if not rifle else Vector3(0.07, 0.19, 0.74)
 	var pcol := _root.get_node("PointerArea/CollisionShape3D") as CollisionShape3D
 	pcol.shape = pointer
-	pcol.position = Vector3(0, -0.012, -0.040)
+	pcol.position = col.position
 
 	_root.set("cable_length", 1.4)
-	quit(U.save(_root, OUT))
+	quit(U.save(_root, OUT_RIFLE if rifle else OUT))
 
 
 ## Give an inherited mesh node a box of its own: the material on the MESH, no override.

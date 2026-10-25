@@ -8,8 +8,14 @@
 ##
 ## Parts are found by name inside this module's subtree: `Btn1`..`Btn6`, `Start` (meshes),
 ## `StickPivot` (a Node3D the shaft and ball hang from), `DialPivot` (a Node3D a paddle knob
-## hangs from, turned by LEFT and RIGHT) and `PanelGrip` (the pointable box). Every one is
-## optional: a Neo Geo panel has four buttons, a gun cabinet's has only START.
+## hangs from, turned by LEFT and RIGHT) and `PanelGrip` (the pointable box). A panel built for
+## its game (ArcadeCabinetBuilder) may also carry `StickPivot2` (a second stick, leaning with the
+## right analog stick or the four face buttons), `BallPivot` (a trackball, rolling with the left
+## stick), `WheelPivot` (a steering wheel, turning about its own Y with the left stick or LEFT and
+## RIGHT), `GasPivot` and `BrakePivot` (pedals, tipping with R2 and L2), `ShifterPivot` (a gear
+## lever, thrown while button 1 is held), `LeanPivot` (a motorbike leaning with the steering) and
+## `PadUp`/`PadDown`/`PadLeft`/`PadRight` (a dance stage's arrows, sinking with the directions).
+## Every one is optional: a Neo Geo panel has four buttons, a gun cabinet's has only START.
 class_name ArcadeControlModule
 extends ArcadeModule
 
@@ -29,6 +35,16 @@ const LABEL_LIFT := 0.0015
 const CAP_RADIUS := 0.0155
 ## How fast a held LEFT or RIGHT turns a dial, radians a second (about one turn a second).
 const DIAL_SPEED := TAU
+## How far a steering wheel turns at full lock either way, and a bike leans.
+const WHEEL_LOCK_DEG := 120.0
+const LEAN_DEG := 14.0
+## How far a pedal tips down when pressed, and a gear lever is thrown.
+const PEDAL_DEG := 16.0
+const SHIFT_DEG := 22.0
+## How fast a trackball rolls at full deflection, radians a second.
+const BALL_SPEED := 9.0
+## A stick's full deflection, as the analog axes are sent.
+const AXIS_FULL := 32767.0
 
 var _caps: Array[Node3D] = []
 ## Each cap's flange (`<cap>Rim`, fixed, of the cap's colour), or null where a scene has none.
@@ -40,6 +56,24 @@ var _cap_button: Array[int] = []
 ## The label on a cap, made the first time a core names one (Label3D, a child of the cap so it sinks with it).
 var _cap_labels: Dictionary = {}
 var _stick: Node3D = null
+var _stick2: Node3D = null
+var _ball: Node3D = null
+var _wheel: Node3D = null
+var _gas: Node3D = null
+var _brake: Node3D = null
+var _shifter: Node3D = null
+var _lean: Node3D = null
+## Each pivot's pose at rest, so a lean or a tip is laid over it rather than replacing it.
+var _rest_basis: Dictionary = {}
+## What the analog parts are moving toward (-1..1 steering, 0..1 pedals and lever) and are at now.
+var _analog_target := {}
+var _analog_now := {}
+var _ball_roll := Vector2.ZERO
+var _analog_written := false
+## Whether this panel has any of the parts the analog state moves (a wheel, pedals, a lever, a bike).
+var _has_analog := false
+var _stick2_target := Vector2.ZERO
+var _stick2_current := Vector2.ZERO
 var _dial: Node3D = null
 var _dial_dir := 0.0
 var _dial_angle := 0.0
@@ -49,6 +83,7 @@ var _stick_current := Vector2.ZERO
 ## The mask last drawn, so an unchanged one costs nothing: show_state runs every frame, and a
 ## `position =` dirties the transform and goes to the renderer even when it writes the value it holds.
 var _shown_mask := -1
+var _shown_axes := Vector4i.ZERO
 ## Whether the stick's basis has been written at all (the first tick always writes it once).
 var _stick_written := false
 
@@ -67,7 +102,24 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	for i in ArcadeProfiles.BUTTON_COUNT:
 		_add_cap("Btn%d" % (i + 1), ArcadeProfiles.BUTTON_BITS[i], i)
 	_add_cap("Start", ArcadeProfiles.START_BIT, -1)
+	# A dance stage's arrows are the directions (index -2: not one of the six buttons, never hidden).
+	_add_cap("PadUp", ControllerBindings.JOYPAD_UP, -2)
+	_add_cap("PadDown", ControllerBindings.JOYPAD_DOWN, -2)
+	_add_cap("PadLeft", ControllerBindings.JOYPAD_LEFT, -2)
+	_add_cap("PadRight", ControllerBindings.JOYPAD_RIGHT, -2)
 	_stick = find_child("StickPivot", true, false) as Node3D
+	_stick2 = find_child("StickPivot2", true, false) as Node3D
+	_ball = find_child("BallPivot", true, false) as Node3D
+	_wheel = find_child("WheelPivot", true, false) as Node3D
+	_gas = find_child("GasPivot", true, false) as Node3D
+	_brake = find_child("BrakePivot", true, false) as Node3D
+	_shifter = find_child("ShifterPivot", true, false) as Node3D
+	_lean = find_child("LeanPivot", true, false) as Node3D
+	_rest_basis.clear()
+	for pivot: Node3D in [_wheel, _gas, _brake, _shifter, _lean, _stick2, _ball]:
+		if pivot != null:
+			_rest_basis[pivot] = pivot.basis
+	_has_analog = _wheel != null or _lean != null or _gas != null or _brake != null or _shifter != null
 	_dial = find_child("DialPivot", true, false) as Node3D
 	_grip = find_child("PanelGrip", true, false) as ArcadePanelGrip
 	if _grip != null:
@@ -200,12 +252,14 @@ func grip() -> ArcadePanelGrip:
 	return _grip
 
 
-## Show the state that reached the core: sink the caps it presses and lean the stick.
-## `mask` is the joypad mask.
-func show_state(mask: int) -> void:
-	if mask == _shown_mask:
+## Show the state that reached the core: sink the caps it presses, lean the stick, and move what
+## a game's own panel has (a wheel, the pedals, a second stick...). `mask` is the joypad mask, `axes`
+## the analog sticks as sent (left x, left y, right x, right y).
+func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
+	if mask == _shown_mask and axes == _shown_axes:
 		return
 	_shown_mask = mask
+	_shown_axes = axes
 	for i in _caps.size():
 		var pressed := (mask & (1 << _cap_bits[i])) != 0
 		_caps[i].position = _cap_rest[i] + (Vector3(0, 0, -CAP_PRESS) if pressed else Vector3.ZERO)
@@ -213,11 +267,28 @@ func show_state(mask: int) -> void:
 		- float((mask >> ControllerBindings.JOYPAD_LEFT) & 1)
 	var y := float((mask >> ControllerBindings.JOYPAD_DOWN) & 1) \
 		- float((mask >> ControllerBindings.JOYPAD_UP) & 1)
-	_stick_target = Vector2(x, y)
-	_dial_dir = x
+	var left := Vector2(float(axes.x), float(axes.y)) / AXIS_FULL
+	var right := Vector2(float(axes.z), float(axes.w)) / AXIS_FULL
+	# A digital direction wins; an analog stick (Prop Cycle's, a driving game's wheel) moves it otherwise.
+	var dirs := Vector2(x, y)
+	var steer := dirs if dirs != Vector2.ZERO else left.limit_length(1.0)
+	_stick_target = steer
+	_dial_dir = steer.x
+	_ball_roll = steer
+	if _has_analog:
+		_analog_target["steer"] = clampf(steer.x, -1.0, 1.0)
+		_analog_target["gas"] = 1.0 if (mask >> ControllerBindings.JOYPAD_R2) & 1 else 0.0
+		_analog_target["brake"] = 1.0 if (mask >> ControllerBindings.JOYPAD_L2) & 1 else 0.0
+		_analog_target["shift"] = 1.0 if (mask >> ControllerBindings.JOYPAD_B) & 1 else 0.0
+	# The second stick: the right analog stick, or the four face buttons as its directions (Robotron's
+	# fire stick is the diamond on a pad: X up, B down, Y left, A right).
+	var face := Vector2(float((mask >> ControllerBindings.JOYPAD_A) & 1) - float((mask >> ControllerBindings.JOYPAD_Y) & 1),
+		float((mask >> ControllerBindings.JOYPAD_B) & 1) - float((mask >> ControllerBindings.JOYPAD_X) & 1))
+	_stick2_target = face if face != Vector2.ZERO else right.limit_length(1.0)
 
 
 func tick(delta: float) -> void:
+	_tick_analog(delta)
 	if _dial != null and _dial_dir != 0.0:
 		_dial_angle = wrapf(_dial_angle + _dial_dir * DIAL_SPEED * delta, -PI, PI)
 		_dial.basis = Basis(Vector3.BACK, _dial_angle)
@@ -241,3 +312,57 @@ func tick(delta: float) -> void:
 ## The stick's lean as last shown, for the tests and the probe.
 func stick_lean() -> Vector2:
 	return _stick_current
+
+
+## The parts a game's own panel adds, each eased toward what was last shown (a wheel does not snap to lock).
+func _tick_analog(delta: float) -> void:
+	if not _analog_target.is_empty():
+		var moving := false
+		for key: String in _analog_target:
+			var now := float(_analog_now.get(key, 0.0))
+			var want := float(_analog_target[key])
+			if now != want:
+				now = lerpf(now, want, minf(1.0, delta * 14.0))
+				if absf(now - want) < 0.002:
+					now = want
+				_analog_now[key] = now
+				moving = true
+		# Settled parts are not written again (a `basis =` goes to the renderer even when it writes the same).
+		if moving or not _analog_written:
+			_analog_written = true
+			_pose_analog()
+	if _ball != null and _ball_roll != Vector2.ZERO:
+		# Rolled toward where it is pushed: about X for up and down, about Y for left and right (deck frame).
+		_ball.basis = (Basis(Vector3.RIGHT, _ball_roll.y * BALL_SPEED * delta)
+			* Basis(Vector3.UP, _ball_roll.x * BALL_SPEED * delta) * _ball.basis).orthonormalized()
+	if _stick2 != null and _stick2_current != _stick2_target:
+		_stick2_current = _stick2_current.lerp(_stick2_target, STICK_BLEND)
+		if _stick2_current.distance_squared_to(_stick2_target) < 1.0e-6:
+			_stick2_current = _stick2_target
+		_stick2.basis = Basis.from_euler(Vector3(
+			deg_to_rad(_stick2_current.y * STICK_TILT_DEG), deg_to_rad(_stick2_current.x * STICK_TILT_DEG), 0.0))
+
+
+func _pose_analog() -> void:
+	var steer := float(_analog_now.get("steer", 0.0))
+	if _wheel != null:
+		# About the wheel's own axis (its local Y): a turn to the right is clockwise seen by the driver.
+		_wheel.basis = _rest_basis[_wheel] * Basis(Vector3.UP, -deg_to_rad(WHEEL_LOCK_DEG) * steer)
+	if _lean != null:
+		_lean.basis = _rest_basis[_lean] * Basis(Vector3.BACK, -deg_to_rad(LEAN_DEG) * steer)
+	if _gas != null:
+		_gas.basis = _rest_basis[_gas] * Basis(Vector3.RIGHT, -deg_to_rad(PEDAL_DEG) * float(_analog_now.get("gas", 0.0)))
+	if _brake != null:
+		_brake.basis = _rest_basis[_brake] * Basis(Vector3.RIGHT, -deg_to_rad(PEDAL_DEG) * float(_analog_now.get("brake", 0.0)))
+	if _shifter != null:
+		_shifter.basis = _rest_basis[_shifter] * Basis(Vector3.RIGHT, -deg_to_rad(SHIFT_DEG) * float(_analog_now.get("shift", 0.0)))
+
+
+## The steering wheel's turn as last shown (-1 full left .. 1 full right), and how far a pedal is down, for the
+## tests and the probe.
+func steering() -> float:
+	return float(_analog_now.get("steer", 0.0))
+
+
+func pedal_down(which: String) -> float:
+	return float(_analog_now.get(which, 0.0))

@@ -264,7 +264,7 @@ func _wants_stick() -> bool:
 	return false
 
 
-## Does player `player` (0-based) have a panel in this game? Only the first two exist.
+## Does player `player` (0-based) have a panel in this game?
 func panel_visible(player: int) -> bool:
 	if is_described():
 		return _described.has(player)
@@ -298,9 +298,10 @@ func button_label(player: int, index: int) -> String:
 	return shorten(str(ids.get(ArcadeProfiles.BUTTON_BITS[index], "")))
 
 
-## How many coin doors the game has a use for: one for a one-coin game, two at most (the cabinet has two).
+## How many coin doors the game has a use for: one for a one-coin game, up to four (a four-player game's).
+## A cabinet that keeps its own form shows those of its doors (ArcadeCabinetSpecs.for_game builds them).
 func coin_doors() -> int:
-	return clampi(coins, 1, 2) if known else 2
+	return clampi(coins, 1, ArcadeCabinetSpecs.MAX_COIN_DOORS) if known else 2
 
 
 ## The core's word for the coin input, or "" (FBNeo says "Coin" for pad id 2: what the cabinet

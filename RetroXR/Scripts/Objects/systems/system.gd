@@ -159,6 +159,9 @@ var ignore_gravity: bool = false
 ## A cabinet's scraped art (marquee, sides) while a game is in its bay. On by default; the System tab's
 ## "Cabinet Art" toggle turns it off for whoever wants it naked. Saved in the room only when off.
 var cabinet_art_enabled: bool = true
+## A cabinet that takes the shape of the game in its bay (RetroSystemModelArcadeCabinet.morph_to). On by
+## default; the System tab's "Cabinet Shape" toggle keeps it as it was spawned. Saved in the room only when off.
+var cabinet_shape_enabled: bool = true
 
 ## A cabinet that is on but unused shows its game instead of running it (ArcadeAttract). `attract_override`
 ## is this cabinet's say over the global pref (ArcadeAttract.OVERRIDE_*): follow it, force on, force off.
@@ -765,6 +768,8 @@ func _load_system_model() -> void:
 	_model.configure_buttons(_power_button, _reset_button, _eject_button)
 	if _model.has_method("set_art_enabled"):
 		_model.call("set_art_enabled", cabinet_art_enabled)
+	if _model.has_method("set_morph_enabled"):
+		_model.call("set_morph_enabled", cabinet_shape_enabled)
 	_model.configure_controller_ports(_ports.zones)
 	_build_video_channels()
 	_model.configure_cartridge_slot(_cartridge_slot)
@@ -1454,6 +1459,50 @@ func set_cabinet_art_enabled(on: bool) -> void:
 	cabinet_art_enabled = on
 	if supports_cabinet_art_toggle():
 		_model.call("set_art_enabled", on)
+
+
+## Only a cabinet baked from a row of ArcadeCabinetSpecs can take a game's shape (the System tab shows the row
+## for it alone).
+func supports_cabinet_shape_toggle() -> bool:
+	return _model != null and _model.has_method("form_spec") and not (_model.call("form_spec") as Dictionary).is_empty()
+
+
+func set_cabinet_shape_enabled(on: bool) -> void:
+	cabinet_shape_enabled = on
+	if _model != null and _model.has_method("set_morph_enabled"):
+		_model.call("set_morph_enabled", on)
+
+
+## The cabinet is about to build a new form (RetroSystemModelArcadeCabinet.morph_to): the guns on its old
+## holsters let go of their ports and go, and the zones they had locked open again.
+func before_cabinet_form() -> void:
+	for i in mini(_captive_pads.pads().size(), _ports.zones.size()):
+		var zone := _ports.zones[i] as XRToolsSnapZone
+		# Unplugged the way a hand would (has_dropped: the port is unbound, the core told), then freed.
+		zone.drop_object()
+		zone.enabled = true
+		for shown in ["PortRecess", "PortLabel"]:
+			var node := zone.get_node_or_null(shown) as Node3D
+			if node != null:
+				node.show()
+	_captive_pads.free_pads()
+
+
+## The cabinet built a new form: its collision and pointer boxes, the port zones on its new sockets (a pad in a
+## socket the form does not have, or one a gun now takes, comes out), and the guns it carries now.
+func after_cabinet_form() -> void:
+	_model.configure_controller_ports(_ports.zones)
+	_model.configure_collision(self)
+	_ports.build_zones()
+	var guns := _model.captive_controllers().size()
+	for i in _ports.zones.size():
+		var zone := _ports.zones[i] as XRToolsSnapZone
+		if (i < guns or not zone.enabled) and is_instance_valid(zone.picked_up_object):
+			var plug := zone.picked_up_object as Node3D
+			zone.drop_object()
+			# Out of the zone's reach, so it is not taken straight back.
+			plug.global_position += zone.global_basis.z * 0.15
+	_captive_pads.spawn(_ports.zones)
 
 
 ## The System tab's Attract Mode row: follow the global option, or force it on or off for this cabinet.

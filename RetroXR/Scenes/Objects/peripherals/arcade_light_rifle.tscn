@@ -1,0 +1,275 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/light_gun.gd" id="1_0f5el"]
+[ext_resource type="Script" path="res://addons/godot-xr-tools/objects/grab_points/grab_point.gd" id="2_js6rf"]
+[ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_klnje"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_pistol_right.tscn" id="4_udu1c"]
+[ext_resource type="PackedScene" path="res://Scenes/Objects/hand_poses/hand_pistol_left.tscn" id="5_35q11"]
+
+[sub_resource type="PhysicsMaterial" id="PhysMat_gun"]
+friction = 0.8
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_xvipc"]
+size = Vector3(0.05, 0.17, 0.72)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yec5d"]
+albedo_color = Color(0.065, 0.065, 0.075, 1)
+roughness = 0.42
+
+[sub_resource type="BoxMesh" id="BoxMesh_tv8ai"]
+material = SubResource("StandardMaterial3D_yec5d")
+size = Vector3(0.04, 0.044, 0.42)
+
+[sub_resource type="BoxMesh" id="BoxMesh_jx3bi"]
+material = SubResource("StandardMaterial3D_yec5d")
+size = Vector3(0.038, 0.105, 0.048)
+
+[sub_resource type="BoxMesh" id="BoxMesh_trigger"]
+size = Vector3(0.01, 0.022, 0.007)
+
+[sub_resource type="StandardMaterial3D" id="Mat_ctrl"]
+albedo_color = Color(0.22, 0.23, 0.27, 1)
+
+[sub_resource type="CylinderMesh" id="Cyl_aux"]
+top_radius = 0.005
+bottom_radius = 0.005
+height = 0.004
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="Mat_aux"]
+albedo_color = Color(0.58, 0.14, 0.14, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_start"]
+size = Vector3(0.012, 0.003, 0.006)
+
+[sub_resource type="SphereMesh" id="SphereMesh_dot"]
+radius = 0.004
+height = 0.008
+
+[sub_resource type="StandardMaterial3D" id="Mat_dot"]
+transparency = 1
+albedo_color = Color(1, 0.1, 0.1, 0.55)
+emission_enabled = true
+emission = Color(1, 0, 0, 1)
+emission_energy_multiplier = 2.0
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_pprfm"]
+size = Vector3(0.07, 0.19, 0.74)
+
+[sub_resource type="BoxMesh" id="BoxMesh_3imnl"]
+material = SubResource("StandardMaterial3D_yec5d")
+size = Vector3(0.006, 0.004, 0.046)
+
+[sub_resource type="BoxMesh" id="BoxMesh_7872i"]
+material = SubResource("StandardMaterial3D_yec5d")
+size = Vector3(0.006, 0.03, 0.004)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_x2vgj"]
+albedo_color = Color(0.6, 0.61, 0.65, 1)
+metallic = 0.85
+roughness = 0.3
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_40geg"]
+material = SubResource("StandardMaterial3D_x2vgj")
+top_radius = 0.011
+bottom_radius = 0.011
+height = 0.02
+radial_segments = 12
+rings = 1
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_2p7s4"]
+albedo_color = Color(0.19, 0.2, 0.22, 1)
+roughness = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_elnbe"]
+material = SubResource("StandardMaterial3D_2p7s4")
+size = Vector3(0.046, 0.03, 0.2)
+
+[sub_resource type="BoxMesh" id="BoxMesh_6jnwx"]
+material = SubResource("StandardMaterial3D_yec5d")
+size = Vector3(0.04, 0.075, 0.24)
+
+[sub_resource type="BoxMesh" id="BoxMesh_38wpj"]
+material = SubResource("StandardMaterial3D_2p7s4")
+size = Vector3(0.042, 0.09, 0.016)
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_rmg3i"]
+material = SubResource("StandardMaterial3D_yec5d")
+top_radius = 0.019
+bottom_radius = 0.019
+height = 0.2
+radial_segments = 15
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_dnqnu"]
+material = SubResource("StandardMaterial3D_yec5d")
+top_radius = 0.023
+bottom_radius = 0.023
+height = 0.03
+radial_segments = 18
+rings = 1
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_p1nrx"]
+material = SubResource("StandardMaterial3D_2p7s4")
+top_radius = 0.023
+bottom_radius = 0.023
+height = 0.03
+radial_segments = 18
+rings = 1
+
+[sub_resource type="BoxMesh" id="BoxMesh_f8baf"]
+material = SubResource("StandardMaterial3D_x2vgj")
+size = Vector3(0.016, 0.032, 0.012)
+
+[sub_resource type="BoxMesh" id="BoxMesh_rbvs0"]
+material = SubResource("StandardMaterial3D_x2vgj")
+size = Vector3(0.016, 0.032, 0.012)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_01ef1"]
+albedo_color = Color(0.95, 0.38, 0.05, 1)
+roughness = 0.4
+
+[sub_resource type="CylinderMesh" id="CylinderMesh_mc771"]
+material = SubResource("StandardMaterial3D_01ef1")
+top_radius = 0.017
+bottom_radius = 0.017
+height = 0.022
+radial_segments = 13
+rings = 1
+
+[node name="ArcadeLightRifle" type="RigidBody3D" unique_id=118498511 groups=["hand_held_device"]]
+collision_layer = 4
+collision_mask = 196613
+mass = 0.3
+physics_material_override = SubResource("PhysMat_gun")
+freeze_mode = 1
+linear_damp = 5.0
+angular_damp = 8.0
+script = ExtResource("1_0f5el")
+cable_length = 1.4
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=794647251]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, -0.04)
+shape = SubResource("BoxShape3D_xvipc")
+
+[node name="Barrel" type="MeshInstance3D" parent="." unique_id=162146294]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.034, -0.17)
+mesh = SubResource("BoxMesh_tv8ai")
+
+[node name="Grip" type="MeshInstance3D" parent="." unique_id=1842809821]
+transform = Transform3D(1, 0, 0, 0, 0.9781476, 0.2079117, 0, -0.2079117, 0.9781476, 0, -0.045, 0.046)
+mesh = SubResource("BoxMesh_jx3bi")
+
+[node name="TriggerPivot" type="Node3D" parent="." unique_id=297764855]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.014, 0.016)
+
+[node name="Trigger" type="MeshInstance3D" parent="TriggerPivot" unique_id=162746677]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0)
+mesh = SubResource("BoxMesh_trigger")
+surface_material_override/0 = SubResource("Mat_ctrl")
+
+[node name="AuxAButton" type="MeshInstance3D" parent="." unique_id=1890058294]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.008, 0.046, 0.004)
+visible = false
+mesh = SubResource("Cyl_aux")
+surface_material_override/0 = SubResource("Mat_aux")
+
+[node name="AuxBButton" type="MeshInstance3D" parent="." unique_id=699782923]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.008, 0.046, 0.004)
+visible = false
+mesh = SubResource("Cyl_aux")
+surface_material_override/0 = SubResource("Mat_aux")
+
+[node name="StartButton" type="MeshInstance3D" parent="." unique_id=1494308797]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.0465, 0.022)
+visible = false
+mesh = SubResource("BoxMesh_start")
+surface_material_override/0 = SubResource("Mat_ctrl")
+
+[node name="BarrelTip" type="Node3D" parent="." unique_id=707446382]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.034, -0.392)
+
+[node name="RayCast3D" type="RayCast3D" parent="BarrelTip" unique_id=1927578731]
+target_position = Vector3(0, 0, -10)
+
+[node name="CableAttachPoint" type="Node3D" parent="." unique_id=1855654283]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.098, 0.056)
+
+[node name="LaserDot" type="MeshInstance3D" parent="." unique_id=1314143739]
+top_level = true
+cast_shadow = 0
+mesh = SubResource("SphereMesh_dot")
+surface_material_override/0 = SubResource("Mat_dot")
+
+[node name="GrabPoint" type="Marker3D" parent="." unique_id=1163040171]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04, 0.048)
+visible = false
+script = ExtResource("2_js6rf")
+
+[node name="PickableHighlight" type="Node3D" parent="." unique_id=1201678887]
+script = ExtResource("3_klnje")
+
+[node name="PointerArea" type="StaticBody3D" parent="." unique_id=1470339645]
+collision_layer = 1048576
+collision_mask = 0
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="PointerArea" unique_id=1122600982]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, -0.04)
+shape = SubResource("BoxShape3D_pprfm")
+
+[node name="HandRight" type="Node3D" parent="." unique_id=1162653599 instance=ExtResource("4_udu1c")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04, 0.048)
+visible = false
+
+[node name="HandLeft" type="Node3D" parent="." unique_id=933183416 instance=ExtResource("5_35q11")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.04, 0.048)
+visible = false
+
+[node name="GuardBottom" type="MeshInstance3D" parent="." unique_id=339201108]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.022, 0.004)
+mesh = SubResource("BoxMesh_3imnl")
+
+[node name="GuardFront" type="MeshInstance3D" parent="." unique_id=347233355]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.008, -0.019)
+mesh = SubResource("BoxMesh_7872i")
+
+[node name="CordBoot" type="MeshInstance3D" parent="." unique_id=637238185]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.092, 0.052)
+mesh = SubResource("CylinderMesh_40geg")
+
+[node name="Forestock" type="MeshInstance3D" parent="." unique_id=2134947391]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.004, -0.15)
+mesh = SubResource("BoxMesh_elnbe")
+
+[node name="Stock" type="MeshInstance3D" parent="." unique_id=2072709898]
+transform = Transform3D(1, 0, 0, 0, 0.99026805, -0.1391731, 0, 0.1391731, 0.99026805, 0, 0, 0.19)
+mesh = SubResource("BoxMesh_6jnwx")
+
+[node name="ButtPad" type="MeshInstance3D" parent="." unique_id=172843138]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.012, 0.312)
+mesh = SubResource("BoxMesh_38wpj")
+
+[node name="Scope" type="MeshInstance3D" parent="." unique_id=1489393392]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.094, -0.06)
+mesh = SubResource("CylinderMesh_rmg3i")
+
+[node name="ScopeEye" type="MeshInstance3D" parent="." unique_id=1158256005]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.094, 0.05)
+mesh = SubResource("CylinderMesh_dnqnu")
+
+[node name="ScopeLens" type="MeshInstance3D" parent="." unique_id=1828714435]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.094, -0.17)
+mesh = SubResource("CylinderMesh_p1nrx")
+
+[node name="ScopeRing1" type="MeshInstance3D" parent="." unique_id=257127809]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.07, -0.11)
+mesh = SubResource("BoxMesh_f8baf")
+
+[node name="ScopeRing2" type="MeshInstance3D" parent="." unique_id=1257994303]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.07, 0)
+mesh = SubResource("BoxMesh_rbvs0")
+
+[node name="RifleMuzzle" type="MeshInstance3D" parent="." unique_id=1786181445]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0.034, -0.38099998)
+mesh = SubResource("CylinderMesh_mc771")

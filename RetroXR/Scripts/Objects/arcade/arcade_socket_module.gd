@@ -15,6 +15,9 @@ extends ArcadeModule
 ## How far the plug is offered proud of the socket's mouth, in metres.
 const PLUG_PROUD := 0.02
 
+## The scene of the gun each Holster rests, or "" for the cabinet's pistol (a rifle cabinet names its rifle).
+@export var gun_scene := ""
+
 
 func _init() -> void:
 	kind = ArcadeProfiles.KIND_SOCKETS

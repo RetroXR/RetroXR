@@ -57,13 +57,33 @@ var _pointer_door: CollisionShape3D = null
 
 
 func _ready() -> void:
+	_collect_modules()
+	# The row this scene was baked from: what a game's form is derived from, and what it goes back to.
+	var variant := str(get_meta(ArcadeCabinetBuilder.VARIANT_META, ""))
+	_base_spec = ArcadeCabinetSpecs.variant(variant)
+	if not _base_spec.is_empty():
+		_base_spec["variant"] = variant
+	_form_spec = _base_spec
+	ArcadeShadowBudget.trim(self)
+
+
+## Find the modules by type and attach the ones not attached yet (all of them on the first call; after a
+## morph, the form's new ones: the bay and the composite input stay as they were).
+func _collect_modules() -> void:
+	var known: Dictionary = {}
+	for m in _modules:
+		if is_instance_valid(m):
+			known[m] = true
 	_modules.clear()
-	for n in find_children("*", "ArcadeModule", true, false):
-		_modules.append(n as ArcadeModule)
 	_controls.clear()
 	_coins.clear()
-	for m in _modules:
-		m.attach(self)
+	_screen = null
+	_sockets = null
+	for n in find_children("*", "ArcadeModule", true, false):
+		var m := n as ArcadeModule
+		_modules.append(m)
+		if not known.has(m):
+			m.attach(self)
 		match m.kind:
 			ArcadeProfiles.KIND_SCREEN:
 				_screen = m as ArcadeScreenModule
@@ -79,6 +99,7 @@ func _ready() -> void:
 				_coins.append(m as ArcadeCoinModule)
 	_controls.sort_custom(func(a: ArcadeControlModule, b: ArcadeControlModule) -> bool: return a.player < b.player)
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
+	_marquee_mat = null
 	if marquee != null and marquee.mesh != null and marquee.mesh.material is StandardMaterial3D:
 		_marquee_mat = marquee.mesh.material as StandardMaterial3D
 	_art_marquee = find_child("MarqueeArt", true, false) as MeshInstance3D
@@ -88,7 +109,6 @@ func _ready() -> void:
 		var side := find_child(n, true, false) as MeshInstance3D
 		if side != null:
 			_art_sides.append(side)
-	ArcadeShadowBudget.trim(self)
 
 
 func _process(delta: float) -> void:
@@ -229,8 +249,9 @@ const GUN_GRAB := Transform3D(Basis.IDENTITY, Vector3(0.0, -0.040, 0.048))
 func captive_controllers() -> Array[String]:
 	var out: Array[String] = []
 	if _sockets != null:
+		var scene := _sockets.gun_scene if not _sockets.gun_scene.is_empty() else GUN_SCENE
 		for i in _sockets.holster_count():
-			out.append(GUN_SCENE)
+			out.append(scene)
 	return out
 
 
@@ -336,9 +357,20 @@ func configure_controller_ports(port_zones: Array) -> void:
 
 
 ## The base the cabinet stands on, for setting it down by pointing at the floor (GroundPlacement): the
-## shell's width by its 0.80 m depth, origin in the middle on the floor.
+## shell's width by its 0.80 m depth, origin in the middle on the floor, or the rectangle its form covers
+## (a cockpit, a stage: ArcadeCabinetBuilder.FOOTPRINT_META).
 func ground_footprint() -> Vector2:
-	return Vector2(cabinet_width, 0.80)
+	return _footprint_rect().size
+
+
+## Where the middle of that rectangle is, (x, z) in the cabinet's frame: the origin for the shell alone.
+func ground_footprint_center() -> Vector2:
+	return _footprint_rect().get_center()
+
+
+func _footprint_rect() -> Rect2:
+	var shell := Rect2(Vector2(-cabinet_width * 0.5, -0.40), Vector2(cabinet_width, 0.80))
+	return get_meta(ArcadeCabinetBuilder.FOOTPRINT_META, shell) as Rect2
 
 
 func _add_ground_placement() -> void:
@@ -348,8 +380,16 @@ func _add_ground_placement() -> void:
 	var placer := GroundPlacement.new()
 	placer.name = "GroundPlacement"
 	placer.host = sys as Node3D
-	placer.footprint = ground_footprint()
+	placer.set_footprint(ground_footprint(), ground_footprint_center())
 	sys.add_child.call_deferred(placer)
+
+
+## The rectangle on the floor follows the form.
+func _refresh_ground_placement() -> void:
+	var sys := get_parent()
+	var placer := sys.get_node_or_null("GroundPlacement") as GroundPlacement if sys != null else null
+	if placer != null:
+		placer.set_footprint(ground_footprint(), ground_footprint_center())
 
 
 func configure_cartridge_slot(slot: Node3D) -> void:
@@ -539,8 +579,13 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 
 
 ## One box per solid part, leaving the bay open so a board can be carried into it.
-## A single box would have kept every hand and board out of the cabinet it plugs into.
+## A single box would have kept every hand and board out of the cabinet it plugs into. Run again after a
+## morph (the shape may be another): the boxes it added the last time go first.
 func configure_collision(host: Node3D) -> void:
+	for child in host.get_children():
+		if child is CollisionShape3D and str(child.name).begins_with("CabinetBox"):
+			host.remove_child(child)
+			child.queue_free()
 	var w := cabinet_width
 	var hw := w * 0.5
 	var boxes: Array[AABB] = [
@@ -586,6 +631,11 @@ func _build_pointer_shapes(host: Node3D) -> void:
 	var area := host.get_node_or_null("PointerArea") as Node3D
 	if area == null:
 		return
+	for child in area.get_children():
+		var n := str(child.name)
+		if child is CollisionShape3D and (n.begins_with("PointerBox") or n.begins_with("FormBox") or n == "PointerDoor"):
+			area.remove_child(child)
+			child.queue_free()
 	var first := area.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	var w := cabinet_width
 	var hw := w * 0.5
@@ -622,6 +672,18 @@ func _build_pointer_shapes(host: Node3D) -> void:
 		if i > 0:
 			col.name = "PointerBox%d" % i
 			area.add_child(col)
+	# What the form adds beyond the shell (a cockpit's seat and dash, a stage, deck wings): aimed at, the
+	# cabinet. No collision for them (configure_collision): a player walks into a cockpit or onto a stage.
+	var form_boxes: Array = get_meta(ArcadeCabinetBuilder.FORM_BOXES_META, [])
+	for k in form_boxes.size():
+		var fb: AABB = form_boxes[k]
+		var fcol := CollisionShape3D.new()
+		fcol.name = "FormBox%d" % (k + 1)
+		var fshape := BoxShape3D.new()
+		fshape.size = fb.size
+		fcol.shape = fshape
+		fcol.position = fb.get_center()
+		area.add_child(fcol)
 	# A slab behind the SHUT door, so a pointer aimed at it finds the cabinet (to pick it
 	# up) and not the board standing in the bay behind it. Out of the way once it is open.
 	_pointer_door = CollisionShape3D.new()
@@ -632,8 +694,13 @@ func _build_pointer_shapes(host: Node3D) -> void:
 	_pointer_door.position = Vector3(0.0, 0.30, 0.35)
 	_pointer_door.disabled = is_lid_open()
 	area.add_child(_pointer_door)
-	if _bay != null:
-		_bay.door_changed.connect(func(open: bool) -> void: _pointer_door.disabled = open)
+	if _bay != null and not _bay.door_changed.is_connected(_on_door_changed):
+		_bay.door_changed.connect(_on_door_changed)
+
+
+func _on_door_changed(open: bool) -> void:
+	if is_instance_valid(_pointer_door):
+		_pointer_door.disabled = open
 
 
 ## Called by RetroSystem once the cabinet is parented and built: the input node lives
@@ -939,26 +1006,151 @@ func is_lid_open() -> bool:
 ## The board (or cassette) went into the bay: dress the cabinet in its art (system.gd
 ## `_on_cartridge_inserted`, which every drop, restore and re-dock reaches).
 func on_media_inserted(cart: Node) -> void:
-	on_media_cleared()
+	_strip_game()
 	if cart == null or not cart.has_method("get_rom_path"):
+		_request_form(_base_spec)
 		return
 	var art := ArcadeCabinetArt.for_rom(str(cart.get("systemid")), str(cart.call("get_rom_path")))
-	apply_art(art["wheel"] as Texture2D, art["cover"] as Texture2D)
 	# The generic cabinet follows the game: only a MAME-style romset has a profile (the Neo Geo,
 	# Daphne and DICE cabinets keep their own panels).
+	var profile: ArcadeGameProfile = null
 	if ArcadeProfiles.is_arcade_system(str(cart.get("systemid"))):
-		apply_game_profile(ArcadeGameProfile.for_rom_path(str(cart.call("get_rom_path"))))
+		profile = ArcadeGameProfile.for_rom_path(str(cart.call("get_rom_path")))
+	# The form first (it builds the slots the art hangs in and the panels the profile dresses).
+	_request_form(form_for(profile))
+	apply_art(art["wheel"] as Texture2D, art["cover"] as Texture2D)
+	if profile != null:
+		apply_game_profile(profile)
 		_watch_descriptors = true
 		_descriptor_wait = 0.0
 
 
-## The board left: the plain cabinet again, with its title.
+## The board left: the plain cabinet again, with its title, in its own form.
 func on_media_cleared() -> void:
+	_strip_game()
+	_request_form(_base_spec)
+
+
+func _strip_game() -> void:
 	_art_wheel = null
 	_art_cover = null
 	_strip_art()
 	_watch_descriptors = false
 	apply_game_profile(null)
+
+
+# ── the form follows the game ────────────────────────────────────────────────
+
+## The row this cabinet was baked from (ArcadeCabinetSpecs.variants, named on the scene's root), or {} for a
+## scene that names none (a mod's cabinet, an old bake): such a cabinet keeps the form it has.
+var _base_spec: Dictionary = {}
+## The spec the standing form was built from.
+var _form_spec: Dictionary = {}
+## The System tab's "Cabinet Shape": off keeps the cabinet's own form whatever is in its bay (the parts the
+## game does not use are still hidden, as before the forms).
+var _morph_enabled := true
+## A form asked for while a core runs on this one: built when the machine goes off.
+var _pending_form: Variant = null
+
+
+## The spec this cabinet takes for a game (ArcadeCabinetSpecs.for_game), or its own row when it does not
+## follow the game (no row, the toggle off, no profile).
+func form_for(profile: ArcadeGameProfile) -> Dictionary:
+	if _base_spec.is_empty() or not _morph_enabled or profile == null:
+		return _base_spec
+	return ArcadeCabinetSpecs.for_game(_base_spec, profile)
+
+
+## The spec the standing form was built from ({} for a cabinet that has no row), for the tests and the probe.
+func form_spec() -> Dictionary:
+	return _form_spec
+
+
+## Turn following the game on or off; what is standing changes at once.
+func set_morph_enabled(on: bool) -> void:
+	if on == _morph_enabled:
+		return
+	_morph_enabled = on
+	_request_form(form_for(_game))
+
+
+func is_morph_enabled() -> bool:
+	return _morph_enabled
+
+
+## Ask for a form: built at the end of the frame, once (a board pulled and another seated in one frame builds
+## one form), and never inside the callback that asked, which is often a snap zone handing over a board while
+## the tree is busy with the nodes it moves.
+func _request_form(spec: Dictionary) -> void:
+	if spec.is_empty():
+		return
+	_pending_form = null
+	var queued := _wanted_form != null
+	_wanted_form = spec
+	if not queued:
+		_build_wanted_form.call_deferred()
+
+
+## The form last asked for and not yet built, or null.
+var _wanted_form: Variant = null
+
+
+func _build_wanted_form() -> void:
+	if _wanted_form == null:
+		return
+	var spec: Dictionary = _wanted_form
+	_wanted_form = null
+	var host := get_parent()
+	if host != null and bool(host.get("is_powered_on")):
+		# Never under a running core: its ports and the guns on them are in use. When it goes off.
+		_pending_form = spec
+		return
+	morph_to(spec)
+
+
+## Build the form `spec` asks for in place of the one standing (ArcadeCabinetBuilder.build_form): every part a
+## form owns is taken away and built again, the modules are found again, and what hangs on them (the input,
+## the guns and their cords, the port zones, the collision and pointer boxes, the art, the profile) is wired
+## to the new ones. Nothing happens when the spec builds what is standing.
+func morph_to(spec: Dictionary) -> void:
+	if spec.is_empty() or (not _form_spec.is_empty() and ArcadeCabinetSpecs._same_form(spec, _form_spec)):
+		return
+	var host := get_parent()
+	for c in _controls:
+		if is_instance_valid(c):
+			c.set_attached(false)
+	var ghost := _ghost_on
+	if ghost:
+		_set_transparency(0.0)
+	if host != null and host.has_method("before_cabinet_form"):
+		host.call("before_cabinet_form")
+	for child in get_children():
+		if child.has_meta(ArcadeCabinetBuilder.FORM_META):
+			remove_child(child)
+			child.queue_free()
+	ArcadeCabinetBuilder.new(spec, self).build_form()
+	_form_spec = spec
+	_collect_modules()
+	ArcadeShadowBudget.trim(self)
+	_light_marquee(_lit)
+	_strip_art()
+	_hang_art()
+	for c in _controls:
+		c.apply_profile(_game)
+	for door in _coins:
+		door.set_door_enabled(_game == null or door.player < _game.coin_doors())
+	if host != null and host.has_method("after_cabinet_form"):
+		host.call("after_cabinet_form")
+	if _input != null:
+		_input.rewire(_controls, _coins)
+	_refresh_ground_placement()
+	if ghost:
+		_set_transparency(HELD_TRANSPARENCY)
+	form_changed.emit()
+
+
+## The cabinet's form was built again (morph_to): for the probe, the tests and whatever hangs on its parts.
+signal form_changed
 
 
 # ── the game's needs ────────────────────────────────────────────────────────
@@ -1103,6 +1295,10 @@ func on_power_on() -> void:
 
 func on_power_off() -> void:
 	_light_marquee(false)
+	if _pending_form != null:
+		var spec: Dictionary = _pending_form
+		_pending_form = null
+		_request_form(spec)
 	# The core's words are about the run that just ended; the table alone stands.
 	if _game != null and _game.is_described():
 		_game.clear_descriptors()

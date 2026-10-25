@@ -40,6 +40,9 @@ const SCRIPTS := {
 	"av_in": "res://Scripts/Objects/arcade/arcade_av_in_module.gd",
 }
 
+## The rifle a `rifle` gun cabinet rests on its post (Tools/gen/gen_arcade_gun.gd `--variant=rifle`).
+const RIFLE_SCENE := "res://Scenes/Objects/peripherals/arcade_light_rifle.tscn"
+
 const BUTTON_COLORS := [
 	Color(0.85, 0.12, 0.12), Color(0.95, 0.75, 0.10), Color(0.15, 0.65, 0.25),
 	Color(0.15, 0.35, 0.85), Color(0.92, 0.92, 0.92), Color(0.55, 0.20, 0.70),
@@ -68,6 +71,9 @@ var _dark: StandardMaterial3D
 var _metal: StandardMaterial3D
 ## The top-level nodes this builder made for the form, in the order it made them.
 var form_nodes: Array[Node] = []
+## Solid boxes the form adds to the cabinet's own (a cockpit, a dance stage, deck wings), in the cabinet's
+## frame: the model's collision takes them (FORM_BOXES_META), and its pointer boxes the ones to aim at.
+var form_boxes: Array[AABB] = []
 
 
 ## `spec` is a row of ArcadeCabinetSpecs (or one derived from it), `root` the cabinet's root (the
@@ -77,10 +83,13 @@ func _init(spec: Dictionary, root: Node3D, bake: bool = false) -> void:
 	_root = root
 	_owner = root if bake else null
 	_sh = ArcadeCabinetSpecs.shapes()[str(_v.get("shape", "upright"))]
-	_w = _sh["w"]
+	# The width is the cabinet's (a spec may keep it across forms), the shape the form's.
+	_w = float(_v.get("width", _sh["w"]))
 	_in_w = _w - 0.04
 	_h = _sh["h"]
 	_tube = _sh["tube"]
+	if _v.has("screen"):
+		_tube = tube_for(_v["screen"], glass_limits(), _tube, float(_sh.get("inches", 25)))
 	_body = ArcadeParts.mat(_v["body"], 0.0, 0.55)
 	_trim = ArcadeParts.mat(_v["trim"], 0.0, 0.4)
 	_dark = ArcadeParts.mat(Color(0.03, 0.03, 0.035), 0.0, 0.8)
@@ -98,8 +107,7 @@ func bake() -> void:
 	_build_guns_or_sockets()
 	_build_bay()
 	_build_av_in()
-	if bool(_v["pedal"]):
-		_build_pedal()
+	_build_extras()
 	apply_metrics()
 
 
@@ -112,9 +120,31 @@ func build_form() -> void:
 	_build_deck()
 	_build_coin_doors()
 	_build_guns_or_sockets()
-	if bool(_v["pedal"]):
-		_build_pedal()
+	_build_extras()
 	apply_metrics()
+
+
+## What stands on the floor in front: a gun game's pedals, a driving cockpit, a dance stage.
+func _build_extras() -> void:
+	if bool(_v.get("pedal", false)):
+		_build_pedal()
+	for i in (_v.get("gun_pedals", []) as Array).size():
+		_build_pedal(i)
+	if _v.has("cockpit"):
+		_build_cockpit(_v["cockpit"])
+	if _v.has("bike"):
+		_build_bike(_v["bike"])
+	if _v.has("stage"):
+		_build_stage(_v["stage"])
+
+
+## Metadata on the cabinet's root: the solid-looking parts its form adds beyond the shell (a cockpit, a
+## stage, deck wings), as AABBs in the cabinet's frame. The model gives them POINTER boxes (aimed at, they are
+## the cabinet, to take hold of) and no collision: a player walks into a cockpit or onto a stage.
+const FORM_BOXES_META := &"arcade_form_boxes"
+## The cabinet's base on the floor with what the form adds, a Rect2 in (x, z) (GroundPlacement's rectangle);
+## absent while it is the shell's own.
+const FOOTPRINT_META := &"arcade_footprint"
 
 
 ## What the model needs of the shape (collision, pointer boxes, speakers, the options panel).
@@ -125,6 +155,45 @@ func apply_metrics() -> void:
 	_root.set("glass_back_z", _sh["glass_back_z"])
 	_root.set("marquee_front_z", _sh["marquee_front_z"])
 	_root.set("screen_front_z", _sh["screen_front_z"])
+	if form_boxes.is_empty():
+		if _root.has_meta(FORM_BOXES_META):
+			_root.remove_meta(FORM_BOXES_META)
+	else:
+		_root.set_meta(FORM_BOXES_META, form_boxes.duplicate())
+	var shell := Rect2(Vector2(-_w * 0.5, -0.40), Vector2(_w, 0.80))
+	var rect := shell
+	for b in form_boxes:
+		rect = rect.merge(Rect2(Vector2(b.position.x, b.position.z), Vector2(b.size.x, b.size.z)))
+	if rect.is_equal_approx(shell):
+		if _root.has_meta(FOOTPRINT_META):
+			_root.remove_meta(FOOTPRINT_META)
+	else:
+		_root.set_meta(FOOTPRINT_META, rect)
+
+
+# ── the screen ──────────────────────────────────────────────────────────────
+
+## The most glass the shape has room for: the width between the side panels (less the frame) and the slanted
+## edge's length (less the frame top and bottom).
+func glass_limits() -> Vector2:
+	var a: Vector2 = _sh["glass_a"]
+	var b: Vector2 = _sh["glass_b"]
+	return Vector2(_in_w - 0.08, (b - a).length() - 0.13)
+
+
+## The tube a screen spec asks for, metres: the shape's own tube (`native`, a tube of class `native_inches`)
+## scaled to the game's class, stood on its side for a vertical game, several side by side for a game with
+## several screens, and made to fit the glass the shape has (scaled down whole, never squashed).
+## `screen` = {"inches": class (absent: the shape's own), "vertical": bool, "screens": n}.
+static func tube_for(screen: Dictionary, limits: Vector2, native: Vector2, native_inches: float) -> Vector2:
+	var tube := native
+	if screen.has("inches") and native_inches > 0.0:
+		tube = native * (float(screen["inches"]) / native_inches)
+	if bool(screen.get("vertical", false)):
+		tube = Vector2(tube.y, tube.x)
+	tube.x *= maxi(int(screen.get("screens", 1)), 1)
+	var k := minf(1.0, minf(limits.x / tube.x, limits.y / tube.y))
+	return tube * k
 
 
 func _form_node(n: Node) -> Node:
@@ -261,6 +330,9 @@ func _build_monitor() -> void:
 	var mod := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Screen", Vector3(0, mid.y, mid.x))) as Node3D
 	mod.set_script(load(SCRIPTS["screen"]))
 	mod.basis = basis
+	if _v.has("screen"):
+		# The picture is fitted to the TUBE's shape, which a vertical game turns on its side.
+		mod.set("glass_size", _tube)
 	var length := along.length()
 	# The tube's enclosure: a dark board behind the picture, as wide as the cabinet.
 	ArcadeParts.box(_owner, mod, "Bezel", Vector3(_in_w, length, 0.012), Vector3(0, 0, -TUBE_DEPTH - 0.006), _dark)
@@ -294,56 +366,70 @@ func _build_monitor() -> void:
 func _build_deck() -> void:
 	# The deck runs from the apron's top edge (z 0.47, y 0.92) up to the monitor
 	# (z 0.30, y 1.00). Its local +Y is up-and-back along the slope, +Z its normal.
-	var a := Vector2(0.47, 0.92)
-	var b := Vector2(0.30, 1.00)
+	var a: Vector2 = _sh.get("deck_a", Vector2(0.47, 0.92))
+	var b: Vector2 = _sh.get("deck_b", Vector2(0.30, 1.00))
 	var mid := (a + b) * 0.5
 	var along := b - a
 	var theta := atan2(along.x, along.y)
 	var deck := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Deck", Vector3(0, mid.y, mid.x))) as Node3D
 	deck.basis = Basis(Vector3.RIGHT, theta)
-	ArcadeParts.box(_owner, deck, "DeckPlate", Vector3(_in_w, along.length(), 0.012), Vector3(0, 0, -0.006), _dark)
-
 	var players: Array = _v["players"]
+	# Three or more players' panels do not fit between the sides: the plate grows WINGS past them, as the
+	# four-player kits on a standard upright did. (Within a centimetre they still fit: the generic panel's
+	# last cap reaches 30.3 cm from the middle of a 62 cm deck.)
+	var span := ArcadeCabinetSpecs.panels_span(players)
+	var plate_w := _in_w if span <= _in_w + 0.01 else span + 0.02
+	var depth := along.length()
+	ArcadeParts.box(_owner, deck, "DeckPlate", Vector3(plate_w, depth, 0.012), Vector3(0, 0, -0.006), _dark)
+	if plate_w > _in_w + 0.001:
+		var wing := (plate_w - _in_w) * 0.5
+		for sx in [-1.0, 1.0]:
+			# The wing's edge and its underside, in the body's colour, so the plate reads as part of the cabinet.
+			ArcadeParts.box(_owner, deck, "DeckWing%s" % ("L" if sx < 0 else "R"), Vector3(wing, depth, 0.05),
+				Vector3(sx * (_in_w * 0.5 + wing * 0.5), 0, -0.037), _body)
+		form_boxes.append(AABB(Vector3(-plate_w * 0.5, mid.y - 0.06, a.x - 0.18), Vector3(plate_w, 0.10, 0.18)))
+
 	for i in players.size():
 		_build_player(deck, i, players[i])
 
 
-## One player's panel, from its spec (see ArcadeCabinetSpecs): a stick with N buttons, a paddle dial,
-## or START alone, and always START on the front edge.
+## One player's panel, from its spec (see ArcadeCabinetSpecs): a stick with N buttons, two sticks, a
+## trackball, buttons alone, a paddle dial, a stand-up racer's wheel, a dancer's START with the stage's arrows
+## on the floor, or START alone, and always START. The parts keep the names the control module finds them by
+## (ArcadeControlModule): StickPivot, StickPivot2, BallPivot, DialPivot, WheelPivot, ShifterPivot, GasPivot,
+## BrakePivot, Btn1..6, Pad<Dir>, Start.
 func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	var mod := ArcadeParts.node(_owner, deck, "Node3D", "Player%d" % (index + 1)) as Node3D
 	mod.set_script(load(SCRIPTS["control"]))
-	mod.set("player", index)
+	mod.set("player", int(spec.get("player", index)))
 	var kind: String = spec["kind"]
 	var start_x: float = spec["start_x"]
-	var left := start_x - 0.02
-	var right := start_x + 0.02
-	if kind == "stick":
-		var stick_x: float = spec["stick_x"]
-		# The stick: a base plate, then a pivot carrying shaft and ball.
-		ArcadeParts.cylinder(_owner, mod, "StickBase", 0.034, 0.004, Vector3(stick_x, 0.015, 0.002), _metal, Vector3.BACK)
-		var pivot := ArcadeParts.node(_owner, mod, "Node3D", "StickPivot", Vector3(stick_x, 0.015, 0.004)) as Node3D
-		ArcadeParts.cylinder(_owner, pivot, "StickShaft", 0.006, 0.07, Vector3(0, 0, 0.035), _metal, Vector3.BACK)
-		var ball := ArcadeParts.node(_owner, pivot, "MeshInstance3D", "StickBall", Vector3(0, 0, 0.085)) as MeshInstance3D
-		var sm := SphereMesh.new()
-		sm.radius = 0.022
-		sm.height = 0.044
-		# 24 x 12 (Godot's default 64 x 32 is 4224 triangles for a ball of 4.4 cm).
-		sm.radial_segments = 24
-		sm.rings = 12
-		ball.mesh = sm
-		ball.material_override = ArcadeParts.mat(Color(0.85, 0.10, 0.10) if index == 0 else Color(0.10, 0.25, 0.85), 0.0, 0.3)
-		left = minf(left, stick_x - 0.045)
-		right = maxf(right, stick_x + 0.045)
-		# The buttons: plain caps, not controls of their own.
-		var buttons: Array = spec["buttons"]
-		for k in buttons.size():
-			var bt: Dictionary = buttons[k]
-			var pos: Vector2 = bt["pos"]
-			var radius: float = bt["radius"]
-			_cap(mod, "Btn%d" % (k + 1), Vector3(pos.x, pos.y, 0.0), radius, BUTTON_COLORS[int(bt["color"])], 0.012)
-			left = minf(left, pos.x - radius - 0.02)
-			right = maxf(right, pos.x + radius + 0.02)
+	var extent := ArcadeCabinetSpecs.panel_extent(spec)
+	var top := 0.0825
+	var bottom := -0.1025
+	# The panel in the cabinet's frame, for what stands on the floor in front (a racer's pedals, a dancer's
+	# arrows): placed in the cabinet's frame and carried into the panel's, as the panel is one controller.
+	var to_panel := Transform3D(deck.basis, deck.position).affine_inverse()
+	if kind == "stick" or kind == "twin":
+		_stick(mod, "StickPivot", spec["stick_x"], index)
+		if kind == "twin":
+			_stick(mod, "StickPivot2", spec["stick2_x"], index)
+	elif kind == "ball":
+		# A trackball: a ball half sunk in a ring, spinning with the input (Centipede, Golden Tee).
+		var ball_x: float = spec["ball_x"]
+		ArcadeParts.cylinder(_owner, mod, "BallRing", 0.046, 0.008, Vector3(ball_x, 0.012, 0.004), _metal, Vector3.BACK)
+		var bpivot := ArcadeParts.node(_owner, mod, "Node3D", "BallPivot", Vector3(ball_x, 0.012, -0.004)) as Node3D
+		var ball := ArcadeParts.node(_owner, bpivot, "MeshInstance3D", "Ball", Vector3.ZERO) as MeshInstance3D
+		var bm := SphereMesh.new()
+		bm.radius = 0.038
+		bm.height = 0.076
+		bm.radial_segments = 24
+		bm.rings = 12
+		ball.mesh = bm
+		ball.material_override = ArcadeParts.mat(_player_color(index).lerp(Color.WHITE, 0.25), 0.0, 0.25)
+		# A seam on the ball, so its spin shows.
+		ArcadeParts.box(_owner, bpivot, "BallSeam", Vector3(0.078, 0.004, 0.004), Vector3.ZERO,
+			ArcadeParts.mat(Color(0.95, 0.95, 0.95), 0.0, 0.4))
 	elif kind == "dial":
 		# A paddle dial (Pong): a base ring and a knob that turns with LEFT and RIGHT.
 		var dial_x: float = spec["dial_x"]
@@ -354,9 +440,34 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 			ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.4), Vector3.BACK)
 		ArcadeParts.box(_owner, dpivot, "DialMark", Vector3(0.004, 0.018, 0.003), Vector3(0, 0.014, 0.0245),
 			ArcadeParts.mat(Color(0.95, 0.95, 0.95), 0.0, 0.4))
-		left = minf(left, dial_x - 0.045)
-		right = maxf(right, dial_x + 0.045)
+	elif kind == "wheel":
+		# A stand-up racer: the wheel stands out of the panel toward the player, a gear lever beside it, and
+		# the two pedals at the cabinet's foot, clear of the bay door's swing (Final Lap, Pole Position).
+		var wheel_x: float = spec["wheel_x"]
+		var wb := deck.basis.inverse() * Basis(Vector3.RIGHT, deg_to_rad(60.0))
+		_wheel(mod, Vector3(wheel_x, -0.01, 0.10), wb, 0.13)
+		top = 0.15
+		bottom = -0.13
+		if bool(spec.get("shifter", false)):
+			_shifter(mod, Vector3(wheel_x + 0.21, 0.0, 0.0), Basis.IDENTITY)
+		_pedals(mod, to_panel, Vector3(wheel_x, 0.0, 0.96))
+	elif kind == "pad":
+		# A dancer: START on the deck, and the stage's arrows (Pump It Up's five panels) on the floor in front.
+		_arrows(mod, to_panel, Vector3(float(spec.get("stage_x", 0.0)), 0.0, STAGE_Z), int(spec.get("arrows", 4)), index)
+	for k in (spec.get("buttons", []) as Array).size():
+		var bt: Dictionary = spec["buttons"][k]
+		var pos: Vector2 = bt["pos"]
+		_cap(mod, "Btn%d" % (k + 1), Vector3(pos.x, pos.y, 0.0), bt["radius"], BUTTON_COLORS[int(bt["color"])], 0.012)
 	_cap(mod, "Start", Vector3(start_x, -0.07, 0.0), 0.011, Color(0.92, 0.92, 0.92), 0.008)
+	var label := str(spec.get("label", ""))
+	if not label.is_empty():
+		# An alternating game's two STARTs say which is which (1P, 2P), on the deck under each.
+		var tag := ArcadeParts.node(_owner, mod, "Label3D", "StartLabel", Vector3(start_x, -0.092, 0.001)) as Label3D
+		tag.text = label
+		tag.pixel_size = 0.0005
+		tag.font_size = 32
+		tag.modulate = Color(0.92, 0.92, 0.92)
+		tag.outline_size = 0
 	# The whole panel is ONE pointable thing: aiming at any of it lights all of it, and a press
 	# attaches you to it as to a controller (ArcadePanelGrip). A panel with only START has nothing
 	# to take hold of: its press is START itself (`momentary`).
@@ -372,11 +483,102 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		grip.set("panel_size", Vector2(0.07, 0.07))
 		grip.position = Vector3(start_x, -0.07, 0.03)
 		gshape.size = Vector3(0.07, 0.07, 0.08)
+	elif kind == "pad":
+		# Taken hold of at its START, as a pad you do not carry: the arrows are for the feet.
+		grip.set("panel_size", Vector2(0.12, 0.10))
+		grip.position = Vector3(start_x, -0.06, 0.03)
+		gshape.size = Vector3(0.12, 0.10, 0.08)
 	else:
-		var width := right - left
-		grip.set("panel_size", Vector2(width, 0.185))
-		grip.position = Vector3((left + right) * 0.5, -0.01, 0.03)
-		gshape.size = Vector3(width, 0.185, 0.08)
+		var width := extent.y - extent.x
+		var height := top - bottom
+		grip.set("panel_size", Vector2(width, height))
+		grip.position = Vector3((extent.x + extent.y) * 0.5, (top + bottom) * 0.5, 0.03)
+		gshape.size = Vector3(width, height, 0.08 if kind != "wheel" else 0.22)
+
+
+## A joystick: a base plate, then a pivot carrying shaft and ball (player 1 red, 2 blue, then green, yellow...).
+func _stick(mod: Node3D, pivot_name: String, x: float, index: int) -> void:
+	var suffix := pivot_name.trim_prefix("StickPivot")
+	ArcadeParts.cylinder(_owner, mod, "StickBase" + suffix, 0.034, 0.004, Vector3(x, 0.015, 0.002), _metal, Vector3.BACK)
+	var pivot := ArcadeParts.node(_owner, mod, "Node3D", pivot_name, Vector3(x, 0.015, 0.004)) as Node3D
+	ArcadeParts.cylinder(_owner, pivot, "StickShaft", 0.006, 0.07, Vector3(0, 0, 0.035), _metal, Vector3.BACK)
+	var ball := ArcadeParts.node(_owner, pivot, "MeshInstance3D", "StickBall", Vector3(0, 0, 0.085)) as MeshInstance3D
+	var sm := SphereMesh.new()
+	sm.radius = 0.022
+	sm.height = 0.044
+	# 24 x 12 (Godot's default 64 x 32 is 4224 triangles for a ball of 4.4 cm).
+	sm.radial_segments = 24
+	sm.rings = 12
+	ball.mesh = sm
+	ball.material_override = ArcadeParts.mat(_player_color(index), 0.0, 0.3)
+
+
+## The stick-ball colour of each player's panel: red, blue (the two the generic cabinet always had), green,
+## yellow, purple, orange.
+static func _player_color(index: int) -> Color:
+	const COLORS := [Color(0.85, 0.10, 0.10), Color(0.10, 0.25, 0.85), Color(0.12, 0.62, 0.20),
+		Color(0.90, 0.75, 0.08), Color(0.55, 0.18, 0.70), Color(0.95, 0.45, 0.08)]
+	return COLORS[index % COLORS.size()]
+
+
+## A steering wheel on a column: `WheelPivot` turns about the wheel's axis (its local Y) with the steering.
+## `pos` and `basis` are in `parent`'s frame, the wheel's plane its local XZ, `radius` the rim's.
+func _wheel(parent: Node3D, pos: Vector3, basis: Basis, radius: float) -> void:
+	var mount := ArcadeParts.node(_owner, parent, "Node3D", "WheelMount", pos) as Node3D
+	mount.basis = basis
+	# The column, from behind the hub back into whatever the wheel stands on.
+	ArcadeParts.cylinder(_owner, mount, "WheelColumn", 0.022, 0.16, Vector3(0, -0.08, 0), _dark, Vector3.UP)
+	var pivot := ArcadeParts.node(_owner, mount, "Node3D", "WheelPivot", Vector3.ZERO) as Node3D
+	var rim := ArcadeParts.node(_owner, pivot, "MeshInstance3D", "WheelRim", Vector3.ZERO) as MeshInstance3D
+	var tm := TorusMesh.new()
+	tm.inner_radius = radius - 0.014
+	tm.outer_radius = radius + 0.014
+	tm.rings = 32
+	tm.ring_segments = 8
+	rim.mesh = tm
+	rim.material_override = ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.6)
+	ArcadeParts.cylinder(_owner, pivot, "WheelHub", 0.040, 0.03, Vector3.ZERO, _metal, Vector3.UP)
+	# Three spokes, the bottom one straight down, and a mark at the top so a turn shows.
+	for i in 3:
+		var a := deg_to_rad(90.0 + 120.0 * float(i))
+		var dir := Vector3(cos(a), 0.0, sin(a))
+		var spoke := ArcadeParts.box(_owner, pivot, "WheelSpoke%d" % (i + 1), Vector3(0.022, 0.012, radius - 0.03),
+			dir * (radius * 0.5), _metal)
+		spoke.basis = Basis(Vector3.UP, atan2(dir.x, dir.z))
+	ArcadeParts.box(_owner, pivot, "WheelMark", Vector3(0.03, 0.006, 0.03), Vector3(0, 0.012, -radius),
+		ArcadeParts.mat(Color(0.95, 0.75, 0.10), 0.0, 0.4))
+
+
+## A gear lever: a gaiter, a stick and a knob, `ShifterPivot` leaning with the gear.
+func _shifter(parent: Node3D, pos: Vector3, basis: Basis) -> void:
+	ArcadeParts.cylinder(_owner, parent, "ShifterBoot", 0.03, 0.02, pos + basis * Vector3(0, 0, 0.01), _dark, basis * Vector3.BACK)
+	var pivot := ArcadeParts.node(_owner, parent, "Node3D", "ShifterPivot", pos + basis * Vector3(0, 0, 0.02)) as Node3D
+	pivot.basis = basis
+	ArcadeParts.cylinder(_owner, pivot, "ShifterStick", 0.007, 0.12, Vector3(0, 0, 0.06), _metal, Vector3.BACK)
+	var knob := ArcadeParts.node(_owner, pivot, "MeshInstance3D", "ShifterKnob", Vector3(0, 0, 0.125)) as MeshInstance3D
+	var sm := SphereMesh.new()
+	sm.radius = 0.022
+	sm.height = 0.044
+	sm.radial_segments = 16
+	sm.rings = 8
+	knob.mesh = sm
+	knob.material_override = ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.35)
+
+
+## A driver's two pedals on a footplate: BRAKE left, GAS right, each a plate on a hinge (`BrakePivot`,
+## `GasPivot`) that tips down when pressed. `at` is the footplate's centre on the floor in the CABINET's
+## frame, `to_parent` carries that into `parent`'s frame.
+func _pedals(parent: Node3D, to_parent: Transform3D, at: Vector3) -> void:
+	var plate := ArcadeParts.box(_owner, parent, "Footplate", Vector3(0.30, 0.03, 0.30), Vector3.ZERO, _dark)
+	plate.transform = to_parent * Transform3D(Basis.IDENTITY, at + Vector3(0, 0.015, 0))
+	for p in [["BrakePivot", -0.075, Color(0.75, 0.75, 0.78), 0.10], ["GasPivot", 0.075, Color(0.75, 0.75, 0.78), 0.08]]:
+		var pivot := ArcadeParts.node(_owner, parent, "Node3D", str(p[0])) as Node3D
+		# The hinge at the heel, the plate rising toe-up 20 degrees toward the cabinet.
+		pivot.transform = to_parent * Transform3D(Basis(Vector3.RIGHT, deg_to_rad(20.0)),
+			at + Vector3(float(p[1]), 0.04, 0.10))
+		ArcadeParts.box(_owner, pivot, str(p[0]).trim_suffix("Pivot") + "Plate", Vector3(float(p[3]), 0.012, 0.18),
+			Vector3(0, 0.006, -0.09), ArcadeParts.mat(p[2] as Color, 0.6, 0.4))
+	form_boxes.append(AABB(at + Vector3(-0.15, 0.0, -0.15), Vector3(0.30, 0.10, 0.30)))
 
 
 ## A button on the deck, as a pushbutton is made: the cap, which sinks when its bit is held, in a
@@ -461,61 +663,111 @@ func _build_front_sockets() -> void:
 	var sockets := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Sockets", Vector3.ZERO)) as Node3D
 	sockets.set_script(load(SCRIPTS["sockets"]))
 	# Rolled 180 degrees about Z with +Z out of the face, as the NES authors its
-	# seats, so a plug seats connector-in and upright.
-	for i in 2:
+	# seats, so a plug seats connector-in and upright. Two at the apron's ends; a cabinet for three or four
+	# players has a socket for each, spread between them.
+	var count := clampi(int(_v.get("socket_count", 2)), 2, 4)
+	for i in count:
+		var x := -0.24 + 0.48 * float(i) / float(count - 1)
 		var seat := ArcadeParts.node(_owner, sockets, "Marker3D", "PortSeat%d" % (i + 1),
-			Vector3(-0.24 if i == 0 else 0.24, 0.86, 0.47)) as Marker3D
+			Vector3(x, 0.86, 0.47)) as Marker3D
 		seat.basis = Basis(Vector3.BACK, PI)
 		ArcadeParts.box(_owner, sockets, "Recess%d" % (i + 1), Vector3(0.034, 0.026, 0.004),
-			Vector3(-0.24 if i == 0 else 0.24, 0.86, 0.4685), _dark)
+			Vector3(x, 0.86, 0.4685), _dark)
 
 
-# ── guns in holsters ────────────────────────────────────────────────────────
+# ── guns ────────────────────────────────────────────────────────────────────
 
-## Two guns on the front, hung muzzle-down in a holster on the apron either side of the coin
-## doors, each on a cord that goes into the cabinet. The Sockets module carries the cord entries
-## (the system's controller-port zones) and the Holster markers where the guns hang; the model
-## builds the guns and hangs them (RetroSystemModelArcadeCabinet.captive_controllers).
+## The guns on the front, each on a cord that goes into the cabinet: hung muzzle-down in a holster on the
+## apron (`holster`, Time Crisis and House of the Dead), resting on a swivel post on the deck (`mounted`,
+## Operation Wolf's Uzi, Terminator 2), or one rifle on a post in the middle with its scope (`rifle`, Silent
+## Scope). The Sockets module carries the cord entries (the system's controller-port zones) and the Holster
+## markers where the guns rest; the model builds the guns and hangs them there
+## (RetroSystemModelArcadeCabinet.captive_controllers).
 func _build_gun_holsters() -> void:
 	var sockets := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Sockets", Vector3.ZERO)) as Node3D
 	sockets.set_script(load(SCRIPTS["sockets"]))
-	var count: int = int(_v["guns"])
-	for i in count:
-		var side := -1.0 if i == 0 else 1.0
-		var sx := side * (_w * 0.5 - 0.09)
+	var style := str(_v.get("gun_style", "holster"))
+	if style == "rifle":
+		sockets.set("gun_scene", RIFLE_SCENE)
+	var xs := ArcadeCabinetSpecs.gun_xs(int(_v["guns"]), _w, style)
+	for i in xs.size():
+		var sx := float(xs[i])
+		# The cord goes in on the front beside the gun, outboard of it; a gun in the middle's to its right, clear
+		# of a coin door standing under it.
+		var side := signf(sx) if absf(sx) > 0.01 else 1.0
 		var entry_x := sx + side * 0.042
+		for cx: float in _v.get("coins", []):
+			if absf(sx) <= 0.01 and absf(cx - entry_x) < 0.075:
+				entry_x = sx + 0.10
 		# Where the cord goes in, +Z out of the face, as the front sockets are authored.
 		var seat := ArcadeParts.node(_owner, sockets, "Marker3D", "PortSeat%d" % (i + 1),
 			Vector3(entry_x, CORD_ENTRY_Y, CORD_ENTRY_Z)) as Marker3D
 		seat.basis = Basis(Vector3.BACK, PI)
 		ArcadeParts.cylinder(_owner, sockets, "Grommet%d" % (i + 1), 0.017, 0.008,
 			Vector3(entry_x, CORD_ENTRY_Y, CORD_ENTRY_Z + 0.004), _dark, Vector3.BACK)
-		# Where the gun hangs.
-		var holster := ArcadeParts.node(_owner, sockets, "Marker3D", "Holster%d" % (i + 1),
-			Vector3(sx, HOLSTER_Y, HOLSTER_Z)) as Marker3D
-		holster.basis = Basis(Vector3.RIGHT, -PI * 0.5)
-		# The bracket: a plate on the apron's face, a spacer out over the coin face below it, and the
-		# cup the muzzle rests in.
-		ArcadeParts.box(_owner, sockets, "HolsterPlate%d" % (i + 1), Vector3(0.07, 0.30, 0.012),
-			Vector3(sx, 0.78, 0.478), ArcadeParts.mat(Color(0.10, 0.10, 0.12), 0.0, 0.5))
-		ArcadeParts.box(_owner, sockets, "HolsterBand%d" % (i + 1), Vector3(0.072, 0.012, 0.014),
-			Vector3(sx, 0.665, 0.478), _trim)
-		ArcadeParts.box(_owner, sockets, "HolsterSpacer%d" % (i + 1), Vector3(0.07, 0.14, 0.070),
-			Vector3(sx, 0.69, 0.438), _dark)
-		ArcadeParts.cylinder(_owner, sockets, "HolsterCup%d" % (i + 1), 0.030, 0.045,
-			Vector3(sx, 0.6175, 0.511), _dark, Vector3.UP)
-		ArcadeParts.box(_owner, sockets, "HolsterStrap%d" % (i + 1), Vector3(0.05, 0.010, 0.040),
-			Vector3(sx, 0.725, 0.505), _metal)
+		if style == "holster":
+			_holster(sockets, i, sx)
+		else:
+			_gun_mount(sockets, i, sx, style == "rifle")
 
 
-# ── foot pedal ──────────────────────────────────────────────────────────────
+## A holster on the apron: the gun hangs in it muzzle-down, its grip toward the player (rolled -90 degrees
+## about X).
+func _holster(sockets: Node3D, i: int, sx: float) -> void:
+	var holster := ArcadeParts.node(_owner, sockets, "Marker3D", "Holster%d" % (i + 1),
+		Vector3(sx, HOLSTER_Y, HOLSTER_Z)) as Marker3D
+	holster.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	# The bracket: a plate on the apron's face, a spacer out over the coin face below it, and the
+	# cup the muzzle rests in.
+	ArcadeParts.box(_owner, sockets, "HolsterPlate%d" % (i + 1), Vector3(0.07, 0.30, 0.012),
+		Vector3(sx, 0.78, 0.478), ArcadeParts.mat(Color(0.10, 0.10, 0.12), 0.0, 0.5))
+	ArcadeParts.box(_owner, sockets, "HolsterBand%d" % (i + 1), Vector3(0.072, 0.012, 0.014),
+		Vector3(sx, 0.665, 0.478), _trim)
+	ArcadeParts.box(_owner, sockets, "HolsterSpacer%d" % (i + 1), Vector3(0.07, 0.14, 0.070),
+		Vector3(sx, 0.69, 0.438), _dark)
+	ArcadeParts.cylinder(_owner, sockets, "HolsterCup%d" % (i + 1), 0.030, 0.045,
+		Vector3(sx, 0.6175, 0.511), _dark, Vector3.UP)
+	ArcadeParts.box(_owner, sockets, "HolsterStrap%d" % (i + 1), Vector3(0.05, 0.010, 0.040),
+		Vector3(sx, 0.725, 0.505), _metal)
 
-## A Time Crisis-style foot pedal on the floor in front of the deck, with its cable running to
-## the cabinet. DRAWN ONLY: ArcadePedalModule is `active = false` and nothing reads it. How a
-## pedal should reach the core is its own analysis (docs/dev/arcade.md).
-func _build_pedal() -> void:
-	var pedal := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Pedal", Vector3(0.0, 0.0, 0.80))) as Node3D
+
+## A post on the front of the deck with a cradle on top, the gun resting level in it and aimed at the screen
+## (its own -Z the cabinet's -Z): a machine gun's swivel mount, or a rifle's taller one. In the hand it aims
+## freely and is let go back onto the post (the post does not hold it while it is aimed).
+func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
+	var foot := Vector3(sx, 0.92, 0.47)
+	var tall := 0.20 if rifle else 0.13
+	var top := foot + Vector3(0, tall, 0)
+	ArcadeParts.cylinder(_owner, sockets, "MountBase%d" % (i + 1), 0.05, 0.02, foot + Vector3(0, 0.01, 0), _metal, Vector3.UP)
+	ArcadeParts.cylinder(_owner, sockets, "MountPost%d" % (i + 1), 0.018, tall, foot + Vector3(0, tall * 0.5, 0), _dark, Vector3.UP)
+	# The yoke the gun's body lies in, ahead of its grip, and a cheek either side of it.
+	ArcadeParts.box(_owner, sockets, "MountYoke%d" % (i + 1), Vector3(0.06, 0.012, 0.06), top + Vector3(0, 0.006, 0.0), _metal)
+	for k in [-1.0, 1.0]:
+		ArcadeParts.box(_owner, sockets, "MountCheek%d%s" % [i + 1, "L" if k < 0 else "R"], Vector3(0.006, 0.035, 0.05),
+			top + Vector3(k * 0.024, 0.0295, 0.0), _metal)
+	# The gun's origin over the yoke: the underside of its body (1 cm under the origin) rests in it, a pistol's
+	# recoil housing 8 cm ahead of the origin, the front of a rifle's forestock 25 cm (so its muzzle stops 3 cm
+	# short of the glass); the grip hangs behind the post.
+	var rest := ArcadeParts.node(_owner, sockets, "Marker3D", "Holster%d" % (i + 1),
+		top + Vector3(0, 0.022, 0.25 if rifle else 0.08)) as Marker3D
+	rest.basis = Basis.IDENTITY
+
+
+# ── foot pedals ─────────────────────────────────────────────────────────────
+
+## A Time Crisis-style foot pedal on the floor in front of the deck, with its cable running to the
+## cabinet: one in the middle (`index` -1, the shipped gun cabinet's), or one under each gun of a game
+## that has them (`gun_pedals`, player `index`). DRAWN ONLY: ArcadePedalModule is `active = false` and
+## nothing reads it. How a pedal should reach the core is its own analysis (docs/dev/arcade.md).
+func _build_pedal(index: int = -1) -> void:
+	# A pedal under each of two or three guns; one gun's in the middle, where its one player stands.
+	var under: Array = _v.get("gun_pedals", [])
+	var x := 0.0 if index < 0 or under.size() < 2 else float(under[index]) * 0.75
+	var node_name := "Pedal" if index < 0 else "Pedal%d" % (index + 1)
+	var pedal := _form_node(ArcadeParts.node(_owner, _root, "Node3D", node_name, Vector3(x, 0.0, 0.80))) as Node3D
 	pedal.set_script(load(SCRIPTS["pedal"]))
+	if index >= 0:
+		pedal.set("player", index)
 	# The base plate, the hinge, and the footplate raised toe-up on its heel.
 	ArcadeParts.box(_owner, pedal, "PedalBase", Vector3(0.16, 0.012, 0.26), Vector3(0, 0.006, 0.0), _dark)
 	ArcadeParts.cylinder(_owner, pedal, "PedalHinge", 0.010, 0.15, Vector3(0, 0.020, 0.09), _metal, Vector3.RIGHT)
@@ -524,6 +776,195 @@ func _build_pedal() -> void:
 	plate.basis = Basis(Vector3.RIGHT, deg_to_rad(18.0))
 	# The cable, flat on the floor, back toward the cabinet.
 	ArcadeParts.box(_owner, pedal, "PedalCable", Vector3(0.012, 0.008, 0.30), Vector3(0, 0.004, -0.28), _dark)
+	if index >= 0:
+		form_boxes.append(AABB(Vector3(x - 0.08, 0.0, 0.67), Vector3(0.16, 0.08, 0.26)))
+
+
+# ── a sit-down driving cockpit ──────────────────────────────────────────────
+
+## Where the cockpit's platform starts (clear of the bay door, which opens 40 cm out) and ends.
+const COCKPIT_Z0 := 0.84
+const COCKPIT_Z1 := 2.10
+
+
+## A sit-down driving cockpit in front of the monitor housing (Daytona USA, Sega Rally, Ridge Racer): a
+## platform, a seat, a dash holding the wheel, the two pedals in the footwell under it, a gear lever by the
+## right hand and START on the dash; on the Model 3 twins a roof over the seat. The driver's controls are ONE
+## controller (Player1, taken hold of at the wheel), as a panel is. No collision: a player walks in and sits
+## on their own chair.
+func _build_cockpit(spec: Dictionary) -> void:
+	var cp := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Cockpit", Vector3.ZERO)) as Node3D
+	var depth := COCKPIT_Z1 - COCKPIT_Z0
+	var zc := (COCKPIT_Z0 + COCKPIT_Z1) * 0.5
+	ArcadeParts.box(_owner, cp, "Platform", Vector3(_w, 0.10, depth), Vector3(0, 0.05, zc), _body)
+	# A band round the platform's edge, under its top (a band flush with the top would fight it for the face).
+	ArcadeParts.box(_owner, cp, "PlatformTrim", Vector3(_w + 0.004, 0.012, depth + 0.004), Vector3(0, 0.084, zc), _trim)
+	# The dash: a pedestal at the platform's front, its top leaning toward the driver.
+	ArcadeParts.box(_owner, cp, "Dash", Vector3(_w - 0.10, 0.60, 0.20), Vector3(0, 0.40, 0.98), _body)
+	var dash_top := ArcadeParts.box(_owner, cp, "DashTop", Vector3(_w - 0.08, 0.02, 0.26), Vector3(0, 0.71, 1.00), _dark)
+	dash_top.basis = Basis(Vector3.RIGHT, deg_to_rad(18.0))
+	# The seat: a base, the cushion and a back leaning back, with a headrest.
+	var seat_mat := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.7)
+	ArcadeParts.box(_owner, cp, "SeatBase", Vector3(0.36, 0.30, 0.36), Vector3(0, 0.25, 1.80), _dark)
+	ArcadeParts.box(_owner, cp, "SeatCushion", Vector3(0.48, 0.08, 0.46), Vector3(0, 0.44, 1.78), seat_mat)
+	# The back leans BACK, away from the screen (+Z), and the headrest on top of it.
+	var back := ArcadeParts.box(_owner, cp, "SeatBack", Vector3(0.48, 0.62, 0.08), Vector3(0, 0.78, 2.02), seat_mat)
+	back.basis = Basis(Vector3.RIGHT, deg_to_rad(14.0))
+	var head := ArcadeParts.box(_owner, cp, "SeatHead", Vector3(0.30, 0.16, 0.08), Vector3(0, 1.17, 2.12), seat_mat)
+	head.basis = back.basis
+	# The gear lever's console, by the driver's right hand.
+	ArcadeParts.box(_owner, cp, "ShifterConsole", Vector3(0.12, 0.44, 0.30), Vector3(_w * 0.5 - 0.10, 0.32, 1.52), _body)
+	if bool(spec.get("roof", false)):
+		# Two posts behind the seat and a canopy forward over the driver to the monitor housing (the overhead
+		# marquee of Sega's Model 3 twins).
+		for k in [-1.0, 1.0]:
+			ArcadeParts.box(_owner, cp, "RoofPost%s" % ("L" if k < 0 else "R"), Vector3(0.05, 1.90, 0.05),
+				Vector3(k * (_w * 0.5 - 0.03), 1.05, COCKPIT_Z1 - 0.05), _body)
+		ArcadeParts.box(_owner, cp, "Roof", Vector3(_w, 0.05, COCKPIT_Z1 + 0.10), Vector3(0, 2.025, (COCKPIT_Z1 - 0.10) * 0.5), _body)
+		ArcadeParts.box(_owner, cp, "RoofTrim", Vector3(_w + 0.004, 0.012, COCKPIT_Z1 + 0.104), Vector3(0, 1.995, (COCKPIT_Z1 - 0.10) * 0.5), _trim)
+		var lit := ArcadeParts.mat(_v["marquee"], 0.0, 0.5, _v["glow"], 0.0)
+		ArcadeParts.box(_owner, cp, "RoofSign", Vector3(_w - 0.06, 0.16, 0.012), Vector3(0, 1.90, COCKPIT_Z1 - 0.06), lit)
+	# The driver's controls, one controller.
+	var mod := ArcadeParts.node(_owner, cp, "Node3D", "Player1") as Node3D
+	mod.set_script(load(SCRIPTS["control"]))
+	mod.set("player", int(spec.get("player", 0)))
+	var wb := Basis(Vector3.RIGHT, deg_to_rad(60.0))
+	var wheel_at := Vector3(0, 0.82, 1.20)
+	_wheel(mod, wheel_at, wb, 0.15)
+	_pedals(mod, Transform3D.IDENTITY, Vector3(0, 0.10, 1.26))
+	if bool(spec.get("shifter", true)):
+		_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, 1.52), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
+	# START on the dash, left of the wheel, in a frame whose +Z is out of the dash's top.
+	var panel := ArcadeParts.node(_owner, mod, "Node3D", "DashPanel", Vector3(-0.22, 0.725, 1.02)) as Node3D
+	panel.basis = Basis(Vector3.RIGHT, deg_to_rad(-72.0))
+	_cap(panel, "Start", Vector3.ZERO, 0.012, Color(0.92, 0.92, 0.92), 0.008)
+	var grip := ArcadeParts.node(_owner, mod, "Area3D", "PanelGrip", wheel_at) as Area3D
+	grip.set_script(load(SCRIPTS["panel"]))
+	grip.collision_layer = 0
+	grip.collision_mask = 0
+	# The grip faces the driver: its +Z along the wheel's axis.
+	grip.basis = wb * Basis(Vector3.RIGHT, -PI * 0.5)
+	grip.set("panel_size", Vector2(0.36, 0.36))
+	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var gshape := BoxShape3D.new()
+	gshape.size = Vector3(0.36, 0.36, 0.16)
+	gcol.shape = gshape
+	# Where a seated driver's eyes are, for when the seat can be sat on (seats.md).
+	ArcadeParts.node(_owner, cp, "Marker3D", "EyePoint", Vector3(0, 1.12, 1.82))
+	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, COCKPIT_Z0), Vector3(_w, 0.10, depth)))
+	form_boxes.append(AABB(Vector3(-0.24, 0.10, 1.55), Vector3(0.48, 1.15, 0.62)))
+	form_boxes.append(AABB(Vector3(-(_w - 0.10) * 0.5, 0.10, 0.88), Vector3(_w - 0.10, 0.62, 0.20)))
+
+
+# ── a ride-on motorbike ─────────────────────────────────────────────────────
+
+## A ride-on motorbike in front of the monitor housing (Hang-On, Harley-Davidson, Manx TT): a body you
+## straddle on a stand, the seat, the tank, and the handlebars. The bike leans with the steering
+## (`LeanPivot`, as the real one tipped under the rider), and the rider takes hold of it at the bars.
+func _build_bike(spec: Dictionary) -> void:
+	var bk := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Bike", Vector3.ZERO)) as Node3D
+	ArcadeParts.box(_owner, bk, "BikeStand", Vector3(0.40, 0.10, 1.10), Vector3(0, 0.05, 1.45), _dark)
+	ArcadeParts.box(_owner, bk, "BikeStandTrim", Vector3(0.404, 0.012, 1.104), Vector3(0, 0.084, 1.45), _trim)
+	var mod := ArcadeParts.node(_owner, bk, "Node3D", "Player1") as Node3D
+	mod.set_script(load(SCRIPTS["control"]))
+	mod.set("player", int(spec.get("player", 0)))
+	# The bike leans about its long axis, at the stand.
+	var lean := ArcadeParts.node(_owner, mod, "Node3D", "LeanPivot", Vector3(0, 0.12, 1.45)) as Node3D
+	var paint := ArcadeParts.mat(_v["trim"], 0.2, 0.35)
+	ArcadeParts.box(_owner, lean, "BikeFrame", Vector3(0.10, 0.36, 0.90), Vector3(0, 0.26, 0.0), _dark)
+	ArcadeParts.box(_owner, lean, "BikeFairing", Vector3(0.30, 0.34, 0.30), Vector3(0, 0.52, -0.40), paint)
+	ArcadeParts.box(_owner, lean, "BikeTank", Vector3(0.26, 0.16, 0.34), Vector3(0, 0.56, -0.08), paint)
+	ArcadeParts.box(_owner, lean, "BikeSeat", Vector3(0.24, 0.08, 0.44), Vector3(0, 0.55, 0.28),
+		ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.7))
+	ArcadeParts.box(_owner, lean, "BikeTail", Vector3(0.22, 0.16, 0.16), Vector3(0, 0.56, 0.52), paint)
+	# The bars: a crossbar on the fork with a grip at each end (the right one the throttle).
+	var bars := ArcadeParts.node(_owner, lean, "Node3D", "Handlebars", Vector3(0, 0.74, -0.30)) as Node3D
+	ArcadeParts.cylinder(_owner, bars, "BarCross", 0.012, 0.56, Vector3.ZERO, _metal, Vector3.RIGHT)
+	for k in [-1.0, 1.0]:
+		ArcadeParts.cylinder(_owner, bars, "BarGrip%s" % ("L" if k < 0 else "R"), 0.018, 0.11,
+			Vector3(k * 0.26, 0, 0), ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.6), Vector3.RIGHT)
+	# START on top of the bars' clamp, standing up out of it.
+	var clamp := ArcadeParts.node(_owner, bars, "Node3D", "BarPanel", Vector3(0.0, 0.014, 0.0)) as Node3D
+	clamp.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	ArcadeParts.box(_owner, bars, "BarClamp", Vector3(0.08, 0.016, 0.05), Vector3(0, 0.006, 0), _dark)
+	_cap(clamp, "Start", Vector3.ZERO, 0.011, Color(0.92, 0.92, 0.92), 0.008)
+	var grip := ArcadeParts.node(_owner, lean, "Area3D", "PanelGrip", Vector3(0, 0.74, -0.30)) as Area3D
+	grip.set_script(load(SCRIPTS["panel"]))
+	grip.collision_layer = 0
+	grip.collision_mask = 0
+	grip.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	grip.set("panel_size", Vector2(0.62, 0.20))
+	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var gshape := BoxShape3D.new()
+	gshape.size = Vector3(0.62, 0.20, 0.14)
+	gcol.shape = gshape
+	form_boxes.append(AABB(Vector3(-0.20, 0.0, 0.90), Vector3(0.40, 0.75, 1.10)))
+
+
+# ── a dance stage ───────────────────────────────────────────────────────────
+
+## Where the middle of a dancer's square is, and its side: three panels of 30 cm.
+const STAGE_Z := 1.30
+const STAGE_SIDE := 0.90
+
+
+## The stage in front of a dance cabinet (Dance Dance Revolution, Pump It Up): a square for each dancer,
+## nine panels of 30 cm, with the safety bar behind. The arrows are the dancers' own (each player's
+## controller, ArcadeCabinetBuilder._arrows); this is what does not move. Barely off the floor, and no
+## collision: a player stands on it with their own feet.
+func _build_stage(spec: Dictionary) -> void:
+	var st := _form_node(ArcadeParts.node(_owner, _root, "Node3D", "Stage", Vector3.ZERO)) as Node3D
+	var xs: Array = spec.get("xs", [0.0])
+	for i in xs.size():
+		var x := float(xs[i])
+		ArcadeParts.box(_owner, st, "StageBase%d" % (i + 1), Vector3(STAGE_SIDE, 0.02, STAGE_SIDE),
+			Vector3(x, 0.01, STAGE_Z), _metal)
+		# The fixed panels the arrows leave (DDR's centre and corners, Pump It Up's edges).
+		for row in 3:
+			for col in 3:
+				if _is_arrow(int(spec.get("arrows", 4)), row, col):
+					continue
+				ArcadeParts.box(_owner, st, "StageTile%d_%d%d" % [i + 1, row, col], Vector3(0.27, 0.006, 0.27),
+					Vector3(x + (col - 1) * 0.30, 0.023, STAGE_Z + (row - 1) * 0.30), _dark)
+		# The safety bar: two posts at the back corners and the rail across.
+		for k in [-1.0, 1.0]:
+			ArcadeParts.cylinder(_owner, st, "BarPost%d%s" % [i + 1, "L" if k < 0 else "R"], 0.02, 0.95,
+				Vector3(x + k * 0.42, 0.495, STAGE_Z + 0.48), _metal, Vector3.UP)
+		ArcadeParts.cylinder(_owner, st, "BarRail%d" % (i + 1), 0.022, 0.86, Vector3(x, 0.97, STAGE_Z + 0.48),
+			_metal, Vector3.RIGHT)
+		form_boxes.append(AABB(Vector3(x - STAGE_SIDE * 0.5, 0.0, STAGE_Z - STAGE_SIDE * 0.5),
+			Vector3(STAGE_SIDE, 0.02, STAGE_SIDE + 0.10)))
+
+
+## Is the panel at (row, col) of the 3 x 3 square an arrow? Four arrows: the edges' middles (up, left, right,
+## down); five: the corners and the centre.
+static func _is_arrow(arrows: int, row: int, col: int) -> bool:
+	if arrows == 5:
+		return (row != 1 and col != 1) or (row == 1 and col == 1)
+	return (row == 1) != (col == 1)
+
+
+## A dancer's arrows on the stage at `at` (the square's middle, cabinet frame): Pad<Dir> caps the module sinks
+## with the joypad's directions, or Pump It Up's five as Btn1..5 (down-left, up-left, centre, up-right,
+## down-right). Carried into the panel's frame by `to_parent`.
+func _arrows(parent: Node3D, to_parent: Transform3D, at: Vector3, arrows: int, index: int) -> void:
+	var color := _player_color(index)
+	var cells: Array = []
+	if arrows == 5:
+		cells = [["Btn1", 2, 0], ["Btn2", 0, 0], ["Btn3", 1, 1], ["Btn4", 0, 2], ["Btn5", 2, 2]]
+	else:
+		cells = [["PadUp", 0, 1], ["PadLeft", 1, 0], ["PadRight", 1, 2], ["PadDown", 2, 1]]
+	for c: Array in cells:
+		var pos := at + Vector3((int(c[2]) - 1) * 0.30, 0.026, (int(c[1]) - 1) * 0.30)
+		var plate := ArcadeParts.box(_owner, parent, str(c[0]), Vector3(0.27, 0.008, 0.27), Vector3.ZERO,
+			ArcadeParts.mat(color.lerp(Color.WHITE, 0.15), 0.0, 0.3, color, 0.0))
+		plate.transform = to_parent * Transform3D(Basis.IDENTITY, pos)
+		# The arrow's mark: a white bar pointing the way (for Pump's, toward the corner it is in).
+		var mark := ArcadeParts.box(_owner, plate, "Mark", Vector3(0.05, 0.004, 0.16), Vector3(0, 0.006, 0),
+			ArcadeParts.mat(Color(0.95, 0.95, 0.95), 0.0, 0.4))
+		var dir := Vector2(int(c[2]) - 1, int(c[1]) - 1)
+		if dir.length_squared() > 0.0:
+			mark.basis = Basis(Vector3.UP, atan2(dir.x, dir.y))
 
 
 # ── composite input ─────────────────────────────────────────────────────────
