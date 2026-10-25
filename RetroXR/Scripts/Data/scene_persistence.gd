@@ -1489,8 +1489,14 @@ func _let_go(held: Dictionary) -> void:
 		# Solid again — unless pass 2 seated it, and the zone holding it owns the
 		# mask now (0, until it is taken out), or something else has set one.
 		var seated := rb is XRToolsPickable and (rb as XRToolsPickable).is_picked_up()
-		if rb.collision_mask == 0 and not seated:
-			rb.collision_mask = int(rec.get("mask", rb.collision_mask))
+		# The held bit alone is a rider's coupling (HeldObjectPhysics.watch_riders)
+		# laid on the zero, not a mask: kept, and the body's own put back under it.
+		var own := rb.collision_mask & ~HeldObjectPhysics.HELD_BIT
+		if own == 0 and not seated:
+			var mask := int(rec.get("mask", rb.collision_mask))
+			if rb.collision_mask != 0:
+				print("[ScenePersistence] %s: collision mask %d -> %d at let-go" % [rb.name, rb.collision_mask, mask | rb.collision_mask])
+			rb.collision_mask = mask | rb.collision_mask
 		rb.sleeping = false
 	held.clear()
 

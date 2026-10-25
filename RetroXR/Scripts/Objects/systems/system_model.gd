@@ -831,6 +831,7 @@ func build_port_cover_slot(socket_id: String, socket: XRToolsSnapZone, seat: Tra
 	zone.transform = seat
 	_port_cover_slots[socket_id] = zone
 	_port_cover_sizes[socket_id] = size
+	_except_seated_cover(zone)
 	# A null socket is an opening in the console's floor that a unit it stands
 	# on fills (configure_cover_socket): there the unit asks the slot, and the
 	# slot is shut by block_port_cover while the console stands on it.
@@ -844,6 +845,27 @@ func build_port_cover_slot(socket_id: String, socket: XRToolsSnapZone, seat: Tra
 	socket.has_dropped.connect(gate)
 	gate.call()
 	return zone
+
+
+## A seated cover is frozen inside the console's own box, on the held layer the
+## console collides with, and the slot moves it with the console every tick: it
+## shoved the console it was in. A Super Famicom's EXT cover, 1 mm inside the
+## floor, lifted the console 12 cm off a bare floor and tipped it back. So a
+## cover and its console never touch while it is seated.
+func _except_seated_cover(zone: XRToolsSnapZone) -> void:
+	var seated: Array[PhysicsBody3D] = []
+	zone.has_picked_up.connect(func(what: Node3D) -> void:
+		var host := get_parent() as PhysicsBody3D
+		var cover := what as PhysicsBody3D
+		if host != null and cover != null:
+			host.add_collision_exception_with(cover)
+			seated.append(cover))
+	zone.has_dropped.connect(func() -> void:
+		var host := get_parent() as PhysicsBody3D
+		for cover in seated:
+			if host != null and is_instance_valid(cover):
+				host.remove_collision_exception_with(cover)
+		seated.clear())
 
 
 ## Cover one of the openings in the console's floor that a unit it stands on

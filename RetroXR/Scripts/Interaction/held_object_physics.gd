@@ -446,7 +446,14 @@ func watch_riders(body: Variant) -> void:
 	var rb := body as RigidBody3D
 	if rb == null or not is_instance_valid(rb) or not rb.is_inside_tree():
 		return
+	# The body holding it is never riding it. A cover seated in a console's floor
+	# has the console sitting on its top face, and coupling the console (its mask
+	# 0 while a room restores, so the bit was ALL it had) left it colliding with
+	# held things only: a restored Super Famicom fell through its table for ever.
+	var by: Node = (rb as XRToolsPickable).get_picked_up_by() if rb is XRToolsPickable else null
 	for rider in _riders_on(rb):
+		if is_instance_valid(by) and rider.is_ancestor_of(by):
+			continue
 		# Re-open this one collision pair, and remember whether opening it was
 		# ours to undo — a mask that already had the bit is somebody else's.
 		var couple := (rider.collision_mask & HELD_BIT) == 0
