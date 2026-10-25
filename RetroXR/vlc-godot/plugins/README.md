@@ -50,8 +50,27 @@ original copy was not scripted and left no record — so treat step 3 as a
 description of the current set rather than as the command that produced it. If a
 bump needs a category that is not listed, add it here with the reason.
 
+## Exports
+
+An export carries this tree as `plugins\` beside `RetroXR.exe`, next to
+`libvlccore.dll`: it is one of the Windows dependencies in
+`../vlc_godot.gdextension`, and `VlcPlayer` falls back to it when
+`res://vlc-godot/plugins` is not a folder on disk. v0.11.1 and earlier shipped
+without it and played nothing. `Tools/av/vlc_export_probe.tscn` checks that an
+export plays.
+
+## macOS
+
+Not this folder. `Tools/download_vlc_macos.sh` takes `libvlc.dylib`,
+`libvlccore.dylib` and the same plugin categories from VideoLAN's universal
+VLC.app (the same release, pinned by its sha256) into `../macos/`, which is not
+committed. `Tools/build.py macos` runs it when that is missing, and an export puts
+all of it in `Contents/Frameworks`.
+
 ## Licence
 
 libVLC is **LGPL v2.1 or later**; individual plugins are a mix of LGPL v2.1+ and
-**GPL v2+**. Both are compatible with this app's GPLv3 licensing, and the
-binaries are redistributed unmodified. See https://www.videolan.org/legal.html.
+**GPL v2+**. Both are compatible with this app's GPLv3 licensing. The Windows
+binaries are redistributed unmodified; on macOS `Tools/download_vlc_macos.sh` may
+rewrite install names to `@rpath` and sign again what it rewrote, which the LGPL
+allows. See https://www.videolan.org/legal.html.

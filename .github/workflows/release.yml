@@ -949,6 +949,10 @@ jobs:
       # Both architectures and both targets: the editor (universal, running as
       # arm64) loads macos.debug.universal, and the exported app ships
       # macos.release.universal. lipo needs the per-arch dylibs for both.
+      # libVLC for vlc-godot: VideoLAN's universal VLC.app, pinned and checksummed.
+      - name: Fetch libVLC for macOS
+        run: bash Tools/download_vlc_macos.sh
+
       - name: Build the GDExtensions (macos arm64, debug + release)
         env:
           SCONS_CACHE: ${{ github.workspace }}/.scons-cache
@@ -1035,6 +1039,30 @@ jobs:
             --entitlements RetroXR/entitlements/macos.entitlements \
             build_out/RetroXR.app
           codesign -dv build_out/RetroXR.app 2>&1 | head -20
+
+      # The tapes, discs and records play through libVLC, and nothing else in
+      # this job loads it: open a real clip in a copy of the signed .app.
+      - name: Check the app plays a video
+        shell: bash
+        run: |
+          set -euo pipefail
+          fw=build_out/RetroXR.app/Contents/Frameworks
+          for f in libvlc.dylib libvlccore.dylib plugins/codec; do
+            [ -e "$fw/$f" ] || { echo "::error::the app has no Contents/Frameworks/$f"; ls "$fw"; exit 1; }
+          done
+          otool -L "$fw"/libvlc_godot.macos.template_release.universal.dylib | grep vlc
+          command -v ffmpeg >/dev/null || brew install --quiet ffmpeg
+          ffmpeg -loglevel error -f lavfi -i testsrc=duration=3:size=320x240:rate=30 \
+            -f lavfi -i sine=duration=3 -c:v libx264 -pix_fmt yuv420p -c:a aac -shortest "$RUNNER_TEMP/clip.mp4"
+          probe="$RUNNER_TEMP/probe/RetroXR.app"
+          mkdir -p "$(dirname "$probe")" && ditto build_out/RetroXR.app "$probe"
+          printf '[application]\nrun/main_scene="res://Tools/av/vlc_export_probe.tscn"\n' \
+            | tee "$probe/Contents/MacOS/override.cfg" > "$probe/Contents/Resources/override.cfg"
+          "$probe/Contents/MacOS/RetroXR" --headless --log-file "$RUNNER_TEMP/probe.log" \
+            -- "$RUNNER_TEMP/clip.mp4" || true
+          grep -a "vlcprobe\|VlcPlayer" "$RUNNER_TEMP/probe.log" || true
+          grep -aq "\[vlcprobe\] PLAYS" "$RUNNER_TEMP/probe.log" \
+            || { echo "::error::the macOS app did not play the clip"; exit 1; }
 
       - name: Package macOS zip
         shell: bash

@@ -82,6 +82,14 @@ VlcPlayer::VlcPlayer()
     // vlc_godot.gdextension), next to libvlccore.dll, where libVLC itself looks.
     if (plugins.is_relative_path() || !DirAccess::dir_exists_absolute(plugins))
         plugins = OS::get_singleton()->get_executable_path().get_base_dir().path_join("plugins");
+#elif defined(__APPLE__)
+    // macOS has a tree of its own (Tools/download_vlc_macos.sh): the folder
+    // above holds the Windows plugins. An exported .app carries it in
+    // Contents/Frameworks, beside libvlccore.dylib, and the executable is in
+    // Contents/MacOS.
+    plugins = ProjectSettings::get_singleton()->globalize_path("res://vlc-godot/macos/plugins");
+    if (plugins.is_relative_path() || !DirAccess::dir_exists_absolute(plugins))
+        plugins = OS::get_singleton()->get_executable_path().get_base_dir().path_join("../Frameworks/plugins").simplify_path();
 #endif
     m_plugin_path = plugins.utf8().get_data();
 }

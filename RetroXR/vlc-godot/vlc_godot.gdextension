@@ -14,6 +14,12 @@ linux.debug.x86_64 = "libvlc_godot.linux.template_debug.x86_64.so"
 linux.release.x86_64 = "libvlc_godot.linux.template_release.x86_64.so"
 linux.debug.arm64 = "libvlc_godot.linux.template_debug.arm64.so"
 linux.release.arm64 = "libvlc_godot.linux.template_release.arm64.so"
+macos.debug.universal = "libvlc_godot.macos.template_debug.universal.dylib"
+macos.release.universal = "libvlc_godot.macos.template_release.universal.dylib"
+macos.debug.arm64 = "libvlc_godot.macos.template_debug.arm64.dylib"
+macos.release.arm64 = "libvlc_godot.macos.template_release.arm64.dylib"
+macos.debug.x86_64 = "libvlc_godot.macos.template_debug.x86_64.dylib"
+macos.release.x86_64 = "libvlc_godot.macos.template_release.x86_64.dylib"
 
 [dependencies]
 
@@ -21,3 +27,9 @@ windows.debug.x86_64 = {"libvlc.dll" : "", "libvlccore.dll" : "", "plugins" : ""
 windows.release.x86_64 = {"libvlc.dll" : "", "libvlccore.dll" : "", "plugins" : ""}
 android.debug.arm64 = {"libvlc.so" : ""}
 android.release.arm64 = {"libvlc.so" : ""}
+macos.debug.universal = {"macos/libvlc.dylib" : "Contents/Frameworks", "macos/libvlccore.dylib" : "Contents/Frameworks", "macos/plugins" : "Contents/Frameworks"}
+macos.debug.arm64 = {"macos/libvlc.dylib" : "Contents/Frameworks", "macos/libvlccore.dylib" : "Contents/Frameworks", "macos/plugins" : "Contents/Frameworks"}
+macos.debug.x86_64 = {"macos/libvlc.dylib" : "Contents/Frameworks", "macos/libvlccore.dylib" : "Contents/Frameworks", "macos/plugins" : "Contents/Frameworks"}
+macos.release.universal = {"macos/libvlc.dylib" : "Contents/Frameworks", "macos/libvlccore.dylib" : "Contents/Frameworks", "macos/plugins" : "Contents/Frameworks"}
+macos.release.arm64 = {"macos/libvlc.dylib" : "Contents/Frameworks", "macos/libvlccore.dylib" : "Contents/Frameworks", "macos/plugins" : "Contents/Frameworks"}
+macos.release.x86_64 = {"macos/libvlc.dylib" : "Contents/Frameworks", "macos/libvlccore.dylib" : "Contents/Frameworks", "macos/plugins" : "Contents/Frameworks"}

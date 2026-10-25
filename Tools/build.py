@@ -50,9 +50,9 @@ EXTENSIONS = [
     ("libretro-godot", ".", "RetroXR/libretro-godot", ALL_PLATFORMS),
     ("archive-godot", "archive-godot", "RetroXR/archive-godot", ALL_PLATFORMS),
     ("verlet-rope", "verlet-rope", "RetroXR/verlet-rope", ALL_PLATFORMS),
-    # A redistributable macOS libVLC runtime/plugin tree is not vendored yet. Do
-    # not report a successful extension build that another Mac cannot load.
-    ("vlc-godot", "vlc-godot", "RetroXR/vlc-godot", ("windows", "linux", "android")),
+    # macOS links the libVLC that Tools/download_vlc_macos.sh takes from VideoLAN's
+    # VLC.app (not committed); main() runs it when the tree is missing.
+    ("vlc-godot", "vlc-godot", "RetroXR/vlc-godot", ALL_PLATFORMS),
     ("godot-pdfium", "godot-pdfium", "RetroXR/godot-pdfium", ALL_PLATFORMS),
     ("metaxr-audio", "metaxr-audio", "RetroXR/metaxr-audio", ("windows", "android")),
     ("surround-godot", "surround-godot", "RetroXR/surround-godot", ALL_PLATFORMS),
@@ -241,6 +241,11 @@ def main() -> int:
                  + ", ".join(f"{n} (only {'/'.join(p)})" for n, _, _, p in skipped))
     if not exts:
         sys.exit(f"nothing to build for {args.platform}")
+
+    if args.platform == "macos" and any(n == "vlc-godot" for n, _, _, _ in exts) \
+            and not (REPO / "RetroXR/vlc-godot/macos/libvlc.dylib").is_file():
+        print("[build] vlc-godot: no macOS libVLC yet; running Tools/download_vlc_macos.sh", flush=True)
+        subprocess.run(["bash", str(REPO / "Tools/download_vlc_macos.sh")], check=True)
 
     arch = args.arch or ARCH[args.platform]
     scons = find_scons()

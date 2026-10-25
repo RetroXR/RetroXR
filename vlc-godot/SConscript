@@ -28,6 +28,7 @@ env.Append(CPPPATH=['../../vlc-godot/external/include/'])
 is_windows = env["platform"] == "windows"
 is_android = env["platform"] == "android"
 is_linux = env["platform"] == "linux"
+is_macos = env["platform"] == "macos"
 
 if is_windows:
     env.Append(CXXFLAGS=['/std:c++latest'])
@@ -53,6 +54,16 @@ if is_android:
     # resolves from the Temp variant dir and lands on vlc-godot/RetroXR/...
     env.Append(LIBPATH=[output_dir])
     env.Append(LIBS=['vlc'])
+
+if is_macos:
+    # VideoLAN's universal libVLC, fetched into macos/ beside the output by
+    # Tools/download_vlc_macos.sh, which gives it @rpath install names. Both
+    # archs link the one universal copy. The extension finds it beside itself
+    # in an exported .app (Contents/Frameworks) and in macos/ in the editor.
+    env.Append(CXXFLAGS=['-std=c++20'])
+    env.Append(LIBPATH=[output_dir + '/macos'])
+    env.Append(LIBS=['vlc'])
+    env.Append(LINKFLAGS=['-Wl,-rpath,@loader_path', '-Wl,-rpath,@loader_path/macos'])
 
 sources = Glob('src/*.cpp')
 
