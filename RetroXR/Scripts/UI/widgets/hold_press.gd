@@ -1,4 +1,4 @@
-## HoldPress — tells a click on a Button from a press held for a second.
+## HoldPress — tells a click on a Button from a press held for HOLD_SECONDS.
 ##
 ## Added as a child of the Button. A view connects to `clicked` and `held`
 ## INSTEAD of the button's own `pressed`: a short press emits `clicked` on
@@ -20,7 +20,7 @@ extends Node
 signal clicked
 signal held
 
-const HOLD_SECONDS := 1.0
+const HOLD_SECONDS := 0.75
 ## The fill bar stays hidden this long, so a plain click never flashes it.
 const SHOW_AFTER := 0.25
 const MAX_TRAVEL := 24.0
