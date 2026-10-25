@@ -63,6 +63,9 @@ const SEGMENT := 0.004
 const MAX_SEGMENTS := 48
 ## The step the chain takes at most, seconds: a frame is cut into as many.
 const MAX_STEP := 1.0 / 240.0
+## Keep a hitch from causing more work, another hitch, and unbounded catch-up.
+## Below 30 FPS the paper advances more slowly instead of enlarging its steps.
+const MAX_SUBSTEPS := 8
 ## Paper this near the slot is the slot's, never pushed by contact: the slot is
 ## in the printer's top, and its first millimeters are inside its body's box.
 const CONTACT_FROM := 0.008
@@ -120,6 +123,8 @@ var fingers: Array = []
 ## at the shared grip, so only the two segments at that grip are adjacent.
 var other_paper := PackedVector2Array()
 var _other_bounds := Rect2()
+var _patch_index := preload("res://Scripts/Objects/peripherals/gb_paper_contacts.gd").new()
+var _self_bounds: Array[Rect2] = []
 
 
 ## Set the paper's length. New paper comes out of the slot with the roll's curl
@@ -186,8 +191,10 @@ func place(at: Vector2, angle: float) -> void:
 func step(dt: float, gravity: Vector2, spin_accel := 0.0, shove := Vector2.ZERO) -> void:
 	if segments == 0 or dt <= 0.0:
 		return
-	var n_steps := maxi(1, ceili(dt / MAX_STEP))
-	var h := dt / n_steps
+	_patch_index.build_2d(patches, SKIN, PATCH_DEPTH)
+	var simulated := minf(dt, MAX_STEP * MAX_SUBSTEPS)
+	var n_steps := maxi(1, ceili(simulated / MAX_STEP))
+	var h := simulated / n_steps
 	_contact_motion = 0.0
 	var was := points.duplicate()
 	for _s in n_steps:
@@ -196,7 +203,7 @@ func step(dt: float, gravity: Vector2, spin_accel := 0.0, shove := Vector2.ZERO)
 	var farthest := 0.0
 	for i in points.size():
 		farthest = maxf(farthest, points[i].distance_squared_to(was[i]))
-	if sqrt(farthest) < REST_SPEED * dt:
+	if sqrt(farthest) < REST_SPEED * simulated:
 		_contact_motion = 0.0
 
 
@@ -408,6 +415,7 @@ func _contact() -> void:
 	var shift := Vector2.ZERO
 	var any := false
 	var out := points.duplicate()
+	_self_bounds.resize(segments)
 	for j in range(1, segments + 1):
 		var was := points[j]
 		var p := was + shift
@@ -426,6 +434,7 @@ func _contact() -> void:
 			var d := (p + push) - out[j - 1]
 			p = out[j - 1] + d.normalized() * ds if d.length_squared() > 1e-14 else p + push
 		out[j] = p
+		_self_bounds[j - 1] = Rect2(out[j - 1], p - out[j - 1]).abs()
 		shift = p - was
 	if not any:
 		return
@@ -446,8 +455,15 @@ func _contact() -> void:
 func _self_push(p: Vector2, out: PackedVector2Array, j: int) -> Vector2:
 	var start := out[j - 1]
 	var push := Vector2.ZERO
+	var skin := minf(SKIN * 2.0, length / segments * 0.25)
+	var bounds := Rect2(start, p - start).abs().grow(skin)
 	for k in range(j - 2):
-		push += _segment_push(start, p + push, out[k], out[k + 1])
+		if not bounds.intersects(_self_bounds[k], true):
+			continue
+		var correction := _segment_push(start, p + push, out[k], out[k + 1])
+		push += correction
+		if correction != Vector2.ZERO:
+			bounds = Rect2(start, p + push - start).abs().grow(skin)
 	return push
 
 
@@ -542,7 +558,8 @@ func _off_surface(p: Vector2) -> Vector2:
 		if under > deepest:
 			deepest = under
 			out = normal * under
-	for piece: Array in patches:
+	for index in _patch_index.query(Vector3(p.x, p.y, 0)):
+		var piece: Array = patches[index]
 		var under := _in_patch(piece, p)
 		if under > deepest:
 			deepest = under
@@ -585,6 +602,9 @@ func _under(p: Vector2) -> float:
 	for plane: Array in planes:
 		var normal: Vector2 = plane[0]
 		deepest = maxf(deepest, float(plane[1]) + SKIN - normal.dot(p))
-	for piece: Array in patches:
-		deepest = maxf(deepest, _in_patch(piece, p))
+	if not patches.is_empty():
+		# Every rejected patch's exact test would have returned zero.
+		deepest = maxf(deepest, 0.0)
+		for index in _patch_index.query(Vector3(p.x, p.y, 0)):
+			deepest = maxf(deepest, _in_patch(patches[index], p))
 	return deepest if deepest != -INF else 0.0

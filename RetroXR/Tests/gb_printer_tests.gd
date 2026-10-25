@@ -23,11 +23,34 @@ const SHELL_HUMP := Rect2(Vector2(0.01699, -0.0686), Vector2(0.01102, 0.0468))
 var _pass := 0
 var _fail := 0
 
+## Reference narrow phase: offer every patch in its original order.
+class AllPaperContacts extends GbPaperContacts:
+	var all := PackedInt32Array()
+	func build_2d(patches: Array, _skin: float, _depth: float) -> void:
+		_set_count(patches.size())
+	func build_3d(patches: Array, _skin: float) -> void:
+		_set_count(patches.size())
+	func _set_count(count: int) -> void:
+		all.resize(count)
+		for i in count:
+			all[i] = i
+	func query(_p: Vector3) -> PackedInt32Array:
+		return all
+	func shift_frame(_shift: Vector3) -> void:
+		pass
+
 
 func _ready() -> void:
 	get_tree().create_timer(120.0).timeout.connect(func() -> void:
 		print("[gb-printer] TIMEOUT")
 		get_tree().quit(1))
+	if OS.get_cmdline_user_args().has("--only=paper_cpu"):
+		_test_paper_contact_index()
+		_test_paper_index_matches_all_contacts()
+		_test_paper_hitch_budget()
+		print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
+		get_tree().quit(1 if _fail > 0 else 0)
+		return
 	if OS.get_cmdline_user_args().has("--only=thermal"):
 		_test_thermal_ribbon()
 		_test_ribbon_impact_does_not_crumple()
@@ -73,6 +96,9 @@ func _ready() -> void:
 	_test_released_print_keeps_its_shape()
 	await _test_wall_preview_is_the_flat_sticker()
 	_test_thermal_ribbon()
+	_test_paper_contact_index()
+	_test_paper_index_matches_all_contacts()
+	_test_paper_hitch_budget()
 	_test_ribbon_impact_does_not_crumple()
 	await _test_printout_lands_without_crumpling()
 	_test_contact_motion_is_not_sleep()
@@ -828,6 +854,99 @@ func _test_fast_paper_crosses_a_surface() -> void:
 	sweep.update(space, PackedVector3Array([Vector3(5.15, -0.06, 0.0)]), [], 0.012)
 	_ok(sweep.hits.is_empty(), "past the table edge there is no phantom surface")
 	table.free()
+
+
+func _test_paper_contact_index() -> void:
+	var index := GbPaperContacts.new()
+	index.build_3d([[Vector3.BACK, 0.0, Vector3.ZERO, 0.01, 0.03]], GbThermalRibbon.SKIN)
+	_eq(index.query(Vector3(1, 1, 1)).size(), 0, "empty spatial cells do not inherit other cells' patches")
+	_eq(index.query(Vector3(0, 0, -0.01)), PackedInt32Array([0]), "one patch is returned only once")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 812
+	var patches: Array = []
+	var covered := true
+	var ordered := true
+	for i in 32:
+		var normal := Vector3(rng.randf_range(-1, 1), rng.randf_range(-1, 1), rng.randf_range(-1, 1)).normalized()
+		var center := Vector3(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2))
+		patches.append([normal, normal.dot(center), center, 0.025, 0.5 if i % 7 == 0 else 0.03])
+	index.build_3d(patches, GbThermalRibbon.SKIN)
+	for i in patches.size():
+		var p: Vector3 = patches[i][2] - patches[i][0] * float(patches[i][4]) * 0.5
+		var candidates := index.query(p)
+		covered = covered and candidates.has(i)
+		for j in range(1, candidates.size()):
+			ordered = ordered and candidates[j] > candidates[j - 1]
+		# Large-patch fallback must not mutate the cell's cached candidates.
+		ordered = ordered and candidates == index.query(p)
+		var shift := Vector3(0.07, -0.03, 0.09)
+		index.shift_frame(shift)
+		covered = covered and index.query(p - shift).has(i)
+		index.shift_frame(-shift)
+	_ok(covered, "tilted and deep 3D patches remain reachable after body recovery")
+	_ok(ordered, "candidate ordering and uniqueness survive repeated large-patch queries")
+	patches.clear()
+	for i in 32:
+		var normal := Vector2.from_angle(rng.randf_range(-PI, PI))
+		var center := Vector2(rng.randf_range(-0.2, 0.2), rng.randf_range(-0.2, 0.2))
+		patches.append([normal, normal.dot(center), center, 0.012, 0.5 if i % 7 == 0 else 0.03])
+	index.build_2d(patches, GbPrinterStrip.SKIN, GbPrinterStrip.PATCH_DEPTH)
+	covered = true
+	for i in patches.size():
+		var p: Vector2 = patches[i][2] - patches[i][0] * float(patches[i][4]) * 0.5
+		covered = covered and index.query(Vector3(p.x, p.y, 0)).has(i)
+	_ok(covered, "tilted and deep 2D patches remain reachable")
+
+
+func _test_paper_index_matches_all_contacts() -> void:
+	var a := GbPrinterStrip.new()
+	var b := GbPrinterStrip.new()
+	b._patch_index = AllPaperContacts.new()
+	for sheet in [a, b]:
+		sheet.set_length(0.6)
+		for i in 32:
+			sheet.patches.append([Vector2.RIGHT, -0.025, Vector2(-0.025, (i - 16) * 0.015), 0.012, 0.03])
+	var same := true
+	for frame in 60:
+		a.step(1.0 / 90, Vector2(-9.8, 0))
+		b.step(1.0 / 90, Vector2(-9.8, 0))
+		same = same and a.points == b.points
+	_ok(same, "indexed strip contact matches checking every patch exactly")
+	var ra := GbThermalRibbon.new()
+	var rb := GbThermalRibbon.new()
+	rb._patch_index = AllPaperContacts.new()
+	for sheet in [ra, rb]:
+		sheet.configure(0.12, 0.038)
+		sheet.pin_nearest(Vector3.ZERO)
+		# The first push crosses spatial cells into the second patch. Looking
+		# up candidates just once per particle misses that later contact.
+		sheet.patches = [[Vector3.RIGHT, 0.09, Vector3(0.09, 0, 0), 0.3, 0.2],
+			[Vector3.BACK, 0.02, Vector3(0.09, 0, 0.02), 0.02, 0.08]]
+	same = true
+	for frame in 12:
+		ra.step(1.0 / 90, Vector3.ZERO)
+		rb.step(1.0 / 90, Vector3.ZERO)
+		same = same and ra.positions == rb.positions and ra.velocities == rb.velocities
+	_ok(same, "a contact crossing cells still matches the original sequential solve exactly")
+
+
+func _test_paper_hitch_budget() -> void:
+	var a := GbPrinterStrip.new()
+	var b := GbPrinterStrip.new()
+	a.set_length(0.6)
+	b.set_length(0.6)
+	a.step(1.0, Vector2(-9.8, 0))
+	b.step(1.0 / 30.0, Vector2(-9.8, 0))
+	_ok(a.points == b.points, "a one-second hitch does not create a second of strip catch-up work")
+	var ra := GbThermalRibbon.new()
+	var rb := GbThermalRibbon.new()
+	for sheet in [ra, rb]:
+		sheet.configure(0.6, 0.038, 0.0)
+		sheet.pin_nearest(Vector3.ZERO)
+	ra.step(1.0, Vector3(0, -9.8, 0))
+	rb.step(1.0 / 30.0, Vector3(0, -9.8, 0))
+	_ok(ra.positions == rb.positions, "a one-second hitch does not create a second of ribbon catch-up work")
+	_eq(ra.move_speed, rb.move_speed, "a capped hitch cannot mistake unfinished bending for rest")
 
 
 func _test_thermal_ribbon() -> void:

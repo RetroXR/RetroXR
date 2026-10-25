@@ -8,6 +8,8 @@ extends RefCounted
 
 const CURL_RADIUS := 0.065
 const MAX_STEP := 1.0 / 240.0
+## Match the attached strip's bounded catch-up; retain the small stable steps.
+const MAX_SUBSTEPS := 8
 const ITERATIONS := 8
 const SKIN := 0.0004
 const DRAG := 6.0
@@ -33,6 +35,9 @@ var _edges: Array[Vector2i] = []
 var _rest := PackedFloat64Array()
 var _mass := 0.0
 var _contact_normals := PackedVector3Array()
+var _weights := PackedFloat64Array()
+var _patch_index := preload("res://Scripts/Objects/peripherals/gb_paper_contacts.gd").new()
+var _self_bounds: Array[AABB] = []
 
 
 func configure(sheet_length: float, sheet_width: float, curvature := 1.0 / CURL_RADIUS) -> void:
@@ -134,10 +139,6 @@ func unpin() -> void:
 	pin_positions.clear()
 
 
-func _weight(i: int) -> float:
-	return 0.0 if pin_row >= 0 and i / 2 == pin_row else 1.0 / _mass
-
-
 ## Relative gravity includes the body's acceleration; angular acceleration is
 ## applied at each particle, so turning the hand excites bending and torsion
 ## without changing the paper's remembered curl.
@@ -148,14 +149,25 @@ func step(delta: float, gravity: Vector3, angular_accel := Vector3.ZERO) -> void
 		return
 	if pin_row < 0:
 		_recover_body_contacts()
+	_patch_index.build_3d(patches, SKIN)
+	# The grip does not change during a step. Avoid thousands of script calls
+	# and divisions for the same inverse masses in the constraint iterations.
+	_weights.resize(positions.size())
+	_weights.fill(1.0 / _mass)
+	if pin_row >= 0:
+		_weights[2 * pin_row] = 0.0
+		_weights[2 * pin_row + 1] = 0.0
 	var before := positions.duplicate()
-	var steps := maxi(1, ceili(delta / MAX_STEP))
-	var h := delta / steps
+	var simulated := minf(delta, MAX_STEP * MAX_SUBSTEPS)
+	var steps := maxi(1, ceili(simulated / MAX_STEP))
+	var h := simulated / steps
 	for substep in steps:
 		_substep(h, gravity, angular_accel)
 	move_speed = 0.0
 	for i in positions.size():
-		move_speed = maxf(move_speed, positions[i].distance_to(before[i]) / delta)
+		# A capped hitch must not report unfinished bending as settled simply
+		# because more wall time passed than we actually simulated.
+		move_speed = maxf(move_speed, positions[i].distance_to(before[i]) / simulated)
 
 
 func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
@@ -166,7 +178,7 @@ func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
 	var lambda_bend := PackedVector3Array()
 	lambda_bend.resize(positions.size())
 	for i in positions.size():
-		if _weight(i) == 0.0:
+		if _weights[i] == 0.0:
 			continue
 		velocities[i] = (velocities[i] * exp(-DRAG * h) + (gravity - angular_accel.cross(positions[i])) * h).limit_length(MAX_SPEED)
 		positions[i] += velocities[i] * h
@@ -183,9 +195,9 @@ func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
 				var c := b + 2
 				var normal := (positions[c] - positions[a]).normalized().cross(transverse).normalized()
 				var error := positions[a] - 2.0 * positions[b] + positions[c] - normal * bend
-				var wa := _weight(a)
-				var wb := _weight(b)
-				var wc := _weight(c)
+				var wa := _weights[a]
+				var wb := _weights[b]
+				var wc := _weights[c]
 				var change := (-error - alpha * lambda_bend[b]) / (wa + 4.0 * wb + wc + alpha)
 				lambda_bend[b] += change
 				positions[a] += wa * change
@@ -196,8 +208,8 @@ func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
 			var b := _edges[e].y
 			var d := positions[b] - positions[a]
 			var distance := d.length()
-			var wa := _weight(a)
-			var wb := _weight(b)
+			var wa := _weights[a]
+			var wb := _weights[b]
 			if distance < 1e-9 or wa + wb == 0.0:
 				continue
 			var change := -(distance - _rest[e]) / (wa + wb)
@@ -233,6 +245,7 @@ func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
 
 
 func _shift_patches(shift: Vector3) -> void:
+	_patch_index.shift_frame(shift)
 	for patch: Array in patches:
 		patch[1] -= (patch[0] as Vector3).dot(shift)
 		patch[2] -= shift
@@ -258,10 +271,21 @@ func _recover_body_contacts() -> void:
 
 
 func _surface_contacts() -> void:
+	if patches.is_empty():
+		return
 	for i in positions.size():
-		if _weight(i) == 0.0:
+		if _weights[i] == 0.0:
 			continue
-		for patch: Array in patches:
+		var candidates := _patch_index.query(positions[i])
+		var next := 0
+		var last := -1
+		while next < candidates.size():
+			var index := candidates[next]
+			next += 1
+			if index <= last:
+				continue
+			last = index
+			var patch: Array = patches[index]
 			var normal: Vector3 = patch[0]
 			var p := positions[i]
 			var under := float(patch[1]) + SKIN - normal.dot(p)
@@ -269,14 +293,23 @@ func _surface_contacts() -> void:
 			if under > 0.0 and under < float(patch[4]) and (d - normal * normal.dot(d)).length() < float(patch[3]):
 				positions[i] += normal * under
 				_contact_normals[i] += normal
+				# A push can enter another cell. Continue from this patch in the
+				# original ordering, including any later patches newly in reach.
+				candidates = _patch_index.query(positions[i])
+				next = 0
 
 
 func _self_contacts(before: PackedVector3Array) -> void:
 	var mid := centers()
+	_self_bounds.resize(segments)
+	# The narrow phase uses this snapshot of the centerline throughout. Build
+	# each segment's bounds once, rather than once for every possible pair.
+	for row in segments:
+		_self_bounds[row] = AABB(mid[row], Vector3.ZERO).expand(mid[row + 1]).grow(SKIN)
 	for row in segments:
 		var box := AABB(mid[row], Vector3.ZERO).expand(mid[row + 1]).grow(SKIN * 2.0)
 		for other in range(row + 2, segments):
-			if not box.intersects(AABB(mid[other], Vector3.ZERO).expand(mid[other + 1]).grow(SKIN)):
+			if not box.intersects(_self_bounds[other]):
 				continue
 			var nearest := Geometry3D.get_closest_points_between_segments(mid[row], mid[row + 1], mid[other], mid[other + 1])
 			var d := nearest[0] - nearest[1]
@@ -288,10 +321,10 @@ func _self_contacts(before: PackedVector3Array) -> void:
 				normal = (old - Geometry3D.get_closest_point_to_segment(old, mid[other], mid[other + 1])).normalized()
 			var push := normal * (SKIN * 2.0 - d.length()) * 0.5
 			for i in [row * 2, row * 2 + 1, row * 2 + 2, row * 2 + 3]:
-				if _weight(i) > 0.0:
+				if _weights[i] > 0.0:
 					positions[i] += push
 			for i in [other * 2, other * 2 + 1, other * 2 + 2, other * 2 + 3]:
-				if _weight(i) > 0.0:
+				if _weights[i] > 0.0:
 					positions[i] -= push
 
 

@@ -246,6 +246,30 @@ strip's contact against the case reworked. A strip lying on the case buzzes
 about 0.1 mm a frame for ever; `motion()` ignores contact repair below
 `REST_SPEED` (12 mm/s).
 
+**CPU cost (2026-10-25):** both solvers use `GbPaperContacts`, a 4 cm spatial
+grid over the finite surface patches. Only nearby candidates reach the original
+contact tests, in their original order. Ribbon contact queries again after a
+push crosses cells; whole-body recovery shifts the query frame with the patches.
+Large swept-recovery patches use a bounded fallback rather than filling an
+unbounded number of cells. Self-contact bounds are cached per segment, and the
+ribbon's inverse masses are cached per step. These change lookup work, not the
+segment count, collision skin, stiffness or normal simulation rate.
+
+`Tools/perf/paper_cpu_probe.gd` is the repeatable headless microbenchmark:
+five lengths (4 cm to 1.2 m), with and without 49 surface patches, 60 frames per
+case at 90 Hz. `-- --baseline` saves every pose to repo-root `build_out/`;
+`-- --compare` requires all 1,200 poses to match exactly. Measured on this desktop,
+the 1.2 m dense-contact case went from 4.27 to 1.07 ms/update on the printer and
+16.70 to 5.83 ms/update for a held torn print (75% and 65% less solver CPU).
+These timings exclude rendering, room ray casts and rigid-body physics; Quest
+timings remain unmeasured. The pose comparison passed exactly. The paper suite
+also compares indexed contacts with checking every patch, including a push
+into a new cell and translated recovery patches.
+
+Both solvers cap catch-up at eight 1/240-second substeps per frame. Normal
+30 Hz and faster updates are unchanged; below 30 FPS, paper simulation advances
+more slowly instead of accumulating extra work that makes the next frame worse.
+
 **Rolls:** `GbPrinterPaper.ROLLS`, the three Nintendo sold: white printing sepia,
 yellow printing black (the roll in the printer's box) and blue printing black
 (Japanese Wikipedia, ポケットプリンタ). The tones are judged, not measured. Chosen in
