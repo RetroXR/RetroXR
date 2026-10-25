@@ -86,7 +86,7 @@ static func variants() -> Dictionary:
 			"players": two_stick, "coins": [-0.14, 0.14], "sockets": true, "guns": 0, "pedal": false,
 		},
 		# Twin-gun shooter: no stick, no buttons but START, a gun on each side in a holster with its
-		# cord going into the cabinet, and a foot pedal on the floor (drawn, not active).
+		# cord going into the cabinet, and a foot pedal on the floor (player 1's button 2).
 		"lightgun": {
 			"out": "arcade_cabinet_lightgun.tscn", "title": "SHOOTING", "bay": "jamma",
 			"shape": "wide",

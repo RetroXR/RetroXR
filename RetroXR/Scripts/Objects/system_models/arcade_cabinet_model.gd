@@ -39,6 +39,7 @@ var _av_in: ArcadeAvInModule = null
 var _sockets: ArcadeSocketModule = null
 var _controls: Array[ArcadeControlModule] = []
 var _coins: Array[ArcadeCoinModule] = []
+var _pedals: Array[ArcadePedalModule] = []
 var _input: ArcadeInput = null
 var _marquee_mat: StandardMaterial3D = null
 ## The slots a game's art hangs in (gen_arcade_cabinet.gd `_build_art`); null on a scene baked before them.
@@ -77,6 +78,7 @@ func _collect_modules() -> void:
 	_modules.clear()
 	_controls.clear()
 	_coins.clear()
+	_pedals.clear()
 	_screen = null
 	_sockets = null
 	for n in find_children("*", "ArcadeModule", true, false):
@@ -97,6 +99,8 @@ func _collect_modules() -> void:
 				_controls.append(m as ArcadeControlModule)
 			ArcadeProfiles.KIND_COIN:
 				_coins.append(m as ArcadeCoinModule)
+			ArcadeProfiles.KIND_PEDAL:
+				_pedals.append(m as ArcadePedalModule)
 	_controls.sort_custom(func(a: ArcadeControlModule, b: ArcadeControlModule) -> bool: return a.player < b.player)
 	var marquee := find_child("Marquee", true, false) as MeshInstance3D
 	_marquee_mat = null
@@ -721,7 +725,7 @@ func attach_to_host(host: Node3D) -> void:
 	var controls: Array = []
 	for c in _controls:
 		controls.append(c)
-	_input.setup(host, self, controls, coins)
+	_input.setup(host, self, controls, coins, _pedals.duplicate())
 	_input.first_use.connect(func(kind: StringName) -> void:
 		if is_instance_valid(host) and host.has_method("attract_first_use"):
 			host.call("attract_first_use", kind))
@@ -1147,7 +1151,7 @@ func morph_to(spec: Dictionary) -> void:
 	if host != null and host.has_method("after_cabinet_form"):
 		host.call("after_cabinet_form")
 	if _input != null:
-		_input.rewire(_controls, _coins)
+		_input.rewire(_controls, _coins, _pedals.duplicate())
 	_refresh_ground_placement()
 	if ghost:
 		_set_transparency(HELD_TRANSPARENCY)

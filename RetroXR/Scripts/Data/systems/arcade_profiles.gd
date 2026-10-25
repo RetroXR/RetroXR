@@ -36,7 +36,7 @@ const KIND_BAY := &"bay"
 const KIND_SOCKETS := &"sockets"
 ## The composite input block in the compartment (ArcadeAvInModule): a console cabled to it plays on the cabinet while the bay holds no unit.
 const KIND_AV_IN := &"av_in"
-## A foot pedal. Drawn on the gun cabinets and NOT ACTIVE (ArcadePedalModule).
+## A foot pedal, wired to its player's button 2 (ArcadePedalModule): Time Crisis's.
 const KIND_PEDAL := &"pedal"
 
 ## Bay kinds: what a bay takes. `systems` are the systemids whose boards fit. `romsets` is

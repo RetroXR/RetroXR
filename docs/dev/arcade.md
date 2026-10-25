@@ -288,7 +288,7 @@ The generic upright is one of six, all the same shell: **never a fork of the mod
 | id | system | panel | bay | guns |
 |---|---|---|---|---|
 | `arcade_cabinet_generic` | `arcade` | stick + 6 buttons, x2 | `jamma` | sockets |
-| `arcade_cabinet_lightgun` | `arcade` | START alone, x2 | `jamma` | 2, holsters; pedal drawn |
+| `arcade_cabinet_lightgun` | `arcade` | START alone, x2 | `jamma` | 2, holsters; a pedal, player 1's button 2 |
 | `arcade_cabinet_neogeo` | `neogeo` | stick + 4 buttons (A B C D), x2 | `mvs` | sockets |
 | `arcade_cabinet_daphne` | `daphne` | stick + the sword button, x1 | `laserdisc` | sockets |
 | `arcade_cabinet_daphne_gun` | `daphne` | START alone, x2 | `laserdisc` | 2, holsters |
@@ -316,12 +316,7 @@ the rope's length, `CaptiveCord`, shared with `RetroController`) and was measure
 core as the gun's own `LIGHTGUN_START`, the coin as its `LIGHTGUN_SELECT`. UNVERIFIED with a real core: that MAME/FinalBurn read
 a lightgun port's START/SELECT as start and coin (no light-gun romset was at hand).
 
-**The pedal is drawn and NOT active** (`ArcadePedalModule`, kind `pedal`, `active = false`, `is_pressed()` always false). It is on
-the light-gun cabinet only. The analysis is its own task: the open questions are (1) Time Crisis reads it as a held state
-(pressed = out of cover, shooting; released = hidden, reloading), which MAME maps to a keyboard-style input that a lightgun
-port does not carry; (2) a VR player has no foot, so it is a button (grip? a held button on the other hand) or a floor
-`VRButton` a foot-tracker could press; (3) it must go through `netplay_route`. Which games use one at all is the games',
-not the cabinet's (Point Blank and House of the Dead do not).
+**The pedal** was drawn and not active until 2026-10-25; it is player 1's button 2 now ("The pedal" below).
 
 **What the research could and could not say** (a web search, thin: arcade-museum, StrategyWiki, Wikipedia, a parts seller):
 guns hang in HOLSTERS, not mounted (Point Blank); HotD2's panel lists one "Fire" button and reloads off-screen; Time Crisis is
@@ -757,7 +752,7 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   same place, so the cabinet seats and cords it with the pistol's numbers; a barrel, a forestock, a stock and a scope tube; its muzzle stops 3 cm
   short of the glass). A post does not hold a gun that is aimed: in the hand it aims freely and goes back onto its post when let go
   (`LightGun._return_to_well`). **Pedals only where the game had them** (`f`: Time Crisis): one under each gun, or one in the middle for one gun;
-  still DRAWN and NOT active. Three guns put the coin doors either side of the middle holster.
+  each its player's button 2 ("The pedal"). Three guns put the coin doors either side of the middle holster.
 - **A sit-down driving cockpit** (`race`; `ArcadeCabinetBuilder._build_cockpit`): the `racer` body (a lower monitor, leaning back, its middle at
   1.1 m for a SEATED driver) and in front of it, clear of the bay door's swing, a platform, the seat, a dash holding the wheel, the gas and brake
   pedals in the footwell, a gear lever by the right hand and START on the dash; a ROOF over the seat for the Model 3 twins (`o`: Scud Race, Le
@@ -857,3 +852,40 @@ panel changes); 2. more screens and panels and the cocktail table (107 multi-scr
 and tank on the driving seat (about 30); 4. striking (about 11, the most natural in VR); 5. rhythm (about 50 Bemani sets, each with its disk image and instrument);
 6. the hologram stage (Time Traveler, Holosseum: one floating-plane trick); 7. the body platforms (ski, board, boat, ride-on: the best fit, about 8 working); 8. fishing (3).
 Not verified: Silent Scope's scope screen, Lucky & Wild's guns (light or positional), Desert Tank's, Jet Wave's and Ski Champ's controls, Hang Pilot's second screen.
+
+## The pedal (2026-10-25)
+
+**A gun game's foot pedal is its player's button 2, and a headset reads no feet.** What MAME 0.289's source says: Time Crisis
+(`namco/namcos22.cpp`, `timecris`) and Time Crisis II and Crisis Zone (`namco/namcos23.cpp`) name `IPT_BUTTON1` "Gun Trigger" and
+`IPT_BUTTON2` "Foot Pedal". libretro MAME's gun device (`src/osd/modules/input/input_retro.cpp`) makes the gun's Aux A its item
+`BUTTON2`, and P1 BUTTON2's default sequence (`inpttype.ipp`) holds `GUNCODE_BUTTON2_INDEXED(0)`: a gun's Aux A IS its player's pedal.
+The joypad device maps RetroPad A to BUTTON2 (`button_mapping`, B A Y X L R; none of the three games is in its remap lists). The note
+that stood here, "MAME maps it to a keyboard-style input that a lightgun port does not carry", was wrong. The table's `f`
+(`GUN_PEDAL` in `gen_game_index.py`): `timecris`, `timecrs2`, `crszone`, each ONE gun (a System 22/23 board is one player's; the twin
+cabinets are two boards linked).
+
+- **What presses it** (`ArcadeInput._step_pedal`), for whoever holds that player's gun: the gun's own Aux A (the gun hand's A or X by
+  default; the gun sends it itself, so it follows the light gun bindings), or `arcade_pedal` (`ArcadeInput.PEDAL_ACTION`: Space in
+  `project.godot`, rebindable on the Controls page beside the trigger; RB on the player's pad, `DesktopPad`), which counts only while
+  the gun is in a hand (a VR hand or the desktop's, `held_by_hand`): it presses the pedal of the player holding a gun and nobody
+  else's. A foot switch that types a key is a real pedal through it (USB on a desktop, Bluetooth on a Quest): NOT tried.
+- **What it sends**: the gun's Aux A (`set_external_button`, for the key: the hand's own press the gun sends itself) AND the joypad's A
+  on that port (`_send`, through `netplay_route`), as START and the coin already go twice, so button 2 is pressed whichever device
+  MAME reads it from.
+- **The plate** (`ArcadePedalModule`): `show_pressed` with what was sent, eased 15 degrees down about `PedalHinge` in 0.08 s (toe first,
+  the heel on its pin) and back to exactly where it rested. Local: a peer does not see another player's foot.
+- **Wiring**: a pedal is a switch on its player's button 2, as on a real cabinet converted to another game: `active` (true unless a
+  scene says otherwise) and `port()`, its player, or player 1 for one that names none (the shipped gun cabinet's single pedal). So with
+  Cabinet Shape off that pedal presses player 1's button 2 whatever the game (Operation Wolf's grenade); with it on, a game with no
+  pedal gets none (`for_game`). Switched off or only showing its game, every pedal comes up and no gun keeps it pressed.
+- **Open: which way a headset should press it** (the binding above stands in until it is chosen): (1) the gun hand's A/X, held (now:
+  works with two guns and seated, tiring held for long); (2) the same, inverted: held to take COVER, less tiring if cover is the
+  shorter state; (3) the free hand's trigger or grip (comfortable, but not with two guns, and that hand also points and grabs); (4)
+  duck to take cover, the head some 15-20 cm under its height at the grab (the most natural in VR; standing only, so one of the others
+  stays as the fallback); (5) aim the gun off the screen to take cover (no button at all, but every hide costs the aim); (6) a real
+  foot switch (works now through the key). Whichever it is, the gun's held hint should say it.
+- `arcade_variants_tests pedal/` (the gun hand's A through the real binding and a fake tracker, the key only with a gun in a hand,
+  player 2's Aux A not pressing player 1's pedal, an unwired pedal, the plate about its hinge, let up when switched off),
+  `arcade_form_tests guns/` (the morph's pedal wired to the input), `desktop_pad_tests map/`, `binding_tests` (the arcade's Controls
+  page). Mutation-tested. OWED: a real Time Crisis romset on MAME (none here: that the core takes button 2 from the gun, the
+  joypad or both is read from its source, not measured), a headset, the Quest, two peers.

@@ -21,7 +21,7 @@
 ##   fire/       START and the coin reach a gun's port as the gun's own buttons; the grip that holds a
 ##               cabinet's gun is no button
 ##   aim/        a gun aims at the cabinet's own tube
-##   pedal/      a pedal is drawn, and is not active
+##   pedal/      the pedal is player 1's button 2: the gun hand's Aux A or the pedal key presses it
 ##   console/    the consolized Neo Geo MVS: a console that takes the same cassette, with pads and phono AV out
 ##   names/      RomM's neogeomvs and neogeoaes are the one neogeo system, and so are the ROM folders
 ##   shooting/   the gun cabinets are wide, with a big STRAIGHT screen (a gun held up to it must not walk in)
@@ -589,13 +589,16 @@ func _group_aim() -> void:
 # --- pedal ---------------------------------------------------------------------
 
 func _group_pedal() -> void:
-	var gun_cab := await _machine("arcade_cabinet_lightgun", "arcade")
-	var pedals := (gun_cab.get_model() as RetroSystemModelArcadeCabinet).modules_of_kind(ArcadeProfiles.KIND_PEDAL)
-	_ok(pedals.size() == 1, "pedal: the gun cabinet draws one")
+	var gun_cab := await _machine("arcade_cabinet_lightgun", "arcade", 120)
+	var model := gun_cab.get_model() as RetroSystemModelArcadeCabinet
+	var pedals := model.modules_of_kind(ArcadeProfiles.KIND_PEDAL)
+	_ok(pedals.size() == 1, "pedal: the gun cabinet has one")
 	if pedals.size() == 1:
 		var pedal := pedals[0] as ArcadePedalModule
-		_ok(not pedal.active and not pedal.is_pressed(), "pedal: and it is not active, and reads nothing")
+		_ok(pedal.active and pedal.port() == 0 and not pedal.is_pressed(),
+			"pedal: wired to player 1 (it names no player: one pedal, in the middle), and up")
 		_ok(pedal.position.z > 0.5 and pedal.position.y < 0.05, "pedal: on the floor in front of the cabinet")
+		await _pedal_presses(gun_cab, pedal)
 	var generic := await _machine("arcade_cabinet_generic", "arcade")
 	_ok((generic.get_model() as RetroSystemModelArcadeCabinet).modules_of_kind(ArcadeProfiles.KIND_PEDAL).is_empty(),
 		"pedal: the other cabinets have none")
@@ -622,6 +625,100 @@ func _group_pedal() -> void:
 		"pedal: the gun cabinet pins it for the run")
 	_ok(not generic._all_forced_options("mame").has("mame_lightgun_mode"),
 		"pedal: and the cabinet with sockets and no gun does not")
+
+
+## What presses a pedal and what it presses: MAME reads Time Crisis's pedal as player 1's BUTTON2, which is the
+## gun's Aux A and the joypad's A.
+func _pedal_presses(sys: RetroSystem, pedal: ArcadePedalModule) -> void:
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var input := model.arcade_input()
+	var guns := sys.captive_controllers()
+	var gun := guns[0] as LightGun
+	var gun2 := guns[1] as LightGun
+	var a_bit := 1 << ControllerBindings.JOYPAD_A
+	input.frame_override = input.boot_frames()
+	sys.is_powered_on = true
+	await _wait(3)
+	var plate := pedal.get_node("PedalPlate") as Node3D
+	var rest := plate.transform
+	# The toe of the plate: it rests raised, and comes down when the pedal is pressed.
+	var toe := Vector3(0, 0, -0.09)
+	var toe_rest := (rest * toe).y
+	# The gun hand's A (or X): the gun's own Aux A, through the real binding.
+	var hand := _fake_hand()
+	gun._holding_ctrl = hand["ctrl"]
+	(hand["tracker"] as XRControllerTracker).set_input(&"ax_button", 1.0)
+	gun._pressed_now()
+	input.last_sent.clear()
+	input._process(0.0)
+	_ok(pedal.is_pressed(), "pedal: the gun hand's A or X presses it (the gun's Aux A)")
+	_ok((int(input.last_sent.get(0, 0)) & a_bit) != 0, "pedal: and it is the joypad's A on player 1's port too")
+	_ok(not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A),
+		"pedal: (the gun sends its own Aux A itself: nothing is pressed for it from outside)")
+	for i in 6:
+		pedal.tick(0.02)
+	var toe_down := (plate.transform * toe).y
+	_ok(pedal.plate_down() == 1.0 and toe_down < toe_rest - 0.02,
+		"pedal: the plate goes down, toe first (%.3f -> %.3f m)" % [toe_rest, toe_down])
+	_ok(absf((plate.transform * Vector3(0, 0, 0.10)).y - (rest * Vector3(0, 0, 0.10)).y) < 0.012,
+		"pedal: about its hinge: the heel stays where it was")
+	(hand["tracker"] as XRControllerTracker).set_input(&"ax_button", 0.0)
+	gun._pressed_now()
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and (int(input.last_sent.get(0, 0)) & a_bit) == 0, "pedal: let go, it comes up")
+	for i in 6:
+		pedal.tick(0.02)
+	_ok(pedal.plate_down() == 0.0 and plate.transform.is_equal_approx(rest), "pedal: all the way back to where it rested")
+	_drop_fake_hand(gun, hand)
+	# A pedal that is not wired is a picture: the gun's Aux A is its own again.
+	pedal.active = false
+	gun._pressed_out[ControllerBindings.LIGHTGUN_AUX_A] = true
+	input.last_sent.clear()
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and (int(input.last_sent.get(0, 0)) & a_bit) == 0,
+		"pedal: one that is not wired is not pressed, and sends no joypad A")
+	gun._pressed_out.clear()
+	pedal.active = true
+	# Player 2's Aux A is its own gun's: this pedal is player 1's.
+	gun2._pressed_out[ControllerBindings.LIGHTGUN_AUX_A] = true
+	input.last_sent.clear()
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and (int(input.last_sent.get(1, 0)) & a_bit) == 0,
+		"pedal: player 2's Aux A does not press player 1's pedal, nor a joypad A")
+	gun2._pressed_out.clear()
+	# The pedal key presses the pedal of the player holding a gun, and only while one is held.
+	Input.action_press(ArcadeInput.PEDAL_ACTION)
+	input.last_sent.clear()
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A)
+		and (int(input.last_sent.get(0, 0)) & a_bit) == 0,
+		"pedal: the pedal key with both guns in their holsters presses nothing")
+	input.held_override = [gun]
+	input._process(0.0)
+	_ok(pedal.is_pressed() and gun.external_button(ControllerBindings.LIGHTGUN_AUX_A)
+		and (int(input.last_sent.get(0, 0)) & a_bit) != 0,
+		"pedal: with player 1's gun in a hand it presses the pedal: the gun's Aux A from outside, and the joypad's A")
+	input.held_override = [gun2]
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A)
+		and not gun2.external_button(ControllerBindings.LIGHTGUN_AUX_A),
+		"pedal: with only player 2's gun held it presses nothing (player 2 has no pedal)")
+	input.held_override = [gun]
+	input._process(0.0)
+	Input.action_release(ArcadeInput.PEDAL_ACTION)
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A),
+		"pedal: the key let go, it comes up and the gun's Aux A is let go")
+	# Switched off with the pedal down: it comes up, and the gun is not left pressed.
+	Input.action_press(ArcadeInput.PEDAL_ACTION)
+	input._process(0.0)
+	var was_down := pedal.is_pressed()
+	sys.is_powered_on = false
+	input._process(0.0)
+	Input.action_release(ArcadeInput.PEDAL_ACTION)
+	_ok(was_down and not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A),
+		"pedal: switched off with it down, it comes up and the gun is let go")
+	input.held_override = []
 
 
 ## The slot a board stands in: the docked bay's (a cabinet's own is shut for good, ArcadeBayUnit).

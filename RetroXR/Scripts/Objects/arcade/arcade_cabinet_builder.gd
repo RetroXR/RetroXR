@@ -757,8 +757,8 @@ func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
 
 ## A Time Crisis-style foot pedal on the floor in front of the deck, with its cable running to the
 ## cabinet: one in the middle (`index` -1, the shipped gun cabinet's), or one under each gun of a game
-## that has them (`gun_pedals`, player `index`). DRAWN ONLY: ArcadePedalModule is `active = false` and
-## nothing reads it. How a pedal should reach the core is its own analysis (docs/dev/arcade.md).
+## that has them (`gun_pedals`, player `index`). Wired: ArcadePedalModule presses its player's button 2,
+## and tips `PedalPlate` down about `PedalHinge`, so those two keep their names.
 func _build_pedal(index: int = -1) -> void:
 	# A pedal under each of two or three guns; one gun's in the middle, where its one player stands.
 	var under: Array = _v.get("gun_pedals", [])

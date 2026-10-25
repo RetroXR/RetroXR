@@ -15,6 +15,9 @@
 ## A controller seated in a front socket owns that port: the panel of that player
 ## goes quiet (ArcadeInputState.panel_speaks) so two writers never fight over one
 ## port's state.
+##
+## A gun game's foot pedal (ArcadePedalModule) is its player's button 2. A headset reads no feet, so it is
+## pressed for whoever holds that player's gun: the gun's own Aux A (the gun hand's A or X) or PEDAL_ACTION.
 class_name ArcadeInput
 extends Node
 
@@ -22,6 +25,9 @@ const ANALOG_SCALE := 0x7fff
 const DPAD_THRESHOLD := 0.35
 const ICON_CAPTURE := 0xEC17
 const ICON_SIZE := 0.03
+## The foot pedal's own action (project.godot: Space; DesktopPad puts the pad's RB on it), rebindable on the
+## Controls page. A foot switch that types a key is a real pedal through it, on a Quest as on a desktop.
+const PEDAL_ACTION := "arcade_pedal"
 
 const INPUT_THRESHOLDS: Dictionary = {
 	"ax_button":     0.5,
@@ -71,6 +77,9 @@ var _model: RetroSystemModel = null
 var _controls: Array[ArcadeControlModule] = []
 var _pulses: Dictionary = {}
 var _doors: Array[ArcadeCoinModule] = []
+var _pedals: Array[ArcadePedalModule] = []
+## A suite stands in for a hand with this: a gun listed here counts as held (held_by_hand needs a real grab).
+var held_override: Array = []
 ## How many ports the coin doors reach (a door's player + 1, the highest): a game with more coin slots than
 ## panels (Robotron's three) still has each door's coin sent.
 var _door_ports := 0
@@ -117,30 +126,34 @@ const _NEUTRAL := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
 
 
 ## `host` is the RetroSystem, `model` the cabinet's model, `controls` one module per
-## player in port order, and `coins` the coin doors (each routed to its player).
-func setup(host: Node3D, model: RetroSystemModel, controls: Array, coins: Array) -> void:
+## player in port order, `coins` the coin doors (each routed to its player) and `pedals` the foot pedals.
+func setup(host: Node3D, model: RetroSystemModel, controls: Array, coins: Array, pedals: Array = []) -> void:
 	_host = host
 	_model = model
-	_wire(controls, coins)
+	_wire(controls, coins, pedals)
 	_load_bindings()
 	_capture = ScrollLockCapture.attach(host, _can_capture, ICON_CAPTURE, ICON_SIZE)
 	add_to_group(ControllerBindings.CONSUMER_GROUP)
 	_find_vr_nodes.call_deferred()
 
 
-## The cabinet built a new form (RetroSystemModelArcadeCabinet.morph_to): its panels and coin doors are new
-## nodes. Whoever was attached lets go (that panel is gone); coins held for a player stay held.
-func rewire(controls: Array, coins: Array) -> void:
+## The cabinet built a new form (RetroSystemModelArcadeCabinet.morph_to): its panels, coin doors and pedals
+## are new nodes. Whoever was attached lets go (that panel is gone); coins held for a player stay held.
+func rewire(controls: Array, coins: Array, pedals: Array = []) -> void:
 	var was := playing
 	attached.clear()
 	if was:
 		_update_locomotion_block()
 		playing_changed.emit(false)
-	_wire(controls, coins)
+	_wire(controls, coins, pedals)
 	_show_held()
 
 
-func _wire(controls: Array, coins: Array) -> void:
+func _wire(controls: Array, coins: Array, pedals: Array) -> void:
+	_pedals.clear()
+	for m in pedals:
+		if m is ArcadePedalModule:
+			_pedals.append(m as ArcadePedalModule)
 	_controls.clear()
 	for c in controls:
 		var panel := c as ArcadeControlModule
@@ -375,10 +388,12 @@ func _process(delta: float) -> void:
 		return
 	_sync_desktop_scope()
 	if bool(_host.get("attracting")):
+		_release_pedals()
 		_watch_for_use()
 		return
 	var powered := bool(_host.get("is_powered_on"))
 	if not powered:
+		_release_pedals()
 		if playing:
 			for panel in _controls:
 				if panel != null:
@@ -443,19 +458,66 @@ func _process(delta: float) -> void:
 		if p < _controls.size() and _controls[p] != null:
 			var st: Dictionary = states[p]
 			_controls[p].show_state(mask, Vector4i(int(st["alx"]), int(st["aly"]), int(st["arx"]), int(st["ary"])))
+		var pedal_down := _step_pedal(p, holder as LightGun)
 		if owned:
 			# A gun in the port is not a joypad: it aims and fires itself. The cabinet's START and
 			# coin reach the core TWICE: as the gun's own START and SELECT, and as the joypad's
 			# START and SELECT on that port, which is where MAME and FinalBurn read a credit and
 			# a start even in a light-gun game (the extension answers a core's joypad query
-			# whatever device the port announced). Only those two bits: the gun writes no pad.
+			# whatever device the port announced). The pedal likewise, as the gun's Aux A and the
+			# joypad's A. Only those bits: the gun writes no pad.
 			if holder is LightGun:
 				var held_gun := holder as LightGun
 				_forward_to_gun(held_gun, mask)
 				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT)
-				_send(p, (mask | hand) & aux, _NEUTRAL)
+				var bits := (mask | hand) & aux
+				if pedal_down:
+					bits |= 1 << ControllerBindings.JOYPAD_A
+				_send(p, bits, _NEUTRAL)
 			continue
 		_send(p, mask, states[p])
+
+
+## The foot pedal wired to `port` (ArcadePedalModule.port), and whether it is down. It is pressed for whoever
+## holds that player's gun: by the gun's own Aux A (the gun hand's A or X), which reaches the core from the gun
+## itself, or by PEDAL_ACTION, which goes in as the gun's Aux A from outside. The caller sends it as the
+## joypad's A on that port too: MAME takes a pedal as button 2, from the gun's Aux A or the joypad's A. With no
+## pedal on that port nothing is pressed, and the gun's Aux A is its own again.
+func _step_pedal(port: int, gun: LightGun) -> bool:
+	var wired := false
+	for pedal in _pedals:
+		if is_instance_valid(pedal) and pedal.active and pedal.port() == port:
+			wired = true
+	var down := false
+	if gun != null:
+		var key := wired and _pedal_key_held(gun)
+		gun.set_external_button(ControllerBindings.LIGHTGUN_AUX_A, key)
+		down = wired and (key or gun.hand_button(ControllerBindings.LIGHTGUN_AUX_A))
+	for pedal in _pedals:
+		if is_instance_valid(pedal) and pedal.port() == port:
+			pedal.show_pressed(down and pedal.active)
+	return down
+
+
+## Whether PEDAL_ACTION is held for `gun`: only while the gun is in a hand (a VR hand or the desktop's), so the
+## key presses the pedal of the player holding a gun and of nobody else.
+func _pedal_key_held(gun: LightGun) -> bool:
+	if not InputMap.has_action(PEDAL_ACTION) or not Input.is_action_pressed(PEDAL_ACTION):
+		return false
+	return held_override.has(gun) or held_by_hand(gun)
+
+
+## Nobody is playing (the core is off, or only showing its game): every pedal comes up, and no gun keeps a
+## pedal pressed from outside.
+func _release_pedals() -> void:
+	for pedal in _pedals:
+		if is_instance_valid(pedal):
+			pedal.show_pressed(false)
+	if _host == null or not _host.has_method("get_port_controllers"):
+		return
+	for holder: Variant in _host.get_port_controllers():
+		if holder != null and is_instance_valid(holder) and holder is LightGun:
+			(holder as LightGun).set_external_button(ControllerBindings.LIGHTGUN_AUX_A, false)
 
 
 ## The held coins, once a frame while the core runs: one goes in when the game is up to count it, or at

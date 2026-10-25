@@ -17,7 +17,7 @@
 ##   layout/    panels across the deck: the generic two where they always were, more crowd it and grow wings
 ##   build/     each form built on a real cabinet: its modules, parts and screen
 ##   board/     the real path: a board in the bay changes the form, pulling it gives the cabinet's own back
-##   guns/      a gun game's guns are built, plugged in and hung; another game frees them and their ports
+##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
 ##   input/     the input drives the new panels, and a third or fourth coin door reaches its port
 ##   animate/   a wheel turns, pedals tip, a bike leans, a second stick leans, a dancer's arrows sink
@@ -474,10 +474,27 @@ func _group_guns() -> void:
 	await _board(sys, "timecris")
 	await _wait(10)
 	var pedals := model.modules_of_kind(ArcadeProfiles.KIND_PEDAL)
-	_ok(sys.captive_controllers().size() == 1 and pedals.size() == 1 and not (pedals[0] as ArcadePedalModule).active,
-		"guns: Time Crisis: one gun and its pedal (drawn, not active)")
+	_ok(sys.captive_controllers().size() == 1 and pedals.size() == 1 and (pedals[0] as ArcadePedalModule).active
+		and (pedals[0] as ArcadePedalModule).port() == 0,
+		"guns: Time Crisis: one gun and its pedal, player 1's button 2")
 	_ok(model.gun_origins()[0].origin.x > 0.2 and absf((pedals[0] as Node3D).position.x) < 0.01,
 		"guns: its one gun hangs on the right, the pedal in the middle where its player stands")
+	if pedals.size() == 1:
+		# Built at run time, it finds its own plate and hinge as the baked one does, and the input has it.
+		var tc_pedal := pedals[0] as ArcadePedalModule
+		_ok(model.arcade_input()._pedals.has(tc_pedal), "guns: the input is wired to the pedal the morph built")
+		var tc_plate := tc_pedal.get_node("PedalPlate") as Node3D
+		var tc_rest := tc_plate.transform
+		tc_pedal.show_pressed(true)
+		for i in 6:
+			tc_pedal.tick(0.02)
+		_ok(tc_pedal.plate_down() == 1.0
+			and (tc_plate.transform * Vector3(0, 0, -0.09)).y < (tc_rest * Vector3(0, 0, -0.09)).y - 0.02,
+			"guns: and its plate goes down when it is pressed")
+		tc_pedal.show_pressed(false)
+		for i in 6:
+			tc_pedal.tick(0.02)
+		_ok(tc_plate.transform.is_equal_approx(tc_rest), "guns: and back up")
 
 
 # --- ports ---------------------------------------------------------------------

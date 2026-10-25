@@ -808,6 +808,7 @@ func _test_n64_pad_art() -> void:
 			and ed._rebind_buttons.has("RETRO_ANALOG_RIGHT_Y_POSITIVE"),
 		"n64-desktop/the stick keys stay on the page")
 	_ok(not ed._rebind_buttons.has("trigger_left"), "n64-desktop/and no light gun trigger")
+	_ok(not ed._rebind_buttons.has(ArcadeInput.PEDAL_ACTION), "n64-desktop/nor a gun cabinet's foot pedal")
 	_ok(ed._desktop_control_of.has("RETRO_JOYPAD_L2")
 			and not ed._desktop_control_of.has("RETRO_JOYPAD_C"),
 		"n64-desktop/the diagram binds Z and not the C label")
@@ -815,6 +816,14 @@ func _test_n64_pad_art() -> void:
 	ed._build_desktop_controls(ed)
 	_ok(not ed._rebind_buttons.has("RETRO_ANALOG_LEFT_X_NEGATIVE"),
 		"n64-desktop/a pad without sticks still gets no stick keys")
+	# The arcade has no pad drawing of its own: its page is the RetroPad's, with the gun's trigger and the
+	# foot pedal in the list under it.
+	ed._systemid = "arcade"
+	ed._build_desktop_controls(ed)
+	_ok(ed._rebind_buttons.has(ArcadeInput.PEDAL_ACTION) and ed._rebind_buttons.has("trigger_left"),
+		"n64-desktop/the arcade's page binds the foot pedal and the trigger")
+	_ok(DesktopBindings.event_display_name(ArcadeInput.PEDAL_ACTION) == "Space",
+		"n64-desktop/and the pedal is Space unless rebound")
 	ed.queue_free()
 
 
