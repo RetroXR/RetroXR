@@ -115,6 +115,11 @@ func refresh_debug() -> void:
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		# Drawn over everything, as CollisionDebug's are. Each overlay lies on
+		# the real surface it was made from, so with "Real Objects Hide Virtual"
+		# on, Meta's coarse, noisy depth of that same surface hid it in patches
+		# that moved with the head (Quest 3, 2026-10-25).
+		mat.no_depth_test = true
 		_debug_mesh.material_override = mat
 		add_child(_debug_mesh)
 	var color: Color = DEBUG_COLORS.get(kind, Color.WHITE)

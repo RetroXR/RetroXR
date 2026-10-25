@@ -436,6 +436,8 @@ func _test_overlay() -> void:
 		and mesh.has_debug_mesh() and mesh_draw.mesh.get_faces().size() == 3,
 		"overlay/on: each surface drawn as its shape, the scanned mesh as its own triangles")
 	_ok(not door.has_debug_mesh(), "overlay/and nothing for what is nothing")
+	_ok((table_draw.material_override as StandardMaterial3D).no_depth_test,
+		"overlay/drawn over everything: the real surface's own depth never hides it in patches")
 	var table_color := (table_draw.material_override as StandardMaterial3D).albedo_color
 	var mesh_color := (mesh_draw.material_override as StandardMaterial3D).albedo_color
 	_ok(table.is_solid() and is_equal_approx(table_color.a, RealRoomSurface.DEBUG_ALPHA_SOLID)
