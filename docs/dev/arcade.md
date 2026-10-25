@@ -548,12 +548,16 @@ work, most of all on a Quest. Each cabinet has its own say over it (System tab >
   to its A/V input (`external_picture_active`) and no netplay session is running. No game or bay: the cabinet behaves exactly as before ("No game inserted").
   `power_on` then does NOT call `StartContent`: it sets `RetroSystem.attracting` (`is_powered_on` stays **false**, which is what every "is a core running" reader means) and
   the cabinet's `ArcadeAttract` child shows the game. The power button reads STOP, the marquee is lit.
-- **What it shows**: the video snap (`media/video/<rom>.mp4`, any of mp4/mkv/webm/avi/mov), else the `title` image, else the `wheel`, else the cover (`box` front, else `label`) --
-  `ArcadeAttract.resolve_media`. A still costs nothing per frame. The screen module fits the picture at its OWN shape (`attract_picture_active`; the core's geometry says nothing yet),
+- **What it shows**: the video snap (`media/video/<rom>.mp4`, any of mp4/mkv/webm/avi/mov) when this build can PLAY one (`ArcadeAttract.can_play_video`: macOS has no libVLC), else the
+  `title` image (the game's title screen; ScreenScraper's in-game `ss` stands in when it has no `sstitle`, never ahead of a real one), else the `wheel`, else the cover (`box` front, else
+  `label`) -- `ArcadeAttract.resolve_media`. The scraper is asked for whatever is MISSING (`ArcadeAttract.missing_media`: the video when this build can play one, the title always), so a
+  game with only a video still gets its title; a title that lands while the video plays becomes the still at once (2026-10-25: the title used to be asked for only when there was no video,
+  so a build without VLC showed the wheel, a logo). A still costs nothing per frame. The screen module fits the picture at its OWN shape (`attract_picture_active`; the core's geometry says nothing yet),
   and `ArcadeCabinetModel.host_picture()` is where the swap happens.
 - **When the game really starts** (`ArcadeInput.first_use`, one signal, handled by `RetroSystem.attract_first_use`, which sets `_attract_released` for ONE `power_on`): a coin that DROPS
   (`ArcadeCoinModule.coin_inserted`), a panel attached (`attach_changed`), or a gun/pad in a HAND (polled: `ArcadeInput.held_by_hand`; a gun lying in its holster is picked up by the
-  zone, not by a hand, and a pad merely plugged in is nobody). The coin that started it is held `ArcadeAttract.COIN_BOOT_DELAY` (2 s) and then delivered: a credit at boot is lost.
+  zone, not by a hand, and a pad merely plugged in is nobody). The coin that started it is HELD until the game can count it (see "Coins wait for the game" below; it used to be
+  delivered after a fixed 2 s of room time, which a board still loading or testing itself never saw).
   `ArcadeInput` keeps panels attached while attracting (it used to let go whenever `is_powered_on` was false).
 - **Back to the attract**: libretro has NO game-over / back-to-title signal and neither MAME nor FinalBurn Neo expose one, so it is a plain idle timer
   (`ArcadeAttract.IDLE_SECONDS` = 120): nobody at the cabinet (no panel attached, no gun or pad in a hand, no coin) -> `RetroSystem.attract_return` stops the core and the attract
@@ -669,9 +673,12 @@ panel, a two-button game two caps, a gun game no stick, a one-coin game one door
 follows the game; the input is never filtered**, so a cap hidden by a wrong guess still plays from a controller or the keyboard.
 
 - **Two sources, the second wins where it speaks.** (1) MAME's `-listxml`, boiled down by `Tools/arcade/gen_game_index.py` into
-  `ArcadeGameTable` (28,701 romsets / 692 profiles from MAME 0.289, 278 KB as one string constant; a profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>`,
-  kinds `joy stick paddle pedal gun dial ball btn other`; `python Tools/arcade/gen_game_index.py mame0289.xml`, the XML from the release's `mame0289lx.zip`,
-  checksum-verified against its SHA256SUMS). (2) The core's `SET_INPUT_DESCRIPTORS` through `Libretro.GetInputDescriptors()` (`[{port, device, index, id,
+  `ArcadeGameTable` (28,701 romsets / 1,482 profiles from MAME 0.289, 303 KB as one string constant; a profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>`,
+  kinds `joy twin stick paddle pedal gun touch dial ball btn other`, then since 2026-10-25 the attributes of the cabinet the game came in: `r` the
+  monitor's rotation, `s` its screens, `g` its light guns, `t` its form, `o` a cockpit's roof, `f` a gun pedal, `a` one panel for alternating players,
+  `m` the tube's class, `k` the boot time; every clone tied to its parent (`sf2=sf2ua`, `sf2ce<sf2`); the lists and which of it is MAME's are in the
+  script's docstring. `python Tools/arcade/gen_game_index.py mame0289.xml`, the XML from the release's `mame0289lx.zip`, checksum-verified against
+  its SHA256SUMS). (2) The core's `SET_INPUT_DESCRIPTORS` through `Libretro.GetInputDescriptors()` (`[{port, device, index, id,
   description}]`; the C++ already stored them in `InputHandler::m_devices`, nothing read them). `RetroSystemModelArcadeCabinet._poll_descriptors` asks twice a second from power-on until the
   first non-empty answer.
 - **MEASURED (`Tools/cores/arcade_descriptors_probe`, one core per process): FBNeo describes THIS game** (sf2: 14 pad ids per port named "Weak Punch" ... "Coin"; dino: "Attack",
@@ -686,6 +693,163 @@ follows the game; the input is never filtered**, so a cap hidden by a wrong gues
   (B A Y X L R), so a fighter's kicks and punches are not in a tidy row: the labels make that visible, they do not change it.
 - Tests: `arcade_tests game/` (profiles: table, descriptors in both flavours, the control leg of MAME's generic pad; cabinet: caps, panels, doors, labels, board out). Mutation-tested
   (`button_visible`/`panel_visible` forced true: 7 cases red). Picture: `arcade_cabinet_probe --shots=game` (windowed).
-- **Not done:** a steering wheel, pedals (the pedal on the gun cabinet is still drawn and NOT active) and a racing cabinet scene; `paddle`+`pedal` games (`ArcadeGameProfile.is_driving`) keep the stick
-  on the generic panel. No driving romset was at hand to measure which pad ids MAME/FBNeo read a wheel and pedals from. The Quest is OWED: Android was not rebuilt, so `GetInputDescriptors` does not exist
-  there until it is (the cabinet does not check `has_method`: rebuild both targets).
+- **Since 2026-10-25 the cabinet also takes the game's SHAPE** (its panels, guns, cockpit or stage, its monitor): "The cabinet takes the shape of the game" below. What this section
+  describes is still what a cabinet does inside its form, and all of it a cabinet does whose "Cabinet Shape" is off. The Quest is OWED: Android was not rebuilt, so `GetInputDescriptors`
+  does not exist there until it is (the cabinet does not check `has_method`: rebuild both targets).
+
+## Coins wait for the game; RETURN gives one back (2026-10-25)
+
+A coin is a pulse on SELECT; a board that is still loading or running its power-on tests never sees it. **A coin the game cannot count yet
+is HELD** (`ArcadeInputState.CoinEscrow`): the one that starts a game from the attract, and any put in while the core is still coming up.
+They go in once the core has run the game's own boot **in its own frames** (`Libretro.GetFrameCount`, emulated frames, so a slow load or a
+Quest running below full speed waits as long as the game does; `ArcadeGameProfile.boot_seconds` = the table's `k` for the driver, else
+`ArcadeProfiles.BOOT_SECONDS` 4 s, at the core's own rate `GetDeclaredFps`), one at a time a pulse and `COIN_GAP_SECONDS` apart (a game counts
+the EDGE). **START lets them in at once** on a game that has run `MIN_BOOT_FRAMES` (a player who knows the game is up), and START itself is
+held back until the credit has landed and `START_AFTER_COIN_SECONDS` more: a START tapped meanwhile is queued and sent once, after it. The
+slot's lamp blinks while a coin is held. (`GetFrameCount` is the bridge's own counter, which the pace trace reads too; a bridge without it would count the room's time instead.)
+
+The coin door's RETURN cap is a button (`ArcadeCoinModule.return_pressed`): it gives back a HELD coin, which drops into the cup with a rattle
+of its own (synthesised, `rattle()`). A coin put into a switched-off cabinet rolls straight out; switching off with coins held rolls them all
+out. **Nothing a game has counted comes back**: no core has a refund input, and on the hardware the button is mechanical (it frees a jammed
+coin). `arcade_attract_tests coins/`, `arcade_tests input/ game/ coin/`, the probe's `--shots=return`. OWED: real cores (a CPS2 board's 6 s,
+a CPS3's 20, a NAOMI on Flycast), the Quest, a game that counts coins on a level rather than an edge.
+
+## The cabinet is built from a spec (2026-10-25)
+
+`ArcadeCabinetBuilder` (`Scripts/Objects/arcade/arcade_cabinet_builder.gd`) builds a cabinet's nodes from a SPEC, a Dictionary
+(`ArcadeCabinetSpecs`, `Scripts/Data/systems/arcade_cabinet_specs.gd`): the body (`shape`: `upright`, `wide`, `racer`), the look, the bay
+kind, a panel per player, the coin doors, front sockets or guns, what stands in front. **The same code bakes the shipped scenes**
+(`Tools/gen/gen_arcade_cabinet.gd` is a thin wrapper now; `ArcadeParts` holds the primitives, `ArcadeGenUtil` delegates to it) **and builds a
+form again in the room** (`build_form`). The baked scenes were re-baked and diffed with the unique ids normalised: identical but for 1-ulp float
+noise, so they were left as they were. Every top-level node a form owns carries `FORM_META`; the bay, the JAMMA socket and the composite input
+are built only when baking and never rebuilt (a board, a docked bay, a cord and the power button hang on them). The baked scene names its row
+(`VARIANT_META`), which is how a cabinet in the room knows its own spec. **Change a part in the builder, then re-bake every variant; never
+hand-edit a cabinet scene.**
+
+## The cabinet takes the shape of the game (2026-10-25)
+
+`ArcadeCabinetSpecs.for_game(base, profile)` turns the cabinet's own row and the game's profile (`ArcadeGameProfile`, from the table) into the
+spec of the cabinet the game came in; `RetroSystemModelArcadeCabinet.morph_to(spec)` builds it in place of the one standing. A game that wants
+exactly what the cabinet is (Street Fighter II in the generic cabinet: two panels of six, two doors) gets the cabinet's own row back and
+**nothing is rebuilt** (`_same_form`). The look (body colour, trim, marquee, title) and the bay are the cabinet's and never change.
+
+- **Players and panels** (`layout_panels`): a panel per player, each the kind of control the game has (`panel_kind`: two sticks `twin`, a
+  trackball `ball`, a paddle `dial`, `buttons` alone, else a `stick`) with exactly its buttons (`button_grid`: a row of up to three, Neo Geo's
+  arched four, three over two, two rows of three). Two players stand where the generic cabinet's always did (the layout reproduces its numbers
+  exactly, which is what keeps a six-button two-player game from rebuilding); three to six crowd the deck, which grows WINGS past the sides
+  (the four-player kits). **An alternating game** (the table's `a`: Pac-Man, Donkey Kong, Kuri Kinton) has ONE panel in the middle, labelled
+  1P, and a momentary START labelled 2P beside it, which is player 2's START (MAME reads player 1's controls for both turns on an upright).
+  A front socket per player, up to the four ports a machine has (`socket_count`).
+- **Coin doors**: as many as the game has coin slots, no more than it has panels, up to four, each to its own player's port (a game with more
+  doors than panels still has each door's coin sent: `ArcadeInput._door_ports`). One for an alternating game.
+- **The monitor** (`screen`: `ArcadeCabinetBuilder.tube_for`): stood on its side for a vertical game (the table's `r`), several side by side for a
+  game with several screens (`s`), and of the game's class (`m`: 19 inches before 1985): the body's own tube is its `inches`
+  (upright 25, wide 40, racer 27; a CRT's picture is about 87% of its class), and a game's is scaled from it, then made to fit the glass the
+  body has, whole, never squashed. The screen module's `glass_size` follows, so the picture is fitted to the tube it is in.
+- **Guns** (`gun`, `gunm`, `rifle`): the WIDE body, as many guns as the game has light guns (up to 3), START alone for each. `holster`: hung on
+  the apron (one gun on the right, as Time Crisis's); `mounted`: resting level on a post on the deck's front edge, aimed at the screen (one in the
+  middle: Operation Wolf's Uzi, Terminator 2, Beast Busters' three); `rifle`: one rifle on a taller post in the middle (Silent Scope, Golgo 13),
+  `Scenes/Objects/peripherals/arcade_light_rifle.tscn` (`gen_arcade_gun.gd -- --variant=rifle`: the pistol's grip, trigger and cord boss in the
+  same place, so the cabinet seats and cords it with the pistol's numbers; a barrel, a forestock, a stock and a scope tube; its muzzle stops 3 cm
+  short of the glass). A post does not hold a gun that is aimed: in the hand it aims freely and goes back onto its post when let go
+  (`LightGun._return_to_well`). **Pedals only where the game had them** (`f`: Time Crisis): one under each gun, or one in the middle for one gun;
+  still DRAWN and NOT active. Three guns put the coin doors either side of the middle holster.
+- **A sit-down driving cockpit** (`race`; `ArcadeCabinetBuilder._build_cockpit`): the `racer` body (a lower monitor, leaning back, its middle at
+  1.1 m for a SEATED driver) and in front of it, clear of the bay door's swing, a platform, the seat, a dash holding the wheel, the gas and brake
+  pedals in the footwell, a gear lever by the right hand and START on the dash; a ROOF over the seat for the Model 3 twins (`o`: Scud Race, Le
+  Mans 24, Daytona 2...). The driver's controls are ONE controller (Player1, taken hold of at the wheel), as a panel is.
+- **A stand-up driving cabinet** (`stand`: Pole Position, Out Run, Final Lap): the wheel stands out of the panel, a gear lever beside it, and the
+  two pedals on the floor in front, clear of the bay door (the real ones were on the kick panel: the door is there).
+- **A ride-on bike** (`bike`: Hang-On, Harley-Davidson, Manx TT): a motorbike on a stand in front of the `racer` body; it LEANS with the steering
+  (`LeanPivot`), the rider takes hold of it at the bars.
+- **A dance stage** (`dance` four arrows, `pump` Pump It Up's five panels): the wide body, a square of nine 30 cm panels per dancer (one or two),
+  a safety bar behind each; each dancer's arrows belong to that player's panel (`Pad<Dir>` sink with the directions, Pump's `Btn1..5` with the
+  buttons), taken hold of at its START on the deck.
+- **Music and the unique cabinets** (`music`, `odd`) are uprights until they have a module of their own ("Unusual cabinets" below).
+- **What the panel shows moving** (`ArcadeControlModule.show_state(mask, axes)`, fed the axes now as well as the mask): a wheel turns (left stick X,
+  else LEFT/RIGHT, 120 degrees to lock), the gas and brake tip with R2 and L2 (MAME's PEDAL and PEDAL2, which the extension sends as digital
+  buttons: it does not answer ANALOG_BUTTON), the lever with button 1, a bike leans, a trackball rolls, a second stick leans with the right stick
+  or the face buttons (Robotron's fire stick is the diamond), a dancer's arrows sink. Eased, and a settled part is not written again.
+
+**How a form changes** (`RetroSystemModelArcadeCabinet._request_form` -> `morph_to`):
+- **Deferred and coalesced**: built at the end of the frame, once; never inside the callback that asked (a snap zone handing over a board does it
+  while the tree is busy with the nodes it moves: removing a form there failed with "Parent node is busy"). **Never under a running core**: its
+  ports and the guns on them are in use; a form asked for then is built when it stops (`on_power_off`). The attract runs no core, so a board in
+  an attracting cabinet changes it at once.
+- What hangs on the parts follows: the attached panel lets go (that panel is gone; `ArcadeInput.rewire`, coins held stay held), the guns on the
+  old holsters are unplugged the way a hand would (`RetroSystem.before_cabinet_form`: the port is unbound, the core told) and freed, and after the
+  build (`after_cabinet_form`) the port zones go on the new sockets, a pad in a socket the form does not have (or one a gun now takes) comes out,
+  the guns of the new form are built and plugged in, the collision and pointer boxes are laid again (removed first: `configure_collision` and
+  `_build_pointer_shapes` run again on every morph), the art and the game's profile are hung again, the cabinet stays see-through if it is in a
+  hand, and the rectangle on the floor follows (`GroundPlacement.set_footprint(size, center)`: a cockpit's base reaches 2 m forward).
+- **No collision for what the form adds** (a cockpit, a stage, deck wings): a player walks into a cockpit and sits on their own chair, steps onto
+  a stage with their own feet. Those parts are POINTER boxes (`FORM_BOXES_META`, aimed at they are the cabinet, to hold and carry) and the footprint
+  (`FOOTPRINT_META`, a Rect2 in x/z).
+- **Pulling the board gives the cabinet its own form back.** A clone takes its parent's form (the table gives it the same key).
+- **System tab > "Cabinet Shape"** (`RetroSystem.cabinet_shape_enabled`, saved in the room as `cabinet_shape: false` ONLY when off): off keeps the
+  cabinet's own form whatever is in its bay, which then only hides the parts the game does not use, as before. The row shows only for a cabinet baked
+  from a row (`supports_cabinet_shape_toggle`); a mod's cabinet with no row keeps its form.
+- **Netplay**: the form is derived from the board, so two peers build the same one; the toggle is each peer's own and a session should keep it the
+  same on both (it decides whether a port is a gun or a socket). Not measured with two peers.
+- Tests: `arcade_form_tests` (groups `specs layout build board guns ports input animate toggle running boxes footprint bezel`; the old `arcade_tests game/`
+  switches the shape off and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
+  that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
+  (windowed; `form_<romset>.png` and `formside_<romset>.png`).
+- **The test games asked for** (none run here: no ROMs, no cores): `timetrv` and `panicprk` are `odd` (uprights for now; Panic Park is NOT working in MAME
+  0.289), `propcycl` `odd` (Prop Cycle's bicycle is a unique cabinet), `sscope`/`sscope2` the rifle (NOT working in MAME 0.289), `finalap3` a sit-down
+  cockpit (the real one is a twin: two seats, two screens), `kurikint` an alternating upright.
+- OWED: a headset (taking hold of a wheel, a stage under the feet), the Quest (building a cockpit at run time on device), real cores for which pad ids the
+  driving and dance games read, two peers, the twin cockpits (Final Lap 3, Daytona's linked twins) and multi-screen games, whose second screen arrives in
+  the same frame and is not cropped per screen yet.
+
+## Bezels (2026-10-25)
+
+**The scraped bezels are not taken.** ScreenScraper's six bezel types (`bezel-4-3`, `bezel-16-9`, `bezel-16-9-v`, `bezel-4-3-v`, `bezel-16-9-cocktail`,
+`bezel-4-3-cocktail`; PNG, each with the hole as `posx posy posw posh` on a 1920x1080 or 1024x768 canvas) are community overlays for a TELEVISION:
+captured responses for different games all carry posx 246 / posw 1431, one 16:9 template with a 4:3 hole, and no entry says who made it or from what.
+The Bezel Project is the same (measured: sf2 and 3countb share one generic CRT frame with the game's art laid into its wings). A cabinet in a room
+already has the frame round its tube; what it wants is the print on the real cabinet's glass.
+
+**MAME's artwork is that print**: a zip (or a folder) per romset (Mr. Do's scans, the progettoSNAPS "Official" pack), whose layout (`<set>.lay`, else
+`default.lay`) names each picture, where it stands and where the screen is, and whose credits say whether the bezel was SCANNED ("Scanned bezel provided
+by Mr. Do") or drawn ("Realistic bezel by ...", "Custom Widescreen"). `ArcadeBezel` (`Scripts/Objects/arcade/arcade_bezel.gd`) reads the player's
+`<data root>/artwork/` the way MAME does: the romset's own, else its PARENT's (the game table ties every clone to its parent now: `tokens_of`,
+`ArcadeGameProfile.parent_of`, 6.5 KB more). Of a layout's views it takes the bezel round the screen (the old `<bezel element>` item, or a version-2
+`<element ref>` drawn over the screen or named bezel; a picture under the screen is a backdrop), passes over a widescreen or cocktail view and a 16:9
+canvas, and takes nothing when the credits call the bezel drawn. The hole is the screen's bounds inside the bezel's. Loaded off the main thread
+(a scan is several MB of PNG; every task is waited for once it is done, or Godot aborts at exit), kept at 1024 pixels on its longest side.
+The screen module hangs it just behind the glass, scaled so the hole holds the whole tube and centred on it, cut to the monitor's opening; the black
+frame makes way while it hangs (`ArcadeScreenModule.set_bezel`). "Cabinet Art" off takes it down; pulling the board too; a morph hangs it on the new
+tube. **Nothing is downloaded and nothing ships**: the art is the games' makers', and Mr. Do's terms forbid reproduction for sale.
+Not read: `<group>`s and `<repeat>`s of version-2 layouts (a bezel inside a group is not found), overlays and backdrops, the marquee art in the
+pack, the Arcade Database's `url_image_bezel` (unknown origin) and its artwork previews (a screenshot with the bezel composited in: no hole).
+`arcade_form_tests bezel/`. OWED: a real Mr. Do pack (none was available here), how one looks in a headset, the Quest's decode time.
+
+## Unusual cabinets (2026-10-25)
+
+What the table files as `odd` or `music`, and more, for later: VR natural interaction is the point of most, and the desktop will stay limited. Checked
+against MAME 0.289 (status: **G** good, **I** imperfect, **NW** not working, from the driver flags; the controls from the drivers' port names).
+libretro MAME reads every left/right axis (paddle, spinner, trackball, analog X, gun X) from the left stick X or the mouse X, up/down from left stick Y,
+MAME's third axis from the right stick Y and the pedals from R2/L2; two axes of one type for one player collapse onto one stick axis unless remapped.
+Many of the body cabinets are on boards MAME does not run (NAOMI is Flycast's here; Model 3, System 23, Viper, Hikaru are NW).
+
+| family | games (romset, status) | what the player does | a VR idea |
+|---|---|---|---|
+| ride-on | Prop Cycle `propcycl` I, Final Furlong `finfurl` NW, Hang Pilot `hangplt` I, Magical Truck Adventure `magtruck` NW | pedal a bike to fly, ride a horse, a hang-glider bar, pump levers | grip and pump; rock; a two-hand A-frame |
+| ski / board | Alpine Racer `alpinerd` 2 `alpinr2b` Surfer `alpines` I, Top Skater `topskatr` NW, Ski Champ `skichamp` NW | swing and edge ski plates, poles; a skateboard deck | hips shift = swing, grip roll = edge |
+| boat / jet ski | Aqua Jet `aquajet` I, Jet Wave `jetwave` I, Wave Runner `waverunr` NW, Rapid River `rapidrvr` NW | a jet ski's bars and throttle; a raft's paddle | bars and a lean; an oar in both hands |
+| fishing | Fisherman's Bait `fbaitbc` `fbait2bc` `fbaitmc` I, Sega Bass Fishing `bassdx` / Get Bass `getbass` NW | a rod, a reel | jerk the rod, crank the reel |
+| striking | Punch-Out!! `punchout` Super `spnchout` Arm Wrestling `armwrest` G, Heavyweight Champ `hwchamp` G, Title Fight `titlef` I, Boxing Mania `boxingm` NW, Mallet Madness `maletmad` Hammer `hammer` Mole Attack `mole` G, Kick & Kick `kicknkick` I | punch, swing a mallet, kick a ball | punch at height, swing (the hit point is a gun's x/y) |
+| music | beatmania `bm1stmix` pop'n music `popn1` Keyboardmania `kbm` I (about 40 more), GuitarFreaks `gtrfrks` I, DrumMania `drmn` NW, ParaParaParadise `ppp` I, Mambo a Go Go `mamboagg` NW | keys and a turntable, nine buttons, a guitar, drums, sensor bars, congas | the instrument itself; hands through the bars |
+| hologram / multi-screen | Time Traveler `timetrv` G (laserdisc), Holosseum `holo` I, Starblade `starblad` I, Darius `darius` G (3 screens), Ninja Warriors `ninjaw` I, Super Dead Heat `spdheat` (4), Cyberball `cyberbal` G, Hard Dunk `harddunk` I (6P), Punch-Out!! (2 stacked), Silent Scope `sscope` NW (the scope's view) | a figure floating over a black stage; a bank of screens | a floating plane; a curved bank; the scope's view in the eyepiece |
+| cockpit / flight / tank | Star Wars `starwars` ESB `esb` Firefox `firefox` Red Baron `redbaron` G, Battlezone `bzone` G, Tokyo Wars `tokyowar` I, Cyber Sled `cybsled` I, G-LOC R360 `glocr360` G, After Burner II `aburner2` Space Harrier `sharrier` G, Steel Talons `steeltal` G, Densha de GO! `dendego` I, Desert Tank `desert` NW | a yoke, tread sticks, a periscope, a 360 degree capsule, a train's controller | the driving seat with a yoke, a stick or a lever |
+| a special control on an upright | Tempest `tempest` Tron `tron` Discs of Tron `dotrone` Kick `kick` G (spinner), Marble Madness `marble` G (+ about 130 trackball games), Paperboy `paperboy` 720 `720` G, Toobin' `toobin` G, Super Off-Road `offroad` Hot Rod `hotrod` Super Sprint `ssprint` G (3-8 wheels), Ms. Pac-Man `mspacman` cocktail | a spinner, handlebars, paddle buttons, several wheels, a table | a panel module each |
+| other | Panic Park `panicprk` NW (two levers in one slot), Lucky & Wild `luckywld` G (a driver and a gunner), Rail Chase `rchase` G (a moving cart), GunMania `gunmania` NW, Jambo! Safari `jambo`, Emergency Call Ambulance `eca` NW, Final Lap 3 `finalap3` I (twin seats), Police 24/7 `p911ed` NW (body-dodge sensors) | | seats with guns; the lever |
+
+Not working and for later: Angler King `aking`, Punch Mania `pnchmn`, Mocap Boxing `mocapb`, Arm Champs II `armchmp2`, Galaxian3 `gal3`, Driver's Eyes `driveyes`,
+Ridge Racer Full Scale `ridgeracf`, Hydro Thunder `hydrthnd`, the photo-sticker booths `pclub2` `npcartv1` (camera and printer not emulated).
+**By playable games per effort** (working parent sets in MAME 0.289): 1. control modules on the upright (154 spinner, 133 trackball, 58 paddle, 33 rotary games: only the
+panel changes); 2. more screens and panels and the cocktail table (107 multi-screen, 269 with 4+ players, about 950 parents with a cocktail switch); 3. cockpit, flight
+and tank on the driving seat (about 30); 4. striking (about 11, the most natural in VR); 5. rhythm (about 50 Bemani sets, each with its disk image and instrument);
+6. the hologram stage (Time Traveler, Holosseum: one floating-plane trick); 7. the body platforms (ski, board, boat, ride-on: the best fit, about 8 working); 8. fishing (3).
+Not verified: Silent Scope's scope screen, Lucky & Wild's guns (light or positional), Desert Tank's, Jet Wave's and Ski Champ's controls, Hang Pilot's second screen.
