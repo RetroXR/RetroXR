@@ -114,9 +114,11 @@ static var _sticker_materials := {}
 
 
 ## The body model for a ROM, or "" to keep the procedural box.
-static func body_model_for_rom(body_region: String, systemid: String, rom_path: String) -> String:
+## `pinned` is the cartridge's own fallback market (RegionalNames.cart_market_or).
+static func body_model_for_rom(body_region: String, systemid: String, rom_path: String,
+		pinned := "") -> String:
 	var released := date_digits(str(scraped_rom(systemid, rom_path).get("releasedate", "")))
-	return body_model(body_region, market(systemid, rom_path), released)
+	return body_model(body_region, market(systemid, rom_path, pinned), released)
 
 
 ## "us", "jp", "eu", "au", or "" — from the scraper's region for the ROM, else the
@@ -124,7 +126,16 @@ static func body_model_for_rom(body_region: String, systemid: String, rom_path: 
 ## the header: 12 of 3,057 retail No-Intro ROMs carry a wrong destination
 ## (Pinocchio and Flashback USA say Japan, An American Tail 0xFF, FIFA 98 Europe
 ## says USA), and none a wrong tag.
-static func market(systemid: String, rom_path: String) -> String:
+##
+## Nothing in the ROM saying, the cartridge's pinned market, else the player's own
+## (RegionalNames.cart_market_or).
+static func market(systemid: String, rom_path: String, pinned := "") -> String:
+	var found := rom_market(systemid, rom_path)
+	return found if not found.is_empty() else RegionalNames.cart_market_or(pinned)
+
+
+## The market the ROM itself names, or "" -- market() without the fallback.
+static func rom_market(systemid: String, rom_path: String) -> String:
 	var found := N64CartShell.market_of_region(str(scraped_rom(systemid, rom_path).get("region", "")))
 	if found.is_empty():
 		found = filename_market(rom_path)
@@ -179,9 +190,20 @@ static func body_model(body_region: String, market_name: String, released := "")
 ## The rear sticker a ROM's cartridge carried ("noe", "eur", ...), or "" for the
 ## body's own. Read as market() reads the market: the scraper's region, else the
 ## file name's region tag, else the header's destination byte.
-static func rear_sticker(systemid: String, rom_path: String) -> String:
-	return sticker_code(str(scraped_rom(systemid, rom_path).get("region", "")), rom_path.get_file(),
-		read_header(rom_path))
+##
+## A ROM naming no region at all gets the sticker of the market it fell back to,
+## or a European player's fallback Super Famicom shell had a Japanese back.
+static func rear_sticker(systemid: String, rom_path: String, pinned := "") -> String:
+	var code := sticker_code(str(scraped_rom(systemid, rom_path).get("region", "")),
+		rom_path.get_file(), read_header(rom_path))
+	if code.is_empty() and rom_market(systemid, rom_path).is_empty():
+		code = str(FALLBACK_STICKERS.get(RegionalNames.cart_market_or(pinned), ""))
+	return code
+
+
+## The sticker a fallback market's cartridge wears: Europe's own, and the UK one
+## Australia took (REGION_STICKERS reads it the same way).
+const FALLBACK_STICKERS := {"eu": "eur", "au": "ukv"}
 
 
 ## rear_sticker()'s rule on its three sources. The first one that names a region
@@ -224,10 +246,11 @@ static func filename_sticker(file_name: String) -> String:
 
 ## The art a cartridge in `body_model` wears on its back for this ROM, or "" when
 ## it keeps the model's own: only the Super Famicom body takes a PAL sticker.
-static func rear_sticker_file(body_model: String, systemid: String, rom_path: String) -> String:
+static func rear_sticker_file(body_model: String, systemid: String, rom_path: String,
+		pinned := "") -> String:
 	if body_model != BODY_SFC:
 		return ""
-	var code := rear_sticker(systemid, rom_path)
+	var code := rear_sticker(systemid, rom_path, pinned)
 	if code.is_empty():
 		return ""
 	var path := STICKER_FILE % code
@@ -266,8 +289,8 @@ static func _is_goodtools_code(tag: String) -> bool:
 	return true
 
 
-static func preset_for_rom(rom_path: String, systemid := SYSTEMID) -> StringName:
-	return preset_for_title(title_of(read_header(rom_path)), market(systemid, rom_path))
+static func preset_for_rom(rom_path: String, systemid := SYSTEMID, pinned := "") -> StringName:
+	return preset_for_title(title_of(read_header(rom_path)), market(systemid, rom_path, pinned))
 
 
 ## The shell a title shipped in, in `market_name`: grey unless TITLE_SHELLS lists

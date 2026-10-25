@@ -27,8 +27,8 @@ static var _gamelist_stamps := {}
 
 
 ## The shell a ROM spawns in: gold for a Zelda outside Japan, else grey.
-static func preset_for_rom(rom_path: String, systemid := SYSTEMID) -> StringName:
-	return preset_for_name(game_name(systemid, rom_path), market(systemid, rom_path))
+static func preset_for_rom(rom_path: String, systemid := SYSTEMID, pinned := "") -> StringName:
+	return preset_for_name(game_name(systemid, rom_path), market(systemid, rom_path, pinned))
 
 
 ## The shell a game of this name shipped in, in `market_name` ("" when unknown).
@@ -74,6 +74,13 @@ static func game_name(systemid: String, rom_path: String) -> String:
 
 
 ## "us", "jp", "eu", "au", or "" when neither the scraper nor the file name says.
-static func market(systemid: String, rom_path: String) -> String:
+## Nothing in the ROM saying, the cartridge's pinned market, else the player's.
+static func market(systemid: String, rom_path: String, pinned := "") -> String:
+	var found := rom_market(systemid, rom_path)
+	return found if not found.is_empty() else RegionalNames.cart_market_or(pinned)
+
+
+## The market the ROM itself names, or "" -- market() without the fallback.
+static func rom_market(systemid: String, rom_path: String) -> String:
 	var found := N64CartShell.market_of_region(str(SnesCartShell.scraped_rom(systemid, rom_path).get("region", "")))
 	return found if not found.is_empty() else SnesCartShell.filename_market(rom_path)

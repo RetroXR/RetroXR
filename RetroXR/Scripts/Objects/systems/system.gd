@@ -2340,7 +2340,8 @@ func power_on() -> void:
 		push_error("RetroSystem: Cannot power on - %s" % scd_busy)
 		var busy_toast := _machine_toast()
 		if busy_toast != null:
-			busy_toast.show_notice(_display_name(), "Sega CD in use", scd_busy,
+			busy_toast.show_notice(_display_name(),
+				"%s in use" % RegionalNames.addon_name("sega_cd", "Sega CD"), scd_busy,
 				Color(1.0, 0.72, 0.2))
 		return
 	# One Saturn with a Backup RAM Cartridge at a time, for the same reason.
@@ -3654,7 +3655,7 @@ func _notice_adapter_change(unit: RetroExpansion, seated: bool) -> void:
 	if not is_powered_on or ExpansionCatalog.ethernet_port_of(unit.expansion_id) < 0:
 		return
 	_machine_toast().show_notice(display_name_for_toast(),
-		"%s %s" % [ExpansionCatalog.label_of(unit.expansion_id), "in" if seated else "out"],
+		"%s %s" % [ExpansionCatalog.display_label_of(unit.expansion_id), "in" if seated else "out"],
 		"Switch the console off and on again for it to count.",
 		AchievementToast.ACCENT_WAITING)
 

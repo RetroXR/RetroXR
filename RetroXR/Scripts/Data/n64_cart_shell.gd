@@ -47,7 +47,14 @@ static var _gamelist_stamps := {}
 
 
 ## "us", "eu", "au", "jp", or "" when neither the scraper nor the header says.
-static func market(systemid: String, rom_path: String) -> String:
+## Nothing in the ROM saying, the cartridge's pinned market, else the player's.
+static func market(systemid: String, rom_path: String, pinned := "") -> String:
+	var found := rom_market(systemid, rom_path)
+	return found if not found.is_empty() else RegionalNames.cart_market_or(pinned)
+
+
+## The market the ROM itself names, or "" -- market() without the fallback.
+static func rom_market(systemid: String, rom_path: String) -> String:
 	var scraped := market_of_region(scraped_region(systemid, rom_path))
 	return scraped if not scraped.is_empty() else header_market(read_header(rom_path))
 

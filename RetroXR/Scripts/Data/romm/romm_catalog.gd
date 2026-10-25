@@ -539,6 +539,58 @@ func rom_id_at(i: int) -> int:
 	return _ids[i]
 
 
+## Search one synced platform straight from its sidecars on disk, without
+## load_index — which would swap out whichever platform the spawn menu has
+## loaded — so it is safe on a worker and for the global game search.
+## `needle` is already folded (SearchFold). Hits are {label, fs_base, rom_id,
+## regions, entry}, saves kept beside a game left out, capped at `limit`.
+static func search_dir(dir: String, needle: String, limit: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var names := PackedStringArray(
+		_read_file_text(dir.path_join("index.names")).split("\n", false))
+	var offsets := _read_offsets(dir)
+	var ids_b := _read_file_bytes(dir.path_join("index.ids"))
+	var ids := ids_b.to_int32_array() if not ids_b.is_empty() else PackedInt32Array()
+	var fs_bases := _read_lines(dir.path_join("index.fsnames"))
+	var exts := _read_lines(dir.path_join("index.exts"))
+	var regions := _read_lines(dir.path_join("index.regions"))
+	# The same consistency check load_index makes: a half-swapped index seeks into
+	# the middle of lines.
+	if names.is_empty() or names.size() != offsets.size() or ids.size() != offsets.size() \
+			or fs_bases.size() != offsets.size() or exts.size() != offsets.size():
+		return out
+
+	var folded := SearchFold.fold("\n".join(names)).split("\n")
+	if folded.size() != names.size():
+		return out
+	var hidden := compute_hidden_flags(fs_bases, exts)
+	var jsonl: FileAccess = null
+	for i in folded.size():
+		if hidden[i] == 1 or not folded[i].contains(needle):
+			continue
+		if jsonl == null:
+			jsonl = FileAccess.open(dir.path_join("index.jsonl"), FileAccess.READ)
+			if jsonl == null:
+				return out
+		jsonl.seek(offsets[i])
+		var parsed: Variant = JSON.parse_string(jsonl.get_line())
+		if not parsed is Dictionary:
+			continue
+		var rl := regions[i].split("", false) if i < regions.size() \
+			else PackedStringArray()
+		out.append({
+			"label": names[i], "fs_base": fs_bases[i], "rom_id": ids[i],
+			"regions": rl, "entry": parsed,
+		})
+		if out.size() >= limit:
+			break
+	return out
+
+
+static func _read_file_text(path: String) -> String:
+	return _read_file_bytes(path).get_string_from_utf8()
+
+
 ## Case- and accent-insensitive substring search over the cached names (see
 ## SearchFold) — no server round trip, works offline, and instant even at 100k
 ## rows. Returns row indices.

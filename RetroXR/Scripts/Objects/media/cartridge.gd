@@ -57,6 +57,11 @@ const PACK_PANEL_SCENE := preload("res://Scenes/UI/bsx_pack_panel.tscn")
 ## GbcCartShell.BODY_GB or BODY_GBC (the clear Game Boy Color-only shell), or
 ## GbCameraShell.BODY_CAMERA (the Game Boy Camera).
 @export var body_region: String = ""
+## The market this cartridge fell back to when its ROM names none (Super NES,
+## N64, NES): pinned the first time its body is chosen and saved with it, so a
+## region change never turns a saved cartridge into a different one. Empty for a
+## ROM that names its own market, which is never pinned.
+@export var fallback_market: String = ""
 
 ## _body_model()'s answer, and the systemid|rom_path|body_region|shell_preset it
 ## was for.
@@ -220,12 +225,38 @@ func get_card_size() -> Vector3:
 ## or shell changes: the size passes ask on every drop, and the Super NES and Game
 ## Boy answers read the ROM's header.
 func _body_model() -> String:
-	var key := "%s|%s|%s|%s" % [systemid, rom_path, body_region, shell_preset]
+	_pin_fallback_market()
+	var key := "%s|%s|%s|%s|%s" % [systemid, rom_path, body_region, shell_preset, fallback_market]
 	if key == _body_model_key:
 		return _body_model_path
 	_body_model_key = key
-	_body_model_path = body_model_for(systemid, rom_path, body_region, shell_preset)
+	_body_model_path = body_model_for(systemid, rom_path, body_region, shell_preset, fallback_market)
 	return _body_model_path
+
+
+## Pin the player's market on a cartridge whose ROM names none, once. A restored
+## cartridge arrives with its pin already set and keeps it.
+func _pin_fallback_market() -> void:
+	if not fallback_market.is_empty() or rom_path.is_empty():
+		return
+	if not uses_fallback_market(systemid, rom_path):
+		return
+	fallback_market = RegionalNames.cart_market()
+	if not fallback_market.is_empty():
+		print("[Cartridge] %s names no region; pinned market '%s'" % [rom_path.get_file(), fallback_market])
+
+
+## Whether a cartridge of this ROM takes its market from the player rather than
+## from the ROM: only the shells that pick a body or colour by market ask.
+static func uses_fallback_market(p_systemid: String, p_rom_path: String) -> bool:
+	match p_systemid:
+		"n64":
+			return N64CartShell.rom_market(p_systemid, p_rom_path).is_empty()
+		SnesCartShell.SYSTEMID:
+			return SnesCartShell.rom_market(p_systemid, p_rom_path).is_empty()
+		NesCartShell.SYSTEMID:
+			return NesCartShell.rom_market(p_systemid, p_rom_path).is_empty()
+	return false
 
 
 ## The body GLB a cartridge with these properties wears, "" for the procedural
@@ -234,7 +265,7 @@ func _body_model() -> String:
 ## _ready, which costs nothing once it is cached and was a 625 ms frozen frame on
 ## a Quest (an N64 cart in a room restore) when it was not.
 static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region: String,
-		p_shell_preset: StringName) -> String:
+		p_shell_preset: StringName, p_fallback_market := "") -> String:
 	# A mod's shells for this system stand in for the game's own, all of them. The
 	# camera stays a camera: its ROM, or one of its colors, asks for the mod's camera
 	# body, or the game's if the mod has none.
@@ -244,9 +275,11 @@ static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region
 			return camera_body_for(p_systemid)
 		return ModCartShells.model_for(p_systemid, p_rom_path, p_body_region)
 	if p_systemid == "n64":
-		return N64CartShell.body_model_for_region(p_body_region, N64CartShell.market(p_systemid, p_rom_path))
+		return N64CartShell.body_model_for_region(p_body_region,
+			N64CartShell.market(p_systemid, p_rom_path, p_fallback_market))
 	if p_systemid == SnesCartShell.SYSTEMID:
-		return SnesCartShell.body_model_for_rom(p_body_region, p_systemid, p_rom_path)
+		return SnesCartShell.body_model_for_rom(p_body_region, p_systemid, p_rom_path,
+			p_fallback_market)
 	if GbCartShell.is_shell(p_systemid):
 		return GbcCartShell.body_model_for_rom(p_body_region, p_shell_preset, p_rom_path)
 	return _CART_MODELS.get(p_systemid, "")
@@ -268,8 +301,8 @@ func _cart_size() -> Vector3:
 func _apply_cart_model() -> void:
 	if _model_label != null or has_node("CartModel"):
 		return
-	var market := N64CartShell.market(systemid, rom_path) if systemid == "n64" else ""
 	var path := _body_model()
+	var market := N64CartShell.market(systemid, rom_path, fallback_market) if systemid == "n64" else ""
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var scene := load(path) as PackedScene
@@ -318,11 +351,14 @@ func _apply_cart_model() -> void:
 	elif systemid == GbaCartShell.SYSTEMID:
 		_paint_shell(glb, GbaCartShell.SYSTEMID, GbaCartShell.preset_for_rom(rom_path))
 	elif systemid == SnesCartShell.SYSTEMID:
-		_paint_shell(glb, SnesCartShell.SYSTEMID, SnesCartShell.preset_for_rom(rom_path))
+		_paint_shell(glb, SnesCartShell.SYSTEMID,
+			SnesCartShell.preset_for_rom(rom_path, SnesCartShell.SYSTEMID, fallback_market))
 		# A PAL cartridge is the Super Famicom shell with its market's warning sticker.
-		SnesCartShell.apply_rear_sticker(glb, SnesCartShell.rear_sticker_file(path, systemid, rom_path))
+		SnesCartShell.apply_rear_sticker(glb,
+			SnesCartShell.rear_sticker_file(path, systemid, rom_path, fallback_market))
 	elif systemid == NesCartShell.SYSTEMID:
-		_paint_shell(glb, NesCartShell.SYSTEMID, NesCartShell.preset_for_rom(rom_path))
+		_paint_shell(glb, NesCartShell.SYSTEMID,
+			NesCartShell.preset_for_rom(rom_path, NesCartShell.SYSTEMID, fallback_market))
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:

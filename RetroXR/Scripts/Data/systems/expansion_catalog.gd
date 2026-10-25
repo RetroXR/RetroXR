@@ -475,8 +475,16 @@ static func has(id: String) -> bool:
 	return ROWS.has(id)
 
 
+## The unit's FIXED name. A unit's memory card id is minted from it and persisted
+## (RetroExpansion), so it must not move with the player's region: anything shown
+## to the player goes through display_label_of() instead.
 static func label_of(id: String) -> String:
 	return str(row(id).get("label", id))
+
+
+## The unit's name as the player's region calls it ("Mega-CD" in Europe).
+static func display_label_of(id: String) -> String:
+	return RegionalNames.addon_name(id, label_of(id))
 
 
 static func host_of(id: String) -> String:
@@ -1072,5 +1080,5 @@ static func _sorted_ids_excluding_defaults(ids: Array) -> Array[String]:
 static func stack_label(host_label: String, ids: Array) -> String:
 	var parts := PackedStringArray([host_label])
 	for id in _sorted_ids_excluding_defaults(ids):
-		parts.append(label_of(id))
+		parts.append(display_label_of(id))
 	return " + ".join(parts)

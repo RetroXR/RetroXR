@@ -305,7 +305,9 @@ func _on_hide_pressed() -> void:
 func _sync_hide_button() -> void:
 	if _hide_btn == null:
 		return
-	_hide_btn.visible = allow_hiding and not _current_systemid.is_empty()
+	# A pseudo-page (the global search, "__" prefix) is no system to hide.
+	_hide_btn.visible = allow_hiding and not _current_systemid.is_empty() \
+		and not _current_systemid.begins_with("__")
 	_hide_btn.text = "Unhide" if AppPrefs.is_system_hidden(_current_systemid) else "Hide"
 
 
@@ -622,6 +624,8 @@ func _make_tile(s: Dictionary) -> Button:
 	# rather than leaving every one at its minimum with the slack on the right.
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.set_meta("filter_name", display_name.to_lower())
+	# Folder names and RomM slugs the host says this system also answers to.
+	btn.set_meta("filter_aliases", PackedStringArray(s.get("aliases", PackedStringArray())))
 
 	# A hidden tile only appears at all while the Hidden toggle is on, so it is
 	# dimmed to say why it is here — otherwise turning the toggle on just makes
@@ -857,4 +861,5 @@ func _on_filter_changed(text: String) -> void:
 	for tile: Node in _tiles_grid.get_children():
 		if tile is Button:
 			var hay: String = tile.get_meta("filter_name", "")
-			tile.visible = needle.is_empty() or hay.contains(needle)
+			var aliases: PackedStringArray = tile.get_meta("filter_aliases", PackedStringArray())
+			tile.visible = GameSearch.system_matches(needle, hay, aliases)

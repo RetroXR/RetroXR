@@ -85,6 +85,8 @@ var _romm_sync_queue: Array[Dictionary] = []
 
 var _tabs: TabContainer = null
 var _pages: Array[ScrollContainer] = []
+## The Console Names dropdown, reselected when the outlet region moves an unpicked one.
+var _region_names_drop: VRDropdown = null
 
 # Kept so a pairing (typed or scanned) can show its result in the fields the
 # player is looking at, rather than waiting for the view to be rebuilt.
@@ -166,7 +168,9 @@ func _build() -> void:
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 
 	_build_general_options(_page("General"))
-	_build_system_filter_options(_page("Systems"))
+	var systems_page := _page("Systems")
+	_build_region_names_option(systems_page)
+	_build_system_filter_options(systems_page)
 	_build_storage_options(_page("Storage"))
 	if OS.get_name() == "Android":
 		_build_file_server_options(_page("File Server"))
@@ -1407,6 +1411,54 @@ func _on_cleanup_removed(res: Dictionary) -> void:
 			_cleanup_selected[kind] = true
 	_rebuild_cleanup_panel()
 	_refresh_storage_usage()
+
+
+## Which region's console names the tiles wear. Folders and search are not
+## affected: every regional folder name still merges into its tile, and every
+## regional name still finds it.
+func _build_region_names_option(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+	var drop := VRDropdown.create("Console Names", _region_names_items(),
+		_region_names_shown(), 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
+	drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.set_region_names(str(id)))
+	# Not picked yet, the dropdown shows the outlet region's answer, so it moves
+	# with the Outlet Region dropdown until the player picks here. A method rather
+	# than a lambda: the autoload outlives this view, and a method connection goes
+	# away when the view does.
+	_region_names_drop = drop
+	AppPrefs.mains_region_changed.connect(_on_mains_for_region_names)
+	vbox.add_child(drop)
+	vbox.add_child(MenuStyle.label(
+		"Genesis or Mega Drive, TurboGrafx-16 or PC Engine. Also the cartridge a game with no known region gets. Starts from your outlet region.",
+		16, MenuStyle.COLOR_LICENSE))
+
+
+## The dropdown's rows, each with its flag; Original has no region to fly.
+##
+## REGIONS rows are [id, label] and a VRDropdown row is [label, id]. Passed
+## through unswapped, the list read "us" / "eu" / "jp" and a pick sent "USA",
+## which set_region_names refuses -- the dropdown did nothing at all.
+func _region_names_items() -> Array:
+	var items: Array = []
+	for r: Array in RegionalNames.REGIONS:
+		var id: String = r[0]
+		var label: String = r[1]
+		if RegionalNames.LABELS.has(id):
+			label = "%s  %s" % [MenuIcons.region_flag(id), label]
+		items.append([label, id])
+	return items
+
+
+## The row the dropdown shows selected: the pick, else the outlet region's.
+func _region_names_shown() -> String:
+	var pick := AppPrefs.region_names
+	return pick if not pick.is_empty() else RegionalNames.outlet_region()
+
+
+func _on_mains_for_region_names(_region: String) -> void:
+	if _region_names_drop != null and is_instance_valid(_region_names_drop):
+		_region_names_drop.select_id(_region_names_shown())
 
 
 func _build_system_filter_options(vbox: VBoxContainer) -> void:

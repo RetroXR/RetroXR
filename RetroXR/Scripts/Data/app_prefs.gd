@@ -13,6 +13,8 @@ extends Node
 ## The mains region moved (set_mains_region). The room's plates and strips follow
 ## it through SpawnMenuController; a mod listens with ModApi.on_mains_region_changed.
 signal mains_region_changed(region: String)
+## The console-name region moved (set_region_names): tiles and titles rename.
+signal region_names_changed(region: String)
 
 const PREFS_PATH := "user://app_prefs.json"
 
@@ -49,6 +51,11 @@ var controller_hands: bool = false
 ## installed mod knows is kept as is, so a region a mod brings survives a launch
 ## without that mod, and MainsRegions.resolve falls back to the default meanwhile.
 var mains_region: String = ""
+## Which region's console names tiles wear, and the cartridge a ROM of no known
+## region gets (RegionalNames): "" not picked yet (the outlet region's, followed
+## if it moves), "us" / "eu" / "jp", or "original" for the cores' own names
+## (cartridges then still follow the outlet region).
+var region_names: String = ""
 var system_filter:    bool = true
 ## Whether the player may move the core options that make a machine show its own
 ## boot screen. Off means BiosBoot's measured values are pinned every launch and
@@ -195,6 +202,16 @@ func set_system_hidden(systemid: String, hidden: bool) -> void:
 	save_prefs()
 
 
+## Change the console-name region, save it, and say so.
+func set_region_names(region: String) -> void:
+	if region == region_names or not RegionalNames.is_region(region):
+		return
+	region_names = region
+	save_prefs()
+	print("[Prefs] console names -> '%s'" % region)
+	region_names_changed.emit(region)
+
+
 ## Change the mains region, save it, and say so.
 func set_mains_region(id: String) -> void:
 	if id == mains_region:
@@ -332,6 +349,9 @@ func _load_prefs() -> void:
 		if SystemIds.canonical(hidden) not in hidden_systems:
 			hidden_systems.append(SystemIds.canonical(hidden))
 	show_hidden_systems = JsonStore.get_bool(data, "show_hidden_systems", show_hidden_systems)
+	region_names        = JsonStore.get_string(data, "region_names", region_names)
+	if not RegionalNames.is_region(region_names):
+		region_names = ""
 	compact_tiles       = JsonStore.get_bool(data, "compact_tiles",       compact_tiles)
 	mods_auto_install   = JsonStore.get_bool(data, "mods_auto_install",   mods_auto_install)
 	bedroom_time_of_day = clampf(JsonStore.get_float(data, "bedroom_time_of_day",
@@ -369,6 +389,7 @@ func save_prefs() -> bool:
 		"focus_passthrough": focus_passthrough,
 		"hidden_systems":    hidden_systems,
 		"show_hidden_systems": show_hidden_systems,
+		"region_names":      region_names,
 		"compact_tiles":     compact_tiles,
 		"mods_auto_install": mods_auto_install,
 		"bedroom_time_of_day": bedroom_time_of_day,

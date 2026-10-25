@@ -524,3 +524,15 @@ sv.get_texture().get_image().save_png("res://shot.png")
 Run `DISPLAY=:0 "$godot" --path "$proj" res://shot.tscn` (import first with `--headless … --import`).
 Then **surface the PNG inline via the Read tool** — the user sees it through the Claude app (the
 terminal itself doesn't paint it). Don't save renders to a folder; delete the probe + PNG when done.
+
+## game_search_tests — Games-tab search beyond one system
+
+`GameSearch` (`Scripts/Data/game_search.gd`): system aliases (systemid, `SystemIds.folder_names`,
+every `RommPlatforms.SLUG_MAP` slug mapped to it, the server platform's `slug`/`fs_slug`) so
+"gba" finds Game Boy Advance, and `search_all`, the worker-safe cross-system search (local
+folders + synced RomM index sidecars via `RommCatalog.search_dir`, which never touches the
+loaded index). The suite writes a real index in the sync's sidecar layout. The results page is
+the browser pseudo-system `GameSearch.PAGE_ID` (`__` prefix = never hideable); the server's own
+search (`RommClient.search_roms`) covers platforms never synced. Packed arrays are VALUES: an
+`(x as PackedStringArray).append()` on a dictionary entry is lost (the suite caught this).
+The page's look, a real RomM query and a headset are OWED (headless cannot show them).

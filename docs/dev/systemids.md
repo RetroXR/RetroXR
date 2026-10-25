@@ -65,3 +65,64 @@ preset without it ships an empty `CoreInfoDatabase`, and then a platform is invi
 omission rather than by name — every installed core lands in the `"unknown"` bucket and no
 default is ever adopted. Check the preset before suspecting the table above; `building.md`
 has the failure's exact shape.
+
+## Regional names — one tile, three names (`RegionalNames`)
+
+The Genesis is the Mega Drive outside North America, the TurboGrafx-16 the PC Engine, the
+SNES the Super Famicom in Japan. `SystemIds.FOLDER_ALIASES` already merges the regional
+FOLDERS into one tile (`megadrive/` is read as `genesis`); `Scripts/Data/systems/regional_names.gd`
+only picks the NAME the tile wears, from Options > Systems > Console Names.
+
+- **The pick** (`AppPrefs.region_names`): `us` / `eu` / `jp` (USA first in the list), or
+  `original` (the cores' own `.info` names, which are inconsistent: the TurboGrafx-16 tile
+  reads "PC Engine"). Stored `""` means NOT PICKED YET: the region is then the OUTLET
+  region's (`RegionalNames.outlet_region()`, from `mains_region`, itself seeded from the
+  locale) and follows it if it moves -- North America and China are USA, Japan is Japan,
+  every other outlet Europe, Brazil included (Tectoy sold the Mega Drive and Master System
+  under those names). There is no "Auto" row: the dropdown just shows the
+  outlet's region selected until the player picks one, and a pick then sticks.
+- **Names** go through `CoreInfoDatabase.get_systemname_for_id`, so every grid, title and an
+  in-room machine's label follow; a region a row omits falls back to its US name, and a
+  system not in `NAMES` keeps its own.
+- **Search**: every regional name and `EXTRA_ALIASES` spelling finds its tile in EVERY region
+  (`GameSearch.system_aliases`), so with "Mega Drive" showing, "genesis" still finds it.
+- **Cartridges**: a ROM's own market always wins (scraped region, file tag, header). Only an
+  unknown one asks `RegionalNames.cart_market()` -- SNES, N64 and NES shells. That follows
+  the picked region, else the outlet's, **and the outlet's for Original too**: Original is about labels. The
+  first build tied it to the names answer, so Original quietly put every unknown SNES ROM
+  back in the procedural box. `cart_market_for` / `names_region_for` are the pure halves.
+  Brazil reads Europe's NAMES but North America's CARTRIDGES (`cart_market_for` "br" -> "us").
+- **A cartridge PINS its fallback** (`RetroCartridge.fallback_market`, saved as
+  `fallback_market` only when the ROM names no region): set the first time its body is
+  chosen, then passed to every shell call as `pinned`. Without it a saved unknown-region
+  SNES cart came back a different body -- a different SIZE -- after a region change, since
+  `body_region` is saved only when the player forced one. `rom_market()` on each shell is the
+  market without the fallback; `uses_fallback_market()` says whether a ROM needs a pin.
+- **A fallback Super Famicom shell wears its market's PAL sticker**: `eur` for Europe, `ukv`
+  for Australia (`SnesCartShell.FALLBACK_STICKERS`), never for a ROM that names its own
+  region. It had a Japanese back before.
+- **Mod objects with regional variants** (Saturn, 32X, SFC, Super Game Boy, SNES pad, GunCon
+  1/2, N64 paks, GC and PS2 network adapters) spawn the PLAYER'S region's variant when the
+  row has no default of the player's own (`SpawnMenuSpawnView._row_default` ->
+  `RegionalNames.variant_for_region`). Mods spell regions their own way, so a variant is read
+  by its id's first word (`us`/`usa`/`us_gray`, `eu`/`eur`/`pal`/`ukv`/`noe`/`fr`/`de`,
+  `jp`/`jpn`/`jp_black`: `VARIANT_REGIONS`), or by a `"region"` key a mod may give it. The
+  answer is a concrete variant and is what the object saves, so a region change never
+  re-dresses a saved pad. **MAKE DEFAULT on the FIRST variant now stores its id**
+  (`_kept_default`): stored as `""` it read as "never chosen", and the region beat the pick.
+- **Add-on names are display-only** (`RegionalNames.ADDON_NAMES`, `display_label_of`):
+  "Mega-CD" / "Super 32X" on nameplates, spawn rows, toasts and the Sega CD card's name.
+  `ExpansionCatalog.label_of` stays FIXED, because `RetroExpansion` mints a unit's memory
+  `card_id` from it and that id is a persisted save folder.
+- **A suite resolves to `""`** (no renames, no fallback) unless it sets
+  `RegionalNames.test_region`, or names and cartridges would follow the CI machine's locale.
+- **Dropdown rows are `[label, id]`; `REGIONS` rows are `[id, label]`.** Passed through
+  unswapped, the list read `us`/`eu`/`jp` and every pick was refused -- the dropdown did
+  nothing. `game_search_tests rows/` builds the real list and checks each id.
+- **Netplay**: the fallback is each peer's own, so an unknown-region SNES ROM can be an SFC
+  body on one peer and a Type A on the other (different sizes). Cosmetic; not on the wire.
+- The base game ships no regional CONSOLE or controller models (`imported-assets/consoles`
+  has none); the regional ones are the mods' variants above.
+- **Not yet**: a machine already in the room keeps its nameplate until respawned
+  (`system.gd` reads the name at spawn); the scraper's `region_priorities` stays US-first
+  whatever the region; and mods cannot add regional names (`NAMES` has no overlay).

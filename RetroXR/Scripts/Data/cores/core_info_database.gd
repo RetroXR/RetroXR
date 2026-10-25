@@ -218,6 +218,10 @@ const SYSTEM_LABELS := {
 ## entry indexed under it belongs to the parent machine, so Game Gear would
 ## otherwise be labelled "Sega 8/16-bit (Various)".
 func get_systemname_for_id(systemid: String) -> String:
+	return RegionalNames.name_for(systemid, RegionalNames.effective_region(), _base_systemname(systemid))
+
+
+func _base_systemname(systemid: String) -> String:
 	if SYSTEM_LABELS.has(systemid):
 		return SYSTEM_LABELS[systemid]
 	if is_secondary_systemid(systemid):

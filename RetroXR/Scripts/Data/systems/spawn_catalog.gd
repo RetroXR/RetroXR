@@ -486,7 +486,7 @@ static func _items_for(systemid: String) -> Array:
 		# card, and it was offered without its shell.
 		if ExpansionCatalog.firmware_present(systemid):
 			own.append({"kind": "peripheral",
-				"label": ExpansionCatalog.label_of(systemid),
+				"label": ExpansionCatalog.display_label_of(systemid),
 				"spawn": "expansion:%s" % systemid})
 		own.append_array(_units_carded_here(systemid))
 		return own
@@ -785,7 +785,7 @@ static func _units_carded_here(systemid: String) -> Array:
 	for id: String in ExpansionCatalog.ids_carded_on(systemid):
 		if not ExpansionCatalog.firmware_present(id):
 			continue
-		out.append({"kind": "peripheral", "label": ExpansionCatalog.label_of(id),
+		out.append({"kind": "peripheral", "label": ExpansionCatalog.display_label_of(id),
 			"spawn": "expansion:%s" % id})
 	return out
 

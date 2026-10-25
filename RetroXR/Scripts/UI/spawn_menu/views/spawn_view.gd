@@ -143,6 +143,21 @@ var _media_delete_armed_btn: Button = null
 var _media_delete_serial: int = 0
 ## Typing is bursty; one rebuild after the keys stop instead of one per key.
 var _romm_search_timer: Timer = null
+## Global game search (GameSearch): the query, the systems it covers, the worker
+## running it and the page it fills. Results are re-checked against `_gs_query`
+## when they land, so a slow search for an old query never overwrites a new one.
+var _gs_query: String = ""
+var _gs_systems: Array[Dictionary] = []
+var _gs_task: int = -1
+var _gs_dirty: bool = false
+var _gs_timer: Timer = null
+var _gs_local: Dictionary = {}
+var _gs_server_rows: Array[Dictionary] = []
+var _gs_server_term: String = ""
+var _gs_searching: bool = false
+var _gs_home_edit: LineEdit = null
+var _gs_status: Label = null
+var _gs_list: VBoxContainer = null
 ## Poster thumbnails, memoized with misses — most entries have no thumbnail.
 var _poster_thumb_cache: Dictionary = {}
 var _poster_thumb_order: Array[String] = []
@@ -408,6 +423,7 @@ func _build() -> void:
 		_update_cartridges_inner_scroll()
 	)
 	tabs.add_child(_cartridges_browser)
+	_build_global_search_bar()
 	# Its own browser owns the scroll, so this slot stays empty — see
 	# _update_spawn_active_scroll.
 	_spawn_tab_scrolls.append(null)
@@ -836,14 +852,27 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 
 
 ## What a plain press of a row with colors spawns: the color its held panel made
-## the default, while the row still lists it; otherwise the row as it comes. The
-## first color listed IS as it comes, so it reads as "".
+## the default, while the row still lists it; otherwise the variant sold in the
+## player's region (a Japanese player's Saturn, 32X or pad is the Japanese one);
+## otherwise the row as it comes. The first color listed IS as it comes, so it
+## reads as "". The answer is a concrete variant, and that is what the spawned
+## object saves, so a region change later never re-dresses it.
 static func _row_default(row_token: String, variants: Array) -> String:
 	var id := AppPrefs.spawn_default(row_token)
-	for i in variants.size():
-		if str((variants[i] as Dictionary).get("id", "")) == id:
-			return "" if i == 0 else id
-	return ""
+	if not id.is_empty():
+		for i in variants.size():
+			if str((variants[i] as Dictionary).get("id", "")) == id:
+				return "" if i == 0 else id
+	return RegionalNames.variant_for_region(variants)
+
+
+## What MAKE DEFAULT stores for the variant a spawn asks for (`""` for the first,
+## the row as it comes): the first is kept by its id, not as "" -- erased, it read
+## as "never chosen", and the player's region then won over their own pick.
+static func _kept_default(variant: String, variants: Array) -> String:
+	if variant.is_empty() and not variants.is_empty():
+		return str((variants[0] as Dictionary).get("id", ""))
+	return variant
 
 
 ## Where a row's default is kept: by card and row, since rows on different cards
@@ -1029,6 +1058,14 @@ func _populate_cartridges_tab(rerun_detail: bool = true) -> void:
 	_mark_systems_without_a_core(systems, by_system)
 	_mark_netplay_systems(systems, by_system)
 
+	# Each tile also answers to its folder names and RomM slugs ("gba"), and the
+	# global search covers the same list.
+	_gs_systems.clear()
+	for s: Dictionary in systems:
+		var sid: String = s["systemid"]
+		s["aliases"] = GameSearch.system_aliases(sid, _romm_platforms.get(sid, {}))
+		_gs_systems.append({"systemid": sid, "name": str(s["name"])})
+
 	_cartridges_browser.set_systems(systems)
 	# If a system detail is open, re-run it so newly-added ROMs appear. Detail
 	# only: set_systems has just rebuilt the tiles, and refresh() would build all
@@ -1173,6 +1210,9 @@ func romm_fetch_platforms() -> void:
 ## The rows go into a VirtualRowList, so a 100k-entry platform costs the same as
 ## a 12-entry one.
 func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
+	if systemid == GameSearch.PAGE_ID:
+		_populate_global_search(vbox)
+		return
 	RomLibrary.ensure_rom_dir(systemid)
 	# A rebuild of the page you are already on is not a fresh open: clearing the
 	# search here is what threw you back to row one of the whole library after
@@ -1325,6 +1365,270 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 		EReaderCards.warm_async("", _on_ereader_cards_warm.bind(systemid))
 
 	_rebuild_romm_rows()
+
+
+# ── Global game search ───────────────────────────────────────────────────────
+# One query across every system: local ROM folders and synced RomM indexes on a
+# worker (GameSearch.search_all), plus the server's own search for platforms this
+# device never synced. The results are a short plain list, not the system page's
+# VirtualRowList — they are capped, and a row here only launches or downloads.
+
+## The search box on the Games home page. Searching on Enter or the button, not
+## per key: the results are a page of their own, and swapping pages under a
+## focused field would drop the keyboard mid-word.
+func _build_global_search_bar() -> void:
+	var bar := _cartridges_browser.home_toolbar()
+	bar.add_theme_constant_override("separation", 8)
+	_gs_home_edit = LineEdit.new()
+	_gs_home_edit.placeholder_text = "Search games in every system…"
+	_gs_home_edit.clear_button_enabled = true
+	_gs_home_edit.custom_minimum_size = Vector2(0, 52)
+	_gs_home_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_gs_home_edit.add_theme_font_size_override("font_size", 20)
+	_gs_home_edit.text_submitted.connect(_open_global_search)
+	bar.add_child(_gs_home_edit)
+	var go := Button.new()
+	go.text = "Search"
+	go.add_theme_font_size_override("font_size", 20)
+	go.custom_minimum_size = Vector2(120, 52)
+	go.pressed.connect(func() -> void: _open_global_search(_gs_home_edit.text))
+	bar.add_child(go)
+
+
+func _open_global_search(query: String) -> void:
+	_gs_query = query.strip_edges()
+	_gs_local = {}
+	_gs_server_rows.clear()
+	_gs_server_term = ""
+	print("[GameSearch] opened with query '%s' over %d systems" % [_gs_query, _gs_systems.size()])
+	_cartridges_browser.open_system(GameSearch.PAGE_ID)
+	_run_global_search()
+
+
+func _populate_global_search(vbox: VBoxContainer) -> void:
+	_romm_list = null
+	var toolbar := _cartridges_browser.detail_toolbar()
+	toolbar.visible = true
+	var search := LineEdit.new()
+	search.placeholder_text = "Search games in every system…"
+	search.clear_button_enabled = true
+	search.custom_minimum_size = Vector2(0, 52)
+	search.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	search.add_theme_font_size_override("font_size", 20)
+	search.text = _gs_query
+	search.text_changed.connect(_on_global_search_changed)
+	toolbar.add_child(search)
+
+	_gs_status = Label.new()
+	_gs_status.add_theme_font_size_override("font_size", 18)
+	_gs_status.add_theme_color_override("font_color", MenuStyle.COLOR_DESC)
+	_gs_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vbox.add_child(_gs_status)
+	_gs_list = VBoxContainer.new()
+	_gs_list.add_theme_constant_override("separation", 6)
+	_gs_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_child(_gs_list)
+
+	_cartridges_browser.push_subpage("Search all games",
+		func() -> void: _cartridges_browser.show_home())
+	_render_global_results()
+
+
+func _on_global_search_changed(text: String) -> void:
+	_gs_query = text.strip_edges()
+	if _gs_timer == null:
+		_gs_timer = Timer.new()
+		_gs_timer.one_shot = true
+		_gs_timer.timeout.connect(_run_global_search)
+		add_child(_gs_timer)
+	_gs_timer.start(SEARCH_DEBOUNCE_SEC)
+
+
+func _run_global_search() -> void:
+	var term := _gs_query
+	if SearchFold.fold(term).length() < GameSearch.MIN_QUERY:
+		_gs_local = {}
+		_gs_server_rows.clear()
+		_gs_searching = false
+		_render_global_results()
+		return
+	_gs_searching = true
+	_render_global_results()
+	_global_search_local(term)
+	_global_search_server(term)
+
+
+## The folders and indexes are resolved HERE, on the main thread: RomLibrary's
+## folder cache and the core database are not the worker's to touch.
+func _global_search_local(term: String) -> void:
+	if _gs_task >= 0:
+		_gs_dirty = true
+		return
+	var jobs: Array = []
+	for sys: Dictionary in _gs_systems:
+		var sid: String = sys["systemid"]
+		var exts: Array[String] = [] if sid == EReaderCards.SYSTEMID \
+			else CoreInfoDatabase.extensions_for_systemid(sid)
+		var info := SystemInfo.for_system(sid)
+		jobs.append({
+			"systemid": sid,
+			"name": sys["name"],
+			"index_dir": RommCatalog.index_dir(sid) if RommCatalog.has_index(sid) else "",
+			"local_dirs": RomLibrary.rom_dirs_for_system(sid),
+			"exts": exts,
+			"folders": info != null and info.folder_content,
+			"cached": romm_cache.cached_paths_for_system(sid) if romm_cache != null else {},
+		})
+	_gs_task = WorkerThreadPool.add_task(func() -> void:
+		var found := GameSearch.search_all(jobs, term)
+		_on_global_search_local_done.call_deferred(term, found)
+	, false, "Global game search")
+
+
+func _on_global_search_local_done(term: String, found: Dictionary) -> void:
+	_finish_global_search()
+	if _gs_dirty:
+		_gs_dirty = false
+		_global_search_local(_gs_query)
+		return
+	if term != _gs_query:
+		return
+	_gs_local = found
+	_gs_searching = false
+	print("[GameSearch] '%s': %d local/index rows%s" % [term,
+		(found["rows"] as Array).size(), " (truncated)" if found["truncated"] else ""])
+	_render_global_results()
+
+
+## RomM's own search, for platforms this device never synced. Only when RomM is
+## set up; a failure just leaves the local half on its own.
+func _global_search_server(term: String) -> void:
+	if romm_config == null or not romm_config.is_configured() or romm_client == null:
+		return
+	romm_client.search_roms(term, GameSearch.RESULT_LIMIT, func(ok: bool, rows: Array) -> void:
+		if not is_instance_valid(self) or term != _gs_query:
+			return
+		if not ok:
+			print("[GameSearch] RomM search for '%s' failed; local results only" % term)
+			return
+		_gs_server_term = term
+		_gs_server_rows.assign(rows)
+		print("[GameSearch] RomM answered '%s' with %d rows" % [term, rows.size()])
+		_render_global_results()
+	)
+
+
+func _finish_global_search() -> void:
+	if _gs_task >= 0:
+		WorkerThreadPool.wait_for_task_completion(_gs_task)
+		_gs_task = -1
+
+
+## The worker's rows plus whatever the server found that they do not already
+## hold, as one list. A server row is matched to its system through the platform
+## id the sync recorded; one on a platform with no systemid here is dropped.
+func _global_result_rows() -> Array[Dictionary]:
+	var rows: Array[Dictionary] = []
+	var have: Dictionary = {}
+	for r: Dictionary in (_gs_local.get("rows", []) as Array):
+		rows.append(r)
+		if int(r["rom_id"]) > 0:
+			have[int(r["rom_id"])] = true
+	if _gs_server_term == _gs_query:
+		var by_platform: Dictionary = {}
+		for sid: String in _romm_platforms:
+			by_platform[int((_romm_platforms[sid] as Dictionary).get("id", 0))] = sid
+		for e: Dictionary in _gs_server_rows:
+			var rid := int(e.get("id", 0))
+			var sid := str(by_platform.get(int(e.get("platform_id", 0)), ""))
+			if rid == 0 or sid.is_empty() or have.has(rid) \
+					or RommCatalog._is_save_ext(str(e.get("fs_extension", "")).to_lower()):
+				continue
+			have[rid] = true
+			var path := ""
+			if romm_cache != null:
+				path = str(romm_cache.cached_paths_for_system(sid).get(rid, ""))
+			rows.append({
+				"systemid": sid, "system_name": _system_label(sid),
+				"label": str(e.get("name", "")), "path": path,
+				"source": "both" if not path.is_empty() else "server",
+				"rom_id": rid, "entry": e, "regions": PackedStringArray(),
+			})
+		GameSearch.sort_rows(rows, _gs_query)
+	return rows
+
+
+func _render_global_results() -> void:
+	if _gs_list == null or not is_instance_valid(_gs_list):
+		return
+	for c in _gs_list.get_children():
+		c.queue_free()
+	if SearchFold.fold(_gs_query).length() < GameSearch.MIN_QUERY:
+		_gs_status.text = "Type at least %d letters to search every system." % GameSearch.MIN_QUERY
+		return
+	var rows := _global_result_rows()
+	var shown := mini(rows.size(), GameSearch.RESULT_LIMIT)
+	if rows.is_empty():
+		_gs_status.text = "Searching…" if _gs_searching \
+			else "No games match \"%s\"." % _gs_query
+		return
+	_gs_status.text = ("%d games" % shown) if rows.size() <= GameSearch.RESULT_LIMIT \
+		and not bool(_gs_local.get("truncated", false)) \
+		else "First %d games — narrow the search to see more." % shown
+	for i in shown:
+		_gs_list.add_child(_make_global_row(rows[i]))
+
+
+func _make_global_row(r: Dictionary) -> Control:
+	var sid: String = r["systemid"]
+	var path: String = r["path"]
+	var label: String = r["label"]
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+
+	var main := Button.new()
+	main.text = "  " + label
+	main.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	main.clip_text = true
+	main.custom_minimum_size = Vector2(0, 68)
+	main.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	main.add_theme_font_size_override("font_size", 20)
+	if not path.is_empty():
+		main.tooltip_text = "Spawn this game"
+		main.pressed.connect(func() -> void:
+			if romm_cache != null:
+				romm_cache.touch(sid, RommCacheManifest.relative_path(sid, path))
+			spawn_cartridge_requested.emit(path, label, sid, {}))
+	elif romm_client != null and romm_client.is_reachable():
+		main.tooltip_text = "Download from RomM (%s)" % MenuStyle.human_bytes(
+			int((r["entry"] as Dictionary).get("fs_size_bytes", 0)))
+		main.pressed.connect(func() -> void:
+			romm_downloader.enqueue(r["entry"], sid)
+			show_notice("Downloading %s" % label))
+	else:
+		main.disabled = true
+		main.tooltip_text = "RomM is unreachable — this title is on the server only"
+	row.add_child(main)
+
+	var state := Label.new()
+	state.add_theme_font_size_override("font_size", 16)
+	state.add_theme_color_override("font_color", MenuStyle.COLOR_DESC)
+	state.text = {"both": "Downloaded", "local": "On device", "server": "RomM"}.get(r["source"], "")
+	state.custom_minimum_size = Vector2(110, 0)
+	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	state.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	row.add_child(state)
+
+	# The system's proper name, and one press to its own page.
+	var sys_btn := Button.new()
+	sys_btn.text = str(r["system_name"])
+	sys_btn.clip_text = true
+	sys_btn.custom_minimum_size = Vector2(230, 68)
+	sys_btn.add_theme_font_size_override("font_size", 18)
+	sys_btn.tooltip_text = "Open %s" % r["system_name"]
+	sys_btn.pressed.connect(func() -> void: _cartridges_browser.open_system(sid))
+	row.add_child(sys_btn)
+	return row
 
 
 func _on_ereader_cards_warm(systemid: String) -> void:
@@ -1687,6 +1991,7 @@ static func _folder_has_game(path: String, exts: Array[String]) -> bool:
 
 func _exit_tree() -> void:
 	_finish_local_count()
+	_finish_global_search()
 
 
 ## A view freed without ever entering the tree (spawn_menu_tests builds one
@@ -1695,6 +2000,7 @@ func _exit_tree() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_PREDELETE:
 		_finish_local_count()
+		_finish_global_search()
 
 
 func _finish_local_count() -> void:
@@ -3248,6 +3554,17 @@ func _on_romm_dl_finished(rom_id: int, ok: bool, path: String, error: String) ->
 		gamelist_manager.invalidate(AutoScraper.systemid_for_path(path))
 	_invalidate_local_scan()
 	_owe(false, false, true)
+	# A game downloaded from the global search must turn into one you can spawn
+	# there too: left as it was, its row still offered the download, and a second
+	# tap fetched the file again (the downloader does not check the cache). Only
+	# the local half re-runs; a server row reads its path from the cache as it
+	# draws, and RomM's answer has not changed.
+	if ok and _cartridges_browser != null \
+			and _cartridges_browser.current_systemid() == GameSearch.PAGE_ID \
+			and SearchFold.fold(_gs_query).length() >= GameSearch.MIN_QUERY:
+		print("[GameSearch] rom %d downloaded; refreshing '%s'" % [rom_id, _gs_query])
+		_global_search_local(_gs_query)
+		_render_global_results()
 
 
 func _on_romm_dl_cancelled(rom_id: int) -> void:
@@ -3894,7 +4211,7 @@ func _show_model_spawn_options(systemid: String, item: Dictionary, base: String 
 			chosen["variant"] = asked
 			show_default.call())
 	make_default.pressed.connect(func() -> void:
-		AppPrefs.set_spawn_default(row_token, chosen["variant"])
+		AppPrefs.set_spawn_default(row_token, _kept_default(chosen["variant"], variants))
 		show_default.call()
 		# The row behind the panel shows the new default's swatch.
 		if _systems_browser != null:

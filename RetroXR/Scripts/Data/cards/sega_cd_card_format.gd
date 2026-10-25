@@ -13,7 +13,7 @@ func default_size() -> int:
 
 
 func label() -> String:
-	return "Sega CD"
+	return RegionalNames.addon_name("sega_cd", "Sega CD")
 
 
 func save_extension() -> String:

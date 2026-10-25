@@ -434,7 +434,7 @@ func _build_panel() -> void:
 func _update_label() -> void:
 	if _label == null:
 		return
-	_label.text = ExpansionCatalog.label_of(expansion_id)
+	_label.text = ExpansionCatalog.display_label_of(expansion_id)
 	_fit_label()
 
 

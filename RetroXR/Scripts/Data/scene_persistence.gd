@@ -42,6 +42,9 @@ const _STRING_FIELDS := [
 	# they mixed), an N64's regional body, and the colour of a lead's plugs.
 	# Absent means the object's own.
 	"shell_preset", "shell_color", "body_region", "plug_color",
+	# The market a cartridge whose ROM names none fell back to, pinned so a
+	# region change does not swap its body (RetroCartridge.fallback_market).
+	"fallback_market",
 ]
 const _NUMBER_FIELDS := [
 	"lid_angle", "scale_factor", "stereo_mode", "size_scale", "page_state",
@@ -1370,12 +1373,13 @@ func _acquire_entry_assets(entry: Variant) -> void:
 			# Same story, a cartridge body: the fields as _apply_media_fields reads them.
 			var cart_systemid := SystemIds.canonical(str(d.get("cart_systemid", "")))
 			var cart_rom := RomLibrary.relocate(str(d.get("rom_path", "")))
+			var pin := str(d.get("fallback_market", ""))
 			var body := RetroCartridge.body_model_for(cart_systemid, cart_rom,
-				str(d.get("body_region", "")), StringName(str(d.get("shell_preset", ""))))
+				str(d.get("body_region", "")), StringName(str(d.get("shell_preset", ""))), pin)
 			if not body.is_empty() and ResourceLoader.exists(body):
 				await ModelWarmer.acquire(body)
 			# And the PAL rear sticker a Super Famicom-shaped cartridge wears.
-			var sticker := SnesCartShell.rear_sticker_file(body, cart_systemid, cart_rom)
+			var sticker := SnesCartShell.rear_sticker_file(body, cart_systemid, cart_rom, pin)
 			if not sticker.is_empty():
 				await ModelWarmer.acquire(sticker)
 
@@ -2637,6 +2641,9 @@ func _media_fields(cart: RetroCartridge) -> Dictionary:
 		fields["shell_flake"] = true
 	if not cart.body_region.is_empty():
 		fields["body_region"] = cart.body_region
+	# Only a cartridge whose ROM names no region carries one (see _pin_fallback_market).
+	if not cart.fallback_market.is_empty():
+		fields["fallback_market"] = cart.fallback_market
 	return fields
 
 
@@ -3246,3 +3253,4 @@ func _apply_media_fields(cart: RetroCartridge, data: Dictionary) -> void:
 	cart.shell_color = str(data.get("shell_color", ""))
 	cart.shell_flake = bool(data.get("shell_flake", false))
 	cart.body_region = str(data.get("body_region", ""))
+	cart.fallback_market = str(data.get("fallback_market", ""))

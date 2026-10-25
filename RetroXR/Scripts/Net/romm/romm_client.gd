@@ -91,6 +91,28 @@ func platforms(callback: Callable) -> void:
 	)
 
 
+## GET /api/roms?search_term= — the server's own search across every platform,
+## for games in a platform this device never synced. Rows come back slimmed like
+## an index row, with the owning `platform_id` added (the slim row drops it).
+## callback(ok: bool, rows: Array[Dictionary])
+func search_roms(term: String, limit: int, callback: Callable) -> void:
+	var path := "/api/roms?search_term=%s&limit=%d&order_by=name&order_dir=asc" \
+		% [term.uri_encode(), limit]
+	path += "&group_by_meta_id=false&with_char_index=false&with_rom_id_index=false"
+	path += "&with_filter_values=false&with_files=false&missing=false"
+	_fetch_json_async(path, true, func(ok: bool, data: Variant, _code: int) -> void:
+		var rows: Array[Dictionary] = []
+		var items: Variant = (data as Dictionary).get("items") if data is Dictionary else data
+		if ok and items is Array:
+			for item: Variant in items:
+				if item is Dictionary:
+					var slim := RommCatalog._slim_row(item)
+					slim["platform_id"] = RommCatalog._i(item, "platform_id")
+					rows.append(slim)
+		callback.call(ok, rows)
+	)
+
+
 ## GET /api/roms/{id} — DetailedRomSchema. Only for user-driven detail views;
 ## the list response already carries every metadata and artwork field, so never
 ## call this per row.

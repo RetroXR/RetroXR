@@ -20,5 +20,5 @@ func device_noun() -> String:
 
 ## Nothing to fit: the memory is inside the unit, and a cartridge is optional.
 func save_device_note(game: String, medium: String) -> String:
-	return "%s saves to the Sega CD's backup memory or a Backup RAM Cartridge, not the %s.\n\nIts saves are managed from the console's Saves tab." \
-		% [game, medium]
+	return "%s saves to the %s's backup memory or a Backup RAM Cartridge, not the %s.\n\nIts saves are managed from the console's Saves tab." \
+		% [game, RegionalNames.addon_name("sega_cd", "Sega CD"), medium]

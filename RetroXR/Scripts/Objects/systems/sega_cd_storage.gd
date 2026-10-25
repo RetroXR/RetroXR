@@ -145,9 +145,10 @@ func busy_elsewhere(core: String) -> String:
 		var other: SegaCdStorage = sys.call("sega_cd_storage")
 		if other == null or not other.is_holding_files():
 			continue
+		var unit := RegionalNames.addon_name("sega_cd", "Sega CD")
 		if bool(sys.get("is_powered_on")):
-			return "Another Sega CD is running. Power it off first."
-		return "Another Sega CD is still saving. Try again in a few seconds."
+			return "Another %s is running. Power it off first." % unit
+		return "Another %s is still saving. Try again in a few seconds." % unit
 	return ""
 
 

@@ -350,6 +350,14 @@ func _init_web_server() -> void:
 
 # ── Top-level UI ──────────────────────────────────────────────────────────────
 
+## The console-name region changed: every grid that prints a system name redraws.
+func _on_region_names_changed(_region: String) -> void:
+	if _spawn_view != null:
+		_spawn_view.refresh_after_core_change("")
+	if _cores_view != null:
+		_cores_view.refresh_after_core_change()
+
+
 func _build_ui() -> void:
 	# Scale the entire UI so it fills the same apparent physical area regardless
 	# of viewport_size.  pivot_offset keeps scaling centred on the panel.
@@ -487,6 +495,8 @@ func _build_ui() -> void:
 	_options_view = SpawnMenuOptionsView.create(self)
 	_options_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_options_view.system_filter_changed.connect(_cores_view.refresh_download_systems)
+	AppPrefs.region_names_changed.connect(_on_region_names_changed)
+	AppPrefs.mains_region_changed.connect(_on_region_names_changed)
 	_options_view.romm_platforms_requested.connect(_spawn_view.romm_fetch_platforms)
 	_options_view.scroll_changed.connect(func(s: ScrollContainer) -> void:
 		if _options_view.visible:
