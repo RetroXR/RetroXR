@@ -99,6 +99,25 @@ func _test_image() -> void:
 	_ok(mat.albedo_texture.get_image().has_mipmaps(), "image/mipmaps generated")
 	_ok(mat.emission_enabled and absf(mat.emission_energy_multiplier - 0.1) < 0.001,
 		"image/emission at 0.1, as the room's own posters carry")
+	_ok(mat.cull_mode == BaseMaterial3D.CULL_DISABLED and mat.next_pass == null,
+		"image/a poster shows its picture from both sides")
+
+	# A print is thermal paper: the picture on its face, the back bare paper the
+	# color of its margin, a shade darker.
+	var pr := preload("res://Scenes/Objects/media/poster.tscn").instantiate() as Poster
+	pr.printout = true
+	pr.image_path = _img_path
+	add_child(pr)
+	await get_tree().process_frame
+	var pmat := (pr.get_node("Surface/FlatMesh") as MeshInstance3D).get_surface_override_material(0) as StandardMaterial3D
+	_ok(pmat.cull_mode == BaseMaterial3D.CULL_BACK, "image/a print's picture is on its face only")
+	var back := pmat.next_pass as StandardMaterial3D
+	_ok(back != null and back.cull_mode == BaseMaterial3D.CULL_FRONT and back.albedo_texture == null,
+		"image/and its back is drawn bare")
+	var margin := Image.load_from_file(_img_path).get_pixel(0, 0)
+	_ok(back != null and back.albedo_color.is_equal_approx(Color(margin.r * 0.93, margin.g * 0.93, margin.b * 0.93)),
+		"image/the paper's own color, a shade darker")
+	pr.free()
 
 	# One scalar drives both edges, so the aspect cannot drift.
 	p.size_scale = 2.0

@@ -175,7 +175,13 @@ func _load_image() -> void:
 			img.generate_mipmaps()
 			_texture = ImageTexture.create_from_image(img)
 			_aspect = float(img.get_width()) / maxf(1.0, float(img.get_height()))
-			_flat_mesh.set_surface_override_material(0, _build_material(_texture, alpha))
+			var mat := _build_material(_texture, alpha)
+			if GbPrintoutFlop.is_printout(self):
+				# A print is thermal paper, printed on its face only. Its margin is
+				# bare paper (GbPrinterPaper.sheet), the color of the back.
+				mat.cull_mode = BaseMaterial3D.CULL_BACK
+				mat.next_pass = _bare_back(img.get_pixel(0, 0))
+			_flat_mesh.set_surface_override_material(0, mat)
 			if _outline != null:
 				(_outline.material_override as ShaderMaterial).set_shader_parameter(
 					"poster_tex", _texture)
@@ -197,6 +203,19 @@ func _build_material(tex: Texture2D, alpha: int) -> StandardMaterial3D:
 	mat.emission_texture = tex
 	mat.emission_energy_multiplier = EMISSION_ENERGY
 	return mat
+
+
+## A print's back: the bare paper, a shade darker as the strip's back is on the
+## printer (gb_printer_paper.gdshader). It draws the faces the picture culls.
+static func _bare_back(paper: Color) -> StandardMaterial3D:
+	var back := StandardMaterial3D.new()
+	back.cull_mode = BaseMaterial3D.CULL_FRONT
+	back.albedo_color = Color(paper.r * 0.93, paper.g * 0.93, paper.b * 0.93)
+	back.roughness = 0.9
+	back.emission_enabled = true
+	back.emission = back.albedo_color
+	back.emission_energy_multiplier = EMISSION_ENERGY
+	return back
 
 
 ## Aspect-preserving downscale to a square bound. One scalar in, both edges out —
