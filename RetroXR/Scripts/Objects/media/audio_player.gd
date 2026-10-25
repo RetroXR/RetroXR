@@ -100,6 +100,10 @@ func _ready() -> void:
 	if ClassDB.class_exists("VlcPlayer"):
 		_vlc = ClassDB.instantiate("VlcPlayer")
 		_vlc.finished.connect(_on_track_finished)
+		# Build the libVLC instance on its own thread now. Left to the first open(),
+		# it walks the whole plugin tree on the main thread, a second-long freeze on
+		# the first press of play.
+		_vlc.warm_up()
 	else:
 		push_error("RetroAudioPlayer: VlcPlayer extension not loaded — audio playback unavailable")
 
