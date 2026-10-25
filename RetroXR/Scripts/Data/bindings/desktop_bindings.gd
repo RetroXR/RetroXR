@@ -17,7 +17,7 @@ extends RefCounted
 
 const SAVE_PATH := "user://desktop_bindings.json"
 
-## Gamepad button actions (joypad + trigger), and a gun cabinet's foot pedal (ArcadeInput.PEDAL_ACTION).
+## Gamepad button actions (joypad + trigger), and taking cover in a gun game (ArcadeInput.PEDAL_ACTION).
 const JOYPAD_ACTIONS: Array[String] = [
 	"RETRO_JOYPAD_UP", "RETRO_JOYPAD_DOWN", "RETRO_JOYPAD_LEFT", "RETRO_JOYPAD_RIGHT",
 	"RETRO_JOYPAD_A",  "RETRO_JOYPAD_B",    "RETRO_JOYPAD_X",    "RETRO_JOYPAD_Y",
@@ -53,7 +53,7 @@ const ACTION_LABELS: Dictionary = {
 	"RETRO_JOYPAD_SELECT": "Select",
 	"RETRO_JOYPAD_START":  "Start",
 	"trigger_left":        "Trigger / Shoot",
-	"arcade_pedal":        "Foot Pedal (gun games)",
+	"arcade_pedal":        "Take Cover (gun pedal)",
 	"RETRO_ANALOG_LEFT_X_NEGATIVE":  "Left Stick \u2190",
 	"RETRO_ANALOG_LEFT_X_POSITIVE":  "Left Stick \u2192",
 	"RETRO_ANALOG_LEFT_Y_NEGATIVE":  "Left Stick \u2191",

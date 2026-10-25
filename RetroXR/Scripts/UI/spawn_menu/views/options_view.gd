@@ -1346,6 +1346,7 @@ func _build_system_filter_options(vbox: VBoxContainer) -> void:
 
 	_build_bios_boot_override(vbox)
 	_build_arcade_attract(vbox)
+	_build_arcade_pedal(vbox)
 
 
 ## The switch that makes a switched-on arcade cabinet show its game instead of running it.
@@ -1373,6 +1374,27 @@ func _build_arcade_attract(vbox: VBoxContainer) -> void:
 		get_tree().call_group("spawned", "refresh_power_switch")
 		AppPrefs.save_prefs()
 	))
+
+
+## How a gun game's foot pedal is worked in a headset, which reads no feet (AppPrefs.arcade_pedal_mode). You are
+## out of cover while you hold the gun; the gun hand's A or X and the pedal key take cover in every mode.
+func _build_arcade_pedal(vbox: VBoxContainer) -> void:
+	vbox.add_child(MenuStyle.spacer(10))
+	vbox.add_child(MenuStyle.label("Gun Game Pedal", 22, MenuStyle.COLOR_TITLE))
+	vbox.add_child(MenuStyle.label(
+		"Time Crisis and its kin: holding the gun you are out of cover. A or X (Space, or RB on a pad) always takes cover.",
+		16, MenuStyle.COLOR_LICENSE))
+	# VRDropdown, never OptionButton: every Viewport2Din3D click fires twice.
+	var drop := VRDropdown.create("Take cover", [
+			["A or X only", AppPrefs.PEDAL_BUTTON],
+			["Also the other hand's trigger", AppPrefs.PEDAL_FREE_HAND],
+			["Also by ducking", AppPrefs.PEDAL_DUCK],
+		], AppPrefs.arcade_pedal_mode, 1, Vector2(340, 52), MenuStyle.MENU_NAME_SIZE)
+	drop.item_selected.connect(func(id: Variant) -> void:
+		AppPrefs.arcade_pedal_mode = str(id)
+		AppPrefs.save_prefs()
+	)
+	vbox.add_child(drop)
 
 
 ## The switch that hands the BIOS-boot core options back to the player.

@@ -16,8 +16,9 @@
 ## goes quiet (ArcadeInputState.panel_speaks) so two writers never fight over one
 ## port's state.
 ##
-## A gun game's foot pedal (ArcadePedalModule) is its player's button 2. A headset reads no feet, so it is
-## pressed for whoever holds that player's gun: the gun's own Aux A (the gun hand's A or X) or PEDAL_ACTION.
+## A gun game's foot pedal (ArcadePedalModule) is its player's button 2. A headset reads no feet, so the pedal is
+## down while that player's gun is in a hand and taking cover lifts it (AppPrefs.arcade_pedal_mode): the gun hand's
+## A or X and PEDAL_ACTION in every mode, the free hand's trigger or ducking as well in the other two.
 class_name ArcadeInput
 extends Node
 
@@ -25,9 +26,13 @@ const ANALOG_SCALE := 0x7fff
 const DPAD_THRESHOLD := 0.35
 const ICON_CAPTURE := 0xEC17
 const ICON_SIZE := 0.03
-## The foot pedal's own action (project.godot: Space; DesktopPad puts the pad's RB on it), rebindable on the
-## Controls page. A foot switch that types a key is a real pedal through it, on a Quest as on a desktop.
+## Held, it takes cover in a gun game: it lifts the foot pedal (project.godot: Space; DesktopPad puts the pad's
+## RB on it), rebindable on the Controls page. A foot switch that types the key works it too, stepped on to hide.
 const PEDAL_ACTION := "arcade_pedal"
+## Ducking takes cover (AppPrefs.PEDAL_DUCK): the head this far under the highest it has been since the gun was
+## taken, and back out above DUCK_DEPTH - DUCK_HYSTERESIS, so a head held near the line does not flicker.
+const DUCK_DEPTH := 0.18
+const DUCK_HYSTERESIS := 0.06
 
 const INPUT_THRESHOLDS: Dictionary = {
 	"ax_button":     0.5,
@@ -80,6 +85,18 @@ var _doors: Array[ArcadeCoinModule] = []
 var _pedals: Array[ArcadePedalModule] = []
 ## A suite stands in for a hand with this: a gun listed here counts as held (held_by_hand needs a real grab).
 var held_override: Array = []
+## A suite stands in for the player's pedal setting with this (an AppPrefs.PEDAL_* mode); empty reads AppPrefs.
+var pedal_mode_override := ""
+## A suite stands in for the head with this, in metres; NAN asks the camera.
+var head_height_override := NAN
+## Per gun in a hand: the highest the head has been since it was taken, whether it is ducked, and whether it
+## was taking cover last frame (gun -> value). A gun let go is dropped from all three.
+var _duck_top: Dictionary = {}
+var _ducked: Dictionary = {}
+var _covering: Dictionary = {}
+## The hand whose laser is off this frame because it works the pedal (AppPrefs.PEDAL_FREE_HAND), and the block.
+var _free_hand_wanted: XRController3D = null
+var _free_hand_block := VrPointerBlock.new()
 ## How many ports the coin doors reach (a door's player + 1, the highest): a game with more coin slots than
 ## panels (Robotron's three) still has each door's coin sent.
 var _door_ports := 0
@@ -189,6 +206,7 @@ func _exit_tree() -> void:
 		_locomotion_manager.clear_owner(VrHold.vr_block_owner(self))
 	if _capture != null:
 		_capture.release()
+	_free_hand_block.release(_left_vr_ctrl, _right_vr_ctrl)
 
 
 ## Reload bindings from disk (called after the user saves new bindings).
@@ -437,6 +455,7 @@ func _process(delta: float) -> void:
 		hands.append(hand)
 		states.append(state)
 	var hold_start := _step_held_coins(delta, start_pressed)
+	_free_hand_wanted = null
 	for p in players:
 		var holder: Variant = controllers[p] if p < controllers.size() else null
 		var owned := holder != null
@@ -476,48 +495,187 @@ func _process(delta: float) -> void:
 				_send(p, bits, _NEUTRAL)
 			continue
 		_send(p, mask, states[p])
+	_apply_free_hand_block()
 
 
-## The foot pedal wired to `port` (ArcadePedalModule.port), and whether it is down. It is pressed for whoever
-## holds that player's gun: by the gun's own Aux A (the gun hand's A or X), which reaches the core from the gun
-## itself, or by PEDAL_ACTION, which goes in as the gun's Aux A from outside. The caller sends it as the
-## joypad's A on that port too: MAME takes a pedal as button 2, from the gun's Aux A or the joypad's A. With no
-## pedal on that port nothing is pressed, and the gun's Aux A is its own again.
+## The foot pedal wired to `port` (ArcadePedalModule.port), and whether it is down. A headset reads no feet, so
+## the pedal is down while that player's gun is in a hand and taking cover lifts it (_takes_cover); with no gun in
+## a hand it is up. A wired pedal takes the gun's Aux A over (LightGun.claim_button): the game must hear the pedal,
+## which the hand's Aux A only lifts. The caller sends it as the joypad's A on that port too: MAME takes a pedal
+## as button 2, from the gun's Aux A or the joypad's A. With no pedal on that port nothing is pressed, and the
+## gun's Aux A is its own again.
 func _step_pedal(port: int, gun: LightGun) -> bool:
-	var wired := false
-	for pedal in _pedals:
-		if is_instance_valid(pedal) and pedal.active and pedal.port() == port:
-			wired = true
+	var wired := _wired(port)
 	var down := false
 	if gun != null:
-		var key := wired and _pedal_key_held(gun)
-		gun.set_external_button(ControllerBindings.LIGHTGUN_AUX_A, key)
-		down = wired and (key or gun.hand_button(ControllerBindings.LIGHTGUN_AUX_A))
+		gun.claim_button(ControllerBindings.LIGHTGUN_AUX_A, wired)
+		if wired and _in_hand(gun):
+			var cover := _takes_cover(gun)
+			if cover and not bool(_covering.get(gun, false)):
+				HeldHint.note_on(gun, _cover_row_id(gun))
+			_covering[gun] = cover
+			down = not cover
+		else:
+			_forget_hold(gun)
+		gun.set_external_button(ControllerBindings.LIGHTGUN_AUX_A, down)
+		gun.set_cabinet_hint(_cover_hint() if wired else [])
 	for pedal in _pedals:
 		if is_instance_valid(pedal) and pedal.port() == port:
 			pedal.show_pressed(down and pedal.active)
 	return down
 
 
-## Whether PEDAL_ACTION is held for `gun`: only while the gun is in a hand (a VR hand or the desktop's), so the
-## key presses the pedal of the player holding a gun and of nobody else.
-func _pedal_key_held(gun: LightGun) -> bool:
-	if not InputMap.has_action(PEDAL_ACTION) or not Input.is_action_pressed(PEDAL_ACTION):
-		return false
+## Whether a pedal on this cabinet is wired to `port`.
+func _wired(port: int) -> bool:
+	for pedal in _pedals:
+		if is_instance_valid(pedal) and pedal.active and pedal.port() == port:
+			return true
+	return false
+
+
+## Whether `gun` is in somebody's hand: a VR hand or the desktop's (held_by_hand), or the suite's.
+func _in_hand(gun: LightGun) -> bool:
 	return held_override.has(gun) or held_by_hand(gun)
 
 
-## Nobody is playing (the core is off, or only showing its game): every pedal comes up, and no gun keeps a
-## pedal pressed from outside.
+## How the pedal is worked here: the suite's override, else the player's setting.
+func pedal_mode() -> String:
+	return pedal_mode_override if not pedal_mode_override.is_empty() else AppPrefs.arcade_pedal_mode
+
+
+## Whether whoever holds `gun` takes cover now. In every mode the gun hand's A or X (the gun's own Aux A; on the
+## desktop its key) and PEDAL_ACTION (Space, the pad's RB, a foot switch) do; in PEDAL_FREE_HAND the free hand's
+## trigger as well, in PEDAL_DUCK ducking as well. Those two are read every frame, held or not, so the latch and
+## the head's height are kept up.
+func _takes_cover(gun: LightGun) -> bool:
+	var cover := gun.hand_button(ControllerBindings.LIGHTGUN_AUX_A)
+	if InputMap.has_action(PEDAL_ACTION) and Input.is_action_pressed(PEDAL_ACTION):
+		cover = true
+	match pedal_mode():
+		AppPrefs.PEDAL_FREE_HAND:
+			cover = _free_hand_squeezed(gun) or cover
+		AppPrefs.PEDAL_DUCK:
+			cover = _ducked_for(gun) or cover
+	return cover
+
+
+## The free hand's trigger (PEDAL_FREE_HAND): the other VR hand, when it is tracked and holds nothing. Its laser is
+## off while it works the pedal (_apply_free_hand_block), or the squeeze would also click whatever it pointed at.
+## Not its grip: that is the grab, and held on the cabinet for a second it would pick the cabinet up.
+func _free_hand_squeezed(gun: LightGun) -> bool:
+	var hand := _free_hand(gun)
+	if hand == null:
+		return false
+	_free_hand_wanted = hand
+	return _latch.pressed("%d:pedal_trigger" % hand.get_instance_id(), hand.get_float("trigger"),
+		float(INPUT_THRESHOLDS["trigger"]))
+
+
+## The VR hand that is not holding `gun`, when it is tracked and holds nothing; null otherwise (and on the desktop).
+func _free_hand(gun: LightGun) -> XRController3D:
+	var holding := gun.holding_controller()
+	if holding == null:
+		return null
+	for hand: Variant in [_left_vr_ctrl, _right_vr_ctrl]:
+		if not is_instance_valid(hand) or hand == holding:
+			continue
+		var ctrl := hand as XRController3D
+		if ctrl == null or not ctrl.get_is_active():
+			continue
+		var pickup := XRToolsFunctionPickup.find_instance(ctrl)
+		if pickup != null and is_instance_valid(pickup.picked_up_object):
+			return null
+		return ctrl
+	return null
+
+
+## The free hand's laser off while it works the pedal, back on when it does not (once a frame, after the ports).
+func _apply_free_hand_block() -> void:
+	for hand: Variant in [_left_vr_ctrl, _right_vr_ctrl]:
+		if is_instance_valid(hand):
+			_free_hand_block.set_block(hand as XRController3D, hand == _free_hand_wanted)
+
+
+## Ducking (PEDAL_DUCK): the head DUCK_DEPTH under the highest it has been since `gun` was taken, back up above
+## DUCK_DEPTH - DUCK_HYSTERESIS. The highest, not its height at the grab: a gun taken while bending down to its
+## holster would otherwise ask for a duck 18 cm under that.
+func _ducked_for(gun: LightGun) -> bool:
+	var head := head_height()
+	if is_nan(head):
+		return false
+	var top := maxf(float(_duck_top.get(gun, head)), head)
+	_duck_top[gun] = top
+	var drop := top - head
+	var ducked := drop > DUCK_DEPTH or (bool(_ducked.get(gun, false)) and drop > DUCK_DEPTH - DUCK_HYSTERESIS)
+	_ducked[gun] = ducked
+	return ducked
+
+
+## The head's height over the floor the player stands on (its XROrigin3D), NAN with no camera.
+func head_height() -> float:
+	if not is_nan(head_height_override):
+		return head_height_override
+	if not is_inside_tree():
+		return NAN
+	var cam := get_viewport().get_camera_3d()
+	if cam == null:
+		return NAN
+	var origin := cam.get_parent() as XROrigin3D
+	return cam.global_position.y - (origin.global_position.y if origin != null else 0.0)
+
+
+## A gun let go: the next grab measures the head afresh and starts out of cover.
+func _forget_hold(gun: LightGun) -> void:
+	_duck_top.erase(gun)
+	_ducked.erase(gun)
+	_covering.erase(gun)
+
+
+## The hint rows a gun at a wired pedal carries (LightGun.set_cabinet_hint): how taking cover goes in this mode.
+## One id per mode, so a verb learned in one is still taught in another (HeldHint.LEARNED_AFTER).
+func _cover_hint() -> Array:
+	var vr: Array
+	match pedal_mode():
+		AppPrefs.PEDAL_FREE_HAND:
+			vr = [&"pedal_cover_free_hand", HeldHint.PLATFORM_VR, ["quest_trigger_{other}_outline"],
+				"Hold the other {g} to take cover"]
+		AppPrefs.PEDAL_DUCK:
+			vr = [&"pedal_cover_duck", HeldHint.PLATFORM_VR, ["quest_button_{ax}_outline"],
+				"Duck, or hold {g}, to take cover"]
+		_:
+			vr = [&"pedal_cover", HeldHint.PLATFORM_VR, ["quest_button_{ax}_outline"], "Hold {g} to take cover"]
+	return [vr, [&"pedal_cover_desktop", HeldHint.PLATFORM_DESKTOP, [],
+		"Hold %s to take cover" % DesktopBindings.event_display_name(PEDAL_ACTION)]]
+
+
+## The row `gun`'s hint teaches for taking cover now: the desktop's in the desktop's hand, else this mode's.
+func _cover_row_id(gun: LightGun) -> StringName:
+	return &"pedal_cover_desktop" if gun.holding_controller() == null else StringName(_cover_hint()[0][0])
+
+
+## Nobody is playing (the core is off, or only showing its game): every pedal comes up, no gun keeps it pressed,
+## and the free hand has its laser back. A wired gun still carries its hint, so the grab that starts the game
+## shows it.
 func _release_pedals() -> void:
 	for pedal in _pedals:
 		if is_instance_valid(pedal):
 			pedal.show_pressed(false)
+	_free_hand_wanted = null
+	_apply_free_hand_block()
+	_duck_top.clear()
+	_ducked.clear()
+	_covering.clear()
 	if _host == null or not _host.has_method("get_port_controllers"):
 		return
-	for holder: Variant in _host.get_port_controllers():
+	var ports: Array = _host.get_port_controllers()
+	for p in ports.size():
+		var holder: Variant = ports[p]
 		if holder != null and is_instance_valid(holder) and holder is LightGun:
-			(holder as LightGun).set_external_button(ControllerBindings.LIGHTGUN_AUX_A, false)
+			var gun := holder as LightGun
+			var wired := _wired(p)
+			gun.claim_button(ControllerBindings.LIGHTGUN_AUX_A, wired)
+			gun.set_external_button(ControllerBindings.LIGHTGUN_AUX_A, false)
+			gun.set_cabinet_hint(_cover_hint() if wired else [])
 
 
 ## The held coins, once a frame while the core runs: one goes in when the game is up to count it, or at

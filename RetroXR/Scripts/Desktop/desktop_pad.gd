@@ -8,7 +8,7 @@
 ##
 ## How it is done. The pad is made into the input the game already understands rather than given
 ## code paths of its own:
-##   * movement, crouch, walk, the menu, the TV's full screen and a gun cabinet's foot pedal (RB) are
+##   * movement, crouch, walk, the menu, the TV's full screen and taking cover in a gun game (RB) are
 ##     InputMap actions, so the pad's events are ADDED to those actions while a pad is the main one
 ##     (`_sync_map`) and taken off again when it is not; the engine's own ui_* pad buttons
 ##     (B = ui_cancel lets go of the mouse) come off meanwhile, A stays the jump (ui_accept);
@@ -58,6 +58,7 @@ const PAD_ROWS := {
 		"Keep pressing {g} to hold it in your hand; again to square it up"],
 	&"capture": [["xbox_stick_r_press"], "press to send buttons here"],
 	&"drop_desktop": [["xbox_lb_outline", "xbox_rt_outline"], "Drop"],
+	&"pedal_cover_desktop": [["xbox_rb_outline"], "Hold {g} to take cover"],
 }
 ## Any other keyboard / mouse glyph, one for one.
 const PAD_GLYPHS := {
@@ -431,8 +432,9 @@ func _sync_map() -> void:
 	_add_button("action_crouch", JOY_BUTTON_B)
 	_add_button("action_walk", JOY_BUTTON_LEFT_STICK)
 	_add_button("ui_accept", JOY_BUTTON_A)
-	# A gun cabinet's foot pedal (ArcadeInput.PEDAL_ACTION): RB, free under the right index finger while RT
-	# fires. LB is Shift (LB + RT drops what is held) and LT the middle button (it holds the look still).
+	# Taking cover in a gun game, which lifts its foot pedal (ArcadeInput.PEDAL_ACTION): RB, free under the right
+	# index finger while RT fires. LB is Shift (LB + RT drops what is held), LT the middle button (it holds the
+	# look still).
 	_add_button("arcade_pedal", JOY_BUTTON_RIGHT_SHOULDER)
 
 

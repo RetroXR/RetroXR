@@ -84,6 +84,13 @@ var bios_boot_override: bool = false
 ## (ArcadeAttract). Off by default: a video decode per cabinet is real work, most of all in a headset.
 ## Each cabinet can override it (RetroSystem.attract_override).
 var arcade_attract_mode: bool = false
+## How a gun game's foot pedal is worked, in a headset that reads no feet (ArcadeInput._takes_cover). You are out
+## of cover, the pedal down, while you hold the gun, and something takes cover: the gun hand's A or X and the pedal
+## key in every mode, the free hand's trigger as well in PEDAL_FREE_HAND, ducking as well in PEDAL_DUCK.
+const PEDAL_BUTTON := "button"
+const PEDAL_FREE_HAND := "free_hand"
+const PEDAL_DUCK := "duck"
+var arcade_pedal_mode: String = PEDAL_BUTTON
 ## Whether the spawn menu wraps onto a cylinder. Unlike the rest, this one is not
 ## an OPTIONS switch — it is the toggle on the menu's own lower-right corner.
 var menu_curved:      bool = true
@@ -359,6 +366,8 @@ func load_prefs() -> void:
 	system_filter    = JsonStore.get_bool(data, "system_filter",    system_filter)
 	bios_boot_override = JsonStore.get_bool(data, "bios_boot_override", bios_boot_override)
 	arcade_attract_mode = JsonStore.get_bool(data, "arcade_attract_mode", arcade_attract_mode)
+	var pedal := JsonStore.get_string(data, "arcade_pedal_mode", arcade_pedal_mode)
+	arcade_pedal_mode = pedal if pedal in [PEDAL_BUTTON, PEDAL_FREE_HAND, PEDAL_DUCK] else PEDAL_BUTTON
 	menu_curved      = JsonStore.get_bool(data, "menu_curved",      menu_curved)
 	show_hints       = JsonStore.get_bool(data, "show_hints",       show_hints)
 	hint_uses        = JsonStore.get_dict(data, "hint_uses",        hint_uses)
@@ -407,6 +416,7 @@ func save_prefs() -> bool:
 		"system_filter":    system_filter,
 		"bios_boot_override": bios_boot_override,
 		"arcade_attract_mode": arcade_attract_mode,
+		"arcade_pedal_mode": arcade_pedal_mode,
 		"menu_curved":      menu_curved,
 		"show_hints":       show_hints,
 		"hint_uses":        hint_uses,

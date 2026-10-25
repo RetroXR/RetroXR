@@ -864,28 +864,41 @@ that stood here, "MAME maps it to a keyboard-style input that a lightgun port do
 (`GUN_PEDAL` in `gen_game_index.py`): `timecris`, `timecrs2`, `crszone`, each ONE gun (a System 22/23 board is one player's; the twin
 cabinets are two boards linked).
 
-- **What presses it** (`ArcadeInput._step_pedal`), for whoever holds that player's gun: the gun's own Aux A (the gun hand's A or X by
-  default; the gun sends it itself, so it follows the light gun bindings), or `arcade_pedal` (`ArcadeInput.PEDAL_ACTION`: Space in
-  `project.godot`, rebindable on the Controls page beside the trigger; RB on the player's pad, `DesktopPad`), which counts only while
-  the gun is in a hand (a VR hand or the desktop's, `held_by_hand`): it presses the pedal of the player holding a gun and nobody
-  else's. A foot switch that types a key is a real pedal through it (USB on a desktop, Bluetooth on a Quest): NOT tried.
-- **What it sends**: the gun's Aux A (`set_external_button`, for the key: the hand's own press the gun sends itself) AND the joypad's A
-  on that port (`_send`, through `netplay_route`), as START and the coin already go twice, so button 2 is pressed whichever device
-  MAME reads it from.
+- **How it is worked** (`ArcadeInput._step_pedal`, since 2026-10-25 later; first it was pressed by a held A/X or key, which tired
+  the thumb for the whole game): **while that player's gun is in a hand the pedal is DOWN, out of cover, and taking cover lifts it**;
+  with no gun in a hand it is up. `AppPrefs.arcade_pedal_mode` (Options, Systems, "Gun Game Pedal") says what takes cover:
+  - in every mode the gun hand's A or X (the gun's own Aux A, so it follows the light gun bindings; on the desktop its key) and
+    `arcade_pedal` (`ArcadeInput.PEDAL_ACTION`: Space in `project.godot`, rebindable on the Controls page beside the trigger; RB on
+    the player's pad, `DesktopPad`; a foot switch that types the key, stepped on to HIDE: NOT tried);
+  - `button` (the default): nothing else;
+  - `free_hand`: the other hand's TRIGGER as well, when it is tracked and holds nothing. Its laser is off meanwhile
+    (`VrPointerBlock`, given back when the mode changes, the gun is let go or the cabinet goes off), or the squeeze would click
+    whatever it pointed at. Not the grip: it is the grab, and held on the cabinet for a second it picks the cabinet up (`HoldToGrab`);
+  - `duck`: the head 18 cm under the highest it has been since the gun was taken, back out above 12 (`DUCK_DEPTH`,
+    `DUCK_HYSTERESIS`), over the `XROrigin3D` the camera stands in. The highest, not its height at the grab: a gun taken from a low
+    holster would otherwise ask for a duck under that. Measured afresh at every grab; seated, A/X is the way.
+- **The cabinet takes the gun's Aux A over** (`LightGun.claim_button`): the game must hear the PEDAL, which the hand's Aux A only
+  lifts, so a claimed button's hand press no longer reaches the core (`LightGun._told`) and the cabinet's own does
+  (`set_external_button`). A gun on a port with no pedal keeps its Aux A.
+- **The hint**: a gun at a wired pedal carries a held-hint row per mode (`LightGun.set_cabinet_hint`, ids `pedal_cover`,
+  `pedal_cover_free_hand`, `pedal_cover_duck`, `pedal_cover_desktop`, each learned on its own), declared while the cabinet is off as
+  well, so the grab that starts the game shows it. `HeldHint.glyph_name` has two new tokens for it: `{ax}` the holding hand's A or X,
+  `{other}` the other hand; on a pad the desktop row names RB (`DesktopPadService.PAD_ROWS`).
+- **What it sends**: the pedal as the gun's Aux A AND the joypad's A on that port (`_send`, through `netplay_route`), as START and
+  the coin already go twice, so button 2 is pressed whichever device MAME reads it from.
 - **The plate** (`ArcadePedalModule`): `show_pressed` with what was sent, eased 15 degrees down about `PedalHinge` in 0.08 s (toe first,
   the heel on its pin) and back to exactly where it rested. Local: a peer does not see another player's foot.
 - **Wiring**: a pedal is a switch on its player's button 2, as on a real cabinet converted to another game: `active` (true unless a
   scene says otherwise) and `port()`, its player, or player 1 for one that names none (the shipped gun cabinet's single pedal). So with
   Cabinet Shape off that pedal presses player 1's button 2 whatever the game (Operation Wolf's grenade); with it on, a game with no
   pedal gets none (`for_game`). Switched off or only showing its game, every pedal comes up and no gun keeps it pressed.
-- **Open: which way a headset should press it** (the binding above stands in until it is chosen): (1) the gun hand's A/X, held (now:
-  works with two guns and seated, tiring held for long); (2) the same, inverted: held to take COVER, less tiring if cover is the
-  shorter state; (3) the free hand's trigger or grip (comfortable, but not with two guns, and that hand also points and grabs); (4)
-  duck to take cover, the head some 15-20 cm under its height at the grab (the most natural in VR; standing only, so one of the others
-  stays as the fallback); (5) aim the gun off the screen to take cover (no button at all, but every hide costs the aim); (6) a real
-  foot switch (works now through the key). Whichever it is, the gun's held hint should say it.
-- `arcade_variants_tests pedal/` (the gun hand's A through the real binding and a fake tracker, the key only with a gun in a hand,
-  player 2's Aux A not pressing player 1's pedal, an unwired pedal, the plate about its hinge, let up when switched off),
-  `arcade_form_tests guns/` (the morph's pedal wired to the input), `desktop_pad_tests map/`, `binding_tests` (the arcade's Controls
-  page). Mutation-tested. OWED: a real Time Crisis romset on MAME (none here: that the core takes button 2 from the gun, the
-  joypad or both is read from its source, not measured), a headset, the Quest, two peers.
+- **The ways that were weighed and not built**: holding A/X to step OUT (the first version; tiring), aiming the gun off the screen to
+  hide (no button, but every hide costs the aim). The free hand's grip (see above). Ducking is the most natural and the most tiring:
+  hundreds of hides a game.
+- `arcade_variants_tests pedal/` (up in the holster, down in a hand; the gun hand's A through the real binding and a fake tracker
+  taking cover with the hand's own Aux A not sent; the key; an unwired pedal and player 2's gun keeping their Aux A; the free hand
+  in either hand, its laser off and given back; ducking with its hysteresis, the highest head and a fresh grab; the hints per mode;
+  the setting saved and an unknown one read as the default; let up when switched off), `arcade_form_tests guns/` (the morph's pedal
+  wired to the input), `desktop_pad_tests map/` and `rows/`, `binding_tests` (the arcade's Controls page). Mutation-tested. OWED: a
+  real Time Crisis romset on MAME (none here: that the core takes button 2 from the gun, the joypad or both is read from its source,
+  not measured), a headset (how ducking and the free hand feel, the hint), the Quest, two peers.

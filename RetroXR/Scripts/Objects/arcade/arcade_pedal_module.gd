@@ -6,10 +6,10 @@
 ## button 2, and BUTTON2's default sequence holds GUNCODE_BUTTON2) and a joypad with its A (input_retro's
 ## button_mapping). So a pedal is a switch on button 2, as on a real cabinet converted to another game.
 ##
-## A headset reads no feet. ArcadeInput presses the pedal for whoever holds that player's gun: the gun
-## hand's Aux A (A or X, the gun's own button), or the `arcade_pedal` action (Space; RB on the player's
-## pad; any foot switch that types the key). The plate goes down with it. Which way suits a headset best
-## is open (docs/dev/arcade.md "The pedal").
+## A headset reads no feet, so ArcadeInput keeps the pedal down while that player's gun is in a hand and
+## lifts it to take cover: the gun hand's A or X or the `arcade_pedal` key (Space, a pad's RB) in every
+## mode, the free hand's trigger or ducking in the other two (AppPrefs.arcade_pedal_mode, docs/dev/arcade.md
+## "The pedal"). The plate shows it.
 class_name ArcadePedalModule
 extends ArcadeModule
 

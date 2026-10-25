@@ -21,7 +21,7 @@
 ##   fire/       START and the coin reach a gun's port as the gun's own buttons; the grip that holds a
 ##               cabinet's gun is no button
 ##   aim/        a gun aims at the cabinet's own tube
-##   pedal/      the pedal is player 1's button 2: the gun hand's Aux A or the pedal key presses it
+##   pedal/      the pedal is player 1's button 2, down while the gun is held; A/X, the key, the free hand or ducking lift it
 ##   console/    the consolized Neo Geo MVS: a console that takes the same cassette, with pads and phono AV out
 ##   names/      RomM's neogeomvs and neogeoaes are the one neogeo system, and so are the ROM folders
 ##   shooting/   the gun cabinets are wide, with a big STRAIGHT screen (a gun held up to it must not walk in)
@@ -526,17 +526,20 @@ func _group_fire() -> void:
 	sys.is_powered_on = false
 
 
-## A right hand the suite works by hand: an XRController3D bound to a tracker whose inputs it sets.
-func _fake_hand() -> Dictionary:
-	var origin := XROrigin3D.new()
-	add_child(origin)
+## A hand the suite works by hand: an XRController3D bound to a tracker whose inputs it sets, tracked (it has a
+## pose, so get_is_active is true). `origin` puts it beside another hand under one XROrigin3D.
+func _fake_hand(side := "right", origin: XROrigin3D = null) -> Dictionary:
+	if origin == null:
+		origin = XROrigin3D.new()
+		add_child(origin)
 	var ctrl := XRController3D.new()
-	ctrl.tracker = &"right_hand"
+	ctrl.tracker = StringName(side + "_hand")
 	ctrl.pose = &"default"
 	origin.add_child(ctrl)
 	var tracker := XRControllerTracker.new()
-	tracker.name = &"right_hand"
+	tracker.name = StringName(side + "_hand")
 	XRServer.add_tracker(tracker)
+	tracker.set_pose(&"default", Transform3D.IDENTITY, Vector3.ZERO, Vector3.ZERO, XRPose.XR_TRACKING_CONFIDENCE_HIGH)
 	return {"origin": origin, "ctrl": ctrl, "tracker": tracker}
 
 
@@ -627,15 +630,17 @@ func _group_pedal() -> void:
 		"pedal: and the cabinet with sockets and no gun does not")
 
 
-## What presses a pedal and what it presses: MAME reads Time Crisis's pedal as player 1's BUTTON2, which is the
-## gun's Aux A and the joypad's A.
+## What works the pedal and what it sends: MAME reads Time Crisis's pedal as player 1's BUTTON2, the gun's Aux A
+## and the joypad's A. A headset reads no feet, so the pedal is down while the gun is in a hand and taking cover
+## lifts it: A or X and the pedal key in every mode, the free hand's trigger or ducking in the other two.
 func _pedal_presses(sys: RetroSystem, pedal: ArcadePedalModule) -> void:
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var input := model.arcade_input()
 	var guns := sys.captive_controllers()
 	var gun := guns[0] as LightGun
 	var gun2 := guns[1] as LightGun
-	var a_bit := 1 << ControllerBindings.JOYPAD_A
+	var aux_a := ControllerBindings.LIGHTGUN_AUX_A
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
 	input.frame_override = input.boot_frames()
 	sys.is_powered_on = true
 	await _wait(3)
@@ -644,17 +649,12 @@ func _pedal_presses(sys: RetroSystem, pedal: ArcadePedalModule) -> void:
 	# The toe of the plate: it rests raised, and comes down when the pedal is pressed.
 	var toe := Vector3(0, 0, -0.09)
 	var toe_rest := (rest * toe).y
-	# The gun hand's A (or X): the gun's own Aux A, through the real binding.
-	var hand := _fake_hand()
-	gun._holding_ctrl = hand["ctrl"]
-	(hand["tracker"] as XRControllerTracker).set_input(&"ax_button", 1.0)
-	gun._pressed_now()
-	input.last_sent.clear()
 	input._process(0.0)
-	_ok(pedal.is_pressed(), "pedal: the gun hand's A or X presses it (the gun's Aux A)")
-	_ok((int(input.last_sent.get(0, 0)) & a_bit) != 0, "pedal: and it is the joypad's A on player 1's port too")
-	_ok(not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A),
-		"pedal: (the gun sends its own Aux A itself: nothing is pressed for it from outside)")
+	_ok(not pedal.is_pressed() and _pedal_off(input, gun, 0), "pedal: with the gun in its holster it is up")
+	input.held_override = [gun]
+	input._process(0.0)
+	_ok(pedal.is_pressed() and _pedal_sent(input, gun, 0),
+		"pedal: with player 1's gun in a hand it is down (out of cover): the gun's Aux A and the joypad's A")
 	for i in 6:
 		pedal.tick(0.02)
 	var toe_down := (plate.transform * toe).y
@@ -662,63 +662,187 @@ func _pedal_presses(sys: RetroSystem, pedal: ArcadePedalModule) -> void:
 		"pedal: the plate goes down, toe first (%.3f -> %.3f m)" % [toe_rest, toe_down])
 	_ok(absf((plate.transform * Vector3(0, 0, 0.10)).y - (rest * Vector3(0, 0, 0.10)).y) < 0.012,
 		"pedal: about its hinge: the heel stays where it was")
+	# The gun hand's A (or X), through the real binding, takes cover: the game hears the pedal come up, not the
+	# hand's Aux A, which the cabinet has taken over.
+	var hand := _fake_hand()
+	gun._holding_ctrl = hand["ctrl"]
+	(hand["tracker"] as XRControllerTracker).set_input(&"ax_button", 1.0)
+	gun._pressed_now()
+	input._process(0.0)
+	_ok(gun.hand_button(aux_a) and not pedal.is_pressed() and _pedal_off(input, gun, 0),
+		"pedal: the gun hand's A or X takes cover: the pedal comes up, and the hand's own Aux A is not sent")
+	for i in 6:
+		pedal.tick(0.02)
+	_ok(pedal.plate_down() == 0.0 and plate.transform.is_equal_approx(rest), "pedal: the plate back where it rested")
 	(hand["tracker"] as XRControllerTracker).set_input(&"ax_button", 0.0)
 	gun._pressed_now()
 	input._process(0.0)
-	_ok(not pedal.is_pressed() and (int(input.last_sent.get(0, 0)) & a_bit) == 0, "pedal: let go, it comes up")
-	for i in 6:
-		pedal.tick(0.02)
-	_ok(pedal.plate_down() == 0.0 and plate.transform.is_equal_approx(rest), "pedal: all the way back to where it rested")
-	_drop_fake_hand(gun, hand)
-	# A pedal that is not wired is a picture: the gun's Aux A is its own again.
-	pedal.active = false
-	gun._pressed_out[ControllerBindings.LIGHTGUN_AUX_A] = true
-	input.last_sent.clear()
-	input._process(0.0)
-	_ok(not pedal.is_pressed() and (int(input.last_sent.get(0, 0)) & a_bit) == 0,
-		"pedal: one that is not wired is not pressed, and sends no joypad A")
-	gun._pressed_out.clear()
-	pedal.active = true
-	# Player 2's Aux A is its own gun's: this pedal is player 1's.
-	gun2._pressed_out[ControllerBindings.LIGHTGUN_AUX_A] = true
-	input.last_sent.clear()
-	input._process(0.0)
-	_ok(not pedal.is_pressed() and (int(input.last_sent.get(1, 0)) & a_bit) == 0,
-		"pedal: player 2's Aux A does not press player 1's pedal, nor a joypad A")
-	gun2._pressed_out.clear()
-	# The pedal key presses the pedal of the player holding a gun, and only while one is held.
+	_ok(pedal.is_pressed() and _pedal_sent(input, gun, 0), "pedal: let go, out of cover again")
+	# The pedal key (Space, a pad's RB, a foot switch) takes cover too.
 	Input.action_press(ArcadeInput.PEDAL_ACTION)
-	input.last_sent.clear()
 	input._process(0.0)
-	_ok(not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A)
-		and (int(input.last_sent.get(0, 0)) & a_bit) == 0,
-		"pedal: the pedal key with both guns in their holsters presses nothing")
-	input.held_override = [gun]
-	input._process(0.0)
-	_ok(pedal.is_pressed() and gun.external_button(ControllerBindings.LIGHTGUN_AUX_A)
-		and (int(input.last_sent.get(0, 0)) & a_bit) != 0,
-		"pedal: with player 1's gun in a hand it presses the pedal: the gun's Aux A from outside, and the joypad's A")
-	input.held_override = [gun2]
-	input._process(0.0)
-	_ok(not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A)
-		and not gun2.external_button(ControllerBindings.LIGHTGUN_AUX_A),
-		"pedal: with only player 2's gun held it presses nothing (player 2 has no pedal)")
-	input.held_override = [gun]
-	input._process(0.0)
+	var key_cover := not pedal.is_pressed() and _pedal_off(input, gun, 0)
 	Input.action_release(ArcadeInput.PEDAL_ACTION)
 	input._process(0.0)
-	_ok(not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A),
-		"pedal: the key let go, it comes up and the gun's Aux A is let go")
-	# Switched off with the pedal down: it comes up, and the gun is not left pressed.
-	Input.action_press(ArcadeInput.PEDAL_ACTION)
+	_ok(key_cover and pedal.is_pressed(), "pedal: the pedal key takes cover while it is held")
+	# A pedal that is not wired is a picture: the gun's Aux A is its own again.
+	pedal.active = false
+	gun._pressed_out[aux_a] = true
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and gun.sent_button(aux_a) and not gun.external_button(aux_a)
+		and (int(input.last_sent.get(0, 0)) & (1 << ControllerBindings.JOYPAD_A)) == 0,
+		"pedal: one that is not wired is not pressed, and the gun's Aux A is its own (no joypad A)")
+	gun._pressed_out.clear()
+	pedal.active = true
+	# Player 2's gun is player 2's: this pedal is player 1's, and player 2 has none.
+	input.held_override = [gun2]
+	gun2._pressed_out[aux_a] = true
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and _pedal_off(input, gun, 0) and gun2.sent_button(aux_a)
+		and (int(input.last_sent.get(1, 0)) & (1 << ControllerBindings.JOYPAD_A)) == 0,
+		"pedal: player 2's gun in a hand does not work player 1's pedal, and its Aux A is its own")
+	gun2._pressed_out.clear()
+	# The hint the gun carries says how to take cover, the gun on a port with no pedal carries none.
+	var rows: Array = gun._cabinet_rows
+	_ok(rows.size() == 2 and rows[0][0] == &"pedal_cover" and rows[0][2] == ["quest_button_{ax}_outline"]
+		and str(rows[1][3]).contains(DesktopBindings.event_display_name(ArcadeInput.PEDAL_ACTION))
+		and gun2._cabinet_rows.is_empty(),
+		"pedal: the gun's hint says hold A or X (Space on the desktop) to take cover, and player 2's says nothing")
+	var declared := false
+	for row: Array in gun._hint._rows:
+		declared = declared or row[0] == &"pedal_cover"
+	_ok(declared, "pedal: and the hint has the row, to show at the grab")
+	# The free hand's trigger (the other mode): the right hand holds the gun, the left squeezes.
+	input.pedal_mode_override = AppPrefs.PEDAL_FREE_HAND
+	input.held_override = [gun]
+	var left := _fake_hand("left", hand["origin"])
+	input._left_vr_ctrl = left["ctrl"]
+	input._right_vr_ctrl = hand["ctrl"]
+	input._process(0.0)
+	_ok(pedal.is_pressed() and input._free_hand(gun) == left["ctrl"],
+		"pedal: free hand: out of cover, and the left hand is the free one (the right holds the gun)")
+	_ok(input._free_hand_block.is_blocking(left["ctrl"]) and not input._free_hand_block.is_blocking(hand["ctrl"]),
+		"pedal: its laser is off while it works the pedal, so the squeeze clicks nothing")
+	gun._holding_ctrl = left["ctrl"]
+	var swapped: XRController3D = input._free_hand(gun)
+	gun._holding_ctrl = hand["ctrl"]
+	_ok(swapped == hand["ctrl"], "pedal: (with the gun in the left hand the right one is free)")
+	sys.is_powered_on = false
+	input._process(0.0)
+	var off_released := not input._free_hand_block.is_blocking(left["ctrl"])
+	sys.is_powered_on = true
+	input._process(0.0)
+	_ok(off_released and input._free_hand_block.is_blocking(left["ctrl"]),
+		"pedal: switched off, the free hand has its laser back; on again, it works the pedal again")
+	(left["tracker"] as XRControllerTracker).set_input(&"trigger", 1.0)
+	input._process(0.0)
+	_ok(not pedal.is_pressed() and _pedal_off(input, gun, 0), "pedal: the free hand's trigger takes cover")
+	(left["tracker"] as XRControllerTracker).set_input(&"trigger", 0.0)
+	input._process(0.0)
+	_ok(pedal.is_pressed(), "pedal: let go, out again")
+	_ok(gun._cabinet_rows[0][0] == &"pedal_cover_free_hand"
+		and HeldHint.glyph_name(gun._cabinet_rows[0][2][0], true) == "quest_trigger_left_outline",
+		"pedal: the hint names the other hand's trigger")
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
+	(left["tracker"] as XRControllerTracker).set_input(&"trigger", 1.0)
+	input._process(0.0)
+	_ok(pedal.is_pressed() and not input._free_hand_block.is_blocking(left["ctrl"]),
+		"pedal: in the other modes the free hand's trigger does nothing, and its laser is back")
+	(left["tracker"] as XRControllerTracker).set_input(&"trigger", 0.0)
+	XRServer.remove_tracker(left["tracker"] as XRControllerTracker)
+	input._left_vr_ctrl = null
+	input._right_vr_ctrl = null
+	_drop_fake_hand(gun, hand)
+	# Ducking: 18 cm under the highest the head has been since the grab, back above 12.
+	input.pedal_mode_override = AppPrefs.PEDAL_DUCK
+	input.head_height_override = 1.70
+	input._process(0.0)
+	var up := pedal.is_pressed()
+	input.head_height_override = 1.60
+	input._process(0.0)
+	var bob := pedal.is_pressed()
+	input.head_height_override = 1.50
+	input._process(0.0)
+	var ducked := not pedal.is_pressed() and _pedal_off(input, gun, 0)
+	_ok(up and bob and ducked, "pedal: ducking takes cover: 10 cm under is still out, 20 is in")
+	input.head_height_override = 1.57
+	input._process(0.0)
+	var held_down := not pedal.is_pressed()
+	input.head_height_override = 1.60
+	input._process(0.0)
+	_ok(held_down and pedal.is_pressed(), "pedal: and out again only above 12 cm under, so it does not flicker")
+	input.head_height_override = 1.80
+	input._process(0.0)
+	input.head_height_override = 1.61
+	input._process(0.0)
+	_ok(not pedal.is_pressed(), "pedal: measured from the highest the head has been (1.80), not where it was taken")
+	input.held_override = []
+	input._process(0.0)
+	input.held_override = [gun]
+	input.head_height_override = 1.40
+	input._process(0.0)
+	var fresh := pedal.is_pressed()
+	gun._pressed_out[aux_a] = true
+	input._process(0.0)
+	_ok(fresh and not pedal.is_pressed(), "pedal: a new grab measures afresh (taken at 1.40, out), and A or X still takes cover")
+	gun._pressed_out.clear()
+	_ok(gun._cabinet_rows[0][0] == &"pedal_cover_duck", "pedal: and the hint says duck")
+	input.head_height_override = NAN
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
+	# Switched off while out of cover: the pedal comes up and the gun is not left pressed.
 	input._process(0.0)
 	var was_down := pedal.is_pressed()
 	sys.is_powered_on = false
 	input._process(0.0)
-	Input.action_release(ArcadeInput.PEDAL_ACTION)
-	_ok(was_down and not pedal.is_pressed() and not gun.external_button(ControllerBindings.LIGHTGUN_AUX_A),
+	_ok(was_down and not pedal.is_pressed() and not gun.external_button(aux_a),
 		"pedal: switched off with it down, it comes up and the gun is let go")
 	input.held_override = []
+	input.pedal_mode_override = ""
+	# The setting is the player's, saved, and an unknown one reads as the default.
+	var prefs_existed := FileAccess.file_exists(AppPrefs.PREFS_PATH)
+	var prefs_before := FileAccess.get_file_as_bytes(AppPrefs.PREFS_PATH)
+	var mode_before := AppPrefs.arcade_pedal_mode
+	AppPrefs.arcade_pedal_mode = AppPrefs.PEDAL_DUCK
+	AppPrefs.save_prefs()
+	AppPrefs.arcade_pedal_mode = AppPrefs.PEDAL_BUTTON
+	AppPrefs._load_prefs()
+	var kept := AppPrefs.arcade_pedal_mode == AppPrefs.PEDAL_DUCK
+	var data := JsonStore.read_dict(AppPrefs.PREFS_PATH, "test")
+	data["arcade_pedal_mode"] = "feet"
+	JsonStore.write_dict(AppPrefs.PREFS_PATH, data, "test")
+	AppPrefs._load_prefs()
+	_ok(kept and AppPrefs.arcade_pedal_mode == AppPrefs.PEDAL_BUTTON,
+		"pedal: the mode is saved and read back, and one this build does not know reads as A or X")
+	AppPrefs.arcade_pedal_mode = mode_before
+	if prefs_existed:
+		var f := FileAccess.open(AppPrefs.PREFS_PATH, FileAccess.WRITE)
+		f.store_buffer(prefs_before)
+		f.close()
+	elif FileAccess.file_exists(AppPrefs.PREFS_PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(AppPrefs.PREFS_PATH))
+	# The per-hand glyph names a hint resolves.
+	_ok(HeldHint.glyph_name("quest_button_{ax}_outline", true) == "quest_button_a_outline"
+		and HeldHint.glyph_name("quest_button_{ax}_outline", false) == "quest_button_x_outline"
+		and HeldHint.glyph_name("quest_trigger_{other}_outline", false) == "quest_trigger_right_outline"
+		and HeldHint.glyph_name("quest_grip_{side}_outline", false) == "quest_grip_left_outline",
+		"pedal: {ax} is the hand's A or X, {other} the other hand ({side} unchanged)")
+	var have_art := true
+	for name: String in ["quest_button_a_outline", "quest_button_x_outline", "quest_trigger_left_outline",
+			"quest_trigger_right_outline", "xbox_rb_outline"]:
+		have_art = have_art and ResourceLoader.exists("%s/%s%s" % [HeldHint.GLYPH_DIR, name, ConsolePadDiagram.GLYPH_EXT])
+	_ok(have_art, "pedal: and every glyph the pedal's hints name is there")
+
+
+## Whether `port` is sending the pedal down: as `gun`'s Aux A (what the core is told of it) and as the joypad's A.
+func _pedal_sent(input: ArcadeInput, gun: LightGun, port: int) -> bool:
+	return gun.sent_button(ControllerBindings.LIGHTGUN_AUX_A) \
+		and (int(input.last_sent.get(port, 0)) & (1 << ControllerBindings.JOYPAD_A)) != 0
+
+
+## Whether `port` is sending the pedal up: neither `gun`'s Aux A nor the joypad's A, each on its own.
+func _pedal_off(input: ArcadeInput, gun: LightGun, port: int) -> bool:
+	return not gun.sent_button(ControllerBindings.LIGHTGUN_AUX_A) \
+		and (int(input.last_sent.get(port, 0)) & (1 << ControllerBindings.JOYPAD_A)) == 0
 
 
 ## The slot a board stands in: the docked bay's (a cabinet's own is shut for good, ArcadeBayUnit).

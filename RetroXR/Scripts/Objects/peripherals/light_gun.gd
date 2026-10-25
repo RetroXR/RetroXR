@@ -723,6 +723,56 @@ func hand_button(lid: int) -> bool:
 	return bool(_pressed_out.get(lid, false))
 
 
+## Buttons the machine has taken over (lightgun id -> true): the hand's press of one no longer reaches the
+## core, only the machine's (set_external_button), and the machine reads the hand through hand_button. A
+## cabinet's foot pedal takes Aux A this way, because the game must hear the PEDAL, which the hand's Aux A
+## only lifts (ArcadeInput._step_pedal).
+var _claimed: Dictionary = {}
+
+
+## Take a button over from the hand, or give it back. See _claimed.
+func claim_button(lid: int, claimed: bool) -> void:
+	if _claimed.has(lid) == claimed:
+		return
+	if claimed:
+		_claimed[lid] = true
+	else:
+		_claimed.erase(lid)
+	if _connected_system != null and _port_index >= 0:
+		_set_button(_connected_system.get_libretro_node(), lid, hand_button(lid))
+
+
+## What the core is told of one button now: see _told.
+func sent_button(lid: int) -> bool:
+	return _told(lid, hand_button(lid))
+
+
+## What the core is told of one button the hand has `pressed` or not: the hand's press unless the machine has
+## taken the button over, ORed with the machine's own.
+func _told(lid: int, pressed: bool) -> bool:
+	return (pressed and not _claimed.has(lid)) or bool(_external.get(lid, false))
+
+
+## The VR controller holding this gun, or null (in a holster, on the floor, or in the desktop's hand).
+func holding_controller() -> XRController3D:
+	return _holding_ctrl if is_instance_valid(_holding_ctrl) else null
+
+
+## The rows a cabinet adds to this gun's held hint (ArcadeInput: how its pedal takes cover), [] for none. A
+## row is [id, platform, glyphs, caption]; a repeat of what is there already changes nothing.
+var _cabinet_rows: Array = []
+
+
+func set_cabinet_hint(rows: Array) -> void:
+	if rows == _cabinet_rows or _hint == null:
+		return
+	for row: Array in _cabinet_rows:
+		_hint.remove_row(row[0])
+	_cabinet_rows = rows
+	for row: Array in rows:
+		_hint.add_row(row[0], row[1], row[2], row[3], HeldHint.WHEN_HELD)
+
+
 ## Whether this gun's core can only read an aimed gun as a pointer (ForcedCoreOptions.GUN_AS_POINTER).
 ## Asked of the machine twice a second, not per frame.
 var _pointer_checked_at := -1000
@@ -745,7 +795,7 @@ func external_button(lid: int) -> bool:
 
 
 func _set_button(libretro: Libretro, button: int, pressed: bool) -> void:
-	pressed = pressed or bool(_external.get(button, false))
+	pressed = _told(button, pressed)
 	if not NetworkManager.netplay_set_lightgun_button(_connected_system, _port_index,
 			button, pressed):
 		libretro.SetLightgunButton(_port_index, button, pressed)

@@ -140,7 +140,7 @@ static func for_node(host: Node3D, vr_combo_drop := false, height := 0.18) -> He
 
 
 ## Declare a hint row. `glyphs` are InputPrompts texture basenames, optionally
-## carrying {side}/{s} tokens for per-hand art.
+## carrying per-hand tokens ({side}/{s}/{other}/{ax}, glyph_name).
 ##
 ## Ignores a repeat of an id already declared, so a caller that cannot know
 ## whether it is first — the spawner, adding the same row to every object it
@@ -516,10 +516,18 @@ func _caption(text: String) -> Label:
 	return label
 
 
-func _glyph(pattern: String, right_hand: bool) -> TextureRect:
-	var file := pattern \
+## A glyph pattern for the hand holding the object: {side} left|right and {s} l|r name that hand, {other}
+## the other one (a verb for the free hand), {ax} its A or X (the right controller's A is the left's X).
+static func glyph_name(pattern: String, right_hand: bool) -> String:
+	return pattern \
 		.replace("{side}", "right" if right_hand else "left") \
-		.replace("{s}", "r" if right_hand else "l")
+		.replace("{other}", "left" if right_hand else "right") \
+		.replace("{s}", "r" if right_hand else "l") \
+		.replace("{ax}", "a" if right_hand else "x")
+
+
+func _glyph(pattern: String, right_hand: bool) -> TextureRect:
+	var file := glyph_name(pattern, right_hand)
 	var rect := TextureRect.new()
 	var path := "%s/%s%s" % [GLYPH_DIR, file, ConsolePadDiagram.GLYPH_EXT]
 	if ResourceLoader.exists(path):

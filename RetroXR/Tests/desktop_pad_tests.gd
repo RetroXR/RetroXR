@@ -336,6 +336,9 @@ func _helpers() -> void:
 	_ok(other[0] == ["xbox_button_menu_outline"] and other[1] == "Menu", "rows/any other: its glyphs one for one")
 	var odd := DesktopPadService.pad_row(&"menu", ["quest_trigger_left_outline"], "x")
 	_ok(odd[0] == ["quest_trigger_left_outline"], "rows/a glyph with no pad one stays")
+	var cover := DesktopPadService.pad_row(&"pedal_cover_desktop", [], "Hold Space to take cover")
+	_ok(cover[0] == ["xbox_rb_outline"] and String(cover[1]).contains("{g}"),
+		"rows/a gun game's take-cover row names RB on a pad, not the key")
 	for g: String in DesktopPadService.PAD_GLYPHS.values():
 		_ok(ResourceLoader.exists("res://Textures/InputPrompts/%s%s" % [g, ConsolePadDiagram.GLYPH_EXT]),
 			"rows/the glyph %s exists" % g)
