@@ -15,12 +15,13 @@ extends RefCounted
 
 
 ## The bodies. `upright` is the generic cabinet and every old one: 0.66 wide, 1.80 tall, the glass
-## leaning back 27 degrees, a 0.44 x 0.33 tube. `wide` is the shooter's: 0.90 wide, 1.90 tall, the glass
-## STRAIGHT (vertical, flush with the front), a 0.72 x 0.54 tube (half as wide again as the upright's: a
-## 29 inch tube was the usual, a 50 inch projection the big one). A gun held at arm's length in front of a
-## small screen walks into it; this one leaves room. Side silhouettes are (z, y), front +z. `inches` is
-## the class of the tube the body is drawn with (a CRT's picture is about 87% of its class): a game's
-## own monitor is sized against it (ArcadeCabinetBuilder.tube_for).
+## leaning back 27 degrees, a 0.44 x 0.33 tube. `tate` is the upright of a monitor on its side: the glass
+## 0.13 m longer up the same slant and a 0.48 x 0.36 tube, so turned upright it fills a tall window. `wide` is
+## the shooter's: 0.90 wide, 1.90 tall, the glass STRAIGHT (vertical, flush with the front), a 0.72 x 0.54 tube
+## (half as wide again as the upright's: a 29 inch tube was the usual, a 50 inch projection the big one). A gun
+## held at arm's length in front of a small screen walks into it; this one leaves room. Side silhouettes are
+## (z, y), front +z. `inches` is the class of the tube the body is drawn with (a CRT's picture is about 87% of
+## its class): a game's own monitor is sized against it (ArcadeCabinetBuilder.tube_for).
 static func shapes() -> Dictionary:
 	return {
 		"upright": {
@@ -35,6 +36,22 @@ static func shapes() -> Dictionary:
 			"top": [0.56, -0.11],
 			"marquee": {"y": 1.62, "h": 0.31, "z": 0.174, "trim_y": 1.459, "under": [0.11, 1.454, 0.125]},
 			"marquee_bottom": 1.46, "glass_back_z": 0.12, "marquee_front_z": 0.18, "screen_front_z": 0.40,
+		},
+		# The upright of a game whose monitor stood on its side (a "tate" game: 1943, Batsugun, Galaga): the
+		# same body, deck and coin face, but the glass runs 0.65 m up the slant (0.51 on the upright) and the
+		# marquee sits above it, so a 25 inch class tube turned upright (0.36 x 0.48 m) fills a window as tall
+		# as it is, instead of floating in a landscape one.
+		"tate": {
+			"w": 0.66, "h": 1.92, "tube": Vector2(0.48, 0.36), "inches": 25,
+			"profile": [
+				Vector2(-0.40, 0.00), Vector2(0.34, 0.00), Vector2(0.34, 0.09), Vector2(0.40, 0.09),
+				Vector2(0.40, 0.78), Vector2(0.47, 0.80), Vector2(0.47, 0.92), Vector2(0.30, 1.00),
+				Vector2(0.01, 1.58), Vector2(0.12, 1.58), Vector2(0.12, 1.92), Vector2(-0.40, 1.92),
+			],
+			"glass_a": Vector2(0.30, 1.00), "glass_b": Vector2(0.01, 1.58),
+			"top": [0.51, -0.135],
+			"marquee": {"y": 1.74, "h": 0.31, "z": 0.114, "trim_y": 1.579, "under": [0.11, 1.574, 0.065]},
+			"marquee_bottom": 1.58, "glass_back_z": 0.06, "marquee_front_z": 0.12, "screen_front_z": 0.40,
 		},
 		"wide": {
 			"w": 0.90, "h": 1.90, "tube": Vector2(0.72, 0.54), "inches": 40,
@@ -437,6 +454,9 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 				var panels := (spec["players"] as Array).size()
 				if panels > 2 and not profile.alternating():
 					spec["socket_count"] = mini(panels, 4)
+	# A monitor on its side wants a taller window than the upright has: the same body with a longer glass.
+	if shape == "upright" and profile.is_vertical():
+		shape = "tate"
 	spec["shape"] = shape
 	var sh: Dictionary = shapes()[shape]
 	spec["width"] = float(sh["w"])

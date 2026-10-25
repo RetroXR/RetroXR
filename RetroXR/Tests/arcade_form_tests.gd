@@ -17,6 +17,7 @@
 ##   layout/    panels across the deck: the generic two where they always were, more crowd it and grow wings
 ##   build/     each form built on a real cabinet: its modules, parts and screen
 ##   board/     the real path: a board in the bay changes the form, pulling it gives the cabinet's own back
+##   tate/      a monitor on its side gets the tall body and a window cut to the picture; every body is one silhouette
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
@@ -81,6 +82,9 @@ func _run() -> void:
 		await _clear()
 	if _want("board"):
 		await _group_board()
+		await _clear()
+	if _want("tate"):
+		await _group_tate()
 		await _clear()
 	if _want("reach"):
 		await _group_reach()
@@ -412,6 +416,103 @@ func _group_board() -> void:
 	_ok(_panels(model).size() == 2 and mq != null and mq.visible
 			and (mq.material_override as StandardMaterial3D).albedo_texture == wheel,
 		"board: the game's art hangs in the slots of its new form")
+
+
+# --- tate ----------------------------------------------------------------------
+
+## The window the monitor module shows the picture through and the tube behind it, metres.
+func _window(model: Node) -> Dictionary:
+	var glass := model.find_child("Glass", true, false) as MeshInstance3D
+	return {"glass": (glass.mesh as QuadMesh).size, "tube": ((model as RetroSystemModelArcadeCabinet).get_builtin_screen().mesh as QuadMesh).size}
+
+
+func _group_tate() -> void:
+	# Every body is ONE silhouette: the glass edge and the marquee's underside meet at its corner, the highest
+	# point is the body's height, and the marquee stands between them.
+	for shape_name: String in S.shapes():
+		var sh: Dictionary = S.shapes()[shape_name]
+		var outline: Array = sh["profile"]
+		var a: Vector2 = sh["glass_a"]
+		var b: Vector2 = sh["glass_b"]
+		var top := 0.0
+		for p: Vector2 in outline:
+			top = maxf(top, p.y)
+		var mq: Dictionary = sh["marquee"]
+		var lo := float(mq["y"]) - float(mq["h"]) * 0.5
+		var hi := float(mq["y"]) + float(mq["h"]) * 0.5
+		_ok(outline.has(a) and outline.has(b) and is_equal_approx(top, float(sh["h"]))
+				and is_equal_approx(float(sh["marquee_bottom"]), b.y) and lo >= b.y - 0.001 and hi <= top + 0.001,
+			"tate: the %s body is one silhouette (glass %s to %s, marquee %.2f..%.2f, top %.2f)" % [shape_name, a, b, lo, hi, top])
+	# The tall body is the upright's with a longer glass up the same slant.
+	var up: Dictionary = S.shapes()["upright"]
+	var ta: Dictionary = S.shapes()["tate"]
+	var up_edge: Vector2 = (up["glass_b"] as Vector2) - (up["glass_a"] as Vector2)
+	var ta_edge: Vector2 = (ta["glass_b"] as Vector2) - (ta["glass_a"] as Vector2)
+	var lower := true
+	for i in 8:
+		lower = lower and (up["profile"][i] as Vector2) == (ta["profile"][i] as Vector2)
+	_ok(lower and up_edge.normalized().is_equal_approx(ta_edge.normalized()) and ta["glass_a"] == up["glass_a"]
+			and is_equal_approx(float(ta["w"]), float(up["w"])) and ta_edge.length() > up_edge.length() + 0.1,
+		"tate: the upright's lower body, deck and lean, the glass %.2f m longer (%.2f against %.2f)"
+			% [ta_edge.length() - up_edge.length(), ta_edge.length(), up_edge.length()])
+	# Which games get it: a monitor on its side, and nobody else.
+	for romset in ["batsugun", "1943", "galaga", "pacman", "dkong", "centiped"]:
+		var spec := _spec(romset)
+		_ok(str(spec["shape"]) == "tate" and bool(spec["screen"]["vertical"]),
+			"tate: %s, a monitor on its side, gets the tall body" % romset)
+	for romset in ["sf2", "polepos", "timecris", "daytona", "hangon", "ddrusa"]:
+		_ok(str(_spec(romset).get("shape", "upright")) != "tate", "tate: %s, a monitor the right way up, does not" % romset)
+	# On a cabinet: the baked one cuts its window to its tube, and a vertical game's board changes both.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var own := _window(model)
+	var own_tube: Vector2 = own["tube"]
+	var own_glass: Vector2 = own["glass"]
+	_ok(is_equal_approx(own_glass.x, own_tube.x + 0.06) and is_equal_approx(own_glass.y, own_tube.y + 0.06),
+		"tate: the cabinet's own window is its tube and 3 cm round it (%s in %s)" % [own_tube, own_glass])
+	await _board(sys, "batsugun")
+	var w := _window(model)
+	var tube: Vector2 = w["tube"]
+	var glass: Vector2 = w["glass"]
+	_ok(tube.y > tube.x and glass.y > glass.x and absf(tube.x / tube.y - 0.75) < 0.01,
+		"tate: Batsugun's picture is 3:4 and the window it is seen through is taller than wide (%s in %s)" % [tube, glass])
+	_ok(tube.y > 0.45 and tube.x > 0.34,
+		"tate: and as big as a 25 inch tube stood up (%.2f x %.2f), not the 0.30 x 0.40 the upright's window left" % [tube.x, tube.y])
+	var margin_x := (glass.x - tube.x) * 0.5
+	var margin_y := (glass.y - tube.y) * 0.5
+	_ok(absf(margin_x - 0.03) < 0.002 and absf(margin_y - 0.03) < 0.003,
+		"tate: the picture has 3 cm of black round it, side and top alike (%.3f, %.3f)" % [margin_x, margin_y])
+	_ok(is_equal_approx(model.cabinet_height, float(ta["h"])) and is_equal_approx(model.marquee_bottom, float(ta["marquee_bottom"]))
+			and is_equal_approx(model.glass_back_z, float(ta["glass_back_z"])),
+		"tate: the model's height and marquee follow the body (%.2f, glass back %.2f)" % [model.cabinet_height, model.glass_back_z])
+	var side := model.find_child("FrameSideL", true, false) as MeshInstance3D
+	var body: Color = S.variant("generic")["body"]
+	_ok(side != null and (side.get_active_material(0) as StandardMaterial3D).albedo_color.is_equal_approx(body)
+			and is_equal_approx((side.mesh as BoxMesh).size.x, (0.62 - glass.x) * 0.5),
+		"tate: the front beside the window is the cabinet's own board, as wide as the window leaves it")
+	# The marquee stands over the glass and the glass on the deck: nothing of the window is hidden by either.
+	var pane := model.find_child("Glass", true, false) as Node3D
+	var half := pane.global_basis.y * glass.y * 0.5
+	var edge_lo := model.to_local(pane.global_position - half).y
+	var edge_hi := model.to_local(pane.global_position + half).y
+	_ok(edge_lo >= (ta["glass_a"] as Vector2).y and edge_hi <= float(ta["marquee_bottom"]),
+		"tate: the window sits between the deck and the marquee (%.2f..%.2f of %.2f..%.2f)" % [edge_lo, edge_hi,
+			(ta["glass_a"] as Vector2).y, float(ta["marquee_bottom"])])
+	await _pull(sys)
+	var back := _window(model)
+	_ok(is_equal_approx(model.cabinet_height, float(up["h"])) and (back["tube"] as Vector2).is_equal_approx(own_tube)
+			and (back["glass"] as Vector2).is_equal_approx(own_glass),
+		"tate: pulling the board gives the upright, its tube and its window back")
+	await _board(sys, "sf2")
+	_ok(is_equal_approx(model.cabinet_height, float(up["h"])) and (_window(model)["tube"] as Vector2).is_equal_approx(own_tube),
+		"tate: a game the right way up keeps the upright (1.80 m)")
+	await _pull(sys)
+	await _board(sys, "pacman")
+	var pac := _window(model)
+	_ok(is_equal_approx(model.cabinet_height, float(ta["h"])) and (pac["tube"] as Vector2).y < tube.y
+			and (pac["tube"] as Vector2).y > (pac["tube"] as Vector2).x
+			and is_equal_approx((pac["glass"] as Vector2).y, (pac["tube"] as Vector2).y + 0.06),
+		"tate: Pac-Man's 19 inch tube is smaller than Batsugun's in a window cut to it (%s in %s)" % [pac["tube"], pac["glass"]])
 
 
 # --- guns ----------------------------------------------------------------------

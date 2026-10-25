@@ -20,7 +20,8 @@
 ##
 ## --forms=<romset>,<romset>... photographs the cabinet in the form each game asks for
 ## (ArcadeCabinetSpecs.for_game: its panels, guns, cockpit or stage), one `form_<romset>.png` each from
-## the front three-quarter, and a `formside_<romset>.png` from the side, framed to what the form covers.
+## the front three-quarter, a `formside_<romset>.png` from the side, framed to what the form covers, and a
+## `formscreen_<romset>.png` of the monitor square on.
 ## --artwork=<dir> reads MAME artwork from that folder instead of the data root's: each form then wears its
 ## game's bezel when the folder has one (ArcadeBezel), and a `bezel_<romset>.png` close-up is taken of it.
 extends Node3D
@@ -203,6 +204,10 @@ func _shot_forms() -> void:
 		await _save("form_" + romset)
 		_look(mid + Vector3(reach * 0.95, 0.75, 0.0), mid)
 		await _save("formside_" + romset)
+		# The monitor square on, from where a player standing at the glass would look.
+		var tube := _model.get_builtin_screen()
+		_look(tube.global_position + tube.global_basis.z * 1.1, tube.global_position)
+		await _save("formscreen_" + romset)
 		if not _artwork.is_empty():
 			_model._ask_bezel("/probe/%s.zip" % romset)
 			for i in 120:

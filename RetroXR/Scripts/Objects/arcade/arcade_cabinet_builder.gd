@@ -362,6 +362,11 @@ func _build_monitor() -> void:
 	glass_mat.metallic_specular = 1.0
 	var glass_w := _tube.x + 0.06
 	var glass_h := length - 0.11
+	# The window is cut to the tube, 3 cm round it, and the rest of the front is the cabinet's own board: a tall
+	# narrow picture (a monitor on its side) is seen in a tall narrow opening, a small tube in a small one, and
+	# the cabinet reads as built for the game rather than as a landscape recess a picture floats in.
+	glass_h = minf(glass_h, _tube.y + 0.06)
+	var mask := _body
 	var glass := ArcadeParts.quad(_owner, mod, "Glass", Vector2(glass_w, glass_h), Vector3(0, 0, -0.004), glass_mat)
 	glass.name = "Glass"
 	var bar_t := 0.012
@@ -370,10 +375,10 @@ func _build_monitor() -> void:
 	var top_h := (length - glass_h) * 0.5
 	for sx in [-1.0, 1.0]:
 		ArcadeParts.box(_owner, mod, "FrameSide%s" % ("L" if sx < 0 else "R"), Vector3(side_w, length, bar_t),
-			Vector3(sx * (glass_w * 0.5 + side_w * 0.5), 0, fz), _dark)
+			Vector3(sx * (glass_w * 0.5 + side_w * 0.5), 0, fz), mask)
 	for sy in [-1.0, 1.0]:
 		ArcadeParts.box(_owner, mod, "Frame%s" % ("Top" if sy > 0 else "Bottom"), Vector3(glass_w, top_h, bar_t),
-			Vector3(0, sy * (glass_h * 0.5 + top_h * 0.5), fz), _dark)
+			Vector3(0, sy * (glass_h * 0.5 + top_h * 0.5), fz), mask)
 
 
 # ── control deck ────────────────────────────────────────────────────────────

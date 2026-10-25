@@ -745,6 +745,16 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   game with several screens (`s`), and of the game's class (`m`: 19 inches before 1985): the body's own tube is its `inches`
   (upright 25, wide 40, racer 27; a CRT's picture is about 87% of its class), and a game's is scaled from it, then made to fit the glass the
   body has, whole, never squashed. The screen module's `glass_size` follows, so the picture is fitted to the tube it is in.
+  **A monitor on its side gets its own body, `tate`** (2026-10-25, `ArcadeCabinetSpecs.shapes()`): the upright's lower body, deck and 27 degree
+  lean with the glass 0.65 m up the slant instead of 0.51 and the marquee above it (1.92 m tall), and a 0.48 x 0.36 tube (a true 25 inch
+  class) stood up, 0.36 x 0.48 m. On the upright's glass a tate game's picture was 0.30 x 0.40 m, floating in a landscape recess; that was
+  the whole complaint ("the screen does not adapt to the game"). **The window is cut to the tube in every build**: the pane is the tube and
+  3 cm round it (`Glass`, so the picture is seen through a tall narrow opening or a small one), and what is left of the front is the
+  cabinet's OWN board (`FrameSide*`/`Frame*`, the body's colour, not the black recess the first bakes had), so the shape of the picture is the shape
+  of the opening. The five baked cabinets were baked again for it (the node ids in a scene are drawn at random each bake, which is the
+  whole of the churn in the diff). `arcade_form_tests` group `tate/` pins it: every body is one silhouette (glass edge and marquee meet at
+  its corner, the height is the top), the tall body is the upright's with a longer glass up the same slope, which games get it, the window
+  is the tube and 3 cm, and a board pulled gives the upright back.
 - **Guns** (`gun`, `gunm`, `rifle`): the WIDE body, as many guns as the game has light guns (up to 3), START alone for each. `holster`: hung on
   the apron (one gun on the right, as Time Crisis's); `mounted`: resting level on a post on the deck's front edge, aimed at the screen (one in the
   middle: Operation Wolf's Uzi, Terminator 2, Beast Busters' three); `rifle`: one rifle on a taller post in the middle (Silent Scope, Golgo 13),
