@@ -643,7 +643,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 		# How a core's camera subviewport (the Game Boy Camera's lens) finds the
 		# real room in passthrough (GbCameraEye.uses_depth).
-		var cam_drop := VRDropdown.create("Libretro Camera Subviewport",
+		var cam_drop := VRDropdown.create("Libretro Camera Passthrough Subviewport",
 			[["Fixed 1.5 m", "sphere"], ["Depth (real surfaces)", "depth"]],
 			AppPrefs.libretro_camera_backdrop,
 			1, Vector2(300, 56), MenuStyle.MENU_NAME_SIZE)

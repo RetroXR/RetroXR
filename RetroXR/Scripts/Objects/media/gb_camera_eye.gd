@@ -218,7 +218,7 @@ func _hold_depth(want: bool) -> void:
 		EnvironmentDepth.release(self)
 
 
-## General > "Libretro Camera Subviewport" (AppPrefs.libretro_camera_backdrop):
+## General > "Libretro Camera Passthrough Subviewport" (AppPrefs.libretro_camera_backdrop):
 ## "sphere", the default, takes the room to be BACKDROP_RADIUS from the headset
 ## camera everywhere and asks for no depth; "depth" finds the real room's
 ## surfaces with Meta's depth.

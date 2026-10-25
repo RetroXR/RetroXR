@@ -1401,7 +1401,7 @@ func _test_passthrough() -> void:
 	machine.is_powered_on = false
 	eye._process(0.0)
 	_ok(not EnvironmentDepth.is_held() and depth.stops == 1, "passthrough/and lets it go with the camera")
-	# Debug > Libretro Camera Subviewport: the fixed sphere asks for no depth.
+	# General > Libretro Camera Passthrough Subviewport: the fixed sphere asks for no depth.
 	var mode := {"v": "sphere"}
 	eye.backdrop_mode_source = func() -> String: return mode["v"]
 	machine.is_powered_on = true
