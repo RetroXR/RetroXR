@@ -232,8 +232,10 @@ func _init_scraper() -> void:
 ## A cabinet with attract mode on wants this game's video and title (RetroSystem.request_attract_media).
 func request_attract_media(rom_path: String, systemid: String) -> void:
 	ArcadeAttract.pending_media.erase(rom_path)
-	if auto_scraper != null:
-		auto_scraper.request_media(rom_path, systemid, ScreenscraperClient.CABINET_MEDIA)
+	# Only what the game is missing (a video it already has is not fetched again for its title).
+	var kinds := ArcadeAttract.missing_media(systemid, rom_path)
+	if auto_scraper != null and not kinds.is_empty():
+		auto_scraper.request_media(rom_path, systemid, kinds)
 
 
 func _on_attract_media_downloaded(rom_path: String, _systemid: String, media_type: String, _path: String) -> void:

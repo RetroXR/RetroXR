@@ -65,6 +65,8 @@ enum Tier { SILENT, NEAR }
 
 ## A suite hands a ROM its picture without writing the player's data root. Empty in the app.
 static var test_still: Dictionary = {}
+## A suite says whether this build can play a video: -1 asks the build (VlcPlayer), 0 no, 1 yes.
+static var video_support_override: int = -1
 
 static var _rank_msec: int = -100000
 
@@ -213,12 +215,23 @@ static func audio_only_cap() -> int:
 	return AUDIO_ONLY_ANDROID if OS.has_feature("android") else AUDIO_ONLY_DESKTOP
 
 
+## Can this build play a video at all? libVLC is the one backend (vlc-godot), and it is not built
+## everywhere (macOS has none yet): there a game's video is as good as no video.
+static func can_play_video() -> bool:
+	if video_support_override >= 0:
+		return video_support_override == 1
+	return ClassDB.class_exists("VlcPlayer")
+
+
 ## What a game shows, best first: { "kind": "video" | "image" | "", "path": String, "folder": String }.
-## A video snap, else the title screen, else the wheel, else the cover (the box front, else the label).
+## A video snap (when this build can play one), else the title screen (a screenshot of the game where
+## ScreenScraper had no title: the scraper files it in the same slot), else the wheel, else the cover
+## (the box front, else the label). The game's own screen always comes before its logo.
 static func resolve_media(systemid: String, rom_path: String) -> Dictionary:
-	var video := MediaDimensions.media_file_path(systemid, rom_path, VIDEO, PackedStringArray(VIDEO_EXTS))
-	if not video.is_empty():
-		return {"kind": "video", "path": video, "folder": VIDEO}
+	if can_play_video():
+		var video := MediaDimensions.media_file_path(systemid, rom_path, VIDEO, PackedStringArray(VIDEO_EXTS))
+		if not video.is_empty():
+			return {"kind": "video", "path": video, "folder": VIDEO}
 	for folder in [TITLE, WHEEL, BOX, "label"]:
 		var img := MediaDimensions.media_file_path(systemid, rom_path, folder,
 			PackedStringArray([".png", ".jpg", ".jpeg", ".webp"]))
@@ -230,6 +243,24 @@ static func resolve_media(systemid: String, rom_path: String) -> Dictionary:
 ## Is there a video snap for this game yet? (The cabinet asks before it spends a scrape request.)
 static func has_video(systemid: String, rom_path: String) -> bool:
 	return not MediaDimensions.media_file_path(systemid, rom_path, VIDEO, PackedStringArray(VIDEO_EXTS)).is_empty()
+
+
+static func has_title(systemid: String, rom_path: String) -> bool:
+	return not MediaDimensions.media_file_path(systemid, rom_path, TITLE,
+		PackedStringArray([".png", ".jpg", ".jpeg", ".webp"])).is_empty()
+
+
+## What the scraper should fetch for this game's attract (ScreenscraperClient.CABINET_MEDIA kinds): its
+## video when there is none and this build can play one, and its title screen when there is none. The
+## title is asked for even when the video is there: it is the picture until the video decodes, and the
+## one that stands in when it cannot (a still was the WHEEL for every game that had only a video).
+static func missing_media(systemid: String, rom_path: String) -> Array:
+	var out: Array = []
+	if can_play_video() and not has_video(systemid, rom_path):
+		out.append(VIDEO)
+	if not has_title(systemid, rom_path):
+		out.append(TITLE)
+	return out
 
 
 ## The still that stands in for the video: title, wheel, then the cover.
@@ -269,6 +300,9 @@ func start(host: Node3D) -> void:
 ## again so the still gives way to the video.
 func on_media_arrived(rom_path: String) -> void:
 	if active and _host != null and str(_host.get("rom_path")) == rom_path:
+		# The still first: a title that lands while the video plays is what shows before its first frame
+		# and if it cannot decode, and load_media below leaves a playing video (and so the still) alone.
+		_still = load_still(_game_systemid(), rom_path)
 		load_media()
 
 

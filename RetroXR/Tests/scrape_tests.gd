@@ -760,6 +760,19 @@ func _group_cabinet_media() -> void:
 	_check(pick["video"] == "https://x/small.mp4", "cabinet media: the smaller normalized video is taken when there is one")
 	pick = client._extract_media_urls([both[0]], [], 0, 0, true)
 	_check(pick["video"] == "https://x/big.mp4", "cabinet media: and the plain one when there is not")
+	# No title screen: the game's screenshot fills the title slot, so an attract shows the game, not its wheel.
+	client.extra_media = ScreenscraperClient.CABINET_MEDIA
+	var shot := [
+		{"type": "wheel", "url": "https://x/w.png", "region": "wor"},
+		{"type": "ss", "url": "https://x/ss.png", "region": "wor"},
+	]
+	pick = client._extract_media_urls(shot, ["wor"], 0, 0, true)
+	_check(pick["title"] == "https://x/ss.png", "cabinet media: with no title screen the screenshot stands in for it")
+	pick = client._extract_media_urls(shot + [{"type": "sstitle", "url": "https://x/t.png", "region": "wor"}], ["wor"], 0, 0, true)
+	_check(pick["title"] == "https://x/t.png", "cabinet media: and never ahead of a real title screen")
+	client.extra_media = ["video"]
+	pick = client._extract_media_urls(shot, ["wor"], 0, 0, true)
+	_check(not pick.has("title"), "cabinet media: a scrape that did not ask for a title gets no screenshot either")
 	client.free()
 
 	# ScreenScraper files many arcade games under a SUB-system of Arcade (Point Blank answers as 155 "Namco

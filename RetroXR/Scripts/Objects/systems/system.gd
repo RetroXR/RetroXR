@@ -1705,7 +1705,7 @@ func request_attract_media() -> void:
 		board_sys = systemid
 	if not ArcadeProfiles.is_cabinet_system(board_sys):
 		return
-	if ArcadeAttract.has_video(board_sys, rom_path):
+	if ArcadeAttract.missing_media(board_sys, rom_path).is_empty():
 		return
 	# Left where the menu will find it if it is not up yet; the menu takes it off the list when it asks.
 	ArcadeAttract.pending_media[rom_path] = board_sys

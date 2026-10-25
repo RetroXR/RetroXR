@@ -139,11 +139,17 @@ func _touch(path: String) -> void:
 	f.close()
 
 
-func _png(path: String) -> void:
+func _png(path: String, color: Color = Color(1, 0, 0)) -> void:
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
 	var img := Image.create(8, 6, false, Image.FORMAT_RGBA8)
-	img.fill(Color(1, 0, 0))
+	img.fill(color)
 	img.save_png(path)
+
+
+## The colour of a still (each folder's picture is painted its own colour), or clear for none.
+func _still_color(systemid: String, rom: String) -> Color:
+	var tex := ArcadeAttract.load_still(systemid, rom)
+	return tex.get_image().get_pixel(0, 0) if tex != null else Color(0, 0, 0, 0)
 
 
 func _cabinet(wake: bool = true) -> RetroSystem:
@@ -346,30 +352,46 @@ func _group_media() -> void:
 	var rom := dir.path_join("sf2.zip")
 	var media := dir.path_join("media")
 	_ok(ArcadeAttract.resolve_media(TEST_SYSTEM, rom)["kind"] == "", "media: a game with nothing scraped has nothing to show")
-	_png(media.path_join("box/sf2.png"))
+	var red := Color(1, 0, 0)
+	var green := Color(0, 1, 0)
+	var blue := Color(0, 0, 1)
+	_ok(ArcadeAttract.missing_media(TEST_SYSTEM, rom) == [ArcadeAttract.VIDEO, ArcadeAttract.TITLE],
+		"media: a game with nothing is missing its video and its title")
+	_png(media.path_join("box/sf2.png"), blue)
 	var r: Dictionary = ArcadeAttract.resolve_media(TEST_SYSTEM, rom)
 	_ok(r["kind"] == "image" and r["folder"] == "box", "media: the cover when it is all there is")
-	_png(media.path_join("wheel/sf2.png"))
+	_png(media.path_join("wheel/sf2.png"), green)
 	r = ArcadeAttract.resolve_media(TEST_SYSTEM, rom)
 	_ok(r["kind"] == "image" and r["folder"] == "wheel", "media: the wheel before the cover")
-	_png(media.path_join("title/sf2.png"))
+	_png(media.path_join("title/sf2.png"), red)
 	r = ArcadeAttract.resolve_media(TEST_SYSTEM, rom)
 	_ok(r["kind"] == "image" and r["folder"] == "title", "media: the title screen before the wheel")
 	_touch(media.path_join("video/sf2.mp4"))
 	r = ArcadeAttract.resolve_media(TEST_SYSTEM, rom)
 	_ok(r["kind"] == "video" and str(r["path"]).ends_with("video/sf2.mp4"), "media: and the video before them all")
+	_ok(ArcadeAttract.missing_media(TEST_SYSTEM, rom).is_empty(), "media: with both, nothing is missing")
 	_ok(ArcadeAttract.has_video(TEST_SYSTEM, rom), "media: the cabinet can tell a game has its video")
 	_ok(not ArcadeAttract.has_video(TEST_SYSTEM, dir.path_join("other.zip")), "media: and that another has not")
+	# A build with no video player (macOS has no libVLC yet): the video is as good as none.
+	ArcadeAttract.video_support_override = 0
+	r = ArcadeAttract.resolve_media(TEST_SYSTEM, rom)
+	_ok(r["kind"] == "image" and r["folder"] == "title", "media: a build that cannot play a video shows the title screen")
+	_ok(ArcadeAttract.missing_media(TEST_SYSTEM, dir.path_join("other.zip")) == [ArcadeAttract.TITLE],
+		"media: and asks only for a title, never a video it could not play")
+	ArcadeAttract.video_support_override = 1
 	DirAccess.remove_absolute(media.path_join("video/sf2.mp4"))
 	_touch(media.path_join("video/sf2.mkv"))
 	_ok(ArcadeAttract.resolve_media(TEST_SYSTEM, rom)["kind"] == "video", "media: a video in another container counts")
-	_ok(ArcadeAttract.load_still(TEST_SYSTEM, rom) != null, "media: the still that holds the place of the video is the title")
+	_ok(_still_color(TEST_SYSTEM, rom).is_equal_approx(red), "media: the still that holds the place of the video is the title")
 	DirAccess.remove_absolute(media.path_join("title/sf2.png"))
-	_ok(ArcadeAttract.load_still(TEST_SYSTEM, rom) != null, "media: with no title the wheel stands in")
+	_ok(ArcadeAttract.missing_media(TEST_SYSTEM, rom) == [ArcadeAttract.TITLE],
+		"media: a game with its video and no title is still missing the title (the picture before the video, and when it cannot play)")
+	_ok(_still_color(TEST_SYSTEM, rom).is_equal_approx(green), "media: with no title the wheel stands in")
 	DirAccess.remove_absolute(media.path_join("wheel/sf2.png"))
-	_ok(ArcadeAttract.load_still(TEST_SYSTEM, rom) != null, "media: with no wheel the cover")
+	_ok(_still_color(TEST_SYSTEM, rom).is_equal_approx(blue), "media: with no wheel the cover")
 	DirAccess.remove_absolute(media.path_join("box/sf2.png"))
 	_ok(ArcadeAttract.load_still(TEST_SYSTEM, rom) == null, "media: and with none, nothing")
+	ArcadeAttract.video_support_override = -1
 	_remove_tree(dir)
 
 
@@ -858,13 +880,25 @@ func _group_media_ask() -> void:
 	var real_rom := RomLibrary.rom_dir_for_system("arcade").path_join("__attract_selftest_ask.zip")
 	var real_video := RomLibrary.rom_dir_for_system("arcade").path_join("media/video/__attract_selftest_ask.mp4")
 	var had_video_dir := DirAccess.dir_exists_absolute(real_video.get_base_dir())
+	var real_title := RomLibrary.rom_dir_for_system("arcade").path_join("media/title/__attract_selftest_ask.png")
+	var had_title_dir := DirAccess.dir_exists_absolute(real_title.get_base_dir())
 	_touch(real_video)
+	ArcadeAttract.video_support_override = 1
 	sys = await _cabinet_with_board(real_rom)
-	_ok(listener.asked.is_empty(), "media_ask: a game with its video asks for nothing")
+	_ok(listener.asked.size() == 1, "media_ask: a game with its video and no title still asks (for the title)")
 	await _clear()
+	listener.asked.clear()
+	_png(real_title)
+	sys = await _cabinet_with_board(real_rom)
+	_ok(listener.asked.is_empty(), "media_ask: a game with its video and its title asks for nothing")
+	await _clear()
+	ArcadeAttract.video_support_override = -1
 	DirAccess.remove_absolute(real_video)
+	DirAccess.remove_absolute(real_title)
 	if not had_video_dir:
 		DirAccess.remove_absolute(real_video.get_base_dir())
+	if not had_title_dir:
+		DirAccess.remove_absolute(real_title.get_base_dir())
 
 	# With nobody to ask yet (the menu that holds the scraper is not up), the want is kept for it.
 	listener.remove_from_group(&"attract_media_listener")

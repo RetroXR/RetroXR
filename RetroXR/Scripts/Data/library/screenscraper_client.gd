@@ -567,6 +567,9 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 	var candidates := {"wheel": [], "box": [], "label": [], "manual": []}
 	for kind in extras:
 		candidates[kind] = []
+	# A screenshot of the game (`ss`), for the title slot of a game ScreenScraper has no title screen for:
+	# an attract with no video shows the game's own screen, not its wheel (a logo).
+	var screenshots: Array = []
 
 	for entry in medias:
 		if not entry is Dictionary:
@@ -600,6 +603,11 @@ func _extract_media_urls(medias, rom_region_codes: Array = [], disc_num: int = 0
 			candidates["video"].append({"url": url, "region": region})
 		elif mtype == "sstitle" and extras.has("title"):
 			candidates["title"].append({"url": url, "region": region})
+		elif mtype == "ss" and extras.has("title"):
+			screenshots.append({"url": url, "region": region})
+	if extras.has("title") and (candidates["title"] as Array).is_empty() and not screenshots.is_empty():
+		print("[ScreenscraperClient] Media[title] no title screen: the game's screenshot stands in")
+		candidates["title"] = screenshots
 
 	# A multi-disc game carries one support-texture per disc, keyed by the media
 	# entry's "support" number, which must match the ROM's own romnumsupport.
