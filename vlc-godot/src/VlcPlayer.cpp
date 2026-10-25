@@ -1,5 +1,7 @@
 #include "VlcPlayer.hpp"
 
+#include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/os.hpp>
 #include <godot_cpp/classes/project_settings.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -72,7 +74,15 @@ VlcPlayer::VlcPlayer()
 
     // Here rather than in EnsureInstance: this runs on Godot's thread, and
     // EnsureInstance may not.
-    const String plugins = ProjectSettings::get_singleton()->globalize_path("res://vlc-godot/plugins");
+    String plugins = ProjectSettings::get_singleton()->globalize_path("res://vlc-godot/plugins");
+#ifdef _WIN32
+    // An exported build has no res:// folder on disk, and globalize_path hands
+    // back the relative "vlc-godot/plugins", which libVLC cannot use. The export
+    // copies the tree to "plugins" beside the executable (the dependencies in
+    // vlc_godot.gdextension), next to libvlccore.dll, where libVLC itself looks.
+    if (plugins.is_relative_path() || !DirAccess::dir_exists_absolute(plugins))
+        plugins = OS::get_singleton()->get_executable_path().get_base_dir().path_join("plugins");
+#endif
     m_plugin_path = plugins.utf8().get_data();
 }
 

@@ -17,7 +17,7 @@ linux.release.arm64 = "libvlc_godot.linux.template_release.arm64.so"
 
 [dependencies]
 
-windows.debug.x86_64 = {"libvlc.dll" : "", "libvlccore.dll" : ""}
-windows.release.x86_64 = {"libvlc.dll" : "", "libvlccore.dll" : ""}
+windows.debug.x86_64 = {"libvlc.dll" : "", "libvlccore.dll" : "", "plugins" : ""}
+windows.release.x86_64 = {"libvlc.dll" : "", "libvlccore.dll" : "", "plugins" : ""}
 android.debug.arm64 = {"libvlc.so" : ""}
 android.release.arm64 = {"libvlc.so" : ""}
