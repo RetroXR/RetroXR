@@ -407,7 +407,29 @@ func _build_coin_doors() -> void:
 		door.set("player", i)
 		ArcadeParts.box(_owner, door, "Plate", Vector3(0.10, 0.20, 0.006), Vector3(0, 0, 0.003), _metal)
 		ArcadeParts.box(_owner, door, "ReturnCup", Vector3(0.05, 0.03, 0.008), Vector3(0, -0.055, 0.004), _dark)
-		ArcadeParts.cylinder(_owner, door, "ReturnButton", 0.012, 0.006, Vector3(0, -0.08, 0.006), _trim, Vector3.BACK)
+		# The coin return: a cap you press, which gives back a coin the game has not counted
+		# (ArcadeCoinModule.return_pressed). The cap is the button's own mesh, so it sinks when pressed.
+		var ret := ArcadeParts.node(_owner, door, "Area3D", "CoinReturn", Vector3(0, -0.08, 0.006)) as Area3D
+		ret.set_script(load(SCRIPTS["button"]))
+		ret.collision_layer = 0
+		ret.collision_mask = 0
+		ret.set("trigger_radius", 0.015)
+		ret.set("depress_depth", 0.003)
+		ret.set("depress_axis", Vector3(0, 0, -1))
+		var rcol := ArcadeParts.node(_owner, ret, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+		var rshape := BoxShape3D.new()
+		rshape.size = Vector3(0.034, 0.030, 0.03)
+		rcol.shape = rshape
+		rcol.position = Vector3(0, 0, 0.008)
+		ArcadeParts.cylinder(_owner, ret, "ButtonMesh", 0.012, 0.006, Vector3.ZERO, _trim, Vector3.BACK)
+		# Its legend to the right of the cap, inside the plate (the cup is above it, the plate's edge below).
+		var rtag := ArcadeParts.node(_owner, door, "Label3D", "ReturnLabel", Vector3(0.016, -0.08, 0.0065)) as Label3D
+		rtag.text = "RETURN"
+		rtag.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		rtag.pixel_size = 0.0004
+		rtag.font_size = 24
+		rtag.modulate = Color(0.1, 0.1, 0.12)
+		rtag.outline_size = 0
 		# The slot: a lit lip you poke.
 		var lip := ArcadeParts.node(_owner, door, "Area3D", "CoinSlot", Vector3(0, 0.045, 0.006)) as Area3D
 		lip.set_script(load(SCRIPTS["button"]))

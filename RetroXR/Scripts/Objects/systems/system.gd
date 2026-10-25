@@ -172,6 +172,10 @@ var attract_session: bool = false
 var _attract: ArcadeAttract = null
 ## Set for the one power_on that a use of the cabinet asked for, so it loads the core instead of attracting.
 var _attract_released: bool = false
+## A suite's stand-in for starting a core: when set, power_on calls it instead of resolving and starting
+## one, then comes up as a started core leaves the machine. Never set in the app (a suite has no core
+## installed, and what the attract and the coins do after a start does not depend on which core it is).
+var core_start_stand_in: Callable = Callable()
 
 # Cached core options (populated when options_ready fires)
 var _options_definitions: Dictionary = {}
@@ -1764,6 +1768,11 @@ func power_on() -> void:
 	if not disc_gap.is_empty():
 		push_error("RetroSystem: Cannot power on - %s" % disc_gap)
 		_announce_disc_gap(disc_gap)
+		return
+	# A suite with no core installed stands in for one here: the machine comes up as a started core leaves it.
+	if core_start_stand_in.is_valid():
+		core_start_stand_in.call()
+		_after_core_started()
 		return
 	var stack_spec := _expansion_launch.apply_expansion_launch()
 	var resolved_core := _resolve_core()

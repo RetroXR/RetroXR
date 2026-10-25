@@ -53,9 +53,6 @@ const OVERRIDE_FOLLOW := 0
 const OVERRIDE_ON := 1
 const OVERRIDE_OFF := 2
 
-## Seconds after the core starts before a coin that STARTED it is delivered: a coin at boot is lost.
-const COIN_BOOT_DELAY := 2.0
-
 const VIDEO_EXTS := [".mp4", ".mkv", ".webm", ".avi", ".mov"]
 ## The scraper's folders (rom_media.gd SCRAPED_DIRS).
 const VIDEO := "video"

@@ -15,6 +15,7 @@
 ##   state/    a built cabinet: switched on it shows the game and runs no core; off it behaves as always
 ##   screen/   the glass takes the attract picture at the picture's own shape
 ##   use/      a coin, a panel, a gun or pad in hand each start the game, once; the coin counts in it
+##   coins/    coins the game cannot count yet are held (lamp), go in when it is up or on START, come back on RETURN
 ##   idle/     nobody at the cabinet puts the core away; somebody there, or a coin, keeps it
 ##   leave/    the board pulled, the power button and the cabinet's own override end the attract
 ##   media_ask/ a cabinet with a game and no video asks the scraper (through its group) for that game only
@@ -94,6 +95,8 @@ func _run() -> void:
 		await _group_screen()
 	if _want("use"):
 		await _group_use()
+	if _want("coins"):
+		await _group_coins()
 	if _want("idle"):
 		await _group_idle()
 	if _want("leave"):
@@ -196,8 +199,16 @@ func _attracting_cabinet() -> RetroSystem:
 	# A made-up ROM makes the core refuse it a moment after the start, and the refusal powers the machine
 	# off: that is the machine's business, and not what these cases are about.
 	sys._libretro.content_load_failed.disconnect(sys._on_content_load_failed)
+	# And a suite has no core installed: the use of the cabinet that starts the game starts a stand-in, so
+	# what follows a start is the same here as on a machine with the arcade cores.
+	sys.core_start_stand_in = func() -> void: pass
 	sys.power_on()
 	return sys
+
+
+## Did the coin bit reach the core on `port` in what the input last sent?
+func _coin_sent(input: ArcadeInput, port: int) -> bool:
+	return (int(input.last_sent.get(port, 0)) & (1 << ArcadeProfiles.COIN_BIT)) != 0
 
 
 # ── rules ───────────────────────────────────────────────────────────────────
@@ -468,24 +479,28 @@ func _group_use() -> void:
 	await _wait(10)
 	_ok(sys.attracting and log.is_empty(), "use: left alone it stays so")
 
-	# A coin.
+	# A coin. The core's frame counter is the suite's: no frames run until it says so.
 	var door := model.modules_of_kind(ArcadeProfiles.KIND_COIN)[0] as ArcadeCoinModule
+	input.frame_override = 0
 	door.insert_coin()
 	_ok(sys.attracting, "use: a coin in the air has not started the game yet")
 	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.2).timeout
 	_ok(_started(log, &"coin"), "use: a coin that lands starts the real game")
 	_ok(log.size() == 1, "use: once (%d)" % log.size())
-	# A made-up ROM cannot load, so no core is running; stand in for one so the coin can count.
-	sys.is_powered_on = true
-	var seen_at := -1.0
-	var waited := 0.0
-	while waited < ArcadeAttract.COIN_BOOT_DELAY + 2.0 and seen_at < 0.0:
+	_ok(input.held_coins(0) == 1, "use: the coin that started it is held for the game, not dropped into its boot")
+	await _wait(10)
+	_ok(not _coin_sent(input, 0) and input.held_coins(0) == 1,
+		"use: nothing reaches the core while the game is still coming up, however long its load takes")
+	input.frame_override = input.boot_frames() - 1
+	await _wait(4)
+	_ok(not _coin_sent(input, 0), "use: not a frame before its boot is through (%d frames)" % input.boot_frames())
+	input.frame_override = input.boot_frames()
+	var seen := false
+	var until := Time.get_ticks_msec() + 500
+	while Time.get_ticks_msec() < until:
 		await get_tree().process_frame
-		waited += get_process_delta_time()
-		if input.last_sent.has(0) and (int(input.last_sent[0]) & (1 << ArcadeProfiles.COIN_BIT)) != 0:
-			seen_at = waited
-	_ok(seen_at >= ArcadeAttract.COIN_BOOT_DELAY - 0.2 and seen_at <= ArcadeAttract.COIN_BOOT_DELAY + 0.8,
-		"use: the coin that started it counts in the game once the core has had its moment (after %.2f s)" % seen_at)
+		seen = seen or _coin_sent(input, 0)
+	_ok(seen and input.held_coins(0) == 0, "use: and once the game has run its boot, the coin is in it")
 	sys.is_powered_on = false
 	await _clear()
 
@@ -528,6 +543,143 @@ func _group_use() -> void:
 	_ok(not sys.attracting and sys.attract_session, "use: the first use leaves the attract")
 	sys.attract_first_use(&"panel")
 	_ok(not sys.attracting and not sys._attract_released, "use: a second, late one does nothing and leaves nothing set")
+	await _clear()
+
+
+# ── coins ───────────────────────────────────────────────────────────────────
+
+## How many times the coin bit went up on `port` over `seconds` of the room's time.
+func _coin_edges(input: ArcadeInput, port: int, seconds: float) -> int:
+	var edges := 0
+	var was := _coin_sent(input, port)
+	var until := Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+		var now := _coin_sent(input, port)
+		if now and not was:
+			edges += 1
+		was = now
+	return edges
+
+
+func _group_coins() -> void:
+	AppPrefs.arcade_attract_mode = false
+	var sys := await _cabinet_with_board()
+	sys._libretro.content_load_failed.disconnect(sys._on_content_load_failed)
+	sys.core_start_stand_in = func() -> void: pass
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var input := model.arcade_input()
+	var door: ArcadeCoinModule = null
+	for m in model.modules_of_kind(ArcadeProfiles.KIND_COIN):
+		if (m as ArcadeCoinModule).player == 0:
+			door = m as ArcadeCoinModule
+	var ret := door.find_child("CoinReturn", true, false) as VRButton
+	_ok(ret != null, "coins: the coin door has a coin return to press")
+	var flight := ArcadeCoinModule.FLIGHT_SECONDS + 0.15
+
+	# A switched-off cabinet cannot take a coin: it goes through and out into the cup.
+	door.insert_coin()
+	await get_tree().create_timer(flight).timeout
+	_ok(door.returned == 1 and input.held_coins() == 0 and not input.last_sent.has(0),
+		"coins: a coin into a switched-off cabinet rolls out into the return cup, and nothing is sent")
+	_ok(door.find_child("ReturnedCoin", false, false) != null, "coins: the returned coin is there to see")
+	await get_tree().create_timer(ArcadeCoinModule.RETURN_FALL_SECONDS + ArcadeCoinModule.RETURN_REST_SECONDS + 0.2).timeout
+	_ok(door.returned == 0 and door.find_child("ReturnedCoin", false, false) == null,
+		"coins: and it is gone a moment later (coins are infinite)")
+	var rattle := ArcadeCoinModule.rattle()
+	_ok(rattle.data.size() > 4000 and rattle == ArcadeCoinModule.rattle() and rattle != ArcadeCoinModule.clink(),
+		"coins: the return has its own sound, synthesised once and shared")
+
+	# Switched on, the game still coming up: a coin is held, and the slot's lamp says so.
+	input.frame_override = 0
+	sys.power_on()
+	await _wait(2)
+	_ok(sys.is_powered_on, "coins: the cabinet is on (the suite's stand-in for a core)")
+	door.insert_coin()
+	await get_tree().create_timer(flight).timeout
+	_ok(input.held_coins(0) == 1 and not _coin_sent(input, 0),
+		"coins: a coin into a game that is still coming up is held, not lost in its boot")
+	_ok(door.held() == 1, "coins: the door knows a coin is held for its player")
+	var lo := 1.0
+	var hi := 0.0
+	var blink_until := Time.get_ticks_msec() + 900
+	while Time.get_ticks_msec() < blink_until:
+		await get_tree().process_frame
+		lo = minf(lo, door.lamp_level())
+		hi = maxf(hi, door.lamp_level())
+	_ok(lo < 0.5 and hi > 0.9, "coins: and its lamp blinks while it is (%.2f..%.2f)" % [lo, hi])
+
+	# The coin return gives a held coin back; with none held, it gives nothing.
+	ret.button_pressed.emit()
+	_ok(input.held_coins(0) == 0 and door.returned == 1, "coins: RETURN gives the held coin back, into the cup")
+	_ok(door.held() == 0 and is_equal_approx(door.lamp_level(), 1.0), "coins: and the lamp is steady again")
+	ret.button_pressed.emit()
+	_ok(door.returned == 1, "coins: with nothing held, RETURN gives nothing back (a counted coin never comes back)")
+
+	# Two coins held go in as two, once the game is up.
+	door.insert_coin()
+	await get_tree().create_timer(0.1).timeout
+	door.insert_coin()
+	await get_tree().create_timer(flight).timeout
+	_ok(input.held_coins(0) == 2, "coins: two coins are held")
+	input.frame_override = input.boot_frames()
+	var edges: int = await _coin_edges(input, 0, 1.5)
+	_ok(edges == 2 and input.held_coins(0) == 0, "coins: they go in as two separate coins (%d)" % edges)
+	# Into a game that is up, a coin goes straight in.
+	door.insert_coin()
+	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS).timeout
+	var straight: int = await _coin_edges(input, 0, 0.4)
+	_ok(straight == 1 and input.held_coins(0) == 0, "coins: a coin into a game that is up goes straight in")
+
+	# START on a game that has started lets a held coin in at once, and itself only after it.
+	sys.is_powered_on = false
+	await _wait(2)
+	input.frame_override = 0
+	sys.power_on()
+	await _wait(2)
+	door.insert_coin()
+	await get_tree().create_timer(flight).timeout
+	input.frame_override = ArcadeProfiles.MIN_BOOT_FRAMES
+	var panel: ArcadeControlModule = null
+	for m in model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS):
+		if (m as ArcadeControlModule).player == 0:
+			panel = m as ArcadeControlModule
+	panel.set_attached(true)
+	await _wait(2)
+	_ok(input.held_coins(0) == 1 and not input.game_ready(), "coins: a coin held, the game not yet through its boot")
+	Input.action_press("RETRO_JOYPAD_START")
+	var start_bit := 1 << ArcadeProfiles.START_BIT
+	var t0 := Time.get_ticks_msec()
+	var coin_at := -1
+	var start_at := -1
+	var released := false
+	while Time.get_ticks_msec() - t0 < 1500:
+		await get_tree().process_frame
+		var ms := Time.get_ticks_msec() - t0
+		var sent := int(input.last_sent.get(0, 0))
+		if coin_at < 0 and (sent & (1 << ArcadeProfiles.COIN_BIT)) != 0:
+			coin_at = ms
+		if start_at < 0 and (sent & start_bit) != 0:
+			start_at = ms
+		# A tap: let go well before the coin is through, so only the queued START can reach the game.
+		if not released and ms > 50:
+			released = true
+			Input.action_release("RETRO_JOYPAD_START")
+	_ok(coin_at >= 0 and coin_at < 200 and input.held_coins(0) == 0,
+		"coins: START lets the held coin in at once (%d ms)" % coin_at)
+	_ok(start_at > coin_at + int(ArcadeProfiles.START_AFTER_COIN_SECONDS * 1000.0) - 50,
+		"coins: and the START tapped meanwhile reaches the game after the credit (%d ms)" % start_at)
+	panel.set_attached(false)
+
+	# Switched off with coins held: they all roll out.
+	door.insert_coin()
+	await get_tree().create_timer(0.1).timeout
+	door.insert_coin()
+	input.frame_override = 0
+	await get_tree().create_timer(flight).timeout
+	sys.is_powered_on = false
+	await _wait(3)
+	_ok(input.held_coins() == 0 and door.returned >= 2, "coins: switched off with coins held, they roll out into the cup")
 	await _clear()
 
 

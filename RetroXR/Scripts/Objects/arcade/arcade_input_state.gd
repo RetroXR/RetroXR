@@ -51,6 +51,77 @@ static func panel_speaks(port_has_controller: bool) -> bool:
 	return not port_has_controller
 
 
+## Has the game had time to come up? `frames_run` is how many frames the core has emulated since it was
+## started (Libretro.GetFrameCount, so a slow load or a Quest running the game at half speed waits in
+## the GAME's time, not the room's), `boot_frames` how long this game's own power-on takes
+## (ArcadeGameProfile.boot_seconds). Nothing earlier counts: a board still running its RAM and ROM
+## tests reads no coin input at all.
+static func game_ready(frames_run: int, boot_frames: int) -> bool:
+	return frames_run >= boot_frames
+
+
+## A coin may be let in early when the player presses START with coins still held, once the core has
+## run at least `min_frames`: whoever presses START is looking at a game that is up, which the boot
+## estimate cannot know (it errs long on purpose).
+static func start_lets_coins_in(frames_run: int, min_frames: int, start_pressed: bool, held: int) -> bool:
+	return start_pressed and held > 0 and frames_run >= min_frames
+
+
+## Coins the cabinet has taken but the GAME has not been given yet (the coin mech's escrow): put in while
+## the cabinet only showed its game (the core is not running), or while the core was still booting. A credit
+## dropped into a board that is still testing its RAM is lost, so these wait until the game can count them,
+## and go in one at a time, a pulse and a gap apart, so each counts. The coin return gives them back.
+class CoinEscrow extends RefCounted:
+	var _held: Dictionary = {}
+	var _gap := 0.0
+
+	func hold(player: int) -> void:
+		_held[player] = int(_held.get(player, 0)) + 1
+
+	func held(player: int) -> int:
+		return int(_held.get(player, 0))
+
+	func total() -> int:
+		var n := 0
+		for p: int in _held:
+			n += int(_held[p])
+		return n
+
+	func is_empty() -> bool:
+		return total() == 0
+
+	## One coin of `player`'s back out (the coin return). True when there was one to give back.
+	func take_back(player: int) -> bool:
+		var n := held(player)
+		if n <= 0:
+			return false
+		if n == 1:
+			_held.erase(player)
+		else:
+			_held[player] = n - 1
+		return true
+
+	## Everything held, emptied: {player: coins}. The caller rolls them out into the return cups.
+	func take_all() -> Dictionary:
+		var out := _held.duplicate()
+		_held.clear()
+		_gap = 0.0
+		return out
+
+	## The player whose coin goes into the game now, or -1. Only while `open` (the game can count it), the
+	## lowest player first, ArcadeProfiles.COIN_PULSE_SECONDS + COIN_GAP_SECONDS apart.
+	func next(delta: float, open: bool) -> int:
+		_gap = maxf(0.0, _gap - delta)
+		if not open or _gap > 0.0 or _held.is_empty():
+			return -1
+		var players := _held.keys()
+		players.sort()
+		var who: int = players[0]
+		take_back(who)
+		_gap = ArcadeProfiles.COIN_PULSE_SECONDS + ArcadeProfiles.COIN_GAP_SECONDS
+		return who
+
+
 ## A coin in flight: held for a moment so the core reads it, then released.
 class CoinPulse extends RefCounted:
 	var _remaining := 0.0

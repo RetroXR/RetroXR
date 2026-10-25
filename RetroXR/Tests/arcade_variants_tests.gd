@@ -451,8 +451,12 @@ func _group_fire() -> void:
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var guns := sys.captive_controllers()
 	var gun := guns[0] as LightGun
+	# The suite's frame counter: the game has run its boot, so a coin goes straight in (a coin into a game
+	# still coming up is held: arcade_attract_tests coins/).
+	model.arcade_input().frame_override = 0
 	sys.is_powered_on = true
 	await _wait(3)
+	model.arcade_input().frame_override = model.arcade_input().boot_frames()
 	var panels := model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
 	var p1: ArcadeControlModule = null
 	for m in panels:

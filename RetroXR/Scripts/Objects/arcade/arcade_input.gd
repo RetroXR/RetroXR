@@ -70,9 +70,26 @@ var _host: Node3D = null
 var _model: RetroSystemModel = null
 var _controls: Array[ArcadeControlModule] = []
 var _pulses: Dictionary = {}
-## Coins put in while the cabinet was only showing its game (player -> seconds until they are delivered):
-## the core those coins started needs a moment before it reads a credit.
-var _deferred_coins: Dictionary = {}
+var _doors: Array[ArcadeCoinModule] = []
+## Coins the cabinet has taken that the GAME has not had yet: put in while it only showed its game, or
+## while the core was still coming up (a credit dropped into a board running its power-on tests is lost).
+## They go in once the game can count them (game_ready), or at once when somebody presses START on a game
+## that has started; the coin return gives them back; switching off rolls them out into the cups.
+var _escrow := ArcadeInputState.CoinEscrow.new()
+## The core's frame count when this run was first seen, -1 while nothing runs (frames_run).
+var _run_base := -1
+## Seconds since this run was first seen: what stands in for the frame count on a bridge without one.
+var _run_seconds := 0.0
+## A suite stands in for a running core's frame counter with this; -1 asks the core.
+var frame_override := -1
+## START pressed while coins were held lets them in now (ArcadeInputState.start_lets_coins_in).
+var _letting_in := false
+## START is held back until the held coins are in and this has run out, so the game sees the credit first.
+var _start_hold := 0.0
+## Ports whose START was pressed while it was held back: each gets one START once it is let through.
+var _queued_start: Dictionary = {}
+## Ports being sent that one START now (port -> seconds left).
+var _start_pulse: Dictionary = {}
 
 var _button_map: Dictionary = ControllerBindings.DEFAULT_BUTTON_MAP.duplicate()
 var _stick_map: Dictionary = ControllerBindings.DEFAULT_STICK_MAP.duplicate()
@@ -107,15 +124,18 @@ func setup(host: Node3D, model: RetroSystemModel, controls: Array, coins: Array)
 		_controls.append(panel)
 		if panel != null:
 			panel.attach_changed.connect(_on_attach_changed)
+	_doors.clear()
 	for coin in coins:
 		var door := coin as ArcadeCoinModule
 		if door == null:
 			continue
+		_doors.append(door)
 		var pulse: ArcadeInputState.CoinPulse = _pulses.get(door.player)
 		if pulse == null:
 			pulse = ArcadeInputState.CoinPulse.new()
 			_pulses[door.player] = pulse
 		door.coin_inserted.connect(_on_coin.bind(pulse))
+		door.return_pressed.connect(_on_return_pressed)
 	_load_bindings()
 	_capture = ScrollLockCapture.attach(host, _can_capture, ICON_CAPTURE, ICON_SIZE)
 	add_to_group(ControllerBindings.CONSUMER_GROUP)
@@ -163,14 +183,116 @@ func _on_coin(player: int, pulse: ArcadeInputState.CoinPulse) -> void:
 	if _host == null:
 		return
 	if bool(_host.get("attracting")):
-		# The coin starts the game and then counts in it: handed over once the core is up.
-		_deferred_coins[player] = ArcadeAttract.COIN_BOOT_DELAY
+		# The coin starts the game and then counts in it: held until the game is up to count it.
+		_escrow.hold(player)
+		_show_held()
 		first_use.emit(&"coin")
 		return
 	if bool(_host.get("is_powered_on")):
-		pulse.insert()
 		if _host.has_method("attract_touch"):
 			_host.call("attract_touch")
+		# Into a game still coming up, or behind coins still waiting: held. Otherwise straight in.
+		if not _escrow.is_empty() or not game_ready():
+			_escrow.hold(player)
+			_show_held()
+		else:
+			pulse.insert()
+		return
+	# A cabinet that is off cannot take a coin: it goes through the mech and out into the cup.
+	var door := _door_of(player)
+	if door != null:
+		door.return_coin()
+
+
+## The coin return on `player`'s door: one coin the game has not had comes back out, if there is one.
+func _on_return_pressed(player: int) -> void:
+	if _escrow.take_back(player):
+		var door := _door_of(player)
+		if door != null:
+			door.return_coin()
+		_show_held()
+
+
+## Every coin still held rolls out into its door's cup (the cabinet went off with them in it).
+func _return_held() -> void:
+	if _escrow.is_empty():
+		return
+	var all := _escrow.take_all()
+	for player: int in all:
+		var door := _door_of(player)
+		for i in int(all[player]):
+			if door != null:
+				door.return_coin()
+	_show_held()
+
+
+## Each door shows whether coins are held for its player (its lamp blinks).
+func _show_held() -> void:
+	for door in _doors:
+		if is_instance_valid(door):
+			door.set_held(_escrow.held(door.player))
+
+
+func _door_of(player: int) -> ArcadeCoinModule:
+	for door in _doors:
+		if is_instance_valid(door) and door.player == player:
+			return door
+	return null
+
+
+## Coins the cabinet holds for `player` that the game has not had yet (for the tests and the probe).
+func held_coins(player: int = -1) -> int:
+	return _escrow.total() if player < 0 else _escrow.held(player)
+
+
+# ── how far the game has come ────────────────────────────────────────────────
+
+## How many frames the core has emulated since this run began: the GAME's time, so a slow load, or a Quest
+## running the game below full speed, waits as long as the game itself takes. 0 while nothing runs.
+func frames_run() -> int:
+	if _run_base < 0:
+		return 0
+	var now := _frame_count()
+	if now < _run_base:
+		# The bridge started its count again (an abandoned run's wrapper is a new one): count from there.
+		_run_base = 0
+	return now - _run_base
+
+
+## Is the game up to count a coin? Its own boot time (ArcadeGameProfile.boot_seconds) in its own frames.
+func game_ready() -> bool:
+	return ArcadeInputState.game_ready(frames_run(), boot_frames())
+
+
+## How many frames this game takes to come up: the table's seconds for its driver at the core's own rate.
+func boot_frames() -> int:
+	var seconds := ArcadeProfiles.BOOT_SECONDS
+	var profile: ArcadeGameProfile = _model.call("game_profile") if _model != null and _model.has_method("game_profile") else null
+	if profile != null and profile.known:
+		seconds = profile.boot_seconds()
+	var fps := 60.0
+	var lib := _libretro()
+	if lib != null and lib.has_method("GetDeclaredFps"):
+		var declared := float(lib.call("GetDeclaredFps"))
+		if declared > 1.0:
+			fps = declared
+	return int(ceil(seconds * fps))
+
+
+func _frame_count() -> int:
+	if frame_override >= 0:
+		return frame_override
+	var lib := _libretro()
+	if lib != null and lib.has_method("GetFrameCount"):
+		return int(lib.call("GetFrameCount"))
+	# A bridge with no counter (a platform not rebuilt): the room's time stands in.
+	return int(_run_seconds * 60.0)
+
+
+func _libretro() -> Object:
+	if _host != null and _host.has_method("get_libretro_node"):
+		return _host.call("get_libretro_node") as Object
+	return null
 
 
 ## Is anyone at the cabinet? A panel attached, or a gun or pad in a HAND (a gun lying in its holster is
@@ -239,31 +361,63 @@ func _process(delta: float) -> void:
 			for panel in _controls:
 				if panel != null:
 					panel.set_attached(false)
-		_deferred_coins.clear()
+		_end_run()
 		if not _heard_mask.is_empty():
 			_heard_mask.clear()
 			_heard_axes.clear()
 		return
+	if _run_base < 0:
+		_run_base = _frame_count()
+		_run_seconds = 0.0
+	_run_seconds += delta
 	var controllers: Array = _host.get_port_controllers() if _host.has_method("get_port_controllers") else []
 	var players := maxi(_controls.size(), 2)
+	# What every player is pressing first, then the coins and START: a held coin goes in before a START.
+	var masks: Array[int] = []
+	var hands: Array[int] = []
+	var states: Array[Dictionary] = []
+	var start_pressed := false
 	for p in players:
 		var holder: Variant = controllers[p] if p < controllers.size() else null
-		var owned := holder != null
-		var coin := false
-		if _pulses.has(p):
-			if _deferred_coins.has(p):
-				_deferred_coins[p] = float(_deferred_coins[p]) - delta
-				if float(_deferred_coins[p]) <= 0.0:
-					_deferred_coins.erase(p)
-					(_pulses[p] as ArcadeInputState.CoinPulse).insert()
-			coin = (_pulses[p] as ArcadeInputState.CoinPulse).advance(delta)
 		var state := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
 		if attached.has(p):
 			state = _direct_state()
-		var mask := ArcadeInputState.compose(0, int(state["btn"]), coin, _unsupported())
+		var mask := ArcadeInputState.compose(0, int(state["btn"]), false, _unsupported())
 		# A momentary panel (a gun cabinet's START) is read while it is pressed.
 		if p < _controls.size() and _controls[p] != null and _controls[p].start_held():
 			mask |= 1 << ArcadeProfiles.START_BIT
+		# The gun in a hand has START and SELECT of its own (stick click and grip). MAME 0.289 reads a start
+		# and a credit off the joypad only, so they are sent as the joypad's too (below).
+		var hand := 0
+		if holder is LightGun:
+			var held_gun := holder as LightGun
+			if held_gun.hand_button(ControllerBindings.LIGHTGUN_START):
+				hand |= 1 << ArcadeProfiles.START_BIT
+			if held_gun.hand_button(ControllerBindings.LIGHTGUN_SELECT):
+				hand |= 1 << ArcadeProfiles.COIN_BIT
+		start_pressed = start_pressed or ((mask | hand) & (1 << ArcadeProfiles.START_BIT)) != 0
+		masks.append(mask)
+		hands.append(hand)
+		states.append(state)
+	var hold_start := _step_held_coins(delta, start_pressed)
+	for p in players:
+		var holder: Variant = controllers[p] if p < controllers.size() else null
+		var owned := holder != null
+		var mask := masks[p]
+		var hand := hands[p]
+		if _pulses.has(p) and (_pulses[p] as ArcadeInputState.CoinPulse).advance(delta):
+			mask |= 1 << ArcadeProfiles.COIN_BIT
+		if hold_start:
+			# START waits for the credit; a press now is remembered and sent once, after it.
+			if ((mask | hand) & (1 << ArcadeProfiles.START_BIT)) != 0:
+				_queued_start[p] = true
+			mask &= ~(1 << ArcadeProfiles.START_BIT)
+			hand &= ~(1 << ArcadeProfiles.START_BIT)
+		elif _start_pulse.has(p):
+			mask |= 1 << ArcadeProfiles.START_BIT
+			_start_pulse[p] = float(_start_pulse[p]) - delta
+			if float(_start_pulse[p]) <= 0.0:
+				_start_pulse.erase(p)
 		if p < _controls.size() and _controls[p] != null:
 			_controls[p].show_state(mask)
 		if owned:
@@ -275,17 +429,50 @@ func _process(delta: float) -> void:
 			if holder is LightGun:
 				var held_gun := holder as LightGun
 				_forward_to_gun(held_gun, mask)
-				# The gun in a hand has START and SELECT of its own (stick click and grip). MAME 0.289
-				# reads a start and a credit off the joypad only, so they are sent as the joypad's too.
-				var from_hand := mask
-				if held_gun.hand_button(ControllerBindings.LIGHTGUN_START):
-					from_hand |= 1 << ArcadeProfiles.START_BIT
-				if held_gun.hand_button(ControllerBindings.LIGHTGUN_SELECT):
-					from_hand |= 1 << ArcadeProfiles.COIN_BIT
 				var aux := (1 << ArcadeProfiles.START_BIT) | (1 << ArcadeProfiles.COIN_BIT)
-				_send(p, from_hand & aux, _NEUTRAL)
+				_send(p, (mask | hand) & aux, _NEUTRAL)
 			continue
-		_send(p, mask, state)
+		_send(p, mask, states[p])
+
+
+## The held coins, once a frame while the core runs: one goes in when the game is up to count it, or at
+## once when somebody presses START on a game that has started (`start_pressed`). Returns whether START is
+## to be held back now: while coins are held or going in, and START_AFTER_COIN_SECONDS after, so the game
+## sees the credit before the start. A START pressed meanwhile is queued, and sent once when it is let go.
+func _step_held_coins(delta: float, start_pressed: bool) -> bool:
+	if ArcadeInputState.start_lets_coins_in(frames_run(), ArcadeProfiles.MIN_BOOT_FRAMES, start_pressed, _escrow.total()):
+		_letting_in = true
+	var who := _escrow.next(delta, _letting_in or game_ready())
+	if who >= 0:
+		if _pulses.has(who):
+			(_pulses[who] as ArcadeInputState.CoinPulse).insert()
+		_show_held()
+	var coin_going := false
+	for pulse: ArcadeInputState.CoinPulse in _pulses.values():
+		coin_going = coin_going or pulse.active()
+	if not _escrow.is_empty() or coin_going:
+		_start_hold = ArcadeProfiles.START_AFTER_COIN_SECONDS
+		return true
+	_letting_in = false
+	if _start_hold > 0.0:
+		_start_hold = maxf(0.0, _start_hold - delta)
+		if _start_hold > 0.0:
+			return true
+		for port: int in _queued_start:
+			_start_pulse[port] = ArcadeProfiles.COIN_PULSE_SECONDS
+		_queued_start.clear()
+	return false
+
+
+## The core stopped (or never started): the run is over, and every coin still held rolls out into its cup.
+func _end_run() -> void:
+	_run_base = -1
+	_run_seconds = 0.0
+	_return_held()
+	_letting_in = false
+	_start_hold = 0.0
+	_queued_start.clear()
+	_start_pulse.clear()
 
 
 ## A panel was attached to or let go of (a press on it, or the machine going off).

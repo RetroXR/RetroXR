@@ -89,6 +89,21 @@ const DESKTOP_KEYS: Dictionary = {
 ## How long a coin holds its bit. Long enough for any core to poll it across a
 ## frame at 60 fps, short enough never to read as a held button.
 const COIN_PULSE_SECONDS := 0.10
+## The quiet between two coins that go in one after the other (the escrow letting several in at once):
+## a game counts a coin on the bit's EDGE, and two pulses with no gap are one long coin.
+const COIN_GAP_SECONDS := 0.25
+
+## How long a game takes to come up from power-on before it counts a coin, when the table names
+## nothing for it (ArcadeGameProfile.boot_seconds; Tools/arcade/gen_game_index.py BOOT_SECONDS
+## has the slower drivers). In the game's own time. An ESTIMATE that errs long: a coin held a little
+## too long is a credit a moment late (and START lets it in at once), one let in too early is lost.
+const BOOT_SECONDS := 4.0
+## The least the core must have run before START may let a held coin in early: a frame count, so a
+## START held through the switch-on does not push the coin into a board that has not started.
+const MIN_BOOT_FRAMES := 30
+## After the held coins have gone in, START is held back this long, so the game sees the credit
+## before the start (a START pressed while they were going in is sent afterwards, once).
+const START_AFTER_COIN_SECONDS := 0.35
 
 
 ## Ids a .info file may file an arcade core under besides the tiles' own (the older MAME and

@@ -281,6 +281,32 @@ func _group_input() -> void:
 		frames += 1
 	_ok(frames >= 4 and frames <= 8, "input: and lets go after about a tenth of a second (%d frames)" % frames)
 	_ok(not pulse.active(), "input: then it is spent")
+	# The coins a game cannot count yet: held, given back, let in one at a time once it can.
+	var escrow := ArcadeInputState.CoinEscrow.new()
+	escrow.hold(1)
+	escrow.hold(0)
+	escrow.hold(1)
+	_ok(escrow.total() == 3 and escrow.held(1) == 2 and escrow.held(0) == 1, "input: held coins are counted per player")
+	_ok(escrow.next(0.016, false) == -1 and escrow.total() == 3, "input: nothing goes in while the game cannot count it")
+	_ok(escrow.take_back(1) and escrow.held(1) == 1 and not escrow.take_back(3), "input: the return gives one back, and none it does not hold")
+	var order: Array[int] = []
+	var waited := 0.0
+	while not escrow.is_empty() and waited < 5.0:
+		var who := escrow.next(0.016, true)
+		if who >= 0:
+			order.append(who)
+		waited += 0.016
+	_ok(order == [0, 1], "input: once it can, they go in one at a time, lowest player first (%s)" % str(order))
+	_ok(waited >= ArcadeProfiles.COIN_PULSE_SECONDS + ArcadeProfiles.COIN_GAP_SECONDS - 0.02,
+		"input: a pulse and a gap apart, so each counts (%.2f s)" % waited)
+	escrow.hold(0)
+	escrow.hold(0)
+	_ok(escrow.take_all() == {0: 2} and escrow.is_empty(), "input: switching off takes them all, to roll out")
+	_ok(not ArcadeInputState.game_ready(239, 240) and ArcadeInputState.game_ready(240, 240),
+		"input: the game is up when it has run its own boot, in its own frames")
+	_ok(ArcadeInputState.start_lets_coins_in(30, 30, true, 1) and not ArcadeInputState.start_lets_coins_in(29, 30, true, 1)
+		and not ArcadeInputState.start_lets_coins_in(300, 30, false, 1) and not ArcadeInputState.start_lets_coins_in(300, 30, true, 0),
+		"input: START lets held coins in early, only on a core that has started and only with coins held")
 	# The cabinet's own keyboard layout, checked on the data: every button has a key, and no
 	# two actions share one (a shared key would press two buttons at once).
 	var keys := ArcadeProfiles.DESKTOP_KEYS
@@ -1231,10 +1257,17 @@ func _group_coin() -> void:
 	# Through the input: with the machine off a coin is not held for the core.
 	var input := model.arcade_input()
 	sys.is_powered_on = false
+	var lying := door.returned
 	door.insert_coin()
 	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.2).timeout
 	_ok(not input.last_sent.has(1), "coin: a switched-off cabinet sends nothing")
+	_ok(door.returned == lying + 1, "coin: it rolls out into the return cup instead")
+	# A cabinet whose game is up: the suite's frame counter says the boot is through.
+	input.frame_override = 0
 	sys.is_powered_on = true
+	await get_tree().process_frame
+	await get_tree().process_frame
+	input.frame_override = input.boot_frames()
 	door.insert_coin()
 	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.05).timeout
 	await get_tree().process_frame
@@ -1494,6 +1527,11 @@ func _group_game_profile() -> void:
 	_ok(pong.coins == 1 and pong.buttons == 0 and pong.has_kind("paddle") and pong.stick_visible(),
 		"game: Pong has one coin, no buttons and keeps the stick (left and right steer a paddle)")
 	_ok(not ArcadeGameProfile.for_romset("hotd2").stick_visible(), "game: a gun game has no stick on the panel")
+	var slow := ArcadeGameProfile.from_key("slow", "p2c2b6w8:joy;k12")
+	_ok(slow.known and slow.kinds == PackedStringArray(["joy"]) and is_equal_approx(slow.boot_seconds(), 12.0),
+		"game: a key's attributes follow its kinds (k12: twelve seconds to boot), the kinds unchanged")
+	_ok(is_equal_approx(ArcadeGameProfile.from_key("plain", "p2c2b6w8:joy").boot_seconds(), ArcadeProfiles.BOOT_SECONDS),
+		"game: a key without one boots in the default time")
 	var path := ArcadeGameProfile.for_rom_path("/home/me/retroxr/roms/mame/SF2.zip")
 	_ok(path.known and path.romset == "sf2", "game: a board's path is read as its romset, any case and extension")
 	var unknown := ArcadeGameProfile.for_romset("not_a_real_romset")

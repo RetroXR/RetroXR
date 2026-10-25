@@ -402,6 +402,17 @@ func _shot_coin() -> void:
 	await _save("coin")
 
 
+## The coin door close up: the RETURN cap and its legend, and a coin the cabinet gave back lying in the
+## cup (a coin into a switched-off cabinet rolls straight out; ArcadeCoinModule.return_coin).
+func _shot_return() -> void:
+	var door := _model.modules_of_kind(ArcadeProfiles.KIND_COIN)[0] as ArcadeCoinModule
+	door.return_coin()
+	await get_tree().create_timer(ArcadeCoinModule.RETURN_FALL_SECONDS + 0.1).timeout
+	var at := door.global_position
+	_look(at + Vector3(0.05, 0.06, 0.30), at + Vector3(0.0, -0.03, 0.0))
+	await _save("return")
+
+
 ## A board on its own, with the title the cartridge prints when it has no art: the text
 ## must sit ON the sticker, whichever way it is looked at. Prints how far apart they are.
 var _board: Node3D = null

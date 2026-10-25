@@ -54,6 +54,9 @@ var coins := 2
 var buttons := ArcadeProfiles.BUTTON_COUNT
 var ways := 8
 var kinds: PackedStringArray = PackedStringArray()
+## The key's optional attributes after the kinds, `;`-separated, each a letter and a value
+## (`k8`: eight seconds to boot). A key without them is a key of the first table and reads as it did.
+var attrs: Dictionary = {}
 ## player -> {pad id: the core's word for it}, only for ports that describe THIS game.
 var _described: Dictionary = {}
 
@@ -102,7 +105,7 @@ static func table_size() -> int:
 
 
 func _parse(key: String) -> void:
-	# p<players>c<coins>b<buttons>w<ways>:<kind>+<kind>
+	# p<players>c<coins>b<buttons>w<ways>:<kind>+<kind>[;<attr>...]
 	var halves := key.split(":", false)
 	if halves.size() != 2:
 		return
@@ -115,7 +118,20 @@ func _parse(key: String) -> void:
 	coins = int(m.get_string(2))
 	buttons = int(m.get_string(3))
 	ways = int(m.get_string(4))
-	kinds = PackedStringArray(halves[1].split("+", false))
+	var tail := halves[1].split(";", false)
+	kinds = PackedStringArray(tail[0].split("+", false)) if tail.size() > 0 else PackedStringArray()
+	attrs.clear()
+	for i in range(1, tail.size()):
+		var token := tail[i]
+		if not token.is_empty():
+			attrs[token.substr(0, 1)] = token.substr(1)
+
+
+## How long this game takes to come up from power-on before it counts a coin, in seconds of the game's
+## own time: the table's estimate for its driver (`k`), else ArcadeProfiles.BOOT_SECONDS.
+func boot_seconds() -> float:
+	var k := str(attrs.get("k", ""))
+	return float(k) if k.is_valid_float() and float(k) > 0.0 else ArcadeProfiles.BOOT_SECONDS
 
 
 ## Take the core's own description of its inputs (Libretro.GetInputDescriptors: an Array of
