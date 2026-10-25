@@ -74,6 +74,8 @@ var _cleanup_selected: Dictionary = {}
 var _cleanup_thread: Thread = null
 var _cleanup_busy := false
 var _cleanup_scan_btn: Button = null
+## [Control, Callable] pairs: passthrough rows and what each needs of the headset.
+var _support_rows: Array = []
 ## "Sync all now" doubles as "Stop syncing" while anything is running.
 var _romm_sync_btn: Button = null
 ## Entries are {sid: String, full: bool}. One queue for the whole app: a second
@@ -175,6 +177,25 @@ func _build() -> void:
 
 	_tabs.tab_changed.connect(func(_i: int) -> void: scroll_changed.emit(active_scroll()))
 	add_child(TabStrip.wrap(_tabs))
+
+	# What the headset can do is known only once its session is up: asked again
+	# whenever the page comes into view.
+	visibility_changed.connect(func() -> void:
+		if is_visible_in_tree():
+			_refresh_support_rows())
+	_refresh_support_rows.call_deferred()
+
+
+## A row (or its hint) shown only where `supported` says this headset can do it.
+func _support_row(row: Control, supported: Callable) -> void:
+	_support_rows.append([row, supported])
+
+
+func _refresh_support_rows() -> void:
+	for entry: Array in _support_rows:
+		var row := entry[0] as Control
+		if is_instance_valid(row):
+			row.visible = bool((entry[1] as Callable).call())
 
 
 ## A scrolling sub-tab. The TabContainer titles each tab after its child, so the
@@ -527,15 +548,16 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(HSeparator.new())
 
 	# Whether that movement still works in passthrough. XR only, like Turn Style:
-	# passthrough is not reachable outside a headset. Shown whatever this headset
-	# supports — the answer is only knowable once the OpenXR session is up, well
-	# after this page is built, and a switch that appears on the second visit reads
-	# worse than one that is simply inert on hardware without passthrough.
+	# passthrough is not reachable outside a headset. Each passthrough row is shown
+	# only where this headset can do it (PassthroughSupport). The answer comes from
+	# the OpenXR session, up well after this page is built, so the rows are asked
+	# again every time the page is shown (_refresh_support_rows), never just here.
 	if MenuStyle.is_vr_mode():
 		var ptm_row := HBoxContainer.new()
 		ptm_row.add_theme_constant_override("separation", 10)
 		ptm_row.custom_minimum_size = Vector2(0, 68)
 		vbox.add_child(ptm_row)
+		_support_row(ptm_row, PassthroughSupport.passthrough)
 
 		var ptm_lbl := Label.new()
 		ptm_lbl.text = "Move in Passthrough"
@@ -559,6 +581,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		spt_row.add_theme_constant_override("separation", 10)
 		spt_row.custom_minimum_size = Vector2(0, 68)
 		vbox.add_child(spt_row)
+		_support_row(spt_row, PassthroughSupport.room_data)
 
 		var spt_lbl := Label.new()
 		spt_lbl.text = "Use Room Data in Passthrough"
@@ -580,6 +603,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		mesh_row.add_theme_constant_override("separation", 10)
 		mesh_row.custom_minimum_size = Vector2(0, 68)
 		vbox.add_child(mesh_row)
+		_support_row(mesh_row, PassthroughSupport.room_mesh)
 
 		var mesh_lbl := Label.new()
 		mesh_lbl.text = "Detailed Room Mesh"
@@ -602,6 +626,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		scan_row.add_theme_constant_override("separation", 10)
 		scan_row.custom_minimum_size = Vector2(0, 68)
 		vbox.add_child(scan_row)
+		_support_row(scan_row, PassthroughSupport.room_data)
 
 		var scan_lbl := Label.new()
 		scan_lbl.text = "Room Scan"
@@ -626,6 +651,7 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		occ_row.add_theme_constant_override("separation", 10)
 		occ_row.custom_minimum_size = Vector2(0, 68)
 		vbox.add_child(occ_row)
+		_support_row(occ_row, PassthroughSupport.depth)
 
 		var occ_lbl := Label.new()
 		occ_lbl.text = "Real Objects Hide Virtual"
@@ -651,15 +677,19 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 			AppPrefs.libretro_camera_backdrop = str(id)
 			AppPrefs.save_prefs())
 		vbox.add_child(cam_drop)
-		vbox.add_child(MenuStyle.hint(
+		_support_row(cam_drop, PassthroughSupport.camera)
+		var cam_hint := MenuStyle.hint(
 			"In passthrough a camera cartridge sees the headset camera's view where its "
 			+ "lens points. Fixed 1.5 m takes everything to be 1.5 m away; Depth finds "
-			+ "the real surfaces with Meta's depth (Quest 3, room data on)."))
+			+ "the real surfaces with Meta's depth (Quest 3, room data on).")
+		vbox.add_child(cam_hint)
+		_support_row(cam_hint, PassthroughSupport.camera)
 
 		var fpt_row := HBoxContainer.new()
 		fpt_row.add_theme_constant_override("separation", 10)
 		fpt_row.custom_minimum_size = Vector2(0, 68)
 		vbox.add_child(fpt_row)
+		_support_row(fpt_row, PassthroughSupport.passthrough)
 
 		var fpt_lbl := Label.new()
 		fpt_lbl.text = "Passthrough in Focus Mode"
@@ -674,9 +704,11 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 				AppPrefs.save_prefs()
 		))
 
-		vbox.add_child(MenuStyle.hint("Point your right hand at a TV or handheld and press the "
+		var fpt_hint := MenuStyle.hint("Point your right hand at a TV or handheld and press the "
 			+ "right stick to play it on a floating screen with the room hidden. On, your real "
-			+ "surroundings show around the screen instead of black."))
+			+ "surroundings show around the screen instead of black.")
+		vbox.add_child(fpt_hint)
+		_support_row(fpt_hint, PassthroughSupport.passthrough)
 
 		vbox.add_child(HSeparator.new())
 

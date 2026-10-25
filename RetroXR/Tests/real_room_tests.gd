@@ -134,6 +134,8 @@ func _ready() -> void:
 		await _test_rig()
 	if _wants("overlay"):
 		await _test_overlay()
+	if _wants("support"):
+		_test_support()
 	if _wants("project"):
 		_test_project()
 
@@ -417,6 +419,37 @@ func _test_occlusion() -> void:
 	_free_rig(rig2)
 	await get_tree().process_frame
 	_reset_statics()
+
+
+## Each passthrough switch in OPTIONS shown only where the headset can do it,
+## asked again whenever the page is shown.
+func _test_support() -> void:
+	PassthroughSupport.override = {}
+	_ok(not PassthroughSupport.passthrough() and not PassthroughSupport.room_data()
+		and not PassthroughSupport.room_mesh() and not PassthroughSupport.depth()
+		and not PassthroughSupport.camera(),
+		"support/no headset here: no passthrough switch would show")
+	# A Quest 2: passthrough and Space Setup's room, nothing else.
+	PassthroughSupport.override = {"passthrough": true, "room_data": true, "depth": false}
+	_ok(PassthroughSupport.room_data() and not PassthroughSupport.room_mesh()
+		and not PassthroughSupport.depth() and not PassthroughSupport.camera(),
+		"support/a Quest 2: room data and room scan, no mesh, depth or camera")
+	PassthroughSupport.override = {"passthrough": true, "room_data": true, "room_mesh": true,
+		"depth": true, "camera": true}
+	_ok(PassthroughSupport.room_mesh() and PassthroughSupport.depth() and PassthroughSupport.camera(),
+		"support/a Quest 3: all of it")
+	var view := SpawnMenuOptionsView.new()
+	var has := {"v": false}
+	var row := HBoxContainer.new()
+	view.call("_support_row", row, func() -> bool: return has["v"])
+	view.call("_refresh_support_rows")
+	_ok(not row.visible, "support/a row its headset cannot do is hidden")
+	has["v"] = true
+	view.call("_refresh_support_rows")
+	_ok(row.visible, "support/and shown once the headset says it can, the next time the page is shown")
+	row.free()
+	view.free()
+	PassthroughSupport.override = {}
 
 
 ## Debug > Overlays > Real Room Surfaces.
