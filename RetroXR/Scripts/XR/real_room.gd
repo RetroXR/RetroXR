@@ -224,6 +224,9 @@ func add_surface(surface: RealRoomSurface) -> void:
 	if surface in _surfaces:
 		return
 	_surfaces.append(surface)
+	# The headset has a room mesh: OPTIONS shows Detailed Room Mesh from now on.
+	if surface.kind == RealRoomSurface.Kind.MESH:
+		PassthroughSupport.mesh_seen = true
 	var body := _player_body()
 	if body != null:
 		_excepted_body = body

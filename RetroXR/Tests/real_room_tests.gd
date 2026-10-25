@@ -158,6 +158,7 @@ func _ok(cond: bool, test_name: String, detail: String = "") -> void:
 
 
 func _reset_statics() -> void:
+	PassthroughSupport.mesh_seen = false
 	SpatialPermission.reset()
 	EnvironmentDepth.reset()
 	RealRoom.reset_notice()
@@ -425,6 +426,7 @@ func _test_occlusion() -> void:
 ## asked again whenever the page is shown.
 func _test_support() -> void:
 	PassthroughSupport.override = {}
+	PassthroughSupport.mesh_seen = false
 	_ok(not PassthroughSupport.passthrough() and not PassthroughSupport.room_data()
 		and not PassthroughSupport.room_mesh() and not PassthroughSupport.depth()
 		and not PassthroughSupport.camera(),
@@ -438,6 +440,22 @@ func _test_support() -> void:
 		"depth": true, "camera": true}
 	_ok(PassthroughSupport.room_mesh() and PassthroughSupport.depth() and PassthroughSupport.camera(),
 		"support/a Quest 3: all of it")
+	# The mesh asked of the room where OpenXR's own query cannot be reached.
+	PassthroughSupport.override = {"passthrough": true, "room_data": true}
+	PassthroughSupport.mesh_seen = false
+	var reachable := PassthroughSupport.mesh_extension() != null
+	_ok(reachable or not PassthroughSupport.room_mesh(),
+		"support/no mesh read yet: Detailed Room Mesh is not offered")
+	var rig := _rig()
+	var room := _room({"on": true}, rig)
+	room.start()
+	var manager := (rig["origin"] as Node).get_node("RealRoomScene") as FakeManager
+	manager.make_anchor(FakeEntity.new(PackedStringArray(["GLOBAL_MESH"]), true))
+	_ok(PassthroughSupport.mesh_seen and (reachable or PassthroughSupport.room_mesh()),
+		"support/once a room mesh has been read, it is")
+	room.free()
+	_free_rig(rig)
+	PassthroughSupport.mesh_seen = false
 	var view := SpawnMenuOptionsView.new()
 	var has := {"v": false}
 	var row := HBoxContainer.new()
