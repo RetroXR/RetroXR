@@ -616,6 +616,16 @@ func _show_about_view() -> void:
 	_show_view(_about_view, _about_view, _nav_about_btn)
 
 
+## The MODS view, and a way to open it, for the NET view's refused-join panel:
+## a download from there is reviewed and applied here, as any other is.
+func mods_view() -> SpawnMenuModsView:
+	return _mods_view
+
+
+func show_mods() -> void:
+	_show_mods_view()
+
+
 func _show_mods_view() -> void:
 	_show_view(_mods_view, _mods_view.active_scroll(), _nav_mods_btn)
 	# The first time this tab is opened is the first time mod.io is asked for anything.

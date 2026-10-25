@@ -35,6 +35,13 @@ the autoload before connecting suppresses the warning but leaves Godot with a
 dangling autoload singleton and eventually crashes the full suite, so do not
 hide it that way. The passing case count and exit status remain the gate.
 
+**Mods (`mods/`, protocol 13):** a host refusing a peer for its mods sends it the
+host's mod list first (`_mods_refused`), then `_reject`; the joiner's NET view turns it
+into what to get from mod.io, what to switch, and what is the host's to change.
+`ModSessionPlan`, the sanitizer and the real refusal over loopback (two
+NetworkManagers told different mods through `mods_override`) are the group; the rest is
+in `mods.md`.
+
 What no suite here can cover is a real core's arithmetic. That is
 `Tools/netplay/netplay_spike.gd`, and it now has a **cross-machine leg**, which is the
 only thing that tests the one payload lockstep actually puts on the wire — a

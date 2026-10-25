@@ -49,6 +49,14 @@ var _join_code_btn: Button = null
 var _leave_btn:    Button = null
 var _code_edit:    LineEdit = null
 var _code_lbl:     Label = null
+## The refused-join panel: what the host runs that this player does not, and
+## what to do about each (ModSessionPlan). Hidden unless a host refused us.
+var _mods_box:     VBoxContainer = null
+## mod.io's current file version per mod.io id, once asked; and whether it was.
+var _mod_versions: Dictionary = {}
+var _mod_asked := false
+## "code" or "ip": how the last join was made, for Join again.
+var _last_join := ""
 
 
 ## `menu` is the SpawnMenu2D, needed only so an in-flight transfer can raise a
@@ -106,6 +114,11 @@ func _build() -> void:
 	_status_lbl = MenuStyle.label("Not connected", 18, MenuStyle.COLOR_LICENSE)
 	_status_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(_status_lbl)
+
+	# Under the status, where "rejected: mods do not match" is read.
+	_mods_box = MenuStyle.vbox(8)
+	_mods_box.visible = false
+	vbox.add_child(_mods_box)
 
 	# ── Player name ───────────────────────────────────────────────────────────
 	var name_row := MenuStyle.hbox(10)
@@ -220,8 +233,18 @@ func _build() -> void:
 		_code_lbl.text = code
 		_code_lbl.visible = not code.is_empty()
 	)
-	NetworkManager.session_started.connect(func(_h: bool) -> void: refresh())
-	NetworkManager.session_ended.connect(func(_r: String) -> void: refresh())
+	NetworkManager.session_started.connect(func(_h: bool) -> void:
+		_refill_mods_box()
+		refresh())
+	# Methods, not lambdas: both autoloads outlive this view, and a method's
+	# connection goes away with it.
+	NetworkManager.mods_refused.connect(_on_mods_refused)
+	Mods.mods_changed.connect(_refill_mods_box)
+	# mods_refused lands while the session is still up; the panel shows once it
+	# has ended, so the end redraws it.
+	NetworkManager.session_ended.connect(func(_r: String) -> void:
+		_refill_mods_box()
+		refresh())
 	NetworkManager.peer_registered.connect(func(_i: int, _d: Dictionary) -> void: refresh())
 	NetworkManager.peer_left.connect(func(_i: int) -> void: refresh())
 
@@ -310,8 +333,10 @@ func _on_join_code() -> void:
 	_code_edit.text = code
 	NetworkManager.player_name = _name_edit.text.strip_edges()
 	_save_prefs()
+	_last_join = "code"
 	_set_busy(true)
 	var err: Error = await NetworkManager.join_by_code(code)
+	_refill_mods_box()
 	_set_busy(false)
 	if err == OK:
 		refresh()
@@ -339,7 +364,156 @@ func _on_join() -> void:
 		return
 	NetworkManager.player_name = _name_edit.text.strip_edges()
 	_save_prefs()
+	_last_join = "ip"
 	NetworkManager.join_game(ip)
+	_refill_mods_box()
+
+
+# ── A host refused us for our mods ────────────────────────────────────────────
+# The host sends only its list; packs are never passed between players. What
+# each difference needs is ModSessionPlan's; a download goes through the MODS
+# tab's own path (scan, needs, review) and is applied from its bar.
+
+func _on_mods_refused(_host_mods: Array) -> void:
+	_mod_versions = {}
+	_mod_asked = false
+	_refill_mods_box()
+	_ask_modio()
+
+
+## Ask mod.io which versions it holds of the host's mods, so the panel can tell
+## a download that will match from one the host has to update for.
+func _ask_modio() -> void:
+	var mv := _mods_view()
+	var ids: Array[int] = []
+	for m: Dictionary in NetworkManager.mod_refusal:
+		if int(m["modio_id"]) > 0 and not ids.has(int(m["modio_id"])):
+			ids.append(int(m["modio_id"]))
+	if mv == null or ids.is_empty() or not mv.has_consent():
+		return
+	mv.session_versions(ids, func(ok: bool, versions: Dictionary, _error: String) -> void:
+		if not is_instance_valid(self):
+			return
+		if ok:
+			_mod_versions = versions
+			_mod_asked = true
+		_refill_mods_box())
+
+
+func _mods_view() -> SpawnMenuModsView:
+	return _menu.call("mods_view") if _menu != null and _menu.has_method("mods_view") else null
+
+
+func _open_mods() -> void:
+	if _menu != null and _menu.has_method("show_mods"):
+		_menu.call("show_mods")
+
+
+## The plan as it stands now: the host's list against what is installed here,
+## so the rows shrink as mods come in and are switched.
+func _mod_plan() -> Array[Dictionary]:
+	return ModSessionPlan.rows(NetworkManager.mod_refusal, Mods.installed_detail(),
+		_mod_versions, _mod_asked)
+
+
+func _refill_mods_box() -> void:
+	if not is_instance_valid(_mods_box):
+		return
+	for c in _mods_box.get_children():
+		c.queue_free()
+	var refused: bool = not NetworkManager.mod_refusal.is_empty() and not NetworkManager.is_active()
+	_mods_box.visible = refused
+	if not refused:
+		return
+	var plan := _mod_plan()
+	_mods_box.add_child(MenuStyle.header("THE HOST'S MODS DIFFER"))
+	var said := MenuStyle.label(ModSessionPlan.summary(plan) if not plan.is_empty()
+		else "Your mods match the host's now.", 18, MenuStyle.COLOR_TITLE)
+	said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_mods_box.add_child(said)
+
+	# The buttons come BEFORE the detail: a player with a large collection can be
+	# running dozens the host is not, and listing them first pushed every button
+	# off the page.
+	var mv := _mods_view()
+	var fetch := ModSessionPlan.fetchable(plan)
+	if not fetch.is_empty():
+		if mv != null and not mv.has_consent():
+			var agree := _wide_button("Agree to mod.io's terms in MODS to get them")
+			agree.pressed.connect(_open_mods)
+			_mods_box.add_child(agree)
+		else:
+			var wanted := {}
+			for row: Dictionary in plan:
+				if row["kind"] == ModSessionPlan.GET:
+					wanted[int(row["modio_id"])] = str(row["host_version"])
+			var get_btn := _wide_button("Get %d from mod.io" % fetch.size())
+			get_btn.disabled = mv == null
+			get_btn.pressed.connect(func() -> void:
+				if mv != null:
+					print("[NetView] getting the host's mods from mod.io: %s" % str(wanted.keys()))
+					mv.fetch_for_session(wanted)
+					_open_mods())
+			_mods_box.add_child(get_btn)
+	var switches: Array[Dictionary] = []
+	for row: Dictionary in plan:
+		if row["kind"] in [ModSessionPlan.SWITCH_ON, ModSessionPlan.SWITCH_OFF]:
+			switches.append(row)
+	if not switches.is_empty():
+		# Says which way: switching off dozens of the player's own mods is not a
+		# button to press by mistake. They come back from MODS > Installed.
+		var n_on := switches.filter(func(r: Dictionary) -> bool:
+			return r["kind"] == ModSessionPlan.SWITCH_ON).size()
+		var n_off := switches.size() - n_on
+		var sw := _wide_button("Switch %s to match the host" % (
+			"on %d" % n_on if n_off == 0 else ("off %d" % n_off if n_on == 0
+			else "on %d and off %d" % [n_on, n_off])))
+		sw.pressed.connect(func() -> void:
+			for row: Dictionary in switches:
+				Mods.set_enabled(str(row["id"]), row["kind"] == ModSessionPlan.SWITCH_ON)
+			print("[NetView] switched %d mods to match the host" % switches.size())
+			# Applied from the MODS tab's bar, which knows whether it needs a restart.
+			_open_mods())
+		_mods_box.add_child(sw)
+	if not ModSessionPlan.joiner_can_fix(plan):
+		var note := MenuStyle.label(
+			"The orange ones are the host's to change: ask them to update, or to switch those off.",
+			16, MenuStyle.COLOR_LICENSE)
+		note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_mods_box.add_child(note)
+	if not _last_join.is_empty():
+		var again := _wide_button("Join again")
+		again.pressed.connect(_join_again)
+		_mods_box.add_child(again)
+
+	# Then each kind with its first few names.
+	for group: Array in ModSessionPlan.grouped(plan):
+		var kind: String = group[0]
+		var rows_of: Array = group[1]
+		var host_side := kind in [ModSessionPlan.HOST_UPDATE, ModSessionPlan.NOT_ON_MODIO,
+			ModSessionPlan.BY_HAND]
+		_mods_box.add_child(MenuStyle.label("%s (%d)" % [ModSessionPlan.TITLES[kind], rows_of.size()],
+			18, Color(1.0, 0.72, 0.2) if host_side else MenuStyle.COLOR_LICENSE))
+		for i in mini(rows_of.size(), MOD_ROWS_SHOWN):
+			var line := MenuStyle.label("    " + ModSessionPlan.describe(rows_of[i]), 16,
+				MenuStyle.COLOR_TITLE)
+			line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_mods_box.add_child(line)
+		if rows_of.size() > MOD_ROWS_SHOWN:
+			_mods_box.add_child(MenuStyle.label("    …and %d more" % (rows_of.size() - MOD_ROWS_SHOWN),
+				16, MenuStyle.COLOR_DESC))
+
+
+## Names shown per kind in the refused-join panel before "…and N more".
+const MOD_ROWS_SHOWN := 4
+
+
+func _join_again() -> void:
+	match _last_join:
+		"code":
+			_on_join_code()
+		"ip":
+			_on_join()
 
 
 ## Re-read the session and repaint.

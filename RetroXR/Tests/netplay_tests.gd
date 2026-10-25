@@ -34,7 +34,7 @@ extends Node
 const NM_SCRIPT := preload("res://Scripts/Net/network_manager.gd")
 const GROUPS := ["cores", "substitute", "manifest", "hashcache", "progress", "hudnotify", "readiness", "identity", "roomcode",
 	"punch", "wire", "owners", "assemble", "start", "lockstep", "desync", "join",
-	"transfer", "leave", "rollback", "link"]
+	"transfer", "leave", "rollback", "link", "mods"]
 const PORT := 42913
 
 ## What a real fceumm reports, near enough. The exact strings do not matter to
@@ -105,10 +105,151 @@ func _ready() -> void:
 	if _want("link"):
 		await _test_link()
 		await _test_link_rollback()
+	if _want("mods"):
+		_test_mod_plan()
+		await _test_mod_refusal()
 
 	print("[test] %d cases, %s" % [_ran,
 		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
 	get_tree().quit(0 if _fail == 0 else 1)
+
+
+# ══ Mods: a refused peer learns what to get ═══════════════════════════════════
+# Packs are never sent between players. Since protocol 13 a host refusing a peer
+# for its mods sends it the list it runs, and ModSessionPlan works out on the
+# joiner what each difference needs: a download from mod.io, the host updating,
+# a hand install, or a switch.
+
+const _PAD := {"id": "xenu.snespad", "version": "0.4.1", "name": "Super NES Controller", "modio_id": 77}
+const _SAT := {"id": "xenu.saturn", "version": "1.0.0", "name": "Sega Saturn", "modio_id": 88}
+const _HAND := {"id": "me.crate", "version": "0.1.0", "name": "Crate", "modio_id": 0}
+
+
+func _plan_kind(plan: Array, id: String) -> String:
+	for row: Dictionary in plan:
+		if row["id"] == id:
+			return str(row["kind"])
+	return ""
+
+
+func _test_mod_plan() -> void:
+	var host := [_PAD, _SAT, _HAND]
+	var same := [_loc(_PAD, true), _loc(_SAT, true), _loc(_HAND, true)]
+	_eq(ModSessionPlan.rows(host, same).size(), 0, "mods/the same mods running is no difference")
+
+	var pend := ModSessionPlan.rows([_PAD], [])
+	_eq(_plan_kind(pend, "xenu.snespad"), ModSessionPlan.GET,
+		"mods/missing, with a mod.io page and mod.io not asked yet: a get")
+	_ok(bool(pend[0]["checking"]), "mods/...marked as still being checked")
+
+	_eq(_plan_kind(ModSessionPlan.rows([_PAD], [], {77: "0.4.1"}, true), "xenu.snespad"),
+		ModSessionPlan.GET, "mods/mod.io has the host's version: a get")
+	_eq(_plan_kind(ModSessionPlan.rows([_PAD], [], {77: "0.5.0"}, true), "xenu.snespad"),
+		ModSessionPlan.HOST_UPDATE, "mods/mod.io is newer than the host: the host updates")
+	var older := ModSessionPlan.rows([_PAD], [], {77: "0.3.0"}, true)
+	_eq(_plan_kind(older, "xenu.snespad"), ModSessionPlan.NOT_ON_MODIO,
+		"mods/the host is newer than mod.io: its version is not there")
+	_eq(str(older[0]["modio_version"]), "0.3.0", "mods/...and the row says what mod.io has")
+	_eq(_plan_kind(ModSessionPlan.rows([_PAD], [], {}, true), "xenu.snespad"),
+		ModSessionPlan.NOT_ON_MODIO, "mods/mod.io no longer has it")
+	_eq(_plan_kind(ModSessionPlan.rows([_PAD], [], {77: ""}, true), "xenu.snespad"),
+		ModSessionPlan.GET, "mods/an upload stating no version is still fetched")
+	_eq(_plan_kind(ModSessionPlan.rows([_HAND], [], {}, true), "me.crate"),
+		ModSessionPlan.BY_HAND, "mods/the host's hand install has no page: by hand")
+
+	var off := _loc(_PAD, false)
+	_eq(_plan_kind(ModSessionPlan.rows([_PAD], [off]), "xenu.snespad"),
+		ModSessionPlan.SWITCH_ON, "mods/installed at the host's version but off: switch on")
+	var old_here := _loc(_PAD, true)
+	old_here["version"] = "0.3.9"
+	var upd := ModSessionPlan.rows([_PAD], [old_here], {77: "0.4.1"}, true)
+	_eq(_plan_kind(upd, "xenu.snespad"), ModSessionPlan.GET,
+		"mods/an older copy here and the host's on mod.io: a get (an update)")
+	_eq(str(upd[0]["local_version"]), "0.3.9", "mods/...naming the version here")
+	_eq(_plan_kind(ModSessionPlan.rows([], [_loc(_SAT, true)]), "xenu.saturn"),
+		ModSessionPlan.SWITCH_OFF, "mods/running here and not on the host: switch off")
+	_eq(ModSessionPlan.rows([], [_loc(_SAT, false)]).size(), 0,
+		"mods/installed here, off, and not on the host: no difference")
+
+	var mixed := ModSessionPlan.rows([_PAD, _SAT, _HAND], [], {77: "0.4.1", 88: "2.0.0"}, true)
+	_eq(ModSessionPlan.fetchable(mixed), [77] as Array[int], "mods/only gets are fetchable")
+	_ok(not ModSessionPlan.joiner_can_fix(mixed), "mods/a host update or a hand install needs more than the joiner")
+	_ok(ModSessionPlan.joiner_can_fix(ModSessionPlan.rows([_PAD], [_loc(_SAT, true)], {77: "0.4.1"}, true)),
+		"mods/gets and switches the joiner settles alone")
+
+	# The panel leads with one sentence and the buttons; the detail is grouped,
+	# because a big collection can be dozens of mods running the host does not.
+	var extras: Array = [_loc(_SAT, true)]
+	for i in 30:
+		extras.append({"id": "x.extra%d" % i, "version": "1.0", "name": "Extra %d" % i, "loaded": true})
+	var big := ModSessionPlan.rows([_PAD, _HAND], extras, {77: "0.4.1"}, true)
+	_eq(ModSessionPlan.summary(big), "1 to get from mod.io, 31 to switch off; 1 is the host's to change",
+		"mods/one sentence sums the whole plan")
+	var groups := ModSessionPlan.grouped(big)
+	_eq(groups.map(func(g: Array) -> String: return str(g[0])),
+		[ModSessionPlan.GET, ModSessionPlan.BY_HAND, ModSessionPlan.SWITCH_OFF],
+		"mods/kinds come in the panel's order, the joiner's extras last")
+	_eq((groups[2][1] as Array).size(), 31, "mods/...each group holding all its rows")
+	_eq(ModSessionPlan.summary([]), "", "mods/no difference sums to nothing")
+
+	# A host's list is a peer's word.
+	var raw: Array = [_PAD, "junk", {"id": ""}, {"id": "x.y", "modio_id": "77", "version": 3}]
+	var clean := NM_SCRIPT.sanitize_mod_list(raw)
+	_eq(clean.size(), 2, "mods/a refusal list keeps only well-formed entries")
+	_eq(int(clean[1]["modio_id"]), 0, "mods/...and a modio id that is not a number is none")
+	var many: Array = []
+	for i in NM_SCRIPT.MAX_REFUSED_MODS + 10:
+		many.append({"id": "m.%d" % i})
+	_eq(NM_SCRIPT.sanitize_mod_list(many).size(), NM_SCRIPT.MAX_REFUSED_MODS,
+		"mods/...and at most MAX_REFUSED_MODS of them")
+
+
+func _loc(m: Dictionary, loaded: bool) -> Dictionary:
+	var d := m.duplicate()
+	d["loaded"] = loaded
+	return d
+
+
+## The real refusal over loopback: two NetworkManagers in this process, told
+## they run different mods through mods_override.
+func _test_mod_refusal() -> void:
+	var host := _branch("MH")
+	var client := _branch("MC")
+	host.mods_override = [_PAD, _SAT]
+	client.mods_override = [_SAT]
+	var order: Array[String] = []
+	var got: Array = []
+	client.mods_refused.connect(func(list: Array) -> void:
+		order.append("refused")
+		got.assign(list))
+	client.session_ended.connect(func(_r: String) -> void: order.append("ended"))
+	host.host_game(PORT)
+	client.join_game("::1", PORT)
+	_ok(await _until(func() -> bool: return not client.is_active()),
+		"mods/a peer with different mods is refused")
+	_eq(order, ["refused", "ended"] as Array[String],
+		"mods/...told the host's list before its session ends")
+	_eq(got.size(), 2, "mods/the list names every mod the host runs")
+	_eq(str(got[0].get("id", "")) if not got.is_empty() else "", "xenu.snespad",
+		"mods/...with its id")
+	_eq(int(got[0].get("modio_id", 0)) if not got.is_empty() else 0, 77,
+		"mods/...and its mod.io id, which is what a Get fetches")
+	_eq(client.mod_refusal.size(), 2, "mods/the list is kept after the session ends")
+	_eq(host.peers.size(), 1, "mods/the host's roster is still only itself")
+	_eq(_plan_kind(ModSessionPlan.rows(client.mod_refusal,
+			[_loc(_SAT, true)]), "xenu.snespad"), ModSessionPlan.GET,
+		"mods/the joiner's plan from the real refusal: get the pad")
+
+	# Matching mods: accepted, and nothing kept from the refusal.
+	client.mods_override = [_PAD, _SAT]
+	client.join_game("::1", PORT)
+	_ok(client.mod_refusal.is_empty(), "mods/a new join attempt forgets the old refusal")
+	_ok(await _until(func() -> bool: return host.peers.size() == 2),
+		"mods/the same mods join (the control)")
+	for nm: Node in [host, client]:
+		nm.leave_session("test over")
+		nm.get_parent().queue_free()
+	await _await_frames(5)
 
 
 # ══ The allowlist ═════════════════════════════════════════════════════════════

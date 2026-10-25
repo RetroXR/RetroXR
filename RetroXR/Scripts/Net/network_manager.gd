@@ -25,10 +25,11 @@ const MAX_PLAYERS := 8
 ## source/channel/aspect state. 8 adds per-port accel/gyro/pointer frames. 9
 ## carries the external link-bus snapshot needed by linked late join. 10 makes
 ## each machine's ROM/empty-media/no-content boot mode explicit. 11 chunks and
-## verifies late-join savestates instead of putting them in one RPC. These
-## wire layouts are intentionally refused across versions:
+## verifies late-join savestates instead of putting them in one RPC. 13 sends a
+## peer refused for its mods the host's mod list (_mods_refused), so it can fetch
+## what is missing. These wire layouts are intentionally refused across versions:
 ## accepting an old peer would look connected while feeding different cores.
-const PROTOCOL_VERSION := 12
+const PROTOCOL_VERSION := 13
 const POSE_INTERVAL := 1.0 / 20.0
 
 # ENet channels
@@ -52,6 +53,10 @@ const PLAYER_COLORS: Array[Color] = [
 
 signal session_started(is_host: bool)
 signal session_ended(reason: String)
+## The host refused this peer for its mods and said which it runs
+## ([{id, version, name, modio_id}], see ModManager.session_detail). Emitted
+## before session_ended; the list stays in mod_refusal until the next join.
+signal mods_refused(host_mods: Array)
 signal peer_registered(id: int, info: Dictionary)
 signal peer_left(id: int)
 signal status_changed(text: String)
@@ -113,6 +118,13 @@ var _pose_accum := 0.0
 var _latest_poses: Dictionary = {}     # peer_id -> PackedFloat32Array(21)
 var _avatars_container: Node3D = null
 var _avatars: Dictionary = {}          # peer_id -> RemoteAvatar
+## The host's mods, from its last refusal of this peer; empty otherwise. Cleared
+## by every join attempt, so it never describes a host this peer has left.
+var mod_refusal: Array[Dictionary] = []
+## This peer's running mods as the handshake sees them, in place of the Mods
+## autoload's: [{id, version, name, modio_id}]. For netplay_tests, whose
+## NetworkManagers share one process and so one set of mods; null in a game.
+var mods_override: Variant = null
 var _broadcaster: Node = null
 
 
@@ -251,6 +263,7 @@ func host_game(port := DEFAULT_PORT) -> Error:
 func join_game(ip: String, port := DEFAULT_PORT, local_port := 0) -> Error:
 	if _active:
 		return ERR_ALREADY_IN_USE
+	mod_refusal.clear()
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(ip, port, 0, 0, 0, local_port)
 	if err != OK:
@@ -847,7 +860,7 @@ func _on_connected_to_server() -> void:
 	_register.rpc_id(1, {
 		"name": player_name,
 		"is_vr": get_viewport().use_xr,
-		"mods": Mods.fingerprint(),
+		"mods": _mods_fingerprint(),
 	}, PROTOCOL_VERSION)
 
 
@@ -903,10 +916,14 @@ func _register(info: Dictionary, version: int) -> void:
 	# and under netplay, one where a mod console desyncs the emulation. Refused
 	# with the difference named, so the player knows what to install or remove.
 	var their_mods: PackedStringArray = info.get("mods", PackedStringArray())
-	var our_mods := Mods.fingerprint()
+	var our_mods := _mods_fingerprint()
 	if their_mods != our_mods:
-		_reject.rpc_id(sender, "mods do not match: %s"
-			% Mods.fingerprint_mismatch(our_mods, their_mods))
+		var why: String = Mods.fingerprint_mismatch(our_mods, their_mods)
+		print("[NetworkManager] refused peer %d for its mods: %s" % [sender, why])
+		# The list first, on the same reliable channel, so it has landed by the
+		# time _reject ends the session there. The list, never the packs.
+		_mods_refused.rpc_id(sender, _mods_detail())
+		_reject.rpc_id(sender, "mods do not match: %s" % why)
 		_refuse_peer(sender)
 		return
 	var entry := {
@@ -977,6 +994,58 @@ func _disconnect_refused(id: int) -> void:
 @rpc("authority", "call_remote", "reliable", CH_CONTROL)
 func _reject(reason: String) -> void:
 	leave_session("rejected: %s" % reason)
+
+
+## Most a refusal may list. A host's word is a peer's word: bounded, and every
+## field coerced, before any of it reaches a panel.
+const MAX_REFUSED_MODS := 256
+
+
+@rpc("authority", "call_remote", "reliable", CH_CONTROL)
+func _mods_refused(host_mods: Array) -> void:
+	mod_refusal = sanitize_mod_list(host_mods)
+	print("[NetworkManager] the host refused our mods; it runs %d: %s" % [
+		mod_refusal.size(), ", ".join(PackedStringArray(mod_refusal.map(
+			func(m: Dictionary) -> String: return "%s@%s" % [m["id"], m["version"]])))])
+	mods_refused.emit(mod_refusal)
+
+
+## A peer-supplied mod list reduced to what ModSessionPlan reads: dictionaries
+## only, each field coerced and bounded, at most MAX_REFUSED_MODS of them.
+static func sanitize_mod_list(raw: Array) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for entry: Variant in raw:
+		if out.size() >= MAX_REFUSED_MODS:
+			break
+		if not entry is Dictionary:
+			continue
+		var d := entry as Dictionary
+		var id := str(d.get("id", "")).strip_edges().left(128)
+		if id.is_empty():
+			continue
+		var mid: Variant = d.get("modio_id", 0)
+		out.append({
+			"id": id,
+			"version": str(d.get("version", "")).left(32),
+			"name": str(d.get("name", "")).left(80),
+			"modio_id": int(mid) if (mid is int or mid is float) else 0,
+		})
+	return out
+
+
+## The running mods' fingerprint, from mods_override when a suite set one.
+func _mods_fingerprint() -> PackedStringArray:
+	if mods_override == null:
+		return Mods.fingerprint()
+	var out := PackedStringArray()
+	for m: Dictionary in _mods_detail():
+		out.append("%s@%s" % [m["id"], m["version"]])
+	out.sort()
+	return out
+
+
+func _mods_detail() -> Array:
+	return mods_override if mods_override is Array else Mods.session_detail()
 
 
 @rpc("authority", "call_remote", "reliable", CH_CONTROL)

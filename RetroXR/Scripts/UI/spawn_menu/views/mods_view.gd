@@ -42,6 +42,8 @@ const ART_H := 176
 const TILE_BTN_H := 40
 const TILE_BTN_W := 150
 const UPDATE_ALL_KEY := "mods:updateall"
+## The toast of a refused netplay join's Get (fetch_for_session).
+const SESSION_KEY := "mods:session"
 const SEARCH_DEBOUNCE := 0.6
 const FETCH_KEY := "mods:fetch"
 
@@ -1127,6 +1129,70 @@ func _download_fresh(key: String, fresh: Dictionary) -> void:
 			return
 		_fetch_with_needs(key, fresh, needs)
 		_refresh_tile(key))
+
+
+# ── A refused netplay join ────────────────────────────────────────────────────
+# The NET view's panel (ModSessionPlan) asks here: the versions mod.io holds, and
+# Get. Both go through the client, so the terms gate holds; a download is the
+# tile's Download -- asked fresh, scanned, its needs with it, parked for review.
+
+## What mod.io holds of these mods now, in ONE request:
+## on_done(ok, versions: modio_id -> its file's version, error). Nothing is sent
+## before the player has agreed to mod.io's terms; ok is false then.
+func session_versions(ids: Array[int], on_done: Callable) -> void:
+	if client == null or not has_consent():
+		on_done.call(false, {}, "mod.io's terms are not agreed yet")
+		return
+	var serial := _consent_serial
+	client.get_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+		if serial != _consent_serial:
+			on_done.call(false, {}, "mod.io consent was withdrawn")
+			return
+		var out := {}
+		if ok:
+			for m: Dictionary in mods:
+				out[int(m["id"])] = str(m["file_version"])
+		print("[ModsView] a refused join asked mod.io for %d mods: %d answered%s" % [
+			ids.size(), out.size(), "" if ok else " (%s)" % error])
+		on_done.call(ok, out, error))
+
+
+## Get what a refused join is missing. `wanted` is modio_id -> the HOST'S version;
+## a mod whose file on mod.io is another version is left alone (the panel already
+## says the host must update), one stating no version is fetched and the review
+## shows what came. Each lands as any download does: waiting for its review,
+## then OFF until switched on.
+func fetch_for_session(wanted: Dictionary) -> void:
+	if client == null or downloader == null or not has_consent() or wanted.is_empty():
+		return
+	var ids: Array[int] = []
+	for id: Variant in wanted:
+		ids.append(int(id))
+	notify(SESSION_KEY, "⏳", "Asking mod.io for the host's %d mod%s…" % [
+		ids.size(), "" if ids.size() == 1 else "s"])
+	var serial := _consent_serial
+	client.get_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+		if serial != _consent_serial:
+			notify_clear(SESSION_KEY)
+			return
+		if not ok:
+			notify(SESSION_KEY, "❌", "Could not ask mod.io for the host's mods: %s" % error,
+				-1.0, MenuToasts.DWELL_FAIL)
+			return
+		var started := 0
+		for fresh: Dictionary in mods:
+			var have := str(fresh["file_version"])
+			var want := str(wanted.get(int(fresh["id"]), ""))
+			if not have.is_empty() and have != want:
+				print("[ModsView] host's %s is %s, mod.io has %s: not fetched" % [
+					str(fresh["name"]), want, have])
+				continue
+			_download_fresh(_job_key(int(fresh["id"])), fresh)
+			started += 1
+		notify(SESSION_KEY, "⏳" if started > 0 else "❌",
+			"Getting %d of the host's mods — review them here to install" % started
+			if started > 0 else "None of the host's versions are on mod.io",
+			-1.0, MenuToasts.DWELL_INFO if started > 0 else MenuToasts.DWELL_FAIL))
 
 
 # ── Update all ────────────────────────────────────────────────────────────────

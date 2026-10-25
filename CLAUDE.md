@@ -322,7 +322,9 @@ are mod.io collections (`ModCollectionPlan` holds the decisions). The services a
 room change, and a download finishing after the menu died installed with NO review. This REVERSED the old "the app never distributes a mod" rule on 2026-10-06. What
 still holds: a download is fetched only after mod.io's scan is clean, vetted as a boot vets
 it plus `ModContentPolicy` (no games, no programs), WAITS for the player's review, and lands
-DISABLED; netplay still sends only an `id@version` fingerprint, never a pack; **a MOUNTED
+DISABLED; netplay still sends only an `id@version` fingerprint, never a pack (a refused peer is also sent the
+host's mod LIST, protocol 13, and its NET view offers each as a mod.io download, a switch, or the
+host's to change: `ModSessionPlan`); **a MOUNTED
 pack's file is never replaced or deleted in-session** — the move is written to
 `user://mods.json` and made by `_apply_pending` at the next launch, before discovery.
 mod.io uploads are **zip only**, and `pack_mod.gd` refuses a mod with no 16:9

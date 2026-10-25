@@ -181,6 +181,42 @@ is installed. Netplay is unchanged: it still sends only a fingerprint
 shipping the pack to the peer — a pack handed from one player to another has been
 through neither check.
 
+**A refused joiner is told what to get (protocol 13, 2026-10-25).** Netplay predates
+mod.io in the app, so a refusal used to be one sentence ("mods do not match: you are
+missing …") and the player went hunting. Now the host sends the refused peer its
+LIST (`_mods_refused`, `ModManager.session_detail()`: `{id, version, name, modio_id}`
+per running mod, the mod.io id from `sources`) just before `_reject`, on the same
+reliable channel -- the order is load-bearing: sent after, it never arrives, the
+session already gone (`netplay_tests mods/` has the mutant). The joiner keeps it in
+`NetworkManager.mod_refusal` (cleared by the next join; `sanitize_mod_list` bounds a
+peer's word: 256 entries, every field coerced) and emits `mods_refused`.
+- **`ModSessionPlan` decides, on the joiner** (pure; `netplay_tests mods/`): host list x
+  `Mods.installed_detail()` x mod.io's current file versions. `get` (mod.io has the
+  host's version, or a file stating none), `host_update` (mod.io is NEWER than the
+  host: a download would still not match), `not_on_modio` (the host is newer than
+  mod.io, or mod.io dropped it), `by_hand` (no mod.io id), `switch_on`, `switch_off`.
+  The version check works because `modio_upload.py` uploads each file with its
+  manifest's version.
+- **The NET view's panel** (`net_view.gd` `_refill_mods_box`, under the status line)
+  leads with `summary()` and the buttons, then `grouped()` sections of four names and
+  "…and N more": a player with a large collection runs dozens of mods a host may not,
+  and listing them first pushed every button off the page (measured with ~85 here).
+  It redraws on `Mods.mods_changed`, so rows go as mods arrive and are switched.
+- **Get is the MODS tab's own download** (`SpawnMenuModsView.fetch_for_session`, one
+  `get_mods`, then `_download_fresh` for each whose mod.io version is the host's):
+  scan, needs, review, landing OFF, applied from the MODS bar. `session_versions`
+  asks mod.io the versions for the panel. **Both need mod.io consent**: without it
+  the panel's button opens MODS on the terms instead, and nothing is sent.
+- **Switch** uses `Mods.set_enabled` (cascading needs) and opens MODS for its bar,
+  which knows whether the change needs a restart. The button names its direction
+  ("Switch off 84"): switching off dozens of the player's mods is not a mistake to
+  make by accident. **Join again** repeats the last join, by code or by IP.
+- `NetworkManager.mods_override` stands in for the Mods autoload so `netplay_tests`,
+  whose NetworkManagers share one process and one set of mods, can disagree.
+- `RetroXR/Tools/net/mods_refused_probe` (windowed) is the picture: a staged host
+  list against the machine's REAL installed mods.
+- Owed: a real two-machine refusal, a real Get through mod.io, a headset.
+
 ## The mod browser (MODS tab)
 
 `Scripts/UI/spawn_menu/views/mods_view.gd`, over four services owned by the

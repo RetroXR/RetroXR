@@ -1426,6 +1426,42 @@ func fingerprint() -> PackedStringArray:
 	return out
 
 
+## fingerprint() with what a refused peer needs to act on it: each running mod
+## as {id, version, name, modio_id} (0 for one installed by hand). A host sends
+## this to a peer it refuses for its mods (NetworkManager._mods_refused) -- the
+## list, never the packs.
+func session_detail() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for rec: ModRecord in _mods.values():
+		if rec.loaded:
+			out.append(_detail_of(rec))
+	out.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return str(a["id"]) < str(b["id"]))
+	return out
+
+
+## Every installed mod as ModSessionPlan reads the joiner's side: session_detail's
+## fields plus `loaded`. A refused or unreadable pack is left out -- it cannot be
+## switched on to settle anything.
+func installed_detail() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for rec: ModRecord in _mods.values():
+		if rec.status == Status.REFUSED or rec.manifest == null:
+			continue
+		var d := _detail_of(rec)
+		d["loaded"] = rec.loaded
+		out.append(d)
+	return out
+
+
+func _detail_of(rec: ModRecord) -> Dictionary:
+	return {
+		"id": rec.manifest.id,
+		"version": rec.manifest.version,
+		"name": rec.manifest.name,
+		"modio_id": int((source(rec.id) as Dictionary).get("modio_id", 0)),
+	}
+
+
 ## Describe the difference between two fingerprints, for a rejection message.
 static func fingerprint_mismatch(ours: PackedStringArray, theirs: PackedStringArray) -> String:
 	var mine := {}
