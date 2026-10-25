@@ -381,6 +381,13 @@ func is_turning() -> bool:
 	return _held_object != null and not _is_fps_snap() and (_middle_held or _left_turning)
 
 
+## True while the held object floats out on the ray rather than being caught in the hand. Its own
+## controls are out of reach meanwhile: the angle it hung at decided which switch the crosshair
+## met, and a click meant to drop it worked that switch. Caught, they are aimed at on purpose.
+func on_ray() -> bool:
+	return _held_object != null and not _is_fps_snap() and not _hand_hold
+
+
 ## What the desktop hand is holding, or null.
 func held_object() -> XRToolsPickable:
 	return _held_object if is_instance_valid(_held_object) else null

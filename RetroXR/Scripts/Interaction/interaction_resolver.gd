@@ -283,6 +283,16 @@ static func _make_target(
 
 # ── Controls on what is held ──────────────────────────────────────────────────
 
+## True when `target` is on `held` itself: its shell, or one of its controls.
+static func on_held(held: Node3D, target: InteractionTarget) -> bool:
+	if not is_instance_valid(held) or target == null or not target.is_valid():
+		return false
+	for node: Variant in [target.hit_node, target.pointer_event_target]:
+		if is_instance_valid(node) and (node == held or held.is_ancestor_of(node as Node)):
+			return true
+	return false
+
+
 ## `current` -- what the ray resolved to -- unless that is no control and the crosshair passes
 ## close to one on the HELD object, in which case that control. Wherever the ray reaches a
 ## control itself the walk above has already said so and this changes nothing.

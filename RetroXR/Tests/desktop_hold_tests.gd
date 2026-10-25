@@ -276,6 +276,29 @@ func _turning() -> void:
 	pickup._left_turning = false
 	pickup._drop_armed = true
 	_ok(not pickup.is_turning(), "turning/a left press short of the drag is still a click")
+	pickup._drop_armed = false
+	_ok(pickup.on_ray(), "ray/held out on the ray: its own controls are out of reach")
+	pickup._hand_hold = true
+	_ok(not pickup.on_ray(), "ray/caught in the hand: they can be aimed at")
+	pickup._hand_hold = false
+
+	var button := Node3D.new()
+	held.add_child(button)
+	var other := Node3D.new()
+	var at_button := InteractionTarget.new()
+	at_button.kind = InteractionTarget.KIND_POINTER
+	at_button.hit_node = button
+	at_button.pointer_event_target = button
+	at_button.action_node = button
+	_ok(InteractionResolver.on_held(held, at_button), "ray/a control on the held object is on it")
+	var at_other := InteractionTarget.new()
+	at_other.kind = InteractionTarget.KIND_POINTER
+	at_other.hit_node = other
+	at_other.pointer_event_target = other
+	at_other.action_node = other
+	_ok(not InteractionResolver.on_held(held, at_other), "ray/a switch elsewhere in the room is not")
+	_ok(not InteractionResolver.on_held(held, InteractionTarget.none()), "ray/nor is nothing")
+	other.free()
 	pickup._held_object = null
 	held.free()
 	pickup.free()

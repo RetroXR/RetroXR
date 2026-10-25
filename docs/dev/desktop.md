@@ -187,6 +187,11 @@ Windows, Linux and macOS builds only; a headset has neither. Source:
   a left click mid-turn went to whichever one the angle left there (2026-10-25). A
   left press during a middle turn is swallowed: neither a drop nor a press. Nothing held, the pointer
   is untouched. `desktop_hold_tests turning/`.
+- **Held out on the ray, the object's own controls are out of reach** (`DesktopPickup.on_ray()`: held,
+  not FPS-snap, not caught; the pointer drops any target `InteractionResolver.on_held` and skips
+  `assist_held`). Not only a turn: whatever angle it hung at decided which switch the crosshair met, and
+  the click meant to drop it worked that switch instead (2026-10-25). Catch it into the hand (scroll in)
+  to work its switches; anything else in the room still answers the pointer. `desktop_hold_tests ray/`.
 - **A control under the crosshair is the only thing lit**: `PickableHighlight.set_suppressed`, driven by
   `_dim_held_outline`, turns the held object's yellow outline OFF while the pointer is on one of its
   controls. Left on, the console's outline read as the thing aimed at and the switch's own green ring
