@@ -25,6 +25,7 @@
 ##   running/   a form asked for while a core runs is built when it stops
 ##   boxes/     collision and pointer boxes are laid again, not added to; a cockpit has pointer boxes only
 ##   footprint/ the rectangle on the floor covers a cockpit or a stage
+##   bezel/     the game's own bezel from the player's MAME artwork (its parent's for a clone), never a filler
 extends Node
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -104,6 +105,9 @@ func _run() -> void:
 		await _clear()
 	if _want("footprint"):
 		await _group_footprint()
+		await _clear()
+	if _want("bezel"):
+		await _group_bezel()
 		await _clear()
 
 
@@ -727,3 +731,116 @@ func _group_footprint() -> void:
 	await _wait(2)
 	_ok(model.ground_footprint().is_equal_approx(Vector2(0.66, 0.80)) and placer.footprint_center.is_zero_approx(),
 		"footprint: back to the cabinet's own")
+
+
+# --- bezel ---------------------------------------------------------------------
+
+## A MAME layout as Mr. Do's packs write them: an element per picture, a view with the bezel round the screen,
+## and the credits in a comment.
+const LAY_SCANNED := """<?xml version="1.0"?>
+<mamelayout version="2">
+	<element name="bezel"><image file="bezel.png"/></element>
+	<element name="backdrop"><image file="backdrop.png"/></element>
+	<view name="Upright_Artwork">
+		<element ref="backdrop"><bounds x="0" y="0" width="400" height="300"/></element>
+		<screen index="0"><bounds x="100" y="50" width="200" height="150"/></screen>
+		<element ref="bezel"><bounds x="0" y="0" width="400" height="300"/></element>
+	</view>
+	<view name="Widescreen_Artwork">
+		<screen index="0"><bounds x="440" y="0" width="1040" height="1080"/></screen>
+		<bezel element="bezel"><bounds left="0" top="0" right="1920" bottom="1080"/></bezel>
+	</view>
+</mamelayout>
+<!-- Artwork type: Bezel. Scanned bezel provided by Mr. Do -->
+"""
+
+
+func _group_bezel() -> void:
+	var picked := ArcadeBezel.pick_bezel(ArcadeBezel.parse_layout(LAY_SCANNED))
+	_ok(str(picked.get("file", "")) == "bezel.png" and str(picked.get("view", "")) == "Upright_Artwork"
+			and (picked["hole"] as Rect2).is_equal_approx(Rect2(0.25, 1.0 / 6.0, 0.5, 0.5)),
+		"bezel: the layout's bezel round its screen, the hole where the screen is (%s)" % str(picked.get("hole")))
+	var wide := LAY_SCANNED.replace('name="Upright_Artwork"', 'name="Upright_Widescreen"')
+	_ok(ArcadeBezel.pick_bezel(ArcadeBezel.parse_layout(wide)).is_empty(),
+		"bezel: a widescreen view, and a 16:9 canvas, are television filler: none taken")
+	var canvas := """<mamelayout version="2"><element name="bezel"><image file="b.png"/></element>
+		<view name="Upright"><screen index="0"><bounds x="440" y="0" width="1040" height="1080"/></screen>
+		<element ref="bezel"><bounds x="0" y="0" width="1920" height="1080"/></element></view></mamelayout>"""
+	_ok(ArcadeBezel.pick_bezel(ArcadeBezel.parse_layout(canvas)).is_empty(), "bezel: a 16:9 canvas is a television's, whatever its view is called")
+	var fan := LAY_SCANNED.replace("Scanned bezel provided by Mr. Do", "Realistic bezel by Someone")
+	_ok(ArcadeBezel.pick_bezel(ArcadeBezel.parse_layout(fan)).is_empty(), "bezel: a bezel the credits call drawn is not taken")
+	var legacy := """<mamelayout version="2"><element name="b"><image file="b.png"/></element>
+		<view name="Bezel"><bezel element="b"><bounds xc="0.5" yc="0.5" width="2" height="1.5"/></bezel>
+		<screen index="0"><bounds left="0" top="0" right="1" bottom="1"/></screen></view></mamelayout>"""
+	var lp := ArcadeBezel.pick_bezel(ArcadeBezel.parse_layout(legacy))
+	_ok(str(lp.get("file", "")) == "b.png" and (lp["hole"] as Rect2).is_equal_approx(Rect2(0.25, 1.0 / 6.0, 0.5, 2.0 / 3.0)),
+		"bezel: the old <bezel> item and centred bounds are read too (%s)" % str(lp.get("hole")))
+	var backdrop_only := LAY_SCANNED.replace('<element ref="bezel"><bounds x="0" y="0" width="400" height="300"/></element>', "")
+	_ok(ArcadeBezel.pick_bezel(ArcadeBezel.parse_layout(backdrop_only.replace("Widescreen_Artwork", "x").replace(
+			'<bezel element="bezel"><bounds left="0" top="0" right="1920" bottom="1080"/></bezel>', ""))).is_empty(),
+		"bezel: a picture drawn UNDER the screen is a backdrop, not a bezel")
+	# Where it hangs: the hole holds the tube, centred on it.
+	var r := ArcadeScreenModule.bezel_rect(Vector2(400, 300), Rect2(0.25, 1.0 / 6.0, 0.5, 0.5), Vector2(0.40, 0.30), Vector2(0, 0.005))
+	# The hole is in the picture's upper half, so the picture reaches further below the tube than above it.
+	_ok(r.size.is_equal_approx(Vector2(0.80, 0.60)) and r.get_center().is_equal_approx(Vector2(0, 0.005 - 0.05)),
+		"bezel: the picture is scaled so its hole is the tube, and stands where the hole puts it (%s)" % str(r))
+
+	# The player's artwork: a clone (pacman) finds its parent's (puckman), as MAME looks.
+	var dir := OS.get_temp_dir().path_join("retroxr_bezel_test")
+	DirAccess.make_dir_recursive_absolute(dir)
+	var img := Image.create(400, 300, false, Image.FORMAT_RGBA8)
+	img.fill(Color(0.9, 0.2, 0.1, 1.0))
+	img.fill_rect(Rect2i(100, 50, 200, 150), Color(0, 0, 0, 0))
+	var zip := ZIPPacker.new()
+	zip.open(dir.path_join("puckman.zip"))
+	zip.start_file("default.lay")
+	zip.write_file(LAY_SCANNED.to_utf8_buffer())
+	zip.close_file()
+	zip.start_file("bezel.png")
+	zip.write_file(img.save_png_to_buffer())
+	zip.close_file()
+	zip.close()
+	ArcadeBezel.test_root = dir
+	var found := ArcadeBezel.load_for_rom("/roms/arcade/pacman.zip")
+	_ok(str(found.get("set", "")) == "puckman" and found.get("image") is Image and (found["image"] as Image).get_size() == Vector2i(400, 300),
+		"bezel: Pac-Man (a clone) takes the bezel of its parent's artwork, puckman.zip")
+	_ok(ArcadeBezel.load_for_rom("/roms/arcade/sf2.zip").is_empty(), "bezel: a game with no artwork has none")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	await _board(sys, "pacman")
+	var screen := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	for i in 60:
+		if screen.bezel() != null:
+			break
+		await get_tree().process_frame
+	var hung := screen.bezel()
+	var frame := screen.find_child("FrameSideL", false, false) as Node3D
+	_ok(hung != null and model.bezel_texture() != null and frame != null and not frame.visible,
+		"bezel: a Pac-Man board hangs it round the tube, and the black frame makes way")
+	if hung != null:
+		var tube := model.get_builtin_screen()
+		var opening := screen.opening()
+		var q := hung.mesh as QuadMesh
+		_ok(q.size.x <= opening.size.x + 0.001 and q.size.y <= opening.size.y + 0.001,
+			"bezel: cut to the monitor's opening (%s in %s)" % [str(q.size), str(opening.size)])
+		# The hole's middle is the tube's middle: the part of the picture at the tube's centre is the hole's.
+		var m := hung.material_override as StandardMaterial3D
+		var at := Vector2(tube.position.x, tube.position.y) - (Vector2(hung.position.x, hung.position.y) - q.size * 0.5)
+		var uv := Vector2(m.uv1_offset.x + m.uv1_scale.x * at.x / q.size.x, m.uv1_offset.y + m.uv1_scale.y * (1.0 - at.y / q.size.y))
+		_ok(uv.is_equal_approx(Vector2(0.5, 0.25 + 1.0 / 6.0)) or uv.distance_to(Vector2(0.5, 1.0 / 6.0 + 0.25)) < 0.01,
+			"bezel: the hole is centred on the tube (uv %s)" % str(uv))
+	sys.set_cabinet_shape_enabled(false)
+	await _wait(2)
+	screen = model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	frame = screen.find_child("FrameSideL", false, false) as Node3D
+	_ok(screen.bezel() != null and not frame.visible, "bezel: a new form (the cabinet's own, the shape switched off) hangs it on its new tube")
+	sys.set_cabinet_art_enabled(false)
+	_ok(screen.bezel() == null and frame.visible, "bezel: Cabinet Art off takes it down")
+	sys.set_cabinet_art_enabled(true)
+	_ok(screen.bezel() != null, "bezel: and on puts it back")
+	await _pull(sys)
+	screen = model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	_ok(screen.bezel() == null and model.bezel_texture() == null, "bezel: pulling the board takes it away")
+	ArcadeBezel.test_root = ""
+	DirAccess.remove_absolute(dir.path_join("puckman.zip"))
+	DirAccess.remove_absolute(dir)

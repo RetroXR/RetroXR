@@ -21,6 +21,8 @@
 ## --forms=<romset>,<romset>... photographs the cabinet in the form each game asks for
 ## (ArcadeCabinetSpecs.for_game: its panels, guns, cockpit or stage), one `form_<romset>.png` each from
 ## the front three-quarter, and a `formside_<romset>.png` from the side, framed to what the form covers.
+## --artwork=<dir> reads MAME artwork from that folder instead of the data root's: each form then wears its
+## game's bezel when the folder has one (ArcadeBezel), and a `bezel_<romset>.png` close-up is taken of it.
 extends Node3D
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -34,6 +36,7 @@ var _shots: Array[String] = ["front", "three", "panel", "bay", "landscape", "por
 var _rom := "sf2.zip"
 var _art := ""
 var _forms: Array[String] = []
+var _artwork := ""
 var _cam: Camera3D
 var _sys: Node3D
 var _model: RetroSystemModelArcadeCabinet
@@ -55,6 +58,9 @@ func _ready() -> void:
 			_shots.clear()
 			for s in a.substr(8).split(","):
 				_shots.append(s)
+		elif a.begins_with("--artwork="):
+			_artwork = a.substr(10)
+			ArcadeBezel.test_root = _artwork
 		elif a.begins_with("--forms="):
 			for s in a.substr(8).split(","):
 				_forms.append(s)
@@ -197,6 +203,17 @@ func _shot_forms() -> void:
 		await _save("form_" + romset)
 		_look(mid + Vector3(reach * 0.95, 0.75, 0.0), mid)
 		await _save("formside_" + romset)
+		if not _artwork.is_empty():
+			_model._ask_bezel("/probe/%s.zip" % romset)
+			for i in 120:
+				if _model.bezel_texture() != null:
+					break
+				await _frames(1)
+			if _model.bezel_texture() != null:
+				var glass := _model.get_builtin_screen()
+				var at := glass.global_position
+				_look(at + glass.global_basis.z * 0.95 + Vector3(0.0, 0.05, 0.0), at)
+				await _save("bezel_" + romset)
 		_model.on_power_off()
 
 

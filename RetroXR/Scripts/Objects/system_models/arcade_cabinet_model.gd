@@ -1023,6 +1023,7 @@ func on_media_inserted(cart: Node) -> void:
 		apply_game_profile(profile)
 		_watch_descriptors = true
 		_descriptor_wait = 0.0
+		_ask_bezel(str(cart.call("get_rom_path")))
 
 
 ## The board left: the plain cabinet again, with its title, in its own form.
@@ -1034,6 +1035,9 @@ func on_media_cleared() -> void:
 func _strip_game() -> void:
 	_art_wheel = null
 	_art_cover = null
+	_bezel_for = ""
+	_bezel_texture = null
+	_hang_bezel()
 	_strip_art()
 	_watch_descriptors = false
 	apply_game_profile(null)
@@ -1135,6 +1139,7 @@ func morph_to(spec: Dictionary) -> void:
 	_light_marquee(_lit)
 	_strip_art()
 	_hang_art()
+	_hang_bezel()
 	for c in _controls:
 		c.apply_profile(_game)
 	for door in _coins:
@@ -1214,6 +1219,53 @@ func set_art_enabled(on: bool) -> void:
 	_strip_art()
 	if on:
 		_hang_art()
+	_hang_bezel()
+
+
+# ── the game's bezel ────────────────────────────────────────────────────────
+
+## The game's own bezel round the tube (ArcadeBezel: the player's MAME artwork), or null; and where the screen is
+## in it. Loaded off the main thread when the board goes in.
+var _bezel_texture: Texture2D = null
+var _bezel_hole := Rect2()
+## The ROM the bezel was asked for: an answer for a board pulled since is dropped.
+var _bezel_for := ""
+
+
+func _ask_bezel(rom_path: String) -> void:
+	_bezel_for = rom_path
+	ArcadeBezel.load_for_rom_async(rom_path, RetroSystemModelArcadeCabinet._bezel_arrived.bind(get_instance_id(), rom_path))
+
+
+## The loader's answer, on the main thread. Static and by id: the cabinet may be gone by the time it lands.
+static func _bezel_arrived(found: Dictionary, cabinet_id: int, rom_path: String) -> void:
+	var cabinet := instance_from_id(cabinet_id) as RetroSystemModelArcadeCabinet
+	if cabinet != null and is_instance_valid(cabinet):
+		cabinet.apply_bezel(found, rom_path)
+
+
+## Hang what ArcadeBezel found for `rom_path` ({} for nothing), if that is still the board in the bay.
+func apply_bezel(found: Dictionary, rom_path: String) -> void:
+	if rom_path != _bezel_for:
+		return
+	_bezel_texture = null
+	if not found.is_empty() and found.get("image") is Image:
+		_bezel_texture = ImageTexture.create_from_image(found["image"] as Image)
+		_bezel_hole = found["hole"]
+		print("[ArcadeCabinet] bezel for %s from the %s artwork%s" % [rom_path.get_file(), str(found.get("set", "")),
+			(" (" + str(found.get("credit", "")).get_slice("\n", 0).strip_edges() + ")") if not str(found.get("credit", "")).is_empty() else ""])
+	_hang_bezel()
+
+
+## The bezel on the tube while the art is on and there is one; the plain black frame otherwise.
+func _hang_bezel() -> void:
+	if _screen != null:
+		_screen.set_bezel(_bezel_texture if _art_enabled else null, _bezel_hole)
+
+
+## The bezel hanging on the tube now, or null (the tests).
+func bezel_texture() -> Texture2D:
+	return _bezel_texture
 
 
 func is_art_enabled() -> bool:

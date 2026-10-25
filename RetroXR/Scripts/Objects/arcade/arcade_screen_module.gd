@@ -25,6 +25,8 @@ var _off_material: StandardMaterial3D = null
 
 var _serial: int = -1
 var _content_aspect: float = 0.0
+## The game's own bezel round the picture (set_bezel), or null.
+var _bezel: MeshInstance3D = null
 var _warned_fallback: bool = false
 var _last_fit: Vector2 = Vector2.ONE
 
@@ -48,6 +50,85 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 
 func get_screen() -> MeshInstance3D:
 	return _screen
+
+
+# ── the game's bezel ────────────────────────────────────────────────────────
+
+## How far behind the glass the bezel hangs: in front of the tube, behind the pane.
+const BEZEL_Z := -0.010
+const FRAME_PARTS: Array[String] = ["FrameSideL", "FrameSideR", "FrameTop", "FrameBottom"]
+
+
+## Hang the game's bezel (ArcadeBezel) round the tube, or take it down (`tex` null). `hole` is where the screen
+## is in the picture (0..1, y down): the picture is scaled so the hole holds the whole tube, centred on it, and
+## cut to the monitor's opening (what the cabinet shows between its sides, the glass's slanted edge). The black
+## frame round the glass makes way for it while it hangs.
+func set_bezel(tex: Texture2D, hole: Rect2) -> void:
+	if _bezel != null:
+		_bezel.queue_free()
+		_bezel = null
+	var hang := tex != null and _screen != null and hole.size.x > 0.0 and hole.size.y > 0.0
+	for n in FRAME_PARTS:
+		var part := find_child(n, false, false) as Node3D
+		if part != null:
+			part.visible = not hang
+	if not hang:
+		return
+	var tube := (_screen.mesh as QuadMesh).size
+	var rect := bezel_rect(Vector2(tex.get_size()), hole, tube, Vector2(_screen.position.x, _screen.position.y))
+	var shown := rect.intersection(opening())
+	if shown.size.x <= 0.0 or shown.size.y <= 0.0:
+		return
+	var m := StandardMaterial3D.new()
+	m.albedo_texture = tex
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA_SCISSOR
+	m.alpha_scissor_threshold = 0.5
+	m.roughness = 0.5
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	# The part of the picture the opening shows (the plane's y runs up, the picture's down).
+	var u0 := (shown.position.x - rect.position.x) / rect.size.x
+	var u1 := (shown.end.x - rect.position.x) / rect.size.x
+	var v0 := 1.0 - (shown.end.y - rect.position.y) / rect.size.y
+	var v1 := 1.0 - (shown.position.y - rect.position.y) / rect.size.y
+	m.uv1_scale = Vector3(u1 - u0, v1 - v0, 1.0)
+	m.uv1_offset = Vector3(u0, v0, 0.0)
+	_bezel = MeshInstance3D.new()
+	_bezel.name = "GameBezel"
+	var quad := QuadMesh.new()
+	quad.size = shown.size
+	_bezel.mesh = quad
+	_bezel.material_override = m
+	_bezel.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_bezel)
+	_bezel.position = Vector3(shown.get_center().x, shown.get_center().y, BEZEL_Z)
+
+
+## The game's bezel hanging now, or null (the tests, the probe).
+func bezel() -> MeshInstance3D:
+	return _bezel
+
+
+## Where a bezel picture of `image_size` pixels stands in the monitor's plane when its `hole` (0..1, y down) holds
+## the whole tube (`tube` metres, its middle at `tube_center`): scaled alike on both axes, so a hole of another
+## shape than the tube shows a margin rather than covering the picture. Pure, for the tests.
+static func bezel_rect(image_size: Vector2, hole: Rect2, tube: Vector2, tube_center: Vector2) -> Rect2:
+	var hole_px := hole.size * image_size
+	var k := maxf(tube.x / hole_px.x, tube.y / hole_px.y)
+	var full := image_size * k
+	var hole_mid := (hole.position + hole.size * 0.5) * image_size
+	# The picture's middle from the hole's, in metres, y up.
+	var off := Vector2((image_size.x * 0.5 - hole_mid.x) * k, -(image_size.y * 0.5 - hole_mid.y) * k)
+	return Rect2(tube_center + off - full * 0.5, full)
+
+
+## The monitor's opening in its own plane: the board behind the tube, as wide as the cabinet between its sides and
+## as tall as the glass's slanted edge.
+func opening() -> Rect2:
+	var board := find_child("Bezel", false, false) as MeshInstance3D
+	if board != null and board.mesh is BoxMesh:
+		var size := (board.mesh as BoxMesh).size
+		return Rect2(Vector2(board.position.x, board.position.y) - Vector2(size.x, size.y) * 0.5, Vector2(size.x, size.y))
+	return Rect2(-glass_size * 0.75, glass_size * 1.5)
 
 
 ## How much of the glass a picture of `content_aspect` (width / height of what is to

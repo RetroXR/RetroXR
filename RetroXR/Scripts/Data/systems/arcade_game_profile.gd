@@ -49,6 +49,8 @@ const KIND_BUTTONS := "btn"
 const _STICK_KINDS: Array[String] = [KIND_JOY, KIND_STICK, KIND_DIAL, KIND_PADDLE, KIND_BALL, KIND_TWIN]
 
 static var _index: Dictionary = {}
+## clone -> its parent romset (Tools/arcade/gen_game_index.py `tokens_of`).
+static var _parents: Dictionary = {}
 static var _loaded := false
 
 var romset := ""
@@ -100,13 +102,32 @@ static func _load() -> void:
 		if parts.size() < 2:
 			continue
 		for i in range(1, parts.size()):
-			_index[parts[i]] = parts[0]
+			# `parent=clone=clone`, `clone<parent` (a parent on another line), or a romset alone.
+			var token := parts[i]
+			var lt := token.find("<")
+			if lt >= 0:
+				var clone := token.substr(0, lt)
+				_index[clone] = parts[0]
+				_parents[clone] = token.substr(lt + 1)
+				continue
+			var names := token.split("=", false)
+			for k in names.size():
+				_index[names[k]] = parts[0]
+				if k > 0:
+					_parents[names[k]] = names[0]
 
 
 ## How many romsets the table holds, for the tests.
 static func table_size() -> int:
 	_load()
 	return _index.size()
+
+
+## The romset a clone is a version of ("sf2ce" is its own; "sf2ua" is "sf2"'s), or "" for a parent or a name
+## the table does not know. MAME looks for a clone's artwork under its parent's name; so does ArcadeBezel.
+static func parent_of(p_romset: String) -> String:
+	_load()
+	return str(_parents.get(p_romset.get_file().get_basename().to_lower(), ""))
 
 
 func _parse(key: String) -> void:
