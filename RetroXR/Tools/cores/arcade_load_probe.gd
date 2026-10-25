@@ -14,7 +14,7 @@
 ## player's panel attached and the START key held), because many games are silent on their
 ## attract screen and a silent number would then prove nothing.
 ##
-## --model=<registry id> wears another cabinet (arcade_cabinet_lightgun...), whose guns are built with it.
+## --model=<registry id> wears another cabinet (arcade_cabinet_daphne_gun...), whose guns are built with it.
 ##
 ## --controllers prints the devices the core lists for each port (its own ids for a gun, a pad...).
 ##

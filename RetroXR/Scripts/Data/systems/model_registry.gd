@@ -163,10 +163,8 @@ const _ROWS: Dictionary = {
 	"arcade_cabinet_generic": {"platform": ["arcade"], "label": "Primitive Arcade Cabinet",
 		"scene": _SCENES + "arcade_cabinet.tscn"},
 	# The same upright with other controls (Tools/gen/gen_arcade_cabinet.gd VARIANTS). THESE IDS
-	# ARE PERSISTED TOO. Generic stays first, so it is the arcade tile's default.
-	# Twin guns in holsters, only START on the panel, and a foot pedal that is drawn, not active.
-	"arcade_cabinet_lightgun": {"platform": ["arcade"], "label": "Primitive Light Gun Arcade Cabinet",
-		"scene": _SCENES + "arcade_cabinet_lightgun.tscn"},
+	# ARE PERSISTED TOO. Generic stays first, so it is the arcade tile's default. There is no shooting
+	# cabinet to spawn: the generic one becomes it when a gun game is in the bay (ArcadeCabinetSpecs.for_game).
 	# The Neo Geo MVS: a stick and four buttons.
 	# `sockets: []` says it has no phono jacks: the console beside it on the card does, and the card
 	# offers the composite lead for it.

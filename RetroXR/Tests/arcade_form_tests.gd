@@ -246,11 +246,9 @@ func _group_specs() -> void:
 	var sc := _spec("sscope")
 	_ok(str(sc["gun_style"]) == "rifle" and int(sc["guns"]) == 1 and int(sc["screen"]["screens"]) == 2,
 		"specs: Silent Scope: one rifle, two screens")
-	# The shipped gun cabinet with a two-gun game is itself, bar its pedal.
-	var lg := S.variant("lightgun")
-	var lg_pb := S.for_game(lg, P.for_romset("ptblank"))
-	_ok(_same(lg_pb["players"], lg["players"]) and _same(lg_pb["coins"], lg["coins"]) and not bool(lg_pb["pedal"]),
-		"specs: the gun cabinet keeps its panels and doors for a two-gun game, and loses the pedal it has no use for")
+	# A two-gun game's panels are START alone for each gun, and a door under each.
+	_ok(_kinds(pb) == ["start", "start"] and (pb["coins"] as Array).size() == 2 and not bool(pb["sockets"]),
+		"specs: Point Blank: a START for each gun and a coin door under each")
 	# Driving: a cockpit (and its roof), a stand-up panel, a bike.
 	var dt := _spec("daytona")
 	_ok(str(dt["shape"]) == "racer" and dt.has("cockpit") and not bool(dt["cockpit"]["roof"]) and (dt["players"] as Array).is_empty(),

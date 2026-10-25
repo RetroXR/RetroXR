@@ -70,8 +70,7 @@ static func shapes() -> Dictionary:
 
 ## The shipped cabinets, by the name gen_arcade_cabinet.gd bakes them under (`--variant=`): the look
 ## (body, trim, marquee), the bay kind, a panel per player (`stick` with N buttons, `dial`, or `start`
-## alone), the coin doors' x, whether it has front pad sockets or guns in holsters, and whether a pedal
-## is drawn.
+## alone), the coin doors' x, and whether it has front pad sockets or guns in holsters.
 static func variants() -> Dictionary:
 	var two_stick := [
 		{"kind": "stick", "player": 0, "stick_x": -0.255, "start_x": -0.115, "buttons": six([-0.175, -0.115, -0.055])},
@@ -83,17 +82,7 @@ static func variants() -> Dictionary:
 			"out": "arcade_cabinet.tscn", "title": "ARCADE", "bay": "jamma",
 			"body": blue, "trim": Color(0.90, 0.16, 0.28),
 			"marquee": Color(0.95, 0.35, 0.20), "glow": Color(1.0, 0.45, 0.25),
-			"players": two_stick, "coins": [-0.14, 0.14], "sockets": true, "guns": 0, "pedal": false,
-		},
-		# Twin-gun shooter: no stick, no buttons but START, a gun on each side in a holster with its
-		# cord going into the cabinet, and a foot pedal on the floor (player 1's button 2).
-		"lightgun": {
-			"out": "arcade_cabinet_lightgun.tscn", "title": "SHOOTING", "bay": "jamma",
-			"shape": "wide",
-			"body": Color(0.10, 0.10, 0.12), "trim": Color(0.95, 0.60, 0.05),
-			"marquee": Color(0.80, 0.10, 0.10), "glow": Color(1.0, 0.25, 0.20),
-			"players": [{"kind": "start", "player": 0, "start_x": -0.20}, {"kind": "start", "player": 1, "start_x": 0.20}],
-			"coins": [-0.20, 0.20], "sockets": false, "guns": 2, "pedal": true,
+			"players": two_stick, "coins": [-0.14, 0.14], "sockets": true, "guns": 0,
 		},
 		# The MVS: a stick and four buttons (A B C D), START.
 		"neogeo": {
@@ -104,7 +93,7 @@ static func variants() -> Dictionary:
 				{"kind": "stick", "player": 0, "stick_x": -0.255, "start_x": -0.12, "buttons": row([-0.195, -0.145, -0.095, -0.045])},
 				{"kind": "stick", "player": 1, "stick_x": 0.055, "start_x": 0.19, "buttons": row([0.125, 0.175, 0.225, 0.275])},
 			],
-			"coins": [-0.14, 0.14], "sockets": true, "guns": 0, "pedal": false,
+			"coins": [-0.14, 0.14], "sockets": true, "guns": 0,
 		},
 		# Laserdisc (Dragon's Lair): one stick and the sword button.
 		"daphne": {
@@ -113,7 +102,7 @@ static func variants() -> Dictionary:
 			"marquee": Color(0.20, 0.35, 0.85), "glow": Color(0.4, 0.55, 1.0),
 			"players": [{"kind": "stick", "player": 0, "stick_x": -0.13, "start_x": -0.03,
 				"buttons": [{"pos": Vector2(0.06, 0.020), "radius": 0.027, "color": 0}]}],
-			"coins": [0.0], "sockets": true, "guns": 0, "pedal": false,
+			"coins": [0.0], "sockets": true, "guns": 0,
 		},
 		# The laserdisc shooters (Mad Dog McCree and its kin): guns instead of a stick.
 		"daphne_gun": {
@@ -122,7 +111,7 @@ static func variants() -> Dictionary:
 			"shape": "wide",
 			"marquee": Color(0.20, 0.35, 0.85), "glow": Color(0.4, 0.55, 1.0),
 			"players": [{"kind": "start", "player": 0, "start_x": -0.20}, {"kind": "start", "player": 1, "start_x": 0.20}],
-			"coins": [-0.20, 0.20], "sockets": false, "guns": 2, "pedal": false,
+			"coins": [-0.20, 0.20], "sockets": false, "guns": 2,
 		},
 		# Discrete-logic games (Pong, Breakout): a paddle dial each and START.
 		"dice": {
@@ -131,7 +120,7 @@ static func variants() -> Dictionary:
 			"marquee": Color(0.10, 0.10, 0.10), "glow": Color(0.9, 0.9, 0.9),
 			"players": [{"kind": "dial", "player": 0, "dial_x": -0.17, "start_x": -0.07},
 				{"kind": "dial", "player": 1, "dial_x": 0.17, "start_x": 0.07}],
-			"coins": [-0.14, 0.14], "sockets": true, "guns": 0, "pedal": false,
+			"coins": [-0.14, 0.14], "sockets": true, "guns": 0,
 		},
 	}
 
@@ -390,7 +379,6 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	# What every form starts from: no guns, no pedal, the cabinet's front sockets, its own body.
 	spec["form"] = form
 	spec["guns"] = 0
-	spec["pedal"] = false
 	spec["sockets"] = true
 	spec.erase("gun_style")
 	spec.erase("gun_pedals")
@@ -481,8 +469,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	return spec
 
 
-## The panels of a gun cabinet: START alone for each gun, on the deck (the shipped gun cabinet's two at
-## 20 cm either side of the middle). A gun on a post stands on the deck's front edge itself: its START is
+## The panels of a gun cabinet: START alone for each gun, on the deck (two at 20 cm either side of the middle). A gun on a post stands on the deck's front edge itself: its START is
 ## beside the post, on the side toward the middle.
 static func gun_panels(guns: int, style: String = "holster") -> Array:
 	var xs: Array = [[0.0], [-0.20, 0.20], [-0.24, 0.0, 0.24]][clampi(guns, 1, MAX_GUNS) - 1]
@@ -496,7 +483,7 @@ static func gun_panels(guns: int, style: String = "holster") -> Array:
 	return out
 
 
-## The x each gun rests at on a body `width` wide: two at its sides (the shipped gun cabinet's), three with one
+## The x each gun rests at on a body `width` wide: two at its sides, three with one
 ## in the middle (the coin doors then stand either side of it). One gun in a holster hangs on the right (Time
 ## Crisis's); one on a post stands in the middle of the deck (Operation Wolf's Uzi, Silent Scope's rifle).
 static func gun_xs(guns: int, width: float, style: String = "holster") -> Array:
@@ -514,7 +501,7 @@ static func gun_xs(guns: int, width: float, style: String = "holster") -> Array:
 static func _same_form(a: Dictionary, b: Dictionary) -> bool:
 	if str(a.get("shape", "upright")) != str(b.get("shape", "upright")):
 		return false
-	for key in ["players", "coins", "guns", "pedal", "sockets", "socket_count", "gun_style", "gun_pedals", "cockpit",
+	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "cockpit",
 			"stage", "bike", "screen"]:
 		if not _same_value(a.get(key), b.get(key)):
 			return false

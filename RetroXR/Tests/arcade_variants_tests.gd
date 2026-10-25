@@ -39,7 +39,6 @@ const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 ## id -> [systemid, buttons per player, players, coin doors, bay kind]
 const VARIANTS := {
 	"arcade_cabinet_generic": ["arcade", 6, 2, 2, "jamma"],
-	"arcade_cabinet_lightgun": ["arcade", 0, 2, 2, "jamma"],
 	"arcade_cabinet_neogeo": ["neogeo", 4, 2, 2, "mvs"],
 	"arcade_cabinet_daphne": ["daphne", 1, 1, 1, "laserdisc"],
 	"arcade_cabinet_daphne_gun": ["daphne", 0, 2, 2, "laserdisc"],
@@ -94,6 +93,45 @@ func _machine(model_id: String, systemid: String, frames: int = 8) -> RetroSyste
 	add_child(sys)
 	sys.add_to_group("spawned")
 	_spawned.append(sys)
+	await _wait(frames)
+	return sys
+
+
+## The cabinet a gun game makes of the generic one: the board in its bay (the path every drop and restore
+## takes), the morph built at the end of the frame, and `frames` for the guns' cords. There is no separately
+## spawnable shooting cabinet any more: the shooting cabinet IS the generic one with a gun game in it.
+func _gun_cabinet(romset := "ptblank", frames: int = 120) -> RetroSystem:
+	var sys := await _machine("arcade_cabinet_generic", "arcade", 8)
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	model.set_lid_angle_deg(90.0)
+	var cart := CART_SCENE.instantiate() as Node3D
+	cart.systemid = "arcade"
+	cart.rom_path = "/tmp/%s.zip" % romset
+	cart.position = Vector3(0, 3, 0)
+	cart.freeze = true
+	add_child(cart)
+	_spawned.append(cart)
+	await _wait(8)
+	_slot_of(sys).pick_up_object(cart)
+	await _wait(frames)
+	return sys
+
+
+## A shooting cabinet, whichever the group asks for: the generic one with a gun game in it, or the laserdisc gun one.
+func _gun_machine(id: String, frames: int = 120) -> RetroSystem:
+	if id == "gun":
+		return await _gun_cabinet("ptblank", frames)
+	return await _machine(id, "daphne", frames)
+
+
+## Two guns and pedals of its own under them (no game has two guns and a pedal, so the form is made by hand):
+## `xs` are the pedals' places, one pedal each, player 1's first.
+func _pedal_cabinet(xs: Array, frames: int = 120) -> RetroSystem:
+	var sys := await _gun_cabinet("ptblank", 20)
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var spec := model.form_spec().duplicate(true)
+	spec["gun_pedals"] = xs
+	model.morph_to(spec)
 	await _wait(frames)
 	return sys
 
@@ -179,8 +217,10 @@ func _group_registry() -> void:
 			"registry: %s serves %s" % [id, want_system])
 		_ok(ResourceLoader.exists(str(row.get("scene", ""))), "registry: %s's scene is baked" % id)
 	var arcade_rows := SystemModelRegistry.rows_for("arcade")
-	_ok(arcade_rows.size() >= 2 and arcade_rows[0]["id"] == ArcadeProfiles.CABINET_MODEL_ID,
+	_ok(arcade_rows.size() >= 1 and arcade_rows[0]["id"] == ArcadeProfiles.CABINET_MODEL_ID,
 		"registry: the generic cabinet stays the arcade tile's first, so its default")
+	_ok(SystemModelRegistry.row_for("arcade_cabinet_lightgun").is_empty() and not arcade_rows.any(func(r: Dictionary) -> bool: return str(r["id"]).contains("lightgun")),
+		"registry: and no shooting cabinet is spawnable on it (the generic one becomes it when a gun game is in the bay)")
 	_ok(SystemInfo.for_system("daphne") != null and SystemInfo.for_system("dice") != null,
 		"registry: Daphne and DICE are systems with a descriptor")
 
@@ -260,8 +300,8 @@ func _group_guns() -> void:
 	# A cabinet with sockets has no guns of its own.
 	var plain := await _machine("arcade_cabinet_generic", "arcade", 30)
 	_ok(plain.captive_controllers().is_empty(), "guns: the generic cabinet is not wired to any gun")
-	for id: String in ["arcade_cabinet_lightgun", "arcade_cabinet_daphne_gun"]:
-		var sys := await _machine(id, "daphne" if id.ends_with("daphne_gun") else "arcade", 120)
+	for id: String in ["gun", "arcade_cabinet_daphne_gun"]:
+		var sys := await _gun_machine(id, 120)
 		var model := sys.get_model() as RetroSystemModelArcadeCabinet
 		var guns := sys.captive_controllers()
 		_ok(guns.size() == 2, "guns: %s is wired to two guns" % id)
@@ -302,7 +342,7 @@ func _group_guns() -> void:
 # --- cord ----------------------------------------------------------------------
 
 func _group_cord() -> void:
-	var sys := await _machine("arcade_cabinet_lightgun", "arcade", 8)
+	var sys := await _gun_cabinet("ptblank", 8)
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var length := 1.4
 	var routes := model.captive_cord_routes(length)
@@ -343,7 +383,7 @@ func _group_settle() -> void:
 	ground.position = Vector3(0, -0.1, 0)
 	add_child(ground)
 	_spawned.append(ground)
-	var sys := await _machine("arcade_cabinet_lightgun", "arcade", 360)
+	var sys := await _gun_cabinet("ptblank", 360)
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var guns := sys.captive_controllers()
 	for i in guns.size():
@@ -448,7 +488,7 @@ func _all_ghost_bay(sys: RetroSystem) -> bool:
 # --- fire ----------------------------------------------------------------------
 
 func _group_fire() -> void:
-	var sys := await _machine("arcade_cabinet_lightgun", "arcade", 120)
+	var sys := await _gun_cabinet("ptblank", 120)
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var guns := sys.captive_controllers()
 	var gun := guns[0] as LightGun
@@ -553,7 +593,7 @@ func _drop_fake_hand(gun: LightGun, hand: Dictionary) -> void:
 # --- aim -----------------------------------------------------------------------
 
 func _group_aim() -> void:
-	var sys := await _machine("arcade_cabinet_lightgun", "arcade", 120)
+	var sys := await _gun_cabinet("ptblank", 120)
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var gun := sys.captive_controllers()[0] as LightGun
 	var screen := model.get_builtin_screen()
@@ -592,14 +632,18 @@ func _group_aim() -> void:
 # --- pedal ---------------------------------------------------------------------
 
 func _group_pedal() -> void:
-	var gun_cab := await _machine("arcade_cabinet_lightgun", "arcade", 120)
+	var plain_guns := await _gun_cabinet("ptblank", 20)
+	_ok((plain_guns.get_model() as RetroSystemModelArcadeCabinet).modules_of_kind(ArcadeProfiles.KIND_PEDAL).is_empty(),
+		"pedal: a gun game with no pedal (Point Blank) has none")
+	await _clear()
+	var gun_cab := await _pedal_cabinet([0.0])
 	var model := gun_cab.get_model() as RetroSystemModelArcadeCabinet
 	var pedals := model.modules_of_kind(ArcadeProfiles.KIND_PEDAL)
-	_ok(pedals.size() == 1, "pedal: the gun cabinet has one")
+	_ok(pedals.size() == 1, "pedal: a form with one pedal has one")
 	if pedals.size() == 1:
 		var pedal := pedals[0] as ArcadePedalModule
 		_ok(pedal.active and pedal.port() == 0 and not pedal.is_pressed(),
-			"pedal: wired to player 1 (it names no player: one pedal, in the middle), and up")
+			"pedal: wired to player 1 (the pedal under the guns), and up")
 		_ok(pedal.position.z > 0.5 and pedal.position.y < 0.05, "pedal: on the floor in front of the cabinet")
 		await _pedal_presses(gun_cab, pedal)
 	var generic := await _machine("arcade_cabinet_generic", "arcade")
@@ -628,6 +672,46 @@ func _group_pedal() -> void:
 		"pedal: the gun cabinet pins it for the run")
 	_ok(not generic._all_forced_options("mame").has("mame_lightgun_mode"),
 		"pedal: and the cabinet with sockets and no gun does not")
+	await _clear()
+	await _two_pedals()
+
+
+## Two guns, a pedal under each: each pedal is its own player's, and works for the gun in that player's hand only.
+func _two_pedals() -> void:
+	var sys := await _pedal_cabinet([-0.2, 0.2])
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var pedals := model.modules_of_kind(ArcadeProfiles.KIND_PEDAL)
+	var by_port := {}
+	for pd in pedals:
+		by_port[(pd as ArcadePedalModule).port()] = pd
+	_ok(pedals.size() == 2 and by_port.has(0) and by_port.has(1)
+			and (by_port[0] as Node3D).position.x < (by_port[1] as Node3D).position.x,
+		"pedal: a pedal under each of two guns: player 1's on the left, player 2's on the right")
+	if by_port.size() != 2:
+		return
+	var input := model.arcade_input()
+	var guns := sys.captive_controllers()
+	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
+	input.frame_override = input.wait_frames()
+	sys.is_powered_on = true
+	await _wait(3)
+	var p1 := by_port[0] as ArcadePedalModule
+	var p2 := by_port[1] as ArcadePedalModule
+	input.held_override = [guns[1]]
+	input._process(0.0)
+	_ok(p2.is_pressed() and not p1.is_pressed() and _pedal_sent(input, guns[1] as LightGun, 1) and _pedal_off(input, guns[0] as LightGun, 0),
+		"pedal: player 2's gun in a hand works player 2's pedal, and not player 1's")
+	input.held_override = [guns[0], guns[1]]
+	input._process(0.0)
+	_ok(p1.is_pressed() and p2.is_pressed(), "pedal: both guns in hand, both pedals are down")
+	# One takes cover (A or X on ITS gun): only that pedal comes up.
+	(guns[0] as LightGun)._pressed_out[ControllerBindings.LIGHTGUN_AUX_A] = true
+	input._process(0.0)
+	_ok(not p1.is_pressed() and p2.is_pressed(), "pedal: and taking cover with player 1's gun lifts player 1's pedal alone")
+	(guns[0] as LightGun)._pressed_out.clear()
+	sys.is_powered_on = false
+	input._process(0.0)
+	input.held_override = []
 
 
 ## What works the pedal and what it sends: MAME reads Time Crisis's pedal as player 1's BUTTON2, the gun's Aux A
@@ -1282,8 +1366,8 @@ func _group_shooting() -> void:
 	var gmodel := generic.get_model() as RetroSystemModelArcadeCabinet
 	var gscreen := gmodel.get_builtin_screen()
 	var gquad := gscreen.mesh as QuadMesh
-	for id: String in ["arcade_cabinet_lightgun", "arcade_cabinet_daphne_gun"]:
-		var sys := await _machine(id, "daphne" if id.ends_with("daphne_gun") else "arcade", 12)
+	for id: String in ["gun", "arcade_cabinet_daphne_gun"]:
+		var sys := await _gun_machine(id, 12)
 		var model := sys.get_model() as RetroSystemModelArcadeCabinet
 		var screen := model.get_builtin_screen()
 		var quad := screen.mesh as QuadMesh
@@ -1321,7 +1405,7 @@ func _group_shooting() -> void:
 # --- holster -------------------------------------------------------------------
 
 func _group_holster() -> void:
-	var sys := await _machine("arcade_cabinet_lightgun", "arcade", 120)
+	var sys := await _gun_cabinet("ptblank", 120)
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var guns := sys.captive_controllers()
 	for i in guns.size():

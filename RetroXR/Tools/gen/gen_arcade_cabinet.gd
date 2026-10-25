@@ -5,9 +5,9 @@
 ##   godot --headless --path RetroXR --script res://Tools/gen/gen_arcade_cabinet.gd [-- --variant=NAME]
 ##
 ## The default variant is `generic`, arcade_cabinet.tscn. The others are the same shells with other
-## controls and a bay for another system (ArcadeCabinetSpecs.variants): `lightgun` (twin guns in
-## holsters and a pedal), `neogeo` (the MVS, four buttons), `daphne` (laserdisc, a stick and the sword
-## button), `daphne_gun` (the same with guns) and `dice` (paddle dials). ALL of them honour the module
+## controls and a bay for another system (ArcadeCabinetSpecs.variants): `neogeo` (the MVS, four
+## buttons), `daphne` (laserdisc, a stick and the sword button), `daphne_gun` (the same with guns) and
+## `dice` (paddle dials). A shooting cabinet is no variant: the generic one becomes it when a gun game is in its bay. ALL of them honour the module
 ## contract, so none is a fork of the model script; only the scene and the registry row differ.
 ##
 ## The nodes are made by ArcadeCabinetBuilder, the same code a cabinet in the room builds its form

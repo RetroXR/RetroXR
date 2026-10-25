@@ -288,7 +288,6 @@ The generic upright is one of six, all the same shell: **never a fork of the mod
 | id | system | panel | bay | guns |
 |---|---|---|---|---|
 | `arcade_cabinet_generic` | `arcade` | stick + 6 buttons, x2 | `jamma` | sockets |
-| `arcade_cabinet_lightgun` | `arcade` | START alone, x2 | `jamma` | 2, holsters; a pedal, player 1's button 2 |
 | `arcade_cabinet_neogeo` | `neogeo` | stick + 4 buttons (A B C D), x2 | `mvs` | sockets |
 | `arcade_cabinet_daphne` | `daphne` | stick + the sword button, x1 | `laserdisc` | sockets |
 | `arcade_cabinet_daphne_gun` | `daphne` | START alone, x2 | `laserdisc` | 2, holsters |
@@ -330,7 +329,7 @@ one), Sega Model 2 and 3 and ST-V (all `arcade`-folder systems today, but their 
 cabinets with a wheel, pedals and a seat (a seat/wheel/pedal module set and an analog input struct), dance and drum cabinets,
 a Neo Geo MVS with two, four or six slots (the cabinet has the one-slot unit), the laserdisc
 player as a visible unit in the bay, and a cocktail table. Pinball and claw machines are not libretro-shaped. OWED for all six: a
-real game, the headset, the Quest cost (the boot warms every row without `requires`: six cabinets now), and netplay.
+real game, the headset, the Quest cost (the boot warms every row without `requires`: five cabinets now), and netplay.
 
 **The Neo Geo MVS is a box with a cassette, not a JAMMA board (2026-10-19).** A Neo Geo game spawns as `neogeo_cart.tscn`
 (`Tools/gen/gen_neogeo_cart.gd`): a plastic cassette with the board's edge standing out of the bottom, a red band, a recessed label
@@ -792,6 +791,8 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   a stage with their own feet. Those parts are POINTER boxes (`FORM_BOXES_META`, aimed at they are the cabinet, to hold and carry) and the footprint
   (`FOOTPRINT_META`, a Rect2 in x/z).
 - **Pulling the board gives the cabinet its own form back.** A clone takes its parent's form (the table gives it the same key).
+- **There is no shooting cabinet to spawn** (the `arcade_cabinet_lightgun` row, scene and variant were removed 2026-10-25): a gun game in the generic
+  cabinet's bay makes it one. The laserdisc gun cabinet stays: Daphne is not MAME, so nothing tells the generic one what the game is.
 - **There is no switch for it** (the System tab's "Cabinet Shape" was removed 2026-10-25, with its `cabinet_shape` key in the room): the cabinet
   always follows the game. A cabinet baked from no row (a mod's) keeps its form, and the model keeps `set_morph_enabled(false)` as a seam for the
   tests and the probes, which look at what the profile alone hides.
@@ -896,9 +897,8 @@ cabinets are two boards linked).
 - **The plate** (`ArcadePedalModule`): `show_pressed` with what was sent, eased 15 degrees down about `PedalHinge` in 0.08 s (toe first,
   the heel on its pin) and back to exactly where it rested. Local: a peer does not see another player's foot.
 - **Wiring**: a pedal is a switch on its player's button 2, as on a real cabinet converted to another game: `active` (true unless a
-  scene says otherwise) and `port()`, its player, or player 1 for one that names none (the shipped gun cabinet's single pedal). So a
-  cabinet that does not follow the game (a mod's, or the base form a test keeps) has its pedal press player 1's button 2 whatever the game
-  (Operation Wolf's grenade); one that follows it gives a game with no pedal none (`for_game`). Switched off or only showing its game, every pedal comes up and no gun keeps it pressed.
+  scene says otherwise) and `port()`, its player, or player 1 for one that names none (a mod's). A form builds a pedal only for a game
+  that had one (`for_game`; no shipped cabinet has one of its own any more). Switched off or only showing its game, every pedal comes up and no gun keeps it pressed.
 - **The ways that were weighed and not built**: holding A/X to step OUT (the first version; tiring), aiming the gun off the screen to
   hide (no button, but every hide costs the aim). The free hand's grip (see above). Ducking is the most natural and the most tiring:
   hundreds of hides a game.

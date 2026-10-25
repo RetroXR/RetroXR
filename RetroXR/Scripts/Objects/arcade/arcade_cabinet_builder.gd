@@ -143,8 +143,6 @@ func build_form() -> void:
 
 ## What stands on the floor in front: a gun game's pedals, a driving cockpit, a dance stage.
 func _build_extras() -> void:
-	if bool(_v.get("pedal", false)):
-		_build_pedal()
 	for i in (_v.get("gun_pedals", []) as Array).size():
 		_build_pedal(i)
 	if _v.has("cockpit"):
@@ -773,18 +771,16 @@ func _gun_mount(sockets: Node3D, i: int, sx: float, rifle: bool) -> void:
 # ── foot pedals ─────────────────────────────────────────────────────────────
 
 ## A Time Crisis-style foot pedal on the floor in front of the deck, with its cable running to the
-## cabinet: one in the middle (`index` -1, the shipped gun cabinet's), or one under each gun of a game
-## that has them (`gun_pedals`, player `index`). Wired: ArcadePedalModule presses its player's button 2,
-## and tips `PedalPlate` down about `PedalHinge`, so those two keep their names.
-func _build_pedal(index: int = -1) -> void:
+## cabinet: one in the middle, or one under each gun of a game that has them (`gun_pedals`, player `index`).
+## Wired: ArcadePedalModule presses its player's button 2, and tips `PedalPlate` down about `PedalHinge`,
+## so those two keep their names.
+func _build_pedal(index: int) -> void:
 	# A pedal under each of two or three guns; one gun's in the middle, where its one player stands.
 	var under: Array = _v.get("gun_pedals", [])
-	var x := 0.0 if index < 0 or under.size() < 2 else float(under[index]) * 0.75
-	var node_name := "Pedal" if index < 0 else "Pedal%d" % (index + 1)
-	var pedal := _form_node(ArcadeParts.node(_owner, _top, "Node3D", node_name, Vector3(x, 0.0, 0.80))) as Node3D
+	var x := 0.0 if under.size() < 2 else float(under[index]) * 0.75
+	var pedal := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Pedal%d" % (index + 1), Vector3(x, 0.0, 0.80))) as Node3D
 	pedal.set_script(load(SCRIPTS["pedal"]))
-	if index >= 0:
-		pedal.set("player", index)
+	pedal.set("player", index)
 	# The base plate, the hinge, and the footplate raised toe-up on its heel.
 	ArcadeParts.box(_owner, pedal, "PedalBase", Vector3(0.16, 0.012, 0.26), Vector3(0, 0.006, 0.0), _dark)
 	ArcadeParts.cylinder(_owner, pedal, "PedalHinge", 0.010, 0.15, Vector3(0, 0.020, 0.09), _metal, Vector3.RIGHT)
@@ -793,8 +789,7 @@ func _build_pedal(index: int = -1) -> void:
 	plate.basis = Basis(Vector3.RIGHT, deg_to_rad(18.0))
 	# The cable, flat on the floor, back toward the cabinet.
 	ArcadeParts.box(_owner, pedal, "PedalCable", Vector3(0.012, 0.008, 0.30), Vector3(0, 0.004, -0.28), _dark)
-	if index >= 0:
-		form_boxes.append(AABB(Vector3(x - 0.08, 0.0, 0.67), Vector3(0.16, 0.08, 0.26)))
+	form_boxes.append(AABB(Vector3(x - 0.08, 0.0, 0.67), Vector3(0.16, 0.08, 0.26)))
 
 
 # ── a sit-down driving cockpit ──────────────────────────────────────────────

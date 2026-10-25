@@ -27,7 +27,6 @@ const COMPOSITE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.ts
 ## id -> [systemid, bay kind]
 const CABINETS := {
 	"arcade_cabinet_generic": ["arcade", "jamma"],
-	"arcade_cabinet_lightgun": ["arcade", "jamma"],
 	"arcade_cabinet_neogeo": ["neogeo", "mvs"],
 	"arcade_cabinet_daphne": ["daphne", "laserdisc"],
 	"arcade_cabinet_daphne_gun": ["daphne", "laserdisc"],

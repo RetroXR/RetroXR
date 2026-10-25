@@ -45,8 +45,7 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 		_hinge = hinge.position
 
 
-## The port this pedal is wired to: its player's, and player 1's for one that names none (the shipped gun
-## cabinet's single pedal, in the middle).
+## The port this pedal is wired to: its player's, and player 1's for one that names none (a mod's).
 func port() -> int:
 	return maxi(player, 0)
 

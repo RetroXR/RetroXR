@@ -229,9 +229,9 @@ material.
 ### Arcade cabinets
 
 Every MAME and FinalBurn Neo core plays in one **Primitive Arcade Cabinet** (`arcade_cabinet_generic`), and a
-ROM is drawn as a JAMMA board. Five more cabinets ship, all the same upright with other controls and a bay for
-another system: a **light-gun** cabinet (`arcade_cabinet_lightgun`, two guns in holsters on cords, START alone on
-the panel, a drawn pedal), the **Neo Geo MVS** (`arcade_cabinet_neogeo`, platform `neogeo`, four buttons), a
+ROM is drawn as a JAMMA board, and the cabinet takes the shape of the game in its bay (a shooting game's guns and
+pedal, a four-player game's panels, a driving game's cockpit: `ArcadeCabinetSpecs.for_game`). Four more cabinets
+ship, all the same upright with other controls and a bay for another system: the **Neo Geo MVS** (`arcade_cabinet_neogeo`, platform `neogeo`, four buttons), a
 **laserdisc** cabinet (`arcade_cabinet_daphne`, platform `daphne`, a stick and one button) and its gun version
 (`arcade_cabinet_daphne_gun`), and a **DICE** cabinet (`arcade_cabinet_dice`, platform `dice`, a paddle dial each).
 A cabinet of your own (a 4-player upright, a cocktail table, a tate cabinet) is an ordinary row:
