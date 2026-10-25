@@ -2495,8 +2495,10 @@ func _power_items() -> Array:
 	for item: Array in all:
 		(first if own.has(item[1]) else rest).append(item)
 	# And the cells a handheld, a printer, a Wii Remote or a Rumble Pak runs on,
-	# whatever the region: they go in a battery bay (CellSlots).
-	return first + rest + [["AA Battery", "battery_aa"], ["AAA Battery", "battery_aaa"]]
+	# whatever the region: they go in a battery bay (CellSlots). Each comes in
+	# BatteryCell's labels, picked by holding its row.
+	return first + rest + [["AA Battery", "battery_aa", BatteryCell.VARIANTS],
+		["AAA Battery", "battery_aaa", BatteryCell.VARIANTS]]
 
 
 ## Re-sort the Power tab after the region changed.
@@ -2508,7 +2510,13 @@ func refresh_power_tab() -> void:
 		_power_vbox.add_child(_spawn_tab_button(item))
 
 
-## One `[label, token]` row of a plain spawn tab.
+## The Power tab's own name for the defaults its rows keep (_default_key), as a
+## console card's are kept under its systemid.
+const POWER_CARD := "power"
+
+
+## One `[label, token]` row of a plain spawn tab, or `[label, token, variants]`
+## for a thing that comes in several looks.
 func _spawn_tab_button(item: Array) -> Button:
 	var btn := Button.new()
 	btn.text = "  +  " + item[0]
@@ -2519,6 +2527,18 @@ func _spawn_tab_button(item: Array) -> Button:
 		var hold := HoldPress.attach(btn)
 		hold.clicked.connect(spawn_requested.emit.bind(item[1]))
 		hold.held.connect(_show_lead_spawn_options.bind(item[0], item[1]))
+	elif item.size() > 2 and not (item[2] as Array).is_empty():
+		# A thing that comes in several looks (a battery's labels), as a console
+		# card's row does: pressed, the look its held panel made the default; held,
+		# it asks which. Kept on the "power" card's key.
+		var row := {"kind": "peripheral", "label": item[0], "spawn": item[1], "variants": item[2]}
+		var looks: Array = item[2]
+		var key := _default_key(POWER_CARD, item[1])
+		var hold := HoldPress.attach(btn)
+		hold.clicked.connect(func() -> void:
+			spawn_requested.emit(SpawnCatalog.spawn_token(POWER_CARD, row, _row_default(key, looks))))
+		hold.held.connect(_show_model_spawn_options.bind(POWER_CARD, row))
+		_mark_holdable(btn, key, looks)
 	else:
 		btn.pressed.connect(spawn_requested.emit.bind(item[1]))
 	return btn

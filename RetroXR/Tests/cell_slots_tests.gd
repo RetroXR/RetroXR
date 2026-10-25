@@ -57,6 +57,8 @@ func _ready() -> void:
 	if _want("restore"):
 		await _test_restore(true)
 		await _test_restore(false)
+	if _want("labels"):
+		await _test_labels()
 	print("[cells] ---- %d passed, %d failed ----" % [_pass, _fail])
 	get_tree().quit(1 if _fail > 0 else 0)
 
@@ -123,6 +125,67 @@ func _clear() -> void:
 	for n in get_tree().get_nodes_in_group(PortCover.GROUP):
 		n.queue_free()
 	await _wait(3)
+
+
+## The labels a cell comes in: given before it enters the room (as the spawn menu
+## and a save give it), a cell wears that label on the model's own label surface;
+## a cell given none wears the model's; the label is saved and comes back; and
+## the Power tab offers both sizes in every label, held to choose.
+func _test_labels() -> void:
+	var plain := ScenePersistence.instantiate("battery_aa") as BatteryCell
+	add_child(plain)
+	var gold := ScenePersistence.instantiate("battery_aaa") as BatteryCell
+	SystemModelRegistry.set_variant_of(gold, "black_gold")
+	add_child(gold)
+	await _wait(2)
+	var worn := _label_texture(gold)
+	_ok(worn != null and worn == BatteryCell.LABELS["AAA"]["black_gold"],
+		"labels/an AAA asked for in Black & Gold wears it", str(worn))
+	_ok(_label_override(plain) == null, "labels/a cell asked for nothing wears the model's own label")
+	var rec: Dictionary = ScenePersistence.new()._serialize_node(gold, 3, {gold: 3})
+	_ok(rec.get("model_variant") == "black_gold", "labels/its label is saved", str(rec.get("model_variant")))
+	rec["id"] = 3
+	var back := ScenePersistence.new().instantiate_objects(self, JSON.parse_string(JSON.stringify([rec])))
+	await _wait(2)
+	var again := back.get(3) as BatteryCell
+	_ok(again != null and _label_texture(again) == BatteryCell.LABELS["AAA"]["black_gold"],
+		"labels/and comes back on load")
+	var view: Variant = load("res://Scripts/UI/spawn_menu/views/spawn_view.gd").new()
+	var power: Array = view.call("_power_items")
+	if view is Node:
+		(view as Node).free()
+	for token: String in ["battery_aa", "battery_aaa"]:
+		var row: Array = []
+		for item: Array in power:
+			if item[1] == token:
+				row = item
+		_ok(row.size() > 2 and (row[2] as Array).size() == BatteryCell.VARIANTS.size(),
+			"labels/the Power tab's %s row comes in every label" % token)
+	for n in [plain, gold, again]:
+		if is_instance_valid(n):
+			n.queue_free()
+	await _wait(2)
+
+
+## The texture a cell's label surface draws with, override first.
+func _label_texture(cell: BatteryCell) -> Texture2D:
+	for node in cell.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in mi.mesh.get_surface_count():
+			var m := mi.get_active_material(s) as BaseMaterial3D
+			if m != null and m.resource_name == BatteryCell.LABEL_MATERIAL:
+				return m.albedo_texture
+	return null
+
+
+func _label_override(cell: BatteryCell) -> Material:
+	for node in cell.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for s in mi.mesh.get_surface_count():
+			var own := mi.mesh.surface_get_material(s)
+			if own != null and own.resource_name == BatteryCell.LABEL_MATERIAL:
+				return mi.get_surface_override_material(s)
+	return null
 
 
 func _test_names() -> void:
