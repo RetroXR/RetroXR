@@ -24,6 +24,10 @@
 ## `formscreen_<romset>.png` of the monitor square on and, for a form with pedals, a `formfeet_<romset>.png` of them, and for a sit-down cockpit a `formseat_<romset>.png` from the seat's eyes.
 ## --artwork=<dir> reads MAME artwork from that folder instead of the data root's: each form then wears its
 ## game's bezel when the folder has one (ArcadeBezel), and a `bezel_<romset>.png` close-up is taken of it.
+##
+## `hands` photographs a headset's hands on the panel (ArcadePanelHands): the right one holding the stick leaned over (its
+## outline amber), the left with a finger on button 2 (sunk in its flange); `handswheel` the same at a driving cockpit's wheel
+## turned by a hand. A fake hand is an XRController3D on a tracker of its own, a small red ball at its fingertip.
 extends Node3D
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -238,6 +242,120 @@ func _shot_forms() -> void:
 				_look(at + glass.global_basis.z * 0.95 + Vector3(0.0, 0.05, 0.0), at)
 				await _save("bezel_" + romset)
 		_model.on_power_off()
+
+
+## A fake hand for the `hands` shots: a controller on a tracker of its own, its pose the identity, so its poke tip is
+## 6 cm ahead of it along -Z; a red ball marks the tip.
+func _hand(side: String) -> Dictionary:
+	var origin := XROrigin3D.new()
+	add_child(origin)
+	var ctrl := XRController3D.new()
+	ctrl.tracker = StringName(side + "_hand")
+	ctrl.pose = &"default"
+	origin.add_child(ctrl)
+	var tracker := XRControllerTracker.new()
+	tracker.name = StringName(side + "_hand")
+	XRServer.add_tracker(tracker)
+	tracker.set_pose(&"default", Transform3D.IDENTITY, Vector3.ZERO, Vector3.ZERO, XRPose.XR_TRACKING_CONFIDENCE_HIGH)
+	var marker := MeshInstance3D.new()
+	var ball := SphereMesh.new()
+	ball.radius = 0.006
+	ball.height = 0.012
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.15, 0.15)
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ball.material = mat
+	marker.mesh = ball
+	marker.position = Vector3(0, 0, -PokeTip.TIP_FORWARD)
+	ctrl.add_child(marker)
+	return {"origin": origin, "ctrl": ctrl, "tracker": tracker}
+
+
+func _tip_at(h: Dictionary, world: Vector3) -> void:
+	(h["origin"] as XROrigin3D).global_position = world + Vector3(0, 0, PokeTip.TIP_FORWARD)
+
+
+func _hand_trigger(h: Dictionary, value: float) -> void:
+	(h["tracker"] as XRControllerTracker).set_input(&"trigger", value)
+
+
+func _drop_hands(hands: Array) -> void:
+	for h: Dictionary in hands:
+		XRServer.remove_tracker(h["tracker"] as XRControllerTracker)
+		(h["origin"] as Node).queue_free()
+
+
+## The hands on a panel: the right holds the stick leaned right, the left has a finger on button 2.
+func _shot_hands() -> void:
+	_sys.is_powered_on = true
+	var input := _model.arcade_input()
+	var panel := _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = right["ctrl"]
+	input._left_vr_ctrl = left["ctrl"]
+	var ball := (panel.find_child("StickPivot", true, false) as Node3D).global_transform * Vector3(0, 0, 0.085)
+	var cap := panel.find_child("Btn2", true, false) as MeshInstance3D
+	_tip_at(right, ball)
+	_tip_at(left, cap.global_transform * Vector3(0, cap.mesh.get_aabb().size.y * 0.5 + 0.002, 0))
+	await _frames(3)
+	_hand_trigger(right, 1.0)
+	await _frames(3)
+	_tip_at(right, ball + panel.global_transform.basis.x * 0.03)
+	for i in 8:
+		panel.tick(0.016)
+		await _frames(1)
+	print("[probe] hands: pressed mask ", panel.hand_buttons(), " thumbstick ", panel.hand_thumbstick(0),
+		" stick lean ", panel.stick_lean(), " last_sent ", input.last_sent)
+	_look(Vector3(0.12, 1.42, 1.02), Vector3(-0.13, 0.99, 0.43))
+	await _save("hands")
+	_look(Vector3(-0.55, 1.20, 0.80), Vector3(-0.13, 0.99, 0.43))
+	await _save("handsside")
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
+	_drop_hands([right, left])
+	_sys.is_powered_on = false
+
+
+## The same at a driving cockpit's wheel: the form Daytona USA asks for, the right hand on the rim turned 60 degrees.
+func _shot_handswheel() -> void:
+	var profile := ArcadeGameProfile.for_romset("daytona")
+	_model.morph_to(_model.form_for(profile))
+	_model.apply_game_profile(profile)
+	await _frames(10)
+	_model = _sys.get_model() as RetroSystemModelArcadeCabinet
+	_model.set_process(false)
+	_sys.is_powered_on = true
+	var input := _model.arcade_input()
+	var panel := _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var pivot := panel.find_child("WheelPivot", true, false) as Node3D
+	var mount := pivot.get_parent() as Node3D
+	var rim := pivot.find_child("WheelRim", true, false) as MeshInstance3D
+	var radius := ((rim.mesh as TorusMesh).outer_radius - 0.014)
+	var hand := _hand("right")
+	input._right_vr_ctrl = hand["ctrl"]
+	var top := mount.global_transform * Vector3(0, 0, -radius)
+	_tip_at(hand, top)
+	await _frames(3)
+	_hand_trigger(hand, 1.0)
+	await _frames(3)
+	var turn := deg_to_rad(ArcadeControlModule.WHEEL_LOCK_DEG) * 0.5
+	for i in 12:
+		_tip_at(hand, mount.global_transform * (Basis(Vector3.UP, -turn * float(i + 1) / 12.0) * Vector3(0, 0, -radius)))
+		await _frames(1)
+		panel.tick(0.016)
+	print("[probe] handswheel: steering ", panel.steering(), " thumbstick ", panel.hand_thumbstick(0))
+	_look(mount.global_position + Vector3(0.55, 0.35, 0.65), mount.global_position)
+	await _save("handswheel")
+	var driver := _model.find_child("DriverSeat", true, false) as CockpitSeat
+	if driver != null:
+		_cam.global_transform = driver.eye_transform()
+		_cam.fov = 70.0
+		await _save("handsseat")
+		_cam.fov = 58.0
+	input._right_vr_ctrl = null
+	_drop_hands([hand])
+	_sys.is_powered_on = false
 
 
 func _shot_front() -> void:

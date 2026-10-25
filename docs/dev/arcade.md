@@ -79,7 +79,7 @@ optional module is valid. A module finds ITS OWN parts by name inside its own su
 | kind | script | parts it finds | what it does |
 |---|---|---|---|
 | `screen` | `ArcadeScreenModule` | `CabinetScreen` (quad) | paints the core's picture, fitted to the glass by the bridge's geometry (below) |
-| `stick_buttons` | `ArcadeControlModule` | `Btn1`..`Btn6`, `Start` (caps), `StickPivot`, `PanelGrip` | one player's panel as ONE controller: the caps sink and the stick leans with the input; nothing on it is poked one by one |
+| `stick_buttons` | `ArcadeControlModule` | `Btn1`..`Btn6`, `Start` (caps), `StickPivot`, `PanelGrip` | one player's panel as ONE controller: the caps sink and the stick leans with the input. A headset's hands work the controls too (`ArcadePanelHands`, "Hands on the panel" below) |
 | `coin` | `ArcadeCoinModule` | `CoinSlot` (VRButton), `CoinSpawn`, `CoinDrop` | a coin is tossed along an arc, drops with a sound, and ONLY THEN says `coin_inserted(player)` |
 | `bay` | `ArcadeBayModule` | `DoorPivot`, `DoorGrab` (VRHinge), `CartSeat`, `JammaSocket`, `PowerSwitch` | the lower door gates the cartridge slot; the door angle is the saved `lid_angle` |
 | `sockets` | `ArcadeSocketModule` | `PortSeat1..N` | the front controller / light-gun sockets: places the system's own port zones |
@@ -130,8 +130,8 @@ pad you do not pick up, and another press lets go. Attaching to one panel lets g
 player), and switching the machine off lets go. While attached, your OWN controller drives that player: the VR controllers
 through the per-system `ControllerBindings`, the selected physical pad merged in, and the keyboard behind `ScrollLockCapture`
 (`ArcadeInput` is an adapted copy of `HandheldInput`'s forwarding, which assumes the machine is in the hand); WASD and the
-thumbsticks stop moving the player. The caps and the stick are pictures of what reached the core. A stick you cannot feel under
-your hand is no fun in VR, which is why nothing is grabbed or poked button by button. Everything leaves through `NetworkManager.netplay_route`, then `SetJoypadState`: bypassing it
+thumbsticks stop moving the player. The caps and the stick are pictures of what reached the core. That is how a keyboard or a
+pad plays; a headset's HANDS can also work the controls themselves, no attaching first (2026-10-25, "Hands on the panel"). Everything leaves through `NetworkManager.netplay_route`, then `SetJoypadState`: bypassing it
 breaks lockstep.
 
 **The pointer.** A ray stops at the nearest thing on the pointable layer, and the widgets share it with the
@@ -270,8 +270,8 @@ here, so the bridge's geometry was measured on no real core); two peers in a ses
 hinge and the input route are the existing paths, and are untested in a session); a light gun in
 a front socket (a pad was seated; the gun shares the connector rule and is only offered); real coin
 and door sounds; GLBs; the Neo Geo MVS (a bay host, not a cabinet); per-game boards and scraped
-board art; a `ModApi` wrapper for bay kinds; a grabbable stick behind a "physical controls" option
-(off by default); the geometry for `RetroTV`.
+board art; a `ModApi` wrapper for bay kinds; the geometry for `RetroTV`. (A grabbable stick was owed here
+behind an option; it is built, without one: "Hands on the panel".)
 
 **Attaching claims the keyboard (2026-10-18).** `ArcadeInput` first copied `HandheldInput` but not the two things that made a pad's keys arrive: the system's key map in the global InputMap (`DesktopBindings.apply_for_system`, applied only while the capture holds it, as `RetroController._sync_desktop_scope`) and the capture itself. A pad needs Scroll Lock/F3 as well, but a panel you pressed has no other way to say it, so `_on_attach_changed` turns the capture on (`ScrollLockCapture.set_active(true)`; it needs the machine powered, which is why a panel attached to a machine that is off lets go). Pinned by `arcade_tests attach/` (a key plays only the attached player's port).
 
@@ -987,3 +987,70 @@ cabinets are two boards linked).
   wired to the input), `desktop_pad_tests map/` and `rows/`, `binding_tests` (the arcade's Controls page). Mutation-tested. OWED: a
   real Time Crisis romset on MAME (none here: that the core takes button 2 from the gun, the joypad or both is read from its source,
   not measured), a headset (how ducking and the free hand feel, the hint), the Quest, two peers.
+
+## Hands on the panel (2026-10-25)
+
+**A headset's hands work the controls themselves**: a fingertip presses a cap, the trigger takes hold of a stick, a wheel, a dial, a
+trackball, a gear lever, a motorbike's bars. No attaching first. Attaching (`ArcadePanelGrip`) stays, and is how a keyboard or a pad
+plays; the two add up. `ArcadePanelHands` (one per `ArcadeControlModule`, made in `attach`) does it; `ArcadeInput` adds what it holds to the
+player's state BEFORE the state is sent (`_with_hands`), so it leaves through `netplay_route` like an attached controller's, through the
+player's own stick bindings (`_map_sticks`, factored out of `_direct_state`: a hand-held stick is the LEFT thumbstick, a second stick the RIGHT,
+a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends the analog axis and the D-pad bits, "dpad" only the bits).
+
+- **Fingers** (`Poke`): a fingertip (`PokeTip.tip_of`) inside a cap's own mesh box, grown `POKE_SIDE` (5 mm) at the side, `POKE_OUT`
+  (10 mm) above the face and `POKE_IN` (25 mm) through it, presses it, and HOLDS while the finger stays (a Wii Remote's 1 and 2, `VRButton.is_held`'s contract,
+  with its slack: `RELEASE_SCALE` 1.8 and `CONTACT_GRACE` 0.05 s). A hand presses ONE cap, the nearest the tip is to the middle of, and a finger
+  rolled onto the next cap lets the first go at once. A hand that holds a gun or a pad (`PokeTip.is_poking`) or a control presses none; a cap
+  the game does not use (hidden by `apply_profile`) cannot be pressed and a press on one that becomes hidden is let go. **The zone is where
+  the part RESTS, not where it is drawn**: a pedal under a finger goes down 16 degrees and a zone that went with it would let go of the finger
+  pushing it. The racer's two pedals (`GasDeck`, `BrakeDeck`: R2, L2) and the dance stage's arrows are the same thing. The caps are 52 mm
+  apart and 31 mm across, so the zones of two never meet.
+- **Taking hold** (`ControlGrab` and its kinds): the TRIGGER's rising edge (`TRIGGER_ON` 0.6, off at 0.4) with the tip within the handle's reach: `STICK_REACH`
+  5 cm of the ball, `DIAL_REACH` 4.5 of the knob, `BALL_REACH` 6, `LEVER_REACH` 5.5, `BARS_REACH` 7 of a grip, the wheel on its rim (0.45..1.4 of
+  its radius, within 7 cm of its plane). **A trigger already held on the way in takes hold of nothing**: only the edge does, or sweeping a hand past
+  with a held trigger would pick things up. Let go with the trigger, when the hand loses `is_poking` (it picked something up), or when it is
+  `LET_GO_DISTANCE` (35 cm) from the handle (a stuck trigger, a lost tracker). **There is deliberately no grip**: a squeeze is how a hand picks a
+  pickable up, a cabinet IS one (`HoldToGrab`, a second on the cabinet carries it), and on a panel a squeeze is the ATTACH; VRKnob's rule, for the same reasons.
+- **What each does with the hand**: *stick* leans where the hand takes it from where it was taken (`STICK_THROW` 3 cm is a full lean; the ball itself
+  travels 23 mm, so it follows within 7 mm), from the lean it had (a key holding it over does not snap it), a square gate, a dead zone of `STICK_DEAD` 6%,
+  and the ball is drawn at the hand's lean with no easing; let go, it springs back as it always did. *wheel* turns with the hand about the axle, to the lock
+  (`WHEEL_LOCK_DEG`) and no further: it is accumulated a step at a time and clamped, so **a hand that goes past the lock winds nothing up**, and
+  turning back turns the wheel back at once; the wheel is NOT the hand's absolute angle (a test pins that), and a tip near the axle has no angle so it
+  is ignored; let go, it comes back to centre by itself. *dial* turns freely; the SPEED it is turned at is the deflection (one turn a second is full), as
+  holding LEFT or RIGHT turns it, because that is what the games read; held still it sends nothing. *trackball* rolls where the hand pushes it, the
+  surface speed under the hand against `BALL_SPEED` times the ball's radius (what the picture rolls at full deflection); a speed too. *lever*: past half its throw it is in
+  high gear, B, and STAYS there when let go (a gear lever stays), pulled back the same way. *bars*: the bike leans by the sideways push (`BARS_THROW` 15 cm
+  is a full lean, 14 degrees at the 62 cm the bars stand over the stand); the bars' handle is the middle of the bars, not the pivot the bike leans about (the
+  hands are 60 cm above it and the let-go distance took hold of nothing).
+- **Clockwise seen by the player is RIGHT**, for the wheel, the dial and the bars. The dial used to turn the other way (a turn about +Z, which is toward the
+  player, is counter-clockwise); `_dial_angle` is now clockwise-positive and drawn `Basis(BACK, -angle)`. Holding RIGHT and a hand agree.
+- **The laser** (`VrPointerBlock`): a hand within `REACH_SCALE` (1.5x) of a control it could take, or holding one, has no laser (back the moment it is
+  not), or the trigger it pulls for the stick would also click whatever the laser was on. And `ArcadePanelGrip` takes no press from a hand that is
+  reaching (`ArcadeControlModule.hand_reaching`, asked afresh from the hand's place, not from last frame's state: the pointer's press can come before the panel's step). A finger on a cap keeps
+  its laser. The reticle (no hand) attaches as before. Everything a hand held or blocked is given back by `release_all`: the machine off, the panel hidden
+  or freed (`_exit_tree`, a morph under a held stick), a hand lost. An owner that leaves a laser blocked leaves it dead for the session, so this is pinned.
+- **The fist round a control is the control's** (the squeeze, not the trigger): `RetroSystem.can_pick_up` is false for a hand that holds or reaches for a control
+  of the cabinet (`RetroSystemModelArcadeCabinet.hand_busy`), or the squeeze that goes round a stick would start the carry ring (`HoldToGrab`) and, held a second,
+  pick the whole cabinet up under the player's hand; and `ArcadePanelGrip` takes no squeeze from it either (a squeeze round the stick does not attach). A squeeze on the
+  panel clear of the controls attaches as it always did, and every other hand picks the cabinet up as before. `reaching` is the one test all three ask (the laser, the
+  press, the squeeze, the carry), from where the hand is now. For the wheel the "reach" is the rim's own radius and a wider band off its plane, not 1.5 times the radius
+  (that would be the whole panel).
+- **Somebody is at the cabinet**: `ArcadeInput.engaged()` is true while a hand presses a cap or holds a control (`hands_busy`), or a hand-only player's attract
+  game would be put away after 120 s (`ArcadeAttract._watch_idle`), and a finger on a cap or a hand on a stick starts the game from attract as a coin or an
+  attached panel does (`first_use` `&"panel"`). Hands step even while attracting (so that they can) and are let go when the machine is off.
+- **Hover**: a control a hand could take is outlined green, amber while held (`WidgetOutline`, made the first time a hand is near, one per control); a pressed cap shows
+  by sinking, and the fingertip's contact disc lands on the face it presses (`PokeTip.claim_box_face`). Haptics: a click on a press and a take, a softer one on a release,
+  a tick as a stick crosses the point its switch would close (`HAPTIC_KEY`).
+- **Not built**: grip-held sticks (above); hands on the foot pedal of a gun game (it is down while the gun is in a hand; there is nothing to press); the stick's
+  8-way gate (a hand that drifts across the 35% line gets a diagonal; MAME's `ways` is in the table and could snap it); two hands on one wheel (the first holds it);
+  hands for the desktop (it attaches, and the keyboard plays).
+- `arcade_hand_tests` (146 checks, no core and no headset: a fake hand, an `XRController3D` on a tracker, puts a tip and a trigger where the case says, on panels
+  the cabinet really builds): the pure zone; caps (press, hold, grace, slide, two hands sharing, hidden caps and panels, a hand holding something, the machine off, a lost
+  controller); pedals; the stick (reach, edge, directions, diagonal, dead zone, the 35% line, drawn at once, spring back, a key's lean kept, one hand, 35 cm, hidden);
+  twin sticks; the wheel (rim only, the sign, the lock, no wind-up, drawn at once, back to centre); the dial's sign and speed; the trackball; the lever's latch;
+  the bars; the port (a cap on the right port, the cap sinks, the bindings apply, off sends nothing, a pad and a hand add up); the laser (off, on, given back by a release, the
+  power, a morph) and the panel's press; the carry (a hand on a control cannot pick the cabinet up, the other hand can; the squeeze); attract. Mutation-tested (48 mutants of the
+  hand code, every one caught: the tests that let three through, a pedal zone that followed the pedal down, the dial's direction under a key and a swapped gas and brake bit,
+  were made to catch them). **OWED: a headset.** Every number above is an estimate: reach, throw, zones, speeds. They are consts so the feel can be tuned on
+  a device, and nothing here says how it feels. Also owed: hand tracking (Capsense's index tip and pinch trigger go through the same `PokeTip` and `trigger`, not tried), the Quest's cost
+  (a few distance tests a frame a panel when a hand is within 2 m, none otherwise), two peers.

@@ -9,6 +9,10 @@
 ## assumes the machine is in the hand). Attaching is a press on the panel (ArcadePanelGrip);
 ## WASD and the thumbsticks are held back from moving the player while you are attached.
 ##
+## A headset's hands can also work the panel without attaching (ArcadePanelHands): a fingertip on a cap, the
+## trigger on a stick, a wheel. What the hands hold is added to the player's state here, before it is sent, as the
+## player's own controller is, so a hand-played panel goes out the one seam like any other.
+##
 ## Everything goes out through NetworkManager.netplay_route, then SetJoypadState, the
 ## one seam: bypassing it would break lockstep.
 ##
@@ -377,7 +381,7 @@ func _libretro() -> Object:
 ## Is anyone at the cabinet? A panel attached, or a gun or pad in a HAND (a gun lying in its holster is
 ## in the port and is nobody's). The idle clock that puts the core away reads this.
 func engaged() -> bool:
-	if playing:
+	if playing or hands_busy():
 		return true
 	if _host == null or not _host.has_method("get_port_controllers"):
 		return false
@@ -400,10 +404,63 @@ static func held_by_hand(holder: Object) -> bool:
 
 ## While the cabinet only shows its game: has anything been taken in hand or attached?
 func _watch_for_use() -> void:
-	if playing:
+	if playing or hands_busy():
 		first_use.emit(&"panel")
 	elif engaged():
 		first_use.emit(&"grab")
+
+
+## Is a hand pressing a cap or holding a control on any panel (ArcadePanelHands)?
+func hands_busy() -> bool:
+	for panel in _controls:
+		if panel != null and is_instance_valid(panel) and panel.hands_active():
+			return true
+	return false
+
+
+## The player's hands, for the panels to ask (the two controllers the rig has).
+func _hand_ctrls() -> Array:
+	var out: Array = []
+	for ctrl in [_left_vr_ctrl, _right_vr_ctrl]:
+		if ctrl != null and is_instance_valid(ctrl):
+			out.append(ctrl)
+	return out
+
+
+## Step every panel's hands. `live` is false when the machine is off: whatever was held is let go.
+func _step_hands(delta: float, live: bool) -> void:
+	var hands := _hand_ctrls() if live else []
+	for panel in _controls:
+		if panel != null and is_instance_valid(panel):
+			panel.update_hands(delta, hands, live)
+
+
+## `state` with what the hands hold on player `p`'s panel added: the caps and the lever as buttons, the stick and the
+## wheel as the thumbstick they stand in for, mapped as the player's own thumbstick is (_map_sticks), so the bindings
+## the player set for this machine apply to a hand as to a controller. The larger stick wins, as a pad's does.
+func _with_hands(state: Dictionary, p: int) -> Dictionary:
+	if p >= _controls.size() or _controls[p] == null or not is_instance_valid(_controls[p]):
+		return state
+	var panel := _controls[p]
+	var btn := panel.hand_buttons()
+	var left := panel.hand_thumbstick(0)
+	var right := panel.hand_thumbstick(1)
+	if btn == 0 and left == Vector2.ZERO and right == Vector2.ZERO:
+		return state
+	var mapped := _map_sticks(left, right)
+	var out := state.duplicate()
+	out["btn"] = int(state["btn"]) | btn | int(mapped["btn"])
+	var held_l := Vector2(int(state["alx"]), int(state["aly"]))
+	var hand_l := Vector2(int(mapped["alx"]), int(mapped["aly"]))
+	if hand_l.length_squared() > held_l.length_squared():
+		out["alx"] = int(mapped["alx"])
+		out["aly"] = int(mapped["aly"])
+	var held_r := Vector2(int(state["arx"]), int(state["ary"]))
+	var hand_r := Vector2(int(mapped["arx"]), int(mapped["ary"]))
+	if hand_r.length_squared() > held_r.length_squared():
+		out["arx"] = int(mapped["arx"])
+		out["ary"] = int(mapped["ary"])
+	return out
 
 
 func _can_capture() -> bool:
@@ -433,11 +490,14 @@ func _process(delta: float) -> void:
 	_sync_desktop_scope()
 	if bool(_host.get("attracting")):
 		_release_pedals()
+		# A finger on a cap or a hand on a stick starts the game, as a coin does.
+		_step_hands(delta, true)
 		_watch_for_use()
 		return
 	var powered := bool(_host.get("is_powered_on"))
 	if not powered:
 		_release_pedals()
+		_step_hands(delta, false)
 		if playing:
 			for panel in _controls:
 				if panel != null:
@@ -454,6 +514,7 @@ func _process(delta: float) -> void:
 	_run_seconds += delta
 	var controllers: Array = _host.get_port_controllers() if _host.has_method("get_port_controllers") else []
 	var players := maxi(maxi(_controls.size(), 2), _door_ports)
+	_step_hands(delta, true)
 	# What every player is pressing first, then the coins and START: a held coin goes in before a START.
 	var masks: Array[int] = []
 	var hands: Array[int] = []
@@ -464,6 +525,7 @@ func _process(delta: float) -> void:
 		var state := {"btn": 0, "alx": 0, "aly": 0, "arx": 0, "ary": 0}
 		if attached.has(p):
 			state = _direct_state()
+		state = _with_hands(state, p)
 		var mask := ArcadeInputState.compose(0, int(state["btn"]), false, _unsupported())
 		# A momentary panel (a gun cabinet's START) is read while it is pressed.
 		if p < _controls.size() and _controls[p] != null and _controls[p].start_held():
@@ -827,26 +889,12 @@ func _direct_state() -> Dictionary:
 		var left_hand: bool = (ctrl as XRController3D).tracker == &"left_hand"
 		btn |= _apply_buttons_for_ctrl(ctrl, left_hand)
 	if vr_active:
-		var lstick := _stick_of(_left_vr_ctrl)
-		var rstick := _stick_of(_right_vr_ctrl)
-		var lt: String = _stick_map.get("stick_left", "left+dpad")
-		var rt: String = _stick_map.get("stick_right", "right")
-		if "left" in lt:
-			alx = int(lstick.x * ANALOG_SCALE)
-			aly = int(-lstick.y * ANALOG_SCALE)
-		elif "right" in lt:
-			arx = int(lstick.x * ANALOG_SCALE)
-			ary = int(-lstick.y * ANALOG_SCALE)
-		if "dpad" in lt:
-			btn |= PadInputShared.threshold_to_dpad(lstick)
-		if "right" in rt:
-			arx = int(rstick.x * ANALOG_SCALE)
-			ary = int(-rstick.y * ANALOG_SCALE)
-		elif "left" in rt:
-			alx = int(rstick.x * ANALOG_SCALE)
-			aly = int(-rstick.y * ANALOG_SCALE)
-		if "dpad" in rt:
-			btn |= PadInputShared.threshold_to_dpad(rstick)
+		var mapped := _map_sticks(_stick_of(_left_vr_ctrl), _stick_of(_right_vr_ctrl))
+		btn |= int(mapped["btn"])
+		alx = mapped["alx"]
+		aly = mapped["aly"]
+		arx = mapped["arx"]
+		ary = mapped["ary"]
 	if _capture != null and _capture.is_active():
 		for action: String in DESKTOP_BUTTON_MAP:
 			if Input.is_action_pressed(action):
@@ -860,6 +908,35 @@ func _direct_state() -> Dictionary:
 		arx = int(rx * ANALOG_SCALE)
 		ary = int(-ry * ANALOG_SCALE)
 	return _merge_pad_state(btn, alx, aly, arx, ary)
+
+
+## Two thumbsticks (x right, y UP, as a controller reads them) through the player's stick bindings for this machine:
+## the analog axes they drive and the D-pad bits they stand in for. {btn, alx, aly, arx, ary}.
+func _map_sticks(lstick: Vector2, rstick: Vector2) -> Dictionary:
+	var btn := 0
+	var alx := 0
+	var aly := 0
+	var arx := 0
+	var ary := 0
+	var lt: String = _stick_map.get("stick_left", "left+dpad")
+	var rt: String = _stick_map.get("stick_right", "right")
+	if "left" in lt:
+		alx = int(lstick.x * ANALOG_SCALE)
+		aly = int(-lstick.y * ANALOG_SCALE)
+	elif "right" in lt:
+		arx = int(lstick.x * ANALOG_SCALE)
+		ary = int(-lstick.y * ANALOG_SCALE)
+	if "dpad" in lt:
+		btn |= PadInputShared.threshold_to_dpad(lstick)
+	if "right" in rt:
+		arx = int(rstick.x * ANALOG_SCALE)
+		ary = int(-rstick.y * ANALOG_SCALE)
+	elif "left" in rt:
+		alx = int(rstick.x * ANALOG_SCALE)
+		aly = int(-rstick.y * ANALOG_SCALE)
+	if "dpad" in rt:
+		btn |= PadInputShared.threshold_to_dpad(rstick)
+	return {"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}
 
 
 func _stick_of(ctrl: XRController3D) -> Vector2:

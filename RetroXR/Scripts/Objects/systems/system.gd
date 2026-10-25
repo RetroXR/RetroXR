@@ -1020,6 +1020,16 @@ func grab_hold_seconds() -> float:
 	return _model.grab_hold_seconds() if _model != null else 0.0
 
 
+## A hand that is working a control of this machine's panel (a stick in its fist, a wheel it reaches for) is not reaching
+## for the machine: the squeeze that goes round a stick would otherwise start the carry ring (HoldToGrab) and, held a
+## second, pick the whole cabinet up. Every other hand picks it up as before.
+func can_pick_up(by: Node3D) -> bool:
+	if _model != null and by is XRToolsFunctionPickup and _model.has_method("hand_busy") \
+			and bool(_model.call("hand_busy", (by as XRToolsFunctionPickup).get_controller())):
+		return false
+	return super.can_pick_up(by)
+
+
 ## Whether this hardware is too big to hold, so the spawn menu stands it on the floor
 ## rather than putting it in a hand.
 func spawns_on_floor() -> bool:

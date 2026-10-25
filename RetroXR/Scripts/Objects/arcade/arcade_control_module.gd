@@ -1,10 +1,12 @@
 ## ArcadeControlModule — one player's panel: a stick, six buttons and START, as ONE controller.
 ##
 ## The kind is `stick_buttons`. The parts are pictures that follow the input: the stick leans
-## and the caps sink while their bits are held. Nothing on it is poked one by one: aiming at the
-## panel lights all of it and a press attaches you to it (`PanelGrip`, see ArcadePanelGrip), as
-## you would pick up a controller, except that you hold on to it instead of carrying it. While
-## attached, your own controller plays this player (ArcadeInput).
+## and the caps sink while their bits are held. Aiming at the panel lights all of it and a press
+## attaches you to it (`PanelGrip`, see ArcadePanelGrip), as you would pick up a controller, except
+## that you hold on to it instead of carrying it: while attached, your own controller plays this
+## player (ArcadeInput). A headset's hands can also work the controls themselves, no attaching
+## first: a fingertip presses a cap, the trigger takes hold of a stick, a wheel, a dial
+## (ArcadePanelHands). A part in a hand goes where the hand takes it; the rest follow the input.
 ##
 ## Parts are found by name inside this module's subtree: `Btn1`..`Btn6`, `Start` (meshes),
 ## `StickPivot` (a Node3D the shaft and ball hang from), `DialPivot` (a Node3D a paddle knob
@@ -76,8 +78,11 @@ var _stick2_target := Vector2.ZERO
 var _stick2_current := Vector2.ZERO
 var _dial: Node3D = null
 var _dial_dir := 0.0
+## How far the dial has turned, clockwise seen by the player.
 var _dial_angle := 0.0
 var _grip: ArcadePanelGrip = null
+## The hands on this panel's controls (null until the parts are found).
+var _hands: ArcadePanelHands = null
 var _stick_target := Vector2.ZERO
 var _stick_current := Vector2.ZERO
 ## The mask last drawn, so an unchanged one costs nothing: show_state runs every frame, and a
@@ -124,6 +129,13 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_grip = find_child("PanelGrip", true, false) as ArcadePanelGrip
 	if _grip != null:
 		_grip.toggled.connect(func(on: bool) -> void: attach_changed.emit(player, on))
+	_hands = ArcadePanelHands.new(self)
+
+
+## Whatever a hand held or pressed here is let go before the panel is: a laser switched off for it comes back.
+func _exit_tree() -> void:
+	if _hands != null:
+		_hands.release_all()
 
 
 func _add_cap(node_name: String, bit: int, button: int) -> void:
@@ -289,10 +301,22 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 
 func tick(delta: float) -> void:
 	_tick_analog(delta)
-	if _dial != null and _dial_dir != 0.0:
-		_dial_angle = wrapf(_dial_angle + _dial_dir * DIAL_SPEED * delta, -PI, PI)
-		_dial.basis = Basis(Vector3.BACK, _dial_angle)
+	if _dial != null:
+		if _in_hand(&"dial"):
+			_dial_angle = _hands.dial_angle()
+			_dial.basis = Basis(Vector3.BACK, -_dial_angle)
+		elif _dial_dir != 0.0:
+			# Right is clockwise seen by the player, and a turn about +Z (toward the player) is counter-clockwise.
+			_dial_angle = wrapf(_dial_angle + _dial_dir * DIAL_SPEED * delta, -PI, PI)
+			_dial.basis = Basis(Vector3.BACK, -_dial_angle)
 	if _stick == null:
+		return
+	if _in_hand(&"stick", 0):
+		# A stick in a hand goes where the hand takes it, with no easing between. Its target is left alone: when the
+		# hand lets go the stick eases back to whatever the input says then.
+		_stick_current = _hands.stick_lean(0)
+		_stick_written = true
+		_pose_stick()
 		return
 	# Settled: the lerp never reaches its target, so it used to rewrite the same basis every frame for ever.
 	if _stick_written and _stick_current == _stick_target:
@@ -301,12 +325,20 @@ func tick(delta: float) -> void:
 	_stick_current = _stick_current.lerp(_stick_target, STICK_BLEND)
 	if _stick_current.distance_squared_to(_stick_target) < 1.0e-6:
 		_stick_current = _stick_target
-	# Deck-local: +X right, +Y toward the monitor, the shaft along +Z. A turn about X
-	# leans it toward -Y (the player) for a positive angle, which is "down" on the
-	# pad; a turn about Y leans it toward +X, which is "right".
+	_pose_stick()
+
+
+## Deck-local: +X right, +Y toward the monitor, the shaft along +Z. A turn about X
+## leans it toward -Y (the player) for a positive angle, which is "down" on the
+## pad; a turn about Y leans it toward +X, which is "right".
+func _pose_stick() -> void:
 	_stick.basis = Basis.from_euler(Vector3(
 		deg_to_rad(_stick_current.y * STICK_TILT_DEG),
 		deg_to_rad(_stick_current.x * STICK_TILT_DEG), 0.0))
+
+
+func _in_hand(kind: StringName, index: int = 0) -> bool:
+	return _hands != null and _hands.holds(kind, index)
 
 
 ## The stick's lean as last shown, for the tests and the probe.
@@ -318,9 +350,16 @@ func stick_lean() -> Vector2:
 func _tick_analog(delta: float) -> void:
 	if not _analog_target.is_empty():
 		var moving := false
+		# What a hand holds is where the hand has it, with no easing: the wheel, the bars, the gear lever.
+		var held := _held_analog()
 		for key: String in _analog_target:
 			var now := float(_analog_now.get(key, 0.0))
 			var want := float(_analog_target[key])
+			if held.has(key):
+				if now != float(held[key]):
+					_analog_now[key] = float(held[key])
+					moving = true
+				continue
 			if now != want:
 				now = lerpf(now, want, minf(1.0, delta * 14.0))
 				if absf(now - want) < 0.002:
@@ -331,16 +370,37 @@ func _tick_analog(delta: float) -> void:
 		if moving or not _analog_written:
 			_analog_written = true
 			_pose_analog()
-	if _ball != null and _ball_roll != Vector2.ZERO:
-		# Rolled toward where it is pushed: about X for up and down, about Y for left and right (deck frame).
-		_ball.basis = (Basis(Vector3.RIGHT, _ball_roll.y * BALL_SPEED * delta)
-			* Basis(Vector3.UP, _ball_roll.x * BALL_SPEED * delta) * _ball.basis).orthonormalized()
-	if _stick2 != null and _stick2_current != _stick2_target:
-		_stick2_current = _stick2_current.lerp(_stick2_target, STICK_BLEND)
-		if _stick2_current.distance_squared_to(_stick2_target) < 1.0e-6:
-			_stick2_current = _stick2_target
+	if _ball != null:
+		var roll := _hands.ball_roll() if _in_hand(&"ball") else _ball_roll
+		if roll != Vector2.ZERO:
+			# Rolled toward where it is pushed: about X for up and down, about Y for left and right (deck frame).
+			_ball.basis = (Basis(Vector3.RIGHT, roll.y * BALL_SPEED * delta)
+				* Basis(Vector3.UP, roll.x * BALL_SPEED * delta) * _ball.basis).orthonormalized()
+	if _stick2 != null:
+		if _in_hand(&"stick", 1):
+			_stick2_current = _hands.stick_lean(1)
+		elif _stick2_current != _stick2_target:
+			_stick2_current = _stick2_current.lerp(_stick2_target, STICK_BLEND)
+			if _stick2_current.distance_squared_to(_stick2_target) < 1.0e-6:
+				_stick2_current = _stick2_target
+		else:
+			return
 		_stick2.basis = Basis.from_euler(Vector3(
 			deg_to_rad(_stick2_current.y * STICK_TILT_DEG), deg_to_rad(_stick2_current.x * STICK_TILT_DEG), 0.0))
+
+
+## The analog parts a hand is holding, and where it has them: {key: value} for `_analog_now`.
+func _held_analog() -> Dictionary:
+	var out := {}
+	if _hands == null:
+		return out
+	if _hands.holds(&"wheel"):
+		out["steer"] = _hands.steer(&"wheel")
+	elif _hands.holds(&"bars"):
+		out["steer"] = _hands.steer(&"bars")
+	if _hands.holds(&"lever"):
+		out["shift"] = _hands.lever_throw()
+	return out
 
 
 func _pose_analog() -> void:
@@ -366,3 +426,75 @@ func steering() -> float:
 
 func pedal_down(which: String) -> float:
 	return float(_analog_now.get(which, 0.0))
+
+
+# ── the hands (ArcadePanelHands) ─────────────────────────────────────────────
+
+## Step the hands on this panel: `ctrls` are the player's two hands, `live` false while the machine is off.
+func update_hands(delta: float, ctrls: Array, live: bool) -> void:
+	if _hands != null:
+		_hands.update(delta, ctrls, live)
+
+
+## Let go of everything a hand holds or presses here.
+func release_hands() -> void:
+	if _hands != null:
+		_hands.release_all()
+
+
+## The pad bits the hands hold on this panel, and the thumbstick they stand in for (0 left, 1 right; x right, y up).
+func hand_buttons() -> int:
+	return _hands.buttons() if _hands != null else 0
+
+
+func hand_thumbstick(side: int) -> Vector2:
+	return _hands.thumbstick(side) if _hands != null else Vector2.ZERO
+
+
+## Is a hand pressing a cap or holding a control here?
+func hands_active() -> bool:
+	return _hands != null and _hands.active()
+
+
+## Is `ctrl` holding, or reaching for, a control of this panel? (ArcadePanelGrip does not take its press.)
+func hand_reaching(ctrl: XRController3D) -> bool:
+	return _hands != null and _hands.reaching(ctrl)
+
+
+func hands() -> ArcadePanelHands:
+	return _hands
+
+
+## What the hands need to know of the parts (ArcadePanelHands): the caps by index, a pivot's pose at rest, and where
+## the stick, the dial and the lever are now.
+func cap_count() -> int:
+	return _caps.size()
+
+
+func cap_node(index: int) -> Node3D:
+	return _caps[index]
+
+
+func cap_rest_position(index: int) -> Vector3:
+	return _cap_rest[index]
+
+
+func cap_bit(index: int) -> int:
+	return _cap_bits[index]
+
+
+func rest_basis_of(node: Node3D) -> Basis:
+	return _rest_basis.get(node, Basis.IDENTITY) as Basis
+
+
+## A stick's lean now (0 the first, 1 the second): x right, y down, -1..1.
+func stick_lean_of(index: int) -> Vector2:
+	return _stick2_current if index == 1 else _stick_current
+
+
+func dial_angle() -> float:
+	return _dial_angle
+
+
+func shift_amount() -> float:
+	return float(_analog_now.get("shift", 0.0))

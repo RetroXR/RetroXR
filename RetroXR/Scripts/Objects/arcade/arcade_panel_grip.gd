@@ -9,6 +9,8 @@
 ##
 ## A pointable Area3D over the panel: a desktop click or the laser's trigger arrives as a
 ## pointer_event, and in VR a squeeze of the grip with a hand over the panel does the same.
+## A hand that is working a control of the panel (ArcadePanelHands: it has taken hold of the stick, or
+## is reaching for it) is pulling its trigger for THAT, so its laser's press is not taken as an attach.
 class_name ArcadePanelGrip
 extends Area3D
 
@@ -79,6 +81,9 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 				set_held(false)
 		XRToolsPointerEvent.Type.PRESSED:
 			_hovered = true
+			if _hand_reaches(event.pointer):
+				_refresh()
+				return
 			if momentary:
 				set_held(true)
 			else:
@@ -87,6 +92,13 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			if momentary:
 				set_held(false)
 	_refresh()
+
+
+## Is the hand behind `pointer` holding, or about to take hold of, one of this panel's controls? Null for the
+## desktop's reticle, which has no hand.
+func _hand_reaches(pointer: Node) -> bool:
+	var panel := get_parent() as ArcadeControlModule
+	return panel != null and panel.hand_reaching(Haptics.controller_of(pointer))
 
 
 func set_held(on: bool) -> void:
@@ -119,7 +131,8 @@ func _process(_delta: float) -> void:
 		var was: bool = _squeezing.get(id, false)
 		if not was and grip > GRIP_ON:
 			_squeezing[id] = true
-			if PokeTip.tip_of(ctrl).distance_to(global_position) <= REACH:
+			# A fist round a control (ArcadePanelHands) is for the control: it neither attaches nor holds START.
+			if PokeTip.tip_of(ctrl).distance_to(global_position) <= REACH and not _hand_reaches(ctrl):
 				if momentary:
 					set_held(true)
 				else:

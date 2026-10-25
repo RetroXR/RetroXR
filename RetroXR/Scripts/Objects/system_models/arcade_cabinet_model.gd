@@ -186,6 +186,15 @@ func arcade_input() -> ArcadeInput:
 	return _input
 
 
+## Is `ctrl` holding, or reaching for, a control on one of this cabinet's panels (ArcadePanelHands.reaching)? RetroSystem
+## does not let such a hand pick the cabinet up: the fist round a stick would fill the carry ring.
+func hand_busy(ctrl: XRController3D) -> bool:
+	for c in _controls:
+		if is_instance_valid(c) and c.hand_reaching(ctrl):
+			return true
+	return false
+
+
 # ── what this hardware is ───────────────────────────────────────────────────
 
 func brings_own_body() -> bool:
