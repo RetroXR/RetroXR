@@ -3,8 +3,8 @@
 ## A print is a Poster: a flat sticker. Stuck to something it stays one. Loose,
 ## it is the paper it was on the printer, curled by the roll and given to its
 ## weight: held, it hangs from the hand both ways along its length, swings as the
-## hand moves and stops; lying on a table face down its ends curl up off it, face
-## up they are pressed flat.
+## hand moves and stops. Loose, its body carries the fall and surface recovery;
+## its ribbon keeps relaxing toward the roll's curl without impact creases.
 ##
 ## A single 3D thermal ribbon carries both edges. Only a held row is pinned;
 ## release preserves every particle and velocity and removes that pin. The
@@ -43,6 +43,7 @@ var _body_owned := false
 var _motion := GbPaperMotion.new()
 var _was_held := false
 var _was_stuck := false
+var _support_quiet := 0.0
 var _floor_hit: Array = []
 var _paper_sweep := GbPaperSweep.new()
 var _floor_wait := 0.0
@@ -110,6 +111,7 @@ func _process(delta: float) -> void:
 		_quiet = 0.0
 		_was_held = false
 		_was_stuck = true
+		_support_quiet = 0.0
 		return
 	if _poster.is_previewing():
 		# The Poster has slid its Surface to where the print would stick, and the
@@ -124,6 +126,7 @@ func _process(delta: float) -> void:
 		_paper_sweep.reset()
 		_drawn.clear()
 		_quiet = 0.0
+		_support_quiet = 0.0
 		return
 	var size := _poster.get_sheet_size()
 	if size.x <= 0.0 or size.y <= 0.0:
@@ -162,7 +165,22 @@ func _process(delta: float) -> void:
 		_find_floor(xf)
 	_sweep_floor(xf)
 	_place_floor(xf)
-	_ribbon.step(delta, _motion.gravity, _motion.angular_accel)
+	# A held sheet bends under the hand's acceleration. Once loose, the rigid
+	# body owns falling and impact impulses; feeding those back into the ribbon
+	# makes its moving colliders and the body's collision solver drive each other.
+	_ribbon.step(delta, _motion.gravity if held else Vector3.ZERO,
+		_motion.angular_accel if held else Vector3.ZERO)
+	if not held and not _ribbon.body_shift.is_zero_approx():
+		_poster.global_position += xf.basis * _ribbon.body_shift
+		var normal := (xf.basis * _ribbon.support_normal).normalized()
+		_poster.linear_velocity -= normal * minf(0.0, normal.dot(_poster.linear_velocity))
+	var supported := not held and not _ribbon.support_normal.is_zero_approx()
+	# Small body corrections otherwise keep waking a settled print every tick.
+	# Require quiet rotation as well, so an edge-first landing can still tip over.
+	_support_quiet = _support_quiet + delta if supported and _ribbon.move_speed < SETTLED \
+		and _poster.linear_velocity.length() < 0.01 and _poster.angular_velocity.length() < 0.05 else 0.0
+	if _support_quiet >= SETTLE_TIME:
+		_poster.sleeping = true
 	_quiet = _quiet + delta if still and not held and _ribbon.move_speed < SETTLED else 0.0
 	_draw(size)
 

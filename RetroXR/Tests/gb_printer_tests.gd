@@ -30,9 +30,15 @@ func _ready() -> void:
 		get_tree().quit(1))
 	if OS.get_cmdline_user_args().has("--only=thermal"):
 		_test_thermal_ribbon()
+		_test_ribbon_impact_does_not_crumple()
 		_test_contact_motion_is_not_sleep()
 		_test_released_print_keeps_its_shape()
 		_test_exact_tear_handoff()
+		print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
+		get_tree().quit(1 if _fail > 0 else 0)
+		return
+	if OS.get_cmdline_user_args().has("--only=drop"):
+		await _test_printout_lands_without_crumpling()
 		print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
 		get_tree().quit(1 if _fail > 0 else 0)
 		return
@@ -67,6 +73,8 @@ func _ready() -> void:
 	_test_released_print_keeps_its_shape()
 	await _test_wall_preview_is_the_flat_sticker()
 	_test_thermal_ribbon()
+	_test_ribbon_impact_does_not_crumple()
+	await _test_printout_lands_without_crumpling()
 	_test_contact_motion_is_not_sleep()
 	_test_exact_tear_handoff()
 	await _test_netplay_surface()
@@ -880,7 +888,80 @@ func _test_contact_motion_is_not_sleep() -> void:
 	var floor_z := sheet.centers()[-1].z * 0.5
 	sheet.patches = [[Vector3.BACK, floor_z, Vector3(0, 0, floor_z), 0.3, 0.1]]
 	sheet.step(1.0 / 60.0, Vector3.ZERO)
-	_ok(sheet.move_speed > GbPrintoutFlop.SETTLED, "a recovering ribbon remains awake based on actual vertex movement")
+	_ok(maxf(sheet.move_speed, sheet.body_shift.length() * 60.0) > GbPrintoutFlop.SETTLED,
+		"a recovering ribbon remains awake based on actual sheet or body movement")
+
+
+func _test_ribbon_impact_does_not_crumple() -> void:
+	var sheet := GbThermalRibbon.new()
+	sheet.configure(0.24, 0.038)
+	var before := sheet.positions.duplicate()
+	# A curved sheet has just landed slightly inside a tabletop. Recovery must
+	# lift the body, not crush its lower rows toward a fixed center of mass.
+	var floor_z := sheet.centers()[-1].z + 0.004
+	sheet.patches = [[Vector3.BACK, floor_z, Vector3(0, 0, floor_z), 0.3, 0.1]]
+	sheet.step(1.0 / 90.0, Vector3.ZERO)
+	var deformation := 0.0
+	var clearance := INF
+	var speed := 0.0
+	for i in before.size():
+		deformation = maxf(deformation, sheet.positions[i].distance_to(before[i]))
+		clearance = minf(clearance, (sheet.positions[i] + sheet.body_shift).z - floor_z)
+		speed = maxf(speed, sheet.velocities[i].length())
+	_ok(clearance >= GbThermalRibbon.SKIN - 0.00001,
+		"landing lifts the complete print clear of the table (%.6f m)" % clearance)
+	_ok(deformation < 0.0001, "landing does not crumple the resting curl (%.6f m)" % deformation)
+	_ok(speed < 0.001, "contact recovery does not launch a bending wave (%.6f m/s)" % speed)
+
+
+func _test_printout_lands_without_crumpling() -> void:
+	var table := StaticBody3D.new()
+	var collider := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(2, 0.1, 2)
+	collider.shape = box
+	table.add_child(collider)
+	table.position = Vector3(0, 9.95, 0)
+	add_child(table)
+	var prints: Array[Poster] = []
+	var worst_bend := 0.0
+	var shortest := 1.0
+	for i in 3:
+		var poster := load("res://Scenes/Objects/media/poster.tscn").instantiate() as Poster
+		poster.printout = true
+		poster.size_scale = 0.24 / Poster.BASE_LONG_EDGE
+		poster._aspect = 0.038 / 0.24
+		poster.position = Vector3((i - 1) * 0.4, 10.35, 0)
+		poster.rotation = Vector3([0.0, PI * 0.5, -PI * 0.5][i], 0, 0.1)
+		add_child(poster)
+		var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+		flop.set_process(false)
+		flop._process(1.0 / 90.0)
+		prints.append(poster)
+	for frame in 240:
+		await get_tree().physics_frame
+		await get_tree().process_frame
+		for poster in prints:
+			var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+			flop._process(1.0 / 90.0)
+			var mid := flop._ribbon.centers()
+			var run := 0.0
+			for i in flop._ribbon.segments:
+				run += mid[i].distance_to(mid[i + 1])
+				if i > 0:
+					worst_bend = maxf(worst_bend, (mid[i] - mid[i - 1]).angle_to(mid[i + 1] - mid[i]))
+			shortest = minf(shortest, run / flop._ribbon.length)
+	_ok(shortest > 0.99, "dropped prints keep their length throughout impact (%.4f)" % shortest)
+	_ok(worst_bend < deg_to_rad(12), "dropped prints do not form sharp impact folds (%.1f degrees)" % rad_to_deg(worst_bend))
+	for poster in prints:
+		var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
+		var low := INF
+		for p in flop._ribbon.positions:
+			low = minf(low, poster.to_global(p).y)
+		_ok(low > 9.998 and low < 10.005, "print rests on the table (bottom %.4f m)" % low)
+		_ok(flop._ribbon.move_speed < 0.002, "landed print's bending settles (%.5f m/s)" % flop._ribbon.move_speed)
+		poster.free()
+	table.free()
 
 
 func _test_exact_tear_handoff() -> void:

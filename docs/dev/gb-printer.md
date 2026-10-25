@@ -202,8 +202,7 @@ the stub back.
 whose picture is in the prints folder): loose, a print is one `GbThermalRibbon`,
 a sheet of two rails (both edges) held to its length and width, bending toward
 the roll's curl and free to bend sideways and twist. It hangs from the hand and
-swings as it moves and stops; lying on a table face down its ends lift, face up
-it lies flat. Only the row in the hand is pinned: letting go unpins it and moves
+swings as it moves and stops. Only the row in the hand is pinned: letting go unpins it and moves
 nothing (two halves anchored at the grip used to stay anchored there after
 release, so where it was last held chose how it lay). A tear hands over the
 strip's actual points and velocities, so the print starts exactly as it was on
@@ -220,6 +219,22 @@ speeds, which contact repair zeroes: a print once slept 37 mm short of its curl.
 at, smoothed). The print's own pointer target, a StaticBody3D round the sheet,
 is left out of its look at the table: taken for a surface, it stood half the
 print up.
+
+**Dropped prints (2026-10-25):** the rigid body owns falling and impact response;
+the loose ribbon relaxes its bend without a second acceleration impulse from
+the body's collision. Existing penetration is recovered by translating the
+whole body (`GbThermalRibbon.body_shift`), with surface patches moved into that
+recovered frame. Bending still respects surface contact. Previously each rail
+was pushed out separately, its mean correction was discarded to keep the local
+centroid fixed, and that positional correction became bending velocity. A
+landing therefore buckled the print around its center, then flattened its curl.
+Contact-normal velocity is now removed after positional repair, and a supported
+body can sleep after its bending, translation and rotation settle. A regression
+that puts a curled 24 cm print 4 mm into a table preserves its shape and clears
+the table; omitting whole-body recovery makes it deform 5 mm and adds 0.33 m/s
+of bending speed. Real-body drops in three orientations check length, folds,
+table clearance and settling. Loose prints retain their roll curl on landing;
+this is not a permanent-crease simulation.
 
 **Two curls:** a torn print curls at 6.5 cm (`GbThermalRibbon.CURL_RADIUS`), the
 strip still on the printer at 13 cm. At 6.5, 8 and 9 cm a long strip's end curled

@@ -24,9 +24,15 @@ var pin_positions := PackedVector3Array()
 ## Surface patches: [normal, offset, center, reach, depth] in the body's frame.
 var patches: Array = []
 var move_speed := 0.0
+## Loose-sheet contact recovery belongs to the rigid body, not to a crease.
+## The caller applies this local translation after step(). Patches are shifted
+## into the recovered body's frame as the solve advances.
+var body_shift := Vector3.ZERO
+var support_normal := Vector3.ZERO
 var _edges: Array[Vector2i] = []
 var _rest := PackedFloat64Array()
 var _mass := 0.0
+var _contact_normals := PackedVector3Array()
 
 
 func configure(sheet_length: float, sheet_width: float, curvature := 1.0 / CURL_RADIUS) -> void:
@@ -136,8 +142,12 @@ func _weight(i: int) -> float:
 ## applied at each particle, so turning the hand excites bending and torsion
 ## without changing the paper's remembered curl.
 func step(delta: float, gravity: Vector3, angular_accel := Vector3.ZERO) -> void:
+	body_shift = Vector3.ZERO
+	support_normal = Vector3.ZERO
 	if delta <= 0.0 or segments == 0:
 		return
+	if pin_row < 0:
+		_recover_body_contacts()
 	var before := positions.duplicate()
 	var steps := maxi(1, ceili(delta / MAX_STEP))
 	var h := delta / steps
@@ -150,6 +160,8 @@ func step(delta: float, gravity: Vector3, angular_accel := Vector3.ZERO) -> void
 
 func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
 	var before := positions.duplicate()
+	_contact_normals.resize(positions.size())
+	_contact_normals.fill(Vector3.ZERO)
 	var ds := length / segments
 	var lambda_bend := PackedVector3Array()
 	lambda_bend.resize(positions.size())
@@ -196,10 +208,11 @@ func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
 			positions[2 * pin_row] = pin_positions[0]
 			positions[2 * pin_row + 1] = pin_positions[1]
 	_self_contacts(before)
-	# The rigid body owns translation. Remove only the uniform displacement of
-	# an unheld sheet; no material point is selected as a support.
+	# Keep local coordinates centered, but hand contact displacement to the body
+	# below. Discarding it drove the recovered sheet straight back into the floor.
+	var shift := Vector3.ZERO
 	if pin_row < 0:
-		var shift := _mean(positions) - _mean(before)
+		shift = _mean(positions) - _mean(before)
 		for i in positions.size():
 			positions[i] -= shift
 	var farthest := 0.0
@@ -209,6 +222,39 @@ func _substep(h: float, gravity: Vector3, angular_accel: Vector3) -> void:
 	for i in positions.size():
 		positions[i] = before[i].lerp(positions[i], fraction)
 		velocities[i] = (positions[i] - before[i]) / h
+		# Depenetration is positional repair, not a new bounce or bending impulse.
+		var normal := _contact_normals[i].normalized()
+		velocities[i] -= normal * normal.dot(velocities[i])
+		support_normal += normal
+	if pin_row < 0 and not patches.is_empty():
+		shift *= fraction
+		body_shift += shift
+		_shift_patches(shift)
+
+
+func _shift_patches(shift: Vector3) -> void:
+	for patch: Array in patches:
+		patch[1] -= (patch[0] as Vector3).dot(shift)
+		patch[2] -= shift
+
+
+func _recover_body_contacts() -> void:
+	# First recover penetration caused by the body's fall as a whole. Letting
+	# the individual rails do this buckled the print around its fixed centroid.
+	# Subsequent bending still meets the surface in _surface_contacts().
+	for patch: Array in patches:
+		var normal: Vector3 = patch[0]
+		var depth := 0.0
+		for p in positions:
+			var under := float(patch[1]) + SKIN - normal.dot(p)
+			var d := p - (patch[2] as Vector3)
+			if under > depth and under < float(patch[4]) and (d - normal * normal.dot(d)).length() < float(patch[3]):
+				depth = under
+		if depth > 0.0:
+			var shift := normal * depth
+			body_shift += shift
+			support_normal += normal
+			_shift_patches(shift)
 
 
 func _surface_contacts() -> void:
@@ -222,6 +268,7 @@ func _surface_contacts() -> void:
 			var d := p - (patch[2] as Vector3)
 			if under > 0.0 and under < float(patch[4]) and (d - normal * normal.dot(d)).length() < float(patch[3]):
 				positions[i] += normal * under
+				_contact_normals[i] += normal
 
 
 func _self_contacts(before: PackedVector3Array) -> void:
