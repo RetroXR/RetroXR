@@ -672,10 +672,10 @@ panel, a two-button game two caps, a gun game no stick, a one-coin game one door
 follows the game; the input is never filtered**, so a cap hidden by a wrong guess still plays from a controller or the keyboard.
 
 - **Two sources, the second wins where it speaks.** (1) MAME's `-listxml`, boiled down by `Tools/arcade/gen_game_index.py` into
-  `ArcadeGameTable` (28,701 romsets / 1,482 profiles from MAME 0.289, 303 KB as one string constant; a profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>`,
+  `ArcadeGameTable` (28,701 romsets / 1,328 profiles from MAME 0.289, 299 KB as one string constant; a profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>`,
   kinds `joy twin stick paddle pedal gun touch dial ball btn other`, then since 2026-10-25 the attributes of the cabinet the game came in: `r` the
   monitor's rotation, `s` its screens, `g` its light guns, `t` its form, `o` a cockpit's roof, `f` a gun pedal, `a` one panel for alternating players,
-  `m` the tube's class, `k` the boot time; every clone tied to its parent (`sf2=sf2ua`, `sf2ce<sf2`); the lists and which of it is MAME's are in the
+  `m` the tube's class; every clone tied to its parent (`sf2=sf2ua`, `sf2ce<sf2`); the lists and which of it is MAME's are in the
   script's docstring. `python Tools/arcade/gen_game_index.py mame0289.xml`, the XML from the release's `mame0289lx.zip`, checksum-verified against
   its SHA256SUMS). (2) The core's `SET_INPUT_DESCRIPTORS` through `Libretro.GetInputDescriptors()` (`[{port, device, index, id,
   description}]`; the C++ already stored them in `InputHandler::m_devices`, nothing read them). `RetroSystemModelArcadeCabinet._poll_descriptors` asks twice a second from power-on until the
@@ -700,18 +700,19 @@ follows the game; the input is never filtered**, so a cap hidden by a wrong gues
 
 A coin is a pulse on SELECT; a board that is still loading or running its power-on tests never sees it. **A coin the game cannot count yet
 is HELD** (`ArcadeInputState.CoinEscrow`): the one that starts a game from the attract, and any put in while the core is still coming up.
-They go in once the core has run the game's own boot **in its own frames** (`Libretro.GetFrameCount`, emulated frames, so a slow load or a
-Quest running below full speed waits as long as the game does; `ArcadeGameProfile.boot_seconds` = the table's `k` for the driver, else
-`ArcadeProfiles.BOOT_SECONDS` 4 s, at the core's own rate `GetDeclaredFps`), one at a time a pulse and `COIN_GAP_SECONDS` apart (a game counts
-the EDGE). **START lets them in at once** on a game that has run `MIN_BOOT_FRAMES` (a player who knows the game is up), and START itself is
+They go in once the core has run **one wait, the same for every game, in its own frames** (`ArcadeProfiles.COIN_WAIT_SECONDS`, 4 s at the core's
+own rate `GetDeclaredFps`, counted in `Libretro.GetFrameCount`, emulated frames, so a slow load or a Quest running below full speed waits as long
+as the game does). MAME does not say when a game counts a coin; **the table holds no boot time per game** (there was a per-driver estimate, `k`,
+until 2026-10-25: nobody had measured it, so it went), and 0 would let a coin in on the first frame. One at a time, a pulse and `COIN_GAP_SECONDS`
+apart (a game counts the EDGE). **START lets them in at once** on a game that has run `COIN_MIN_FRAMES` (a player who knows the game is up), and START itself is
 held back until the credit has landed and `START_AFTER_COIN_SECONDS` more: a START tapped meanwhile is queued and sent once, after it. The
 slot's lamp blinks while a coin is held. (`GetFrameCount` is the bridge's own counter, which the pace trace reads too; a bridge without it would count the room's time instead.)
 
 The coin door's RETURN cap is a button (`ArcadeCoinModule.return_pressed`): it gives back a HELD coin, which drops into the cup with a rattle
 of its own (synthesised, `rattle()`). A coin put into a switched-off cabinet rolls straight out; switching off with coins held rolls them all
 out. **Nothing a game has counted comes back**: no core has a refund input, and on the hardware the button is mechanical (it frees a jammed
-coin). `arcade_attract_tests coins/`, `arcade_tests input/ game/ coin/`, the probe's `--shots=return`. OWED: real cores (a CPS2 board's 6 s,
-a CPS3's 20, a NAOMI on Flycast), the Quest, a game that counts coins on a level rather than an edge.
+coin). `arcade_attract_tests coins/`, `arcade_tests input/ game/ coin/`, the probe's `--shots=return`. OWED: real cores (does 4 s hold for a
+CPS3 or a NAOMI on Flycast, which take longer?), the Quest, a game that counts coins on a level rather than an edge.
 
 ## The cabinet is built from a spec (2026-10-25)
 

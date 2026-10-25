@@ -457,7 +457,7 @@ func _group_fire() -> void:
 	model.arcade_input().frame_override = 0
 	sys.is_powered_on = true
 	await _wait(3)
-	model.arcade_input().frame_override = model.arcade_input().boot_frames()
+	model.arcade_input().frame_override = model.arcade_input().wait_frames()
 	var panels := model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
 	var p1: ArcadeControlModule = null
 	for m in panels:
@@ -641,7 +641,7 @@ func _pedal_presses(sys: RetroSystem, pedal: ArcadePedalModule) -> void:
 	var gun2 := guns[1] as LightGun
 	var aux_a := ControllerBindings.LIGHTGUN_AUX_A
 	input.pedal_mode_override = AppPrefs.PEDAL_BUTTON
-	input.frame_override = input.boot_frames()
+	input.frame_override = input.wait_frames()
 	sys.is_powered_on = true
 	await _wait(3)
 	var plate := pedal.get_node("PedalPlate") as Node3D

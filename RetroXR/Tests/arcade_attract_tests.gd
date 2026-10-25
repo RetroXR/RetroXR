@@ -513,10 +513,10 @@ func _group_use() -> void:
 	await _wait(10)
 	_ok(not _coin_sent(input, 0) and input.held_coins(0) == 1,
 		"use: nothing reaches the core while the game is still coming up, however long its load takes")
-	input.frame_override = input.boot_frames() - 1
+	input.frame_override = input.wait_frames() - 1
 	await _wait(4)
-	_ok(not _coin_sent(input, 0), "use: not a frame before its boot is through (%d frames)" % input.boot_frames())
-	input.frame_override = input.boot_frames()
+	_ok(not _coin_sent(input, 0), "use: not a frame before the wait is through (%d frames)" % input.wait_frames())
+	input.frame_override = input.wait_frames()
 	var seen := false
 	var until := Time.get_ticks_msec() + 500
 	while Time.get_ticks_msec() < until:
@@ -644,7 +644,7 @@ func _group_coins() -> void:
 	door.insert_coin()
 	await get_tree().create_timer(flight).timeout
 	_ok(input.held_coins(0) == 2, "coins: two coins are held")
-	input.frame_override = input.boot_frames()
+	input.frame_override = input.wait_frames()
 	var edges: int = await _coin_edges(input, 0, 1.5)
 	_ok(edges == 2 and input.held_coins(0) == 0, "coins: they go in as two separate coins (%d)" % edges)
 	# Into a game that is up, a coin goes straight in.
@@ -661,7 +661,7 @@ func _group_coins() -> void:
 	await _wait(2)
 	door.insert_coin()
 	await get_tree().create_timer(flight).timeout
-	input.frame_override = ArcadeProfiles.MIN_BOOT_FRAMES
+	input.frame_override = ArcadeProfiles.COIN_MIN_FRAMES
 	var panel: ArcadeControlModule = null
 	for m in model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS):
 		if (m as ArcadeControlModule).player == 0:

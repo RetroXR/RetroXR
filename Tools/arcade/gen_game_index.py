@@ -34,9 +34,7 @@ not the default, `;`-separated attributes (a letter and a value):
   a         two players take turns on ONE panel (an alternating game whose upright had a
             single set of controls: MAME's Cabinet DIP offers a cocktail, the upright one),
   m<in>     the monitor's class in inches where it is not the 25" default (19 before 1985),
-  k<s>      seconds the game takes to come up from power-on before it counts a coin
-            (an ESTIMATE for its driver; the default is ArcadeProfiles.BOOT_SECONDS).
-Everything in `t`, `o`, `f`, `a` and `k` that MAME does not say is a choice made here from
+Everything in `t`, `o`, `f` and `a` that MAME does not say is a choice made here from
 the lists below and a little general knowledge; docs/dev/arcade.md says which is which.
 
 The names are the romset (zip) names, clones included: a clone has a zip of its own and
@@ -110,29 +108,6 @@ DANCE_DESC = re.compile(r"dance dance revolution|dancing stage|dance 86\.4", re.
 PUMP_DESC = re.compile(r"pump it up", re.I)
 MUSIC_DESC = re.compile(r"beatmania|guitar ?freaks|drum ?mania|percussion freaks|pop'?n music|"
                         r"keyboardmania|taiko no tatsujin", re.I)
-
-# How long a game takes to come up from power-on before it counts a coin, by driver: ESTIMATES (no
-# game was run to measure them), long on purpose. Anything not listed boots in
-# ArcadeProfiles.BOOT_SECONDS (4).
-BOOT_SECONDS = {
-    "capcom/cps2.cpp": 6, "capcom/cps3.cpp": 20, "neogeo/neogeo.cpp": 6,
-    "sega/model1.cpp": 10, "sega/model2.cpp": 12, "sega/model3.cpp": 20, "sega/naomi.cpp": 25,
-    "sega/dc_atomiswave.cpp": 20, "sega/stv.cpp": 12, "sega/segas24.cpp": 10, "sega/segas32.cpp": 6,
-    "namco/namcos21.cpp": 8, "namco/namcos22.cpp": 12, "namco/namcos23.cpp": 15, "namco/namcos10.cpp": 15,
-    "namco/namcos11.cpp": 10, "namco/namcos12.cpp": 12, "namco/namcofl.cpp": 8,
-    "konami/konamigx.cpp": 10, "konami/konamigq.cpp": 15, "konami/konamigv.cpp": 10, "konami/konamim2.cpp": 20,
-    "konami/ksys573.cpp": 45, "konami/twinkle.cpp": 45, "konami/djmain.cpp": 20, "konami/firebeat.cpp": 45,
-    "konami/kpython2.cpp": 60, "konami/viper.cpp": 30, "konami/hornet.cpp": 20, "konami/zr107.cpp": 15,
-    "konami/gticlub.cpp": 15, "konami/nwk-tr.cpp": 15,
-    "igs/pgm.cpp": 8, "igs/pgm2.cpp": 15,
-    "williams/midtunit.cpp": 6, "williams/midwunit.cpp": 8, "williams/midxunit.cpp": 8,
-    "williams/midyunit.cpp": 6, "williams/midvunit.cpp": 15, "williams/seattle.cpp": 25,
-    "williams/vegas.cpp": 30, "williams/midzeus.cpp": 30,
-    "taito/taito_f3.cpp": 6, "taito/taitojc.cpp": 20, "taito/taitotz.cpp": 30,
-    "sony/zn.cpp": 12, "snk/hng64.cpp": 25, "atari/jaguar.cpp": 15, "gaelco/gaelco3d.cpp": 15,
-    "itech/iteagle.cpp": 30, "misc/xtom3d.cpp": 40,
-}
-
 
 def default_value(group):
     """The name of a DIP switch's (or configuration's) factory setting, or ''."""
@@ -258,9 +233,6 @@ def profile_of(machine, parent):
     year = machine.findtext("year") or ""
     if year[:4].isdigit() and int(year[:4]) < 1985 and displays and displays[0].get("type") != "vector":
         attrs.append("m19")
-    boot = BOOT_SECONDS.get(source)
-    if boot:
-        attrs.append("k%d" % boot)
     return key + "".join(";" + a for a in attrs)
 
 

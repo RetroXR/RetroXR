@@ -51,18 +51,17 @@ static func panel_speaks(port_has_controller: bool) -> bool:
 	return not port_has_controller
 
 
-## Has the game had time to come up? `frames_run` is how many frames the core has emulated since it was
-## started (Libretro.GetFrameCount, so a slow load or a Quest running the game at half speed waits in
-## the GAME's time, not the room's), `boot_frames` how long this game's own power-on takes
-## (ArcadeGameProfile.boot_seconds). Nothing earlier counts: a board still running its RAM and ROM
-## tests reads no coin input at all.
-static func game_ready(frames_run: int, boot_frames: int) -> bool:
-	return frames_run >= boot_frames
+## Has the core run long enough for a coin to go in? `frames_run` is how many frames it has emulated since it
+## was started (Libretro.GetFrameCount, so a slow load or a Quest running the game at half speed waits in
+## the GAME's time, not the room's), `wait_frames` the one wait every game gets (ArcadeProfiles.COIN_WAIT_SECONDS).
+## Nothing earlier counts: a board still running its RAM and ROM tests reads no coin input at all.
+static func game_ready(frames_run: int, wait_frames: int) -> bool:
+	return frames_run >= wait_frames
 
 
 ## A coin may be let in early when the player presses START with coins still held, once the core has
-## run at least `min_frames`: whoever presses START is looking at a game that is up, which the boot
-## estimate cannot know (it errs long on purpose).
+## run at least `min_frames`: whoever presses START is looking at a game that is up, which the wait
+## cannot know (it errs long on purpose).
 static func start_lets_coins_in(frames_run: int, min_frames: int, start_pressed: bool, held: int) -> bool:
 	return start_pressed and held > 0 and frames_run >= min_frames
 

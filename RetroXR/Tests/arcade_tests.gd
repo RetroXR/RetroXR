@@ -303,7 +303,7 @@ func _group_input() -> void:
 	escrow.hold(0)
 	_ok(escrow.take_all() == {0: 2} and escrow.is_empty(), "input: switching off takes them all, to roll out")
 	_ok(not ArcadeInputState.game_ready(239, 240) and ArcadeInputState.game_ready(240, 240),
-		"input: the game is up when it has run its own boot, in its own frames")
+		"input: a coin goes in once the core has run the wait, in its own frames")
 	_ok(ArcadeInputState.start_lets_coins_in(30, 30, true, 1) and not ArcadeInputState.start_lets_coins_in(29, 30, true, 1)
 		and not ArcadeInputState.start_lets_coins_in(300, 30, false, 1) and not ArcadeInputState.start_lets_coins_in(300, 30, true, 0),
 		"input: START lets held coins in early, only on a core that has started and only with coins held")
@@ -1267,7 +1267,7 @@ func _group_coin() -> void:
 	sys.is_powered_on = true
 	await get_tree().process_frame
 	await get_tree().process_frame
-	input.frame_override = input.boot_frames()
+	input.frame_override = input.wait_frames()
 	door.insert_coin()
 	await get_tree().create_timer(ArcadeCoinModule.FLIGHT_SECONDS + 0.05).timeout
 	await get_tree().process_frame
@@ -1559,11 +1559,17 @@ func _group_game_profile() -> void:
 	var nobody := P.for_romset("not_a_real_romset")
 	_ok(nobody.form() == P.FORM_UPRIGHT and nobody.rotation() == 0 and nobody.screens() == 1 and not nobody.alternating(),
 		"game: a romset the table lacks is a plain upright")
-	var slow := ArcadeGameProfile.from_key("slow", "p2c2b6w8:joy;k12")
-	_ok(slow.known and slow.kinds == PackedStringArray(["joy"]) and is_equal_approx(slow.boot_seconds(), 12.0),
-		"game: a key's attributes follow its kinds (k12: twelve seconds to boot), the kinds unchanged")
-	_ok(is_equal_approx(ArcadeGameProfile.from_key("plain", "p2c2b6w8:joy").boot_seconds(), ArcadeProfiles.BOOT_SECONDS),
-		"game: a key without one boots in the default time")
+	var rotated := ArcadeGameProfile.from_key("tate", "p2c2b6w8:joy;r270")
+	_ok(rotated.known and rotated.kinds == PackedStringArray(["joy"]) and rotated.rotation() == 270 and rotated.is_vertical(),
+		"game: a key's attributes follow its kinds (r270: the monitor on its side), the kinds unchanged")
+	_ok(ArcadeGameProfile.from_key("plain", "p2c2b6w8:joy").rotation() == 0 and not ArcadeGameProfile.from_key("plain", "p2c2b6w8:joy").is_vertical(),
+		"game: a key without one is as the first table read")
+	# The table carries no boot time: nobody measured one, and a coin waits ONE time for every game.
+	var kept := false
+	for line in ArcadeGameTable.TABLE.split("\n", false):
+		kept = kept or line.contains(";k")
+	_ok(not kept and not ArcadeGameProfile.for_romset("sf2").has_method("boot_seconds"),
+		"game: the table has no boot time per game (nothing measured, so nothing invented)")
 	var path := ArcadeGameProfile.for_rom_path("/home/me/retroxr/roms/mame/SF2.zip")
 	_ok(path.known and path.romset == "sf2", "game: a board's path is read as its romset, any case and extension")
 	var unknown := ArcadeGameProfile.for_romset("not_a_real_romset")

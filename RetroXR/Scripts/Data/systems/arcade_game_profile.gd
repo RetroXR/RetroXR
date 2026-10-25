@@ -62,7 +62,7 @@ var buttons := ArcadeProfiles.BUTTON_COUNT
 var ways := 8
 var kinds: PackedStringArray = PackedStringArray()
 ## The key's optional attributes after the kinds, `;`-separated, each a letter and a value
-## (`k8`: eight seconds to boot). A key without them is a key of the first table and reads as it did.
+## (`r270`: the monitor's rotation). A key without them is a key of the first table and reads as it did.
 var attrs: Dictionary = {}
 ## player -> {pad id: the core's word for it}, only for ports that describe THIS game.
 var _described: Dictionary = {}
@@ -151,13 +151,6 @@ func _parse(key: String) -> void:
 		var token := tail[i]
 		if not token.is_empty():
 			attrs[token.substr(0, 1)] = token.substr(1)
-
-
-## How long this game takes to come up from power-on before it counts a coin, in seconds of the game's
-## own time: the table's estimate for its driver (`k`), else ArcadeProfiles.BOOT_SECONDS.
-func boot_seconds() -> float:
-	var k := str(attrs.get("k", ""))
-	return float(k) if k.is_valid_float() and float(k) > 0.0 else ArcadeProfiles.BOOT_SECONDS
 
 
 # ── what the cabinet looked like (the table's attributes; docs/dev/arcade.md "The cabinet follows the game") ──

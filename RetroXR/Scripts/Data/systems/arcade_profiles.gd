@@ -93,14 +93,15 @@ const COIN_PULSE_SECONDS := 0.10
 ## a game counts a coin on the bit's EDGE, and two pulses with no gap are one long coin.
 const COIN_GAP_SECONDS := 0.25
 
-## How long a game takes to come up from power-on before it counts a coin, when the table names
-## nothing for it (ArcadeGameProfile.boot_seconds; Tools/arcade/gen_game_index.py BOOT_SECONDS
-## has the slower drivers). In the game's own time. An ESTIMATE that errs long: a coin held a little
-## too long is a credit a moment late (and START lets it in at once), one let in too early is lost.
-const BOOT_SECONDS := 4.0
+## How long a coin the cabinet is holding waits, once the core is running, before it goes in. MAME says
+## nothing about when a game counts a coin and a board still running its RAM and ROM tests reads none, so
+## this is ONE wait for every game, in the game's own time: there is no boot time per game, because none was
+## ever measured and the table does not invent one. It errs long: a coin held a little too long is a credit
+## a moment late (and START lets it in at once), one let in too early is lost. 0 lets it in on the first frame.
+const COIN_WAIT_SECONDS := 4.0
 ## The least the core must have run before START may let a held coin in early: a frame count, so a
 ## START held through the switch-on does not push the coin into a board that has not started.
-const MIN_BOOT_FRAMES := 30
+const COIN_MIN_FRAMES := 30
 ## After the held coins have gone in, START is held back this long, so the game sees the credit
 ## before the start (a START pressed while they were going in is sent afterwards, once).
 const START_AFTER_COIN_SECONDS := 0.35

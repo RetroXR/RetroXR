@@ -312,17 +312,14 @@ func frames_run() -> int:
 	return now - _run_base
 
 
-## Is the game up to count a coin? Its own boot time (ArcadeGameProfile.boot_seconds) in its own frames.
+## Has the core run long enough for a coin to go in (ArcadeProfiles.COIN_WAIT_SECONDS, in its own frames)?
 func game_ready() -> bool:
-	return ArcadeInputState.game_ready(frames_run(), boot_frames())
+	return ArcadeInputState.game_ready(frames_run(), wait_frames())
 
 
-## How many frames this game takes to come up: the table's seconds for its driver at the core's own rate.
-func boot_frames() -> int:
-	var seconds := ArcadeProfiles.BOOT_SECONDS
-	var profile: ArcadeGameProfile = _model.call("game_profile") if _model != null and _model.has_method("game_profile") else null
-	if profile != null and profile.known:
-		seconds = profile.boot_seconds()
+## How many frames a held coin waits: ArcadeProfiles.COIN_WAIT_SECONDS at the core's own rate, the same for every game.
+func wait_frames() -> int:
+	var seconds := ArcadeProfiles.COIN_WAIT_SECONDS
 	var fps := 60.0
 	var lib := _libretro()
 	if lib != null and lib.has_method("GetDeclaredFps"):
@@ -683,7 +680,7 @@ func _release_pedals() -> void:
 ## to be held back now: while coins are held or going in, and START_AFTER_COIN_SECONDS after, so the game
 ## sees the credit before the start. A START pressed meanwhile is queued, and sent once when it is let go.
 func _step_held_coins(delta: float, start_pressed: bool) -> bool:
-	if ArcadeInputState.start_lets_coins_in(frames_run(), ArcadeProfiles.MIN_BOOT_FRAMES, start_pressed, _escrow.total()):
+	if ArcadeInputState.start_lets_coins_in(frames_run(), ArcadeProfiles.COIN_MIN_FRAMES, start_pressed, _escrow.total()):
 		_letting_in = true
 	var who := _escrow.next(delta, _letting_in or game_ready())
 	if who >= 0:
