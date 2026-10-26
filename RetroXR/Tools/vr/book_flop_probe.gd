@@ -9,7 +9,7 @@
 ## BLANK image, and every frame would "succeed".
 ##
 ##   "$godot" --path RetroXR --resolution 320x240 --position 20,20 \
-##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back] [--hide=covers|blocks|tops|fan] [--outline|--hull]
+##       res://Tools/vr/book_flop_probe.tscn -- --out=<dir> [--floppiness=0.7] [--pages=28] [--only=follow|flip|back|fanturn] [--nolid] [--hide=covers|blocks|tops|fan] [--outline|--hull]
 ##   python Tools/book_flop_video.py <dir>        # frames -> mp4 + contact sheet
 ##
 ## The window stays small; the book is drawn in its own 800x600 SubViewport.
@@ -56,6 +56,9 @@ var _hull := false
 ## Print the page-turn solver's state every frame of a flip.
 var _trace := false
 var _grip_dot: MeshInstance3D
+## --nolid: the control for --only=fanturn — the turning page puts no lid on the
+## loose leaves, as before 2026-10-26, and goes through them.
+var _nolid := false
 
 
 func _ready() -> void:
@@ -66,6 +69,7 @@ func _ready() -> void:
 	var only_follow := false
 	var only_flip := false
 	var only_back := false
+	var only_fanturn := false
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--out="):
 			_out = arg.trim_prefix("--out=")
@@ -77,6 +81,10 @@ func _ready() -> void:
 			only_flip = true
 		elif arg == "--only=back":
 			only_back = true
+		elif arg == "--only=fanturn":
+			only_fanturn = true
+		elif arg == "--nolid":
+			_nolid = true
 		elif arg.begins_with("--pages="):
 			_pages = maxi(int(arg.trim_prefix("--pages=")), 8)
 		elif arg == "--outline":
@@ -137,6 +145,19 @@ func _ready() -> void:
 	if only_flip:
 		_trace = true
 		await _flip("a page turned on the hanging book", 1, 1.8)
+		await _finish()
+		return
+	if only_fanturn:
+		# Turned over so both fans are up, then pages turned onto them: the page
+		# must press the far side's loose leaves down, not pass through them, and
+		# none of them may change its picture where it can be seen.
+		await _hold("F1 turned over: the loose leaves fan off both blocks", FACE_UP, FACE_DOWN, below, 2.6)
+		await _flip("F2 a page turned by hand onto the far fan", 1, 2.4)
+		await _hold("F3 the fan comes back up, the landed page on top", FACE_DOWN, FACE_DOWN, below, 1.4)
+		await _key_turn("F4 E pressed: a page sprung over onto it", 1)
+		await _hold("F5 and up again", FACE_DOWN, FACE_DOWN, below, 1.4)
+		await _key_turn("F6 Q pressed: one turned back onto the other fan", -1)
+		await _hold("F7 and up again", FACE_DOWN, FACE_DOWN, below, 1.4)
 		await _finish()
 		return
 	if only_follow:
@@ -217,6 +238,7 @@ func _hold(caption: String, from: Basis, to: Basis, cam_pos: Vector3, seconds: f
 			var lift := shake_m * sin(TAU * shake_hz * t)
 			_book.global_transform = Transform3D(basis, Vector3(0.0, lift, 0.0))
 			_book._flop.set_support(held, hand, second_hand)
+			_lid()
 			_book._flop.drive_from_pose(DT, _book.global_transform, held)
 			_book._push_flop(false)
 			_cam.position = cam_from.lerp(cam_pos, blend)
@@ -289,6 +311,7 @@ func _flip(caption: String, dir: int, seconds: float) -> void:
 		var u := float(i) / float(frames - 1)
 		for k in TICKS_PER_FRAME:
 			_book._flop.set_support(true, Vector3.ZERO)
+			_lid()
 			_book._flop.drive_from_pose(DT, _book.global_transform, true)
 			_book._push_flop(false)
 		var along := lerpf(w * 0.85, -w * 0.70, smoothstep(0.0, 1.0, u))
@@ -313,12 +336,42 @@ func _flip(caption: String, dir: int, seconds: float) -> void:
 	# The settle is a Tween on real time; film it until the leaf is gone.
 	for i in 45:
 		for k in TICKS_PER_FRAME:
+			_lid()
 			_book._flop.drive_from_pose(DT, _book.global_transform, true)
 			_book._push_flop(false)
 		await _capture()
 		if _book._active_leaf == null and i > 8:
 			break
 	print("[probe]   leaf %d -> %d" % [from_leaf, _book._current_leaf])
+
+
+## A page sprung over as E / Q does (_play_turn), filmed until it has landed.
+func _key_turn(caption: String, dir: int) -> void:
+	_caption = caption
+	print("[probe] %s" % caption)
+	var from_leaf := _book._current_leaf
+	_book._play_turn(dir, {}, PDFBook.KEY_TURN_TIME * 2.0)
+	# The spring is a Tween on real time, and frames here go faster than that:
+	# film until it has landed, not for a count of frames.
+	for i in 600:
+		for k in TICKS_PER_FRAME:
+			_lid()
+			_book._flop.drive_from_pose(DT, _book.global_transform, true)
+			_book._push_flop(false)
+		await _capture()
+		if _book._active_leaf == null:
+			break
+	print("[probe]   leaf %d -> %d" % [from_leaf, _book._current_leaf])
+
+
+## PDFBook._physics_process puts the turning pages' lid on the fan before it
+## steps the sim; so does every tick here, unless --nolid.
+func _lid() -> void:
+	if _nolid:
+		_book._flop.set_fan_lid(-1, INF)
+		_book._flop.set_fan_lid(1, INF)
+	else:
+		_book._update_fan_lids()
 
 
 ## Does the page follow the hand? Grip the fore edge and pull OVER the page toward
@@ -360,6 +413,7 @@ func _follow() -> void:
 			var flat: Vector3 = from.lerp(leg[1], u)
 			for k in TICKS_PER_FRAME:
 				_book._flop.set_support(true, Vector3.ZERO)
+				_lid()
 				_book._flop.drive_from_pose(DT, _book.global_transform, true)
 				_book._push_flop(false)
 			var hand := _book.to_global(_book._flop.bend_over(flat, 1))
@@ -400,6 +454,7 @@ func _follow() -> void:
 	_grip_dot.visible = false
 	for i in 30:
 		for k in TICKS_PER_FRAME:
+			_lid()
 			_book._flop.drive_from_pose(DT, _book.global_transform, true)
 			_book._push_flop(false)
 		await _capture()

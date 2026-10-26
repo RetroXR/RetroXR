@@ -255,6 +255,32 @@ Face-up, gravity pins the whole fan at *exactly* zero and no leaf is drawn. Tip 
 vertical and they peel off; each deeper leaf is held a little tighter by the binding
 (`FAN_W2_SPREAD`), which is the only reason a fan fans instead of moving as one sheet.
 
+**A page being turned is a LID on the fan of every half it is over** (2026-10-26,
+`_update_fan_lids` → `BookFlop.set_fan_lid`, every physics tick, for the active leaf and every
+riffle sheet). Only the side a page is turned FROM was ever shut (`suppress_fan`): on a tipped
+book the far side's leaves floated on, the incoming page came down straight through them, and
+on landing `_update_spread_textures` re-dealt them a page over while they were still in the air,
+so every loose leaf in view swapped its picture at once. Now the leaves cannot peel past the
+page over them: they are pressed down as it comes over, lie flat and hidden when it lands, and
+the re-deal happens under it; then they peel up again with the landed page on top.
+- **Measured BENT, never flat** (`_sheet_over_halves`): a few points of the sheet go through the
+  shader's fold and `BookFlop.bend_over` (the `flop_cross` path), and each is an angle about the
+  gutter against the block's top at the same distance. The first version measured the flat book
+  and let leaves 16 mm through the page on a drooping half: the turning sheet takes the binding's
+  turn over a wider arc (`hinge_len_at`), so it sits lower than the flat book says (9° above the
+  block flat, 4° bent). A leaf's chord never turns further than its peel, so the lid is a safe
+  bound on the peel.
+- `_sync_fan` refreshes the spread MID-TURN too now: leaves pressed under the page change how
+  many are shown, and the far block must show the page they were lifting. The refresh ends in
+  `_relay_turning_leaf()`, which keeps the turning side right.
+- A riffle's landing side indexes its fan from `_flight_shown`, as its block does. Indexed from
+  the stepped spread, its top leaf wore the page still in the air.
+- `fan_lid/` in `book_flop_tests`: a leaf against the page as angles about the gutter, from the
+  leaf's own `fan_params` and the suite's own fold replay. The control is the same turn with no
+  lid (46 mm through, 3 swaps in view).
+- NOT done: the page you lift is that side's leaf 0 and still starts flat, so a peeled top leaf
+  jumps flat as it becomes the turning page (its peel would have to become `_leaf_lift`).
+
 **Page textures are capped at `MAX_PAGE_PX` (2048) on the long side** (2026-09-30).
 `render_dpi` 150 suits an ordinary page (letter 1275 x 1650) and never reaches it; a scan
 stored at its paper size does — the Ocarina of Time manual is 15.5 x 22.5 in, 2325 x 3375,

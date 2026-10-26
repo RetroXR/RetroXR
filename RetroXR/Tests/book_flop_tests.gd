@@ -49,6 +49,7 @@ func _ready() -> void:
 	await _test_book()
 	await _test_turning_leaf_textures()
 	await _test_end_leaves()
+	await _test_fan_lid()
 	await _test_thick_book()
 
 	print("[test] %d cases, %s" % [_ran,
@@ -1218,6 +1219,174 @@ func _through_far(book: PDFBook) -> float:
 			var flat := book._flop.unbend_over(book.to_local(_leaf_point_world(book, p)), book._turn_direction)
 			if float(book._grab_dir) * flat.x < -0.15 * w:
 				worst = maxf(worst, far_plane - flat.z)
+	return worst
+
+
+## Loose leaves and a page coming over them, on a book tipped face down so both
+## fans are up. Only the side a page is turned FROM was shut: the far side's
+## leaves floated on, the incoming page went straight through them, and on landing
+## they were re-dealt a page over while still in the air — every one swapped its
+## picture at once. The page is now a lid on them (_update_fan_lids).
+##
+## The suite drives the tick itself (the book is frozen and nobody holds it), so
+## the control is the same turn with no lid: it must show a leaf through the page
+## or a visible swap, or the oracle cannot tell the two apart.
+func _test_fan_lid() -> void:
+	var sim := _open_sim(12, 12, 3)
+	_run(sim, FACE_DOWN)
+	var free := sim.fan_delta(-1, 0)
+	sim.set_fan_lid(-1, 0.1)
+	var capped := true
+	for i in 200:
+		sim.step(DT, FACE_DOWN, FACE_DOWN)
+		for k in 3:
+			capped = capped and sim.fan_delta(-1, k) <= 0.1 + 1e-9
+	_ok(free > 0.2 and capped and sim.fan_delta(-1, 0) > 0.09,
+		"fan_lid/sim: a lid holds every loose leaf at it, pressed up against it (%.2f -> %.2f rad)"
+			% [free, sim.fan_delta(-1, 0)])
+	sim.set_fan_lid(-1, INF)
+	_run(sim, FACE_DOWN)
+	_ok(sim.fan_delta(-1, 0) > 0.2, "fan_lid/sim: ...and lifted, they fall open again")
+
+	_write_cbz(CBZ_PATH)
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.freeze = true
+	book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
+	add_child(book)
+	await _settle()
+	var lidded := await _fan_lid_turn(book, true)
+	var bare := await _fan_lid_turn(book, false)
+	_ok(int(lidded["fanned"]) > 0 and float(lidded["through"]) < 0.001,
+		"fan_lid/the page coming over presses the far side's loose leaves down, never through them (%d up, worst %+.1f mm)"
+			% [int(lidded["fanned"]), float(lidded["through"]) * 1000.0])
+	_ok(int(lidded["swaps"]) == 0,
+		"fan_lid/...and no loose leaf in view changes its picture, through the landing too (%d swaps)" % int(lidded["swaps"]))
+	_ok(bool(lidded["repeels"]),
+		"fan_lid/after it lands they peel up again, the landed page on top")
+	_ok(float(bare["through"]) > 0.002 or int(bare["swaps"]) > 0,
+		"fan_lid/control: with no lid the same turn goes through them (%+.1f mm) or swaps them in view (%d)"
+			% [float(bare["through"]) * 1000.0, int(bare["swaps"])])
+
+	# A riffle: the block sheets are landing on keeps the page it showed, and so
+	# must its fan, or its top leaf wears the page still in the air.
+	book._despawn_active_leaf()
+	book.set_page(PDFBook.BookState.OPEN, 5)
+	await _settle()
+	await _drain_renders(book)
+	_drive(book, FACE_DOWN)
+	var wore_in_flight := 0
+	var frames := 0
+	_ok(book._launch_flight(1) and book._launch_flight(1), "fan_lid/riffle: two sheets in the air")
+	for i in 600:
+		await get_tree().process_frame
+		if book._flights.is_empty():
+			break
+		frames += 1
+		book._update_fan_lids()
+		_drive(book, FACE_DOWN, 2)
+		var top := _page_of(book, _mat(_fan_leaf(book, -1, 0)).get_shader_parameter("front_texture"))
+		for flight: Dictionary in book._flights:
+			if top == int(flight["back"]):
+				wore_in_flight += 1
+	_ok(frames > 0 and wore_in_flight == 0,
+		"fan_lid/riffle: the landing side's top leaf never wears a page still in flight (%d of %d frames)"
+			% [wore_in_flight, frames])
+	book.queue_free()
+	await _settle()
+
+
+## One forward turn on a book tipped face down, the tick driven by hand: how far
+## any visible far-side loose leaf got through the turning page (metres), how many
+## times a leaf in view changed its picture, and whether the fan came back up
+## with the landed page on top.
+func _fan_lid_turn(book: PDFBook, lid: bool) -> Dictionary:
+	book._despawn_active_leaf()
+	book.set_page(PDFBook.BookState.OPEN, 5)
+	await _settle()
+	await _drain_renders(book)
+	_drive(book, FACE_DOWN)
+	var fanned: int = book._fan_shown[0]
+	var landed_page: int = (book._current_leaf + 1) * 2 + 1
+	var seen := [null, null, null]
+	var through := -INF
+	var swaps := 0
+	book._play_turn(1, {}, PDFBook.KEY_TURN_TIME)
+	for i in 600:
+		await get_tree().process_frame
+		if lid:
+			book._update_fan_lids()
+		elif book._active_leaf != null:
+			book._flop.set_fan_lid(-1, INF)
+		_drive(book, FACE_DOWN, 2)
+		if book._active_leaf != null:
+			through = maxf(through, _fan_through_leaf(book, -1))
+		swaps += _count_swaps(book, -1, seen)
+		if book._active_leaf == null:
+			break
+	await _drain_renders(book)
+	var repeels := false
+	for i in 120:
+		await get_tree().process_frame
+		_drive(book, FACE_DOWN, 2)
+		swaps += _count_swaps(book, -1, seen)
+		var top := _fan_leaf(book, -1, 0)
+		if top.visible and _page_of(book, _mat(top).get_shader_parameter("front_texture")) == landed_page:
+			repeels = true
+			break
+	return {"fanned": fanned, "through": through, "swaps": swaps, "repeels": repeels}
+
+
+## Visible loose leaves on `dir` whose picture changed since the last call.
+func _count_swaps(book: PDFBook, dir: int, seen: Array) -> int:
+	var n := 0
+	var side: Array = book._fan_leaves[1 if dir > 0 else 0]
+	for k in side.size():
+		var leaf := side[k] as MeshInstance3D
+		var tex: Variant = _mat(leaf).get_shader_parameter("front_texture") if leaf.visible else null
+		if tex != null and seen[k] != null and tex != seen[k]:
+			n += 1
+		seen[k] = tex
+	return n
+
+
+## How far any visible loose leaf on `dir` stands through the turning page, in
+## metres (positive = through it). Both hinge at the binding, so they are compared
+## as angles about the gutter at the same distance from it: the leaf's shape from
+## its own bend (BookFlop.bend_sz with its fan_params, as its shader is given),
+## the page's from _leaf_point_world.
+func _fan_through_leaf(book: PDFBook, dir: int) -> float:
+	var w := book._book_width
+	var h := book.book_height
+	var gap := book._spine_width() * 0.5
+	var pivot := Vector2(0.0, book._flop.params(dir).w)
+	var worst := -INF
+	var side: Array = book._fan_leaves[1 if dir > 0 else 0]
+	for k in side.size():
+		var leaf := side[k] as MeshInstance3D
+		if not leaf.visible:
+			continue
+		var p := book._flop.fan_params(dir, k)
+		var rho := PackedFloat64Array()
+		var phi := PackedFloat64Array()
+		for j in 41:
+			var b := BookFlop.bend_sz(gap + w * float(j) / 40.0, leaf.position.z, p)
+			var rel := Vector2(b.x, b.y) - pivot
+			rho.append(rel.length())
+			phi.append(atan2(rel.y, rel.x))
+		for ix in 11:
+			for iy in 5:
+				var pt := Vector2(lerpf(-0.5, 0.5, float(ix) / 10.0) * w, lerpf(-0.45, 0.45, float(iy) / 4.0) * h)
+				var local := book.to_local(_leaf_point_world(book, pt))
+				var rel := Vector2(float(dir) * local.x, local.z) - pivot
+				if rel.x < 0.15 * w:
+					continue
+				var r := rel.length()
+				for j in 40:
+					if (rho[j] - r) * (rho[j + 1] - r) <= 0.0 and rho[j] != rho[j + 1]:
+						var t := (r - rho[j]) / (rho[j + 1] - rho[j])
+						var leaf_phi := lerpf(phi[j], phi[j + 1], t)
+						worst = maxf(worst, (leaf_phi - atan2(rel.y, rel.x)) * r)
+						break
 	return worst
 
 

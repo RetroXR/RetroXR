@@ -127,6 +127,9 @@ var _fan_count := [0, 0]
 var _fan := [PackedFloat64Array(), PackedFloat64Array()]
 var _fan_v := [PackedFloat64Array(), PackedFloat64Array()]
 var _fan_suppressed := [false, false]
+## The highest each side's fan may peel to: a page being turned over that half
+## lies on it (set_fan_lid). INF = nothing over it.
+var _fan_lid := [INF, INF]
 var _leaves := [0, 0]
 var _sag := 0.0
 var _sag_v := 0.0
@@ -190,6 +193,7 @@ func reset() -> void:
 		_clamp[i] = 0.0
 		_clamp_target[i] = 0.0
 		_accel[i] = Vector3.ZERO
+		_fan_lid[i] = INF
 		for k in _fan_count[i]:
 			_fan[i][k] = 0.0
 			_fan_v[i][k] = 0.0
@@ -231,6 +235,31 @@ func suppress_fan(dir: int, on: bool) -> void:
 		for k in _fan_count[i]:
 			_fan[i][k] = 0.0
 			_fan_v[i][k] = 0.0
+
+
+## A page being turned is over this half, and the loose leaves under it cannot
+## peel past `angle` (fan_delta units, off the block): it presses them down as
+## it comes over instead of passing through them. INF lifts it. Applied at once
+## as well as every step, so a page coming down between ticks never shows a
+## frame with a leaf through it.
+func set_fan_lid(dir: int, angle: float) -> void:
+	var i := _i(dir)
+	_fan_lid[i] = maxf(angle, 0.0)
+	if is_inf(angle):
+		return
+	var d: PackedFloat64Array = _fan[i]
+	var v: PackedFloat64Array = _fan_v[i]
+	for k in _fan_count[i]:
+		if d[k] > _fan_lid[i]:
+			d[k] = _fan_lid[i]
+			v[k] = minf(v[k], 0.0)
+	_fan[i] = d
+	_fan_v[i] = v
+
+
+## The lid on a side's fan, INF if nothing is over it.
+func fan_lid(dir: int) -> float:
+	return _fan_lid[_i(dir)]
 
 
 # ── Stepping ──────────────────────────────────────────────────────────────────
@@ -413,7 +442,7 @@ func _step_fan(i: int, h: float, a_s: float, a_z: float, gain: float) -> void:
 		return
 	var base: float = sag_slope(1 if i == 1 else -1) + _hinge[i] + _bend[i]
 	var far: float = sag_slope(-1 if i == 1 else 1) + _hinge[1 - i] + _bend[1 - i]
-	var ceiling := minf(FAN_ANGLE_MAX, PI - far - FAN_FAR_CLEARANCE) - base
+	var ceiling := minf(minf(FAN_ANGLE_MAX, PI - far - FAN_FAR_CLEARANCE) - base, _fan_lid[i])
 	for k in n:
 		var w2 := FAN_W2 * (1.0 + FAN_W2_SPREAD * float(k))
 		var ang: float = base + d[k]
