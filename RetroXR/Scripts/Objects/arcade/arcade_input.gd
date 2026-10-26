@@ -584,10 +584,20 @@ func _process(delta: float) -> void:
 				if pedal_down:
 					bits |= 1 << ControllerBindings.JOYPAD_A
 				bits |= tapped
-				_send(p, bits, _NEUTRAL)
+				_send(p, bits, _gun_axes(held_gun))
 			continue
 		_send(p, mask, states[p])
 	_apply_free_hand_block()
+
+
+## What a gun writes to the pad's sticks: nothing, unless the game reads it as an analog stick (ArcadeGameProfile.aims_as_stick:
+## Silent Scope, Terminator 2...). libretro-mame binds an AD stick to the LEFT stick and a gun to the light-gun device alone, so the
+## gun's aim goes out as the left stick too, in the same coordinates (a light gun's y and a stick's both grow downward).
+func _gun_axes(gun: LightGun) -> Dictionary:
+	var game: ArcadeGameProfile = _model.call("game_profile") if _model != null and _model.has_method("game_profile") else null
+	if game == null or not game.aims_as_stick() or gun == null:
+		return _NEUTRAL
+	return {"btn": 0, "alx": gun.last_aim.x, "aly": gun.last_aim.y, "arx": 0, "ary": 0}
 
 
 ## The foot pedal wired to `port` (ArcadePedalModule.port), and whether it is down. A headset reads no feet, so

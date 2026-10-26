@@ -878,7 +878,13 @@ func _set_button(libretro: Libretro, button: int, pressed: bool) -> void:
 		libretro.SetLightgunButton(_port_index, button, pressed)
 
 
+## The aim last sent, in libretro light-gun coordinates (-0x7fff..0x7fff, y down): a cabinet whose game reads a gun as an analog stick
+## sends it as the pad's left stick as well (ArcadeInput._gun_axes).
+var last_aim := Vector2i.ZERO
+
+
 func _set_aim(libretro: Libretro, x: int, y: int, offscreen: bool) -> void:
+	last_aim = Vector2i(x, y)
 	if not NetworkManager.netplay_set_lightgun_aim(_connected_system, _port_index,
 			x, y, offscreen):
 		libretro.SetLightgunPosition(_port_index, x, y)

@@ -280,6 +280,23 @@ func _group_specs() -> void:
 	var sc := _spec("sscope")
 	_ok(str(sc["gun_style"]) == "rifle" and int(sc["guns"]) == 1 and int(sc["screen"]["screens"]) == 2,
 		"specs: Silent Scope: one rifle, two screens")
+	# The shooters MAME files as a joystick panel, analog sticks or nothing at all (the curated list): each is a gun cabinet with its guns,
+	# a pedal for each gun only where the game had them.
+	var shooters_bad: Array = []
+	for row: Array in [["timecrs3", "holster", 2, true], ["timecrs4", "holster", 2, true], ["timecrs4j", "holster", 2, true],
+			["vnight", "holster", 2, false], ["hotd3", "holster", 2, false], ["hotd4", "holster", 2, false],
+			["ghostsev", "holster", 2, false], ["ghostsqu", "holster", 2, false], ["vcop3", "holster", 2, false],
+			["ninjaslt", "holster", 2, false], ["gunsur2", "holster", 1, false], ["letsgoju", "holster", 2, false],
+			["alien3", "mounted", 2, false], ["jpark", "mounted", 2, false], ["gunblade", "mounted", 2, false],
+			["rchase2", "mounted", 2, false], ["oceanhun", "mounted", 2, false],
+			["timecris", "holster", 1, true], ["timecrs2", "holster", 1, true], ["crszone", "holster", 1, true]]:
+		var sp := _spec(str(row[0]))
+		var pedals_n := (sp.get("gun_pedals", []) as Array).size()
+		if not (str(sp.get("form", "")) in ["gun", "gunm"] and str(sp.get("shape", "")) == "wide" and str(sp.get("gun_style", "")) == str(row[1])
+				and int(sp.get("guns", 0)) == int(row[2]) and not bool(sp.get("sockets", true))
+				and pedals_n == (int(row[2]) if bool(row[3]) else 0) and (sp["players"] as Array).size() == int(row[2])):
+			shooters_bad.append("%s (%s)" % [row[0], str(sp.get("form", "own"))])
+	_ok(shooters_bad.is_empty(), "specs: every shooter is a wide gun cabinet with its guns (cords or mounts), no sockets, a START for each gun, a pedal under each only for Time Crisis and Crisis Zone (%s)" % str(shooters_bad))
 	# A two-gun game's panels are START alone for each gun, and a door under each.
 	_ok(_kinds(pb) == ["start", "start"] and (pb["coins"] as Array).size() == 2 and not bool(pb["sockets"]),
 		"specs: Point Blank: a START for each gun and a coin door under each")
@@ -957,6 +974,47 @@ func _group_guns() -> void:
 		for i in 6:
 			tc_pedal.tick(0.02)
 		_ok(tc_plate.transform.is_equal_approx(tc_rest), "guns: and back up")
+	# A game that reads its gun as an analog stick (MAME's AD_STICK: libretro-mame binds it to the LEFT stick, a light gun to the
+	# light-gun device alone) hears the aim as the left stick too; a light-gun game does not.
+	var input := model.arcade_input()
+	await _pull(sys)
+	await _board(sys, "term2")
+	await _wait(10)
+	var t2_gun := sys.captive_controllers()[0] as LightGun
+	t2_gun.last_aim = Vector2i(1234, -4321)
+	var axes := input._gun_axes(t2_gun)
+	_ok(int(axes["alx"]) == 1234 and int(axes["aly"]) == -4321 and int(axes["arx"]) == 0 and int(axes["ary"]) == 0,
+		"guns: Terminator 2's gun aim goes out as the left stick, in the light gun's own coordinates (%s)" % str(axes))
+	# ... and it is what the running cabinet sends on the gun's port, every frame.
+	sys.is_powered_on = true
+	input.frame_override = input.wait_frames()
+	input._process(0.01)
+	_ok(input._heard_axes.get(0, Vector4i.ZERO) == Vector4i(1234, -4321, 0, 0),
+		"guns: the running cabinet sends it on the gun's port (%s)" % str(input._heard_axes.get(0, "nothing")))
+	sys.is_powered_on = false
+	input.frame_override = -1
+	await _pull(sys)
+	await _board(sys, "sscope")
+	await _wait(10)
+	var rifle_gun := sys.captive_controllers()[0] as LightGun
+	rifle_gun.last_aim = Vector2i(-777, 555)
+	axes = input._gun_axes(rifle_gun)
+	_ok(int(axes["alx"]) == -777 and int(axes["aly"]) == 555, "guns: and so does Silent Scope's rifle (yaw and pitch are two AD sticks)")
+	await _pull(sys)
+	await _board(sys, "timecris")
+	await _wait(10)
+	var tc_gun := sys.captive_controllers()[0] as LightGun
+	tc_gun.last_aim = Vector2i(1234, -4321)
+	axes = input._gun_axes(tc_gun)
+	_ok(int(axes["alx"]) == 0 and int(axes["aly"]) == 0, "guns: a light-gun game (Time Crisis) hears nothing on the stick")
+	sys.is_powered_on = true
+	input.frame_override = input.wait_frames()
+	input._process(0.01)
+	_ok(input._heard_axes.get(0, Vector4i.ZERO) == Vector4i.ZERO, "guns: and the running cabinet sends it none")
+	sys.is_powered_on = false
+	input.frame_override = -1
+	await _pull(sys)
+	_ok(input._gun_axes(null)["alx"] == 0, "guns: and no gun is no aim")
 
 
 # --- odd -----------------------------------------------------------------------

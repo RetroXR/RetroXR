@@ -272,6 +272,13 @@ func is_gun() -> bool:
 	return has_kind(KIND_GUN) and not _wants_stick()
 
 
+## A gun game whose control MAME files as an analog stick, not a light gun (Silent Scope's yaw and pitch, Terminator 2's and
+## Operation Thunderbolt's aim, Alien3, Jurassic Park, Gunblade NY). libretro-mame binds an AD stick to the pad's LEFT stick and a
+## light gun to the light-gun device alone, so the gun's aim also goes out as the left stick (ArcadeInput._gun_axes).
+func aims_as_stick() -> bool:
+	return is_gun() and has_kind(KIND_STICK)
+
+
 ## A driving game: a wheel and pedals (MAME calls them a paddle and a pedal; Pole Position's wheel is a dial).
 func is_driving() -> bool:
 	if not known:

@@ -85,8 +85,26 @@ MOUNTED_GUN = {"opwolf", "othunder", "bbusters", "bbust2", "mechatt", "loffire",
                "revx", "dragngun", "lostwsga"}
 # A rifle on a mount with a scope you look into (the scope is a second screen in Silent Scope).
 RIFLE = {"sscope", "sscope2", "sscopex", "sscopefh", "golgo13", "g13knd", "g13jnr"}
+# Gun games MAME does not file as light guns, by PARENT romset: name -> (form, guns). Three kinds:
+# a driver that declares no controls yet (Namco System 246's Time Crisis 3 and 4 and Vampire Night, Sega
+# Lindbergh's House of the Dead 4 and EX, Ghost Squad Evolution, Let's Go Jungle, Primeval Hunt), the
+# joystick panel a Chihiro, Naomi or Atomiswave game is given (House of the Dead III, Ghost Squad, Virtua Cop
+# 3, Ninja Assault, Gun Survivor 2, Sports Shooting USA, Clay Challenge, Extreme Hunting), and the analog
+# sticks a positional gun reads as (Alien3, Jurassic Park, Gunblade NY, Rail Chase 2: swivel mounts like
+# Terminator 2's). Counts and cords-or-mounts are what the real cabinets had (docs/dev/arcade-cabinets.md);
+# MAME's own `g` wins where it counts guns.
+UNTYPED_GUNS = {
+    "vnight": ("gun", 2), "timecrs3": ("gun", 2), "timecrs4": ("gun", 2),
+    "hotd3": ("gun", 2), "ghostsqu": ("gun", 2), "vcop3": ("gun", 2),
+    "hotd4": ("gun", 2), "hotdex": ("gun", 2), "ghostsev": ("gun", 2), "letsgoju": ("gun", 2),
+    "primevah": ("gun", 2),
+    "ninjaslt": ("gun", 2), "gunsur2": ("gun", 1),
+    "sprtshot": ("gun", 2), "claychal": ("gun", 2), "xtrmhunt": ("gun", 2), "xtrmhnt2": ("gun", 2),
+    "alien3": ("gunm", 2), "jpark": ("gunm", 2), "gunblade": ("gunm", 2), "rchase2": ("gunm", 2),
+    "oceanhun": ("gunm", 2),
+}
 # Gun games with a foot pedal (step on it to come out of cover).
-GUN_PEDAL = {"timecris", "timecrs2", "crszone"}
+GUN_PEDAL = {"timecris", "timecrs2", "timecrs3", "timecrs4", "crszone"}
 # Ride-on motorbikes (and a quad, and a mountain bike): a seat you straddle and handlebars.
 BIKE = {"hangon", "hangonjr", "shangon", "enduror", "fourtrax", "rachero", "gprider", "motofren",
         "scross", "suzuka8h", "suzuk8h2", "coolridr", "cybrcycc", "manxtt", "harley", "motoraid",
@@ -182,6 +200,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return "rifle"
     if name_for_lists in MOUNTED_GUN:
         return "gunm"
+    if name_for_lists in UNTYPED_GUNS:
+        return UNTYPED_GUNS[name_for_lists][0]
     if "gun" in kinds:
         return "gun"
     if name_for_lists in BIKE:
@@ -194,14 +214,23 @@ def form_of(machine, parent, kinds, name_for_lists):
 
 
 def profile_of(machine, parent):
+    name = machine.get("name")
+    family = machine.get("cloneof") or name
+    untyped = UNTYPED_GUNS.get(family)
     inp = machine.find("input")
     if inp is None:
-        return None
+        if untyped is None:
+            return None
+        inp = ET.SubElement(machine, "input")
+    if untyped is not None:
+        # A driver that declares no controls yet: the cabinet is the gun game it was, a player and a coin door to a gun.
+        if int(inp.get("players", "0") or 0) < 1:
+            inp.set("players", str(untyped[1]))
+        if int(inp.get("coins", "0") or 0) < 1:
+            inp.set("coins", str(untyped[1]))
     coins = int(inp.get("coins", "0") or 0)
     if coins < 1:
         return None
-    name = machine.get("name")
-    family = machine.get("cloneof") or name
     source = machine.get("sourcefile", "")
     touch = source in TOUCH_DRIVERS or name.startswith(TOUCH_PREFIXES)
     players = int(inp.get("players", "1") or 1)
@@ -234,6 +263,8 @@ def profile_of(machine, parent):
             attrs.append("r" + rot)
         if len(displays) > 1:
             attrs.append("s%d" % len(displays))
+    if not guns and untyped is not None:
+        guns = untyped[1]
     if guns:
         attrs.append("g%d" % guns)
     form = form_of(machine, parent, kinds, family)

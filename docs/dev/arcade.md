@@ -770,6 +770,18 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   short of the glass). **A gun on a post is FIXED to it** (2026-10-25: it used to be taken off the post like a pistol and put back; the real ones
   are bolted to the cabinet and only turn in their housing): see "Guns on a swivel" below. **Pedals only where the game had them** (`f`: Time Crisis): one under each gun, or one in the middle for one gun;
   each its player's button 2 ("The pedal"). Three guns put the coin doors either side of the middle holster.
+  **Every shooter is one, MAME's own typing or not** (2026-10-26): MAME files a light gun only where its driver reads one, so Time Crisis 3 and 4
+  and Vampire Night (a System 246 driver that declares no controls at all, so no profile existed and the cabinet stayed an upright), House of the
+  Dead III and 4, Ghost Squad, Virtua Cop 3, Let's Go Jungle, Ninja Assault and the Atomiswave hunters (a joystick panel) and Alien3, Jurassic Park,
+  Gunblade NY, Rail Chase 2 (analog sticks, like Terminator 2) were plain uprights. `UNTYPED_GUNS` in `gen_game_index.py` names them, by parent
+  romset, with their form and number of guns; MAME's own `g` wins where it counts guns, and a driver with no `<input>` is given a profile
+  (players and coin doors to a gun). `arcade_tests game/` pins a roster of 60 shooters (the form and the pedal), and a census over the whole
+  table: **no profile that names a light gun is left an upright** (bar five whose "gun" is a hammer, a seat or a stage: `odd`).
+  **A gun MAME reads as an analog stick is also the pad's left stick** (`ArcadeGameProfile.aims_as_stick`: a gun game with the `stick` kind):
+  libretro-mame binds `IPT_AD_STICK` to the pad's LEFT stick and a light gun to the light-gun device alone (`ah_assignmenthelper.cpp`, `input_retro.cpp`),
+  so a rifle or a mount sending only a light-gun position aimed nothing in Silent Scope, Terminator 2 or Operation Thunderbolt. `ArcadeInput._gun_axes`
+  sends `LightGun.last_aim` (the light gun's own coordinates; y grows downward in both) as `alx`/`aly` on the gun's port while the gun is in it.
+  Not run against a core (none in the sandbox): that a game reads the aim there, and the sensitivity, are owed.
 - **A sit-down driving cockpit** (`race`; `ArcadeCabinetBuilder._build_cockpit`): the `racer` body (a lower monitor, leaning back, its middle at
   1.1 m for a SEATED driver) and in front of it, clear of the bay door's swing, a platform, the seat, a dash holding the wheel, the gas and brake
   pedals in the footwell, a gear lever by the right hand and START on the dash; a ROOF over the seat for the Model 3 twins (`o`: Scud Race, Le
@@ -932,7 +944,8 @@ hand or a laser reaches them from above once the door is open; a small bracket c
 The joypad device maps RetroPad A to BUTTON2 (`button_mapping`, B A Y X L R; none of the three games is in its remap lists). The note
 that stood here, "MAME maps it to a keyboard-style input that a lightgun port does not carry", was wrong. The table's `f`
 (`GUN_PEDAL` in `gen_game_index.py`): `timecris`, `timecrs2`, `crszone`, each ONE gun (a System 22/23 board is one player's; the twin
-cabinets are two boards linked).
+cabinets are two boards linked), and `timecrs3` and `timecrs4` (System 246, two guns and a pedal under each: their driver declares no controls, so the
+guns and the pedals are the curated list's, not MAME's).
 
 - **How it is worked** (`ArcadeInput._step_pedal`, since 2026-10-25 later; first it was pressed by a held A/X or key, which tired
   the thumb for the whole game): **while that player's gun is in a hand the pedal is DOWN, out of cover, and taking cover lifts it**;

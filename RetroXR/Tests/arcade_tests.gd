@@ -1511,6 +1511,31 @@ func _mame_generic() -> Array:
 	return rows
 
 
+## Every shooter the cabinet has to become one for, by romset: [form, foot pedal]. Some are light guns in MAME's own list; the others
+## (Time Crisis 3 and 4, Vampire Night, House of the Dead III and 4, Ghost Squad, Ninja Assault, Alien3, Jurassic Park, Gunblade NY...)
+## it files as a joystick panel, analog sticks or no controls at all, and the generator's curated list turns them into guns.
+const _SHOOTERS := {
+	"timecris": ["gun", true], "timecrs2": ["gun", true], "timecrs3": ["gun", true], "timecrs4": ["gun", true],
+	"crszone": ["gun", true], "vnight": ["gun", false], "ptblank": ["gun", false], "ptblank2": ["gun", false],
+	"ptblank3": ["gun", false], "gunbuletw": ["gun", false], "sgunner": ["gun", false], "sgunner2": ["gun", false],
+	"hotd": ["gun", false], "hotd2": ["gun", false], "hotd3": ["gun", false], "hotd4": ["gun", false],
+	"hotdex": ["gun", false], "vcop": ["gun", false], "vcop2": ["gun", false], "vcop3": ["gun", false],
+	"ghostsqu": ["gun", false], "ghostsev": ["gun", false], "letsgoju": ["gun", false], "primevah": ["gun", false],
+	"ninjaslt": ["gun", false], "gunsur2": ["gun", false], "deathcox": ["gun", false], "confmiss": ["gun", false],
+	"lupinsho": ["gun", false], "sprtshot": ["gun", false], "claychal": ["gun", false], "xtrmhunt": ["gun", false],
+	"xtrmhnt2": ["gun", false], "lethalen": ["gun", false], "le2": ["gun", false], "area51": ["gun", false],
+	"maxforce": ["gun", false], "jpark3": ["gun", false], "p9112": ["gun", false], "bang": ["gun", false],
+	"bbh": ["gun", false], "deerhunt": ["gun", false], "turkhunt": ["gun", false], "cryptklr": ["gun", false],
+	"opwolf3": ["gun", false], "duckhunt": ["gun", false],
+	"opwolf": ["gunm", false], "othunder": ["gunm", false], "term2": ["gunm", false], "revx": ["gunm", false],
+	"bbusters": ["gunm", false], "bbust2": ["gunm", false], "mechatt": ["gunm", false], "spacegun": ["gunm", false],
+	"loffire": ["gunm", false], "lostwsga": ["gunm", false], "dragngun": ["gunm", false], "gunblade": ["gunm", false],
+	"alien3": ["gunm", false], "jpark": ["gunm", false], "rchase2": ["gunm", false], "oceanhun": ["gunm", false],
+	"sscope": ["rifle", false], "sscope2": ["rifle", false], "sscopex": ["rifle", false], "sscopefh": ["rifle", false],
+	"golgo13": ["rifle", false],
+}
+
+
 func _group_game_profile() -> void:
 	_ok(ArcadeGameProfile.table_size() > 20000, "game: the table holds the arcade romsets (%d)" % ArcadeGameProfile.table_size())
 	var sf2 := ArcadeGameProfile.for_romset("sf2")
@@ -1544,6 +1569,38 @@ func _group_game_profile() -> void:
 	var t2 := P.for_romset("term2")
 	_ok(t2.form() == P.FORM_GUN_MOUNTED and t2.is_gun() and not t2.stick_visible(),
 		"game: Terminator 2's guns are on mounts, a gun game though MAME reads them as sticks")
+	# Every shooter: its form, its pedal. A gun game left a plain upright (a driver that declares no controls) was a Time Crisis 3 with no gun.
+	var shooter_bad: Array = []
+	for romset: String in _SHOOTERS:
+		var row: Array = _SHOOTERS[romset]
+		var g := P.for_romset(romset)
+		if not (g.known and g.is_gun() and g.form() == str(row[0]) and g.gun_pedal() == bool(row[1])):
+			shooter_bad.append(romset)
+	_ok(shooter_bad.is_empty(), "game: every shooter of the roster is a gun game of its own form, with a pedal only where it had one (%s)" % str(shooter_bad))
+	_ok(P.for_romset("timecrs3e").form() == P.FORM_GUN and P.for_romset("timecrs3e").gun_count() == 2 and P.for_romset("timecrs3e").gun_pedal()
+			and P.for_romset("timecrs4j").gun_pedal() and P.for_romset("vnight").gun_count() == 2 and not P.for_romset("vnight").gun_pedal(),
+		"game: a clone takes its parent's guns and pedal (Time Crisis 3 and 4 have two guns and their pedals, Vampire Night two guns and none)")
+	_ok(P.for_romset("hotd4a").form() == P.FORM_GUN and P.for_romset("ghostsqo").form() == P.FORM_GUN and P.for_romset("oceanhuna").form() == P.FORM_GUN_MOUNTED,
+		"game: and so do the others' clones (a clone is a zip of its own)")
+	# The census, over the whole table: no profile that names a light gun is left a plain upright, bar the five whose "gun" is something else
+	# (Rail Chase's seat, two hammer games, Lucky & Wild, GunMania: docs/dev/arcade-cabinets.md).
+	var upright_guns: Array = []
+	for line in ArcadeGameTable.TABLE.split("\n", false):
+		var parts := line.split(" ", false)
+		if parts.size() < 2:
+			continue
+		var gp := ArcadeGameProfile.from_key(parts[1], parts[0])
+		if gp.has_kind(P.KIND_GUN) and not gp.is_gun() and gp.form() != P.FORM_ODD:
+			upright_guns.append(parts[1])
+	_ok(upright_guns.is_empty(), "game: no light-gun profile is left a plain upright (%s)" % str(upright_guns.slice(0, 6)))
+	# What a gun's aim is sent as: a light gun where MAME wants one, the left stick where it wants an analog stick.
+	_ok(P.for_romset("sscope").aims_as_stick() and P.for_romset("term2").aims_as_stick() and P.for_romset("alien3").aims_as_stick()
+			and P.for_romset("gunblade").aims_as_stick() and P.for_romset("othunder").aims_as_stick(),
+		"game: Silent Scope, Terminator 2, Alien3, Gunblade NY and Operation Thunderbolt read their aim as an analog stick")
+	_ok(not P.for_romset("timecris").aims_as_stick() and not P.for_romset("ptblank").aims_as_stick() and not P.for_romset("hotd2").aims_as_stick()
+			and not P.for_romset("lostwsga").aims_as_stick() and not P.for_romset("sf2").aims_as_stick() and not P.for_romset("daytona").aims_as_stick()
+			and not P.for_romset("aburner2").aims_as_stick() and not P.for_romset("hotd3").aims_as_stick(),
+		"game: a real light-gun game, a flight stick or no gun at all is not read as a stick")
 	_ok(P.for_romset("daytona").form() == P.FORM_RACE and P.for_romset("finallap").form() == P.FORM_STAND
 		and P.for_romset("finalap3").form() == P.FORM_RACE, "game: Daytona and Final Lap 3 are sit-down cockpits, Final Lap a stand-up")
 	_ok(P.for_romset("daytona2").has_roof() and not P.for_romset("daytona").has_roof(), "game: a roof over the seat only where the table says")
