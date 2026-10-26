@@ -861,6 +861,9 @@ func _build_gun_holsters() -> void:
 	var xs := ArcadeCabinetSpecs.gun_xs(int(_v["guns"]), _w, style)
 	for i in xs.size():
 		var sx := float(xs[i])
+		if style == "dash":
+			_dash_holster(sockets, i, sx)
+			continue
 		# The cord goes in on the front beside the gun, outboard of it; a gun in the middle's to its right, clear
 		# of a coin door standing under it.
 		var side := signf(sx) if absf(sx) > 0.01 else 1.0
@@ -898,6 +901,29 @@ func _holster(sockets: Node3D, i: int, sx: float) -> void:
 		Vector3(sx, 0.6175, 0.511), _dark, Vector3.UP)
 	ArcadeParts.box(_owner, sockets, "HolsterStrap%d" % (i + 1), Vector3(0.05, 0.010, 0.040),
 		Vector3(sx, 0.725, 0.505), _metal)
+
+
+## A holster on the dash of a two-seat cockpit (Lucky & Wild): the apron's bracket (`_holster`) on the dash pedestal's face toward the seats, the gun hanging muzzle-down in
+## its cup between the two players, and the cord going into the dash beside it, outboard of the gun. The pedestal stands at DASH_FACE_Z.
+const DASH_FACE_Z := 1.08
+const DASH_HOLSTER_Y := 0.55
+const DASH_ENTRY_Y := 0.52
+
+
+func _dash_holster(sockets: Node3D, i: int, sx: float) -> void:
+	var side := signf(sx) if absf(sx) > 0.01 else 1.0
+	var entry_x := sx + side * 0.07
+	var seat := ArcadeParts.node(_owner, sockets, "Marker3D", "PortSeat%d" % (i + 1), Vector3(entry_x, DASH_ENTRY_Y, DASH_FACE_Z + 0.002)) as Marker3D
+	seat.basis = Basis(Vector3.BACK, PI)
+	ArcadeParts.cylinder(_owner, sockets, "Grommet%d" % (i + 1), 0.017, 0.008, Vector3(entry_x, DASH_ENTRY_Y, DASH_FACE_Z + 0.004), _dark, Vector3.BACK)
+	var plate_z := DASH_FACE_Z + 0.008
+	var holster := ArcadeParts.node(_owner, sockets, "Marker3D", "Holster%d" % (i + 1), Vector3(sx, DASH_HOLSTER_Y, plate_z + 0.067)) as Marker3D
+	holster.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	ArcadeParts.box(_owner, sockets, "HolsterPlate%d" % (i + 1), Vector3(0.07, 0.30, 0.012), Vector3(sx, DASH_HOLSTER_Y - 0.02, plate_z),
+		ArcadeParts.mat(Color(0.10, 0.10, 0.12), 0.0, 0.5))
+	ArcadeParts.box(_owner, sockets, "HolsterBand%d" % (i + 1), Vector3(0.072, 0.012, 0.014), Vector3(sx, DASH_HOLSTER_Y - 0.135, plate_z), _trim)
+	ArcadeParts.cylinder(_owner, sockets, "HolsterCup%d" % (i + 1), 0.030, 0.045, Vector3(sx, DASH_HOLSTER_Y - 0.1825, plate_z + 0.033), _dark, Vector3.UP)
+	ArcadeParts.box(_owner, sockets, "HolsterStrap%d" % (i + 1), Vector3(0.05, 0.010, 0.040), Vector3(sx, DASH_HOLSTER_Y - 0.075, plate_z + 0.027), _metal)
 
 
 ## A post on the front of the deck with a swivel on top that the gun is FIXED to (Operation Wolf's Uzi, a rifle
@@ -974,6 +1000,9 @@ func _build_pedal(index: int) -> void:
 
 # ── a sit-down cockpit ──────────────────────────────────────────────────────
 
+## How wide each seat of a two-seat cockpit is.
+const RACEGUN_SEAT_W := 0.40
+
 ## Where the cockpit's platform starts (clear of the bay door, which opens 40 cm out, and under the monitor's hood) and ends: 32 cm behind the seat, which is
 ## as far back as the headrest.
 const COCKPIT_Z0 := 0.84
@@ -1014,6 +1043,10 @@ func _build_cockpit(spec: Dictionary) -> void:
 	var flight := bool(spec.get("flight", false))
 	var depth := COCKPIT_Z1 - COCKPIT_Z0
 	var zc := (COCKPIT_Z0 + COCKPIT_Z1) * 0.5
+	# A cockpit of two seats (Lucky & Wild): the driver's on the left, with the wheel and the pedal in front of it, the gunner's on the right.
+	var seats := clampi(int(spec.get("seats", 1)), 1, 2)
+	var seat_x := ArcadeCabinetSpecs.RACEGUN_SEAT_X if seats > 1 else 0.0
+	var driver_x := -seat_x
 	# What the driver sits in is on `base`: the cockpit itself, or the base that moves under it.
 	var base := cp
 	if bool(spec.get("motion", false)):
@@ -1026,7 +1059,11 @@ func _build_cockpit(spec: Dictionary) -> void:
 	ArcadeParts.box(_owner, base, "Dash", Vector3(_w - 0.10, 0.60, 0.20), Vector3(0, 0.40, 0.98), _body)
 	var dash_top := ArcadeParts.box(_owner, base, "DashTop", Vector3(_w - 0.08, 0.02, 0.26), Vector3(0, 0.71, 1.00), _dark)
 	dash_top.basis = Basis(Vector3.RIGHT, deg_to_rad(18.0))
-	_build_driver_seat(base)
+	if seats > 1:
+		_build_driver_seat(base, driver_x, SEAT_Z, "DriverSeat", RACEGUN_SEAT_W, -(RACEGUN_SEAT_W * 0.5 + 0.25))
+		_build_driver_seat(base, seat_x, SEAT_Z, "GunnerSeat", RACEGUN_SEAT_W, RACEGUN_SEAT_W * 0.5 + 0.25)
+	else:
+		_build_driver_seat(base)
 	if not flight:
 		# The gear lever's console, by the driver's right hand.
 		ArcadeParts.box(_owner, base, "ShifterConsole", Vector3(0.12, 0.44, 0.30), Vector3(_w * 0.5 - 0.10, 0.32, SHIFTER_Z), _body)
@@ -1047,9 +1084,16 @@ func _build_cockpit(spec: Dictionary) -> void:
 	mod.set_script(load(SCRIPTS["control"]))
 	mod.set("player", int(spec.get("player", 0)))
 	# START on the dash, left of the wheel, in a frame whose +Z is out of the dash's top.
-	var panel := ArcadeParts.node(_owner, mod, "Node3D", "DashPanel", Vector3(-0.22, 0.725, 1.02)) as Node3D
+	var panel := ArcadeParts.node(_owner, mod, "Node3D", "DashPanel", Vector3(-0.36 if seats > 1 else -0.22, 0.725, 1.02)) as Node3D
 	panel.basis = Basis(Vector3.RIGHT, deg_to_rad(-72.0))
 	_cap(panel, "Start", Vector3.ZERO, 0.012, Color(0.92, 0.92, 0.92), 0.008)
+	if seats > 1:
+		# The gunner's START, on the dash at the other end, its own controller (player 2) the way a deck panel's START is: the panel's frame has its START 7 cm
+		# down its own Y, so the frame stands that much up it for the cap to land where the driver's is, mirrored.
+		var gunner := ArcadeParts.node(_owner, base, "Node3D", "GunnerPanel", Vector3(0.36, 0.725, 1.02)) as Node3D
+		gunner.basis = Basis(Vector3.RIGHT, deg_to_rad(-72.0))
+		gunner.position += gunner.basis.y * 0.07
+		_build_player(gunner, 1, {"kind": "start", "start_x": 0.0, "player": 1})
 	var grip := ArcadeParts.node(_owner, mod, "Area3D", "PanelGrip") as Area3D
 	grip.set_script(load(SCRIPTS["panel"]))
 	grip.collision_layer = 0
@@ -1065,9 +1109,9 @@ func _build_cockpit(spec: Dictionary) -> void:
 		gshape.size = Vector3(0.32, 0.32, 0.30)
 	else:
 		var wb := Basis(Vector3.RIGHT, deg_to_rad(60.0))
-		var wheel_at := Vector3(0, 0.82, 1.20)
+		var wheel_at := Vector3(driver_x, 0.82, 1.20)
 		_wheel(mod, wheel_at, wb, 0.15)
-		_pedals(mod, Transform3D.IDENTITY, Vector3(0, 0.10, PEDALS_Z))
+		_pedals(mod, Transform3D.IDENTITY, Vector3(driver_x, 0.10, PEDALS_Z))
 		if bool(spec.get("shifter", true)):
 			_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, SHIFTER_Z), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
 		# The grip faces the driver: its +Z along the wheel's axis.
@@ -1080,8 +1124,10 @@ func _build_cockpit(spec: Dictionary) -> void:
 	# the whole seat would stand between the laser and the trigger that lies 3 cm proud of the cushion. So the base
 	# under the cushion and the back behind it, and nothing above.
 	var cushion_top := ((_sh["glass_a"] as Vector2).y + (_sh["glass_b"] as Vector2).y) * 0.5 - EYE_ABOVE_CUSHION
-	form_boxes.append(AABB(Vector3(-0.24, PLATFORM_TOP, SEAT_Z - 0.23), Vector3(0.48, cushion_top - 0.03 - PLATFORM_TOP, 0.46)))
-	form_boxes.append(AABB(Vector3(-0.24, cushion_top, SEAT_Z + 0.23), Vector3(0.48, 1.25 - cushion_top, 0.17)))
+	var seat_w := RACEGUN_SEAT_W if seats > 1 else 0.48
+	for sx: float in ([driver_x, seat_x] if seats > 1 else [driver_x]):
+		form_boxes.append(AABB(Vector3(sx - seat_w * 0.5, PLATFORM_TOP, SEAT_Z - 0.23), Vector3(seat_w, cushion_top - 0.03 - PLATFORM_TOP, 0.46)))
+		form_boxes.append(AABB(Vector3(sx - seat_w * 0.5, cushion_top, SEAT_Z + 0.23), Vector3(seat_w, 1.25 - cushion_top, 0.17)))
 	form_boxes.append(AABB(Vector3(-(_w - 0.10) * 0.5, 0.10, 0.88), Vector3(_w - 0.10, 0.62, 0.20)))
 	if flight and bool(spec.get("cabin", false)):
 		# The cabin's walls are the cabinet too, to take hold of by; its roof is left open to the laser, or it would stand over every control.

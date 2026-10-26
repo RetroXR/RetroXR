@@ -246,6 +246,12 @@ const SLOT_TRAVEL := 0.14
 const SLOT_HANDLE_REACH := 0.05
 const SLOT_DECK_EXTRA := 0.07
 
+## How wide a two-seat cockpit's body is (Lucky & Wild): two seats of 0.40 m side by side and the dash they sit at, and where each seat's player sits and their gun
+## hangs, on the cockpit's x (the driver on the left, the gunner on the right; the holsters in the middle of the dash, a hand's reach from either).
+const RACEGUN_WIDTH := 0.90
+const RACEGUN_SEAT_X := 0.21
+const RACEGUN_GUN_XS: Array[float] = [-0.07, 0.07]
+
 ## The most panels a deck takes (X-Men's six players), and the most coin doors on a coin face.
 const MAX_PANELS := 6
 const MAX_COIN_DOORS := 4
@@ -686,6 +692,15 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			spec["players"] = []
 			spec["cockpit"] = {"flight": true, "roof": profile.has_cabin(), "cabin": profile.has_cabin(), "motion": profile.has_motion(),
 				"throttle": profile.has_throttle(), "pedals": profile.has_kind(ArcadeGameProfile.KIND_PEDAL), "shifter": false, "player": 0}
+		ArcadeGameProfile.FORM_RACEGUN:
+			# A car with a driver and a gunner (Lucky & Wild): the driving cockpit made two seats wide, the first seat's wheel and pedal, a gun for each player in a holster on
+			# the dash between the seats, and a START for the gunner beside the driver's (the cockpit's own: no deck panel on a body with no deck).
+			shape = "racer"
+			spec["guns"] = 2
+			spec["sockets"] = false
+			spec["gun_style"] = "dash"
+			spec["players"] = []
+			spec["cockpit"] = {"roof": false, "shifter": false, "player": 0, "motion": false, "seats": 2}
 		ArcadeGameProfile.FORM_BIKE:
 			shape = "racer"
 			spec["players"] = []
@@ -737,6 +752,8 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	if shape == "upright" and profile.is_vertical():
 		shape = "tate"
 	var width := body_width(float(shapes()[shape]["w"]), spec["players"])
+	if form == ArcadeGameProfile.FORM_RACEGUN:
+		width = maxf(width, RACEGUN_WIDTH)
 	var inches := screen_inches(profile)
 	var several := profile.screens() > 1 and profile.frame_aspect() > 0.0 and profile.scope_screen() < 0
 	# A body widened by three or more panels wants a picture to match (every upright body is 0.66 wide to begin with).
@@ -822,6 +839,8 @@ static func gun_panels(guns: int, style: String = "holster") -> Array:
 ## in the middle (the coin doors then stand either side of it). One gun in a holster hangs on the right (Time
 ## Crisis's); one on a post stands in the middle of the deck (Operation Wolf's Uzi, Silent Scope's rifle).
 static func gun_xs(guns: int, width: float, style: String = "holster") -> Array:
+	if style == "dash":
+		return RACEGUN_GUN_XS.slice(0, clampi(guns, 1, RACEGUN_GUN_XS.size()))
 	var side := width * 0.5 - 0.09
 	match clampi(guns, 1, MAX_GUNS):
 		1:

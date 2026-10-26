@@ -1031,7 +1031,7 @@ p2c2b1w0:ball;r270;a;m19 magworm<centiped magworma<centiped
 p2c2b1w0:ball;r90;a teedoff=teedoffj
 p2c2b1w0:btn+stick;tfly;qsc topland=toplandj
 p2c2b1w0:dial+gun;g1;tgun nstocker=nstockera
-p2c2b1w0:gun+paddle+pedal;g2;todd luckywld=luckywldj
+p2c2b1w0:gun+paddle+pedal;g2;tracegun luckywld=luckywldj
 p2c2b1w0:gun;s2;c0,0,1,0.75/1.0075,0,1,0.75;g2;tgun;v vcop=vcopa
 p2c2b1w2:joy;r180;v;m19 mariobl<mario mariobla<mario
 p2c2b1w2:joy;r270;v block=blockr1

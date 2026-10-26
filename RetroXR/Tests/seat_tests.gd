@@ -16,6 +16,7 @@
 ##   cockpit/  a sit-down driving cabinet's own seat: eyes level with the middle of its glass, pressed to sit, one seat at a time
 ##   follow/   a seat on a moving base carries the player with it, in position and never in heading
 ##   rider/    a motorbike's and a bicycle's saddle is a seat: pressed to sit, the eyes above it, a floor to get up onto, off the leaning part
+##   pair/     a cockpit of two seats (Lucky & Wild): each sat in and got up from on its own side, one at a time, no pointer box over either cushion
 ##   save/     a seat is a plain scene saved by its token and spawned by it
 extends Node
 
@@ -81,6 +82,8 @@ func _run() -> void:
 		await _group_follow()
 	if _want("rider"):
 		await _group_rider()
+	if _want("pair"):
+		await _group_pair()
 	if _want("save"):
 		await _group_save()
 
@@ -578,6 +581,56 @@ func _group_rider() -> void:
 			_ok(_camera.global_position.distance_to(head) < 1e-3, "rider: %s: the bike at full lean under the rider leaves the head where it is" % romset)
 			seat.stand()
 		cab.free()
+	_drop_rig()
+	await _frames(2)
+
+
+# --- pair ----------------------------------------------------------------------
+
+## Lucky & Wild's cockpit has a driver's seat and a gunner's, side by side. Each is a CockpitSeat of its own: sat in by a press, got up from onto its own side, and one
+## player is in one seat at a time.
+func _group_pair() -> void:
+	_make_rig()
+	await _frames(2)
+	_body.enabled = true
+	var built := _cockpit(Vector3(2.0, 0.0, -3.0), 0.7, false, "luckywld")
+	var cab := built["cab"] as Node3D
+	var driver := built["seat"] as CockpitSeat
+	var gunner := cab.find_child("GunnerSeat", true, false) as CockpitSeat
+	await _frames(2)
+	_ok(driver != null and gunner != null and driver != gunner, "pair: the cockpit has two seats, a driver's and a gunner's")
+	if driver == null or gunner == null:
+		cab.free()
+		_drop_rig()
+		return
+	var d := cab.to_local(driver.eye_transform().origin)
+	var g := cab.to_local(gunner.eye_transform().origin)
+	_ok(_near(d.x, -ArcadeCabinetSpecs.RACEGUN_SEAT_X, 0.005) and _near(g.x, ArcadeCabinetSpecs.RACEGUN_SEAT_X, 0.005) and _near(d.y, g.y, 0.001) and _near(d.z, g.z, 0.001),
+		"pair: side by side, the driver on the left, with the same eyes (%s, %s)" % [str(d), str(g)])
+	_ok(driver.sit() and Seat.current == driver, "pair: the driver sits")
+	await _frames(2)
+	_ok(_camera.global_position.distance_to(driver.eye_transform().origin) < 0.02, "pair: the head is at the driver's eyes")
+	_ok(gunner.sit() and Seat.current == gunner and not driver.is_occupied(), "pair: the gunner sitting takes the driver's place: one player, one seat")
+	await _frames(2)
+	_ok(_camera.global_position.distance_to(gunner.eye_transform().origin) < 0.02 and _camera.global_position.distance_to(driver.eye_transform().origin) > 0.3,
+		"pair: and the head is at the gunner's eyes, 0.4 m from the driver's")
+	var stand_at := gunner.stand_point()
+	gunner.stand()
+	await _frames(2)
+	_ok(Seat.current == null and _near(_camera.global_position.x, stand_at.x, 1e-3) and _near(_camera.global_position.z, stand_at.z, 1e-3) and cab.to_local(stand_at).x > 0.45,
+		"pair: getting up from the gunner's seat is onto the right of the cabinet, the driver's onto the left (%s)" % str(cab.to_local(stand_at)))
+	_ok(cab.to_local(driver.stand_point()).x < -0.45, "pair: ... (the driver's stand point is at %s)" % str(cab.to_local(driver.stand_point())))
+	# Neither cushion is covered by a pointer box.
+	var covered: Array[String] = []
+	for seat: CockpitSeat in [driver, gunner]:
+		var trigger := seat.find_child("SeatTrigger", false, false) as SeatTrigger
+		var slab := trigger.get_node("CollisionShape3D") as CollisionShape3D
+		var slab_box := AABB(trigger.position + seat.position + slab.position - (slab.shape as BoxShape3D).size * 0.5, (slab.shape as BoxShape3D).size)
+		for box: AABB in built["boxes"]:
+			if box.intersects(slab_box):
+				covered.append(str(seat.name))
+	_ok(covered.is_empty(), "pair: no pointer box of the cabinet stands over either cushion (%s)" % ", ".join(covered))
+	cab.free()
 	_drop_rig()
 	await _frames(2)
 

@@ -840,6 +840,9 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   banked into the turn (4 degrees at full stick or wheel), nosed up with a pull or the gas (3 degrees), eased at 4 a second, level again when the run ends. **Options > Cabinet Motion** (`AppPrefs.arcade_motion`):
   automatic (on at a desk, off in a headset), always, never. `CockpitSeat` carries a seated player with the seat (`SeatSitting.follow`: position only, the view never turns with the base; seats.md). The
   base is driven by the stick and the wheel, not by the game: the API gives the cabinet nothing of the game's own motion.
+- **A driving cockpit with guns** (`racegun`: Lucky & Wild, 2026-10-26; `arcade-cabinets.md` section 2): the `race` cockpit with TWO seats, a driver on the left (wheel and pedal) and a gunner on the right, 0.90 m wide,
+  a START at each end of the dash (the gunner's is player 2's own controller) and **a gun each in a holster on the dash's face** (`gun_style` `dash`: a plate, a cup and a strap, the cord into a grommet beside it). The
+  game is filed by hand (`RACEGUN` in the generator) because no MAME control says "a driver and a gunner"; `is_gun()` and `is_driving()` both answer for it. `arcade_form_tests racegun/`, `seat_tests pair/`.
 - **A bench for a ride** (`bench`: Rail Chase, The Lost World, Jurassic Park, Line of Fire): a platform in front of the guns (which stay on the deck) and a seat a gun, two at most, side by side on it
   (`CockpitSeat`, eyes capped at 1.20 m: a 1.33 m glass would make a stool). It does not move.
 - **A stand-up driving cabinet** (`stand`: Pole Position, Out Run, Final Lap): the wheel stands out of the panel, a gear lever beside it, and the
@@ -894,7 +897,7 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   tests and the probes, which look at what the profile alone hides.
 - **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
   with two peers.
-- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating`; `arcade_tests game/`
+- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd seating hood scope racegun`; `arcade_tests game/`
   switches the shape off through the seam and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
   (windowed; `form_<romset>.png` and `formside_<romset>.png`).

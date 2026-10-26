@@ -162,6 +162,7 @@ const FORM_GUN_MOUNTED := "gunm"   ## guns on swivel mounts (Operation Wolf's Uz
 const FORM_RIFLE := "rifle"        ## one rifle on a mount, with a scope (Silent Scope)
 const FORM_RACE := "race"          ## a sit-down driving cockpit
 const FORM_FLY := "fly"            ## a sit-down flight cockpit: a stick between the knees, a throttle by the left hand (After Burner II)
+const FORM_RACEGUN := "racegun"    ## a sit-down cockpit of two seats: the driver's wheel and pedal and a gun for each player (Lucky & Wild)
 const FORM_STAND := "stand"        ## a stand-up driving cabinet (the wheel on the panel, pedals at its foot)
 const FORM_BIKE := "bike"          ## a ride-on motorbike
 const FORM_CYCLE := "cycle"        ## a ride-on bicycle: a crank to pedal, bars to steer and tip (Prop Cycle)
@@ -358,7 +359,7 @@ func is_gun() -> bool:
 	if not known:
 		return false
 	var f := form()
-	if f == FORM_GUN or f == FORM_GUN_MOUNTED or f == FORM_RIFLE:
+	if f == FORM_GUN or f == FORM_GUN_MOUNTED or f == FORM_RIFLE or f == FORM_RACEGUN:
 		return true
 	return has_kind(KIND_GUN) and not _wants_stick()
 
@@ -395,7 +396,7 @@ func is_driving() -> bool:
 	if not known:
 		return false
 	var f := form()
-	return f == FORM_RACE or f == FORM_STAND or (has_kind(KIND_PADDLE) and has_kind(KIND_PEDAL))
+	return f == FORM_RACE or f == FORM_RACEGUN or f == FORM_STAND or (has_kind(KIND_PADDLE) and has_kind(KIND_PEDAL))
 
 
 func _wants_stick() -> bool:

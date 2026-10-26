@@ -29,6 +29,7 @@
 ##   seating/   the sit-down versions: a flight cockpit with a stick and a throttle, a cabin, a base that tilts; a bench in front of a ride's guns
 ##   hood/      a sit-down cabinet's monitor stands under a hood: the picture is close enough to fill the view from the seat, the hood is solid and leaves the coin doors
 ##              under it open; nothing of the cockpit stands in the line of sight
+##   racegun/   a driving cockpit of two seats with a gun each (Lucky & Wild): both players seated, the driver's wheel and pedal, both guns on the dash, the gunner's START
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
@@ -127,6 +128,9 @@ func _run() -> void:
 		await _clear()
 	if _want("hood"):
 		await _group_hood()
+		await _clear()
+	if _want("racegun"):
+		await _group_racegun()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -1794,17 +1798,7 @@ func _group_hood() -> void:
 		_ok(dist >= 0.80 and dist <= 1.05 and hfov >= 24.0 and hfov <= 36.0,
 			"hood: %s: the picture is %.2f m from the seated eyes and fills %.1f degrees of the view (not 1.6 m and 16)" % [romset, dist, hfov])
 		# Nothing of the cockpit between the eyes and the picture's middle or its upper corners (the wheel may reach the lower edge, as a real one does).
-		var cockpit := model.find_child("Cockpit", false, false) as Node3D
-		var blocked: Array[String] = []
-		var corners := [Vector2(0.0, 0.0), Vector2(-0.5, 0.5), Vector2(0.5, 0.5), Vector2(0.0, 0.5)]
-		for c: Vector2 in corners:
-			var target: Vector3 = screen.global_transform * Vector3(c.x * quad.x / screen.global_transform.basis.get_scale().x, c.y * quad.y / screen.global_transform.basis.get_scale().y, 0.0)
-			for mi: MeshInstance3D in _meshes(cockpit):
-				if _under(mi, "DriverSeat") or not mi.is_visible_in_tree():
-					continue
-				var box: AABB = mi.global_transform * mi.get_aabb()
-				if box.intersects_segment(eye, target) != null:
-					blocked.append(str(mi.name))
+		var blocked := _sight_blockers(model, eye, screen)
 		_ok(blocked.is_empty(), "hood: %s: nothing of the cockpit stands in the line of sight to the picture (%s)" % [romset, ", ".join(blocked)])
 	# Solid: the hood and the wedge of glass over it are collision (a held cabinet or a pushed object does not pass through), and a morph away takes them back.
 	model.morph_to(_spec("daytona"))
@@ -1833,6 +1827,24 @@ func _group_hood() -> void:
 	await _wait(3)
 	_ok(not model.has_meta(ArcadeCabinetBuilder.SOLID_BOXES_META) and _count(sys, "CabinetBox") == plain,
 		"hood: the cabinet's own form takes them away again (%d boxes)" % _count(sys, "CabinetBox"))
+
+
+## What of a cockpit stands between `eye` and the picture's middle or its upper corners (the wheel may reach the lower edge, as a real one does): the names of the
+## meshes whose bounds the line to any of them goes through, the seats themselves left out.
+func _sight_blockers(model: Node, eye: Vector3, screen: MeshInstance3D) -> Array[String]:
+	var cockpit := model.find_child("Cockpit", false, false) as Node3D
+	var scale := screen.global_transform.basis.get_scale()
+	var quad := (screen.mesh as QuadMesh).size * Vector2(scale.x, scale.y)
+	var blocked: Array[String] = []
+	for c: Vector2 in [Vector2(0.0, 0.0), Vector2(-0.5, 0.5), Vector2(0.5, 0.5), Vector2(0.0, 0.5)]:
+		var target: Vector3 = screen.global_transform * Vector3(c.x * quad.x / scale.x, c.y * quad.y / scale.y, 0.0)
+		for mi: MeshInstance3D in _meshes(cockpit):
+			if _under(mi, "DriverSeat") or _under(mi, "GunnerSeat") or not mi.is_visible_in_tree():
+				continue
+			var box: AABB = mi.global_transform * mi.get_aabb()
+			if box.intersects_segment(eye, target) != null:
+				blocked.append(str(mi.name))
+	return blocked
 
 
 ## Every MeshInstance3D under a node.
@@ -1870,6 +1882,89 @@ func _is_pointer_over(sys: RetroSystem, local: Vector3) -> bool:
 	q.collide_with_areas = true
 	q.collide_with_bodies = true
 	return not sys.get_world_3d().direct_space_state.intersect_point(q).is_empty()
+
+
+## Lucky & Wild: a driver and a gunner in one car. It was an upright with a wheel and nothing to sit on and no gun.
+func _group_racegun() -> void:
+	for romset: String in ["luckywld", "luckywldj"]:
+		_ok(P.for_romset(romset).form() == P.FORM_RACEGUN and P.for_romset(romset).gun_count() == 2 and P.for_romset(romset).is_driving() and P.for_romset(romset).is_gun(),
+			"racegun: %s is filed as a driving cockpit with two guns" % romset)
+	_ok(P.for_romset("daytona").form() == P.FORM_RACE and P.for_romset("timecris").form() == P.FORM_GUN and P.for_romset("sf2").form() == P.FORM_UPRIGHT,
+		"racegun: and no other game is")
+	var sp := _spec("luckywld")
+	var cockpit: Dictionary = sp["cockpit"]
+	_ok(str(sp["shape"]) == "racer" and float(sp["width"]) >= S.RACEGUN_WIDTH and int(cockpit["seats"]) == 2 and int(sp["guns"]) == 2 and str(sp["gun_style"]) == "dash"
+			and (sp["players"] as Array).is_empty() and not bool(cockpit["shifter"]) and not bool(cockpit["roof"]),
+		"racegun: the spec is the racing body %.2f m wide with two seats, two guns on the dash, no panel and no gear lever" % float(sp["width"]))
+	_ok(S.gun_xs(2, 0.9, "dash") == S.RACEGUN_GUN_XS and (S.gun_xs(1, 0.9, "dash") as Array).size() == 1,
+		"racegun: the guns hang in the middle of the dash, a hand's reach from either seat")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var base_forms := _form_count(model)
+	model.morph_to(sp)
+	model.apply_game_profile(P.for_romset("luckywld"))
+	await _wait(4)
+	var driver := model.find_child("DriverSeat", true, false) as CockpitSeat
+	var gunner := model.find_child("GunnerSeat", true, false) as CockpitSeat
+	_ok(driver != null and gunner != null and driver != gunner and driver.find_child("SeatTrigger", false, false) is SeatTrigger and gunner.find_child("SeatTrigger", false, false) is SeatTrigger,
+		"racegun: two seats, each a CockpitSeat with its own cushion to press")
+	if driver == null or gunner == null:
+		return
+	var eye_d := model.to_local(driver.eye_transform().origin)
+	var eye_g := model.to_local(gunner.eye_transform().origin)
+	_ok(_near(eye_d.x, -S.RACEGUN_SEAT_X, 0.005) and _near(eye_g.x, S.RACEGUN_SEAT_X, 0.005) and _near(eye_d.y, eye_g.y, 0.001) and _near(eye_d.z, eye_g.z, 0.001),
+		"racegun: the driver sits on the left and the gunner on the right, side by side (%s, %s)" % [str(eye_d), str(eye_g)])
+	var stand_d := model.to_local(driver.stand_point())
+	var stand_g := model.to_local(gunner.stand_point())
+	_ok(stand_d.x < -float(sp["width"]) * 0.5 and stand_g.x > float(sp["width"]) * 0.5 and _near(stand_d.y, 0.0, 0.01) and _near(stand_g.y, 0.0, 0.01),
+		"racegun: and each gets up on the outside of their own seat, onto the floor (%s, %s)" % [str(stand_d), str(stand_g)])
+	# The driver's controls are the driver's: the wheel and the pedals on the left, in front of the first seat.
+	var panels := _panels(model)
+	var p1 := model.find_child("Player1", true, false) as ArcadeControlModule
+	var p2 := model.find_child("Player2", true, false) as ArcadeControlModule
+	_ok(panels.size() == 2 and p1 != null and p2 != null and p1.player == 0 and p2.player == 1,
+		"racegun: two controllers, the driver's (player 1) and the gunner's (player 2)")
+	var wheel := p1.find_child("WheelPivot", true, false) as Node3D
+	var axle := model.find_child("PedalAxle", true, false) as Node3D
+	_ok(wheel != null and axle != null and _near(model.to_local(wheel.global_position).x, -S.RACEGUN_SEAT_X, 0.01) and _near(model.to_local(axle.global_position).x, -S.RACEGUN_SEAT_X, 0.01)
+			and p1.find_child("StickPivot", true, false) == null and p1.find_child("ShifterPivot", true, false) == null,
+		"racegun: the wheel and the pedals are in front of the driver's seat, with no stick and no gear lever")
+	var start1 := p1.find_child("Start", true, false) as Node3D
+	var start2 := p2.find_child("Start", true, false) as Node3D
+	var s1 := model.to_local(start1.global_position) if start1 != null else Vector3.ZERO
+	var s2 := model.to_local(start2.global_position) if start2 != null else Vector3.ZERO
+	_ok(start1 != null and start2 != null and s1.x < -0.3 and s2.x > 0.3 and _near(s1.y, s2.y, 0.01) and _near(s1.z, s2.z, 0.01) and p2.find_child("StickPivot", true, false) == null,
+		"racegun: and each has a START at their end of the dash, level with the other's (%s, %s)" % [str(s1), str(s2)])
+	# The guns: one each, in holsters on the dash between the seats, within a hand's reach of both, their cords going into the dash.
+	var guns: Array = sys.captive_controllers()
+	var sockets := model.find_child("Sockets", true, false) as ArcadeSocketModule
+	_ok(guns.size() == 2 and sockets != null and sockets.holster_count() == 2 and sockets.seat_count() == 2 and sockets.pivot_node(0) == null,
+		"racegun: two guns in holsters, free to be carried, with a socket each for the cord")
+	var reach := 0.0
+	var on_dash := true
+	for i in 2:
+		var holster := model.to_local(sockets.holster_transform(i).origin)
+		var cord := model.to_local(sockets.cord_entry(i))
+		reach = maxf(reach, maxf(eye_d.distance_to(holster), eye_g.distance_to(holster)))
+		on_dash = on_dash and holster.z > ArcadeCabinetBuilder.DASH_FACE_Z and holster.z < ArcadeCabinetBuilder.DASH_FACE_Z + 0.2 and holster.y > 0.3 and holster.y < 0.7 \
+			and absf(cord.z - ArcadeCabinetBuilder.DASH_FACE_Z) < 0.01 and absf(holster.x) < 0.12
+	_ok(on_dash and reach < 0.9, "racegun: both holsters are on the dash's face toward the seats, the cords into it, %.2f m from the farthest eye: a reach" % reach)
+	var left := model.to_local(sockets.holster_transform(0).origin).x
+	var right := model.to_local(sockets.holster_transform(1).origin).x
+	_ok(left < right - 0.1 and not guns.is_empty() and (guns[0] as Node).name == "ArcadeLightGun", "racegun: the first player's gun is the left one, and the guns are the cabinet's pistols")
+	# What stands in front of each pair of eyes: the picture, nothing in between.
+	var screen := model.find_child("CabinetScreen", true, false) as MeshInstance3D
+	for seat: CockpitSeat in [driver, gunner]:
+		var eye := seat.eye_transform().origin
+		var dist := eye.distance_to(screen.global_position)
+		var blocked := _sight_blockers(model, eye, screen)
+		_ok(dist >= 0.80 and dist <= 1.10 and blocked.is_empty(), "racegun: %s sees the picture from %.2f m, nothing in the way (%s)" % [seat.name, dist, ", ".join(blocked)])
+	# Two coin doors under the hood, both reachable, and the cabinet's own form again after it.
+	_ok(_doors(model).size() == 2, "racegun: a coin door for each player")
+	model.morph_to(model._base_spec)
+	await _wait(3)
+	_ok(_form_count(model) == base_forms and model.find_child("GunnerSeat", true, false) == null and sys.captive_controllers().is_empty(),
+		"racegun: the cabinet's own form again leaves no seat, no gun and no holster behind (%d form parts)" % _form_count(model))
 
 
 func _group_shift() -> void:
@@ -2185,7 +2280,7 @@ func _group_reach() -> void:
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var games: Array = ["sf2", "cotton", "1943", "pacman", "tmnt", "xmen6p", "timecris", "ptblank", "opwolf", "sscope",
 		"polepos", "daytona", "scud", "hangon", "ddrusa", "pumpipx2", "robotron", "centiped", "pong",
-		"propcycl", "timetrv", "panicprk"]
+		"propcycl", "timetrv", "panicprk", "luckywld"]
 	for romset: String in games:
 		model.morph_to(_spec(romset))
 		await _wait(3)

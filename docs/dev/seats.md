@@ -41,4 +41,7 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
   the cushion to press on the saddle's top, `EyePoint` 0.68 m (bike) or 0.72 m (bicycle) above it and a little toward the bars, `StandPoint` on the floor beside the stand. Its `floor_y` is the floor the
   rider's feet are taken to be on (the bike's stand, the bicycle's pedals): a headset adds its person's height to it, so a person on a real chair has their eyes about where a rider's are. **It is NOT
   on the part that leans** (a bike at full lean would swing a head 30 cm; the rider's body does the leaning) and **no pointer box of the cabinet stands over the saddle**. `seat_tests rider/`.
-- Tests: `seat_tests` (groups `pose sit press family cockpit follow rider save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).
+- **A cockpit of TWO seats (2026-10-26, Lucky & Wild).** `DriverSeat` and `GunnerSeat`, each a `CockpitSeat` 0.40 m wide, 0.21 m to a side of the middle with their own eye point at the middle of the glass and their own
+  `StandPoint` on the OUTSIDE (the driver gets up to the left, the gunner to the right: the other seat is never in the way). They share the one `Seat.current` rule, so sitting in one while in the other gets up first. No pointer
+  box of the cabinet stands over either cushion (the same boxes under and behind the cushion, one pair a seat). `seat_tests pair/`.
+- Tests: `seat_tests` (groups `pose sit press family cockpit follow rider pair save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).

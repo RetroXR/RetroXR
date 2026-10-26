@@ -33,8 +33,8 @@ not the default, `;`-separated attributes (a letter and a value):
             gun (guns in holsters), gunm (guns on mounts), rifle (a mounted rifle with a scope),
             race (a sit-down driving cockpit), fly (a sit-down flight cockpit: After Burner II), stand (a stand-up
             driving cabinet), bike (a ride-on motorbike), cycle (a ride-on bicycle: Prop Cycle), holo (a hologram window:
-            Time Traveler), slot (two levers sliding in one slot: Panic Park), dance (a 4-arrow dance stage), pump (a
-            5-panel one), music, odd,
+            Time Traveler), slot (two levers sliding in one slot: Panic Park), racegun (a driving cockpit of two seats with a gun
+            each: Lucky & Wild), dance (a 4-arrow dance stage), pump (a 5-panel one), music, odd,
   o         the driving cockpit has a roof,
   q<flags>  what the game's SIT-DOWN version was built with, for a flight cockpit, a driving cockpit or a gun ride (cockpits.py SEATING, with where each comes
             from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run),
@@ -161,12 +161,14 @@ ROOFED = {"scud", "lemans24", "daytona2", "dayto2pe", "srally2", "dirtdvls"}
 CYCLE = {"propcycl"}
 HOLO = {"timetrv"}
 SLOT = {"panicprk"}
+# A driving cockpit of two seats, a wheel and a pedal for the driver and a gun for each player (Lucky & Wild: Namco's driver and gunner).
+RACEGUN = {"luckywld"}
 # Unique cabinets, drawn as a plain upright until they get a module of their own: the list in
 # docs/dev/arcade-cabinets.md. The skis, the board, the boats, the fishing rod, the horses, a boxing bag.
 ODD = {"alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
        "aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp", "bassdx",
        "getbass", "boxingm", "tokyowar", "cybsled", "starwars", "esb", "bzone", "redbaron",
-       "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer", "luckywld",
+       "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer",
        "kick", "kickman", "dmx2m", "dmx2majp", "ppp", "ppd", "ppp11", "ppp2nd", "mamboagg",
        "desert", "magtruck", "jambo", "bigrun"}
 
@@ -261,6 +263,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return "holo"
     if name_for_lists in SLOT:
         return "slot"
+    if name_for_lists in RACEGUN:
+        return "racegun"
     if name_for_lists in FLY:
         return "fly"
     if name_for_lists in ODD:

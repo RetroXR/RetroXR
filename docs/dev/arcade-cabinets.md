@@ -44,14 +44,14 @@ moves), and `z`, a throttle lever. A third, `b`, says the game has a Timekeeper 
 | `race` | 355 (104) | | `gunm` | 57 (16) |
 | `gun` | 305 (134) | | `pump` | 22 (14) |
 | `stand` | 123 (34) | | `cycle`, `holo`, `slot` | 2 (1) each |
-| `music` (not built) | 158 (82) | | `odd` (not built) | 73 (38) |
+| `music` (not built) | 158 (82) | | `odd` (not built) | 71 (37) |
 | `bike` | 64 (19) | | `dance` | 53 (31) |
-| `fly` | 41 (17) | | | |
+| `fly` | 41 (17) | | `racegun` | 2 (1) |
 
 And across every form: **3,290 romsets stand the monitor on its side** (`r90`/`r270`: the taller `tate` body), 170 turn it over (`r180`, nothing changes), 356 drive
 more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: one panel, two turns) and 14,977 read a service switch (`v`).
 
-## 2. The seven named games
+## 2. The eight named games
 
 ### Time Traveler `timetrv` (Virtual Image Productions, Sega licence, 1991) — form `holo`
 
@@ -179,6 +179,21 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
   Not run against a core. Whether a toggle game wants a tap this long (0.12 s) on every core, and the tap queue's rest (0.10 s), is an estimate; the number of presses is exact.
 - Tests: `arcade_form_tests build/`, `reach/` (Daytona); the seat in `seat_tests`.
 
+### Lucky & Wild `luckywld` (Namco, 1992; System 2) — form `racegun`
+
+- **MAME**: `namco/namcos2.cpp`, **G**. Controls (the table, `p2c2b1w0:gun+paddle+pedal;g2`): two light guns (`LIGHTGUN_X/Y`, one a player), a `PADDLE` (the wheel) and a `PEDAL`.
+- **The real cabinet** (research, low on the form): a sit-down for **two**, one driving and one shooting, a gun each. Nothing in MAME says which seat is which, so
+  **the driver is player 1, the LEFT seat, and the gunner player 2, the RIGHT**: an estimate.
+- **Built**: a `racegun` is the racing cockpit with TWO seats (`ArcadeCabinetSpecs.RACEGUN_WIDTH` 0.90 m; each cushion 0.40 m wide and `RACEGUN_SEAT_X` 0.21 m to a side of the middle; each a real `CockpitSeat`,
+  `seats.md`, pressed to sit and got up from on its OUTSIDE): the wheel and the pedal in front of the DRIVER alone, no gear lever, no roof, no panel (the game has no button but START), a START at each end of the dash (the driver's
+  on the left; the gunner's on the right is its own controller, player 2, so a pad in the second port or a netplay peer is the gunner), and **a gun each in a holster on the dash's face** (`_dash_holster`: a plate, a cup and a strap on the face the
+  seats look at, the cord going into a grommet beside it, `gun_style` `dash`, the first player's gun the left one). The monitor stands under the same hood as every sit-down cabinet (`hood/`): the picture a metre from either seat's eyes.
+- Why a form of its own: `gun` is a stand-up deck with holsters on the panel, `race` has one seat and no guns; this is the only game with both, so **it is filed by hand** (`RACEGUN` in `Tools/arcade/gen_game_index.py`) and
+  `ArcadeGameProfile.is_gun()` and `is_driving()` both answer for it. It was an `odd` (not built) until 2026-10-26: a driving cockpit that sat one person and left the gunner standing.
+- Estimates: the seat widths and spacing, the holsters' place, the driver being the left seat. Not verified: that the guns of a real run are light guns (rather than positional), a headset, a second player.
+- Tests: `arcade_form_tests racegun/` (and the `reach/` list, where Lucky & Wild has to leave its guns reachable), `seat_tests pair/` (each seat sat in and got up from on its own side, one at a time). Pictures: `arcade_cabinet_probe --forms=luckywld`
+  (`form_`, `formside_`, `formscreen_`, `formseat_`, `formlap_`, `formfeet_`).
+
 ## 2b. The sit-down cabinets: a seat, a cabin round it, a base that moves
 
 (2026-10-26.) After Burner II was drawn as an upright with a stick on its panel, and so were G-LOC, Galaxy Force II and Space Harrier; The Lost World had its two guns on a deck with nowhere to sit.
@@ -225,7 +240,7 @@ the research. Both go in `SEATING` (`cockpits.py`, one line per game with where 
 - **The bench** (`bench`): a gun ride's platform in front of the guns, which stay on the deck, with a seat a gun (two at most, 40 cm wide each, the eyes capped at 1.20 m so a seat at a 1.33 m glass is not a stool), each player getting up
   on the outside of their own seat. **The bench does not move**: nothing says how the ride moved (the libretro API carries no output of the game's), and a seat that rocked to no purpose under a headset is harm for nothing.
 - **Not built**: the R-360's rotation (a cage that turns right over); rudder pedals (Sega Strike Fighter's `AD_STICK_Z` is one, Thunder Ceptor's accelerator pad is a `PEDAL`); Sega Strike Fighter's three screens;
-  Air Rescue's twin; Lucky & Wild (a wheel and two guns: a driving cockpit with guns); The Ocean Hunter's bench (unverified); a bench that moves; the real motion of any of them.
+  Air Rescue's twin; The Ocean Hunter's bench (unverified); a bench that moves; the real motion of any of them.
 - Tests: `arcade_form_tests seating/` (the table's flags for 34 games, the cabin, the controls, the tilt's direction and size, the bench), `arcade_hand_tests fly/`, `seat_tests follow/`, `arcade_variants_tests` (the setting is saved);
   pictures `arcade_cabinet_probe --forms=aburner2,sharrier,nightstr,outrun,lostwsga` (`form_`, `formside_`, `formseat_`, `formlap_`, `formtilt_`).
 
@@ -244,6 +259,7 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | `gunm` | 57 (16) | a gun on a post, a bench where it was a ride (The Lost World) | Operation Wolf's Uzi, Terminator 2, Beast Busters (3): fixed to the post, turning about its pivot | the hand turns it |
 | `rifle` | 51 (7) | one rifle on a taller post | Silent Scope, Golgo 13; see above | the hand turns it |
 | `race` | 355 (104) | a sit-down cockpit | the `racer` body, platform, seat, dash, wheel, two pedals, gear lever; a roof for the Model 3 twins (`ROOFED`); a moving base for Out Run, Power Drift (`q`) | wheel (clockwise is right), pedals under a finger, the lever |
+| `racegun` | 2 (1) | a sit-down cockpit for two, a driver and a gunner | the `race` cockpit with a second seat, a gun each in a holster on the dash, a START at each end (Lucky & Wild, see 2) | wheel and pedal at the driver's seat, the hand takes a gun as any pickable |
 | `fly` | 41 (17) | a sit-down flight cockpit | the `race` cockpit with a stick and a throttle for the wheel, a cabin where the game's had one, a moving base; see 2b | the grip leans with the hand, the throttle lever stays where it is left |
 | `stand` | 123 (34) | a stand-up driving cabinet | the wheel on the panel, a lever beside it, the pedals on the floor in front (Pole Position, Out Run, Final Lap) | the same |
 | `bike` | 64 (19) | a ride-on motorbike | a bike on a stand in front of the `racer` body; it LEANS (`LeanPivot`) | the bars: sideways 15 cm is a full lean |
@@ -300,7 +316,7 @@ Plain uprights until a module of their own is built. The controls are MAME's own
 | tank and pod cockpits | Tokyo Wars `tokyowar` 2 (**I**); Desert Tank `desert` 1 (**NW**); Cyber Sled `cybsled` 2 (**I**); Big Run `bigrun` 2 (**G**); Magical Truck Adventure `magtruck` 1 (**NW**) (Emergency Call Ambulance `eca` is a `race` cockpit now) | Tokyo Wars: `PADDLE` "Steering Wheel", `PEDAL` "Forward Pedal", `PEDAL2` "Backward Pedal", "Left/Right Trigger"; Cyber Sled: two `AD_STICK` pairs a player, "Missile", "Gun", "Viewport Change"; Desert Tank: `PADDLE`, `PEDAL`, `AD_STICK_Y`, "Machine Gun", "Cannon", three "VR" buttons | the `race` cockpit with the extra triggers; a pod with two sticks a seat |
 | vector cockpits | Star Wars `starwars` 3, The Empire Strikes Back `esb` 1, Red Baron `redbaron` 2, Battlezone `bzone` 4 (**G**) | `AD_STICK_X` and `AD_STICK_Y` (a yoke); Battlezone two sticks (a plain `twin` panel already) | a yoke on a column (a `stick` panel drawn as a yoke) in a pod |
 | striking | Punch-Out!! `punchout` 5, Super Punch-Out!! `spnchout` 3, Arm Wrestling `armwrest` 1 (**G**); Boxing Mania `boxingm` 1 (**NW**) | a joystick and buttons (Punch-Out: two stacked screens); Boxing Mania "Select L/R" | two stacked monitors (the `s2` frame is side by side now); gloves as two hand poses |
-| light-gun oddities | Hammer `hammer` 1, Mallet Madness `maletmad` 1 (**G**); GunMania `gunmania` 1 (**NW**); Lucky & Wild `luckywld` 2 (**G**) (Rail Chase `rchase` is a gun ride with a bench now) | `LIGHTGUN_X/Y`; Lucky & Wild also `PADDLE` and two pedals | a mallet on the gun's hit point; a seat for a driver beside a gunner |
+| light-gun oddities | Hammer `hammer` 1, Mallet Madness `maletmad` 1 (**G**); GunMania `gunmania` 1 (**NW**); Lucky & Wild `luckywld` 2 (**G**; built since: the `racegun` form, section 2) (Rail Chase `rchase` is a gun ride with a bench now) | `LIGHTGUN_X/Y`; Lucky & Wild also `PADDLE` and two pedals | a mallet on the gun's hit point; a seat for a driver beside a gunner |
 | rhythm | ParaParaParadise `ppp` 2, `ppp11` 1, ParaParaDancing `ppd` 1 (**I**); `ppp2nd` 2, Dance Maniax `dmx2m`, `dmx2majp`, Mambo a Go-Go `mamboagg` 2 (**NW**) | almost nothing: only SERVICE and two buttons are MAME inputs (sensors are not emulated) | none until the sensors are |
 | spinner on an upright | Kick `kick` 3, Kickman `kickman` 1 (**G**) | `IPT_DIAL` | **already a dial panel**: the `odd` mark is redundant |
 | other | Jambo! Safari `jambo` 1 (**NW**) | not found | |
@@ -331,7 +347,7 @@ Many of the body cabinets are on boards MAME does not run (NAOMI is Flycast's he
 | hologram / multi-screen | Time Traveler `timetrv` G (laserdisc), Holosseum `holo` I, Starblade `starblad` I, Darius `darius` G (3 screens), Ninja Warriors `ninjaw` I, Super Dead Heat `spdheat` (4), Cyberball `cyberbal` G, Hard Dunk `harddunk` I (6P), Punch-Out!! (2 stacked), Silent Scope `sscope` NW (the scope's view) | a figure floating over a black stage; a bank of screens | a floating plane; a curved bank; the scope's view in the eyepiece |
 | cockpit / flight / tank | Star Wars `starwars` ESB `esb` Firefox `firefox` Red Baron `redbaron` G, Battlezone `bzone` G, Tokyo Wars `tokyowar` I, Cyber Sled `cybsled` I, G-LOC R360 `glocr360` G, After Burner II `aburner2` Space Harrier `sharrier` G, Steel Talons `steeltal` G, Densha de GO! `dendego` I, Desert Tank `desert` NW | a yoke, tread sticks, a periscope, a 360 degree capsule, a train's controller | the driving seat with a yoke, a stick or a lever |
 | a special control on an upright | Tempest `tempest` Tron `tron` Discs of Tron `dotrone` Kick `kick` G (spinner), Marble Madness `marble` G (+ about 130 trackball games), Paperboy `paperboy` 720 `720` G, Toobin' `toobin` G, Super Off-Road `offroad` Hot Rod `hotrod` Super Sprint `ssprint` G (3-8 wheels), Ms. Pac-Man `mspacman` cocktail | a spinner, handlebars, paddle buttons, several wheels, a table | a panel module each |
-| other | Panic Park `panicprk` NW (two levers in one slot), Lucky & Wild `luckywld` G (a driver and a gunner), Rail Chase `rchase` G (a moving cart), GunMania `gunmania` NW, Jambo! Safari `jambo`, Emergency Call Ambulance `eca` NW, Final Lap 3 `finalap3` I (twin seats), Police 24/7 `p911ed` NW (body-dodge sensors) | | seats with guns; the lever |
+| other | Panic Park `panicprk` NW (two levers in one slot), Lucky & Wild `luckywld` G (a driver and a gunner: built, the `racegun` form), Rail Chase `rchase` G (a moving cart), GunMania `gunmania` NW, Jambo! Safari `jambo`, Emergency Call Ambulance `eca` NW, Final Lap 3 `finalap3` I (twin seats), Police 24/7 `p911ed` NW (body-dodge sensors) | | seats with guns; the lever |
 
 Not working and for later: Angler King `aking`, Punch Mania `pnchmn`, Mocap Boxing `mocapb`, Arm Champs II `armchmp2`, Galaxian3 `gal3`, Driver's Eyes `driveyes`,
 Ridge Racer Full Scale `ridgeracf`, Hydro Thunder `hydrthnd`, the photo-sticker booths `pclub2` `npcartv1` (camera and printer not emulated).
