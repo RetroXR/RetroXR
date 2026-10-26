@@ -93,14 +93,16 @@ static func clearance_lift(page: PackedVector3Array, subject: AABB, clearance: f
 	var pbox := AABB(page[0], Vector3.ZERO)
 	for p in page:
 		pbox = pbox.expand(p)
-	# A page is flat; give it a millimetre of depth so a box test can see it.
+	var bottom := pbox.position.y
+	# A page is flat; give it a millimetre of depth so a box test can see it (the
+	# lift is still measured from its real bottom edge).
 	pbox = pbox.grow(0.001)
 	# The clearance counts only above the object: a page close in FRONT of it (the
 	# poster's) is not touching it.
 	var above := AABB(subject.position, subject.size + Vector3(0.0, clearance, 0.0))
 	if not pbox.intersects(above):
 		return 0.0
-	return maxf(0.0, subject.end.y + clearance - pbox.position.y)
+	return maxf(0.0, subject.end.y + clearance - bottom)
 
 
 func _page_corners(v: XRToolsViewport2DIn3D) -> PackedVector3Array:
