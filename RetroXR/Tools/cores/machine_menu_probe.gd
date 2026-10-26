@@ -83,6 +83,21 @@ func _run() -> void:
 	_check(rate >= 8000.0, "it declares a real sample rate (%.1f Hz)" % rate)
 	_check(_row(dbg, "Core", "Library").to_lower().contains("fce"),
 		"the library is the core that was asked for: %s" % _row(dbg, "Core", "Library"))
+	# The extension's own snapshot (GetCoreDebugInfo), present once it is rebuilt.
+	if not lib.has_method("GetCoreDebugInfo"):
+		_check(false, "this extension build has GetCoreDebugInfo (rebuild it)")
+	else:
+		var pf := _row(dbg, "Video", "Pixel format")
+		_check(pf in ["0RGB1555", "XRGB8888", "RGB565"], "a software core names its pixel format: %s" % pf)
+		_check(_row(dbg, "Video", "Renderer") == "Software", "fceumm renders in software")
+		var mx := _row(dbg, "Video", "Max")
+		_check(not mx.is_empty() and not mx.begins_with("0"), "the max geometry is the core's: %s" % mx)
+		_check(_row(dbg, "Memory", "Save RAM") == "none", "Duck Hunt has no battery RAM")
+		_check(_row(dbg, "Memory", "System RAM") != "none",
+			"the NES's 2 KB work RAM is reported: %s" % _row(dbg, "Memory", "System RAM"))
+		_check(_row(dbg, "Core", "Extensions").contains("nes"),
+			"the core's extensions include nes: %s" % _row(dbg, "Core", "Extensions"))
+		_check(not _row(dbg, "Timing", "Core frame time").is_empty(), "the frame time is reported")
 
 	# The two tabs, photographed from the live machine.
 	var sv := SubViewport.new()
