@@ -13,8 +13,10 @@ extends Node
 ##     --offline skips the network and fills the list with a sample lineup, for a
 ##               machine with no HDHomeRun on the LAN. The layout is what it proves.
 ##     --loose   photographs it as it reads with the lead plugged into nothing.
-## --ui=tv       TVOptions2D, which no longer has a Channels tab (--tab=0 Options,
-##               1 CRT). The list moved to the aerial with the thing it describes.
+## --ui=tv       TVOptions2D, which no longer has a Channels tab (--tab=0 Controls,
+##               1 Options, 2 CRT). The list moved to the aerial with the thing it
+##               describes. Controls is fed TV_SAMPLE, a set with two consoles, an
+##               aerial-fed NES and a 3D source in; --scroll=N px scrolls the tab.
 ##
 ## PNG lands in res://probe_out/<ui>_panel.png (gitignored).
 
@@ -28,7 +30,23 @@ const SAMPLE := [
 	["49.1", "KPDX-HD", true],
 ]
 
+## RetroTV.menu_state() for a busy set, in its shape.
+const TV_SAMPLE := {
+	"on": true, "volume": 0.45, "muted": false, "source": 1,
+	"inputs": [
+		{"source": 0, "name": "COMPOSITE 1", "device": "Super Nintendo Entertainment System"},
+		{"source": 1, "name": "COMPOSITE 2", "device": "Virtual Boy"},
+		{"source": 2, "name": "COMPOSITE 3", "device": ""},
+		{"source": 3, "name": "COMPOSITE 4", "device": ""},
+		{"source": 5, "name": "RF", "device": "Antenna + Nintendo Entertainment System"},
+	],
+	"can_change_channel": false, "channel_text": "",
+	"widescreen": false, "has_stereo": true, "stereo_mode": 0,
+	"audio_mode": 0, "audio_out": 0, "crt": true,
+}
+
 var _sv: SubViewport = null
+var _scroll := 0
 var _which := "antenna"
 var _tab := 0
 var _offline := false
@@ -41,6 +59,8 @@ func _ready() -> void:
 			_which = arg.split("=")[1]
 		elif arg.begins_with("--tab="):
 			_tab = int(arg.split("=")[1])
+		elif arg.begins_with("--scroll="):
+			_scroll = int(arg.split("=")[1])
 		elif arg == "--offline":
 			_offline = true
 		elif arg == "--loose":
@@ -70,7 +90,8 @@ func _run() -> void:
 	await get_tree().process_frame
 
 	DirAccess.make_dir_recursive_absolute("res://probe_out")
-	var out := "res://probe_out/%s_panel.png" % _which
+	var out := "res://probe_out/%s_panel%s.png" % [_which,
+		"" if _scroll <= 0 else "_scroll%d" % _scroll]
 	_sv.get_texture().get_image().save_png(out)
 	print("[panel] saved %s" % out)
 	get_tree().quit(0)
@@ -119,12 +140,18 @@ func _show_tv() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	ui.populate(1.0)
+	ui.populate_controls(TV_SAMPLE)
 	var tabs := _find_tabs(ui)
 	if tabs:
 		tabs.current_tab = clampi(_tab, 0, tabs.get_tab_count() - 1)
 		print("[panel] tv tabs: %s (showing %d)"
 			% [str(range(tabs.get_tab_count()).map(func(i: int) -> String:
 				return tabs.get_tab_title(i))), tabs.current_tab])
+	if _scroll > 0:
+		# Laid out first, or there is nothing to scroll yet.
+		for f in range(4):
+			await get_tree().process_frame
+		ui.scroll_active(_scroll)
 
 
 func _find_tabs(n: Node) -> TabContainer:
