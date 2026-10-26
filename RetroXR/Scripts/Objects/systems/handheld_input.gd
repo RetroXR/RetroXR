@@ -295,7 +295,13 @@ func _update_pointer_block(ctrl: XRController3D, should_block: bool) -> void:
 
 # ── Input forwarding (adapted from retro_controller.gd) ───────────────────────
 
-func _process(_delta: float) -> void:
+## How long a switched-off handheld keeps easing its caps after the last poke (or
+## after switching off), so a released cap reaches rest; idle, it animates nothing.
+const OFF_SETTLE := 1.0
+var _off_settle: float = 0.0
+
+
+func _process(delta: float) -> void:
 	if _host == null:
 		return
 
@@ -326,7 +332,10 @@ func _process(_delta: float) -> void:
 			return
 
 	if not bool(_host.get("is_powered_on")):
+		_animate_powered_off(delta)
 		return
+	# Armed while on, so the first frame switched off eases held caps back to rest.
+	_off_settle = OFF_SETTLE
 
 	if _desktop_held:
 		_process_desktop_joypad()
@@ -444,6 +453,26 @@ func _merge_pad_state(btn: int, alx: int, aly: int, arx: int, ary: int) -> Dicti
 
 
 func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
+	var m := _local_state(btn, alx, aly, arx, ary)
+	if NetworkManager.netplay_route(_host, 0, m):
+		return
+	_host.get_libretro_node().SetJoypadState(0, m["btn"], m["alx"], m["aly"], m["arx"], m["ary"])
+
+
+## Switched off, a cap still goes in under a fingertip, as a real one does; nothing
+## reaches the core or the wire.
+func _animate_powered_off(delta: float) -> void:
+	var m := _local_state(0, 0, 0, 0, 0)
+	if m["btn"] != 0 or m["alx"] != 0 or m["aly"] != 0 or m["arx"] != 0 or m["ary"] != 0:
+		_off_settle = OFF_SETTLE
+	elif _off_settle <= 0.0:
+		return
+	_off_settle -= delta
+
+
+## The state as the machine's own controls see it: pokes merged, the buttons the
+## hardware never had dropped, and the model's caps animated from the result.
+func _local_state(btn: int, alx: int, aly: int, arx: int, ary: int) -> Dictionary:
 	# Drive the model's own physical controls (a handheld animating its buttons /
 	# slide-pad from the same state it feeds the core). No-ops on models without it.
 	var model: Object = _host.get_model() if _host.has_method("get_model") else null
@@ -461,9 +490,7 @@ func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
 		model.animate_controls(btn,
 			Vector2(float(alx) / ANALOG_SCALE, float(aly) / ANALOG_SCALE),
 			Vector2(float(arx) / ANALOG_SCALE, float(ary) / ANALOG_SCALE))
-	if NetworkManager.netplay_route(_host, 0, {"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}):
-		return
-	_host.get_libretro_node().SetJoypadState(0, btn, alx, aly, arx, ary)
+	return {"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}
 
 
 func _zero_port() -> void:

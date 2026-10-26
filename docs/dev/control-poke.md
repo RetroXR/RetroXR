@@ -50,6 +50,11 @@ against the animator's own entries keeps the two from disagreeing.
   The handheld default reads the detailed-shell rows by NAME and only rows of the
   `[node, rest, bit, …]` shape — the 3DS XL packs keep dictionaries under the
   same names.
+- **A switched-off handheld's caps still go in** (`HandheldInput._animate_powered_off`):
+  the poke and the cap animation run, nothing reaches the core or the wire. It
+  animates for `OFF_SETTLE` (1 s) after the last poke or after switching off and
+  is idle otherwise, so a room of handhelds that are off costs one poll each.
+  Before, `_process` returned on power-off and a cap would not move at all.
 - The hand holding the object never pokes it (`PokeTip.is_poking`), and nothing
   is tested unless a tip is within 0.35 m of the owner.
 
@@ -57,7 +62,7 @@ against the animator's own entries keeps the two from disagreeing.
 
 `Tests/control_poke_tests.tscn` (no mods): per object, `cover/` (every cap-like
 mesh is a target, a widget's, or in `SKIP` with a reason), `press/` `push/`
-`clear/` `off/` per cap, and per d-pad `pivot/` plus `arm_*` — the model's OWN
+`clear/` `off/` per cap, per handheld `powered_off/` (through a real HandheldInput), and per d-pad `pivot/` plus `arm_*` — the model's OWN
 animation is driven with one bit, the arm it sank is found, and a tip there must
 give that bit back. `--extra=key|kind|res://mods/<id>/<scene>.tscn` runs the
 same on a staged shell pack (`RetroXR-models/mods/build_mod.py <id> --keep-stage

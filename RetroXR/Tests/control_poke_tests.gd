@@ -175,6 +175,8 @@ func _test_object(key: String, path: String, kind: String) -> void:
 			await _test_visual(label, poke, t)
 		else:
 			await _test_button(label, poke, t)
+	if kind == "handheld":
+		await _test_powered_off(key, obj, poke)
 	obj.queue_free()
 	await get_tree().process_frame
 
@@ -354,6 +356,76 @@ func _test_visual(label: String, poke: ControlPoke, t: Dictionary) -> void:
 	_check(label + "/visual", int(s["btn"]) == 0 and moved > float(t.get("depth", 0.0)) * 0.5,
 		"%s, moved %.5f of %.5f" % [_show(s), moved, float(t.get("depth", 0.0))])
 	await _lift(poke)
+
+
+# ── powered_off/ ────────────────────────────────────────────────────────────
+
+## A host for HandheldInput: switched off or on, its model the object under test,
+## and a libretro node that counts what reaches the core.
+const _FAKE_HOST := """
+extends Node3D
+var is_powered_on := false
+var model: Node = null
+var sent: Array = []
+func get_model() -> Node:
+	return model
+func get_libretro_node() -> Object:
+	return self
+func SetJoypadState(_port: int, btn: int, _alx: int, _aly: int, _arx: int, _ary: int) -> void:
+	sent.append(btn)
+"""
+
+
+## Switched off, a cap still goes in under a fingertip and comes back out when
+## let go, and nothing reaches the core; switched on (the control), the same poke
+## does reach it.
+func _test_powered_off(key: String, obj: Node3D, poke: ControlPoke) -> void:
+	var t: Dictionary = {}
+	for c: Dictionary in poke.targets:
+		if not c.has("rocker") and _expect(c).has("btn"):
+			t = c
+			break
+	if t.is_empty():
+		return
+	var script := GDScript.new()
+	script.source_code = _FAKE_HOST
+	script.reload()
+	var host := Node3D.new()
+	host.set_script(script)
+	host.set("model", obj)
+	add_child(host)
+	var input := HandheldInput.new()
+	input.set("_host", host)
+	var f := _frame(t)
+	var out: Vector3 = f["out"]
+	var face: Vector3 = f["centre"] + out * (float(f["top"]) + 0.001)
+	var node: Node3D = t["node"]
+	var rest: Transform3D = t["rest"]
+	var label := "%s/powered_off" % key
+	await _lift(poke)
+	for i in 40:
+		await _poke_at(poke, face - out * 0.002)
+		input._process(1.0 / 60.0)
+	var moved := node.transform.origin.distance_to(rest.origin) 		+ node.transform.basis.get_rotation_quaternion().angle_to(rest.basis.get_rotation_quaternion())
+	var sent: Array = host.get("sent")
+	_check(label + "/press", moved > 1e-4 and sent.is_empty(),
+		"moved %.5f, sent %s" % [moved, sent])
+	for i in 90:
+		await _poke_at(poke, Vector3(0, -10, 0))
+		input._process(1.0 / 60.0)
+	var back := node.transform.origin.distance_to(rest.origin)
+	_check(label + "/release", back < moved * 0.1 and sent.is_empty(),
+		"%.5f from rest after letting go (pressed %.5f), sent %s" % [back, moved, sent])
+	host.set("is_powered_on", true)
+	await _poke_at(poke, face - out * 0.002)
+	input._process(1.0 / 60.0)
+	var want := int(_expect(t)["btn"])
+	_check(label + "/on_control", sent.size() == 1 and (int(sent[0]) & want) == want,
+		"sent %s, wanted bit mask %d" % [sent, want])
+	await _lift(poke)
+	input._process(1.0 / 60.0)
+	input.free()
+	host.queue_free()
 
 
 # ── arm/ pivot/ ─────────────────────────────────────────────────────────────
