@@ -143,6 +143,7 @@ func rebuild() -> void:
 		poke.local = Transform3D(cap.basis, _panel.cap_rest_position(i))
 		poke.bit = _panel.cap_bit(i)
 		poke.is_round = cap.mesh is CylinderMesh
+		poke.sector = cap.get_meta(&"sector", {}) as Dictionary
 		_pokes.append(poke)
 	for entry: Array in [["GasPivot", GAS_BIT, "GasDeck"], ["BrakePivot", BRAKE_BIT, "BrakeDeck"]]:
 		var pivot := _panel.find_child(str(entry[0]), true, false) as Node3D
@@ -556,6 +557,9 @@ class Poke extends RefCounted:
 	var local := Transform3D.IDENTITY
 	var bit := 0
 	var is_round := true
+	## A drum's zone is a sector of a ring (Taiko's rim, a Mambo a Go-Go pad): `{r0, r1, a0, a1}` (metres and radians, the angle counter-clockwise from the mesh's +X about its origin, seen from the face),
+	## and the box of its mesh would cover its neighbours' zones.
+	var sector: Dictionary = {}
 	## How many hands press it.
 	var held := 0
 
@@ -571,7 +575,10 @@ class Poke extends RefCounted:
 		return frame().basis.y.normalized()
 
 	func reading(tip: Vector3, scale: float) -> float:
-		return ArcadePanelHands.poke_reading(frame().affine_inverse() * tip, mesh.mesh.get_aabb(), is_round, scale)
+		var p := frame().affine_inverse() * tip
+		if not sector.is_empty():
+			return ArcadePanelHands.sector_reading(p, mesh.mesh.get_aabb(), sector, scale)
+		return ArcadePanelHands.poke_reading(p, mesh.mesh.get_aabb(), is_round, scale)
 
 
 ## How near a fingertip at `p` (in the mesh's own frame) is to pressing a part whose mesh box is `box`: 1.0 or less is
@@ -591,6 +598,31 @@ static func poke_reading(p: Vector3, box: AABB, is_round: bool, scale: float = 1
 	elif q.y < -half.y:
 		axial = (-half.y - q.y) / (POKE_IN * scale)
 	return maxf(lateral, axial)
+
+
+## How near a fingertip at `p` (in the mesh's own frame: Y the face's normal, the panel's y is -Z there) is to pressing a SECTOR of a ring (`sector`: r0, r1, a0, a1): 1.0 or less is inside, the
+## ring's thickness and the arc's width grown by POKE_SIDE, and less is nearer the sector's middle (its mid radius, its mid angle). The box of such a mesh covers the zones beside it (a
+## Taiko drum's two face halves and its two rim halves share one square), so two neighbours would both read as pressed at the edge of either.
+static func sector_reading(p: Vector3, box: AABB, sector: Dictionary, scale: float = 1.0) -> float:
+	var x := p.x
+	var y := -p.z
+	var r := Vector2(x, y).length()
+	var r0 := float(sector["r0"])
+	var r1 := float(sector["r1"])
+	var side := POKE_SIDE * scale
+	var radial := absf(r - (r0 + r1) * 0.5) / ((r1 - r0) * 0.5 + side)
+	var a0 := float(sector["a0"])
+	var a1 := float(sector["a1"])
+	var off := absf(wrapf(atan2(y, x) - (a0 + a1) * 0.5, -PI, PI))
+	var angular := off / ((a1 - a0) * 0.5 + side / maxf(r, 0.02))
+	var q := p - box.get_center()
+	var half := box.size.y * 0.5
+	var axial := 0.0
+	if q.y > half:
+		axial = (q.y - half) / (POKE_OUT * scale)
+	elif q.y < -half:
+		axial = (-half - q.y) / (POKE_IN * scale)
+	return maxf(maxf(radial, angular), axial)
 
 
 # ── a control: held by a hand ────────────────────────────────────────────────
@@ -806,8 +838,9 @@ class DialGrab extends ControlGrab:
 	func handle() -> Vector3:
 		return node.global_transform * Vector3(0.0, 0.0, 0.012)
 
+	## A turntable is taken anywhere on its platter (its pivot's `reach` meta, the platter's radius), a knob where it stands.
 	func reach() -> float:
-		return ArcadePanelHands.DIAL_REACH
+		return maxf(ArcadePanelHands.DIAL_REACH, float(node.get_meta(&"reach", 0.0)))
 
 	func _clockwise(tip: Vector3) -> float:
 		var p := frame().affine_inverse() * tip - node.position

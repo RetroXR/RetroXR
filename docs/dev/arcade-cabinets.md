@@ -34,19 +34,19 @@ romset -> ArcadeGameTable line  "p2c1b9w2:joy+stick;tslot panicprk=panicprkj"   
 A profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>;<attributes>`. MAME says the players, coins, buttons, ways, kinds, the rotation, the screens,
 the guns and whether the game reads a service switch (`v`). **MAME says nothing of what the cabinet looked like**: the form (`t...`) is a choice made in
 `gen_game_index.py` from curated lists (`CYCLE HOLO SLOT RIFLE MOUNTED_GUN GUN_PEDAL BIKE STAND_RACER ROOFED ODD`, and `FLY` and `SEATING` in `Tools/arcade/cockpits.py`), the Cabinet
-DIP switch and the game's name. 28,713 romsets, 1,639 profiles. Two attributes say what the SIT-DOWN version had (section 2b): `q`, the letters `s` (a seat), `c` (a cabin round it) and `m` (a base that
+DIP switch and the game's name. 28,739 romsets, 1,645 profiles. Two attributes say what the SIT-DOWN version had (section 2b): `q`, the letters `s` (a seat), `c` (a cabin round it) and `m` (a base that
 moves), and `z`, a throttle lever. A third, `b`, says the game has a Timekeeper chip whose memory it checks (`h` the image it is seeded from is hand built or missing, `g` a good dump,
 `n` none: `arcade-backup-memory.md`).
 
 | form (`t`) | romsets (families) | | form (`t`) | romsets (families) |
 |---|---|---|---|---|
-| plain upright | 27,405 (8,283) | | `rifle` | 51 (7) |
-| `race` | 355 (104) | | `gunm` | 57 (16) |
-| `gun` | 305 (134) | | `pump` | 22 (14) |
-| `stand` | 123 (34) | | `cycle`, `holo`, `slot` | 2 (1) each |
-| `music` (not built) | 158 (82) | | `odd` (not built) | 71 (37) |
-| `bike` | 64 (19) | | `dance` | 53 (31) |
-| `fly` | 41 (17) | | `racegun` | 2 (1) |
+| plain upright | 27,334 (9,175) | | `rifle` | 51 (25) |
+| `race` | 433 (185) | | `gunm` | 57 (20) |
+| `gun` | 305 (151) | | `pump` | 22 (14) |
+| `stand` | 132 (45) | | `cycle`, `holo`, `slot` | 2 (1) each |
+| `music` (built for six instruments, 2c) | 165 (88) | | `odd` (not built) | 69 (38) |
+| `bike` | 65 (25) | | `dance` | 53 (32) |
+| `fly` | 45 (21) | | `racegun` | 2 (1) |
 
 And across every form: **3,290 romsets stand the monitor on its side** (`r90`/`r270`: the taller `tate` body), 170 turn it over (`r180`, nothing changes), 356 drive
 more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: one panel, two turns) and 14,977 read a service switch (`v`).
@@ -244,6 +244,43 @@ the research. Both go in `SEATING` (`cockpits.py`, one line per game with where 
 - Tests: `arcade_form_tests seating/` (the table's flags for 34 games, the cabin, the controls, the tilt's direction and size, the bench), `arcade_hand_tests fly/`, `seat_tests follow/`, `arcade_variants_tests` (the setting is saved);
   pictures `arcade_cabinet_probe --forms=aburner2,sharrier,nightstr,outrun,lostwsga` (`form_`, `formside_`, `formseat_`, `formlap_`, `formtilt_`).
 
+## 2c. The rhythm games' own controllers
+
+(2026-10-26.) beatmania, pop'n music, GuitarFreaks, DrumMania, Taiko no Tatsujin and Mambo a Go-Go were `music`: an upright with a stick and six buttons, whatever the game. The form is now **built for six
+instruments**, one per family of controller (`ArcadeInstruments`, `Scripts/Data/systems/arcade_instruments.gd`: the data, where each part stands and which of MAME's buttons it is; `ArcadeCabinetBuilder._build_instrument`
+draws it). The table's `i` names the instrument (`ideck ipopn iguitar idrums itaiko iconga`, `ArcadeGameProfile.instrument()`); `gen_game_index.py` sets it from the description with the patterns of `INSTRUMENT` in
+order, so beatmania IIDX and beatmania III match first and say **none**, and **Keyboardmania, IIDX and beatmania III stay the generic panel** (a form with no known instrument keeps `layout_panels`). A set is a
+`music` game when its description says so (`MUSIC_DESC`): 165 romsets in 88 families, 139 of them with an instrument.
+
+| instrument | games (romsets, families) | MAME's own names (verbatim, `konami/djmain.cpp`, `konami/ksys573.cpp`, `namco/namcos10.cpp`) | what is built |
+|---|---|---|---|
+| `deck` | every beatmania set: 1st to 7th Mix, Complete Mix 1 and 2, Final, DCT... (18, 13) | `beatmania_btn`: `BUTTON1` to `BUTTON5` of player 1 and of player 2, `IPT_DIAL` `TT1` and `TT2` ("turn table 1P/2P"), `START1`, `START2`, `START3` named "Effect" | a deck a player, side by side: **a turntable on the outside and five keys** (three white in the front row, two black behind, as a keyboard's), START and no effect button (the third START is nothing a pad has); the second deck is the first seen in a mirror and its keys are still numbered from the left; the turntable is a platter (`DialPivot`, `reach` its radius) that turns with LEFT/RIGHT, as every dial, and a hand takes it anywhere on the platter |
+| `popn` | pop'n music 1 to 9 and the animation and Mickey sets (19, 11) | `popnmusic_btn`: `BUTTON1` to `BUTTON9` of player 1 | **nine domes across the panel** in two rows (the five of the front row white, green, red, green, white, the four behind yellow, blue, blue, yellow: button 1 the leftmost); each dome is a cap with a rim and sinks alone |
+| `guitar` | GuitarFreaks 1st Mix to 11th Mix, V, V3 and the Japanese updates (46, 17) | `gtrfrks`: "P1 Button R", "P1 Button G", "P1 Button B" = `BUTTON1` to `BUTTON3`, "P1 Pick" = `BUTTON6`, "P1 Wailing" = `BUTTON7`, `IPT_DIAL` "P1 Effect Knob", a `START` each | a guitar a player lying on the deck, its neck on the outside (the second mirrored): **three fret buttons at the neck's end, a pick bar, a wail button and the effect knob on the body**. A real one is held and its wail is a tilt of the neck: here it is a button |
+| `drums` | DrumMania 1 to 10, V, V2, V3 and Percussion Freaks (43, 16) | `drmn`: "High Tom" `BUTTON1`, "Low Tom" `BUTTON2`, "Hi-Hat" `BUTTON3`, "Snare" `BUTTON4`, "Cymbal" `BUTTON5`, "Bass Drum" `BUTTON6`, "Select L/R" the joystick left/right | **five pads in an arc** (hi-hat, snare, two toms, cymbal) and **the bass drum's pedal on the floor in front of the cabinet** (it goes DOWN, `press_offset`, and a hand or the pad's R presses it); a deeper deck for the kit (+0.20 m) |
+| `taiko` | Taiko no Tatsujin 2 to 11 and RT (11, 11) | `taiko`: "P1R Rim" `BUTTON1`, "P1R Surface" `BUTTON2`, "P1L Surface" `BUTTON3`, "P1L Rim" `BUTTON4` (the cabinet's "Select Up/Down" and "Enter" are the test menu's) | **a drum a player** (a deck +0.25 m deep): a shell with **four zones**, the left and right half of the face and the left and right half of the rim (sectors of a ring, each a finger zone of its own: a neighbour's box would cover it) |
+| `conga` | Mambo a Go-Go (2, 1) | `mamboagg`: "Left/Centre/Right Pad 1 (Top Left/Top Right)", "Pad 2 (Middle Left/Bottom Left)", "Pad 3 (Middle Right/Bottom Right)" = `BUTTON1` to `BUTTON9` (pad n of drum d is `BUTTON(3(n-1)+d)`) | **three drums side by side, each of three pads** (the top half, the bottom left and bottom right quarters), a deeper deck (+0.12 m) |
+
+- **MAME's buttons 7 to 10.** A rhythm game has more buttons than the pad's six (`B A Y X L R`), so `ArcadeProfiles.BUTTON_COUNT` is 10: buttons 7 to 10 are the pad's L2, R2, L3 and R3 and the desktop keys V, B, N, M. *That
+  libretro-mame binds MAME's `BUTTON7` to `BUTTON10` to those pad buttons is an estimate: nothing here ran a nine-button game on a core* (`pop'n`'s domes 7 to 9 and GuitarFreaks' "Wailing" are the first to need it).
+- **A part is found by name**, not by node: `Btn1`..`Btn10` (a key, a dome, a pad, a sector, the bass pedal's tread), `DialPivot` (a turntable or a knob), `Start`. What has no button (a guitar's neck and body, a drum's shell) is
+  drawn and nothing else. A part may stand on another (`z`: a fret on the neck, a zone on the shell). Each panel's `x0 x1 y0 y1` is the reach of everything on it **including START**, so the body is wide enough
+  and the panel's grip (the one pointable thing, `ArcadePanelGrip`) covers it (a first draft left a drum pad and Taiko's START outside it; the suite found both).
+- **Hands.** A fingertip presses a key, a dome or a pad where it rests (the same zones as any cap, from the mesh's box); **a sector's zone is the sector** (`ArcadePanelHands.sector_reading`: radius, angle and height, so the left
+  face and the left rim never both read as pressed); the turntable is taken anywhere on its platter; the bass pedal sinks `press_offset` (down in the cabinet's frame), not into the deck's slope.
+- **Estimated**: every size, position, colour and the pedal's place (`BASS_PEDAL_Z`); which side the pop'n front row and the guitar's neck are on; the guitar's wail as a button; how deep the Taiko and DrumMania decks are.
+  **Research** (a haiku agent's search summaries, `WebFetch` reached no host, no page was opened): beatmania has five keys, three white and two black in a piano's zigzag, a turntable each; **which side the 1997 original's turntable was on is a conflict** (one
+  summary: right of the keys, another that player 1's was later "relocated to the left"): IIDX's, the home controller's and the built one are left for player 1 and mirrored for player 2. pop'n music has nine buttons in two rows
+  (a listing: white, yellow, green, blue, red, blue, green, yellow, white; one unsourced summary the reverse of the ends, which is not what is built). GuitarFreaks: three neck buttons red, green, blue, a pick on the body's face, a
+  "Wailing" lane played by raising the neck, a small effect knob by the pick. DrumMania: five pads (a modified e-drum kit) and a bass pedal; pad colours not found. Taiko: a drum a player, red face (don) and blue rim (ka) (built cream and
+  red), the face's diameter not found (the prototype was modelled on a 48 cm drum; 37 cm is built). Mambo a Go-Go: three drums of three zones. DDR: a 3x3 pad with the arrows on the four edge middles; Solo adds the two front corners.
+  Karaoke Mix and Kids: nothing found.
+  *The research summaries agree on the layouts of the buttons (the MAME names say them too) and not on measurements; no photograph was seen.* **Not built**: the Effect button of beatmania, IIDX's seven keys and two
+  effect buttons, beatmania III, Keyboardmania's keyboard, DrumMania's second player, the drumsticks, the guitar as a thing held and tilted, the Taiko's sticks.
+- Tests: `arcade_form_tests music/` (58 checks: the instrument of every set, the panel counts and the deeper decks, the mirrored deck's order, each part's name, its place and its MAME button, nothing hidden, the grip covers the panel,
+  START where the layout puts it, a sector's mesh facing out, a finger in a Taiko zone through the hands' own pokes, the platter's reach, the bass pedal on the floor going down, the colours of the nine domes), `arcade_tests`
+  (ten buttons, the desktop keys); pictures `arcade_cabinet_probe --forms=bm2ndmix,popn1,gtrfrks,drmn,taiko6,mamboagg`.
+
 ## 3. Every form that is built
 
 What each one is made of, so a new one can follow it. "Hands" is what a headset's hands do on it (`arcade.md` "Hands on the panel").
@@ -266,8 +303,9 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | `cycle` | 2 (1) | a bicycle | see Prop Cycle | bars (two axes), crank |
 | `holo` | 2 (1) | a deep stage behind the glass | see Time Traveler | |
 | `slot` | 2 (1) | two levers in one slot | see Panic Park | the lever slides |
-| `dance` | 53 (31) | a stage of four arrows a dancer | a square of nine 30 cm panels, a safety bar; the arrows sink with the directions | a foot is not tracked: a finger can press an arrow |
+| `dance` | 53 (32) | a stage of four arrows a dancer (a Solo cabinet's six, 9.2) | a square of nine 30 cm panels, a safety bar; the arrows sink with the directions | a foot is not tracked: a finger can press an arrow |
 | `pump` | 22 (14) | a stage of five panels | Pump It Up's diagonals, the buttons' own | the same |
+| `music` | 165 (88), 139 with an instrument | a rhythm game's own controller: a beatmania deck, pop'n's domes, a guitar, a drum kit, a Taiko drum, Mambo's congas (2c) | `ArcadeInstruments` (data) and `_build_instrument`; the parts are named for the control module (`Btn1`..`Btn10`, `DialPivot`) | a fingertip presses a key, a dome, a pad or a zone of a drum (a sector); the turntable is taken anywhere on its platter |
 
 ## 4. What a MAME control becomes
 
@@ -317,10 +355,10 @@ Plain uprights until a module of their own is built. The controls are MAME's own
 | vector cockpits | Star Wars `starwars` 3, The Empire Strikes Back `esb` 1, Red Baron `redbaron` 2, Battlezone `bzone` 4 (**G**) | `AD_STICK_X` and `AD_STICK_Y` (a yoke); Battlezone two sticks (a plain `twin` panel already) | a yoke on a column (a `stick` panel drawn as a yoke) in a pod |
 | striking | Punch-Out!! `punchout` 5, Super Punch-Out!! `spnchout` 3, Arm Wrestling `armwrest` 1 (**G**); Boxing Mania `boxingm` 1 (**NW**) | a joystick and buttons (Punch-Out: two stacked screens); Boxing Mania "Select L/R" | two stacked monitors (the `s2` frame is side by side now); gloves as two hand poses |
 | light-gun oddities | Hammer `hammer` 1, Mallet Madness `maletmad` 1 (**G**); GunMania `gunmania` 1 (**NW**); Lucky & Wild `luckywld` 2 (**G**; built since: the `racegun` form, section 2) (Rail Chase `rchase` is a gun ride with a bench now) | `LIGHTGUN_X/Y`; Lucky & Wild also `PADDLE` and two pedals | a mallet on the gun's hit point; a seat for a driver beside a gunner |
-| rhythm | ParaParaParadise `ppp` 2, `ppp11` 1, ParaParaDancing `ppd` 1 (**I**); `ppp2nd` 2, Dance Maniax `dmx2m`, `dmx2majp`, Mambo a Go-Go `mamboagg` 2 (**NW**) | almost nothing: only SERVICE and two buttons are MAME inputs (sensors are not emulated) | none until the sensors are |
+| rhythm | ParaParaParadise `ppp` 2, `ppp11` 1, ParaParaDancing `ppd` 1 (**I**); `ppp2nd` 2, Dance Maniax `dmx2m`, `dmx2majp` (**NW**) (Mambo a Go-Go `mamboagg` is built since: 2c) | almost nothing: only SERVICE and two buttons are MAME inputs (sensors are not emulated) | none until the sensors are |
 | spinner on an upright | Kick `kick` 3, Kickman `kickman` 1 (**G**) | `IPT_DIAL` | **already a dial panel**: the `odd` mark is redundant |
 | other | Jambo! Safari `jambo` 1 (**NW**) | not found | |
-| **music** | beatmania `bm*` (about 40), beatmania IIDX, GuitarFreaks `gtrfrk*`, DrumMania `drmn*`, Percussion Freaks `pcnfrk*`, pop'n music `popn*`, Keyboardmania `kbm*`, Taiko `taiko*` (158 romsets, 82 families; most **I** or **NW**) | turntables (`PADDLE`, `AD_STICK`), nine buttons, drum pads, guitars | the instrument itself, the hands through its bars; each game needs its own disk image |
+| **music** | **built since (2c)**: beatmania `bm*`, GuitarFreaks `gtrfrk*`, DrumMania `drmn*`, Percussion Freaks `pcnfrk*`, pop'n music `popn*`, Taiko `taiko*`, Mambo a Go-Go. **Still the generic panel**: beatmania IIDX `bmiidx`..., beatmania III `bm3*`, Keyboardmania `kbm*` (26 romsets) | IIDX: seven keys, two effect buttons and a turntable (a trackball to MAME); Keyboardmania: two octaves of keys | IIDX's deck is the beatmania `deck` with two more keys and the effect buttons; Keyboardmania's keyboard a row of 24 keys |
 
 Not a single cabinet, and the biggest unbuilt group: **the `gambling`, `mahjong`, `keypad`, `hanafuda` and `keyboard` machines (2,920 parents, 1,090 of them playable, 8,778
 romsets with an `other` kind; 2,776 parents have no other control)** draw as a joystick panel, which is wrong and harmless. A mahjong or keypad panel would push keyboard keys to the core

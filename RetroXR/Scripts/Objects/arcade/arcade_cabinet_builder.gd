@@ -582,6 +582,11 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	elif kind == "pad":
 		# A dancer: START on the deck, and the stage's arrows (Pump It Up's five panels) on the floor in front.
 		_arrows(mod, to_panel, Vector3(float(spec.get("stage_x", 0.0)), 0.0, STAGE_Z), int(spec.get("arrows", 4)), index)
+	elif kind == "music":
+		# A rhythm game's own controller: a turntable and keys, domes, a guitar, pads, a drum (ArcadeInstruments).
+		_build_instrument(mod, spec, index, to_panel)
+		top = float(spec["y1"]) + 0.01
+		bottom = float(spec["y0"]) - 0.01
 	for k in (spec.get("buttons", []) as Array).size():
 		var bt: Dictionary = spec["buttons"][k]
 		var pos: Vector2 = bt["pos"]
@@ -590,7 +595,7 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		# Panic Park's START is a big round button in its player's colour, ABOVE the lever that player slides (toward the screen), out of its way.
 		_cap(mod, "Start", Vector3(start_x, SLOT_START_Y, 0.0), 0.028, _player_color(index), 0.014)
 	else:
-		_cap(mod, "Start", Vector3(start_x, -0.07, 0.0), 0.011, Color(0.92, 0.92, 0.92), 0.008)
+		_cap(mod, "Start", Vector3(start_x, float(spec.get("start_y", -0.07)), 0.0), 0.011, Color(0.92, 0.92, 0.92), 0.008)
 	var label := str(spec.get("label", ""))
 	if not label.is_empty():
 		# An alternating game's two STARTs say which is which (1P, 2P), on the deck under each.
@@ -626,6 +631,90 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		grip.set("panel_size", Vector2(width, height))
 		grip.position = Vector3((extent.x + extent.y) * 0.5, (top + bottom) * 0.5, 0.03)
 		gshape.size = Vector3(width, height, 0.08 if kind != "wheel" else 0.22)
+
+
+## A rhythm game's controller on a player's panel, from its layout (ArcadeInstruments): `Btn<n>` are MAME's buttons (a key, a dome, a drum pad, a sector of a drum: what a finger presses and
+## the input sinks), `DialPivot` a turntable or a knob, and what has no button (a guitar's body, a drum's shell) is only drawn. Every flat part is built with its local Y along the panel's normal,
+## as a cap is, so a finger's zone and the press are the same for all of them.
+func _build_instrument(mod: Node3D, spec: Dictionary, index: int, to_panel: Transform3D) -> void:
+	if spec.has("dial"):
+		var d: Dictionary = spec["dial"]
+		if str(d["kind"]) == "turntable":
+			_turntable(mod, d["pos"], float(d["radius"]), float(d["plinth"]))
+		else:
+			_knob(mod, d["pos"], float(d["radius"]), float(d["plinth"]), float(d.get("z", 0.0)))
+	for part: Dictionary in spec["parts"]:
+		_instrument_part(mod, part, index)
+	if spec.has("pedal"):
+		_bass_pedal(mod, to_panel, spec["pedal"])
+
+
+## One part of an instrument: a box (a key, a neck), a disc or a dome (a pad, a button; a dome has a rim of its own colour, as a pad has a hoop) or a sector (a drum's face or rim).
+func _instrument_part(mod: Node3D, part: Dictionary, index: int) -> void:
+	var pos: Vector2 = part["pos"]
+	var h := float(part["h"])
+	var base_z := float(part.get("z", 0.0))
+	var color: Color = _player_color(index).lerp(Color(0.25, 0.05, 0.05), 0.35) if bool(part.get("player_color", false)) else part["color"]
+	var node_name := str(part["name"])
+	var button := int(part.get("btn", 0))
+	if button > 0:
+		node_name = "Btn%d" % button
+	var m := ArcadeParts.mat(color, 0.0, 0.35)
+	match str(part["shape"]):
+		"box":
+			var size: Vector2 = part["size"]
+			var key := ArcadeParts.box(_owner, mod, node_name, Vector3(size.x, h, size.y), Vector3(pos.x, pos.y, base_z + h * 0.5), m)
+			key.basis = Basis(Quaternion(Vector3.UP, Vector3.BACK))
+		"dome":
+			if button > 0:
+				_cap(mod, node_name, Vector3(pos.x, pos.y, base_z), float(part["radius"]), color, h)
+			else:
+				ArcadeParts.cylinder(_owner, mod, node_name, float(part["radius"]), h, Vector3(pos.x, pos.y, base_z + h * 0.5), m, Vector3.BACK)
+		"disc":
+			ArcadeParts.cylinder(_owner, mod, node_name, float(part["radius"]), h, Vector3(pos.x, pos.y, base_z + h * 0.5), m, Vector3.BACK)
+		"sector":
+			var node := ArcadeParts.node(_owner, mod, "MeshInstance3D", node_name, Vector3(pos.x, pos.y, base_z + h * 0.5)) as MeshInstance3D
+			var mesh := ArcadeInstruments.sector_mesh(float(part["r0"]), float(part["r1"]), float(part["a0"]), float(part["a1"]), h)
+			mesh.surface_set_material(0, m)
+			node.mesh = mesh
+			node.basis = Basis(Quaternion(Vector3.UP, Vector3.BACK))
+			node.set_meta(&"sector", {"r0": float(part["r0"]), "r1": float(part["r1"]), "a0": deg_to_rad(float(part["a0"])), "a1": deg_to_rad(float(part["a1"]))})
+
+
+## A DJ's turntable: a metal plinth and a platter of black vinyl that turns about its spindle (`DialPivot`, with LEFT and RIGHT or a hand: a hand takes it anywhere on the platter).
+func _turntable(mod: Node3D, pos: Vector2, radius: float, plinth: float) -> void:
+	ArcadeParts.cylinder(_owner, mod, "TurntableBase", plinth, 0.012, Vector3(pos.x, pos.y, 0.006), _metal, Vector3.BACK)
+	var pivot := ArcadeParts.node(_owner, mod, "Node3D", "DialPivot", Vector3(pos.x, pos.y, 0.012)) as Node3D
+	pivot.set_meta(&"reach", radius)
+	ArcadeParts.cylinder(_owner, pivot, "DialKnob", radius, 0.008, Vector3(0, 0, 0.004), ArcadeParts.mat(Color(0.04, 0.04, 0.05), 0.2, 0.25), Vector3.BACK)
+	ArcadeParts.cylinder(_owner, pivot, "PlatterLabel", radius * 0.34, 0.0006, Vector3(0, 0, 0.0083), ArcadeParts.mat(Color(0.80, 0.12, 0.12), 0.0, 0.5), Vector3.BACK)
+	for k in 2:
+		# A groove's ring, lighter than the vinyl, so the turn shows even where the mark is not.
+		ArcadeParts.cylinder(_owner, pivot, "PlatterGroove%d" % (k + 1), radius * (0.62 + 0.18 * float(k)), 0.0004, Vector3(0, 0, 0.0082 - 0.0001 * float(k)),
+			ArcadeParts.mat(Color(0.10, 0.10, 0.12), 0.3, 0.2), Vector3.BACK)
+	ArcadeParts.box(_owner, pivot, "DialMark", Vector3(0.006, radius * 0.5, 0.0008), Vector3(0, radius * 0.62, 0.0090), ArcadeParts.mat(Color(0.95, 0.95, 0.95), 0.0, 0.4))
+	ArcadeParts.cylinder(_owner, pivot, "Spindle", 0.004, 0.010, Vector3(0, 0, 0.012), _metal, Vector3.BACK)
+
+
+## A knob (a guitar's effect knob): a ring and a knob that turns (`DialPivot`).
+func _knob(mod: Node3D, pos: Vector2, radius: float, plinth: float, base_z: float = 0.0) -> void:
+	ArcadeParts.cylinder(_owner, mod, "DialBase", plinth, 0.006, Vector3(pos.x, pos.y, base_z + 0.003), _metal, Vector3.BACK)
+	var pivot := ArcadeParts.node(_owner, mod, "Node3D", "DialPivot", Vector3(pos.x, pos.y, base_z + 0.006)) as Node3D
+	ArcadeParts.cylinder(_owner, pivot, "DialKnob", radius, 0.020, Vector3(0, 0, 0.010), ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.4), Vector3.BACK)
+	ArcadeParts.box(_owner, pivot, "DialMark", Vector3(0.003, radius * 0.8, 0.002), Vector3(0, radius * 0.5, 0.0205), ArcadeParts.mat(Color(0.95, 0.95, 0.95), 0.0, 0.4))
+
+
+## A bass drum's pedal on the floor in front of the cabinet, `pedal.x` along the deck and `pedal.btn` the button it presses: a flat pad on a plate that goes DOWN under a foot (or a hand
+## that reaches it), not into the deck's slope.
+func _bass_pedal(mod: Node3D, to_panel: Transform3D, pedal: Dictionary) -> void:
+	var x := float(pedal["x"])
+	var z := BASS_PEDAL_Z
+	var plate := ArcadeParts.box(_owner, mod, "BassPedalPlate", Vector3(0.20, 0.016, 0.30), Vector3.ZERO, _dark)
+	plate.transform = to_panel * Transform3D(Basis.IDENTITY, Vector3(x, 0.008, z))
+	var tread := ArcadeParts.box(_owner, mod, "Btn%d" % int(pedal["btn"]), Vector3(0.15, 0.020, 0.24), Vector3.ZERO, ArcadeParts.mat(pedal["color"], 0.0, 0.7))
+	tread.transform = to_panel * Transform3D(Basis.IDENTITY, Vector3(x, 0.026, z))
+	tread.set_meta(&"press_offset", to_panel.basis * Vector3(0.0, -0.012, 0.0))
+	form_boxes.append(AABB(Vector3(x - 0.10, 0.0, z - 0.15), Vector3(0.20, 0.05, 0.30)))
 
 
 ## A joystick: a base plate, then a pivot carrying shaft and ball (player 1 red, 2 blue, then green, yellow...).
@@ -1460,6 +1549,8 @@ func _build_cycle(spec: Dictionary) -> void:
 ## Where the middle of a dancer's square is, and its side: three panels of 30 cm.
 const STAGE_Z := 1.30
 const STAGE_SIDE := 0.90
+## Where a bass drum's pedal stands on the floor in front of the cabinet (the cabinet's z): the player's right foot, clear of the bay door's swing.
+const BASS_PEDAL_Z := 0.95
 
 
 ## The stage in front of a dance cabinet (Dance Dance Revolution, Pump It Up): a square for each dancer,

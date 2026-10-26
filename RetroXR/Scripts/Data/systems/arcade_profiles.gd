@@ -60,25 +60,29 @@ const _BAYS: Dictionary = {
 ## Bay kinds a mod added: id -> {label, systems}.
 static var _mod_bays: Dictionary = {}
 
-## Joypad bits. A player's panel: six buttons, START, and the coin the gettoniera
+## Joypad bits. A player's panel: up to ten buttons, START, and the coin the gettoniera
 ## drops. The coin is SELECT because that is where MAME and FBNeo read it on a
 ## RetroPad; it is a property of the core, so it is stated once, here.
-const BUTTON_COUNT := 6
+## The panels of the usual games have six (B A Y X L R, the order libretro-mame binds MAME's buttons 1 to 6 in); a rhythm game's controller has more (pop'n music's nine,
+## Mambo a Go-Go's nine, GuitarFreaks' wailing is button 7), and MAME's buttons 7 to 10 are taken to be the pad's L2, R2, L3 and R3, the rest of the RetroPad (an estimate:
+## nothing here has run a ten-button game on a core).
+const BUTTON_COUNT := 10
 const BUTTON_BITS: Array[int] = [
 	ControllerBindings.JOYPAD_B, ControllerBindings.JOYPAD_A, ControllerBindings.JOYPAD_Y,
 	ControllerBindings.JOYPAD_X, ControllerBindings.JOYPAD_L, ControllerBindings.JOYPAD_R,
+	ControllerBindings.JOYPAD_L2, ControllerBindings.JOYPAD_R2, ControllerBindings.JOYPAD_L3, ControllerBindings.JOYPAD_R3,
 ]
 const START_BIT := ControllerBindings.JOYPAD_START
 const COIN_BIT := ControllerBindings.JOYPAD_SELECT
 
 
-## The pad bit of MAME's button `n` (BUTTON1 is 1): B A Y X L R, the order libretro-mame binds them in; -1 for one a pad has not got.
+## The pad bit of MAME's button `n` (BUTTON1 is 1): B A Y X L R, the order libretro-mame binds them in, then L2 R2 L3 R3; -1 for one a pad has not got.
 static func button_bit(n: int) -> int:
 	return BUTTON_BITS[n - 1] if n >= 1 and n <= BUTTON_BITS.size() else -1
 
 
 ## The keyboard a cabinet plays from until the player binds one of its own: MAME's
-## layout, the six buttons on the bottom row to the left (Ctrl, Alt, Space, Z, X, C), START
+## layout, the six buttons on the bottom row to the left (Ctrl, Alt, Space, Z, X, C; V, B, N, M for the four more of a rhythm game), START
 ## on 1 and the coin on 5. Applied on top of the global map only while a cabinet is
 ## attached (`DesktopBindings.apply_for_system`), so it never reaches a console.
 ## The stock map had the buttons on the numpad and the coin on Shift: a keyboard
@@ -90,6 +94,11 @@ const DESKTOP_KEYS: Dictionary = {
 	"RETRO_JOYPAD_X": {"type": "key", "physical_keycode": KEY_Z, "keycode": 0},
 	"RETRO_JOYPAD_L": {"type": "key", "physical_keycode": KEY_X, "keycode": 0},
 	"RETRO_JOYPAD_R": {"type": "key", "physical_keycode": KEY_C, "keycode": 0},
+	# Buttons 7 to 10 (a rhythm game's): the bottom row goes on, V B N M.
+	"RETRO_JOYPAD_L2": {"type": "key", "physical_keycode": KEY_V, "keycode": 0},
+	"RETRO_JOYPAD_R2": {"type": "key", "physical_keycode": KEY_B, "keycode": 0},
+	"RETRO_JOYPAD_L3": {"type": "key", "physical_keycode": KEY_N, "keycode": 0},
+	"RETRO_JOYPAD_R3": {"type": "key", "physical_keycode": KEY_M, "keycode": 0},
 	"RETRO_JOYPAD_START": {"type": "key", "physical_keycode": KEY_1, "keycode": 0},
 	"RETRO_JOYPAD_SELECT": {"type": "key", "physical_keycode": KEY_5, "keycode": 0},
 }

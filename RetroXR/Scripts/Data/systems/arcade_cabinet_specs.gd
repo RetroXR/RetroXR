@@ -314,6 +314,10 @@ static func panel_extent(panel: Dictionary) -> Vector2:
 		"slot":
 			left = minf(left, float(panel["slot_x"]) - SLOT_TRAVEL - SLOT_HANDLE_REACH)
 			right = maxf(right, float(panel["slot_x"]) + SLOT_TRAVEL + SLOT_HANDLE_REACH)
+		"music":
+			# A rhythm game's controller is wider than a stick and caps: its own layout says by how much (ArcadeInstruments.panel).
+			left = minf(left, float(panel["x0"]))
+			right = maxf(right, float(panel["x1"]))
 	for bt: Dictionary in panel.get("buttons", []):
 		var pos: Vector2 = bt["pos"]
 		var radius := float(bt["radius"])
@@ -729,6 +733,16 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 					"start_x": -SLOT_TRAVEL if i == 0 else SLOT_TRAVEL, "buttons": []})
 			spec["players"] = levers
 			spec["deck_extra"] = SLOT_DECK_EXTRA
+		ArcadeGameProfile.FORM_MUSIC:
+			# A rhythm game's own controller where one is built (beatmania's decks, pop'n's domes, GuitarFreaks' guitars, DrumMania's pads, a Taiko drum a player, Mambo a Go-Go's three drums), a
+			# deck as deep as it needs; any other (IIDX, Keyboardmania) keeps the generic panels.
+			var instrument := profile.instrument()
+			if ArcadeInstruments.is_known(instrument):
+				spec["players"] = ArcadeInstruments.panels(instrument, players)
+				if ArcadeInstruments.deck_extra(instrument) > 0.0:
+					spec["deck_extra"] = ArcadeInstruments.deck_extra(instrument)
+			else:
+				spec["players"] = layout_panels(kind, players, buttons, profile.alternating())
 		ArcadeGameProfile.FORM_STAND:
 			shape = "upright"
 			spec["players"] = [{"kind": "wheel", "wheel_x": 0.0, "start_x": -0.20, "player": 0,

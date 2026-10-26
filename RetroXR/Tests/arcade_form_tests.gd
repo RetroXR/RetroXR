@@ -32,6 +32,7 @@
 ##   racegun/   a driving cockpit of two seats with a gun each (Lucky & Wild): both players seated, the driver's wheel and pedal, both guns on the dash, the gunner's START
 ##   audit/     the data MAME gets wrong or leaves out, game by game (2026-10-26): Taito F3's spare dials, Darius Gaiden's players, the modern boards' driving games, Road
 ##              Blasters' and Bad Lands' wheels, Wing War's pod
+##   music/     the rhythm games' own controllers: beatmania's decks, pop'n's nine domes, GuitarFreaks' guitars, DrumMania's pads, a Taiko drum a player, Mambo a Go-Go's three drums
 ##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
@@ -140,6 +141,9 @@ func _run() -> void:
 		await _clear()
 	if _want("solo"):
 		await _group_solo()
+		await _clear()
+	if _want("music"):
+		await _group_music()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -2119,6 +2123,463 @@ func _group_solo() -> void:
 	_ok(plain and _panels(model).size() == 2, "solo: DDR 4th Mix keeps four arrows a dancer, no corner panel")
 
 
+## The rhythm games' own controllers (K8): which instrument each game has, where each of MAME's buttons is on it, and that the parts are where the input and a finger find them.
+func _group_music() -> void:
+	var want := {
+		"deck": ["bm1stmix", "bm2ndmix", "bm2ndmixa", "bm3rdmix", "bm4thmix", "bm5thmix", "bm6thmix", "bm7thmix", "bmcompmx", "bmcompm2", "bmfinal", "bmdct"],
+		"popn": ["popn1", "popn1j", "popn2", "popn3", "popn4", "popn5", "popn6", "popn7", "popn8", "popnanm", "popnanm2", "popnmt"],
+		"guitar": ["gtrfrks", "gtrfrksja", "gtrfrk2m", "gtrfrk5m", "gtrfrk9m", "gtfrk11m", "gtrfrkva", "gtrfrkv3a"],
+		"drums": ["drmn", "drmn5m", "drmn10m", "drmnv3a", "pcnfrk", "pcnfrk5m", "pcnfrk10m"],
+		"taiko": ["taiko2", "taiko3", "taiko6", "taikort", "taiko7", "taiko8", "taiko9", "taiko10", "taiko11"],
+		"conga": ["mamboagg", "mamboagga"],
+	}
+	var bad: Array = []
+	for instrument: String in want:
+		for romset: String in want[instrument]:
+			var gp := P.for_romset(romset)
+			if not gp.known or gp.form() != P.FORM_MUSIC or gp.instrument() != instrument:
+				bad.append("%s (%s)" % [romset, gp.instrument()])
+	_ok(bad.is_empty(), "music: every beatmania, pop'n music, GuitarFreaks, DrumMania, Taiko and Mambo a Go-Go set has its instrument (%s)" % str(bad))
+	_ok(P.for_romset("bmiidx").instrument().is_empty() and P.for_romset("kbm").instrument().is_empty() and P.for_romset("bm3").instrument().is_empty() and P.for_romset("sf2").instrument().is_empty()
+			and P.for_romset("ppp").form() == P.FORM_ODD,
+		"music: IIDX, Keyboardmania and beatmania III have none yet, and an upright has none")
+	# What each instrument asks of the cabinet: panels, a deck as deep as it needs.
+	var shapes := {"deck": [2, 0.0], "popn": [1, 0.0], "guitar": [2, 0.0], "drums": [1, 0.20], "taiko": [2, 0.25], "conga": [1, 0.12]}
+	var shapes_bad: Array = []
+	for instrument: String in shapes:
+		var sp := _spec(str(want[instrument][0]))
+		var ps: Array = sp["players"]
+		var all_music := true
+		for k: String in _kinds(sp):
+			all_music = all_music and k == "music"
+		if ps.size() != int(shapes[instrument][0]) or not all_music or not is_equal_approx(float(sp.get("deck_extra", 0.0)), float(shapes[instrument][1])):
+			shapes_bad.append("%s (%d panels, deck +%.2f)" % [instrument, ps.size(), float(sp.get("deck_extra", 0.0))])
+	_ok(shapes_bad.is_empty(), "music: a deck a player (beatmania, GuitarFreaks, Taiko), one panel for the rest, the deeper deck where the drums are (%s)" % str(shapes_bad))
+	var iidx := _spec("bmiidx")
+	var iidx_generic := (iidx["players"] as Array).size() >= 1
+	for k: String in _kinds(iidx):
+		iidx_generic = iidx_generic and k != "music"
+	_ok(iidx_generic, "music: a rhythm game with no controller of its own yet (IIDX) keeps the generic panels")
+	# Which of MAME's buttons each part is (konami/ksys573.cpp, namco/namcos10.cpp): a pad is not its neighbour.
+	var maps := {
+		"drums": {"HiHat": 3, "Snare": 4, "HighTom": 1, "LowTom": 2, "Cymbal": 5},
+		"guitar": {"Fret1": 1, "Fret2": 2, "Fret3": 3, "Pick": 6, "Wail": 7},
+		"taiko": {"FaceLeft": 3, "FaceRight": 2, "RimLeft": 4, "RimRight": 1},
+	}
+	var map_bad: Array = []
+	for instrument: String in maps:
+		var layout_btn := {}
+		for item: Dictionary in ArcadeInstruments.panel(instrument, 0, 0.0, false)["parts"]:
+			if item.has("btn"):
+				layout_btn[str(item["name"])] = int(item["btn"])
+		var table: Dictionary = maps[instrument]
+		if layout_btn.size() != table.size():
+			map_bad.append("%s has %d buttons" % [instrument, layout_btn.size()])
+		for part_name: String in table:
+			if int(layout_btn.get(part_name, -1)) != int(table[part_name]):
+				map_bad.append("%s/%s" % [instrument, part_name])
+	var bass: Dictionary = ArcadeInstruments.panel("drums", 0, 0.0, false)["pedal"]
+	_ok(map_bad.is_empty() and int(bass["btn"]) == 6, "music: DrumMania's pads, GuitarFreaks' buttons and Taiko's zones are MAME's own buttons (%s)" % str(map_bad))
+	# beatmania's keys: the first, third and fifth white in the front row, the second and fourth black and behind.
+	var key_rows_ok := true
+	for item: Dictionary in ArcadeInstruments.panel("deck", 0, 0.0, false)["parts"]:
+		var white_key: bool = int(item["btn"]) % 2 == 1
+		var tint: Color = item["color"]
+		key_rows_ok = key_rows_ok and (tint.v > 0.5) == white_key and ((item["pos"] as Vector2).y < 0.0) == white_key
+	_ok(key_rows_ok, "music: beatmania's keys 1, 3 and 5 are white and in the front row, 2 and 4 black and behind them")
+	# A second GuitarFreaks guitar is the first seen in a mirror (neck on the outside); a part in a mirror turns round, a sector's angles with it.
+	var guitars := ArcadeInstruments.panels("guitar", 2)
+	var neck_x := func(panel: Dictionary, part_name: String) -> float:
+		for item: Dictionary in panel["parts"]:
+			if str(item["name"]) == part_name:
+				return float((item["pos"] as Vector2).x)
+		return INF
+	_ok(float(neck_x.call(guitars[0], "GuitarNeck")) < float(neck_x.call(guitars[0], "GuitarBodyLower"))
+			and float(neck_x.call(guitars[1], "GuitarNeck")) > float(neck_x.call(guitars[1], "GuitarBodyLower")),
+		"music: GuitarFreaks' second guitar is the first in a mirror, its neck on the outside")
+	var mirrored_drum := {}
+	for item: Dictionary in ArcadeInstruments.panel("taiko", 0, 0.0, true)["parts"]:
+		mirrored_drum[str(item["name"])] = item
+	_ok(is_equal_approx(float(mirrored_drum["FaceLeft"]["a0"]), -88.0) and is_equal_approx(float(mirrored_drum["FaceLeft"]["a1"]), 88.0)
+			and is_equal_approx(float(mirrored_drum["FaceRight"]["a0"]), 92.0) and is_equal_approx(float(mirrored_drum["FaceRight"]["a1"]), 268.0),
+		"music: a part seen in a mirror turns round: a sector's angles become 180 minus the old ones, the ends swapped")
+	# The panels stand side by side, not through each other (a mirrored beatmania pair keep their STARTs together in the middle, a few millimetres of flange between), and a game has no more
+	# of them than its instrument has.
+	var overlap: Array = []
+	for instrument: String in ArcadeInstruments.IDS:
+		var pair := ArcadeInstruments.panels(instrument, 2)
+		if pair.size() == 2 and float(pair[1]["x0"]) < float(pair[0]["x1"]) - 0.005:
+			overlap.append(instrument)
+	_ok(overlap.is_empty() and ArcadeInstruments.panels("popn", 5).size() == 1 and ArcadeInstruments.panels("taiko", 9).size() == 2 and ArcadeInstruments.panels("deck", 0).size() == 1
+			and ArcadeInstruments.panels("guitar", 2).size() == 2,
+		"music: two players' panels stand side by side (%s overlap), a game has as many as its instrument has and at least one" % str(overlap))
+	# Every part, START and the turntable stand inside their panel's reach, and the body is as wide as the panels need.
+	var fit_bad: Array = []
+	var narrow: Array = []
+	for instrument: String in ArcadeInstruments.IDS:
+		var group := ArcadeInstruments.panels(instrument, ArcadeInstruments.max_players(instrument))
+		var left_most := 0.0
+		var right_most := 0.0
+		for fp: Dictionary in group:
+			left_most = minf(left_most, float(fp["x0"]))
+			right_most = maxf(right_most, float(fp["x1"]))
+			var stands: Array = []
+			for item: Dictionary in fp["parts"]:
+				var half := Vector2.ZERO
+				var round_part := true
+				match str(item["shape"]):
+					"box":
+						half = (item["size"] as Vector2) * 0.5
+						round_part = false
+					"dome", "disc":
+						half = Vector2.ONE * float(item["radius"])
+					"sector":
+						half = Vector2.ONE * float(item["r1"])
+				stands.append([str(item["name"]), item["pos"], half, round_part])
+			# START is a cap of 11 mm with a flange of 13.4: part of the reach too. A turntable or a knob stands on its plinth.
+			stands.append(["START", Vector2(float(fp["start_x"]), float(fp["start_y"])), Vector2.ONE * 0.0134, true])
+			if fp.has("dial"):
+				stands.append(["dial", fp["dial"]["pos"], Vector2.ONE * float(fp["dial"]["plinth"]), true])
+			for entry: Array in stands:
+				var at: Vector2 = entry[1]
+				var reach_by: Vector2 = entry[2]
+				if at.x - reach_by.x < float(fp["x0"]) - 0.0001 or at.x + reach_by.x > float(fp["x1"]) + 0.0001 \
+						or at.y - reach_by.y < float(fp["y0"]) - 0.0001 or at.y + reach_by.y > float(fp["y1"]) + 0.0001:
+					fit_bad.append("%s/%s" % [instrument, entry[0]])
+				# START is clear of everything else on the panel, the turntable too (a drum's shell is 5 cm tall: a START on it would be buried).
+				if entry[0] != "START":
+					var start_at := Vector2(float(fp["start_x"]), float(fp["start_y"]))
+					var gap := 0.0
+					if bool(entry[3]):
+						gap = maxf((start_at - at).length() - reach_by.x, 0.0)
+					else:
+						gap = Vector2(maxf(absf(start_at.x - at.x) - reach_by.x, 0.0), maxf(absf(start_at.y - at.y) - reach_by.y, 0.0)).length()
+					if gap < 0.0134 - 0.0005:
+						fit_bad.append("%s/START on %s" % [instrument, entry[0]])
+		var body_wide := float(_spec(str(want[instrument][0]))["width"])
+		if body_wide < 2.0 * maxf(-left_most, right_most) - 0.001:
+			narrow.append("%s %.2f" % [instrument, body_wide])
+	_ok(fit_bad.is_empty() and narrow.is_empty(), "music: every part stands inside its panel's reach, START and the turntable too, and the body is as wide as they need (%s, too narrow: %s)" % [str(fit_bad), str(narrow)])
+	# The face of a drum, as a mesh: seen from above, its walls leaning out, whichever way round its angles are given.
+	var mesh_bad: Array = []
+	for arc: Array in [[0.05, 0.12, 20.0, 160.0], [0.0, 0.12, -88.0, 88.0], [0.128, 0.172, 92.0, 268.0], [0.05, 0.12, 160.0, 20.0]]:
+		var arrays := ArcadeInstruments.sector_mesh(float(arc[0]), float(arc[1]), float(arc[2]), float(arc[3]), 0.01).surface_get_arrays(0)
+		var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var norms: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL]
+		if verts.is_empty() or verts.size() % 3 != 0:
+			mesh_bad.append("%s is empty" % str(arc))
+			continue
+		var mid_angle := deg_to_rad((float(arc[2]) + float(arc[3])) * 0.5)
+		var wound := true
+		var walls_ok := true
+		for t in range(0, verts.size(), 3):
+			# Godot's front face is the clockwise one: a visible triangle's right-handed cross product points AWAY from its normal.
+			wound = wound and (verts[t + 1] - verts[t]).cross(verts[t + 2] - verts[t]).dot(norms[t]) < 0.0
+			var centre := (verts[t] + verts[t + 1] + verts[t + 2]) / 3.0
+			if absf(norms[t].y) > 0.5:
+				# The top: its normal up, and it is the face that lies above the middle.
+				walls_ok = walls_ok and norms[t].y > 0.0 and centre.y > 0.0
+				continue
+			var from_axis := Vector2(centre.x, -centre.z)
+			var leans := Vector2(norms[t].x, -norms[t].z)
+			var distance := from_axis.length()
+			if distance > float(arc[1]) - 0.002:
+				walls_ok = walls_ok and leans.dot(from_axis) > 0.0
+			elif float(arc[0]) > 0.0 and distance < float(arc[0]) + 0.002:
+				walls_ok = walls_ok and leans.dot(from_axis) < 0.0
+			else:
+				# A straight end: its normal points away from the sector's middle.
+				var toward_mid := Vector2(-from_axis.y, from_axis.x).normalized() * (1.0 if wrapf(from_axis.angle() - mid_angle, -PI, PI) < 0.0 else -1.0)
+				walls_ok = walls_ok and leans.dot(toward_mid) < 0.0
+		if not wound or not walls_ok:
+			mesh_bad.append("%s (wound %s, walls %s)" % [str(arc), str(wound), str(walls_ok)])
+	_ok(mesh_bad.is_empty(), "music: a sector of a drum is drawn facing out, its top and its walls, whichever way round its angles are given (%s)" % str(mesh_bad))
+	# The panels' own numbers: beatmania's second deck is the first seen in a mirror, its keys numbered from the left.
+	var deck := S.for_game(S.variant("generic"), P.for_romset("bm2ndmix"))
+	var d1: Dictionary = deck["players"][0]
+	var d2: Dictionary = deck["players"][1]
+	var key_x := func(panel: Dictionary, button: int) -> float:
+		for part: Dictionary in panel["parts"]:
+			if int(part.get("btn", 0)) == button:
+				return float((part["pos"] as Vector2).x)
+		return INF
+	var ordered := true
+	for k in range(1, 5):
+		ordered = ordered and float(key_x.call(d1, k)) < float(key_x.call(d1, k + 1)) and float(key_x.call(d2, k)) < float(key_x.call(d2, k + 1))
+	_ok(ordered and float((d1["dial"]["pos"] as Vector2).x) < float(key_x.call(d1, 1)) and float((d2["dial"]["pos"] as Vector2).x) > float(key_x.call(d2, 5)),
+		"music: both decks have keys 1 to 5 from the left, the first player's turntable on the left of them and the second's on the right")
+	_ok(absf(float(d2["start_x"]) - float(d1["start_x"])) < 0.05 and float(d1["start_x"]) < 0.0 and float(d2["start_x"]) > 0.0,
+		"music: and the two STARTs stand together in the middle")
+	# The cabinet built: the parts by the names the control module finds.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var names := {
+		"bm2ndmix": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "DialPivot", "TurntableBase"],
+		"popn1": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "Btn6", "Btn7", "Btn8", "Btn9"],
+		"gtrfrks": ["Btn1", "Btn2", "Btn3", "Btn6", "Btn7", "DialPivot", "GuitarNeck", "GuitarBodyLower"],
+		"drmn": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "Btn6", "BassPedalPlate"],
+		"taiko6": ["Btn1", "Btn2", "Btn3", "Btn4", "DrumShell"],
+		"mamboagg": ["Btn1", "Btn2", "Btn3", "Btn4", "Btn5", "Btn6", "Btn7", "Btn8", "Btn9", "Drum1", "Drum3"],
+	}
+	for romset: String in names:
+		model.morph_to(_spec(romset))
+		model.apply_game_profile(P.for_romset(romset))
+		await _wait(4)
+		var missing: Array = []
+		for panel: ArcadeControlModule in _panels(model):
+			for n: String in names[romset]:
+				if panel.find_child(n, true, false) == null:
+					missing.append("%s/%s" % [panel.name, n])
+		var players := _panels(model).size()
+		# A deck a player has its parts on each panel; a game of one panel's, once.
+		_ok(missing.is_empty() and players == (2 if romset in ["bm2ndmix", "gtrfrks", "taiko6"] else 1),
+			"music: %s is built with its parts (%d panels, missing %s)" % [romset, players, str(missing)])
+		# Each cap the instrument has is shown: none is left out for the table's count of buttons.
+		var hidden := 0
+		for panel: ArcadeControlModule in _panels(model):
+			for i in ArcadeProfiles.BUTTON_COUNT:
+				var cap := panel.find_child("Btn%d" % (i + 1), true, false) as Node3D
+				if cap != null and not cap.visible:
+					hidden += 1
+		_ok(hidden == 0, "music: %s shows every cap it has (%d hidden)" % [romset, hidden])
+		# The panel is ONE pointable thing: its grip covers every part that stands on the deck, START and the turntable too (the bass drum's pedal is on the floor and has no place in it).
+		var outside: Array = []
+		var tilted: Array = []
+		var spec_players: Array = _spec(romset)["players"]
+		var starts_ok := true
+		for pi in _panels(model).size():
+			var panel := _panels(model)[pi] as ArcadeControlModule
+			var grip := panel.find_child("PanelGrip", true, false) as Node3D
+			var box := ((grip.find_child("CollisionShape3D", true, false) as CollisionShape3D).shape as BoxShape3D).size
+			for child in panel.get_children():
+				var stands := child as Node3D
+				if stands == null or not (stands.name == &"Start" or stands.name == &"DialPivot" or str(stands.name).begins_with("Btn")) or stands.position.length() > 0.6:
+					continue
+				if absf(stands.position.x - grip.position.x) > box.x * 0.5 or absf(stands.position.y - grip.position.y) > box.y * 0.5:
+					outside.append("%s/%s" % [panel.name, stands.name])
+				# Every flat part lies with its local Y out of the deck, as a cap does: a finger's zone and the press are the same for all of them.
+				if stands is MeshInstance3D and not (stands.basis * Vector3.UP).is_equal_approx(Vector3.BACK):
+					tilted.append("%s/%s" % [panel.name, stands.name])
+			# START stands where the layout puts it, not at the generic panel's -0.07.
+			var start_cap := panel.find_child("Start", true, false) as Node3D
+			starts_ok = starts_ok and start_cap != null and absf(start_cap.position.x - float(spec_players[pi]["start_x"])) < 0.001 \
+					and absf(start_cap.position.y - float((spec_players[pi] as Dictionary).get("start_y", -0.07))) < 0.001
+		_ok(outside.is_empty(), "music: %s's grip covers all of its panel (%s outside it)" % [romset, str(outside)])
+		_ok(tilted.is_empty(), "music: %s's keys, domes and zones lie flat on the deck (%s tilted)" % [romset, str(tilted)])
+		_ok(starts_ok, "music: %s's START stands where its layout puts it" % romset)
+	# pop'n music: nine domes from the left, the first and the last white, the middle red, two rows.
+	model.morph_to(_spec("popn1"))
+	await _wait(3)
+	var popn := _panels(model)[0] as ArcadeControlModule
+	var xs: Array = []
+	var ys: Array = []
+	for i in 9:
+		var cap := popn.find_child("Btn%d" % (i + 1), true, false) as Node3D
+		xs.append(model.to_local(cap.global_position).x)
+		ys.append(model.to_local(cap.global_position).y)
+	var increasing := true
+	for i in 8:
+		increasing = increasing and float(xs[i]) < float(xs[i + 1])
+	var rows := {}
+	for i in 9:
+		rows[snappedf(float(ys[i]), 0.002)] = true
+	_ok(increasing and rows.size() == 2, "music: pop'n music's nine domes run left to right in two rows (%d heights)" % rows.size())
+	var tints: Array = []
+	for i in 9:
+		tints.append(_hue_name(((popn.find_child("Btn%d" % (i + 1), true, false) as MeshInstance3D).get_active_material(0) as StandardMaterial3D).albedo_color))
+	_ok(tints == ["white", "yellow", "green", "blue", "red", "blue", "green", "yellow", "white"],
+		"music: and they are white, yellow, green, blue, red, blue, green, yellow, white (%s)" % str(tints))
+	# Taiko: a drum is two face halves and two rim halves, MAME's Fuchi and Men.
+	model.morph_to(_spec("taiko6"))
+	await _wait(3)
+	var taiko := _panels(model)[0] as ArcadeControlModule
+	var sec_of := func(n: String) -> Dictionary:
+		return (taiko.find_child(n, true, false) as Node3D).get_meta(&"sector", {}) as Dictionary
+	var left_face: Dictionary = sec_of.call("Btn3")
+	var left_rim: Dictionary = sec_of.call("Btn4")
+	var right_face: Dictionary = sec_of.call("Btn2")
+	var right_rim: Dictionary = sec_of.call("Btn1")
+	_ok(left_face.size() == 4 and left_rim.size() == 4 and right_face.size() == 4 and right_rim.size() == 4
+			and float(left_face["a0"]) > PI * 0.4 and float(left_rim["a0"]) > PI * 0.4 and float(right_face["a1"]) < PI * 0.6 and float(right_rim["a1"]) < PI * 0.6
+			and float(left_rim["r0"]) > float(left_face["r1"]),
+		"music: a Taiko drum's four zones are sectors: the left face and the left rim face the left, the right ones the right, the rim outside the face")
+	# A finger: a point in each zone reads as pressed in that zone and no other of the drum (the sectors share one square).
+	var zones := {
+		"Btn3": [Vector2(-0.06, 0.0), 0.122], "Btn2": [Vector2(0.06, 0.0), 0.122],
+		"Btn4": [Vector2(-0.150, 0.0), 0.172], "Btn1": [Vector2(0.150, 0.0), 0.172],
+	}
+	var reads_ok := true
+	var reads := ""
+	for n: String in zones:
+		var cap := taiko.find_child(n, true, false) as MeshInstance3D
+		for m: String in zones:
+			var other := taiko.find_child(m, true, false) as MeshInstance3D
+			var tip := Vector2(zones[n][0])
+			var local := Vector3(tip.x, 0.0, -tip.y)
+			var sec: Dictionary = other.get_meta(&"sector", {})
+			var reading := ArcadePanelHands.sector_reading(local, other.mesh.get_aabb(), sec)
+			var inside := reading <= 1.0
+			reads += "%s/%s=%.2f " % [n, m, reading]
+			if inside != (n == m):
+				reads_ok = false
+	_ok(reads_ok, "music: a fingertip in one of Taiko's zones is in that zone and not in the other three (%s)" % reads)
+	# The same through the hands themselves: each zone's Poke carries its sector, so a tip in the left face does not press the left rim.
+	var taiko_hands := ArcadePanelHands.new(taiko)
+	var taiko_pokes := {}
+	for poke: ArcadePanelHands.Poke in taiko_hands.pokes():
+		taiko_pokes[poke.bit] = poke
+	var poke_ok := taiko_pokes.size() >= 4
+	var poke_reads := ""
+	for n: String in zones:
+		var own_poke := taiko_pokes.get(ArcadeProfiles.button_bit(int(n.trim_prefix("Btn")))) as ArcadePanelHands.Poke
+		if own_poke == null:
+			poke_ok = false
+			continue
+		var tip_at := Vector2(zones[n][0])
+		var tip_world := own_poke.frame() * Vector3(tip_at.x, 0.0, -tip_at.y)
+		for m: String in zones:
+			var other_poke := taiko_pokes.get(ArcadeProfiles.button_bit(int(m.trim_prefix("Btn")))) as ArcadePanelHands.Poke
+			if other_poke == null:
+				continue
+			var near := other_poke.reading(tip_world, 1.0)
+			poke_reads += "%s/%s=%.2f " % [n, m, near]
+			if (near <= 1.0) != (n == m):
+				poke_ok = false
+	_ok(poke_ok, "music: and a fingertip's reading through the hands' own pokes says the same (%s)" % poke_reads)
+	# A zone is a thin slab: a tip a hand above it, or a hand through the drum, does not press it.
+	var face_poke: ArcadePanelHands.Poke = taiko_pokes.get(ArcadeProfiles.button_bit(3)) as ArcadePanelHands.Poke
+	var face_at := Vector3(-0.06, 0.0, 0.0)
+	var face_sector: Dictionary = (taiko.find_child("Btn3", true, false) as Node3D).get_meta(&"sector", {})
+	var face_box := (taiko.find_child("Btn3", true, false) as MeshInstance3D).mesh.get_aabb()
+	_ok(face_poke != null and ArcadePanelHands.sector_reading(face_at, face_box, face_sector) <= 1.0
+			and ArcadePanelHands.sector_reading(face_at + Vector3(0.0, 0.004, 0.0), face_box, face_sector) <= 1.0
+			and ArcadePanelHands.sector_reading(face_at + Vector3(0.0, 0.10, 0.0), face_box, face_sector) > 1.0
+			and ArcadePanelHands.sector_reading(face_at + Vector3(0.0, -0.10, 0.0), face_box, face_sector) > 1.0,
+		"music: a fingertip on a Taiko zone presses it, one a hand above it or a hand through the drum does not")
+	# A zone of the drum stands ON its shell, not in it.
+	var shell := taiko.find_child("DrumShell", true, false) as MeshInstance3D
+	var shell_top := shell.position.z + (shell.mesh as CylinderMesh).height * 0.5
+	var on_shell := true
+	for n in ["Btn1", "Btn2", "Btn3", "Btn4"]:
+		var zone_node := taiko.find_child(n, true, false) as MeshInstance3D
+		on_shell = on_shell and absf(zone_node.position.z - zone_node.mesh.get_aabb().size.y * 0.5 - shell_top) < 0.001
+	_ok(on_shell, "music: Taiko's four zones stand on the drum's shell (its top at %.3f m)" % shell_top)
+	# A guitar's frets stand ON its neck, its pick and wail button on its body: a part's bottom is where what it stands on ends.
+	model.morph_to(_spec("gtrfrks"))
+	await _wait(3)
+	var guitar_panel := _panels(model)[0] as ArcadeControlModule
+	var neck := guitar_panel.find_child("GuitarNeck", true, false) as MeshInstance3D
+	var body := guitar_panel.find_child("GuitarBodyLower", true, false) as MeshInstance3D
+	var neck_top := neck.position.z + neck.mesh.get_aabb().size.y * 0.5
+	var body_top := body.position.z + body.mesh.get_aabb().size.y * 0.5
+	var stacked := true
+	var stack_log := ""
+	for n in [1, 2, 3, 6, 7]:
+		var on_part := guitar_panel.find_child("Btn%d" % n, true, false) as MeshInstance3D
+		var underside := on_part.position.z - on_part.mesh.get_aabb().size.y * 0.5
+		var floor_z := neck_top if n <= 3 else body_top
+		stack_log += "Btn%d %.4f/%.4f " % [n, underside, floor_z]
+		stacked = stacked and absf(underside - floor_z) < 0.001
+	_ok(stacked, "music: GuitarFreaks' frets stand on the neck and its pick and wail button on the body (%s)" % stack_log)
+	# Each player's guitar is the colour of their own panel.
+	var guitar_two := _panels(model)[1] as ArcadeControlModule
+	var colour_of := func(panel: ArcadeControlModule) -> Color:
+		return ((panel.find_child("GuitarBodyLower", true, false) as MeshInstance3D).get_active_material(0) as StandardMaterial3D).albedo_color
+	_ok(not (colour_of.call(guitar_panel) as Color).is_equal_approx(colour_of.call(guitar_two) as Color), "music: and the two players' guitars are not the same colour")
+	var knob_base := guitar_panel.find_child("DialBase", true, false) as MeshInstance3D
+	_ok(knob_base != null and absf(knob_base.position.z - knob_base.mesh.get_aabb().size.y * 0.5 - body_top) < 0.001,
+		"music: and its effect knob on the body too (its underside at %.4f, the body's top at %.4f)" % [knob_base.position.z - knob_base.mesh.get_aabb().size.y * 0.5 if knob_base != null else -1.0, body_top])
+	# Mambo a Go-Go: nine pads, MAME's numbering: the drums left, centre, right are columns 1, 2, 3; pad 1 on top, pad 2 bottom left, pad 3 bottom right.
+	model.morph_to(_spec("mamboagg"))
+	await _wait(3)
+	var conga := _panels(model)[0] as ArcadeControlModule
+	var pos := {}
+	for i in 9:
+		# The three pads of a drum share the drum's middle for an origin: where each is, is where its mesh is.
+		var cap := conga.find_child("Btn%d" % (i + 1), true, false) as MeshInstance3D
+		pos[i + 1] = model.to_local(cap.global_transform * cap.mesh.get_aabb().get_center())
+	var cols_ok := true
+	for row in 3:
+		cols_ok = cols_ok and (pos[row * 3 + 1] as Vector3).x < (pos[row * 3 + 2] as Vector3).x and (pos[row * 3 + 2] as Vector3).x < (pos[row * 3 + 3] as Vector3).x
+	for col in 3:
+		var top: Vector3 = pos[col + 1]
+		var bl: Vector3 = pos[col + 4]
+		var br: Vector3 = pos[col + 7]
+		# Pad 1 is on the monitor's side of pads 2 and 3 (further from the player), pad 2 left of pad 3, the three in one drum.
+		cols_ok = cols_ok and top.z < bl.z - 0.02 and top.z < br.z - 0.02 and bl.x < br.x and absf(top.x - (bl.x + br.x) * 0.5) < 0.03
+	_ok(cols_ok, "music: Mambo a Go-Go's buttons 1 to 9 are three drums of three pads, the left drum's pads 1, 4 and 7")
+	# The input: a button's bit sinks its own part and no other; the four buttons past six are the pad's L2, R2, L3 and R3.
+	model.morph_to(_spec("popn1"))
+	await _wait(3)
+	var pp := _panels(model)[0] as ArcadeControlModule
+	var rest := {}
+	for i in 9:
+		rest[i] = (pp.find_child("Btn%d" % (i + 1), true, false) as Node3D).position
+	var all_ok := true
+	for i in 9:
+		pp.show_state(1 << ArcadeProfiles.BUTTON_BITS[i])
+		for j in 9:
+			var moved := not ((pp.find_child("Btn%d" % (j + 1), true, false) as Node3D).position).is_equal_approx(rest[j])
+			all_ok = all_ok and moved == (i == j)
+	pp.show_state(0)
+	_ok(all_ok, "music: each of pop'n music's nine buttons sinks its own dome and no other (the last three on the pad's L2, R2 and L3)")
+	# The turntable turns with LEFT and RIGHT, as every dial does; a hand takes it anywhere on the platter.
+	model.morph_to(_spec("bm2ndmix"))
+	await _wait(3)
+	var dj := _panels(model)[0] as ArcadeControlModule
+	var platter := dj.find_child("DialPivot", true, false) as Node3D
+	var before := platter.basis
+	dj.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 20:
+		dj.tick(1.0 / 60.0)
+	_ok(not platter.basis.is_equal_approx(before) and float(platter.get_meta(&"reach", 0.0)) >= 0.08,
+		"music: beatmania's turntable turns with RIGHT and is taken anywhere on its platter (reach %.3f m)" % float(platter.get_meta(&"reach", 0.0)))
+	dj.show_state(0)
+	# A hand takes it seven centimetres from its spindle (a knob is taken within 4.5 cm).
+	var dj_hands := ArcadePanelHands.new(dj)
+	var dial_grab: ArcadePanelHands.ControlGrab = null
+	for g: ArcadePanelHands.ControlGrab in dj_hands.grabs():
+		if g.kind == &"dial":
+			dial_grab = g
+	var rim_tip: Vector3 = platter.global_transform * Vector3(0.07, 0.0, 0.012)
+	_ok(dial_grab != null and dial_grab.reach() >= 0.08 and dial_grab.can_grab(rim_tip, 1.0),
+		"music: and a hand can take the turntable at its platter's edge (reach %.3f m)" % (dial_grab.reach() if dial_grab != null else -1.0))
+	# The bass drum's pedal goes DOWN, on the floor, and a hand (or a pad's R) presses it.
+	model.morph_to(_spec("drmn"))
+	await _wait(3)
+	var kit := _panels(model)[0] as ArcadeControlModule
+	var pedal := kit.find_child("Btn6", true, false) as Node3D
+	var pedal_rest := model.to_local(pedal.global_position)
+	_ok(pedal_rest.y < 0.08 and pedal_rest.z > 0.6, "music: the bass drum's pedal is on the floor in front of the cabinet (%s)" % str(pedal_rest))
+	kit.show_state(1 << ArcadeProfiles.button_bit(6))
+	var pedal_moved := model.to_local(pedal.global_position) - pedal_rest
+	_ok(pedal_moved.y < -0.008 and absf(pedal_moved.x) < 0.001 and absf(pedal_moved.z) < 0.001, "music: and it goes straight down under a press (%s)" % str(pedal_moved))
+	kit.show_state(0)
+	var hands := ArcadePanelHands.new(kit)
+	var bits: Array = []
+	for poke: ArcadePanelHands.Poke in hands.pokes():
+		bits.append(poke.bit)
+	var every := true
+	for b in range(1, 7):
+		every = every and bits.has(ArcadeProfiles.button_bit(b))
+	_ok(every, "music: a fingertip can press each of DrumMania's six (%d zones)" % bits.size())
+
+
+## The name of a button's colour, for what a test says in words (white, yellow, red, blue, green; "?" for anything else).
+func _hue_name(c: Color) -> String:
+	if c.r > 0.85 and c.g > 0.85 and c.b > 0.85:
+		return "white"
+	if c.r > 0.85 and c.g > 0.75 and c.b < 0.3:
+		return "yellow"
+	if c.r > 0.8 and c.g < 0.3 and c.b < 0.3:
+		return "red"
+	if c.b > 0.8 and c.r < 0.3:
+		return "blue"
+	if c.g > 0.6 and c.r < 0.3 and c.b < 0.4:
+		return "green"
+	return "?"
+
+
 func _group_shift() -> void:
 	# The table: which games have a lever and what it says (read from the driver sources by Tools/arcade/shifters.py).
 	_ok(P.for_romset("outrun").shifter() == {"button": 3, "toggle": true} and P.for_romset("chasehq").shifter() == {"button": 4, "toggle": true}
@@ -2141,7 +2602,8 @@ func _group_shift() -> void:
 		"shift: the table's x is read: a button and t or h, or s and two buttons; anything else is no lever")
 	_ok(ArcadeProfiles.button_bit(1) == ControllerBindings.JOYPAD_B and ArcadeProfiles.button_bit(2) == ControllerBindings.JOYPAD_A
 			and ArcadeProfiles.button_bit(3) == ControllerBindings.JOYPAD_Y and ArcadeProfiles.button_bit(6) == ControllerBindings.JOYPAD_R
-			and ArcadeProfiles.button_bit(0) == -1 and ArcadeProfiles.button_bit(7) == -1,
+			and ArcadeProfiles.button_bit(0) == -1 and ArcadeProfiles.button_bit(7) == ControllerBindings.JOYPAD_L2 and ArcadeProfiles.button_bit(10) == ControllerBindings.JOYPAD_R3
+			and ArcadeProfiles.button_bit(11) == -1,
 		"shift: MAME's button n is the pad's B A Y X L R in order, and a seventh is nothing")
 	# The spec: a lever only for a game that has one.
 	_ok(bool(_spec("pdrift")["cockpit"]["shifter"]) and bool(_spec("hotchase")["cockpit"]["shifter"]),
@@ -2432,7 +2894,7 @@ func _group_reach() -> void:
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var games: Array = ["sf2", "cotton", "1943", "pacman", "tmnt", "xmen6p", "timecris", "ptblank", "opwolf", "sscope",
 		"polepos", "daytona", "scud", "hangon", "ddrusa", "pumpipx2", "robotron", "centiped", "pong",
-		"propcycl", "timetrv", "panicprk", "luckywld"]
+		"propcycl", "timetrv", "panicprk", "luckywld", "bm2ndmix", "popn1", "gtrfrks", "drmn", "taiko6", "mamboagg", "ddrsbm"]
 	for romset: String in games:
 		model.morph_to(_spec(romset))
 		await _wait(3)

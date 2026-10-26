@@ -452,6 +452,9 @@ func button_visible(player: int, index: int) -> bool:
 	if is_described():
 		var ids: Dictionary = _described.get(player, {})
 		return ids.has(ArcadeProfiles.BUTTON_BITS[index])
+	# A rhythm game's controller is built with the buttons it has: none of its caps is left out for the table's count of them (GuitarFreaks' pick is button 6 and its wail 7 of 5).
+	if known and form() == FORM_MUSIC and not instrument().is_empty():
+		return true
 	return not known or index < buttons
 
 

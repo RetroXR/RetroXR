@@ -68,6 +68,8 @@ var _caps: Array[Node3D] = []
 ## Each cap's flange (`<cap>Rim`, fixed, of the cap's colour), or null where a scene has none.
 var _cap_rims: Array[Node3D] = []
 var _cap_rest: Array[Vector3] = []
+## How far each cap moves when its bit is held, in its parent's frame: into the deck (CAP_PRESS) unless the part says otherwise (`press_offset`: a bass drum's pedal goes down, not into a slope).
+var _cap_press: Array[Vector3] = []
 var _cap_bits: Array[int] = []
 ## Which of the six buttons each cap is (0-based), or -1 for START, which every game has.
 var _cap_button: Array[int] = []
@@ -143,6 +145,7 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_caps.clear()
 	_cap_rims.clear()
 	_cap_rest.clear()
+	_cap_press.clear()
 	_cap_bits.clear()
 	_cap_button.clear()
 	for i in ArcadeProfiles.BUTTON_COUNT:
@@ -210,6 +213,7 @@ func _add_cap(node_name: String, bit: int, button: int) -> void:
 	_caps.append(cap)
 	_cap_rims.append(find_child(node_name + "Rim", true, false) as Node3D)
 	_cap_rest.append(cap.position)
+	_cap_press.append(cap.get_meta(&"press_offset", Vector3(0.0, 0.0, -CAP_PRESS)) as Vector3)
 	_cap_bits.append(bit)
 	_cap_button.append(button)
 
@@ -347,7 +351,7 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 	_shown_axes = axes
 	for i in _caps.size():
 		var pressed := (mask & (1 << _cap_bits[i])) != 0
-		_caps[i].position = _cap_rest[i] + (Vector3(0, 0, -CAP_PRESS) if pressed else Vector3.ZERO)
+		_caps[i].position = _cap_rest[i] + (_cap_press[i] if pressed else Vector3.ZERO)
 	var x := float((mask >> ControllerBindings.JOYPAD_RIGHT) & 1) \
 		- float((mask >> ControllerBindings.JOYPAD_LEFT) & 1)
 	var y := float((mask >> ControllerBindings.JOYPAD_DOWN) & 1) \

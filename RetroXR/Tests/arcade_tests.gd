@@ -213,7 +213,8 @@ func _group_profiles() -> void:
 		seen[b] = true
 	seen[ArcadeProfiles.START_BIT] = true
 	seen[ArcadeProfiles.COIN_BIT] = true
-	_ok(seen.size() == ArcadeProfiles.BUTTON_COUNT + 2, "profiles: six buttons, START and the coin are eight different bits")
+	_ok(seen.size() == ArcadeProfiles.BUTTON_COUNT + 2 and ArcadeProfiles.BUTTON_COUNT == 10,
+		"profiles: ten buttons, START and the coin are twelve different bits")
 	_ok(ArcadeProfiles.COIN_BIT == ControllerBindings.JOYPAD_SELECT, "profiles: the coin is SELECT, where the cores read it")
 	ArcadeProfiles.register_bay_kind("test_mvs", "Test MVS", ["neogeo"])
 	_ok(ArcadeProfiles.bay_accepts("test_mvs", "neogeo") and ArcadeProfiles.is_arcade_system("neogeo"),
@@ -248,13 +249,22 @@ func _group_input() -> void:
 	var one := [true, false, false, false, false, false]
 	_ok(ArcadeInputState.panel_mask(one, false) == (1 << ArcadeProfiles.BUTTON_BITS[0]),
 		"input: button 1 is its own bit")
-	var all := [true, true, true, true, true, true]
+	var all: Array = []
+	all.resize(ArcadeProfiles.BUTTON_COUNT)
+	all.fill(true)
 	var mask := ArcadeInputState.panel_mask(all, true)
 	var want := 0
 	for b in ArcadeProfiles.BUTTON_BITS:
 		want |= 1 << b
 	want |= 1 << ArcadeProfiles.START_BIT
-	_ok(mask == want, "input: six buttons and START together are exactly those seven bits")
+	_ok(mask == want, "input: ten buttons and START together are exactly those eleven bits")
+	var first_six := [true, true, true, true, true, true]
+	var six_mask := ArcadeInputState.panel_mask(first_six, false)
+	var six_want := 0
+	for i in 6:
+		six_want |= 1 << ArcadeProfiles.BUTTON_BITS[i]
+	_ok(six_mask == six_want and (six_mask & (1 << ControllerBindings.JOYPAD_L2)) == 0,
+		"input: six buttons down are the first six bits, and not the pad's L2 (button 7)")
 	_ok(ArcadeInputState.panel_mask([true], false) == (1 << ArcadeProfiles.BUTTON_BITS[0]),
 		"input: a short array leaves the rest up")
 	_ok(ArcadeInputState.direction_mask(Vector2(-1, 0)) == (1 << ControllerBindings.JOYPAD_LEFT),
@@ -318,12 +328,18 @@ func _group_input() -> void:
 			clash = "%s and %s share key %d" % [seen[code], action, code]
 		seen[code] = action
 	_ok(clash.is_empty(), "input: no two actions share a key" + ("" if clash.is_empty() else " (" + clash + ")"))
-	var six := ["RETRO_JOYPAD_B", "RETRO_JOYPAD_A", "RETRO_JOYPAD_Y", "RETRO_JOYPAD_X", "RETRO_JOYPAD_L", "RETRO_JOYPAD_R"]
+	var ten := ["RETRO_JOYPAD_B", "RETRO_JOYPAD_A", "RETRO_JOYPAD_Y", "RETRO_JOYPAD_X", "RETRO_JOYPAD_L", "RETRO_JOYPAD_R",
+		"RETRO_JOYPAD_L2", "RETRO_JOYPAD_R2", "RETRO_JOYPAD_L3", "RETRO_JOYPAD_R3"]
 	var bound := true
-	for action in six:
+	for action in ten:
 		bound = bound and keys.has(action)
-	_ok(bound and six.size() == ArcadeProfiles.BUTTON_COUNT,
-		"input: each of the six buttons has a key of the cabinet's own layout")
+	_ok(bound and ten.size() == ArcadeProfiles.BUTTON_COUNT,
+		"input: each of the ten buttons has a key of the cabinet's own layout")
+	var more := {"RETRO_JOYPAD_L2": KEY_V, "RETRO_JOYPAD_R2": KEY_B, "RETRO_JOYPAD_L3": KEY_N, "RETRO_JOYPAD_R3": KEY_M}
+	var more_ok := true
+	for action: String in more:
+		more_ok = more_ok and int((keys[action] as Dictionary).get("physical_keycode", 0)) == int(more[action])
+	_ok(more_ok, "input: and the four more a rhythm game has are V, B, N and M, the bottom row going on")
 	_ok(ArcadeProfiles.DESKTOP_KEYS.has("RETRO_JOYPAD_START") and ArcadeProfiles.DESKTOP_KEYS.has("RETRO_JOYPAD_SELECT"),
 		"input: START and the coin have keys")
 
