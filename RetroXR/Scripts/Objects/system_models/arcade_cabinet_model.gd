@@ -643,6 +643,10 @@ func configure_collision(host: Node3D) -> void:
 	# A straight screen stands back from the coin face: the front between them needs its own box.
 	if screen_front_z < 0.40:
 		boxes.append(AABB(Vector3(-hw, 0.50, screen_front_z), Vector3(w, 0.50, 0.40 - screen_front_z)))
+	# What the shape adds to the shell: a sit-down cabinet's hood over the door's swing and the wedge of glass in front of its housing.
+	var solid: Array = get_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, [])
+	for k in solid.size():
+		boxes.append(solid[k] as AABB)
 	var first := host.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	for i in boxes.size():
 		var col: CollisionShape3D = first if i == 0 else CollisionShape3D.new()

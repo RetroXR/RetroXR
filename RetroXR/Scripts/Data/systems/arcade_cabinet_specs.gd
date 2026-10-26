@@ -67,22 +67,26 @@ static func shapes() -> Dictionary:
 			"marquee": {"y": 1.78, "h": 0.24, "z": 0.334, "trim_y": 1.659, "under": []},
 			"marquee_bottom": 1.66, "glass_back_z": 0.20, "marquee_front_z": 0.30, "screen_front_z": 0.30,
 		},
-		# The sit-down driving cabinet's monitor housing: the same lower body (the bay, the coin doors), then a
-		# short dash lip and a monitor leaning back 25 degrees, lower than an upright's so a SEATED driver looks
-		# into it (its middle at about 1.1 m). The seat, the wheel and the pedals are the cockpit in front of
-		# it (ArcadeCabinetBuilder._build_cockpit), clear of the bay door's swing.
+		# The sit-down cabinet's monitor housing: the same lower body (the bay, the coin doors), then a HOOD over the
+		# bay door's swing (a shelf 0.34 m deep, its underside above the door's top) and the monitor leaning back 25
+		# degrees from the hood's front edge, lower than an upright's so a SEATED player looks into it (its middle at
+		# about 1.1 m). The hood is why the glass is under a metre from the seated eyes, where a monitor flush with the
+		# bay would be 1.6 m off and fill 16 degrees of the view (the real cabinets' filled about 30). The seat, the wheel
+		# and the pedals are the cockpit in front of it (ArcadeCabinetBuilder._build_cockpit), clear of the door's swing.
 		"racer": {
 			"w": 0.66, "h": 1.56, "tube": Vector2(0.48, 0.36), "inches": 27,
 			"profile": [
 				Vector2(-0.40, 0.00), Vector2(0.34, 0.00), Vector2(0.34, 0.09), Vector2(0.40, 0.09),
-				Vector2(0.40, 0.78), Vector2(0.50, 0.80), Vector2(0.50, 0.86), Vector2(0.38, 0.88),
-				Vector2(0.16, 1.36), Vector2(0.24, 1.36), Vector2(0.24, 1.56), Vector2(-0.40, 1.56),
+				Vector2(0.40, 0.78), Vector2(0.50, 0.80), Vector2(0.84, 0.80), Vector2(0.84, 0.88),
+				Vector2(0.62, 1.36), Vector2(0.70, 1.36), Vector2(0.70, 1.56), Vector2(-0.40, 1.56),
 			],
-			"glass_a": Vector2(0.38, 0.88), "glass_b": Vector2(0.16, 1.36),
-			"deck_a": Vector2(0.50, 0.86), "deck_b": Vector2(0.38, 0.88),
-			"top": [0.64, -0.08],
-			"marquee": {"y": 1.46, "h": 0.20, "z": 0.234, "trim_y": 1.359, "under": [0.08, 1.354, 0.20]},
-			"marquee_bottom": 1.36, "glass_back_z": 0.11, "marquee_front_z": 0.24, "screen_front_z": 0.40,
+			"glass_a": Vector2(0.84, 0.88), "glass_b": Vector2(0.62, 1.36),
+			# No control deck (the controls are the cockpit's): a plate inside the hood's front lip, which takes the deck's place.
+			"deck_a": Vector2(0.83, 0.84), "deck_b": Vector2(0.83, 0.88),
+			"hood": {"z0": 0.50, "z1": 0.84, "y0": 0.80, "y1": 0.88},
+			"top": [1.10, 0.15],
+			"marquee": {"y": 1.46, "h": 0.20, "z": 0.694, "trim_y": 1.359, "under": [0.08, 1.354, 0.66]},
+			"marquee_bottom": 1.36, "glass_back_z": 0.57, "marquee_front_z": 0.70, "screen_front_z": 0.40,
 		},
 	}
 	# The upright of a WIDE cabinet (three or more players): the tate body with the glass TALL_EXTRA longer again, so a

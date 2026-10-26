@@ -811,8 +811,14 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   **The seat is a seat** (2026-10-25, `CockpitSeat`, seats.md "A cockpit's own seat"): press the cushion to sit; **the eyes are at the height of
   the middle of the glass** (1.12 m: the `racer` body is built for it; MAME says nothing of where a driver sat, so the screen is what a seat is
   fitted to) and a sitting adult's eye height (0.72 m, the racing seat furniture's) above the cushion; you get up beside it on the driver's side.
-  The eyes are still 1.5 m from the glass (a real cab was about 1 m): the platform starts where the bay door's swing ends, and moving it nearer
-  wants the door's clearance rethought. `Tools/models/arcade_cabinet_probe --forms=daytona` takes the view from the seat (`formseat_`).
+  **The monitor stands under a HOOD** (2026-10-26, the shape's `hood`): the platform and the dash must start where the bay door's swing ends (0.80 m
+  out), which put the glass 1.6 m from the seated eyes and made the picture fill 16 degrees of the view ("the screen is too far or too small", After
+  Burner). The `racer` body's glass now starts at the front lip of a shelf (0.34 m deep, 0.80-0.88 m up: over the door, never in it) so the
+  wheel stands 0.36 m from the glass's lower edge and the eyes (`SEAT_Z` 1.58) 0.96 m from the picture: 26-28 degrees, a real cab's about 30. **Anything
+  that moves the seat, the dash or the glass must keep that**: `arcade_form_tests hood/` measures the distance, the angle and that nothing stands in the line
+  of sight. The hood and the glass's wedge are SOLID (`solid_boxes` -> `SOLID_BOXES_META` -> the model's collision, the glass cut into four steps along its
+  slope) but are NOT a pointer box: over the coin doors one would stand between a laser and their slots (`reach/`). The cabin's walls carry the glass's line
+  up to the roof and down to the platform. `Tools/models/arcade_cabinet_probe --forms=daytona` takes the view from the seat (`formseat_`).
   **The pedals** (both gun and driving) are real-pedal shaped since the same day: a gun pedal is a pressed-steel base with a cheek each side of
   the hinge pin, a tread hinged at its heel (toward the player) with its toe toward the screen raised 22 degrees, a matt black ribbed rubber face and
   a toe lip, and a boot and a cord to the cabinet; a driver's two are organ pedals on one axle over a footplate with a heel mat, brake (left) the

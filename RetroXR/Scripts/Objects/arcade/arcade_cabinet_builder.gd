@@ -83,6 +83,9 @@ var form_nodes: Array[Node] = []
 ## Solid boxes the form adds to the cabinet's own (a cockpit, a dance stage, deck wings), in the cabinet's
 ## frame: the model's collision takes them (FORM_BOXES_META), and its pointer boxes the ones to aim at.
 var form_boxes: Array[AABB] = []
+## Solid parts the shape adds to the shell's own (a sit-down cabinet's hood and the wedge of glass in front of its housing), in the cabinet's frame:
+## the model's collision takes them (SOLID_BOXES_META), unlike a form's boxes, which are only aimed at.
+var solid_boxes: Array[AABB] = []
 
 
 ## `spec` is a row of ArcadeCabinetSpecs (or one derived from it), `root` the cabinet's root (the
@@ -166,6 +169,8 @@ func _build_extras() -> void:
 ## stage, deck wings), as AABBs in the cabinet's frame. The model gives them POINTER boxes (aimed at, they are
 ## the cabinet, to take hold of) and no collision: a player walks into a cockpit or onto a stage.
 const FORM_BOXES_META := &"arcade_form_boxes"
+## Metadata on the cabinet's root: the shape's solid parts beyond the shell (`solid_boxes`), as AABBs in the cabinet's frame.
+const SOLID_BOXES_META := &"arcade_solid_boxes"
 ## The cabinet's base on the floor with what the form adds, a Rect2 in (x, z) (GroundPlacement's rectangle);
 ## absent while it is the shell's own.
 const FOOTPRINT_META := &"arcade_footprint"
@@ -184,6 +189,11 @@ func apply_metrics() -> void:
 			_root.remove_meta(FORM_BOXES_META)
 	else:
 		_root.set_meta(FORM_BOXES_META, form_boxes.duplicate())
+	if solid_boxes.is_empty():
+		if _root.has_meta(SOLID_BOXES_META):
+			_root.remove_meta(SOLID_BOXES_META)
+	else:
+		_root.set_meta(SOLID_BOXES_META, solid_boxes.duplicate())
 	var shell := Rect2(Vector2(-_w * 0.5, -0.40), Vector2(_w, 0.80))
 	var rect := shell
 	for b in form_boxes:
@@ -260,6 +270,8 @@ func _build_shell(cab: Node3D) -> void:
 	ArcadeParts.box(_owner, cab, "ApronUnder", Vector3(_in_w, 0.05, 0.07), Vector3(0, 0.785, 0.435), _body)
 	ArcadeParts.box(_owner, cab, "Apron", Vector3(_in_w, 0.12, 0.02), Vector3(0, 0.86, 0.46), _body)
 	ArcadeParts.box(_owner, cab, "ApronTrim", Vector3(_in_w, 0.012, 0.022), Vector3(0, 0.806, 0.462), _trim)
+	if _sh.has("hood"):
+		_build_hood(cab, _sh["hood"])
 	# Marquee: a lit panel above the monitor, so it glows when the machine is on.
 	var marquee_mat := ArcadeParts.mat(_v["marquee"], 0.0, 0.5, _v["glow"], 0.0)
 	var mq: Dictionary = _sh["marquee"]
@@ -278,6 +290,34 @@ func _build_shell(cab: Node3D) -> void:
 	if not under.is_empty():
 		ArcadeParts.box(_owner, cab, "MarqueeUnder", Vector3(_in_w, 0.012, under[0]), Vector3(0, under[1], under[2]), _dark)
 	_build_art(cab, marquee, mq)
+
+
+## How many steps the glass's wedge is cut into for the shape's collision (the glass is 0.22 m of run: 4 steps keep it within 3 cm of the slope).
+const HOOD_GLASS_STEPS := 4
+
+
+## The monitor's hood of a sit-down cabinet (the shape's `hood`): a shelf over the bay door's swing from the lower body's front (`z0`) to the glass's
+## bottom edge (`z1`), as thick as the lip (`y0` to `y1`), closed underneath and along its front, which the silhouette's side panels leave open. It is
+## solid, with the wedge of glass above it (steps along the glass's slope, each as far forward as the glass is at its middle) over the coin face's depth:
+## nothing held or pushed passes through the housing. It is NOT a pointer box: over the coin doors it would stand between a laser and their slots.
+func _build_hood(cab: Node3D, hood: Dictionary) -> void:
+	var z0 := float(hood["z0"])
+	var z1 := float(hood["z1"])
+	var y0 := float(hood["y0"])
+	var y1 := float(hood["y1"])
+	ArcadeParts.box(_owner, cab, "HoodUnder", Vector3(_in_w, 0.012, z1 - z0), Vector3(0, y0 + 0.006, (z0 + z1) * 0.5), _dark)
+	ArcadeParts.box(_owner, cab, "HoodFront", Vector3(_in_w, y1 - y0, 0.02), Vector3(0, (y0 + y1) * 0.5, z1 - 0.01), _body)
+	ArcadeParts.box(_owner, cab, "HoodTrim", Vector3(_in_w, 0.012, 0.022), Vector3(0, y0 + 0.006, z1 - 0.011), _trim)
+	solid_boxes.append(AABB(Vector3(-_w * 0.5, y0, 0.40), Vector3(_w, y1 - y0, z1 - 0.40)))
+	var ga: Vector2 = _sh["glass_a"]
+	var gb: Vector2 = _sh["glass_b"]
+	for k in HOOD_GLASS_STEPS:
+		var t0 := float(k) / float(HOOD_GLASS_STEPS)
+		var t1 := float(k + 1) / float(HOOD_GLASS_STEPS)
+		var front := lerpf(ga.x, gb.x, (t0 + t1) * 0.5)
+		var ya := lerpf(ga.y, gb.y, t0)
+		var yb := lerpf(ga.y, gb.y, t1)
+		solid_boxes.append(AABB(Vector3(-_w * 0.5, ya, 0.40), Vector3(_w, yb - ya, front - 0.40)))
 
 
 ## The slots a game's art is hung in when its board is in the bay (RetroSystemModelArcadeCabinet
@@ -918,24 +958,32 @@ func _build_pedal(index: int) -> void:
 
 # ── a sit-down cockpit ──────────────────────────────────────────────────────
 
-## Where the cockpit's platform starts (clear of the bay door, which opens 40 cm out) and ends.
+## Where the cockpit's platform starts (clear of the bay door, which opens 40 cm out, and under the monitor's hood) and ends: 32 cm behind the seat, which is
+## as far back as the headrest.
 const COCKPIT_Z0 := 0.84
-const COCKPIT_Z1 := 2.10
+const COCKPIT_Z1 := 1.90
 ## A flight cockpit's stick console between the knees and its throttle console by the left hand: where they stand front to back, how high the
 ## stick turns on its console, and where the grip is on the shaft (the grip's centre, from the pivot).
-const STICK_Z := 1.34
+const STICK_Z := 1.18
 const STICK_BASE_Y := 0.40
 const FLIGHT_GRIP_Z := 0.27
-const THROTTLE_Z := 1.50
+const THROTTLE_Z := 1.30
+## A driving cockpit's gear lever, by the driver's right hand: the seat's own distance (0.26 m ahead of it).
+const SHIFTER_Z := 1.32
+## Where a driving cockpit's pedals stand (the footplate's middle): the heel just short of the seat's base, the toes at the dash.
+const PEDALS_Z := 1.22
 ## The cabin's walls: from the front pillar's foot (CABIN_Z0, on the platform beside the dash) back to CABIN_Z1, as tall as CABIN_H over the platform. Each
-## is one panel whose front edge slants from the roof's front corner (CABIN_FRONT_Z, just ahead of the monitor housing's deck) down to the sill
-## (CABIN_SILL_Y) at the pillar: the shape of a canopy's side. The roof runs forward over the housing's marquee (ROOF_FRONT_Z), a hand's breadth above it.
-const CABIN_Z0 := 0.90
-const CABIN_Z1 := 2.02
+## is one panel whose front edge slants from the roof's front corner (CABIN_FRONT_Z) down to the sill (CABIN_SILL_Y) at the pillar: the shape of a canopy's
+## side, and the line of the glass carried on up to the roof and down to the platform (the glass leans back 25 degrees, 0.46 m of run for every metre of
+## rise, and so does this edge). The roof runs forward over the housing's marquee (ROOF_FRONT_Z), a hand's breadth above it, and the lock-on lamps hang
+## under it just ahead of the marquee's face (CABIN_LAMP_Z), where a seated player's eyes see them above the picture.
+const CABIN_Z0 := 0.86
+const CABIN_Z1 := 1.82
 const CABIN_H := 1.52
-const CABIN_FRONT_Z := 0.52
+const CABIN_FRONT_Z := 0.50
 const CABIN_SILL_Y := 0.84
 const ROOF_FRONT_Z := 0.20
+const CABIN_LAMP_Z := 0.76
 
 
 ## A sit-down cockpit in front of the monitor housing (Daytona USA, Sega Rally, Ridge Racer, After Burner II): a
@@ -965,7 +1013,7 @@ func _build_cockpit(spec: Dictionary) -> void:
 	_build_driver_seat(base)
 	if not flight:
 		# The gear lever's console, by the driver's right hand.
-		ArcadeParts.box(_owner, base, "ShifterConsole", Vector3(0.12, 0.44, 0.30), Vector3(_w * 0.5 - 0.10, 0.32, 1.52), _body)
+		ArcadeParts.box(_owner, base, "ShifterConsole", Vector3(0.12, 0.44, 0.30), Vector3(_w * 0.5 - 0.10, 0.32, SHIFTER_Z), _body)
 	if bool(spec.get("roof", false)) and not flight:
 		# Two posts behind the seat and a canopy forward over the driver to the monitor housing (the overhead
 		# marquee of Sega's Model 3 twins).
@@ -1003,9 +1051,9 @@ func _build_cockpit(spec: Dictionary) -> void:
 		var wb := Basis(Vector3.RIGHT, deg_to_rad(60.0))
 		var wheel_at := Vector3(0, 0.82, 1.20)
 		_wheel(mod, wheel_at, wb, 0.15)
-		_pedals(mod, Transform3D.IDENTITY, Vector3(0, 0.10, 1.26))
+		_pedals(mod, Transform3D.IDENTITY, Vector3(0, 0.10, PEDALS_Z))
 		if bool(spec.get("shifter", true)):
-			_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, 1.52), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
+			_shifter(mod, Vector3(_w * 0.5 - 0.10, 0.54, SHIFTER_Z), Basis.IDENTITY.rotated(Vector3.RIGHT, -PI * 0.5))
 		# The grip faces the driver: its +Z along the wheel's axis.
 		grip.position = wheel_at
 		grip.basis = wb * Basis(Vector3.RIGHT, -PI * 0.5)
@@ -1101,11 +1149,12 @@ func _build_cabin(base: Node3D) -> void:
 	var lamp := ArcadeParts.mat(Color(0.9, 0.12, 0.10), 0.0, 0.4, Color(1.0, 0.1, 0.1), 1.2)
 	for i in 5:
 		ArcadeParts.box(_owner, base, "CabinLamp%d" % (i + 1), Vector3(0.05, 0.012, 0.05),
-			Vector3((float(i) - 2.0) * 0.1, top - 0.006, roof_z0 + 0.12), lamp)
+			Vector3((float(i) - 2.0) * 0.1, top - 0.006, CABIN_LAMP_Z), lamp)
 
 
-## Where the driver's seat stands, front to back (the cushion's middle), and the platform's top it stands on.
-const SEAT_Z := 1.78
+## Where the driver's seat stands, front to back (the cushion's middle), and the platform's top it stands on. The eyes (4 cm behind it) are 0.95 m from the
+## picture, which fills 28 degrees of the view: 0.36 m from the glass's lower edge to the wheel and 0.42 m on to the eyes, as a cabinet's were.
+const SEAT_Z := 1.58
 const PLATFORM_TOP := 0.10
 ## A sitting adult's eye height above the cushion (the racing seat furniture's own, gen_seats.gd).
 const EYE_ABOVE_CUSHION := 0.72

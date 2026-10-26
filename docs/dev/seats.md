@@ -28,7 +28,7 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
   one player sits in one seat whichever kind (a chair's `sit()` gets up from the cockpit's). A `CockpitSeat` is part of the cabinet and no object of its
   own: not a pickable, not in the `spawned` or `seat` groups, never saved by itself; the cabinet being picked up, its form changing under the
   player or the room being left lets them go. **The eyes are at the middle of the glass** (`EyePoint` at the `racer` body's glass centre, 1.12 m,
-  and 0.72 m above the cushion, the racing seat furniture's `eye_above`); the player gets up on the driver's side (`StandPoint` 0.62 m to the left, on
+  and 0.72 m above the cushion, the racing seat furniture's `eye_above`) and 0.96 m from the picture (`SEAT_Z`, the monitor's hood: `arcade.md`); the player gets up on the driver's side (`StandPoint` 0.62 m to the left, on
   the floor). **The cabinet's pointer boxes leave the cushion open**: a box over the whole seat stood between the laser and the trigger that lies
   3 cm proud of it (the base under the cushion and the back behind it are boxes; nothing above). `seat_tests cockpit/`; the view from the seat is
   `arcade_cabinet_probe --forms=daytona` (`formseat_`). A headset and the Quest are OWED, as for the furniture.

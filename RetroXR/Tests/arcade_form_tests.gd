@@ -26,6 +26,8 @@
 ##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
 ##   odd/       Prop Cycle's bicycle, Time Traveler's deep stage, Panic Park's two levers in one slot
 ##   seating/   the sit-down versions: a flight cockpit with a stick and a throttle, a cabin, a base that tilts; a bench in front of a ride's guns
+##   hood/      a sit-down cabinet's monitor stands under a hood: the picture is close enough to fill the view from the seat, the hood is solid and leaves the coin doors
+##              under it open; nothing of the cockpit stands in the line of sight
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
@@ -118,6 +120,9 @@ func _run() -> void:
 		await _clear()
 	if _want("seating"):
 		await _group_seating()
+		await _clear()
+	if _want("hood"):
+		await _group_hood()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -1673,6 +1678,113 @@ func _group_seating() -> void:
 	await _wait(3)
 	_ok(model.find_child("Bench", false, false) != null and model.find_child("Holster1", true, false) != null,
 		"seating: Rail Chase is a bench in front of two holstered guns")
+
+
+## A sit-down cabinet's picture is a metre from the seated eyes and fills about 28 degrees of the view (it was 1.6 m and 16 degrees when the dash, wheel and seat
+## stood where the monitor's own door swings): the monitor stands under a HOOD over the bay door's swing, the glass starting at its front lip.
+func _group_hood() -> void:
+	var shape: Dictionary = S.shapes()["racer"]
+	var hood: Dictionary = shape["hood"]
+	var glass_a: Vector2 = shape["glass_a"]
+	_ok(_near(float(hood["z1"]), glass_a.x, 0.001) and _near(float(hood["y1"]), glass_a.y, 0.001),
+		"hood: the glass starts where the hood ends (its lower edge is the hood's front lip)")
+	_ok(float(hood["y0"]) >= 0.78 and float(hood["z1"]) >= 0.80,
+		"hood: it is over the bay door's swing (above the coin face's top, as far out as the door opens), not in it")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var plain := _count(sys, "CabinetBox")
+	for romset: String in ["aburner2", "gloc", "sharrier", "outrun", "daytona", "scud"]:
+		model.morph_to(_spec(romset))
+		model.apply_game_profile(P.for_romset(romset))
+		await _wait(3)
+		var seat := model.find_child("DriverSeat", true, false) as CockpitSeat
+		var screen := model.find_child("CabinetScreen", true, false) as MeshInstance3D
+		if seat == null or screen == null:
+			_ok(false, "hood: %s has a seat and a picture" % romset)
+			continue
+		var eye := seat.eye_transform().origin
+		var quad := (screen.mesh as QuadMesh).size * Vector2(screen.global_transform.basis.get_scale().x, screen.global_transform.basis.get_scale().y)
+		var dist := eye.distance_to(screen.global_position)
+		var hfov := rad_to_deg(2.0 * atan(quad.x * 0.5 / dist))
+		_ok(dist >= 0.80 and dist <= 1.05 and hfov >= 24.0 and hfov <= 36.0,
+			"hood: %s: the picture is %.2f m from the seated eyes and fills %.1f degrees of the view (not 1.6 m and 16)" % [romset, dist, hfov])
+		# Nothing of the cockpit between the eyes and the picture's middle or its upper corners (the wheel may reach the lower edge, as a real one does).
+		var cockpit := model.find_child("Cockpit", false, false) as Node3D
+		var blocked: Array[String] = []
+		var corners := [Vector2(0.0, 0.0), Vector2(-0.5, 0.5), Vector2(0.5, 0.5), Vector2(0.0, 0.5)]
+		for c: Vector2 in corners:
+			var target: Vector3 = screen.global_transform * Vector3(c.x * quad.x / screen.global_transform.basis.get_scale().x, c.y * quad.y / screen.global_transform.basis.get_scale().y, 0.0)
+			for mi: MeshInstance3D in _meshes(cockpit):
+				if _under(mi, "DriverSeat") or not mi.is_visible_in_tree():
+					continue
+				var box: AABB = mi.global_transform * mi.get_aabb()
+				if box.intersects_segment(eye, target) != null:
+					blocked.append(str(mi.name))
+		_ok(blocked.is_empty(), "hood: %s: nothing of the cockpit stands in the line of sight to the picture (%s)" % [romset, ", ".join(blocked)])
+	# Solid: the hood and the wedge of glass over it are collision (a held cabinet or a pushed object does not pass through), and a morph away takes them back.
+	model.morph_to(_spec("daytona"))
+	await _wait(3)
+	var solid: Array = model.get_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, [])
+	_ok(solid.size() == 1 + ArcadeCabinetBuilder.HOOD_GLASS_STEPS and _count(sys, "CabinetBox") == plain + solid.size(),
+		"hood: the hood and the glass's steps are collision boxes of the cabinet (%d of them, %d in all)" % [solid.size(), _count(sys, "CabinetBox")])
+	var hit := _solid_hit(sys, sys.global_transform * Vector3(0.0, 0.84, 1.20), sys.global_transform * Vector3(0.0, 0.84, 0.45))
+	_ok(hit == sys, "hood: a rod pushed in under the hood's lip at the height of its slab meets the cabinet")
+	var under := _solid_hit(sys, sys.global_transform * Vector3(0.0, 0.66, 1.20), sys.global_transform * Vector3(0.0, 0.66, 0.45))
+	_ok(under != sys, "hood: and the same rod under it, at the coin door's height, is stopped by nothing: the door still swings")
+	# The wedge of glass: a rod pushed at the picture stops within 4 cm of the glass's slope, whatever the height (the steps are cut to the slope).
+	var worst := 0.0
+	var stopped := 0
+	for y: float in [0.92, 1.04, 1.06, 1.16, 1.20, 1.30]:
+		var r := _solid_hit_at(sys, sys.global_transform * Vector3(0.0, y, 1.20), sys.global_transform * Vector3(0.0, y, 0.45))
+		if r.is_empty() or r.get("collider") != sys:
+			continue
+		stopped += 1
+		var glass_z: float = lerpf((S.shapes()["racer"]["glass_a"] as Vector2).x, (S.shapes()["racer"]["glass_b"] as Vector2).x,
+			(y - (S.shapes()["racer"]["glass_a"] as Vector2).y) / ((S.shapes()["racer"]["glass_b"] as Vector2).y - (S.shapes()["racer"]["glass_a"] as Vector2).y))
+		worst = maxf(worst, absf(sys.to_local(r["position"]).z - glass_z))
+	_ok(stopped == 6 and worst < 0.04, "hood: a rod pushed at the glass stops within %.1f cm of its slope at every height (%d of 6 stopped)" % [worst * 100.0, stopped])
+	_ok(not _is_pointer_over(sys, Vector3(0.0, 0.84, 0.70)), "hood: the hood is no pointer box: a laser from above reaches the coin doors under it")
+	model.morph_to(model._base_spec)
+	await _wait(3)
+	_ok(not model.has_meta(ArcadeCabinetBuilder.SOLID_BOXES_META) and _count(sys, "CabinetBox") == plain,
+		"hood: the cabinet's own form takes them away again (%d boxes)" % _count(sys, "CabinetBox"))
+
+
+## Every MeshInstance3D under a node.
+func _meshes(node: Node) -> Array[MeshInstance3D]:
+	var out: Array[MeshInstance3D] = []
+	if node == null:
+		return out
+	for c in node.get_children():
+		if c is MeshInstance3D:
+			out.append(c)
+		out.append_array(_meshes(c))
+	return out
+
+
+## The first solid thing a rod from `from` to `to` meets: what the cabinet's own body is made of, on the layers the machine sits in.
+func _solid_hit(sys: RetroSystem, from: Vector3, to: Vector3) -> Object:
+	var r := _solid_hit_at(sys, from, to)
+	return r.get("collider") as Object if not r.is_empty() else null
+
+
+## The same, with where it met it (the ray query's result).
+func _solid_hit_at(sys: RetroSystem, from: Vector3, to: Vector3) -> Dictionary:
+	var q := PhysicsRayQueryParameters3D.create(from, to)
+	q.collision_mask = sys.collision_layer
+	q.collide_with_areas = false
+	q.collide_with_bodies = true
+	return sys.get_world_3d().direct_space_state.intersect_ray(q)
+
+
+## Is there a pointer box (anything a laser stops on) at this point of the cabinet?
+func _is_pointer_over(sys: RetroSystem, local: Vector3) -> bool:
+	var q := PhysicsPointQueryParameters3D.new()
+	q.position = sys.global_transform * local
+	q.collision_mask = POINTER_MASK
+	q.collide_with_areas = true
+	q.collide_with_bodies = true
+	return not sys.get_world_3d().direct_space_state.intersect_point(q).is_empty()
 
 
 func _group_shift() -> void:
