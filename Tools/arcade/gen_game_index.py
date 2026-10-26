@@ -444,7 +444,7 @@ def profile_of(machine, parent):
         attrs.append("o")
     # q: a seat (s), a cabin round it (c), a moving base (m): what the sit-down version of this game had (cockpits.py SEATING). Only a form that can
     # show it reads it: a flight cockpit, a driving cockpit, a gun ride's bench.
-    if form in ("fly", "race", "gun", "gunm") and SEATING.get(family):
+    if (form in ("fly", "race", "gun", "gunm") or not form) and SEATING.get(family):
         q = SEATING[family]
         if name in RING:
             # The R-360's rings stand where a canopy's panels would.

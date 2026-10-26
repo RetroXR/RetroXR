@@ -1438,21 +1438,25 @@ const BENCH_EYE_Y := 1.20
 func _build_bench(spec: Dictionary) -> void:
 	var seats := clampi(int(spec.get("seats", 1)), 1, 2)
 	var bench := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Bench", Vector3.ZERO)) as Node3D
-	var depth := BENCH_Z1 - BENCH_Z0
-	var zc := (BENCH_Z0 + BENCH_Z1) * 0.5
+	# The seats stand at BENCH_SEAT_Z unless the spec says otherwise (an upright's bench is closer to its panel); the platform is the same size round them.
+	var seat_z := float(spec.get("seat_z", BENCH_SEAT_Z))
+	var z0 := seat_z - (BENCH_SEAT_Z - BENCH_Z0)
+	var z1 := seat_z + (BENCH_Z1 - BENCH_SEAT_Z)
+	var depth := z1 - z0
+	var zc := (z0 + z1) * 0.5
 	ArcadeParts.box(_owner, bench, "BenchPlatform", Vector3(_w, 0.10, depth), Vector3(0, 0.05, zc), _body)
 	ArcadeParts.box(_owner, bench, "BenchTrim", Vector3(_w + 0.004, 0.012, depth + 0.004), Vector3(0, 0.084, zc), _trim)
 	var width := 0.40 if seats > 1 else 0.48
 	var xs: Array = [0.0] if seats == 1 else [-0.21, 0.21]
 	for i in seats:
 		# Each player gets up on the outside of their own seat.
-		_build_driver_seat(bench, float(xs[i]), BENCH_SEAT_Z, "BenchSeat%d" % (i + 1), width, -0.62 if xs[i] <= 0.0 else 0.62, BENCH_EYE_Y)
-	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, BENCH_Z0), Vector3(_w, 0.10, depth)))
+		_build_driver_seat(bench, float(xs[i]), seat_z, "BenchSeat%d" % (i + 1), width, -0.62 if xs[i] <= 0.0 else 0.62, BENCH_EYE_Y)
+	form_boxes.append(AABB(Vector3(-_w * 0.5, 0.0, z0), Vector3(_w, 0.10, depth)))
 	# The seats are aimed at as the cabinet except on their cushions (as the cockpit's): the base under each, the back behind it.
 	var cushion_top := minf(((_sh["glass_a"] as Vector2).y + (_sh["glass_b"] as Vector2).y) * 0.5, BENCH_EYE_Y) - EYE_ABOVE_CUSHION
 	for x: float in xs:
-		form_boxes.append(AABB(Vector3(x - width * 0.5, PLATFORM_TOP, BENCH_SEAT_Z - 0.23), Vector3(width, cushion_top - 0.03 - PLATFORM_TOP, 0.46)))
-		form_boxes.append(AABB(Vector3(x - width * 0.5, cushion_top, BENCH_SEAT_Z + 0.23), Vector3(width, 1.25 - cushion_top, 0.17)))
+		form_boxes.append(AABB(Vector3(x - width * 0.5, PLATFORM_TOP, seat_z - 0.23), Vector3(width, cushion_top - 0.03 - PLATFORM_TOP, 0.46)))
+		form_boxes.append(AABB(Vector3(x - width * 0.5, cushion_top, seat_z + 0.23), Vector3(width, 1.25 - cushion_top, 0.17)))
 
 
 # ── a ride-on motorbike ─────────────────────────────────────────────────────

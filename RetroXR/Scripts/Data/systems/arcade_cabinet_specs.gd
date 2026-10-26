@@ -633,6 +633,11 @@ static func screens_body(screen: Dictionary, shape: String, width: float) -> Dic
 	return result
 
 
+## Where the seats of a bench in front of an UPRIGHT stand, front to back (a gun ride's, in ArcadeCabinetBuilder, stand at 1.16 m, 0.7 m from a panel on the deck: too far to work its sticks):
+## the cushion's front a hand's reach from the panel's, the eyes 0.6 m from the glass.
+const UPRIGHT_BENCH_Z := 0.98
+
+
 ## How many times the scope of a rifle game of ONE screen (Golgo 13, Silent Scope EX) magnifies the part of the picture the rifle points at.
 const SCOPE_ZOOM := 2.5
 
@@ -774,6 +779,9 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 				var panels := (spec["players"] as Array).size()
 				if panels > 2 and not profile.alternating():
 					spec["socket_count"] = mini(panels, 4)
+				# An upright you sat at (Darius's bench-style seat): a bench in front of its deck, a seat a player, close enough to reach the panel.
+				if profile.has_seat():
+					spec["bench"] = {"seats": clampi(players, 1, 2), "motion": false, "seat_z": UPRIGHT_BENCH_Z}
 	# A hologram cabinet is the upright with its picture standing deep in a dark stage behind the glass.
 	if form == ArcadeGameProfile.FORM_HOLO:
 		spec["holo"] = {"depth": HOLO_DEPTH}

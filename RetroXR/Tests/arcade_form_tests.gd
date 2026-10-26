@@ -1568,16 +1568,23 @@ func _group_seating() -> void:
 	# Nothing else carries them: a seat is only read by a form that can show one, a throttle only by a flight cockpit.
 	var stray: Array[String] = []
 	var seated := 0
+	var seated_uprights: Array[String] = []
 	for romset: String in P._index.keys():
 		var p := P.for_romset(romset)
 		if p.has_seat() or p.has_cabin() or p.has_motion():
 			seated += 1
-			if not (p.form() in [P.FORM_FLY, P.FORM_RACE, P.FORM_GUN, P.FORM_GUN_MOUNTED]) or not p.has_seat():
+			if p.form() == P.FORM_UPRIGHT and p.has_seat() and not p.has_cabin() and not p.has_motion():
+				# An upright you sat at: only Darius's cabinet (Darius, Darius II and their clones).
+				seated_uprights.append(romset)
+			elif not (p.form() in [P.FORM_FLY, P.FORM_RACE, P.FORM_GUN, P.FORM_GUN_MOUNTED]) or not p.has_seat():
 				stray.append(romset)
 		if p.has_throttle() and p.form() != P.FORM_FLY:
 			stray.append(romset + " (throttle)")
 	_ok(stray.is_empty() and seated > 60, "seating: only a flight, driving or gun-ride form carries them, and always with a seat (%d games; stray: %s)"
 		% [seated, ", ".join(stray)])
+	seated_uprights.sort()
+	_ok(seated_uprights == ["darius", "darius2", "darius2d", "darius2do", "dariuse", "dariusj", "dariuso", "dariusu", "sagaia"],
+		"seating: and the one upright you sat at is Darius's, with Darius II (%s)" % ", ".join(seated_uprights))
 	_ok(P.for_romset("aburner2").has_seat() and not P.for_romset("not_a_real_romset").has_seat()
 			and not P.for_romset("not_a_real_romset").has_throttle() and P.for_romset("not_a_real_romset").form() == P.FORM_UPRIGHT,
 		"seating: a game the table does not know has no seat and no throttle")
@@ -1780,6 +1787,36 @@ func _group_seating() -> void:
 	for box: AABB in model.get_meta(ArcadeCabinetBuilder.FORM_BOXES_META, []):
 		solid = solid or (box.size.x >= 0.85 and box.size.z >= 0.7 and box.position.z <= ArcadeCabinetBuilder.BENCH_Z0 + 0.01 and box.size.y <= 0.11)
 	_ok(solid, "seating: and its platform is a box the laser can aim at (the cabinet's, to take hold of it by)")
+	# An upright you sat at: Darius's three screens, a bench-style seat a player a hand's reach from the panel.
+	var dsp := _spec("darius")
+	_ok(dsp.has("bench") and int(dsp["bench"]["seats"]) == 2 and _near(float((dsp["bench"] as Dictionary).get("seat_z", -1.0)), S.UPRIGHT_BENCH_Z) and _spec("darius2").has("bench")
+			and not _spec("ninjaw").has("bench") and not _spec("dariusg").has("bench") and not _spec("sf2").has("bench") and not _spec("pacman").has("bench"),
+		"seating: Darius and Darius II ask for a bench with a seat a player, Ninja Warriors, Darius Gaiden and the other uprights for none")
+	model.morph_to(dsp)
+	model.apply_game_profile(P.for_romset("darius"))
+	await _wait(3)
+	var dseat1 := model.find_child("BenchSeat1", true, false) as CockpitSeat
+	var dseat2 := model.find_child("BenchSeat2", true, false) as CockpitSeat
+	var dball := model.find_child("StickBall", true, false) as Node3D
+	var dglass := model.find_child("CabinetScreen", true, false) as MeshInstance3D
+	_ok(dseat1 != null and dseat2 != null and dball != null and dglass != null and model.find_child("Player1", true, false) != null and _panels(model).size() == 2,
+		"seating: Darius is a bench of two seats in front of its two panels and its screens")
+	if dseat1 != null and dball != null and dglass != null:
+		var deye := dseat1.eye_transform().origin
+		var reach := deye.distance_to(dball.global_position)
+		var away := deye.distance_to(dglass.global_position)
+		_ok(reach < 0.80 and away > 0.5 and away < 1.1 and model.to_local(dseat1.eye_transform().origin).z < 1.25,
+			"seating: the seated player reaches a stick (%.2f m) and the pictures are %.2f m away" % [reach, away])
+		# Nothing of the cabinet's front in the line of sight to the pictures (the sticks and the deck stand below it).
+		# The platform is under the seats, with room round them to step on and off, wherever the seats stand.
+		var platform := model.find_child("BenchPlatform", true, false) as MeshInstance3D
+		var seat_back := model.to_local(dseat1.global_position).z
+		var pz := platform.position.z
+		var half := (platform.mesh as BoxMesh).size.z * 0.5
+		_ok(pz - half < seat_back - 0.25 and pz + half > seat_back + 0.25, "seating: the bench's platform is under its seats, with room before and behind them (%.2f..%.2f, seats at %.2f)" % [pz - half, pz + half, seat_back])
+		var blockers := _sight_blockers(model, deye, dglass, model.find_child("Deck", true, false))
+		_ok(blockers.is_empty() and not _meshes(model.find_child("Deck", true, false)).is_empty(),
+			"seating: and nothing on the deck stands between the eyes and the pictures (%s)" % ", ".join(blockers))
 	model.morph_to(_spec("gunblade"))
 	await _wait(3)
 	_ok(model.find_child("Bench", false, false) == null and model.find_child("BenchSeat1", true, false) == null,
@@ -1850,10 +1887,10 @@ func _group_hood() -> void:
 		"hood: the cabinet's own form takes them away again (%d boxes)" % _count(sys, "CabinetBox"))
 
 
-## What of a cockpit stands between `eye` and the picture's middle or its upper corners (the wheel may reach the lower edge, as a real one does): the names of the
+## What of a cockpit (or of `root`, a deck) stands between `eye` and the picture's middle or its upper corners (the wheel may reach the lower edge, as a real one does): the names of the
 ## meshes whose bounds the line to any of them goes through, the seats themselves left out.
-func _sight_blockers(model: Node, eye: Vector3, screen: MeshInstance3D) -> Array[String]:
-	var cockpit := model.find_child("Cockpit", false, false) as Node3D
+func _sight_blockers(model: Node, eye: Vector3, screen: MeshInstance3D, root: Node = null) -> Array[String]:
+	var cockpit := (root if root != null else model.find_child("Cockpit", false, false)) as Node3D
 	var scale := screen.global_transform.basis.get_scale()
 	var quad := (screen.mesh as QuadMesh).size * Vector2(scale.x, scale.y)
 	var blocked: Array[String] = []

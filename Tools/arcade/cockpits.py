@@ -70,6 +70,9 @@ SEATING = {
     "aircomb": "sc",    # a full-size cockpit with a rumbling seat, not moving (research)
     "airco22b": "sc",   # the same cabinet, "authentic cockpit" (research)
     "tceptor": "s",     # a sit-down cabinet with a yoke and an accelerator pad, like Space Harrier's (research)
+    # An upright you sit at: a bench in front of its deck
+    "darius": "s",      # Taito, 1986: "Players sat on a bench-style seat, with a built-in 'body sonic'" (BEEP! 4/87 through a Gigazine summary; one chain, not checked against a second source)
+    "darius2": "s",     # the same cabinet design (the triple build's audio and body sonic differ slightly, research)
     # Rides with guns: a bench you sit on, in front of the cabinet
     "rchase": "sm",     # DIP "Moving": a bench that pitches and sways with the ride (pneumatic, research)
     "rchase2": "sm",    # the same bench
