@@ -86,9 +86,4 @@ func _process(_delta: float) -> void:
 			_objects_in_trash.erase(body)
 			Trash.set_highlight(pickable, false)
 			print("[StorageBox] deleting '%s'" % pickable.name)
-			_delete_with_dependents(pickable)
-
-
-## Kept for Tests/scene_tests.gd, which bins through the box it built.
-func _delete_with_dependents(pickable: XRToolsPickable) -> void:
-	Trash.delete_with_dependents(pickable)
+			Trash.delete_with_dependents(pickable)

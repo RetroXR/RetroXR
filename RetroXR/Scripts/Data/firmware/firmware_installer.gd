@@ -332,6 +332,8 @@ func _transfer(job: Dictionary, staging: String) -> Dictionary:
 			return {"state": "cancelled", "error": ""}
 
 		if attempt > 0:
+			print("[FirmwareInstaller] Retry %d/%d of %s after: %s" % [attempt + 1, MAX_RETRIES,
+				key, last_error])
 			_emit_retrying.call_deferred(key, attempt + 1, MAX_RETRIES, last_error)
 			# Sliced so a cancel lands during the backoff, not after it.
 			var wait_ms := int(pow(2.0, attempt) * 1000.0)
@@ -345,6 +347,9 @@ func _transfer(job: Dictionary, staging: String) -> Dictionary:
 		var res := _attempt(job, staging)
 		var status := str(res["status"])
 		last_error = str(res.get("error", ""))
+		if status != "ok" and status != "cancelled":
+			print("[FirmwareInstaller] Attempt %d/%d of %s: %s, %s" % [attempt + 1, MAX_RETRIES,
+				key, status, last_error])
 
 		if status == "ok":
 			return {"state": "ok", "error": ""}

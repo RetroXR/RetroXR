@@ -188,9 +188,8 @@ func _on_volume(v: float) -> void:
 ## The same contract every volume control in the project speaks: the sink holds a
 ## 0..1 level and hands it to the source, which owns the actual voices.
 func _push_volume() -> void:
-	if is_instance_valid(_source) \
-			and _source.has_method("set_audio_volume"):
-		_source.set_audio_volume(_volume)
+	if is_instance_valid(_source):
+		AvSourceContract.push_volume(_source, _volume)
 
 
 func get_volume() -> float:

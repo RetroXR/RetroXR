@@ -600,9 +600,9 @@ func _capture_blocked() -> String:
 	var sys := _live_machine()
 	if sys == null:
 		return "no machine is running this game"
-	if not sys.has_method("capture_gate"):
+	if not sys is RetroSystem:
 		return "this machine cannot take save states"
-	var gate: Dictionary = sys.capture_gate()
+	var gate: Dictionary = (sys as RetroSystem).save_states().capture_gate()
 	return "" if bool(gate.get("ok", false)) else str(gate.get("reason", ""))
 
 
@@ -697,20 +697,22 @@ func _on_state_overwrite_requested(state_id: String) -> void:
 
 
 func _begin_capture(into_id: String) -> void:
-	var sys := _live_machine()
+	var sys := _live_machine() as RetroSystem
 	if sys == null:
+		print("[CartridgeOptions] capture refused: no console is running this game")
 		return
 	_state_busy = "taking a save state…"
 	_connect_machine(sys)
-	sys.capture_state(into_id)
+	sys.save_states().capture_state(into_id)
 	_populate()
 
 
 func _on_state_load_requested(state_id: String) -> void:
 	if not _state_busy.is_empty():
 		return
-	var sys := _live_machine()
+	var sys := _live_machine() as RetroSystem
 	if sys == null:
+		print("[CartridgeOptions] load refused: no console is running this game")
 		return
 	# Loading disarms whatever was waiting: the press landed on the plate, not on
 	# the button that was asking for a second one.
@@ -718,7 +720,7 @@ func _on_state_load_requested(state_id: String) -> void:
 	_states_armed_action = ""
 	_state_busy = "loading a save state…"
 	_connect_machine(sys)
-	sys.load_state(state_id)
+	sys.save_states().load_state(state_id)
 	_populate()
 
 

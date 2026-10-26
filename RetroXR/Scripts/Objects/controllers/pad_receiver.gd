@@ -77,6 +77,11 @@ func _ready() -> void:
 ## RetroSystem finds all of this by duck typing -- it asks a port controller for
 ## `pak_option_value` and `get_pak` and does not care what class answers -- so
 ## the two forwards below are the whole of the wiring on the system side.
+##
+## These forwards and the VMU ones below repeat RetroController's on purpose: the
+## method NAMES are the port-controller protocol every caller uses (RetroSystem,
+## VmuStorage, XboxStorage, ScenePersistence, suites, mod probes), so they stay
+## declared on each class that can sit in a port. See retro_controller.gd.
 
 ## The pak fitted to this receiver, or null.
 func get_pak() -> N64Pak:

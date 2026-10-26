@@ -3,7 +3,7 @@ extends Node
 ## What the loading screen actually LOOKS like over a room that is really there.
 ##
 ##   godot --path RetroXR --resolution 960x720 --position 20,20 \
-##       res://Tools/loading_screen_probe.tscn
+##       res://Tools/room/loading_screen_probe.tscn
 ##
 ## Windowed, not --headless: the dummy renderer returns a blank image, so nothing
 ## here can be checked without a display. That is the point — the headless suite

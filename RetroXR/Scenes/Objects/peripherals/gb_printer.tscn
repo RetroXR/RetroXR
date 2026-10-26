@@ -1,6 +1,6 @@
 [gd_scene load_steps=22 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/peripherals/gb_printer.gd" id="1_script"]
+[ext_resource type="Script" path="res://Scripts/Objects/peripherals/gb_printer/gb_printer.gd" id="1_script"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/link_port.tscn" id="2_port"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_button.gd" id="3_button"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]

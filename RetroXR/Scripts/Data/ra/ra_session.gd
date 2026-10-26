@@ -33,8 +33,7 @@ var _badge_cache: Dictionary = {}
 
 
 func _ready() -> void:
-	if not DataPaths.migration_mode():
-		load_data_root()
+	BootScene.defer_or_load(self)
 
 
 func load_data_root() -> void:

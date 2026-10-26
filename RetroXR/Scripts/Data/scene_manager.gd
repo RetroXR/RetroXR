@@ -56,6 +56,33 @@ var active_slot_id: String:
 ## guard in change_scene() doesn't block them.
 var net_scene_override: bool = false
 
+## Whether this peer is a netplay client, and whether it is in a session at all.
+## NetworkManager fills these in from its _ready (set_net_role_source): it depends
+## on SceneManager, and SceneManager never names it back. Until then -- and in a
+## build or a run without it -- the answer is "not networked", which is what the
+## has_node("/root/NetworkManager") guards these replaced answered.
+var _net_is_client: Callable = Callable()
+var _net_is_active: Callable = Callable()
+
+
+## Called once by the NetworkManager autoload. Never by a second manager (the
+## netplay suites run several in one process): the room's scene follows the
+## autoload's session only.
+func set_net_role_source(is_client: Callable, is_active: Callable) -> void:
+	_net_is_client = is_client
+	_net_is_active = is_active
+	print("[SceneManager] netplay role source registered")
+
+
+## In a session only the host decides scenes; a client follows over the network.
+func is_net_client() -> bool:
+	return _net_is_client.is_valid() and bool(_net_is_client.call())
+
+
+## In a netplay session at all, host or client.
+func is_net_active() -> bool:
+	return _net_is_active.is_valid() and bool(_net_is_active.call())
+
 ## Seconds since the last periodic autosave of the current room. Reset whenever a
 ## room finishes restoring, so an interval is always measured from a settled room
 ## rather than from whenever the last one happened to fire.
@@ -128,7 +155,7 @@ func _process(delta: float) -> void:
 		return
 	# The shared world belongs to the host; a client saving it would write the
 	# host's room into the client's own slot.
-	if has_node("/root/NetworkManager") and NetworkManager.is_client():
+	if is_net_client():
 		return
 	_autosave_accum += delta
 	if _autosave_accum < AppPrefs.autosave_interval:
@@ -208,7 +235,7 @@ func carry_room() -> bool:
 	var room := current_scene_id
 	if not is_scene_content_ready(room) or get_tree().current_scene == null:
 		return false
-	if has_node("/root/NetworkManager") and NetworkManager.is_client():
+	if is_net_client():
 		return false
 	if not ScenePersistence.new(room).save_carry(get_tree().current_scene):
 		return false
@@ -242,7 +269,7 @@ func take_carry(room_id: String) -> bool:
 ## room change sends its clients a scene change, which for the room they are
 ## already in does nothing, and the two worlds would part.
 func reload_room(prepare: Callable = Callable(), keep_player := true) -> String:
-	if has_node("/root/NetworkManager") and NetworkManager.is_active():
+	if is_net_active():
 		return "Leave the netplay session first."
 	if _transitioning or not is_scene_content_ready(current_scene_id):
 		return "Wait for the room to finish loading."
@@ -280,7 +307,7 @@ func reload_room(prepare: Callable = Callable(), keep_player := true) -> String:
 ## Returns "" once the quit is under way, else why not.
 func restart_app(extra_user_args: PackedStringArray = PackedStringArray(),
 		before_restart: Callable = Callable(), relaunch: Callable = Callable()) -> String:
-	if has_node("/root/NetworkManager") and NetworkManager.is_active():
+	if is_net_active():
 		return "Leave the netplay session first."
 	if _transitioning or not is_scene_content_ready(current_scene_id):
 		return "Wait for the room to finish loading."
@@ -446,7 +473,7 @@ func change_scene(scene_id: String) -> void:
 		return
 
 	# In a session only the host decides scenes; clients follow via the network.
-	var net_client: bool = has_node("/root/NetworkManager") and NetworkManager.is_client()
+	var net_client: bool = is_net_client()
 	if net_client and not net_scene_override:
 		push_warning("SceneManager: only the host can change scenes during a session")
 		return
@@ -646,7 +673,7 @@ func _finish_transition() -> void:
 	if not next.is_empty() and next != current_scene_id:
 		# Authorization and platform support were checked when it was queued. In
 		# particular, a client's one-call net_scene_override has already gone away.
-		_begin_transition(next, has_node("/root/NetworkManager") and NetworkManager.is_client())
+		_begin_transition(next, is_net_client())
 
 
 ## Take the player out of the outgoing room and park them on the root so they

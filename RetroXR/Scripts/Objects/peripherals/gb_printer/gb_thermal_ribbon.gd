@@ -36,7 +36,7 @@ var _rest := PackedFloat64Array()
 var _mass := 0.0
 var _contact_normals := PackedVector3Array()
 var _weights := PackedFloat64Array()
-var _patch_index := preload("res://Scripts/Objects/peripherals/gb_paper_contacts.gd").new()
+var _patch_index := preload("res://Scripts/Objects/peripherals/gb_printer/gb_paper_contacts.gd").new()
 var _self_bounds: Array[AABB] = []
 
 

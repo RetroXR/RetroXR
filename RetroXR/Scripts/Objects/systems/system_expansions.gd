@@ -30,8 +30,8 @@ extends Node
 const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
 # The lid over an expansion bay — see _seed_expansion_cover.
 const EXPANSION_COVER_SCENE := preload("res://Scenes/Objects/expansion_cover.tscn")
-# The cover over a unit's own socket -- see seed_port_covers.
-const PORT_COVER_SCENE := preload("res://Scenes/Objects/port_cover.tscn")
+# The cover over a unit's own socket is made by CoverSlots (new_port_cover), as
+# every cover slot's is -- see seed_port_covers.
 
 ## The machine this belongs to. Set by RetroSystem in setup(), never by _ready:
 ## the node is added before the host can hand itself over.
@@ -124,11 +124,8 @@ func _seed_expansion_cover() -> void:
 	var zone := model.expansion_cover_slot() if model != null else null
 	if zone == null or zone.has_snapped_object():
 		return
-	var cover := EXPANSION_COVER_SCENE.instantiate() as ExpansionCover
-	_host.get_tree().current_scene.add_child(cover)
-	cover.add_to_group("spawned")
-	cover.global_position = _host.global_position
-	zone.pick_up_object(cover)
+	CoverSlots.seat_new(zone, EXPANSION_COVER_SCENE.instantiate() as ExpansionCover,
+		_host.global_position)
 
 
 ## The sockets of their own some units go into -- a Saturn's Video CD Card slot in
@@ -270,14 +267,8 @@ func _seed_port_cover(socket_id: String) -> void:
 	var socket := unit_socket(socket_id)
 	if zone == null or zone.has_snapped_object() or (socket != null and socket.has_snapped_object()):
 		return
-	var cover := PORT_COVER_SCENE.instantiate() as PortCover
-	cover.socket_id = socket_id
-	cover.size = model.port_cover_size(socket_id)
-	cover.model_variant = _host.model_variant
-	_host.get_tree().current_scene.add_child(cover)
-	cover.add_to_group("spawned")
-	cover.global_transform = zone.global_transform
-	zone.pick_up_object(cover)
+	CoverSlots.seat_new(zone, CoverSlots.new_port_cover(socket_id,
+		model.port_cover_size(socket_id), _host.model_variant))
 
 
 ## Each unit socket that has a cover slot, and the cover in it or null -- what a

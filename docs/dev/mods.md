@@ -222,7 +222,7 @@ peer's word: 256 entries, every field coerced) and emits `mods_refused`.
 `Scripts/UI/spawn_menu/views/mods_view.gd`, over four services owned by the
 **`Modio` autoload** (`Scripts/Net/modio/modio_service.gd`, declared after `Mods`;
 `autoload_order_tests` holds that): `ModioClient` (`Scripts/Net/modio/`),
-`ModDownloader` (`Scripts/Data/mods/`), `ModArtCache` (`Scripts/UI/spawn_menu/`)
+`ModDownloader` (`Scripts/Net/modio/`), `ModArtCache` (`Scripts/UI/spawn_menu/`)
 and `ModReviews` (`Scripts/Mods/`). The menu only borrows them.
 
 **They are an autoload because the menu leaves the tree on every room change.**

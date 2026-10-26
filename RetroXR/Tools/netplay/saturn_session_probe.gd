@@ -41,6 +41,29 @@ var _desyncs := 0
 var _crcs := [[{}, {}], [{}, {}]]
 
 
+## The display a console needs before a session starts its core (_has_display).
+## A real set is a SubViewport, which hangs a headless run, so channel 0 gets
+## this: a RetroTV that never enters the tree. It answers the questions a set's
+## SOUND is asked with the console's own position, so the machine's voices stay
+## where they would be with no set at all -- what this probe measures is the
+## session's frames, never where anything sounds.
+class _StandInTv extends RetroTV:
+	var host: Node3D = null
+
+	func get_speaker_positions() -> PackedVector3Array:
+		var at: Vector3 = host.global_position if is_instance_valid(host) else Vector3.ZERO
+		return PackedVector3Array([at, at])
+
+	func is_sound_external() -> bool:
+		return false
+
+	func get_screen_normal() -> Vector3:
+		return Vector3.BACK
+
+	func get_screen_up() -> Vector3:
+		return Vector3.UP
+
+
 func _ready() -> void:
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--mode="):
@@ -229,11 +252,12 @@ func _branch(bname: String, at: Vector3) -> Dictionary:
 		nm.add_child(sys)
 		sys.global_position = at + Vector3(0.4 * i, 1.0, 0.0)
 		# A console needs a display or the session will not start its core
-		# (_has_display). The real set is a SubViewport, which hangs a headless
-		# run, so a stand-in fills channel 0's `tv` the way surround_probe does.
+		# (_has_display); see _StandInTv.
 		if sys._channels.is_empty():
 			sys._channels.append(RetroSystem.VideoChannel.new())
-		sys._channels[0].tv = Node.new()
+		var stand_in := _StandInTv.new()
+		stand_in.host = sys
+		sys._channels[0].tv = stand_in
 		units.append(sys)
 	return {"name": bname, "nm": nm, "root": root, "units": units}
 

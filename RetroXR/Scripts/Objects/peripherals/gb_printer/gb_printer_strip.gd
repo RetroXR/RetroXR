@@ -123,7 +123,7 @@ var fingers: Array = []
 ## at the shared grip, so only the two segments at that grip are adjacent.
 var other_paper := PackedVector2Array()
 var _other_bounds := Rect2()
-var _patch_index := preload("res://Scripts/Objects/peripherals/gb_paper_contacts.gd").new()
+var _patch_index := preload("res://Scripts/Objects/peripherals/gb_printer/gb_paper_contacts.gd").new()
 var _self_bounds: Array[Rect2] = []
 
 

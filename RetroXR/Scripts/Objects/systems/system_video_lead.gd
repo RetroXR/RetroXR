@@ -5,7 +5,7 @@
 ## A child of the RetroSystem it serves, created in _init beside the other
 ## components. The CHANNELS stay on RetroSystem (VideoChannel, video_channels()):
 ## they are the one record both routes read -- a captive lead sets a channel's
-## set through on_tv_connected, a composite cable through _apply_av_feed -- and
+## set through on_tv_connected, a composite cable through SystemAvPorts.apply_feed -- and
 ## a second owner would be a second answer to "which set shows this machine".
 ## What lives here is the lead itself, the rope and plugs at the end of it.
 ##

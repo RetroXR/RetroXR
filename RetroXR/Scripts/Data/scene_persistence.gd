@@ -84,7 +84,7 @@ static var _mod_objects: Dictionary = {}
 
 ## Register a mod prop. Returns "" on success.
 static func register_mod_object(type: String, scene_path: String, owner_id: String) -> String:
-	if PLAIN_SCENES.has(type) or _SPECIALIZED_TYPES.has(type):
+	if PLAIN_SCENES.has(type) or _LOAD_KINDS.has(type):
 		return "'%s' is a shipped object type" % type
 	if _mod_objects.has(type):
 		return "'%s' is already registered by mod '%s'" % [type, _mod_objects[type].get("owner", "?")]
@@ -142,29 +142,6 @@ static func _instantiate_mod_object(type: String) -> Node3D:
 		obj.set_meta(MOD_TYPE_META, type)
 	return obj
 
-
-const _SPECIALIZED_TYPES := [
-	"system", "tv", "cartridge", "disc", "memory_card", "book",
-	"retro_controller", "retro_mouse", "snes_mouse", "vcr_tape", "dvd_disc",
-	"composite_cable", "audio_disc", "audio_cassette", "vinyl_record",
-	"pad_receiver", "keyboard_receiver", "mouse_receiver", "poster",
-	# Which console port its plug is in, its SELECT switch, and the pad in each of
-	# its four sockets. The pads' own entries name no port: the tap's is the end
-	# that means something.
-	"retro_multitap",
-	# The machines that bolt onto a console. A unit's own entry says which unit
-	# it is and what is in its bay; which console it is attached to is restored
-	# from the CONSOLE's entry, the way a memory card's slot is.
-	"expansion",
-	# The lid over an expansion bay. Its own entry is just "a lid exists, here";
-	# whether it is ON a console or lying where a player put it down comes from
-	# that console's entry, same as the units above.
-	"expansion_cover",
-	# The cover over a unit's own socket (a GameCube's Serial Port 1, a fat PS2's
-	# expansion bay): which socket it fits and how big it is. Whether it is on a
-	# console comes from that console's "port_covers".
-	"port_cover",
-]
 
 ## Bumped by every async restore as it starts. Because those yield frames, a
 ## second one can begin — a room change auto-loading a slot on top of a slot the
@@ -963,7 +940,7 @@ func _read_objects(path: String) -> Variant:
 ## Is this a type this build can build? Mod props count, while their mod is
 ## loaded — which is exactly why a slot must survive one of them going away.
 static func _is_known_type(obj_type: String) -> bool:
-	return PLAIN_SCENES.has(obj_type) or obj_type in _SPECIALIZED_TYPES \
+	return PLAIN_SCENES.has(obj_type) or _LOAD_KINDS.has(obj_type) \
 		or _mod_objects.has(obj_type)
 
 
@@ -1599,230 +1576,311 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	_restore_cover_slots(root, obj, spawned, d)
 	_restore_cell_slots(root, obj, spawned, d)
 
-	if obj is RetroSystem:
-		var sys := obj as RetroSystem
-		# Which composite input each channel's lead goes back into. Absent on every
-		# save written before a set had four, and read through a helper that answers
-		# Composite 1 for anything it does not cover.
-		var tv_inputs: Array = d.get("tv_inputs", [])
-		var tv := _resolve_ref(root, spawned, d.get("tv")) as RetroTV
-		if tv:
-			sys.restore_cable_connection(tv, 0, _tv_input(tv_inputs, 0))
-		# Extra video-out channels (dual-screen handhelds: ch 1 = BOTTOM). A save
-		# made against a model with more channels than this one has is truncated —
-		# restore_cable_connection would silently fold the overflow onto ch 0.
-		var extra: Array = d.get("extra_tvs", [])
-		for i in range(mini(extra.size(), sys.get_channel_count() - 1)):
-			var ch_tv := _resolve_ref(root, spawned, extra[i]) as RetroTV
-			if ch_tv:
-				sys.restore_cable_connection(ch_tv, i + 1, _tv_input(tv_inputs, i + 1))
-		var cart := _resolve_ref(root, spawned, d.get("cartridge")) as RetroCartridge
-		if cart:
-			sys.restore_cartridge(cart, float(d.get("cartridge_yaw", 0.0)))
-		var cart_b := _resolve_ref(root, spawned, d.get("cartridge_b")) as RetroCartridge
-		if cart_b:
-			sys.restore_slot2_cartridge(cart_b)
-		# Bolt the tower back together. Each unit seats through the same call a
-		# hand's release ends in, so a restored stack is the same object graph as
-		# a built one: the console knows its units, each unit knows its host, and
-		# the launch recipe reads exactly as it would have.
-		for ref: Variant in (d.get("expansions", []) as Array):
-			var unit := _resolve_ref(root, spawned, ref) as RetroExpansion
-			if unit:
-				sys.restore_expansion(unit)
-		var memcard := _resolve_ref(root, spawned, d.get("memcard")) as MemoryCard
-		if memcard:
-			sys.restore_memory_card(memcard, 0)
-		# Slot B is its own key rather than the pair becoming an array: an array
-		# would not load in any room file saved before there was a second slot.
-		var memcard_b := _resolve_ref(root, spawned, d.get("memcard_b")) as MemoryCard
-		if memcard_b:
-			sys.restore_memory_card(memcard_b, 1)
-		# The expansion-bay lid, if this save had it ON the console. A save with
-		# none leaves the bay open, which is a real state: the lid is then a
-		# loose object restored from its own entry, wherever it was put down.
-		var cover := _resolve_ref(root, spawned, d.get("expansion_cover")) as ExpansionCover
-		if cover:
-			sys.restore_expansion_cover(cover)
-		# The covers over its own sockets. A console saved before there were any
-		# never said its covers were off, so it gets them, over every socket the
-		# save left empty; one saved since says which are on, and a cover that is
-		# off is restored loose from its own entry.
-		if d.has("port_covers"):
-			var covers: Dictionary = d["port_covers"]
-			for socket: Variant in covers:
-				var port_cover := _resolve_ref(root, spawned, covers[socket]) as PortCover
-				if port_cover:
-					sys.restore_port_cover(str(socket), port_cover)
-		else:
-			sys.seed_port_covers()
-		# After the media, and deferred: seating a cartridge swings the bay open (the
-		# NES flap) and tweens it there, either of which would otherwise win over the
-		# pose the system restored when its model loaded.
-		var lid_angle := float(d.get("lid_angle", -1.0))
-		if lid_angle >= 0.0:
-			sys.set_lid_angle_deg.call_deferred(lid_angle)
-	elif obj is RetroExpansion:
-		# The disk, disc or cartridge in this unit's own bay. Independent of the
-		# order the stack is rebuilt in: a bay seats its media as a pose relative
-		# to the unit, so it comes out right whether or not the unit has been
-		# bolted to its console yet.
-		var own := _resolve_ref(root, spawned, d.get("media")) as Node3D
-		if own:
-			(obj as RetroExpansion).restore_media_in_slot(own)
-		# Absent from every room saved before a unit had two slots, which is why
-		# it is read with a default rather than assumed present.
-		var own_b := _resolve_ref(root, spawned, d.get("media_b")) as Node3D
-		if own_b:
-			(obj as RetroExpansion).restore_media_in_slot(own_b, 1)
-		# Its clip-on accessory (the 32X's Model 2 spacer), on the same terms: a
-		# pose relative to the unit, whether or not the unit is seated yet.
-		var accessory := _resolve_ref(root, spawned, d.get("accessory")) as Node3D
-		if accessory:
-			(obj as RetroExpansion).restore_accessory(accessory)
-	elif obj is TransferPak:
-		# The Game Boy cartridge in the pak's roof, on the same terms as an
-		# expansion's own bay above: a pose relative to the pak, so it lands right
-		# whether or not the pak has been put back into a controller yet.
-		var gb := _resolve_ref(root, spawned, d.get("gb_cart")) as Node3D
-		if gb:
-			(obj as TransferPak).restore_cart(gb)
-	elif obj is RetroTV:
-		(obj as RetroTV).restore_control_state(d.get("controls", {}))
-		# The tape or disc in a combination set's own deck. The deck is not an
-		# object of its own in the file -- the cabinet builds it -- so what is in it
-		# is saved on the set, by the deck's kind.
-		var decks: Dictionary = d.get("decks", {})
-		for kind: String in decks:
-			var entry: Dictionary = decks[kind]
-			var media := _resolve_ref(root, spawned, entry.get("media")) as Node3D
-			if media:
-				(obj as RetroTV).decks().restore_deck_media(kind, media, float(entry.get("yaw", 0.0)))
-	elif obj is VCRPlayer:
-		var tape := _resolve_ref(root, spawned, d.get("tape")) as VCRTape
-		if tape:
-			(obj as VCRPlayer).restore_media(tape)
-	elif obj is DVDPlayer:
-		var disc := _resolve_ref(root, spawned, d.get("disc")) as DVDDisc
-		if disc:
-			(obj as DVDPlayer).restore_media(disc, float(d.get("disc_yaw", 0.0)))
-	elif obj is RetroAudioPlayer:
-		var media := _resolve_ref(root, spawned, d.get("media"))
-		if media is AudioDisc or media is AudioCassette or media is VinylRecord:
-			(obj as RetroAudioPlayer).restore_media(
-				media as Node3D, float(d.get("media_yaw", 0.0)))
-	elif obj is SpeakerPair:
-		var pair := obj as SpeakerPair
-		pair.set_volume(float(d.get("volume", 0.75)))
-		pair.restore_box_poses(d.get("boxes", []))
-	elif obj is SurroundAmp:
-		# The switch only: the volume knob came back with every other VRKnob in
-		# _restore_articulated_controls above, and its value_changed pushed it.
-		(obj as SurroundAmp).restore_state(int(d.get("decode_mode", 0)))
-	elif obj is CompositeCable or obj is PowerCord or obj is PowerStrip:
-		# Pass 2, so every deck and set the plugs point at already exists, and for
-		# a mains lead so does every wall outlet and every inlet. A plug whose
-		# socket cannot be found is simply left where it was saved: a loose end on
-		# the floor beats one seated in the wrong device.
-		var seats: Array = []
-		for rec: Dictionary in d.get("plugs", []):
-			seats.append({
-				"end": int(rec.get("end", 0)),
-				"cord": int(rec.get("cord", 0)),
-				"position": rec.get("position", []),
-				"rotation": rec.get("rotation", []),
-				"device": _resolve_ref(root, spawned, rec.get("device")) as Node3D,
-				"port": str(rec.get("port", "")),
-			})
-		if obj.has_method("restore_carried_body"):
-			obj.call("restore_carried_body", d.get("body", {}))
-		obj.call("restore_seating", seats)
-	elif obj is SpeakerStand:
-		(obj as SpeakerStand).restore_seat(
-			_resolve_ref(root, spawned, d.get("speaker")) as Loudspeaker)
-	elif obj is SensorBar:
-		(obj as SensorBar).restore_connection(
-			_resolve_ref(root, spawned, d.get("system")) as RetroSystem)
-	elif obj is GcMicrophone:
-		var mic_slot := int(d.get("slot", -1))
-		var mic_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
-		if mic_slot >= 0 and mic_sys != null:
-			(obj as GcMicrophone).restore_seat(mic_sys, mic_slot)
-	elif obj is N64Vru:
-		var vru_port := int(d.get("port", -1))
-		var vru_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
-		var vru := obj as N64Vru
-		if vru_port >= 0 and vru_sys != null:
-			vru.restore_seat(vru_sys, vru_port)
-		# A save written before the jack existed has no key, and a unit from one
-		# came with its microphone attached — so the default is plugged in.
-		vru.restore_mic_plugged(bool(d.get("mic", true)))
-	elif obj is InputReceiver:
-		# A pak goes back whether or not the receiver was plugged into anything —
-		# a loose dongle can still have one on it, exactly as a loose N64 pad can.
-		# Seated BEFORE the port connection below, so the machine is told what is
-		# in the port once, on connecting, rather than told "empty" and corrected.
-		if obj is PadReceiver:
-			(obj as PadReceiver).restore_pak(
-				_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
-			_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
-		var rx_port := int(d.get("port_index", -1))
-		if rx_port < 0:
+	for row: Array in _restore_kind_rows():
+		if is_instance_of(obj, row[0]):
+			call(row[1] as StringName, root, id, obj, spawned, d)
 			return
-		var rx_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
-		if rx_sys == null:
-			push_warning("[ScenePersistence] pad receiver id=%d: system not found" % id)
-			return
-		(obj as InputReceiver).restore_port_connection(rx_sys, rx_port)
-	elif obj is RetroMultitap:
-		# The pads in its sockets, then its own plug. Both wait for a cord made a
-		# frame after spawning, and whichever lands second binds the pads, once.
-		var tap := obj as RetroMultitap
-		var sockets: Variant = d.get("sockets", [])
-		if sockets is Array:
-			for i in mini((sockets as Array).size(), RetroMultitap.SUB_PORTS):
-				var held := _resolve_ref(root, spawned, (sockets as Array)[i])
-				if held != null:
-					tap.restore_socket(i, held)
-		var tap_port := int(d.get("port_index", -1))
-		if tap_port < 0:
-			return
-		var tap_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
-		if tap_sys == null:
-			push_warning("[ScenePersistence] multitap id=%d: system not found" % id)
-			return
-		tap.restore_port_connection(tap_sys, tap_port)
-	elif obj is RetroController or obj is LightGun or obj is RetroMouse \
-			or obj is RetroKeyboard or obj is Wiimote:
-		# The remote's Nunchuk is restored whether or not it was paired to a
-		# console — an unpaired remote can still have one plugged into it.
-		if obj is Wiimote:
-			# Dongle FIRST. It seats synchronously, and the Nunchuk goes into its
-			# pass-through rather than into the remote whenever one is present, so
-			# restoring them the other way round puts the Nunchuk in the wrong port.
-			(obj as Wiimote).restore_motion_plus(
-				_resolve_ref(root, spawned, d.get("motion_plus")) as MotionPlus)
-			(obj as Wiimote).restore_nunchuk(
-				_resolve_ref(root, spawned, d.get("nunchuk")) as Nunchuk)
-			# And an extension the game has no class for (a mod's Classic
-			# Controller), which goes back the way the Nunchuk does.
-			(obj as Wiimote).restore_extension(
-				_resolve_ref(root, spawned, d.get("extension")) as Node3D)
-		if obj is RetroController:
-			# The pak goes back whether or not the pad was plugged into anything —
-			# a loose N64 controller can still have one in it. A Transfer Pak
-			# re-seats its own cartridge from its own entry, so this is one call.
-			(obj as RetroController).restore_pak(
-				_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
-			_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
-		var port_idx := int(d.get("port_index", -1))
-		if port_idx < 0:
-			return
-		var sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
-		if sys == null:
-			push_warning("[ScenePersistence] controller id=%d: system not found" % id)
-			return
-		obj.call("restore_port_connection", sys, port_idx)
+
+
+## The restore side of _save_kind_rows: [class, hook], walked top to bottom by
+## _restore_entry, the FIRST row the object `is` running its hook -- the same
+## precedence as the `elif obj is X` chain it replaced, which this keeps row for
+## row. `is` matches every ancestor, so a subclass's row must come before its
+## base's; the order below is the old chain's. A type with no row has nothing to
+## wire up after the pose, its attachment and its slots (restored above the walk).
+##
+## Every hook takes (root, id, obj, spawned, d), the arguments _restore_entry has.
+## Built on first use, for _save_kind_rows' reason: the rows hold class scripts.
+static var _restore_kinds: Array = []
+
+static func _restore_kind_rows() -> Array:
+	if not _restore_kinds.is_empty():
+		return _restore_kinds
+	_restore_kinds = [
+		[RetroSystem, &"_restore_system"],
+		[RetroExpansion, &"_restore_expansion"],
+		[TransferPak, &"_restore_transfer_pak"],
+		[RetroTV, &"_restore_tv"],
+		[VCRPlayer, &"_restore_vcr_player"],
+		[DVDPlayer, &"_restore_dvd_player"],
+		[RetroAudioPlayer, &"_restore_audio_player"],
+		[SpeakerPair, &"_restore_speaker_pair"],
+		[SurroundAmp, &"_restore_surround_amp"],
+		[CompositeCable, &"_restore_lead"],
+		[PowerCord, &"_restore_lead"],
+		[PowerStrip, &"_restore_lead"],
+		[SpeakerStand, &"_restore_speaker_stand"],
+		[SensorBar, &"_restore_sensor_bar"],
+		[GcMicrophone, &"_restore_gc_microphone"],
+		[N64Vru, &"_restore_n64_vru"],
+		[InputReceiver, &"_restore_receiver"],
+		[RetroMultitap, &"_restore_multitap"],
+		[RetroController, &"_restore_peripheral"],
+		[LightGun, &"_restore_peripheral"],
+		[RetroMouse, &"_restore_peripheral"],
+		[RetroKeyboard, &"_restore_peripheral"],
+		[Wiimote, &"_restore_peripheral"],
+	]
+	return _restore_kinds
+
+
+# ── Per-type restore hooks (rows of _restore_kind_rows) ─────────────────────────
+
+func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var sys := obj as RetroSystem
+	# Which composite input each channel's lead goes back into. Absent on every
+	# save written before a set had four, and read through a helper that answers
+	# Composite 1 for anything it does not cover.
+	var tv_inputs: Array = d.get("tv_inputs", [])
+	var tv := _resolve_ref(root, spawned, d.get("tv")) as RetroTV
+	if tv:
+		sys.restore_cable_connection(tv, 0, _tv_input(tv_inputs, 0))
+	# Extra video-out channels (dual-screen handhelds: ch 1 = BOTTOM). A save
+	# made against a model with more channels than this one has is truncated —
+	# restore_cable_connection would silently fold the overflow onto ch 0.
+	var extra: Array = d.get("extra_tvs", [])
+	for i in range(mini(extra.size(), sys.get_channel_count() - 1)):
+		var ch_tv := _resolve_ref(root, spawned, extra[i]) as RetroTV
+		if ch_tv:
+			sys.restore_cable_connection(ch_tv, i + 1, _tv_input(tv_inputs, i + 1))
+	var cart := _resolve_ref(root, spawned, d.get("cartridge")) as RetroCartridge
+	if cart:
+		sys.restore_cartridge(cart, float(d.get("cartridge_yaw", 0.0)))
+	var cart_b := _resolve_ref(root, spawned, d.get("cartridge_b")) as RetroCartridge
+	if cart_b:
+		sys.restore_slot2_cartridge(cart_b)
+	# Bolt the tower back together. Each unit seats through the same call a
+	# hand's release ends in, so a restored stack is the same object graph as
+	# a built one: the console knows its units, each unit knows its host, and
+	# the launch recipe reads exactly as it would have.
+	for ref: Variant in (d.get("expansions", []) as Array):
+		var unit := _resolve_ref(root, spawned, ref) as RetroExpansion
+		if unit:
+			sys.restore_expansion(unit)
+	var memcard := _resolve_ref(root, spawned, d.get("memcard")) as MemoryCard
+	if memcard:
+		sys.memcards().restore_memory_card(memcard, 0)
+	# Slot B is its own key rather than the pair becoming an array: an array
+	# would not load in any room file saved before there was a second slot.
+	var memcard_b := _resolve_ref(root, spawned, d.get("memcard_b")) as MemoryCard
+	if memcard_b:
+		sys.memcards().restore_memory_card(memcard_b, 1)
+	# The expansion-bay lid, if this save had it ON the console. A save with
+	# none leaves the bay open, which is a real state: the lid is then a
+	# loose object restored from its own entry, wherever it was put down.
+	var cover := _resolve_ref(root, spawned, d.get("expansion_cover")) as ExpansionCover
+	if cover:
+		sys.restore_expansion_cover(cover)
+	# The covers over its own sockets. A console saved before there were any
+	# never said its covers were off, so it gets them, over every socket the
+	# save left empty; one saved since says which are on, and a cover that is
+	# off is restored loose from its own entry.
+	if d.has("port_covers"):
+		var covers: Dictionary = d["port_covers"]
+		for socket: Variant in covers:
+			var port_cover := _resolve_ref(root, spawned, covers[socket]) as PortCover
+			if port_cover:
+				sys.restore_port_cover(str(socket), port_cover)
+	else:
+		sys.seed_port_covers()
+	# After the media, and deferred: seating a cartridge swings the bay open (the
+	# NES flap) and tweens it there, either of which would otherwise win over the
+	# pose the system restored when its model loaded.
+	var lid_angle := float(d.get("lid_angle", -1.0))
+	if lid_angle >= 0.0:
+		sys.set_lid_angle_deg.call_deferred(lid_angle)
+
+
+func _restore_expansion(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	# The disk, disc or cartridge in this unit's own bay. Independent of the
+	# order the stack is rebuilt in: a bay seats its media as a pose relative
+	# to the unit, so it comes out right whether or not the unit has been
+	# bolted to its console yet.
+	var own := _resolve_ref(root, spawned, d.get("media")) as Node3D
+	if own:
+		(obj as RetroExpansion).restore_media_in_slot(own)
+	# Absent from every room saved before a unit had two slots, which is why
+	# it is read with a default rather than assumed present.
+	var own_b := _resolve_ref(root, spawned, d.get("media_b")) as Node3D
+	if own_b:
+		(obj as RetroExpansion).restore_media_in_slot(own_b, 1)
+	# Its clip-on accessory (the 32X's Model 2 spacer), on the same terms: a
+	# pose relative to the unit, whether or not the unit is seated yet.
+	var accessory := _resolve_ref(root, spawned, d.get("accessory")) as Node3D
+	if accessory:
+		(obj as RetroExpansion).restore_accessory(accessory)
+
+
+func _restore_transfer_pak(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	# The Game Boy cartridge in the pak's roof, on the same terms as an
+	# expansion's own bay above: a pose relative to the pak, so it lands right
+	# whether or not the pak has been put back into a controller yet.
+	var gb := _resolve_ref(root, spawned, d.get("gb_cart")) as Node3D
+	if gb:
+		(obj as TransferPak).restore_cart(gb)
+
+
+func _restore_tv(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	(obj as RetroTV).restore_control_state(d.get("controls", {}))
+	# The tape or disc in a combination set's own deck. The deck is not an
+	# object of its own in the file -- the cabinet builds it -- so what is in it
+	# is saved on the set, by the deck's kind.
+	var decks: Dictionary = d.get("decks", {})
+	for kind: String in decks:
+		var entry: Dictionary = decks[kind]
+		var media := _resolve_ref(root, spawned, entry.get("media")) as Node3D
+		if media:
+			(obj as RetroTV).decks().restore_deck_media(kind, media, float(entry.get("yaw", 0.0)))
+
+
+func _restore_vcr_player(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var tape := _resolve_ref(root, spawned, d.get("tape")) as VCRTape
+	if tape:
+		(obj as VCRPlayer).restore_media(tape)
+
+
+func _restore_dvd_player(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var disc := _resolve_ref(root, spawned, d.get("disc")) as DVDDisc
+	if disc:
+		(obj as DVDPlayer).restore_media(disc, float(d.get("disc_yaw", 0.0)))
+
+
+func _restore_audio_player(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var media := _resolve_ref(root, spawned, d.get("media"))
+	if media is AudioDisc or media is AudioCassette or media is VinylRecord:
+		(obj as RetroAudioPlayer).restore_media(
+			media as Node3D, float(d.get("media_yaw", 0.0)))
+
+
+func _restore_speaker_pair(_root: Node, _id: int, obj: Node, _spawned: Dictionary, d: Dictionary) -> void:
+	var pair := obj as SpeakerPair
+	pair.set_volume(float(d.get("volume", 0.75)))
+	pair.restore_box_poses(d.get("boxes", []))
+
+
+func _restore_surround_amp(_root: Node, _id: int, obj: Node, _spawned: Dictionary, d: Dictionary) -> void:
+	# The switch only: the volume knob came back with every other VRKnob in
+	# _restore_articulated_controls above, and its value_changed pushed it.
+	(obj as SurroundAmp).restore_state(int(d.get("decode_mode", 0)))
+
+
+func _restore_lead(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	# Pass 2, so every deck and set the plugs point at already exists, and for
+	# a mains lead so does every wall outlet and every inlet. A plug whose
+	# socket cannot be found is simply left where it was saved: a loose end on
+	# the floor beats one seated in the wrong device.
+	var seats: Array = []
+	for rec: Dictionary in d.get("plugs", []):
+		seats.append({
+			"end": int(rec.get("end", 0)),
+			"cord": int(rec.get("cord", 0)),
+			"position": rec.get("position", []),
+			"rotation": rec.get("rotation", []),
+			"device": _resolve_ref(root, spawned, rec.get("device")) as Node3D,
+			"port": str(rec.get("port", "")),
+		})
+	if obj.has_method("restore_carried_body"):
+		obj.call("restore_carried_body", d.get("body", {}))
+	obj.call("restore_seating", seats)
+
+
+func _restore_speaker_stand(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	(obj as SpeakerStand).restore_seat(
+		_resolve_ref(root, spawned, d.get("speaker")) as Loudspeaker)
+
+
+func _restore_sensor_bar(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	(obj as SensorBar).restore_connection(
+		_resolve_ref(root, spawned, d.get("system")) as RetroSystem)
+
+
+func _restore_gc_microphone(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var mic_slot := int(d.get("slot", -1))
+	var mic_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	if mic_slot >= 0 and mic_sys != null:
+		(obj as GcMicrophone).restore_seat(mic_sys, mic_slot)
+
+
+func _restore_n64_vru(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	var vru_port := int(d.get("port", -1))
+	var vru_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	var vru := obj as N64Vru
+	if vru_port >= 0 and vru_sys != null:
+		vru.restore_seat(vru_sys, vru_port)
+	# A save written before the jack existed has no key, and a unit from one
+	# came with its microphone attached — so the default is plugged in.
+	vru.restore_mic_plugged(bool(d.get("mic", true)))
+
+
+func _restore_receiver(root: Node, id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	# A pak goes back whether or not the receiver was plugged into anything —
+	# a loose dongle can still have one on it, exactly as a loose N64 pad can.
+	# Seated BEFORE the port connection below, so the machine is told what is
+	# in the port once, on connecting, rather than told "empty" and corrected.
+	if obj is PadReceiver:
+		(obj as PadReceiver).restore_pak(
+			_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
+		_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
+	var rx_port := int(d.get("port_index", -1))
+	if rx_port < 0:
+		return
+	var rx_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	if rx_sys == null:
+		push_warning("[ScenePersistence] pad receiver id=%d: system not found" % id)
+		return
+	(obj as InputReceiver).restore_port_connection(rx_sys, rx_port)
+
+
+func _restore_multitap(root: Node, id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	# The pads in its sockets, then its own plug. Both wait for a cord made a
+	# frame after spawning, and whichever lands second binds the pads, once.
+	var tap := obj as RetroMultitap
+	var sockets: Variant = d.get("sockets", [])
+	if sockets is Array:
+		for i in mini((sockets as Array).size(), RetroMultitap.SUB_PORTS):
+			var held := _resolve_ref(root, spawned, (sockets as Array)[i])
+			if held != null:
+				tap.restore_socket(i, held)
+	var tap_port := int(d.get("port_index", -1))
+	if tap_port < 0:
+		return
+	var tap_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	if tap_sys == null:
+		push_warning("[ScenePersistence] multitap id=%d: system not found" % id)
+		return
+	tap.restore_port_connection(tap_sys, tap_port)
+
+
+func _restore_peripheral(root: Node, id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+	# The remote's Nunchuk is restored whether or not it was paired to a
+	# console — an unpaired remote can still have one plugged into it.
+	if obj is Wiimote:
+		# Dongle FIRST. It seats synchronously, and the Nunchuk goes into its
+		# pass-through rather than into the remote whenever one is present, so
+		# restoring them the other way round puts the Nunchuk in the wrong port.
+		(obj as Wiimote).restore_motion_plus(
+			_resolve_ref(root, spawned, d.get("motion_plus")) as MotionPlus)
+		(obj as Wiimote).restore_nunchuk(
+			_resolve_ref(root, spawned, d.get("nunchuk")) as Nunchuk)
+		# And an extension the game has no class for (a mod's Classic
+		# Controller), which goes back the way the Nunchuk does.
+		(obj as Wiimote).restore_extension(
+			_resolve_ref(root, spawned, d.get("extension")) as Node3D)
+	if obj is RetroController:
+		# The pak goes back whether or not the pad was plugged into anything —
+		# a loose N64 controller can still have one in it. A Transfer Pak
+		# re-seats its own cartridge from its own entry, so this is one call.
+		(obj as RetroController).restore_pak(
+			_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
+		_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
+	var port_idx := int(d.get("port_index", -1))
+	if port_idx < 0:
+		return
+	var sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	if sys == null:
+		push_warning("[ScenePersistence] controller id=%d: system not found" % id)
+		return
+	obj.call("restore_port_connection", sys, port_idx)
 
 
 # ── Serialization ──────────────────────────────────────────────────────────────
@@ -2078,8 +2136,8 @@ func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		"cartridge_b": _ref(node_to_id, sys.get_slot2_cartridge()),
 		# Cards only: a GameCube Microphone's plug is seated here too, and it is
 		# restored from the stick's own entry.
-		"memcard": _ref(node_to_id, sys.get_snapped_memcard(0) as MemoryCard),
-		"memcard_b": _ref(node_to_id, sys.get_snapped_memcard(1) as MemoryCard),
+		"memcard": _ref(node_to_id, sys.memcards().get_snapped_memcard(0) as MemoryCard),
+		"memcard_b": _ref(node_to_id, sys.memcards().get_snapped_memcard(1) as MemoryCard),
 		# Null once a player has pulled the lid off and put it down — a
 		# state worth keeping, since the pak under it is only reachable
 		# while the lid stays off.
@@ -3065,7 +3123,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		obj = (PLAIN_SCENES[obj_type] as PackedScene).instantiate() as Node3D
 		# A Controller Pak, a VMU and an Xbox Memory Unit are PLAIN_SCENES rows so
 		# the spawn menu can build one from its token, and this branch runs before
-		# the match below can — so their card fields are restored HERE or nowhere.
+		# _LOAD_KINDS can — so their card fields are restored HERE or nowhere.
 		# Identity before the tree: card_id is the card's file on disk, and one
 		# that reaches _ready without it mints a fresh blank, which reads exactly
 		# like the notes were wiped.
@@ -3075,197 +3133,11 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		var printer := obj as GbPrinter
 		if printer != null:
 			printer.paper_roll = str(data.get("paper", ""))
+	elif _LOAD_KINDS.has(obj_type):
+		obj = call(_LOAD_KINDS[obj_type] as StringName, data)
 	else:
-		match obj_type:
-			"system":
-				var sys := SYSTEM_SCENE.instantiate() as RetroSystem
-				sys.systemid = SystemIds.canonical(str(data.get("systemid", "")))
-				sys.model_id = str(data.get("model_id", ""))
-				sys.model_variant = str(data.get("model_variant", ""))
-				sys.pad_guid = str(data.get("pad_guid", ""))
-				sys.pad_ordinal = int(data.get("pad_ordinal", 0))
-				sys.ignore_gravity = bool(data.get("ignore_gravity", false))
-				sys.console_memory_id = str(data.get("console_memory", ""))
-				# Before the caller adds it to the tree, like the fields above:
-				# _build_expansion_hardware runs from _ready and seeds a bay's
-				# default pak and its lid on a FRESH console. This save's own
-				# "expansions" and "expansion_cover" are the whole truth for a
-				# restored one, and a lid the player took off is recorded by
-				# their ABSENCE -- so without this the seed puts a new lid back
-				# on every load and nothing ever removes it.
-				sys.begin_restore(
-					(1 if bool(data["video_out"]) else 0) if data.has("video_out") else -1,
-					float(data.get("lid_angle", -1.0)))
-				obj = sys
-			"tv":
-				var tv := TV_SCENE.instantiate() as RetroTV
-				# Before the caller adds it to the tree: _load_shell runs from
-				# _ready. "" is _load_shell's own "stock body, strict no-op"
-				# value, so every set already in a save file restores unchanged.
-				tv.tv_model = data.get("tv_model", "")
-				tv.crt_enabled = data.get("crt_enabled", true)
-				var crt_params: Dictionary = data.get("crt_params", {})
-				if not crt_params.is_empty():
-					tv.set_crt_params(crt_params)
-				tv.scale_factor = data.get("scale_factor", 1.0)
-				tv.stereo_mode = int(data.get("stereo_mode", 0)) as RetroTV.StereoMode
-				obj = tv
-			"expansion":
-				var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
-				# Before it enters the tree: RetroExpansion measures its box, its
-				# connector and its bay from this id in _ready, and a unit that
-				# arrives without one builds none of them.
-				unit.expansion_id = str(data.get("expansion_id", ""))
-				unit.rom_path = RomLibrary.relocate(str(data.get("rom_path", "")))
-				unit.card_id = str(data.get("card_id", ""))
-				unit.card_label = str(data.get("card_label", ""))
-				obj = unit
-			"cartridge":
-				var cart := CART_SCENE.instantiate() as RetroCartridge
-				_apply_media_fields(cart, data)
-				obj = cart
-			"disc":
-				var disc_systemid := SystemIds.canonical(str(data.get("cart_systemid", "")))
-				var disc_scene := UMD_DISC_SCENE if disc_systemid == "psp" else DISC_SCENE
-				var disc := disc_scene.instantiate() as RetroDisc
-				_apply_media_fields(disc, data)
-				obj = disc
-			"memory_card":
-				# A room saved before there were two families holds no family at
-				# all, and every card in one is a PlayStation card.
-				var family := str(data.get("family", "playstation"))
-				var scene := MEMCARD_SCENE
-				if family == "gamecube":
-					scene = GC_MEMCARD_SCENE
-				elif family == "playstation2":
-					scene = PS2_MEMCARD_SCENE
-				var card := scene.instantiate() as MemoryCard
-				card.family = family
-				card.card_id = data.get("card_id", "")
-				card.card_label = data.get("card_label", "MEMORY CARD")
-				obj = card
-			"expansion_cover":
-				obj = EXPANSION_COVER_SCENE.instantiate() as ExpansionCover
-			"port_cover":
-				var port_cover := PORT_COVER_SCENE.instantiate() as PortCover
-				port_cover.socket_id = str(data.get("cover_socket", ""))
-				var cover_size: Array = data.get("cover_size", [])
-				if cover_size.size() == 3:
-					port_cover.size = Vector3(float(cover_size[0]), float(cover_size[1]), float(cover_size[2]))
-				obj = port_cover
-			"poster":
-				var poster := POSTER_SCENE.instantiate() as Poster
-				# Size and mode BEFORE the path: the image setter derives the
-				# sheet's dimensions and has to see the final scale.
-				poster.size_scale = float(data.get("size_scale", 1.0))
-				poster.fit_mode = int(data.get("fit_mode", 0)) as Poster.FitMode
-				poster.roll_degrees = float(data.get("roll", 0.0))
-				poster.image_path = str(data.get("image_path", ""))
-				poster.stuck_from_save = bool(data.get("stuck", false))
-				poster.printout = bool(data.get("printout", false))
-				poster.sticks = bool(data.get("sticks", true))
-				obj = poster
-			"book":
-				var book := BOOK_SCENE.instantiate() as PDFBook
-				book.half_page_mode = data.get("half_pages", false)
-				book.size_scale = data.get("size_scale", 1.0)
-				book.hardback = data.get("hardback", false)
-				# A scraped manual lives under roms/<systemid>/media/, so it moves
-				# with the folder exactly as a ROM does.
-				book.pdf_path = RomLibrary.relocate(str(data.get("pdf_path", "")))
-				# Applied after the PDF loads (stashed while _page_count == 0).
-				book.set_page(int(data.get("page_state", 0)), int(data.get("page_leaf", 0)))
-				obj = book
-			"retro_controller":
-				obj = _instantiate_controller(data)
-			"retro_multitap":
-				var tap := _instantiate_multitap(data) as RetroMultitap
-				# Before _ready, which builds the switch and the device from it.
-				var tap_mode := int(data.get("tap_mode", RetroMultitap.MODE_5P))
-				if tap_mode == RetroMultitap.MODE_2P or tap_mode == RetroMultitap.MODE_5P:
-					tap.mode = tap_mode
-				obj = tap
-			"retro_mouse":
-				var mouse := RETRO_MOUSE_SCENE.instantiate() as RetroMouse
-				mouse.sensitivity = data.get("sensitivity", 2400.0)
-				mouse.stick_distance = data.get("stick_distance", 0.035)
-				obj = mouse
-			"snes_mouse":
-				var snes := SNES_MOUSE_SCENE.instantiate() as SnesMouse
-				snes.sensitivity = data.get("sensitivity", 2400.0)
-				snes.stick_distance = data.get("stick_distance", 0.035)
-				obj = snes
-			"pad_receiver":
-				# The saved pad may well not be connected — switched off, flat, or
-				# swapped for another since. That is not a failure: the receiver
-				# comes back red and binds to whatever turns up
-				# (PadReceiver._resolve_or_adopt), so nothing here warns about it.
-				var rx := PAD_RECEIVER_SCENE.instantiate() as PadReceiver
-				rx.pad_guid = data.get("pad_guid", "")
-				rx.pad_name = data.get("pad_name", "")
-				rx.pad_ordinal = int(data.get("pad_ordinal", 0))
-				obj = rx
-			"keyboard_receiver":
-				obj = KEYBOARD_RECEIVER_SCENE.instantiate() as Node3D
-			"mouse_receiver":
-				obj = MOUSE_RECEIVER_SCENE.instantiate() as Node3D
-			"vcr_tape":
-				var tape := TAPE_SCENE.instantiate() as VCRTape
-				tape.video_path = data.get("video_path", "")
-				tape.video_label = data.get("video_label", "")
-				tape.tape_track = maxi(0, int(data.get("tape_track", 0)))
-				tape.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
-				tape.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
-				# A room saved before tapes had cassettes keeps the one its
-				# recording's header gave it as its path was set.
-				if int(data.get("cassette", 0)) > 0:
-					tape.cassette = int(data["cassette"])
-				if float(data.get("recording_seconds", 0.0)) > 0.0:
-					tape.recording_seconds = float(data["recording_seconds"])
-				tape.tape_blank = maxf(0.0, float(data.get("tape_blank", 0.0)))
-				obj = tape
-			"dvd_disc":
-				var disc := DVD_DISC_SCENE.instantiate() as DVDDisc
-				disc.dvd_path = data.get("dvd_path", "")
-				disc.dvd_label = data.get("dvd_label", "")
-				obj = disc
-			"composite_cable":
-				# Every lead in the room is a CompositeCable; only the scene it was
-				# spawned from differs. "kind" names it outright — the cord count is
-				# the fallback for saves written before that field existed, and it
-				# cannot tell a VGA lead from any other one-cord lead.
-				var kind: String = str(data.get("kind", ""))
-				# A named kind settles it. The cord-count fallback below is only
-				# for saves written before the field existed, and it cannot tell a
-				# VGA lead from any other one-cord lead.
-				var lead: PackedScene = LEAD_SCENES.get(kind, null)
-				if lead == null:
-					# Two-conductor ribbon reads as a mono composite lead, which is
-					# what an old save holding one would have been.
-					lead = MONO_CABLE_SCENE if int(data.get("cords", 3)) == 2 						else COMPOSITE_CABLE_SCENE
-				obj = lead.instantiate() as Node3D
-				_restore_lead_fields(obj, data)
-			"audio_disc":
-				var adisc := AUDIO_DISC_SCENE.instantiate() as AudioDisc
-				adisc.album_path = data.get("album_path", "")
-				adisc.album_label = data.get("album_label", "")
-				obj = adisc
-			"audio_cassette":
-				var acass := AUDIO_CASSETTE_SCENE.instantiate() as AudioCassette
-				acass.album_path = data.get("album_path", "")
-				acass.album_label = data.get("album_label", "")
-				acass.tape_track = maxi(0, int(data.get("tape_track", 0)))
-				acass.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
-				acass.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
-				obj = acass
-			"vinyl_record":
-				var lp := VINYL_RECORD_SCENE.instantiate() as VinylRecord
-				lp.album_path = data.get("album_path", "")
-				lp.album_label = data.get("album_label", "")
-				obj = lp
-			_:
-				push_warning("ScenePersistence: unknown object type '%s'" % obj_type)
-				return null
+		push_warning("ScenePersistence: unknown object type '%s'" % obj_type)
+		return null
 
 	if not obj:
 		return null
@@ -3286,6 +3158,286 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		ObjectLock.set_locked(obj, true)
 	return obj
 
+
+## The types _deserialize_kind builds by hand, each from its own `_load_<type>`:
+## the load side of _save_kind_rows. A LOOKUP, unlike the save rows, because a
+## type name is exact -- it was a `match`, and no two arms could both apply. Read
+## after the mod objects, the light gun and PLAIN_SCENES, as the match was.
+## Each builder sets what must be set BEFORE the object enters the tree; the
+## pose and the flags every object shares are applied after it, in one place.
+## Its keys are also every type this build loads besides PLAIN_SCENES and the mods
+## (_is_known_type, register_mod_object).
+const _LOAD_KINDS := {
+	"system": &"_load_system",
+	"tv": &"_load_tv",
+	# The machines that bolt onto a console. A unit's own entry says which unit
+	# it is and what is in its bay; which console it is attached to is restored
+	# from the CONSOLE's entry, the way a memory card's slot is.
+	"expansion": &"_load_expansion",
+	"cartridge": &"_load_cartridge",
+	"disc": &"_load_disc",
+	"memory_card": &"_load_memory_card",
+	# The lid over an expansion bay. Its own entry is just "a lid exists, here";
+	# whether it is ON a console or lying where a player put it down comes from
+	# that console's entry, same as the units above.
+	"expansion_cover": &"_load_expansion_cover",
+	# The cover over a unit's own socket (a GameCube's Serial Port 1, a fat PS2's
+	# expansion bay): which socket it fits and how big it is. Whether it is on a
+	# console comes from that console's "port_covers".
+	"port_cover": &"_load_port_cover",
+	"poster": &"_load_poster",
+	"book": &"_load_book",
+	"retro_controller": &"_load_retro_controller",
+	# Which console port its plug is in, its SELECT switch, and the pad in each of
+	# its four sockets. The pads' own entries name no port: the tap's is the end
+	# that means something.
+	"retro_multitap": &"_load_retro_multitap",
+	"retro_mouse": &"_load_retro_mouse",
+	"snes_mouse": &"_load_snes_mouse",
+	"pad_receiver": &"_load_pad_receiver",
+	"keyboard_receiver": &"_load_keyboard_receiver",
+	"mouse_receiver": &"_load_mouse_receiver",
+	"vcr_tape": &"_load_vcr_tape",
+	"dvd_disc": &"_load_dvd_disc",
+	"composite_cable": &"_load_composite_cable",
+	"audio_disc": &"_load_audio_disc",
+	"audio_cassette": &"_load_audio_cassette",
+	"vinyl_record": &"_load_vinyl_record",
+}
+
+
+func _load_system(data: Dictionary) -> Node3D:
+	var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+	sys.systemid = SystemIds.canonical(str(data.get("systemid", "")))
+	sys.model_id = str(data.get("model_id", ""))
+	sys.model_variant = str(data.get("model_variant", ""))
+	sys.pad_guid = str(data.get("pad_guid", ""))
+	sys.pad_ordinal = int(data.get("pad_ordinal", 0))
+	sys.ignore_gravity = bool(data.get("ignore_gravity", false))
+	sys.console_memory_id = str(data.get("console_memory", ""))
+	# Before the caller adds it to the tree, like the fields above:
+	# _build_expansion_hardware runs from _ready and seeds a bay's
+	# default pak and its lid on a FRESH console. This save's own
+	# "expansions" and "expansion_cover" are the whole truth for a
+	# restored one, and a lid the player took off is recorded by
+	# their ABSENCE -- so without this the seed puts a new lid back
+	# on every load and nothing ever removes it.
+	sys.begin_restore(
+		(1 if bool(data["video_out"]) else 0) if data.has("video_out") else -1,
+		float(data.get("lid_angle", -1.0)))
+	return sys
+
+
+func _load_tv(data: Dictionary) -> Node3D:
+	var tv := TV_SCENE.instantiate() as RetroTV
+	# Before the caller adds it to the tree: _load_shell runs from
+	# _ready. "" is _load_shell's own "stock body, strict no-op"
+	# value, so every set already in a save file restores unchanged.
+	tv.tv_model = data.get("tv_model", "")
+	tv.crt_enabled = data.get("crt_enabled", true)
+	var crt_params: Dictionary = data.get("crt_params", {})
+	if not crt_params.is_empty():
+		tv.set_crt_params(crt_params)
+	tv.scale_factor = data.get("scale_factor", 1.0)
+	tv.stereo_mode = int(data.get("stereo_mode", 0)) as RetroTV.StereoMode
+	return tv
+
+
+func _load_expansion(data: Dictionary) -> Node3D:
+	var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
+	# Before it enters the tree: RetroExpansion measures its box, its
+	# connector and its bay from this id in _ready, and a unit that
+	# arrives without one builds none of them.
+	unit.expansion_id = str(data.get("expansion_id", ""))
+	unit.rom_path = RomLibrary.relocate(str(data.get("rom_path", "")))
+	unit.card_id = str(data.get("card_id", ""))
+	unit.card_label = str(data.get("card_label", ""))
+	return unit
+
+
+func _load_cartridge(data: Dictionary) -> Node3D:
+	var cart := CART_SCENE.instantiate() as RetroCartridge
+	_apply_media_fields(cart, data)
+	return cart
+
+
+func _load_disc(data: Dictionary) -> Node3D:
+	var disc_systemid := SystemIds.canonical(str(data.get("cart_systemid", "")))
+	var disc_scene := UMD_DISC_SCENE if disc_systemid == "psp" else DISC_SCENE
+	var disc := disc_scene.instantiate() as RetroDisc
+	_apply_media_fields(disc, data)
+	return disc
+
+
+func _load_memory_card(data: Dictionary) -> Node3D:
+	# A room saved before there were two families holds no family at
+	# all, and every card in one is a PlayStation card.
+	var family := str(data.get("family", "playstation"))
+	var scene := MEMCARD_SCENE
+	if family == "gamecube":
+		scene = GC_MEMCARD_SCENE
+	elif family == "playstation2":
+		scene = PS2_MEMCARD_SCENE
+	var card := scene.instantiate() as MemoryCard
+	card.family = family
+	card.card_id = data.get("card_id", "")
+	card.card_label = data.get("card_label", "MEMORY CARD")
+	return card
+
+
+func _load_expansion_cover(_data: Dictionary) -> Node3D:
+	return EXPANSION_COVER_SCENE.instantiate() as ExpansionCover
+
+
+func _load_port_cover(data: Dictionary) -> Node3D:
+	var port_cover := PORT_COVER_SCENE.instantiate() as PortCover
+	port_cover.socket_id = str(data.get("cover_socket", ""))
+	var cover_size: Array = data.get("cover_size", [])
+	if cover_size.size() == 3:
+		port_cover.size = Vector3(float(cover_size[0]), float(cover_size[1]), float(cover_size[2]))
+	return port_cover
+
+
+func _load_poster(data: Dictionary) -> Node3D:
+	var poster := POSTER_SCENE.instantiate() as Poster
+	# Size and mode BEFORE the path: the image setter derives the
+	# sheet's dimensions and has to see the final scale.
+	poster.size_scale = float(data.get("size_scale", 1.0))
+	poster.fit_mode = int(data.get("fit_mode", 0)) as Poster.FitMode
+	poster.roll_degrees = float(data.get("roll", 0.0))
+	poster.image_path = str(data.get("image_path", ""))
+	poster.stuck_from_save = bool(data.get("stuck", false))
+	poster.printout = bool(data.get("printout", false))
+	poster.sticks = bool(data.get("sticks", true))
+	return poster
+
+
+func _load_book(data: Dictionary) -> Node3D:
+	var book := BOOK_SCENE.instantiate() as PDFBook
+	book.half_page_mode = data.get("half_pages", false)
+	book.size_scale = data.get("size_scale", 1.0)
+	book.hardback = data.get("hardback", false)
+	# A scraped manual lives under roms/<systemid>/media/, so it moves
+	# with the folder exactly as a ROM does.
+	book.pdf_path = RomLibrary.relocate(str(data.get("pdf_path", "")))
+	# Applied after the PDF loads (stashed while _page_count == 0).
+	book.set_page(int(data.get("page_state", 0)), int(data.get("page_leaf", 0)))
+	return book
+
+
+func _load_retro_controller(data: Dictionary) -> Node3D:
+	return _instantiate_controller(data)
+
+
+func _load_retro_multitap(data: Dictionary) -> Node3D:
+	var tap := _instantiate_multitap(data) as RetroMultitap
+	# Before _ready, which builds the switch and the device from it.
+	var tap_mode := int(data.get("tap_mode", RetroMultitap.MODE_5P))
+	if tap_mode == RetroMultitap.MODE_2P or tap_mode == RetroMultitap.MODE_5P:
+		tap.mode = tap_mode
+	return tap
+
+
+func _load_retro_mouse(data: Dictionary) -> Node3D:
+	var mouse := RETRO_MOUSE_SCENE.instantiate() as RetroMouse
+	mouse.sensitivity = data.get("sensitivity", 2400.0)
+	mouse.stick_distance = data.get("stick_distance", 0.035)
+	return mouse
+
+
+func _load_snes_mouse(data: Dictionary) -> Node3D:
+	var snes := SNES_MOUSE_SCENE.instantiate() as SnesMouse
+	snes.sensitivity = data.get("sensitivity", 2400.0)
+	snes.stick_distance = data.get("stick_distance", 0.035)
+	return snes
+
+
+func _load_pad_receiver(data: Dictionary) -> Node3D:
+	# The saved pad may well not be connected — switched off, flat, or
+	# swapped for another since. That is not a failure: the receiver
+	# comes back red and binds to whatever turns up
+	# (PadReceiver._resolve_or_adopt), so nothing here warns about it.
+	var rx := PAD_RECEIVER_SCENE.instantiate() as PadReceiver
+	rx.pad_guid = data.get("pad_guid", "")
+	rx.pad_name = data.get("pad_name", "")
+	rx.pad_ordinal = int(data.get("pad_ordinal", 0))
+	return rx
+
+
+func _load_keyboard_receiver(_data: Dictionary) -> Node3D:
+	return KEYBOARD_RECEIVER_SCENE.instantiate() as Node3D
+
+
+func _load_mouse_receiver(_data: Dictionary) -> Node3D:
+	return MOUSE_RECEIVER_SCENE.instantiate() as Node3D
+
+
+func _load_vcr_tape(data: Dictionary) -> Node3D:
+	var tape := TAPE_SCENE.instantiate() as VCRTape
+	tape.video_path = data.get("video_path", "")
+	tape.video_label = data.get("video_label", "")
+	tape.tape_track = maxi(0, int(data.get("tape_track", 0)))
+	tape.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
+	tape.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
+	# A room saved before tapes had cassettes keeps the one its
+	# recording's header gave it as its path was set.
+	if int(data.get("cassette", 0)) > 0:
+		tape.cassette = int(data["cassette"])
+	if float(data.get("recording_seconds", 0.0)) > 0.0:
+		tape.recording_seconds = float(data["recording_seconds"])
+	tape.tape_blank = maxf(0.0, float(data.get("tape_blank", 0.0)))
+	return tape
+
+
+func _load_dvd_disc(data: Dictionary) -> Node3D:
+	var disc := DVD_DISC_SCENE.instantiate() as DVDDisc
+	disc.dvd_path = data.get("dvd_path", "")
+	disc.dvd_label = data.get("dvd_label", "")
+	return disc
+
+
+func _load_composite_cable(data: Dictionary) -> Node3D:
+	var obj: Node3D = null
+	# Every lead in the room is a CompositeCable; only the scene it was
+	# spawned from differs. "kind" names it outright — the cord count is
+	# the fallback for saves written before that field existed, and it
+	# cannot tell a VGA lead from any other one-cord lead.
+	var kind: String = str(data.get("kind", ""))
+	# A named kind settles it. The cord-count fallback below is only
+	# for saves written before the field existed, and it cannot tell a
+	# VGA lead from any other one-cord lead.
+	var lead: PackedScene = LEAD_SCENES.get(kind, null)
+	if lead == null:
+		# Two-conductor ribbon reads as a mono composite lead, which is
+		# what an old save holding one would have been.
+		lead = MONO_CABLE_SCENE if int(data.get("cords", 3)) == 2 						else COMPOSITE_CABLE_SCENE
+	obj = lead.instantiate() as Node3D
+	_restore_lead_fields(obj, data)
+	return obj
+
+
+func _load_audio_disc(data: Dictionary) -> Node3D:
+	var adisc := AUDIO_DISC_SCENE.instantiate() as AudioDisc
+	adisc.album_path = data.get("album_path", "")
+	adisc.album_label = data.get("album_label", "")
+	return adisc
+
+
+func _load_audio_cassette(data: Dictionary) -> Node3D:
+	var acass := AUDIO_CASSETTE_SCENE.instantiate() as AudioCassette
+	acass.album_path = data.get("album_path", "")
+	acass.album_label = data.get("album_label", "")
+	acass.tape_track = maxi(0, int(data.get("tape_track", 0)))
+	acass.tape_time = maxf(0.0, float(data.get("tape_time", 0.0)))
+	acass.tape_progress = clampf(float(data.get("tape_progress", 0.0)), 0.0, 1.0)
+	return acass
+
+
+func _load_vinyl_record(data: Dictionary) -> Node3D:
+	var lp := VINYL_RECORD_SCENE.instantiate() as VinylRecord
+	lp.album_path = data.get("album_path", "")
+	lp.album_label = data.get("album_label", "")
+	return lp
 
 ## The PLAIN_SCENES types that are cards (see _card_fields), with the label each
 ## gets when its save names none -- what each card's own default is.

@@ -1666,7 +1666,7 @@ func _test_storage() -> void:
 			cords[label] = cord
 			if how == "binned":
 				# What the box does on the release frame.
-				box._delete_with_dependents(device)
+				Trash.delete_with_dependents(device)
 			else:
 				device.queue_free()
 		# Past Vanish's shrink, which is what frees a binned device.

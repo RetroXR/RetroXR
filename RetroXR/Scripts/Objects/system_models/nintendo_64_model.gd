@@ -128,7 +128,7 @@ func _seat_button(btn: Node3D, seat_path: String) -> void:
 ## It also deletes the derived AvLegend, and that is the reason this changed rather
 ## than a tidy-up done alongside it. The plate is 39.6 mm tall and hangs 28.8 mm
 ## below the row it labels; on a 45 mm base its bottom third sank through the case
-## and the table. _print_av_legend skips a multi-way machine, so modelling the real
+## and the table. SystemAvPorts._print_legend skips a multi-way machine, so modelling the real
 ## rear removes the plate instead of shrinking it.
 func av_ports_are_multi_way() -> bool:
 	return true

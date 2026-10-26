@@ -78,6 +78,17 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
 (libretro/RetroArch#19280).
 
 ### GDScript Side
+- **Where the scripts live** (`RetroXR/Scripts/`, one line per top-level folder):
+  `Audio/` the microphone reader, listener and emitters; `Data/` stores, catalogues, paths
+  and migrations (no nodes in a room); `Desktop/` the flat-screen hand, pad and window;
+  `Effects/` one-shot visual effects; `Interaction/` grabbing, locks, pointer fit and
+  seated collision; `Mods/` the mod loader and its API; `Net/` netplay, RomM, mod.io,
+  RetroAchievements and the rendezvous; `Objects/` everything placed in a room (`systems/`
+  the machines, `system_models/` their bodies, `controllers/`, `peripherals/`, `media/`,
+  `cables/` with `link/` `ethernet/` `ilink/` `power/`, `audio/` the speakers and amplifier,
+  `tv/`, `books/`, `room/`, `widgets/`, `highlights/`); `UI/` panels, the spawn menu and
+  widgets; `XR/` the headset side (rig, hands, passthrough, focus mode). `boot_scene.gd`
+  and `quality_manager.gd` sit at the root.
 - `RetroXR/Scenes/BootScene.tscn` is `run/main_scene` on every platform. It enters
   `SceneManager.boot_room()`: the last room a transition brought the player to, recorded
   once its contents finished arriving (`room` in `user://scenes/prefs.json`), else the
@@ -93,7 +104,12 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   every frame empty (`OpenXR: No viewport was marked with use_xr, there is no rendered
   output!` each frame, the app alive at 72 fps): the 2026-10-21 "freeze when passthrough
   was the last environment". `scene_tests boot/` walks every room's root.
-- `RetroXR/Scripts/Objects/systems/system.gd` — Per-arcade-cabinet controller. Has `@onready var _libretro: Libretro = $Libretro` wired to a child `Libretro` node in the scene tree.
+- **The room scenes at the `Scenes/` root are PascalCase on purpose** (`MainScene`,
+  `DenScene`, `BedroomScene`, `PassthroughScene`, `TestScene`, and `BootScene`), unlike
+  every other `.tscn`. `RoomCatalog` names them by path and mods and probes load them by
+  path (the mod repo's `menu_probe.gd` loads `MainScene.tscn`), so a rename is a break, not
+  a tidy-up. New scenes are snake_case.
+- `RetroXR/Scripts/Objects/systems/system.gd` (`RetroSystem`) — the per-machine controller every console, handheld and arcade cabinet runs on, one per machine in the room. Has `@onready var _libretro: Libretro = $Libretro` wired to a child `Libretro` node in the scene tree.
   Its concerns live in child components built in `_init` (so a bare `RetroSystem.new()` in a
   suite still answers): `SaveStateController`, `MemoryCardController`, `SystemAudio`,
   `ExpansionLaunch`, `SystemExpansions` (sockets, covers, the unit list), `SystemVideoLead`
@@ -109,7 +125,7 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   `RetroSystem.power_on` (`toggle_power` is the netplay-aware one).
   `RetroSystem.stale_libretro_methods()` asks ClassDB once per process whether the loaded
   extension binds every Libretro method the scripts call, and logs a STALE build loudly.
-- `RetroXR/Scenes/Objects/system.tscn` — Cabinet scene. Contains a `Libretro` child node. Its `unique_id` is the value 4000000010, but Godot writes it SIGNED, so the file reads `unique_id=-294967286` — grep for that, not for the decimal above.
+- `RetroXR/Scenes/Objects/system.tscn` — the base machine scene. Contains a `Libretro` child node. Its `unique_id` is the value 4000000010, but Godot writes it SIGNED, so the file reads `unique_id=-294967286` — grep for that, not for the decimal above.
 - **What a snap zone holds collides with NOTHING** (`pick_up` freezes it, mask 0, and a
   grab driver drags it), so anything standing out of a LOOSE body went through the table:
   a Transfer Pak under an N64 pad sank 2 cm while staying attached (2026-10-23).

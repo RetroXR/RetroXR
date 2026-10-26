@@ -3028,7 +3028,7 @@ func _test_storage_lifecycle() -> void:
 # ---------------------------------------------------------------------------
 func _test_machine_contracts() -> void:
 	for path: String in ["res://Scripts/Objects/systems/system.gd",
-			"res://Scripts/Objects/peripherals/gb_printer.gd",
+			"res://Scripts/Objects/peripherals/gb_printer/gb_printer.gd",
 			"res://Scripts/Objects/peripherals/vmu_card.gd"]:
 		var gaps := NetMachine.missing_in_script(load(path) as Script)
 		_ok(gaps.is_empty(), "contract/%s is a whole NetMachine" % path.get_file(), ", ".join(gaps))

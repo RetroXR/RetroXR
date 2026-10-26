@@ -209,13 +209,6 @@ var _handheld_input: HandheldInput = null
 ## and every call site is guarded on that — see _setup_wireless_pads.
 var _wii_link: WiiLink = null
 
-## Last A/V routing reported to the log, so re-resolving the same wiring is quiet
-## and only real changes are announced. See _apply_av_feed.
-var _last_av_routing: String = ""
-## Each cord as "OUT->IN", with (!) where its two ends sit on different channels.
-## Built by on_av_topology_changed, printed by _apply_av_feed.
-var _av_cord_summary: String = "none"
-
 # Window material for TVs on multi-output hardware (dual-screen handhelds).
 const SCREEN_WINDOW_SHADER := preload("res://Shaders/screen_window.gdshader")
 
@@ -230,9 +223,9 @@ const SCREEN_WINDOW_SHADER := preload("res://Shaders/screen_window.gdshader")
 ## The node references are typed. A channel can outlive what it points at, but
 ## that is safe: a field is only ever ASSIGNED a live node or null, and reading a
 ## freed one is not an error -- passing it to a typed local is, so every read
-## that may meet a freed node still goes through _live(). `tv` alone stays
-## untyped: probes stand a bare Node in for a set to satisfy _has_display()
-## (saturn_session_probe), and a typed field would refuse it.
+## that may meet a freed node still goes through _live(). A probe that wants a
+## display without a real set (saturn_session_probe) stands in a RetroTV
+## subclass, not a bare Node, so `tv` is typed like the rest.
 class VideoChannel:
 	## From the model: what this output is called, which part of the core's
 	## framebuffer it shows, whether it takes touch, and its stereo eye offset.
@@ -250,9 +243,8 @@ class VideoChannel:
 	var audio_plugs: Array = []
 	var rope: VerletRope = null
 	var max_reach: float = 0.0
-	## The set this channel is plugged into (a RetroTV; see above), and its touch
-	## surface on that set.
-	var tv = null
+	## The set this channel is plugged into, and its touch surface on that set.
+	var tv: RetroTV = null
 	var touch_surface: TVTouchSurface = null
 	## A set to reconnect to once the cables exist, and which of its inputs for
 	## (save/load restore, which runs before the lead is built).
@@ -285,24 +277,29 @@ var _video_lead: SystemVideoLead = null
 func video_channels() -> Array[VideoChannel]:
 	return _channels
 
-# A/V sockets, for hardware that wears them instead of a captive lead (the NES).
-# _av_speaker is which of the set's speakers the one mono cord reaches — 0 left,
-# 1 right, -1 nowhere — and the picture, the sound and the set's controls each
-# follow a different one of these, because a lead can carry any of them alone.
-var _av_ports: Array = []
-# The sink carrying this console's SOUND. Node3D, not RetroTV: a pair of powered
-# speakers is a sink with no screen, and the picture can be going somewhere else
-# entirely.
-var _av_tv: Node3D = null
-var _av_video_tv: RetroTV = null
-## Every sink this machine currently reaches — each has been told it is here, and
-## each decides for itself which of its inputs that means.
-var _av_sinks: Array[Node3D] = []
-# True once an AUDIO_R socket exists — stereo hardware. Mono hardware has one
-# audio socket, and its single cord drives BOTH voices to the same speaker.
-var _av_stereo: bool = false
-var _av_speaker_l: int = -1
-var _av_speaker_r: int = -1
+## A/V sockets, for hardware that wears them instead of a captive lead (the NES),
+## and where the picture and sound in them go -- lifted out into SystemAvPorts.
+var _av: SystemAvPorts = null
+
+# Its state under the names it had here, forwarded: tests, probes and the mods'
+# probes read these and stand them in. See SystemAvPorts for what each means.
+var _av_ports: Array:
+	get: return _av.ports
+	set(value): _av.ports = value
+var _av_tv: Node3D:
+	# Through is_instance_valid: a getter hands back what it reads, and handing
+	# back a freed set (one deleted while cabled) is an error a field read is not.
+	get: return _av.audio_sink if is_instance_valid(_av.audio_sink) else null
+	set(value): _av.audio_sink = value
+var _av_stereo: bool:
+	get: return _av.stereo
+	set(value): _av.stereo = value
+var _av_speaker_l: int:
+	get: return _av.speaker_l
+	set(value): _av.speaker_l = value
+var _av_speaker_r: int:
+	get: return _av.speaker_r
+	set(value): _av.speaker_r = value
 var _snapped_cartridge: Node3D = null
 ## The console's SECOND native slot and what is in it -- the DS's Slot-2, which
 ## takes a Game Boy Advance cartridge. Null on every console with one slot; see
@@ -501,6 +498,10 @@ func _init() -> void:
 	_audio.name = "SystemAudio"
 	add_child(_audio)
 	_audio.setup(self)
+	_av = SystemAvPorts.new()
+	_av.name = "SystemAvPorts"
+	add_child(_av)
+	_av.setup(self, _audio)
 	_expansion_launch = ExpansionLaunch.new()
 	_expansion_launch.name = "ExpansionLaunch"
 	add_child(_expansion_launch)
@@ -577,7 +578,7 @@ func _ready() -> void:
 	# Hardware with real sockets (the NES) gets those instead of a captive lead —
 	# nothing plays until a lead is run to the set, as it did on the real thing.
 	if _model.uses_av_ports():
-		_build_av_ports()
+		_av.build()
 	else:
 		_video_lead.spawn()
 	# Last of the sockets: its A/V ones are only built above.
@@ -1224,7 +1225,7 @@ func _audio_tv() -> Node3D:
 		return _av_tv if live and is_instance_valid(_av_tv) else null
 	for chan: VideoChannel in _channels:
 		if is_instance_valid(chan.tv):
-			return chan.tv as RetroTV
+			return chan.tv
 	return null
 
 
@@ -1232,7 +1233,7 @@ func _audio_tv() -> Node3D:
 ##
 ## The component is deliberately given this rather than _av_ports and
 ## _av_speaker_l/_r themselves. Which set the sound reaches, and which of that
-## set's speakers each channel lands on, is decided in _apply_av_feed as cords
+## set's speakers each channel lands on, is decided in SystemAvPorts.apply_feed as cords
 ## are seated and pulled; a second reader of those three fields would be a
 ## second owner of the routing, and the gains cached against them would go stale
 ## in a way nothing here could see.
@@ -1255,7 +1256,7 @@ func audio_route() -> Dictionary:
 ## The speaker half of audio_route, without resolving the sink.
 ##
 ## Split out because the gain path wants it every frame and does not care which
-## set the sound is going to — and because _apply_av_feed has to invalidate the
+## set the sound is going to — and because SystemAvPorts.apply_feed has to invalidate the
 ## gain cache one line BEFORE it assigns _av_tv, where _audio_tv() would still
 ## answer with the old sink.
 func audio_speakers() -> Dictionary:
@@ -1297,7 +1298,7 @@ func _screen_target() -> MeshInstance3D:
 ##
 ## Read off the video channels rather than recomputed, because that is the one
 ## record both routes keep: a captive lead sets it through on_tv_connected, a
-## composite cable through _apply_av_feed, and a walk of the cable graph would
+## composite cable through SystemAvPorts.apply_feed, and a walk of the cable graph would
 ## see only the second — captive leads carry no CompositeCable and are not in it.
 ##
 ## Per set, not per machine. A tower with its picture on a monitor and its sound
@@ -1368,8 +1369,8 @@ func on_rf_channel_changed() -> void:
 		var tv := _live(chan.tv) as RetroTV
 		if tv != null:
 			tv.on_rf_channel_changed()
-	if is_instance_valid(_av_video_tv):
-		_av_video_tv.on_rf_channel_changed()
+	if is_instance_valid(_av.video_tv):
+		_av.video_tv.on_rf_channel_changed()
 
 
 ## Called by the TV when one of this system's plugs connects. `plug` tells us
@@ -1401,8 +1402,7 @@ func on_tv_disconnected(plug: CablePlug = null) -> void:
 	var ch := plug.channel if plug != null else 0
 	if ch < 0 or ch >= _channels.size():
 		ch = 0
-	var tv_obj = _channels[ch].tv
-	var tv: RetroTV = tv_obj as RetroTV if (is_instance_valid(tv_obj)) else null
+	var tv := _live(_channels[ch].tv) as RetroTV
 	_channels[ch].tv = null
 	if ch == 0:
 		connected_tv = null
@@ -1417,7 +1417,7 @@ func on_tv_disconnected(plug: CablePlug = null) -> void:
 func get_channel_tv(ch: int) -> RetroTV:
 	if ch < 0 or ch >= _channels.size():
 		return null
-	return _channels[ch].tv
+	return _live(_channels[ch].tv) as RetroTV
 
 
 ## Which of that TV's four composite inputs channel `ch`'s lead is sitting in
@@ -1508,185 +1508,10 @@ func _exit_tree() -> void:
 
 # --- Cable management ---
 
-## Build the two sockets a `uses_av_ports` console wears, and let the model seat
-## them on its own moulded jacks.
-##
-## Video and ONE audio channel: this is mono hardware, and the second socket is the
-## whole of its sound. Where that cord lands decides which single speaker plays —
-## see on_av_topology_changed.
-func _build_av_ports() -> void:
-	# Named for the channel, matching the decks, so a save file reads the same on
-	# either kind of hardware.
-	const PORT_NAMES := {
-		RcaPort.Channel.VIDEO: "VideoOut",
-		RcaPort.Channel.AUDIO_L: "AudioLOut",
-		RcaPort.Channel.AUDIO_R: "AudioROut",
-	}
-	var channels: Array = _model.av_port_channels()
-	# Read off the CHANNEL LIST rather than off the sockets built, because those two
-	# stopped being the same thing: a multi-way machine is as stereo as any other and
-	# has one hole. Without this the Wii's left cord also fed the right speaker.
-	for ch: int in channels:
-		if ch == RcaPort.Channel.AUDIO_R:
-			_av_stereo = true
-	var built: Array = []
-	if _model.av_ports_are_multi_way():
-		# One socket for the lot — an AV Multi Out. Which cord carries which signal is
-		# MultiAvPort.channel_for's business from here on; WHICH socket is the model's,
-		# because the shell is shared across the Nintendo consoles and the pinout is
-		# not. The Wii's is the fallback for a model that claims multi-way and names
-		# nothing, so that mistake costs a wrong-shaped hole rather than no picture.
-		var path: String = _model.av_multi_port_scene()
-		if path.is_empty():
-			path = "res://Scenes/Objects/system_models/wii/wii_av_port.tscn"
-		var multi: PackedScene = load(path)
-		if multi != null:
-			var port := multi.instantiate() as RcaPort
-			port.name = "AvMultiOut"
-			add_child(port)
-			built.append(port)
-	else:
-		var scene: PackedScene = load("res://Scenes/Objects/cables/rca_port.tscn")
-		if scene == null:
-			return
-		for ch: int in channels:
-			var port := scene.instantiate() as RcaPort
-			port.name = str(PORT_NAMES.get(ch, "AvOut"))
-			port.channel = ch as RcaPort.Channel
-			port.direction = RcaPort.Direction.OUT
-			add_child(port)
-			built.append(port)
-	_av_ports = built
-	# After add_child: the model places these in world space off its own meshes.
-	_model.configure_av_ports(built)
-	_print_av_legend(built)
-	# Hide the captive lead's own connector. CableAttachPoint carries a PortVisual —
-	# the yellow RCA plug that reads as the lead permanently seated in the console —
-	# and on a shell like the NES the model parks it right in the VIDEO jack. With
-	# sockets there is no captive lead, so leaving it there blocks the very jack the
-	# player has to plug into.
-	for chan: VideoChannel in _channels:
-		var visual := chan.attach.get_node_or_null("PortVisual") as Node3D
-		if visual != null:
-			visual.hide()
-
-
-## Silkscreen the A/V row: the outlined box, the words under the jacks and the AV OUT
-## heading. Console hardware is a source, so every one of these reads OUT.
-##
-## Stand-ins only, the same rule _place_name_label follows: a detailed shell carries
-## its own printing in its texture, and ours would sit on top of it.
-##
-## Parented to the cabinet rather than to the model, which keeps it out of
-## body_aabb() — that walks the body and the model, and a plate merged into it would
-## drag the nameplate off the front face.
-func _print_av_legend(ports: Array) -> void:
-	if _model == null or _model.has_baked_shell():
-		return
-	# A multi-way socket gets no phono legend. AvLegend draws a bracket over an audio
-	# PAIR and a word under each jack, and a machine with one hole has neither — the
-	# Wii prints "AV MULTI OUT" beside its socket instead, from its own model.
-	if _model.av_ports_are_multi_way():
-		return
-	var legend := AvLegend.attach(self, ports)
-	if legend != null:
-		_model.configure_av_legend(legend)
-
-
-## Called by a CompositeCable whenever a plug is seated or pulled anywhere on it.
-##
-## Mono, so there is one audio answer rather than two: the single cord either
-## reaches one of the set's speakers or it reaches nothing. Both of this console's
-## voices are then played AT that one speaker, which is what a mono feed into one
-## input sounds like — two coincident sources sum, no downmix needed.
+## Called by a CompositeCable whenever a plug is seated or pulled anywhere on it:
+## re-resolve where the picture and the sound go (SystemAvPorts).
 func on_av_topology_changed(_reported: Array) -> void:
-	var feed := AvSource.resolve(self, _av_stereo)
-	_av_cord_summary = feed.summary()
-	_apply_av_feed(feed.video_sinks, feed.audio_sink, feed.left, feed.right)
-
-
-func _apply_av_feed(video_devs: Array[RetroTV], audio_dev: Node3D, l: int, r: int) -> void:
-	# The set every single-display consumer means: the wiimote's pointer, the RF
-	# channel check, "has the picture moved to a television". The FIRST video sink,
-	# and the only one that was ever resolved before.
-	var video_dev: RetroTV = video_devs[0] if not video_devs.is_empty() else null
-	# The conclusion, not the wiring — RcaPort logs each cord as it lands, this
-	# says what they added up to. Picture and sound resolve independently below, so
-	# "video=<none> audio=TV" is a real and easily-missed state: the console is
-	# heard but never seen, which reads from the room as a dead console.
-	#
-	# Only on CHANGE. Seating one lead re-resolves the routing once per cord per
-	# end, so a plain three-cord hookup would otherwise print this eighteen times
-	# and bury the transition that matters.
-	var names := PackedStringArray()
-	for dev in video_devs:
-		names.append(String(dev.name))
-	var routing := "video=%s audio=%s  cords: %s" % [
-		"<none>" if names.is_empty() else ", ".join(names),
-		String(audio_dev.name) if audio_dev != null else "<none>",
-		_av_cord_summary]
-	if routing != _last_av_routing:
-		_last_av_routing = routing
-		print("[RetroSystem] A/V feed: %s" % routing)
-		# A cord bridging two different channels conducts nothing either side can
-		# use — video out into an audio in is the classic one, and it leaves a set
-		# that plays sound perfectly while showing blue.
-		if _av_cord_summary.contains("(!)"):
-			push_warning("[RetroSystem] a cord has its ends on DIFFERENT channels "
-				+ "(marked !) — it carries nothing. Check the colours match end to end.")
-	_av_speaker_l = l
-	_av_speaker_r = r
-	# The cached pair is keyed on the gains last sent, not on the routing, so a
-	# cord moving between sockets has to invalidate it or the new silence (or the
-	# new sound) never reaches the mixer. Told rather than inferred: SystemAudio
-	# reads the routing through audio_speakers() and cannot see it change.
-	#
-	# Safe to call here, one line BEFORE _av_tv is assigned, because everything
-	# route_changed touches is keyed on the speakers rather than on the set. It
-	# must not grow a dependency on _audio_tv(), which is still the old sink at
-	# this point; the position follows on the next frame's update_position().
-	_audio.route_changed()
-	var prev_audio := _av_tv
-	_av_tv = audio_dev
-	# The PICTURE follows the video cord alone: a lead with only its audio end in
-	# leaves the set on its blue no-signal screen, as it would.
-	var showing: RetroTV = video_dev
-	if showing != _av_video_tv:
-		if is_instance_valid(_av_video_tv):
-			on_tv_disconnected(null)
-		_av_video_tv = showing
-		if showing != null:
-			on_tv_connected(showing, null)
-	# EVERY sink is told, picture and sound alike, because being told is what lets a
-	# set work out which of its own inputs this machine is on — and a set that has
-	# not been told shows its blue screen no matter what is cabled to it.
-	#
-	# One sink used to be told, and it was the AUDIO one when there was any: wire
-	# the tower's sound to a speaker pair and its picture to a monitor, and the
-	# thing that got the announcement was the speakers, which have no screen. The
-	# monitor was never told about the machine plugged into it.
-	var sinks: Array[Node3D] = []
-	for dev in video_devs:
-		sinks.append(dev)
-	if audio_dev != null and not sinks.has(audio_dev):
-		sinks.append(audio_dev)
-	for old_sink in _av_sinks:
-		if is_instance_valid(old_sink) and not sinks.has(old_sink):
-			old_sink.on_av_source_lost(self)
-	for sink in sinks:
-		if not _av_sinks.has(sink):
-			sink.on_av_source_found(self)
-	_av_sinks = sinks
-	# A sink only pushes its level and its decode at machines whose SOUND lands on
-	# it, so the one now carrying the sound has to hear about it even when it was
-	# already a sink — a set showing this machine's picture that the white and red
-	# cords have just come back to from an amplifier. It was never "found" a second
-	# time. An amplifier needs nothing here: it is never a picture sink, so found and
-	# lost already cover every move of its own. Optional on the sink side: only a
-	# set has it.
-	if audio_dev != prev_audio and is_instance_valid(audio_dev) \
-			and audio_dev.has_method("on_audio_source_routed"):
-		audio_dev.on_audio_source_routed(self)
+	_av.on_topology_changed()
 
 
 ## True when this system offers the Enable Video Out toggle: the machine has a
@@ -1963,7 +1788,7 @@ func power_on() -> void:
 	for storage: ConsoleStorage in _storages:
 		storage.stage_late(resolved_dir, resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
-	_libretro.SetSramPath(sram_path_for_run(resolved_core))
+	_libretro.SetSramPath(_memcards.sram_path_for_run(resolved_core))
 	_libretro.SetRtcPath(_memcards.rtc_path_for_run(resolved_core))
 	# Before StartContent: identification happens as the core comes up, so the
 	# claim has to be in place by then. Returns false when another cabinet already
@@ -2030,7 +1855,7 @@ func _after_core_started() -> void:
 	_audio.rebind()
 	is_powered_on = true
 	set_process(true)
-	start_card_polling()
+	_memcards.start_card_polling()
 	_update_power_button_visual()
 	_model.on_power_on()
 	# Learn whether this core exposes the disk-control interface (multi-disc
@@ -2271,7 +2096,7 @@ func _stop_core() -> void:
 	is_powered_on = false
 	# StopContent returned but the core has not finished: a card the core owns is
 	# written during the teardown that follows. Keep watching for a while.
-	stop_card_polling_soon()
+	_memcards.stop_card_polling_soon()
 	# Every storage drains what its core writes as it unloads (ConsoleStorage).
 	var stop_dir := _resolve_dir()
 	var stop_core := _resolve_core()
@@ -2603,7 +2428,7 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	# SRAM: netplay override (session-injected identical bytes) or the normal
 	# local composition when the session didn't set one (offline-like start).
 	if not _memcards.apply_netplay_sram():
-		_libretro.SetSramPath(sram_path_for_run(resolved_core))
+		_libretro.SetSramPath(_memcards.sram_path_for_run(resolved_core))
 	# A clock read from each peer's own file is a different time on every peer.
 	_libretro.SetRtcPath("")
 	# Only the storages that stage in a session: today the Sega CD's and the
@@ -2828,6 +2653,20 @@ func debug_state() -> Array:
 ## window for the Debug tab; set_core_option is the way to change one.
 func core_option_values() -> Dictionary:
 	return _options_values
+
+
+## Everything the options menu shows about the core, in one read, so the panel
+## needs none of the fields behind it: what the core declared, its current
+## values, its controller ports, why the options are unavailable ("" when they
+## are not) and which core this machine would load.
+func core_options_snapshot() -> Dictionary:
+	return {
+		"definitions": _options_definitions,
+		"values": _options_values,
+		"controller_info": _controller_info,
+		"unavailable": _options_unavailable,
+		"core": _resolve_core(),
+	}
 
 
 ## The OPEN/EJECT button, pressed from the menu.
@@ -5262,6 +5101,13 @@ var _storages: Array[ConsoleStorage] = []
 var _expansion_launch: ExpansionLaunch = null
 
 
+## The card slots' controller, for a caller whose business is only cards
+## (ScenePersistence). The forwarders below stay for the tests, probes and mods
+## that call them on the machine by name.
+func memcards() -> MemoryCardController:
+	return _memcards
+
+
 ## The MemoryCard seated in `slot`, or null.
 func get_snapped_memcard(slot := 0) -> Node3D:
 	return _memcards.get_snapped_memcard(slot)
@@ -5300,19 +5146,6 @@ func card_slot_count() -> int:
 	return _memcards.card_slot_count()
 
 
-## The path to hand the core for a run about to start. "" means nothing goes
-## through SAVE_RAM, which is a real answer and not a failure.
-func sram_path_for_run(resolved_core: String) -> String:
-	return _memcards.sram_path_for_run(resolved_core)
-
-
-func start_card_polling() -> void:
-	_memcards.start_card_polling()
-
-
-func stop_card_polling_soon() -> void:
-	_memcards.stop_card_polling_soon()
-
 # ---------------------------------------------------------------------------
 # Save states
 #
@@ -5329,6 +5162,13 @@ signal state_captured(state_id: String, ok: bool, reason: String)
 signal state_loaded(state_id: String, ok: bool, reason: String)
 
 var _save_state: SaveStateController = null
+
+
+## The save-state controller, for a caller whose business is only states
+## (CartridgeOptionsPanel). The signals above stay on the machine, and so do the
+## three forwarders below: tests and probes call them on it by name.
+func save_states() -> SaveStateController:
+	return _save_state
 
 
 ## Can this machine take a state right now? {ok, reason} — reason is empty when

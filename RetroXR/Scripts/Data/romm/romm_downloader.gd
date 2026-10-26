@@ -178,16 +178,13 @@ func _worker(args: Dictionary) -> void:
 	RomLibrary.ensure_rom_dir(systemid)
 	var dest := RommCacheManifest.local_path(systemid, fs_name)
 
-	var outcome := _transfer(args, dest, rom_id)
-	match str(outcome["status"]):
-		"ok":
-			pass
-		"cancelled":
-			_emit_cancelled.call_deferred(rom_id)
-			return
-		_:
-			_emit_finished.call_deferred(rom_id, false, "", str(outcome["error"]))
-			return
+	var fetched := _transfer(args, dest, rom_id)
+	if str(fetched["state"]) == "cancelled":
+		_emit_cancelled.call_deferred(rom_id)
+		return
+	if str(fetched["state"]) == "failed":
+		_emit_finished.call_deferred(rom_id, false, "", str(fetched["error"]))
+		return
 
 	# ── Verified and in place ────────────────────────────────────────────────
 	var owned := PackedStringArray([fs_name])
@@ -224,8 +221,9 @@ func _worker(args: Dictionary) -> void:
 	_emit_finished.call_deferred(rom_id, true, launch_path, "")
 
 
-## Retry wrapper around one file. Returns {status, error} with status
-## ok / terminal / cancelled.
+## Download one file, retrying what is worth retrying.
+## Returns {state: "ok" | "cancelled" | "failed", error: String} -- the same
+## vocabulary FirmwareInstaller._transfer and ModDownloader._transfer return.
 func _transfer(args: Dictionary, dest: String, rom_id: int) -> Dictionary:
 	var part := dest + ".part"
 	var attempt := 0
@@ -233,26 +231,32 @@ func _transfer(args: Dictionary, dest: String, rom_id: int) -> Dictionary:
 
 	while attempt < MAX_RETRIES:
 		if _abort:
-			return {"status": "cancelled", "error": ""}
+			return {"state": "cancelled", "error": ""}
 
 		if attempt > 0:
+			print("[RommDownloader] Retry %d/%d of rom %d after: %s" % [attempt + 1,
+				MAX_RETRIES, rom_id, last_error])
 			# 2 s, 4 s, 8 s — same backoff shape as the scraper client.
 			var delay := int(pow(2.0, float(attempt)))
 			_emit_retrying.call_deferred(rom_id, attempt + 1, MAX_RETRIES, last_error)
 			for i in delay * 10:
 				if _abort:
-					return {"status": "cancelled", "error": ""}
+					return {"state": "cancelled", "error": ""}
 				OS.delay_msec(100)
 
 		var outcome := _attempt_download(args, dest, part, rom_id)
+		var status := str(outcome["status"])
+		if status != "ok" and status != "cancelled" and status != "unranged":
+			print("[RommDownloader] Attempt %d/%d of rom %d: %s, %s" % [attempt + 1,
+				MAX_RETRIES, rom_id, status, str(outcome.get("error", ""))])
 
-		match str(outcome["status"]):
+		match status:
 			"ok":
-				return {"status": "ok", "error": ""}
+				return {"state": "ok", "error": ""}
 			"cancelled":
-				return {"status": "cancelled", "error": ""}
+				return {"state": "cancelled", "error": ""}
 			"terminal":
-				return outcome
+				return {"state": "failed", "error": str(outcome.get("error", ""))}
 			"unranged":
 				# Not a failure: go again at once, from zero, without a Range.
 				if FileAccess.file_exists(part):
@@ -268,7 +272,7 @@ func _transfer(args: Dictionary, dest: String, rom_id: int) -> Dictionary:
 				last_error = str(outcome["error"])
 				attempt += 1
 
-	return {"status": "terminal", "error": last_error}
+	return {"state": "failed", "error": last_error}
 
 
 ## One transfer attempt. Returns {status, error} where status is one of

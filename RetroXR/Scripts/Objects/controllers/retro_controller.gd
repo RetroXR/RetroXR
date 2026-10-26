@@ -242,6 +242,13 @@ func pak_option_value() -> String:
 #
 # Reached by RetroSystem through duck typing, the same way the N64's pak is: it
 # asks a port controller for these and does not care what class answers.
+#
+# PadReceiver declares the same eight forwards on purpose. They ARE the port
+# controller protocol: RetroSystem, VmuStorage, XboxStorage, ScenePersistence,
+# CardSaveOps, several suites and the mod repo's pad probes all call them by
+# name on whatever sits in a port, so collapsing them into one "give me your
+# N64PakPort / VmuPort" accessor would move every one of those call sites for a
+# saving of a few one-line bodies. Keep the two lists in step instead.
 
 ## How many VMU slots this pad has: two on the primitive pad, whatever it is
 ## plugged into, and none on a pad with a shell made for another console.

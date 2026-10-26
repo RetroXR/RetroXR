@@ -366,19 +366,12 @@ func _ready() -> void:
 ## top of _ready so the boot path can be measured too, and leaves the file in
 ## place for _run_vrs_probe to consume as usual.
 func _read_vrs_overrides() -> void:
-	var path := "user://vrsprobe.cfg"
-	if not FileAccess.file_exists(path):
-		path = VRS_PROBE_EXTERNAL_CFG
-		if not FileAccess.file_exists(path):
-			return
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
+	var path := _vrs_probe_cfg_path()
+	if path.is_empty():
 		return
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
-	if typeof(parsed) != TYPE_DICTIONARY:
+	var cfg := JsonStore.read_dict(path, "QualityManager")
+	if cfg.is_empty():
 		return
-	var cfg: Dictionary = parsed
 	if cfg.has("vrs_mode"):
 		_vrs_mode_override = str(cfg["vrs_mode"])
 	if cfg.has("subsampled"):
@@ -402,6 +395,19 @@ func _read_vrs_overrides() -> void:
 		% [_vrs_mode_override, int(foveation_level)])
 
 
+## The probe cfg to read, user:// first, or "" when there is none (the normal
+## case, so it is silent). A cfg that exists but cannot be read or parsed is
+## NOT silent: JsonStore warns under QualityManager, because the only person who
+## writes one is someone on adb waiting for the probe to arm, and a quiet return
+## looked exactly like a build that ignores the file.
+func _vrs_probe_cfg_path() -> String:
+	if FileAccess.file_exists("user://vrsprobe.cfg"):
+		return "user://vrsprobe.cfg"
+	if FileAccess.file_exists(VRS_PROBE_EXTERNAL_CFG):
+		return VRS_PROBE_EXTERNAL_CFG
+	return ""
+
+
 func _probe_boot_scene(path: String) -> void:
 	if not ResourceLoader.exists(path):
 		push_error("[VRSProbe] boot_scene %s does not exist" % path)
@@ -420,20 +426,14 @@ func _probe_boot_scene(path: String) -> void:
 ## user://, because a release build cannot be reached by `adb run-as`. The cfg
 ## is deleted as it is read, so a crashed run cannot wedge the next launch.
 func _run_vrs_probe() -> void:
-	var path := "user://vrsprobe.cfg"
-	if not FileAccess.file_exists(path):
-		path = VRS_PROBE_EXTERNAL_CFG
-		if not FileAccess.file_exists(path):
-			return
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
+	var path := _vrs_probe_cfg_path()
+	if path.is_empty():
 		return
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	file.close()
+	var cfg := JsonStore.read_dict(path, "QualityManager")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
-	if typeof(parsed) != TYPE_DICTIONARY:
+	if cfg.is_empty():
+		print("[VRSProbe] %s held nothing to apply, removed it" % path)
 		return
-	var cfg: Dictionary = parsed
 	# Seconds rather than frames when asked for: under RenderDoc injection the
 	# warm runs at a fraction of a frame a second, so a frame count fires long
 	# after the capture it was meant to precede.

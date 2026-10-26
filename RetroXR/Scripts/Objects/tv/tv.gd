@@ -1009,7 +1009,7 @@ func on_decoder_changed() -> void:
 
 
 ## A machine whose sound has just moved onto this set, having already been a sink of
-## its picture — see RetroSystem._apply_av_feed. The set was skipping it while its
+## its picture — see SystemAvPorts.apply_feed. The set was skipping it while its
 ## sound was elsewhere (TvAudio.carries_sound), so it is brought onto the set's
 ## level, speaker switch and decode now.
 func on_audio_source_routed(_source: Node3D) -> void:

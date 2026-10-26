@@ -82,8 +82,7 @@ func _ready() -> void:
 	# so anything that saves it writes the player's choices back unchanged.
 	# BootScene completes a pending folder move before any pack is mounted.
 	if not _is_test_run():
-		if not DataPaths.migration_mode():
-			load_data_root()
+		BootScene.defer_or_load(self)
 		return
 	_ready_done = true
 	mods_ready.emit()

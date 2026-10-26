@@ -65,8 +65,7 @@ var _serial_ids: Dictionary = {}
 ## cartridge menu (which offers the toggle) need this, and they are unrelated
 ## nodes with no shared parent to hang it off.
 func _ready() -> void:
-	if not DataPaths.migration_mode():
-		load_data_root()
+	BootScene.defer_or_load(self)
 
 
 func load_data_root() -> void:

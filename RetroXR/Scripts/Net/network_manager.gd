@@ -168,6 +168,11 @@ func _ready() -> void:
 	if has_node("/root/SceneManager"):
 		SceneManager.scene_changed.connect(_on_scene_changed)
 		SceneManager.scene_content_ready.connect(_on_scene_content_ready)
+		# And tell it who answers "is this peer a client?" -- the one direction
+		# of the dependency, so SceneManager need not name this autoload. Only
+		# the autoload: a test running several managers must not repoint it.
+		if get_node_or_null("/root/NetworkManager") == self:
+			SceneManager.set_net_role_source(is_client, is_active)
 	call_deferred("_parse_cmdline")
 
 
@@ -296,6 +301,9 @@ func join_game(ip: String, port := DEFAULT_PORT, local_port := 0) -> Error:
 ##
 ## Every failure leaves nothing running, so the caller can fall back to LAN
 ## hosting without cleaning up after this.
+##
+## A coroutine: callers must await it, or they get a Signal back and not the
+## Error (the rendezvous and the hole punch are network round trips).
 func host_online(room_name := "") -> Error:
 	if _active:
 		return ERR_ALREADY_IN_USE
@@ -342,6 +350,9 @@ func host_online(room_name := "") -> Error:
 
 
 ## Join whoever is holding this code.
+##
+## A coroutine: callers must await it, or they get a Signal back and not the
+## Error.
 func join_by_code(raw_code: String) -> Error:
 	if _active:
 		return ERR_ALREADY_IN_USE
@@ -677,7 +688,7 @@ func default_owners(system: Object) -> Dictionary:
 	# a cabled pair is one session over two machines, and a port is named by
 	# machine * PORTS_PER_MACHINE + port so both machines' pads fit in one frame.
 	var group: Array = [system]
-	if system != null and system.has_method("net_link_group"):
+	if NetMachine.has(system, "net_link_group"):
 		var bus: Array = system.net_link_group()
 		if bus.size() > 1:
 			group = bus
@@ -772,8 +783,8 @@ func netplay_rejoin_restart(system: Object) -> bool:
 	var waiting := _netplay.pending_join_peers()
 	if waiting.is_empty():
 		return false
-	var core := str(system.resolve_core_name()) if system.has_method("resolve_core_name") else ""
-	var rom_md5 := str(system.net_rom_md5()) if system.has_method("net_rom_md5") else ""
+	var core := str(system.resolve_core_name()) if NetMachine.has(system, "resolve_core_name") else ""
+	var rom_md5 := str(system.net_rom_md5()) if NetMachine.has(system, "net_rom_md5") else ""
 	print("[Netplay] restarting to admit %d waiting player(s)" % waiting.size())
 	_netplay.stop("restarting to let %d more player(s) in" % waiting.size())
 	# The pads have not moved, so default_owners reads the same hands it would

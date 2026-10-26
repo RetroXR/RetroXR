@@ -1,6 +1,25 @@
 ## The main scene. Replaces itself with the room SceneManager resolved for this
 ## launch.
+class_name BootScene
 extends Node
+
+## An autoload whose start reads the data root joins this group from its _ready
+## (through defer_or_load) instead of starting while a folder move is pending.
+## BootScene finishes the move, then calls load_data_root() on every member in
+## tree order, which is project.godot's autoload order, and SceneManager's boot
+## comes after all of them. The group is the only list: an autoload that defers
+## is replayed because it deferred, never because someone remembered to name it.
+const DATA_ROOT_DEFERRED := &"data_root_deferred"
+
+
+## Called from an autoload's _ready: start it now, or, while a data-root move is
+## pending, register it to be started once BootScene has finished the move.
+static func defer_or_load(loader: Node) -> void:
+	if not DataPaths.migration_mode():
+		loader.call(&"load_data_root")
+		return
+	print("[Boot] %s waits for the data-folder move" % loader.name)
+	loader.add_to_group(DATA_ROOT_DEFERRED)
 
 
 func _ready() -> void:
@@ -9,10 +28,11 @@ func _ready() -> void:
 		add_child(move)
 		await move.finish_pending()
 		move.queue_free()
-		Mods.load_data_root()
-		SaveSync.load_data_root()
-		StateSync.load_data_root()
-		RA.load_data_root()
+		for loader: Node in get_tree().get_nodes_in_group(DATA_ROOT_DEFERRED):
+			print("[Boot] data folder moved: starting %s" % loader.name)
+			loader.remove_from_group(DATA_ROOT_DEFERRED)
+			loader.call(&"load_data_root")
+		# Last: resolving the room needs the rooms mods registered from the new root.
 		SceneManager.start_boot()
 	_warn_if_stock_engine()
 	# Before any room is built: nothing may compose a save path until saves have moved.

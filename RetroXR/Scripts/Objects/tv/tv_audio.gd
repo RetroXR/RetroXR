@@ -198,11 +198,9 @@ func apply_audio_out() -> int:
 		if not is_instance_valid(system) or not carries_sound(system):
 			continue
 		# The decoder first, so the first block decoded is already the right one.
-		if system.has_method("set_surround_mode"):
-			system.set_surround_mode(decode)
-		if system.has_method("set_audio_out_mode"):
-			if system.set_audio_out_mode(mode):
-				decoding += 1
+		AvSourceContract.push_surround_mode(system, decode)
+		if AvSourceContract.push_out_mode(system, mode):
+			decoding += 1
 	if _tv.tuner() and _tv.tuner().has_method("set_audio_out_mode"):
 		_tv.tuner().set_audio_out_mode(_tv.audio_out)
 	return decoding
@@ -273,9 +271,8 @@ func apply_channel_mode() -> void:
 	# property of the SET, so an input switched to later has to already be routed
 	# the way the switch says rather than reverting to stereo for one press.
 	for system in _tv.panel().connected_systems():
-		if is_instance_valid(system) and carries_sound(system) \
-				and system.has_method("set_audio_channel_mode"):
-			system.set_audio_channel_mode(_tv.audio_mode)
+		if is_instance_valid(system) and carries_sound(system):
+			AvSourceContract.push_channel_mode(system, _tv.audio_mode)
 	# The tuner is the one source the set does own an emitter for, so it takes the
 	# same routing directly rather than being asked to do it.
 	if _tv.tuner():
@@ -355,7 +352,7 @@ func apply_volume() -> void:
 	for i in systems.size():
 		var system: Node3D = systems[i]
 		if is_instance_valid(system) and carries_sound(system):
-			system.set_audio_volume(volume_for(i))
+			AvSourceContract.push_volume(system, volume_for(i))
 	if _tv.tuner():
 		_tv.tuner().set_volume(tuner_volume())
 

@@ -117,9 +117,10 @@ python Tools/run_tests.py --update-baseline   # after a DELIBERATE drop in case 
   suite is fine. Filtered runs skip the check.
 - **The bar for `Tests/`:** checks itself, runs unattended with no ROM, core, headset or
   device, and exits non-zero on failure. Everything else is a **probe** under
-  `RetroXR/Tools/<topic>/` (`av cores gen input link models netplay perf room rope state
-  vr`), including asserting ones that need real cores/ROMs or reproduce open bugs. A probe's
-  `.tscn` names its script by literal path — rewrite it when moving one.
+  `RetroXR/Tools/<topic>/` (`av cores gen input link models mods net netplay perf room rope
+  state vr`; `gblink gglink scan azahar_stereo_homebrew` hold test ROMs and data, not
+  probes), including asserting ones that need real cores/ROMs or reproduce open bugs. A
+  probe's `.tscn` names its script by literal path — rewrite it when moving one.
 - **A suite boots with NO mods.** `Mods` mounts none of the player's installed packs when
   the scene on the command line is under `res://Tests/` (probes keep them). Before, an
   enabled `xenu.ps2` failed `link_tests` and `system_tests` on one machine and not on CI.

@@ -172,6 +172,44 @@ static func make_zone(zone_name: String, require: String, grab_distance: float,
 	return zone
 
 
+## A fresh PortCover for `socket_id`, of box `size`, in color `variant`: what every
+## cover slot seeds -- an object's (_seed) and a console's over its own unit
+## sockets (SystemExpansions). Not yet in the room; seat_new() puts it there.
+static func new_port_cover(socket_id: String, size: Vector3, variant: String) -> PortCover:
+	var cover := _COVER_SCENE.instantiate() as PortCover
+	cover.socket_id = socket_id
+	cover.size = size
+	cover.model_variant = variant
+	return cover
+
+
+## Bring a freshly made cover into the room and seat it in `zone`: the one way
+## every kind of cover slot seeds -- an object's, a console's port covers and the
+## N64's Expansion Pak lid. It arrives at the slot's own pose, or at `from` (a
+## global position, its turn left as built) for a caller that has always
+## started it elsewhere. Spawned like anything a hand put down, so it saves.
+static func seat_new(zone: XRToolsSnapZone, cover: Node3D, from: Variant = null) -> void:
+	zone.get_tree().current_scene.add_child(cover)
+	cover.add_to_group("spawned")
+	if from is Vector3:
+		cover.global_position = from
+	else:
+		cover.global_transform = zone.global_transform
+	zone.pick_up_object(cover)
+
+
+## Put a cover a save names back into its slot -- every kind of cover slot's
+## restore. False (and nothing done) when either is missing or the slot is already
+## holding something.
+static func seat_saved(zone: XRToolsSnapZone, cover: Node3D) -> bool:
+	if zone == null or cover == null or not is_instance_valid(cover):
+		return false
+	if zone.has_snapped_object():
+		return false
+	zone.pick_up_object(cover)
+	return true
+
+
 ## Build the slot for `socket_id` under `parent`, at `seat` in parent's frame (the
 ## cover's middle, its outer face +Y), for a cover of box `size`. Built once: a
 ## second call returns the first slot.
@@ -248,9 +286,7 @@ func _settle(socket_id: String) -> void:
 	_settled[socket_id] = true
 	var zone := slot(socket_id)
 	if restoring and _saved.has(socket_id):
-		var cover := _saved[socket_id] as PortCover
-		if cover != null and is_instance_valid(cover) and not zone.has_snapped_object():
-			zone.pick_up_object(cover)
+		seat_saved(zone, _saved[socket_id] as PortCover)
 		return
 	_seed.call_deferred(socket_id)
 
@@ -261,14 +297,7 @@ func _seed(socket_id: String) -> void:
 	var zone := slot(socket_id)
 	if zone == null or zone.has_snapped_object() or not zone.is_inside_tree():
 		return
-	var cover := _COVER_SCENE.instantiate() as PortCover
-	cover.socket_id = socket_id
-	cover.size = size_of(socket_id)
-	cover.model_variant = _variant_of(get_parent())
-	get_tree().current_scene.add_child(cover)
-	cover.add_to_group("spawned")
-	cover.global_transform = zone.global_transform
-	zone.pick_up_object(cover)
+	seat_new(zone, new_port_cover(socket_id, size_of(socket_id), _variant_of(get_parent())))
 
 
 static func _variant_of(host: Node) -> String:

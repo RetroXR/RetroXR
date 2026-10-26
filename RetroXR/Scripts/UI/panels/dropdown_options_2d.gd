@@ -19,6 +19,16 @@ var _last_activate_frame := -1
 
 
 func _ready() -> void:
+	_build()
+
+
+## Builds the panel once, from _ready or from the first set_options, whichever
+## comes first. set_options used to `await ready` when called before the node was
+## in the tree, which made it a coroutine only sometimes, and no caller awaits it.
+## Building on demand keeps it synchronous on every path.
+func _build() -> void:
+	if _list != null:
+		return
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var sb := MenuStyle.rounded(COLOR_BG, 8)
@@ -50,8 +60,7 @@ func _ready() -> void:
 ## options: Array of [display_name: String, id: Variant, (Texture2D)].
 func set_options(options: Array, current_id: Variant, font: Font = null,
 				 font_size: int = 22, columns: int = 1) -> void:
-	if _list == null:
-		await ready
+	_build()
 	_list.columns = maxi(1, columns)
 	for c in _list.get_children():
 		_list.remove_child(c)

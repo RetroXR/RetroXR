@@ -120,9 +120,9 @@ func _populate() -> void:
 	var ui := vp.get_child(0) as CoreOptions2D
 	if not ui:
 		return
-	ui.populate(_system._options_definitions, _system._options_values, _system._controller_info,
-		_system.forced_core_options(), _system._options_unavailable,
-		_system._resolve_core())
+	var snap := _system.core_options_snapshot()
+	ui.populate(snap["definitions"], snap["values"], snap["controller_info"],
+		_system.forced_core_options(), str(snap["unavailable"]), str(snap["core"]))
 	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
 		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
@@ -131,7 +131,7 @@ func _populate() -> void:
 	ui.populate_debug(_system.debug_state())
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
-	var core := _system._resolve_core()
+	var core := str(snap["core"])
 	ui.populate_firmware(core,
 		FirmwareState.shared().evaluate(core, FirmwareRequirements.for_core(core)))
 	_populate_cartridge_tab(ui)

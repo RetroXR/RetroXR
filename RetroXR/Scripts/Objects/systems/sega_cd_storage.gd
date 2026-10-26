@@ -109,7 +109,7 @@ func forced_options_for(core: String) -> Dictionary:
 	var has_memory: bool = units["memory"] != null
 	var out := forced_options(core, has_memory, _cart_image_size(units["cart"]))
 	if _host.is_powered_on:
-		out.merge(held_while_running(core, has_memory, _host._options_values), true)
+		out.merge(held_while_running(core, has_memory, _host.core_option_values()), true)
 	return out
 
 

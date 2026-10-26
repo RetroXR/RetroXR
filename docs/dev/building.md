@@ -118,3 +118,14 @@ Two habits keep it from coming back: the filter is on all four shipping presets,
 `docs/dev/systemids.md` is the place to look when a system is missing on one platform only.
 `Tools/rename_systemids.py` is run on the source directories, so the exported copies are
 rewritten by export, not by hand.
+
+## The OpenXR vendors addon ships Meta's AAR only
+
+`RetroXR/addons/godotopenxrvendors/.bin/android/{debug,release}/` keeps
+`godotopenxr-meta-*.aar` and the validation layers. The androidxr, khronos, lynx,
+magicleap and pico AARs (19.9 MB) were removed on 2026-10-27: every Quest preset in
+`export_presets.cfg` enables the Meta plugin and no other. The addon's export plugin
+asks for a vendor's AAR only when that vendor is ticked on the preset being exported,
+so the editor and a Meta export are unaffected; ticking another vendor needs its two AARs
+copied back from the same addon release (5.1.0, see `GodotOpenXRVendors_CHANGES.md`).
+Updating the addon from the asset library puts all of them back: delete them again.

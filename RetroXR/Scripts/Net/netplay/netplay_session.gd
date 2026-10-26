@@ -418,7 +418,7 @@ static func port_on_machine(global_port: int) -> int:
 ## cabled to anything. Order matters and must be the same on every peer: the
 ## machine at index 0 owns the clock, exactly as the head lead decides offline.
 func _resolve_group(sys: Object) -> Array:
-	if sys != null and sys.has_method("net_link_group"):
+	if NetMachine.has(sys, "net_link_group"):
 		var bus: Array = sys.net_link_group()
 		if bus.size() > 1:
 			return bus.duplicate()
@@ -441,12 +441,12 @@ func _requires_lockstep_input() -> bool:
 		var machine: Object = _group[i]
 		if machine == null:
 			continue
-		if machine.has_method("get_model"):
+		if NetMachine.has(machine, "get_model"):
 			var model: Variant = machine.get_model()
 			var core := str(_machine_specs[i].get("core", "")) if i < _machine_specs.size() else ""
 			if model != null and model.has_method("is_handheld") and model.is_handheld() 					and not NetplayCores.handheld_rollback_capable(core):
 				return true
-		if machine.has_method("port_holders"):
+		if NetMachine.has(machine, "port_holders"):
 			var controllers: Array = machine.port_holders()
 			for controller: Variant in controllers:
 				# A machine that is its own pad (a standalone VMU) carries no aux
@@ -474,16 +474,16 @@ func _build_machine_specs(anchor_core: String, anchor_rom_md5: String) -> bool:
 		var core := anchor_core
 		var rom_md5 := anchor_rom_md5
 		if i > 0:
-			if machine != null and machine.has_method("resolve_core_name"):
+			if NetMachine.has(machine, "resolve_core_name"):
 				core = str(machine.resolve_core_name())
-			if machine != null and machine.has_method("net_rom_md5"):
+			if NetMachine.has(machine, "net_rom_md5"):
 				rom_md5 = str(machine.net_rom_md5())
 		if not NetplayCores.is_capable(core):
 			push_warning("[Netplay] core '%s' is not determinism-verified; refusing to start" % core)
 			_machine_specs.clear()
 			return false
 		var boot: Dictionary = {"mode": "rom", "rom_md5": rom_md5}
-		if machine != null and machine.has_method("net_boot_spec"):
+		if NetMachine.has(machine, "net_boot_spec"):
 			boot = machine.net_boot_spec(core)
 		if boot.is_empty():
 			push_warning("[Netplay] machine %d has no reproducible boot media" % i)
@@ -499,7 +499,7 @@ func _build_machine_specs(anchor_core: String, anchor_rom_md5: String) -> bool:
 			_machine_specs.clear()
 			return false
 		var sram := PackedByteArray()
-		if machine != null and machine.has_method("net_sram_file_bytes"):
+		if NetMachine.has(machine, "net_sram_file_bytes"):
 			sram = machine.net_sram_file_bytes()
 		var net_options := NetplayCores.forced_options(core)
 		var boot_options: Dictionary = boot.get("boot_options", {})
@@ -526,7 +526,7 @@ func _prepare_local_media() -> bool:
 		var machine: Object = _group[i]
 		var spec: Dictionary = _machine_specs[i]
 		var mode := str(spec.get("mode", "rom"))
-		if machine != null and machine.has_method("net_prepare_boot"):
+		if NetMachine.has(machine, "net_prepare_boot"):
 			if not machine.net_prepare_boot(spec):
 				# Keep the machine's own words. Every caller used to replace them
 				# with one generic sentence that names neither the file nor even
@@ -537,11 +537,11 @@ func _prepare_local_media() -> bool:
 				return false
 		else:
 			var md5 := str(spec.get("rom_md5", ""))
-			if mode != "rom" or (machine != null and machine.has_method("net_resolve_rom") \
+			if mode != "rom" or (NetMachine.has(machine, "net_resolve_rom") \
 					and not machine.net_resolve_rom(md5)):
 				push_warning("[Netplay] machine %d has no ROM matching md5 %s…" % [i, md5.left(8)])
 				return false
-		if machine != null and machine.has_method("net_set_sram"):
+		if NetMachine.has(machine, "net_set_sram"):
 			machine.net_set_sram("", spec.get("sram", PackedByteArray()))
 		print("[Netplay] machine %d media verified (core=%s mode=%s id=%s…)" % [
 			i, str(spec.get("core", "")), mode,
@@ -727,7 +727,7 @@ func _poll_core_ready() -> void:
 	if _staggered:
 		_schedule_group_cable()
 	elif _group.size() > 1 and _system != null \
-			and _system.has_method("net_refresh_link_cables"):
+			and NetMachine.has(_system, "net_refresh_link_cables"):
 		_system.net_refresh_link_cables()
 		print("[Netplay] restored the physical link topology after core restart")
 
@@ -985,7 +985,7 @@ func _stop_local(reason: String) -> void:
 	_group_rollback = false
 	_staggered = false
 	for machine: Object in _group:
-		if machine != null and machine.has_method("net_stop_core"):
+		if NetMachine.has(machine, "net_stop_core"):
 			machine.net_stop_core()
 	_libs = []
 	_group = []
@@ -1419,7 +1419,7 @@ func _apply_disk_op(machine_index: int, op: int, md5: String, index: int,
 			return false
 	elif op == DISK_OP_CARD:
 		var machine: Object = _group[machine_index] if machine_index < _group.size() else null
-		if machine != null and machine.has_method("net_resolve_card"):
+		if NetMachine.has(machine, "net_resolve_card"):
 			path = str(machine.net_resolve_card(md5))
 		if path.is_empty():
 			push_warning("[Netplay] card scan: no local strip for md5 %s…" % md5.left(8))
@@ -1489,7 +1489,7 @@ func _apply_reset(machine_index: int, frame: int) -> bool:
 			frame, _next_post - 1])
 		return false
 	var machine: Object = _group[machine_index]
-	if machine != null and machine.has_method("net_play_reset"):
+	if NetMachine.has(machine, "net_play_reset"):
 		machine.net_play_reset()
 	lib.ScheduleReset(frame)
 	return true
@@ -1512,7 +1512,7 @@ func _resolve_disk_path(machine_index: int, md5: String) -> String:
 	if machine_index < 0 or machine_index >= _group.size():
 		return ""
 	var machine: Object = _group[machine_index]
-	if machine != null and machine.has_method("net_resolve_rom") \
+	if NetMachine.has(machine, "net_resolve_rom") \
 			and machine.net_resolve_rom(md5):
 		return str(machine.get("rom_path"))
 	return ""
@@ -1928,7 +1928,7 @@ func _core_declares_pins(core: String) -> bool:
 ## The one bus the whole group is on: {"members", "ports"}, with the ports in
 ## GROUP order (a port per machine), or {} if they are not all on a single bus.
 func _group_bus() -> Dictionary:
-	if _system == null or not _system.has_method("net_link_buses"):
+	if not NetMachine.has(_system, "net_link_buses"):
 		return {}
 	var descriptors: Variant = _link_bus_descriptors()
 	if descriptors == null or (descriptors as Array).size() != 1:
@@ -1965,7 +1965,7 @@ func _arm_group_rollback(start_frame: int) -> bool:
 	var pre: Array = []
 	for machine: Object in _group:
 		pre.append(machine.get_libretro_node()
-			if machine != null and machine.has_method("get_libretro_node") else null)
+			if NetMachine.has(machine, "get_libretro_node") else null)
 	# Lockstep needs the stagger just as much: identical units started on one
 	# frame with the cable in collide on every byte whatever the strategy.
 	var bus := _group_bus() if _group.size() > 1 else {}
@@ -2067,7 +2067,7 @@ func _schedule_group_link_op(op: int, members: PackedInt32Array,
 ## running endpoint is actually present. A later cold start explicitly
 ## re-resolves the physical cables because stopping content drops that state.
 func _is_linked(sys: Object) -> bool:
-	if sys == null or not sys.has_method("get_libretro_node"):
+	if not NetMachine.has(sys, "get_libretro_node"):
 		return false
 	var lib: Object = sys.get_libretro_node()
 	if lib == null or not lib.has_method("LinkPeerCount"):
@@ -2901,7 +2901,7 @@ func _np_state_progress(serial: int) -> void:
 func _link_bus_descriptors() -> Variant:
 	if _group.size() <= 1:
 		return []
-	if _system == null or not _system.has_method("net_link_buses"):
+	if not NetMachine.has(_system, "net_link_buses"):
 		return null
 	var out: Array = []
 	for bus: Array in _system.net_link_buses():

@@ -29,7 +29,7 @@ from gen_n64_save_db import DEFAULT_INI, crc_key, read_entries, resolved  # noqa
 
 XLSX_URL = "http://micro-64.com/database/ColouredN64Cartridges.xlsx"
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "RetroXR",
-                   "Scripts", "Data", "n64_cart_colors_table.gd")
+                   "Scripts", "Data", "cart_shells", "n64_cart_colors_table.gd")
 
 # Workbook title -> the database's GoodName title.
 TITLES = {
