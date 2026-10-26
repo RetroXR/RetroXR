@@ -75,7 +75,7 @@ project/assembly_name="retroxr"
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/godot-xr-tools/plugin.cfg", "res://addons/retroxr_qr/plugin.cfg", "res://addons/retroxr_build_stamp/plugin.cfg")
+enabled=PackedStringArray("res://addons/godot-xr-tools/plugin.cfg", "res://addons/retroxr_qr/plugin.cfg", "res://addons/retroxr_build_stamp/plugin.cfg", "res://addons/copy_all_errors/plugin.cfg")
 
 [importer_defaults]
 
