@@ -11,6 +11,8 @@
 extends Node3D
 
 const VCR_SCENE := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
+const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
+const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const TAPE_SCENE := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 const CASSETTE_DECK := preload("res://Scenes/Objects/appliances/cassette_player.tscn")
 const CASSETTE := preload("res://Scenes/Objects/media/audio_cassette.tscn")
@@ -80,6 +82,18 @@ func _run() -> void:
 	_dump("vcr-empty", vcr.debug_state())
 	_check(_row(vcr.debug_state(), "Tape", "Tape") == "(none in the deck)",
 		"an empty VCR says no tape")
+	# A deck plays only into a set (VCRPlayer.play), so cable it to one.
+	var tv := _spawn(TV_SCENE, Vector3(0, 1, -2)) as RetroTV
+	await _frames(30)
+	var cable := _spawn(CABLE_SCENE, Vector3(0, 1, -1))
+	await _frames(20)
+	var names := [["VideoOut", "CompositePort"], ["AudioLOut", "AudioLIn"], ["AudioROut", "AudioRIn"]]
+	for c in 3:
+		(vcr.get_node(names[c][0]) as RcaPort).pick_up_object(cable.get_node("PlugA%d" % c) as RcaPlug)
+		(tv.get_node(names[c][1]) as RcaPort).pick_up_object(cable.get_node("PlugB%d" % c) as RcaPlug)
+		await _frames(6)
+	await _frames(30)
+	_check(vcr.connected_tv == tv, "the VCR is cabled to a set")
 	vcr.restore_tape(tape)
 	await _frames(10)
 	vcr.play()
@@ -92,11 +106,17 @@ func _run() -> void:
 	var dbg := vcr.debug_state()
 	_dump("vcr", dbg)
 	_check(_row(dbg, "Tape", "Format") == "MP4", "the tape's file is an MP4")
-	_check(_row(dbg, "Playback", "Video size") == "1920 × 1080",
-		"the 1080p clip reads 1920 × 1080: %s" % _row(dbg, "Playback", "Video size"))
-	_check(_row(dbg, "Audio stream", "Sample rate").ends_with("Hz"),
-		"its audio stream has a sample rate: %s" % _row(dbg, "Audio stream", "Sample rate"))
+	_check(_row(dbg, "Source", "Video size") == "1920 × 1080",
+		"the 1080p clip's own stream is 1920 × 1080: %s" % _row(dbg, "Source", "Video size"))
+	_check(_row(dbg, "Source", "Video codec") != "",
+		"and has a codec: %s" % _row(dbg, "Source", "Video codec"))
+	_check(_row(dbg, "Source", "Frame rate").ends_with("fps"),
+		"and a frame rate: %s" % _row(dbg, "Source", "Frame rate"))
+	_check(_row(dbg, "Source", "Sample rate").ends_with("Hz"),
+		"its own audio has a sample rate: %s" % _row(dbg, "Source", "Sample rate"))
 	_check(_row(dbg, "Playback", "State") == "playing", "and it is playing")
+	_check(_row(dbg, "Deck", "Showing on") == "TV, COMPOSITE 1",
+		"the deck says where it shows: %s" % _row(dbg, "Deck", "Showing on"))
 	await _shoot_ui(VCR_UI.instantiate() as VCROptions2D, dbg, "vcr")
 	vcr.stop()
 
@@ -117,9 +137,11 @@ func _run() -> void:
 	_dump("cassette", dbg)
 	_check(_row(dbg, "Media", "In the deck") == "Audio cassette", "the deck names a cassette")
 	_check(_row(dbg, "Media", "Format") == "WAV", "its track is a WAV")
-	_check(_row(dbg, "Audio stream", "Sample rate") == "44100 Hz",
-		"the 44.1 kHz WAV reads 44100 Hz: %s" % _row(dbg, "Audio stream", "Sample rate"))
-	_check(_row(dbg, "Audio stream", "Channels") == "2", "and two channels")
+	_check(_row(dbg, "Source", "Sample rate") == "44100 Hz",
+		"the 44.1 kHz WAV's own rate reads 44100 Hz: %s" % _row(dbg, "Source", "Sample rate"))
+	_check(_row(dbg, "Source", "Channels") == "2", "and two channels")
+	_check(_row(dbg, "Audio output", "Output").begins_with("48000 Hz"),
+		"while the room is fed 48 kHz: %s" % _row(dbg, "Audio output", "Output"))
 	_check(_row(dbg, "Media", "Tape at") != "", "a tape says where it is")
 	await _shoot_ui(AUDIO_UI.instantiate() as AudioOptions2D, dbg, "cassette")
 	deck.stop()

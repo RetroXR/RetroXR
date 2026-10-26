@@ -36,18 +36,76 @@ static func vlc_sections(vlc: Object, video: bool) -> Array:
 			["Frames drawn", str(int(vlc.call("get_frame_count")))],
 		])
 	var tracks: Array = vlc.call("get_audio_tracks")
+	# What VLC decodes the sound TO for the room: always S16 at this rate and
+	# channel count, whatever the file is (see VlcPlayer.open). The file's own
+	# figures are the Source section's.
 	var rate := int(vlc.call("get_audio_rate"))
 	var channels := int(vlc.call("get_audio_channels"))
 	var audio: Array = [
-		["Sample rate", "%d Hz" % rate if rate > 0 else "—"],
-		["Channels", str(channels) if channels > 0 else "—"],
+		["Output", "%d Hz, %d ch (resampled for the room)" % [rate, channels]],
 		["Audio tracks", "%d (current id %d)" % [tracks.size(), int(vlc.call("get_audio_track"))]
 			if not tracks.is_empty() else "—"],
 		["Buffered", "%d ms" % int(vlc.call("get_audio_backlog_ms"))],
 		["A/V lead", "%d ms (target %d)" % [int(vlc.call("get_audio_lead_ms")),
 			int(vlc.call("get_audio_lead_target_ms"))]],
 	]
-	return [["Playback", playback], ["Audio stream", audio]]
+	var out: Array = [["Playback", playback]]
+	var source := source_rows(vlc)
+	if not source.is_empty():
+		out.append(["Source", source])
+	out.append(["Audio output", audio])
+	return out
+
+
+## What the open media IS: each stream's codec and its own format, and what the
+## input is running at. From VlcPlayer.get_media_info, asked only where the build
+## has it (a Quest left on an older vlc-godot would otherwise fail on the call);
+## empty until VLC has read the file's streams, which is once it is playing.
+static func source_rows(vlc: Object) -> Array:
+	if not vlc.has_method("get_media_info"):
+		return []
+	var info: Dictionary = vlc.call("get_media_info")
+	var rows: Array = []
+	for t: Dictionary in info.get("tracks", []):
+		var codec := str(t.get("codec_name", ""))
+		if codec.is_empty():
+			codec = str(t.get("codec", "?"))
+		elif not str(t.get("codec", "")).is_empty():
+			codec += " (%s)" % t["codec"]
+		var kbps := int(t.get("bitrate", 0)) / 1000
+		match str(t.get("type", "")):
+			"video":
+				var num := int(t.get("fps_num", 0))
+				var den := int(t.get("fps_den", 0))
+				rows.append_array([
+					["Video codec", codec],
+					["Video size", "%d × %d" % [int(t.get("width", 0)), int(t.get("height", 0))]],
+					["Frame rate", "%.3f fps" % (float(num) / den) if num > 0 and den > 0 else "—"],
+				])
+				if int(t.get("sar_num", 0)) > 0 and int(t.get("sar_num", 0)) != int(t.get("sar_den", 0)):
+					rows.append(["Pixel aspect", "%d:%d" % [int(t["sar_num"]), int(t["sar_den"])]])
+				if kbps > 0:
+					rows.append(["Video bitrate", "%d kbit/s" % kbps])
+			"audio":
+				rows.append_array([
+					["Audio codec", codec],
+					["Sample rate", "%d Hz" % int(t.get("rate", 0)) if int(t.get("rate", 0)) > 0 else "—"],
+					["Channels", str(int(t.get("channels", 0))) if int(t.get("channels", 0)) > 0 else "—"],
+				])
+				if kbps > 0:
+					rows.append(["Audio bitrate", "%d kbit/s" % kbps])
+				if not str(t.get("language", "")).is_empty():
+					rows.append(["Language", str(t["language"])])
+			"text":
+				rows.append(["Subtitles", codec])
+	if info.has("input_kbps") and float(info["input_kbps"]) > 0.0:
+		rows.append(["Input bitrate", "%.0f kbit/s" % float(info["input_kbps"])])
+	if int(info.get("lost_pictures", 0)) > 0 or int(info.get("lost_abuffers", 0)) > 0:
+		rows.append(["Dropped", "%d pictures, %d audio buffers" % [
+			int(info.get("lost_pictures", 0)), int(info.get("lost_abuffers", 0))]])
+	if int(info.get("demux_corrupted", 0)) > 0:
+		rows.append(["Corrupt packets", str(int(info["demux_corrupted"]))])
+	return rows
 
 
 ## A file as the page shows it: its name and its format, from the extension.

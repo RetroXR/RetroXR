@@ -900,6 +900,100 @@ Array VlcPlayer::GetAudioTracks() const
     return a;
 }
 
+// A FourCC as its four characters (VLC stores them little-endian: 'h264').
+static String fourcc_text(uint32_t c)
+{
+    char s[5] = {
+        static_cast<char>(c & 0xff), static_cast<char>((c >> 8) & 0xff),
+        static_cast<char>((c >> 16) & 0xff), static_cast<char>((c >> 24) & 0xff), 0 };
+    for (int i = 0; i < 4; ++i)
+        if (s[i] < 32 || s[i] > 126)
+            s[i] = '?';
+    return String(s).strip_edges();
+}
+
+Dictionary VlcPlayer::GetMediaInfo() const
+{
+    Dictionary out;
+    if (!m_mp)
+        return out;
+    libvlc_media_player_t *mp = static_cast<libvlc_media_player_t *>(m_mp);
+    // get_media retains; released below.
+    libvlc_media_t *media = libvlc_media_player_get_media(mp);
+    if (!media)
+        return out;
+
+    libvlc_media_track_t **tracks = nullptr;
+    const unsigned count = libvlc_media_tracks_get(media, &tracks);
+    Array list;
+    for (unsigned i = 0; i < count; ++i)
+    {
+        const libvlc_media_track_t *t = tracks[i];
+        if (!t)
+            continue;
+        Dictionary d;
+        d["id"] = t->i_id;
+        d["codec"] = fourcc_text(t->i_codec);
+        const char *desc = libvlc_media_get_codec_description(t->i_type, t->i_codec);
+        d["codec_name"] = desc ? String::utf8(desc) : String();
+        d["bitrate"] = static_cast<int64_t>(t->i_bitrate);
+        d["language"] = t->psz_language ? String::utf8(t->psz_language) : String();
+        d["description"] = t->psz_description ? String::utf8(t->psz_description) : String();
+        switch (t->i_type)
+        {
+        case libvlc_track_audio:
+            d["type"] = "audio";
+            if (t->audio)
+            {
+                d["rate"] = static_cast<int64_t>(t->audio->i_rate);
+                d["channels"] = static_cast<int64_t>(t->audio->i_channels);
+            }
+            break;
+        case libvlc_track_video:
+            d["type"] = "video";
+            if (t->video)
+            {
+                d["width"] = static_cast<int64_t>(t->video->i_width);
+                d["height"] = static_cast<int64_t>(t->video->i_height);
+                d["fps_num"] = static_cast<int64_t>(t->video->i_frame_rate_num);
+                d["fps_den"] = static_cast<int64_t>(t->video->i_frame_rate_den);
+                d["sar_num"] = static_cast<int64_t>(t->video->i_sar_num);
+                d["sar_den"] = static_cast<int64_t>(t->video->i_sar_den);
+            }
+            break;
+        case libvlc_track_text:
+            d["type"] = "text";
+            break;
+        default:
+            d["type"] = "unknown";
+            break;
+        }
+        list.push_back(d);
+    }
+    if (tracks)
+        libvlc_media_tracks_release(tracks, count);
+    out["tracks"] = list;
+
+    libvlc_media_stats_t stats = {};
+    if (libvlc_media_get_stats(media, &stats))
+    {
+        // VLC keeps bitrates in bytes per microsecond x 1000; kbit/s is x 8000.
+        out["input_kbps"] = static_cast<double>(stats.f_input_bitrate) * 8000.0;
+        out["demux_kbps"] = static_cast<double>(stats.f_demux_bitrate) * 8000.0;
+        out["read_bytes"] = static_cast<int64_t>(stats.i_read_bytes);
+        out["demux_corrupted"] = static_cast<int64_t>(stats.i_demux_corrupted);
+        out["demux_discontinuity"] = static_cast<int64_t>(stats.i_demux_discontinuity);
+        out["decoded_video"] = static_cast<int64_t>(stats.i_decoded_video);
+        out["decoded_audio"] = static_cast<int64_t>(stats.i_decoded_audio);
+        out["displayed_pictures"] = static_cast<int64_t>(stats.i_displayed_pictures);
+        out["lost_pictures"] = static_cast<int64_t>(stats.i_lost_pictures);
+        out["played_abuffers"] = static_cast<int64_t>(stats.i_played_abuffers);
+        out["lost_abuffers"] = static_cast<int64_t>(stats.i_lost_abuffers);
+    }
+    libvlc_media_release(media);
+    return out;
+}
+
 int VlcPlayer::GetAudioTrack() const
 {
     return m_mp ? libvlc_audio_get_track(static_cast<libvlc_media_player_t *>(m_mp)) : -1;
@@ -990,6 +1084,7 @@ void VlcPlayer::_bind_methods()
     ClassDB::bind_method(D_METHOD("set_audio_lead_ms", "ms"), &VlcPlayer::SetAudioLeadMs);
 
     ClassDB::bind_method(D_METHOD("get_audio_tracks"), &VlcPlayer::GetAudioTracks);
+    ClassDB::bind_method(D_METHOD("get_media_info"), &VlcPlayer::GetMediaInfo);
     ClassDB::bind_method(D_METHOD("get_audio_track"), &VlcPlayer::GetAudioTrack);
     ClassDB::bind_method(D_METHOD("set_audio_track", "id"), &VlcPlayer::SetAudioTrack);
     ClassDB::bind_method(D_METHOD("get_subtitle_tracks"), &VlcPlayer::GetSubtitleTracks);

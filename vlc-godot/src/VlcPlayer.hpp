@@ -19,6 +19,7 @@
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_vector2_array.hpp>
 #include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 
 #include <atomic>
@@ -149,6 +150,12 @@ public:
     // Audio-track + subtitle (spu) selection for the options panel. Each entry is
     // { "id": int, "name": String }; id -1 disables (subtitles off).
     godot::Array GetAudioTracks() const;
+    /// What the open media IS, as against what it is decoded to: each stream's
+    /// codec, size / frame rate or sample rate / channels and bitrate, plus the
+    /// input's statistics. Audio is always handed to the room as S16 stereo at
+    /// m_audio_rate, so get_audio_rate() is the OUTPUT rate and this is the only
+    /// place a file's own rate can be read. Empty until VLC has demuxed the media.
+    godot::Dictionary GetMediaInfo() const;
     int GetAudioTrack() const;
     void SetAudioTrack(int id);
     godot::Array GetSubtitleTracks() const;

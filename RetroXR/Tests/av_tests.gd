@@ -2479,7 +2479,7 @@ func _m_deck_debug() -> void:
 	_check_eq(rows.get("Tape/Tape"), "(none in the deck)", "an empty VCR says it has no tape")
 	_check_eq(rows.get("Deck/Showing on"), "TV, COMPOSITE 1", "and which input of which set it reaches")
 	_check_eq(rows.get("Deck/Cords"), "crossed: L in R, R in L", "and that its pair is crossed there")
-	_ok(rows.has("Playback/State") and rows.has("Audio stream/Sample rate"),
+	_ok(rows.has("Playback/State") and rows.has("Audio output/Output"),
 		"the player's sections are there with nothing playing")
 
 	var ui := (load("res://Scenes/UI/vcr_options_2d.tscn") as PackedScene).instantiate() as VCROptions2D
