@@ -139,6 +139,13 @@ var rest_on_fan := true
 ## half (PDFBook._ride_clearance): set from the page, so the hand's solve and its
 ## shader see the same sheet.
 var _ride_extra := [0.0, 0.0]
+## How far up off its own block the page being turned off each half was when it
+## was taken: it was that half's top loose leaf, and it goes on turning from
+## there (turn_params) rather than being laid flat first.
+var _turn_peel := [0.0, 0.0]
+## ...and how much higher at the binding than that it rides, to stay over the
+## leaves left under it (PDFBook._ride_clearance, as _ride_extra is for the far half).
+var _turn_extra := [0.0, 0.0]
 var _leaves := [0, 0]
 var _sag := 0.0
 var _sag_v := 0.0
@@ -205,6 +212,9 @@ func reset() -> void:
 		_clamp_target[i] = 0.0
 		_accel[i] = Vector3.ZERO
 		_fan_lid[i] = INF
+		_ride_extra[i] = 0.0
+		_turn_peel[i] = 0.0
+		_turn_extra[i] = 0.0
 		for k in _fan_count[i]:
 			_fan[i][k] = 0.0
 			_fan_v[i][k] = 0.0
@@ -290,6 +300,46 @@ func push_fan_leaf(dir: int, peel: float) -> float:
 	_fan[i] = d
 	_fan_v[i] = v
 	return dropped
+
+
+## A page is being turned off this half, and it was the top loose leaf: take it
+## out of the fan. The leaves under it each come up a place as they hang (the
+## deepest place starts flat on the block). Returns how far up it was, which is
+## where it goes on turning from (set_turn_peel); 0 when nothing was up.
+func pop_fan_leaf(dir: int) -> float:
+	var i := _i(dir)
+	var n: int = _fan_count[i]
+	if n == 0 or not rest_on_fan:
+		return 0.0
+	var d: PackedFloat64Array = _fan[i]
+	var v: PackedFloat64Array = _fan_v[i]
+	var taken: float = d[0]
+	for k in n - 1:
+		d[k] = d[k + 1]
+		v[k] = v[k + 1]
+	d[n - 1] = 0.0
+	v[n - 1] = 0.0
+	_fan[i] = d
+	_fan_v[i] = v
+	return taken
+
+
+## The page being turned off this half goes on from `peel` up off its block.
+func set_turn_peel(dir: int, peel: float) -> void:
+	_turn_peel[_i(dir)] = peel
+
+
+## ...riding `extra` radians higher at the binding than that.
+func set_turn_extra(dir: int, extra: float) -> void:
+	_turn_extra[_i(dir)] = extra
+
+
+## How the page being turned off this half hangs on its own side: from where it
+## floated when it was taken, the block's own numbers when it lay flat.
+func turn_params(dir: int) -> Vector4:
+	if not rest_on_fan:
+		return params(dir)
+	return fan_params_at(dir, _turn_peel[_i(dir)]) + Vector4(_turn_extra[_i(dir)], 0.0, 0.0, 0.0)
 
 
 ## What a sheet coming down onto this half lies on: its top loose leaf, or the
@@ -665,7 +715,7 @@ static func hinge_len_at(z: float) -> float:
 func _bend_over_sz(s: float, z: float, own_dir: int) -> Vector3:
 	var hl := hinge_len_at(z)
 	if s >= 0.0:
-		return bend_sz(s, z, params(own_dir), hl)
+		return bend_sz(s, z, turn_params(own_dir), hl)
 	var far := bend_sz(-s, z, ride_params(-own_dir), hl)
 	return Vector3(-far.x, far.y, -far.z)
 

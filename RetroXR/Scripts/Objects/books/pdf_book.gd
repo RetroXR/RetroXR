@@ -712,7 +712,9 @@ func _launch_flight(dir: int) -> bool:
 	# which is what the single turn measures as well.
 	var to_z := _page_plane_z(-dir) - CURL_CLOSED * 2.0 + LEAF_LIFT
 	var from_z := leaf.position.z
-	var flight := {"leaf": leaf, "dir": dir, "front": front, "back": back}
+	# Taken off the top of this side's fan where it floats, as a held turn is.
+	var own_peel := _flop.pop_fan_leaf(dir)
+	var flight := {"leaf": leaf, "dir": dir, "front": front, "back": back, "own_peel": own_peel}
 	_flights.append(flight)
 	if dir > 0:
 		turn_page_forward()
@@ -824,6 +826,7 @@ func _settle_fan_leaf(dir: int, from: float) -> void:
 	_fan_settle_peel[i] = from
 	_pose_settle_leaf(dir)
 	leaf.visible = true
+	_update_spread_textures()
 	var tween := create_tween()
 	tween.set_ease(Tween.EASE_IN_OUT)
 	tween.set_trans(Tween.TRANS_SINE)
@@ -833,8 +836,18 @@ func _settle_fan_leaf(dir: int, from: float) -> void:
 		0.0, 1.0, FAN_SETTLE_TIME)
 	tween.tween_callback(func() -> void:
 		_fan_settle_peel[i] = 0.0
-		leaf.visible = false)
+		leaf.visible = false
+		# Flat on the block now, the same page: hand it over.
+		if _state == BookState.OPEN:
+			_update_spread_textures())
 	_fan_settle_tween[i] = tween
+
+
+## Whether a leaf pushed out of this side's fan (0 left, 1 right) is still lying
+## down onto its block.
+func _settling(i: int) -> bool:
+	var leaf := _fan_settle[i] as MeshInstance3D
+	return leaf != null and leaf.visible
 
 
 ## Bend the settling leaf to where it has got to, on its half as it hangs now.
@@ -1288,8 +1301,9 @@ func _refresh_visible_textures() -> void:
 
 ## Unload textures that are far from the current spread to save VRAM.
 func _trim_texture_cache() -> void:
-	var keep_min := maxi(0, (_current_leaf * 2) - prefetch_pages)
-	var keep_max := mini(_page_count - 1, (_current_leaf * 2) + prefetch_pages + 2)
+	var window := _page_window()
+	var keep_min := window.x
+	var keep_max := window.y
 	# Always keep cover and back cover — and the pages printed INSIDE them, which
 	# the covers' inner faces show.
 	var to_remove: Array[int] = []
@@ -1982,6 +1996,12 @@ func _update_spread_textures() -> void:
 		left_page_idx = _flight_shown[0]
 	if _flight_shown[1] >= 0:
 		right_page_idx = _flight_shown[1]
+	# The page being turned was the top of its side's fan: the leaves still up
+	# there carry the pages after it.
+	if _active_leaf != null and _turn_direction > 0:
+		right_page_idx += 2
+	elif _active_leaf != null and _turn_direction < 0:
+		left_page_idx -= 2
 	var left_fan: Array = _fan_leaves[0]
 	for k in left_fan.size():
 		var mat := (left_fan[k] as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
@@ -1992,6 +2012,14 @@ func _update_spread_textures() -> void:
 		_set_fan_faces(mat, right_page_idx + 2 * k, right_page_idx + 2 * k + 1)
 	left_page_idx -= 2 * _fan_shown[0]
 	right_page_idx += 2 * _fan_shown[1]
+	# A leaf lying down onto the block is still over it: the block shows the page
+	# UNDER that one until it is flat on it. It showed the settling leaf's own page
+	# from the moment it began, so that page was in view twice, on the leaf in the
+	# air and on the block beneath it.
+	if _settling(0):
+		left_page_idx -= 2
+	if _settling(1):
+		right_page_idx += 2
 	for flight: Dictionary in _flights:
 		var fmat := (flight["leaf"] as MeshInstance3D).get_surface_override_material(0) as ShaderMaterial
 		fmat.set_shader_parameter("front_texture", _get_page_texture(int(flight["front"])))
@@ -2305,10 +2333,16 @@ func _spawn_leaf(dir: int) -> bool:
 	if plan.is_empty():
 		return false
 	_despawn_active_leaf()
-	# The page being turned is the top of this side's fan. Shut the fan before
-	# the leaf takes over the block's top sheet, or two things drive its texture.
-	_flop.suppress_fan(dir, true)
-	_sync_fan(dir)
+	# The page being turned is the top of this side's fan. It is taken out of it
+	# where it hangs and goes on turning from there; the leaves under it come up
+	# a place as they hang. It used to shut the whole fan first, which laid every
+	# leaf on that side flat and then turned a page off a flat block.
+	var own_peel := 0.0
+	if _flop.rest_on_fan:
+		own_peel = _flop.pop_fan_leaf(dir)
+	else:
+		_flop.suppress_fan(dir, true)
+		_sync_fan(dir)
 
 	var back_idx := int(plan["back"])
 	var leaf := _new_leaf(dir, int(plan["front"]), back_idx)
@@ -2320,6 +2354,11 @@ func _spawn_leaf(dir: int) -> bool:
 	_leaf_back_page = back_idx
 	_leaf_under = plan.get("under") as MeshInstance3D
 	_leaf_under_page = int(plan["under_page"])
+	_leaf_own_peel = own_peel
+	_flop.set_turn_peel(dir, own_peel)
+	if own_peel > FAN_SHOW:
+		print("[PDFBook] page taken off the %s fan %.1f deg up; it turns from there"
+			% ["right" if dir > 0 else "left", rad_to_deg(own_peel)])
 	_push_flop(true)
 
 	# Reveal what the turning page is uncovering.
@@ -2338,6 +2377,9 @@ func _spawn_leaf(dir: int) -> bool:
 		else:
 			# Nothing behind it — the stack's own cream top reads as blank paper.
 			under.visible = false
+	# Under the leaves of that side still up, too: laid as the plain page beyond
+	# the leaf, the block showed the page on the top loose leaf over it.
+	_relay_turning_leaf()
 	return true
 
 
@@ -2384,6 +2426,8 @@ var _leaf_front_page := -1
 var _leaf_back_page := -1
 var _leaf_under: MeshInstance3D = null
 var _leaf_under_page := -1
+## How far up its own block the page being turned was floating when it was taken.
+var _leaf_own_peel := 0.0
 
 
 ## _update_spread_textures() lays the plain spread, and on the side being turned
@@ -2403,9 +2447,14 @@ func _relay_turning_leaf() -> void:
 		if _leaf_back_page >= 0 and _leaf_back_page < _page_count:
 			mat.set_shader_parameter("back_texture", _get_page_texture(_leaf_back_page))
 	if is_instance_valid(_leaf_under):
-		if _leaf_under_page >= 0 and _leaf_under_page < _page_count:
+		# Under the leaves of this side that are still up, a leaf (two pages) each.
+		var side := 1 if _turn_direction > 0 else 0
+		var under := _leaf_under_page
+		if under >= 0:
+			under += _turn_direction * 2 * (_fan_shown[side] + (1 if _settling(side) else 0))
+		if under >= 0 and under < _page_count:
 			_leaf_under.visible = true
-			_apply_texture(_leaf_under, _get_page_texture(_leaf_under_page))
+			_apply_texture(_leaf_under, _get_page_texture(under))
 		else:
 			_leaf_under.visible = false
 
@@ -2428,6 +2477,9 @@ func _despawn_active_leaf() -> void:
 	_flop.suppress_fan(-1, false)
 	_flop.set_ride_extra(1, 0.0)
 	_flop.set_ride_extra(-1, 0.0)
+	_flop.set_turn_peel(1, 0.0)
+	_flop.set_turn_peel(-1, 0.0)
+	_leaf_own_peel = 0.0
 
 
 ## Push the current fold into the leaf's material.
@@ -2794,6 +2846,7 @@ func _finish_turn(dir: int, commit: bool) -> void:
 	_animate_target = {}
 	# It came down onto the far half's top loose leaf (ride_params) and lies on it.
 	var rested := _flop.fan_delta(-dir, 0)
+	var own_peel := _leaf_own_peel
 	_despawn_active_leaf()
 	if _sfx:
 		_sfx.play_settle()
@@ -2810,6 +2863,9 @@ func _finish_turn(dir: int, commit: bool) -> void:
 		turn_page_backward()
 	if commit:
 		_rest_on_fan(-dir, rested)
+	else:
+		# Let go short of the spine: it goes back to where it was taken from.
+		_rest_on_fan(dir, own_peel)
 	# A page change that arrived mid-drag was held back rather than yanking the
 	# page out of the player's hand — apply it now.
 	_consume_pending_page()
@@ -2821,8 +2877,12 @@ func _abort_grab() -> void:
 	if _grab_dir == 0:
 		return
 	var was_state := _state
+	var dir := _turn_direction
+	var own_peel := _leaf_own_peel
 	_despawn_active_leaf()
 	_set_state(was_state)
+	if dir != 0:
+		_rest_on_fan(dir, own_peel)
 
 
 func _on_page_grab_begin(dir: int, world_pos: Vector3) -> void:
@@ -3155,7 +3215,6 @@ func _push_leaf_flop(leaf: MeshInstance3D, dir: int, left: Vector4, right: Vecto
 	# The one sheet that crosses the gutter in mid-air.
 	leaf_mat.set_shader_parameter("flop_cross", 1.0)
 	leaf_mat.set_shader_parameter("flop_origin_z", leaf.position.z)
-	leaf_mat.set_shader_parameter("flop_own", right if dir > 0 else left)
 	_push_ride(leaf, dir)
 
 
@@ -3168,18 +3227,33 @@ func _push_ride(leaf: MeshInstance3D, dir: int) -> void:
 	var leaf_mat := leaf.get_surface_override_material(0) as ShaderMaterial
 	if leaf_mat == null:
 		return
-	var extra := _ride_clearance(leaf, dir)
-	if leaf == _active_leaf:
-		_flop.set_ride_extra(-dir, extra)
-		leaf_mat.set_shader_parameter("flop_far", _flop.ride_params(-dir))
-	elif _flop.rest_on_fan:
-		leaf_mat.set_shader_parameter("flop_far", _flop.fan_params(-dir, 0) + Vector4(extra, 0.0, 0.0, 0.0))
-	else:
+	if not _flop.rest_on_fan:
+		leaf_mat.set_shader_parameter("flop_own", _flop.params(dir))
 		leaf_mat.set_shader_parameter("flop_far", _flop.params(-dir))
+		return
+	# Its own half: from where it floated when it was taken off the fan, over the
+	# leaves left under it. The far half: on that half's top loose leaf.
+	var own_peel := _leaf_own_peel
+	for flight: Dictionary in _flights:
+		if flight["leaf"] == leaf:
+			own_peel = float(flight.get("own_peel", 0.0))
+	var own_base := _flop.fan_params_at(dir, own_peel)
+	var far_base := _flop.fan_params(-dir, 0)
+	var own_extra := _ride_clearance(leaf, dir, dir, own_base)
+	var far_extra := _ride_clearance(leaf, dir, -dir, far_base)
+	if leaf == _active_leaf:
+		_flop.set_turn_extra(dir, own_extra)
+		_flop.set_ride_extra(-dir, far_extra)
+		leaf_mat.set_shader_parameter("flop_own", _flop.turn_params(dir))
+		leaf_mat.set_shader_parameter("flop_far", _flop.ride_params(-dir))
+	else:
+		leaf_mat.set_shader_parameter("flop_own", own_base + Vector4(own_extra, 0.0, 0.0, 0.0))
+		leaf_mat.set_shader_parameter("flop_far", far_base + Vector4(far_extra, 0.0, 0.0, 0.0))
 
 
-## How much higher at the binding a sheet turned off `dir`'s half has to ride than
-## the far half's top loose leaf, so that no part of it is under that leaf.
+## How much higher at the binding a sheet turned off `dir`'s half has to ride on
+## `half` (the far one, -dir, or its own, dir) than `base` puts it, so that no part
+## of it over that half is under the top loose leaf there.
 ##
 ## Riding the leaf's own bend is not enough: a sheet crossing the gutter takes the
 ## binding's turn over an arc that widens with its height (BookFlop.hinge_len_at),
@@ -3187,18 +3261,21 @@ func _push_ride(leaf: MeshInstance3D, dir: int) -> void:
 ## out 4-10 mm UNDER the leaf it was meant to be on. Measured from the leaf and
 ## the sheet as they are, never from the extra already applied — the leaf follows
 ## the sheet down no more than the sheet follows the leaf up, so nothing ratchets.
+## The same holds on the sheet's own half, over the leaves left under it when it
+## was taken off the fan: a loose curl up there came out 19 mm under the leaf
+## below it, which is capped at the sheet's own peel and does not follow it.
 ## It is 0 once the sheet lies flat, which is where it lands: on the leaf. Faded in
 ## over the first FAN_SHOW of peel, so a fan lying shut changes nothing.
-func _ride_clearance(leaf: MeshInstance3D, dir: int) -> float:
-	var far := -dir
-	var peel := _flop.fan_delta(far, 0)
-	if not _flop.rest_on_fan or _flop.fan_count(far) == 0 or peel <= 0.0:
+func _ride_clearance(leaf: MeshInstance3D, dir: int, half: int, base: Vector4) -> float:
+	var peel := _flop.fan_delta(half, 0)
+	if not _flop.rest_on_fan or _flop.fan_count(half) == 0 or peel <= 0.0:
 		return 0.0
 	var mat := leaf.get_surface_override_material(0) as ShaderMaterial
 	if mat == null:
 		return 0.0
-	var top_leaf := (_fan_leaves[1 if far > 0 else 0] as Array)[0] as MeshInstance3D
-	var ride := _flop.fan_params(far, 0)
+	var top_leaf := (_fan_leaves[1 if half > 0 else 0] as Array)[0] as MeshInstance3D
+	var ride := _flop.fan_params(half, 0)
+	var own := half == dir
 	var strength: float = _param_or(mat, "fold_strength", 0.0)
 	var origin: Vector2 = _param_or(mat, "fold_origin", Vector2.ZERO)
 	var normal: Vector2 = _param_or(mat, "fold_normal", Vector2(1.0, 0.0))
@@ -3233,15 +3310,15 @@ func _ride_clearance(leaf: MeshInstance3D, dir: int) -> float:
 					z = 2.0 * r
 			var lifted := Vector2(float(dir) * (leaf.position.x + p.x),
 				leaf.position.z + z - pivot_z).rotated(lift)
-			if lifted.x < 0.0:
-				points.append(Vector3(-lifted.x, lifted.y + pivot_z, v))
+			if (lifted.x >= 0.0) == own:
+				points.append(Vector3(absf(lifted.x), lifted.y + pivot_z, v))
 	# An extra angle at the binding only reaches a point fully once it is past
 	# the sheet's (widened) hinge arc, so one measurement undershoots: measure
 	# again with it applied and add what is still missing.
 	var extra := 0.0
 	for pass_i in 6:
 		var missing := 0.0
-		var rides := ride + Vector4(extra, 0.0, 0.0, 0.0)
+		var rides := base + Vector4(extra, 0.0, 0.0, 0.0)
 		for pt: Vector3 in points:
 			var b := BookFlop.bend_sz(pt.x, pt.y, rides, BookFlop.hinge_len_at(pt.y))
 			var at := Vector2(b.x, b.y - ride.w)
@@ -3367,9 +3444,8 @@ func _sync_fan(dir: int) -> void:
 		_update_spread_textures()
 
 
-## A sheet still lying on the block it is turned from is a lid on that block's
-## loose leaves: they are UNDER it, and cannot peel up through it. That is a
-## riffle's sheet (the active leaf's own side is shut by suppress_fan instead).
+## A sheet turned off a block is a lid on that block's loose leaves: they are
+## UNDER it, and cannot peel up through it.
 ##
 ## The far side is not lidded: a page coming down there RESTS on the top loose
 ## leaf (BookFlop.ride_params) and lands as the new one (push_fan_leaf). Pressing
@@ -3384,14 +3460,21 @@ func _update_fan_lids() -> void:
 		if is_instance_valid(flight["leaf"]):
 			sheets.append(flight["leaf"])
 	for leaf in sheets:
-		var at := _sheet_over_halves(leaf)
-		# Over the far half a sheet rests on the top loose leaf and follows it
-		# (BookFlop.ride_params): held down from the block there as well, the leaf
-		# and the page riding it would ratchet each other flat.
+		# On its own half a sheet hangs from where it was taken off the fan (its
+		# own peel), so no leaf left under it may peel further than that. Over the
+		# far half a sheet rests on the top loose leaf and follows it
+		# (BookFlop.ride_params): held down from there as well, the leaf and the
+		# page riding it would ratchet each other flat.
+		var peel := _leaf_own_peel
+		for flight: Dictionary in _flights:
+			if flight["leaf"] == leaf:
+				peel = float(flight.get("own_peel", 0.0))
+		if not _flop.rest_on_fan:
+			continue
 		if leaf.position.x > 0.0:
-			lid.y = minf(lid.y, at.y)
+			lid.y = minf(lid.y, peel)
 		else:
-			lid.x = minf(lid.x, at.x)
+			lid.x = minf(lid.x, peel)
 	for pair: Array in [[-1, lid.x], [1, lid.y]]:
 		var dir: int = pair[0]
 		var angle: float = pair[1]
@@ -3402,70 +3485,6 @@ func _update_fan_lids() -> void:
 		if was_open != is_inf(angle):
 			print("[PDFBook] fan lid %s side: %s" % ["right" if dir > 0 else "left",
 				"pressed under a turning page (%.1f deg)" % rad_to_deg(angle) if not is_inf(angle) else "lifted"])
-
-
-## How far the loose leaves of each half could peel before they met this sheet:
-## (left, right), INF where none of it is over that half.
-##
-## paper.gdshader on a few points of the sheet — the cylinder wrap about the fold
-## line, then the leaf's hinge and the book's bend (BookFlop.bend_over, the
-## flop_cross path) — and each point is then an angle about the gutter, against
-## the block's top at the same distance from it. Bent, not flat: a sheet crossing
-## the gutter takes the binding's turn over a wider arc than a sheet lying on its
-## block, so over a drooping half it sits much lower than the flat book says (9
-## degrees above the block flat, 4 bent, measured). A loose leaf's chord never
-## turns further than its peel, so a peel held to that angle stays under the page.
-func _sheet_over_halves(leaf: MeshInstance3D) -> Vector2:
-	var result := Vector2(INF, INF)
-	var mat := leaf.get_surface_override_material(0) as ShaderMaterial
-	if mat == null:
-		return result
-	var dir := 1 if leaf.position.x > 0.0 else -1
-	var strength: float = _param_or(mat, "fold_strength", 0.0)
-	var origin: Vector2 = _param_or(mat, "fold_origin", Vector2.ZERO)
-	var normal: Vector2 = _param_or(mat, "fold_normal", Vector2(1.0, 0.0))
-	var radius: float = _param_or(mat, "curl_radius", 0.01)
-	var taper: float = _param_or(mat, "curl_taper", 0.0)
-	var lift: float = _param_or(mat, "flop_lift", 0.0)
-	var pivot_z: float = _param_or(mat, "flop_origin_z", leaf.position.z)
-	normal = normal.normalized() if normal.length() > 1e-6 else Vector2(1.0, 0.0)
-	var blocks := [_flop.params(-1), _flop.params(1)]
-	for u: float in FAN_LID_U:
-		for v: float in FAN_LID_V:
-			var p := Vector2(float(dir) * (u - 0.5) * _book_width, (v - 0.5) * book_height)
-			var z := 0.0
-			var d := (p - origin).dot(normal)
-			if strength > 0.0 and d > 0.0:
-				var r := maxf(radius * (1.0 + taper * (1.0 - u)), 1e-4)
-				var fold_pt := p - normal * d
-				if d / r < PI:
-					p = fold_pt + normal * (r * sin(d / r))
-					z = r * (1.0 - cos(d / r))
-				else:
-					p = fold_pt - normal * (d - PI * r)
-					z = 2.0 * r
-			var bent := _flop.bend_over(leaf.position + Vector3(p.x, p.y, z), dir, lift, pivot_z)
-			var half := 1 if bent.x >= 0.0 else -1
-			var block: Vector4 = blocks[1 if half > 0 else 0]
-			var at := Vector2(absf(bent.x), bent.z - block.w)
-			var reach := at.length()
-			if reach < _book_width * FAN_LID_U[0]:
-				continue
-			# The block's top at the same distance from the gutter: its arc is a
-			# little longer than its chord, so walk out until the chord is right.
-			var plane := _page_plane_z(half)
-			var arc_s := reach
-			var top := Vector2.ZERO
-			for step in 3:
-				var b := BookFlop.bend_sz(arc_s, plane, block)
-				top = Vector2(b.x, b.y - block.w)
-				arc_s *= reach / maxf(top.length(), 1e-5)
-			var angle := maxf(at.angle() - top.angle(), 0.0)
-			if half > 0:
-				result.y = minf(result.y, angle)
-			else:
-				result.x = minf(result.x, angle)
-	return result
 
 
 ## A page sheet's rest shape at (u, v): paper_rest_parts() in
@@ -3687,12 +3706,24 @@ func _make_hint_label(mirrored: bool) -> Label3D:
 func _prefetch_nearby_pages() -> void:
 	if _page_count == 0:
 		return
-	var center := _current_leaf * 2
-	# One page further right than the spread needs: with all three loose leaves
-	# of a fan up, the block shows the page under the last of them, and left to
-	# render on demand it was a blank sheet the first time a book was tipped over.
-	for i in range(maxi(0, center - prefetch_pages), mini(_page_count, center + prefetch_pages + 3)):
+	var window := _page_window()
+	for i in range(window.x, window.y + 1):
 		_get_page_texture(i)  # triggers background render if not cached
+
+
+## The pages to keep rendered, first and last: the spread's prefetch, and as far
+## as a tipped book can show — every loose leaf up, the leaf settling into the
+## block and the page under it — from this spread AND the one a turn away. With
+## only the prefetch, the block under a full fan asked for a page nobody had
+## rendered and showed the loading sheet for a moment as a page landed (it was a
+## blank sheet once, before the loading sheet existed).
+func _page_window() -> Vector2i:
+	var center := _current_leaf * 2
+	var fan := FAN_LEAVES_DESKTOP if QualityManager.is_desktop() else FAN_LEAVES_QUEST
+	var reach := 2 * (fan + 2) + 1
+	var lo := mini(center - prefetch_pages, center + 1 - reach)
+	var hi := maxi(center + prefetch_pages + 2, center + 2 + reach)
+	return Vector2i(maxi(0, lo), mini(_page_count - 1, hi))
 
 
 func _rebuild_highlight_overlays() -> void:

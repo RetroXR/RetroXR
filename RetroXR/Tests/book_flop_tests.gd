@@ -708,13 +708,17 @@ func _test_book() -> void:
 			and book._flop.fan_params(1, 0) != book._flop.params(1),
 		"book/a loose leaf hangs by its own bend, not the block's")
 
+	var peels := [book._flop.fan_delta(1, 0), book._flop.fan_delta(1, 1)]
+	var second_page := _page_of(book, _mat(_fan_leaf(book, 1, 1)).get_shader_parameter("front_texture"))
 	_ok(book._spawn_leaf(1), "book/a page can still be turned off a fanned side")
-	_ok(book._fan_shown[1] == 0 and not _fan_leaf(book, 1, 0).visible,
-		"book/...and taking it shuts that side's fan")
-	_ok(_mat(book._active_leaf).get_shader_parameter("flop_own") == book._flop.params(1)
+	_ok(book._leaf_own_peel == peels[0] and book._flop.fan_delta(1, 0) == peels[1]
+			and _page_of(book, _mat(_fan_leaf(book, 1, 0)).get_shader_parameter("front_texture")) == second_page,
+		"book/...taken where it floats (%.2f rad), the leaf under it coming up a place with its page, not laid flat"
+			% book._leaf_own_peel)
+	_ok(_mat(book._active_leaf).get_shader_parameter("flop_own") == book._flop.fan_params_at(1, peels[0])
 			and _mat(book._active_leaf).get_shader_parameter("flop_far") == book._flop.ride_params(-1)
 			and book._flop.ride_params(-1).y == book._flop.fan_params(-1, 0).y,
-		"book/the turning leaf rides its own half, and once it crosses the far half's top loose leaf")
+		"book/the turning leaf rides its own half where it was taken, and once it crosses the far half's top loose leaf")
 	_ok(_mat(book._active_leaf).get_shader_parameter("flop_cross") == 1.0
 			and not _mat(book._right_stack_top).get_shader_parameter("flop_cross"),
 		"book/only the turning leaf blends across the gutter; a resting sheet must agree with its block")
@@ -1291,6 +1295,16 @@ func _test_fan_lid() -> void:
 	_ok(bool(rests["settles"]),
 		"fan_lid/the leaf nearest the block lies down into it from %.1f deg over %d frames, the block carrying its page"
 			% [rad_to_deg(float(rests["settle_from"])), int(rests["settle_frames"])])
+	_ok(float(rests["own_start"]) > 0.1 and int(rests["own_jumps"]) == 0 and float(rests["own_through"]) < 0.001
+			and int(by_hand["own_jumps"]) == 0 and float(by_hand["own_through"]) < 0.001,
+		"fan_lid/the page turns from where it floated (%.1f deg), the leaves it leaves stay put under it (%d / %d jumps, worst %+.1f / %+.1f mm, sprung / by hand)"
+			% [rad_to_deg(float(rests["own_start"])), int(rests["own_jumps"]), int(by_hand["own_jumps"]),
+			float(rests["own_through"]) * 1000.0, float(by_hand["own_through"]) * 1000.0])
+	_ok(int(rests["doubled"]) == 0 and int(by_hand["doubled"]) == 0,
+		"fan_lid/the block never shows a page that is still up above it, nor the loading sheet (%d, %d frames)"
+			% [int(rests["doubled"]), int(by_hand["doubled"])])
+	_ok(bool(rests["reach_ok"]),
+		"fan_lid/every page a tipped book can show from here, or a turn away, is rendered or on its way")
 	_ok(int(rests["jumps"]) == 0,
 		"fan_lid/...and no page in view jumps: each stays where it hung, through the landing too (%d jumps)"
 			% int(rests["jumps"]))
@@ -1345,6 +1359,15 @@ func _fan_lid_turn(book: PDFBook, rest: bool, by_hand: bool = false) -> Dictiona
 	var through := -INF
 	var jumps := 0
 	_count_jumps(book, -1, where, landed_tex)
+	# The side it is turned FROM: its top leaf becomes the page in the air, and
+	# the rest must not move or change picture.
+	var where_own := {}
+	var taken_tex: Variant = book._texture_cache.get((book._current_leaf + 1) * 2)
+	var own_start := book._flop.fan_delta(1, 0)
+	_count_jumps(book, 1, where_own, taken_tex)
+	var own_jumps := 0
+	var own_through := -INF
+	var doubled := 0
 	var fell := false
 	if by_hand:
 		var w := book._book_width
@@ -1366,9 +1389,12 @@ func _fan_lid_turn(book: PDFBook, rest: bool, by_hand: bool = false) -> Dictiona
 		_drive(book, FACE_DOWN, 2)
 		if book._active_leaf != null:
 			through = maxf(through, _fan_through_leaf(book, -1))
+			own_through = maxf(own_through, _fan_through_leaf(book, 1))
 			lowest = minf(lowest, book._flop.fan_delta(-1, 0))
 			rested = book._flop.fan_delta(-1, 0)
 		jumps += _count_jumps(book, -1, where, landed_tex)
+		own_jumps += _count_jumps(book, 1, where_own, taken_tex)
+		doubled += _block_doubled(book, -1) + _block_doubled(book, 1)
 		if book._active_leaf == null:
 			break
 	var landed_at := book._flop.fan_delta(-1, 0)
@@ -1387,15 +1413,46 @@ func _fan_lid_turn(book: PDFBook, rest: bool, by_hand: bool = false) -> Dictiona
 		await get_tree().process_frame
 		_drive(book, FACE_DOWN, 2)
 		jumps += _count_jumps(book, -1, where, landed_tex)
+		doubled += _block_doubled(book, -1) + _block_doubled(book, 1)
 		if settle.visible:
 			settle_frames += 1
 			settle_down = settle_down and book._fan_settle_peel[0] <= settle_last + 1e-6
 			settle_last = book._fan_settle_peel[0]
 	var block_tex: Variant = _mat(book._left_stack_top).get_shader_parameter("front_texture")
 	settle_down = settle_down and not settle.visible and settle_frames > 3 and settle_tex == block_tex
+	# Everything a tipped book could show from here, and a turn away, is rendered
+	# or on its way.
+	var window := book._page_window()
+	var missing := 0
+	for page in range(window.x, window.y + 1):
+		if not book._texture_cache.has(page) and not book._pending_renders.has(page):
+			missing += 1
+	var reach_ok := window.x <= book._current_leaf * 2 + 1 - 2 * (book._fan_leaves[0] as Array).size() - 3 \
+		and window.y >= mini(book._page_count - 1, (book._current_leaf + 1) * 2 + 2 * (book._fan_leaves[1] as Array).size() + 3) \
+		and missing == 0
 	return {"fanned": fanned, "through": through, "jumps": jumps, "on_top": on_top, "fell": fell,
+		"own_start": own_start, "own_jumps": own_jumps, "own_through": own_through, "doubled": doubled,
+		"reach_ok": reach_ok,
 		"held": lowest / maxf(start_peel, 1e-6), "rested": rested, "landed_at": landed_at,
 		"settles": settle_down, "settle_from": settle_from, "settle_frames": settle_frames}
+
+
+## Frames where `dir`'s block shows a page that is also up on a loose leaf above
+## it (or settling onto it), or the loading sheet: 1 or 0.
+func _block_doubled(book: PDFBook, dir: int) -> int:
+	var i := 1 if dir > 0 else 0
+	var block := book._right_stack_top if dir > 0 else book._left_stack_top
+	if not block.visible:
+		return 0
+	var tex: Variant = _mat(block).get_shader_parameter("front_texture")
+	if _page_of(book, tex) < 0:
+		return 1
+	var above: Array = (book._fan_leaves[i] as Array).duplicate()
+	above.append(book._fan_settle[i])
+	for leaf: MeshInstance3D in above:
+		if leaf.visible and _mat(leaf).get_shader_parameter("front_texture") == tex:
+			return 1
+	return 0
 
 
 ## Pages in view on `dir`'s loose leaves that turned up somewhere they were not

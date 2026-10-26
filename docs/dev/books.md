@@ -297,8 +297,27 @@ one before it, wherever that is, and that is what it does now:
   the book's origin, standing up between the halves. `configure`
   keeps the peels of the leaves still up when a turn changes how many may fan (it used to zero
   them all).
-- A riffle sheet still lying on the block it was turned from is a LID on that block's leaves
-  (`_update_fan_lids`, own side only), which are under it. A riffle's landing side indexes its
+- **A page is taken off its fan where it floats** (`BookFlop.pop_fan_leaf`, from `_spawn_leaf`
+  and `_launch_flight`). It was the top loose leaf; the leaves under it each come up a place as
+  they hang. Its own half rides `turn_params` = `fan_params_at(dir, peel taken)` plus its own
+  clearance over the leaves left under it (`_ride_clearance(leaf, dir, dir, ...)`, `_turn_extra`):
+  a loose curl up there took the binding's turn over the widened arc and came out 19 mm under
+  the leaf below. Those leaves are LIDDED at the peel it was taken at (`_update_fan_lids`) and do
+  not follow it, so nothing ratchets. While it is in the air that side's fan and block skip it
+  (`_update_spread_textures`, `_relay_turning_leaf`, which `_spawn_leaf` now ends with: laid as
+  the plain page beyond the leaf, the block showed the page on the top loose leaf over it). A
+  page let go short of the spine, or a grab aborted, goes back in where it came from
+  (`_rest_on_fan(dir, own peel)`). It used to `suppress_fan` the side first, which laid every
+  leaf on it flat and then turned a page off a flat block; `suppress_fan` is now the control
+  path only (`rest_on_fan = false`).
+- **The block shows the page UNDER a leaf settling into it** until that leaf is flat on it
+  (`_settling`). It showed the settling leaf's own page from the start, so that page was in view
+  twice.
+- **Pages are kept rendered as far as a tipped book can show** (`_page_window`, used by both
+  `_prefetch_nearby_pages` and `_trim_texture_cache`): every loose leaf, the settling leaf and the
+  page under it, from this spread and the one a turn away. With the spread's prefetch alone the
+  block under a full fan asked for a page nobody had rendered and showed the LOADING sheet as a
+  page landed (the player's "flicker"; ~90 frames of it in `fan_lid/` with the old window). A riffle's landing side indexes its
   fan from `_flight_shown`, as its block does: indexed from the stepped spread, its top leaf wore
   the page still in the air.
 - `fan_lid/` in `book_flop_tests`: a leaf against the page as angles about the gutter, from the
@@ -307,8 +326,6 @@ one before it, wherever that is, and that is what it does now:
   view while still up counts as a jump (the settling leaf is what keeps that at zero). The control
   (`rest_on_fan = false`, no lid) goes 42–48 mm through and jumps a page. `book_flop_probe
   --only=fanturn [--nolid]` films it.
-- NOT done: the page you lift is that side's leaf 0 and still starts flat, so a peeled top leaf
-  jumps flat as it becomes the turning page (its peel would have to become `_leaf_lift`).
 
 **Page textures are capped at `MAX_PAGE_PX` (2048) on the long side** (2026-09-30).
 `render_dpi` 150 suits an ordinary page (letter 1275 x 1650) and never reaches it; a scan
