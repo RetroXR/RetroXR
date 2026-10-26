@@ -441,6 +441,12 @@ func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3)
 			PhysicsServer3D.BODY_STATE_TRANSFORM,
 			global_transform)
 
+	# LOCAL PATCH (RetroXR): a thing too big to throw (an arcade cabinet, `throw_scale()` 0) is set down where the hand let go of it, at no speed and no
+	# turn: released with the arm swinging it left at the hand's velocity and tumbled across the room into whatever stood there.
+	var throw := float(call("throw_scale")) if has_method("throw_scale") else 1.0
+	p_linear_velocity *= throw
+	p_angular_velocity *= throw
+
 	# Set velocity. If we are releasing from rest, add a tiny gravity-aligned
 	# nudge so the body immediately enters active simulation instead of waiting
 	# for some later contact to wake it.

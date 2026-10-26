@@ -250,6 +250,12 @@ func grab_hold_seconds() -> float:
 	return HoldToGrab.DEFAULT_SECONDS
 
 
+## A 1.8 m cabinet is never THROWN: let go of it with the hand swinging and it would leave at the hand's speed and tumble at its turn, across the room, into whatever stands
+## there. It is set down where the hand let go of it (and stood up, ground placement or its own righting).
+func throw_scale() -> float:
+	return 0.0
+
+
 # ── guns in holsters ────────────────────────────────────────────────────────
 
 ## The gun a gun cabinet wears (Tools/gen/gen_arcade_gun.gd), and where its cord leaves it

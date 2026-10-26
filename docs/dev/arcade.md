@@ -62,7 +62,12 @@ hook stays for a model that wants it). It is NOT locked: it is carried by **hold
 a ring fills, around the crosshair on desktop and at the hand in VR; an object opts in by answering `grab_hold_seconds()`, so a stray
 squeeze or click never carries a 1.8 m box off; a spawn hands it over directly, no ring). While it is in a hand it is **see-through**
 (`GeometryInstance3D.transparency`, dithered per instance: no sorting or blending of a huge surface, no material to swap) so the room
-behind it can be seen. **A cabinet always comes to STAND**: its centre of mass is low (`CENTER_OF_MASS_Y`, the base and the board,
+behind it can be seen, **not solid** (the held layer and no mask, for the cabinet and the bay, guns and plugs that ride with it; every loose pickable's mask
+has that layer taken out, `HeldObjectPhysics`: without it a carried cabinet shoved a pad 1.5 m) and **never thrown** (2026-10-26: `throw_scale()`, 0 for a cabinet: `XRToolsPickable.let_go`
+and the laser's release multiply the hand's velocity and turn by it, so a cabinet let go of with the arm swinging is set down where the hand was, not sent across the room
+into whatever stood there; a pad keeps its throw). `arcade_hold_tests`: carried through a pad, a cartridge and another cabinet, nothing moves; set down on them, nothing is flung.
+Nobody has reproduced a cabinet flying on its own in the sandbox: the throw was the one way found, and a player reporting a cabinet that still flies is owed an answer
+(what flew, and when). **A cabinet always comes to STAND**: its centre of mass is low (`CENTER_OF_MASS_Y`, the base and the board,
 not the marquee) and, while nobody holds it, `_physics_process` turns it back upright about the horizontal at a rate proportional to
 its tilt (`right_angular_velocity`, capped), leaving its HEADING alone. Released upright it stays upright; released leaning, or let
 fall, it rights itself. The old yaw-only axis lock kept whatever tilt it was let go at, which is why it was dropped. A frozen or

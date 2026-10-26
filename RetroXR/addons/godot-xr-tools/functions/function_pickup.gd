@@ -986,9 +986,11 @@ func _end_ray_grab() -> void:
 			and released.can_pick_up(socket):
 		socket.pick_up_object(released)
 	else:
-		# Apply throw velocity so the object can be tossed
-		released.linear_velocity = _velocity_averager.linear_velocity() * impulse_factor
-		released.angular_velocity = _velocity_averager.angular_velocity()
+		# Apply throw velocity so the object can be tossed. LOCAL PATCH (RetroXR): not one too big to throw (an arcade cabinet: `throw_scale()` 0), which
+		# is set down where the laser let go of it.
+		var throw := float(released.call("throw_scale")) if released.has_method("throw_scale") else 1.0
+		released.linear_velocity = _velocity_averager.linear_velocity() * impulse_factor * throw
+		released.angular_velocity = _velocity_averager.angular_velocity() * throw
 
 	if _locomotion_manager:
 		_locomotion_manager.set_block(_ray_grab_block_owner, LocomotionManager.CHANNEL_ALL, false)

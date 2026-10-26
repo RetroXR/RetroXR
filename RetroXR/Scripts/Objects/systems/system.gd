@@ -1020,6 +1020,11 @@ func grab_hold_seconds() -> float:
 	return _model.grab_hold_seconds() if _model != null else 0.0
 
 
+## How much of the hand's velocity a release gives this machine (RetroSystemModel.throw_scale): a cabinet is set down, not thrown.
+func throw_scale() -> float:
+	return _model.throw_scale() if _model != null else 1.0
+
+
 ## A hand that is working a control of this machine's panel (a stick in its fist, a wheel it reaches for) is not reaching
 ## for the machine: the squeeze that goes round a stick would otherwise start the carry ring (HoldToGrab) and, held a
 ## second, pick the whole cabinet up. Every other hand picks it up as before.

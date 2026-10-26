@@ -291,6 +291,12 @@ func grab_hold_seconds() -> float:
 	return 0.0
 
 
+## How much of the hand's own velocity a release gives this hardware, 1 for an ordinary console (it can be tossed), 0 for hardware too big to throw: it is set
+## down where the hand let go of it. See XRToolsPickable.let_go and the ray release.
+func throw_scale() -> float:
+	return 1.0
+
+
 ## True for hardware too big to hold: the spawn menu stands it on the floor in front of
 ## the player instead of handing it to a hand. An arcade cabinet is the first.
 func spawns_on_floor() -> bool:
