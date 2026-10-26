@@ -140,8 +140,8 @@ func register_system_info(info: SystemInfo) -> bool:
 ## that never get art — so this reports what is missing at registration time.
 ##
 ## Keys: systemid, system_info, models, pad_art, media, scraper_id.
-func register_platform(d: Dictionary) -> bool:
-	var systemid := SystemIds.canonical(str(d.get("systemid", "")))
+func register_platform(spec: Dictionary) -> bool:
+	var systemid := SystemIds.canonical(str(spec.get("systemid", "")))
 	if systemid.is_empty():
 		return _fail("register_platform needs a systemid")
 	var missing := PackedStringArray()
@@ -150,25 +150,25 @@ func register_platform(d: Dictionary) -> bool:
 	# a platform whose pad art was rejected outright still reported success and
 	# was noted as registered.
 	var ok := true
-	if d.has("system_info"):
-		ok = register_system_info(d["system_info"] as SystemInfo) and ok
+	if spec.has("system_info"):
+		ok = register_system_info(spec["system_info"] as SystemInfo) and ok
 	else:
 		missing.append("system_info")
-	if d.has("models"):
-		for row: Variant in (d["models"] as Array):
+	if spec.has("models"):
+		for row: Variant in (spec["models"] as Array):
 			ok = register_model(row as Dictionary) and ok
 	else:
 		missing.append("models")
-	if d.has("pad_art"):
-		ok = register_pad_art(systemid, d["pad_art"] as Dictionary) and ok
+	if spec.has("pad_art"):
+		ok = register_pad_art(systemid, spec["pad_art"] as Dictionary) and ok
 	else:
 		missing.append("pad_art (no Controls remap diagram)")
-	if d.has("media"):
-		ok = register_media(systemid, d["media"] as Dictionary) and ok
+	if spec.has("media"):
+		ok = register_media(systemid, spec["media"] as Dictionary) and ok
 	else:
 		missing.append("media (carts come out the wrong size)")
-	if d.has("scraper_id"):
-		ok = register_scraper_system(systemid, int(d["scraper_id"])) and ok
+	if spec.has("scraper_id"):
+		ok = register_scraper_system(systemid, int(spec["scraper_id"])) and ok
 	else:
 		missing.append("scraper_id (carts never get art)")
 	if not missing.is_empty():
@@ -251,14 +251,14 @@ func register_scraper_system(systemid: String, systemeid: int) -> bool:
 
 ## Add a room reachable from the SCENE tab.
 ## Keys: id, path, title, menu_title, has_slots.
-func register_room(d: Dictionary) -> bool:
-	var room_id := str(d.get("id", ""))
+func register_room(spec: Dictionary) -> bool:
+	var room_id := str(spec.get("id", ""))
 	if not _namespaced(room_id, "room id"):
 		return false
-	var err := RoomCatalog.register_mod_room(room_id, d, id)
+	var err := RoomCatalog.register_mod_room(room_id, spec, id)
 	if not err.is_empty():
 		return _fail("room %s: %s" % [room_id, err])
-	_note("room", str(d.get("menu_title", room_id)))
+	_note("room", str(spec.get("menu_title", room_id)))
 	return true
 
 

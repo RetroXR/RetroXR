@@ -492,20 +492,20 @@ func _sync_toggle(save_id: String, sync_state: String) -> Button:
 
 ## A save that exists only on the server. Pressing it downloads a copy and
 ## binds this cartridge to it.
-func _add_server_row(e: Dictionary) -> void:
-	var slot := str(e.get("slot", ""))
+func _add_server_row(entry: Dictionary) -> void:
+	var slot := str(entry.get("slot", ""))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	_rows_box.add_child(row)
 
-	var when := str(e.get("updated_at", "")).replace("T", "  ").left(19)
+	var when := str(entry.get("updated_at", "")).replace("T", "  ").left(19)
 	var lbl := Button.new()
 	lbl.custom_minimum_size = Vector2(0, 52)
 	lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	lbl.add_theme_font_size_override("font_size", 18)
 	lbl.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	lbl.add_theme_color_override("font_color", COLOR_ROW)
-	lbl.text = "    %s    %s    %.1f KB" % [slot.left(8), when, int(e.get("size", 0)) / 1024.0]
+	lbl.text = "    %s    %s    %.1f KB" % [slot.left(8), when, int(entry.get("size", 0)) / 1024.0]
 	lbl.pressed.connect(func(): server_save_requested.emit(slot))
 	row.add_child(lbl)
 
@@ -943,8 +943,8 @@ func _backup_glyph(backup_state: String) -> Control:
 
 ## A state that exists only on the server. Pressing it pulls it down, after
 ## which it is an ordinary row.
-func _add_server_state_row(e: Dictionary) -> void:
-	var state_id := str(e.get("state_id", ""))
+func _add_server_state_row(entry: Dictionary) -> void:
+	var state_id := str(entry.get("state_id", ""))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	_states_box.add_child(row)
@@ -959,8 +959,8 @@ func _add_server_state_row(e: Dictionary) -> void:
 	# Through _when(), like a local row: the server's ISO string trimmed to a
 	# fixed width lost its last digit ("21:14:0"), and two halves of one list
 	# reading in two different date formats is worse than either.
-	lbl.text = "    %s    %s" % [_when(_unix_of(str(e.get("updated_at", "")))),
-		ByteSize.human(int(e.get("size", 0)))]
+	lbl.text = "    %s    %s" % [_when(_unix_of(str(entry.get("updated_at", "")))),
+		ByteSize.human(int(entry.get("size", 0)))]
 	lbl.pressed.connect(func(): server_state_requested.emit(state_id))
 	row.add_child(lbl)
 

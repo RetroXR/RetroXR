@@ -10,7 +10,7 @@
 ## Writes one label fixture into the player's real gbc media/label folder
 ## (MediaDimensions derives the path from the ROM's name) and ROM fixtures under
 ## user://, and removes both at each end.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const FIXTURE := "__gbccart_selftest"
@@ -26,12 +26,11 @@ const KEPT_PARTS := ["Label", "Contacts_32", "Security_Gamebit_Head", "Connector
 ## What frost blurs behind a clear shell: the photographed board and what is on it.
 const FROSTED := ["Connector_PCB", "Interior_PCB_Components"]
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
 func _ready() -> void:
+	suite_tag = "gbccart"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -69,8 +68,7 @@ func _ready() -> void:
 
 	_clear_fixtures()
 	await _settle_warm()
-	print("[gbccart] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _settle_warm() -> void:
@@ -82,15 +80,6 @@ func _settle_warm() -> void:
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[gbccart] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[gbccart] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────

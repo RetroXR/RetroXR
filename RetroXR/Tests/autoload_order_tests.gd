@@ -18,7 +18,7 @@
 ## condition under which an ordering bug is invisible.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/autoload_order_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const PROJECT := "res://project.godot"
 
@@ -46,11 +46,9 @@ const MUST_PRECEDE := [
 		+ "Reordering these two would silently stop applying the player's choice"],
 ]
 
-var _passed := 0
-var _failed := 0
-
 
 func _ready() -> void:
+	suite_tag = "autoload"
 	get_tree().create_timer(30.0).timeout.connect(func() -> void:
 		push_error("[autoload] TIMEOUT")
 		get_tree().quit(1))
@@ -83,22 +81,7 @@ func _ready() -> void:
 		seen[n] = true
 	_eq(dupes, [] as Array[String], "order/no autoload is declared twice")
 
-	print("[autoload] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[autoload] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[autoload] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[autoload] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
+	_finish()
 
 
 ## The autoload names in declaration order, read from project.godot.

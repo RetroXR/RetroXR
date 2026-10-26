@@ -78,5 +78,5 @@ func _ready() -> void:
 ## runtime LOWER it under GPU load; the perf HUD's eye row reads the live size
 ## every slow tick, which this cannot.
 func _log_eye_buffer_quality(xri: XRInterface) -> void:
-	print("XRInit: eye buffer %s per eye, window %s, foveation %s" % [
+	print("[XRInit] eye buffer %s per eye, window %s, foveation %s" % [
 		xri.get_render_target_size(), get_viewport().size, xri.get("foveation_level")])

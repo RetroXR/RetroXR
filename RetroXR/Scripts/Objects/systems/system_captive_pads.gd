@@ -47,7 +47,7 @@ func spawn(port_zones: Array) -> void:
 			break
 		var scene: PackedScene = load(str(paths[i]))
 		if scene == null:
-			push_warning("RetroSystem: captive controller scene missing: %s" % str(paths[i]))
+			push_warning("[RetroSystem] captive controller scene missing: %s" % str(paths[i]))
 			continue
 		var pad: Node3D = scene.instantiate()
 		pad.set("captive", true)

@@ -543,7 +543,7 @@ func _expansion_holding_battery() -> RetroExpansion:
 	if _host == null or not _host.has_method("get_expansions"):
 		return null
 	for unit: RetroExpansion in _host.get_expansions():
-		if unit == null or not is_instance_valid(unit):
+		if not is_instance_valid(unit):
 			continue
 		if ExpansionCatalog.save_owner_of(unit.expansion_id) \
 				== ExpansionCatalog.SAVE_OWNER_UNIT:
@@ -554,7 +554,7 @@ func _expansion_holding_battery() -> RetroExpansion:
 ## Does the unit whose bay holds `media` keep backup memory of its own?
 func _unit_keeps_memory(media: Node3D) -> bool:
 	for unit: RetroExpansion in _host.get_expansions():
-		if unit == null or not is_instance_valid(unit):
+		if not is_instance_valid(unit):
 			continue
 		for s in unit.get_bay_count():
 			if unit.get_media(s) == media:
@@ -569,7 +569,7 @@ func _expansion_media() -> Node3D:
 	if _host == null or not _host.has_method("get_expansions"):
 		return null
 	for unit: RetroExpansion in _host.get_expansions():
-		if unit == null or not is_instance_valid(unit):
+		if not is_instance_valid(unit):
 			continue
 		# Every bay of the unit, not just its first. A Sufami Turbo holds two
 		# cartridges, and the save this composes is keyed off whichever one is

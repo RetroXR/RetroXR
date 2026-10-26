@@ -80,7 +80,7 @@ func _ready() -> void:
 		# static to work in -- but that is the whole of the stall it removes.
 		_vlc.warm_up()
 	else:
-		push_error("TVTuner: VlcPlayer extension not loaded — TV input unavailable")
+		push_error("[TVTuner] VlcPlayer extension not loaded — TV input unavailable")
 
 	_emitter = SpatialAudioEmitter.new()
 	_emitter.name = "SpatialAudioEmitter"

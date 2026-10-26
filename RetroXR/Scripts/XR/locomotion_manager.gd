@@ -70,7 +70,7 @@ func _deferred_setup() -> void:
 func _require(provider_name: String) -> Node:
 	var node := get_tree().root.find_child(provider_name, true, false)
 	if node == null:
-		push_warning("LocomotionManager: no node named '%s' — it will never be blocked"
+		push_warning("[LocomotionManager] no node named '%s' — it will never be blocked"
 			% provider_name)
 	return node
 
@@ -102,7 +102,7 @@ func set_block(block_owner: StringName, channel: StringName, active: bool) -> vo
 		CHANNEL_DESKTOP_MOVE:
 			_set_channel_block(_desktop_blocks, block_owner, active)
 		_:
-			push_warning("LocomotionManager: unknown channel '%s'" % [channel])
+			push_warning("[LocomotionManager] unknown channel '%s'" % [channel])
 			return
 
 	_apply()

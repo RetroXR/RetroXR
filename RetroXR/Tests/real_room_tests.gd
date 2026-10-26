@@ -12,10 +12,8 @@
 ##     "$godot" --headless --path RetroXR res://Tests/real_room_tests.tscn -- --only=surfaces
 ##
 ## Exits 0 when everything passes, 1 otherwise.
-extends Node
+extends "res://Tests/test_suite.gd"
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
@@ -107,6 +105,7 @@ class FakeDepth:
 
 
 func _ready() -> void:
+	suite_tag = "room"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -140,21 +139,11 @@ func _ready() -> void:
 		_test_project()
 
 	_reset_statics()
-	print("[room] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[room] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[room] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 func _reset_statics() -> void:
@@ -637,15 +626,20 @@ func _test_prefs() -> void:
 	_ok(prefs != null and prefs.get("passthrough_occlusion") is bool, "prefs/the occlusion switch is a pref")
 	if prefs == null:
 		return
-	var src := FileAccess.get_file_as_string("res://Scripts/Data/app_prefs.gd")
-	_ok("\"passthrough_occlusion\": passthrough_occlusion" in src
-		and "get_bool(data, \"passthrough_occlusion\"" in src,
-		"prefs/and it is saved and read back with the rest")
-	_ok(prefs.get("passthrough_spatial") is bool and "var passthrough_spatial: bool = true" in src
-		and "\"passthrough_spatial\": passthrough_spatial" in src
-		and "get_bool(data, \"passthrough_spatial\"" in src,
-		"prefs/room data is a pref too, on unless the player turns it off, saved and read back")
-	_ok(prefs.get("passthrough_room_mesh") is bool and "var passthrough_room_mesh: bool = false" in src
-		and "\"passthrough_room_mesh\": passthrough_room_mesh" in src
-		and "get_bool(data, \"passthrough_room_mesh\"" in src,
-		"prefs/the detailed mesh is a pref, off (flat furniture) unless turned on, saved and read back")
+	# Saved by the live AppPrefs and read back by a fresh one, each the opposite
+	# of its default, so a pref the save or the load dropped reads back wrong.
+	var back := _app_prefs_round_trip({
+		"passthrough_occlusion": not _app_prefs_default("passthrough_occlusion"),
+		"passthrough_spatial": false,
+		"passthrough_room_mesh": true,
+	})
+	_ok(back["passthrough_occlusion"] == (not _app_prefs_default("passthrough_occlusion")),
+		"prefs/and it is saved and read back with the rest", str(back))
+	_ok(prefs.get("passthrough_spatial") is bool and _app_prefs_default("passthrough_spatial") == true
+		and back["passthrough_spatial"] == false,
+		"prefs/room data is a pref too, on unless the player turns it off, saved and read back",
+		str(back))
+	_ok(prefs.get("passthrough_room_mesh") is bool and _app_prefs_default("passthrough_room_mesh") == false
+		and back["passthrough_room_mesh"] == true,
+		"prefs/the detailed mesh is a pref, off (flat furniture) unless turned on, saved and read back",
+		str(back))

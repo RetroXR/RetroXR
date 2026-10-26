@@ -358,7 +358,7 @@ func _toggle_save_sync(card: Dictionary, save: Dictionary, on: bool) -> void:
 		_build_saves(card))
 
 
-## Why this card must not be changed right now, or "".
+## Why this card must not be changed right now. Returns "" when ok, else the reason.
 func _in_use_reason(card: Dictionary) -> String:
 	return CardSaveOps.in_use_reason(get_tree(), str(card["card_id"]))
 

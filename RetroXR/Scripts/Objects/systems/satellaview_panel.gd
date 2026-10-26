@@ -109,7 +109,7 @@ func _watch_access_lamp(sys: RetroSystem) -> void:
 func _unwatch_access_lamp(sys: RetroSystem) -> void:
 	# The machine is going; the lamp cannot still be reporting traffic.
 	_access_on = false
-	if sys == null or not is_instance_valid(sys) or not sys.has_method("get_libretro_node"):
+	if not is_instance_valid(sys) or not sys.has_method("get_libretro_node"):
 		return
 	var node: Libretro = sys.get_libretro_node()
 	if node == null or not node.has_signal("led_state"):

@@ -728,8 +728,8 @@ func netplay_stop(reason := "stopped") -> void:
 
 ## Input seam: called from retro_controller. Returns true if netplay consumed
 ## the input (caller must not drive the core directly).
-func netplay_route(system: Object, port: int, m: Dictionary) -> bool:
-	return _netplay != null and _netplay.route(system, port, m)
+func netplay_route(system: Object, port: int, pad: Dictionary) -> bool:
+	return _netplay != null and _netplay.route(system, port, pad)
 
 
 ## Host: a netplay-registered controller changed hands to `peer_id`. If it
@@ -1036,15 +1036,15 @@ static func sanitize_mod_list(raw: Array) -> Array[Dictionary]:
 			break
 		if not entry is Dictionary:
 			continue
-		var d := entry as Dictionary
-		var id := str(d.get("id", "")).strip_edges().left(128)
+		var row := entry as Dictionary
+		var id := str(row.get("id", "")).strip_edges().left(128)
 		if id.is_empty():
 			continue
-		var mid: Variant = d.get("modio_id", 0)
+		var mid: Variant = row.get("modio_id", 0)
 		out.append({
 			"id": id,
-			"version": str(d.get("version", "")).left(32),
-			"name": str(d.get("name", "")).left(80),
+			"version": str(row.get("version", "")).left(32),
+			"name": str(row.get("name", "")).left(80),
 			"modio_id": int(mid) if (mid is int or mid is float) else 0,
 		})
 	return out

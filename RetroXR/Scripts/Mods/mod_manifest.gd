@@ -88,6 +88,7 @@ static func _strings(value: Variant) -> PackedStringArray:
 	return out
 
 
+## Whether the parsed manifest fields are usable. Returns "" when ok, else the reason.
 func _validate() -> String:
 	if id.is_empty():
 		return "no id"

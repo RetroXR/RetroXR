@@ -10,14 +10,12 @@
 ## loud the room has to be, where the volume slider is, and which port the bit is
 ## allowed to reach. That a game answers a real voice needs the forked core and a
 ## mic ROM, and lives in Tools/cores/famicom_mic_probe.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const PAD_I := preload("res://Scenes/Objects/controllers/famicom/famicom_controller_i.tscn")
 const PAD_II := preload("res://Scenes/Objects/controllers/famicom/famicom_controller_ii.tscn")
 const SERVICE := preload("res://Scripts/Audio/microphone_input.gd")
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
@@ -53,6 +51,7 @@ class FakeMachine:
 
 
 func _ready() -> void:
+	suite_tag = "famicom"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -78,8 +77,7 @@ func _ready() -> void:
 		_test_platform()
 
 	await _settle_warm()
-	print("[famicom] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 ## SceneManager's boot warm fires four process frames in and pulls every model in
@@ -98,15 +96,6 @@ func _settle_warm() -> void:
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[famicom] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[famicom] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 ## What the volume slider asks of the room.

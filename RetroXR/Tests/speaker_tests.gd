@@ -13,7 +13,7 @@
 ## outward, which is how both cabinets shipped inside out twice during authoring.
 ## An inside-out solid does not look inverted; it stops OCCLUDING, so it reads as
 ## missing geometry.
-extends Node3D
+extends "res://Tests/test_suite.gd"
 
 const SATELLITE := preload("res://Scenes/Objects/appliances/loudspeaker.tscn")
 const SUBWOOFER := preload("res://Scenes/Objects/appliances/subwoofer.tscn")
@@ -37,13 +37,12 @@ const MESHES := {
 const MIN_PLANE_GAP := 0.0005
 
 var _case := ""
-var _checks := 0
-var _case_checks := 0
 var _failed: Array[String] = []
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "speaker"
 	get_tree().create_timer(240.0).timeout.connect(
 		func() -> void:
 			push_error("[speaker] watchdog")
@@ -117,30 +116,23 @@ func _run() -> void:
 		if only != "" and not name.contains(only):
 			continue
 		_case = name
-		_case_checks = 0
+		var before := _case_count()
 		await (entry[1] as Callable).call()
 		# A case that asserted nothing aborted part way through.
-		if _case_checks == 0:
-			_failed.append(name)
-			print("[speaker] FAIL %s  (no assertions ran)" % name)
+		if _case_count() == before:
+			_ok(false, "%s  (no assertions ran)" % name)
 		await _teardown()
 
-	print("[speaker] %d checks, %d case(s) failed" % [_checks, _failed.size()])
+	print("[speaker] %d case(s) failed" % _failed.size())
 	for f in _failed:
 		print("[speaker]   failed: %s" % f)
-	print("[speaker] RESULT=%s" % ("PASS" if _failed.is_empty() else "FAIL"))
-	get_tree().quit(1 if not _failed.is_empty() else 0)
+	_finish()
 
 
-func _ok(cond: bool, what: String) -> void:
-	_checks += 1
-	_case_checks += 1
-	if cond:
-		print("[speaker] PASS %s/%s" % [_case, what])
-		return
+## TestSuite._ok has printed the check; remember the case it was in.
+func _on_fail(_what: String) -> void:
 	if not _failed.has(_case):
 		_failed.append(_case)
-	print("[speaker] FAIL %s/%s" % [_case, what])
 
 
 func _check_eq(got: Variant, want: Variant, what: String) -> void:
@@ -763,23 +755,23 @@ func _o_silent() -> void:
 		tv.remote_power_toggle()
 		await _wait(2)
 	var source: int = tv.current_source
-	_ok(tv._audio.volume_for(source) > 0.0, "on its own speakers the set is heard")
+	_ok(tv.audio().volume_for(source) > 0.0, "on its own speakers the set is heard")
 	tv.set_audio_out(RetroTV.AudioOut.STEREO)
 	await _wait(2)
 	_check_eq(tv._osd_label.text, "STEREO OUT — NO SPEAKERS CONNECTED", "STEREO OUT says why")
-	_ok(is_zero_approx(tv._audio.volume_for(source)), "and the set is silent")
+	_ok(is_zero_approx(tv.audio().volume_for(source)), "and the set is silent")
 	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
 	await _wait(2)
 	_check_eq(tv._osd_label.text, "SURROUND — NO SPEAKERS CONNECTED", "so does SURROUND")
-	_ok(is_zero_approx(tv._audio.volume_for(source)), "silent there too")
+	_ok(is_zero_approx(tv.audio().volume_for(source)), "silent there too")
 	# The silence lifts as a speaker goes in, without another press.
 	var outs := tv.panel().speaker_outs()
 	await _cable_up(outs[CH_FL], tv.position + Vector3(-1.5, 0.0, 1.5))
 	tv.on_av_topology_changed([])
-	_ok(tv._audio.volume_for(source) > 0.0, "plugging a speaker in is heard at once")
+	_ok(tv.audio().volume_for(source) > 0.0, "plugging a speaker in is heard at once")
 	tv.set_audio_out(RetroTV.AudioOut.TV_SPEAKERS)
 	await _wait(2)
-	_ok(tv._audio.volume_for(source) > 0.0, "and the set's own speakers are always heard")
+	_ok(tv.audio().volume_for(source) > 0.0, "and the set's own speakers are always heard")
 
 
 ## STEREO OUT was chosen and changed nothing: the stereo pair went on playing from
@@ -1149,11 +1141,11 @@ func _h_device_queue() -> void:
 		planes.append(p)
 	_check_eq(int(out.push(planes)), 9600, "a push is taken whole")
 	var before: int = out.queued()
-	await get_tree().create_timer(0.3).timeout
+	await _wait_until(func() -> bool: return int(out.queued()) < before, 3.0)
 	var after: int = out.queued()
 	_ok(after < before, "and the device drains it (%d -> %d frames)" % [before, after])
 	out.flush()
-	await get_tree().create_timer(0.1).timeout
+	await _wait_until(func() -> bool: return int(out.queued()) == 0, 3.0)
 	_check_eq(int(out.queued()), 0, "a flush empties it")
 
 

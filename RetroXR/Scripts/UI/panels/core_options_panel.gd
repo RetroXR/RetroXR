@@ -248,7 +248,7 @@ func _device_volume() -> float:
 ## A Controls-tab row, through the call the machine's own button or slide makes, so
 ## the shell moves, the sound plays and netplay hears it as it would from a hand.
 func _on_control_requested(id: String, value: Variant) -> void:
-	if _system == null or not is_instance_valid(_system):
+	if not is_instance_valid(_system):
 		return
 	print("[CoreOptionsPanel] %s: control %s%s" % [_system.name, id,
 		"" if value == null else " = %s" % str(value)])
@@ -293,7 +293,7 @@ func _refresh_debug(elapsed: float) -> void:
 
 ## Re-read the machine; repaint the Controls tab only when something moved.
 func _refresh_controls() -> void:
-	if _system == null or not is_instance_valid(_system):
+	if not is_instance_valid(_system):
 		return
 	var state := _system.controls_state()
 	if state == _controls_state:
@@ -309,7 +309,7 @@ func _refresh_controls() -> void:
 ## Controls tab the machine's switches, a few times a second (a hand on the shell,
 ## a peer, a lead moving at the set).
 func _while_shown(delta: float) -> void:
-	if _system == null or not is_instance_valid(_system):
+	if not is_instance_valid(_system):
 		return
 	_controls_poll += delta
 	if _controls_poll >= CONTROLS_POLL_S:

@@ -155,7 +155,7 @@ func _ready() -> void:
 		# the first press of play.
 		_vlc.warm_up()
 	else:
-		push_error("VCRPlayer: VlcPlayer extension not loaded — video playback unavailable")
+		push_error("[VCRPlayer] VlcPlayer extension not loaded — video playback unavailable")
 
 	_setup_audio()
 	_update_name_label()
@@ -633,19 +633,19 @@ func _apply_volume() -> void:
 
 func play() -> void:
 	if connected_tv == null:
-		push_error("VCRPlayer: Cannot play - no TV connected")
+		push_error("[VCRPlayer] Cannot play - no TV connected")
 		return
 	if video_path.is_empty():
-		push_error("VCRPlayer: Cannot play - no tape inserted")
+		push_error("[VCRPlayer] Cannot play - no tape inserted")
 		return
 	if _vlc == null:
-		push_error("VCRPlayer: VlcPlayer unavailable (extension not loaded)")
+		push_error("[VCRPlayer] VlcPlayer unavailable (extension not loaded)")
 		return
 	_ensure_recordings()
 	if _recordings.is_empty():
 		# A playlist naming nothing that is still there. Said on the set, because
 		# the error log cannot be read in a headset.
-		push_error("VCRPlayer: Cannot play - no recording on the tape is there: ", video_path)
+		push_error("[VCRPlayer] Cannot play - no recording on the tape is there: ", video_path)
 		_osd("BLANK TAPE", false)
 		return
 	if _tape_blank() > 0.0:
@@ -715,7 +715,7 @@ func _open_recording() -> bool:
 	# scheme it has no module for; it needs the real path.
 	var path := ProjectSettings.globalize_path(_recordings[_rec_idx])
 	if not _vlc.open(path, false):
-		push_error("VCRPlayer: VlcPlayer.open failed for ", path)
+		push_error("[VCRPlayer] VlcPlayer.open failed for ", path)
 		return false
 	_vlc.play()
 	# Full internal gain — level is controlled by the Godot 3D player (TV knob).

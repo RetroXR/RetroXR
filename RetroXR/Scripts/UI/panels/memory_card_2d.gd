@@ -472,8 +472,8 @@ func show_restore(saves: Array, note: String, more: Array = [], more_label := ""
 ## Built like the card's own rows rather than as one wide button: a Button draws
 ## its text on one line, and a game's name, its size and why it will not fit do
 ## not fit on one line of a panel this narrow.
-func _restore_row(s: Dictionary) -> Control:
-	var reason := str(s.get("reason", ""))
+func _restore_row(save: Dictionary) -> Control:
+	var reason := str(save.get("reason", ""))
 	var row := _row_panel()
 	var h := HBoxContainer.new()
 	h.add_theme_constant_override("separation", 10)
@@ -485,16 +485,16 @@ func _restore_row(s: Dictionary) -> Control:
 	h.add_child(col)
 
 	var t := Label.new()
-	var rom_name := str(s.get("rom_name", ""))
-	t.text = rom_name if not rom_name.is_empty() else str(s.get("slot", ""))
+	var rom_name := str(save.get("rom_name", ""))
+	t.text = rom_name if not rom_name.is_empty() else str(save.get("slot", ""))
 	t.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	t.add_theme_font_size_override("font_size", 19)
 	t.add_theme_color_override("font_color", COLOR_TITLE if reason.is_empty() else COLOR_DIM)
 	col.add_child(t)
 
-	var blocks: int = int(s.get("blocks", 1))
+	var blocks: int = int(save.get("blocks", 1))
 	var sub := Label.new()
-	var size_text := str(s.get("container_label", "whole save file")) if blocks <= 0 \
+	var size_text := str(save.get("container_label", "whole save file")) if blocks <= 0 \
 		else "%d %s" % [blocks, _units(blocks)]
 	sub.text = size_text + ("" if reason.is_empty() else "   ·   " + reason)
 	sub.add_theme_font_size_override("font_size", 15)
@@ -504,7 +504,7 @@ func _restore_row(s: Dictionary) -> Control:
 	if reason.is_empty():
 		h.add_child(_action(MenuIcons.DOWNLOAD, "Put this save on the card",
 			MenuIcons.TINT_DOWNLOAD,
-			func() -> void: restore_picked.emit(s)))
+			func() -> void: restore_picked.emit(save)))
 	return row
 
 
@@ -555,7 +555,7 @@ func _row_panel() -> PanelContainer:
 	return row
 
 
-func _make_row(s: Dictionary) -> Control:
+func _make_row(save: Dictionary) -> Control:
 	var row := _row_panel()
 
 	var h := HBoxContainer.new()
@@ -565,7 +565,7 @@ func _make_row(s: Dictionary) -> Control:
 	# A PlayStation 2 save's icon is a 3-D MODEL rather than a picture, so its row
 	# gets a small rendered view where every other family gets a TextureRect.
 	# Nothing else about the row differs.
-	var model: Dictionary = s.get("icon_model", {})
+	var model: Dictionary = save.get("icon_model", {})
 	if not model.is_empty():
 		var view := PS2IconView.new()
 		view.custom_minimum_size = Vector2(MODEL_ICON_PX, MODEL_ICON_PX)
@@ -591,7 +591,7 @@ func _make_row(s: Dictionary) -> Control:
 		h.add_child(icon)
 
 		var frames: Array = []
-		for img: Image in s.get("icons", []):
+		for img: Image in save.get("icons", []):
 			frames.append(ImageTexture.create_from_image(img))
 		if not frames.is_empty():
 			icon.texture = frames[0]
@@ -604,8 +604,8 @@ func _make_row(s: Dictionary) -> Control:
 	h.add_child(col)
 
 	var t := Label.new()
-	var title_text := str(s.get("title", ""))
-	t.text = title_text if not title_text.is_empty() else str(s.get("name", ""))
+	var title_text := str(save.get("title", ""))
+	t.text = title_text if not title_text.is_empty() else str(save.get("name", ""))
 	# Wrapping is what lets the row narrow: an unwrapped Label's minimum width is
 	# its whole title, so one long name ("PARAPPA THE RAPPER") pushed the buttons
 	# and the scrollbar off the edge of the panel.
@@ -615,10 +615,10 @@ func _make_row(s: Dictionary) -> Control:
 	col.add_child(t)
 
 	var sub := Label.new()
-	var blocks: int = int(s.get("blocks", 1))
+	var blocks: int = int(save.get("blocks", 1))
 	# A Saturn's, a Sega CD's or a 3DO's save carries no product code, and a
 	# separator with nothing before it reads as a stray dot.
-	var serial := str(s.get("serial", ""))
+	var serial := str(save.get("serial", ""))
 	sub.text = ("" if serial.is_empty() else serial + "   ·   ") \
 		+ "%d %s" % [blocks, _units(blocks)]
 	sub.add_theme_font_size_override("font_size", 15)
@@ -630,11 +630,11 @@ func _make_row(s: Dictionary) -> Control:
 	# playing_title carry. A row that is not a game gets no button at all — a
 	# VMU cannot run a data file, and a disabled button there would only ask
 	# why.
-	if show_play_action and bool(s.get("is_game", false)) and playing_title.is_empty():
+	if show_play_action and bool(save.get("is_game", false)) and playing_title.is_empty():
 		var play := _action(MenuIcons.PLAY,
 			"Play this on the card" if play_blocked.is_empty() else play_blocked,
 			MenuIcons.TINT_OK if play_blocked.is_empty() else MenuIcons.TINT_MUTED,
-			func() -> void: save_play_requested.emit(s))
+			func() -> void: save_play_requested.emit(save))
 		play.disabled = not play_blocked.is_empty()
 		h.add_child(play)
 
@@ -644,9 +644,9 @@ func _make_row(s: Dictionary) -> Control:
 		if show_move_action:
 			h.add_child(_action(MenuIcons.MOVE, "Move to another card",
 				Color(0.72, 0.76, 0.92),
-				func() -> void: save_move_requested.emit(s)))
+				func() -> void: save_move_requested.emit(save)))
 		if sync_available:
-			var on: bool = synced_slots.has(str(s.get("name", "")))
+			var on: bool = synced_slots.has(str(save.get("name", "")))
 			h.add_child(_action(
 				MenuIcons.SYNC_ON if on else MenuIcons.SYNC_OFF,
 				# Opted in is not the same as uploaded — a save whose game is
@@ -655,15 +655,15 @@ func _make_row(s: Dictionary) -> Control:
 				"Backing this save up to RomM" if on
 					else "Back this save up to RomM",
 				Color(0.55, 0.78, 0.95) if on else Color(0.5, 0.5, 0.62),
-				func() -> void: save_sync_toggled.emit(s, not on)))
+				func() -> void: save_sync_toggled.emit(save, not on)))
 		# Armed shows the warning glyph and says so, matching how a ROM row
 		# asks twice before deleting.
 		#
 		# And which trash can, on the same rule those rows use: the plain one
 		# when RomM holds a copy of this save, the crossed-out one when the
 		# card is the only place it exists.
-		var armed: bool = armed_slot == str(s.get("name", ""))
-		var forever: bool = not backed_up_slots.has(str(s.get("name", "")))
+		var armed: bool = armed_slot == str(save.get("name", ""))
+		var forever: bool = not backed_up_slots.has(str(save.get("name", "")))
 		var glyph := MenuIcons.DELETE_FOREVER if forever else MenuIcons.DELETE
 		var tip := "Delete this save permanently" if forever \
 			else "Delete this save from the card — RomM keeps its copy"
@@ -672,7 +672,7 @@ func _make_row(s: Dictionary) -> Control:
 			("Press again to delete permanently" if forever
 				else "Press again — RomM keeps its copy") if armed else tip,
 			Color(0.95, 0.55, 0.35) if armed else Color(0.85, 0.5, 0.5),
-			func() -> void: save_delete_requested.emit(s)))
+			func() -> void: save_delete_requested.emit(save)))
 
 	return row
 

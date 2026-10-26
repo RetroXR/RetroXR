@@ -104,7 +104,7 @@ func _collect() -> Array[Dictionary]:
 
 
 func _machine_label(machine: Object) -> String:
-	if machine == null or not is_instance_valid(machine):
+	if not is_instance_valid(machine):
 		return "machine"
 	if "display_name" in machine and not str(machine.get("display_name")).is_empty():
 		return str(machine.get("display_name"))

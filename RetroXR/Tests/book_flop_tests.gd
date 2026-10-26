@@ -12,7 +12,7 @@
 ## Tools/vr/book_flop_probe (windowed, renders the poses) and the headset.
 ##
 ## Needs no PDF and no godot-pdfium: the book is a CBZ built here.
-extends Node3D
+extends "res://Tests/test_suite.gd"
 
 const BOOK_SCENE := preload("res://Scenes/Objects/media/pdf_book.tscn")
 const CBZ_PATH := "user://__book_flop_tests.cbz"
@@ -25,9 +25,6 @@ const G := 9.8
 const FACE_UP := Vector3(0.0, 0.0, -G)     # pages to the ceiling: gravity is local -Z
 const FACE_DOWN := Vector3(0.0, 0.0, G)
 const SPINE_DOWN := Vector3(0.0, -G, 0.0)  # reading posture: gravity along the spine
-
-var _failed := 0
-var _ran := 0
 
 
 func _ready() -> void:
@@ -52,9 +49,7 @@ func _ready() -> void:
 	await _test_fan_lid()
 	await _test_thick_book()
 
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _failed == 0 else "%d FAILURE(S)" % _failed])
-	get_tree().quit(0 if _failed == 0 else 1)
+	_finish()
 
 
 # ── sim ───────────────────────────────────────────────────────────────────────
@@ -1052,7 +1047,8 @@ func _test_page_follows_hand(book: PDFBook) -> void:
 	# Brought back down and let go: the lift must not be left standing.
 	book._update_fold_from_hand(_hand_at(book, start))
 	book._on_page_grab_end(1)
-	await get_tree().create_timer(0.6).timeout
+	await _wait_until(func() -> bool:
+		return book._active_leaf == null and book._leaf_lift == 0.0, 3.0)
 	_ok(book._active_leaf == null and book._leaf_lift == 0.0 and book._current_leaf == 1,
 		"follow/let go where it started, the page lies back down and nothing turned")
 
@@ -1841,14 +1837,6 @@ func _fan_leaf(book: PDFBook, dir: int, k: int) -> MeshInstance3D:
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
-
-func _ok(cond: bool, label: String) -> void:
-	_ran += 1
-	if cond:
-		print("[test] ok   %s" % label)
-	else:
-		_failed += 1
-		print("[test] FAIL %s" % label)
 
 
 func _settle() -> void:

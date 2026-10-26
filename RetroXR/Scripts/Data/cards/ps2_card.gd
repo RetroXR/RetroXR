@@ -916,13 +916,13 @@ static func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedB
 			dot_entry.encode_u32(E_DIR_ENTRY, slot)
 		_put_slot(out, sb, dir_chain, i, dot_entry)
 	for i in files.size():
-		var f: Dictionary = files[i]
+		var file_rec: Dictionary = files[i]
 		var chain: Array = file_chains[i]
-		var bytes: PackedByteArray = f["data"]
+		var bytes: PackedByteArray = file_rec["data"]
 		var first: int = chain[0] if not chain.is_empty() else EMPTY_FILE_CLUSTER
 		_put_slot(out, sb, dir_chain, i + FIRST_SAVE_SLOT, _new_entry(
-			int(f["mode"]), bytes.size(), first, String(f["name"]),
-			f["created"], f["modified"]))
+			int(file_rec["mode"]), bytes.size(), first, String(file_rec["name"]),
+			file_rec["created"], file_rec["modified"]))
 		_write_file(out, sb, chain, bytes)
 
 	var root_chain := _chain(sb, int(sb["rootdir"]))

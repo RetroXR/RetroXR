@@ -115,7 +115,7 @@ func _process(delta: float) -> void:
 ## dark WorldEnvironment, so nothing can show past the curtain and the yaw
 ## smoothing is free to lag.
 func follow(camera: XRCamera3D, origin: Node3D) -> void:
-	if camera == null or not is_instance_valid(camera):
+	if not is_instance_valid(camera):
 		return
 	_player_camera = camera
 	_player_origin = origin

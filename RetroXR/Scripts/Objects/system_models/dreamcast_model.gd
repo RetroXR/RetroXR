@@ -52,7 +52,7 @@ func _ready() -> void:
 		_glb = baked
 	else:
 		if not ResourceLoader.exists(_MODEL_PATH):
-			push_warning("DreamcastModel: %s missing — using placeholder box" % _MODEL_PATH)
+			push_warning("[DreamcastModel] %s missing — using placeholder box" % _MODEL_PATH)
 			var host := get_parent()
 			if host:
 				var body := host.get_node_or_null("SystemBody") as MeshInstance3D
@@ -61,7 +61,7 @@ func _ready() -> void:
 			return
 		var scene := load(_MODEL_PATH) as PackedScene
 		if scene == null:
-			push_warning("DreamcastModel: failed to load %s" % _MODEL_PATH)
+			push_warning("[DreamcastModel] failed to load %s" % _MODEL_PATH)
 			return
 		_glb = scene.instantiate() as Node3D
 		# MUST be "Shell" — see playstation_model.gd and has_baked_shell().
@@ -130,7 +130,7 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 		btn.set_latched_pressed(false)
 		var cap := _mesh(String(pair[1]))
 		if cap == null:
-			push_warning("DreamcastModel: %s missing from the shell" % pair[1])
+			push_warning("[DreamcastModel] %s missing from the shell" % pair[1])
 			continue
 		btn.set_button_mesh(cap)
 		btn.global_position = _mesh_center(String(pair[1]))

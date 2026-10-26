@@ -161,7 +161,7 @@ func _ensure_popout() -> DropdownPanel:
 	var host := _host_viewport()
 	if host == null:
 		return null
-	if _popout == null or not is_instance_valid(_popout):
+	if not is_instance_valid(_popout):
 		_popout = DropdownPanel.new()
 		_popout.name = "PriorityPopout"
 		_popout.options_scene = PRIORITY_2D
@@ -184,7 +184,7 @@ func _open_popout() -> bool:
 ## No 3D host: the same card, under the row. It has no ✕ there; the toggle
 ## closes it.
 func _open_inline() -> void:
-	if _inline == null or not is_instance_valid(_inline):
+	if not is_instance_valid(_inline):
 		_inline = PRIORITY_2D.instantiate() as PriorityOptions2D
 		_inline.inline = true
 		_inline.size_flags_horizontal = Control.SIZE_EXPAND_FILL

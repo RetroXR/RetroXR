@@ -90,16 +90,16 @@ func _try_host(host: String) -> bool:
 	var discover: Variant = await _get_json(base + "/discover.json")
 	if not (discover is Dictionary):
 		return false
-	var d: Dictionary = discover
-	if not d.has("LineupURL") and not d.has("DeviceID"):
+	var found: Dictionary = discover
+	if not found.has("LineupURL") and not found.has("DeviceID"):
 		return false
 
 	_host = _host_of(base)
 	_info = {
-		"name": str(d.get("FriendlyName", "HDHomeRun")),
-		"model": str(d.get("ModelNumber", "")),
-		"device_id": str(d.get("DeviceID", "")),
-		"tuners": int(d.get("TunerCount", 0)),
+		"name": str(found.get("FriendlyName", "HDHomeRun")),
+		"model": str(found.get("ModelNumber", "")),
+		"device_id": str(found.get("DeviceID", "")),
+		"tuners": int(found.get("TunerCount", 0)),
 		"host": _host,
 	}
 

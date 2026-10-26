@@ -79,22 +79,22 @@ func _process(_delta: float) -> void:
 	for sys: Node in systems:
 		var lib := sys.call("get_libretro_node") as Libretro
 		var key := sys.get_instance_id()
-		var p: Dictionary = lib.GetPacingStats()
-		var c: Dictionary = lib.LinkCost(0)
+		var pacing: Dictionary = lib.GetPacingStats()
+		var cost: Dictionary = lib.LinkCost(0)
 		var cur := {
 			"frames": int(lib.GetFrameCount()),
-			"run": float(p.get("run_ms", 0.0)),
-			"sleep": float(p.get("brake_sleep_ms", 0.0)),
-			"parked": float(c.get("blocked_ms", 0.0)),
-			"adv": int(c.get("advance_calls", 0)),
-			"waits": int(c.get("advance_waits", 0)),
+			"run": float(pacing.get("run_ms", 0.0)),
+			"sleep": float(pacing.get("brake_sleep_ms", 0.0)),
+			"parked": float(cost.get("blocked_ms", 0.0)),
+			"adv": int(cost.get("advance_calls", 0)),
+			"waits": int(cost.get("advance_waits", 0)),
 		}
 		var was: Dictionary = _prev.get(key, cur)
 		_prev[key] = cur
 		var scale := 1000.0 / float(span)
 		line += " | %s f %.0f run %.0f (worst %.0f) sleep %.0f parked %.0f adv %d waits %d peers %d sink %.0f..%.0f" % [
 			_label(sys), (cur["frames"] - was["frames"]) * scale,
-			(cur["run"] - was["run"]) * scale, float(p.get("run_worst_ms", 0.0)),
+			(cur["run"] - was["run"]) * scale, float(pacing.get("run_worst_ms", 0.0)),
 			(cur["sleep"] - was["sleep"]) * scale, (cur["parked"] - was["parked"]) * scale,
 			cur["adv"] - was["adv"], cur["waits"] - was["waits"], lib.LinkPeerCount(0),
 			float(_lo.get(key, 0.0)) if _lo.has(key) else 0.0, float(_hi.get(key, 0.0))]

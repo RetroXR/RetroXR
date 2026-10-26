@@ -29,7 +29,7 @@ func _cache_meshes() -> void:
 	_anim.buttons.clear()
 	var m := _find_mesh("Button")
 	if m == null:
-		push_warning("Atari2600CX40: Button mesh not found")
+		push_warning("[Atari2600CX40] Button mesh not found")
 	else:
 		_anim.buttons.append({"node": m, "rest": m.transform,
 			"bit": FIRE_BIT, "depth": FIRE_PRESS})
@@ -42,7 +42,7 @@ func _cache_meshes() -> void:
 func _rocker(stem: String) -> Dictionary:
 	var m := _find_mesh(stem)
 	if m == null:
-		push_warning("Atari2600CX40: control mesh not found: " + stem)
+		push_warning("[Atari2600CX40] control mesh not found: " + stem)
 		return {}
 	return {"node": m, "rest": m.transform, "pivot": m.position}
 

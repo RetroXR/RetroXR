@@ -24,7 +24,7 @@
 ##            running core to fit to that port
 ##   floppy/  the PC tower's two floppy drives: a 5.25 in machine's disk and where
 ##            it seats, and a 3.5 in machine left as it was
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
@@ -38,14 +38,12 @@ const WIIMOTE_SCENE := preload("res://Scenes/Objects/controllers/wii/wiimote.tsc
 const MOTION_PLUS_SCENE := preload("res://Scenes/Objects/controllers/wii/motion_plus.tscn")
 const VMU_SCENE := preload("res://Scenes/Objects/controllers/dreamcast/vmu_card.tscn")
 
-var _checks := 0
-var _failed := 0
-var _cases_failed := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "bay"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -53,22 +51,12 @@ func _ready() -> void:
 		print("[bay] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
-	print("[bay] %d checks, %d case(s) failed" % [_checks, _cases_failed])
-	print("[bay] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 func _wait(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-		_cases_failed += 1
-	print("[bay] %s  %s" % ["PASS" if ok else "FAIL", what])
 
 
 func _want(group: String) -> bool:
@@ -98,7 +86,7 @@ func _settle_tray(sys: Node3D) -> void:
 	var still := 0
 	for i in 150:
 		await get_tree().physics_frame
-		var deg: float = rad_to_deg(sys._model._tray_pivot.rotation.x)
+		var deg: float = rad_to_deg(sys.get_model()._tray_pivot.rotation.x)
 		still = (still + 1) if is_equal_approx(deg, last) else 0
 		last = deg
 		if still >= 4 and i >= 10:
@@ -152,7 +140,7 @@ func _group_perch() -> void:
 	# up — not along the console's level front.
 	var seat := slot.snap_pose_for(cart)
 	var ghost := slot.preview_pose_for(cart)
-	var axis: Vector3 = sys._model.get_cartridge_insert_direction()
+	var axis: Vector3 = sys.get_model().get_cartridge_insert_direction()
 	var offer := ghost.origin - seat.origin
 	var along := offer.dot(axis)
 	_ok(along > 0.02, "perch/the offer is out of the machine, not into it")
@@ -208,7 +196,7 @@ func _group_tray() -> void:
 	var sys := await _console("nes", "nes")
 	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
 	var cart := await _cart("nes")
-	var model := sys._model as RetroSystemModelNES
+	var model := sys.get_model() as RetroSystemModelNES
 	var flap := model._flap_hinge as VRHinge
 	var flap_shape := flap.find_child("LidActivationBox", false, false) as CollisionShape3D
 	var lid := model._lid_mesh as MeshInstance3D
@@ -379,15 +367,15 @@ func _group_tray() -> void:
 		"tray/only the cradle's top face accepts a poke")
 
 	_ok(sys.has_push_tray_bay(), "tray/the NES bay is a push tray")
-	_ok(not sys._model.is_tray_down(), "tray/an empty bay rests up")
+	_ok(not sys.get_model().is_tray_down(), "tray/an empty bay rests up")
 
 	slot.pick_up_object(cart)
 	await _wait(40)
 	var up_pose := cart.global_transform
 	# How far the mouth points up: sin(TRAY_UP_DEG) while the tray is sprung up,
 	# nothing at all once it is home.
-	var up_axis_rise: float = sys._model.get_cartridge_insert_direction().y
-	_ok(sys._snapped_cartridge == null,
+	var up_axis_rise: float = sys.get_model().get_cartridge_insert_direction().y
+	_ok(sys.get_snapped_cartridge() == null,
 		"tray/a cart laid in is not read yet")
 	_ok(sys._tray_cartridge == cart, "tray/but the bay knows it is lying there")
 
@@ -398,9 +386,9 @@ func _group_tray() -> void:
 
 	sys.toggle_cart_tray()
 	await _settle_tray(sys)
-	var down_axis_rise: float = sys._model.get_cartridge_insert_direction().y
-	_ok(sys._model.is_tray_down(), "tray/a click pushes it home")
-	_ok(sys._snapped_cartridge == cart, "tray/and only then is it read")
+	var down_axis_rise: float = sys.get_model().get_cartridge_insert_direction().y
+	_ok(sys.get_model().is_tray_down(), "tray/a click pushes it home")
+	_ok(sys.get_snapped_cartridge() == cart, "tray/and only then is it read")
 
 	# Pushed home, the tray is LEVEL with the console — not merely "somewhere else
 	# than it was". Measured absolutely, because a cradle inverted about its own
@@ -448,8 +436,8 @@ func _group_tray() -> void:
 	sys.toggle_cart_tray()
 	await _settle_tray(sys)
 	_ok(not cart.is_clamped(), "tray/letting it up frees the cart again")
-	_ok(not sys._model.is_tray_down(), "tray/a second click lifts it")
-	_ok(sys._snapped_cartridge == null,
+	_ok(not sys.get_model().is_tray_down(), "tray/a second click lifts it")
+	_ok(sys.get_snapped_cartridge() == null,
 		"tray/lifting takes the cart off the machine")
 	_ok(slot.picked_up_object == cart, "tray/but leaves it lying in the tray")
 
@@ -623,8 +611,8 @@ func _group_restore() -> void:
 	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
 	_ok(cart.global_position.distance_to(slot.snap_pose_for(cart).origin) < 0.003,
 		"restore/a restored cart does not slide in")
-	_ok(sys._model.is_tray_down(), "restore/it comes back with the tray home")
-	_ok(sys._snapped_cartridge == cart, "restore/and the machine reading it")
+	_ok(sys.get_model().is_tray_down(), "restore/it comes back with the tray home")
+	_ok(sys.get_snapped_cartridge() == cart, "restore/and the machine reading it")
 
 	# The cradle is ALSO persisted as an articulated control, and that half of the
 	# reload runs before the media half — outside _restoring_media, writing the
@@ -633,17 +621,17 @@ func _group_restore() -> void:
 	# record is what decides whether the latch comes back at all.
 	var persistence := ScenePersistence.new()
 	var records: Array = persistence._serialize_articulated_controls(sys)
-	sys._model.lift_tray()
+	sys.get_model().lift_tray()
 	await _wait(30)
-	_ok(not sys._model.is_tray_down(), "restore/the tray lifts before the reload")
+	_ok(not sys.get_model().is_tray_down(), "restore/the tray lifts before the reload")
 	# Without a bank there is nothing to catch playing and the case below is green
 	# whatever the model does, so say so here rather than let it pass silently.
-	_ok(not sys._model._sfx_tray_down.is_empty(),
+	_ok(not sys.get_model()._sfx_tray_down.is_empty(),
 		"restore/the cradle has a tray sound that could be heard")
-	sys._model._sfx_last.erase("tray")
+	sys.get_model()._sfx_last.erase("tray")
 	persistence._restore_articulated_controls(sys, records)
-	_ok(sys._model.is_tray_down(), "restore/a saved cradle comes back latched")
-	_ok(not sys._model._sfx_last.has("tray"),
+	_ok(sys.get_model().is_tray_down(), "restore/a saved cradle comes back latched")
+	_ok(not sys.get_model()._sfx_last.has("tray"),
 		"restore/and lands without clicking the tray shut")
 	await _clear()
 
@@ -661,7 +649,7 @@ func _group_other() -> void:
 
 	slot.pick_up_object(cart)
 	await _wait(40)
-	_ok(sys._snapped_cartridge == cart,
+	_ok(sys.get_snapped_cartridge() == cart,
 		"other/a cart it takes is read straight away")
 	await _clear()
 
@@ -734,7 +722,7 @@ func _group_lid() -> void:
 		# The pose and the machine are not the whole lid: the hinge that booted
 		# latched shut has to be let go too, or the lid is drawn open with a dead
 		# grab box — no glyph, and no wheel to close it.
-		var lid: VRSpringLatchedHinge = ps._model._lid_hinge
+		var lid: VRSpringLatchedHinge = ps.get_model()._lid_hinge
 		_ok(not lid.is_latched_closed(), "lid/and its hinge is unlatched")
 		var live := false
 		for c in lid.get_children():
@@ -767,7 +755,7 @@ func _group_lid() -> void:
 	await _clear()
 	var ps_shut := await _saved_lid_room("playstation", "psx", false)
 	if ps_shut != null:
-		_ok(ps_shut._model._lid_hinge.is_latched_closed(),
+		_ok(ps_shut.get_model()._lid_hinge.is_latched_closed(),
 			"lid/a bespoke lid saved SHUT comes back latched")
 	await _clear()
 	_drop_lid_room()
@@ -1048,10 +1036,10 @@ func _group_floppy() -> void:
 
 	var sys := await _console("pc_tower", "c64")
 	var slot := sys.get_node("CartridgeSlot") as XRToolsSnapZone
-	var model := sys._model as Node3D
+	var model := sys.get_model() as Node3D
 	slot.pick_up_object(disk)
 	await _wait(40)
-	_ok(sys._snapped_cartridge == disk, "floppy/the tower takes the disk")
+	_ok(sys.get_snapped_cartridge() == disk, "floppy/the tower takes the disk")
 	var t := model.global_transform.affine_inverse() * disk.global_transform
 	_ok(t.basis.z.dot(Vector3.UP) > 0.99, "floppy/seated flat, label up")
 	_ok(t.basis.y.dot(Vector3.BACK) > 0.99, "floppy/its head window leading into the drive")
@@ -1069,7 +1057,7 @@ func _group_floppy() -> void:
 
 	var dos := await _console("pc_tower", "dos")
 	var dslot := dos.get_node("CartridgeSlot") as Node3D
-	var dseat := (dos._model as Node3D).get_node("Front/FloppySeat") as Node3D
+	var dseat := (dos.get_model() as Node3D).get_node("Front/FloppySeat") as Node3D
 	_ok(dslot.global_transform.is_equal_approx(dseat.global_transform),
 		"floppy/a DOS machine still seats in the 3.5 in drive")
 	var floppy := await _cart("dos")

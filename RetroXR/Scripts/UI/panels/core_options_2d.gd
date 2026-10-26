@@ -840,8 +840,8 @@ func _add_option_row(key: String, defn: LibretroOptionDefinition, current_val: S
 			option_changed.emit(k, v))
 
 
-func _value_label(v: LibretroOptionValue) -> String:
-	return CoreOptionRow.value_label(v)
+func _value_label(value: LibretroOptionValue) -> String:
+	return CoreOptionRow.value_label(value)
 
 
 # ── Controllers tab ────────────────────────────────────────────────────────────

@@ -7,7 +7,7 @@
 ##
 ## Exits 0 when everything passes, 1 otherwise. Writes ROM fixtures under user://
 ## and removes them at each end.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const FIXTURE := "__gbacart_selftest"
@@ -24,12 +24,11 @@ const CLEAR := [&"ruby", &"sapphire", &"emerald", &"fire_red", &"leaf_green"]
 ## The tintable model's own factor (linear 0.18 = sRGB 0.46) is far lighter.
 const PHOTOGRAPHED_CHARCOAL := Color(0.196, 0.22, 0.239)
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
 func _ready() -> void:
+	suite_tag = "gbacart"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -61,8 +60,7 @@ func _ready() -> void:
 
 	_clear_fixtures()
 	await _settle_warm()
-	print("[gbacart] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _settle_warm() -> void:
@@ -74,15 +72,6 @@ func _settle_warm() -> void:
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[gbacart] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[gbacart] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────

@@ -262,7 +262,8 @@ func power_off() -> void:
 	_stopped()
 
 
-## Why the printer cannot be switched on, or "" when it can.
+## Whether the printer can be switched on.
+## Returns "" when ok, else the reason.
 func standalone_blocker() -> String:
 	if CoreDownloadManager.installed_core_lib(CORE).is_empty():
 		return "Download it in OPTIONS > Cores > BIOS / Extras > Game Boy."
@@ -323,7 +324,7 @@ func _rejoin_lead() -> void:
 	if plug == null:
 		return
 	var cable: Object = plug.get("cable")
-	if cable != null and is_instance_valid(cable) and cable.has_method("rejoin"):
+	if is_instance_valid(cable) and cable.has_method("rejoin"):
 		cable.call("rejoin")
 
 
@@ -408,7 +409,7 @@ func _update_audio() -> void:
 				_mx.set_voice_directivity(v, SpatialAudioEmitter.SPEAKER_DIRECTIVITY)
 	if voices.is_empty() or _mx == null:
 		return
-	if _listener == null or not is_instance_valid(_listener):
+	if not is_instance_valid(_listener):
 		_listener = get_node_or_null("/root/SpatialAudioListener")
 		if _listener == null:
 			return
@@ -866,7 +867,7 @@ func _spawn_printout(path: String, lines: int) -> Poster:
 ## Into the hand that tore it, when one is free; otherwise it stays where it was
 ## torn, standing above the printer.
 func _hand_over(poster: Poster) -> void:
-	if poster == null or not is_instance_valid(poster) or NetworkManager.is_client():
+	if not is_instance_valid(poster) or NetworkManager.is_client():
 		return
 	var controller := _paper.held_by()
 	if controller != null:

@@ -90,11 +90,11 @@ func _process(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	for id: int in _ids:
-		var r: Dictionary = _rows[id]
-		if r["confirm"] > 0.0:
-			r["confirm"] = maxf(0.0, r["confirm"] - delta)
-			if r["confirm"] == 0.0:
-				_set_delete_prompt(r, false)
+		var record: Dictionary = _rows[id]
+		if record["confirm"] > 0.0:
+			record["confirm"] = maxf(0.0, record["confirm"] - delta)
+			if record["confirm"] == 0.0:
+				_set_delete_prompt(record, false)
 	_accum += delta
 	if _accum >= 1.0 / REFRESH_HZ:
 		_accum = 0.0
@@ -127,8 +127,8 @@ func refresh() -> void:
 			_rows_box.move_child(_rows[order[i]]["row"], i)
 		_ids.assign(order)
 	for id: int in _ids:
-		var r: Dictionary = _rows[id]
-		(r["dist"] as Label).text = "%.2f m" % dist[id]
+		var record: Dictionary = _rows[id]
+		(record["dist"] as Label).text = "%.2f m" % dist[id]
 	_empty_hint.visible = _ids.is_empty()
 
 
@@ -160,8 +160,8 @@ static func collect(tree: SceneTree) -> Dictionary:
 
 ## Whether `root` is the nearest "spawned" node above `p`: a plug on a lead that
 ## is snapped into some other spawned device is still the lead's.
-static func _belongs_to(p: Node, root: Node) -> bool:
-	var n := p
+static func _belongs_to(node: Node, root: Node) -> bool:
+	var n := node
 	while n != null:
 		if n == root:
 			return true
@@ -218,22 +218,22 @@ func _rebuild(order: Array, found: Dictionary) -> void:
 	_rows.clear()
 	_ids.clear()
 	for id: int in order:
-		var r: Dictionary = found[id].duplicate()
-		r["confirm"] = 0.0
-		_make_row(r)
-		_rows[id] = r
+		var record: Dictionary = found[id].duplicate()
+		record["confirm"] = 0.0
+		_make_row(record)
+		_rows[id] = record
 		_ids.append(id)
-		_rows_box.add_child(r["row"])
+		_rows_box.add_child(record["row"])
 
 
-func _make_row(r: Dictionary) -> void:
+func _make_row(record: Dictionary) -> void:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size = Vector2(0, ROW_H)
 	panel.add_theme_stylebox_override("panel", MenuStyle.rounded(MenuStyle.COLOR_SLOT_NORMAL, 6))
 	var row := MenuStyle.hbox(12)
 	panel.add_child(row)
 
-	var name_lbl := MenuStyle.label(r["name"], 22, MenuStyle.COLOR_TITLE)
+	var name_lbl := MenuStyle.label(record["name"], 22, MenuStyle.COLOR_TITLE)
 	name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_lbl.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	name_lbl.clip_text = true
@@ -247,16 +247,16 @@ func _make_row(r: Dictionary) -> void:
 	row.add_child(dist_lbl)
 
 	var locate := _row_btn("Locate", MenuStyle.COLOR_BTN_LOAD)
-	locate.pressed.connect(_on_locate.bind(r))
+	locate.pressed.connect(_on_locate.bind(record))
 	row.add_child(locate)
 
 	var del := _row_btn("Delete", MenuStyle.COLOR_BTN_CLEAR)
-	del.pressed.connect(_on_delete.bind(r))
+	del.pressed.connect(_on_delete.bind(record))
 	row.add_child(del)
 
-	r["row"] = panel
-	r["dist"] = dist_lbl
-	r["delete"] = del
+	record["row"] = panel
+	record["dist"] = dist_lbl
+	record["delete"] = del
 
 
 func _row_btn(text: String, color: Color) -> Button:
@@ -268,36 +268,36 @@ func _row_btn(text: String, color: Color) -> Button:
 	return b
 
 
-func _on_locate(r: Dictionary) -> void:
-	var pick: Node3D = r["pick"]
+func _on_locate(record: Dictionary) -> void:
+	var pick: Node3D = record["pick"]
 	if not is_instance_valid(pick):
 		return
 	var cam := _player_camera()
 	if cam == null:
-		print("[SceneObjects] no player camera to locate '%s' from" % r["name"])
+		print("[SceneObjects] no player camera to locate '%s' from" % record["name"])
 		return
-	LocateArrow.on(cam).locate(pick, r["name"])
+	LocateArrow.on(cam).locate(pick, record["name"])
 
 
-func _on_delete(r: Dictionary) -> void:
-	var pick: Node3D = r["pick"]
+func _on_delete(record: Dictionary) -> void:
+	var pick: Node3D = record["pick"]
 	if not is_instance_valid(pick) or not Trash.can_delete(pick):
-		print("[SceneObjects] '%s' can no longer be deleted" % r["name"])
+		print("[SceneObjects] '%s' can no longer be deleted" % record["name"])
 		return
-	if r["confirm"] <= 0.0:
-		r["confirm"] = DELETE_CONFIRM_SECONDS
-		_set_delete_prompt(r, true)
+	if record["confirm"] <= 0.0:
+		record["confirm"] = DELETE_CONFIRM_SECONDS
+		_set_delete_prompt(record, true)
 		return
-	r["confirm"] = 0.0
-	print("[SceneObjects] deleting '%s' at %.2f m" % [r["name"],
+	record["confirm"] = 0.0
+	print("[SceneObjects] deleting '%s' at %.2f m" % [record["name"],
 		_eye_position().distance_to(pick.global_position)])
 	# Nothing was let go of, so nothing drops: as the item menu's Delete.
 	Vanish.shrink_in_place(Trash.delete_with_dependents.bind(pick as XRToolsPickable))
 	refresh()
 
 
-func _set_delete_prompt(r: Dictionary, asking: bool) -> void:
-	var btn: Button = r["delete"]
+func _set_delete_prompt(record: Dictionary, asking: bool) -> void:
+	var btn: Button = record["delete"]
 	if not is_instance_valid(btn):
 		return
 	btn.text = "Tap again" if asking else "Delete"

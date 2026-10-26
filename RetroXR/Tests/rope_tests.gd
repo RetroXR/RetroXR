@@ -25,7 +25,7 @@
 ##
 ## Cases are laid out along X, `CASE_PITCH` apart, so no case's geometry can reach
 ## another's — the same trick `rope_stress.gd` uses.
-extends Node3D
+extends "res://Tests/test_suite.gd"
 
 const CABLE_SCENE := preload("res://Scenes/Objects/cables/cable.tscn")
 const COMPOSITE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
@@ -55,8 +55,6 @@ const STILL_MM := 0.5
 ## The corner case is the one contact measured another way — see it for why a
 ## long free-hanging span cannot be held awake without pumping it.
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 var _rope: VerletRope = null
 var _holder: Node3D = null
@@ -66,6 +64,8 @@ var _last_wait_motion := 0.0
 
 
 func _ready() -> void:
+	# Each case's detail is a measurement worth reading even when it is in range.
+	show_pass_detail = true
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.trim_prefix("--only=")
@@ -85,23 +85,13 @@ func _run() -> void:
 	await _group_loose()
 	await _group_edges()
 	await _group_budget()
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 # ── harness ───────────────────────────────────────────────────────────────────
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s%s" % [name, "  (" + detail + ")" if detail else ""])
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [name, "  — " + detail if detail else ""])
 
 
 ## A patch of world for one case, far enough along X to be its own universe.

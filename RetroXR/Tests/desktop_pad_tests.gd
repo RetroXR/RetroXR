@@ -6,16 +6,15 @@
 ## InputMap, which mouse and key events it sends, what a held device gets, which prompts it asks.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/desktop_pad_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const PAD := 7
 
-var _ran := 0
-var _fail := 0
 var _seen: Array = []
 
 
 func _ready() -> void:
+	suite_tag = "pad"
 	# The autoload sees no pad, and is kept from seeing one: a joypad event parsed below makes the
 	# engine list a device, and the autoload would then make it the player's and add its own events.
 	var auto: DesktopPadService = DesktopPad
@@ -29,17 +28,7 @@ func _ready() -> void:
 	await _prompts()
 	auto.pads_override = null
 	auto.xr_override = null
-	print("[pad] %d cases, %s" % [_ran, "PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	_ran += 1
-	if cond:
-		print("[pad] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[pad] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
+	_finish()
 
 
 ## Our own service, so the one that is the autoload (which sees no pad here) is left alone.

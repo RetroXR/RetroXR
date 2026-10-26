@@ -114,13 +114,13 @@ func _cache_meshes() -> void:
 		_add(stem, {"bit": int(FACE[stem]), "depth": PRESS_FACE})
 	for stem: String in C_BUTTONS:
 		var row: Array = C_BUTTONS[stem]
-		var e := {"depth": PRESS_C, "stick_dir": row[1] as Vector2}
+		var entry := {"depth": PRESS_C, "stick_dir": row[1] as Vector2}
 		# Omitted rather than passed as JOYPAD_NONE: ControlAnimator reads a
 		# missing "bit" as "no bit of its own", and a negative shift is not a
 		# thing GDScript defines.
 		if int(row[0]) >= 0:
-			e["bit"] = int(row[0])
-		_add(stem, e)
+			entry["bit"] = int(row[0])
+		_add(stem, entry)
 	for stem: String in SHOULDERS:
 		var row: Array = SHOULDERS[stem]
 		_add(stem, {"bit": int(row[0]), "depth": PRESS_SHOULDER, "dir": row[1] as Vector3})
@@ -141,7 +141,7 @@ func _dpad_pitch_sign() -> float:
 func _add(stem: String, entry: Dictionary) -> void:
 	var m := _find_mesh(stem)
 	if m == null:
-		push_warning("N64Controller: control mesh not found: " + stem)
+		push_warning("[N64Controller] control mesh not found: " + stem)
 		return
 	entry["node"] = m
 	entry["rest"] = m.transform
@@ -151,7 +151,7 @@ func _add(stem: String, entry: Dictionary) -> void:
 func _rocker(stem: String, drop_by: float) -> Dictionary:
 	var m := _find_mesh(stem)
 	if m == null:
-		push_warning("N64Controller: control mesh not found: " + stem)
+		push_warning("[N64Controller] control mesh not found: " + stem)
 		return {}
 	var pivot: Vector3 = _find_pivot(m, stem + "Pivot")
 	pivot.y -= drop_by

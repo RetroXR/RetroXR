@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Network/object-sync regression suite. Two complete NetworkManagers share this
 ## process but use separate SceneMultiplayer roots and real loopback ENet.
@@ -20,8 +20,6 @@ const PORT := 42917
 const GROUPS := ["registry", "snapshot", "spawn", "motion", "authority",
 	"controllers", "hinges", "events", "relay", "avatars", "playlist", "lifecycle"]
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 
 
@@ -316,6 +314,7 @@ class Pair:
 
 
 func _ready() -> void:
+	suite_tag = "object-sync"
 	get_tree().create_timer(120.0).timeout.connect(func() -> void:
 		print("[object-sync] TIMEOUT")
 		get_tree().quit(1))
@@ -331,8 +330,9 @@ func _ready() -> void:
 	if _needs_network():
 		pair = await _make_pair()
 		if pair == null:
-			print("[object-sync] %d checks, %d failure(s)" % [_ran, _fail])
-			return get_tree().quit(1)
+			# _make_pair has already recorded why, so this exits non-zero.
+			_finish()
+			return
 	if _want("snapshot"):
 		await _test_snapshot(pair)
 	if _want("spawn"):
@@ -358,9 +358,7 @@ func _ready() -> void:
 	if pair != null:
 		_free_pair(pair)
 		await _frames(5)
-	print("[object-sync] %d checks, %s" % [_ran,
-		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
+	_finish()
 
 
 func _needs_network() -> bool:
@@ -516,14 +514,14 @@ func _make_pair() -> Pair:
 
 	p.host_nm.host_game(PORT)
 	p.client_nm.join_game("::1", PORT)
-	if not await _until(func() -> bool:
+	var connected: bool = await _until(func() -> bool:
 		return p.host_nm.peers.size() == 2 and p.client_nm.peers.size() == 2 \
-			and p.client_os._registry.size() >= 2, 900):
-		_ok(false, "harness/host and client connect and apply the snapshot")
+			and p.client_os._registry.size() >= 2, 900)
+	_ok(connected, "harness/host and client connect and apply the snapshot")
+	if not connected:
 		_free_pair(p)
 		return null
 	p.client_id = _other_id(p.host_nm, 1)
-	_ok(true, "harness/host and client connect and apply the snapshot")
 	return p
 
 
@@ -1583,22 +1581,6 @@ func _until(condition: Callable, ticks := 300) -> bool:
 
 func _want(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-## `detail` is printed only on failure, for the cases where knowing HOW far off
-## it was is the difference between a real regression and a tolerance to widen.
-func _ok(condition: bool, message: String, detail: String = "") -> void:
-	_ran += 1
-	if condition:
-		print("[object-sync] ok   %s" % message)
-	else:
-		_fail += 1
-		print("[object-sync] FAIL %s%s"
-			% [message, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, message: String) -> void:
-	_ok(got == want, "%s — got %s, want %s" % [message, str(got), str(want)])
 
 
 func _num(got: float, want: float, message: String, epsilon := 0.001) -> void:

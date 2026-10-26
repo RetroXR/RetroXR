@@ -34,7 +34,7 @@ func _ready() -> void:
 	super()
 	var xr_interface := XRServer.find_interface("OpenXR")
 	if not xr_interface or not xr_interface.is_initialized():
-		push_warning("PassthroughInit: OpenXR not initialized, running in flat screen mode")
+		push_warning("[PassthroughInit] OpenXR not initialized, running in flat screen mode")
 		return
 
 	# XRInit has just set use_xr and roomscale tracking.
@@ -45,11 +45,11 @@ func _ready() -> void:
 func _enable_passthrough() -> void:
 	var xr_interface: XRInterface = XRServer.primary_interface
 	if not xr_interface:
-		push_warning("PassthroughInit: no primary XR interface")
+		push_warning("[PassthroughInit] no primary XR interface")
 		return
 
 	if not XrPassthrough.enable(_viewport):
-		push_warning("PassthroughInit: no passthrough blend mode supported — modes: %s"
+		push_warning("[PassthroughInit] no passthrough blend mode supported — modes: %s"
 			% str(xr_interface.get_supported_environment_blend_modes()))
 		return
 
@@ -72,7 +72,7 @@ func _enable_passthrough() -> void:
 		add_child(_real_room)
 	_real_room.start()
 
-	print("PassthroughInit: passthrough enabled (blend_mode=%d)" % xr_interface.environment_blend_mode)
+	print("[PassthroughInit] passthrough enabled (blend_mode=%d)" % xr_interface.environment_blend_mode)
 
 
 func _disable_passthrough() -> void:
@@ -138,7 +138,7 @@ func refresh_locomotion() -> void:
 ## covers the keyboard providers, which are inert in a headset but cost nothing to
 ## include and keep this correct if passthrough is ever reachable outside one.
 func _block_locomotion(on: bool) -> void:
-	if _loco == null or not is_instance_valid(_loco):
+	if not is_instance_valid(_loco):
 		# The manager lives on the player rig, which outlives the room scene, so
 		# it is found rather than held.
 		if not is_inside_tree():
@@ -146,7 +146,7 @@ func _block_locomotion(on: bool) -> void:
 		_loco = get_tree().root.find_child("LocomotionManager", true, false) as LocomotionManager
 	if _loco == null:
 		if on:
-			push_warning("PassthroughInit: no LocomotionManager — movement stays enabled")
+			push_warning("[PassthroughInit] no LocomotionManager — movement stays enabled")
 		return
 	_loco.set_block(LOCO_OWNER, LocomotionManager.CHANNEL_ALL, on)
 	_loco.set_block(LOCO_OWNER, LocomotionManager.CHANNEL_DESKTOP_MOVE, on)

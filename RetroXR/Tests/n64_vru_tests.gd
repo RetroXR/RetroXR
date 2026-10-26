@@ -7,16 +7,15 @@
 ##
 ## What a core does with the device it is told about needs mupen64plus-next, a
 ## speech model and a ROM, and lives in Tools/input/vru_probe.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const VRU_SCENE := preload("res://Scenes/Objects/controllers/n64/n64_vru.tscn")
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
 func _ready() -> void:
+	suite_tag = "vru"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -41,21 +40,11 @@ func _ready() -> void:
 	if _wants("persist"):
 		await _test_persist()
 
-	print("[vru] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[vru] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[vru] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 ## A unit with its cord and microphone grown, as it is one frame after spawning.

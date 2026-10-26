@@ -1062,7 +1062,7 @@ func _reset_runtime(start_frame: int) -> void:
 ## Called from retro_controller for a port plugged into `system`. Returns true if
 ## netplay consumed the input (caller must NOT drive the core directly). Offline
 ## or a non-participating system → false (unchanged local behaviour).
-func route(sys: Object, port: int, m: Dictionary) -> bool:
+func route(sys: Object, port: int, pad: Dictionary) -> bool:
 	if not _running or sys == null:
 		return false
 	var machine_index := _group.find(sys)
@@ -1078,11 +1078,11 @@ func route(sys: Object, port: int, m: Dictionary) -> bool:
 			# slot the emu thread samples (zero added latency).
 			return false
 		_pending_local_route[port] = [
-			int(m.get("btn", 0)), int(m.get("alx", 0)), int(m.get("aly", 0)),
-			int(m.get("arx", 0)), int(m.get("ary", 0))]
+			int(pad.get("btn", 0)), int(pad.get("alx", 0)), int(pad.get("aly", 0)),
+			int(pad.get("arx", 0)), int(pad.get("ary", 0))]
 		# Delta devices (mouse): their values are per-frame quantities — mark
 		# the port so _capture_local zeroes the deltas after one frame uses them.
-		if m.get("drain", false):
+		if pad.get("drain", false):
 			_drain_ports[port] = true
 	# Participating port (local or remote-owned) is driven by the gate — swallow.
 	return true
@@ -1228,7 +1228,7 @@ func queue_key_event(sys: Object, keycode: int, down: bool, character: int) -> b
 func handoff_controller(controller: Object, new_owner: int) -> void:
 	if not _nm.is_host() or not _running:
 		return
-	if controller == null or not is_instance_valid(controller):
+	if not is_instance_valid(controller):
 		return
 	var machine: Object = controller.get_connected_system()
 	var local_port: int = controller.get_port_index()
@@ -1326,9 +1326,9 @@ func _clear_port_state(port: int) -> void:
 ## Owner of `port` for a specific frame, honouring a pending (not-yet-cleared)
 ## handoff. Used by the host's accept + stall paths, which straddle the boundary.
 func _owner_for_frame(port: int, f: int) -> int:
-	var p: Dictionary = _pending.get(port, {})
-	if not p.is_empty():
-		return int(p["old"]) if f < int(p["frame"]) else int(p["new"])
+	var pend: Dictionary = _pending.get(port, {})
+	if not pend.is_empty():
+		return int(pend["old"]) if f < int(pend["frame"]) else int(pend["new"])
 	return int(_owners.get(port, -1))
 
 
@@ -1336,10 +1336,10 @@ func _owner_for_frame(port: int, f: int) -> int:
 ## _owners + _local_ports so sampling switches exactly at the agreed frame.
 func _apply_pending_transfers(f: int) -> void:
 	for port: int in _pending:
-		var p: Dictionary = _pending[port]
-		if not bool(p["applied"]) and f >= int(p["frame"]):
-			_owners[port] = int(p["new"])
-			p["applied"] = true
+		var pend: Dictionary = _pending[port]
+		if not bool(pend["applied"]) and f >= int(pend["frame"]):
+			_owners[port] = int(pend["new"])
+			pend["applied"] = true
 			_recompute_local_ports()
 
 
@@ -1601,7 +1601,7 @@ func _note_join_claim(peer_id: int, port: int) -> void:
 	join_requested.emit(peer_id, port)
 
 
-## Why this peer could not be admitted even by starting again, or "" if it could.
+## Why this peer could not be admitted even by starting again. Returns "" when ok, else the reason.
 ##
 ## Only what a restart cannot fix. Whether they hold the right pad is theirs to
 ## sort out; whether their CPU can run the same arithmetic is not.
@@ -3179,8 +3179,8 @@ func on_peer_left(peer_id: int) -> void:
 	# A pending handoff to/from the departed peer would stall the gate at its
 	# boundary (nobody supplies that port for the affected frames) — end the game.
 	for port: int in _pending:
-		var p: Dictionary = _pending[port]
-		if int(p["old"]) == peer_id or int(p["new"]) == peer_id:
+		var pend: Dictionary = _pending[port]
+		if int(pend["old"]) == peer_id or int(pend["new"]) == peer_id:
 			stop("player left")
 			return
 	# Cold-start may have been waiting on this peer's _np_ready.
@@ -3225,12 +3225,12 @@ func _crc_record(frame: int, machine_index: int, peer_id: int, crc: int) -> void
 
 
 func _check_crc(frame: int, machine_index: int) -> void:
-	var t: Dictionary = (_crc_table.get(frame, {}) as Dictionary).get(machine_index, {})
-	if t.size() < 2:
+	var crcs: Dictionary = (_crc_table.get(frame, {}) as Dictionary).get(machine_index, {})
+	if crcs.size() < 2:
 		return
-	var ref: int = t.get(1, t.values()[0])
-	for peer_id: int in t:
-		if int(t[peer_id]) != ref and peer_id != 1:
+	var ref: int = crcs.get(1, crcs.values()[0])
+	for peer_id: int in crcs:
+		if int(crcs[peer_id]) != ref and peer_id != 1:
 			_strikes[peer_id] = int(_strikes.get(peer_id, 0)) + 1
 			# Which MACHINE, not just which peer. A session can be five machines
 			# over two cores, and "somebody disagreed" does not say whether to go
@@ -3250,7 +3250,7 @@ func _check_crc(frame: int, machine_index: int) -> void:
 				# host's own CRC, so with one client "who is wrong" has no
 				# majority to answer it and naming the client would be a coin
 				# toss dressed up as a diagnosis.
-				var who := "peer %d" % peer_id if t.size() > 2 else "a peer"
+				var who := "peer %d" % peer_id if crcs.size() > 2 else "a peer"
 				stop("machines stopped agreeing at frame %d (%s)" % [frame, who])
 				return
 			if int(_strikes[peer_id]) >= CRC_STRIKES:
@@ -3326,12 +3326,12 @@ func flat_from_frame(pm: Dictionary, aux_by_port: Dictionary,
 	var flat := PackedInt32Array()
 	flat.resize(_frame_ints())
 	for port: int in pm:
-		var v: Array = pm[port]
+		var state: Array = pm[port]
 		var base := int(port) * 5
 		if base + 5 > port_ints:
 			continue
 		for i in range(5):
-			flat[base + i] = int(v[i])
+			flat[base + i] = int(state[i])
 	for machine_index in range(_machine_count()):
 		var tail := _machine_tail_offset(machine_index)
 		var keys: Array = keys_by_machine.get(machine_index, [])

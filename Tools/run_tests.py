@@ -8,10 +8,17 @@
     python Tools/run_tests.py --only rope_tests -- --only=contact
 
 Everything under RetroXR/Tests/ is a suite that checks itself, runs unattended
-with no ROM, core, headset or device, and exits non-zero on failure. That exit
-code is the contract and the only thing every suite agrees on -- the summary
-lines differ ("[test]", "[av]", "[bay]"), so the table below scrapes counts for
-readability but the verdict is always the process's status.
+with no ROM, core, headset or device, and exits non-zero on failure. Every suite
+extends RetroXR/Tests/test_suite.gd (TestSuite), whose _finish() prints ONE
+summary line in one format,
+
+    [<tag>] RESULT <passed> passed, <failed> failed: PASS|FAIL
+
+and sets the exit code from the same tally. The exit code is the verdict; the
+summary line is where the case count comes from, and that count is what the
+baseline guard compares. A suite that exits 0 without the line did not finish
+through the harness (it quit some other way), so its count is unknown and it is
+reported NOSUMMARY rather than OK.
 
 Suites run SEQUENTIALLY and never in parallel. Each one writes the player's real
 `user://` state -- prefs.json, controller_bindings.json, the arcade manifest,
@@ -82,30 +89,13 @@ NOISE = re.compile(
     re.IGNORECASE,
 )
 
-# Per-case lines. The bracket prefix varies per suite ("[test]", "[av]", "[bay]",
-# "[motion]") and so does the verdict word -- most print PASS/FAIL, netplay and
-# the suites modelled on it print a lowercase "ok".
-CASE = re.compile(r"^\[[a-z_]+\]\s+(PASS|FAIL|ok)\b", re.MULTILINE)
-
-# Four summary shapes are in use across the suites, and a fifth would be easy to
-# add by accident -- so the total and the failure count are matched separately
-# rather than as one rigid line. None of this is the verdict: a suite can print a
-# clean summary and still die on the way out (see CRASH). It is for the table.
-#
-# "N passed, M failed"           binding, card, link, romm, rope, state, system, motion
-# "N checks, M case(s) failed"   av_suite, bay
-# "N checks, M failure(s)"       object_sync (and "N checks, PASS|N FAILURE(S)")
-# "N cases, PASS|FAIL"           netplay, poster, scene, time_of_day, web_server
-SUMMARY_PASSED = re.compile(r"(\d+)\s+passed,\s*(\d+)\s+failed")
-SUMMARY_TOTAL = re.compile(r"(\d+)\s+(?:checks|cases),", re.IGNORECASE)
-# "N failed"                     firmware_digest, locomotion
-#
-# The bare form goes last because it is a suffix of the two above; the alternation
-# is ordered so "3 case(s) failed" is not read as the number 3 followed by a bare
-# "failed" it would also match. Without it those two suites' failure counts came
-# from the per-case fallback instead of from the number the suite itself printed.
-SUMMARY_FAILED = re.compile(
-    r"(\d+)\s+(?:case\(s\)\s+failed|failure\(s\)|failed)", re.IGNORECASE)
+# The one summary line TestSuite._finish() prints. Anchored on the RESULT word and
+# the closing verdict, so a case's own description can never be read as it. Before
+# the shared harness there were five shapes, scraped by three regexes and a
+# per-case fallback, and a suite that re-worded its summary silently changed the
+# count the baseline guard compared.
+SUMMARY = re.compile(
+    r"^\[[^\]\s]+\] RESULT (\d+) passed, (\d+) failed: (?:PASS|FAIL)\s*$", re.MULTILINE)
 
 
 def find_godot(explicit: str | None) -> str:
@@ -161,36 +151,20 @@ def discover() -> list[str]:
     return names
 
 
-def scrape(text: str) -> tuple[int, int]:
-    """Best-effort (checks, failures) for the table. Never the verdict.
+def scrape(text: str) -> tuple[int, int] | None:
+    """(checks, failures) from the suite's summary line, or None without one.
 
-    A crashing suite loses whatever stdout was still buffered, so these numbers
-    can be short or missing entirely for exactly the runs you most want to read.
-    That is why the verdict is the exit status and this is only decoration.
+    A crashing suite can lose whatever stdout was still buffered, so the line can
+    be missing for exactly the runs you most want to read; the verdict is still
+    the exit status. The LAST line wins, though a suite prints it once.
     """
-    def last(pattern: re.Pattern[str]) -> re.Match[str] | None:
-        found = None
-        for found in pattern.finditer(text):
-            pass  # the LAST summary line is the whole-run one
-        return found
-
-    if (m := last(SUMMARY_PASSED)) is not None:
-        passed, failed = int(m.group(1)), int(m.group(2))
-        return passed + failed, failed
-
-    cases_seen = CASE.findall(text)
-    counted_failures = sum(1 for c in cases_seen if c == "FAIL")
-
-    if (m := last(SUMMARY_TOTAL)) is not None:
-        total = int(m.group(1))
-        # Some of these shapes print a verdict word instead of a number
-        # ("N cases, PASS"), so fall back to counting the per-case lines.
-        f = last(SUMMARY_FAILED)
-        return total, int(f.group(1)) if f else counted_failures
-
-    if cases_seen:
-        return len(cases_seen), counted_failures
-    return 0, 0
+    found = None
+    for found in SUMMARY.finditer(text):
+        pass
+    if found is None:
+        return None
+    passed, failed = int(found.group(1)), int(found.group(2))
+    return passed + failed, failed
 
 
 BASELINE = Path(__file__).resolve().parent / "test_baseline.json"
@@ -302,9 +276,14 @@ def run_one(godot: str, name: str, timeout: int, extra: list[str]) -> tuple[str,
 
     secs = time.time() - started
     clean = "\n".join(ln for ln in out.splitlines() if not NOISE.search(ln))
-    checks, failures = scrape(clean)
+    summary = scrape(clean)
+    checks, failures = summary if summary is not None else (0, 0)
 
     status = verdict(code, timed_out)
+    # Exit 0 and no summary line: the suite quit without going through
+    # TestSuite._finish(), so the count the baseline guards is unknown.
+    if status == "OK" and summary is None:
+        status = "NOSUMMARY"
     if timed_out:
         print(f"    TIMEOUT after {timeout}s", flush=True)
     else:

@@ -7,18 +7,17 @@
 ## that layout fails this suite rather than the search quietly finding nothing.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/game_search_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- a case that never RAN is
 ## not a case that passed.
 const EXPECTED_CASES := 106
 
-var _passed := 0
-var _failed := 0
 var _root := ""
 
 
 func _ready() -> void:
+	suite_tag = "gsearch"
 	get_tree().create_timer(30.0).timeout.connect(func() -> void:
 		push_error("[gsearch] TIMEOUT")
 		get_tree().quit(1))
@@ -37,23 +36,8 @@ func _ready() -> void:
 	_group_search_all()
 
 	_wipe(_root)
-	_eq(_passed + _failed, EXPECTED_CASES, "suite/every case ran")
-	print("[gsearch] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[gsearch] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[gsearch] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[gsearch] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [str(got), str(want)])
+	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
+	_finish()
 
 
 # ── aliases ──────────────────────────────────────────────────────────────────
@@ -203,6 +187,10 @@ func _group_cart_fallback() -> void:
 ## Every `_page("Title")` call makes a whole new tab, so a second call with the same
 ## title does not add to the page, it adds a duplicate that Godot renames
 ## "@ScrollContainer@NNNN" (a builder for the Systems page did exactly that).
+##
+## Read from the source on purpose: building the real pages means building the
+## spawn menu's widgets, whose Viewport2Din3D hangs a headless run, so the calls
+## that make the tabs are the only handle a suite has on them.
 func _group_options_pages() -> void:
 	var src := FileAccess.get_file_as_string("res://Scripts/UI/spawn_menu/views/options_view.gd")
 	var seen := {}

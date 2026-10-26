@@ -7,7 +7,7 @@
 ##
 ## Exits 0 when everything passes, 1 otherwise. Writes ROM fixtures under user://
 ## and removes them at each end.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const FIXTURE := "__snescart_selftest"
@@ -29,12 +29,11 @@ const MODEL_SIZE := Vector3(0.1355, 0.087, 0.02015)
 const COPYRIGHT_RECT := Rect2i(896, 30, 376, 43)
 const MODEL_NO_RECT := Rect2i(578, 30, 292, 43)
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
 func _ready() -> void:
+	suite_tag = "snescart"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -66,8 +65,7 @@ func _ready() -> void:
 
 	_clear_fixtures()
 	await _settle_warm()
-	print("[snescart] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _settle_warm() -> void:
@@ -79,15 +77,6 @@ func _settle_warm() -> void:
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[snescart] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[snescart] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────

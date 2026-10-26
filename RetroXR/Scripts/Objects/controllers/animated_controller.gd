@@ -174,10 +174,10 @@ func _process(delta: float) -> void:
 	if not _got_input:             # not plugged/held → relax to rest
 		# A pad plugged into nothing still gives under a finger: the cap moves,
 		# there is just no core to tell.
-		var s: Dictionary = _poke.poll() if _poke != null else {}
-		_cur_btn = int(s.get("btn", 0))
-		_cur_lstick = s.get("lstick", Vector2.ZERO)
-		_cur_rstick = s.get("rstick", Vector2.ZERO)
+		var poke_state: Dictionary = _poke.poll() if _poke != null else {}
+		_cur_btn = int(poke_state.get("btn", 0))
+		_cur_lstick = poke_state.get("lstick", Vector2.ZERO)
+		_cur_rstick = poke_state.get("rstick", Vector2.ZERO)
 	_animate(delta)
 
 

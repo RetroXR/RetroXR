@@ -14,15 +14,14 @@
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/spawn_menu_tests.tscn
 ##   "$godot" --headless --path RetroXR res://Tests/spawn_menu_tests.tscn -- --only=filter
-extends Node
+extends "res://Tests/test_suite.gd"
 
-var _passed := 0
-var _failed := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "menu"
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr("--only=".length())
@@ -60,27 +59,15 @@ func _ready() -> void:
 	for n: Node in _spawned:
 		if is_instance_valid(n):
 			n.queue_free()
-	print("[menu] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[menu] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 # ── Harness ───────────────────────────────────────────────────────────────────
 
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if not (_only.is_empty() or what.begins_with(_only)):
-		return
-	if cond:
-		_passed += 1
-		print("[menu] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[menu] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
-
+## Group filter on the check's own name. TestSuite._ok asks it, so a check
+## outside the --only group is neither run nor counted.
+func _wanted(what: String) -> bool:
+	return _only.is_empty() or what.begins_with(_only)
 
 # ── local_counts/ — a tile with no RomM badge still says what is on the device ─
 
@@ -1245,12 +1232,12 @@ func _group_trash() -> void:
 	hand.held = true
 	await _trash_settle()
 	_ok(bin.is_armed(), "trash/a held object over the bin arms it")
-	await get_tree().create_timer(0.5).timeout
+	await _wait_until(func() -> bool: return bin.lid_openness() > 0.95, 3.0)
 	_ok(bin.lid_openness() > 0.95, "trash/and the lid swings open", str(bin.lid_openness()))
 	hand.global_position = away
 	await _trash_settle()
 	_ok(not bin.is_armed(), "trash/carried out again it disarms")
-	await get_tree().create_timer(0.5).timeout
+	await _wait_until(func() -> bool: return bin.lid_openness() < 0.05, 3.0)
 	_ok(bin.lid_openness() < 0.05, "trash/and the lid shuts", str(bin.lid_openness()))
 	hand.held = false
 	await _trash_settle()
@@ -1273,7 +1260,7 @@ func _group_trash() -> void:
 		"trash/it shrinks into the can's mouth rather than falling",
 		str(hand.global_position - mouth.global_position) if is_instance_valid(hand) else "freed")
 	_eq(Vanish._exit, Vanish.Exit.FALL, "trash/and other deletes fall as before")
-	await get_tree().create_timer(1.0).timeout
+	await _wait_until(func() -> bool: return bin.lid_openness() < 0.05, 5.0)
 	_ok(bin.lid_openness() < 0.05, "trash/then shuts", str(bin.lid_openness()))
 
 	var laser := _RayStub.new()

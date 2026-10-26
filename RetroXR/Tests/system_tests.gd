@@ -28,7 +28,7 @@
 ##   - `attach_expanded_controller` (a multitap sub-port) announces the raw
 ##     device type, skipping `core_device_id`, so a gun on a multitap is a
 ##     gamepad to fceumm until the next core start re-announces it.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 
 ## A systemid no console has, so seeding a default core for it cannot shadow one
@@ -111,9 +111,6 @@ const DEVICE_MOUSE := 2
 const DEVICE_KEYBOARD := 3
 const DEVICE_LIGHTGUN := 4
 
-var _pass := 0
-var _fail := 0
-
 
 func _ready() -> void:
 	# A test scene must never hang a headless run.
@@ -168,8 +165,7 @@ func _ready() -> void:
 	_test_port_unwrap()
 
 	await _settle()
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 ## Release the machines this suite built and let the AudioServer reclaim their
@@ -192,19 +188,6 @@ func _settle() -> void:
 		child.queue_free()
 	for _i in range(60):
 		await get_tree().process_frame
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, test_name: String) -> void:
-	_ok(got == want, test_name, "got %s, want %s" % [str(got), str(want)])
 
 
 ## A bare instance: never added to the tree, so `_ready()` never runs and no
@@ -895,8 +878,8 @@ func _test_seated_content() -> void:
 	# Nothing seated: the file on disk is all there is to go on.
 	_eq(sys.content_label(), "Duck Hunt (World)", "content/label falls back to the file")
 	_eq(sys.resolve_systemid(), "nes", "content/system falls back to the machine")
-	_eq(sys._memcards._sram_slot(), "", "content/no cart means no save slot")
-	_eq(sys._memcards._compose_sram_path("fceumm"), "", "content/no cart means no save path")
+	_eq(sys.memcards()._sram_slot(), "", "content/no cart means no save slot")
+	_eq(sys.memcards()._compose_sram_path("fceumm"), "", "content/no cart means no save path")
 
 	var cart := FakeSeated.new()
 	cart.game_label = "Duck Hunt"
@@ -908,8 +891,8 @@ func _test_seated_content() -> void:
 	# A Famicom Disk System disc in a NES: the disc decides, because that is what
 	# picks the core and the save location.
 	_eq(sys.resolve_systemid(), "fds", "content/cart names the system")
-	_eq(sys._memcards._sram_slot(), "dh-001", "content/cart names the save slot")
-	_ok(not sys._memcards._compose_sram_path("fceumm").is_empty(), "content/cart has a save path")
+	_eq(sys.memcards()._sram_slot(), "dh-001", "content/cart names the save slot")
+	_ok(not sys.memcards()._compose_sram_path("fceumm").is_empty(), "content/cart has a save path")
 
 	# A blank label is not a label — the file name is better than an empty plate.
 	cart.game_label = ""
@@ -919,9 +902,9 @@ func _test_seated_content() -> void:
 
 	# No core resolved and no ROM are both "nothing to persist", not a path built
 	# out of empty strings.
-	_eq(sys._memcards._compose_sram_path(""), "", "content/no core means no save path")
+	_eq(sys.memcards()._compose_sram_path(""), "", "content/no core means no save path")
 	sys.rom_path = ""
-	_eq(sys._memcards._compose_sram_path("fceumm"), "", "content/no rom means no save path")
+	_eq(sys.memcards()._compose_sram_path("fceumm"), "", "content/no rom means no save path")
 
 	cart.free()
 	sys.free()
@@ -2147,7 +2130,7 @@ func _test_memcard_presence() -> void:
 
 	# A card seated before the machine starts.
 	var card := Node3D.new()
-	psx._memcards._snapped_memcards[0] = card
+	psx.memcards()._snapped_memcards[0] = card
 	var seated := psx._removable_media_options("pcsx_rearmed")
 	_eq(seated.get("pcsx_rearmed_memcard1", ""),
 		"libretro", "memcard/a seated card types the slot")
@@ -2162,8 +2145,8 @@ func _test_memcard_presence() -> void:
 
 	# The second slot alone, which is the arrangement that cannot pass by
 	# accident: slot 1 must go absent while slot 2 goes live.
-	psx._memcards._snapped_memcards[0] = null
-	psx._memcards._snapped_memcards[1] = card
+	psx.memcards()._snapped_memcards[0] = null
+	psx.memcards()._snapped_memcards[1] = card
 	var second := psx._removable_media_options("pcsx_rearmed")
 	_eq(second.get("pcsx_rearmed_memcard2", ""),
 		"libretro", "memcard/a card in slot 2 types slot 2")
@@ -2171,7 +2154,7 @@ func _test_memcard_presence() -> void:
 		"enabled", "memcard/and is reported present")
 	_eq(second.get("pcsx_rearmed_memcard1", ""),
 		"none", "memcard/while slot 1 is absent")
-	psx._memcards._snapped_memcards[1] = null
+	psx.memcards()._snapped_memcards[1] = null
 
 	# Only pcsx_rearmed has these keys, and only a machine that takes cards has a
 	# slot. Pinning them anywhere else would write keys into another core's file.
@@ -2186,7 +2169,7 @@ func _test_memcard_presence() -> void:
 	# The runtime half. It reaches for the live core, so on a machine that is not
 	# running it must do nothing at all rather than fault -- which is also what
 	# guards the case where the option arrives before a core exists to take it.
-	psx._memcards._set_card_presence(0, false)
+	psx.memcards()._set_card_presence(0, false)
 	_ok(not psx.is_powered_on, "memcard/presence on a machine that is off does nothing")
 
 	# A GameCube shows TWO slots, and takes a different family of card. The
@@ -2470,10 +2453,10 @@ func _test_save_state_gates() -> void:
 	_ok(bool(sys.capture_gate()["ok"]),
 		"state/a running machine with a game can capture", str(sys.capture_gate()))
 
-	sys._save_state._capture_id = "__in_flight"
+	sys.save_states()._capture_id = "__in_flight"
 	_eq(str(sys.capture_gate()["reason"]),
 		"a save state is already being written", "state/one capture at a time")
-	sys._save_state._capture_id = ""
+	sys.save_states()._capture_id = ""
 
 	# A core that answered "I cannot serialize" is remembered STATICALLY, because
 	# it is a property of the core and not of this cabinet. Put it back after.
@@ -2516,14 +2499,14 @@ func _test_save_state_gates() -> void:
 	# In-flight wins over everything else, so a second press cannot start a
 	# second read over the top of the first.
 	loads.clear()
-	sys._save_state._load_id = "__already_loading"
+	sys.save_states()._load_id = "__already_loading"
 	sys.load_state("second-press")
 	_eq(loads.size(), 1, "state/one load at a time")
 	_eq(str((loads[0] as Array)[0]),
 		"second-press", "state/and the second press is the one refused")
 	_eq(str((loads[0] as Array)[2]),
 		"a save state is already loading", "state/for the right reason")
-	sys._save_state._load_id = ""
+	sys.save_states()._load_id = ""
 
 	sys.queue_free()
 	await get_tree().process_frame
@@ -2560,45 +2543,45 @@ func _test_sram_paths() -> void:
 	# A core with no game and no card, or a game with no core, has nowhere to put
 	# a save and must say so rather than guess.
 	psx.rom_path = ""
-	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
+	_eq(psx.memcards()._compose_sram_path("pcsx_rearmed"),
 		"", "sram/no game and no card means no save file")
 	psx.rom_path = "/nonexistent/__sram_selftest.bin"
-	_eq(psx._memcards._compose_sram_path(""),
+	_eq(psx.memcards()._compose_sram_path(""),
 		"", "sram/no core means no save file either")
 
 	# A machine that takes cards saves to the CARD, keyed on the card's own id
 	# and family -- not on the game. That is what lets one card carry saves for
 	# several games and follow the player between machines.
-	psx._memcards._snapped_memcards[0] = null
-	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
+	psx.memcards()._snapped_memcards[0] = null
+	_eq(psx.memcards()._compose_sram_path("pcsx_rearmed"),
 		"", "sram/a card machine with an empty slot has nowhere to write")
 
 	var card := _StubCard.new()
 	card.card_id = "__sram_selftest_card"
 	card.family = "playstation"
 	add_child(card)
-	psx._memcards._snapped_memcards[0] = card
-	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
+	psx.memcards()._snapped_memcards[0] = card
+	_eq(psx.memcards()._compose_sram_path("pcsx_rearmed"),
 		SramPaths.card_save_path("playstation", "__sram_selftest_card"),
 		"sram/a seated card is where the save goes")
-	_eq(psx._memcards.rtc_path_for_run("pcsx_rearmed"), "",
+	_eq(psx.memcards().rtc_path_for_run("pcsx_rearmed"), "",
 		"rtc/a card machine keeps no clock")
 	# And it does not depend on the game: the same card under a different ROM
 	# is the same file, which is the whole point of a memory card.
 	psx.rom_path = "/nonexistent/__a_different_game.bin"
-	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
+	_eq(psx.memcards()._compose_sram_path("pcsx_rearmed"),
 		SramPaths.card_save_path("playstation", "__sram_selftest_card"),
 		"sram/the same card backs a different game")
 	# Or no game at all: a BIOS run with an empty drive still has the card in its
 	# slot, and the BIOS's own card manager reads it.
 	psx.rom_path = ""
-	_eq(psx._memcards._compose_sram_path("pcsx_rearmed"),
+	_eq(psx.memcards()._compose_sram_path("pcsx_rearmed"),
 		SramPaths.card_save_path("playstation", "__sram_selftest_card"),
 		"sram/and backs a BIOS run with nothing in the drive")
-	_eq(psx._memcards._compose_sram_path(""),
+	_eq(psx.memcards()._compose_sram_path(""),
 		"", "sram/but still not a run with no core")
 
-	psx._memcards._snapped_memcards[0] = null
+	psx.memcards()._snapped_memcards[0] = null
 	card.queue_free()
 	psx.queue_free()
 
@@ -2611,26 +2594,26 @@ func _test_sram_paths() -> void:
 	for i in range(20):
 		await get_tree().process_frame
 	nes.rom_path = "/nonexistent/__sram_selftest.nes"
-	_eq(nes._memcards._compose_sram_path("fceumm"),
+	_eq(nes.memcards()._compose_sram_path("fceumm"),
 		"", "sram/a cartridge machine with no cartridge has nowhere to write")
 
 	var cart := _StubCart.new()
 	cart.save_id = "__sram_selftest_cart"
 	add_child(cart)
 	nes._snapped_cartridge = cart
-	_eq(nes._memcards._compose_sram_path("fceumm"),
+	_eq(nes.memcards()._compose_sram_path("fceumm"),
 		SramPaths.cart_save_path("nes", "fceumm", "/nonexistent/__sram_selftest.nes",
 			"__sram_selftest_cart"),
 		"sram/a seated cartridge saves against its system and rom")
 	# Unlike a card, this one DOES move with the game.
-	_ok(nes._memcards._compose_sram_path("fceumm")
+	_ok(nes.memcards()._compose_sram_path("fceumm")
 			!= SramPaths.cart_save_path("nes", "fceumm", "/other.nes", "__sram_selftest_cart"),
 		"sram/and a different rom is a different file")
 	# SAVE_RAM is the cartridge's battery on every core that runs the system, so a
 	# change of core must not strand it.
-	_eq(nes._memcards._compose_sram_path("mesen"), nes._memcards._compose_sram_path("fceumm"),
+	_eq(nes.memcards()._compose_sram_path("mesen"), nes.memcards()._compose_sram_path("fceumm"),
 		"sram/one cartridge is one save file on every core")
-	_ok(nes._memcards._compose_sram_path("fceumm").begins_with(SramPaths.carts_root().path_join("nes")),
+	_ok(nes.memcards()._compose_sram_path("fceumm").begins_with(SramPaths.carts_root().path_join("nes")),
 		"sram/filed under save/carts/<systemid>")
 
 	# Read-only fallback: a battery the migration left at its per-core path is
@@ -2639,7 +2622,7 @@ func _test_sram_paths() -> void:
 		.path_join("__sram_selftest_legacy.srm")
 	_write_scratch(legacy)
 	cart.save_id = "__sram_selftest_legacy"
-	_eq(nes._memcards._compose_sram_path("fceumm"), legacy,
+	_eq(nes.memcards()._compose_sram_path("fceumm"), legacy,
 		"sram/a save left at its per-core path is still found")
 	_ok(FileAccess.file_exists(legacy), "sram/and finding it moves nothing")
 	_remove_scratch(legacy)
@@ -2648,7 +2631,7 @@ func _test_sram_paths() -> void:
 		.path_join("__sram_selftest").path_join("__sram_selftest_elsewhere.srm")
 	_write_scratch(elsewhere)
 	cart.save_id = "__sram_selftest_elsewhere"
-	_eq(nes._memcards._compose_sram_path("fceumm"), elsewhere,
+	_eq(nes.memcards()._compose_sram_path("fceumm"), elsewhere,
 		"sram/a save filed under another system is found by its save_id")
 	_remove_scratch(elsewhere, 2)
 
@@ -2668,10 +2651,10 @@ func _test_sram_paths() -> void:
 	n64_cart.save_id = "__sram_selftest_n64"
 	add_child(n64_cart)
 	n64._snapped_cartridge = n64_cart
-	_ok(n64._memcards._compose_sram_path("parallel_n64")
-			!= n64._memcards._compose_sram_path("mupen64plus_next"),
+	_ok(n64.memcards()._compose_sram_path("parallel_n64")
+			!= n64.memcards()._compose_sram_path("mupen64plus_next"),
 		"sram/an N64 cartridge keeps a save per core")
-	_ok(n64._memcards._compose_sram_path("mupen64plus_next")
+	_ok(n64.memcards()._compose_sram_path("mupen64plus_next")
 			.begins_with(SramPaths.core_save_dir("mupen64plus_next")),
 		"sram/under that core's own save directory")
 	n64._snapped_cartridge = null
@@ -2694,24 +2677,24 @@ func _test_sram_paths() -> void:
 	gb._snapped_cartridge = gb_cart
 	var pak := TransferPak.new()
 	pak._cart = gb_cart
-	_eq(pak.cart_save_path("mupen64plus_next"), gb._memcards._compose_sram_path("sameboy"),
+	_eq(pak.cart_save_path("mupen64plus_next"), gb.memcards()._compose_sram_path("sameboy"),
 		"sram/a Transfer Pak reads the save a Game Boy wrote")
 	# But the clock is the N64 core's own: its layout is not sameboy's.
 	_eq(pak.cart_rtc_path("mupen64plus_next"),
 		SramPaths.rtc_path(pak.cart_save_path("mupen64plus_next"), "mupen64plus_next"),
 		"rtc/a Transfer Pak keeps the cartridge's clock beside its battery")
-	_ok(pak.cart_rtc_path("mupen64plus_next") != gb._memcards.rtc_path_for_run("sameboy"),
+	_ok(pak.cart_rtc_path("mupen64plus_next") != gb.memcards().rtc_path_for_run("sameboy"),
 		"rtc/under the N64 core, apart from a Game Boy's clock")
 	pak.free()
 
 	# The battery is one file for every core; the clock is one per core, because
 	# each core lays its clock out its own way.
-	var battery: String = gb._memcards._compose_sram_path("sameboy")
-	_eq(gb._memcards.rtc_path_for_run("sameboy"), SramPaths.rtc_path(battery, "sameboy"),
+	var battery: String = gb.memcards()._compose_sram_path("sameboy")
+	_eq(gb.memcards().rtc_path_for_run("sameboy"), SramPaths.rtc_path(battery, "sameboy"),
 		"rtc/a cartridge's clock sits beside its battery")
-	_ok(gb._memcards.rtc_path_for_run("sameboy").ends_with("__sram_selftest_gb.sameboy.rtc"),
+	_ok(gb.memcards().rtc_path_for_run("sameboy").ends_with("__sram_selftest_gb.sameboy.rtc"),
 		"rtc/named <save_id>.<core>.rtc")
-	_ok(gb._memcards.rtc_path_for_run("sameboy") != gb._memcards.rtc_path_for_run("gambatte"),
+	_ok(gb.memcards().rtc_path_for_run("sameboy") != gb.memcards().rtc_path_for_run("gambatte"),
 		"rtc/and each core keeps its own")
 	_eq(SramPaths.rtc_path("", "sameboy"), "", "rtc/no battery, no clock")
 	gb._snapped_cartridge = null

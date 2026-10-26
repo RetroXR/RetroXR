@@ -16,14 +16,12 @@
 ## the pictures are BUILT here and decoded back. That is a stronger check anyway:
 ## a fixture proves the decoder still does what it did, a round trip proves it
 ## does the right thing.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself.
 const EXPECTED_CASES := 672
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
@@ -76,29 +74,13 @@ func _ready() -> void:
 	# Bump this when adding cases; a mismatch means either that, or a case that
 	# vanished, and both are worth stopping for.
 	if _only.is_empty():
-		_eq(_pass + _fail, EXPECTED_CASES, "suite/every case ran")
+		_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
 
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
-func _group(name: String) -> bool:
+func _wanted(name: String) -> bool:
 	return _only.is_empty() or name.begins_with(_only)
-
-
-func _ok(cond: bool, test_name: String, detail := "") -> void:
-	if not _group(test_name):
-		return
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, test_name: String) -> void:
-	_ok(got == want, test_name, "got %s, want %s" % [got, want])
 
 
 # --- The registry -------------------------------------------------------------
@@ -972,7 +954,7 @@ func _test_ops() -> void:
 ## _test_registry above already pins the pairwise invariants. These three are
 ## what it does not reach.
 func _test_format_registry() -> void:
-	if not _group("registry"):
+	if not _wanted("registry"):
 		return
 
 	# The pairwise checks above compare the two families we ship. This one holds
@@ -1474,7 +1456,7 @@ func _scd_listing(files: Array[Dictionary]) -> String:
 
 
 func _test_format_contract() -> void:
-	if not _group("contract"):
+	if not _wanted("contract"):
 		return
 
 	var ps: CardFormat = CardFormats.for_family("playstation")
@@ -1537,7 +1519,7 @@ func _unique(items: Array) -> Array:
 ## Every fixture is built here rather than shipped: a real image is a copyrighted
 ## disc, and the bytes that matter are a few dozen.
 func _test_ps1_disc() -> void:
-	if not _group("disc"):
+	if not _wanted("disc"):
 		return
 
 	var dir := OS.get_user_data_dir().path_join("__ps1disc_selftest")

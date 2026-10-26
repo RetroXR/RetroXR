@@ -7,7 +7,7 @@
 ## registered here and dropped at the end; no slot of the player's is touched.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/mod_room_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const EXPECTED_CASES := 28
 
@@ -16,9 +16,6 @@ const SLOT_ROOM := "t.modroom:attic"
 const PLAIN_ROOM := "t.modroom:hall"
 ## Any scene that exists does; register_mod_room only checks the path loads.
 const SCENE := "res://Scenes/DenScene.tscn"
-
-var _pass := 0
-var _fail := 0
 
 
 ## A lamp a GROUP gang drives: anything with set_lit().
@@ -32,6 +29,7 @@ class Lamp extends Node:
 
 
 func _ready() -> void:
+	suite_tag = "modroom"
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		push_error("[modroom] TIMEOUT")
 		get_tree().quit(1))
@@ -41,10 +39,8 @@ func _ready() -> void:
 	_group_scene_tab()
 
 	RoomCatalog.drop_mod(OWNER)
-	_eq(_pass + _fail, EXPECTED_CASES, "suite/every case ran")
-	print("[modroom] %d checks, %d failed" % [_pass + _fail, _fail])
-	print("[modroom] RESULT=%s" % ("PASS" if _fail == 0 else "FAIL"))
-	get_tree().quit(1 if _fail > 0 else 0)
+	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
+	_finish()
 
 
 # ── slots/ ────────────────────────────────────────────────────────────────────
@@ -190,15 +186,3 @@ func _title_of(card: Node) -> String:
 
 # ── assertions ────────────────────────────────────────────────────────────────
 
-func _ok(cond: bool, name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[modroom] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[modroom] FAIL  %s%s" % [name,
-			"  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])

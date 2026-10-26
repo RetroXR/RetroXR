@@ -228,10 +228,10 @@ func fetch_terms(callback: Callable) -> void:
 
 ## {text, agree, disagree, links: Array of {text, url}}. The REQUIRED links come
 ## first; the wording of both buttons is mod.io's, with plain defaults.
-static func parse_terms(d: Dictionary) -> Dictionary:
-	var buttons := _dict(d.get("buttons"))
+static func parse_terms(body: Dictionary) -> Dictionary:
+	var buttons := _dict(body.get("buttons"))
 	var links: Array[Dictionary] = []
-	var raw := _dict(d.get("links"))
+	var raw := _dict(body.get("links"))
 	for required: bool in [true, false]:
 		for key: Variant in raw:
 			var link := _dict(raw[key])
@@ -243,7 +243,7 @@ static func parse_terms(d: Dictionary) -> Dictionary:
 	var agree := str(_dict(buttons.get("agree")).get("text", ""))
 	var disagree := str(_dict(buttons.get("disagree")).get("text", ""))
 	return {
-		"text": str(d.get("plaintext", "")).strip_edges(),
+		"text": str(body.get("plaintext", "")).strip_edges(),
 		"agree": agree if not agree.is_empty() else "I Agree",
 		"disagree": disagree if not disagree.is_empty() else "No, Thanks",
 		"links": links,
@@ -315,23 +315,23 @@ static func members_path(collection_id: int, offset: int, limit: int,
 
 
 ## mod.io's Mod Collection object, reduced the way parse_mod reduces a mod.
-static func parse_collection(d: Dictionary) -> Dictionary:
-	var logo: Dictionary = _dict(d.get("logo"))
-	var stats: Dictionary = _dict(d.get("stats"))
-	var by: Dictionary = _dict(d.get("submitted_by"))
+static func parse_collection(raw: Dictionary) -> Dictionary:
+	var logo: Dictionary = _dict(raw.get("logo"))
+	var stats: Dictionary = _dict(raw.get("stats"))
+	var by: Dictionary = _dict(raw.get("submitted_by"))
 	return {
-		"id": int(d.get("id", 0)),
-		"name": str(d.get("name", "")),
-		"summary": str(d.get("summary", "")),
+		"id": int(raw.get("id", 0)),
+		"name": str(raw.get("name", "")),
+		"summary": str(raw.get("summary", "")),
 		"author": str(by.get("username", "")),
-		"profile_url": str(d.get("profile_url", "")),
+		"profile_url": str(raw.get("profile_url", "")),
 		"logo_small": str(logo.get("thumb_320x180", "")),
 		"logo_large": str(logo.get("thumb_640x360", "")),
-		"file_size": int(d.get("filesize", 0)),
+		"file_size": int(raw.get("filesize", 0)),
 		"downloads": int(stats.get("downloads_total", 0)),
-		"date_updated": int(d.get("date_updated", 0)),
+		"date_updated": int(raw.get("date_updated", 0)),
 		# mod.io's own flag for a pack with a member that is no longer available.
-		"incomplete": int(d.get("incomplete", 0)) != 0,
+		"incomplete": int(raw.get("incomplete", 0)) != 0,
 	}
 
 
@@ -341,30 +341,30 @@ static func parse_collection(d: Dictionary) -> Dictionary:
 ##
 ## `file_id` is 0 for a mod with no file to download yet -- a page somebody has
 ## made and not uploaded to -- and the tile says so instead of offering one.
-static func parse_mod(d: Dictionary) -> Dictionary:
-	var logo: Dictionary = _dict(d.get("logo"))
-	var file: Dictionary = _dict(d.get("modfile"))
+static func parse_mod(raw: Dictionary) -> Dictionary:
+	var logo: Dictionary = _dict(raw.get("logo"))
+	var file: Dictionary = _dict(raw.get("modfile"))
 	var file_hash: Dictionary = _dict(file.get("filehash"))
 	var download: Dictionary = _dict(file.get("download"))
-	var stats: Dictionary = _dict(d.get("stats"))
-	var by: Dictionary = _dict(d.get("submitted_by"))
+	var stats: Dictionary = _dict(raw.get("stats"))
+	var by: Dictionary = _dict(raw.get("submitted_by"))
 	var tags := PackedStringArray()
-	if d.get("tags") is Array:
-		for tag: Variant in (d["tags"] as Array):
+	if raw.get("tags") is Array:
+		for tag: Variant in (raw["tags"] as Array):
 			if tag is Dictionary and not str((tag as Dictionary).get("name", "")).is_empty():
 				tags.append(str((tag as Dictionary)["name"]))
 	return {
-		"id": int(d.get("id", 0)),
-		"name": str(d.get("name", "")),
-		"summary": str(d.get("summary", "")),
+		"id": int(raw.get("id", 0)),
+		"name": str(raw.get("name", "")),
+		"summary": str(raw.get("summary", "")),
 		"author": str(by.get("username", "")),
-		"profile_url": str(d.get("profile_url", "")),
+		"profile_url": str(raw.get("profile_url", "")),
 		"logo_small": str(logo.get("thumb_320x180", "")),
 		"logo_large": str(logo.get("thumb_640x360", "")),
 		"tags": tags,
 		"downloads": int(stats.get("downloads_total", 0)),
 		"rating": str(stats.get("ratings_display_text", "")),
-		"date_updated": int(d.get("date_updated", 0)),
+		"date_updated": int(raw.get("date_updated", 0)),
 		"file_id": int(file.get("id", 0)),
 		"file_name": str(file.get("filename", "")),
 		"file_size": int(file.get("filesize", 0)),
@@ -374,12 +374,12 @@ static func parse_mod(d: Dictionary) -> Dictionary:
 		"virus_status": int(file.get("virus_status", 0)),
 		"virus_positive": int(file.get("virus_positive", 0)),
 		# Whether it needs other mods (list_dependencies says which).
-		"dependencies": d.get("dependencies") is bool and bool(d["dependencies"]),
+		"dependencies": raw.get("dependencies") is bool and bool(raw["dependencies"]),
 	}
 
 
-## "" when mod.io's scan of this mod's file finished and found nothing, else the
-## sentence a player is shown instead of a download. A file that was never
+## Whether mod.io's scan of this mod's file finished and found nothing.
+## Returns "" when ok, else the reason. The reason is the sentence a player is shown instead of a download. A file that was never
 ## scanned is refused with the rest: the scan is the one check this game cannot
 ## make for itself.
 static func scan_problem(mod: Dictionary) -> String:

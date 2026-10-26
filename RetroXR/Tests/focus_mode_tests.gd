@@ -5,7 +5,7 @@
 ##
 ## The hands, pointers and pickups are stand-ins answering the names FocusMode and
 ## FocusScreen read; the devices are real.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
@@ -26,8 +26,6 @@ const PLUG_SRC := "extends Node3D\nvar controller: Node3D = null\nfunc get_contr
 const LEAD_SRC := "extends Node3D\nvar bus: Array = []\nfunc linked_machines() -> Array: return bus\n"
 const LINK_PLUG_SRC := "extends Node3D\nvar cable: Node3D = null\n"
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 
 var _rig: Node3D
@@ -50,16 +48,7 @@ func _ready() -> void:
 		print("[test] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
-	print("[test] %d checks, %d failures" % [_checks, _failed])
-	print("[test] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[test] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _want(group: String) -> bool:

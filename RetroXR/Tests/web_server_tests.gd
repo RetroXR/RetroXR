@@ -26,10 +26,8 @@
 ## The `upload/` group does write, because staging is the property under test and
 ## it cannot be observed anywhere but the filesystem. It confines itself to a
 ## __web_selftest folder under the media root and removes it at both ends.
-extends Node
+extends "res://Tests/test_suite.gd"
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 var _srv: WebFileServer = null
@@ -72,8 +70,7 @@ func _ready() -> void:
 		_test_upload_interrupted_keeps_the_original()
 
 	_cleanup()
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _wants(group: String) -> bool:
@@ -84,19 +81,6 @@ func _cleanup() -> void:
 	if is_instance_valid(_srv):
 		_srv.free()
 		_srv = null
-
-
-func _ok(cond: bool, name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 ## Asserts a URL path resolves to nothing at all. The failure detail prints what

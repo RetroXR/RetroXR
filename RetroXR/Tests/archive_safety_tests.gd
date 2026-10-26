@@ -13,7 +13,7 @@
 ## harmless segment by segment and simplifies to an escape.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/archive_safety_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
@@ -25,8 +25,6 @@ extends Node
 ## cores_data_tests found it again.
 const EXPECTED_CASES := 27
 
-var _passed := 0
-var _failed := 0
 
 ## A single backslash, built rather than escaped: a Windows-built archive uses
 ## them as separators and a checker that only understands "/" would pass
@@ -35,6 +33,7 @@ var _bs := char(92)
 
 
 func _ready() -> void:
+	suite_tag = "archsafe"
 	get_tree().create_timer(30.0).timeout.connect(func() -> void:
 		push_error("[archsafe] TIMEOUT")
 		get_tree().quit(1))
@@ -43,24 +42,9 @@ func _ready() -> void:
 	_group_allowed()
 	_group_links()
 
-	_eq(_passed + _failed, EXPECTED_CASES, "suite/every case ran")
+	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
 
-	print("[archsafe] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[archsafe] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[archsafe] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[archsafe] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
+	_finish()
 
 
 ## "" is the refusal, so every one of these must come back empty.

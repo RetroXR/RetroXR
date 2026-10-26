@@ -13,15 +13,13 @@
 ## the one that was off, and gives a cover to a slot a save from before covers
 ## never named -- whether the slot is built as the object enters the room (a mod's
 ## hook) or after the restore's second pass (a shell that loads late).
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const PAK_SCENE := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
 const SOCKET := "test_battery"
 const SIZE := Vector3(0.056, 0.0015, 0.035)
 const SEAT := Transform3D(Basis.IDENTITY, Vector3(0.0, -0.012, 0.01))
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 ## Set while a test wants every Rumble Pak that enters the tree to get its slot
 ## at once, as a mod's hook would build it.
@@ -29,6 +27,7 @@ var _build_on_enter := false
 
 
 func _ready() -> void:
+	suite_tag = "covers"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -47,21 +46,11 @@ func _ready() -> void:
 		await _test_restore(false)
 	if _want("shell"):
 		await _test_shell_cover()
-	print("[covers] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _want(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, msg: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[covers] PASS  ", msg)
-	else:
-		_fail += 1
-		print("[covers] FAIL  ", msg, ("  (" + detail + ")") if not detail.is_empty() else "")
 
 
 func _wait(frames: int) -> void:

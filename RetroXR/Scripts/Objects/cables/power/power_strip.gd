@@ -224,10 +224,10 @@ func carried_body_pose() -> Dictionary:
 func restore_carried_body(data: Dictionary) -> void:
 	if not is_instance_valid(_body) or data.is_empty():
 		return
-	var p: Array = data.get("position", [])
-	var r: Array = data.get("rotation", [])
-	if p.size() == 3:
-		_body.global_position = Vector3(p[0], p[1], p[2])
-	if r.size() == 3:
-		_body.global_rotation_degrees = Vector3(r[0], r[1], r[2])
+	var pos: Array = data.get("position", [])
+	var rot: Array = data.get("rotation", [])
+	if pos.size() == 3:
+		_body.global_position = Vector3(pos[0], pos[1], pos[2])
+	if rot.size() == 3:
+		_body.global_rotation_degrees = Vector3(rot[0], rot[1], rot[2])
 	call_deferred("_build_rope")

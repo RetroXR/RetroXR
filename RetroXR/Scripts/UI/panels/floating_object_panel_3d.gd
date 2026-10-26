@@ -120,9 +120,9 @@ static func clearance_lift(page: PackedVector3Array, subject: AABB, clearance: f
 	return maxf(0.0, subject.end.y + clearance - bottom)
 
 
-func _page_corners(v: XRToolsViewport2DIn3D) -> PackedVector3Array:
-	var h := v.screen_size * 0.5
-	var c := v.position
+func _page_corners(viewport: XRToolsViewport2DIn3D) -> PackedVector3Array:
+	var h := viewport.screen_size * 0.5
+	var c := viewport.position
 	var out := PackedVector3Array()
 	for s: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
 		out.append(global_transform * (c + Vector3(h.x * s.x, h.y * s.y, 0.0)))
@@ -173,8 +173,8 @@ func _subject_world_box(target: Node3D) -> AABB:
 	return target.global_transform * _subject_box
 
 
-static func _not_the_object(n: Node, stop: Node) -> bool:
-	var p := n.get_parent()
+static func _not_the_object(node: Node, stop: Node) -> bool:
+	var p := node.get_parent()
 	while p != null and p != stop:
 		if p is FloatingObjectPanel3D or p is PickableHighlight or p is WidgetOutline:
 			return true
@@ -231,7 +231,7 @@ func _float_height() -> float:
 ## a fixed distance from its origin.
 func _anchor() -> Vector3:
 	var target := _target_node()
-	if target == null or not is_instance_valid(target):
+	if not is_instance_valid(target):
 		return global_position
 	return target.global_position + Vector3(0, _float_height(), 0)
 
@@ -298,14 +298,14 @@ func _ensure_lock_row() -> void:
 
 func _on_lock_toggled(pressed: bool) -> void:
 	var target := _target_node()
-	if target == null or not is_instance_valid(target):
+	if not is_instance_valid(target):
 		return
 	ObjectLock.set_locked(target, pressed)
 	_refresh_lock_row()
 
 
 func _refresh_lock_row() -> void:
-	if _lock_btn == null or not is_instance_valid(_lock_btn):
+	if not is_instance_valid(_lock_btn):
 		return
 	var locked := ObjectLock.is_locked(_target_node())
 	if int(locked) == _lock_drawn:
@@ -383,7 +383,7 @@ func _tick_delete_prompt(delta: float) -> void:
 
 
 func _set_delete_prompt(asking: bool) -> void:
-	if _delete_btn == null or not is_instance_valid(_delete_btn):
+	if not is_instance_valid(_delete_btn):
 		return
 	_delete_btn.text = "%s  %s" % [String.chr(MenuIcons.DELETE),
 		"Tap again to delete" if asking else "Delete"]
@@ -454,14 +454,14 @@ func _grow_page(px: float) -> bool:
 ## The quad and the collision box come out of the packed scene SHARED between
 ## every panel instance, so they are made unique before anything writes a size.
 ## Writing screen_size without that resizes every other open menu's screen too.
-func _own_screen_resources(v: XRToolsViewport2DIn3D) -> void:
+func _own_screen_resources(viewport: XRToolsViewport2DIn3D) -> void:
 	if _screen_owned:
 		return
 	_screen_owned = true
-	var screen := v.get_node_or_null("Screen") as MeshInstance3D
+	var screen := viewport.get_node_or_null("Screen") as MeshInstance3D
 	if screen != null and screen.mesh != null:
 		screen.mesh = screen.mesh.duplicate()
-	var shape := v.get_node_or_null("StaticBody3D/CollisionShape3D") as CollisionShape3D
+	var shape := viewport.get_node_or_null("StaticBody3D/CollisionShape3D") as CollisionShape3D
 	if shape != null and shape.shape != null:
 		shape.shape = shape.shape.duplicate()
 

@@ -9,12 +9,10 @@
 ## is derived from the systemid and cannot be pointed elsewhere -- and removes it
 ## at both ends. It also touches the player's real scraper_config.json for the
 ## round-trip case, snapshotting it first.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const TEST_SYSTEM := "__scrape_selftest"
 
-var _checks := 0
-var _fail := 0
 var _only := ""
 
 var _config: ScraperConfig = null
@@ -94,8 +92,7 @@ func _ready() -> void:
 	await _run_group("config", _group_config)
 	await _run_group("priority", _group_priority)
 	_teardown()
-	print("[test] %d checks, %d failures" % [_checks, _fail])
-	get_tree().quit(1 if _fail else 0)
+	_finish()
 
 
 func _run_group(name: String, fn: Callable) -> void:
@@ -103,13 +100,6 @@ func _run_group(name: String, fn: Callable) -> void:
 		return
 	print("[test] --- %s ---" % name)
 	await fn.call()
-
-
-func _check(ok: bool, label: String) -> void:
-	_checks += 1
-	if not ok:
-		_fail += 1
-	print("[test] %s %s" % ["PASS" if ok else "FAIL", label])
 
 
 func _frames(n: int) -> void:
@@ -221,20 +211,20 @@ func _group_userinfo() -> void:
 		"id": "tester", "niveau": "3", "maxthreads": "4", "requeststoday": "120",
 		"maxrequestsperday": "20000", "maxrequestspermin": "300",
 	})
-	_check(info["maxthreads"] == 4, "maxthreads read from a string")
-	_check(info["requeststoday"] == 120 and info["maxrequestsperday"] == 20000,
+	_ok(info["maxthreads"] == 4, "maxthreads read from a string")
+	_ok(info["requeststoday"] == 120 and info["maxrequestsperday"] == 20000,
 		"usage counters read from strings")
-	_check(info["niveau"] == 3, "level read from a string")
-	_check(info["anonymous"] == false, "an account is not anonymous")
+	_ok(info["niveau"] == 3, "level read from a string")
+	_ok(info["anonymous"] == false, "an account is not anonymous")
 
 	var anon := ScreenscraperClient.parse_user_info({})
-	_check(anon["maxthreads"] == 1, "no ssuser means one thread")
-	_check(anon["anonymous"] == true, "no ssuser is anonymous")
-	_check(ScreenscraperClient.parse_user_info({"maxthreads": "0"})["maxthreads"] == 1,
+	_ok(anon["maxthreads"] == 1, "no ssuser means one thread")
+	_ok(anon["anonymous"] == true, "no ssuser is anonymous")
+	_ok(ScreenscraperClient.parse_user_info({"maxthreads": "0"})["maxthreads"] == 1,
 		"maxthreads 0 reads as one")
-	_check(ScreenscraperClient.parse_user_info({"maxthreads": "-3"})["maxthreads"] == 1,
+	_ok(ScreenscraperClient.parse_user_info({"maxthreads": "-3"})["maxthreads"] == 1,
 		"negative maxthreads reads as one")
-	_check(ScreenscraperClient.parse_user_info({"requeststoday": "abc"})["requeststoday"] == 0,
+	_ok(ScreenscraperClient.parse_user_info({"requeststoday": "abc"})["requeststoday"] == 0,
 		"a non-number counter reads as zero")
 
 	# A real client with no credentials answers at once, with no request.
@@ -244,9 +234,9 @@ func _group_userinfo() -> void:
 	var got: Array = []
 	client.user_info_received.connect(func(i: Dictionary) -> void: got.append(i))
 	client.fetch_user_info()
-	_check(got.size() == 1 and got[0]["maxthreads"] == 1 and got[0]["anonymous"],
+	_ok(got.size() == 1 and got[0]["maxthreads"] == 1 and got[0]["anonymous"],
 		"anonymous fetch_user_info answers one thread without a request")
-	_check(client.get_child_count() == 0, "anonymous fetch_user_info makes no HTTPRequest")
+	_ok(client.get_child_count() == 0, "anonymous fetch_user_info makes no HTTPRequest")
 	client.free()
 
 
@@ -256,34 +246,34 @@ func _group_queue() -> void:
 	var q := _queue(false)
 	var a := _rom("a.bin")
 	var b := _rom("b.bin")
-	_check(not q.enqueue("", TEST_SYSTEM), "empty path refused")
-	_check(not q.enqueue(a, ""), "empty systemid refused")
-	_check(q.enqueue(a, TEST_SYSTEM), "first enqueue accepted")
-	_check(not q.enqueue(a, TEST_SYSTEM), "same path refused while queued or running")
-	_check(q.is_queued(a), "is_queued sees it")
-	_check(q.is_busy(), "busy with one item")
-	_check(q.enqueue(b, TEST_SYSTEM, {"tag": ScrapeQueue.TAG_AUTO}), "second enqueue accepted")
+	_ok(not q.enqueue("", TEST_SYSTEM), "empty path refused")
+	_ok(not q.enqueue(a, ""), "empty systemid refused")
+	_ok(q.enqueue(a, TEST_SYSTEM), "first enqueue accepted")
+	_ok(not q.enqueue(a, TEST_SYSTEM), "same path refused while queued or running")
+	_ok(q.is_queued(a), "is_queued sees it")
+	_ok(q.is_busy(), "busy with one item")
+	_ok(q.enqueue(b, TEST_SYSTEM, {"tag": ScrapeQueue.TAG_AUTO}), "second enqueue accepted")
 	await _until_held(1)
-	_check(q.active_count() == 1 and q.waiting_count() == 1, "one runs, one waits, anonymous")
-	_check(q.waiting_count(ScrapeQueue.TAG_AUTO) == 1 and q.waiting_count(ScrapeQueue.TAG_MANUAL) == 0,
+	_ok(q.active_count() == 1 and q.waiting_count() == 1, "one runs, one waits, anonymous")
+	_ok(q.waiting_count(ScrapeQueue.TAG_AUTO) == 1 and q.waiting_count(ScrapeQueue.TAG_MANUAL) == 0,
 		"waiting_count filters by tag")
-	_check(q.active_count(ScrapeQueue.TAG_MANUAL) == 1, "active_count filters by tag")
-	_check(_info_client() == null, "signed out: the allowance is never asked for")
+	_ok(q.active_count(ScrapeQueue.TAG_MANUAL) == 1, "active_count filters by tag")
+	_ok(_info_client() == null, "signed out: the allowance is never asked for")
 	q.cancel_all(ScrapeQueue.TAG_MANUAL)
-	_check(q.waiting_count() == 1, "cancel by tag leaves the other tag waiting")
+	_ok(q.waiting_count() == 1, "cancel by tag leaves the other tag waiting")
 	q.cancel_all()
-	_check(q.waiting_count() == 0 and q.active_count() == 1,
+	_ok(q.waiting_count() == 0 and q.active_count() == 1,
 		"cancel_all drops what waits and not what runs")
 	_client_for(a).resolve(a, _result("A"))
 	await _frames(3)
-	_check(not q.is_busy(), "idle once the running item finishes")
+	_ok(not q.is_busy(), "idle once the running item finishes")
 
 	var full := _queue(false)
 	var accepted := 0
 	for i in range(ScrapeQueue.MAX_QUEUE + 5):
 		if full.enqueue("/nowhere/rom%d.bin" % i, TEST_SYSTEM):
 			accepted += 1
-	_check(accepted == ScrapeQueue.MAX_QUEUE + 1,
+	_ok(accepted == ScrapeQueue.MAX_QUEUE + 1,
 		"queue holds MAX_QUEUE waiting plus the one running")
 	full.cancel_all()
 	await _frames(3)
@@ -301,36 +291,36 @@ func _group_threads() -> void:
 		q.enqueue(roms[i], TEST_SYSTEM)
 	await _until_held(1)
 	await _frames(3)
-	_check(q.thread_count() == 1, "one thread until the account answers")
-	_check(q.active_count() == 1 and q.waiting_count() == 4, "one runs while the allowance is unknown")
+	_ok(q.thread_count() == 1, "one thread until the account answers")
+	_ok(q.active_count() == 1 and q.waiting_count() == 4, "one runs while the allowance is unknown")
 	var info_c := _info_client()
-	_check(info_c != null and info_c.info_calls == 1, "signed in: the allowance was asked for once")
+	_ok(info_c != null and info_c.info_calls == 1, "signed in: the allowance was asked for once")
 
 	var changes: Array = []
 	q.threads_changed.connect(func(n: int) -> void: changes.append(n))
 	info_c.user_info_received.emit(ScreenscraperClient.parse_user_info({"maxthreads": "3"}))
 	await _until_held(3)
 	await _frames(2)
-	_check(q.thread_count() == 3 and changes == [3], "allowance of three applied and announced")
-	_check(q.active_count() == 3 and q.waiting_count() == 2, "three run at once, two wait")
+	_ok(q.thread_count() == 3 and changes == [3], "allowance of three applied and announced")
+	_ok(q.active_count() == 3 and q.waiting_count() == 2, "three run at once, two wait")
 
 	# A scrape answer carries the allowance too; narrowing it stops the queue
 	# handing the next item to a worker that is now surplus.
 	_client_for(roms[0]).resolve(roms[0], _result("T0", {"ssuser": {"maxthreads": "2"}}))
 	await _frames(4)
-	_check(q.thread_count() == 2, "an answer's ssuser narrows the allowance")
-	_check(q.active_count() == 2 and q.waiting_count() == 2,
+	_ok(q.thread_count() == 2, "an answer's ssuser narrows the allowance")
+	_ok(q.active_count() == 2 and q.waiting_count() == 2,
 		"no new item starts while two already run under an allowance of two")
 
 	info_c.user_info_received.emit(ScreenscraperClient.parse_user_info({"maxthreads": "50"}))
 	await _frames(2)
-	_check(q.thread_count() == ScrapeQueue.MAX_THREADS, "allowance clamped to MAX_THREADS")
+	_ok(q.thread_count() == ScrapeQueue.MAX_THREADS, "allowance clamped to MAX_THREADS")
 	await _until_held(4)
-	_check(q.active_count() == 4 and q.waiting_count() == 0, "widening starts everything waiting")
+	_ok(q.active_count() == 4 and q.waiting_count() == 0, "widening starts everything waiting")
 
 	# Credentials changed: asked again on refresh, not otherwise.
 	q.refresh_threads()
-	_check(info_c.info_calls == 2, "refresh_threads asks the account again")
+	_ok(info_c.info_calls == 2, "refresh_threads asks the account again")
 	q.cancel_all()
 	for r: String in roms:
 		var c := _client_for(r)
@@ -356,30 +346,30 @@ func _group_results() -> void:
 	await _until_held(1)
 	_client_for(a).resolve(a, _result("Accepted Game"))
 	await _frames(4)
-	_check(done.size() == 1 and done[0][2] == true, "an ordinary item completes as accepted")
+	_ok(done.size() == 1 and done[0][2] == true, "an ordinary item completes as accepted")
 	var fresh := GamelistManager.new()
 	var game := fresh.get_game_for_rom(TEST_SYSTEM, a)
-	_check(str(game.get("name", "")) == "Accepted Game", "accepted result is in the gamelist on disk")
-	_check(not ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, a), "needs_scrape is false once scraped")
-	_check(drained == [[1, 0]], "drained reports one done")
+	_ok(str(game.get("name", "")) == "Accepted Game", "accepted result is in the gamelist on disk")
+	_ok(not ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, a), "needs_scrape is false once scraped")
+	_ok(drained == [[1, 0]], "drained reports one done")
 
 	q.enqueue(b, TEST_SYSTEM, {"review": true})
 	await _until_held(1)
 	_client_for(b).resolve(b, _result("Review Game"))
 	await _frames(4)
-	_check(done.size() == 2 and done[1][2] == false and done[1][1] == "Review Game",
+	_ok(done.size() == 2 and done[1][2] == false and done[1][1] == "Review Game",
 		"a review item hands its result back unaccepted")
 	fresh = GamelistManager.new()
-	_check(fresh.get_game_for_rom(TEST_SYSTEM, b).is_empty(), "a review result is not written")
-	_check(ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, b), "needs_scrape stays true for it")
-	_check(ScrapeQueue.needs_scrape(null, TEST_SYSTEM, b), "needs_scrape with no gamelist says yes")
+	_ok(fresh.get_game_for_rom(TEST_SYSTEM, b).is_empty(), "a review result is not written")
+	_ok(ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, b), "needs_scrape stays true for it")
+	_ok(ScrapeQueue.needs_scrape(null, TEST_SYSTEM, b), "needs_scrape with no gamelist says yes")
 
 	# "Scrape all" over a page holding a scraped game, an unscraped one, a
 	# blank row and one already waiting: only the unscraped one is taken.
 	var c := _rom("r_waiting.bin")
 	q.enqueue(c, TEST_SYSTEM)
 	var pick := q.select_unscraped(TEST_SYSTEM, [a, b, "", c])
-	_check(pick["paths"] == [b] and pick["skipped"] == 1,
+	_ok(pick["paths"] == [b] and pick["skipped"] == 1,
 		"select_unscraped takes the unscraped ROM, skips the scraped one and the one queued")
 	q.cancel_all()
 	await _until_held(1)
@@ -391,8 +381,8 @@ func _group_results() -> void:
 	q.failed.connect(func(rom: String, _sid: String, err: String) -> void: failures.append([rom, err]))
 	q.enqueue(missing, TEST_SYSTEM)
 	await _frames(6)
-	_check(failures.size() == 1 and failures[0][0] == missing, "a file that cannot be hashed fails")
-	_check(drained.size() == 4 and drained.back() == [0, 1], "drained reports the failure")
+	_ok(failures.size() == 1 and failures[0][0] == missing, "a file that cannot be hashed fails")
+	_ok(drained.size() == 4 and drained.back() == [0, 1], "drained reports the failure")
 	q.free()
 
 
@@ -404,7 +394,7 @@ func _group_scraped() -> void:
 	var download := {"game_id": "romm:41", "name": "Server Name", "desc": ""}
 	_gamelist.add_or_merge_rom(TEST_SYSTEM, download.duplicate(),
 		{"path": "./s_romm.bin", "romname": "s_romm.bin"})
-	_check(ScrapeQueue.needs_scrape(_gamelist, TEST_SYSTEM, rom),
+	_ok(ScrapeQueue.needs_scrape(_gamelist, TEST_SYSTEM, rom),
 		"a game only the RomM downloader has named still needs a scrape")
 
 	q.enqueue(rom, TEST_SYSTEM)
@@ -413,22 +403,22 @@ func _group_scraped() -> void:
 	await _frames(4)
 	var fresh := GamelistManager.new()
 	var game := fresh.get_game_for_rom(TEST_SYSTEM, rom)
-	_check(str(game.get("game_id", "")) == "romm:41" and bool(game.get("scraped", false)),
+	_ok(str(game.get("game_id", "")) == "romm:41" and bool(game.get("scraped", false)),
 		"a scrape over a RomM entry keeps the RomM id and flags it scraped")
-	_check(not ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, rom),
+	_ok(not ScrapeQueue.needs_scrape(fresh, TEST_SYSTEM, rom),
 		"a scraped RomM entry needs no scrape though the answer had no description")
 	fresh.add_or_merge_rom(TEST_SYSTEM, download.duplicate(),
 		{"path": "./s_romm.bin", "romname": "s_romm.bin"})
-	_check(ScrapeQueue.is_scraped(fresh.get_game_for_rom(TEST_SYSTEM, rom)),
+	_ok(ScrapeQueue.is_scraped(fresh.get_game_for_rom(TEST_SYSTEM, rom)),
 		"downloading it again leaves it scraped")
 
-	_check(ScrapeQueue.is_scraped({"game_id": "5405", "name": "Banjo-Kazooie"}),
+	_ok(ScrapeQueue.is_scraped({"game_id": "5405", "name": "Banjo-Kazooie"}),
 		"an unflagged entry with a ScreenScraper id counts as scraped")
-	_check(ScrapeQueue.is_scraped({"game_id": "romm:79835", "name": "Rayman 2",
+	_ok(ScrapeQueue.is_scraped({"game_id": "romm:79835", "name": "Rayman 2",
 		"desc": "Enter a massive 3-D action adventure."}),
 		"an unflagged RomM entry with a description counts as scraped")
-	_check(not ScrapeQueue.is_scraped({"game_id": "9", "name": ""}), "an unnamed entry is not scraped")
-	_check(not ScrapeQueue.is_scraped({}), "no entry is not scraped")
+	_ok(not ScrapeQueue.is_scraped({"game_id": "9", "name": ""}), "an unnamed entry is not scraped")
+	_ok(not ScrapeQueue.is_scraped({}), "no entry is not scraped")
 
 	var split := _rom("s_split.bin")
 	var gl := GamelistManager.new()
@@ -439,7 +429,7 @@ func _group_scraped() -> void:
 		"roms": [{"path": "./s_split.bin", "romname": "s_split.bin"}]})
 	gl.dedupe(TEST_SYSTEM)
 	var folded := gl.get_game_for_rom(TEST_SYSTEM, split)
-	_check(str(folded.get("game_id", "")) == "romm:88" and bool(folded.get("scraped", false)),
+	_ok(str(folded.get("game_id", "")) == "romm:88" and bool(folded.get("scraped", false)),
 		"dedupe keeps the scraped flag of the entry it folds away")
 
 	var first := _rom("s_first.bin")
@@ -451,16 +441,16 @@ func _group_scraped() -> void:
 	later.add_or_merge_rom(TEST_SYSTEM, {"game_id": "romm:42", "name": "Server Name", "desc": ""},
 		{"path": "./s_first.bin", "romname": "s_first.bin"})
 	var adopted := later.get_game_for_rom(TEST_SYSTEM, first)
-	_check(str(adopted.get("game_id", "")) == "romm:42" and ScrapeQueue.is_scraped(adopted),
+	_ok(str(adopted.get("game_id", "")) == "romm:42" and ScrapeQueue.is_scraped(adopted),
 		"a game scraped before RomM downloads it stays scraped under the RomM id")
 
 	var twice := _rom("s_twice.bin")
 	var pick := q.select_unscraped(TEST_SYSTEM, [rom, rom, twice, twice])
-	_check(pick["paths"] == [twice] and pick["skipped"] == 1,
+	_ok(pick["paths"] == [twice] and pick["skipped"] == 1,
 		"select_unscraped takes or skips a path several rows share once")
 
 	var symbols: Font = load(MenuIcons.FONT_PATH)
-	_check(symbols != null and symbols.has_char(MenuIcons.RESCRAPE),
+	_ok(symbols != null and symbols.has_char(MenuIcons.RESCRAPE),
 		"the rescrape glyph is in the bundled symbol font")
 	q.free()
 
@@ -481,14 +471,14 @@ func _group_media() -> void:
 	c.media_types = ["wheel", "label"]
 	c.resolve(a, _result("First"))
 	await _frames(4)
-	_check(q.active_count() == 1 and not c.holds(b), "the worker waits for its art before the next game")
+	_ok(q.active_count() == 1 and not c.holds(b), "the worker waits for its art before the next game")
 	c.finish_media("wheel", "/w.png")
 	await _frames(2)
-	_check(c.held.is_empty(), "one of two transfers landing is not enough")
+	_ok(c.held.is_empty(), "one of two transfers landing is not enough")
 	c.finish_media("label", "/l.png")
 	await _until_held(1)
-	_check(c.holds(b), "the next game starts once every transfer has landed")
-	_check(media.size() == 2 and media[0][0] == a and media[0][2] == "wheel"
+	_ok(c.holds(b), "the next game starts once every transfer has landed")
+	_ok(media.size() == 2 and media[0][0] == a and media[0][2] == "wheel"
 		and media[1][2] == "label" and media[0][1] == TEST_SYSTEM,
 		"media_downloaded names the ROM the art belongs to")
 	c.media_types = []
@@ -514,12 +504,12 @@ func _group_quota() -> void:
 	await _until_held(1)
 	_client_for(roms[0]).refuse(roms[0], "Daily scrape quota exceeded")
 	await _frames(3)
-	_check(failures.size() == 3, "a quota refusal fails the running item and everything waiting")
-	_check(failures[1][1] == "Daily scrape quota exceeded" and failures[2][0] == roms[2],
+	_ok(failures.size() == 3, "a quota refusal fails the running item and everything waiting")
+	_ok(failures[1][1] == "Daily scrape quota exceeded" and failures[2][0] == roms[2],
 		"the dropped items carry the quota as their reason")
-	_check(stops == ["Daily scrape quota exceeded"], "stopped emitted once")
-	_check(drained == [[0, 3]], "drained counts the three failures")
-	_check(not q.is_busy(), "queue is idle after a quota stop")
+	_ok(stops == ["Daily scrape quota exceeded"], "stopped emitted once")
+	_ok(drained == [[0, 3]], "drained counts the three failures")
+	_ok(not q.is_busy(), "queue is idle after a quota stop")
 
 	# The same stop from the account's own counters, before a single refusal.
 	var q2 := _queue(true)
@@ -533,9 +523,9 @@ func _group_quota() -> void:
 	_info_client().user_info_received.emit(ScreenscraperClient.parse_user_info({
 		"maxthreads": "2", "requeststoday": "500", "maxrequestsperday": "500"}))
 	await _frames(2)
-	_check(stops2.size() == 1 and q2.waiting_count() == 0,
+	_ok(stops2.size() == 1 and q2.waiting_count() == 0,
 		"an account already at its daily limit drops what waits")
-	_check(q2.active_count() == 1, "what was already running is left to finish")
+	_ok(q2.active_count() == 1, "what was already running is left to finish")
 	_client_for(x).refuse(x, "Not found")
 	await _frames(3)
 	q.free()
@@ -551,39 +541,39 @@ func _group_auto() -> void:
 	auto.setup(q, _gamelist, _config)
 	var a := _rom("auto_a.bin")
 	_config.auto_scrape = false
-	_check(not auto.is_enabled(), "switch off: auto-scraping is off")
+	_ok(not auto.is_enabled(), "switch off: auto-scraping is off")
 	auto.request(a, TEST_SYSTEM)
-	_check(not q.is_queued(a), "a request while off queues nothing")
+	_ok(not q.is_queued(a), "a request while off queues nothing")
 
 	_config.auto_scrape = true
-	_check(auto.is_enabled(), "switch on with no credentials: it runs anonymously")
+	_ok(auto.is_enabled(), "switch on with no credentials: it runs anonymously")
 	auto.request("", TEST_SYSTEM)
 	auto.request(a, "")
 	auto.request(RomLibrary.rom_dir_for_system(TEST_SYSTEM).path_join("ghost.bin"), TEST_SYSTEM)
-	_check(not q.is_busy(), "empty args and a missing file queue nothing")
+	_ok(not q.is_busy(), "empty args and a missing file queue nothing")
 
 	# A ROM the gamelist already names is left alone.
 	_gamelist.add_or_merge_rom(TEST_SYSTEM, {"game_id": "9", "name": "Known"},
 		{"path": "./auto_known.bin", "romname": "auto_known.bin"})
 	var known := _rom("auto_known.bin")
-	_check(auto.already_scraped(known, TEST_SYSTEM), "already_scraped reads the gamelist")
+	_ok(auto.already_scraped(known, TEST_SYSTEM), "already_scraped reads the gamelist")
 	auto.request(known, TEST_SYSTEM)
-	_check(not q.is_queued(known), "a scraped ROM is not requested again")
+	_ok(not q.is_queued(known), "a scraped ROM is not requested again")
 
 	var scraped: Array = []
 	auto.scraped.connect(func(rom: String, _sid: String) -> void: scraped.append(rom))
 	auto.request(a, TEST_SYSTEM)
-	_check(q.is_queued(a) and q.active_count(ScrapeQueue.TAG_AUTO) + q.waiting_count(ScrapeQueue.TAG_AUTO) == 1,
+	_ok(q.is_queued(a) and q.active_count(ScrapeQueue.TAG_AUTO) + q.waiting_count(ScrapeQueue.TAG_AUTO) == 1,
 		"a request is queued under the auto tag")
-	_check(auto.queued_count() == 1, "queued_count counts it")
+	_ok(auto.queued_count() == 1, "queued_count counts it")
 	auto.request(a, TEST_SYSTEM)
-	_check(auto.queued_count() == 1, "a second request for the same ROM is not a second item")
+	_ok(auto.queued_count() == 1, "a second request for the same ROM is not a second item")
 
 	await _until_held(1)
 	_client_for(a).resolve(a, _result("Auto Game"))
 	await _frames(4)
-	_check(scraped == [a], "scraped fires for an accepted result")
-	_check(not ScrapeQueue.needs_scrape(GamelistManager.new(), TEST_SYSTEM, a),
+	_ok(scraped == [a], "scraped fires for an accepted result")
+	_ok(not ScrapeQueue.needs_scrape(GamelistManager.new(), TEST_SYSTEM, a),
 		"the auto result is on disk")
 
 	# The gate's own bound: 64 waiting, however many are asked for.
@@ -592,12 +582,12 @@ func _group_auto() -> void:
 	await _until_held(1)
 	for i in range(AutoScraper.MAX_QUEUE + 10):
 		auto.request(_rom("auto_bulk_%d.bin" % i), TEST_SYSTEM)
-	_check(q.waiting_count(ScrapeQueue.TAG_AUTO) == AutoScraper.MAX_QUEUE,
+	_ok(q.waiting_count(ScrapeQueue.TAG_AUTO) == AutoScraper.MAX_QUEUE,
 		"auto requests stop at MAX_QUEUE waiting")
 	var manual := _rom("auto_manual.bin")
-	_check(q.enqueue(manual, TEST_SYSTEM), "the auto bound does not block a manual item")
+	_ok(q.enqueue(manual, TEST_SYSTEM), "the auto bound does not block a manual item")
 	auto.cancel_all()
-	_check(q.waiting_count(ScrapeQueue.TAG_AUTO) == 0 and q.waiting_count(ScrapeQueue.TAG_MANUAL) == 1,
+	_ok(q.waiting_count(ScrapeQueue.TAG_AUTO) == 0 and q.waiting_count(ScrapeQueue.TAG_MANUAL) == 1,
 		"AutoScraper.cancel_all drops only auto items")
 	q.cancel_all()
 	_client_for(held_one).resolve(held_one, _result("h"))
@@ -615,12 +605,12 @@ func _group_config() -> void:
 
 	var c := ScraperConfig.new()
 	c.load_config()
-	_check(c.approve_scrapes == false, "approve_scrapes defaults off")
+	_ok(c.approve_scrapes == false, "approve_scrapes defaults off")
 	c.approve_scrapes = true
-	_check(c.save_config(), "config saves")
+	_ok(c.save_config(), "config saves")
 	var again := ScraperConfig.new()
 	again.load_config()
-	_check(again.approve_scrapes == true, "approve_scrapes round-trips")
+	_ok(again.approve_scrapes == true, "approve_scrapes round-trips")
 
 	if had:
 		var f := FileAccess.open(path, FileAccess.WRITE)
@@ -630,29 +620,29 @@ func _group_config() -> void:
 		DirAccess.remove_absolute(path)
 	var restored := ScraperConfig.new()
 	restored.load_config()
-	_check(restored.approve_scrapes == false or had, "player's config restored")
+	_ok(restored.approve_scrapes == false or had, "player's config restored")
 
 
 ## The region/language priority editor: pure order edits, the catalogues, and
 ## the widget end to end through its inline card (no Viewport2Din3D here).
 func _group_priority() -> void:
 	var order: Array[String] = ["us", "eu", "jp"]
-	_check(PriorityOptions2D.toggle(order, "wor") == ["us", "eu", "jp", "wor"],
+	_ok(PriorityOptions2D.toggle(order, "wor") == ["us", "eu", "jp", "wor"],
 		"ticking appends at the end")
-	_check(PriorityOptions2D.toggle(order, "eu") == ["us", "jp"], "unticking removes")
+	_ok(PriorityOptions2D.toggle(order, "eu") == ["us", "jp"], "unticking removes")
 	var one: Array[String] = ["us"]
-	_check(PriorityOptions2D.toggle(one, "us") == ["us"], "the last pick cannot be unticked")
-	_check(order == ["us", "eu", "jp"], "toggle leaves its input alone")
+	_ok(PriorityOptions2D.toggle(one, "us") == ["us"], "the last pick cannot be unticked")
+	_ok(order == ["us", "eu", "jp"], "toggle leaves its input alone")
 
-	_check(PriorityOptions2D.move(order, "jp", -1) == ["us", "jp", "eu"], "up one place")
-	_check(PriorityOptions2D.move(order, "us", 1) == ["eu", "us", "jp"], "down one place")
-	_check(PriorityOptions2D.move(order, "us", -1) == order, "first cannot go up")
-	_check(PriorityOptions2D.move(order, "jp", 1) == order, "last cannot go down")
-	_check(PriorityOptions2D.move(order, "de", -1) == order, "an unpicked code does not move")
+	_ok(PriorityOptions2D.move(order, "jp", -1) == ["us", "jp", "eu"], "up one place")
+	_ok(PriorityOptions2D.move(order, "us", 1) == ["eu", "us", "jp"], "down one place")
+	_ok(PriorityOptions2D.move(order, "us", -1) == order, "first cannot go up")
+	_ok(PriorityOptions2D.move(order, "jp", 1) == order, "last cannot go down")
+	_ok(PriorityOptions2D.move(order, "de", -1) == order, "an unpicked code does not move")
 
 	var typed: Array[String] = ["us", "xx"]
 	var items := PriorityOptions2D.with_unknown([["us", "USA", ""]], typed)
-	_check(items.size() == 2 and items[1] == ["xx", "xx", ""],
+	_ok(items.size() == 2 and items[1] == ["xx", "xx", ""],
 		"a hand-typed code outside the catalogue is kept, shown by its code")
 
 	for table: Array in [ScraperConfig.REGIONS, ScraperConfig.LANGUAGES]:
@@ -662,29 +652,29 @@ func _group_priority() -> void:
 			seen[entry[0]] = true
 			if entry[0] != "ss" and MenuIcons.region_flag(str(entry[2])).is_empty():
 				flagless.append(str(entry[0]))
-		_check(seen.size() == table.size(), "catalogue codes are unique")
-		_check(flagless.is_empty(), "every catalogue entry draws a flag: %s" % str(flagless))
+		_ok(seen.size() == table.size(), "catalogue codes are unique")
+		_ok(flagless.is_empty(), "every catalogue entry draws a flag: %s" % str(flagless))
 	var defaults := ScraperConfig.new()
 	for code: String in defaults.region_priorities + defaults.language_priorities:
 		var known := false
 		for entry: Array in ScraperConfig.REGIONS + ScraperConfig.LANGUAGES:
 			known = known or entry[0] == code
-		_check(known, "default priority '%s' is in the catalogue" % code)
+		_ok(known, "default priority '%s' is in the catalogue" % code)
 
 	# Media is picked from the ROM's own regions first, ranked by the PLAYER'S
 	# priority. ScreenScraper lists Sonic the Hedgehog (USA, Europe) as
 	# eu, us, wor; taken in that order it scraped the Mega Drive box.
 	var prio: Array[String] = ["us", "eu", "wor", "jp", "ss"]
-	_check(ScreenscraperClient.media_region_order(["eu", "us", "wor"], prio)
+	_ok(ScreenscraperClient.media_region_order(["eu", "us", "wor"], prio)
 		== ["us", "eu", "wor", "jp", "ss"], "a USA/Europe ROM ranks its regions by the player's order")
 	var eu_first: Array[String] = ["eu", "us", "wor", "jp", "ss"]
-	_check(ScreenscraperClient.media_region_order(["eu", "us", "wor"], eu_first)
+	_ok(ScreenscraperClient.media_region_order(["eu", "us", "wor"], eu_first)
 		== ["eu", "us", "wor", "jp", "ss"], "and the other way round for a player who puts Europe first")
-	_check(ScreenscraperClient.media_region_order(["jp"], prio)
+	_ok(ScreenscraperClient.media_region_order(["jp"], prio)
 		== ["jp", "wor", "us", "eu", "ss"], "a Japan-only ROM still gets its own region's art first")
-	_check(ScreenscraperClient.media_region_order(["br", "us"], prio)
+	_ok(ScreenscraperClient.media_region_order(["br", "us"], prio)
 		== ["us", "br", "wor", "eu", "jp", "ss"], "a ROM region the player never ranked follows the ranked ones")
-	_check(ScreenscraperClient.media_region_order([], prio)
+	_ok(ScreenscraperClient.media_region_order([], prio)
 		== ["wor", "us", "eu", "jp", "ss"], "no ROM regions: world, then the player's order")
 
 	# The whole picker, on Sonic's real media list (trimmed to the types it reads).
@@ -696,11 +686,11 @@ func _group_priority() -> void:
 		for r: String in (["eu", "jp", "us"] if t == "wheel" else ["br", "eu", "jp", "kr", "us"]):
 			medias.append({"type": t, "region": r, "url": "%s/%s" % [t, r]})
 	var picked: Dictionary = client._extract_media_urls(medias, ["eu", "us", "wor"])
-	_check(picked["box"] == "box-texture/us" and picked["label"] == "support-texture/us"
+	_ok(picked["box"] == "box-texture/us" and picked["label"] == "support-texture/us"
 		and picked["wheel"] == "wheel/us", "Sonic (USA, Europe) scrapes the USA box, label and logo: %s" % str(picked))
 	client.config.region_priorities = eu_first
 	picked = client._extract_media_urls(medias, ["eu", "us", "wor"])
-	_check(picked["box"] == "box-texture/eu", "and the Europe box with Europe first")
+	_ok(picked["box"] == "box-texture/eu", "and the Europe box with Europe first")
 	client.free()
 
 	var start: Array[String] = ["us", "eu"]
@@ -709,16 +699,16 @@ func _group_priority() -> void:
 	var got: Array = []
 	d.order_changed.connect(func(o: Array[String]) -> void: got.append(o))
 	add_child(d)
-	_check(d.summary() == "U › E", "the toggle spells the order out")
+	_ok(d.summary() == "U › E", "the toggle spells the order out")
 	d._on_toggle_pressed()
-	_check(d.is_open() and d._inline != null and d._inline.visible,
+	_ok(d.is_open() and d._inline != null and d._inline.visible,
 		"no 3D host: the card opens inline")
 	d._inline._apply(PriorityOptions2D.toggle(d._inline.get_order(), "jp"))
 	d._inline._apply(PriorityOptions2D.move(d._inline.get_order(), "jp", -2))
-	_check(got.size() == 2 and got[1] == ["jp", "us", "eu"], "each edit is announced whole")
-	_check(d.get_order() == ["jp", "us", "eu"] and d.summary() == "J › U › E",
+	_ok(got.size() == 2 and got[1] == ["jp", "us", "eu"], "each edit is announced whole")
+	_ok(d.get_order() == ["jp", "us", "eu"] and d.summary() == "J › U › E",
 		"the row follows the card")
-	_check(start == ["us", "eu"], "the caller's array is not edited in place")
+	_ok(start == ["us", "eu"], "the caller's array is not edited in place")
 	d.close()
-	_check(not d.is_open() and not d._inline.visible, "close hides the card")
+	_ok(not d.is_open() and not d._inline.visible, "close hides the card")
 	d.queue_free()

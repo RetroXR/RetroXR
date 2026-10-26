@@ -258,7 +258,7 @@ func _on_cover_changed(_obj: Node3D) -> void:
 ## the socket's own visibility, so this is also what puts the pak out of sight
 ## until the lid comes off.
 func _apply_cover_gate() -> void:
-	if _expansion_socket == null or not is_instance_valid(_expansion_socket):
+	if not is_instance_valid(_expansion_socket):
 		return
 	var covered := _cover_slot != null and _cover_slot.has_snapped_object()
 	_expansion_socket.set("enabled", not covered)

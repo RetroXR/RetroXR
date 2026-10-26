@@ -2945,7 +2945,7 @@ func _on_page_grab_begin(dir: int, world_pos: Vector3) -> void:
 ## Short rumble on the hand holding the page. Uses the project's XRTools rumble
 ## manager rather than raw haptic pulses, matching retro_controller.gd.
 func _pulse(ctrl: XRController3D, magnitude: float, ms: int) -> void:
-	if ctrl == null or not is_instance_valid(ctrl):
+	if not is_instance_valid(ctrl):
 		return
 	var event := XRToolsRumbleEvent.new()
 	event.magnitude = magnitude

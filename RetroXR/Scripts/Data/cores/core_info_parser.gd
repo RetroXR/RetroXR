@@ -24,7 +24,7 @@ static func parse_info_file(path: String) -> Dictionary:
 
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		push_warning("CoreInfoParser: could not open %s (error %d)" % [path, FileAccess.get_open_error()])
+		push_warning("[CoreInfoParser] could not open %s (error %d)" % [path, FileAccess.get_open_error()])
 		return result
 
 	while not file.eof_reached():
@@ -70,7 +70,7 @@ static func parse_all(info_dir: String) -> Array[Dictionary]:
 
 	var dir := DirAccess.open(info_dir)
 	if dir == null:
-		push_error("CoreInfoParser: cannot open info directory '%s' (error %d)" % [info_dir, DirAccess.get_open_error()])
+		push_error("[CoreInfoParser] cannot open info directory '%s' (error %d)" % [info_dir, DirAccess.get_open_error()])
 		return results
 
 	dir.list_dir_begin()

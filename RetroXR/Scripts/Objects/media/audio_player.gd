@@ -105,7 +105,7 @@ func _ready() -> void:
 		# the first press of play.
 		_vlc.warm_up()
 	else:
-		push_error("RetroAudioPlayer: VlcPlayer extension not loaded — audio playback unavailable")
+		push_error("[RetroAudioPlayer] VlcPlayer extension not loaded — audio playback unavailable")
 
 	_setup_audio()
 	_update_status()
@@ -561,18 +561,18 @@ func _goto_track(idx: int) -> void:
 
 func play() -> void:
 	if _vlc == null:
-		push_error("RetroAudioPlayer: VlcPlayer unavailable (extension not loaded)")
+		push_error("[RetroAudioPlayer] VlcPlayer unavailable (extension not loaded)")
 		return
 	if _tracks.is_empty():
 		_rebuild_tracks()
 	if _tracks.is_empty():
-		push_error("RetroAudioPlayer: cannot play — no album inserted")
+		push_error("[RetroAudioPlayer] cannot play — no album inserted")
 		return
 	_track_idx = clampi(_track_idx, 0, _tracks.size() - 1)
 	# A netplay peer's copy lives under user://, which libVLC would take for a URL
 	# scheme it has no module for; it needs the real path.
 	if not _vlc.open(ProjectSettings.globalize_path(_tracks[_track_idx]), false):
-		push_error("RetroAudioPlayer: VlcPlayer.open failed for ", _tracks[_track_idx])
+		push_error("[RetroAudioPlayer] VlcPlayer.open failed for ", _tracks[_track_idx])
 		return
 	_log_event("playing track %d of %d: %s" % [_track_idx + 1, _tracks.size(), _tracks[_track_idx]])
 	_vlc.play()

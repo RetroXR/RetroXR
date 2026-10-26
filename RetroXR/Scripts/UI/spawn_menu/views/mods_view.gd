@@ -1929,8 +1929,8 @@ func _on_apply_pressed() -> void:
 	apply_requested.emit(restart)
 
 
-## Why the button may not be pressed now, "" when it may. Either way the room is
-## rebuilt or carried, so it has to have finished arriving; a restart also loses
+## Why the button may not be pressed now. Returns "" when ok, else the reason.
+## Either way the room is rebuilt or carried, so it has to have finished arriving; a restart also loses
 ## whatever is downloading, and the downloads parked for review (the next launch
 ## sweeps those away).
 func _apply_blocker(restart: bool) -> String:
@@ -2152,14 +2152,14 @@ func _fill_installed_detail() -> void:
 		vbox.add_child(remove)
 
 
-func _build_unreadable_card(vbox: VBoxContainer, u: Dictionary) -> void:
+func _build_unreadable_card(vbox: VBoxContainer, unreadable: Dictionary) -> void:
 	vbox.add_child(MenuStyle.spacer(8))
-	vbox.add_child(MenuStyle.label(str(u["path"]).get_file(), 20, MenuStyle.COLOR_TITLE))
+	vbox.add_child(MenuStyle.label(str(unreadable["path"]).get_file(), 20, MenuStyle.COLOR_TITLE))
 	vbox.add_child(MenuStyle.label("Not loadable", 15, MenuStyle.COLOR_BTN_UPD))
-	var why := MenuStyle.label(str(u["reason"]), 16, MenuStyle.COLOR_DESC)
+	var why := MenuStyle.label(str(unreadable["reason"]), 16, MenuStyle.COLOR_DESC)
 	why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	vbox.add_child(why)
-	var path := str(u["path"])
+	var path := str(unreadable["path"])
 	var delete := _narrow(MenuStyle.row_button("Delete this file", 18, 260, 52, false))
 	delete.pressed.connect(func() -> void:
 		if not Mods.remove_unreadable(path):

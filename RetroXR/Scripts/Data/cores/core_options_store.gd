@@ -60,7 +60,7 @@ static func load_values(root: String, core_name: String) -> Dictionary:
 		return out
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		push_warning("CoreOptionsStore: cannot read %s" % path)
+		push_warning("[CoreOptionsStore] cannot read %s" % path)
 		return out
 	for line: String in f.get_as_text().split("\n"):
 		var eq := line.find("=")
@@ -79,7 +79,7 @@ static func save_values(root: String, core_name: String, values: Dictionary) -> 
 	var path := opt_path(root, core_name)
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
-		push_error("CoreOptionsStore: cannot write %s" % path)
+		push_error("[CoreOptionsStore] cannot write %s" % path)
 		return false
 	var keys: Array = values.keys()
 	keys.sort()

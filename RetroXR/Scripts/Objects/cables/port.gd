@@ -111,7 +111,7 @@ static func _device_label(dev: Node) -> String:
 ## room is saved -- so a lead is only told when it listens.
 func _announce(plug: Node3D) -> void:
 	var end := plug as RcaPlug
-	if is_instance_valid(end) and end.cable != null and is_instance_valid(end.cable) \
+	if is_instance_valid(end) and is_instance_valid(end.cable) \
 			and end.cable.has_method("on_plug_seating_changed"):
 		end.cable.on_plug_seating_changed()
 

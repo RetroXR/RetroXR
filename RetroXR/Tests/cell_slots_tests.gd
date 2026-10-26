@@ -14,7 +14,7 @@
 ## records each seated cell and its roll on the object, not on the cell; and a
 ## load seats each cell back at its roll, whether the slots are built as the
 ## object enters the room or after the restore's second pass.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const PAK_SCENE := preload("res://Scenes/Objects/controllers/n64/rumble_pak.tscn")
 const CELL_TYPE := "battery_aaa"
@@ -27,8 +27,6 @@ const SEATS := {
 }
 const COVER := "test_battery"
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 ## Set while a test wants every Rumble Pak that enters the tree to get its slots
 ## at once, as a mod's hook would build them.
@@ -36,6 +34,7 @@ var _build_on_enter := false
 
 
 func _ready() -> void:
+	suite_tag = "cells"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -59,21 +58,11 @@ func _ready() -> void:
 		await _test_restore(false)
 	if _want("labels"):
 		await _test_labels()
-	print("[cells] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _want(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, msg: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[cells] PASS  ", msg)
-	else:
-		_fail += 1
-		print("[cells] FAIL  ", msg, ("  (" + detail + ")") if not detail.is_empty() else "")
 
 
 func _wait(frames: int) -> void:

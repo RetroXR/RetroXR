@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Resizing a television: where the set ends up, and what happens to whatever was
 ## standing on it.
@@ -31,8 +31,6 @@ const GROUPS := ["clamp", "anchor", "riders", "carry", "standing", "jam", "park"
 const BOX := Vector3(0.5, 0.4, 0.3)
 const BOTTOM := -0.2
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
@@ -63,9 +61,7 @@ func _ready() -> void:
 		await _test_park()
 
 	_clear()
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
+	_finish()
 
 
 # ── The clamp ─────────────────────────────────────────────────────────────────
@@ -221,11 +217,17 @@ func _test_carry() -> void:
 
 	# A rider freed between the query and the carry is the ordinary teardown race.
 	var tv3 := await _tv()
+	# The live rider after it is the oracle: the carry must step over the freed one
+	# and still lift and wake the rest.
 	var gone := _box(Vector3(9, 9, 9), Vector3(0.1, 0.1, 0.1))
-	var list: Array[RigidBody3D] = [gone]
+	var live := _box(Vector3(-9, 9, -9), Vector3(0.1, 0.1, 0.1))
+	live.sleeping = true
+	var list: Array[RigidBody3D] = [gone, live]
 	gone.free()
 	tv3._resize._carry_riders(list, 0.5)
-	_ok(true, "carry/a freed rider does not take the resize with it")
+	_ok(is_equal_approx(live.global_position.y, 9.5) and not live.sleeping,
+		"carry/a freed rider does not take the resize with it (the next one rose %.3f m)"
+		% (live.global_position.y - 9.0))
 	_clear()
 
 
@@ -395,15 +397,6 @@ func _test_park_revalidation() -> void:
 
 func _want(name: String) -> bool:
 	return _only.is_empty() or _only == name
-
-
-func _ok(cond: bool, what: String) -> void:
-	_ran += 1
-	if cond:
-		print("[test] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[test] FAIL %s" % what)
 
 
 func _close(got: float, want: float, what: String, eps := 0.005) -> void:

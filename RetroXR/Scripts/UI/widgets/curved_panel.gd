@@ -120,14 +120,14 @@ var _panel: Node3D = null
 func _ready() -> void:
 	_panel = get_parent() as Node3D
 	if _panel == null:
-		push_warning("CurvedPanel: must be a child of an XRToolsViewport2DIn3D")
+		push_warning("[CurvedPanel] must be a child of an XRToolsViewport2DIn3D")
 		return
 	_screen = _panel.get_node_or_null("Screen") as MeshInstance3D
 	_body = _panel.get_node_or_null("StaticBody3D") as StaticBody3D
 	if _body:
 		_collision = _body.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if _screen == null or _body == null or _collision == null:
-		push_warning("CurvedPanel: expected Screen/StaticBody3D/CollisionShape3D — panel left flat")
+		push_warning("[CurvedPanel] expected Screen/StaticBody3D/CollisionShape3D — panel left flat")
 		return
 
 	var size: Variant = _panel.get("screen_size")

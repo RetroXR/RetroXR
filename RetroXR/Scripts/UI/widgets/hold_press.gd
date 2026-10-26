@@ -51,7 +51,7 @@ static func attach(btn: Button) -> HoldPress:
 func _ready() -> void:
 	_btn = get_parent() as Button
 	if _btn == null:
-		push_warning("HoldPress: parent is not a Button")
+		push_warning("[HoldPress] parent is not a Button")
 		set_process(false)
 		return
 	_btn.button_down.connect(_on_down)

@@ -49,7 +49,7 @@ const LIMIT := 1.25
 ## it back and forth every frame, where summing them leaves a body stretched between two
 ## anchors simply where it is, which is what a real one does.
 static func haul(body: RigidBody3D, at: Vector3, to: Vector3, reach: float) -> Vector3:
-	if body == null or not is_instance_valid(body):
+	if not is_instance_valid(body):
 		return Vector3.ZERO
 	var away := to - at
 	var d := away.length()

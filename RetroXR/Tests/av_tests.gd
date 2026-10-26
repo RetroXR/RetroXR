@@ -10,7 +10,7 @@
 ##
 ## Exits non-zero if anything fails. Headless on purpose: these are decisions, not
 ## appearances — what a picture LOOKS like needs a windowed run and a photograph.
-extends Node3D
+extends "res://Tests/test_suite.gd"
 
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const VCR_SCENE := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
@@ -111,11 +111,13 @@ var _case := ""
 ## else that ends without asserting is an abort, not a pass.
 var _skipped := ""
 var _failed_cases := {}
-var _checks := 0
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "av"
+	# A check prints only when it fails; each CASE prints its PASS below.
+	quiet_passes = true
 	get_tree().create_timer(300.0).timeout.connect(func() -> void:
 		print("[av] TIMEOUT during '%s'" % _case)
 		get_tree().quit(1))
@@ -222,26 +224,22 @@ func _run() -> void:
 			continue
 		_case = name
 		_skipped = ""
-		var before := _checks
+		var before := _case_count()
 		await (c[1] as Callable).call()
 		await _teardown()
 		# A case that asserted NOTHING did not pass — it aborted. GDScript kills the
 		# coroutine on a bad property or a null call and the runner never hears, so
 		# an empty case used to be reported green. That is how a test survives the
 		# very change it was written to catch.
-		if _checks == before and _skipped.is_empty():
-			_failed_cases[name] = true
-			print("[av] FAIL  %s
-[av]         made no assertions — it aborted part way"
-				% name)
+		if _case_count() == before and _skipped.is_empty():
+			_ok(false, "%s made no assertions — it aborted part way" % name)
 		elif not _skipped.is_empty():
 			print("[av] SKIP  %s (%s)" % [name, _skipped])
 		elif not _failed_cases.has(name):
 			print("[av] PASS  %s" % name)
 
-	print("[av] %d checks, %d case(s) failed" % [_checks, _failed_cases.size()])
-	print("[av] RESULT=%s" % ("FAIL" if _failed_cases.size() > 0 else "PASS"))
-	get_tree().quit(1 if _failed_cases.size() > 0 else 0)
+	print("[av] %d case(s) failed" % _failed_cases.size())
+	_finish()
 
 
 # ── Checks ────────────────────────────────────────────────────────────────────
@@ -251,12 +249,10 @@ func _skip(why: String) -> void:
 	_skipped = why
 
 
-func _ok(cond: bool, what: String) -> void:
-	_checks += 1
-	if cond:
-		return
+## TestSuite._ok has printed the check; name the case it was in.
+func _on_fail(_what: String) -> void:
 	_failed_cases[_case] = true
-	print("[av] FAIL  %s\n[av]         %s" % [_case, what])
+	print("[av]         in case %s" % _case)
 
 
 func _check_eq(got: Variant, want: Variant, what: String) -> void:
@@ -322,7 +318,7 @@ func _lead(pairs: Array) -> Node3D:
 func _seat_stub(tv: RetroTV, input: int, source: StubSource) -> void:
 	add_child(source)
 	_spawned.append(source)
-	tv._panel._connected_systems[input] = source
+	tv.panel()._connected_systems[input] = source
 	tv.set_source(input)
 	await _wait(4)
 
@@ -358,8 +354,8 @@ func _unplug(plug: RcaPlug) -> void:
 
 
 func _which_input(tv: RetroTV, dev: Node3D) -> int:
-	for i in (tv._panel._connected_systems as Array).size():
-		if tv._panel._connected_systems[i] == dev:
+	for i in (tv.panel()._connected_systems as Array).size():
+		if tv.panel()._connected_systems[i] == dev:
 			return i
 	return -1
 
@@ -375,8 +371,8 @@ func _glass(tv: RetroTV) -> Material:
 ## back would report a ViewportTexture rather than the picture behind it.
 func _shown(tv: RetroTV) -> Texture2D:
 	var mat := _glass(tv)
-	if mat == tv._display._crt_material:
-		return tv._display._crt_source_tex
+	if mat == tv.display()._crt_material:
+		return tv.display()._crt_source_tex
 	if mat is ShaderMaterial:
 		return (mat as ShaderMaterial).get_shader_parameter("source_tex") as Texture2D
 	if mat is StandardMaterial3D:
@@ -630,7 +626,7 @@ func _r_n64_multi_out() -> void:
 	# Stereo is decided by the CHANNEL LIST, not by the number of holes -- the two
 	# stopped being the same thing when the Wii arrived, and reading the sockets
 	# instead is what once fed the left cord to both speakers.
-	_ok(sys._av_stereo, "one hole, still a stereo machine")
+	_ok(sys.av_is_stereo(), "one hole, still a stereo machine")
 
 
 func _r_n64_lead() -> void:
@@ -686,7 +682,7 @@ func _r_snes_box_multi_out() -> void:
 	sys.add_to_group("spawned")
 	_spawned.append(sys)
 	await _wait(60)
-	_ok(not sys._model.brings_own_body(), "the console under test is the primitive box")
+	_ok(not sys.get_model().brings_own_body(), "the console under test is the primitive box")
 	var multi := sys.find_child("AvMultiOut", true, false) as RcaPort
 	_ok(multi is MultiAvPort and multi.connector == "n64_av_plug",
 		"it wears a Multi Out that takes the SNS-008")
@@ -811,8 +807,8 @@ func _r_handheld_lead_deleted() -> void:
 	gba.add_to_group("spawned")
 	_spawned.append(gba)
 	await _wait(60)
-	var cable := gba._channels[0].cable as Node3D
-	var plug := gba._channels[0].plug as CablePlug
+	var cable := gba.video_channels()[0].cable as Node3D
+	var plug := gba.video_channels()[0].plug as CablePlug
 	_ok(cable != null and cable.is_inside_tree() and cable.visible,
 		"a handheld with video out on wears its lead")
 	if cable == null or plug == null:
@@ -823,8 +819,11 @@ func _r_handheld_lead_deleted() -> void:
 	_ok(port.picked_up_object == plug, "its picture plug seats in the set")
 
 	Trash.delete_with_dependents(gba)
-	await get_tree().create_timer(0.6).timeout
-	await _wait(2)
+	# Polled, not a fixed timer: the shrink-and-free takes what it takes.
+	var gone := func() -> bool:
+		return not (is_instance_valid(gba) or is_instance_valid(cable)
+			or is_instance_valid(port.picked_up_object))
+	await _wait_until(gone)
 	_ok(not is_instance_valid(gba), "the handheld is deleted")
 	_ok(not is_instance_valid(cable), "and its video-out lead goes with it")
 	_ok(not is_instance_valid(port.picked_up_object), "and the set's socket is empty again")
@@ -844,11 +843,11 @@ func _r_genesis_socket() -> void:
 		if node != multi:
 			phonos += 1
 	_check_eq(phonos, 0, "and it is the only A/V socket on the machine")
-	_ok(sys._av_stereo, "one hole, still a stereo machine")
+	_ok(sys.av_is_stereo(), "one hole, still a stereo machine")
 
 	# NOT a captive lead any more. A machine with sockets builds no cable of its own;
 	# before this change the Genesis spawned wearing one, permanently attached.
-	_ok(sys._channels[0].plug == null, "and it spawns with no captive lead")
+	_ok(sys.video_channels()[0].plug == null, "and it spawns with no captive lead")
 
 	# On the REAR panel, facing out of it. The socket takes its plug along its own
 	# +Z, so +Z in the console's frame must point out of the back (-Z); a socket
@@ -1414,7 +1413,7 @@ func _d_away() -> void:
 	tv.set_source(RetroTV.Source.COMPOSITE_1)
 	await _wait(6)
 	_ok(_shown(tv) != src.texture, "an input with nothing on it must not show the other one")
-	_check_eq(_shown(tv), tv._display._blue_texture, "it shows the no-signal screen")
+	_check_eq(_shown(tv), tv.display()._blue_texture, "it shows the no-signal screen")
 
 
 func _d_back() -> void:
@@ -1442,7 +1441,7 @@ func _d_stopped() -> void:
 	await _wait(4)
 	src.texture = null                   # switched off / stopped / unplugged
 	await _wait(6)
-	_check_eq(_shown(tv), tv._display._blue_texture, "a source that stops leaves no frozen frame")
+	_check_eq(_shown(tv), tv.display()._blue_texture, "a source that stops leaves no frozen frame")
 
 
 ## The CRT button on the bezel writes the shader's `crt_enabled` uniform. It
@@ -1471,7 +1470,7 @@ func _d_crt_button() -> void:
 	await _wait(4)
 	_check_eq(mat.get_shader_parameter("crt_enabled"), true, "and on again")
 	# The stereo window carries the same contract, through the same strings.
-	var stereo := tv._display._stereo_screen_material()
+	var stereo := tv.display()._stereo_screen_material()
 	_check_eq(stereo.get_shader_parameter("crt_enabled"), true,
 		"the stereo window is built with the tube stage's real uniform")
 	_check_eq(stereo.get_shader_parameter("stereo_mode"), tv.stereo_mode,
@@ -1499,11 +1498,11 @@ func _d_crt_fast_tier() -> void:
 	_check_eq(mat.get_shader_parameter("crt_mask_strength"), 0.55, "with the shared mask tuning")
 	_ok(float(mat.get_shader_parameter("crt_mask_triads")) > 0.0, "and the derived triad count")
 	_check_eq(mat.get_shader_parameter("crt_enabled"), true, "and the tube stage on")
-	_check_eq(tv._display._dark_material.shader, RetroTV.CRT_MOBILE_SHADER,
+	_check_eq(tv.display()._dark_material.shader, RetroTV.CRT_MOBILE_SHADER,
 		"its dark glass is the mobile shader too")
 	tv.remote_power_toggle()
 	await _wait(6)
-	_check_eq(_glass(tv), tv._display._dark_material, "which is what a set switched off wears")
+	_check_eq(_glass(tv), tv.display()._dark_material, "which is what a set switched off wears")
 
 
 ## Every shader a set puts on its glass draws the FRONT of the tube only. Drawn
@@ -1549,7 +1548,7 @@ func _d_glass_first() -> void:
 	tv.remote_power_toggle()
 	await _wait(6)
 	var dark := _glass(tv)
-	_ok(dark == tv._display._dark_material and dark.render_priority == TvDisplay.GLASS_RENDER_PRIORITY,
+	_ok(dark == tv.display()._dark_material and dark.render_priority == TvDisplay.GLASS_RENDER_PRIORITY,
 		"and so does the dark glass of a set switched off")
 
 
@@ -1568,12 +1567,12 @@ func _d_fast_stages() -> void:
 	_ok(mat != null and mat.shader == RetroTV.WINDOW_MOBILE_SHADER, "packed source uses the fast stage")
 	if mat != null:
 		_check_eq(mat.get_shader_parameter("source_rect"), Vector4(0.0, 0.5, 0.5, 0.5), "packed window retained")
-		_check_eq(tv._display.screen_light_rect(mat), Rect2(0.0, 0.5, 0.5, 0.5), "light sampler recognizes fast packed source")
+		_check_eq(tv.display().screen_light_rect(mat), Rect2(0.0, 0.5, 0.5, 0.5), "light sampler recognizes fast packed source")
 		tv.stereo_mode = RetroTV.StereoMode.RIGHT_EYE
 		await _wait(3)
 		_check_eq(mat.get_shader_parameter("stereo_mode"), 2, "stereo switch reaches the fast shader")
-		_check_eq(tv._display.screen_light_rect(mat), Rect2(0.5, 0.5, 0.5, 0.5), "right-eye light region retained")
-		_ok(tv._display.has_stereo_source(), "stereo controls remain available")
+		_check_eq(tv.display().screen_light_rect(mat), Rect2(0.5, 0.5, 0.5, 0.5), "right-eye light region retained")
+		_ok(tv.display().has_stereo_source(), "stereo controls remain available")
 	tv.osd().show_text("FAST STAGE")
 	await _wait(3)
 	if mat != null:
@@ -1586,7 +1585,7 @@ func _d_fast_stages() -> void:
 	if mat != null:
 		_check_eq(mat.get_shader_parameter("effect_amount"), 0.4, "VHS controls retained")
 		_check_eq(mat.get_shader_parameter("osd_enabled"), true, "OSD follows VHS stage")
-	var snow := tv._display.rf_static()
+	var snow := tv.display().rf_static()
 	_check_eq(snow.shader, RetroTV.STATIC_MOBILE_SHADER, "RF snow uses the fast stage")
 	var tuner := TVTuner.new()
 	add_child(tuner)
@@ -1611,9 +1610,9 @@ func _d_off() -> void:
 	tv.remote_power_toggle()          # the set has no setter; this is the POWER key
 	await _wait(6)
 	_ok(_shown(tv) != src.texture, "a set that is off shows nothing")
-	_check_eq(_glass(tv), tv._display._dark_material, "it wears its own dark glass")
+	_check_eq(_glass(tv), tv.display()._dark_material, "it wears its own dark glass")
 	_ok(_glass(tv) is ShaderMaterial, "the dark glass keeps the reflective shader")
-	_check_eq(_shown(tv), tv._display._dark_texture, "the phosphors behind it are black")
+	_check_eq(_shown(tv), tv.display()._dark_texture, "the phosphors behind it are black")
 
 
 ## The cast light hides itself while it has nothing to show (92294bee), and
@@ -1653,7 +1652,7 @@ func _d_empty() -> void:
 	await _wait(30)
 	tv.set_source(RetroTV.Source.COMPOSITE_2)
 	await _wait(6)
-	_check_eq(_shown(tv), tv._display._blue_texture, "an input with nothing plugged in is blue")
+	_check_eq(_shown(tv), tv.display()._blue_texture, "an input with nothing plugged in is blue")
 
 
 ## Being ON an input is not the same as SENDING a picture to it.
@@ -1676,7 +1675,7 @@ func _d_no_video_cord() -> void:
 	await _seat_stub(tv, RetroTV.Source.COMPOSITE_1, src)
 	await _wait(6)
 	_ok(_shown(tv) != src.texture, "a host sending no picture here must not be shown")
-	_check_eq(_shown(tv), tv._display._blue_texture, "the set shows its no-signal screen")
+	_check_eq(_shown(tv), tv.display()._blue_texture, "the set shows its no-signal screen")
 
 	# And the moment a picture cord does land, the same host appears.
 	src.video_to_tv = true
@@ -1696,7 +1695,7 @@ func _d_rf_untuned() -> void:
 	await _seat_stub(tv, RetroTV.Source.RF, src)
 	await _wait(6)
 	_ok(_shown(tv) != src.texture, "a machine modulating on the other channel is not shown")
-	_check_eq(_glass(tv), tv._display._rf_static_material,
+	_check_eq(_glass(tv), tv.display()._rf_static_material,
 		"an aerial channel with nothing on it is SNOW, not the blue no-signal screen")
 	_ok(not src.volumes.is_empty() and src.volumes[-1] == 0.0,
 		"and it is not HEARD through the snow either: got %s" % [src.volumes])
@@ -1732,16 +1731,16 @@ func _d_no_ghost() -> void:
 	first.texture = _a_texture(Color(1, 0, 0, 1))
 	await _seat_stub(tv, RetroTV.Source.COMPOSITE_1, first)
 	await _wait(8)
-	_ok(tv._display._phosphor_fresh == 0, "the accumulator settles while one source runs")
+	_ok(tv.display()._phosphor_fresh == 0, "the accumulator settles while one source runs")
 
 	var second := StubSource.new()
 	second.texture = _a_texture(Color(0, 1, 0, 1))
 	add_child(second)
 	_spawned.append(second)
-	tv._panel._connected_systems[RetroTV.Source.COMPOSITE_2] = second
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_2] = second
 	tv.set_source(RetroTV.Source.COMPOSITE_2)
 	await _wait(1)
-	_ok(tv._display._phosphor_fresh > 0 or _prev_is(tv, second.texture),
+	_ok(tv.display()._phosphor_fresh > 0 or _prev_is(tv, second.texture),
 		"a new source starts with no history behind it")
 
 	# And the same when a machine restarts: its picture stops, then a new one
@@ -1749,10 +1748,10 @@ func _d_no_ghost() -> void:
 	await _wait(10)
 	second.texture = null
 	await _wait(6)
-	_ok(tv._display._phosphor_fresh > 0, "a source that stops arms the accumulator")
+	_ok(tv.display()._phosphor_fresh > 0, "a source that stops arms the accumulator")
 	second.texture = _a_texture(Color(0, 0, 1, 1))
 	await _wait(1)
-	_ok(tv._display._phosphor_fresh > 0 or _prev_is(tv, second.texture),
+	_ok(tv.display()._phosphor_fresh > 0 or _prev_is(tv, second.texture),
 		"and the picture that comes back does not blend with the old one")
 
 
@@ -1906,7 +1905,7 @@ func _d_glass_wear() -> void:
 	tv.remote_power_toggle()
 	await _wait(6)
 	var dark := _glass(tv) as ShaderMaterial
-	_check_eq(dark, tv._display._dark_material, "power-off uses the dark glass")
+	_check_eq(dark, tv.display()._dark_material, "power-off uses the dark glass")
 	if dark != null:
 		_check_eq(dark.get_shader_parameter("crt_glass_wear"), 2.5,
 			"powered-off glass keeps the chosen wear")
@@ -1950,8 +1949,8 @@ func _d_stage_per_tv() -> void:
 	}
 	add_child(src)
 	_spawned.append(src)
-	tv_top._panel._connected_systems[RetroTV.Source.COMPOSITE_1] = src
-	tv_bottom._panel._connected_systems[RetroTV.Source.COMPOSITE_1] = src
+	tv_top.panel()._connected_systems[RetroTV.Source.COMPOSITE_1] = src
+	tv_bottom.panel()._connected_systems[RetroTV.Source.COMPOSITE_1] = src
 	tv_top.set_source(RetroTV.Source.COMPOSITE_1)
 	tv_bottom.set_source(RetroTV.Source.COMPOSITE_1)
 	await _wait(6)
@@ -2471,7 +2470,7 @@ func _m_stereo_only_set() -> void:
 		var port := tv.get_node(n) as RcaPort
 		port.enabled = false
 		port.hide()
-	_check_eq(tv._audio.audio_out_options(), [0, 1] as Array[int],
+	_check_eq(tv.audio().audio_out_options(), [0, 1] as Array[int],
 		"an L/R pair alone gives TV SPEAKERS and STEREO OUT, no SURROUND")
 
 	var seen := {}
@@ -2676,7 +2675,7 @@ func _d_aerial_pulled() -> void:
 	_ok(not tuner.is_active(), "the tuner has stopped")
 	_check_eq(_dial_labels(tv), ["1", "2", "3", "4"], "and the dial is the consoles' four again")
 	_check_eq(tv.current_source, RetroTV.Source.RF, "still on the aerial input")
-	_check_eq(_glass(tv), tv._display._rf_static_material, "which is showing snow")
+	_check_eq(_glass(tv), tv.display()._rf_static_material, "which is showing snow")
 
 
 ## Source.TV was the built-in tuner's input. Its VALUE is in every save written
@@ -2693,7 +2692,7 @@ func _d_legacy_tv_source() -> void:
 	await _wait(4)
 	_check_eq(tv.current_source, RetroTV.Source.RF, "an old save's TV input is RF now")
 	_ok(not tv.showing_broadcast(), "with no aerial there is nothing to tune")
-	_check_eq(_glass(tv), tv._display._rf_static_material, "so it is snow")
+	_check_eq(_glass(tv), tv.display()._rf_static_material, "so it is snow")
 
 	var seen := {}
 	for i in RetroTV.SOURCE_NAMES.size() * 2:
@@ -2751,7 +2750,7 @@ func _g_allowed() -> void:
 	_ok(tv.can_paint(src), "the shown host may paint")
 	_ok(tv.paint_screen(src, mine), "and its paint is accepted")
 	_check_eq(_glass(tv), mine, "its material is on the glass")
-	_check_eq(tv._display._screen_owner, src, "and the set records who put it there")
+	_check_eq(tv.display()._screen_owner, src, "and the set records who put it there")
 
 
 func _g_release() -> void:
@@ -2783,8 +2782,8 @@ func _a_selected_only() -> void:
 	add_child(hidden)
 	_spawned.append(shown)
 	_spawned.append(hidden)
-	tv._panel._connected_systems[RetroTV.Source.COMPOSITE_1] = shown
-	tv._panel._connected_systems[RetroTV.Source.COMPOSITE_2] = hidden
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_1] = shown
+	tv.panel()._connected_systems[RetroTV.Source.COMPOSITE_2] = hidden
 	tv.set_source(RetroTV.Source.COMPOSITE_1)
 	await _wait(4)
 	shown.volumes.clear()
@@ -2848,7 +2847,7 @@ func _r_dc_av_out() -> void:
 		if node != multi:
 			phonos += 1
 	_check_eq(phonos, 0, "and it is the only A/V socket on the machine")
-	_ok(sys._av_stereo, "one hole, still a stereo machine")
+	_ok(sys.av_is_stereo(), "one hole, still a stereo machine")
 	var mouth := sys.find_child("AvOut", true, false) as Node3D
 	_ok(mouth != null, "the shell exports its AvOut marker")
 	if mouth == null:

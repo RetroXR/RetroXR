@@ -390,13 +390,13 @@ static func delete_save(data: PackedByteArray, first_block: int) -> PackedByteAr
 
 # --- Internals ----------------------------------------------------------------
 
-static func _get_u16(d: PackedByteArray, at: int) -> int:
-	return d[at] | (d[at + 1] << 8)
+static func _get_u16(image: PackedByteArray, at: int) -> int:
+	return image[at] | (image[at + 1] << 8)
 
 
-static func _put_u16(d: PackedByteArray, at: int, v: int) -> void:
-	d[at] = v & 0xFF
-	d[at + 1] = (v >> 8) & 0xFF
+static func _put_u16(image: PackedByteArray, at: int, v: int) -> void:
+	image[at] = v & 0xFF
+	image[at + 1] = (v >> 8) & 0xFF
 
 
 ## Byte offset of one directory slot. The directory runs DOWNWARD, so slot 0 is
@@ -475,8 +475,8 @@ static func _word_swap(body: PackedByteArray) -> PackedByteArray:
 	return out
 
 
-static func _read_name(d: PackedByteArray, entry_at: int) -> String:
-	return _read_ascii(d, entry_at + E_NAME, E_NAME_LEN)
+static func _read_name(image: PackedByteArray, entry_at: int) -> String:
+	return _read_ascii(image, entry_at + E_NAME, E_NAME_LEN)
 
 
 ## A Shift-JIS description as a title, or "" when nothing of it survives.
@@ -494,12 +494,12 @@ static func _sjis_title(raw: PackedByteArray) -> String:
 	return ""
 
 
-static func _read_ascii(d: PackedByteArray, at: int, length: int) -> String:
-	if at < 0 or at + length > d.size():
+static func _read_ascii(image: PackedByteArray, at: int, length: int) -> String:
+	if at < 0 or at + length > image.size():
 		return ""
 	var s := ""
 	for i in range(length):
-		var c := d[at + i]
+		var c := image[at + i]
 		if c == 0:
 			break
 		if c >= 32 and c < 127:

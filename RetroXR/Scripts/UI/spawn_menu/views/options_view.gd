@@ -975,8 +975,6 @@ func _plate_chip(text: String, color: Color) -> Control:
 	return chip
 
 
-## System Filter option — off shows the media players, test core and
-## single-game cores that SystemFilter keeps out of the Download grid.
 # ── Storage ───────────────────────────────────────────────────────────────────
 #
 # Where everything lives, what it costs, and what nothing claims any more.
@@ -1047,7 +1045,7 @@ func _add_storage_path(vbox: VBoxContainer, label_text: String, path: String) ->
 
 
 func _refresh_storage_usage() -> void:
-	if _storage_usage_label == null or not is_instance_valid(_storage_usage_label):
+	if not is_instance_valid(_storage_usage_label):
 		return
 	var parts: Array[String] = []
 	if romm_cache != null and romm_config != null:
@@ -1139,7 +1137,7 @@ func _set_cleanup_busy(busy: bool) -> void:
 
 
 func _show_cleanup_status(text: String) -> void:
-	if _cleanup_panel == null or not is_instance_valid(_cleanup_panel):
+	if not is_instance_valid(_cleanup_panel):
 		return
 	for c in _cleanup_panel.get_children():
 		c.queue_free()
@@ -1332,10 +1330,12 @@ func _region_names_shown() -> String:
 
 
 func _on_mains_for_region_names(_region: String) -> void:
-	if _region_names_drop != null and is_instance_valid(_region_names_drop):
+	if is_instance_valid(_region_names_drop):
 		_region_names_drop.select_id(_region_names_shown())
 
 
+## System Filter option — off shows the media players, test core and
+## single-game cores that SystemFilter keeps out of the Download grid.
 func _build_system_filter_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(MenuStyle.spacer(10))
 
@@ -1471,7 +1471,7 @@ func _refresh_scrape_threads() -> void:
 
 ## Show or hide the unencrypted-connection note under the URL field.
 func _refresh_romm_scheme_note() -> void:
-	if _romm_scheme_note == null or not is_instance_valid(_romm_scheme_note):
+	if not is_instance_valid(_romm_scheme_note):
 		return
 	var plain := not romm_config.is_encrypted()
 	_romm_scheme_note.visible = plain
@@ -1847,7 +1847,7 @@ func _commit_scan(url: String, code: String) -> void:
 ## happening, so this is both. Called from update_romm_status_label, which the
 ## menu already runs on every sync transition.
 func _update_romm_sync_btn() -> void:
-	if _romm_sync_btn == null or not is_instance_valid(_romm_sync_btn):
+	if not is_instance_valid(_romm_sync_btn):
 		return
 	var busy := romm_catalog != null and romm_catalog.is_syncing()
 	if busy:
@@ -1934,7 +1934,7 @@ func update_romm_status_label() -> void:
 	# The menu calls this on every sync transition, which is exactly when the
 	# button has to flip between starting and stopping.
 	_update_romm_sync_btn()
-	if _romm_status_label == null or not is_instance_valid(_romm_status_label):
+	if not is_instance_valid(_romm_status_label):
 		return
 
 	var parts: Array[String] = []

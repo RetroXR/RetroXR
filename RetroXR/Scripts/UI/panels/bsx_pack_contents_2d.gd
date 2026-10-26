@@ -131,7 +131,7 @@ func populate(pack_name: String, programmes: Array, free: int, total: int) -> vo
 
 
 ## One programme: what it is called, and which blocks it holds.
-func _programme_row(p: Dictionary) -> Control:
+func _programme_row(programme: Dictionary) -> Control:
 	var plate := PanelContainer.new()
 	plate.add_theme_stylebox_override("panel", MenuStyle.save_plate_box())
 
@@ -145,11 +145,11 @@ func _programme_row(p: Dictionary) -> Control:
 	var col := MenuStyle.vbox(2)
 	pad.add_child(col)
 
-	var title := MenuStyle.label(str(p["title"]), 21, COLOR_ROW)
+	var title := MenuStyle.label(str(programme["title"]), 21, COLOR_ROW)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(title)
 
-	var blocks: Array = p["blocks"]
+	var blocks: Array = programme["blocks"]
 	col.add_child(MenuStyle.label(
 		"%s · %d of %d blocks" % [_span(blocks), blocks.size(), BsxPack.BLOCK_COUNT],
 		16, COLOR_DIM))

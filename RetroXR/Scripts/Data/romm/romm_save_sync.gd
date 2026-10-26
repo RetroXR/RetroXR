@@ -379,6 +379,7 @@ func platform_id_for(systemid: String) -> int:
 
 
 ## Why list_card_saves() answered not-ok for this systemid, worded for a menu.
+## Returns "" when ok, else the reason.
 ## `label` names the console ("Nintendo 64").
 func card_list_problem(systemid: String, label: String) -> String:
 	if config == null or not config.is_configured():

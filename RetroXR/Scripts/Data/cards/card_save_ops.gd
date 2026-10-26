@@ -109,7 +109,7 @@ static func refresh_holder(tree: SceneTree, card_id: String) -> void:
 		sys.refresh_memcard_path()
 
 
-## Why this card must not be changed right now, or "".
+## Why this card must not be changed right now. Returns "" when ok, else the reason.
 ##
 ## Editing the image under a running game means the core is holding save data
 ## this no longer matches, and its next flush would write that back over the
@@ -159,9 +159,9 @@ static func delete_save(tree: SceneTree, fmt: CardFormat, path: String,
 
 
 ## A save's game, falling back to its raw slot name.
-static func title_of(s: Dictionary) -> String:
-	var t := str(s.get("title", ""))
-	return t if not t.is_empty() else str(s.get("name", ""))
+static func title_of(save: Dictionary) -> String:
+	var t := str(save.get("title", ""))
+	return t if not t.is_empty() else str(save.get("name", ""))
 
 
 ## Which of these saves are opted in to RomM backup, as a set of slot names.
@@ -193,33 +193,33 @@ static func delete_is_forever(path: String, slot: String) -> bool:
 ## How many of a card's blocks one of RomM's saves will take, from its byte size.
 ## A file that carries saves inside it costs 0 here: what it holds is only known
 ## once it is downloaded, and restore_save sizes that then.
-static func blocks_of(fmt: CardFormat, s: Dictionary) -> int:
+static func blocks_of(fmt: CardFormat, save: Dictionary) -> int:
 	if fmt == null:
 		return 1
-	if not holds_one_save(fmt, s):
+	if not holds_one_save(fmt, save):
 		return 0
-	return fmt.blocks_for_size(int(s["size"]))
+	return fmt.blocks_for_size(int(save["size"]))
 
 
 ## Is this RomM row one save in the family's own single-save format, rather than
 ## a file that carries saves inside it (a cartridge .srm holding the paks)? A row
 ## that names no file is taken to be one save.
-static func holds_one_save(fmt: CardFormat, s: Dictionary) -> bool:
-	var ext := str(s.get("file_name", "")).get_extension().to_lower()
+static func holds_one_save(fmt: CardFormat, save: Dictionary) -> bool:
+	var ext := str(save.get("file_name", "")).get_extension().to_lower()
 	return fmt == null or ext.is_empty() or ext == fmt.save_extension()
 
 
-## Why one of RomM's saves cannot be put on this card, or "".
+## Why one of RomM's saves cannot be put on this card. Returns "" when ok, else the reason.
 ##
 ## Restoring writes into the card, so every refusal is stated on the row rather
 ## than discovered after the fact.
-static func restore_blocker(fmt: CardFormat, s: Dictionary,
+static func restore_blocker(fmt: CardFormat, save: Dictionary,
 		present: Dictionary, free: int) -> String:
-	if present.has(str(s["slot"])):
+	if present.has(str(save["slot"])):
 		return "already on this card"
-	if not holds_one_save(fmt, s):
+	if not holds_one_save(fmt, save):
 		return ""
-	var blocks := blocks_of(fmt, s)
+	var blocks := blocks_of(fmt, save)
 	if blocks > free:
 		var unit := fmt.unit_noun() if blocks == 1 else fmt.unit_plural()
 		return "needs %d %s, %d free" % [blocks, unit, free]
@@ -302,9 +302,9 @@ static func stop_backup(path: String, slot: String) -> void:
 ## game writes it, so a save this device has never seen written has no owner yet
 ## and genuinely cannot be uploaded until it is; the opt-in stays on and waiting
 ## and the message says so, rather than failing quietly.
-static func backup_save(fmt: CardFormat, path: String, s: Dictionary,
+static func backup_save(fmt: CardFormat, path: String, save: Dictionary,
 		on_done: Callable) -> void:
-	var slot := str(s["name"])
+	var slot := str(save["name"])
 	var key := RommSaveSync.card_save_key(path, slot)
 	SaveSync.set_key_enabled(key, true)
 
@@ -312,19 +312,19 @@ static func backup_save(fmt: CardFormat, path: String, s: Dictionary,
 	# which is the only place a save's product code maps to a game.
 	var rom_id := SaveSync.card_save_owner(key)
 	if rom_id <= 0:
-		rom_id = SaveSync.rom_id_for_serial(fmt.library_systemid(), str(s.get("serial", "")))
+		rom_id = SaveSync.rom_id_for_serial(fmt.library_systemid(), str(save.get("serial", "")))
 		if rom_id > 0:
 			SaveSync.note_card_save_owner(key, rom_id)
 	if rom_id <= 0:
 		# Only reachable when the game is not in the library at all, or is there
 		# but not known to RomM — neither of which uploading can fix.
 		on_done.call(false, "%s: no matching game in your library, so there is "
-			% title_of(s) + "nothing to attach it to on RomM")
+			% title_of(save) + "nothing to attach it to on RomM")
 		return
 
-	var bytes := fmt.extract_save(FileAccess.get_file_as_bytes(path), int(s["block"]))
+	var bytes := fmt.extract_save(FileAccess.get_file_as_bytes(path), int(save["block"]))
 	if bytes.is_empty():
-		on_done.call(false, "Could not read %s" % title_of(s))
+		on_done.call(false, "Could not read %s" % title_of(save))
 		return
 
 	# sync_finished is global, so the handler has to recognise its own upload:
@@ -345,4 +345,4 @@ static func backup_save(fmt: CardFormat, path: String, s: Dictionary,
 	self_ref.append(handler)
 	SaveSync.sync_finished.connect(handler)
 	SaveSync.push_card_save(key, rom_id, SramPaths.core_for_systemid(fmt.library_systemid()),
-		slot, title_of(s), bytes, fmt.save_extension())
+		slot, title_of(save), bytes, fmt.save_extension())

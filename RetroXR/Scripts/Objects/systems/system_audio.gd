@@ -583,7 +583,7 @@ func _refresh_hardware_geometry() -> void:
 
 ## The listener autoload, resolved once. Null before it exists.
 func _listener_node() -> Node:
-	if _listener == null or not is_instance_valid(_listener):
+	if not is_instance_valid(_listener):
 		_listener = get_node_or_null("/root/SpatialAudioListener")
 	return _listener
 
@@ -692,7 +692,7 @@ func _is_live() -> bool:
 ## cabling moves — a socketed console left ungated here plays at full volume out of
 ## its own shell with nothing plugged into it.
 func _apply_player_volume() -> void:
-	if _player == null or not is_instance_valid(_player):
+	if not is_instance_valid(_player):
 		return
 	var v: float = _last_volume if _is_live() else 0.0
 	_player.volume_db = linear_to_db(v) if v > 0.001 else -80.0
@@ -841,7 +841,7 @@ func update_position() -> void:
 		_apply_voice_distance_gain(centre_true)
 		return
 
-	if _player == null or not is_instance_valid(_player):
+	if not is_instance_valid(_player):
 		return
 	if _head_lock:
 		_player.global_position = (_head_l + _head_r) * 0.5

@@ -32,19 +32,18 @@
 ##            in beside a cartridge and staying in when the cartridge comes out
 ##   markets/ a mod's shell for a unit with another market's molding: a unit of
 ##            that market wears its own, at its own size, by its own tongue
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "exp"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -52,21 +51,12 @@ func _ready() -> void:
 		print("[exp] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
-	print("[exp] %d checks, %d failed" % [_checks, _failed])
-	print("[exp] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 func _wait(n: int) -> void:
 	for i in n:
 		await get_tree().physics_frame
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[exp] %s  %s" % ["PASS" if ok else "FAIL", what])
 
 
 func _want(group: String) -> bool:
@@ -273,14 +263,14 @@ func _group_fit() -> void:
 	# The N64's own model relocates that socket forward, off the cartridge
 	# deck and onto the top surface in front of the cart slot, under a
 	# lift-off cover — configure_expansion_socket, RetroSystemModelNintendo64.
-	var cart_seat := n64._model.get_node_or_null("CartSeat") as Node3D
+	var cart_seat := n64.get_model().get_node_or_null("CartSeat") as Node3D
 	_ok(pak_socket != null and cart_seat != null
 			and pak_socket.position.z > cart_seat.position.z,
 		"fit/ and the N64 model moves it in front of the cart slot, not centred over it")
 
 	# A fresh console comes with the lid ON, which shuts the bay: no hand can
 	# reach the pak and the pak is out of sight, exactly what the lid is for.
-	var cover_slot := (n64._model as RetroSystemModelNintendo64).expansion_cover_slot()
+	var cover_slot := (n64.get_model() as RetroSystemModelNintendo64).expansion_cover_slot()
 	_ok(cover_slot != null and cover_slot.has_snapped_object(),
 		"fit/ and a fresh console wears its bay lid")
 	_ok(n64.get_expansion_cover() != null,
@@ -530,7 +520,7 @@ func _group_media() -> void:
 	# so a 64DD disk or a Mega-CD disc, both battery-backed, ran with nowhere to
 	# write and silently never saved. The bay's medium is the fallback.
 	n64._snapped_cartridge = null
-	var stack_save := n64._memcards._compose_sram_path("mupen64plus_next")
+	var stack_save := n64.memcards()._compose_sram_path("mupen64plus_next")
 	_ok(not stack_save.is_empty(),
 		"save/ media in an expansion bay still resolves a save path")
 	_ok(stack_save.contains(str(dd.get_media().get("save_id"))),
@@ -540,7 +530,7 @@ func _group_media() -> void:
 	# game, the disk is its expansion. Set back the way it was cleared, since
 	# restore_cartridge is a no-op on a cart already seated in the slot.
 	n64._snapped_cartridge = cart
-	_ok(n64._memcards._compose_sram_path("mupen64plus_next")
+	_ok(n64.memcards()._compose_sram_path("mupen64plus_next")
 			.contains(str(cart.get("save_id"))),
 		"save/ a cartridge in the console still takes precedence")
 	await _clear()
@@ -659,8 +649,8 @@ func _group_media() -> void:
 	# at the top of _compose_sram_path says so -- and a launched BS-X stack has
 	# the pack as its rom_path.
 	nest_sfc.rom_path = "/roms/satellaview/PACK.bs"
-	var save_a := nest_sfc._memcards._compose_sram_path("snes9x")
-	var slot_a := nest_sfc._memcards._sram_slot()
+	var save_a := nest_sfc.memcards()._compose_sram_path("snes9x")
+	var slot_a := nest_sfc.memcards()._sram_slot()
 	_ok(save_a.contains("bsx_cart"),
 		"nest/ so the save is filed under the cartridge, not the pack")
 	_ok(not save_a.contains("PACK"),
@@ -671,12 +661,12 @@ func _group_media() -> void:
 	var other := await _cart("satellaview", "/roms/satellaview/OTHER.bs")
 	nest_bsx.restore_media_in_slot(other)
 	await _wait(5)
-	_ok(nest_sfc._memcards._compose_sram_path("snes9x") == save_a,
+	_ok(nest_sfc.memcards()._compose_sram_path("snes9x") == save_a,
 		"nest/ a different pack keeps the same save")
-	_ok(nest_sfc._memcards._sram_slot() == slot_a,
+	_ok(nest_sfc.memcards()._sram_slot() == slot_a,
 		"nest/ and is not treated as a different save source")
 	await _unbolt(nest_bsx.get_node("MediaBay") as XRToolsSnapZone, other)
-	_ok(nest_sfc._memcards._compose_sram_path("snes9x") == save_a,
+	_ok(nest_sfc.memcards()._compose_sram_path("snes9x") == save_a,
 		"nest/ and an empty cart still has the town on it")
 	nest_bsx.restore_media_in_slot(nest_pack)
 	await _wait(5)
@@ -1065,14 +1055,14 @@ func _group_sgb() -> void:
 	# to a cartridge, and renaming a ROM orphans it. Proving that needs a real core
 	# and belongs in Tools/cores/sgb_probe, not here.
 	gb.save_id = "dk_gb"
-	_ok(sfc._memcards._expansion_holding_battery() == null,
+	_ok(sfc.memcards()._expansion_holding_battery() == null,
 		"sgb/ the adapter holds no battery of its own")
 	# _apply_expansion_launch first, because that is what fills rom_path and
 	# _compose_sram_path returns "" without one. Asking before it runs gives an
 	# empty string that passes any "does not contain" check by doing nothing --
 	# which is how the first draft of the case below fooled itself.
 	sfc._expansion_launch.apply_expansion_launch()
-	var sram := sfc._memcards._compose_sram_path("bsnes")
+	var sram := sfc.memcards()._compose_sram_path("bsnes")
 	_ok(not sram.is_empty(), "sgb/ an assembled stack resolves a save path at all")
 	_ok(sram.get_file() == "dk_gb.srm",
 		"sgb/ so the save is keyed to the Game Boy cartridge in its bay")
@@ -1943,12 +1933,12 @@ func _group_saturn() -> void:
 	own.card_id = ids[0]
 	var image_path := SramPaths.card_save_path("sega_saturn_memory", ids[0])
 	saturn.rom_path = ""
-	_ok(saturn._memcards._compose_sram_path(core) == image_path,
+	_ok(saturn.memcards()._compose_sram_path(core) == image_path,
 		"saturn/ with nothing in the drive, Beetle Saturn saves to the System Memory")
 	saturn.rom_path = "/roms/saturn/game.chd"
-	_ok(saturn._memcards._compose_sram_path(core) == image_path,
+	_ok(saturn.memcards()._compose_sram_path(core) == image_path,
 		"saturn/ and with a disc in it, too")
-	_ok(saturn._memcards._compose_sram_path("yabasanshiro") != image_path,
+	_ok(saturn.memcards()._compose_sram_path("yabasanshiro") != image_path,
 		"saturn/ while another core keeps the route it had")
 	var made := own.ensure_image(core, saturn.systemid)
 	var made_bytes := FileAccess.get_file_as_bytes(made)
@@ -2255,11 +2245,11 @@ func _group_three_do() -> void:
 	await _wait(10)
 	three_do.rom_path = "/roms/3do/game.chd"
 	_ok(three_do.get_snapped_cartridge() == disc
-		and not three_do._memcards._compose_sram_path("othercore").is_empty(),
+		and not three_do.memcards()._compose_sram_path("othercore").is_empty(),
 		"three_do/ a disc in the tray has a file of its own on another core")
-	_ok(three_do._memcards._compose_sram_path(core).is_empty(),
+	_ok(three_do.memcards()._compose_sram_path(core).is_empty(),
 		"three_do/ but none on Opera, which has no SAVE_RAM to fill it")
-	_ok(three_do._memcards.rtc_path_for_run(core).is_empty(), "three_do/ nor a clock")
+	_ok(three_do.memcards().rtc_path_for_run(core).is_empty(), "three_do/ nor a clock")
 
 	var per_game := root.path_join("pergame")
 	DirAccess.make_dir_recursive_absolute(per_game.path_join(ThreeDoStorage.PER_GAME_DIR))
@@ -2464,9 +2454,9 @@ func _group_memory() -> void:
 	a.restore_media_in_slot(disc)
 	await _wait(5)
 	md.rom_path = "/roms/segacd/game.chd"
-	_ok(md._memcards._compose_sram_path("genesis_plus_gx").is_empty(),
+	_ok(md.memcards()._compose_sram_path("genesis_plus_gx").is_empty(),
 		"memory/ a disc in it binds no save file of its own on genesis_plus_gx")
-	_ok(not md._memcards._compose_sram_path("picodrive").is_empty(),
+	_ok(not md.memcards()._compose_sram_path("picodrive").is_empty(),
 		"memory/ while picodrive's route is left as it was")
 
 	# The console menu's Saves tab, driven by the unit's own panel.

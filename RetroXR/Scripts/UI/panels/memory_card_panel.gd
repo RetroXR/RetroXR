@@ -381,13 +381,13 @@ func _on_core_option_changed(key: String, value: String) -> void:
 ## Whether that is the LAST copy is the thing worth saying, so the confirm names
 ## it either way — the same distinction a ROM row draws between deleting a
 ## download and deleting the only one there is.
-func _on_delete_requested(s: Dictionary) -> void:
-	var slot := str(s["name"])
+func _on_delete_requested(save: Dictionary) -> void:
+	var slot := str(save["name"])
 	var forever := CardSaveOps.delete_is_forever(_path(), slot)
 	if _armed_slot != slot:
 		_armed_slot = slot
 		_notice("Press again to %s %s%s" % ["delete" if forever else "remove",
-			CardSaveOps.title_of(s),
+			CardSaveOps.title_of(save),
 			" permanently" if forever else " — RomM keeps its copy"], ARM_SECONDS)
 		_populate()
 		get_tree().create_timer(ARM_SECONDS).timeout.connect(func() -> void:
@@ -398,28 +398,28 @@ func _on_delete_requested(s: Dictionary) -> void:
 	_armed_slot = ""
 	var path := _path()
 	if path.is_empty() or not CardSaveOps.delete_save(
-			get_tree(), _fmt(), path, _card.card_id, int(s["block"])):
-		_notice("Could not delete %s" % CardSaveOps.title_of(s), MenuToasts.DWELL_FAIL)
+			get_tree(), _fmt(), path, _card.card_id, int(save["block"])):
+		_notice("Could not delete %s" % CardSaveOps.title_of(save), MenuToasts.DWELL_FAIL)
 		_populate()
 		return
-	_notice("Deleted %s%s" % [CardSaveOps.title_of(s),
+	_notice("Deleted %s%s" % [CardSaveOps.title_of(save),
 		"" if forever else " — RomM still has its copy"])
 	_populate()
 
 
 ## Opt one save in or out of RomM backup. Opting in uploads it there and then —
 ## see CardSaveOps.backup_save.
-func _on_sync_toggled(s: Dictionary, on: bool) -> void:
+func _on_sync_toggled(save: Dictionary, on: bool) -> void:
 	var path := _path()
 	if path.is_empty():
 		return
 	if not on:
-		CardSaveOps.stop_backup(path, str(s["name"]))
-		_notice("Stopped backing up %s" % CardSaveOps.title_of(s))
+		CardSaveOps.stop_backup(path, str(save["name"]))
+		_notice("Stopped backing up %s" % CardSaveOps.title_of(save))
 		_populate()
 		return
-	_notice("Uploading %s…" % CardSaveOps.title_of(s), 8.0)
-	CardSaveOps.backup_save(_fmt(), path, s, func(ok: bool, message: String) -> void:
+	_notice("Uploading %s…" % CardSaveOps.title_of(save), 8.0)
+	CardSaveOps.backup_save(_fmt(), path, save, func(ok: bool, message: String) -> void:
 		if not (is_instance_valid(self) and _shown()):
 			return
 		_notice(message, MenuToasts.DWELL_OK if ok else MenuToasts.DWELL_FAIL)
@@ -471,7 +471,7 @@ func _on_restore_requested() -> void:
 ## thing that can want it created early, so it is formatted here. A card that
 ## HAD an image and lost it is never given a blank — that would answer missing
 ## saves with something that looks exactly like them being wiped.
-func _on_restore_picked(s: Dictionary) -> void:
+func _on_restore_picked(save: Dictionary) -> void:
 	var path := _path()
 	if path.is_empty():
 		if not _card.minted:
@@ -483,14 +483,14 @@ func _on_restore_picked(s: Dictionary) -> void:
 			_notice("This card could not be created — nothing was written",
 				MenuToasts.DWELL_FAIL)
 			return
-	_notice("Downloading %s…" % str(s.get("rom_name", s.get("slot", ""))), 8.0)
-	CardSaveOps.restore_save(get_tree(), _fmt(), path, _card.card_id, s,
+	_notice("Downloading %s…" % str(save.get("rom_name", save.get("slot", ""))), 8.0)
+	CardSaveOps.restore_save(get_tree(), _fmt(), path, _card.card_id, save,
 		func(problem: String) -> void:
 			if not (is_instance_valid(self) and _shown()):
 				return
 			if problem.is_empty():
 				_notice("Restored %s — kept backed up to RomM"
-					% str(s.get("rom_name", s["slot"])), MenuToasts.DWELL_INFO)
+					% str(save.get("rom_name", save["slot"])), MenuToasts.DWELL_INFO)
 			else:
 				_notice(problem, MenuToasts.DWELL_FAIL)
 			_populate())
@@ -500,15 +500,15 @@ func _on_restore_picked(s: Dictionary) -> void:
 ## own (VmuCard.play_save); this only reports how it went. The image is never
 ## touched, which is also why nothing comes back: vemulator writes no saves,
 ## and the panel's playing row says so.
-func _on_play_requested(s: Dictionary) -> void:
+func _on_play_requested(save: Dictionary) -> void:
 	if not (_card and is_instance_valid(_card) and _card.has_method("play_save")):
 		return
-	var title := CardSaveOps.title_of(s)
+	var title := CardSaveOps.title_of(save)
 	var why := str(_card.call("standalone_blocker"))
 	if not why.is_empty():
 		_notice("Cannot play %s — %s" % [title, why], MenuToasts.DWELL_FAIL)
 		return
-	if not bool(_card.call("play_save", int(s["block"]), title)):
+	if not bool(_card.call("play_save", int(save["block"]), title)):
 		_notice("%s would not start" % title, MenuToasts.DWELL_FAIL)
 		_populate()
 		return

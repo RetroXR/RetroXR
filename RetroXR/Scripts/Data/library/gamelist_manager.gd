@@ -212,9 +212,9 @@ func dedupe(systemid: String) -> int:
 				first_holder[k] = i
 
 	for gi in range(games.size() - 1, 0, -1):
-		var g: Dictionary = games[gi]
+		var game: Dictionary = games[gi]
 		var ti := -1
-		for r: Dictionary in g.get("roms", []):
+		for r: Dictionary in game.get("roms", []):
 			var at := int(first_holder.get(_path_key(str(r.get("path", ""))), gi))
 			if at < gi:
 				ti = at
@@ -223,19 +223,19 @@ func dedupe(systemid: String) -> int:
 			continue
 		var target: Dictionary = games[ti]
 		# Everything this entry listed is the earlier one's now.
-		for r: Dictionary in g.get("roms", []):
+		for r: Dictionary in game.get("roms", []):
 			var k := _path_key(str(r.get("path", "")))
 			if not k.is_empty():
 				first_holder[k] = mini(int(first_holder.get(k, ti)), ti)
 		target["game_id"] = _best_game_id(
-			str(target.get("game_id", "")), str(g.get("game_id", "")))
+			str(target.get("game_id", "")), str(game.get("game_id", "")))
 		for field: String in ["name", "desc", "developer", "publisher", "genre"]:
 			target[field] = _keep_better(
-				str(target.get(field, "")), str(g.get(field, "")))
-		if bool(g.get("scraped", false)):
+				str(target.get(field, "")), str(game.get(field, "")))
+		if bool(game.get("scraped", false)):
 			target["scraped"] = true
 		var into: Array = target.get("roms", [])
-		for r: Dictionary in g.get("roms", []):
+		for r: Dictionary in game.get("roms", []):
 			if _game_holding_rom([target], str(r.get("path", ""))).is_empty():
 				into.append(r)
 		target["roms"] = into
@@ -288,8 +288,8 @@ func remove_rom(systemid: String, rom_path: String) -> bool:
 	var removed := false
 
 	for gi in range(games.size() - 1, -1, -1):
-		var g: Dictionary = games[gi]
-		var roms: Array = g.get("roms", [])
+		var game: Dictionary = games[gi]
+		var roms: Array = game.get("roms", [])
 		var dropped_preferred := false
 		for ri in range(roms.size() - 1, -1, -1):
 			if str((roms[ri] as Dictionary).get("path", "")) != relative:
@@ -324,8 +324,8 @@ func prune_missing(systemid: String, keep: Dictionary = {}) -> PackedStringArray
 	var games: Array = gamelist.get("games", [])
 
 	for gi in range(games.size() - 1, -1, -1):
-		var g: Dictionary = games[gi]
-		var roms: Array = g.get("roms", [])
+		var game: Dictionary = games[gi]
+		var roms: Array = game.get("roms", [])
 		var lost_preferred := false
 		for ri in range(roms.size() - 1, -1, -1):
 			var rel := str((roms[ri] as Dictionary).get("path", ""))

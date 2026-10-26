@@ -13,10 +13,8 @@
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/ra_tests.tscn
 ##   "$godot" --headless --path RetroXR res://Tests/ra_tests.tscn -- --only=config
-extends Node
+extends "res://Tests/test_suite.gd"
 
-var _passed := 0
-var _failed := 0
 var _only := ""
 
 ## The player's own config, put back exactly as found. `_had_config` false means
@@ -27,6 +25,7 @@ var _had_config := false
 
 
 func _ready() -> void:
+	suite_tag = "ra"
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr("--only=".length())
@@ -44,27 +43,15 @@ func _ready() -> void:
 	_group_agent()
 	_restore()
 
-	print("[ra] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[ra] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 # ── Harness ───────────────────────────────────────────────────────────────────
 
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if not (_only.is_empty() or what.begins_with(_only)):
-		return
-	if cond:
-		_passed += 1
-		print("[ra] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[ra] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
-
+## Group filter on the check's own name. TestSuite._ok asks it, so a check
+## outside the --only group is neither run nor counted.
+func _wanted(what: String) -> bool:
+	return _only.is_empty() or what.begins_with(_only)
 
 func _snapshot() -> void:
 	var path := RaConfig.config_path()

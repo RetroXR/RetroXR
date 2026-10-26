@@ -18,17 +18,17 @@ class_name RommSaves
 ## A save's identity on the server, from RomM's SaveSchema.
 ## `content_hash` is what makes three-way sync possible; RomM computes it, so a
 ## local md5 can be compared against what the server believes it holds.
-static func from_schema(d: Dictionary) -> Dictionary:
+static func from_schema(raw: Dictionary) -> Dictionary:
 	return {
-		"id": int(d.get("id", 0)),
-		"rom_id": int(d.get("rom_id", 0)),
-		"file_name": str(d.get("file_name", "")),
-		"size": int(d.get("file_size_bytes", 0)),
-		"slot": str(d.get("slot", "")) if d.get("slot") != null else "",
-		"emulator": str(d.get("emulator", "")) if d.get("emulator") != null else "",
-		"content_hash": str(d.get("content_hash", "")) if d.get("content_hash") != null else "",
-		"updated_at": str(d.get("updated_at", "")),
-		"missing": bool(d.get("missing_from_fs", false)),
+		"id": int(raw.get("id", 0)),
+		"rom_id": int(raw.get("rom_id", 0)),
+		"file_name": str(raw.get("file_name", "")),
+		"size": int(raw.get("file_size_bytes", 0)),
+		"slot": str(raw.get("slot", "")) if raw.get("slot") != null else "",
+		"emulator": str(raw.get("emulator", "")) if raw.get("emulator") != null else "",
+		"content_hash": str(raw.get("content_hash", "")) if raw.get("content_hash") != null else "",
+		"updated_at": str(raw.get("updated_at", "")),
+		"missing": bool(raw.get("missing_from_fs", false)),
 	}
 
 
@@ -56,9 +56,9 @@ static func list_all(http: RommHttp, headers: PackedStringArray,
 	if out["data"] is Array:
 		for item: Variant in out["data"]:
 			if item is Dictionary:
-				var s := from_schema(item as Dictionary)
-				if not s["missing"]:
-					saves.append(s)
+				var save := from_schema(item as Dictionary)
+				if not save["missing"]:
+					saves.append(save)
 	return {"ok": true, "saves": saves, "error": ""}
 
 
@@ -89,11 +89,11 @@ static func list(http: RommHttp, headers: PackedStringArray, rom_id: int,
 	if out["data"] is Array:
 		for item: Variant in out["data"]:
 			if item is Dictionary:
-				var s := from_schema(item as Dictionary)
+				var save := from_schema(item as Dictionary)
 				# A record whose file is gone cannot be downloaded; leaving it
 				# out makes the row read "not on the server", which is true.
-				if not s["missing"]:
-					saves.append(s)
+				if not save["missing"]:
+					saves.append(save)
 	return {"ok": true, "saves": saves, "error": ""}
 
 

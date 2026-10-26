@@ -21,7 +21,7 @@
 ## And the covers (`cover/`): a shell whose opening has a cover (xenu.gamecube's
 ## Serial Port 1, xenu.ps2's EXPANSION BAY) gives the card's socket a PortCover
 ## that has to come off before the card goes in, and cannot go back while it is in.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
@@ -32,13 +32,12 @@ const ILINK_CABLE_SCENE := "res://Scenes/Objects/cables/ilink_cable.tscn"
 const BBA := "gamecube_broadband_adapter"
 const NETWORK_ADAPTER := "ps2_network_adapter"
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "eth"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -72,25 +71,11 @@ func _ready() -> void:
 		await _test_port_covers()
 	if _want("jack"):
 		await _test_shell_jack()
-	print("[eth] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _want(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, name: String, detail := "") -> void:
-	if cond:
-		_pass += 1
-		print("[eth] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[eth] FAIL  %s%s" % [name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 func _wait(n: int) -> void:
@@ -411,7 +396,7 @@ func _test_built_in_socket() -> void:
 
 	var slim := await _console("ps2", "SlimPS2")
 	var shell := _SlimShell.new()
-	var was: RetroSystemModel = slim._model
+	var was: RetroSystemModel = slim.get_model()
 	slim._model = shell
 	slim._build_builtin_ethernet_port()
 	var port := slim.get_node_or_null("EthernetPort") as EthernetPort
@@ -593,7 +578,7 @@ func _test_port_covers() -> void:
 	var sys := await _covered_console("CoveredGC")
 	sys.model_variant = "spice"
 	var socket := sys._unit_socket(COVER_SOCKET)
-	var slot := sys._model.port_cover_slot(COVER_SOCKET)
+	var slot := sys.get_model().port_cover_slot(COVER_SOCKET)
 	_ok(slot != null, "cover/ the shell builds a slot over the card's socket")
 	if slot == null:
 		await _clear()

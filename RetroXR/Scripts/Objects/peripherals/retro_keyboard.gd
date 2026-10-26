@@ -543,21 +543,21 @@ func _key_at(p: Vector2) -> int:
 
 
 func _set_key(index: int, down: bool) -> void:
-	var k: Dictionary = _keys[index]
-	_set_cap_pressed(k, down)
-	_send_key(int(k["keycode"]), down)
+	var key: Dictionary = _keys[index]
+	_set_cap_pressed(key, down)
+	_send_key(int(key["keycode"]), down)
 
 
 ## Sink or raise one cap. The legend is a separate Label3D floating just above the
 ## cap, so it has to travel with it or a pressed key keeps its lettering hovering
 ## at rest height. Single place for the move: the real-keyboard path used to
 ## duplicate it and could only ever drift.
-func _set_cap_pressed(k: Dictionary, down: bool) -> void:
+func _set_cap_pressed(key: Dictionary, down: bool) -> void:
 	var sink := PRESS_TRAVEL if down else 0.0
-	(k["mesh"] as MeshInstance3D).position.y = float(k["base_y"]) - sink
-	var lbl := k["label"] as Label3D
+	(key["mesh"] as MeshInstance3D).position.y = float(key["base_y"]) - sink
+	var lbl := key["label"] as Label3D
 	if lbl != null:
-		lbl.position.y = float(k["label_base_y"]) - sink
+		lbl.position.y = float(key["label_base_y"]) - sink
 
 
 func _release_all() -> void:

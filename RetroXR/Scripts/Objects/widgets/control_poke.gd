@@ -73,11 +73,11 @@ func _init(owner: Node3D) -> void:
 ## with `extra` {"depth": ..} for a cap with no input behind it, which ControlPoke
 ## then moves itself.
 static func button(node: Node3D, bit: int, dir: Vector3, extra: Dictionary = {}) -> Dictionary:
-	var t := {"node": node, "rest": node.transform, "dir": dir}
+	var entry := {"node": node, "rest": node.transform, "dir": dir}
 	if bit >= 0:
-		t["bit"] = bit
-	t.merge(extra)
-	return t
+		entry["bit"] = bit
+	entry.merge(extra)
+	return entry
 
 
 ## A cross rocked about `pivot`. `turn_up` / `turn_right` are the axes the owner's

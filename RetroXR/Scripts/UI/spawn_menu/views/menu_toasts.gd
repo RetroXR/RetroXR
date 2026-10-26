@@ -123,7 +123,7 @@ func set_wrap_width(px: float) -> void:
 ## one, so a filling bar would stretch them all), and on the spawn menu, where
 ## the cap is over a thousand pixels, nothing is ever wide enough to fold.
 func _apply_wrap(lbl: Variant) -> void:
-	if _wrap_width <= 0.0 or lbl == null or not is_instance_valid(lbl):
+	if _wrap_width <= 0.0 or not is_instance_valid(lbl):
 		return
 	var l := lbl as Label
 	var font := l.get_theme_font("font")
@@ -359,7 +359,7 @@ func _enforce_cap() -> void:
 		_overflow_label = null
 		return
 
-	if _overflow_bar == null or not is_instance_valid(_overflow_bar):
+	if not is_instance_valid(_overflow_bar):
 		_overflow_bar = PanelContainer.new()
 		_overflow_bar.add_theme_stylebox_override("panel",
 			MenuStyle.rounded(OVERFLOW_BG, 8))

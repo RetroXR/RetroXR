@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Scene management, room transitions and the save gates around them.
 ##
@@ -31,8 +31,6 @@ const MANIFEST_FILE := "user://scenes/arcade/manifest.json"
 ## Every room's root script, which turns XR rendering on.
 const XR_INIT := "res://Scripts/XR/xr_init.gd"
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 
 var _saved_slots: Dictionary = {}
@@ -42,7 +40,6 @@ var _saved_prefs_json := ""
 var _had_prefs := false
 var _saved_manifest_json := ""
 var _had_manifest := false
-
 
 
 ## The pad-scene allowlist gates a value that can arrive from another machine, so
@@ -208,9 +205,7 @@ func _ready() -> void:
 		_test_save_registry()
 	_restore()
 
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
+	_finish()
 
 
 # ── Which rooms keep slots, and what the active one is ────────────────────────
@@ -921,7 +916,8 @@ func _test_fixture() -> void:
 		"fixture/an old slot moves nothing")
 	# And a fixture the room no longer has is skipped, not an error.
 	sp._restore_fixtures(self, [{"path": "NoSuchNode", "position": [0, 0, 0]}])
-	_ok(true, "fixture/a missing fixture is skipped")
+	_ok(tv.global_position.is_equal_approx(Vector3(4.0, 1.0, 4.0)),
+		"fixture/a missing fixture is skipped, and moves nothing else")
 
 	# A television is the one fixture with state of its own. A spawned set carries
 	# its whole control state in its object entry; a fixture has no entry, so the
@@ -1011,7 +1007,7 @@ func _test_switch() -> void:
 	_ok(sw.lights_on, "switch/an old slot changes nothing")
 	# And a switch the room no longer has is skipped, not an error.
 	sp._restore_switches(self, [{"path": "NoSuchNode", "on": false}])
-	_ok(true, "switch/a missing switch is skipped")
+	_ok(sw.lights_on, "switch/a missing switch is skipped, and turns no other off")
 
 	sw.queue_free()
 	await get_tree().process_frame
@@ -1048,9 +1044,26 @@ func _test_power() -> void:
 
 	# And the teardown path must not go through the power BUTTON's verb, which
 	# answers to the netplay session and can return without stopping anything.
-	var src := FileAccess.get_file_as_string("res://Scripts/Data/scene_persistence.gd")
-	_ok(src.contains(".power_off()") and not src.contains(".toggle_power()"),
-		"power/clear_scene powers off locally rather than toggling")
+	# Outside a session the two end the same way, so the machine's state cannot
+	# tell them apart: a spy on the machine records which verb clear_scene used.
+	var spy := GDScript.new()
+	spy.source_code = "extends \"res://Scripts/Objects/systems/system.gd\"\n" \
+		+ "var verbs: Array[String] = []\n" \
+		+ "func power_off() -> void:\n\tverbs.append(\"power_off\")\n\tsuper()\n" \
+		+ "func toggle_power() -> void:\n\tverbs.append(\"toggle_power\")\n\tsuper()\n"
+	_ok(spy.reload() == OK, "power/the spy machine compiles")
+	var spied: Node = preload("res://Scenes/Objects/system.tscn").instantiate()
+	spied.set_script(spy)
+	add_child(spied)
+	spied.add_to_group("spawned")
+	await get_tree().process_frame
+	spied.is_powered_on = true
+	ScenePersistence.new("arcade").clear_scene(self)
+	var verbs: Array[String] = spied.verbs.duplicate()
+	_ok(verbs.has("power_off") and not verbs.has("toggle_power"),
+		"power/clear_scene powers off locally rather than toggling (%s)" % [verbs])
+	if is_instance_valid(spied):
+		await get_tree().process_frame
 
 	# A power switch is not a pose, and it is the one slider that is not. Power is
 	# not in the file at all, so every machine restores OFF — and a saved switch
@@ -1352,8 +1365,12 @@ func _test_vlc() -> void:
 	_ok(us < 500000, "vlc/shutdown with no media returns immediately (%.1f ms)" % (us / 1000.0))
 
 	# Idempotent: a deck freed after an explicit stop must not tear down twice.
+	t = Time.get_ticks_usec()
 	player.shutdown()
-	_ok(true, "vlc/shutdown is idempotent")
+	us = Time.get_ticks_usec() - t
+	_ok(us < 500000 and not player.is_playing(),
+		"vlc/shutdown is idempotent: a second one returns at once with nothing playing (%.1f ms)"
+		% (us / 1000.0))
 
 	# And the decks actually call it, which is the half a C++ method cannot assert.
 	# Both decks tear down through MediaTransport now, so that is the file the
@@ -1669,8 +1686,13 @@ func _test_storage() -> void:
 				Trash.delete_with_dependents(device)
 			else:
 				device.queue_free()
-		# Past Vanish's shrink, which is what frees a binned device.
-		await get_tree().create_timer(Vanish.DURATION + 0.2).timeout
+		# Past Vanish's shrink, which is what frees a binned device: polled, with
+		# a generous bound, rather than a timer just longer than the shrink.
+		await _wait_until(func() -> bool:
+			for label: String in devices:
+				if is_instance_valid(devices[label]) or is_instance_valid(cords[label]):
+					return false
+			return true, Vanish.DURATION + 5.0)
 		for label: String in devices:
 			_ok(not is_instance_valid(devices[label]), "storage/a %s %s is gone" % [label, how])
 			_ok(not is_instance_valid(cords[label]),
@@ -1931,7 +1953,9 @@ func _freeze_all(node: Node) -> void:
 ## nunchuk_cable.tscn and so the plug's script again while it was still loading:
 ## when early class compiles walked into that loop at boot, every pad's cable scene
 ## loaded empty and no controller had its cord. Read from the source, comments left
-## out, as the vlc/ group reads its own.
+## out: the loop only bit during the boot's early class compiles, which a suite
+## that has already loaded every class cannot reproduce, so what the plug's code
+## NAMES is the one handle on it. The scene loads below are the behavioural half.
 func _test_plug() -> void:
 	var src := FileAccess.get_file_as_string("res://Scripts/Objects/cables/controller_plug.gd")
 	var code := PackedStringArray()
@@ -1949,15 +1973,3 @@ func _test_plug() -> void:
 		var scene := load(path) as PackedScene
 		_ok(scene != null and scene.get_state().get_node_count() > 0, "plug/%s loads with its nodes" % path.get_file())
 
-
-func _ok(cond: bool, what: String) -> void:
-	_ran += 1
-	if cond:
-		print("[test] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[test] FAIL %s" % what)
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what if got == want else "%s (got %s, want %s)" % [what, got, want])

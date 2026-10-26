@@ -52,7 +52,7 @@ func _platter_for(d: float) -> ArrayMesh:
 			best_err = err
 			best = PLATTERS[dia]
 	if best_err > 0.002:
-		push_warning("RetroDisc: no platter mesh for %.3f m (%s); using nearest"
+		push_warning("[RetroDisc] no platter mesh for %.3f m (%s); using nearest"
 			% [d, systemid])
 	return best
 

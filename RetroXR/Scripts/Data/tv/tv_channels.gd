@@ -73,11 +73,11 @@ func _ingest(data: Variant) -> void:
 	if data is Array:
 		raw = data as Array
 	elif data is Dictionary:
-		var d := data as Dictionary
-		if d.get("sources") is Array:
-			raw = d["sources"] as Array
-		elif d.get("channels") is Array:
-			raw = d["channels"] as Array
+		var doc := data as Dictionary
+		if doc.get("sources") is Array:
+			raw = doc["sources"] as Array
+		elif doc.get("channels") is Array:
+			raw = doc["channels"] as Array
 
 	for entry_v: Variant in raw:
 		if not (entry_v is Dictionary):

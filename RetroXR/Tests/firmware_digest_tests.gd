@@ -13,7 +13,7 @@
 ## the message telling the player their BIOS does not match when it does.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/firmware_digest_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
@@ -25,11 +25,9 @@ extends Node
 ## cores_data_tests found it again.
 const EXPECTED_CASES := 14
 
-var _passed := 0
-var _failed := 0
-
 
 func _ready() -> void:
+	suite_tag = "fwdigest"
 	get_tree().create_timer(30.0).timeout.connect(func() -> void:
 		push_error("[fwdigest] TIMEOUT")
 		get_tree().quit(1))
@@ -37,24 +35,9 @@ func _ready() -> void:
 	_group_digest()
 	_group_message()
 
-	_eq(_passed + _failed, EXPECTED_CASES, "suite/every case ran")
+	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
 
-	print("[fwdigest] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[fwdigest] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[fwdigest] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[fwdigest] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
+	_finish()
 
 
 # ── digest/ ───────────────────────────────────────────────────────────────────

@@ -436,7 +436,7 @@ func _lay_captive_cord() -> void:
 		var t: float = 0.0 if spans[span] <= 0.0 else clampf((want - walked) / spans[span], 0.0, 1.0)
 		points.append(captive_cord_route[span].lerp(captive_cord_route[span + 1], t))
 	if not _cable_rope.restore_points(points):
-		push_warning("RetroController: captive cord route refused by the rope")
+		push_warning("[RetroController] captive cord route refused by the rope")
 
 
 func _physics_process(_delta: float) -> void:

@@ -466,16 +466,16 @@ func is_passthrough_supported() -> bool:
 
 func change_scene(scene_id: String) -> void:
 	if not RoomCatalog.has(scene_id):
-		push_error("SceneManager: unknown scene_id '%s'" % scene_id)
+		push_error("[SceneManager] unknown scene_id '%s'" % scene_id)
 		return
 	if scene_id == "passthrough" and not is_passthrough_supported():
-		push_warning("SceneManager: passthrough not supported on this device")
+		push_warning("[SceneManager] passthrough not supported on this device")
 		return
 
 	# In a session only the host decides scenes; clients follow via the network.
 	var net_client: bool = is_net_client()
 	if net_client and not net_scene_override:
-		push_warning("SceneManager: only the host can change scenes during a session")
+		push_warning("[SceneManager] only the host can change scenes during a session")
 		return
 	# Last intent wins. Asking for the room already in flight also cancels a
 	# different destination that may have been queued after it.
@@ -644,7 +644,7 @@ func _run_transition(scene_id: String, path: String, title: String,
 ## Keep the error panel and the carried player alive. The spawn menu belongs to
 ## the player, so it remains available for Retry or for choosing a different room.
 func _fail_transition(rig: LoadingRig, path: String, reason: String) -> void:
-	push_error("SceneManager: failed to load '%s' (%s)" % [path, reason])
+	push_error("[SceneManager] failed to load '%s' (%s)" % [path, reason])
 	_last_load_failed = true
 	_failed_loading_rig = rig
 	# The rig stays up showing the error; a second panel behind it would be wrong,

@@ -550,10 +550,9 @@ func _reset_hand_pose() -> void:
 	_hand_cam_basis = _hand_default_basis
 
 
-## Send a caught object back out to float on the ray, where the hand had it.
-## Back out onto the ray at the pull-in limit, where it was caught: one notch out leaves the hand
-## and one notch in catches it again. It used to resume 45 cm out, four notches further than the
-## player expected (2026-10-22).
+## Send a caught object back out onto the ray at the pull-in limit, where it was caught: one
+## notch out leaves the hand and one notch in catches it again. It used to resume 45 cm out, four
+## notches further than the player expected (2026-10-22).
 func _release_to_ray() -> void:
 	_hand_hold = false
 	_grab_dist = MIN_DIST
@@ -693,8 +692,6 @@ func _follow_gaze(delta: float) -> void:
 	_hand_pitch = follow_toward(_hand_pitch, gaze.x, deg_to_rad(HAND_DEADZONE_PITCH), weight)
 
 
-## How far ahead a screen of this width must stand to fill `fraction` of the view's width, for a
-## camera of this vertical field of view and aspect, kept between the near and far limits.
 ## How far ahead something with no screen and `size` across stands so that it fills
 ## HAND_OBJECT_FRACTION of the view's width: no nearer than HAND_FOCUS_MIN, no further than
 ## HAND_LOCAL's 40 cm, where everything used to sit.
@@ -703,6 +700,8 @@ static func object_distance(size: float, vfov_degrees: float, aspect: float) -> 
 	return clampf(size / (HAND_OBJECT_FRACTION * view), HAND_FOCUS_MIN, -HAND_LOCAL.z)
 
 
+## How far ahead a screen of this width must stand to fill HAND_SCREEN_FRACTION of the view's width, for a
+## camera of this vertical field of view and aspect, kept between the near and far limits.
 static func focus_distance(width: float, vfov_degrees: float, aspect: float) -> float:
 	var view := 2.0 * tan(deg_to_rad(clampf(vfov_degrees, 5.0, 170.0)) * 0.5) * maxf(aspect, 0.1)
 	return clampf(width / (HAND_SCREEN_FRACTION * view), HAND_FOCUS_MIN, HAND_FOCUS_MAX)

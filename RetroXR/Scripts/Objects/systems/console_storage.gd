@@ -44,7 +44,8 @@ func busy_title() -> String:
 	return ""
 
 
-## Why this machine may not start on `core`, or "" when nothing stands in the way.
+## Whether this machine may start on `core`.
+## Returns "" when ok, else the reason.
 func busy_elsewhere(_core: String) -> String:
 	return ""
 

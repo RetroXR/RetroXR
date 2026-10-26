@@ -376,23 +376,6 @@ const JUNCTION_AT := 0.25
 var _junction_up := Vector3.UP
 
 
-## The seat a machine last had on a live bus, set on its Libretro node and reset
-## to NONE when the machine is switched on again.
-##
-## A bare "has it been live" flag was not enough, and the case that proved it is
-## the ordinary one: a player seats the lead the wrong way round, notices, and
-## swaps the ends. Seat zero is player one, so swapping the ends swaps who is
-## player one, and a game that has already decided it is player two does not
-## become player one because a plug moved. It is the same fault the flag exists
-## to repair, arriving by a different route, so it wants the same repair.
-##
-## Single-pak is where this bites hardest, because there the seat is not a
-## preference: the machine WITH the cartridge has to be player one, or it will
-## not offer to send the game at all. Measured on the two-machine probe with the
-## seats reversed: zero bytes of program cross the wire and the host sends 24
-## messages in half a minute, against tens of thousands the right way round.
-
-
 ## Physics frames to wait before saying the wire again.
 ##
 ## A core takes a moment to reach the bus after its machine is switched on, and
@@ -460,7 +443,7 @@ func _watch() -> void:
 	for end: Dictionary in _linked:
 		var lib: Libretro = end["libretro"]
 		var machine: Node = end["machine"]
-		if not is_instance_valid(lib) or machine == null or not is_instance_valid(machine):
+		if not is_instance_valid(lib) or not is_instance_valid(machine):
 			continue
 		if not machine.is_powered_on:
 			continue

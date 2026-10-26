@@ -102,7 +102,7 @@ func _ready() -> void:
 	if target == null:
 		target = get_node_or_null(PIVOT_NAME) as Node3D
 	if target == null:
-		push_warning("VRKnob %s has no pivot: the value will move but the cap will not"
+		push_warning("[VRKnob] %s has no pivot: the value will move but the cap will not"
 			% get_path())
 	_build_icon()
 	set_value_no_signal(value)

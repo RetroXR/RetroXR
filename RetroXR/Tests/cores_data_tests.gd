@@ -24,19 +24,18 @@
 ## broken" rather than as a setting.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/cores_data_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before
 ## it has recorded itself.
 const EXPECTED_CASES := 88
 
-var _passed := 0
-var _failed := 0
 
 var _dir := ""
 
 
 func _ready() -> void:
+	suite_tag = "cores"
 	get_tree().create_timer(30.0).timeout.connect(func() -> void:
 		push_error("[cores] TIMEOUT")
 		get_tree().quit(1))
@@ -57,12 +56,10 @@ func _ready() -> void:
 	# try/catch, so one bad index aborts the function it is in and every case
 	# after it simply never prints -- mutation-testing this suite is how that was
 	# found here, exactly as card_tests records finding it. Bump when adding.
-	_eq(_passed + _failed, EXPECTED_CASES, "suite/every case ran")
+	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
 
 	_cleanup()
-	print("[cores] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[cores] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 func _cleanup() -> void:
@@ -77,19 +74,6 @@ func _cleanup() -> void:
 		n = d.get_next()
 	d.list_dir_end()
 	DirAccess.remove_absolute(_dir)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[cores] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[cores] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
 
 
 func _write(name: String, text: String) -> String:

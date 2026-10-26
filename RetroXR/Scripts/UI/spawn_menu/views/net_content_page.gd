@@ -219,14 +219,14 @@ func _on_item_changed(key: String, state: String, received: int, total: int) -> 
 	if key == "netjoin:state":
 		_show_join_phase(state, received, total)
 		return
-	var w: Dictionary = _widgets.get(key, {})
-	if w.is_empty():
+	var widget_set: Dictionary = _widgets.get(key, {})
+	if widget_set.is_empty():
 		return
-	var bar: ProgressBar = w["bar"]
-	var status: Label = w["status"]
+	var bar: ProgressBar = widget_set["bar"]
+	var status: Label = widget_set["status"]
 	if not is_instance_valid(bar) or not is_instance_valid(status):
 		return
-	var label := str(w.get("label", key))
+	var label := str(widget_set.get("label", key))
 	if state == NetplayContent.STATE_FETCHING:
 		bar.visible = true
 		bar.value = 100.0 * float(received) / maxf(1.0, float(total))

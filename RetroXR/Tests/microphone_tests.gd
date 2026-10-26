@@ -8,12 +8,10 @@
 ## The service reads the device, finds machines and switches capture through
 ## Callables, so every case here drives it with fakes. That a core hears what is
 ## pushed needs a real core and lives in Tools/cores/mic_probe.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SERVICE := preload("res://Scripts/Audio/microphone_input.gd")
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
@@ -48,6 +46,7 @@ class FakeMachine:
 
 
 func _ready() -> void:
+	suite_tag = "microphone"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -78,21 +77,11 @@ func _ready() -> void:
 		await _test_dreamcast()
 	AppPrefs.microphone_enabled = saved_pref
 
-	print("[microphone] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[microphone] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[microphone] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 func _service(consumers: Array, capture: Dictionary, switches: Array) -> Node:
@@ -276,7 +265,6 @@ func _test_ds_pins() -> void:
 			and CoreOptionsStore.HARDWARE_PINNED.has("melonds_mic_input_active"),
 		"ds/both keys are hardware-pinned for the core manager")
 	ds.free()
-
 
 
 ## Which way the cord leaves the body, which is not something a look settles:

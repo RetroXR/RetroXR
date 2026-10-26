@@ -19,7 +19,7 @@
 ##   visual/ a cap with no input behind it (a Home key) gives nothing and goes in.
 ##
 ## Writes nothing.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const PADS := {
 	"nes": "res://Scenes/Objects/controllers/nes/nes_controller.tscn",
@@ -75,14 +75,13 @@ const SKIP := {
 
 const CAP_NAME := "(?i)(button|btn|dpad|d_pad|shoulder|trigger|start|select|home|fire)"
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 var _hand: Node3D = null
 var _cap_re := RegEx.create_from_string(CAP_NAME)
 
 
 func _ready() -> void:
+	suite_tag = "poke"
 	# --extra=key|kind|res://path;... runs the same cases on objects that are not
 	# the game's own: a shell pack staged into this checkout's mods/ folder.
 	var extra: Array[PackedStringArray] = []
@@ -118,21 +117,16 @@ func _ready() -> void:
 		await _test_object(spec[0], spec[2], spec[1])
 
 	AppPrefs.poke_controls = poke_pref
-	print("[poke] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _wants(key: String) -> bool:
 	return _only.is_empty() or _only == key
 
 
-func _check(name: String, ok: bool, why: String = "") -> void:
-	if ok:
-		_pass += 1
-		print("[poke] PASS %s" % name)
-	else:
-		_fail += 1
-		print("[poke] FAIL %s — %s" % [name, why])
+## This suite names the case first; TestSuite._ok takes the condition first.
+func _check(label: String, ok: bool, why: String = "") -> void:
+	_ok(ok, label, why)
 
 
 # ── One object ──────────────────────────────────────────────────────────────

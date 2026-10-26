@@ -245,7 +245,7 @@ func _apply_av_feed(tv: RetroTV, video: bool, l: int, r: int) -> void:
 ## << REW there would be drawn over some other machine's picture. Null otherwise,
 ## so every deck message goes through this rather than connected_tv.
 func _watching_tv() -> RetroTV:
-	if connected_tv == null or not is_instance_valid(connected_tv):
+	if not is_instance_valid(connected_tv):
 		return null
 	var selected := connected_tv.selected_input()
 	if selected < 0 or connected_tv.input_for_device(self) != selected:

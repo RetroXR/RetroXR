@@ -60,7 +60,7 @@ func _ready() -> void:
 		_glb = baked
 	else:
 		if not ResourceLoader.exists(_MODEL_PATH):
-			push_warning("PlayStationModel: %s missing — using placeholder box" % _MODEL_PATH)
+			push_warning("[PlayStationModel] %s missing — using placeholder box" % _MODEL_PATH)
 			var host := get_parent()
 			if host:
 				var body := host.get_node_or_null("SystemBody") as MeshInstance3D
@@ -69,7 +69,7 @@ func _ready() -> void:
 			return
 		var scene := load(_MODEL_PATH) as PackedScene
 		if scene == null:
-			push_warning("PlayStationModel: failed to load %s" % _MODEL_PATH)
+			push_warning("[PlayStationModel] failed to load %s" % _MODEL_PATH)
 			return
 		_glb = scene.instantiate() as Node3D
 		# MUST be "Shell" — has_baked_shell() looks for exactly this, and it is how
@@ -210,7 +210,7 @@ func configure_buttons(power_btn: VRButton, reset_btn: VRButton, eject_btn: VRBu
 		btn.set_latched_pressed(false)
 		var cap := _shell_mesh(String(pair[1]))
 		if cap == null:
-			push_warning("PlayStationModel: %s missing from the shell" % pair[1])
+			push_warning("[PlayStationModel] %s missing from the shell" % pair[1])
 			continue
 		# set_button_mesh also hides the cabinet's placeholder box, and is what
 		# makes the real cap travel when the button is pressed.
@@ -584,7 +584,7 @@ const PORT_MOUTH_RISE := 0.0074
 ## No proud offset here, unlike SERIAL_PROUD on the back panel: that connector
 ## stands off its socket, while a controller plug's collar butts against the
 ## case.
-
+##
 ## The zone is not the plug's pose. XRTools aligns a plug's SnapGrabPoint — which
 ## carries its own 180-degree flip about X (controller_cable.tscn) — to the zone,
 ## so the placed pose has to be composed with that flip. A front-facing socket
@@ -685,7 +685,7 @@ func build_serial_port(host: Node3D, systemid: String) -> void:
 		return
 	var m := _shell_mesh("JackSerial")
 	if m == null:
-		push_warning("PlayStationModel: no JackSerial in the shell; no serial socket")
+		push_warning("[PlayStationModel] no JackSerial in the shell; no serial socket")
 		return
 	var port := _SERIAL_PORT_SCENE.instantiate() as Node3D
 	if port == null:

@@ -16,7 +16,7 @@
 ## Reads .import files only; no renderer, no device.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/texture_import_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const ROOT := "res://imported-assets"
 const RASTER := ["png", "jpg", "jpeg", "webp", "tga", "bmp"]
@@ -24,11 +24,9 @@ const RASTER := ["png", "jpg", "jpeg", "webp", "tga", "bmp"]
 ## "trees_NormalTree_Bark", which is a tree's bark.
 const NORMAL_NAME := "(?i)(^|[_. -])normal(gl|dx)?([_. -]|$)"
 
-var _passed := 0
-var _failed := 0
-
 
 func _ready() -> void:
+	suite_tag = "teximport"
 	var imports: Array[String] = []
 	_walk(ROOT, imports)
 	var textures := 0
@@ -64,9 +62,7 @@ func _ready() -> void:
 	_ok(no_mobile.is_empty(), "...and an ETC2 or ASTC file for the Quest", _list(no_mobile))
 	_ok(normals.is_empty(), "every normal map imports as a normal map", _list(normals))
 
-	print("[teximport] %d cases, %s" % [_passed + _failed,
-		"PASS" if _failed == 0 else "%d FAILURE(S)" % _failed])
-	get_tree().quit(0 if _failed == 0 else 1)
+	_finish()
 
 
 func _walk(dir_path: String, out: Array[String]) -> void:
@@ -86,11 +82,3 @@ func _list(paths: Array[String]) -> String:
 	var shown := ", ".join(paths.slice(0, 5))
 	return shown + (" and %d more" % (paths.size() - 5) if paths.size() > 5 else "")
 
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[teximport] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[teximport] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])

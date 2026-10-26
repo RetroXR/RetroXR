@@ -375,51 +375,51 @@ func _sample(t: float) -> Dictionary:
 	return out
 
 
-func _apply_sky(k: Dictionary, env: Environment) -> void:
+func _apply_sky(keyframe: Dictionary, env: Environment) -> void:
 	if _sky_mat != null:
-		_sky_mat.sky_top_color = k["sky_top"]
-		_sky_mat.sky_horizon_color = k["sky_horizon"]
-		_sky_mat.ground_horizon_color = k["ground_horizon"]
-		_sky_mat.ground_bottom_color = k["ground_bottom"]
-		_sky_mat.energy_multiplier = k["sky_energy"]
+		_sky_mat.sky_top_color = keyframe["sky_top"]
+		_sky_mat.sky_horizon_color = keyframe["sky_horizon"]
+		_sky_mat.ground_horizon_color = keyframe["ground_horizon"]
+		_sky_mat.ground_bottom_color = keyframe["ground_bottom"]
+		_sky_mat.energy_multiplier = keyframe["sky_energy"]
 	if env != null:
-		env.ambient_light_color = k["ambient_color"]
+		env.ambient_light_color = keyframe["ambient_color"]
 
 
 ## Colours direct; the three contested ENERGIES through the blinds, which keep the
 ## only writes to them and go on scaling by how far they are open.
-func _apply_daylight(k: Dictionary, env: Environment) -> void:
+func _apply_daylight(keyframe: Dictionary, env: Environment) -> void:
 	if _room_daylight != null:
-		_room_daylight.light_color = k["day_color"]
+		_room_daylight.light_color = keyframe["day_color"]
 	if _window_sun != null:
-		_window_sun.light_color = k["win_color"]
+		_window_sun.light_color = keyframe["win_color"]
 
-	var amb_open: float = maxf(k["amb_open"], night_ambient_floor)
+	var amb_open: float = maxf(keyframe["amb_open"], night_ambient_floor)
 	# Clamped to amb_open as well as to the floor: shut must never be brighter than
 	# open, or closing the blinds would LIGHT the room.
-	var amb_shut: float = clampf(k["amb_shut"], night_ambient_floor, amb_open)
+	var amb_shut: float = clampf(keyframe["amb_shut"], night_ambient_floor, amb_open)
 
 	if _blinds != null:
-		_blinds.set_daylight_base(k["sun_energy"], k["day_open"], k["day_shut"],
+		_blinds.set_daylight_base(keyframe["sun_energy"], keyframe["day_open"], keyframe["day_shut"],
 			amb_open, amb_shut)
 		return
 	# No blinds in this scene, so this script is the only writer and "fully open" is
 	# the right reading — there is nothing over the window to scale by.
 	if _window_sun != null:
-		_window_sun.light_energy = k["sun_energy"]
+		_window_sun.light_energy = keyframe["sun_energy"]
 	if _room_daylight != null:
-		_room_daylight.light_energy = k["day_open"]
+		_room_daylight.light_energy = keyframe["day_open"]
 	if env != null:
 		env.ambient_light_energy = amb_open
 
 
-func _apply_exterior(k: Dictionary, altitude_deg: float) -> void:
+func _apply_exterior(keyframe: Dictionary, altitude_deg: float) -> void:
 	if _exterior_sun != null:
-		_exterior_sun.light_color = k["ext_color"]
-		_exterior_sun.light_energy = k["ext_energy"] * horizon_gain(altitude_deg)
+		_exterior_sun.light_color = keyframe["ext_color"]
+		_exterior_sun.light_energy = keyframe["ext_energy"] * horizon_gain(altitude_deg)
 	if _exterior_fill != null:
-		_exterior_fill.light_color = k["fill_color"]
-		_exterior_fill.light_energy = k["fill_energy"]
+		_exterior_fill.light_color = keyframe["fill_color"]
+		_exterior_fill.light_energy = keyframe["fill_energy"]
 
 
 ## How much DIRECT sun survives at a given altitude. Zero once the sun is down.

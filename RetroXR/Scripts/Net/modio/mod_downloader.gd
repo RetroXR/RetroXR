@@ -109,8 +109,8 @@ func _staging_dir() -> String:
 	return Mods.incoming_dir() if staging_dir_override.is_empty() else staging_dir_override
 
 
-## "" when a file of `size` bytes will fit in `free` bytes, else a sentence the
-## player can act on. Nothing is refused on a size or a free figure of 0: mod.io
+## Whether a file of `size` bytes will fit in `free` bytes. Returns "" when ok, else the reason.
+## The reason is a sentence the player can act on. Nothing is refused on a size or a free figure of 0: mod.io
 ## does not always state one, and a volume that reports none is unknown, not full.
 static func space_problem(size: int, free: int, have: int = 0) -> String:
 	if size <= 0 or free <= 0:

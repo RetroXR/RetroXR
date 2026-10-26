@@ -23,7 +23,7 @@
 ##
 ## The pack mounted under mount/ stays mounted to the end of the run, as a pack
 ## does (it cannot be taken off). Nothing after it is the worse for that.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself. A case that never ran is not one that
@@ -62,14 +62,13 @@ class Heard extends Logger:
 		_lock.unlock()
 		return out
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 var _dir := "user://mod_uids_tests"
 var _heard := Heard.new()
 
 
 func _ready() -> void:
+	suite_tag = "uids"
 	for a in OS.get_cmdline_user_args():
 		if str(a).begins_with("--only="):
 			_only = str(a).substr("--only=".length())
@@ -87,10 +86,9 @@ func _ready() -> void:
 
 	OS.remove_logger(_heard)
 	if _only.is_empty():
-		_ok(_pass + _fail == EXPECTED_CASES, "suite/every case ran",
-			"%d ran, %d expected" % [_pass + _fail, EXPECTED_CASES])
-	print("[uids] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+		_ok(_case_count() == EXPECTED_CASES, "suite/every case ran",
+			"%d ran, %d expected" % [_case_count(), EXPECTED_CASES])
+	_finish()
 
 
 func _want(group: String) -> bool:
@@ -280,14 +278,3 @@ func _remove_tree(path: String) -> void:
 
 # ── assertions ────────────────────────────────────────────────────────────────
 
-func _ok(cond: bool, test_name: String, detail := "") -> void:
-	if cond:
-		_pass += 1
-		print("[uids] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[uids] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, test_name: String) -> void:
-	_ok(got == want, test_name, "got %s, want %s" % [str(got), str(want)])

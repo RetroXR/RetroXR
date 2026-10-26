@@ -122,7 +122,7 @@ func _ready() -> void:
 		# the first press of play.
 		_vlc.warm_up()
 	else:
-		push_error("DVDPlayer: VlcPlayer extension not loaded — DVD playback unavailable")
+		push_error("[DVDPlayer] VlcPlayer extension not loaded — DVD playback unavailable")
 
 	_setup_audio()
 	_update_name_label()
@@ -394,16 +394,16 @@ func _on_stop_pressed() -> void:
 
 func play() -> void:
 	if _vlc == null:
-		push_error("DVDPlayer: VlcPlayer unavailable (extension not loaded)")
+		push_error("[DVDPlayer] VlcPlayer unavailable (extension not loaded)")
 		return
 	if connected_tv == null:
-		push_error("DVDPlayer: cannot play - no TV connected")
+		push_error("[DVDPlayer] cannot play - no TV connected")
 		return
 	if dvd_path.is_empty():
-		push_error("DVDPlayer: cannot play - no disc inserted")
+		push_error("[DVDPlayer] cannot play - no disc inserted")
 		return
 	if not _vlc.open(dvd_path, true):
-		push_error("DVDPlayer: VlcPlayer.open failed for ", dvd_path)
+		push_error("[DVDPlayer] VlcPlayer.open failed for ", dvd_path)
 		return
 	_vlc.play()
 	# Full internal gain — level is controlled by the Godot 3D player (TV knob).

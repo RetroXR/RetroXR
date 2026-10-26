@@ -57,7 +57,7 @@ static var _reported: Dictionary = {}
 ## that is missing is logged (once per script) as the contract breach it is,
 ## rather than the set silently never changing that source's level.
 static func has(source: Object, method: String) -> bool:
-	if source == null or not is_instance_valid(source):
+	if not is_instance_valid(source):
 		return false
 	if source.has_method(method):
 		return true

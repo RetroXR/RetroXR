@@ -49,65 +49,65 @@ static func rows(host: Array, local: Array, modio: Dictionary = {}, asked := fal
 	for entry: Variant in host:
 		if not entry is Dictionary:
 			continue
-		var h := entry as Dictionary
-		var id := str(h.get("id", ""))
+		var theirs_row := entry as Dictionary
+		var id := str(theirs_row.get("id", ""))
 		if id.is_empty():
 			continue
 		theirs[id] = true
-		var want := str(h.get("version", ""))
-		var l: Dictionary = mine.get(id, {})
-		var have := str(l.get("version", ""))
-		if not l.is_empty() and have == want:
-			if bool(l.get("loaded", false)):
+		var want := str(theirs_row.get("version", ""))
+		var mine_row: Dictionary = mine.get(id, {})
+		var have := str(mine_row.get("version", ""))
+		if not mine_row.is_empty() and have == want:
+			if bool(mine_row.get("loaded", false)):
 				continue
-			out.append(_row(h, l, SWITCH_ON))
+			out.append(_row(theirs_row, mine_row, SWITCH_ON))
 			continue
-		var modio_id := int(h.get("modio_id", 0))
+		var modio_id := int(theirs_row.get("modio_id", 0))
 		if modio_id <= 0:
-			out.append(_row(h, l, BY_HAND))
+			out.append(_row(theirs_row, mine_row, BY_HAND))
 			continue
 		if not asked:
-			var pending := _row(h, l, GET)
+			var pending := _row(theirs_row, mine_row, GET)
 			pending["checking"] = true
 			out.append(pending)
 			continue
 		if not modio.has(modio_id):
-			out.append(_row(h, l, NOT_ON_MODIO))
+			out.append(_row(theirs_row, mine_row, NOT_ON_MODIO))
 			continue
 		var on_modio := str(modio[modio_id])
 		var row: Dictionary
 		if on_modio.is_empty() or on_modio == want:
 			# An upload that states no version cannot be checked before it comes
 			# down; the review shows what arrived.
-			row = _row(h, l, GET)
+			row = _row(theirs_row, mine_row, GET)
 		elif ModManifest.version_at_least(on_modio, want):
-			row = _row(h, l, HOST_UPDATE)
+			row = _row(theirs_row, mine_row, HOST_UPDATE)
 		else:
-			row = _row(h, l, NOT_ON_MODIO)
+			row = _row(theirs_row, mine_row, NOT_ON_MODIO)
 		row["modio_version"] = on_modio
 		out.append(row)
 	for entry: Variant in local:
 		if not entry is Dictionary:
 			continue
-		var l := entry as Dictionary
-		var id := str(l.get("id", ""))
-		if bool(l.get("loaded", false)) and not theirs.has(id):
-			out.append(_row({}, l, SWITCH_OFF))
+		var mine_row := entry as Dictionary
+		var id := str(mine_row.get("id", ""))
+		if bool(mine_row.get("loaded", false)) and not theirs.has(id):
+			out.append(_row({}, mine_row, SWITCH_OFF))
 	return out
 
 
-static func _row(h: Dictionary, l: Dictionary, kind: String) -> Dictionary:
-	var name := str(h.get("name", ""))
+static func _row(theirs_row: Dictionary, mine_row: Dictionary, kind: String) -> Dictionary:
+	var name := str(theirs_row.get("name", ""))
 	if name.is_empty():
-		name = str(l.get("name", ""))
-	var id := str(h.get("id", l.get("id", "")))
+		name = str(mine_row.get("name", ""))
+	var id := str(theirs_row.get("id", mine_row.get("id", "")))
 	return {
 		"id": id,
 		"name": name if not name.is_empty() else id,
 		"kind": kind,
-		"host_version": str(h.get("version", "")),
-		"local_version": str(l.get("version", "")),
-		"modio_id": int(h.get("modio_id", 0)),
+		"host_version": str(theirs_row.get("version", "")),
+		"local_version": str(mine_row.get("version", "")),
+		"modio_id": int(theirs_row.get("modio_id", 0)),
 		"modio_version": "",
 		"checking": false,
 	}

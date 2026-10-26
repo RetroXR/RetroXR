@@ -111,7 +111,7 @@ func _build(stack: Control) -> void:
 	_viewport.scene = HOST_2D
 	var mount := _viewport.get_scene_instance() as ToastHost2D
 	if mount == null:
-		push_warning("ToastPanel: viewport scene did not instantiate")
+		push_warning("[ToastPanel] viewport scene did not instantiate")
 		return
 	# It was anchored to the bottom of the menu page; here it owns the whole
 	# surface, and the surface is sized to it instead.

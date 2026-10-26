@@ -75,7 +75,7 @@ func all_defaults() -> Dictionary:
 ## the next launch, so the caller is told rather than left to assume.
 func save() -> bool:
 	if _path.is_empty():
-		push_error("CoreDefaults: no path set, call setup() first")
+		push_error("[CoreDefaults] no path set, call setup() first")
 		return false
 	return JsonStore.write_dict(_path, {"defaults": _defaults}, "CoreDefaults")
 

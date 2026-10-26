@@ -2,7 +2,7 @@
 ## the window. Headless, no core, no headset: a real TV, a Game Boy, a DS and a
 ## 3DS from the shipped scenes, a camera, a LocomotionManager and the overlay,
 ## driven through open()/close() rather than the key.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
@@ -10,8 +10,6 @@ const CABLE_SCENE := preload("res://Scenes/Objects/cables/composite_cable.tscn")
 const VCR_SCENE := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const FULL := Rect2(0, 0, 1, 1)
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 var _camera: Camera3D
 var _turn: Node
@@ -31,16 +29,7 @@ func _ready() -> void:
 	# A freed emitter's Meta XR playback is handed back by later AudioServer
 	# updates; quitting before then faults at exit.
 	await _wait(60)
-	print("[test] %d checks, %d failures" % [_checks, _failed])
-	print("[test] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[test] %s  %s" % ["PASS" if ok else "FAIL", what])
+	_finish()
 
 
 func _want(group: String) -> bool:

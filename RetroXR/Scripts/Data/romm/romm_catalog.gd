@@ -1207,13 +1207,13 @@ static func _slim_row(item: Dictionary) -> Dictionary:
 # metadatum member) are null in practice on a server with metadata providers
 # disabled, so all server-derived reads go through these.
 
-static func _s(d: Dictionary, key: String) -> String:
-	var v: Variant = d.get(key)
+static func _s(src: Dictionary, key: String) -> String:
+	var v: Variant = src.get(key)
 	return "" if v == null else str(v)
 
 
-static func _i(d: Dictionary, key: String) -> int:
-	var v: Variant = d.get(key)
+static func _i(src: Dictionary, key: String) -> int:
+	var v: Variant = src.get(key)
 	if v == null:
 		return 0
 	if v is int or v is float:
@@ -1223,8 +1223,8 @@ static func _i(d: Dictionary, key: String) -> int:
 	return 0
 
 
-static func _a(d: Dictionary, key: String) -> Array:
-	var v: Variant = d.get(key)
+static func _a(src: Dictionary, key: String) -> Array:
+	var v: Variant = src.get(key)
 	return v if v is Array else []
 
 

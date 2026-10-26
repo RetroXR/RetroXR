@@ -15,7 +15,7 @@
 ## changes in a row, nothing downstream complains about a wrong one, and the
 ## game just tilts the wrong way — so every axis is pinned here against a pose
 ## whose answer is known from the physics rather than from the code.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const NUNCHUK_SCENE := preload("res://Scenes/Objects/controllers/wii/nunchuk.tscn")
 const WIIMOTE_SCENE := preload("res://Scenes/Objects/controllers/wii/wiimote.tscn")
@@ -25,12 +25,11 @@ const MOTION_PLUS_SCENE := preload("res://Scenes/Objects/controllers/wii/motion_
 ## basis inversions; a wrong AXIS is off by a whole g, not by a thousandth.
 const EPS := 0.001
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
 func _ready() -> void:
+	suite_tag = "motion"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -73,8 +72,7 @@ func _ready() -> void:
 	if _wants("sideways"):
 		await _test_sideways_controls_follow_the_hands_and_shell()
 
-	print("[motion] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _wants(group: String) -> bool:
@@ -238,15 +236,6 @@ func _test_a_brought_extension() -> void:
 	for node: Node in [remote, pad, other, dongle, plug]:
 		node.queue_free()
 	await get_tree().process_frame
-
-
-func _ok(cond: bool, name: String, detail := "") -> void:
-	if cond:
-		_pass += 1
-		print("[motion] PASS %s" % name)
-	else:
-		_fail += 1
-		print("[motion] FAIL %s%s" % [name, "" if detail.is_empty() else "  (%s)" % detail])
 
 
 func _vec_ok(name: String, got: Vector3, want: Vector3) -> void:

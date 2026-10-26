@@ -205,7 +205,8 @@ static func groups_of(connector: String) -> PackedStringArray:
 	return out
 
 
-## "" when `connector` is spelled as a connector can be, else why not.
+## Whether `connector` is spelled as a connector can be.
+## Returns "" when ok, else the reason.
 static func problem(connector: String) -> String:
 	if connector.is_empty():
 		return "the connector name is empty"

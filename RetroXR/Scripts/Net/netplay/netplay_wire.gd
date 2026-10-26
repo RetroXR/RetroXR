@@ -80,11 +80,11 @@ static func aux_default() -> Array:
 	return out
 
 
-static func put_port(buf: StreamPeerBuffer, port: int, v: Array) -> void:
+static func put_port(buf: StreamPeerBuffer, port: int, state: Array) -> void:
 	buf.put_u8(port)
-	buf.put_u16(int(v[0]) & 0xFFFF)
-	buf.put_16(int(v[1])); buf.put_16(int(v[2]))
-	buf.put_16(int(v[3])); buf.put_16(int(v[4]))
+	buf.put_u16(int(state[0]) & 0xFFFF)
+	buf.put_16(int(state[1])); buf.put_16(int(state[2]))
+	buf.put_16(int(state[3])); buf.put_16(int(state[4]))
 
 
 static func get_port(buf: StreamPeerBuffer) -> Array:

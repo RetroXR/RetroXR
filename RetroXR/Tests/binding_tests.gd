@@ -20,7 +20,7 @@
 ## user://gamepad_bindings.json — the paths are consts on the two classes and
 ## cannot be pointed elsewhere — so both are snapshotted up front and restored
 ## byte-for-byte at the end.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Two platforms, so "clearing one leaves the other standing" is a real
 ## assertion rather than a tautology. Named so a leaked file is obviously test
@@ -28,8 +28,6 @@ extends Node
 const SYS_A := "__binding_selftest_a"
 const SYS_B := "__binding_selftest_b"
 
-var _pass := 0
-var _fail := 0
 
 ## path -> file contents, or an absent key when there was no file to begin with.
 var _saved: Dictionary = {}
@@ -73,8 +71,7 @@ func _ready() -> void:
 	_test_a_gun_can_calibrate()
 
 	_restore()
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 ## The filename a diagram actually resolves for a control, or "" for none.
@@ -83,19 +80,6 @@ func _glyph_stem(diagram: ConsolePadDiagram, control: String) -> String:
 	if tex == null:
 		return ""
 	return tex.resource_path.get_file().get_basename()
-
-
-func _ok(cond: bool, name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 # ── The player's own files, taken away and put back ───────────────────────────
@@ -305,7 +289,11 @@ func _test_clear_restores_global() -> void:
 	# can be flicked off on a page that was never overridden.
 	ControllerBindings.clear_system_override("__never_written")
 	GamepadBindings.clear_system_override("__never_written")
-	_ok(true, "clearing an absent profile is harmless")
+	_ok(not ControllerBindings.has_system_override("__never_written")
+			and not GamepadBindings.has_system_override("__never_written")
+			and ControllerBindings.has_system_override(SYS_B)
+			and str((GamepadBindings.get_global()["buttons"] as Dictionary).get("a")) == "btn:5",
+		"clearing an absent profile is harmless: it writes none and the others stand")
 
 
 # ---------------------------------------------------------------------------

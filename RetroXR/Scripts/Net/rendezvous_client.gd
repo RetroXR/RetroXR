@@ -152,23 +152,23 @@ func lookup(raw_code: String, callback: Callable) -> void:
 static func parse_created(data: Variant) -> Dictionary:
 	if not data is Dictionary:
 		return {}
-	var d: Dictionary = data
-	var code := RoomCode.normalize(str(d.get("code", "")))
+	var msg: Dictionary = data
+	var code := RoomCode.normalize(str(msg.get("code", "")))
 	# A code this client would refuse from a player is not one it can accept
 	# from the registry either. Carrying it forward would put an unusable string
 	# in front of someone to read out.
 	if not RoomCode.is_valid(code):
 		return {}
-	var secret := str(d.get("secret", ""))
+	var secret := str(msg.get("secret", ""))
 	if secret.is_empty():
 		return {}
-	var punch := _parse_punch(d)
+	var punch := _parse_punch(msg)
 	if punch.is_empty():
 		return {}
 	return {
 		"code": code,
 		"secret": secret,
-		"ttl": int(d.get("ttl", 0)),
+		"ttl": int(msg.get("ttl", 0)),
 		"punch_host": punch["punch_host"],
 		"punch_port": punch["punch_port"],
 	}
@@ -178,22 +178,22 @@ static func parse_created(data: Variant) -> Dictionary:
 static func parse_room(data: Variant) -> Dictionary:
 	if not data is Dictionary:
 		return {}
-	var d: Dictionary = data
-	var oid := str(d.get("oid", ""))
+	var msg: Dictionary = data
+	var oid := str(msg.get("oid", ""))
 	if oid.is_empty():
 		return {}
-	var punch := _parse_punch(d)
+	var punch := _parse_punch(msg)
 	if punch.is_empty():
 		return {}
 	# protocol_version is compared by the caller, which owns the constant. A
 	# record without one cannot be checked, and an uncheckable peer is refused
 	# here rather than discovered as a desync later.
-	if not d.has("protocol_version"):
+	if not msg.has("protocol_version"):
 		return {}
 	return {
 		"oid": oid,
-		"name": str(d.get("name", "")),
-		"protocol_version": int(d.get("protocol_version", 0)),
+		"name": str(msg.get("name", "")),
+		"protocol_version": int(msg.get("protocol_version", 0)),
 		"punch_host": punch["punch_host"],
 		"punch_port": punch["punch_port"],
 	}
@@ -203,16 +203,16 @@ static func parse_room(data: Variant) -> Dictionary:
 static func parse_heartbeat(data: Variant) -> int:
 	if not data is Dictionary:
 		return -1
-	var d: Dictionary = data
-	if not bool(d.get("ok", false)):
+	var msg: Dictionary = data
+	if not bool(msg.get("ok", false)):
 		return -1
-	var ttl := int(d.get("ttl", 0))
+	var ttl := int(msg.get("ttl", 0))
 	return ttl if ttl > 0 else -1
 
 
-static func _parse_punch(d: Dictionary) -> Dictionary:
-	var host := str(d.get("punch_host", ""))
-	var port := int(d.get("punch_port", 0))
+static func _parse_punch(msg: Dictionary) -> Dictionary:
+	var host := str(msg.get("punch_host", ""))
+	var port := int(msg.get("punch_port", 0))
 	if host.is_empty() or port <= 0 or port > 65535:
 		return {}
 	return {"punch_host": host, "punch_port": port}

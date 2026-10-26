@@ -236,7 +236,7 @@ func _on_romm_sync_finished(systemid: String, ok: bool, added: int, removed: int
 ## platform, or stop the sync that is already running on it.
 func update_resync_btn() -> void:
 	var btn := _view._romm_resync_btn
-	if btn == null or not is_instance_valid(btn):
+	if not is_instance_valid(btn):
 		return
 	var label := _view._system_label(_view._romm_detail_systemid)
 	if _romm_syncing_this_platform():

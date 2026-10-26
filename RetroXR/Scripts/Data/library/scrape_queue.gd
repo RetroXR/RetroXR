@@ -209,12 +209,12 @@ func _idle_worker() -> Dictionary:
 	var client := _make_client()
 	if client == null:
 		return {}
-	var w := {"client": client, "item": {}}
-	client.scrape_completed.connect(_on_scrape_completed.bind(w))
-	client.scrape_failed.connect(_on_scrape_failed.bind(w))
-	client.media_download_completed.connect(_on_media_completed.bind(w))
-	_workers.append(w)
-	return w
+	var worker := {"client": client, "item": {}}
+	client.scrape_completed.connect(_on_scrape_completed.bind(worker))
+	client.scrape_failed.connect(_on_scrape_failed.bind(worker))
+	client.media_download_completed.connect(_on_media_completed.bind(worker))
+	_workers.append(worker)
+	return worker
 
 
 func _make_client() -> ScreenscraperClient:
@@ -231,7 +231,7 @@ func _make_client() -> ScreenscraperClient:
 	return client
 
 
-func _run_item(w: Dictionary, item: Dictionary) -> void:
+func _run_item(worker: Dictionary, item: Dictionary) -> void:
 	var rom := str(item["rom"])
 	var systemid := str(item["systemid"])
 	started.emit(rom, systemid)
@@ -244,18 +244,18 @@ func _run_item(w: Dictionary, item: Dictionary) -> void:
 	while thread.is_alive():
 		await get_tree().process_frame
 	var sums: Dictionary = thread.wait_to_finish()
-	if not is_inside_tree() or w["item"] != item:
+	if not is_inside_tree() or worker["item"] != item:
 		return
 	if sums.is_empty():
-		_item_failed(w, "Could not read ROM file checksums")
+		_item_failed(worker, "Could not read ROM file checksums")
 		return
 
-	var client: ScreenscraperClient = w["client"]
+	var client: ScreenscraperClient = worker["client"]
 	client.scrape_rom(rom, systemid, sums)
 
 
-func _on_scrape_completed(result: Dictionary, w: Dictionary) -> void:
-	var item: Dictionary = w["item"]
+func _on_scrape_completed(result: Dictionary, worker: Dictionary) -> void:
+	var item: Dictionary = worker["item"]
 	if item.is_empty():
 		return
 	var rom := str(item["rom"])
@@ -265,46 +265,46 @@ func _on_scrape_completed(result: Dictionary, w: Dictionary) -> void:
 
 	if bool(item["review"]):
 		_done += 1
-		w["item"] = {}
+		worker["item"] = {}
 		completed.emit(rom, systemid, result, false)
 		_after_item()
 		return
 
 	_write_result(rom, systemid, result)
-	var client: ScreenscraperClient = w["client"]
+	var client: ScreenscraperClient = worker["client"]
 	await client.download_all_media(result, systemid, rom.get_file().get_basename())
 	# Not the next game until this one's art has landed: the client keys its
 	# transfers by media type, so a second "wheel" would collide with the first.
 	while is_inside_tree() and client.pending_media_count() > 0:
 		await get_tree().process_frame
-	if w["item"] != item:
+	if worker["item"] != item:
 		return
 	_done += 1
-	w["item"] = {}
+	worker["item"] = {}
 	completed.emit(rom, systemid, result, true)
 	_after_item()
 
 
-func _on_scrape_failed(error: String, w: Dictionary) -> void:
-	if (w["item"] as Dictionary).is_empty():
+func _on_scrape_failed(error: String, worker: Dictionary) -> void:
+	if (worker["item"] as Dictionary).is_empty():
 		return
-	_item_failed(w, error)
+	_item_failed(worker, error)
 
 
-func _item_failed(w: Dictionary, error: String) -> void:
-	var item: Dictionary = w["item"]
+func _item_failed(worker: Dictionary, error: String) -> void:
+	var item: Dictionary = worker["item"]
 	var rom := str(item["rom"])
 	var systemid := str(item["systemid"])
 	_failed += 1
-	w["item"] = {}
+	worker["item"] = {}
 	failed.emit(rom, systemid, error)
 	if _is_quota_error(error):
 		_stop("Daily scrape quota exceeded")
 	_after_item()
 
 
-func _on_media_completed(media_type: String, path: String, w: Dictionary) -> void:
-	var item: Dictionary = w["item"]
+func _on_media_completed(media_type: String, path: String, worker: Dictionary) -> void:
+	var item: Dictionary = worker["item"]
 	if item.is_empty():
 		return
 	media_downloaded.emit(str(item["rom"]), str(item["systemid"]), media_type, path)

@@ -1658,19 +1658,6 @@ func set_audio_out(mode: int) -> void:
 	_audio.set_audio_out(mode)
 
 
-
-
-## Hand the glass to the selected input and take it off every other one.
-##
-## The same call covers SOURCE and POWER, which want the identical rule: exactly one
-## host may paint, and only while the set is on. Without it a deselected console goes
-## on writing its material onto the screen every frame and the two fight.
-##
-## Two passes, and the order is load-bearing. Releasing the mesh restores the material
-## the releasing host found on it, so a host let go AFTER the selected one has taken
-## the screen writes its own idea of "before" over the new picture. Index order is not
-## selection order — going to Composite 1 from Composite 2 releases second — so a
-## single pass silently depends on which way the viewer happened to be switching.
 # _apply_screen_enable is gone with the push. Telling every host whether it was
 # the one showing — in two passes, in an order that mattered, latched on the host's
 # side so a machine that was off still heard it — was the whole cost of hosts

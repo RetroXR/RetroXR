@@ -29,7 +29,7 @@ static func has_files(root: String) -> bool:
 	return false
 
 
-## "" when moving `from` to `to` is sane, else why not.
+## Whether moving `from` to `to` is sane. Returns "" when ok, else the reason.
 static func check(from: String, to: String) -> String:
 	var a := DataPaths.normalize(from)
 	var b := DataPaths.normalize(to)

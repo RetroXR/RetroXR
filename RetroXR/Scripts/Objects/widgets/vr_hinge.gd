@@ -784,7 +784,7 @@ func _sync_pickup_mutes() -> void:
 	var want: Array[Node] = []
 	if grip_engages:
 		for ctrl in _controllers:
-			if ctrl == null or not is_instance_valid(ctrl) or not ctrl.get_is_active():
+			if not is_instance_valid(ctrl) or not ctrl.get_is_active():
 				continue
 			if ctrl != _trigger_ctrl and not (PokeTip.is_poking(ctrl)
 					and _tip_in_grab_box(PokeTip.tip_of(ctrl))):

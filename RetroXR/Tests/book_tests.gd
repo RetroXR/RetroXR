@@ -8,16 +8,13 @@
 ## ray is what the player's reticle does.
 ##
 ## Needs no PDF and no godot-pdfium: the loaded book is a CBZ built here.
-extends Node3D
+extends "res://Tests/test_suite.gd"
 
 const BOOK_SCENE := preload("res://Scenes/Objects/media/pdf_book.tscn")
 const POINTABLE_LAYER := 1 << 20
 const PICKABLE_LAYER := 1 << 2
 const CBZ_PATH := "user://__book_tests.cbz"
 const MANUAL_NAME := "__book_tests_manual.cbz"
-
-var _failed := 0
-var _ran := 0
 
 
 func _ready() -> void:
@@ -34,9 +31,7 @@ func _ready() -> void:
 	await _test_pages_are_etc2_on_a_mobile_gpu()
 	_test_saved_manual_follows_its_folder()
 
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _failed == 0 else "%d FAILURE(S)" % _failed])
-	get_tree().quit(0 if _failed == 0 else 1)
+	_finish()
 
 
 ## The file is gone: the book stays a blank closed cover, and must be no bigger
@@ -215,7 +210,7 @@ func _hit(from: Vector3, to: Vector3) -> Dictionary:
 	var query := PhysicsRayQueryParameters3D.create(from, to, POINTABLE_LAYER | PICKABLE_LAYER)
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
-	return get_world_3d().direct_space_state.intersect_ray(query)
+	return get_viewport().find_world_3d().direct_space_state.intersect_ray(query)
 
 
 ## A page rendered on some earlier run is sitting in the cache dir, and reading
@@ -408,9 +403,9 @@ func _test_a_half_written_manual_recovers() -> void:
 	var done := FileAccess.open(path, FileAccess.WRITE)
 	done.store_buffer(whole)
 	done.close()
-	# Real scene time, not frames: the retry is on a SceneTreeTimer, and a
-	# headless frame is far shorter than a second.
-	await get_tree().create_timer(2.5).timeout
+	# Polled in real time, not frames: the retry is on a SceneTreeTimer (its
+	# first backoff is 1 s), and a headless frame is far shorter than a second.
+	await _wait_until(func() -> bool: return book._page_count > 0, 8.0)
 	_ok(book._page_count > 0,
 		"retry/once the file is whole the book opens itself (%d pages)" % book._page_count)
 
@@ -510,7 +505,7 @@ func _ray_at(x: float) -> Object:
 		Vector3(x, 0.0, 2.0), Vector3(x, 0.0, -2.0), POINTABLE_LAYER)
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
-	var hit := get_world_3d().direct_space_state.intersect_ray(query)
+	var hit := get_viewport().find_world_3d().direct_space_state.intersect_ray(query)
 	return hit.get("collider") as Object
 
 
@@ -534,11 +529,3 @@ func _remove_tree(path: String) -> void:
 		dir.remove(file)
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
 
-
-func _ok(ok: bool, label: String) -> void:
-	_ran += 1
-	if ok:
-		print("[test] ok   %s" % label)
-	else:
-		_failed += 1
-		print("[test] FAIL %s" % label)

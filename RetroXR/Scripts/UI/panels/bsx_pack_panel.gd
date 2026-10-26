@@ -82,7 +82,7 @@ func _populate() -> void:
 ## The pack's own file. `rom_path` is what a RetroCartridge calls the medium it
 ## stands for; anything else pointed at here has none and shows an empty pack.
 func _pack_path() -> String:
-	if _pack == null or not is_instance_valid(_pack):
+	if not is_instance_valid(_pack):
 		return ""
 	var p: Variant = _pack.get("rom_path")
 	return str(p) if p != null else ""

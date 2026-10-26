@@ -77,8 +77,9 @@ func forced_options_for(core: String) -> Dictionary:
 	return forced_options(core, _keeps_memory(core))
 
 
-## Why this machine may not start, or "": the file is shared, and another machine
-## is running a 3DO or has not finished writing its NVRAM back.
+## Whether this machine may start. Returns "" when ok, else the reason: the file is
+## shared, and another machine is running a 3DO or has not finished writing its
+## NVRAM back.
 func busy_elsewhere(core: String) -> String:
 	if not _keeps_memory(core):
 		return ""

@@ -127,8 +127,9 @@ func _cart_image_size(cart: RetroExpansion) -> int:
 	return size if CART_SIZES.has(size) else 0
 
 
-## Why this machine may not start its Sega CD, or "": the folder is shared, and
-## another machine is running one or has not finished writing its memory back.
+## Whether this machine may start its Sega CD. Returns "" when ok, else the reason:
+## the folder is shared, and another machine is running one or has not finished
+## writing its memory back.
 func busy_elsewhere(core: String) -> String:
 	if not core.begins_with(CORE_PREFIX) or not is_instance_valid(_host):
 		return ""

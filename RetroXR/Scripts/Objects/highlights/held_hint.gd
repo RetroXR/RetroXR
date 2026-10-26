@@ -525,7 +525,7 @@ func _glyph(pattern: String, right_hand: bool) -> TextureRect:
 	if ResourceLoader.exists(path):
 		rect.texture = ResourceLoader.load(path) as Texture2D
 	else:
-		push_warning("HeldHint: no glyph %s" % path)
+		push_warning("[HeldHint] no glyph %s" % path)
 	rect.custom_minimum_size = Vector2(GLYPH_PX, GLYPH_PX)
 	# The Quest art is 128 px and the keyboard art 64 px. Without this the
 	# texture's own size becomes the minimum and the two rows disagree.

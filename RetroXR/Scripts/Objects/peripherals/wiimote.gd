@@ -1758,7 +1758,7 @@ func _update_speaker(libretro: Node) -> void:
 				_mx.set_voice_directivity(voice, SpatialAudioEmitter.SPEAKER_DIRECTIVITY)
 	if voice < 0 or _mx == null:
 		return
-	if _listener == null or not is_instance_valid(_listener):
+	if not is_instance_valid(_listener):
 		_listener = get_node_or_null("/root/SpatialAudioListener")
 		if _listener == null:
 			return

@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## The desktop window's arithmetic: how a size becomes a key and back, how a
 ## window too big for its screen is brought inside it, and which sizes the
@@ -11,11 +11,9 @@ extends Node
 ## the room looks at an odd shape, is `Tools/room/window_resize_probe`, which needs
 ## a display.
 
-var _fail := 0
-var _ran := 0
-
 
 func _ready() -> void:
+	suite_tag = "window"
 	_keys()
 	_fit()
 	_options()
@@ -26,21 +24,7 @@ func _ready() -> void:
 	_ratios()
 	_zoom()
 	_mode()
-	print("[window] %d cases, %s" % [_ran, "PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	_ran += 1
-	if cond:
-		print("[window] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[window] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
+	_finish()
 
 
 func _keys() -> void:

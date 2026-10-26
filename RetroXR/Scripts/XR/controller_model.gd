@@ -115,9 +115,9 @@ func _resolve_rig() -> void:
 		var bone := _skeleton.find_bone(bone_name)
 		if bone < 0:
 			continue
-		var d: Dictionary = _driven.get(bone_name, {"bone": bone})
-		_read_extremes(clip, track, kind, d)
-		_driven[bone_name] = d
+		var driven: Dictionary = _driven.get(bone_name, {"bone": bone})
+		_read_extremes(clip, track, kind, driven)
+		_driven[bone_name] = driven
 	_read_stick(clip)
 
 
@@ -143,7 +143,7 @@ func _invalidate_rig() -> void:
 ## of it presses twice. So the timeline is no use as a dial — what is wanted from
 ## each track is only where the bone rests and how far it travels, and a press
 ## interpolates between the two.
-func _read_extremes(clip: Animation, track: int, kind: int, d: Dictionary) -> void:
+func _read_extremes(clip: Animation, track: int, kind: int, driven: Dictionary) -> void:
 	var count := clip.track_get_key_count(track)
 	if count == 0:
 		return
@@ -157,11 +157,11 @@ func _read_extremes(clip: Animation, track: int, kind: int, d: Dictionary) -> vo
 			furthest = dist
 			far = v
 	if kind == Animation.TYPE_ROTATION_3D:
-		d["rot_rest"] = rest
-		d["rot_far"] = far
+		driven["rot_rest"] = rest
+		driven["rot_far"] = far
 	else:
-		d["pos_rest"] = rest
-		d["pos_far"] = far
+		driven["pos_rest"] = rest
+		driven["pos_far"] = far
 
 
 func _deviation(rest: Variant, v: Variant) -> float:
@@ -175,14 +175,14 @@ func _deviation(rest: Variant, v: Variant) -> float:
 ## Put a bone `amount` of the way from where the rig rests it to as far as the
 ## rig ever takes it.
 func _actuate(bone_name: String, amount: float) -> void:
-	var d: Variant = _driven.get(bone_name)
-	if d == null or not _rig_is_valid():
+	var driven: Variant = _driven.get(bone_name)
+	if driven == null or not _rig_is_valid():
 		return
 	var t := clampf(amount, 0.0, 1.0)
-	if d.has("rot_rest"):
-		_skeleton.set_bone_pose_rotation(d["bone"], (d["rot_rest"] as Quaternion).slerp(d["rot_far"], t))
-	if d.has("pos_rest"):
-		_skeleton.set_bone_pose_position(d["bone"], (d["pos_rest"] as Vector3).lerp(d["pos_far"], t))
+	if driven.has("rot_rest"):
+		_skeleton.set_bone_pose_rotation(driven["bone"], (driven["rot_rest"] as Quaternion).slerp(driven["rot_far"], t))
+	if driven.has("pos_rest"):
+		_skeleton.set_bone_pose_position(driven["bone"], (driven["pos_rest"] as Vector3).lerp(driven["pos_far"], t))
 
 
 ## A stick has two axes where the clip has one timeline, so the rig sweeps it
@@ -191,14 +191,14 @@ func _actuate(bone_name: String, amount: float) -> void:
 ## furthest key says how far it leans. Any push can then be built directly.
 func _read_stick(clip: Animation) -> void:
 	_stick.clear()
-	var d: Variant = _driven.get(ACTION_BONES["primary"])
-	if d == null or not d.has("rot_rest"):
+	var driven: Variant = _driven.get(ACTION_BONES["primary"])
+	if driven == null or not driven.has("rot_rest"):
 		return
 	var track := _track_of(clip, ACTION_BONES["primary"], Animation.TYPE_ROTATION_3D)
 	if track < 0:
 		return
 
-	var rest: Quaternion = d["rot_rest"]
+	var rest: Quaternion = driven["rot_rest"]
 	var axes: Array[Vector3] = []
 	for k in clip.track_get_key_count(track):
 		var delta := rest.inverse() * (clip.track_get_key_value(track, k) as Quaternion)
@@ -210,7 +210,7 @@ func _read_stick(clip: Animation) -> void:
 		return
 
 	_stick = {
-		"bone": d["bone"],
+		"bone": driven["bone"],
 		"rest": rest,
 		"shaft": shaft,
 		"lean": _swing_of(clip, track, rest, shaft),

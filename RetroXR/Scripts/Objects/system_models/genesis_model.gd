@@ -28,7 +28,7 @@ func _ready() -> void:
 		_glb = baked
 	else:
 		if not ResourceLoader.exists(_MODEL_PATH):
-			push_warning("GenesisModel: %s missing — using placeholder box" % _MODEL_PATH)
+			push_warning("[GenesisModel] %s missing — using placeholder box" % _MODEL_PATH)
 			var host := get_parent()
 			if host:
 				var body := host.get_node_or_null("SystemBody") as MeshInstance3D
@@ -37,7 +37,7 @@ func _ready() -> void:
 			return
 		var scene := load(_MODEL_PATH) as PackedScene
 		if scene == null:
-			push_warning("GenesisModel: failed to load %s" % _MODEL_PATH)
+			push_warning("[GenesisModel] failed to load %s" % _MODEL_PATH)
 			return
 		_glb = scene.instantiate() as Node3D
 		# MUST be "Shell" — has_baked_shell() looks for it, and it is what keeps a

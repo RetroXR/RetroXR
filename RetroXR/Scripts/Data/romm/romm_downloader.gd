@@ -431,7 +431,7 @@ func _extract_multi(zip_path: String, systemid: String,
 	var extracted: Dictionary = extractor.extract(zip_path, plan)
 	if not bool(extracted.get("ok", false)):
 		DirAccess.remove_absolute(zip_path)
-		push_warning("RommDownloader: %s"
+		push_warning("[RommDownloader] %s"
 			% str(extracted.get("error", "Could not unpack archive")))
 		return {"launch": "", "members": [], "error": str(extracted.get("error", ""))}
 	var launch := ""
@@ -464,28 +464,28 @@ static func _archive_plan(reader: ZIPReader, dest_dir: String) -> Array[Dictiona
 		var member_name := raw_name.trim_suffix("/") if directory else raw_name
 		var relative := ArchiveSafety.safe_member(member_name)
 		if relative.is_empty():
-			push_warning("RommDownloader: refusing unsafe archive member '%s'" % raw_name)
+			push_warning("[RommDownloader] refusing unsafe archive member '%s'" % raw_name)
 			return []
 
 		var folded := relative.to_lower()
 		if claimed.has(folded):
-			push_warning("RommDownloader: refusing colliding archive member '%s'" % raw_name)
+			push_warning("[RommDownloader] refusing colliding archive member '%s'" % raw_name)
 			return []
 		claimed[folded] = true
 
 		var out_path := root.path_join(relative).simplify_path()
 		if not out_path.to_lower().begins_with(root.to_lower() + "/"):
-			push_warning("RommDownloader: archive member escaped destination '%s'" % raw_name)
+			push_warning("[RommDownloader] archive member escaped destination '%s'" % raw_name)
 			return []
 		if ArchiveSafety.parent_is_link(root, relative):
-			push_warning("RommDownloader: archive member crosses a symbolic link '%s'" % raw_name)
+			push_warning("[RommDownloader] archive member crosses a symbolic link '%s'" % raw_name)
 			return []
 		if directory:
 			continue
 		# Never overwrite a hand-copied ROM. Until extraction has been registered,
 		# an existing file is user-owned from the cache's point of view.
 		if FileAccess.file_exists(out_path) or DirAccess.dir_exists_absolute(out_path):
-			push_warning("RommDownloader: archive member already exists '%s'" % out_path)
+			push_warning("[RommDownloader] archive member already exists '%s'" % out_path)
 			return []
 		plan.append({"entry": raw_name, "relative": relative, "path": out_path})
 

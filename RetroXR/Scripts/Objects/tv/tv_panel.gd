@@ -209,7 +209,7 @@ func aerial() -> Antenna:
 		return null
 	var rf := _tv.rf_port() as RcaPort
 	var plug: RcaPlug = (rf.seated_plug() as RcaPlug) if rf != null else null
-	if plug == null or plug.cable == null or not is_instance_valid(plug.cable):
+	if plug == null or not is_instance_valid(plug.cable):
 		return null
 	if plug.cable is Antenna:
 		return plug.cable as Antenna
@@ -592,7 +592,7 @@ func source_lost(source: Node3D) -> void:
 ## its sound in Composite 2 and its video cord out is on Composite 2, and used to be
 ## heard there — which is the whole reason the L/R sockets are separate.
 func _input_for_device(dev: Node3D) -> int:
-	if dev == null or not is_instance_valid(dev):
+	if not is_instance_valid(dev):
 		return -1
 	# A deck built into the cabinet has no lead to find it by.
 	for input: int in _builtin:
@@ -651,7 +651,7 @@ func on_plug_released(input: int) -> void:
 func rf_tuned() -> bool:
 	var host: Node3D = _connected_systems[RetroTV.Source.RF] \
 		if _connected_systems.size() > RetroTV.Source.RF else null
-	if host == null or not is_instance_valid(host):
+	if not is_instance_valid(host):
 		return false
 	if not host.has_method("get_rf_channel"):
 		return true

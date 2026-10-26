@@ -16,13 +16,11 @@
 ## business of routing serial traffic, and a cable that stayed joined after being
 ## carried out of the room would leave two cores waiting on each other over a
 ## lead that no longer exists.
-extends Node
-
-var _pass := 0
-var _fail := 0
+extends "res://Tests/test_suite.gd"
 
 
 func _ready() -> void:
+	suite_tag = "link"
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		print("[link] TIMEOUT")
 		get_tree().quit(1))
@@ -78,8 +76,7 @@ func _ready() -> void:
 	_test_no_reset_path()
 	_test_sockets_write_their_connector()
 	await _test_a_baked_default_still_takes_its_own_plug()
-	print("[link] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 class _NetplayStub extends RefCounted:
@@ -176,7 +173,8 @@ func _test_gc_gba_cable() -> void:
 
 	# Nothing is seated, so it is joined to nothing and says so without faulting.
 	lead._resolve()
-	_ok(true, "an unseated lead joins nothing")
+	_ok(lead.linked_machines().is_empty() and lead.held_machines().is_empty(),
+		"an unseated lead joins nothing")
 
 	lead.queue_free()
 	await get_tree().process_frame
@@ -299,19 +297,6 @@ func _joined_lead_names_its_pair() -> void:
 	m1.queue_free()
 	m2.queue_free()
 	await get_tree().process_frame
-
-
-func _ok(cond: bool, name: String, detail := "") -> void:
-	if cond:
-		_pass += 1
-		print("[link] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[link] FAIL  %s%s" % [name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 ## A socket in the tree, so _ready has run. Caller frees it.
@@ -474,7 +459,6 @@ func _test_disconnect_is_idempotent() -> void:
 	await get_tree().process_frame
 
 
-
 # ── The scenes ──────────────────────────────────────────────────────────────
 # Importing a scene proves it parses. Only building one proves the scripts and
 # node types actually fit together.
@@ -588,7 +572,6 @@ func _test_port_scene() -> void:
 	await get_tree().process_frame
 
 
-
 # ── Reachable from the room ─────────────────────────────────────────────────
 
 func _test_cable_is_spawnable() -> void:
@@ -596,15 +579,15 @@ func _test_cable_is_spawnable() -> void:
 	# tested, rendered, and offered by no menu. A cable that cannot be spawned is
 	# not a feature, so this asserts the catalogue actually lists it.
 	var items: Array = SpawnCatalog.items_for("gba")
-	var found := false
+	var found: Dictionary = {}
 	for item: Dictionary in items:
 		if str(item.get("spawn", "")) == "link_cable":
-			found = true
-			_ok(true, "it is offered under the Game Boy Advance")
-			_ok(not str(item.get("label", "")).is_empty(), "and it is labelled")
-	if not found:
-		_ok(false,
-			"it is offered under the Game Boy Advance", "%d items, none of them the link cable" % items.size())
+			found = item
+			break
+	_ok(not found.is_empty(), "it is offered under the Game Boy Advance",
+		"%d items, none of them the link cable" % items.size())
+	if not found.is_empty():
+		_ok(not str(found.get("label", "")).is_empty(), "and it is labelled")
 
 	# Offered only where there is a socket to put it in. A console with no EXT
 	# port listing a link lead would be an invitation to nothing.

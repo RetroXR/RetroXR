@@ -334,8 +334,8 @@ static func uses_floppy_525(systemid: String) -> bool:
 ## neither table.
 static func has_cart_size(systemid: String) -> bool:
 	if _mod_media.has(systemid):
-		var m: Dictionary = _mod_media[systemid]
-		return m.has("cart_size") or bool(m.get("floppy", false))
+		var mod_row: Dictionary = _mod_media[systemid]
+		return mod_row.has("cart_size") or bool(mod_row.get("floppy", false))
 	return CART_SIZES.has(systemid) or FLOPPY_SYSTEMS.has(systemid) \
 		or ModCartShells.has(systemid)
 
@@ -357,11 +357,11 @@ static func cart_size(systemid: String, rom_path := "", body_model := "") -> Vec
 		if modded != Vector3.ZERO:
 			return modded
 	if _mod_media.has(systemid):
-		var m: Dictionary = _mod_media[systemid]
-		if bool(m.get("floppy", false)):
+		var mod_row: Dictionary = _mod_media[systemid]
+		if bool(mod_row.get("floppy", false)):
 			return FLOPPY_SIZE
-		if m.has("cart_size"):
-			return m["cart_size"] as Vector3
+		if mod_row.has("cart_size"):
+			return mod_row["cart_size"] as Vector3
 	# A floppy system with a row of its own (the 64DD) is sized by that row.
 	if FLOPPY_SYSTEMS.has(systemid) and not CART_SIZES.has(systemid):
 		return FLOPPY_525_SIZE if FLOPPY_525_SYSTEMS.has(systemid) else FLOPPY_SIZE
@@ -478,10 +478,10 @@ static func disc_zones(systemid: String, pitch: float = PITCH_CD) -> Vector3:
 ## How this system loads discs: LOADER_NONE / LOADER_TRAY / LOADER_SLOT.
 static func disc_loader(systemid: String) -> int:
 	if _mod_media.has(systemid):
-		var m: Dictionary = _mod_media[systemid]
-		if not m.has("disc_diameter"):
+		var mod_row: Dictionary = _mod_media[systemid]
+		if not mod_row.has("disc_diameter"):
 			return LOADER_NONE
-		return LOADER_SLOT if bool(m.get("slot_load", false)) else LOADER_TRAY
+		return LOADER_SLOT if bool(mod_row.get("slot_load", false)) else LOADER_TRAY
 	if not DISC_DIAMETERS.has(systemid):
 		return LOADER_NONE
 	return LOADER_SLOT if SLOT_LOAD_SYSTEMS.has(systemid) else LOADER_TRAY

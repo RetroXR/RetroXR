@@ -25,19 +25,18 @@
 ## No disk beyond a scratch file this suite writes and removes.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/systems_data_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before it
 ## has recorded itself. See card_tests on why this exists.
 const EXPECTED_CASES := 84
 
-var _passed := 0
-var _failed := 0
 
 var _path := ""
 
 
 func _ready() -> void:
+	suite_tag = "sysdata"
 	get_tree().create_timer(30.0).timeout.connect(func() -> void:
 		push_error("[sysdata] TIMEOUT")
 		get_tree().quit(1))
@@ -50,26 +49,11 @@ func _ready() -> void:
 	_group_dpad()
 	_group_ids()
 
-	_eq(_passed + _failed, EXPECTED_CASES, "suite/every case ran")
+	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
 
 	if FileAccess.file_exists(_path):
 		DirAccess.remove_absolute(_path)
-	print("[sysdata] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[sysdata] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[sysdata] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[sysdata] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
+	_finish()
 
 
 # ── filter/ ───────────────────────────────────────────────────────────────────
@@ -99,11 +83,11 @@ func _group_filter() -> void:
 			dupes += 1
 		seen[sid] = true
 	_eq(dupes, 0, "filter/and carries no systemid twice")
+	var shown: Array[String] = []
 	for sid: String in ids:
 		if not SystemFilter.is_hidden(sid):
-			_ok(false, "filter/every listed id really is hidden", sid)
-			break
-	_ok(true, "filter/every listed id really is hidden")
+			shown.append(sid)
+	_ok(shown.is_empty(), "filter/every listed id really is hidden", ", ".join(shown))
 
 	# The two filters must agree with is_hidden, since the widgets use one and
 	# the probes the other.

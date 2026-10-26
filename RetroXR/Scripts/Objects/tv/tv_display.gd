@@ -612,7 +612,7 @@ func refresh_crt_derived() -> void:
 ## quietly is the whole point.
 func set_crt_param(pname: String, value: Variant) -> void:
 	if not _crt_params.has(pname):
-		push_warning("TVDisplay: no CRT parameter named '%s'" % pname)
+		push_warning("[TVDisplay] no CRT parameter named '%s'" % pname)
 		return
 	_crt_params[pname] = value
 	_crt_overrides[pname] = true

@@ -325,6 +325,6 @@ func _render(entry: Dictionary) -> void:
 	# viewport_2d_in_3d.gd puts its own `scene` instance.
 	var sub := _viewport.get_node_or_null("Viewport") as SubViewport
 	if sub == null:
-		push_warning("AchievementToast: Viewport2DIn3D has no Viewport child")
+		push_warning("[AchievementToast] Viewport2DIn3D has no Viewport child")
 		return
 	sub.add_child(_root)

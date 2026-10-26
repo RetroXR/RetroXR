@@ -190,7 +190,7 @@ const VR_ROLL_GLYPHS: Array[String] = ["quest_grip_left_outline", "quest_stick_l
 
 func _on_picked_up(pickable: Variant) -> void:
 	var obj := pickable as XRToolsPickable
-	if obj == null or not is_instance_valid(obj):
+	if not is_instance_valid(obj):
 		return
 	# Before the desktop gate below: whatever was standing on this has just lost
 	# its floor whichever way it was grabbed.
@@ -236,7 +236,7 @@ const VR_CATCH_GLYPHS: Array[String] = ["quest_stick_{s}_press"]
 
 func _on_pickup_grabbed(what: Variant, pickup: XRToolsFunctionPickup) -> void:
 	var obj := what as XRToolsPickable
-	if obj == null or not is_instance_valid(obj):
+	if not is_instance_valid(obj):
 		return
 	# The ray grab's only pickup signal — it never calls pick_up, so picked_up
 	# does not fire for one. A hand grab reaches this twice and re-records the
@@ -248,7 +248,7 @@ func _on_pickup_grabbed(what: Variant, pickup: XRToolsFunctionPickup) -> void:
 func _on_pickup_transferred(what: Variant, to_ray: bool,
 		pickup: XRToolsFunctionPickup) -> void:
 	var obj := what as XRToolsPickable
-	if obj == null or not is_instance_valid(obj):
+	if not is_instance_valid(obj):
 		return
 	_apply_mode_rows(obj, pickup, to_ray)
 
@@ -444,7 +444,7 @@ func _escape(body: XRToolsPickable) -> void:
 ## (which is all a ray grab emits — it never calls pick_up).
 func watch_riders(body: Variant) -> void:
 	var rb := body as RigidBody3D
-	if rb == null or not is_instance_valid(rb) or not rb.is_inside_tree():
+	if not is_instance_valid(rb) or not rb.is_inside_tree():
 		return
 	# The body holding it is never riding it. A cover seated in a console's floor
 	# has the console sitting on its top face, and coupling the console (its mask

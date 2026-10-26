@@ -23,7 +23,7 @@
 ##             target it used to have would have taken it (the control);
 ##   seated/   a Controller Pak in a pad: its tongue is inside the pad, so a ray
 ##             at the pad over it is the pad's, and one at the pak is the pak's.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## How many cases this file contains, NOT counting the guard below — it is
 ## checked before it has recorded itself. A case that never ran is not one that
@@ -107,8 +107,6 @@ const AIMED_AT: Array = [
 	["res://Scenes/Objects/controllers/n64/controller_pak.tscn", "."],
 ]
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 ## Where the next object is put: far enough from the last that no ray meets two.
 var _spot := 0
@@ -116,6 +114,7 @@ var _grabber: Node3D = null
 
 
 func _ready() -> void:
+	suite_tag = "fit"
 	for a in OS.get_cmdline_user_args():
 		if str(a).begins_with("--only="):
 			_only = str(a).substr("--only=".length())
@@ -145,23 +144,13 @@ func _ready() -> void:
 		await _test_seated_pak()
 
 	if _only.is_empty():
-		_ok(_pass + _fail == EXPECTED_CASES, "suite/every case ran",
-			"%d ran, %d expected" % [_pass + _fail, EXPECTED_CASES])
-	print("[fit] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+		_ok(_case_count() == EXPECTED_CASES, "suite/every case ran",
+			"%d ran, %d expected" % [_case_count(), EXPECTED_CASES])
+	_finish()
 
 
 func _want(group: String) -> bool:
 	return _only.is_empty() or group.begins_with(_only) or _only.begins_with(group)
-
-
-func _ok(cond: bool, test_name: String, detail := "") -> void:
-	if cond:
-		_pass += 1
-		print("[fit] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[fit] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 func _settle(frames := 3) -> void:

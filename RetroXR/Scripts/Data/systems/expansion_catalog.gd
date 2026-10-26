@@ -510,8 +510,8 @@ static func register_mod_shell(id: String, fields: Dictionary, owner_id: String)
 	return ""
 
 
-## Copies `fields` into `checked`, or says what is wrong with them: each one a
-## shell can set, of its type, and a model that is there at a size that is one.
+## Copies `fields` into `checked`, checking each is one a shell can set, of its
+## type, and a model that is there at a size that is one. Returns "" when ok, else the reason.
 static func _check_shell_fields(fields: Dictionary, checked: Dictionary) -> String:
 	for key: Variant in fields:
 		if not _SHELL_FIELDS.has(key):
@@ -713,10 +713,8 @@ static func host_slot_media(host: String) -> Array[String]:
 ## own systemid IS a system as far as the rest of RetroXR is concerned, which is
 ## precisely what having a card means.
 ##
-## The Jaguar CD used to be an exception for a reason that was fixable: nothing
-## named its discs, so it ran under "atarijaguar" and had to be offered from the
-## console's card. It names itself now, through virtualjaguar's
-## secondary_systemids, so it has a tile like the rest.
+## The Jaguar CD names its discs through virtualjaguar's secondary_systemids,
+## so it has a tile like the rest.
 ##
 ## The three that remain are exceptions on purpose, and no .info entry would fix
 ## them. A BS-X cartridge runs Satellaview downloads and a Super Game Boy runs

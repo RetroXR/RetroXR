@@ -135,7 +135,7 @@ func build(marker: Node3D) -> CellSlot:
 ## The slot at the seat `seat_name`, or null.
 func slot(seat_name: String) -> CellSlot:
 	var zone := _slots.get(seat_name) as CellSlot
-	return zone if zone != null and is_instance_valid(zone) else null
+	return zone if is_instance_valid(zone) else null
 
 
 ## The seats with a slot, in the order they were built.
@@ -210,7 +210,7 @@ func _seat_saved(seat_name: String) -> void:
 	if zone == null or not rec is Array or (rec as Array).size() < 2:
 		return
 	var cell := (rec as Array)[0] as Node3D
-	if cell == null or not is_instance_valid(cell) or zone.has_snapped_object():
+	if not is_instance_valid(cell) or zone.has_snapped_object():
 		return
 	zone.seat_cell(cell, float((rec as Array)[1]))
 	# Once: a slot built again, or a later save word, must not pull it back.
@@ -231,7 +231,7 @@ func _refresh() -> void:
 		var zone := slot(seat_name)
 		zone.enabled = not blocked
 		var cell := zone.picked_up_object as XRToolsPickable
-		if blocked and cell != null and is_instance_valid(cell):
+		if blocked and is_instance_valid(cell):
 			cell.enabled = false
 			shut.append(cell)
 	for cell: XRToolsPickable in _held_shut:

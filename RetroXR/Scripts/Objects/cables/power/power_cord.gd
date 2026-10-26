@@ -144,7 +144,7 @@ func _apply_seating(seats: Array) -> void:
 		var plug := plug_at(int(seat.get("end", 0)))
 		var device: Node3D = seat.get("device")
 		var port_name := str(seat.get("port", ""))
-		if plug == null or device == null or not is_instance_valid(device) \
+		if plug == null or not is_instance_valid(device) \
 				or port_name.is_empty():
 			continue
 		# A socket that cannot be found leaves the plug where it was saved. A loose

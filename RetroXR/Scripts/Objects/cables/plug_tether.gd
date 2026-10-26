@@ -34,7 +34,7 @@ const SLACK := 0.005
 ## Reel `plug` in so that `point`, a point on it in world space, lies no further
 ## than `reach` + SLACK from `from`. Returns whether it had to move.
 static func reel_in(plug: RigidBody3D, point: Vector3, from: Vector3, reach: float) -> bool:
-	if plug == null or not is_instance_valid(plug) or reach <= 0.0:
+	if not is_instance_valid(plug) or reach <= 0.0:
 		return false
 	var away := point - from
 	var d := away.length()

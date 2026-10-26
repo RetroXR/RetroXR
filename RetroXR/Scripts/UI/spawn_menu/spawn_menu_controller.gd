@@ -211,7 +211,7 @@ func _connect_menu_signals() -> void:
 			or (vp.get_child(0) as SpawnMenu2D) == null \
 			or (vp.get_child(0) as SpawnMenu2D).spawn_view() == null:
 		if _connect_retry_count >= 30:
-			push_error("SpawnMenuController: menu scene failed to load after 30 frames")
+			push_error("[SpawnMenuController] menu scene failed to load after 30 frames")
 			return
 		_connect_retry_count += 1
 		await get_tree().process_frame
@@ -1073,7 +1073,7 @@ func _show_menu_hint() -> void:
 	var host: Node3D = (_left_ctrl as Node3D) if vr else (_camera as Node3D)
 	if not is_instance_valid(host):
 		return
-	if _menu_hint == null or not is_instance_valid(_menu_hint):
+	if not is_instance_valid(_menu_hint):
 		_menu_hint = HeldHint.for_node(host)
 		if _menu_hint == null:
 			return

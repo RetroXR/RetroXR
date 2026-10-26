@@ -134,7 +134,7 @@ func can_auto_install() -> bool:
 	return str(_plan.get("mode", UpdatePlan.MODE_NONE)) != UpdatePlan.MODE_NONE
 
 
-## Why it cannot, "" when it can.
+## Why install() cannot finish the job by itself. Returns "" when ok, else the reason.
 func manual_reason() -> String:
 	return str(_plan.get("reason", ""))
 
@@ -283,7 +283,7 @@ func install() -> String:
 	return ""
 
 
-## What stops an install from starting. The same two things a restart refuses for,
+## What stops an install from starting. Returns "" when ok, else the reason. The same two things a restart refuses for,
 ## asked BEFORE a few hundred megabytes are fetched.
 func _blocker() -> String:
 	if has_node("/root/NetworkManager") and NetworkManager.is_active():

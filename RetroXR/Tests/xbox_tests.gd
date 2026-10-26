@@ -16,7 +16,7 @@
 ## files it managed to read before the bad one.
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/xbox_tests.tscn
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below -- it is checked before it
 ## has recorded itself. Bump when adding.
@@ -32,8 +32,6 @@ const BASE := XboxHddSaves.DATA_PARTITION_OFFSET
 ## reader is checked against the FILES coming back, not against this number.
 const DATA := BASE + 0x1000 + 0x132000
 
-var _passed := 0
-var _failed := 0
 var _dir := ""
 
 ## The FATX fixture under construction: guest offset -> bytes, the FAT as
@@ -46,6 +44,7 @@ var _placed: Dictionary = {}
 
 
 func _ready() -> void:
+	suite_tag = "xbox"
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		push_error("[xbox] TIMEOUT")
 		get_tree().quit(1))
@@ -63,30 +62,15 @@ func _ready() -> void:
 	await _group_slots()
 	await _group_one_at_a_time()
 
-	_eq(_passed + _failed, EXPECTED_CASES, "suite/every case ran")
+	_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
 	_cleanup()
-	print("[xbox] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[xbox] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 func _cleanup() -> void:
 	for n: String in DirAccess.get_files_at(_dir):
 		DirAccess.remove_absolute(_dir.path_join(n))
 	DirAccess.remove_absolute(_dir)
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if cond:
-		_passed += 1
-		print("[xbox] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[xbox] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
 
 
 # ── system/ ───────────────────────────────────────────────────────────────────

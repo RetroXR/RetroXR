@@ -1,7 +1,4 @@
-extends Node
-
-var _failed := 0
-var _ran := 0
+extends "res://Tests/test_suite.gd"
 
 
 func _ready() -> void:
@@ -56,18 +53,7 @@ func _ready() -> void:
 	_close(light.light_energy, 0.0, "off/disables output")
 	QualityManager.screen_light_interval = old_interval
 
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _failed == 0 else "%d FAILURE(S)" % _failed])
-	get_tree().quit(0 if _failed == 0 else 1)
-
-
-func _ok(ok: bool, label: String) -> void:
-	_ran += 1
-	if ok:
-		print("[test] ok   %s" % label)
-	else:
-		_failed += 1
-		print("[test] FAIL %s" % label)
+	_finish()
 
 
 func _close(actual: float, expected: float, label: String, tolerance := 0.0001) -> void:

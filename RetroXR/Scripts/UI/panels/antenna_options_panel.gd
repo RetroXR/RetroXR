@@ -28,7 +28,7 @@ var _body: Node3D = null
 
 ## Open or close the panel for `antenna`, floating over `body`.
 static func toggle_for(antenna: Antenna, body: Node3D, camera: Node3D) -> void:
-	if antenna == null or body == null or not is_instance_valid(body):
+	if antenna == null or not is_instance_valid(body):
 		return
 	var panel := body.get_node_or_null(NODE_NAME) as AntennaOptionsPanel
 	if panel == null:

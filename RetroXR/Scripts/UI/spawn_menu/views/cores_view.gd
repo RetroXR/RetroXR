@@ -152,9 +152,7 @@ func notify_clear(key: String) -> void:
 ## job-shaped producer in this view goes through it.
 ##
 ## Note the argument flip: this takes (dwell, progress) and SpawnMenu2D.notify
-## takes (progress, seconds). It used to call a `romm_notify_or_queue` that the
-## menu has never had, so every toast raised here failed silently at runtime —
-## a call by name on an untyped Node is not checked at parse time.
+## takes (progress, seconds).
 func _romm_notify_or_queue(key: String, icon: String, msg: String, dwell: float,
 						   progress: float = -1.0) -> void:
 	if _menu:
@@ -666,9 +664,9 @@ func _add_core_option_row(root: String, core_name: String, _systemid: String, ke
 	return holder
 
 
-func _option_value_label(v: Object) -> String:
-	var lbl: String = v.GetLabel()
-	return lbl if not lbl.is_empty() else v.GetValue()
+func _option_value_label(value: Object) -> String:
+	var lbl: String = value.GetLabel()
+	return lbl if not lbl.is_empty() else value.GetValue()
 
 
 # ── BIOS / Extras tab ─────────────────────────────────────────────────────────
@@ -736,6 +734,11 @@ func _build_bios_tab() -> Control:
 
 # ── Install progress ──────────────────────────────────────────────────────────
 
+## A firmware fetch is under way, which an app restart would cancel.
+func firmware_busy() -> bool:
+	return _firmware_installer != null and _firmware_installer.is_busy()
+
+
 ## What a job's bar reads while it runs. The name comes first and stays there:
 ## several of these can be up at once, and a bar saying only "43%" or "12.4 MiB"
 ## belongs to any of them.
@@ -743,11 +746,6 @@ func _build_bios_tab() -> Control:
 ## The size is appended once it is known rather than at the start — the core
 ## downloader emits job_started with a total of 0, because the buildbot's
 ## Content-Length is not in hand until the response arrives.
-## A firmware fetch is under way, which an app restart would cancel.
-func firmware_busy() -> bool:
-	return _firmware_installer != null and _firmware_installer.is_busy()
-
-
 func _job_text(key: String, total: int) -> String:
 	var label := str(_job_labels.get(key, ""))
 	if label.is_empty():

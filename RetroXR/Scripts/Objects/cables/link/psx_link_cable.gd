@@ -118,19 +118,19 @@ func _console_end(e: int) -> Dictionary:
 	return {"libretro": lib, "machine": port.get_machine(), "port": port.link_port}
 
 
-func _join(a: Dictionary, b: Dictionary) -> void:
-	if _linked.get("a") == a["libretro"] and _linked.get("b") == b["libretro"] \
-			and _linked.get("port_a") == a["port"] and _linked.get("port_b") == b["port"]:
+func _join(end_a: Dictionary, end_b: Dictionary) -> void:
+	if _linked.get("a") == end_a["libretro"] and _linked.get("b") == end_b["libretro"] \
+			and _linked.get("port_a") == end_a["port"] and _linked.get("port_b") == end_b["port"]:
 		return          # already joined to exactly this pair
 
 	_disconnect()
 
-	var lib: Libretro = a["libretro"]
-	if lib.LinkConnect(b["libretro"], a["port"], b["port"]):
+	var lib: Libretro = end_a["libretro"]
+	if lib.LinkConnect(end_b["libretro"], end_a["port"], end_b["port"]):
 		_linked = {
-			"a": a["libretro"], "b": b["libretro"],
-			"machine_a": a["machine"], "machine_b": b["machine"],
-			"port_a": a["port"], "port_b": b["port"],
+			"a": end_a["libretro"], "b": end_b["libretro"],
+			"machine_a": end_a["machine"], "machine_b": end_b["machine"],
+			"port_a": end_a["port"], "port_b": end_b["port"],
 		}
 		_powered = {}
 		_restate_wait = RESTATE_COOLDOWN
@@ -185,7 +185,7 @@ func _watch() -> void:
 	var came_back := false
 	for key in ["machine_a", "machine_b"]:
 		var machine: Node = _linked[key]
-		if machine == null or not is_instance_valid(machine):
+		if not is_instance_valid(machine):
 			continue
 		var on: bool = machine.is_powered_on
 		if on and not bool(_powered.get(key, true)):

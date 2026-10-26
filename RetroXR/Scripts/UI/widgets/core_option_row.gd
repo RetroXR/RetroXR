@@ -100,6 +100,6 @@ static func description(key: String, defn: LibretroOptionDefinition) -> String:
 
 
 ## A LibretroOptionValue's display label, falling back to the raw value.
-static func value_label(v: LibretroOptionValue) -> String:
-	var lbl: String = v.GetLabel()
-	return lbl if not lbl.is_empty() else v.GetValue()
+static func value_label(value: LibretroOptionValue) -> String:
+	var lbl: String = value.GetLabel()
+	return lbl if not lbl.is_empty() else value.GetValue()

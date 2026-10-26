@@ -397,7 +397,7 @@ func _box_mesh(mesh_name: String, size: Vector3, pos: Vector3,
 ## Give every renderable under `root` a draw distance, sized by how big the part
 ## itself is. Nothing is hidden that you could have made out anyway.
 func _cull_detail(root: Node) -> void:
-	if root == null or not is_instance_valid(root):
+	if not is_instance_valid(root):
 		return
 	var stack: Array[Node] = [root]
 	while not stack.is_empty():

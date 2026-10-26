@@ -47,12 +47,12 @@ func _cache_buttons() -> void:
 ## Rock the button about its rear hinge. Sinking it bodily — RetroMouse's default
 ## — would drop the panel below the shell it is flush with and open a slot along
 ## the hinge line, because on this mouse the button IS the front of the shell.
-func _button_pose(e: Dictionary, down: float) -> Transform3D:
-	var rest: Transform3D = e["rest"]
-	var arm: float = e.get("arm", 0.0)
+func _button_pose(entry: Dictionary, down: float) -> Transform3D:
+	var rest: Transform3D = entry["rest"]
+	var arm: float = entry.get("arm", 0.0)
 	if arm <= 0.0:
-		return super._button_pose(e, down)
-	var pivot: Vector3 = e["pivot"]
+		return super._button_pose(entry, down)
+	var pivot: Vector3 = entry["pivot"]
 	# Negative: a positive turn about +X lifts what lies on -Z, and the tip is
 	# the -Z end.
 	var tilt := Basis(Vector3.RIGHT, -atan(TIP_DROP / arm) * down)

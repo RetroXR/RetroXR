@@ -74,7 +74,7 @@ static func core_state() -> CoreState:
 	return CoreState.READY
 
 
-## What the row and the tile say when the core cannot install it, or "".
+## What the row and the tile say when the core cannot install it. Returns "" when ok, else the reason.
 static func core_problem(state: CoreState) -> String:
 	match state:
 		CoreState.MISSING:

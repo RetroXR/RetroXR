@@ -27,6 +27,35 @@ rather than broken, so adding cases never needs a second commit. A filtered run
 there is the point. When a drop is deliberate, re-run with `--update-baseline`
 and commit the JSON with the change that caused it.
 
+**Every suite extends the one harness, `RetroXR/Tests/test_suite.gd` (`TestSuite`),
+by path** (`extends "res://Tests/test_suite.gd"` -- a headless run reads class
+names from the editor's cache, and a suite must not depend on that being fresh).
+It owns `_ok(cond, what, detail)` / `_eq(got, want, what)`, the tally
+(`_pass_count`, `_fail_count`, `_case_count()`), and `_finish()`, which prints the
+ONE summary line the runner reads and quits with the matching exit code:
+
+    [<tag>] RESULT <passed> passed, <failed> failed: PASS|FAIL
+
+Set `suite_tag` first thing in `_ready`; `quiet_passes` prints failures only (av,
+combo_tv, gb_printer) and `show_pass_detail` prints a passing case's measurement
+(rope). Hooks: override `_wanted(what)` to skip-and-not-count a check outside a
+`--only=` group that is matched on the check's own name (archive, card, ra,
+spawn_menu, quality), and `_on_fail(what)` to note which CASE a failing check was
+in (av, combo_tv, speaker). Helpers: `_wait_until(cond, timeout_s)` polls a
+condition once a frame up to a generous bound -- use it instead of a fixed timer
+for anything asynchronous (a shrink-and-free, a retry on a SceneTreeTimer, an
+audio device draining), and count physics frames instead where the production
+code runs on the fixed physics delta; `_snapshot_file` / `_restore_file` put a
+player's `user://` file back byte for byte; `_app_prefs_round_trip(values)` saves
+through the live AppPrefs and reads back through a fresh, out-of-tree one, and
+`_app_prefs_default(key)` is a fresh install's value -- the behavioural check for
+"this pref is saved, read back and defaults to X", in place of grepping
+`app_prefs.gd`. **A suite that exits 0 without the summary line is reported
+`NOSUMMARY`, not OK**: it quit some way other than `_finish()`, so its count
+(and so the baseline guard) means nothing. A case is never `_ok(true, ...)`:
+assert the state the case names, or, for "does not crash", that the case really
+reached the race it is about (deck_tests `_free_mid_decode`).
+
 Because the runner globs `Tests/*.tscn` **non-recursively**, `Tests/` stays flat. Do not
 nest it into subfolders — a suite in a subdirectory is silently never run, which is the
 one failure mode a green CI cannot show you. (`RetroXR/Tools/` is the opposite: it is
@@ -90,6 +119,8 @@ debug build, 2026-08-27 — all passing):
 | `pointer_fit_tests` | 323 | 9 s | a plug's and a memory card's pointer target is what it DRAWS (`PointerFit`, Scripts/Interaction): `scene/` every plug and card the game ships (the PointerArea box is the meshes shown, and no body box on a layer the desktop ray stops on stands proud of them); `swap/` `set_plug_mesh` to a PlayStation and a PS/2 connector and back to the molding, whose authored body box comes back, and a real pad's plug; `dress/` a mod's shell hung on a plug or a card with the stand-in hidden, a model put on a frame late, and a body box a mod sets at run time, which is left as it set it; `resolver/` `InteractionResolver.resolve_desktop` aimed 5 and 10 mm off what is drawn does not take the thing, aimed at it does, and the padded target it had, put back, would have (the control); `seated/` a Controller Pak in an N64 pad: down through the pad over the pak's tongue is the pad, up at the pak is the pak. Mutation-tested: without the body trim, a plug dressed smaller than its molding is taken 5 mm beside it |
 | `pointer_hover_tests` | 42 | 2 s | two lasers, two hovers. A panel's viewport has one mouse and Godot never hovers on touch, so a second laser lit nothing: `PointerHover` (Scripts/UI/widgets) hovers the other pointers and the local edits in `viewport_2d_in_3d_body.gd` drive it. `hit/` pins `PointerHover.find_control` to the engine's own answer (the mouse hover after a real motion) over a caption that ignores the mouse, a clipped scroller, a top-level control and a hidden tile. `panel/` drives the REAL addon body over a bare SubViewport (no Viewport2Din3D, which hangs headless): both lasers' tiles lit, a tile stays lit until the LAST pointer leaves (either order, mouse or not), the mouse laser leaving the panel darkens its tile (upstream left it lit), `mouse_entered`/`mouse_exited` balance, and a laser that presses and takes the mouse presses once while the one it took it from stays lit. `widgets/` is VRButton, VRSlider, VRKnob, VRHinge, VRLever and PageGrab staying hovered while the other laser is still on them. Mutation-tested 2026-10-24, 7 breaks |
 
+| `quality_tests` | 70 | 9 s | QualityManager's decisions (`Scripts/quality_manager.gd`): what each preset drives and never touches (render scale, eye buffer), that moving any one row makes the preset Custom (a CPU level does not: the control), every setter's clamp, `graphics_prefs.json` both ways (a moved row comes back Custom with the rest of its preset; a hand-edited file loads clamped; a non-bool switch keeps its default; a saved file outranks the device's starting eye buffer, a first launch takes it), which headset a string names (3S before 3, the Quest 2's UUID is no model), what SMAA, render scale and stencil materials stand down to, and a light's and an Environment's configuration per tier. Pure decisions on a FRESH instance that never enters the tree; setters on the live autoload, put back afterwards; the prefs file snapshotted and restored. Nothing that needs OpenXR initialised beyond "not offered on a desktop" |
+| `held_physics_tests` | 16 | 9 s | HeldObjectPhysics (the `HeldPhysics` autoload): the held layer (bit 17) cleared from every body's mask and nothing else, an Area3D keeping it, continuous CD on pickables; a pickable released 8 cm into a world shelf stepping out toward the camera with its layer/mask/freeze back, and the three controls left alone (resting ON the shelf, frozen, inside another pickable); riders coupled while their support is held and still under them, woken and uncoupled once it is carried off, a side neighbour and a frozen body never riders; a pickable below the world recovered to where it last sat. Real Jolt queries; overlaps set up on purpose carry a collision exception so the solver cannot undo them before the release. Waits are counted in physics frames (the autoload's timers run on the fixed delta), not wall time. No real grab is driven |
 Counts are what the suite printed, not a target — they drift upward as cases are added,
 so re-measure rather than trusting this table, and treat an unexplained DROP as a signal.
 

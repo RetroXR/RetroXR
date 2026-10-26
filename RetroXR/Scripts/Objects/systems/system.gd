@@ -251,14 +251,14 @@ class VideoChannel:
 	var pending_tv: RetroTV = null
 	var pending_input: int = 0
 
-	static func from_model(d: Dictionary) -> VideoChannel:
-		var c := VideoChannel.new()
-		c.label = str(d.get("label", ""))
-		c.rect = d.get("rect", Rect2(0, 0, 1, 1))
-		c.touch = bool(d.get("touch", false))
-		c.eye_shift = float(d.get("eye_shift", 0.0))
-		c.wires = d.get("wires", PackedColorArray())
-		return c
+	static func from_model(row: Dictionary) -> VideoChannel:
+		var channel := VideoChannel.new()
+		channel.label = str(row.get("label", ""))
+		channel.rect = row.get("rect", Rect2(0, 0, 1, 1))
+		channel.touch = bool(row.get("touch", false))
+		channel.eye_shift = float(row.get("eye_shift", 0.0))
+		channel.wires = row.get("wires", PackedColorArray())
+		return channel
 
 
 # Video-out channels from the model (single unlabelled entry on classic
@@ -763,7 +763,7 @@ func _load_system_model() -> void:
 	# failure — it crashes some unrelated caller much later (e.g. a cartridge insert
 	# during a save restore).
 	if _model == null:
-		push_warning("RetroSystem: model '%s' failed for systemid='%s' — using the placeholder"
+		push_warning("[RetroSystem] model '%s' failed for systemid='%s' — using the placeholder"
 			% [row.get("id", ""), systemid])
 		row = SystemModelRegistry.placeholder_row()
 		_model = SystemModelRegistry.instantiate(row)
@@ -1304,7 +1304,7 @@ func _screen_target() -> MeshInstance3D:
 ## Per set, not per machine. A tower with its picture on a monitor and its sound
 ## on a second television is wired to both, and only one of them has the picture.
 func sends_video_to(tv: Node3D) -> bool:
-	if tv == null or not is_instance_valid(tv):
+	if not is_instance_valid(tv):
 		return false
 	for chan: VideoChannel in _channels:
 		if chan.tv == tv:
@@ -1600,7 +1600,7 @@ func _process(_delta: float) -> void:
 ## the same state from power + tray, so no sync is needed.
 func _update_disc_spin(delta: float) -> void:
 	var disc := _snapped_cartridge as RetroDisc
-	if disc == null or not is_instance_valid(disc):
+	if not is_instance_valid(disc):
 		_disc_spin = 0.0
 		return
 	# "Shut and seated": a tray disc spins only with the lid closed (MediaTray.can_spin
@@ -1733,7 +1733,7 @@ func power_on() -> void:
 			or not CoreDownloadManager.installed_core_lib(resolved_core).is_empty(),
 		_open_over_disc())
 	if not bool(verdict["start"]):
-		push_error("RetroSystem: Cannot power on - %s" % verdict["log"])
+		push_error("[RetroSystem] Cannot power on - %s" % verdict["log"])
 		# Over the hardware rather than the picture: every one of these is a
 		# state of the console, and half the machines they fire on have no set
 		# connected to show anything on.
@@ -1831,7 +1831,7 @@ func _refused_by_busy_storage(core: String) -> bool:
 		var busy := storage.busy_elsewhere(core)
 		if busy.is_empty():
 			continue
-		push_error("RetroSystem: Cannot power on - %s" % busy)
+		push_error("[RetroSystem] Cannot power on - %s" % busy)
 		var busy_toast := _machine_toast()
 		if busy_toast != null:
 			busy_toast.show_notice(_display_name(), storage.busy_title(), busy,
@@ -2017,7 +2017,7 @@ static func _power_on_verdict(core_id: String, sysid: String, rom: String,
 func _resolve_content(core: String) -> bool:
 	var verdict := RomCompat.resolve(rom_path, core, systemid)
 	if int(verdict["verdict"]) == RomCompat.Verdict.UNSUPPORTED:
-		push_error("RetroSystem: %s" % verdict["message"])
+		push_error("[RetroSystem] %s" % verdict["message"])
 		# On the card rather than the TV's OSD: half the machines this fires on
 		# are handhelds with no set connected, and the card anchors to whatever
 		# screen the machine actually has. A console with no TV at all gets the
@@ -2389,7 +2389,7 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	var requested_no_content := _net_no_content_override
 	_net_no_content_override = false
 	if not _has_display():
-		push_error("RetroSystem: netplay start — no display (connect a TV)")
+		push_error("[RetroSystem] netplay start — no display (connect a TV)")
 		return null
 	# The host names the core, and every peer runs THAT one. _resolve_core() is
 	# this machine's own preference, which is a per-player, per-platform answer:
@@ -2398,12 +2398,12 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	# nothing to say (an offline-style start).
 	var resolved_core := core if not core.is_empty() else _resolve_core()
 	if resolved_core.is_empty():
-		push_error("RetroSystem: netplay start — no core for systemid '%s'" % systemid)
+		push_error("[RetroSystem] netplay start — no core for systemid '%s'" % systemid)
 		return null
 	var no_content := requested_no_content and rom_path.is_empty() \
 		and BiosBoot.boots_with_no_content(resolved_core, systemid)
 	if rom_path.is_empty() and not no_content:
-		push_error("RetroSystem: netplay start — boot media was not prepared")
+		push_error("[RetroSystem] netplay start — boot media was not prepared")
 		return null
 	if is_powered_on:
 		_libretro.StopContent()
@@ -2423,7 +2423,7 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 		var saved := CoreOptionsStore.load_values(_resolve_dir(), resolved_core)
 		for key: Variant in options:
 			if str(saved.get(str(key), "")) != str(options[key]):
-				push_error("RetroSystem: netplay start — could not pin deterministic core options")
+				push_error("[RetroSystem] netplay start — could not pin deterministic core options")
 				return null
 	# SRAM: netplay override (session-injected identical bytes) or the normal
 	# local composition when the session didn't set one (offline-like start).
@@ -2587,7 +2587,7 @@ func controls_state() -> Dictionary:
 		"wiring": [],
 	}
 	var tv := connected_tv
-	var picture := tv != null and is_instance_valid(tv)
+	var picture := is_instance_valid(tv)
 	# No picture on any set is exactly when a wrong cord matters most — the yellow
 	# plug in an audio jack leaves connected_tv empty — so find the set through the
 	# cords themselves, and say there is no picture rather than nothing at all.
@@ -2708,15 +2708,6 @@ func _seated_cards() -> Array[bool]:
 	return out
 
 
-## The 64DD is a drive bolted under an N64, and parallel_n64 models it behind an
-## option: with parallel-n64-64dd-hardware disabled there is no drive and a disk
-## has nothing to load into. So this machine pins it on, the way the Virtual Boy
-## pins its stereo split -- it is what makes the hardware that hardware, not a
-## preference.
-##
-## Keyed on the systemid as well as the core, and deliberately not added to
-## CoreOptionsStore.HARDWARE_PINNED: that table is per key, and the same core
-## runs the plain nintendo_64, where the drive really is the player's choice.
 # ── expansions ────────────────────────────────────────────────────────────────
 #
 # The sockets, covers and unit list live in SystemExpansions, a child this node
@@ -3089,7 +3080,7 @@ func _apply_forced_core_options(dir: String, core: String) -> void:
 ## Powers back off rather than leaving the button saying STOP on a machine with
 ## no core behind it, and says why on the hardware, where the player is.
 func _on_content_load_failed(reason: String) -> void:
-	push_error("RetroSystem: content load failed — %s" % reason)
+	push_error("[RetroSystem] content load failed — %s" % reason)
 	if is_powered_on:
 		_stop_core()
 	var absent := BiosBoot.absent_media_boot_roms(_resolve_core(), _media_systemid())

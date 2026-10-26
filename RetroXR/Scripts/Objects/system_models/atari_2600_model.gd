@@ -63,7 +63,7 @@ func _ready() -> void:
 		_glb = baked
 	else:
 		if not ResourceLoader.exists(_MODEL_PATH):
-			push_warning("Atari2600Model: %s missing — using placeholder box" % _MODEL_PATH)
+			push_warning("[Atari2600Model] %s missing — using placeholder box" % _MODEL_PATH)
 			var host := get_parent()
 			if host:
 				var body := host.get_node_or_null("SystemBody") as MeshInstance3D
@@ -72,7 +72,7 @@ func _ready() -> void:
 			return
 		var scene := load(_MODEL_PATH) as PackedScene
 		if scene == null:
-			push_warning("Atari2600Model: failed to load %s" % _MODEL_PATH)
+			push_warning("[Atari2600Model] failed to load %s" % _MODEL_PATH)
 			return
 		_glb = scene.instantiate() as Node3D
 		# MUST be "Shell" — that is what has_baked_shell() looks for, and it is how
@@ -189,7 +189,7 @@ func _align_switch_box(slider: Node3D, cap_name: String) -> void:
 func _setup_power(power_btn: VRButton) -> void:
 	var cap := _glb.find_child("Switch_Power", true, false) as MeshInstance3D
 	if cap == null:
-		push_warning("Atari2600Model: Switch_Power missing from the shell")
+		push_warning("[Atari2600Model] Switch_Power missing from the shell")
 		return
 	var slider := build_power_slider(power_btn, cap, _AXIS_ON, _SWITCH_THROW)
 	if slider == null:
@@ -217,7 +217,7 @@ func _setup_power(power_btn: VRButton) -> void:
 func _setup_reset(reset_btn: VRButton) -> void:
 	var cap := _glb.find_child("Switch_GameReset", true, false) as MeshInstance3D
 	if cap == null:
-		push_warning("Atari2600Model: Switch_GameReset missing from the shell")
+		push_warning("[Atari2600Model] Switch_GameReset missing from the shell")
 		return
 	if reset_btn != null:
 		reset_btn.set_active(false)

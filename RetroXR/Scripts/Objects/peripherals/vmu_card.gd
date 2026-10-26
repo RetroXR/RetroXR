@@ -602,7 +602,8 @@ func grip_anchor(is_left: bool) -> Variant:
 	return hand.transform
 
 
-## Why this card cannot run a minigame right now, or "" when it can.
+## Whether this card can run a minigame right now.
+## Returns "" when ok, else the reason.
 func standalone_blocker() -> String:
 	if _slot >= 0:
 		return "seated in a controller — pull it out first"
@@ -857,7 +858,7 @@ func _update_standalone_audio() -> void:
 ## gain. Returns the gain now set; `last_gain` saves re-sending an unchanged one.
 func _pose_on_card(voices: PackedInt32Array, unit_size: float, max_distance: float,
 		last_gain: float) -> float:
-	if _listener == null or not is_instance_valid(_listener):
+	if not is_instance_valid(_listener):
 		_listener = get_node_or_null("/root/SpatialAudioListener")
 		if _listener == null:
 			return last_gain

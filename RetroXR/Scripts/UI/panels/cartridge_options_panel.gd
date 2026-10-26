@@ -407,7 +407,7 @@ func _rom_id() -> int:
 func _on_save_selected(save_id: String) -> void:
 	# Only a cartridge can carry a save. The UI hides these rows' action when the
 	# target cannot be bound, so this is the belt to that braces.
-	if _cart == null or not is_instance_valid(_cart) or not _bindable():
+	if not is_instance_valid(_cart) or not _bindable():
 		return
 	if save_id.is_empty():
 		# New blank save: mint a fresh identity — the first flush creates it.
@@ -422,7 +422,7 @@ func _on_save_selected(save_id: String) -> void:
 ## before any file exists, so the very first flush uploads instead of the user
 ## having to come back and toggle it afterwards.
 func _on_new_synced_save() -> void:
-	if _cart == null or not is_instance_valid(_cart) or not _bindable():
+	if not is_instance_valid(_cart) or not _bindable():
 		return
 	var core := _save_core()
 	var rid := _rom_id()
@@ -435,7 +435,7 @@ func _on_new_synced_save() -> void:
 	_populate()
 
 
-## Why a save must not be deleted right now, or "".
+## Why a save must not be deleted right now. Returns "" when ok, else the reason.
 ##
 ## A running game owns its .srm: the core holds the save data and writes it back
 ## on its next flush, so a file deleted underneath simply reappears — and the one
@@ -486,7 +486,7 @@ func _on_delete_requested(save_id: String) -> void:
 ## rather than waiting for the next flush, so a save made on another device
 ## arrives as soon as you ask for it.
 func _on_sync_toggled(save_id: String, on: bool) -> void:
-	if _cart == null or not is_instance_valid(_cart):
+	if not is_instance_valid(_cart):
 		return
 	var core := _save_core()
 	if core.is_empty():
@@ -504,7 +504,7 @@ func _on_sync_toggled(save_id: String, on: bool) -> void:
 ## which becomes a local save_id, and the cartridge binds to it — so the two
 ## sides agree on identity from the first sync onwards.
 func _on_server_save_requested(slot: String) -> void:
-	if _cart == null or not is_instance_valid(_cart):
+	if not is_instance_valid(_cart):
 		return
 	var core := _save_core()
 	var rid := _rom_id()
@@ -592,8 +592,9 @@ func _live_machine() -> Node:
 	return null
 
 
-## Why a state cannot be taken right now, or "". Loading is deliberately NOT
-## blocked by any of these: a machine that is off powers itself on to do it.
+## Why a state cannot be taken right now. Returns "" when ok, else the reason.
+## Loading is deliberately NOT blocked by any of these: a machine that is off
+## powers itself on to do it.
 func _capture_blocked() -> String:
 	if not _state_busy.is_empty():
 		return _state_busy

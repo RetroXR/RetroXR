@@ -307,8 +307,8 @@ func _place_after_needs(rec: ModRecord, wanted: Dictionary, placed: Dictionary,
 
 # ── dependencies ──────────────────────────────────────────────────────────────
 
-## Why `rec` cannot run with what is installed and switched on, "" when it can:
-## every mod it needs is installed, not refused, switched on, new enough, and
+## Why `rec` cannot run with what is installed and switched on. Returns "" when ok, else the reason.
+## Ok means every mod it needs is installed, not refused, switched on, new enough, and
 ## able to run itself. Asked before a mod is mounted, at boot and by apply_live,
 ## and after every change to what is installed or switched on, so a mod is never
 ## mounted without what it needs and its page always says what is missing.
@@ -656,7 +656,7 @@ var _held_notice := false
 ## asked but says so ONCE, at the end: one write of its state file and one
 ## mods_changed, however many mods were installed, enabled or tagged in between.
 ##
-## A pack of four used to be four installs, four enables and four sources, each
+## Unheld, a pack of four is four installs, four enables and four sources, each
 ## writing the file and each rebuilding every list the menu shows -- on the main
 ## thread, in the one frame the player pressed Install. Held, it is one of each.
 ## Calls nest; nothing is said until the outermost release.

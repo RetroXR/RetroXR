@@ -79,8 +79,9 @@ func forced_options_for(core: String) -> Dictionary:
 	return forced_options(core)
 
 
-## Why this machine may not start with its cartridge, or "": the folder is shared,
-## and another machine is running one or has not finished writing it back.
+## Whether this machine may start with its cartridge. Returns "" when ok, else the
+## reason: the folder is shared, and another machine is running one or has not
+## finished writing it back.
 func busy_elsewhere(core: String) -> String:
 	if not core.begins_with(CORE_PREFIX) or not is_instance_valid(_host):
 		return ""

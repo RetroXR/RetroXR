@@ -81,11 +81,11 @@ static func _read_serial(path: String) -> String:
 
 ## Is there a `AAAA_999.99` sitting on this underscore? Four capitals before it,
 ## then three digits, a dot and two more.
-static func _is_serial_at(b: PackedByteArray, at: int) -> bool:
+static func _is_serial_at(bytes: PackedByteArray, at: int) -> bool:
 	for k in range(at - 4, at):
-		if b[k] < 0x41 or b[k] > 0x5A:
+		if bytes[k] < 0x41 or bytes[k] > 0x5A:
 			return false
 	for k in [at + 1, at + 2, at + 3, at + 5, at + 6]:
-		if b[k] < 0x30 or b[k] > 0x39:
+		if bytes[k] < 0x30 or bytes[k] > 0x39:
 			return false
-	return b[at + 4] == 0x2E
+	return bytes[at + 4] == 0x2E

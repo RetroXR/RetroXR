@@ -87,10 +87,10 @@ static func plugin() -> Object:
 ## Whether `p` has `method`. An Android plugin is a JNISingleton, whose Java
 ## methods has_method() does not see (it answers false for every one of them);
 ## has_java_method() does. A plugin built before the feed existed has neither.
-static func plugin_has(p: Object, method: String) -> bool:
-	if p.has_method(method):
+static func plugin_has(android_plugin: Object, method: String) -> bool:
+	if android_plugin.has_method(method):
 		return true
-	return p.has_method("has_java_method") and bool(p.call("has_java_method", method))
+	return android_plugin.has_method("has_java_method") and bool(android_plugin.call("has_java_method", method))
 
 
 static func now_usec() -> int:

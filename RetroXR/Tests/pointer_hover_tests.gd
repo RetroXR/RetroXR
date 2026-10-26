@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Two pointers, two hovers. A panel's viewport has one mouse, so a second laser
 ## lit nothing (PointerHover, and the local edits in viewport_2d_in_3d_body.gd);
@@ -13,17 +13,12 @@ const VP := Vector2(200.0, 100.0)
 const SCREEN := Vector2(2.0, 1.0)
 const BODY_SCRIPT := "res://addons/godot-xr-tools/objects/viewport_2d_in_3d_body.gd"
 
-var _failed := 0
-var _ran := 0
-
 
 func _ready() -> void:
 	await _hit_cases()
 	await _panel_cases()
 	_widget_cases()
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _failed == 0 else "%d FAILURE(S)" % _failed])
-	get_tree().quit(0 if _failed == 0 else 1)
+	_finish()
 
 
 # ── hit/ ──────────────────────────────────────────────────────────────────────
@@ -240,11 +235,3 @@ func _to_world(at: Vector2) -> Vector3:
 func _name(c: Control) -> String:
 	return "null" if c == null else String(c.name)
 
-
-func _ok(ok: bool, label: String) -> void:
-	_ran += 1
-	if ok:
-		print("[test] ok   %s" % label)
-	else:
-		_failed += 1
-		print("[test] FAIL %s" % label)

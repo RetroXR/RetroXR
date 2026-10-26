@@ -38,12 +38,10 @@
 ## pack of its own under its own namespace to prove a late mount registers.
 ##
 ## Exits 0 when everything passes, 1 otherwise.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const MANAGER := preload("res://Scripts/Mods/mod_manager.gd")
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 var _dir := ""
 var _root := ""
@@ -93,8 +91,7 @@ func _ready() -> void:
 	# Goes on Linux; on Windows the mounted zip is held open, and the next run's
 	# _group_apply_live clears it.
 	_remove_tree(_dir + "_live")
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _want(group: String) -> bool:
@@ -2676,15 +2673,3 @@ func _remove_tree(path: String) -> void:
 
 # ── assertions ────────────────────────────────────────────────────────────────
 
-func _ok(cond: bool, name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [name,
-			"  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])

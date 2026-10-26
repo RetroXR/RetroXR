@@ -845,7 +845,7 @@ var _port_cover_blocked: Dictionary = {}
 func build_port_cover_slot(socket_id: String, socket: XRToolsSnapZone, seat: Transform3D,
 		size: Vector3) -> XRToolsSnapZone:
 	var zone := _port_cover_slots.get(socket_id) as XRToolsSnapZone
-	if zone != null and is_instance_valid(zone):
+	if is_instance_valid(zone):
 		return zone
 	# Close, as the N64's lid slot is: a cover is pressed back into its own
 	# opening, not lowered onto the console from across the table.
@@ -911,7 +911,7 @@ func block_port_cover(socket_id: String, blocked: bool) -> void:
 ## -- every socket on a model that never called build_port_cover_slot.
 func port_cover_slot(socket_id: String) -> XRToolsSnapZone:
 	var zone := _port_cover_slots.get(socket_id) as XRToolsSnapZone
-	return zone if zone != null and is_instance_valid(zone) else null
+	return zone if is_instance_valid(zone) else null
 
 
 ## The sockets that have a cover slot, in the order they were built.

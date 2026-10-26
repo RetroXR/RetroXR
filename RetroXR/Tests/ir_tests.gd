@@ -14,16 +14,14 @@
 ## cartridges and is Tools/link/gbc_ir_room_probe; no core runs here. Which is
 ## also why nothing here ever lights a window by itself: the glow follows the
 ## cores' own peer count, and without a core that is nought.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const SYS_SCENE := "res://Scenes/Objects/system.tscn"
 const CART_SCENE := "res://Scenes/Objects/media/cartridge.tscn"
 
-var _pass := 0
-var _fail := 0
-
 
 func _ready() -> void:
+	suite_tag = "ir"
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		print("[ir] TIMEOUT")
 		get_tree().quit(1))
@@ -37,23 +35,10 @@ func _ready() -> void:
 	await _test_netplay()
 	await _test_the_machine()
 	await _test_two_machines()
-	print("[ir] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 # ── harness ──────────────────────────────────────────────────────────────────
-
-func _ok(cond: bool, name: String, detail := "") -> void:
-	if cond:
-		_pass += 1
-		print("[ir] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[ir] FAIL  %s%s" % [name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 ## A machine as IrBus sees one: something that is on or off and has a core

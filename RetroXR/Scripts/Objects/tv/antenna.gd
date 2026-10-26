@@ -117,7 +117,7 @@ func _resolve() -> void:
 	# Untyped on purpose: _last_set may be a set that has since been freed, and a
 	# typed loop variable refuses a freed instance before is_instance_valid can ask.
 	for tv: Variant in [_last_set, now]:
-		if tv != null and is_instance_valid(tv):
+		if is_instance_valid(tv):
 			(tv as RetroTV).on_aerial_changed()
 	_last_set = now
 
@@ -151,10 +151,10 @@ func _build_rope() -> void:
 ## Keep the lead within its reach, moving whichever end is NOT being held — the
 ## rule RfSwitch._tether states at length, with one lead instead of two.
 func _physics_process(_delta: float) -> void:
-	if not _rope_built or _body == null or not is_instance_valid(_body):
+	if not _rope_built or not is_instance_valid(_body):
 		return
 	var plug := _connector()
-	if plug == null or not is_instance_valid(plug):
+	if not is_instance_valid(plug):
 		return
 	# Boss to boss, not origin to origin: see RfSwitch._tether.
 	var from: Vector3 = _attach.global_position
@@ -182,7 +182,7 @@ func toggle_options_ui(camera: Node3D) -> void:
 ## never moves, the player carries the Body, and without these two it restores at
 ## the origin and the tether hauls the connector out of its socket to reach it.
 func carried_body_pose() -> Dictionary:
-	if _body == null or not is_instance_valid(_body):
+	if not is_instance_valid(_body):
 		return {}
 	var p := _body.global_position
 	var r := _body.global_rotation_degrees
@@ -190,13 +190,13 @@ func carried_body_pose() -> Dictionary:
 
 
 func restore_carried_body(data: Dictionary) -> void:
-	if _body == null or not is_instance_valid(_body) or data.is_empty():
+	if not is_instance_valid(_body) or data.is_empty():
 		return
-	var p: Array = data.get("position", [])
-	var r: Array = data.get("rotation", [])
-	if p.size() == 3:
-		_body.global_position = Vector3(p[0], p[1], p[2])
-	if r.size() == 3:
-		_body.global_rotation_degrees = Vector3(r[0], r[1], r[2])
+	var pos: Array = data.get("position", [])
+	var rot: Array = data.get("rotation", [])
+	if pos.size() == 3:
+		_body.global_position = Vector3(pos[0], pos[1], pos[2])
+	if rot.size() == 3:
+		_body.global_rotation_degrees = Vector3(rot[0], rot[1], rot[2])
 	# The rope was built around wherever the base stood a frame ago.
 	call_deferred("_build_rope")

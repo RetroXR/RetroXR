@@ -90,7 +90,7 @@ func _process(delta: float) -> void:
 ## Spin the seated disc while the lid is shut and it's playing; ramp down otherwise.
 func _update_disc_spin(delta: float) -> void:
 	var disc := _tray.get_media() if _tray else null
-	if disc == null or not is_instance_valid(disc):
+	if not is_instance_valid(disc):
 		_disc_spin = 0.0
 		return
 	var target := DISC_SPIN_MAX if (is_playing and _tray.can_spin()) else 0.0

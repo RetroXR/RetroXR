@@ -71,9 +71,9 @@ const COLOR_GLYPH_ON        := Color(0.30, 1.0, 0.42)   # TV power = on
 const COLOR_GLYPH_MUTE      := Color(1.0, 0.35, 0.35)   # TV mute = active
 const COLOR_HILITE          := Color(0.62, 0.10, 0.22, 0.7)
 
-## Symbol codepoints live in TransportGlyphs, shared with the front panels of the
-## decks this drives. Built into the _glyphs string map in _ready so layouts can
-## name glyphs by key.
+# Symbol codepoints live in TransportGlyphs, shared with the front panels of the
+# decks this drives. Built into the _glyphs string map in _ready so layouts can
+# name glyphs by key.
 
 ## Desktop mode: lock to the camera lower-right pointing straight ahead
 ## (FPS-style, same as the LightGun — read by desktop_pickup.gd). Drop with
@@ -338,11 +338,11 @@ func _scan_for_target() -> Node3D:
 
 
 ## Walk a collider up its ancestors to the owning device, or null.
-func _walk_to_device(n: Node) -> Node3D:
-	while n:
-		if n is RetroTV or n is VCRPlayer or n is DVDPlayer or n is RetroAudioPlayer:
-			return n as Node3D
-		n = n.get_parent()
+func _walk_to_device(node: Node) -> Node3D:
+	while node:
+		if node is RetroTV or node is VCRPlayer or node is DVDPlayer or node is RetroAudioPlayer:
+			return node as Node3D
+		node = node.get_parent()
 	return null
 
 
@@ -1008,11 +1008,11 @@ func _activate_selected() -> void:
 
 
 ## A single Play/Pause cell: pause if actively playing, else (re)start playback.
-func _toggle_playpause(p: Node) -> void:
+func _toggle_playpause(player: Node) -> void:
 	if _target_playing():
-		p.call("remote_pause")
+		player.call("remote_pause")
 	else:
-		p.call("remote_play")
+		player.call("remote_play")
 
 
 func _activate(id: String) -> void:

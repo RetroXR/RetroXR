@@ -177,9 +177,9 @@ func _host_cluster(index: int) -> int:
 	return entry & _OFFSET_MASK
 
 
-static func _be32(b: PackedByteArray, at: int) -> int:
-	return (b[at] << 24) | (b[at + 1] << 16) | (b[at + 2] << 8) | b[at + 3]
+static func _be32(bytes: PackedByteArray, at: int) -> int:
+	return (bytes[at] << 24) | (bytes[at + 1] << 16) | (bytes[at + 2] << 8) | bytes[at + 3]
 
 
-static func _be64(b: PackedByteArray, at: int) -> int:
-	return (_be32(b, at) << 32) | _be32(b, at + 4)
+static func _be64(bytes: PackedByteArray, at: int) -> int:
+	return (_be32(bytes, at) << 32) | _be32(bytes, at + 4)

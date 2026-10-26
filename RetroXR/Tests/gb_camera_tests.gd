@@ -16,7 +16,7 @@
 ## Writes one label fixture into the player's real gb media/label folder
 ## (MediaDimensions derives the path from the ROM's name) and ROM fixtures under
 ## user://, and removes both at each end.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -28,8 +28,6 @@ const REACH := 0.03
 ## What mGBA asks for.
 const CAMERA_SIZE := Vector2i(128, 112)
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
@@ -116,6 +114,7 @@ class FakeJniSingleton:
 
 
 func _ready() -> void:
+	suite_tag = "gbcam"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -154,8 +153,7 @@ func _ready() -> void:
 
 	_clear_fixtures()
 	await _settle_warm()
-	print("[gbcam] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _settle_warm() -> void:
@@ -167,15 +165,6 @@ func _settle_warm() -> void:
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[gbcam] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[gbcam] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────
@@ -1374,14 +1363,13 @@ func _test_passthrough() -> void:
 
 	# The fixed sphere unless the player picks Depth (General > Libretro Camera
 	# Subviewport).
-	var prefs_src := FileAccess.get_file_as_string("res://Scripts/Data/app_prefs.gd")
 	var saved_mode: String = AppPrefs.libretro_camera_backdrop
 	AppPrefs.libretro_camera_backdrop = "sphere"
 	var on_sphere := eye.uses_depth()
 	AppPrefs.libretro_camera_backdrop = "depth"
 	var on_depth := eye.uses_depth()
 	AppPrefs.libretro_camera_backdrop = saved_mode
-	_ok("var libretro_camera_backdrop: String = \"sphere\"" in prefs_src and not on_sphere and on_depth,
+	_ok(_app_prefs_default("libretro_camera_backdrop") == "sphere" and not on_sphere and on_depth,
 		"passthrough/by default the camera takes the room to be 1.5 m away; Depth is the player's to pick")
 	# Where depth runs and is picked, the lens holds it along with the camera.
 	eye.backdrop_mode_source = func() -> String: return "depth"

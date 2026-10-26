@@ -19,7 +19,7 @@ class_name AvGraph
 ## per cable.
 static func links_for(dev: Node3D) -> Array:
 	var out: Array = []
-	if dev == null or not is_instance_valid(dev) or not dev.is_inside_tree():
+	if not is_instance_valid(dev) or not dev.is_inside_tree():
 		return out
 	var seen := {}
 	for node in dev.get_tree().get_nodes_in_group(RcaPort.GROUP):
@@ -27,7 +27,7 @@ static func links_for(dev: Node3D) -> Array:
 		if port == null or port.get_device() != dev:
 			continue
 		var plug := port.seated_plug() as RcaPlug
-		if plug == null or plug.cable == null or not is_instance_valid(plug.cable):
+		if plug == null or not is_instance_valid(plug.cable):
 			continue
 		if seen.has(plug.cable):
 			continue

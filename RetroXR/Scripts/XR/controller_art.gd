@@ -219,7 +219,7 @@ func _schedule_fb_retry() -> void:
 
 
 func _retry_fb() -> void:
-	if source != Source.NONE or _fb == null or not is_instance_valid(_fb):
+	if source != Source.NONE or not is_instance_valid(_fb):
 		return
 	if bool(_fb.call("has_render_model_node")):
 		_adopt_fb()

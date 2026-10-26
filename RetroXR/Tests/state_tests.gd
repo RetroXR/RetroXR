@@ -14,15 +14,14 @@
 ## tripped: _sync_active_scroll() hard-coded `current_tab == 1`, so inserting a
 ## tab silently pointed the stick at the wrong page — and a corrected constant
 ## would only have re-armed it.
-extends Node
+extends "res://Tests/test_suite.gd"
 
-var _pass := 0
-var _fail := 0
 ## The player's romm_sync.json as it was before this run touched it.
 var _ledger_before := ""
 
 
 func _ready() -> void:
+	suite_tag = "state-ui"
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		print("[state-ui] TIMEOUT")
 		get_tree().quit(1))
@@ -48,8 +47,7 @@ func _ready() -> void:
 	_test_panel_clears_its_object()
 	await _test_background_results_rebuild_once()
 	_restore_ledger()
-	print("[state-ui] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 ## Put the player's sync ledger back byte for byte.
@@ -65,19 +63,6 @@ func _restore_ledger() -> void:
 		return
 	f.store_string(_ledger_before)
 	f.close()
-
-
-func _ok(cond: bool, name: String, detail := "") -> void:
-	if cond:
-		_pass += 1
-		print("[state-ui] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[state-ui] FAIL  %s%s" % [name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 ## A built view in the tree. Caller frees it.
@@ -684,17 +669,27 @@ func _test_panel_clears_its_object() -> void:
 ## poster steps off the surface it is stuck to, and the core panel clears the
 ## tower. They share the base's _process and override _anchor instead, so what
 ## matters is that the override is really theirs and not the base's default.
+## Whether `scr` declares `method` itself rather than only inheriting it from
+## `base`: the method lists walk the whole chain, so a declaration of its own is
+## one more entry than the base's list has.
+func _declared_here(scr: GDScript, base: GDScript, method: String) -> bool:
+	var count := func(s: GDScript) -> int:
+		return s.get_script_method_list().filter(
+			func(m: Dictionary) -> bool: return str(m.get("name", "")) == method).size()
+	return int(count.call(scr)) > int(count.call(base))
+
+
 func _test_panels_with_their_own_anchor() -> void:
 	var base := load("res://Scripts/UI/panels/floating_object_panel_3d.gd") as GDScript
 	for file in ["tv_options_panel", "poster_options_panel", "core_options_panel"]:
 		var scr := load("res://Scripts/UI/panels/%s.gd" % file) as GDScript
 		_ok(scr.get_base_script() == base, "anchor/%s uses the shared base" % file)
-		# Read from the source, not get_script_method_list(): that reports
-		# inherited methods too, so it says every panel has _process whether it
-		# declares one or not -- which is how this case first passed while
-		# asserting nothing. scene_tests' vlc/ group reads source for the same
-		# reason.
-		var src := FileAccess.get_file_as_string("res://Scripts/UI/panels/%s.gd" % file)
-		_ok(src.contains("func _anchor() -> Vector3:"), "anchor/%s declares its own _anchor" % file)
-		_ok(not src.contains("func _process("),
+		# get_script_method_list() reports inherited methods too, so "has
+		# _process" is true of every panel whether it declares one or not --
+		# which is how this case first passed while asserting nothing. What it
+		# does tell apart is an OVERRIDE: the script's own declaration is listed
+		# as well as the base's, so a method the panel declares itself appears
+		# once more in its list than in the base's.
+		_ok(_declared_here(scr, base, "_anchor"), "anchor/%s declares its own _anchor" % file)
+		_ok(not _declared_here(scr, base, "_process"),
 			"anchor/%s no longer carries a copy of _process" % file)

@@ -12,18 +12,17 @@
 ##
 ##   "$godot" --headless --path RetroXR res://Tests/archive_tests.tscn
 ##   "$godot" --headless --path RetroXR res://Tests/archive_tests.tscn -- --only=corrupt
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Scratch root. Removed at both ends, so a crashed run cannot leave a fixture
 ## behind that the next run reads as a real archive.
 const WORK := "user://__archive_selftest"
 
-var _passed := 0
-var _failed := 0
 var _only := ""
 
 
 func _ready() -> void:
+	suite_tag = "archive"
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr("--only=".length())
@@ -47,32 +46,14 @@ func _ready() -> void:
 	_group_pack()
 
 	_clean()
-	print("[archive] %d checks, %d failed" % [_passed + _failed, _failed])
-	print("[archive] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
+	_finish()
 
 
 # ── Harness ───────────────────────────────────────────────────────────────────
-# Same argument order as every other suite: the thing under test first, the
-# description last.
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	if not _wanted(what):
-		return
-	if cond:
-		_passed += 1
-		print("[archive] ok   %s" % what)
-	else:
-		_failed += 1
-		print("[archive] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
-
+# _ok / _eq are TestSuite's: the thing under test first, the description last.
 
 ## Group filter, matched on the name's leading "group/" the way the other
-## suites do it.
+## suites do it. TestSuite._ok asks it, so a filtered-out check is not counted.
 func _wanted(what: String) -> bool:
 	return _only.is_empty() or what.begins_with(_only)
 
@@ -405,11 +386,7 @@ func _group_cancel() -> void:
 # with nothing moving on screen.
 
 const FW_DIRS := 60
-const FW_HALF_DIRS := 30
 const FW_PER_DIR := 50
-## Full-fixture unpack time over half-fixture time. The extractor measures 2.0;
-## a ZIPReader.read_file loop measures 3.2-3.6.
-const FW_MAX_SCALING := 2.5
 
 
 func _fw_members(dirs: int) -> Dictionary:
@@ -423,17 +400,11 @@ func _fw_members(dirs: int) -> Dictionary:
 func _group_firmware() -> void:
 	var members := _fw_members(FW_DIRS)
 	var zip := _write_zip("fw.zip", members)
-	var half_members := _fw_members(FW_HALF_DIRS)
-	var half_zip := _write_zip("fw_half.zip", half_members)
 	var dest := WORK.path_join("system")
 	DirAccess.make_dir_recursive_absolute(dest.path_join("sys"))
 	_write_bytes(dest.path_join("sys/top.txt"), _text("stale"))
 
 	var fw := FirmwareInstaller.new()
-	var half_started := Time.get_ticks_msec()
-	fw._extract_preserving_paths("fw", half_zip, WORK.path_join("system_half"))
-	var half_elapsed := maxi(Time.get_ticks_msec() - half_started, 1)
-	await get_tree().process_frame
 
 	var reports: Array[Vector2i] = []
 	fw.job_unpacking.connect(func(_k: String, done: int, total: int) -> void:
@@ -443,8 +414,15 @@ func _group_firmware() -> void:
 	var res: Dictionary = fw._extract_preserving_paths("fw", zip, dest)
 	var elapsed := Time.get_ticks_msec() - started
 	_ok(bool(res["ok"]), "firmware/a many-member archive unpacks", str(res.get("error", "")))
-	_ok(float(elapsed) / half_elapsed < FW_MAX_SCALING, "firmware/and in time linear in its members",
-		"%d members took %d ms, %d took %d ms" % [members.size(), elapsed, half_members.size(), half_elapsed])
+	# Linear in its members by COUNTING the work, not timing it: a timing ratio
+	# flipped on a busy CI runner. Each report is one pass of the extractor, which
+	# indexes the directory once and streams a batch, so the passes must be one
+	# per UNPACK_BATCH members (plus the opening 0-of-n). The square-cost shape
+	# was a directory walk per MEMBER (ZIPReader.read_file), 3001 of them here.
+	await get_tree().process_frame
+	var passes := ceili(float(members.size()) / FirmwareInstaller.UNPACK_BATCH)
+	_eq(reports.size(), passes + 1, "firmware/and in passes linear in its members (%d members, %d ms)"
+		% [members.size(), elapsed])
 
 	var missing := 0
 	for m: String in members:
@@ -456,7 +434,6 @@ func _group_firmware() -> void:
 	_ok(not DirAccess.dir_exists_absolute(WORK.path_join("fw.unpack")),
 		"firmware/no scratch tree is left behind")
 
-	await get_tree().process_frame
 	_ok(reports.size() > 2, "firmware/progress is reported during the unpack, not only at the end",
 		"%d reports" % reports.size())
 	_eq(reports.back() if not reports.is_empty() else Vector2i(), Vector2i(members.size(), members.size()),

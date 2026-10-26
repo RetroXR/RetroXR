@@ -119,8 +119,8 @@ func status_for(file_path: String) -> String:
 func statuses_for(_core_name: String, _rom_path: String, rows: Array) -> Dictionary:
 	var out: Dictionary = {}
 	for r: Variant in rows:
-		var d := r as Dictionary
-		out[str(d.get("state_id", ""))] = status_for(str(d.get("path", "")))
+		var row := r as Dictionary
+		out[str(row.get("state_id", ""))] = status_for(str(row.get("path", "")))
 	return out
 
 
@@ -286,18 +286,18 @@ func _list_done(rom_id: int, ok: bool, states: Array, detail: String) -> void:
 func server_only(core_name: String, rom_path: String, server_states: Array) -> Array:
 	var out: Array = []
 	for s: Variant in server_states:
-		var d := s as Dictionary
-		var sid := RommStates.id_from_filename(str(d.get("file_name", "")))
+		var row := s as Dictionary
+		var sid := RommStates.id_from_filename(str(row.get("file_name", "")))
 		if sid.is_empty():
 			continue
 		if FileAccess.file_exists(StatePaths.state_path(core_name, rom_path, sid)):
 			continue
 		out.append({
 			"state_id": sid,
-			"server_id": int(d.get("id", 0)),
-			"updated_at": str(d.get("updated_at", "")),
-			"size": int(d.get("size", 0)),
-			"screenshot_path": str(d.get("screenshot_path", "")),
+			"server_id": int(row.get("id", 0)),
+			"updated_at": str(row.get("updated_at", "")),
+			"size": int(row.get("size", 0)),
+			"screenshot_path": str(row.get("screenshot_path", "")),
 		})
 	return out
 

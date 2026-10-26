@@ -83,7 +83,7 @@ func ant_port() -> RcaPort:
 func aerial() -> Antenna:
 	var port := ant_port()
 	var plug: RcaPlug = (port.seated_plug() as RcaPlug) if port != null else null
-	if plug == null or plug.cable == null or not is_instance_valid(plug.cable):
+	if plug == null or not is_instance_valid(plug.cable):
 		return null
 	return plug.cable as Antenna
 
@@ -168,7 +168,7 @@ func _wire(rope: VerletRope, attach: Node3D, plug: RcaPlug) -> void:
 func _physics_process(_delta: float) -> void:
 	if not _rope_built or _plugs.is_empty():
 		return
-	if _body == null or not is_instance_valid(_body):
+	if not is_instance_valid(_body):
 		return
 	var clamp_back := Vector3.ZERO
 	clamp_back += _tether(_plugs[End.A][0] as RcaPlug, _deck_attach, _deck_reach)
@@ -180,9 +180,9 @@ func _physics_process(_delta: float) -> void:
 ## Resolve one lead: reel a loose connector in, or haul the box after a held one.
 ## Returns the positional backstop the box owes, which the caller sums over both leads.
 func _tether(plug: RcaPlug, attach: Node3D, reach: float) -> Vector3:
-	if plug == null or not is_instance_valid(plug):
+	if not is_instance_valid(plug):
 		return Vector3.ZERO
-	if attach == null or not is_instance_valid(attach):
+	if not is_instance_valid(attach):
 		return Vector3.ZERO
 	# Boss to boss, not origin to origin: the cord leaves the hood some 32 mm behind
 	# the mating face, and that is the span the rope actually has.
@@ -216,7 +216,7 @@ func _body_is_held() -> bool:
 ## a rigid body in world space — so without these two the box restores at the origin
 ## and the tether above immediately hauls both plugs out of their sockets to reach it.
 func carried_body_pose() -> Dictionary:
-	if _body == null or not is_instance_valid(_body):
+	if not is_instance_valid(_body):
 		return {}
 	var p := _body.global_position
 	var r := _body.global_rotation_degrees
@@ -224,13 +224,13 @@ func carried_body_pose() -> Dictionary:
 
 
 func restore_carried_body(data: Dictionary) -> void:
-	if _body == null or not is_instance_valid(_body) or data.is_empty():
+	if not is_instance_valid(_body) or data.is_empty():
 		return
-	var p: Array = data.get("position", [])
-	var r: Array = data.get("rotation", [])
-	if p.size() == 3:
-		_body.global_position = Vector3(p[0], p[1], p[2])
-	if r.size() == 3:
-		_body.global_rotation_degrees = Vector3(r[0], r[1], r[2])
+	var pos: Array = data.get("position", [])
+	var rot: Array = data.get("rotation", [])
+	if pos.size() == 3:
+		_body.global_position = Vector3(pos[0], pos[1], pos[2])
+	if rot.size() == 3:
+		_body.global_rotation_degrees = Vector3(rot[0], rot[1], rot[2])
 	# The ropes were built around wherever the box stood a frame ago.
 	call_deferred("_build_rope")

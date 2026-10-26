@@ -68,11 +68,10 @@ static func parse_dict(path: String, owner: String = "") -> Variant:
 
 ## Parse `path` as a JSON object. Returns {} for a file that is missing,
 ## unreadable, unparseable, or not an object — the flattening almost every
-## caller wants, and the one this class had before parse_dict was split out of
-## it for the three config classes.
+## caller wants.
 ##
-## Delegates rather than repeating the ladder: the two were briefly written out
-## separately and had already drifted on one warning path.
+## Delegates to parse_dict rather than repeating the ladder: two copies had
+## already drifted on one warning path.
 static func read_dict(path: String, owner: String = "") -> Dictionary:
 	var parsed: Variant = parse_dict(path, owner)
 	return parsed if parsed is Dictionary else {}

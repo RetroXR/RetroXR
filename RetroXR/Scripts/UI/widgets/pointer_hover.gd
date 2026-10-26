@@ -166,7 +166,7 @@ static func _find_at(node: CanvasItem, at: Vector2) -> Control:
 
 ## Control.has_point, which scripts cannot call: the control's own rect, or its
 ## `_has_point` where a script shapes it.
-static func _has_point(c: Control, local: Vector2) -> bool:
-	if c.has_method("_has_point"):
-		return c.call("_has_point", local)
-	return Rect2(Vector2.ZERO, c.size).has_point(local)
+static func _has_point(control: Control, local: Vector2) -> bool:
+	if control.has_method("_has_point"):
+		return control.call("_has_point", local)
+	return Rect2(Vector2.ZERO, control.size).has_point(local)

@@ -63,15 +63,15 @@ func load_shell() -> void:
 		return
 	var path: String = RetroTV.shell_scene_path(_tv.tv_model)
 	if path.is_empty():
-		push_warning("RetroTV: unknown tv_model '%s' — falling back to the stock body" % _tv.tv_model)
+		push_warning("[RetroTV] unknown tv_model '%s' — falling back to the stock body" % _tv.tv_model)
 		return
 	var packed := load(path) as PackedScene
 	if packed == null:
-		push_warning("RetroTV: failed to load shell scene: %s" % path)
+		push_warning("[RetroTV] failed to load shell scene: %s" % path)
 		return
 	_shell = packed.instantiate() as RetroTVShell
 	if _shell == null:
-		push_warning("RetroTV: shell scene root is not a RetroTVShell: %s" % path)
+		push_warning("[RetroTV] shell scene root is not a RetroTVShell: %s" % path)
 		return
 	_tv.add_child(_shell)
 	_tv.get_node("TVBody").hide()

@@ -103,24 +103,24 @@ static func owner_of(room_id: String) -> String:
 
 
 ## Register a mod room. Returns "" on success.
-static func register_mod_room(room_id: String, d: Dictionary, owner_id: String) -> String:
+static func register_mod_room(room_id: String, spec: Dictionary, owner_id: String) -> String:
 	if _ROOMS.has(room_id):
 		return "'%s' is a shipped room" % room_id
 	if _overlay.is_mod(room_id):
 		return "'%s' is already registered by mod '%s'" % [room_id, owner_of(room_id)]
-	var path := str(d.get("path", ""))
+	var path := str(spec.get("path", ""))
 	if path.is_empty():
 		return "no path"
 	# ResourceLoader, not FileAccess: a res:// path inside a mounted pack is
 	# remapped, and FileAccess.file_exists reports false for every one of them.
 	if not ResourceLoader.exists(path):
 		return "scene does not exist: %s" % path
-	var menu_title := str(d.get("menu_title", d.get("title", room_id)))
+	var menu_title := str(spec.get("menu_title", spec.get("title", room_id)))
 	_overlay.add(room_id, {
 		"path": path,
-		"title": str(d.get("title", menu_title.to_upper())),
+		"title": str(spec.get("title", menu_title.to_upper())),
 		"menu_title": menu_title,
-		"has_slots": bool(d.get("has_slots", true)),
+		"has_slots": bool(spec.get("has_slots", true)),
 	}, owner_id)
 	return ""
 

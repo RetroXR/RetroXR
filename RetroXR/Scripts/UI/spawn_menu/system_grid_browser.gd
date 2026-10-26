@@ -587,9 +587,9 @@ func _rebuild_tiles() -> void:
 
 
 ## Everything a tile is drawn from. Two tiles with equal signatures look the same.
-func _tile_signature(s: Dictionary) -> Array:
-	var sid := str(s.get("systemid", ""))
-	return [s, _compact(), allow_hiding and AppPrefs.is_system_hidden(sid),
+func _tile_signature(system: Dictionary) -> Array:
+	var sid := str(system.get("systemid", ""))
+	return [system, _compact(), allow_hiding and AppPrefs.is_system_hidden(sid),
 		tile_min_size, use_content_art]
 
 
@@ -605,11 +605,11 @@ func _same_systems(built: Array) -> bool:
 	return true
 
 
-func _make_tile(s: Dictionary) -> Button:
-	var sid: String   = s.get("systemid", "")
-	var display_name: String = s.get("name", sid)
-	var badge: String = s.get("badge", "")
-	var alt: bool     = bool(s.get("alt_tile", false))
+func _make_tile(system: Dictionary) -> Button:
+	var sid: String   = system.get("systemid", "")
+	var display_name: String = system.get("name", sid)
+	var badge: String = system.get("badge", "")
+	var alt: bool     = bool(system.get("alt_tile", false))
 
 	var btn := Button.new()
 	# Height only. A width minimum here would become the grid's minimum, and
@@ -625,7 +625,7 @@ func _make_tile(s: Dictionary) -> Button:
 	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	btn.set_meta("filter_name", display_name.to_lower())
 	# Folder names and RomM slugs the host says this system also answers to.
-	btn.set_meta("filter_aliases", PackedStringArray(s.get("aliases", PackedStringArray())))
+	btn.set_meta("filter_aliases", PackedStringArray(system.get("aliases", PackedStringArray())))
 
 	# A hidden tile only appears at all while the Hidden toggle is on, so it is
 	# dimmed to say why it is here — otherwise turning the toggle on just makes
@@ -659,22 +659,22 @@ func _make_tile(s: Dictionary) -> Button:
 	# Console art on the left, name (and badge) on the right. Laid out as child
 	# controls rather than Button.icon + Button.text: Button draws its icon at
 	# the texture's own size, and these SVGs import ~165 px on the long edge.
-	var mark: Texture2D = s.get("badge_icon")
-	var mark_count := int(s.get("badge_count", 0))
+	var mark: Texture2D = system.get("badge_icon")
+	var mark_count := int(system.get("badge_count", 0))
 	var has_mark := mark != null and mark_count > 0
 	# -1, not 0: a host that sets no local count gets the single-number badge it
 	# always had, while a host that genuinely counted zero still shows "0 / N".
-	var mark_here := int(s.get("badge_here", -1))
+	var mark_here := int(system.get("badge_here", -1))
 	var has_pair := has_mark and mark_here >= 0
 	# With no source mark — no server, or a platform the server does not have —
 	# the corner still says how many games are on this device, alone and green.
-	var local_count := int(s.get("badge_local", 0))
+	var local_count := int(system.get("badge_local", 0))
 	var has_local := not has_mark and local_count > 0
 
 	# A glyph for the top-right corner, supplied by the host the same way the
 	# source badge is. Kept as text plus a colour rather than a lookup here, so
 	# this browser stays clear of whatever the mark happens to mean.
-	var corner_glyph: String = s.get("corner_glyph", "")
+	var corner_glyph: String = system.get("corner_glyph", "")
 	var has_glyph := corner_glyph != ""
 
 	var row := HBoxContainer.new()
@@ -750,8 +750,8 @@ func _make_tile(s: Dictionary) -> Button:
 		glyph_lbl.add_theme_font_override("font", MenuIcons.symbols())
 		glyph_lbl.add_theme_font_size_override("font_size", 22)
 		glyph_lbl.add_theme_color_override("font_color",
-			s.get("corner_glyph_color", Color(1, 1, 1)))
-		glyph_lbl.tooltip_text = s.get("corner_glyph_tip", "")
+			system.get("corner_glyph_color", Color(1, 1, 1)))
+		glyph_lbl.tooltip_text = system.get("corner_glyph_tip", "")
 		btn.add_child(glyph_lbl)
 
 	# Source badge, pinned to the bottom-right corner: a small mark plus a count,

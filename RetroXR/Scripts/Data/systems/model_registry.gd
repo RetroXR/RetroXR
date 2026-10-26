@@ -182,7 +182,7 @@ static func _table() -> Dictionary:
 	return _overlay.table()
 
 
-## Is `row` a usable row? Returns "" when it is, or what is wrong with it.
+## Is `row` a usable row? Returns "" when ok, else the reason.
 ##
 ## Extracted from Tools/models/model_registry_probe.gd so the probe and the mod
 ## loader cannot disagree about what a well-formed row is. The probe checks the
@@ -474,8 +474,8 @@ static func platform_of(model_id: String) -> String:
 
 static func platform_is_handheld(platform: String) -> bool:
 	for id: String in _table():
-		var r: Dictionary = _table()[id]
-		if _serves(r, platform) and bool(r.get("handheld", false)):
+		var row: Dictionary = _table()[id]
+		if _serves(row, platform) and bool(row.get("handheld", false)):
 			return true
 	return false
 
@@ -515,16 +515,16 @@ static func row_for(model_id: String) -> Dictionary:
 	return _row(model_id) if _table().has(model_id) else {}
 
 
-## NOTE the three functions below read _ROWS directly rather than _table(): they
-## are the BOOT WARM set, and mod models are deliberately excluded from it.
-## Warming the shipped thirteen stand-ins costs ~1.1 s on a Quest 3, plus ~266 ms
-## of first-draw pipeline compile per bespoke shell; letting an arbitrary number
-## of mod consoles join that would make boot time a function of how many mods the
-## player has installed. A mod model is warmed lazily instead, on first spawn --
-## which is safe because the spawn path already awaits ModelWarmer.acquire() for
-## every path in a row's `requires` (spawn_menu_controller.gd), and so does a
-## save restore (scene_persistence.gd). The cost moves to the first spawn of that
-## console rather than to every boot.
+# NOTE the three functions below read _ROWS directly rather than _table(): they
+# are the BOOT WARM set, and mod models are deliberately excluded from it.
+# Warming the shipped thirteen stand-ins costs ~1.1 s on a Quest 3, plus ~266 ms
+# of first-draw pipeline compile per bespoke shell; letting an arbitrary number
+# of mod consoles join that would make boot time a function of how many mods the
+# player has installed. A mod model is warmed lazily instead, on first spawn --
+# which is safe because the spawn path already awaits ModelWarmer.acquire() for
+# every path in a row's `requires` (spawn_menu_controller.gd), and so does a
+# save restore (scene_persistence.gd). The cost moves to the first spawn of that
+# console rather than to every boot.
 
 ## The models that carry no external assets — the stand-ins. Every row, now.
 ##
@@ -575,6 +575,6 @@ static func all_ids() -> Array:
 
 
 static func _row(model_id: String) -> Dictionary:
-	var r: Dictionary = (_table()[model_id] as Dictionary).duplicate()
-	r["id"] = model_id
-	return r
+	var row: Dictionary = (_table()[model_id] as Dictionary).duplicate()
+	row["id"] = model_id
+	return row

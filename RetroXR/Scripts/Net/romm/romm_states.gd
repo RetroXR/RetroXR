@@ -39,17 +39,17 @@ const UPLOAD_TIMEOUT_SEC := 300.0
 ##
 ## `screenshot` is a required field of the schema and may be null; flattening it
 ## to a path here keeps every caller from having to know that.
-static func from_schema(d: Dictionary) -> Dictionary:
-	var shot: Variant = d.get("screenshot")
+static func from_schema(raw: Dictionary) -> Dictionary:
+	var shot: Variant = raw.get("screenshot")
 	return {
-		"id": int(d.get("id", 0)),
-		"rom_id": int(d.get("rom_id", 0)),
-		"file_name": str(d.get("file_name", "")),
-		"size": int(d.get("file_size_bytes", 0)),
-		"emulator": str(d.get("emulator", "")) if d.get("emulator") != null else "",
-		"updated_at": str(d.get("updated_at", "")),
-		"created_at": str(d.get("created_at", "")),
-		"missing": bool(d.get("missing_from_fs", false)),
+		"id": int(raw.get("id", 0)),
+		"rom_id": int(raw.get("rom_id", 0)),
+		"file_name": str(raw.get("file_name", "")),
+		"size": int(raw.get("file_size_bytes", 0)),
+		"emulator": str(raw.get("emulator", "")) if raw.get("emulator") != null else "",
+		"updated_at": str(raw.get("updated_at", "")),
+		"created_at": str(raw.get("created_at", "")),
+		"missing": bool(raw.get("missing_from_fs", false)),
 		"screenshot_path": str((shot as Dictionary).get("download_path", "")) \
 			if shot is Dictionary else "",
 	}

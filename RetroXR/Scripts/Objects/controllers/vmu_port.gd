@@ -191,7 +191,7 @@ func slot_count() -> int:
 
 
 func _build() -> void:
-	if _owner == null or not is_instance_valid(_owner):
+	if not is_instance_valid(_owner):
 		return
 	for slot in range(_seats.size()):
 		var zone := SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone

@@ -133,12 +133,12 @@ static func is_minted_id(s: String) -> bool:
 
 static func _collect(value: Variant, out: Dictionary) -> void:
 	if value is Dictionary:
-		var d: Dictionary = value
-		var save_id := str(d.get("save_id", ""))
-		var systemid := SystemIds.canonical(str(d.get("cart_systemid", "")))
+		var table: Dictionary = value
+		var save_id := str(table.get("save_id", ""))
+		var systemid := SystemIds.canonical(str(table.get("cart_systemid", "")))
 		if not save_id.is_empty() and not systemid.is_empty():
 			out[save_id] = systemid
-		for v: Variant in d.values():
+		for v: Variant in table.values():
 			_collect(v, out)
 	elif value is Array:
 		for v: Variant in value:

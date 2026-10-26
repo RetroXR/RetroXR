@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## The update check: which release is newer, which of its files is ours, whether
 ## this install can be replaced in place, and the script that does it.
@@ -25,13 +25,12 @@ const RELEASE_JSON := """{
   {"name": "RetroXR-win-v%s.zip", "size": 55, "browser_download_url": "https://x/win", "digest": "sha256:ee"}
  ]}"""
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 var _scratch := "user://update_tests"
 
 
 func _ready() -> void:
+	suite_tag = "update"
 	get_tree().create_timer(60.0).timeout.connect(func() -> void:
 		print("[update] TIMEOUT")
 		get_tree().quit(1))
@@ -54,25 +53,11 @@ func _ready() -> void:
 	if _want("network"):
 		await _test_network()
 	_rmrf(ProjectSettings.globalize_path(_scratch))
-	print("[update] %d cases, %s" % [_ran, "PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
+	_finish()
 
 
 func _want(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, what: String, detail := "") -> void:
-	_ran += 1
-	if cond:
-		print("[update] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[update] FAIL %s%s" % [what, "" if detail.is_empty() else "  -- " + detail])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what, "got %s, want %s" % [got, want])
 
 
 func _release(ver: String) -> Dictionary:

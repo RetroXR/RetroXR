@@ -7,7 +7,7 @@
 ##
 ## Writes one label fixture into the player's real sega32x media/label folder
 ## (MediaDimensions derives the path from the ROM's name) and removes it at each end.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const CART_SCENE := preload("res://Scenes/Objects/media/cartridge.tscn")
 const SYSTEMID := "sega32x"
@@ -18,12 +18,11 @@ const UV_MIN_WIDTH := 0.00005
 const PARTS := ["Front_Shell", "Rear_Shell", "Label", "Connector_PCB", "Connector_Contacts",
 	"Security_Screw_L", "Security_Screw_R"]
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 
 
 func _ready() -> void:
+	suite_tag = "s32xcart"
 	for arg in OS.get_cmdline_user_args():
 		if arg.begins_with("--only="):
 			_only = arg.substr(7)
@@ -47,8 +46,7 @@ func _ready() -> void:
 
 	_clear_fixture()
 	await _settle_warm()
-	print("[s32xcart] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 func _settle_warm() -> void:
@@ -60,15 +58,6 @@ func _settle_warm() -> void:
 
 func _wants(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, test_name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[s32xcart] PASS  %s" % test_name)
-	else:
-		_fail += 1
-		print("[s32xcart] FAIL  %s%s" % [test_name, "  — " + detail if not detail.is_empty() else ""])
 
 
 # ── fixtures ──────────────────────────────────────────────────────────────────

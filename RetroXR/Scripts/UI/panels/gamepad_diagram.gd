@@ -241,7 +241,7 @@ func _notification(what: int) -> void:
 
 
 func _relayout() -> void:
-	if _art == null or not is_instance_valid(_art):
+	if not is_instance_valid(_art):
 		return
 
 	var band_w := minf(size.x, MAX_W)

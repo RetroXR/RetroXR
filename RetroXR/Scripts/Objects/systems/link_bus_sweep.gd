@@ -109,7 +109,7 @@ static func cables(machine: Node) -> Array:
 	for plug in tree.get_nodes_in_group(LinkPlug.ANY_GROUP) \
 			+ tree.get_nodes_in_group("controller_plug"):
 		var cable: Object = plug.get("cable")
-		if cable == null or not is_instance_valid(cable) or seen.has(cable) \
+		if not is_instance_valid(cable) or seen.has(cable) \
 				or not cable.has_method("linked_machines"):
 			continue
 		seen[cable] = true

@@ -85,21 +85,21 @@ func _dpad_pitch_sign() -> float:
 func _add(stem: String, bit: int, depth: float, dir: Vector3 = Vector3.ZERO) -> void:
 	var m := _find_mesh(stem)
 	if m == null:
-		push_warning("Ps1Controller: control mesh not found: " + stem)
+		push_warning("[Ps1Controller] control mesh not found: " + stem)
 		return
-	var e := {"node": m, "rest": m.transform, "bit": bit, "depth": depth}
+	var entry := {"node": m, "rest": m.transform, "bit": bit, "depth": depth}
 	# Omitted rather than passed as the default: ControlAnimator falls back to its
 	# own press_dir when an entry carries no "dir", and writing a zero vector here
 	# would pin the control in place instead.
 	if dir != Vector3.ZERO:
-		e["dir"] = dir
-	_anim.buttons.append(e)
+		entry["dir"] = dir
+	_anim.buttons.append(entry)
 
 
 func _rocker(stem: String) -> Dictionary:
 	var m := _find_mesh(stem)
 	if m == null:
-		push_warning("Ps1Controller: control mesh not found: " + stem)
+		push_warning("[Ps1Controller] control mesh not found: " + stem)
 		return {}
 	var pivot: Vector3 = _find_pivot(m, "DPadPivot")
 	pivot.y -= DPAD_PIVOT_DROP

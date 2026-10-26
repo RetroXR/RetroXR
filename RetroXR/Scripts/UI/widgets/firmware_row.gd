@@ -10,9 +10,9 @@ class_name FirmwareRow
 extends RefCounted
 
 
-static func build(r: Dictionary, desc: String) -> HBoxContainer:
-	var status := int(r.get("status", FirmwareState.Status.PRESENT))
-	var optional: bool = bool(r.get("optional", true))
+static func build(bios_row: Dictionary, desc: String) -> HBoxContainer:
+	var status := int(bios_row.get("status", FirmwareState.Status.PRESENT))
+	var optional: bool = bool(bios_row.get("optional", true))
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -46,7 +46,7 @@ static func build(r: Dictionary, desc: String) -> HBoxContainer:
 	row.add_child(col)
 
 	var name_lbl := Label.new()
-	name_lbl.text = str(r.get("path", ""))
+	name_lbl.text = str(bios_row.get("path", ""))
 	name_lbl.add_theme_font_size_override("font_size", 19)
 	name_lbl.add_theme_color_override("font_color",
 		MenuStyle.COLOR_TITLE if status != FirmwareState.Status.MISSING_OPTIONAL else MenuStyle.COLOR_LICENSE)

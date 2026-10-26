@@ -60,7 +60,7 @@ func seat_audio_pair(ch: int, tv: RetroTV) -> void:
 
 func release_audio_pair(ch: int, tv: RetroTV) -> void:
 	var channels := _host.video_channels()
-	if tv == null or not is_instance_valid(tv) or ch < 0 or ch >= channels.size():
+	if not is_instance_valid(tv) or ch < 0 or ch >= channels.size():
 		return
 	for extra: Variant in channels[ch].audio_plugs:
 		var p := RetroSystem._live(extra) as CablePlug
@@ -340,7 +340,7 @@ const PULLED_CLEAR := 0.12
 ## overwritten on the next tick, putting it back in the socket. Same recipe, and the
 ## same reasons, as CompositeCable.net_release_plug.
 func _release_plug(port: XRToolsSnapZone, plug: CablePlug) -> void:
-	if port == null or not is_instance_valid(port):
+	if not is_instance_valid(port):
 		return
 	port.enabled = false
 	port.drop_object()

@@ -103,7 +103,7 @@ static func _cache_for_frame() -> void:
 static func any_tip_within(controllers: Array, pos: Vector3, radius: float) -> bool:
 	var r2 := radius * radius
 	for ctrl in controllers:
-		if ctrl == null or not is_instance_valid(ctrl):
+		if not is_instance_valid(ctrl):
 			continue
 		if tip_of(ctrl).distance_squared_to(pos) <= r2:
 			return true
@@ -176,7 +176,7 @@ const REHOLD_GRACE_FRAMES := 3
 
 
 static func begin_rehold(ctrl: Node3D) -> void:
-	if ctrl == null or not is_instance_valid(ctrl):
+	if not is_instance_valid(ctrl):
 		return
 	var id := ctrl.get_instance_id()
 	_reholding[id] = Engine.get_process_frames()

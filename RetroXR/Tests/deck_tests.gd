@@ -28,7 +28,7 @@
 ##   tape/     a tape keeps its place, and its menu says where that is
 ##   label/    a tape, cassette or record wears the pictures found beside its file
 ##   playlist/ an .m3u sets what plays and in what order, for albums and tapes
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const GROUPS := ["base", "save", "media", "gate", "arm", "scrub", "net", "remote", "tape", "label", "playlist"]
 
@@ -41,8 +41,6 @@ const AUDIO_CASSETTE := preload("res://Scenes/Objects/media/audio_cassette.tscn"
 const VCR_PLAYER := preload("res://Scenes/Objects/appliances/vcr_player.tscn")
 const VCR_TAPE := preload("res://Scenes/Objects/media/vcr_tape.tscn")
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 var _spawned: Array[Node] = []
 
@@ -83,10 +81,7 @@ func _ready() -> void:
 		await _test_playlist()
 
 	await _cleanup()
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
-
+	_finish()
 
 
 # ── tape/ ─────────────────────────────────────────────────────────────────────
@@ -462,9 +457,8 @@ func _test_label() -> void:
 	var doomed := VCR_TAPE.instantiate() as VCRTape
 	doomed.video_path = video
 	add_child(doomed)
-	doomed.free()
-	await _frames(3)
-	_ok(true, "label/a tape freed while its picture decodes does not crash")
+	_ok(await _free_mid_decode(doomed),
+		"label/a tape freed while its picture decodes does not crash")
 
 	RomLibrary._remove_tree(_scratch)
 
@@ -609,9 +603,8 @@ func _test_label_media() -> void:
 	var doomed_cas := AUDIO_CASSETTE.instantiate() as AudioCassette
 	doomed_cas.album_path = song
 	add_child(doomed_cas)
-	doomed_cas.free()
-	await _frames(3)
-	_ok(true, "label/a cassette freed while its pictures decode does not crash")
+	_ok(await _free_mid_decode(doomed_cas),
+		"label/a cassette freed while its pictures decode does not crash")
 
 	# ── a record's two labels ──
 	_solid_png(_scratch.path_join("Wide.png"), 400, 100)
@@ -661,11 +654,23 @@ func _test_label_media() -> void:
 	var doomed_lp := VINYL_RECORD.instantiate() as VinylRecord
 	doomed_lp.album_path = _scratch.path_join("Wide.flac")
 	add_child(doomed_lp)
-	doomed_lp.free()
-	await _frames(3)
-	_ok(true, "label/a record freed while its pictures decode does not crash")
+	_ok(await _free_mid_decode(doomed_lp),
+		"label/a record freed while its pictures decode does not crash")
 
 	RomLibrary._remove_tree(_scratch)
+
+
+## Frees `medium` while its label decode is still on the pool and says whether one
+## WAS: a medium with nothing in flight would pass without testing anything. The
+## loader is processing exactly while a task is outstanding, and it must be gone
+## afterwards. The crash this guards is the process dying, which the runner calls
+## a CRASH; this half is that the case really reached the race.
+func _free_mid_decode(medium: Node) -> bool:
+	var loader := medium.get_node_or_null("LabelLoader")
+	var decoding := loader != null and loader.is_processing()
+	medium.free()
+	await _frames(3)
+	return decoding and not is_instance_valid(loader)
 
 
 func _record_mat(lp: VinylRecord) -> ShaderMaterial:
@@ -1357,15 +1362,3 @@ func _cleanup() -> void:
 func _want(name: String) -> bool:
 	return _only.is_empty() or _only == name
 
-
-func _ok(cond: bool, what: String) -> void:
-	_ran += 1
-	if cond:
-		print("[test] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[test] FAIL %s" % what)
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what if got == want else "%s (got %s, want %s)" % [what, got, want])

@@ -140,24 +140,24 @@ func _index(items: Array) -> void:
 	for item: Variant in items:
 		if not (item is Dictionary):
 			continue
-		var d := item as Dictionary
-		var file_name := str(d.get("file_name", ""))
+		var row := item as Dictionary
+		var file_name := str(row.get("file_name", ""))
 		if file_name.is_empty():
 			continue
 		# A file the server has a record of but no longer holds cannot be
 		# fetched; leaving it out means the row reads "not on the server",
 		# which is the truth, rather than offering a download that 404s.
-		if bool(d.get("missing_from_fs", false)):
+		if bool(row.get("missing_from_fs", false)):
 			continue
 
-		var slug := platform_slug_from_path(str(d.get("file_path", "")))
+		var slug := platform_slug_from_path(str(row.get("file_path", "")))
 		var systemid := RommPlatforms.systemid_for({"fs_slug": slug}, overrides)
 
 		var entry := {
-			"id": int(d.get("id", 0)),
+			"id": int(row.get("id", 0)),
 			"file_name": file_name,
-			"size": int(d.get("file_size_bytes", 0)),
-			"md5": str(d.get("md5_hash", "")).to_lower(),
+			"size": int(row.get("file_size_bytes", 0)),
+			"md5": str(row.get("md5_hash", "")).to_lower(),
 			"systemid": systemid,
 		}
 		_by_name[file_name.to_lower()] = entry

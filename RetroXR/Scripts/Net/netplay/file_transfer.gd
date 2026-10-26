@@ -324,9 +324,9 @@ func _ready() -> void:
 
 func end_session() -> void:
 	for key: String in _sends.keys():
-		var s: Dictionary = _sends[key]
-		if s.get("file") != null:
-			(s["file"] as FileAccess).close()
+		var send: Dictionary = _sends[key]
+		if send.get("file") != null:
+			(send["file"] as FileAccess).close()
 	_sends.clear()
 	for md5: String in _recv.keys():
 		_abort_recv(md5, "session ended")
@@ -422,47 +422,47 @@ func _file_deny(md5: String, reason: String) -> void:
 
 @rpc("authority", "call_remote", "reliable", CH_FILE)
 func _file_begin(md5: String, size: int) -> void:
-	var r: Dictionary = _recv.get(md5, {})
-	if r.is_empty():
+	var recv: Dictionary = _recv.get(md5, {})
+	if recv.is_empty():
 		return
-	r["size"] = size
-	r["last_ms"] = Time.get_ticks_msec()
+	recv["size"] = size
+	recv["last_ms"] = Time.get_ticks_msec()
 
 
 ## Host: send chunks up to the flow-control window.
 func _pump_send(key: String) -> void:
-	var s: Dictionary = _sends.get(key, {})
-	if s.is_empty():
+	var send: Dictionary = _sends.get(key, {})
+	if send.is_empty():
 		return
-	var f: FileAccess = s["file"]
-	var total_chunks := ceili(float(s["size"]) / CHUNK_SIZE) if int(s["size"]) > 0 else 0
-	while int(s["next"]) < total_chunks and int(s["next"]) - int(s["acked"]) <= WINDOW:
-		var idx: int = s["next"]
+	var f: FileAccess = send["file"]
+	var total_chunks := ceili(float(send["size"]) / CHUNK_SIZE) if int(send["size"]) > 0 else 0
+	while int(send["next"]) < total_chunks and int(send["next"]) - int(send["acked"]) <= WINDOW:
+		var idx: int = send["next"]
 		f.seek(idx * CHUNK_SIZE)
 		var bytes := f.get_buffer(CHUNK_SIZE)
-		_file_chunk.rpc_id(int(s["peer"]), str(s["md5"]), idx, bytes)
-		s["next"] = idx + 1
-	if int(s["next"]) >= total_chunks and int(s["acked"]) >= total_chunks - 1:
+		_file_chunk.rpc_id(int(send["peer"]), str(send["md5"]), idx, bytes)
+		send["next"] = idx + 1
+	if int(send["next"]) >= total_chunks and int(send["acked"]) >= total_chunks - 1:
 		f.close()
 		_sends.erase(key)
-		serve_done.emit(int(s["peer"]), str(s["md5"]))
+		serve_done.emit(int(send["peer"]), str(send["md5"]))
 
 
 @rpc("authority", "call_remote", "reliable", CH_FILE)
 func _file_chunk(md5: String, index: int, bytes: PackedByteArray) -> void:
-	var r: Dictionary = _recv.get(md5, {})
-	if r.is_empty():
+	var recv: Dictionary = _recv.get(md5, {})
+	if recv.is_empty():
 		return
-	var f: FileAccess = r["file"]
+	var f: FileAccess = recv["file"]
 	f.seek(index * CHUNK_SIZE)
 	f.store_buffer(bytes)
-	r["received"] = maxi(int(r["received"]), index * CHUNK_SIZE + bytes.size())
-	r["chunks"] = int(r["chunks"]) + 1
-	r["last_ms"] = Time.get_ticks_msec()
-	if int(r["chunks"]) % ACK_EVERY == 0:
+	recv["received"] = maxi(int(recv["received"]), index * CHUNK_SIZE + bytes.size())
+	recv["chunks"] = int(recv["chunks"]) + 1
+	recv["last_ms"] = Time.get_ticks_msec()
+	if int(recv["chunks"]) % ACK_EVERY == 0:
 		_file_ack.rpc_id(1, md5, index)
-	transfer_progress.emit(md5, int(r["received"]), int(r["size"]))
-	if int(r["size"]) > 0 and int(r["received"]) >= int(r["size"]):
+	transfer_progress.emit(md5, int(recv["received"]), int(recv["size"]))
+	if int(recv["size"]) > 0 and int(recv["received"]) >= int(recv["size"]):
 		_file_ack.rpc_id(1, md5, index)   # final cumulative ack
 		_finish_recv(md5)
 
@@ -472,46 +472,46 @@ func _file_ack(md5: String, upto: int) -> void:
 	if not _nm.is_host():
 		return
 	var key := "%d:%s" % [multiplayer.get_remote_sender_id(), md5]
-	var s: Dictionary = _sends.get(key, {})
-	if s.is_empty():
+	var send: Dictionary = _sends.get(key, {})
+	if send.is_empty():
 		return
-	s["acked"] = maxi(int(s["acked"]), upto)
+	send["acked"] = maxi(int(send["acked"]), upto)
 	# On the ack, not the chunk. The client acks every ACK_EVERY chunks, so this
 	# is roughly one emission per 256 KB rather than one per 64 KB -- the same
 	# rule join_state_progress follows, and for the same reason: a progress bar
 	# is 300 px wide and does not need four updates to move one of them.
-	var sent := mini((int(s["acked"]) + 1) * CHUNK_SIZE, int(s["size"]))
-	serve_progress.emit(int(s["peer"]), str(s["md5"]), sent, int(s["size"]))
+	var sent := mini((int(send["acked"]) + 1) * CHUNK_SIZE, int(send["size"]))
+	serve_progress.emit(int(send["peer"]), str(send["md5"]), sent, int(send["size"]))
 	_pump_send(key)
 
 
 func _finish_recv(md5: String) -> void:
-	var r: Dictionary = _recv.get(md5, {})
-	if r.is_empty():
+	var recv: Dictionary = _recv.get(md5, {})
+	if recv.is_empty():
 		return
-	(r["file"] as FileAccess).close()
+	(recv["file"] as FileAccess).close()
 	_recv.erase(md5)
-	var part := str(r["part"])
+	var part := str(recv["part"])
 	# Byte-perfect or nothing: verify the content hash before accepting.
 	var sums := RomHasher.compute_checksums(ProjectSettings.globalize_path(part))
 	if str(sums.get("md5", "")) != md5:
 		DirAccess.remove_absolute(part)
 		transfer_failed.emit(md5, "hash mismatch after transfer")
 		return
-	var final_path := str(r["path"])
+	var final_path := str(recv["path"])
 	if FileAccess.file_exists(final_path):
 		DirAccess.remove_absolute(final_path)
 	DirAccess.rename_absolute(part, final_path)
-	print("[NetFileTransfer] received %s (%d bytes) -> %s" % [md5, int(r["received"]), final_path])
+	print("[NetFileTransfer] received %s (%d bytes) -> %s" % [md5, int(recv["received"]), final_path])
 	transfer_done.emit(md5, final_path)
 
 
 func _abort_recv(md5: String, reason: String) -> void:
-	var r: Dictionary = _recv.get(md5, {})
-	if r.is_empty():
+	var recv: Dictionary = _recv.get(md5, {})
+	if recv.is_empty():
 		return
-	(r["file"] as FileAccess).close()
-	DirAccess.remove_absolute(str(r["part"]))
+	(recv["file"] as FileAccess).close()
+	DirAccess.remove_absolute(str(recv["part"]))
 	_recv.erase(md5)
 	transfer_failed.emit(md5, reason)
 

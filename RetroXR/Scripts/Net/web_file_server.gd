@@ -164,8 +164,8 @@ func _thread_loop() -> void:
 
 
 ## Returns true when the request is fully received and handled.
-func _try_handle(c: Dictionary) -> bool:
-	var buf := c["buf"] as PackedByteArray
+func _try_handle(conn: Dictionary) -> bool:
+	var buf := conn["buf"] as PackedByteArray
 	var sep := WebUploadStream.find_bytes(buf, "\r\n\r\n".to_utf8_buffer())
 	if sep == -1:
 		return false  # headers incomplete
@@ -195,11 +195,11 @@ func _try_handle(c: Dictionary) -> bool:
 	# Intercept uploads — start streaming immediately without waiting for full body.
 	if method == "POST" and path == "/api/upload":
 		if not _is_authed(hdrs):
-			_send_text(c["peer"] as StreamPeerTCP, 401, "application/json",
+			_send_text(conn["peer"] as StreamPeerTCP, 401, "application/json",
 					   '{"error":"unauthorized"}')
 			return true
 		var upload_body_start := sep + 4
-		_start_upload_stream(c, query.get("path", ""), hdrs, buf.slice(upload_body_start))
+		_start_upload_stream(conn, query.get("path", ""), hdrs, buf.slice(upload_body_start))
 		return true
 
 	var body_start := sep + 4
@@ -208,13 +208,13 @@ func _try_handle(c: Dictionary) -> bool:
 		return false  # body incomplete
 
 	var body := buf.slice(body_start, body_start + content_length)
-	_dispatch(c, method, path, query, hdrs, body)
+	_dispatch(conn, method, path, query, hdrs, body)
 	return true
 
 
-func _dispatch(c: Dictionary, method: String, path: String,
+func _dispatch(conn: Dictionary, method: String, path: String,
 			   query: Dictionary, headers: Dictionary, body: PackedByteArray) -> void:
-	var peer := c["peer"] as StreamPeerTCP
+	var peer := conn["peer"] as StreamPeerTCP
 	var authed := _is_authed(headers)
 	if method == "OPTIONS":
 		_send_text(peer, 200, "text/plain", "")
@@ -416,9 +416,9 @@ func _handle_list(peer: StreamPeerTCP, rel: String) -> void:
 ##
 ## The reading itself is WebUploadStream's; this only resolves the destination
 ## and turns a refusal into a reply.
-func _start_upload_stream(c: Dictionary, rel: String, headers: Dictionary,
+func _start_upload_stream(conn: Dictionary, rel: String, headers: Dictionary,
 							body_so_far: PackedByteArray) -> void:
-	var peer := c["peer"] as StreamPeerTCP
+	var peer := conn["peer"] as StreamPeerTCP
 	var abs_path := _resolve(rel)
 	if abs_path.is_empty():
 		_send_text(peer, 403, "application/json", '{"error":"forbidden"}')
@@ -428,18 +428,18 @@ func _start_upload_stream(c: Dictionary, rel: String, headers: Dictionary,
 	if us == null:
 		_send_text(peer, 400, "application/json", '{"error":"no boundary"}')
 		return
-	c["us"] = us
+	conn["us"] = us
 
 
 ## Hand the next chunk to the reader. True once it has answered and the
 ## connection can be closed.
-func _feed_upload_stream(c: Dictionary, new_data: PackedByteArray) -> bool:
-	var us := c["us"] as WebUploadStream
+func _feed_upload_stream(conn: Dictionary, new_data: PackedByteArray) -> bool:
+	var us := conn["us"] as WebUploadStream
 	var status := us.feed(new_data)
 	_upload_progress = us.progress()
 	if status != WebUploadStream.Status.DONE:
 		return false
-	_send_text(c["peer"] as StreamPeerTCP, us.code, "application/json", us.body)
+	_send_text(conn["peer"] as StreamPeerTCP, us.code, "application/json", us.body)
 	return true
 
 
@@ -547,12 +547,12 @@ func _is_root_base(abs_path: String) -> bool:
 
 
 func _parse_query(s: String) -> Dictionary:
-	var d: Dictionary = {}
+	var params: Dictionary = {}
 	for pair in s.split("&"):
 		var eq := pair.find("=")
 		if eq != -1:
-			d[pair.substr(0, eq).uri_decode()] = pair.substr(eq + 1).uri_decode()
-	return d
+			params[pair.substr(0, eq).uri_decode()] = pair.substr(eq + 1).uri_decode()
+	return params
 
 
 

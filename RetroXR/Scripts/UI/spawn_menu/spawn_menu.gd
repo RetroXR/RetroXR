@@ -88,20 +88,6 @@ var modio_client: ModioClient = null
 var mod_downloader: ModDownloader = null
 var mod_art: ModArtCache = null
 var mod_reviews: ModReviews = null
-## systemid -> platform dict from /api/platforms (with "systemid" added).
-## Slug signature of the last unmapped set announced, so it is reported once.
-## Terminal outcomes that happened while the menu was closed, flushed on open.
-## Merged local+server row model for the open Cartridges detail page.
-## Each entry: {source: "local"|"server"|"both", entry: Dictionary, path, label}
-## "all" | "downloaded" | "server" | "local", and a region name or "" for any.
-## rom_id -> percent, so a recycled row can show live progress when it scrolls
-## back into view mid-download.
-## Row index of the in-flight download, resolved once when it starts.
-## local_path -> {game, manual_path, has_manual}; binding hits the disk otherwise.
-## Row index whose delete button is armed for its second confirming tap.
-## Remaining systemids for an explicit "Sync all now".
-## "<systemid>/<filename>" -> Texture2D or null.
-## Wheel logos are scaled into this box so they cannot inflate the row height.
 
 # ── UI state ──────────────────────────────────────────────────────────────────
 var _spawn_view:    SpawnMenuSpawnView = null
@@ -118,12 +104,8 @@ var _net_view:      SpawnMenuNetView = null
 var _about_view:    SpawnMenuAboutView = null
 var _mods_view:     SpawnMenuModsView = null
 
-## The views, for a caller that wants to hear one of them directly.
-##
-## SpawnMenuController used to reach every view signal through a matching signal
-## re-declared on this class and re-emitted by a relay lambda: three
-## declarations and two hops for one event. It connects to the view now, and
-## this class declares only what it originates itself.
+## The views, for a caller that wants to hear one of them directly; this class
+## declares only the signals it originates itself.
 ##
 ## Safe to hold: _build_ui runs once from _ready and no view is ever rebuilt, so
 ## a connection made after the menu exists stays good for the session.
@@ -154,43 +136,12 @@ var _nav_about_btn:    Button = null
 var _nav_mods_btn:     Button = null
 var _nav_buttons: Array[Button] = []
 
-# Cores > Download tab state
-# core_name -> { "button": Button, "bar": ProgressBar }
-# Drill-down browser + fetched cores grouped by systemid ("__other__" = unknown):
-#   sid -> Array[{ "core_name", "remote_date", "info" }]
-# Outer Download/Manager TabContainer of the Cores view.
-
 # The ScrollContainer currently in view
 var _active_scroll:        ScrollContainer = null
 
-# Spawn view tab ScrollContainers (indexed by tab index)
-
-# Cores > Manager tab state — drill-down browser + installed cores grouped by
-# systemid: sid -> Array[{ "core_name", "display_name" }]
-
-## BIOS / Extras tab. `_bios_row_cache` is per-rebuild: the home grid and the
-## detail page both need a system's resolved rows, and re-deriving them means
-## re-stat'ing (and possibly re-hashing) every declared file.
-## job key -> the Button that started it, so progress can be shown in place.
-## Rebuilt pages drop their buttons, so entries are validity-checked on use.
-
-## Typing is bursty; one rebuild after the keys stop instead of one per key.
-## systemid -> {lowercase basename: rom}. A directory listing, so it is cached
-## and dropped whenever something writes to a ROM dir.
-
-# Spawn > Systems tab — drill-down browser, one title card per system
-# Spawn > Cartridges tab — drill-down browser, one tile per system
-# Spawn > Books tab — rebuilt each time the tab is opened
-# Spawn > Videos tab — rebuilt each time the tab is opened
-
-# Scrape popup overlay
 ## Status bars along the bottom: scrape/notice state, and one toast per
 ## in-flight download or sync. Owns its own 3D quad — see MenuToasts.
 var _toasts: MenuToasts = null
-# Game detail side panel
-# ROM variants side panel
-# Callback connected to scraper_client.media_download_completed so the tab
-# refreshes when a wheel image or manual PDF finishes downloading.
 
 
 func _ready() -> void:
@@ -712,9 +663,9 @@ func notify_clear(key: String) -> void:
 		_toasts.clear(key)
 
 
-## What a restart now would throw away, "" for nothing. Every downloader cancels
-## its job when the app exits, and a mod download parked for the player's review
-## is deleted by the next launch (ModManager._sweep_incoming).
+## What a restart now would throw away. Returns "" when ok, else the reason.
+## Every downloader cancels its job when the app exits, and a mod download parked
+## for the player's review is deleted by the next launch (ModManager._sweep_incoming).
 func busy_reason() -> String:
 	if mod_reviews != null and not mod_reviews.keys().is_empty():
 		var where := _mods_view.review_place() if _mods_view != null else "Browse"

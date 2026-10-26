@@ -13,10 +13,8 @@
 ##   catalog/  the unit's row, its boot recipe and its firmware
 ##   library/  scanning a folder of strips back into cards, and sizing them
 ##   swipe/    a real body through a real Area3D: a full pass, a botched one
-extends Node
+extends "res://Tests/test_suite.gd"
 
-var _checks := 0
-var _failed := 0
 var _only := ""
 
 # Signal results live on the instance, NOT in locals captured by a lambda:
@@ -53,6 +51,7 @@ func _on_entered(_b: Node3D) -> void:
 
 
 func _ready() -> void:
+	suite_tag = "erd"
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--only="):
 			_only = a.substr(7)
@@ -60,20 +59,7 @@ func _ready() -> void:
 		print("[erd] TIMED OUT")
 		get_tree().quit(1))
 	await _run()
-	print("[erd] %d checks, %d failed" % [_checks, _failed])
-	print("[erd] RESULT=%s" % ("PASS" if _failed == 0 else "FAIL"))
-	get_tree().quit(1 if _failed > 0 else 0)
-
-
-func _ok(ok: bool, what: String) -> void:
-	_checks += 1
-	if not ok:
-		_failed += 1
-	print("[erd] %s  %s" % ["PASS" if ok else "FAIL", what])
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, "%s (got %s, want %s)" % [what, got, want])
+	_finish()
 
 
 func _want(group: String) -> bool:
@@ -709,7 +695,6 @@ func _drag(card: CardDouble, slit: CardSwipeSlit, from: float, to: float,
 		card.global_transform = Transform3D(
 			card.global_transform.basis, slit.global_transform * Vector3(t, stand, 0.0))
 		await get_tree().physics_frame
-
 
 
 func _group_swipe() -> void:

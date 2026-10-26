@@ -32,7 +32,7 @@ static func load_frames(path: String) -> PackedVector2Array:
 
 	var stream := load(path) as AudioStreamWAV
 	if stream == null:
-		push_warning("PcmClip: %s is not an AudioStreamWAV" % path)
+		push_warning("[PcmClip] %s is not an AudioStreamWAV" % path)
 		return PackedVector2Array()
 
 	var mono := _decode(stream)
@@ -69,7 +69,7 @@ static func _decode(stream: AudioStreamWAV) -> PackedVector2Array:
 				var r8 := (float(data.decode_s8(i * step8 + 1)) / 128.0) if stream.stereo else l8
 				out[i] = Vector2(l8, r8)
 		_:
-			push_warning("PcmClip: %s is compressed (format %d); import it as " %
+			push_warning("[PcmClip] %s is compressed (format %d); import it as " %
 					[stream.resource_path, stream.format] + "uncompressed PCM")
 	return out
 

@@ -953,7 +953,7 @@ func detect_device() -> Device:
 	for id: String in [_headset_id_ext(), OS.get_model_name(),
 			RenderingServer.get_video_adapter_name()]:
 		var mapped := _device_from_id(id)
-		print("QualityManager: headset source '%s' -> device %d" % [id, mapped])
+		print("[QualityManager] headset source '%s' -> device %d" % [id, mapped])
 		if mapped != Device.UNKNOWN:
 			device = mapped
 			break
@@ -1002,7 +1002,7 @@ func apply_device_defaults() -> void:
 	var row: Dictionary = DEVICE_DEFAULTS[device]
 	eye_buffer_scale = clampf(float(row["eye_buffer_scale"]),
 		EYE_BUFFER_SCALE_MIN, EYE_BUFFER_SCALE_MAX)
-	print("QualityManager: device default eye buffer x%.3f" % eye_buffer_scale)
+	print("[QualityManager] device default eye buffer x%.3f" % eye_buffer_scale)
 
 
 ## Resize the eye buffer, at startup or mid-session.
@@ -1083,7 +1083,7 @@ func apply_display_rate() -> void:
 		return
 	var xr := XRServer.find_interface("OpenXR")
 	xr.call("set_display_refresh_rate", best)
-	print("QualityManager: display refresh rate %s Hz (available: %s)" % [
+	print("[QualityManager] display refresh rate %s Hz (available: %s)" % [
 		best, available_display_rates()])
 
 
@@ -1209,7 +1209,7 @@ func _generate_centered_vrs() -> void:
 		xr.set("foveation_level", int(foveation_level))
 		_vrs_generator = null
 		_foveation_live = true
-		print("QualityManager: runtime foveation level %d, eye %dx%d"
+		print("[QualityManager] runtime foveation level %d, eye %dx%d"
 			% [int(foveation_level), int(size.x), int(size.y)])
 		return
 	if _vrs_mode_override == "xr":
@@ -1225,7 +1225,7 @@ func _generate_centered_vrs() -> void:
 		root.vrs_mode = Viewport.VRS_XR
 		_vrs_generator = null
 		_foveation_live = true
-		print("QualityManager: VRS_XR runtime density map, xr foveation_level %d, eye %dx%d"
+		print("[QualityManager] VRS_XR runtime density map, xr foveation_level %d, eye %dx%d"
 			% [int(foveation_level), int(size.x), int(size.y)])
 		return
 	var generator: Object = ClassDB.instantiate("XRVRS")
@@ -1263,7 +1263,7 @@ func _generate_centered_vrs() -> void:
 		_schedule_vrs_refresh()
 	var texture: RID = generator.call("make_vrs_texture", size, foci)
 	if not texture.is_valid():
-		push_error("QualityManager: failed to generate centered XR VRS texture")
+		push_error("[QualityManager] failed to generate centered XR VRS texture")
 		_foveation_live = false
 		return
 	RenderingServer.viewport_set_vrs_texture(root.get_viewport_rid(), texture)

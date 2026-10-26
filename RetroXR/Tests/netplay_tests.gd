@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Netplay self-tests — the whole lockstep stack, headless, with mock cores.
 ##
@@ -42,8 +42,6 @@ const PORT := 42913
 const IDENT_A := {"library_name": "FCEUmm", "library_version": "(SVN)",
 	"api_version": 1, "serialize_size": 13701}
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 
 
@@ -111,9 +109,7 @@ func _ready() -> void:
 		_test_mod_plan()
 		await _test_mod_refusal()
 
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
+	_finish()
 
 
 # ══ Mods: a refused peer learns what to get ═══════════════════════════════════
@@ -737,7 +733,7 @@ func _test_room_code() -> void:
 	# ── The decisions host_online and join_by_code make before any packet
 	# leaves. Everything past this point needs a registry and two real
 	# networks, and is deliberately not faked here.
-	var nm := _branch("RC%d" % _ran)
+	var nm := _branch("RC%d" % _case_count())
 
 	# A malformed code is answered locally. Spending a round trip to be told
 	# what this call already knows would also make a typo and an expired room
@@ -1542,8 +1538,8 @@ func _test_join() -> void:
 	var jsys := MockSys.new()
 	jsys.name = "Sys"
 	third.add_child(jsys)
-	third._netplay.system_override = jsys
-	var jnp: NetplaySession = third._netplay
+	third.netplay_session().system_override = jsys
+	var jnp: NetplaySession = third.netplay_session()
 	third.join_game("::1", PORT)
 	_ok(await _until(func() -> bool: return w.host_nm.peers.size() == 3),
 		"join/the newcomer is in the roster")
@@ -1580,7 +1576,7 @@ func _test_join() -> void:
 	odd.add_child(osys)
 	osys.lib.identity = IDENT_A.duplicate()
 	osys.lib.identity["library_version"] = "(SVN 2026-08-19)"
-	odd._netplay.system_override = osys
+	odd.netplay_session().system_override = osys
 	odd.join_game("::1", PORT)
 	_ok(await _until(func() -> bool: return w.host_np._spectators.has(_other_id(w.host_nm, w.client_id)), 900),
 		"join/a newcomer on a different build is refused")
@@ -1603,7 +1599,7 @@ func _test_join() -> void:
 	var bsys := MockSys.new()
 	bsys.name = "Sys"
 	broken.add_child(bsys)
-	broken._netplay.system_override = bsys
+	broken.netplay_session().system_override = bsys
 	broken.join_game("::1", PORT)
 	_ok(await _until(func() -> bool:
 		var newcomer := _other_id(w.host_nm, w.client_id)
@@ -1631,7 +1627,7 @@ func _test_join() -> void:
 	var hsys := MockSys.new()
 	hsys.name = "Sys"
 	hung.add_child(hsys)
-	hung._netplay.system_override = hsys
+	hung.netplay_session().system_override = hsys
 	hung.join_game("::1", PORT)
 	_ok(await _until(func() -> bool:
 		return w.host_np._join_paused and not w.host_np._joining.is_empty(), 900),
@@ -1657,7 +1653,7 @@ func _test_join() -> void:
 	lsys.name = "Sys"
 	lsys.lib.load_fails = true
 	load_bad.add_child(lsys)
-	var lnp: NetplaySession = load_bad._netplay
+	var lnp: NetplaySession = load_bad.netplay_session()
 	lnp.system_override = lsys
 	load_bad.join_game("::1", PORT)
 	_ok(await _until(func() -> bool:
@@ -1682,7 +1678,7 @@ func _test_join() -> void:
 	lhsys.name = "Sys"
 	lhsys.lib.load_hangs = true
 	load_hung.add_child(lhsys)
-	var lh_np: NetplaySession = load_hung._netplay
+	var lh_np: NetplaySession = load_hung.netplay_session()
 	lh_np.system_override = lhsys
 	load_hung.join_game("::1", PORT)
 	_ok(await _until(func() -> bool:
@@ -1729,7 +1725,7 @@ func _test_join() -> void:
 	late_sys.name = "Sys"
 	late_sys.machine_core = "dolphin"
 	latecomer.add_child(late_sys)
-	latecomer._netplay.system_override = late_sys
+	latecomer.netplay_session().system_override = late_sys
 	var told := []
 	latecomer.status_changed.connect(func(text: String) -> void: told.append(text))
 	latecomer.join_game("::1", PORT)
@@ -1846,7 +1842,7 @@ func _test_transfer() -> void:
 	var tsys := MockSys.new()
 	tsys.name = "Sys"
 	third.add_child(tsys)
-	third._netplay.system_override = tsys
+	third.netplay_session().system_override = tsys
 	third.join_game("127.0.0.1", PORT)
 	_ok(await _until(func() -> bool: return tsys.lib.loaded_state, 900),
 		"transfer/the joiner loaded a state")
@@ -2565,7 +2561,7 @@ func _test_link() -> void:
 	join_far.lib.link_peers = {0: 2}
 	linked_joiner.add_child(join_near)
 	linked_joiner.add_child(join_far)
-	var join_np: NetplaySession = linked_joiner._netplay
+	var join_np: NetplaySession = linked_joiner.netplay_session()
 	join_np.systems_override = {0: join_near, 1: join_far}
 	linked_joiner.join_game("::1", PORT)
 	_ok(await _until(func() -> bool:
@@ -2963,16 +2959,16 @@ func _branch(bname: String) -> Node:
 ## A connected host + client, each with a mock machine wired into its session.
 func _pair() -> Pair:
 	var p := Pair.new()
-	p.host_nm = _branch("H%d" % _ran)
-	p.client_nm = _branch("C%d" % _ran)
+	p.host_nm = _branch("H%d" % _case_count())
+	p.client_nm = _branch("C%d" % _case_count())
 	p.host_sys = MockSys.new()
 	p.host_sys.name = "Sys"
 	p.host_nm.add_child(p.host_sys)
 	p.client_sys = MockSys.new()
 	p.client_sys.name = "Sys"
 	p.client_nm.add_child(p.client_sys)
-	p.host_np = p.host_nm._netplay
-	p.client_np = p.client_nm._netplay
+	p.host_np = p.host_nm.netplay_session()
+	p.client_np = p.client_nm.netplay_session()
 	p.host_np.system_override = p.host_sys
 	p.client_np.system_override = p.client_sys
 	p.host_nm.host_game(PORT)
@@ -3309,8 +3305,8 @@ func _test_progress() -> void:
 	var jsys := MockSys.new()
 	jsys.name = "Sys"
 	third.add_child(jsys)
-	third._netplay.system_override = jsys
-	var jnp: NetplaySession = third._netplay
+	third.netplay_session().system_override = jsys
+	var jnp: NetplaySession = third.netplay_session()
 
 	var join_phases: Array[String] = []
 	jnp.join_state_progress.connect(
@@ -3528,20 +3524,3 @@ func _test_readiness() -> void:
 func _want(name: String) -> bool:
 	return _only.is_empty() or _only == name
 
-
-func _ok(cond: bool, what: String) -> void:
-	_ran += 1
-	if cond:
-		print("[test] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[test] FAIL %s" % what)
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ran += 1
-	if got == want:
-		print("[test] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[test] FAIL %s — got %s, want %s" % [what, str(got), str(want)])

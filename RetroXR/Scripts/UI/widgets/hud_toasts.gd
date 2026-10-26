@@ -160,7 +160,7 @@ func _apply_visibility() -> void:
 
 
 func _has_content() -> bool:
-	if _stack == null or not is_instance_valid(_stack):
+	if not is_instance_valid(_stack):
 		return false
 	for c in _stack.get_children():
 		if c is Control and (c as Control).visible:
@@ -169,7 +169,7 @@ func _has_content() -> bool:
 
 
 func _target() -> Transform3D:
-	if _camera == null or not is_instance_valid(_camera):
+	if not is_instance_valid(_camera):
 		return global_transform
 	var t := (_camera as Node3D).global_transform
 	t.origin = t * HEAD_OFFSET

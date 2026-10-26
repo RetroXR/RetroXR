@@ -128,7 +128,7 @@ func _ready() -> void:
 	if parent and parent.has_signal("highlight_updated"):
 		parent.highlight_updated.connect(_on_highlight_updated)
 	else:
-		push_warning("PickableHighlight: parent has no highlight_updated signal")
+		push_warning("[PickableHighlight] parent has no highlight_updated signal")
 		return
 
 	if parent.has_signal("grabbed"):

@@ -172,7 +172,7 @@ func connector_for(_sysid: String) -> String:
 ## gets the generic plug rather than keeping the last one's, which is why this is
 ## called with "" on unplug rather than simply skipped.
 func _adopt_connector(sysid: String) -> void:
-	if _cable_plug == null or not is_instance_valid(_cable_plug):
+	if not is_instance_valid(_cable_plug):
 		return
 	_cable_plug.set_plug_mesh(connector_for(sysid))
 	# And move the cord's end with it. set_plug_mesh recomputes cable_anchor for
@@ -185,7 +185,7 @@ func _adopt_connector(sysid: String) -> void:
 
 
 func _apply_cable_anchor() -> void:
-	if _cable_rope == null or not is_instance_valid(_cable_rope) or _cable_plug == null:
+	if not is_instance_valid(_cable_rope) or _cable_plug == null:
 		return
 	_cable_rope.end_anchor_offset = _cable_plug.cable_anchor
 	# And which way it leaves, so an angled connector can say so in its asset

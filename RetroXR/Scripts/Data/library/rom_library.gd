@@ -659,7 +659,7 @@ static func is_library_entry(path: String, root: String) -> bool:
 ## true when the entry is gone afterwards.
 static func delete_library_entry(path: String, root: String) -> bool:
 	if not is_library_entry(path, root):
-		push_warning("RomLibrary: refusing to delete '%s' — not an entry of '%s'" % [path, root])
+		push_warning("[RomLibrary] refusing to delete '%s' — not an entry of '%s'" % [path, root])
 		return false
 	if DirAccess.dir_exists_absolute(path):
 		_remove_tree(path)

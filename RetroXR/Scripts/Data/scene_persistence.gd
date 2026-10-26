@@ -505,7 +505,7 @@ func load_slot_async(root: Node, slot_id: String) -> bool:
 		return true
 	var path := _slot_file(slot_id)
 	if not FileAccess.file_exists(path):
-		push_warning("ScenePersistence: slot file not found '%s'" % path)
+		push_warning("[ScenePersistence] slot file not found '%s'" % path)
 		return false
 	var objects: Variant = _read_objects(path)
 	if objects == null:
@@ -584,9 +584,9 @@ func rename_slot(slot_id: String, new_name: String) -> bool:
 	var m := _load_manifest()
 	var slots: Array = m.get("slots", [])
 	for s: Variant in slots:
-		var d := s as Dictionary
-		if d.get("id", "") == slot_id:
-			d["name"] = new_name
+		var slot := s as Dictionary
+		if slot.get("id", "") == slot_id:
+			slot["name"] = new_name
 			m["slots"] = slots
 			return _save_manifest(m)
 	return false
@@ -691,14 +691,14 @@ func _load_manifest() -> Dictionary:
 		return _empty_manifest()
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		push_error("ScenePersistence: cannot read slot manifest '%s' (error %d) — "
+		push_error("[ScenePersistence] cannot read slot manifest '%s' (error %d) — "
 			% [path, FileAccess.get_open_error()]
 			+ "the room will report no saves although its slots are still on disk")
 		return _empty_manifest()
 	var parsed: Variant = JSON.parse_string(f.get_as_text())
 	if parsed is Dictionary:
 		return parsed as Dictionary
-	push_error("ScenePersistence: slot manifest '%s' is not readable JSON — " % path
+	push_error("[ScenePersistence] slot manifest '%s' is not readable JSON — " % path
 		+ "the room will report no saves although its slots are still on disk")
 	return _empty_manifest()
 
@@ -712,9 +712,9 @@ func _load_manifest() -> Dictionary:
 ## does not parse, so the room would come back with no slots at all. JsonStore
 ## stages a .part and renames it, so the manifest is either the old one or the
 ## new one.
-func _save_manifest(m: Dictionary) -> bool:
+func _save_manifest(manifest: Dictionary) -> bool:
 	DirAccess.make_dir_recursive_absolute(slot_dir())
-	return JsonStore.write_dict(_manifest_file(), m, "ScenePersistence")
+	return JsonStore.write_dict(_manifest_file(), manifest, "ScenePersistence")
 
 
 func _write_scene_to_file(root: Node, path: String) -> bool:
@@ -808,13 +808,13 @@ func _restore_fixtures(root: Node, fixtures: Variant) -> void:
 	for entry: Variant in fixtures as Array:
 		if not entry is Dictionary:
 			continue
-		var d := entry as Dictionary
-		var n3d := root.get_node_or_null(NodePath(str(d.get("path", "")))) as Node3D
+		var rec := entry as Dictionary
+		var n3d := root.get_node_or_null(NodePath(str(rec.get("path", "")))) as Node3D
 		if n3d == null:
 			# A room whose furniture was renamed or removed since the save.
 			continue
-		var pos: Array = d.get("position", [])
-		var rot: Array = d.get("rotation", [])
+		var pos: Array = rec.get("position", [])
+		var rot: Array = rec.get("rotation", [])
 		if pos.size() == 3:
 			n3d.global_position = Vector3(pos[0], pos[1], pos[2])
 		if rot.size() == 3:
@@ -823,7 +823,7 @@ func _restore_fixtures(root: Node, fixtures: Variant) -> void:
 		# every fixture that is furniture rather than a television. set_source
 		# clamps and falls back on its own, so a cabinet that no longer carries
 		# the saved input lands on one it does have.
-		var source: Variant = d.get("source")
+		var source: Variant = rec.get("source")
 		if n3d is RetroTV and (source is float or source is int):
 			(n3d as RetroTV).set_source(int(source))
 
@@ -851,12 +851,12 @@ func _restore_switches(root: Node, switches: Variant) -> void:
 	for entry: Variant in switches as Array:
 		if not entry is Dictionary:
 			continue
-		var d := entry as Dictionary
-		var sw := root.get_node_or_null(NodePath(str(d.get("path", "")))) as LightSwitch
+		var rec := entry as Dictionary
+		var sw := root.get_node_or_null(NodePath(str(rec.get("path", "")))) as LightSwitch
 		if sw == null:
 			# A room whose switch plate was renamed or removed since the save.
 			continue
-		sw.set_lights_on(bool(d.get("on", true)))
+		sw.set_lights_on(bool(rec.get("on", true)))
 
 
 func _encode(snapshot: Dictionary) -> String:
@@ -901,20 +901,20 @@ func _read_objects(path: String) -> Variant:
 	if parsed == null and not FileAccess.file_exists(path):
 		return null
 	if parsed == null or (parsed as Dictionary).is_empty():
-		push_error("ScenePersistence: invalid slot file '%s'" % path)
+		push_error("[ScenePersistence] invalid slot file '%s'" % path)
 		return null
-	var d := parsed as Dictionary
+	var doc := parsed as Dictionary
 	# Refused rather than migrated. Every cross-reference changed shape in v2, so
 	# a v1 file still restores its objects — into a room where nothing is plugged
 	# into anything, which reads as a bug rather than as an old save.
-	var file_version := int(d.get("version", 1))
+	var file_version := int(doc.get("version", 1))
 	if file_version != VERSION:
-		push_warning("ScenePersistence: slot '%s' is version %d, this build reads %d"
+		push_warning("[ScenePersistence] slot '%s' is version %d, this build reads %d"
 			% [path, file_version, VERSION])
 		return null
-	var objects: Variant = d.get("objects", [])
+	var objects: Variant = doc.get("objects", [])
 	if not objects is Array:
-		push_error("ScenePersistence: slot '%s' has no object list" % path)
+		push_error("[ScenePersistence] slot '%s' has no object list" % path)
 		return null
 	# Entries naming a type this build no longer has are DROPPED, not fatal.
 	#
@@ -932,7 +932,7 @@ func _read_objects(path: String) -> Variant:
 	var pruned := _prune_unknown_types(objects as Array, path)
 	var error := _objects_validation_error(pruned)
 	if not error.is_empty():
-		push_error("ScenePersistence: invalid slot '%s': %s" % [path, error])
+		push_error("[ScenePersistence] invalid slot '%s': %s" % [path, error])
 		return null
 	return pruned
 
@@ -1025,7 +1025,7 @@ static func _prune_unknown_types(objects: Array, path: String) -> Array:
 		dropped_count += int(dropped_types[obj_type])
 	# push_warning rather than push_error: the slot loaded, and the player is
 	# about to see the room. This is a report, not a failure.
-	push_warning("ScenePersistence: slot '%s' skipped %s — the mod that provided %s is not loaded"
+	push_warning("[ScenePersistence] slot '%s' skipped %s — the mod that provided %s is not loaded"
 		% [path, ", ".join(summary), "them" if dropped_count > 1 else "it"])
 	return kept
 
@@ -1333,20 +1333,20 @@ func instantiate_objects_async(root: Node, objects: Array) -> Dictionary:
 func _acquire_entry_assets(entry: Variant) -> void:
 	if not entry is Dictionary:
 		return
-	var d := entry as Dictionary
-	match str(d.get("type", "")):
+	var rec := entry as Dictionary
+	match str(rec.get("type", "")):
 		"system":
-			var row := SystemModelRegistry.resolve(str(d.get("model_id", "")),
-				SystemIds.canonical(str(d.get("systemid", ""))))
+			var row := SystemModelRegistry.resolve(str(rec.get("model_id", "")),
+				SystemIds.canonical(str(rec.get("systemid", ""))))
 			for path: String in row.get("requires", []):
 				await ModelWarmer.acquire(path)
 		"cartridge":
 			# Same story, a cartridge body: the fields as _apply_media_fields reads them.
-			var cart_systemid := SystemIds.canonical(str(d.get("cart_systemid", "")))
-			var cart_rom := RomLibrary.relocate(str(d.get("rom_path", "")))
-			var pin := str(d.get("fallback_market", ""))
+			var cart_systemid := SystemIds.canonical(str(rec.get("cart_systemid", "")))
+			var cart_rom := RomLibrary.relocate(str(rec.get("rom_path", "")))
+			var pin := str(rec.get("fallback_market", ""))
 			var body := RetroCartridge.body_model_for(cart_systemid, cart_rom,
-				str(d.get("body_region", "")), StringName(str(d.get("shell_preset", ""))), pin)
+				str(rec.get("body_region", "")), StringName(str(rec.get("shell_preset", ""))), pin)
 			if not body.is_empty() and ResourceLoader.exists(body):
 				await ModelWarmer.acquire(body)
 			# And the PAL rear sticker a Super Famicom-shaped cartridge wears.
@@ -1359,11 +1359,11 @@ func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dict
 		held: Dictionary) -> void:
 	if not entry is Dictionary:
 		return
-	var d := entry as Dictionary
-	var id: int = d.get("id", -1)
+	var rec := entry as Dictionary
+	var id: int = rec.get("id", -1)
 	if id < 0:
 		return
-	var obj := _deserialize_object(d)
+	var obj := _deserialize_object(rec)
 	if obj == null:
 		return
 	# Before it enters the room, where a mod's hook builds its covers' slots: a
@@ -1379,9 +1379,9 @@ func _spawn_entry(root: Node, entry: Variant, spawned: Dictionary, entries: Dict
 	# restore takes to reach it. Which socket holds which is still pass 2's, because
 	# that genuinely does need every device to exist.
 	if obj is CompositeCable or obj is PowerCord or obj is PowerStrip:
-		obj.call("restore_plug_poses", d.get("plugs", []))
+		obj.call("restore_plug_poses", rec.get("plugs", []))
 	spawned[id] = obj
-	entries[id] = d
+	entries[id] = rec
 
 
 ## Take gravity off every rigid body in a freshly spawned object, remembering what
@@ -1535,7 +1535,7 @@ func _restore_rope_layouts(obj: Variant, entry: Dictionary) -> void:
 			var xyz := raw as Array
 			points.append(Vector3(float(xyz[0]), float(xyz[1]), float(xyz[2])))
 		if not rope.restore_points(points):
-			push_warning("ScenePersistence: rejected rope layout at %s" % rec.get("path", ""))
+			push_warning("[ScenePersistence] rejected rope layout at %s" % rec.get("path", ""))
 
 
 ## False once the room we are building into has gone, or once a newer restore
@@ -1570,15 +1570,15 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 	if not is_instance_valid(spawned[id]):
 		return
 	var obj: Node = spawned[id]
-	var d: Dictionary = entries[id]
-	_restore_articulated_controls(obj, d.get("articulated", d.get("hinges", [])))
-	_restore_attachment(root, obj, spawned, d)
-	_restore_cover_slots(root, obj, spawned, d)
-	_restore_cell_slots(root, obj, spawned, d)
+	var rec: Dictionary = entries[id]
+	_restore_articulated_controls(obj, rec.get("articulated", rec.get("hinges", [])))
+	_restore_attachment(root, obj, spawned, rec)
+	_restore_cover_slots(root, obj, spawned, rec)
+	_restore_cell_slots(root, obj, spawned, rec)
 
 	for row: Array in _restore_kind_rows():
 		if is_instance_of(obj, row[0]):
-			call(row[1] as StringName, root, id, obj, spawned, d)
+			call(row[1] as StringName, root, id, obj, spawned, rec)
 			return
 
 
@@ -1626,57 +1626,57 @@ static func _restore_kind_rows() -> Array:
 
 # ── Per-type restore hooks (rows of _restore_kind_rows) ─────────────────────────
 
-func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	var sys := obj as RetroSystem
 	# Which composite input each channel's lead goes back into. Absent on every
 	# save written before a set had four, and read through a helper that answers
 	# Composite 1 for anything it does not cover.
-	var tv_inputs: Array = d.get("tv_inputs", [])
-	var tv := _resolve_ref(root, spawned, d.get("tv")) as RetroTV
+	var tv_inputs: Array = rec.get("tv_inputs", [])
+	var tv := _resolve_ref(root, spawned, rec.get("tv")) as RetroTV
 	if tv:
 		sys.restore_cable_connection(tv, 0, _tv_input(tv_inputs, 0))
 	# Extra video-out channels (dual-screen handhelds: ch 1 = BOTTOM). A save
 	# made against a model with more channels than this one has is truncated —
 	# restore_cable_connection would silently fold the overflow onto ch 0.
-	var extra: Array = d.get("extra_tvs", [])
+	var extra: Array = rec.get("extra_tvs", [])
 	for i in range(mini(extra.size(), sys.get_channel_count() - 1)):
 		var ch_tv := _resolve_ref(root, spawned, extra[i]) as RetroTV
 		if ch_tv:
 			sys.restore_cable_connection(ch_tv, i + 1, _tv_input(tv_inputs, i + 1))
-	var cart := _resolve_ref(root, spawned, d.get("cartridge")) as RetroCartridge
+	var cart := _resolve_ref(root, spawned, rec.get("cartridge")) as RetroCartridge
 	if cart:
-		sys.restore_cartridge(cart, float(d.get("cartridge_yaw", 0.0)))
-	var cart_b := _resolve_ref(root, spawned, d.get("cartridge_b")) as RetroCartridge
+		sys.restore_cartridge(cart, float(rec.get("cartridge_yaw", 0.0)))
+	var cart_b := _resolve_ref(root, spawned, rec.get("cartridge_b")) as RetroCartridge
 	if cart_b:
 		sys.restore_slot2_cartridge(cart_b)
 	# Bolt the tower back together. Each unit seats through the same call a
 	# hand's release ends in, so a restored stack is the same object graph as
 	# a built one: the console knows its units, each unit knows its host, and
 	# the launch recipe reads exactly as it would have.
-	for ref: Variant in (d.get("expansions", []) as Array):
+	for ref: Variant in (rec.get("expansions", []) as Array):
 		var unit := _resolve_ref(root, spawned, ref) as RetroExpansion
 		if unit:
 			sys.restore_expansion(unit)
-	var memcard := _resolve_ref(root, spawned, d.get("memcard")) as MemoryCard
+	var memcard := _resolve_ref(root, spawned, rec.get("memcard")) as MemoryCard
 	if memcard:
 		sys.memcards().restore_memory_card(memcard, 0)
 	# Slot B is its own key rather than the pair becoming an array: an array
 	# would not load in any room file saved before there was a second slot.
-	var memcard_b := _resolve_ref(root, spawned, d.get("memcard_b")) as MemoryCard
+	var memcard_b := _resolve_ref(root, spawned, rec.get("memcard_b")) as MemoryCard
 	if memcard_b:
 		sys.memcards().restore_memory_card(memcard_b, 1)
 	# The expansion-bay lid, if this save had it ON the console. A save with
 	# none leaves the bay open, which is a real state: the lid is then a
 	# loose object restored from its own entry, wherever it was put down.
-	var cover := _resolve_ref(root, spawned, d.get("expansion_cover")) as ExpansionCover
+	var cover := _resolve_ref(root, spawned, rec.get("expansion_cover")) as ExpansionCover
 	if cover:
 		sys.restore_expansion_cover(cover)
 	# The covers over its own sockets. A console saved before there were any
 	# never said its covers were off, so it gets them, over every socket the
 	# save left empty; one saved since says which are on, and a cover that is
 	# off is restored loose from its own entry.
-	if d.has("port_covers"):
-		var covers: Dictionary = d["port_covers"]
+	if rec.has("port_covers"):
+		var covers: Dictionary = rec["port_covers"]
 		for socket: Variant in covers:
 			var port_cover := _resolve_ref(root, spawned, covers[socket]) as PortCover
 			if port_cover:
@@ -1686,46 +1686,46 @@ func _restore_system(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Di
 	# After the media, and deferred: seating a cartridge swings the bay open (the
 	# NES flap) and tweens it there, either of which would otherwise win over the
 	# pose the system restored when its model loaded.
-	var lid_angle := float(d.get("lid_angle", -1.0))
+	var lid_angle := float(rec.get("lid_angle", -1.0))
 	if lid_angle >= 0.0:
 		sys.set_lid_angle_deg.call_deferred(lid_angle)
 
 
-func _restore_expansion(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_expansion(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	# The disk, disc or cartridge in this unit's own bay. Independent of the
 	# order the stack is rebuilt in: a bay seats its media as a pose relative
 	# to the unit, so it comes out right whether or not the unit has been
 	# bolted to its console yet.
-	var own := _resolve_ref(root, spawned, d.get("media")) as Node3D
+	var own := _resolve_ref(root, spawned, rec.get("media")) as Node3D
 	if own:
 		(obj as RetroExpansion).restore_media_in_slot(own)
 	# Absent from every room saved before a unit had two slots, which is why
 	# it is read with a default rather than assumed present.
-	var own_b := _resolve_ref(root, spawned, d.get("media_b")) as Node3D
+	var own_b := _resolve_ref(root, spawned, rec.get("media_b")) as Node3D
 	if own_b:
 		(obj as RetroExpansion).restore_media_in_slot(own_b, 1)
 	# Its clip-on accessory (the 32X's Model 2 spacer), on the same terms: a
 	# pose relative to the unit, whether or not the unit is seated yet.
-	var accessory := _resolve_ref(root, spawned, d.get("accessory")) as Node3D
+	var accessory := _resolve_ref(root, spawned, rec.get("accessory")) as Node3D
 	if accessory:
 		(obj as RetroExpansion).restore_accessory(accessory)
 
 
-func _restore_transfer_pak(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_transfer_pak(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	# The Game Boy cartridge in the pak's roof, on the same terms as an
 	# expansion's own bay above: a pose relative to the pak, so it lands right
 	# whether or not the pak has been put back into a controller yet.
-	var gb := _resolve_ref(root, spawned, d.get("gb_cart")) as Node3D
+	var gb := _resolve_ref(root, spawned, rec.get("gb_cart")) as Node3D
 	if gb:
 		(obj as TransferPak).restore_cart(gb)
 
 
-func _restore_tv(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	(obj as RetroTV).restore_control_state(d.get("controls", {}))
+func _restore_tv(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	(obj as RetroTV).restore_control_state(rec.get("controls", {}))
 	# The tape or disc in a combination set's own deck. The deck is not an
 	# object of its own in the file -- the cabinet builds it -- so what is in it
 	# is saved on the set, by the deck's kind.
-	var decks: Dictionary = d.get("decks", {})
+	var decks: Dictionary = rec.get("decks", {})
 	for kind: String in decks:
 		var entry: Dictionary = decks[kind]
 		var media := _resolve_ref(root, spawned, entry.get("media")) as Node3D
@@ -1733,44 +1733,44 @@ func _restore_tv(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictio
 			(obj as RetroTV).decks().restore_deck_media(kind, media, float(entry.get("yaw", 0.0)))
 
 
-func _restore_vcr_player(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	var tape := _resolve_ref(root, spawned, d.get("tape")) as VCRTape
+func _restore_vcr_player(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var tape := _resolve_ref(root, spawned, rec.get("tape")) as VCRTape
 	if tape:
 		(obj as VCRPlayer).restore_media(tape)
 
 
-func _restore_dvd_player(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	var disc := _resolve_ref(root, spawned, d.get("disc")) as DVDDisc
+func _restore_dvd_player(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var disc := _resolve_ref(root, spawned, rec.get("disc")) as DVDDisc
 	if disc:
-		(obj as DVDPlayer).restore_media(disc, float(d.get("disc_yaw", 0.0)))
+		(obj as DVDPlayer).restore_media(disc, float(rec.get("disc_yaw", 0.0)))
 
 
-func _restore_audio_player(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	var media := _resolve_ref(root, spawned, d.get("media"))
+func _restore_audio_player(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var media := _resolve_ref(root, spawned, rec.get("media"))
 	if media is AudioDisc or media is AudioCassette or media is VinylRecord:
 		(obj as RetroAudioPlayer).restore_media(
-			media as Node3D, float(d.get("media_yaw", 0.0)))
+			media as Node3D, float(rec.get("media_yaw", 0.0)))
 
 
-func _restore_speaker_pair(_root: Node, _id: int, obj: Node, _spawned: Dictionary, d: Dictionary) -> void:
+func _restore_speaker_pair(_root: Node, _id: int, obj: Node, _spawned: Dictionary, rec: Dictionary) -> void:
 	var pair := obj as SpeakerPair
-	pair.set_volume(float(d.get("volume", 0.75)))
-	pair.restore_box_poses(d.get("boxes", []))
+	pair.set_volume(float(rec.get("volume", 0.75)))
+	pair.restore_box_poses(rec.get("boxes", []))
 
 
-func _restore_surround_amp(_root: Node, _id: int, obj: Node, _spawned: Dictionary, d: Dictionary) -> void:
+func _restore_surround_amp(_root: Node, _id: int, obj: Node, _spawned: Dictionary, rec: Dictionary) -> void:
 	# The switch only: the volume knob came back with every other VRKnob in
 	# _restore_articulated_controls above, and its value_changed pushed it.
-	(obj as SurroundAmp).restore_state(int(d.get("decode_mode", 0)))
+	(obj as SurroundAmp).restore_state(int(rec.get("decode_mode", 0)))
 
 
-func _restore_lead(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_lead(root: Node, _id: int, obj: Node, spawned: Dictionary, saved: Dictionary) -> void:
 	# Pass 2, so every deck and set the plugs point at already exists, and for
 	# a mains lead so does every wall outlet and every inlet. A plug whose
 	# socket cannot be found is simply left where it was saved: a loose end on
 	# the floor beats one seated in the wrong device.
 	var seats: Array = []
-	for rec: Dictionary in d.get("plugs", []):
+	for rec: Dictionary in saved.get("plugs", []):
 		seats.append({
 			"end": int(rec.get("end", 0)),
 			"cord": int(rec.get("cord", 0)),
@@ -1780,78 +1780,78 @@ func _restore_lead(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dict
 			"port": str(rec.get("port", "")),
 		})
 	if obj.has_method("restore_carried_body"):
-		obj.call("restore_carried_body", d.get("body", {}))
+		obj.call("restore_carried_body", saved.get("body", {}))
 	obj.call("restore_seating", seats)
 
 
-func _restore_speaker_stand(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_speaker_stand(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	(obj as SpeakerStand).restore_seat(
-		_resolve_ref(root, spawned, d.get("speaker")) as Loudspeaker)
+		_resolve_ref(root, spawned, rec.get("speaker")) as Loudspeaker)
 
 
-func _restore_sensor_bar(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_sensor_bar(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	(obj as SensorBar).restore_connection(
-		_resolve_ref(root, spawned, d.get("system")) as RetroSystem)
+		_resolve_ref(root, spawned, rec.get("system")) as RetroSystem)
 
 
-func _restore_gc_microphone(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	var mic_slot := int(d.get("slot", -1))
-	var mic_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+func _restore_gc_microphone(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var mic_slot := int(rec.get("slot", -1))
+	var mic_sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
 	if mic_slot >= 0 and mic_sys != null:
 		(obj as GcMicrophone).restore_seat(mic_sys, mic_slot)
 
 
-func _restore_n64_vru(root: Node, _id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	var vru_port := int(d.get("port", -1))
-	var vru_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+func _restore_n64_vru(root: Node, _id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
+	var vru_port := int(rec.get("port", -1))
+	var vru_sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
 	var vru := obj as N64Vru
 	if vru_port >= 0 and vru_sys != null:
 		vru.restore_seat(vru_sys, vru_port)
 	# A save written before the jack existed has no key, and a unit from one
 	# came with its microphone attached — so the default is plugged in.
-	vru.restore_mic_plugged(bool(d.get("mic", true)))
+	vru.restore_mic_plugged(bool(rec.get("mic", true)))
 
 
-func _restore_receiver(root: Node, id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_receiver(root: Node, id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	# A pak goes back whether or not the receiver was plugged into anything —
 	# a loose dongle can still have one on it, exactly as a loose N64 pad can.
 	# Seated BEFORE the port connection below, so the machine is told what is
 	# in the port once, on connecting, rather than told "empty" and corrected.
 	if obj is PadReceiver:
 		(obj as PadReceiver).restore_pak(
-			_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
-		_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
-	var rx_port := int(d.get("port_index", -1))
+			_resolve_ref(root, spawned, rec.get("pak")) as N64Pak)
+		_restore_vmu_slots(obj, root, spawned, rec.get("vmus"))
+	var rx_port := int(rec.get("port_index", -1))
 	if rx_port < 0:
 		return
-	var rx_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	var rx_sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
 	if rx_sys == null:
 		push_warning("[ScenePersistence] pad receiver id=%d: system not found" % id)
 		return
 	(obj as InputReceiver).restore_port_connection(rx_sys, rx_port)
 
 
-func _restore_multitap(root: Node, id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_multitap(root: Node, id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	# The pads in its sockets, then its own plug. Both wait for a cord made a
 	# frame after spawning, and whichever lands second binds the pads, once.
 	var tap := obj as RetroMultitap
-	var sockets: Variant = d.get("sockets", [])
+	var sockets: Variant = rec.get("sockets", [])
 	if sockets is Array:
 		for i in mini((sockets as Array).size(), RetroMultitap.SUB_PORTS):
 			var held := _resolve_ref(root, spawned, (sockets as Array)[i])
 			if held != null:
 				tap.restore_socket(i, held)
-	var tap_port := int(d.get("port_index", -1))
+	var tap_port := int(rec.get("port_index", -1))
 	if tap_port < 0:
 		return
-	var tap_sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	var tap_sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
 	if tap_sys == null:
 		push_warning("[ScenePersistence] multitap id=%d: system not found" % id)
 		return
 	tap.restore_port_connection(tap_sys, tap_port)
 
 
-func _restore_peripheral(root: Node, id: int, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_peripheral(root: Node, id: int, obj: Node, spawned: Dictionary, rec: Dictionary) -> void:
 	# The remote's Nunchuk is restored whether or not it was paired to a
 	# console — an unpaired remote can still have one plugged into it.
 	if obj is Wiimote:
@@ -1859,24 +1859,24 @@ func _restore_peripheral(root: Node, id: int, obj: Node, spawned: Dictionary, d:
 		# pass-through rather than into the remote whenever one is present, so
 		# restoring them the other way round puts the Nunchuk in the wrong port.
 		(obj as Wiimote).restore_motion_plus(
-			_resolve_ref(root, spawned, d.get("motion_plus")) as MotionPlus)
+			_resolve_ref(root, spawned, rec.get("motion_plus")) as MotionPlus)
 		(obj as Wiimote).restore_nunchuk(
-			_resolve_ref(root, spawned, d.get("nunchuk")) as Nunchuk)
+			_resolve_ref(root, spawned, rec.get("nunchuk")) as Nunchuk)
 		# And an extension the game has no class for (a mod's Classic
 		# Controller), which goes back the way the Nunchuk does.
 		(obj as Wiimote).restore_extension(
-			_resolve_ref(root, spawned, d.get("extension")) as Node3D)
+			_resolve_ref(root, spawned, rec.get("extension")) as Node3D)
 	if obj is RetroController:
 		# The pak goes back whether or not the pad was plugged into anything —
 		# a loose N64 controller can still have one in it. A Transfer Pak
 		# re-seats its own cartridge from its own entry, so this is one call.
 		(obj as RetroController).restore_pak(
-			_resolve_ref(root, spawned, d.get("pak")) as N64Pak)
-		_restore_vmu_slots(obj, root, spawned, d.get("vmus"))
-	var port_idx := int(d.get("port_index", -1))
+			_resolve_ref(root, spawned, rec.get("pak")) as N64Pak)
+		_restore_vmu_slots(obj, root, spawned, rec.get("vmus"))
+	var port_idx := int(rec.get("port_index", -1))
 	if port_idx < 0:
 		return
-	var sys := _resolve_ref(root, spawned, d.get("system")) as RetroSystem
+	var sys := _resolve_ref(root, spawned, rec.get("system")) as RetroSystem
 	if sys == null:
 		push_warning("[ScenePersistence] controller id=%d: system not found" % id)
 		return
@@ -1984,8 +1984,8 @@ static func _is_mod_zone(zone: Node, host: Node) -> bool:
 ## Put an object back in the snap zone _attachment_field recorded. Through the
 ## zone's own pick_up_object, the call a hand's release ends in, so a restored
 ## stack is the same object graph as a built one.
-func _restore_attachment(root: Node, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	var rec: Variant = d.get("attached")
+func _restore_attachment(root: Node, obj: Node, spawned: Dictionary, saved: Dictionary) -> void:
+	var rec: Variant = saved.get("attached")
 	if not rec is Dictionary:
 		return
 	var host := _resolve_ref(root, spawned, (rec as Dictionary).get("to"))
@@ -2242,9 +2242,9 @@ func _cover_slots_field(node: Node, node_to_id: Dictionary) -> Dictionary:
 ## Hand an object's covers back, whether its slots are built yet or not
 ## (CoverSlots.told): the save's cover for each, null for one that was off, and
 ## nothing for a slot the save does not name, which gets a fresh cover.
-func _restore_cover_slots(root: Node, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
+func _restore_cover_slots(root: Node, obj: Node, spawned: Dictionary, entry: Dictionary) -> void:
 	var saved := {}
-	var rec: Variant = d.get("cover_slots")
+	var rec: Variant = entry.get("cover_slots")
 	if rec is Dictionary:
 		for socket: Variant in (rec as Dictionary):
 			saved[str(socket)] = _resolve_ref(root, spawned, (rec as Dictionary)[socket])
@@ -2271,8 +2271,8 @@ func _cell_slots_field(node: Node, node_to_id: Dictionary) -> Dictionary:
 
 ## Hand an object's cells back, whether its slots are built yet or not
 ## (CellSlots.told): seat -> [the cell, its roll in radians].
-func _restore_cell_slots(root: Node, obj: Node, spawned: Dictionary, d: Dictionary) -> void:
-	var rec: Variant = d.get("cell_slots")
+func _restore_cell_slots(root: Node, obj: Node, spawned: Dictionary, entry: Dictionary) -> void:
+	var rec: Variant = entry.get("cell_slots")
 	if not rec is Dictionary:
 		return
 	var saved := {}
@@ -2880,7 +2880,7 @@ func _instantiate_multitap(data: Dictionary) -> Node3D:
 		if inst is RetroMultitap:
 			return inst
 		if inst != null:
-			push_warning("ScenePersistence: '%s' is not a multitap" % path)
+			push_warning("[ScenePersistence] '%s' is not a multitap" % path)
 			inst.queue_free()
 	return RETRO_MULTITAP_SCENE.instantiate() as Node3D
 
@@ -3062,7 +3062,7 @@ static func is_known_controller_scene(path: String) -> bool:
 func _instantiate_controller(data: Dictionary) -> Node3D:
 	var path: String = str(data.get("scene", ""))
 	if not path.is_empty() and not is_known_controller_scene(path):
-		push_warning("ScenePersistence: refusing unlisted pad scene '%s'" % path)
+		push_warning("[ScenePersistence] refusing unlisted pad scene '%s'" % path)
 		path = ""
 	if not path.is_empty() and ResourceLoader.exists(path):
 		var packed := ResourceLoader.load(path) as PackedScene
@@ -3071,7 +3071,7 @@ func _instantiate_controller(data: Dictionary) -> Node3D:
 			if inst is RetroController:
 				return inst
 			if inst != null:
-				push_warning("ScenePersistence: '%s' is not a controller" % path)
+				push_warning("[ScenePersistence] '%s' is not a controller" % path)
 				inst.queue_free()
 	return RETRO_CONTROLLER_SCENE.instantiate() as Node3D
 
@@ -3086,7 +3086,7 @@ func _instantiate_light_gun(data: Dictionary) -> Node3D:
 		if inst is LightGun:
 			return inst
 		if inst != null:
-			push_warning("ScenePersistence: '%s' is not a light gun" % path)
+			push_warning("[ScenePersistence] '%s' is not a light gun" % path)
 			inst.queue_free()
 	return LIGHT_GUN_SCENE.instantiate() as Node3D
 
@@ -3136,7 +3136,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 	elif _LOAD_KINDS.has(obj_type):
 		obj = call(_LOAD_KINDS[obj_type] as StringName, data)
 	else:
-		push_warning("ScenePersistence: unknown object type '%s'" % obj_type)
+		push_warning("[ScenePersistence] unknown object type '%s'" % obj_type)
 		return null
 
 	if not obj:

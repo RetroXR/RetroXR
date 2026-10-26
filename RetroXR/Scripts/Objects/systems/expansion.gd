@@ -116,7 +116,7 @@ func _ready() -> void:
 	super._ready()
 	add_to_group(ExpansionPort.GROUP_EXPANSION)
 	if not ExpansionCatalog.has(expansion_id):
-		push_warning("RetroExpansion: unknown expansion_id '%s'" % expansion_id)
+		push_warning("[RetroExpansion] unknown expansion_id '%s'" % expansion_id)
 		return
 	_init_memory()
 	_build_body()
@@ -355,7 +355,7 @@ const CORE_LED_ACCESS := 0
 
 
 func _watch_access_led(sys: RetroSystem) -> void:
-	if _watched_host != null and is_instance_valid(_watched_host):
+	if is_instance_valid(_watched_host):
 		var old: Libretro = _watched_host.get_libretro_node()
 		if old != null and old.led_state.is_connected(_on_core_led):
 			old.led_state.disconnect(_on_core_led)
@@ -423,7 +423,7 @@ func _build_panel() -> void:
 		return
 	var packed := load(scene_path) as PackedScene
 	if packed == null:
-		push_warning("RetroExpansion: '%s' names a panel that will not load: %s"
+		push_warning("[RetroExpansion] '%s' names a panel that will not load: %s"
 			% [expansion_id, scene_path])
 		return
 	add_child(packed.instantiate())

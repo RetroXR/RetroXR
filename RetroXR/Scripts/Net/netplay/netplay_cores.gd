@@ -312,8 +312,8 @@ const CORES: Dictionary = {
 ## True when this core's rollback is only sound on a build that declares every
 ## option its row pins (a fork's), so the session checks the installed build.
 static func rollback_needs_pins(core_name: String) -> bool:
-	var e: Dictionary = CORES.get(core_name, {})
-	return bool(e.get("rollback_needs_pins", false))
+	var entry: Dictionary = CORES.get(core_name, {})
+	return bool(entry.get("rollback_needs_pins", false))
 
 
 ## True when a cabled group of this core can roll back together rather than
@@ -355,8 +355,8 @@ static var debug_allow_unverified := false
 static func is_capable(core_name: String) -> bool:
 	if debug_allow_unverified and not core_name.is_empty():
 		return true
-	var e: Dictionary = CORES.get(core_name, {})
-	return bool(e.get("verified", false))
+	var entry: Dictionary = CORES.get(core_name, {})
+	return bool(entry.get("verified", false))
 
 
 ## Deterministic core options to force on every peer for this core (may be empty).
@@ -368,8 +368,8 @@ static func is_capable(core_name: String) -> bool:
 ## trusted across architectures only ever plays same-arch, where the shipped
 ## default is the same number on both ends.
 static func forced_options(core_name: String) -> Dictionary:
-	var e: Dictionary = CORES.get(core_name, {})
-	return (e.get("options", {}) as Dictionary).duplicate()
+	var entry: Dictionary = CORES.get(core_name, {})
+	return (entry.get("options", {}) as Dictionary).duplicate()
 
 
 ## Which strategies this core is vetted for, strongest first. Empty when the core
@@ -381,8 +381,8 @@ static func forced_options(core_name: String) -> Dictionary:
 static func strategies_for(core_name: String) -> Array:
 	if not is_capable(core_name):
 		return []
-	var e: Dictionary = CORES.get(core_name, {})
-	var listed: Array = e.get("strategies", [Strategy.LOCKSTEP])
+	var entry: Dictionary = CORES.get(core_name, {})
+	var listed: Array = entry.get("strategies", [Strategy.LOCKSTEP])
 	var out: Array = []
 	for s: int in STRATEGY_ORDER:
 		if listed.has(s):
@@ -419,8 +419,8 @@ static func rollback_capable(core_name: String) -> bool:
 ## a core be measured, and shipping it a state that will not restore measures
 ## nothing. An unlisted core answers false here.
 static func state_transfer_capable(core_name: String) -> bool:
-	var e: Dictionary = CORES.get(core_name, {})
-	return bool(e.get("verified", false)) and bool(e.get("state_transfer", false))
+	var entry: Dictionary = CORES.get(core_name, {})
+	return bool(entry.get("verified", false)) and bool(entry.get("state_transfer", false))
 
 
 ## True when two peers on DIFFERENT CPU architectures may share a session with
@@ -433,8 +433,8 @@ static func state_transfer_capable(core_name: String) -> bool:
 ## different questions. Dolphin is the worked example of why the question exists
 ## at all — it picks its CPU backend from the host architecture.
 static func allows_cross_play(core_name: String) -> bool:
-	var e: Dictionary = CORES.get(core_name, {})
-	return bool(e.get("verified", false)) and bool(e.get("cross_play", false))
+	var entry: Dictionary = CORES.get(core_name, {})
+	return bool(entry.get("verified", false)) and bool(entry.get("cross_play", false))
 
 
 ## Frames between RAM CRC checkpoints for this core.
@@ -443,8 +443,8 @@ static func allows_cross_play(core_name: String) -> bool:
 ## so the cost scales with the machine: free for a 2 KB NES, tens of milliseconds
 ## for a GameCube's 24 MB. A large core buys back the hitch with a longer gap.
 static func crc_interval(core_name: String) -> int:
-	var e: Dictionary = CORES.get(core_name, {})
-	return int(e.get("crc_interval", DEFAULT_CRC_INTERVAL))
+	var entry: Dictionary = CORES.get(core_name, {})
+	return int(entry.get("crc_interval", DEFAULT_CRC_INTERVAL))
 
 
 ## True when this core's desync CRC must come from a SAVESTATE, not live RAM.
@@ -470,8 +470,8 @@ static func crc_interval(core_name: String) -> int:
 ## So the oracle a threaded core needs has to be taken from INSIDE the frame,
 ## not between frames, and that is not something the frontend can reach today.
 static func crc_from_state(core_name: String) -> bool:
-	var e: Dictionary = CORES.get(core_name, {})
-	return bool(e.get("crc_from_state", false))
+	var entry: Dictionary = CORES.get(core_name, {})
+	return bool(entry.get("crc_from_state", false))
 
 
 ## True when this core's saves must be redirected to an empty per-session folder.
@@ -481,8 +481,8 @@ static func crc_from_state(core_name: String) -> bool:
 ## is the case: it returns 0 for SAVE_RAM and keeps GameCube memory cards in a
 ## folder of its own, shared by every game.
 static func uses_scratch_saves(core_name: String) -> bool:
-	var e: Dictionary = CORES.get(core_name, {})
-	return bool(e.get("scratch_saves", false))
+	var entry: Dictionary = CORES.get(core_name, {})
+	return bool(entry.get("scratch_saves", false))
 
 ## Every vetted core covering this system, strongest first.
 ##
@@ -498,8 +498,8 @@ static func cores_for_system(systemid: String) -> Array[String]:
 		return [] as Array[String]
 	var ranked: Array = []
 	for core: String in CORES:
-		var e: Dictionary = CORES[core]
-		if not (e.get("systems", []) as Array).has(systemid):
+		var entry: Dictionary = CORES[core]
+		if not (entry.get("systems", []) as Array).has(systemid):
 			continue
 		var strategy := listed_strategy(core)
 		if strategy < 0:
@@ -534,7 +534,7 @@ static func suggest_substitute(core_name: String, systemid: String) -> String:
 	return ""
 
 
-## Why this core may not hold a session, or "" when it may.
+## Why this core may not hold a session. Returns "" when ok, else the reason.
 ##
 ## is_capable() answers the gate; this answers the player. The two cases read
 ## the same to a bool and want different remedies: an UNLISTED core has never

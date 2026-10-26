@@ -159,7 +159,7 @@ func _ready() -> void:
 		_glb = baked
 	else:
 		if not ResourceLoader.exists(_MODEL_PATH):
-			push_warning("NESModel: %s missing — using placeholder box" % _MODEL_PATH)
+			push_warning("[NESModel] %s missing — using placeholder box" % _MODEL_PATH)
 			var host := get_parent()
 			if host:
 				var body := host.get_node_or_null("SystemBody") as MeshInstance3D
@@ -168,7 +168,7 @@ func _ready() -> void:
 			return
 		var scene := load(_MODEL_PATH) as PackedScene
 		if scene == null:
-			push_warning("NESModel: failed to load %s" % _MODEL_PATH)
+			push_warning("[NESModel] failed to load %s" % _MODEL_PATH)
 			return
 		_glb = scene.instantiate() as Node3D
 		# MUST be "Shell": that is what RetroSystemModel.has_baked_shell() looks
@@ -269,7 +269,7 @@ func _load_variants(prefix: String) -> Array:
 			out.append(frames)
 		i += 1
 	if out.is_empty():
-		push_warning("NESModel: no %s_NN.wav under %s" % [prefix, SFX_DIR])
+		push_warning("[NESModel] no %s_NN.wav under %s" % [prefix, SFX_DIR])
 	return out
 
 

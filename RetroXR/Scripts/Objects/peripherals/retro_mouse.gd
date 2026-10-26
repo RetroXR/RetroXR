@@ -427,8 +427,8 @@ func _animate_buttons(buttons: int) -> void:
 ## a primitive shell just sinks straight in; a shell whose buttons are its whole
 ## front panel has to hinge instead, or the panel would part company with the
 ## body along the hinge line. Overridden per model.
-func _button_pose(e: Dictionary, down: float) -> Transform3D:
-	var rest: Transform3D = e["rest"]
+func _button_pose(entry: Dictionary, down: float) -> Transform3D:
+	var rest: Transform3D = entry["rest"]
 	return Transform3D(rest.basis, rest.origin + Vector3.DOWN * (BUTTON_PRESS * down))
 
 

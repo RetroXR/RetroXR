@@ -12,7 +12,7 @@
 ## else, that it is shaped to take the Game Boy's lead, that the paper on it is as
 ## long as the paper the core fed, that a print is written as the paper it is, and
 ## that netplay and the core list know what the printer is.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const PRINTER_SCENE := "res://Scenes/Objects/peripherals/gb_printer.tscn"
 ## xenu.gbprinter's two collision boxes in the printer's (Y, Z): the body to the
@@ -20,8 +20,6 @@ const PRINTER_SCENE := "res://Scenes/Objects/peripherals/gb_printer.tscn"
 const SHELL_BODY := Rect2(Vector2(-0.02801, -0.0686), Vector2(0.045, 0.1372))
 const SHELL_HUMP := Rect2(Vector2(0.01699, -0.0686), Vector2(0.01102, 0.0468))
 
-var _pass := 0
-var _fail := 0
 
 ## Reference narrow phase: offer every patch in its original order.
 class AllPaperContacts extends GbPaperContacts:
@@ -41,6 +39,9 @@ class AllPaperContacts extends GbPaperContacts:
 
 
 func _ready() -> void:
+	suite_tag = "gb-printer"
+	# Only a failure is printed, as before: the paper groups make hundreds of checks.
+	quiet_passes = true
 	get_tree().create_timer(120.0).timeout.connect(func() -> void:
 		print("[gb-printer] TIMEOUT")
 		get_tree().quit(1))
@@ -48,8 +49,7 @@ func _ready() -> void:
 		_test_paper_contact_index()
 		_test_paper_index_matches_all_contacts()
 		_test_paper_hitch_budget()
-		print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
-		get_tree().quit(1 if _fail > 0 else 0)
+		_finish()
 		return
 	if OS.get_cmdline_user_args().has("--only=thermal"):
 		_test_thermal_ribbon()
@@ -57,13 +57,11 @@ func _ready() -> void:
 		_test_contact_motion_is_not_sleep()
 		_test_released_print_keeps_its_shape()
 		_test_exact_tear_handoff()
-		print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
-		get_tree().quit(1 if _fail > 0 else 0)
+		_finish()
 		return
 	if OS.get_cmdline_user_args().has("--only=drop"):
 		await _test_printout_lands_without_crumpling()
-		print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
-		get_tree().quit(1 if _fail > 0 else 0)
+		_finish()
 		return
 	_test_offered_on_the_game_boy_cards_only()
 	_test_spawns_and_saves_by_its_token()
@@ -109,20 +107,7 @@ func _ready() -> void:
 	_test_bios_extras_row()
 	_test_bios_extras_row_offers_updates()
 	_test_poster_pictures_travel()
-	print("[gb-printer] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
-
-
-func _ok(cond: bool, name: String) -> void:
-	if cond:
-		_pass += 1
-	else:
-		_fail += 1
-		print("[gb-printer] FAIL  %s" % name)
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, "%s (got %s, want %s)" % [name, str(got), str(want)])
+	_finish()
 
 
 ## Within one step of an 8-bit channel: a print is an 8-bit image.

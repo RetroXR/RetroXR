@@ -1,10 +1,8 @@
 ## ByteSize — measuring a byte count, and showing it the one way.
 ##
-## Download sizes, cache budgets, "3.4 MB of 12 MB" on a progress row. MenuStyle
-## already said in as many words that the callers "must agree on the rounding",
-## and then a byte-identical second copy grew in RommDownloader — where a
-## download's progress line is written — so the two could disagree about the
-## same file and nothing would have said so.
+## Download sizes, cache budgets, "3.4 MB of 12 MB" on a progress row. One copy,
+## because the callers must agree on the rounding: the menu and RommDownloader's
+## progress line must not disagree about the same file.
 ##
 ## Neutral rather than on MenuStyle because RommDownloader is a Data class: a
 ## downloader reaching into the spawn menu for a number format is a dependency

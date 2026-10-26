@@ -125,7 +125,7 @@ func _send_key(event: InputEventKey, pressed: bool) -> bool:
 ## Let go of everything still held. Unplugging mid-keystroke otherwise leaves the
 ## core holding it down forever.
 func _release_all() -> void:
-	if _connected_system == null or not is_instance_valid(_connected_system):
+	if not is_instance_valid(_connected_system):
 		_down.clear()
 		return
 	var lib: Libretro = _connected_system.get_libretro_node()

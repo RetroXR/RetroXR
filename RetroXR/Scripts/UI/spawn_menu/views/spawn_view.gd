@@ -1573,7 +1573,7 @@ func _global_result_rows() -> Array[Dictionary]:
 
 
 func _render_global_results() -> void:
-	if _gs_list == null or not is_instance_valid(_gs_list):
+	if not is_instance_valid(_gs_list):
 		return
 	for c in _gs_list.get_children():
 		c.queue_free()
@@ -1593,10 +1593,10 @@ func _render_global_results() -> void:
 		_gs_list.add_child(_make_global_row(rows[i]))
 
 
-func _make_global_row(r: Dictionary) -> Control:
-	var sid: String = r["systemid"]
-	var path: String = r["path"]
-	var label: String = r["label"]
+func _make_global_row(hit: Dictionary) -> Control:
+	var sid: String = hit["systemid"]
+	var path: String = hit["path"]
+	var label: String = hit["label"]
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 
@@ -1615,9 +1615,9 @@ func _make_global_row(r: Dictionary) -> Control:
 			spawn_cartridge_requested.emit(path, label, sid, {}))
 	elif romm_client != null and romm_client.is_reachable():
 		main.tooltip_text = "Download from RomM (%s)" % ByteSize.human(
-			int((r["entry"] as Dictionary).get("fs_size_bytes", 0)))
+			int((hit["entry"] as Dictionary).get("fs_size_bytes", 0)))
 		main.pressed.connect(func() -> void:
-			romm_downloader.enqueue(r["entry"], sid)
+			romm_downloader.enqueue(hit["entry"], sid)
 			show_notice("Downloading %s" % label))
 	else:
 		main.disabled = true
@@ -1627,7 +1627,7 @@ func _make_global_row(r: Dictionary) -> Control:
 	var state := Label.new()
 	state.add_theme_font_size_override("font_size", 16)
 	state.add_theme_color_override("font_color", MenuStyle.COLOR_DESC)
-	state.text = {"both": "Downloaded", "local": "On device", "server": "RomM"}.get(r["source"], "")
+	state.text = {"both": "Downloaded", "local": "On device", "server": "RomM"}.get(hit["source"], "")
 	state.custom_minimum_size = Vector2(110, 0)
 	state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	state.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -1635,11 +1635,11 @@ func _make_global_row(r: Dictionary) -> Control:
 
 	# The system's proper name, and one press to its own page.
 	var sys_btn := Button.new()
-	sys_btn.text = str(r["system_name"])
+	sys_btn.text = str(hit["system_name"])
 	sys_btn.clip_text = true
 	sys_btn.custom_minimum_size = Vector2(230, 68)
 	sys_btn.add_theme_font_size_override("font_size", 18)
-	sys_btn.tooltip_text = "Open %s" % r["system_name"]
+	sys_btn.tooltip_text = "Open %s" % hit["system_name"]
 	sys_btn.pressed.connect(func() -> void: _cartridges_browser.open_system(sid))
 	row.add_child(sys_btn)
 	return row
@@ -1648,7 +1648,7 @@ func _make_global_row(r: Dictionary) -> Control:
 func _on_ereader_cards_warm(systemid: String) -> void:
 	if _romm_detail_systemid != systemid:
 		return
-	if _romm_list == null or not is_instance_valid(_romm_list):
+	if not is_instance_valid(_romm_list):
 		return
 	_invalidate_local_scan(systemid)
 	_rebuild_romm_rows()
@@ -1798,7 +1798,7 @@ func _rebuild_romm_rows() -> void:
 ## Split out of the rebuild so a reachability transition can correct the wording
 ## without rebuilding every row.
 func _romm_update_empty_label() -> void:
-	if _romm_empty_label == null or not is_instance_valid(_romm_empty_label):
+	if not is_instance_valid(_romm_empty_label):
 		return
 	_romm_empty_label.visible = _romm_rows.is_empty()
 	if not _romm_rows.is_empty():
@@ -2067,7 +2067,7 @@ func _romm_refresh_region_options(seen: Dictionary) -> void:
 	if not _romm_region_filter.is_empty() and _romm_region_filter not in names:
 		_romm_region_filter = ""
 
-	if _romm_region_drop == null or not is_instance_valid(_romm_region_drop):
+	if not is_instance_valid(_romm_region_drop):
 		return
 	var opts: Array = [["All regions", ""]]
 	for r: String in names:
@@ -2825,7 +2825,7 @@ func _power_items() -> Array:
 
 ## Re-sort the Power tab after the region changed.
 func refresh_power_tab() -> void:
-	if _power_vbox == null or not is_instance_valid(_power_vbox):
+	if not is_instance_valid(_power_vbox):
 		return
 	_clear_vbox(_power_vbox)
 	for item: Array in _power_items():
@@ -2883,7 +2883,7 @@ func _tv_items() -> Array:
 
 
 func _populate_tvs_tab() -> void:
-	if _tvs_vbox == null or not is_instance_valid(_tvs_vbox):
+	if not is_instance_valid(_tvs_vbox):
 		return
 	_clear_vbox(_tvs_vbox)
 	for item: Array in _tv_items():
@@ -2907,7 +2907,7 @@ func _on_mods_applied() -> void:
 ## follow what is actually paired right now, which is why this tab is rebuilt
 ## rather than authored like the others.
 func _populate_controllers_tab() -> void:
-	if _controllers_vbox == null or not is_instance_valid(_controllers_vbox):
+	if not is_instance_valid(_controllers_vbox):
 		return
 	_clear_vbox(_controllers_vbox)
 	_controllers_vbox.add_child(MenuStyle.spacer(10))

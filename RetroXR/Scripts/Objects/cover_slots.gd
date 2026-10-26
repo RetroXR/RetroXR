@@ -202,7 +202,7 @@ static func seat_new(zone: XRToolsSnapZone, cover: Node3D, from: Variant = null)
 ## restore. False (and nothing done) when either is missing or the slot is already
 ## holding something.
 static func seat_saved(zone: XRToolsSnapZone, cover: Node3D) -> bool:
-	if zone == null or cover == null or not is_instance_valid(cover):
+	if zone == null or not is_instance_valid(cover):
 		return false
 	if zone.has_snapped_object():
 		return false
@@ -235,7 +235,7 @@ func build(socket_id: String, parent: Node3D, seat: Transform3D, size: Vector3) 
 ## The slot over `socket_id`, or null.
 func slot(socket_id: String) -> XRToolsSnapZone:
 	var zone := _slots.get(socket_id) as XRToolsSnapZone
-	return zone if zone != null and is_instance_valid(zone) else null
+	return zone if is_instance_valid(zone) else null
 
 
 ## The sockets with a slot, in the order they were built.

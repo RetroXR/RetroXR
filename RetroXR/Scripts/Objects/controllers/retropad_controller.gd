@@ -62,7 +62,7 @@ func _dpad_pitch_sign() -> float:
 func _add_button(path: String, bit: int, depth: float, dir: Vector3) -> void:
 	var m := get_node_or_null(path) as MeshInstance3D
 	if m == null:
-		push_warning("RetroPadController: control mesh not found: " + path)
+		push_warning("[RetroPadController] control mesh not found: " + path)
 		return
 	_anim.buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth, "dir": dir})
 
@@ -70,6 +70,6 @@ func _add_button(path: String, bit: int, depth: float, dir: Vector3) -> void:
 func _pivoted_control(path: String, drop_dist: float) -> Dictionary:
 	var m := get_node_or_null(path) as MeshInstance3D
 	if m == null:
-		push_warning("RetroPadController: control mesh not found: " + path)
+		push_warning("[RetroPadController] control mesh not found: " + path)
 		return {}
 	return {"node": m, "rest": m.transform, "pivot": m.position - Vector3(0.0, drop_dist, 0.0)}

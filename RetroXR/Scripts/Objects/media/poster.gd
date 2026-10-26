@@ -174,7 +174,7 @@ func _load_image() -> void:
 	if not image_path.is_empty():
 		var img := Image.load_from_file(image_path)
 		if img == null:
-			push_warning("Poster: cannot read image '%s'" % image_path)
+			push_warning("[Poster] cannot read image '%s'" % image_path)
 		else:
 			var cap := MAX_PX_DESKTOP if QualityManager.is_desktop() else MAX_PX_QUEST
 			_fit_within(img, cap)
@@ -514,7 +514,7 @@ func _refresh_outline() -> void:
 	if _outline == null:
 		return
 	var want := _highlight_requested or (freeze and not is_stuck())
-	if outline_drawn_by != null and is_instance_valid(outline_drawn_by):
+	if is_instance_valid(outline_drawn_by):
 		_outline.visible = false
 		outline_drawn_by.call("show_outline", want)
 		return

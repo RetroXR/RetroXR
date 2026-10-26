@@ -23,13 +23,11 @@
 ## nothing binary is committed.
 ##
 ## Exits 0 when everything passes, 1 otherwise, so it can gate a commit.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Cases in this file, NOT counting the guard below.
 const EXPECTED_CASES := 415
 
-var _pass := 0
-var _fail := 0
 var _only := ""
 var _dir := ""
 
@@ -68,9 +66,8 @@ func _ready() -> void:
 	# never prints, leaving a green run that checked less than it claims. Skipped
 	# for a filtered run, where a lower count is the point.
 	if _only.is_empty():
-		_eq(_pass + _fail, EXPECTED_CASES, "suite/every case ran")
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+		_eq(_case_count(), EXPECTED_CASES, "suite/every case ran")
+	_finish()
 
 
 ## Scene restoration seeds parameters before the TV's shell enters the tree.
@@ -945,19 +942,6 @@ func _cleanup() -> void:
 
 
 # ── assertions ────────────────────────────────────────────────────────────────
-
-func _ok(cond: bool, name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [name,
-			"  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 # ── overlay/ ──────────────────────────────────────────────────────────────────

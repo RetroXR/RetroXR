@@ -182,6 +182,15 @@ static func _has_disk_drive(expansions: Array) -> bool:
 	return false
 
 
+## The 64DD is a drive bolted under an N64, and parallel_n64 models it behind an
+## option: with parallel-n64-64dd-hardware disabled there is no drive and a disk
+## has nothing to load into. So this machine pins it on, the way the Virtual Boy
+## pins its stereo split -- it is what makes the hardware that hardware, not a
+## preference.
+##
+## Keyed on the systemid as well as the core, and deliberately not added to
+## CoreOptionsStore.HARDWARE_PINNED: that table is per key, and the same core
+## runs the plain nintendo_64, where the drive really is the player's choice.
 static func disk_drive(core: String, systemid: String, expansions: Array,
 		media_path: String) -> Dictionary:
 	# A 64DD reaches a machine two ways, and the systemid only says one of them.

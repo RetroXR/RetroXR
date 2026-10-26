@@ -51,7 +51,7 @@ func _dpad_pitch_sign() -> float:
 func _add_button(stem: String, bit: int, depth: float) -> void:
 	var m := _find_mesh(stem)
 	if m == null:
-		push_warning("NesController: control mesh not found: " + stem)
+		push_warning("[NesController] control mesh not found: " + stem)
 		return
 	_anim.buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth})
 
@@ -59,7 +59,7 @@ func _add_button(stem: String, bit: int, depth: float) -> void:
 func _rocker(stem: String, drop_dist: float) -> Dictionary:
 	var m := _find_mesh(stem)
 	if m == null:
-		push_warning("NesController: control mesh not found: " + stem)
+		push_warning("[NesController] control mesh not found: " + stem)
 		return {}
 	return {"node": m, "rest": m.transform, "pivot": m.position - Vector3(0.0, drop_dist, 0.0)}
 

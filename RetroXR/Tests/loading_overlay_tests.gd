@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## The shared loading screen: who is waiting, what the bar says, and when the
 ## curtain comes down.
@@ -20,8 +20,6 @@ extends Node
 
 const GROUPS := ["refcount", "aggregate", "status", "failure", "panel", "netplay"]
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 
 
@@ -50,9 +48,7 @@ func _ready() -> void:
 		await _test_netplay()
 	_clear()
 
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
+	_finish()
 
 
 # ── Who is waiting ────────────────────────────────────────────────────────────
@@ -200,7 +196,8 @@ func _test_panel() -> void:
 	_ok(panel.get_node_or_null("Curtain") != null, "panel/has a curtain to occlude with")
 	panel.set_progress(0.5)
 	panel.set_progress(0.2)
-	_ok(true, "panel/a backwards set_progress is ignored rather than throwing")
+	_eq(panel.get_node("Screen/PercentLabel").text, "50%",
+		"panel/a backwards set_progress is ignored: the bar stays at 50%")
 	panel.set_detail(PackedStringArray(["ROW ONE", "ROW TWO"]))
 	_eq(panel.get_node("Screen/DetailLabel").text, "ROW ONE\nROW TWO",
 		"panel/detail rows are shown one per line")
@@ -213,7 +210,8 @@ func _test_panel() -> void:
 	_eq(panel._c_title.text, "SOMEWHERE", "panel/and the same title")
 	panel.show_load_error("BROKEN")
 	panel.set_progress(1.0)
-	_ok(true, "panel/progress after a failure does not clear the failure")
+	_eq(panel.get_node("Screen/PercentLabel").text, "!",
+		"panel/progress after a failure does not clear the failure")
 	_eq(panel._c_title.text, "LOAD FAILED", "panel/a failure is said on the flat screen too")
 
 	# Two panels can be alive at once — the rig's and the overlay's, mid-handoff.
@@ -302,19 +300,6 @@ func _clear() -> void:
 
 func _want(group: String) -> bool:
 	return _only.is_empty() or _only == group
-
-
-func _ok(cond: bool, what: String) -> void:
-	_ran += 1
-	if cond:
-		print("[test] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[test] FAIL %s" % what)
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what if got == want else "%s (got %s, want %s)" % [what, got, want])
 
 
 func _close(got: float, want: float, what: String, tol: float = 0.001) -> void:

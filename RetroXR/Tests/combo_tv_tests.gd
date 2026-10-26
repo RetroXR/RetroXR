@@ -12,7 +12,7 @@
 ##
 ## Exits non-zero if anything fails. How a combination set LOOKS is
 ## Tools/av/combo_tv_probe, windowed.
-extends Node3D
+extends "res://Tests/test_suite.gd"
 
 const TV_SCENE := preload("res://Scenes/Objects/tv.tscn")
 const TAPE_SCENE := preload("res://Scenes/Objects/media/vcr_tape.tscn")
@@ -36,11 +36,13 @@ class StubNM extends Node:
 
 var _case := ""
 var _failed_cases := {}
-var _checks := 0
 var _spawned: Array[Node] = []
 
 
 func _ready() -> void:
+	suite_tag = "combo"
+	# A check prints only when it fails; each CASE prints its PASS below.
+	quiet_passes = true
 	get_tree().create_timer(180.0).timeout.connect(func() -> void:
 		print("[combo] TIMEOUT during '%s'" % _case)
 		get_tree().quit(1))
@@ -83,31 +85,26 @@ func _run() -> void:
 		if not only.is_empty() and not name.contains(only):
 			continue
 		_case = name
-		var before := _checks
+		var before := _case_count()
 		await (c[1] as Callable).call()
 		await _teardown()
-		if _checks == before:
-			_failed_cases[name] = true
-			print("[combo] FAIL  %s\n[combo]         made no assertions — it aborted part way"
-				% name)
+		if _case_count() == before:
+			_ok(false, "%s made no assertions — it aborted part way" % name)
 		elif not _failed_cases.has(name):
 			print("[combo] PASS  %s" % name)
 
 	RetroTV.drop_mod_shells("combo_tv_tests")
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(CROWDED_SHELL))
-	print("[combo] %d checks, %d case(s) failed" % [_checks, _failed_cases.size()])
-	print("[combo] RESULT=%s" % ("FAIL" if _failed_cases.size() > 0 else "PASS"))
-	get_tree().quit(1 if _failed_cases.size() > 0 else 0)
+	print("[combo] %d case(s) failed" % _failed_cases.size())
+	_finish()
 
 
 # ── Checks ────────────────────────────────────────────────────────────────────
 
-func _ok(cond: bool, what: String) -> void:
-	_checks += 1
-	if cond:
-		return
+## TestSuite._ok has printed the check; name the case it was in.
+func _on_fail(_what: String) -> void:
 	_failed_cases[_case] = true
-	print("[combo] FAIL  %s\n[combo]         %s" % [_case, what])
+	print("[combo]         in case %s" % _case)
 
 
 func _check_eq(got: Variant, want: Variant, what: String) -> void:

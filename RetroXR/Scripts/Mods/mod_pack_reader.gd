@@ -98,20 +98,20 @@ func read(res_path: String) -> PackedByteArray:
 		return PackedByteArray()
 	if _is_zip:
 		return _zip.read_file(_as_zip_path(res_path))
-	var e: Dictionary = _entries.get(res_path, {})
-	if e.is_empty():
+	var entry: Dictionary = _entries.get(res_path, {})
+	if entry.is_empty():
 		return PackedByteArray()
 	# A compressed entry is stored as compression blocks rather than as its own
 	# bytes, and unpicking that in GDScript to read a manifest is not worth it.
 	# Reported rather than silently empty so the author is told what to do.
-	if int(e["flags"]) & PACK_FILE_ENCRYPTED:
+	if int(entry["flags"]) & PACK_FILE_ENCRYPTED:
 		push_warning("[mods] '%s' is encrypted in %s" % [res_path, _path])
 		return PackedByteArray()
 	var f := FileAccess.open(_path, FileAccess.READ)
 	if f == null:
 		return PackedByteArray()
-	f.seek(int(e["offset"]))
-	var data := f.get_buffer(int(e["size"]))
+	f.seek(int(entry["offset"]))
+	var data := f.get_buffer(int(entry["size"]))
 	f.close()
 	return data
 

@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## Posters: image loading, the sheet's dimensions, sticking to a surface, riding
 ## the thing it stuck to, and the save/restore round trip.
@@ -20,8 +20,6 @@ const GROUPS := ["image", "stick", "release", "peel", "preview", "desktop", "rol
 const SLOT := "__poster_selftest"
 const TEST_IMAGE := "__poster_selftest.png"
 
-var _fail := 0
-var _ran := 0
 var _only := ""
 var _img_path := ""
 
@@ -67,9 +65,7 @@ func _ready() -> void:
 		await _test_persist()
 
 	_cleanup()
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _fail == 0 else "%d FAILURE(S)" % _fail])
-	get_tree().quit(0 if _fail == 0 else 1)
+	_finish()
 
 
 # ── The image, and the sheet it sizes ─────────────────────────────────────────
@@ -342,19 +338,6 @@ func _cleanup() -> void:
 	var slot := ProjectSettings.globalize_path("user://scenes/arcade/%s.json" % SLOT)
 	if FileAccess.file_exists(slot):
 		DirAccess.remove_absolute(slot)
-
-
-func _ok(cond: bool, what: String) -> void:
-	_ran += 1
-	if cond:
-		print("[test] ok   %s" % what)
-	else:
-		_fail += 1
-		print("[test] FAIL %s" % what)
-
-
-func _eq(got: Variant, want: Variant, what: String) -> void:
-	_ok(got == want, what if got == want else "%s (got %s, want %s)" % [what, got, want])
 
 
 # ── Conforming to a curved surface ────────────────────────────────────────────

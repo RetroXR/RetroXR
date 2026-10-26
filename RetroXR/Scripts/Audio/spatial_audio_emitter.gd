@@ -246,18 +246,6 @@ func _send_gain(g: float) -> void:
 		_mx.set_voice_gain(_voice_r, gr)
 
 
-## Per-channel trim on top of the volume, 0.0 .. 1.0 each.
-##
-## For a source whose two channels can be routed independently — a deck whose left
-## cord is plugged in and whose right is not. The channels are separate VOICES
-## carrying separate sample streams, so silencing one is a gain of zero on it and
-## costs nothing; doing it by editing the samples would mean per-sample GDScript at
-## 48 kHz, which cannot keep a ring fed.
-##
-## Godot's fallback backend has a single player fed interleaved stereo and cannot
-## split them. There, anything above zero on either channel plays both — a
-## half-connected lead is heard in full rather than not at all, which is the less
-## confusing failure.
 ## Which source channel each speaker is fed from: STEREO leaves the pair alone,
 ## MONO_LEFT sends the left channel to both, MONO_RIGHT the right.
 ##
@@ -277,6 +265,18 @@ func get_channel_mode() -> ChannelMode:
 	return _channel_mode
 
 
+## Per-channel trim on top of the volume, 0.0 .. 1.0 each.
+##
+## For a source whose two channels can be routed independently — a deck whose left
+## cord is plugged in and whose right is not. The channels are separate VOICES
+## carrying separate sample streams, so silencing one is a gain of zero on it and
+## costs nothing; doing it by editing the samples would mean per-sample GDScript at
+## 48 kHz, which cannot keep a ring fed.
+##
+## Godot's fallback backend has a single player fed interleaved stereo and cannot
+## split them. There, anything above zero on either channel plays both — a
+## half-connected lead is heard in full rather than not at all, which is the less
+## confusing failure.
 func set_channel_gains(l: float, r: float) -> void:
 	_ch_gain_l = clampf(l, 0.0, 1.0)
 	_ch_gain_r = clampf(r, 0.0, 1.0)

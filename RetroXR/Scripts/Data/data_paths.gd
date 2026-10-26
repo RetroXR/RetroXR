@@ -95,9 +95,9 @@ static func _load_config() -> void:
 	# than stranding the player, but it says so: JsonStore logs it under the tag.
 	var parsed: Variant = JsonStore.parse_dict(_config_file(), "DataPaths")
 	if parsed is Dictionary:
-		var d: Dictionary = parsed
-		_cached_root = normalize(str(d.get("path", "")))
-		_cached_pending_from = normalize(str(d.get("pending_move_from", "")))
+		var cfg: Dictionary = parsed
+		_cached_root = normalize(str(cfg.get("path", "")))
+		_cached_pending_from = normalize(str(cfg.get("pending_move_from", "")))
 
 
 ## Staged and renamed (JsonStore): the file carries pending_move_from, so a
@@ -191,7 +191,7 @@ static func clear_root() -> void:
 		DirAccess.remove_absolute(_config_file())
 
 
-## "" when `path` can serve as the data root, else a sentence saying why.
+## Whether `path` can serve as the data root. Returns "" when ok, else the reason.
 ##
 ## Not a pure check: it CREATES the folder when it is missing, and writes then
 ## deletes a probe file in it to prove it is writable, because that is the only

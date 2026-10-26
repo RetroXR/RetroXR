@@ -115,7 +115,7 @@ func _follow_host() -> void:
 	# nobody can see for every step of the host's tween is pure waste.
 	if not visible:
 		return
-	if _host_curve == null or not is_instance_valid(_host_curve):
+	if not is_instance_valid(_host_curve):
 		position = _flat_at
 		if _curve != null:
 			_curve.set_curved(false, false)

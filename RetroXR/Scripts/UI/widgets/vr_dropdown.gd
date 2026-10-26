@@ -378,7 +378,7 @@ func _ensure_popout() -> DropdownPanel:
 	var host := _host_viewport()
 	if host == null:
 		return null
-	if _popout == null or not is_instance_valid(_popout):
+	if not is_instance_valid(_popout):
 		_popout = DropdownPanel.new()
 		_popout.name = "DropdownPopout"
 		host.add_child(_popout)

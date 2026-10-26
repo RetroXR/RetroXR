@@ -1,4 +1,4 @@
-extends Node
+extends "res://Tests/test_suite.gd"
 
 ## The mains region: MainsRegions' table, the WallOutlet and PowerStrip that follow
 ## it, the AppPrefs setting, and a save restored under another region.
@@ -9,9 +9,6 @@ extends Node
 
 const TEST_REGION := "zz_two_slot"
 const SPECS := preload("res://Tools/gen/mains_specs.gd")
-
-var _failed := 0
-var _ran := 0
 
 
 func _ready() -> void:
@@ -51,9 +48,7 @@ func _ready() -> void:
 	elif FileAccess.file_exists(AppPrefs.PREFS_PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(AppPrefs.PREFS_PATH))
 
-	print("[test] %d cases, %s" % [_ran,
-		"PASS" if _failed == 0 else "%d FAILURE(S)" % _failed])
-	get_tree().quit(0 if _failed == 0 else 1)
+	_finish()
 
 
 ## Every shipped region is whole: a plate that loads, the two named receptacles,
@@ -381,15 +376,3 @@ func _test_prefs() -> void:
 	AppPrefs._load_prefs()
 	_eq(AppPrefs.mains_region, TEST_REGION, "prefs/and loaded back")
 
-
-func _ok(ok: bool, label: String) -> void:
-	_ran += 1
-	if ok:
-		print("[test] ok   %s" % label)
-	else:
-		_failed += 1
-		print("[test] FAIL %s" % label)
-
-
-func _eq(actual: Variant, expected: Variant, label: String) -> void:
-	_ok(actual == expected, "%s (%s == %s)" % [label, actual, expected])

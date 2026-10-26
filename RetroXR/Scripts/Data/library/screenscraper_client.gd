@@ -284,8 +284,8 @@ static func parse_user_info(ssuser: Dictionary) -> Dictionary:
 	return info
 
 
-static func _int_field(d: Dictionary, key: String) -> int:
-	var raw := str(d.get(key, "")).strip_edges()
+static func _int_field(fields: Dictionary, key: String) -> int:
+	var raw := str(fields.get(key, "")).strip_edges()
 	return int(raw) if raw.is_valid_int() else 0
 
 

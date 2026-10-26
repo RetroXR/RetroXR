@@ -261,17 +261,17 @@ func upload_parts(method: int, path: String, headers: PackedStringArray,
 
 	var body := PackedByteArray()
 	for part: Variant in parts:
-		var d := part as Dictionary
+		var row := part as Dictionary
 		body.append_array(("--%s" % boundary).to_utf8_buffer())
 		body.append_array(CRLF)
 		body.append_array(('Content-Disposition: form-data; name="%s"; filename="%s"'
-			% [str(d.get("field", "file")), str(d.get("filename", "file"))]).to_utf8_buffer())
+			% [str(row.get("field", "file")), str(row.get("filename", "file"))]).to_utf8_buffer())
 		body.append_array(CRLF)
 		body.append_array(("Content-Type: %s"
-			% str(d.get("mime", "application/octet-stream"))).to_utf8_buffer())
+			% str(row.get("mime", "application/octet-stream"))).to_utf8_buffer())
 		body.append_array(CRLF)
 		body.append_array(CRLF)
-		body.append_array(d.get("bytes", PackedByteArray()) as PackedByteArray)
+		body.append_array(row.get("bytes", PackedByteArray()) as PackedByteArray)
 		body.append_array(CRLF)
 	body.append_array(("--%s--" % boundary).to_utf8_buffer())
 	body.append_array(CRLF)

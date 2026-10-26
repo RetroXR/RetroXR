@@ -32,7 +32,7 @@ var _info_px := 0.0
 ## that cannot be locked gets an empty menu, which is still an honest answer to
 ## "what are this thing's options".
 static func toggle_for(obj: Node3D, camera: Node3D) -> void:
-	if obj == null or not is_instance_valid(obj):
+	if not is_instance_valid(obj):
 		return
 	var panel := obj.get_node_or_null(NODE_NAME) as ObjectOptionsPanel
 	if panel == null:
@@ -54,7 +54,7 @@ func show_for(obj: Node3D, camera: Node3D) -> void:
 
 
 func _anchor() -> Vector3:
-	if _object == null or not is_instance_valid(_object):
+	if not is_instance_valid(_object):
 		return global_position
 	return _object.global_position + Vector3(0, _top_offset() + CLEARANCE + _tuning_lift(), 0)
 
@@ -116,7 +116,7 @@ func _populate() -> void:
 ## A choice pressed on the page, handed to the object (`options_choose(row,
 ## item)`); the page shows its answer on the next frame's _refresh_info.
 func _on_choice_made(row: int, item: int) -> void:
-	if _object != null and is_instance_valid(_object) and _object.has_method("options_choose"):
+	if is_instance_valid(_object) and _object.has_method("options_choose"):
 		_object.call("options_choose", row, item)
 
 
@@ -136,7 +136,7 @@ func _refresh_info() -> void:
 	if vp == null or vp.get_child_count() == 0:
 		return
 	var ui := vp.get_child(0) as ObjectOptions2D
-	if ui == null or _object == null or not is_instance_valid(_object):
+	if ui == null or not is_instance_valid(_object):
 		return
 	var rows: Array = []
 	if _object.has_method("options_info"):

@@ -105,7 +105,8 @@ static func is_xbox_core(core: String) -> bool:
 
 # --- One at a time ------------------------------------------------------------
 
-## Why this machine may not start, or "": another Xbox is running.
+## Whether this machine may start. Returns "" when ok, else the reason: another
+## Xbox is running.
 func busy_elsewhere(core: String) -> String:
 	if not is_xbox_core(core) or not is_instance_valid(_host):
 		return ""

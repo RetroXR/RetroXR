@@ -15,12 +15,10 @@
 ## the menu's Control tree (_rebuild_romm_rows, which is the merge this most
 ## wants to test — it reads a dozen view members and cannot be called without a
 ## built view). Extracting that merge into a pure function is the next step.
-extends Node
+extends "res://Tests/test_suite.gd"
 
 const TEST_SYSTEM := "__romm_selftest"
 
-var _pass := 0
-var _fail := 0
 ## The player's romm_sync.json as it was before this run touched it.
 var _ledger_before := ""
 
@@ -95,8 +93,7 @@ func _ready() -> void:
 
 	_restore_ledger()
 
-	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
-	get_tree().quit(1 if _fail > 0 else 0)
+	_finish()
 
 
 ## Put the player's sync ledger back byte for byte, including deleting one this
@@ -113,19 +110,6 @@ func _restore_ledger() -> void:
 		return
 	f.store_string(_ledger_before)
 	f.close()
-
-
-func _ok(cond: bool, name: String, detail: String = "") -> void:
-	if cond:
-		_pass += 1
-		print("[test] PASS  %s" % name)
-	else:
-		_fail += 1
-		print("[test] FAIL  %s%s" % [name, "  — " + detail if not detail.is_empty() else ""])
-
-
-func _eq(got: Variant, want: Variant, name: String) -> void:
-	_ok(got == want, name, "got %s, want %s" % [str(got), str(want)])
 
 
 ## Indexing an array that came out shorter than expected is a hard error, which
@@ -2686,7 +2670,6 @@ func _test_launch_path() -> void:
 
 	DirAccess.remove_absolute(dir.path_join(real))
 	DirAccess.remove_absolute(dir)
-
 
 
 ## ── hasher/ ─────────────────────────────────────────────────────────────

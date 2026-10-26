@@ -199,7 +199,7 @@ func _ready() -> void:
 func ensure_directories() -> void:
 	var err := DirAccess.make_dir_recursive_absolute(default_cores_dir())
 	if err != OK and err != ERR_ALREADY_EXISTS:
-		push_error("CoreDownloadManager: failed to create cores dir '%s' (err %d)" % [default_cores_dir(), err])
+		push_error("[CoreDownloadManager] failed to create cores dir '%s' (err %d)" % [default_cores_dir(), err])
 
 
 # ---------------------------------------------------------------------------
@@ -223,7 +223,7 @@ func fetch_available_cores(callback: Callable) -> void:
 	)
 	var err := _listing_request.request(_buildbot_url())
 	if err != OK:
-		push_error("CoreDownloadManager: failed to start listing request (err %d)" % err)
+		push_error("[CoreDownloadManager] failed to start listing request (err %d)" % err)
 		callback.call([])
 
 
@@ -234,7 +234,7 @@ func _on_listing_completed(result: int, response_code: int,
 		_listing_request = null
 
 	if result != HTTPRequest.RESULT_SUCCESS or response_code != 200:
-		push_error("CoreDownloadManager: listing fetch failed result=%d code=%d" % [result, response_code])
+		push_error("[CoreDownloadManager] listing fetch failed result=%d code=%d" % [result, response_code])
 		callback.call([])
 		return
 
@@ -350,7 +350,7 @@ func _probe_own_versions(done: Callable) -> void:
 					print("[CoreDownloadManager] %s: no release yet — built from %s"
 						% [core_name, CoreSources.source_url(core_name)])
 				else:
-					push_warning("CoreDownloadManager: version probe for '%s' failed (result %d, HTTP %d) — using %s"
+					push_warning("[CoreDownloadManager] version probe for '%s' failed (result %d, HTTP %d) — using %s"
 						% [core_name, result, code, CoreSources.version_of(core_name)])
 				settle.call())
 		# GitHub rejects API requests with no User-Agent.
@@ -359,7 +359,7 @@ func _probe_own_versions(done: Callable) -> void:
 			"Accept: application/vnd.github+json",
 		]))
 		if err != OK:
-			push_warning("CoreDownloadManager: could not start version probe for '%s' (err %d)"
+			push_warning("[CoreDownloadManager] could not start version probe for '%s' (err %d)"
 				% [core_name, err])
 			settle.call()
 
@@ -652,7 +652,7 @@ func _start_download_attempt(core_name: String) -> void:
 	var base := CoreSources.base_url(core_name) if CoreSources.has(core_name) else _buildbot_url()
 	var err := http.request(base + zip_filename)
 	if err != OK:
-		push_error("CoreDownloadManager: failed to start download of '%s' (err %d)" % [core_name, err])
+		push_error("[CoreDownloadManager] failed to start download of '%s' (err %d)" % [core_name, err])
 		_finish(core_name, false, "Could not start the request (err %d)" % err)
 
 
