@@ -284,18 +284,45 @@ static func ensure_card(family: String, card_id: String) -> String:
 		return path
 	var fmt := CardFormats.for_family(family)
 	if fmt == null:
+		push_warning("[SramPaths] no card format for family '%s'; %s not created" % [family, path])
 		return ""
 	DirAccess.make_dir_recursive_absolute(cards_dir(family))
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
+	if not AtomicFile.write_bytes(path, fmt.blank_image(), "SramPaths"):
 		# "" and not the path: a caller that is handed a path treats the card as
 		# present and formatted, and this one does not exist. Both callers
 		# already read "" as "no card", which is what this is.
 		push_error("[SramPaths] cannot create memory card %s" % path)
 		return ""
-	f.store_buffer(fmt.blank_image())
-	f.close()
 	return path
+
+
+## Move each of `sources` into `legacy_dir`, never over a file already there: a
+## taken name gets " 2", " 3", ... before its extension. Returns where each one
+## went; a move that fails is logged under `owner` and the file left in place.
+##
+## The backup-memory storages (SaturnStorage, SegaCdStorage, ThreeDoStorage) each
+## set the core's files no manifest claims aside like this, and had each written
+## the loop out. Only the move is shared: what each one reads back out of legacy/
+## (its adopt_legacy) differs on purpose.
+static func move_to_legacy(sources: Array[String], legacy_dir: String,
+		owner: String) -> Array[String]:
+	var moved: Array[String] = []
+	for src: String in sources:
+		DirAccess.make_dir_recursive_absolute(legacy_dir)
+		var file_name := src.get_file()
+		var dst := legacy_dir.path_join(file_name)
+		var n := 2
+		while FileAccess.file_exists(dst):
+			dst = legacy_dir.path_join("%s %d.%s"
+				% [file_name.get_basename(), n, file_name.get_extension()])
+			n += 1
+		var err := DirAccess.rename_absolute(src, dst)
+		if err == OK:
+			moved.append(dst)
+		else:
+			push_warning("%s cannot set %s aside as %s (error %d)"
+				% [AtomicFile.tag(owner), src, dst, err])
+	return moved
 
 
 ## Resolve the default core for a cartridge's systemid ("" when unknown).

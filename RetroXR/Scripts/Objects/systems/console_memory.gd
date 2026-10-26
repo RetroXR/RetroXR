@@ -75,12 +75,9 @@ func ensure_image(core: String, systemid: String) -> String:
 		if system_dir != SramPaths.core_save_dir(core):
 			image = adopt_disc_saves(SramPaths.core_save_dir(core), image)
 	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
+	if not AtomicFile.write_bytes(path, image, "ConsoleMemory"):
 		push_error("[ConsoleMemory] cannot create %s" % path)
 		return ""
-	f.store_buffer(image)
-	f.close()
 	return path
 
 

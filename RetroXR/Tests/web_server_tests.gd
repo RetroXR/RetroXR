@@ -263,6 +263,13 @@ func _test_auth_hardening() -> void:
 	_srv._prune_sessions()
 	_ok(not _srv._sessions.has("stale"), "auth/pruning drops an expired session")
 	_ok(_srv._sessions.has(live), "auth/and keeps a live one")
+	# An empty PIN fails CLOSED. It once meant "authentication off", so an owner
+	# that forgot to set it served list/download/delete/upload to the whole LAN.
+	_srv.pin = ""
+	_ok(not _srv._is_authed(cookie.call(live)),
+		"auth/an empty pin authorises nothing, even a live session")
+	_ok(not _srv.start(), "auth/an empty pin refuses to start the server")
+	_ok(not _srv._running, "auth/and leaves it stopped")
 	_srv._sessions.clear()
 	_srv.pin = saved_pin
 

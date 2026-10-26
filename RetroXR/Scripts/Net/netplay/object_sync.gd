@@ -981,7 +981,7 @@ func _release(net_id: int, pos: Vector3, quat: Quaternion, lin: Vector3, ang: Ve
 ## Called (via the NetworkManager facade) from state-transition hooks.
 ## Which node arguments each event kind cannot be applied without.
 ##
-## Taken from _apply_event's own _valid() guards. Those guards run on the
+## Taken from _apply_event's own _nodes_alive() guards. Those guards run on the
 ## RECEIVING peer, where a missing key is silently indistinguishable from a node
 ## that legitimately went away — the event is dropped and nobody is told. Checked
 ## here as well, on the sending side, the same mistake fails in the caller's own
@@ -1057,7 +1057,7 @@ func report_event(kind: NetEvents.Event, args: Dictionary) -> void:
 
 ## How many events this peer refused to send for want of a required node.
 ##
-## The refusal is otherwise invisible: the receiving _valid() guard would have
+## The refusal is otherwise invisible: the receiving _nodes_alive() guard would have
 ## dropped the same event anyway, so nothing downstream changes and a test
 ## watching the far side cannot tell the two cases apart. Counted so it can be.
 var events_refused: int = 0
@@ -1103,9 +1103,9 @@ func _event_apply(kind: NetEvents.Event, wire: Dictionary) -> void:
 func _update_port_owner(kind: NetEvents.Event, args: Dictionary, peer_id: int) -> void:
 	if not _nm.is_host():
 		return
-	if kind == NetEvents.Event.EV_PORT_PLUG and _valid(args, ["sys", "ctrl"]):
+	if kind == NetEvents.Event.EV_PORT_PLUG and _nodes_alive(args, ["sys", "ctrl"]):
 		_nm.netplay_handoff_port(args["sys"], int(args.get("port", 0)), peer_id)
-	elif kind == NetEvents.Event.EV_PORT_UNPLUG and _valid(args, ["sys"]):
+	elif kind == NetEvents.Event.EV_PORT_UNPLUG and _nodes_alive(args, ["sys"]):
 		_nm.netplay_handoff_port(args["sys"], int(args.get("port", 0)), 0)
 
 
@@ -1117,20 +1117,22 @@ func _apply_event(kind: NetEvents.Event, wire: Dictionary) -> void:
 ## suppressed like the rest: see that method for why the hole has to be there.
 ##
 ## Where an arm still probes with has_method() it is because the receiver really
-## is heterogeneous, and the probe is the dispatch: `sys` is a bare test double
-## in several object_sync_tests cases, `book` and the file-backed objects span
-## five unrelated classes plus whatever a mod ships, and for those the status
-## line is an optional nicety that a plain node is right to not have. An arm
-## whose receiver is known — the TV, and NetworkManager itself — calls straight
-## through, because a missing method there is a bug that should be a loud crash
-## rather than a room that silently stops responding to one control.
+## is heterogeneous, and the probe is the dispatch: a TV lead's `owner` is a
+## console or a deck, `book` and the file-backed objects span five unrelated
+## classes plus whatever a mod ships, and for those the status line is an
+## optional nicety that a plain node is right to not have. An arm whose receiver
+## is known — `sys` (only a RetroSystem reports one, and object_sync_tests'
+## stand-in carries every method an arm calls), the TV, and NetworkManager
+## itself — calls straight through, because a missing method there is a bug that
+## should be a loud crash rather than a room that silently stops responding to
+## one control.
 func _dispatch_event(kind: NetEvents.Event, a: Dictionary) -> void:
-	# Every arm below used to repeat its own _valid(a, [...]) list, and those 44
+	# Every arm below used to repeat its own _nodes_alive(a, [...]) list, and those 44
 	# lists were a second copy of EV_NODE_KEYS -- the same contract written twice,
 	# agreeing only for as long as both were edited together. The table is the one
 	# the SEND side already checks in _has_required_nodes, so it is now the only
 	# place a new event declares which nodes it needs.
-	if not _valid(a, EV_NODE_KEYS.get(kind, [])):
+	if not _nodes_alive(a, EV_NODE_KEYS.get(kind, [])):
 		return
 	match kind:
 		NetEvents.Event.EV_CART_INSERT:
@@ -1179,12 +1181,11 @@ func _dispatch_event(kind: NetEvents.Event, a: Dictionary) -> void:
 			if _nm.is_host():
 				_unsuppressed(a["sys"].toggle_power)
 		NetEvents.Event.EV_SYS_POWER_STATE:
-			if a["sys"].has_method("net_set_remote_power"):
-				a["sys"].net_set_remote_power(bool(a.get("on", false)))
+			a["sys"].net_set_remote_power(bool(a.get("on", false)))
 		NetEvents.Event.EV_SYS_RESET:
 			# Like power intent, reset is host-authoritative. RetroSystem.reset()
 			# frame-schedules the actual core reset when lockstep is active.
-			if _nm.is_host() and a["sys"].has_method("reset"):
+			if _nm.is_host():
 				_unsuppressed(a["sys"].reset)
 		NetEvents.Event.EV_TV_POWER:
 			a["tv"].remote_power_toggle()
@@ -1248,8 +1249,7 @@ func _dispatch_event(kind: NetEvents.Event, a: Dictionary) -> void:
 		NetEvents.Event.EV_MEMCARD_REMOVE:
 			a["sys"].net_release_memory_card(_memcard_slot_of(a))
 		NetEvents.Event.EV_TRAY:
-			if a["sys"].has_method("net_set_tray_open"):
-				a["sys"].net_set_tray_open(bool(a.get("open", false)))
+			a["sys"].net_set_tray_open(bool(a.get("open", false)))
 		NetEvents.Event.EV_DISK_OP:
 			# Client disc-swap intent — the host frame-schedules it for all
 			# peers through the netplay session (system.gd _request_disk_op).
@@ -1337,9 +1337,11 @@ func _memcard_slot_of(a: Dictionary) -> int:
 	return clampi(int(a.get("slot", 0)), 0, RetroSystem.MEMCARD_SLOT_NODES.size() - 1)
 
 
-func _valid(a: Dictionary, keys: Array) -> bool:
+## Every node `args` names under `keys` is still a live instance -- what each
+## event kind lists in EV_NODE_KEYS, checked before an arm touches any of them.
+func _nodes_alive(args: Dictionary, keys: Array) -> bool:
 	for k: String in keys:
-		if not is_instance_valid(a.get(k)):
+		if not is_instance_valid(args.get(k)):
 			return false
 	return true
 
@@ -1720,7 +1722,7 @@ func _is_file_set(d: Dictionary, path: String) -> bool:
 
 
 ## The files of a set, in the order they play.
-static func _set_files(album: String, kind: String) -> PackedStringArray:
+static func _file_set_members(album: String, kind: String) -> PackedStringArray:
 	return RomLibrary.music_tracks(album) if kind == "music" else RomLibrary.video_recordings(album)
 
 
@@ -1729,7 +1731,7 @@ static func _set_files(album: String, kind: String) -> PackedStringArray:
 ## allow_hash=true hashes every track (blocking — run on a worker thread).
 func _music_manifest_of(album: String, kind: String, allow_hash: bool) -> Array:
 	var out: Array = []
-	for tp: String in _set_files(album, kind):
+	for tp: String in _file_set_members(album, kind):
 		var md5 := NetFileTransfer.cached_hash_of(tp)
 		if md5.is_empty():
 			if not allow_hash:
@@ -1745,7 +1747,7 @@ func _music_manifest_of(album: String, kind: String, allow_hash: bool) -> Array:
 ## guarded for worker threads), at its real path: a playlist's entries need not
 ## be inside its folder, or any one folder.
 func _register_album_serve(album: String, kind: String) -> void:
-	for tp: String in _set_files(album, kind):
+	for tp: String in _file_set_members(album, kind):
 		var md5 := NetFileTransfer.cached_hash_of(tp)
 		if not md5.is_empty():
 			_nm.file_transfer().serve_register(md5, tp)
@@ -1788,7 +1790,7 @@ func _start_album_fetch(node: Node, album_name: String, tracks: Array) -> void:
 		and str((tracks[0] as Dictionary).get("name", "")) == album_name
 	var dir := ""
 	if not single:
-		dir = (ALBUM_CACHE_DIR if kind == "music" else TAPE_CACHE_DIR).path_join(_set_dir_name(album_name))
+		dir = (ALBUM_CACHE_DIR if kind == "music" else TAPE_CACHE_DIR).path_join(_file_set_dir_name(album_name))
 		DirAccess.make_dir_recursive_absolute(dir)
 	# Where each entry lands, in play order. Names come from the host, so they are
 	# cut to a bare file name; two different files of one name (a playlist can
@@ -1825,7 +1827,7 @@ func _start_album_fetch(node: Node, album_name: String, tracks: Array) -> void:
 ## A host's set name, made safe to be one folder under the cache: a bare name,
 ## and a playlist's without its extension (a folder called "Mix.m3u" reads as a
 ## playlist FILE to anything that goes by the name).
-static func _set_dir_name(album_name: String) -> String:
+static func _file_set_dir_name(album_name: String) -> String:
 	var dir_name := album_name.get_file()
 	if RomLibrary.is_playlist(dir_name):
 		dir_name = dir_name.get_basename()

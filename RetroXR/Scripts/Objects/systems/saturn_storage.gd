@@ -135,10 +135,12 @@ func stage_before_start(dir: String, core: String) -> void:
 	if not _write(file, bytes):
 		return
 	_staged = {"file": file, "image": image, "card_id": cart.card_id, "bytes": bytes}
-	var f := FileAccess.open(_save_dir.path_join(MANIFEST), FileAccess.WRITE)
-	if f != null:
-		f.store_string(JSON.stringify({"file": file, "image": image, "card_id": cart.card_id}))
-		f.close()
+	# The run goes ahead without it, but a crash before the drain would then have
+	# no way home for the cartridge's saves, so it is said out loud.
+	if not JsonStore.write_text(_save_dir.path_join(MANIFEST),
+			JSON.stringify({"file": file, "image": image, "card_id": cart.card_id}),
+			"SaturnStorage"):
+		push_error("[SaturnStorage] no crash-recovery manifest for %s this run" % image)
 	_start_timer()
 
 
@@ -220,10 +222,10 @@ static func recover(save_dir: String) -> bool:
 	if not FileAccess.file_exists(manifest):
 		return false
 	var restored := false
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(manifest))
-	if parsed is Dictionary:
-		var file := str((parsed as Dictionary).get("file", ""))
-		var image := str((parsed as Dictionary).get("image", ""))
+	var parsed := JsonStore.read_dict(manifest, "SaturnStorage")
+	if not parsed.is_empty():
+		var file := str(parsed.get("file", ""))
+		var image := str(parsed.get("image", ""))
 		var data := FileAccess.get_file_as_bytes(file)
 		if SaturnBram.is_card_image(data) and not image.is_empty() \
 				and FileAccess.get_file_as_bytes(image) != data:
@@ -238,20 +240,11 @@ static func recover(save_dir: String) -> bool:
 ## Move the core's cartridge files no manifest claimed into legacy/, never over an
 ## earlier copy. Returns where each one went.
 static func set_aside_unclaimed(save_dir: String) -> Array[String]:
-	var moved: Array[String] = []
-	var legacy := save_dir.path_join(LEGACY_DIR)
+	var found: Array[String] = []
 	for file_name: String in DirAccess.get_files_at(save_dir):
-		if file_name.get_extension().to_lower() != "bcr":
-			continue
-		DirAccess.make_dir_recursive_absolute(legacy)
-		var dst := legacy.path_join(file_name)
-		var n := 2
-		while FileAccess.file_exists(dst):
-			dst = legacy.path_join("%s %d.bcr" % [file_name.get_basename(), n])
-			n += 1
-		if DirAccess.rename_absolute(save_dir.path_join(file_name), dst) == OK:
-			moved.append(dst)
-	return moved
+		if file_name.get_extension().to_lower() == "bcr":
+			found.append(save_dir.path_join(file_name))
+	return SramPaths.move_to_legacy(found, save_dir.path_join(LEGACY_DIR), "SaturnStorage")
 
 
 ## A new cartridge's image, from every unclaimed cartridge file holding saves,
@@ -281,11 +274,7 @@ static func adopt_legacy(save_dir: String) -> PackedByteArray:
 	return image
 
 
+## Staged and renamed, so a kill mid-write leaves the cartridge's old image rather than half
+## of a new one. AtomicFile logs the failure with the path.
 static func _write(path: String, data: PackedByteArray) -> bool:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		push_warning("[SaturnStorage] cannot write %s" % path)
-		return false
-	f.store_buffer(data)
-	f.close()
-	return true
+	return AtomicFile.write_bytes(path, data, "SaturnStorage")

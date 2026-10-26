@@ -136,15 +136,17 @@ static func in_use_reason(tree: SceneTree, card_id: String) -> String:
 static func write_card(tree: SceneTree, fmt: CardFormat, path: String,
 		card_id: String, data: PackedByteArray) -> bool:
 	if fmt == null or not fmt.is_card_image(data):
+		push_warning("[CardSaveOps] refusing to write %s: not a card image of its format" % path)
 		return false
 	for s: Dictionary in fmt.list_saves(data, false):
 		if fmt.extract_save(data, int(s["block"])).is_empty():
+			push_warning("[CardSaveOps] refusing to write %s: save at block %d does not read back"
+				% [path, int(s["block"])])
 			return false
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
+	# Staged and renamed: written in place, a kill mid-write takes every save on
+	# the card with it. A failure is logged there and leaves the old image.
+	if not AtomicFile.write_bytes(path, data, "CardSaveOps"):
 		return false
-	f.store_buffer(data)
-	f.close()
 	# The console holding this card is now looking at a stale image.
 	refresh_holder(tree, card_id)
 	return true

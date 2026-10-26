@@ -121,7 +121,7 @@ var _needed_for: Dictionary = {}
 ## cancel is not news (one toast for the mod, not one per thing it brought).
 var _quiet_cancel: Dictionary = {}
 ## Bumped when consent is withdrawn. A mod.io answer that set off before that
-## (a press's get_mod, what a mod needs, Update all) is dropped when it lands.
+## (a press's fetch_mod, what a mod needs, Update all) is dropped when it lands.
 var _consent_serial := 0
 ## Mods installed from the browser this session that landed switched off: the
 ## apply bar offers to switch them on and load them (switched_off_new).
@@ -274,7 +274,7 @@ func _ask_terms() -> void:
 	_terms_asking = true
 	_terms_error = ""
 	_apply_consent()
-	client.get_terms(func(ok: bool, terms: Dictionary, error: String) -> void:
+	client.fetch_terms(func(ok: bool, terms: Dictionary, error: String) -> void:
 		_terms_asking = false
 		if ok:
 			_terms = terms
@@ -289,7 +289,7 @@ func _recheck_terms() -> void:
 	if _terms_rechecked or client == null:
 		return
 	_terms_rechecked = true
-	client.get_terms(func(ok: bool, terms: Dictionary, _error: String) -> void:
+	client.fetch_terms(func(ok: bool, terms: Dictionary, _error: String) -> void:
 		if ok and client.consent.terms_changed(str(terms["text"])):
 			_terms = terms
 			var waiting := reviews.keys().size()
@@ -925,7 +925,7 @@ func _download(mod: Dictionary) -> void:
 	var serial := _consent_serial
 	# Asked again rather than taken from the listing: mod.io signs a download
 	# address and lets it expire, and the page may have been open for a while.
-	client.get_mod(mod_id, func(ok: bool, fresh: Dictionary, error: String) -> void:
+	client.fetch_mod(mod_id, func(ok: bool, fresh: Dictionary, error: String) -> void:
 		if serial != _consent_serial:
 			notify_clear(_toast_key(key))
 			return
@@ -1146,7 +1146,7 @@ func session_versions(ids: Array[int], on_done: Callable) -> void:
 		on_done.call(false, {}, "mod.io's terms are not agreed yet")
 		return
 	var serial := _consent_serial
-	client.get_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+	client.fetch_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
 		if serial != _consent_serial:
 			on_done.call(false, {}, "mod.io consent was withdrawn")
 			return
@@ -1173,7 +1173,7 @@ func fetch_for_session(wanted: Dictionary) -> void:
 	notify(SESSION_KEY, "⏳", "Asking mod.io for the host's %d mod%s…" % [
 		ids.size(), "" if ids.size() == 1 else "s"])
 	var serial := _consent_serial
-	client.get_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+	client.fetch_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
 		if serial != _consent_serial:
 			notify_clear(SESSION_KEY)
 			return
@@ -1200,10 +1200,10 @@ func fetch_for_session(wanted: Dictionary) -> void:
 # ── Update all ────────────────────────────────────────────────────────────────
 
 ## Every installed mod that came from mod.io, asked about in ONE request
-## (ModioClient.get_mods), and each whose file mod.io has changed downloaded at
+## (ModioClient.fetch_mods), and each whose file mod.io has changed downloaded at
 ## once, as its tile's Update would. Each still waits for its own review. Mods
 ## with an update already staged, coming down or waiting are left out. It asked
-## get_mod for each mod in turn once, which took a request's round trip per mod
+## fetch_mod for each mod in turn once, which took a request's round trip per mod
 ## before the first download began.
 func update_all() -> void:
 	if client == null or downloader == null or _checking_updates:
@@ -1217,7 +1217,7 @@ func update_all() -> void:
 	notify(UPDATE_ALL_KEY, "⏳", "Checking %d mod%s for updates…" % [
 		ids.size(), "" if ids.size() == 1 else "s"])
 	var serial := _consent_serial
-	client.get_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
+	client.fetch_mods(ids, func(ok: bool, mods: Array[Dictionary], error: String) -> void:
 		if serial != _consent_serial:
 			notify_clear(UPDATE_ALL_KEY)
 			return

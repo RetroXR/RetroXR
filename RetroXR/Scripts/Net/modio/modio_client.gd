@@ -88,15 +88,15 @@ func list_mods(search: String, sort: String, offset: int, callback: Callable,
 
 ## Many mods at once, by mod.io id: one request for up to MEMBER_PAGE of them
 ## (`id-in`), a page at a time beyond that. A listing fetched this moment has
-## download addresses as fresh as get_mod's, so Update all asks this once rather
-## than get_mod for every installed mod. An id mod.io does not return (removed,
+## download addresses as fresh as fetch_mod's, so Update all asks this once rather
+## than fetch_mod for every installed mod. An id mod.io does not return (removed,
 ## hidden) is simply missing from `mods`.
 ## callback(ok: bool, mods: Array[Dictionary], error: String)
-func get_mods(ids: Array[int], callback: Callable) -> void:
-	_get_mods_from(ids, 0, _no_rows(), callback)
+func fetch_mods(ids: Array[int], callback: Callable) -> void:
+	_fetch_mods_from(ids, 0, _no_rows(), callback)
 
 
-func _get_mods_from(ids: Array[int], start: int, so_far: Array[Dictionary], callback: Callable) -> void:
+func _fetch_mods_from(ids: Array[int], start: int, so_far: Array[Dictionary], callback: Callable) -> void:
 	if start >= ids.size():
 		callback.call(true, so_far, "")
 		return
@@ -113,7 +113,7 @@ func _get_mods_from(ids: Array[int], start: int, so_far: Array[Dictionary], call
 						var mod := parse_mod(row)
 						if int(mod["id"]) > 0:
 							so_far.append(mod)
-			_get_mods_from(ids, start + MEMBER_PAGE, so_far, callback))
+			_fetch_mods_from(ids, start + MEMBER_PAGE, so_far, callback))
 
 
 static func mods_by_id_path(ids: Array, key: String = API_KEY) -> String:
@@ -128,7 +128,7 @@ static func mods_by_id_path(ids: Array, key: String = API_KEY) -> String:
 ## address and lets it expire, so the one in a listing fetched a while ago may
 ## already be dead.
 ## callback(ok: bool, mod: Dictionary, error: String)
-func get_mod(mod_id: int, callback: Callable) -> void:
+func fetch_mod(mod_id: int, callback: Callable) -> void:
 	_fetch_json("/games/%d/mods/%d?api_key=%s" % [GAME_ID, mod_id, api_key],
 		func(ok: bool, data: Variant, error: String) -> void:
 			if not ok or not (data is Dictionary):
@@ -138,7 +138,7 @@ func get_mod(mod_id: int, callback: Callable) -> void:
 
 
 ## Every mod `mod_id` needs, all the way down (mod.io's `recursive`), each as
-## parse_mod returns it -- with a download address as fresh as get_mod's. mod.io
+## parse_mod returns it -- with a download address as fresh as fetch_mod's. mod.io
 ## lists them whatever their state, so each is still held to scan_problem.
 ## callback(ok: bool, mods: Array[Dictionary], error: String)
 func list_dependencies(mod_id: int, callback: Callable) -> void:
@@ -213,7 +213,7 @@ static func parse_tags(groups: Variant) -> PackedStringArray:
 ## mod.io's own consent text, buttons and links: the one request allowed before
 ## the player has agreed, because it is what they are agreeing to.
 ## callback(ok: bool, terms: Dictionary, error: String) -- see parse_terms.
-func get_terms(callback: Callable) -> void:
+func fetch_terms(callback: Callable) -> void:
 	_fetch_json("/authenticate/terms?api_key=%s" % api_key,
 		func(ok: bool, data: Variant, error: String) -> void:
 			if not ok or not (data is Dictionary):

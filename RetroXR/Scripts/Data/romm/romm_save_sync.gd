@@ -731,10 +731,10 @@ func _push(http: RommHttp, headers: PackedStringArray, job: Dictionary,
 	var filename := "%s.%s" % [str(job["slot"]), str(job.get("ext", "srm"))]
 	var out: Dictionary
 	if int(mine.get("id", 0)) > 0:
-		out = RommSaves.update(http, headers, int(mine["id"]), filename, bytes)
+		out = RommSaves.update(http, headers, int(mine["id"]), filename, bytes, _aborting)
 	else:
 		out = RommSaves.create(http, headers, int(job["rom_id"]),
-			str(job["core"]), str(job["slot"]), filename, bytes)
+			str(job["core"]), str(job["slot"]), filename, bytes, _aborting)
 	if not bool(out["ok"]):
 		return {"ok": false, "error": str(out["error"])}
 
@@ -753,22 +753,10 @@ static func md5_of(bytes: PackedByteArray) -> String:
 	return ctx.finish().hex_encode().to_lower()
 
 
+## Through AtomicFile: a torn write here is a destroyed save. Every failure is
+## logged there with the path; this copy used to return false without a word.
 static func _write_bytes(path: String, bytes: PackedByteArray) -> bool:
-	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	# Through a .part then rename: a torn write here is a destroyed save.
-	var tmp := path + ".part"
-	var f := FileAccess.open(tmp, FileAccess.WRITE)
-	if f == null:
-		return false
-	f.store_buffer(bytes)
-	var err := f.get_error()
-	f.close()
-	if err != OK:
-		DirAccess.remove_absolute(tmp)
-		return false
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
-	return DirAccess.rename_absolute(tmp, path) == OK
+	return AtomicFile.write_bytes(path, bytes, "RommSaveSync")
 
 
 # ── Main thread ───────────────────────────────────────────────────────────────

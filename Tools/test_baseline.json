@@ -3,7 +3,7 @@
   "suites": {
     "archive_safety_tests": 28,
     "archive_tests": 83,
-    "autoload_order_tests": 9,
+    "autoload_order_tests": 8,
     "av_tests": 229,
     "bay_tests": 170,
     "binding_tests": 216,

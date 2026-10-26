@@ -485,14 +485,10 @@ func _place(job: Dictionary, staging: String) -> Dictionary:
 		var bytes := FileAccess.get_file_as_bytes(staging)
 		if bytes.is_empty():
 			return {"ok": false, "error": "Staged file vanished"}
-		var out := FileAccess.open(dest, FileAccess.WRITE)
-		if out == null:
+		# Staged and renamed: a repair killed part way must leave the old file, not
+		# a truncated BIOS the core then refuses. AtomicFile logs why it failed.
+		if not AtomicFile.write_bytes(dest, bytes, "FirmwareInstaller"):
 			return {"ok": false, "error": "Cannot write %s" % dest.get_file()}
-		out.store_buffer(bytes)
-		var err := out.get_error()
-		out.close()
-		if err != OK:
-			return {"ok": false, "error": "Write failed for %s" % dest.get_file()}
 		written += 1
 	return {"ok": written > 0, "error": "" if written > 0 else "Nothing was written"}
 
@@ -597,9 +593,7 @@ func _move_into(plan: Array[Dictionary], dest_dir: String) -> Dictionary:
 			checked[parent] = true
 		var out_path := dest_dir.path_join(relative)
 		DirAccess.make_dir_recursive_absolute(out_path.get_base_dir())
-		if FileAccess.file_exists(out_path) and DirAccess.remove_absolute(out_path) != OK:
-			return {"ok": false, "error": "Cannot replace %s" % relative}
-		if DirAccess.rename_absolute(str(item["path"]), out_path) != OK:
+		if not AtomicFile.promote(str(item["path"]), out_path, "FirmwareInstaller"):
 			return {"ok": false, "error": "Cannot write %s" % relative}
 	return {"ok": true, "error": ""}
 

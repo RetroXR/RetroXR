@@ -1162,14 +1162,14 @@ func _group_pack_queue() -> void:
 	m.free()
 
 
-## mod.io answering get_mod from a table, with no network. A missing id fails.
+## mod.io answering fetch_mod from a table, with no network. A missing id fails.
 class ClientStub extends ModioClient:
 	var replies: Dictionary = {}
 	var asked: Array[int] = []
-	## Each get_mods call's ids, so a case can count the requests.
+	## Each fetch_mods call's ids, so a case can count the requests.
 	var batches: Array = []
 
-	## With `hold` on, get_mod answers only when release() is called.
+	## With `hold` on, fetch_mod answers only when release() is called.
 	var hold := false
 	var held: Array[Callable] = []
 
@@ -1179,7 +1179,7 @@ class ClientStub extends ModioClient:
 		for answer: Callable in waiting:
 			answer.call()
 
-	func get_mod(mod_id: int, callback: Callable) -> void:
+	func fetch_mod(mod_id: int, callback: Callable) -> void:
 		asked.append(mod_id)
 		if hold:
 			held.append(func() -> void: callback.call(true, replies.get(mod_id, {}), ""))
@@ -1189,7 +1189,7 @@ class ClientStub extends ModioClient:
 		else:
 			callback.call(false, {}, "Not found")
 
-	func get_mods(ids: Array[int], callback: Callable) -> void:
+	func fetch_mods(ids: Array[int], callback: Callable) -> void:
 		batches.append(ids.duplicate())
 		var mods: Array[Dictionary] = []
 		for id: int in ids:
@@ -1266,7 +1266,7 @@ func _group_tiles() -> void:
 	var asked: Array = (client.batches[0] as Array).duplicate()
 	asked.sort()
 	_eq(asked, [501, 502, 503], "updateall/about every installed mod.io mod")
-	_eq(client.asked, [] as Array[int], "updateall/with no get_mod per mod")
+	_eq(client.asked, [] as Array[int], "updateall/with no fetch_mod per mod")
 	_eq(stub.queued, ["modio-501"] as Array[String], "updateall/only the one mod.io has changed is downloaded")
 	_ok(not view._checking_updates and not view._update_all_btn.disabled,
 		"updateall/the button is back once mod.io has answered")
@@ -1948,7 +1948,7 @@ func _group_consent() -> void:
 	var note := func(what: String, error: String) -> void: refused[what] = error
 	client.list_mods("", "", 0, func(_ok_: bool, _m: Array[Dictionary], _t: int, error: String) -> void:
 		note.call("mods", error))
-	client.get_mod(7, func(_ok_: bool, _m: Dictionary, error: String) -> void: note.call("mod", error))
+	client.fetch_mod(7, func(_ok_: bool, _m: Dictionary, error: String) -> void: note.call("mod", error))
 	client.list_tags(func(_ok_: bool, _t: PackedStringArray, error: String) -> void: note.call("tags", error))
 	client.list_collections("", "", 0, func(_ok_: bool, _p: Array[Dictionary], _t: int, error: String) -> void:
 		note.call("packs", error))
@@ -1963,7 +1963,7 @@ func _group_consent() -> void:
 
 	# The terms are the one thing that may be asked.
 	var got := {}
-	client.get_terms(func(ok: bool, t: Dictionary, error: String) -> void:
+	client.fetch_terms(func(ok: bool, t: Dictionary, error: String) -> void:
 		got.merge({"ok": ok, "terms": t, "error": error}))
 	await _until(func() -> bool: return not got.is_empty())
 	_ok(bool(got.get("ok", false)), "consent/the terms are fetched without agreement", str(got.get("error", "")))
@@ -2342,12 +2342,12 @@ func _group_download() -> void:
 	_eq((got.get("mods", []) as Array).size(), 2, "download/every mod on the page arrives")
 	_eq(int(got.get("total", 0)), 31, "download/the total is the server's, not the page's")
 	got.clear()
-	client.get_mod(7, func(ok: bool, mod: Dictionary, error: String) -> void:
+	client.fetch_mod(7, func(ok: bool, mod: Dictionary, error: String) -> void:
 		got.merge({"ok": ok, "mod": mod, "error": error}))
 	await _until(func() -> bool: return not got.is_empty())
 	_eq(int((got.get("mod", {}) as Dictionary).get("file_id", 0)), 71, "download/one mod is re-read by id")
 	got.clear()
-	client.get_mod(9, func(ok: bool, mod: Dictionary, error: String) -> void:
+	client.fetch_mod(9, func(ok: bool, mod: Dictionary, error: String) -> void:
 		got.merge({"ok": ok, "mod": mod, "error": error}))
 	await _until(func() -> bool: return not got.is_empty())
 	_ok(not bool(got.get("ok", true)) and str(got.get("error", "")).contains("12 s"),

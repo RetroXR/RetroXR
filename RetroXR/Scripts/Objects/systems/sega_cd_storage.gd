@@ -222,10 +222,12 @@ func _write_manifest() -> void:
 	var entries: Array = []
 	for e: Dictionary in _staged:
 		entries.append({"file": e["file"], "image": e["image"], "card_id": e["card_id"]})
-	var f := FileAccess.open(_save_dir.path_join(MANIFEST), FileAccess.WRITE)
-	if f != null:
-		f.store_string(JSON.stringify({"entries": entries}))
-		f.close()
+	# The run goes ahead without it, but a crash before the drain would then have
+	# no way home for the memory's saves, so it is said out loud.
+	if not JsonStore.write_text(_save_dir.path_join(MANIFEST),
+			JSON.stringify({"entries": entries}), "SegaCdStorage"):
+		push_error("[SegaCdStorage] no crash-recovery manifest for %d staged file(s) this run"
+			% entries.size())
 
 
 # --- After it stops -----------------------------------------------------------
@@ -289,9 +291,9 @@ static func recover(save_dir: String) -> int:
 	if not FileAccess.file_exists(manifest):
 		return 0
 	var restored := 0
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(manifest))
-	if parsed is Dictionary:
-		for entry: Variant in (parsed as Dictionary).get("entries", []):
+	var entries: Variant = JsonStore.read_dict(manifest, "SegaCdStorage").get("entries", [])
+	if entries is Array:
+		for entry: Variant in entries as Array:
 			if not (entry is Dictionary):
 				continue
 			var file := str((entry as Dictionary).get("file", ""))
@@ -320,21 +322,12 @@ static func _core_file_names() -> Array[String]:
 ## Move the core's memory files that no manifest claimed into legacy/, never over
 ## an earlier copy. Returns where each one went.
 static func set_aside_unclaimed(save_dir: String) -> Array[String]:
-	var moved: Array[String] = []
-	var legacy := save_dir.path_join(LEGACY_DIR)
+	var found: Array[String] = []
 	for file_name: String in _core_file_names():
 		var src := save_dir.path_join(file_name)
-		if not FileAccess.file_exists(src):
-			continue
-		DirAccess.make_dir_recursive_absolute(legacy)
-		var dst := legacy.path_join(file_name)
-		var n := 2
-		while FileAccess.file_exists(dst):
-			dst = legacy.path_join("%s %d.%s" % [file_name.get_basename(), n, file_name.get_extension()])
-			n += 1
-		if DirAccess.rename_absolute(src, dst) == OK:
-			moved.append(dst)
-	return moved
+		if FileAccess.file_exists(src):
+			found.append(src)
+	return SramPaths.move_to_legacy(found, save_dir.path_join(LEGACY_DIR), "SegaCdStorage")
 
 
 ## The most recent unclaimed memory that fits this family, consumed (renamed
@@ -370,11 +363,7 @@ static func adopt_legacy(save_dir: String, family: String) -> PackedByteArray:
 	return bytes
 
 
+## Staged and renamed, so a kill mid-write leaves the unit's old image rather than half
+## of a new one. AtomicFile logs the failure with the path.
 static func _write(path: String, data: PackedByteArray) -> bool:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		push_warning("[SegaCdStorage] cannot write %s" % path)
-		return false
-	f.store_buffer(data)
-	f.close()
-	return true
+	return AtomicFile.write_bytes(path, data, "SegaCdStorage")

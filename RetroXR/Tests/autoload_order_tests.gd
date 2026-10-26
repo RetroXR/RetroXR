@@ -35,12 +35,10 @@ const MUST_PRECEDE := [
 		"a mod can add rooms, and SceneManager builds its room list at startup"],
 	["Mods", "Modio",
 		"the mod browser's downloader hands every file it fetches to the loader"],
-	["AppPrefs", "QualityManager",
-		"QualityManager applies the stored quality tier on boot"],
-	["NetworkManager", "SaveSync",
-		"the RomM save sync asks the network layer whether a session is live"],
-	["NetworkManager", "StateSync",
-		"same reason as SaveSync"],
+	["SceneManager", "NetworkManager",
+		"network_manager.gd _ready connects SceneManager.scene_changed and "
+		+ "scene_content_ready behind a has_node guard; declared later, the guard "
+		+ "fails and avatars quietly never rebuild on a scene change"],
 	["AppPrefs", "SpatialAudioListener",
 		"spatial_audio_listener.gd:51-62 — it PULLS AppPrefs.spatial_audio_sdk at "
 		+ "its own _ready rather than having AppPrefs push, and says so; the push "

@@ -215,8 +215,10 @@ func is_active() -> bool:
 ## an accepted player — _register refuses a peer whose protocol version, mod set
 ## or arrival order does not fit, and until it passes there is no roster entry.
 ##
-## Every @rpc("any_peer") handler that MUTATES shared state should pass this as
-## well as is_host(). _pose_report was the only one that did.
+## Every @rpc("any_peer") handler that MUTATES shared state must pass this as
+## well as is_host(): _pose_report, object_sync's request handlers,
+## file_transfer's _req_file and netplay_session's (through _accepted_sender)
+## all do. A new handler that skips it lets an unregistered socket act.
 func is_accepted_peer(id: int) -> bool:
 	return peers.has(id)
 
@@ -652,16 +654,17 @@ func netplay_schedule_link(op: int, entries: Array) -> void:
 
 
 ## Host: begin netplay for `system`. `owners` maps port -> peer_id (defaults to
-## a sensible assignment across connected peers). rollback: -1 auto (core
-## capability), 0 force lockstep, 1 force rollback. Returns false if not host,
-## core not verified, or already running.
+## a sensible assignment across connected peers). `prefer` is one of
+## NetplayCores.PREFER_AUTO (core capability), PREFER_LOCKSTEP or
+## PREFER_ROLLBACK. Returns false if not host, core not verified, or already
+## running.
 func netplay_start_host(system: Object, core: String, rom_md5: String,
-		owners: Dictionary = {}, delay := 3, rollback := -1) -> bool:
+		owners: Dictionary = {}, delay := 3, prefer := NetplayCores.PREFER_AUTO) -> bool:
 	if _netplay == null or not is_host():
 		return false
 	if owners.is_empty():
 		owners = default_owners(system)
-	return _netplay.start_host(system, core, rom_md5, owners, delay, rollback)
+	return _netplay.start_host(system, core, rom_md5, owners, delay, prefer)
 
 
 ## Assign participating ports to peers: port index i -> the i-th peer (host

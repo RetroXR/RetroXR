@@ -91,23 +91,20 @@ static func _load_config() -> void:
 	_cache_loaded = true
 	_cached_root = ""
 	_cached_pending_from = ""
-	var f := FileAccess.open(_config_file(), FileAccess.READ)
-	if f == null:
-		return
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
+	# A torn or hand-broken file reads as "no choice" (the default root) rather
+	# than stranding the player, but it says so: JsonStore logs it under the tag.
+	var parsed: Variant = JsonStore.parse_dict(_config_file(), "DataPaths")
 	if parsed is Dictionary:
 		var d: Dictionary = parsed
 		_cached_root = normalize(str(d.get("path", "")))
 		_cached_pending_from = normalize(str(d.get("pending_move_from", "")))
 
 
+## Staged and renamed (JsonStore): the file carries pending_move_from, so a
+## write torn in place would lose a data-root move half done.
 static func _save_config() -> bool:
-	var f := FileAccess.open(_config_file(), FileAccess.WRITE)
-	if f == null:
-		return false
-	f.store_string(JSON.stringify({"path": _cached_root,
-		"pending_move_from": _cached_pending_from}, "\t"))
-	return true
+	return JsonStore.write_dict(_config_file(), {"path": _cached_root,
+		"pending_move_from": _cached_pending_from}, "DataPaths")
 
 
 ## Backslashes folded to "/", trailing slashes dropped, "." and ".." resolved.
@@ -195,6 +192,11 @@ static func clear_root() -> void:
 
 
 ## "" when `path` can serve as the data root, else a sentence saying why.
+##
+## Not a pure check: it CREATES the folder when it is missing, and writes then
+## deletes a probe file in it to prove it is writable, because that is the only
+## honest test of a drive. A path the player then rejects keeps the (empty)
+## folder this made. set_root() calls it on every save.
 static func validate(path: String) -> String:
 	var p := normalize(path)
 	if not can_configure():

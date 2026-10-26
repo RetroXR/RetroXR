@@ -127,6 +127,9 @@ func _ready() -> void:
 		_outline.set_source(_mesh)
 	# Controllers aren't added until the first frame, so wait one frame
 	await get_tree().process_frame
+	# Removed during that frame (a preview thrown away, a room change): get_tree() is null now.
+	if not is_inside_tree():
+		return
 	# Find all XRController3D nodes in the scene by type
 	var all := get_tree().root.find_children("*", "XRController3D", true, false)
 	for node in all:

@@ -1185,7 +1185,7 @@ func _test_events(p: Pair) -> void:
 
 	# An event missing a node it cannot be applied without is refused at the
 	# SENDER, where the caller still exists to be blamed. Before EV_NODE_KEYS it
-	# went out, failed every peer's _valid() guard, and told nobody.
+	# went out, failed every peer's _nodes_alive() guard, and told nobody.
 	var refused_before: int = p.host_os.events_refused
 	p.host_os.report_event(NetEvents.Event.EV_CART_REMOVE, {})
 	p.host_os.report_event(NetEvents.Event.EV_TAPE_REMOVE, {"vcr": null})

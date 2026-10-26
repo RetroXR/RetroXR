@@ -97,13 +97,13 @@ func _refresh() -> void:
 		return
 	var lineup := _antenna.lineup()
 	var tv := _antenna.reached_set()
-	ui.populate_link(_set_name(tv), _antenna.via_switch())
+	ui.populate_link(_tv_display_name(tv), _antenna.via_switch())
 	ui.populate_channels(lineup.channels, tv.rf_air_index if tv != null else -1)
 	ui.populate_tuner(lineup.tuner_auto(), lineup.tuner_host(),
 		lineup.discovered_host(), lineup.tuner_status_line())
 
 
-func _set_name(tv: RetroTV) -> String:
+func _tv_display_name(tv: RetroTV) -> String:
 	if tv == null:
 		return ""
 	var label: Variant = tv.get("display_name")

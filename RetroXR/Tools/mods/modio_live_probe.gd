@@ -54,7 +54,7 @@ func _ready() -> void:
 		got.merge({"ok": ok, "error": error}))
 	_ok(str(got.get("error", "")) == ModioClient.NEEDS_CONSENT, "the catalogue is refused before agreement")
 	got.clear()
-	client.get_terms(func(ok: bool, terms: Dictionary, error: String) -> void:
+	client.fetch_terms(func(ok: bool, terms: Dictionary, error: String) -> void:
 		got.merge({"ok": ok, "terms": terms, "error": error}))
 	await _until(func() -> bool: return not got.is_empty())
 	var terms: Dictionary = got.get("terms", {})
@@ -102,7 +102,7 @@ func _ready() -> void:
 
 	# Asked again at the press, as the page does.
 	got.clear()
-	client.get_mod(int(pick["id"]), func(ok: bool, mod: Dictionary, error: String) -> void:
+	client.fetch_mod(int(pick["id"]), func(ok: bool, mod: Dictionary, error: String) -> void:
 		got.merge({"ok": ok, "mod": mod, "error": error}))
 	await _until(func() -> bool: return not got.is_empty())
 	var fresh: Dictionary = got.get("mod", {})

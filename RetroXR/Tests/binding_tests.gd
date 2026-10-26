@@ -1175,6 +1175,55 @@ func _test_json_store() -> void:
 	arr.close()
 	_ok(JsonStore.read_dict(path).is_empty(), "json/so does a file holding the wrong shape")
 
+	# AtomicFile, the staged write under JsonStore and every binary save (cards,
+	# console memory, BRAM/NVRAM drains, save states). Bytes land exactly.
+	var bin := JS_DIR.path_join("card.bin")
+	var bytes := PackedByteArray([0, 1, 2, 0xFE, 0xFF, 0])
+	_ok(AtomicFile.write_bytes(bin, bytes), "atomic/a byte write reports success")
+	_eq(FileAccess.get_file_as_bytes(bin), bytes, "atomic/and lands byte for byte")
+	_ok(not FileAccess.file_exists(bin + ".part"), "atomic/leaving no staging file")
+	# A caller-named staging file (RommCatalog stages per thread) is used and gone.
+	var named := bin + ".7.part"
+	_ok(AtomicFile.write_bytes(bin, PackedByteArray([9]), "", named),
+		"atomic/a named staging file works too")
+	_ok(not FileAccess.file_exists(named), "atomic/and is gone after")
+	_eq(FileAccess.get_file_as_bytes(bin), PackedByteArray([9]), "atomic/with its bytes")
+	# The failure path: the staging file cannot be opened (a directory is in the
+	# way). The write must say so AND leave the old image standing, which is the
+	# whole contract: the in-place writes this replaced truncated it.
+	DirAccess.make_dir_recursive_absolute(bin + ".part")
+	_ok(not AtomicFile.write_bytes(bin, bytes), "atomic/an unwritable staging file fails")
+	_eq(FileAccess.get_file_as_bytes(bin), PackedByteArray([9]),
+		"atomic/and the old file is left as it was")
+	DirAccess.remove_absolute(bin + ".part")
+	_ok(not AtomicFile.write_text(bin, "x", "", JS_DIR.path_join("no/such/dir/x.part")),
+		"atomic/a staging path whose folder is missing fails")
+	_eq(FileAccess.get_file_as_bytes(bin), PackedByteArray([9]),
+		"atomic/without touching the target")
+	DirAccess.remove_absolute(bin)
+
+	# SramPaths.move_to_legacy, the backup-memory storages' shared quarantine:
+	# never over an earlier copy, numbered before the extension.
+	var legacy := JS_DIR.path_join("legacy")
+	var srcs: Array[String] = []
+	for i in 2:
+		var src := JS_DIR.path_join("scd_U.brm") if i == 0 else JS_DIR.path_join("sub/scd_U.brm")
+		DirAccess.make_dir_recursive_absolute(src.get_base_dir())
+		AtomicFile.write_bytes(src, PackedByteArray([i]))
+		srcs.append(src)
+	var moved := SramPaths.move_to_legacy(srcs, legacy, "")
+	_eq(moved.size(), 2, "legacy/both files are set aside")
+	_eq(moved[0] if moved.size() > 0 else "", legacy.path_join("scd_U.brm"),
+		"legacy/the first keeps its name")
+	_eq(moved[1] if moved.size() > 1 else "", legacy.path_join("scd_U 2.brm"),
+		"legacy/the second is numbered, not written over the first")
+	_eq(FileAccess.get_file_as_bytes(legacy.path_join("scd_U.brm")), PackedByteArray([0]),
+		"legacy/and the first copy is untouched")
+	for p: String in moved:
+		DirAccess.remove_absolute(p)
+	DirAccess.remove_absolute(legacy)
+	DirAccess.remove_absolute(JS_DIR.path_join("sub"))
+
 	DirAccess.remove_absolute(path)
 	DirAccess.remove_absolute(path + ".part")
 	DirAccess.remove_absolute(JS_DIR)

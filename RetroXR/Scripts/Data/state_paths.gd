@@ -210,20 +210,7 @@ static func write_job(job: Job) -> String:
 
 
 
+## Through AtomicFile: a .part, every error checked (this copy once promoted a
+## short write over the good file), then the rename.
 static func _write_atomic(path: String, bytes: PackedByteArray) -> bool:
-	var part := path + ".part"
-	var f := FileAccess.open(part, FileAccess.WRITE)
-	if f == null:
-		push_error("[StatePaths] cannot open %s (%d)" % [part, FileAccess.get_open_error()])
-		return false
-	f.store_buffer(bytes)
-	f.close()
-	if FileAccess.file_exists(path) and DirAccess.remove_absolute(path) != OK:
-		push_error("[StatePaths] cannot replace %s" % path)
-		DirAccess.remove_absolute(part)
-		return false
-	if DirAccess.rename_absolute(part, path) != OK:
-		push_error("[StatePaths] cannot promote %s" % part)
-		DirAccess.remove_absolute(part)
-		return false
-	return true
+	return AtomicFile.write_bytes(path, bytes, "StatePaths")

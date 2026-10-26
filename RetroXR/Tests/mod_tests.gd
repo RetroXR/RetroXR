@@ -26,7 +26,7 @@
 extends Node
 
 ## Cases in this file, NOT counting the guard below.
-const EXPECTED_CASES := 407
+const EXPECTED_CASES := 415
 
 var _pass := 0
 var _fail := 0
@@ -60,6 +60,7 @@ func _ready() -> void:
 	if _want("expshell"):    _group_expshell()
 	if _want("tvdefaults"):  _group_tv_defaults()
 	if _want("attach"):      _group_attach()
+	if _want("mains"):       _group_mains()
 
 	_cleanup()
 	# A case that never RAN is not a case that passed: GDScript has no try/catch,
@@ -1017,6 +1018,38 @@ func _group_overlay() -> void:
 	_eq(t.table()["nes"]["name"], "shipped nes",
 		"overlay/withdrawing an override restores the shipped row")
 	_eq(t.table(), base, "overlay/and the table is the shipped one again")
+
+
+## A mod's mains regions and its region callback go with it: withdraw() once
+## left both, so a switched-off mod's outlets stayed on the dropdown and its
+## callback went on running.
+func _group_mains() -> void:
+	_hooks = ModHooks.new(get_tree())
+	var rid := "t_mr_island"
+	_ok(not MainsRegions.has(rid), "mains/the region under test is not shipped")
+	var a := _api("t.mra")
+	_ok(a.register_mains_region(rid, {"name": "Island"}), "mains/a mod registers a region",
+		a.errors_text())
+	_ok(MainsRegions.has(rid), "mains/and the dropdown has it")
+	var heard: Array = []
+	a.on_mains_region_changed(func(region: String) -> void: heard.append(region))
+	AppPrefs.mains_region_changed.emit("na")
+	_eq(heard, ["na"], "mains/its callback hears a change")
+	a.withdraw()
+	_ok(not MainsRegions.has(rid), "mains/withdraw takes the region back")
+	AppPrefs.mains_region_changed.emit("na")
+	_eq(heard, ["na"], "mains/and disconnects its callback")
+
+	# A later mod's entry under the same id is that mod's, not the first one's.
+	var b := _api("t.mrb")
+	var c := _api("t.mrc")
+	b.register_mains_region(rid, {"name": "B"})
+	c.register_mains_region(rid, {"name": "C"})
+	b.withdraw()
+	_eq(str(MainsRegions.of(rid).get("name", "")), "C",
+		"mains/withdrawing an earlier mod leaves a later mod's region of the same id")
+	c.withdraw()
+	_ok(not MainsRegions.has(rid), "mains/and that mod's withdraw takes it")
 
 
 # ── standins/ ─────────────────────────────────────────────────────────────────

@@ -123,6 +123,15 @@ in separate processes: both legs in one run means a restart, Dolphin is one of
 the cores that will not unwind, and the abandoned thread segfaults on the way
 out looking exactly like an identity crash.
 
+**Who the host listens to (2026-10-27).** Every `any_peer` handler that changes
+shared state checks `NetworkManager.is_accepted_peer(sender)` (in the roster,
+i.e. past the hello) — `object_sync`, `file_transfer._req_file`, `_pose_report`
+and, through `_accepted_sender()`, the fourteen host-side handlers of
+`netplay_session.gd`. A refusal logs `[Netplay] refused <handler> from peer N`
+once per handler and peer. An op FAILURE (`_op_fail`) ends the session only from
+a peer the op is waiting on, as `_op_ack` counts only those. Host-to-client
+messages are `authority` RPCs and need no check. `netplay_tests --only=unaccepted`.
+
 ### 2g. Netplay over a link cable — one session, two machines
 
 **A link cable never crosses the network.** `LinkCoordinator` is a process-wide

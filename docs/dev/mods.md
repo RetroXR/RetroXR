@@ -203,7 +203,7 @@ peer's word: 256 entries, every field coerced) and emits `mods_refused`.
   and listing them first pushed every button off the page (measured with ~85 here).
   It redraws on `Mods.mods_changed`, so rows go as mods arrive and are switched.
 - **Get is the MODS tab's own download** (`SpawnMenuModsView.fetch_for_session`, one
-  `get_mods`, then `_download_fresh` for each whose mod.io version is the host's):
+  `fetch_mods`, then `_download_fresh` for each whose mod.io version is the host's):
   scan, needs, review, landing OFF, applied from the MODS bar. `session_versions`
   asks mod.io the versions for the panel. **Both need mod.io consent**: without it
   the panel's button opens MODS on the terms instead, and nothing is sent.
@@ -244,9 +244,9 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   the click before the tile does.
 - **Update all** (Browse, on the status line under the toolbar, `update_all`): every installed mod with a mod.io
   source (`modio_installed`: not already staged, coming down or waiting for review) is
-  asked about in ONE request (`ModioClient.get_mods`, `id-in`, 100 a page; a listing
-  fetched that moment carries download addresses as fresh as `get_mod`'s -- one
-  `get_mod` per mod made the first download wait a round trip per mod), and each
+  asked about in ONE request (`ModioClient.fetch_mods`, `id-in`, 100 a page; a listing
+  fetched that moment carries download addresses as fresh as `fetch_mod`'s -- one
+  `fetch_mod` per mod made the first download wait a round trip per mod), and each
   whose file differs
   (`browse_state` == `"update"`) goes through `_download_fresh` -- the scan, what it
   needs, the queue -- and still waits for its own review. `browse_state` takes the
@@ -281,7 +281,7 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   review holding off Restart now). `_drop_needs` cancels a dependency only when no mod
   still needs it, and quietly (`_quiet_cancel`: one toast for the mod, not one each).
 - **Withdrawing consent drops what was in flight** (`_consent_serial`): a press's
-  `get_mod`, `fetch_needs` and Update all's answer that land after it are ignored even if
+  `fetch_mod`, `fetch_needs` and Update all's answer that land after it are ignored even if
   the player has agreed again by then; `_enqueue` and a pack's `_install_mods` refuse
   without consent; a download that finishes after it is discarded, not parked behind the
   terms gate. `_withdraw` also clears the need bookkeeping and redraws both buttons. A
@@ -360,7 +360,7 @@ catalogue as tiles), **Packs** (its collections, `mods_packs_page.gd`) and
   images only. The API key is logged as `api_key=…` (`ModioClient.loggable`) and a
   download's signed query string as `?…` (`ModDownloader._loggable`): a signature
   is a credential while it lives. On a Quest: `adb logcat -s godot:* | grep Modio`.
-- **A download address is asked for again at the press** (`get_mod`), never taken
+- **A download address is asked for again at the press** (`fetch_mod`), never taken
   from the listing: mod.io signs each one and lets it expire.
 - **The redirect is followed on the GET**, not probed with a HEAD as
   `FirmwareInstaller` does for GitHub: a CDN signature made for a GET need not

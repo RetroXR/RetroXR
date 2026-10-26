@@ -16,8 +16,9 @@ var _thread: Thread = null
 ## Shared progress state read by /api/progress.
 var _upload_progress: Dictionary = {}
 
-## 4-digit PIN required to log in. Set by the owner before start(); an empty PIN
-## disables authentication (open access) as a safety fallback.
+## 4-digit PIN required to log in. Set by the owner before start(). Authentication
+## FAILS CLOSED: an empty PIN refuses start() and authorises no request, so an owner
+## that forgets to set it serves nothing rather than the player's files to the LAN.
 var pin: String = ""
 ## Live sessions, token -> the Unix time the session stops being accepted.
 ##
@@ -61,6 +62,9 @@ static func local_ip() -> String:
 func start(port: int = DEFAULT_PORT) -> bool:
 	if _running:
 		return true
+	if pin.is_empty():
+		push_error("[WebFileServer] refusing to start on port %d: no PIN set (the server never runs without authentication)" % port)
+		return false
 	for base: String in _roots().values():
 		DirAccess.make_dir_recursive_absolute(base)
 	var err := _tcp.listen(port)
@@ -237,11 +241,11 @@ func _dispatch(c: Dictionary, method: String, path: String,
 
 # ── Authentication ────────────────────────────────────────────────────────────
 
-## True if the request carries a valid session cookie. An empty PIN means auth is
-## disabled (open access) — every request is treated as authorised.
+## True if the request carries a valid session cookie. An empty PIN authorises
+## nothing (start() already refuses it; this is the second lock on the same door).
 func _is_authed(headers: Dictionary) -> bool:
 	if pin.is_empty():
-		return true
+		return false
 	var token := _cookie(headers.get("cookie", ""), "rvrsession")
 	if token.is_empty() or not _sessions.has(token):
 		return false

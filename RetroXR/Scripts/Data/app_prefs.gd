@@ -2,7 +2,8 @@
 ## plus the player's hidden-systems list, persisted to user://app_prefs.json.
 ##
 ## Switches that back a global static (ControllerModel.draw_hands,
-## SystemFilter.enabled) are pushed into it here at boot. The rest need the rig
+## SystemFilter.enabled) own it: their setters write it, so every writer -- the
+## load, the OPTIONS tab, a mod, a test -- keeps the two alike. The rest need the rig
 ## or the scene tree, so SpawnMenuController applies those once the menu is
 ## connected and the camera has been found.
 ##
@@ -45,7 +46,11 @@ enum XRDisplayMode {
 ## its first run after the feature arrives rather than silently keeping the old
 ## controller-only presentation.
 var xr_display_mode: XRDisplayMode = XRDisplayMode.BOTH
-var controller_hands: bool = false
+## Mirrored into ControllerModel.draw_hands by the setter (see the header).
+var controller_hands: bool = false:
+	set(v):
+		controller_hands = v
+		ControllerModel.draw_hands = v
 ## Which region's wall outlets the room has (a MainsRegions id). Empty until the
 ## first load, which picks one from the system locale; an id no shipped table or
 ## installed mod knows is kept as is, so a region a mod brings survives a launch
@@ -59,7 +64,11 @@ var region_names: String = ""
 ## Whether a fingertip presses the buttons on pads, handhelds and the like
 ## (ControlPoke). On by default; read every frame, so a change takes at once.
 var poke_controls:    bool = true
-var system_filter:    bool = true
+## Mirrored into SystemFilter.enabled by the setter (see the header).
+var system_filter:    bool = true:
+	set(v):
+		system_filter = v
+		SystemFilter.enabled = v
 ## Whether the player may move the core options that make a machine show its own
 ## boot screen. Off means BiosBoot's measured values are pinned every launch and
 ## shown locked; on hands them back, seeded once so a machine still boots right
@@ -228,6 +237,9 @@ func _ready() -> void:
 	_load_prefs()
 	if mains_region.is_empty() or Connectors.problem(mains_region) != "":
 		mains_region = MainsRegions.for_locale(OS.get_locale())
+	# A member's initializer does not run its setter, so a fresh install (no
+	# prefs file, nothing loaded) has the statics set here once; every later
+	# write goes through the setters.
 	ControllerModel.draw_hands = controller_hands
 	SystemFilter.enabled = system_filter
 	# Spatial audio is deliberately NOT applied here: SpatialAudioListener is a

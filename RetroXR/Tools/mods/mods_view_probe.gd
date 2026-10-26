@@ -43,7 +43,7 @@ class StubClient extends ModioClient:
 			return
 		callback.call_deferred(true, mods, 57, "")
 
-	func get_terms(callback: Callable) -> void:
+	func fetch_terms(callback: Callable) -> void:
 		callback.call_deferred(true, {
 			"text": "This game uses mod.io to support user-generated content. By selecting "
 				+ "\"I Agree\" you agree to the mod.io Terms of Use and a mod.io account will be "

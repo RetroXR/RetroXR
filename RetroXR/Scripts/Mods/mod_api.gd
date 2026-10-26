@@ -35,6 +35,11 @@ var _errors: PackedStringArray = []
 
 ## The callbacks this mod hung on SceneManager.scene_content_ready.
 var _room_callbacks: Array[Callable] = []
+## The wrappers this mod hung on AppPrefs.mains_region_changed.
+var _mains_callbacks: Array[Callable] = []
+## region id -> the entry this mod put in MainsRegions.extra (the very
+## dictionary, so withdraw() takes back only an entry that is still its own).
+var _mains_regions: Dictionary = {}
 
 
 func _init(a_manifest: ModManifest, hooks: ModHooks) -> void:
@@ -392,8 +397,11 @@ func mains_region() -> String:
 
 ## Call `cb(region: String)` whenever the player changes the mains region.
 func on_mains_region_changed(cb: Callable) -> void:
-	AppPrefs.mains_region_changed.connect(func(region: String) -> void:
-		cb.call(MainsRegions.resolve(region)))
+	var wrapper := func(region: String) -> void:
+		cb.call(MainsRegions.resolve(region))
+	AppPrefs.mains_region_changed.connect(wrapper)
+	# Kept for withdraw(), as the room callbacks are.
+	_mains_callbacks.append(wrapper)
 
 
 ## Offer a mains region of this mod's own on the OPTIONS dropdown, keyed and shaped
@@ -402,7 +410,9 @@ func register_mains_region(region_id: String, spec: Dictionary) -> bool:
 	var problem := Connectors.problem(region_id)
 	if not problem.is_empty():
 		return _fail("register_mains_region: " + problem)
-	MainsRegions.extra[region_id] = spec.duplicate(true)
+	var entry := spec.duplicate(true)
+	MainsRegions.extra[region_id] = entry
+	_mains_regions[region_id] = entry
 	_note("mains_regions", region_id)
 	return true
 
@@ -459,6 +469,22 @@ func withdraw() -> void:
 			if sm.scene_content_ready.is_connected(cb):
 				sm.scene_content_ready.disconnect(cb)
 	_room_callbacks.clear()
+	var unhooked := 0
+	for wrapper: Callable in _mains_callbacks:
+		if AppPrefs.mains_region_changed.is_connected(wrapper):
+			AppPrefs.mains_region_changed.disconnect(wrapper)
+			unhooked += 1
+	_mains_callbacks.clear()
+	var dropped := PackedStringArray()
+	for region_id: String in _mains_regions:
+		# A later mod that registered the same id owns it now: leave theirs.
+		if MainsRegions.extra.has(region_id) 				and is_same(MainsRegions.extra[region_id], _mains_regions[region_id]):
+			MainsRegions.extra.erase(region_id)
+			dropped.append(region_id)
+	_mains_regions.clear()
+	if unhooked > 0 or not dropped.is_empty():
+		print("[Mods] %s withdrew %d mains-region callback(s) and region(s) [%s]"
+			% [id, unhooked, ", ".join(dropped)])
 	SystemModelRegistry.drop_mod(id)
 	SystemInfo.drop_mod(id)
 	ConsolePadArt.drop_mod(id)

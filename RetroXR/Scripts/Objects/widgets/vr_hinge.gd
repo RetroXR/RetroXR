@@ -154,6 +154,9 @@ func _ready() -> void:
 	collision_layer |= POINTABLE_LAYER
 	_build_icon()
 	await get_tree().process_frame
+	# Removed during that frame (a preview thrown away, a room change): get_tree() is null now.
+	if not is_inside_tree():
+		return
 	for node in get_tree().root.find_children("*", "XRController3D", true, false):
 		_controllers.append(node as XRController3D)
 

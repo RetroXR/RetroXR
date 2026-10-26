@@ -3,6 +3,16 @@
 ## Subclasses load the appropriate GLB for their hardware and override the
 ## virtual methods below.  All overrides are optional stubs today; they will
 ## grow as physical animations, power lights, and port visuals are added.
+##
+## Hook naming. The read-only hooks come in two spellings: the older ones are
+## get_-prefixed (get_controller_port_count, get_usb_port_count,
+## get_lid_angle_deg, get_rf_channel, get_builtin_screen, ...), the newer ones a
+## bare noun (card_slot_count, slot_insert_depth, power_slider, game_port_index,
+## builtin_ethernet_port, ...). Both are FROZEN: every hook is overridden BY NAME
+## in system_models/*.gd and in installed mod packs, and GDScript has no
+## `override` keyword, so a renamed hook leaves every override a new method that
+## is never called, silently. Copy a hook's exact name from this file when
+## overriding it; give a NEW hook the bare-noun form.
 class_name RetroSystemModel
 extends Node3D
 
@@ -759,9 +769,8 @@ func _hide_seat_previews() -> void:
 
 
 ## Reposition the cartridge snap zone to the model's physical slot location.
-## Also returns the insertion offset — the vector the cartridge travels from its
-## pre-animation position to the snapped position (in world space).
-## Default: 6 cm straight up (+Y), i.e. cartridge drops straight down into slot.
+## Returns nothing: this hook only places the snap zone. The direction a
+## cartridge travels into the slot is get_cartridge_insert_direction()'s.
 func configure_cartridge_slot(_slot: Node3D) -> void:
 	pass
 

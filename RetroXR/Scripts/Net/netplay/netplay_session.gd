@@ -87,6 +87,9 @@ signal session_stopped(reason: String)
 signal join_state_progress(peer_id: int, phase: String, received: int, total: int)
 
 var _nm: Node = null
+## Host: "<handler>/<peer>" pairs already logged as refused by _accepted_sender,
+## so a socket that keeps sending (input is per frame) logs once, not every frame.
+var _refused_logged: Dictionary = {}
 
 ## The specific reason _prepare_local_media last failed, or "" for none.
 var _media_failure: String = ""
@@ -126,7 +129,7 @@ var _delay := 3
 ## every peer at cold start. `_rollback` is derived from it and stays a bool
 ## because that is what the native gate takes; everything that only asks "am I
 ## rewinding?" keeps reading it.
-var _strategy: int = NetplayCores.Strategy.LOCKSTEP
+var _strategy: NetplayCores.Strategy = NetplayCores.Strategy.LOCKSTEP
 var _rollback := false          # GGPO-style: local input live, remote predicted
 ## A cabled group rolling back TOGETHER (Wrapper::NetplayGroupIteration): every
 ## core on the lead and the bus between them rewind to one frame. Only for cores
@@ -303,9 +306,10 @@ func is_active() -> bool:
 
 ## Host entry point. `owners` maps participating port -> peer_id. Verifies the
 ## core is netplay-capable, then drives the cold-start handshake on all peers.
-## rollback: 1 = force on, 0 = force lockstep, -1 = auto (core capability).
+## `prefer` is NetplayCores.PREFER_AUTO (core capability), PREFER_LOCKSTEP or
+## PREFER_ROLLBACK -- a preference the group's capability may overrule.
 func start_host(sys: Object, core: String, rom_md5: String, port_owners: Dictionary,
-		delay: int, rollback := -1) -> bool:
+		delay: int, prefer := NetplayCores.PREFER_AUTO) -> bool:
 	if not _nm.is_host():
 		return false
 	# A cold start is no longer instantaneous — the host's own core has to come
@@ -328,7 +332,7 @@ func start_host(sys: Object, core: String, rom_md5: String, port_owners: Diction
 			% str(_spec_cores(_machine_specs)))
 		_stop_local("cores cannot agree on a netplay strategy")
 		return false
-	_strategy = _pick_strategy(available, rollback)
+	_strategy = _pick_strategy(available, prefer)
 	if _strategy == NetplayCores.Strategy.ROLLBACK \
 			and (_group.size() > 1 or _is_linked(sys)) and not _group_link_rollback():
 		_strategy = _demote_from_rollback(available)
@@ -371,8 +375,8 @@ func _np_start(group_net_ids: PackedInt32Array, specs: Array,
 	# The host decided this; a client never re-derives it. Its own allowlist would
 	# agree today, but a peer that reached a different answer would run a
 	# different engine against the same frames and call it a desync.
-	_strategy = strategy
-	_rollback = strategy == NetplayCores.Strategy.ROLLBACK
+	_strategy = NetplayCores.strategy_from_wire(strategy)
+	_rollback = _strategy == NetplayCores.Strategy.ROLLBACK
 	_host_identities = host_identities.duplicate(true)
 	_local_identities.clear()
 	_set_owners(port_owners)
@@ -602,27 +606,41 @@ func _cold_start_local(start_frame: int) -> bool:
 			return false
 		var spec: Dictionary = _machine_specs[i]
 		# Rollback flags must be set before StartContent spins the emu thread up.
-		# get_libretro_node() exists on every system implementation (incl. mocks).
-		var pre_lib: Object = machine.get_libretro_node() if machine.has_method("get_libretro_node") else null
-		if pre_lib != null and pre_lib.has_method("SetNetplayRollback"):
+		# get_libretro_node() exists on every machine net_start_core is called on
+		# (system, VMU, Game Boy Printer, the mocks), so it is called directly.
+		# The Libretro methods are still asked for by name: the suite's MockLib
+		# implements only some of them. A REAL Libretro missing one is a stale
+		# extension binary and is logged, or rollback silently never arms.
+		var pre_lib: Object = machine.get_libretro_node()
+		if pre_lib == null:
+			print("[Netplay] machine %d has no Libretro node yet; rollback/CRC setup left to its defaults" % i)
+		elif pre_lib.has_method("SetNetplayRollback"):
 			var local_mask := 0
 			for global_port: int in _local_ports:
 				if machine_of_port(global_port) == i:
 					local_mask |= 1 << port_on_machine(global_port)
 			pre_lib.SetNetplayRollback(_rollback, local_mask, MAX_AHEAD)
+		else:
+			_warn_stale_lib(pre_lib, "SetNetplayRollback")
 		# How often this core stops to hash its RAM. The whole of SYSTEM_RAM goes
 		# through CRC32 inline on the emulation thread, so the cost is the size of
 		# the machine: nothing for a 2 KB NES, tens of milliseconds for a
 		# GameCube's 24 MB. The GROUP's gap, because every peer runs every machine
 		# and a hitch anywhere holds the gate for all of them.
-		if pre_lib != null and pre_lib.has_method("SetNetplayCrcInterval"):
-			pre_lib.SetNetplayCrcInterval(_group_crc_interval())
+		if pre_lib != null:
+			if pre_lib.has_method("SetNetplayCrcInterval"):
+				pre_lib.SetNetplayCrcInterval(_group_crc_interval())
+			else:
+				_warn_stale_lib(pre_lib, "SetNetplayCrcInterval")
 		# Where that hash comes from is per CORE, not per group: it is a fact
 		# about whether this emulator's RAM can be read coherently between
 		# frames, and the machine next to it on the bus may well be fine.
-		if pre_lib != null and pre_lib.has_method("SetNetplayCrcFromState"):
-			pre_lib.SetNetplayCrcFromState(
-				NetplayCores.crc_from_state(str(spec.get("core", ""))))
+		if pre_lib != null:
+			if pre_lib.has_method("SetNetplayCrcFromState"):
+				pre_lib.SetNetplayCrcFromState(
+					NetplayCores.crc_from_state(str(spec.get("core", ""))))
+			else:
+				_warn_stale_lib(pre_lib, "SetNetplayCrcFromState")
 		# net_start_core sets the gate (SetNetplayMode) BEFORE StartContent so
 		# the core holds at the start frame until inputs post.
 		#
@@ -834,9 +852,9 @@ static func _identity_strings(identities: Array) -> Array[String]:
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_ready() -> void:
-	if not _nm.is_host():
+	var sender := _accepted_sender("ready")
+	if sender == 0:
 		return
-	var sender := multiplayer.get_remote_sender_id()
 	if _joining.has(sender):
 		_resume_after_join(sender)   # late joiner has loaded the savestate
 	else:
@@ -846,9 +864,9 @@ func _np_ready() -> void:
 ## A peer can't take part (missing ROM, unresolvable system, failed load).
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_ready_fail(reason: String) -> void:
-	if not _nm.is_host():
+	var sender := _accepted_sender("ready_fail")
+	if sender == 0:
 		return
-	var sender := multiplayer.get_remote_sender_id()
 	print("[Netplay] peer %d cannot join: %s" % [sender, reason])
 	if _joining.has(sender):
 		# Late joiner failed — resume the game without them (they keep the
@@ -913,7 +931,7 @@ func stop(reason := "stopped") -> void:
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_stop_req(reason: String) -> void:
-	if not _nm.is_host() or not _running:
+	if _accepted_sender("stop_req") == 0 or not _running:
 		return
 	_np_stop.rpc(reason)
 	_stop_local(reason)
@@ -1013,6 +1031,7 @@ func _reset_runtime(start_frame: int) -> void:
 	_deferred_joiners.clear()
 	_pending_local_route.clear()
 	_crc_table.clear()
+	_refused_logged.clear()
 	_strikes.clear()
 	_spectators.clear()
 	_join_claims.clear()
@@ -1369,12 +1388,16 @@ func _np_disk(serial: int, machine_index: int, op: int, md5: String,
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_disk_ready(serial: int) -> void:
-	_op_ack(_disc_waiting, _disc_deadlines, serial, "disc op")
+	var sender := _accepted_sender("disk_ready")
+	if sender != 0:
+		_op_ack(_disc_waiting, _disc_deadlines, serial, "disc op", sender)
 
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_disk_failed(serial: int, reason: String) -> void:
-	_op_fail(_disc_waiting, serial, "disc op", reason)
+	var sender := _accepted_sender("disk_failed")
+	if sender != 0:
+		_op_fail(_disc_waiting, serial, "disc op", reason, sender)
 
 
 func _apply_disk_op(machine_index: int, op: int, md5: String, index: int,
@@ -1443,12 +1466,16 @@ func _np_reset(serial: int, machine_index: int, frame: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_reset_ready(serial: int) -> void:
-	_op_ack(_reset_waiting, _reset_deadlines, serial, "reset")
+	var sender := _accepted_sender("reset_ready")
+	if sender != 0:
+		_op_ack(_reset_waiting, _reset_deadlines, serial, "reset", sender)
 
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_reset_failed(serial: int, reason: String) -> void:
-	_op_fail(_reset_waiting, serial, "reset", reason)
+	var sender := _accepted_sender("reset_failed")
+	if sender != 0:
+		_op_fail(_reset_waiting, serial, "reset", reason, sender)
 
 
 func _apply_reset(machine_index: int, frame: int) -> bool:
@@ -1598,22 +1625,22 @@ func clear_join_claim(peer_id: int) -> void:
 	_join_claims.erase(peer_id)
 
 
-## The strategy this session runs under. `asked` keeps the historical tri-state:
-## -1 auto (take the strongest the group agrees on), 0 prefer lockstep, 1 prefer
-## rollback. A preference that the group cannot hold is not an error — the caller
-## is asking for a shape, and the group's own capability decides.
-func _pick_strategy(available: Array, asked: int) -> int:
-	if asked == 1 and available.has(NetplayCores.Strategy.ROLLBACK):
+## The strategy this session runs under. `prefer` is a NetplayCores.PREFER_*:
+## AUTO takes the strongest the group agrees on. A preference that the group
+## cannot hold is not an error — the caller is asking for a shape, and the
+## group's own capability decides.
+func _pick_strategy(available: Array, prefer: int) -> NetplayCores.Strategy:
+	if prefer == NetplayCores.PREFER_ROLLBACK and available.has(NetplayCores.Strategy.ROLLBACK):
 		return NetplayCores.Strategy.ROLLBACK
-	if asked == 0 and available.has(NetplayCores.Strategy.LOCKSTEP):
+	if prefer == NetplayCores.PREFER_LOCKSTEP and available.has(NetplayCores.Strategy.LOCKSTEP):
 		return NetplayCores.Strategy.LOCKSTEP
-	return int(available[0])
+	return int(available[0]) as NetplayCores.Strategy
 
 
 ## Where a session lands when rollback is ruled out after the fact. Determinism
 ## where the group has it, lockstep otherwise — both keep every core running
 ## forward, which is the property rollback was giving up.
-func _demote_from_rollback(available: Array) -> int:
+func _demote_from_rollback(available: Array) -> NetplayCores.Strategy:
 	if available.has(NetplayCores.Strategy.DETERMINISM):
 		return NetplayCores.Strategy.DETERMINISM
 	return NetplayCores.Strategy.LOCKSTEP
@@ -1756,12 +1783,16 @@ func _np_link(serial: int, op: int, members: PackedInt32Array,
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_link_ready(serial: int) -> void:
-	_op_ack(_link_waiting, _link_deadlines, serial, "link op")
+	var sender := _accepted_sender("link_ready")
+	if sender != 0:
+		_op_ack(_link_waiting, _link_deadlines, serial, "link op", sender)
 
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_link_failed(serial: int, reason: String) -> void:
-	_op_fail(_link_waiting, serial, "link op", reason)
+	var sender := _accepted_sender("link_failed")
+	if sender != 0:
+		_op_fail(_link_waiting, serial, "link op", reason, sender)
 
 
 ## Queue the op until the frame gate is about to release `frame`.  Scheduling it
@@ -2171,9 +2202,9 @@ func _send_local_window() -> void:
 
 @rpc("any_peer", "call_remote", "unreliable", CH_NPINPUT)
 func _np_input(bytes: PackedByteArray) -> void:
-	if not _nm.is_host():
+	var sender := _accepted_sender("input")
+	if sender == 0:
 		return
-	var sender := multiplayer.get_remote_sender_id()
 	if _spectators.has(sender):
 		return
 	var buf := StreamPeerBuffer.new()
@@ -2390,13 +2421,40 @@ func _op_arm(waiting_by_serial: Dictionary, deadlines: Dictionary,
 	return waiting
 
 
+## A real Libretro node without a netplay method the session needs: the
+## extension binary is older than this script. A test mock (not a Libretro) is
+## allowed to leave methods out, so it stays quiet.
+func _warn_stale_lib(lib: Object, method: String) -> void:
+	if lib.is_class("Libretro"):
+		push_warning("[Netplay] Libretro has no %s -- stale libretro-godot build? setup skipped" % method)
+
+
+## Host: the sender of the RPC being handled, or 0 when it must be ignored --
+## we are not the host, or the sender is a connected socket this host never
+## ACCEPTED (NetworkManager.is_accepted_peer, as object_sync and file_transfer
+## ask). Every any_peer handler here that changes the session goes through it.
+## Peer ids are never 0, so 0 is free to mean "refused".
+func _accepted_sender(handler: String) -> int:
+	if not _nm.is_host():
+		return 0
+	var sender := multiplayer.get_remote_sender_id()
+	if not _nm.is_accepted_peer(sender):
+		var key := "%s/%d" % [handler, sender]
+		if not _refused_logged.has(key):
+			_refused_logged[key] = true
+			push_warning("[Netplay] refused %s from peer %d: not an accepted player"
+				% [handler, sender])
+		return 0
+	return sender
+
+
 ## One peer acknowledged. Clears the operation once the last one has.
 func _op_ack(waiting_by_serial: Dictionary, deadlines: Dictionary,
-		serial: int, label: String) -> void:
+		serial: int, label: String, sender: int) -> void:
 	if not _nm.is_host() or not waiting_by_serial.has(serial):
 		return
 	var waiting: Dictionary = waiting_by_serial[serial]
-	waiting.erase(multiplayer.get_remote_sender_id())
+	waiting.erase(sender)
 	if waiting.is_empty():
 		waiting_by_serial.erase(serial)
 		deadlines.erase(serial)
@@ -2406,9 +2464,17 @@ func _op_ack(waiting_by_serial: Dictionary, deadlines: Dictionary,
 ## One peer could not apply it, so the session ends. There is no recovery: that
 ## peer's cores are now in a state the others' are not, and carrying on would
 ## desync every frame after this one.
+##
+## Only a peer the op is still WAITING on can fail it, as only one can ack it in
+## _op_ack: a peer that was never asked (a spectator, one that joined after the
+## op went out) or that already applied it has no say in whether it held.
 func _op_fail(waiting_by_serial: Dictionary, serial: int, label: String,
-		reason: String) -> void:
+		reason: String, sender: int) -> void:
 	if not _nm.is_host() or not waiting_by_serial.has(serial):
+		return
+	if not (waiting_by_serial[serial] as Dictionary).has(sender):
+		push_warning("[Netplay] ignored %s %d failure from peer %d: not waiting on it (%s)"
+			% [label, serial, sender, reason])
 		return
 	stop("%s %d failed: %s" % [label, serial, reason])
 
@@ -2428,9 +2494,9 @@ func _expired_operation(now: int) -> String:
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_frame_req(frame: int) -> void:
-	if not _nm.is_host():
+	var sender := _accepted_sender("frame_req")
+	if sender == 0:
 		return
-	var sender := multiplayer.get_remote_sender_id()
 	var first := frame
 	var buf := StreamPeerBuffer.new()
 	var frames: Array = []
@@ -2762,9 +2828,9 @@ func _np_state_chunk(serial: int, ordinal: int, machine: int, offset: int,
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_state_ack(serial: int, received: int) -> void:
-	if not _nm.is_host():
+	var peer_id := _accepted_sender("state_ack")
+	if peer_id == 0:
 		return
-	var peer_id := multiplayer.get_remote_sender_id()
 	var transfer: Dictionary = _join_transfers.get(peer_id, {})
 	if transfer.is_empty() or int(transfer.get("serial", -1)) != serial \
 			or received < int(transfer.get("acked", 0)) \
@@ -2824,9 +2890,9 @@ func _np_state_end(serial: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_state_progress(serial: int) -> void:
-	if not _nm.is_host():
+	var peer_id := _accepted_sender("state_progress")
+	if peer_id == 0:
 		return
-	var peer_id := multiplayer.get_remote_sender_id()
 	var transfer: Dictionary = _join_transfers.get(peer_id, {})
 	if not transfer.is_empty() and int(transfer.get("serial", -1)) == serial:
 		_join_deadlines[peer_id] = _now() + JOIN_TIMEOUT_MS
@@ -2982,7 +3048,7 @@ func _accept_join_snapshot(snapshot: Dictionary, states: Array) -> void:
 	_machine_specs = (snapshot["machine_specs"] as Array).duplicate(true)
 	_core = str(_machine_specs[0].get("core", "")) if not _machine_specs.is_empty() else ""
 	_delay = int(snapshot["delay"])
-	_strategy = int(snapshot["strategy"])
+	_strategy = NetplayCores.strategy_from_wire(snapshot["strategy"])
 	_rollback = _strategy == NetplayCores.Strategy.ROLLBACK
 	_host_identities = (snapshot["identities"] as Array).duplicate(true)
 	_local_identities.clear()
@@ -3140,9 +3206,10 @@ func _on_local_crc(frame: int, crc: int, machine_index: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable", CH_CONTROL)
 func _np_crc(frame: int, machine_index: int, crc: int) -> void:
-	if not _nm.is_host():
+	var sender := _accepted_sender("crc")
+	if sender == 0:
 		return
-	_crc_record(frame, machine_index, multiplayer.get_remote_sender_id(), crc)
+	_crc_record(frame, machine_index, sender, crc)
 	_check_crc(frame, machine_index)
 
 

@@ -1502,7 +1502,6 @@ func _build_system_filter_options(vbox: VBoxContainer) -> void:
 	sf_row.add_child(VRToggle.create(AppPrefs.system_filter, func(on: bool) -> void:
 		AppPrefs.system_filter = on
 		AppPrefs.save_prefs()
-		SystemFilter.enabled = on
 		system_filter_changed.emit()
 	))
 

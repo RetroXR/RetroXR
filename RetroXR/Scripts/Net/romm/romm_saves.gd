@@ -125,11 +125,12 @@ static func download(http: RommHttp, headers: PackedStringArray, save_id: int,
 ## record when RomM echoes one back, so the caller learns its id.
 static func create(http: RommHttp, headers: PackedStringArray, rom_id: int,
 				   emulator: String, slot: String, filename: String,
-				   bytes: PackedByteArray) -> Dictionary:
+				   bytes: PackedByteArray, abort: Callable = Callable()) -> Dictionary:
 	var path := "/api/saves?rom_id=%d&emulator=%s&slot=%s&overwrite=true" % [
 		rom_id, emulator.uri_encode(), slot.uri_encode()]
 	var out: Dictionary = http.upload_multipart(
-		HTTPClient.METHOD_POST, path, headers, "saveFile", filename, bytes)
+		HTTPClient.METHOD_POST, path, headers, "saveFile", filename, bytes,
+		"application/octet-stream", abort)
 	if int(out["result"]) != RommHttp.Result.OK:
 		return {"ok": false, "save": {}, "error": _describe(out)}
 	var rec: Dictionary = out["data"] as Dictionary if out["data"] is Dictionary else {}
@@ -138,10 +139,11 @@ static func create(http: RommHttp, headers: PackedStringArray, rom_id: int,
 
 ## Replace an existing save's contents.
 static func update(http: RommHttp, headers: PackedStringArray, save_id: int,
-				   filename: String, bytes: PackedByteArray) -> Dictionary:
+				   filename: String, bytes: PackedByteArray,
+				   abort: Callable = Callable()) -> Dictionary:
 	var out: Dictionary = http.upload_multipart(
 		HTTPClient.METHOD_PUT, "/api/saves/%d" % save_id, headers,
-		"saveFile", filename, bytes)
+		"saveFile", filename, bytes, "application/octet-stream", abort)
 	if int(out["result"]) != RommHttp.Result.OK:
 		return {"ok": false, "save": {}, "error": _describe(out)}
 	var rec: Dictionary = out["data"] as Dictionary if out["data"] is Dictionary else {}

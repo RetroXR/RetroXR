@@ -1558,8 +1558,8 @@ func _on_mains_region_changed(region: String) -> void:
 		spawn_menu.spawn_view().refresh_power_tab()
 
 
-func _on_controller_hands_changed(enabled: bool) -> void:
-	ControllerModel.draw_hands = enabled
+func _on_controller_hands_changed(_enabled: bool) -> void:
+	# ControllerModel.draw_hands is AppPrefs.controller_hands' own (its setter).
 	# Only the device hand follows this switch — the controller art fades on any
 	# grab either way, so forcing it visible here would pop it back mid-hold.
 	for ctrl in get_tree().root.find_children("*", "XRController3D", true, false):

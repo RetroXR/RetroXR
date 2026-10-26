@@ -792,29 +792,39 @@ func _exit_tree() -> void:
 		_join_unzip(core_name)
 
 
-## Extract all files from zip_path into dest_dir.
+## Extract all files from zip_path into dest_dir, flattened: only each member's
+## file name is kept, which is right for a core zip (one .dll/.so).
 ## Returns OK on success, or an error code.
+##
+## Member names go through ArchiveSafety first, as the RomM and firmware
+## unpackers' do: flattening already keeps a `../` from climbing, but a name the
+## archive's encoding mangled, or one carrying a drive colon (`C:x.dll` is an
+## alternate data stream on NTFS), is refused rather than written. Each file is
+## written through AtomicFile, so a failed or killed unzip leaves the core that
+## was there rather than a truncated library in its place. No symlink check: a
+## flattened member is never written below a subfolder.
 func _extract_zip(zip_path: String, dest_dir: String) -> int:
 	var reader := ZIPReader.new()
 	var err := reader.open(zip_path)
 	if err != OK:
-		push_error("CoreDownloadManager: cannot open zip '%s' (err %d)" % [zip_path, err])
+		push_error("[CoreDownloadManager] cannot open zip '%s' (err %d)" % [zip_path, err])
 		return err
 
 	for entry: String in reader.get_files():
 		# Skip directory entries
 		if entry.ends_with("/"):
 			continue
+		var relative := ArchiveSafety.safe_member(entry)
+		if relative.is_empty():
+			reader.close()
+			push_error("[CoreDownloadManager] unsafe member '%s' in %s; not unpacked" % [entry, zip_path])
+			return ERR_FILE_UNRECOGNIZED
 		var data := reader.read_file(entry)
 		# Flatten: write only the filename, not any path inside the zip
-		var out_path := dest_dir.path_join(entry.get_file())
-		var out := FileAccess.open(out_path, FileAccess.WRITE)
-		if out == null:
+		var out_path := dest_dir.path_join(relative.get_file())
+		if not AtomicFile.write_bytes(out_path, data, "CoreDownloadManager"):
 			reader.close()
-			push_error("CoreDownloadManager: cannot write '%s' (err %d)" % [out_path, FileAccess.get_open_error()])
-			return FileAccess.get_open_error()
-		out.store_buffer(data)
-		out.close()
+			return ERR_FILE_CANT_WRITE
 
 	reader.close()
 	return OK

@@ -204,6 +204,8 @@ func _ready() -> void:
 		_test_vlc()
 	if _want_group("manifest"):
 		_test_manifest()
+	if _want_group("registry"):
+		_test_save_registry()
 	_restore()
 
 	print("[test] %d cases, %s" % [_ran,
@@ -1405,6 +1407,47 @@ func _test_manifest() -> void:
 	_eq(sp.get_slots().size(), before, "manifest/delete removes the slot")
 	_ok(not FileAccess.file_exists("user://scenes/arcade/%s.json" % id),
 		"manifest/delete removed the file")
+
+
+# ── The save side's type table (ScenePersistence._save_kind_rows) ─────────────
+
+## PLAIN_SCENES types whose save row picks the type at save time (a peripheral,
+## an audio deck, a battery, a cabinet or a stand by its scene), or that are an
+## old name read back only ("ray_gun").
+const _BUILT_TYPES := ["light_gun", "ray_gun", "retro_keyboard", "wiimote",
+	"cd_player", "cassette_player", "record_player", "battery_aa", "battery_aaa",
+	"loudspeaker", "subwoofer", "speaker_stand_120", "speaker_stand_100"]
+
+
+## PLAIN_SCENES is read only when LOADING; a type with no save row is never
+## written, which shipped for the Nunchuk, the table and the i.LINK hub. And the
+## table is walked first-match-wins, so a row below one of its own base classes
+## could never be reached (RetroDisc under RetroCartridge saved every disc as a
+## cartridge).
+func _test_save_registry() -> void:
+	var written := ScenePersistence.saved_kind_types()
+	for type: String in ScenePersistence.PLAIN_SCENES:
+		_ok(type in written or type in _BUILT_TYPES, "registry/%s is written by a save row" % type)
+	for type: String in written:
+		_ok(ScenePersistence._is_known_type(type), "registry/%s can be loaded back" % type)
+	var sp := ScenePersistence.new()
+	var rows := ScenePersistence._save_kind_rows()
+	for j in rows.size():
+		var row: Array = rows[j]
+		if row.size() > 2:
+			_ok(sp.has_method(row[2] as StringName), "registry/hook %s exists" % row[2])
+		for i in j:
+			var earlier := (rows[i] as Array)[0] as Script
+			var base := (row[0] as Script)
+			var shadowed := false
+			while base != null:
+				if base == earlier:
+					shadowed = true
+				base = base.get_base_script()
+			if shadowed:
+				_ok(false, "registry/row %d (%s) is below its base class's row %d"
+					% [j, (row[0] as Script).get_global_name(), i])
+	_ok(rows.size() > 40, "registry/the table is populated (%d rows)" % rows.size())
 
 
 # ── Harness ───────────────────────────────────────────────────────────────────

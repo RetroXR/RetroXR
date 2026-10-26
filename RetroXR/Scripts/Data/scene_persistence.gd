@@ -273,7 +273,9 @@ const MOUSE_RECEIVER_SCENE    := preload("res://Scenes/Objects/controllers/mouse
 ##
 ## One of THREE places an interactive object is registered, and they must be
 ## edited together or the object half-exists:
-##   1. this table (or a _deserialize_object arm) — restoring it from a save
+##   1. this table (or a _deserialize_object arm) — restoring it from a save,
+##      plus its row in _save_kind_rows — writing it (scene_tests registry/
+##      fails a PLAIN_SCENES type no row writes)
 ##   2. spawn_menu_controller.gd's `match type` — spawning it from the menu
 ##   3. net_events.gd's EV_* kinds — announcing what a player does to it
 ## The keys here and in (2) are deliberately the same strings; an object that
@@ -379,8 +381,8 @@ const PLAIN_SCENES := {
 	"motion_plus": MOTION_PLUS_SCENE,
 	# The three N64 paks take the dongle's arrangement above: a pose here, and
 	# which controller each is seated in restored from that CONTROLLER's entry.
-	# The Controller Pak carries card fields on top of the pose, so it has a
-	# serialize branch of its own; all three are still instantiated from here.
+	# The Controller Pak carries card fields on top of the pose (_card_fields on
+	# save, _PLAIN_CARD_LABELS on load); all three are instantiated from here.
 	"rumble_pak": RUMBLE_PAK_SCENE,
 	"controller_pak": CONTROLLER_PAK_SCENE,
 	# The 32X's Model 2 spacer: a pose here, and which 32X it is clipped to
@@ -390,7 +392,7 @@ const PLAIN_SCENES := {
 	"transfer_pak": TRANSFER_PAK_SCENE,
 	# The Dreamcast's VMU is the same shape of thing as the Controller Pak — a
 	# card that seats in a controller — so it carries card fields on top of the
-	# pose and has a serialize branch of its own too.
+	# pose too.
 	"vmu": VMU_SCENE,
 	# The Xbox's Memory Unit: a card in a controller again, in the same two
 	# sockets, so the pad saves which slot holds it exactly as it does a VMU.
@@ -415,7 +417,7 @@ const PLAIN_SCENES := {
 	"sensor_bar": SENSOR_BAR_SCENE,
 	# Instantiate-and-place here, with the volume and the two cabinet poses applied
 	# afterwards by _restore_entry — the same split the sensor bar above uses. A
-	# serialize branch and a restore branch both existed for the pair, but nothing
+	# save row and a restore branch both existed for the pair, but nothing
 	# ever built one back: a saved room dropped its speakers with "unknown object
 	# type 'speaker_pair'", which also left any lead plugged into them with nothing
 	# to seat into.
@@ -895,29 +897,18 @@ func _store_text(path: String, text: String) -> bool:
 
 
 ## The fixture entries of a slot file — an empty array for one written before
-## fixtures existed, or for a room that has none.
+## fixtures existed, for a room that has none, or for a file that cannot be read
+## (silently: _read_objects has already said so about the same file).
 func _read_fixtures(path: String) -> Variant:
 	_await_path(path)
-	var f := FileAccess.open(path, FileAccess.READ)
-	if not f:
-		return []
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if not parsed is Dictionary:
-		return []
-	return (parsed as Dictionary).get("fixtures", [])
+	return JsonStore.read_dict(path).get("fixtures", [])
 
 
 ## The switch entries of a slot file - an empty array for one written before
-## switches were recorded, or for a room that has none.
+## switches were recorded, for a room that has none, or for an unreadable file.
 func _read_switches(path: String) -> Variant:
 	_await_path(path)
-	var f := FileAccess.open(path, FileAccess.READ)
-	if not f:
-		return []
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if not parsed is Dictionary:
-		return []
-	return (parsed as Dictionary).get("switches", [])
+	return JsonStore.read_dict(path).get("switches", [])
 
 
 ## The object entries of a slot file, or null if it cannot be read.
@@ -925,11 +916,14 @@ func _read_objects(path: String) -> Variant:
 	# Never read a file a worker is still writing — a truncated slot parses as an
 	# invalid file and restores as an empty room.
 	_await_path(path)
-	var f := FileAccess.open(path, FileAccess.READ)
-	if not f:
+	# No owner, so JsonStore says nothing and the error below is the one line. A
+	# missing slot is null in silence, as it always was; one that exists but does
+	# not parse, or is not an object (JsonStore's {}: a slot always has a version,
+	# so an empty object is no slot either), is an invalid file.
+	var parsed: Variant = JsonStore.parse_dict(path)
+	if parsed == null and not FileAccess.file_exists(path):
 		return null
-	var parsed: Variant = JSON.parse_string(f.get_as_text())
-	if not parsed is Dictionary:
+	if parsed == null or (parsed as Dictionary).is_empty():
 		push_error("ScenePersistence: invalid slot file '%s'" % path)
 		return null
 	var d := parsed as Dictionary
@@ -2067,16 +2061,11 @@ func _tv_decks_field(tv: RetroTV, node_to_id: Dictionary) -> Dictionary:
 	return {"decks": state} if not state.is_empty() else {}
 
 
-## An ordered chain, not a lookup table: `is` matches every ancestor, so a
-## subtype has to be tested before the type it extends. The two places that
-## matters are marked below.
-## The console entry, lifted out of _serialize_node's type chain.
+## The console entry, lifted out of _serialize_kind's type table.
 ##
 ## It is the one branch there that is more than a field map: five of its keys are
 ## written conditionally, two of them from loops over the machine's channels, so
-## it carried as many lines as the next eight branches together. The chain keeps
-## its documented ORDER -- RetroDisc must still be tested before RetroCartridge,
-## which it extends -- and only this body moves.
+## it carried as many lines as the next eight branches together.
 func _serialize_system(sys: RetroSystem, id: int, n3d: Node3D,
 		node_to_id: Dictionary) -> Dictionary:
 	var result := _base(id, "system", n3d).merged({
@@ -2239,6 +2228,144 @@ func _restore_cell_slots(root: Node, obj: Node, spawned: Dictionary, d: Dictiona
 	CellSlots.told(obj, saved)
 
 
+## The save side's registry: which class saves as which type, and what it writes
+## besides its pose. One row per class, in one of three shapes:
+##
+##   [Class, "type"]               pose only -- _base and nothing else
+##   [Class, "type", &"_fields"]   _base, merged with what _fields(node, node_to_id)
+##                                 returns (the keys after the pose, in its order)
+##   [Class, "", &"_entry"]        _entry(node, id, n3d, node_to_id) writes the whole
+##                                 entry: its type is not fixed by the class (a
+##                                 battery's size, a deck's kind, which pad) or it is
+##                                 more than a field map (a console, a lead)
+##
+## ORDERED, not a lookup: _serialize_kind walks it top to bottom and the FIRST row
+## the node `is` wins, exactly as the `elif node is X` chain it replaced did. `is`
+## matches every ancestor, so a subclass's row must come before its base's. Where
+## that matters today: RetroDisc before RetroCartridge (it extends it), and
+## SnesMouse before RetroMouse inside _serialize_peripheral. A MediaTransport built
+## into a set is refused before the walk (_serialize_kind).
+##
+## A type restored from PLAIN_SCENES still needs its row HERE: that map is read
+## only when LOADING, and an object with no row is never written, so there is
+## nothing to load back. That drift shipped for the Nunchuk, the Jump Pack, the
+## Motion Plus, the table and the i.LINK hub, each of which went missing from saved
+## rooms; scene_tests' registry/ cases check every PLAIN_SCENES type is written.
+##
+## Built on first use rather than as a const: the rows hold class scripts, and
+## reading them at serialize time is after every one of those scripts has loaded.
+static var _save_kinds: Array = []
+
+static func _save_kind_rows() -> Array:
+	if not _save_kinds.is_empty():
+		return _save_kinds
+	_save_kinds = [
+		[RetroSystem, "", &"_serialize_system"],
+		[RetroTV, "tv", &"_tv_fields"],
+		# Pose, plus which console is powering it. Unlike the Nunchuk this end DOES
+		# mean something: the bar is what a remote looks at, and a bar restored
+		# unplugged is a room where nothing points at anything.
+		[SensorBar, "sensor_bar", &"_sensor_bar_fields"],
+		# Pose only. Which remote it is plugged into is saved on the REMOTE, which
+		# is the end of the cord that means something; this side is just where the
+		# thing is lying.
+		[Nunchuk, "nunchuk"],
+		# Card fields as well as a pose: each of these IS its image on disk, and one
+		# that came back without its card_id would mint a new blank and read as a
+		# wiped set of notes. Which controller holds it (and which of a pad's two
+		# slots) is saved on the CONTROLLER.
+		[ControllerPak, "controller_pak", &"_card_fields"],
+		[VmuCard, "vmu", &"_card_fields"],
+		[XboxMuCard, "xbox_mu", &"_card_fields"],
+		# The cartridge in its roof is a reference rather than a pose, so a pak put
+		# away with a game still in it comes back holding that same game.
+		[TransferPak, "transfer_pak", &"_transfer_pak_fields"],
+		# Pose only: none of these carries state of its own. Which controller, 32X
+		# or pad slot each is in is saved on the thing it is in.
+		[RumblePak, "rumble_pak"],
+		[Sega32xSpacer, "sega32x_spacer"],
+		[JumpPack, "jump_pack"],
+		# Pose only, for the Jump Pack's reason; the bay it is in is on the thing
+		# the bay belongs to. Its type is its size, which the cell answers for.
+		[BatteryCell, "", &"_battery_entry"],
+		[DcMicrophone, "dc_microphone"],
+		# The plug is on the cord rather than an entry of its own, so the stick
+		# records where it is seated.
+		[GcMicrophone, "gc_microphone", &"_gc_microphone_fields"],
+		# The microphone and both cords ride with the unit and have no entries of
+		# their own, so the unit records the socket it is in — and whether its
+		# microphone is in its jack, which is a thing a player can undo.
+		[N64Vru, "n64_vru", &"_n64_vru_fields"],
+		# Pose only, for the Nunchuk's reason: which remote it is seated in is saved
+		# on that remote.
+		[MotionPlus, "motion_plus"],
+		[TVRemote, "tv_remote"],
+		[StorageBox, "trash_can"],
+		# Pose only: which lead is in which of a hub's sockets is recorded by each
+		# LEAD, naming the hub and "PortN".
+		[ILinkHub, "ilink_hub"],
+		# The pose and the roll it is loaded with.
+		[GbPrinter, "gb_printer", &"_gb_printer_fields"],
+		[EthernetHub, "ethernet_hub"],
+		[Table, "table"],
+		[RetroExpansion, "expansion", &"_expansion_fields"],
+		# MUST precede the RetroCartridge row — RetroDisc extends it.
+		[RetroDisc, "disc", &"_media_fields"],
+		[RetroCartridge, "cartridge", &"_media_fields"],
+		[MemoryCard, "memory_card", &"_memory_card_fields"],
+		# Nothing to record but its existence and where it is: a lid is
+		# interchangeable, and which console it belongs on comes from that
+		# console's own "expansion_cover" reference. (Its color, for a lid that
+		# was given one, is written by _serialize_node as anything's is.)
+		[ExpansionCover, "expansion_cover"],
+		[PortCover, "port_cover", &"_port_cover_fields"],
+		[Poster, "poster", &"_poster_fields"],
+		[PDFBook, "book", &"_book_fields"],
+		# The deck's own TV link is not saved: the lead is a separate object now, so
+		# the connection lives in a spawned cable's plugs. Same for the DVD player.
+		[VCRPlayer, "vcr_player", &"_vcr_player_fields"],
+		[VCRTape, "vcr_tape", &"_vcr_tape_fields"],
+		[DVDPlayer, "dvd_player", &"_dvd_player_fields"],
+		[DVDDisc, "dvd_disc", &"_dvd_disc_fields"],
+		[RetroAudioPlayer, "", &"_audio_player_entry"],
+		[AudioDisc, "audio_disc", &"_album_fields"],
+		[AudioCassette, "audio_cassette", &"_audio_cassette_fields"],
+		[VinylRecord, "vinyl_record", &"_album_fields"],
+		# One builder for the whole family; it picks the type (_serialize_peripheral).
+		[RetroController, "", &"_serialize_peripheral"],
+		[LightGun, "", &"_serialize_peripheral"],
+		[RetroMouse, "", &"_serialize_peripheral"],
+		[RetroKeyboard, "", &"_serialize_peripheral"],
+		[Wiimote, "", &"_serialize_peripheral"],
+		[RetroMultitap, "", &"_serialize_multitap"],
+		[Loudspeaker, "", &"_loudspeaker_entry"],
+		[SpeakerStand, "", &"_speaker_stand_entry"],
+		[SurroundAmp, "surround_amp", &"_surround_amp_fields"],
+		# Deliberately not a pose-only object. The root never moves — the two
+		# cabinets are separate bodies the player carries around one at a time — so
+		# the root's transform says nothing about where either of them is.
+		[SpeakerPair, "speaker_pair", &"_speaker_pair_fields"],
+		[KeyboardReceiver, "keyboard_receiver", &"_receiver_fields"],
+		[MouseReceiver, "mouse_receiver", &"_receiver_fields"],
+		[PadReceiver, "pad_receiver", &"_pad_receiver_fields"],
+		[CompositeCable, "", &"_serialize_cable"],
+		[PowerCord, "", &"_serialize_power_cord"],
+		[PowerStrip, "", &"_serialize_power_strip"],
+	]
+	return _save_kinds
+
+
+## Every type a row of _save_kind_rows() writes under a fixed name. The rows whose
+## builder picks the type at save time are not in it; scene_tests' registry/ cases
+## account for those by name.
+static func saved_kind_types() -> Array:
+	var out: Array = []
+	for row: Array in _save_kind_rows():
+		if not str(row[1]).is_empty():
+			out.append(str(row[1]))
+	return out
+
+
 func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	if not node is Node3D:
 		return {}
@@ -2249,11 +2376,11 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 	# the mod supplies the scene. Checked FIRST so a mod object whose root
 	# happens to derive from a known type is still written as itself rather than
 	# as its base class, which would lose the scene it came from.
-	# A mod's PAD is not one of these, and is left to the controller branch below.
-	# That branch already writes the scene a pad came from, which is how every pad
+	# A mod's PAD is not one of these, and is left to the controller row below.
+	# That row already writes the scene a pad came from, which is how every pad
 	# is told apart, and with it the port it is plugged into. Written here as a
 	# bare pose, a mod's pad came back as the right pad, unplugged. A mod's LIGHT
-	# GUN is the same case: it is in a port too, and that branch is where the port
+	# GUN is the same case: it is in a port too, and that row is where the port
 	# is written. So is a mod's MULTITAP, which has pads in it besides.
 	if node.has_meta(MOD_TYPE_META) \
 			and not (node is RetroController or node is LightGun or node is RetroMultitap):
@@ -2270,362 +2397,293 @@ func _serialize_kind(node: Node, id: int, node_to_id: Dictionary) -> Dictionary:
 		lead["type"] = mod_type
 		return lead
 
-	if node is RetroSystem:
-		return _serialize_system(node as RetroSystem, id, n3d, node_to_id)
-	elif node is RetroTV:
-		var tv := node as RetroTV
-		return _base(id, "tv", n3d).merged({
-			# Which cabinet it wears. Without this a spawned monitor comes back as
-			# the stock black box, since tv_model only ever survived by being
-			# authored into a scene.
-			"tv_model": tv.tv_model,
-			"crt_enabled": tv.crt_enabled,
-			"crt_params": tv.get_crt_params(),
-			"scale_factor": tv.scale_factor,
-			"stereo_mode": tv.stereo_mode,
-			"controls": tv.get_control_state(),
-		}).merged(_tv_decks_field(tv, node_to_id))
-	elif node is SensorBar:
-		# Pose, plus which console is powering it. Unlike the Nunchuk this end DOES
-		# mean something: the bar is what a remote looks at, and a bar restored
-		# unplugged is a room where nothing points at anything.
-		return _base(id, "sensor_bar", n3d).merged({
-			"system": _ref(node_to_id, (node as SensorBar).get_system()),
-		})
-	elif node is Nunchuk:
-		# Pose only. Which remote it is plugged into is saved on the REMOTE, which
-		# is the end of the cord that means something; this side is just where the
-		# thing is lying. Being in PLAIN_SCENES is not enough on its own — that map
-		# is only read when LOADING, so without a branch here it was never written
-		# and there was nothing to load back.
-		return _base(id, "nunchuk", n3d)
-	elif node is ControllerPak:
-		# Card fields as well as a pose: the pak IS its image on disk, and a pak
-		# that came back without its card_id would mint a new blank and read as a
-		# wiped set of notes. Which controller it is seated in is saved on that
-		# CONTROLLER, like the dongle below.
-		var cpak := node as ControllerPak
-		return _base(id, "controller_pak", n3d).merged({
-			"card_id": cpak.card_id,
-			"card_label": cpak.card_label,
-		})
-	elif node is VmuCard:
-		# Card fields as well as a pose, for the Controller Pak's reason: the VMU
-		# IS its image on disk, and one that came back without its card_id would
-		# mint a blank and read as a wiped card. Which controller holds it, and
-		# which of that pad's two slots, is saved on the CONTROLLER.
-		var vmu := node as VmuCard
-		return _base(id, "vmu", n3d).merged({
-			"card_id": vmu.card_id,
-			"card_label": vmu.card_label,
-		})
-	elif node is XboxMuCard:
-		# The VMU's reason: the unit IS its image on disk, and one that came back
-		# without its card_id would mint a blank and read as a wiped unit.
-		var unit := node as XboxMuCard
-		return _base(id, "xbox_mu", n3d).merged({
-			"card_id": unit.card_id,
-			"card_label": unit.card_label,
-		})
-	elif node is TransferPak:
-		# The cartridge in its roof is a reference rather than a pose, so a pak put
-		# away with a game still in it comes back holding that same game.
-		return _base(id, "transfer_pak", n3d).merged({
-			"gb_cart": _ref(node_to_id, (node as TransferPak).get_cart()),
-		})
-	elif node is RumblePak:
-		return _base(id, "rumble_pak", n3d)
-	elif node is Sega32xSpacer:
-		# Pose only, for the Rumble Pak's reason; which 32X it is clipped to is on
-		# the unit's entry.
-		return _base(id, "sega32x_spacer", n3d)
-	elif node is JumpPack:
-		# Pose only, for the Rumble Pak's reason: it carries no state of its
-		# own. It needs a branch here all the same, because PLAIN_SCENES is
-		# only read when LOADING -- without this it saves as nothing.
-		return _base(id, "jump_pack", n3d)
-	elif node is BatteryCell:
-		# Pose only, for the Jump Pack's reason; the bay it is in is on the thing
-		# the bay belongs to.
-		return _base(id, (node as BatteryCell).save_type(), n3d)
-	elif node is DcMicrophone:
-		# Pose only, and it needs a branch for the same reason: which slot it is
-		# in is recorded by the pad holding it.
-		return _base(id, "dc_microphone", n3d)
-	elif node is GcMicrophone:
-		# The plug is on the cord rather than an entry of its own, so the stick
-		# records where it is seated.
-		var mic := node as GcMicrophone
-		return _base(id, "gc_microphone", n3d).merged({
-			"system": _ref(node_to_id, mic.seated_system()),
-			"slot": mic.seated_slot(),
-		})
-	elif node is N64Vru:
-		# The microphone and both cords ride with the unit and have no entries of
-		# their own, so the unit records the socket it is in — and whether its
-		# microphone is in its jack, which is a thing a player can undo.
-		var vru := node as N64Vru
-		return _base(id, "n64_vru", n3d).merged({
-			"system": _ref(node_to_id, vru.seated_system),
-			"port": vru.seated_port_index,
-			"mic": vru.mic_plugged(),
-		})
-	elif node is MotionPlus:
-		# Pose only, for the reason the Nunchuk above gives: which remote it is
-		# seated in is saved on that remote. It needs a branch here all the same,
-		# because PLAIN_SCENES is only read when loading.
-		return _base(id, "motion_plus", n3d)
-	elif node is TVRemote:
-		return _base(id, "tv_remote", n3d)
-	elif node is StorageBox:
-		return _base(id, "trash_can", n3d)
-	elif node is ILinkHub:
-		# Pose only, and needs this branch for the table's reason below.
-		return _base(id, "ilink_hub", n3d)
-	elif node is GbPrinter:
-		# The pose (this branch for the hub's reason) and the roll it is loaded with.
-		return _base(id, "gb_printer", n3d).merged({"paper": (node as GbPrinter).paper_roll})
-	elif node is EthernetHub:
-		return _base(id, "ethernet_hub", n3d)
-	elif node is Table:
-		# Pose only. Being in PLAIN_SCENES is not enough on its own — that map is
-		# read when LOADING, so without this branch a table is never written and
-		# there is nothing to load back.
-		return _base(id, "table", n3d)
-	elif node is RetroExpansion:
-		# The unit, and whatever is in its OWN bay. Which console it is bolted
-		# to is deliberately not written here -- it is in that console's entry,
-		# so a stack is described once instead of from both ends, where the two
-		# could disagree about what is attached to what.
-		var unit := node as RetroExpansion
-		return _base(id, "expansion", n3d).merged({
-			"expansion_id": unit.expansion_id,
-			# The ROM a unit carries in itself -- the BS-X shell. Without this a
-			# restored BS-X cartridge came back as an empty enclosure that booted
-			# nothing, and the room looked right while the machine was dead.
-			"rom_path": unit.rom_path,
-			"media": _ref(node_to_id, unit.get_media()),
-			# Slot B is its own key rather than the pair becoming an array, for
-			# the same reason the second memory card is: an array would not load
-			# in any room file saved before there was a second slot.
-			"media_b": _ref(node_to_id, unit.get_media(1)),
-			# What is clipped on -- the 32X's Model 2 spacer. Absent from every
-			# room saved before units took accessories, so read with a default.
-			"accessory": _ref(node_to_id, unit.get_accessory()),
-			# The unit's own memory, so its saves come back with it and are not
-			# minted afresh under a new name.
-			"card_id": unit.card_id,
-			"card_label": unit.card_label,
-		})
-	elif node is RetroDisc:
-		# MUST precede the RetroCartridge branch — RetroDisc extends it.
-		return _base(id, "disc", n3d).merged(_media_fields(node as RetroCartridge))
-	elif node is RetroCartridge:
-		return _base(id, "cartridge", n3d).merged(_media_fields(node as RetroCartridge))
-	elif node is MemoryCard:
-		var card := node as MemoryCard
-		return _base(id, "memory_card", n3d).merged({
-			"family": card.family,
-			"card_id": card.card_id,
-			"card_label": card.card_label,
-		})
-	elif node is ExpansionCover:
-		# Nothing to record but its existence and where it is: a lid is
-		# interchangeable, and which console it belongs on comes from that
-		# console's own "expansion_cover" reference. (Its color, for a lid that
-		# was given one, is written by _serialize_node as anything's is.)
-		return _base(id, "expansion_cover", n3d)
-	elif node is PortCover:
-		var port_cover := node as PortCover
-		return _base(id, "port_cover", n3d).merged({
-			"cover_socket": port_cover.socket_id,
-			"cover_size": [port_cover.size.x, port_cover.size.y, port_cover.size.z],
-		})
-	elif node is Poster:
-		var poster := node as Poster
-		var entry := _base(id, "poster", n3d).merged({
-			"image_path": poster.image_path,
-			"size_scale": poster.size_scale,
-			"fit_mode": int(poster.fit_mode),
-			"roll": poster.roll_degrees,
-			"stuck": poster.is_stuck(),
-		})
-		# Only when switched off, so every other poster saves as it did.
-		if not poster.sticks:
-			entry["sticks"] = false
-		# Only on a Game Boy Printer's print, so every other poster saves as it did.
-		if poster.printout:
-			entry["printout"] = true
-		return entry
-	elif node is PDFBook:
-		var book := node as PDFBook
-		var page := book.net_get_page()
-		return _base(id, "book", n3d).merged({
-			"pdf_path": book.pdf_path,
-			"half_pages": book.half_page_mode,
-			"size_scale": book.size_scale,
-			"hardback": book.hardback,
-			"page_state": int(page.get("state", 0)),
-			"page_leaf": int(page.get("leaf", 0)),
-		})
-	elif node is MediaTransport and (node as MediaTransport).built_into != null:
-		# A deck built into a set is the set's, and saved on it (_tv_decks_field).
-		# Never in "spawned" today; refused here too, so a set restored with one
-		# could never come back with a second, loose copy beside it.
+	# A deck built into a set is the set's, and saved on it (_tv_decks_field).
+	# Never in "spawned" today; refused here too, so a set restored with one
+	# could never come back with a second, loose copy beside it. No row above the
+	# decks' could match a MediaTransport, so testing it before the walk is the
+	# same as testing it where the chain used to.
+	if node is MediaTransport and (node as MediaTransport).built_into != null:
 		return {}
-	elif node is VCRPlayer:
-		# The deck's own TV link is not saved: the lead is a separate object now, so
-		# the connection lives in a spawned cable's plugs. Same for the DVD player.
-		return _base(id, "vcr_player", n3d).merged({
-			"tape": _ref(node_to_id, (node as VCRPlayer).get_snapped_tape()),
-		})
-	elif node is VCRTape:
-		var tape := node as VCRTape
-		return _base(id, "vcr_tape", n3d).merged({
-			"video_path": tape.video_path,
-			"video_label": tape.video_label,
-			# Where its tape stands. A tape in a deck is saved as itself and
-			# seated afterward, so the deck reads these as it takes it back.
-			"tape_track": tape.tape_track,
-			"tape_time": tape.tape_time,
-			"tape_progress": tape.tape_progress,
-			# Which cassette it is, how long its recordings are, and how far
-			# into the blank tape after them it stands.
-			"cassette": tape.cassette,
-			"recording_seconds": tape.recording_seconds,
-			"tape_blank": tape.tape_blank,
-		})
-	elif node is DVDPlayer:
-		var dvdp := node as DVDPlayer
-		return _base(id, "dvd_player", n3d).merged({
-			"disc": _ref(node_to_id, dvdp.get_snapped_disc()),
-		}).merged(_yaw_field("disc_yaw", dvdp.disc_seat_yaw()))
-	elif node is DVDDisc:
-		var dvd := node as DVDDisc
-		return _base(id, "dvd_disc", n3d).merged({
-			"dvd_path": dvd.dvd_path,
-			"dvd_label": dvd.dvd_label,
-		})
-	elif node is RetroAudioPlayer:
-		var ap := node as RetroAudioPlayer
-		# The deck answers for its own type. This used to be
-		# `"cd_player" if node is CDPlayer else "cassette_player"`, whose else-arm
-		# silently saved any third deck as a cassette — a turntable came back a tape
-		# machine. A virtual makes a deck that forgets to override a missing string
-		# rather than another deck's.
-		return _base(id, ap.deck_save_type(), n3d).merged({
-			"media": _ref(node_to_id, ap.get_snapped_media()),
-		}).merged(_yaw_field("media_yaw", ap.media_seat_yaw()))
-	elif node is AudioDisc:
-		var adisc := node as AudioDisc
-		return _base(id, "audio_disc", n3d).merged({
-			"album_path": adisc.album_path,
-			"album_label": adisc.album_label,
-		})
-	elif node is AudioCassette:
-		var acass := node as AudioCassette
-		return _base(id, "audio_cassette", n3d).merged({
-			"album_path": acass.album_path,
-			"album_label": acass.album_label,
-			# Where its tape stands. A cassette in a deck is saved as itself and
-			# seated afterward, so the deck reads these as it takes it back.
-			"tape_track": acass.tape_track,
-			"tape_time": acass.tape_time,
-			"tape_progress": acass.tape_progress,
-		})
-	elif node is VinylRecord:
-		var lp := node as VinylRecord
-		return _base(id, "vinyl_record", n3d).merged({
-			"album_path": lp.album_path,
-			"album_label": lp.album_label,
-		})
-	elif node is RetroController or node is LightGun or node is RetroMouse \
-			or node is RetroKeyboard or node is Wiimote:
-		return _serialize_peripheral(node, id, n3d, node_to_id)
-	elif node is RetroMultitap:
-		return _serialize_multitap(node as RetroMultitap, id, n3d, node_to_id)
-	elif node is Loudspeaker:
-		# Pose only: one cabinet, and which channel it carries is not its own
-		# state — it is decided by the television socket its lead sits in, and the
-		# lead records that itself. Two scenes share the class, so the token comes
-		# off the scene file rather than the type.
-		var token := "subwoofer" if node.scene_file_path.ends_with("subwoofer.tscn") \
-			else "loudspeaker"
-		return _base(id, token, n3d)
-	elif node is SpeakerStand:
-		# The STAND records the cabinet on it, not the other way round: the seat is
-		# the stand's, and Loudspeaker knows nothing about stands. Without it a
-		# restored cabinet would come back at the right height but unseated, so it
-		# would merely REST on the plate — stable, but knocked off by a lead.
-		var stand := node as SpeakerStand
-		var stand_token := "speaker_stand_100" 			if node.scene_file_path.ends_with("speaker_stand_100.tscn") 			else "speaker_stand_120"
-		return _base(id, stand_token, n3d).merged({
-			"speaker": _ref(node_to_id, stand.seated_speaker()),
-		})
-	elif node is SurroundAmp:
-		# The decoder switch as well as the pose. The volume knob is a VRKnob, which
-		# _base already records with the other articulated controls; which machine it
-		# carries and which cabinets are on its back are the LEADS' to record.
-		return _base(id, "surround_amp", n3d).merged({
-			"decode_mode": (node as SurroundAmp).decode_mode,
-		})
-	elif node is SpeakerPair:
-		# Deliberately not a PLAIN_SCENES pose-only object. The root never moves —
-		# the two cabinets are separate bodies the player carries around one at a
-		# time — so the root's transform says nothing about where either of them is.
-		var pair := node as SpeakerPair
-		return _base(id, "speaker_pair", n3d).merged({
-			"boxes": pair.box_poses(),
-			"volume": pair.get_volume(),
-		})
-	elif node is KeyboardReceiver:
-		return _receiver_entry(node as InputReceiver, id, "keyboard_receiver", n3d, node_to_id)
-	elif node is MouseReceiver:
-		return _receiver_entry(node as InputReceiver, id, "mouse_receiver", n3d, node_to_id)
-	elif node is PadReceiver:
-		# Which PAD it is for as well as which port it is in — a receiver with no
-		# pad is a dongle for nothing.
-		var pr := node as PadReceiver
-		var pr_entry := _receiver_entry(pr, id, "pad_receiver", n3d, node_to_id).merged({
-			"pad_guid": pr.pad_guid,
-			"pad_name": pr.pad_name,
-			"pad_ordinal": pr.pad_ordinal,
-		})
-		# Which pak is on its boss, saved on the RECEIVER for the reason the
-		# controller's is saved on the pad: the port is the end that means
-		# something, and the pak's own entry is only where it is lying.
-		var pr_pak: Node = pr.get_pak()
-		if pr_pak != null:
-			pr_entry["pak"] = _ref(node_to_id, pr_pak)
-		var pr_vmus := _vmu_slot_refs(pr, node_to_id)
-		if not pr_vmus.is_empty():
-			pr_entry["vmus"] = pr_vmus
-		return pr_entry
-	elif node is CompositeCable:
-		return _serialize_cable(node as CompositeCable, id, n3d, node_to_id)
-	elif node is PowerCord:
-		return _serialize_power_cord(node as PowerCord, id, n3d, node_to_id)
-	elif node is PowerStrip:
-		return _serialize_power_strip(node as PowerStrip, id, n3d, node_to_id)
+
+	for row: Array in _save_kind_rows():
+		if not is_instance_of(node, row[0]):
+			continue
+		var type_name := str(row[1])
+		if row.size() < 3:
+			return _base(id, type_name, n3d)
+		var hook := row[2] as StringName
+		if type_name.is_empty():
+			var entry: Dictionary = call(hook, node, id, n3d, node_to_id)
+			return entry
+		var fields: Dictionary = call(hook, node, node_to_id)
+		return _base(id, type_name, n3d).merged(fields)
 	return {}
 
 
-## Pose plus which port it is seated in — everything a receiver has in common.
-## The socket, like every other peripheral's, is the CABINET's rather than the
-## libretro port (see _serialize_peripheral).
-func _receiver_entry(rx: InputReceiver, id: int, type_name: String, n3d: Node3D,
+# ── Per-type save hooks (rows of _save_kind_rows) ──────────────────────────────
+# A `_fields` hook returns the keys written after the pose; an `_entry` hook the
+# whole entry.
+
+func _tv_fields(tv: RetroTV, node_to_id: Dictionary) -> Dictionary:
+	return {
+		# Which cabinet it wears. Without this a spawned monitor comes back as
+		# the stock black box, since tv_model only ever survived by being
+		# authored into a scene.
+		"tv_model": tv.tv_model,
+		"crt_enabled": tv.crt_enabled,
+		"crt_params": tv.get_crt_params(),
+		"scale_factor": tv.scale_factor,
+		"stereo_mode": tv.stereo_mode,
+		"controls": tv.get_control_state(),
+	}.merged(_tv_decks_field(tv, node_to_id))
+
+
+func _sensor_bar_fields(bar: SensorBar, node_to_id: Dictionary) -> Dictionary:
+	return {"system": _ref(node_to_id, bar.get_system())}
+
+
+## The identity of anything that IS an image on disk: a Controller Pak, a VMU, an
+## Xbox Memory Unit, a memory card, an expansion unit's own memory. Read
+## duck-typed, since those share no base class; _apply_card_fields is the way back.
+func _card_fields(card: Node, _node_to_id: Dictionary = {}) -> Dictionary:
+	return {
+		"card_id": card.get("card_id"),
+		"card_label": card.get("card_label"),
+	}
+
+
+func _transfer_pak_fields(pak: TransferPak, node_to_id: Dictionary) -> Dictionary:
+	return {"gb_cart": _ref(node_to_id, pak.get_cart())}
+
+
+func _battery_entry(cell: BatteryCell, id: int, n3d: Node3D,
+		_node_to_id: Dictionary) -> Dictionary:
+	return _base(id, cell.save_type(), n3d)
+
+
+func _gc_microphone_fields(mic: GcMicrophone, node_to_id: Dictionary) -> Dictionary:
+	return {
+		"system": _ref(node_to_id, mic.seated_system()),
+		"slot": mic.seated_slot(),
+	}
+
+
+func _n64_vru_fields(vru: N64Vru, node_to_id: Dictionary) -> Dictionary:
+	return {
+		"system": _ref(node_to_id, vru.seated_system),
+		"port": vru.seated_port_index,
+		"mic": vru.mic_plugged(),
+	}
+
+
+func _gb_printer_fields(printer: GbPrinter, _node_to_id: Dictionary) -> Dictionary:
+	return {"paper": printer.paper_roll}
+
+
+## The unit, and whatever is in its OWN bay. Which console it is bolted to is
+## deliberately not written here -- it is in that console's entry, so a stack is
+## described once instead of from both ends, where the two could disagree about
+## what is attached to what.
+func _expansion_fields(unit: RetroExpansion, node_to_id: Dictionary) -> Dictionary:
+	var fields := {
+		"expansion_id": unit.expansion_id,
+		# The ROM a unit carries in itself -- the BS-X shell. Without this a
+		# restored BS-X cartridge came back as an empty enclosure that booted
+		# nothing, and the room looked right while the machine was dead.
+		"rom_path": unit.rom_path,
+		"media": _ref(node_to_id, unit.get_media()),
+		# Slot B is its own key rather than the pair becoming an array, for
+		# the same reason the second memory card is: an array would not load
+		# in any room file saved before there was a second slot.
+		"media_b": _ref(node_to_id, unit.get_media(1)),
+		# What is clipped on -- the 32X's Model 2 spacer. Absent from every
+		# room saved before units took accessories, so read with a default.
+		"accessory": _ref(node_to_id, unit.get_accessory()),
+	}
+	# The unit's own memory, so its saves come back with it and are not minted
+	# afresh under a new name.
+	return fields.merged(_card_fields(unit))
+
+
+func _memory_card_fields(card: MemoryCard, _node_to_id: Dictionary) -> Dictionary:
+	return {"family": card.family}.merged(_card_fields(card))
+
+
+func _port_cover_fields(cover: PortCover, _node_to_id: Dictionary) -> Dictionary:
+	return {
+		"cover_socket": cover.socket_id,
+		"cover_size": [cover.size.x, cover.size.y, cover.size.z],
+	}
+
+
+func _poster_fields(poster: Poster, _node_to_id: Dictionary) -> Dictionary:
+	var fields := {
+		"image_path": poster.image_path,
+		"size_scale": poster.size_scale,
+		"fit_mode": int(poster.fit_mode),
+		"roll": poster.roll_degrees,
+		"stuck": poster.is_stuck(),
+	}
+	# Only when switched off, so every other poster saves as it did.
+	if not poster.sticks:
+		fields["sticks"] = false
+	# Only on a Game Boy Printer's print, so every other poster saves as it did.
+	if poster.printout:
+		fields["printout"] = true
+	return fields
+
+
+func _book_fields(book: PDFBook, _node_to_id: Dictionary) -> Dictionary:
+	var page := book.net_get_page()
+	return {
+		"pdf_path": book.pdf_path,
+		"half_pages": book.half_page_mode,
+		"size_scale": book.size_scale,
+		"hardback": book.hardback,
+		"page_state": int(page.get("state", 0)),
+		"page_leaf": int(page.get("leaf", 0)),
+	}
+
+
+func _vcr_player_fields(vcr: VCRPlayer, node_to_id: Dictionary) -> Dictionary:
+	return {"tape": _ref(node_to_id, vcr.get_snapped_tape())}
+
+
+func _vcr_tape_fields(tape: VCRTape, _node_to_id: Dictionary) -> Dictionary:
+	return {
+		"video_path": tape.video_path,
+		"video_label": tape.video_label,
+		# Where its tape stands. A tape in a deck is saved as itself and
+		# seated afterward, so the deck reads these as it takes it back.
+		"tape_track": tape.tape_track,
+		"tape_time": tape.tape_time,
+		"tape_progress": tape.tape_progress,
+		# Which cassette it is, how long its recordings are, and how far
+		# into the blank tape after them it stands.
+		"cassette": tape.cassette,
+		"recording_seconds": tape.recording_seconds,
+		"tape_blank": tape.tape_blank,
+	}
+
+
+func _dvd_player_fields(dvdp: DVDPlayer, node_to_id: Dictionary) -> Dictionary:
+	return {
+		"disc": _ref(node_to_id, dvdp.get_snapped_disc()),
+	}.merged(_yaw_field("disc_yaw", dvdp.disc_seat_yaw()))
+
+
+func _dvd_disc_fields(dvd: DVDDisc, _node_to_id: Dictionary) -> Dictionary:
+	return {
+		"dvd_path": dvd.dvd_path,
+		"dvd_label": dvd.dvd_label,
+	}
+
+
+## The deck answers for its own type. This used to be
+## `"cd_player" if node is CDPlayer else "cassette_player"`, whose else-arm
+## silently saved any third deck as a cassette — a turntable came back a tape
+## machine. A virtual makes a deck that forgets to override a missing string
+## rather than another deck's.
+func _audio_player_entry(ap: RetroAudioPlayer, id: int, n3d: Node3D,
 		node_to_id: Dictionary) -> Dictionary:
+	return _base(id, ap.deck_save_type(), n3d).merged({
+		"media": _ref(node_to_id, ap.get_snapped_media()),
+	}).merged(_yaw_field("media_yaw", ap.media_seat_yaw()))
+
+
+## An audio disc's or a record's: which album, and what it is called. Read
+## duck-typed, since the two share no base class.
+func _album_fields(media: Node, _node_to_id: Dictionary) -> Dictionary:
+	return {
+		"album_path": media.get("album_path"),
+		"album_label": media.get("album_label"),
+	}
+
+
+func _audio_cassette_fields(acass: AudioCassette, node_to_id: Dictionary) -> Dictionary:
+	return _album_fields(acass, node_to_id).merged({
+		# Where its tape stands. A cassette in a deck is saved as itself and
+		# seated afterward, so the deck reads these as it takes it back.
+		"tape_track": acass.tape_track,
+		"tape_time": acass.tape_time,
+		"tape_progress": acass.tape_progress,
+	})
+
+
+## Pose only: one cabinet, and which channel it carries is not its own state —
+## it is decided by the television socket its lead sits in, and the lead records
+## that itself. Two scenes share the class, so the type comes off the scene file
+## rather than the class.
+func _loudspeaker_entry(speaker: Loudspeaker, id: int, n3d: Node3D,
+		_node_to_id: Dictionary) -> Dictionary:
+	var token := "subwoofer" if speaker.scene_file_path.ends_with("subwoofer.tscn") \
+		else "loudspeaker"
+	return _base(id, token, n3d)
+
+
+## The STAND records the cabinet on it, not the other way round: the seat is the
+## stand's, and Loudspeaker knows nothing about stands. Without it a restored
+## cabinet would come back at the right height but unseated, so it would merely
+## REST on the plate — stable, but knocked off by a lead.
+func _speaker_stand_entry(stand: SpeakerStand, id: int, n3d: Node3D,
+		node_to_id: Dictionary) -> Dictionary:
+	var stand_token := "speaker_stand_100" \
+		if stand.scene_file_path.ends_with("speaker_stand_100.tscn") \
+		else "speaker_stand_120"
+	return _base(id, stand_token, n3d).merged({
+		"speaker": _ref(node_to_id, stand.seated_speaker()),
+	})
+
+
+## The decoder switch as well as the pose. The volume knob is a VRKnob, which
+## _base already records with the other articulated controls; which machine it
+## carries and which cabinets are on its back are the LEADS' to record.
+func _surround_amp_fields(amp: SurroundAmp, _node_to_id: Dictionary) -> Dictionary:
+	return {"decode_mode": amp.decode_mode}
+
+
+func _speaker_pair_fields(pair: SpeakerPair, _node_to_id: Dictionary) -> Dictionary:
+	return {
+		"boxes": pair.box_poses(),
+		"volume": pair.get_volume(),
+	}
+
+
+## Which port it is seated in — everything a receiver has in common. The socket,
+## like every other peripheral's, is the CABINET's rather than the libretro port
+## (see _serialize_peripheral).
+func _receiver_fields(rx: InputReceiver, node_to_id: Dictionary) -> Dictionary:
 	var sys: Node = rx.get_connected_system()
 	var port := -1
 	if sys != null and sys.has_method("cabinet_port_of"):
 		port = int(sys.call("cabinet_port_of", rx))
-	return _base(id, type_name, n3d).merged({
+	return {
 		"system": _ref(node_to_id, sys),
 		"port_index": port,
+	}
+
+
+## Which PAD it is for as well as which port it is in — a receiver with no pad is
+## a dongle for nothing.
+func _pad_receiver_fields(pr: PadReceiver, node_to_id: Dictionary) -> Dictionary:
+	var fields := _receiver_fields(pr, node_to_id).merged({
+		"pad_guid": pr.pad_guid,
+		"pad_name": pr.pad_name,
+		"pad_ordinal": pr.pad_ordinal,
 	})
+	# Which pak is on its boss, saved on the RECEIVER for the reason the
+	# controller's is saved on the pad: the port is the end that means
+	# something, and the pak's own entry is only where it is lying.
+	var pr_pak: Node = pr.get_pak()
+	if pr_pak != null:
+		fields["pak"] = _ref(node_to_id, pr_pak)
+	var pr_vmus := _vmu_slot_refs(pr, node_to_id)
+	if not pr_vmus.is_empty():
+		fields["vmus"] = pr_vmus
+	return fields
 
 
-func _media_fields(cart: RetroCartridge) -> Dictionary:
+func _media_fields(cart: RetroCartridge, _node_to_id: Dictionary = {}) -> Dictionary:
 	var fields := {
 		"rom_path": cart.rom_path,
 		"game_label": cart.game_label,
@@ -3005,26 +3063,14 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 		obj = _instantiate_light_gun(data)
 	elif PLAIN_SCENES.has(obj_type):
 		obj = (PLAIN_SCENES[obj_type] as PackedScene).instantiate() as Node3D
-		# A Controller Pak is a PLAIN_SCENES row so the spawn menu can build one
-		# from its token, and this branch runs before the match below can — so
-		# its card fields are restored HERE or nowhere. Identity before the tree:
-		# card_id is the pak's file on disk, and a pak that reaches _ready
-		# without one mints a fresh blank, which reads exactly like the notes
-		# were wiped.
-		var cpak := obj as ControllerPak
-		if cpak != null:
-			cpak.card_id = str(data.get("card_id", ""))
-			cpak.card_label = str(data.get("card_label", "CONTROLLER PAK"))
-		# Same again for a VMU, and for the same reason: identity before the tree.
-		var vmu := obj as VmuCard
-		if vmu != null:
-			vmu.card_id = str(data.get("card_id", ""))
-			vmu.card_label = str(data.get("card_label", "VMU"))
-		# And an Xbox Memory Unit: identity before the tree, once more.
-		var unit := obj as XboxMuCard
-		if unit != null:
-			unit.card_id = str(data.get("card_id", ""))
-			unit.card_label = str(data.get("card_label", XboxMuCard.DEFAULT_LABEL))
+		# A Controller Pak, a VMU and an Xbox Memory Unit are PLAIN_SCENES rows so
+		# the spawn menu can build one from its token, and this branch runs before
+		# the match below can — so their card fields are restored HERE or nowhere.
+		# Identity before the tree: card_id is the card's file on disk, and one
+		# that reaches _ready without it mints a fresh blank, which reads exactly
+		# like the notes were wiped.
+		if _PLAIN_CARD_LABELS.has(obj_type):
+			_apply_card_fields(obj, data, str(_PLAIN_CARD_LABELS[obj_type]))
 		# A Game Boy Printer's roll; a save from before rolls has the first.
 		var printer := obj as GbPrinter
 		if printer != null:
@@ -3239,6 +3285,22 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 	if bool(data.get("locked", false)):
 		ObjectLock.set_locked(obj, true)
 	return obj
+
+
+## The PLAIN_SCENES types that are cards (see _card_fields), with the label each
+## gets when its save names none -- what each card's own default is.
+const _PLAIN_CARD_LABELS := {
+	"controller_pak": "CONTROLLER PAK",
+	"vmu": "VMU",
+	"xbox_mu": XboxMuCard.DEFAULT_LABEL,
+}
+
+
+## _card_fields' way back: a card's identity from its entry, before it enters the
+## tree. Duck-typed for the reason that one is.
+func _apply_card_fields(card: Node, data: Dictionary, default_label: String) -> void:
+	card.set("card_id", str(data.get("card_id", "")))
+	card.set("card_label", str(data.get("card_label", default_label)))
 
 
 func _apply_media_fields(cart: RetroCartridge, data: Dictionary) -> void:

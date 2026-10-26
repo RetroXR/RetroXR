@@ -700,6 +700,8 @@ func _sync_worker(args: Dictionary) -> void:
 	# after it. _write_index reopens it at the end.
 	var probe := FileAccess.open(tmp_jsonl, FileAccess.WRITE)
 	if probe == null:
+		push_error("[RommCatalog] cannot write %s (error %d); %s not synced"
+			% [tmp_jsonl, FileAccess.get_open_error(), systemid])
 		http.close()
 		_finish.call_deferred(systemid, false, 0, 0, "Cannot write to %s" % dir)
 		return
@@ -983,6 +985,8 @@ static func _write_index(dir: String, rows: Array) -> Dictionary:
 	var tmp_jsonl := dir.path_join("index.jsonl.part")
 	var out := FileAccess.open(tmp_jsonl, FileAccess.WRITE)
 	if out == null:
+		push_error("[RommCatalog] cannot write %s (error %d)"
+			% [tmp_jsonl, FileAccess.get_open_error()])
 		return {"error": "Cannot write to %s" % dir, "total": 0, "shown": 0}
 
 	var offsets := PackedInt64Array()
@@ -1012,21 +1016,29 @@ static func _write_index(dir: String, rows: Array) -> Dictionary:
 		var bytes := (line + "\n").to_utf8_buffer()
 		out.store_buffer(bytes)
 		pos += bytes.size()
+	var stream_err := out.get_error()
 	out.close()
+	if stream_err != OK:
+		push_error("[RommCatalog] write to %s failed (error %d)" % [tmp_jsonl, stream_err])
+		DirAccess.remove_absolute(tmp_jsonl)
+		return {"error": "Cannot write to %s" % dir, "total": 0, "shown": 0}
 
-	_write_bytes(dir.path_join("index.off"), _int64_bytes(offsets))
-	_write_bytes(dir.path_join("index.ids"), _int32_bytes(ids))
-	_write_text(dir.path_join("index.names"), names_text)
-	_write_text(dir.path_join("index.fsnames"), fsnames_text)
-	_write_text(dir.path_join("index.exts"), exts_text)
-	_write_text(dir.path_join("index.regions"), regions_text)
+	# Every sidecar must land before the jsonl is swapped in: one that failed
+	# would describe the old index beside the new one. Each write logs its own
+	# failure with the path.
+	var sidecars_ok := _write_bytes(dir.path_join("index.off"), _int64_bytes(offsets))
+	sidecars_ok = _write_bytes(dir.path_join("index.ids"), _int32_bytes(ids)) and sidecars_ok
+	sidecars_ok = _write_text(dir.path_join("index.names"), names_text) and sidecars_ok
+	sidecars_ok = _write_text(dir.path_join("index.fsnames"), fsnames_text) and sidecars_ok
+	sidecars_ok = _write_text(dir.path_join("index.exts"), exts_text) and sidecars_ok
+	sidecars_ok = _write_text(dir.path_join("index.regions"), regions_text) and sidecars_ok
+	if not sidecars_ok:
+		DirAccess.remove_absolute(tmp_jsonl)
+		return {"error": "Cannot write the index sidecars in %s" % dir,
+			"total": 0, "shown": 0}
 
 	# Atomic swap — readers never see a half-written index.
-	var final_path := dir.path_join("index.jsonl")
-	if FileAccess.file_exists(final_path):
-		DirAccess.remove_absolute(final_path)
-	if DirAccess.rename_absolute(tmp_jsonl, final_path) != OK:
-		DirAccess.remove_absolute(tmp_jsonl)
+	if not AtomicFile.promote(tmp_jsonl, dir.path_join("index.jsonl"), "RommCatalog"):
 		return {"error": "Could not replace the index (is it open?)",
 			"total": 0, "shown": 0}
 
@@ -1278,40 +1290,26 @@ static func _read_file_bytes(path: String) -> PackedByteArray:
 	return f.get_buffer(f.get_length())
 
 
-static func _write_bytes(path: String, data: PackedByteArray) -> void:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		push_error("[RommCatalog] cannot write %s" % path)
-		return
-	f.store_buffer(data)
+## Every catalog write goes through AtomicFile with a staging name of its own
+## per thread: two catalog instances can each decide to write the same platform's
+## files, and a reader must never see one of them mid-write. False on failure,
+## which AtomicFile logs with the path.
+static func _write_bytes(path: String, data: PackedByteArray) -> bool:
+	return AtomicFile.write_bytes(path, data, "RommCatalog", _thread_part(path))
 
 
-## Write via a per-thread temp file and rename, so a concurrent writer of the
-## same path can never be observed half-done.
-static func _write_text_atomic(path: String, text: String) -> void:
-	var tmp := "%s.%d.part" % [path, OS.get_thread_caller_id()]
-	var f := FileAccess.open(tmp, FileAccess.WRITE)
-	if f == null:
-		push_error("[RommCatalog] cannot write %s" % tmp)
-		return
-	f.store_string(text)
-	var err := f.get_error()
-	f.close()
-	if err != OK:
-		DirAccess.remove_absolute(tmp)
-		return
-	if FileAccess.file_exists(path):
-		DirAccess.remove_absolute(path)
-	if DirAccess.rename_absolute(tmp, path) != OK:
-		DirAccess.remove_absolute(tmp)
+static func _write_text_atomic(path: String, text: String) -> bool:
+	return AtomicFile.write_text(path, text, "RommCatalog", _thread_part(path))
 
 
-static func _write_text(path: String, text: String) -> void:
-	var f := FileAccess.open(path, FileAccess.WRITE)
-	if f == null:
-		push_error("[RommCatalog] cannot write %s" % path)
-		return
-	f.store_string(text)
+## The same staged write; kept under its own name for the callers (and the
+## suites and probes) that already use it. It wrote in place once.
+static func _write_text(path: String, text: String) -> bool:
+	return _write_text_atomic(path, text)
+
+
+static func _thread_part(path: String) -> String:
+	return "%s.%d.part" % [path, OS.get_thread_caller_id()]
 
 
 static func _int64_bytes(arr: PackedInt64Array) -> PackedByteArray:

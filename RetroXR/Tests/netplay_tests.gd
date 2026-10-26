@@ -97,6 +97,8 @@ func _ready() -> void:
 		await _test_transfer()
 	if _want("leave"):
 		await _test_leave()
+	if _want("unaccepted"):
+		await _test_unaccepted()
 	if _want("rollback"):
 		await _test_rollback()
 		await _test_rollback_pins()
@@ -1887,6 +1889,34 @@ func _test_leave() -> void:
 	w.host_np._pending[0] = {"frame": 9999, "old": 1, "new": 4242, "applied": false}
 	w.host_np.on_peer_left(4242)
 	_ok(stops.size() > 0, "leave/a pending handoff to a departed peer ends it")
+	_free(w)
+
+
+# ══ A connected socket is not an accepted player ══════════════════════════════
+# The session's any_peer handlers act only for a peer the host registered
+# (NetworkManager.is_accepted_peer), as object_sync and file_transfer do.
+
+func _test_unaccepted() -> void:
+	var w := await _pair()
+	var stops: Array = []
+	w.host_np.session_stopped.connect(func(r: String) -> void: stops.append(r))
+	w.host_nm.netplay_start_host(w.host_sys, "fceumm", "MD5", {0: 1}, 3, 0)
+	_ok(await _until(func() -> bool: return w.host_np.is_running()),
+		"unaccepted/a game is running")
+	# The client keeps its socket but loses its roster entry: what a peer that
+	# connected and never passed _register looks like to the host.
+	var entry: Dictionary = w.host_nm.peers.get(w.client_id, {})
+	w.host_nm.peers.erase(w.client_id)
+	w.client_np._np_stop_req.rpc_id(1, "not an accepted player")
+	await _await_frames(30)
+	_eq(stops.size(), 0, "unaccepted/a stop request from an unaccepted socket is refused")
+	_ok(w.host_np.is_running(), "unaccepted/and the game keeps running")
+	# Control leg: the same request once the peer is accepted again stops it,
+	# so the refusal above is the gate and not a lost message.
+	w.host_nm.peers[w.client_id] = entry
+	w.client_np._np_stop_req.rpc_id(1, "accepted")
+	_ok(await _until(func() -> bool: return stops.size() > 0),
+		"unaccepted/the same request from an accepted peer stops it")
 	_free(w)
 
 

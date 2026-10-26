@@ -14,7 +14,8 @@
 ## default, so the player's bindings or prefs come back as "never set".
 ##
 ## Writes therefore go to `<path>.part` and are renamed over the target once the
-## bytes are down, the same delete-then-rename StatePaths._write_atomic uses.
+## bytes are down: AtomicFile, which the binary stores (cards, console memory,
+## save states) share, so text and bytes fail and log the same way.
 ##
 ## Versioning is deliberately NOT handled here. The stores that carry a version
 ## disagree about what to do on a mismatch — ScenePersistence refuses the file,
@@ -48,20 +49,20 @@ static func parse_dict(path: String, owner: String = "") -> Variant:
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
 		if not owner.is_empty():
-			push_warning("%s: cannot read %s (error %d)"
-				% [owner, path, FileAccess.get_open_error()])
+			push_warning("%s cannot read %s (error %d)"
+				% [AtomicFile.tag(owner), path, FileAccess.get_open_error()])
 		return null
 	var text := f.get_as_text()
 	f.close()
 	var parsed: Variant = JSON.parse_string(text)
 	if parsed == null:
 		if not owner.is_empty() and not text.strip_edges().is_empty():
-			push_warning("%s: %s is not valid JSON, leaving it alone" % [owner, path])
+			push_warning("%s %s is not valid JSON, leaving it alone" % [AtomicFile.tag(owner), path])
 		return null
 	if parsed is Dictionary:
 		return parsed as Dictionary
 	if not owner.is_empty():
-		push_warning("%s: %s is not a JSON object, ignoring it" % [owner, path])
+		push_warning("%s %s is not a JSON object, ignoring it" % [AtomicFile.tag(owner), path])
 	return {}
 
 
@@ -77,11 +78,6 @@ static func read_dict(path: String, owner: String = "") -> Dictionary:
 	return parsed if parsed is Dictionary else {}
 
 
-## Write `data` to `path` as tab-indented JSON, via a staging file.
-##
-## Returns false and reports through `owner` on any failure, leaving whatever
-## was already at `path` untouched — a store that cannot be replaced is better
-## than one replaced by half of itself.
 # ── Typed reads out of a parsed store ─────────────────────────────────────────
 #
 # A store on disk is a file the player can edit and a file JSON has already
@@ -146,6 +142,11 @@ static func get_strings(data: Dictionary, key: String) -> PackedStringArray:
 	return out
 
 
+## Write `data` to `path` as tab-indented JSON, via a staging file.
+##
+## Returns false and reports through `owner` on any failure, leaving whatever
+## was already at `path` untouched — a store that cannot be replaced is better
+## than one replaced by half of itself.
 static func write_dict(path: String, data: Dictionary, owner: String = "") -> bool:
 	return write_text(path, JSON.stringify(data, "\t"), owner)
 
@@ -154,34 +155,8 @@ static func write_dict(path: String, data: Dictionary, owner: String = "") -> bo
 ## text — a save slot, which is not a plain Dictionary.
 ##
 ## Writes a .part beside the target, checks the store actually landed, and only
-## then replaces the real file. Writing in place instead means a crash or a power
-## cut between open and store leaves a truncated file, and truncated JSON does
-## not parse: the save is not merely stale, it is gone.
+## then replaces the real file (AtomicFile). Writing in place instead means a
+## crash or a power cut between open and store leaves a truncated file, and
+## truncated JSON does not parse: the save is not merely stale, it is gone.
 static func write_text(path: String, text: String, owner: String = "") -> bool:
-	var part := path + ".part"
-	DirAccess.make_dir_recursive_absolute(path.get_base_dir())
-	var f := FileAccess.open(part, FileAccess.WRITE)
-	if f == null:
-		if not owner.is_empty():
-			push_error("%s: cannot write %s (error %d)"
-				% [owner, part, FileAccess.get_open_error()])
-		return false
-	f.store_string(text)
-	var err := f.get_error()
-	f.close()
-	if err != OK:
-		if not owner.is_empty():
-			push_error("%s: write to %s failed (error %d)" % [owner, part, err])
-		DirAccess.remove_absolute(part)
-		return false
-	if FileAccess.file_exists(path) and DirAccess.remove_absolute(path) != OK:
-		if not owner.is_empty():
-			push_error("%s: cannot replace %s" % [owner, path])
-		DirAccess.remove_absolute(part)
-		return false
-	if DirAccess.rename_absolute(part, path) != OK:
-		if not owner.is_empty():
-			push_error("%s: cannot promote %s" % [owner, part])
-		DirAccess.remove_absolute(part)
-		return false
-	return true
+	return AtomicFile.write_text(path, text, owner)

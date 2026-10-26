@@ -31,6 +31,25 @@ enum Strategy { LOCKSTEP = 0, ROLLBACK = 1, DETERMINISM = 2 }
 ## group agrees on.
 const STRATEGY_ORDER: Array = [Strategy.ROLLBACK, Strategy.DETERMINISM, Strategy.LOCKSTEP]
 
+## What a host ASKS for when it starts a session (NetplaySession.start_host's
+## `prefer`). A preference, not a Strategy: the group's capability decides, and
+## AUTO takes the strongest it agrees on. The values are the old -1/0/1
+## "rollback" tri-state, kept so callers passing those still mean the same.
+const PREFER_AUTO := -1
+const PREFER_LOCKSTEP := 0
+const PREFER_ROLLBACK := 1
+
+
+## A strategy as it arrives off the wire (_np_start, a late-join snapshot), where
+## it travels as its plain int. An unknown value runs as LOCKSTEP -- what every
+## check here already made of one -- and says so.
+static func strategy_from_wire(value: Variant) -> Strategy:
+	var n := int(value)
+	if n == Strategy.ROLLBACK or n == Strategy.DETERMINISM or n == Strategy.LOCKSTEP:
+		return n as Strategy
+	push_warning("[Netplay] unknown strategy %s from the host; running lockstep" % str(value))
+	return Strategy.LOCKSTEP
+
 ## Frames between RAM CRC checkpoints when a core does not ask for its own. The
 ## C++ default is the same number; a core with a large RAM asks for a longer one
 ## because the whole region is hashed inline on the emulation thread.
