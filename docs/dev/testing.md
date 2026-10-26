@@ -56,11 +56,16 @@ through the live AppPrefs and reads back through a fresh, out-of-tree one, and
 assert the state the case names, or, for "does not crash", that the case really
 reached the race it is about (deck_tests `_free_mid_decode`).
 
-**A `SCRIPT ERROR` inside a suite does not fail it.** GDScript abandons the function that hit it, so every
-check after the line is never run, the exit code is still 0 and the runner says OK; the only trace is a count
-that fell. `arcade_form_tests` lost 13 checks that way (2026-10-25: a spec key a test still read had been
-removed), and re-baselining the drop made it official for a day. A drop you did not set out to make is a bug
-until proven otherwise: run the suite and grep its output for `SCRIPT ERROR` before touching the baseline.
+**A `SCRIPT ERROR` inside a suite fails the run (2026-10-26).** GDScript abandons the function that hit it, so every
+check after the line is never run and the process still exits 0. The runner used to say OK, and the only trace was a
+count that fell: `arcade_form_tests` lost 13 checks that way (2026-10-25: a spec key a test still read had been
+removed) and re-baselining the drop made it official for a day; `link_tests` had been skipping four since a plug lost
+a property (its `systemid`), and `av_tests` and `system_tests` printed one each (`RetroSystem._reopen_port` waiting on
+a tree a machine had left, `_unbind_port` assigning a freed controller to a typed variable). The runner now reads the
+output, after the noise filter: a suite that exits 0 with a line that starts `SCRIPT ERROR` is **`SCRIPT`**, listed
+with its lines like any other failure. `--allow-script-errors` reports it and does not fail the run, for finding out
+what an environment prints. A drop in a count you did not set out to make is still a bug until proven otherwise:
+grep the suite's output for `SCRIPT ERROR` before touching the baseline.
 
 Because the runner globs `Tests/*.tscn` **non-recursively**, `Tests/` stays flat. Do not
 nest it into subfolders — a suite in a subdirectory is silently never run, which is the

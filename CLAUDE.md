@@ -120,6 +120,8 @@ python Tools/run_tests.py --update-baseline   # after a DELIBERATE drop in case 
   suite in a subfolder is silently never run.
 - **A case count that DROPS fails the run** (`Tools/test_baseline.json`). A rise or a new
   suite is fine. Filtered runs skip the check.
+- **A `SCRIPT ERROR` in a suite that exits 0 is `SCRIPT` and fails the run too** (GDScript drops the rest of the
+  function that hit it, so checks silently stop running); `--allow-script-errors` only reports it.
 - **The bar for `Tests/`:** checks itself, runs unattended with no ROM, core, headset or
   device, and exits non-zero on failure. Everything else is a **probe** under
   `RetroXR/Tools/<topic>/` (`av cores gen input link models mods net netplay perf room rope
