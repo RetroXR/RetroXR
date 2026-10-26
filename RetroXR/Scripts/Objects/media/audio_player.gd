@@ -129,7 +129,7 @@ func debug_state() -> Array:
 		var tape := _tape()
 		if tape != null:
 			media_rows.append(["Tape at", "%s (%.1f%% of the tape)" % [
-				MediaDebug.time_text(int(float(tape.get("tape_time")) * 1000.0)),
+				MediaDebug.time_text(int(float(tape.get("tape_time")) * 1000.0), true),
 				float(tape.get("tape_progress")) * 100.0 if "tape_progress" in tape else 0.0]])
 	var out: Array = [["Media", media_rows]]
 	out.append_array(MediaDebug.vlc_sections(_vlc, false))

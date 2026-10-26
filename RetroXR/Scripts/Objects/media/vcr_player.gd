@@ -488,7 +488,7 @@ func debug_state() -> Array:
 		tape_rows.append_array([
 			["Cassette", "T-%d" % tape.cassette if tape.cassette > 0 else "not sized yet"],
 			["Recording length", MediaDebug.time_text(int(tape.recording_seconds * 1000.0))],
-			["Tape at", "%s (%.1f%%)%s" % [MediaDebug.time_text(int(tape.tape_time * 1000.0)),
+			["Tape at", "%s (%.1f%%)%s" % [MediaDebug.time_text(int(tape.tape_time * 1000.0), true),
 				tape.tape_progress * 100.0,
 				"" if tape.tape_blank <= 0.0 else ", %.0f s into blank tape" % tape.tape_blank]],
 			["Tape moving", "still" if is_zero_approx(tape.tape_speed)

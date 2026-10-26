@@ -7,9 +7,10 @@ class_name MediaDebug
 extends RefCounted
 
 
-## "1:02:03" / "4:05" from milliseconds; "—" for an unknown length.
-static func time_text(ms: int) -> String:
-	if ms <= 0:
+## "1:02:03" / "4:05" from milliseconds; "—" for an unknown length. A position
+## passes `zero_ok`, because the start of a tape is 0:00, not unknown.
+static func time_text(ms: int, zero_ok := false) -> String:
+	if ms < 0 or (ms == 0 and not zero_ok):
 		return "—"
 	var s := ms / 1000
 	if s >= 3600:
@@ -25,7 +26,7 @@ static func vlc_sections(vlc: Object, video: bool) -> Array:
 	var length := int(vlc.call("get_length"))
 	var playback: Array = [
 		["State", "playing" if bool(vlc.call("is_playing")) else "stopped / paused"],
-		["Time", "%s / %s" % [time_text(int(vlc.call("get_time"))), time_text(length)]],
+		["Time", "%s / %s" % [time_text(int(vlc.call("get_time")), true), time_text(length)]],
 		["Position", "%.1f%%" % (float(vlc.call("get_position")) * 100.0)],
 		["Rate", "%.2f×" % float(vlc.call("get_rate"))],
 	]
