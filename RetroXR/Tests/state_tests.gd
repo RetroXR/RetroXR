@@ -45,6 +45,7 @@ func _ready() -> void:
 	await _test_floating_panels()
 	_test_panels_with_their_own_anchor()
 	_test_every_panel_resizes()
+	_test_panel_clears_its_object()
 	await _test_background_results_rebuild_once()
 	_restore_ledger()
 	print("[state-ui] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -655,6 +656,27 @@ func _test_every_panel_resizes() -> void:
 				'parent="." instance=ExtResource("%s")' % vp_id),
 			"resize/%s has its page as a direct child, so it gets the grip" % file)
 	_ok(count >= 13, "resize/every object menu was checked (%d)" % count)
+
+
+## A page grown down over its object is raised clear of it — and only a page that
+## really overlaps: one beside it or in front of it (the poster's) stays put.
+func _test_panel_clears_its_object() -> void:
+	var F := FloatingObjectPanel3D
+	# A 40 cm object, top at y = 0.4, centred on the origin, 10 cm deep.
+	var obj := AABB(Vector3(-0.2, 0.0, -0.05), Vector3(0.4, 0.4, 0.1))
+	var page := func(x0: float, y0: float, x1: float, y1: float, z: float) -> PackedVector3Array:
+		return PackedVector3Array([Vector3(x0, y0, z), Vector3(x1, y0, z),
+			Vector3(x1, y1, z), Vector3(x0, y1, z)])
+	_eq(F.clearance_lift(page.call(-0.25, 0.5, 0.25, 0.9, 0.0), obj, 0.03), 0.0,
+		"resize/a page well above its object stays put")
+	_ok(is_equal_approx(F.clearance_lift(page.call(-0.25, 0.3, 0.25, 0.9, 0.0), obj, 0.03), 0.13),
+		"resize/a page grown down into its object is raised to clear its top by 3 cm")
+	_ok(is_equal_approx(F.clearance_lift(page.call(-0.25, 0.41, 0.25, 0.9, 0.0), obj, 0.03), 0.02),
+		"resize/and one inside the clearance is raised the rest of the way")
+	_eq(F.clearance_lift(page.call(0.3, 0.1, 0.8, 0.5, 0.0), obj, 0.03), 0.0,
+		"resize/a page beside its object is not moved")
+	_eq(F.clearance_lift(page.call(-0.25, 0.1, 0.25, 0.5, 0.08), obj, 0.03), 0.0,
+		"resize/a page in front of it (the poster's menu) is not moved")
 
 
 ## The three panels whose placement is not "straight up from the origin": the

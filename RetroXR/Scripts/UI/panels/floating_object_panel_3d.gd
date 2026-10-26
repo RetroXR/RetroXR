@@ -46,6 +46,100 @@ func _ready() -> void:
 	enable_resize_grip()
 	if _resize_grip == null:
 		push_warning("[Panel] %s: no Viewport2DIn3D child, so no resize grip" % name)
+	visibility_changed.connect(func() -> void: _subject_measured = false)
+
+
+# ── Keeping clear of the object ───────────────────────────────────────────────
+#
+# A menu hangs above the thing it belongs to, and a page dragged bigger grows DOWN
+# from its top edge (the grip is on the bottom-right), so a tall page would sink
+# into the object under it. Every frame, after the panel is placed, its page's box
+# is tested against the object's own box and the whole panel is raised just enough
+# to clear it. 3D boxes, not "below the object's top": the poster's menu stands in
+# FRONT of the poster at its own height, overlapping nothing, and must stay there.
+
+## Gap kept between the bottom of the page and the top of the object.
+const SUBJECT_CLEARANCE := 0.03
+## How often the object is re-measured while the menu is open (it can be moved or
+## resized under it). Measuring walks its meshes, so not every frame.
+const SUBJECT_MEASURE_S := 1.0
+
+## The object's visible bounds, world-axis, relative to its origin.
+var _subject_box := AABB()
+var _subject_measured := false
+var _subject_measure_t := 0.0
+
+
+func _keep_clear_of(target: Node3D, delta: float) -> void:
+	_subject_measure_t -= delta
+	if not _subject_measured or _subject_measure_t <= 0.0:
+		_measure_subject(target)
+	var v := _viewport_2d()
+	if not _subject_measured or v == null:
+		return
+	var box := _subject_box
+	box.position += target.global_position
+	var lift := clearance_lift(_page_corners(v), box, SUBJECT_CLEARANCE)
+	if lift > 0.0:
+		global_position.y += lift
+
+
+## How far up a page must go to clear `subject` by `clearance`, or 0 when it does
+## not overlap it at all. `page` is the page's four corners in world space.
+## Static and pure, so the rule is checked without a scene (state_tests resize/).
+static func clearance_lift(page: PackedVector3Array, subject: AABB, clearance: float) -> float:
+	if page.is_empty() or subject.size == Vector3.ZERO:
+		return 0.0
+	var pbox := AABB(page[0], Vector3.ZERO)
+	for p in page:
+		pbox = pbox.expand(p)
+	# A page is flat; give it a millimetre of depth so a box test can see it.
+	pbox = pbox.grow(0.001)
+	# The clearance counts only above the object: a page close in FRONT of it (the
+	# poster's) is not touching it.
+	var above := AABB(subject.position, subject.size + Vector3(0.0, clearance, 0.0))
+	if not pbox.intersects(above):
+		return 0.0
+	return maxf(0.0, subject.end.y + clearance - pbox.position.y)
+
+
+func _page_corners(v: XRToolsViewport2DIn3D) -> PackedVector3Array:
+	var h := v.screen_size * 0.5
+	var c := v.position
+	var out := PackedVector3Array()
+	for s: Vector2 in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+		out.append(global_transform * (c + Vector3(h.x * s.x, h.y * s.y, 0.0)))
+	return out
+
+
+## The object's visible meshes, as HeldHint.visual_top measures them, less any menu
+## hanging off it (this one is a child of the object, top_level or not).
+func _measure_subject(target: Node3D) -> void:
+	_subject_measure_t = SUBJECT_MEASURE_S
+	var box := AABB()
+	var found := false
+	for node: Node in target.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		if mi == null or mi.mesh == null or not mi.is_visible_in_tree():
+			continue
+		if _in_a_panel(mi, target):
+			continue
+		var wb: AABB = mi.global_transform * mi.get_aabb()
+		box = wb if not found else box.merge(wb)
+		found = true
+	_subject_measured = found
+	if found:
+		box.position -= target.global_position
+		_subject_box = box
+
+
+static func _in_a_panel(n: Node, stop: Node) -> bool:
+	var p := n.get_parent()
+	while p != null and p != stop:
+		if p is FloatingObjectPanel3D:
+			return true
+		p = p.get_parent()
+	return false
 
 
 func _process(delta: float) -> void:
@@ -59,6 +153,8 @@ func _process(delta: float) -> void:
 	if is_instance_valid(_camera):
 		look_at(_camera.global_position, Vector3.UP)
 		rotate_object_local(Vector3.UP, PI)
+	if is_instance_valid(target):
+		_keep_clear_of(target, delta)
 	_update_resize_drag()
 	_while_shown(delta)
 
@@ -464,7 +560,10 @@ func resize_begin(pointer: Node3D) -> void:
 	if _resize_min_px == Vector2.ZERO:
 		_resize_min_px = v.viewport_size
 	_resize_pointer = pointer
-	_resize_from = _resize_pointer_on_plane(pointer)
+	# World, not panel space: keeping clear of the object can raise the panel
+	# mid-drag, and a start point in panel space would then move with it, read as
+	# the pointer going further down, grow the page more, raise it more...
+	_resize_from = global_transform * _resize_pointer_on_plane(pointer)
 	_resize_from_screen = v.screen_size
 	if _resize_grip_mat != null:
 		_resize_grip_mat.albedo_color = _COLOR_GRIP_DRAG
@@ -496,7 +595,9 @@ func _update_resize_drag() -> void:
 	var v := _viewport_2d()
 	if v == null or v.screen_size.x <= 0.0:
 		return
-	var d := _resize_pointer_on_plane(_resize_pointer) - _resize_from
+	# The pointer's travel in world space, read along the panel's own axes.
+	var moved := global_transform * _resize_pointer_on_plane(_resize_pointer) - _resize_from
+	var d := Vector2(moved.dot(global_basis.x.normalized()), moved.dot(global_basis.y.normalized()))
 	var density := v.viewport_size / v.screen_size
 	# Down is bigger: the grip is on the bottom edge.
 	resize_page(Vector2(_resize_from_screen.x + d.x * 2.0,
