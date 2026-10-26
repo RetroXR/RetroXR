@@ -265,6 +265,34 @@ func _tap_mask(port: int, delta: float) -> int:
 	return mask
 
 
+## TEST or SERVICE pressed while the cabinet only shows its game (RetroSystem.press_core_service): the game is started as a coin
+## starts it and the press WAITS for it, as a held coin does, then is made once the core has run its wait (`game_ready`): a board
+## still running its tests reads no switch. One a half second, in the order they came.
+var _service_wait: Array[StringName] = []
+var _service_rest := 0.0
+const SERVICE_REST := 0.5
+
+
+func hold_service(which: StringName) -> void:
+	if not _service_wait.has(which):
+		_service_wait.append(which)
+
+
+## What is waiting to be pressed (the tests).
+func held_service() -> Array[StringName]:
+	return _service_wait
+
+
+func _step_service(delta: float) -> void:
+	_service_rest = maxf(_service_rest - delta, 0.0)
+	if _service_wait.is_empty() or _service_rest > 0.0 or not game_ready() or _host == null or not _host.has_method("press_core_service"):
+		return
+	var which: StringName = _service_wait[0]
+	if bool(_host.call("press_core_service", which)):
+		_service_wait.pop_front()
+		_service_rest = SERVICE_REST
+
+
 func _on_coin(player: int, pulse: ArcadeInputState.CoinPulse) -> void:
 	if _host == null:
 		return
@@ -490,6 +518,8 @@ func _process(delta: float) -> void:
 	_sync_desktop_scope()
 	if bool(_host.get("attracting")):
 		_release_pedals()
+		# A TEST or SERVICE that asked for a game which did not start (the core refused it) is not made in the next one.
+		_service_wait.clear()
 		# A finger on a cap or a hand on a stick starts the game, as a coin does.
 		_step_hands(delta, true)
 		_watch_for_use()
@@ -515,6 +545,7 @@ func _process(delta: float) -> void:
 	var controllers: Array = _host.get_port_controllers() if _host.has_method("get_port_controllers") else []
 	var players := maxi(maxi(_controls.size(), 2), _door_ports)
 	_step_hands(delta, true)
+	_step_service(delta)
 	# What every player is pressing first, then the coins and START: a held coin goes in before a START.
 	var masks: Array[int] = []
 	var hands: Array[int] = []
@@ -811,8 +842,15 @@ func _step_held_coins(delta: float, start_pressed: bool) -> bool:
 
 ## The core stopped (or never started): the run is over, and every coin still held rolls out into its cup.
 func _end_run() -> void:
+	# A press that waited for a run is let go with it.
+	if _run_base >= 0:
+		_service_wait.clear()
 	_run_base = -1
 	_run_seconds = 0.0
+	# The next run starts in the game's first gear, so the gear lever is put back.
+	for panel in _controls:
+		if panel != null:
+			panel.reset_shift()
 	_return_held()
 	_letting_in = false
 	_start_hold = 0.0
@@ -847,10 +885,6 @@ func _on_attach_changed(player: int, on: bool) -> void:
 ## the process, so only the holder of the capture may drive it). Without this the
 ## RETRO_JOYPAD_* actions carry the global keys, and an arcade profile's keys never arrive.
 func _sync_desktop_scope() -> void:
-	# The next run starts in the game's first gear, so the gear lever is put back.
-	for panel in _controls:
-		if panel != null:
-			panel.reset_shift()
 	var active := _capture != null and _capture.is_active()
 	if active:
 		if not _owns_desktop_scope:

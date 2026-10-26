@@ -14,6 +14,15 @@ extends RefCounted
 
 const TEST := &"test"
 const SERVICE := &"service"
+## The operator's selector beside them (a JVS I/O board's "Up Select", "Down Select" and "Enter", and what the first player's stick and
+## button 1 are in a game that has no such board): the test menus of most games are worked with those, and a cabinet with a wheel, a
+## gun or a stage has neither a stick nor a button 1 to work one with. A tap each, on player 1's port.
+const UP := &"up"
+const DOWN := &"down"
+const LEFT := &"left"
+const RIGHT := &"right"
+const ENTER := &"enter"
+const SELECTOR: Array[StringName] = [UP, DOWN, LEFT, RIGHT, ENTER]
 
 ## libretro.h's keys and devices.
 const RETROK_9 := 57
@@ -24,6 +33,27 @@ const DEVICE_KEYBOARD := 3
 ## The words that mark the test / service-mode input, and the service-credit one (which is not the test's).
 const TEST_WORDS := "(?i)\\b(test|diag\\w*|service mode)\\b"
 const SERVICE_WORDS := "(?i)\\bservice\\b"
+
+
+## Is `which` one of the selector's five?
+static func is_selector(which: StringName) -> bool:
+	return SELECTOR.has(which)
+
+
+## The pad id the selector's `which` is held on: the directions are the pad's, ENTER is button 1 (the pad's B, ArcadeProfiles.button_bit(1)).
+static func selector_bit(which: StringName) -> int:
+	match which:
+		UP:
+			return ControllerBindings.JOYPAD_UP
+		DOWN:
+			return ControllerBindings.JOYPAD_DOWN
+		LEFT:
+			return ControllerBindings.JOYPAD_LEFT
+		RIGHT:
+			return ControllerBindings.JOYPAD_RIGHT
+		ENTER:
+			return ArcadeProfiles.button_bit(1)
+	return -1
 
 
 ## The key a button falls back to when the core names nothing: MAME's.

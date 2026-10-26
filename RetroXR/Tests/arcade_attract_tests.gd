@@ -16,6 +16,7 @@
 ##   screen/   the glass takes the attract picture at the picture's own shape
 ##   use/      a coin, a panel, a gun or pad in hand each start the game, once; the coin counts in it
 ##   coins/    coins the game cannot count yet are held (lamp), go in when it is up or on START, come back on RETURN
+##   service/  TEST or SERVICE pressed while the cabinet only shows its game start it as a coin does, and the press waits for the game
 ##   idle/     nobody at the cabinet puts the core away; somebody there, or a coin, keeps it
 ##   leave/    the board pulled, the power button and the cabinet's own override end the attract
 ##   media_ask/ a cabinet with a game and no video asks the scraper (through its group) for that game only
@@ -97,6 +98,8 @@ func _run() -> void:
 		await _group_use()
 	if _want("coins"):
 		await _group_coins()
+	if _want("service"):
+		await _group_service()
 	if _want("idle"):
 		await _group_idle()
 	if _want("leave"):
@@ -704,6 +707,79 @@ func _group_coins() -> void:
 	sys.is_powered_on = false
 	await _wait(3)
 	_ok(input.held_coins() == 0 and door.returned >= 2, "coins: switched off with coins held, they roll out into the cup")
+	await _clear()
+
+
+# ── service ─────────────────────────────────────────────────────────────────
+
+func _group_service() -> void:
+	var K := ArcadeServiceKeys
+	var sys := await _attracting_cabinet()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var input := model.arcade_input()
+	var keys: Array = []
+	sys.core_key_sink = func(code: int, down: bool) -> void: keys.append([code, down])
+	sys.core_descriptors_override = []
+	_ok(sys.attracting and not sys.is_powered_on, "service: the cabinet shows its game and runs no core")
+	# The selector starts nothing: no menu is open to work.
+	_ok(not sys.press_core_service(K.UP) and sys.attracting and input.held_service().is_empty(),
+		"service: the selector does not start the game, and nothing waits")
+	# TEST starts the game, as a coin does.
+	_ok(sys.press_core_service(K.TEST) and not sys.attracting and sys.attract_session,
+		"service: TEST starts the game as a coin does")
+	_ok(input.held_service() == [K.TEST] and keys.is_empty(), "service: and the press waits for the game (nothing sent yet)")
+	# The core is up but has not run its wait: a board still testing its RAM reads no switch.
+	sys.is_powered_on = true
+	input.frame_override = 0
+	input._process(0.016)
+	input.frame_override = 3
+	input._process(0.016)
+	_ok(input.held_service() == [K.TEST] and keys.is_empty(), "service: a game still coming up is not pressed yet (3 frames)")
+	input.frame_override = input.wait_frames() + 10
+	input._process(0.016)
+	await get_tree().create_timer(0.5).timeout
+	_ok(input.held_service().is_empty() and keys == [[283, true], [283, false]],
+		"service: once the game has run its wait the press is made: TEST taps F2 (%s)" % str(keys))
+	# SERVICE (a credit) the same, and two presses go in order, a rest apart.
+	keys.clear()
+	sys.is_powered_on = false
+	await _wait(2)
+	sys.attracting = true
+	sys.attract_session = false
+	_ok(sys.press_core_service(K.SERVICE) and not sys.attracting, "service: SERVICE starts it as well")
+	input.hold_service(K.TEST)
+	_ok(input.held_service() == [K.SERVICE, K.TEST], "service: two presses wait in the order they came")
+	sys.is_powered_on = true
+	input.frame_override = 0
+	input._process(0.016)
+	input.frame_override = input.wait_frames() + 10
+	input._process(0.016)
+	await get_tree().create_timer(0.45).timeout
+	_ok(keys == [[57, true], [57, false]] and input.held_service() == [K.TEST],
+		"service: SERVICE taps 9 first, and TEST waits for the rest (%s)" % str(keys))
+	input._process(ArcadeInput.SERVICE_REST)
+	input._process(0.016)
+	await get_tree().create_timer(0.45).timeout
+	_ok(keys == [[57, true], [57, false], [283, true], [283, false]] and input.held_service().is_empty(), "service: and then TEST (%s)" % str(keys))
+	# A press that waited for a game that has stopped since is let go with the run, not made in the next.
+	input.hold_service(K.TEST)
+	input.frame_override = 0
+	sys.is_powered_on = true
+	input._process(0.016)
+	_ok(input.held_service() == [K.TEST], "service: a press waiting on a game that is up but not ready")
+	sys.is_powered_on = false
+	input._process(0.016)
+	_ok(input.held_service().is_empty(), "service: the core stops with it waiting: it is let go")
+	# A game that did not start leaves no press behind for the next one.
+	input.hold_service(K.TEST)
+	sys.is_powered_on = false
+	sys.attracting = true
+	input._process(0.016)
+	_ok(input.held_service().is_empty(), "service: a press that waited for a game the core refused is let go, not made in the next")
+	# A cabinet that is off starts nothing.
+	sys.attracting = false
+	_ok(not sys.press_core_service(K.TEST) and not sys.attracting, "service: a cabinet that is off is not started by it")
+	input.frame_override = -1
 	await _clear()
 
 

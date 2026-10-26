@@ -1,10 +1,13 @@
 ## ArcadeServiceModule — the service switches in the cabinet's compartment: TEST and SERVICE.
 ##
-## Every JAMMA cabinet had them, inside the coin door or on a bracket in the cabinet: TEST toggles the game's own
+## Every JAMMA cabinet had them, inside the coin door or on a bracket in the cabinet: TEST opens the game's own
 ## operator menu (inputs, sound, settings: a Silent Scope cabinet wants it to set the scope up) and SERVICE puts a
-## credit in without a coin. Here they stand on the compartment's floor at the side OPPOSITE the power switch
-## (`TestButton`, `ServiceButton`, VRButtons that stand up out of the shelf as the power switch does), so a hand or
-## a laser reaches them from above once the door is open.
+## credit in without a coin (in a Sega menu it also steps the cursor, TEST then choosing). Here they stand on the
+## compartment's floor at the side OPPOSITE the power switch (`TestButton`, `ServiceButton`, VRButtons that stand up
+## out of the shelf as the power switch does), so a hand or a laser reaches them from above once the door is open.
+## Beside them stands the operator's SELECTOR (`UpButton`, `DownButton`, `LeftButton`, `RightButton`, `EnterButton`: a JVS
+## board's Up and Down Select and Enter): most test menus are worked with the first player's stick and button 1, and a
+## cabinet with a wheel, a gun or a dance stage has neither.
 ##
 ## They are there when MAME says the game reads one (`<input service="yes">`, the table's `v`: ArcadeGameProfile.has_service)
 ## and taken away, out of the pointer's reach, when it does not (`set_enabled`). Pressing one says `pressed(which)`; the
@@ -24,8 +27,8 @@ func _init() -> void:
 func attach(p_cabinet: RetroSystemModel) -> void:
 	super.attach(p_cabinet)
 	_buttons.clear()
-	for which: StringName in [ArcadeServiceKeys.TEST, ArcadeServiceKeys.SERVICE]:
-		var button := find_child("TestButton" if which == ArcadeServiceKeys.TEST else "ServiceButton", true, false) as VRButton
+	for which: StringName in [ArcadeServiceKeys.TEST, ArcadeServiceKeys.SERVICE] + ArcadeServiceKeys.SELECTOR:
+		var button := find_child("%sButton" % str(which).capitalize(), true, false) as VRButton
 		if button == null:
 			continue
 		_buttons[which] = button

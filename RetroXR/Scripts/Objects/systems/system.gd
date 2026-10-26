@@ -3225,11 +3225,31 @@ func toggle_core_dip_menu() -> void:
 var core_descriptors_override: Variant = null
 
 
-## A cabinet's TEST or SERVICE switch (ArcadeServiceModule): the running core's own operator input. What the core
-## calls it (ArcadeServiceKeys.lookup over its input descriptors) is what is pressed: a pad id held a moment on
-## its port, or a key tapped; a core that names nothing gets MAME's own keys (F2 the service mode, 9 the service
-## credit). False when no core runs or the keyboard is busy with a menu's keys. NEVER run against a real core here.
+## A cabinet's TEST or SERVICE switch, or a key of its selector (ArcadeServiceModule): the running core's own operator
+## input. What the core calls TEST or SERVICE (ArcadeServiceKeys.lookup over its input descriptors) is what is pressed: a pad
+## id held a moment on its port, or a key tapped; a core that names nothing gets MAME's own keys (F2 the service mode, 9
+## the service credit). The selector is the first player's stick and button 1, a tap each (the test menu of most games is
+## worked with those). False when no core runs or the keyboard is busy with a menu's keys.
+##
+## **A cabinet that only shows its game is started by TEST or SERVICE as a coin starts it**, and the press waits for the
+## game as a held coin does (ArcadeInput.hold_service): TEST then opens the game's own menu once it is up, SERVICE counts
+## its credit. The selector starts nothing: a menu is not open yet. NEVER run against a real core here.
 func press_core_service(which: StringName) -> bool:
+	if ArcadeServiceKeys.is_selector(which):
+		if not is_powered_on or not (_model is RetroSystemModelArcadeCabinet):
+			return false
+		var pad := (_model as RetroSystemModelArcadeCabinet).arcade_input()
+		if pad == null:
+			return false
+		pad.tap_pad_bit(0, ArcadeServiceKeys.selector_bit(which))
+		return true
+	if attracting and _model is RetroSystemModelArcadeCabinet:
+		var waiting := (_model as RetroSystemModelArcadeCabinet).arcade_input()
+		if waiting == null:
+			return false
+		waiting.hold_service(which)
+		attract_first_use(&"service")
+		return true
 	if not is_powered_on or _core_keys_busy:
 		return false
 	var descriptors: Array = []

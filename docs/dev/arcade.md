@@ -928,12 +928,25 @@ hand or a laser reaches them from above once the door is open; a small bracket c
   `Service 1`, which are never the test input), joypad ids and keyboard keys only. A pad id is held on its port for 0.12 s through the cabinet's input
   (`ArcadeInput.tap_pad_bit`, so a gun port gets it too); a key is tapped through the same path the DIP screen's keys take (`_tap_core_keys`, netplay-aware).
   A core that names nothing gets MAME's own keys: F2 (`IPT_SERVICE`, Service Mode) and 9 (`IPT_SERVICE1`). No core running, nothing is pressed.
+- **The words are white, outlined in black** (2026-10-26: they were near-black on the grey bracket and could not be read), and **a second bracket in front of
+  the two carries the operator's SELECTOR**: LEFT, DOWN, UP, RIGHT and ENTER (`LeftButton`...`EnterButton`, five VRButtons at z 0.305, 4.5 cm apart). Most games'
+  test menus are worked with the first player's stick and button 1 (a JVS I/O board had its own Up Select, Down Select and Enter for the System 23 games), and a
+  cabinet with a wheel, a gun or a dance stage has neither: the selector sends one tap of the first player's direction, or of button 1 for ENTER, on port 0
+  (`ArcadeServiceKeys.selector_bit`, `RetroSystem.press_core_service`, through `ArcadeInput.tap_pad_bit`: a gun port gets it too). Sega's menus want TEST to
+  select and SERVICE to step (Out Run's TEST is `PORT_SERVICE_NO_TOGGLE`, a momentary press, and SERVICE is `IPT_SERVICE1`): the two buttons do exactly that.
+  A game that reads no service switch shows none of the seven.
+- **Pressing TEST or SERVICE while the cabinet only shows its game starts it, as a coin does** (`RetroSystem.press_core_service` while `attracting`:
+  `attract_first_use(&"service")`), and the press WAITS for the game like a held coin: `ArcadeInput.hold_service` keeps it until `game_ready()` (the core has
+  run `COIN_WAIT_SECONDS` of emulated frames: a board still testing its RAM reads no switch), then makes it, one every half second, in the order they came. A press that
+  waited for a run that stopped, or for a game the core refused, is let go. The selector starts nothing (no menu is open yet).
 - **NEVER RUN AGAINST A CORE here** (the sandbox has no core and no ROM). Measured elsewhere in this file: FBNeo does nothing visible on F2 on dino and its pad
   descriptors for sf2 do not include a service input (`arcade_cabinet_probe`'s recorded lists end at the six buttons and the directions); whether it names the
   service input on a key descriptor, and what Silent Scope does with F2 under MAME, are OWED to a real run with `Tools/cores/arcade_descriptors_probe`.
 - Tests: `arcade_form_tests service/` (the flag for Silent Scope, Street Fighter II, Time Crisis, Pac-Man and an unknown romset; the descriptor lookup; the
   switches on the other side of the compartment from the power switch, on its floor; there for Silent Scope, gone for Time Crisis and back for the next; F2 and 9 with
-  nothing named, a pad id and a key when the core names them, a tap that lets go; nothing with no core). Each case was broken and watched go red.
+  nothing named, a pad id and a key when the core names them, a tap that lets go; nothing with no core; the white words, the selector's place and its taps);
+  `arcade_attract_tests service/` (TEST starts a showing cabinet, a game still coming up is not pressed, SERVICE and two in order, a press let go with a refused game and with a
+  run that ends). Each case was broken and watched go red.
 
 ## The pedal (2026-10-25)
 

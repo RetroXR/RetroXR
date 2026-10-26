@@ -765,13 +765,37 @@ func _group_service() -> void:
 		"service: they stand on the OTHER side of the compartment from the power switch (%.2f, %.2f against %.2f)" % [test_at.x, credit_at.x, power.position.x])
 	_ok(absf(test_at.y - power.position.y) < 0.02 and absf(credit_at.y - power.position.y) < 0.02 and test_at.z > 0.1 and test_at.z < 0.38,
 		"service: in the compartment, on its floor at the power switch's height, in reach of the door (z %.2f)" % test_at.z)
+	# The words on the bracket are white, outlined in black: black on the grey bracket could not be read.
+	var legible := true
+	for label_name in ["TestLabel", "ServiceLabel", "LeftLabel", "DownLabel", "UpLabel", "RightLabel", "EnterLabel"]:
+		var tag := service.find_child(label_name, true, false) as Label3D
+		legible = legible and tag != null and tag.modulate.is_equal_approx(Color.WHITE) and tag.outline_size > 0 and tag.outline_modulate.v < 0.2
+	_ok(legible, "service: every word on the bracket is white with a black outline")
+	# The operator's selector beside them: five buttons in the compartment, clear of the walls, the door and one another.
+	var selector_ok := true
+	var spots: Array[Vector3] = []
+	for which: StringName in K.SELECTOR:
+		var b := service.button(which)
+		selector_ok = selector_ok and b != null
+		if b != null:
+			var at := model.to_local(b.global_position)
+			spots.append(at)
+			selector_ok = selector_ok and at.x > -0.29 and at.x < 0.0 and at.z > 0.1 and at.z < 0.36 and absf(at.y - power.position.y) < 0.02
+	for i in spots.size():
+		for j in range(i + 1, spots.size()):
+			selector_ok = selector_ok and spots[i].distance_to(spots[j]) > 0.04
+	for which: StringName in [K.TEST, K.SERVICE]:
+		for at: Vector3 in spots:
+			selector_ok = selector_ok and model.to_local(service.button(which).global_position).distance_to(at) > 0.06
+	_ok(selector_ok and spots.size() == 5, "service: the selector (left, down, up, right, enter) stands on the compartment's floor, apart from the walls, the door and each other")
 	# A game dresses them: there for Silent Scope, gone for Time Crisis, back for another.
 	await _board(sys, "sscope")
 	_ok(service.is_enabled() and service.button(K.TEST).collision_layer != 0, "service: with Silent Scope in the bay they are there and can be aimed at")
 	await _pull(sys)
 	await _board(sys, "timecris")
-	_ok(not service.is_enabled() and service.button(K.TEST).collision_layer == 0 and service.button(K.SERVICE).collision_layer == 0,
-		"service: with Time Crisis in the bay (MAME reads none) they are gone and cannot be aimed at")
+	_ok(not service.is_enabled() and service.button(K.TEST).collision_layer == 0 and service.button(K.SERVICE).collision_layer == 0
+			and service.button(K.UP).collision_layer == 0 and service.button(K.ENTER).collision_layer == 0,
+		"service: with Time Crisis in the bay (MAME reads none) they are gone, the selector with them, and cannot be aimed at")
 	await _pull(sys)
 	await _board(sys, "sf2")
 	_ok(service.is_enabled(), "service: and back for the next game that reads one")
@@ -804,7 +828,28 @@ func _group_service() -> void:
 	service.press(K.TEST)
 	await get_tree().create_timer(0.5).timeout
 	_ok(keys == [[296, true], [296, false]], "service: and a core that names it on a key gets that key (%s)" % str(keys))
+	# The selector is the first player's stick and button 1, one tap each on port 0 (a wheel's cabinet has neither): a pad id held a moment.
+	keys.clear()
+	var selector_works := true
+	for pair: Array in [[K.UP, ControllerBindings.JOYPAD_UP], [K.DOWN, ControllerBindings.JOYPAD_DOWN], [K.LEFT, ControllerBindings.JOYPAD_LEFT],
+			[K.RIGHT, ControllerBindings.JOYPAD_RIGHT], [K.ENTER, ArcadeProfiles.button_bit(1)]]:
+		input._process(0.5)
+		input._process(0.01)
+		service.press(pair[0])
+		input._process(0.01)
+		var down := (int(input.last_sent.get(0, 0)) & (1 << int(pair[1]))) != 0
+		input._process(0.5)
+		input._process(0.01)
+		var up := (int(input.last_sent.get(0, 0)) & (1 << int(pair[1]))) == 0
+		selector_works = selector_works and down and up
+		if not (down and up):
+			print("[form] selector %s down=%s up=%s" % [str(pair[0]), str(down), str(up)])
+	_ok(selector_works and keys.is_empty(), "service: UP, DOWN, LEFT, RIGHT and ENTER each hold the first player's direction or button 1 a moment, and press no key")
 	sys.is_powered_on = false
+	input.last_sent.clear()
+	service.press(K.UP)
+	input._process(0.01)
+	_ok(not sys.press_core_service(K.ENTER) and not input.last_sent.has(0), "service: with no core running the selector presses nothing")
 
 
 # --- mount ---------------------------------------------------------------------
@@ -1021,51 +1066,6 @@ func _group_guns() -> void:
 	_ok(input._gun_axes(null)["alx"] == 0, "guns: and no gun is no aim")
 
 
-# --- odd -----------------------------------------------------------------------
-
-func _group_odd() -> void:
-	_ok(P.for_romset("propcycl").form() == P.FORM_CYCLE and P.for_romset("propcyclj").form() == P.FORM_CYCLE
-			and P.for_romset("timetrv").form() == P.FORM_HOLO and P.for_romset("timetrv2").form() == P.FORM_HOLO
-			and P.for_romset("panicprk").form() == P.FORM_SLOT and P.for_romset("panicprkj").form() == P.FORM_SLOT,
-		"odd: the table files Prop Cycle, Time Traveler and Panic Park, and their clones, under forms of their own")
-	var cycle := _spec("propcycl")
-	_ok(cycle.has("cycle") and str(cycle["shape"]) == "wide" and (cycle["players"] as Array).is_empty()
-			and (cycle["coins"] as Array).size() == 1 and not cycle.has("screen"),
-		"odd: Prop Cycle asks for the wide body (and its own 40 inch tube) with a bicycle in front, no deck panel of its own, one coin door")
-	var holo := _spec("timetrv")
-	_ok(holo.has("holo") and is_equal_approx(float(holo["holo"]["depth"]), S.HOLO_DEPTH) and str(holo["shape"]) == "upright"
-			and _kinds(holo) == ["stick"],
-		"odd: Time Traveler asks for the upright with a deep stage, its stick and its two buttons")
-	var slot := _spec("panicprk")
-	var slot_xs: Array = []
-	for pl: Dictionary in slot["players"]:
-		slot_xs.append(float(pl["slot_x"]))
-	_ok(_kinds(slot) == ["slot", "slot"] and is_equal_approx(float(slot_xs[0]), -S.SLOT_TRAVEL)
-			and is_equal_approx(float(slot_xs[1]), S.SLOT_TRAVEL),
-		"odd: Panic Park asks for two levers, one in each half of one slot (%s)" % str(slot_xs))
-	_ok(float(slot["width"]) * 0.5 >= S.SLOT_TRAVEL * 2.0 + 0.03 and S.panels_span(slot["players"]) >= S.SLOT_TRAVEL * 4.0 + 0.05,
-		"odd: and the body, and the span the panels ask for, take both levers' whole travel (%.2f m, %.2f m)"
-			% [float(slot["width"]), S.panels_span(slot["players"])])
-	_ok(not _spec("sf2").has("cycle") and not _spec("sf2").has("holo") and _kinds(_spec("pacman")) != ["slot"],
-		"odd: no other game gets any of them")
-	# A form asked of a spec that already wore another leaves nothing of it behind, and a spec that differs only by its
-	# stage or its bicycle is a different form, so the morph is built.
-	_ok(not S.for_game(cycle, P.for_romset("pacman")).has("cycle") and not S.for_game(holo, P.for_romset("pacman")).has("holo"),
-		"odd: a plain game asked of a bicycle's spec or a stage's has neither")
-	for key: String in ["cycle", "holo"]:
-		var with_it: Dictionary = cycle if key == "cycle" else holo
-		var without := with_it.duplicate(true)
-		without.erase(key)
-		_ok(not S._same_form(without, with_it), "odd: a spec without its %s is another form (the morph is built)" % key)
-	var sys := await _machine()
-	var model := sys.get_model() as RetroSystemModelArcadeCabinet
-	var base_forms := _form_count(model)
-	var base_depth := -model.get_builtin_screen().position.z
-	# A bicycle.
-	model.morph_to(_spec("propcycl"))
-	await _wait(2)
-	_ok(_panels(model).size() == 1, "odd: the bicycle's one panel is built")
-	if _panels(model).is_empty():
 # --- shift ---------------------------------------------------------------------
 
 ## The cockpit or the stand-up wheel panel of a driving game, with the game's profile applied the way a board in the bay does.
@@ -1181,6 +1181,51 @@ func _group_shift() -> void:
 	_ok(panel.shift_config().is_empty() and not panel.shift_high(), "shift: with no game in the bay a lever follows nothing")
 
 
+# --- odd -----------------------------------------------------------------------
+
+func _group_odd() -> void:
+	_ok(P.for_romset("propcycl").form() == P.FORM_CYCLE and P.for_romset("propcyclj").form() == P.FORM_CYCLE
+			and P.for_romset("timetrv").form() == P.FORM_HOLO and P.for_romset("timetrv2").form() == P.FORM_HOLO
+			and P.for_romset("panicprk").form() == P.FORM_SLOT and P.for_romset("panicprkj").form() == P.FORM_SLOT,
+		"odd: the table files Prop Cycle, Time Traveler and Panic Park, and their clones, under forms of their own")
+	var cycle := _spec("propcycl")
+	_ok(cycle.has("cycle") and str(cycle["shape"]) == "wide" and (cycle["players"] as Array).is_empty()
+			and (cycle["coins"] as Array).size() == 1 and not cycle.has("screen"),
+		"odd: Prop Cycle asks for the wide body (and its own 40 inch tube) with a bicycle in front, no deck panel of its own, one coin door")
+	var holo := _spec("timetrv")
+	_ok(holo.has("holo") and is_equal_approx(float(holo["holo"]["depth"]), S.HOLO_DEPTH) and str(holo["shape"]) == "upright"
+			and _kinds(holo) == ["stick"],
+		"odd: Time Traveler asks for the upright with a deep stage, its stick and its two buttons")
+	var slot := _spec("panicprk")
+	var slot_xs: Array = []
+	for pl: Dictionary in slot["players"]:
+		slot_xs.append(float(pl["slot_x"]))
+	_ok(_kinds(slot) == ["slot", "slot"] and is_equal_approx(float(slot_xs[0]), -S.SLOT_TRAVEL)
+			and is_equal_approx(float(slot_xs[1]), S.SLOT_TRAVEL),
+		"odd: Panic Park asks for two levers, one in each half of one slot (%s)" % str(slot_xs))
+	_ok(float(slot["width"]) * 0.5 >= S.SLOT_TRAVEL * 2.0 + 0.03 and S.panels_span(slot["players"]) >= S.SLOT_TRAVEL * 4.0 + 0.05,
+		"odd: and the body, and the span the panels ask for, take both levers' whole travel (%.2f m, %.2f m)"
+			% [float(slot["width"]), S.panels_span(slot["players"])])
+	_ok(not _spec("sf2").has("cycle") and not _spec("sf2").has("holo") and _kinds(_spec("pacman")) != ["slot"],
+		"odd: no other game gets any of them")
+	# A form asked of a spec that already wore another leaves nothing of it behind, and a spec that differs only by its
+	# stage or its bicycle is a different form, so the morph is built.
+	_ok(not S.for_game(cycle, P.for_romset("pacman")).has("cycle") and not S.for_game(holo, P.for_romset("pacman")).has("holo"),
+		"odd: a plain game asked of a bicycle's spec or a stage's has neither")
+	for key: String in ["cycle", "holo"]:
+		var with_it: Dictionary = cycle if key == "cycle" else holo
+		var without := with_it.duplicate(true)
+		without.erase(key)
+		_ok(not S._same_form(without, with_it), "odd: a spec without its %s is another form (the morph is built)" % key)
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var base_forms := _form_count(model)
+	var base_depth := -model.get_builtin_screen().position.z
+	# A bicycle.
+	model.morph_to(_spec("propcycl"))
+	await _wait(2)
+	_ok(_panels(model).size() == 1, "odd: the bicycle's one panel is built")
+	if _panels(model).is_empty():
 		return
 	var p1 := _panels(model)[0] as ArcadeControlModule
 	var parts_ok := _panels(model).size() == 1
