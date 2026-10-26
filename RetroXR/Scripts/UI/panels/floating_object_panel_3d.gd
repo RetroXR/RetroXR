@@ -68,6 +68,10 @@ const SUBJECT_MEASURE_S := 1.0
 var _subject_box := AABB()
 var _subject_measured := false
 var _subject_measure_t := 0.0
+## The mesh that set the object's top at the last measurement, for the log.
+var _subject_top_mesh := NodePath()
+## The lift last logged, so the log speaks on a change and not every frame.
+var _logged_lift := 0.0
 
 
 func _keep_clear_of(target: Node3D, delta: float) -> void:
@@ -82,6 +86,12 @@ func _keep_clear_of(target: Node3D, delta: float) -> void:
 	var lift := clearance_lift(_page_corners(v), box, SUBJECT_CLEARANCE)
 	if lift > 0.0:
 		global_position.y += lift
+	# Said when it changes by a few centimetres, never per frame: a menu that opens
+	# in the wrong place is diagnosed from this line (which mesh set the top).
+	if absf(lift - _logged_lift) > 0.05:
+		_logged_lift = lift
+		print("[Panel] %s: raised %.0f cm clear of %s (its top is %s, at %.3f m)" % [
+			name, lift * 100.0, target.name, _subject_top_mesh, box.end.y])
 
 
 ## How far up a page must go to clear `subject` by `clearance`, or 0 when it does
@@ -114,31 +124,51 @@ func _page_corners(v: XRToolsViewport2DIn3D) -> PackedVector3Array:
 	return out
 
 
-## The object's visible meshes, as HeldHint.visual_top measures them, less any menu
-## hanging off it (this one is a child of the object, top_level or not).
+## The object's OWN body, as HeldHint.visual_top measures it: its visible meshes,
+## less everything that hangs off it without being it. Counting those made a menu
+## open high and drop a second later (when the next measurement no longer saw
+## them): a console's cords are VerletRopes, which ARE MeshInstance3Ds, and a cord
+## lifting or settling as the machine is touched stretched the "console" upward.
+## Left out:
+##   * anything under another physics body below the object — plugs, controllers,
+##     a seated cartridge or disc: separate objects with their own extent;
+##   * VerletRope meshes (the cords themselves);
+##   * anything drawn inside a SubViewport (a screen's scene; the Game Boy Camera's
+##     backdrop has a box 2 km wide);
+##   * menus and highlight overlays.
 func _measure_subject(target: Node3D) -> void:
 	_subject_measure_t = SUBJECT_MEASURE_S
 	var box := AABB()
 	var found := false
+	var top_mesh: MeshInstance3D = null
 	for node: Node in target.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		if mi == null or mi.mesh == null or not mi.is_visible_in_tree():
 			continue
-		if _in_a_panel(mi, target):
+		if mi.is_class("VerletRope") or mi.get_viewport() != target.get_viewport():
+			continue
+		if _not_the_object(mi, target):
 			continue
 		var wb: AABB = mi.global_transform * mi.get_aabb()
+		if not found or wb.end.y > box.end.y:
+			top_mesh = mi
 		box = wb if not found else box.merge(wb)
 		found = true
 	_subject_measured = found
 	if found:
 		box.position -= target.global_position
 		_subject_box = box
+		_subject_top_mesh = target.get_path_to(top_mesh) if top_mesh else NodePath()
 
 
-static func _in_a_panel(n: Node, stop: Node) -> bool:
+## Whether a mesh under the object belongs to something else hanging off it: a
+## menu, a highlight overlay, or another physics body (see _measure_subject).
+static func _not_the_object(n: Node, stop: Node) -> bool:
 	var p := n.get_parent()
 	while p != null and p != stop:
-		if p is FloatingObjectPanel3D:
+		if p is FloatingObjectPanel3D or p is PickableHighlight or p is WidgetOutline:
+			return true
+		if p is PhysicsBody3D:
 			return true
 		p = p.get_parent()
 	return false
