@@ -3326,6 +3326,74 @@ func set_power(on: bool) -> void:
 		toggle_power()
 
 
+## What the running core reports about itself, for the menu's Debug tab, as
+## sections of [label, value] rows: [[section, [[label, value], ...]], ...].
+##
+## Every value is read, never reset. GetPacingStats is left out on purpose: it
+## hands over its worst frame and zeroes it, so a menu polling it would steal the
+## number pace_trace and the link probes are waiting for. And nothing is asked of
+## the core until GetCoreIdentity answers — it is the one getter that checks the
+## core is there, and most of the others dereference it unguarded.
+func debug_state() -> Array:
+	var core := _resolve_core()
+	var machine: Array = [
+		["Power", "On" if is_powered_on else "Off"],
+		["Core", core if not core.is_empty() else "(none resolved)"],
+		["Content", rom_path.get_file() if not rom_path.is_empty() else "(none)"],
+		["HW render requested", AppPrefs.hw_render_for(core)],
+	]
+	var out: Array = [["Machine", machine]]
+	var ident: Dictionary = _libretro.GetCoreIdentity() if _libretro != null else {}
+	if not is_powered_on or ident.is_empty():
+		machine.append(["", "Start a game to see the core's numbers"])
+		return out
+
+	var size := int(ident.get("serialize_size", 0))
+	out.append(["Core", [
+		["Library", "%s %s" % [ident.get("library_name", "?"), ident.get("library_version", "")]],
+		["libretro API", str(ident.get("api_version", "?"))],
+		["Savestate size", "not measured yet" if size <= 0 else MenuStyle.human_bytes(size)],
+	]])
+
+	var g: Dictionary = _libretro.GetVideoGeometry()
+	var frames := int(_libretro.GetFrameCount())
+	out.append(["Video", [
+		["Frame", "%d × %d" % [int(g.get("width", 0)), int(g.get("height", 0))]],
+		["Base / max", "%d × %d" % [int(g.get("base_width", 0)), int(g.get("base_height", 0))]],
+		["Display aspect", "%.4f (core says %.4f)" % [float(g.get("aspect", 0.0)),
+			float(g.get("core_aspect", 0.0))]],
+		["Rotation", "%d°" % (int(g.get("rotation", 0)) * 90)],
+		["Declared FPS", "%.3f" % float(_libretro.GetDeclaredFps())],
+		["Frames run", str(frames)],
+		["Frames dropped", str(int(_libretro.GetDroppedFrameCount()))],
+	]])
+	var transfer: Dictionary = _libretro.GetVideoTransferStats()
+	if bool(transfer.get("enabled", false)):
+		var up: Dictionary = transfer.get("texture_update", {})
+		var calls := maxi(int(up.get("calls", 0)), 1)
+		(out[-1][1] as Array).append(["Texture upload", "%.2f ms avg, %.2f worst" % [
+			float(up.get("total_ms", 0.0)) / calls, float(up.get("max_ms", 0.0))]])
+
+	var rate := float(_libretro.GetDeclaredSampleRate())
+	out.append(["Audio", [
+		["Declared sample rate", "%.1f Hz" % rate],
+		["Buffered", "%d frames (%.1f ms)" % [int(_libretro.GetAudioBufferOccupancy()),
+			1000.0 * _libretro.GetAudioBufferOccupancy() / rate if rate > 0.0 else 0.0]],
+		["Pacing brake", "%.1f ms" % float(_libretro.GetAudioBrakeMs())],
+		["Microphone", "listening" if _libretro.IsMicrophoneActive() else "off"],
+	]])
+
+	var other: Array = [
+		["Camera", "running" if _libretro.IsCameraActive() else "off"],
+		["Core options", "%d set, %d pinned" % [_options_values.size(),
+			forced_core_options().size()]],
+	]
+	if NetworkManager.is_active():
+		other.append(["Netplay rollbacks", str(int(_libretro.GetNetplayRollbackCount()))])
+	out.append(["Other", other])
+	return out
+
+
 ## The OPEN/EJECT button, pressed from the menu.
 func press_eject() -> void:
 	if _eject_button != null and _eject_button.visible:

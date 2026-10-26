@@ -2324,8 +2324,8 @@ func _m_crossed() -> void:
 
 
 ## The machine's side: an NES, which has RESET and a CH3/CH4 slide and no drive,
-## cabled to Composite 2 with its sound pair crossed. Never powered on — a suite
-## starts no core.
+## cabled to Composite 2 with its one (mono) audio cord in the R jack. Never
+## powered on — a suite starts no core.
 func _m_machine() -> void:
 	var tv := _tv()
 	var nes := SYSTEM_SCENE.instantiate() as RetroSystem
@@ -2342,7 +2342,7 @@ func _m_machine() -> void:
 		return
 	var outs := _out_ports(nes)
 	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_2)
-	await _lead([[0, outs[0], ins[0]], [1, outs[1], ins[2]], [2, outs[2], ins[1]]])
+	await _lead([[0, outs[0], ins[0]], [1, outs[1], ins[2]]])
 
 	var state := nes.controls_state()
 	_check_eq(state["rf_options"], [3, 4], "the NES offers its CH3/CH4 slide")
@@ -2350,7 +2350,7 @@ func _m_machine() -> void:
 	_check_eq(state["has_reset"], true, "and does have RESET")
 	_check_eq(state["on"], false, "it starts switched off")
 	_check_eq(state["display"], "TV, COMPOSITE 2", "it says which input it is showing on")
-	_check_eq(state["wiring"], ["L in R", "R in L"], "and that its sound pair is crossed")
+	_check_eq(state["wiring"], ["L in R"], "and that its sound cord is in the wrong jack")
 
 	var ui := (load("res://Scenes/UI/core_options_2d.tscn") as PackedScene).instantiate() \
 		as CoreOptions2D
@@ -2375,6 +2375,16 @@ func _m_machine() -> void:
 	_check_eq(nes.get_rf_channel(), 4, "the RF row moves the console's switch to CH4")
 	ui._ctl_rf.item_selected.emit(3)
 	_check_eq(nes.get_rf_channel(), 3, "and back")
+
+	# Debug: switched off, the core is never asked (most of its getters assume it
+	# is there), and the tab says so instead of showing zeros.
+	var dbg := nes.debug_state()
+	_check_eq(dbg.size(), 1, "an off machine's Debug page is the Machine section alone")
+	_check_eq(dbg[0][1][0], ["Power", "Off"], "and it says the machine is off")
+	ui.populate_debug(dbg)
+	_check_eq(ui._tabs.get_tab_title(ui._debug_tab_idx), "Debug", "the menu has a Debug tab")
+	_ok(ui._debug_values.size() == (dbg[0][1] as Array).size()
+		and ui._debug_values[0].text == "Off", "which shows those rows")
 
 
 func _m_follows() -> void:

@@ -34,6 +34,11 @@ const CONTROLS_POLL_S := 0.25
 var _controls_poll := 0.0
 ## RetroSystem.controls_state() as the Controls tab last showed it.
 var _controls_state: Dictionary = {}
+## How often the Debug tab re-reads the core, while it is the tab showing.
+const DEBUG_POLL_S := 0.5
+var _debug_poll := 0.0
+## The core's frame count at the last Debug read, -1 when there was none.
+var _debug_frames := -1
 
 @onready var _viewport_node: XRToolsViewport2DIn3D = $CoreOptionsViewport
 
@@ -123,6 +128,7 @@ func _populate() -> void:
 		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
 	_controls_state = _system.controls_state()
 	ui.populate_controls(_controls_state)
+	ui.populate_debug(_system.debug_state())
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
 	var core := _system._resolve_core()
@@ -256,6 +262,30 @@ func _on_control_requested(id: String, value: Variant) -> void:
 	_refresh_controls()
 
 
+## The Debug tab, read only while it is the tab showing. The measured rate is the
+## core's frame counter over the time since the last read, which is what tells a
+## core running slow from one that only declares an odd rate.
+func _refresh_debug(elapsed: float) -> void:
+	var vp := _viewport_node.get_node_or_null("Viewport") as SubViewport
+	var ui := vp.get_child(0) as CoreOptions2D if vp and vp.get_child_count() > 0 else null
+	if ui == null or not ui.is_debug_tab_shown():
+		_debug_frames = -1
+		return
+	var sections := _system.debug_state()
+	for s: Array in sections:
+		if s[0] != "Video":
+			continue
+		var frames := -1
+		for row: Array in s[1]:
+			if row[0] == "Frames run":
+				frames = int(row[1])
+		if frames >= 0 and _debug_frames >= 0 and elapsed > 0.0:
+			(s[1] as Array).insert(0, ["Measured FPS",
+				"%.1f" % (float(frames - _debug_frames) / elapsed)])
+		_debug_frames = frames
+	ui.populate_debug(sections)
+
+
 ## Re-read the machine; repaint the Controls tab only when something moved.
 func _refresh_controls() -> void:
 	if _system == null or not is_instance_valid(_system):
@@ -280,6 +310,10 @@ func _while_shown(delta: float) -> void:
 	if _controls_poll >= CONTROLS_POLL_S:
 		_controls_poll = 0.0
 		_refresh_controls()
+	_debug_poll += delta
+	if _debug_poll >= DEBUG_POLL_S:
+		_refresh_debug(_debug_poll)
+		_debug_poll = 0.0
 	var v := _device_volume()
 	if is_equal_approx(v, _shown_volume):
 		return
