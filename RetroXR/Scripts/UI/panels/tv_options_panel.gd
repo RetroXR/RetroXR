@@ -23,6 +23,12 @@ var _tv: RetroTV = null
 ## cabinet's meshes each tick.
 var _tv_top := 0.0
 
+## How often the Controls tab re-reads the set while the menu is open.
+const CONTROLS_POLL_S := 0.25
+var _controls_poll := 0.0
+## RetroTV.menu_state() as the Controls tab last showed it.
+var _controls_state: Dictionary = {}
+
 @onready var _viewport_node: XRToolsViewport2DIn3D = $TVOptionsViewport
 
 
@@ -92,6 +98,7 @@ func _ensure_ui_connected() -> void:
 	ui.crt_param_changed.connect(_on_crt_param_changed)
 	ui.close_requested.connect(hide_panel)
 	ui.ignore_gravity_toggled.connect(_on_ignore_gravity_toggled)
+	ui.control_requested.connect(_on_control_requested)
 	_ui_connected = true
 
 
@@ -104,10 +111,60 @@ func _populate() -> void:
 		return
 	ui.populate(_tv.get_scale_factor(), _tv.get_ignore_gravity())
 	ui.populate_crt(_tv.get_crt_params())
+	_controls_state = _tv.menu_state()
+	ui.populate_controls(_controls_state)
 	# No tuner is built here any more. This used to be the first thing that
 	# legitimately needed one — the panel carried the channel list — and opening a
 	# set's menu to resize it spun up a VlcPlayer as a side effect. The list is on
 	# the aerial's menu now (AntennaOptionsPanel).
+
+
+## One of the set's buttons, pressed on the Controls tab. Each goes through the call
+## its bezel cap or remote key makes, which is what shows the OSD, recolours the cap
+## and tells netplay — so a menu press is indistinguishable from a cap press.
+func _on_control_requested(id: String, value: Variant) -> void:
+	if not _tv or not is_instance_valid(_tv):
+		return
+	print("[TVMenu] %s: %s%s" % [_tv.name, id, "" if value == null else " = %s" % str(value)])
+	match id:
+		"power": _tv.set_power(bool(value))
+		"source": _tv.set_source(int(value) as RetroTV.Source)
+		"vol_up": _tv.remote_volume_up()
+		"vol_down": _tv.remote_volume_down()
+		"mute": _tv.remote_mute_toggle()
+		"ch_up": _tv.remote_channel_up()
+		"ch_down": _tv.remote_channel_down()
+		"aspect": _tv.set_widescreen(int(value) == 1)
+		"stereo3d": _tv.set_stereo_mode(int(value))
+		"audio_mode": _tv.set_audio_mode(int(value))
+		"audio_out": _tv.set_audio_out(int(value))
+		"crt": _tv.set_crt_enabled(bool(value))
+		_:
+			push_warning("[TVMenu] unknown control %s" % id)
+	_refresh_controls()
+
+
+## Follow the set while the menu is open: a cap pressed on the bezel, the remote, a
+## peer, a lead seated or a 3D source arriving. Polled, a few times a second, rather
+## than wired to each of those — there are a dozen and they live in five helpers.
+func _while_shown(delta: float) -> void:
+	_controls_poll += delta
+	if _controls_poll < CONTROLS_POLL_S:
+		return
+	_controls_poll = 0.0
+	_refresh_controls()
+
+
+func _refresh_controls() -> void:
+	if not _tv or not is_instance_valid(_tv):
+		return
+	var state := _tv.menu_state()
+	if state == _controls_state:
+		return
+	_controls_state = state
+	var ui := _get_ui()
+	if ui:
+		ui.populate_controls(state)
 
 
 ## A CRT filter slider/dropdown moved — apply live to the local TV.

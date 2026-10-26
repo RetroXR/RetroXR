@@ -1289,6 +1289,78 @@ func source_name(source: int) -> String:
 	return SOURCE_NAMES[clampi(source, 0, SOURCE_NAMES.size() - 1)]
 
 
+## What is plugged into an input, in words, or "" for nothing. The menu prints it
+## beside each input's name, which is the one place a player can see every input's
+## lead at once without walking round the back of the set.
+##
+## A deck built into the cabinet is already named by source_name ("VCR"), so it
+## says where it is rather than its name a second time. The aerial input names the
+## Antenna as well as any console on it, because both can be on that one hole
+## through an RF switch, and says NO SIGNAL when the console's channel switch is on
+## the other channel — the reason a lead that is plainly in shows nothing.
+func input_device_label(source: int) -> String:
+	if _panel.builtin_deck(source) != null:
+		return "Built in"
+	var parts: PackedStringArray = []
+	if source == Source.RF and _panel.aerial() != null:
+		parts.append("Antenna")
+	var host := _panel.host_on(source)
+	if host != null:
+		parts.append(_device_name(host))
+	var text := " + ".join(parts)
+	if source == Source.RF and host != null and not _panel.rf_tuned():
+		text += " (NO SIGNAL)"
+	return text
+
+
+## A host's name as the player knows it. A console carries its own (the nameplate,
+## with whatever is bolted to it); the decks are named by kind.
+static func _device_name(host: Node3D) -> String:
+	if host is RetroSystem:
+		return (host as RetroSystem).display_name_for_toast()
+	if host is VCRPlayer:
+		return "VCR"
+	if host is DVDPlayer:
+		return "DVD player"
+	if host.has_method("display_name"):
+		return str(host.call("display_name"))
+	return String(host.name).capitalize()
+
+
+## Everything the set's menu shows on its Controls tab, in one Dictionary: the menu
+## is fed this and asks the set to change things through the same calls as its bezel
+## caps and the remote. Compared whole by the panel to notice a change made anywhere
+## else (a cap, the remote, a peer, a lead), so it holds values, never nodes.
+func menu_state() -> Dictionary:
+	var inputs: Array = []
+	for i in SOURCE_NAMES.size():
+		if _source_available(i as Source):
+			inputs.append({"source": i, "name": source_name(i),
+				"device": input_device_label(i)})
+	return {
+		"on": _tv_enabled,
+		"volume": _audio.volume(),
+		"muted": _audio.is_muted(),
+		"source": current_source,
+		"inputs": inputs,
+		"can_change_channel": can_change_channel(),
+		"channel_text": _source_banner() if current_source == Source.RF else "",
+		"widescreen": widescreen,
+		"has_stereo": has_stereo_source(),
+		"stereo_mode": stereo_mode,
+		"audio_mode": audio_mode,
+		"audio_out": audio_out,
+		"crt": crt_enabled,
+	}
+
+
+## POWER to a position rather than a press, for the menu's switch. A no-op when the
+## set is already there, so a switch that is re-populated cannot toggle it.
+func set_power(on: bool) -> void:
+	if on != _tv_enabled:
+		_on_tv_toggle()
+
+
 ## The tuner is built on first use — a set that never leaves COMPONENT should not
 ## pay for a VlcPlayer instance. What it can tune is the aerial's, handed over here
 ## and again whenever the aerial changes (on_aerial_changed).

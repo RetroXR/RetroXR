@@ -654,6 +654,15 @@ func rf_tuned() -> bool:
 	return ch < 0 or ch == _tv.rf_channel
 
 
+## The host feeding one input, whether or not it is the selected one, or null. Read
+## by the set's menu, which lists what is on every input.
+func host_on(input: int) -> Node3D:
+	if input < 0 or input >= _connected_systems.size():
+		return null
+	var system: Node3D = _connected_systems[input]
+	return system if is_instance_valid(system) else null
+
+
 ## The host feeding the selected input, if there is one and it is still alive.
 func selected_system() -> Node3D:
 	var input := _tv.selected_input()

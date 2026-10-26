@@ -182,6 +182,9 @@ func _run() -> void:
 		["wiring/an aerial's lead fits the set's coax socket and a switch's ANT socket", _w_aerial_sockets],
 		["wiring/an aerial wired through a switch survives a save and a load", _w_aerial_round_trip],
 		["wiring/the aerial opens its own menu, and the set's has no channel list", _w_aerial_menu],
+		["menu/the Controls tab names what is on each input", _m_inputs],
+		["menu/its buttons drive the set as the bezel does", _m_buttons],
+		["menu/3D appears with a 3D source, and a cap press reaches an open menu", _m_follows],
 		["display/with no aerial the dial is the consoles' channels and nothing else", _d_dial_bare],
 		["wiring/a Famicom's CH1/CH2 slide decides which channel it is on", _w_famicom_channel],
 		["display/an aerial's channels join the dial in numeric order", _d_dial_merged],
@@ -2184,6 +2187,139 @@ func _w_aerial_menu() -> void:
 	for kept: String in ["channel_selected", "tuner_settings_changed", "channels_refresh_requested"]:
 		_ok(mine.has_signal(kept), "the aerial's menu has %s" % kept)
 	mine.free()
+
+
+# ── The set's menu: its buttons as controls ──────────────────────────────────
+
+## The TV menu wired the way TVOptionsPanel wires it, with the panel's own dispatch,
+## so a press here is the press a player makes.
+func _menu_for(tv: RetroTV) -> TVOptions2D:
+	var ui := TV_OPTIONS_UI.instantiate() as TVOptions2D
+	add_child(ui)
+	_spawned.append(ui)
+	await _wait(2)
+	tv._options_panel._tv = tv
+	ui.control_requested.connect(tv._options_panel._on_control_requested)
+	ui.populate_controls(tv.menu_state())
+	return ui
+
+
+func _menu_row(tv: RetroTV, source: int) -> Dictionary:
+	for row: Dictionary in tv.menu_state()["inputs"]:
+		if int(row["source"]) == source:
+			return row
+	return {}
+
+
+func _m_inputs() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var src := StubSource.new()
+	src.name = "TestDeck"
+	await _seat_stub(tv, RetroTV.Source.COMPOSITE_2, src)
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_2).get("device"), "Test Deck",
+		"Composite 2 names the machine plugged into it")
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_1).get("device"), "",
+		"an empty input names nothing")
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_1).get("name"), "COMPOSITE 1",
+		"and is still listed, by the name SOURCE gives it")
+	_ok(_menu_row(tv, RetroTV.Source.TV).is_empty(), "the retired tuner input is not listed")
+	var ui := await _menu_for(tv)
+	var b := ui._input_buttons.get(RetroTV.Source.COMPOSITE_2) as Button
+	_ok(b != null and b.text.contains("Test Deck"), "the input's button says what is on it")
+
+	# A cabinet with only a DE-15 lists only that.
+	var mon := TV_SCENE.instantiate() as RetroTV
+	mon.tv_model = "crt_plain"
+	mon.freeze = true
+	mon.position = Vector3(6, 1, 0)
+	add_child(mon)
+	_spawned.append(mon)
+	await _wait(30)
+	var sources: Array = (mon.menu_state()["inputs"] as Array).map(
+		func(r: Dictionary) -> int: return int(r["source"]))
+	_check_eq(sources, [RetroTV.Source.VGA], "a monitor's menu lists its one socket")
+
+
+func _m_buttons() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var src := StubSource.new()
+	src.texture = _a_texture()
+	await _seat_stub(tv, RetroTV.Source.COMPOSITE_1, src)
+	var ui := await _menu_for(tv)
+
+	(ui._input_buttons[RetroTV.Source.COMPOSITE_3] as Button).pressed.emit()
+	_check_eq(tv.get_source(), RetroTV.Source.COMPOSITE_3, "an input's button selects it")
+	ui._aspect_opt.item_selected.emit(1)
+	_check_eq(tv.widescreen, true, "Picture shape 16:9 widens the set")
+	ui._audio_out_opt.item_selected.emit(RetroTV.AudioOut.STEREO)
+	_check_eq(tv.audio_out, RetroTV.AudioOut.STEREO, "Audio output reaches the set")
+	ui._audio_mode_opt.item_selected.emit(2)
+	_check_eq(tv.audio_mode, 2, "the speaker switch reaches the set")
+	ui._mute_btn.pressed.emit()
+	_check_eq(tv.is_muted(), true, "MUTE mutes")
+	ui._mute_btn.pressed.emit()
+	_check_eq(tv.is_muted(), false, "and again unmutes")
+	var before := tv.volume()
+	var vol_down: Button = null
+	for k in ui._volume_val.get_parent().get_children():
+		if k is Button and (k as Button).text == "VOL −":
+			vol_down = k
+	_ok(vol_down != null, "the volume row has a VOL- key")
+	if vol_down:
+		vol_down.pressed.emit()
+	_ok(tv.volume() < before, "VOL- turns the set down (%.2f -> %.2f)" % [before, tv.volume()])
+	ui._crt_sw.button_pressed = false
+	_check_eq(tv.crt_enabled, false, "the CRT switch turns the tube stage off")
+	ui._power_sw.button_pressed = false
+	_check_eq(tv.menu_state()["on"], false, "the power switch turns the set off")
+	ui._power_sw.button_pressed = true
+	_check_eq(tv.menu_state()["on"], true, "and on again")
+
+	# Populating must never press anything: a switch set from the state is not a
+	# player flipping it.
+	tv.set_crt_enabled(true)
+	var was_on: bool = tv.menu_state()["on"]
+	ui.populate_controls(tv.menu_state())
+	ui.populate_controls(tv.menu_state())
+	_check_eq(tv.menu_state()["on"], was_on, "re-populating leaves the power alone")
+	_check_eq(tv.crt_enabled, true, "and the CRT filter")
+	_check_eq(ui._ch_up_btn.disabled, true, "CH+ is dead off the aerial input")
+
+
+func _m_follows() -> void:
+	var tv := _tv()
+	await _wait(30)
+	var src := StubSource.new()
+	src.texture = _a_texture()
+	await _seat_stub(tv, RetroTV.Source.COMPOSITE_1, src)
+	var ui := await _menu_for(tv)
+	_check_eq(ui._stereo_opt.visible, false, "no 3D row without a 3D source")
+
+	var sbs := StubSource.new()
+	sbs.texture = _a_texture()
+	sbs.stage = {"shader": WINDOW_SHADER,
+		"params": {"source_rect": Vector4(0.0, 0.0, 1.0, 1.0), "eye_shift": 0.02}}
+	await _seat_stub(tv, RetroTV.Source.COMPOSITE_2, sbs)
+	await _wait(4)
+	_check_eq(tv.has_stereo_source(), true, "a stereo stage is a 3D source")
+	var panel := tv._options_panel
+	panel._refresh_controls()
+	ui.populate_controls(panel._controls_state)
+	_check_eq(ui._stereo_opt.visible, true, "the 3D row appears with it")
+	ui._stereo_opt.item_selected.emit(1)
+	_check_eq(tv.stereo_mode, 1, "and picks the eye")
+
+	# A cap pressed on the bezel while the menu is open: the panel's poll sees it.
+	tv.toggle_aspect()
+	var seen_before: bool = panel._controls_state.get("widescreen", false)
+	panel._refresh_controls()
+	_ok(panel._controls_state.get("widescreen") != seen_before,
+		"the menu's state follows a press it did not make")
+	ui.populate_controls(panel._controls_state)
+	_check_eq(ui._aspect_opt.get_selected_id(), 1 if tv.widescreen else 0,
+		"and the Picture shape row shows it")
 
 
 func _d_dial_bare() -> void:

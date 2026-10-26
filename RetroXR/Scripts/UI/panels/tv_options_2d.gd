@@ -6,6 +6,14 @@
 ##   scale_changed(scale)   — size slider moved (fires live while dragging)
 ##   scale_committed(scale) — size slider drag finished (for net replication)
 ##   close_requested        — user pressed ✕
+##   control_requested(id, value) — one of the set's own buttons, pressed here
+##
+## The Controls tab is the set's bezel caps and the remote's TV keys as menu
+## controls: power, input (with what is on each one), volume, channel, picture
+## shape, 3D (only while a 3D source is in), speaker switch, audio output and CRT.
+## It is fed RetroTV.menu_state() and asks for changes by id; TVOptionsPanel makes
+## them through the same calls the caps make, so the OSD, the caps and netplay all
+## follow without anything here knowing about them.
 ##
 ## There is no Channels tab. The tuner's address and the channel list moved to the
 ## aerial that receives them — point at an Antenna and open ITS menu
@@ -21,11 +29,18 @@ signal ignore_gravity_toggled(enabled: bool)
 ## A CRT display-stage uniform was changed (pname, value). Applied live.
 signal crt_param_changed(pname, value)
 signal close_requested
+## A Controls-tab button: `id` is the remote's key name ("power", "source",
+## "vol_up", "aspect", ...) and `value` what it was set to, or null for a press.
+signal control_requested(id: String, value: Variant)
 
 # ── Palette (matches BookOptions2D / CoreOptions2D) ──────────────────────────────
 const COLOR_BG    := Color(0.08, 0.08, 0.16, 0.96)
 const COLOR_TITLE := Color(0.9,  0.9,  1.0)
 const COLOR_ROW   := Color(0.65, 0.65, 0.80)
+## The input the set is showing, in the input list, against the others.
+const COLOR_SELECTED := Color(0.25, 0.45, 0.85)
+const COLOR_IDLE     := Color(0.16, 0.16, 0.28)
+const COLOR_EMPTY    := Color(0.5, 0.5, 0.6)
 
 const MIN_SCALE := 0.2
 const MAX_SCALE := 5.0
@@ -41,6 +56,27 @@ var _crt_sliders: Dictionary = {}
 var _crt_mask_opt: VRDropdown = null
 # Guard so populate() doesn't re-emit signals when it sets control values.
 var _suppress_signal := false
+
+# Controls tab.
+var _controls_scroll: ScrollContainer = null
+var _power_sw: VRToggle = null
+var _inputs_box: VBoxContainer = null
+# The input list as last built, so a re-populate that changes nothing about it
+# (the usual case: only the volume moved) does not rebuild the buttons under a
+# pointer that is pressing one.
+var _inputs_sig := ""
+# source -> Button, for moving the highlight without a rebuild.
+var _input_buttons: Dictionary = {}
+var _volume_val: Label = null
+var _mute_btn: Button = null
+var _ch_down_btn: Button = null
+var _ch_up_btn: Button = null
+var _channel_val: Label = null
+var _aspect_opt: VRDropdown = null
+var _stereo_opt: VRDropdown = null
+var _audio_mode_opt: VRDropdown = null
+var _audio_out_opt: VRDropdown = null
+var _crt_sw: VRToggle = null
 
 
 func _ready() -> void:
@@ -60,11 +96,13 @@ func _build_ui() -> void:
 
 	root_vbox.add_child(HSeparator.new())
 
-	# ── Tab container (mirrors VCROptions2D): Options | CRT ────────────────────
+	# ── Tab container (mirrors VCROptions2D): Controls | Options | CRT ─────────
 	var tabs := TabContainer.new()
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.add_theme_font_size_override("font_size", 18)
 	root_vbox.add_child(tabs)
+
+	_build_controls_tab(tabs)
 
 	var opts_outer := VBoxContainer.new()
 	opts_outer.name = "Options"
@@ -76,7 +114,6 @@ func _build_ui() -> void:
 	_options_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
 	MenuStyle.fat_vscroll_bar(_options_scroll)
 	opts_outer.add_child(_options_scroll)
-	_active_scroll = _options_scroll
 
 	var rows := VBoxContainer.new()
 	rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -140,9 +177,142 @@ func _build_ui() -> void:
 func _on_tab_changed(idx: int) -> void:
 	match idx:
 		0:
+			_active_scroll = _controls_scroll
+		1:
 			_active_scroll = _options_scroll
 		_:
 			_active_scroll = _crt_scroll
+
+
+# ── Controls: the set's own buttons ───────────────────────────────────────────
+
+func _build_controls_tab(tabs: TabContainer) -> void:
+	var outer := VBoxContainer.new()
+	outer.name = "Controls"
+	tabs.add_child(outer)
+
+	_controls_scroll = ScrollContainer.new()
+	_controls_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_controls_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_controls_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	MenuStyle.fat_vscroll_bar(_controls_scroll)
+	outer.add_child(_controls_scroll)
+	_active_scroll = _controls_scroll
+
+	var rows := MenuStyle.vbox(6)
+	_controls_scroll.add_child(rows)
+
+	_power_sw = MenuStyle.switch_row(rows, "Power", true)
+	_power_sw.toggled.connect(func(on: bool) -> void: _request("power", on))
+
+	# Every input the cabinet has, each with what is plugged into it. A press
+	# selects it: SOURCE without stepping through the others to get there.
+	rows.add_child(_section("Input"))
+	_inputs_box = MenuStyle.vbox(4)
+	rows.add_child(_inputs_box)
+
+	rows.add_child(_section("Volume"))
+	var vol := MenuStyle.hbox(8)
+	rows.add_child(vol)
+	vol.add_child(_key("VOL −", "vol_down"))
+	_mute_btn = _key("MUTE", "mute")
+	vol.add_child(_mute_btn)
+	vol.add_child(_key("VOL +", "vol_up"))
+	_volume_val = _value_label()
+	vol.add_child(_volume_val)
+
+	# Live only on the aerial input, as the remote's keys are. The bezel's CH keys
+	# select RF first because they are moulded in; here the input list is right
+	# above, so these grey out instead and say why.
+	rows.add_child(_section("Channel"))
+	var ch := MenuStyle.hbox(8)
+	rows.add_child(ch)
+	_ch_down_btn = _key("CH −", "ch_down")
+	ch.add_child(_ch_down_btn)
+	_ch_up_btn = _key("CH +", "ch_up")
+	ch.add_child(_ch_up_btn)
+	_channel_val = _value_label()
+	_channel_val.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_channel_val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	ch.add_child(_channel_val)
+
+	rows.add_child(HSeparator.new())
+	_aspect_opt = _choice(rows, "Picture shape", [["4:3", 0], ["16:9", 1]], "aspect")
+	# Hidden until a 3D source is in, the way the bezel's 3D cap is.
+	_stereo_opt = _choice(rows, "3D mode",
+		[["Stereo (both eyes)", 0], ["Left eye", 1], ["Right eye", 2]], "stereo3d")
+	_stereo_opt.visible = false
+	_audio_mode_opt = _choice(rows, "Speaker switch",
+		[["Stereo", 0], ["Mono left", 1], ["Mono right", 2]], "audio_mode")
+	_audio_out_opt = _choice(rows, "Audio output",
+		[["TV speakers", 0], ["Stereo out", 1], ["Surround", 2]], "audio_out")
+
+	_crt_sw = MenuStyle.switch_row(rows, "CRT filter", true)
+	_crt_sw.toggled.connect(func(on: bool) -> void: _request("crt", on))
+
+
+func _request(id: String, value: Variant) -> void:
+	if not _suppress_signal:
+		control_requested.emit(id, value)
+
+
+func _section(text: String) -> Label:
+	return MenuStyle.label(text, 18, COLOR_ROW)
+
+
+func _value_label() -> Label:
+	var l := MenuStyle.label("", 18, COLOR_TITLE)
+	l.custom_minimum_size = Vector2(90, 0)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	l.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	return l
+
+
+## A press-only key. RELEASE mode, never PRESS: a click in a Viewport2DIn3D arrives
+## as two presses, so a press-mode VOL+ would step twice (see MenuStyle.check).
+func _key(text: String, id: String) -> Button:
+	var b := MenuStyle.row_button(text, 18, 110, 48, false)
+	b.action_mode = BaseButton.ACTION_MODE_BUTTON_RELEASE
+	b.focus_mode = Control.FOCUS_NONE
+	b.pressed.connect(func() -> void: _request(id, null))
+	return b
+
+
+func _choice(rows: VBoxContainer, label: String, options: Array, id: String) -> VRDropdown:
+	var d := VRDropdown.create(label, options, options[0][1])
+	d.item_selected.connect(func(v: Variant) -> void: _request(id, int(v)))
+	rows.add_child(d)
+	return d
+
+
+## Rebuild the input list, only when what it lists changed; move the highlight always.
+func _populate_inputs(inputs: Array, selected: int) -> void:
+	var sig := var_to_str(inputs)
+	if sig != _inputs_sig:
+		_inputs_sig = sig
+		for c in _inputs_box.get_children():
+			_inputs_box.remove_child(c)
+			c.queue_free()
+		_input_buttons.clear()
+		for row: Dictionary in inputs:
+			var source := int(row["source"])
+			var device := str(row["device"])
+			var b := MenuStyle.row_button("%s   —   %s" % [row["name"],
+				device if not device.is_empty() else "nothing connected"], 18, 0, 48)
+			b.action_mode = BaseButton.ACTION_MODE_BUTTON_RELEASE
+			b.focus_mode = Control.FOCUS_NONE
+			b.clip_text = true
+			b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			if device.is_empty():
+				b.add_theme_color_override("font_color", COLOR_EMPTY)
+			b.pressed.connect(func() -> void: _request("source", source))
+			_inputs_box.add_child(b)
+			_input_buttons[source] = b
+	for source: int in _input_buttons:
+		var b := _input_buttons[source] as Button
+		var box := MenuStyle.rounded(COLOR_SELECTED if source == selected else COLOR_IDLE, 6)
+		b.add_theme_stylebox_override("normal", box)
+		b.add_theme_stylebox_override("hover", box)
 
 
 # ── CRT filter controls (own tab, like the VCR panel's VHS tab) ───────────────
@@ -230,6 +400,30 @@ func populate(scale_factor := 1.0, ignore_gravity := false) -> void:
 		_size_val.text = "%.1f×" % scale_factor
 	if _float_check:
 		_float_check.button_pressed = ignore_gravity
+	_suppress_signal = false
+
+
+## Sync the Controls tab to RetroTV.menu_state() without re-emitting signals.
+func populate_controls(state: Dictionary) -> void:
+	if _power_sw == null:
+		return
+	_suppress_signal = true
+	_power_sw.button_pressed = bool(state.get("on", true))
+	_populate_inputs(state.get("inputs", []), int(state.get("source", 0)))
+	var muted := bool(state.get("muted", false))
+	_volume_val.text = "MUTED" if muted \
+		else "%d%%" % roundi(float(state.get("volume", 0.0)) * 100.0)
+	_mute_btn.text = "UNMUTE" if muted else "MUTE"
+	var can_ch := bool(state.get("can_change_channel", false))
+	_ch_down_btn.disabled = not can_ch
+	_ch_up_btn.disabled = not can_ch
+	_channel_val.text = str(state.get("channel_text", "")) if can_ch else "RF input only"
+	_aspect_opt.select_id(1 if bool(state.get("widescreen", false)) else 0)
+	_stereo_opt.visible = bool(state.get("has_stereo", false))
+	_stereo_opt.select_id(int(state.get("stereo_mode", 0)))
+	_audio_mode_opt.select_id(int(state.get("audio_mode", 0)))
+	_audio_out_opt.select_id(int(state.get("audio_out", 0)))
+	_crt_sw.button_pressed = bool(state.get("crt", true))
 	_suppress_signal = false
 
 
