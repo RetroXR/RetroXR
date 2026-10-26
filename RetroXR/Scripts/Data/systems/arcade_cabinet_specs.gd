@@ -285,6 +285,10 @@ const PICTURE_SHARE := 0.58
 ## A button column's pitch, and the first column's distance from the stick.
 const COLUMN_PITCH := 0.06
 const FIRST_COLUMN := 0.08
+## A flight yoke's panel: the stick stands this far from the panel's left edge, the first column of caps this far to its right, and its handgrips reach this far from its middle.
+const YOKE_IN := 0.15
+const YOKE_FIRST_COLUMN := 0.19
+const YOKE_REACH := 0.15
 ## The pitch of the coin doors by how many there are (1 to 4), on the upright's 0.62 m coin face.
 const COIN_PITCH: Array[float] = [0.0, 0.28, 0.18, 0.14]
 
@@ -296,9 +300,10 @@ static func panel_extent(panel: Dictionary) -> Vector2:
 	var left := start_x - 0.02
 	var right := start_x + 0.02
 	match str(panel["kind"]):
-		"stick", "twin", "rotary":
-			left = minf(left, float(panel["stick_x"]) - 0.045)
-			right = maxf(right, float(panel["stick_x"]) + 0.045)
+		"stick", "twin", "rotary", "yoke", "rod":
+			var reach := YOKE_REACH if str(panel["kind"]) == "yoke" else 0.045
+			left = minf(left, float(panel["stick_x"]) - reach)
+			right = maxf(right, float(panel["stick_x"]) + reach)
 			if str(panel["kind"]) == "twin":
 				left = minf(left, float(panel["stick2_x"]) - 0.045)
 				right = maxf(right, float(panel["stick2_x"]) + 0.045)
@@ -361,6 +366,9 @@ static func body_width(shape_width: float, players: Array) -> float:
 static func panel_kind(profile: ArcadeGameProfile) -> String:
 	if profile == null or not profile.known:
 		return "stick"
+	# A controller of its own shape (the table's `y`): a flight yoke, a fishing rod.
+	if profile.control_style() == "yoke" or profile.control_style() == "rod":
+		return profile.control_style()
 	if profile.has_kind(ArcadeGameProfile.KIND_TWIN):
 		return "twin"
 	if profile.has_kind(ArcadeGameProfile.KIND_BALL):
@@ -434,6 +442,8 @@ static func panel_width(kind: String, buttons: int) -> float:
 			return maxf(0.0355 + caps, 0.07)
 		"wheel":
 			return 0.30 + (0.07 + caps if columns > 0 else 0.0)
+		"yoke":
+			return YOKE_IN + (YOKE_FIRST_COLUMN + caps if columns > 0 else YOKE_REACH)
 		_:
 			return 0.045 + (FIRST_COLUMN + caps if columns > 0 else 0.085)
 
@@ -476,11 +486,14 @@ static func panel(kind: String, buttons: int, cx: float, player: int) -> Diction
 			out["buttons"] = button_grid(buttons, wx + 0.22)
 			out["start_x"] = under.call(wx + 0.22) if columns > 0 else wx + 0.2
 		_:
-			var sx := left + STICK_IN
-			out["kind"] = "rotary" if kind == "rotary" else "stick"
+			# A yoke is 0.30 m across: its handgrips clear the first column of caps.
+			var yoke := kind == "yoke"
+			var sx := left + (YOKE_IN if yoke else STICK_IN)
+			var first := YOKE_FIRST_COLUMN if yoke else FIRST_COLUMN
+			out["kind"] = kind if kind in ["rotary", "yoke", "rod"] else "stick"
 			out["stick_x"] = sx
-			out["buttons"] = button_grid(buttons, sx + FIRST_COLUMN)
-			out["start_x"] = under.call(sx + FIRST_COLUMN) if columns > 0 else sx + 0.065
+			out["buttons"] = button_grid(buttons, sx + first)
+			out["start_x"] = under.call(sx + first) if columns > 0 else sx + (0.13 if yoke else 0.065)
 	return out
 
 

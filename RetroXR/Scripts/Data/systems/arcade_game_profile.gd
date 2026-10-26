@@ -328,6 +328,11 @@ func has_ring() -> bool:
 	return known and str(attrs.get("q", "")).contains("r")
 
 
+## What the game's controller looks like when it is not a ball on a stick (the table's `y`, Tools/arcade/gen_game_index.py STYLE): "yoke" (Star Wars, Red Baron) or "rod" (Bass Fishing), else "".
+func control_style() -> String:
+	return str(attrs.get("y", "")) if known else ""
+
+
 ## The game reads a throttle lever (the table's `z`: an `IPT_AD_STICK_Z` of its own in MAME's driver, Tools/arcade/cockpits.py).
 func has_throttle() -> bool:
 	return known and attrs.has("z")

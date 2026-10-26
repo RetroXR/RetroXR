@@ -40,6 +40,7 @@ not the default, `;`-separated attributes (a letter and a value):
             from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run), `r` the R-360's rings in place of a
             cabin (`qsmr`: G-LOC R360, Wing War R360),
   z         the flight game reads a throttle lever (an `IPT_AD_STICK_Z` of its own in the driver, cockpits.py),
+  y<style>  the controller is drawn as something other than a ball on a stick: `yyoke` a flight yoke, `yrod` a fishing rod with its reel (STYLE; `k` is retired: it was a boot time),
   h         the game's dial is a STEERING WHEEL, with no pedals (Bad Lands: MAME calls the wheel a dial, and the cabinet had a wheel a player),
   n<arrows> how many arrows a dancer's stage has when it is not four (`n6`: DDR Solo's six panels),
   i<name>   which rhythm game's own controller a `music` cabinet has (`ideck` beatmania's five keys and a turntable a player, `ipopn` pop'n music's nine
@@ -209,11 +210,16 @@ PLAYERS = {"dariusg": (2, 2), "dariusgx": (2, 2),
 # Unique cabinets, drawn as a plain upright until they get a module of their own: the list in
 # docs/dev/arcade-cabinets.md. The skis, the board, the boats, the fishing rod, the horses, a boxing bag.
 ODD = {"alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
-       "aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp", "bassdx",
-       "getbass", "boxingm", "tokyowar", "cybsled", "starwars", "esb", "bzone", "redbaron",
+       "aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp",
+       "boxingm", "tokyowar", "cybsled", "bzone",
        "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer",
        "kick", "kickman", "dmx2m", "dmx2majp", "ppp", "ppd", "ppp11", "ppp2nd",
        "desert", "magtruck", "jambo", "bigrun"}
+
+# A controller that is not a ball on a stick, by PARENT romset: the table's `y` (control style), drawn in place of the stick's ball. A flight yoke (Atari's Star Wars, The Empire Strikes
+# Back and Red Baron: a U-shaped yoke with a handgrip each end), a fishing rod with a reel and a crank (Sega Bass Fishing and its clones). The game stays an upright: MAME gives the
+# fishing game a paddle and a pedal, which would have made it a stand-up driving cabinet.
+STYLE = {"starwars": "yoke", "esb": "yoke", "redbaron": "yoke", "bassdx": "rod"}
 
 DANCE_DESC = re.compile(r"dance dance revolution|dancing stage|dance 86\.4", re.I)
 PUMP_DESC = re.compile(r"pump it up", re.I)
@@ -323,6 +329,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return "racegun"
     if name_for_lists in FLY:
         return "fly"
+    if name_for_lists in STYLE:
+        return ""
     if name_for_lists in ODD:
         return "odd"
     if name_for_lists in DRIVING_FORM:
@@ -432,6 +440,8 @@ def profile_of(machine, parent):
     desc = (machine.findtext("description") or "") + " " + ((parent.findtext("description") or "") if parent is not None else "")
     if family in WHEEL_DIAL:
         attrs.append("h")
+    if family in STYLE:
+        attrs.append("y" + STYLE[family])
     if form == "dance" and SOLO_DESC.search(desc):
         attrs.append("n6")
     if form == "music":

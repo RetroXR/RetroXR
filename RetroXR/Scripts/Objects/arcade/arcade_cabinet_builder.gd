@@ -520,8 +520,8 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	# The panel in the cabinet's frame, for what stands on the floor in front (a racer's pedals, a dancer's
 	# arrows): placed in the cabinet's frame and carried into the panel's, as the panel is one controller.
 	var to_panel := Transform3D(deck.basis, deck.position).affine_inverse()
-	if kind == "stick" or kind == "twin" or kind == "rotary":
-		_stick(mod, "StickPivot", spec["stick_x"], index, kind == "rotary")
+	if kind == "stick" or kind == "twin" or kind == "rotary" or kind == "yoke" or kind == "rod":
+		_stick(mod, "StickPivot", spec["stick_x"], index, kind)
 		if kind == "twin":
 			_stick(mod, "StickPivot2", spec["stick2_x"], index)
 	elif kind == "ball":
@@ -717,13 +717,19 @@ func _bass_pedal(mod: Node3D, to_panel: Transform3D, pedal: Dictionary) -> void:
 	form_boxes.append(AABB(Vector3(x - 0.10, 0.0, z - 0.15), Vector3(0.20, 0.05, 0.30)))
 
 
-## A joystick: a base plate, then a pivot carrying shaft and ball (player 1 red, 2 blue, then green, yellow...). A ROTARY one (`twist`: Ikari Warriors, Top Gunner's bootleg)
-## has a collar on the shaft as well, the part that turns (`DialPivot`, as any dial does, with LEFT and RIGHT or with a hand) with a white mark on its top so the turn shows;
-## it leans with the stick.
-func _stick(mod: Node3D, pivot_name: String, x: float, index: int, twist: bool = false) -> void:
+## A joystick: a base plate, then a pivot carrying shaft and ball (player 1 red, 2 blue, then green, yellow...). A ROTARY one (`style` "rotary": Ikari Warriors, Top Gunner's bootleg)
+## has a collar on the shaft as well, the part that turns (`DialPivot`, as any dial does, with LEFT and RIGHT or with a hand) with a mark on its top so the turn shows;
+## it leans with the stick. A "yoke" (Star Wars, Red Baron) and a "rod" (Bass Fishing) are other heads on the same pivot: `StickBall` is the part a hand takes either way.
+func _stick(mod: Node3D, pivot_name: String, x: float, index: int, style: String = "") -> void:
 	var suffix := pivot_name.trim_prefix("StickPivot")
 	ArcadeParts.cylinder(_owner, mod, "StickBase" + suffix, 0.034, 0.004, Vector3(x, 0.015, 0.002), _metal, Vector3.BACK)
 	var pivot := ArcadeParts.node(_owner, mod, "Node3D", pivot_name, Vector3(x, 0.015, 0.004)) as Node3D
+	if style == "yoke":
+		_yoke_head(pivot, index)
+		return
+	if style == "rod":
+		_rod_head(pivot)
+		return
 	ArcadeParts.cylinder(_owner, pivot, "StickShaft", 0.006, 0.07, Vector3(0, 0, 0.035), _metal, Vector3.BACK)
 	var ball := ArcadeParts.node(_owner, pivot, "MeshInstance3D", "StickBall", Vector3(0, 0, 0.085)) as MeshInstance3D
 	var sm := SphereMesh.new()
@@ -734,10 +740,46 @@ func _stick(mod: Node3D, pivot_name: String, x: float, index: int, twist: bool =
 	sm.rings = 12
 	ball.mesh = sm
 	ball.material_override = ArcadeParts.mat(_player_color(index), 0.0, 0.3)
-	if twist:
+	if style == "rotary":
 		var collar := ArcadeParts.node(_owner, pivot, "Node3D", "DialPivot", Vector3(0, 0, 0.026)) as Node3D
 		ArcadeParts.cylinder(_owner, collar, "DialKnob", 0.016, 0.020, Vector3.ZERO, ArcadeParts.mat(Color(0.80, 0.80, 0.82), 0.6, 0.3), Vector3.BACK)
 		ArcadeParts.box(_owner, collar, "DialMark", Vector3(0.004, 0.010, 0.002), Vector3(0, 0.0105, 0.0105), ArcadeParts.mat(Color(0.85, 0.10, 0.10), 0.0, 0.4))
+
+
+## A flight yoke on a stick's pivot (Atari's Star Wars, The Empire Strikes Back and Red Baron): a column, a hub (`StickBall`, what a hand takes), a bar across it and a handgrip standing up at
+## each end in the player's colour with a trigger on its front, toward the player.
+func _yoke_head(pivot: Node3D, index: int) -> void:
+	var dark := ArcadeParts.mat(Color(0.10, 0.10, 0.12), 0.0, 0.5)
+	ArcadeParts.cylinder(_owner, pivot, "StickShaft", 0.012, 0.09, Vector3(0, 0, 0.045), _metal, Vector3.BACK)
+	ArcadeParts.box(_owner, pivot, "StickBall", Vector3(0.07, 0.04, 0.032), Vector3(0, 0, 0.10), dark)
+	ArcadeParts.box(_owner, pivot, "YokeBar", Vector3(0.25, 0.02, 0.02), Vector3(0, 0, 0.105), _metal)
+	for k in [-1.0, 1.0]:
+		var side := "L" if k < 0 else "R"
+		ArcadeParts.cylinder(_owner, pivot, "YokeGrip" + side, 0.016, 0.085, Vector3(k * 0.115, 0, 0.145), ArcadeParts.mat(_player_color(index), 0.0, 0.3), Vector3.BACK)
+		ArcadeParts.box(_owner, pivot, "YokeTrigger" + side, Vector3(0.012, 0.018, 0.034), Vector3(k * 0.115, -0.022, 0.150), dark)
+
+
+## A fishing rod on a stick's pivot (Sega Bass Fishing): a cork grip (`StickBall`), the rod rising from it toward the angler, and the reel on it with its crank (`DialPivot` on a mount whose Z is the
+## reel's axle, so the crank's handle goes round it). It leans with the stick as the rod swings in the angler's hands.
+const ROD_LEAN_DEG := 22.0
+const ROD_LENGTH := 0.64
+
+
+func _rod_head(pivot: Node3D) -> void:
+	var lean := deg_to_rad(ROD_LEAN_DEG)
+	var dir := Vector3(0.0, -sin(lean), cos(lean))
+	var cork := ArcadeParts.mat(Color(0.78, 0.62, 0.40), 0.0, 0.8)
+	var blank := ArcadeParts.mat(Color(0.07, 0.07, 0.08), 0.0, 0.4)
+	ArcadeParts.cylinder(_owner, pivot, "StickBall", 0.019, 0.14, dir * 0.09, cork, dir)
+	_rod(pivot, "StickShaft", dir * 0.16, dir * ROD_LENGTH, 0.006, blank)
+	ArcadeParts.cylinder(_owner, pivot, "RodReel", 0.032, 0.040, dir * 0.20, _metal, Vector3.RIGHT)
+	var mount := ArcadeParts.node(_owner, pivot, "Node3D", "CrankMount", dir * 0.20 + Vector3(0.026, 0.0, 0.0)) as Node3D
+	mount.basis = Basis(Vector3.UP, PI * 0.5)
+	var crank := ArcadeParts.node(_owner, mount, "Node3D", "DialPivot", Vector3.ZERO) as Node3D
+	ArcadeParts.cylinder(_owner, crank, "DialKnob", 0.022, 0.006, Vector3(0, 0, 0.003), _metal, Vector3.BACK)
+	ArcadeParts.box(_owner, crank, "CrankArm", Vector3(0.006, 0.034, 0.004), Vector3(0, 0.017, 0.008), blank)
+	ArcadeParts.cylinder(_owner, crank, "CrankHandle", 0.007, 0.022, Vector3(0, 0.034, 0.018), cork, Vector3.BACK)
+	ArcadeParts.box(_owner, crank, "DialMark", Vector3(0.004, 0.012, 0.002), Vector3(0, 0.012, 0.0065), ArcadeParts.mat(Color(0.85, 0.10, 0.10), 0.0, 0.4))
 
 
 ## The stick-ball colour of each player's panel: red, blue (the two the generic cabinet always had), green,

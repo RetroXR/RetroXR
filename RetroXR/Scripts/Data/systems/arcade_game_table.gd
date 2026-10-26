@@ -564,7 +564,7 @@ p1c2b1w2:twin;todd bzone=bzonea=bzonec=dsrtwars
 p1c2b1w8:dial+joy;r90;m19 tron3<tron tron4<tron tron5<tron tronger<tron
 p1c2b1w8:joy;v dai2kaku fearless gpgolf=gpgolfa
 p1c2b2w0:ball dangerz=dangerz0 shuuz viper
-p1c2b2w0:paddle+pedal+stick;todd;v bassdx=getbass=getbassdx=getbassur
+p1c2b2w0:paddle+pedal+stick;yrod;v bassdx=getbass=getbassdx=getbassur
 p1c2b2w0:paddle+pedal;trace;x2t;v f1gpstar=f1gpstar2=f1gpstar3 f1gpstr2
 p1c2b2w0:paddle+pedal;trace;xs21;v;bg thrild2=thrild2a=thrild2j xtrial
 p1c2b2w2:joy+stick;r90 f1gp=f1gpa=f1gpb=f1gpbl
@@ -580,8 +580,8 @@ p1c2b3w8:joy+pedal;v;m19 buckrog=buckrogn=buckrogn2=zoom909
 p1c2b4w0:dial+paddle+pedal;tstand;x4t chasehq=chasehqj=chasehqju=chasehqu
 p1c2b4w0:paddle+pedal;r270;tstand;v afighterb<afighter afighterd<afighter afightere<afighter afighterf<afighter
 p1c2b4w0:paddle+pedal;trace rrreveng=rrrevenga=rrrevengb speedrcr
-p1c2b4w0:stick;todd esb starwars=starwars1=starwarso
 p1c2b4w0:stick;todd;v topskatr=topskatrj=topskatru=topskatruo
+p1c2b4w0:stick;yyoke esb starwars=starwars1=starwarso
 p1c2b4w8:ball+dial+joy;m19 dotron=dotrona=dotrone=dotronep
 p1c2b5w0:btn;v ggconnie pokeroul sltblgpo=sltblgp1
 p1c2b5w2:joy+paddle+pedal;trace;v gticlub=gticluba=gticlubj=gticlubu
@@ -913,7 +913,7 @@ p1c2b1w0:other;v;m19 comg107 roylcrdna<roylcrdn
 p1c2b1w0:paddle+pedal;trace;v;bg code1d=code1db
 p1c2b1w0:paddle;v cops=copsuk
 p1c2b1w2:joy;r90;v;m19 destryer=destryera
-p1c2b1w4:joy+stick;todd redbaron=redbarona
+p1c2b1w4:joy+stick;yyoke redbaron=redbarona
 p1c2b1w4:joy;r270;m19 portrait=portraita
 p1c2b1w8:twin rescraid=rescraida
 p1c2b2w0:ball;r270 horshoes trisport

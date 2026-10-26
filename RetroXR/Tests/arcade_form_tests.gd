@@ -33,6 +33,7 @@
 ##   audit/     the data MAME gets wrong or leaves out, game by game (2026-10-26): Taito F3's spare dials, Darius Gaiden's players, the modern boards' driving games, Road
 ##              Blasters' and Bad Lands' wheels, Wing War's pod
 ##   music/     the rhythm games' own controllers: beatmania's decks, pop'n's nine domes, GuitarFreaks' guitars, DrumMania's pads, a Taiko drum a player, Mambo a Go-Go's three drums
+##   styles/    a controller that is not a ball on a stick: Star Wars' and Red Baron's flight yoke, Bass Fishing's rod with its reel and crank
 ##   ring/      the R-360 pod (G-LOC R360, Wing War R360): two hoops at the platform's sides and one behind the seat in place of the cabin, turning with the stick, never in the picture's way
 ##   rotary/    a dial AND a stick is a rotary joystick (Ikari Warriors, Top Gunner's bootleg): the stick leans and a collar on its shaft turns
 ##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
@@ -140,6 +141,9 @@ func _run() -> void:
 		await _clear()
 	if _want("audit"):
 		await _group_audit()
+		await _clear()
+	if _want("styles"):
+		await _group_styles()
 		await _clear()
 	if _want("ring"):
 		await _group_ring()
@@ -389,7 +393,7 @@ func _group_layout() -> void:
 		var mid := (S.panel_extent(panels[0]).x + S.panel_extent(panels[-1]).y) * 0.5
 		_ok(panels.size() == n and apart and absf(mid) < 0.01,
 			"layout: %d panel(s) side by side without overlapping, centred on the deck (reach %.2f)" % [n, reach])
-	for kind in ["stick", "twin", "ball", "dial", "buttons"]:
+	for kind in ["stick", "twin", "ball", "dial", "buttons", "rotary", "yoke", "rod"]:
 		for b in [0, 1, 2, 3, 4, 5, 6]:
 			var p := S.panel(kind, b, 0.0, 0)
 			var e := S.panel_extent(p)
@@ -2612,6 +2616,123 @@ func _group_music() -> void:
 	for b in range(1, 7):
 		every = every and bits.has(ArcadeProfiles.button_bit(b))
 	_ok(every, "music: a fingertip can press each of DrumMania's six (%d zones)" % bits.size())
+
+
+## A controller that is not a ball on a stick (the table's `y`): Atari's flight yoke (Star Wars, The Empire Strikes Back, Red Baron) and Sega's fishing rod with its reel (Bass Fishing). The part a hand
+## takes is `StickBall` either way and the panel still leans, so the input and the hands need nothing of their own; the rod's reel has a crank that turns (`DialPivot`).
+func _group_styles() -> void:
+	var yokes := ["starwars", "starwars1", "esb", "redbaron", "redbarona"]
+	var rods := ["bassdx", "getbass", "getbassdx", "getbassur"]
+	var bad: Array = []
+	for romset: String in yokes:
+		if P.for_romset(romset).control_style() != "yoke" or S.panel_kind(P.for_romset(romset)) != "yoke":
+			bad.append(romset)
+	for romset: String in rods:
+		if P.for_romset(romset).control_style() != "rod" or S.panel_kind(P.for_romset(romset)) != "rod":
+			bad.append(romset)
+	for romset: String in ["bzone", "sf2", "outrun", "asteroid", "tempest", "not_a_real_romset"]:
+		if P.for_romset(romset).control_style() != "":
+			bad.append("%s has a style" % romset)
+	_ok(bad.is_empty(), "styles: the Atari yoke games and every Bass Fishing set have their own controller, no other game does (%s)" % str(bad))
+	# They are uprights (the fishing game's paddle and pedal would have made it a driving cabinet), one panel, a yoke's wider than a stick's.
+	var forms_ok := true
+	for romset: String in yokes + rods:
+		forms_ok = forms_ok and P.for_romset(romset).form() == P.FORM_UPRIGHT and not _spec(romset).has("cockpit") and _kinds(_spec(romset)).size() == 1
+	_ok(forms_ok, "styles: and they are uprights with one panel, not driving cabinets")
+	var yoke := S.panel("yoke", 4, 0.0, 0)
+	var stick := S.panel("stick", 4, 0.0, 0)
+	_ok(S.panel_width("yoke", 4) > S.panel_width("stick", 4) + 0.08 and S.panel_extent(yoke).y - S.panel_extent(yoke).x >= S.panel_width("yoke", 4) - 0.035
+			and float(yoke["stick_x"]) - S.panel_extent(yoke).x >= S.YOKE_REACH - 0.001 and str(yoke["kind"]) == "yoke" and str(S.panel("rod", 2, 0.0, 0)["kind"]) == "rod"
+			and float((yoke["buttons"] as Array)[0]["pos"].x) - float(yoke["stick_x"]) >= S.YOKE_FIRST_COLUMN - 0.001 and not stick.has("YokeX"),
+		"styles: a yoke's panel is wider than a stick's, its handgrips inside it and the caps clear of them")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	model.morph_to(_spec("starwars"))
+	model.apply_game_profile(P.for_romset("starwars"))
+	await _wait(4)
+	var panel := _panels(model)[0] as ArcadeControlModule
+	var pivot := panel.find_child("StickPivot", true, false) as Node3D
+	_ok(pivot != null, "styles: Star Wars has a stick pivot")
+	if pivot == null:
+		return
+	var hub := pivot.find_child("StickBall", false, false) as MeshInstance3D
+	var grip_l := pivot.find_child("YokeGripL", false, false) as Node3D
+	var grip_r := pivot.find_child("YokeGripR", false, false) as Node3D
+	_ok(hub != null and hub.mesh is BoxMesh and grip_l != null and grip_r != null and pivot.find_child("YokeBar", false, false) != null
+			and pivot.find_child("YokeTriggerL", false, false) != null and pivot.find_child("YokeTriggerR", false, false) != null and pivot.find_child("StickShaft", false, false) != null,
+		"styles: Star Wars has a column, a hub, a bar, a handgrip each end with a trigger on its front")
+	if grip_l == null or grip_r == null or hub == null:
+		return
+	_ok(grip_r.position.x - grip_l.position.x > 0.20 and grip_r.position.x - grip_l.position.x < 0.28 and _near(grip_l.position.x, -grip_r.position.x, 0.001)
+			and grip_l.position.z > hub.position.z and (grip_l as MeshInstance3D).mesh is CylinderMesh,
+		"styles: the grips stand a quarter of a metre apart either side of the hub and above it (%.3f m)" % (grip_r.position.x - grip_l.position.x))
+	# The caps clear of the handgrips (seen from above, in the panel's frame).
+	var clear := true
+	for i in 4:
+		var cap := panel.find_child("Btn%d" % (i + 1), true, false) as Node3D
+		clear = clear and cap != null and cap.position.x - (pivot.position.x + grip_r.position.x) > 0.04
+	_ok(clear, "styles: and the buttons stand clear of them")
+	# It leans like any stick, and a hand takes it by the hub.
+	var rest := pivot.basis
+	panel.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 20:
+		panel.tick(1.0 / 60.0)
+	var leaned := not pivot.basis.is_equal_approx(rest)
+	panel.show_state(0)
+	var hands := ArcadePanelHands.new(panel)
+	var grab: ArcadePanelHands.ControlGrab = null
+	for g: ArcadePanelHands.ControlGrab in hands.grabs():
+		if g.kind == &"stick":
+			grab = g
+	_ok(leaned and grab != null and grab.handle().distance_to(hub.global_position) < 0.005 and panel.find_child("DialPivot", true, false) == null,
+		"styles: the yoke leans with the input and a hand takes it at its hub; it has no collar")
+	# The rod.
+	model.morph_to(_spec("bassdx"))
+	model.apply_game_profile(P.for_romset("bassdx"))
+	await _wait(4)
+	var angler := _panels(model)[0] as ArcadeControlModule
+	var rod_pivot := angler.find_child("StickPivot", true, false) as Node3D
+	_ok(rod_pivot != null, "styles: Bass Fishing has a stick pivot")
+	if rod_pivot == null:
+		return
+	var grip := rod_pivot.find_child("StickBall", false, false) as MeshInstance3D
+	var blank := rod_pivot.find_child("StickShaft", false, false) as MeshInstance3D
+	var mount := rod_pivot.find_child("CrankMount", false, false) as Node3D
+	var crank := rod_pivot.find_child("DialPivot", true, false) as Node3D
+	_ok(grip != null and grip.mesh is CylinderMesh and blank != null and mount != null and crank != null and crank.get_parent() == mount and rod_pivot.find_child("RodReel", false, false) != null
+			and (blank.mesh as CylinderMesh).height >= 0.45,
+		"styles: Bass Fishing has a grip, a rod of half a metre or more, a reel and a crank on a mount of its own")
+	if blank == null or mount == null or crank == null or grip == null:
+		return
+	# The rod rises and leans toward the angler (the pivot's -Y is toward the player); the crank turns about the reel's axle, the pivot's X.
+	var axis := blank.basis.y
+	_ok(axis.z > 0.85 and axis.y < -0.25 and absf(axis.x) < 0.01 and mount.basis.z.is_equal_approx(Vector3.RIGHT) and crank.basis.is_equal_approx(Basis.IDENTITY),
+		"styles: the rod rises toward the angler and the crank turns about the reel's axle (%s)" % str(axis))
+	var rod_rest := rod_pivot.basis
+	angler.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 20:
+		angler.tick(1.0 / 60.0)
+	_ok(not rod_pivot.basis.is_equal_approx(rod_rest) and not crank.basis.is_equal_approx(Basis.IDENTITY) and crank.basis.z.is_equal_approx(Vector3.BACK),
+		"styles: RIGHT swings the rod and winds the reel, about its own axle")
+	angler.show_state(0)
+	var angler_hands := ArcadePanelHands.new(angler)
+	var rod_grab: ArcadePanelHands.ControlGrab = null
+	var crank_grab: ArcadePanelHands.ControlGrab = null
+	for g: ArcadePanelHands.ControlGrab in angler_hands.grabs():
+		if g.kind == &"stick":
+			rod_grab = g
+		elif g.kind == &"dial":
+			crank_grab = g
+	_ok(rod_grab != null and crank_grab != null and rod_grab.handle().distance_to(crank_grab.handle()) > 0.05 and rod_grab.handle().distance_to(crank_grab.handle()) < 0.20,
+		"styles: a hand takes the rod by its grip and the crank on the reel, a few centimetres apart")
+	# A plain stick keeps its ball and no collar.
+	model.morph_to(_spec("sf2"))
+	model.apply_game_profile(P.for_romset("sf2"))
+	await _wait(3)
+	var plain := _panels(model)[0] as ArcadeControlModule
+	_ok(plain.find_child("YokeBar", true, false) == null and plain.find_child("RodReel", true, false) == null and plain.find_child("DialPivot", true, false) == null
+			and (plain.find_child("StickBall", true, false) as MeshInstance3D).mesh is SphereMesh,
+		"styles: a street fighter's stick is a ball on a stick")
 
 
 ## The R-360 pod (G-LOC R360, Wing War R360): Sega's sphere cockpit hung in rings that turn. The table says so with `r` where a cockpit's cabin would be; the cockpit has two hoops at the
