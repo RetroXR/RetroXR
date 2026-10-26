@@ -22,6 +22,7 @@
 ##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
 ##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
+##   odd/       Prop Cycle's bicycle, Time Traveler's deep stage, Panic Park's two levers in one slot
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
 ##   ports/     a pad in a socket the new form does not have (or a gun takes) comes out
@@ -101,6 +102,9 @@ func _run() -> void:
 		await _clear()
 	if _want("mount"):
 		await _group_mount()
+		await _clear()
+	if _want("odd"):
+		await _group_odd()
 		await _clear()
 	if _want("reach"):
 		await _group_reach()
@@ -955,6 +959,143 @@ func _group_guns() -> void:
 		_ok(tc_plate.transform.is_equal_approx(tc_rest), "guns: and back up")
 
 
+# --- odd -----------------------------------------------------------------------
+
+func _group_odd() -> void:
+	_ok(P.for_romset("propcycl").form() == P.FORM_CYCLE and P.for_romset("propcyclj").form() == P.FORM_CYCLE
+			and P.for_romset("timetrv").form() == P.FORM_HOLO and P.for_romset("timetrv2").form() == P.FORM_HOLO
+			and P.for_romset("panicprk").form() == P.FORM_SLOT and P.for_romset("panicprkj").form() == P.FORM_SLOT,
+		"odd: the table files Prop Cycle, Time Traveler and Panic Park, and their clones, under forms of their own")
+	var cycle := _spec("propcycl")
+	_ok(cycle.has("cycle") and str(cycle["shape"]) == "wide" and (cycle["players"] as Array).is_empty()
+			and (cycle["coins"] as Array).size() == 1 and not cycle.has("screen"),
+		"odd: Prop Cycle asks for the wide body (and its own 40 inch tube) with a bicycle in front, no deck panel of its own, one coin door")
+	var holo := _spec("timetrv")
+	_ok(holo.has("holo") and is_equal_approx(float(holo["holo"]["depth"]), S.HOLO_DEPTH) and str(holo["shape"]) == "upright"
+			and _kinds(holo) == ["stick"],
+		"odd: Time Traveler asks for the upright with a deep stage, its stick and its two buttons")
+	var slot := _spec("panicprk")
+	var slot_xs: Array = []
+	for pl: Dictionary in slot["players"]:
+		slot_xs.append(float(pl["slot_x"]))
+	_ok(_kinds(slot) == ["slot", "slot"] and is_equal_approx(float(slot_xs[0]), -S.SLOT_TRAVEL)
+			and is_equal_approx(float(slot_xs[1]), S.SLOT_TRAVEL),
+		"odd: Panic Park asks for two levers, one in each half of one slot (%s)" % str(slot_xs))
+	_ok(float(slot["width"]) * 0.5 >= S.SLOT_TRAVEL * 2.0 + 0.03 and S.panels_span(slot["players"]) >= S.SLOT_TRAVEL * 4.0 + 0.05,
+		"odd: and the body, and the span the panels ask for, take both levers' whole travel (%.2f m, %.2f m)"
+			% [float(slot["width"]), S.panels_span(slot["players"])])
+	_ok(not _spec("sf2").has("cycle") and not _spec("sf2").has("holo") and _kinds(_spec("pacman")) != ["slot"],
+		"odd: no other game gets any of them")
+	# A form asked of a spec that already wore another leaves nothing of it behind, and a spec that differs only by its
+	# stage or its bicycle is a different form, so the morph is built.
+	_ok(not S.for_game(cycle, P.for_romset("pacman")).has("cycle") and not S.for_game(holo, P.for_romset("pacman")).has("holo"),
+		"odd: a plain game asked of a bicycle's spec or a stage's has neither")
+	for key: String in ["cycle", "holo"]:
+		var with_it: Dictionary = cycle if key == "cycle" else holo
+		var without := with_it.duplicate(true)
+		without.erase(key)
+		_ok(not S._same_form(without, with_it), "odd: a spec without its %s is another form (the morph is built)" % key)
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var base_forms := _form_count(model)
+	var base_depth := -model.get_builtin_screen().position.z
+	# A bicycle.
+	model.morph_to(_spec("propcycl"))
+	await _wait(2)
+	_ok(_panels(model).size() == 1, "odd: the bicycle's one panel is built")
+	if _panels(model).is_empty():
+		return
+	var p1 := _panels(model)[0] as ArcadeControlModule
+	var parts_ok := _panels(model).size() == 1
+	for part in ["BarsPivot", "BarGripL", "BarGripR", "CrankPivot", "CrankPedalL", "CrankPedalR", "Saddle", "Start", "SeatTube"]:
+		parts_ok = parts_ok and p1.find_child(part, true, false) != null
+	_ok(parts_ok, "odd: the bicycle has bars with two grips, a crank with its two pedals, a saddle and START")
+	var bike_boxes: Array = model.get_meta(ArcadeCabinetBuilder.FORM_BOXES_META, [])
+	_ok(bike_boxes.size() >= 1 and model.ground_footprint().y > 2.2,
+		"odd: its stand can be aimed at to carry the cabinet, and the rectangle on the floor reaches the end of it (%s)" % str(model.ground_footprint()))
+	_ok(model.find_child("Cycle", false, false) != null and (p1.grip().collision_layer & (1 << 20)) != 0 and _doors(model).size() == 1,
+		"odd: it stands on its own stand, its bars can be aimed at to take hold of, and the cabinet has one coin door")
+	var bars := p1.find_child("BarsPivot", true, false) as Node3D
+	var rest_bars := bars.basis
+	p1.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 30:
+		p1.tick(1.0 / 60.0)
+	var gl := (p1.find_child("BarGripL", true, false) as Node3D).global_position
+	var gr := (p1.find_child("BarGripR", true, false) as Node3D).global_position
+	_ok(not bars.basis.is_equal_approx(rest_bars) and gr.z > gl.z + 0.2,
+		"odd: a right turn takes the right grip back toward the rider and the left one forward (%.2f m apart)" % (gr.z - gl.z))
+	p1.show_state(1 << ControllerBindings.JOYPAD_UP)
+	for i in 40:
+		p1.tick(1.0 / 60.0)
+	var pushed := bars.basis.y.z
+	p1.show_state(1 << ControllerBindings.JOYPAD_DOWN)
+	for i in 40:
+		p1.tick(1.0 / 60.0)
+	_ok(pushed < -0.1 and bars.basis.y.z > 0.1,
+		"odd: UP pushes the grips forward over the stem and DOWN pulls them back (%.2f, %.2f)" % [pushed, bars.basis.y.z])
+	p1.show_state(0)
+	for i in 40:
+		p1.tick(1.0 / 60.0)
+	var crank := p1.find_child("CrankPivot", true, false) as Node3D
+	var pedal := p1.find_child("CrankPedalR", true, false) as Node3D
+	var axle_z := crank.global_position.z
+	var top_z := pedal.global_position.z
+	p1.show_state(0, Vector4i(0, 0, 0, -32767))
+	for i in 10:
+		p1.tick(1.0 / 60.0)
+	_ok(pedal.global_position.z < axle_z - 0.12 and is_equal_approx(top_z, axle_z),
+		"odd: the right stick up pedals forward: the pedal that was on top has gone away from the rider (%.2f -> %.2f)"
+			% [top_z - axle_z, pedal.global_position.z - axle_z])
+	p1.show_state(0, Vector4i(0, 0, 0, 32767))
+	for i in 20:
+		p1.tick(1.0 / 60.0)
+	_ok(pedal.global_position.z > axle_z + 0.05, "odd: and down pedals backward")
+	p1.show_state(0)
+	# A hologram.
+	model.morph_to(_spec("timetrv"))
+	await _wait(2)
+	var depth := -model.get_builtin_screen().position.z
+	_ok(is_equal_approx(depth - base_depth, S.HOLO_DEPTH) and model.find_child("HoloPlinth", true, false) != null
+			and model.find_child("HoloSideL", true, false) != null and model.find_child("HoloRoof", true, false) != null
+			and model.find_child("HoloFloor", true, false) != null and model.find_child("Cycle", false, false) == null,
+		"odd: Time Traveler's picture stands %.0f cm deeper than the generic cabinet's, in a black tunnel with a plinth, and the bicycle is gone"
+			% (S.HOLO_DEPTH * 100.0))
+	_ok((model.get_builtin_screen().mesh as QuadMesh).size.is_equal_approx(Vector2(0.44, 0.33)),
+		"odd: and the picture is the tube's size still, only further back")
+	# Two levers in one slot.
+	model.morph_to(_spec("panicprk"))
+	await _wait(2)
+	_ok(_panels(model).size() == 2, "odd: Panic Park's two panels are built")
+	if _panels(model).size() < 2:
+		return
+	var a := _panels(model)[0] as ArcadeControlModule
+	var b := _panels(model)[1] as ArcadeControlModule
+	var la := a.find_child("SlidePivot", true, false) as Node3D
+	var lb := b.find_child("SlidePivot", true, false) as Node3D
+	_ok(_panels(model).size() == 2 and la != null and lb != null and model.find_child("SlotRail", true, false) != null
+			and model.find_child("HoloPlinth", true, false) == null,
+		"odd: Panic Park has two levers on one rail, one panel each, and the deep stage is gone")
+	var ca := ((la.find_child("LeverBall", true, false) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color
+	var cb := ((lb.find_child("LeverBall", true, false) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color
+	_ok(ca.r > ca.b + 0.4 and cb.b > cb.r + 0.4, "odd: player 1's lever ball is red and player 2's blue")
+	var xa := la.global_position.x
+	var xb := lb.global_position.x
+	a.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	b.show_state(1 << ControllerBindings.JOYPAD_LEFT)
+	for i in 40:
+		a.tick(1.0 / 60.0)
+		b.tick(1.0 / 60.0)
+	_ok(xa < xb and absf((la.global_position.x - xa) - S.SLOT_TRAVEL) < 0.005 and absf((xb - lb.global_position.x) - S.SLOT_TRAVEL) < 0.005
+			and absf(la.global_position.x - lb.global_position.x) < 0.01,
+		"odd: each lever slides its half of the slot, and pushed to the ends they meet in the middle")
+	# Back to the cabinet's own form: nothing left over.
+	model.morph_to(model._base_spec)
+	await _wait(2)
+	_ok(_form_count(model) == base_forms and model.find_child("SlotRail", true, false) == null
+			and is_equal_approx(-model.get_builtin_screen().position.z, base_depth),
+		"odd: the cabinet's own form again leaves none of it behind (%d form parts)" % _form_count(model))
+
+
 # --- reach ---------------------------------------------------------------------
 
 ## What a VR laser hits (XRToolsFunctionPointer.DEFAULT_MASK): the pointable layer and the one that blocks it.
@@ -984,7 +1125,8 @@ func _group_reach() -> void:
 	var sys := await _machine()
 	var model := sys.get_model() as RetroSystemModelArcadeCabinet
 	var games: Array = ["sf2", "cotton", "1943", "pacman", "tmnt", "xmen6p", "timecris", "ptblank", "opwolf", "sscope",
-		"polepos", "daytona", "scud", "hangon", "ddrusa", "pumpipx2", "robotron", "centiped", "pong"]
+		"polepos", "daytona", "scud", "hangon", "ddrusa", "pumpipx2", "robotron", "centiped", "pong",
+		"propcycl", "timetrv", "panicprk"]
 	for romset: String in games:
 		model.morph_to(_spec(romset))
 		await _wait(3)

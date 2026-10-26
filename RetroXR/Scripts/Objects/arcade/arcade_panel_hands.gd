@@ -29,7 +29,10 @@
 ##   trackball  rolls where the hand pushes it, at the surface speed the picture rolls at (BALL_SPEED).
 ##   lever      thrown or not: past half its throw it is in high gear and STAYS there when let go (a gear lever does);
 ##              it is pulled back the same way. High gear is the button the keyboard holds (B).
-##   bars       a motorbike's: the hand pushes the bar sideways and the bike leans (a bar 15 cm over is a full lean).
+##   bars       a motorbike's: the hand pushes the bar sideways and the bike leans (a bar 15 cm over is a full lean); a
+##              bicycle's also push forward and pull back (10 cm is the whole of it) to tip the craft.
+##   crank      a bicycle's: turned with the hand like a dial, the SPEED it is turned at the right stick's Y, forward up.
+##   slide      a lever in a slot (Panic Park's): pushed along it, 14 cm either way from where it rests.
 ## Clockwise seen by the player is RIGHT, for the wheel, the dial and the bars alike.
 ##
 ## EVERY NUMBER HERE IS AN ESTIMATE. A headset has not touched it; the suite (arcade_hand_tests) pins the mechanics, not
@@ -72,8 +75,14 @@ const STICK_DEAD := 0.06
 const WHEEL_INNER := 0.45
 const WHEEL_OUTER := 1.40
 const WHEEL_AXIAL := 0.07
-## A motorbike's bars push this far sideways for a full lean (14 degrees at the 62 cm they stand over the stand).
+## A motorbike's bars push this far sideways for a full lean (14 degrees at the 62 cm they stand over the stand); a
+## bicycle's bars also push forward and pull back this far for a full tip.
 const BARS_THROW := 0.15
+const BARS_PITCH_THROW := 0.10
+const CRANK_REACH := 0.06
+const SLIDE_REACH := 0.055
+## A hand on the bars is this far from where they pivot at most (the grips stand 30 cm out).
+const BARS_LET_GO := 0.55
 ## A hand within this of a panel is asked about its controls at all.
 const NEAR := 2.0
 
@@ -152,7 +161,16 @@ func rebuild() -> void:
 		_grabs.append(LeverGrab.new(_panel, lever))
 	var lean := _panel.find_child("LeanPivot", true, false) as Node3D
 	if lean != null:
-		_grabs.append(BarsGrab.new(_panel, lean))
+		_grabs.append(BarsGrab.new(_panel, lean, false))
+	var bars := _panel.find_child("BarsPivot", true, false) as Node3D
+	if bars != null:
+		_grabs.append(BarsGrab.new(_panel, bars, true))
+	var crank := _panel.find_child("CrankPivot", true, false) as Node3D
+	if crank != null:
+		_grabs.append(CrankGrab.new(_panel, crank))
+	var slide := _panel.find_child("SlidePivot", true, false) as Node3D
+	if slide != null:
+		_grabs.append(SlideGrab.new(_panel, slide))
 
 
 # ── every frame ──────────────────────────────────────────────────────────────
@@ -189,7 +207,7 @@ func _step_hand(ctrl: XRController3D, delta: float) -> void:
 	_trigger[id] = trigger
 	var grab := _holding.get(id) as ControlGrab
 	if grab != null:
-		if not poking or trigger < TRIGGER_OFF or tip.distance_to(grab.handle()) > LET_GO_DISTANCE:
+		if not poking or trigger < TRIGGER_OFF or tip.distance_to(grab.handle()) > grab.let_go_distance():
 			_let_go(ctrl, id)
 			grab = null
 		else:
@@ -445,7 +463,21 @@ func steer(kind: StringName) -> float:
 		return (g as WheelGrab).steer
 	if g is BarsGrab:
 		return (g as BarsGrab).steer
+	if g is SlideGrab:
+		return (g as SlideGrab).steer
 	return 0.0
+
+
+## How far a bicycle's bars are pulled toward the player (-1 pushed away .. 1 pulled), the module's convention.
+func bars_pitch() -> float:
+	var g := _grab_of(&"bars", 0) as BarsGrab
+	return g.pull if g != null else 0.0
+
+
+## How far the crank has been turned by the hand (radians, forward positive).
+func crank_angle() -> float:
+	var g := _grab_of(&"crank", 0) as CrankGrab
+	return g.angle if g != null else 0.0
 
 
 func dial_angle() -> float:
@@ -546,6 +578,10 @@ class ControlGrab extends RefCounted:
 
 	func reach() -> float:
 		return ArcadePanelHands.STICK_REACH
+
+	## How far the hand may wander from the handle before it is taken to have lost the control.
+	func let_go_distance() -> float:
+		return ArcadePanelHands.LET_GO_DISTANCE
 
 	## Is the control there to be held: drawn, and not a part the game does not use.
 	func usable() -> bool:
@@ -830,18 +866,24 @@ class LeverGrab extends ControlGrab:
 		return 1 if shift >= 0.5 else 0
 
 
-## A motorbike's bars: pushed sideways, the bike leans.
+## Bars: pushed sideways, the bike leans; a bicycle's bars also push forward and pull back to tip the craft.
 class BarsGrab extends ControlGrab:
 	var steer := 0.0
+	## Pulled toward the player, -1..1 (the module's way round: down); a motorbike's bars have none.
+	var pull := 0.0
+	var _two_axes := false
 	var _x0 := 0.0
+	var _z0 := 0.0
 	var _base := 0.0
+	var _base_pull := 0.0
 	var _grips: Array[Node3D] = []
 	var _bars: Node3D = null
 
-	func _init(p_panel: ArcadeControlModule, p_node: Node3D) -> void:
+	func _init(p_panel: ArcadeControlModule, p_node: Node3D, two_axes: bool) -> void:
 		kind = &"bars"
 		panel = p_panel
 		node = p_node
+		_two_axes = two_axes
 		_bars = p_node.find_child("Handlebars", true, false) as Node3D
 		for n in ["BarGripL", "BarGripR"]:
 			var grip := p_node.find_child(n, true, false) as Node3D
@@ -852,6 +894,9 @@ class BarsGrab extends ControlGrab:
 
 	func reach() -> float:
 		return ArcadePanelHands.BARS_REACH
+
+	func let_go_distance() -> float:
+		return ArcadePanelHands.BARS_LET_GO
 
 	## The middle of the bars, not the pivot the bike leans about (at the stand, 60 cm below the hands).
 	func handle() -> Vector3:
@@ -867,12 +912,113 @@ class BarsGrab extends ControlGrab:
 		return is_instance_valid(node) and node.is_visible_in_tree() and not _grips.is_empty()
 
 	func begin(tip: Vector3) -> void:
+		var p := frame().affine_inverse() * tip
+		_x0 = p.x
+		_z0 = p.z
+		_base = panel.steering()
+		_base_pull = panel.bars_pitch()
+		steer = _base
+		pull = _base_pull
+
+	func drag(tip: Vector3, _delta: float) -> void:
+		var p := frame().affine_inverse() * tip
+		steer = clampf(_base + (p.x - _x0) / ArcadePanelHands.BARS_THROW, -1.0, 1.0)
+		if _two_axes:
+			# Toward the player is +Z in the frame of the bike.
+			pull = clampf(_base_pull + (p.z - _z0) / ArcadePanelHands.BARS_PITCH_THROW, -1.0, 1.0)
+
+	func stick(side: int) -> Vector2:
+		if holder == null or side != 0:
+			return Vector2.ZERO
+		return Vector2(steer, -pull)
+
+
+## A bicycle's crank: turned with the hand like a dial; the speed it is turned at is the deflection, forward up.
+class CrankGrab extends ControlGrab:
+	## Forward positive, radians.
+	var angle := 0.0
+	var rate := 0.0
+	var _alpha := 0.0
+	var _pedals: Array[Node3D] = []
+
+	func _init(p_panel: ArcadeControlModule, p_node: Node3D) -> void:
+		kind = &"crank"
+		panel = p_panel
+		node = p_node
+		for n in ["CrankPedalL", "CrankPedalR"]:
+			var pedal := p_node.find_child(n, true, false) as Node3D
+			if pedal != null:
+				_pedals.append(pedal)
+		if not _pedals.is_empty():
+			trace = _pedals[0] as MeshInstance3D
+
+	func reach() -> float:
+		return ArcadePanelHands.CRANK_REACH
+
+	func can_grab(tip: Vector3, scale: float) -> bool:
+		for g in _pedals:
+			if g.global_position.distance_to(tip) <= reach() * scale:
+				return true
+		return false
+
+	func usable() -> bool:
+		return is_instance_valid(node) and node.is_visible_in_tree() and not _pedals.is_empty()
+
+	## Round the axle (the crank turns about its own X), the angle of a point as the module draws a forward turn: the top
+	## of the crank going away from the rider is positive.
+	func _forward(tip: Vector3) -> float:
+		var p := frame().affine_inverse() * tip - node.position
+		return atan2(-p.z, p.y)
+
+	func begin(tip: Vector3) -> void:
+		angle = panel.crank_angle()
+		rate = 0.0
+		_alpha = _forward(tip)
+
+	func drag(tip: Vector3, delta: float) -> void:
+		var p := frame().affine_inverse() * tip - node.position
+		# On its axle the angle is only noise.
+		if Vector2(p.y, p.z).length() < 0.04:
+			return
+		var a := _forward(tip)
+		var d := wrapf(a - _alpha, -PI, PI)
+		_alpha = a
+		angle = wrapf(angle + d, -PI, PI)
+		if delta > 0.0:
+			rate = lerpf(rate, clampf(d / delta / ArcadeControlModule.CRANK_SPEED, -1.0, 1.0), 0.5)
+
+	func end() -> void:
+		rate = 0.0
+
+	func stick(side: int) -> Vector2:
+		return Vector2(0.0, rate) if holder != null and side == 1 else Vector2.ZERO
+
+
+## A lever in a slot (Panic Park): pushed along it.
+class SlideGrab extends ControlGrab:
+	var steer := 0.0
+	var _x0 := 0.0
+	var _base := 0.0
+
+	func _init(p_panel: ArcadeControlModule, p_node: Node3D) -> void:
+		kind = &"slide"
+		panel = p_panel
+		node = p_node
+		trace = p_node.find_child("LeverBall", true, false) as MeshInstance3D
+
+	func handle() -> Vector3:
+		return node.global_transform * Vector3(0.0, 0.0, 0.14)
+
+	func reach() -> float:
+		return ArcadePanelHands.SLIDE_REACH
+
+	func begin(tip: Vector3) -> void:
 		_x0 = (frame().affine_inverse() * tip).x
 		_base = panel.steering()
 		steer = _base
 
 	func drag(tip: Vector3, _delta: float) -> void:
-		steer = clampf(_base + ((frame().affine_inverse() * tip).x - _x0) / ArcadePanelHands.BARS_THROW, -1.0, 1.0)
+		steer = clampf(_base + ((frame().affine_inverse() * tip).x - _x0) / ArcadeCabinetSpecs.SLOT_TRAVEL, -1.0, 1.0)
 
 	func stick(side: int) -> Vector2:
 		return Vector2(steer, 0.0) if holder != null and side == 0 else Vector2.ZERO

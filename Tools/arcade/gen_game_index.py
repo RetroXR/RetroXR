@@ -28,7 +28,9 @@ not the default, `;`-separated attributes (a letter and a value):
   t<form>   the kind of cabinet the game came in, when it is not a plain upright:
             gun (guns in holsters), gunm (guns on mounts), rifle (a mounted rifle with a scope),
             race (a sit-down driving cockpit), stand (a stand-up driving cabinet), bike (a
-            ride-on motorbike), dance (a 4-arrow dance stage), pump (a 5-panel one), music, odd,
+            ride-on motorbike), cycle (a ride-on bicycle: Prop Cycle), holo (a hologram window: Time Traveler),
+            slot (two levers sliding in one slot: Panic Park), dance (a 4-arrow dance stage), pump (a 5-panel one),
+            music, odd,
   o         the driving cockpit has a roof,
   f         the gun game has a foot pedal,
   a         two players take turns on ONE panel (an alternating game whose upright had a
@@ -96,10 +98,15 @@ STAND_RACER = {"finallap", "finalap2", "polepos", "polepos2"}
 # Cockpits with a roof over the seat: the Model 3 twins (an overhead marquee bridges the seats). A
 # choice, not checked game by game.
 ROOFED = {"scud", "lemans24", "daytona2", "dayto2pe", "srally2", "dirtdvls"}
+# A ride-on bicycle (a crank you pedal, handlebars you steer and tip), a hologram window (the picture floats in a
+# dark stage in front of a mirror), two levers in one slot: the three the named-examples list asked to be built
+# (docs/dev/arcade-cabinets.md).
+CYCLE = {"propcycl"}
+HOLO = {"timetrv"}
+SLOT = {"panicprk"}
 # Unique cabinets, drawn as a plain upright until they get a module of their own: the list in
-# docs/dev/arcade.md "Unusual cabinets". Time Traveler's hologram bowl, Panic Park's sliding levers,
-# Prop Cycle's bicycle, the skis, the board, the boats, the fishing rod, the horses, a boxing bag.
-ODD = {"timetrv", "panicprk", "propcycl", "alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
+# docs/dev/arcade-cabinets.md. The skis, the board, the boats, the fishing rod, the horses, a boxing bag.
+ODD = {"alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
        "aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp", "bassdx",
        "getbass", "boxingm", "tokyowar", "cybsled", "starwars", "esb", "bzone", "redbaron",
        "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer", "luckywld", "rchase",
@@ -157,6 +164,12 @@ def driving_cabinet(machine, name, year):
 
 def form_of(machine, parent, kinds, name_for_lists):
     desc = machine.findtext("description") or ""
+    if name_for_lists in CYCLE:
+        return "cycle"
+    if name_for_lists in HOLO:
+        return "holo"
+    if name_for_lists in SLOT:
+        return "slot"
     if name_for_lists in ODD:
         return "odd"
     if PUMP_DESC.search(desc):

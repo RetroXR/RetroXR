@@ -173,6 +173,12 @@ static func row(xs: Array) -> Array:
 # cabinet's own row and the game's profile into that spec; the look (body colour, trim, marquee, title) and
 # the bay are the cabinet's and never change.
 
+## How deep behind the glass a hologram cabinet's picture stands (Time Traveler: the picture floats in a dark stage
+## 30 cm back), and how far a slot's lever slides either side of where it rests (Panic Park: two levers, one slot,
+## each the half of it that is its own).
+const HOLO_DEPTH := 0.30
+const SLOT_TRAVEL := 0.14
+
 ## The most panels a deck takes (X-Men's six players), and the most coin doors on a coin face.
 const MAX_PANELS := 6
 const MAX_COIN_DOORS := 4
@@ -214,6 +220,9 @@ static func panel_extent(panel: Dictionary) -> Vector2:
 		"wheel":
 			left = minf(left, float(panel["wheel_x"]) - 0.15)
 			right = maxf(right, float(panel["wheel_x"]) + (0.25 if bool(panel.get("shifter", false)) else 0.15))
+		"slot":
+			left = minf(left, float(panel["slot_x"]) - SLOT_TRAVEL - 0.03)
+			right = maxf(right, float(panel["slot_x"]) + SLOT_TRAVEL + 0.03)
 	for bt: Dictionary in panel.get("buttons", []):
 		var pos: Vector2 = bt["pos"]
 		var radius := float(bt["radius"])
@@ -401,7 +410,8 @@ static func coin_xs(count: int, inner_width: float) -> Array:
 static func screen_inches(profile: ArcadeGameProfile) -> int:
 	match profile.form():
 		ArcadeGameProfile.FORM_GUN, ArcadeGameProfile.FORM_RIFLE, ArcadeGameProfile.FORM_DANCE, \
-				ArcadeGameProfile.FORM_PUMP, ArcadeGameProfile.FORM_RACE, ArcadeGameProfile.FORM_BIKE:
+				ArcadeGameProfile.FORM_PUMP, ArcadeGameProfile.FORM_RACE, ArcadeGameProfile.FORM_BIKE, \
+				ArcadeGameProfile.FORM_CYCLE:
 			return 0
 	return profile.monitor_inches()
 
@@ -424,6 +434,8 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	spec.erase("cockpit")
 	spec.erase("stage")
 	spec.erase("bike")
+	spec.erase("cycle")
+	spec.erase("holo")
 	spec.erase("socket_count")
 	var shape := base_shape
 	var players: int = clampi(profile.players, 1, MAX_PANELS)
@@ -450,6 +462,19 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			shape = "racer"
 			spec["players"] = []
 			spec["bike"] = {"player": 0}
+		ArcadeGameProfile.FORM_CYCLE:
+			# A rider on a bicycle looks at a big screen at head height: the wide body's, 0.90 m of straight glass.
+			shape = "wide"
+			spec["players"] = []
+			spec["cycle"] = {"player": 0}
+		ArcadeGameProfile.FORM_SLOT:
+			# Two levers in one slot, each its player's: red on the left half, blue on the right (Panic Park). One
+			# player's game parks the other lever at its end.
+			var levers: Array = []
+			for i in clampi(players, 1, 2):
+				levers.append({"kind": "slot", "player": i, "slot_x": -SLOT_TRAVEL if i == 0 else SLOT_TRAVEL,
+					"start_x": -0.24 if i == 0 else 0.24, "buttons": []})
+			spec["players"] = levers
 		ArcadeGameProfile.FORM_STAND:
 			shape = "upright"
 			spec["players"] = [{"kind": "wheel", "wheel_x": 0.0, "start_x": -0.20, "player": 0,
@@ -476,6 +501,9 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 				var panels := (spec["players"] as Array).size()
 				if panels > 2 and not profile.alternating():
 					spec["socket_count"] = mini(panels, 4)
+	# A hologram cabinet is the upright with its picture standing deep in a dark stage behind the glass.
+	if form == ArcadeGameProfile.FORM_HOLO:
+		spec["holo"] = {"depth": HOLO_DEPTH}
 	# A monitor on its side wants a taller window than the upright has: the same body with a longer glass.
 	if shape == "upright" and profile.is_vertical():
 		shape = "tate"
@@ -486,7 +514,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	# The bay is baked with the cabinet and a form never rebuilds it: its door keeps the width the base had.
 	spec["door_width"] = float(base.get("width", shapes()[base_shape]["w"])) - 0.06
 	var doors := (spec["players"] as Array).size()
-	if spec.has("cockpit") or spec.has("bike") or spec.has("stage"):
+	if spec.has("cockpit") or spec.has("bike") or spec.has("cycle") or spec.has("stage"):
 		doors = clampi(players, 1, 2)
 	if profile.alternating():
 		doors = 1
@@ -551,7 +579,7 @@ static func _same_form(a: Dictionary, b: Dictionary) -> bool:
 	if str(a.get("shape", "upright")) != str(b.get("shape", "upright")):
 		return false
 	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "cockpit",
-			"stage", "bike", "screen"]:
+			"stage", "bike", "cycle", "holo", "screen"]:
 		if not _same_value(a.get(key), b.get(key)):
 			return false
 	var wa := float(a.get("width", shapes()[str(a.get("shape", "upright"))]["w"]))

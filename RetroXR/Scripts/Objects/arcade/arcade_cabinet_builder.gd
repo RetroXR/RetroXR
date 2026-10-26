@@ -153,6 +153,8 @@ func _build_extras() -> void:
 		_build_cockpit(_v["cockpit"])
 	if _v.has("bike"):
 		_build_bike(_v["bike"])
+	if _v.has("cycle"):
+		_build_cycle(_v["cycle"])
 	if _v.has("stage"):
 		_build_stage(_v["stage"])
 
@@ -362,9 +364,11 @@ func _build_monitor() -> void:
 		# The picture is fitted to the TUBE's shape, which a vertical game turns on its side.
 		mod.set("glass_size", _tube)
 	var length := along.length()
+	# How far behind the glass the picture stands: the tube's own depth, and a hologram cabinet's deep stage on top.
+	var back := TUBE_DEPTH + float((_v.get("holo", {}) as Dictionary).get("depth", 0.0))
 	# The tube's enclosure: a dark board behind the picture, as wide as the cabinet.
-	ArcadeParts.box(_owner, mod, "Bezel", Vector3(_in_w, length, 0.012), Vector3(0, 0, -TUBE_DEPTH - 0.006), _dark)
-	var screen := ArcadeParts.quad(_owner, mod, "CabinetScreen", _tube, Vector3(0, 0.005, -TUBE_DEPTH + 0.0005),
+	ArcadeParts.box(_owner, mod, "Bezel", Vector3(_in_w, length, 0.012), Vector3(0, 0, -back - 0.006), _dark)
+	var screen := ArcadeParts.quad(_owner, mod, "CabinetScreen", _tube, Vector3(0, 0.005, -back + 0.0005),
 		ArcadeParts.mat(Color(0.015, 0.017, 0.02), 0.0, 0.12))
 	screen.name = "CabinetScreen"
 	# The classic glass: a translucent pane flush with the cabinet's front, the picture showing
@@ -392,6 +396,24 @@ func _build_monitor() -> void:
 	for sy in [-1.0, 1.0]:
 		ArcadeParts.box(_owner, mod, "Frame%s" % ("Top" if sy > 0 else "Bottom"), Vector3(glass_w, top_h, bar_t),
 			Vector3(0, sy * (glass_h * 0.5 + top_h * 0.5), fz), mask)
+	if back > TUBE_DEPTH:
+		_build_holo_stage(mod, glass_w, glass_h, back)
+
+
+## A hologram window (Time Traveler): the picture stands `back` behind the glass at the far end of a black tunnel cut to
+## the window, with a low plinth in front of it for the props the hologram stood among. The picture then floats in a
+## dark stage, and a head that moves sees it move against the frame, which a flat glass never shows. (The real cabinet
+## threw its CRT's picture up onto a curved mirror; here the picture is drawn where the image appeared.)
+func _build_holo_stage(mod: Node3D, glass_w: float, glass_h: float, back: float) -> void:
+	var depth := back - 0.012
+	for sx in [-1.0, 1.0]:
+		ArcadeParts.box(_owner, mod, "HoloSide%s" % ("L" if sx < 0 else "R"), Vector3(0.012, glass_h, depth),
+			Vector3(sx * (glass_w * 0.5 - 0.006), 0, -0.012 - depth * 0.5), _dark)
+	for sy in [-1.0, 1.0]:
+		ArcadeParts.box(_owner, mod, "Holo%s" % ("Roof" if sy > 0 else "Floor"), Vector3(glass_w, 0.012, depth),
+			Vector3(0, sy * (glass_h * 0.5 - 0.006), -0.012 - depth * 0.5), _dark)
+	ArcadeParts.box(_owner, mod, "HoloPlinth", Vector3(glass_w * 0.5, 0.03, depth * 0.40),
+		Vector3(0, -glass_h * 0.5 + 0.027, -0.012 - depth * 0.68), ArcadeParts.mat(Color(0.12, 0.12, 0.14), 0.3, 0.4))
 
 
 # ── control deck ────────────────────────────────────────────────────────────
@@ -410,6 +432,10 @@ func _build_deck() -> void:
 	# The body is as wide as its panels need (ArcadeCabinetSpecs.body_width), so the plate runs side to side.
 	var depth := along.length()
 	ArcadeParts.box(_owner, deck, "DeckPlate", Vector3(_in_w, depth, 0.012), Vector3(0, 0, -0.006), _dark)
+	# Two levers in ONE slot: the rail runs across the deck under both (Panic Park).
+	if not players.is_empty() and str((players[0] as Dictionary).get("kind", "")) == "slot":
+		ArcadeParts.box(_owner, deck, "SlotRail", Vector3(ArcadeCabinetSpecs.SLOT_TRAVEL * 4.0 + 0.06, 0.03, 0.004),
+			Vector3(0, 0.015, 0.002), ArcadeParts.mat(Color(0.01, 0.01, 0.012), 0.0, 0.9))
 
 	for i in players.size():
 		_build_player(deck, i, players[i])
@@ -473,6 +499,20 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		if bool(spec.get("shifter", false)):
 			_shifter(mod, Vector3(wheel_x + 0.21, 0.0, 0.0), Basis.IDENTITY)
 		_pedals(mod, to_panel, Vector3(wheel_x, 0.0, 0.96))
+	elif kind == "slot":
+		# A lever in the slot (Panic Park): a carriage on the rail with an upright lever and a ball, red for player 1
+		# and blue for player 2, each in its own half and meeting the other's in the middle.
+		var carriage := ArcadeParts.node(_owner, mod, "Node3D", "SlidePivot", Vector3(float(spec["slot_x"]), 0.015, 0.0)) as Node3D
+		ArcadeParts.box(_owner, carriage, "CarriageBlock", Vector3(0.07, 0.05, 0.016), Vector3(0, 0, 0.008), _metal)
+		ArcadeParts.cylinder(_owner, carriage, "LeverShaft", 0.010, 0.12, Vector3(0, 0, 0.076), _metal, Vector3.BACK)
+		var lever_ball := ArcadeParts.node(_owner, carriage, "MeshInstance3D", "LeverBall", Vector3(0, 0, 0.14)) as MeshInstance3D
+		var lm := SphereMesh.new()
+		lm.radius = 0.030
+		lm.height = 0.060
+		lm.radial_segments = 24
+		lm.rings = 12
+		lever_ball.mesh = lm
+		lever_ball.material_override = ArcadeParts.mat(_player_color(index), 0.0, 0.3)
 	elif kind == "pad":
 		# A dancer: START on the deck, and the stage's arrows (Pump It Up's five panels) on the floor in front.
 		_arrows(mod, to_panel, Vector3(float(spec.get("stage_x", 0.0)), 0.0, STAGE_Z), int(spec.get("arrows", 4)), index)
@@ -1015,6 +1055,87 @@ func _build_bike(spec: Dictionary) -> void:
 	gshape.size = Vector3(0.62, 0.20, 0.14)
 	gcol.shape = gshape
 	form_boxes.append(AABB(Vector3(-0.20, 0.0, 0.90), Vector3(0.40, 0.75, 1.10)))
+
+
+# ── a ride-on bicycle ───────────────────────────────────────────────────────
+
+## Where a bicycle's stand starts and ends front to back (clear of the bay door's swing, as the cockpit's platform).
+const CYCLE_Z0 := 0.84
+const CYCLE_Z1 := 2.14
+
+
+## A tube from one point to another in `parent`'s frame: what a bicycle's frame is made of.
+func _rod(parent: Node3D, node_name: String, from: Vector3, to: Vector3, radius: float,
+		material: Material) -> MeshInstance3D:
+	var d := to - from
+	return ArcadeParts.cylinder(_owner, parent, node_name, radius, d.length(), (from + to) * 0.5, material, d.normalized())
+
+
+## A stationary bicycle in front of the monitor housing (Prop Cycle): a frame on a stand, a saddle, handlebars on a stem
+## and a crank with its two pedals. The bars (`BarsPivot`) turn and tip with the left stick, MAME's `IPT_AD_STICK_X` and
+## `_Y` (the grips steer the craft and tilt it up or down), and the crank (`CrankPivot`) turns with the right stick's Y, the
+## "Cycle Pedal" (`IPT_AD_STICK_Z`: the faster it is turned the more the game reads). The rider takes hold of the bars; the
+## controls are ONE controller (Player1) as a panel is. No collision: a player steps up to it.
+func _build_cycle(spec: Dictionary) -> void:
+	var cy := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Cycle", Vector3.ZERO)) as Node3D
+	var depth := CYCLE_Z1 - CYCLE_Z0
+	var zc := (CYCLE_Z0 + CYCLE_Z1) * 0.5
+	ArcadeParts.box(_owner, cy, "CycleStand", Vector3(0.56, 0.10, depth), Vector3(0, 0.05, zc), _dark)
+	ArcadeParts.box(_owner, cy, "CycleStandTrim", Vector3(0.564, 0.012, depth + 0.004), Vector3(0, 0.084, zc), _trim)
+	var mod := ArcadeParts.node(_owner, cy, "Node3D", "Player1") as Node3D
+	mod.set_script(load(SCRIPTS["control"]))
+	mod.set("player", int(spec.get("player", 0)))
+	var paint := ArcadeParts.mat(_v["trim"], 0.2, 0.35)
+	var rubber := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.7)
+	var bb := Vector3(0.0, 0.40, 1.62)       # the bottom bracket, the crank's axle
+	var seat := Vector3(0.0, 0.90, 1.82)     # the top of the seat tube, under the saddle
+	var head := Vector3(0.0, 0.88, 1.20)     # the head tube, under the stem
+	var rear := Vector3(0.0, 0.32, 2.00)     # the rear axle, held up on a post
+	_rod(mod, "SeatTube", bb, seat, 0.022, paint)
+	_rod(mod, "TopTube", seat + Vector3(0, -0.05, -0.02), head, 0.020, paint)
+	_rod(mod, "DownTube", bb, head + Vector3(0, -0.05, 0.0), 0.024, paint)
+	_rod(mod, "ChainStay", bb, rear, 0.014, paint)
+	_rod(mod, "SeatStay", seat + Vector3(0, -0.08, 0), rear, 0.012, paint)
+	_rod(mod, "Fork", head, Vector3(0.0, 0.10, 1.10), 0.016, _metal)
+	_rod(mod, "RearPost", rear, Vector3(0.0, 0.10, rear.z), 0.016, _metal)
+	var saddle := ArcadeParts.box(_owner, mod, "Saddle", Vector3(0.15, 0.05, 0.27), seat + Vector3(0, 0.05, 0.04), rubber)
+	saddle.basis = Basis(Vector3.RIGHT, deg_to_rad(-6.0))
+	var stem_top := head + Vector3(0.0, 0.14, -0.02)
+	_rod(mod, "Stem", head, stem_top, 0.014, _metal)
+	# The bars: a crossbar on the stem with a grip at each end and a brake lever in front of it, START on the clamp.
+	var bars := ArcadeParts.node(_owner, mod, "Node3D", "BarsPivot", stem_top) as Node3D
+	ArcadeParts.cylinder(_owner, bars, "BarCross", 0.012, 0.58, Vector3.ZERO, _metal, Vector3.RIGHT)
+	for k in [-1.0, 1.0]:
+		ArcadeParts.cylinder(_owner, bars, "BarGrip%s" % ("L" if k < 0 else "R"), 0.018, 0.11,
+			Vector3(k * 0.30, 0, 0), rubber, Vector3.RIGHT)
+		ArcadeParts.box(_owner, bars, "BrakeLever%s" % ("L" if k < 0 else "R"), Vector3(0.02, 0.02, 0.09),
+			Vector3(k * 0.25, -0.012, -0.05), _metal)
+	var clamp := ArcadeParts.node(_owner, bars, "Node3D", "BarPanel", Vector3(0.0, 0.014, 0.0)) as Node3D
+	clamp.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	ArcadeParts.box(_owner, bars, "BarClamp", Vector3(0.08, 0.016, 0.05), Vector3(0, 0.006, 0), _dark)
+	_cap(clamp, "Start", Vector3.ZERO, 0.011, Color(0.92, 0.92, 0.92), 0.008)
+	# The crank: an axle through the frame, a chainring, and an arm and a pedal each side, a half turn apart.
+	var crank := ArcadeParts.node(_owner, mod, "Node3D", "CrankPivot", bb) as Node3D
+	ArcadeParts.cylinder(_owner, crank, "CrankAxle", 0.012, 0.30, Vector3.ZERO, _metal, Vector3.RIGHT)
+	ArcadeParts.cylinder(_owner, crank, "Chainring", 0.085, 0.006, Vector3(0.06, 0, 0), _metal, Vector3.RIGHT)
+	for k in [1.0, -1.0]:
+		var side := "R" if k > 0 else "L"
+		ArcadeParts.box(_owner, crank, "CrankArm" + side, Vector3(0.022, 0.17, 0.03), Vector3(k * 0.10, k * 0.085, 0), _metal)
+		ArcadeParts.box(_owner, crank, "CrankPedal" + side, Vector3(0.10, 0.022, 0.09), Vector3(k * 0.14, k * 0.17, 0), rubber)
+	# The rider's hands are one controller, taken hold of at the bars.
+	var grip := ArcadeParts.node(_owner, mod, "Area3D", "PanelGrip", stem_top) as Area3D
+	grip.set_script(load(SCRIPTS["panel"]))
+	grip.collision_layer = 0
+	grip.collision_mask = 0
+	grip.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	grip.set("panel_size", Vector2(0.66, 0.20))
+	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var gshape := BoxShape3D.new()
+	gshape.size = Vector3(0.66, 0.20, 0.14)
+	gcol.shape = gshape
+	# Aimed at it is the cabinet (to hold and carry), under the bars: a box that reached them would hide their grip from a
+	# laser, which hits the nearest pointable.
+	form_boxes.append(AABB(Vector3(-0.28, 0.0, CYCLE_Z0), Vector3(0.56, 0.75, depth)))
 
 
 # ── a dance stage ───────────────────────────────────────────────────────────

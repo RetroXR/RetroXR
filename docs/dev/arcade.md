@@ -788,10 +788,18 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   two pedals on the floor in front, clear of the bay door (the real ones were on the kick panel: the door is there).
 - **A ride-on bike** (`bike`: Hang-On, Harley-Davidson, Manx TT): a motorbike on a stand in front of the `racer` body; it LEANS with the steering
   (`LeanPivot`), the rider takes hold of it at the bars.
+- **A ride-on bicycle** (`cycle`: Prop Cycle, 2026-10-25): a bicycle on a stand in front of the WIDE body (its own 40 inch tube: a rider's head is above the saddle),
+  one controller taken hold of at the bars. `BarsPivot` turns and tips with the LEFT stick (X steers 28 degrees about the stem, Y tips the grips 12; pulled toward the rider is DOWN),
+  `CrankPivot` pedals with the RIGHT stick's Y, up being forward and the deflection the pedalling SPEED (MAME's `AD_STICK_Z` "Cycle Pedal"; libretro-mame binds it to the right stick's Y);
+  START on the bars' clamp. The pointer box of the stand stops under the bars or a laser could not reach their grip.
+- **A hologram window** (`holo`: Time Traveler): the upright with its monitor's picture `HOLO_DEPTH` (30 cm) behind the glass at the far end of a black tunnel cut to the window, a plinth
+  in front of it for the props (the real cabinet threw its CRT's picture on a curved mirror; the picture is drawn where the image appeared).
+- **Two levers in one slot** (`slot`: Panic Park): the upright with a `SlidePivot` carriage on a shared `SlotRail` for each player (red and blue), `SLOT_TRAVEL` 14 cm either side of where it
+  rests, so that both reach the middle and neither passes it; the lever's position is the left stick X (an analog position: MAME's port has `CENTERDELTA(0)`).
 - **A dance stage** (`dance` four arrows, `pump` Pump It Up's five panels): the wide body, a square of nine 30 cm panels per dancer (one or two),
   a safety bar behind each; each dancer's arrows belong to that player's panel (`Pad<Dir>` sink with the directions, Pump's `Btn1..5` with the
   buttons), taken hold of at its START on the deck.
-- **Music and the unique cabinets** (`music`, `odd`) are uprights until they have a module of their own ("Unusual cabinets" below).
+- **Music and the remaining unique cabinets** (`music`, `odd`) are uprights until they have a module of their own: `arcade-cabinets.md` lists each with MAME's own control names.
 - **What the panel shows moving** (`ArcadeControlModule.show_state(mask, axes)`, fed the axes now as well as the mask): a wheel turns (left stick X,
   else LEFT/RIGHT, 120 degrees to lock), the gas and brake tip with R2 and L2 (MAME's PEDAL and PEDAL2, which the extension sends as digital
   buttons: it does not answer ANALOG_BUTTON), the lever with button 1, a bike leans, a trackball rolls, a second stick leans with the right stick
@@ -825,13 +833,13 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   tests and the probes, which look at what the profile alone hides.
 - **Netplay**: the form is derived from the board, so two peers build the same one (it decides whether a port is a gun or a socket). Not measured
   with two peers.
-- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel`; `arcade_tests game/`
+- Tests: `arcade_form_tests` (groups `specs layout build board reach guns ports input animate running boxes footprint bezel odd`; `arcade_tests game/`
   switches the shape off through the seam and keeps testing the hiding). Mutation-tested: 19 breaks of the code, each turned a case red (the first pass found eight
   that did not, among them a duplicate collision box Godot had renamed out of the count and a freed gun that compared equal to null). Pictures: `arcade_cabinet_probe --forms=sf2,pacman,tmnt,...`
   (windowed; `form_<romset>.png` and `formside_<romset>.png`).
-- **The test games asked for** (none run here: no ROMs, no cores): `timetrv` and `panicprk` are `odd` (uprights for now; Panic Park is NOT working in MAME
-  0.289), `propcycl` `odd` (Prop Cycle's bicycle is a unique cabinet), `sscope`/`sscope2` the rifle (NOT working in MAME 0.289), `finalap3` a sit-down
-  cockpit (the real one is a twin: two seats, two screens), `kurikint` an alternating upright.
+- **The test games asked for** (none run here: no ROMs, no cores; each has its own entry in `arcade-cabinets.md`): `timetrv` is `holo`, `propcycl` `cycle`, `panicprk` `slot` (Panic Park is NOT
+  working in MAME 0.289), `sscope`/`sscope2` the rifle (NOT working in MAME 0.289: its two displays arrive as one frame, the scope is not shown), `finalap3` a sit-down cockpit (the real one is a
+  twin: two seats, two screens; MAME runs one unit), `kurikint` an alternating upright (one panel and a 2P START).
 - OWED: a headset (taking hold of a wheel, a stage under the feet), the Quest (building a cockpit at run time on device), real cores for which pad ids the
   driving and dance games read, two peers, the twin cockpits (Final Lap 3, Daytona's linked twins) and multi-screen games, whose second screen arrives in
   the same frame and is not cropped per screen yet.
@@ -861,32 +869,8 @@ pack, the Arcade Database's `url_image_bezel` (unknown origin) and its artwork p
 
 ## Unusual cabinets (2026-10-25)
 
-What the table files as `odd` or `music`, and more, for later: VR natural interaction is the point of most, and the desktop will stay limited. Checked
-against MAME 0.289 (status: **G** good, **I** imperfect, **NW** not working, from the driver flags; the controls from the drivers' port names).
-libretro MAME reads every left/right axis (paddle, spinner, trackball, analog X, gun X) from the left stick X or the mouse X, up/down from left stick Y,
-MAME's third axis from the right stick Y and the pedals from R2/L2; two axes of one type for one player collapse onto one stick axis unless remapped.
-Many of the body cabinets are on boards MAME does not run (NAOMI is Flycast's here; Model 3, System 23, Viper, Hikaru are NW).
-
-| family | games (romset, status) | what the player does | a VR idea |
-|---|---|---|---|
-| ride-on | Prop Cycle `propcycl` I, Final Furlong `finfurl` NW, Hang Pilot `hangplt` I, Magical Truck Adventure `magtruck` NW | pedal a bike to fly, ride a horse, a hang-glider bar, pump levers | grip and pump; rock; a two-hand A-frame |
-| ski / board | Alpine Racer `alpinerd` 2 `alpinr2b` Surfer `alpines` I, Top Skater `topskatr` NW, Ski Champ `skichamp` NW | swing and edge ski plates, poles; a skateboard deck | hips shift = swing, grip roll = edge |
-| boat / jet ski | Aqua Jet `aquajet` I, Jet Wave `jetwave` I, Wave Runner `waverunr` NW, Rapid River `rapidrvr` NW | a jet ski's bars and throttle; a raft's paddle | bars and a lean; an oar in both hands |
-| fishing | Fisherman's Bait `fbaitbc` `fbait2bc` `fbaitmc` I, Sega Bass Fishing `bassdx` / Get Bass `getbass` NW | a rod, a reel | jerk the rod, crank the reel |
-| striking | Punch-Out!! `punchout` Super `spnchout` Arm Wrestling `armwrest` G, Heavyweight Champ `hwchamp` G, Title Fight `titlef` I, Boxing Mania `boxingm` NW, Mallet Madness `maletmad` Hammer `hammer` Mole Attack `mole` G, Kick & Kick `kicknkick` I | punch, swing a mallet, kick a ball | punch at height, swing (the hit point is a gun's x/y) |
-| music | beatmania `bm1stmix` pop'n music `popn1` Keyboardmania `kbm` I (about 40 more), GuitarFreaks `gtrfrks` I, DrumMania `drmn` NW, ParaParaParadise `ppp` I, Mambo a Go Go `mamboagg` NW | keys and a turntable, nine buttons, a guitar, drums, sensor bars, congas | the instrument itself; hands through the bars |
-| hologram / multi-screen | Time Traveler `timetrv` G (laserdisc), Holosseum `holo` I, Starblade `starblad` I, Darius `darius` G (3 screens), Ninja Warriors `ninjaw` I, Super Dead Heat `spdheat` (4), Cyberball `cyberbal` G, Hard Dunk `harddunk` I (6P), Punch-Out!! (2 stacked), Silent Scope `sscope` NW (the scope's view) | a figure floating over a black stage; a bank of screens | a floating plane; a curved bank; the scope's view in the eyepiece |
-| cockpit / flight / tank | Star Wars `starwars` ESB `esb` Firefox `firefox` Red Baron `redbaron` G, Battlezone `bzone` G, Tokyo Wars `tokyowar` I, Cyber Sled `cybsled` I, G-LOC R360 `glocr360` G, After Burner II `aburner2` Space Harrier `sharrier` G, Steel Talons `steeltal` G, Densha de GO! `dendego` I, Desert Tank `desert` NW | a yoke, tread sticks, a periscope, a 360 degree capsule, a train's controller | the driving seat with a yoke, a stick or a lever |
-| a special control on an upright | Tempest `tempest` Tron `tron` Discs of Tron `dotrone` Kick `kick` G (spinner), Marble Madness `marble` G (+ about 130 trackball games), Paperboy `paperboy` 720 `720` G, Toobin' `toobin` G, Super Off-Road `offroad` Hot Rod `hotrod` Super Sprint `ssprint` G (3-8 wheels), Ms. Pac-Man `mspacman` cocktail | a spinner, handlebars, paddle buttons, several wheels, a table | a panel module each |
-| other | Panic Park `panicprk` NW (two levers in one slot), Lucky & Wild `luckywld` G (a driver and a gunner), Rail Chase `rchase` G (a moving cart), GunMania `gunmania` NW, Jambo! Safari `jambo`, Emergency Call Ambulance `eca` NW, Final Lap 3 `finalap3` I (twin seats), Police 24/7 `p911ed` NW (body-dodge sensors) | | seats with guns; the lever |
-
-Not working and for later: Angler King `aking`, Punch Mania `pnchmn`, Mocap Boxing `mocapb`, Arm Champs II `armchmp2`, Galaxian3 `gal3`, Driver's Eyes `driveyes`,
-Ridge Racer Full Scale `ridgeracf`, Hydro Thunder `hydrthnd`, the photo-sticker booths `pclub2` `npcartv1` (camera and printer not emulated).
-**By playable games per effort** (working parent sets in MAME 0.289): 1. control modules on the upright (154 spinner, 133 trackball, 58 paddle, 33 rotary games: only the
-panel changes); 2. more screens and panels and the cocktail table (107 multi-screen, 269 with 4+ players, about 950 parents with a cocktail switch); 3. cockpit, flight
-and tank on the driving seat (about 30); 4. striking (about 11, the most natural in VR); 5. rhythm (about 50 Bemani sets, each with its disk image and instrument);
-6. the hologram stage (Time Traveler, Holosseum: one floating-plane trick); 7. the body platforms (ski, board, boat, ride-on: the best fit, about 8 working); 8. fishing (3).
-Not verified: Silent Scope's scope screen, Lucky & Wild's guns (light or positional), Desert Tank's, Jet Wave's and Ski Champ's controls, Hang Pilot's second screen.
+Moved to `arcade-cabinets.md` (2026-10-26): the seven named games one by one, every form that is built, what a MAME control becomes in libretro-mame, and every cabinet that is not built, with the
+survey this section held, and each control's name read in MAME's own driver sources.
 
 ## Guns on a swivel (2026-10-25)
 
@@ -1020,7 +1004,10 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
   holding LEFT or RIGHT turns it, because that is what the games read; held still it sends nothing. *trackball* rolls where the hand pushes it, the
   surface speed under the hand against `BALL_SPEED` times the ball's radius (what the picture rolls at full deflection); a speed too. *lever*: past half its throw it is in
   high gear, B, and STAYS there when let go (a gear lever stays), pulled back the same way. *bars*: the bike leans by the sideways push (`BARS_THROW` 15 cm
-  is a full lean, 14 degrees at the 62 cm the bars stand over the stand); the bars' handle is the middle of the bars, not the pivot the bike leans about (the
+  is a full lean, 14 degrees at the 62 cm the bars stand over the stand), and a BICYCLE's bars (Prop Cycle) also take the push forward and pull back (`BARS_PITCH_THROW` 10 cm is the whole of it, the
+  stick's Y, pulled being DOWN) with their own let-go distance (`BARS_LET_GO`, the grips stand 30 cm out); *crank*: the trigger at a pedal (`CRANK_REACH` 6 cm) and the hand turns it like a dial: the
+  SPEED it is turned at is the right stick's Y (forward up), and a hand on the axle has no angle; *slide*: a lever in a slot (Panic Park) taken at its ball (`SLIDE_REACH` 5.5 cm) and pushed along it,
+  `SLOT_TRAVEL` 14 cm being all the way (the left stick's X); the bars' handle is the middle of the bars, not the pivot the bike leans about (the
   hands are 60 cm above it and the let-go distance took hold of nothing).
 - **Clockwise seen by the player is RIGHT**, for the wheel, the dial and the bars. The dial used to turn the other way (a turn about +Z, which is toward the
   player, is counter-clockwise); `_dial_angle` is now clockwise-positive and drawn `Basis(BACK, -angle)`. Holding RIGHT and a hand agree.
@@ -1044,13 +1031,13 @@ a wheel, bars, dial and trackball the left stick's X or XY, so "left+dpad" sends
 - **Not built**: grip-held sticks (above); hands on the foot pedal of a gun game (it is down while the gun is in a hand; there is nothing to press); the stick's
   8-way gate (a hand that drifts across the 35% line gets a diagonal; MAME's `ways` is in the table and could snap it); two hands on one wheel (the first holds it);
   hands for the desktop (it attaches, and the keyboard plays).
-- `arcade_hand_tests` (146 checks, no core and no headset: a fake hand, an `XRController3D` on a tracker, puts a tip and a trigger where the case says, on panels
+- `arcade_hand_tests` (167 checks, no core and no headset: a fake hand, an `XRController3D` on a tracker, puts a tip and a trigger where the case says, on panels
   the cabinet really builds): the pure zone; caps (press, hold, grace, slide, two hands sharing, hidden caps and panels, a hand holding something, the machine off, a lost
   controller); pedals; the stick (reach, edge, directions, diagonal, dead zone, the 35% line, drawn at once, spring back, a key's lean kept, one hand, 35 cm, hidden);
   twin sticks; the wheel (rim only, the sign, the lock, no wind-up, drawn at once, back to centre); the dial's sign and speed; the trackball; the lever's latch;
-  the bars; the port (a cap on the right port, the cap sinks, the bindings apply, off sends nothing, a pad and a hand add up); the laser (off, on, given back by a release, the
+  the bars; a bicycle's bars and crank and Panic Park's two levers (`cycle/`, `slot/`); the port (a cap on the right port, the cap sinks, the bindings apply, off sends nothing, a pad and a hand add up); the laser (off, on, given back by a release, the
   power, a morph) and the panel's press; the carry (a hand on a control cannot pick the cabinet up, the other hand can; the squeeze); attract. Mutation-tested (48 mutants of the
   hand code, every one caught: the tests that let three through, a pedal zone that followed the pedal down, the dial's direction under a key and a swapped gas and brake bit,
-  were made to catch them). **OWED: a headset.** Every number above is an estimate: reach, throw, zones, speeds. They are consts so the feel can be tuned on
+  were made to catch them; and 20 more for the bicycle's bars and crank and the slot's levers, 19 caught and one that cannot be: the crank's `end()` clearing a speed that `begin()` clears too). **OWED: a headset.** Every number above is an estimate: reach, throw, zones, speeds. They are consts so the feel can be tuned on
   a device, and nothing here says how it feels. Also owed: hand tracking (Capsense's index tip and pinch trigger go through the same `PokeTip` and `trigger`, not tried), the Quest's cost
   (a few distance tests a frame a panel when a hand is within 2 m, none otherwise), two peers.

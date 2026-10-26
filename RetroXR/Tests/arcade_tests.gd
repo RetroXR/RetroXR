@@ -1549,8 +1549,9 @@ func _group_game_profile() -> void:
 	_ok(P.for_romset("daytona2").has_roof() and not P.for_romset("daytona").has_roof(), "game: a roof over the seat only where the table says")
 	_ok(P.for_romset("hangon").form() == P.FORM_BIKE and P.for_romset("ddrmax").form() == P.FORM_DANCE
 		and P.for_romset("pumpit1").form() == P.FORM_PUMP, "game: Hang-On is a bike, DDR a four-arrow stage, Pump It Up a five-panel one")
-	_ok(P.for_romset("timetrv").form() == P.FORM_ODD and P.for_romset("panicprk").form() == P.FORM_ODD
-		and P.for_romset("propcycl").form() == P.FORM_ODD, "game: Time Traveler, Panic Park and Prop Cycle are on the unusual list")
+	_ok(P.for_romset("timetrv").form() == P.FORM_HOLO and P.for_romset("panicprk").form() == P.FORM_SLOT
+		and P.for_romset("propcycl").form() == P.FORM_CYCLE,
+		"game: Time Traveler, Panic Park and Prop Cycle each have a form of their own (hologram, slot, bicycle)")
 	var touch := P.for_romset("megat")
 	_ok(touch.has_kind(P.KIND_TOUCH) and not touch.is_gun() and touch.gun_count() == 0,
 		"game: a touch screen MAME files as a light gun is not a gun (Megatouch)")

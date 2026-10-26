@@ -163,10 +163,13 @@ const FORM_RIFLE := "rifle"        ## one rifle on a mount, with a scope (Silent
 const FORM_RACE := "race"          ## a sit-down driving cockpit
 const FORM_STAND := "stand"        ## a stand-up driving cabinet (the wheel on the panel, pedals at its foot)
 const FORM_BIKE := "bike"          ## a ride-on motorbike
+const FORM_CYCLE := "cycle"        ## a ride-on bicycle: a crank to pedal, bars to steer and tip (Prop Cycle)
+const FORM_HOLO := "holo"          ## a hologram window: the picture floats in a dark stage (Time Traveler)
+const FORM_SLOT := "slot"          ## two levers sliding in one slot (Panic Park)
 const FORM_DANCE := "dance"        ## a dance stage, four arrows a player
 const FORM_PUMP := "pump"          ## a dance stage, five panels a player
 const FORM_MUSIC := "music"        ## a rhythm game's own controller (turntable, drums, guitar): not built yet
-const FORM_ODD := "odd"            ## a unique cabinet (docs/dev/arcade.md "Unusual cabinets"): not built yet
+const FORM_ODD := "odd"            ## a unique cabinet (docs/dev/arcade-cabinets.md, section 5): not built yet
 
 
 ## The kind of cabinet: one of FORM_*. A game the table does not know, or one with nothing special, is an upright.

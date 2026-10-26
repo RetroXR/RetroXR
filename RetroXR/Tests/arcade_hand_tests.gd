@@ -24,6 +24,8 @@
 ##   ball/     a trackball rolls where the hand pushes it
 ##   lever/    a gear lever stays in high gear
 ##   bars/     a motorbike's bars lean it
+##   cycle/    a bicycle's bars steer and tip, its crank is pedalled by a hand
+##   slot/     two levers in one slot, one a hand each
 ##   input/    what the hands hold goes out like an attached controller's: the port, the bindings, the cap that sinks
 ##   laser/    a hand on a control has no laser; it is back when the hand is done, and the panel takes no press from it
 ##   carry/    a hand on a control cannot pick the cabinet up, and its squeeze does not attach
@@ -78,7 +80,8 @@ func _run() -> void:
 		_group_zone()
 	for g: Array in [["caps", _group_caps], ["pedals", _group_pedals], ["stick", _group_stick],
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
-			["lever", _group_lever], ["bars", _group_bars], ["input", _group_input],
+			["lever", _group_lever], ["bars", _group_bars], ["cycle", _group_cycle], ["slot", _group_slot],
+			["input", _group_input],
 			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use]]:
 		if _want(str(g[0])):
 			await (g[1] as Callable).call()
@@ -829,6 +832,152 @@ func _group_bars() -> void:
 	_trigger(h, 0.0)
 	input._process(0.016)
 	_ok(not hands.holds(&"bars"), "bars: let go")
+	input._left_vr_ctrl = null
+
+
+# --- cycle ---------------------------------------------------------------------
+
+func _group_cycle() -> void:
+	var r := await _rig("propcycl")
+	var panel: ArcadeControlModule = r["panel"]
+	var input: ArcadeInput = r["input"]
+	var hands: ArcadePanelHands = panel.hands()
+	var h := _hand()
+	var bars := panel.find_child("BarsPivot", true, false) as Node3D
+	var at := (panel.find_child("BarGripR", true, false) as Node3D).global_position
+	_tip_at(h, at)
+	_trigger(h, 1.0)
+	_step(panel, [h])
+	_ok(hands.holds(&"bars") and is_zero_approx(hands.steer(&"bars")) and is_zero_approx(hands.bars_pitch()),
+		"cycle: the trigger on a grip takes hold of the bars")
+	_tip_at(h, at + Vector3(0.075, 0.0, -0.05))
+	_step(panel, [h])
+	_ok(is_equal_approx(hands.steer(&"bars"), 0.5) and is_equal_approx(hands.bars_pitch(), -0.5)
+			and panel.hand_thumbstick(0).is_equal_approx(Vector2(0.5, 0.5)),
+		"cycle: pushed 7.5 cm right and 5 cm away from the rider: half a turn to the right and half pushed (%s)" % str(panel.hand_thumbstick(0)))
+	_tip_at(h, at + Vector3(0.0, 0.0, 0.10))
+	_step(panel, [h])
+	_ok(is_equal_approx(hands.bars_pitch(), 1.0) and panel.hand_thumbstick(0).y < -0.99,
+		"cycle: pulled 10 cm toward the rider the bars are all the way back (the stick's DOWN)")
+	# Drawn with the hand.
+	_tip_at(h, at + Vector3(0.075, 0.0, -0.05))
+	_step(panel, [h])
+	input._left_vr_ctrl = _ctrl(h)
+	input._process(0.016)
+	panel.tick(0.016)
+	var want := panel.rest_basis_of(bars) * Basis(Vector3.UP, -deg_to_rad(ArcadeControlModule.BARS_YAW_DEG) * 0.5) \
+		* Basis(Vector3.RIGHT, deg_to_rad(ArcadeControlModule.BARS_PITCH_DEG) * -0.5)
+	_ok(bars.basis.is_equal_approx(want), "cycle: the bars are drawn turned and tipped as the hand has them, at once")
+	var axes := input._heard_axes.get(0, Vector4i.ZERO) as Vector4i
+	_ok(axes.x == int(0.5 * ArcadeInput.ANALOG_SCALE) and axes.y == int(-0.5 * ArcadeInput.ANALOG_SCALE),
+		"cycle: and the game is sent the left stick: half right, half up (%s)" % str(axes))
+	# The grips stand 30 cm out from the middle of the bars: a hand at the far one and past it has them still (the let-go
+	# distance is the bars' own, not a stick's 35 cm), and one a metre off has lost them.
+	_tip_at(h, at + Vector3(0.10, 0.0, 0.0))
+	_step(panel, [h])
+	_ok(hands.holds(&"bars"), "cycle: a hand 40 cm from the middle of the bars, at the far grip and past it, has them still")
+	_tip_at(h, at + Vector3(1.0, 0.0, 0.0))
+	_step(panel, [h])
+	_ok(not hands.holds(&"bars"), "cycle: and a hand a metre off has lost them")
+	_trigger(h, 0.0)
+	input._process(0.016)
+	input._left_vr_ctrl = null
+	# The crank: taken at a pedal, turned forward like a dial turns.
+	var crank := panel.find_child("CrankPivot", true, false) as Node3D
+	var pedal := panel.find_child("CrankPedalR", true, false) as Node3D
+	var axle := crank.global_position
+	var radius := 0.17
+	_tip_at(h, at + Vector3(0, 0.5, 0))
+	_step(panel, [h])
+	# A trigger pulled a quarter of a metre from either pedal takes hold of nothing; at a pedal it takes the crank.
+	_tip_at(h, pedal.global_position + Vector3(0.0, 0.0, 0.25))
+	_trigger(h, 1.0)
+	input._right_vr_ctrl = _ctrl(h)
+	input._process(0.016)
+	_ok(not hands.holds(&"crank"), "cycle: a trigger pulled 25 cm from the pedals takes hold of nothing")
+	_trigger(h, 0.0)
+	input._process(0.016)
+	# (4 cm along the axle from the pedal: within reach of it, and the same angle about the axle)
+	_tip_at(h, pedal.global_position + panel.global_transform.basis.x * 0.04)
+	_trigger(h, 1.0)
+	input._process(0.016)
+	_ok(hands.holds(&"crank"), "cycle: the trigger at a pedal takes hold of the crank")
+	var at_angle := func(a: float) -> Vector3:
+		# The pedal after a forward turn of `a`: the top of the crank going away from the rider.
+		return panel.global_transform * (crank.position + Vector3(0.14, radius * cos(a), -radius * sin(a)))
+	for i in 6:
+		_tip_at(h, at_angle.call(PI * 0.5 * float(i + 1) / 6.0))
+		input._process(0.025)
+	_ok(panel.hand_thumbstick(1).y > 0.9 and panel.hand_thumbstick(0) == Vector2.ZERO and absf(hands.crank_angle() - PI * 0.5) < 0.05,
+		"cycle: a quarter turn forward in 0.15 s is a brisk pedal: the right stick all the way up (%s, %.2f rad)"
+			% [str(panel.hand_thumbstick(1)), hands.crank_angle()])
+	panel.tick(0.016)
+	var sent := input._heard_axes.get(0, Vector4i.ZERO) as Vector4i
+	_ok(sent.w < int(-0.9 * ArcadeInput.ANALOG_SCALE) and sent.x == 0 and sent.y == 0,
+		"cycle: sent as the right stick up (the game's Cycle Pedal), the left stick untouched (%s)" % str(sent))
+	_ok(pedal.global_position.z < axle.z - 0.12, "cycle: and the crank is drawn turned forward with it: the pedal is away from the rider")
+	for i in 6:
+		_tip_at(h, at_angle.call(PI * 0.5 - PI * 0.5 * float(i + 1) / 6.0))
+		input._process(0.025)
+	_ok(panel.hand_thumbstick(1).y < -0.9, "cycle: turned back the other way it pedals backward")
+	# A slow turn is a slow pedal: the same quarter turn in 0.6 s is about a quarter of the speed that is all the way up.
+	for i in 6:
+		_tip_at(h, at_angle.call(PI * 0.5 * float(i + 1) / 6.0))
+		input._process(0.1)
+	var slow := panel.hand_thumbstick(1).y
+	_ok(slow > 0.15 and slow < 0.40, "cycle: a quarter turn in 0.6 s is a slow pedal, not a brisk one (%.2f)" % slow)
+	# On its axle a hand has no angle: the crank does not jump to wherever the noise points.
+	var turned := hands.crank_angle()
+	_tip_at(h, panel.global_transform * (crank.position + Vector3(0.14, 0.0, 0.0)))
+	input._process(0.016)
+	_tip_at(h, panel.global_transform * (crank.position + Vector3(0.14, 0.01, 0.0)))
+	input._process(0.016)
+	_ok(absf(hands.crank_angle() - turned) < 0.001, "cycle: a hand on the axle itself does not turn the crank (%.3f)" % (hands.crank_angle() - turned))
+	_trigger(h, 0.0)
+	input._process(0.016)
+	input._right_vr_ctrl = null
+	_ok(not hands.holds(&"crank") and panel.hand_thumbstick(1) == Vector2.ZERO, "cycle: let go, the crank is free")
+
+
+# --- slot ----------------------------------------------------------------------
+
+func _group_slot() -> void:
+	var r := await _rig("panicprk")
+	var input: ArcadeInput = r["input"]
+	var a := (r["panels"] as Array)[0] as ArcadeControlModule
+	var b := (r["panels"] as Array)[1] as ArcadeControlModule
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = _ctrl(right)
+	input._left_vr_ctrl = _ctrl(left)
+	var ball := func(panel: ArcadeControlModule) -> Vector3:
+		return (panel.find_child("SlidePivot", true, false) as Node3D).global_transform * Vector3(0, 0, 0.14)
+	var ball_a: Vector3 = ball.call(a)
+	var ball_b: Vector3 = ball.call(b)
+	_tip_at(right, ball_a)
+	_tip_at(left, ball_b)
+	_trigger(right, 1.0)
+	_trigger(left, 1.0)
+	input._process(0.016)
+	_ok(a.hands().holds(&"slide") and b.hands().holds(&"slide"), "slot: a hand on each lever takes hold of its own")
+	_tip_at(right, ball_a + Vector3(0.07, 0, 0))
+	_tip_at(left, ball_b + Vector3(-S.SLOT_TRAVEL * 2.0, 0, 0))
+	input._process(0.016)
+	_ok(is_equal_approx(a.hands().steer(&"slide"), 0.5) and is_equal_approx(b.hands().steer(&"slide"), -1.0),
+		"slot: 7 cm along the slot is half a lever, past the end of it is the end")
+	var axes_a := input._heard_axes.get(0, Vector4i.ZERO) as Vector4i
+	var axes_b := input._heard_axes.get(1, Vector4i.ZERO) as Vector4i
+	_ok(axes_a.x == int(0.5 * ArcadeInput.ANALOG_SCALE) and axes_b.x == -ArcadeInput.ANALOG_SCALE,
+		"slot: each lever is its own player's left stick (%s, %s)" % [str(axes_a), str(axes_b)])
+	a.tick(0.016)
+	b.tick(0.016)
+	var la := (a.find_child("SlidePivot", true, false) as Node3D).position.x
+	_ok(absf(la - (-S.SLOT_TRAVEL + 0.5 * S.SLOT_TRAVEL)) < 0.001, "slot: the lever is drawn where the hand has it (%.3f)" % la)
+	_trigger(right, 0.0)
+	_trigger(left, 0.0)
+	input._process(0.016)
+	_ok(not a.hands().holds(&"slide") and not b.hands().holds(&"slide"), "slot: let go, both are free")
+	input._right_vr_ctrl = null
 	input._left_vr_ctrl = null
 
 

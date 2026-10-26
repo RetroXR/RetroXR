@@ -27,7 +27,8 @@
 ##
 ## `hands` photographs a headset's hands on the panel (ArcadePanelHands): the right one holding the stick leaned over (its
 ## outline amber), the left with a finger on button 2 (sunk in its flange); `handswheel` the same at a driving cockpit's wheel
-## turned by a hand. A fake hand is an XRController3D on a tracker of its own, a small red ball at its fingertip.
+## turned by a hand, `handscycle` at Prop Cycle's bars (pushed right and away) and crank, `handsslot` at Panic Park's two levers.
+## A fake hand is an XRController3D on a tracker of its own, a small red ball at its fingertip.
 extends Node3D
 
 const SYSTEM_SCENE := preload("res://Scenes/Objects/system.tscn")
@@ -355,6 +356,82 @@ func _shot_handswheel() -> void:
 		_cam.fov = 58.0
 	input._right_vr_ctrl = null
 	_drop_hands([hand])
+	_sys.is_powered_on = false
+
+
+## The same at a bicycle (Prop Cycle): the right hand on a grip pushed right and away, the left on a pedal of the crank.
+func _shot_handscycle() -> void:
+	var profile := ArcadeGameProfile.for_romset("propcycl")
+	_model.morph_to(_model.form_for(profile))
+	_model.apply_game_profile(profile)
+	await _frames(10)
+	_model = _sys.get_model() as RetroSystemModelArcadeCabinet
+	_model.set_process(false)
+	_sys.is_powered_on = true
+	var input := _model.arcade_input()
+	var panel := _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)[0] as ArcadeControlModule
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = right["ctrl"]
+	input._left_vr_ctrl = left["ctrl"]
+	var grip := (panel.find_child("BarGripR", true, false) as Node3D).global_position
+	var pedal := (panel.find_child("CrankPedalR", true, false) as Node3D).global_position
+	_tip_at(right, grip)
+	_tip_at(left, pedal)
+	await _frames(3)
+	_hand_trigger(right, 1.0)
+	_hand_trigger(left, 1.0)
+	await _frames(3)
+	_tip_at(right, grip + Vector3(0.075, 0.0, -0.05))
+	for i in 8:
+		panel.tick(0.016)
+		await _frames(1)
+	print("[probe] handscycle: steering ", panel.steering(), " pitch ", panel.bars_pitch(), " sticks ", panel.hand_thumbstick(0), panel.hand_thumbstick(1))
+	_look(grip + Vector3(1.0, 0.45, 0.95), grip + Vector3(0.0, -0.30, 0.25))
+	await _save("handscycle")
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
+	_drop_hands([right, left])
+	_sys.is_powered_on = false
+
+
+## And at Panic Park's slot: a hand on each lever, the right one pushed along it, the left one the other way.
+func _shot_handsslot() -> void:
+	var profile := ArcadeGameProfile.for_romset("panicprk")
+	_model.morph_to(_model.form_for(profile))
+	_model.apply_game_profile(profile)
+	await _frames(10)
+	_model = _sys.get_model() as RetroSystemModelArcadeCabinet
+	_model.set_process(false)
+	_sys.is_powered_on = true
+	var input := _model.arcade_input()
+	var panels := _model.modules_of_kind(ArcadeProfiles.KIND_STICK_BUTTONS)
+	var right := _hand("right")
+	var left := _hand("left")
+	input._right_vr_ctrl = right["ctrl"]
+	input._left_vr_ctrl = left["ctrl"]
+	var ball := func(panel: Node3D) -> Vector3:
+		return (panel.find_child("SlidePivot", true, false) as Node3D).global_transform * Vector3(0, 0, 0.14)
+	var ball_a: Vector3 = ball.call(panels[0])
+	var ball_b: Vector3 = ball.call(panels[1])
+	_tip_at(left, ball_a)
+	_tip_at(right, ball_b)
+	await _frames(3)
+	_hand_trigger(left, 1.0)
+	_hand_trigger(right, 1.0)
+	await _frames(3)
+	_tip_at(left, ball_a + Vector3(0.09, 0.0, 0.0))
+	_tip_at(right, ball_b + Vector3(-0.05, 0.0, 0.0))
+	for i in 8:
+		for panel: ArcadeControlModule in panels:
+			panel.tick(0.016)
+		await _frames(1)
+	print("[probe] handsslot: steering ", (panels[0] as ArcadeControlModule).steering(), " and ", (panels[1] as ArcadeControlModule).steering())
+	_look(ball_a.lerp(ball_b, 0.5) + Vector3(0.0, 0.55, 0.85), ball_a.lerp(ball_b, 0.5))
+	await _save("handsslot")
+	input._right_vr_ctrl = null
+	input._left_vr_ctrl = null
+	_drop_hands([right, left])
 	_sys.is_powered_on = false
 
 

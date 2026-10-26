@@ -16,7 +16,9 @@
 ## stick), `WheelPivot` (a steering wheel, turning about its own Y with the left stick or LEFT and
 ## RIGHT), `GasPivot` and `BrakePivot` (pedals, tipping with R2 and L2), `ShifterPivot` (a gear
 ## lever, thrown while button 1 is held), `LeanPivot` (a motorbike leaning with the steering) and
-## `PadUp`/`PadDown`/`PadLeft`/`PadRight` (a dance stage's arrows, sinking with the directions).
+## `PadUp`/`PadDown`/`PadLeft`/`PadRight` (a dance stage's arrows, sinking with the directions), `BarsPivot` (a bicycle's
+## handlebars, turned with the left stick's X and tipped with its Y), `CrankPivot` (its crank, turned by the right stick's
+## Y, faster the further it is pushed) and `SlidePivot` (a lever in a slot, sliding with the left stick's X).
 ## Every one is optional: a Neo Geo panel has four buttons, a gun cabinet's has only START.
 class_name ArcadeControlModule
 extends ArcadeModule
@@ -45,6 +47,11 @@ const PEDAL_DEG := 16.0
 const SHIFT_DEG := 22.0
 ## How fast a trackball rolls at full deflection, radians a second.
 const BALL_SPEED := 9.0
+## A bicycle's bars at full lock either way and full push or pull, and its crank at full deflection (a brisk 90 rpm), a turn
+## a second and a half.
+const BARS_YAW_DEG := 28.0
+const BARS_PITCH_DEG := 12.0
+const CRANK_SPEED := TAU * 1.5
 ## A stick's full deflection, as the analog axes are sent.
 const AXIS_FULL := 32767.0
 
@@ -65,6 +72,14 @@ var _gas: Node3D = null
 var _brake: Node3D = null
 var _shifter: Node3D = null
 var _lean: Node3D = null
+var _bars: Node3D = null
+var _crank: Node3D = null
+var _slide: Node3D = null
+## Where a slot's lever rests: the carriage slides along X from here.
+var _slide_rest := Vector3.ZERO
+## How fast the crank is being pedalled now (-1..1, forward positive) and how far round it has come.
+var _crank_rate := 0.0
+var _crank_angle := 0.0
 ## Each pivot's pose at rest, so a lean or a tip is laid over it rather than replacing it.
 var _rest_basis: Dictionary = {}
 ## What the analog parts are moving toward (-1..1 steering, 0..1 pedals and lever) and are at now.
@@ -120,11 +135,16 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_brake = find_child("BrakePivot", true, false) as Node3D
 	_shifter = find_child("ShifterPivot", true, false) as Node3D
 	_lean = find_child("LeanPivot", true, false) as Node3D
+	_bars = find_child("BarsPivot", true, false) as Node3D
+	_crank = find_child("CrankPivot", true, false) as Node3D
+	_slide = find_child("SlidePivot", true, false) as Node3D
+	_slide_rest = _slide.position if _slide != null else Vector3.ZERO
 	_rest_basis.clear()
-	for pivot: Node3D in [_wheel, _gas, _brake, _shifter, _lean, _stick2, _ball]:
+	for pivot: Node3D in [_wheel, _gas, _brake, _shifter, _lean, _stick2, _ball, _bars, _crank]:
 		if pivot != null:
 			_rest_basis[pivot] = pivot.basis
-	_has_analog = _wheel != null or _lean != null or _gas != null or _brake != null or _shifter != null
+	_has_analog = _wheel != null or _lean != null or _gas != null or _brake != null or _shifter != null \
+		or _bars != null or _slide != null
 	_dial = find_child("DialPivot", true, false) as Node3D
 	_grip = find_child("PanelGrip", true, false) as ArcadePanelGrip
 	if _grip != null:
@@ -289,6 +309,7 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 	_ball_roll = steer
 	if _has_analog:
 		_analog_target["steer"] = clampf(steer.x, -1.0, 1.0)
+		_analog_target["pitch"] = clampf(steer.y, -1.0, 1.0)
 		_analog_target["gas"] = 1.0 if (mask >> ControllerBindings.JOYPAD_R2) & 1 else 0.0
 		_analog_target["brake"] = 1.0 if (mask >> ControllerBindings.JOYPAD_L2) & 1 else 0.0
 		_analog_target["shift"] = 1.0 if (mask >> ControllerBindings.JOYPAD_B) & 1 else 0.0
@@ -297,6 +318,8 @@ func show_state(mask: int, axes: Vector4i = Vector4i.ZERO) -> void:
 	var face := Vector2(float((mask >> ControllerBindings.JOYPAD_A) & 1) - float((mask >> ControllerBindings.JOYPAD_Y) & 1),
 		float((mask >> ControllerBindings.JOYPAD_B) & 1) - float((mask >> ControllerBindings.JOYPAD_X) & 1))
 	_stick2_target = face if face != Vector2.ZERO else right.limit_length(1.0)
+	# The crank: the right stick's Y, up (negative as sent) being forward.
+	_crank_rate = clampf(-right.y, -1.0, 1.0)
 
 
 func tick(delta: float) -> void:
@@ -370,6 +393,15 @@ func _tick_analog(delta: float) -> void:
 		if moving or not _analog_written:
 			_analog_written = true
 			_pose_analog()
+	if _crank != null:
+		var before := _crank_angle
+		if _in_hand(&"crank"):
+			_crank_angle = _hands.crank_angle()
+		elif _crank_rate != 0.0:
+			_crank_angle = wrapf(_crank_angle + _crank_rate * CRANK_SPEED * delta, -PI, PI)
+		if _crank_angle != before or not _analog_written:
+			# Forward is the top of the crank going away from the rider: a turn about -X.
+			_crank.basis = _rest_basis[_crank] * Basis(Vector3.RIGHT, -_crank_angle)
 	if _ball != null:
 		var roll := _hands.ball_roll() if _in_hand(&"ball") else _ball_roll
 		if roll != Vector2.ZERO:
@@ -398,6 +430,9 @@ func _held_analog() -> Dictionary:
 		out["steer"] = _hands.steer(&"wheel")
 	elif _hands.holds(&"bars"):
 		out["steer"] = _hands.steer(&"bars")
+		out["pitch"] = _hands.bars_pitch()
+	elif _hands.holds(&"slide"):
+		out["steer"] = _hands.steer(&"slide")
 	if _hands.holds(&"lever"):
 		out["shift"] = _hands.lever_throw()
 	return out
@@ -416,6 +451,12 @@ func _pose_analog() -> void:
 		_brake.basis = _rest_basis[_brake] * Basis(Vector3.RIGHT, -deg_to_rad(PEDAL_DEG) * float(_analog_now.get("brake", 0.0)))
 	if _shifter != null:
 		_shifter.basis = _rest_basis[_shifter] * Basis(Vector3.RIGHT, -deg_to_rad(SHIFT_DEG) * float(_analog_now.get("shift", 0.0)))
+	if _bars != null:
+		# Right is clockwise seen from above (about the stem's own Y); a pull toward the player tips the grips down.
+		_bars.basis = _rest_basis[_bars] * Basis(Vector3.UP, -deg_to_rad(BARS_YAW_DEG) * steer) \
+			* Basis(Vector3.RIGHT, deg_to_rad(BARS_PITCH_DEG) * float(_analog_now.get("pitch", 0.0)))
+	if _slide != null:
+		_slide.position = _slide_rest + Vector3(steer * ArcadeCabinetSpecs.SLOT_TRAVEL, 0.0, 0.0)
 
 
 ## The steering wheel's turn as last shown (-1 full left .. 1 full right), and how far a pedal is down, for the
@@ -494,6 +535,15 @@ func stick_lean_of(index: int) -> Vector2:
 
 func dial_angle() -> float:
 	return _dial_angle
+
+
+## The crank's turn as drawn (radians, forward positive), and how far the bars are pushed (-1 pulled .. 1 pushed) now.
+func crank_angle() -> float:
+	return _crank_angle
+
+
+func bars_pitch() -> float:
+	return float(_analog_now.get("pitch", 0.0))
 
 
 func shift_amount() -> float:
