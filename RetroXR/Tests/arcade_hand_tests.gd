@@ -1081,10 +1081,24 @@ func _group_slot() -> void:
 	var left := _hand("left")
 	input._right_vr_ctrl = _ctrl(right)
 	input._left_vr_ctrl = _ctrl(left)
+	# The handle a hand takes is the dome that is DRAWN, wherever the builder put it.
 	var ball := func(panel: ArcadeControlModule) -> Vector3:
-		return (panel.find_child("SlidePivot", true, false) as Node3D).global_transform * Vector3(0, 0, 0.14)
+		return (panel.find_child("LeverBall", true, false) as Node3D).global_position
 	var ball_a: Vector3 = ball.call(a)
 	var ball_b: Vector3 = ball.call(b)
+	var grab_a: ArcadePanelHands.ControlGrab = null
+	for g in a.hands().grabs():
+		if g is ArcadePanelHands.SlideGrab:
+			grab_a = g
+	_ok(grab_a != null and grab_a.handle().distance_to(ball_a) < 0.001,
+		"slot: the point a hand reaches for is the centre of the drawn dome (%.3f m off)" % (grab_a.handle().distance_to(ball_a) if grab_a != null else -1.0))
+	_tip_at(right, ball_a + Vector3(0, 0, 0.09))
+	input._process(0.016)
+	_trigger(right, 1.0)
+	input._process(0.016)
+	_ok(not a.hands().holds(&"slide"), "slot: a trigger squeezed 9 cm in front of the dome takes nothing")
+	_trigger(right, 0.0)
+	input._process(0.016)
 	_tip_at(right, ball_a)
 	_tip_at(left, ball_b)
 	_trigger(right, 1.0)

@@ -476,6 +476,15 @@ static func screen_inches(profile: ArcadeGameProfile) -> int:
 	return profile.monitor_inches()
 
 
+## The upright-family body whose glass holds a tube of this class (25 inch = the upright's own): the upright while it fits with its black round it,
+## else the tall one.
+static func class_shape(inches: int) -> String:
+	var up: Dictionary = shapes()["upright"]
+	var native: Vector2 = up["tube"]
+	var tube := native * (float(inches) / float(up.get("inches", 25)))
+	return "upright" if tube.y <= glass_limits(up, 9.0).y + 0.001 else "tall"
+
+
 ## The body and the tube a WIDE upright gets: the upright's own 0.44 m tube is the right size for a 0.66 m body and
 ## a postage stamp in a 1.2 m one, so a picture takes PICTURE_SHARE of the body's width (never less than the
 ## upright's, never more than the tall glass holds). Up to what the upright's glass holds with its black round the
@@ -690,6 +699,13 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		if not wide.is_empty():
 			shape = str(wide["shape"])
 			inches = int(wide["inches"])
+		elif inches > int(shapes()["upright"].get("inches", 25)) and not profile.is_vertical():
+			# A game whose own monitor was bigger than the upright's (Panic Park's 33 inch) wants the glass that holds it, and a body
+			# wide enough for it between the sides.
+			shape = class_shape(inches)
+			var row: Dictionary = shapes()[shape]
+			var tube := (row["tube"] as Vector2) * (float(inches) / float(row.get("inches", 25)))
+			width = maxf(width, ceilf((tube.x + 0.04 + GLASS_SIDES) * 100.0) / 100.0)
 	# The screen(s): a scope game's monitor shows its first screen alone and the scope the second; a game of several screens, the frame MAME
 	# lays them out in; any other, one picture, stood on its side for a monitor that was.
 	var screen := {"vertical": profile.is_vertical(), "screens": profile.screens()}

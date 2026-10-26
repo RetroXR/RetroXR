@@ -983,7 +983,7 @@ p2c1b9w0:other;r270;m19 ron2=ron2a
 p2c1b9w2:dial+joy+paddle;tbike downhill=downhillu
 p2c1b9w2:joy+paddle+pedal;trace raceon=raceonj
 p2c1b9w2:joy+stick gunwars=gunwarsa
-p2c1b9w2:joy+stick;tslot panicprk=panicprkj
+p2c1b9w2:joy+stick;tslot;m33 panicprk=panicprkj
 p2c1b9w4:joy+other;r270 msjiken telmahjn
 p2c2b0w0:ball;r90;a;m19 bking2 bking3
 p2c2b0w4:joy;r90;a;v clubpacm=clubpacma

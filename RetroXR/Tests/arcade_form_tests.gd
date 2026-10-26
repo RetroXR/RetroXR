@@ -1530,6 +1530,10 @@ func _group_odd() -> void:
 			% [float(slot["width"]), S.panels_span(slot["players"])])
 	_ok(not _spec("sf2").has("cycle") and not _spec("sf2").has("holo") and _kinds(_spec("pacman")) != ["slot"],
 		"odd: no other game gets any of them")
+	# Panic Park's own cabinets had a 33 or a 50 inch screen (System 23): the smaller, in the tall body that holds it with its black round it.
+	_ok(P.for_romset("panicprk").monitor_inches() == 33 and str(slot["shape"]) == "tall" and int(slot["screen"]["inches"]) == 33
+			and _tube(slot).x > 0.62 and float(slot["width"]) >= _tube(slot).x + 0.12 - 0.011 and float(slot["width"]) < 0.80,
+		"odd: Panic Park's picture is a 33 inch class (%.2f x %.2f m) in the tall body, on a body (%.2f m) that holds it" % [_tube(slot).x, _tube(slot).y, float(slot["width"])])
 	# A form asked of a spec that already wore another leaves nothing of it behind, and a spec that differs only by its
 	# stage or its bicycle is a different form, so the morph is built.
 	_ok(not S.for_game(cycle, P.for_romset("pacman")).has("cycle") and not S.for_game(holo, P.for_romset("pacman")).has("holo"),
@@ -1622,6 +1626,14 @@ func _group_odd() -> void:
 	var ca := ((la.find_child("LeverBall", true, false) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color
 	var cb := ((lb.find_child("LeverBall", true, false) as MeshInstance3D).material_override as StandardMaterial3D).albedo_color
 	_ok(ca.r > ca.b + 0.4 and cb.b > cb.r + 0.4, "odd: player 1's lever ball is red and player 2's blue")
+	# What a player slides is a big flat dome, and START is a big round button in the same colour (no other panel's START is more than 2.5 cm).
+	var ball_mesh := (la.find_child("LeverBall", true, false) as MeshInstance3D).mesh as SphereMesh
+	var start_a := a.find_child("Start", true, false) as MeshInstance3D
+	var start_color := (start_a.get_active_material(0) as StandardMaterial3D).albedo_color
+	_ok(ball_mesh.radius >= 0.04 and ball_mesh.height < ball_mesh.radius * 2.0 and (start_a.mesh as CylinderMesh).bottom_radius >= 0.025
+			and start_color.is_equal_approx(ca),
+		"odd: each handle is a flat dome %.0f cm across and each START a %.0f cm round button in its player's colour"
+			% [ball_mesh.radius * 200.0, (start_a.mesh as CylinderMesh).bottom_radius * 200.0])
 	var xa := la.global_position.x
 	var xb := lb.global_position.x
 	a.show_state(1 << ControllerBindings.JOYPAD_RIGHT)

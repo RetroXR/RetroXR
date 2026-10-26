@@ -1087,7 +1087,7 @@ class SlideGrab extends ControlGrab:
 		trace = p_node.find_child("LeverBall", true, false) as MeshInstance3D
 
 	func handle() -> Vector3:
-		return node.global_transform * Vector3(0.0, 0.0, 0.14)
+		return node.global_transform * Vector3(0.0, 0.0, ArcadeCabinetBuilder.SLOT_HANDLE_Z)
 
 	func reach() -> float:
 		return ArcadePanelHands.SLIDE_REACH

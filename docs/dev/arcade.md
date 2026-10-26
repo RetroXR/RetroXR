@@ -828,8 +828,9 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   START on the bars' clamp. The pointer box of the stand stops under the bars or a laser could not reach their grip.
 - **A hologram window** (`holo`: Time Traveler): the upright with its monitor's picture `HOLO_DEPTH` (30 cm) behind the glass at the far end of a black tunnel cut to the window, a plinth
   in front of it for the props (the real cabinet threw its CRT's picture on a curved mirror; the picture is drawn where the image appeared).
-- **Two levers in one slot** (`slot`: Panic Park): the upright with a `SlidePivot` carriage on a shared `SlotRail` for each player (red and blue), `SLOT_TRAVEL` 14 cm either side of where it
-  rests, so that both reach the middle and neither passes it; the lever's position is the left stick X (an analog position: MAME's port has `CENTERDELTA(0)`).
+- **Two levers in one slot** (`slot`: Panic Park): the tall body (a 33 inch class screen, table `m33`) with a `SlidePivot` carriage on a shared `SlotRail` for each player (red and blue), `SLOT_TRAVEL` 14 cm either side of where it
+  rests, so that both reach the middle and neither passes it; the lever's position is the left stick X (an analog position: MAME's port has `CENTERDELTA(0)`). The handle is a flat dome 9 cm across
+  and START a big round button in the player's colour.
 - **A dance stage** (`dance` four arrows, `pump` Pump It Up's five panels): the wide body, a square of nine 30 cm panels per dancer (one or two),
   a safety bar behind each; each dancer's arrows belong to that player's panel (`Pad<Dir>` sink with the directions, Pump's `Btn1..5` with the
   buttons), taken hold of at its START on the deck.

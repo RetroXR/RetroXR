@@ -78,6 +78,10 @@ LAYOUTS = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__))
 # The screen that is a scope's own, by PARENT romset: every Silent Scope builds on hornet.cpp's `sscope` configuration, whose second screen
 # is `rscreen` ("for scope", 15 kHz, 768 x 236). The first is the monitor.
 SCOPE_SCREEN = {"sscope": 1, "sscope2": 1}
+# A monitor the game's own cabinet is known to have had that is not the 25 inch default, by PARENT romset (the table's `m`). Each is a figure from the
+# research, not from MAME (docs/dev/arcade-cabinets.md): Panic Park's dedicated cabinets had a 33 or a 50 inch screen (Namco System 23, Wikipedia);
+# the 33 is the smaller of the two.
+MONITOR_CLASS = {"panicprk": 33}
 # Multi-screen romsets layouts.py did not meet (not a coin machine to it, or its driver was not in the sources): they get no `c` and the cabinet
 # lays them out as it laid out any second screen, side by side.
 MISSING_LAYOUT: list[str] = []
@@ -326,7 +330,9 @@ def profile_of(machine, parent):
     if inp.get("service") == "yes":
         attrs.append("v")
     year = machine.findtext("year") or ""
-    if year[:4].isdigit() and int(year[:4]) < 1985 and displays and displays[0].get("type") != "vector":
+    if family in MONITOR_CLASS:
+        attrs.append("m%d" % MONITOR_CLASS[family])
+    elif year[:4].isdigit() and int(year[:4]) < 1985 and displays and displays[0].get("type") != "vector":
         attrs.append("m19")
     return key + "".join(";" + a for a in attrs)
 

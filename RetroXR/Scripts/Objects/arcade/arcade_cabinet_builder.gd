@@ -22,6 +22,9 @@ const FORM_META := &"arcade_form"
 const VARIANT_META := &"arcade_variant"
 
 const SIDE_T := 0.02
+## Where a slot handle's dome centre stands above its carriage, in the carriage's frame (Panic Park): the hands' reach point
+## (ArcadePanelHands.SlideGrab.handle).
+const SLOT_HANDLE_Z := 0.095
 ## The flange a button stands in: how proud of the plate it is, so a pressed cap sinks into it.
 const RIM_H := 0.005
 const TUBE_DEPTH := 0.07
@@ -506,16 +509,17 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		# A lever in the slot (Panic Park): a carriage on the rail with an upright lever and a ball, red for player 1
 		# and blue for player 2, each in its own half and meeting the other's in the middle.
 		var carriage := ArcadeParts.node(_owner, mod, "Node3D", "SlidePivot", Vector3(float(spec["slot_x"]), 0.015, 0.0)) as Node3D
-		ArcadeParts.box(_owner, carriage, "CarriageBlock", Vector3(0.07, 0.05, 0.016), Vector3(0, 0, 0.008), _metal)
-		ArcadeParts.cylinder(_owner, carriage, "LeverShaft", 0.010, 0.12, Vector3(0, 0, 0.076), _metal, Vector3.BACK)
-		var lever_ball := ArcadeParts.node(_owner, carriage, "MeshInstance3D", "LeverBall", Vector3(0, 0, 0.14)) as MeshInstance3D
+		ArcadeParts.box(_owner, carriage, "CarriageBlock", Vector3(0.09, 0.06, 0.016), Vector3(0, 0, 0.008), _metal)
+		ArcadeParts.cylinder(_owner, carriage, "LeverShaft", 0.012, 0.07, Vector3(0, 0, 0.051), _metal, Vector3.BACK)
+		# The handle is a big flat dome, a button's size and more (9 cm across), red or blue: what a player slides along the slot.
+		var lever_ball := ArcadeParts.node(_owner, carriage, "MeshInstance3D", "LeverBall", Vector3(0, 0, SLOT_HANDLE_Z)) as MeshInstance3D
 		var lm := SphereMesh.new()
-		lm.radius = 0.030
-		lm.height = 0.060
-		lm.radial_segments = 24
-		lm.rings = 12
+		lm.radius = 0.045
+		lm.height = 0.056
+		lm.radial_segments = 28
+		lm.rings = 14
 		lever_ball.mesh = lm
-		lever_ball.material_override = ArcadeParts.mat(_player_color(index), 0.0, 0.3)
+		lever_ball.material_override = ArcadeParts.mat(_player_color(index), 0.0, 0.25)
 	elif kind == "pad":
 		# A dancer: START on the deck, and the stage's arrows (Pump It Up's five panels) on the floor in front.
 		_arrows(mod, to_panel, Vector3(float(spec.get("stage_x", 0.0)), 0.0, STAGE_Z), int(spec.get("arrows", 4)), index)
@@ -523,7 +527,11 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		var bt: Dictionary = spec["buttons"][k]
 		var pos: Vector2 = bt["pos"]
 		_cap(mod, "Btn%d" % (k + 1), Vector3(pos.x, pos.y, 0.0), bt["radius"], BUTTON_COLORS[int(bt["color"])], 0.012)
-	_cap(mod, "Start", Vector3(start_x, -0.07, 0.0), 0.011, Color(0.92, 0.92, 0.92), 0.008)
+	if kind == "slot":
+		# Panic Park's START is a big round button in its player's colour, under the handle that player slides.
+		_cap(mod, "Start", Vector3(start_x, -0.07, 0.0), 0.028, _player_color(index), 0.014)
+	else:
+		_cap(mod, "Start", Vector3(start_x, -0.07, 0.0), 0.011, Color(0.92, 0.92, 0.92), 0.008)
 	var label := str(spec.get("label", ""))
 	if not label.is_empty():
 		# An alternating game's two STARTs say which is which (1P, 2P), on the deck under each.
