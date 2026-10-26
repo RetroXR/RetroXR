@@ -142,6 +142,9 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
     (`CRANK_SPEED` 1.5 turns a second at full), because MAME's `AD_STICK_Z` reads speed about its centre. libretro-mame binds `IPT_AD_STICK_Z` to the right stick's Y
     (`input_retro.cpp`: "bonus AD stick Z").
   The rider's hands are one controller (a `PanelGrip` at the stem) as a panel is. No collision: a player steps up to it. One coin door.
+  **The saddle is a seat** (2026-10-26; it was drawn and nothing could be sat on): `RiderSeat`, a `CockpitSeat` (`_build_rider_seat`), the cushion to press on the saddle's top, the eyes 0.72 m
+  above it, getting up onto the floor beside the stand, the rider's own floor taken to be at the pedals' height (a headset adds its person's height to it: a person on a real chair has
+  their eyes about where a cyclist's are). `seat_tests rider/`.
 - **VR hands**: the trigger on a grip takes hold of the bars (`BARS_REACH` 7 cm): sideways 15 cm is a full turn, forward or back 10 cm a full tip (`BarsGrab`, two axes,
   its own let-go distance); the trigger at a pedal takes hold of the crank (`CRANK_REACH` 6 cm) and turning it with the hand pedals, at the speed the hand turns it
   (`CrankGrab`: an angle about the axle, no angle on the axle itself).

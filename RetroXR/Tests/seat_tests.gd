@@ -15,6 +15,7 @@
 ##   family/   every seat scene has the script, its markers, a cushion and an eye height that is a sitting one
 ##   cockpit/  a sit-down driving cabinet's own seat: eyes level with the middle of its glass, pressed to sit, one seat at a time
 ##   follow/   a seat on a moving base carries the player with it, in position and never in heading
+##   rider/    a motorbike's and a bicycle's saddle is a seat: pressed to sit, the eyes above it, a floor to get up onto, off the leaning part
 ##   save/     a seat is a plain scene saved by its token and spawned by it
 extends Node
 
@@ -78,6 +79,8 @@ func _run() -> void:
 		await _group_cockpit()
 	if _want("follow"):
 		await _group_follow()
+	if _want("rider"):
+		await _group_rider()
 	if _want("save"):
 		await _group_save()
 
@@ -337,7 +340,10 @@ func _cockpit(at: Vector3, yaw: float, pickable: bool = false, romset: String = 
 	add_child(cab)
 	var builder := ArcadeCabinetBuilder.new(spec, cab)
 	builder.build_form()
-	return {"cab": cab, "seat": cab.find_child("DriverSeat", true, false), "boxes": builder.form_boxes, "spec": spec}
+	var seat := cab.find_child("DriverSeat", true, false)
+	if seat == null:
+		seat = cab.find_child("RiderSeat", true, false)
+	return {"cab": cab, "seat": seat, "boxes": builder.form_boxes, "spec": spec}
 
 
 func _group_cockpit() -> void:
@@ -503,6 +509,75 @@ func _group_follow() -> void:
 		"follow: a seat on no base leaves the head where it is")
 	still_seat.stand()
 	(still["cab"] as Node).free()
+	_drop_rig()
+	await _frames(2)
+
+
+# --- rider ---------------------------------------------------------------------
+
+## The saddle of a ride-on motorbike (Hang-On) or bicycle (Prop Cycle) used to be a picture of one: the seat was drawn and nothing could be sat on. It is a CockpitSeat
+## now: the cushion you press on the saddle's top, the eyes above it, the floor to get up onto, and NOT on the part that leans (a bike that leaned its rider 14 degrees
+## would swing a head 30 cm).
+func _group_rider() -> void:
+	_make_rig()
+	await _frames(2)
+	_body.enabled = true
+	for row: Array in [["hangon", "BikeSeat", 0.55, 0.80, "LeanPivot"], ["propcycl", "Saddle", 0.60, 0.85, ""]]:
+		var romset: String = row[0]
+		var built := _cockpit(Vector3(2.0, 0.0, -3.0), 0.7, false, romset)
+		var cab := built["cab"] as Node3D
+		var seat := built["seat"] as CockpitSeat
+		await _frames(2)
+		_ok(seat != null and seat.name == "RiderSeat" and seat.find_child("EyePoint", false, false) != null and seat.find_child("StandPoint", false, false) != null
+				and seat.find_child("SeatTrigger", false, false) is SeatTrigger,
+			"rider: %s: the saddle is a CockpitSeat with its EyePoint, StandPoint and SeatTrigger" % romset)
+		if seat == null:
+			cab.free()
+			continue
+		var saddle := cab.find_child(str(row[1]), true, false) as MeshInstance3D
+		var size := (saddle.mesh as BoxMesh).size
+		var top := cab.to_local(saddle.global_position).y + size.y * 0.5
+		var eye := cab.to_local(seat.eye_transform().origin)
+		var trigger := seat.find_child("SeatTrigger", false, false) as SeatTrigger
+		var at := cab.to_local(trigger.global_position)
+		_ok(absf(eye.x) < 0.02 and eye.y - top >= float(row[2]) and eye.y - top <= float(row[3]) and absf(eye.z - cab.to_local(saddle.global_position).z) < 0.15,
+			"rider: %s: the eyes are over the saddle, %.2f m above it (%.2f..%.2f is a rider's)" % [romset, eye.y - top, float(row[2]), float(row[3])])
+		_ok(absf(at.x) < 0.02 and at.y > top - 0.005 and at.y < top + 0.03 and absf(at.z - cab.to_local(saddle.global_position).z) < 0.05,
+			"rider: %s: the cushion to press is on the saddle's top (%.3f m, the saddle's %.3f)" % [romset, at.y, top])
+		_ok(_near(Seat.yaw_of(seat.eye_transform().basis), Seat.yaw_of(cab.global_basis), 1e-3), "rider: %s: looking the way the cabinet faces, at the screen" % romset)
+		var stand := cab.to_local(seat.stand_point())
+		_ok(absf(stand.x) >= 0.40 and _near(stand.y, 0.0, 0.01), "rider: %s: getting up is onto the floor beside the stand (%s)" % [romset, str(stand)])
+		# The part that leans never carries the seat.
+		var lean := cab.find_child("LeanPivot", true, false)
+		_ok(lean == null or not lean.is_ancestor_of(seat), "rider: %s: the seat is not on the part that leans" % romset)
+		# Nothing the cabinet is aimed at by stands over the cushion.
+		var slab := trigger.get_node("CollisionShape3D") as CollisionShape3D
+		var slab_box := AABB(trigger.position + seat.position + slab.position - (slab.shape as BoxShape3D).size * 0.5, (slab.shape as BoxShape3D).size)
+		var covered := false
+		for box: AABB in built["boxes"]:
+			covered = covered or box.intersects(slab_box)
+		_ok(not covered, "rider: %s: no pointer box of the cabinet stands over the cushion (a laser reaches it)" % romset)
+		# Sitting: the head goes to the eyes, a press does it, getting up puts the player on the stand point.
+		trigger.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, trigger))
+		await _frames(2)
+		_ok(seat.is_occupied() and _camera.global_position.distance_to(seat.eye_transform().origin) < 0.02,
+			"rider: %s: a press on the saddle sits, the head at the eyes" % romset)
+		_ok(_near(_camera.position.y, seat.eye_transform().origin.y - seat.global_position.y), "rider: %s: on the desktop the camera is as tall as the eyes are above the rider's floor" % romset)
+		var stand_at := seat.stand_point()
+		trigger.pointer_event(_event(XRToolsPointerEvent.Type.PRESSED, trigger))
+		await _frames(2)
+		_ok(not seat.is_occupied() and _near(_camera.global_position.x, stand_at.x, 1e-3) and _near(_camera.global_position.z, stand_at.z, 1e-3),
+			"rider: %s: the next press gets up, onto the StandPoint" % romset)
+		# A bike leaning to the full under the rider does not move the head.
+		if lean != null:
+			seat.sit()
+			await _frames(2)
+			var head := _camera.global_position
+			(lean as Node3D).basis = Basis(Vector3.BACK, deg_to_rad(-14.0))
+			await _frames(3)
+			_ok(_camera.global_position.distance_to(head) < 1e-3, "rider: %s: the bike at full lean under the rider leaves the head where it is" % romset)
+			seat.stand()
+		cab.free()
 	_drop_rig()
 	await _frames(2)
 

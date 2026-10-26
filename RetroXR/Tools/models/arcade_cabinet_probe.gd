@@ -288,6 +288,8 @@ func _shot_forms() -> void:
 		var driver := _model.find_child("DriverSeat", true, false) as CockpitSeat
 		if driver == null:
 			driver = _model.find_child("BenchSeat1", true, false) as CockpitSeat
+		if driver == null:
+			driver = _model.find_child("RiderSeat", true, false) as CockpitSeat
 		if driver != null:
 			var eye := driver.eye_transform()
 			_cam.global_transform = eye
@@ -297,6 +299,10 @@ func _shot_forms() -> void:
 			var lap := _model.find_child("StickBall", true, false) as Node3D
 			if lap == null:
 				lap = _model.find_child("WheelPivot", true, false) as Node3D
+			if lap == null:
+				lap = _model.find_child("Handlebars", true, false) as Node3D
+			if lap == null:
+				lap = _model.find_child("BarsPivot", true, false) as Node3D
 			if lap != null:
 				_cam.global_transform = eye
 				_cam.look_at(lap.global_position, Vector3.UP)

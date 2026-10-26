@@ -840,7 +840,9 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
 - **A stand-up driving cabinet** (`stand`: Pole Position, Out Run, Final Lap): the wheel stands out of the panel, a gear lever beside it, and the
   two pedals on the floor in front, clear of the bay door (the real ones were on the kick panel: the door is there).
 - **A ride-on bike** (`bike`: Hang-On, Harley-Davidson, Manx TT): a motorbike on a stand in front of the `racer` body; it LEANS with the steering
-  (`LeanPivot`), the rider takes hold of it at the bars.
+  (`LeanPivot`), the rider takes hold of it at the bars. **The saddle is a seat** (2026-10-26, `RiderSeat`, a `CockpitSeat`: press the saddle to sit, the eyes 0.68 m above it, 1.05 m from the
+  picture, getting up onto the floor beside the stand): **NOT on the part that leans** (a bike that leaned its rider 14 degrees would swing a head 30 cm; the rider's body does the leaning),
+  and **no pointer box over the saddle** (the machine's boxes stop under it: a box over it would stand between the laser and the cushion). A bicycle's saddle is one the same way (`cycle`).
 - **A ride-on bicycle** (`cycle`: Prop Cycle, 2026-10-25): a bicycle on a stand in front of the WIDE body (its own 40 inch tube: a rider's head is above the saddle),
   one controller taken hold of at the bars. `BarsPivot` turns and tips with the LEFT stick (X steers 28 degrees about the stem, Y tips the grips 12; pulled toward the rider is DOWN),
   `CrankPivot` pedals with the RIGHT stick's Y, up being forward and the deflection the pedalling SPEED (MAME's `AD_STICK_Z` "Cycle Pedal"; libretro-mame binds it to the right stick's Y);

@@ -37,4 +37,8 @@ a bed (`Scenes/Objects/furniture/seat_*.tscn`, baked by `Tools/gen/gen_seats.gd`
   `CockpitSeat._physics_process` calls `SeatSitting.follow()` before `pin()`, which moves the origin (and the body under it, and the pin) by the eye point's move since the last frame.
   **Position only**: the base turns, the view does not (a rotation of the player's view by a base is the thing that makes people ill in a headset: `AppPrefs.arcade_motion` is automatic = off in a headset,
   on at a desk, or the player's choice). `seat_tests follow/`. A headset and the Quest on a moving seat are OWED, as for every seat.
-- Tests: `seat_tests` (groups `pose sit press family cockpit follow save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).
+- **A bike's and a bicycle's saddle is a seat (2026-10-26).** `RiderSeat` (`ArcadeCabinetBuilder._build_rider_seat`, a `CockpitSeat` with no drawn seat of its own: the saddle is the machine's):
+  the cushion to press on the saddle's top, `EyePoint` 0.68 m (bike) or 0.72 m (bicycle) above it and a little toward the bars, `StandPoint` on the floor beside the stand. Its `floor_y` is the floor the
+  rider's feet are taken to be on (the bike's stand, the bicycle's pedals): a headset adds its person's height to it, so a person on a real chair has their eyes about where a rider's are. **It is NOT
+  on the part that leans** (a bike at full lean would swing a head 30 cm; the rider's body does the leaning) and **no pointer box of the cabinet stands over the saddle**. `seat_tests rider/`.
+- Tests: `seat_tests` (groups `pose sit press family cockpit follow rider save`; mutation-tested: yaw sign and the body switch). Pictures: `Tools/models/seats_probe` (windowed; eyes yellow, stand point green).

@@ -1211,6 +1211,24 @@ func _build_driver_seat(cp: Node3D, x: float = 0.0, z: float = SEAT_Z, node_name
 	ArcadeParts.node(_owner, seat, "Marker3D", "StandPoint", Vector3(stand_x, -PLATFORM_TOP, 0.02))
 
 
+## The seat a rider sits in on a bike or a bicycle (`RiderSeat`, a CockpitSeat): no seat of its own is drawn, the saddle is the machine's, only what makes it a
+## seat: the cushion you press, on the saddle's top (`saddle` its width and length), the eyes above it (`eye_above`, a little toward the bars by `eye_dz`: a rider
+## leans forward) and the floor to get up onto, beside the stand (`stand_x`). It stands at `floor_y`, the floor the rider's own feet are taken to be on (the stand's top
+## for a bike, the pedals' height for a bicycle): a headset adds its person's own height to it, so a person on a real chair has their eyes about where a rider's are.
+## It is NOT on the leaning part: a bike that leaned its rider 14 degrees would swing a head 30 cm; the rider's own body does the leaning.
+func _build_rider_seat(parent: Node3D, floor_y: float, z: float, saddle_top: float, saddle: Vector2, eye_above: float, eye_dz: float, stand_x: float) -> void:
+	var seat := ArcadeParts.node(_owner, parent, "Node3D", "RiderSeat", Vector3(0.0, floor_y, z)) as Node3D
+	seat.set_script(load(SCRIPTS["seat"]))
+	var trigger := ArcadeParts.node(_owner, seat, "Area3D", "SeatTrigger", Vector3(0.0, saddle_top - floor_y + 0.005, 0.0)) as Area3D
+	trigger.set_script(load(SCRIPTS["seat_trigger"]))
+	var tcol := ArcadeParts.node(_owner, trigger, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var tshape := BoxShape3D.new()
+	tshape.size = Vector3(saddle.x - 0.02, 0.03, saddle.y - 0.04)
+	tcol.shape = tshape
+	ArcadeParts.node(_owner, seat, "Marker3D", "EyePoint", Vector3(0.0, saddle_top - floor_y + eye_above, eye_dz))
+	ArcadeParts.node(_owner, seat, "Marker3D", "StandPoint", Vector3(stand_x, -floor_y, 0.02))
+
+
 # ── a bench for a ride ──────────────────────────────────────────────────────
 
 ## Where a bench's platform starts and ends, and where its seats are front to back: a seat's width apart, close enough to the guns on the front
@@ -1251,6 +1269,13 @@ func _build_bench(spec: Dictionary) -> void:
 ## A ride-on motorbike in front of the monitor housing (Hang-On, Harley-Davidson, Manx TT): a body you
 ## straddle on a stand, the seat, the tank, and the handlebars. The bike leans with the steering
 ## (`LeanPivot`, as the real one tipped under the rider), and the rider takes hold of it at the bars.
+## Where a bike's saddle is: its top (the BikeSeat box's, on the LeanPivot at 0.12 m: 0.12 + 0.55 + 0.04), its middle front to back, and the floor the rider's feet are
+## taken to be on (the stand's top).
+const BIKE_SADDLE_TOP := 0.71
+const BIKE_SADDLE_Z := 1.73
+const BIKE_FLOOR_Y := 0.10
+
+
 func _build_bike(spec: Dictionary) -> void:
 	var bk := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Bike", Vector3.ZERO)) as Node3D
 	ArcadeParts.box(_owner, bk, "BikeStand", Vector3(0.40, 0.10, 1.10), Vector3(0, 0.05, 1.45), _dark)
@@ -1288,7 +1313,12 @@ func _build_bike(spec: Dictionary) -> void:
 	var gshape := BoxShape3D.new()
 	gshape.size = Vector3(0.62, 0.20, 0.14)
 	gcol.shape = gshape
-	form_boxes.append(AABB(Vector3(-0.20, 0.0, 0.90), Vector3(0.40, 0.75, 1.10)))
+	# The rider's seat: on the saddle (a box 0.24 x 0.44 whose top is 0.71 m up, at z 1.73), the eyes 0.68 m above it. Not on the LeanPivot.
+	_build_rider_seat(bk, BIKE_FLOOR_Y, BIKE_SADDLE_Z, BIKE_SADDLE_TOP, Vector2(0.24, 0.44), 0.68, -0.06, -0.50)
+	# Aimed at, the machine is the cabinet (to hold and carry): its front (the fairing, the tank, the bars' stand) and its tail UNDER the saddle's top,
+	# which is the seat's own (a box over it would stand between the laser and the trigger).
+	form_boxes.append(AABB(Vector3(-0.20, 0.0, 0.90), Vector3(0.40, 0.75, BIKE_SADDLE_Z - 0.22 - 0.90)))
+	form_boxes.append(AABB(Vector3(-0.20, 0.0, BIKE_SADDLE_Z - 0.22), Vector3(0.40, BIKE_SADDLE_TOP - 0.03, 0.90 + 1.10 - (BIKE_SADDLE_Z - 0.22))))
 
 
 # ── a ride-on bicycle ───────────────────────────────────────────────────────
@@ -1296,6 +1326,10 @@ func _build_bike(spec: Dictionary) -> void:
 ## Where a bicycle's stand starts and ends front to back (clear of the bay door's swing, as the cockpit's platform).
 const CYCLE_Z0 := 0.84
 const CYCLE_Z1 := 2.14
+## Where the bicycle's saddle is (its top and middle, front to back) and the floor the rider's feet are taken to be on: the pedals' height.
+const CYCLE_SADDLE_TOP := 0.975
+const CYCLE_SADDLE_Z := 1.86
+const CYCLE_FLOOR_Y := 0.40
 
 
 ## A tube from one point to another in `parent`'s frame: what a bicycle's frame is made of.
@@ -1367,6 +1401,8 @@ func _build_cycle(spec: Dictionary) -> void:
 	var gshape := BoxShape3D.new()
 	gshape.size = Vector3(0.66, 0.20, 0.14)
 	gcol.shape = gshape
+	# The rider's seat: on the saddle (0.15 x 0.27, its top 0.975 m up at z 1.86), the eyes 0.72 m above it, the rider's feet taken to be at the pedals' height.
+	_build_rider_seat(cy, CYCLE_FLOOR_Y, CYCLE_SADDLE_Z, CYCLE_SADDLE_TOP, Vector2(0.15, 0.27), 0.72, -0.04, -0.55)
 	# Aimed at it is the cabinet (to hold and carry), under the bars: a box that reached them would hide their grip from a
 	# laser, which hits the nearest pointable.
 	form_boxes.append(AABB(Vector3(-0.28, 0.0, CYCLE_Z0), Vector3(0.56, 0.75, depth)))
