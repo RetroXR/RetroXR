@@ -222,6 +222,7 @@ func _capture_regions() -> void:
 	var counts := [0, 0, 0]
 	for y in image.get_height():
 		for x in image.get_width():
+			@warning_ignore("integer_division")
 			var zone := mini(int(x * 3 / image.get_width()), 2)
 			sums[zone] += image.get_pixel(x, y)
 			counts[zone] += 1

@@ -245,7 +245,7 @@ static func _scan_core_leftovers(installed: Dictionary, found: Dictionary) -> vo
 ## save/<core>/<game stem>/, so a stem with no ROM of that name anywhere is the
 ## test; matching across systems rather than within one is deliberate, because
 ## the same game can be launched from more than one system folder.
-static func _scan_saves(installed: Dictionary, found: Dictionary) -> void:
+static func _scan_saves(_installed: Dictionary, found: Dictionary) -> void:
 	var save_root := CoreDownloadManager.default_core_root().path_join("save")
 	var root_dir := DirAccess.open(save_root)
 	if root_dir == null:

@@ -91,19 +91,19 @@ func _aborting() -> bool:
 
 ## Relative to the states root, so the key survives the app moving — the same
 ## rule RommSaveSync.key_for follows for saves.
-static func key_for(state_path: String) -> String:
-	return state_path.trim_prefix(StatePaths.states_root()).trim_prefix("/")
+static func key_for(file_path: String) -> String:
+	return file_path.trim_prefix(StatePaths.states_root()).trim_prefix("/")
 
 
-func record_for(state_path: String) -> Dictionary:
-	return (_state.get(key_for(state_path), {}) as Dictionary).duplicate()
+func record_for(file_path: String) -> Dictionary:
+	return (_state.get(key_for(file_path), {}) as Dictionary).duplicate()
 
 
 ## What the tab shows against a row: "on" | "busy" | "failed" | "off".
-func status_for(state_path: String) -> String:
+func status_for(file_path: String) -> String:
 	if not backup_enabled():
 		return "off"
-	var k := key_for(state_path)
+	var k := key_for(file_path)
 	if _current_key == k:
 		return "busy"
 	for j: Dictionary in _queue:
@@ -117,7 +117,7 @@ func status_for(state_path: String) -> String:
 
 ## Every row's status at once, keyed by state_id, so the tab makes one pass
 ## rather than one call per row.
-func statuses_for(core_name: String, rom_path: String, rows: Array) -> Dictionary:
+func statuses_for(_core_name: String, _rom_path: String, rows: Array) -> Dictionary:
 	var out: Dictionary = {}
 	for r: Variant in rows:
 		var d := r as Dictionary
@@ -127,7 +127,7 @@ func statuses_for(core_name: String, rom_path: String, rows: Array) -> Dictionar
 
 ## The one sentence to put above the list when backup is failing, or "".
 ## One strip rather than twelve identical row glyphs to read one at a time.
-func failure_notice(core_name: String, rom_path: String, rows: Array) -> String:
+func failure_notice(_core_name: String, _rom_path: String, rows: Array) -> String:
 	if not backup_enabled() or rows.is_empty():
 		return ""
 	var failed := 0

@@ -240,16 +240,16 @@ static func recover(save_dir: String) -> bool:
 static func set_aside_unclaimed(save_dir: String) -> Array[String]:
 	var moved: Array[String] = []
 	var legacy := save_dir.path_join(LEGACY_DIR)
-	for name: String in DirAccess.get_files_at(save_dir):
-		if name.get_extension().to_lower() != "bcr":
+	for file_name: String in DirAccess.get_files_at(save_dir):
+		if file_name.get_extension().to_lower() != "bcr":
 			continue
 		DirAccess.make_dir_recursive_absolute(legacy)
-		var dst := legacy.path_join(name)
+		var dst := legacy.path_join(file_name)
 		var n := 2
 		while FileAccess.file_exists(dst):
-			dst = legacy.path_join("%s %d.bcr" % [name.get_basename(), n])
+			dst = legacy.path_join("%s %d.bcr" % [file_name.get_basename(), n])
 			n += 1
-		if DirAccess.rename_absolute(save_dir.path_join(name), dst) == OK:
+		if DirAccess.rename_absolute(save_dir.path_join(file_name), dst) == OK:
 			moved.append(dst)
 	return moved
 
@@ -262,10 +262,10 @@ static func adopt_legacy(save_dir: String) -> PackedByteArray:
 	if not DirAccess.dir_exists_absolute(legacy):
 		return PackedByteArray()
 	var found: Array[Dictionary] = []
-	for name: String in DirAccess.get_files_at(legacy):
-		if name.get_extension().to_lower() != "bcr":
+	for file_name: String in DirAccess.get_files_at(legacy):
+		if file_name.get_extension().to_lower() != "bcr":
 			continue
-		var path := legacy.path_join(name)
+		var path := legacy.path_join(file_name)
 		var data := FileAccess.get_file_as_bytes(path)
 		if data.size() == SaturnBram.CART_SIZE and not SaturnBram.list_files(data).is_empty():
 			found.append({"path": path, "data": data, "time": FileAccess.get_modified_time(path)})

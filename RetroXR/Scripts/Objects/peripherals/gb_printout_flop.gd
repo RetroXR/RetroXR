@@ -63,8 +63,8 @@ static func is_printout(poster: Poster) -> bool:
 		return true
 	if poster.image_path.is_empty():
 		return false
-	var prints := DataPaths.media_root(GbPrinter.PRINTS_DIR).simplify_path()
-	return poster.image_path.simplify_path().begins_with(prints)
+	var prints_dir := DataPaths.media_root(GbPrinter.PRINTS_DIR).simplify_path()
+	return poster.image_path.simplify_path().begins_with(prints_dir)
 
 
 ## Give `poster` its flop, once.

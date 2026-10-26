@@ -355,19 +355,19 @@ static func _ensure_tables() -> void:
 
 static func _rs_init(poly: int, symsize: int, gen: Array) -> Dictionary:
 	var nn := (1 << symsize) - 1
-	var index_of := PackedInt32Array()
+	var log_of := PackedInt32Array()
 	var alpha_to := PackedInt32Array()
-	index_of.resize(256)
+	log_of.resize(256)
 	alpha_to.resize(256)
 	var sr := 1
 	for i in range(1, nn + 1):
-		index_of[sr] = i
+		log_of[sr] = i
 		alpha_to[i] = sr
 		sr <<= 1
 		if sr & (1 << symsize):
 			sr ^= poly
 		sr &= nn
-	return {"nn": nn, "index_of": index_of, "alpha_to": alpha_to, "gen": gen}
+	return {"nn": nn, "index_of": log_of, "alpha_to": alpha_to, "gen": gen}
 
 
 static func _rs_add_mod(rs: Dictionary, i: int, d: int) -> int:
@@ -379,13 +379,13 @@ static func _rs_add_mod(rs: Dictionary, i: int, d: int) -> int:
 
 
 static func _rs_encode(rs: Dictionary, blk: PackedInt32Array) -> void:
-	var index_of: PackedInt32Array = rs["index_of"]
+	var log_of: PackedInt32Array = rs["index_of"]
 	var p1 := 0
 	var p2 := 0
 	for i in 6:
 		var d := blk[i]
 		if d:
-			d = index_of[d] - 1
+			d = log_of[d] - 1
 			p1 ^= _rs_add_mod(rs, i, d)
 			p2 ^= _rs_add_mod(rs, i + 6, d)
 	blk[6] = p1
@@ -394,7 +394,7 @@ static func _rs_encode(rs: Dictionary, blk: PackedInt32Array) -> void:
 
 static func _rs_decode(rs: Dictionary, blk: PackedInt32Array) -> int:
 	var nn: int = rs["nn"]
-	var index_of: PackedInt32Array = rs["index_of"]
+	var log_of: PackedInt32Array = rs["index_of"]
 	var alpha_to: PackedInt32Array = rs["alpha_to"]
 	var error_mask := 0
 	var error_loc := 0
@@ -402,12 +402,12 @@ static func _rs_decode(rs: Dictionary, blk: PackedInt32Array) -> int:
 		var d := blk[i]
 		error_mask ^= d
 		if d:
-			d = index_of[d] + 6 - i
+			d = log_of[d] + 6 - i
 			while d >= nn:
 				d -= nn
 			error_loc ^= alpha_to[d + 1]
 	if error_mask:
-		var d := nn + index_of[error_loc] - index_of[error_mask]
+		var d := nn + log_of[error_loc] - log_of[error_mask]
 		while d >= nn:
 			d -= nn
 		if d < 8:

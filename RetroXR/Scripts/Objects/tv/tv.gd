@@ -182,10 +182,12 @@ var _display: TvDisplay = null
 var _fit: TvFit = null
 
 @onready var _screen_mesh: MeshInstance3D = $ScreenMesh
+@warning_ignore("unused_private_class_variable")
 @onready var _tube_collar: MeshInstance3D = $TubeCollar
 ## Composite 1's video socket. Kept as a named handle because that one socket is
 ## named from outside this script — a console's captive lead restores into it
 ## (system.gd::_snap_cable_to_tv), netplay names it, and the save file names it.
+@warning_ignore("unused_private_class_variable")
 @onready var _composite_port: XRToolsSnapZone = $CompositePort
 ## Off unless the fitted shell carries a VgaPortSeat — see TvPanel.seat_vga_port.
 @onready var _vga_port: XRToolsSnapZone = $VgaPort
@@ -205,7 +207,9 @@ var _fit: TvFit = null
 @onready var _audio_out_btn: VRButton = $AudioOutButton
 @onready var _stereo_btn: VRButton = $StereoButton
 @onready var _aspect_btn: VRButton = $AspectButton
+@warning_ignore("unused_private_class_variable")
 @onready var _speaker_l: Marker3D = get_node_or_null("SpeakerL")
+@warning_ignore("unused_private_class_variable")
 @onready var _speaker_r: Marker3D = get_node_or_null("SpeakerR")
 @onready var _osd_label: Label3D = $ScreenMesh/OSDLabel
 @onready var _vol_osd_label: Label3D = $ScreenMesh/VolumeOSDLabel
@@ -282,7 +286,9 @@ var audio_out: int = 0
 
 # Phosphor persistence ping-pong (Shaders/phosphor_decay.gdshader). A viewport
 # can't sample itself, so one renders while the other is read as "last frame".
+@warning_ignore("unused_private_class_variable")
 @onready var _phosphor_a: SubViewport = $PhosphorA
+@warning_ignore("unused_private_class_variable")
 @onready var _phosphor_b: SubViewport = $PhosphorB
 
 # Tube face size in metres, read off the mesh in _ready. The phosphor pitch is a
@@ -1193,7 +1199,7 @@ func cycle_source() -> void:
 	# Step until something this cabinet actually has turns up. Bounded by the number
 	# of inputs, so a set that somehow had none cannot spin here.
 	for i in SOURCE_NAMES.size():
-		next = (next + 1) % SOURCE_NAMES.size()
+		next = ((next + 1) % SOURCE_NAMES.size()) as Source
 		if _source_available(next):
 			break
 	set_source(next)
@@ -1228,7 +1234,7 @@ func _first_available_source() -> Source:
 
 ## Select an input. Idempotent, so panels can call it freely.
 func set_source(source: Source) -> void:
-	source = clampi(source, 0, SOURCE_NAMES.size() - 1)
+	source = clampi(source, 0, SOURCE_NAMES.size() - 1) as Source
 	# The retired tuner input. A save or a peer from before the aerial still says
 	# it, and what it meant — "show me broadcast television" — now lives on RF.
 	if source == Source.TV:

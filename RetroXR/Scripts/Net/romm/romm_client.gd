@@ -288,9 +288,10 @@ func test_connection(callback: Callable) -> void:
 			# Scopes last, so a server that will not answer /api/users/me still
 			# gets the full connection result rather than a failed test.
 			fetch_scopes(func(_sc_ok: bool, _scopes: PackedStringArray) -> void:
+				var message := summary
 				if config != null and config.knows_scopes() and not config.can_upload():
-					summary += " · uploads not permitted by this token"
-				callback.call(true, summary)
+					message += " · uploads not permitted by this token"
+				callback.call(true, message)
 			)
 		)
 	)

@@ -82,9 +82,9 @@ func setup(nm: Node, client: RommClient, downloader: RommDownloader,
 ## Once per system, not once per rebuild. rebuild() runs whenever the page is
 ## opened or the room changes, and each sweep walks a folder and stats every
 ## file in it -- worth doing once, pointless to repeat.
-func warm_for_session(rows: Array) -> void:
+func warm_for_session(system_rows: Array) -> void:
 	var dirs: Array = []
-	for row: Dictionary in rows:
+	for row: Dictionary in system_rows:
 		var sid := str(row.get("systemid", ""))
 		if sid.is_empty() or _warmed.has(sid):
 			continue

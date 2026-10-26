@@ -30,10 +30,10 @@ extends RefCounted
 ## Changing this changes the digest, so peers must run the same build to agree.
 ## They already must: the core identity check beside this one compares build
 ## strings, and a cross-build pair fails there first.
-static func of(rows: Dictionary) -> String:
+static func of(digests: Dictionary) -> String:
 	var lines: Array[String] = []
-	for relative: String in rows:
-		lines.append("%d:%s=%s" % [relative.length(), relative, str(rows[relative])])
+	for relative: String in digests:
+		lines.append("%d:%s=%s" % [relative.length(), relative, str(digests[relative])])
 	lines.sort()
 	return "\n".join(PackedStringArray(lines)).sha256_text()
 

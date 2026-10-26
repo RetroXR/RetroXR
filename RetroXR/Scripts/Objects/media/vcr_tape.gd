@@ -258,17 +258,17 @@ static func _movie_length(path: String) -> float:
 		if kind == "mvhd" and inside > 0:
 			var version := f.get_8()
 			f.get_buffer(3)
-			var scale := 0
+			var timescale := 0
 			var duration := 0
 			if version == 1:
 				f.get_buffer(16)
-				scale = int(f.get_32())
+				timescale = int(f.get_32())
 				duration = int(f.get_64())
 			else:
 				f.get_buffer(8)
-				scale = int(f.get_32())
+				timescale = int(f.get_32())
 				duration = int(f.get_32())
-			return float(duration) / float(scale) if scale > 0 and duration > 0 else 0.0
+			return float(duration) / float(timescale) if timescale > 0 and duration > 0 else 0.0
 		at += size
 		if inside > 0 and at >= inside:
 			break

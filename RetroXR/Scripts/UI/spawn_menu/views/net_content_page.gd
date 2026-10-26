@@ -160,10 +160,10 @@ func _make_row(row: Dictionary) -> Control:
 ## A missing ROM says the quiet part out loud. Everything else states its size.
 func _status_text(row: Dictionary) -> String:
 	var state := str(row.get("state", ""))
-	var size := int(row.get("size", 0))
+	var byte_count := int(row.get("size", 0))
 	match state:
 		NetplayContent.STATE_HAVE:
-			return MenuStyle.human_bytes(size) if size > 0 else "ready"
+			return MenuStyle.human_bytes(byte_count) if byte_count > 0 else "ready"
 		NetplayContent.STATE_FETCHING:
 			return "transferring..."
 		NetplayContent.STATE_ROMM:

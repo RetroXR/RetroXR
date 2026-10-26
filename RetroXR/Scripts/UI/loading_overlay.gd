@@ -65,18 +65,18 @@ func _process(_delta: float) -> void:
 
 # ── Owner bookkeeping ─────────────────────────────────────────────────────────
 
-## Register `owner` as something being waited on. Calling it twice for the same
+## Register `owner_id` as something being waited on. Calling it twice for the same
 ## owner refreshes the title rather than double-counting, which is what makes a
 ## coalesced room transition safe.
-func begin(owner: StringName, title: String = "", weight: float = 1.0) -> void:
+func begin(owner_id: StringName, title: String = "", weight: float = 1.0) -> void:
 	_hide_token += 1
-	if _owners.has(owner):
+	if _owners.has(owner_id):
 		if not title.is_empty():
-			_owners[owner]["title"] = title
+			_owners[owner_id]["title"] = title
 			_apply()
 		return
 	_order += 1
-	_owners[owner] = {
+	_owners[owner_id] = {
 		"weight": maxf(weight, 0.01),
 		"progress": 0.0,
 		"text": "",
@@ -88,26 +88,26 @@ func begin(owner: StringName, title: String = "", weight: float = 1.0) -> void:
 	_apply()
 
 
-func set_phase(owner: StringName, text: String, progress: float) -> void:
-	if not _owners.has(owner):
+func set_phase(owner_id: StringName, text: String, progress: float) -> void:
+	if not _owners.has(owner_id):
 		return
-	_owners[owner]["text"] = text
-	_owners[owner]["progress"] = clampf(progress, 0.0, 1.0)
+	_owners[owner_id]["text"] = text
+	_owners[owner_id]["progress"] = clampf(progress, 0.0, 1.0)
 	_apply()
 
 
-func set_detail(owner: StringName, rows: PackedStringArray) -> void:
-	if not _owners.has(owner):
+func set_detail(owner_id: StringName, rows: PackedStringArray) -> void:
+	if not _owners.has(owner_id):
 		return
-	_owners[owner]["detail"] = rows
+	_owners[owner_id]["detail"] = rows
 	_apply()
 
 
 ## Unregister. Unknown owners are ignored on purpose: the same boundary
 ## (notify_scene_content_ready) ends the boot restore and a room transition, and
 ## only one of them is ever registered.
-func end(owner: StringName) -> void:
-	if not _owners.erase(owner):
+func end(owner_id: StringName) -> void:
+	if not _owners.erase(owner_id):
 		return
 	if _owners.is_empty():
 		_begin_hide()
@@ -117,10 +117,10 @@ func end(owner: StringName) -> void:
 
 ## Pin the panel on an error. It stays up, showing why, until this owner is
 ## explicitly ended — a failure the player never sees is the thing being fixed.
-func fail(owner: StringName, message: String) -> void:
-	if not _owners.has(owner):
-		begin(owner)
-	_owners[owner]["failed"] = true
+func fail(owner_id: StringName, message: String) -> void:
+	if not _owners.has(owner_id):
+		begin(owner_id)
+	_owners[owner_id]["failed"] = true
 	if _panel != null:
 		_panel.show_load_error(message)
 

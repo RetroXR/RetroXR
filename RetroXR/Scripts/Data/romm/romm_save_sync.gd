@@ -837,6 +837,7 @@ func save_state() -> bool:
 # path, which runs off the emulation thread's listener.
 
 ## Answered for every resolve_rom_id call, hit or miss (rom_id 0 = not there).
+@warning_ignore("unused_signal")
 signal rom_id_resolved(systemid: String, rom_path: String, rom_id: int)
 
 ## See the note where it is used: RomM's by-hash search is slow enough that the

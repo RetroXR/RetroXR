@@ -261,6 +261,7 @@ func _rebuild_grid() -> void:
 
 func _update_pager() -> void:
 	var pages := maxi(1, ceili(float(_total) / float(ModioClient.PAGE_SIZE)))
+	@warning_ignore("integer_division")
 	_page_lbl.text = "Page %d of %d" % [_offset / ModioClient.PAGE_SIZE + 1, pages]
 	_prev_btn.disabled = _offset <= 0
 	_next_btn.disabled = _offset + ModioClient.PAGE_SIZE >= _total

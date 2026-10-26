@@ -98,12 +98,12 @@ func _ready() -> void:
 
 ## Take the list of whatever aerial the set's coax socket now reaches, or null
 ## when it reaches none. Called by RetroTV whenever a plug moves at either end.
-func set_lineup(lineup: TVLineup) -> void:
-	if _lineup == lineup:
+func set_lineup(new_lineup: TVLineup) -> void:
+	if _lineup == new_lineup:
 		return
 	if is_instance_valid(_lineup) 			and _lineup.channels_changed.is_connected(_on_lineup_changed):
 		_lineup.channels_changed.disconnect(_on_lineup_changed)
-	_lineup = lineup
+	_lineup = new_lineup
 	if is_instance_valid(_lineup):
 		_lineup.channels_changed.connect(_on_lineup_changed)
 	_on_lineup_changed()

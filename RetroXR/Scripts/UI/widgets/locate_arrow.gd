@@ -72,10 +72,10 @@ static func place(dir: Vector3) -> Dictionary:
 
 ## Point the player at `target` (and outline it), replacing whatever was being
 ## located before.
-func locate(target: Node3D, display_name: String) -> void:
-	if _target != null and _target != target:
+func locate(new_target: Node3D, display_name: String) -> void:
+	if _target != null and _target != new_target:
 		_end("replaced")
-	_target = target
+	_target = new_target
 	_target_name = display_name
 	_elapsed = 0.0
 	_seen = 0.0
@@ -176,10 +176,10 @@ func _end(why: String) -> void:
 	set_process(false)
 
 
-func _set_outline(on: bool) -> void:
+func _set_outline(enabled: bool) -> void:
 	if not is_instance_valid(_target):
 		return
 	for child in _target.get_children():
 		if child is PickableHighlight:
-			(child as PickableHighlight).set_located(on)
+			(child as PickableHighlight).set_located(enabled)
 			return

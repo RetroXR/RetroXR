@@ -52,6 +52,7 @@ static func _decode(stream: AudioStreamWAV) -> PackedVector2Array:
 	match stream.format:
 		AudioStreamWAV.FORMAT_16_BITS:
 			var step := 4 if stream.stereo else 2
+			@warning_ignore("integer_division")
 			var count := data.size() / step
 			out.resize(count)
 			for i in count:
@@ -60,6 +61,7 @@ static func _decode(stream: AudioStreamWAV) -> PackedVector2Array:
 				out[i] = Vector2(l, r)
 		AudioStreamWAV.FORMAT_8_BITS:
 			var step8 := 2 if stream.stereo else 1
+			@warning_ignore("integer_division")
 			var count8 := data.size() / step8
 			out.resize(count8)
 			for i in count8:

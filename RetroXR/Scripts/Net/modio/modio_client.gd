@@ -344,7 +344,7 @@ static func parse_collection(d: Dictionary) -> Dictionary:
 static func parse_mod(d: Dictionary) -> Dictionary:
 	var logo: Dictionary = _dict(d.get("logo"))
 	var file: Dictionary = _dict(d.get("modfile"))
-	var hash: Dictionary = _dict(file.get("filehash"))
+	var file_hash: Dictionary = _dict(file.get("filehash"))
 	var download: Dictionary = _dict(file.get("download"))
 	var stats: Dictionary = _dict(d.get("stats"))
 	var by: Dictionary = _dict(d.get("submitted_by"))
@@ -368,7 +368,7 @@ static func parse_mod(d: Dictionary) -> Dictionary:
 		"file_id": int(file.get("id", 0)),
 		"file_name": str(file.get("filename", "")),
 		"file_size": int(file.get("filesize", 0)),
-		"file_md5": str(hash.get("md5", "")).to_lower(),
+		"file_md5": str(file_hash.get("md5", "")).to_lower(),
 		"file_version": str(file.get("version", "")),
 		"download_url": str(download.get("binary_url", "")),
 		"virus_status": int(file.get("virus_status", 0)),
@@ -467,12 +467,12 @@ func _fetch_json(path: String, callback: Callable, needs_consent: bool = true) -
 	add_child(http)
 	var started := Time.get_ticks_msec()
 	http.request_completed.connect(
-		func(result: int, code: int, headers: PackedStringArray, raw: PackedByteArray) -> void:
+		func(result: int, code: int, reply_headers: PackedStringArray, raw: PackedByteArray) -> void:
 			http.queue_free()
 			var ms := Time.get_ticks_msec() - started
 			if result != HTTPRequest.RESULT_SUCCESS or code < 200 or code >= 300:
 				var retry := ""
-				for h: String in headers:
+				for h: String in reply_headers:
 					if h.to_lower().begins_with("retry-after:"):
 						retry = h.substr(12).strip_edges()
 				var error := describe(result, code, retry)

@@ -237,20 +237,20 @@ static func set_aside_unclaimed(save_dir: String) -> Array[String]:
 	var found: Array[String] = []
 	var shared := save_dir.path_join(SHARED_DIR)
 	if DirAccess.dir_exists_absolute(shared):
-		for name: String in DirAccess.get_files_at(shared):
-			if name.get_extension().to_lower() == "srm":
-				found.append(shared.path_join(name))
+		for file_name: String in DirAccess.get_files_at(shared):
+			if file_name.get_extension().to_lower() == "srm":
+				found.append(shared.path_join(file_name))
 	if FileAccess.file_exists(save_dir.path_join(OLD_NVRAM_FILE)):
 		found.append(save_dir.path_join(OLD_NVRAM_FILE))
 	var moved: Array[String] = []
 	var legacy := save_dir.path_join(LEGACY_DIR)
 	for src: String in found:
 		DirAccess.make_dir_recursive_absolute(legacy)
-		var name := src.get_file()
-		var dst := legacy.path_join(name)
+		var file_name := src.get_file()
+		var dst := legacy.path_join(file_name)
 		var n := 2
 		while FileAccess.file_exists(dst):
-			dst = legacy.path_join("%s %d.%s" % [name.get_basename(), n, name.get_extension()])
+			dst = legacy.path_join("%s %d.%s" % [file_name.get_basename(), n, file_name.get_extension()])
 			n += 1
 		if DirAccess.rename_absolute(src, dst) == OK:
 			moved.append(dst)
@@ -287,10 +287,10 @@ static func _images_in(dir: String, extensions: Array) -> Array[Dictionary]:
 	var found: Array[Dictionary] = []
 	if not DirAccess.dir_exists_absolute(dir):
 		return found
-	for name: String in DirAccess.get_files_at(dir):
-		if not extensions.has(name.get_extension().to_lower()):
+	for file_name: String in DirAccess.get_files_at(dir):
+		if not extensions.has(file_name.get_extension().to_lower()):
 			continue
-		var path := dir.path_join(name)
+		var path := dir.path_join(file_name)
 		var data := FileAccess.get_file_as_bytes(path)
 		if not ThreeDoNvram.list_files(data).is_empty():
 			found.append({"path": path, "data": data, "time": FileAccess.get_modified_time(path)})

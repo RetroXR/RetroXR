@@ -32,6 +32,7 @@ const SIZE := 0x100000
 ## Pack" counts. The eight is read off the format rather than guessed:
 ## OFF_BLOCK_ALLOC is one byte of allocation bitmap, one bit per block.
 const BLOCK_COUNT := 8
+@warning_ignore("integer_division")
 const BLOCK_SIZE := SIZE / BLOCK_COUNT
 ## Where the header lives, and how long its title field is.
 ##

@@ -486,9 +486,9 @@ func _handle_log(peer: StreamPeerTCP, download: bool, from: int = 0) -> void:
 	var size := f.get_length()
 	if not download:
 		var reset := from > size
-		var start := 0 if reset else maxi(from, 0)
-		f.seek(start)
-		var tail := f.get_buffer(size - start)
+		var start_at := 0 if reset else maxi(from, 0)
+		f.seek(start_at)
+		var tail := f.get_buffer(size - start_at)
 		f.close()
 		var hdr_tail := "HTTP/1.1 200 OK\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: %d\r\nX-Log-Size: %d\r\nX-Log-Reset: %d\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n" \
 				% [tail.size(), size, 1 if reset else 0]

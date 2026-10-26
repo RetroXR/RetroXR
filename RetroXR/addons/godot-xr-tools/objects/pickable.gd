@@ -431,11 +431,15 @@ func let_go(by: Node3D, p_linear_velocity: Vector3, p_angular_velocity: Vector3)
 	# Frozen bodies driven by the grab driver can leave the physics server with a
 	# stale transform. Push the released transform back immediately so gravity and
 	# contacts resume from the visible pose instead of waiting for another wakeup.
-	force_update_transform()
-	PhysicsServer3D.body_set_state(
-		get_rid(),
-		PhysicsServer3D.BODY_STATE_TRANSFORM,
-		global_transform)
+	# LOCAL PATCH (RetroXR): not when out of the tree — a snap zone leaving with
+	# its room drops what it holds from _exit_tree, and there is no global
+	# transform to push then (Godot warned once per held object on every exit).
+	if is_inside_tree():
+		force_update_transform()
+		PhysicsServer3D.body_set_state(
+			get_rid(),
+			PhysicsServer3D.BODY_STATE_TRANSFORM,
+			global_transform)
 
 	# Set velocity. If we are releasing from rest, add a tiny gravity-aligned
 	# nudge so the body immediately enters active simulation instead of waiting

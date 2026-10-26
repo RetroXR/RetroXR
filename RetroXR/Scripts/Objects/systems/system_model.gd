@@ -408,6 +408,7 @@ func get_unsupported_button_mask() -> int:
 ## Emitted by a model whose bay only connects when its tray is pushed down (the
 ## NES ZIF cradle). `down` true = the cart is home and the machine may read it;
 ## false = the tray is up and the cart is merely lying in it.
+@warning_ignore("unused_signal")
 signal cart_tray_changed(down: bool)
 
 

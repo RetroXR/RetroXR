@@ -115,6 +115,7 @@ static func _candidates(target: Node3D, anchor: Transform3D, size: Vector2,
 		var world := mi.global_transform * mi.get_aabb()
 		if not probe.intersects(world):
 			continue
+		@warning_ignore("integer_division")
 		total += int(mi.mesh.get_faces().size() / 3)
 		if total > MAX_TRIANGLES:
 			return []

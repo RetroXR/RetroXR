@@ -217,47 +217,47 @@ func _connect_menu_signals() -> void:
 		await get_tree().process_frame
 		_connect_menu_signals()
 		return
-	var menu := vp.get_child(0) as SpawnMenu2D
-	if not menu:
+	var spawn_menu := vp.get_child(0) as SpawnMenu2D
+	if not spawn_menu:
 		return
-	menu.spawn_view().spawn_requested.connect(_on_spawn_requested)
-	menu.close_requested.connect(_hide_menu)
-	menu.spawn_cartridge_requested.connect(_on_spawn_cartridge_requested)
-	menu.spawn_view().spawn_manual_requested.connect(_on_spawn_manual_requested)
-	menu.spawn_view().spawn_poster_requested.connect(_on_spawn_poster_requested)
-	menu.spawn_view().spawn_video_requested.connect(_on_spawn_video_requested)
-	menu.spawn_view().spawn_dvd_requested.connect(_on_spawn_dvd_requested)
-	menu.spawn_view().spawn_cd_requested.connect(_on_spawn_cd_requested)
-	menu.spawn_view().spawn_cassette_requested.connect(_on_spawn_cassette_requested)
-	menu.spawn_view().spawn_record_requested.connect(_on_spawn_record_requested)
-	menu.options_view().turn_style_changed.connect(_on_turn_style_changed)
-	menu.scene_change_requested.connect(_on_scene_change_requested)
-	menu.scene_slot_load_requested.connect(_on_slot_load)
-	menu.scene_slot_save_requested.connect(_on_slot_save)
-	menu.scene_slot_delete_requested.connect(_on_slot_delete)
-	menu.scene_slot_create_requested.connect(_on_slot_create)
-	menu.scene_slot_rename_requested.connect(_on_slot_rename)
-	menu.mods_apply_requested.connect(_on_mods_apply_requested)
-	menu.options_view().auto_save_changed.connect(_on_auto_save_changed)
-	menu.options_view().hud_changed.connect(_on_hud_changed)
-	menu.options_view().aim_crosshair_changed.connect(_on_aim_crosshair_changed)
-	menu.options_view().locomotion_mode_changed.connect(_on_locomotion_mode_changed)
-	menu.options_view().passthrough_locomotion_changed.connect(_on_passthrough_locomotion_changed)
-	menu.options_view().passthrough_occlusion_changed.connect(_on_passthrough_occlusion_changed)
-	menu.options_view().passthrough_spatial_changed.connect(_on_passthrough_spatial_changed)
-	menu.options_view().room_setup_requested.connect(_on_room_setup_requested)
-	menu.options_view().passthrough_room_mesh_changed.connect(_on_passthrough_room_mesh_changed)
-	menu.options_view().xr_display_mode_changed.connect(_on_xr_display_mode_changed)
-	menu.options_view().controller_hands_changed.connect(_on_controller_hands_changed)
+	spawn_menu.spawn_view().spawn_requested.connect(_on_spawn_requested)
+	spawn_menu.close_requested.connect(_hide_menu)
+	spawn_menu.spawn_cartridge_requested.connect(_on_spawn_cartridge_requested)
+	spawn_menu.spawn_view().spawn_manual_requested.connect(_on_spawn_manual_requested)
+	spawn_menu.spawn_view().spawn_poster_requested.connect(_on_spawn_poster_requested)
+	spawn_menu.spawn_view().spawn_video_requested.connect(_on_spawn_video_requested)
+	spawn_menu.spawn_view().spawn_dvd_requested.connect(_on_spawn_dvd_requested)
+	spawn_menu.spawn_view().spawn_cd_requested.connect(_on_spawn_cd_requested)
+	spawn_menu.spawn_view().spawn_cassette_requested.connect(_on_spawn_cassette_requested)
+	spawn_menu.spawn_view().spawn_record_requested.connect(_on_spawn_record_requested)
+	spawn_menu.options_view().turn_style_changed.connect(_on_turn_style_changed)
+	spawn_menu.scene_change_requested.connect(_on_scene_change_requested)
+	spawn_menu.scene_slot_load_requested.connect(_on_slot_load)
+	spawn_menu.scene_slot_save_requested.connect(_on_slot_save)
+	spawn_menu.scene_slot_delete_requested.connect(_on_slot_delete)
+	spawn_menu.scene_slot_create_requested.connect(_on_slot_create)
+	spawn_menu.scene_slot_rename_requested.connect(_on_slot_rename)
+	spawn_menu.mods_apply_requested.connect(_on_mods_apply_requested)
+	spawn_menu.options_view().auto_save_changed.connect(_on_auto_save_changed)
+	spawn_menu.options_view().hud_changed.connect(_on_hud_changed)
+	spawn_menu.options_view().aim_crosshair_changed.connect(_on_aim_crosshair_changed)
+	spawn_menu.options_view().locomotion_mode_changed.connect(_on_locomotion_mode_changed)
+	spawn_menu.options_view().passthrough_locomotion_changed.connect(_on_passthrough_locomotion_changed)
+	spawn_menu.options_view().passthrough_occlusion_changed.connect(_on_passthrough_occlusion_changed)
+	spawn_menu.options_view().passthrough_spatial_changed.connect(_on_passthrough_spatial_changed)
+	spawn_menu.options_view().room_setup_requested.connect(_on_room_setup_requested)
+	spawn_menu.options_view().passthrough_room_mesh_changed.connect(_on_passthrough_room_mesh_changed)
+	spawn_menu.options_view().xr_display_mode_changed.connect(_on_xr_display_mode_changed)
+	spawn_menu.options_view().controller_hands_changed.connect(_on_controller_hands_changed)
 	AppPrefs.mains_region_changed.connect(_on_mains_region_changed)
-	menu.options_view().snap_angle_changed.connect(_on_snap_angle_changed)
-	menu.options_view().height_offset_changed.connect(_on_height_offset_changed)
-	menu.options_view().fov_changed.connect(_on_fov_changed)
-	menu.options_view().zoom_changed.connect(_on_zoom_changed)
-	menu.options_view().world_scale_changed.connect(_on_world_scale_changed)
-	menu.controller_bindings_changed.connect(_on_controller_bindings_changed)
-	menu.rebind_started.connect(_on_rebind_started)
-	menu.pad_rebind_started.connect(_on_pad_rebind_started)
+	spawn_menu.options_view().snap_angle_changed.connect(_on_snap_angle_changed)
+	spawn_menu.options_view().height_offset_changed.connect(_on_height_offset_changed)
+	spawn_menu.options_view().fov_changed.connect(_on_fov_changed)
+	spawn_menu.options_view().zoom_changed.connect(_on_zoom_changed)
+	spawn_menu.options_view().world_scale_changed.connect(_on_world_scale_changed)
+	spawn_menu.controller_bindings_changed.connect(_on_controller_bindings_changed)
+	spawn_menu.rebind_started.connect(_on_rebind_started)
+	spawn_menu.pad_rebind_started.connect(_on_pad_rebind_started)
 	_menu_connected = true
 
 	# Persisted OPTIONS switches that need the rig or the scene tree, so they
@@ -301,8 +301,8 @@ func _on_restore_progress(done: int, total: int) -> void:
 		return
 	var text := "RESTORING OBJECTS  %d / %d" % [done, total]
 	var fraction := float(done) / float(maxi(total, 1))
-	for owner: StringName in [&"transition", &"boot_restore", SLOT_LOAD_OWNER]:
-		LoadingOverlay.set_phase(owner, text, fraction)
+	for phase_owner: StringName in [&"transition", &"boot_restore", SLOT_LOAD_OWNER]:
+		LoadingOverlay.set_phase(phase_owner, text, fraction)
 
 
 func _autoload_slot(room: String) -> void:
@@ -345,9 +345,9 @@ func _on_pad_rebind_started(target: String) -> void:
 func _finish_pad_rebind(target: String, binding: String) -> void:
 	_pad_rebinding_target = ""
 	GamepadBindings.suspend_polling = false
-	var menu := _get_menu()
-	if menu:
-		menu.on_pad_rebind_complete(target, binding)
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.on_pad_rebind_complete(target, binding)
 
 
 # ── Button handler ────────────────────────────────────────────────────────────
@@ -389,9 +389,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not cancelled:
 			InputMap.action_erase_events(action)
 			InputMap.action_add_event(action, event)
-		var menu := _get_menu()
-		if menu:
-			menu.on_rebind_complete(action, null if cancelled else event)
+		var spawn_menu := _get_menu()
+		if spawn_menu:
+			spawn_menu.on_rebind_complete(action, null if cancelled else event)
 		get_viewport().set_input_as_handled()
 		return
 
@@ -437,9 +437,9 @@ func _unhandled_input(event: InputEvent) -> void:
 				ui.scroll_active(scroll_px)
 				get_viewport().set_input_as_handled()
 			elif _viewport_node.visible:
-				var menu := _get_menu()
-				if menu:
-					menu.scroll_active(scroll_px)
+				var spawn_menu := _get_menu()
+				if spawn_menu:
+					spawn_menu.scroll_active(scroll_px)
 				get_viewport().set_input_as_handled()
 
 
@@ -519,9 +519,9 @@ func _process(delta: float) -> void:
 
 	var pixels := _compute_scroll_pixels(delta, raw_y)
 	if pixels != 0.0:
-		var menu := _get_menu()
-		if menu:
-			menu.scroll_active(pixels)
+		var spawn_menu := _get_menu()
+		if spawn_menu:
+			spawn_menu.scroll_active(pixels)
 
 
 ## Drive stick scroll on any visible options panel whose viewport a pointer is over.
@@ -775,9 +775,9 @@ func _show_menu() -> void:
 	# The menu Control itself is always visible; it's this 3D node that gets
 	# toggled. Tell the menu so it can flush notifications that happened while
 	# it was hidden and do its cheap library change-check.
-	var menu := _get_menu()
-	if menu:
-		menu.on_menu_shown()
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.on_menu_shown()
 	# The menu carries its own toast stack and is directly in front of the
 	# player; two stacks saying the same thing is worse than one saying it once.
 	if _hud_toasts != null:
@@ -787,9 +787,9 @@ func _show_menu() -> void:
 func _hide_menu() -> void:
 	_end_grab()
 	_viewport_node.visible = false
-	var menu := _get_menu()
-	if menu:
-		menu.on_menu_hidden()
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.on_menu_hidden()
 	if _hud_toasts != null:
 		_hud_toasts.set_muted(false)
 	_smoothed_scroll_y = 0.0
@@ -977,9 +977,9 @@ func _place_spawned(obj: Node3D, type: String) -> void:
 	var grabber := _spawn_grabber()
 	if grabber != null and _grabber_busy(grabber):
 		obj.queue_free()
-		var menu := _get_menu()
-		if menu:
-			menu.show_notice("Drop Item From Hand First")
+		var spawn_menu := _get_menu()
+		if spawn_menu:
+			spawn_menu.show_notice("Drop Item From Hand First")
 		return
 	# Before it enters the room: a mod dresses a thing as it does.
 	if not _spawn_variant.is_empty():
@@ -1527,9 +1527,9 @@ func _on_room_setup_requested() -> void:
 	var why := "Go to the passthrough room to set up your room."
 	if scene != null and scene.has_method("request_room_setup"):
 		why = str(scene.call("request_room_setup"))
-	var menu := _get_menu()
-	if not why.is_empty() and menu != null:
-		menu.show_notice(why, 4.0)
+	var spawn_menu := _get_menu()
+	if not why.is_empty() and spawn_menu != null:
+		spawn_menu.show_notice(why, 4.0)
 
 
 func _on_aim_crosshair_changed(enabled: bool) -> void:
@@ -1553,9 +1553,9 @@ func _on_xr_display_mode_changed(_mode: int) -> void:
 func _on_mains_region_changed(region: String) -> void:
 	PowerStrip.apply_region(get_tree(), region)
 	WallOutlet.apply_region(get_tree(), region)
-	var menu := _get_menu()
-	if menu != null:
-		menu.spawn_view().refresh_power_tab()
+	var spawn_menu := _get_menu()
+	if spawn_menu != null:
+		spawn_menu.spawn_view().refresh_power_tab()
 
 
 func _on_controller_hands_changed(enabled: bool) -> void:
@@ -1645,9 +1645,9 @@ func _on_mods_apply_requested(restart: bool) -> void:
 		return
 	var why: String = sm.restart_app() if restart else sm.reload_room(_apply_mods_live)
 	if not why.is_empty():
-		var menu := _get_menu()
-		if menu != null:
-			menu.notify("mods:apply", "❌", why, -1.0, MenuToasts.DWELL_FAIL)
+		var spawn_menu := _get_menu()
+		if spawn_menu != null:
+			spawn_menu.notify("mods:apply", "❌", why, -1.0, MenuToasts.DWELL_FAIL)
 		return
 	if not restart:
 		_hide_menu()
@@ -1699,9 +1699,9 @@ func _on_slot_load(slot_id: String, room_id: String) -> void:
 		return
 	if sm:
 		sm.set_active_slot(slot_id, room_id)
-	var menu := _get_menu()
-	if menu:
-		menu.rebuild_states_grid()
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.rebuild_states_grid()
 
 
 ## The loading screen's owner for a slot loaded into the room already standing.
@@ -1741,9 +1741,9 @@ func _on_slot_delete(slot_id: String, room_id: String) -> void:
 	var sm := get_node_or_null("/root/SceneManager")
 	if sm and sm.active_slot(room_id) == slot_id:
 		sm.set_active_slot("clean", room_id)
-	var menu := _get_menu()
-	if menu:
-		menu.rebuild_states_grid()
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.rebuild_states_grid()
 
 
 func _on_slot_create(room_id: String) -> void:
@@ -1758,9 +1758,9 @@ func _on_slot_create(room_id: String) -> void:
 	var sm := get_node_or_null("/root/SceneManager")
 	if sm:
 		sm.set_active_slot(new_id, room_id)
-	var menu := _get_menu()
-	if menu:
-		menu.rebuild_states_grid()
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.rebuild_states_grid()
 
 
 ## Whether the player is standing in the room a slot belongs to.
@@ -1771,9 +1771,9 @@ func _in_room(room_id: String) -> bool:
 
 func _on_slot_rename(slot_id: String, new_name: String, room_id: String) -> void:
 	ScenePersistence.new(room_id).rename_slot(slot_id, new_name)
-	var menu := _get_menu()
-	if menu:
-		menu.rebuild_states_grid()
+	var spawn_menu := _get_menu()
+	if spawn_menu:
+		spawn_menu.rebuild_states_grid()
 
 
 func _on_auto_save_changed(enabled: bool) -> void:

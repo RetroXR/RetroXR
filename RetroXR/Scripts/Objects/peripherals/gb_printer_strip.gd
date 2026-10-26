@@ -210,6 +210,7 @@ func step(dt: float, gravity: Vector2, spin_accel := 0.0, shove := Vector2.ZERO)
 ## Step the swing: the shove across the strip (the way its middle points) and the
 ## printer's turn push it; its spring and damping bring it back, past, and home.
 func _swing(h: float, shove: Vector2, spin_accel: float) -> void:
+	@warning_ignore("integer_division")
 	var mid := points[points.size() / 2] - root
 	var across := Vector2.ZERO
 	if mid.length_squared() > 1e-10:
@@ -328,8 +329,8 @@ func _substep(h: float, gravity: Vector2, spin_accel: float) -> void:
 		var rest := 0.0 if i == 0 else curl + sway / (n - 1)
 		var inert := inertia[i]
 		var c := 2.0 * DAMPING * sqrt(ki * inert)
-		var load := torque[i] + spin_accel * inert
-		var w := (inert * speeds[i] + h * (load - ki * (angles[i] - rest))) \
+		var applied := torque[i] + spin_accel * inert
+		var w := (inert * speeds[i] + h * (applied - ki * (angles[i] - rest))) \
 			/ (inert + h * c + h * h * ki)
 		speeds[i] = w
 		angles[i] += h * w

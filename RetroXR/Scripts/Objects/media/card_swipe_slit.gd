@@ -138,8 +138,8 @@ static func edge_depths(card: Transform3D, card_size: Vector3,
 	}
 	var to_slit := slit.affine_inverse()
 	var out: Dictionary = {}
-	for name: String in candidates:
-		out[name] = (to_slit * (card * (candidates[name] as Vector3))).y
+	for edge_name: String in candidates:
+		out[edge_name] = (to_slit * (card * (candidates[edge_name] as Vector3))).y
 	return out
 
 
@@ -167,10 +167,10 @@ static func presented_edge(card: Transform3D, card_size: Vector3,
 	var d := edge_depths(card, card_size, slit)
 	var best := ""
 	var best_d := INF
-	for name: String in d:
-		if float(d[name]) < best_d:
-			best_d = float(d[name])
-			best = name
+	for edge_name: String in d:
+		if float(d[edge_name]) < best_d:
+			best_d = float(d[edge_name])
+			best = edge_name
 	return best
 
 
@@ -205,8 +205,8 @@ static func is_presenting(card: Transform3D, card_size: Vector3,
 	var d := edge_depths(card, card_size, slit)
 	var best := INF
 	var runner_up := INF
-	for name: String in d:
-		var v: float = d[name]
+	for edge_name: String in d:
+		var v: float = d[edge_name]
 		if v < best:
 			runner_up = best
 			best = v

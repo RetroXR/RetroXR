@@ -318,8 +318,14 @@ func is_located() -> bool:
 
 
 func _set_overlays_visible(shown: bool) -> void:
+	# Out of the tree (a room tearing down drops whatever its snap zones held)
+	# there is no global transform to place an outline by: hide them all.
+	if not is_inside_tree():
+		shown = false
 	set_process(shown)
-	var parent_inv := (get_parent() as Node3D).global_transform.affine_inverse()
+	var parent_inv := Transform3D.IDENTITY
+	if shown:
+		parent_inv = (get_parent() as Node3D).global_transform.affine_inverse()
 	for i in range(_overlays.size()):
 		var overlay := _overlays[i]
 		if not is_instance_valid(overlay):

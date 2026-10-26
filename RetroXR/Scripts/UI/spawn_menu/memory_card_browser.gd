@@ -244,15 +244,15 @@ func _build_restore(card: Dictionary) -> void:
 			CardSaveOps.running_rom_id(get_tree(), str(card["card_id"])))
 		for s: Dictionary in arranged["shown"]:
 			add_child(_restore_row(card, s, present, free))
-		var hidden: Array = arranged["hidden"]
-		if hidden.is_empty():
+		var hidden_saves: Array = arranged["hidden"]
+		if hidden_saves.is_empty():
 			return
-		var all := MenuStyle.row_button(CardSaveOps.show_all_label(_fmt(), hidden.size()),
+		var all := MenuStyle.row_button(CardSaveOps.show_all_label(_fmt(), hidden_saves.size()),
 			22, 0, 68, false)
 		all.pressed.connect(func() -> void:
 			var at := all.get_index()
 			all.queue_free()
-			for s: Dictionary in hidden:
+			for s: Dictionary in hidden_saves:
 				var row := _restore_row(card, s, present, free)
 				add_child(row)
 				move_child(row, at)

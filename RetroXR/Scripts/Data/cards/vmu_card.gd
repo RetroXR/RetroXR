@@ -38,6 +38,7 @@ const DIR_BLOCK   := 253        ## highest directory block; the chain runs down
 const DIR_BLOCKS  := 13         ## 253 down to 241
 
 const DIR_ENTRY_SIZE := 32
+@warning_ignore("integer_division")
 const DIR_PER_BLOCK  := BLOCK_SIZE / DIR_ENTRY_SIZE          # 16
 const DIR_ENTRIES    := DIR_BLOCKS * DIR_PER_BLOCK           # 208
 

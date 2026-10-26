@@ -110,8 +110,8 @@ func begin_restore(video_out: int = -1, lid_angle: float = -1.0) -> void:
 ## loaded from a save is not being restored, and marking it so would stop its
 ## bays seeding their default occupants. Handhelds are the ones that need this —
 ## they default video-out off, and a generated scene wants them wired to a set.
-func force_video_out(enabled: bool) -> void:
-	_video_out_from_save = 1 if enabled else 0
+func force_video_out(on: bool) -> void:
+	_video_out_from_save = 1 if on else 0
 
 
 ## Ignore gravity: the system freezes exactly where it's dropped and floats
@@ -2510,13 +2510,13 @@ func _after_core_started() -> void:
 ##     when `open_over_disc` names a "lid" or "tray" standing open over a disc,
 ##     a card saying to close it
 ##   * an empty slot it CAN boot from — hand it a blank disc and start
-static func _power_on_verdict(core_name: String, sysid: String, rom: String,
+static func _power_on_verdict(core_id: String, sysid: String, rom: String,
 		missing: Array[Dictionary], blank: String, empty_ok := false,
 		core_installed := true, open_over_disc := "") -> Dictionary:
 	var waiting := AchievementToast.ACCENT_WAITING
 	var fault := AchievementToast.ACCENT_NOTICE
 
-	if core_name.is_empty():
+	if core_id.is_empty():
 		return {
 			"start": false, "rom": "",
 			"log": "no core set and no default for systemid '%s'" % sysid,
@@ -2542,10 +2542,10 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 	if not core_installed:
 		return {
 			"start": false, "rom": rom,
-			"log": "core '%s' is not installed" % core_name,
+			"log": "core '%s' is not installed" % core_id,
 			"title": "Core not installed",
 			"description": "This machine needs the %s core.\nGet it in OPTIONS > Cores."
-				% core_name,
+				% core_id,
 			"accent": fault,
 		}
 
@@ -2563,7 +2563,7 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 		if not any_of.is_empty():
 			return {
 				"start": false, "rom": rom,
-				"log": "core '%s' needs one of %s and has none" % [core_name, ", ".join(any_of)],
+				"log": "core '%s' needs one of %s and has none" % [core_id, ", ".join(any_of)],
 				"title": "BIOS required",
 				"description": "No %s is installed (%s).\n%s"
 					% [str(first.get("desc", "BIOS")), path, where],
@@ -2572,7 +2572,7 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 		var more := "" if missing.size() == 1 else " (+%d more)" % (missing.size() - 1)
 		return {
 			"start": false, "rom": rom,
-			"log": "core '%s' is missing required firmware: %s" % [core_name, path],
+			"log": "core '%s' is missing required firmware: %s" % [core_id, path],
 			"title": "BIOS required",
 			# Two lines, and no absolute path. The card is 520x132 at 1400 px/m —
 			# about a playing card held at arm's length — and a Windows system path
@@ -5571,9 +5571,9 @@ func net_release_controller_port(port_index: int) -> void:
 	var zone := zones[index] as XRToolsSnapZone
 	var plug := plugs[index] as ControllerPlug
 	var plug_enabled := plug.enabled if is_instance_valid(plug) else false
-	var enabled: Array[bool] = []
+	var was_enabled: Array[bool] = []
 	for candidate: XRToolsSnapZone in zones:
-		enabled.append(candidate.enabled)
+		was_enabled.append(candidate.enabled)
 		candidate.enabled = false
 	if is_instance_valid(plug):
 		plug.enabled = false
@@ -5595,7 +5595,7 @@ func net_release_controller_port(port_index: int) -> void:
 	# have both passed, or the plug simply hops from port 1 into port 2.
 	get_tree().create_timer(0.1).timeout.connect(func() -> void:
 		for i in zones.size():
-			zones[i].enabled = enabled[i]
+			zones[i].enabled = was_enabled[i]
 		if is_instance_valid(plug):
 			plug.enabled = plug_enabled, CONNECT_ONE_SHOT)
 
@@ -6257,7 +6257,9 @@ func stop_card_polling_soon() -> void:
 # ---------------------------------------------------------------------------
 
 ## ok is false with a sentence in `reason` the panel can show as-is.
+@warning_ignore("unused_signal")
 signal state_captured(state_id: String, ok: bool, reason: String)
+@warning_ignore("unused_signal")
 signal state_loaded(state_id: String, ok: bool, reason: String)
 
 var _save_state: SaveStateController = null

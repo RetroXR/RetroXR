@@ -67,7 +67,10 @@ static func build(box: VBoxContainer, rope: VerletRope) -> void:
 		slider.value_changed.connect(func(v: float) -> void:
 			if not is_instance_valid(rope):
 				return
-			rope.set(prop, int(v) if p[4] is int else v)
+			if p[4] is int:
+				rope.set(prop, int(v))
+			else:
+				rope.set(prop, v)
 			val.text = _shown(v, p[4]))
 		sliders[prop] = slider
 

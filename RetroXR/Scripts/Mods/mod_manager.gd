@@ -180,7 +180,7 @@ func rescan() -> int:
 	var was_unreadable: Dictionary = {}
 	for u: Dictionary in _unreadable:
 		was_unreadable[str(u["path"])] = true
-	var unreadable: Array[Dictionary] = []
+	var found_unreadable: Array[Dictionary] = []
 	var added := 0
 	for entry: Dictionary in _scan():
 		var path := str(entry["path"])
@@ -188,7 +188,7 @@ func rescan() -> int:
 			continue
 		var read := _read_container(path)
 		if not read.has("rec"):
-			unreadable.append({"path": path, "reason": str(read["reason"])})
+			found_unreadable.append({"path": path, "reason": str(read["reason"])})
 			continue
 		var rec: ModRecord = read["rec"]
 		if _mods.has(rec.id):
@@ -198,10 +198,10 @@ func rescan() -> int:
 		added += 1
 	if added > 0:
 		_refresh_dependencies()
-	var listing_changed := unreadable.size() != was_unreadable.size()
-	for u: Dictionary in unreadable:
+	var listing_changed := found_unreadable.size() != was_unreadable.size()
+	for u: Dictionary in found_unreadable:
 		listing_changed = listing_changed or not was_unreadable.has(str(u["path"]))
-	_unreadable = unreadable
+	_unreadable = found_unreadable
 	if added > 0 or listing_changed:
 		_notify_changed()
 	return added
@@ -504,11 +504,11 @@ static func _refresh_cached(paths: PackedStringArray) -> PackedStringArray:
 			# now mounted (the newest pack wins) and the script recompiled, which the
 			# engine refuses while instances of it are alive.
 			var script := ResourceLoader.load(path) as GDScript
-			var source := FileAccess.get_file_as_string(path)
-			if script == null or source.is_empty():
+			var script_source := FileAccess.get_file_as_string(path)
+			if script == null or script_source.is_empty():
 				stale.append(path)
 				continue
-			script.source_code = source
+			script.source_code = script_source
 			if script.reload() != OK:
 				stale.append(path)
 		else:
@@ -1046,8 +1046,8 @@ func _unwrap(path: String) -> Dictionary:
 		return {"path": path, "error": ""}
 	var inner := PackedStringArray()
 	for file: String in files:
-		var name := file.trim_prefix("res://")
-		if not name.contains("/") and _is_container(name):
+		var entry_name := file.trim_prefix("res://")
+		if not entry_name.contains("/") and _is_container(entry_name):
 			inner.append(file)
 	if inner.is_empty():
 		reader.close()
@@ -1102,7 +1102,7 @@ func _unwrap(path: String) -> Dictionary:
 ## it and decodes its picture, and a file that has not left incoming since need
 ## not be put through that twice. It is believed only for the file it names,
 ## and only while that file is still there.
-func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -> Dictionary:
+func install(staged: String, origin: Dictionary = {}, vetted: Dictionary = {}) -> Dictionary:
 	var info := vetted
 	if info.get("manifest") == null or str(info.get("path", "")) != staged \
 			or not str(info.get("error", "")).is_empty() or not FileAccess.file_exists(staged):
@@ -1138,8 +1138,8 @@ func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -
 		old.update_size = ByteSize.on_disk(parked)
 		old.update_files = (info["files"] as PackedStringArray).size()
 		old.removal_staged = false
-		if not source.is_empty():
-			_sources[id] = source
+		if not origin.is_empty():
+			_sources[id] = origin
 		_save_state()
 		_notify_changed()
 		return {"ok": true, "id": id, "error": "", "restart": true}
@@ -1155,10 +1155,10 @@ func install(staged: String, source: Dictionary = {}, vetted: Dictionary = {}) -
 	rec.status = _status_for(rec, is_enabled(id))
 	_mods[id] = rec
 	_duplicates.erase(id)
-	if source.is_empty():
+	if origin.is_empty():
 		_sources.erase(id)
 	else:
-		_sources[id] = source
+		_sources[id] = origin
 	_refresh_dependencies()
 	_save_state()
 	_notify_changed()
@@ -1221,13 +1221,13 @@ func source(id: String) -> Dictionary:
 
 ## Replace what is kept about where an installed mod came from. The mod browser
 ## uses it to record which packs brought a mod in, and to forget one.
-func set_source(id: String, source: Dictionary) -> void:
+func set_source(id: String, origin: Dictionary) -> void:
 	if not _mods.has(id):
 		return
-	if source.is_empty():
+	if origin.is_empty():
 		_sources.erase(id)
 	else:
-		_sources[id] = source
+		_sources[id] = origin
 	_save_state()
 	_notify_changed()
 

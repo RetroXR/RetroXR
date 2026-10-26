@@ -725,7 +725,7 @@ var _poke: ControlPoke = null
 
 
 ## Merge this frame's poked controls into an input state (HandheldInput's).
-func poke_merge(btn: int, alx: int, aly: int, arx: int, ary: int, scale: int) -> Dictionary:
+func poke_merge(btn: int, alx: int, aly: int, arx: int, ary: int, axis_scale: int) -> Dictionary:
 	if _poke == null:
 		if _standin == null:
 			_bind_standin_controls()
@@ -733,7 +733,7 @@ func poke_merge(btn: int, alx: int, aly: int, arx: int, ary: int, scale: int) ->
 		_poke.add_animator(_standin)
 		_poke.targets.append_array(_poke_targets())
 		_poke.targets.append_array(_extra_poke_targets())
-	return _poke.merge_into(btn, alx, aly, arx, ary, scale)
+	return _poke.merge_into(btn, alx, aly, arx, ary, axis_scale)
 
 
 ## Caps a shell pack adds to what the model already pokes. A pack overrides this

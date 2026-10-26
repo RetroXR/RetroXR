@@ -177,18 +177,18 @@ func _bind_channel_row(row: Control, index: int) -> void:
 
 # ── Public API: driven by AntennaOptionsPanel from the aerial's lineup ─────────
 
-## Say where the lead goes. `set_name` is empty while it reaches no television;
+## Say where the lead goes. `tv_name` is empty while it reaches no television;
 ## `via_switch` is whether an RF switch is in the way.
-func populate_link(set_name: String, via_switch: bool) -> void:
+func populate_link(tv_name: String, via_switch: bool) -> void:
 	if _link_status == null:
 		return
-	_can_tune = not set_name.is_empty()
-	if set_name.is_empty():
+	_can_tune = not tv_name.is_empty()
+	if tv_name.is_empty():
 		_link_status.text = "Not connected to a television — plug the lead into a " \
 			+ "set's aerial socket, or an RF switch's ANT socket."
 		_link_status.add_theme_color_override("font_color", COLOR_WARN)
 	else:
-		_link_status.text = "Feeding %s%s" % [set_name,
+		_link_status.text = "Feeding %s%s" % [tv_name,
 			" through an RF switch" if via_switch else ""]
 		_link_status.add_theme_color_override("font_color", COLOR_TITLE)
 	if _channel_list:

@@ -70,9 +70,9 @@ func _speaking() -> bool:
 func _who(peer_id: int) -> String:
 	if _nm != null and "peers" in _nm:
 		var info: Dictionary = (_nm.peers as Dictionary).get(peer_id, {})
-		var name := str(info.get("name", ""))
-		if not name.is_empty():
-			return name
+		var peer_name := str(info.get("name", ""))
+		if not peer_name.is_empty():
+			return peer_name
 	return "a player"
 
 
@@ -83,11 +83,11 @@ func _what(md5: String) -> String:
 func _on_peer_registered(peer_id: int, info: Dictionary) -> void:
 	if not _speaking():
 		return
-	var name := str(info.get("name", ""))
-	if name.is_empty():
-		name = _who(peer_id)
+	var peer_name := str(info.get("name", ""))
+	if peer_name.is_empty():
+		peer_name = _who(peer_id)
 	_stack.finish(KEY_PEER % peer_id, String.chr(MenuIcons.CHECK),
-		"%s joined" % name, MenuToasts.DWELL_OK)
+		"%s joined" % peer_name, MenuToasts.DWELL_OK)
 
 
 func _on_peer_left(peer_id: int) -> void:
@@ -99,11 +99,11 @@ func _on_peer_left(peer_id: int) -> void:
 
 
 func _on_serve_started(peer_id: int, md5: String, _kind: String, size: int,
-		name: String) -> void:
+		file_name: String) -> void:
 	if not _speaking():
 		return
-	if not name.is_empty():
-		_names[md5] = name
+	if not file_name.is_empty():
+		_names[md5] = file_name
 	_stack.notify(KEY_UPLOAD % [peer_id, md5], String.chr(MenuIcons.UPLOAD),
 		"Sending %s to %s" % [_what(md5), _who(peer_id)], 0.0, 0.0)
 	if size <= 0:

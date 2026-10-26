@@ -86,10 +86,10 @@ static func build_seats(root: Node) -> Array[CellSlot]:
 	var host := CoverSlots.host_of(root)
 	if host == null:
 		return out
-	var seats: Array[Node] = root.find_children("Battery*", "Node3D", true, false)
+	var seat_nodes: Array[Node] = root.find_children("Battery*", "Node3D", true, false)
 	if root is Node3D and not size_of_seat(root.name).is_empty():
-		seats.push_front(root)
-	for node: Node in seats:
+		seat_nodes.push_front(root)
+	for node: Node in seat_nodes:
 		if not size_of_seat(node.name).is_empty():
 			out.append(on(host).build(node as Node3D))
 	return out

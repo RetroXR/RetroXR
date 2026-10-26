@@ -491,7 +491,7 @@ func _is_wrist() -> bool:
 func _mount() -> void:
 	if _desktop:
 		return   # a CanvasLayer is not placed in the world
-	var host: Node3D = _left_hand if _is_wrist() else _camera
+	var host: Node3D = (_left_hand as Node3D) if _is_wrist() else (_camera as Node3D)
 	if host == null:
 		return
 	if get_parent() != host:
@@ -914,6 +914,7 @@ func _read_gpu_clock() -> String:
 	var clock := _sysfs_line(GPU_CLOCK_PATH)
 	if not clock.is_valid_int() or _gpu_max_hz <= 0:
 		return "n/a"
+	@warning_ignore("integer_division")
 	var text := "%d / %d MHz" % [clock.to_int() / 1_000_000, _gpu_max_hz / 1_000_000]
 	var busy := _sysfs_line(GPU_BUSY_PATH).replace("%", "").strip_edges()
 	if busy.is_valid_int():

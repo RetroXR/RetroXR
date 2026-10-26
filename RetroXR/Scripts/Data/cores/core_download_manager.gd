@@ -497,7 +497,7 @@ static func systems_using(core_name: String) -> PackedStringArray:
 		if str(node.resolve_core_name()) != core_name:
 			continue
 		out.append(str(node.get("system_label")) if node.get("system_label") != null
-			else node.name)
+			else str(node.name))
 	return out
 
 

@@ -386,8 +386,8 @@ func desktop_aim_volume() -> Dictionary:
 	var track := here
 	for end_value: float in [0.0, 1.0]:
 		track = track.merge(AABB(lo + axis * (end_value - value) * travel, hi - lo))
-	var scale := maxf(global_transform.basis.get_scale().x, 0.0001)
-	return {"to_local": inverse, "box": track.grow(DESKTOP_AIM_MARGIN / scale), "scale": scale}
+	var s := maxf(global_transform.basis.get_scale().x, 0.0001)
+	return {"to_local": inverse, "box": track.grow(DESKTOP_AIM_MARGIN / s), "scale": s}
 
 
 ## The resolver's question (InteractionResolver._accepts_pointer): does the ray that reached this

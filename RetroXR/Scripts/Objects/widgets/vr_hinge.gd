@@ -552,8 +552,8 @@ func _face_on_shape(tip: Vector3, cs: CollisionShape3D, margin: float,
 		if (allowed & face) == 0:
 			continue
 		var axis := _face_axis(face)
-		var sign := _face_sign(face)
-		var d: float = absf(p[axis] - sign * half[axis])
+		var face_sign := _face_sign(face)
+		var d: float = absf(p[axis] - face_sign * half[axis])
 		if d > margin:
 			continue
 		var inside := true
@@ -563,7 +563,7 @@ func _face_on_shape(tip: Vector3, cs: CollisionShape3D, margin: float,
 				break
 		if inside:
 			var area := _face_area(half, axis)
-			var external := sign * p[axis] >= half[axis] - 0.0005
+			var external := face_sign * p[axis] >= half[axis] - 0.0005
 			var alignment := approach_dir.dot(-_face_world_normal(face, cs)) \
 				if has_approach else 0.0
 			if best_face == 0 or _poke_candidate_better(external, d, alignment, area,
@@ -720,7 +720,7 @@ func _face_world_normal(face: int, shape: CollisionShape3D = null) -> Vector3:
 
 
 func _claim_poke_face(ctrl: XRController3D, tip: Vector3,
-		shape: CollisionShape3D, face: int, priority: int) -> void:
+		shape: CollisionShape3D, face: int, contact_priority: int) -> void:
 	var cs := shape
 	if cs == null:
 		return
@@ -731,7 +731,7 @@ func _claim_poke_face(ctrl: XRController3D, tip: Vector3,
 	for other in 3:
 		if other != axis:
 			p[other] = clampf(p[other], -half[other], half[other])
-	PokeTip.set_contact(ctrl, cs.global_transform * p, _face_world_normal(face), priority)
+	PokeTip.set_contact(ctrl, cs.global_transform * p, _face_world_normal(face), contact_priority)
 
 
 ## Default poke motion is the trigger drag constrained to the direction named by

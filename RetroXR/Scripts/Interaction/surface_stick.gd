@@ -234,7 +234,7 @@ func peel(held: bool = false) -> void:
 		var scene := _body.get_tree().current_scene if _body.is_inside_tree() else null
 		if scene != null and _body.get_parent() != scene:
 			_body.reparent(scene, true)
-		_body.freeze_mode = _orig_freeze_mode
+		_body.freeze_mode = _orig_freeze_mode as RigidBody3D.FreezeMode
 		_body.restore_freeze = false
 		if not held:
 			_body.freeze = false

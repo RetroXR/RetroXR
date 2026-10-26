@@ -12,9 +12,12 @@ extends RefCounted
 static func time_text(ms: int, zero_ok := false) -> String:
 	if ms < 0 or (ms == 0 and not zero_ok):
 		return "—"
+	@warning_ignore("integer_division")
 	var s := ms / 1000
 	if s >= 3600:
+		@warning_ignore("integer_division")
 		return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60]
+	@warning_ignore("integer_division")
 	return "%d:%02d" % [s / 60, s % 60]
 
 
@@ -80,6 +83,7 @@ static func source_rows(vlc: Object) -> Array:
 			codec = str(t.get("codec", "?"))
 		elif not str(t.get("codec", "")).is_empty():
 			codec += " (%s)" % t["codec"]
+		@warning_ignore("integer_division")
 		var kbps := int(t.get("bitrate", 0)) / 1000
 		match str(t.get("type", "")):
 			"video":

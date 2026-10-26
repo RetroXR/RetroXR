@@ -156,13 +156,13 @@ static func saved_root() -> String:
 
 
 ## Save `path` as the root. "" when accepted, else why not. Does not move files.
-static func set_root(path: String, pending_move_from: String = "") -> String:
+static func set_root(path: String, move_from: String = "") -> String:
 	var why := validate(path)
 	if not why.is_empty():
 		return why
 	_load_config()
 	_cached_root = normalize(path)
-	_cached_pending_from = normalize(pending_move_from)
+	_cached_pending_from = normalize(move_from)
 	return "" if _save_config() else "Could not save the setting."
 
 

@@ -31,7 +31,7 @@ static func register(systemid: String, row: Dictionary, owner_id: String) -> Str
 	var listed: Variant = row.get("bodies", [])
 	if not (listed is Array) or (listed as Array).is_empty():
 		return "no bodies given"
-	var bodies: Array = []
+	var accepted: Array = []
 	var seen := {}
 	for entry: Variant in (listed as Array):
 		if not (entry is Dictionary):
@@ -53,7 +53,7 @@ static func register(systemid: String, row: Dictionary, owner_id: String) -> Str
 		if size.x <= 0.0 or size.y <= 0.0 or size.z <= 0.0:
 			return "body '%s': size must be positive on every axis" % body_id
 		body["label"] = str(body.get("label", body_id.get_slice(":", 1)))
-		bodies.append(body)
+		accepted.append(body)
 
 	var palette: CartridgeShellPalette = null
 	var palette_path := str(row.get("palette", ""))
@@ -80,7 +80,7 @@ static func register(systemid: String, row: Dictionary, owner_id: String) -> Str
 	if palette != null and tint.is_empty():
 		return "a palette needs tint: the names of the materials it colours"
 
-	_shells[systemid] = {"owner": owner_id, "bodies": bodies, "palette": palette,
+	_shells[systemid] = {"owner": owner_id, "bodies": accepted, "palette": palette,
 		"choose": choose, "uv_label": bool(row.get("uv_label", false)), "tint": tint}
 	_choices.clear()
 	return ""

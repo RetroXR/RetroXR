@@ -1773,11 +1773,11 @@ func _update_speaker(libretro: Node) -> void:
 			return
 	var listener_pos: Vector3 = _listener.get_listener_position()
 	var pos := _speaker.global_position
-	var basis := _speaker.global_transform.basis
+	var b := _speaker.global_transform.basis
 	# Held off the face like a handheld's voices: the SDK's HRTF goes dull inside
 	# a quarter metre. The gain below still measures the true distance.
 	_mx.set_voice_pose(voice, SpatialAudioEmitter.hold_off_head(pos, listener_pos),
-		basis.y.normalized(), -basis.z.normalized())
+		b.y.normalized(), -b.z.normalized())
 	var gain := SpatialAudioEmitter.distance_gain(pos, listener_pos,
 		_connected_system.audio_unit_size, _connected_system.audio_max_distance)
 	if not is_equal_approx(gain, _speaker_gain):

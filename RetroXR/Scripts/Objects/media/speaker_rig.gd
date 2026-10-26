@@ -112,4 +112,6 @@ static func cabinet_cone(entry: Variant) -> Variant:
 		return null
 	var cones: PackedVector3Array = sink.get_speaker_positions()
 	var idx: int = int((entry as Dictionary).get("speaker", 0))
-	return cones[idx] if idx >= 0 and idx < cones.size() else null
+	if idx >= 0 and idx < cones.size():
+		return cones[idx]
+	return null

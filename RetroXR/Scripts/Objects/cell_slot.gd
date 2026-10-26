@@ -21,8 +21,8 @@ var _keep_roll := false
 
 ## Radians about `seat`'s +Z that `held` is turned by, the rest of it (a tilt off
 ## the axis) thrown away. A cell held end for end is measured as it would go in.
-static func roll_of(seat: Basis, held: Basis) -> float:
-	var d := (seat.orthonormalized().inverse() * held.orthonormalized()).orthonormalized()
+static func roll_of(seat_basis: Basis, held: Basis) -> float:
+	var d := (seat_basis.orthonormalized().inverse() * held.orthonormalized()).orthonormalized()
 	if d.z.z < 0.0:
 		d = d * Basis(Vector3.RIGHT, PI)
 	var q := d.get_rotation_quaternion()
@@ -32,8 +32,8 @@ static func roll_of(seat: Basis, held: Basis) -> float:
 
 ## `seat` turned by the roll `held` has about it: for a cell's preview ghost
 ## (preview_basis_for), so what the hand sees over the bay is what goes in.
-static func roll_basis(seat: Basis, held: Basis) -> Basis:
-	return seat * Basis(Vector3.BACK, roll_of(seat, held))
+static func roll_basis(seat_basis: Basis, held: Basis) -> Basis:
+	return seat_basis * Basis(Vector3.BACK, roll_of(seat_basis, held))
 
 
 ## Put `cell` in at `at_roll` (radians), as a save had it.

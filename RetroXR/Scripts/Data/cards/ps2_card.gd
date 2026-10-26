@@ -35,12 +35,14 @@ const PAGES_PER_CLUSTER  := 2
 const CLUSTER_SIZE       := PAGE_SIZE * PAGES_PER_CLUSTER   # 1024
 const PAGES_PER_BLOCK    := 16
 const TOTAL_PAGES        := 0x4000                          # 16384
+@warning_ignore("integer_division")
 const CLUSTERS_PER_CARD  := TOTAL_PAGES / PAGES_PER_CLUSTER # 8192
 const CARD_SIZE          := TOTAL_PAGES * PAGE_RAW          # 8650752
 const CARD_SIZE_NO_ECC   := TOTAL_PAGES * PAGE_SIZE         # 8388608
 
 ## First allocatable cluster, and the origin every FAT link and directory entry
 ## cluster is measured from. PCSX2 derives it as clusters/0x100 + 9.
+@warning_ignore("integer_division")
 const ALLOC_OFFSET := CLUSTERS_PER_CARD / 0x100 + 9         # 41
 ## One past the highest allocatable cluster, relative to ALLOC_OFFSET.
 const ALLOC_END    := CLUSTERS_PER_CARD - 0x10 - ALLOC_OFFSET   # 8135
@@ -48,13 +50,17 @@ const ALLOC_END    := CLUSTERS_PER_CARD - 0x10 - ALLOC_OFFSET   # 8135
 ## The card reports LESS free space than alloc_end allows. PCSX2 truncates to
 ## this to match what the console's own browser reports, and a card that offered
 ## the extra 136 clusters would disagree with every figure a player sees.
+@warning_ignore("integer_division")
 const USABLE_CLUSTERS := (ALLOC_END / 1000) * 1000 - 1      # 7999
 
 const IFC_CLUSTER       := 8       ## absolute cluster holding the indirect FAT
 const FIRST_FAT_CLUSTER := 9       ## absolute; FAT occupies 9..40
+@warning_ignore("integer_division")
 const FAT_CLUSTER_COUNT := CLUSTERS_PER_CARD / (CLUSTER_SIZE / 4)   # 32
 const ROOTDIR_CLUSTER   := 0       ## relative to ALLOC_OFFSET; must be zero
+@warning_ignore("integer_division")
 const BACKUP_BLOCK1     := CLUSTERS_PER_CARD / 8 - 1        # 1023
+@warning_ignore("integer_division")
 const BACKUP_BLOCK2     := CLUSTERS_PER_CARD / 8 - 2        # 1022
 
 # --- Superblock ---------------------------------------------------------------
@@ -90,6 +96,7 @@ const SB_CARD_FLAGS     := 0x151
 # --- Directory entries --------------------------------------------------------
 
 const ENTRY_SIZE          := 512
+@warning_ignore("integer_division")
 const ENTRIES_PER_CLUSTER := CLUSTER_SIZE / ENTRY_SIZE      # 2
 const NAME_LEN            := 32
 
@@ -127,6 +134,7 @@ const EMPTY_FILE_CLUSTER := 0xFFFFFFFF
 const FAT_IN_USE := 0x80000000   ## bit 31: this cluster is allocated
 const FAT_LAST   := 0x7FFFFFFF   ## link value meaning "end of chain"
 const FAT_FREE   := 0x7FFFFFFF   ## a free entry: FAT_LAST with bit 31 clear
+@warning_ignore("integer_division")
 const FAT_ENTRIES_PER_CLUSTER := CLUSTER_SIZE / 4   # 256
 
 ## Every save on the card is a directory at the root. Slots 0 and 1 are always

@@ -246,9 +246,9 @@ static func filename_sticker(file_name: String) -> String:
 
 ## The art a cartridge in `body_model` wears on its back for this ROM, or "" when
 ## it keeps the model's own: only the Super Famicom body takes a PAL sticker.
-static func rear_sticker_file(body_model: String, systemid: String, rom_path: String,
+static func rear_sticker_file(model_path: String, systemid: String, rom_path: String,
 		pinned := "") -> String:
-	if body_model != BODY_SFC:
+	if model_path != BODY_SFC:
 		return ""
 	var code := rear_sticker(systemid, rom_path, pinned)
 	if code.is_empty():

@@ -68,6 +68,7 @@ func restore(state: Dictionary) -> void:
 	velocities = (state["velocities"] as PackedVector3Array).duplicate()
 	length = float(state["length"])
 	width = float(state["width"])
+	@warning_ignore("integer_division")
 	segments = positions.size() / 2 - 1
 	_constraints()
 	unpin()

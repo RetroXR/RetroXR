@@ -36,6 +36,7 @@ signal apply_requested(restart: bool)
 
 ## A tile is one size whatever the menu's width: the grids are HFlowContainers,
 ## so a wider menu fits more tiles on a row instead of stretching three.
+const MOD_MANAGER := preload("res://Scripts/Mods/mod_manager.gd")
 const TILE_W := 326
 const TILE_H := 300
 const ART_H := 176
@@ -607,6 +608,7 @@ func _rebuild_grid(keep_scroll: bool = false) -> void:
 
 func _update_pager() -> void:
 	var pages := maxi(1, ceili(float(_total) / float(ModioClient.PAGE_SIZE)))
+	@warning_ignore("integer_division")
 	var page := _offset / ModioClient.PAGE_SIZE + 1
 	_page_lbl.text = "Page %d of %d" % [page, pages]
 	_prev_btn.disabled = _offset <= 0
@@ -693,11 +695,11 @@ func _review_from_tile(key: String, mod: Dictionary = {}) -> void:
 		_packs_page.show_review_of(key)
 		return
 	var owner_coming := false
-	for owner: Variant in (_needed_for.get(key, []) as Array):
-		if has_review(str(owner)):
-			_open_single_review(str(owner))
+	for needer: Variant in (_needed_for.get(key, []) as Array):
+		if has_review(str(needer)):
+			_open_single_review(str(needer))
 			return
-		owner_coming = owner_coming or downloader.is_queued(str(owner))
+		owner_coming = owner_coming or downloader.is_queued(str(needer))
 	if owner_coming:
 		notify(_toast_key(key), "⏳", "It installs with the mod that needs it, once that has downloaded",
 			-1.0, MenuToasts.DWELL_INFO)
@@ -740,11 +742,11 @@ func _manager() -> Node:
 ##   "review"    downloaded, and waiting for the player's answer
 ##   "unscanned" mod.io's scan of the file it offers has not finished clean
 ## `manager` is the loader to ask, the Mods autoload when null.
-static func browse_state(mod: Dictionary, busy: bool = false, review: bool = false,
+static func browse_state(mod: Dictionary, busy: bool = false, in_review: bool = false,
 		manager: Node = null) -> String:
 	if busy:
 		return "busy"
-	if review:
+	if in_review:
 		return "review"
 	var m: Node = manager if manager != null else Mods
 	var rec := m.find_by_source("modio_id", int(mod.get("id", 0))) as ModRecord
@@ -1348,8 +1350,8 @@ func _fetch_with_needs(key: String, mod: Dictionary, needs: Array) -> void:
 ## for ever ("Downloading what it needs…").
 func _need_done(dkey: String, staged: bool, error: String) -> void:
 	# A copy: installing an owner here drops it from this very list.
-	for owner: Variant in (_needed_for.get(dkey, []) as Array).duplicate():
-		var key := str(owner)
+	for needer: Variant in (_needed_for.get(dkey, []) as Array).duplicate():
+		var key := str(needer)
 		var entry: Dictionary = _with_needs.get(key, {})
 		if entry.is_empty() or (entry["done"] as Array).has(dkey):
 			continue
@@ -1397,7 +1399,7 @@ func _drop_needs(key: String, discard: bool) -> void:
 			discard_review(dkey)
 
 
-func _on_job_started(key: String, label: String, _total: int) -> void:
+func _on_job_started(key: String, label: String, _job_total: int) -> void:
 	# A new run of it: whatever quiet cancel was meant for the last one is spent.
 	_quiet_cancel.erase(key)
 	_refresh_tile(key)
@@ -1796,7 +1798,6 @@ func _fill_banner_into(box: VBoxContainer) -> void:
 	var m := _manager()
 	var off := switched_off_new()
 	var plan: Dictionary = m.apply_plan()
-	var live: Array = plan["live"]
 	var restart := bool(plan["restart"])
 	box.visible = not off.is_empty() or restart or _plan_is_live(plan)
 	if not box.visible:
@@ -1933,9 +1934,9 @@ func _on_apply_pressed() -> void:
 ## whatever is downloading, and the downloads parked for review (the next launch
 ## sweeps those away).
 func _apply_blocker(restart: bool) -> String:
-	var ready: bool = bool(room_ready_override) if room_ready_override != null \
+	var room_ready: bool = bool(room_ready_override) if room_ready_override != null \
 		else SceneManager.is_scene_content_ready(SceneManager.current_scene_id)
-	if not ready:
+	if not room_ready:
 		return "Wait for the room to finish loading."
 	if restart and _menu != null and _menu.has_method("busy_reason"):
 		return str(_menu.busy_reason())
@@ -1968,7 +1969,7 @@ static func installed_status_text(rec: ModRecord) -> String:
 		return "Updates to %s at next restart" % rec.update_staged
 	if rec.blocked_by_dependency:
 		return "Needs another mod"
-	return Mods.status_text(rec.status)
+	return MOD_MANAGER.status_text(rec.status)
 
 
 ## One line per mod `rec` needs, {text, ok}: which, at least which version, and

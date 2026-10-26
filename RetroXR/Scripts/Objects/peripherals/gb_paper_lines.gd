@@ -100,6 +100,7 @@ func take(img: Image) -> int:
 		var n := from + k
 		var r := n % CHUNK
 		var count := mini(rows - k, CHUNK - r)
+		@warning_ignore("integer_division")
 		var c := n / CHUNK
 		if (c + 1) * CHUNK > first:
 			_chunk(c).blit_rect(block, Rect2i(0, k, GbPrinterPaper.DOTS, count), Vector2i(0, r))
@@ -111,7 +112,9 @@ func take(img: Image) -> int:
 ## Bring the texture up to what has been read. True when it is a new texture,
 ## which the material then has to be given.
 func upload() -> bool:
+	@warning_ignore("integer_division")
 	var lo := first / CHUNK
+	@warning_ignore("integer_division")
 	var hi := maxi(lo, (end - 1) / CHUNK) if end > first else lo
 	var span := hi - lo + 1
 	if texture != null and span <= layers:
@@ -149,6 +152,7 @@ func image() -> Image:
 		var line := first + k
 		var r := line % CHUNK
 		var count := mini(n - k, CHUNK - r)
+		@warning_ignore("integer_division")
 		var chunk: Image = _chunks.get(line / CHUNK)
 		if chunk != null:
 			out.blit_rect(chunk, Rect2i(0, r, GbPrinterPaper.DOTS, count), Vector2i(0, k))

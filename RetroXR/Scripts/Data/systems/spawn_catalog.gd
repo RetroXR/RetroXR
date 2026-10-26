@@ -476,12 +476,12 @@ static func _items_for(systemid: String) -> Array:
 	# card is the base station, the cartridge and the pack that goes in it, which
 	# is the machine as a player has to build it.
 	if ExpansionCatalog.has(systemid) and ExpansionCatalog.has_own_card(systemid):
-		var own: Array = []
+		var unit_items: Array = []
 		# Offered whether or not its firmware is installed, as every unit is: see
 		# _units_carded_here.
-		own.append(_unit_item(systemid))
-		own.append_array(_units_carded_here(systemid))
-		return own
+		unit_items.append(_unit_item(systemid))
+		unit_items.append_array(_units_carded_here(systemid))
+		return unit_items
 
 	# The same card under another name: the MEDIA of a unit whose id differs from
 	# it. The Jaguar CD is the one -- its id is jaguar_cd (persisted, so it

@@ -31,6 +31,7 @@ var _camera: Node3D = null
 ## Set once the panel's 2D UI has been found and its signals wired. The lookup
 ## has to be deferred — the SubViewport's child does not exist on the frame the
 ## panel is added — so this guards against wiring the same signals twice.
+@warning_ignore("unused_private_class_variable")
 var _ui_connected := false
 
 
@@ -145,7 +146,7 @@ func _measure_subject(target: Node3D) -> void:
 	var box := AABB()
 	var found := false
 	var top_mesh: MeshInstance3D = null
-	var to_local := target.global_transform.affine_inverse()
+	var to_target := target.global_transform.affine_inverse()
 	for node: Node in target.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		if mi == null or mi.mesh == null or not mi.is_visible_in_tree():
@@ -154,7 +155,7 @@ func _measure_subject(target: Node3D) -> void:
 			continue
 		if _not_the_object(mi, target):
 			continue
-		var lb: AABB = (to_local * mi.global_transform) * mi.get_aabb()
+		var lb: AABB = (to_target * mi.global_transform) * mi.get_aabb()
 		if not found or lb.end.y > box.end.y:
 			top_mesh = mi
 		box = lb if not found else box.merge(lb)

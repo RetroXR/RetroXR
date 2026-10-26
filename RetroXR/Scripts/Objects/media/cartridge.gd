@@ -394,12 +394,12 @@ func _paint_camera(glb: Node3D) -> void:
 	paint_camera(glb, palette.find(id), id, japan)
 
 
-## The camera body a Game Boy cartridge of `systemid` spawns as: a mod's, when the
+## The camera body a Game Boy cartridge of `p_systemid` spawns as: a mod's, when the
 ## mod that brings that system's shells has one (a body whose id ends ":camera"),
 ## else the game's stand-in. A mod's shells for a system stand in for the game's,
 ## and without one of its own the camera would have lost its lens.
-static func camera_body_for(systemid: String) -> String:
-	for body: Dictionary in ModCartShells.bodies(systemid):
+static func camera_body_for(p_systemid: String) -> String:
+	for body: Dictionary in ModCartShells.bodies(p_systemid):
 		if str(body.get("id", "")).ends_with(":camera"):
 			return str(body["model"])
 	return GbCameraShell.BODY

@@ -317,7 +317,7 @@ static func _dolphin_machines_on() -> PackedStringArray:
 		if not is_instance_valid(node) or not bool(node.get("is_powered_on")):
 			continue
 		if node.has_method("resolve_core_name") and str(node.resolve_core_name()) == WiiSystemMenu.CORE:
-			out.append(str(node.get("system_label")) if node.get("system_label") != null else node.name)
+			out.append(str(node.get("system_label")) if node.get("system_label") != null else str(node.name))
 	return out
 
 

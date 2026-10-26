@@ -323,7 +323,7 @@ func _log_ends(verb: String, ends: Array[Dictionary]) -> void:
 		# where the extension is fully registered.
 		var machine: Node = lib.get_parent()
 		parts.append("%s (%d peers)" % [
-			machine.name if machine != null else "?", lib.LinkPeerCount(end["port"])])
+			str(machine.name) if machine != null else "?", lib.LinkPeerCount(end["port"])])
 	print("[LinkCable] %s %s: %s" % [name, verb,
 		", ".join(parts) if parts.size() > 0 else "nothing"])
 

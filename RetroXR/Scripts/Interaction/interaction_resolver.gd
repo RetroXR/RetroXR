@@ -166,12 +166,12 @@ static func _classify(
 
 		if node is XRToolsSnapZone:
 			var zone := node as XRToolsSnapZone
-			var snapped := held_pickable(zone)
-			if snapped == null or not is_instance_valid(grabber) \
+			var seated := held_pickable(zone)
+			if seated == null or not is_instance_valid(grabber) \
 					or not zone.can_pick_up(grabber):
 				return InteractionTarget.none()
 			return _make_target(InteractionTarget.KIND_SNAP_PICKABLE, hit.collider as Node3D,
-				zone, snapped, null, hit.position, distance, false, true)
+				zone, seated, null, hit.position, distance, false, true)
 
 		if node is XRToolsPickable:
 			var pickable := node as XRToolsPickable
@@ -308,9 +308,9 @@ static func assist_held(held: Node3D, from: Vector3, to: Vector3,
 	# held body, so a control on its far side can be reached through it by either path.
 	var hidden_past := held_body_distance(held, from, to) + ASSIST_HIDDEN_DEPTH
 	if current != null and current.is_valid() and current.can_activate:
-		var on_held := is_instance_valid(current.hit_node) \
+		var hit_held := is_instance_valid(current.hit_node) \
 			and (current.hit_node == held or held.is_ancestor_of(current.hit_node))
-		if not on_held or current.distance <= hidden_past:
+		if not hit_held or current.distance <= hidden_past:
 			return current
 		current = InteractionTarget.none()
 	var tolerance := tan(deg_to_rad(ASSIST_ANGLE_DEG))

@@ -594,7 +594,7 @@ func refresh_crt_derived() -> void:
 	var key: Array = [
 		mat.get_instance_id(), _tv.scale_factor,
 		float(_crt_params.get("crt_mask_pitch_mm", 2.0)),
-		Vector2i(-1, -1) if tex == null else tex.get_size(),
+		Vector2(-1, -1) if tex == null else tex.get_size(),
 	]
 	if key == _crt_derived_key:
 		return

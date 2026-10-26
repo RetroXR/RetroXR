@@ -234,7 +234,7 @@ static func install_plan(os_name: String, exe_path: String, appimage: String,
 ##
 ## Whatever fails, the app still starts again afterwards (the old build if the
 ## swap did not happen), so a failed update never leaves the player with no app.
-static func waiter_command(plan: Dictionary, os_name: String, pid: int, exe: String,
+static func waiter_command(plan: Dictionary, _os_name: String, pid: int, exe: String,
 		download: String, args: PackedStringArray) -> Array:
 	var target := str(plan.get("target", ""))
 	match str(plan.get("mode", MODE_NONE)):

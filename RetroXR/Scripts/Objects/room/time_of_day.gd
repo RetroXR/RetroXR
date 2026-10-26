@@ -475,7 +475,7 @@ static func horizon_gain(altitude_deg: float) -> float:
 ## Dusk, the room's own fill, follows the sun's AZIMUTH but holds a fixed high
 ## elevation. Unshadowed and masked to the room, its angle only picks which walls
 ## take the warm rake, and a real low sun would rake straight through them.
-func _apply_suns(k: Dictionary, sol: Vector2) -> void:
+func _apply_suns(_k: Dictionary, sol: Vector2) -> void:
 	if not rotate_suns:
 		return
 	if _exterior_sun != null:

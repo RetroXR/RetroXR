@@ -49,6 +49,7 @@ var _emitter: SpatialAudioEmitter = null
 var _head_lock := false
 var _head_l := Vector3.ZERO
 var _head_r := Vector3.ZERO
+@warning_ignore("unused_private_class_variable")
 var _volume_linear: float = 1.0
 var _paused: bool = false
 

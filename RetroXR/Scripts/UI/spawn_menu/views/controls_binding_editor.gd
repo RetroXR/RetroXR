@@ -80,9 +80,9 @@ var _desktop_diagrams: Array[ConsolePadDiagram] = []
 var _desktop_control_of: Dictionary = {}
 
 
-static func create(systemid: String = "") -> ControlsBindingEditor:
+static func create(sid: String = "") -> ControlsBindingEditor:
 	var e := ControlsBindingEditor.new()
-	e._systemid = systemid
+	e._systemid = sid
 	e._build()
 	return e
 

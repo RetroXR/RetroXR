@@ -104,9 +104,9 @@ func _build_offer(ver: String) -> void:
 	row.add_child(_button("Skip this version", func() -> void: _svc.skip_this_version(), false))
 	add_child(row)
 	if _svc.can_auto_install():
-		var size := int((_svc.release.get("asset", {}) as Dictionary).get("size", 0))
+		var asset_size := int((_svc.release.get("asset", {}) as Dictionary).get("size", 0))
 		add_child(MenuStyle.hint(("Downloads %s, checks it, then restarts. Your room "
-			+ "comes back as it was.") % MenuStyle.human_bytes(size)))
+			+ "comes back as it was.") % MenuStyle.human_bytes(asset_size)))
 	else:
 		add_child(MenuStyle.hint(_svc.manual_reason()))
 

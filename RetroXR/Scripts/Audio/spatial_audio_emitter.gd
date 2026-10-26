@@ -270,7 +270,7 @@ func _send_gain(g: float) -> void:
 ## speaker voices to route between, so it keeps playing the pair as authored —
 ## the same way set_channel_gains degrades there.
 func set_channel_mode(mode: ChannelMode) -> void:
-	_channel_mode = clampi(mode, ChannelMode.STEREO, ChannelMode.MONO_RIGHT)
+	_channel_mode = clampi(mode, ChannelMode.STEREO, ChannelMode.MONO_RIGHT) as ChannelMode
 
 
 func get_channel_mode() -> ChannelMode:

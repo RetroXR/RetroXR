@@ -278,37 +278,37 @@ func _bind(node: Node, id: int) -> void:
 	_bind_articulated_controls(node)
 
 
-func _bind_articulated_controls(owner: Node) -> void:
-	var hinges: Array[Node] = owner.find_children("*", "VRHinge", true, false)
-	if owner is VRHinge:
-		hinges.push_front(owner)
+func _bind_articulated_controls(control_owner: Node) -> void:
+	var hinges: Array[Node] = control_owner.find_children("*", "VRHinge", true, false)
+	if control_owner is VRHinge:
+		hinges.push_front(control_owner)
 	for candidate: Node in hinges:
 		var hinge := candidate as VRHinge
 		if hinge == null:
 			continue
-		var path := NodePath(str(owner.get_path_to(hinge)))
-		var handler := _on_hinge_changed.bind(owner, path, hinge)
+		var path := NodePath(str(control_owner.get_path_to(hinge)))
+		var handler := _on_hinge_changed.bind(control_owner, path, hinge)
 		if not hinge.rotation_changed.is_connected(handler):
 			hinge.rotation_changed.connect(handler)
 		if hinge is VRLever:
 			var lever := hinge as VRLever
-			var value_handler := _on_control_changed.bind(owner, path, "lever", lever)
+			var value_handler := _on_control_changed.bind(control_owner, path, "lever", lever)
 			if not lever.value_changed.is_connected(value_handler):
 				lever.value_changed.connect(value_handler)
-	for candidate: Node in owner.find_children("*", "VRKnob", true, false):
+	for candidate: Node in control_owner.find_children("*", "VRKnob", true, false):
 		var knob := candidate as VRKnob
 		if knob == null:
 			continue
-		var path := NodePath(str(owner.get_path_to(knob)))
-		var handler := _on_control_changed.bind(owner, path, "knob", knob)
+		var path := NodePath(str(control_owner.get_path_to(knob)))
+		var handler := _on_control_changed.bind(control_owner, path, "knob", knob)
 		if not knob.value_changed.is_connected(handler):
 			knob.value_changed.connect(handler)
-	for candidate: Node in owner.find_children("*", "VRSlider", true, false):
+	for candidate: Node in control_owner.find_children("*", "VRSlider", true, false):
 		var slider := candidate as VRSlider
 		if slider == null:
 			continue
-		var path := NodePath(str(owner.get_path_to(slider)))
-		var handler := _on_control_changed.bind(owner, path, "slider", slider)
+		var path := NodePath(str(control_owner.get_path_to(slider)))
+		var handler := _on_control_changed.bind(control_owner, path, "slider", slider)
 		if not slider.value_changed.is_connected(handler):
 			slider.value_changed.connect(handler)
 
@@ -630,12 +630,12 @@ func _process(delta: float) -> void:
 ## lids, console flaps, battery covers, knobs, sliders and levers can all move
 ## while their owner stays perfectly still. Coalesce each control to 15 Hz, but
 ## send the batch reliably so the final released value cannot be lost.
-func _on_hinge_changed(degrees: float, owner: Node, hinge_path: NodePath,
+func _on_hinge_changed(degrees: float, control_owner: Node, hinge_path: NodePath,
 		hinge: VRHinge) -> void:
-	if _applying or not _nm.is_active() or not is_instance_valid(owner) \
+	if _applying or not _nm.is_active() or not is_instance_valid(control_owner) \
 			or bool(hinge.get_meta("net_restore_in_progress", false)):
 		return
-	var id := id_of(owner)
+	var id := id_of(control_owner)
 	if id < 0 or not is_finite(degrees):
 		return
 	var path := str(hinge_path)
@@ -647,12 +647,12 @@ func _on_hinge_changed(degrees: float, owner: Node, hinge_path: NodePath,
 	_hinge_pending["%d:%s" % [id, path]] = rec
 
 
-func _on_control_changed(value: float, owner: Node, control_path: NodePath,
+func _on_control_changed(value: float, control_owner: Node, control_path: NodePath,
 		kind: String, control: Node) -> void:
-	if _applying or not _nm.is_active() or not is_instance_valid(owner) \
+	if _applying or not _nm.is_active() or not is_instance_valid(control_owner) \
 			or bool(control.get_meta("net_restore_in_progress", false)):
 		return
-	var id := id_of(owner)
+	var id := id_of(control_owner)
 	if id < 0 or not is_finite(value):
 		return
 	var path := str(control_path)
@@ -719,15 +719,15 @@ func _apply_hinge_updates_body(updates: Array) -> Array:
 			continue
 		var rec := raw as Dictionary
 		var decoded := _decode_args({"owner": rec.get("owner")})
-		var owner := decoded.get("owner") as Node
+		var control_owner := decoded.get("owner") as Node
 		var path := str(rec.get("path", ""))
 		var kind := str(rec.get("kind", "hinge"))
 		var value := float(rec.get("value", rec.get("degrees", NAN)))
-		if owner == null or path.is_empty() or path.is_absolute_path() \
+		if control_owner == null or path.is_empty() or path.is_absolute_path() \
 				or path.length() > 256 or not is_finite(value):
 			continue
-		var control := owner.get_node_or_null(NodePath(path))
-		if control == null or (control != owner and not owner.is_ancestor_of(control)):
+		var control := control_owner.get_node_or_null(NodePath(path))
+		if control == null or (control != control_owner and not control_owner.is_ancestor_of(control)):
 			continue
 		match kind:
 			"hinge":

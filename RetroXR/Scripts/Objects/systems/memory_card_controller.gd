@@ -43,7 +43,7 @@ var _host: RetroSystem = null
 ## Events only. Nothing here fires on a poll tick that found no change, so a
 ## quiet run is quiet.
 func _log(what: String) -> void:
-	print("[MemoryCard] %s: %s" % [_host.name if _host != null else "?", what])
+	print("[MemoryCard] %s: %s" % [str(_host.name) if _host != null else "?", what])
 
 
 func setup(host: RetroSystem) -> void:
@@ -842,8 +842,8 @@ func _seed_card_directory(dir: String, row: Dictionary, resolved_core: String) -
 	if fmt == null:
 		return
 	var suffix := "." + fmt.extension()
-	for name in DirAccess.get_files_at(dir):
-		if name.to_lower().ends_with(suffix):
+	for file_name in DirAccess.get_files_at(dir):
+		if file_name.to_lower().ends_with(suffix):
 			return
 	var seed_path := dir.path_join(SEED_CARD_NAME + suffix)
 	var f := FileAccess.open(seed_path, FileAccess.WRITE)

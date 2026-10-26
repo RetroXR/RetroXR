@@ -92,9 +92,9 @@ static func adopt_disc_saves(save_dir: String, image: PackedByteArray) -> Packed
 		return image
 	var found: Array[Dictionary] = []
 	for game: String in DirAccess.get_directories_at(save_dir):
-		for name: String in DirAccess.get_files_at(save_dir.path_join(game)):
-			if name.get_extension().to_lower() == "srm":
-				var path := save_dir.path_join(game).path_join(name)
+		for file_name: String in DirAccess.get_files_at(save_dir.path_join(game)):
+			if file_name.get_extension().to_lower() == "srm":
+				var path := save_dir.path_join(game).path_join(file_name)
 				found.append({"path": path, "time": FileAccess.get_modified_time(path)})
 	found.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return int(a["time"]) > int(b["time"]))

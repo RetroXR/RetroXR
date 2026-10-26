@@ -338,6 +338,10 @@ func _group_cartridges() -> void:
 	view.core_defaults = CoreDefaults.new()
 	view.core_defaults.set_default_core("dreamcast", "flycast")
 	view.core_defaults.set_default_core("vmu", "vemulator")
+	# RomM switched off hides its tiles, so the platform tiles need it on.
+	view.romm_config = RommConfig.new()
+	view.romm_config.enabled = true
+	view.romm_config.base_url = "http://romm.test"
 	view._romm_platforms = {
 		"nes": {"id": 1, "rom_count": 3, "systemid": "nes"},
 		"vmu": {"id": 2, "rom_count": 3, "systemid": "vmu"},

@@ -304,7 +304,7 @@ func is_active() -> bool:
 ## Host entry point. `owners` maps participating port -> peer_id. Verifies the
 ## core is netplay-capable, then drives the cold-start handshake on all peers.
 ## rollback: 1 = force on, 0 = force lockstep, -1 = auto (core capability).
-func start_host(system: Object, core: String, rom_md5: String, owners: Dictionary,
+func start_host(sys: Object, core: String, rom_md5: String, port_owners: Dictionary,
 		delay: int, rollback := -1) -> bool:
 	if not _nm.is_host():
 		return false
@@ -313,7 +313,7 @@ func start_host(system: Object, core: String, rom_md5: String, owners: Dictionar
 	# in the middle of the first one's wait. Refuse rather than restart.
 	if is_active():
 		return false
-	_set_group(_resolve_group(system))
+	_set_group(_resolve_group(sys))
 	if not _build_machine_specs(core, rom_md5):
 		_group = []
 		_system = null
@@ -330,7 +330,7 @@ func start_host(system: Object, core: String, rom_md5: String, owners: Dictionar
 		return false
 	_strategy = _pick_strategy(available, rollback)
 	if _strategy == NetplayCores.Strategy.ROLLBACK \
-			and (_group.size() > 1 or _is_linked(system)) and not _group_link_rollback():
+			and (_group.size() > 1 or _is_linked(sys)) and not _group_link_rollback():
 		_strategy = _demote_from_rollback(available)
 		push_warning("[Netplay] machine is on a link bus; starting in %s, not rollback"
 			% strategy_str(_strategy))
@@ -339,7 +339,7 @@ func start_host(system: Object, core: String, rom_md5: String, owners: Dictionar
 		push_warning("[Netplay] movable or sensor peripheral requires %s; disabling rollback"
 			% strategy_str(_strategy))
 	_rollback = _strategy == NetplayCores.Strategy.ROLLBACK
-	_set_owners(owners)
+	_set_owners(port_owners)
 	_ready_peers.clear()
 	_host_identities.clear()
 	_local_identities.clear()
@@ -361,11 +361,11 @@ func start_host(system: Object, core: String, rom_md5: String, owners: Dictionar
 
 
 @rpc("authority", "call_remote", "reliable", CH_CONTROL)
-func _np_start(group_net_ids: PackedInt32Array, machine_specs: Array,
-		owners: Dictionary, delay: int, start_frame: int,
+func _np_start(group_net_ids: PackedInt32Array, specs: Array,
+		port_owners: Dictionary, delay: int, start_frame: int,
 		strategy := NetplayCores.Strategy.LOCKSTEP,
 		host_identities: Array = []) -> void:
-	_machine_specs = machine_specs.duplicate(true)
+	_machine_specs = specs.duplicate(true)
 	_core = str(_machine_specs[0].get("core", "")) if not _machine_specs.is_empty() else ""
 	_delay = delay
 	# The host decided this; a client never re-derives it. Its own allowlist would
@@ -375,7 +375,7 @@ func _np_start(group_net_ids: PackedInt32Array, machine_specs: Array,
 	_rollback = strategy == NetplayCores.Strategy.ROLLBACK
 	_host_identities = host_identities.duplicate(true)
 	_local_identities.clear()
-	_set_owners(owners)
+	_set_owners(port_owners)
 	# Every machine on the bus, not just the one the host anchored to: a peer
 	# missing the far end would run half a cable.
 	if not _adopt_group(group_net_ids):
@@ -402,6 +402,7 @@ func group_size() -> int:
 ## Which machine a global port index belongs to, and which of that machine's own
 ## ports it is.
 static func machine_of_port(global_port: int) -> int:
+	@warning_ignore("integer_division")
 	return global_port / PORTS_PER_MACHINE
 
 
@@ -412,12 +413,12 @@ static func port_on_machine(global_port: int) -> int:
 ## The whole bus `system` sits on, itself first, or just itself when it is not
 ## cabled to anything. Order matters and must be the same on every peer: the
 ## machine at index 0 owns the clock, exactly as the head lead decides offline.
-func _resolve_group(system: Object) -> Array:
-	if system != null and system.has_method("net_link_group"):
-		var bus: Array = system.net_link_group()
+func _resolve_group(sys: Object) -> Array:
+	if sys != null and sys.has_method("net_link_group"):
+		var bus: Array = sys.net_link_group()
 		if bus.size() > 1:
 			return bus.duplicate()
-	return [system]
+	return [sys]
 
 
 func _set_group(group: Array) -> void:
@@ -1042,10 +1043,10 @@ func _reset_runtime(start_frame: int) -> void:
 ## Called from retro_controller for a port plugged into `system`. Returns true if
 ## netplay consumed the input (caller must NOT drive the core directly). Offline
 ## or a non-participating system → false (unchanged local behaviour).
-func route(system: Object, port: int, m: Dictionary) -> bool:
-	if not _running or system == null:
+func route(sys: Object, port: int, m: Dictionary) -> bool:
+	if not _running or sys == null:
 		return false
-	var machine_index := _group.find(system)
+	var machine_index := _group.find(sys)
 	if machine_index < 0:
 		return false
 	port = machine_index * PORTS_PER_MACHINE + port
@@ -1080,19 +1081,19 @@ func _capture_local() -> Dictionary:
 	return out
 
 
-func _global_port(system: Object, local_port: int) -> int:
-	var machine_index := _group.find(system)
+func _global_port(sys: Object, local_port: int) -> int:
+	var machine_index := _group.find(sys)
 	return -1 if machine_index < 0 or local_port < 0 or local_port >= PORTS_PER_MACHINE \
 		else machine_index * PORTS_PER_MACHINE + local_port
 
 
 ## Aux feeds from handhelds and motion controllers. True means the session owns
 ## the port, so the caller must not write the core directly.
-func set_aux_sensor(system: Object, local_port: int, sensor_index: int,
+func set_aux_sensor(sys: Object, local_port: int, sensor_index: int,
 		x_mg: int, y_mg: int, z_mg: int, gyro := false) -> bool:
 	if not _running:
 		return false
-	var port := _global_port(system, local_port)
+	var port := _global_port(sys, local_port)
 	if port < 0 or not _is_participating(port):
 		return false
 	if _rollback:
@@ -1113,11 +1114,11 @@ func set_aux_sensor(system: Object, local_port: int, sensor_index: int,
 	return true
 
 
-func set_aux_pointer(system: Object, local_port: int, pointer_index: int,
+func set_aux_pointer(sys: Object, local_port: int, pointer_index: int,
 		px: int, py: int, pressed: bool) -> bool:
 	if not _running:
 		return false
-	var port := _global_port(system, local_port)
+	var port := _global_port(sys, local_port)
 	if port < 0 or not _is_participating(port):
 		return false
 	if _rollback:
@@ -1137,8 +1138,8 @@ func set_aux_pointer(system: Object, local_port: int, pointer_index: int,
 	return true
 
 
-func set_lightgun_button(system: Object, local_port: int, button: int, pressed: bool) -> bool:
-	var port := _global_port(system, local_port)
+func set_lightgun_button(sys: Object, local_port: int, button: int, pressed: bool) -> bool:
+	var port := _global_port(sys, local_port)
 	if not _running or port < 0 or not _is_participating(port):
 		return false
 	if _local_ports.has(port):
@@ -1153,9 +1154,9 @@ func set_lightgun_button(system: Object, local_port: int, button: int, pressed: 
 	return true
 
 
-func set_lightgun_aim(system: Object, local_port: int, px: int, py: int,
+func set_lightgun_aim(sys: Object, local_port: int, px: int, py: int,
 		offscreen: bool) -> bool:
-	var port := _global_port(system, local_port)
+	var port := _global_port(sys, local_port)
 	if not _running or port < 0 or not _is_participating(port):
 		return false
 	if _local_ports.has(port):
@@ -1172,10 +1173,10 @@ func set_lightgun_aim(system: Object, local_port: int, px: int, py: int,
 ## Queue a keyboard transition into the deterministic schedule. Returns true
 ## when consumed (a lockstep game is running for this system and this peer
 ## supplies the keyboard block).
-func queue_key_event(system: Object, keycode: int, down: bool, character: int) -> bool:
+func queue_key_event(sys: Object, keycode: int, down: bool, character: int) -> bool:
 	if not _running or _rollback:
 		return false
-	var machine_index := _group.find(system)
+	var machine_index := _group.find(sys)
 	if machine_index < 0:
 		return false
 	var global_port := machine_index * PORTS_PER_MACHINE
@@ -1333,10 +1334,10 @@ func _apply_pending_transfers(f: int) -> void:
 ## Host: schedule a disc op for this session's system. op 0 = eject,
 ## op 1 = replace the image at `index` with the disc whose md5 matches,
 ## op 2 (DISK_OP_CARD) = scan the e-Reader card whose md5 matches.
-func schedule_disk_op(system: Object, op: int, md5: String, index: int) -> void:
+func schedule_disk_op(sys: Object, op: int, md5: String, index: int) -> void:
 	if not _nm.is_host() or not _running or (_rollback and op != DISK_OP_CARD):
 		return
-	var machine_index := _group.find(system)
+	var machine_index := _group.find(sys)
 	if machine_index < 0:
 		return
 	var frame := _complete_upto + _delay + DISK_LEAD
@@ -1413,10 +1414,10 @@ func _apply_disk_op(machine_index: int, op: int, md5: String, index: int,
 ## Host: reset one machine on a confirmed future boundary. Reset changes core
 ## state outside the input frame, so applying it whenever each peer receives a
 ## button event would immediately fork the emulation timeline.
-func schedule_reset(system: Object) -> void:
+func schedule_reset(sys: Object) -> void:
 	if not _nm.is_host() or not _running:
 		return
-	var machine_index := _group.find(system)
+	var machine_index := _group.find(sys)
 	if machine_index < 0:
 		return
 	var frame := _complete_upto + _delay + RESET_LEAD
@@ -1503,10 +1504,10 @@ func _resolve_disk_path(machine_index: int, md5: String) -> String:
 
 ## Host: schedule a link change for this session's bus. Lockstep only, for the
 ## same reason a disc swap is: a rollback would have to re-run the join.
-func schedule_link_op(system: Object, op: int, members: Array, ports: Array) -> void:
+func schedule_link_op(sys: Object, op: int, members: Array, ports: Array) -> void:
 	if not _nm.is_host() or not _running or (_rollback and not _group_rollback):
 		return
-	if _group.find(system) < 0:
+	if _group.find(sys) < 0:
 		return
 	if members.is_empty() or members.size() != ports.size():
 		return
@@ -2034,10 +2035,10 @@ func _schedule_group_link_op(op: int, members: PackedInt32Array,
 ## what joined them, but LinkCoordinator is the authority on whether another
 ## running endpoint is actually present. A later cold start explicitly
 ## re-resolves the physical cables because stopping content drops that state.
-func _is_linked(system: Object) -> bool:
-	if system == null or not system.has_method("get_libretro_node"):
+func _is_linked(sys: Object) -> bool:
+	if sys == null or not sys.has_method("get_libretro_node"):
 		return false
-	var lib: Object = system.get_libretro_node()
+	var lib: Object = sys.get_libretro_node()
 	if lib == null or not lib.has_method("LinkPeerCount"):
 		return false
 	for port: int in LINK_PORTS:
@@ -2848,7 +2849,9 @@ func _link_bus_descriptors() -> Variant:
 			ports.append(int(entry.get("port", 0)))
 		if members.size() >= 2:
 			out.append({"members": members, "ports": ports})
-	return null if _group.size() > 1 and out.is_empty() else out
+	if _group.size() > 1 and out.is_empty():
+		return null
+	return out
 
 
 func _capture_link_states() -> Variant:
@@ -3193,11 +3196,11 @@ func _check_crc(frame: int, machine_index: int) -> void:
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-func _set_owners(owners: Dictionary) -> void:
-	_owners = owners.duplicate()
+func _set_owners(port_owners: Dictionary) -> void:
+	_owners = port_owners.duplicate()
 	_pending.clear()
 	var ports: Array = []
-	for port: Variant in owners:
+	for port: Variant in port_owners:
 		ports.append(int(port))
 	ports.sort()
 	_all_ports = PackedInt32Array(ports)
@@ -3356,12 +3359,12 @@ func _now() -> int:
 	return Time.get_ticks_msec()
 
 
-func _resolve_net_id(system: Object) -> int:
+func _resolve_net_id(sys: Object) -> int:
 	for net_id: int in systems_override:
-		if systems_override[net_id] == system:
+		if systems_override[net_id] == sys:
 			return int(net_id)
 	if _nm != null and _nm.object_sync() != null and _nm.object_sync().has_method("id_of"):
-		return _nm.object_sync().id_of(system)
+		return _nm.object_sync().id_of(sys)
 	return -1
 
 

@@ -148,11 +148,11 @@ func _add(stem: String, entry: Dictionary) -> void:
 	_buttons.append(entry)
 
 
-func _rocker(stem: String, drop: float) -> Dictionary:
+func _rocker(stem: String, drop_by: float) -> Dictionary:
 	var m := _find_mesh(stem)
 	if m == null:
 		push_warning("N64Controller: control mesh not found: " + stem)
 		return {}
 	var pivot: Vector3 = _find_pivot(m, stem + "Pivot")
-	pivot.y -= drop
+	pivot.y -= drop_by
 	return {"node": m, "rest": m.transform, "pivot": pivot}

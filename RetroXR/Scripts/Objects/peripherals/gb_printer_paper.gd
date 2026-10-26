@@ -49,6 +49,7 @@ static func sheet(dots: Image, paper := PAPER, ink := Color.BLACK) -> Image:
 	src.convert(Image.FORMAT_L8)
 	var w := sheet_width()
 	var h := src.get_height()
+	@warning_ignore("integer_division")
 	var left := (w - DOTS) / 2
 	var out := Image.create(w, h, false, Image.FORMAT_RGB8)
 	out.fill(paper)

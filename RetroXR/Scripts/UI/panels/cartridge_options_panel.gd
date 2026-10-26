@@ -525,7 +525,7 @@ func _on_sync_finished(_key: String, _action: String, _ok: bool, _detail: String
 		_populate_soon()
 
 
-func _on_conflict_forked(_key: String, forked_save_id: String, _label: String) -> void:
+func _on_conflict_forked(_key: String, forked_save_id: String, _save_label: String) -> void:
 	# Flag the fork, not the original: the fork is the copy the user has not
 	# seen, and it is the one that needs explaining.
 	_conflicted[forked_save_id] = true

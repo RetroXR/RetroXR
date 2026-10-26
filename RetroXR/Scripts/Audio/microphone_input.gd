@@ -166,8 +166,8 @@ func _audio_server_devices() -> PackedStringArray:
 	return AudioServer.get_input_device_list()
 
 
-func _select_audio_server_device(name: String) -> void:
-	AudioServer.input_device = name
+func _select_audio_server_device(device_name: String) -> void:
+	AudioServer.input_device = device_name
 
 
 func _camera_position() -> Vector3:

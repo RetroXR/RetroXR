@@ -343,10 +343,10 @@ static func _mesh_bounds(root: Node3D) -> AABB:
 
 
 ## A named node of the shell, or null on a plain unit.
-func _shell_node(name: String) -> Node3D:
+func _shell_node(node_name: String) -> Node3D:
 	if _shell == null:
 		return null
-	return _shell.find_child(name, true, false) as Node3D
+	return _shell.find_child(node_name, true, false) as Node3D
 
 
 ## The ACCESS lamp is the drive's, so it follows the core's LED interface

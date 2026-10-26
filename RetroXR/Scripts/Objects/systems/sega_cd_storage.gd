@@ -178,8 +178,8 @@ func stage_before_start(dir: String, core: String) -> void:
 
 	var memory_image := _image_for(memory, MEMORY_FAMILY)
 	if not memory_image.is_empty():
-		for name: String in REGION_FILES:
-			_stage_file(name, memory_image, memory.card_id)
+		for file_name: String in REGION_FILES:
+			_stage_file(file_name, memory_image, memory.card_id)
 	var cart: RetroExpansion = units["cart"]
 	if cart != null:
 		var cart_image := _image_for(cart, CART_FAMILY)
@@ -206,12 +206,12 @@ func _image_for(unit: RetroExpansion, family: String) -> String:
 	return path if _write(path, legacy) else ""
 
 
-func _stage_file(name: String, image_path: String, card_id: String) -> void:
+func _stage_file(file_name: String, image_path: String, card_id: String) -> void:
 	var bytes := FileAccess.get_file_as_bytes(image_path)
 	if not SegaCdBram.is_card_image(bytes):
 		push_warning("[SegaCdStorage] %s is not a Sega CD memory image; not staged" % image_path)
 		return
-	var file := _save_dir.path_join(name)
+	var file := _save_dir.path_join(file_name)
 	if _write(file, bytes):
 		_staged.append({"file": file, "image": image_path, "card_id": card_id, "bytes": bytes})
 
@@ -310,8 +310,8 @@ static func recover(save_dir: String) -> int:
 
 static func _core_file_names() -> Array[String]:
 	var out: Array[String] = []
-	for name: String in REGION_FILES:
-		out.append(name)
+	for file_name: String in REGION_FILES:
+		out.append(file_name)
 	for size: int in CART_SIZES:
 		out.append(str(CART_SIZES[size][1]))
 	return out
@@ -322,15 +322,15 @@ static func _core_file_names() -> Array[String]:
 static func set_aside_unclaimed(save_dir: String) -> Array[String]:
 	var moved: Array[String] = []
 	var legacy := save_dir.path_join(LEGACY_DIR)
-	for name: String in _core_file_names():
-		var src := save_dir.path_join(name)
+	for file_name: String in _core_file_names():
+		var src := save_dir.path_join(file_name)
 		if not FileAccess.file_exists(src):
 			continue
 		DirAccess.make_dir_recursive_absolute(legacy)
-		var dst := legacy.path_join(name)
+		var dst := legacy.path_join(file_name)
 		var n := 2
 		while FileAccess.file_exists(dst):
-			dst = legacy.path_join("%s %d.%s" % [name.get_basename(), n, name.get_extension()])
+			dst = legacy.path_join("%s %d.%s" % [file_name.get_basename(), n, file_name.get_extension()])
 			n += 1
 		if DirAccess.rename_absolute(src, dst) == OK:
 			moved.append(dst)
@@ -346,13 +346,13 @@ static func adopt_legacy(save_dir: String, family: String) -> PackedByteArray:
 		return PackedByteArray()
 	var best := ""
 	var best_time := -1
-	for name: String in DirAccess.get_files_at(legacy):
-		if name.get_extension() != "brm":
+	for file_name: String in DirAccess.get_files_at(legacy):
+		if file_name.get_extension() != "brm":
 			continue
-		var is_cart := name.contains("_cart")
+		var is_cart := file_name.contains("_cart")
 		if is_cart != (family == CART_FAMILY):
 			continue
-		var path := legacy.path_join(name)
+		var path := legacy.path_join(file_name)
 		var data := FileAccess.get_file_as_bytes(path)
 		if not SegaCdBram.is_card_image(data):
 			continue

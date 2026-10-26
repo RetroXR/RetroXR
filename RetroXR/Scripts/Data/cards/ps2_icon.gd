@@ -284,8 +284,11 @@ static func _parse_texture(bytes: PackedByteArray, from: int, texture_type: int)
 		var v := pixels[i]
 		# 16-bit BGR555. The top bit is the PS2's semi-transparency flag, not an
 		# alpha channel — honouring it would paint most icons invisible.
+		@warning_ignore("integer_division")
 		raw[i * 4 + 0] = ((v & 0x1F) * 255) / 31
+		@warning_ignore("integer_division")
 		raw[i * 4 + 1] = (((v >> 5) & 0x1F) * 255) / 31
+		@warning_ignore("integer_division")
 		raw[i * 4 + 2] = (((v >> 10) & 0x1F) * 255) / 31
 		raw[i * 4 + 3] = 255
 	return Image.create_from_data(TEX_SIZE, TEX_SIZE, false, Image.FORMAT_RGBA8, raw)

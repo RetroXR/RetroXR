@@ -158,8 +158,8 @@ func _try_core() -> bool:
 
 
 func _core_tracker_filter() -> int:
-	var name := "RENDER_MODEL_TRACKER_LEFT_HAND" if _is_left() else "RENDER_MODEL_TRACKER_RIGHT_HAND"
-	return ClassDB.class_get_integer_constant(CORE_MANAGER, name)
+	var const_name := "RENDER_MODEL_TRACKER_LEFT_HAND" if _is_left() else "RENDER_MODEL_TRACKER_RIGHT_HAND"
+	return ClassDB.class_get_integer_constant(CORE_MANAGER, const_name)
 
 
 # ── Vendor tier: XR_FB_render_model ──────────────────────────────────────

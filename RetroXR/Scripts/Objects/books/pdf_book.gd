@@ -796,13 +796,13 @@ func _land_flight(flight: Dictionary) -> void:
 func _rest_on_fan(dir: int, peel: float) -> void:
 	if not _flop.rest_on_fan or _state != BookState.OPEN or _flop.fan_count(dir) == 0:
 		return
-	var dropped := _flop.push_fan_leaf(dir, peel)
+	var dropped_peel := _flop.push_fan_leaf(dir, peel)
 	if peel > FAN_SHOW:
 		print("[PDFBook] landed page rests on the %s fan, %.1f deg up; the leaf nearest the block (%.1f deg) settles into it"
-			% ["right" if dir > 0 else "left", rad_to_deg(peel), rad_to_deg(dropped)])
+			% ["right" if dir > 0 else "left", rad_to_deg(peel), rad_to_deg(dropped_peel)])
 	_push_flop(true)
-	if dropped > FAN_HIDE:
-		_settle_fan_leaf(dir, dropped)
+	if dropped_peel > FAN_HIDE:
+		_settle_fan_leaf(dir, dropped_peel)
 
 
 ## The page a half's fan leaf `k` carries face up, or the page under the fan
@@ -2225,7 +2225,6 @@ func _page_plane_z(dir: int) -> float:
 func _layout_page_grabs() -> void:
 	if _grab_right == null:
 		return
-	var spine_half := _spine_width() * 0.5
 	var half_x := _book_width * GRAB_BAND * 0.5
 	var reach := Vector3(half_x, book_height * 0.5, 0.035)
 	for pair: Array in [[_grab_right, 1.0], [_grab_left, -1.0]]:
@@ -3239,7 +3238,7 @@ func _push_flop(force: bool) -> void:
 
 
 ## A sheet crossing the gutter in mid-air hangs off both halves of the book.
-func _push_leaf_flop(leaf: MeshInstance3D, dir: int, left: Vector4, right: Vector4) -> void:
+func _push_leaf_flop(leaf: MeshInstance3D, dir: int, _left: Vector4, _right: Vector4) -> void:
 	var leaf_mat := leaf.get_surface_override_material(0) as ShaderMaterial
 	if leaf_mat == null:
 		return

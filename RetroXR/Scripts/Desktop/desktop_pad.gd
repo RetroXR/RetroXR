@@ -349,7 +349,7 @@ func _hold_left(source: String, down: bool) -> void:
 func _send_button(button: int, pressed: bool) -> void:
 	var e := InputEventMouseButton.new()
 	e.device = SYNTH_DEVICE
-	e.button_index = button
+	e.button_index = button as MouseButton
 	e.pressed = pressed
 	e.shift_pressed = _shift
 	e.position = _centre()
@@ -454,20 +454,20 @@ func _keep_map() -> void:
 ## on it by `_sync_map`.
 func _strip_engine_defaults() -> void:
 	for action in InputMap.get_actions():
-		var name := String(action)
-		if not name.begins_with("ui_"):
+		var action_name := String(action)
+		if not action_name.begins_with("ui_"):
 			continue
-		for e in InputMap.action_get_events(name):
+		for e in InputMap.action_get_events(action_name):
 			if e is InputEventJoypadButton or e is InputEventJoypadMotion:
-				_stripped.append([name, e])
-				InputMap.action_erase_event(name, e)
+				_stripped.append([action_name, e])
+				InputMap.action_erase_event(action_name, e)
 
 
-func _add_axis(action: String, axis: JoyAxis, sign: float) -> void:
+func _add_axis(action: String, axis: JoyAxis, dir_sign: float) -> void:
 	var e := InputEventJoypadMotion.new()
 	e.device = main_device
 	e.axis = axis
-	e.axis_value = sign
+	e.axis_value = dir_sign
 	_add(action, e)
 
 
@@ -491,11 +491,11 @@ func _add(action: String, event: InputEvent) -> void:
 ## small tilt is a small turn).
 static func stick_vector(x: float, y: float) -> Vector2:
 	var v := Vector2(x, y)
-	var len := v.length()
-	if len <= STICK_DEADZONE:
+	var length := v.length()
+	if length <= STICK_DEADZONE:
 		return Vector2.ZERO
-	var scaled := clampf((len - STICK_DEADZONE) / (1.0 - STICK_DEADZONE), 0.0, 1.0)
-	return v / len * scaled * scaled
+	var scaled := clampf((length - STICK_DEADZONE) / (1.0 - STICK_DEADZONE), 0.0, 1.0)
+	return v / length * scaled * scaled
 
 
 ## True when the prompts should show the pad: it is the player's and it was used last.

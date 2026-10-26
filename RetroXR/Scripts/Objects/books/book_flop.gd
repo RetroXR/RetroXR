@@ -787,9 +787,9 @@ func unbend_over(point: Vector3, own_dir: int, lift: float = 0.0, pivot_z: float
 		if absf(det) < 1e-9:
 			guess += err.rotated(-r.z)
 			continue
-		var step := Vector2((e * err.x - b * err.y) / det, (a * err.y - c * err.x) / det)
+		var newton_step := Vector2((e * err.x - b * err.y) / det, (a * err.y - c * err.x) / det)
 		# A full step can overshoot where the arc length switches on (z = 0).
-		guess += step.limit_length(0.05)
+		guess += newton_step.limit_length(0.05)
 	# The droop is undone; now the leaf's own hinge, which was applied first.
 	var flat := Vector2(guess.x, guess.y - pivot_z).rotated(-lift)
 	return Vector3(d * flat.x, point.y, flat.y + pivot_z)

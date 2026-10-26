@@ -353,12 +353,12 @@ func power_on(vms_path: String, title := "") -> bool:
 	if image.is_empty():
 		push_warning("[VmuCard] %s is not a VMU game, save or card" % vms_path.get_file())
 		return false
-	var name := title if not title.is_empty() else vms_path.get_file().get_basename()
+	var game_name := title if not title.is_empty() else vms_path.get_file().get_basename()
 	var sums := NetFileTransfer.checksums_of(vms_path)
-	if _net_offer(image, name, {"mode": "rom", "rom_md5": NetFileTransfer.hash_of(vms_path),
+	if _net_offer(image, game_name, {"mode": "rom", "rom_md5": NetFileTransfer.hash_of(vms_path),
 			"rom_size": int(sums.get("size", 0)), "rom_label": vms_path.get_file().get_basename()}):
 		return true
-	return _boot(image, name)
+	return _boot(image, game_name)
 
 
 ## The 128 KiB flash image the core is handed, whatever the file was.
@@ -597,7 +597,9 @@ func _on_hand_grab_changed(_pickable: Node3D, by: Node3D) -> void:
 ## nodes, which place the drawn hands too. See GripAnchor.
 func grip_anchor(is_left: bool) -> Variant:
 	var hand := get_node_or_null(^"HandLeft" if is_left else ^"HandRight") as Node3D
-	return hand.transform if hand != null else null
+	if hand == null:
+		return null
+	return hand.transform
 
 
 ## Why this card cannot run a minigame right now, or "" when it can.
@@ -861,10 +863,10 @@ func _pose_on_card(voices: PackedInt32Array, unit_size: float, max_distance: flo
 			return last_gain
 	var listener_pos: Vector3 = _listener.get_listener_position()
 	var pos := global_position
-	var basis := global_transform.basis
+	var b := global_transform.basis
 	var at := SpatialAudioEmitter.hold_off_head(pos, listener_pos)
 	for v in voices:
-		_mx.set_voice_pose(v, at, basis.y.normalized(), basis.z.normalized())
+		_mx.set_voice_pose(v, at, b.y.normalized(), b.z.normalized())
 	var gain := SpatialAudioEmitter.distance_gain(pos, listener_pos, unit_size, max_distance)
 	if not is_equal_approx(gain, last_gain):
 		for v in voices:

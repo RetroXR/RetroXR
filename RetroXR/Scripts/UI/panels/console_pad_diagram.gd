@@ -104,21 +104,21 @@ var _tint := true
 
 ## `options` is the VRDropdown options array of sources (DROPDOWN rows only);
 ## `current` maps control -> the id driving it, or the label for a BIND row.
-func setup(systemid: String, options: Array, current: Dictionary,
+func setup(p_systemid: String, options: Array, current: Dictionary,
 		kind: RowKind = RowKind.DROPDOWN) -> void:
 	for c in get_children():
 		c.queue_free()
 		remove_child(c)
 	_rows.clear()
 
-	_systemid = systemid
+	_systemid = p_systemid
 	_kind = kind
-	_row = ConsolePadArt.row(systemid)
+	_row = ConsolePadArt.row(p_systemid)
 	if _row.is_empty():
 		return
 
-	_art_tex = ConsolePadArt.texture(systemid)
-	_tint = ConsolePadArt.tints(systemid)
+	_art_tex = ConsolePadArt.texture(p_systemid)
+	_tint = ConsolePadArt.tints(p_systemid)
 
 	# Rows are children, so they draw over the art either way.
 	var fixed: Dictionary = _row.get("fixed", {})

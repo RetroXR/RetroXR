@@ -48,7 +48,6 @@ class_name DesktopPickup
 extends Node3D
 
 const InteractionTargetType := preload("res://Scripts/Interaction/interaction_target.gd")
-const InteractionResolver := preload("res://Scripts/Interaction/interaction_resolver.gd")
 
 ## Scroll step in metres
 const SCROLL_STEP := 0.075
@@ -661,9 +660,9 @@ static func visual_bounds(root: Node3D) -> AABB:
 		if mesh.mesh == null or not mesh.is_visible_in_tree() or node.get_parent() is HeldHint:
 			continue
 		var box := mesh.get_aabb()
-		var to_local := to_root * mesh.global_transform
+		var mesh_to_root := to_root * mesh.global_transform
 		for i in 8:
-			var p := to_local * box.get_endpoint(i)
+			var p := mesh_to_root * box.get_endpoint(i)
 			lo = Vector3(minf(lo.x, p.x), minf(lo.y, p.y), minf(lo.z, p.z))
 			hi = Vector3(maxf(hi.x, p.x), maxf(hi.y, p.y), maxf(hi.z, p.z))
 			found = true
@@ -780,7 +779,7 @@ func _log_click_kept() -> void:
 		if owner_node != null:
 			control = "%s/%s" % [owner_node.name, control]
 	print("[Desktop] the click went to %s under the crosshair, so %s stays in the hand (look off the control to drop it)" % [
-		control, _held_object.name if _held_object else "?"])
+		control, str(_held_object.name) if _held_object else "?"])
 
 
 ## Drop the currently held object.

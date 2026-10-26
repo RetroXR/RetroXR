@@ -347,6 +347,7 @@ static func is_note(bytes: PackedByteArray) -> bool:
 		return false
 	if (bytes.size() - NOTE_SIZE) % PAGE_SIZE != 0:
 		return false
+	@warning_ignore("integer_division")
 	var pages := (bytes.size() - NOTE_SIZE) / PAGE_SIZE
 	if pages > usable_pages():
 		return false

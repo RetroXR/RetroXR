@@ -287,11 +287,11 @@ func _add(stem: String, bit: int, depth: float, dir: Vector3 = Vector3.ZERO) -> 
 	_buttons.append(e)
 
 
-func _rocker(stem: String, drop: float) -> Dictionary:
+func _rocker(stem: String, pivot_drop: float) -> Dictionary:
 	var m := _find_mesh(stem)
 	if m == null:
 		push_warning("Ps1DualShock: control mesh not found: " + stem)
 		return {}
 	var pivot: Vector3 = _find_pivot(m, stem + "Pivot")
-	pivot.y -= drop
+	pivot.y -= pivot_drop
 	return {"node": m, "rest": m.transform, "pivot": pivot}

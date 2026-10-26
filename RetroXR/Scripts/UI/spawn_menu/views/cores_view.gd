@@ -1377,11 +1377,11 @@ func _bios_dir_entries(r: Dictionary, systemid: String) -> Array:
 	var from_server: Array = romm_firmware.find_for_system(systemid) \
 		if romm_firmware != null and _is_bios_folder(str(r.get("path", ""))) else []
 	for e: Dictionary in from_server:
-		var name := str(e["file_name"])
-		seen[name.to_lower()] = true
+		var file_name := str(e["file_name"])
+		seen[file_name.to_lower()] = true
 		var row := e.duplicate()
 		row["on_server"] = true
-		row["here"] = FileAccess.file_exists(dir.path_join(name))
+		row["here"] = FileAccess.file_exists(dir.path_join(file_name))
 		out.append(row)
 
 	var d := DirAccess.open(dir)
@@ -1392,10 +1392,10 @@ func _bios_dir_entries(r: Dictionary, systemid: String) -> Array:
 			if not d.current_is_dir() and not fname.begins_with(".") \
 					and not seen.has(fname.to_lower()):
 				var f := FileAccess.open(dir.path_join(fname), FileAccess.READ)
-				var size := int(f.get_length()) if f != null else 0
+				var file_size := int(f.get_length()) if f != null else 0
 				if f != null:
 					f.close()
-				out.append({"file_name": fname, "size": size, "id": 0, "md5": "",
+				out.append({"file_name": fname, "size": file_size, "id": 0, "md5": "",
 					"on_server": false, "here": true})
 			fname = d.get_next()
 		d.list_dir_end()

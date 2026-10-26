@@ -193,11 +193,11 @@ static func parse_address(data: String) -> Dictionary:
 	var colon := data.rfind(":")
 	if colon <= 0:
 		return {}
-	var host := data.substr(0, colon)
+	var host_part := data.substr(0, colon)
 	var port := data.substr(colon + 1).to_int()
-	if host.is_empty() or port <= 0 or port > 65535:
+	if host_part.is_empty() or port <= 0 or port > 65535:
 		return {}
-	return {"address": host, "port": port}
+	return {"address": host_part, "port": port}
 
 
 ## The handshake packet: which of the three things this side has seen. Both ends

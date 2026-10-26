@@ -852,9 +852,9 @@ func _spawn_printout(path: String, lines: int) -> Poster:
 	var scene := get_tree().current_scene
 	scene.add_child(poster)
 	poster.add_to_group("spawned")
-	var basis := global_transform.basis.orthonormalized()
-	poster.global_transform = Transform3D(basis, to_global(center))
-	poster.linear_velocity = linear_velocity + angular_velocity.cross(basis * center) + basis * mean_velocity
+	var b := global_transform.basis.orthonormalized()
+	poster.global_transform = Transform3D(b, to_global(center))
+	poster.linear_velocity = linear_velocity + angular_velocity.cross(b * center) + b * mean_velocity
 	poster.angular_velocity = angular_velocity
 	var flop := poster.get_node(GbPrintoutFlop.NODE_NAME) as GbPrintoutFlop
 	flop.adopt_state(state, poster.get_sheet_size())

@@ -111,15 +111,17 @@ static func free_node(node: Node, duration: float = DURATION) -> void:
 			# Toward the target's mouth, easing in like the shrink so the two land
 			# together: most of the travel comes as the object is already small.
 			var target := _into
-			var last := target.global_position if is_instance_valid(target) else start
+			# Boxed: a lambda's captured local is a copy, so the mouth's last known place
+			# has to live in something it shares or a freed target snaps back to the first.
+			var last: Array[Vector3] = [target.global_position if is_instance_valid(target) else start]
 			tween.tween_method(func(t: float) -> void:
 				if not is_instance_valid(spatial):
 					return
 				if is_instance_valid(target):
-					last = target.global_position
+					last[0] = target.global_position
 				var k := Tween.interpolate_value(0.0, 1.0, t, duration,
 					Tween.TRANS_CUBIC, Tween.EASE_IN_OUT) as float
-				spatial.global_position = start.lerp(last, k),
+				spatial.global_position = start.lerp(last[0], k),
 				0.0, duration, duration)
 		_:
 			# And it falls while it goes, instead of hanging in the air.

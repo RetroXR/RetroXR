@@ -106,19 +106,19 @@ static func peer_row(peer_id: int, label: String, core_name: String,
 ## A row for the boot media one machine needs: the ROM, then the firmware.
 ##
 ## Neither is transferable, so neither ever produces a remedy that sends bytes.
-## `rom_state` is one of "have", "romm", "missing"; `firmware_diff` holds the
+## `rom_state` is one of "have", "romm", "missing"; `firmware_rows` holds the
 ## per-file comparison and is empty when the digests already agree.
 static func media_row(machine_id: Variant, label: String, rom_state: String,
-		rom_label: String, rom_md5: String, firmware_diff: Array) -> Dictionary:
+		rom_label: String, rom_md5: String, firmware_rows: Array) -> Dictionary:
 	var detail: Array[Dictionary] = []
 	detail.append(_row("Game", rom_label if not rom_label.is_empty() else "(unnamed)"))
 	if not rom_md5.is_empty():
 		detail.append(_row("MD5", rom_md5))
 
-	for d: Dictionary in firmware_diff:
+	for d: Dictionary in firmware_rows:
 		detail.append(_row(str(d.get("file", "?")), _firmware_words(str(d.get("state", "")))))
 
-	if not firmware_diff.is_empty():
+	if not firmware_rows.is_empty():
 		return _make("media", machine_id, label, Verdict.BLOCKED,
 			"Your BIOS does not match the host's", detail, {"kind": "open_bios"})
 

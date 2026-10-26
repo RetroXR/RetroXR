@@ -43,6 +43,7 @@ const POSE_BROADCASTER := preload("res://Scripts/Net/netplay/pose_broadcaster.gd
 const OBJECT_SYNC := preload("res://Scripts/Net/netplay/object_sync.gd")
 const NETPLAY := preload("res://Scripts/Net/netplay/netplay_session.gd")
 const FILE_TRANSFER := preload("res://Scripts/Net/netplay/file_transfer.gd")
+const MOD_MANAGER := preload("res://Scripts/Mods/mod_manager.gd")
 
 ## Avatar palette — color_idx assigned by the host at registration.
 const PLAYER_COLORS: Array[Color] = [
@@ -69,6 +70,7 @@ signal room_code_changed(code: String)
 ## trace: no signal, no error, remote players left on the host-only placeholder
 ## and nothing anywhere saying why. `remedy` is the NetplayReadiness dict, empty
 ## when no vetted core covers the system.
+@warning_ignore("unused_signal")
 signal netplay_blocked(reason: String, machine: Object, remedy: Dictionary)
 
 ## Late-join state movement: "capturing", "transferring", "verifying", "loading".
@@ -152,8 +154,8 @@ func _ready() -> void:
 	_file_transfer.name = "FileTransfer"
 	add_child(_file_transfer)
 	_file_transfer.serve_started.connect(
-		func(peer_id: int, md5: String, kind: String, size: int, name: String) -> void:
-			serve_started.emit(peer_id, md5, kind, size, name))
+		func(peer_id: int, md5: String, kind: String, size: int, file_name: String) -> void:
+			serve_started.emit(peer_id, md5, kind, size, file_name))
 	_file_transfer.serve_progress.connect(
 		func(peer_id: int, md5: String, sent: int, total: int) -> void:
 			serve_progress.emit(peer_id, md5, sent, total))
@@ -393,9 +395,9 @@ func room_code() -> String:
 ## Turns one of the callback-style registry calls into something awaitable.
 ## Returns {} for every failure: the caller decides what to say, because the
 ## same empty answer means different things to a host and to a joiner.
-func _call_registry(call: Callable) -> Dictionary:
+func _call_registry(registry_call: Callable) -> Dictionary:
 	var done := [false, {}]
-	call.call(func(res: int, data: Variant) -> void:
+	registry_call.call(func(res: int, data: Variant) -> void:
 		done[0] = true
 		if res == RendezvousClient.Result.OK and data is Dictionary:
 			done[1] = data
@@ -578,6 +580,7 @@ func netplay_owners() -> Dictionary:
 
 ## Which machine in the group a global port belongs to.
 func netplay_machine_of(global_port: int) -> int:
+	@warning_ignore("integer_division")
 	return global_port / NetplayWire.PORTS_PER_MACHINE
 
 
@@ -918,7 +921,7 @@ func _register(info: Dictionary, version: int) -> void:
 	var their_mods: PackedStringArray = info.get("mods", PackedStringArray())
 	var our_mods := _mods_fingerprint()
 	if their_mods != our_mods:
-		var why: String = Mods.fingerprint_mismatch(our_mods, their_mods)
+		var why: String = MOD_MANAGER.fingerprint_mismatch(our_mods, their_mods)
 		print("[NetworkManager] refused peer %d for its mods: %s" % [sender, why])
 		# The list first, on the same reliable channel, so it has landed by the
 		# time _reject ends the session there. The list, never the packs.

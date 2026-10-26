@@ -78,19 +78,19 @@ func load_shell() -> void:
 	_tv.add_child(_shell)
 	_tv.get_node("TVBody").hide()
 
-	var shell: RetroTVShell = _shell
-	seat(_tv.screen_mesh(), shell.screen_seat())
-	seat(_tv._tube_collar, shell.screen_seat())
-	_tv.panel().seat_av_row(shell.port_seat())
-	_tv.panel().seat_vga_port(shell.vga_port_seat())
-	_tv.panel().seat_speaker_row(shell.speaker_out_seat())
-	seat(_tv.ambilight(), shell.ambilight_seat())
+	var fitted: RetroTVShell = _shell
+	seat(_tv.screen_mesh(), fitted.screen_seat())
+	seat(_tv._tube_collar, fitted.screen_seat())
+	_tv.panel().seat_av_row(fitted.port_seat())
+	_tv.panel().seat_vga_port(fitted.vga_port_seat())
+	_tv.panel().seat_speaker_row(fitted.speaker_out_seat())
+	seat(_tv.ambilight(), fitted.ambilight_seat())
 
 	# Both or neither: one seated speaker and one still on the stock tube's edge
 	# would be a lopsided stereo image nobody authored. place_default_speakers
 	# falls back to the computed pair when this stays false.
-	var spk_l: Variant = shell.speaker_l_seat()
-	var spk_r: Variant = shell.speaker_r_seat()
+	var spk_l: Variant = fitted.speaker_l_seat()
+	var spk_r: Variant = fitted.speaker_r_seat()
 	_speakers_seated = spk_l is Transform3D and spk_r is Transform3D
 	if _speakers_seated:
 		seat(_tv._speaker_l, spk_l)
@@ -99,25 +99,25 @@ func load_shell() -> void:
 	# Bezel buttons march along the row marker's local +X from the first cap, and
 	# wrap onto a second row below it. Same order the stock cabinet authors, so a
 	# shelled set and the plain box read alike.
-	var row: Variant = shell.button_row_seat()
+	var row: Variant = fitted.button_row_seat()
 	var buttons: Array[Node3D] = _bezel_buttons()
-	if not shell.show_button_row:
+	if not fitted.show_button_row:
 		for btn in buttons:
 			(btn as VRButton).set_active(false)
 	elif row is Transform3D:
 		var base: Transform3D = row
-		var per_row: int = maxi(1, shell.buttons_per_row)
+		var per_row: int = maxi(1, fitted.buttons_per_row)
 		for i in buttons.size():
 			var b: Node3D = buttons[i]
 			# Keep each cap's authored basis (they are rotated to face outward);
 			# only the origin walks the row.
 			@warning_ignore("integer_division")
 			b.transform = Transform3D(b.transform.basis, base * Vector3(
-				float(i % per_row) * shell.button_pitch,
-				float(i / per_row) * -shell.button_row_drop,
+				float(i % per_row) * fitted.button_pitch,
+				float(i / per_row) * -fitted.button_row_drop,
 				0.0))
 
-	_resize_body_collision(shell.body_size)
+	_resize_body_collision(fitted.body_size)
 
 
 ## The bezel caps in the order they are laid out, reading left to right and then

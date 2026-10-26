@@ -247,11 +247,11 @@ func _bake(labels: Array, size: Vector2, mid: float) -> void:
 		_show_baked(_bakes[key], quad_size, mid)
 		return
 	var px := Vector2i((quad_size * BAKE_PX_PER_M).ceil())
-	var scale := 1.0
+	var bake_scale := 1.0
 	if maxi(px.x, px.y) > BAKE_MAX_PX:
-		scale = float(BAKE_MAX_PX) / float(maxi(px.x, px.y))
-		px = Vector2i((Vector2(px) * scale).ceil())
-	var ppm := BAKE_PX_PER_M * scale
+		bake_scale = float(BAKE_MAX_PX) / float(maxi(px.x, px.y))
+		px = Vector2i((Vector2(px) * bake_scale).ceil())
+	var ppm := BAKE_PX_PER_M * bake_scale
 
 	var sv := SubViewport.new()
 	sv.size = px
