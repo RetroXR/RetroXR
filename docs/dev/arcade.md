@@ -762,6 +762,28 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   whole of the churn in the diff). `arcade_form_tests` group `tate/` pins it: every body is one silhouette (glass edge and marquee meet at
   its corner, the height is the top), the tall body is the upright's with a longer glass up the same slope, which games get it, the window
   is the tube and 3 cm, and a board pulled gives the upright back.
+  **A wide body gets a picture to match** (2026-10-26, `ArcadeCabinetSpecs.wide_picture`, `arcade_form_tests picture/`): three and four player cabinets
+  were drawn on a deck 0.9 to 1.5 m wide with the upright's own 0.44 x 0.33 m tube, a picture 49% of the body (3 players) down to 29% (4 players
+  with four buttons) where a two-player upright's is 67%: "Cadillacs and Dinosaurs and Turtles in Time have a mini screen". The picture now takes
+  `PICTURE_SHARE` (58%) of the body's width, never less than the upright's, never more than the glass holds with its 3 cm of black round it
+  (`PICTURE_FRAME`): up to a 29 inch class the body stays the upright; past it the **`tall` body** (the tate body with the glass `TALL_EXTRA` = 0.10 m
+  longer again, 0.75 m of glass, 2.01 m of cabinet, a 0.77 x 0.58 m / 40 inch class at most; `ArcadeCabinetSpecs.lengthened` derives it, so a change
+  to the tate body is a change to this one). A monitor on its side keeps the tate body however wide the panels make it.
+  | players x buttons (stick) | body | picture | share |
+  |---|---|---|---|
+  | 2 (any) | 0.66 | 0.44 x 0.33 | 67% (as before) |
+  | 3 x 2 (Cadillacs and Dinosaurs) | 0.90 | 0.52 x 0.39 | 57% (was 49%) |
+  | 3 x 3 (Alien vs. Predator) | 0.98 | 0.58 x 0.43 | 59% (was 45%) |
+  | 4 x 2 (TMNT, Turtles in Time, Simpsons, Captain Commando) | 1.20 | 0.69 x 0.52 | 57% (was 37%) |
+  | 4 x 3 (Gauntlet Legends) | 1.29 | 0.75 x 0.56 | 58% (was 34%) |
+  | 6 x 3, two screens (X-Men) | 1.92 | 1.54 x 0.58 | 80% (was 46%) |
+  What the research does and does not say (`research/multiplayer_cabinets.md`, `research/seat_cabinets.md`, web summaries only, nothing opened in full): real
+  four-player cabinets were about 0.93 to 0.94 m wide (TMNT's panel 0.94 m, Gauntlet Legends 0.93 m with a 25 inch tube), about 47% picture; **no source
+  gives the monitor of Cadillacs and Dinosaurs, TMNT or the Simpsons**, and X-Men is two ordinary CRTs joined by a mirror into one double-wide picture,
+  size unknown. So the 58% is a proportion (a bigger upright, not a small screen in a long box), not a measurement. **The deck itself is wider than the
+  real one**: `PANEL_PITCH_MULTI` is 30 cm a player where TMNT's panel was 23.5 cm; tightening it is a separate decision (hands, sockets and coin doors
+  follow the pitch). **Mounted-gun cabinets** (Operation Wolf, Beast Busters, Line of Fire, Rail Chase 2) were given a 25 inch tube in the 40 inch
+  frame of the wide body (`screen_inches` lacked `FORM_GUN_MOUNTED`); they have the body's whole 0.72 x 0.54 m now, as every other gun cabinet.
 - **Guns** (`gun`, `gunm`, `rifle`): the WIDE body, as many guns as the game has light guns (up to 3), START alone for each. `holster`: hung on
   the apron (one gun on the right, as Time Crisis's); `mounted`: resting level on a post on the deck's front edge, aimed at the screen (one in the
   middle: Operation Wolf's Uzi, Terminator 2, Beast Busters' three); `rifle`: one rifle on a taller post in the middle (Silent Scope, Golgo 13),

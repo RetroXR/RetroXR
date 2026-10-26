@@ -94,9 +94,7 @@ func _init(spec: Dictionary, root: Node3D, bake: bool = false) -> void:
 	_w = float(_v.get("width", _sh["w"]))
 	_in_w = _w - 0.04
 	_h = _sh["h"]
-	_tube = _sh["tube"]
-	if _v.has("screen"):
-		_tube = tube_for(_v["screen"], glass_limits(), _tube, float(_sh.get("inches", 25)))
+	_tube = tube_of(_v)
 	_body = ArcadeParts.mat(_v["body"], 0.0, 0.55)
 	_trim = ArcadeParts.mat(_v["trim"], 0.0, 0.4)
 	_dark = ArcadeParts.mat(Color(0.03, 0.03, 0.035), 0.0, 0.8)
@@ -197,9 +195,25 @@ func apply_metrics() -> void:
 ## The most glass the shape has room for: the width between the side panels (less the frame) and the slanted
 ## edge's length (less the frame top and bottom).
 func glass_limits() -> Vector2:
-	var a: Vector2 = _sh["glass_a"]
-	var b: Vector2 = _sh["glass_b"]
-	return Vector2(_in_w - 0.08, (b - a).length() - 0.13)
+	return glass_limits_of(_sh, _in_w)
+
+
+## The same for a shape (`sh`, a row of ArcadeCabinetSpecs.shapes()) whose body is `inner_width` between its sides.
+static func glass_limits_of(sh: Dictionary, inner_width: float) -> Vector2:
+	var a: Vector2 = sh["glass_a"]
+	var b: Vector2 = sh["glass_b"]
+	return Vector2(inner_width - 0.08, (b - a).length() - ArcadeCabinetSpecs.GLASS_FRAME)
+
+
+## The tube a spec's cabinet is drawn with, metres: its shape's own, or the one its `screen` asks for fitted to the
+## glass that shape has at that width. What the constructor lays the monitor out with, and what the tests measure.
+static func tube_of(spec: Dictionary) -> Vector2:
+	var sh: Dictionary = ArcadeCabinetSpecs.shapes()[str(spec.get("shape", "upright"))]
+	var tube: Vector2 = sh["tube"]
+	if spec.has("screen"):
+		var inner := float(spec.get("width", sh["w"])) - 0.04
+		tube = tube_for(spec["screen"], glass_limits_of(sh, inner), tube, float(sh.get("inches", 25)))
+	return tube
 
 
 ## The tube a screen spec asks for, metres: the shape's own tube (`native`, a tube of class `native_inches`)

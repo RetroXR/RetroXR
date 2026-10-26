@@ -19,6 +19,7 @@
 ##   board/     the real path: a board in the bay changes the form, pulling it gives the cabinet's own back
 ##   tate/      a monitor on its side gets the tall body and a window cut to the picture; every body is one silhouette
 ##   wide/      three to six players: the BODY is as wide as the deck they need, doors and sockets under their panels
+##   picture/   the picture takes a share of a wide body, never a postage stamp in it; a big-screen cabinet has its body's own tube
 ##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
 ##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
@@ -94,6 +95,9 @@ func _run() -> void:
 		await _clear()
 	if _want("wide"):
 		await _group_wide()
+		await _clear()
+	if _want("picture"):
+		await _group_picture()
 		await _clear()
 	if _want("pedals"):
 		await _group_pedals()
@@ -659,6 +663,162 @@ func _group_wide() -> void:
 	model.morph_to(_spec("timecris"))
 	await _wait(2)
 	_ok(model.find_child("LowerFaceL", true, false) != null, "wide: a gun cabinet's 0.90 m body is closed beside the door too")
+
+
+
+# --- picture -------------------------------------------------------------------
+
+## The picture a spec's cabinet is drawn with: the real builder's tube_of, on the spec's own body.
+func _tube(spec: Dictionary) -> Vector2:
+	return ArcadeCabinetBuilder.tube_of(spec)
+
+
+func _group_picture() -> void:
+	var up: Dictionary = S.shapes()["upright"]
+	var tall: Dictionary = S.shapes()["tall"]
+	var up_tube: Vector2 = up["tube"]
+	var tall_edge: Vector2 = (tall["glass_b"] as Vector2) - (tall["glass_a"] as Vector2)
+	# The widest picture the tall glass holds with its black round it: its edge less the frame, as a 4:3 tube is wide.
+	var cap := (tall_edge.length() - S.PICTURE_FRAME) / 0.75
+	# A body the panels fit keeps the upright's own tube: nothing a two-player game saw changes.
+	_ok(S.wide_picture(0.66).is_empty() and S.wide_picture(0.74).is_empty(),
+		"picture: a body of the generic width, and one a hand wider, keep the upright's own tube")
+	for row: Array in [["sf2", "upright"], ["kurikint", "upright"], ["pacman", "tate"], ["daytona", "racer"]]:
+		var sp := _spec(str(row[0]))
+		_ok(str(sp.get("shape", "upright")) == str(row[1]) and is_equal_approx(float(sp.get("width", 0.66)), 0.66),
+			"picture: %s keeps the generic %s body (%s, %.2f m)" % [row[0], row[1], sp.get("shape", "upright"), float(sp.get("width", 0.66))])
+	_ok(_tube(_spec("sf2")).is_equal_approx(up_tube) and _tube(_spec("kurikint")).is_equal_approx(up_tube),
+		"picture: and the upright's 0.44 x 0.33 tube (Street Fighter II, Kuri Kinton)")
+	# Past it the picture is a share of the body and grows with it: the upright's glass while it holds the tube, then the tall one's.
+	var last := 0.0
+	var seen_tall := false
+	var shares_ok := true
+	var order_ok := true
+	var given_ok := true
+	var asked_wide := true
+	for w in [0.80, 0.85, 0.90, 0.95, 1.0, 1.1, 1.2, 1.3, 1.5, 2.0]:
+		var pic := S.wide_picture(w)
+		if pic.is_empty():
+			asked_wide = false
+			continue
+		var shape_name := str(pic["shape"])
+		var spec := {"shape": shape_name, "width": w, "screen": {"vertical": false, "screens": 1, "inches": int(pic["inches"])}}
+		var t := _tube(spec)
+		# The tube it asks for is the tube it gets: the glass had room, nothing was squeezed to fit it.
+		var native: Vector2 = S.shapes()[shape_name]["tube"]
+		var asked := native * (float(pic["inches"]) / float(S.shapes()[shape_name]["inches"]))
+		given_ok = given_ok and absf(t.x - asked.x) < 0.012 and absf(t.y - asked.y) < 0.012 and t.x >= last - 0.001
+		shares_ok = shares_ok and (t.x / w >= S.PICTURE_SHARE - 0.02 or t.x >= cap - 0.01)
+		order_ok = order_ok and (shape_name == "tall" or not seen_tall)
+		seen_tall = seen_tall or shape_name == "tall"
+		last = t.x
+	_ok(asked_wide, "picture: every body from 0.80 m up asks for a bigger picture than the upright's")
+	_ok(given_ok, "picture: a wider body gets a bigger picture, and the one it asks for is the one it is given (not squeezed)")
+	_ok(shares_ok, "picture: it takes %d%% of the body's width, or all the tall glass holds (%.2f m)" % [roundi(S.PICTURE_SHARE * 100.0), cap])
+	_ok(order_ok and seen_tall, "picture: the upright's glass is used while it holds the tube, then the tall body, and never back")
+	# A picture asked for that the glass cannot hold is fitted to it whole, never squashed: the same aspect, inside the edge and the sides.
+	var huge := _tube({"shape": "tall", "width": 1.2, "screen": {"vertical": false, "screens": 1, "inches": 99}})
+	_ok(absf(huge.y / huge.x - 0.75) < 0.001 and huge.y <= tall_edge.length() - S.GLASS_FRAME + 0.001 and huge.x <= 1.2 - 0.04 - 0.08 + 0.001,
+		"picture: and one the glass cannot hold is fitted to it whole, 4:3 still (%.2f x %.2f)" % [huge.x, huge.y])
+	var twin := _tube({"shape": "tall", "width": 1.0, "screen": {"vertical": false, "screens": 2, "inches": 36}})
+	_ok(twin.x <= 1.0 - 0.04 - 0.08 + 0.001 and twin.x > 0.8, "picture: two screens side by side fill the body between its sides and no more (%.2f m)" % twin.x)
+	var big := S.wide_picture(2.0)
+	var biggest := _tube({"shape": "tall", "width": 2.0, "screen": {"vertical": false, "screens": 1, "inches": int(big.get("inches", 25))}})
+	_ok(int(big.get("inches", 0)) == 40 and biggest.x <= cap + 0.012 and biggest.y + 0.06 <= tall_edge.length() - 0.11 + 0.001,
+		"picture: the biggest picture the tall glass holds is %.2f x %.2f, a 40 inch class, with its 3 cm of black round it" % [biggest.x, biggest.y])
+	# The tall body is the tate body with the glass longer up the same slant: nothing below the glass moves, the rest rises with it.
+	var ta: Dictionary = S.shapes()["tate"]
+	var ta_edge: Vector2 = (ta["glass_b"] as Vector2) - (ta["glass_a"] as Vector2)
+	var below := true
+	for i in 8:
+		below = below and (tall["profile"][i] as Vector2) == (ta["profile"][i] as Vector2)
+	_ok(below and tall["glass_a"] == ta["glass_a"] and tall_edge.normalized().is_equal_approx(ta_edge.normalized())
+			and absf(tall_edge.length() - ta_edge.length() - S.TALL_EXTRA) < 0.001
+			and absf(float(tall["h"]) - float(ta["h"]) - S.TALL_EXTRA * ta_edge.normalized().y) < 0.001
+			and is_equal_approx(float(tall["w"]), float(ta["w"])),
+		"picture: the tall body is the tate body's with the glass %.2f m longer (%.2f against %.2f), %.2f m of cabinet"
+			% [S.TALL_EXTRA, tall_edge.length(), ta_edge.length(), float(tall["h"])])
+	# The games the player noticed: three players, four, six.
+	for row: Array in [["dino", 0.50], ["avsp", 0.55], ["tmnt", 0.65], ["tmnt2", 0.65], ["simpsons", 0.65], ["captcomm", 0.65],
+			["gauntleg", 0.65]]:
+		var sp := _spec(str(row[0]))
+		var t := _tube(sp)
+		var width := float(sp["width"])
+		_ok(str(sp["shape"]) == "tall" and t.x >= float(row[1]) and t.x / width >= 0.50 and not bool(sp["screen"]["vertical"]),
+			"picture: %s (%d players, a %.2f m body) shows a %.2f x %.2f picture, %d%% of the body, in the %s body"
+				% [row[0], (sp["players"] as Array).size(), width, t.x, t.y, roundi(t.x / width * 100.0), sp["shape"]])
+	# A monitor on its side stays on the tate body however wide the panels make it: a tall narrow picture, not a landscape one.
+	for romset in ["asylum", "ddp2"]:
+		var sp := _spec(romset)
+		_ok(str(sp["shape"]) == "tate" and bool(sp["screen"]["vertical"]) and float(sp["width"]) > 0.85
+				and _tube(sp).y > _tube(sp).x,
+			"picture: %s (%d players, a %.2f m body) keeps the tate body and its picture stood on its side" % [romset, (sp["players"] as Array).size(), float(sp["width"])])
+	var xm := _spec("xmen6p")
+	_ok(_tube(xm).x >= 1.2 and int(xm["screen"]["screens"]) == 2 and _tube(xm).x / float(xm["width"]) >= 0.6,
+		"picture: X-Men's two screens are one wide picture across the six-player body (%.2f of %.2f m)" % [_tube(xm).x, float(xm["width"])])
+	# The whole table: no single-screen picture is lost in its body, and no big-screen cabinet has a small one.
+	var worst := 1.0
+	var worst_name := ""
+	var lost: Array = []
+	var small: Array = []
+	var measured := 0
+	var big_forms := [P.FORM_GUN, P.FORM_GUN_MOUNTED, P.FORM_RIFLE, P.FORM_DANCE, P.FORM_PUMP, P.FORM_CYCLE]
+	var base := S.variant("generic")
+	base["variant"] = "generic"
+	for line in ArcadeGameTable.TABLE.split("\n", false):
+		var parts := line.split(" ", false)
+		if parts.size() < 2:
+			continue
+		var romset := str(parts[1]).split("=")[0].split("<")[0]
+		var gp := P.from_key(romset, parts[0])
+		if not gp.known:
+			continue
+		var sp := S.for_game(base, gp)
+		var shape_name := str(sp.get("shape", "upright"))
+		var t := _tube(sp)
+		var width := float(sp.get("width", S.shapes()[shape_name]["w"]))
+		measured += 1
+		if shape_name in ["upright", "tall"] and not gp.is_vertical() and gp.screens() == 1 and width > 0.76 and t.x < cap - 0.01:
+			var share := t.x / width
+			if share < worst:
+				worst = share
+				worst_name = romset
+			if share < S.PICTURE_SHARE - 0.03:
+				lost.append(romset)
+		if gp.form() in big_forms and not gp.is_vertical() and gp.screens() == 1 and t.x < 0.71:
+			small.append(romset)
+	_ok(lost.is_empty(), "picture: no single-screen upright game's picture is under %d%% of its body (%s)"
+		% [roundi((S.PICTURE_SHARE - 0.03) * 100.0), str(lost.slice(0, 6))])
+	_ok(small.is_empty(), "picture: every gun, rifle, dance, pump and cycle cabinet has its body's own 0.72 m tube (%s)" % str(small.slice(0, 6)))
+	_ok(measured > 1500 and worst > 0.5, "picture: %d profiles measured, the smallest share %.2f (%s)" % [measured, worst, worst_name])
+	# On a real cabinet: the body, the window and the model's height follow, and the board's removal gives the upright back.
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var own := _window(model)
+	await _board(sys, "tmnt2")
+	var w4 := _window(model)
+	var tube4: Vector2 = w4["tube"]
+	var glass4: Vector2 = w4["glass"]
+	_ok(tube4.is_equal_approx(_tube(_spec("tmnt2"))) and is_equal_approx(glass4.x, tube4.x + 0.06) and is_equal_approx(glass4.y, tube4.y + 0.06)
+			and tube4.x > (own["tube"] as Vector2).x * 1.4,
+		"picture: Turtles in Time on a cabinet: a %.2f x %.2f picture in a window cut to it, %.0f%% bigger than the upright's"
+			% [tube4.x, tube4.y, (tube4.x / (own["tube"] as Vector2).x - 1.0) * 100.0])
+	_ok(is_equal_approx(model.cabinet_height, float(tall["h"])) and is_equal_approx(model.cabinet_width, float(_spec("tmnt2")["width"])),
+		"picture: and the body follows (%.2f m tall, %.2f m wide)" % [model.cabinet_height, model.cabinet_width])
+	var pane := model.find_child("Glass", true, false) as Node3D
+	var half := pane.global_basis.y * glass4.y * 0.5
+	var lo := model.to_local(pane.global_position - half).y
+	var hi := model.to_local(pane.global_position + half).y
+	_ok(lo >= (tall["glass_a"] as Vector2).y and hi <= float(tall["marquee_bottom"]),
+		"picture: the window sits between the deck and the marquee of the tall body (%.2f..%.2f of %.2f..%.2f)"
+			% [lo, hi, (tall["glass_a"] as Vector2).y, float(tall["marquee_bottom"])])
+	await _pull(sys)
+	var back := _window(model)
+	_ok(is_equal_approx(model.cabinet_height, float(up["h"])) and (back["tube"] as Vector2).is_equal_approx(up_tube),
+		"picture: pulling the board gives the upright and its 0.44 m tube back")
+	await _board(sys, "opwolf")
+	_ok((_window(model)["tube"] as Vector2).is_equal_approx(S.shapes()["wide"]["tube"]),
+		"picture: Operation Wolf's cabinet has the wide body's whole tube (0.72 x 0.54), not a 25 inch one in a 40 inch frame")
 
 
 # --- pedals --------------------------------------------------------------------

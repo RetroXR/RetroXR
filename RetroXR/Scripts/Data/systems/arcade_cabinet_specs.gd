@@ -19,11 +19,13 @@ extends RefCounted
 ## 0.13 m longer up the same slant and a 0.48 x 0.36 tube, so turned upright it fills a tall window. `wide` is
 ## the shooter's: 0.90 wide, 1.90 tall, the glass STRAIGHT (vertical, flush with the front), a 0.72 x 0.54 tube
 ## (half as wide again as the upright's: a 29 inch tube was the usual, a 50 inch projection the big one). A gun
-## held at arm's length in front of a small screen walks into it; this one leaves room. Side silhouettes are
+## held at arm's length in front of a small screen walks into it; this one leaves room. `tall` is the tate body
+## for a picture the right way up: the upright of a WIDE cabinet (three or more players), whose 0.44 m tube was
+## lost in a body twice as wide (wide_picture). Side silhouettes are
 ## (z, y), front +z. `inches` is the class of the tube the body is drawn with (a CRT's picture is about 87% of
 ## its class): a game's own monitor is sized against it (ArcadeCabinetBuilder.tube_for).
 static func shapes() -> Dictionary:
-	return {
+	var out := {
 		"upright": {
 			"w": 0.66, "h": 1.80, "tube": Vector2(0.44, 0.33), "inches": 25,
 			"profile": [
@@ -83,6 +85,46 @@ static func shapes() -> Dictionary:
 			"marquee_bottom": 1.36, "glass_back_z": 0.11, "marquee_front_z": 0.24, "screen_front_z": 0.40,
 		},
 	}
+	# The upright of a WIDE cabinet (three or more players): the tate body with the glass TALL_EXTRA longer again, so a
+	# picture the right way up (0.77 x 0.58 at most, a 40 inch class) stands in it with its 3 cm of black round it.
+	out["tall"] = lengthened(out["tate"], TALL_EXTRA)
+	return out
+
+
+## `shape` with its glass `extra` metres longer up the same slant: the glass's top corner, the marquee over it and the
+## top of the body move up and back with it, nothing below the glass moves (the tate body is the upright lengthened
+## this way, by hand).
+static func lengthened(shape: Dictionary, extra: float) -> Dictionary:
+	var out := shape.duplicate(true)
+	var a: Vector2 = shape["glass_a"]
+	var b: Vector2 = shape["glass_b"]
+	var d := (b - a).normalized() * extra
+	var outline: Array[Vector2] = []
+	for p: Vector2 in shape["profile"]:
+		if p == b:
+			outline.append(p + d)
+		elif p.y >= b.y:
+			# The marquee's front and the top of the body follow the glass; the rear wall (z at -0.40) only rises.
+			outline.append(p + Vector2(0.0 if p.x < -0.39 else d.x, d.y))
+		else:
+			outline.append(p)
+	out["profile"] = outline
+	out["glass_b"] = b + d
+	out["h"] = float(shape["h"]) + d.y
+	var top: Array = shape["top"]
+	out["top"] = [float(top[0]) + d.x, float(top[1]) + d.x * 0.5]
+	var marquee: Dictionary = (shape["marquee"] as Dictionary).duplicate(true)
+	marquee["y"] = float(marquee["y"]) + d.y
+	marquee["trim_y"] = float(marquee["trim_y"]) + d.y
+	marquee["z"] = float(marquee["z"]) + d.x
+	var under: Array = marquee["under"]
+	if not under.is_empty():
+		marquee["under"] = [under[0], float(under[1]) + d.y, float(under[2]) + d.x]
+	out["marquee"] = marquee
+	out["marquee_bottom"] = float(shape["marquee_bottom"]) + d.y
+	out["glass_back_z"] = float(shape["glass_back_z"]) + d.x
+	out["marquee_front_z"] = float(shape["marquee_front_z"]) + d.x
+	return out
 
 
 ## The shipped cabinets, by the name gen_arcade_cabinet.gd bakes them under (`--variant=`): the look
@@ -191,6 +233,18 @@ const PANEL_PITCH := 0.31
 const PANEL_PITCH_MULTI := 0.30
 const PANEL_GAP := 0.03
 const STICK_IN := 0.04625
+## What a window's frame takes of the glass edge's length (the top and the bottom of the bezel): the most a tube can
+## stand is the edge less this (ArcadeCabinetBuilder.glass_limits). A picture that keeps the 3 cm of black round it that
+## the window is cut with (0.11 m of frame and 2 x 0.03) needs PICTURE_FRAME.
+const GLASS_FRAME := 0.13
+const PICTURE_FRAME := 0.17
+## How much longer the tall body's glass is than the tate body's (0.65 m): 0.75 m of glass, 2.0 m of cabinet.
+const TALL_EXTRA := 0.10
+## How much of a WIDE body's width the picture takes. A 2P upright's is 0.67 (0.44 m of 0.66); a real three- or
+## four-player cabinet's tube was about half of its body (Gauntlet Legends: a 25 inch tube in 0.93 m, TMNT's panel
+## 0.94 m), which on a 1.2 m body RetroXR draws as a lost postage stamp. 0.58 keeps a 3P or 4P cabinet looking
+## like a bigger upright, not a small screen in a long box.
+const PICTURE_SHARE := 0.58
 ## A button column's pitch, and the first column's distance from the stick.
 const COLUMN_PITCH := 0.06
 const FIRST_COLUMN := 0.08
@@ -409,11 +463,35 @@ static func coin_xs(count: int, inner_width: float) -> Array:
 ## of cabinet built around a big screen, that body's own (0 = the shape's tube as it is drawn).
 static func screen_inches(profile: ArcadeGameProfile) -> int:
 	match profile.form():
-		ArcadeGameProfile.FORM_GUN, ArcadeGameProfile.FORM_RIFLE, ArcadeGameProfile.FORM_DANCE, \
-				ArcadeGameProfile.FORM_PUMP, ArcadeGameProfile.FORM_RACE, ArcadeGameProfile.FORM_BIKE, \
-				ArcadeGameProfile.FORM_CYCLE:
+		ArcadeGameProfile.FORM_GUN, ArcadeGameProfile.FORM_GUN_MOUNTED, ArcadeGameProfile.FORM_RIFLE, \
+				ArcadeGameProfile.FORM_DANCE, ArcadeGameProfile.FORM_PUMP, ArcadeGameProfile.FORM_RACE, \
+				ArcadeGameProfile.FORM_BIKE, ArcadeGameProfile.FORM_CYCLE:
 			return 0
 	return profile.monitor_inches()
+
+
+## The body and the tube a WIDE upright gets: the upright's own 0.44 m tube is the right size for a 0.66 m body and
+## a postage stamp in a 1.2 m one, so a picture takes PICTURE_SHARE of the body's width (never less than the
+## upright's, never more than the tall glass holds). Up to what the upright's glass holds with its black round the
+## picture (0.46 m wide) the body stays the upright; past it the `tall` body's longer glass is used.
+## {"shape", "inches"}, the class being relative to that shape's own tube, or {} for a body the upright's tube
+## already suits.
+static func wide_picture(width: float) -> Dictionary:
+	var shapes_ := shapes()
+	var up: Dictionary = shapes_["upright"]
+	var tall: Dictionary = shapes_["tall"]
+	var up_tube: Vector2 = up["tube"]
+	var tall_tube: Vector2 = tall["tube"]
+	var up_glass := ((up["glass_b"] as Vector2) - (up["glass_a"] as Vector2)).length() - PICTURE_FRAME
+	var tall_glass := ((tall["glass_b"] as Vector2) - (tall["glass_a"] as Vector2)).length() - PICTURE_FRAME
+	var aspect := up_tube.y / up_tube.x
+	var wanted := width * PICTURE_SHARE
+	if wanted <= up_tube.x + 0.005:
+		return {}
+	if wanted * aspect <= up_glass:
+		return {"shape": "upright", "inches": roundi(float(up["inches"]) * wanted / up_tube.x)}
+	wanted = minf(wanted, tall_glass / (tall_tube.y / tall_tube.x))
+	return {"shape": "tall", "inches": roundi(float(tall["inches"]) * wanted / tall_tube.x)}
 
 
 ## The spec a cabinet takes for the game in its bay: `base` (the cabinet's own row) with the form, the
@@ -507,6 +585,12 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	# A monitor on its side wants a taller window than the upright has: the same body with a longer glass.
 	if shape == "upright" and profile.is_vertical():
 		shape = "tate"
+	# A body widened by three or more panels wants a picture to match (every upright body is 0.66 wide to begin with).
+	var wide := {}
+	if shape == "upright":
+		wide = wide_picture(body_width(float(shapes()["upright"]["w"]), spec["players"]))
+		if not wide.is_empty():
+			shape = str(wide["shape"])
 	spec["shape"] = shape
 	var sh: Dictionary = shapes()[shape]
 	var width := body_width(float(sh["w"]), spec["players"])
@@ -532,6 +616,8 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	else:
 		spec["coins"] = coin_xs(doors, width - 0.04)
 	var inches := screen_inches(profile)
+	if not wide.is_empty():
+		inches = int(wide["inches"])
 	var screen := {"vertical": profile.is_vertical(), "screens": profile.screens()}
 	if inches > 0 and inches != int(sh.get("inches", 25)):
 		screen["inches"] = inches
