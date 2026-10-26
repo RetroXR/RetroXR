@@ -1902,6 +1902,7 @@ func power_on() -> void:
 	_ports.persist_pak_options(resolved_dir, resolved_core)
 	for storage: ConsoleStorage in _storages:
 		storage.stage_late(resolved_dir, resolved_core)
+	_game_memory_before_start()
 	AppPrefs.apply_hw_render_for(resolved_core)
 	_libretro.SetSramPath(_memcards.sram_path_for_run(resolved_core))
 	_libretro.SetRtcPath(_memcards.rtc_path_for_run(resolved_core))
@@ -2214,6 +2215,7 @@ func _stop_core() -> void:
 	_release_cache_protection()
 	_audio.on_core_stopped()
 	is_powered_on = false
+	_game_memory_stopped_ms = Time.get_ticks_msec()
 	attract_session = false
 	# StopContent returned but the core has not finished: a card the core owns is
 	# written during the teardown that follows. Keep watching for a while.
@@ -3201,6 +3203,108 @@ var core_key_sink: Callable = Callable()
 ## The menu's DIP Switch tab is a cabinet's (a machine whose model is the arcade cabinet).
 func has_dip_tab() -> bool:
 	return _model is RetroSystemModelArcadeCabinet
+
+
+# ── an arcade game's own memory (ArcadeBackupMemory, docs/dev/arcade-backup-memory.md) ──
+
+## How long after a cabinet stops its core the game's memory may still be being written: MAME writes it as it tears down, on the emulation thread, after
+## StopContent has returned.
+const GAME_MEMORY_SETTLE_MS := 8000
+var _game_memory_stopped_ms := -GAME_MEMORY_SETTLE_MS
+## A suite's stand-in for the core's save directory ("" is the real one).
+var game_memory_root_override := ""
+
+
+## Where this cabinet's game keeps its memory: {"core", "romset", "save_root", "class"} (the table's `b`), or {} for a machine that has none to manage: not a
+## cabinet, no game in the bay, or a core that is not MAME 0.289 (FinalBurn Neo keeps one file a game, the old MAMEs another layout).
+func game_memory_context() -> Dictionary:
+	if not (_model is RetroSystemModelArcadeCabinet):
+		return {}
+	var game := (_model as RetroSystemModelArcadeCabinet).game_profile()
+	var core := _resolve_core()
+	if game == null or game.romset.is_empty() or not ArcadeBackupMemory.supports_core(core):
+		return {}
+	var root := game_memory_root_override if not game_memory_root_override.is_empty() else SramPaths.core_save_dir(core)
+	return {"core": core, "romset": game.romset, "save_root": root, "class": game.backup_class()}
+
+
+## Why the game's memory cannot be changed now, or "": MAME writes it when the core stops, every cabinet that runs the game shares the folder, and a netplay
+## session's cores must not lose their memory under them.
+func game_memory_blocker() -> String:
+	var ctx := game_memory_context()
+	if ctx.is_empty():
+		return "this game keeps no memory the cabinet can manage"
+	if NetworkManager.netplay_running():
+		return "a netplay session is running"
+	for other: Node in get_tree().get_nodes_in_group("retro_system"):
+		if not other.has_method("game_memory_context"):
+			continue
+		var theirs: Dictionary = other.call("game_memory_context")
+		if theirs.is_empty() or str(theirs["romset"]) != str(ctx["romset"]) or str(theirs["core"]) != str(ctx["core"]):
+			continue
+		if bool(other.get("is_powered_on")):
+			return "the game is running (switch the cabinet off first)" if other == self else "another cabinet is running this game"
+		if Time.get_ticks_msec() - int(other.get("_game_memory_stopped_ms")) < GAME_MEMORY_SETTLE_MS:
+			return "the game is still saving: try again in a few seconds"
+	return ""
+
+
+## What the DIP tab's Game memory section shows: {} when there is nothing to manage here, else {"romset", "class", "summary": what is saved in words,
+## "has_files", "copies": ArcadeBackupMemory.list_quarantines, "can_change", "why_not"}.
+func game_memory_state() -> Dictionary:
+	var ctx := game_memory_context()
+	if ctx.is_empty():
+		return {}
+	var info := ArcadeBackupMemory.describe(str(ctx["save_root"]), str(ctx["romset"]))
+	var why := game_memory_blocker()
+	return {"romset": ctx["romset"], "class": ctx["class"], "summary": ArcadeBackupMemory.summary(info),
+		"has_files": not (info["files"] as Array).is_empty(),
+		"copies": ArcadeBackupMemory.list_quarantines(str(ctx["save_root"]), str(ctx["romset"])),
+		"can_change": why.is_empty(), "why_not": why}
+
+
+## The player's Reset: the game's whole memory is set aside, and the next start is a first start. {"ok", "message"}.
+func reset_game_memory() -> Dictionary:
+	var why := game_memory_blocker()
+	if not why.is_empty():
+		return {"ok": false, "message": "Not now: " + why + "."}
+	var ctx := game_memory_context()
+	var moved := ArcadeBackupMemory.quarantine(str(ctx["save_root"]), str(ctx["romset"]), "reset by the player")
+	if not bool(moved["ok"]):
+		return {"ok": false, "message": "Nothing to reset: " + str(moved["error"]) + "."}
+	print("[RetroSystem] game memory of %s set aside: %s" % [ctx["romset"], moved["to"]])
+	return {"ok": true, "message": "This game's memory is set aside. It starts as new."}
+
+
+## The player's Restore: a copy set aside comes back (what is there now is set aside first). {"ok", "message"}.
+func restore_game_memory(stamp: String) -> Dictionary:
+	var why := game_memory_blocker()
+	if not why.is_empty():
+		return {"ok": false, "message": "Not now: " + why + "."}
+	var ctx := game_memory_context()
+	var back := ArcadeBackupMemory.restore(str(ctx["save_root"]), str(ctx["romset"]), stamp)
+	if not bool(back["ok"]):
+		return {"ok": false, "message": "Cannot restore: " + str(back["error"]) + "."}
+	print("[RetroSystem] game memory of %s restored from %s" % [ctx["romset"], stamp])
+	return {"ok": true, "message": "That memory is back."}
+
+
+## Before the core starts: a game's memory that cannot be right (a Timekeeper's file of a size no chip makes) is set aside so MAME seeds the game again, and the
+## first start of a game whose default memory was built by hand says what the game may do. Never touches a file of the right size.
+func _game_memory_before_start() -> void:
+	var ctx := game_memory_context()
+	if ctx.is_empty():
+		return
+	var done := ArcadeBackupMemory.prepare_launch(str(ctx["save_root"]), str(ctx["romset"]))
+	var toast := _machine_toast()
+	if str(done["action"]) == "set_aside":
+		print("[RetroSystem] game memory of %s was damaged and is set aside (%s)" % [ctx["romset"], done["stamp"]])
+		if toast != null:
+			toast.show_notice(_display_name(), "Game memory reset",
+				"This game's saved memory was damaged, so it was set aside and the game starts as new. Options > DIP Switch > Game memory has it back.",
+				Color(1.0, 0.72, 0.2))
+	elif bool(done["first_run"]) and str(ctx["class"]) == "h" and toast != null:
+		toast.show_notice(_display_name(), "First start", ArcadeBackupMemory.FIRST_RUN_HINT, Color(0.45, 0.8, 1.0))
 
 
 ## The running core has a DIP screen of its own that the tab can open on the game's screen.

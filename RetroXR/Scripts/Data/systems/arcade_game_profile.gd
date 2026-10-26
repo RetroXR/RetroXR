@@ -270,6 +270,17 @@ func has_service() -> bool:
 	return known and attrs.has("v")
 
 
+## The game has a Timekeeper chip (a battery RAM and a clock) whose memory it checks and may reject (Silent Scope: BACKUP DATA ERROR): the table's `b`.
+## "h" when the image the chip is seeded from is hand built or missing, "g" when it is a good dump, "n" when there is none, "" for a game with no such
+## chip (docs/dev/arcade-backup-memory.md, ArcadeBackupMemory).
+func backup_class() -> String:
+	return str(attrs.get("b", "")) if known else ""
+
+
+func has_backup_memory() -> bool:
+	return not backup_class().is_empty()
+
+
 ## A driving cockpit with a roof over the seat.
 func has_roof() -> bool:
 	return known and attrs.has("o")

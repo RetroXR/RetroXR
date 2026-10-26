@@ -108,6 +108,8 @@ func _ensure_ui_connected() -> void:
 	ui.cabinet_art_toggled.connect(_on_cabinet_art_toggled)
 	ui.attract_override_changed.connect(_on_attract_override_changed)
 	ui.dip_menu_requested.connect(_on_dip_menu_requested)
+	ui.memory_reset_requested.connect(_on_memory_reset_requested)
+	ui.memory_restore_requested.connect(_on_memory_restore_requested)
 	ui.volume_changed.connect(_on_volume_changed)
 	ui.core_selected.connect(_on_core_selected)
 	ui.close_requested.connect(hide_panel)
@@ -359,7 +361,27 @@ func _on_screen_glow_toggled(enabled: bool) -> void:
 ## core's DIP options to set here (FBNeo). Hidden on any other machine.
 func _populate_dip_tab(ui: CoreOptions2D) -> void:
 	ui.populate_dip(_system.has_dip_tab(), _system.core_dip_menu_available(), _system.is_powered_on,
-		_system.core_dip_menu_open())
+		_system.core_dip_menu_open(), _system.game_memory_state() if _system.has_dip_tab() else {})
+
+
+## DIP tab, Game memory: the game's memory is set aside (the second press of Reset), or a copy put back.
+func _on_memory_reset_requested() -> void:
+	if _system and is_instance_valid(_system):
+		_show_memory_result(_system.reset_game_memory())
+
+
+func _on_memory_restore_requested(stamp: String) -> void:
+	if _system and is_instance_valid(_system):
+		_show_memory_result(_system.restore_game_memory(stamp))
+
+
+## Fill the tab again from what is on disk now, and say what happened.
+func _show_memory_result(result: Dictionary) -> void:
+	_populate()
+	var vp := _viewport_node.get_node_or_null("Viewport") as SubViewport
+	var ui := vp.get_child(0) as CoreOptions2D if vp and vp.get_child_count() > 0 else null
+	if ui != null:
+		ui.show_memory_message(str(result.get("message", "")))
 
 
 ## DIP tab button: the core's DIP screen opens (or shuts) on the cabinet's own screen.

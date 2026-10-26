@@ -1009,6 +1009,8 @@ hand or a laser reaches them from above once the door is open; a small bracket c
   `attract_first_use(&"service")`), and the press WAITS for the game like a held coin: `ArcadeInput.hold_service` keeps it until `game_ready()` (the core has
   run `COIN_WAIT_SECONDS` of emulated frames: a board still testing its RAM reads no switch), then makes it, one every half second, in the order they came. A press that
   waited for a run that stopped, or for a game the core refused, is let go. The selector starts nothing (no menu is open yet).
+- **TEST is also how a game's own memory is put right** (Silent Scope's BACKUP DATA ERROR: it is Konami's check of its Timekeeper chip, not a MAME error). The cabinet says so on the
+  first start of a game whose default memory is hand built, and **Options > DIP Switch > Game memory** sets a memory aside or puts one back: `arcade-backup-memory.md`.
 - **NEVER RUN AGAINST A CORE here** (the sandbox has no core and no ROM). Measured elsewhere in this file: FBNeo does nothing visible on F2 on dino and its pad
   descriptors for sf2 do not include a service input (`arcade_cabinet_probe`'s recorded lists end at the six buttons and the directions); whether it names the
   service input on a key descriptor, and what Silent Scope does with F2 under MAME, are OWED to a real run with `Tools/cores/arcade_descriptors_probe`.

@@ -36,6 +36,9 @@ signal cabinet_art_toggled(enabled: bool)
 signal attract_override_changed(mode: int)
 ## DIP tab (cabinets): open or shut the running core's own DIP screen on the game's screen.
 signal dip_menu_requested
+## DIP tab, Game memory (cabinets): set the game's saved memory aside, or put one set aside back (a copy's stamp).
+signal memory_reset_requested
+signal memory_restore_requested(stamp: String)
 ## System-tab slider: a handheld's volume, 0..1, the level its own wheel or slider
 ## sets.
 signal volume_changed(value: float)
@@ -86,6 +89,11 @@ var _dip_rows: VBoxContainer = null
 var _dip_has_menu := false
 var _dip_powered := false
 var _dip_menu_open := false
+## The Game memory section's state (RetroSystem.game_memory_state, {} for none), what the last action said, and until when a Reset is armed: it asks twice.
+var _dip_memory: Dictionary = {}
+var _dip_memory_note := ""
+var _dip_reset_armed_until := 0
+const MEMORY_CONFIRM_MS := 6000
 var _cabinet_art_check: VRToggle = null
 var _attract_row: HBoxContainer = null
 var _attract_button: Button = null
@@ -658,12 +666,20 @@ func set_cartridge_tab_visible(shown: bool) -> void:
 
 ## The DIP Switch tab. `shown`: this machine is a cabinet. `has_menu`: the running core has a DIP screen of
 ## its own, which the button opens on the game's screen; otherwise the core's DIP options are listed here.
-func populate_dip(shown: bool, has_menu: bool, powered: bool, menu_open: bool) -> void:
+func populate_dip(shown: bool, has_menu: bool, powered: bool, menu_open: bool, memory: Dictionary = {}) -> void:
 	_dip_has_menu = has_menu
 	_dip_powered = powered
 	_dip_menu_open = menu_open
+	_dip_memory = memory
 	if _tabs != null and _dip_tab_idx >= 0:
 		_tabs.set_tab_hidden(_dip_tab_idx, not shown)
+	_refresh_dip()
+
+
+## What the last Game memory action said, shown at the top of the section until the tab is filled again.
+func show_memory_message(text: String) -> void:
+	_dip_memory_note = text
+	_dip_reset_armed_until = 0
 	_refresh_dip()
 
 
@@ -672,6 +688,12 @@ func _refresh_dip() -> void:
 		return
 	for c in _dip_rows.get_children():
 		c.queue_free()
+	_refresh_dip_core()
+	_dip_memory_rows()
+
+
+## The core's own DIP screen button, or its DIP options listed.
+func _refresh_dip_core() -> void:
 	if _dip_has_menu:
 		_dip_note("This game's DIP switches are on its own screen. Open them there, move with the stick or arrows, and press the button again to close.")
 		var btn := Button.new()
@@ -697,6 +719,63 @@ func _refresh_dip() -> void:
 			"(fixed by this system)", func(k: String, v: String) -> void:
 				print("[CoreOptions2D] DIP '%s' -> '%s'" % [k, v])
 				option_changed.emit(k, v))
+
+
+## The Game memory section (ArcadeBackupMemory): what the game has saved, a Reset that asks twice, and the copies set aside to put back.
+func _dip_memory_rows() -> void:
+	if _dip_memory.is_empty():
+		return
+	var heading := Label.new()
+	heading.text = "Game memory"
+	heading.add_theme_font_size_override("font_size", 22)
+	heading.add_theme_color_override("font_color", COLOR_TITLE)
+	_dip_rows.add_child(heading)
+	_dip_note("Saved: %s." % str(_dip_memory.get("summary", "nothing saved yet")))
+	if not _dip_memory_note.is_empty():
+		_dip_note(_dip_memory_note)
+	if str(_dip_memory.get("class", "")) == "h":
+		_dip_note("This game starts from a memory built by hand: the first start may say BACKUP DATA ERROR. Press TEST and follow the game's menu, then switch the cabinet off with its power switch so the game's memory is saved.")
+	_dip_note("The game keeps its settings, high scores, bookkeeping and, for a gun game, its calibration here. Reset sets all of it aside (it can be put back) and the game starts as new. Saved states keep their own copy: loading one brings it back.")
+	var can := bool(_dip_memory.get("can_change", false))
+	var has_files := bool(_dip_memory.get("has_files", false))
+	var armed := Time.get_ticks_msec() < _dip_reset_armed_until
+	var reset := Button.new()
+	reset.text = "Press again: set aside this game's memory" if armed else "Reset game memory"
+	reset.custom_minimum_size = Vector2(0, 56)
+	reset.add_theme_font_size_override("font_size", 20)
+	reset.disabled = not can or not has_files
+	reset.pressed.connect(func() -> void:
+		if Time.get_ticks_msec() < _dip_reset_armed_until:
+			_dip_reset_armed_until = 0
+			memory_reset_requested.emit()
+		else:
+			_dip_reset_armed_until = Time.get_ticks_msec() + MEMORY_CONFIRM_MS
+			_refresh_dip())
+	_dip_rows.add_child(reset)
+	if not can:
+		_dip_note("Not now: %s." % str(_dip_memory.get("why_not", "")))
+	elif not has_files:
+		_dip_note("Nothing is saved yet: the game has not been switched off since it was first started.")
+	var copies := _dip_memory.get("copies", []) as Array
+	for i in mini(copies.size(), 5):
+		var copy: Dictionary = copies[i]
+		var stamp := str(copy["stamp"])
+		var why := str(copy.get("reason", ""))
+		var back := Button.new()
+		back.text = "Put back %s%s" % [_stamp_words(stamp), (" (%s)" % why) if not why.is_empty() else ""]
+		back.custom_minimum_size = Vector2(0, 44)
+		back.add_theme_font_size_override("font_size", 16)
+		back.clip_text = true
+		back.disabled = not can
+		back.pressed.connect(func() -> void: memory_restore_requested.emit(stamp))
+		_dip_rows.add_child(back)
+
+
+## "20261026T143005Z" as 2026-10-26 14:30 (UTC).
+static func _stamp_words(stamp: String) -> String:
+	if stamp.length() < 16:
+		return stamp
+	return "%s-%s-%s %s:%s UTC" % [stamp.substr(0, 4), stamp.substr(4, 2), stamp.substr(6, 2), stamp.substr(9, 2), stamp.substr(11, 2)]
 
 
 func _dip_note(text: String) -> void:

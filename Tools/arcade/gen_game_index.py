@@ -47,6 +47,8 @@ not the default, `;`-separated attributes (a letter and a value):
   m<in>     the monitor's class in inches where it is not the 25" default (19 before 1985),
   v         the game reads a service / test switch (MAME's `<input service="yes">`: the TEST button
             inside the coin door, which toggles the game's own operator menu),
+  b<class>  the game has a Timekeeper chip (a battery RAM and a clock) whose memory it checks and may reject (Silent Scope: BACKUP DATA ERROR): `bh` its default image is
+            hand built or missing (baddump, nodump), `bg` a good dump, `bn` no image at all (docs/dev/arcade-backup-memory.md),
 Everything in `t`, `o`, `f` and `a` that MAME does not say is a choice made here from
 the lists below and a little general knowledge; docs/dev/arcade.md says which is which.
 
@@ -94,6 +96,12 @@ MONITOR_CLASS = {"panicprk": 33}
 # lays them out as it laid out any second screen, side by side.
 MISSING_LAYOUT: list[str] = []
 KEEP = {"description", "year", "input", "display", "dipswitch", "configuration"}
+# The Timekeeper-class chips (a battery RAM and a clock in one: Konami's Hornet, Viper, System 573...): MAME keeps their memory in a file a game checks block by block and
+# says BACKUP DATA ERROR about (Silent Scope). The machine's `b`: `h` if the default image the chip is seeded from is hand built or missing (`baddump`, `nodump`:
+# the first start is from a memory the game may reject), `g` if it is a good dump, `n` if there is no image at all. A game of none carries no `b`.
+# docs/dev/arcade-backup-memory.md.
+TIMEKEEPERS = {"m48t02", "m48t35", "m48t37", "m48t58", "mk48t08", "mk48t12", "ds1643"}
+TIMEKEEPER_REGIONS = TIMEKEEPERS | {"timekpr", "timekeeper"}
 
 # Drivers whose "light gun" is a touch screen (bar-top quiz and card games, fruit machines with a touch
 # panel): MAME files the touch panel as IPT_LIGHTGUN, and a gun cabinet is the wrong thing to draw.
@@ -212,6 +220,17 @@ def driving_cabinet(machine, name, year):
         if any(w in d for w in ("upright", "stand", "mini")):
             return "stand"
     return "stand" if year and year < 1988 else "race"
+
+
+def backup_class(machine):
+    """`h`, `g`, `n` or '' (see TIMEKEEPERS): from the machine's own device list and ROM regions, which `-listxml` merges a parent's into a clone's."""
+    if not {d.get("name") for d in machine.findall("device_ref")} & TIMEKEEPERS:
+        return ""
+    statuses = [r.get("status", "good") for r in machine.findall("rom")
+                if (r.get("region") or "").lstrip(":").lower() in TIMEKEEPER_REGIONS]
+    if not statuses:
+        return "n"
+    return "h" if any(st in ("baddump", "nodump") for st in statuses) else "g"
 
 
 def screens_attr(romset):
@@ -349,6 +368,8 @@ def profile_of(machine, parent):
         attrs.append("a")
     if inp.get("service") == "yes":
         attrs.append("v")
+    if machine.get("bclass"):
+        attrs.append("b" + machine.get("bclass"))
     year = machine.findtext("year") or ""
     if family in MONITOR_CLASS:
         attrs.append("m%d" % MONITOR_CLASS[family])
@@ -393,6 +414,8 @@ def main():
             continue
         if el.get("isdevice") != "yes" and el.get("isbios") != "yes" \
                 and el.get("runnable", "yes") != "no":
+            # What the ROM lists and device list say is read before they go.
+            el.set("bclass", backup_class(el))
             # Only what a profile reads is kept for the second pass (ROM lists and devices are most of the file).
             for child in list(el):
                 if child.tag not in KEEP:

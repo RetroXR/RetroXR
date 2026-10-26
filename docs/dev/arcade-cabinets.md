@@ -34,8 +34,9 @@ romset -> ArcadeGameTable line  "p2c1b9w2:joy+stick;tslot panicprk=panicprkj"   
 A profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>;<attributes>`. MAME says the players, coins, buttons, ways, kinds, the rotation, the screens,
 the guns and whether the game reads a service switch (`v`). **MAME says nothing of what the cabinet looked like**: the form (`t...`) is a choice made in
 `gen_game_index.py` from curated lists (`CYCLE HOLO SLOT RIFLE MOUNTED_GUN GUN_PEDAL BIKE STAND_RACER ROOFED ODD`, and `FLY` and `SEATING` in `Tools/arcade/cockpits.py`), the Cabinet
-DIP switch and the game's name. 28,713 romsets, 1,594 profiles. Two attributes say what the SIT-DOWN version had (section 2b): `q`, the letters `s` (a seat), `c` (a cabin round it) and `m` (a base that
-moves), and `z`, a throttle lever.
+DIP switch and the game's name. 28,713 romsets, 1,639 profiles. Two attributes say what the SIT-DOWN version had (section 2b): `q`, the letters `s` (a seat), `c` (a cabin round it) and `m` (a base that
+moves), and `z`, a throttle lever. A third, `b`, says the game has a Timekeeper chip whose memory it checks (`h` the image it is seeded from is hand built or missing, `g` a good dump,
+`n` none: `arcade-backup-memory.md`).
 
 | form (`t`) | romsets (families) | | form (`t`) | romsets (families) |
 |---|---|---|---|---|
