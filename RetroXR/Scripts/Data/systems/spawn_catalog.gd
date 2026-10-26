@@ -477,17 +477,9 @@ static func _items_for(systemid: String) -> Array:
 	# is the machine as a player has to build it.
 	if ExpansionCatalog.has(systemid) and ExpansionCatalog.has_own_card(systemid):
 		var own: Array = []
-		# Gated exactly as a unit filed on somebody else's card is. This branch
-		# used to add the unit unconditionally, so the firmware rule -- "a unit
-		# that has not got them is not offered at all" -- held only for units
-		# WITHOUT a tile of their own. It went unnoticed because the BS-X
-		# cartridge was the only row naming firmware and it is filed under
-		# satellaview; the Sufami Turbo is the first to name firmware AND own its
-		# card, and it was offered without its shell.
-		if ExpansionCatalog.firmware_present(systemid):
-			own.append({"kind": "peripheral",
-				"label": ExpansionCatalog.display_label_of(systemid),
-				"spawn": "expansion:%s" % systemid})
+		# Offered whether or not its firmware is installed, as every unit is: see
+		# _units_carded_here.
+		own.append(_unit_item(systemid))
 		own.append_array(_units_carded_here(systemid))
 		return own
 
@@ -780,14 +772,32 @@ static func _is_expansion_media(systemid: String) -> bool:
 	return false
 
 
+## Offered whether or not the unit's firmware is installed. A unit without it
+## used to be left off every card, which read as "RetroXR has no Sega CD" to a
+## player who had the discs and no BIOS: nothing said a file was missing, because
+## nothing was there to say it. Now the unit spawns, and switching the machine on
+## refuses with "BIOS required" naming the file (ExpansionLaunch.missing_firmware).
 static func _units_carded_here(systemid: String) -> Array:
 	var out: Array = []
 	for id: String in ExpansionCatalog.ids_carded_on(systemid):
-		if not ExpansionCatalog.firmware_present(id):
-			continue
-		out.append({"kind": "peripheral", "label": ExpansionCatalog.display_label_of(id),
-			"spawn": "expansion:%s" % id})
+		out.append(_unit_item(id))
 	return out
+
+
+## One unit's row. `missing` is the short red line the systems page prints under
+## a unit whose firmware is not installed, so the row says why it will not start
+## before it is spawned rather than after.
+static func _unit_item(id: String) -> Dictionary:
+	var item := {"kind": "peripheral", "label": ExpansionCatalog.display_label_of(id),
+		"spawn": "expansion:%s" % id}
+	var miss := ExpansionCatalog.missing_row(id)
+	if not miss.is_empty():
+		if miss.has("where"):
+			item["missing"] = "Not in your library: %s" % str(miss["path"])
+		else:
+			var files: Array = miss.get("any_of", [miss["path"]])
+			item["missing"] = "BIOS missing: %s" % ", ".join(files)
+	return item
 
 
 # ── mod contributions ─────────────────────────────────────────────────────────

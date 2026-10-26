@@ -847,6 +847,25 @@ func _populate_systems_detail(systemid: String, vbox: VBoxContainer) -> void:
 			_mark_holdable(btn, _default_key(systemid, token), colors)
 		else:
 			btn.pressed.connect(spawn_requested.emit.bind(token))
+		# A unit whose firmware is not installed still spawns; the row says what
+		# power-on will ask for, small and red under its name.
+		var missing := str(item.get("missing", ""))
+		if not missing.is_empty():
+			btn.custom_minimum_size.y = 100
+			# A second, empty line lifts the name clear of the note.
+			btn.text += "\n"
+			var note := Label.new()
+			note.text = missing
+			note.add_theme_font_size_override("font_size", 17)
+			note.add_theme_color_override("font_color", MenuIcons.TINT_DELETE)
+			note.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			note.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+			note.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+			note.offset_left = 62
+			note.offset_right = -16
+			note.offset_top = -34
+			note.offset_bottom = -8
+			btn.add_child(note)
 		vbox.add_child(btn)
 	vbox.add_child(MenuStyle.spacer(8))
 

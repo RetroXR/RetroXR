@@ -173,6 +173,39 @@ func expansion_roms(spec: Dictionary, core := "") -> Array[String]:
 	return out
 
 
+## The units in this stack whose firmware is not installed, as BiosBoot rows for
+## the power-on verdict, which refuses with "BIOS required" naming the first.
+##
+## Every unit is offered in the spawn menu whether or not its file is there, so
+## this is where a missing one is finally said out loud. A Sega CD, Super Game
+## Boy or ROM cartridge without its file would otherwise start into a black
+## screen or a game short of its other half.
+##
+## None when the console's OWN cartridge is what boots: a Mega Drive game played
+## on a Mega Drive standing on a Sega CD never touches the drive's BIOS. Only the
+## Sega CD's recipe names `host`, so for every other unit the stack is the boot.
+func missing_firmware(spec: Dictionary) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for unit in _host.get_expansions():
+		var miss := ExpansionCatalog.missing_row(unit.expansion_id)
+		if not miss.is_empty():
+			out.append(miss)
+	if out.is_empty():
+		return out
+	for token: String in spec.get("roms", []):
+		# Resolved one token at a time to find which one boots. Asked only now,
+		# with something missing, since "slot2_save" creates a file: no unit
+		# naming firmware shares a recipe with it.
+		if expansion_roms({"roms": [token]}).is_empty():
+			continue
+		if token == "host":
+			print("[Expansion] %s boots its own cartridge; %s not needed"
+				% [_host.systemid, str(out[0]["path"])])
+			out.clear()
+		break
+	return out
+
+
 ## Say so when a disk is in the drive and the core is about to ignore it.
 ##
 ## mupen64plus_next attaches a 64DD disk to a cartridge only when the disk sits

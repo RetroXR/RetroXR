@@ -34,7 +34,7 @@ the other.
 **A BIOS is required, and it is the adapter's own cartridge**: `SGB1.sfc`
 (md5 `b15ddb15721c657d82c5bab6db982ee9`) and `SGB2.sfc`, declared in
 `bsnes_libretro.info` and installed to `libretro/system/bsnes/`. Each unit names
-one and is gated on it independently, so a player with one dump is offered one
+one and is gated on it independently, so a player with one dump can start one
 adapter. `rom_from_firmware` on the row is what lets the adapter find its own
 program there: unlike the BS-X cartridge, which is spawned from a `.sfc` in the
 library and carries it in `rom_path`, a Super Game Boy is spawned from a menu and
@@ -369,3 +369,17 @@ console's model and the cartridge (the room's panels stand in front of its
 cameras; it only ever hides, so hidden hand poses and highlights stay hidden), and
 prints facing, gap, plug depth, spacer contact, the cart against `CartFloor`, and
 the flap angles.
+
+## Firmware never hides a unit (2026-10-26)
+
+Every expansion unit is offered on its spawn card whether or not its firmware is
+installed. A unit naming `firmware` (or an e-Reader's `rom_code` dump) that is
+absent gets a small red line under its row (`SpawnCatalog._unit_item`'s `missing`:
+"BIOS missing: <files>", or "Not in your library: ..." for an e-Reader), and
+switching on a machine built with it refuses with the usual "BIOS required" toast
+(`ExpansionLaunch.missing_firmware` -> `ExpansionCatalog.missing_row`, appended to
+`missing` in `power_on`). The one exception is the console's OWN cartridge
+booting past a drive -- a Mega Drive game on a Mega Drive standing on a Sega CD --
+found by the first resolving token of the recipe being `host`. Before this the
+units were left off every card, so a player with Sega CD discs and no BIOS saw no
+Sega CD at all and nothing said why. `expansion_tests scd_missing/`.

@@ -160,7 +160,8 @@ it, so a disc without its cartridge shows whatever the game itself shows.
   slot being taken is why.
 - **ROM cartridges** are half a game, the dump the core opens from its system
   directory (`mpr-18811-mx.ic1`, `mpr-19367-mx.ic1`, the names Beetle's .info
-  declares), so each names it as `firmware` and is offered only when it is on disk.
+  declares), so each names it as `firmware`: always offered, its spawn row reads
+  "BIOS missing" in red without it, and a Saturn with it seated refuses to start.
   Each has a BOOT row naming `mednafen_saturn` and no `roms` -- the disc still
   boots -- because YabaSanshiro has no ROM cartridges at all; on a Quest seating one
   runs Beetle. A cartridge restored into a room whose dump has gone opens nothing
@@ -223,7 +224,7 @@ holding** -- it used to unbind every MOUNT_ABOVE unit, which with one socket was
 same thing and with two pulled the card out whenever a cartridge came out.
 
 `ForcedCoreOptions.saturn_mpeg_card` pins the option both ways on Beetle. The card
-names `mpeg_card.bin` as firmware, so it is offered only with the file installed --
+names `mpeg_card.bin` as firmware, so without the file its row reads "BIOS missing" and power-on refuses --
 RetroXR's `.info` overlay declares it (optional), with the md5 of the one dump
 tested, `b3841bb91201eee6c0db229b2c66d54c`, which is NOT a published hash; another
 dump reads MISMATCH and still works. YabaSanshiro has no decoder, so the card's BOOT

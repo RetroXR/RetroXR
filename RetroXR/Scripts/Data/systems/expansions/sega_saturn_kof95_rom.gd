@@ -9,11 +9,11 @@ const ID := "sega_saturn_kof95_rom"
 
 const _BACKUP := preload("res://Scripts/Data/systems/expansions/sega_saturn_ram_cart.gd")
 
-# Half of a game, so it is offered only where its dump is installed: `firmware`
-# is the file Beetle Saturn opens for its CART_KOF95 (mednafen/settings.c,
-# ss.cart.kof95_path), in the core's system directory. A cartridge restored into
-# a room whose dump has since gone opens nothing, and the core runs with the slot
-# empty (cart.c falls through to no cartridge), so the disc says what is missing.
+# Half of a game, so a Saturn with it seated starts only where its dump is
+# installed: `firmware` is the file Beetle Saturn opens for its CART_KOF95
+# (mednafen/settings.c, ss.cart.kof95_path), in the core's system directory.
+# Without it the core would run with the slot empty (cart.c falls through to no
+# cartridge), so power-on refuses with "BIOS required" instead, naming the dump.
 # The shell is the Backup RAM Cartridge's; the slot is the same one.
 const ROW := {
 	"label": "KOF '95 ROM Cartridge",

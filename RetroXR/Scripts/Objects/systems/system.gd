@@ -2316,6 +2316,9 @@ func power_on() -> void:
 	# And what the game needs that the core's .info calls optional: a Sega CD disc
 	# cannot start without a Sega CD BIOS, though the same core runs cartridges.
 	missing.append_array(BiosBoot.missing_for_media(resolved_core, _media_systemid()))
+	# And what a unit in the stack runs: the spawn menu offers every unit with or
+	# without its file, so this is where a missing one is said.
+	missing.append_array(_expansion_launch.missing_firmware(stack_spec))
 	var verdict := _power_on_verdict(resolved_core, systemid, rom_path,
 		missing, blank,
 		slot_empty and BiosBoot.boots_with_no_content(resolved_core, systemid),
@@ -2551,6 +2554,9 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 	if not missing.is_empty():
 		var first: Dictionary = missing[0]
 		var path := str(first.get("path", ""))
+		# The second line: where the file goes. A row may say otherwise (an
+		# e-Reader's program is a library dump, not a BIOS).
+		var where := str(first.get("where", "Add it in OPTIONS > Cores > BIOS / Extras."))
 		# Any one of a regional set would do, so it is not counted up as several
 		# missing files.
 		var any_of: Array = first.get("any_of", [])
@@ -2559,8 +2565,8 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 				"start": false, "rom": rom,
 				"log": "core '%s' needs one of %s and has none" % [core_name, ", ".join(any_of)],
 				"title": "BIOS required",
-				"description": "No %s is installed (%s).\nAdd it in OPTIONS > Cores > BIOS / Extras."
-					% [str(first.get("desc", "BIOS")), path],
+				"description": "No %s is installed (%s).\n%s"
+					% [str(first.get("desc", "BIOS")), path, where],
 				"accent": fault,
 			}
 		var more := "" if missing.size() == 1 else " (+%d more)" % (missing.size() - 1)
@@ -2573,8 +2579,8 @@ static func _power_on_verdict(core_name: String, sysid: String, rom: String,
 			# overflowed it top AND bottom, clipping the one line that says what to
 			# do about it. The BIOS / Extras tab prints the folder itself ("Files go
 			# in: …"), so repeating it here bought nothing and cost the instruction.
-			"description": "%s%s is missing.\nAdd it in OPTIONS > Cores > BIOS / Extras."
-				% [path, more],
+			"description": "%s%s is missing.\n%s"
+				% [path, more, where],
 			"accent": fault,
 		}
 

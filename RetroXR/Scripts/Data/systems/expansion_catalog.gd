@@ -37,8 +37,11 @@
 ##               keeps exactly the behaviour it had.
 ##   firmware    files the CORE must already have for this unit to do anything,
 ##               named as its .info names them. A unit that has not got them is
-##               not offered in the spawn menu at all. The BS-X cartridge and the
-##               two Super Game Boys are the only rows that name any.
+##               still offered in the spawn menu; switching on a machine built
+##               with it refuses with "BIOS required" naming the file
+##               (missing_row). The Sega CD, BS-X cartridge, Sufami Turbo, both
+##               Super Game Boys and the Saturn's ROM carts and Video CD Card
+##               name some.
 ##   card        the systemid whose spawn card offers this unit, overriding the
 ##               media rule in card_systemid. Only the Super Game Boys name it,
 ##               and only because a player went looking for one on the Super
@@ -689,7 +692,7 @@ static func card_systemid(id: String) -> String:
 ## that are filed here. In ROWS order.
 ##
 ## Firmware is NOT filtered here: this answers where a unit belongs, and
-## firmware_present answers whether it can be offered at all. Keeping them apart
+## firmware_present answers whether a machine built with it can start. Keeping them apart
 ## means a unit does not silently change cards when a file appears on disk.
 static func ids_carded_on(systemid: String) -> Array[String]:
 	var out: Array[String] = []
@@ -848,7 +851,8 @@ static func pick_firmware(wanted: Array, present: Dictionary) -> String:
 	return str(wanted[0]) if not wanted.is_empty() else ""
 
 
-## Can this unit actually be built -- is the program it runs on this machine?
+## Can a machine built with this unit start -- is the program it runs on this
+## machine? Read at power-on (missing_row), never to hide the unit from the menu.
 ##
 ## A unit whose program is a LIBRARY dump is present when a dump carrying its
 ## header code is on a shelf. That is the whole gate for the readers: no install,
@@ -903,6 +907,35 @@ static func firmware_present(id: String) -> bool:
 		if FileAccess.file_exists(FirmwareRequirements.destination(core, str(name))):
 			return true
 	return false
+
+
+## What a machine built with this unit is missing, as a row of BiosBoot's
+## missing_required shape ({path, desc, any_of?, where?}), or {} when nothing is.
+##
+## `any_of` only for a regional set (the Sega CD's three BIOSes), so a single
+## dump reads "X is missing" rather than "No X BIOS is installed (X)". `where`
+## overrides the toast's second line for the e-Readers, whose program is a GBA
+## dump in the library rather than a file in a core's system directory.
+static func missing_row(id: String) -> Dictionary:
+	if firmware_present(id):
+		return {}
+	var label := display_label_of(id)
+	var code := str(row(id).get("rom_code", ""))
+	if not code.is_empty():
+		return {"path": "%s dump (%s)" % [label, code], "desc": label, "dest": "",
+			"where": "Put it in the %s games folder." % label_of_system(host_of(id))}
+	var wanted := firmware_of(id)
+	if wanted.is_empty():
+		return {}
+	var out := {"path": str(wanted[0]), "desc": "%s BIOS" % label, "dest": ""}
+	if wanted.size() > 1:
+		out["any_of"] = wanted
+	return out
+
+
+static func label_of_system(systemid: String) -> String:
+	var info := SystemInfo.for_system(systemid)
+	return info.display_name if info != null else systemid
 
 
 ## Every expansion that belongs to a console, in ROWS order.

@@ -407,9 +407,12 @@ func _test_bsx_card() -> void:
 
 	_ok(_spawn_row("snes", "expansion:bsx_cart").is_empty(),
 		"bsx/never on the SNES spawn list")
+	# Offered either way; without BS-X.bin the row says so in red, and power-on
+	# refuses naming the file.
 	var installed := ExpansionCatalog.firmware_present("bsx_cart")
-	var offered := not _spawn_row("satellaview", "expansion:bsx_cart").is_empty()
-	_eq(offered, installed, "bsx/offered exactly when BS-X.bin is installed")
+	var bsx_row := _spawn_row("satellaview", "expansion:bsx_cart")
+	_ok(not bsx_row.is_empty() and str(bsx_row.get("missing", "")).is_empty() == installed,
+		"bsx/offered whether or not BS-X.bin is installed, marked missing exactly when it is not")
 	# The base station is the card either way -- gating the cartridge must never
 	# take the tile's own hardware down with it.
 	_ok(not _spawn_row("satellaview", "expansion:satellaview").is_empty(),

@@ -1121,8 +1121,8 @@ func _group_sgb() -> void:
 		for item: Dictionary in SpawnCatalog.items_for("snes"):
 			if str(item.get("spawn", "")) == "expansion:%s" % id:
 				listed = true
-		_ok(listed == ExpansionCatalog.firmware_present(id),
-			"sgb/ the Super Famicom card offers %s exactly when its BIOS is installed" % id)
+		_ok(listed,
+			"sgb/ the Super Famicom card offers %s whether or not its BIOS is installed" % id)
 		_ok(not _spawn_card_has("gb", id),
 			"sgb/ and the Game Boy card does not also offer it")
 
@@ -1231,9 +1231,10 @@ func _sgb_gate_positive() -> void:
 		DirAccess.rename_absolute(dest, aside)
 		_refresh_firmware()
 		_ok(not ExpansionCatalog.firmware_present("super_game_boy"),
-			"sgb/ with the dump moved away the adapter is withdrawn")
-		_ok(not _spawn_card_has("snes", "super_game_boy"),
-			"sgb/ and the Super Famicom card loses its row")
+			"sgb/ with the dump moved away the adapter cannot start")
+		_ok(_spawn_card_has("snes", "super_game_boy")
+				and str(ExpansionCatalog.missing_row("super_game_boy").get("path", "")) == "SGB1.sfc",
+			"sgb/ but the Super Famicom card keeps its row, and power-on names SGB1.sfc")
 		DirAccess.rename_absolute(aside, dest)
 		_refresh_firmware()
 		_ok(FileAccess.file_exists(dest), "sgb/ and the player's dump is put back")
@@ -1411,9 +1412,10 @@ func _sufami_gate() -> void:
 		DirAccess.rename_absolute(dest, aside)
 		_refresh_snes9x_firmware()
 		_ok(not ExpansionCatalog.firmware_present("sufami_turbo"),
-			"sufami/ with the shell moved away the adapter is withdrawn")
-		_ok(not _spawn_card_has("sufami", "sufami_turbo"),
-			"sufami/ and its card stops offering it")
+			"sufami/ with the shell moved away the adapter cannot start")
+		_ok(_spawn_card_has("sufami", "sufami_turbo")
+				and str(ExpansionCatalog.missing_row("sufami_turbo").get("path", "")) == "STBIOS.bin",
+			"sufami/ but its card still offers it, and power-on names STBIOS.bin")
 		DirAccess.rename_absolute(aside, dest)
 		_refresh_snes9x_firmware()
 		_ok(FileAccess.file_exists(dest), "sufami/ and the player's dump is put back")
@@ -1469,6 +1471,8 @@ func _run() -> void:
 		await _group_scd_storage()
 	if _want("scd_boot"):
 		await _group_scd_boot()
+	if _want("scd_missing"):
+		await _group_scd_missing()
 	if _want("saturn"):
 		await _group_saturn()
 	if _want("three_do"):
@@ -1568,6 +1572,88 @@ func _spacer_contact_y(spacer: Node3D, host: Node3D) -> float:
 				if (to_host.basis * norms[i]).normalized().y < -0.5:
 					best = maxf(best, (to_host * verts[i]).y)
 	return best
+
+
+# ── scd_missing/ — a Sega CD with no BIOS is offered, and says so at power-on ─
+
+## The spawn menu offers every unit with or without its firmware, so power-on is
+## where a missing file is named. Driven on the REAL genesis_plus_gx system
+## directory, as the sgb/ and sufami/ gates are: any installed CD BIOS is moved
+## ASIDE (a rename in one directory) and put straight back, so the case count
+## does not depend on whether the player owns one.
+func _group_scd_missing() -> void:
+	var regions := ["bios_CD_U.bin", "bios_CD_E.bin", "bios_CD_J.bin"]
+	var moved: Array[String] = []
+	for name: String in regions:
+		var dest := FirmwareRequirements.destination("genesis_plus_gx", name)
+		var aside := dest + ".expansion_tests_backup"
+		# A previous run that died mid-swap: put the player's BIOS back first.
+		if FileAccess.file_exists(aside) and not FileAccess.file_exists(dest):
+			DirAccess.rename_absolute(aside, dest)
+			print("[exp] scd_missing/ restored a %s left aside by an earlier run" % name)
+		if FileAccess.file_exists(dest):
+			DirAccess.rename_absolute(dest, aside)
+			moved.append(dest)
+	_refresh_genesis_firmware()
+
+	_ok(not ExpansionCatalog.firmware_present("sega_cd") and _spawn_card_has("segacd", "sega_cd"),
+		"scd_missing/ with no CD BIOS the Sega CD card still offers the unit")
+	var note := ""
+	for item: Dictionary in SpawnCatalog.items_for("segacd"):
+		if str(item.get("spawn", "")) == "expansion:sega_cd":
+			note = str(item.get("missing", ""))
+	_ok(note.begins_with("BIOS missing") and note.contains("bios_CD_U.bin")
+			and note.contains("bios_CD_J.bin"),
+		"scd_missing/ and its row carries the red BIOS missing line, naming the files (%s)" % note)
+
+	var cd := await _unit("sega_cd")
+	var md := await _console("genesis")
+	await _bolt(md, cd)
+	var spec := md._expansion_launch.apply_expansion_launch()
+	var miss := md._expansion_launch.missing_firmware(spec)
+	_ok(miss.size() == 1 and miss[0].get("any_of", []) == regions
+			and str(miss[0].get("path", "")) == "bios_CD_U.bin",
+		"scd_missing/ an empty tray needs the BIOS, any one of the three regions")
+	var verdict := RetroSystem._power_on_verdict("genesis_plus_gx", "genesis", md.rom_path, miss, "")
+	_ok(not bool(verdict["start"]) and str(verdict["title"]) == "BIOS required"
+			and str(verdict["description"]).contains("bios_CD_U.bin")
+			and str(verdict["description"]).contains("BIOS / Extras"),
+		"scd_missing/ and power-on refuses with BIOS required, naming the file and where it goes")
+
+	cd.restore_media(await _cart("segacd", "/roms/segacd/game.chd"))
+	await _wait(5)
+	spec = md._expansion_launch.apply_expansion_launch()
+	_ok(md._expansion_launch.missing_firmware(spec).size() == 1,
+		"scd_missing/ a disc in the tray needs it too")
+
+	cd._tray.set_open(true, false)
+	md.restore_cartridge(await _cart("genesis", "/roms/genesis/game.md"))
+	await _wait(5)
+	spec = md._expansion_launch.apply_expansion_launch()
+	_ok(md.rom_path == "/roms/genesis/game.md"
+			and md._expansion_launch.missing_firmware(spec).is_empty(),
+		"scd_missing/ but the console's own cartridge boots without the drive's BIOS")
+	await _clear()
+
+	var rows: Array[Dictionary] = [{"path": "e-Reader dump (PEAJ)", "desc": "e-Reader", "dest": "",
+		"where": "Put it in the Game Boy Advance games folder."}]
+	var where := RetroSystem._power_on_verdict("mgba", "gba", "", rows, "")
+	_ok(str(where["description"]).contains("games folder")
+			and not str(where["description"]).contains("BIOS / Extras"),
+		"scd_missing/ a row's own `where` replaces the BIOS / Extras line")
+
+	for dest: String in moved:
+		DirAccess.rename_absolute(dest + ".expansion_tests_backup", dest)
+	_refresh_genesis_firmware()
+	var restored := true
+	for dest: String in moved:
+		restored = restored and FileAccess.file_exists(dest)
+	_ok(restored and ExpansionCatalog.firmware_present("sega_cd") == not moved.is_empty(),
+		"scd_missing/ and the player's BIOS is put back as it was")
+
+
+func _refresh_genesis_firmware() -> void:
+	FirmwareState.shared().evaluate("genesis_plus_gx", FirmwareRequirements.for_core("genesis_plus_gx"))
 
 
 # ── scd_boot/ — what a Sega CD hands the core ─────────────────────────────────
@@ -2083,8 +2169,9 @@ func _saturn_dump_gate(ids: Array) -> void:
 		if had:
 			DirAccess.rename_absolute(dest, aside)
 		_refresh_saturn_firmware()
-		_ok(not ExpansionCatalog.firmware_present(id) and not _spawn_card_has("saturn", id),
-			"saturncart/ without %s, the Saturn's card does not offer %s" % [name, id])
+		_ok(not ExpansionCatalog.firmware_present(id) and _spawn_card_has("saturn", id)
+				and str(ExpansionCatalog.missing_row(id).get("path", "")) == name,
+			"saturncart/ without %s, the Saturn's card still offers %s and power-on names it" % [name, id])
 
 		if had:
 			DirAccess.rename_absolute(aside, dest)

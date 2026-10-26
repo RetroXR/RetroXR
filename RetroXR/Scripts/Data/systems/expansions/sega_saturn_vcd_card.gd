@@ -24,7 +24,8 @@ const ID := "sega_saturn_vcd_card"
 #
 # What seating it does is ForcedCoreOptions.saturn_mpeg_card. `firmware` is the
 # card's ROM, mpeg_card.bin in Beetle's system directory: without it the core's
-# card answers but never authenticates (mpeg.c, MPEG_Auth), so it is not offered.
+# card answers but never authenticates (mpeg.c, MPEG_Auth), so a Saturn with it
+# seated and no dump refuses to start (ExpansionCatalog.missing_row).
 const ROW := {
 	"label": "Video CD Card",
 	"host": "saturn",
