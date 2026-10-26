@@ -97,7 +97,7 @@ func _float_height() -> float:
 # ── Debug tab ────────────────────────────────────────────────────────────────
 
 ## How often the Debug tab re-reads the deck, while it is the tab showing.
-const DEBUG_POLL_S := 0.5
+const DEBUG_POLL_S := 1.0
 var _debug_poll := 0.0
 
 

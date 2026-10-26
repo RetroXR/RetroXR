@@ -5,6 +5,14 @@
 ## rebuilt only when the LABELS change; a refresh that changes values alone (every
 ## refresh while something plays) rewrites text, so the page does not flicker or
 ## lose its scroll under a pointer.
+##
+## And only the text that CHANGED: most rows (a core's name, its extensions) never
+## do, and each label set re-measures its text and lays the page out again, which
+## then redraws the menu's viewport. Rewriting all forty on every refresh put a
+## 5 ms spike on the frame twice a second — a dropped frame on a beat at 90 Hz,
+## felt as a rhythmic stutter in the game (measured: 12.4 ms worst frame with the
+## tab shut, 17.7 open). Values are one line, ellipsised, for the same reason:
+## a wrapping label is the expensive kind to re-measure.
 class_name DebugRows
 extends VBoxContainer
 
@@ -46,7 +54,8 @@ func show_sections(sections: Array) -> void:
 				line.add_child(name_lbl)
 				var val := MenuStyle.label("", 16, COLOR_TITLE)
 				val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				val.clip_text = true
+				val.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 				line.add_child(val)
 				add_child(line)
 				values.append(val)
@@ -54,5 +63,9 @@ func show_sections(sections: Array) -> void:
 	var i := 0
 	for s: Array in sections:
 		for row: Array in s[1]:
-			values[i].text = str(row[1])
+			var text := str(row[1])
+			if values[i].text != text:
+				values[i].text = text
+				# The whole value on hover, now the row ellipsises a long one.
+				values[i].tooltip_text = text
 			i += 1

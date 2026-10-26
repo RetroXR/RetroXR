@@ -35,7 +35,7 @@ var _controls_poll := 0.0
 ## RetroSystem.controls_state() as the Controls tab last showed it.
 var _controls_state: Dictionary = {}
 ## How often the Debug tab re-reads the core, while it is the tab showing.
-const DEBUG_POLL_S := 0.5
+const DEBUG_POLL_S := 1.0
 var _debug_poll := 0.0
 ## The core's frame count at the last Debug read, -1 when there was none.
 var _debug_frames := -1
