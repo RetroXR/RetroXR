@@ -32,6 +32,8 @@ var _vcr_params := {
 	"noise_strength": 0.10,
 	"wobble_strength": 0.0016,
 	"tracking_strength": 0.02,
+	"tracking_noise": 1.0,
+	"tracking_speed": 0.18,
 	"desaturation": 0.15,
 	"brightness": 1.12,
 	"roll_amount": 0.008,
@@ -600,12 +602,13 @@ func _on_ff_pressed() -> void:
 
 ## Show an on-screen message on the connected TV (sticky, or auto-hiding after 3s).
 func _osd(text: String, sticky: bool) -> void:
-	if connected_tv == null:
+	var tv := _watching_tv()
+	if tv == null:
 		return
 	if sticky:
-		connected_tv.show_osd(text)
+		tv.show_osd(text)
 	else:
-		connected_tv.show_osd_timed(text, 3.0)
+		tv.show_osd_timed(text, 3.0)
 
 
 ## Enter (dir = ±1) or leave (dir = 0) a fast-forward/rewind scan.
@@ -685,7 +688,7 @@ func stop() -> void:
 	_paused = false
 	if _emitter:
 		_emitter.flush()
-	if connected_tv:
+	if _watching_tv():
 		connected_tv.hide_osd()
 	_net_push_state()
 
@@ -954,7 +957,7 @@ func _end_of_tape() -> void:
 	_apply_volume()
 	if is_instance_valid(_tape):
 		_tape.set("tape_speed", 0.0)
-	if connected_tv:
+	if _watching_tv():
 		connected_tv.hide_osd()
 	_net_push_state()
 

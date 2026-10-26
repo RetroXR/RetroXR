@@ -238,6 +238,20 @@ func _apply_av_feed(tv: RetroTV, video: bool, l: int, r: int) -> void:
 		_emitter.set_channel_gains(1.0 if l >= 0 else 0.0, 1.0 if r >= 0 else 0.0)
 
 
+## The set this deck is cabled to, but only while that set is SHOWING the deck:
+## its selected input is the one the deck's lead (or cabinet) is on. A set left on
+## another input, or on a broadcast channel, is not watching the deck, and a PLAY or
+## << REW there would be drawn over some other machine's picture. Null otherwise,
+## so every deck message goes through this rather than connected_tv.
+func _watching_tv() -> RetroTV:
+	if connected_tv == null or not is_instance_valid(connected_tv):
+		return null
+	var selected := connected_tv.selected_input()
+	if selected < 0 or connected_tv.input_for_device(self) != selected:
+		return null
+	return connected_tv
+
+
 func is_paused() -> bool:
 	return _paused
 

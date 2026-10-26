@@ -39,6 +39,8 @@ signal system_filter_changed
 ## Ask the menu to re-read the RomM platform list. It owns the result, because
 ## the cartridge browser reads it too.
 signal romm_platforms_requested
+## The "Enable RomM library" switch moved, either way.
+signal romm_enabled_changed
 
 # Services, injected by setup(). Named exactly as the menu names them so the
 # rows below read the same as they did when they lived there.
@@ -1705,8 +1707,7 @@ func _build_romm_options(vbox: VBoxContainer) -> void:
 		.toggled.connect(func(on: bool) -> void:
 			romm_config.enabled = on
 			_save_romm_config()
-			if on:
-				romm_platforms_requested.emit())
+			romm_enabled_changed.emit())
 
 	MenuStyle.menu_switch_row(vbox, "Back up saves and states", romm_config.backup_enabled,
 			"Upload battery saves and save states to RomM as they are written") \

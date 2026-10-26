@@ -193,6 +193,8 @@ func _build_vhs_tab(tabs: TabContainer) -> void:
 		["noise_strength",       "Tape grain",   0.0, 1.0,   0.02,   "%.2f"],
 		["wobble_strength",      "Wobble",       0.0, 0.02,  0.001,  "%.3f"],
 		["tracking_strength",    "Tracking",     0.0, 0.1,   0.005,  "%.3f"],
+		["tracking_noise",       "Tracking bar", 0.0, 2.0,   0.05,   "%.2f"],
+		["tracking_speed",       "Bar speed",    0.0, 1.0,   0.02,   "%.2f"],
 		["roll_amount",          "Roll amount",  0.0, 0.05,  0.002,  "%.3f"],
 		["roll_speed",           "Roll speed",   0.0, 2.0,   0.05,   "%.2f"],
 		["banded_noise_opacity", "Banded noise", 0.0, 1.0,   0.05,   "%.2f"],

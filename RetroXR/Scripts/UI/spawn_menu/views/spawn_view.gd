@@ -301,6 +301,26 @@ func _connect_romm() -> void:
 			_romm_platforms[sid] = p
 
 
+## Whether the RomM library is switched on at all. Everything the grid, a system's
+## page and the search draw from the server -- the cached platform list and the
+## synced indexes on disk -- outlives the switch, so each of those asks this first:
+## turned off, a library that WAS enabled kept its isotipo and counts on every tile.
+## Not is_configured(): a basic-auth library is enabled with no password after a
+## restart, and its last run's platforms are meant to show.
+func _romm_shown() -> bool:
+	return romm_config != null and romm_config.enabled and not romm_config.base_url.is_empty()
+
+
+## The switch in OPTIONS moved. On, the platforms are fetched (which repaints the
+## grid if they changed); either way the grid and an open page are owed a
+## repaint, paid when this tab is next on screen.
+func romm_enabled_changed() -> void:
+	print("[RommSync] library %s" % ("enabled" if _romm_shown() else "disabled; hiding server tiles and rows"))
+	if _romm_shown():
+		romm_fetch_platforms()
+	_owe(false, true, true)
+
+
 ## Read by the OPTIONS tab, which shows what the server holds.
 func romm_platforms() -> Dictionary:
 	return _romm_platforms
@@ -1023,9 +1043,11 @@ func _populate_cartridges_tab(rerun_detail: bool = true) -> void:
 	for systemid: String in _extra_systemids(seen):
 		systems.append({"systemid": systemid, "name": _system_label(systemid)})
 
-	for systemid: String in _romm_platforms:
-		if not seen.has(systemid):
-			systems.append({"systemid": systemid, "name": _system_label(systemid)})
+	var romm_on := _romm_shown()
+	if romm_on:
+		for systemid: String in _romm_platforms:
+			if not seen.has(systemid):
+				systems.append({"systemid": systemid, "name": _system_label(systemid)})
 
 	# Mark tiles backed by the server with the RomM isotipo and its ROM count.
 	#
@@ -1038,9 +1060,9 @@ func _populate_cartridges_tab(rerun_detail: bool = true) -> void:
 	for s: Dictionary in systems:
 		var sid: String = s["systemid"]
 		var remote := 0
-		if _romm_platforms.has(sid):
+		if romm_on and _romm_platforms.has(sid):
 			remote = int((_romm_platforms[sid] as Dictionary).get("rom_count", 0))
-		var shown := RommCatalog.shown_count(sid)
+		var shown := RommCatalog.shown_count(sid) if romm_on else -1
 		if shown >= 0:
 			remote = shown
 		if remote > 0 and mark != null:
@@ -1370,7 +1392,7 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 
 	# Start before the first rebuild, or the empty list reads "add ROMs here"
 	# while a sync is in fact already running.
-	if _romm_platforms.has(systemid) and not RommCatalog.has_index(systemid):
+	if _romm_shown() and _romm_platforms.has(systemid) and not RommCatalog.has_index(systemid):
 		var pid := int((_romm_platforms[systemid] as Dictionary).get("id", 0))
 		print("[RommSync] %s opened with no index at %s (platform id %d)"
 			% [systemid, RommCatalog.index_path(systemid), pid])
@@ -1495,7 +1517,7 @@ func _global_search_local(term: String) -> void:
 		jobs.append({
 			"systemid": sid,
 			"name": sys["name"],
-			"index_dir": RommCatalog.index_dir(sid) if RommCatalog.has_index(sid) else "",
+			"index_dir": RommCatalog.index_dir(sid) if _romm_shown() and RommCatalog.has_index(sid) else "",
 			"local_dirs": RomLibrary.rom_dirs_for_system(sid),
 			"exts": exts,
 			"folders": info != null and info.folder_content,
@@ -1692,7 +1714,9 @@ func _rebuild_romm_rows() -> void:
 	# no seek and no JSON parse per row, or opening a 3k-ROM platform stalls the
 	# frame for a second building rows nobody is looking at yet. The row's real
 	# data is read on demand in _bind_rom_row, for the dozen rows on screen.
-	var have_index := romm_catalog.load_index(systemid)
+	# Switched off, a synced index on disk still lists the server's games; only the
+	# local files are this page's then.
+	var have_index := _romm_shown() and romm_catalog.load_index(systemid)
 	var matched: Dictionary = {}
 	# rom_id -> local path for everything this system has downloaded, resolved
 	# once. Asking the manifest per row formats a key and probes two dictionaries

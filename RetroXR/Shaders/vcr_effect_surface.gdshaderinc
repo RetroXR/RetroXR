@@ -20,6 +20,8 @@ uniform float noise_strength : hint_range(0.0, 1.0) = 0.10;
 uniform float wobble_strength : hint_range(0.0, 0.02) = 0.0016;
 uniform float tracking_speed = 0.18;
 uniform float tracking_strength : hint_range(0.0, 0.1) = 0.02;
+// The grey static bar the tracking band draws as it crawls up (0 = none).
+uniform float tracking_noise : hint_range(0.0, 2.0) = 1.0;
 uniform float vignette_strength : hint_range(0.0, 1.0) = 0.30;
 uniform float desaturation : hint_range(0.0, 1.0) = 0.15;
 uniform float brightness = 1.12;
@@ -104,7 +106,7 @@ void fragment() {
 	col *= 1.0 - banded_noise_opacity * amt * step(0.6, nb);
 
 	// Bright static crackle inside the tracking band.
-	col += track * (hash(uv + fract(TIME)) - 0.3) * 0.5;
+	col += track * (hash(uv + fract(TIME)) - 0.3) * 0.5 * tracking_noise;
 
 	// Vignette.
 	vec2 vc = uv - 0.5;

@@ -498,6 +498,7 @@ func _build_ui() -> void:
 	AppPrefs.region_names_changed.connect(_on_region_names_changed)
 	AppPrefs.mains_region_changed.connect(_on_region_names_changed)
 	_options_view.romm_platforms_requested.connect(_spawn_view.romm_fetch_platforms)
+	_options_view.romm_enabled_changed.connect(_spawn_view.romm_enabled_changed)
 	_options_view.scroll_changed.connect(func(s: ScrollContainer) -> void:
 		if _options_view.visible:
 			_active_scroll = s)

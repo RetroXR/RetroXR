@@ -433,7 +433,7 @@ func stop() -> void:
 	_n_sub = -1
 	if _emitter:
 		_emitter.flush()
-	if connected_tv:
+	if _watching_tv():
 		connected_tv.hide_osd()
 	_net_push_state()
 
@@ -759,8 +759,9 @@ func set_subtitle(id: int) -> void:
 
 
 func _osd(text: String) -> void:
-	if connected_tv:
-		connected_tv.show_osd_timed(text, 2.0)
+	var tv := _watching_tv()
+	if tv:
+		tv.show_osd_timed(text, 2.0)
 
 
 # --- TV connection contract ---
