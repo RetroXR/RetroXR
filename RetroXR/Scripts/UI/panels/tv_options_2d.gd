@@ -43,6 +43,9 @@ const COLOR_IDLE     := Color(0.16, 0.16, 0.28)
 const COLOR_EMPTY    := Color(0.5, 0.5, 0.6)
 ## An input with a cord in the wrong jack.
 const COLOR_WARN     := Color(1.0, 0.7, 0.25)
+## Every AUDIO OUTPUT position, indexed by RetroTV.AudioOut. A set offers the ones
+## its cabinet has (menu_state's audio_out_options).
+const AUDIO_OUT_CHOICES := [["TV speakers", 0], ["Stereo out", 1], ["Surround", 2]]
 
 const MIN_SCALE := 0.2
 const MAX_SCALE := 5.0
@@ -78,6 +81,8 @@ var _aspect_opt: VRDropdown = null
 var _stereo_opt: VRDropdown = null
 var _audio_mode_opt: VRDropdown = null
 var _audio_out_opt: VRDropdown = null
+## The positions _audio_out_opt was last built with.
+var _audio_out_shown: Array = [0, 1, 2]
 var _crt_sw: VRToggle = null
 
 
@@ -246,8 +251,7 @@ func _build_controls_tab(tabs: TabContainer) -> void:
 	_stereo_opt.visible = false
 	_audio_mode_opt = _choice(rows, "Speaker switch",
 		[["Stereo", 0], ["Mono left", 1], ["Mono right", 2]], "audio_mode")
-	_audio_out_opt = _choice(rows, "Audio output",
-		[["TV speakers", 0], ["Stereo out", 1], ["Surround", 2]], "audio_out")
+	_audio_out_opt = _choice(rows, "Audio output", AUDIO_OUT_CHOICES, "audio_out")
 
 	_crt_sw = MenuStyle.switch_row(rows, "CRT filter", true)
 	_crt_sw.toggled.connect(func(on: bool) -> void: _request("crt", on))
@@ -439,6 +443,13 @@ func populate_controls(state: Dictionary) -> void:
 	_stereo_opt.visible = bool(state.get("has_stereo", false))
 	_stereo_opt.select_id(int(state.get("stereo_mode", 0)))
 	_audio_mode_opt.select_id(int(state.get("audio_mode", 0)))
+	# Only the positions this cabinet has: a set with an L/R pair and no more has
+	# no SURROUND to offer (the Panasonic CT-20D10B).
+	var outs: Array = state.get("audio_out_options", [0, 1, 2])
+	if outs != _audio_out_shown:
+		_audio_out_shown = outs.duplicate()
+		_audio_out_opt.set_options(AUDIO_OUT_CHOICES.filter(func(c: Array) -> bool:
+			return outs.has(c[1])), int(state.get("audio_out", 0)))
 	_audio_out_opt.select_id(int(state.get("audio_out", 0)))
 	_crt_sw.button_pressed = bool(state.get("crt", true))
 	_suppress_signal = false

@@ -187,6 +187,7 @@ func _run() -> void:
 		["menu/3D appears with a 3D source, and a cap press reaches an open menu", _m_follows],
 		["menu/a cord in the wrong jack is named on its input", _m_crossed],
 		["menu/a console's menu has its own switches, and where it is showing", _m_machine],
+		["menu/a set with only an L/R pair offers no SURROUND", _m_stereo_only_set],
 		["display/with no aerial the dial is the consoles' channels and nothing else", _d_dial_bare],
 		["wiring/a Famicom's CH1/CH2 slide decides which channel it is on", _w_famicom_channel],
 		["display/an aerial's channels join the dial in numeric order", _d_dial_merged],
@@ -2362,6 +2363,8 @@ func _m_machine() -> void:
 	_ok(ui._ctl_rf.visible and ui._ctl_reset.visible and not ui._ctl_eject.visible,
 		"the rows are the NES's own: RF and RESET, no OPEN")
 	_ok(ui._ctl_reset.disabled, "RESET is dead while the machine is off")
+	_ok(not ui._volume_box.visible and not ui._video_out_row.visible,
+		"a console shows no handheld's Volume or Video Out rows")
 	_ok(ui._ctl_wiring.visible and ui._ctl_wiring.text.contains("L in R"),
 		"the crossed pair is named: %s" % ui._ctl_wiring.text)
 	_ok(ui._volume_box.get_parent().get_parent() == ui._controls_scroll,
@@ -2385,6 +2388,42 @@ func _m_machine() -> void:
 	_check_eq(ui._tabs.get_tab_title(ui._debug_tab_idx), "Debug", "the menu has a Debug tab")
 	_ok(ui._debug_values.size() == (dbg[0][1] as Array).size()
 		and ui._debug_values[0].text == "Off", "which shows those rows")
+
+
+## The Panasonic CT-20D10B (a mod) keeps only its L/R audio outs and disables the
+## other four sockets. Done here to the stock set the same way, because a suite
+## mounts no mods. The stock set, untouched, is the control: it keeps all three.
+func _m_stereo_only_set() -> void:
+	var stock := _tv()
+	var tv := _tv()
+	await _wait(30)
+	_check_eq(stock._audio.audio_out_options(), [0, 1, 2] as Array[int],
+		"the stock set, with all six outputs, has all three positions")
+	for n in ["SpeakerOutC", "SpeakerOutLfe", "SpeakerOutSl", "SpeakerOutSr"]:
+		var port := tv.get_node(n) as RcaPort
+		port.enabled = false
+		port.hide()
+	_check_eq(tv._audio.audio_out_options(), [0, 1] as Array[int],
+		"an L/R pair alone gives TV SPEAKERS and STEREO OUT, no SURROUND")
+
+	var seen := {}
+	for i in 6:
+		tv.remote_audio_out_cycle()
+		seen[tv.audio_out] = true
+	_check_eq(seen.has(RetroTV.AudioOut.SURROUND), false,
+		"the AUDIO OUTPUT key never lands on SURROUND")
+	_check_eq(seen.size(), 2, "and still reaches both positions it has")
+	tv.set_audio_out(RetroTV.AudioOut.SURROUND)
+	_check_eq(tv.audio_out, RetroTV.AudioOut.STEREO,
+		"a peer or an old save asking for SURROUND lands on STEREO OUT")
+	tv.restore_control_state({"audio_out": RetroTV.AudioOut.SURROUND})
+	_check_eq(tv.audio_out, RetroTV.AudioOut.STEREO, "and so does a restore")
+
+	var ui := await _menu_for(tv)
+	var shown: Array = (ui._audio_out_opt._options as Array).map(
+		func(c: Array) -> int: return int(c[1]))
+	_check_eq(shown, [0, 1], "the menu's Audio output row lists only those two")
+	tv.set_audio_out(RetroTV.AudioOut.TV_SPEAKERS)
 
 
 func _m_follows() -> void:

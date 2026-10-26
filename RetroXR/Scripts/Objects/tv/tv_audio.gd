@@ -71,7 +71,11 @@ func on_mode_toggle() -> void:
 ## Choose where the sound goes: the set's own pair, a stereo pair outside it, or the
 ## full surround decode. Called by the front-panel key, the remote and object_sync.
 func set_audio_out(mode: int) -> void:
-	_tv.audio_out = clampi(mode, 0, RetroTV.AUDIO_OUT_NAMES.size() - 1)
+	var want := clampi(mode, 0, RetroTV.AUDIO_OUT_NAMES.size() - 1)
+	_tv.audio_out = nearest_audio_out(want)
+	if _tv.audio_out != want:
+		print("[RetroTV] %s: this cabinet has no %s, so %s" % [_tv.name,
+			RetroTV.AUDIO_OUT_NAMES[want], RetroTV.AUDIO_OUT_NAMES[_tv.audio_out]])
 	var decoding := apply_audio_out()
 	# The external positions are silent with nothing plugged in, and that is a volume.
 	apply_volume()
@@ -134,11 +138,40 @@ static func audio_out_osd(mode: int, spatialised: bool, speakers: bool,
 	return RetroTV.AUDIO_OUT_OSD[mode]
 
 
-## Step to the next position, all three always. Every one is now distinguishable
-## from the others: TV SPEAKERS plays from the set, and the other two play from the
-## speakers plugged in or, with none, go silent and say so.
+## Step to the next position THIS cabinet has. Every one is distinguishable from the
+## others: TV SPEAKERS plays from the set, and the other two play from the speakers
+## plugged in or, with none, go silent and say so.
 func on_audio_out_toggle() -> void:
-	set_audio_out((_tv.audio_out + 1) % RetroTV.AUDIO_OUT_NAMES.size())
+	var options := audio_out_options()
+	var at := options.find(_tv.audio_out)
+	set_audio_out(options[(at + 1) % options.size()] if at >= 0 else options[0])
+
+
+## The AUDIO OUTPUT positions this cabinet can be in, from the speaker outputs it
+## actually carries: TV SPEAKERS always, STEREO OUT with the front pair, SURROUND
+## only with all six — the set's decode has nowhere to go without the centre, LFE
+## and rears. A shell retires an output by disabling its socket (the Panasonic
+## CT-20D10B keeps only its L/R pair), and this follows it; it used to be all three
+## on every set, so that set offered a SURROUND it has no jacks for.
+func audio_out_options() -> Array[int]:
+	var out: Array[int] = [RetroTV.AudioOut.TV_SPEAKERS]
+	var ports := _tv.panel().speaker_outs()
+	var live := ports.filter(func(p: RcaPort) -> bool: return p != null and p.enabled)
+	if ports.size() >= 2 and ports[0].enabled and ports[1].enabled:
+		out.append(RetroTV.AudioOut.STEREO)
+		if live.size() == ports.size() and ports.size() == TvPanel.SPEAKER_OUT_NAMES.size():
+			out.append(RetroTV.AudioOut.SURROUND)
+	return out
+
+
+## `mode` if this cabinet has it, else the nearest below it that it does: SURROUND
+## asked of a stereo-only set (a save, a peer, an older menu) lands on STEREO OUT.
+func nearest_audio_out(mode: int) -> int:
+	var options := audio_out_options()
+	for m in range(mode, -1, -1):
+		if options.has(m):
+			return m
+	return RetroTV.AudioOut.TV_SPEAKERS
 
 
 ## Tell every connected host where the sound is going, the way apply_channel_mode

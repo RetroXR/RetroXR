@@ -1,6 +1,6 @@
 ## Windowed: a real NES running a real game, and its menu's Controls and Debug tabs
 ## filled from it. The suite cannot start a core, so this is what shows the Debug
-## page's numbers are the core's (an NES is 256 × 240 at ~60.1 fps) and that the
+## page's numbers are the core's (an NES is 256 wide at ~60.1 fps) and that the
 ## menu's Power row really switches a running machine off.
 ##
 ##   godot --path RetroXR --resolution 640x520 --position 20,20 \
@@ -73,7 +73,10 @@ func _run() -> void:
 	for s: Array in dbg:
 		for r: Array in s[1]:
 			print("[mm]   %-8s %-22s %s" % [s[0], r[0], r[1]])
-	_check(_row(dbg, "Video", "Frame") == "256 × 240", "the frame is the NES's 256 × 240")
+	# 240 lines, or 224 with the core's overscan crop on (fceumm's default).
+	var frame := _row(dbg, "Video", "Frame")
+	_check(frame == "256 × 240" or frame == "256 × 224",
+		"the frame is the NES's 256 wide, 240 or 224 tall (%s)" % frame)
 	var fps := float(_row(dbg, "Video", "Declared FPS"))
 	_check(fps > 59.0 and fps < 61.0, "it declares ~60 fps (%.3f)" % fps)
 	var rate := float(_row(dbg, "Audio", "Declared sample rate").trim_suffix(" Hz"))

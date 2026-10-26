@@ -408,6 +408,9 @@ func _build_controls_tab(tabs: TabContainer) -> void:
 	# follows while the panel is open. Hidden for a machine without one.
 	_volume_box = VBoxContainer.new()
 	_volume_box.add_theme_constant_override("separation", 2)
+	# Hidden until populate_system says this is a handheld: a console's Controls
+	# tab must not show a handheld's rows before (or without) that call.
+	_volume_box.visible = false
 	rows.add_child(_volume_box)
 	var vol: Array = MenuStyle.slider_row(_volume_box, "Volume", 0.0, 100.0, 1.0)
 	_volume_slider = vol[0]
@@ -421,6 +424,7 @@ func _build_controls_tab(tabs: TabContainer) -> void:
 	_video_out_row = HBoxContainer.new()
 	_video_out_row.custom_minimum_size = Vector2(0, 56)
 	_video_out_row.add_theme_constant_override("separation", 8)
+	_video_out_row.visible = false
 	rows.add_child(_video_out_row)
 
 	var vo_lbl := Label.new()

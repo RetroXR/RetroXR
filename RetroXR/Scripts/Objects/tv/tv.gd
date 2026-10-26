@@ -1357,6 +1357,7 @@ func menu_state() -> Dictionary:
 		"stereo_mode": stereo_mode,
 		"audio_mode": audio_mode,
 		"audio_out": audio_out,
+		"audio_out_options": Array(_audio.audio_out_options()),
 		"crt": crt_enabled,
 	}
 
@@ -1449,8 +1450,10 @@ func restore_control_state(state: Dictionary) -> void:
 	_tv_enabled = bool(state.get("enabled", _tv_enabled))
 	widescreen = bool(state.get("widescreen", widescreen))
 	audio_mode = clampi(int(state.get("audio_mode", audio_mode)), 0, 2)
-	audio_out = clampi(int(state.get("audio_out", audio_out)), 0,
-		AUDIO_OUT_NAMES.size() - 1)
+	# Onto a position this cabinet has: a save made on a set with all six outputs
+	# can come back on one with two.
+	audio_out = _audio.nearest_audio_out(clampi(int(state.get("audio_out", audio_out)), 0,
+		AUDIO_OUT_NAMES.size() - 1))
 	rf_channel = int(state.get("rf_channel", rf_channel))
 	if not RF_CHANNELS.has(rf_channel):
 		rf_channel = RF_DEFAULT_CHANNEL
