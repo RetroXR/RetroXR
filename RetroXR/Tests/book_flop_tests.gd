@@ -712,8 +712,9 @@ func _test_book() -> void:
 	_ok(book._fan_shown[1] == 0 and not _fan_leaf(book, 1, 0).visible,
 		"book/...and taking it shuts that side's fan")
 	_ok(_mat(book._active_leaf).get_shader_parameter("flop_own") == book._flop.params(1)
-			and _mat(book._active_leaf).get_shader_parameter("flop_far") == book._flop.params(-1),
-		"book/the turning leaf rides its own half, and the far half once it crosses")
+			and _mat(book._active_leaf).get_shader_parameter("flop_far") == book._flop.ride_params(-1)
+			and book._flop.ride_params(-1).y == book._flop.fan_params(-1, 0).y,
+		"book/the turning leaf rides its own half, and once it crosses the far half's top loose leaf")
 	_ok(_mat(book._active_leaf).get_shader_parameter("flop_cross") == 1.0
 			and not _mat(book._right_stack_top).get_shader_parameter("flop_cross"),
 		"book/only the turning leaf blends across the gutter; a resting sheet must agree with its block")
@@ -1226,11 +1227,12 @@ func _through_far(book: PDFBook) -> float:
 ## fans are up. Only the side a page is turned FROM was shut: the far side's
 ## leaves floated on, the incoming page went straight through them, and on landing
 ## they were re-dealt a page over while still in the air — every one swapped its
-## picture at once. The page is now a lid on them (_update_fan_lids).
+## picture at once. The page now comes down ONTO the top loose leaf, rests there
+## (BookFlop.ride_params) and lands as the new top leaf (push_fan_leaf).
 ##
 ## The suite drives the tick itself (the book is frozen and nobody holds it), so
-## the control is the same turn with no lid: it must show a leaf through the page
-## or a visible swap, or the oracle cannot tell the two apart.
+## the control is the same turn as it was before: no rest, no lid. It must show a
+## leaf through the page and a page jumping, or the oracle cannot tell.
 func _test_fan_lid() -> void:
 	var sim := _open_sim(12, 12, 3)
 	_run(sim, FACE_DOWN)
@@ -1247,6 +1249,18 @@ func _test_fan_lid() -> void:
 	sim.set_fan_lid(-1, INF)
 	_run(sim, FACE_DOWN)
 	_ok(sim.fan_delta(-1, 0) > 0.2, "fan_lid/sim: ...and lifted, they fall open again")
+	var before := [sim.fan_delta(-1, 0), sim.fan_delta(-1, 1), sim.fan_delta(-1, 2)]
+	_ok(sim.ride_params(-1) == sim.fan_params(-1, 0) and sim.ride_params(-1) != sim.params(-1),
+		"fan_lid/sim: a page coming down onto a fanned half lies on its top leaf, not the block")
+	sim.push_fan_leaf(-1, before[0])
+	_ok(sim.fan_delta(-1, 0) == before[0] and sim.fan_delta(-1, 1) == before[0]
+			and sim.fan_delta(-1, 2) == before[1],
+		"fan_lid/sim: a page landing on the fan is its top leaf where it rested, the others one deeper as they were")
+	var right_top := sim.fan_delta(1, 0)
+	sim.configure(0.18, 13, 11, 1, 1, true, 3, 2)
+	sim.configure(0.18, 13, 11, 1, 1, true, 3, 3)
+	_ok(sim.fan_delta(-1, 1) == before[0] and sim.fan_delta(1, 0) == right_top and sim.fan_delta(1, 2) == 0.0,
+		"fan_lid/sim: a turn changing how many leaves may fan leaves the ones up where they are")
 
 	_write_cbz(CBZ_PATH)
 	var book := BOOK_SCENE.instantiate() as PDFBook
@@ -1254,18 +1268,35 @@ func _test_fan_lid() -> void:
 	book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
 	add_child(book)
 	await _settle()
-	var lidded := await _fan_lid_turn(book, true)
+	var rests := await _fan_lid_turn(book, true)
+	var by_hand := await _fan_lid_turn(book, true, true)
+	book._flop.rest_on_fan = false
 	var bare := await _fan_lid_turn(book, false)
-	_ok(int(lidded["fanned"]) > 0 and float(lidded["through"]) < 0.001,
-		"fan_lid/the page coming over presses the far side's loose leaves down, never through them (%d up, worst %+.1f mm)"
-			% [int(lidded["fanned"]), float(lidded["through"]) * 1000.0])
-	_ok(int(lidded["swaps"]) == 0,
-		"fan_lid/...and no loose leaf in view changes its picture, through the landing too (%d swaps)" % int(lidded["swaps"]))
-	_ok(bool(lidded["repeels"]),
-		"fan_lid/after it lands they peel up again, the landed page on top")
-	_ok(float(bare["through"]) > 0.002 or int(bare["swaps"]) > 0,
-		"fan_lid/control: with no lid the same turn goes through them (%+.1f mm) or swaps them in view (%d)"
-			% [float(bare["through"]) * 1000.0, int(bare["swaps"])])
+	book._flop.rest_on_fan = true
+	_ok(int(rests["fanned"]) > 0 and float(rests["through"]) < 0.001,
+		"fan_lid/the page coming over never goes through the far side's loose leaves (%d up, worst %+.1f mm)"
+			% [int(rests["fanned"]), float(rests["through"]) * 1000.0])
+	# Let go held up, a page FALLS over on its hinge, which turns its bow over
+	# with it: that is the turn whose landing page was drawn under the top leaf.
+	_ok(bool(by_hand["fell"]) and float(by_hand["through"]) < 0.001 and int(by_hand["jumps"]) == 0
+			and bool(by_hand["on_top"]),
+		"fan_lid/...nor a page let go held up, which falls over onto them bow-first (worst %+.1f mm, %d jumps, on top %s)"
+			% [float(by_hand["through"]) * 1000.0, int(by_hand["jumps"]), by_hand["on_top"]])
+	_ok(float(rests["held"]) > 0.7,
+		"fan_lid/...it rests on them, never presses them flat (the top leaf kept %.0f%% of its peel)"
+			% (float(rests["held"]) * 100.0))
+	_ok(bool(rests["on_top"]),
+		"fan_lid/it lands as the top loose leaf where it lay (%.1f deg, rested at %.1f)"
+			% [rad_to_deg(float(rests["landed_at"])), rad_to_deg(float(rests["rested"]))])
+	_ok(bool(rests["settles"]),
+		"fan_lid/the leaf nearest the block lies down into it from %.1f deg over %d frames, the block carrying its page"
+			% [rad_to_deg(float(rests["settle_from"])), int(rests["settle_frames"])])
+	_ok(int(rests["jumps"]) == 0,
+		"fan_lid/...and no page in view jumps: each stays where it hung, through the landing too (%d jumps)"
+			% int(rests["jumps"]))
+	_ok(float(bare["through"]) > 0.002 and int(bare["jumps"]) > 0,
+		"fan_lid/control: as before, the same turn goes through them (%+.1f mm) and pages jump in view (%d)"
+			% [float(bare["through"]) * 1000.0, int(bare["jumps"])])
 
 	# A riffle: the block sheets are landing on keeps the page it showed, and so
 	# must its fan, or its top leaf wears the page still in the air.
@@ -1296,56 +1327,112 @@ func _test_fan_lid() -> void:
 
 
 ## One forward turn on a book tipped face down, the tick driven by hand: how far
-## any visible far-side loose leaf got through the turning page (metres), how many
-## times a leaf in view changed its picture, and whether the fan came back up
-## with the landed page on top.
-func _fan_lid_turn(book: PDFBook, lid: bool) -> Dictionary:
+## any visible far-side loose leaf got through the turning page (metres), how much
+## of its peel the top leaf kept, where the landed page lay, and how many times a
+## page in view jumped.
+func _fan_lid_turn(book: PDFBook, rest: bool, by_hand: bool = false) -> Dictionary:
 	book._despawn_active_leaf()
 	book.set_page(PDFBook.BookState.OPEN, 5)
 	await _settle()
 	await _drain_renders(book)
 	_drive(book, FACE_DOWN)
 	var fanned: int = book._fan_shown[0]
-	var landed_page: int = (book._current_leaf + 1) * 2 + 1
-	var seen := [null, null, null]
+	var start_peel := book._flop.fan_delta(-1, 0)
+	var lowest := start_peel
+	var rested := 0.0
+	var landed_tex: Variant = book._texture_cache.get((book._current_leaf + 1) * 2 + 1)
+	var where := {}
 	var through := -INF
-	var swaps := 0
-	book._play_turn(1, {}, PDFBook.KEY_TURN_TIME)
+	var jumps := 0
+	_count_jumps(book, -1, where, landed_tex)
+	var fell := false
+	if by_hand:
+		var w := book._book_width
+		var plane := book._page_plane_z(1)
+		book._on_page_grab_begin(1, _hand_at(book, Vector3(w * 0.85, -0.02, plane + 0.004)))
+		for i in 20:
+			book._update_fold_from_hand(_hand_at(book,
+				Vector3(w * lerpf(0.85, -0.5, float(i) / 19.0), -0.02, plane + 0.08)))
+		fell = book._leaf_lift > PDFBook.SETTLE_FALLS_OVER_ABOVE
+		book._on_page_grab_end(1)
+	else:
+		book._play_turn(1, {}, PDFBook.KEY_TURN_TIME)
 	for i in 600:
 		await get_tree().process_frame
-		if lid:
+		if rest:
 			book._update_fan_lids()
 		elif book._active_leaf != null:
 			book._flop.set_fan_lid(-1, INF)
 		_drive(book, FACE_DOWN, 2)
 		if book._active_leaf != null:
 			through = maxf(through, _fan_through_leaf(book, -1))
-		swaps += _count_swaps(book, -1, seen)
+			lowest = minf(lowest, book._flop.fan_delta(-1, 0))
+			rested = book._flop.fan_delta(-1, 0)
+		jumps += _count_jumps(book, -1, where, landed_tex)
 		if book._active_leaf == null:
 			break
-	await _drain_renders(book)
-	var repeels := false
-	for i in 120:
+	var landed_at := book._flop.fan_delta(-1, 0)
+	var top := _fan_leaf(book, -1, 0)
+	var on_top: bool = top.visible and _mat(top).get_shader_parameter("front_texture") == landed_tex \
+		and absf(landed_at - rested) < 0.05
+	# The leaf nearest the block was pushed out of the fan: it must lie down onto
+	# the block, wearing its page, and the block must carry that page under it.
+	var settle := book._fan_settle[0] as MeshInstance3D
+	var settle_tex: Variant = _mat(settle).get_shader_parameter("front_texture")
+	var settle_from: float = book._fan_settle_peel[0] if settle.visible else 0.0
+	var settle_down := settle.visible and settle_from > PDFBook.FAN_HIDE
+	var settle_last := settle_from
+	var settle_frames := 0
+	for i in 90:
 		await get_tree().process_frame
 		_drive(book, FACE_DOWN, 2)
-		swaps += _count_swaps(book, -1, seen)
-		var top := _fan_leaf(book, -1, 0)
-		if top.visible and _page_of(book, _mat(top).get_shader_parameter("front_texture")) == landed_page:
-			repeels = true
-			break
-	return {"fanned": fanned, "through": through, "swaps": swaps, "repeels": repeels}
+		jumps += _count_jumps(book, -1, where, landed_tex)
+		if settle.visible:
+			settle_frames += 1
+			settle_down = settle_down and book._fan_settle_peel[0] <= settle_last + 1e-6
+			settle_last = book._fan_settle_peel[0]
+	var block_tex: Variant = _mat(book._left_stack_top).get_shader_parameter("front_texture")
+	settle_down = settle_down and not settle.visible and settle_frames > 3 and settle_tex == block_tex
+	return {"fanned": fanned, "through": through, "jumps": jumps, "on_top": on_top, "fell": fell,
+		"held": lowest / maxf(start_peel, 1e-6), "rested": rested, "landed_at": landed_at,
+		"settles": settle_down, "settle_from": settle_from, "settle_frames": settle_frames}
 
 
-## Visible loose leaves on `dir` whose picture changed since the last call.
-func _count_swaps(book: PDFBook, dir: int, seen: Array) -> int:
+## Pages in view on `dir`'s loose leaves that turned up somewhere they were not
+## the frame before, or went out of view while still up: a page must still be up,
+## near the peel it had. Counted by PAGE, not by leaf, because a landing moves
+## every page one leaf deeper on purpose. The page that just landed may appear
+## where it rested; a page comes into view from flat and leaves it flat (the leaf
+## pushed out of the fan settles down into the block to do that).
+func _count_jumps(book: PDFBook, dir: int, where: Dictionary, landed: Variant) -> int:
 	var n := 0
-	var side: Array = book._fan_leaves[1 if dir > 0 else 0]
+	var now := {}
+	var i := 1 if dir > 0 else 0
+	var leaves: Array = []
+	var peels: Array[float] = []
+	var side: Array = book._fan_leaves[i]
 	for k in side.size():
-		var leaf := side[k] as MeshInstance3D
-		var tex: Variant = _mat(leaf).get_shader_parameter("front_texture") if leaf.visible else null
-		if tex != null and seen[k] != null and tex != seen[k]:
+		leaves.append(side[k])
+		peels.append(book._flop.fan_delta(dir, k))
+	leaves.append(book._fan_settle[i])
+	peels.append(book._fan_settle_peel[i])
+	for k in leaves.size():
+		var leaf := leaves[k] as MeshInstance3D
+		if not leaf.visible:
+			continue
+		var tex: Variant = _mat(leaf).get_shader_parameter("front_texture")
+		var peel: float = peels[k]
+		now[tex] = peel
+		if where.has(tex):
+			if absf(peel - float(where[tex])) > 0.05:
+				n += 1
+		elif tex != landed and peel > PDFBook.FAN_SHOW * 3.0:
 			n += 1
-		seen[k] = tex
+	for tex: Variant in where:
+		if not now.has(tex) and float(where[tex]) > PDFBook.FAN_SHOW * 3.0 and tex != landed:
+			n += 1
+	where.clear()
+	where.merge(now)
 	return n
 
 
@@ -1366,17 +1453,20 @@ func _fan_through_leaf(book: PDFBook, dir: int) -> float:
 		if not leaf.visible:
 			continue
 		var p := book._flop.fan_params(dir, k)
-		var rho := PackedFloat64Array()
-		var phi := PackedFloat64Array()
-		for j in 41:
-			var b := BookFlop.bend_sz(gap + w * float(j) / 40.0, leaf.position.z, p)
-			var rel := Vector2(b.x, b.y) - pivot
-			rho.append(rel.length())
-			phi.append(atan2(rel.y, rel.x))
-		for ix in 11:
-			for iy in 5:
-				var pt := Vector2(lerpf(-0.5, 0.5, float(ix) / 10.0) * w, lerpf(-0.45, 0.45, float(iy) / 4.0) * h)
-				var local := book.to_local(_leaf_point_world(book, pt))
+		var leaf_dive := float(_mat(leaf).get_shader_parameter("gutter_dive"))
+		for iy in 5:
+			var v := lerpf(0.05, 0.95, float(iy) / 4.0)
+			var rho := PackedFloat64Array()
+			var phi := PackedFloat64Array()
+			for j in 41:
+				var u := float(j) / 40.0
+				var b := BookFlop.bend_sz(gap + w * u, leaf.position.z + _rest_z(u, v, leaf_dive), p)
+				var rel := Vector2(b.x, b.y) - pivot
+				rho.append(rel.length())
+				phi.append(atan2(rel.y, rel.x))
+			for ix in 11:
+				var pt := Vector2(lerpf(-0.5, 0.5, float(ix) / 10.0) * w, (v - 0.5) * h)
+				var local := book.to_local(_leaf_point_world(book, pt, true))
 				var rel := Vector2(float(dir) * local.x, local.z) - pivot
 				if rel.x < 0.15 * w:
 					continue
@@ -1388,6 +1478,15 @@ func _fan_through_leaf(book: PDFBook, dir: int) -> float:
 						worst = maxf(worst, (leaf_phi - atan2(rel.y, rel.x)) * r)
 						break
 	return worst
+
+
+## paper_rest_parts() of paper_rest.gdshaderinc, for a page sheet at (u, v): the
+## suite's own copy, so the oracle does not borrow the code it is checking.
+static func _rest_z(u: float, v: float, dive: float) -> float:
+	var edge := absf(2.0 * v - 1.0)
+	var t := clampf((u - 0.55) / 0.45, 0.0, 1.0)
+	return -dive * exp(-u * 12.0) - 0.0015 * (t * t * (3.0 - 2.0 * t)) \
+		+ 0.0025 * sin(u * PI) + 0.002 * edge * edge * edge * u
 
 
 ## Where the turning leaf is against the far page: how deep any sampled point is
@@ -1422,11 +1521,17 @@ func _grip_world(book: PDFBook) -> Vector3:
 ## Where a point of the turning leaf (leaf-local metres on the flat sheet) is in
 ## the world: the fold wrap of paper.gdshader replayed on the CPU for that one
 ## point, then the leaf's own hinge, then the book's bend.
-func _leaf_point_world(book: PDFBook, point: Vector2) -> Vector3:
+func _leaf_point_world(book: PDFBook, point: Vector2, with_rest: bool = false) -> Vector3:
 	var leaf := book._active_leaf
 	var mat := _mat(leaf)
 	var xy := point
 	var z := 0.0
+	if with_rest:
+		# The shader adds the sheet's rest shape before the fold and the hinge, so
+		# a page that falls over carries its bow over with it.
+		z = _rest_z(clampf(0.5 + float(book._grab_dir) * point.x / book._book_width, 0.0, 1.0),
+			clampf(0.5 + point.y / book.book_height, 0.0, 1.0),
+			float(mat.get_shader_parameter("gutter_dive")))
 	if float(mat.get_shader_parameter("fold_strength")) > 0.0:
 		var fn: Vector2 = (mat.get_shader_parameter("fold_normal") as Vector2).normalized()
 		var d := (point - (mat.get_shader_parameter("fold_origin") as Vector2)).dot(fn)
@@ -1437,10 +1542,10 @@ func _leaf_point_world(book: PDFBook, point: Vector2) -> Vector3:
 			var fold_pt := point - fn * d
 			if d / r < PI:
 				xy = fold_pt + fn * (r * sin(d / r))
-				z = r * (1.0 - cos(d / r))
+				z += r * (1.0 - cos(d / r))
 			else:
 				xy = fold_pt - fn * (d - PI * r)
-				z = 2.0 * r
+				z += 2.0 * r
 	return book.to_global(book._flop.bend_over(
 		leaf.position + Vector3(xy.x, xy.y, z), book._turn_direction, book._leaf_lift, leaf.position.z))
 

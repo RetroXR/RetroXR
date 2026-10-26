@@ -255,29 +255,58 @@ Face-up, gravity pins the whole fan at *exactly* zero and no leaf is drawn. Tip 
 vertical and they peel off; each deeper leaf is held a little tighter by the binding
 (`FAN_W2_SPREAD`), which is the only reason a fan fans instead of moving as one sheet.
 
-**A page being turned is a LID on the fan of every half it is over** (2026-10-26,
-`_update_fan_lids` → `BookFlop.set_fan_lid`, every physics tick, for the active leaf and every
-riffle sheet). Only the side a page is turned FROM was ever shut (`suppress_fan`): on a tipped
-book the far side's leaves floated on, the incoming page came down straight through them, and
-on landing `_update_spread_textures` re-dealt them a page over while they were still in the air,
-so every loose leaf in view swapped its picture at once. Now the leaves cannot peel past the
-page over them: they are pressed down as it comes over, lie flat and hidden when it lands, and
-the re-deal happens under it; then they peel up again with the landed page on top.
-- **Measured BENT, never flat** (`_sheet_over_halves`): a few points of the sheet go through the
-  shader's fold and `BookFlop.bend_over` (the `flop_cross` path), and each is an angle about the
-  gutter against the block's top at the same distance. The first version measured the flat book
-  and let leaves 16 mm through the page on a drooping half: the turning sheet takes the binding's
-  turn over a wider arc (`hinge_len_at`), so it sits lower than the flat book says (9° above the
-  block flat, 4° bent). A leaf's chord never turns further than its peel, so the lid is a safe
-  bound on the peel.
-- `_sync_fan` refreshes the spread MID-TURN too now: leaves pressed under the page change how
-  many are shown, and the far block must show the page they were lifting. The refresh ends in
-  `_relay_turning_leaf()`, which keeps the turning side right.
-- A riffle's landing side indexes its fan from `_flight_shown`, as its block does. Indexed from
-  the stepped spread, its top leaf wore the page still in the air.
+**A page being turned comes down ONTO the far half's top loose leaf and RESTS there**
+(2026-10-26). Only the side a page is turned FROM was ever shut (`suppress_fan`): on a tipped
+book the far side's leaves floated on, the incoming page came down onto the BLOCK straight
+through them, and on landing `_update_spread_textures` re-dealt them a page over while they
+were still in the air, so every loose leaf in view swapped its picture at once. The first fix
+pressed them flat under the page; the player's verdict was that a page should just land on the
+one before it, wherever that is, and that is what it does now:
+- **It rides the top leaf** (`BookFlop.ride_params` = `fan_params(far, 0)`, pushed every tick in
+  `_push_leaf_flop`, and used by `bend_over`'s far branch so the hand's solve agrees). With no
+  leaf up those are the block's own numbers, so a face-up book turns exactly as before.
+- **Plus a clearance at the binding** (`_ride_clearance`, `set_ride_extra`): a sheet crossing the
+  gutter takes the binding's turn over an arc that widens with its height (`hinge_len_at`), and
+  the leaf under it does not, so the high loop of a sheet in mid-roll came out 4–10 mm UNDER the
+  leaf it rode. The extra angle is measured from the sheet and the leaf as they are, never from
+  the extra already applied, so nothing ratchets. It is iterated (up to six passes), because an
+  angle added at the binding only reaches a point fully past the (widened) hinge arc: one pass
+  left 1.6 mm, three left 1.2 mm on a page falling over. It is 0 once the sheet lies flat, and
+  faded in over the first `FAN_SHOW` of peel. Three things it has to include, each found as a
+  landing page drawn UNDER the top leaf and popping on top as the turn finished:
+  - **The rest shape** (`_paper_rest_z`, paper_rest.gdshaderinc on the CPU), on both sheets. A
+    page let go held up FALLS over (lift -> PI) and its hinge turns its 2.5 mm bow over with it,
+    bowing down into the leaf that bows up to meet it. A rolled page never turns its rest shape
+    (the fold adds to it unrotated), which is why only hand-released turns showed it.
+  - **Heights**: `FAN_LIFT` is derived so the top leaf lies under where a page lands
+    (`(LEAF_LIFT - LEAF_Z_GAP) / FAN_LEAVES_DESKTOP`); at 0.3 mm it sat 0.9 mm up, 0.3 mm above a
+    landing page, which no angle at the binding can fix near the spine.
+  - **Now, not last tick**: the turn's tweens move the sheet between physics ticks, so
+    `_push_fold_into` re-pushes the ride (`_push_ride`) with every fold. **Never lid the far side instead**: the page follows the leaf, so a lid measured from
+  the page presses the leaf, which lowers the page, which lowers the lid, and they ratchet flat.
+- **It lands as the new top leaf** (`_rest_on_fan` → `BookFlop.push_fan_leaf`, from
+  `_finish_turn` and `_land_flight`): leaf 0 takes the peel the page rested at, and every page
+  under it goes one place deeper STARTING where it hung, so the re-deal of pictures moves no page
+  in view; the deeper place's stiffer spring then brings each down to where the leaf below it
+  was. The leaf NEAREST the block is pushed out of the fan (`push_fan_leaf` returns its peel) and
+  LIES DOWN onto the block over `FAN_SETTLE_TIME` on a sheet of its own (`_fan_settle`,
+  `_settle_fan_leaf`), wearing its page, which by then is the block's top page too, so it simply
+  becomes the block (the player asked for exactly this: the fan shifts down a place and the
+  nearest leaf goes into the stack, rather than every leaf swapping its picture). Placed, it
+  must `reset_physics_interpolation()`: the first time, it was drawn for a frame half-way from
+  the book's origin, standing up between the halves. `configure`
+  keeps the peels of the leaves still up when a turn changes how many may fan (it used to zero
+  them all).
+- A riffle sheet still lying on the block it was turned from is a LID on that block's leaves
+  (`_update_fan_lids`, own side only), which are under it. A riffle's landing side indexes its
+  fan from `_flight_shown`, as its block does: indexed from the stepped spread, its top leaf wore
+  the page still in the air.
 - `fan_lid/` in `book_flop_tests`: a leaf against the page as angles about the gutter, from the
-  leaf's own `fan_params` and the suite's own fold replay. The control is the same turn with no
-  lid (46 mm through, 3 swaps in view).
+  leaf's own `fan_params` and the suite's own fold replay; picture continuity is counted by PAGE,
+  not by leaf, since a landing moves every page a leaf deeper on purpose, and a page that leaves
+  view while still up counts as a jump (the settling leaf is what keeps that at zero). The control
+  (`rest_on_fan = false`, no lid) goes 42–48 mm through and jumps a page. `book_flop_probe
+  --only=fanturn [--nolid]` films it.
 - NOT done: the page you lift is that side's leaf 0 and still starts flat, so a peeled top leaf
   jumps flat as it becomes the turning page (its peel would have to become `_leaf_lift`).
 

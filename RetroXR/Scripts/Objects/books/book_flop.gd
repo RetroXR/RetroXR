@@ -130,6 +130,15 @@ var _fan_suppressed := [false, false]
 ## The highest each side's fan may peel to: a page being turned over that half
 ## lies on it (set_fan_lid). INF = nothing over it.
 var _fan_lid := [INF, INF]
+## A page coming down onto a half RESTS on its top loose leaf (ride_params) and
+## becomes that half's new top leaf where it lay (push_fan_leaf). Off is the
+## control for book_flop_tests and book_flop_probe --nolid: the page lies on the
+## block, through any leaves up off it.
+var rest_on_fan := true
+## How much higher than the top loose leaf the page being turned rides over each
+## half (PDFBook._ride_clearance): set from the page, so the hand's solve and its
+## shader see the same sheet.
+var _ride_extra := [0.0, 0.0]
 var _leaves := [0, 0]
 var _sag := 0.0
 var _sag_v := 0.0
@@ -169,10 +178,12 @@ func configure(page_w: float, leaves_left: int, leaves_right: int,
 			+ BEND_W2_EXTRA_COVER * maxi(covers[i] - 1, 0)
 		var n := clampi(fans[i], 0, FAN_MAX_LEAVES) if _active[i] else 0
 		if n != _fan_count[i]:
+			# Every turned page changes how many leaves a side may fan; the ones
+			# still up stay where they are (a new one comes in flat, at the bottom).
 			_fan_count[i] = n
-			var d := PackedFloat64Array()
+			var d: PackedFloat64Array = _fan[i]
 			d.resize(n)
-			var v := PackedFloat64Array()
+			var v: PackedFloat64Array = _fan_v[i]
 			v.resize(n)
 			_fan[i] = d
 			_fan_v[i] = v
@@ -255,6 +266,44 @@ func set_fan_lid(dir: int, angle: float) -> void:
 			v[k] = minf(v[k], 0.0)
 	_fan[i] = d
 	_fan_v[i] = v
+
+
+## A page has landed on this half's fan and is now its top leaf, lying where it
+## came to rest (`peel`, its top leaf's when it landed). The leaves under it each
+## go one place deeper, starting from where they hung, and the deeper place's
+## stiffer spring brings each down to where the leaf below it was. Returns how far
+## up the deepest leaf was: it leaves the fan for the block (PDFBook settles it
+## down onto it), 0 if every leaf still has a place.
+func push_fan_leaf(dir: int, peel: float) -> float:
+	var i := _i(dir)
+	var n: int = _fan_count[i]
+	if n == 0:
+		return 0.0
+	var d: PackedFloat64Array = _fan[i]
+	var v: PackedFloat64Array = _fan_v[i]
+	var dropped: float = d[n - 1]
+	for k in range(n - 1, 0, -1):
+		d[k] = d[k - 1]
+		v[k] = v[k - 1]
+	d[0] = maxf(peel, d[1] if n > 1 else 0.0)
+	v[0] = v[1] if n > 1 else 0.0
+	_fan[i] = d
+	_fan_v[i] = v
+	return dropped
+
+
+## What a sheet coming down onto this half lies on: its top loose leaf, or the
+## block when none is up (the same numbers then).
+func ride_params(dir: int) -> Vector4:
+	if not rest_on_fan:
+		return params(dir)
+	return fan_params(dir, 0) + Vector4(_ride_extra[_i(dir)], 0.0, 0.0, 0.0)
+
+
+## The page being turned rides `extra` radians higher at the binding than the top
+## loose leaf on this half (0 = lying right on it).
+func set_ride_extra(dir: int, extra: float) -> void:
+	_ride_extra[_i(dir)] = extra
 
 
 ## The lid on a side's fan, INF if nothing is over it.
@@ -530,8 +579,12 @@ func params(dir: int) -> Vector4:
 ## The same, for loose leaf k: it shares the block's hinge and support and takes
 ## its extra peel half at the binding, half over the sheet.
 func fan_params(dir: int, k: int) -> Vector4:
+	return fan_params_at(dir, fan_delta(dir, k))
+
+
+## A loose leaf `d` up off this half's block, wherever it is in the fan.
+func fan_params_at(dir: int, d: float) -> Vector4:
 	var i := _i(dir)
-	var d := fan_delta(dir, k)
 	return _params_for(sag_slope(dir) + _hinge[i] + d * 0.5, _bend[i] + d * 0.5, _clamp[i])
 
 
@@ -613,7 +666,7 @@ func _bend_over_sz(s: float, z: float, own_dir: int) -> Vector3:
 	var hl := hinge_len_at(z)
 	if s >= 0.0:
 		return bend_sz(s, z, params(own_dir), hl)
-	var far := bend_sz(-s, z, params(-own_dir), hl)
+	var far := bend_sz(-s, z, ride_params(-own_dir), hl)
 	return Vector3(-far.x, far.y, -far.z)
 
 

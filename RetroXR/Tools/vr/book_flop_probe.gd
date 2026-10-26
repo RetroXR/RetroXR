@@ -56,8 +56,8 @@ var _hull := false
 ## Print the page-turn solver's state every frame of a flip.
 var _trace := false
 var _grip_dot: MeshInstance3D
-## --nolid: the control for --only=fanturn — the turning page puts no lid on the
-## loose leaves, as before 2026-10-26, and goes through them.
+## --nolid: the control for --only=fanturn — the page does not rest on the loose
+## leaves and puts no lid on them, as before 2026-10-26, and goes through them.
 var _nolid := false
 
 
@@ -107,6 +107,7 @@ func _ready() -> void:
 	_book = BOOK_SCENE.instantiate() as PDFBook
 	_book.freeze = true
 	_book.floppiness = floppiness
+	_book._flop.rest_on_fan = not _nolid
 	_book.pdf_path = ProjectSettings.globalize_path(CBZ_PATH)
 	if _hull:
 		(_book.get_node("PickableHighlight") as PickableHighlight).force_hull = true
@@ -149,8 +150,8 @@ func _ready() -> void:
 		return
 	if only_fanturn:
 		# Turned over so both fans are up, then pages turned onto them: the page
-		# must press the far side's loose leaves down, not pass through them, and
-		# none of them may change its picture where it can be seen.
+		# must come down onto the far side's top loose leaf and rest there, never
+		# through them, and land as the new top leaf with no page jumping.
 		await _hold("F1 turned over: the loose leaves fan off both blocks", FACE_UP, FACE_DOWN, below, 2.6)
 		await _flip("F2 a page turned by hand onto the far fan", 1, 2.4)
 		await _hold("F3 the fan comes back up, the landed page on top", FACE_DOWN, FACE_DOWN, below, 1.4)
