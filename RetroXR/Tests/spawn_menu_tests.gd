@@ -1382,6 +1382,19 @@ func _group_objects() -> void:
 		"objects/distance in metres to two places")
 	_eq(_object_row(page, plug).get("name", ""), "Composite Cable",
 		"objects/a lead is one row, named for the lead and not its plug")
+	# A device's captive cable: in "spawned" at the scene root, its end a CablePlug.
+	# Deleting that would orphan the device's rope, so it is no row at all.
+	var captive_cable := Node3D.new()
+	captive_cable.add_to_group("spawned")
+	add_child(captive_cable)
+	_spawned.append(captive_cable)
+	var captive := _StubCablePlug.new()
+	captive.freeze = true
+	captive_cable.add_child(captive)
+	captive.global_position = Vector3(21.5, 50, 0)
+	page.refresh()
+	_ok(not SceneObjectsPage.collect(get_tree()).has(captive_cable.get_instance_id()),
+		"objects/a device's captive cable is not listed")
 
 	var far_row: Control = _object_row(page, far)["row"]
 	far.global_position = Vector3(20.2, 50, 0)
@@ -1423,6 +1436,12 @@ func _named_node(n: String) -> Node:
 	add_child(node)
 	_spawned.append(node)
 	return node
+
+
+## A CablePlug without its _ready, which wants a host to take a colour from.
+class _StubCablePlug extends CablePlug:
+	func _ready() -> void:
+		pass
 
 
 class _GameLabelled extends Node:
