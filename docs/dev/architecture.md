@@ -94,6 +94,21 @@ claims them: flycast without nvmem died on its first write to a protected RAM pa
   output!` each frame, the app alive at 72 fps): the 2026-10-21 "freeze when passthrough
   was the last environment". `scene_tests boot/` walks every room's root.
 - `RetroXR/Scripts/Objects/systems/system.gd` — Per-arcade-cabinet controller. Has `@onready var _libretro: Libretro = $Libretro` wired to a child `Libretro` node in the scene tree.
+  Its concerns live in child components built in `_init` (so a bare `RetroSystem.new()` in a
+  suite still answers): `SaveStateController`, `MemoryCardController`, `SystemAudio`,
+  `ExpansionLaunch`, `SystemExpansions` (sockets, covers, the unit list), `SystemVideoLead`
+  (the captive video-out lead; the `VideoChannel` records stay on the machine),
+  `SystemCaptivePads`, and the five `ConsoleStorage`s (VMU, Sega CD, Saturn, 3DO, Xbox),
+  which power-on, stop, a session's start and the first frame walk IN ORDER
+  (`RetroSystem._storages`; a session stages only the Sega CD and Saturn ones, see each
+  `stages_in_session()`). What other code calls BY NAME on the machine stays as a one-line
+  forwarder. The by-name contracts with no base class are written down as lists:
+  `NetMachine` (what NetplaySession calls on RetroSystem/GbPrinter/VmuCard) and
+  `AvSourceContract` (what a set calls on a console/VCR/DVD); `system_tests contract/`
+  checks the scripts against them. Which power method to call is documented on
+  `RetroSystem.power_on` (`toggle_power` is the netplay-aware one).
+  `RetroSystem.stale_libretro_methods()` asks ClassDB once per process whether the loaded
+  extension binds every Libretro method the scripts call, and logs a STALE build loudly.
 - `RetroXR/Scenes/Objects/system.tscn` — Cabinet scene. Contains a `Libretro` child node. Its `unique_id` is the value 4000000010, but Godot writes it SIGNED, so the file reads `unique_id=-294967286` — grep for that, not for the decimal above.
 - **What a snap zone holds collides with NOTHING** (`pick_up` freezes it, mask 0, and a
   grab driver drags it), so anything standing out of a LOOSE body went through the table:

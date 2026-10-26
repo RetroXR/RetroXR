@@ -1,6 +1,6 @@
 [gd_scene load_steps=9 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/cables/ethernet_hub.gd" id="1_hubscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/ethernet/ethernet_hub.gd" id="1_hubscript"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/ethernet_port.tscn" id="2_port"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="3_pickhigh"]
 

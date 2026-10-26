@@ -1228,10 +1228,10 @@ func _build_bios_download_row(key: String, title: String, desc: String, installe
 
 
 ## One firmware row, plus this page's action cell and scrollbar gutter.
-func _build_bios_row(r: Dictionary, systemid: String) -> Control:
-	var row := FirmwareRow.build(r, _bios_desc_for(str(r.get("path", "")), str(r.get("desc", ""))))
+func _build_bios_row(bios_row: Dictionary, systemid: String) -> Control:
+	var row := FirmwareRow.build(bios_row, _bios_desc_for(str(bios_row.get("path", "")), str(bios_row.get("desc", ""))))
 
-	row.add_child(_build_bios_action(r, systemid))
+	row.add_child(_build_bios_action(bios_row, systemid))
 
 	# The detail list scrolls, and its scrollbar is 40 px wide and drawn over the
 	# content — without this the tag sits underneath it.
@@ -1248,9 +1248,9 @@ func _build_bios_row(r: Dictionary, systemid: String) -> Control:
 ## A cloud button when RomM is holding this file, and otherwise a plain note
 ## saying so — most declared BIOSes are console dumps no server redistributes,
 ## and a dead button on every one of them would read as broken.
-func _build_bios_action(r: Dictionary, systemid: String) -> Control:
-	var status := int(r.get("status", FirmwareState.Status.PRESENT))
-	var path := str(r.get("path", ""))
+func _build_bios_action(bios_row: Dictionary, systemid: String) -> Control:
+	var status := int(bios_row.get("status", FirmwareState.Status.PRESENT))
+	var path := str(bios_row.get("path", ""))
 
 	var cell := HBoxContainer.new()
 	cell.custom_minimum_size = Vector2(230, 0)
@@ -1261,15 +1261,15 @@ func _build_bios_action(r: Dictionary, systemid: String) -> Control:
 	# It gets a picker over everything RomM holds for this system instead — and
 	# it keeps that picker once satisfied, because "the folder exists" is a much
 	# weaker thing to know than which dumps are in it.
-	if bool(r.get("is_dir", false)):
-		return _build_bios_dir_action(r, systemid, cell)
+	if bool(bios_row.get("is_dir", false)):
+		return _build_bios_dir_action(bios_row, systemid, cell)
 
 	# A file that is here can be removed — the only reason to, and the reason this
 	# is worth having, is a MISMATCH: the classic wrong-region BIOS that the app
 	# can already see is wrong but previously had no way to get rid of.
 	if status == FirmwareState.Status.PRESENT or status == FirmwareState.Status.MISMATCH:
 		cell.add_child(_build_firmware_delete_button(
-			str(r.get("core_name", "")), path, str(r.get("dest", ""))))
+			str(bios_row.get("core_name", "")), path, str(bios_row.get("dest", ""))))
 		if status == FirmwareState.Status.PRESENT:
 			return cell
 
@@ -1283,7 +1283,7 @@ func _build_bios_action(r: Dictionary, systemid: String) -> Control:
 		cell.add_child(note)
 		return cell
 
-	var core_name := str(r.get("core_name", ""))
+	var core_name := str(bios_row.get("core_name", ""))
 	var key := "bios:file:%s:%s" % [core_name, path]
 	var running := _firmware_installer != null and _firmware_installer.is_queued(key)
 
@@ -1365,9 +1365,9 @@ static func _is_bios_folder(path: String) -> bool:
 ## while holding a file the user wanted gone.
 ##
 ## Returns [{file_name, size, id, md5, on_server, here}], name-sorted.
-func _bios_dir_entries(r: Dictionary, systemid: String) -> Array:
+func _bios_dir_entries(bios_row: Dictionary, systemid: String) -> Array:
 	var dir: String = FirmwareRequirements.destination(
-		str(r.get("core_name", "")), str(r.get("path", "")))
+		str(bios_row.get("core_name", "")), str(bios_row.get("path", "")))
 
 	var out: Array = []
 	var seen: Dictionary = {}
@@ -1375,7 +1375,7 @@ func _bios_dir_entries(r: Dictionary, systemid: String) -> Array:
 	# still lists what is already inside it, so its contents stay inspectable and
 	# deletable — it just gets nothing pushed at it.
 	var from_server: Array = romm_firmware.find_for_system(systemid) \
-		if romm_firmware != null and _is_bios_folder(str(r.get("path", ""))) else []
+		if romm_firmware != null and _is_bios_folder(str(bios_row.get("path", ""))) else []
 	for e: Dictionary in from_server:
 		var file_name := str(e["file_name"])
 		seen[file_name.to_lower()] = true
@@ -1406,8 +1406,8 @@ func _bios_dir_entries(r: Dictionary, systemid: String) -> Array:
 
 
 ## The folder row's own cell: a count and a toggle for the list underneath.
-func _build_bios_dir_action(r: Dictionary, systemid: String, cell: HBoxContainer) -> Control:
-	var entries := _bios_dir_entries(r, systemid)
+func _build_bios_dir_action(bios_row: Dictionary, systemid: String, cell: HBoxContainer) -> Control:
+	var entries := _bios_dir_entries(bios_row, systemid)
 	if entries.is_empty():
 		var note := Label.new()
 		note.text = "Not on RomM" if _romm_ready() else ""
@@ -1440,7 +1440,7 @@ func _build_bios_dir_action(r: Dictionary, systemid: String, cell: HBoxContainer
 		mark_rect.tooltip_text = "On your RomM server"
 		cell.add_child(mark_rect)
 
-	var open := _bios_dir_is_open(str(r.get("core_name", "")), str(r.get("path", "")))
+	var open := _bios_dir_is_open(str(bios_row.get("core_name", "")), str(bios_row.get("path", "")))
 	var btn := Button.new()
 	btn.add_theme_font_override("font", MenuIcons.symbols())
 	btn.add_theme_font_size_override("font_size", 20)
@@ -1451,7 +1451,7 @@ func _build_bios_dir_action(r: Dictionary, systemid: String, cell: HBoxContainer
 		MenuIcons.TINT_OK if here > 0 else MenuIcons.TINT_DOWNLOAD)
 	btn.tooltip_text = "%d in this folder, %d available on RomM" % [here, on_server]
 	btn.pressed.connect(func() -> void:
-		_bios_dir_open[_bios_dir_key(str(r.get("core_name", "")), str(r.get("path", "")))] = not open
+		_bios_dir_open[_bios_dir_key(str(bios_row.get("core_name", "")), str(bios_row.get("path", "")))] = not open
 		refresh_bios_view()
 	)
 	cell.add_child(btn)
@@ -1460,8 +1460,8 @@ func _build_bios_dir_action(r: Dictionary, systemid: String, cell: HBoxContainer
 
 ## The list itself, indented under its folder row: a fetch-all across the top,
 ## then one row per file — what the server holds, and what is already installed.
-func _build_bios_picker(r: Dictionary, systemid: String) -> Control:
-	var entries := _bios_dir_entries(r, systemid)
+func _build_bios_picker(bios_row: Dictionary, systemid: String) -> Control:
+	var entries := _bios_dir_entries(bios_row, systemid)
 
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 50)
@@ -1471,8 +1471,8 @@ func _build_bios_picker(r: Dictionary, systemid: String) -> Control:
 	box.add_theme_constant_override("separation", 2)
 	margin.add_child(box)
 
-	var path := str(r.get("path", ""))
-	var dir: String = FirmwareRequirements.destination(str(r.get("core_name", "")), path)
+	var path := str(bios_row.get("path", ""))
+	var dir: String = FirmwareRequirements.destination(str(bios_row.get("core_name", "")), path)
 
 	# Outstanding drives both the button's wording and what it queues, so it is
 	# computed once here rather than asked for twice.
@@ -1495,7 +1495,7 @@ func _build_bios_picker(r: Dictionary, systemid: String) -> Control:
 	# this page was drawn — and the page is drawn again on every install, every
 	# delete and every toggle. The pool only ever holds the rows on screen, so
 	# the count stops mattering.
-	var core_name := str(r.get("core_name", ""))
+	var core_name := str(bios_row.get("core_name", ""))
 	var list := VirtualRowList.new()
 	list.row_height = PICKER_ROW_H
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1639,11 +1639,11 @@ func _build_blank_picker_row() -> Control:
 ## Every signal is disconnected first: the same Control is re-bound to a
 ## different file as the list scrolls, and a stale `pressed` handler would
 ## download or delete whatever the row used to be.
-func _bind_bios_picker_row(row: Control, e: Dictionary, core_name: String,
+func _bind_bios_picker_row(row: Control, entry: Dictionary, core_name: String,
 						   path: String, dir: String) -> void:
-	var file_name := str(e["file_name"])
-	var here := bool(e["here"])
-	var on_server := bool(e["on_server"])
+	var file_name := str(entry["file_name"])
+	var here := bool(entry["here"])
+	var on_server := bool(entry["on_server"])
 	var key := _bios_dir_job_key(path, file_name)
 	var running := _firmware_installer != null and _firmware_installer.is_queued(key)
 
@@ -1657,7 +1657,7 @@ func _bind_bios_picker_row(row: Control, e: Dictionary, core_name: String,
 	name_lbl.add_theme_color_override("font_color",
 		MenuStyle.COLOR_TITLE if here else MenuStyle.COLOR_LICENSE)
 
-	(row.get_node("Size") as Label).text = String.humanize_size(int(e["size"]))
+	(row.get_node("Size") as Label).text = String.humanize_size(int(entry["size"]))
 
 	var btn := row.get_node("Action") as Button
 	_clear_pressed(btn)
@@ -1684,7 +1684,7 @@ func _bind_bios_picker_row(row: Control, e: Dictionary, core_name: String,
 		btn.text = String.chr(MenuIcons.DOWNLOAD)
 		btn.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
 		btn.tooltip_text = "Download %s from RomM (%s)" % [
-			file_name, String.humanize_size(int(e["size"]))]
+			file_name, String.humanize_size(int(entry["size"]))]
 	if not btn.disabled:
 		btn.pressed.connect(func() -> void:
 			if _firmware_installer == null:
@@ -1693,7 +1693,7 @@ func _bind_bios_picker_row(row: Control, e: Dictionary, core_name: String,
 				_firmware_installer.cancel(key)
 				return
 			_bios_job_buttons[key] = btn
-			if _enqueue_bios_dir_file(e, path):
+			if _enqueue_bios_dir_file(entry, path):
 				btn.text = "0%"
 				btn.add_theme_color_override("font_color", MenuIcons.TINT_BUSY)
 		)
@@ -1717,10 +1717,10 @@ static func _clear_pressed(btn: BaseButton) -> void:
 
 ## Queue one file into every core's copy of this folder. False when it was
 ## already queued, so a caller can count what it actually started.
-func _enqueue_bios_dir_file(e: Dictionary, path: String) -> bool:
+func _enqueue_bios_dir_file(entry: Dictionary, path: String) -> bool:
 	if _firmware_installer == null or romm_config == null:
 		return false
-	var file_name := str(e["file_name"])
+	var file_name := str(entry["file_name"])
 	var key := _bios_dir_job_key(path, file_name)
 	if _firmware_installer.is_queued(key):
 		return false
@@ -1729,9 +1729,9 @@ func _enqueue_bios_dir_file(e: Dictionary, path: String) -> bool:
 		return false
 	_firmware_installer.enqueue_file(
 		key, file_name, romm_config.base_url,
-		RommFirmware.content_path(int(e["id"]), file_name),
+		RommFirmware.content_path(int(entry["id"]), file_name),
 		romm_config.auth_headers(), dests,
-		int(e["size"]), str(e["md5"]))
+		int(entry["size"]), str(entry["md5"]))
 	return true
 
 

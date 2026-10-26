@@ -1,8 +1,8 @@
 [gd_scene load_steps=17 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/media/speaker_pair.gd" id="1_pairscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/speaker_pair.gd" id="1_pairscript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
-[ext_resource type="Script" path="res://Scripts/Objects/media/speaker_box.gd" id="5_speakerbox"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/speaker_box.gd" id="5_speakerbox"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/trs_port.tscn" id="3_trsport"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_knob.gd" id="4_vrknob"]
 

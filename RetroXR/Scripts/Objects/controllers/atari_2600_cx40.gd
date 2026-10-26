@@ -26,14 +26,14 @@ const FIRE_PRESS: float = 0.0010
 
 
 func _cache_meshes() -> void:
-	_buttons.clear()
+	_anim.buttons.clear()
 	var m := _find_mesh("Button")
 	if m == null:
 		push_warning("Atari2600CX40: Button mesh not found")
 	else:
-		_buttons.append({"node": m, "rest": m.transform,
+		_anim.buttons.append({"node": m, "rest": m.transform,
 			"bit": FIRE_BIT, "depth": FIRE_PRESS})
-	_dpad = _rocker("Stick")
+	_anim.dpad = _rocker("Stick")
 
 
 ## No pivot drop. The shell was exported with the shaft's origin already AT its

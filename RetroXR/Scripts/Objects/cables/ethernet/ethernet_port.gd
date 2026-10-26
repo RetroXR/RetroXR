@@ -40,14 +40,7 @@ func _ready() -> void:
 ## The machine behind this socket: the console an adapter is seated on, a slim
 ## PS2's own panel, or null -- an adapter on the table, or a hub.
 func get_machine() -> Node3D:
-	var n: Node = get_parent()
-	while n != null:
-		if n.has_method("get_libretro_node"):
-			return n as Node3D
-		if n is RetroExpansion:
-			return (n as RetroExpansion).get_host()
-		n = n.get_parent()
-	return null
+	return MachineLookup.owning_machine(get_parent(), true) as Node3D
 
 
 ## The hub this socket is moulded into, or null.

@@ -133,17 +133,17 @@ func poll() -> Dictionary:
 	var btn := 0
 	var lstick := Vector2.ZERO
 	var rstick := Vector2.ZERO
-	for t: Dictionary in targets:
-		var node: Node3D = t["node"]
+	for cap: Dictionary in targets:
+		var node: Node3D = cap["node"]
 		if not is_instance_valid(node) or not node.is_inside_tree():
 			continue
-		var held := _track(t, live, delta)
-		if t.has("rocker"):
+		var held := _track(cap, live, delta)
+		if cap.has("rocker"):
 			if not held.is_empty():
-				btn |= _rocker_bits(t, held.keys()[0])
+				btn |= _rocker_bits(cap, held.keys()[0])
 			continue
 		var down := not held.is_empty()
-		var src: Dictionary = t.get("src", t)
+		var src: Dictionary = cap.get("src", cap)
 		# A cap the core reads as a stick is pressed as that stick even when it
 		# also carries a bit: the N64's C-Left/C-Right bits are the shoulders'.
 		if src.has("stick_dir"):
@@ -158,8 +158,8 @@ func poll() -> Dictionary:
 		elif int(src.get("bit", -1)) >= 0:
 			if down:
 				btn |= 1 << int(src["bit"])
-		elif t.has("depth"):
-			_press_visual(t, down, delta)
+		elif cap.has("depth"):
+			_press_visual(cap, down, delta)
 	_state = {"btn": btn, "lstick": lstick.limit_length(1.0), "rstick": rstick.limit_length(1.0)}
 	return _state
 
@@ -180,21 +180,21 @@ func merge_into(btn: int, alx: int, aly: int, arx: int, ary: int, scale: int) ->
 	return out
 
 
-## Update which hands are pressing `t`; returns its {controller: seconds lost}.
-func _track(t: Dictionary, live: Array[Node3D], delta: float) -> Dictionary:
-	var held: Dictionary = t.get("_held", {})
-	t["_held"] = held
-	if not t.has("_box"):
-		t["_box"] = _local_box(t["node"])
-	var box: AABB = t["_box"]
+## Update which hands are pressing `cap`; returns its {controller: seconds lost}.
+func _track(cap: Dictionary, live: Array[Node3D], delta: float) -> Dictionary:
+	var held: Dictionary = cap.get("_held", {})
+	cap["_held"] = held
+	if not cap.has("_box"):
+		cap["_box"] = _local_box(cap["node"])
+	var box: AABB = cap["_box"]
 	if box.size == Vector3.ZERO:
 		return held
-	var node: Node3D = t["node"]
-	var rest: Transform3D = t["rest"]
+	var node: Node3D = cap["node"]
+	var rest: Transform3D = cap["rest"]
 	var parent := node.get_parent() as Node3D
 	var xf: Transform3D = (parent.global_transform if parent != null else Transform3D()) * rest
 	var inv := xf.affine_inverse()
-	var dir_local: Vector3 = rest.basis.inverse() * (t["dir"] as Vector3)
+	var dir_local: Vector3 = rest.basis.inverse() * (cap["dir"] as Vector3)
 	var dir_world := xf.basis * dir_local
 	var reach := dir_local * (DEPTH_REACH / maxf(dir_world.length(), 1e-6))
 	var scale := xf.basis.get_scale()
@@ -203,31 +203,31 @@ func _track(t: Dictionary, live: Array[Node3D], delta: float) -> Dictionary:
 	# A hand that stopped qualifying (picked something up, lost tracking, moved
 	# away from the whole device) lets go at once: grace is for a tip that slipped
 	# off a cap, not one that walked away.
-	for c: Variant in held.keys():
-		if not is_instance_valid(c) or not live.has(c):
-			held.erase(c)
-			_click(c, false)
+	for hand: Variant in held.keys():
+		if not is_instance_valid(hand) or not live.has(hand):
+			held.erase(hand)
+			_click(hand, false)
 
-	for c: Node3D in live:
-		var tip := PokeTip.tip_of(c)
+	for hand: Node3D in live:
+		var tip := PokeTip.tip_of(hand)
 		var p := inv * tip
-		var was := held.has(c)
+		var was := held.has(hand)
 		# The reach into the shell only KEEPS a press: a cap is pressed by touching
 		# it, so a tip that arrives under it from the side (pushing a neighbouring
 		# face cap in, past a shoulder's edge) starts nothing.
 		if _inside(box, p, RELEASE_MARGIN if was else ENGAGE_MARGIN, scale,
 				reach if was else Vector3.ZERO):
-			held[c] = 0.0
+			held[hand] = 0.0
 			if not was:
-				_click(c, true)
+				_click(hand, true)
 		elif was:
-			held[c] = float(held[c]) + delta
-			if float(held[c]) >= GRACE:
-				held.erase(c)
-				_click(c, false)
+			held[hand] = float(held[hand]) + delta
+			if float(held[hand]) >= GRACE:
+				held.erase(hand)
+				_click(hand, false)
 		if mesh != null and _inside(box, p, CONTACT_MARGIN, scale, Vector3.ZERO):
-			PokeTip.claim_box_face(c, mesh, tip, -dir_world.normalized(),
-				PokeTip.CONTACT_ENGAGED if held.has(c) else PokeTip.CONTACT_HOVER)
+			PokeTip.claim_box_face(hand, mesh, tip, -dir_world.normalized(),
+				PokeTip.CONTACT_ENGAGED if held.has(hand) else PokeTip.CONTACT_HOVER)
 	return held
 
 
@@ -243,21 +243,21 @@ static func _inside(box: AABB, p: Vector3, margin: float, scale: Vector3, reach:
 	return b.has_point(p)
 
 
-## Which arms of a rocker the tip of `c` is on.
-func _rocker_bits(t: Dictionary, c: Node3D) -> int:
-	var node: Node3D = t["node"]
+## Which arms of a rocker the tip of `hand` is on.
+func _rocker_bits(cap: Dictionary, hand: Node3D) -> int:
+	var node: Node3D = cap["node"]
 	var parent := node.get_parent() as Node3D
 	var pxf := parent.global_transform if parent != null else Transform3D()
-	var up := (pxf.basis * (t["up"] as Vector3)).normalized()
-	var right := (pxf.basis * (t["right"] as Vector3)).normalized()
-	var d := PokeTip.tip_of(c) - pxf * (t["pivot"] as Vector3)
+	var up := (pxf.basis * (cap["up"] as Vector3)).normalized()
+	var right := (pxf.basis * (cap["right"] as Vector3)).normalized()
+	var d := PokeTip.tip_of(hand) - pxf * (cap["pivot"] as Vector3)
 	var v := Vector2(d.dot(right), d.dot(up))
-	if not t.has("_radius"):
-		t["_radius"] = _rocker_radius(t, pxf, up, right)
-	if v.length() < float(t["_radius"]) * ROCKER_DEAD:
+	if not cap.has("_radius"):
+		cap["_radius"] = _rocker_radius(cap, pxf, up, right)
+	if v.length() < float(cap["_radius"]) * ROCKER_DEAD:
 		return 0
 	var n := v.normalized()
-	var bits: Array = t.get("bits", _DEFAULT_ROCKER_BITS)
+	var bits: Array = cap.get("bits", _DEFAULT_ROCKER_BITS)
 	var out := 0
 	if n.y > ROCKER_SECTOR: out |= 1 << int(bits[0])
 	if n.y < -ROCKER_SECTOR: out |= 1 << int(bits[1])
@@ -267,10 +267,10 @@ func _rocker_bits(t: Dictionary, c: Node3D) -> int:
 
 
 ## How far the cross reaches from its pivot across its face, in metres.
-func _rocker_radius(t: Dictionary, pxf: Transform3D, up: Vector3, right: Vector3) -> float:
-	var box: AABB = t["_box"]
-	var xf: Transform3D = pxf * (t["rest"] as Transform3D)
-	var centre := pxf * (t["pivot"] as Vector3)
+func _rocker_radius(cap: Dictionary, pxf: Transform3D, up: Vector3, right: Vector3) -> float:
+	var box: AABB = cap["_box"]
+	var xf: Transform3D = pxf * (cap["rest"] as Transform3D)
+	var centre := pxf * (cap["pivot"] as Vector3)
 	var r := 0.0
 	for i in 8:
 		var d := xf * box.get_endpoint(i) - centre
@@ -279,11 +279,11 @@ func _rocker_radius(t: Dictionary, pxf: Transform3D, up: Vector3, right: Vector3
 
 
 ## A cap with nothing behind it: move it here, the way the animators move theirs.
-func _press_visual(t: Dictionary, down: bool, delta: float) -> void:
-	var node: Node3D = t["node"]
-	var rest: Transform3D = t["rest"]
+func _press_visual(cap: Dictionary, down: bool, delta: float) -> void:
+	var node: Node3D = cap["node"]
+	var rest: Transform3D = cap["rest"]
 	var target := Transform3D(rest.basis,
-		rest.origin + (t["dir"] as Vector3).normalized() * (float(t["depth"]) * (1.0 if down else 0.0)))
+		rest.origin + (cap["dir"] as Vector3).normalized() * (float(cap["depth"]) * (1.0 if down else 0.0)))
 	node.transform = node.transform.interpolate_with(target, clampf(VISUAL_LERP * delta, 0.0, 1.0))
 
 
@@ -302,17 +302,17 @@ func _live_controllers() -> Array[Node3D]:
 		_rig_retry = 60
 		var rig := PadInputShared.find_rig(_owner.get_tree())
 		for k: String in ["left", "right"]:
-			var c := rig.get(k) as XRController3D
-			if c != null:
-				_controllers.append(c)
+			var hand := rig.get(k) as XRController3D
+			if hand != null:
+				_controllers.append(hand)
 	var pos := _owner.global_position
-	for c: Node3D in _controllers:
-		if not is_instance_valid(c) or not PokeTip.is_poking(c):
+	for hand: Node3D in _controllers:
+		if not is_instance_valid(hand) or not PokeTip.is_poking(hand):
 			continue
-		if c is XRController3D and not (c as XRController3D).get_is_active():
+		if hand is XRController3D and not (hand as XRController3D).get_is_active():
 			continue
-		if PokeTip.tip_of(c).distance_to(pos) <= NEAR:
-			out.append(c)
+		if PokeTip.tip_of(hand).distance_to(pos) <= NEAR:
+			out.append(hand)
 	return out
 
 
@@ -330,9 +330,9 @@ func invalidate() -> void:
 	_frame = -1
 
 
-static func _click(c: Variant, down: bool) -> void:
-	if c is XRController3D and is_instance_valid(c):
-		Haptics.click(c, down, HAPTIC_KEY)
+static func _click(hand: Variant, down: bool) -> void:
+	if hand is XRController3D and is_instance_valid(hand):
+		Haptics.click(hand, down, HAPTIC_KEY)
 
 
 ## The cap's extent in its own frame. A control may be an empty carrying several

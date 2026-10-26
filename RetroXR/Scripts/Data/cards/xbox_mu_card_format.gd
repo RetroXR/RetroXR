@@ -93,8 +93,8 @@ func block_of(data: PackedByteArray, name: String) -> int:
 	return XboxMemoryUnit.block_of(data, name)
 
 
-func extract_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
-	return XboxMemoryUnit.extract_save(data, first_block)
+func extract_save(data: PackedByteArray, handle: int) -> PackedByteArray:
+	return XboxMemoryUnit.extract_save(data, handle)
 
 
 func is_save_file(bytes: PackedByteArray) -> bool:
@@ -105,8 +105,8 @@ func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArra
 	return XboxMemoryUnit.insert_save(data, save)
 
 
-func delete_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
-	return XboxMemoryUnit.delete_save(data, first_block)
+func delete_save(data: PackedByteArray, handle: int) -> PackedByteArray:
+	return XboxMemoryUnit.delete_save(data, handle)
 
 
 func free_blocks(data: PackedByteArray) -> int:

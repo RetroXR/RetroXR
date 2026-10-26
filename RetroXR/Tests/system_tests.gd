@@ -163,6 +163,9 @@ func _ready() -> void:
 	_test_state_thumbnail()
 	_test_state_disk_round_trip()
 	_test_audio_cabling_gate()
+	_test_storage_lifecycle()
+	_test_machine_contracts()
+	_test_port_unwrap()
 
 	await _settle()
 	print("[test] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -2975,6 +2978,96 @@ func _test_audio_cabling_gate() -> void:
 	_ok(not spk.has("tv"), "audio/and does not resolve the sink")
 
 	sys.queue_free()
+
+
+# ---------------------------------------------------------------------------
+# The per-console storages: one list, walked in one order.
+#
+# power_on, the stop, a session's start and the first frame each walk
+# RetroSystem._storages, so the ORDER is the order things are staged and drained
+# in -- the Dreamcast's VMUs first (their stop drain always ran first), the
+# Xbox's last. Which of them a lockstep session stages is a decision, written
+# down in each storage's stages_in_session(): the Sega CD's and the Saturn
+# cartridge's (the core reads them from files at load), not the 3DO's NVRAM
+# (Opera carries it in its savestate, so the host's would be drained over this
+# console's), the Xbox's or the VMUs'. The refusal cards keep their words.
+# ---------------------------------------------------------------------------
+func _test_storage_lifecycle() -> void:
+	var sys := _system("genesis")
+	var kinds: Array = []
+	for storage: ConsoleStorage in sys._storages:
+		kinds.append(str(storage.name))
+	_eq(kinds, ["VmuStorage", "SegaCdStorage", "SaturnStorage", "ThreeDoStorage", "XboxStorage"],
+		"storage/five storages, in lifecycle order")
+	var staged_in_session: Array = []
+	for storage: ConsoleStorage in sys._storages:
+		if storage.stages_in_session():
+			staged_in_session.append(str(storage.name))
+	_eq(staged_in_session, ["SegaCdStorage", "SaturnStorage"],
+		"storage/a session stages the Sega CD and the Saturn cartridge only")
+	_eq(sys.sega_cd_storage().busy_title(),
+		"%s in use" % RegionalNames.addon_name("sega_cd", "Sega CD"), "storage/Sega CD card title")
+	_eq(sys.saturn_storage().busy_title(), "Cartridge in use", "storage/Saturn card title")
+	_eq(sys.three_do_storage().busy_title(), "3DO in use", "storage/3DO card title")
+	_eq((sys._storages[4] as XboxStorage).busy_title(), "Xbox in use", "storage/Xbox card title")
+	_eq((sys._storages[0] as VmuStorage).busy_title(), "", "storage/a VMU never refuses a power-on")
+	# Off the tree nothing is busy, and a bare machine's refusal walk says so.
+	_ok(not sys._refused_by_busy_storage("genesis_plus_gx"),
+		"storage/a machine with nothing staged anywhere is not refused")
+	sys.free()
+
+
+# ---------------------------------------------------------------------------
+# The by-name contracts other code relies on, checked against the scripts.
+#
+# NetplaySession drives three kinds of machine through NetMachine.REQUIRED, and
+# a set calls AvSourceContract.REQUIRED on whatever it carries. Neither has a
+# base class to make a missing method a parse error, so this is where one that
+# was dropped or renamed shows. Also the boot-time extension check: the in-tree
+# libretro-godot binds every method system.gd calls on it.
+# ---------------------------------------------------------------------------
+func _test_machine_contracts() -> void:
+	for path: String in ["res://Scripts/Objects/systems/system.gd",
+			"res://Scripts/Objects/peripherals/gb_printer.gd",
+			"res://Scripts/Objects/peripherals/vmu_card.gd"]:
+		var gaps := NetMachine.missing_in_script(load(path) as Script)
+		_ok(gaps.is_empty(), "contract/%s is a whole NetMachine" % path.get_file(), ", ".join(gaps))
+	for path: String in ["res://Scripts/Objects/systems/system.gd",
+			"res://Scripts/Objects/media/vcr_player.gd",
+			"res://Scripts/Objects/media/dvd_player.gd"]:
+		var gaps := AvSourceContract.missing_in_script(load(path) as Script)
+		_ok(gaps.is_empty(), "contract/%s is a whole A/V source" % path.get_file(), ", ".join(gaps))
+	# And the check can fail: a script that is no machine at all is all gaps.
+	_eq(NetMachine.missing_in_script(load("res://Scripts/Objects/systems/console_storage.gd") as Script).size(),
+		NetMachine.REQUIRED.size() + NetMachine.REQUIRED_PROPERTIES.size(),
+		"contract/a script that is not a machine misses every method")
+	var stale := RetroSystem.stale_libretro_methods()
+	_ok(stale.is_empty(), "contract/the libretro-godot extension binds every method system.gd calls",
+		", ".join(stale))
+
+
+class _CordEnd extends Node3D:
+	var pad: Node3D = null
+
+	func get_controller() -> Node3D:
+		return pad
+
+
+# ---------------------------------------------------------------------------
+# A port is handed a cable END or a thing that is its own plug, and every port
+# path unwraps it the same way (RetroSystem._controller_of).
+# ---------------------------------------------------------------------------
+func _test_port_unwrap() -> void:
+	var pad := Node3D.new()
+	var plug := _CordEnd.new()
+	plug.pad = pad
+	_eq(RetroSystem._controller_of(plug), pad, "ports/a cable end unwraps to the pad behind it")
+	var own := Node3D.new()
+	_eq(RetroSystem._controller_of(own), own, "ports/a thing that is its own plug is itself")
+	_eq(RetroSystem._controller_of(null), null, "ports/nothing unwraps to nothing")
+	plug.free()
+	pad.free()
+	own.free()
 
 
 class _StubCart extends Node3D:

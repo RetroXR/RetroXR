@@ -71,14 +71,14 @@ func block_of(data: PackedByteArray, name: String) -> int:
 	return SegaCdBram.index_of(data, name)
 
 
-func extract_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
+func extract_save(data: PackedByteArray, handle: int) -> PackedByteArray:
 	var files := SegaCdBram.list_files(data)
-	if first_block < 0 or first_block >= files.size():
+	if handle < 0 or handle >= files.size():
 		return PackedByteArray()
-	var payload := SegaCdBram.read_file(data, first_block)
+	var payload := SegaCdBram.read_file(data, handle)
 	if payload.is_empty():
 		return PackedByteArray()
-	var e := files[first_block]
+	var e := files[handle]
 	return SegaCdBram.make_save(str(e["name"]), int(e["mode"]), payload)
 
 
@@ -111,8 +111,8 @@ func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArra
 	return SegaCdBram.write_file(data, parsed["name"], int(parsed["mode"]), parsed["payload"])
 
 
-func delete_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
-	return SegaCdBram.delete_file(data, first_block)
+func delete_save(data: PackedByteArray, handle: int) -> PackedByteArray:
+	return SegaCdBram.delete_file(data, handle)
 
 
 func free_blocks(data: PackedByteArray) -> int:

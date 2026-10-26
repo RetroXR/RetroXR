@@ -1,8 +1,8 @@
 [gd_scene load_steps=17 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/cables/gc_gba_cable.gd" id="1_cablescript"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/gc_link_plug.gd" id="2_gcplug"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/link_plug.gd" id="3_gbaplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link/gc_gba_cable.gd" id="1_cablescript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link/gc_link_plug.gd" id="2_gcplug"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link/link_plug.gd" id="3_gbaplug"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="4_pickhigh"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="5_snapgp"]
 

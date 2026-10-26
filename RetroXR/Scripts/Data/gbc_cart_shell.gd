@@ -93,6 +93,24 @@ static func preset_for_rom(rom_path: String) -> StringName:
 	return preset_for_header(GbCartShell.read_header(rom_path))
 
 
+# --- The cart-shell protocol (ModCartShells' table of the game's own shells) ---
+# For every Game Boy family cartridge (GbCartShell.SYSTEMIDS): this class says
+# which of the two shells -- or the camera -- a ROM wears.
+
+static func cart_body(_systemid: String, rom_path: String, body_region: String,
+		shell_preset: StringName, _pinned: String) -> String:
+	return body_model_for_rom(body_region, shell_preset, rom_path)
+
+
+## {palette, preset}: this shell's palette on one of its own bodies, the Game Boy's
+## on the Game Boy's. The camera is painted by the cartridge itself (paint_camera).
+static func cart_finish(_systemid: String, rom_path: String, model_path: String,
+		_pinned: String) -> Dictionary:
+	if is_body(model_path):
+		return {"palette": PALETTE, "preset": preset_for_rom(rom_path)}
+	return {"palette": GbCartShell.SYSTEMID, "preset": GbCartShell.preset_for_rom(rom_path)}
+
+
 static func preset_for_header(header: PackedByteArray) -> StringName:
 	if GbCartShell.is_nintendo(header):
 		var title := GbCartShell.header_title(header)

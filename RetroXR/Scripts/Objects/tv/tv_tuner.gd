@@ -395,7 +395,7 @@ func set_muted(muted: bool) -> void:
 	set_volume(_volume_linear)
 
 
-func set_channel_mode(mode: int) -> void:
+func set_channel_mode(mode: SpatialAudioEmitter.ChannelMode) -> void:
 	if _emitter:
 		_emitter.set_channel_mode(mode)
 

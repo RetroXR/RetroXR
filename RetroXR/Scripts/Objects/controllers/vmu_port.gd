@@ -37,6 +37,22 @@
 ## the one such host: a player on a real gamepad holds no virtual pad, so without
 ## a socket on the dongle a VMU had nowhere to go that player could reach, which
 ## is the same gap N64PakPort was lifted out of RetroController to close.
+##
+## **The port-controller protocol.** RetroSystem and VmuStorage reach a host's
+## slots by duck typing, asking whatever is in a controller port for these names
+## and not caring what class answers; mods call them too, so they never change:
+##
+##   vmu_slot_count()              -> slot_count()
+##   get_vmu(slot)                 -> get_card(slot)
+##   get_vmu_device(slot)          -> get_device(slot)
+##   vmu_slot_option_value(slot)   -> slot_option_value(slot)
+##   restore_vmu(device, slot)     -> restore_card(device, slot)
+##   seated_microphone()           -> seated_microphone()
+##
+## (N64PakPort's three are get_pak / restore_pak / pak_option_value.) The hosts
+## are RetroController and PadReceiver, which share no base below
+## XRToolsPickable, so each forwards the names in one line to this object: all
+## the behaviour lives here, the forwards only give it the protocol's names.
 class_name VmuPort
 extends RefCounted
 
@@ -302,3 +318,14 @@ func slot_option_value(slot: int) -> String:
 	# Asked of whatever is seated, so a card answers "VMU" and a pack answers
 	# "Purupuru" without this having to know which it is holding.
 	return str(device.call("slot_option_value"))
+
+
+## A microphone seated in one of these slots (a Dreamcast HKT-7200), or null.
+## Shared by every host so the walk is written once; each host forwards it as
+## seated_microphone() -- see the protocol in this file's header.
+func seated_microphone() -> Node3D:
+	for slot in slot_count():
+		var device := get_device(slot)
+		if device != null and device.has_method("microphone_position"):
+			return device
+	return null

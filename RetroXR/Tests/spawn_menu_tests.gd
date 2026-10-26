@@ -34,6 +34,7 @@ func _ready() -> void:
 	await _group_cartridges()
 	_group_counts()
 	_group_tokens()
+	_group_parse_token()
 	await _group_colors()
 	_group_formats()
 	_group_fit()
@@ -434,6 +435,42 @@ func _group_tokens() -> void:
 		"tokens/a colored token cut short answers with nothing too")
 
 
+## SpawnCatalog.parse_token is the one reader of every prefixed token the
+## controller is sent. Each prefix has to be caught BEFORE the token is compared
+## whole: one that fell through spawned a console with the token as its systemid.
+func _group_parse_token() -> void:
+	var model := SpawnCatalog.parse_token("model_as:jungle_green:n64:xenu.n64:nus001")
+	_eq([model["kind"], model["systemid"], model["model_id"], model["model_variant"], model["variant"]],
+		[SpawnCatalog.TokenKind.MODEL, "n64", "xenu.n64:nus001", "jungle_green", ""],
+		"parse/a console in a color: system, whole model id, and its color")
+	var red_pad := SpawnCatalog.parse_token("as:red:mod:xenu.pads:six")
+	_eq([red_pad["kind"], red_pad["mod_type"], red_pad["variant"], red_pad["token"]],
+		[SpawnCatalog.TokenKind.MOD, "xenu.pads:six", "red", "mod:xenu.pads:six"],
+		"parse/a peripheral in a color: the color off the front, the rest read as its own token")
+	var lead := SpawnCatalog.parse_token("speaker_cable:red:2.5")
+	_eq([lead["kind"], lead["color"], lead["has_length"], lead["length"]], [SpawnCatalog.TokenKind.SPEAKER_CABLE, "red", true, 2.5],
+		"parse/a lead's color and length")
+	var old_lead := SpawnCatalog.parse_token("speaker_cable:")
+	_eq([old_lead["color"], old_lead["has_length"]], ["", false],
+		"parse/a lead token from before lengths says it has none")
+	var card := SpawnCatalog.parse_token("memcard:ps2:My Card")
+	_eq([card["kind"], card["family"], card["card_id"]], [SpawnCatalog.TokenKind.MEMCARD, "ps2", "My Card"],
+		"parse/an existing card: family, then the id after the FIRST colon")
+	var bare_card := SpawnCatalog.parse_token("memcard:Old Card")
+	_eq([bare_card["family"], bare_card["card_id"]], ["playstation", "Old Card"],
+		"parse/a card token with no family is a PlayStation card")
+	var blank := SpawnCatalog.parse_token("n64_memory_card")
+	_eq([blank["kind"], blank["family"]], [SpawnCatalog.TokenKind.BLANK_MEMCARD, "n64"], "parse/a blank card of a family")
+	var rx := SpawnCatalog.parse_token("pad_receiver:abc123:2")
+	_eq([rx["kind"], rx["guid"], rx["ordinal"]], [SpawnCatalog.TokenKind.PAD_RECEIVER, "abc123", 2], "parse/a pad receiver's pad")
+	_eq([SpawnCatalog.parse_token("expansion:sega32x")["expansion_id"],
+		SpawnCatalog.parse_token("tv:pvm")["shell"]], ["sega32x", "pvm"],
+		"parse/an expansion's id and a set's shell")
+	for literal: String in ["tv", "cartridge", "snes", "light_gun"]:
+		var plain := SpawnCatalog.parse_token(literal)
+		_eq([plain["kind"], plain["token"]], [SpawnCatalog.TokenKind.PLAIN, literal], "parse/'%s' is read whole" % literal)
+
+
 # ── colors/ — a console that comes in several ───────────────────────────────
 
 ## A model row may list the colors its shell comes in. The card's row for it is
@@ -672,10 +709,10 @@ func _group_colors() -> void:
 # ── formats/ — the strings the options panel prints ───────────────────────────
 
 func _group_formats() -> void:
-	_eq(SpawnMenuSpawnView._commas(0), "0", "formats/zero needs no separator")
-	_eq(SpawnMenuSpawnView._commas(999), "999", "formats/three digits need no separator")
-	_eq(SpawnMenuSpawnView._commas(1000), "1,000", "formats/four digits gain one")
-	_eq(SpawnMenuSpawnView._commas(1234567), "1,234,567", "formats/seven digits gain two")
+	_eq(RommSpawnSync._commas(0), "0", "formats/zero needs no separator")
+	_eq(RommSpawnSync._commas(999), "999", "formats/three digits need no separator")
+	_eq(RommSpawnSync._commas(1000), "1,000", "formats/four digits gain one")
+	_eq(RommSpawnSync._commas(1234567), "1,234,567", "formats/seven digits gain two")
 
 	# The mixer rate, printed beside a switch. 48000 must not read "48.0".
 	_eq(SpawnMenuOptionsView._khz(48000.0), "48", "formats/a whole rate drops its decimal")
@@ -1622,13 +1659,13 @@ func _group_owed() -> void:
 
 	view._romm_detail_systemid = "gba"
 	browser._current_systemid = "gba"
-	view._on_romm_cache_changed()
-	view._on_romm_dl_finished(1, false, "", "probe")
+	view._romm_sync._on_romm_cache_changed()
+	view._romm_sync._on_romm_dl_finished(1, false, "", "probe")
 	await get_tree().process_frame
 	_eq(view.rows, 1, "owed/a finished download rebuilds the open list once, not twice")
 
 	browser._current_systemid = ""
-	view._on_romm_cache_changed()
+	view._romm_sync._on_romm_cache_changed()
 	await get_tree().process_frame
 	_eq(view.rows, 1, "owed/a list whose page has been closed is not rebuilt")
 

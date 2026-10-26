@@ -170,7 +170,7 @@ func _one(host_id: String, unit_id: String, media_id: String) -> void:
 		await _wait(6)
 		await _hold(16)
 	await _carry(media, unit.global_position + Vector3(0.0, 0.02, 0.14), 18)
-	unit.restore_media(media)
+	unit.restore_media_in_slot(media)
 	await _wait(6)
 	await _hold(14)
 	if eject != null:

@@ -382,16 +382,6 @@ static func is_vr_mode() -> bool:
 	return xr != null and xr.is_initialized()
 
 
-## Byte counts as the menu shows them — download sizes, cache budgets. Here
-## rather than in a view because both OPTIONS and the RomM toasts print them,
-## and the two must agree on the rounding.
-## Kept as the menu's spelling of ByteSize.human, which owns the rounding now:
-## a byte-identical copy had grown in RommDownloader, so the two could have
-## disagreed about the same file.
-static func human_bytes(bytes: int) -> String:
-	return ByteSize.human(bytes)
-
-
 ## The root every *_2d options panel puts inside its viewport: a full-rect
 ## PanelContainer carrying a rounded background, wrapping a MarginContainer.
 ## Returns the margin, which is what the caller fills.

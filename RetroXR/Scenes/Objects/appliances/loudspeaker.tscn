@@ -1,6 +1,6 @@
 [gd_scene load_steps=8 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/media/loudspeaker.gd" id="1_spk"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/loudspeaker.gd" id="1_spk"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/speaker_satellite.res" id="3_satmesh"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="4_rcaport"]

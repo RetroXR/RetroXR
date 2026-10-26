@@ -1063,7 +1063,7 @@ func get_loaded_media_path(slot := 0) -> String:
 
 
 ## Seat media after a save restore, bypassing the insert ride and its noise.
-func restore_media(media: Node3D, slot := 0) -> void:
+func restore_media_in_slot(media: Node3D, slot := 0) -> void:
 	if _slot != null:
 		_slot.restore(media)
 	elif slot >= 0 and slot < _bays.size():

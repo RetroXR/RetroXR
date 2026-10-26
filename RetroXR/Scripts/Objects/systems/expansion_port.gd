@@ -30,6 +30,10 @@ const GROUP := "expansion_port"
 ## A socket takes exactly one of the two, which is what lets the snap ghost work:
 ## XRToolsSnapZone.can_preview refuses to preview for a zone with no
 ## snap_require, so "accept either kind" would silently cost the preview.
+##
+## GROUP_SYSTEM is also THE name of the every-RetroSystem group (RetroSystem joins
+## it in _ready, and nothing else does): walk it with this constant and cast each
+## node `as RetroSystem` rather than probing it by method name.
 const GROUP_SYSTEM := "retro_system"
 const GROUP_EXPANSION := "retro_expansion"
 

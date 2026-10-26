@@ -24,14 +24,21 @@ const PRESS_DIR: Vector3   = Vector3(0, -1, 0)   # "into the shell" in model spa
 const ANIM_LERP: float     = 20.0
 
 # The animation engine, shared with the handheld models — a handheld's built-in
-# face is the same problem as a pad's. The bindings below are views onto it, so a
-# subclass's _cache_meshes() fills them exactly as it always did.
+# face is the same problem as a pad's. A subclass's _cache_meshes() fills
+# _anim.buttons / dpad / dpad2 / stick_l / stick_r directly, as VmuCard and the
+# handheld models do.
 var _anim := ControlAnimator.new()
 # The same controls, pressed with a fingertip (see ControlPoke). Built from _anim
 # after _cache_meshes(), so a pad's caps are pokeable exactly where they move.
 var _poke: ControlPoke = null
 
-# Cached animated meshes. Each button entry: {node, rest, bit, depth}.
+# ── Pad-pack API: views onto _anim under their pre-ControlAnimator names ──
+# No shipped script uses these any more. They stay because the RetroXR-models pad
+# packs (xenu.dcpad, xenu.snespad, xenu.gcpad, xenu.genesispad, xenu.saturnpad,
+# xenu.wiiclassic, ...) fill them from their own _cache_meshes(), and xenu.nespad
+# reads `pad.get("_dpad")` / `get("_buttons")` — a pack must keep loading in this
+# build unchanged. Do not remove them while a pack still writes them.
+# Each button entry: {node, rest, bit, depth}.
 @warning_ignore("unused_private_class_variable")
 var _buttons: Array[Dictionary]:
 	get: return _anim.buttons
@@ -91,8 +98,8 @@ func _extra_poke_targets() -> Array[Dictionary]:
 
 # ── Node caching ────────────────────────────────────────────────────────────
 
-## Bind this pad's moving meshes into _buttons / _dpad / _dpad2 / _stick_l /
-## _stick_r. Imported models search by mesh name (_find_mesh); pads authored as
+## Bind this pad's moving meshes into _anim.buttons / dpad / dpad2 / stick_l /
+## stick_r. Imported models search by mesh name (_find_mesh); pads authored as
 ## primitives look their controls up by node path.
 func _cache_meshes() -> void:
 	pass

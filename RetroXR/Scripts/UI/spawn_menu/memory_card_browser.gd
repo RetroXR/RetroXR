@@ -260,34 +260,34 @@ func _build_restore(card: Dictionary) -> void:
 		add_child(all))
 
 
-func _restore_row(card: Dictionary, s: Dictionary, present: Dictionary, free: int) -> Control:
+func _restore_row(card: Dictionary, save: Dictionary, present: Dictionary, free: int) -> Control:
 	var row := MenuStyle.hbox(8)
-	var slot := str(s["slot"])
-	var blocks := CardSaveOps.blocks_of(_fmt(), s)
-	var reason := CardSaveOps.restore_blocker(_fmt(), s, present, free)
+	var slot := str(save["slot"])
+	var blocks := CardSaveOps.blocks_of(_fmt(), save)
+	var reason := CardSaveOps.restore_blocker(_fmt(), save, present, free)
 
 	var btn := MenuStyle.row_button("", 24)
-	var rom_name := str(s.get("rom_name", ""))
-	var size_text := _fmt().container_row_label(s) if blocks <= 0 \
+	var rom_name := str(save.get("rom_name", ""))
+	var size_text := _fmt().container_row_label(save) if blocks <= 0 \
 		else "%d block%s" % [blocks, "" if blocks == 1 else "s"]
 	btn.text = "    %s      %s%s" % [
 		rom_name if not rom_name.is_empty() else slot,
 		size_text,
 		"" if reason.is_empty() else "   ·   " + reason]
 	btn.disabled = not reason.is_empty()
-	btn.pressed.connect(func() -> void: _restore(card, s))
+	btn.pressed.connect(func() -> void: _restore(card, save))
 	row.add_child(btn)
 	return row
 
 
 ## Pull one save down and splice it into the card — see CardSaveOps.restore_save.
-func _restore(card: Dictionary, s: Dictionary) -> void:
+func _restore(card: Dictionary, save: Dictionary) -> void:
 	_clear()
 	_page(str(card["label"]), func() -> void: _build_saves(card))
 	var status := MenuStyle.label("Downloading…", 20, MenuStyle.COLOR_DESC)
 	add_child(status)
 
-	CardSaveOps.restore_save(get_tree(), _fmt(), str(card["path"]), str(card["card_id"]), s,
+	CardSaveOps.restore_save(get_tree(), _fmt(), str(card["path"]), str(card["card_id"]), save,
 		func(problem: String) -> void:
 			if not is_inside_tree():
 				return
@@ -295,7 +295,7 @@ func _restore(card: Dictionary, s: Dictionary) -> void:
 				status.text = problem
 				return
 			notice.emit("Restored %s — kept backed up to RomM"
-				% str(s.get("rom_name", s["slot"])), 3.5)
+				% str(save.get("rom_name", save["slot"])), 3.5)
 			_build_saves(card))
 
 
@@ -342,15 +342,15 @@ func _build_saves(card: Dictionary) -> void:
 
 ## Opt one save in or out — see CardSaveOps.backup_save, which uploads at once
 ## on the way in.
-func _toggle_save_sync(card: Dictionary, s: Dictionary, on: bool) -> void:
+func _toggle_save_sync(card: Dictionary, save: Dictionary, on: bool) -> void:
 	if not on:
-		CardSaveOps.stop_backup(str(card["path"]), str(s["name"]))
-		notice.emit("Stopped backing up %s" % CardSaveOps.title_of(s), 2.5)
+		CardSaveOps.stop_backup(str(card["path"]), str(save["name"]))
+		notice.emit("Stopped backing up %s" % CardSaveOps.title_of(save), 2.5)
 		_build_saves(card)
 		return
 
-	notice.emit("Uploading %s…" % CardSaveOps.title_of(s), 8.0)
-	CardSaveOps.backup_save(_fmt(), str(card["path"]), s,
+	notice.emit("Uploading %s…" % CardSaveOps.title_of(save), 8.0)
+	CardSaveOps.backup_save(_fmt(), str(card["path"]), save,
 			func(ok: bool, message: String) -> void:
 		if not is_inside_tree():
 			return
@@ -365,14 +365,14 @@ func _in_use_reason(card: Dictionary) -> String:
 
 ## Delete one save. Armed on the first press and done on the second, the way a
 ## ROM row asks twice, because the blocks are freed and the card keeps no copy.
-func _delete_save(card: Dictionary, s: Dictionary) -> void:
-	var slot := str(s["name"])
+func _delete_save(card: Dictionary, save: Dictionary) -> void:
+	var slot := str(save["name"])
 	if _armed_slot != slot:
 		# Same shape as deleting a ROM: arm, say so, and disarm after 3 s. The
 		# glyph alone changing is easy to miss on a headset — and as there, the
 		# confirm says whether this is the last copy or one of two.
 		_armed_slot = slot
-		notice.emit("Press again to delete %s%s" % [CardSaveOps.title_of(s),
+		notice.emit("Press again to delete %s%s" % [CardSaveOps.title_of(save),
 			"" if CardSaveOps.delete_is_forever(str(card["path"]), slot)
 				else " — RomM keeps its copy"], ARM_SECONDS)
 		_build_saves(card)
@@ -383,19 +383,19 @@ func _delete_save(card: Dictionary, s: Dictionary) -> void:
 		return
 	_armed_slot = ""
 	if not CardSaveOps.delete_save(get_tree(), _fmt(), str(card["path"]),
-			str(card["card_id"]), int(s["block"])):
+			str(card["card_id"]), int(save["block"])):
 		push_warning("[MemoryCardBrowser] could not delete '%s'" % slot)
 	_build_saves(card)
 
 
 ## Move a save to another card: pick the destination.
-func _build_move(card: Dictionary, s: Dictionary) -> void:
+func _build_move(card: Dictionary, save: Dictionary) -> void:
 	_clear()
-	var title := str(s["title"])
-	_page("Move %s" % (title if not title.is_empty() else s["name"]),
+	var title := str(save["title"])
+	_page("Move %s" % (title if not title.is_empty() else save["name"]),
 		func() -> void: _build_saves(card))
 
-	var blocks := int(s["blocks"])
+	var blocks := int(save["blocks"])
 	var any := false
 	for dest: Dictionary in SramPaths.list_cards(family):
 		if str(dest["card_id"]) == str(card["card_id"]):
@@ -404,7 +404,7 @@ func _build_move(card: Dictionary, s: Dictionary) -> void:
 		var reason := _in_use_reason(dest)
 		var data := FileAccess.get_file_as_bytes(str(dest["path"]))
 		if reason.is_empty():
-			if _fmt().block_of(data, str(s["name"])) != -1:
+			if _fmt().block_of(data, str(save["name"])) != -1:
 				reason = "already has this save"
 		var free := _fmt().free_blocks(data)
 		if reason.is_empty() and free < blocks:
@@ -415,7 +415,7 @@ func _build_move(card: Dictionary, s: Dictionary) -> void:
 			free, "" if free == 1 else "s",
 			"" if reason.is_empty() else "   ·   " + reason]
 		btn.disabled = not reason.is_empty()
-		btn.pressed.connect(func() -> void: _do_move(card, dest, s))
+		btn.pressed.connect(func() -> void: _do_move(card, dest, save))
 		add_child(btn)
 
 	if not any:
@@ -427,9 +427,9 @@ func _build_move(card: Dictionary, s: Dictionary) -> void:
 ## and verified. Ordered this way on purpose: the failure mode is then a save
 ## existing on both cards, which the player can see and fix, rather than a save
 ## that left one card and never arrived at the other.
-func _do_move(src: Dictionary, dest: Dictionary, s: Dictionary) -> void:
+func _do_move(src: Dictionary, dest: Dictionary, save: Dictionary) -> void:
 	var src_data := FileAccess.get_file_as_bytes(str(src["path"]))
-	var lifted := _fmt().extract_save(src_data, int(s["block"]))
+	var lifted := _fmt().extract_save(src_data, int(save["block"]))
 	if lifted.is_empty():
 		push_warning("[MemoryCardBrowser] could not read the save to move")
 		_build_saves(src)
@@ -442,7 +442,7 @@ func _do_move(src: Dictionary, dest: Dictionary, s: Dictionary) -> void:
 		_build_saves(src)
 		return
 	if not CardSaveOps.delete_save(get_tree(), _fmt(), str(src["path"]),
-			str(src["card_id"]), int(s["block"])):
+			str(src["card_id"]), int(save["block"])):
 		push_warning("[MemoryCardBrowser] '%s' was copied to '%s' but could not be "
-			% [s["name"], dest["label"]] + "removed from '%s' — it is on both" % src["label"])
+			% [save["name"], dest["label"]] + "removed from '%s' — it is on both" % src["label"])
 	_build_saves(src)

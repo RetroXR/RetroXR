@@ -1,93 +1,76 @@
-## Which PlayStation 2s share an i.LINK bus, and keeping LinkCoordinator agreeing.
+## Which consoles share an Ethernet LAN, and keeping LinkCoordinator agreeing.
 ##
-## IEEE 1394 is a bus, not a pair. A lead between two consoles is the two-node
-## case; a hub joins everything plugged into it, and a lead between two hubs joins
-## both of theirs. So no one lead can decide what its consoles are on: the answer
-## is the connected set of consoles, walking through every hub and every lead
-## between them, and it can change when a plug moves at the far side of the room.
+## ILinkBus's job for a different wire, and the same answer: a hub joins
+## everything plugged into it, a lead between two hubs joins both, and a lead
+## straight from one adapter to another is the two-console case. So the LAN a
+## console is on is the connected set of consoles, walking through every hub and
+## every lead, worked out for the whole room at once. See ILinkBus for why that
+## is one static resolver rather than per-lead state; everything here follows it.
 ##
-## That is why this is one static resolver rather than per-lead state, the way
-## PsxLinkCable holds its own pair. Each lead asks it to settle the whole room;
-## the room is a handful of leads, so recomputing it all is cheaper than being
-## clever, and it cannot disagree with itself about which bus a console is on.
+## What differs is the far end. Both cores speak protocol "ethernet" -- one
+## message is one Ethernet frame, broadcast to the bus as a hub repeats it -- but
+## each attaches its own link port: the PS2 fork's network adapter on 1 (beside
+## i.LINK's 0), Dolphin's broadband adapter on 4 (beside the four controller
+## sockets). So an entry carries the port of the socket the walk found, and a
+## GameCube and a PlayStation 2 can share one hub, as they could on a real one;
+## they simply hear each other's broadcasts.
 ##
-## The core side (the PS2 fork's pcsx2/FW.cpp) attaches ONE port, 0, with protocol
-## "ps2-ilink-1394", and handles up to 64 nodes: bus index is the PHY id and the
-## highest is root. Six consoles through one hub were verified with Gran Turismo
-## 3's i.LINK Battle. Every ConnectGroup and Disconnect is a bus reset for every
-## node on the wire, which is also what a real hub does when a plug goes in.
-##
-## One behaviour worth knowing, from the same verification: GT3's driver only
-## learns who is on the bus from a reset that arrives AFTER it has started. A
-## console cabled while still booting sees no later reset and finds nobody. So a
-## console switching back on re-states its whole bus once its core has had time to
-## start (RESTATE_COOLDOWN), and plugging anything else into the hub re-states it
-## too; the one case left is a console that was cabled before it booted and then
-## never sees another plug move -- replugging any lead on that bus fixes it.
-class_name ILinkBus
+## Unlike i.LINK, joining a LAN resets nothing a game sees: a cable going in is
+## frames starting to arrive. The re-statement after a console switches back on
+## is still needed, for ILinkBus.watch's reason -- the coordinator keyed the wire
+## on a core that no longer exists.
+class_name EthernetBus
 extends RefCounted
 
-## Every ILinkCable is in this group; the sweep reads it rather than the plugs.
-const CABLE_GROUP := "ilink_cable"
+## Every EthernetCable is in this group; the sweep reads it rather than the plugs.
+const CABLE_GROUP := "ethernet_cable"
 
-## Physics frames between a console switching back on and its bus being stated
-## again -- PsxLinkCable's cooldown, for its reason: not while the core is still
-## starting.
 const RESTATE_COOLDOWN := 20
 
-## The buses joined right now: key -> {entries, powered, wait}. `entries` is
-## [{libretro, machine, port}] in bus order, which is the order they were handed
-## to ConnectGroup; the key is made from the Libretro nodes in that order, so a
-## different set OR a different order is a different bus.
+## ILinkBus's bookkeeping, kept apart from it: a settle of one wire must never
+## part the other's buses.
 static var _buses: Dictionary = {}
-
-## Which bus each lead was last part of, by the lead's instance id, so a pull can
-## name the machines it was holding after the walk stops finding them.
 static var _cable_bus: Dictionary = {}
-
-## The physics frame the power watch last ran on. Every lead calls it and only
-## the first one each frame does anything.
 static var _watched_frame := -1
-
-## Bus key -> the process frame it was last rejoined on. RetroSystem rejoins
-## every lead touching a console after its core starts or stops, and on a hub
-## that is every spoke of one bus: without this, three leads meant three
-## part/join pairs, six resets on every console for one power switch.
 static var _rejoined: Dictionary = {}
 
-## How many times a bus has been handed to ConnectGroup. Only for tests to
-## count resets by.
+## How many times a LAN has been handed to ConnectGroup. Only for tests.
 static var joins := 0
 
 
 # ── the walk ─────────────────────────────────────────────────────────────────
 
-## What one end of a lead is plugged into: the console, the hub, or null.
-static func end_node(cable: CompositeCable, e: int) -> Node3D:
+## What one end of a lead is plugged into -- {node, port} where node is the
+## console (its adapter's or its own socket) or a hub -- or {} for a loose end.
+static func end_of(cable: CompositeCable, e: int) -> Dictionary:
 	var plugs: Array = cable._end_plugs(e)
 	if plugs.is_empty():
-		return null
+		return {}
 	var plug := plugs[0] as RcaPlug
 	if plug == null:
-		return null
-	var port := plug.seated_port() as ILinkPort
+		return {}
+	var port := plug.seated_port() as EthernetPort
 	if port == null:
-		return null
+		return {}
 	var machine := port.get_machine()
 	if machine != null:
-		return machine
-	return port.get_hub()
+		return {"node": machine, "port": port.link_port}
+	var hub := port.get_hub()
+	if hub != null:
+		return {"node": hub, "port": -1}
+	return {}
 
 
-## Every connected set in the room, as [{machines, cables}], each list in
+## Every connected set in the room, as [{machines, ports, cables}] -- `ports`
+## maps a console's instance id to its Ethernet link port -- each list in
 ## LinkCable.stable_key order so every netplay peer names the same bus head.
-## `exclude` is a lead to leave out -- one that is on its way out of the tree.
 static func components(tree: SceneTree, exclude: Node = null) -> Array:
 	var out: Array = []
 	if tree == null:
 		return out
 	var parent := {}
 	var nodes := {}
+	var ports := {}
 	var edges: Array = []
 	for n: Node in tree.get_nodes_in_group(CABLE_GROUP):
 		if n == exclude or not is_instance_valid(n) or n.is_queued_for_deletion():
@@ -95,23 +78,28 @@ static func components(tree: SceneTree, exclude: Node = null) -> Array:
 		var cable := n as CompositeCable
 		if cable == null:
 			continue
-		var a := end_node(cable, CompositeCable.End.A)
-		var b := end_node(cable, CompositeCable.End.B)
-		if a == null or b == null:
+		var a := end_of(cable, CompositeCable.End.A)
+		var b := end_of(cable, CompositeCable.End.B)
+		if a.is_empty() or b.is_empty():
 			continue
-		nodes[a.get_instance_id()] = a
-		nodes[b.get_instance_id()] = b
-		_union(parent, a.get_instance_id(), b.get_instance_id())
-		edges.append({"cable": cable, "root": a.get_instance_id()})
+		for end: Dictionary in [a, b]:
+			var node: Node3D = end["node"]
+			nodes[node.get_instance_id()] = node
+			if int(end["port"]) >= 0:
+				ports[node.get_instance_id()] = int(end["port"])
+		var ida := (a["node"] as Object).get_instance_id()
+		_union(parent, ida, (b["node"] as Object).get_instance_id())
+		edges.append({"cable": cable, "root": ida})
 
 	var by_root := {}
 	for id: int in nodes:
 		var root := _find(parent, id)
 		if not by_root.has(root):
-			by_root[root] = {"machines": [], "cables": []}
+			by_root[root] = {"machines": [], "ports": {}, "cables": []}
 		var node: Node3D = nodes[id]
-		if node.has_method("get_libretro_node"):
+		if MachineLookup.is_machine(node):
 			(by_root[root]["machines"] as Array).append(node)
+			(by_root[root]["ports"] as Dictionary)[id] = int(ports.get(id, 0))
 	for edge: Dictionary in edges:
 		var root := _find(parent, int(edge["root"]))
 		(by_root[root]["cables"] as Array).append(edge["cable"])
@@ -126,7 +114,6 @@ static func components(tree: SceneTree, exclude: Node = null) -> Array:
 	return out
 
 
-## The set this lead is part of, or {} for a lead with a loose end.
 static func component_of(tree: SceneTree, cable: Node) -> Dictionary:
 	for comp: Dictionary in components(tree):
 		if (comp["cables"] as Array).has(cable):
@@ -134,28 +121,25 @@ static func component_of(tree: SceneTree, cable: Node) -> Dictionary:
 	return {}
 
 
-## The bus this lead is part of, as [{machine, port}] -- the shape every link
-## lead's linked_machines() answers in. Empty below two consoles.
+## The LAN this lead is part of, as [{machine, port}]. Empty below two consoles.
 static func bus_of(tree: SceneTree, cable: Node) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var comp := component_of(tree, cable)
 	if comp.is_empty() or (comp["machines"] as Array).size() < 2:
 		return out
 	for machine: Node3D in comp["machines"]:
-		out.append({"machine": machine, "port": 0})
+		out.append({"machine": machine,
+			"port": int((comp["ports"] as Dictionary).get(machine.get_instance_id(), 0))})
 	return out
 
 
-## The bus this lead was last joined into, in the same shape, for a pull.
+## The LAN this lead was last joined into, in the same shape, for a pull.
 static func held_for(cable: Node) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	var key: String = _cable_bus.get(cable.get_instance_id(), "")
 	if key.is_empty() or not _buses.has(key):
 		return out
 	for entry: Dictionary in _buses[key]["entries"]:
-		# Checked BEFORE binding, everywhere below as well: binding a freed object
-		# to a typed variable faults on the assignment (PsxLinkCable._log_ends),
-		# and a bus outlives the consoles on it for as long as a teardown takes.
 		if is_instance_valid(entry.get("machine")):
 			out.append({"machine": entry["machine"], "port": int(entry.get("port", 0))})
 	return out
@@ -163,30 +147,21 @@ static func held_for(cable: Node) -> Array[Dictionary]:
 
 # ── keeping the coordinator in step ─────────────────────────────────────────
 
-## Work the whole room out again and make LinkCoordinator match it.
-##
-## Stale buses are parted BEFORE new ones are joined, and only their orphans: a
-## console that is moving from one bus to another is handed straight to
-## ConnectGroup, which takes a listed port off whatever bus it was on. Parting it
-## first would be a second reset for nothing, and parting it after would undo
-## the join.
-##
-## `asker` is the lead the change came from; a netplay session gets to take the
-## decision through it (CompositeCable.netplay_took_bus), as with every lead.
+## Work the whole room out again and make LinkCoordinator match it -- ILinkBus
+## .settle, step for step: stale LANs parted first and only their orphans, new
+## ones joined, a netplay session given the decision through `asker`.
 static func settle(tree: SceneTree, exclude: Node = null, asker: CompositeCable = null) -> void:
 	var wanted := {}
 	var wanted_members := {}
-	# Rebuilt from nothing each time, so a lead that has been pulled cannot go on
-	# naming a bus it is no longer part of.
 	_cable_bus.clear()
 	for comp: Dictionary in components(tree, exclude):
-		var entries := _entries(comp["machines"])
+		var entries := _entries(comp["machines"], comp["ports"])
 		if entries.size() < 2:
 			continue
 		var key := _key(entries)
 		wanted[key] = {"entries": entries, "cables": comp["cables"]}
 		for entry: Dictionary in entries:
-			wanted_members[(entry["libretro"] as Object).get_instance_id()] = true
+			wanted_members[_member_key(entry)] = true
 
 	for key: String in _buses.keys():
 		if wanted.has(key):
@@ -198,9 +173,9 @@ static func settle(tree: SceneTree, exclude: Node = null, asker: CompositeCable 
 		for entry: Dictionary in bus["entries"]:
 			if not is_instance_valid(entry.get("libretro")):
 				continue
-			var lib: Libretro = entry["libretro"]
-			if wanted_members.has(lib.get_instance_id()):
+			if wanted_members.has(_member_key(entry)):
 				continue
+			var lib: Libretro = entry["libretro"]
 			lib.LinkDisconnect(int(entry.get("port", 0)))
 		_log("parted", bus["entries"])
 
@@ -219,8 +194,7 @@ static func settle(tree: SceneTree, exclude: Node = null, asker: CompositeCable 
 		_log("joined", entries)
 
 
-## Take the bus this lead is on off the wire entirely -- CompositeCable.rejoin's
-## first half, and what a lead leaving the room does before the rest settle.
+## Take the LAN this lead is on off the wire entirely.
 static func forget(cable: Node) -> void:
 	var key: String = _cable_bus.get(cable.get_instance_id(), "")
 	_cable_bus.erase(cable.get_instance_id())
@@ -235,8 +209,8 @@ static func forget(cable: Node) -> void:
 	_log("parted", bus["entries"])
 
 
-## CompositeCable.rejoin for an i.LINK lead: take its bus off the wire and join
-## it again, once per bus per frame however many of its leads ask.
+## CompositeCable.rejoin for an Ethernet lead, once per LAN per frame however
+## many of its spokes ask.
 static func rejoin(cable: CompositeCable) -> void:
 	var frame := Engine.get_process_frames()
 	var key: String = _cable_bus.get(cable.get_instance_id(), "")
@@ -251,12 +225,9 @@ static func rejoin(cable: CompositeCable) -> void:
 			_rejoined[k] = frame
 
 
-## A cabled bus can stop meaning anything without a plug moving -- PsxLinkCable's
-## _watch explains why for a pair, and it is the same for six: switching a console
-## off destroys the core the coordinator keyed the wire on, and switching it back
-## on attaches a new core to no bus at all. So the edge back ON re-states the
-## whole bus, which is also the bus reset the other consoles' drivers need to
-## notice it came back.
+## ILinkBus.watch: a console switching back on re-states its LAN once its core
+## has had time to start, and a console freed out from under one re-settles the
+## room without it.
 static func watch(tree: SceneTree) -> void:
 	var frame := Engine.get_physics_frames()
 	if frame == _watched_frame:
@@ -277,8 +248,6 @@ static func watch(tree: SceneTree) -> void:
 			if on and not bool(powered.get(machine.get_instance_id(), true)):
 				came_back = true
 			powered[machine.get_instance_id()] = on
-		# Held over a cooldown rather than dropped: a second console switched on
-		# a few frames after the first still has to be re-stated.
 		bus["pending"] = bool(bus["pending"]) or came_back
 		if int(bus["wait"]) > 0:
 			bus["wait"] = int(bus["wait"]) - 1
@@ -289,7 +258,6 @@ static func watch(tree: SceneTree) -> void:
 			bus["wait"] = RESTATE_COOLDOWN
 			_log("re-stated", bus["entries"])
 
-	# A console freed out from under a bus: work the room out again without it.
 	if gone:
 		for key: String in _buses.keys():
 			for entry: Dictionary in _buses[key]["entries"]:
@@ -301,13 +269,14 @@ static func watch(tree: SceneTree) -> void:
 
 # ── helpers ─────────────────────────────────────────────────────────────────
 
-static func _entries(machines: Array) -> Array:
+static func _entries(machines: Array, ports: Dictionary) -> Array:
 	var out: Array = []
 	for machine: Node3D in machines:
 		var lib: Libretro = machine.get_libretro_node()
 		if lib == null:
 			continue
-		out.append({"libretro": lib, "machine": machine, "port": 0})
+		out.append({"libretro": lib, "machine": machine,
+			"port": int(ports.get(machine.get_instance_id(), 0))})
 	return out
 
 
@@ -318,10 +287,14 @@ static func _as_bus(entries: Array) -> Array[Dictionary]:
 	return out
 
 
+static func _member_key(entry: Dictionary) -> String:
+	return "%d:%d" % [(entry["libretro"] as Object).get_instance_id(), int(entry["port"])]
+
+
 static func _key(entries: Array) -> String:
 	var parts := PackedStringArray()
 	for entry: Dictionary in entries:
-		parts.append("%d:%d" % [(entry["libretro"] as Object).get_instance_id(), int(entry["port"])])
+		parts.append(_member_key(entry))
 	return ",".join(parts)
 
 
@@ -365,8 +338,8 @@ static var _by_stable_key := func(l: Node, r: Node) -> bool:
 
 
 static func _log(verb: String, entries: Array) -> void:
-	# Peer counts come back from the cores rather than from the room, which makes
-	# them the one number that tells a cabled bus a core never joined apart from
+	# Peer counts come back from the cores, which is what tells a cabled LAN a
+	# core never joined (its adapter off, or a core without the cable) apart from
 	# a working one -- see PsxLinkCable._log_ends.
 	var parts := PackedStringArray()
 	for entry: Dictionary in entries:
@@ -375,4 +348,4 @@ static func _log(verb: String, entries: Array) -> void:
 		var lib: Libretro = entry["libretro"]
 		var machine: Node = entry["machine"]
 		parts.append("%s (%d peers)" % [machine.name, lib.LinkPeerCount(int(entry.get("port", 0)))])
-	print("[ILinkBus] %s %d console(s): %s" % [verb, entries.size(), ", ".join(parts)])
+	print("[EthernetBus] %s %d console(s): %s" % [verb, entries.size(), ", ".join(parts)])

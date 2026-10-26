@@ -82,11 +82,11 @@ func block_of(data: PackedByteArray, name: String) -> int:
 	return ThreeDoNvram.index_of(data, name)
 
 
-func extract_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
+func extract_save(data: PackedByteArray, handle: int) -> PackedByteArray:
 	for e: Dictionary in ThreeDoNvram.list_files(data):
-		if int(e["at"]) != first_block:
+		if int(e["at"]) != handle:
 			continue
-		var contents := ThreeDoNvram.read_file(data, first_block)
+		var contents := ThreeDoNvram.read_file(data, handle)
 		if contents.size() != int(e["blocks"]) or int(e["bytes"]) > contents.size():
 			return PackedByteArray()
 		return ThreeDoNvram.make_save(str(e["name"]), int(e["type"]), int(e["unique"]),
@@ -124,8 +124,8 @@ func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArra
 		int(parsed["unique"]), int(parsed["bytes"]), parsed["contents"])
 
 
-func delete_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
-	return ThreeDoNvram.delete_file(data, first_block)
+func delete_save(data: PackedByteArray, handle: int) -> PackedByteArray:
+	return ThreeDoNvram.delete_file(data, handle)
 
 
 func free_blocks(data: PackedByteArray) -> int:

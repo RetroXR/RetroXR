@@ -1569,7 +1569,7 @@ func _d_fast_stages() -> void:
 	if mat != null:
 		_check_eq(mat.get_shader_parameter("source_rect"), Vector4(0.0, 0.5, 0.5, 0.5), "packed window retained")
 		_check_eq(tv._display.screen_light_rect(mat), Rect2(0.0, 0.5, 0.5, 0.5), "light sampler recognizes fast packed source")
-		tv.stereo_mode = 2
+		tv.stereo_mode = RetroTV.StereoMode.RIGHT_EYE
 		await _wait(3)
 		_check_eq(mat.get_shader_parameter("stereo_mode"), 2, "stereo switch reaches the fast shader")
 		_check_eq(tv._display.screen_light_rect(mat), Rect2(0.5, 0.5, 0.5, 0.5), "right-eye light region retained")

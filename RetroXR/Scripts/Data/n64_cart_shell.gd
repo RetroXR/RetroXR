@@ -42,15 +42,13 @@ const REGION_MARKETS := {
 	"sweden": "eu", "se": "eu", "scandinavia": "eu",
 }
 
-static var _gamelists := GamelistManager.new()
-static var _gamelist_stamps := {}
+const SYSTEMID := "n64"
 
 
 ## "us", "eu", "au", "jp", or "" when neither the scraper nor the header says.
 ## Nothing in the ROM saying, the cartridge's pinned market, else the player's.
 static func market(systemid: String, rom_path: String, pinned := "") -> String:
-	var found := rom_market(systemid, rom_path)
-	return found if not found.is_empty() else RegionalNames.cart_market_or(pinned)
+	return CartRomInfo.market_or_pinned(rom_market(systemid, rom_path), pinned)
 
 
 ## The market the ROM itself names, or "" -- market() without the fallback.
@@ -73,11 +71,25 @@ static func body_model_for_region(region: String, market_name: String) -> String
 	return body_model(market_name)
 
 
-static func preset_for_rom(rom_path: String, market_name: String = "") -> StringName:
-	var header := read_header(rom_path)
-	if market_name.is_empty():
-		market_name = header_market(header)
-	return preset_for_header(header, market_name)
+## The shell a ROM spawns in, in the market() it was sold in -- the same
+## (rom_path, systemid, pinned) contract SnesCartShell and NesCartShell keep. One
+## with a market in hand already asks preset_for_header.
+static func preset_for_rom(rom_path: String, systemid := SYSTEMID, pinned := "") -> StringName:
+	return preset_for_header(read_header(rom_path), market(systemid, rom_path, pinned))
+
+
+# --- The cart-shell protocol (ModCartShells' table of the game's own shells) ---
+
+## The body a cartridge wears: a forced region's, else its market's.
+static func cart_body(systemid: String, rom_path: String, body_region: String,
+		_shell_preset: StringName, pinned: String) -> String:
+	return body_model_for_region(body_region, market(systemid, rom_path, pinned))
+
+
+## {palette, preset}: the N64 palette and this ROM's shell in it.
+static func cart_finish(systemid: String, rom_path: String, _model_path: String,
+		pinned: String) -> Dictionary:
+	return {"palette": SYSTEMID, "preset": preset_for_rom(rom_path, systemid, pinned)}
 
 
 static func preset_for_header(header: PackedByteArray, market_name: String = "") -> StringName:
@@ -118,29 +130,11 @@ static func header_market(header: PackedByteArray) -> String:
 
 ## The region the scraper wrote for this ROM in the system's gamelist, or "".
 static func scraped_region(systemid: String, rom_path: String) -> String:
-	if systemid.is_empty() or rom_path.is_empty():
-		return ""
-	var path := RomLibrary.rom_dir_for_system(systemid).path_join("gamelist.json")
-	var stamp := FileAccess.get_modified_time(path) if FileAccess.file_exists(path) else 0
-	if _gamelist_stamps.get(systemid, -1) != stamp:
-		_gamelists.invalidate(systemid)
-		_gamelist_stamps[systemid] = stamp
-	var game := _gamelists.get_game_for_rom(systemid, rom_path)
-	for rom: Dictionary in game.get("roms", []):
-		if str(rom.get("path", "")).get_file() == rom_path.get_file():
-			return str(rom.get("region", ""))
-	return ""
+	return str(CartRomInfo.scraped_rom(systemid, rom_path).get("region", ""))
 
 
 static func read_header(rom_path: String) -> PackedByteArray:
-	if rom_path.is_empty():
-		return PackedByteArray()
-	var f := FileAccess.open(rom_path, FileAccess.READ)
-	if f == null:
-		return PackedByteArray()
-	var bytes := f.get_buffer(HEADER_BYTES)
-	f.close()
-	return bytes
+	return CartRomInfo.read_bytes(rom_path, HEADER_BYTES)
 
 
 ## Where the big-endian country byte lies in this dump's byte order, or -1.

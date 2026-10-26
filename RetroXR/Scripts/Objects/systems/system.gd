@@ -18,6 +18,44 @@ static func has_primitive_model(sysid: String) -> bool:
 	return SystemModelRegistry.has_plain_alternative(sysid)
 
 
+## Every Libretro method this script calls that the extension grew after the
+## scripts first called it. The in-tree libretro-godot binds all of them, so
+## each is called directly; what this list is for is a STALE binary.
+##
+## build.py is per platform and the binaries are gitignored, so a windows
+## rebuild leaves android on whatever was last built for it -- and a stale
+## build says nothing until the renamed method is CALLED, which is how "PDF
+## manuals do not open on Quest" shipped for 18 days. So the first machine to
+## be built asks ClassDB once and says, loudly and by name, which are missing.
+const LIBRETRO_API: PackedStringArray = [
+	"SetRtcPath", "SetSramRegionPath", "SetTransferPak", "SetTransferPakClock",
+	"SetControllerPortDevice", "HasControllerScreens", "GetControllerAudioVoiceId",
+	"GetCoreDebugInfo",
+]
+static var _stale_libretro: PackedStringArray = PackedStringArray()
+static var _libretro_api_checked := false
+
+
+## The LIBRETRO_API methods this process's extension lacks: empty on a build
+## that matches the scripts. Checked and logged once per process.
+static func stale_libretro_methods() -> PackedStringArray:
+	if _libretro_api_checked:
+		return _stale_libretro
+	_libretro_api_checked = true
+	if not ClassDB.class_exists("Libretro"):
+		push_error("[RetroSystem] the libretro-godot extension is not loaded: no machine can run")
+		_stale_libretro = LIBRETRO_API.duplicate()
+		return _stale_libretro
+	for method in LIBRETRO_API:
+		if not ClassDB.class_has_method("Libretro", method):
+			_stale_libretro.append(method)
+	if not _stale_libretro.is_empty():
+		push_error(("[RetroSystem] STALE libretro-godot extension for this platform: Libretro "
+			+ "lacks %s. Rebuild it (python Tools/build.py <platform>, both targets).")
+			% ", ".join(_stale_libretro))
+	return _stale_libretro
+
+
 ## The libretro core filename (without extension), e.g. "fceumm".
 ## If empty at power_on(), looked up from CoreDefaults using systemid.
 @export var core_name: String = ""
@@ -178,14 +216,6 @@ var _last_av_routing: String = ""
 ## Built by on_av_topology_changed, printed by _apply_av_feed.
 var _av_cord_summary: String = "none"
 
-# Cable scene to instantiate
-const CABLE_SCENE := preload("res://Scenes/Objects/cables/cable.tscn")
-# The generic expansion-unit scene — see _seed_default_occupant.
-const EXPANSION_SCENE := preload("res://Scenes/Objects/expansion.tscn")
-# The lid over an expansion bay — see _seed_expansion_cover.
-const EXPANSION_COVER_SCENE := preload("res://Scenes/Objects/expansion_cover.tscn")
-# The cover over a unit's own socket -- see seed_port_covers.
-const PORT_COVER_SCENE := preload("res://Scenes/Objects/port_cover.tscn")
 # Window material for TVs on multi-output hardware (dual-screen handhelds).
 const SCREEN_WINDOW_SHADER := preload("res://Shaders/screen_window.gdshader")
 
@@ -197,9 +227,12 @@ const SCREEN_WINDOW_SHADER := preload("res://Shaders/screen_window.gdshader")
 ## started defensively bounds-checking three DIFFERENT arrays against the same
 ## length, which is the shape of a bug waiting for the twelfth array.
 ##
-## The node references stay untyped, as the arrays were: a channel can outlive
-## what it points at, and a typed field throws on assignment from a freed object
-## the way a cast does. Read them through _live().
+## The node references are typed. A channel can outlive what it points at, but
+## that is safe: a field is only ever ASSIGNED a live node or null, and reading a
+## freed one is not an error -- passing it to a typed local is, so every read
+## that may meet a freed node still goes through _live(). `tv` alone stays
+## untyped: probes stand a bare Node in for a set to satisfy _has_display()
+## (saturn_session_probe), and a typed field would refuse it.
 class VideoChannel:
 	## From the model: what this output is called, which part of the core's
 	## framebuffer it shows, whether it takes touch, and its stereo eye offset.
@@ -211,18 +244,19 @@ class VideoChannel:
 	## The lead: where it leaves the machine, the cable, its picture plug, its
 	## audio pair ([left, right], empty on a channel the model gives one wire),
 	## the rope and how far it reaches.
-	var attach = null
-	var cable = null
-	var plug = null
+	var attach: Node3D = null
+	var cable: Node3D = null
+	var plug: CablePlug = null
 	var audio_plugs: Array = []
-	var rope = null
+	var rope: VerletRope = null
 	var max_reach: float = 0.0
-	## The set this channel is plugged into, and its touch surface on that set.
+	## The set this channel is plugged into (a RetroTV; see above), and its touch
+	## surface on that set.
 	var tv = null
-	var touch_surface = null
+	var touch_surface: TVTouchSurface = null
 	## A set to reconnect to once the cables exist, and which of its inputs for
 	## (save/load restore, which runs before the lead is built).
-	var pending_tv = null
+	var pending_tv: RetroTV = null
 	var pending_input: int = 0
 
 	static func from_model(d: Dictionary) -> VideoChannel:
@@ -240,6 +274,16 @@ class VideoChannel:
 # connected_tv stays the channel-0 TV for external readers (persistence,
 # netplay OSD).
 var _channels: Array[VideoChannel] = []
+
+## The captive lead built for each channel -- spawning, parking, clamping and
+## freeing it -- lifted out into SystemVideoLead. The channels stay HERE: they are
+## the one record the picture and sound routing both read.
+var _video_lead: SystemVideoLead = null
+
+
+## The video-out channels, for SystemVideoLead. The same array, not a copy.
+func video_channels() -> Array[VideoChannel]:
+	return _channels
 
 # A/V sockets, for hardware that wears them instead of a captive lead (the NES).
 # _av_speaker is which of the set's speakers the one mono cord reaches — 0 left,
@@ -359,10 +403,9 @@ const MEMPAK_SIZE := N64Card.CARD_SIZE
 @onready var _sync_button: VRButton = $SyncButton
 @onready var _options_panel: CoreOptionsPanel = $CoreOptionsPanel
 @onready var _system_name_label: Label3D = $SystemNameLabel
-## Pads this console is wired to, built by _spawn_captive_controllers.
-var _captive_controllers: Array = []
-## The recesses those pads lie in, one per pad -- a Famicom's two wells.
-var _controller_wells: Array = []
+## Pads this console is wired to and the wells they lie in -- see
+## SystemCaptivePads. Made in _init; the pads themselves come with the model.
+var _captive_pads: SystemCaptivePads = null
 
 @onready var _port_zones: Array = [
 	$ControllerPort1,
@@ -446,26 +489,14 @@ func _init() -> void:
 	_memcards.name = "MemoryCardController"
 	add_child(_memcards)
 	_memcards.setup(self)
-	_vmu = VmuStorage.new()
-	_vmu.name = "VmuStorage"
-	add_child(_vmu)
-	_vmu.setup(self)
-	_sega_cd = SegaCdStorage.new()
-	_sega_cd.name = "SegaCdStorage"
-	add_child(_sega_cd)
-	_sega_cd.setup(self)
-	_saturn = SaturnStorage.new()
-	_saturn.name = "SaturnStorage"
-	add_child(_saturn)
-	_saturn.setup(self)
-	_three_do = ThreeDoStorage.new()
-	_three_do.name = "ThreeDoStorage"
-	add_child(_three_do)
-	_three_do.setup(self)
-	_xbox = XboxStorage.new()
-	_xbox.name = "XboxStorage"
-	add_child(_xbox)
-	_xbox.setup(self)
+	# The per-console storages, in the order every lifecycle walk takes them --
+	# see ConsoleStorage. All five on every machine: another machine asks this
+	# one's whether a shared folder is free.
+	_vmu = _add_storage(VmuStorage.new(), "VmuStorage") as VmuStorage
+	_sega_cd = _add_storage(SegaCdStorage.new(), "SegaCdStorage") as SegaCdStorage
+	_saturn = _add_storage(SaturnStorage.new(), "SaturnStorage") as SaturnStorage
+	_three_do = _add_storage(ThreeDoStorage.new(), "ThreeDoStorage") as ThreeDoStorage
+	_xbox = _add_storage(XboxStorage.new(), "XboxStorage") as XboxStorage
 	_audio = SystemAudio.new()
 	_audio.name = "SystemAudio"
 	add_child(_audio)
@@ -474,11 +505,32 @@ func _init() -> void:
 	_expansion_launch.name = "ExpansionLaunch"
 	add_child(_expansion_launch)
 	_expansion_launch.setup(self)
+	_captive_pads = SystemCaptivePads.new()
+	_captive_pads.name = "SystemCaptivePads"
+	add_child(_captive_pads)
+	_captive_pads.setup(self)
+	_video_lead = SystemVideoLead.new()
+	_video_lead.name = "SystemVideoLead"
+	add_child(_video_lead)
+	_video_lead.setup(self)
+	_expansions = SystemExpansions.new()
+	_expansions.name = "SystemExpansions"
+	add_child(_expansions)
+	_expansions.setup(self)
+
+
+func _add_storage(storage: ConsoleStorage, node_name: String) -> ConsoleStorage:
+	storage.name = node_name
+	add_child(storage)
+	storage.setup(self)
+	_storages.append(storage)
+	return storage
 
 
 func _ready() -> void:
 	super._ready()
-	add_to_group("retro_system")
+	stale_libretro_methods()
+	add_to_group(ExpansionPort.GROUP_SYSTEM)
 	# Unconditional, unlike HandheldInput and WiiLink: every machine can be asked
 	# for a state, and capture_gate answers for the ones that cannot give
 	# one. Built here so the forwarders below never see a null.
@@ -527,7 +579,7 @@ func _ready() -> void:
 	if _model.uses_av_ports():
 		_build_av_ports()
 	else:
-		_spawn_cables()
+		_video_lead.spawn()
 	# Last of the sockets: its A/V ones are only built above.
 	_check_listed_sockets()
 	_update_name_label()
@@ -539,7 +591,7 @@ func _ready() -> void:
 	_build_expansion_hardware.call_deferred()
 	# A machine spawns switched off, and its leads are clamped only once they
 	# exist. Both ticks are armed by the things that make them worth running:
-	# power_on/net_start_core and _apply_video_out.
+	# power_on/net_start_core and SystemVideoLead.apply_video_out.
 	set_process(false)
 	set_physics_process(false)
 
@@ -743,7 +795,7 @@ func _load_system_model() -> void:
 	_model.configure_collision(self)
 	_build_port_zones()
 	_build_usb_ports()
-	_spawn_captive_controllers()
+	_captive_pads.spawn(_port_zones)
 	_build_memcard_slots()
 	_build_disc_loader(is_bespoke)
 	_build_handheld()
@@ -873,130 +925,11 @@ func _build_usb_ports() -> void:
 	_model.configure_usb_ports(_usb_zones)
 
 
-## Pads this hardware is wired to rather than socketed for, built with the
-## machine and seated at once.
-##
-## They are deliberately NOT in the "spawned" group, so nothing saves them and
-## nothing syncs them as objects: the console rebuilds them every time it is
-## built, the way it rebuilds its captive A/V lead, and _exit_tree takes them
-## away again. A captive pad that persistence could see would come back as a
-## second pad on every load.
-##
-## The port is locked afterwards, and its recess and number hidden. A hand that
-## could pull the plug would be pulling out a lead the machine has no socket for,
-## leaving a pad with a cord running into a console that cannot take it.
-func _spawn_captive_controllers() -> void:
-	var paths: Array = _model.captive_controllers()
-	if paths.is_empty():
-		return
-	var rests: Array = _model.captive_controller_rests()
-	var parent: Node = get_tree().current_scene
-	if parent == null:
-		parent = get_parent()
-	for i in paths.size():
-		if i >= _port_zones.size():
-			break
-		var scene: PackedScene = load(str(paths[i]))
-		if scene == null:
-			push_warning("RetroSystem: captive controller scene missing: %s" % str(paths[i]))
-			continue
-		var pad: Node3D = scene.instantiate()
-		pad.set("captive", true)
-		parent.add_child(pad)
-		if i < rests.size():
-			pad.global_transform = global_transform * (rests[i] as Transform3D)
-		# The route is authored in the model's frame and the rope lives in world
-		# space, so it is carried over here. Asked for per pad rather than once,
-		# because it is spent against that pad's own cord length.
-		var routes: Array = _model.captive_cord_routes(_captive_cord_length(pad))
-		if i < routes.size():
-			var route: PackedVector3Array = routes[i]
-			var world: PackedVector3Array = PackedVector3Array()
-			for point in route:
-				world.append(global_transform * point)
-			pad.set("captive_cord_route", world)
-		_captive_controllers.append(pad)
-		# The cord is built one deferred call later, so this may be a pending
-		# restore rather than a seat; either way the pad ends up in the port.
-		pad.restore_port_connection(self, i)
-		_port_zones[i].enabled = false
-		for hidden in ["PortRecess", "PortLabel"]:
-			var node := _port_zones[i].get_node_or_null(hidden) as Node3D
-			if node != null:
-				node.hide()
-		if i < rests.size():
-			_build_controller_well(i, rests[i] as Transform3D, pad)
-
-
-## The rest length of a captive pad's cord. `cable_length` 0 means the pad keeps
-## whatever controller_cable.tscn ships, which is 1.80 m.
-func _captive_cord_length(pad: Node3D) -> float:
-	var declared := float(pad.get("cable_length"))
-	return declared if declared > 0.0 else 1.8
-
-
-## The recess a captive pad lies in, as a snap zone, so it can be put back where
-## it came from. Its transform IS the rest: a pad carries no snap grab point, so
-## a zone seats one at its own basis (measured, not assumed).
-##
-## It takes this console's own captive pads and nothing else. The group alone
-## would offer the well to every hand-held device in the room, and `snap_require`
-## cannot be left empty or the zone never lights a ghost and no ray grab can
-## reach it.
-func _build_controller_well(index: int, rest: Transform3D, pad: Node3D) -> void:
-	var well: XRToolsSnapZone = SNAP_ZONE_SCENE.instantiate()
-	well.name = "ControllerWell%d" % (index + 1)
-	well.snap_require = "hand_held_device"
-	well.snap_filter = _accepts_captive_pad.bind(index)
-	well.grab_distance = 0.06
-	add_child(well)
-	well.transform = rest
-	_controller_wells.append(well)
-	well.pick_up_object(pad)
-
-
-## A well's gate: the ONE pad that came out of it. A captive pad is moulded onto
-## a cord out of the back of this console, and its cord reaches its own rear
-## corner and no other -- so Controller II in Controller I's well is not a tidier
-## arrangement, it is a cord across the cartridge deck.
-##
-## Read through the array into a Variant rather than comparing against a captured
-## node: a well outlives its pad by a frame during teardown.
-func _accepts_captive_pad(obj: Node3D, index: int) -> bool:
-	if obj == null or index < 0 or index >= _captive_controllers.size():
-		return false
-	var pad: Variant = _captive_controllers[index]
-	return is_instance_valid(pad) and obj == pad
-
-
-## The pads built above. Handed out so a teardown or a test can ask what came
-## with the machine rather than searching the room for it.
+## The pads this console is wired to (a Famicom's two), built with the machine.
+## Handed out so a teardown or a test can ask what came with the machine rather
+## than searching the room for it. See SystemCaptivePads.
 func captive_controllers() -> Array:
-	return _captive_controllers
-
-
-func _free_captive_controllers() -> void:
-	# Let the wells go first. A snap zone never clears picked_up_object when what
-	# it holds is freed, and these outlive the pads by a frame.
-	for held: Variant in _controller_wells:
-		var well := held as XRToolsSnapZone
-		if is_instance_valid(well):
-			well.enabled = false
-			well.queue_free()
-	_controller_wells.clear()
-	for entry: Variant in _captive_controllers:
-		var pad := entry as Node
-		if not is_instance_valid(pad):
-			continue
-		# The cord is a sibling rather than a child -- a rope between two bodies
-		# cannot be parented to either -- so freeing the pad alone would leave it
-		# standing in the room. storage_box does the same pair.
-		if pad.has_method("cable_instance"):
-			var cord: Node = pad.cable_instance()
-			if is_instance_valid(cord):
-				cord.queue_free()
-		pad.queue_free()
-	_captive_controllers.clear()
+	return _captive_pads.pads()
 
 
 ## Show the memory-card slots this console takes, and let the model place
@@ -1254,17 +1187,15 @@ func clear_audio_head_lock() -> void:
 
 ## Set the audio volume for the running libretro instance (0.0 = silent, 1.0 = 100%).
 ##
-## Stays on RetroSystem rather than moving to the component with its body: every
-## caller reaches it by DUCK TYPING — tv.gd, speaker_pair.gd and the handheld,
-## PSP and Virtual Boy models all test has_method("set_audio_volume") on whatever
-## is plugged in, and a VCR and a DVD player answer the same name.
+## Stays on RetroSystem rather than moving to the component with its body: it is
+## part of the contract a set calls on whatever is plugged into it, by NAME, and
+## a VCR and a DVD player answer the same names. AvSourceContract is that list.
 func set_audio_volume(volume: float) -> void:
 	_audio.set_volume(volume)
 
 
-## Part of the TV contract: the set's mono switch. Reached by duck typing from
-## tv.gd exactly as set_audio_volume is, so it stays here too.
-func set_audio_channel_mode(mode: int) -> void:
+## Part of the TV contract (AvSourceContract): the set's mono switch.
+func set_audio_channel_mode(mode: SpatialAudioEmitter.ChannelMode) -> void:
 	_audio.set_channel_mode(mode)
 
 
@@ -1434,11 +1365,10 @@ func get_rf_channel() -> int:
 ## nothing else would prompt the set to re-read it.
 func on_rf_channel_changed() -> void:
 	for chan: VideoChannel in _channels:
-		if is_instance_valid(chan.tv) \
-				and chan.tv.has_method("on_rf_channel_changed"):
-			chan.tv.call("on_rf_channel_changed")
-	if is_instance_valid(_av_video_tv) \
-			and _av_video_tv.has_method("on_rf_channel_changed"):
+		var tv := _live(chan.tv) as RetroTV
+		if tv != null:
+			tv.on_rf_channel_changed()
+	if is_instance_valid(_av_video_tv):
 		_av_video_tv.on_rf_channel_changed()
 
 
@@ -1451,7 +1381,7 @@ func on_tv_connected(tv: RetroTV, plug: CablePlug = null) -> void:
 	_channels[ch].tv = tv
 	if ch == 0:
 		connected_tv = tv
-	_seat_audio_pair(ch, tv)
+	_video_lead.seat_audio_pair(ch, tv)
 	_apply_audio_playing()
 	if _channels.size() > 1:
 		# The set samples our picture through get_video_stage; a touch channel
@@ -1476,49 +1406,11 @@ func on_tv_disconnected(plug: CablePlug = null) -> void:
 	_channels[ch].tv = null
 	if ch == 0:
 		connected_tv = null
-	_release_audio_pair(ch, tv)
+	_video_lead.release_audio_pair(ch, tv)
 	_apply_audio_playing()
 	if _channels.size() > 1:
 		_remove_touch_surface(ch)
 		return
-
-
-## Put the lead's audio pair into the L and R sockets of the input the picture
-## cord just went into, and take them out again when it leaves.
-##
-## The pair travels with the picture because on a CAPTIVE lead the sound already
-## does: a machine with no A/V sockets of its own has one connection to a set, and
-## on_tv_connected is the whole of it. Leaving the two connectors dangling in front
-## of the television while the yellow one was seated would have said the opposite —
-## that they route something, and that this lead was half plugged in.
-##
-## Hardware that wears real sockets (the NES, the Wii) never comes through here:
-## it has no captive lead at all, and a spawned CompositeCable resolves every cord
-## on its own. See CompositeCable._resolve.
-func _seat_audio_pair(ch: int, tv: RetroTV) -> void:
-	if tv == null or ch < 0 or ch >= _channels.size():
-		return
-	var pair: Array = _channels[ch].audio_plugs
-	if pair.is_empty():
-		return
-	var plug := _live(_channels[ch].plug) as CablePlug
-	if plug == null:
-		return
-	var sockets: Array = tv.audio_ports(tv.input_holding(plug))
-	for c in mini(pair.size(), sockets.size()):
-		var p := _live(pair[c]) as CablePlug
-		var port := sockets[c] as RcaPort
-		if p != null and port != null and port.enabled and port.seated_plug() == null:
-			port.pick_up_object(p)
-
-
-func _release_audio_pair(ch: int, tv: RetroTV) -> void:
-	if tv == null or not is_instance_valid(tv) or ch < 0 or ch >= _channels.size():
-		return
-	for extra: Variant in _channels[ch].audio_plugs:
-		var p := _live(extra) as CablePlug
-		if p != null:
-			_release_plug(tv.socket_holding(p), p)
 
 
 ## The TV connected to a given video-out channel, or null (persistence).
@@ -1606,33 +1498,12 @@ static func _live(v: Variant) -> Object:
 func _exit_tree() -> void:
 	if is_powered_on:
 		power_off()
-	_free_captive_controllers()
+	_captive_pads.free_pads()
 	_release_cache_protection()
 	for i in _channels.size():
 		_remove_touch_surface(i)
-	_free_video_cables()
+	_video_lead.free_cables()
 	super._exit_tree()
-
-
-## The video-out lead hangs off the room, not the machine — a rope between two
-## bodies cannot be parented to either — so a deleted machine left its lead lying
-## where it was, still seated in the television if it had been plugged in. Each
-## end is dropped out of whatever socket holds it first, so the set hears the
-## unplug, as ScenePersistence.clear_scene does. A lead not yet hung on the room
-## (its add is deferred) is freed all the same.
-func _free_video_cables() -> void:
-	for i in _channels.size():
-		var inst := _live(_channels[i].cable) as Node
-		if inst == null:
-			continue
-		var ends: Array = [_channels[i].plug]
-		ends.append_array(_channels[i].audio_plugs)
-		for e: Variant in ends:
-			var p := _live(e) as CablePlug
-			if p != null:
-				p.drop()
-		inst.queue_free()
-		_channels[i].cable = null
 
 
 # --- Cable management ---
@@ -1811,183 +1682,11 @@ func _apply_av_feed(video_devs: Array[RetroTV], audio_dev: Node3D, l: int, r: in
 	# already a sink — a set showing this machine's picture that the white and red
 	# cords have just come back to from an amplifier. It was never "found" a second
 	# time. An amplifier needs nothing here: it is never a picture sink, so found and
-	# lost already cover every move of its own.
+	# lost already cover every move of its own. Optional on the sink side: only a
+	# set has it.
 	if audio_dev != prev_audio and is_instance_valid(audio_dev) \
 			and audio_dev.has_method("on_audio_source_routed"):
 		audio_dev.on_audio_source_routed(self)
-
-
-func _spawn_cables() -> void:
-	for i in _channels.size():
-		_channels[i].cable = CABLE_SCENE.instantiate()
-	# Add cables to scene root so they're not affected by system's RigidBody transform weirdness
-	call_deferred("_add_cables_to_scene")
-
-
-func _add_cables_to_scene() -> void:
-	# Deferred from _spawn_cables(), so a room change can land in between: during
-	# a transition there is no current scene to hang the cables on, and this
-	# system is on its way out with it.
-	if not is_inside_tree() or get_tree().current_scene == null:
-		return
-	for i in _channels.size():
-		var inst: Node3D = _channels[i].cable
-		get_tree().current_scene.add_child(inst)
-		# Track cable in the "spawned" group so clear_scene() includes it.
-		inst.add_to_group("spawned")
-		var plug := inst.get_node("CablePlug") as CablePlug
-		var rope := inst.get_node("VerletRope") as VerletRope
-		_channels[i].plug = plug
-		_channels[i].rope = rope
-
-		# Tell the plug who owns it and which channel it carries
-		plug.set_system(self)
-		plug.channel = i
-		plug.channel_label = _channels[i].label
-		_decorate_channel_plug(plug, i)
-
-		# Exclude the plug from colliding with this system so it doesn't jitter on spawn
-		plug.add_collision_exception_with(self)
-
-		# Stand the plug off the rope's start anchor along the way the port faces,
-		# so the lead lays itself out of the machine rather than across it.
-		plug.global_position = _plug_park_pos(i, 0)
-
-		# Per-channel wiring, when the model asks for something other than the
-		# cable scene's own composite pigtail. A channel carrying one signal wants
-		# one wire, in its own colour — the DS's bottom screen is a lone blue cord
-		# beside the top's yellow/white/red three.
-		var wires := _channels[i].wires
-		if not wires.is_empty():
-			rope.ribbon_count = wires.size()
-			rope.ribbon_colors = wires
-
-		# The audio pair, and whether this channel has one at all.
-		var pair: Array = _adopt_audio_pair(inst, i, rope)
-
-		# Wire rope anchors: start = system's attach point, end = plug
-		rope.start_node = _channels[i].attach
-		# Same correction at THIS end. The attach point sits at the console's jack,
-		# and the plug seated in it is modelled from its collar too — so without
-		# this the cord started inside the barrel and appeared to sprout from the
-		# middle of the connector rather than the strain relief behind it.
-		rope.start_anchor_offset = _port_cable_anchor(_channels[i].attach)
-		if pair.is_empty():
-			rope.end_node = plug
-			# End the cord AT the RCA plug's cable boss. The plug's origin is its
-			# SEATING reference, up at the collar, so a zero offset runs the tube out
-			# through the barrel.
-			rope.end_anchor_offset = plug.cable_anchor
-		else:
-			# One tail per cord, each ending at its own connector's boss. The trunk's
-			# terminal particle is left unanchored on purpose — the plugs carry the
-			# breakout, the way an unsupported junction behaves on the real lead.
-			var groups := PackedInt32Array()
-			for c in rope.ribbon_count:
-				groups.append(c)
-			rope.fray_end_groups = groups
-			rope.end_node = null
-			var ends: Array = [plug, pair[0], pair[1]]
-			for c in ends.size():
-				var p: CablePlug = ends[c]
-				rope.set_fray_end_node(c, p)
-				rope.set_fray_end_anchor_offset(c, p.cable_anchor)
-		rope._init_points()
-		_channels[i].max_reach = _rope_reach(rope)
-
-		# Restore a pending TV connection requested before the cable was ready
-		if _channels[i].pending_tv != null:
-			print("[RetroSystem] _add_cables_to_scene: restoring pending TV connection (ch %d)" % i)
-			_snap_cable_to_tv(_channels[i].pending_tv, i, int(_channels[i].pending_input))
-			_channels[i].pending_tv = null
-			_channels[i].pending_input = 0
-	_apply_video_out()
-
-
-## Take charge of one lead's audio pair, or retire it.
-##
-## The cable scene ships a composite pigtail — a picture cord with the audio pair
-## beside it — because that is what all but one of this room's leads is. A channel
-## whose model asks for a single wire has no pair to break out, so the two spare
-## connectors are freed and the rope goes back to the plain unfrayed cord it was:
-## the fray count comes off, and the trunk grows by the tail it is no longer
-## spending, which keeps every channel's reach the 1.80 m the lead is.
-##
-## Returns [left, right], or [] on a one-wire channel.
-func _adopt_audio_pair(inst: Node3D, channel: int, rope: VerletRope) -> Array:
-	var pair: Array = []
-	for nm in ["CablePlugL", "CablePlugR"]:
-		var p := inst.get_node_or_null(nm) as CablePlug
-		if p != null:
-			pair.append(p)
-	if rope.ribbon_count < 3 or pair.size() < 2:
-		for p: CablePlug in pair:
-			p.queue_free()
-		rope.segment_count += rope.fray_segments_end
-		rope.fray_segments_end = 0
-		_channels[channel].audio_plugs = []
-		return []
-	for c in pair.size():
-		var p: CablePlug = pair[c]
-		# NO set_system: on this lead the sound travels with the picture, so these
-		# two are the picture cord's companions rather than routes of their own (see
-		# _seat_audio_pair). A plug that named a host would have the television take
-		# it for a second video connection from this machine.
-		p.channel = channel
-		p.add_collision_exception_with(self)
-		p.global_position = _plug_park_pos(channel, c + 1)
-	_channels[channel].audio_plugs = pair
-	return pair
-
-
-## Sideways step per connector across the face the port is on, so three plugs on
-## one lead do not spawn inside each other. Indexed picture, left, right.
-const _PLUG_PARK_SPREAD := [0.0, -0.02, 0.02]
-
-
-## Where connector `index` of channel `ch`'s lead stands when the lead is built or
-## parked, in world space.
-##
-## Through the attach point's TRANSFORM, not its position: the model's spawn offset
-## is read in that frame (see RetroSystemModel.get_cable_spawn_offset), so the cord
-## trails out of the face its port is on whichever way the machine happens to be
-## turned. Added in the world, it always pointed at world -Z — which is the back of
-## a console standing square to the room and nothing at all on one that has been
-## picked up, turned round, or built with its port on the flank.
-func _plug_park_pos(ch: int, index: int) -> Vector3:
-	var attach := _live(_channels[ch].attach) as Node3D
-	if attach == null:
-		return global_position
-	var spread: float = _PLUG_PARK_SPREAD[mini(index, _PLUG_PARK_SPREAD.size() - 1)]
-	return attach.global_transform * (_model.get_cable_spawn_offset(ch)
-		+ Vector3(spread, 0, 0))
-
-
-## How far one lead reaches from its attach point: the trunk, plus the tail a
-## frayed end hangs off it. Read off the rope rather than tabled, so a scene that
-## re-lengths the cord cannot leave the tether behind.
-func _rope_reach(rope: VerletRope) -> float:
-	var fray_seg: float = rope.fray_segment_length
-	if fray_seg <= 0.0:
-		fray_seg = rope.segment_length
-	return rope.segment_count * rope.segment_length \
-		+ float(rope.fray_segments_end) * fray_seg
-
-
-## Where the cord meets the plug seated in the console's own jack, in the attach
-## point's local space — the mirror of CablePlug.cable_anchor at the far end of
-## the same lead, and derived the same way so reshaping the connector cannot
-## desync either end.
-##
-## Zero when the model hides PortVisual: with no plug modelled at this end the
-## cord should leave the jack itself, which is what the attach point already is.
-func _port_cable_anchor(attach: Node3D) -> Vector3:
-	var pv := attach.get_node_or_null("PortVisual") as MeshInstance3D
-	if pv == null or pv.mesh == null or not pv.visible:
-		return Vector3.ZERO
-	var ab: AABB = pv.mesh.get_aabb()
-	# Cable trails -Z (VerletRope.plug_exit_axis), so the boss is at min Z.
-	return pv.transform * Vector3(ab.get_center().x, ab.get_center().y, ab.position.z)
 
 
 ## True when this system offers the Enable Video Out toggle: the machine has a
@@ -2040,111 +1739,8 @@ func set_video_out_enabled(on: bool) -> void:
 	if on == video_out_enabled:
 		return
 	video_out_enabled = on
-	_apply_video_out()
+	_video_lead.apply_video_out()
 	NetworkManager.report_event(NetEvents.Event.EV_SYS_VIDEO_OUT, {"sys": self, "on": on})
-
-
-func _apply_video_out() -> void:
-	# The only thing _physics_process does is keep the video-out leads inside
-	# their reach. With the leads hidden and frozen there is nothing to clamp, so
-	# the tick goes off entirely rather than opening with a flag test 90 times a
-	# second — and a handheld, which has no video out, never ticks at all.
-	set_physics_process(video_out_enabled)
-	for i in _channels.size():
-		var inst := _live(_channels[i].cable) as Node3D
-		var plug := _live(_channels[i].plug) as CablePlug
-		if inst == null or plug == null:
-			continue
-		var tv := _live(_channels[i].tv) as RetroTV
-		# The whole lead goes with the picture cord: the audio pair beside it is on
-		# the same cable, and a set fed by a machine with its video out switched off
-		# is not fed at all.
-		var ends: Array = [plug]
-		for extra: Variant in _channels[i].audio_plugs:
-			var p := _live(extra) as CablePlug
-			if p != null:
-				ends.append(p)
-		if not video_out_enabled and tv != null:
-			# Ask the set which socket is holding each rather than assuming the first:
-			# a television has four composite inputs and this lead may be in any of
-			# them, and naming CompositePort left a lead in Composite 2 seated while
-			# its video-out was switched off.
-			for e: CablePlug in ends:
-				_release_plug(tv.socket_holding(e), e)
-		for c in ends.size():
-			var p: CablePlug = ends[c]
-			p.enabled = video_out_enabled
-			if video_out_enabled:
-				# A plug already socketed into a TV (e.g. restored from a save, where
-				# _apply_video_out runs right after the snap) is held frozen at the port by
-				# the snap zone. Unfreezing/parking it here drops it off the socket, and it
-				# then drifts under gravity + rope tension. Only park a free-dangling plug.
-				if not p.is_picked_up():
-					p.freeze = false
-					p.global_position = _plug_park_pos(i, c)
-					p.linear_velocity = Vector3.ZERO
-			else:
-				p.freeze = true
-		if video_out_enabled:
-			inst.visible = true
-			inst.process_mode = Node.PROCESS_MODE_INHERIT
-		else:
-			inst.visible = false
-			inst.process_mode = Node.PROCESS_MODE_DISABLED
-
-
-## How far a released connector is drawn out of its socket, in metres. Clear of the
-## 60 mm grab distance every RcaPort uses, so it cannot be snapped straight back up.
-const PULLED_CLEAR := 0.12
-
-
-## Take a plug out of the socket holding it and stand it clear of the bank.
-##
-## Disarming the zone around the drop is not enough on its own once three cords go
-## into a set at once. A composite input's sockets are 18 mm apart and each reaches
-## 60 mm, so a plug released at the panel is standing inside its NEIGHBOURS' grab
-## areas as well as its own — pull the lead and the set caught the red connector in
-## the socket the white one had just left. So it is also drawn back along the
-## socket's own axis, which is the way a hand takes it out.
-##
-## The transform goes through the physics server as well as the node: the body is
-## live again the moment it is dropped, and a transform written only on the node is
-## overwritten on the next tick, putting it back in the socket. Same recipe, and the
-## same reasons, as CompositeCable.net_release_plug.
-func _release_plug(port: XRToolsSnapZone, plug: CablePlug) -> void:
-	if port == null or not is_instance_valid(port):
-		return
-	port.enabled = false
-	port.drop_object()
-	if is_instance_valid(plug):
-		plug.global_position = port.global_position \
-			+ port.global_transform.basis.z.normalized() * PULLED_CLEAR
-		PhysicsServer3D.body_set_state(plug.get_rid(),
-			PhysicsServer3D.BODY_STATE_TRANSFORM, plug.global_transform)
-	_reopen_port(port)
-
-
-## Let the deferred drop handler and the area's body_exited both run before the
-## socket is live again. Deliberately not awaited by the caller: the release has
-## already happened, and this only reopens the socket behind it.
-func _reopen_port(port: XRToolsSnapZone) -> void:
-	await get_tree().physics_frame
-	await get_tree().physics_frame
-	if is_instance_valid(port):
-		port.enabled = true
-
-
-## Mark a multi-output host's second lead so the player can tell the two apart: a
-## blue connector on the BOTTOM channel against the composite trio of the top.
-##
-## No printed tag. The word TOP floated in the air off the end of a cable, which is
-## not a thing a lead does, and it was redundant twice over by the time it read:
-## the top lead is a yellow/white/red pigtail and the bottom one a single blue
-## cord, which is the same distinction the hardware would make.
-func _decorate_channel_plug(plug: CablePlug, channel: int) -> void:
-	if channel <= 0:
-		return
-	plug.plug_color = Color(0.2, 0.6, 1.0)
 
 
 func _process(_delta: float) -> void:
@@ -2236,38 +1832,24 @@ func feed_touch(uv: Vector2, pressed: bool) -> void:
 func _physics_process(_delta: float) -> void:
 	if not video_out_enabled:
 		return   # cables hidden and frozen — nothing to clamp
-	for i in _channels.size():
-		var max_len: float = _channels[i].max_reach
-		if max_len <= 0.0:
-			continue   # cable not built yet
-		var plug := _live(_channels[i].plug) as CablePlug
-		var attach := _live(_channels[i].attach) as Node3D
-		if plug == null or attach == null:
-			continue
-		# Snapped to TV or actively held by the user — don't fight whoever owns the plug
-		if _live(_channels[i].tv) == null:
-			_clamp_plug(plug, attach.global_position, max_len)
-		# Every connector on the lead is on the same cord and reaches the same
-		# distance; the pair is guarded on its own hold rather than on the channel's
-		# television, since either of them can be sitting in a socket while the
-		# picture cord is not.
-		for extra: Variant in _channels[i].audio_plugs:
-			var p := _live(extra) as CablePlug
-			if p != null:
-				_clamp_plug(p, attach.global_position, max_len)
+	_video_lead.clamp_leads()
 
 
-## Hold one plug within the cord's reach of where the cord leaves the machine.
-## A hard clamp rather than a spring, for the reason CompositeCable._physics_process
-## gives: over-extension here runs to a metre and a spring stiff enough to haul a
-## plug back at that distance launches it. PlugTether says how.
-func _clamp_plug(plug: CablePlug, attach_pos: Vector3, max_len: float) -> void:
-	if plug.is_picked_up():
-		return          # a hand, a beam or a socket owns it
-	PlugTether.reel_in(plug, plug.global_position, attach_pos, max_len)
-
-
-## Power on: start this system's libretro core
+## Power on: start this system's libretro core, HERE and nowhere else.
+##
+## Which power method to call:
+##   toggle_power()   the power BUTTON. Netplay-aware: in a session it starts or
+##                    stops lockstep on every peer, or sends a client's intent to
+##                    the host. Everything a player's hand or a menu does goes
+##                    through this (or set_power, which lands here).
+##   set_power(on)    the menu's switch: moves a handheld's slide, else toggles.
+##   power_on()       LOCAL primitive: boots this machine's core with no session
+##   power_off()      bookkeeping at all. For code that is already the authority
+##                    on this one machine -- a save-state load switching it on
+##                    first, a room being cleared, the trash taking it, a disc
+##                    restart -- never for a player's intent, which would bypass
+##                    the session and leave peers on a different machine.
+##   net_start_core / net_stop_core   what NetplaySession drives on every peer.
 func power_on() -> void:
 	if is_powered_on:
 		return
@@ -2336,45 +1918,10 @@ func power_on() -> void:
 				str(verdict["description"]), Color(verdict["accent"]))
 		return
 
-	# One Sega CD at a time: its memory is staged into a folder every machine on
-	# that core shares.
-	var scd_busy := _sega_cd.busy_elsewhere(resolved_core)
-	if not scd_busy.is_empty():
-		push_error("RetroSystem: Cannot power on - %s" % scd_busy)
-		var busy_toast := _machine_toast()
-		if busy_toast != null:
-			busy_toast.show_notice(_display_name(),
-				"%s in use" % RegionalNames.addon_name("sega_cd", "Sega CD"), scd_busy,
-				Color(1.0, 0.72, 0.2))
-		return
-	# One Saturn with a Backup RAM Cartridge at a time, for the same reason.
-	var saturn_busy := _saturn.busy_elsewhere(resolved_core)
-	if not saturn_busy.is_empty():
-		push_error("RetroSystem: Cannot power on - %s" % saturn_busy)
-		var cart_toast := _machine_toast()
-		if cart_toast != null:
-			cart_toast.show_notice(_display_name(), "Cartridge in use", saturn_busy,
-				Color(1.0, 0.72, 0.2))
-		return
-	# One 3DO at a time: Opera keeps its NVRAM in one file every machine on the
-	# core shares.
-	var three_do_busy := _three_do.busy_elsewhere(resolved_core)
-	if not three_do_busy.is_empty():
-		push_error("RetroSystem: Cannot power on - %s" % three_do_busy)
-		var nvram_toast := _machine_toast()
-		if nvram_toast != null:
-			nvram_toast.show_notice(_display_name(), "3DO in use", three_do_busy,
-				Color(1.0, 0.72, 0.2))
-		return
-	# One Xbox at a time: xemu is one machine per process, and every console
-	# writes the same hard disk image.
-	var xbox_busy := _xbox.busy_elsewhere(resolved_core)
-	if not xbox_busy.is_empty():
-		push_error("RetroSystem: Cannot power on - %s" % xbox_busy)
-		var xbox_toast := _machine_toast()
-		if xbox_toast != null:
-			xbox_toast.show_notice(_display_name(), "Xbox in use", xbox_busy,
-				Color(1.0, 0.72, 0.2))
+	# One machine at a time on a shared save folder or file: a Sega CD, a Saturn
+	# with a Backup RAM Cartridge, a 3DO (Opera's one NVRAM file), an Xbox (xemu
+	# is one machine per process, writing one hard disk image).
+	if _refused_by_busy_storage(resolved_core):
 		return
 
 	# May be empty media: a machine with nothing in it whose BIOS is installed is
@@ -2406,21 +1953,18 @@ func power_on() -> void:
 			BiosBoot.pinned_options(resolved_core, systemid, still_empty))
 	# Before the forced options: the cartridge size they pin is read off an image
 	# that staging may only now have created.
-	_sega_cd.stage_before_start(resolved_dir, resolved_core)
-	_saturn.stage_before_start(resolved_dir, resolved_core)
-	_three_do.stage_before_start(resolved_dir, resolved_core)
-	_xbox.note_started(resolved_core)
-	_xbox.stage_units_before_start(resolved_dir, resolved_core)
+	for storage: ConsoleStorage in _storages:
+		storage.stage_for_run(resolved_dir, resolved_core)
 	_apply_forced_core_options(resolved_dir, resolved_core)
 	# Leftovers from an earlier run that would crash the boot just pinned (a DS
 	# core's built-in-firmware Wi-Fi profile, merged into the real firmware).
 	BiosBoot.retire_stale_files(resolved_core, systemid)
 	_persist_pak_options(resolved_dir, resolved_core)
-	_vmu.stage_before_start(resolved_dir, resolved_core)
+	for storage: ConsoleStorage in _storages:
+		storage.stage_late(resolved_dir, resolved_core)
 	AppPrefs.apply_hw_render_for(resolved_core)
 	_libretro.SetSramPath(sram_path_for_run(resolved_core))
-	if _libretro.has_method("SetRtcPath"):
-		_libretro.SetRtcPath(_memcards.rtc_path_for_run(resolved_core))
+	_libretro.SetRtcPath(_memcards.rtc_path_for_run(resolved_core))
 	# Before StartContent: identification happens as the core comes up, so the
 	# claim has to be in place by then. Returns false when another cabinet already
 	# holds the session, nobody is signed in, or the system has no RA console —
@@ -2452,6 +1996,23 @@ func power_on() -> void:
 	# the lid is a whole tray cycle rather than a swap under a closed tray.
 	if _tray_open:
 		_sync_core_tray()
+
+
+## Refuse the power-on when a storage says another machine holds what this run
+## needs, on a card over the hardware. True when refused. The first storage to
+## object wins, in ConsoleStorage order, so the card names one reason.
+func _refused_by_busy_storage(core: String) -> bool:
+	for storage: ConsoleStorage in _storages:
+		var busy := storage.busy_elsewhere(core)
+		if busy.is_empty():
+			continue
+		push_error("RetroSystem: Cannot power on - %s" % busy)
+		var busy_toast := _machine_toast()
+		if busy_toast != null:
+			busy_toast.show_notice(_display_name(), storage.busy_title(), busy,
+				Color(1.0, 0.72, 0.2))
+		return true
+	return false
 
 
 ## Everything a machine does once its core is up, whichever way it was started.
@@ -2671,7 +2232,8 @@ func _release_cache_protection() -> void:
 	_protected_cache_path = ""
 
 
-## Power off: stop the running core
+## Power off: stop the running core, locally. See power_on for which power
+## method to call; a player's intent goes through toggle_power.
 func power_off() -> void:
 	if not is_powered_on:
 		return
@@ -2710,22 +2272,11 @@ func _stop_core() -> void:
 	# StopContent returned but the core has not finished: a card the core owns is
 	# written during the teardown that follows. Keep watching for a while.
 	stop_card_polling_soon()
-	_vmu.drain(_resolve_dir(), _resolve_core())
-	# The core's final VMU write lands on the emulation thread after
-	# StopContent returns, so one drain here is not the last word.
-	_vmu.stop_draining_soon()
-	# genesis_plus_gx writes a Sega CD's memory only as it unloads.
-	_sega_cd.drain_after_stop()
-	# Beetle Saturn flushes a cartridge once more as it unloads.
-	_saturn.drain_after_stop()
-	# Opera writes the 3DO's NVRAM as it unloads.
-	_three_do.drain_after_stop()
-	# xemu flushes the console's hard disk as it unloads; the game's saves are
-	# lifted out of it for RomM once it has.
-	_xbox.backup_after_stop()
-	# And the Memory Units in its pads, which the core writes to files of its own.
-	_xbox.drain_units()
-	_xbox.stop_draining_units_soon()
+	# Every storage drains what its core writes as it unloads (ConsoleStorage).
+	var stop_dir := _resolve_dir()
+	var stop_core := _resolve_core()
+	for storage: ConsoleStorage in _storages:
+		storage.after_stop(stop_dir, stop_core)
 	_has_disk_control = false
 	_disc_index = 0
 	_disc_ejected = false
@@ -2745,7 +2296,7 @@ func _stop_core() -> void:
 	net_refresh_link_cables()
 
 
-## Toggle power (used by the power button)
+## Toggle power -- the power button, and the netplay-aware way in. See power_on.
 func toggle_power() -> void:
 	if NetworkManager.is_active() and not NetworkManager.is_event_applying():
 		# A running lockstep game: power stops it on every peer.
@@ -3054,13 +2605,15 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 	if not _memcards.apply_netplay_sram():
 		_libretro.SetSramPath(sram_path_for_run(resolved_core))
 	# A clock read from each peer's own file is a different time on every peer.
-	if _libretro.has_method("SetRtcPath"):
-		_libretro.SetRtcPath("")
-	_sega_cd.stage_before_start(_resolve_dir(), resolved_core)
-	_saturn.stage_before_start(_resolve_dir(), resolved_core)
-	# Not a 3DO's NVRAM: Opera carries it in its savestate, so a session's state
-	# transfer hands every peer the HOST's, and draining it back would write the
-	# host's saves over this console's. (Opera is not vetted for netplay anyway.)
+	_libretro.SetRtcPath("")
+	# Only the storages that stage in a session: today the Sega CD's and the
+	# Saturn cartridge's, which the core reads from files at load. Not a 3DO's
+	# NVRAM (Opera carries it in its savestate, so the host's would be drained
+	# over this console's), nor the Xbox's or the VMUs -- see each storage's
+	# stages_in_session().
+	for storage: ConsoleStorage in _storages:
+		if storage.stages_in_session():
+			storage.stage_for_run(_resolve_dir(), resolved_core)
 	_apply_forced_core_options(_resolve_dir(), resolved_core)
 	# The session's determinism pins outrank what the machine pins for its own
 	# hardware, so they go back over it: a Saturn's Video CD Card is off in a
@@ -3086,119 +2639,33 @@ func net_start_core(core: String, port_mask: int, start_frame: int, options: Dic
 
 
 ## Every machine on this one's link bus, ITSELF FIRST, or just itself when
-## nothing is cabled to it.
-##
-## Netplay asks this because a link cable never crosses the network: the bus is
-## a process-wide singleton joining two cores in one process, so a cabled pair
-## is one session over two machines that every peer replicates, not two players'
-## machines talking to each other.
-##
-## Self first because index 0 anchors the session — it owns the frame clock and
-## the savestate. Only the host walks this; every other peer is told the answer,
-## so the order has to be stable within one process rather than across them.
+## nothing is cabled to it. NetMachine protocol; LinkBusSweep.group_of explains.
 func net_link_group() -> Array:
-	if not is_inside_tree():
-		return [self]
-	# A console may have one independent link cable per controller socket (four
-	# GameCube-to-GBA leads are the common case).  No single cable's bus contains
-	# the other handhelds, so collect every bus that contains this machine.
-	return merge_link_buses(self, net_link_buses())
+	return LinkBusSweep.group_of(self)
 
 
 ## Every distinct physical cable bus containing this machine. This is also the
 ## list netplay re-resolves after restarting cores, because StopContent drops
 ## LinkCoordinator ownership while the plugs themselves never moved.
 func net_link_buses() -> Array:
-	var buses: Array = []
-	for cable: Object in _link_cables():
-		var bus: Array = cable.linked_machines()
-		if _bus_has_self(bus):
-			buses.append(bus)
-	return buses
+	return LinkBusSweep.buses_of(self)
 
 
+## Re-make every link cable this machine is on (LinkCable.rejoin), after a core
+## start or stop cut the bus under leads that never moved.
 func net_refresh_link_cables() -> void:
-	for cable: Object in _link_cables():
-		if _bus_has_self(cable.linked_machines()) and cable.has_method("rejoin"):
-			# Why a rejoin and not a resolve is LinkCable.rejoin()'s to explain.
-			cable.call("rejoin")
+	LinkBusSweep.refresh(self)
 
 
-## Flatten every cable bus reachable from `anchor`.  Kept pure so the rule can
-## be tested without constructing sockets and cables: one console with several
-## independent controller-port leads still needs every far machine in its
-## replicated netplay group.
+## Flatten every cable bus reachable from `anchor`. Kept here by name for the
+## suites; the rule is LinkBusSweep.merge's.
 static func merge_link_buses(anchor: Object, buses: Array) -> Array:
-	var machines: Array = [anchor]
-	var changed := true
-	while changed:
-		changed = false
-		for bus: Array in buses:
-			var touches := false
-			for entry: Dictionary in bus:
-				if machines.has(entry.get("machine")):
-					touches = true
-					break
-			if not touches:
-				continue
-			for entry: Dictionary in bus:
-				var machine: Object = entry.get("machine")
-				if machine != null and not machines.has(machine):
-					machines.append(machine)
-					changed = true
-	return machines
+	return LinkBusSweep.merge(anchor, buses)
 
 
 ## The bus this machine is on, as [{machine, port}], or [] when it is on none.
-##
-## Asked of every LEAD in the room rather than walked out of this machine's own
-## sockets, because the three kinds of link cable do not attach the same way and
-## two of them cannot be found from here at all. A handheld lead and a
-## PlayStation null modem both sit in LinkPorts, but a GameCube-to-GBA lead puts
-## its wide end in a CONTROLLER socket — there is no LinkPort on the console
-## side to walk out of, and a search from this machine would silently decide a
-## cabled GameCube was on no bus.
 func net_link_bus() -> Array:
-	for cable: Object in _link_cables():
-		var bus: Array = cable.linked_machines()
-		if _bus_has_self(bus):
-			return bus
-	return []
-
-
-## Every distinct link cable in the room, in group order.
-##
-## Swept from the LEADS rather than from this machine's sockets, for the reason
-## net_link_bus() gives above — and it is the pair of GROUPS that is easy to get
-## wrong, which is why three methods asking the same question now ask it once. A
-## sweep that forgot controller_plug would decide a cabled GameCube was on no
-## bus at all, silently, while going on working for the two leads that do sit in
-## a LinkPort.
-##
-## Empty off the tree. A machine can be stopped as its room is torn down, when
-## get_tree() is already null — power-off reaches here, not only netplay.
-func _link_cables() -> Array:
-	var cables: Array = []
-	if not is_inside_tree():
-		return cables
-	var seen := {}
-	for plug in get_tree().get_nodes_in_group(LinkPlug.ANY_GROUP) \
-			+ get_tree().get_nodes_in_group("controller_plug"):
-		var cable: Object = plug.get("cable")
-		if cable == null or not is_instance_valid(cable) or seen.has(cable) \
-				or not cable.has_method("linked_machines"):
-			continue
-		seen[cable] = true
-		cables.append(cable)
-	return cables
-
-
-## True when a linked_machines() list includes this machine.
-func _bus_has_self(bus: Array) -> bool:
-	for entry: Dictionary in bus:
-		if entry.get("machine") == self:
-			return true
-	return false
+	return LinkBusSweep.bus_of(self)
 
 
 ## Stop the local netplay core and clear the gate.
@@ -3351,174 +2818,16 @@ func set_power(on: bool) -> void:
 
 
 ## What the running core reports about itself, for the menu's Debug tab, as
-## sections of [label, value] rows: [[section, [[label, value], ...]], ...].
-##
-## Every value is read, never reset. GetPacingStats is left out on purpose: it
-## hands over its worst frame and zeroes it, so a menu polling it would steal the
-## number pace_trace and the link probes are waiting for. And nothing is asked of
-## the core until GetCoreIdentity answers — it is the one getter that checks the
-## core is there, and most of the others dereference it unguarded.
+## sections of [label, value] rows. Built by SystemDebugReport, which reads only
+## this machine's public surface; the menu reaches it here by name.
 func debug_state() -> Array:
-	var core := _resolve_core()
-	var machine: Array = [
-		["Power", "On" if is_powered_on else "Off"],
-		["Core", core if not core.is_empty() else "(none resolved)"],
-		["Content", rom_path.get_file() if not rom_path.is_empty() else "(none)"],
-		["HW render requested", AppPrefs.hw_render_for(core)],
-	]
-	var out: Array = [["Machine", machine]]
-	var ident: Dictionary = _libretro.GetCoreIdentity() if _libretro != null else {}
-	if not is_powered_on or ident.is_empty():
-		machine.append(["", "Start a game to see the core's numbers"])
-		return out
-
-	# What the core declared, from the extension's own snapshot (taken on the
-	# emulation thread). has_method, not a call: an extension built before it —
-	# the Quest's, if only windows was rebuilt — would say "Nonexistent function"
-	# the first time this tab opened, and that is how a stale build once shipped.
-	var info: Dictionary = _libretro.call("GetCoreDebugInfo") \
-		if _libretro.has_method("GetCoreDebugInfo") else {}
-
-	var size := int(ident.get("serialize_size", 0))
-	var core_rows: Array = [
-		["Library", "%s %s" % [ident.get("library_name", "?"), ident.get("library_version", "")]],
-		["libretro API", str(ident.get("api_version", "?"))],
-		["Savestate size", "not measured yet" if size <= 0 else MenuStyle.human_bytes(size)],
-	]
-	if not info.is_empty():
-		core_rows.append_array([
-			["Extensions", str(info.get("valid_extensions", ""))],
-			["Needs full path", _yes_no(info.get("need_fullpath", false))],
-			["Blocks extraction", _yes_no(info.get("block_extract", false))],
-			["Performance level", str(info.get("performance_level", 0))],
-			["Options API", ["SET_VARIABLES (v0)", "SET_CORE_OPTIONS (v1)",
-				"SET_CORE_OPTIONS_V2"][int(info["options_api"])]
-				if int(info.get("options_api", -1)) >= 0 else "none"],
-		])
-		var subs: PackedStringArray = info.get("subsystems", PackedStringArray())
-		if not subs.is_empty():
-			core_rows.append(["Subsystems", ", ".join(subs)])
-	out.append(["Core", core_rows])
-
-	var g: Dictionary = _libretro.GetVideoGeometry()
-	var frames := int(_libretro.GetFrameCount())
-	out.append(["Video", [
-		["Frame", "%d × %d" % [int(g.get("width", 0)), int(g.get("height", 0))]],
-		["Base", "%d × %d" % [int(g.get("base_width", 0)), int(g.get("base_height", 0))]],
-		["Display aspect", "%.4f (core says %.4f)" % [float(g.get("aspect", 0.0)),
-			float(g.get("core_aspect", 0.0))]],
-		["Rotation", "%d°" % (int(g.get("rotation", 0)) * 90)],
-		["Declared FPS", "%.3f" % float(_libretro.GetDeclaredFps())],
-		["Frames run", str(frames)],
-		["Frames dropped", str(int(_libretro.GetDroppedFrameCount()))],
-	]])
-	if not info.is_empty():
-		var hw := int(info.get("hw_context", 0))
-		var api := str(HW_CONTEXT_NAMES.get(hw, "type %d" % hw))
-		if hw != 0 and int(info.get("hw_version_major", 0)) > 0:
-			api += " %d.%d" % [int(info["hw_version_major"]), int(info.get("hw_version_minor", 0))]
-		(out[-1][1] as Array).append_array([
-			["Max", "%d × %d" % [int(info.get("max_width", 0)), int(info.get("max_height", 0))]],
-			["Pixel format", str(PIXEL_FORMAT_NAMES.get(int(info.get("pixel_format", -1)), "?"))
-				if hw == 0 else "(hardware rendered)"],
-			["Renderer", api],
-			["Shared context", _yes_no(info.get("shared_context", false))],
-		])
-	var transfer: Dictionary = _libretro.GetVideoTransferStats()
-	if bool(transfer.get("enabled", false)):
-		var up: Dictionary = transfer.get("texture_update", {})
-		var calls := maxi(int(up.get("calls", 0)), 1)
-		(out[-1][1] as Array).append(["Texture upload", "%.2f ms avg, %.2f worst" % [
-			float(up.get("total_ms", 0.0)) / calls, float(up.get("max_ms", 0.0))]])
-
-	var rate := float(_libretro.GetDeclaredSampleRate())
-	out.append(["Audio", [
-		["Declared sample rate", "%.1f Hz" % rate],
-		["Buffered", "%d frames (%.1f ms)" % [int(_libretro.GetAudioBufferOccupancy()),
-			1000.0 * _libretro.GetAudioBufferOccupancy() / rate if rate > 0.0 else 0.0]],
-		["Pacing brake", "%.1f ms" % float(_libretro.GetAudioBrakeMs())],
-		["Microphone", "listening" if _libretro.IsMicrophoneActive() else "off"],
-	]])
-	if not info.is_empty():
-		(out[-1][1] as Array).append_array([
-			["Buffer status callback", _yes_no(info.get("audio_status_callback", false))],
-			["Minimum latency asked", "%d ms" % int(info.get("min_audio_latency_ms", 0))
-				if int(info.get("min_audio_latency_ms", 0)) > 0 else "none"],
-		])
-
-		out.append(["Timing", [
-			["Core frame time", "%.2f ms avg, %.2f worst (last second)" % [
-				float(info.get("run_avg_ms", 0.0)), float(info.get("run_worst_ms", 0.0))]],
-			["av_info FPS / rate", "%.3f / %.1f Hz" % [float(info.get("av_fps", 0.0)),
-				float(info.get("av_sample_rate", 0.0))]],
-		]])
-
-		out.append(["Memory", [
-			["Save RAM", _bytes_or_none(int(info.get("save_ram", 0)))],
-			["RTC", _bytes_or_none(int(info.get("rtc", 0)))],
-			["System RAM", _bytes_or_none(int(info.get("system_ram", 0)))],
-			["Video RAM", _bytes_or_none(int(info.get("video_ram", 0)))],
-			["Memory map descriptors", str(int(info.get("memory_descriptors", 0)))],
-		]])
-
-		var disk := int(info.get("disk_control", 0))
-		var ports: Dictionary = info.get("port_devices", {})
-		var port_words := PackedStringArray()
-		var port_keys := ports.keys()
-		port_keys.sort()
-		for p: int in port_keys:
-			port_words.append("%d: %s" % [p + 1, _device_word(int(ports[p]))])
-		out.append(["Input & media", [
-			["Port devices", ", ".join(port_words) if not port_words.is_empty() else "(defaults)"],
-			["Input descriptors", str(int(info.get("input_descriptors", 0)))],
-			["Controller info ports", str(int(info.get("controller_info_ports", 0)))],
-			["Disk control", "none" if disk == 0 else "%s, disk %d of %d" % [
-				"extended" if disk == 2 else "original",
-				int(info.get("disk_index", 0)) + 1, int(info.get("disk_count", 0))]],
-		]])
-
-	var other: Array = [
-		["Camera", "running" if _libretro.IsCameraActive() else "off"],
-		["Core options", "%d set, %d pinned" % [_options_values.size(),
-			forced_core_options().size()]],
-	]
-	if NetworkManager.is_active():
-		other.append(["Netplay rollbacks", str(int(_libretro.GetNetplayRollbackCount()))])
-	if not info.is_empty():
-		other.append(["Achievements", "supported" if bool(info.get("supports_achievements", true))
-			else "core opts out"])
-	# The rcheevos session is one at a time; its game is only this machine's
-	# while this machine holds it.
-	if RA.session_owner() == self:
-		var game: Dictionary = RA.game_info()
-		if not game.is_empty():
-			other.append(["RetroAchievements game", "%s (id %s, hash %s)" % [
-				game.get("title", "?"), game.get("id", "?"), game.get("hash", "?")]])
-	out.append(["Other", other])
-	return out
+	return SystemDebugReport.rows(self)
 
 
-## libretro.h's retro_pixel_format and retro_hw_context_type, for the Debug tab.
-const PIXEL_FORMAT_NAMES := {0: "0RGB1555", 1: "XRGB8888", 2: "RGB565"}
-const HW_CONTEXT_NAMES := {0: "Software", 1: "OpenGL", 2: "OpenGL ES 2",
-	3: "OpenGL core", 4: "OpenGL ES 3", 5: "OpenGL ES (versioned)", 6: "Vulkan",
-	7: "Direct3D 11", 8: "Direct3D 10", 9: "Direct3D 12", 10: "Direct3D 9"}
-## RETRO_DEVICE_* base types; a core's own subclass is base | (n + 1) << 8.
-const DEVICE_NAMES := {0: "none", 1: "joypad", 2: "mouse", 3: "keyboard",
-	4: "lightgun", 5: "analog", 6: "pointer"}
-
-
-static func _yes_no(v: Variant) -> String:
-	return "yes" if bool(v) else "no"
-
-
-static func _bytes_or_none(n: int) -> String:
-	return "none" if n <= 0 else "%s (%d bytes)" % [MenuStyle.human_bytes(n), n]
-
-
-static func _device_word(id: int) -> String:
-	var base := str(DEVICE_NAMES.get(id & 0xff, "device %d" % (id & 0xff)))
-	return base if id >> 8 == 0 else "%s #%d" % [base, (id >> 8) - 1]
+## The option values the core (or the pre-launch peek) last reported. Read-only
+## window for the Debug tab; set_core_option is the way to change one.
+func core_option_values() -> Dictionary:
+	return _options_values
 
 
 ## The OPEN/EJECT button, pressed from the menu.
@@ -3545,14 +2854,10 @@ func _removable_media_options(core: String) -> Dictionary:
 
 func _all_forced_options(core: String) -> Dictionary:
 	var out: Dictionary = _model.get_forced_core_options() if _model != null else {}
-	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _hardware_ids(),
+	out.merge(ForcedCoreOptions.all(core, systemid, rom_path, _expansions.hardware_ids(),
 		card_family(), _seated_cards(), _expansion_launch.host_media_path()), true)
-	if _sega_cd != null:
-		out.merge(_sega_cd.forced_options_for(core), true)
-	if _saturn != null:
-		out.merge(_saturn.forced_options_for(core), true)
-	if _three_do != null:
-		out.merge(_three_do.forced_options_for(core), true)
+	for storage: ConsoleStorage in _storages:
+		out.merge(storage.forced_options_for(core), true)
 	return out
 
 
@@ -3575,17 +2880,12 @@ func _seated_cards() -> Array[bool]:
 ## runs the plain nintendo_64, where the drive really is the player's choice.
 # ── expansions ────────────────────────────────────────────────────────────────
 #
-# A console and the unit bolted to it are two separate physical objects that
-# together behave as one machine. Which one wears the socket depends on which
-# way the pair stacks -- a 64DD is a base the N64 stands on, a 32X sits on top
-# of a Mega Drive -- and ExpansionCatalog is the only thing that knows. The
-# console side is deliberately thin: it keeps the list, answers what the stack
-# is, and hands the launch path one path to boot from.
+# The sockets, covers and unit list live in SystemExpansions, a child this node
+# owns. What stays here is the surface other code calls BY NAME on the console
+# (RetroExpansion, ScenePersistence, system models, the mods' probes), as
+# one-line forwarders, and the parts that are this console's own slot or drive.
 
-
-## Everything currently bolted to this console. Order is the catalog's, not the
-## order they were attached in, so a stack reads the same however it was built.
-var _expansions: Array[RetroExpansion] = []
+var _expansions: SystemExpansions = null
 
 
 ## Option values this machine displaced in the shared <core>.opt, and the core
@@ -3601,11 +2901,26 @@ var _displaced_options: Dictionary = {}
 var _displaced_core := ""
 
 
-## The socket on top and the foot underneath, built from the model's own box.
-##
-## Only what the catalog says this console has: a machine nothing mounts above
-## must NOT grow a socket, because an empty one still lights a snap ghost and
-## offers a join that does not exist.
+## The helper itself, for the suites that test its gates directly.
+func expansion_hardware() -> SystemExpansions:
+	return _expansions
+
+
+## True from begin_restore() on: this console is being restored, not spawned, so
+## nothing seeds a default occupant or a cover the save does not list.
+func is_restoring_from_save() -> bool:
+	return _restoring_from_save
+
+
+## Build the sockets, covers and foot (SystemExpansions.build_hardware), and
+## register the foot with this pickable: XRToolsPickable collects grab points in
+## its own _ready, which ran long before the model was measured.
+func _build_expansion_hardware() -> void:
+	var foot := _expansions.build_hardware()
+	if foot != null:
+		_grab_points.push_back(foot)
+
+
 ## Where this machine's roof is relative to its own cartridge slot, in metres.
 ##
 ## Signed, and in practice NEGATIVE: the slot is placed a few millimetres proud
@@ -3637,290 +2952,70 @@ func roof_above_cartridge_slot() -> float:
 	return _roof_over_slot
 
 
-func _build_expansion_hardware() -> void:
-	if systemid.is_empty():
-		return
-	var aabb := body_aabb()
-	if aabb.size.x <= 0.0:
-		return          # no meshes yet; nothing to measure against
-	var span := Vector2(aabb.size.x, aabb.size.z)
-
-	if ExpansionCatalog.host_takes_top_unit(systemid) \
-			and get_node_or_null("ExpansionSocket") == null:
-		var socket := ExpansionPort.build_socket(self, aabb.end.y, span,
-			ExpansionPort.GROUP_EXPANSION, _accepts_expansion)
-		socket.has_picked_up.connect(_on_expansion_seated)
-		socket.has_dropped.connect(_on_expansion_lifted)
-		# Roof-top-centred is only right for a unit that genuinely stacks
-		# externally — nothing ships yet. The N64's Expansion Pak/Jumper Pak
-		# port is inside the body, so its model relocates the socket behind a
-		# cover; every other model's override is a no-op and leaves it here.
-		_model.configure_expansion_socket(socket)
-		if not _restoring_from_save:
-			# Pak first, then the cover over it — the order the factory used.
-			_seed_default_occupant(socket)
-			_seed_expansion_cover()
-
-	_build_unit_sockets(aabb, span)
-	_build_cover_sockets()
-
-	if ExpansionCatalog.host_stands_on_unit(systemid) \
-			and get_node_or_null("ExpansionFoot") == null:
-		# Registered by hand: XRToolsPickable collects grab points in its own
-		# _ready, which ran long before the model was measured.
-		_grab_points.push_back(ExpansionPort.build_foot(self, aabb.position.y, span,
-			not _model.brings_own_body()))
-
-
-## Seats the console's default-occupant expansion (a Jumper Pak) the moment a
-## FRESH socket is built for it -- never on a restore, which is why the caller
-## already checked _restoring_from_save. A restored console's own
-## "expansions" list (scene_persistence -> restore_expansion) is the whole
-## truth about what is bolted on there, whether that is this same unit, a real
-## Expansion Pak the player installed, or nothing; seeding on top of that would
-## leave a second Jumper Pak with nowhere to go, since the socket holds one
-## object and the save's own restore_expansion call would simply evict this one
-## un-tracked.
-func _seed_default_occupant(socket: XRToolsSnapZone) -> void:
-	var default_id := ExpansionCatalog.default_occupant_for(systemid)
-	if default_id.is_empty():
-		return
-	var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
-	unit.expansion_id = default_id
-	get_tree().current_scene.add_child(unit)
-	unit.add_to_group("spawned")
-	unit.global_position = global_position
-	socket.pick_up_object(unit)
-
-
-## Puts the lid on a fresh console's expansion bay, for a model that has one.
-## Same restore rule as the pak underneath it: never on a restore, where the
-## save's own record — lid on the console, or lid left on a table across the
-## room — is the whole truth. A player who lost theirs stays without one.
-func _seed_expansion_cover() -> void:
-	var zone := _model.expansion_cover_slot() if _model != null else null
-	if zone == null or zone.has_snapped_object():
-		return
-	var cover := EXPANSION_COVER_SCENE.instantiate() as ExpansionCover
-	get_tree().current_scene.add_child(cover)
-	cover.add_to_group("spawned")
-	cover.global_position = global_position
-	zone.pick_up_object(cover)
-
-
-## The lid seated on this console's expansion bay, or null when it is off —
-## what a save records. Null on every console whose model has no such bay.
+## The lid seated on this console's expansion bay, or null when it is off.
 func get_expansion_cover() -> Node3D:
-	var zone := _model.expansion_cover_slot() if _model != null else null
-	if zone == null:
-		return null
-	return zone.picked_up_object as Node3D
+	return _expansions.expansion_cover()
 
 
 ## Put a saved lid back on, building the bay first when a restore gets here
-## before the deferred call that builds it (see restore_expansion). The
-## counterpart of get_expansion_cover, called from
-## the restore's second pass the way restore_memory_card is.
+## before the deferred call that builds it (see restore_expansion).
 func restore_expansion_cover(cover: Node3D) -> void:
 	_build_expansion_hardware()
-	var zone := _model.expansion_cover_slot() if _model != null else null
-	if zone != null and cover != null:
-		zone.pick_up_object(cover)
+	_expansions.restore_expansion_cover(cover)
 
 
-## Roof-socket gate: is this a unit that mounts on THIS console?
-func _accepts_expansion(obj: Node3D) -> bool:
-	return _accepts_expansion_in(obj, "")
-
-
-## The same gate for one socket: a unit mounts here when it is this console's and
-## names this socket ("" for the shared ExpansionSocket). A network card does not
-## go into a shell with the jack built in -- a slim PS2 has no bay to take one.
-func _accepts_expansion_in(obj: Node3D, socket_id: String) -> bool:
-	var unit := obj as RetroExpansion
-	if unit == null:
-		return false
-	if _model != null and _model.builtin_ethernet_port() >= 0 \
-			and ExpansionCatalog.ethernet_port_of(unit.expansion_id) >= 0:
-		return false
-	return ExpansionCatalog.host_of(unit.expansion_id) == systemid \
-		and ExpansionCatalog.mount_of(unit.expansion_id) == ExpansionCatalog.MOUNT_ABOVE \
-		and ExpansionCatalog.socket_of(unit.expansion_id) == socket_id
-
-
-## The sockets of their own some units go into -- a Saturn's Video CD Card slot in
-## its back -- built as the shared one is and placed by the model. Named after the
-## row's `socket`: "mpeg_card" is MpegCardSocket.
-func _build_unit_sockets(aabb: AABB, span: Vector2) -> void:
-	for socket_id: String in ExpansionCatalog.unit_sockets_for_host(systemid):
-		if _unit_socket(socket_id) != null:
-			continue
-		var socket := ExpansionPort.build_socket(self, aabb.end.y, span,
-			ExpansionPort.GROUP_EXPANSION, _accepts_expansion_in.bind(socket_id))
-		socket.name = _unit_socket_name(socket_id)
-		socket.has_picked_up.connect(_on_expansion_seated)
-		socket.has_dropped.connect(_on_expansion_lifted)
-		_model.configure_unit_socket(socket_id, socket)
-		# A NEW socket only: building again after the player took the cover off
-		# must not put a fresh one back. A restore's covers are the save's.
-		if not _restoring_from_save:
-			_seed_port_cover(socket_id)
-
-
-## The covered openings in the console's floor that a unit it stands on fills
-## (ExpansionCatalog's `cover_socket`: the N64's EXT, a Super NES's EXT). The
-## model builds the cover's slot where its shell has the cover; a model with none
-## builds nothing, and the console stands on the unit as it always did.
-func _build_cover_sockets() -> void:
-	for socket_id: String in ExpansionCatalog.cover_sockets_for_host(systemid):
-		if _model.port_cover_slot(socket_id) != null:
-			continue
-		_model.configure_cover_socket(socket_id)
-		if _model.port_cover_slot(socket_id) != null and not _restoring_from_save:
-			_seed_port_cover(socket_id)
-
-
-## True while the cover over `socket_id` is in its slot on this console. False
-## for an opening this console's model does not cover.
+## True while the cover over `socket_id` is in its slot on this console.
 func port_cover_on(socket_id: String) -> bool:
-	if socket_id.is_empty() or _model == null:
-		return false
-	var zone := _model.port_cover_slot(socket_id)
-	return zone != null and zone.has_snapped_object()
+	return _expansions.port_cover_on(socket_id)
 
 
-## Shut a floor opening's cover slot while this console stands on the unit that
-## fills it, and open it again when the console is lifted off. A cover still in
-## the slot when the console is joined -- a room saved before covers, whose
-## restore seeded one under a console already standing on its drive -- is taken
-## out and laid beside the console: on the real pair it could not be there.
+## Shut (or reopen) a floor opening's cover slot while this console stands on the
+## unit that fills it. See SystemExpansions.block_port_cover.
 func block_port_cover(socket_id: String, blocked: bool) -> void:
-	if socket_id.is_empty() or _model == null:
-		return
-	var zone := _model.port_cover_slot(socket_id)
-	if zone == null:
-		return
-	if blocked and zone.has_snapped_object():
-		var cover := zone.picked_up_object as Node3D
-		zone.drop_object()
-		if is_instance_valid(cover):
-			var aside := body_aabb()
-			cover.global_position = global_transform * Vector3(
-				aside.end.x + 0.04, aside.position.y + 0.01, aside.get_center().z)
-	_model.block_port_cover(socket_id, blocked)
+	_expansions.block_port_cover(socket_id, blocked)
 
 
-## Puts the covers on a console's own unit sockets, for a model whose shell has
-## them (RetroSystemModel.build_port_cover_slot): every slot that is empty over a
-## socket that is empty. A fresh console gets them as its sockets are built; a
-## room saved before covers existed gets them from its restore
-## (ScenePersistence), since it never said they were off.
+## Put the covers on this console's own unit sockets, building them first. A
+## room saved before covers existed gets them from its restore (ScenePersistence).
 func seed_port_covers() -> void:
 	_build_expansion_hardware()
-	if _model == null:
-		return
-	for socket_id: String in _model.port_cover_sockets():
-		_seed_port_cover(socket_id)
+	_expansions.seed_port_covers()
 
 
-## In the console's own color, given before it enters the room: that is when a
-## mod's hook dresses it.
-func _seed_port_cover(socket_id: String) -> void:
-	var zone := _model.port_cover_slot(socket_id) if _model != null else null
-	var socket := _unit_socket(socket_id)
-	if zone == null or zone.has_snapped_object() or (socket != null and socket.has_snapped_object()):
-		return
-	var cover := PORT_COVER_SCENE.instantiate() as PortCover
-	cover.socket_id = socket_id
-	cover.size = _model.port_cover_size(socket_id)
-	cover.model_variant = model_variant
-	get_tree().current_scene.add_child(cover)
-	cover.add_to_group("spawned")
-	cover.global_transform = zone.global_transform
-	zone.pick_up_object(cover)
-
-
-## Each unit socket that has a cover slot, and the cover in it or null -- what a
-## save records. Empty on a model with none.
+## Each unit socket that has a cover slot, and the cover in it or null.
 func get_port_covers() -> Dictionary:
-	var out := {}
-	if _model == null:
-		return out
-	for socket_id: String in _model.port_cover_sockets():
-		out[socket_id] = _model.port_cover_slot(socket_id).picked_up_object as Node3D
-	return out
+	return _expansions.port_covers()
 
 
 ## Put a saved cover back over `socket_id`, building the sockets first when a
-## restore gets here before they are -- restore_expansion_cover's arrangement.
+## restore gets here before they are.
 func restore_port_cover(socket_id: String, cover: Node3D) -> void:
 	_build_expansion_hardware()
-	var zone := _model.port_cover_slot(socket_id) if _model != null else null
-	if zone != null and cover != null:
-		zone.pick_up_object(cover)
+	_expansions.restore_port_cover(socket_id, cover)
 
 
-## The socket a MOUNT_ABOVE unit naming `socket_id` goes into, or null.
+## The socket a MOUNT_ABOVE unit naming `socket_id` goes into, or null. Kept
+## under this name because suites and the mods' probes reach it here.
 func _unit_socket(socket_id: String) -> XRToolsSnapZone:
-	if socket_id.is_empty():
-		return get_node_or_null("ExpansionSocket") as XRToolsSnapZone
-	return get_node_or_null(_unit_socket_name(socket_id)) as XRToolsSnapZone
-
-
-static func _unit_socket_name(socket_id: String) -> String:
-	return socket_id.to_pascal_case() + "Socket"
-
-
-func _on_expansion_seated(obj: Node3D) -> void:
-	var unit := obj as RetroExpansion
-	if unit != null:
-		unit.bind_to_host(self)
-
-
-func _on_expansion_lifted() -> void:
-	# The zone says it is empty, not what left it, so unbind whatever we hold
-	# that a socket is no longer holding. ITS socket: a Saturn's Video CD Card stays
-	# in its own while a cartridge comes out of the slot behind the lid.
-	for unit in _expansions.duplicate():
-		if not is_instance_valid(unit) \
-				or ExpansionCatalog.mount_of(unit.expansion_id) != ExpansionCatalog.MOUNT_ABOVE:
-			continue
-		var socket := _unit_socket(ExpansionCatalog.socket_of(unit.expansion_id))
-		if socket == null or socket.picked_up_object != unit:
-			unit.unbind_from_host()
+	return _expansions.unit_socket(socket_id)
 
 
 ## Called from the unit's side of the join, whichever side owns the socket.
 func attach_expansion(unit: RetroExpansion) -> void:
-	if unit == null or _expansions.has(unit):
+	if not _expansions.attach(unit):
 		return
-	_expansions.append(unit)
 	if not unit.card_swiped.is_connected(_on_expansion_card_swiped):
 		unit.card_swiped.connect(_on_expansion_card_swiped)
 	_update_name_label()
-	_notice_adapter_change(unit, true)
 
 
 func detach_expansion(unit: RetroExpansion) -> void:
-	if unit == null or not _expansions.has(unit):
+	if unit == null or not _expansions.units().has(unit):
 		return
 	if unit.card_swiped.is_connected(_on_expansion_card_swiped):
 		unit.card_swiped.disconnect(_on_expansion_card_swiped)
-	_expansions.erase(unit)
+	_expansions.detach(unit)
 	_update_name_label()
-	_notice_adapter_change(unit, false)
-
-
-## A network adapter changes what the core is told at power-on and nothing while
-## it runs -- both cores read their adapter option once, at load -- so a card put
-## in or taken out of a running console says when it will count.
-func _notice_adapter_change(unit: RetroExpansion, seated: bool) -> void:
-	if not is_powered_on or ExpansionCatalog.ethernet_port_of(unit.expansion_id) < 0:
-		return
-	_machine_toast().show_notice(display_name_for_toast(),
-		"%s %s" % [ExpansionCatalog.display_label_of(unit.expansion_id), "in" if seated else "out"],
-		"Switch the console off and on again for it to count.",
-		AchievementToast.ACCENT_WAITING)
 
 
 ## A dotcode card was slid through an expansion's groove.
@@ -4014,8 +3109,8 @@ func restore_expansion(unit: RetroExpansion) -> void:
 			return
 	elif mount == ExpansionCatalog.MOUNT_ABOVE:
 		var socket_id := ExpansionCatalog.socket_of(unit.expansion_id)
-		var socket := _unit_socket(socket_id)
-		if socket != null and _accepts_expansion_in(unit, socket_id):
+		var socket := _expansions.unit_socket(socket_id)
+		if socket != null and _expansions.accepts_unit(unit, socket_id):
 			socket.pick_up_object(unit)
 			return
 	else:
@@ -4033,24 +3128,7 @@ func restore_expansion(unit: RetroExpansion) -> void:
 
 ## The ids bolted to this console, in catalog order.
 func expansion_ids() -> Array[String]:
-	var ids: Array[String] = []
-	for unit in _expansions:
-		if is_instance_valid(unit) and not unit.expansion_id.is_empty():
-			ids.append(unit.expansion_id)
-	return ExpansionCatalog.sorted_ids(ids)
-
-
-## What the hardware pins are worked out from: the units seated, and the network
-## adapter a shell has built in (a slim PS2's) as if it were the card. Not
-## expansion_ids itself, which also names what is SEATED for boot recipes and
-## saves, and a built-in socket is neither.
-func _hardware_ids() -> Array[String]:
-	var ids := expansion_ids()
-	if _model != null and _model.builtin_ethernet_port() >= 0:
-		var card := ExpansionCatalog.network_adapter_for(systemid)
-		if not card.is_empty() and not ids.has(card):
-			ids.append(card)
-	return ids
+	return _expansions.ids()
 
 
 ## A shell's own RJ45 socket, for a model that says it has one (a slim PS2).
@@ -4068,11 +3146,7 @@ func _build_builtin_ethernet_port() -> void:
 
 ## The units themselves, for whoever needs the objects rather than the names.
 func get_expansions() -> Array[RetroExpansion]:
-	var out: Array[RetroExpansion] = []
-	for unit in _expansions:
-		if is_instance_valid(unit):
-			out.append(unit)
-	return out
+	return _expansions.units()
 
 
 # ── Expansion launch ──────────────────────────────────────────────────────────
@@ -4088,21 +3162,7 @@ func expansion_boot() -> Dictionary:
 ## Public because ExpansionLaunch and expansion_tests both call it; it was
 ## private when its only caller was in this file.
 func slot_b_save_path(core: String) -> String:
-	if core.is_empty():
-		return ""
-	for unit in get_expansions():
-		if unit.get_bay_count() < 2:
-			continue
-		var m := unit.get_media(1)
-		if m == null or not ("save_id" in m):
-			continue
-		var save_id := str(m.get("save_id"))
-		if save_id.is_empty():
-			continue
-		return SramPaths.resolve_cart_save(
-			SramPaths.media_systemid(m, ExpansionCatalog.media_of(unit.expansion_id)),
-			core, rom_path, save_id)
-	return ""
+	return _expansions.slot_b_save_path(core)
 
 
 ## Merge every REQUIRED core option into <dir>/core_options/<core>.opt before
@@ -4320,10 +3380,10 @@ func set_controller_port_device(port: int, device_id: int) -> void:
 		if entry["port"] == port:
 			entry["current_id"] = device_id
 			break
-	# Guard: a controller can be plugged in before the core is started (or in a
-	# headless probe where the GDExtension isn't loaded). The device selection is
-	# re-applied at core start, so skipping here is safe.
-	if is_instance_valid(_libretro) and _libretro.has_method("SetControllerPortDevice"):
+	# Guard: a controller can be plugged in before the machine is built (a bare
+	# RetroSystem.new() in a suite has no Libretro child). The device selection
+	# is re-applied at core start, so skipping here is safe.
+	if is_instance_valid(_libretro):
 		_libretro.SetControllerPortDevice(port, device_id)
 
 
@@ -4416,32 +3476,29 @@ func _bind_pak_storage(lib_port: int, ctrl: Node) -> void:
 		return
 	var pak: Node = ctrl.call("get_pak") if ctrl.has_method("get_pak") else null
 
-	if _libretro.has_method("SetSramRegionPath"):
-		var path := ""
-		if is_instance_valid(pak) and pak is ControllerPak:
-			path = str(pak.call("image_path"))
-			# Only a pak this session invented may have its image created. One
-			# that came back from a saved room with its file missing runs
-			# unbacked, so a vanished set of notes does not return as a silent
-			# blank that reads exactly like a wipe.
-			if not path.is_empty() and bool(pak.get("minted")):
-				SramPaths.ensure_card(ControllerPak.FAMILY, str(pak.get("card_id")))
-		_libretro.SetSramRegionPath(lib_port, path,
-			MEMPAK_BASE_OFFSET + lib_port * MEMPAK_SIZE, MEMPAK_SIZE)
+	var path := ""
+	if is_instance_valid(pak) and pak is ControllerPak:
+		path = str(pak.call("image_path"))
+		# Only a pak this session invented may have its image created. One
+		# that came back from a saved room with its file missing runs
+		# unbacked, so a vanished set of notes does not return as a silent
+		# blank that reads exactly like a wipe.
+		if not path.is_empty() and bool(pak.get("minted")):
+			SramPaths.ensure_card(ControllerPak.FAMILY, str(pak.get("card_id")))
+	_libretro.SetSramRegionPath(lib_port, path,
+		MEMPAK_BASE_OFFSET + lib_port * MEMPAK_SIZE, MEMPAK_SIZE)
 
-	if _libretro.has_method("SetTransferPak"):
-		var rom := ""
-		var ram := ""
-		var rtc := ""
-		if is_instance_valid(pak) and pak is TransferPak:
-			rom = str(pak.call("cart_rom_path"))
-			ram = str(pak.call("cart_save_path", _resolve_core()))
-			rtc = str(pak.call("cart_rtc_path", _resolve_core()))
-		# Before SetTransferPak: its generation bump is what has the core read the
-		# cartridge again, and it asks for the clock then.
-		if _libretro.has_method("SetTransferPakClock"):
-			_libretro.SetTransferPakClock(lib_port, rtc)
-		_libretro.SetTransferPak(lib_port, rom, ram)
+	var rom := ""
+	var ram := ""
+	var rtc := ""
+	if is_instance_valid(pak) and pak is TransferPak:
+		rom = str(pak.call("cart_rom_path"))
+		ram = str(pak.call("cart_save_path", _resolve_core()))
+		rtc = str(pak.call("cart_rtc_path", _resolve_core()))
+	# Before SetTransferPak: its generation bump is what has the core read the
+	# cartridge again, and it asks for the clock then.
+	_libretro.SetTransferPakClock(lib_port, rtc)
+	_libretro.SetTransferPak(lib_port, rom, ram)
 
 
 ## The controllers on this machine's ports, one per port, null where empty.
@@ -4459,10 +3516,10 @@ func get_port_controllers() -> Array:
 ## Tools/cores/vmu_slot_probe). The seating is recorded and applied at the next
 ## content start.
 func reapply_vmu(ctrl: Node) -> void:
-	_vmu.reapply(ctrl)
 	# The same sockets hold an Xbox's Memory Units, and the pad announces a
 	# change in them the same way. Each storage ignores what is not its own.
-	_xbox.reapply(ctrl)
+	for storage: ConsoleStorage in _storages:
+		storage.reapply(ctrl)
 
 
 ## Whether the running core has said what options it has yet, and whether `key`
@@ -4523,7 +3580,7 @@ func _build_console_memory() -> void:
 ## Whether this machine's core hands device screens over through the controller
 ## display interface, rather than drawing them into the picture.
 func vmu_hands_screens_over() -> bool:
-	if not is_instance_valid(_libretro) or not _libretro.has_method("HasControllerScreens"):
+	if not is_instance_valid(_libretro):
 		return false
 	return bool(_libretro.HasControllerScreens())
 
@@ -4550,7 +3607,7 @@ func vmu_screen_texture(ctrl: Node, slot: int) -> Texture2D:
 ## The voice the beep of the card in `slot` of this pad plays on, or -1 until
 ## that card has beeped.
 func vmu_beep_voice(ctrl: Node, slot: int) -> int:
-	if slot < 0 or not is_instance_valid(_libretro) or not _libretro.has_method("GetControllerAudioVoiceId"):
+	if slot < 0 or not is_instance_valid(_libretro):
 		return -1
 	var port := _pad_libretro_port(ctrl)
 	return int(_libretro.GetControllerAudioVoiceId(port, slot)) if port >= 0 else -1
@@ -4618,7 +3675,7 @@ func _announce_cabinet_port(i: int) -> void:
 	# what the cabinet socket's plug belongs to.
 	var cab_plug: Node = _port_plugs[i] if i < _port_plugs.size() else null
 	if is_instance_valid(cab_plug) and cab_plug.has_method("get_controller"):
-		var tap: Node = cab_plug.get_controller()
+		var tap: Node = _controller_of(cab_plug)
 		# At 2P the pad in its first socket is the port's device, and with none
 		# there the tap's own (nothing) is.
 		if tap is RetroMultitap and ((tap as RetroMultitap).mode == RetroMultitap.MODE_5P
@@ -4673,17 +3730,13 @@ func _ensure_port_devices_bound() -> void:
 		return
 	_port_devices_settled = true
 	_reannounce_port_devices()
-	# And the Dreamcast's VMU slots, which need the core to have run a frame for
-	# the same reason this function does: flycast reads its per-slot device
-	# options only once `first_startup` is false, which it clears at the end of
-	# its first retro_run. Nudged earlier the re-read is consumed while that flag
-	# is still set, and the card never appears. See VmuStorage.
-	_vmu.nudge_slots_after_start()
-	# And start writing them back. Until this, a card's own image was written
-	# only at power-off, so anything a game put on a VMU lived in flycast's
-	# scratch file until then and a hard kill lost it.
-	_vmu.start_draining()
-	_xbox.start_draining_units()
+	# And the storages that wait for a frame: the Dreamcast's VMU slots, which
+	# flycast reads only once `first_startup` is false (cleared at the end of its
+	# first retro_run -- nudged earlier, the card never appears), and the cards
+	# written back while the game runs rather than only at power-off, so a hard
+	# kill does not lose what a game put on one. See VmuStorage, XboxStorage.
+	for storage: ConsoleStorage in _storages:
+		storage.after_first_frame()
 
 
 ## Re-apply every plugged pad's preferred pad type. Called when the option set
@@ -5096,12 +4149,11 @@ func _bind_port(lib_port: int, plug: Node3D, cabinet_index: int, announce_device
 		set_controller_port_device(lib_port, announce)
 	# The bound node is a ControllerPlug (cable end). Unwrap to the actual
 	# RetroController so rumble can be routed to its set_rumble() method.
-	var ctrl: Node3D = plug.get_controller() if plug.has_method("get_controller") else plug
+	var ctrl := _controller_of(plug)
 	var slot := cabinet_index if cabinet_index >= 0 else lib_port
 	if slot < _port_controllers.size():
 		_port_controllers[slot] = ctrl
-	if plug.has_method("on_plugged_in"):
-		plug.on_plugged_in(self, lib_port)
+	_tell_plugged_in(plug, lib_port)
 	# Auto-select the core's per-port pad type (e.g. PCSX-ReARMed: DualShock vs
 	# the original digital pad). No-ops unless the core exposes such an option.
 	_apply_pad_type_option(lib_port, ctrl)
@@ -5116,8 +4168,7 @@ func _unbind_port(lib_port: int, plug: Node3D, cabinet_index: int, announce_devi
 		return
 	print("[RetroSystem] port %d released" % cabinet_index)
 	# Stop any active rumble on the controller being unplugged.
-	var ctrl: Node3D = plug.get_controller() \
-		if is_instance_valid(plug) and plug.has_method("get_controller") else plug
+	var ctrl := _controller_of(plug)
 	if is_instance_valid(ctrl) and ctrl.has_method("set_rumble"):
 		ctrl.set_rumble(0.0, 0.0)
 	var device_type: int = plug.get("device_type") \
@@ -5132,9 +4183,38 @@ func _unbind_port(lib_port: int, plug: Node3D, cabinet_index: int, announce_devi
 			_announce_port(lib_port)
 		else:
 			set_controller_port_device(lib_port, RETRO_DEVICE_NONE)
+	_tell_unplugged(plug)
+	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG, {"sys": self, "port": slot})
+
+
+## What a socket was handed, unwrapped to the peripheral behind it.
+##
+## A controller port takes either a cable END -- a ControllerPlug, a light gun's
+## or a multitap's plug, whose get_controller() names the pad at the far end --
+## or a thing that IS its own plug (a VMU, an N64 pak, the GameCube-to-GBA lead's
+## console end), which answers for itself. Every port path unwraps through here,
+## so rumble, netplay and the port cache all see the same node. A freed or
+## missing plug unwraps to null.
+static func _controller_of(plug: Variant) -> Node3D:
+	if not is_instance_valid(plug):
+		return null
+	var node := plug as Node
+	if node != null and node.has_method("get_controller"):
+		return node.get_controller() as Node3D
+	return node as Node3D
+
+
+## Tell what was seated that it is on libretro port `lib_port` of this machine.
+## Optional on the plug side: a VMU or a pak seated as a plug has nothing to do.
+func _tell_plugged_in(plug: Variant, lib_port: int) -> void:
+	if is_instance_valid(plug) and plug.has_method("on_plugged_in"):
+		plug.on_plugged_in(self, lib_port)
+
+
+## The other half of _tell_plugged_in, for whatever just left a socket.
+func _tell_unplugged(plug: Variant) -> void:
 	if is_instance_valid(plug) and plug.has_method("on_unplugged"):
 		plug.on_unplugged()
-	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG, {"sys": self, "port": slot})
 
 
 # --- USB socket snap handlers ---
@@ -5152,11 +4232,10 @@ func _on_usb_snapped(plug: Node3D, k: int) -> void:
 		_model.play_port_plug_insert(plug, _usb_zones[k])
 	add_collision_exception_with(plug)
 	_usb_plugs[k] = plug
-	var ctrl: Node3D = plug.get_controller() if plug.has_method("get_controller") else plug
+	var ctrl := _controller_of(plug)
 	_usb_controllers[k] = ctrl
 	_announce_port(k)
-	if plug.has_method("on_plugged_in"):
-		plug.on_plugged_in(self, k)
+	_tell_plugged_in(plug, k)
 	NetworkManager.report_event(NetEvents.Event.EV_PORT_PLUG,
 		{"sys": self, "ctrl": ctrl, "port": USB_SLOT_BASE + k})
 
@@ -5171,8 +4250,7 @@ func _on_usb_released(k: int) -> void:
 	if not is_instance_valid(plug):
 		return
 	remove_collision_exception_with(plug)
-	if plug.has_method("on_unplugged"):
-		plug.on_unplugged()
+	_tell_unplugged(plug)
 	NetworkManager.report_event(NetEvents.Event.EV_PORT_UNPLUG, {"sys": self, "port": USB_SLOT_BASE + k})
 
 
@@ -5446,26 +4524,12 @@ func _media_systemid() -> String:
 	return systemid
 
 
-## Restore a cable→TV connection after loading from a save file.
-## Safe to call before the cables have finished spawning — the snap will be
-## deferred until _add_cables_to_scene() runs if the plug isn't ready yet.
+## Restore a cable→TV connection after loading from a save file. Safe to call
+## before the lead has finished spawning -- see SystemVideoLead.restore_connection.
 ## `channel` picks the video-out cable (0 on classic single-cable systems);
 ## `tv_input` picks which of the set's four composite inputs to land in.
 func restore_cable_connection(tv: RetroTV, channel: int = 0, tv_input: int = 0) -> void:
-	if channel < 0 or channel >= _channels.size():
-		channel = 0
-	print("[RetroSystem] restore_cable_connection: ch=%d in=%d plug=%s tv=%s" %
-		[channel, tv_input, _channels[channel].plug if channel < _channels.size() else null, tv])
-	if channel < _channels.size() and _channels[channel].plug != null:
-		_snap_cable_to_tv(tv, channel, tv_input)
-	else:
-		print("[RetroSystem] cable plug not ready yet, deferring restore")
-		_channels[channel].pending_tv = tv
-		_channels[channel].pending_input = tv_input
-
-
-func _snap_cable_to_tv(tv: RetroTV, channel: int = 0, tv_input: int = 0) -> void:
-	tv.accept_plug_restore(_channels[channel].plug, tv_input)
+	_video_lead.restore_connection(tv, channel, tv_input)
 
 
 ## Restore a cartridge→slot insertion after loading from a save file. Slot/tray
@@ -6192,6 +5256,8 @@ var _three_do: ThreeDoStorage = null
 var _xbox: XboxStorage = null
 ## The memory built into the console, on one with any -- see ConsoleMemory.
 var _console_memory: ConsoleMemory = null
+## All five storages, in lifecycle order -- see ConsoleStorage and _init.
+var _storages: Array[ConsoleStorage] = []
 ## What a stacked expansion hands the core at boot - see ExpansionLaunch.
 var _expansion_launch: ExpansionLaunch = null
 

@@ -639,12 +639,12 @@ func _update_memory() -> void:
 	var info := OS.get_memory_info()
 	var physical := int(info.get("physical", -1))
 	if _unified_memory() and physical > 0:
-		_put("vram", "%s · %.1f%%" % [MenuStyle.human_bytes(video),
+		_put("vram", "%s · %.1f%%" % [ByteSize.human(video),
 			float(video) / float(physical) * 100.0], DIM)
 	else:
-		_put("vram", MenuStyle.human_bytes(video), DIM)
-	_put("vsplit", "%s / %s" % [MenuStyle.human_bytes(tex), MenuStyle.human_bytes(buf)], DIM)
-	_put("ram", "%s / %s" % [MenuStyle.human_bytes(stat), MenuStyle.human_bytes(_peak_static)], DIM)
+		_put("vram", ByteSize.human(video), DIM)
+	_put("vsplit", "%s / %s" % [ByteSize.human(tex), ByteSize.human(buf)], DIM)
+	_put("ram", "%s / %s" % [ByteSize.human(stat), ByteSize.human(_peak_static)], DIM)
 
 	# "free", not "available": Windows reports available as the COMMIT limit, which
 	# came back as 62 GB against 31 GB of physical on this box — subtracting it
@@ -652,7 +652,7 @@ func _update_memory() -> void:
 	var free_bytes := int(info.get("free", -1))
 	if physical > 0 and free_bytes >= 0:
 		var used := physical - free_bytes
-		_put("pool", "%s / %s" % [MenuStyle.human_bytes(used), MenuStyle.human_bytes(physical)],
+		_put("pool", "%s / %s" % [ByteSize.human(used), ByteSize.human(physical)],
 			_grade(float(used) / float(physical), 0.80, 0.92))
 	else:
 		_put("pool", "unreported", DIM)

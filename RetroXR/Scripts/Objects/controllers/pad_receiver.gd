@@ -135,11 +135,7 @@ func restore_vmu(device: Node3D, slot: int) -> void:
 ## question RetroController answers, and not called microphone_position() for
 ## the same reason.
 func seated_microphone() -> Node3D:
-	for slot in _vmu_port.slot_count():
-		var device := _vmu_port.get_device(slot)
-		if device != null and device.has_method("microphone_position"):
-			return device
-	return null
+	return _vmu_port.seated_microphone()
 
 
 func receiver_glyph() -> String:

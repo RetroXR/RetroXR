@@ -356,7 +356,7 @@ func _rom_shot(sv: SubViewport, cam: Camera3D) -> void:
 		add_child(cart)
 		spawned.append(cart)
 		var market := N64CartShell.market("n64", path)
-		var preset := N64CartShell.preset_for_rom(path, market)
+		var preset := N64CartShell.preset_for_rom(path)
 		var caption := Label3D.new()
 		caption.text = "%s\n%s body, %s" % [path.get_file().get_basename().left(34),
 			"JPN" if market == "jp" else "USA", preset]

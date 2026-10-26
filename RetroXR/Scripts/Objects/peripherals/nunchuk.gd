@@ -79,6 +79,9 @@ var _locomotion_manager: LocomotionManager = null
 ## A Nunchuk is only ever in one hand, so both hands of the shared blocker are
 ## released against the hand holding it — the flag for the other one is never
 ## set, and release() drops the claim whether or not the controller survived.
+## Reference-counted in VrPointerBlock, the same object every other held thing
+## uses: a Nunchuk and its Wiimote are often one in each hand, and a private copy
+## of the count is how a hand's block got left standing.
 var _pointer_block := VrPointerBlock.new()
 
 # Motion
@@ -146,22 +149,6 @@ func _update_locomotion_block() -> void:
 		ctrl_valid and _holding_ctrl.tracker == &"left_hand")
 	_locomotion_manager.set_block(owner_key, LocomotionManager.CHANNEL_RIGHT,
 		ctrl_valid and _holding_ctrl.tracker == &"right_hand")
-
-
-## Stop the holding hand's laser pointing while this is in it.
-##
-## Without this the Nunchuk was the one thing in the room you could hold and still
-## have a ray coming out of your fist: RetroController, Wiimote, LightGun,
-## TVRemote and HandheldInput all block it, and this hid the controller model and
-## took the locomotion channel but left the pointer alone.
-##
-## Reference-counted, because a Nunchuk and the Wiimote it plugs into are very
-## often one in each hand — which is exactly the case a plain visible = false
-## gets wrong. That counting lives in VrPointerBlock with the other five; this
-## script kept its own copy of it after they were converted, and a divergent
-## copy is precisely how a hand's count gets left standing.
-func _update_pointer_block(ctrl: XRController3D, should_block: bool) -> void:
-	_pointer_block.set_block(ctrl, should_block)
 
 
 func reload_bindings() -> void:
@@ -237,7 +224,7 @@ func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 	_saved_by = by
 	_holding_ctrl = ctrl
 	VrHold.set_model_visible(ctrl, false)
-	_update_pointer_block(ctrl, true)
+	_pointer_block.set_block(ctrl, true)
 	_update_locomotion_block()
 
 
@@ -252,7 +239,7 @@ func _on_dropped_signal(_pickable: Node3D) -> void:
 	if _hint:
 		_hint.on_dropped()
 	VrHold.set_model_visible(_holding_ctrl, true)
-	_update_pointer_block(_holding_ctrl, false)
+	_pointer_block.set_block(_holding_ctrl, false)
 	_allow_drop = false
 	_saved_by = null
 	_holding_ctrl = null
@@ -269,7 +256,7 @@ func _rehold() -> void:
 		# Give its model back before forgetting it, or the player is left with an
 		# invisible controller.
 		VrHold.set_model_visible(_holding_ctrl, true)
-		_update_pointer_block(_holding_ctrl, false)
+		_pointer_block.set_block(_holding_ctrl, false)
 		_saved_by = null
 		_holding_ctrl = null
 		_update_locomotion_block()
@@ -289,7 +276,7 @@ func _is_combo_pressed(ctrl: XRController3D) -> bool:
 
 func _drop_all() -> void:
 	VrHold.set_model_visible(_holding_ctrl, true)
-	_update_pointer_block(_holding_ctrl, false)
+	_pointer_block.set_block(_holding_ctrl, false)
 	_allow_drop = true
 	_holding_ctrl = null
 	_update_locomotion_block()

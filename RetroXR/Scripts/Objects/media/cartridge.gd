@@ -249,14 +249,7 @@ func _pin_fallback_market() -> void:
 ## Whether a cartridge of this ROM takes its market from the player rather than
 ## from the ROM: only the shells that pick a body or colour by market ask.
 static func uses_fallback_market(p_systemid: String, p_rom_path: String) -> bool:
-	match p_systemid:
-		"n64":
-			return N64CartShell.rom_market(p_systemid, p_rom_path).is_empty()
-		SnesCartShell.SYSTEMID:
-			return SnesCartShell.rom_market(p_systemid, p_rom_path).is_empty()
-		NesCartShell.SYSTEMID:
-			return NesCartShell.rom_market(p_systemid, p_rom_path).is_empty()
-	return false
+	return ModCartShells.names_no_market(p_systemid, p_rom_path)
 
 
 ## The body GLB a cartridge with these properties wears, "" for the procedural
@@ -269,19 +262,13 @@ static func body_model_for(p_systemid: String, p_rom_path: String, p_body_region
 	# A mod's shells for this system stand in for the game's own, all of them. The
 	# camera stays a camera: its ROM, or one of its colors, asks for the mod's camera
 	# body, or the game's if the mod has none.
-	if ModCartShells.has(p_systemid):
-		if GbCartShell.is_shell(p_systemid) and p_body_region.is_empty() \
-				and (GbCameraShell.is_preset(p_shell_preset) or GbCameraShell.is_camera_rom(p_rom_path)):
-			return camera_body_for(p_systemid)
-		return ModCartShells.model_for(p_systemid, p_rom_path, p_body_region)
-	if p_systemid == "n64":
-		return N64CartShell.body_model_for_region(p_body_region,
-			N64CartShell.market(p_systemid, p_rom_path, p_fallback_market))
-	if p_systemid == SnesCartShell.SYSTEMID:
-		return SnesCartShell.body_model_for_rom(p_body_region, p_systemid, p_rom_path,
+	if ModCartShells.has(p_systemid) and GbCartShell.is_shell(p_systemid) and p_body_region.is_empty() \
+			and (GbCameraShell.is_preset(p_shell_preset) or GbCameraShell.is_camera_rom(p_rom_path)):
+		return camera_body_for(p_systemid)
+	# The mod's row, else the game's own shell for a system whose body is per ROM.
+	if ModCartShells.picks_body(p_systemid):
+		return ModCartShells.body_model(p_systemid, p_rom_path, p_body_region, p_shell_preset,
 			p_fallback_market)
-	if GbCartShell.is_shell(p_systemid):
-		return GbcCartShell.body_model_for_rom(p_body_region, p_shell_preset, p_rom_path)
 	return _CART_MODELS.get(p_systemid, "")
 
 
@@ -302,7 +289,6 @@ func _apply_cart_model() -> void:
 	if _model_label != null or has_node("CartModel"):
 		return
 	var path := _body_model()
-	var market := N64CartShell.market(systemid, rom_path, fallback_market) if systemid == "n64" else ""
 	if path.is_empty() or not ResourceLoader.exists(path):
 		return
 	var scene := load(path) as PackedScene
@@ -337,28 +323,15 @@ func _apply_cart_model() -> void:
 	# The camera, the game's or a mod's: in the camera's own colors (GbCameraShell).
 	if GbCartShell.is_shell(systemid) and GbCameraShell.is_camera_model(glb):
 		_paint_camera(glb)
-	elif mod_shell:
-		# Only where the mod said which of its materials are shell plastic;
-		# otherwise the body keeps its own materials whatever was asked for.
-		if ModCartShells.tintable(systemid):
-			_paint_shell(glb, systemid, ModCartShells.preset_for(systemid, rom_path))
-	elif systemid == "n64":
-		_paint_shell(glb, "n64", N64CartShell.preset_for_rom(rom_path, market))
-	elif GbCartShell.is_shell(systemid) and GbcCartShell.is_body(path):
-		_paint_shell(glb, GbcCartShell.PALETTE, GbcCartShell.preset_for_rom(rom_path))
-	elif GbCartShell.is_shell(systemid):
-		_paint_shell(glb, GbCartShell.SYSTEMID, GbCartShell.preset_for_rom(rom_path))
-	elif systemid == GbaCartShell.SYSTEMID:
-		_paint_shell(glb, GbaCartShell.SYSTEMID, GbaCartShell.preset_for_rom(rom_path))
-	elif systemid == SnesCartShell.SYSTEMID:
-		_paint_shell(glb, SnesCartShell.SYSTEMID,
-			SnesCartShell.preset_for_rom(rom_path, SnesCartShell.SYSTEMID, fallback_market))
-		# A PAL cartridge is the Super Famicom shell with its market's warning sticker.
-		SnesCartShell.apply_rear_sticker(glb,
-			SnesCartShell.rear_sticker_file(path, systemid, rom_path, fallback_market))
-	elif systemid == NesCartShell.SYSTEMID:
-		_paint_shell(glb, NesCartShell.SYSTEMID,
-			NesCartShell.preset_for_rom(rom_path, NesCartShell.SYSTEMID, fallback_market))
+	else:
+		# The mod's shell colour (only where it said which of its materials are shell
+		# plastic; otherwise the body keeps its own whatever was asked for), else the
+		# game's own shell's for this ROM; then whatever else that shell puts on (a
+		# PAL Super Famicom cartridge's rear sticker).
+		var finish := ModCartShells.shell_finish(systemid, rom_path, path, fallback_market)
+		if not finish.is_empty():
+			_paint_shell(glb, str(finish["palette"]), StringName(str(finish["preset"])))
+		ModCartShells.dress_body(glb, systemid, rom_path, path, fallback_market)
 	for nm: String in _LABEL_MESHES:
 		_model_label = glb.find_child(nm, true, false) as MeshInstance3D
 		if _model_label != null:

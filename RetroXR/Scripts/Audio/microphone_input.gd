@@ -147,7 +147,7 @@ func _read_audio_server() -> Dictionary:
 
 func _running_machines() -> Array:
 	var out: Array = []
-	for node in get_tree().get_nodes_in_group("retro_system"):
+	for node in get_tree().get_nodes_in_group(ExpansionPort.GROUP_SYSTEM):
 		var machine := node as RetroSystem
 		if machine == null or not machine.is_powered_on:
 			continue

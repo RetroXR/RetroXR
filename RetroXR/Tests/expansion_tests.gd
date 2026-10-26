@@ -486,7 +486,7 @@ func _group_media() -> void:
 	_ok(bay != null and bay.snap_filter.call(disk), "media/ which takes a 64DD disk")
 	_ok(bay != null and not bay.snap_filter.call(wrong), "media/ and refuses an NES cart")
 
-	dd.restore_media(disk)
+	dd.restore_media_in_slot(disk)
 	await _wait(5)
 	_ok(dd.get_media_path() == "/roms/n64dd/disk.ndd", "media/ the bay reports its disk")
 
@@ -593,7 +593,7 @@ func _group_media() -> void:
 		"nest/ and refuses what is not one")
 
 	nest_sfc.restore_cartridge(nest_bsx)
-	nest_bsx.restore_media(nest_pack)
+	nest_bsx.restore_media_in_slot(nest_pack)
 	await _wait(5)
 	var nest_boot := nest_sfc.expansion_boot()
 	_ok(str(nest_boot.get("core", "")) == "snes9x", "nest/ the stack pins snes9x")
@@ -632,7 +632,7 @@ func _group_media() -> void:
 	_ok(nest_sfc._expansion_launch.expansion_roms(nest_sfc.expansion_boot())
 			== ["/roms/satellaview/BS-X.sfc"],
 		"nest/ an empty BS-X cart boots the shell it carries")
-	nest_bsx.restore_media(nest_pack)
+	nest_bsx.restore_media_in_slot(nest_pack)
 	await _wait(5)
 	_ok(nest_sfc._expansion_launch.expansion_roms(nest_sfc.expansion_boot())
 			== ["/roms/satellaview/PACK.bs"],
@@ -669,7 +669,7 @@ func _group_media() -> void:
 	# Swap the pack. The town must not move with it.
 	await _unbolt(nest_bsx.get_node("MediaBay") as XRToolsSnapZone, nest_pack)
 	var other := await _cart("satellaview", "/roms/satellaview/OTHER.bs")
-	nest_bsx.restore_media(other)
+	nest_bsx.restore_media_in_slot(other)
 	await _wait(5)
 	_ok(nest_sfc._memcards._compose_sram_path("snes9x") == save_a,
 		"nest/ a different pack keeps the same save")
@@ -678,7 +678,7 @@ func _group_media() -> void:
 	await _unbolt(nest_bsx.get_node("MediaBay") as XRToolsSnapZone, other)
 	_ok(nest_sfc._memcards._compose_sram_path("snes9x") == save_a,
 		"nest/ and an empty cart still has the town on it")
-	nest_bsx.restore_media(nest_pack)
+	nest_bsx.restore_media_in_slot(nest_pack)
 	await _wait(5)
 
 
@@ -773,7 +773,7 @@ func _group_media() -> void:
 		"media/ which takes a Master System cartridge")
 	_ok(not pbc._accepts_media(not_sms), "media/ and refuses a Genesis cartridge")
 
-	pbc.restore_media(sms_cart)
+	pbc.restore_media_in_slot(sms_cart)
 	await _wait(5)
 	var pbc_boot := genesis.expansion_boot()
 	_ok(str(pbc_boot.get("core", "")) == "genesis_plus_gx",
@@ -793,7 +793,7 @@ func _group_media() -> void:
 	_ok(not fm._accepts_media(await _cart("genesis", "/roms/genesis/x.md")),
 		"media/ and refuses a Genesis cartridge")
 
-	fm.restore_media(sms_cart2)
+	fm.restore_media_in_slot(sms_cart2)
 	await _wait(5)
 	var fm_boot := sms.expansion_boot()
 	_ok(str(fm_boot.get("core", "")) == "genesis_plus_gx",
@@ -815,7 +815,7 @@ func _group_media() -> void:
 		"media/ as well as its own")
 	_ok(not x32._accepts_media(await _cart("mastersystem", "/roms/mastersystem/x.sms")),
 		"media/ and refuses a Master System one")
-	x32.restore_media(md_cart)
+	x32.restore_media_in_slot(md_cart)
 	await _wait(5)
 	var pass_boot := md.expansion_boot()
 	_ok(not pass_boot.has("core") and md.resolve_core_name() == md._bare_core_default(),
@@ -831,7 +831,7 @@ func _group_media() -> void:
 	var own_x32 := await _unit("sega_32x")
 	var own_md := await _console("genesis")
 	own_md.restore_cartridge(own_x32)
-	own_x32.restore_media(await _cart("sega32x", "/roms/sega32x/knuckles.32x"))
+	own_x32.restore_media_in_slot(await _cart("sega32x", "/roms/sega32x/knuckles.32x"))
 	await _wait(5)
 	_ok(str(own_md.expansion_boot().get("core", "")) == "picodrive",
 		"media/ while a 32X game still runs on picodrive")
@@ -876,7 +876,7 @@ func _group_launch() -> void:
 		"launch/ and mupen64plus_next_gles3 the same way")
 	n64.core_name = ""
 	var disk := await _cart("n64dd", "/roms/n64dd/disk.ndd")
-	dd.restore_media(disk)
+	dd.restore_media_in_slot(disk)
 	await _wait(5)
 	n64._expansion_launch.apply_expansion_launch()
 	_ok(n64.rom_path == "/roms/n64dd/disk.ndd", "launch/ and boots from the disk")
@@ -1020,7 +1020,7 @@ func _group_sgb() -> void:
 		"sgb/ that slot takes a Game Boy Color cartridge")
 
 	sfc.restore_cartridge(sgb)
-	sgb.restore_media(gb)
+	sgb.restore_media_in_slot(gb)
 	await _wait(5)
 
 	# snes9x defines RETRO_GAME_TYPE_SUPER_GAME_BOY and then never advertises it,
@@ -1320,8 +1320,8 @@ func _group_sufami() -> void:
 	_ok(unit._accepts_media(cart_a), "sufami/ a bay takes a Sufami Turbo cart")
 	_ok(not unit._accepts_media(await _cart("nes", "/roms/nes/x.nes")),
 		"sufami/ and refuses what is not one")
-	unit.restore_media(cart_a, 0)
-	unit.restore_media(cart_b, 1)
+	unit.restore_media_in_slot(cart_a, 0)
+	unit.restore_media_in_slot(cart_b, 1)
 	await _wait(5)
 	_ok(unit.get_media(0) == cart_a and unit.get_media(1) == cart_b,
 		"sufami/ the two slots hold two different cartridges")
@@ -1361,13 +1361,13 @@ func _group_sufami() -> void:
 	# whatever was there.
 	var cart_c := await _cart("sufami", "/roms/sufami/C.sfc")
 	await _unbolt(b, cart_b)
-	unit.restore_media(cart_c, 1)
+	unit.restore_media_in_slot(cart_c, 1)
 	await _wait(5)
 	_ok(sfc.slot_b_save_path("snes9x").get_file()
 			== str(cart_c.get("save_id")) + ".srm",
 		"sufami/ and the save follows the cartridge, not the slot")
 	await _unbolt(b, cart_c)
-	unit.restore_media(cart_b, 1)
+	unit.restore_media_in_slot(cart_b, 1)
 	await _wait(5)
 	_ok(sfc.slot_b_save_path("snes9x") == path_b,
 		"sufami/ so putting the first one back finds its own save again")
@@ -1620,7 +1620,7 @@ func _group_scd_missing() -> void:
 			and str(verdict["description"]).contains("BIOS / Extras"),
 		"scd_missing/ and power-on refuses with BIOS required, naming the file and where it goes")
 
-	cd.restore_media(await _cart("segacd", "/roms/segacd/game.chd"))
+	cd.restore_media_in_slot(await _cart("segacd", "/roms/segacd/game.chd"))
 	await _wait(5)
 	spec = md._expansion_launch.apply_expansion_launch()
 	_ok(md._expansion_launch.missing_firmware(spec).size() == 1,
@@ -1675,7 +1675,7 @@ func _group_scd_boot() -> void:
 	_ok(md._media_systemid() == "segacd", "scd_boot/ and is checked for a Sega CD BIOS")
 
 	var disc := await _cart("segacd", "/roms/segacd/game.chd")
-	cd.restore_media(disc)
+	cd.restore_media_in_slot(disc)
 	await _wait(5)
 	md._expansion_launch.apply_expansion_launch()
 	_ok(md.rom_path == "/roms/segacd/game.chd", "scd_boot/ a disc in a shut tray boots")
@@ -1706,12 +1706,12 @@ func _group_scd_boot() -> void:
 	_ok(tower.expansion_ids() == ["sega_cd", "sega_32x"]
 		and tower._expansion_launch.expansion_roms(tower.expansion_boot()).is_empty(),
 		"scd_boot/ the 32X tower on picodrive is not handed genesis_plus_gx's BIOS")
-	tower_cd.restore_media(await _cart("segacd", "/roms/segacd/tower.chd"))
+	tower_cd.restore_media_in_slot(await _cart("segacd", "/roms/segacd/tower.chd"))
 	await _wait(5)
 	tower._expansion_launch.apply_expansion_launch()
 	_ok(tower.rom_path == "/roms/segacd/tower.chd", "scd_boot/ the tower boots its disc")
 	var tower_cart := await _cart("genesis", "/roms/genesis/tower.md")
-	x32.restore_media(tower_cart)
+	x32.restore_media_in_slot(tower_cart)
 	await _wait(5)
 	tower._expansion_launch.apply_expansion_launch()
 	_ok(tower.rom_path == "/roms/genesis/tower.md"
@@ -2400,7 +2400,8 @@ func _group_vcdcard() -> void:
 		"vcdcard/ with the card switched on")
 
 	var four := await _unit("sega_saturn_extram_4m")
-	_ok(not saturn._accepts_expansion(card) and not saturn._accepts_expansion_in(four, "mpeg_card"),
+	_ok(not saturn.expansion_hardware().accepts_unit(card, "")
+		and not saturn.expansion_hardware().accepts_unit(four, "mpeg_card"),
 		"vcdcard/ neither slot takes the other's kind")
 	saturn.restore_expansion(four)
 	await _wait(10)
@@ -2460,7 +2461,7 @@ func _group_memory() -> void:
 		"memory/ and a loose unit's is held by nobody")
 
 	var disc := await _cart("segacd", "/roms/segacd/game.chd")
-	a.restore_media(disc)
+	a.restore_media_in_slot(disc)
 	await _wait(5)
 	md.rom_path = "/roms/segacd/game.chd"
 	_ok(md._memcards._compose_sram_path("genesis_plus_gx").is_empty(),
@@ -2806,7 +2807,7 @@ func _group_disk() -> void:
 		"disk/ and the retail disk beside it stays gray")
 
 	# And it still goes in: the retail unit takes it and reports it.
-	dd.restore_media(retail)
+	dd.restore_media_in_slot(retail)
 	await _wait(5)
 	_ok(dd.get_media_path().ends_with("Mario Artist - Paint Studio (Japan).ndd"),
 		"disk/ the shelled drive seats a disk")

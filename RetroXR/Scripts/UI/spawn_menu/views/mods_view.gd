@@ -622,7 +622,7 @@ func _update_pager() -> void:
 func _browse_tile(mod: Dictionary) -> Button:
 	var sub := str(mod["author"])
 	if int(mod["file_size"]) > 0:
-		sub += ("  ·  " if not sub.is_empty() else "") + MenuStyle.human_bytes(int(mod["file_size"]))
+		sub += ("  ·  " if not sub.is_empty() else "") + ByteSize.human(int(mod["file_size"]))
 	var key := _job_key(int(mod["id"]))
 	var busy := downloader != null and downloader.is_queued(key)
 	var state := browse_state(mod, busy, has_review(key), _manager())
@@ -834,7 +834,7 @@ func _fill_browse_detail() -> void:
 	if not str(mod["file_version"]).is_empty():
 		lines.append("Version " + str(mod["file_version"]))
 	if int(mod["file_size"]) > 0:
-		lines.append(MenuStyle.human_bytes(int(mod["file_size"])))
+		lines.append(ByteSize.human(int(mod["file_size"])))
 	if int(mod["downloads"]) > 0:
 		lines.append("%d downloads" % int(mod["downloads"]))
 	if not str(mod["rating"]).is_empty() and str(mod["rating"]) != "Unrated":
@@ -1417,7 +1417,7 @@ func _on_job_progress(key: String, received: int, total: int) -> void:
 		return
 	_last_pct[key] = pct
 	notify(_toast_key(key), "⏳", "Downloading — %s of %s" % [
-		MenuStyle.human_bytes(received), MenuStyle.human_bytes(total)], float(pct) / 100.0)
+		ByteSize.human(received), ByteSize.human(total)], float(pct) / 100.0)
 
 
 func _on_job_retrying(key: String, attempt: int, max_attempts: int, reason: String) -> void:
@@ -2059,10 +2059,10 @@ func _fill_installed_detail() -> void:
 	titles.add_child(MenuStyle.label(installed_status_text(rec), 16, _status_color(status)))
 	titles.add_child(MenuStyle.hint("%s%s  ·  %s  ·  %d files" % [
 		"Running now: " if not rec.update_staged.is_empty() else "",
-		rec.path.get_file(), MenuStyle.human_bytes(rec.size), rec.files]))
+		rec.path.get_file(), ByteSize.human(rec.size), rec.files]))
 	if not rec.update_staged.is_empty() and rec.update_size > 0:
 		titles.add_child(MenuStyle.hint("Waiting: %s  ·  %s  ·  %d files" % [
-			rec.update_staged, MenuStyle.human_bytes(rec.update_size), rec.update_files]))
+			rec.update_staged, ByteSize.human(rec.update_size), rec.update_files]))
 	if not Mods.source(rec.id).is_empty():
 		var packs := ModCollectionPlan.collections_of(Mods.source(rec.id)).size()
 		titles.add_child(MenuStyle.hint("From mod.io" if packs == 0

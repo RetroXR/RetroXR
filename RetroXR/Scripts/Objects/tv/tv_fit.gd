@@ -61,9 +61,7 @@ func load_shell() -> void:
 		_tv.tv_model = _LEGACY_TV_MODELS[_tv.tv_model]
 	if _tv.tv_model.is_empty():
 		return
-	var path: String = RetroTV._mod_shell_path(_tv.tv_model)
-	if path.is_empty():
-		path = RetroTV._SHELL_SCENES.get(_tv.tv_model, "")
+	var path: String = RetroTV.shell_scene_path(_tv.tv_model)
 	if path.is_empty():
 		push_warning("RetroTV: unknown tv_model '%s' — falling back to the stock body" % _tv.tv_model)
 		return
@@ -80,7 +78,7 @@ func load_shell() -> void:
 
 	var fitted: RetroTVShell = _shell
 	seat(_tv.screen_mesh(), fitted.screen_seat())
-	seat(_tv._tube_collar, fitted.screen_seat())
+	seat(_tv.tube_collar(), fitted.screen_seat())
 	_tv.panel().seat_av_row(fitted.port_seat())
 	_tv.panel().seat_vga_port(fitted.vga_port_seat())
 	_tv.panel().seat_speaker_row(fitted.speaker_out_seat())
@@ -93,14 +91,14 @@ func load_shell() -> void:
 	var spk_r: Variant = fitted.speaker_r_seat()
 	_speakers_seated = spk_l is Transform3D and spk_r is Transform3D
 	if _speakers_seated:
-		seat(_tv._speaker_l, spk_l)
-		seat(_tv._speaker_r, spk_r)
+		seat(_tv.speaker_l_marker(), spk_l)
+		seat(_tv.speaker_r_marker(), spk_r)
 
 	# Bezel buttons march along the row marker's local +X from the first cap, and
 	# wrap onto a second row below it. Same order the stock cabinet authors, so a
 	# shelled set and the plain box read alike.
 	var row: Variant = fitted.button_row_seat()
-	var buttons: Array[Node3D] = _bezel_buttons()
+	var buttons: Array[Node3D] = _tv.bezel_buttons()
 	if not fitted.show_button_row:
 		for btn in buttons:
 			(btn as VRButton).set_active(false)
@@ -118,27 +116,6 @@ func load_shell() -> void:
 				0.0))
 
 	_resize_body_collision(fitted.body_size)
-
-
-## The bezel caps in the order they are laid out, reading left to right and then
-## down. The everyday controls of the set fill the first row; the picture and
-## sound MODES — the ones you set once and leave — go on the second.
-##
-## 3D comes LAST on purpose. It is the one cap that comes and goes (only a
-## stereo source has anything for it to switch), and a hidden button still owns
-## its slot — anywhere else in the order it leaves a hole in the middle of the
-## row that reads as a missing control. At the end it simply is not there.
-##
-## Mute and the speaker switch used to sit outside this list, so a shell moved
-## nine caps onto its marker and left those two wherever the stock cabinet had
-## put them. One list now, and both paths read it.
-func _bezel_buttons() -> Array[Node3D]:
-	return [
-		_tv._tv_toggle_btn, _tv._source_btn, _tv._ch_down_btn, _tv._ch_up_btn,
-		_tv._vol_down_btn, _tv._vol_up_btn, _tv.mute_btn(),
-		_tv.audio_mode_btn(), _tv._crt_btn, _tv._aspect_btn,
-		_tv.audio_out_btn(), _tv.stereo_btn(),
-	]
 
 
 ## Resize the pickup collider and the pointer box to the cabinet.
@@ -176,9 +153,11 @@ func _resize_body_collision(size: Vector3) -> void:
 ## inside the box -- inaudible with amplitude panning, obvious with HRTF.
 func speaker_positions() -> PackedVector3Array:
 	var out := PackedVector3Array()
-	if _tv._speaker_l != null and _tv._speaker_r != null:
-		out.push_back(_tv._speaker_l.global_position)
-		out.push_back(_tv._speaker_r.global_position)
+	var spk_l := _tv.speaker_l_marker()
+	var spk_r := _tv.speaker_r_marker()
+	if spk_l != null and spk_r != null:
+		out.push_back(spk_l.global_position)
+		out.push_back(spk_r.global_position)
 		return out
 	# No markers (a scene predating them): the defaults, computed in place.
 	var frame := _tv.global_transform.basis
@@ -270,10 +249,12 @@ func _route() -> Array:
 func place_default_speakers() -> void:
 	if _shell == null or _speakers_seated:
 		return
-	if _tv._speaker_l == null or _tv._speaker_r == null:
+	var spk_l := _tv.speaker_l_marker()
+	var spk_r := _tv.speaker_r_marker()
+	if spk_l == null or spk_r == null:
 		return
 	var half_w: float = _tv.screen_size_m().x * 0.5 + 0.055
 	var drop_m: float = _tv.screen_size_m().y * 0.35
 	var face: Vector3 = _tv.screen_mesh().position + Vector3(0.0, 0.0, 0.005)
-	_tv._speaker_l.position = face + Vector3(-half_w, -drop_m, 0.0)
-	_tv._speaker_r.position = face + Vector3(half_w, -drop_m, 0.0)
+	spk_l.position = face + Vector3(-half_w, -drop_m, 0.0)
+	spk_r.position = face + Vector3(half_w, -drop_m, 0.0)

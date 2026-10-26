@@ -75,12 +75,7 @@ func linked_machines() -> Array[Dictionary]:
 
 ## The machine owning a Libretro node, by walking back up out of it.
 func _machine_of(lib: Node) -> Object:
-	var n: Node = lib
-	while n != null:
-		if n.has_method("get_libretro_node"):
-			return n
-		n = n.get_parent()
-	return null
+	return MachineLookup.owning_machine(lib)
 
 
 ## The pair this lead is still holding, console first, for a pull.

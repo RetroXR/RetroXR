@@ -176,14 +176,14 @@ func list_saves(_data: PackedByteArray, _with_icons := true) -> Array[Dictionary
 	return []
 
 
-## The first block of the save with this filename, or -1.
+## The handle (list_saves' `block`) of the save with this filename, or -1.
 func block_of(_data: PackedByteArray, _name: String) -> int:
 	return -1
 
 
 ## One save lifted out of a card as a standalone file, in the format every tool
 ## for this console reads.
-func extract_save(_data: PackedByteArray, _first_block: int) -> PackedByteArray:
+func extract_save(_data: PackedByteArray, _handle: int) -> PackedByteArray:
 	return PackedByteArray()
 
 
@@ -216,7 +216,7 @@ func insert_save(_data: PackedByteArray, _save: PackedByteArray) -> PackedByteAr
 
 
 ## Free the space one save occupies, returning a NEW image.
-func delete_save(_data: PackedByteArray, _first_block: int) -> PackedByteArray:
+func delete_save(_data: PackedByteArray, _handle: int) -> PackedByteArray:
 	return PackedByteArray()
 
 

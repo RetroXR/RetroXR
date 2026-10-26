@@ -92,8 +92,8 @@ func _run() -> void:
 	(disc as RigidBody3D).freeze = true
 	_sv.add_child(disc)
 	await _frames(5)
-	(tv.decks().deck_of_kind("vcr") as VCRPlayer).restore_tape(tape)
-	(tv.decks().deck_of_kind("dvd") as DVDPlayer).restore_disc(disc)
+	(tv.decks().deck_of_kind("vcr") as VCRPlayer).restore_media(tape)
+	(tv.decks().deck_of_kind("dvd") as DVDPlayer).restore_media(disc)
 	tv.set_source(RetroTV.Source.COMPOSITE_2)
 	await _frames(20)
 	for deck: MediaTransport in tv.decks().decks():

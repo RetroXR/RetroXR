@@ -28,7 +28,7 @@
 ## Tools/cores/vmu_slot_probe for the measurement and the retraction that came
 ## with it.
 class_name VmuStorage
-extends Node
+extends ConsoleStorage
 
 ## The family whose images this stages. Cards live at
 ## save/memcards/vmu/<card_id>.vmu, with no core in the path, because a card is
@@ -161,7 +161,6 @@ const DRAIN_POLL_SEC := 5.0
 ## MemoryCardController's CARD_POLL_AFTER_OFF_SEC.
 const DRAIN_AFTER_OFF_SEC := 12.0
 
-var _host: RetroSystem = null
 var _drain_timer: Timer = null
 ## Where the staged files are, remembered from stage_before_start so the tick
 ## needs nothing from the host to write a card back.
@@ -172,10 +171,6 @@ var _drain_until := 0.0
 ## Which card id was staged into which "<Port><Slot>" name this run, so a drain
 ## knows where to put the bytes back even if the card has since been pulled.
 var _staged: Dictionary = {}
-
-
-func setup(host: RetroSystem) -> void:
-	_host = host
 
 
 ## Does this machine use VMUs at all? Keyed on the console's OWN systemid rather
@@ -393,3 +388,26 @@ func reapply(ctrl: Node) -> void:
 	if not is_instance_valid(_host) or not _host.is_powered_on:
 		return
 	print("[VmuStorage] VMU change noted; it takes effect when the machine is next powered on")
+
+
+# --- ConsoleStorage hooks -------------------------------------------------------
+
+## LATE, after the forced and pak options, which is where the slot pins have
+## always been written. Not staged in a session.
+func stage_late(dir: String, core: String) -> void:
+	stage_before_start(dir, core)
+
+
+## flycast reads its per-slot device options only once its first retro_run has
+## cleared `first_startup` (nudge_slots_after_start), and until a frame has run
+## nothing is worth draining.
+func after_first_frame() -> void:
+	nudge_slots_after_start()
+	start_draining()
+
+
+## The core's final VMU write lands on the emulation thread after StopContent
+## returns, so one drain here is not the last word.
+func after_stop(dir: String, core: String) -> void:
+	drain(dir, core)
+	stop_draining_soon()

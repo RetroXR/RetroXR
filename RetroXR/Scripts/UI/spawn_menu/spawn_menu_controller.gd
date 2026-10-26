@@ -1108,150 +1108,122 @@ func _is_vr_runtime() -> bool:
 	return xr != null and xr.is_initialized()
 
 
-func _on_spawn_requested(type: String) -> void:
-	# A row held and asked for in one of its colors: "as:<variant>:<its own
-	# token>". The token spawns as it always did, and _place_spawned gives the
-	# thing its color. (A console's row says it its own way, "model_as:", below.)
-	_spawn_variant = ""
-	if type.begins_with(SpawnCatalog.AS):
-		_spawn_variant = SpawnCatalog.variant_of_token(type)
-		type = SpawnCatalog.plain_token(type)
+func _on_spawn_requested(raw: String) -> void:
+	# SpawnCatalog reads every prefixed token back (it writes them): this only
+	# instantiates. A row asked for in one of its colors ("as:<variant>:...")
+	# spawns as its own token, and _place_spawned gives the thing its color.
+	var parsed := SpawnCatalog.parse_token(raw)
+	_spawn_variant = parsed["variant"]
+	var type: String = parsed["token"]
 	var obj: Node3D
-	# Model token "model:<systemid>:<model_id>" (from SpawnCatalog) — checked BEFORE
-	# the match below, since `match` only does literal string equality and would
-	# never hit a case against a string that merely starts with "model:". The
-	# predecessor of this branch silently fell to the `_:` default, spawning the
-	# default model with the whole token as a garbage systemid (e.g. "Mega Drive",
-	# "DS Lite" and "Console (Original)" all landed on their default shell).
-	if SpawnCatalog.is_model_token(type):
-		# SpawnCatalog wrote the token and reads it back: a mod's model id has a
-		# colon of its own, so this is not a split at every colon. Held, a row
-		# asks for one of its colors ("model_as:<variant>:..."), which is read
-		# back the same way.
-		var asked := SpawnCatalog.model_of_token(type)
-		var model_id: String = asked[1]
-		# The row is the authority on which platform it belongs to, so the model and
-		# the core cannot disagree. Only the placeholder — which belongs to no
-		# platform — falls back to the systemid carried in the token.
-		var platform := SystemModelRegistry.platform_of(model_id)
-		var systemid := platform if not platform.is_empty() else asked[0]
-		# A bespoke shell's GLB may still be warming this early in the session. The
-		# model's _ready would load() it synchronously — the frame freezes until the
-		# whole threaded load lands. Await it into the cache first; once warm this
-		# never suspends.
-		for path: String in SystemModelRegistry.resolve(model_id, systemid).get("requires", []):
-			await ModelWarmer.acquire(path)
-		if not is_inside_tree():
+	match parsed["kind"]:
+		SpawnCatalog.TokenKind.MODEL:
+			var model_id: String = parsed["model_id"]
+			# The row is the authority on which platform it belongs to, so the model and
+			# the core cannot disagree. Only the placeholder — which belongs to no
+			# platform — falls back to the systemid carried in the token.
+			var platform := SystemModelRegistry.platform_of(model_id)
+			var systemid: String = platform if not platform.is_empty() else String(parsed["systemid"])
+			# A bespoke shell's GLB may still be warming this early in the session. The
+			# model's _ready would load() it synchronously — the frame freezes until the
+			# whole threaded load lands. Await it into the cache first; once warm this
+			# never suspends.
+			for path: String in SystemModelRegistry.resolve(model_id, systemid).get("requires", []):
+				await ModelWarmer.acquire(path)
+			if not is_inside_tree():
+				return
+			var sys := SYSTEM_SCENE.instantiate() as RetroSystem
+			sys.systemid = systemid
+			sys.model_id = model_id
+			sys.model_variant = parsed["model_variant"]
+			_place_spawned(sys, type)
 			return
-		var sys := SYSTEM_SCENE.instantiate() as RetroSystem
-		sys.systemid = systemid
-		sys.model_id = model_id
-		sys.model_variant = SpawnCatalog.variant_of_token(type)
-		_place_spawned(sys, type)
-		return
-	# "expansion:<id>" — a machine that bolts onto a console. Checked with the
-	# other prefixed tokens and before the match below, for the same reason they
-	# are: `match` is literal equality and would drop this to the default, which
-	# spawns a console with the whole token as its systemid.
-	if type.begins_with("expansion:"):
-		var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
-		unit.expansion_id = type.substr("expansion:".length())
-		_place_spawned(unit, type)
-		return
-
-	# "speaker_cable:<color>:<length>" — what the hold sub-menu asked a lead to be:
-	# a key of RcaJack.PLUG_COLORS for its plugs, and a length in metres. Either
-	# field may be empty for "the scene's own", and a token carrying no length at
-	# all is the one the menu sent before lengths were offered. Both are set before
-	# the lead enters the tree, which is when it tints its plugs and cuts its cord.
-	if type.begins_with("speaker_cable:"):
-		var lead := ScenePersistence.instantiate("speaker_cable") as CompositeCable
-		if lead != null:
-			var asked := type.substr("speaker_cable:".length()).split(":")
-			lead.plug_color_id = StringName(asked[0])
-			if asked.size() > 1:
-				lead.cord_length = asked[1].to_float()
-			_place_spawned(lead, "speaker_cable")
-		return
-
-	# "memcard:<family>:<card_id>" — bring an EXISTING card back into the room
-	# rather than minting a blank one. The id is the card's filename, so the
-	# object lands already pointing at the saves it left behind. Same reason as
-	# the model token above: `match` is literal equality and never catches a
-	# prefix.
-	#
-	# Splitting on the FIRST colon only: sanitize_card_name strips colons from a
-	# card's name, so the family cannot contain one and the id cannot either.
-	if type.begins_with("memcard:"):
-		var rest := type.substr("memcard:".length())
-		var sep := rest.find(":")
-		var family := rest.substr(0, sep) if sep >= 0 else "playstation"
-		var card_id := rest.substr(sep + 1) if sep >= 0 else rest
-		# Memory that is a unit -- a Backup RAM Cartridge -- comes back as that
-		# unit, its id set before it enters the tree the way a restore sets it.
-		var memory_unit := ExpansionCatalog.unit_for_memory(family)
-		if not memory_unit.is_empty():
-			var held := EXPANSION_SCENE.instantiate() as RetroExpansion
-			held.expansion_id = memory_unit
-			held.card_id = card_id
-			held.card_label = card_id
-			_place_spawned(held, "expansion:%s" % memory_unit)
+		# A machine that bolts onto a console.
+		SpawnCatalog.TokenKind.EXPANSION:
+			var unit := EXPANSION_SCENE.instantiate() as RetroExpansion
+			unit.expansion_id = parsed["expansion_id"]
+			_place_spawned(unit, type)
 			return
-		# By property rather than by class: this shelf serves both a MemoryCard
-		# and an N64 ControllerPak, which share these three fields and no ancestor.
-		var card := _card_scene_for(family).instantiate() as Node3D
-		card.set("family", family)
-		card.set("card_id", card_id)
-		card.set("card_label", card_id)
-		_place_spawned(card, "%s_memory_card" % family)
-		return
-	# "<family>_memory_card" — a new blank card of that family.
-	if type.ends_with("_memory_card"):
-		var family := type.substr(0, type.length() - "_memory_card".length())
-		var memory_unit := ExpansionCatalog.unit_for_memory(family)
-		if not memory_unit.is_empty():
-			var fresh := EXPANSION_SCENE.instantiate() as RetroExpansion
-			fresh.expansion_id = memory_unit
-			_place_spawned(fresh, "expansion:%s" % memory_unit)
+		# What the hold sub-menu asked a lead to be: a key of RcaJack.PLUG_COLORS
+		# for its plugs, and a length in metres. Both are set before the lead
+		# enters the tree, which is when it tints its plugs and cuts its cord.
+		SpawnCatalog.TokenKind.SPEAKER_CABLE:
+			var lead := ScenePersistence.instantiate("speaker_cable") as CompositeCable
+			if lead != null:
+				lead.plug_color_id = StringName(parsed["color"])
+				if parsed["has_length"]:
+					lead.cord_length = parsed["length"]
+				_place_spawned(lead, "speaker_cable")
 			return
-		var card := _card_scene_for(family).instantiate() as Node3D
-		card.set("family", family)
-		_place_spawned(card, type)
-		return
-	# "pad_receiver:<guid>:<ordinal>" — a receiver for one physical gamepad.
-	# The pad is set BEFORE _place_spawned for the same reason the set's shell is:
-	# that call is what adds the child, and the receiver prints its pad's name on
-	# its own case from _ready.
-	if type.begins_with("pad_receiver:"):
-		var parts := type.substr("pad_receiver:".length()).split(":")
-		var rx := PAD_RECEIVER_SCENE.instantiate() as PadReceiver
-		rx.pad_guid = parts[0] if parts.size() > 0 else ""
-		rx.pad_ordinal = int(parts[1]) if parts.size() > 1 else 0
-		var live := GamepadBindings.resolve_device(rx.pad_guid, rx.pad_ordinal)
-		if live >= 0:
-			rx.pad_name = str(GamepadBindings.identify_device(live)["name"])
-		_place_spawned(rx, "pad_receiver")
-		return
-	# "tv:<shell>" — a set wearing a cabinet variant. Assigned BEFORE
-	# _place_spawned, which is what calls add_child: RetroTV loads its shell from
-	# _ready, so a tv_model set afterwards arrives too late and the set comes out
-	# as the stock black box.
-	if type.begins_with("tv:"):
-		var shelled := TV_SCENE.instantiate() as RetroTV
-		shelled.tv_model = type.substr("tv:".length())
-		_place_spawned(shelled, "tv")
-		return
-	# A mod prop. The token IS the registered persistence type, so the thing that
-	# spawns and the thing that is saved cannot drift apart — the scene and the
-	# metadata stamp both come from ScenePersistence's own registry.
-	if type.begins_with("mod:"):
-		var mod_type := type.substr("mod:".length())
-		var prop := ScenePersistence._instantiate_mod_object(mod_type)
-		if prop == null:
-			push_warning("[mods] cannot spawn '%s' — no such registered object" % mod_type)
+		# Bring an EXISTING card back into the room rather than minting a blank
+		# one. The id is the card's filename, so the object lands already
+		# pointing at the saves it left behind.
+		SpawnCatalog.TokenKind.MEMCARD:
+			var family: String = parsed["family"]
+			var card_id: String = parsed["card_id"]
+			# Memory that is a unit -- a Backup RAM Cartridge -- comes back as that
+			# unit, its id set before it enters the tree the way a restore sets it.
+			var memory_unit := ExpansionCatalog.unit_for_memory(family)
+			if not memory_unit.is_empty():
+				var held := EXPANSION_SCENE.instantiate() as RetroExpansion
+				held.expansion_id = memory_unit
+				held.card_id = card_id
+				held.card_label = card_id
+				_place_spawned(held, "expansion:%s" % memory_unit)
+				return
+			# By property rather than by class: this shelf serves both a MemoryCard
+			# and an N64 ControllerPak, which share these three fields and no ancestor.
+			var card := _card_scene_for(family).instantiate() as Node3D
+			card.set("family", family)
+			card.set("card_id", card_id)
+			card.set("card_label", card_id)
+			_place_spawned(card, "%s_memory_card" % family)
 			return
-		_place_spawned(prop, type)
-		return
+		# A new blank card of that family.
+		SpawnCatalog.TokenKind.BLANK_MEMCARD:
+			var family: String = parsed["family"]
+			var memory_unit := ExpansionCatalog.unit_for_memory(family)
+			if not memory_unit.is_empty():
+				var fresh := EXPANSION_SCENE.instantiate() as RetroExpansion
+				fresh.expansion_id = memory_unit
+				_place_spawned(fresh, "expansion:%s" % memory_unit)
+				return
+			var card := _card_scene_for(family).instantiate() as Node3D
+			card.set("family", family)
+			_place_spawned(card, type)
+			return
+		# A receiver for one physical gamepad. The pad is set BEFORE _place_spawned
+		# for the same reason the set's shell is: that call is what adds the child,
+		# and the receiver prints its pad's name on its own case from _ready.
+		SpawnCatalog.TokenKind.PAD_RECEIVER:
+			var rx := PAD_RECEIVER_SCENE.instantiate() as PadReceiver
+			rx.pad_guid = parsed["guid"]
+			rx.pad_ordinal = parsed["ordinal"]
+			var live := GamepadBindings.resolve_device(rx.pad_guid, rx.pad_ordinal)
+			if live >= 0:
+				rx.pad_name = str(GamepadBindings.identify_device(live)["name"])
+			_place_spawned(rx, "pad_receiver")
+			return
+		# A set wearing a cabinet variant. Assigned BEFORE _place_spawned, which
+		# is what calls add_child: RetroTV loads its shell from _ready, so a
+		# tv_model set afterwards arrives too late and the set comes out as the
+		# stock black box.
+		SpawnCatalog.TokenKind.TV_SHELL:
+			var shelled := TV_SCENE.instantiate() as RetroTV
+			shelled.tv_model = parsed["shell"]
+			_place_spawned(shelled, "tv")
+			return
+		# A mod prop. The token IS the registered persistence type, so the thing that
+		# spawns and the thing that is saved cannot drift apart — the scene and the
+		# metadata stamp both come from ScenePersistence's own registry.
+		SpawnCatalog.TokenKind.MOD:
+			var mod_type: String = parsed["mod_type"]
+			var prop := ScenePersistence._instantiate_mod_object(mod_type)
+			if prop == null:
+				push_warning("[mods] cannot spawn '%s' — no such registered object" % mod_type)
+				return
+			_place_spawned(prop, type)
+			return
 	# These tokens are the SAME strings ScenePersistence keys its restore table
 	# by, on purpose. A new object needs a row there as well, or it spawns and
 	# then vanishes on the next load; see the note on PLAIN_SCENES for the third

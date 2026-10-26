@@ -1226,7 +1226,7 @@ func _group_cartdrop() -> void:
 	var sgb := await _unit("super_game_boy")
 	var gb := await _cart("gb")
 	sfc.call("restore_cartridge", sgb)
-	sgb.call("restore_media", gb)
+	sgb.call("restore_media_in_slot", gb)
 	await _wait(6)
 	_ok(_carries(sfc, sgb), "cartdrop/a Super Famicom carries its Super Game Boy's box")
 	_ok(_carries(sfc, gb), "cartdrop/and the Game Boy cartridge's, passed on through it")

@@ -65,14 +65,14 @@ const DPAD_PIVOT_DROP: float = 0.0025
 
 
 func _cache_meshes() -> void:
-	_buttons.clear()
+	_anim.buttons.clear()
 	for stem: String in FACE:
 		_add(stem, int(FACE[stem]), PRESS_FACE)
 	for stem: String in SMALL:
 		_add(stem, int(SMALL[stem]), PRESS_SMALL)
 	for stem: String in SHOULDERS:
 		_add(stem, int(SHOULDERS[stem]), PRESS_SHOULDER, SHOULDER_DIR)
-	_dpad = _rocker("DPad")
+	_anim.dpad = _rocker("DPad")
 
 
 ## The shell lies face-up — +Y out of the face — with the D-pad on -X, which puts
@@ -93,7 +93,7 @@ func _add(stem: String, bit: int, depth: float, dir: Vector3 = Vector3.ZERO) -> 
 	# would pin the control in place instead.
 	if dir != Vector3.ZERO:
 		e["dir"] = dir
-	_buttons.append(e)
+	_anim.buttons.append(e)
 
 
 func _rocker(stem: String) -> Dictionary:

@@ -821,10 +821,6 @@ func expansion_cover_slot() -> XRToolsSnapZone:
 
 # ── the covers over a unit's own socket ───────────────────────────────────────
 
-## Not SNAP_ZONE_SCENE: a model of the game's (the N64's) and models in mods
-## declare that name themselves, and a subclass may not redeclare a constant.
-const _PORT_COVER_ZONE_SCENE := preload("res://addons/godot-xr-tools/objects/snap_zone.tscn")
-
 ## unit socket id -> the slot its cover goes back into, and how big that cover is.
 var _port_cover_slots: Dictionary = {}
 var _port_cover_sizes: Dictionary = {}
@@ -851,13 +847,10 @@ func build_port_cover_slot(socket_id: String, socket: XRToolsSnapZone, seat: Tra
 	var zone := _port_cover_slots.get(socket_id) as XRToolsSnapZone
 	if zone != null and is_instance_valid(zone):
 		return zone
-	zone = _PORT_COVER_ZONE_SCENE.instantiate() as XRToolsSnapZone
-	zone.name = socket_id.to_pascal_case() + "CoverSlot"
-	zone.snap_require = PortCover.group_for(socket_id)
 	# Close, as the N64's lid slot is: a cover is pressed back into its own
 	# opening, not lowered onto the console from across the table.
-	zone.grab_distance = 0.06
-	add_child(zone)
+	zone = CoverSlots.make_zone(socket_id.to_pascal_case() + "CoverSlot",
+		PortCover.group_for(socket_id), 0.06, self)
 	zone.transform = seat
 	_port_cover_slots[socket_id] = zone
 	_port_cover_sizes[socket_id] = size

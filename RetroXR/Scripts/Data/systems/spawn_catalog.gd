@@ -396,9 +396,8 @@ const _TRS_KIT: Array = [
 ## has any, then the Primitive System box, which is the only stand-in a platform
 ## without one has.
 ##
-## `system_name` is unused now — a hardware row is labelled by its registry row
-## rather than by the system's name, so a platform with two models says which is
-## which. Kept in the signature because the menu passes it.
+## A hardware row is labelled by its registry row rather than by the system's
+## name, so a platform with two models says which is which.
 static func items_for(systemid: String) -> Array:
 	return _with_offered_variants(_items_for(systemid), systemid)
 
@@ -965,3 +964,83 @@ static func model_of_token(token: String) -> PackedStringArray:
 		parts[1] if parts.size() > 1 else "",
 		parts[2] if parts.size() > 2 else "",
 	])
+
+
+# ── Reading a token back ──────────────────────────────────────────────────────
+#
+# Every prefixed token the menu sends is read here, beside spawn_token that
+# writes most of them, so the controller only instantiates. A prefix has to be
+# tested before anything compares the token whole: `match` is literal equality,
+# and a prefixed token that fell through to the default once spawned a console
+# with the whole token as its systemid.
+
+## What parse_token found a token to ask for.
+enum TokenKind {
+	MODEL,          ## "model:<systemid>:<model_id>" / "model_as:<variant>:..." -- systemid, model_id, model_variant
+	EXPANSION,      ## "expansion:<id>" -- expansion_id
+	SPEAKER_CABLE,  ## "speaker_cable:<color>[:<length>]" -- color, has_length, length
+	MEMCARD,        ## "memcard:<family>:<card_id>" -- family, card_id (an EXISTING card)
+	BLANK_MEMCARD,  ## "<family>_memory_card" -- family (a new blank card)
+	PAD_RECEIVER,   ## "pad_receiver:<guid>:<ordinal>" -- guid, ordinal
+	TV_SHELL,       ## "tv:<shell>" -- shell
+	MOD,            ## "mod:<type>" -- mod_type
+	PLAIN,          ## anything else: a literal type, a persistence type or a bare systemid
+}
+
+
+## A spawn token taken apart: always "kind" (a TokenKind), "variant" (the color
+## an "as:" token asked for, else "") and "token" (the token with that color
+## taken off, which is what the row spawns as), plus the fields its kind lists.
+static func parse_token(raw: String) -> Dictionary:
+	var variant := ""
+	var type := raw
+	# A row held and asked for in one of its colors: "as:<variant>:<its own
+	# token>". (A console's row says it its own way, "model_as:", below.)
+	if type.begins_with(AS):
+		variant = variant_of_token(type)
+		type = plain_token(type)
+	var parsed := {"variant": variant, "token": type}
+	if is_model_token(type):
+		# A mod's model id has a colon of its own, so this is not a split at
+		# every colon (model_of_token says why).
+		var asked := model_of_token(type)
+		parsed["kind"] = TokenKind.MODEL
+		parsed["systemid"] = asked[0]
+		parsed["model_id"] = asked[1]
+		parsed["model_variant"] = variant_of_token(type)
+	elif type.begins_with("expansion:"):
+		parsed["kind"] = TokenKind.EXPANSION
+		parsed["expansion_id"] = type.substr("expansion:".length())
+	elif type.begins_with("speaker_cable:"):
+		# Either field may be empty for "the scene's own", and a token with no
+		# length at all is the one the menu sent before lengths were offered.
+		var fields := type.substr("speaker_cable:".length()).split(":")
+		parsed["kind"] = TokenKind.SPEAKER_CABLE
+		parsed["color"] = fields[0]
+		parsed["has_length"] = fields.size() > 1
+		parsed["length"] = fields[1].to_float() if fields.size() > 1 else 0.0
+	elif type.begins_with("memcard:"):
+		# Split on the FIRST colon only: sanitize_card_name strips colons from a
+		# card's name, so neither the family nor the id can contain one.
+		var rest := type.substr("memcard:".length())
+		var sep := rest.find(":")
+		parsed["kind"] = TokenKind.MEMCARD
+		parsed["family"] = rest.substr(0, sep) if sep >= 0 else "playstation"
+		parsed["card_id"] = rest.substr(sep + 1) if sep >= 0 else rest
+	elif type.ends_with("_memory_card"):
+		parsed["kind"] = TokenKind.BLANK_MEMCARD
+		parsed["family"] = type.substr(0, type.length() - "_memory_card".length())
+	elif type.begins_with("pad_receiver:"):
+		var fields := type.substr("pad_receiver:".length()).split(":")
+		parsed["kind"] = TokenKind.PAD_RECEIVER
+		parsed["guid"] = fields[0] if fields.size() > 0 else ""
+		parsed["ordinal"] = int(fields[1]) if fields.size() > 1 else 0
+	elif type.begins_with("tv:"):
+		parsed["kind"] = TokenKind.TV_SHELL
+		parsed["shell"] = type.substr("tv:".length())
+	elif type.begins_with("mod:"):
+		parsed["kind"] = TokenKind.MOD
+		parsed["mod_type"] = type.substr("mod:".length())
+	else:
+		parsed["kind"] = TokenKind.PLAIN
+	return parsed

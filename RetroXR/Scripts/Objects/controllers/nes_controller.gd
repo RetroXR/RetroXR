@@ -7,7 +7,7 @@
 ##
 ## The NES pad is the smallest joypad we animate: a rocking D-pad, B and A, and
 ## SELECT/START. No shoulders, no triggers, no sticks, so most of the engine sits
-## idle and _stick_l / _stick_r / _dpad2 stay empty.
+## idle and _anim.stick_l / _anim.stick_r / _anim.dpad2 stay empty.
 class_name NesController
 extends AnimatedController
 
@@ -31,12 +31,12 @@ const DPAD_PIVOT_DROP: float = 0.003
 
 
 func _cache_meshes() -> void:
-	_buttons.clear()
+	_anim.buttons.clear()
 	for stem: String in NES_FACE:
 		_add_button(stem, int(NES_FACE[stem]), FACE_PRESS)
 	for stem: String in NES_SMALL:
 		_add_button(stem, int(NES_SMALL[stem]), SMALL_PRESS)
-	_dpad = _rocker("DPad", DPAD_PIVOT_DROP)
+	_anim.dpad = _rocker("DPad", DPAD_PIVOT_DROP)
 
 
 ## The shell lies face-up — +Y out of the face, B left of A along +X — which puts
@@ -53,7 +53,7 @@ func _add_button(stem: String, bit: int, depth: float) -> void:
 	if m == null:
 		push_warning("NesController: control mesh not found: " + stem)
 		return
-	_buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth})
+	_anim.buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth})
 
 
 func _rocker(stem: String, drop_dist: float) -> Dictionary:

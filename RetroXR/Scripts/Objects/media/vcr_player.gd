@@ -1029,11 +1029,11 @@ func get_snapped_tape() -> Node3D:
 
 
 ## Seat a tape programmatically (event/save restore) — no ride, bypasses the filter.
-func restore_tape(tape: Node3D) -> void:
+func restore_media(tape: Node3D, _yaw: float = 0.0) -> void:
 	_slot.restore(tape)
 
 
-## The counterpart to restore_tape, for a remote peer taking the tape out.
+## The counterpart to restore_media, for a remote peer taking the tape out.
 ##
 ## Releases the snap zone rather than running the local eject ride: the tape is
 ## already gone on the peer that moved it, and object_sync positions it here.

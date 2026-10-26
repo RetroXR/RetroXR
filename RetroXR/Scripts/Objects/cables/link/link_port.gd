@@ -41,12 +41,7 @@ func _own_connector() -> String:
 ## which is the A/V graph's question and finds televisions and decks. A link
 ## cable wants the thing running a core instead, so it walks for that.
 func get_machine() -> Node3D:
-	var n: Node = get_parent()
-	while n != null:
-		if n.has_method("get_libretro_node"):
-			return n as Node3D
-		n = n.get_parent()
-	return null
+	return MachineLookup.owning_machine(get_parent()) as Node3D
 
 
 ## The cable this socket belongs to, when it is the junction moulded into a lead

@@ -116,7 +116,7 @@ func _on_serve_progress(peer_id: int, md5: String, sent: int, total: int) -> voi
 		return
 	_stack.notify(KEY_UPLOAD % [peer_id, md5], String.chr(MenuIcons.UPLOAD),
 		"Sending %s to %s  %s / %s" % [_what(md5), _who(peer_id),
-			MenuStyle.human_bytes(sent), MenuStyle.human_bytes(total)],
+			ByteSize.human(sent), ByteSize.human(total)],
 		float(sent) / float(total), 0.0)
 
 

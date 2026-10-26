@@ -429,7 +429,7 @@ func _probe_download_finished(menu: Node, sv: Node) -> void:
 		for i in 5:
 			var t := _t()
 			cache.emit_signal("changed")
-			sv.call("_on_romm_dl_finished", -1, false, "", "probe")
+			(sv.get("_romm_sync") as Object).call("_on_romm_dl_finished", -1, false, "", "probe")
 			await get_tree().process_frame
 			(open if shown else hidden).append(_ms(t))
 			await _frames(3)

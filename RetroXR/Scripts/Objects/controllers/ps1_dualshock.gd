@@ -204,7 +204,7 @@ func _build_analog_lamp() -> void:
 
 ## Sit the switch on its own cap and let VRButton drive the depress, the way
 ## RetroSystemModelPlayStation.configure_buttons does for POWER and OPEN. The cap
-## is no longer in _buttons: a control cannot be driven by a RetroPad bit and a
+## is no longer in _anim.buttons: a control cannot be driven by a RetroPad bit and a
 ## finger at once, and ANALOG has no bit -- it was only ever given L3 so the cap
 ## had something to travel on.
 func _build_analog_switch() -> void:
@@ -255,16 +255,16 @@ func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
 func _cache_meshes() -> void:
 	_build_analog_lamp()
 	_build_analog_switch.call_deferred()
-	_buttons.clear()
+	_anim.buttons.clear()
 	for stem: String in FACE:
 		_add(stem, int(FACE[stem]), PRESS_FACE)
 	for stem: String in SMALL:
 		_add(stem, int(SMALL[stem]), PRESS_SMALL)
 	for stem: String in SHOULDERS:
 		_add(stem, int(SHOULDERS[stem]), PRESS_SHOULDER, SHOULDER_DIR)
-	_dpad = _rocker("DPad", DPAD_PIVOT_DROP)
-	_stick_l = _rocker("StickL", STICK_PIVOT_DROP)
-	_stick_r = _rocker("StickR", STICK_PIVOT_DROP)
+	_anim.dpad = _rocker("DPad", DPAD_PIVOT_DROP)
+	_anim.stick_l = _rocker("StickL", STICK_PIVOT_DROP)
+	_anim.stick_r = _rocker("StickR", STICK_PIVOT_DROP)
 
 
 ## Face-up shell with the D-pad on -X puts its UP arm on -Z, so the default pitch
@@ -284,7 +284,7 @@ func _add(stem: String, bit: int, depth: float, dir: Vector3 = Vector3.ZERO) -> 
 	# would pin the control in place instead.
 	if dir != Vector3.ZERO:
 		e["dir"] = dir
-	_buttons.append(e)
+	_anim.buttons.append(e)
 
 
 func _rocker(stem: String, pivot_drop: float) -> Dictionary:

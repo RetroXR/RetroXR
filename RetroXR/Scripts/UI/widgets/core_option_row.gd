@@ -8,12 +8,11 @@ const COLOR_ROW := Color(0.65, 0.65, 0.80)
 const COLOR_LOCKED := Color(1.00, 0.72, 0.20)
 
 
-## Add a row for `key` to `parent`. `defn` is a LibretroOptionDefinition, kept
-## untyped so GetValues and GetLabel use dynamic dispatch. A `locked` row shows its
+## Add a row for `key` to `parent`, for the core option `defn`. A `locked` row shows its
 ## value and `locked_note`, with its arrows disabled. `on_changed` receives
 ## (key, value) whenever the player steps the value. `stacked` puts the
 ## description on its own line above the controls, for a narrow panel.
-static func add(parent: Control, key: String, defn, current_val: String, locked: bool,
+static func add(parent: Control, key: String, defn: LibretroOptionDefinition, current_val: String, locked: bool,
 		locked_note: String, on_changed: Callable, stacked := false) -> void:
 	var label := Label.new()
 	label.text = description(key, defn)
@@ -83,7 +82,7 @@ static func add(parent: Control, key: String, defn, current_val: String, locked:
 	var idx_ref := [cur_idx]
 	var step := func(delta: int) -> void:
 		idx_ref[0] = (idx_ref[0] + delta + values_arr.size()) % values_arr.size()
-		var v = values_arr[idx_ref[0]]
+		var v: LibretroOptionValue = values_arr[idx_ref[0]]
 		val_lbl.text = value_label(v)
 		on_changed.call(key, String(v.GetValue()))
 	prev_btn.pressed.connect(step.bind(-1))
@@ -91,7 +90,7 @@ static func add(parent: Control, key: String, defn, current_val: String, locked:
 
 
 ## The text a row shows for an option, falling back to its key.
-static func description(key: String, defn) -> String:
+static func description(key: String, defn: LibretroOptionDefinition) -> String:
 	var desc: String = defn.GetDescriptionCategorized()
 	if desc.is_empty():
 		desc = defn.GetDescription()
@@ -101,6 +100,6 @@ static func description(key: String, defn) -> String:
 
 
 ## A LibretroOptionValue's display label, falling back to the raw value.
-static func value_label(v) -> String:
+static func value_label(v: LibretroOptionValue) -> String:
 	var lbl: String = v.GetLabel()
 	return lbl if not lbl.is_empty() else v.GetValue()

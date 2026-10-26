@@ -50,7 +50,7 @@
 ## detected from what the core declares, and said out loud, rather than leaving
 ## a unit in the lower slot looking seated and doing nothing.
 class_name XboxStorage
-extends Node
+extends ConsoleStorage
 
 const CORE_PREFIX := XboxHddSaves.CORE
 
@@ -79,7 +79,6 @@ const UNIT_DRAIN_AFTER_PULL_SEC := 6.0
 ## half a second is thirty of them.
 const UNIT_RELEASE_SEC := 0.5
 
-var _host: RetroSystem = null
 ## "<port>:<slot>" -> {card_id, pulled_at}: which unit filled which file this
 ## run. pulled_at is 0 while seated, else the wall clock of the pull.
 var _units: Dictionary = {}
@@ -92,10 +91,6 @@ var _warned_slot_b := false
 var _run: Dictionary = {}
 var _timer: Timer = null
 var _task := -1
-
-
-func setup(host: RetroSystem) -> void:
-	_host = host
 
 
 func _exit_tree() -> void:
@@ -114,10 +109,11 @@ static func is_xbox_core(core: String) -> bool:
 func busy_elsewhere(core: String) -> String:
 	if not is_xbox_core(core) or not is_instance_valid(_host):
 		return ""
-	for sys: Node in _host.get_tree().get_nodes_in_group("retro_system"):
-		if sys == _host or not sys.has_method("resolve_core_name"):
+	for node: Node in _host.get_tree().get_nodes_in_group(ExpansionPort.GROUP_SYSTEM):
+		var sys := node as RetroSystem
+		if sys == null or sys == _host:
 			continue
-		if bool(sys.get("is_powered_on")) and is_xbox_core(str(sys.call("resolve_core_name"))):
+		if sys.is_powered_on and is_xbox_core(sys.resolve_core_name()):
 			return "Another Xbox is running, and the emulator can only be one console at a time. Power it off first."
 	return ""
 
@@ -447,3 +443,30 @@ static func archive_for(rom_path: String, hdd: String) -> Dictionary:
 	var files: Dictionary = lifted["files"]
 	return {"ok": true, "error": "", "title_id": title_id,
 		"bytes": XboxHddSaves.pack(files) if not files.is_empty() else PackedByteArray()}
+
+
+# --- ConsoleStorage hooks -------------------------------------------------------
+
+func busy_title() -> String:
+	return "Xbox in use"
+
+
+## Which disc this run is, then the Memory Units into their files. Not staged in
+## a session: xemu is not a netplay core.
+func stage_for_run(dir: String, core: String) -> void:
+	note_started(core)
+	stage_units_before_start(dir, core)
+
+
+## Once a frame has run the units are worth writing back while the game plays.
+func after_first_frame() -> void:
+	start_draining_units()
+
+
+## xemu flushes the console's hard disk as it unloads, and the game's saves are
+## lifted out of it for RomM once it has; then the Memory Units in its pads,
+## which the core writes to files of its own.
+func after_stop(_dir: String, _core: String) -> void:
+	backup_after_stop()
+	drain_units()
+	stop_draining_units_soon()

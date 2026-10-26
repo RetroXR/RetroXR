@@ -1191,7 +1191,7 @@ func _test_stack() -> void:
 		await get_tree().physics_frame
 
 	console.restore_expansion(unit)
-	unit.restore_media(disc)
+	unit.restore_media_in_slot(disc)
 	for i in range(20):
 		await get_tree().physics_frame
 	_eq(console.expansion_ids().size(), 1, "stack/built: the console carries its unit")

@@ -94,7 +94,7 @@ func _run() -> void:
 		await _frames(6)
 	await _frames(30)
 	_check(vcr.connected_tv == tv, "the VCR is cabled to a set")
-	vcr.restore_tape(tape)
+	vcr.restore_media(tape)
 	await _frames(10)
 	vcr.play()
 	var vlc: Object = vcr.get("_vlc")

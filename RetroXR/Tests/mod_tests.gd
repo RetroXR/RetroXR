@@ -1271,7 +1271,7 @@ connector = "saturn_av_out"
 	# in _init, where no declared default shows it.
 	var link_lead := _scene_file("t_link", """[gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/cables/link_plug.gd" id="1"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link/link_plug.gd" id="1"]
 
 [node name="Lead" type="Node3D"]
 

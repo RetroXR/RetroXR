@@ -196,7 +196,7 @@ func _stack() -> void:
 	add_child(pack)
 	pack.global_position = bsx.global_position + Vector3(0.0, 0.16, 0.0)
 	await _wait(18)
-	bsx.restore_media(pack)
+	bsx.restore_media_in_slot(pack)
 	await _wait(18)
 
 	if audit:
@@ -245,7 +245,7 @@ func _sufami() -> void:
 		var tag := cart.get_node_or_null("GameLabel") as Label3D
 		if tag != null:
 			tag.visible = false
-		unit.restore_media(cart, i)
+		unit.restore_media_in_slot(cart, i)
 		await _wait(12)
 
 	for i in TURN_FRAMES:

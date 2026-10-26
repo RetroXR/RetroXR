@@ -41,16 +41,16 @@ const STICK_PIVOT_DROP: float = 0.0055
 
 
 func _cache_meshes() -> void:
-	_buttons.clear()
+	_anim.buttons.clear()
 	for path: String in PAD_FACE:
 		_add_button(path, int(PAD_FACE[path]), FACE_PRESS, PRESS_DIR)
 	for path: String in PAD_SMALL:
 		_add_button(path, int(PAD_SMALL[path]), SMALL_PRESS, PRESS_DIR)
 	for path: String in PAD_EDGE:
 		_add_button(path, int(PAD_EDGE[path]), TRIGGER_PRESS, EDGE_DIR)
-	_dpad    = _pivoted_control("Model/DPad", DPAD_PIVOT_DROP)
-	_stick_l = _pivoted_control("Model/StickL", STICK_PIVOT_DROP)
-	_stick_r = _pivoted_control("Model/StickR", STICK_PIVOT_DROP)
+	_anim.dpad    = _pivoted_control("Model/DPad", DPAD_PIVOT_DROP)
+	_anim.stick_l = _pivoted_control("Model/StickL", STICK_PIVOT_DROP)
+	_anim.stick_r = _pivoted_control("Model/StickR", STICK_PIVOT_DROP)
 
 
 ## The authored D-pad's UP arm points -Z (away from the holder, the edge the
@@ -64,7 +64,7 @@ func _add_button(path: String, bit: int, depth: float, dir: Vector3) -> void:
 	if m == null:
 		push_warning("RetroPadController: control mesh not found: " + path)
 		return
-	_buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth, "dir": dir})
+	_anim.buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth, "dir": dir})
 
 
 func _pivoted_control(path: String, drop_dist: float) -> Dictionary:

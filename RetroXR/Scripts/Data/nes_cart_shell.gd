@@ -22,9 +22,6 @@ const GOLD_NAMES: Array[String] = ["zelda"]
 ## Markets whose releases were not the gold cartridge.
 const NOT_GOLD_MARKETS: Array[String] = ["jp"]
 
-static var _gamelists := GamelistManager.new()
-static var _gamelist_stamps := {}
-
 
 ## The shell a ROM spawns in: gold for a Zelda outside Japan, else grey.
 static func preset_for_rom(rom_path: String, systemid := SYSTEMID, pinned := "") -> StringName:
@@ -61,26 +58,27 @@ static func normalized(name: String) -> String:
 static func game_name(systemid: String, rom_path: String) -> String:
 	if rom_path.is_empty():
 		return ""
-	var scraped := ""
-	if not systemid.is_empty():
-		# Reload the gamelist when a scrape has rewritten it, as SnesCartShell does.
-		var path := RomLibrary.rom_dir_for_system(systemid).path_join("gamelist.json")
-		var stamp := FileAccess.get_modified_time(path) if FileAccess.file_exists(path) else 0
-		if _gamelist_stamps.get(systemid, -1) != stamp:
-			_gamelists.invalidate(systemid)
-			_gamelist_stamps[systemid] = stamp
-		scraped = str(_gamelists.get_game_for_rom(systemid, rom_path).get("name", ""))
+	var scraped := str(CartRomInfo.scraped_game(systemid, rom_path).get("name", ""))
 	return scraped if not scraped.is_empty() else rom_path.get_file().get_basename()
 
 
 ## "us", "jp", "eu", "au", or "" when neither the scraper nor the file name says.
 ## Nothing in the ROM saying, the cartridge's pinned market, else the player's.
 static func market(systemid: String, rom_path: String, pinned := "") -> String:
-	var found := rom_market(systemid, rom_path)
-	return found if not found.is_empty() else RegionalNames.cart_market_or(pinned)
+	return CartRomInfo.market_or_pinned(rom_market(systemid, rom_path), pinned)
 
 
 ## The market the ROM itself names, or "" -- market() without the fallback.
 static func rom_market(systemid: String, rom_path: String) -> String:
-	var found := N64CartShell.market_of_region(str(SnesCartShell.scraped_rom(systemid, rom_path).get("region", "")))
+	var found := N64CartShell.market_of_region(str(CartRomInfo.scraped_rom(systemid, rom_path).get("region", "")))
 	return found if not found.is_empty() else SnesCartShell.filename_market(rom_path)
+
+
+# --- The cart-shell protocol (ModCartShells' table of the game's own shells) ---
+# The body is the one NES Game Pak (RetroCartridge's model table); only its colour
+# is the ROM's.
+
+## {palette, preset}: the NES palette and this ROM's shell in it.
+static func cart_finish(systemid: String, rom_path: String, _model_path: String,
+		pinned: String) -> Dictionary:
+	return {"palette": SYSTEMID, "preset": preset_for_rom(rom_path, systemid, pinned)}

@@ -1669,12 +1669,12 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 		# bolted to its console yet.
 		var own := _resolve_ref(root, spawned, d.get("media")) as Node3D
 		if own:
-			(obj as RetroExpansion).restore_media(own)
+			(obj as RetroExpansion).restore_media_in_slot(own)
 		# Absent from every room saved before a unit had two slots, which is why
 		# it is read with a default rather than assumed present.
 		var own_b := _resolve_ref(root, spawned, d.get("media_b")) as Node3D
 		if own_b:
-			(obj as RetroExpansion).restore_media(own_b, 1)
+			(obj as RetroExpansion).restore_media_in_slot(own_b, 1)
 		# Its clip-on accessory (the 32X's Model 2 spacer), on the same terms: a
 		# pose relative to the unit, whether or not the unit is seated yet.
 		var accessory := _resolve_ref(root, spawned, d.get("accessory")) as Node3D
@@ -1697,15 +1697,15 @@ func _restore_entry(root: Node, id: int, spawned: Dictionary, entries: Dictionar
 			var entry: Dictionary = decks[kind]
 			var media := _resolve_ref(root, spawned, entry.get("media")) as Node3D
 			if media:
-				(obj as RetroTV).decks().restore_media(kind, media, float(entry.get("yaw", 0.0)))
+				(obj as RetroTV).decks().restore_deck_media(kind, media, float(entry.get("yaw", 0.0)))
 	elif obj is VCRPlayer:
 		var tape := _resolve_ref(root, spawned, d.get("tape")) as VCRTape
 		if tape:
-			(obj as VCRPlayer).restore_tape(tape)
+			(obj as VCRPlayer).restore_media(tape)
 	elif obj is DVDPlayer:
 		var disc := _resolve_ref(root, spawned, d.get("disc")) as DVDDisc
 		if disc:
-			(obj as DVDPlayer).restore_disc(disc, float(d.get("disc_yaw", 0.0)))
+			(obj as DVDPlayer).restore_media(disc, float(d.get("disc_yaw", 0.0)))
 	elif obj is RetroAudioPlayer:
 		var media := _resolve_ref(root, spawned, d.get("media"))
 		if media is AudioDisc or media is AudioCassette or media is VinylRecord:
@@ -3108,7 +3108,7 @@ func _deserialize_kind(data: Dictionary) -> Node3D:
 				if not crt_params.is_empty():
 					tv.set_crt_params(crt_params)
 				tv.scale_factor = data.get("scale_factor", 1.0)
-				tv.stereo_mode = int(data.get("stereo_mode", 0))
+				tv.stereo_mode = int(data.get("stereo_mode", 0)) as RetroTV.StereoMode
 				obj = tv
 			"expansion":
 				var unit := EXPANSION_SCENE.instantiate() as RetroExpansion

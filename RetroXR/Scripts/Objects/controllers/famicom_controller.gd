@@ -26,13 +26,13 @@ const DPAD_PIVOT_DROP: float = 0.003
 
 
 func _cache_meshes() -> void:
-	_buttons.clear()
+	_anim.buttons.clear()
 	for path: String in FC_FACE:
 		_add_button(path, int(FC_FACE[path]), FACE_PRESS, PRESS_DIR)
 	var small := small_controls()
 	for path: String in small:
 		_add_button(path, int(small[path]), SMALL_PRESS, PRESS_DIR)
-	_dpad = _pivoted_control("Model/Face/DPad", DPAD_PIVOT_DROP)
+	_anim.dpad = _pivoted_control("Model/Face/DPad", DPAD_PIVOT_DROP)
 
 
 ## The two small buttons in the middle of the pad. Controller II answers with
@@ -54,7 +54,7 @@ func _add_button(path: String, bit: int, depth: float, dir: Vector3) -> void:
 	if m == null:
 		push_warning("FamicomController: control mesh not found: " + path)
 		return
-	_buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth, "dir": dir})
+	_anim.buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth, "dir": dir})
 
 
 func _pivoted_control(path: String, drop_dist: float) -> Dictionary:

@@ -107,8 +107,6 @@ const DESTINATION_STICKERS := {
 ## GoodTools' region codes that name one sticker, as in "Game (G) [!].smc".
 const GOODTOOLS_STICKERS := {"E": "eur", "F": "fah", "G": "noe", "A": "ukv"}
 
-static var _gamelists := GamelistManager.new()
-static var _gamelist_stamps := {}
 ## Sticker art path -> the material showing it, shared by every cartridge wearing it.
 static var _sticker_materials := {}
 
@@ -130,8 +128,7 @@ static func body_model_for_rom(body_region: String, systemid: String, rom_path: 
 ## Nothing in the ROM saying, the cartridge's pinned market, else the player's own
 ## (RegionalNames.cart_market_or).
 static func market(systemid: String, rom_path: String, pinned := "") -> String:
-	var found := rom_market(systemid, rom_path)
-	return found if not found.is_empty() else RegionalNames.cart_market_or(pinned)
+	return CartRomInfo.market_or_pinned(rom_market(systemid, rom_path), pinned)
 
 
 ## The market the ROM itself names, or "" -- market() without the fallback.
@@ -293,6 +290,25 @@ static func preset_for_rom(rom_path: String, systemid := SYSTEMID, pinned := "")
 	return preset_for_title(title_of(read_header(rom_path)), market(systemid, rom_path, pinned))
 
 
+# --- The cart-shell protocol (ModCartShells' table of the game's own shells) ---
+
+static func cart_body(systemid: String, rom_path: String, body_region: String,
+		_shell_preset: StringName, pinned: String) -> String:
+	return body_model_for_rom(body_region, systemid, rom_path, pinned)
+
+
+## {palette, preset}: the Super NES palette and this ROM's shell in it.
+static func cart_finish(systemid: String, rom_path: String, _model_path: String,
+		pinned: String) -> Dictionary:
+	return {"palette": SYSTEMID, "preset": preset_for_rom(rom_path, systemid, pinned)}
+
+
+## A PAL cartridge is the Super Famicom shell with its market's warning sticker.
+static func cart_dress(body: Node3D, systemid: String, rom_path: String, model_path: String,
+		pinned: String) -> void:
+	apply_rear_sticker(body, rear_sticker_file(model_path, systemid, rom_path, pinned))
+
+
 ## The shell a title shipped in, in `market_name`: grey unless TITLE_SHELLS lists
 ## the title for that market (or for every market).
 static func preset_for_title(title: String, market_name := "") -> StringName:
@@ -363,15 +379,4 @@ static func date_digits(date: String) -> String:
 ## This ROM's entry in the system's scraped gamelist ({region, releasedate, ...}),
 ## or {}.
 static func scraped_rom(systemid: String, rom_path: String) -> Dictionary:
-	if systemid.is_empty() or rom_path.is_empty():
-		return {}
-	var path := RomLibrary.rom_dir_for_system(systemid).path_join("gamelist.json")
-	var stamp := FileAccess.get_modified_time(path) if FileAccess.file_exists(path) else 0
-	if _gamelist_stamps.get(systemid, -1) != stamp:
-		_gamelists.invalidate(systemid)
-		_gamelist_stamps[systemid] = stamp
-	var game := _gamelists.get_game_for_rom(systemid, rom_path)
-	for rom: Dictionary in game.get("roms", []):
-		if str(rom.get("path", "")).get_file() == rom_path.get_file():
-			return rom
-	return {}
+	return CartRomInfo.scraped_rom(systemid, rom_path)

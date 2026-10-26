@@ -79,7 +79,7 @@ func _ready() -> void:
 	_ok(bool(got.get("ok", false)), "the packs arrive: %d" % int(got.get("total", -1)))
 	for pack: Dictionary in got.get("packs", []):
 		print("[live] pack %d '%s' by %s, %s" % [pack["id"], pack["name"], pack["author"],
-			MenuStyle.human_bytes(int(pack["file_size"]))])
+			ByteSize.human(int(pack["file_size"]))])
 
 	got.clear()
 	client.list_mods("", "-date_live", 0, func(ok: bool, mods: Array[Dictionary], total: int, error: String) -> void:
@@ -91,7 +91,7 @@ func _ready() -> void:
 	var pick: Dictionary = {}
 	for mod: Dictionary in mods:
 		print("[live] mod %d '%s' by %s, file %d %s, scan %d/%d, tags %s" % [mod["id"], mod["name"],
-			mod["author"], mod["file_id"], MenuStyle.human_bytes(int(mod["file_size"])),
+			mod["author"], mod["file_id"], ByteSize.human(int(mod["file_size"])),
 			mod["virus_status"], mod["virus_positive"], str(mod["tags"])])
 		if pick.is_empty() and (wanted.is_empty() or str(mod["name"]).to_lower().contains(wanted)):
 			pick = mod
@@ -137,7 +137,7 @@ func _ready() -> void:
 	await _until(func() -> bool: return bool(seen["done"]), 120.0)
 	_ok(bool(seen["ok"]), "the file downloads from mod.io's CDN and passes mod.io's MD5 and the loader (%s)"
 		% str(seen["error"]))
-	print("[live] %s in %.1f s, %d retries" % [MenuStyle.human_bytes(int(seen["bytes"])),
+	print("[live] %s in %.1f s, %d retries" % [ByteSize.human(int(seen["bytes"])),
 		float(Time.get_ticks_msec() - started) / 1000.0, int(seen["retries"])])
 	_ok(reviews.has(key), "and waits for the review instead of being installed")
 	if reviews.has(key):
@@ -153,7 +153,7 @@ func _ready() -> void:
 			rec.path.get_file() if rec != null else "nothing"))
 		if rec != null:
 			_ok(FileAccess.get_md5(rec.path) == str(fresh["file_md5"]),
-				"byte for byte what mod.io holds (%s)" % MenuStyle.human_bytes(rec.size))
+				"byte for byte what mod.io holds (%s)" % ByteSize.human(rec.size))
 			_ok(SpawnMenuModsView.browse_state(fresh) in ["", "installed", "update"],
 				"the scratch loader's mod is not the game's (the tile reads '%s')"
 				% SpawnMenuModsView.browse_state(fresh))

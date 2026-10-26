@@ -39,8 +39,8 @@ static func threshold_to_dpad(stick: Vector2) -> int:
 ## missed will come round again.
 static func find_rig(tree: SceneTree) -> Dictionary:
 	var rig := {
-		"locomotion": tree.root.find_child("LocomotionManager", true, false) as LocomotionManager,
-		"spawn_menu": tree.root.find_child("SpawnMenuController", true, false),
+		"locomotion": SceneServices.locomotion(tree.root) as LocomotionManager,
+		"spawn_menu": SceneServices.spawn_menu(tree.root),
 		"left": null,
 		"right": null,
 	}

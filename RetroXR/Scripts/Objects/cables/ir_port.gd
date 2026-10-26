@@ -51,19 +51,11 @@ func _physics_process(_delta: float) -> void:
 
 ## The machine this window is on, or null. The walk LinkPort.get_machine does.
 func get_machine() -> Node3D:
-	var n: Node = get_parent()
-	while n != null:
-		if n.has_method("get_libretro_node"):
-			return n as Node3D
-		n = n.get_parent()
-	return null
+	return MachineLookup.owning_machine(get_parent()) as Node3D
 
 
 func get_libretro() -> Libretro:
-	var machine := get_machine()
-	if machine == null:
-		return null
-	return machine.call("get_libretro_node") as Libretro
+	return MachineLookup.libretro_of(get_machine())
 
 
 ## The way the window looks, in the room.

@@ -176,7 +176,7 @@ func _run() -> void:
 	add_child(cart)
 	cart.global_position = STAGE + Vector3(0.3, 0.3, 0.3)
 	await _wait(12)
-	unit.restore_media(cart)
+	unit.restore_media_in_slot(cart)
 	await _wait(12)
 	keep.append(cart)
 	_hide_panels()

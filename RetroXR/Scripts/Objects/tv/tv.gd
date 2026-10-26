@@ -159,6 +159,15 @@ static func _mod_shell_path(shell_id: String) -> String:
 	return str((_mod_shells.get(shell_id, {}) as Dictionary).get("scene", ""))
 
 
+## The scene a cabinet id wears: a mod's first, then a shipped one, "" for neither.
+## TvFit.load_shell builds the shell from it.
+static func shell_scene_path(shell_id: String) -> String:
+	var path := _mod_shell_path(shell_id)
+	if path.is_empty():
+		path = str(_SHELL_SCENES.get(shell_id, ""))
+	return path
+
+
 ## Every mod cabinet, as {id, label}, for the spawn menu.
 static func mod_shells() -> Array:
 	var out: Array = []
@@ -182,12 +191,11 @@ var _display: TvDisplay = null
 var _fit: TvFit = null
 
 @onready var _screen_mesh: MeshInstance3D = $ScreenMesh
-@warning_ignore("unused_private_class_variable")
 @onready var _tube_collar: MeshInstance3D = $TubeCollar
 ## Composite 1's video socket. Kept as a named handle because that one socket is
 ## named from outside this script — a console's captive lead restores into it
 ## (system.gd::_snap_cable_to_tv), netplay names it, and the save file names it.
-@warning_ignore("unused_private_class_variable")
+## Read through composite_port().
 @onready var _composite_port: XRToolsSnapZone = $CompositePort
 ## Off unless the fitted shell carries a VgaPortSeat — see TvPanel.seat_vga_port.
 @onready var _vga_port: XRToolsSnapZone = $VgaPort
@@ -207,9 +215,7 @@ var _fit: TvFit = null
 @onready var _audio_out_btn: VRButton = $AudioOutButton
 @onready var _stereo_btn: VRButton = $StereoButton
 @onready var _aspect_btn: VRButton = $AspectButton
-@warning_ignore("unused_private_class_variable")
 @onready var _speaker_l: Marker3D = get_node_or_null("SpeakerL")
-@warning_ignore("unused_private_class_variable")
 @onready var _speaker_r: Marker3D = get_node_or_null("SpeakerR")
 @onready var _osd_label: Label3D = $ScreenMesh/OSDLabel
 @onready var _vol_osd_label: Label3D = $ScreenMesh/VolumeOSDLabel
@@ -224,9 +230,13 @@ var _fit: TvFit = null
 # stays installed regardless of the CRT toggle, so the per-eye split never
 # depends on the tube filter.
 
-# Stereo presentation for stereo sources (the 3D bezel button, visible only
-# while one is connected): 0 = per-eye stereo, 1 = left eye, 2 = right eye.
-var stereo_mode: int = 0
+## Stereo presentation for stereo sources (the 3D bezel button, visible only
+## while one is connected). The int values are on disk ("stereo_mode"), on the wire
+## (EV_TV_STEREO) and in the window shaders' `stereo_mode` uniform, and they index
+## STEREO_MODE_NAMES: never renumber.
+enum StereoMode { BOTH = 0, LEFT_EYE = 1, RIGHT_EYE = 2 }
+
+var stereo_mode: StereoMode = StereoMode.BOTH
 
 ## Picture shape. A CRT is a 4:3 tube, so that is the resting state and the one
 ## every source used to get by default — the frame was simply stretched to the
@@ -244,8 +254,10 @@ const STEREO_MODE_NAMES := ["3D: STEREO", "3D: LEFT EYE", "3D: RIGHT EYE"]
 
 ## The set's speaker switch, in the OSD's own voice (it shouts).
 const AUDIO_MODE_NAMES := ["STEREO", "MONO LEFT", "MONO RIGHT"]
-## 0 stereo, 1 the left channel from both speakers, 2 the right from both.
-var audio_mode: int = 0
+## STEREO, MONO_LEFT (the left channel from both speakers) or MONO_RIGHT (the right
+## from both). The int values are on disk and the wire (EV_TV_AUDIO_MODE) and index
+## AUDIO_MODE_NAMES, which is why this is the emitter's own enum and not a copy.
+var audio_mode: SpatialAudioEmitter.ChannelMode = SpatialAudioEmitter.ChannelMode.STEREO
 
 ## Where the set sends its sound.
 ##
@@ -286,9 +298,7 @@ var audio_out: int = 0
 
 # Phosphor persistence ping-pong (Shaders/phosphor_decay.gdshader). A viewport
 # can't sample itself, so one renders while the other is read as "last frame".
-@warning_ignore("unused_private_class_variable")
 @onready var _phosphor_a: SubViewport = $PhosphorA
-@warning_ignore("unused_private_class_variable")
 @onready var _phosphor_b: SubViewport = $PhosphorB
 
 # Tube face size in metres, read off the mesh in _ready. The phosphor pitch is a
@@ -338,9 +348,9 @@ func shell() -> RetroTVShell:
 	return _fit.shell() if _fit != null else null
 
 
-## The three front-panel buttons more than one helper touches — the layout pass
-## places them, and the audio and display helpers light them. The rest of the
-## row is TvFit's alone and stays there.
+## The front-panel buttons more than one helper touches — the layout pass places
+## them, and the audio and display helpers light them. The whole row, in order,
+## is bezel_buttons().
 func mute_btn() -> VRButton:
 	return _mute_btn
 
@@ -355,6 +365,65 @@ func audio_out_btn() -> VRButton:
 
 func stereo_btn() -> VRButton:
 	return _stereo_btn
+
+
+## The bezel caps in the order they are laid out, reading left to right and then
+## down. The everyday controls of the set fill the first row; the picture and
+## sound MODES — the ones you set once and leave — go on the second. TvFit walks a
+## shell's button row with it.
+##
+## 3D comes LAST on purpose. It is the one cap that comes and goes (only a
+## stereo source has anything for it to switch), and a hidden button still owns
+## its slot — anywhere else in the order it leaves a hole in the middle of the
+## row that reads as a missing control. At the end it simply is not there.
+##
+## Mute and the speaker switch used to sit outside this list, so a shell moved
+## nine caps onto its marker and left those two wherever the stock cabinet had
+## put them. One list now, and both paths read it.
+func bezel_buttons() -> Array[Node3D]:
+	return [
+		_tv_toggle_btn, _source_btn, _ch_down_btn, _ch_up_btn,
+		_vol_down_btn, _vol_up_btn, _mute_btn,
+		_audio_mode_btn, _crt_btn, _aspect_btn,
+		_audio_out_btn, _stereo_btn,
+	]
+
+
+## The collar behind the glass. TvFit seats it on the shell's screen seat with
+## the glass itself.
+func tube_collar() -> MeshInstance3D:
+	return _tube_collar
+
+
+## The SpeakerL / SpeakerR markers where the set's own sound radiates from, or null
+## on a scene predating them. TvFit seats or computes them and reads them back for
+## speaker_positions().
+func speaker_l_marker() -> Marker3D:
+	return _speaker_l
+
+
+func speaker_r_marker() -> Marker3D:
+	return _speaker_r
+
+
+## Composite 1's video socket — see _composite_port for why it has a name.
+func composite_port() -> XRToolsSnapZone:
+	return _composite_port
+
+
+## The aerial socket. TvPanel seats it with the back-panel row and wires it as
+## Source.RF's input.
+func rf_port() -> XRToolsSnapZone:
+	return _rf_port
+
+
+## The phosphor ping-pong pair, A and B. TvDisplay alternates which one renders.
+func phosphor_a() -> SubViewport:
+	return _phosphor_a
+
+
+func phosphor_b() -> SubViewport:
+	return _phosphor_b
 
 
 ## The glass. Named rather than reached for: the helpers paint it, measure it and
@@ -690,8 +759,10 @@ func _update_crt_button_color() -> void:
 
 ## Cycle the stereo presentation: STEREO → LEFT → RIGHT → … (3D bezel button).
 ## TvDisplay.update_crt pushes the mode onto whichever shader is showing the source.
+## Takes an int because the wire and the options panel hand one over; it is a
+## StereoMode value, clamped here.
 func set_stereo_mode(mode: int) -> void:
-	stereo_mode = clampi(mode, 0, 2)
+	stereo_mode = clampi(mode, StereoMode.BOTH, StereoMode.RIGHT_EYE) as StereoMode
 	_update_stereo_button_color()
 	show_osd_timed(STEREO_MODE_NAMES[stereo_mode], 2.0)
 	NetworkManager.report_event(NetEvents.Event.EV_TV_STEREO,
@@ -699,7 +770,13 @@ func set_stereo_mode(mode: int) -> void:
 
 
 func _on_stereo_toggle() -> void:
-	set_stereo_mode((stereo_mode + 1) % 3)
+	set_stereo_mode(next_stereo_mode())
+
+
+## The 3D key's next position, BOTH → LEFT_EYE → RIGHT_EYE → BOTH. The bezel key
+## and the remote's both step through here.
+func next_stereo_mode() -> StereoMode:
+	return ((stereo_mode + 1) % StereoMode.size()) as StereoMode
 
 
 # ── Picture shape (4:3 / 16:9) ────────────────────────────────────────────────
@@ -732,9 +809,9 @@ func _update_stereo_button_color() -> void:
 	if _stereo_btn:
 		# Magenta = per-eye stereo; dimmer purple flavors for single-eye modes.
 		match stereo_mode:
-			0: _stereo_btn.set_color(Color(1.0, 0.2, 1.0))
-			1: _stereo_btn.set_color(Color(0.55, 0.35, 0.75))
-			2: _stereo_btn.set_color(Color(0.35, 0.35, 0.75))
+			StereoMode.BOTH: _stereo_btn.set_color(Color(1.0, 0.2, 1.0))
+			StereoMode.LEFT_EYE: _stereo_btn.set_color(Color(0.55, 0.35, 0.75))
+			StereoMode.RIGHT_EYE: _stereo_btn.set_color(Color(0.35, 0.35, 0.75))
 	_update_stereo_button_glyph()
 
 
@@ -744,9 +821,12 @@ func _update_stereo_button_color() -> void:
 ## is showing, so the cap says which one without a word on it.
 func _update_stereo_button_glyph() -> void:
 	match stereo_mode:
-		0: TransportGlyphs.set_glyph(self, "StereoButton", "stereo", TransportGlyphs.TV_SIZE)
-		1: TransportGlyphs.set_glyph(self, "StereoButton", "eye", TransportGlyphs.TV_SIZE, -1.0)
-		2: TransportGlyphs.set_glyph(self, "StereoButton", "eye", TransportGlyphs.TV_SIZE, 1.0)
+		StereoMode.BOTH:
+			TransportGlyphs.set_glyph(self, "StereoButton", "stereo", TransportGlyphs.TV_SIZE)
+		StereoMode.LEFT_EYE:
+			TransportGlyphs.set_glyph(self, "StereoButton", "eye", TransportGlyphs.TV_SIZE, -1.0)
+		StereoMode.RIGHT_EYE:
+			TransportGlyphs.set_glyph(self, "StereoButton", "eye", TransportGlyphs.TV_SIZE, 1.0)
 
 
 
@@ -1455,7 +1535,7 @@ func restore_control_state(state: Dictionary) -> void:
 		bool(state.get("muted", _audio.is_muted())))
 	_tv_enabled = bool(state.get("enabled", _tv_enabled))
 	widescreen = bool(state.get("widescreen", widescreen))
-	audio_mode = clampi(int(state.get("audio_mode", audio_mode)), 0, 2)
+	audio_mode = clamp_channel_mode(int(state.get("audio_mode", audio_mode)))
 	# Onto a position this cabinet has: a save made on a set with all six outputs
 	# can come back on one with two.
 	audio_out = _audio.nearest_audio_out(clampi(int(state.get("audio_out", audio_out)), 0,
@@ -1554,8 +1634,22 @@ func volume() -> float:
 
 ## Cycle the speaker switch. Stays on the set because object_sync replays it by
 ## name on a peer and the remote's own key calls it. See tv_audio.gd.
+## Takes an int because the wire and the options panel hand one over; it is a
+## SpatialAudioEmitter.ChannelMode value, clamped here.
 func set_audio_mode(mode: int) -> void:
-	_audio.set_mode(mode)
+	_audio.set_mode(clamp_channel_mode(mode))
+
+
+## An int off the disk, the wire or a menu, onto the speaker switch's three positions.
+static func clamp_channel_mode(mode: int) -> SpatialAudioEmitter.ChannelMode:
+	return clampi(mode, SpatialAudioEmitter.ChannelMode.STEREO,
+		SpatialAudioEmitter.ChannelMode.MONO_RIGHT) as SpatialAudioEmitter.ChannelMode
+
+
+## The speaker switch's next position, STEREO → MONO_LEFT → MONO_RIGHT → STEREO.
+## The bezel key and the remote's both step through here.
+func next_audio_mode() -> SpatialAudioEmitter.ChannelMode:
+	return ((audio_mode + 1) % SpatialAudioEmitter.ChannelMode.size()) 		as SpatialAudioEmitter.ChannelMode
 
 
 ## Choose where the sound goes. On the set rather than on TvAudio for the same

@@ -139,9 +139,9 @@ func media_state(ref: Callable) -> Dictionary:
 
 ## Seat media back into a deck. Called from the restore's second pass, with the
 ## tape or disc already rebuilt.
-func restore_media(kind: String, media: Node3D, yaw: float) -> void:
+func restore_deck_media(kind: String, media: Node3D, yaw: float) -> void:
 	var deck := deck_of_kind(kind)
 	if deck is VCRPlayer and media is VCRTape:
-		(deck as VCRPlayer).restore_tape(media)
+		(deck as VCRPlayer).restore_media(media)
 	elif deck is DVDPlayer and media is DVDDisc:
-		(deck as DVDPlayer).restore_disc(media, yaw)
+		(deck as DVDPlayer).restore_media(media, yaw)

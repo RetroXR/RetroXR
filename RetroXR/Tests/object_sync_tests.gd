@@ -172,6 +172,9 @@ class MockEventObject extends Node3D:
 	var pages: Array = []
 	var applying_seen := false
 	var restored: Dictionary = {}
+	## Every deck (VCR, DVD, audio) seats through one restore_media(media, yaw),
+	## so the three insert events are told apart by how many reached it.
+	var media_restores := 0
 	var cable_calls: Array = []
 	var plug_calls: Array = []
 	var transport: Array[String] = []
@@ -224,7 +227,6 @@ class MockEventObject extends Node3D:
 	func restore_cartridge(obj: Node, yaw := 0.0) -> void:
 		restored["cart"] = obj
 		restored["cart_yaw"] = yaw
-	func restore_tape(obj: Node) -> void: restored["tape"] = obj
 
 	# The removal half of the same contract. object_sync asks the owner to give
 	# the media up rather than reaching for its child by name, so the mock has to
@@ -241,8 +243,9 @@ class MockEventObject extends Node3D:
 	func restore_memory_card(obj: Node, slot := 0) -> void:
 		restored["card"] = obj
 		restored["card_slot"] = slot
-	func restore_disc(obj: Node, _yaw := 0.0) -> void: restored["disc"] = obj
-	func restore_media(obj: Node, _yaw := 0.0) -> void: restored["media"] = obj
+	func restore_media(obj: Node, _yaw := 0.0) -> void:
+		restored["media"] = obj
+		media_restores += 1
 	## An audio deck unseats through its own loader now, rather than the event
 	## reaching into get_node("MediaSlot").drop_object(). That reach only ever
 	## worked for a SLOT deck: a tray deck's media is not held by the snap zone at
@@ -1163,10 +1166,9 @@ func _test_events(p: Pair) -> void:
 		{"player": host_obj, "media": host_aux})
 	_ok(await _until(func() -> bool:
 		return client_obj.restored.get("cart") == client_aux \
-			and client_obj.restored.get("tape") == client_aux \
 			and client_obj.restored.get("card") == client_aux \
-			and client_obj.restored.get("disc") == client_aux \
-			and client_obj.restored.get("media") == client_aux),
+			and client_obj.restored.get("media") == client_aux \
+			and client_obj.media_restores == 3),
 		"events/cartridge, tape, memory-card, DVD and audio insertion take effect")
 	_ok(is_equal_approx(float(client_obj.restored.get("cart_yaw", 0.0)), 0.75),
 		"events/a disc's seat spin rides the insert event to the peer")

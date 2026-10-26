@@ -123,7 +123,7 @@ func _update_summary(rows: Array) -> void:
 	# The size goes on the button because a room full of videos is a real number
 	# and a headset is usually on Wi-Fi.
 	_all_btn.text = "Download all -- %d items, %s" % [actionable.size(),
-		MenuStyle.human_bytes(bytes)]
+		ByteSize.human(bytes)]
 
 
 func _make_row(row: Dictionary) -> Control:
@@ -163,7 +163,7 @@ func _status_text(row: Dictionary) -> String:
 	var byte_count := int(row.get("size", 0))
 	match state:
 		NetplayContent.STATE_HAVE:
-			return MenuStyle.human_bytes(byte_count) if byte_count > 0 else "ready"
+			return ByteSize.human(byte_count) if byte_count > 0 else "ready"
 		NetplayContent.STATE_FETCHING:
 			return "transferring..."
 		NetplayContent.STATE_ROMM:
@@ -230,8 +230,8 @@ func _on_item_changed(key: String, state: String, received: int, total: int) -> 
 	if state == NetplayContent.STATE_FETCHING:
 		bar.visible = true
 		bar.value = 100.0 * float(received) / maxf(1.0, float(total))
-		status.text = "%s / %s" % [MenuStyle.human_bytes(received),
-			MenuStyle.human_bytes(total)]
+		status.text = "%s / %s" % [ByteSize.human(received),
+			ByteSize.human(total)]
 		status.add_theme_color_override("font_color", MenuStyle.COLOR_NETPLAY)
 		# Also as a toast, so a transfer the player started stays visible when
 		# they leave this tab -- MenuToasts sits above the views for exactly this.
@@ -277,7 +277,7 @@ func _show_join_phase(phase: String, received: int, total: int) -> void:
 		_join_bar.visible = true
 		_join_bar.value = 100.0 * float(received) / float(total)
 		_join_lbl.text = "%s  %s / %s" % [_join_lbl.text,
-			MenuStyle.human_bytes(received), MenuStyle.human_bytes(total)]
+			ByteSize.human(received), ByteSize.human(total)]
 	else:
 		_join_bar.visible = false
 	if _menu != null and _menu.has_method("notify"):

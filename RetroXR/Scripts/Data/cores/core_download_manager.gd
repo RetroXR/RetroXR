@@ -487,17 +487,16 @@ static func systems_using(core_name: String) -> PackedStringArray:
 	if core_name.is_empty() or not Engine.get_main_loop() is SceneTree:
 		return out
 	var tree := Engine.get_main_loop() as SceneTree
-	for node: Node in tree.get_nodes_in_group("retro_system"):
-		if not is_instance_valid(node):
+	for node: Node in tree.get_nodes_in_group(ExpansionPort.GROUP_SYSTEM):
+		var sys := node as RetroSystem
+		if sys == null:
 			continue
-		# Duck-typed: system.gd resolves an empty core_name through CoreDefaults,
-		# so the property alone would miss every machine left on its default.
-		if not node.has_method("resolve_core_name"):
+		# resolve_core_name, not core_name: system.gd resolves an empty core_name
+		# through CoreDefaults, so the property alone would miss every machine
+		# left on its default.
+		if sys.resolve_core_name() != core_name:
 			continue
-		if str(node.resolve_core_name()) != core_name:
-			continue
-		out.append(str(node.get("system_label")) if node.get("system_label") != null
-			else str(node.name))
+		out.append(sys.system_label)
 	return out
 
 

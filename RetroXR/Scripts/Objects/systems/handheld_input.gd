@@ -145,7 +145,7 @@ func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 	if not is_instance_valid(_holding_ctrl):
 		_saved_by = by
 		_holding_ctrl = ctrl
-	_update_pointer_block(ctrl, true)
+	_pointer_block.set_block(ctrl, true)
 	_update_locomotion_block()
 	_apply_rumble()
 	_refresh_grip()
@@ -166,7 +166,7 @@ func _on_released_signal(_pickable: Node3D, by: Node3D) -> void:
 	if ctrl == null:
 		return
 	if _allow_drop:
-		_update_pointer_block(ctrl, false)
+		_pointer_block.set_block(ctrl, false)
 		if ctrl == _holding_ctrl:
 			var driver: Variant = VrHold.grab_driver(_host)
 			if driver and driver.primary:
@@ -202,7 +202,7 @@ func _on_dropped_signal(_pickable: Node3D) -> void:
 		if _hint:
 			_hint.on_dropped()
 		_allow_drop = false
-		_update_pointer_block(_holding_ctrl, false)
+		_pointer_block.set_block(_holding_ctrl, false)
 		_saved_by = null
 		_holding_ctrl = null
 		_desktop_held = false
@@ -216,7 +216,7 @@ func _rehold() -> void:
 		_allow_drop = false
 		return
 	if not is_instance_valid(_saved_by):
-		_update_pointer_block(_holding_ctrl, false)
+		_pointer_block.set_block(_holding_ctrl, false)
 		_saved_by = null
 		_holding_ctrl = null
 		_update_locomotion_block()
@@ -246,10 +246,10 @@ func _combo_debug(ctrl: XRController3D) -> void:
 
 
 func _drop_all() -> void:
-	_update_pointer_block(_holding_ctrl, false)
+	_pointer_block.set_block(_holding_ctrl, false)
 	var secondary := _get_secondary_ctrl()
 	if is_instance_valid(secondary):
-		_update_pointer_block(secondary, false)
+		_pointer_block.set_block(secondary, false)
 	_allow_drop = true
 	_holding_ctrl = null
 	_update_locomotion_block()
@@ -288,11 +288,6 @@ func _update_locomotion_block() -> void:
 		_spawn_menu_ctrl.set("disabled", left_held)
 
 
-## Delegates to VrPointerBlock, which owns the shared refcount.
-func _update_pointer_block(ctrl: XRController3D, should_block: bool) -> void:
-	_pointer_block.set_block(ctrl, should_block)
-
-
 # ── Input forwarding (adapted from retro_controller.gd) ───────────────────────
 
 ## How long a switched-off handheld keeps easing its caps after the last poke (or
@@ -313,7 +308,7 @@ func _process(delta: float) -> void:
 	# Drop combo: each hand only releases itself.
 	if _is_combo_pressed(secondary):
 		_allow_drop = true
-		_update_pointer_block(secondary, false)
+		_pointer_block.set_block(secondary, false)
 		var driver: Variant = VrHold.grab_driver(_host)
 		if driver and driver.secondary:
 			driver.secondary.pickup.drop_object()
@@ -322,7 +317,7 @@ func _process(delta: float) -> void:
 	elif _is_combo_pressed(_holding_ctrl):
 		if is_instance_valid(secondary):
 			_allow_drop = true
-			_update_pointer_block(_holding_ctrl, false)
+			_pointer_block.set_block(_holding_ctrl, false)
 			if is_instance_valid(_saved_by):
 				_saved_by.call("drop_object")
 			_allow_drop = false
@@ -361,10 +356,10 @@ func _process(delta: float) -> void:
 	var rt: String = _stick_map.get("stick_right", "right")
 	if "left"  in lt: alx = int(lstick.x * ANALOG_SCALE); aly = int(-lstick.y * ANALOG_SCALE)
 	elif "right" in lt: arx = int(lstick.x * ANALOG_SCALE); ary = int(-lstick.y * ANALOG_SCALE)
-	if "dpad" in lt: btn |= _threshold_to_dpad(lstick)
+	if "dpad" in lt: btn |= PadInputShared.threshold_to_dpad(lstick)
 	if "right" in rt: arx = int(rstick.x * ANALOG_SCALE); ary = int(-rstick.y * ANALOG_SCALE)
 	elif "left" in rt: alx = int(rstick.x * ANALOG_SCALE); aly = int(-rstick.y * ANALOG_SCALE)
-	if "dpad" in rt: btn |= _threshold_to_dpad(rstick)
+	if "dpad" in rt: btn |= PadInputShared.threshold_to_dpad(rstick)
 
 	var m := _merge_pad_state(btn, alx, aly, arx, ary)
 	_send_joypad(m["btn"], m["alx"], m["aly"], m["arx"], m["ary"])
@@ -496,10 +491,6 @@ func _local_state(btn: int, alx: int, aly: int, arx: int, ary: int) -> Dictionar
 func _zero_port() -> void:
 	if _host and bool(_host.get("is_powered_on")):
 		_send_joypad(0, 0, 0, 0, 0)
-
-
-static func _threshold_to_dpad(stick: Vector2) -> int:
-	return PadInputShared.threshold_to_dpad(stick)
 
 
 # ── Rumble (adapted from retro_controller.gd; registered as the port-0

@@ -106,7 +106,7 @@ func _build_offer(ver: String) -> void:
 	if _svc.can_auto_install():
 		var asset_size := int((_svc.release.get("asset", {}) as Dictionary).get("size", 0))
 		add_child(MenuStyle.hint(("Downloads %s, checks it, then restarts. Your room "
-			+ "comes back as it was.") % MenuStyle.human_bytes(asset_size)))
+			+ "comes back as it was.") % ByteSize.human(asset_size)))
 	else:
 		add_child(MenuStyle.hint(_svc.manual_reason()))
 

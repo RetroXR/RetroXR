@@ -73,8 +73,8 @@ func block_of(data: PackedByteArray, name: String) -> int:
 	return PS2Card.block_of(data, name)
 
 
-func extract_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
-	return PS2Card.extract_save(data, first_block)
+func extract_save(data: PackedByteArray, handle: int) -> PackedByteArray:
+	return PS2Card.extract_save(data, handle)
 
 
 func is_save_file(bytes: PackedByteArray) -> bool:
@@ -85,8 +85,8 @@ func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArra
 	return PS2Card.insert_save(data, save)
 
 
-func delete_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
-	return PS2Card.delete_save(data, first_block)
+func delete_save(data: PackedByteArray, handle: int) -> PackedByteArray:
+	return PS2Card.delete_save(data, handle)
 
 
 func free_blocks(data: PackedByteArray) -> int:

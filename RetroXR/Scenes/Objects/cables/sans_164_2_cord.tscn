@@ -1,7 +1,7 @@
 [gd_scene load_steps=12 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/cables/power_cord.gd" id="1_cord"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/power_plug.gd" id="2_plug"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_cord.gd" id="1_cord"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_plug.gd" id="2_plug"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/sans_164_2_plug.res" id="3_nema"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/iec_c13_plug.res" id="4_c13"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="5_highlight"]

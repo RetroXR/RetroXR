@@ -66,11 +66,11 @@ func block_of(data: PackedByteArray, name: String) -> int:
 	return SaturnBram.index_of(data, name)
 
 
-func extract_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
+func extract_save(data: PackedByteArray, handle: int) -> PackedByteArray:
 	for e: Dictionary in SaturnBram.list_files(data):
-		if int(e["block"]) != first_block:
+		if int(e["block"]) != handle:
 			continue
-		var payload := SaturnBram.read_file(data, first_block)
+		var payload := SaturnBram.read_file(data, handle)
 		if payload.size() != int(e["size"]):
 			return PackedByteArray()
 		return SaturnBram.make_save(str(e["name"]), int(e["language"]),
@@ -109,8 +109,8 @@ func insert_save(data: PackedByteArray, save: PackedByteArray) -> PackedByteArra
 		parsed["comment"], int(parsed["date"]), parsed["payload"])
 
 
-func delete_save(data: PackedByteArray, first_block: int) -> PackedByteArray:
-	return SaturnBram.delete_file(data, first_block)
+func delete_save(data: PackedByteArray, handle: int) -> PackedByteArray:
+	return SaturnBram.delete_file(data, handle)
 
 
 func free_blocks(data: PackedByteArray) -> int:

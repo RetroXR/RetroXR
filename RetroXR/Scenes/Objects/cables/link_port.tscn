@@ -1,7 +1,7 @@
 [gd_scene load_steps=8 format=3]
 
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="1_snapzone"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/link_port.gd" id="2_portscript"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/link/link_port.gd" id="2_portscript"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/snap_highlight.gd" id="3_snaphigh"]
 
 ; PLACEHOLDER GEOMETRY, matching link_cable.tscn. A recessed slot drawn as one

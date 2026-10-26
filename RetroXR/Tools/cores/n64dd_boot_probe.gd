@@ -126,7 +126,7 @@ func _run() -> void:
 		disk.freeze = true
 		add_child(disk)
 		await _wait(10)
-		dd.restore_media(disk)
+		dd.restore_media_in_slot(disk)
 	await _wait(10)
 
 	var spec := n64.expansion_boot()

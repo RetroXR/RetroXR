@@ -1,10 +1,12 @@
 ## ModCartShells — the cartridge shells a mod brings for a system.
 ##
 ## The game picks a cartridge's body and colour from its game and region for the
-## systems it models (N64CartShell, SnesCartShell, GbCartShell ...), and every one
-## of those is a class named in cartridge.gd. This is the same decision handed to
-## a mod: it lists the bodies it has, optionally a palette of shell colours, and
-## a function that says which a given ROM came in.
+## systems it models (N64CartShell, SnesCartShell, GbcCartShell ...), and every one
+## of those answers here too, in the table of the game's own shells below
+## (`_builtin`). This is the same decision handed to a mod: it lists the bodies it
+## has, optionally a palette of shell colours, and a function that says which a
+## given ROM came in. RetroCartridge asks body_model() / shell_finish() /
+## dress_body(), and a mod's row for a system answers before the game's own.
 ##
 ## Everything the game does for its own shells then happens to the mod's: the body
 ## is fitted to its true size, warmed before it is spawned, wears the scraped
@@ -22,6 +24,18 @@ static var _shells: Dictionary = {}
 ## "systemid|rom_path" -> what the mod's function answered. It may open the ROM
 ## to read its header, and a cartridge asks for its body on every drop.
 static var _choices: Dictionary = {}
+
+## The game's own shells, by systemid, filled on first use. Each entry holds the
+## class's answers as Callables, any of them absent:
+##   body(systemid, rom_path, body_region, shell_preset, pinned) -> String
+##   finish(systemid, rom_path, model_path, pinned) -> {palette, preset}
+##   dress(body, systemid, rom_path, model_path, pinned)
+##   rom_market(systemid, rom_path) -> String   (the shell picks by market)
+## A system with no body answer wears RetroCartridge's one model for it.
+static var _builtin: Dictionary = {}
+## Entry key -> the static function a built-in shell class answers it with.
+const _BUILTIN_METHODS := {"body": &"cart_body", "finish": &"cart_finish",
+	"dress": &"cart_dress", "rom_market": &"rom_market"}
 
 
 ## "" on success, else why the row was refused.
@@ -187,6 +201,87 @@ static func choice(systemid: String, rom_path: String) -> Dictionary:
 			answer = said
 	_choices[key] = answer
 	return answer
+
+
+# --- One lookup, the mod's row first, then the game's own shell ---
+
+## Whether a cartridge of this system has its body picked per ROM: a mod's shells,
+## or one of the game's own that chooses (the N64's, the Super NES's, the Game Boy's).
+static func picks_body(systemid: String) -> bool:
+	return has(systemid) or (_builtins().get(systemid, {}) as Dictionary).has("body")
+
+
+## The body a ROM's cartridge wears, when picks_body(): the mod's (model_for), else
+## the game's own shell's. "" keeps the procedural box.
+static func body_model(systemid: String, rom_path: String, body_region: String,
+		shell_preset: StringName, pinned: String) -> String:
+	if has(systemid):
+		return model_for(systemid, rom_path, body_region)
+	var entry: Dictionary = _builtins().get(systemid, {})
+	if not entry.has("body"):
+		return ""
+	return str((entry["body"] as Callable).call(systemid, rom_path, body_region, shell_preset, pinned))
+
+
+## {palette, preset}: which palette the body at `model_path` is painted from and the
+## colour this ROM came in, or {} to leave the body its own materials -- a mod's
+## shell that named no tint, or a system with no shell colours.
+static func shell_finish(systemid: String, rom_path: String, model_path: String,
+		pinned: String) -> Dictionary:
+	if has(systemid):
+		if not tintable(systemid):
+			return {}
+		return {"palette": systemid, "preset": preset_for(systemid, rom_path)}
+	var entry: Dictionary = _builtins().get(systemid, {})
+	if not entry.has("finish"):
+		return {}
+	var said: Variant = (entry["finish"] as Callable).call(systemid, rom_path, model_path, pinned)
+	return (said as Dictionary) if said is Dictionary else {}
+
+
+## Whatever else the game's own shell puts on a fitted body (a PAL Super Famicom
+## cartridge's rear sticker). A mod's body is left as its author made it.
+static func dress_body(body: Node3D, systemid: String, rom_path: String, model_path: String,
+		pinned: String) -> void:
+	if has(systemid):
+		return
+	var entry: Dictionary = _builtins().get(systemid, {})
+	if entry.has("dress"):
+		(entry["dress"] as Callable).call(body, systemid, rom_path, model_path, pinned)
+
+
+## Whether the game's own shell for this system picks by market and this ROM names
+## none, so the cartridge takes the player's (RetroCartridge.uses_fallback_market).
+static func names_no_market(systemid: String, rom_path: String) -> bool:
+	var entry: Dictionary = _builtins().get(systemid, {})
+	if not entry.has("rom_market"):
+		return false
+	return str((entry["rom_market"] as Callable).call(systemid, rom_path)).is_empty()
+
+
+## Enter one of the game's own shell classes for `systemids`, by the answers it
+## gives (keys of _BUILTIN_METHODS). The class names them as static functions.
+static func register_builtin(systemids: Array, shell: Script, answers: Array) -> void:
+	var entry := {}
+	for answer: Variant in answers:
+		var key := str(answer)
+		if not _BUILTIN_METHODS.has(key):
+			push_error("[ModCartShells] unknown built-in shell answer '%s'" % key)
+			continue
+		entry[key] = Callable(shell, _BUILTIN_METHODS[key])
+	for systemid: Variant in systemids:
+		_builtin[str(systemid)] = entry
+
+
+static func _builtins() -> Dictionary:
+	if _builtin.is_empty():
+		register_builtin([N64CartShell.SYSTEMID], N64CartShell, ["body", "finish", "rom_market"])
+		register_builtin([SnesCartShell.SYSTEMID], SnesCartShell,
+			["body", "finish", "dress", "rom_market"])
+		register_builtin([NesCartShell.SYSTEMID], NesCartShell, ["finish", "rom_market"])
+		register_builtin(GbCartShell.SYSTEMIDS, GbcCartShell, ["body", "finish"])
+		register_builtin([GbaCartShell.SYSTEMID], GbaCartShell, ["finish"])
+	return _builtin
 
 
 static func drop_mod(owner_id: String) -> void:

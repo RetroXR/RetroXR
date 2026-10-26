@@ -368,8 +368,8 @@ func _p_round_trip() -> void:
 	tape.video_label = "HOLIDAY 1989"
 	var disc := _media(DISC_SCENE) as DVDDisc
 	disc.dvd_label = "FEATURE"
-	_vcr(tv).restore_tape(tape)
-	_dvd(tv).restore_disc(disc, 0.5)
+	_vcr(tv).restore_media(tape)
+	_dvd(tv).restore_media(disc, 0.5)
 	await _wait(3)
 	_ok(_vcr(tv).get_snapped_tape() == tape, "the tape is in the built-in VCR")
 

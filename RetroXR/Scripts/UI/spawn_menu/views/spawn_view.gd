@@ -9,10 +9,11 @@
 ##
 ##  * the virtualized ROM row list — a few recycled rows over a list of
 ##    thousands, so scrolling a big platform does not allocate;
-##  * the ScreenScraper client's UI — hashing a ROM, showing what came back,
-##    and the game-detail and ROM-variants panels built from it;
-##  * the RomM handlers — sync, download, cache. They read as notification code
-##    but every one of them ends by rebuilding a row, a list or an index here.
+##  * the ScreenScraper client's UI — asking the queue, showing what came back
+##    (SpawnScrapeUi), and the game-detail and ROM-variants panels built from it;
+##  * the RomM handlers — sync, download, cache (RommSpawnSync). They read as
+##    notification code but every one of them ends by rebuilding a row, a list or
+##    an index here, so they answer to this view.
 class_name SpawnMenuSpawnView
 extends Control
 
@@ -99,8 +100,6 @@ var _romm_platforms: Dictionary = {}
 var _romm_unmapped: Array = []
 ## Slug signature of the last unmapped set announced, so it is reported once.
 var _romm_unmapped_announced: String = ""
-## Terminal outcomes that happened while the menu was closed, flushed on open.
-var _romm_pending_notices: Array[Dictionary] = []
 ## Merged local+server row model for the open Cartridges detail page.
 ## Each entry: {source: "local"|"server"|"both", entry: Dictionary, path, label}
 var _romm_rows: Array[Dictionary] = []
@@ -117,19 +116,6 @@ var _romm_empty_label: Label = null
 ## The toolbar's RETRY button, which doubles as this platform's stop button
 ## while it is the one syncing.
 var _romm_resync_btn: Button = null
-## rom_id -> percent, so a recycled row can show live progress when it scrolls
-## back into view mid-download.
-var _romm_progress_pct: Dictionary = {}
-## rom_id -> game name, remembered from the start of the download. Only the
-## started signal carries it, and looking it up again per tick would mean a
-## catalog scan thousands of times over one ROM — the same reason the row index
-## below is resolved once.
-var _romm_dl_labels: Dictionary = {}
-## rom_id -> which attempt is running, 0 for the first. Shown on the progress bar
-## so a transfer that silently started over is visible as one.
-var _romm_dl_attempt: Dictionary = {}
-## Row index of the in-flight download, resolved once when it starts.
-var _romm_dl_row_index: int = -1
 ## local_path -> {game, manual_path, has_manual}; binding hits the disk otherwise.
 var _romm_meta_cache: Dictionary = {}
 ## Row index whose delete button is armed for its second confirming tap.
@@ -195,10 +181,10 @@ var _records_vbox: VBoxContainer = null
 var _posters_vbox: VBoxContainer = null
 
 # ── Scraper / detail panels ───────────────────────────────────────────────────
-var _scrape_popup: PanelContainer = null
-## Coalesces the repopulate a batch of accepted scrapes asks for: forty
-## results landing in a second must not rebuild the page forty times.
-var _scrape_refresh_timer: SceneTreeTimer = null
+## The scrape queue's outcomes and the review popup, and the RomM handlers. Built
+## with the view (not in create) so a view made with new() has them too.
+var _scrape_ui := SpawnScrapeUi.new(self)
+var _romm_sync := RommSpawnSync.new(self)
 var _game_detail_panel: PanelContainer = null
 # The hold sub-menu: what to spawn an entry AS. One at a time.
 var _spawn_options_panel: PanelContainer = null
@@ -208,9 +194,6 @@ var _rom_variants_panel: PanelContainer = null
 var _game_saves_panel: PanelContainer = null
 var _game_saves_driver: CartridgeOptionsPanel = null
 var _pack_contents_panel: PanelContainer = null
-## Connected to scraper_client.media_download_completed so the tab refreshes
-## when a wheel image or manual PDF finishes downloading.
-var _media_dl_refresh_cb: Callable = Callable()
 
 ## Driven by the menu, which hears it from the controller — this Control is
 ## always visible, it is the Viewport2Din3D in the world that gets toggled.
@@ -265,35 +248,22 @@ static func create(menu: Node) -> SpawnMenuSpawnView:
 
 
 ## The RomM services are the menu's, but every one of these handlers ends by
-## rebuilding a row, a list or an index in this view — so the wiring lives here.
+## rebuilding a row, a list or an index in this view — so the wiring lives here,
+## and the handlers in RommSpawnSync and SpawnScrapeUi, which answer to it.
 func _connect_romm() -> void:
-	romm_client.auth_failed.connect(_on_romm_auth_failed)
-	romm_client.reachability_changed.connect(_on_romm_reachability_changed)
-	romm_cache.changed.connect(_on_romm_cache_changed)
-	romm_catalog.sync_started.connect(_on_romm_sync_started)
-	romm_catalog.sync_progress.connect(_on_romm_sync_progress)
-	romm_catalog.sync_finished.connect(_on_romm_sync_finished)
-	romm_catalog.sync_aborted.connect(_on_romm_sync_aborted)
+	_romm_sync.connect_services()
 	# The warm thread works out a platform's shown count after the grid is
 	# already up, so the tile it belongs to has to be redrawn. Once however many
 	# platforms it finishes in a frame.
 	romm_catalog.index_stats_ready.connect(func(_sid: String) -> void:
 		_owe(false, true, false)
 	)
-	romm_downloader.download_started.connect(_on_romm_dl_started)
-	romm_downloader.download_progress.connect(_on_romm_dl_progress)
-	romm_downloader.download_retrying.connect(_on_romm_dl_retrying)
-	romm_downloader.download_finished.connect(_on_romm_dl_finished)
-	romm_downloader.download_cancelled.connect(_on_romm_dl_cancelled)
-	romm_downloader.cache_evicted.connect(_on_romm_cache_evicted)
 	romm_art.art_ready.connect(_on_romm_art_ready)
 	if scraped_art != null:
 		scraped_art.art_ready.connect(_on_scraped_art_ready)
 	if scrape_queue != null:
 		scrape_queue.started.connect(_on_scrape_row_changed)
-		scrape_queue.completed.connect(_on_scrape_completed)
-		scrape_queue.failed.connect(_on_scrape_failed)
-		scrape_queue.media_downloaded.connect(_on_scrape_media_downloaded)
+		_scrape_ui.connect_queue(scrape_queue)
 	# Show last run's platforms immediately; a refresh only corrects it.
 	for sid: String in romm_config.cached_platforms:
 		var p: Variant = romm_config.cached_platforms[sid]
@@ -1343,10 +1313,10 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 	resync.add_theme_font_size_override("font_size", 22)
 	resync.custom_minimum_size = Vector2(64, 52)
 	resync.size_flags_horizontal = Control.SIZE_SHRINK_END
-	resync.pressed.connect(_on_romm_resync_pressed.bind(systemid))
+	resync.pressed.connect(_romm_sync.on_resync_pressed.bind(systemid))
 	toolbar.add_child(resync)
 	_romm_resync_btn = resync
-	_romm_update_resync_btn()
+	_romm_sync.update_resync_btn()
 
 	var scrape_all := Button.new()
 	scrape_all.text = String.chr(MenuIcons.SCRAPE_ALL)
@@ -1355,7 +1325,7 @@ func _populate_cartridges_detail(systemid: String, vbox: VBoxContainer) -> void:
 	scrape_all.custom_minimum_size = Vector2(64, 52)
 	scrape_all.size_flags_horizontal = Control.SIZE_SHRINK_END
 	scrape_all.tooltip_text = "Scrape every game on this page that has not been scraped yet"
-	scrape_all.pressed.connect(_on_scrape_all_pressed.bind(systemid))
+	scrape_all.pressed.connect(_scrape_ui.on_scrape_all_pressed.bind(systemid))
 	toolbar.add_child(scrape_all)
 
 	# A blank 8M Memory Pack is a thing you BUY, not a thing that exists: the
@@ -1644,7 +1614,7 @@ func _make_global_row(r: Dictionary) -> Control:
 				romm_cache.touch(sid, RommCacheManifest.relative_path(sid, path))
 			spawn_cartridge_requested.emit(path, label, sid, {}))
 	elif romm_client != null and romm_client.is_reachable():
-		main.tooltip_text = "Download from RomM (%s)" % MenuStyle.human_bytes(
+		main.tooltip_text = "Download from RomM (%s)" % ByteSize.human(
 			int((r["entry"] as Dictionary).get("fs_size_bytes", 0)))
 		main.pressed.connect(func() -> void:
 			romm_downloader.enqueue(r["entry"], sid)
@@ -2366,7 +2336,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		state.tooltip_text = "Cancel download"
 		pct.visible = true
 		pct.add_theme_color_override("font_color", MenuIcons.TINT_BUSY)
-		pct.text = "%d%%" % _romm_progress_pct.get(rom_id, 0)
+		pct.text = "%d%%" % _romm_sync.progress_pct(rom_id)
 		state.pressed.connect(func() -> void: romm_downloader.cancel_current())
 	elif source == "server":
 		# The cloud glyph is visually lighter than the trash glyphs at the same
@@ -2375,7 +2345,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		if romm_client.is_reachable():
 			state.text = String.chr(MenuIcons.DOWNLOAD)
 			state.add_theme_color_override("font_color", MenuIcons.TINT_DOWNLOAD)
-			state.tooltip_text = "Download from RomM (%s)" % MenuStyle.human_bytes(int(entry.get("fs_size_bytes", 0)))
+			state.tooltip_text = "Download from RomM (%s)" % ByteSize.human(int(entry.get("fs_size_bytes", 0)))
 			state.pressed.connect(func() -> void: romm_downloader.enqueue(entry, systemid))
 		else:
 			# The index is on disk, so these keep listing with the server down.
@@ -2496,7 +2466,7 @@ func _bind_rom_row(row: Control, index: int) -> void:
 		scrape.tooltip_text = "Scrape artwork and details from ScreenScraper"
 	scrape.disabled = queued
 	if scrape.visible and not queued:
-		scrape.pressed.connect(_on_scrape_pressed.bind(local_path, systemid))
+		scrape.pressed.connect(_scrape_ui.on_scrape_pressed.bind(local_path, systemid))
 
 
 ## Two-stage delete: the first press arms it, the second within 3 s commits.
@@ -2553,7 +2523,7 @@ func _on_rom_delete_pressed(index: int, state: Button) -> void:
 	show_notice("Deleted %s%s" % [fname,
 		"" if metadata.is_empty() else " and %d metadata file%s (%s)" % [
 			metadata.size(), "" if metadata.size() == 1 else "s",
-			MenuStyle.human_bytes(freed)]], 2.5)
+			ByteSize.human(freed)]], 2.5)
 	_romm_meta_cache.clear()
 	_invalidate_local_scan(systemid)
 	_rebuild_romm_rows()
@@ -3029,55 +2999,7 @@ func _spawn_row(label: String, token: String) -> Button:
 
 
 # ── Scraper ──────────────────────────────────────────────────────────────────
-
-func _on_scrape_pressed(rom_path: String, systemid: String) -> void:
-	if scrape_queue == null:
-		return
-	# Review mode hands the result back for the popup; otherwise the queue
-	# writes it and fetches the art, and the row repaints when it lands.
-	var review := scraper_config != null and scraper_config.approve_scrapes
-	if not scrape_queue.enqueue(rom_path, systemid,
-			{"tag": ScrapeQueue.TAG_MANUAL, "review": review}):
-		show_notice("Already in the scrape queue")
-		return
-	var ahead := scrape_queue.waiting_count()
-	if ahead > 0:
-		show_notice("Queued: %s (%d waiting)" % [rom_path.get_file().get_basename(), ahead])
-	_on_scrape_row_changed(rom_path, systemid)
-
-
-## Queue every game on this page not scraped yet. The filtered view is
-## the page: a search or a region filter narrows what is queued, the way it
-## narrows what is shown. A game already scraped is skipped -- re-scraping one
-## stays a per-row action -- and so is one already waiting.
-func _on_scrape_all_pressed(systemid: String) -> void:
-	if scrape_queue == null:
-		return
-	var review := scraper_config != null and scraper_config.approve_scrapes
-	var candidates: Array = []
-	for model: Dictionary in _romm_rows:
-		var local_path := str(model.get("path", ""))
-		if local_path.is_empty():
-			continue
-		if systemid == "satellaview" and BsxPack.is_pack_path(local_path):
-			continue
-		candidates.append(local_path)
-	var pick := scrape_queue.select_unscraped(systemid, candidates)
-	var skipped := int(pick["skipped"])
-	var queued := 0
-	for local_path: String in pick["paths"]:
-		if scrape_queue.enqueue(local_path, systemid,
-				{"tag": ScrapeQueue.TAG_MANUAL, "review": review}):
-			queued += 1
-	var msg := "Queued %d game%s" % [queued, "" if queued == 1 else "s"]
-	if skipped > 0:
-		msg += " (%d already scraped)" % skipped
-	if queued == 0 and skipped == 0:
-		msg = "Nothing on this page to scrape"
-	show_notice(msg, 3.0)
-	if is_instance_valid(_romm_list):
-		_romm_list.rebind_visible()
-
+# The queue's outcomes and the review popup are SpawnScrapeUi's.
 
 ## A row's button reads the queue at bind time, so a change of state is a
 ## repaint of what is on screen and nothing more.
@@ -3087,185 +3009,9 @@ func _on_scrape_row_changed(rom_path: String, _systemid: String) -> void:
 	_queue_art_flush()
 
 
-func _on_scrape_completed(rom_path: String, systemid: String, result: Dictionary,
-		accepted: bool) -> void:
-	print("[SpawnView] Scrape completed for: %s" % rom_path.get_file())
-	if not accepted:
-		_show_scrape_popup(rom_path, systemid, result)
-		_on_scrape_row_changed(rom_path, systemid)
-		return
-	# The name and metadata a row draws changed: repopulate, once per burst.
-	_romm_meta_cache.erase(rom_path)
-	if systemid == _romm_detail_systemid:
-		_schedule_scrape_refresh()
-	else:
-		_on_scrape_row_changed(rom_path, systemid)
-
-
-func _on_scrape_failed(rom_path: String, systemid: String, error: String) -> void:
-	push_warning("[SpawnView] Scrape failed for %s: %s" % [rom_path.get_file(), error])
-	_on_scrape_row_changed(rom_path, systemid)
-
-
-## Same as the accept path's refresh: drop what cached a miss for this ROM
-## before the art existed, then repaint the rows on screen. Wheel, label and
-## manual are what a row draws; no row draws the box.
-func _on_scrape_media_downloaded(rom_path: String, systemid: String, media_type: String,
-		_path: String) -> void:
-	if media_type != "wheel" and media_type != "label" and media_type != "manual":
-		return
-	if scraped_art != null:
-		scraped_art.forget(systemid, rom_path)
-	_romm_meta_cache.erase(rom_path)
-	_on_scrape_row_changed(rom_path, systemid)
-
-
-func _schedule_scrape_refresh() -> void:
-	if _scrape_refresh_timer != null:
-		return
-	_scrape_refresh_timer = get_tree().create_timer(0.5)
-	_scrape_refresh_timer.timeout.connect(func() -> void:
-		_scrape_refresh_timer = null
-		if is_instance_valid(_romm_list):
-			# Names and metadata the rows draw changed: the open page too.
-			_owe_detail = true
-			_owe(false, true, false)
-	)
-
-
-func _show_scrape_popup(rom_path: String, systemid: String, result: Dictionary) -> void:
-	_close_scrape_popup()
-
-	_scrape_popup = PanelContainer.new()
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.1, 0.1, 0.2, 0.98)
-	for k in ["corner_radius_top_left","corner_radius_top_right",
-			  "corner_radius_bottom_left","corner_radius_bottom_right"]:
-		bg.set(k, 8)
-	_scrape_popup.add_theme_stylebox_override("panel", bg)
-	_scrape_popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var margin := MarginContainer.new()
-	for side in ["margin_top","margin_bottom","margin_left","margin_right"]:
-		margin.add_theme_constant_override(side, 14)
-	_scrape_popup.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 8)
-	margin.add_child(vbox)
-
-	# Title
-	vbox.add_child(MenuStyle.label("SCRAPE RESULT", 24, MenuStyle.COLOR_TITLE))
-	vbox.add_child(HSeparator.new())
-
-	# Metadata
-	_add_scrape_info_row(vbox, "Game", result.get("name", "Unknown"))
-	_add_scrape_info_row(vbox, "Developer", result.get("developer", ""))
-	_add_scrape_info_row(vbox, "Publisher", result.get("publisher", ""))
-	_add_scrape_info_row(vbox, "Genre", result.get("genre", ""))
-	_add_scrape_info_row(vbox, "Region", result.get("rom_region", ""))
-	_add_scrape_info_row(vbox, "Release", result.get("releasedate", ""))
-
-	vbox.add_child(HSeparator.new())
-
-	# Media availability
-	var media: Dictionary = result.get("media", {})
-	vbox.add_child(MenuStyle.label("MEDIA", 18, MenuStyle.COLOR_TITLE))
-
-	for mtype: String in ["wheel", "box", "label", "manual"]:
-		var has_it: bool = not (media.get(mtype, "") as String).is_empty()
-		var icon := "✅" if has_it else "❌"
-		_add_scrape_info_row(vbox, mtype.capitalize(), icon)
-
-	vbox.add_child(HSeparator.new())
-
-	# Buttons
-	var btn_row := HBoxContainer.new()
-	btn_row.add_theme_constant_override("separation", 10)
-	vbox.add_child(btn_row)
-
-	var accept_btn := Button.new()
-	accept_btn.text = "  ACCEPT  "
-	accept_btn.custom_minimum_size = Vector2(0, 56)
-	accept_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	accept_btn.add_theme_font_size_override("font_size", 20)
-	var accept_style := StyleBoxFlat.new()
-	accept_style.bg_color = MenuStyle.COLOR_BTN_DL
-	for k2 in ["corner_radius_top_left","corner_radius_top_right",
-			   "corner_radius_bottom_left","corner_radius_bottom_right"]:
-		accept_style.set(k2, 5)
-	for state in ["normal", "hover", "pressed"]:
-		accept_btn.add_theme_stylebox_override(state, accept_style)
-	accept_btn.pressed.connect(_on_scrape_accepted.bind(rom_path, systemid, result))
-	btn_row.add_child(accept_btn)
-
-	var close_btn := Button.new()
-	close_btn.text = "  CLOSE  "
-	close_btn.custom_minimum_size = Vector2(0, 56)
-	close_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	close_btn.add_theme_font_size_override("font_size", 20)
-	close_btn.pressed.connect(_close_scrape_popup)
-	btn_row.add_child(close_btn)
-
-	# Add popup as sibling of the spawn view content
-	get_parent().add_child(_scrape_popup)
-
-
-func _show_scrape_error_popup(error: String) -> void:
-	_close_scrape_popup()
-
-	_scrape_popup = PanelContainer.new()
-	var bg := StyleBoxFlat.new()
-	bg.bg_color = Color(0.2, 0.08, 0.08, 0.98)
-	for k in ["corner_radius_top_left","corner_radius_top_right",
-			  "corner_radius_bottom_left","corner_radius_bottom_right"]:
-		bg.set(k, 8)
-	_scrape_popup.add_theme_stylebox_override("panel", bg)
-	_scrape_popup.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-
-	var margin := MarginContainer.new()
-	for side in ["margin_top","margin_bottom","margin_left","margin_right"]:
-		margin.add_theme_constant_override(side, 14)
-	_scrape_popup.add_child(margin)
-
-	var vbox := VBoxContainer.new()
-	vbox.add_theme_constant_override("separation", 12)
-	margin.add_child(vbox)
-
-	var title := Label.new()
-	title.text = "SCRAPE FAILED"
-	title.add_theme_font_size_override("font_size", 24)
-	title.add_theme_color_override("font_color", Color(1, 0.4, 0.4))
-	vbox.add_child(title)
-
-	var err_lbl := Label.new()
-	err_lbl.text = error
-	err_lbl.add_theme_font_size_override("font_size", 18)
-	err_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
-	err_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vbox.add_child(err_lbl)
-
-	var close_btn := Button.new()
-	close_btn.text = "  CLOSE  "
-	close_btn.custom_minimum_size = Vector2(0, 56)
-	close_btn.add_theme_font_size_override("font_size", 20)
-	close_btn.pressed.connect(_close_scrape_popup)
-	vbox.add_child(close_btn)
-
-	get_parent().add_child(_scrape_popup)
-
-
-func _close_scrape_popup() -> void:
-	if _scrape_popup and is_instance_valid(_scrape_popup):
-		_scrape_popup.queue_free()
-	_scrape_popup = null
-
-
 # ── RomM notifications ────────────────────────────────────────────────────────
-# All of these land in the same bottom-of-menu toast stack the scraper uses.
-# Keys are namespaced "romm:" so they cannot collide with the scraper's
-# box/wheel/label/manual keys.
-
+# The handlers are RommSpawnSync's; what is left here is when the menu is out,
+# and the art that lands in the rows.
 
 ## Called when the menu panel becomes visible in the world.
 func on_menu_shown() -> void:
@@ -3274,367 +3020,12 @@ func on_menu_shown() -> void:
 	# end of the frame: a sync that finished meanwhile rewrote the index, and no
 	# row may be bound against the old one's offsets first.
 	_flush_owed()
-	_flush_romm_notices()
-	_romm_check_for_changes()
+	_romm_sync.on_menu_shown()
 
 
 
 func on_menu_hidden() -> void:
 	_menu_shown = false
-
-
-## The cheapest possible "did anything change?" — /api/stats is public and ~100
-## bytes. If the fingerprint matches, the library provably hasn't changed and no
-## /api/roms call is made at all.
-func _romm_check_for_changes() -> void:
-	if romm_config == null or not romm_config.is_configured():
-		return
-	romm_client.stats(func(ok: bool, stats: Dictionary) -> void:
-		if not ok or stats.is_empty():
-			return
-		var changed := not romm_config.stats_unchanged(stats)
-		print("[RommSync] stats %s: was %s now %s" % [
-			"changed" if changed else "unchanged",
-			RommConfig.fingerprint_text(romm_config.last_stats),
-			RommConfig.fingerprint_text(stats)])
-		if changed:
-			romm_config.last_stats = stats
-			if not romm_config.save_config():
-				push_warning("[RommSync] could not save %s: the fingerprint will read as changed again next launch"
-					% RommConfig.config_path())
-		# The cached list is already on screen; this corrects it in the
-		# background and costs nothing visible.
-		romm_fetch_platforms()
-		if changed:
-			_queue_delta_syncs()
-	)
-
-
-## The library moved since we last looked, so at least one synced platform is
-## stale. Delta, not full: the watermark turns "one game was added" into a single
-## small page instead of every page of the platform.
-##
-## Only platforms that already have an index are queued. One that has never been
-## opened has nothing to bring up to date, and syncing it here would fetch a
-## library the player has not asked to browse.
-##
-## Deletions are NOT reconciled by a delta — the merge only adds and updates, so
-## a game removed on the server survives until a full sync. OPTIONS > Sync All
-## remains the reconcile.
-func _queue_delta_syncs() -> void:
-	var stale: Array[String] = []
-	for sid: String in _romm_platforms:
-		if RommCatalog.has_index(sid):
-			stale.append(sid)
-	if stale.is_empty() or _menu == null:
-		return
-	print("[RommSync] queuing delta syncs for %d indexed platform(s): %s" % [stale.size(), ", ".join(stale)])
-	_menu.queue_romm_sync(stale, false)
-
-
-## Toasts can only be seen while the menu panel is open. A 4 GB download keeps
-## running while the user plays, so terminal outcomes are queued and flushed
-## (coalesced) the next time the menu opens, rather than vanishing unseen.
-func _romm_notify_or_queue(key: String, icon: String, msg: String, dwell: float,
-						   progress: float = -1.0) -> void:
-	if _menu_shown:
-		notify(key, icon, msg, progress, dwell)
-	elif progress < 0.0:
-		# Only outcomes are worth keeping for later. Queueing progress ticks
-		# would bank hundreds of them and then replay a finished download.
-		_romm_pending_notices.append({"ok": icon == "✅", "msg": msg})
-
-
-## Called when the menu becomes visible.
-func _flush_romm_notices() -> void:
-	if _romm_pending_notices.is_empty():
-		return
-	var done := 0
-	var failed := 0
-	for n: Dictionary in _romm_pending_notices:
-		if bool(n["ok"]):
-			done += 1
-		else:
-			failed += 1
-	_romm_pending_notices.clear()
-
-	# One summary, not a replay of every toast.
-	if done > 0 and failed == 0:
-		notify("romm:flush", "✅", "%d download%s finished" % [done, "" if done == 1 else "s"],
-			-1.0, MenuToasts.DWELL_INFO)
-	elif done == 0 and failed > 0:
-		notify("romm:flush", "❌", "%d download%s failed" % [failed, "" if failed == 1 else "s"],
-			-1.0, MenuToasts.DWELL_FAIL)
-	else:
-		notify("romm:flush", "✅", "%d finished · %d failed" % [done, failed],
-			-1.0, MenuToasts.DWELL_FAIL)
-
-
-func _on_romm_auth_failed(detail: String) -> void:
-	push_warning("[SpawnView] auth failed: %s" % detail)
-	notify("romm:conn", "❌", "RomM sign-in expired — check OPTIONS", -1.0, MenuToasts.DWELL_FAIL)
-
-
-## Fires only on a transition, so a dead server can't produce a toast stream.
-##
-## Repaints in BOTH directions: the cached index keeps listing server-only titles
-## whether or not the server answers, so the rows have to say which of them can
-## still be acted on — and say it again when it comes back.
-func _on_romm_reachability_changed(reachable: bool) -> void:
-	if is_instance_valid(_romm_list):
-		_romm_list.rebind_visible()
-	_romm_update_empty_label()
-	if reachable:
-		return
-	notify("romm:conn", "❌", "RomM unreachable", -1.0, MenuToasts.DWELL_FAIL)
-
-
-## Fires twice: once before the first request, then again with the real total
-## once page one lands. The toast updates in place.
-func _on_romm_sync_started(systemid: String, total: int) -> void:
-	var label := _system_label(systemid)
-	if total <= 0:
-		notify("romm:sync:" + systemid, "⏳", "Fetching the %s list from RomM…" % label, -1.0)
-	else:
-		notify("romm:sync:" + systemid, "⏳",
-			"Syncing %s · 0 / %s" % [label, _commas(total)], 0.0)
-	# The toolbar button is this platform's stop button for as long as this runs.
-	_romm_update_resync_btn()
-
-
-func _on_romm_sync_progress(systemid: String, done: int, total: int) -> void:
-	var frac := (float(done) / float(total)) if total > 0 else -1.0
-	notify("romm:sync:" + systemid, "⏳",
-		"Syncing %s · %s / %s" % [_system_label(systemid), _commas(done), _commas(total)], frac)
-
-
-func _on_romm_sync_finished(systemid: String, ok: bool, added: int, removed: int, error: String) -> void:
-	var key := "romm:sync:" + systemid
-	var label := _system_label(systemid)
-	# Back to offering a resync, whichever way this ended.
-	_romm_update_resync_btn()
-
-	if not ok:
-		push_warning("[RommSync] %s failed: %s" % [systemid, error])
-		notify(key, "❌", "RomM sync failed — %s" % error, -1.0, MenuToasts.DWELL_FAIL)
-		# Still announced: this is what pumps the sync queue, so returning
-		# quietly strands every platform behind the one that failed.
-		romm_state_changed.emit()
-		return
-
-	# Record the watermark so the next open can skip the network entirely.
-	var meta := RommCatalog.read_meta(systemid)
-	romm_config.set_sync_state(systemid, str(meta.get("updated_after", "")), int(meta.get("total", 0)))
-	print("[RommSync] %s finished: +%d -%d, watermark %s" % [systemid, added, removed,
-		str(meta.get("updated_after", "")) if meta.has("updated_after") else "(none)"])
-	if not romm_config.save_config():
-		push_warning("[RommSync] could not save %s: %s will full-sync again next launch"
-			% [RommConfig.config_path(), systemid])
-
-	if added > 0:
-		notify(key, "✅", "%s · %d new game%s" % [label, added, "" if added == 1 else "s"],
-			-1.0, MenuToasts.DWELL_INFO)
-	elif removed > 0:
-		notify(key, "✅", "%s · %d game%s removed" % [label, removed, "" if removed == 1 else "s"],
-			-1.0, MenuToasts.DWELL_INFO)
-	else:
-		notify(key, "✅", "%s · up to date" % label, -1.0, 1.5)
-
-	# The open detail page is showing a stale list — rebuild it against the new index.
-	if systemid == _romm_detail_systemid:
-		_owe(false, false, true)
-	romm_state_changed.emit()
-
-
-## Delta by default — this is the "I just added a game" button, and a full
-## re-fetch of a large platform is ~20 pages. A platform with no index yet is
-## already having a full sync started for it by the open itself.
-## Paint the toolbar button for what pressing it will do right now — resync this
-## platform, or stop the sync that is already running on it.
-func _romm_update_resync_btn() -> void:
-	if _romm_resync_btn == null or not is_instance_valid(_romm_resync_btn):
-		return
-	var label := _system_label(_romm_detail_systemid)
-	if _romm_syncing_this_platform():
-		_romm_resync_btn.text = String.chr(MenuIcons.CROSS)
-		_romm_resync_btn.add_theme_color_override("font_color", MenuIcons.TINT_DELETE)
-		_romm_resync_btn.tooltip_text = "Stop syncing %s" % label
-	else:
-		_romm_resync_btn.text = String.chr(MenuIcons.RETRY)
-		_romm_resync_btn.remove_theme_color_override("font_color")
-		_romm_resync_btn.tooltip_text = \
-			"Check RomM for changes to %s, and drop entries the server has lost" % label
-
-
-func _romm_syncing_this_platform() -> bool:
-	return romm_catalog != null and romm_catalog.is_syncing() \
-		and romm_catalog.syncing_systemid() == _romm_detail_systemid
-
-
-## Resync, or stop — whichever the button is currently offering. Everything the
-## stop needs to tidy up happens in _on_romm_sync_aborted, so that a cancel from
-## OPTIONS cleans up identically.
-func _on_romm_resync_pressed(systemid: String) -> void:
-	if _menu == null:
-		return
-	if romm_catalog != null and romm_catalog.is_syncing() \
-			and romm_catalog.syncing_systemid() == systemid:
-		romm_catalog.abort_sync()
-		return
-	if not RommCatalog.has_index(systemid):
-		return
-	_menu.queue_romm_sync([systemid], false)
-
-
-## Tidy up after a cancelled sync, from wherever it was cancelled.
-##
-## The half-written index is not a concern — pages go to index.jsonl.part and
-## swap in atomically at the end, so the previous index survives untouched.
-## Emitting romm_state_changed is what advances the queue: only this platform
-## was stopped, and anything queued behind it still wants to run. OPTIONS clears
-## the queue before it aborts, so its Stop really does stop everything.
-func _on_romm_sync_aborted(systemid: String) -> void:
-	# The catalog's teardown stop is not announced (RommCatalog._exit_tree), so
-	# this only runs for a stop someone asked for. `if _menu` inside the notify
-	# wrappers would not catch a freed menu — a freed Object is still truthy.
-	if not is_instance_valid(_menu):
-		return
-	notify_clear("romm:sync:" + systemid)
-	notify("romm:conn", "⏹", "Stopped syncing %s" % _system_label(systemid),
-		-1.0, MenuToasts.DWELL_OK)
-	_romm_update_resync_btn()
-	_romm_update_empty_label()
-	romm_state_changed.emit()
-
-
-func _on_romm_dl_started(rom_id: int, label: String, total_bytes: int) -> void:
-	_romm_dl_labels[rom_id] = label
-	# A ROM tapped again after a failed run must not inherit that run's count.
-	_romm_dl_attempt[rom_id] = 0
-	notify_clear("romm:dl:%d:why" % rom_id)
-	notify("romm:dl:%d" % rom_id, "⬇", "%s · %s" % [label, MenuStyle.human_bytes(total_bytes)], 0.0)
-	# Resolved once; a scan per progress tick would be O(rows) on an 11k list.
-	_romm_dl_row_index = -1
-	for i in _romm_rows.size():
-		if romm_catalog.rom_id_at(int(_romm_rows[i].get("index", -1))) == rom_id:
-			_romm_dl_row_index = i
-			break
-
-
-## Progress arrives every 256 KB — ~700 times for a 178 MB ROM, ~16,000 for a
-## 4 GB one. Rebinding the whole visible window each time meant thousands of
-## row binds, each doing a gamelist scan and several file_exists calls on the
-## main thread; with an emulator running that reads as a hard freeze. Only act
-## when the displayed percentage actually changes, and touch one row.
-func _on_romm_dl_progress(rom_id: int, received: int, total: int) -> void:
-	# Clamped because the total is the catalog's size for the ROM, while the body
-	# may be a container the server generated around it — a few hundred bytes
-	# larger. "101%" reads as a bug in the bar rather than what it is.
-	var frac := clampf(float(received) / float(total), 0.0, 1.0) if total > 0 else -1.0
-	var pct := int(frac * 100.0) if frac >= 0.0 else 0
-	if int(_romm_progress_pct.get(rom_id, -1)) == pct:
-		return
-	_romm_progress_pct[rom_id] = pct
-	var attempt := int(_romm_dl_attempt.get(rom_id, 0))
-	notify("romm:dl:%d" % rom_id, "⬇",
-		"%s%s · %d%% · %s / %s" % [_romm_dl_label(rom_id),
-			"" if attempt <= 0 else "  (attempt %d)" % attempt, pct,
-			MenuStyle.human_bytes(received), MenuStyle.human_bytes(total)], frac)
-	if is_instance_valid(_romm_list):
-		_romm_list.rebind_index(_romm_dl_row_index)
-
-
-## The reason gets a toast of its own, not the download's.
-##
-## A retry resumes within its backoff and the first progress tick lands 256 KB
-## later, which on a LAN is immediate — sharing the download's key meant the only
-## place the failure was ever named got overwritten before it could be read, and
-## a run that failed three times looked like one that simply stopped. This one
-## dwells like any other failure, beside the bar rather than on top of it.
-func _on_romm_dl_retrying(rom_id: int, attempt: int, max_attempts: int, reason: String) -> void:
-	_romm_dl_attempt[rom_id] = attempt
-	notify("romm:dl:%d" % rom_id, "⏳",
-		"%s — retry %d/%d" % [_romm_dl_label(rom_id), attempt, max_attempts], -1.0)
-	notify("romm:dl:%d:why" % rom_id, "⚠",
-		"%s — %s" % [_romm_dl_label(rom_id),
-			reason if not reason.is_empty() else "the transfer failed"],
-		-1.0, MenuToasts.DWELL_FAIL)
-
-
-## What this download is fetching, for every bar after the first.
-func _romm_dl_label(rom_id: int) -> String:
-	var label := str(_romm_dl_labels.get(rom_id, ""))
-	return label if not label.is_empty() else "Download"
-
-
-func _on_romm_dl_finished(rom_id: int, ok: bool, path: String, error: String) -> void:
-	var key := "romm:dl:%d" % rom_id
-	if ok:
-		_romm_notify_or_queue(key, "✅", "%s ready" % path.get_file().get_basename(), MenuToasts.DWELL_OK)
-		# A ROM that arrived by download is one nobody browsed to, so nobody is
-		# going to press Scrape on it either. Queued, not fetched now: the
-		# scraper is rate-limited and a batch download would outrun it.
-		if _menu != null and "auto_scraper" in _menu:
-			var scraper: AutoScraper = _menu.get("auto_scraper")
-			if scraper != null:
-				scraper.request(path, AutoScraper.systemid_for_path(path))
-	else:
-		_romm_notify_or_queue(key, "❌", "%s — %s" % [_romm_dl_label(rom_id), error],
-			MenuToasts.DWELL_FAIL)
-		# The server answered that this row's file is gone, which is the one
-		# failure that will never come good on a retry. Take the row out now
-		# rather than leaving a button that can only fail again — the next sync
-		# would have done it, but not before the player pressed it twice.
-		if error == RommHttp.ERR_GONE and romm_catalog != null \
-				and not _romm_detail_systemid.is_empty():
-			romm_catalog.remove_rows(_romm_detail_systemid, [rom_id])
-	_romm_dl_labels.erase(rom_id)
-	_romm_dl_attempt.erase(rom_id)
-	# The final message names the same failure, so leaving the retry note up
-	# would say it twice.
-	notify_clear("romm:dl:%d:why" % rom_id)
-	_romm_dl_row_index = -1
-	_romm_meta_cache.clear()
-	# The download merged its game into gamelist.json through its own manager.
-	if ok and gamelist_manager != null:
-		gamelist_manager.invalidate(AutoScraper.systemid_for_path(path))
-	_invalidate_local_scan()
-	_owe(false, false, true)
-	# A game downloaded from the global search must turn into one you can spawn
-	# there too: left as it was, its row still offered the download, and a second
-	# tap fetched the file again (the downloader does not check the cache). Only
-	# the local half re-runs; a server row reads its path from the cache as it
-	# draws, and RomM's answer has not changed.
-	if ok and _cartridges_browser != null \
-			and _cartridges_browser.current_systemid() == GameSearch.PAGE_ID \
-			and SearchFold.fold(_gs_query).length() >= GameSearch.MIN_QUERY:
-		print("[GameSearch] rom %d downloaded; refreshing '%s'" % [rom_id, _gs_query])
-		_global_search_local(_gs_query)
-		_render_global_results()
-
-
-func _on_romm_dl_cancelled(rom_id: int) -> void:
-	_romm_dl_labels.erase(rom_id)
-	_romm_dl_attempt.erase(rom_id)
-	notify_clear("romm:dl:%d" % rom_id)
-	notify_clear("romm:dl:%d:why" % rom_id)
-	_owe(false, false, true)
-
-
-## Files silently vanishing from a library reads as data loss — always say so.
-func _on_romm_cache_evicted(freed_bytes: int, count: int) -> void:
-	notify("romm:cache", "🗑", "Freed %s — removed %d game%s"
-		% [MenuStyle.human_bytes(freed_bytes), count, "" if count == 1 else "s"], -1.0, 4.0)
-
-
-## Eviction can change a server row from local to downloadable and can remove
-## companion-only rows, so rebuild the model rather than merely re-binding it.
-func _on_romm_cache_changed() -> void:
-	_romm_meta_cache.clear()
-	_invalidate_local_scan()
-	_owe(false, false, true)
-
-
 
 
 func _on_romm_art_ready(rom_id: int, _texture: Texture2D) -> void:
@@ -3712,113 +3103,6 @@ func _system_label(systemid: String) -> String:
 	return sysname if not sysname.is_empty() else systemid
 
 
-static func _commas(n: int) -> String:
-	var s := str(n)
-	var out := ""
-	var c := 0
-	for i in range(s.length() - 1, -1, -1):
-		out = s[i] + out
-		c += 1
-		if c % 3 == 0 and i > 0:
-			out = "," + out
-	return out
-
-
-func _on_scrape_accepted(rom_path: String, systemid: String, result: Dictionary) -> void:
-	_close_scrape_popup()
-
-	var game_data := {
-		"game_id": result.get("game_id", ""),
-		"name": result.get("name", ""),
-		"desc": result.get("desc", ""),
-		"developer": result.get("developer", ""),
-		"publisher": result.get("publisher", ""),
-		"genre": result.get("genre", ""),
-		"scraped": true,
-	}
-	var rom_data := {
-		"path": "./" + rom_path.get_file(),
-		"romname": rom_path.get_file(),
-		"releasedate": result.get("releasedate", ""),
-		"region": result.get("rom_region", ""),
-	}
-
-	gamelist_manager.add_or_merge_rom(systemid, game_data, rom_data)
-	gamelist_manager.save_gamelist(systemid)
-
-	# Disconnect any stale media refresh callback from a previous accept
-	if _media_dl_refresh_cb.is_valid() and \
-			scraper_client.media_download_completed.is_connected(_media_dl_refresh_cb):
-		scraper_client.media_download_completed.disconnect(_media_dl_refresh_cb)
-
-	# Re-populate when a piece of art a row DRAWS finishes downloading, so the
-	# list updates without requiring a manual tab switch.
-	# Scoped to the ROM that was just scraped, and coalesced.
-	#
-	# This used to clear the whole art memo and rebuild both the tile grid and
-	# the row model on EVERY file. download_all_media fetches up to four per
-	# game and two of them landed here, so one accept ran that cycle twice and a
-	# batch ran it dozens of times — each pass throwing away every other row's
-	# decoded art and forcing it all to be read again. Measured before this:
-	# 2.4 ms per wheel and 4.1 ms per label to re-decode, times every visible row.
-	var scraped_rom := rom_path
-	# LABEL is in this list because the row's thumbnail IS the label: it beats
-	# the RomM cover once scraped, and leaving it out meant the one piece of art
-	# a freshly scraped game always has was the one piece that never appeared
-	# until the platform was closed and reopened. Box is not, since no row draws it.
-	_media_dl_refresh_cb = func(mtype: String, _path: String) -> void:
-		if mtype != "wheel" and mtype != "label" and mtype != "manual":
-			return
-		# Drop what cached a miss for this ROM before the art existed.
-		if scraped_art != null:
-			scraped_art.forget(systemid, scraped_rom)
-		_romm_meta_cache.erase(scraped_rom)
-		# ...then repaint the rows on screen, and nothing else.
-		#
-		# A piece of art landing changes neither the tile grid nor the row model
-		# — only what an already-bound row draws. Rebuilding both cost 134 ms
-		# measured, because _populate_cartridges_tab ends in browser.refresh(),
-		# which re-runs the detail populator over every row of the open system:
-		# 9,927 of them on this library, and then _rebuild_romm_rows did it a
-		# second time. The name and metadata that DO change are handled by the
-		# single _populate_cartridges_tab this accept already runs below.
-		if is_instance_valid(_romm_list):
-			_romm_list.rebind_visible()
-	scraper_client.media_download_completed.connect(_media_dl_refresh_cb)
-
-	# Download media files asynchronously
-	var rom_basename := rom_path.get_file().get_basename()
-	scraper_client.download_all_media(result, systemid, rom_basename)
-
-	# Refresh immediately so the game name / metadata shows right away
-	_populate_cartridges_tab()
-
-
-## Returns the value's label, or null for an empty value, which adds no row.
-func _add_scrape_info_row(parent: VBoxContainer, key: String, value: String) -> Label:
-	if value.is_empty():
-		return null
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	parent.add_child(row)
-
-	var k_lbl := Label.new()
-	k_lbl.text = key + ":"
-	k_lbl.add_theme_font_size_override("font_size", 17)
-	k_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_LICENSE)
-	k_lbl.custom_minimum_size = Vector2(110, 0)
-	row.add_child(k_lbl)
-
-	var v_lbl := Label.new()
-	v_lbl.text = value
-	v_lbl.add_theme_font_size_override("font_size", 17)
-	v_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	v_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	v_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	row.add_child(v_lbl)
-	return v_lbl
-
-
 func _show_game_detail_panel(game: Dictionary, systemid: String, local_path: String) -> void:
 	_close_game_detail_panel()
 
@@ -3857,14 +3141,14 @@ func _show_game_detail_panel(game: Dictionary, systemid: String, local_path: Str
 	vbox.add_child(HSeparator.new())
 
 	# Metadata
-	_add_scrape_info_row(vbox, "Developer", game.get("developer", ""))
-	_add_scrape_info_row(vbox, "Publisher", game.get("publisher", ""))
-	_add_scrape_info_row(vbox, "Genre", game.get("genre", ""))
-	_add_scrape_info_row(vbox, "File", local_path)
+	SpawnScrapeUi.info_row(vbox, "Developer", game.get("developer", ""))
+	SpawnScrapeUi.info_row(vbox, "Publisher", game.get("publisher", ""))
+	SpawnScrapeUi.info_row(vbox, "Genre", game.get("genre", ""))
+	SpawnScrapeUi.info_row(vbox, "File", local_path)
 	# The FILE's region, not the game's: a game's variants differ in exactly this.
 	var region := str(_rom_entry_for(game, local_path).get("region", ""))
 	var flag := MenuIcons.region_flag(region)
-	var region_lbl := _add_scrape_info_row(vbox, "Region",
+	var region_lbl := SpawnScrapeUi.info_row(vbox, "Region",
 		region if flag.is_empty() else "%s  %s" % [flag, region])
 	if region_lbl != null:
 		region_lbl.add_theme_font_override("font", MenuIcons.symbols())

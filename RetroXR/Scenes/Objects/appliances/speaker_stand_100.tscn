@@ -1,6 +1,6 @@
 [gd_scene load_steps=8 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/media/speaker_stand.gd" id="1_stand"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/speaker_stand.gd" id="1_stand"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/appliances/speaker_stand_100.res" id="3_standmesh"]
 [ext_resource type="PackedScene" uid="uid://ce7vysyvondf8" path="res://addons/godot-xr-tools/objects/snap_zone.tscn" id="4_snapzone"]

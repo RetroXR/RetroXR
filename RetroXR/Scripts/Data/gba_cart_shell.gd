@@ -74,14 +74,17 @@ static func is_nintendo(header: PackedByteArray) -> bool:
 
 
 static func read_header(rom_path: String) -> PackedByteArray:
-	if rom_path.is_empty():
-		return PackedByteArray()
-	var f := FileAccess.open(rom_path, FileAccess.READ)
-	if f == null:
-		return PackedByteArray()
-	var bytes := f.get_buffer(HEADER_BYTES)
-	f.close()
-	return bytes
+	return CartRomInfo.read_bytes(rom_path, HEADER_BYTES)
+
+
+# --- The cart-shell protocol (ModCartShells' table of the game's own shells) ---
+# The body is the one Game Pak (RetroCartridge's model table); only its colour is
+# the ROM's.
+
+## {palette, preset}: the Game Boy Advance palette and this ROM's shell in it.
+static func cart_finish(_systemid: String, rom_path: String, _model_path: String,
+		_pinned: String) -> Dictionary:
+	return {"palette": SYSTEMID, "preset": preset_for_rom(rom_path)}
 
 
 ## `count` bytes from `at`, up to the first NUL.

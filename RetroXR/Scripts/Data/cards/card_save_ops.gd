@@ -17,26 +17,22 @@ class_name CardSaveOps
 ## within one. Two same-named cards would have this answer with the wrong
 ## machine, and in_use_reason would then guard the wrong machine's power.
 static func holder_of(tree: SceneTree, card_id: String) -> Node:
-	for sys: Node in tree.get_nodes_in_group("retro_system"):
-		if not sys.has_method("get_snapped_memcard"):
+	for node: Node in tree.get_nodes_in_group(ExpansionPort.GROUP_SYSTEM):
+		var sys := node as RetroSystem
+		if sys == null:
 			continue
-		var slots := 1
-		if sys.has_method("card_slot_count"):
-			slots = int(sys.card_slot_count())
-		for slot in maxi(slots, 1):
-			var seated: Node = sys.get_snapped_memcard(slot)
+		for slot in maxi(sys.card_slot_count(), 1):
+			var seated := sys.get_snapped_memcard(slot)
 			if seated != null and str(seated.get("card_id")) == card_id:
 				return sys
 		# Memory built into the console, like a Saturn's.
-		if sys.has_method("console_memory"):
-			var own: Node = sys.call("console_memory")
-			if own != null and str(own.get("card_id")) == card_id:
-				return sys
+		var own := sys.console_memory()
+		if own != null and own.card_id == card_id:
+			return sys
 		# Memory kept by a unit bolted to the console, like a Sega CD's.
-		if sys.has_method("get_expansions"):
-			for unit: Node in sys.get_expansions():
-				if is_instance_valid(unit) and str(unit.get("card_id")) == card_id:
-					return sys
+		for unit in sys.get_expansions():
+			if str(unit.get("card_id")) == card_id:
+				return sys
 	return null
 
 

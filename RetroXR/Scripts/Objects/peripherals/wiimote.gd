@@ -444,16 +444,11 @@ func _ready() -> void:
 
 
 func _find_vr_nodes() -> void:
-	_locomotion_manager = get_tree().root.find_child("LocomotionManager", true, false) as LocomotionManager
-	_spawn_menu_ctrl = get_tree().root.find_child("SpawnMenuController", true, false)
-	for node: Node in get_tree().root.find_children("*", "XRController3D", true, false):
-		var ctrl := node as XRController3D
-		if ctrl == null:
-			continue
-		if ctrl.tracker == &"left_hand":
-			_left_vr_ctrl = ctrl
-		elif ctrl.tracker == &"right_hand":
-			_right_vr_ctrl = ctrl
+	var rig := PadInputShared.find_rig(get_tree())
+	_locomotion_manager = rig["locomotion"]
+	_spawn_menu_ctrl = rig["spawn_menu"]
+	_left_vr_ctrl = rig["left"]
+	_right_vr_ctrl = rig["right"]
 	_update_locomotion_block()
 	# A restore that arrived before this node was in the tree.
 	if not _pending_port_restore.is_empty():
@@ -1049,7 +1044,7 @@ func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 		_saved_by = by
 		_holding_ctrl = ctrl
 	VrHold.set_model_visible(ctrl, false)
-	_update_pointer_block(ctrl, true)
+	_pointer_block.set_block(ctrl, true)
 	_update_locomotion_block()
 	_refresh_grip()
 
@@ -1069,7 +1064,7 @@ func _on_released_signal(_pickable: Node3D, by: Node3D) -> void:
 
 	if _allow_drop:
 		VrHold.set_model_visible(ctrl, true)
-		_update_pointer_block(ctrl, false)
+		_pointer_block.set_block(ctrl, false)
 		if ctrl == _holding_ctrl:
 			if _grab_driver and _grab_driver.primary:
 				_holding_ctrl = _grab_driver.primary.controller
@@ -1104,7 +1099,7 @@ func _on_dropped_signal(_pickable: Node3D) -> void:
 		_hint.on_dropped()
 	_set_face_buttons_active(false)
 	VrHold.set_model_visible(_holding_ctrl, true)
-	_update_pointer_block(_holding_ctrl, false)
+	_pointer_block.set_block(_holding_ctrl, false)
 	_allow_drop = false
 	_saved_by = null
 	_holding_ctrl = null
@@ -1123,7 +1118,7 @@ func _rehold() -> void:
 		return
 	if not is_instance_valid(_saved_by):
 		VrHold.set_model_visible(_holding_ctrl, true)
-		_update_pointer_block(_holding_ctrl, false)
+		_pointer_block.set_block(_holding_ctrl, false)
 		_saved_by = null
 		_holding_ctrl = null
 		_update_locomotion_block()
@@ -1147,11 +1142,11 @@ func _is_combo_pressed(ctrl: XRController3D) -> bool:
 
 func _drop_all() -> void:
 	VrHold.set_model_visible(_holding_ctrl, true)
-	_update_pointer_block(_holding_ctrl, false)
+	_pointer_block.set_block(_holding_ctrl, false)
 	var secondary_ctrl := _get_secondary_ctrl()
 	if is_instance_valid(secondary_ctrl):
 		VrHold.set_model_visible(secondary_ctrl, true)
-		_update_pointer_block(secondary_ctrl, false)
+		_pointer_block.set_block(secondary_ctrl, false)
 	_allow_drop = true
 	_holding_ctrl = null
 	_laser_dot.visible = false
@@ -1184,10 +1179,6 @@ func _update_locomotion_block() -> void:
 			LocomotionManager.CHANNEL_DESKTOP_MOVE, desktop_claim)
 	if is_instance_valid(_spawn_menu_ctrl) and "disabled" in _spawn_menu_ctrl:
 		_spawn_menu_ctrl.set("disabled", left_held)
-
-
-func _update_pointer_block(ctrl: XRController3D, should_block: bool) -> void:
-	_pointer_block.set_block(ctrl, should_block)
 
 
 # ── Desktop keyboard (Scroll Lock capture) ────────────────────────────────────
@@ -1698,7 +1689,7 @@ func _process(delta: float) -> void:
 	if _is_combo_pressed(secondary_ctrl):
 		_allow_drop = true
 		VrHold.set_model_visible(secondary_ctrl, true)
-		_update_pointer_block(secondary_ctrl, false)
+		_pointer_block.set_block(secondary_ctrl, false)
 		if _grab_driver and _grab_driver.secondary:
 			_grab_driver.secondary.pickup.drop_object()
 		_allow_drop = false
@@ -1707,7 +1698,7 @@ func _process(delta: float) -> void:
 		if is_instance_valid(secondary_ctrl):
 			_allow_drop = true
 			VrHold.set_model_visible(_holding_ctrl, true)
-			_update_pointer_block(_holding_ctrl, false)
+			_pointer_block.set_block(_holding_ctrl, false)
 			if is_instance_valid(_saved_by):
 				_saved_by.call("drop_object")
 			_allow_drop = false

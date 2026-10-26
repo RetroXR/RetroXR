@@ -103,11 +103,4 @@ static func is_nintendo(header: PackedByteArray) -> bool:
 
 
 static func read_header(rom_path: String) -> PackedByteArray:
-	if rom_path.is_empty():
-		return PackedByteArray()
-	var f := FileAccess.open(rom_path, FileAccess.READ)
-	if f == null:
-		return PackedByteArray()
-	var bytes := f.get_buffer(HEADER_BYTES)
-	f.close()
-	return bytes
+	return CartRomInfo.read_bytes(rom_path, HEADER_BYTES)

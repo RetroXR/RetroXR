@@ -1,10 +1,10 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/cables/power_strip.gd" id="1_strip"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/power_strip_body.gd" id="2_body"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_strip.gd" id="1_strip"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_strip_body.gd" id="2_body"]
 [ext_resource type="PackedScene" path="res://imported-assets/electrical/power_strip.glb" id="3_shell"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/power_port.tscn" id="4_port"]
-[ext_resource type="Script" path="res://Scripts/Objects/cables/power_plug.gd" id="5_plug"]
+[ext_resource type="Script" path="res://Scripts/Objects/cables/power/power_plug.gd" id="5_plug"]
 [ext_resource type="ArrayMesh" path="res://Scenes/Objects/cables/nema_5_15_plug_ivory.res" id="6_nema"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="7_highlight"]
 [ext_resource type="PackedScene" uid="uid://dh8grd7s3n8kg" path="res://addons/godot-xr-tools/objects/grab_points/grab_point_snap.tscn" id="8_grab"]

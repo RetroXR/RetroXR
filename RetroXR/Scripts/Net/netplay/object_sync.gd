@@ -1146,7 +1146,7 @@ func _dispatch_event(kind: NetEvents.Event, a: Dictionary) -> void:
 		NetEvents.Event.EV_SLOT2_REMOVE:
 			a["sys"].net_release_slot2_cartridge()
 		NetEvents.Event.EV_TAPE_INSERT:
-			a["vcr"].restore_tape(a["tape"])
+			a["vcr"].restore_media(a["tape"])
 		NetEvents.Event.EV_TAPE_REMOVE:
 			a["vcr"].net_release_tape()
 		NetEvents.Event.EV_TV_PLUG:
@@ -1257,7 +1257,7 @@ func _dispatch_event(kind: NetEvents.Event, a: Dictionary) -> void:
 				_nm.netplay_schedule_disk(a["sys"], int(a.get("op", 0)),
 					str(a.get("md5", "")), int(a.get("index", 0)))
 		NetEvents.Event.EV_DVD_INSERT:
-			a["dvd"].restore_disc(a["disc"], float(a.get("yaw", 0.0)))
+			a["dvd"].restore_media(a["disc"], float(a.get("yaw", 0.0)))
 		NetEvents.Event.EV_DVD_REMOVE:
 			a["dvd"].net_release_disc()
 		NetEvents.Event.EV_DVD_CMD:

@@ -135,7 +135,7 @@ func screen_light_rect(mat: Material) -> Rect2:
 		return Rect2(0.0, 0.0, 1.0, 1.0)
 	var value := packed as Vector4
 	var rect := Rect2(value.x, value.y, value.z, value.w)
-	if _tv.stereo_mode == 2:
+	if _tv.stereo_mode == RetroTV.StereoMode.RIGHT_EYE:
 		var shift: Variant = shader_mat.get_shader_parameter("eye_shift")
 		if shift is float:
 			rect.position.x += float(shift)
@@ -434,8 +434,8 @@ func update_phosphor() -> void:
 	if sz.x < 2 or sz.y < 2:
 		return
 
-	var write: SubViewport = _tv._phosphor_a if _phosphor_write_a else _tv._phosphor_b
-	var read: SubViewport = _tv._phosphor_b if _phosphor_write_a else _tv._phosphor_a
+	var write: SubViewport = _tv.phosphor_a() if _phosphor_write_a else _tv.phosphor_b()
+	var read: SubViewport = _tv.phosphor_b() if _phosphor_write_a else _tv.phosphor_a()
 	if write.size != sz:
 		write.size = sz
 		read.size = sz

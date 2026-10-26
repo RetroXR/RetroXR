@@ -54,16 +54,16 @@ func _ready() -> void:
 
 
 func _cache_meshes() -> void:
-	_buttons.clear()
+	_anim.buttons.clear()
 	for path: String in VB_FACE:
 		_add_button(path, int(VB_FACE[path]), FACE_PRESS, PRESS_DIR)
 	for path: String in VB_SHOULDERS:
 		_add_button(path, int(VB_SHOULDERS[path]), TRIGGER_PRESS, SHOULDER_DIR)
-	_dpad = _rocker("Model/WingL/DPad")
-	_dpad2 = _rocker("Model/WingR/DPad")
-	if not _dpad2.is_empty():
-		_dpad2["bits"] = RIGHT_DPAD_BITS
-		_dpad2["axis"] = "right"
+	_anim.dpad = _rocker("Model/WingL/DPad")
+	_anim.dpad2 = _rocker("Model/WingR/DPad")
+	if not _anim.dpad2.is_empty():
+		_anim.dpad2["bits"] = RIGHT_DPAD_BITS
+		_anim.dpad2["axis"] = "right"
 
 
 ## The D-pads' UP arms point -Z, the edge the cable leaves by.
@@ -76,7 +76,7 @@ func _add_button(path: String, bit: int, depth: float, dir: Vector3) -> void:
 	if m == null:
 		push_warning("VbController: control mesh not found: " + path)
 		return
-	_buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth, "dir": dir})
+	_anim.buttons.append({"node": m, "rest": m.transform, "bit": bit, "depth": depth, "dir": dir})
 
 
 func _rocker(path: String) -> Dictionary:

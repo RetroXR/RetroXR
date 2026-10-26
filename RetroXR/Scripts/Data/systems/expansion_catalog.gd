@@ -291,6 +291,75 @@ static func _static_init() -> void:
 		ROWS[id] = (by_id[id] as Script).ROW
 	for unit: Script in _UNITS:
 		BOOT.merge(unit.BOOT)
+	_check_row_keys()
+
+
+## Every field a unit's row may hold (the row docs above say what each is), and
+## what it reads as when the row leaves it out. The schema in one place: the
+## accessors below read through _field(), and _static_init refuses no row but
+## reports any key not listed here, so a misspelt key is an error in the log rather
+## than a silent default.
+const FIELDS := {
+	"label": null,
+	"host": "",
+	"media": "",
+	"passes": [],
+	"mount": MOUNT_BELOW,
+	"size": Vector3(0.3, 0.08, 0.25),
+	"lid": false,
+	"loader": MediaDimensions.LOADER_NONE,
+	"media_in_host": false,
+	"panel": "",
+	"memory": "",
+	"label_front": false,
+	"label_top": false,
+	"card": "",
+	"bays": 1,
+	"firmware": [],
+	"firmware_first_present": false,
+	"rom_code": "",
+	"rom_title": "",
+	"rom_from_firmware": false,
+	"default_occupant": false,
+	"save_owner": SAVE_OWNER_MEDIA,
+	"shell": "",
+	"shell_albedo": "",
+	"shell_lods": [],
+	"shell_offset": Vector3.ZERO,
+	"connector": null,
+	"seat_y": NAN,
+	"seat_yaw": 0.0,
+	"swipe_slit": null,
+	"accessory_group": "",
+	"cap_color": Color(0, 0, 0, 0),
+	"socket": "",
+	"cover_socket": "",
+	"ethernet_port": -1,
+	"jack": null,
+	"link_socket": null,
+	"link_plug": null,
+}
+
+
+## A row field, or its FIELDS default when the row (with any mod's shell laid
+## over it, row()) leaves it out. A list default comes back as a fresh copy.
+static func _field(id: String, key: String) -> Variant:
+	if not FIELDS.has(key):
+		push_error("[ExpansionCatalog] '%s' is not a row field" % key)
+		return null
+	var r := row(id)
+	if r.has(key):
+		return r[key]
+	var fallback: Variant = FIELDS[key]
+	return (fallback as Array).duplicate() if fallback is Array else fallback
+
+
+## Report any key a unit's row holds that FIELDS does not list.
+static func _check_row_keys() -> void:
+	for id: String in ROWS:
+		for key: Variant in (ROWS[id] as Dictionary):
+			if not FIELDS.has(key):
+				push_error("[ExpansionCatalog] unit '%s': '%s' is not a row field (see FIELDS)" % [id, key])
 
 
 ## The core a recipe names on this platform: `android` when there is one and we
@@ -369,25 +438,25 @@ static func shell_key(id: String, variant: String) -> String:
 ## the whole -- a pak whose body goes in a pocket carries a boss on one face and a
 ## cap that overhangs the other. Zero for every shell the game ships.
 static func shell_offset_of(id: String) -> Vector3:
-	return row(id).get("shell_offset", Vector3.ZERO)
+	return _field(id, "shell_offset")
 
 
 ## Where a network adapter's socket is in the unit's frame (the row docs'
 ## `jack`), or null for the middle of the face left outside the console.
 static func ethernet_jack_of(id: String) -> Variant:
-	return row(id).get("jack", null)
+	return _field(id, "jack")
 
 
 ## The socket that carries the console's link port up through the unit (the row
 ## docs' `link_socket`), or null for a unit that passes none through.
 static func link_socket_of(id: String) -> Variant:
-	return row(id).get("link_socket", null)
+	return _field(id, "link_socket")
 
 
 ## Where the unit's own plug into the console's link port is (the row docs'
 ## `link_plug`), or null.
 static func link_plug_of(id: String) -> Variant:
-	return row(id).get("link_plug", null)
+	return _field(id, "link_plug")
 
 
 ## The mod whose shell this unit wears, or "".
@@ -482,7 +551,8 @@ static func has(id: String) -> bool:
 ## (RetroExpansion), so it must not move with the player's region: anything shown
 ## to the player goes through display_label_of() instead.
 static func label_of(id: String) -> String:
-	return str(row(id).get("label", id))
+	var named: Variant = _field(id, "label")
+	return id if named == null else str(named)
 
 
 ## The unit's name as the player's region calls it ("Mega-CD" in Europe).
@@ -491,65 +561,65 @@ static func display_label_of(id: String) -> String:
 
 
 static func host_of(id: String) -> String:
-	return str(row(id).get("host", ""))
+	return str(_field(id, "host"))
 
 
 static func media_of(id: String) -> String:
-	return str(row(id).get("media", ""))
+	return str(_field(id, "media"))
 
 
 ## Other systems' media the unit's bay takes and hands straight to the console,
 ## as the 32X does a Genesis cartridge. Such a cartridge boots on the console's
 ## own core (ExpansionLaunch.expansion_boot).
 static func passes_of(id: String) -> Array:
-	return row(id).get("passes", []) as Array
+	return _field(id, "passes") as Array
 
 
 static func mount_of(id: String) -> int:
-	return int(row(id).get("mount", MOUNT_BELOW))
+	return int(_field(id, "mount"))
 
 
 static func size_of(id: String) -> Vector3:
-	return row(id).get("size", Vector3(0.3, 0.08, 0.25))
+	return _field(id, "size")
 
 
 ## True when this unit opens with a hinged lid rather than sliding a tray out.
 static func lid_of(id: String) -> bool:
-	return bool(row(id).get("lid", false))
+	return bool(_field(id, "lid"))
 
 
 static func loader_of(id: String) -> int:
-	return int(row(id).get("loader", MediaDimensions.LOADER_NONE))
+	return int(_field(id, "loader"))
 
 
 ## True when this unit has no bay of its own and its media goes into the
 ## CONSOLE's cartridge slot instead.
 static func media_in_host(id: String) -> bool:
-	return bool(row(id).get("media_in_host", false))
+	return bool(_field(id, "media_in_host"))
 
 
 ## The front panel this unit wears, if it wears one -- a scene, so what is on a
 ## machine's face is named beside the machine instead of branched on elsewhere.
 static func panel_of(id: String) -> String:
-	return str(row(id).get("panel", ""))
+	return str(_field(id, "panel"))
 
 
 ## The card family this unit keeps saves of its own in -- a Sega CD's backup
 ## memory -- or "" for a unit that keeps none.
 static func memory_of(id: String) -> String:
-	return str(row(id).get("memory", ""))
+	return str(_field(id, "memory"))
 
 
 ## Whether a unit that mounts as a cartridge wears its name on its front face
 ## rather than the one a console's slot turns away. See RetroExpansion._build_body.
 static func label_front_of(id: String) -> bool:
-	return bool(row(id).get("label_front", false))
+	return bool(_field(id, "label_front"))
 
 
 ## Whether a unit wears its name along the top of its face, for one stood in a slot
 ## that swallows the lower half. See RetroExpansion._build_body.
 static func label_top_of(id: String) -> bool:
-	return bool(row(id).get("label_top", false))
+	return bool(_field(id, "label_top"))
 
 
 ## The unit whose memory is this card family, or "" -- how a card shelf listing
@@ -565,50 +635,50 @@ static func unit_for_memory(family: String) -> String:
 
 ## The GLB this unit wears, or "" for the primitive box.
 static func shell_of(id: String) -> String:
-	return str(row(id).get("shell", ""))
+	return str(_field(id, "shell"))
 
 
 static func shell_albedo_of(id: String) -> String:
-	return str(row(id).get("shell_albedo", ""))
+	return str(_field(id, "shell_albedo"))
 
 
 ## The shell's lower levels of detail, nearest first: [GLB path, metres from the
 ## camera where it takes over]. Empty for a shell that has one level. Each GLB must
 ## share the shell's bounds, since all of them are fitted with the shell's numbers.
 static func shell_lods_of(id: String) -> Array:
-	return row(id).get("shell_lods", [])
+	return _field(id, "shell_lods")
 
 
 ## Where the console's cartridge seat takes this unit, in the unit's own frame, or
 ## null to seat it on the console's roof (see RetroExpansion._aim_connector). Set
 ## by a unit whose modelled tongue goes INTO the slot the way a cartridge's does.
 static func connector_of(id: String) -> Variant:
-	return row(id).get("connector", null)
+	return _field(id, "connector")
 
 
 ## Where a console standing on this unit rests, in the unit's frame, or NAN for
 ## the top of its box. See the row docs above.
 static func seat_y_of(id: String) -> float:
-	return float(row(id).get("seat_y", NAN))
+	return float(_field(id, "seat_y"))
 
 
 ## Degrees a cartridge-mounted unit is turned about its own +Y when seated, relative
 ## to a cartridge. See the row docs above.
 static func seat_yaw_of(id: String) -> float:
-	return float(row(id).get("seat_yaw", 0.0))
+	return float(_field(id, "seat_yaw"))
 
 
 ## The group of the clip-on accessory this unit takes, or "" for none. See the row
 ## docs above.
 static func accessory_group_of(id: String) -> String:
-	return str(row(id).get("accessory_group", ""))
+	return str(_field(id, "accessory_group"))
 
 
 ## The swipe groove's frame in the unit's own frame, or null to cut the groove in
 ## the roof. Set by a shell with a card channel of its own, so the groove is where
 ## the model's channel is. CardSwipeSlit documents the frame's axes.
 static func swipe_slit_of(id: String) -> Variant:
-	return row(id).get("swipe_slit", null)
+	return _field(id, "swipe_slit")
 
 
 ## Media systemids a console's OWN cartridge slot must take on top of its own,
@@ -681,7 +751,7 @@ static func has_own_card(id: String) -> bool:
 static func card_systemid(id: String) -> String:
 	if has_own_card(id):
 		return id
-	var override := str(row(id).get("card", ""))
+	var override := str(_field(id, "card"))
 	if not override.is_empty():
 		return override
 	var m := media_of(id)
@@ -708,13 +778,13 @@ static func ids_carded_on(systemid: String) -> Array[String]:
 ## with no bay at all, which reads as a solid box a player cannot load and gives
 ## no clue why.
 static func bays_of(id: String) -> int:
-	return maxi(1, int(row(id).get("bays", 1)))
+	return maxi(1, int(_field(id, "bays")))
 
 
 ## Firmware this unit cannot work without, named exactly as the core's .info
 ## names it. Empty for every unit whose hardware is entirely ours to draw.
 static func firmware_of(id: String) -> Array:
-	return (row(id).get("firmware", []) as Array).duplicate()
+	return (_field(id, "firmware") as Array).duplicate()
 
 
 ## The unit a ROM in the library IS, or "" for an ordinary piece of media.
@@ -819,9 +889,9 @@ static func _gba_game_code(f: FileAccess, length: int) -> String:
 ## existence is firmware_present's question. The library branch cannot: it has
 ## nothing to name until it has found something.
 static func firmware_rom_path(id: String) -> String:
-	if not str(row(id).get("rom_code", "")).is_empty():
+	if not str(_field(id, "rom_code")).is_empty():
 		return AdapterRoms.path_for(id)
-	if not bool(row(id).get("rom_from_firmware", false)):
+	if not bool(_field(id, "rom_from_firmware")):
 		return ""
 	var wanted := firmware_of(id)
 	if wanted.is_empty():
@@ -831,7 +901,7 @@ static func firmware_rom_path(id: String) -> String:
 		return ""
 	# The exception, by row: regional alternatives of one program, where any
 	# installed one is the right one. A Sega CD's BIOS is.
-	if bool(row(id).get("firmware_first_present", false)):
+	if bool(_field(id, "firmware_first_present")):
 		var present := {}
 		for status_row: Dictionary in FirmwareState.shared().evaluate(
 				core, FirmwareRequirements.for_core(core)):
@@ -878,7 +948,7 @@ static func pick_firmware(wanted: Array, present: Dictionary) -> String:
 ## core is already written down above. A unit with no recipe cannot say whose
 ## system directory to look in, so it is not gated at all.
 static func firmware_present(id: String) -> bool:
-	if not str(row(id).get("rom_code", "")).is_empty():
+	if not str(_field(id, "rom_code")).is_empty():
 		return not AdapterRoms.path_for(id).is_empty()
 	var wanted := firmware_of(id)
 	if wanted.is_empty():
@@ -920,7 +990,7 @@ static func missing_row(id: String) -> Dictionary:
 	if firmware_present(id):
 		return {}
 	var label := display_label_of(id)
-	var code := str(row(id).get("rom_code", ""))
+	var code := str(_field(id, "rom_code"))
 	if not code.is_empty():
 		return {"path": "%s dump (%s)" % [label, code], "desc": label, "dest": "",
 			"where": "Put it in the %s games folder." % label_of_system(host_of(id))}
@@ -952,7 +1022,7 @@ static func ids_for_host(host: String) -> Array[String]:
 ## "has one" test rather than a second field, since a plate you cannot see is
 ## the same thing as no plate.
 static func cap_color_of(id: String) -> Color:
-	return row(id).get("cap_color", Color(0, 0, 0, 0))
+	return _field(id, "cap_color")
 
 
 ## The id of the unit that comes pre-installed on a bare `host` console, or ""
@@ -986,14 +1056,14 @@ static func host_takes_top_unit(host: String) -> bool:
 ## Which console socket a MOUNT_ABOVE unit goes into: "" for the ExpansionSocket
 ## they share, else the name of one of its own. See the row docs above.
 static func socket_of(id: String) -> String:
-	return str(row(id).get("socket", ""))
+	return str(_field(id, "socket"))
 
 
 ## For a network adapter, the link-bus port its core attaches the Ethernet cable
 ## on (EthernetPort.link_port); -1 for a unit with no RJ45 socket. The row's
 ## `ethernet_port`.
 static func ethernet_port_of(id: String) -> int:
-	return int(row(id).get("ethernet_port", -1))
+	return int(_field(id, "ethernet_port"))
 
 
 ## The network adapter card a console takes, or "" for one that takes none. What a
@@ -1018,7 +1088,7 @@ static func socket_size(host: String, socket: String) -> Vector3:
 ## The opening in its console's floor a MOUNT_BELOW unit plugs into (the row's
 ## `cover_socket`), or "" for a unit that names none.
 static func cover_socket_of(id: String) -> String:
-	return str(row(id).get("cover_socket", ""))
+	return str(_field(id, "cover_socket"))
 
 
 ## The covered openings in this console's floor that a unit it stands on fills,
@@ -1064,7 +1134,7 @@ static func sorted_ids(ids: Array) -> Array[String]:
 
 
 static func save_owner_of(id: String) -> String:
-	return str(row(id).get("save_owner", SAVE_OWNER_MEDIA))
+	return str(_field(id, "save_owner"))
 
 
 ## The launch recipe for a console with these expansions attached, or an empty

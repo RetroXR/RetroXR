@@ -688,7 +688,7 @@ func _on_options_filter_changed(text: String) -> void:
 
 ## Matched against the key as well as the shown description: a core's own
 ## documentation and its forum threads name the key, not the label.
-func _matches_filter(key: String, defn) -> bool:
+func _matches_filter(key: String, defn: LibretroOptionDefinition) -> bool:
 	if _options_filter.is_empty():
 		return true
 	var needle := _options_filter.to_lower()
@@ -698,7 +698,7 @@ func _matches_filter(key: String, defn) -> bool:
 
 
 ## The description the row shows, falling back the same way the row itself does.
-func _option_desc(key: String, defn) -> String:
+func _option_desc(key: String, defn: LibretroOptionDefinition) -> String:
 	return CoreOptionRow.description(key, defn)
 
 
@@ -829,8 +829,7 @@ func _add_reset_row() -> void:
 
 
 ## Build a single option row: [description label] [<] [current value] [>]
-## defn is a LibretroOptionDefinition (untyped to allow dynamic ClassDB dispatch).
-func _add_option_row(key: String, defn, current_val: String) -> void:
+func _add_option_row(key: String, defn: LibretroOptionDefinition, current_val: String) -> void:
 	# A pinned option shows what the SYSTEM enforces, not what happens to be
 	# sitting in the .opt, which can be stale.
 	if _forced.has(key):
@@ -841,8 +840,7 @@ func _add_option_row(key: String, defn, current_val: String) -> void:
 			option_changed.emit(k, v))
 
 
-## Parameter intentionally untyped — see CoreOptionRow.add.
-func _value_label(v) -> String:
+func _value_label(v: LibretroOptionValue) -> String:
 	return CoreOptionRow.value_label(v)
 
 

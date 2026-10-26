@@ -109,7 +109,7 @@ const STICK_PIVOT_DROP: float = 0.0125
 
 
 func _cache_meshes() -> void:
-	_buttons.clear()
+	_anim.buttons.clear()
 	for stem: String in FACE:
 		_add(stem, {"bit": int(FACE[stem]), "depth": PRESS_FACE})
 	for stem: String in C_BUTTONS:
@@ -127,8 +127,8 @@ func _cache_meshes() -> void:
 	_add("Btn_Start", {"bit": ControllerBindings.JOYPAD_START, "depth": PRESS_START})
 	_add("Btn_Z", {"bit": ControllerBindings.JOYPAD_L2, "depth": PRESS_Z, "dir": Z_DIR})
 
-	_dpad = _rocker("DPad", DPAD_PIVOT_DROP)
-	_stick_l = _rocker("Stick", STICK_PIVOT_DROP)
+	_anim.dpad = _rocker("DPad", DPAD_PIVOT_DROP)
+	_anim.stick_l = _rocker("Stick", STICK_PIVOT_DROP)
 
 
 ## The shell lies face-up — +Y out of the face — with the D-pad on -X, which puts
@@ -145,7 +145,7 @@ func _add(stem: String, entry: Dictionary) -> void:
 		return
 	entry["node"] = m
 	entry["rest"] = m.transform
-	_buttons.append(entry)
+	_anim.buttons.append(entry)
 
 
 func _rocker(stem: String, drop_by: float) -> Dictionary:

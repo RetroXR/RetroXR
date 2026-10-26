@@ -427,9 +427,9 @@ func _test_built_in_socket() -> void:
 	_eq(slim._all_forced_options("pcsx2").get("pcsx2_dev9_eth"), "link", "slim/ the core's adapter is on")
 	_ok(not slim.expansion_ids().has(NETWORK_ADAPTER), "slim/ without a card being named as seated")
 	var card := await _unit(NETWORK_ADAPTER)
-	_ok(not slim._accepts_expansion_in(card, ExpansionCatalog.socket_of(NETWORK_ADAPTER)),
+	_ok(not slim.expansion_hardware().accepts_unit(card, ExpansionCatalog.socket_of(NETWORK_ADAPTER)),
 		"slim/ and it takes no Network Adapter card: it has no bay")
-	_ok(fat._accepts_expansion_in(card, ExpansionCatalog.socket_of(NETWORK_ADAPTER)),
+	_ok(fat.expansion_hardware().accepts_unit(card, ExpansionCatalog.socket_of(NETWORK_ADAPTER)),
 		"slim/ where a fat one does")
 	slim._model = was
 	shell.free()

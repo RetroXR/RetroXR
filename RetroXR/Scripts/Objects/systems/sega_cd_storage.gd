@@ -21,7 +21,7 @@
 ## kept its own. They are moved into legacy/ rather than written over, and a new
 ## unit or cartridge with no image yet starts from the most recent one that fits.
 class_name SegaCdStorage
-extends Node
+extends ConsoleStorage
 
 const CORE_PREFIX := "genesis_plus_gx"
 const MEMORY_FAMILY := "sega_cd_memory"
@@ -48,16 +48,11 @@ const REINIT_KEYS := ["genesis_plus_gx_system_hw", "genesis_plus_gx_bios",
 const DRAIN_AFTER_OFF_SEC := 12.0
 const DRAIN_POLL_SEC := 1.0
 
-var _host: RetroSystem = null
 ## One entry per file staged this run: {file, image, card_id, bytes}.
 var _staged: Array[Dictionary] = []
 var _save_dir := ""
 var _timer: Timer = null
 var _drain_until := 0.0
-
-
-func setup(host: RetroSystem) -> void:
-	_host = host
 
 
 func _exit_tree() -> void:
@@ -139,14 +134,15 @@ func busy_elsewhere(core: String) -> String:
 		return ""
 	if memory_units(_host.get_expansions())["memory"] == null:
 		return ""
-	for sys: Node in _host.get_tree().get_nodes_in_group("retro_system"):
-		if sys == _host or not sys.has_method("sega_cd_storage"):
+	for node: Node in _host.get_tree().get_nodes_in_group(ExpansionPort.GROUP_SYSTEM):
+		var sys := node as RetroSystem
+		if sys == null or sys == _host:
 			continue
-		var other: SegaCdStorage = sys.call("sega_cd_storage")
+		var other := sys.sega_cd_storage()
 		if other == null or not other.is_holding_files():
 			continue
 		var unit := RegionalNames.addon_name("sega_cd", "Sega CD")
-		if bool(sys.get("is_powered_on")):
+		if sys.is_powered_on:
 			return "Another %s is running. Power it off first." % unit
 		return "Another %s is still saving. Try again in a few seconds." % unit
 	return ""
@@ -367,3 +363,24 @@ static func adopt_legacy(save_dir: String, family: String) -> PackedByteArray:
 ## of a new one. AtomicFile logs the failure with the path.
 static func _write(path: String, data: PackedByteArray) -> bool:
 	return AtomicFile.write_bytes(path, data, "SegaCdStorage")
+
+
+# --- ConsoleStorage hooks -------------------------------------------------------
+
+func busy_title() -> String:
+	return "%s in use" % RegionalNames.addon_name("sega_cd", "Sega CD")
+
+
+## Staged in a session too: the memory is a file the core reads at load, not part
+## of its savestate, so every peer stages its own the same way.
+func stages_in_session() -> bool:
+	return true
+
+
+func stage_for_run(dir: String, core: String) -> void:
+	stage_before_start(dir, core)
+
+
+## genesis_plus_gx writes a Sega CD's memory only as it unloads.
+func after_stop(_dir: String, _core: String) -> void:
+	drain_after_stop()

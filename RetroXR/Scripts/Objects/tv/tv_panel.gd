@@ -50,6 +50,13 @@ var _snapped_plugs: Array = []
 ## directly to assert what the set thinks is cabled to it.
 var _connected_systems: Array = []
 
+
+## The host feeding each input (indexed by RetroTV.Source), null where none is.
+## TvAudio fans its routing over it. The live array: read it, never write it —
+## binding goes through the panel's own seat/unseat paths.
+func connected_systems() -> Array:
+	return _connected_systems
+
 ## Decks built into the cabinet, input -> deck (see TvDecks). Kept apart from
 ## _snapped_plugs because there is no plug: a built-in deck reaches its input with
 ## no lead at all, so neither the captive-lead lookup nor the cable graph finds it.
@@ -130,7 +137,7 @@ func collect() -> void:
 	_av_ports.append([] as Array[RcaPort])
 	_connected_systems.append(null)
 	_snapped_plugs.append(null)
-	var rf := _tv._rf_port as RcaPort
+	var rf := _tv.rf_port() as RcaPort
 	var rf_trio: Array[RcaPort] = []
 	if rf != null:
 		rf_trio.append(rf)
@@ -200,7 +207,7 @@ func has_aerial() -> bool:
 func aerial() -> Antenna:
 	if not has_aerial():
 		return null
-	var rf := _tv._rf_port as RcaPort
+	var rf := _tv.rf_port() as RcaPort
 	var plug: RcaPlug = (rf.seated_plug() as RcaPlug) if rf != null else null
 	if plug == null or plug.cable == null or not is_instance_valid(plug.cable):
 		return null
@@ -379,8 +386,8 @@ func seat_av_row(at: Variant) -> void:
 	# its trio, so a lone socket sitting where a trio's VIDEO jack goes puts its plate
 	# 18 mm right of where the pattern wants it — close enough to overlap Composite
 	# 4's and z-fight with it, the two being coplanar and the same colour.
-	if _tv._rf_port != null:
-		TvFit.seat(_tv._rf_port, Transform3D(base.basis,
+	if _tv.rf_port() != null:
+		TvFit.seat(_tv.rf_port(), Transform3D(base.basis,
 			base * (group_step * float(RetroTV.COMPOSITE_INPUTS) + socket_step)))
 
 
@@ -430,7 +437,7 @@ func seat_vga_port(at: Variant) -> void:
 func accept_plug_restore(plug: CablePlug, input: int) -> void:
 	var port := video_port(input)
 	if port == null:
-		port = _tv._composite_port as RcaPort
+		port = _tv.composite_port() as RcaPort
 	print("[RetroTV] accept_plug_restore: plug=%s port=%s" % [plug, port])
 	port.pick_up_object(plug)
 	print("[RetroTV] accept_plug_restore: done, port.picked_up=%s" % port.picked_up_object)

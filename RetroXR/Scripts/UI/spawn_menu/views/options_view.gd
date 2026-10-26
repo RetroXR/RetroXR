@@ -204,6 +204,41 @@ func _refresh_support_rows() -> void:
 			row.visible = bool((entry[1] as Callable).call())
 
 
+## A setting's row: its name in the bright TITLE at the menu's size, filling the
+## row, and nothing yet on the right. `subtitle` puts a dimmer line under the name.
+## `supported` makes it a _support_row.
+func _option_row(vbox: VBoxContainer, text: String, height := 68, subtitle := "",
+		supported := Callable()) -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	row.custom_minimum_size = Vector2(0, height)
+	vbox.add_child(row)
+	if supported.is_valid():
+		_support_row(row, supported)
+	var title := MenuStyle.label(text, MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE)
+	if subtitle.is_empty():
+		title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(title)
+		return row
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(col)
+	col.add_child(title)
+	col.add_child(MenuStyle.label(subtitle, 16, MenuStyle.COLOR_LICENSE))
+	return row
+
+
+## An on/off setting: _option_row with a VRToggle on the right that starts at
+## `initial_on` and calls `on_toggled(on)` -- which saves the setting and says so,
+## each row in its own way. Returns the switch.
+func _toggle_row(vbox: VBoxContainer, text: String, initial_on: bool, on_toggled: Callable,
+		supported := Callable(), height := 68, subtitle := "") -> VRToggle:
+	var toggle := VRToggle.create(initial_on, on_toggled)
+	_option_row(vbox, text, height, subtitle, supported).add_child(toggle)
+	return toggle
+
+
 ## A scrolling sub-tab. The TabContainer titles each tab after its child, so the
 ## node name IS the tab label; the icon has to be set separately.
 func _page(title: String, icon: Texture2D = null) -> VBoxContainer:
@@ -351,42 +386,21 @@ func _build_comfort_options(vbox: VBoxContainer) -> void:
 		vbox.add_child(HSeparator.new())
 
 	# Auto-save scene on switch option
-	var as_row := HBoxContainer.new()
-	as_row.add_theme_constant_override("separation", 10)
-	as_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(as_row)
-
-	var as_lbl := Label.new()
 	# Named for when it fires now that there is a second auto-save below it: on its
 	# own, "Auto-save Scene" reads as though it covers both.
-	as_lbl.text = "Auto-save on Room Change"
-	as_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	as_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	as_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	as_row.add_child(as_lbl)
-
-	as_row.add_child(VRToggle.create(AppPrefs.auto_save_scene, func(on: bool) -> void:
+	_toggle_row(vbox, "Auto-save on Room Change", AppPrefs.auto_save_scene, func(on: bool) -> void:
 		AppPrefs.auto_save_scene = on
 		AppPrefs.save_prefs()
 		auto_save_changed.emit(on)
-	))
+	)
 
 	vbox.add_child(HSeparator.new())
 
 	# Periodic auto-save, and how often. Only the two furnishable rooms keep slots,
 	# so this does nothing in the den or the bedroom — the same as the switch above,
 	# and not worth a second explanation in the row.
-	var ap_row := HBoxContainer.new()
-	ap_row.add_theme_constant_override("separation", 10)
-	ap_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(ap_row)
-
-	var ap_lbl := Label.new()
-	ap_lbl.text = "Auto-save Periodically"
-	ap_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	ap_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	ap_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	ap_row.add_child(ap_lbl)
+	# Its switch goes on last, once the interval row below it exists to dim.
+	var ap_row := _option_row(vbox, "Auto-save Periodically")
 
 	var ai_row := MenuStyle.menu_slider_row(vbox, "Auto-save Interval", AppPrefs.AUTOSAVE_INTERVAL_MIN, AppPrefs.AUTOSAVE_INTERVAL_MAX, 15.0, 80)
 	var ai_slider: HSlider = ai_row[0]
@@ -461,48 +475,24 @@ func _build_audio_and_movement_options(vbox: VBoxContainer) -> void:
 	# Installed, not available: is_available() answers false while the SDK is
 	# switched off, so gating on it hid this switch the moment it was turned off.
 	if QualityManager.is_desktop() and SpatialAudioListener.sdk_installed():
-		var spatial_row := HBoxContainer.new()
-		spatial_row.add_theme_constant_override("separation", 10)
-		spatial_row.custom_minimum_size = Vector2(0, 68)
-		vbox.add_child(spatial_row)
-
-		var spatial_lbl := Label.new()
-		spatial_lbl.text = "Meta XR Spatial Audio"
-		spatial_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-		spatial_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-		spatial_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		spatial_row.add_child(spatial_lbl)
-
 		# Applied straight away for everything in the room. A system that is
 		# already switched on keeps the backend it booted with; see
 		# SpatialAudioListener.set_sdk_enabled.
-		spatial_row.add_child(VRToggle.create(AppPrefs.spatial_audio_sdk, func(on: bool) -> void:
+		_toggle_row(vbox, "Meta XR Spatial Audio", AppPrefs.spatial_audio_sdk, func(on: bool) -> void:
 			AppPrefs.spatial_audio_sdk = on
 			AppPrefs.save_prefs()
 			SpatialAudioListener.set_sdk_enabled(on)
-		))
+		)
 
 		vbox.add_child(HSeparator.new())
 
-	var mic_row := HBoxContainer.new()
-	mic_row.add_theme_constant_override("separation", 10)
-	mic_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(mic_row)
-
-	var mic_lbl := Label.new()
-	mic_lbl.text = "Microphone"
-	mic_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	mic_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	mic_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	mic_row.add_child(mic_lbl)
-
-	mic_row.add_child(VRToggle.create(AppPrefs.microphone_enabled, func(on: bool) -> void:
+	_toggle_row(vbox, "Microphone", AppPrefs.microphone_enabled, func(on: bool) -> void:
 		AppPrefs.microphone_enabled = on
 		AppPrefs.save_prefs()
 		if on and OS.get_name() == "Android" \
 				and not ("android.permission.RECORD_AUDIO" in OS.get_granted_permissions()):
 			OS.request_permission("android.permission.RECORD_AUDIO")
-	))
+	)
 
 	# Which microphone, when the machine has more than one. Built from what the
 	# platform is offering AS THE PAGE OPENS: a microphone plugged in since last
@@ -559,87 +549,37 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 	# the OpenXR session, up well after this page is built, so the rows are asked
 	# again every time the page is shown (_refresh_support_rows), never just here.
 	if MenuStyle.is_vr_mode():
-		var ptm_row := HBoxContainer.new()
-		ptm_row.add_theme_constant_override("separation", 10)
-		ptm_row.custom_minimum_size = Vector2(0, 68)
-		vbox.add_child(ptm_row)
-		_support_row(ptm_row, PassthroughSupport.passthrough)
-
-		var ptm_lbl := Label.new()
-		ptm_lbl.text = "Move in Passthrough"
-		ptm_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-		ptm_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-		ptm_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ptm_row.add_child(ptm_lbl)
-
-		ptm_row.add_child(VRToggle.create(AppPrefs.passthrough_locomotion,
+		_toggle_row(vbox, "Move in Passthrough", AppPrefs.passthrough_locomotion,
 			func(on: bool) -> void:
 				AppPrefs.passthrough_locomotion = on
 				AppPrefs.save_prefs()
 				passthrough_locomotion_changed.emit(on)
-		))
+		, PassthroughSupport.passthrough)
 
 		# Plain passthrough, or passthrough that reads the room (RealRoom): things
 		# rest on the real furniture, Meta's depth for the Game Boy Camera and for
 		# occlusion. On by default; on, the spatial-data consent is asked for the
 		# first time passthrough comes up.
-		var spt_row := HBoxContainer.new()
-		spt_row.add_theme_constant_override("separation", 10)
-		spt_row.custom_minimum_size = Vector2(0, 68)
-		vbox.add_child(spt_row)
-		_support_row(spt_row, PassthroughSupport.room_data)
-
-		var spt_lbl := Label.new()
-		spt_lbl.text = "Use Room Data in Passthrough"
-		spt_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-		spt_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-		spt_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		spt_row.add_child(spt_lbl)
-
-		spt_row.add_child(VRToggle.create(AppPrefs.passthrough_spatial,
+		_toggle_row(vbox, "Use Room Data in Passthrough", AppPrefs.passthrough_spatial,
 			func(on: bool) -> void:
 				AppPrefs.passthrough_spatial = on
 				AppPrefs.save_prefs()
 				passthrough_spatial_changed.emit(on)
-		))
+		, PassthroughSupport.room_data)
 
 		# What things rest on: the flat furniture boxes (off), or the Quest 3's
 		# scanned mesh of every surface (on). RealRoom._settle_kinds.
-		var mesh_row := HBoxContainer.new()
-		mesh_row.add_theme_constant_override("separation", 10)
-		mesh_row.custom_minimum_size = Vector2(0, 68)
-		vbox.add_child(mesh_row)
-		_support_row(mesh_row, PassthroughSupport.room_mesh)
-
-		var mesh_lbl := Label.new()
-		mesh_lbl.text = "Detailed Room Mesh"
-		mesh_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-		mesh_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-		mesh_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		mesh_row.add_child(mesh_lbl)
-
-		mesh_row.add_child(VRToggle.create(AppPrefs.passthrough_room_mesh,
+		_toggle_row(vbox, "Detailed Room Mesh", AppPrefs.passthrough_room_mesh,
 			func(on: bool) -> void:
 				AppPrefs.passthrough_room_mesh = on
 				AppPrefs.save_prefs()
 				passthrough_room_mesh_changed.emit(on)
-		))
+		, PassthroughSupport.room_mesh)
 
 		# Meta's Space Setup, opened from here (RealRoom.request_room_setup): the
 		# room is read again when the player comes back. Works from the
 		# passthrough room; anywhere else the menu says where to go.
-		var scan_row := HBoxContainer.new()
-		scan_row.add_theme_constant_override("separation", 10)
-		scan_row.custom_minimum_size = Vector2(0, 68)
-		vbox.add_child(scan_row)
-		_support_row(scan_row, PassthroughSupport.room_data)
-
-		var scan_lbl := Label.new()
-		scan_lbl.text = "Room Scan"
-		scan_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-		scan_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-		scan_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		scan_row.add_child(scan_lbl)
+		var scan_row := _option_row(vbox, "Room Scan", 68, "", PassthroughSupport.room_data)
 
 		var room_btn := Button.new()
 		room_btn.text = "Set Up Room"
@@ -653,25 +593,12 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		# Whether the real room hides what is behind it (RealRoom's occlusion,
 		# from Meta's depth). Inert where there is no depth, or with room data
 		# off, for Move's reason.
-		var occ_row := HBoxContainer.new()
-		occ_row.add_theme_constant_override("separation", 10)
-		occ_row.custom_minimum_size = Vector2(0, 68)
-		vbox.add_child(occ_row)
-		_support_row(occ_row, PassthroughSupport.depth)
-
-		var occ_lbl := Label.new()
-		occ_lbl.text = "Real Objects Hide Virtual"
-		occ_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-		occ_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-		occ_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		occ_row.add_child(occ_lbl)
-
-		occ_row.add_child(VRToggle.create(AppPrefs.passthrough_occlusion,
+		_toggle_row(vbox, "Real Objects Hide Virtual", AppPrefs.passthrough_occlusion,
 			func(on: bool) -> void:
 				AppPrefs.passthrough_occlusion = on
 				AppPrefs.save_prefs()
 				passthrough_occlusion_changed.emit(on)
-		))
+		, PassthroughSupport.depth)
 
 		# How a core's camera subviewport (the Game Boy Camera's lens) finds the
 		# real room in passthrough (GbCameraEye.uses_depth).
@@ -691,24 +618,11 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		vbox.add_child(cam_hint)
 		_support_row(cam_hint, PassthroughSupport.camera)
 
-		var fpt_row := HBoxContainer.new()
-		fpt_row.add_theme_constant_override("separation", 10)
-		fpt_row.custom_minimum_size = Vector2(0, 68)
-		vbox.add_child(fpt_row)
-		_support_row(fpt_row, PassthroughSupport.passthrough)
-
-		var fpt_lbl := Label.new()
-		fpt_lbl.text = "Passthrough in Focus Mode"
-		fpt_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-		fpt_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-		fpt_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		fpt_row.add_child(fpt_lbl)
-
-		fpt_row.add_child(VRToggle.create(AppPrefs.focus_passthrough,
+		_toggle_row(vbox, "Passthrough in Focus Mode", AppPrefs.focus_passthrough,
 			func(on: bool) -> void:
 				AppPrefs.focus_passthrough = on
 				AppPrefs.save_prefs()
-		))
+		, PassthroughSupport.passthrough)
 
 		var fpt_hint := MenuStyle.hint("Point your right hand at a TV or handheld and press the "
 			+ "right stick to play it on a floating screen with the room hidden. On, your real "
@@ -719,48 +633,24 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 		vbox.add_child(HSeparator.new())
 
 	# Light Gun crosshair option
-	var xhair_row := HBoxContainer.new()
-	xhair_row.add_theme_constant_override("separation", 10)
-	xhair_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(xhair_row)
-
-	var xhair_lbl := Label.new()
-	xhair_lbl.text = "Light Gun Crosshair"
-	xhair_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	xhair_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	xhair_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	xhair_row.add_child(xhair_lbl)
-
-	xhair_row.add_child(VRToggle.create(AppPrefs.aim_crosshair, func(on: bool) -> void:
+	_toggle_row(vbox, "Light Gun Crosshair", AppPrefs.aim_crosshair, func(on: bool) -> void:
 		AppPrefs.aim_crosshair = on
 		AppPrefs.save_prefs()
 		aim_crosshair_changed.emit(on)
-	))
+	)
 
 	vbox.add_child(HSeparator.new())
 
 	# Hint popups over held devices (drop combo, Scroll Lock capture)
-	var hints_row := HBoxContainer.new()
-	hints_row.add_theme_constant_override("separation", 10)
-	hints_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(hints_row)
-
-	var hints_lbl := Label.new()
-	hints_lbl.text = "Held Device Hints"
-	hints_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	hints_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	hints_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hints_row.add_child(hints_lbl)
-
 	# No signal: HeldHint reads AppPrefs when the object is picked up, so nothing
 	# has to be told. Clearing the counts is what makes re-enabling visible —
 	# without it anyone already past HeldHint.LEARNED_AFTER sees no change.
-	hints_row.add_child(VRToggle.create(AppPrefs.show_hints, func(on: bool) -> void:
+	_toggle_row(vbox, "Held Device Hints", AppPrefs.show_hints, func(on: bool) -> void:
 		AppPrefs.show_hints = on
 		if on:
 			AppPrefs.hint_uses.clear()
 		AppPrefs.save_prefs()
-	))
+	)
 
 	vbox.add_child(HSeparator.new())
 
@@ -799,42 +689,18 @@ func _build_hud_options(vbox: VBoxContainer) -> void:
 
 	# Authored wrap-around hands on virtual peripherals (default off). This is
 	# intentionally independent of the native Capsense display mode above.
-	var hands_row := HBoxContainer.new()
-	hands_row.add_theme_constant_override("separation", 10)
-	hands_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(hands_row)
-
-	var hands_lbl := Label.new()
-	hands_lbl.text = "Hands on Game Controllers"
-	hands_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	hands_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	hands_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	hands_row.add_child(hands_lbl)
-
-	hands_row.add_child(VRToggle.create(AppPrefs.controller_hands, func(on: bool) -> void:
+	_toggle_row(vbox, "Hands on Game Controllers", AppPrefs.controller_hands, func(on: bool) -> void:
 		AppPrefs.controller_hands = on
 		AppPrefs.save_prefs()
 		controller_hands_changed.emit(on)
-	))
+	)
 
 	# Pressing a pad's or handheld's own buttons with a fingertip (default on).
 	# No signal: ControlPoke reads AppPrefs every frame.
-	var poke_row := HBoxContainer.new()
-	poke_row.add_theme_constant_override("separation", 10)
-	poke_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(poke_row)
-
-	var poke_lbl := Label.new()
-	poke_lbl.text = "Press Controller Buttons by Touch"
-	poke_lbl.add_theme_font_size_override("font_size", 22)
-	poke_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	poke_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	poke_row.add_child(poke_lbl)
-
-	poke_row.add_child(VRToggle.create(AppPrefs.poke_controls, func(on: bool) -> void:
+	_toggle_row(vbox, "Press Controller Buttons by Touch", AppPrefs.poke_controls, func(on: bool) -> void:
 		AppPrefs.poke_controls = on
 		AppPrefs.save_prefs()
-	))
+	)
 
 ## The DEBUG sub-tab: which build this is, the overlays that draw over the room,
 ## and the graphics API a core is offered.
@@ -891,21 +757,9 @@ func _build_debug_options(vbox: VBoxContainer) -> void:
 
 	# Collision shapes. Deliberately NOT persisted: it is a look at the room, not
 	# a setting, and one left on across a restart reads as a rendering bug.
-	var col_row := HBoxContainer.new()
-	col_row.add_theme_constant_override("separation", 10)
-	col_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(col_row)
-
-	var col_lbl := Label.new()
-	col_lbl.text = "Collision Shapes"
-	col_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	col_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	col_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	col_row.add_child(col_lbl)
-
-	col_row.add_child(VRToggle.create(CollisionDebug.is_enabled(), func(on: bool) -> void:
+	_toggle_row(vbox, "Collision Shapes", CollisionDebug.is_enabled(), func(on: bool) -> void:
 		CollisionDebug.set_enabled(self, on)
-	))
+	)
 
 	# What the passthrough room made of the real one (RealRoomSurface): furniture
 	# blue, floor and walls green, the scanned mesh orange, faint where nothing
@@ -1198,7 +1052,7 @@ func _refresh_storage_usage() -> void:
 	var parts: Array[String] = []
 	if romm_cache != null and romm_config != null:
 		parts.append("%s of downloaded games cached, %.0f GB budget"
-			% [MenuStyle.human_bytes(romm_cache.total_bytes()), romm_config.cache_budget_gb])
+			% [ByteSize.human(romm_cache.total_bytes()), romm_config.cache_budget_gb])
 	var cores := 0
 	var dir := DirAccess.open(CoreDownloadManager.default_cores_dir())
 	if dir != null:
@@ -1485,25 +1339,11 @@ func _on_mains_for_region_names(_region: String) -> void:
 func _build_system_filter_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(MenuStyle.spacer(10))
 
-	var sf_row := HBoxContainer.new()
-	sf_row.add_theme_constant_override("separation", 10)
-	sf_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(sf_row)
-
-	var sf_col := VBoxContainer.new()
-	sf_col.add_theme_constant_override("separation", 0)
-	sf_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sf_row.add_child(sf_col)
-
-	sf_col.add_child(MenuStyle.label("Libretro System Filter", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE))
-
-	sf_col.add_child(MenuStyle.label("Hide %d non-console systems" % SystemFilter.hidden_ids().size(), 16, MenuStyle.COLOR_LICENSE))
-
-	sf_row.add_child(VRToggle.create(AppPrefs.system_filter, func(on: bool) -> void:
+	_toggle_row(vbox, "Libretro System Filter", AppPrefs.system_filter, func(on: bool) -> void:
 		AppPrefs.system_filter = on
 		AppPrefs.save_prefs()
 		system_filter_changed.emit()
-	))
+	, Callable(), 68, "Hide %d non-console systems" % SystemFilter.hidden_ids().size())
 
 	_build_bios_boot_override(vbox)
 
@@ -1515,44 +1355,17 @@ func _build_system_filter_options(vbox: VBoxContainer) -> void:
 func _build_bios_boot_override(vbox: VBoxContainer) -> void:
 	vbox.add_child(MenuStyle.spacer(10))
 
-	var bb_row := HBoxContainer.new()
-	bb_row.add_theme_constant_override("separation", 10)
-	bb_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(bb_row)
-
-	var bb_col := VBoxContainer.new()
-	bb_col.add_theme_constant_override("separation", 0)
-	bb_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	bb_row.add_child(bb_col)
-
-	bb_col.add_child(MenuStyle.label("Override BIOS Boot Options", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE))
-	bb_col.add_child(MenuStyle.label(
-		"Let the core options that play a machine's boot screen be changed",
-		16, MenuStyle.COLOR_LICENSE))
-
-	bb_row.add_child(VRToggle.create(AppPrefs.bios_boot_override, func(on: bool) -> void:
+	_toggle_row(vbox, "Override BIOS Boot Options", AppPrefs.bios_boot_override, func(on: bool) -> void:
 		AppPrefs.bios_boot_override = on
 		AppPrefs.save_prefs()
-	))
+	, Callable(), 68, "Let the core options that play a machine's boot screen be changed")
 
 
 ## Android / Quest only — the tab is not built on desktop at all.
 func _build_file_server_options(vbox: VBoxContainer) -> void:
 	vbox.add_child(MenuStyle.spacer(10))
 
-	var fs_row := HBoxContainer.new()
-	fs_row.add_theme_constant_override("separation", 10)
-	fs_row.custom_minimum_size = Vector2(0, 68)
-	vbox.add_child(fs_row)
-
-	var fs_lbl := Label.new()
-	fs_lbl.text = "Web File Manager"
-	fs_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	fs_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	fs_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	fs_row.add_child(fs_lbl)
-
-	var fs_toggle := VRToggle.create(scraper_config.web_server_enabled, func(on: bool) -> void:
+	_toggle_row(vbox, "Web File Manager", scraper_config.web_server_enabled, func(on: bool) -> void:
 		if on:
 			web_server.start()
 		else:
@@ -1561,7 +1374,6 @@ func _build_file_server_options(vbox: VBoxContainer) -> void:
 		scraper_config.save_config()
 		_server_address_label.visible = on
 	)
-	fs_row.add_child(fs_toggle)
 
 	_server_address_label = Label.new()
 	_server_address_label.add_theme_font_size_override("font_size", 16)
@@ -1603,31 +1415,17 @@ func _build_scraper_options(vbox: VBoxContainer) -> void:
 
 	# Off by default: a queued batch would otherwise stop at a popup after
 	# every game. On, each result is shown before anything is written.
-	var approve_row := HBoxContainer.new()
-	approve_row.add_theme_constant_override("separation", 10)
-	approve_row.custom_minimum_size = Vector2(0, 56)
-	vbox.add_child(approve_row)
-	var approve_lbl := MenuStyle.label("Approve scrapes before saving", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE)
-	approve_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	approve_row.add_child(approve_lbl)
-	approve_row.add_child(VRToggle.create(scraper_config.approve_scrapes, func(on: bool) -> void:
+	_toggle_row(vbox, "Approve scrapes before saving", scraper_config.approve_scrapes, func(on: bool) -> void:
 		scraper_config.approve_scrapes = on
 		scraper_config.save_config()
-	))
+	, Callable(), 56)
 
 	# Scrape games that arrive without being browsed to (RomM downloads,
 	# netplay matches). Works signed out too, on the anonymous allowance.
-	var auto_row := HBoxContainer.new()
-	auto_row.add_theme_constant_override("separation", 10)
-	auto_row.custom_minimum_size = Vector2(0, 56)
-	vbox.add_child(auto_row)
-	var auto_lbl := MenuStyle.label("Auto-scrape downloaded games", MenuStyle.MENU_NAME_SIZE, MenuStyle.COLOR_TITLE)
-	auto_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	auto_row.add_child(auto_lbl)
-	auto_row.add_child(VRToggle.create(scraper_config.auto_scrape, func(on: bool) -> void:
+	_toggle_row(vbox, "Auto-scrape downloaded games", scraper_config.auto_scrape, func(on: bool) -> void:
 		scraper_config.auto_scrape = on
 		scraper_config.save_config()
-	))
+	, Callable(), 56)
 
 	# Region and language priorities: tick any, order with the arrows. First
 	# match wins in ScreenscraperClient, so the order is the setting.
@@ -2149,7 +1947,7 @@ func update_romm_status_label() -> void:
 		parts.append("%d games across %d platforms" % [total, _platforms().size()])
 	if romm_cache != null:
 		parts.append("%s cached / %.0f GB budget"
-			% [MenuStyle.human_bytes(romm_cache.total_bytes()), romm_config.cache_budget_gb])
+			% [ByteSize.human(romm_cache.total_bytes()), romm_config.cache_budget_gb])
 
 	var text := " · ".join(PackedStringArray(parts)) if not parts.is_empty() \
 		else "Not connected."
@@ -2234,22 +2032,10 @@ func _build_retroachievements_options(vbox: VBoxContainer) -> void:
 			"The libretro extension did not load, so achievements are unavailable."))
 		return
 
-	var enable_row := HBoxContainer.new()
-	enable_row.custom_minimum_size = Vector2(0, 68)
-	enable_row.add_theme_constant_override("separation", 10)
-	vbox.add_child(enable_row)
-
-	var enable_lbl := Label.new()
-	enable_lbl.text = "Enable RetroAchievements"
-	enable_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	enable_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	enable_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	enable_row.add_child(enable_lbl)
-
-	enable_row.add_child(VRToggle.create(RA.config.enabled, func(on: bool) -> void:
+	_toggle_row(vbox, "Enable RetroAchievements", RA.config.enabled, func(on: bool) -> void:
 		RA.set_enabled(on)
 		_update_ra_status()
-	))
+	)
 
 	# VRDropdown, never OptionButton — every Viewport2Din3D click fires twice.
 	_ra_mode_drop = VRDropdown.create("Sign in with",
@@ -2326,35 +2112,15 @@ func _build_retroachievements_options(vbox: VBoxContainer) -> void:
 
 	vbox.add_child(HSeparator.new())
 
-	var notify_row := HBoxContainer.new()
-	notify_row.custom_minimum_size = Vector2(0, 68)
-	notify_row.add_theme_constant_override("separation", 10)
-	vbox.add_child(notify_row)
-	var notify_lbl := Label.new()
-	notify_lbl.text = "Show unlock notifications"
-	notify_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	notify_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	notify_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	notify_row.add_child(notify_lbl)
-	notify_row.add_child(VRToggle.create(RA.config.show_notifications, func(on: bool) -> void:
+	_toggle_row(vbox, "Show unlock notifications", RA.config.show_notifications, func(on: bool) -> void:
 		RA.config.show_notifications = on
 		RA.config.save_config()
-	))
+	)
 
-	var presence_row := HBoxContainer.new()
-	presence_row.custom_minimum_size = Vector2(0, 68)
-	presence_row.add_theme_constant_override("separation", 10)
-	vbox.add_child(presence_row)
-	var presence_lbl := Label.new()
-	presence_lbl.text = "Rich presence"
-	presence_lbl.add_theme_font_size_override("font_size", MenuStyle.MENU_NAME_SIZE)
-	presence_lbl.add_theme_color_override("font_color", MenuStyle.COLOR_TITLE)
-	presence_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	presence_row.add_child(presence_lbl)
-	presence_row.add_child(VRToggle.create(RA.config.rich_presence, func(on: bool) -> void:
+	_toggle_row(vbox, "Rich presence", RA.config.rich_presence, func(on: bool) -> void:
 		RA.config.rich_presence = on
 		RA.config.save_config()
-	))
+	)
 
 	# No hardcore row. rc_client runs with hardcore off and there is nothing to
 	# expose: RetroAchievements only grants hardcore credit to clients it has

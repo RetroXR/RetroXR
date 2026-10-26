@@ -24,7 +24,7 @@
 ## 3DO.nvram -- is moved into legacy/ rather than written over, and a new console's
 ## NVRAM starts from the saves it holds.
 class_name ThreeDoStorage
-extends Node
+extends ConsoleStorage
 
 const CORE_PREFIX := "opera"
 const MEMORY_FAMILY := "3do_nvram"
@@ -44,16 +44,11 @@ const LEGACY_DIR := "legacy"
 const DRAIN_AFTER_OFF_SEC := 12.0
 const DRAIN_POLL_SEC := 2.0
 
-var _host: RetroSystem = null
 ## The file staged this run: {file, image, card_id, bytes}. Empty when none is.
 var _staged: Dictionary = {}
 var _save_dir := ""
 var _timer: Timer = null
 var _drain_until := 0.0
-
-
-func setup(host: RetroSystem) -> void:
-	_host = host
 
 
 func _exit_tree() -> void:
@@ -87,13 +82,14 @@ func forced_options_for(core: String) -> Dictionary:
 func busy_elsewhere(core: String) -> String:
 	if not _keeps_memory(core):
 		return ""
-	for sys: Node in _host.get_tree().get_nodes_in_group("retro_system"):
-		if sys == _host or not sys.has_method("three_do_storage"):
+	for node: Node in _host.get_tree().get_nodes_in_group(ExpansionPort.GROUP_SYSTEM):
+		var sys := node as RetroSystem
+		if sys == null or sys == _host:
 			continue
-		var other: ThreeDoStorage = sys.call("three_do_storage")
+		var other := sys.three_do_storage()
 		if other == null or not other.is_holding_files():
 			continue
-		if bool(sys.get("is_powered_on")):
+		if sys.is_powered_on:
 			return "Another 3DO is running. Power it off first."
 		return "Another 3DO is still saving. Try again in a few seconds."
 	return ""
@@ -293,3 +289,22 @@ static func _images_in(dir: String, extensions: Array) -> Array[Dictionary]:
 ## of a new one. AtomicFile logs the failure with the path.
 static func _write(path: String, data: PackedByteArray) -> bool:
 	return AtomicFile.write_bytes(path, data, "ThreeDoStorage")
+
+
+# --- ConsoleStorage hooks -------------------------------------------------------
+
+func busy_title() -> String:
+	return "3DO in use"
+
+
+## NOT staged in a session (stages_in_session stays false): Opera carries the
+## NVRAM in its savestate, so a session's state transfer hands every peer the
+## HOST's, and draining it back would write the host's saves over this
+## console's. (Opera is not vetted for netplay anyway.)
+func stage_for_run(dir: String, core: String) -> void:
+	stage_before_start(dir, core)
+
+
+## Opera writes the 3DO's NVRAM as it unloads.
+func after_stop(_dir: String, _core: String) -> void:
+	drain_after_stop()

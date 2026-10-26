@@ -3,7 +3,8 @@
 ##
 ## A console's covers over its own unit sockets are RetroSystem's
 ## (RetroSystemModel.build_port_cover_slot); this is the same PortCover for
-## things that are not consoles, or for covers that close no socket. A mod builds
+## things that are not consoles, or for covers that close no socket. All three
+## kinds of cover slot, the N64's lid among them, are made by make_zone(). A mod builds
 ## a slot where the shell has the cover, and the cover is then a thing of its own:
 ## taken off, put down, carried away, put back. A mod's PortCover hook dresses it
 ## in the shell's own part, as xenu.gamecube dresses the Serial Port 1 cover.
@@ -155,6 +156,22 @@ static func host_of(node: Node) -> Node:
 	return n
 
 
+## A cover slot's snap zone, as every one in the room is made -- the console's
+## over its own unit sockets (RetroSystemModel.build_port_cover_slot), the N64's
+## Expansion Pak lid (RetroSystemModelNintendo64) and an object's (build()): a
+## snap zone named `zone_name` under `parent`, taking only what is in group
+## `require`, from `grab_distance` away. The caller places it and gates it; what
+## differs between the three is who seeds the cover and how a save records it.
+static func make_zone(zone_name: String, require: String, grab_distance: float,
+		parent: Node3D) -> XRToolsSnapZone:
+	var zone := _ZONE_SCENE.instantiate() as XRToolsSnapZone
+	zone.name = zone_name
+	zone.snap_require = require
+	zone.grab_distance = grab_distance
+	parent.add_child(zone)
+	return zone
+
+
 ## Build the slot for `socket_id` under `parent`, at `seat` in parent's frame (the
 ## cover's middle, its outer face +Y), for a cover of box `size`. Built once: a
 ## second call returns the first slot.
@@ -162,12 +179,9 @@ func build(socket_id: String, parent: Node3D, seat: Transform3D, size: Vector3) 
 	var zone := slot(socket_id)
 	if zone != null:
 		return zone
-	zone = _ZONE_SCENE.instantiate() as XRToolsSnapZone
-	zone.name = socket_id.to_pascal_case() + "CoverSlot"
-	zone.snap_require = PortCover.group_for(socket_id)
-	zone.grab_distance = _GRAB_DISTANCE
+	zone = make_zone(socket_id.to_pascal_case() + "CoverSlot", PortCover.group_for(socket_id),
+		_GRAB_DISTANCE, parent)
 	zone.add_to_group(SLOT_GROUP)
-	parent.add_child(zone)
 	zone.transform = seat
 	_slots[socket_id] = zone
 	_sizes[socket_id] = size

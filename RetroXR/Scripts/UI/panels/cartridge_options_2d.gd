@@ -700,7 +700,7 @@ func populate_states(rows: Array, total: int, backup_states: Dictionary = {},
 		COLOR_MUTED if _state_capture_btn.disabled else COLOR_TITLE)
 
 	_state_total_lbl.text = "%d state%s  ·  %s" % [rows.size(),
-		"" if rows.size() == 1 else "s", MenuStyle.human_bytes(total)]
+		"" if rows.size() == 1 else "s", ByteSize.human(total)]
 	_state_notice_lbl.text = notice
 	_state_notice_lbl.visible = not notice.is_empty()
 
@@ -752,7 +752,7 @@ func _add_state_row(row: Dictionary, backup_state: String, romm_available: bool)
 		"delete":
 			detail = "Press the bin again to delete this state"
 		_:
-			detail = "%s  ·  %s" % [MenuStyle.human_bytes(int(row.get("bytes", 0))),
+			detail = "%s  ·  %s" % [ByteSize.human(int(row.get("bytes", 0))),
 				_backup_word(backup_state, romm_available)]
 
 	# The plate is the load target, so its content sits inside a flat button
@@ -960,7 +960,7 @@ func _add_server_state_row(e: Dictionary) -> void:
 	# fixed width lost its last digit ("21:14:0"), and two halves of one list
 	# reading in two different date formats is worse than either.
 	lbl.text = "    %s    %s" % [_when(_unix_of(str(e.get("updated_at", "")))),
-		MenuStyle.human_bytes(int(e.get("size", 0)))]
+		ByteSize.human(int(e.get("size", 0)))]
 	lbl.pressed.connect(func(): server_state_requested.emit(state_id))
 	row.add_child(lbl)
 

@@ -236,7 +236,7 @@ func _push_to(source: Node3D) -> void:
 	if not is_instance_valid(source):
 		return
 	if source.has_method("set_audio_channel_mode"):
-		source.set_audio_channel_mode(0)
+		source.set_audio_channel_mode(SpatialAudioEmitter.ChannelMode.STEREO)
 	if source.has_method("set_surround_mode"):
 		source.set_surround_mode(decode_mode)
 	if source.has_method("set_audio_out_mode"):

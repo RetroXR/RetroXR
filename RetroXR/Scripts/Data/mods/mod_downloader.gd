@@ -119,7 +119,7 @@ static func space_problem(size: int, free: int, have: int = 0) -> String:
 	if free >= need:
 		return ""
 	return "Not enough space: needs %s, %s free" % [
-		MenuStyle.human_bytes(need), MenuStyle.human_bytes(free)]
+		ByteSize.human(need), ByteSize.human(free)]
 
 
 ## The staging name is the key with nothing a path could use, so a retry of the

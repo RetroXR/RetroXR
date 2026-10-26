@@ -151,8 +151,8 @@ func _ready() -> void:
 
 
 func _find_vr_nodes() -> void:
-	_locomotion_manager = get_tree().root.find_child("LocomotionManager", true, false) as LocomotionManager
-	_spawn_menu_ctrl = get_tree().root.find_child("SpawnMenuController", true, false)
+	_locomotion_manager = SceneServices.locomotion(self) as LocomotionManager
+	_spawn_menu_ctrl = SceneServices.spawn_menu(self)
 	for node: Node in get_tree().root.find_children("*", "XRController3D", true, false):
 		var ctrl := node as XRController3D
 		if ctrl == null:
@@ -526,11 +526,12 @@ func _layout_for_target() -> Array:
 ## Both of the set's tri-state keys print the mode they are IN rather than a
 ## label, the same way its bezel caps do.
 func _tv_audio_glyph(tv: RetroTV) -> String:
-	return "audio_stereo" if tv.audio_mode == 0 else "audio_mono"
+	return "audio_stereo" if tv.audio_mode == SpatialAudioEmitter.ChannelMode.STEREO \
+			else "audio_mono"
 
 
 func _tv_stereo_glyph(tv: RetroTV) -> String:
-	return "stereo" if tv.stereo_mode == 0 else "eye"
+	return "stereo" if tv.stereo_mode == RetroTV.StereoMode.BOTH else "eye"
 
 
 ## The shape the set is showing NOW, not the one the key would switch to — same
@@ -544,7 +545,9 @@ func _tv_aspect_text(tv: RetroTV) -> String:
 	return "16:9" if tv.widescreen else "4:3"
 
 
-## -1 leans left, +1 right, 0 centred — which channel, or which eye.
+## -1 leans left, +1 right, 0 centred — which channel, or which eye. Takes either
+## switch: SpatialAudioEmitter.ChannelMode and RetroTV.StereoMode both put the left
+## at 1 and the right at 2.
 func _tv_side(mode: int) -> float:
 	if mode == 1:
 		return -1.0
@@ -1023,11 +1026,11 @@ func _activate(id: String) -> void:
 			"vol_up": tv.remote_volume_up()
 			"vol_down": tv.remote_volume_down()
 			"mute": tv.remote_mute_toggle()
-			"audio_mode": tv.set_audio_mode((tv.audio_mode + 1) % 3)
+			"audio_mode": tv.set_audio_mode(tv.next_audio_mode())
 			# Not a modulo here: the set skips a position that would sound identical
 			# to the one it is on, which this file cannot know about.
 			"audio_out": tv.remote_audio_out_cycle()
-			"stereo3d": tv.set_stereo_mode((tv.stereo_mode + 1) % 3)
+			"stereo3d": tv.set_stereo_mode(tv.next_stereo_mode())
 			"aspect": tv.toggle_aspect()
 			"source": tv.remote_source_cycle()
 			"ch_up": tv.remote_channel_up()

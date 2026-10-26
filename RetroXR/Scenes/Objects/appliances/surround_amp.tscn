@@ -1,6 +1,6 @@
 [gd_scene load_steps=26 format=3]
 
-[ext_resource type="Script" path="res://Scripts/Objects/media/surround_amp.gd" id="1_amp"]
+[ext_resource type="Script" path="res://Scripts/Objects/audio/surround_amp.gd" id="1_amp"]
 [ext_resource type="Script" path="res://Scripts/Objects/highlights/pickable_highlight.gd" id="2_pickhigh"]
 [ext_resource type="PackedScene" path="res://Scenes/Objects/cables/rca_port.tscn" id="3_rcaport"]
 [ext_resource type="Script" path="res://Scripts/Objects/widgets/vr_button.gd" id="4_vrbutton"]

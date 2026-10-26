@@ -272,7 +272,7 @@ func _update_pager() -> void:
 func _tile(pack: Dictionary) -> Button:
 	var sub := str(pack["author"])
 	if int(pack["file_size"]) > 0:
-		sub += ("  ·  " if not sub.is_empty() else "") + MenuStyle.human_bytes(int(pack["file_size"]))
+		sub += ("  ·  " if not sub.is_empty() else "") + ByteSize.human(int(pack["file_size"]))
 	# The members are not known until the pack is opened, so the tile can only
 	# say whether anything on this device came from it.
 	var here := not installed_from(int(pack["id"])).is_empty()
@@ -379,7 +379,7 @@ func _fill_detail() -> void:
 		if _members_total > _members.size():
 			lines.append("first %d of %d shown" % [_members.size(), _members_total])
 	if int(pack["file_size"]) > 0:
-		lines.append(MenuStyle.human_bytes(int(pack["file_size"])))
+		lines.append(ByteSize.human(int(pack["file_size"])))
 	if int(pack["downloads"]) > 0:
 		lines.append("%d downloads" % int(pack["downloads"]))
 	if not lines.is_empty():

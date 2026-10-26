@@ -274,11 +274,7 @@ func restore_vmu(device: Node3D, slot: int) -> void:
 ## something that can say where it hears from, and a pad that always answered
 ## would shadow a device that really is one -- an N64 VRU in a later socket.
 func seated_microphone() -> Node3D:
-	for slot in _vmu_port.slot_count():
-		var device := _vmu_port.get_device(slot)
-		if device != null and device.has_method("microphone_position"):
-			return device
-	return null
+	return _vmu_port.seated_microphone()
 
 
 func _find_vr_nodes() -> void:
@@ -464,7 +460,7 @@ func _on_grabbed_signal(_pickable: Node3D, by: Node3D) -> void:
 		_holding_ctrl = ctrl
 
 	VrHold.set_model_visible(ctrl, false)
-	_update_pointer_block(ctrl, true)
+	_pointer_block.set_block(ctrl, true)
 	_update_locomotion_block()
 	_apply_rumble()
 	_refresh_grip()
@@ -482,7 +478,7 @@ func _on_released_signal(_pickable: Node3D, by: Node3D) -> void:
 	if _allow_drop:
 		# Intentional drop — clean up this hand.
 		VrHold.set_model_visible(ctrl, true)
-		_update_pointer_block(ctrl, false)
+		_pointer_block.set_block(ctrl, false)
 		if ctrl == _holding_ctrl:
 			if _grab_driver and _grab_driver.primary:
 				_holding_ctrl = _grab_driver.primary.controller
@@ -522,7 +518,7 @@ func _on_dropped_signal(_pickable: Node3D) -> void:
 			_hint.on_dropped()
 		_allow_drop = false
 		VrHold.set_model_visible(_holding_ctrl, true)
-		_update_pointer_block(_holding_ctrl, false)
+		_pointer_block.set_block(_holding_ctrl, false)
 		_saved_by = null
 		_holding_ctrl = null
 		_desktop_held = false
@@ -537,7 +533,7 @@ func _rehold() -> void:
 		return
 	if not is_instance_valid(_saved_by):
 		VrHold.set_model_visible(_holding_ctrl, true)
-		_update_pointer_block(_holding_ctrl, false)
+		_pointer_block.set_block(_holding_ctrl, false)
 		_saved_by = null
 		_holding_ctrl = null
 		_update_locomotion_block()
@@ -569,11 +565,6 @@ func _update_locomotion_block() -> void:
 		_spawn_menu_ctrl.set("disabled", left_held)
 
 
-## Delegates to VrPointerBlock, which owns the shared refcount.
-func _update_pointer_block(ctrl: XRController3D, should_block: bool) -> void:
-	_pointer_block.set_block(ctrl, should_block)
-
-
 ## The combo test itself lives on HeldHint so the check and the row advertising
 ## it cannot disagree. Counting the use here rather than in the three branches
 ## below is deliberate: every one of them drops, and a predicate they all pass
@@ -591,11 +582,11 @@ func _combo_debug(ctrl: XRController3D) -> void:
 
 func _drop_all() -> void:
 	VrHold.set_model_visible(_holding_ctrl, true)
-	_update_pointer_block(_holding_ctrl, false)
+	_pointer_block.set_block(_holding_ctrl, false)
 	var secondary_ctrl := _get_secondary_ctrl()
 	if is_instance_valid(secondary_ctrl):
 		VrHold.set_model_visible(secondary_ctrl, true)
-		_update_pointer_block(secondary_ctrl, false)
+		_pointer_block.set_block(secondary_ctrl, false)
 	_allow_drop = true
 	_holding_ctrl = null
 	_update_locomotion_block()
@@ -798,7 +789,7 @@ func _process(_delta: float) -> void:
 	if _is_combo_pressed(secondary_ctrl):
 		_allow_drop = true
 		VrHold.set_model_visible(secondary_ctrl, true)
-		_update_pointer_block(secondary_ctrl, false)
+		_pointer_block.set_block(secondary_ctrl, false)
 		if _grab_driver and _grab_driver.secondary:
 			_grab_driver.secondary.pickup.drop_object()
 		_allow_drop = false
@@ -809,7 +800,7 @@ func _process(_delta: float) -> void:
 			# Drop primary only; XRTools promotes secondary to primary.
 			_allow_drop = true
 			VrHold.set_model_visible(_holding_ctrl, true)
-			_update_pointer_block(_holding_ctrl, false)
+			_pointer_block.set_block(_holding_ctrl, false)
 			if is_instance_valid(_saved_by):
 				_saved_by.call("drop_object")
 			# _on_released_signal already updated _holding_ctrl to promoted hand.
@@ -854,11 +845,11 @@ func _process(_delta: float) -> void:
 
 	if _lt_left: alx = int(lstick.x * ANALOG_SCALE); aly = int(-lstick.y * ANALOG_SCALE)
 	elif _lt_right: arx = int(lstick.x * ANALOG_SCALE); ary = int(-lstick.y * ANALOG_SCALE)
-	if _lt_dpad: btn |= _threshold_to_dpad(lstick)
+	if _lt_dpad: btn |= PadInputShared.threshold_to_dpad(lstick)
 
 	if _rt_right: arx = int(rstick.x * ANALOG_SCALE); ary = int(-rstick.y * ANALOG_SCALE)
 	elif _rt_left: alx = int(rstick.x * ANALOG_SCALE); aly = int(-rstick.y * ANALOG_SCALE)
-	if _rt_dpad: btn |= _threshold_to_dpad(rstick)
+	if _rt_dpad: btn |= PadInputShared.threshold_to_dpad(rstick)
 
 	_send_joypad(btn, alx, aly, arx, ary)
 
@@ -952,7 +943,3 @@ func _send_joypad(btn: int, alx: int, aly: int, arx: int, ary: int) -> void:
 			{"btn": btn, "alx": alx, "aly": aly, "arx": arx, "ary": ary}):
 		return
 	_connected_system.get_libretro_node().SetJoypadState(_port_index, btn, alx, aly, arx, ary)
-
-
-static func _threshold_to_dpad(stick: Vector2) -> int:
-	return PadInputShared.threshold_to_dpad(stick)

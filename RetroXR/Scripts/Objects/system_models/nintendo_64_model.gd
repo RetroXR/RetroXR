@@ -237,13 +237,11 @@ func _build_cover_slot() -> void:
 	var seat := get_node_or_null("ExpansionBay/CoverSeat") as Node3D
 	if seat == null:
 		return
-	var zone := SNAP_ZONE_SCENE.instantiate() as XRToolsSnapZone
-	zone.name = "ExpansionCoverSlot"
-	zone.snap_require = ExpansionCover.GROUP
 	# Close: a lid is pushed back onto its own recess, not lowered onto a
-	# console from across the table the way a whole expansion unit is.
-	zone.grab_distance = 0.06
-	add_child(zone)
+	# console from across the table the way a whole expansion unit is. The lid
+	# stays an ExpansionCover, saved as its own entry and dressed by its own
+	# hook, so only the slot is shared (CoverSlots.make_zone).
+	var zone := CoverSlots.make_zone("ExpansionCoverSlot", ExpansionCover.GROUP, 0.06, self)
 	zone.global_transform = seat.global_transform
 	zone.has_picked_up.connect(_on_cover_changed)
 	zone.has_dropped.connect(_apply_cover_gate)

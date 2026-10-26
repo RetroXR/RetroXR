@@ -55,8 +55,8 @@ func setup(tv: RetroTV) -> void:
 
 ## Cycle the speaker switch: stereo -> the left channel from both speakers -> the
 ## right from both. Called by the front-panel key and by the remote.
-func set_mode(mode: int) -> void:
-	_tv.audio_mode = clampi(mode, 0, 2)
+func set_mode(mode: SpatialAudioEmitter.ChannelMode) -> void:
+	_tv.audio_mode = mode
 	apply_channel_mode()
 	update_mode_button()
 	_tv.show_osd_timed(RetroTV.AUDIO_MODE_NAMES[_tv.audio_mode], 2.0)
@@ -65,7 +65,7 @@ func set_mode(mode: int) -> void:
 
 
 func on_mode_toggle() -> void:
-	set_mode((_tv.audio_mode + 1) % 3)
+	set_mode(_tv.next_audio_mode())
 
 
 ## Choose where the sound goes: the set's own pair, a stereo pair outside it, or the
@@ -194,7 +194,7 @@ func apply_audio_out() -> int:
 	_applied_decoder_id = amp.get_instance_id() if amp != null else 0
 	_applied_decode = decode
 	var decoding := 0
-	for system in _tv.panel()._connected_systems:
+	for system in _tv.panel().connected_systems():
 		if not is_instance_valid(system) or not carries_sound(system):
 			continue
 		# The decoder first, so the first block decoded is already the right one.
@@ -272,7 +272,7 @@ func apply_channel_mode() -> void:
 	# Every connected host, not just the one showing: the speaker switch is a
 	# property of the SET, so an input switched to later has to already be routed
 	# the way the switch says rather than reverting to stereo for one press.
-	for system in _tv.panel()._connected_systems:
+	for system in _tv.panel().connected_systems():
 		if is_instance_valid(system) and carries_sound(system) \
 				and system.has_method("set_audio_channel_mode"):
 			system.set_audio_channel_mode(_tv.audio_mode)
@@ -286,17 +286,18 @@ func apply_channel_mode() -> void:
 ## to the channel it is carrying, matching how the 3D key shows its eye.
 func update_mode_button() -> void:
 	match _tv.audio_mode:
-		0:
+		SpatialAudioEmitter.ChannelMode.STEREO:
 			TransportGlyphs.set_glyph(_tv, "AudioModeButton", "audio_stereo",
 				TransportGlyphs.TV_SIZE)
-		1:
+		SpatialAudioEmitter.ChannelMode.MONO_LEFT:
 			TransportGlyphs.set_glyph(_tv, "AudioModeButton", "audio_mono",
 				TransportGlyphs.TV_SIZE, -1.0)
-		2:
+		SpatialAudioEmitter.ChannelMode.MONO_RIGHT:
 			TransportGlyphs.set_glyph(_tv, "AudioModeButton", "audio_mono",
 				TransportGlyphs.TV_SIZE, 1.0)
 	if _tv.audio_mode_btn():
-		_tv.audio_mode_btn().set_color(Color(0.35, 0.55, 0.9) if _tv.audio_mode == 0
+		_tv.audio_mode_btn().set_color(Color(0.35, 0.55, 0.9)
+			if _tv.audio_mode == SpatialAudioEmitter.ChannelMode.STEREO
 			else Color(0.9, 0.65, 0.25))
 
 
@@ -350,8 +351,9 @@ func tuner_volume() -> float:
 func apply_volume() -> void:
 	# Every slot, not just the composite ones: a console reached through an RF switch
 	# is on Source.RF and has to be silenced with the rest when it is not showing.
-	for i in _tv.panel()._connected_systems.size():
-		var system: Node3D = _tv.panel()._connected_systems[i]
+	var systems: Array = _tv.panel().connected_systems()
+	for i in systems.size():
+		var system: Node3D = systems[i]
 		if is_instance_valid(system) and carries_sound(system):
 			system.set_audio_volume(volume_for(i))
 	if _tv.tuner():

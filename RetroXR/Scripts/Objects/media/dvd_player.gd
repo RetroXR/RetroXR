@@ -704,11 +704,11 @@ func disc_seat_yaw() -> float:
 
 ## Seat a disc programmatically (event/save restore) — no ride, bypasses the filter.
 ## `yaw` is the spin it was seated at (disc_seat_yaw) when saved or inserted remotely.
-func restore_disc(disc: Node3D, yaw: float = 0.0) -> void:
+func restore_media(disc: Node3D, yaw: float = 0.0) -> void:
 	_slot.restore(disc, yaw)
 
 
-## The counterpart to restore_disc, for a remote peer taking the disc out.
+## The counterpart to restore_media, for a remote peer taking the disc out.
 ##
 ## Releases the snap zone rather than running the local eject ride: the disc is
 ## already gone on the peer that moved it, and object_sync positions it here.
