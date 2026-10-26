@@ -98,7 +98,12 @@ func _ready() -> void:
 
 
 func _run(things: Array) -> void:
-	for i in 10:
+	# Off a headset the start-up loading screen is a 2D layer over everything, and
+	# with no room loaded nothing takes it down. Its owners register a frame in.
+	await get_tree().process_frame
+	for owner: Variant in LoadingOverlay.owners():
+		LoadingOverlay.end(owner)
+	for i in 40:
 		await get_tree().process_frame
 	_page.refresh()
 	# One tap on the PlayStation's Delete, so the confirm state is in the shot.
