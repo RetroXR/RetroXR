@@ -2383,7 +2383,8 @@ func _m_machine() -> void:
 	_check_eq(state["eject"], "", "a cartridge console has no OPEN row")
 	_check_eq(state["has_reset"], true, "and does have RESET")
 	_check_eq(state["on"], false, "it starts switched off")
-	_check_eq(state["display"], "TV, COMPOSITE 2", "it says which input it is showing on")
+	_check_eq(state["display"], "TV, COMPOSITE 2 (no picture)",
+		"with its picture cord in an audio jack it finds the set by its cords, and says so")
 	_check_eq(state["wiring"], ["VIDEO in L"],
 		"the picture in an audio jack is named, the mono sound in R is not")
 

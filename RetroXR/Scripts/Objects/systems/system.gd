@@ -3289,10 +3289,21 @@ func controls_state() -> Dictionary:
 		"wiring": [],
 	}
 	var tv := connected_tv
-	if tv != null and is_instance_valid(tv):
+	var picture := tv != null and is_instance_valid(tv)
+	# No picture on any set is exactly when a wrong cord matters most — the yellow
+	# plug in an audio jack leaves connected_tv empty — so find the set through the
+	# cords themselves, and say there is no picture rather than nothing at all.
+	if not picture:
+		tv = null
+		for link: Dictionary in AvGraph.links_for(self):
+			var dev := (link["in"] as RcaPort).get_device()
+			if dev is RetroTV and (link["out"] as RcaPort).get_device() == self:
+				tv = dev as RetroTV
+				break
+	if tv != null:
 		var input := tv.input_for_device(self)
-		state["display"] = "TV, %s" % (tv.source_name(input) if input >= 0
-			else "not on an input")
+		state["display"] = "TV, %s%s" % [tv.source_name(input) if input >= 0
+			else "not on an input", "" if picture else " (no picture)"]
 		if input >= 0:
 			state["wiring"] = Array(tv.panel().miswired(input))
 	return state
