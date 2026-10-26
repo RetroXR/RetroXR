@@ -296,7 +296,7 @@ static func panel_extent(panel: Dictionary) -> Vector2:
 	var left := start_x - 0.02
 	var right := start_x + 0.02
 	match str(panel["kind"]):
-		"stick", "twin":
+		"stick", "twin", "rotary":
 			left = minf(left, float(panel["stick_x"]) - 0.045)
 			right = maxf(right, float(panel["stick_x"]) + 0.045)
 			if str(panel["kind"]) == "twin":
@@ -356,7 +356,8 @@ static func body_width(shape_width: float, players: Array) -> float:
 
 
 ## The kind of panel a game's controls want: two sticks, a trackball, a paddle dial, buttons alone, or a stick.
-## A dial or paddle with a pedal is a driving game's wheel (`wheel`, on a stand-up panel).
+## A dial or paddle with a pedal is a driving game's wheel (`wheel`, on a stand-up panel). A dial AND a stick is a rotary joystick (`rotary`: Ikari Warriors,
+## Top Gunner's bootleg, Victory Road, Heavy Barrel, Tron...): the stick leans and its shaft turns.
 static func panel_kind(profile: ArcadeGameProfile) -> String:
 	if profile == null or not profile.known:
 		return "stick"
@@ -368,6 +369,10 @@ static func panel_kind(profile: ArcadeGameProfile) -> String:
 	if steering and (profile.has_kind(ArcadeGameProfile.KIND_PEDAL) or profile.steering_dial()):
 		return "wheel"
 	if steering:
+		# A spinner beside a stick (a dial, never a paddle: a paddle with a joystick is a driving game's wheel and gear lever) is a stick that twists.
+		if profile.has_kind(ArcadeGameProfile.KIND_DIAL) and not profile.has_kind(ArcadeGameProfile.KIND_PADDLE) \
+				and (profile.has_kind(ArcadeGameProfile.KIND_JOY) or profile.has_kind(ArcadeGameProfile.KIND_STICK)):
+			return "rotary"
 		return "dial"
 	if profile.has_kind(ArcadeGameProfile.KIND_JOY) or profile.has_kind(ArcadeGameProfile.KIND_STICK):
 		return "stick"
@@ -472,7 +477,7 @@ static func panel(kind: String, buttons: int, cx: float, player: int) -> Diction
 			out["start_x"] = under.call(wx + 0.22) if columns > 0 else wx + 0.2
 		_:
 			var sx := left + STICK_IN
-			out["kind"] = "stick"
+			out["kind"] = "rotary" if kind == "rotary" else "stick"
 			out["stick_x"] = sx
 			out["buttons"] = button_grid(buttons, sx + FIRST_COLUMN)
 			out["start_x"] = under.call(sx + FIRST_COLUMN) if columns > 0 else sx + 0.065

@@ -853,7 +853,7 @@ p4c2b3w8:joy;r90;v gaiapols=gaiapolsj=gaiapolsu
 p4c2b4w0:btn;v kokoroj=kokoroja kokoroj2
 p4c4b2w0:dial;m19 demoderb=demoderbc=demoderm
 p4c4b3w8:joy+stick;v blitz2k blitz99=blitz99a
-p4c4b4w8:dial+joy;v arkretrn=arkretrnj=arkretrnu
+p4c4b4w0:dial;v arkretrn=arkretrnj=arkretrnu
 p4c4b4w8:joy+stick;v;bn nbagold nbanfl nbashowt
 p4c4b6w0:dial;r180;m19 sprint4=sprint4a=sprint4b
 p1c1b0w0:ball;r90;m19 beezer=beezer1

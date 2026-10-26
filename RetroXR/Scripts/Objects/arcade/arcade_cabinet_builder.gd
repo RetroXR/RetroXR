@@ -504,10 +504,10 @@ func _build_deck() -> void:
 
 
 ## One player's panel, from its spec (see ArcadeCabinetSpecs): a stick with N buttons, two sticks, a
-## trackball, buttons alone, a paddle dial, a stand-up racer's wheel, a dancer's START with the stage's arrows
+## trackball, buttons alone, a paddle dial, a rotary joystick (a stick whose shaft turns), a stand-up racer's wheel, a dancer's START with the stage's arrows
 ## on the floor, or START alone, and always START. The parts keep the names the control module finds them by
 ## (ArcadeControlModule): StickPivot, StickPivot2, BallPivot, DialPivot, WheelPivot, ShifterPivot, GasPivot,
-## BrakePivot, Btn1..6, Pad<Dir>, Start.
+## BrakePivot, Btn1..10, Pad<Dir>, Start.
 func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	var mod := ArcadeParts.node(_owner, deck, "Node3D", "Player%d" % (index + 1)) as Node3D
 	mod.set_script(load(SCRIPTS["control"]))
@@ -520,8 +520,8 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	# The panel in the cabinet's frame, for what stands on the floor in front (a racer's pedals, a dancer's
 	# arrows): placed in the cabinet's frame and carried into the panel's, as the panel is one controller.
 	var to_panel := Transform3D(deck.basis, deck.position).affine_inverse()
-	if kind == "stick" or kind == "twin":
-		_stick(mod, "StickPivot", spec["stick_x"], index)
+	if kind == "stick" or kind == "twin" or kind == "rotary":
+		_stick(mod, "StickPivot", spec["stick_x"], index, kind == "rotary")
 		if kind == "twin":
 			_stick(mod, "StickPivot2", spec["stick2_x"], index)
 	elif kind == "ball":
@@ -717,8 +717,10 @@ func _bass_pedal(mod: Node3D, to_panel: Transform3D, pedal: Dictionary) -> void:
 	form_boxes.append(AABB(Vector3(x - 0.10, 0.0, z - 0.15), Vector3(0.20, 0.05, 0.30)))
 
 
-## A joystick: a base plate, then a pivot carrying shaft and ball (player 1 red, 2 blue, then green, yellow...).
-func _stick(mod: Node3D, pivot_name: String, x: float, index: int) -> void:
+## A joystick: a base plate, then a pivot carrying shaft and ball (player 1 red, 2 blue, then green, yellow...). A ROTARY one (`twist`: Ikari Warriors, Top Gunner's bootleg)
+## has a collar on the shaft as well, the part that turns (`DialPivot`, as any dial does, with LEFT and RIGHT or with a hand) with a white mark on its top so the turn shows;
+## it leans with the stick.
+func _stick(mod: Node3D, pivot_name: String, x: float, index: int, twist: bool = false) -> void:
 	var suffix := pivot_name.trim_prefix("StickPivot")
 	ArcadeParts.cylinder(_owner, mod, "StickBase" + suffix, 0.034, 0.004, Vector3(x, 0.015, 0.002), _metal, Vector3.BACK)
 	var pivot := ArcadeParts.node(_owner, mod, "Node3D", pivot_name, Vector3(x, 0.015, 0.004)) as Node3D
@@ -732,6 +734,10 @@ func _stick(mod: Node3D, pivot_name: String, x: float, index: int) -> void:
 	sm.rings = 12
 	ball.mesh = sm
 	ball.material_override = ArcadeParts.mat(_player_color(index), 0.0, 0.3)
+	if twist:
+		var collar := ArcadeParts.node(_owner, pivot, "Node3D", "DialPivot", Vector3(0, 0, 0.026)) as Node3D
+		ArcadeParts.cylinder(_owner, collar, "DialKnob", 0.016, 0.020, Vector3.ZERO, ArcadeParts.mat(Color(0.80, 0.80, 0.82), 0.6, 0.3), Vector3.BACK)
+		ArcadeParts.box(_owner, collar, "DialMark", Vector3(0.004, 0.010, 0.002), Vector3(0, 0.0105, 0.0105), ArcadeParts.mat(Color(0.85, 0.10, 0.10), 0.0, 0.4))
 
 
 ## The stick-ball colour of each player's panel: red, blue (the two the generic cabinet always had), green,

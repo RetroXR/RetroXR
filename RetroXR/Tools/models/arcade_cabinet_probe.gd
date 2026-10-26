@@ -21,7 +21,7 @@
 ## --forms=<romset>,<romset>... photographs the cabinet in the form each game asks for
 ## (ArcadeCabinetSpecs.for_game: its panels, guns, cockpit or stage), one `form_<romset>.png` each from
 ## the front three-quarter, a `formside_<romset>.png` from the side, framed to what the form covers, and a
-## `formscreen_<romset>.png` of the monitor square on and, for a form with pedals, a `formfeet_<romset>.png` of them, and for a sit-down cockpit a `formseat_<romset>.png` from the seat's eyes.
+## `formscreen_<romset>.png` of the monitor square on, a `formdeck_<romset>.png` of the control deck from above and in front of the player and, for a form with pedals, a `formfeet_<romset>.png` of them, and for a sit-down cockpit a `formseat_<romset>.png` from the seat's eyes.
 ## A game with a scope (Silent Scope) is fed a frame of two screens as MAME draws it (8.03 x 3: a scene on the left, the scope's own picture on the right): the monitor shows the left half,
 ## and `formscope_<romset>.png` is the rifle's eyepiece from the player's eye, `formrifle_<romset>.png` the rifle from behind and above.
 ## A game of two screens over one another (a PlayChoice-10) is fed a stacked frame (4 x 6.03), so `formscreen_<romset>.png` shows the portrait pair.
@@ -269,6 +269,14 @@ func _shot_forms() -> void:
 		var tube := _model.get_builtin_screen()
 		_look(tube.global_position + tube.global_basis.z * 1.1, tube.global_position)
 		await _save("formscreen_" + romset)
+		# The control deck close up, from above and in front of where a player stands: what a rhythm game's controller or a rotary stick looks like.
+		var deck := _model.find_child("Deck", true, false) as Node3D
+		if deck != null:
+			var span := maxf(0.55, _model.cabinet_width * 0.8)
+			_cam.fov = 50.0
+			_look(deck.global_position + deck.global_basis.z * span * 0.85 - deck.global_basis.y * span * 0.55, deck.global_position)
+			await _save("formdeck_" + romset)
+			_cam.fov = 58.0
 		# A scope: the rifle's eyepiece from where the player's eye would be, and the rifle from behind.
 		var lens := _model.get_parent().call("captive_controllers") as Array if _model.get_parent().has_method("captive_controllers") else []
 		var eye_lens: MeshInstance3D = null

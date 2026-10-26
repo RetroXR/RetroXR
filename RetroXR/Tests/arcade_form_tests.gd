@@ -33,6 +33,7 @@
 ##   audit/     the data MAME gets wrong or leaves out, game by game (2026-10-26): Taito F3's spare dials, Darius Gaiden's players, the modern boards' driving games, Road
 ##              Blasters' and Bad Lands' wheels, Wing War's pod
 ##   music/     the rhythm games' own controllers: beatmania's decks, pop'n's nine domes, GuitarFreaks' guitars, DrumMania's pads, a Taiko drum a player, Mambo a Go-Go's three drums
+##   rotary/    a dial AND a stick is a rotary joystick (Ikari Warriors, Top Gunner's bootleg): the stick leans and a collar on its shaft turns
 ##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
@@ -138,6 +139,9 @@ func _run() -> void:
 		await _clear()
 	if _want("audit"):
 		await _group_audit()
+		await _clear()
+	if _want("rotary"):
+		await _group_rotary()
 		await _clear()
 	if _want("solo"):
 		await _group_solo()
@@ -1995,6 +1999,8 @@ func _group_audit() -> void:
 	_ok(f3_bad.is_empty(), "audit: none of Taito F3's games has a dial, each has its joystick (%s)" % str(f3_bad))
 	_ok(P.for_romset("arkretrn").has_kind(P.KIND_DIAL) and S.panel_kind(P.for_romset("arkretrn")) == "dial",
 		"audit: Arkanoid Returns, which does read a paddle, keeps its dial")
+	_ok(not P.for_romset("arkretrn").has_kind(P.KIND_JOY) and P.for_romset("arkretrn").buttons == 4,
+		"audit: and no joystick beside it (the F3 board's is for its menus), the four buttons the joystick carried kept")
 	# Darius Gaiden is a two-player upright, whatever four players the F3 board takes.
 	var dg := P.for_romset("dariusg")
 	var dsp := _spec("dariusg")
@@ -2563,6 +2569,118 @@ func _group_music() -> void:
 	for b in range(1, 7):
 		every = every and bits.has(ArcadeProfiles.button_bit(b))
 	_ok(every, "music: a fingertip can press each of DrumMania's six (%d zones)" % bits.size())
+
+
+## A rotary joystick (Ikari Warriors, Victory Road, Heavy Barrel, Top Gunner's bootleg, Tron...): MAME says a stick AND a dial. The panel has both: the stick leans and a collar on its
+## shaft turns (`DialPivot` on the `StickPivot`).
+func _group_rotary() -> void:
+	var want := {
+		"rotary": ["topgunbl", "ikari", "victroad", "hbarrel", "tron", "bermudat", "gondo", "ghox", "ikari3", "720"],
+		"dial": ["arkanoid", "tempest", "kick", "wrally", "gtmr"],
+		"stick": ["sf2", "pacman"],
+		"wheel": ["badlands", "changela"],
+		"ball": ["dotron", "centiped"],
+	}
+	var bad: Array = []
+	for kind: String in want:
+		for romset: String in want[kind]:
+			var got := S.panel_kind(P.for_romset(romset))
+			if got != kind:
+				bad.append("%s is %s, not %s" % [romset, got, kind])
+	_ok(bad.is_empty(), "rotary: a dial with a stick is a rotary joystick; a dial alone, a dial with a paddle (a driving game's wheel), a trackball and a pedal keep theirs (%s)" % str(bad))
+	# The panel: a stick's, laid out and as wide as a stick's, with its kind kept.
+	var two := _spec("topgunbl")
+	var p0: Dictionary = two["players"][0]
+	var plain := S.panel("stick", int(P.for_romset("topgunbl").buttons), float(p0["start_x"]) - 0.0, 0)
+	_ok(_kinds(two) == ["rotary", "rotary"] and p0.has("stick_x") and not p0.has("dial_x"),
+		"rotary: Top Gunner's bootleg is two rotary panels with a stick and no separate dial")
+	var rot := S.panel("rotary", 2, 0.0, 0)
+	var stk := S.panel("stick", 2, 0.0, 0)
+	_ok(str(rot["kind"]) == "rotary" and _near(float(rot["stick_x"]), float(stk["stick_x"])) and _near(float(rot["start_x"]), float(stk["start_x"]))
+			and S.panel_extent(rot).is_equal_approx(S.panel_extent(stk)) and _near(S.panel_width("rotary", 2), S.panel_width("stick", 2)),
+		"rotary: and it stands, reaches and is as wide as a stick's panel (the body and the grip are made for it)")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	model.morph_to(_spec("topgunbl"))
+	model.apply_game_profile(P.for_romset("topgunbl"))
+	await _wait(4)
+	var panels := _panels(model)
+	_ok(panels.size() == 2, "rotary: built, one panel a player (%d)" % panels.size())
+	var built := true
+	var bad_parts: Array = []
+	for panel: ArcadeControlModule in panels:
+		var pivot := panel.find_child("StickPivot", true, false) as Node3D
+		var collar := panel.find_child("DialPivot", true, false) as Node3D
+		if pivot == null or collar == null or collar.get_parent() != pivot:
+			built = false
+			bad_parts.append("%s has no collar on its stick" % panel.name)
+			continue
+		var ball := pivot.find_child("StickBall", false, false) as Node3D
+		# On the shaft, below the ball, with its knob and the mark that shows the turn.
+		var on_shaft := absf(collar.position.x) < 0.0005 and absf(collar.position.y) < 0.0005 and collar.position.z > 0.01 and collar.position.z < ball.position.z - 0.03
+		if not on_shaft or collar.find_child("DialKnob", false, false) == null or collar.find_child("DialMark", false, false) == null:
+			built = false
+			bad_parts.append("%s's collar is off the shaft (%s)" % [panel.name, str(collar.position)])
+	_ok(built, "rotary: each stick has a collar on its shaft below the ball, with a knob and a mark (%s)" % str(bad_parts))
+	# The input: RIGHT leans the stick and turns the collar clockwise seen by the player, LEFT the other way; the collar turns about the shaft and nothing else.
+	var one := panels[0] as ArcadeControlModule
+	var stick := one.find_child("StickPivot", true, false) as Node3D
+	var collar_one := one.find_child("DialPivot", true, false) as Node3D
+	var stick_rest := stick.basis
+	var collar_rest := collar_one.basis
+	one.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 20:
+		one.tick(1.0 / 60.0)
+	var right_basis := collar_one.basis
+	# The turn as an angle, clockwise seen by the player positive (the collar is turned by -angle about the shaft's +Z).
+	var turned := func(b: Basis) -> float:
+		return atan2(-b.x.y, b.x.x)
+	var turned_right: float = turned.call(right_basis)
+	_ok(not stick.basis.is_equal_approx(stick_rest) and not right_basis.is_equal_approx(collar_rest) and right_basis.z.is_equal_approx(Vector3.BACK) and turned_right > 0.05,
+		"rotary: RIGHT leans the stick and turns its collar clockwise, about the shaft (%.2f rad)" % turned_right)
+	one.show_state(1 << ControllerBindings.JOYPAD_LEFT)
+	for i in 4:
+		one.tick(1.0 / 60.0)
+	var turned_back: float = wrapf(float(turned.call(collar_one.basis)) - turned_right, -PI, PI)
+	_ok(turned_back < -0.02, "rotary: and LEFT turns it back (%.2f rad)" % turned_back)
+	one.show_state(0)
+	# The hands: the stick by its ball, the collar apart from it; a drag round the collar turns it by the angle swept, in the stick's own (leaned) frame.
+	var hands := ArcadePanelHands.new(one)
+	var stick_grab: ArcadePanelHands.ControlGrab = null
+	var dial_grab: ArcadePanelHands.ControlGrab = null
+	for g: ArcadePanelHands.ControlGrab in hands.grabs():
+		if g.kind == &"stick":
+			stick_grab = g
+		elif g.kind == &"dial":
+			dial_grab = g
+	_ok(stick_grab != null and dial_grab != null and dial_grab.handle().distance_to(stick_grab.handle()) > 0.03 and dial_grab.handle().distance_to(stick_grab.handle()) < 0.08,
+		"rotary: a hand can take the stick by its ball and the collar below it, a few centimetres apart")
+	if dial_grab != null:
+		one.show_state(1 << ControllerBindings.JOYPAD_DOWN)
+		for i in 30:
+			one.tick(1.0 / 60.0)
+		var dg := dial_grab as ArcadePanelHands.DialGrab
+		var from_tip: Vector3 = collar_one.global_transform * Vector3(0.02, 0.0, 0.012)
+		var to_tip: Vector3 = collar_one.global_transform * Vector3(0.0, -0.02, 0.012)
+		dg.begin(from_tip)
+		var before := dg.angle
+		dg.drag(to_tip, 0.016)
+		_ok(absf(absf(wrapf(dg.angle - before, -PI, PI)) - PI * 0.5) < 0.08,
+			"rotary: a quarter turn of the hand round the collar turns it a quarter turn, with the stick leaned (%.2f rad)" % wrapf(dg.angle - before, -PI, PI))
+		dg.end()
+		one.show_state(0)
+	# Nothing else grows a collar: a stick alone, a spinner alone.
+	for romset: String in ["sf2", "arkanoid"]:
+		model.morph_to(_spec(romset))
+		model.apply_game_profile(P.for_romset(romset))
+		await _wait(3)
+		var panel := _panels(model)[0] as ArcadeControlModule
+		var dial := panel.find_child("DialPivot", true, false) as Node3D
+		var has_stick := panel.find_child("StickPivot", true, false) != null
+		if romset == "sf2":
+			_ok(dial == null and has_stick, "rotary: a plain stick game has no collar")
+		else:
+			_ok(dial != null and not has_stick and dial.get_parent() == panel, "rotary: a spinner game is the spinner alone, on the panel")
 
 
 ## The name of a button's colour, for what a test says in words (white, yellow, red, blue, green; "?" for anything else).

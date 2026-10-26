@@ -197,6 +197,9 @@ WHEEL_DIAL = {"badlands"}
 # `f3` ports declare two paddle dials (DIAL.0 and .1, the Z/X and N/M keys) for all 35 of its games and only Arkanoid Returns reads them: with them every F3 game
 # (Puzzle Bobble 2, Elevator Action Returns, Darius Gaiden, about a hundred romsets) was drawn with a spinner where its joystick was.
 SPURIOUS = {("taito/taito_f3.cpp", "dial"): {"arkretrn"}}
+# The converse, for one game: a control the shared port set gives it and its cabinet had none of, by FAMILY. Arkanoid Returns is a paddle and a button: the F3 board's joystick is
+# declared for its menus and no spinner game wants a stick drawn beside the spinner (a dial and a joystick together is a rotary stick, `rotary`).
+UNUSED = {"arkretrn": {"joy"}}
 # A game MAME counts more players (and coins) than its cabinet had, by PARENT romset: (players, coins). The F3 board takes four whatever the game was; Darius Gaiden
 # was a two-player upright (Taito's own, docs/dev/arcade-cabinets.md).
 PLAYERS = {"dariusg": (2, 2), "dariusgx": (2, 2),
@@ -385,6 +388,10 @@ def profile_of(machine, parent):
         kind = KIND.get(ctype, "other")
         spurious = SPURIOUS.get((source, kind))
         if spurious is not None and family not in spurious:
+            continue
+        if kind in UNUSED.get(family, ()):
+            # The control is not drawn, but its buttons are the game's (the F3 joystick carries Arkanoid Returns' four).
+            buttons[int(c.get("player", "1") or 1)] += int(c.get("buttons", "0") or 0)
             continue
         if kind == "gun" and touch:
             kind = "touch"

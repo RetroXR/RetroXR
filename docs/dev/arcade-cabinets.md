@@ -281,13 +281,30 @@ order, so beatmania IIDX and beatmania III match first and say **none**, and **K
   START where the layout puts it, a sector's mesh facing out, a finger in a Taiko zone through the hands' own pokes, the platter's reach, the bass pedal on the floor going down, the colours of the nine domes), `arcade_tests`
   (ten buttons, the desktop keys); pictures `arcade_cabinet_probe --forms=bm2ndmix,popn1,gtrfrks,drmn,taiko6,mamboagg`.
 
+## 2d. Rotary joysticks (a stick that twists)
+
+(2026-10-26.) A player's list began with Top Gunner's bootleg (`topgunbl`, "Rotary Joystick" in MAME's own description), and 147 romsets (56 families) have the same two controls in `-listxml`: a joystick AND a dial
+(`dial+joy`; `dial+stick` for 10 more): Ikari Warriors, Victory Road, Heavy Barrel, Bermuda Triangle, Gondomania, Downtown, Calibr 50, Ikari III, Tron... They were drawn as a spinner and no stick (`panel_kind`
+took the dial and stopped). **The panel is now `rotary`**: a stick as any other (`StickPivot`, the ball, the lean from the D-pad), with a **collar on its shaft** that turns (`DialPivot` on the stick's pivot, `DialKnob`
+of light metal and a red `DialMark` on top so the turn shows): LEFT and RIGHT turn it, as every dial, and a hand takes it below the ball (`DialGrab`, measured in the stick's own leaned frame).
+
+- **What the real ones were** (research, search summaries, `hw2/flight.md`): SNK's LS-30 stick, from Ikari Warriors, is a stick whose shaft also twists, with a 12-way rotary switch and two buttons (fire and grenade); Top Gunner (Jackal's
+  North American name) was modelled on SNK's TNK III and Ikari sticks, one stick steering and aiming the turret for eight directions; **which control `topgunbl` has is not established** ("an eight-way rotary stick" or an Ikari-style dial, one source each).
+  MAME says the bootleg has both a joystick and a positional (a rotary encoder), which is what is built.
+- **A paddle is not a twist**: a dial with a joystick and a PADDLE (`wrally`, `gtmr`: Gaelco's World Rally, Great 1000 Miles Rally) is a driving game's wheel and gear lever and stays the dial panel; a dial with a trackball is a trackball
+  (`ball`, Discs of Tron), with a pedal a wheel (`wheel`).
+- **What the core is sent**: libretro-mame binds a dial to the left stick's X AND to the D-pad's decrement/increment (section 4), so on a pad the D-pad moves the joystick and turns the dial together; the collar turns with the same input as the stick
+  leans. That the twist is independent on a real core is not verified.
+- Tests: `arcade_form_tests rotary/` (11 checks: the panel kind of each game, the spec and its reach, the collar on the shaft below the ball, RIGHT and LEFT, a hand's grabs, a quarter turn of the hand through the leaned stick's frame, nothing else grows a collar); 13 mutations, all red;
+  picture `arcade_cabinet_probe --forms=ikari` (`formdeck_`).
+
 ## 3. Every form that is built
 
 What each one is made of, so a new one can follow it. "Hands" is what a headset's hands do on it (`arcade.md` "Hands on the panel").
 
 | form | games | what stands there | how it is built | hands |
 |---|---|---|---|---|
-| **panels by player** (any) | every game | a panel per player, the control the game has and exactly its buttons | `layout_panels`, `panel_kind` (`stick twin ball dial buttons wheel`), `button_grid`; three to six players make the BODY wider (`body_width`), a door and a socket under each panel | a fingertip presses a cap; the trigger takes a stick, a dial, a trackball |
+| **panels by player** (any) | every game | a panel per player, the control the game has and exactly its buttons | `layout_panels`, `panel_kind` (`stick twin ball dial buttons wheel rotary`), `button_grid`; three to six players make the BODY wider (`body_width`), a door and a socket under each panel | a fingertip presses a cap; the trigger takes a stick, a dial, a trackball |
 | **tate** | 3,290 romsets | the monitor on its side | its own body (`tate`: the glass 0.65 m up the slant, 1.92 m tall) and a 0.36 x 0.48 m tube; every window is cut to its tube | |
 | **alternating** | 2,959 | one panel, 1P, and a 2P START | the table's `a`; one coin door | |
 | **screens** | 356 | several screens side by side | the tube row; the frame holds them as one picture | |
@@ -434,6 +451,7 @@ Daphne `badlands` or `roadblst` is still a laserdisc upright.
   was. `SPURIOUS` in `gen_game_index.py` drops a control a driver's SHARED port set gives every game: `(source file, kind) -> the families that really have it`.
   `Tools/arcade/shared_controls.py mame0289.xml` lists every driver whose games ALL carry a rare control: it found no other with the same fault (the pinball keypads are not a cabinet's, Exidy's and American Laser Games' guns are real, Hard Drivin's stick is the gear lever).
 - **Players.** The F3 board takes four whatever the game: Darius Gaiden (and the Extra Version) is a two-player upright, `PLAYERS`.
+- **Arkanoid Returns' joystick.** With the rotary panel (2d) a dial AND a joystick draws a stick that twists, and the F3 board's menu joystick would have given the one F3 game that does read a paddle a stick beside its spinner: `UNUSED` in `gen_game_index.py` (family -> controls its cabinet had none of) drops it and keeps the four buttons it carried.
 - **Driving games with no wheel in MAME.** A Chihiro, Naomi, Hikaru or Triforce game is given the joystick panel of its board (the wheel is read through the JVS), a Lindbergh or System 246
   game declares no controls at all, and Road Blasters' wheel is an analog stick: all were uprights with a stick. `DRIVING_FORM` files each as the cabinet it came in (a game that declares
   no players or no coins gets one player and two coins): **sit-down cockpits** for OutRun 2 (and Special Tours, SP SDX), Crazy Taxi High Roller, Wangan Midnight (1, R, Maximum Tune 1 and 2),
