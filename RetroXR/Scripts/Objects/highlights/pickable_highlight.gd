@@ -54,6 +54,9 @@ const OUTLINE_HULL_PRIMER_BENT_SHADER := preload("res://Shaders/outline_hull_pri
 @export var remote_color: Color = Color(0.5, 0.0, 0.13, 1.0)
 ## Color shown while the held object is snapping onto a socket (about to slot in).
 @export var snap_preview_color: Color = Color(1.0, 0.5, 0.0, 1.0)
+## Color shown while the SCENE menu's Locate is pointing the player at the object.
+## Not the trash red: that one means "this is about to be deleted".
+@export var locate_color: Color = Color(0.2, 0.9, 1.0, 1.0)
 
 ## The parent deforms its meshes in the VERTEX stage (a book hanging from its
 ## binding), so a flat copy of them is not where the object is: the outline
@@ -90,6 +93,7 @@ var _is_hand_held:     bool = false
 var _is_in_trash:      bool = false
 var _is_remote_target: bool = false
 var _is_snap_preview:  bool = false
+var _is_located:       bool = false
 var _ray_grabber:      Node = null
 
 
@@ -254,6 +258,9 @@ func _update_state() -> void:
 	elif _is_remote_target:
 		_set_color(remote_color)
 		_set_overlays_visible(true)
+	elif _is_located:
+		_set_color(locate_color)
+		_set_overlays_visible(true)
 	elif _is_hand_held:
 		_set_color(held_color)
 		_set_overlays_visible(true)
@@ -296,6 +303,18 @@ func set_snap_preview(on: bool) -> void:
 func set_remote_target(active: bool) -> void:
 	_is_remote_target = active
 	_update_state()
+
+
+## Called by LocateArrow while the SCENE menu's Locate is pointing at this object.
+func set_located(on: bool) -> void:
+	if _is_located == on:
+		return
+	_is_located = on
+	_update_state()
+
+
+func is_located() -> bool:
+	return _is_located
 
 
 func _set_overlays_visible(shown: bool) -> void:

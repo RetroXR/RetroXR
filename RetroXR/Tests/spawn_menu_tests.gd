@@ -53,6 +53,8 @@ func _ready() -> void:
 	_group_frame_cap()
 	await _group_trash()
 	await _group_item_delete()
+	await _group_objects()
+	await _group_locate()
 
 	for n: Node in _spawned:
 		if is_instance_valid(n):
@@ -1327,6 +1329,149 @@ func _group_item_delete() -> void:
 
 
 const DELETE_WAIT := FloatingObjectPanel3D.DELETE_CONFIRM_SECONDS + 0.1
+
+
+## The rows of `page` for `picks` only, in row order, as [pick, distance text].
+## Other groups leave spawned bodies about, so a case reads only its own.
+func _object_rows(page: SceneObjectsPage, picks: Array) -> Array:
+	var out := []
+	for id: int in page._ids:
+		var r: Dictionary = page._rows[id]
+		if r["pick"] in picks:
+			out.append([r["pick"], (r["dist"] as Label).text])
+	return out
+
+
+func _object_row(page: SceneObjectsPage, pick: Node) -> Dictionary:
+	for id: int in page._ids:
+		if page._rows[id]["pick"] == pick:
+			return page._rows[id]
+	return {}
+
+
+## SCENE > Objects: every deletable spawned object, nearest first, its distance
+## to two places, and the item menu's two-tap Delete.
+func _group_objects() -> void:
+	var eye := Node3D.new()
+	add_child(eye)
+	_spawned.append(eye)
+	eye.global_position = Vector3(20, 50, 0)
+	var far := _trash_body(Vector3(22.5, 50, 0), true)
+	var near := _trash_body(Vector3(21, 50, 0), true)
+	var fixture := _trash_body(Vector3(20.5, 50, 0), false)
+	# A lead: the node in "spawned" is not a pickable, the plug under it is.
+	var lead := Node3D.new()
+	lead.name = "CompositeCable"
+	lead.add_to_group("spawned")
+	add_child(lead)
+	_spawned.append(lead)
+	var plug := _HeldPickable.new()
+	plug.freeze = true
+	lead.add_child(plug)
+	plug.global_position = Vector3(23, 50, 0)
+
+	var page := SceneObjectsPage.create()
+	page.camera_override = eye
+	add_child(page)
+	_spawned.append(page)
+	page.refresh()
+	var rows := _object_rows(page, [near, far, fixture, plug])
+	_eq(rows.map(func(r: Array) -> Node: return r[0]), [near, far, plug],
+		"objects/spawned objects listed nearest first, the furniture not at all")
+	_eq(rows.map(func(r: Array) -> String: return r[1]), ["1.00 m", "2.50 m", "3.00 m"],
+		"objects/distance in metres to two places")
+	_eq(_object_row(page, plug).get("name", ""), "Composite Cable",
+		"objects/a lead is one row, named for the lead and not its plug")
+
+	var far_row: Control = _object_row(page, far)["row"]
+	far.global_position = Vector3(20.2, 50, 0)
+	page.refresh()
+	rows = _object_rows(page, [near, far, plug])
+	_eq(rows.map(func(r: Array) -> Node: return r[0]), [far, near, plug],
+		"objects/walking about re-sorts the list")
+	_eq(rows[0][1], "0.20 m", "objects/and re-reads the distance")
+	_ok(_object_row(page, far)["row"] == far_row,
+		"objects/moving only re-orders rows, it does not rebuild them")
+
+	var del: Button = _object_row(page, near)["delete"]
+	del.pressed.emit()
+	_ok(is_instance_valid(near) and not Vanish.is_vanishing(near),
+		"objects/one press of Delete deletes nothing")
+	_eq(del.text, "Tap again", "objects/it asks again")
+	page._process(SceneObjectsPage.DELETE_CONFIRM_SECONDS + 0.1)
+	del = _object_row(page, near)["delete"]
+	_eq(del.text, "Delete", "objects/left alone, the question lapses")
+	del.pressed.emit()
+	del.pressed.emit()
+	_ok(not is_instance_valid(near) or Vanish.is_vanishing(near),
+		"objects/two presses delete it")
+	_ok(_object_row(page, near).is_empty(), "objects/and its row goes")
+	_ok(not _object_row(page, far).is_empty(), "objects/and nothing else's")
+
+	_eq(SceneObjectsPage.name_of(_named_node("SuperThing")), "Super Thing",
+		"objects/an unnamed kind of object reads as its node name")
+	var labelled := _GameLabelled.new()
+	labelled.game_label = "Super Mario World"
+	_eq(SceneObjectsPage.name_of(labelled), "Super Mario World",
+		"objects/a cartridge reads as its game")
+	labelled.free()
+
+
+func _named_node(n: String) -> Node:
+	var node := Node.new()
+	node.name = n
+	add_child(node)
+	_spawned.append(node)
+	return node
+
+
+class _GameLabelled extends Node:
+	var game_label := ""
+
+
+## Locate's arrow: hidden while the object is in view, at the edge pointing the
+## way to turn otherwise, always left or right when it is behind, and gone with
+## the object.
+func _group_locate() -> void:
+	_eq(LocateArrow.place(Vector3(0, 0, -1))["shown"], false,
+		"locate/straight ahead, no arrow")
+	_eq(LocateArrow.place(Vector3(0.3, 0, -1))["shown"], false,
+		"locate/inside the found cone, no arrow")
+	var right := LocateArrow.place(Vector3(1, 0, -0.2))
+	_ok(right["shown"] and absf(right["bearing"] - PI / 2.0) < 0.01,
+		"locate/to the right, it points right", str(right))
+	var up := LocateArrow.place(Vector3(0, 1, -0.3))
+	_ok(up["shown"] and absf(up["bearing"]) < 0.01, "locate/above, it points up", str(up))
+	var behind_left := LocateArrow.place(Vector3(-0.2, 0.5, 1))
+	_ok(behind_left["shown"] and absf(behind_left["bearing"] + PI / 2.0) < 0.01,
+		"locate/behind and to the left, it points left -- never up", str(behind_left))
+	var behind := LocateArrow.place(Vector3(0, 0, 1))
+	_ok(behind["shown"] and absf(absf(behind["bearing"]) - PI / 2.0) < 0.01,
+		"locate/dead behind, it still says which way to turn", str(behind))
+
+	var eye := Node3D.new()
+	add_child(eye)
+	_spawned.append(eye)
+	eye.global_position = Vector3(30, 50, 0)
+	var thing := _trash_body(Vector3(32, 50, 0), true)
+	var arrow := LocateArrow.on(eye)
+	_ok(LocateArrow.on(eye) == arrow, "locate/one arrow per camera")
+	arrow.locate(thing, "thing")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok(arrow.visible and arrow.position.x > 0.0,
+		"locate/the arrow is up, on the side the object is", str(arrow.position))
+	thing.global_position = Vector3(30, 50, -2)
+	await get_tree().process_frame
+	_ok(not arrow.visible and arrow.is_locating(),
+		"locate/turned to face it, the arrow hides but keeps tracking")
+	thing.global_position = Vector3(30, 50, 2)
+	await get_tree().process_frame
+	thing.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_ok(not arrow.is_locating() and not arrow.visible,
+		"locate/a deleted object ends the locate")
 
 
 class _CountingCurve extends CurvedPanel:

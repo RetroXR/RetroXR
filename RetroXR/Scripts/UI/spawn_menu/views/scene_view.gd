@@ -1,8 +1,10 @@
 ## SpawnMenuSceneView — the menu's SCENE tab: pick a room, or manage a room's
 ## save slots.
 ##
-## Two panels stacked in one Control, one visible at a time: the room picker, and
-## the slot grid you reach through the card of any room RoomCatalog gives slots.
+## A ribbon of two pages. ROOMS is two panels stacked in one Control, one visible
+## at a time: the room picker, and the slot grid you reach through the card of any
+## room RoomCatalog gives slots. OBJECTS (SceneObjectsPage) lists what is spawned
+## in the room, nearest first, to find or delete.
 ## Everything it wants done it asks for by signal — SpawnMenu2D relays these to
 ## its own, so the controller on the far side is unchanged.
 class_name SpawnMenuSceneView
@@ -40,6 +42,11 @@ var _states_title:  Label           = null
 ## The bottom "+ Save New" bar. Hidden for a room the player is not standing in:
 ## saving writes the CURRENT scene's contents, which are not that room's.
 var _save_bar:      Control         = null
+var _tabs:          TabContainer    = null
+var _objects_page:  SceneObjectsPage = null
+
+const ROOMS_TAB   := 0
+const OBJECTS_TAB := 1
 
 
 static func create() -> SpawnMenuSceneView:
@@ -54,18 +61,34 @@ static func _scene_manager() -> Node:
 
 ## The scroll the currently visible panel owns.
 func active_scroll() -> ScrollContainer:
+	if _tabs != null and _tabs.current_tab == OBJECTS_TAB:
+		return _objects_page.active_scroll()
 	return _states_scroll if _states_panel != null and _states_panel.visible else _rooms_scroll
 
 
 func _build() -> void:
 	size_flags_vertical = Control.SIZE_EXPAND_FILL
 
+	_tabs = TabContainer.new()
+	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	# The Rooms page holds the two stacked panels below, as this view did alone.
+	var rooms_page := Control.new()
+	rooms_page.name = "Rooms"
+	_tabs.add_child(rooms_page)
+	_objects_page = SceneObjectsPage.create()
+	_tabs.add_child(_objects_page)
+	_tabs.tab_changed.connect(func(_i: int) -> void:
+		scroll_changed.emit(active_scroll()))
+	var ribbon := TabStrip.wrap(_tabs)
+	ribbon.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(ribbon)
+
 	# ── Level 1: Rooms panel ──────────────────────────────────────────────────
 	var rooms_scroll := MenuStyle.vscroll()
 	rooms_scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_rooms_scroll = rooms_scroll
 	_rooms_panel = rooms_scroll
-	add_child(rooms_scroll)
+	rooms_page.add_child(rooms_scroll)
 
 	var rooms_vbox := MenuStyle.vbox(14)
 	rooms_scroll.add_child(rooms_vbox)
@@ -111,7 +134,7 @@ func _build() -> void:
 	states_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	states_root.visible = false
 	_states_panel = states_root
-	add_child(states_root)
+	rooms_page.add_child(states_root)
 
 	# Back / title row
 	var back_row := MenuStyle.hbox(8)
@@ -164,6 +187,8 @@ func _build() -> void:
 
 # ── Panel navigation ──────────────────────────────────────────────────────────
 
+## Back to the room picker. The ribbon keeps whichever page was last chosen:
+## someone who opened OBJECTS to hunt for a cartridge reopens the menu on it.
 func show_rooms() -> void:
 	_sync_passthrough_card()
 	_sync_mod_room_cards()
@@ -171,7 +196,17 @@ func show_rooms() -> void:
 		_rooms_panel.visible = true
 	if _states_panel:
 		_states_panel.visible = false
-	scroll_changed.emit(_rooms_scroll)
+	scroll_changed.emit(active_scroll())
+
+
+## The Objects page, for tests and probes.
+func objects_page() -> SceneObjectsPage:
+	return _objects_page
+
+
+func show_objects() -> void:
+	if _tabs != null:
+		_tabs.current_tab = OBJECTS_TAB
 
 
 ## Whether the runtime offers an alpha-blend mode is only knowable once the
@@ -228,6 +263,8 @@ func show_states(room_id: String = "bedroom") -> void:
 	_slot_room = room_id
 	if _states_title != null:
 		_states_title.text = _room_title(room_id)
+	if _tabs != null:
+		_tabs.current_tab = ROOMS_TAB
 	if _rooms_panel:
 		_rooms_panel.visible = false
 	if _states_panel:
