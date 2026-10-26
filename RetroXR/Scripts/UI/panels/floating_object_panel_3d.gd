@@ -64,7 +64,12 @@ const SUBJECT_CLEARANCE := 0.03
 ## resized under it). Measuring walks its meshes, so not every frame.
 const SUBJECT_MEASURE_S := 1.0
 
-## The object's visible bounds, world-axis, relative to its origin.
+## The object's visible bounds in its OWN frame, turned into world space every
+## frame (_subject_world_box). It used to be kept in world axes, offset from the
+## origin, and re-measured once a second: an object measured tilted (a handheld
+## held up to the face, a deck still settling after being set down) kept its tall
+## tilted box for up to a second after it turned back, so its menu opened high and
+## dropped.
 var _subject_box := AABB()
 var _subject_measured := false
 var _subject_measure_t := 0.0
@@ -81,8 +86,7 @@ func _keep_clear_of(target: Node3D, delta: float) -> void:
 	var v := _viewport_2d()
 	if not _subject_measured or v == null:
 		return
-	var box := _subject_box
-	box.position += target.global_position
+	var box := _subject_world_box(target)
 	var lift := clearance_lift(_page_corners(v), box, SUBJECT_CLEARANCE)
 	if lift > 0.0:
 		global_position.y += lift
@@ -141,6 +145,7 @@ func _measure_subject(target: Node3D) -> void:
 	var box := AABB()
 	var found := false
 	var top_mesh: MeshInstance3D = null
+	var to_local := target.global_transform.affine_inverse()
 	for node: Node in target.find_children("*", "MeshInstance3D", true, false):
 		var mi := node as MeshInstance3D
 		if mi == null or mi.mesh == null or not mi.is_visible_in_tree():
@@ -149,20 +154,24 @@ func _measure_subject(target: Node3D) -> void:
 			continue
 		if _not_the_object(mi, target):
 			continue
-		var wb: AABB = mi.global_transform * mi.get_aabb()
-		if not found or wb.end.y > box.end.y:
+		var lb: AABB = (to_local * mi.global_transform) * mi.get_aabb()
+		if not found or lb.end.y > box.end.y:
 			top_mesh = mi
-		box = wb if not found else box.merge(wb)
+		box = lb if not found else box.merge(lb)
 		found = true
 	_subject_measured = found
 	if found:
-		box.position -= target.global_position
 		_subject_box = box
 		_subject_top_mesh = target.get_path_to(top_mesh) if top_mesh else NodePath()
 
 
 ## Whether a mesh under the object belongs to something else hanging off it: a
 ## menu, a highlight overlay, or another physics body (see _measure_subject).
+## The object's box as it stands NOW: its own-frame box through its current pose.
+func _subject_world_box(target: Node3D) -> AABB:
+	return target.global_transform * _subject_box
+
+
 static func _not_the_object(n: Node, stop: Node) -> bool:
 	var p := n.get_parent()
 	while p != null and p != stop:
