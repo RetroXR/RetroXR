@@ -681,7 +681,8 @@ follows the game; the input is never filtered**, so a cap hidden by a wrong gues
   kinds `joy twin stick paddle pedal gun touch dial ball btn other`, then since 2026-10-25 the attributes of the cabinet the game came in: `r` the
   monitor's rotation, `s` its screens, `g` its light guns, `t` its form, `o` a cockpit's roof, `f` a gun pedal, `a` one panel for alternating players,
   `v` the game reads a service / test switch (MAME's `<input service="yes">`: 14,977 of the 28,701 romsets, Silent Scope and Street Fighter II among them,
-  Time Crisis and Pac-Man not), `m` the tube's class; every clone tied to its parent (`sf2=sf2ua`, `sf2ce<sf2`); the lists and which of it is MAME's are in the
+  Time Crisis and Pac-Man not), `m` the tube's class, and since 2026-10-26 `h` (a dial that is a steering wheel: Bad Lands), `n` (a stage's arrows when not four: DDR Solo's six) and `i` (which rhythm
+  controller a `music` cabinet has: `ideck ipopn iguitar idrums itaiko iconga`); every clone tied to its parent (`sf2=sf2ua`, `sf2ce<sf2`); the lists and which of it is MAME's are in the
   script's docstring. `python Tools/arcade/gen_game_index.py mame0289.xml`, the XML from the release's `mame0289lx.zip`, checksum-verified against
   its SHA256SUMS). (2) The core's `SET_INPUT_DESCRIPTORS` through `Libretro.GetInputDescriptors()` (`[{port, device, index, id,
   description}]`; the C++ already stored them in `InputHandler::m_devices`, nothing read them). `RetroSystemModelArcadeCabinet._poll_descriptors` asks twice a second from power-on until the

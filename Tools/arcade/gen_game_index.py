@@ -39,6 +39,11 @@ not the default, `;`-separated attributes (a letter and a value):
   q<flags>  what the game's SIT-DOWN version was built with, for a flight cockpit, a driving cockpit or a gun ride (cockpits.py SEATING, with where each comes
             from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run),
   z         the flight game reads a throttle lever (an `IPT_AD_STICK_Z` of its own in the driver, cockpits.py),
+  h         the game's dial is a STEERING WHEEL, with no pedals (Bad Lands: MAME calls the wheel a dial, and the cabinet had a wheel a player),
+  n<arrows> how many arrows a dancer's stage has when it is not four (`n6`: DDR Solo's six panels),
+  i<name>   which rhythm game's own controller a `music` cabinet has (`ideck` beatmania's five keys and a turntable a player, `ipopn` pop'n music's nine
+            buttons, `iguitar` GuitarFreaks' two guitars, `idrums` DrumMania's pads and bass pedal, `itaiko` a Taiko drum a player, `iconga` Mambo a Go-Go's three
+            drums); a rhythm game of none of these has no `i` and is a plain panel,
   f         the gun game has a foot pedal,
   x<lever>  the driving game's gear lever, from the driver sources (shifters.py): `x3t` button 3 and MAME makes it a toggle, `x3h` button 3 held while
             the lever is high, `xs21` a sequential box (up on button 2, down on 1). A driving game with none has no lever,
@@ -163,19 +168,66 @@ HOLO = {"timetrv"}
 SLOT = {"panicprk"}
 # A driving cockpit of two seats, a wheel and a pedal for the driver and a gun for each player (Lucky & Wild: Namco's driver and gunner).
 RACEGUN = {"luckywld"}
+# Driving games MAME does not describe with a paddle and a pedal, by PARENT romset: the form they came in. A Chihiro, Naomi, Hikaru or Triforce game is given the
+# joystick panel of its board (the wheel is read through the JVS, which -listxml cannot see), a Lindbergh or System 246 game declares no controls at all, and
+# Road Blasters' wheel is an analog stick: all were uprights with a stick. Each of these was a sit-down cockpit with a wheel, pedals and (for most) a gear
+# lever, or, for the two old Atari ones, a stand-up with the wheel on its panel (docs/dev/arcade-cabinets.md). A game of this list that declares no controls gets a
+# player and two coins, as UNTYPED_GUNS' do.
+DRIVING_FORM = {
+    # Sega Chihiro
+    "outr2": "race", "outr2st": "race", "crtaxihr": "race", "wangmid": "race", "wangmid2": "race",
+    # Sega Naomi, Hikaru, Lindbergh, Triforce
+    "initd": "race", "initdexp": "race", "initdv2j": "race", "initdv3e": "race", "initdv3j": "race", "inidv3cy": "race",
+    "clubkrt": "race", "clubk2k3": "race", "clubkprz": "race", "clubkpzb": "race", "clubkcyc": "race",
+    "f355": "race", "f355twin": "race", "f355twn2": "race", "sgdrvsim": "race", "kingrt66": "race", "tokyobus": "race",
+    "sgnascar": "race", "initiad4": "race", "outr2sdx": "race", "segartv": "race", "hummerxt": "race",
+    "fzeroax": "race", "fzeroaxm": "race", "mkartagp": "race", "mkartag2": "race",
+    # Namco System 246, Taito
+    "wanganmd": "race", "wanganmr": "race", "acedriv3": "race", "rrvac": "race", "batlgr3": "race", "wgp": "race", "wgp2": "race",
+    # Tatsumi's TX-1: a seated cockpit with three screens (the era made it a stand-up)
+    "tx1": "race",
+    # a ride-on motorbike
+    "motogp": "bike",
+    # Atari's wheel and pedal on an upright's panel
+    "roadblst": "stand", "nitedrvr": "stand",
+}
+# A dial that is a steering wheel with no pedals: Bad Lands' (a wheel for each of two players, the gas a button).
+WHEEL_DIAL = {"badlands"}
+# Controls a driver's SHARED port set gives every game it runs, though no cabinet had them: (source file, kind) -> the families that really do. Taito F3's
+# `f3` ports declare two paddle dials (DIAL.0 and .1, the Z/X and N/M keys) for all 35 of its games and only Arkanoid Returns reads them: with them every F3 game
+# (Puzzle Bobble 2, Elevator Action Returns, Darius Gaiden, about a hundred romsets) was drawn with a spinner where its joystick was.
+SPURIOUS = {("taito/taito_f3.cpp", "dial"): {"arkretrn"}}
+# A game MAME counts more players (and coins) than its cabinet had, by PARENT romset: (players, coins). The F3 board takes four whatever the game was; Darius Gaiden
+# was a two-player upright (Taito's own, docs/dev/arcade-cabinets.md).
+PLAYERS = {"dariusg": (2, 2), "dariusgx": (2, 2),
+           # Taiko no Tatsujin 7 to 11 (Namco System 246) declare no controls yet: the cabinet is the drum a player, two players, whatever the driver gets to.
+           "taiko7": (2, 2), "taiko8": (2, 2), "taiko9": (2, 2), "taiko10": (2, 2), "taiko11": (2, 2)}
 # Unique cabinets, drawn as a plain upright until they get a module of their own: the list in
 # docs/dev/arcade-cabinets.md. The skis, the board, the boats, the fishing rod, the horses, a boxing bag.
 ODD = {"alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
        "aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp", "bassdx",
        "getbass", "boxingm", "tokyowar", "cybsled", "starwars", "esb", "bzone", "redbaron",
        "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer",
-       "kick", "kickman", "dmx2m", "dmx2majp", "ppp", "ppd", "ppp11", "ppp2nd", "mamboagg",
+       "kick", "kickman", "dmx2m", "dmx2majp", "ppp", "ppd", "ppp11", "ppp2nd",
        "desert", "magtruck", "jambo", "bigrun"}
 
 DANCE_DESC = re.compile(r"dance dance revolution|dancing stage|dance 86\.4", re.I)
 PUMP_DESC = re.compile(r"pump it up", re.I)
 MUSIC_DESC = re.compile(r"beatmania|guitar ?freaks|drum ?mania|percussion freaks|pop'?n music|"
-                        r"keyboardmania|taiko no tatsujin", re.I)
+                        r"keyboardmania|taiko no tatsujin|mambo a go-?go", re.I)
+# Which controller a rhythm game has (the table's `i`): the first that matches the description. beatmania IIDX (a seven-key deck with effect buttons, its turntable a
+# trackball to MAME), beatmania III and Keyboardmania have none yet and stay plain panels.
+INSTRUMENT = (
+    (re.compile(r"iidx|beatmania iii", re.I), ""),
+    (re.compile(r"beatmania", re.I), "deck"),
+    (re.compile(r"pop'?n music", re.I), "popn"),
+    (re.compile(r"guitar ?freaks", re.I), "guitar"),
+    (re.compile(r"drum ?mania|percussion freaks", re.I), "drums"),
+    (re.compile(r"taiko no tatsujin", re.I), "taiko"),
+    (re.compile(r"mambo a go-?go", re.I), "conga"),
+)
+# A dancer's stage has four arrows, a Solo cabinet's six (the up-left and up-right panels): `n6`.
+SOLO_DESC = re.compile(r"\bsolo\b", re.I)
 
 def default_value(group):
     """The name of a DIP switch's (or configuration's) factory setting, or ''."""
@@ -269,6 +321,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return "fly"
     if name_for_lists in ODD:
         return "odd"
+    if name_for_lists in DRIVING_FORM:
+        return DRIVING_FORM[name_for_lists]
     if PUMP_DESC.search(desc):
         return "pump"
     if DANCE_DESC.search(desc):
@@ -307,12 +361,21 @@ def profile_of(machine, parent):
             inp.set("players", str(untyped[1]))
         if int(inp.get("coins", "0") or 0) < 1:
             inp.set("coins", str(untyped[1]))
+    elif family in DRIVING_FORM or family in PLAYERS:
+        # The same for a driving game or a rhythm game of a driver with no controls yet (System 246, Lindbergh, Triforce: an `<input>` that has no players or no
+        # coins): one driver and two coins, or what PLAYERS says.
+        if int(inp.get("players", "0") or 0) < 1:
+            inp.set("players", str(PLAYERS.get(family, (1, 2))[0]))
+        if int(inp.get("coins", "0") or 0) < 1:
+            inp.set("coins", str(PLAYERS.get(family, (1, 2))[1]))
     coins = int(inp.get("coins", "0") or 0)
     if coins < 1:
         return None
     source = machine.get("sourcefile", "")
     touch = source in TOUCH_DRIVERS or name.startswith(TOUCH_PREFIXES)
     players = int(inp.get("players", "1") or 1)
+    if family in PLAYERS:
+        players, coins = PLAYERS[family]
     buttons: dict[int, int] = defaultdict(int)
     kinds: set[str] = set()
     ways = 0
@@ -320,6 +383,9 @@ def profile_of(machine, parent):
     for c in inp.findall("control"):
         ctype = c.get("type", "")
         kind = KIND.get(ctype, "other")
+        spurious = SPURIOUS.get((source, kind))
+        if spurious is not None and family not in spurious:
+            continue
         if kind == "gun" and touch:
             kind = "touch"
         if kind == "gun":
@@ -355,6 +421,17 @@ def profile_of(machine, parent):
     form = form_of(machine, parent, kinds, family)
     if form:
         attrs.append("t" + form)
+    desc = (machine.findtext("description") or "") + " " + ((parent.findtext("description") or "") if parent is not None else "")
+    if family in WHEEL_DIAL:
+        attrs.append("h")
+    if form == "dance" and SOLO_DESC.search(desc):
+        attrs.append("n6")
+    if form == "music":
+        for pattern, instrument in INSTRUMENT:
+            if pattern.search(desc):
+                if instrument:
+                    attrs.append("i" + instrument)
+                break
     if family in ROOFED and form == "race":
         attrs.append("o")
     # q: a seat (s), a cabin round it (c), a moving base (m): what the sit-down version of this game had (cockpits.py SEATING). Only a form that can

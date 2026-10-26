@@ -170,7 +170,7 @@ const FORM_HOLO := "holo"          ## a hologram window: the picture floats in a
 const FORM_SLOT := "slot"          ## two levers sliding in one slot (Panic Park)
 const FORM_DANCE := "dance"        ## a dance stage, four arrows a player
 const FORM_PUMP := "pump"          ## a dance stage, five panels a player
-const FORM_MUSIC := "music"        ## a rhythm game's own controller (turntable, drums, guitar): not built yet
+const FORM_MUSIC := "music"        ## a rhythm game's own controller (turntable, drums, guitar): the table's `i` says which (instrument())
 const FORM_ODD := "odd"            ## a unique cabinet (docs/dev/arcade-cabinets.md, section 5): not built yet
 
 
@@ -280,6 +280,27 @@ func backup_class() -> String:
 
 func has_backup_memory() -> bool:
 	return not backup_class().is_empty()
+
+
+## The game's dial is a steering WHEEL with no pedals (the table's `h`): Bad Lands', where MAME calls the wheel a dial and the gas is a button. Its panel is a
+## wheel for each player.
+func steering_dial() -> bool:
+	return known and attrs.has("h")
+
+
+## How many arrows a dancer's stage has: the table's `n` where it is not four (DDR Solo's six), else four, and five for Pump It Up.
+func stage_arrows() -> int:
+	var n := str(attrs.get("n", ""))
+	if known and n.is_valid_int():
+		return clampi(int(n), 4, 6)
+	return 5 if form() == FORM_PUMP else 4
+
+
+## Which rhythm game's own controller a `music` cabinet has (the table's `i`): "deck" (beatmania: five keys and a turntable a player), "popn" (pop'n music's nine
+## buttons), "guitar" (GuitarFreaks' two guitars), "drums" (DrumMania's pads and bass pedal), "taiko" (a Taiko drum a player), "conga" (Mambo a Go-Go's three drums), or
+## "" for a rhythm game with none of them built.
+func instrument() -> String:
+	return str(attrs.get("i", "")) if known and form() == FORM_MUSIC else ""
 
 
 ## A driving cockpit with a roof over the seat.

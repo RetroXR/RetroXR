@@ -35,7 +35,7 @@ from shifters import entries  # noqa: E402
 # until someone has looked at them.
 FLY = {
     # Sega
-    "aburner", "aburner2", "sharrier", "gloc", "gforce2", "thndrbld", "strkfgtr", "sstrkfgt", "skytargt",
+    "aburner", "aburner2", "sharrier", "gloc", "gforce2", "thndrbld", "strkfgtr", "sstrkfgt", "skytargt", "wingwar",
     # Taito
     "nightstr", "mlanding", "topland", "ainferno",
     # Konami, Namco
@@ -54,6 +54,7 @@ SEATING = {
     "gforce2": "scm",   # DIP "Super Deluxe / Deluxe": a sit-down simulator in which cabinet, seat and screen move together (research)
     "thndrbld": "sm",   # DIP "Deluxe" (thndrbld1): a helicopter-style chair that follows the stick, no cabin (research)
     "strkfgtr": "scm",  # DIP "Moving" and "Cockpit": a G-LOC conversion, the same cabinet
+    "wingwar": "scm",   # Wing War R360 (`wingwar360`, MAME's clone) is the R-360 pod, the same cabinet as G-LOC R360: a gyroscope cage, a cabin that turns (research)
     "sstrkfgt": "s",    # NAOMI: a seat and rudder pedals, the deluxe three-screen one non-motion (research)
     "skytargt": "s",    # a sit-down unit listed by a dealer, the deluxe one non-motion (research, one source)
     "nightstr": "sc",   # DIP "Cockpit" (research: a cockpit-style cabinet)

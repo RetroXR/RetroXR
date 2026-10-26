@@ -361,7 +361,7 @@ static func panel_kind(profile: ArcadeGameProfile) -> String:
 	if profile.has_kind(ArcadeGameProfile.KIND_BALL):
 		return "ball"
 	var steering := profile.has_kind(ArcadeGameProfile.KIND_DIAL) or profile.has_kind(ArcadeGameProfile.KIND_PADDLE)
-	if steering and profile.has_kind(ArcadeGameProfile.KIND_PEDAL):
+	if steering and (profile.has_kind(ArcadeGameProfile.KIND_PEDAL) or profile.steering_dial()):
 		return "wheel"
 	if steering:
 		return "dial"
@@ -423,6 +423,8 @@ static func panel_width(kind: String, buttons: int) -> float:
 			return 0.055 + (0.09 + caps if columns > 0 else 0.095)
 		"buttons":
 			return maxf(0.0355 + caps, 0.07)
+		"wheel":
+			return 0.30 + (0.07 + caps if columns > 0 else 0.0)
 		_:
 			return 0.045 + (FIRST_COLUMN + caps if columns > 0 else 0.085)
 
@@ -456,6 +458,14 @@ static func panel(kind: String, buttons: int, cx: float, player: int) -> Diction
 			out["dial_x"] = dx
 			out["buttons"] = button_grid(buttons, dx + FIRST_COLUMN)
 			out["start_x"] = under.call(dx + FIRST_COLUMN) if columns > 0 else dx + 0.065
+		"wheel":
+			# A player's own steering wheel on the deck (Bad Lands'): the wheel standing out of the panel toward the player, the buttons beside it, no pedals and no lever.
+			var wx := left + 0.15
+			out["wheel_x"] = wx
+			out["pedals"] = false
+			out["shifter"] = false
+			out["buttons"] = button_grid(buttons, wx + 0.22)
+			out["start_x"] = under.call(wx + 0.22) if columns > 0 else wx + 0.2
 		_:
 			var sx := left + STICK_IN
 			out["kind"] = "stick"
@@ -735,7 +745,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			spec["players"] = pads
 			spec["stage"] = {"xs": [0.0] if dancers == 1 else [-0.50, 0.50], "arrows": arrows}
 		_:
-			if kind == "wheel":
+			if kind == "wheel" and not profile.steering_dial():
 				# A driving game the table gives no cabinet for: the stand-up wheel.
 				spec["players"] = [{"kind": "wheel", "wheel_x": 0.0, "start_x": -0.20, "player": 0,
 					"shifter": profile.has_shifter(), "buttons": []}]

@@ -30,6 +30,8 @@
 ##   hood/      a sit-down cabinet's monitor stands under a hood: the picture is close enough to fill the view from the seat, the hood is solid and leaves the coin doors
 ##              under it open; nothing of the cockpit stands in the line of sight
 ##   racegun/   a driving cockpit of two seats with a gun each (Lucky & Wild): both players seated, the driver's wheel and pedal, both guns on the dash, the gunner's START
+##   audit/     the data MAME gets wrong or leaves out, game by game (2026-10-26): Taito F3's spare dials, Darius Gaiden's players, the modern boards' driving games, Road
+##              Blasters' and Bad Lands' wheels, Wing War's pod
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
@@ -131,6 +133,9 @@ func _run() -> void:
 		await _clear()
 	if _want("racegun"):
 		await _group_racegun()
+		await _clear()
+	if _want("audit"):
+		await _group_audit()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -1965,6 +1970,70 @@ func _group_racegun() -> void:
 	await _wait(3)
 	_ok(_form_count(model) == base_forms and model.find_child("GunnerSeat", true, false) == null and sys.captive_controllers().is_empty(),
 		"racegun: the cabinet's own form again leaves no seat, no gun and no holster behind (%d form parts)" % _form_count(model))
+
+
+## The games a player asked about, each with the hardware it had (K8): the data MAME gets wrong or leaves out.
+func _group_audit() -> void:
+	# Taito F3: the board's two spare paddle dials are declared for every one of its 35 games, and only Arkanoid Returns reads them. With them each was drawn with a spinner where
+	# its joystick was (Puzzle Bobble 2, Elevator Action Returns, Darius Gaiden...).
+	var f3 := ["arabianm", "bubblem", "bublbob2", "cleopatr", "commandw", "cupfinal", "dankuga", "dariusg", "dariusgx", "elvactr", "gekiridn", "gseeker", "gunlock", "intcup94",
+			"kaiserkn", "kirameki", "landmakr", "lightbr", "pbobble2", "pbobble3", "pbobble4", "popnpop", "puchicar", "pwrgoal", "qtheater", "quizhuhu", "recalh", "ridingf",
+			"ringrage", "scfinals", "spcinv95", "tcobra2", "trstar", "twinqix"]
+	var f3_bad: Array = []
+	for romset: String in f3:
+		var gp := P.for_romset(romset)
+		if not gp.known or gp.has_kind(P.KIND_DIAL) or not gp.has_kind(P.KIND_JOY) or S.panel_kind(gp) != "stick":
+			f3_bad.append(romset)
+	_ok(f3_bad.is_empty(), "audit: none of Taito F3's games has a dial, each has its joystick (%s)" % str(f3_bad))
+	_ok(P.for_romset("arkretrn").has_kind(P.KIND_DIAL) and S.panel_kind(P.for_romset("arkretrn")) == "dial",
+		"audit: Arkanoid Returns, which does read a paddle, keeps its dial")
+	# Darius Gaiden is a two-player upright, whatever four players the F3 board takes.
+	var dg := P.for_romset("dariusg")
+	var dsp := _spec("dariusg")
+	_ok(dg.players == 2 and dg.coins == 2 and P.for_romset("dariusgx").players == 2 and (dsp["players"] as Array).size() == 2 and (dsp["coins"] as Array).size() == 2
+			and _kinds(dsp) == ["stick", "stick"],
+		"audit: Darius Gaiden has two panels of a stick and two coin doors, the Extra Version too (%s)" % str(_kinds(dsp)))
+	# The modern boards give a driving game a joystick panel, or no controls at all: each was a sit-down cockpit.
+	var race_bad: Array = []
+	for romset: String in ["outr2", "outr2st", "crtaxihr", "wangmid", "wangmid2", "initd", "initdexp", "initdv3j", "inidv3cy", "clubkrt", "clubk2k3", "f355", "f355twin", "sgdrvsim",
+			"sgnascar", "wgp", "wgp2", "tx1", "outr2sdx", "initiad4", "segartv", "hummerxt", "fzeroax", "mkartagp", "wanganmd", "wanganmr", "acedriv3", "rrvac", "batlgr3"]:
+		var gp := P.for_romset(romset)
+		var sp := _spec(romset)
+		if not gp.known or gp.form() != P.FORM_RACE or not gp.is_driving() or str(sp.get("shape", "")) != "racer" or not sp.has("cockpit") or not (sp["players"] as Array).is_empty():
+			race_bad.append("%s (%s)" % [romset, gp.form()])
+	_ok(race_bad.is_empty(), "audit: OutRun 2, the Wangan Midnights, Initial D, Club Kart, F355, NASCAR, F-Zero AX and their kind are sit-down cockpits (%s)" % str(race_bad))
+	_ok(int(_spec("tx1")["screen"]["screens"]) == 3 and float(_spec("tx1")["width"]) > 1.0, "audit: TX-1's three screens are in a seated cockpit's wide body (%.2f m)" % float(_spec("tx1")["width"]))
+	_ok(P.for_romset("motogp").form() == P.FORM_BIKE and not _spec("motogp").has("cockpit"), "audit: Namco's MotoGP, which declares no controls, is a ride-on motorbike")
+	# Road Blasters and Night Driver: the wheel on an upright's panel, the pedal at its foot.
+	for romset: String in ["roadblst", "nitedrvr"]:
+		var sp := _spec(romset)
+		var ps: Array = sp["players"]
+		_ok(P.for_romset(romset).form() == P.FORM_STAND and ps.size() == 1 and str(ps[0]["kind"]) == "wheel" and str(sp["shape"]) in ["upright", "tate"],
+			"audit: %s is a stand-up driving cabinet, the wheel on its panel" % romset)
+	# Bad Lands: a steering wheel for each of two players, with no pedals (the gas is a button); its bootleg, a joystick, keeps its stick.
+	var bl := _spec("badlands")
+	var bp: Array = bl["players"]
+	_ok(bp.size() == 2 and _kinds(bl) == ["wheel", "wheel"] and not bool(bp[0].get("pedals", true)) and not bool(bp[1].get("pedals", true)) and not bool(bp[0].get("shifter", true))
+			and float(bp[1]["wheel_x"]) - float(bp[0]["wheel_x"]) >= 0.40 and (bp[0]["buttons"] as Array).size() == 2,
+		"audit: Bad Lands has a wheel a player, 0.4 m or more apart, two buttons each, no pedals (%s)" % str(_kinds(bl)))
+	_ok(_kinds(_spec("badlandsb")) == ["stick", "stick"], "audit: and its bootleg, a joystick game, is a joystick cabinet")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	model.morph_to(bl)
+	model.apply_game_profile(P.for_romset("badlands"))
+	await _wait(4)
+	var wheels := model.find_children("WheelPivot", "Node3D", true, false)
+	_ok(wheels.size() == 2 and model.find_child("GasPivot", true, false) == null and model.find_child("PedalAxle", true, false) == null and _panels(model).size() == 2,
+		"audit: built, Bad Lands has two wheels and no pedal (%d wheels)" % wheels.size())
+	var wx: Array = []
+	for w in wheels:
+		wx.append(model.to_local((w as Node3D).global_position).x)
+	wx.sort()
+	_ok(wx.size() == 2 and float(wx[1]) - float(wx[0]) >= 0.40, "audit: the wheels stand 0.4 m or more apart (%s)" % str(wx))
+	# Wing War R360 shares G-LOC R360's pod: a seat in a cage, on a base that moves.
+	for romset: String in ["wingwar360", "wingwar", "glocr360"]:
+		var gp := P.for_romset(romset)
+		_ok(gp.form() == P.FORM_FLY and gp.has_seat() and gp.has_cabin() and gp.has_motion(), "audit: %s is a flight cockpit with a seat, a cabin and a moving base" % romset)
 
 
 func _group_shift() -> void:

@@ -560,7 +560,8 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		bottom = -0.13
 		if bool(spec.get("shifter", false)):
 			_shifter(mod, Vector3(wheel_x + 0.21, 0.0, 0.0), Basis.IDENTITY)
-		_pedals(mod, to_panel, Vector3(wheel_x, 0.0, 0.96))
+		if bool(spec.get("pedals", true)):
+			_pedals(mod, to_panel, Vector3(wheel_x, 0.0, 0.96))
 	elif kind == "slot":
 		# A lever in the slot (Panic Park): a carriage on the rail with an upright lever and a ball, red for player 1
 		# and blue for player 2, each in its own half and meeting the other's in the middle.

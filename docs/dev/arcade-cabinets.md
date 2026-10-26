@@ -377,3 +377,35 @@ Not verified: Silent Scope's scope picture on a real run, Lucky & Wild's guns (l
 - **Estimated**: every dimension, travel, speed and direction of a built cabinet, and everything said of a real cabinet that was not read in a driver.
 - **Owed**: a headset (every hand number), a Quest, a real core and ROM for each of the seven games (none has been run), the Y direction and the speed sense of Prop Cycle, the `PORT_TOGGLE`
   shifters, the second screen of the rifles, two peers, and photographs of the real cabinets (every image host was refused).
+
+## 9. The audit of the games a player asked about (2026-10-26)
+
+A player listed 143 romsets and asked whether each spawns with the hardware it had. Each was read in MAME 0.289's `-listxml`, the driver source (raw files from `mamedev/mame` at the
+`mame0289` tag: the port blocks give every button's own name) and the table, and judged against the research notes. **19 of the names are not MAME 0.289 romsets** (they are a
+short form or another emulator's name): `bm2nd` / `bm2ndm` are `bm2ndmix`, `bm4th` `bm4thmix`, `bm5th` `bm5thmix`, `bm6th` `bm6thmix`, `bmcompm` `bmcompmx`, `bass` `bassdx` (Sega Bass
+Fishing), `guitarfr` `gtrfrks` (and its mixes), `drummania` `drmn`, `popn` `popn1`..`popn9`, `alpinesa` `alpines`, `raveracw` `raverace`, `gunbulet` `gunbuletw` / `gunbuletj` (Point
+Blank's Japanese name, a clone of `ptblank`), `jurassicp` `jpark`, `r360` `glocr360` / `wingwar360`, `warpspd` `warpsped` (a 1979 prototype); **`lamborcc`, `jubeat` and `interstellar` are in
+no MAME** (`interstellar` is a Daphne laserdisc name, which keeps the laserdisc cabinet: only an `arcade` board takes the form of its game). The profile of a game is by ROMSET NAME, so a
+name MAME knows and another system uses for a different game would borrow the wrong cabinet; the cabinet only follows the game on `arcade` boards (`on_media_inserted`), which is why a
+Daphne `badlands` or `roadblst` is still a laserdisc upright.
+
+### 9.1 What was wrong in the data (found by the audit, fixed in the generator)
+
+- **Taito F3's two spare dials.** The board's `f3` port set declares two paddle dials (`DIAL.0`, `DIAL.1`, the Z/X and N/M keys) for ALL 35 of its games; only Arkanoid Returns reads
+  them. With them every F3 game (about 110 romsets: Puzzle Bobble 2-4, Elevator Action Returns, Kaiser Knuckle, Bubble Symphony, Darius Gaiden...) was drawn with a spinner where its joystick
+  was. `SPURIOUS` in `gen_game_index.py` drops a control a driver's SHARED port set gives every game: `(source file, kind) -> the families that really have it`.
+  `Tools/arcade/shared_controls.py mame0289.xml` lists every driver whose games ALL carry a rare control: it found no other with the same fault (the pinball keypads are not a cabinet's, Exidy's and American Laser Games' guns are real, Hard Drivin's stick is the gear lever).
+- **Players.** The F3 board takes four whatever the game: Darius Gaiden (and the Extra Version) is a two-player upright, `PLAYERS`.
+- **Driving games with no wheel in MAME.** A Chihiro, Naomi, Hikaru or Triforce game is given the joystick panel of its board (the wheel is read through the JVS), a Lindbergh or System 246
+  game declares no controls at all, and Road Blasters' wheel is an analog stick: all were uprights with a stick. `DRIVING_FORM` files each as the cabinet it came in (a game that declares
+  no players or no coins gets one player and two coins): **sit-down cockpits** for OutRun 2 (and Special Tours, SP SDX), Crazy Taxi High Roller, Wangan Midnight (1, R, Maximum Tune 1 and 2),
+  Initial D Arcade Stage (6 sets, Initial D4), Club Kart (5), Ferrari F355 Challenge (3), Driving Simulator, The King of Route 66, Tokyo Bus Guide, NASCAR Arcade, Sega Race-TV,
+  Hummer Extreme, F-Zero AX (and Monster Ride), Mario Kart Arcade GP (1 and 2), Ace Driver 3, Ridge Racer V Arcade Battle, Battle Gear 3, WGP and WGP 2; a **ride-on motorbike** for
+  Namco's MotoGP; **stand-up cabinets with the wheel on the panel and the pedal at the foot** for Road Blasters and Night Driver. Every one of these is the cabinet type from memory and
+  the research notes (low confidence on the exact deluxe variants), not read in a driver.
+- **Bad Lands' dial is a steering wheel**, one for each of two players, with no pedals (the gas is a button): the table's `h`, `ArcadeGameProfile.steering_dial()`, a `wheel` panel
+  without pedals or lever (`panel()`'s `wheel` kind). Its bootleg is a joystick game and stays a joystick cabinet.
+- **Wing War R360** is G-LOC R360's pod (a seat, a cage round it, a base that moves): `wingwar` joins the flight cockpits, so its clone does too. The pod's rotation stays unbuilt.
+- Not changed, said so: **Star Wars Arcade** (`swa`, two analog sticks and a throttle read as a pedal) stays a panel with a stick for each player, since nothing in MAME or the research says
+  what its cabinet was; **World Combat** (one button a player in MAME) stays a plain upright. **TX-1** was a stand-up for its date; it is a seated cockpit of three screens (`DRIVING_FORM`; the research says a force-feedback
+  wheel, an accelerator, a brake and a gearshift, the side screens tilted about 30 degrees).
