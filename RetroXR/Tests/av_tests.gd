@@ -169,6 +169,8 @@ func _run() -> void:
 		["wiring/the channel enum's shipped values never move", _w_channel_values],
 		["wiring/every channel has a name and a speaker index", _w_channel_tables],
 		["wiring/no two legend plates on the back panel overlap", _w_legend_gaps],
+		["wiring/binning one speaker cabinet bins the whole pair", _w_bin_one_cabinet],
+		["wiring/a pair with a freed cabinet still saves", _w_pair_freed_cabinet_saves],
 		["display/the selected input is shown", _d_selected],
 		["display/another input is blue, not the last picture", _d_away],
 		["display/coming back shows it again", _d_back],
@@ -1314,6 +1316,36 @@ func _w_channel_values() -> void:
 ## builds the plate from quads rather than one baked texture, and the first quad IS
 ## the border rect, so its size is the full footprint either way.
 const LEGEND_MIN_GAP := 0.002
+
+## The bin hands over whichever body it was given, and a cabinet is a body of its own.
+## Freed alone, it left the pair holding a dead box and the next autosave crashed in
+## SpeakerPair.box_poses (2026-10-26).
+func _w_bin_one_cabinet() -> void:
+	var sp := _speakers()
+	await _wait(2)
+	var left: Node3D = sp.get_node("SpeakerL")
+	var right: Node3D = sp.get_node("SpeakerR")
+	Vanish.instant = true
+	Trash.delete_with_dependents(left as XRToolsPickable)
+	Vanish.instant = false
+	await _wait(2)
+	_ok(not is_instance_valid(sp), "the pair went with the cabinet")
+	_ok(not is_instance_valid(right), "so did the other cabinet")
+
+
+## However a cabinet goes, the autosave must not die reading it.
+func _w_pair_freed_cabinet_saves() -> void:
+	var sp := _speakers()
+	await _wait(2)
+	var right: Node3D = sp.get_node("SpeakerR")
+	sp.get_node("SpeakerL").free()
+	var poses: Array = (sp as SpeakerPair).box_poses()
+	_check_eq(poses.size(), 0, "a pair missing a cabinet saves no box poses")
+	# The dead LEFT box comes first, so a restore that stops at it never reaches this.
+	(sp as SpeakerPair).restore_box_poses([{"position": [0, 1, 0]}, {"position": [7.5, 2, 3]}])
+	_ok(right.global_position.is_equal_approx(Vector3(7.5, 2, 3)),
+		"the surviving cabinet still takes its pose (at %s)" % right.global_position)
+
 
 func _w_legend_gaps() -> void:
 	var tv := _tv()

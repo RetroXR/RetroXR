@@ -214,7 +214,14 @@ func set_volume(v: float) -> void:
 
 func box_poses() -> Array:
 	var out: Array = []
-	for box: SpeakerBox in _boxes:
+	# Variant first: binding a freed box to a typed loop variable throws before any
+	# validity test could run. A cabinet freed on its own (SpeakerBox.drop_and_free
+	# forwards to the pair now) must not take an autosave down with it.
+	for entry: Variant in _boxes:
+		if not is_instance_valid(entry) or not (entry as Node3D).is_inside_tree():
+			push_warning("[SpeakerPair] '%s' has a freed cabinet; saving no box poses" % name)
+			return []
+		var box: SpeakerBox = entry
 		var p := box.global_position
 		var r := box.global_rotation_degrees
 		out.append({"position": [p.x, p.y, p.z], "rotation": [r.x, r.y, r.z]})
@@ -224,6 +231,9 @@ func box_poses() -> Array:
 func restore_box_poses(poses: Array) -> void:
 	for i in mini(poses.size(), _boxes.size()):
 		var rec: Dictionary = poses[i]
+		if not is_instance_valid(_boxes[i]):
+			push_warning("[SpeakerPair] '%s' cabinet %d is freed; pose not restored" % [name, i])
+			continue
 		var box: SpeakerBox = _boxes[i]
 		var pos: Array = rec.get("position", [])
 		var rot: Array = rec.get("rotation", [])
