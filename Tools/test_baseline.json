@@ -3,7 +3,7 @@
   "suites": {
     "arcade_attract_tests": 189,
     "arcade_bay_tests": 114,
-    "arcade_form_tests": 582,
+    "arcade_form_tests": 593,
     "arcade_hand_tests": 201,
     "arcade_hold_tests": 10,
     "arcade_memory_tests": 81,

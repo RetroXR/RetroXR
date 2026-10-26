@@ -861,9 +861,10 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
 - **Two levers in one slot** (`slot`: Panic Park): the tall body (a 33 inch class screen, table `m33`) with a `SlidePivot` carriage on a shared `SlotRail` for each player (red and blue), `SLOT_TRAVEL` 14 cm either side of where it
   rests, so that both reach the middle and neither passes it; the lever's position is the left stick X (an analog position: MAME's port has `CENTERDELTA(0)`). The handle is a flat dome 9 cm across
   and START a big round button in the player's colour.
-- **A dance stage** (`dance` four arrows, `pump` Pump It Up's five panels): the wide body, a square of nine 30 cm panels per dancer (one or two),
+- **A dance stage** (`dance` four arrows, `pump` Pump It Up's five panels, DDR **Solo's six**: the table's `n6`): the wide body, a square of nine 30 cm panels per dancer (one or two),
   a safety bar behind each; each dancer's arrows belong to that player's panel (`Pad<Dir>` sink with the directions, Pump's `Btn1..5` with the
-  buttons), taken hold of at its START on the deck.
+  buttons; Solo's up-left and up-right corners, on the screen's side, are `PadUpLeft` and `PadUpRight`, MAME's buttons 3 and 4: ksys573.cpp's `ddrsolo` ports name them "P1 Up-Left 1/2" and
+  "P1 Up-Right 1/2"; which panels were the real six is the research's: the four arrows plus up-left and up-right), taken hold of at its START on the deck.
 - **Music and the remaining unique cabinets** (`music`, `odd`) are uprights until they have a module of their own: `arcade-cabinets.md` lists each with MAME's own control names.
 - **What the panel shows moving** (`ArcadeControlModule.show_state(mask, axes)`, fed the axes now as well as the mask): a wheel turns (left stick X,
   else LEFT/RIGHT, 120 degrees to lock), the gas and brake tip with R2 and L2 (MAME's PEDAL and PEDAL2, which the extension sends as digital

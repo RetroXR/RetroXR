@@ -409,3 +409,13 @@ Daphne `badlands` or `roadblst` is still a laserdisc upright.
 - Not changed, said so: **Star Wars Arcade** (`swa`, two analog sticks and a throttle read as a pedal) stays a panel with a stick for each player, since nothing in MAME or the research says
   what its cabinet was; **World Combat** (one button a player in MAME) stays a plain upright. **TX-1** was a stand-up for its date; it is a seated cockpit of three screens (`DRIVING_FORM`; the research says a force-feedback
   wheel, an accelerator, a brake and a gearshift, the side screens tilted about 30 degrees).
+
+### 9.2 DDR Solo's six panels
+
+`ddr4ms`, `ddr4mps`, `ddrs2k`, `ddrsbm` (and their clones `ddr4msj`, `ddrs2kj`) are the one-player Solo cabinets (a compact main unit, 159 kg on one listing, and a stage with
+**six panels**: the four arrows and the up-left and up-right ones: the research, two sources). `ArcadeGameProfile.stage_arrows()` reads the table's `n6` (the generator sets it for a dance game
+whose description says "Solo"); the stage builds the top row of the square (up-left, up, up-right), the left and right middles and the bottom middle, and the centre and the two bottom corners
+are bare tiles. **The corners are MAME's buttons 3 and 4** (`ksys573.cpp`, `ddrsolo`: "P1 Up-Left 1" and "2" are `IPT_BUTTON3`, "P1 Up-Right 1" and "2" `IPT_BUTTON4`; "P1 Select L" and "R" are
+buttons 1 and 2), so `PadUpLeft` and `PadUpRight` sink with the pad's Y and X and a fingertip on them presses those. Estimated: where the real corner panels stood (the names say the upper
+corners), their size (the same 27 cm as the others), and whether the Solo's menu "Select" buttons are anything but the pad's left and right arrows. Karaoke Mix (one player, no source on its cabinet) and
+Kids (one player, a smaller cabinet) keep four arrows. `arcade_form_tests solo/`.

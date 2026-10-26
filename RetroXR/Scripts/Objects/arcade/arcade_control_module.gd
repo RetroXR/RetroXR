@@ -16,7 +16,7 @@
 ## stick), `WheelPivot` (a steering wheel, turning about its own Y with the left stick or LEFT and
 ## RIGHT), `GasPivot` and `BrakePivot` (pedals, tipping with R2 and L2), `ShifterPivot` (a gear
 ## lever, thrown with the game's own shift button: ArcadeGameProfile.shifter), `LeanPivot` (a motorbike leaning with the steering) and
-## `PadUp`/`PadDown`/`PadLeft`/`PadRight` (a dance stage's arrows, sinking with the directions), `BarsPivot` (a bicycle's
+## `PadUp`/`PadDown`/`PadLeft`/`PadRight` (a dance stage's arrows, sinking with the directions; DDR Solo's `PadUpLeft` and `PadUpRight` sink with buttons 3 and 4), `BarsPivot` (a bicycle's
 ## handlebars, turned with the left stick's X and tipped with its Y), `CrankPivot` (its crank, turned by the right stick's
 ## Y, faster the further it is pushed), `SlidePivot` (a lever in a slot, sliding with the left stick's X) and `ThrottlePivot` (a flight
 ## cockpit's throttle lever, the right stick's Y: forward is up, and it stays where it is left). A cockpit on a moving base has `MotionPivot`
@@ -153,6 +153,9 @@ func attach(p_cabinet: RetroSystemModel) -> void:
 	_add_cap("PadDown", ControllerBindings.JOYPAD_DOWN, -2)
 	_add_cap("PadLeft", ControllerBindings.JOYPAD_LEFT, -2)
 	_add_cap("PadRight", ControllerBindings.JOYPAD_RIGHT, -2)
+	# DDR Solo's two panels at the screen's corners are MAME's buttons 3 and 4 ("P1 Up-Left", "P1 Up-Right": ksys573.cpp's ddrsolo).
+	_add_cap("PadUpLeft", ArcadeProfiles.button_bit(3), -2)
+	_add_cap("PadUpRight", ArcadeProfiles.button_bit(4), -2)
 	_stick = find_child("StickPivot", true, false) as Node3D
 	_stick2 = find_child("StickPivot2", true, false) as Node3D
 	_ball = find_child("BallPivot", true, false) as Node3D

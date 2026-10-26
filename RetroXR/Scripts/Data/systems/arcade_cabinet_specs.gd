@@ -736,7 +736,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 		ArcadeGameProfile.FORM_DANCE, ArcadeGameProfile.FORM_PUMP:
 			shape = "wide"
 			var dancers := clampi(players, 1, 2)
-			var arrows := 5 if form == ArcadeGameProfile.FORM_PUMP else 4
+			var arrows := profile.stage_arrows()
 			var pads: Array = []
 			for i in dancers:
 				# The stage under each dancer: one in the middle, two side by side as the cabinets stood.

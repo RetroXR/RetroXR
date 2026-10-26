@@ -32,6 +32,7 @@
 ##   racegun/   a driving cockpit of two seats with a gun each (Lucky & Wild): both players seated, the driver's wheel and pedal, both guns on the dash, the gunner's START
 ##   audit/     the data MAME gets wrong or leaves out, game by game (2026-10-26): Taito F3's spare dials, Darius Gaiden's players, the modern boards' driving games, Road
 ##              Blasters' and Bad Lands' wheels, Wing War's pod
+##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
 ##   shift/     a driving game's gear lever is the game's: its button, a toggle or held, a sequential box, none where MAME has none
 ##   reach/     every panel, wheel and coin button a morph builds can be aimed at: pointable, and first under a laser
 ##   guns/      a gun game's guns are built, plugged in and hung, its pedal wired; another game frees them and their ports
@@ -136,6 +137,9 @@ func _run() -> void:
 		await _clear()
 	if _want("audit"):
 		await _group_audit()
+		await _clear()
+	if _want("solo"):
+		await _group_solo()
 		await _clear()
 	if _want("shift"):
 		await _group_shift()
@@ -2034,6 +2038,85 @@ func _group_audit() -> void:
 	for romset: String in ["wingwar360", "wingwar", "glocr360"]:
 		var gp := P.for_romset(romset)
 		_ok(gp.form() == P.FORM_FLY and gp.has_seat() and gp.has_cabin() and gp.has_motion(), "audit: %s is a flight cockpit with a seat, a cabin and a moving base" % romset)
+
+
+## DDR Solo (K8): a stage of six panels, the four arrows and the two corners on the screen's side, which MAME reads as buttons 3 and 4.
+func _group_solo() -> void:
+	var bad: Array = []
+	for romset: String in ["ddr4ms", "ddr4msj", "ddr4mps", "ddrs2k", "ddrs2kj", "ddrsbm"]:
+		var sp := _spec(romset)
+		if P.for_romset(romset).stage_arrows() != 6 or int(sp["stage"]["arrows"]) != 6 or _kinds(sp) != ["pad"] or (sp["stage"]["xs"] as Array).size() != 1:
+			bad.append(romset)
+	_ok(bad.is_empty(), "solo: the four Solo games and their clones are one stage of six arrows (%s)" % str(bad))
+	_ok(P.for_romset("ddr4m").stage_arrows() == 4 and P.for_romset("ddrusa").stage_arrows() == 4 and P.for_romset("ddrkara").stage_arrows() == 4
+			and P.for_romset("ddrkids").stage_arrows() == 4 and P.for_romset("pumpipx2").stage_arrows() == 5 and P.for_romset("sf2").stage_arrows() == 4,
+		"solo: two-player DDR, Karaoke Mix and Kids keep four arrows, Pump It Up five")
+	# The panels of the 3 x 3 square: the top row, the two sides' middles and the bottom's middle; the centre and the bottom corners stay bare.
+	var cells: Array = []
+	for row in 3:
+		for col in 3:
+			if ArcadeCabinetBuilder._is_arrow(6, row, col):
+				cells.append(Vector2i(col, row))
+	_ok(cells.size() == 6 and cells.has(Vector2i(0, 0)) and cells.has(Vector2i(1, 0)) and cells.has(Vector2i(2, 0)) and cells.has(Vector2i(0, 1)) and cells.has(Vector2i(2, 1))
+			and cells.has(Vector2i(1, 2)) and not ArcadeCabinetBuilder._is_arrow(6, 1, 1) and not ArcadeCabinetBuilder._is_arrow(6, 2, 0) and not ArcadeCabinetBuilder._is_arrow(6, 2, 2),
+		"solo: the six are up-left, up, up-right, left, right and down (%s)" % str(cells))
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	model.morph_to(_spec("ddrsbm"))
+	model.apply_game_profile(P.for_romset("ddrsbm"))
+	await _wait(4)
+	var panel := _panels(model)[0] as ArcadeControlModule
+	var pads := {}
+	for n: String in ["PadUp", "PadDown", "PadLeft", "PadRight", "PadUpLeft", "PadUpRight"]:
+		var node := panel.find_child(n, true, false) as Node3D
+		pads[n] = model.to_local(node.global_position) if node != null else Vector3(INF, INF, INF)
+	var placed := true
+	for n: String in pads:
+		placed = placed and not (pads[n] as Vector3).is_equal_approx(Vector3(INF, INF, INF))
+	_ok(placed, "solo: the stage has all six panels, named for the directions and the corners")
+	if not placed:
+		return
+	var ul: Vector3 = pads["PadUpLeft"]
+	var up: Vector3 = pads["PadUp"]
+	var ur: Vector3 = pads["PadUpRight"]
+	_ok(ul.x < up.x - 0.2 and up.x < ur.x - 0.2 and _near(ul.z, up.z, 0.01) and _near(ur.z, up.z, 0.01) and _near((pads["PadLeft"] as Vector3).x, ul.x, 0.01)
+			and _near((pads["PadRight"] as Vector3).x, ur.x, 0.01) and (pads["PadDown"] as Vector3).z > up.z + 0.4 and _near((pads["PadDown"] as Vector3).x, up.x, 0.01),
+		"solo: the corners are on the screen's side, over the left and right panels, the down panel at the player's end of the square")
+	var tiles := 0
+	for c in model.find_children("StageTile*", "MeshInstance3D", true, false):
+		tiles += 1
+	_ok(tiles == 3, "solo: and the three squares that are no arrow are bare tiles (%d)" % tiles)
+	# The corners are MAME's buttons 3 and 4 ("P1 Up-Left", "P1 Up-Right"): they sink with them and nothing else does.
+	var ulp := panel.find_child("PadUpLeft", true, false) as Node3D
+	var urp := panel.find_child("PadUpRight", true, false) as Node3D
+	var upp := panel.find_child("PadUp", true, false) as Node3D
+	var ul_rest := ulp.position
+	var ur_rest := urp.position
+	var up_rest := upp.position
+	panel.show_state(1 << ArcadeProfiles.button_bit(3))
+	_ok(not ulp.position.is_equal_approx(ul_rest) and urp.position.is_equal_approx(ur_rest) and upp.position.is_equal_approx(up_rest),
+		"solo: button 3 sinks the up-left panel and no other")
+	panel.show_state(1 << ArcadeProfiles.button_bit(4))
+	_ok(ulp.position.is_equal_approx(ul_rest) and not urp.position.is_equal_approx(ur_rest) and upp.position.is_equal_approx(up_rest),
+		"solo: button 4 sinks the up-right panel, and the up-left comes back")
+	panel.show_state(1 << ControllerBindings.JOYPAD_UP)
+	_ok(ulp.position.is_equal_approx(ul_rest) and not upp.position.is_equal_approx(up_rest), "solo: UP sinks the up panel alone")
+	panel.show_state(0)
+	# A finger on a corner presses the game's button for it.
+	var hands := ArcadePanelHands.new(panel)
+	var bits: Array = []
+	for poke: ArcadePanelHands.Poke in hands.pokes():
+		bits.append(poke.bit)
+	_ok(bits.has(ArcadeProfiles.button_bit(3)) and bits.has(ArcadeProfiles.button_bit(4)) and bits.has(ControllerBindings.JOYPAD_UP) and bits.size() >= 6,
+		"solo: a fingertip can press each of the six (%d zones)" % bits.size())
+	# The two-player stage keeps its four.
+	model.morph_to(_spec("ddr4m"))
+	model.apply_game_profile(P.for_romset("ddr4m"))
+	await _wait(4)
+	var plain := true
+	for p: ArcadeControlModule in _panels(model):
+		plain = plain and p.find_child("PadUpLeft", true, false) == null and p.find_child("PadUpRight", true, false) == null and p.find_child("PadUp", true, false) != null
+	_ok(plain and _panels(model).size() == 2, "solo: DDR 4th Mix keeps four arrows a dancer, no corner panel")
 
 
 func _group_shift() -> void:

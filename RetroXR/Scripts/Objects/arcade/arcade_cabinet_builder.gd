@@ -1491,16 +1491,19 @@ func _build_stage(spec: Dictionary) -> void:
 
 
 ## Is the panel at (row, col) of the 3 x 3 square an arrow? Four arrows: the edges' middles (up, left, right,
-## down); five: the corners and the centre.
+## down); five: the corners and the centre; six (DDR Solo): the four and the two corners on the screen's side
+## (up-left and up-right), the other two corners and the centre left bare.
 static func _is_arrow(arrows: int, row: int, col: int) -> bool:
 	if arrows == 5:
 		return (row != 1 and col != 1) or (row == 1 and col == 1)
+	if arrows == 6:
+		return (row == 1) != (col == 1) or (row == 0 and col != 1)
 	return (row == 1) != (col == 1)
 
 
 ## A dancer's arrows on the stage at `at` (the square's middle, cabinet frame): Pad<Dir> caps the module sinks
-## with the joypad's directions, or Pump It Up's five as Btn1..5 (down-left, up-left, centre, up-right,
-## down-right). Carried into the panel's frame by `to_parent`.
+## with the joypad's directions (DDR Solo's up-left and up-right panels are PadUpLeft and PadUpRight, MAME's buttons 3 and 4), or
+## Pump It Up's five as Btn1..5 (down-left, up-left, centre, up-right, down-right). Carried into the panel's frame by `to_parent`.
 func _arrows(parent: Node3D, to_parent: Transform3D, at: Vector3, arrows: int, index: int) -> void:
 	var color := _player_color(index)
 	var cells: Array = []
@@ -1508,6 +1511,9 @@ func _arrows(parent: Node3D, to_parent: Transform3D, at: Vector3, arrows: int, i
 		cells = [["Btn1", 2, 0], ["Btn2", 0, 0], ["Btn3", 1, 1], ["Btn4", 0, 2], ["Btn5", 2, 2]]
 	else:
 		cells = [["PadUp", 0, 1], ["PadLeft", 1, 0], ["PadRight", 1, 2], ["PadDown", 2, 1]]
+		if arrows == 6:
+			cells.append(["PadUpLeft", 0, 0])
+			cells.append(["PadUpRight", 0, 2])
 	for c: Array in cells:
 		var pos := at + Vector3((int(c[2]) - 1) * 0.30, 0.026, (int(c[1]) - 1) * 0.30)
 		var plate := ArcadeParts.box(_owner, parent, str(c[0]), Vector3(0.27, 0.008, 0.27), Vector3.ZERO,
