@@ -66,6 +66,13 @@ static func source_rows(vlc: Object) -> Array:
 		return []
 	var info: Dictionary = vlc.call("get_media_info")
 	var rows: Array = []
+	# A file with more than one audio stream (a film's second language, or an MP2
+	# beside an AC-3) numbers them, or the page reads the same labels twice.
+	var audio_count := 0
+	for t: Dictionary in info.get("tracks", []):
+		if str(t.get("type", "")) == "audio":
+			audio_count += 1
+	var audio_n := 0
 	for t: Dictionary in info.get("tracks", []):
 		var codec := str(t.get("codec_name", ""))
 		if codec.is_empty():
@@ -87,15 +94,17 @@ static func source_rows(vlc: Object) -> Array:
 				if kbps > 0:
 					rows.append(["Video bitrate", "%d kbit/s" % kbps])
 			"audio":
+				audio_n += 1
+				var a := "Audio %d " % audio_n if audio_count > 1 else "Audio "
 				rows.append_array([
-					["Audio codec", codec],
-					["Sample rate", "%d Hz" % int(t.get("rate", 0)) if int(t.get("rate", 0)) > 0 else "—"],
-					["Channels", str(int(t.get("channels", 0))) if int(t.get("channels", 0)) > 0 else "—"],
+					[a + "codec", codec],
+					[a + "rate", "%d Hz" % int(t.get("rate", 0)) if int(t.get("rate", 0)) > 0 else "—"],
+					[a + "channels", str(int(t.get("channels", 0))) if int(t.get("channels", 0)) > 0 else "—"],
 				])
 				if kbps > 0:
-					rows.append(["Audio bitrate", "%d kbit/s" % kbps])
+					rows.append([a + "bitrate", "%d kbit/s" % kbps])
 				if not str(t.get("language", "")).is_empty():
-					rows.append(["Language", str(t["language"])])
+					rows.append([a + "language", str(t["language"])])
 			"text":
 				rows.append(["Subtitles", codec])
 	if info.has("input_kbps") and float(info["input_kbps"]) > 0.0:

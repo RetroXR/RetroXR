@@ -112,8 +112,10 @@ func _run() -> void:
 		"and has a codec: %s" % _row(dbg, "Source", "Video codec"))
 	_check(_row(dbg, "Source", "Frame rate").ends_with("fps"),
 		"and a frame rate: %s" % _row(dbg, "Source", "Frame rate"))
-	_check(_row(dbg, "Source", "Sample rate").ends_with("Hz"),
-		"its own audio has a sample rate: %s" % _row(dbg, "Source", "Sample rate"))
+	var arate := _row(dbg, "Source", "Audio rate")
+	if arate.is_empty():
+		arate = _row(dbg, "Source", "Audio 1 rate")
+	_check(arate.ends_with("Hz"), "its own audio has a sample rate: %s" % arate)
 	_check(_row(dbg, "Playback", "State") == "playing", "and it is playing")
 	_check(_row(dbg, "Deck", "Showing on") == "TV, COMPOSITE 1",
 		"the deck says where it shows: %s" % _row(dbg, "Deck", "Showing on"))
@@ -137,9 +139,9 @@ func _run() -> void:
 	_dump("cassette", dbg)
 	_check(_row(dbg, "Media", "In the deck") == "Audio cassette", "the deck names a cassette")
 	_check(_row(dbg, "Media", "Format") == "WAV", "its track is a WAV")
-	_check(_row(dbg, "Source", "Sample rate") == "44100 Hz",
-		"the 44.1 kHz WAV's own rate reads 44100 Hz: %s" % _row(dbg, "Source", "Sample rate"))
-	_check(_row(dbg, "Source", "Channels") == "2", "and two channels")
+	_check(_row(dbg, "Source", "Audio rate") == "44100 Hz",
+		"the 44.1 kHz WAV's own rate reads 44100 Hz: %s" % _row(dbg, "Source", "Audio rate"))
+	_check(_row(dbg, "Source", "Audio channels") == "2", "and two channels")
 	_check(_row(dbg, "Audio output", "Output").begins_with("48000 Hz"),
 		"while the room is fed 48 kHz: %s" % _row(dbg, "Audio output", "Output"))
 	_check(_row(dbg, "Media", "Tape at") != "", "a tape says where it is")
