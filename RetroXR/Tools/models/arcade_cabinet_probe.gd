@@ -316,6 +316,33 @@ func _shot_forms() -> void:
 				_cam.look_at(lap.global_position, Vector3.UP)
 				await _save("formlap_" + romset)
 			_cam.fov = 58.0
+		# A rider standing on a board or skis: what they see from the plate, and the rig leaned over to the right, seen from behind.
+		var board := _model.find_child("Board", true, false) as Node3D
+		var plate := _model.find_child("LeanPivot", true, false) as Node3D
+		if board != null and plate != null:
+			var rest := plate.global_position
+			var up := board.global_basis.y
+			var back := board.global_basis.z
+			_cam.fov = 70.0
+			_look(rest + up * 1.55 + back * 0.05, rest + up * 1.15 - back * 1.2)
+			await _save("formstand_" + romset)
+			# And down at the rail: the crossbar with START on it and the two grips, from the same eyes.
+			_cam.fov = 80.0
+			_look(rest + up * 1.55 + back * 0.05, rest + up * 0.80 - back * 0.30)
+			await _save("formrail_" + romset)
+			var rig := _model.find_child("Player1", true, false) as ArcadeControlModule
+			if rig != null:
+				rig.show_state(1 << ControllerBindings.JOYPAD_RIGHT, Vector4i.ZERO)
+				for i in 90:
+					rig.tick(0.05)
+				print("[probe] lean %s: steering %.2f, the plate's up is %s" % [romset, rig.steering(), str(plate.basis.y)])
+				_cam.fov = 58.0
+				_look(rest + back * 2.4 + up * 1.2, rest + up * 0.55)
+				await _save("formlean_" + romset)
+				rig.show_state(0, Vector4i.ZERO)
+				for i in 90:
+					rig.tick(0.05)
+			_cam.fov = 58.0
 		# A cockpit on a moving base, thrown over: full stick to the right and pulled back, or the wheel hard over with the gas down.
 		var panel := _model.find_child("Player1", true, false) as ArcadeControlModule
 		if panel != null and _model.find_child("MotionPivot", true, false) != null:

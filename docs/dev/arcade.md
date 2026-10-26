@@ -856,6 +856,9 @@ exactly what the cabinet is (Street Fighter II in the generic cabinet: two panel
   one controller taken hold of at the bars. `BarsPivot` turns and tips with the LEFT stick (X steers 28 degrees about the stem, Y tips the grips 12; pulled toward the rider is DOWN),
   `CrankPivot` pedals with the RIGHT stick's Y, up being forward and the deflection the pedalling SPEED (MAME's `AD_STICK_Z` "Cycle Pedal"; libretro-mame binds it to the right stick's Y);
   START on the bars' clamp. The pointer box of the stand stops under the bars or a laser could not reach their grip.
+- **A rider standing on a rocking board** (`skate`, `snow`, `ski`: Top Skater, Alpine Surfer, Alpine Racer and Ski Super G, 2026-10-26; `arcade-cabinets.md` 2f): the WIDE body's big screen at standing height and, 0.84 m out, a stand with a plate rocking on a lengthwise axle
+  (`LeanPivot`, leaned by the steering as a bike is) carrying a skateboard, a snowboard or two skis and a rail the rider holds (posts, side rails and a crossbar in front with START on it, 1 m above the floor). The rail leans with the plate and its grips are what a hand takes
+  (`BarsGrab`, as a bike's bars: sideways 15 cm is a full lean); **the bars' middle is the middle of the two grips**, so a full throw is within the let-go distance. One rider a machine, no seat, no collision; the pointer box is the stand's and stops under the rail.
 - **A hologram window** (`holo`: Time Traveler): the upright with its monitor's picture `HOLO_DEPTH` (30 cm) behind the glass at the far end of a black tunnel cut to the window, a plinth
   in front of it for the props (the real cabinet threw its CRT's picture on a curved mirror; the picture is drawn where the image appeared).
 - **Two levers in one slot** (`slot`: Panic Park): the tall body (a 33 inch class screen, table `m33`) with a `SlidePivot` carriage on a shared `SlotRail` for each player (red and blue), `SLOT_TRAVEL` 14 cm either side of where it

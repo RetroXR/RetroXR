@@ -34,6 +34,7 @@
 ##              Blasters' and Bad Lands' wheels, Wing War's pod
 ##   music/     the rhythm games' own controllers: beatmania's decks, pop'n's nine domes, GuitarFreaks' guitars, DrumMania's pads, a Taiko drum a player, Mambo a Go-Go's three drums
 ##   styles/    a controller that is not a ball on a stick: Star Wars' and Red Baron's flight yoke, Bass Fishing's rod with its reel and crank
+##   rider/     a rider STANDING on a rocking board (Top Skater's skateboard, Alpine Surfer's snowboard, Alpine Racer's skis): a stand, a plate that leans, a rail to hold
 ##   ring/      the R-360 pod (G-LOC R360, Wing War R360): two hoops at the platform's sides and one behind the seat in place of the cabin, turning with the stick, never in the picture's way
 ##   rotary/    a dial AND a stick is a rotary joystick (Ikari Warriors, Top Gunner's bootleg): the stick leans and a collar on its shaft turns
 ##   solo/      DDR Solo's stage has six panels: up-left and up-right are MAME's buttons 3 and 4, a foot or a finger on them presses them
@@ -144,6 +145,9 @@ func _run() -> void:
 		await _clear()
 	if _want("styles"):
 		await _group_styles()
+		await _clear()
+	if _want("rider"):
+		await _group_rider()
 		await _clear()
 	if _want("ring"):
 		await _group_ring()
@@ -2733,6 +2737,200 @@ func _group_styles() -> void:
 	_ok(plain.find_child("YokeBar", true, false) == null and plain.find_child("RodReel", true, false) == null and plain.find_child("DialPivot", true, false) == null
 			and (plain.find_child("StickBall", true, false) as MeshInstance3D).mesh is SphereMesh,
 		"styles: a street fighter's stick is a ball on a stick")
+
+
+## A rider STANDING on a rocking board (Top Skater's skateboard, Alpine Surfer's snowboard, Alpine Racer's skis): the table, the spec, the rig built on a real cabinet, where its parts
+## stand, the lean, the sight over the rail and the pointer box. Every size is an estimate (docs/dev/arcade-cabinets.md): what is tested is that the rig is one a person can step
+## up to, hold and see over, with the plate clear of its stand at full lock, not that it is the real machine's size.
+func _group_rider() -> void:
+	var want := {
+		"skate": ["topskatr", "topskatrj", "topskatru", "topskatruo"],
+		"snow": ["alpines"],
+		"ski": ["alpinerd", "alpinerc", "alpinerjc", "alpinr2b", "alpinr2a", "skisuprg"],
+	}
+	var bad: Array = []
+	for vehicle: String in want:
+		for romset: String in want[vehicle]:
+			var gp := P.for_romset(romset)
+			if not gp.known or gp.form() != vehicle or not gp.is_board() or gp.players != 1 or gp.has_seat():
+				bad.append("%s (%s, %d players)" % [romset, gp.form(), gp.players])
+	_ok(bad.is_empty(), "rider: Top Skater (a skateboard), Alpine Surfer (a snowboard), both Alpine Racers and Ski Super G (skis) are a rider standing on a board, one rider a machine (%s)" % str(bad))
+	var other: Array = []
+	for romset: String in ["skichamp", "segawski", "surfplnt", "alpine", "hangon", "propcycl", "ddrmax", "sf2", "outrun", "not_a_real_romset"]:
+		if P.for_romset(romset).is_board():
+			other.append(romset)
+	_ok(other.is_empty(), "rider: no other game is a board: the ski and surf games nothing is known of, a bike, a bicycle, a dance stage, an upright (%s)" % str(other))
+	var spec_bad: Array = []
+	for vehicle: String in want:
+		var sp := _spec(str(want[vehicle][0]))
+		var rig: Dictionary = sp.get("board", {})
+		if str(rig.get("vehicle", "")) != vehicle or str(sp["shape"]) != "wide" or not (sp["players"] as Array).is_empty() or int(sp["guns"]) != 0 or (sp["coins"] as Array).size() != 1 \
+				or sp.has("cockpit") or sp.has("bike") or sp.has("cycle") or sp.has("bench") or sp.has("stage") or sp.has("screen"):
+			spec_bad.append("%s (%s)" % [vehicle, str(rig)])
+	_ok(spec_bad.is_empty(), "rider: each asks for the wide body's own big screen, no panel, no seat, one coin door and the rig of its own vehicle (%s)" % str(spec_bad))
+	_ok(not _spec("sf2").has("board") and not _spec("hangon").has("board") and S._same_form(_spec("topskatr"), _spec("topskatrj")) and not S._same_form(_spec("topskatr"), _spec("alpines"))
+			and not S._same_form(_spec("alpines"), _spec("alpinerd")),
+		"rider: an upright asks for no rig, a clone asks for what its parent does, and a skateboard, a snowboard and skis are three rigs")
+	var parts := {
+		"skate": ["SkateDeck", "SkateNose", "SkateTail", "SkateTruck1", "SkateTruck2", "SkateWheel1", "SkateWheel2", "SkateWheel3", "SkateWheel4"],
+		"snow": ["SnowBoard", "SnowNose", "SnowTail", "SnowBinding1", "SnowBinding2", "SnowStrap1", "SnowStrap2"],
+		"ski": ["Ski1", "Ski2", "SkiTip1", "SkiTip2", "SkiBinding1", "SkiBinding2"],
+	}
+	var common := ["Board", "BoardStand", "BoardStandTrim", "BoardAxle", "Player1", "LeanPivot", "BoardPlate", "BoardPlateTrim", "Handlebars", "BarCross", "BarGripL", "BarGripR",
+			"BoardPostLF", "BoardPostLB", "BoardPostRF", "BoardPostRB", "BoardRailL", "BoardRailR", "BarClamp", "Start", "PanelGrip"]
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	var to_cab := model.global_transform.affine_inverse()
+	for vehicle: String in want:
+		var romset := str(want[vehicle][0])
+		model.morph_to(_spec(romset))
+		model.apply_game_profile(P.for_romset(romset))
+		await _wait(4)
+		var missing: Array = []
+		for n: String in common + (parts[vehicle] as Array):
+			if model.find_child(n, true, false) == null:
+				missing.append(n)
+		var stray: Array = []
+		for other_vehicle: String in parts:
+			if other_vehicle != vehicle:
+				for n: String in parts[other_vehicle]:
+					if model.find_child(n, true, false) != null:
+						stray.append(n)
+		_ok(missing.is_empty() and stray.is_empty() and _panels(model).size() == 1 and _doors(model).size() == 1,
+			"rider: %s has a stand, an axle, a plate, its own parts, a rail with two grips and START, one controller and one coin door, and nothing of the other vehicles (missing %s, stray %s)"
+				% [romset, str(missing), str(stray)])
+		if not missing.is_empty():
+			continue
+		var panel := _panels(model)[0] as ArcadeControlModule
+		var lean := model.find_child("LeanPivot", true, false) as Node3D
+		var gl := to_cab * (model.find_child("BarGripL", true, false) as Node3D).global_position
+		var gr := to_cab * (model.find_child("BarGripR", true, false) as Node3D).global_position
+		var cross := to_cab * (model.find_child("BarCross", true, false) as Node3D).global_position
+		var start := to_cab * (model.find_child("Start", true, false) as Node3D).global_position
+		# The rail is held at the hip: a standing person's waist, the same each side, symmetric about the middle, and the crossbar is in FRONT of the grips (toward the screen).
+		_ok(gl.y > 0.95 and gl.y < 1.15 and _near(gl.y, gr.y, 0.001) and _near(gl.x, -gr.x, 0.001) and _near(gl.z, gr.z, 0.001) and gr.x - gl.x > 0.60 and gr.x - gl.x < 0.80,
+			"rider: %s's rail is held at the waist (%.2f m up), a grip each side of the middle %.2f m apart" % [vehicle, gl.y, gr.x - gl.x])
+		_ok(cross.z < gl.z - 0.25 and _near(cross.y, gl.y, 0.001) and _near(start.x, 0.0, 0.001) and _near(start.z, cross.z, 0.001) and start.y > cross.y + 0.01 and start.y < cross.y + 0.05,
+			"rider: %s's crossbar is in front of the grips with START in the middle of it, on top (%.2f m in front)" % [vehicle, gl.z - cross.z])
+		# The bars' own middle (what a hand's let-go distance is measured from) is the middle of the two grips, not the crossbar's: a full throw of a hand 15 cm out stays within reach of it.
+		var bars_at := to_cab * (model.find_child("Handlebars", true, false) as Node3D).global_position
+		_ok(_near(bars_at.x, 0.0, 0.001) and _near(bars_at.z, gl.z, 0.001) and _near(bars_at.y, gl.y, 0.001),
+			"rider: %s's bars are taken from the middle of the two grips, %.2f m from either" % [vehicle, bars_at.distance_to(gl)])
+		# Everything stands on the stand: no part of the rig, rail and leaning plate aside, past its edges, and the stand is clear of the bay door's swing.
+		var stand := to_cab * (model.find_child("BoardStand", true, false) as MeshInstance3D).global_position
+		var over: Array = []
+		for mi: MeshInstance3D in _meshes(model.find_child("Board", true, false)):
+			var box: AABB = to_cab * (mi.global_transform * mi.get_aabb())
+			if box.position.z < ArcadeCabinetBuilder.BOARD_Z0 - 0.005 or box.end.z > ArcadeCabinetBuilder.BOARD_Z1 + 0.005 or box.position.x < -0.50 or box.end.x > 0.50:
+				over.append(str(mi.name))
+		_ok(over.is_empty() and _near(stand.z, (ArcadeCabinetBuilder.BOARD_Z0 + ArcadeCabinetBuilder.BOARD_Z1) * 0.5, 0.001),
+			"rider: %s stands wholly on its stand, 0.84 m from the cabinet's front at the nearest (over: %s)" % [vehicle, str(over)])
+		# The stand is clear of the bay door's swing (no nearer than 0.84 m to the cabinet's front) and big enough to stand in front of the screen on.
+		var stand_mi := model.find_child("BoardStand", true, false) as MeshInstance3D
+		var stand_box: AABB = to_cab * (stand_mi.global_transform * stand_mi.get_aabb())
+		_ok(stand_box.position.z >= 0.839 and stand_box.size.z >= 1.2 and stand_box.size.x >= 0.8 and stand_box.size.x <= 0.95,
+			"rider: %s's stand starts %.2f m out, clear of the bay door, and is %.2f m deep and %.2f m wide" % [vehicle, stand_box.position.z, stand_box.size.z, stand_box.size.x])
+		# What the vehicle is: seen from the plate, the nose (and a snowboard's or skateboard's tail) turned up past the body, the skis a shoulder's width apart, the wheels on the plate.
+		var in_lean := lean.global_transform.affine_inverse()
+		var box_of := func(n: String) -> AABB:
+			var mi := model.find_child(n, true, false) as MeshInstance3D
+			return in_lean * (mi.global_transform * mi.get_aabb())
+		var turned: Array = []
+		match vehicle:
+			"skate":
+				turned = [["SkateDeck", "SkateNose", true], ["SkateDeck", "SkateTail", false]]
+			"snow":
+				turned = [["SnowBoard", "SnowNose", true], ["SnowBoard", "SnowTail", false]]
+			_:
+				turned = [["Ski1", "SkiTip1", true], ["Ski2", "SkiTip2", true]]
+		var flat: Array = []
+		for t: Array in turned:
+			var body: AABB = box_of.call(str(t[0]))
+			var tip: AABB = box_of.call(str(t[1]))
+			var beyond := tip.position.z < body.position.z if bool(t[2]) else tip.end.z > body.end.z
+			# Its far end up past its near end by its own slope (a box tipped the other way has the same extent round its middle).
+			var piece := model.find_child(str(t[1]), true, false) as MeshInstance3D
+			var half_z := piece.get_aabb().size.z * 0.5
+			var far_end: Vector3 = in_lean * (piece.global_transform * Vector3(0.0, 0.0, -half_z if bool(t[2]) else half_z))
+			var near_end: Vector3 = in_lean * (piece.global_transform * Vector3(0.0, 0.0, half_z if bool(t[2]) else -half_z))
+			if not beyond or tip.end.y < body.end.y + 0.015 or far_end.y < near_end.y + 0.02:
+				flat.append(str(t[1]))
+		_ok(flat.is_empty(), "rider: %s's ends are turned up, the nose toward the screen (%s are not)" % [vehicle, str(flat)])
+		match vehicle:
+			"skate":
+				var wheels_ok := true
+				var deck: AABB = box_of.call("SkateDeck")
+				for w in range(1, 5):
+					var wb: AABB = box_of.call("SkateWheel%d" % w)
+					wheels_ok = wheels_ok and wb.position.y >= 0.012 and wb.position.y <= 0.02 and wb.end.y <= deck.position.y + 0.002 and absf(wb.get_center().x) > 0.08 and absf(wb.get_center().z) > 0.2
+				_ok(wheels_ok, "rider: the skateboard's four wheels stand on the plate at the corners, under the deck")
+			"snow":
+				var b1: AABB = box_of.call("SnowBinding1")
+				var b2: AABB = box_of.call("SnowBinding2")
+				var board: AABB = box_of.call("SnowBoard")
+				_ok(_near(b1.get_center().z, -b2.get_center().z, 0.001) and absf(b1.get_center().z - b2.get_center().z) > 0.35 and absf(b1.get_center().z - b2.get_center().z) < 0.5
+						and b1.position.y >= board.end.y - 0.005 and b2.position.y >= board.end.y - 0.005,
+					"rider: the snowboard has a binding for each foot, a shoulder's width apart, on its top")
+			_:
+				var k1: AABB = box_of.call("Ski1")
+				var k2: AABB = box_of.call("Ski2")
+				_ok(absf(k1.get_center().x + k2.get_center().x) < 0.001 and absf(k1.get_center().x - k2.get_center().x) > 0.2 and absf(k1.get_center().x - k2.get_center().x) < 0.35
+						and k1.size.z > 0.85 and k1.end.x <= k2.position.x and k2.size.z > 0.85,
+					"rider: the two skis lie side by side, apart, each most of a metre long")
+		# Leaned all the way either way: the plate's low edge clears the stand, the rail leans with it, the plate leans into the turn.
+		var rest_top := to_cab * (model.find_child("Handlebars", true, false) as Node3D).global_position
+		var rest_rail := to_cab * (model.find_child("BoardRailL", true, false) as Node3D).global_position
+		var lows: Array = []
+		var shifts: Array = []
+		var rails: Array = []
+		for bit: int in [ControllerBindings.JOYPAD_RIGHT, ControllerBindings.JOYPAD_LEFT]:
+			panel.show_state(1 << bit)
+			for i in 90:
+				panel.tick(0.05)
+			var plate := model.find_child("BoardPlate", true, false) as MeshInstance3D
+			var low := 10.0
+			var half := plate.get_aabb().size * 0.5
+			for sx: float in [-1.0, 1.0]:
+				for sz: float in [-1.0, 1.0]:
+					low = minf(low, (to_cab * (plate.global_transform * Vector3(sx * half.x, -half.y, sz * half.z))).y)
+			lows.append(snappedf(low, 0.001))
+			shifts.append(snappedf((to_cab * (model.find_child("Handlebars", true, false) as Node3D).global_position).x - rest_top.x, 0.001))
+			shifts.append(snappedf(lean.global_basis.y.x, 0.001))
+			rails.append(snappedf((to_cab * (model.find_child("BoardRailL", true, false) as Node3D).global_position).x - rest_rail.x, 0.001))
+		panel.show_state(0)
+		for i in 90:
+			panel.tick(0.05)
+		_ok(float(lows[0]) > ArcadeCabinetBuilder.BOARD_STAND_H + 0.004 and float(lows[1]) > ArcadeCabinetBuilder.BOARD_STAND_H + 0.004,
+			"rider: %s's plate keeps clear of its stand at full lock either way (low edge %s m, the stand's top %.2f)" % [vehicle, str(lows), ArcadeCabinetBuilder.BOARD_STAND_H])
+		_ok(float(shifts[0]) > 0.15 and float(shifts[2]) < -0.15 and float(shifts[1]) > 0.2 and float(shifts[3]) < -0.2,
+			"rider: %s leans into a turn, the rail with it (%s, a side rail %s)" % [vehicle, str(shifts), str(rails)])
+		_ok(float(rails[0]) > 0.15 and float(rails[1]) < -0.15, "rider: and the side rails go with it, the whole rail one piece with the plate")
+		_ok(lean.global_basis.y.distance_to(Vector3.UP) < 0.001, "rider: and it comes upright again with the stick")
+		# A standing rider sees the whole picture over the rail: from where their eyes are at the plate to the middle and the corners of the glass.
+		var eye := model.to_global(Vector3(0.0, 1.75, ArcadeCabinetBuilder.BOARD_Z0 + (ArcadeCabinetBuilder.BOARD_Z1 - ArcadeCabinetBuilder.BOARD_Z0) * 0.5 + 0.05))
+		var blockers := _sight_blockers(model, eye, model.get_builtin_screen(), model.find_child("Board", true, false))
+		_ok(blockers.is_empty(), "rider: %s: nothing of the rig stands between a standing rider's eyes and the picture (%s)" % [vehicle, str(blockers)])
+	# A pointer box over the stand and the plate, below the rail: a laser aimed at the grips and START is not hidden by it, and the rig is part of the cabinet's footprint.
+	var boxes: Array = model.get_meta(ArcadeCabinetBuilder.FORM_BOXES_META, [])
+	var low_boxes := boxes.size() == 1
+	for box: AABB in boxes:
+		low_boxes = low_boxes and box.end.y > ArcadeCabinetBuilder.BOARD_AXIS_Y and box.end.y < 0.5 and _near(box.position.z, ArcadeCabinetBuilder.BOARD_Z0, 0.001) \
+				and _near(box.end.z, ArcadeCabinetBuilder.BOARD_Z1, 0.001)
+	_ok(low_boxes and model.ground_footprint().y > 2.4,
+		"rider: the stand and its plate can be aimed at to take hold of the cabinet, the rail cannot be hidden by them, and the floor rectangle reaches the end of the stand (%s)" % str(model.ground_footprint()))
+	# No collision: a person steps up to it. Its one controller can be aimed at to take hold of.
+	var solid := 0
+	for body in model.find_child("Board", true, false).find_children("*", "CollisionObject3D", true, false):
+		if body is StaticBody3D or body is RigidBody3D or body is CharacterBody3D:
+			solid += 1
+	var p1 := _panels(model)[0] as ArcadeControlModule
+	_ok(solid == 0 and p1.grip() != null and (p1.grip().collision_layer & (1 << 20)) != 0,
+		"rider: nothing of the rig is solid, and its rail can be aimed at to take hold of the controller")
+	# Pulling the game back is the cabinet's own again.
+	model.morph_to(_spec("sf2"))
+	await _wait(3)
+	_ok(model.find_child("Board", true, false) == null and model.find_child("LeanPivot", true, false) == null and _panels(model).size() == 2 and model.ground_footprint().y < 1.0,
+		"rider: a game with no board gives the upright back, the rig gone and the footprint the cabinet's own")
 
 
 ## The R-360 pod (G-LOC R360, Wing War R360): Sega's sphere cockpit hung in rings that turn. The table says so with `r` where a cockpit's cabin would be; the cockpit has two hoops at the

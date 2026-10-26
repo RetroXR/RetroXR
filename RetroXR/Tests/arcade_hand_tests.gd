@@ -81,7 +81,7 @@ func _run() -> void:
 		_group_zone()
 	for g: Array in [["caps", _group_caps], ["pedals", _group_pedals], ["stick", _group_stick],
 			["twin", _group_twin], ["wheel", _group_wheel], ["dial", _group_dial], ["ball", _group_ball],
-			["lever", _group_lever], ["bars", _group_bars], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
+			["lever", _group_lever], ["bars", _group_bars], ["rider", _group_rider], ["cycle", _group_cycle], ["slot", _group_slot], ["fly", _group_fly],
 			["input", _group_input],
 			["laser", _group_laser], ["carry", _group_carry], ["use", _group_use]]:
 		if _want(str(g[0])):
@@ -965,6 +965,54 @@ func _group_bars() -> void:
 	input._process(0.016)
 	_ok(not hands.holds(&"bars"), "bars: let go")
 	input._left_vr_ctrl = null
+
+
+# --- rider ---------------------------------------------------------------------
+
+## A rider's rail (Top Skater, Alpine Surfer, Alpine Racer): taken at a side grip it steers the plate as a bike's bars do, a full throw of the hand is still within the let-go
+## distance (the middle of the rail is the middle of its two grips, 34 cm out), a hand far off has lost it, and START on its crossbar is pressed by a finger.
+func _group_rider() -> void:
+	for romset: String in ["topskatr", "alpines", "alpinerd"]:
+		var r := await _rig(romset)
+		var panel: ArcadeControlModule = r["panel"]
+		var input: ArcadeInput = r["input"]
+		var hands: ArcadePanelHands = panel.hands()
+		var h := _hand()
+		var grip := panel.find_child("BarGripR", true, false) as Node3D
+		var lean := panel.find_child("LeanPivot", true, false) as Node3D
+		_ok(grip != null and lean != null and panel.find_child("BarGripL", true, false) != null, "rider: %s has a rail with a grip each side on a plate that leans" % romset)
+		if grip == null or lean == null:
+			continue
+		var at := grip.global_position
+		_tip_at(h, at)
+		_trigger(h, 1.0)
+		_step(panel, [h])
+		_ok(hands.holds(&"bars") and is_zero_approx(hands.steer(&"bars")), "rider: %s: the trigger on a grip takes hold of the rail" % romset)
+		_tip_at(h, at + Vector3(ArcadePanelHands.BARS_THROW, 0, 0))
+		_step(panel, [h])
+		var far: float = (panel.find_child("Handlebars", true, false) as Node3D).global_position.distance_to(at + Vector3(ArcadePanelHands.BARS_THROW, 0, 0))
+		_ok(is_equal_approx(hands.steer(&"bars"), 1.0) and hands.holds(&"bars") and panel.hand_thumbstick(0).is_equal_approx(Vector2(1.0, 0.0)) and far < ArcadePanelHands.BARS_LET_GO,
+			"rider: %s: pushed 15 cm to the right the rail is all the way over, and a hand %.2f m from the middle of it has it still" % [romset, far])
+		_tip_at(h, at + Vector3(-ArcadePanelHands.BARS_THROW * 2.0, 0, 0))
+		_step(panel, [h])
+		_ok(is_equal_approx(hands.steer(&"bars"), -1.0) and _dpad(input, panel) == _bit(ControllerBindings.JOYPAD_LEFT),
+			"rider: %s: and as far to the left as it goes, a full lean left" % romset)
+		input._left_vr_ctrl = _ctrl(h)
+		input._process(0.016)
+		panel.tick(0.016)
+		_ok(lean.global_basis.y.x < -0.1, "rider: %s: the plate is drawn leaning left with it" % romset)
+		_tip_at(h, at + Vector3(1.0, 0, 0))
+		_step(panel, [h])
+		_ok(not hands.holds(&"bars"), "rider: %s: and a hand a metre off has lost it" % romset)
+		_trigger(h, 0.0)
+		input._process(0.016)
+		input._left_vr_ctrl = null
+		for i in 90:
+			panel.tick(0.05)
+		_tip_at(h, _cap_top(panel, "Start"))
+		_step(panel, [h])
+		_ok(panel.hand_buttons() == _bit(ArcadeProfiles.START_BIT), "rider: %s: a finger on START, on top of the crossbar, presses START" % romset)
+		await _clear()
 
 
 # --- cycle ---------------------------------------------------------------------

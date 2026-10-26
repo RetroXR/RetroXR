@@ -1679,6 +1679,10 @@ func _group_game_profile() -> void:
 	_ok(P.for_romset("timetrv").form() == P.FORM_HOLO and P.for_romset("panicprk").form() == P.FORM_SLOT
 		and P.for_romset("propcycl").form() == P.FORM_CYCLE,
 		"game: Time Traveler, Panic Park and Prop Cycle each have a form of their own (hologram, slot, bicycle)")
+	_ok(P.for_romset("topskatr").form() == P.FORM_SKATE and P.for_romset("alpines").form() == P.FORM_SNOW and P.for_romset("alpinerd").form() == P.FORM_SKI
+		and P.for_romset("alpinr2b").form() == P.FORM_SKI and P.for_romset("skisuprg").form() == P.FORM_SKI and P.for_romset("topskatr").is_board() and P.for_romset("alpines").is_board()
+		and not P.for_romset("hangon").is_board() and not P.for_romset("skichamp").is_board() and not P.for_romset("sf2").is_board(),
+		"game: Top Skater is a skateboard, Alpine Surfer a snowboard and both Alpine Racers and Ski Super G skis: a rider standing on a rocking board")
 	var touch := P.for_romset("megat")
 	_ok(touch.has_kind(P.KIND_TOUCH) and not touch.is_gun() and touch.gun_count() == 0,
 		"game: a touch screen MAME files as a light gun is not a gun (Megatouch)")

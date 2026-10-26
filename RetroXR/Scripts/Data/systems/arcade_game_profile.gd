@@ -171,6 +171,9 @@ const FORM_SLOT := "slot"          ## two levers sliding in one slot (Panic Park
 const FORM_DANCE := "dance"        ## a dance stage, four arrows a player
 const FORM_PUMP := "pump"          ## a dance stage, five panels a player
 const FORM_MUSIC := "music"        ## a rhythm game's own controller (turntable, drums, guitar): the table's `i` says which (instrument())
+const FORM_SKATE := "skate"        ## a rider standing on a skateboard deck that rocks, a rail round the front (Top Skater)
+const FORM_SNOW := "snow"          ## the same on a snowboard (Alpine Surfer)
+const FORM_SKI := "ski"            ## the same on a pair of skis (Alpine Racer)
 const FORM_ODD := "odd"            ## a unique cabinet (docs/dev/arcade-cabinets.md, section 5): not built yet
 
 
@@ -178,6 +181,12 @@ const FORM_ODD := "odd"            ## a unique cabinet (docs/dev/arcade-cabinets
 func form() -> String:
 	var t := str(attrs.get("t", ""))
 	return t if known and not t.is_empty() else FORM_UPRIGHT
+
+
+## Does the rider stand on a rocking board or pair of skis (the three forms ArcadeCabinetBuilder._build_board makes)?
+func is_board() -> bool:
+	var f := form()
+	return f == FORM_SKATE or f == FORM_SNOW or f == FORM_SKI
 
 
 ## The main screen's rotation in degrees (0, 90, 180, 270): MAME's, for the monitor as it stood in the cabinet.

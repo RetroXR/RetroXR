@@ -34,7 +34,8 @@ not the default, `;`-separated attributes (a letter and a value):
             race (a sit-down driving cockpit), fly (a sit-down flight cockpit: After Burner II), stand (a stand-up
             driving cabinet), bike (a ride-on motorbike), cycle (a ride-on bicycle: Prop Cycle), holo (a hologram window:
             Time Traveler), slot (two levers sliding in one slot: Panic Park), racegun (a driving cockpit of two seats with a gun
-            each: Lucky & Wild), dance (a 4-arrow dance stage), pump (a 5-panel one), music, odd,
+            each: Lucky & Wild), dance (a 4-arrow dance stage), pump (a 5-panel one), music, skate / snow / ski (a rider standing
+            on a rocking skateboard, snowboard or pair of skis, a rail round the front: Top Skater, Alpine Surfer, Alpine Racer, Ski Super G), odd,
   o         the driving cockpit has a roof,
   q<flags>  what the game's SIT-DOWN version was built with, for a flight cockpit, a driving cockpit or a gun ride (cockpits.py SEATING, with where each comes
             from): `s` a seat, `c` a cabin round it, `m` a base that moves with the play (`qscm` After Burner II, `qsm` Out Run), `r` the R-360's rings in place of a
@@ -205,12 +206,13 @@ UNUSED = {"arkretrn": {"joy"}}
 # A game MAME counts more players (and coins) than its cabinet had, by PARENT romset: (players, coins). The F3 board takes four whatever the game was; Darius Gaiden
 # was a two-player upright (Taito's own, docs/dev/arcade-cabinets.md).
 PLAYERS = {"dariusg": (2, 2), "dariusgx": (2, 2),
+           # Alpine Surfer, Alpine Racer and Alpine Racer 2: one rider a machine (two linked machines race together), where MAME counts both riders.
+           "alpines": (1, 1), "alpinerd": (1, 1), "alpinr2b": (1, 1),
            # Taiko no Tatsujin 7 to 11 (Namco System 246) declare no controls yet: the cabinet is the drum a player, two players, whatever the driver gets to.
            "taiko7": (2, 2), "taiko8": (2, 2), "taiko9": (2, 2), "taiko10": (2, 2), "taiko11": (2, 2)}
 # Unique cabinets, drawn as a plain upright until they get a module of their own: the list in
-# docs/dev/arcade-cabinets.md. The skis, the board, the boats, the fishing rod, the horses, a boxing bag.
-ODD = {"alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
-       "aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp",
+# docs/dev/arcade-cabinets.md. The boats, a pair of skis (Ski Champ), the horses, a boxing bag.
+ODD = {"aquajet", "jetwave", "waverunr", "rapidrvr", "finfurl", "finfurl2", "skichamp",
        "boxingm", "tokyowar", "cybsled", "bzone",
        "punchout", "spnchout", "armwrest", "gunmania", "maletmad", "hammer",
        "kick", "kickman", "dmx2m", "dmx2majp", "ppp", "ppd", "ppp11", "ppp2nd",
@@ -220,6 +222,11 @@ ODD = {"alpinerd", "alpinr2b", "alpines", "alpinesa", "topskatr",
 # Back and Red Baron: a U-shaped yoke with a handgrip each end), a fishing rod with a reel and a crank (Sega Bass Fishing and its clones). The game stays an upright: MAME gives the
 # fishing game a paddle and a pedal, which would have made it a stand-up driving cabinet.
 STYLE = {"starwars": "yoke", "esb": "yoke", "redbaron": "yoke", "bassdx": "rod"}
+# A rider STANDING on a board: Sega's Top Skater (a skateboard deck), Namco's Alpine Surfer (a snowboard), Alpine Racer and its sequel and Sega's Ski Super G (a pair of skis), by PARENT romset: the vehicle,
+# which is the form (`tskate`, `tsnow`, `tski`). The deck rocks about its long axis with the steering and the rider holds a rail round the front; MAME gives each of them a stick, a joystick or
+# a pair of analog sticks and no seat, which drew a plain upright with a ball on a stick. Ski Champ, Water Ski and Surf Planet are not here: nothing found says what stood
+# under their riders. One rig a cabinet, whatever the driver counts (PLAYERS: Namco's pair of linked machines is two cabinets).
+BOARD = {"topskatr": "skate", "alpines": "snow", "alpinerd": "ski", "alpinr2b": "ski", "skisuprg": "ski"}
 
 DANCE_DESC = re.compile(r"dance dance revolution|dancing stage|dance 86\.4", re.I)
 PUMP_DESC = re.compile(r"pump it up", re.I)
@@ -329,6 +336,8 @@ def form_of(machine, parent, kinds, name_for_lists):
         return "racegun"
     if name_for_lists in FLY:
         return "fly"
+    if name_for_lists in BOARD:
+        return BOARD[name_for_lists]
     if name_for_lists in STYLE:
         return ""
     if name_for_lists in ODD:

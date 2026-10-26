@@ -33,20 +33,21 @@ romset -> ArcadeGameTable line  "p2c1b9w2:joy+stick;tslot panicprk=panicprkj"   
 
 A profile is `p<players>c<coins>b<buttons>w<ways>:<kinds>;<attributes>`. MAME says the players, coins, buttons, ways, kinds, the rotation, the screens,
 the guns and whether the game reads a service switch (`v`). **MAME says nothing of what the cabinet looked like**: the form (`t...`) is a choice made in
-`gen_game_index.py` from curated lists (`CYCLE HOLO SLOT RIFLE MOUNTED_GUN GUN_PEDAL BIKE STAND_RACER ROOFED ODD`, and `FLY` and `SEATING` in `Tools/arcade/cockpits.py`), the Cabinet
-DIP switch and the game's name. 28,739 romsets, 1,645 profiles. Two attributes say what the SIT-DOWN version had (section 2b): `q`, the letters `s` (a seat), `c` (a cabin round it) and `m` (a base that
+`gen_game_index.py` from curated lists (`CYCLE HOLO SLOT RIFLE MOUNTED_GUN GUN_PEDAL BIKE STAND_RACER ROOFED BOARD STYLE ODD`, and `FLY` and `SEATING` in `Tools/arcade/cockpits.py`), the Cabinet
+DIP switch and the game's name. 28,739 romsets, 1,647 profiles. Two attributes say what the SIT-DOWN version had (section 2b): `q`, the letters `s` (a seat), `c` (a cabin round it) and `m` (a base that
 moves), and `z`, a throttle lever. A third, `b`, says the game has a Timekeeper chip whose memory it checks (`h` the image it is seeded from is hand built or missing, `g` a good dump,
 `n` none: `arcade-backup-memory.md`).
 
 | form (`t`) | romsets (families) | | form (`t`) | romsets (families) |
 |---|---|---|---|---|
-| plain upright | 27,334 (9,175) | | `rifle` | 51 (25) |
+| plain upright | 27,343 (9,178) | | `rifle` | 51 (25) |
 | `race` | 433 (185) | | `gunm` | 57 (20) |
 | `gun` | 305 (151) | | `pump` | 22 (14) |
 | `stand` | 132 (45) | | `cycle`, `holo`, `slot` | 2 (1) each |
-| `music` (built for six instruments, 2c) | 165 (88) | | `odd` (not built) | 69 (38) |
+| `music` (built for six instruments, 2c) | 165 (88) | | `odd` (not built) | 49 (30) |
 | `bike` | 65 (25) | | `dance` | 53 (32) |
 | `fly` | 45 (21) | | `racegun` | 2 (1) |
+| `skate`, `snow`, `ski` (a rider standing, 2f) | 4 (1), 1 (1), 6 (3) | | | |
 
 And across every form: **3,290 romsets stand the monitor on its side** (`r90`/`r270`: the taller `tate` body), 170 turn it over (`r180`, nothing changes), 356 drive
 more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: one panel, two turns) and 14,977 read a service switch (`v`).
@@ -329,6 +330,35 @@ cabinet with a steering wheel and pedals.** They are uprights now (`form_of` ret
 - Tests: `arcade_form_tests styles/` (14 checks: the table, uprights and not driving cabinets, a yoke's panel wider than a stick's and centred, the yoke's parts and where they stand, the caps clear of the grips, the lean and the hand's grab, the rod's parts, its direction, the crank's axle
   and its turn, the two grabs a few centimetres apart, a plain stick unchanged), `layout/` takes the three new panel kinds; 20 mutations of the code, 3 of the generator, all red.
 
+## 2f. A rider standing on a rocking board (Top Skater, Alpine Surfer, Alpine Racer)
+
+(2026-10-26.) Games where the player does not sit, hold a wheel or aim at the screen: they STAND on the machine's own moving platform and lean it, holding a rail. They were `odd` (an upright with a stick), which asked the player for a
+joystick in the place of a skateboard. **The vehicle is the form** (`BOARD` in `gen_game_index.py`, by PARENT romset): `skate`, `snow` and `ski`, all built by `ArcadeCabinetBuilder._build_board` as ONE rig that differs only in what stands on the plate.
+
+| form | games | MAME's controls | the real machine (research: search summaries, nothing opened, no photograph seen) | what is built |
+|---|---|---|---|---|
+| `skate` | Top Skater `topskatr` (`topskatrj`, `topskatru`, `topskatruo`) | **NW**; one analog `stick` with four buttons; `AD_STICK_X` "Curving" and `AD_STICK_X` "Slide", buttons "Select Left/Right", "Jump Front", "Jump Tail" | Sega 1997, a skateboard-style deck that pivots side to side or tilts (three axes, medium), handrails each side (medium-low), a 50 inch screen with two speakers aimed at the rider; that the rider STANDS is inferred from the deck | a skateboard deck 0.21 x 0.72 m with a kicktail each end and two trucks with four wheels |
+| `snow` | Alpine Surfer `alpines` | **I**; `joy` (2 way), two analog `stick`s | Namco 1996, a snowboard-style foot platform the rider stands on (medium), edge pressure sets the speed (medium-low), two large handlebars (medium-low); the monitor was a SEPARATE unit | a snowboard 0.27 x 0.90 m with its ends turned up, a binding and strap for each foot |
+| `ski` | Alpine Racer `alpinerd` (`alpinerc`, `alpinerjc`), Alpine Racer 2 `alpinr2b` (`alpinr2a`), Ski Super G `skisuprg` | **I**; Alpine: `AD_STICK_X` "Steps Swing" (player 1's port) and "Steps Edge" (player 2's), `joy` (2 way) | Namco 1994 / 1996, Sega 1996: the rider stands on ski-style footplates that swivel (medium) and grips two side bars or poles (the sources say "bars", "handles", "poles": conflict); a 50 inch monitor, about 2.30 x 1.26 x 3.00 m (low-medium); **Alpine Racer 2 and Ski Super G's details were not found, they are drawn as the first** | two skis 0.10 x 0.90 m a shoulder's width apart, the tips turned up, a binding on each |
+
+**The rig** (every size an estimate, constants at the top of `_build_board`): a stand 0.86 x 1.30 m and 8 cm high, 0.84 m out (clear of the bay door's swing, as the bicycle's); on it a **plate 0.76 x 1.10 m that rocks on a lengthwise axle 0.20 m up**
+(`LeanPivot`, which the control module leans with the steering by `LEAN_DEG`, 14 degrees, as a bike); the vehicle on the plate; **a rail the rider holds, the posts and the side rails 0.80 m above the axle (1.00 m above the floor: a standing person's hip)**,
+a grip sleeve on each side rail (`BarGripL/R`) and a crossbar across the FRONT with START on top of its middle. The rail is part of what leans (the hands' grab finds `Handlebars` and the grips under `LeanPivot`, as a bike's). The axle stands high enough that
+the plate's low edge clears the stand at full lock (0.09 m of dip against 0.094 m clearance; the test measures it). The screen is the wide body's own 0.72 x 0.54 m tube at standing height, the bicycle's; a 50 inch one would not fit its glass.
+
+- **One rider a machine** (`PLAYERS`): MAME counts two riders for the Alpine games (two linked machines); one rig is built. Top Skater's two coins are one coin door (a rig has one controller).
+- **No seat, no collision**: a person steps up to the stand and stands on the floor beside the plate or on the plate's place (the cabinet is not solid). **The pointer box stops under the rail** (stand and plate, 0.34 m up) or a laser could not reach a grip.
+- **Hands**: the trigger on a grip takes the rail; **sideways 15 cm is a full lean, and the rail's middle is the middle of its two grips so that a full throw (0.49 m from it) is still held** (the let-go distance is 0.55 m: the crossbar's own middle, 0.30 m forward of the grips, would
+  have been 0.575 m from a hand at the end of its throw and let go of it at full lock, the test that found it); a fingertip on START presses START.
+- **Not built, and said**: the real mechanisms (Alpine Racer's footplates *swivel* and slide; Top Skater tilts about three axes: only the roll is drawn); **Alpine's second axis, "Steps Edge", is player 2's port and a second axis of Top Skater's ("Slide") is not sent: the rig steers with the left stick's X**;
+  the buttons (Top Skater has four, Alpine Surfer three: none is drawn, as a bike's gear button is not); Alpine Racer's poles (the rail stands in for them); the monitor unit Alpine Surfer had; Ski Champ `skichamp` (a paddle and a pedal in MAME: nothing found says what its
+  rider stood on), Sega Water Ski `segawski` (foot pads: "compared with Top Skater", low-medium) and Surf Planet `surfplnt` stay uprights. **Which way the rig leans for a given axis of the real machine is not known**: right is drawn as a lean right.
+- Tests: `arcade_form_tests rider/` (46 checks: which romsets are which vehicle and nothing else is, the spec, every part of the rig on a real cabinet and nothing of the other vehicles, the rail at the waist and symmetric, the bars taken from the middle of the grips, the crossbar in front with START on top of
+  it, everything on the stand, the stand clear of the door, the ends turned up, the wheels on the plate, the bindings, the skis apart, the plate clear of the stand at full lock either way, the plate and the whole rail leaning into the turn, nothing between a standing rider's eyes and the picture,
+  the pointer box, no collision, the upright back); `arcade_hand_tests rider/` (21: the grab, a full throw still held, the plate drawn leaning, a hand a metre off let go, START pressed, for each vehicle). Mutation-tested line by line: the rail's height and width, the crossbar behind the grips, the bars' middle at the crossbar
+  (the one the hands' test and the form's catch for different reasons), START off its place, the rail or the posts off the plate, the stand too near or too short, a pointer box over the rail, every end tipped the wrong way, wheels off the plate, a binding twice, the skis on each other, the spec on the wrong body or keeping panels, one vehicle for all, the profile counting a bike or missing a ski: all red.
+  Photographs (`Tools/models/arcade_cabinet_probe --forms=topskatr,alpines,alpinerd`: `form_`, `formside_`, `formstand_` from a standing rider's eyes, `formrail_` down at the crossbar, `formlean_` leaned over): the rig, the three vehicles and the lean are as described.
+
 ## 3. Every form that is built
 
 What each one is made of, so a new one can follow it. "Hands" is what a headset's hands do on it (`arcade.md` "Hands on the panel").
@@ -349,6 +379,7 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | `stand` | 123 (34) | a stand-up driving cabinet | the wheel on the panel, a lever beside it, the pedals on the floor in front (Pole Position, Out Run, Final Lap) | the same |
 | `bike` | 64 (19) | a ride-on motorbike | a bike on a stand in front of the `racer` body; it LEANS (`LeanPivot`) | the bars: sideways 15 cm is a full lean |
 | `cycle` | 2 (1) | a bicycle | see Prop Cycle | bars (two axes), crank |
+| `skate`, `snow`, `ski` | 4 (1), 1 (1), 6 (3) | a rider standing on a rocking plate, a rail round the front | see 2f: a stand, a plate that leans (`LeanPivot`), a skateboard, a snowboard or two skis on it, the rail | the rail's grips: sideways 15 cm is a full lean; START with a fingertip |
 | `holo` | 2 (1) | a deep stage behind the glass | see Time Traveler | |
 | `slot` | 2 (1) | two levers in one slot | see Panic Park | the lever slides |
 | `dance` | 53 (32) | a stage of four arrows a dancer (a Solo cabinet's six, 9.2) | a square of nine 30 cm panels, a safety bar; the arrows sink with the directions | a foot is not tracked: a finger can press an arrow |
@@ -395,7 +426,7 @@ Plain uprights until a module of their own is built. The controls are MAME's own
 
 | family | games (romsets) | MAME's controls (verbatim names) | how it could be built |
 |---|---|---|---|
-| ski and board | Alpine Racer `alpinerd` 3, Alpine Racer 2 `alpinr2b` 2, Alpine Surfer `alpines` 1 (all **I**); Top Skater `topskatr` 4, Ski Champ `skichamp` 1 (**NW**) | Alpine: `AD_STICK_X` "Steps Swing" (player 1) and `AD_STICK_X` "Steps Edge" (player 2's port); Top Skater: `AD_STICK_X` "Curving", `AD_STICK_X` "Slide", buttons "Select Left/Right", "Jump Front", "Jump Tail"; Ski Champ: `PADDLE`, `PEDAL` | a platform of two foot plates that slides across (swing) and tips (edge, on the second port), the player standing on it (the head's offset is the swing); poles are not a control |
+| ski and board | **built since (2f)**: Alpine Racer `alpinerd` 3, Alpine Racer 2 `alpinr2b` 2, Ski Super G `skisuprg` 1 (skis), Alpine Surfer `alpines` 1 (a snowboard), Top Skater `topskatr` 4 (a skateboard). **Left**: Ski Champ `skichamp` 1 (**NW**), Sega Water Ski `segawski`, Surf Planet `surfplnt` | Alpine: `AD_STICK_X` "Steps Swing" (player 1) and `AD_STICK_X` "Steps Edge" (player 2's port); Top Skater: `AD_STICK_X` "Curving", `AD_STICK_X` "Slide", buttons "Select Left/Right", "Jump Front", "Jump Tail"; Ski Champ: `PADDLE`, `PEDAL` | nothing found says what Ski Champ's rider stood on (a paddle and a pedal in MAME), Water Ski's foot pads are "compared with Top Skater" (low-medium) and nothing at all was found on Surf Planet's: the rig of 2f with the vehicle they had, once known; **the built rig steers with ONE axis**, the second ("Edge", "Slide") is not sent |
 | jet ski, kayak, raft | Aqua Jet `aquajet` 1, Jet Wave `jetwave` 3 (**I**); Wave Runner `waverunr` 1, Rapid River `rapidrvr` 3 (**NW**) | Aqua Jet: `PADDLE`, `PEDAL`, `AD_STICK_Y`; Jet Wave: `PADDLE` "Steering Handle", `PEDAL` "Accelerator", button "Angle", "Tilt Left/Right"; Wave Runner: `AD_STICK_X` "Handle Bar" and "Roll", `AD_STICK_Y` "Throttle Lever" and "Pitch"; Rapid River: `AD_STICK_Y` "Yaw", `AD_STICK_X` "Pitch" | the `bike` form's bars and lean on a jet ski's hull; a throttle lever (`slide`'s sibling); a paddle in both hands |
 | fishing | **built since (2e)**: Sega Bass Fishing `bassdx`, Get Bass `getbass`, Deluxe and Ultra: a rod and a reel's crank on an upright (how the rod stood on the real cabinet is not known) | `AD_STICK_X`, `AD_STICK_Y`, `PEDAL`, `PADDLE_V`, `PADDLE` | |
 | horse | Final Furlong `finfurl` 1, Final Furlong 2 `finfurl2` 2 (**NW**) | `AD_STICK_X` "Handle", `AD_STICK_Y` "Swing", buttons "Whip Button L/R" | a saddle you sit on (`CockpitSeat`) and reins to pull |
@@ -425,7 +456,7 @@ Many of the body cabinets are on boards MAME does not run (NAOMI is Flycast's he
 | family | games (romset, status) | what the player does | a VR idea |
 |---|---|---|---|
 | ride-on | Prop Cycle `propcycl` I, Final Furlong `finfurl` NW, Hang Pilot `hangplt` I, Magical Truck Adventure `magtruck` NW | pedal a bike to fly, ride a horse, a hang-glider bar, pump levers | grip and pump; rock; a two-hand A-frame |
-| ski / board | Alpine Racer `alpinerd` 2 `alpinr2b` Surfer `alpines` I, Top Skater `topskatr` NW, Ski Champ `skichamp` NW | swing and edge ski plates, poles; a skateboard deck | hips shift = swing, grip roll = edge |
+| ski / board | Alpine Racer `alpinerd` 2 `alpinr2b` Surfer `alpines` I, Top Skater `topskatr` NW, Ski Champ `skichamp` NW (**built since, 2f**, but Ski Champ) | swing and edge ski plates, poles; a skateboard deck | hips shift = swing, grip roll = edge |
 | boat / jet ski | Aqua Jet `aquajet` I, Jet Wave `jetwave` I, Wave Runner `waverunr` NW, Rapid River `rapidrvr` NW | a jet ski's bars and throttle; a raft's paddle | bars and a lean; an oar in both hands |
 | fishing | Fisherman's Bait `fbaitbc` `fbait2bc` `fbaitmc` I, Sega Bass Fishing `bassdx` / Get Bass `getbass` NW | a rod, a reel | jerk the rod, crank the reel |
 | striking | Punch-Out!! `punchout` Super `spnchout` Arm Wrestling `armwrest` G, Heavyweight Champ `hwchamp` G, Title Fight `titlef` I, Boxing Mania `boxingm` NW, Mallet Madness `maletmad` Hammer `hammer` Mole Attack `mole` G, Kick & Kick `kicknkick` I | punch, swing a mallet, kick a ball | punch at height, swing (the hit point is a gun's x/y) |

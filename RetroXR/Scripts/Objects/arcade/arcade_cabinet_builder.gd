@@ -168,6 +168,8 @@ func _build_extras() -> void:
 		_build_bike(_v["bike"])
 	if _v.has("cycle"):
 		_build_cycle(_v["cycle"])
+	if _v.has("board"):
+		_build_board(_v["board"])
 	if _v.has("stage"):
 		_build_stage(_v["stage"])
 
@@ -1556,6 +1558,130 @@ func _build_bike(spec: Dictionary) -> void:
 	# which is the seat's own (a box over it would stand between the laser and the trigger).
 	form_boxes.append(AABB(Vector3(-0.20, 0.0, 0.90), Vector3(0.40, 0.75, BIKE_SADDLE_Z - 0.22 - 0.90)))
 	form_boxes.append(AABB(Vector3(-0.20, 0.0, BIKE_SADDLE_Z - 0.22), Vector3(0.40, BIKE_SADDLE_TOP - 0.03, 0.90 + 1.10 - (BIKE_SADDLE_Z - 0.22))))
+
+
+# ── a rider standing on a board ─────────────────────────────────────────────
+
+## Where a board's stand starts and ends front to back (clear of the bay door's swing, as the bicycle's), the height of the axis the plate rocks on, and the rail the rider
+## holds: its height above that axis, how far each side rail stands from the middle, and how far the rail's front crossbar is in front of the middle. Every one an estimate
+## (docs/dev/arcade-cabinets.md): nothing found gives a measure, only that the rider stands and holds on.
+const BOARD_Z0 := 0.84
+const BOARD_Z1 := 2.14
+const BOARD_STAND_H := 0.08
+const BOARD_AXIS_Y := 0.20
+const BOARD_RAIL_Y := 0.80
+const BOARD_RAIL_X := 0.34
+const BOARD_RAIL_Z := 0.30
+## The plate the board stands on, and the stand's width. At full lock the plate's low edge dips by half its width times the sine of the lean (ArcadeControlModule.LEAN_DEG):
+## 0.38 * sin(14 deg) = 0.09 m, which the axis' height clears the stand's top by.
+const BOARD_PLATE := Vector3(0.76, 0.03, 1.10)
+const BOARD_STAND_W := 0.86
+
+
+## A box tipped about X by `deg`: positive lifts its front (-Z) end, as an upturned nose is.
+func _tilted(parent: Node3D, node_name: String, size: Vector3, pos: Vector3, material: Material, deg: float) -> MeshInstance3D:
+	var mi := ArcadeParts.box(_owner, parent, node_name, size, pos, material)
+	mi.basis = Basis(Vector3.RIGHT, deg_to_rad(deg))
+	return mi
+
+
+## A skateboard on the rocking plate: the deck, a kicktail at each end, two trucks with a wheel each side (Top Skater).
+func _skateboard(lean: Node3D, paint: Material) -> void:
+	var deck_y := 0.078
+	ArcadeParts.box(_owner, lean, "SkateDeck", Vector3(0.21, 0.018, 0.72), Vector3(0.0, deck_y, 0.0), paint)
+	_tilted(lean, "SkateNose", Vector3(0.21, 0.018, 0.13), Vector3(0.0, deck_y + 0.022, -0.42), paint, 20.0)
+	_tilted(lean, "SkateTail", Vector3(0.21, 0.018, 0.13), Vector3(0.0, deck_y + 0.022, 0.42), paint, -20.0)
+	var wheel := ArcadeParts.mat(Color(0.92, 0.92, 0.90), 0.0, 0.5)
+	var trucks := 0
+	var wheels := 0
+	for z in [-0.25, 0.25]:
+		trucks += 1
+		ArcadeParts.box(_owner, lean, "SkateTruck%d" % trucks, Vector3(0.15, 0.012, 0.045), Vector3(0.0, 0.062, z), _metal)
+		for x in [-0.10, 0.10]:
+			wheels += 1
+			ArcadeParts.cylinder(_owner, lean, "SkateWheel%d" % wheels, 0.026, 0.034, Vector3(x, 0.041, z), wheel, Vector3.RIGHT)
+
+
+## A snowboard: the board with its two upturned ends, a binding for each foot with its strap (Alpine Surfer).
+func _snowboard(lean: Node3D, paint: Material) -> void:
+	var y := 0.0275
+	ArcadeParts.box(_owner, lean, "SnowBoard", Vector3(0.27, 0.025, 0.90), Vector3(0.0, y, 0.0), paint)
+	_tilted(lean, "SnowNose", Vector3(0.27, 0.025, 0.14), Vector3(0.0, y + 0.022, -0.517), paint, 18.0)
+	_tilted(lean, "SnowTail", Vector3(0.27, 0.025, 0.14), Vector3(0.0, y + 0.022, 0.517), paint, -18.0)
+	var rubber := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.6)
+	var n := 0
+	for z in [-0.20, 0.20]:
+		n += 1
+		ArcadeParts.box(_owner, lean, "SnowBinding%d" % n, Vector3(0.20, 0.05, 0.16), Vector3(0.0, y + 0.0375, z), rubber)
+		ArcadeParts.box(_owner, lean, "SnowStrap%d" % n, Vector3(0.23, 0.014, 0.05), Vector3(0.0, y + 0.068, z - 0.02), _metal)
+
+
+## A pair of skis: a long ski each side with its tip turned up, a binding on each (Alpine Racer).
+func _skis(lean: Node3D, paint: Material) -> void:
+	var rubber := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.6)
+	var n := 0
+	for x in [-0.13, 0.13]:
+		n += 1
+		ArcadeParts.box(_owner, lean, "Ski%d" % n, Vector3(0.10, 0.022, 0.90), Vector3(x, 0.026, 0.0), paint)
+		_tilted(lean, "SkiTip%d" % n, Vector3(0.10, 0.022, 0.12), Vector3(x, 0.026 + 0.0165, -0.508), paint, 16.0)
+		ArcadeParts.box(_owner, lean, "SkiBinding%d" % n, Vector3(0.09, 0.05, 0.18), Vector3(x, 0.062, 0.05), rubber)
+
+
+## A rider STANDING on a board or a pair of skis (Top Skater, Alpine Surfer, Alpine Racer): a stand with a plate rocking on it (`LeanPivot`, which leans with the steering as a
+## bike does), the board on the plate and a rail round the front the rider holds (`Handlebars`: a grip on each side rail, a crossbar across the front with START on it). The
+## control module and the hands find all of it by name, as a bike's, and the rig is ONE controller (Player1). No collision, no seat: a player steps up to it and stands.
+func _build_board(spec: Dictionary) -> void:
+	var vehicle := str(spec.get("vehicle", ArcadeGameProfile.FORM_SKATE))
+	var bd := _form_node(ArcadeParts.node(_owner, _top, "Node3D", "Board", Vector3.ZERO)) as Node3D
+	var depth := BOARD_Z1 - BOARD_Z0
+	var zc := (BOARD_Z0 + BOARD_Z1) * 0.5
+	ArcadeParts.box(_owner, bd, "BoardStand", Vector3(BOARD_STAND_W, BOARD_STAND_H, depth), Vector3(0.0, BOARD_STAND_H * 0.5, zc), _dark)
+	ArcadeParts.box(_owner, bd, "BoardStandTrim", Vector3(BOARD_STAND_W + 0.004, 0.012, depth + 0.004), Vector3(0.0, BOARD_STAND_H - 0.016, zc), _trim)
+	# The axle the plate turns on, lengthwise under it.
+	ArcadeParts.cylinder(_owner, bd, "BoardAxle", 0.05, 0.96, Vector3(0.0, BOARD_STAND_H + 0.05, zc), _metal, Vector3.BACK)
+	var mod := ArcadeParts.node(_owner, bd, "Node3D", "Player1") as Node3D
+	mod.set_script(load(SCRIPTS["control"]))
+	mod.set("player", int(spec.get("player", 0)))
+	var lean := ArcadeParts.node(_owner, mod, "Node3D", "LeanPivot", Vector3(0.0, BOARD_AXIS_Y, zc)) as Node3D
+	var paint := ArcadeParts.mat(_v["trim"], 0.2, 0.35)
+	var rubber := ArcadeParts.mat(Color(0.08, 0.08, 0.09), 0.0, 0.6)
+	ArcadeParts.box(_owner, lean, "BoardPlate", BOARD_PLATE, Vector3.ZERO, _dark)
+	ArcadeParts.box(_owner, lean, "BoardPlateTrim", Vector3(BOARD_PLATE.x + 0.004, 0.008, BOARD_PLATE.z + 0.004), Vector3.ZERO, _trim)
+	match vehicle:
+		ArcadeGameProfile.FORM_SNOW:
+			_snowboard(lean, paint)
+		ArcadeGameProfile.FORM_SKI:
+			_skis(lean, paint)
+		_:
+			_skateboard(lean, paint)
+	# The rail: a post at each corner, a side rail along each side and the crossbar across the front. It leans with the plate.
+	for k in [-1.0, 1.0]:
+		var side := "L" if k < 0.0 else "R"
+		for z in [-BOARD_RAIL_Z, BOARD_RAIL_Z]:
+			_rod(lean, "BoardPost%s%s" % [side, "F" if z < 0.0 else "B"], Vector3(k * BOARD_RAIL_X, 0.015, z), Vector3(k * BOARD_RAIL_X, BOARD_RAIL_Y, z), 0.016, _metal)
+		_rod(lean, "BoardRail" + side, Vector3(k * BOARD_RAIL_X, BOARD_RAIL_Y, -BOARD_RAIL_Z), Vector3(k * BOARD_RAIL_X, BOARD_RAIL_Y, BOARD_RAIL_Z), 0.016, _metal)
+	# The hands' part: the bars' middle is the middle of the rail (a full throw of a hand stays within reach of it), a grip sleeve on each side rail, the crossbar in front.
+	var bars := ArcadeParts.node(_owner, lean, "Node3D", "Handlebars", Vector3(0.0, BOARD_RAIL_Y, 0.0)) as Node3D
+	ArcadeParts.cylinder(_owner, bars, "BarCross", 0.014, BOARD_RAIL_X * 2.0, Vector3(0.0, 0.0, -BOARD_RAIL_Z), _metal, Vector3.RIGHT)
+	for k in [-1.0, 1.0]:
+		ArcadeParts.cylinder(_owner, bars, "BarGrip%s" % ("L" if k < 0.0 else "R"), 0.021, 0.14, Vector3(k * BOARD_RAIL_X, 0.0, 0.0), rubber, Vector3.BACK)
+	# START on top of the crossbar's clamp, standing up out of it.
+	var clamp := ArcadeParts.node(_owner, bars, "Node3D", "BarPanel", Vector3(0.0, 0.016, -BOARD_RAIL_Z)) as Node3D
+	clamp.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	ArcadeParts.box(_owner, bars, "BarClamp", Vector3(0.08, 0.016, 0.05), Vector3(0.0, 0.006, -BOARD_RAIL_Z), _dark)
+	_cap(clamp, "Start", Vector3.ZERO, 0.011, Color(0.92, 0.92, 0.92), 0.008)
+	var grip := ArcadeParts.node(_owner, lean, "Area3D", "PanelGrip", Vector3(0.0, BOARD_RAIL_Y, -BOARD_RAIL_Z)) as Area3D
+	grip.set_script(load(SCRIPTS["panel"]))
+	grip.collision_layer = 0
+	grip.collision_mask = 0
+	grip.basis = Basis(Vector3.RIGHT, -PI * 0.5)
+	grip.set("panel_size", Vector2(0.62, 0.20))
+	var gcol := ArcadeParts.node(_owner, grip, "CollisionShape3D", "CollisionShape3D") as CollisionShape3D
+	var gshape := BoxShape3D.new()
+	gshape.size = Vector3(0.62, 0.20, 0.14)
+	gcol.shape = gshape
+	# Aimed at, the machine is the cabinet (to hold and carry): its stand, its plate and what stands on it, UNDER the rail (a box over it would hide the grips and START).
+	form_boxes.append(AABB(Vector3(-BOARD_STAND_W * 0.5, 0.0, BOARD_Z0), Vector3(BOARD_STAND_W, BOARD_AXIS_Y + 0.14, depth)))
 
 
 # ── a ride-on bicycle ───────────────────────────────────────────────────────
