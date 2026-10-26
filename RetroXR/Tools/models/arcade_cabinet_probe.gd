@@ -227,7 +227,14 @@ func _glass(w: int, h: int) -> void:
 	screen.get_screen().set_surface_override_material(0, screen._material)
 	screen._serial = -1
 	screen._refresh_geometry(tex)
-	print("[probe] glass %dx%d aspect=%.3f fit=%s" % [w, h, screen.current_aspect(), screen.current_fit()])
+	# A rifle game of one screen: its scope is a digital one, fed through present() with the rifle pointed a little right of the middle and above it.
+	if screen.scope_zoom > 1.0:
+		var guns := _model.get_parent().call("captive_controllers") as Array if _model.get_parent().has_method("captive_controllers") else []
+		for gun: Variant in guns:
+			if is_instance_valid(gun) and "last_aim" in gun:
+				(gun as Node).set("last_aim", Vector2i(9000, -6000))
+		screen.present(tex, false, false, 0.0)
+	print("[probe] glass %dx%d aspect=%.3f fit=%s lens=%s" % [w, h, screen.current_aspect(), screen.current_fit(), screen.lens() != null])
 
 
 ## Each game's form, built as a board in the bay would build it, from the front three-quarter and the side.

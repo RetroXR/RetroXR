@@ -418,7 +418,9 @@ func _build_monitor() -> void:
 		mod.set("glass_size", _tube)
 		# A scope game: the monitor shows its screen cut out of the frame and the rifle's scope the other (ArcadeScreenModule).
 		var scope: Dictionary = (_v["screen"] as Dictionary).get("scope", {})
-		if not scope.is_empty():
+		if scope.has("zoom"):
+			mod.set("scope_zoom", float(scope["zoom"]))
+		elif not scope.is_empty():
 			mod.set("main_part", _part_of(scope["main"]))
 			mod.set("scope_part", _part_of(scope["lens"]))
 			mod.set("scope_frame_aspect", float(scope["aspect"]))

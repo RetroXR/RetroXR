@@ -924,10 +924,11 @@ screens side by side" whatever its layout: the 120 stacked ones got a 2.7:1 tube
 
 **Silent Scope puts its second screen in the scope.** `hornet.cpp`'s `sscope` configuration (every Silent Scope, 44 romsets, builds on it) has `lscreen` 512 x 384 and `rscreen` 768 x 236 "for scope", in that
 order; the layout is `dualhsxs`, so the frame is 8.03 x 3 units with the monitor's picture in the left half and the scope's in the right. The table says `l1` (the lens is screen 1). The monitor shows the left half
-alone, 4:3 on the wide body's whole 0.72 x 0.54 m tube; the rifle's eyepiece carries a 3.7 x 2.8 cm screen (`ScopeScreen`, baked by `gen_arcade_gun.gd --variant=rifle`, facing the eye) that shows the right half.
+alone, 4:3 on the wide body's whole 0.72 x 0.54 m tube; the rifle's eyepiece (a cup flaring to 10 cm) carries a 7.4 x 5.5 cm screen (`ScopeScreen`, baked by `gen_arcade_gun.gd --variant=rifle`, facing the eye) that shows the right half.
 `ArcadeScreenModule` does the cutting with the shader's `view_rect`, found by name among the cabinet's parts, **and only while the core's frame is the shape the table expects** (`crop_applies`, 4%): any other
 view (a layout of the player's own artwork) shows the whole frame on the monitor and a dark lens, rather than the wrong part. Every Silent Scope set is `MACHINE_NOT_WORKING` in MAME 0.289, so none has been
-seen to run; the cut is made from MAME's layout numbers, not from a picture. Golgo 13's rifles have one screen and no lens.
+seen to run; the cut is made from MAME's layout numbers, not from a picture. Golgo 13's rifles (and Silent Scope EX's, `sscopex`) have one screen and no second one to show, so their scope is a
+DIGITAL one: the lens shows the part of the monitor's own picture the rifle points at, 2.5 times (`scope_zoom`, `ArcadeScreenModule.follow_rect`; `arcade-cabinets.md` Silent Scope).
 
 OWED: a real run of any of it (Silent Scope does not run in MAME 0.289; a PlayChoice-10 or Mega-Tech could be tried with a core and the ROMs), a headset to look into the scope, the real cabinets' monitor sizes (no source
 gives them; the pairs are drawn at the class of two upright tubes), and whether the real scope's LCD showed the whole second screen (the lens shows all of it).

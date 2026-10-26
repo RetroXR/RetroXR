@@ -22,6 +22,7 @@
 ##   picture/   the picture takes a share of a wide body, never a postage stamp in it; a big-screen cabinet has its body's own tube
 ##   screens/   a game of several screens: the tube takes the frame's shape, the body follows; Silent Scope's second screen is in its scope
 ##   pedals/    a gun game's pedal and a driver's two are built as real ones are: a hinged ribbed tread on a base, an axle
+##   scope/     a rifle game of ONE screen has a digital scope: the part of the picture the rifle points at, magnified, in the eyepiece
 ##   service/   TEST and SERVICE in the compartment opposite the power switch, there when MAME says the game reads one
 ##   mount/     a gun on a swivel (Silent Scope's rifle, Operation Wolf's Uzi) is fixed to its cabinet: it turns about its pivot
 ##   odd/       Prop Cycle's bicycle, Time Traveler's deep stage, Panic Park's two levers in one slot
@@ -105,6 +106,9 @@ func _run() -> void:
 		await _clear()
 	if _want("screens"):
 		await _group_screens()
+		await _clear()
+	if _want("scope"):
+		await _group_scope()
 		await _clear()
 	if _want("pedals"):
 		await _group_pedals()
@@ -864,8 +868,14 @@ func _group_screens() -> void:
 				and absf(float(lens_part[0]) - 4.03 / 8.03) < 0.0005 and absf(float(lens_part[2]) - 4.0 / 8.03) < 0.0005
 				and absf(float(scope["aspect"]) - 8.03 / 3.0) < 0.002,
 			"screens: %s: the monitor has the left half of the frame on the wide body's whole tube, the scope the right (%s | %s)" % [romset, main_part, lens_part])
-	for romset in ["sscopex", "golgo13", "sf2", "timecris", "pc_smb", "darius"]:
+	for romset in ["sf2", "timecris", "pc_smb", "darius"]:
 		_ok(not (_spec(romset).get("screen", {}) as Dictionary).has("scope"), "screens: %s has no scope" % romset)
+	# A rifle game of ONE screen (Golgo 13, Silent Scope EX) has a DIGITAL scope: no second screen to cut, a zoom into the one it has.
+	for romset in ["sscopex", "sogeki", "sscopexu", "sscopefh", "golgo13", "g13knd", "g13jnr"]:
+		var scope: Dictionary = (_spec(romset).get("screen", {}) as Dictionary).get("scope", {})
+		_ok(is_equal_approx(float(scope.get("zoom", 0.0)), S.SCOPE_ZOOM) and not scope.has("main") and not scope.has("lens")
+				and str(_spec(romset)["form"]) == "rifle",
+			"screens: %s is a rifle of one screen: a digital scope of %.1f times, nothing cut out of its frame" % [romset, S.SCOPE_ZOOM])
 	# Two screens over one another (a PlayChoice-10, a Mega-Tech, Punch-Out!!): a portrait pair in the tall body, the usual width.
 	for row: Array in [["pc_smb", 1], ["pc_1942", 1], ["mt_aftrb", 1], ["punchout", 0], ["hangplt", 0], ["armwrest", 0]]:
 		var sp := _spec(str(row[0]))
@@ -949,8 +959,16 @@ func _group_screens() -> void:
 	await _board(sys, "sscope")
 	await _wait(6)
 	var lens := _scope_lens(sys)
-	_ok(lens != null and (lens.mesh as QuadMesh).size.is_equal_approx(Vector2(0.037, 0.0278)),
-		"screens: Silent Scope: the rifle's eyepiece carries a small screen (%s)" % str((lens.mesh as QuadMesh).size if lens != null else "none"))
+	_ok(lens != null and (lens.mesh as QuadMesh).size.is_equal_approx(Vector2(0.074, 0.0555)),
+		"screens: Silent Scope: the rifle's eyepiece carries a screen 7.4 x 5.5 cm, twice the width it had (%s)" % str((lens.mesh as QuadMesh).size if lens != null else "none"))
+	# ... inside the eyepiece cup it sits at the end of: the cup is wider than the picture's diagonal and ends where the picture is.
+	var cup := lens.get_parent().find_child("ScopeEye", false, false) as MeshInstance3D if lens != null else null
+	var cup_mesh := cup.mesh as CylinderMesh if cup != null else null
+	var diagonal := (lens.mesh as QuadMesh).size.length() if lens != null else 0.0
+	_ok(cup_mesh != null and cup_mesh.top_radius * 2.0 >= diagonal and cup_mesh.bottom_radius < cup_mesh.top_radius
+			and absf((lens.position.z - cup.position.z) - cup_mesh.height * 0.5) < 0.002,
+		"screens: and the picture is inside the cup it sits at the end of (cup %.1f cm across at the eye, picture's diagonal %.1f cm)"
+			% [cup_mesh.top_radius * 200.0 if cup_mesh != null else 0.0, diagonal * 100.0])
 	_ok(lens != null and (sys.global_basis.inverse() * lens.global_basis.z).dot(Vector3.BACK) > 0.9,
 		"screens: and it faces the player, at rest")
 	var screen_module := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
@@ -990,6 +1008,73 @@ func _group_screens() -> void:
 	await _pull(sys)
 	await _wait(6)
 	_ok(_scope_lens(sys) == null, "screens: pulling the board takes the rifle, and its lens, away")
+
+
+## A rifle game of one screen (Golgo 13, Silent Scope EX) had a dead eyepiece: there is no second screen to show in it. Its scope is a digital one now: the
+## monitor shows the whole picture and the lens the part of it the rifle points at, magnified, following the gun's own aim.
+func _group_scope() -> void:
+	# The window, pure: 1/zoom of the picture on each axis, centred on the aim, kept inside it.
+	var mid := ArcadeScreenModule.follow_rect(2.5, Vector2i.ZERO)
+	var top_left := ArcadeScreenModule.follow_rect(2.5, Vector2i(-32767, -32767))
+	var bottom_right := ArcadeScreenModule.follow_rect(2.5, Vector2i(32767, 32767))
+	var right_mid := ArcadeScreenModule.follow_rect(2.5, Vector2i(32767, 0))
+	_ok(mid.size.is_equal_approx(Vector2(0.4, 0.4)) and mid.position.is_equal_approx(Vector2(0.3, 0.3))
+			and top_left.position.is_equal_approx(Vector2.ZERO) and bottom_right.end.is_equal_approx(Vector2.ONE)
+			and absf(right_mid.end.x - 1.0) < 1.0e-5 and absf(right_mid.position.y - 0.3) < 1.0e-4,
+		"scope: the window is 0.4 of the picture, in the middle for an aim at the middle, never outside it at its edges (%s %s %s)" % [mid, top_left, bottom_right])
+	_ok(ArcadeScreenModule.follow_rect(1.0, Vector2i(5000, -9000)).is_equal_approx(Rect2(0.0, 0.0, 1.0, 1.0))
+			and ArcadeScreenModule.follow_rect(0.0, Vector2i.ZERO).is_equal_approx(Rect2(0.0, 0.0, 1.0, 1.0)),
+		"scope: a zoom of 1, or of nothing, is the whole picture")
+	var sys := await _machine()
+	var model := sys.get_model() as RetroSystemModelArcadeCabinet
+	await _board(sys, "golgo13")
+	await _wait(6)
+	var lens := _scope_lens(sys)
+	var screen_module := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	_ok(lens != null and is_equal_approx(screen_module.scope_zoom, S.SCOPE_ZOOM) and not screen_module.scope_part.has_area(),
+		"scope: Golgo 13's rifle has a lens, and the screen module a digital scope of %.1f times and no part to cut" % screen_module.scope_zoom)
+	var gun := sys.captive_controllers()[0] as LightGun
+	var card := Image.create(640, 480, false, Image.FORMAT_RGBA8)
+	card.fill(Color(0.2, 0.3, 0.5))
+	var frame_tex := ImageTexture.create_from_image(card)
+	screen_module.aspect_override = 4.0 / 3.0
+	var lens_mat: ShaderMaterial = null
+	var rects: Array[Vector4] = []
+	for aim: Vector2i in [Vector2i.ZERO, Vector2i(-32767, -32767), Vector2i(32767, 32767), Vector2i(20000, -12000)]:
+		gun.last_aim = aim
+		screen_module.present(frame_tex, false, false, 0.0)
+		lens_mat = lens.get_surface_override_material(0) as ShaderMaterial
+		rects.append(lens_mat.get_shader_parameter("view_rect") if lens_mat != null else Vector4.ZERO)
+	var main_rect: Vector4 = screen_module._material.get_shader_parameter("view_rect")
+	_ok(not screen_module.is_cut() and absf(main_rect.x) < 1.0e-5 and absf(main_rect.z - 1.0) < 1.0e-5 and absf(main_rect.w - 1.0) < 1.0e-5,
+		"scope: the monitor shows the whole picture (%s)" % main_rect)
+	_ok(lens_mat != null and absf(rects[0].x - 0.3) < 1.0e-4 and absf(rects[0].y - 0.3) < 1.0e-4 and absf(rects[0].z - 0.4) < 1.0e-4
+			and absf(rects[1].x) < 1.0e-4 and absf(rects[1].y) < 1.0e-4 and absf(rects[2].x - 0.6) < 1.0e-4 and absf(rects[2].y - 0.6) < 1.0e-4
+			and rects[3].x > rects[0].x + 0.1 and rects[3].y < rects[0].y - 0.05,
+		"scope: and the lens shows what the rifle points at, magnified: middle, top left, bottom right, right and up (%s)" % str(rects))
+	var fit: Vector2 = lens_mat.get_shader_parameter("fit_scale") if lens_mat != null else Vector2.ZERO
+	_ok(absf(fit.x - 1.0) < 0.01 and absf(fit.y - 1.0) < 0.01, "scope: a 4:3 picture's 4:3 window fills the 4:3 lens (%s)" % fit)
+	# The game on show (attract) or a cord from another machine is not a frame of the game: no lens.
+	screen_module.present(frame_tex, false, true, 0.0)
+	var dark_attract := lens.get_surface_override_material(0) != lens_mat
+	screen_module.present(frame_tex, false, false, 0.0)
+	screen_module.present(frame_tex, true, false, 0.0)
+	var dark_external := lens.get_surface_override_material(0) != lens_mat
+	_ok(dark_attract and dark_external, "scope: the lens is dark while the game is only on show, and while another machine's picture is on the glass")
+	screen_module.present(frame_tex, false, false, 0.0)
+	_ok(lens.get_surface_override_material(0) == lens_mat, "scope: and shows the game again when it runs")
+	# Silent Scope's own scope is the other kind: a second screen cut out of the frame, no zoom.
+	await _pull(sys)
+	await _board(sys, "sscope")
+	await _wait(6)
+	var ss := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	_ok(ss.scope_zoom == 0.0 and ss.scope_part.has_area(), "scope: Silent Scope keeps its second screen cut out of the frame, with no zoom")
+	# A game that is no rifle has none.
+	await _pull(sys)
+	await _board(sys, "sf2")
+	await _wait(6)
+	var plain := model.modules_of_kind(ArcadeProfiles.KIND_SCREEN)[0] as ArcadeScreenModule
+	_ok(plain.scope_zoom == 0.0 and _scope_lens(sys) == null, "scope: and a street fighter has no scope at all")
 
 
 # --- pedals --------------------------------------------------------------------

@@ -24,6 +24,10 @@ const SHADER := preload("res://Shaders/arcade_screen.gdshader")
 @export var main_part: Rect2 = Rect2()
 @export var scope_part: Rect2 = Rect2()
 @export var scope_frame_aspect: float = 0.0
+## A rifle game of ONE screen (Golgo 13, Silent Scope EX) has no second screen to put in the scope: its scope is DIGITAL (> 1: how many times it magnifies).
+## The monitor shows the whole frame, and the lens the part of it the rifle points at, magnified: the aim is the gun's own (`last_aim`, -0x7fff..0x7fff, y down),
+## so the picture in the eyepiece is where the barrel is. 0 = no digital scope.
+@export var scope_zoom: float = 0.0
 ## For the tests and the probe: the frame's shape as if the core had reported it (> 0), instead of asking the core.
 var aspect_override: float = 0.0
 
@@ -201,7 +205,9 @@ func present(tex: Texture2D, external: bool, attract: bool, delta: float) -> voi
 	if _screen.get_surface_override_material(0) != _material:
 		_screen.set_surface_override_material(0, _material)
 	_refresh_geometry(tex, external, attract)
-	_update_lens(tex if _cut else null, delta)
+	# A digital scope shows the game running (not its video snap on show, nor a cord from another machine): a real frame.
+	var digital := scope_zoom > 1.0 and not external and not attract
+	_update_lens(tex if (_cut or digital) else null, delta)
 
 
 func _refresh_geometry(tex: Texture2D, external: bool = false, attract: bool = false) -> void:
@@ -272,7 +278,7 @@ const LENS_NODE := "ScopeScreen"
 
 ## Show the scope's screen on the lens in the rifle's scope (`tex`: the core's frame), or put it out (null).
 func _update_lens(tex: Texture2D, delta: float) -> void:
-	if not scope_part.has_area():
+	if not scope_part.has_area() and not scope_zoom > 1.0:
 		return
 	if _lens == null or not is_instance_valid(_lens):
 		_lens = null
@@ -290,10 +296,30 @@ func _update_lens(tex: Texture2D, delta: float) -> void:
 	if _lens_material.get_shader_parameter("source_tex") != tex:
 		_lens_material.set_shader_parameter("source_tex", tex)
 	var size := (_lens.mesh as QuadMesh).size
-	_lens_material.set_shader_parameter("fit_scale", fit_for(_geometry_aspect * scope_part.size.x / scope_part.size.y, size))
-	_lens_material.set_shader_parameter("view_rect", Vector4(scope_part.position.x, scope_part.position.y, scope_part.size.x, scope_part.size.y))
+	var part := scope_part if scope_part.has_area() else follow_rect(scope_zoom, _aim_of_lens())
+	_lens_material.set_shader_parameter("fit_scale", fit_for(_geometry_aspect * part.size.x / part.size.y, size))
+	_lens_material.set_shader_parameter("view_rect", Vector4(part.position.x, part.position.y, part.size.x, part.size.y))
 	if _lens.get_surface_override_material(0) != _lens_material:
 		_lens.set_surface_override_material(0, _lens_material)
+
+
+## The part of the picture a digital scope of `zoom` times shows when the rifle points at `aim` (the gun's own coordinates, -0x7fff..0x7fff, y down): a window
+## 1/zoom of the picture on each axis (so the picture's own shape), centred on the aim and kept inside the picture. Pure, for the tests.
+static func follow_rect(zoom: float, aim: Vector2i) -> Rect2:
+	var size := 1.0 / maxf(zoom, 1.0)
+	var at := Vector2((float(aim.x) + 32767.0) / 65534.0, (float(aim.y) + 32767.0) / 65534.0)
+	var pos := (at - Vector2(size, size) * 0.5).clamp(Vector2.ZERO, Vector2(1.0 - size, 1.0 - size))
+	return Rect2(pos, Vector2(size, size))
+
+
+## Where the rifle that wears the lens points: its `last_aim`, or the middle of the picture when it has none.
+func _aim_of_lens() -> Vector2i:
+	var node: Node = _lens
+	while node != null:
+		if "last_aim" in node:
+			return node.get("last_aim")
+		node = node.get_parent()
+	return Vector2i.ZERO
 
 
 ## The scope screen of the rifle this cabinet wears: the guns are built with the MACHINE and hang in the room, not in the cabinet's model, so they

@@ -19,8 +19,10 @@
 ## `-- --variant=rifle` bakes the rifle a rifle cabinet rests on its post instead (Silent Scope, Golgo 13:
 ## Scenes/Objects/peripherals/arcade_light_rifle.tscn): the same pistol grip, trigger and cord boss in the
 ## same place (so the cabinet seats and cords it with the pistol's numbers), a long barrel, a stock to the
-## shoulder and a scope on top. The scope's eyepiece carries a small screen (`ScopeScreen`, a 3.7 x 2.8 cm quad on the eyepiece's end, facing the
-## player's eye): the cabinet's monitor module (ArcadeScreenModule) finds it by name and feeds it Silent Scope's second screen.
+## shoulder and a scope on top. The scope's eyepiece is a cup flaring from the tube to 10 cm across and carries a screen (`ScopeScreen`, a 7.4 x 5.55 cm quad on
+## the cup's end, facing the player's eye; it was a 3.7 x 2.8 cm one in a 4.6 cm eyepiece, too small to read a picture in): the cabinet's monitor module
+## (ArcadeScreenModule) finds it by name and feeds it Silent Scope's second screen, or, for a rifle game of one screen (Golgo 13), the part of the picture
+## the rifle points at, magnified.
 extends SceneTree
 
 const U := preload("res://Tools/gen/arcade_gen_util.gd")
@@ -35,8 +37,10 @@ const CORD_BOSS := Vector3(0.0, -0.098, 0.056)
 ## The muzzle, where the aim ray starts.
 const MUZZLE := Vector3(0.0, 0.034, -0.182)
 const RIFLE_MUZZLE := Vector3(0.0, 0.034, -0.392)
-## The scope's screen: the eyepiece (a cylinder 4.6 cm across, ending at z 0.065) holds a 4:3 picture 3.7 cm wide, facing the eye (+Z).
-const SCOPE_SCREEN := Vector2(0.037, 0.0278)
+## The scope's screen: the eyepiece cup (flaring to 10 cm across, ending at z 0.075) holds a 4:3 picture 7.4 cm wide, facing the eye (+Z); its diagonal (9.25 cm)
+## is inside the cup's end.
+const SCOPE_SCREEN := Vector2(0.074, 0.0555)
+const SCOPE_CUP_RADIUS := 0.050
 
 var _root: Node3D
 
@@ -77,11 +81,13 @@ func _initialize() -> void:
 		stock.basis = Basis(Vector3.RIGHT, deg_to_rad(8.0))
 		U.box(_root, _root, "ButtPad", Vector3(0.042, 0.090, 0.016), Vector3(0, -0.012, 0.312), grey)
 		U.cylinder(_root, _root, "Scope", 0.019, 0.20, Vector3(0, 0.094, -0.060), black, Vector3.BACK)
-		U.cylinder(_root, _root, "ScopeEye", 0.023, 0.03, Vector3(0, 0.094, 0.050), black, Vector3.BACK)
+		var cup := U.cylinder(_root, _root, "ScopeEye", 0.023, 0.04, Vector3(0, 0.094, 0.055), black, Vector3.BACK)
+		(cup.mesh as CylinderMesh).top_radius = SCOPE_CUP_RADIUS
+		(cup.mesh as CylinderMesh).radial_segments = 32
 		U.cylinder(_root, _root, "ScopeLens", 0.023, 0.03, Vector3(0, 0.094, -0.170), grey, Vector3.BACK)
-		# The scope's own screen, in the eyepiece: 4:3 like the screen it shows, inside the eyepiece's 4.6 cm. It is dark until a game feeds it.
+		# The scope's own screen, in the eyepiece cup: 4:3 like the screen it shows, inside the cup's end. It is dark until a game feeds it.
 		var screen_mat := U.mat(Color(0.015, 0.017, 0.02), 0.0, 0.12)
-		U.quad(_root, _root, "ScopeScreen", SCOPE_SCREEN, Vector3(0, 0.094, 0.0653), screen_mat)
+		U.quad(_root, _root, "ScopeScreen", SCOPE_SCREEN, Vector3(0, 0.094, 0.0753), screen_mat)
 		for z in [-0.11, 0.0]:
 			U.box(_root, _root, "ScopeRing%d" % (1 if z < 0.0 else 2), Vector3(0.016, 0.032, 0.012),
 				Vector3(0, 0.070, z), metal)
@@ -104,12 +110,12 @@ func _initialize() -> void:
 
 	# A larger body to collide with and to point at.
 	var body := BoxShape3D.new()
-	body.size = Vector3(0.05, 0.17, 0.25) if not rifle else Vector3(0.05, 0.17, 0.72)
+	body.size = Vector3(0.05, 0.17, 0.25) if not rifle else Vector3(0.10, 0.17, 0.72)
 	var col := _root.get_node("CollisionShape3D") as CollisionShape3D
 	col.shape = body
 	col.position = Vector3(0, -0.012, -0.040) if not rifle else Vector3(0, -0.012, -0.040)
 	var pointer := BoxShape3D.new()
-	pointer.size = Vector3(0.07, 0.19, 0.28) if not rifle else Vector3(0.07, 0.19, 0.74)
+	pointer.size = Vector3(0.07, 0.19, 0.28) if not rifle else Vector3(0.12, 0.19, 0.74)
 	var pcol := _root.get_node("PointerArea/CollisionShape3D") as CollisionShape3D
 	pcol.shape = pointer
 	pcol.position = col.position

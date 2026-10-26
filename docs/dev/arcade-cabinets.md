@@ -118,8 +118,15 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
 - **The scope** (2026-10-26): `lscreen` (screen 0, the monitor) and `rscreen` (screen 1, `// for scope`, 15 kHz) are the pair in every Silent Scope's configuration, and the layout is `dualhsxs`: one
   8.03 x 3 frame, the monitor left, the scope right. The wide body's tube shows the left half alone and the rifle's eyepiece carries a small screen (`ScopeScreen`) showing the right half
   (`arcade.md` "Several screens"). Table attributes `l1` (the lens) and `c0,0,4,3/4.03,0,4,3`.
+- **The eyepiece is a cup, 10 cm across at the eye, with a 7.4 x 5.5 cm screen in it** (2026-10-26; it was a 4.6 cm eyepiece with a 3.7 x 2.8 cm screen, too small to read a picture in, and a
+  player asked for it bigger): `gen_arcade_gun.gd --variant=rifle`, `SCOPE_SCREEN` and `SCOPE_CUP_RADIUS`; the picture's diagonal is inside the cup (`arcade_form_tests screens/`).
+- **A rifle game of ONE screen has a DIGITAL scope** (`golgo13`, `g13knd`, `g13jnr`, `sscopex`, `sogeki`, `sscopexu`, `sscopefh`: MAME gives them one display and no lens, which left the eyepiece dead):
+  the monitor shows the whole picture and the lens the part of it the rifle points at, **2.5 times** (`ArcadeCabinetSpecs.SCOPE_ZOOM`, the spec's `screen.scope.zoom`,
+  `ArcadeScreenModule.scope_zoom`), following the gun's own aim (`LightGun.last_aim`, the point on the picture the barrel meets) and kept inside the picture. It shows only a frame of the game running:
+  dark while the game is only on show (attract) and while another machine's picture is on the glass. `arcade_form_tests scope/`; `--forms=golgo13` takes the eyepiece from the player's eye
+  (`formscope_`). It is an approximation: no source says what the real scope showed (sources disagree on whether it is a magnified part of the main screen at all).
 - **Not built**: the Golgo 13 eyepiece sensor, a scope that follows the eye (the lens is always on). Nothing here has been seen to run: Silent Scope is NW in MAME 0.289.
-- Tests: `arcade_form_tests mount/ screens/`.
+- Tests: `arcade_form_tests mount/ screens/ scope/`.
 
 ### Prop Cycle `propcycl` (Namco, 1996; System 22) — form `cycle`
 

@@ -608,13 +608,20 @@ static func screens_body(screen: Dictionary, shape: String, width: float) -> Dic
 	return result
 
 
-## What a scope game shows in its rifle's scope (`k`, the table): {"index", "main": the part of the frame the monitor shows, "lens": the part the
+## How many times the scope of a rifle game of ONE screen (Golgo 13, Silent Scope EX) magnifies the part of the picture the rifle points at.
+const SCOPE_ZOOM := 2.5
+
+
+## What a scope game shows in its rifle's scope (`l`, the table): {"index", "main": the part of the frame the monitor shows, "lens": the part the
 ## scope shows, both as fractions of the frame [x, y, w, h], y down, "aspect": the frame's}, or {} for a game with no scope or a table with no
 ## layout for it. The monitor shows the other screen alone; the frame is drawn by MAME so the scope's own screen is in it and the cabinet cuts it
-## out (ArcadeScreenModule).
+## out (ArcadeScreenModule). A rifle game of ONE screen has no second one to show: its scope is DIGITAL, {"zoom": SCOPE_ZOOM}: the monitor shows the whole
+## picture and the lens the part of it the rifle points at, magnified (a scope that shows nothing was a dead eyepiece: Golgo 13).
 static func scope_of(profile: ArcadeGameProfile) -> Dictionary:
 	var index := profile.scope_screen()
 	var rects := profile.screen_rects()
+	if index < 0 and profile.form() == ArcadeGameProfile.FORM_RIFLE:
+		return {"zoom": SCOPE_ZOOM}
 	if index < 0 or index >= rects.size() or rects.size() < 2:
 		return {}
 	var main_index := 0 if index != 0 else 1
