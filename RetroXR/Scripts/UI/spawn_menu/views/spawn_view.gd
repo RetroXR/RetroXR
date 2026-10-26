@@ -1467,8 +1467,11 @@ func _global_search_local(term: String) -> void:
 	var jobs: Array = []
 	for sys: Dictionary in _gs_systems:
 		var sid: String = sys["systemid"]
-		var exts: Array[String] = [] if sid == EReaderCards.SYSTEMID \
-			else CoreInfoDatabase.extensions_for_systemid(sid)
+		# Not a ternary: its `[]` branch is an untyped Array, which an
+		# Array[String] refuses at run time.
+		var exts: Array[String] = []
+		if sid != EReaderCards.SYSTEMID:
+			exts = CoreInfoDatabase.extensions_for_systemid(sid)
 		var info := SystemInfo.for_system(sid)
 		jobs.append({
 			"systemid": sid,
