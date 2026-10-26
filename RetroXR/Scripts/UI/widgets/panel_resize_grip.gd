@@ -46,6 +46,11 @@ func pointer_event(event: XRToolsPointerEvent) -> void:
 			_panel.call("resize_begin", event.pointer)
 		XRToolsPointerEvent.Type.RELEASED:
 			_panel.call("resize_end")
+		XRToolsPointerEvent.Type.ENTERED:
+			# Lit under the pointer, so the mark reads as something to take hold of.
+			if _panel.has_method("resize_hover"):
+				_panel.call("resize_hover", true)
 		XRToolsPointerEvent.Type.EXITED:
 			# Do NOT end the drag here: leaving the grip is expected.
-			pass
+			if _panel.has_method("resize_hover"):
+				_panel.call("resize_hover", false)

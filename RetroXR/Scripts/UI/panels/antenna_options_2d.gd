@@ -131,7 +131,7 @@ func _build_ui() -> void:
 	_channels_scroll = ScrollContainer.new()
 	_channels_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_channels_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_channels_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_channels_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_channels_scroll)
 	root_vbox.add_child(_channels_scroll)
 

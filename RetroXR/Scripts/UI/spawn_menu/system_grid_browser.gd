@@ -418,7 +418,7 @@ func _ensure_built() -> void:
 	_home_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_home_scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	_home_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_home_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_home_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_home_scroll)
 	_home_scroll.resized.connect(_update_tile_columns)
 	_home_page.add_child(_home_scroll)
@@ -494,7 +494,7 @@ func _ensure_built() -> void:
 	_detail_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_detail_scroll.size_flags_vertical   = Control.SIZE_EXPAND_FILL
 	_detail_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_detail_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_detail_scroll.vertical_scroll_mode   = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_detail_scroll)
 	_detail_page.add_child(_detail_scroll)
 

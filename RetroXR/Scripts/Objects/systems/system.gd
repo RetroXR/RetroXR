@@ -3314,6 +3314,13 @@ func _eject_label() -> String:
 	return "Eject"
 
 
+## Whether this machine sends left and right separately — the same answer
+## AvSource.resolve is given. A mono machine's one audio cord is not "crossed" in
+## whichever jack it lands (TvPanel.miswired).
+func av_is_stereo() -> bool:
+	return _av_stereo
+
+
 ## POWER to a position, for the menu's switch. A handheld's power is a slide, and
 ## the slide is moved rather than the machine toggled behind it, so the switch
 ## never stands at OFF on a machine that is running; the slide's own handler then

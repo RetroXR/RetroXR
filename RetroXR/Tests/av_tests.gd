@@ -656,6 +656,11 @@ func _r_n64_lead() -> void:
 	_check_eq(_which_input(tv, sys), RetroTV.Source.COMPOSITE_4,
 		"the set files the console on the input its lead reaches")
 	_ok(sys.connected_tv == tv, "and the console knows which set it feeds")
+	# One socket carries all three, so its own channel is VIDEO: read that for every
+	# cord and the white and red read "VIDEO in L, VIDEO in R" on a lead wired right
+	# (a Super NES's, in the room). Each cord's signal is the socket's channel_for.
+	_check_eq(Array(tv.panel().miswired(RetroTV.Source.COMPOSITE_4)), [],
+		"a multi-out lead wired right is not called crossed")
 	# The sound, read through the console's own accessor. All three signals came
 	# down ONE shell, so a wrong cord map here would surface as a machine that is
 	# seen and not heard, or heard on one side only.
@@ -2323,10 +2328,38 @@ func _m_crossed() -> void:
 	var ok3 := ui._input_buttons.get(RetroTV.Source.COMPOSITE_3) as Button
 	_ok(ok3 != null and not ok3.text.contains("Crossed"), "and the good one does not")
 
+	# Put the pair right, as a player does: both plugs out of the set, back in the
+	# right way round. The warning has to go with it (it did not, in the room).
+	var plug_l := ins[2].seated_plug() as RcaPlug
+	var plug_r := ins[1].seated_plug() as RcaPlug
+	_ok(plug_l != null and plug_r != null, "both crossed plugs are found at the set")
+	if plug_l == null or plug_r == null:
+		return
+	await _unplug(plug_l)
+	await _unplug(plug_r)
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_1).get("wiring"), [],
+		"with the pair pulled, nothing is crossed")
+	plug_l.freeze = false
+	plug_r.freeze = false
+	ins[1].pick_up_object(plug_l)
+	await _wait(6)
+	ins[2].pick_up_object(plug_r)
+	await _wait(25)
+	_check_eq(ins[1].seated_plug(), plug_l, "the L plug is in the L jack now")
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_1).get("wiring"), [],
+		"and the set no longer calls the pair crossed")
+	var panel := tv._options_panel
+	panel._refresh_controls()
+	ui.populate_controls(panel._controls_state)
+	b = ui._input_buttons.get(RetroTV.Source.COMPOSITE_1) as Button
+	_ok(b != null and not b.text.contains("Crossed"),
+		"and the menu's row drops the warning: %s" % (b.text if b else "<none>"))
+
 
 ## The machine's side: an NES, which has RESET and a CH3/CH4 slide and no drive,
-## cabled to Composite 2 with its one (mono) audio cord in the R jack. Never
-## powered on — a suite starts no core.
+## cabled to Composite 2 with its picture cord in the L jack and its one (mono)
+## audio cord in the R jack. The picture is wrong and is named; the mono sound plays
+## from either jack, so it is not. Never powered on — a suite starts no core.
 func _m_machine() -> void:
 	var tv := _tv()
 	var nes := SYSTEM_SCENE.instantiate() as RetroSystem
@@ -2343,7 +2376,7 @@ func _m_machine() -> void:
 		return
 	var outs := _out_ports(nes)
 	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_2)
-	await _lead([[0, outs[0], ins[0]], [1, outs[1], ins[2]]])
+	await _lead([[0, outs[0], ins[1]], [1, outs[1], ins[2]]])
 
 	var state := nes.controls_state()
 	_check_eq(state["rf_options"], [3, 4], "the NES offers its CH3/CH4 slide")
@@ -2351,7 +2384,8 @@ func _m_machine() -> void:
 	_check_eq(state["has_reset"], true, "and does have RESET")
 	_check_eq(state["on"], false, "it starts switched off")
 	_check_eq(state["display"], "TV, COMPOSITE 2", "it says which input it is showing on")
-	_check_eq(state["wiring"], ["L in R"], "and that its sound cord is in the wrong jack")
+	_check_eq(state["wiring"], ["VIDEO in L"],
+		"the picture in an audio jack is named, the mono sound in R is not")
 
 	var ui := (load("res://Scenes/UI/core_options_2d.tscn") as PackedScene).instantiate() \
 		as CoreOptions2D
@@ -2365,8 +2399,8 @@ func _m_machine() -> void:
 	_ok(ui._ctl_reset.disabled, "RESET is dead while the machine is off")
 	_ok(not ui._volume_box.visible and not ui._video_out_row.visible,
 		"a console shows no handheld's Volume or Video Out rows")
-	_ok(ui._ctl_wiring.visible and ui._ctl_wiring.text.contains("L in R"),
-		"the crossed pair is named: %s" % ui._ctl_wiring.text)
+	_ok(ui._ctl_wiring.visible and ui._ctl_wiring.text.contains("VIDEO in L"),
+		"the wrong cord is named: %s" % ui._ctl_wiring.text)
 	_ok(ui._volume_box.get_parent().get_parent() == ui._controls_scroll,
 		"a handheld's Volume row lives on the Controls tab now")
 

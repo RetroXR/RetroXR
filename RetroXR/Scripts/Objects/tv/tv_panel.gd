@@ -684,10 +684,34 @@ func miswired(input: int) -> PackedStringArray:
 		if not ports.has(in_port):
 			continue
 		var from := link["out"] as RcaPort
-		if from.channel != in_port.channel:
-			out.append("%s in %s" % [channel_word(from.channel), channel_word(in_port.channel)])
+		# Per CORD, as AvSource.resolve reads it: an AV Multi Out (a Super NES's,
+		# an N64's, a Wii's) is one socket carrying all three, and its own
+		# `channel` is VIDEO — read that and a lead wired right said "VIDEO in L,
+		# VIDEO in R".
+		var cord := int(link.get("cord", 0))
+		var sent := from.channel_for(cord)
+		var jack := in_port.channel_for(cord)
+		if sent == jack:
+			continue
+		# A mono machine's one audio cord carries all its sound, which plays in
+		# whichever audio jack it is in; that is not a crossed pair.
+		if _is_audio(sent) and _is_audio(jack) and not _stereo_source(from.get_device()):
+			continue
+		out.append("%s in %s" % [channel_word(sent), channel_word(jack)])
 	out.sort()
 	return out
+
+
+static func _is_audio(ch: int) -> bool:
+	return ch == RcaPort.Channel.AUDIO_L or ch == RcaPort.Channel.AUDIO_R
+
+
+## Whether a source sends left and right separately. A console says (its channel
+## list); decks and everything else are stereo, as AvSource.resolve treats them.
+static func _stereo_source(dev: Node3D) -> bool:
+	if dev != null and dev.has_method("av_is_stereo"):
+		return bool(dev.call("av_is_stereo"))
+	return true
 
 
 ## A channel as the legend under a jack names it: VIDEO, L, R, C, SL …

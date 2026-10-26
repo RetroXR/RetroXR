@@ -346,10 +346,12 @@ func _own_screen_resources(v: XRToolsViewport2DIn3D) -> void:
 # edge follows the pointer, and the right edge follows it too, because the width
 # grows about the centre by twice what the pointer moved.
 
-## Arm length of the corner mark, its bar thickness, and its hit box.
-const RESIZE_GRIP_ARM := 0.03
-const RESIZE_GRIP_BAR := 0.006
-const RESIZE_GRIP_HIT := 0.04
+## Arm length of the corner mark, its bar thickness, and its hit box — the spawn
+## menu's (CurvedPanel.GRIP_*), so the two marks are recognisably one control. At
+## 30 × 6 mm in grey this one was there and not seen.
+const RESIZE_GRIP_ARM := 0.045
+const RESIZE_GRIP_BAR := 0.008
+const RESIZE_GRIP_HIT := 0.055
 ## How far past the corner the mark sits: its bar plus a hair, so it traces the
 ## outside of the corner rather than covering the page.
 const RESIZE_GRIP_OUT := RESIZE_GRIP_BAR + 0.003
@@ -358,12 +360,16 @@ const RESIZE_MAX_SCALE := 2.5
 ## Every size change reallocates the SubViewport's render target, so a drag is
 ## quantised to this rather than doing it every frame.
 const RESIZE_STEP_PX := 16.0
-const _COLOR_GRIP_IDLE := Color(0.42, 0.45, 0.55)
+## Brighter than the spawn menu's idle grey: this mark stands against the room,
+## not beside a wide lit panel, and the grey disappeared into it.
+const _COLOR_GRIP_IDLE := Color(0.72, 0.76, 0.88)
+const _COLOR_GRIP_HOVER := Color(1.0, 0.9, 0.6)
 const _COLOR_GRIP_DRAG := Color(1.0, 0.78, 0.30)
 
 var _screen_owned := false
 var _resize_grip: PanelResizeGrip = null
 var _resize_grip_mat: StandardMaterial3D = null
+var _resize_hovered := false
 ## The smallest page, taken the first time it is resized: the authored size plus
 ## any lock row, which is as small as the layout inside was made to go.
 var _resize_min_px := Vector2.ZERO
@@ -463,7 +469,15 @@ func resize_begin(pointer: Node3D) -> void:
 func resize_end() -> void:
 	_resize_pointer = null
 	if _resize_grip_mat != null:
-		_resize_grip_mat.albedo_color = _COLOR_GRIP_IDLE
+		_resize_grip_mat.albedo_color = _COLOR_GRIP_HOVER if _resize_hovered else _COLOR_GRIP_IDLE
+
+
+## The pointer came onto or left the grip. Lit while it is there; a drag in
+## progress keeps its own colour until it ends.
+func resize_hover(on: bool) -> void:
+	_resize_hovered = on
+	if _resize_grip_mat != null and _resize_pointer == null:
+		_resize_grip_mat.albedo_color = _COLOR_GRIP_HOVER if on else _COLOR_GRIP_IDLE
 
 
 ## Follow the pointer that started the drag. Its own ray is projected onto the

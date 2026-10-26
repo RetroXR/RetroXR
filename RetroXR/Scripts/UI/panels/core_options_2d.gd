@@ -187,7 +187,7 @@ func _build_ui() -> void:
 	_options_scroll = ScrollContainer.new()
 	_options_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_options_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_options_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_options_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_options_scroll)
 	opts_outer.add_child(_options_scroll)
 
@@ -205,7 +205,7 @@ func _build_ui() -> void:
 	_controllers_scroll = ScrollContainer.new()
 	_controllers_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_controllers_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_controllers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_controllers_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_controllers_scroll)
 	ctrl_outer.add_child(_controllers_scroll)
 
@@ -232,7 +232,7 @@ func _build_ui() -> void:
 	_bios_scroll = ScrollContainer.new()
 	_bios_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_bios_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_bios_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_bios_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_bios_scroll)
 	bios_outer.add_child(_bios_scroll)
 
@@ -274,7 +274,7 @@ func _build_ui() -> void:
 	_debug_scroll = ScrollContainer.new()
 	_debug_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_debug_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_debug_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_debug_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_debug_scroll)
 	debug_outer.add_child(_debug_scroll)
 	_debug_rows = MenuStyle.vbox(2)
@@ -294,7 +294,7 @@ func _build_ui() -> void:
 	_system_scroll = ScrollContainer.new()
 	_system_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_system_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_system_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_system_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_system_scroll)
 	sys_outer.add_child(_system_scroll)
 
@@ -365,7 +365,7 @@ func _build_controls_tab(tabs: TabContainer) -> void:
 	_controls_scroll = ScrollContainer.new()
 	_controls_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_controls_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_controls_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	_controls_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_controls_scroll)
 	outer.add_child(_controls_scroll)
 
