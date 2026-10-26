@@ -6,7 +6,7 @@
 ##   Options — toggles for the VCR player (currently just the VHS effect shader)
 ##
 ## Emits:
-##   effect_toggled(enabled) — user toggled the VHS effect checkbox
+##   effect_toggled(enabled) — user flipped the VHS filter switch
 ##   close_requested         — user pressed ✕
 class_name VCROptions2D
 extends Control
@@ -32,13 +32,13 @@ var _options_scroll: ScrollContainer
 var _options_rows: VBoxContainer
 var _vhs_scroll: ScrollContainer = null
 var _active_scroll: ScrollContainer = null
-var _effect_check: VRCheck = null
+var _effect_check: VRToggle = null
 var _float_check: VRToggle = null
 var _scan_idx: int = 2   # default 8×
 var _scan_val_lbl: Label = null
 # VHS shader controls, keyed by uniform name → {slider, val_label, fmt}.
 var _vhs_sliders: Dictionary = {}
-var _pixelate_check: VRCheck = null
+var _pixelate_check: VRToggle = null
 # Guard so populate() doesn't re-emit effect_toggled when it sets the checkbox.
 var _suppress_signal := false
 
@@ -96,27 +96,14 @@ func _build_ui() -> void:
 
 
 func _build_option_rows() -> void:
-	# VHS effect toggle row: [label] [checkbox]
-	var row := HBoxContainer.new()
-	row.custom_minimum_size = Vector2(0, 56)
-	row.add_theme_constant_override("separation", 8)
-	_options_rows.add_child(row)
-
-	var label := Label.new()
-	label.text = "Enable VCR shader"
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.add_theme_font_size_override("font_size", 18)
-	label.add_theme_color_override("font_color", COLOR_ROW)
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(label)
-
-	_effect_check = VRCheck.create(true, func(pressed: bool) -> void:
+	# VHS effect: the on/off switch every other boolean row in the menus has.
+	_effect_check = MenuStyle.switch_row(_options_rows, "VHS filter", true)
+	_effect_check.toggled.connect(func(pressed: bool) -> void:
 		if _suppress_signal:
 			return
-		print("[VCROptions2D] VCR shader → ", pressed)
+		print("[VCROptions2D] VHS filter → ", pressed)
 		effect_toggled.emit(pressed)
 	)
-	row.add_child(_effect_check)
 
 	_float_check = MenuStyle.float_toggle(_options_rows)
 	_float_check.toggled.connect(func(on: bool):
@@ -180,22 +167,11 @@ func _build_vhs_tab(tabs: TabContainer) -> void:
 	rows.add_theme_constant_override("separation", 4)
 	_vhs_scroll.add_child(rows)
 
-	# Pixelate toggle row: [label] [checkbox].
-	var prow := HBoxContainer.new()
-	prow.custom_minimum_size = Vector2(0, 48)
-	prow.add_theme_constant_override("separation", 8)
-	rows.add_child(prow)
-	var plabel := Label.new()
-	plabel.text = "Pixelate"
-	plabel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	plabel.add_theme_font_size_override("font_size", 18)
-	plabel.add_theme_color_override("font_color", COLOR_ROW)
-	plabel.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	prow.add_child(plabel)
-	_pixelate_check = VRCheck.create(true, func(pressed: bool) -> void:
+	# Pixelate: a switch, like the VHS filter row on the Options tab.
+	_pixelate_check = MenuStyle.switch_row(rows, "Pixelate", true)
+	_pixelate_check.toggled.connect(func(pressed: bool) -> void:
 		if not _suppress_signal:
 			vcr_param_changed.emit("pixelate", pressed))
-	prow.add_child(_pixelate_check)
 
 	# Sliders: [uniform, label, min, max, step, value-format].
 	var specs := [

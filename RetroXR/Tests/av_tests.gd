@@ -185,6 +185,8 @@ func _run() -> void:
 		["menu/the Controls tab names what is on each input", _m_inputs],
 		["menu/its buttons drive the set as the bezel does", _m_buttons],
 		["menu/3D appears with a 3D source, and a cap press reaches an open menu", _m_follows],
+		["menu/a cord in the wrong jack is named on its input", _m_crossed],
+		["menu/a console's menu has its own switches, and where it is showing", _m_machine],
 		["display/with no aerial the dial is the consoles' channels and nothing else", _d_dial_bare],
 		["wiring/a Famicom's CH1/CH2 slide decides which channel it is on", _w_famicom_channel],
 		["display/an aerial's channels join the dial in numeric order", _d_dial_merged],
@@ -2286,6 +2288,93 @@ func _m_buttons() -> void:
 	_check_eq(tv.menu_state()["on"], was_on, "re-populating leaves the power alone")
 	_check_eq(tv.crt_enabled, true, "and the CRT filter")
 	_check_eq(ui._ch_up_btn.disabled, true, "CH+ is dead off the aerial input")
+
+
+## Both of the miswirings the routing cases above model, on two inputs of one set:
+## the audio pair swapped on Composite 1, the picture in the left jack on Composite 2.
+## A correctly wired input beside them must say nothing.
+func _m_crossed() -> void:
+	var tv := _tv()
+	var deck := _deck()
+	var deck2 := _deck()
+	var deck3 := _deck()
+	await _wait(30)
+	var outs := _out_ports(deck)
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_1)
+	await _lead([[0, outs[0], ins[0]], [1, outs[1], ins[2]], [2, outs[2], ins[1]]])
+	var outs2 := _out_ports(deck2)
+	var ins2 := _input_ports(tv, RetroTV.Source.COMPOSITE_2)
+	await _lead([[0, outs2[0], ins2[1]], [2, outs2[2], ins2[2]]])
+	var outs3 := _out_ports(deck3)
+	var ins3 := _input_ports(tv, RetroTV.Source.COMPOSITE_3)
+	await _lead([[0, outs3[0], ins3[0]], [1, outs3[1], ins3[1]], [2, outs3[2], ins3[2]]])
+
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_1).get("wiring"), ["L in R", "R in L"],
+		"a swapped pair names both cords")
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_2).get("wiring"), ["VIDEO in L"],
+		"the picture in the left jack is named")
+	_check_eq(_menu_row(tv, RetroTV.Source.COMPOSITE_3).get("wiring"), [],
+		"a lead wired right says nothing")
+	var ui := await _menu_for(tv)
+	var b := ui._input_buttons.get(RetroTV.Source.COMPOSITE_1) as Button
+	_ok(b != null and b.text.contains("Crossed: L in R, R in L"),
+		"the input's button says so: %s" % (b.text if b else "<none>"))
+	var ok3 := ui._input_buttons.get(RetroTV.Source.COMPOSITE_3) as Button
+	_ok(ok3 != null and not ok3.text.contains("Crossed"), "and the good one does not")
+
+
+## The machine's side: an NES, which has RESET and a CH3/CH4 slide and no drive,
+## cabled to Composite 2 with its sound pair crossed. Never powered on — a suite
+## starts no core.
+func _m_machine() -> void:
+	var tv := _tv()
+	var nes := SYSTEM_SCENE.instantiate() as RetroSystem
+	nes.systemid = "nes"
+	nes.model_id = "nes"          # the detailed shell: only it moulds the RF slide
+	nes.freeze = true
+	nes.position = Vector3(6.0, 1, 0)
+	add_child(nes)
+	nes.add_to_group("spawned")
+	_spawned.append(nes)
+	await _wait(180)
+	if nes.find_child("RfOut", true, false) == null:
+		_skip("this build's NES has no RF panel")
+		return
+	var outs := _out_ports(nes)
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_2)
+	await _lead([[0, outs[0], ins[0]], [1, outs[1], ins[2]], [2, outs[2], ins[1]]])
+
+	var state := nes.controls_state()
+	_check_eq(state["rf_options"], [3, 4], "the NES offers its CH3/CH4 slide")
+	_check_eq(state["eject"], "", "a cartridge console has no OPEN row")
+	_check_eq(state["has_reset"], true, "and does have RESET")
+	_check_eq(state["on"], false, "it starts switched off")
+	_check_eq(state["display"], "TV, COMPOSITE 2", "it says which input it is showing on")
+	_check_eq(state["wiring"], ["L in R", "R in L"], "and that its sound pair is crossed")
+
+	var ui := (load("res://Scenes/UI/core_options_2d.tscn") as PackedScene).instantiate() \
+		as CoreOptions2D
+	add_child(ui)
+	_spawned.append(ui)
+	await _wait(2)
+	ui.populate_controls(state)
+	_check_eq(ui._tabs.get_tab_title(0), "Controls", "Controls is the menu's first tab")
+	_ok(ui._ctl_rf.visible and ui._ctl_reset.visible and not ui._ctl_eject.visible,
+		"the rows are the NES's own: RF and RESET, no OPEN")
+	_ok(ui._ctl_reset.disabled, "RESET is dead while the machine is off")
+	_ok(ui._ctl_wiring.visible and ui._ctl_wiring.text.contains("L in R"),
+		"the crossed pair is named: %s" % ui._ctl_wiring.text)
+	_ok(ui._volume_box.get_parent().get_parent() == ui._controls_scroll,
+		"a handheld's Volume row lives on the Controls tab now")
+
+	# Through the panel, as a press on the row: the console's own slide moves.
+	var panel := nes._options_panel as CoreOptionsPanel
+	panel._system = nes
+	ui.control_requested.connect(panel._on_control_requested)
+	ui._ctl_rf.item_selected.emit(4)
+	_check_eq(nes.get_rf_channel(), 4, "the RF row moves the console's switch to CH4")
+	ui._ctl_rf.item_selected.emit(3)
+	_check_eq(nes.get_rf_channel(), 3, "and back")
 
 
 func _m_follows() -> void:

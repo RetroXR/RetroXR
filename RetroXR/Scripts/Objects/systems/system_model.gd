@@ -527,6 +527,26 @@ func get_rf_channel() -> int:
 	return -1
 
 
+## The channels that switch can be set to, in the order it slides, or [] for none.
+## Read by the machine's menu, which offers the switch as a row.
+func rf_channel_options() -> Array:
+	return []
+
+
+## Set the RF switch from somewhere other than a hand on it (the machine's menu).
+## A model with a switch MOVES it, so the knob, the sound and the set's re-read all
+## follow the one path a hand takes. Default: no switch, nothing to do.
+func set_rf_channel(_channel: int) -> void:
+	pass
+
+
+## The handheld's sliding power switch, or null for a machine with a push button.
+## The menu's Power row moves it rather than toggling behind its back, or the
+## switch would stand at OFF on a running machine.
+func power_slider() -> VRSlider:
+	return _power_slider if is_instance_valid(_power_slider) else null
+
+
 ## Place the sockets built from av_port_channels, in that same order. Called once,
 ## with the ports already children of the system.
 func configure_av_ports(_ports: Array) -> void:

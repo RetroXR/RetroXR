@@ -41,6 +41,8 @@ const COLOR_ROW   := Color(0.65, 0.65, 0.80)
 const COLOR_SELECTED := Color(0.25, 0.45, 0.85)
 const COLOR_IDLE     := Color(0.16, 0.16, 0.28)
 const COLOR_EMPTY    := Color(0.5, 0.5, 0.6)
+## An input with a cord in the wrong jack.
+const COLOR_WARN     := Color(1.0, 0.7, 0.25)
 
 const MIN_SCALE := 0.2
 const MAX_SCALE := 5.0
@@ -274,6 +276,11 @@ func _key(text: String, id: String) -> Button:
 	var b := MenuStyle.row_button(text, 18, 110, 48, false)
 	b.action_mode = BaseButton.ACTION_MODE_BUTTON_RELEASE
 	b.focus_mode = Control.FOCUS_NONE
+	# The input rows' tile, so a key reads as a key and not as a caption.
+	var box := MenuStyle.rounded(COLOR_IDLE, 6)
+	for state in ["normal", "hover", "disabled"]:
+		b.add_theme_stylebox_override(state, box)
+	b.add_theme_stylebox_override("pressed", MenuStyle.rounded(COLOR_SELECTED, 6))
 	b.pressed.connect(func() -> void: _request(id, null))
 	return b
 
@@ -297,13 +304,23 @@ func _populate_inputs(inputs: Array, selected: int) -> void:
 		for row: Dictionary in inputs:
 			var source := int(row["source"])
 			var device := str(row["device"])
-			var b := MenuStyle.row_button("%s   —   %s" % [row["name"],
-				device if not device.is_empty() else "nothing connected"], 18, 0, 48)
+			var text := "%s   —   %s" % [row["name"],
+				device if not device.is_empty() else "nothing connected"]
+			# A cord in the wrong jack, on a line of its own: the input still works,
+			# it just swaps the speakers or loses the picture, which is the thing
+			# nothing else in the room explains.
+			var wiring: Array = row.get("wiring", [])
+			if not wiring.is_empty():
+				text += "\nCrossed: %s" % ", ".join(PackedStringArray(wiring))
+			var b := MenuStyle.row_button(text, 18, 0, 48)
 			b.action_mode = BaseButton.ACTION_MODE_BUTTON_RELEASE
 			b.focus_mode = Control.FOCUS_NONE
 			b.clip_text = true
 			b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-			if device.is_empty():
+			if not wiring.is_empty():
+				b.add_theme_color_override("font_color", COLOR_WARN)
+				b.add_theme_color_override("font_hover_color", COLOR_WARN)
+			elif device.is_empty():
 				b.add_theme_color_override("font_color", COLOR_EMPTY)
 			b.pressed.connect(func() -> void: _request("source", source))
 			_inputs_box.add_child(b)

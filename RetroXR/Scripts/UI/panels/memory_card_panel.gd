@@ -44,13 +44,6 @@ var _connected_ui: MemoryCard2D = null
 @onready var _viewport_node: XRToolsViewport2DIn3D = $MemoryCardViewport
 
 
-func _ready() -> void:
-	super._ready()
-	# A card's list outgrows 720 px fast -- a PS2 card holds dozens of saves -- so
-	# every card family's panel can be dragged bigger from its corner.
-	enable_resize_grip()
-
-
 # ── Public API ─────────────────────────────────────────────────────────────────
 
 func show_for(card: Node3D, camera: Node3D) -> void:

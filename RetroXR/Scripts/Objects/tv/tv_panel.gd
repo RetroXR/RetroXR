@@ -663,6 +663,39 @@ func host_on(input: int) -> Node3D:
 	return system if is_instance_valid(system) else null
 
 
+## Every cord into one input that carries a different signal from the socket it is
+## in, as "L in R" (the cord's signal, then the jack): a left lead in the right
+## jack, a picture in an audio jack. Read by the set's menu, which is the only
+## place that says so — the routing simply follows the wire, so a crossed pair is
+## swapped speakers and a picture in an audio jack is no picture, with nothing to
+## tell the player why.
+##
+## Off the graph rather than the plugs: a plug carries no channel (a cord is a
+## wire), so what it carries is the OUTPUT at its far end. A console's captive lead
+## seats one plug for the whole input and is never in here, which is right — it
+## cannot be crossed.
+func miswired(input: int) -> PackedStringArray:
+	var out := PackedStringArray()
+	if input < 0 or input >= _av_ports.size():
+		return out
+	var ports: Array = _av_ports[input]
+	for link: Dictionary in AvGraph.links_for(_tv):
+		var in_port := link["in"] as RcaPort
+		if not ports.has(in_port):
+			continue
+		var from := link["out"] as RcaPort
+		if from.channel != in_port.channel:
+			out.append("%s in %s" % [channel_word(from.channel), channel_word(in_port.channel)])
+	out.sort()
+	return out
+
+
+## A channel as the legend under a jack names it: VIDEO, L, R, C, SL …
+static func channel_word(channel: int) -> String:
+	var key: String = RcaPort.Channel.keys()[channel]
+	return key.trim_prefix("AUDIO_")
+
+
 ## The host feeding the selected input, if there is one and it is still alive.
 func selected_system() -> Node3D:
 	var input := _tv.selected_input()

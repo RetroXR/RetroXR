@@ -39,6 +39,13 @@ func _ready() -> void:
 	# not inherit the transform of whatever it happens to be parented under.
 	top_level = true
 	visible = false
+	# Every object's menu takes the corner grip the spawn menu has, so any of them
+	# can be dragged bigger. It was opt-in, and only the two with long lists (a
+	# memory card's saves, a BS-X pack's) had opted in. A panel whose page is not a
+	# direct child gets none, and says so, rather than a grip on the wrong node.
+	enable_resize_grip()
+	if _resize_grip == null:
+		push_warning("[Panel] %s: no Viewport2DIn3D child, so no resize grip" % name)
 
 
 func _process(delta: float) -> void:

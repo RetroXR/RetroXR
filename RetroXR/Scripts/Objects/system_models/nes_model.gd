@@ -881,6 +881,16 @@ func get_rf_channel() -> int:
 	return _rf_channel
 
 
+func rf_channel_options() -> Array:
+	return [3, 4]
+
+
+## By the slide, so the knob moves and _on_channel_slider_changed does the rest.
+func set_rf_channel(channel: int) -> void:
+	if _ch_slider != null and (channel == 3 or channel == 4):
+		_ch_slider.set_value(0.0 if channel == 3 else 1.0)
+
+
 ## The NES's AV jacks sit on the RIGHT (+X) flank — this shell moulds them there
 ## (JackRed / JackYellow at x = 0.12) — so the video cable trails out +X rather
 ## than straight back like a rear-panel console.

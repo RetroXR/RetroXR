@@ -375,6 +375,16 @@ func get_rf_channel() -> int:
 	return _rf_channel
 
 
+func rf_channel_options() -> Array:
+	return [1, 2]
+
+
+## By the slide, so the knob moves and _on_channel_slider_changed does the rest.
+func set_rf_channel(channel: int) -> void:
+	if _ch_slider != null and (channel == 1 or channel == 2):
+		_ch_slider.set_value(0.0 if channel == 1 else 1.0)
+
+
 ## No derived plate. It reads "AV OUT" over a jack it calls "VIDEO", and this
 ## machine has neither: there is no composite socket to be a VIDEO one, and what
 ## leaves here is an RF feed. The scene prints "RF OUT" on the panel's own black

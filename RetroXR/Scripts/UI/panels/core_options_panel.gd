@@ -29,6 +29,11 @@ var _saves_panel: MemoryCardPanel = null
 var _saves_index := 0
 ## The handheld volume the System tab's slider last showed (-1: none).
 var _shown_volume := -1.0
+## How often the Controls tab re-reads the machine while the menu is open.
+const CONTROLS_POLL_S := 0.25
+var _controls_poll := 0.0
+## RetroSystem.controls_state() as the Controls tab last showed it.
+var _controls_state: Dictionary = {}
 
 @onready var _viewport_node: XRToolsViewport2DIn3D = $CoreOptionsViewport
 
@@ -93,6 +98,7 @@ func _ensure_ui_connected() -> void:
 	ui.volume_changed.connect(_on_volume_changed)
 	ui.close_requested.connect(hide_panel)
 	ui.saves_source_picked.connect(_on_saves_source_picked)
+	ui.control_requested.connect(_on_control_requested)
 	_ui_connected = true
 	print("[CoreOptionsPanel] 2D UI signals connected")
 
@@ -115,6 +121,8 @@ func _populate() -> void:
 	_shown_volume = _device_volume()
 	ui.populate_system(_system.video_out_enabled, _system.supports_video_out_toggle(),
 		_system.ignore_gravity, _system.pad_guid, _system.pad_ordinal, _shown_volume)
+	_controls_state = _system.controls_state()
+	ui.populate_controls(_controls_state)
 	# Re-evaluated on every open so a file dropped into the system dir by hand
 	# shows up next time; the digest is cached by size and mtime.
 	var core := _system._resolve_core()
@@ -231,10 +239,47 @@ func _device_volume() -> float:
 	return float(model.call(&"get_volume")) if model != null and model.has_method("get_volume") else -1.0
 
 
-## The Volume row follows the device's own wheel while the panel is open.
-func _while_shown(_delta: float) -> void:
+## A Controls-tab row, through the call the machine's own button or slide makes, so
+## the shell moves, the sound plays and netplay hears it as it would from a hand.
+func _on_control_requested(id: String, value: Variant) -> void:
 	if _system == null or not is_instance_valid(_system):
 		return
+	print("[CoreOptionsPanel] %s: control %s%s" % [_system.name, id,
+		"" if value == null else " = %s" % str(value)])
+	match id:
+		"power": _system.set_power(bool(value))
+		"reset": _system.reset()
+		"eject": _system.press_eject()
+		"rf": _system.set_rf_channel(int(value))
+		_:
+			push_warning("[CoreOptionsPanel] unknown control %s" % id)
+	_refresh_controls()
+
+
+## Re-read the machine; repaint the Controls tab only when something moved.
+func _refresh_controls() -> void:
+	if _system == null or not is_instance_valid(_system):
+		return
+	var state := _system.controls_state()
+	if state == _controls_state:
+		return
+	_controls_state = state
+	var vp := _viewport_node.get_node_or_null("Viewport") as SubViewport
+	var ui := vp.get_child(0) as CoreOptions2D if vp and vp.get_child_count() > 0 else null
+	if ui != null:
+		ui.populate_controls(state)
+
+
+## The Volume row follows the device's own wheel while the panel is open, and the
+## Controls tab the machine's switches, a few times a second (a hand on the shell,
+## a peer, a lead moving at the set).
+func _while_shown(delta: float) -> void:
+	if _system == null or not is_instance_valid(_system):
+		return
+	_controls_poll += delta
+	if _controls_poll >= CONTROLS_POLL_S:
+		_controls_poll = 0.0
+		_refresh_controls()
 	var v := _device_volume()
 	if is_equal_approx(v, _shown_volume):
 		return

@@ -2,9 +2,13 @@
 ## Loaded into CoreOptionsPanel's SubViewport via XRToolsViewport2DIn3D.
 ## Builds its entire UI programmatically (same pattern as SpawnMenu2D).
 ##
-## Two tabs:
+## Tabs:
+##   Controls  — the machine's own switches: power, reset, open/eject, the RF
+##               channel slide, a handheld's volume and video out, and which set
+##               and input it is showing on (with any crossed cord)
 ##   Options   — cycle < / > through each core option value
 ##   Controllers — OptionButton per port to choose the active device type
+##   System, BIOS, Cartridge, Saves — see their builders
 ##
 ## Emits:
 ##   option_changed(key, value)     — user changed a core option
@@ -28,6 +32,8 @@ signal ignore_gravity_toggled(enabled: bool)
 ## sets.
 signal volume_changed(value: float)
 signal close_requested
+## A Controls-tab control: "power" (bool), "reset", "eject" (null), "rf" (channel).
+signal control_requested(id: String, value: Variant)
 
 # ── Palette ────────────────────────────────────────────────────────────────────
 const CoreOptionRow := preload("res://Scripts/UI/widgets/core_option_row.gd")
@@ -80,6 +86,19 @@ var _bios_scroll: ScrollContainer = null
 var _bios_rows: VBoxContainer = null
 var _bios_tab_idx := -1
 var _active_scroll: ScrollContainer = null
+var _options_tab_idx := -1
+var _controllers_tab_idx := -1
+# Controls tab.
+var _controls_scroll: ScrollContainer = null
+var _ctl_game: Label = null
+var _ctl_display: Label = null
+var _ctl_wiring: Label = null
+var _ctl_power: VRToggle = null
+var _ctl_reset: Button = null
+var _ctl_eject: Button = null
+var _ctl_rf: VRDropdown = null
+## The channels _ctl_rf was built with, so it is rebuilt only when they change.
+var _ctl_rf_options: Array = []
 # Guard so populate_system() doesn't re-emit when it sets control values.
 var _suppress_signal := false
 
@@ -140,10 +159,13 @@ func _build_ui() -> void:
 	tabs.add_theme_font_size_override("font_size", 18)
 	root_vbox.add_child(tabs)
 
+	_build_controls_tab(tabs)
+
 	# Options tab
 	var opts_outer := VBoxContainer.new()
 	opts_outer.name = "Options"
 	tabs.add_child(opts_outer)
+	_options_tab_idx = tabs.get_tab_count() - 1
 
 	_options_search = LineEdit.new()
 	_options_search.placeholder_text = "Search options"
@@ -170,6 +192,7 @@ func _build_ui() -> void:
 	var ctrl_outer := VBoxContainer.new()
 	ctrl_outer.name = "Controllers"
 	tabs.add_child(ctrl_outer)
+	_controllers_tab_idx = tabs.get_tab_count() - 1
 
 	_controllers_scroll = ScrollContainer.new()
 	_controllers_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -257,37 +280,8 @@ func _build_ui() -> void:
 	sys_rows.add_theme_constant_override("separation", 4)
 	_system_scroll.add_child(sys_rows)
 
-	# A handheld's volume: a second way to its own wheel or slider, which it
-	# follows while the panel is open. Hidden for a machine without one.
-	_volume_box = VBoxContainer.new()
-	_volume_box.add_theme_constant_override("separation", 2)
-	sys_rows.add_child(_volume_box)
-	var vol: Array = MenuStyle.slider_row(_volume_box, "Volume", 0.0, 100.0, 1.0)
-	_volume_slider = vol[0]
-	_volume_value = vol[1]
-	(vol[2] as Label).add_theme_color_override("font_color", COLOR_ROW)
-	_volume_slider.value_changed.connect(func(v: float) -> void:
-		_volume_value.text = "%d%%" % roundi(v)
-		if not _suppress_signal:
-			volume_changed.emit(v / 100.0))
-
-	_video_out_row = HBoxContainer.new()
-	_video_out_row.custom_minimum_size = Vector2(0, 56)
-	_video_out_row.add_theme_constant_override("separation", 8)
-	sys_rows.add_child(_video_out_row)
-
-	var vo_lbl := Label.new()
-	vo_lbl.text = "Enable Video Out"
-	vo_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	vo_lbl.add_theme_font_size_override("font_size", 18)
-	vo_lbl.add_theme_color_override("font_color", COLOR_ROW)
-	vo_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_video_out_row.add_child(vo_lbl)
-
-	_video_out_check = VRToggle.create(false, func(on: bool):
-		if not _suppress_signal:
-			video_out_toggled.emit(on))
-	_video_out_row.add_child(_video_out_check)
+	# A handheld's Volume and Video Out moved to the Controls tab: they are the
+	# machine's own switches, and that tab is where its switches are.
 
 	var grav_row := HBoxContainer.new()
 	grav_row.custom_minimum_size = Vector2(0, 56)
@@ -308,11 +302,13 @@ func _build_ui() -> void:
 	grav_row.add_child(_ignore_grav_check)
 
 	# Track which scroll container is active for stick-driven scrolling
-	_active_scroll = _options_scroll
+	_active_scroll = _controls_scroll
 	tabs.tab_changed.connect(func(idx: int):
 		if idx == 0:
+			_active_scroll = _controls_scroll
+		elif idx == _options_tab_idx:
 			_active_scroll = _options_scroll
-		elif idx == 1:
+		elif idx == _controllers_tab_idx:
 			_active_scroll = _controllers_scroll
 		elif idx == _system_tab_idx:
 			_active_scroll = _system_scroll
@@ -329,6 +325,146 @@ func _build_ui() -> void:
 
 	_show_options_placeholder()
 	_show_controllers_placeholder()
+
+
+# ── Controls: the machine's own switches ─────────────────────────────────────
+
+## The first tab. Each row stands for a control the machine physically has, and is
+## hidden where it has none (populate_controls), so a Game Boy shows no RESET and a
+## cartridge console no OPEN.
+func _build_controls_tab(tabs: TabContainer) -> void:
+	var outer := VBoxContainer.new()
+	outer.name = "Controls"
+	tabs.add_child(outer)
+
+	_controls_scroll = ScrollContainer.new()
+	_controls_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_controls_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_controls_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_SHOW_ALWAYS
+	MenuStyle.fat_vscroll_bar(_controls_scroll)
+	outer.add_child(_controls_scroll)
+
+	var rows := MenuStyle.vbox(6)
+	_controls_scroll.add_child(rows)
+
+	# What is in it and where it is showing, read before anything is pressed.
+	_ctl_game = MenuStyle.label("", 20, COLOR_TITLE)
+	_ctl_game.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_ctl_game.clip_text = true
+	rows.add_child(_ctl_game)
+	_ctl_display = MenuStyle.label("", 18, COLOR_ROW)
+	_ctl_display.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	_ctl_display.clip_text = true
+	rows.add_child(_ctl_display)
+	# A cord in the wrong jack at the set, the same words the TV's menu uses.
+	_ctl_wiring = MenuStyle.label("", 18, COLOR_LOCKED)
+	_ctl_wiring.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_ctl_wiring.visible = false
+	rows.add_child(_ctl_wiring)
+	rows.add_child(HSeparator.new())
+
+	_ctl_power = MenuStyle.switch_row(rows, "Power", false)
+	_ctl_power.toggled.connect(func(on: bool) -> void: _request_control("power", on))
+
+	var keys := MenuStyle.hbox(8)
+	rows.add_child(keys)
+	_ctl_reset = _control_key("RESET", "reset")
+	keys.add_child(_ctl_reset)
+	_ctl_eject = _control_key("OPEN", "eject")
+	keys.add_child(_ctl_eject)
+
+	# Built on populate, from the channels the machine's own slide has.
+	_ctl_rf = VRDropdown.create("RF channel", [["CH 3", 3]], 3)
+	_ctl_rf.item_selected.connect(func(v: Variant) -> void: _request_control("rf", int(v)))
+	_ctl_rf.visible = false
+	rows.add_child(_ctl_rf)
+
+	# A handheld's volume: a second way to its own wheel or slider, which it
+	# follows while the panel is open. Hidden for a machine without one.
+	_volume_box = VBoxContainer.new()
+	_volume_box.add_theme_constant_override("separation", 2)
+	rows.add_child(_volume_box)
+	var vol: Array = MenuStyle.slider_row(_volume_box, "Volume", 0.0, 100.0, 1.0)
+	_volume_slider = vol[0]
+	_volume_value = vol[1]
+	(vol[2] as Label).add_theme_color_override("font_color", COLOR_ROW)
+	_volume_slider.value_changed.connect(func(v: float) -> void:
+		_volume_value.text = "%d%%" % roundi(v)
+		if not _suppress_signal:
+			volume_changed.emit(v / 100.0))
+
+	_video_out_row = HBoxContainer.new()
+	_video_out_row.custom_minimum_size = Vector2(0, 56)
+	_video_out_row.add_theme_constant_override("separation", 8)
+	rows.add_child(_video_out_row)
+
+	var vo_lbl := Label.new()
+	vo_lbl.text = "Enable Video Out"
+	vo_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vo_lbl.add_theme_font_size_override("font_size", 18)
+	vo_lbl.add_theme_color_override("font_color", COLOR_ROW)
+	vo_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_video_out_row.add_child(vo_lbl)
+
+	_video_out_check = VRToggle.create(false, func(on: bool):
+		if not _suppress_signal:
+			video_out_toggled.emit(on))
+	_video_out_row.add_child(_video_out_check)
+
+
+func _request_control(id: String, value: Variant) -> void:
+	if not _suppress_signal:
+		control_requested.emit(id, value)
+
+
+## A press-only key in RELEASE mode: a click in a Viewport2DIn3D arrives as two
+## presses, and a press-mode RESET would reset twice (see MenuStyle.check).
+func _control_key(text: String, id: String) -> Button:
+	var b := MenuStyle.row_button(text, 18, 0, 52, false)
+	b.action_mode = BaseButton.ACTION_MODE_BUTTON_RELEASE
+	b.focus_mode = Control.FOCUS_NONE
+	var box := MenuStyle.rounded(Color(0.16, 0.16, 0.28), 6)
+	for state in ["normal", "hover", "disabled"]:
+		b.add_theme_stylebox_override(state, box)
+	b.add_theme_stylebox_override("pressed", MenuStyle.rounded(Color(0.25, 0.45, 0.85), 6))
+	b.pressed.connect(func() -> void: _request_control(id, null))
+	return b
+
+
+## Sync the Controls tab to RetroSystem.controls_state() without re-emitting.
+## Volume and Video Out are populate_system's and show_volume's, as before.
+func populate_controls(state: Dictionary) -> void:
+	if _ctl_power == null:
+		return
+	_suppress_signal = true
+	var game := str(state.get("game", ""))
+	_ctl_game.text = game if not game.is_empty() else "No game"
+	var display := str(state.get("display", ""))
+	_ctl_display.text = "Showing on: %s" % (display if not display.is_empty()
+		else "nothing (no video lead to a set)")
+	var wiring: Array = state.get("wiring", [])
+	_ctl_wiring.visible = not wiring.is_empty()
+	_ctl_wiring.text = "Crossed at the set: %s" % ", ".join(PackedStringArray(wiring))
+	_ctl_power.button_pressed = bool(state.get("on", false))
+	var has_reset := bool(state.get("has_reset", false))
+	_ctl_reset.visible = has_reset
+	# A reset needs a running core; the real button does nothing either.
+	_ctl_reset.disabled = not bool(state.get("on", false))
+	var eject := str(state.get("eject", ""))
+	_ctl_eject.visible = not eject.is_empty()
+	_ctl_eject.text = eject.to_upper()
+	# A spring lid is shut by hand: the row says so and cannot do it.
+	_ctl_eject.disabled = eject.begins_with("Close the lid")
+	_ctl_reset.get_parent().visible = has_reset or not eject.is_empty()
+	var rf_options: Array = state.get("rf_options", [])
+	_ctl_rf.visible = not rf_options.is_empty()
+	if not rf_options.is_empty():
+		if rf_options != _ctl_rf_options:
+			_ctl_rf_options = rf_options.duplicate()
+			_ctl_rf.set_options(rf_options.map(func(ch: int) -> Array:
+				return ["CH %d" % ch, ch]), int(state.get("rf_channel", rf_options[0])))
+		_ctl_rf.select_id(int(state.get("rf_channel", rf_options[0])))
+	_suppress_signal = false
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────

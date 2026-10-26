@@ -32,10 +32,11 @@ const SAMPLE := [
 
 ## RetroTV.menu_state() for a busy set, in its shape.
 const TV_SAMPLE := {
-	"on": true, "volume": 0.45, "muted": false, "source": 1,
+	"on": true, "volume": 0.45, "muted": false, "source": 0,
 	"inputs": [
 		{"source": 0, "name": "COMPOSITE 1", "device": "Super Nintendo Entertainment System"},
-		{"source": 1, "name": "COMPOSITE 2", "device": "Virtual Boy"},
+		{"source": 1, "name": "COMPOSITE 2", "device": "Virtual Boy",
+			"wiring": ["L in R", "R in L"]},
 		{"source": 2, "name": "COMPOSITE 3", "device": ""},
 		{"source": 3, "name": "COMPOSITE 4", "device": ""},
 		{"source": 5, "name": "RF", "device": "Antenna + Nintendo Entertainment System"},

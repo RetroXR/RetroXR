@@ -3270,6 +3270,74 @@ func net_play_reset() -> void:
 		_model.play_reset()
 
 
+# ── The machine's own controls, as menu rows ─────────────────────────────────
+
+## Everything the Controls tab of this machine's menu shows. A row exists exactly
+## when the machine has the control — RESET where the shell has a reset button,
+## OPEN/EJECT where it has a drive, the channel slide where it has an RF out — so
+## the menu never offers what the hardware does not. Values only, never nodes: the
+## panel compares it whole to notice a change made by hand.
+func controls_state() -> Dictionary:
+	var state := {
+		"on": is_powered_on,
+		"game": rom_path.get_file().get_basename() if not rom_path.is_empty() else "",
+		"has_reset": _reset_button != null and _reset_button.visible,
+		"eject": _eject_label(),
+		"rf_channel": get_rf_channel(),
+		"rf_options": _model.rf_channel_options() if _model != null else [],
+		"display": "",
+		"wiring": [],
+	}
+	var tv := connected_tv
+	if tv != null and is_instance_valid(tv):
+		var input := tv.input_for_device(self)
+		state["display"] = "TV, %s" % (tv.source_name(input) if input >= 0
+			else "not on an input")
+		if input >= 0:
+			state["wiring"] = Array(tv.panel().miswired(input))
+	return state
+
+
+## What the OPEN/EJECT row says, or "" for a machine without the button. Worded
+## by the drive: a lid on a spring only OPENS (it is shut by hand), a motorised
+## tray goes both ways, a slot hands the disc back.
+func _eject_label() -> String:
+	if _eject_button == null or not _eject_button.visible:
+		return ""
+	match _disc_loader:
+		MediaDimensions.LOADER_TRAY:
+			if _has_spring_lid():
+				return "Close the lid by hand" if _tray_open else "Open lid"
+			return "Close tray" if _tray_open else "Open tray"
+		MediaDimensions.LOADER_SLOT:
+			return "Eject disc"
+	return "Eject"
+
+
+## POWER to a position, for the menu's switch. A handheld's power is a slide, and
+## the slide is moved rather than the machine toggled behind it, so the switch
+## never stands at OFF on a machine that is running; the slide's own handler then
+## takes the one path a hand does (and the event netplay knows).
+func set_power(on: bool) -> void:
+	var slide := _model.power_slider() if _model != null else null
+	if slide != null:
+		slide.set_value(1.0 if on else 0.0)
+	elif on != is_powered_on:
+		toggle_power()
+
+
+## The OPEN/EJECT button, pressed from the menu.
+func press_eject() -> void:
+	if _eject_button != null and _eject_button.visible:
+		_on_eject_pressed()
+
+
+## The RF channel slide, set from the menu. The model moves its own switch.
+func set_rf_channel(channel: int) -> void:
+	if _model != null:
+		_model.set_rf_channel(channel)
+
+
 ## Everything pinned for a run: what the shell demands, plus what this system
 ## composes per run. One place, so the .opt seam and the options panel can never
 ## disagree about which keys the player is allowed to move.

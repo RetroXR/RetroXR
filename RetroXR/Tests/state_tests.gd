@@ -44,6 +44,7 @@ func _ready() -> void:
 	_test_panel_chrome()
 	await _test_floating_panels()
 	_test_panels_with_their_own_anchor()
+	_test_every_panel_resizes()
 	await _test_background_results_rebuild_once()
 	_restore_ledger()
 	print("[state-ui] ---- %d passed, %d failed ----" % [_pass, _fail])
@@ -619,6 +620,41 @@ func _test_floating_panels() -> void:
 		_eq(inst._float_height(), float(entry[2]), "panel/%s keeps its float height" % file)
 		_ok(inst._target_node() == null, "panel/%s reports no subject before it is shown" % file)
 		inst.free()
+
+
+## Every object's menu can be dragged bigger from its corner, as the spawn menu can.
+## The base turns the grip on for all of them, and finds the page as its DIRECT
+## child, so each real panel scene is read for that: a page one level down would
+## leave that menu with no grip and only a warning in the log. Read as text
+## because these scenes host a SubViewport, which hangs a headless run.
+func _test_every_panel_resizes() -> void:
+	var base_src := FileAccess.get_file_as_string(
+		"res://Scripts/UI/panels/floating_object_panel_3d.gd")
+	var ready_body := base_src.get_slice("func _ready() -> void:", 1).get_slice("\nfunc ", 0)
+	_ok(ready_body.contains("enable_resize_grip()"),
+		"resize/the shared base gives every panel the corner grip")
+	var count := 0
+	for file in DirAccess.get_files_at("res://Scenes/UI"):
+		if not file.ends_with("_panel.tscn"):
+			continue
+		var text := FileAccess.get_file_as_string("res://Scenes/UI/" + file)
+		var script_path := text.get_slice('[ext_resource type="Script" path="', 1).get_slice('"', 0)
+		var scr: GDScript = null
+		if not script_path.is_empty():
+			scr = load(script_path) as GDScript
+		if scr == null or scr.get_base_script() == null \
+				or not scr.get_base_script().resource_path.ends_with("floating_object_panel_3d.gd"):
+			continue
+		count += 1
+		# The viewport scene's ext_resource id, then a node instancing it under ".".
+		var vp_id := ""
+		for line in text.split("\n"):
+			if line.begins_with("[ext_resource") and line.contains("viewport_2d_in_3d.tscn"):
+				vp_id = line.get_slice(' id="', 1).get_slice('"', 0)
+		_ok(not vp_id.is_empty() and text.contains(
+				'parent="." instance=ExtResource("%s")' % vp_id),
+			"resize/%s has its page as a direct child, so it gets the grip" % file)
+	_ok(count >= 13, "resize/every object menu was checked (%d)" % count)
 
 
 ## The three panels whose placement is not "straight up from the origin": the

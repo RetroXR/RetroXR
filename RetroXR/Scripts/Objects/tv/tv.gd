@@ -1289,6 +1289,12 @@ func source_name(source: int) -> String:
 	return SOURCE_NAMES[clampi(source, 0, SOURCE_NAMES.size() - 1)]
 
 
+## Which input a machine's picture (or failing that, its sound) arrives on, or -1.
+## Read by the machine's own menu, which says which input of which set it is on.
+func input_for_device(dev: Node3D) -> int:
+	return _panel._input_for_device(dev)
+
+
 ## What is plugged into an input, in words, or "" for nothing. The menu prints it
 ## beside each input's name, which is the one place a player can see every input's
 ## lead at once without walking round the back of the set.
@@ -1336,7 +1342,8 @@ func menu_state() -> Dictionary:
 	for i in SOURCE_NAMES.size():
 		if _source_available(i as Source):
 			inputs.append({"source": i, "name": source_name(i),
-				"device": input_device_label(i)})
+				"device": input_device_label(i),
+				"wiring": Array(_panel.miswired(i))})
 	return {
 		"on": _tv_enabled,
 		"volume": _audio.volume(),
