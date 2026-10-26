@@ -61,6 +61,7 @@ func _populate() -> void:
 		return
 	ui.populate(_vcr.vcr_effect_enabled, _vcr.scan_speed, _vcr.get_ignore_gravity())
 	ui.populate_vcr(_vcr.get_vcr_params())
+	ui.populate_debug(_vcr.debug_state())
 
 
 func _on_ignore_gravity_toggled(enabled: bool) -> void:
@@ -91,3 +92,25 @@ func _target_node() -> Node3D:
 
 func _float_height() -> float:
 	return FLOAT_HEIGHT
+
+
+# ── Debug tab ────────────────────────────────────────────────────────────────
+
+## How often the Debug tab re-reads the deck, while it is the tab showing.
+const DEBUG_POLL_S := 0.5
+var _debug_poll := 0.0
+
+
+func _while_shown(delta: float) -> void:
+	_debug_poll += delta
+	if _debug_poll < DEBUG_POLL_S:
+		return
+	_debug_poll = 0.0
+	var ui := _vcr_ui()
+	if ui != null and ui.is_debug_tab_shown() and is_instance_valid(_vcr):
+		ui.populate_debug(_vcr.debug_state())
+
+
+func _vcr_ui() -> VCROptions2D:
+	var vp := _viewport_node.get_node_or_null("Viewport") as SubViewport
+	return vp.get_child(0) as VCROptions2D if vp and vp.get_child_count() > 0 else null

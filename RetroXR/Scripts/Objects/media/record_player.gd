@@ -126,6 +126,17 @@ func has_scan() -> bool:
 	return false
 
 
+## The Debug tab's turntable rows: what the speed switch, the motor and the arm
+## are doing. A 45 plays a 33 a third fast, which is the first thing to check when
+## a record sounds wrong.
+func _debug_deck_rows() -> Array:
+	return [
+		["Speed", "45 rpm (a 33 plays %.2f× fast)" % RATE_45 if _speed_45 else "33 1/3 rpm"],
+		["Motor", "on" if _motor else "off"],
+		["Arm", "parked" if _arm_value() <= arm_park else "on the record (%.2f)" % _arm_value()],
+	]
+
+
 ## The needle CAN be moved from track to track, so the remote keeps prev/next even
 ## though there are no such buttons on the plinth. The base's handlers do not touch
 ## the button nodes, so they work; the arm is moved to match in _goto_track.

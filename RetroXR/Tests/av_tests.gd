@@ -188,6 +188,7 @@ func _run() -> void:
 		["menu/a cord in the wrong jack is named on its input", _m_crossed],
 		["menu/a console's menu has its own switches, and where it is showing", _m_machine],
 		["menu/a set with only an L/R pair offers no SURROUND", _m_stereo_only_set],
+		["menu/a deck's Debug tab names its media and where it goes", _m_deck_debug],
 		["display/with no aerial the dial is the consoles' channels and nothing else", _d_dial_bare],
 		["wiring/a Famicom's CH1/CH2 slide decides which channel it is on", _w_famicom_channel],
 		["display/an aerial's channels join the dial in numeric order", _d_dial_merged],
@@ -2421,8 +2422,8 @@ func _m_machine() -> void:
 	_check_eq(dbg[0][1][0], ["Power", "Off"], "and it says the machine is off")
 	ui.populate_debug(dbg)
 	_check_eq(ui._tabs.get_tab_title(ui._debug_tab_idx), "Debug", "the menu has a Debug tab")
-	_ok(ui._debug_values.size() == (dbg[0][1] as Array).size()
-		and ui._debug_values[0].text == "Off", "which shows those rows")
+	_ok(ui._debug_rows.values.size() == (dbg[0][1] as Array).size()
+		and ui._debug_rows.values[0].text == "Off", "which shows those rows")
 
 
 ## The Panasonic CT-20D10B (a mod) keeps only its L/R audio outs and disables the
@@ -2459,6 +2460,50 @@ func _m_stereo_only_set() -> void:
 		func(c: Array) -> int: return int(c[1]))
 	_check_eq(shown, [0, 1], "the menu's Audio output row lists only those two")
 	tv.set_audio_out(RetroTV.AudioOut.TV_SPEAKERS)
+
+
+## The decks' Debug tabs, as far as a suite can take them: nothing in either deck
+## (playing real media is media_debug_probe's), a VCR cabled with its pair crossed.
+func _m_deck_debug() -> void:
+	var tv := _tv()
+	var deck := _deck()
+	await _wait(30)
+	var outs := _out_ports(deck)
+	var ins := _input_ports(tv, RetroTV.Source.COMPOSITE_1)
+	await _lead([[0, outs[0], ins[0]], [1, outs[1], ins[2]], [2, outs[2], ins[1]]])
+	var dbg := deck.debug_state()
+	var rows := {}
+	for s: Array in dbg:
+		for r: Array in s[1]:
+			rows["%s/%s" % [s[0], r[0]]] = str(r[1])
+	_check_eq(rows.get("Tape/Tape"), "(none in the deck)", "an empty VCR says it has no tape")
+	_check_eq(rows.get("Deck/Showing on"), "TV, COMPOSITE 1", "and which input of which set it reaches")
+	_check_eq(rows.get("Deck/Cords"), "crossed: L in R, R in L", "and that its pair is crossed there")
+	_ok(rows.has("Playback/State") and rows.has("Audio stream/Sample rate"),
+		"the player's sections are there with nothing playing")
+
+	var ui := (load("res://Scenes/UI/vcr_options_2d.tscn") as PackedScene).instantiate() as VCROptions2D
+	add_child(ui)
+	_spawned.append(ui)
+	await _wait(2)
+	ui.populate_debug(dbg)
+	_check_eq(ui._tabs.get_tab_title(2), "Debug", "the VCR menu has a Debug tab")
+	_check_eq(ui._debug_rows.values.size(), rows.size(), "showing every row")
+
+	var cas := (load("res://Scenes/Objects/appliances/cassette_player.tscn") as PackedScene) 		.instantiate() as RetroAudioPlayer
+	cas.freeze = true
+	cas.position = Vector3(9, 1, 0)
+	add_child(cas)
+	_spawned.append(cas)
+	await _wait(10)
+	var adbg := cas.debug_state()
+	_check_eq(adbg[0][1][0], ["In the deck", "(nothing)"], "an empty cassette deck says so")
+	var aui := (load("res://Scenes/UI/audio_options_2d.tscn") as PackedScene).instantiate() 		as AudioOptions2D
+	add_child(aui)
+	_spawned.append(aui)
+	await _wait(2)
+	aui.populate_debug(adbg)
+	_check_eq(aui._tabs.get_tab_title(1), "Debug", "the audio deck menu has a Debug tab")
 
 
 func _m_follows() -> void:

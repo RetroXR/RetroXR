@@ -101,12 +101,8 @@ var _ctl_rf: VRDropdown = null
 var _ctl_rf_options: Array = []
 # Debug tab: what the core reports, as label/value rows.
 var _debug_scroll: ScrollContainer = null
-var _debug_rows: VBoxContainer = null
+var _debug_rows: DebugRows = null
 var _debug_tab_idx := -1
-## The rows' labels as last built, so a refresh that only changes values (every
-## refresh while a game runs) rewrites text instead of rebuilding the page.
-var _debug_sig := ""
-var _debug_values: Array[Label] = []
 # Guard so populate_system() doesn't re-emit when it sets control values.
 var _suppress_signal := false
 
@@ -277,7 +273,7 @@ func _build_ui() -> void:
 	_debug_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	MenuStyle.fat_vscroll_bar(_debug_scroll)
 	debug_outer.add_child(_debug_scroll)
-	_debug_rows = MenuStyle.vbox(2)
+	_debug_rows = DebugRows.new()
 	_debug_scroll.add_child(_debug_rows)
 	# Which memory the page shows, when there is more than one: the unit's own and
 	# a Backup RAM Cartridge in the slot.
@@ -468,39 +464,8 @@ func is_debug_tab_shown() -> bool:
 
 ## Fill the Debug tab from RetroSystem.debug_state(): [[section, [[label, value]]]].
 func populate_debug(sections: Array) -> void:
-	if _debug_rows == null:
-		return
-	var labels := PackedStringArray()
-	for s: Array in sections:
-		labels.append("#" + str(s[0]))
-		for row: Array in s[1]:
-			labels.append(str(row[0]))
-	var sig := "|".join(labels)
-	if sig != _debug_sig:
-		_debug_sig = sig
-		for c in _debug_rows.get_children():
-			_debug_rows.remove_child(c)
-			c.queue_free()
-		_debug_values.clear()
-		for s: Array in sections:
-			_debug_rows.add_child(MenuStyle.label(str(s[0]), 20, COLOR_TITLE))
-			for row: Array in s[1]:
-				var line := MenuStyle.hbox(8)
-				var name_lbl := MenuStyle.label(str(row[0]), 16, COLOR_ROW)
-				name_lbl.custom_minimum_size = Vector2(190, 0)
-				line.add_child(name_lbl)
-				var val := MenuStyle.label("", 16, COLOR_TITLE)
-				val.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-				val.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				line.add_child(val)
-				_debug_rows.add_child(line)
-				_debug_values.append(val)
-			_debug_rows.add_child(MenuStyle.spacer(6))
-	var i := 0
-	for s: Array in sections:
-		for row: Array in s[1]:
-			_debug_values[i].text = str(row[1])
-			i += 1
+	if _debug_rows:
+		_debug_rows.show_sections(sections)
 
 
 ## Sync the Controls tab to RetroSystem.controls_state() without re-emitting.

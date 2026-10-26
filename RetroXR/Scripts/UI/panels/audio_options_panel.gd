@@ -50,6 +50,7 @@ func _populate() -> void:
 		call_deferred("_populate")
 		return
 	ui.populate(_player.player_label, _player.get_ignore_gravity())
+	ui.populate_debug(_player.debug_state())
 
 
 func _on_ignore_gravity_toggled(enabled: bool) -> void:
@@ -65,3 +66,20 @@ func _target_node() -> Node3D:
 
 func _float_height() -> float:
 	return FLOAT_HEIGHT
+
+
+# ── Debug tab ────────────────────────────────────────────────────────────────
+
+## How often the Debug tab re-reads the deck, while it is the tab showing.
+const DEBUG_POLL_S := 0.5
+var _debug_poll := 0.0
+
+
+func _while_shown(delta: float) -> void:
+	_debug_poll += delta
+	if _debug_poll < DEBUG_POLL_S:
+		return
+	_debug_poll = 0.0
+	var ui := _get_ui()
+	if ui != null and ui.is_debug_tab_shown() and is_instance_valid(_player):
+		ui.populate_debug(_player.debug_state())

@@ -111,6 +111,51 @@ func _ready() -> void:
 	_update_status()
 
 
+## The menu's Debug tab: the record, tape or disc in the deck, what the player is
+## doing with it and the audio it decodes. A deck adds its own mechanics through
+## _debug_deck_rows (a turntable's speed and arm). See DebugRows for the shape.
+func debug_state() -> Array:
+	var media_rows: Array = []
+	if not is_instance_valid(_snapped_media):
+		media_rows.append(["In the deck", "(nothing)"])
+	else:
+		media_rows.append(["In the deck", _media_word(_snapped_media)])
+		media_rows.append(["Album", album_path.get_file() if not album_path.is_empty()
+			else "(none)"])
+		media_rows.append(["Track", "%d of %d" % [_track_idx + 1, _tracks.size()]
+			if not _tracks.is_empty() else "—"])
+		var path := _tracks[_track_idx] if _track_idx < _tracks.size() else ""
+		media_rows.append_array(MediaDebug.file_rows(path))
+		var tape := _tape()
+		if tape != null:
+			media_rows.append(["Tape at", "%s (%.1f%% of the tape)" % [
+				MediaDebug.time_text(int(float(tape.get("tape_time")) * 1000.0)),
+				float(tape.get("tape_progress")) * 100.0 if "tape_progress" in tape else 0.0]])
+	var out: Array = [["Media", media_rows]]
+	out.append_array(MediaDebug.vlc_sections(_vlc, false))
+	var deck: Array = [["Deck", player_label]]
+	deck.append_array(_debug_deck_rows())
+	deck.append(["Volume", "%d%%" % roundi(_volume_linear * 100.0)])
+	out.append(["Deck", deck])
+	return out
+
+
+## A deck's own mechanics for its Debug tab, as [label, value] rows.
+func _debug_deck_rows() -> Array:
+	return []
+
+
+## What kind of medium a node is, in a word.
+static func _media_word(media: Node) -> String:
+	if media is VinylRecord:
+		return "Vinyl record"
+	if media is AudioCassette:
+		return "Audio cassette"
+	if media is AudioDisc:
+		return "Compact disc"
+	return String(media.name)
+
+
 ## Whether this player offers manual track skipping (CD yes, cassette no). Read by
 ## the TV remote to pick its row set and by the net layer to gate skip commands.
 func has_track_skip() -> bool:

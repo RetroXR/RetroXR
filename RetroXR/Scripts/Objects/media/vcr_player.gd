@@ -470,6 +470,41 @@ func has_media() -> bool:
 	return _slot.has_media()
 
 
+## The menu's Debug tab: the tape, what the player is doing with it, the audio it
+## decodes and where the picture goes. See DebugRows for the shape.
+func debug_state() -> Array:
+	var tape: VCRTape = _tape as VCRTape if is_instance_valid(_tape) else null
+	var tape_rows: Array = []
+	if tape == null:
+		tape_rows.append(["Tape", "(none in the deck)"])
+	else:
+		tape_rows.append(["Label", tape.video_label if not tape.video_label.is_empty()
+			else "(unlabelled)"])
+		var path := _recordings[_rec_idx] if _rec_idx < _recordings.size() else tape.video_path
+		tape_rows.append_array(MediaDebug.file_rows(path))
+		if _recordings.size() > 1:
+			tape_rows.append(["Recording", "%d of %d (playlist %s)" % [_rec_idx + 1,
+				_recordings.size(), tape.video_path.get_file()]])
+		tape_rows.append_array([
+			["Cassette", "T-%d" % tape.cassette if tape.cassette > 0 else "not sized yet"],
+			["Recording length", MediaDebug.time_text(int(tape.recording_seconds * 1000.0))],
+			["Tape at", "%s (%.1f%%)%s" % [MediaDebug.time_text(int(tape.tape_time * 1000.0)),
+				tape.tape_progress * 100.0,
+				"" if tape.tape_blank <= 0.0 else ", %.0f s into blank tape" % tape.tape_blank]],
+			["Tape moving", "still" if is_zero_approx(tape.tape_speed)
+				else "%+.1f×" % tape.tape_speed],
+		])
+	var out: Array = [["Tape", tape_rows]]
+	out.append_array(MediaDebug.vlc_sections(_vlc, true))
+	var deck: Array = MediaDebug.output_rows(self, connected_tv)
+	deck.append_array([
+		["VHS filter", "on" if vcr_effect_enabled else "off"],
+		["Scan speed", "%d×" % int(scan_speed)],
+	])
+	out.append(["Deck", deck])
+	return out
+
+
 func _log_tag() -> String:
 	return "VCR"
 
