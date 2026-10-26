@@ -1289,6 +1289,24 @@ func _test_fan_lid() -> void:
 	book._flop.rest_on_fan = false
 	var bare := await _fan_lid_turn(book, false)
 	book._flop.rest_on_fan = true
+	# A thick book: its blocks dive centimetres deep into the gutter, and a page
+	# that falls over from one carried that dive onto the other (15 mm through).
+	_write_cbz(THICK_CBZ_PATH, THICK_PAGES)
+	var thick := BOOK_SCENE.instantiate() as PDFBook
+	thick.freeze = true
+	thick.pdf_path = ProjectSettings.globalize_path(THICK_CBZ_PATH)
+	add_child(thick)
+	await _settle()
+	var thick_hand := await _fan_lid_turn(thick, true, true)
+	# On a thick block every sheet is a centimetre off the book's middle, where its
+	# bend pivots, and a page lifting off its leaves dips under them by a fraction
+	# of a millimetre 3 cm from the spine; the shader's pile order draws it over
+	# them by its places' worth (paper.gdshader stack_layer), so that is the bar.
+	var kept := (PDFBook.STACK_TURNING - PDFBook.STACK_FAN_DEEPEST - float((thick._fan_leaves[1] as Array).size() - 1)) * PDFBook.STACK_STEP
+	_ok(bool(thick_hand["fell"]) and float(thick_hand["through"]) < 0.001 and float(thick_hand["own_through"]) < kept,
+		"fan_lid/thick: a page let go held up off a 400-page book lands on the leaves there, right down to the spine (worst %+.1f mm; its own side %+.2f mm, drawn over them within %.1f)"
+			% [float(thick_hand["through"]) * 1000.0, float(thick_hand["own_through"]) * 1000.0, kept * 1000.0])
+	thick.queue_free()
 	_ok(int(rests["fanned"]) > 0 and float(rests["through"]) < 0.001,
 		"fan_lid/the page coming over never goes through the far side's loose leaves (%d up, worst %+.1f mm)"
 			% [int(rests["fanned"]), float(rests["through"]) * 1000.0])
@@ -1410,7 +1428,7 @@ func _fan_lid_turn(book: PDFBook, rest: bool, by_hand: bool = false) -> Dictiona
 			book._flop.set_fan_lid(-1, INF)
 		_drive(book, FACE_DOWN, 2)
 		if book._active_leaf != null:
-			through = maxf(through, _fan_through_leaf(book, -1))
+			through = maxf(through, _fan_through_leaf(book, -1, 0.0))
 			# Right down to the spine: that is where it dipped under the page it
 			# was uncovering as it began to lift.
 			own_through = maxf(own_through, _fan_through_leaf(book, 1, 0.03))
@@ -1541,7 +1559,11 @@ func _fan_through_leaf(book: PDFBook, dir: int, from_spine: float = 0.15) -> flo
 			var phi := PackedFloat64Array()
 			for j in 41:
 				var u := float(j) / 40.0
-				var b := BookFlop.bend_sz(gap + w * u, leaf.position.z + _rest_z(u, v, leaf_dive), p)
+				# The shader's arc-length shift: a sheet diving into the gutter reaches
+				# half its dive less far across.
+				var leaf_s := gap + w * u - 0.5 * leaf_dive * exp(-u * 12.0)
+				var b := BookFlop.bend_sz(leaf_s, leaf.position.z + _rest_z(u, v, leaf_dive),
+					book._flop.bound(p, book._flop.params(dir), leaf_s))
 				var rel := Vector2(b.x, b.y) - pivot
 				rho.append(rel.length())
 				phi.append(atan2(rel.y, rel.x))
@@ -1552,6 +1574,11 @@ func _fan_through_leaf(book: PDFBook, dir: int, from_spine: float = 0.15) -> flo
 				if rel.x < from_spine * w:
 					continue
 				var r := rel.length()
+				# Within a few millimetres of the binding's pivot "above" has no
+				# meaning (a millimetre is a whole radian there): every sheet's spine
+				# edge comes into the gutter, and the shader's pile order decides.
+				if r < 0.03 * w:
+					continue
 				for j in 40:
 					if (rho[j] - r) * (rho[j + 1] - r) <= 0.0 and rho[j] != rho[j + 1]:
 						var t := (r - rho[j]) / (rho[j + 1] - rho[j])
@@ -1592,7 +1619,7 @@ func _against_far(book: PDFBook) -> Dictionary:
 			# page while it bowed down through the real one.
 			var flat := book._flop.unbend_over(book.to_local(_leaf_point_world(book, p, true)), book._turn_direction)
 			total += 1
-			if float(book._grab_dir) * flat.x < -0.15 * w:
+			if float(book._grab_dir) * flat.x < -0.02 * w:
 				over += 1
 				var u_far := clampf((absf(flat.x) - book._spine_width() * 0.5) / w, 0.0, 1.0)
 				var under := far_plane + _rest_z(u_far, clampf(0.5 + flat.y / h, 0.0, 1.0),
@@ -1614,12 +1641,20 @@ func _leaf_point_world(book: PDFBook, point: Vector2, with_rest: bool = false) -
 	var mat := _mat(leaf)
 	var xy := point
 	var z := 0.0
+	var after_lift := 0.0
 	if with_rest:
-		# The shader adds the sheet's rest shape before the fold and the hinge, so
-		# a page that falls over carries its bow over with it.
-		z = _rest_z(clampf(0.5 + float(book._grab_dir) * point.x / book._book_width, 0.0, 1.0),
-			clampf(0.5 + point.y / book.book_height, 0.0, 1.0),
-			float(mat.get_shader_parameter("gutter_dive"))) * cos(book._leaf_lift)
+		# The shader adds the sheet's rest shape before the fold and the hinge,
+		# turned with the hinge — and the dive into the gutter after the hinge.
+		var u := clampf(0.5 + float(book._grab_dir) * point.x / book._book_width, 0.0, 1.0)
+		var dive := float(mat.get_shader_parameter("gutter_dive"))
+		var dive_z := -dive * exp(-u * 12.0)
+		xy.x -= float(book._grab_dir) * dive * exp(-u * 12.0) * 0.5
+		var lift_now := float(mat.get_shader_parameter("flop_lift"))
+		z = (_rest_z(u, clampf(0.5 + point.y / book.book_height, 0.0, 1.0), dive) - dive_z) * cos(lift_now)
+		if lift_now != 0.0:
+			after_lift = dive_z
+		else:
+			z += dive_z
 	if float(mat.get_shader_parameter("fold_strength")) > 0.0:
 		var fn: Vector2 = (mat.get_shader_parameter("fold_normal") as Vector2).normalized()
 		var d := (point - (mat.get_shader_parameter("fold_origin") as Vector2)).dot(fn)
@@ -1635,7 +1670,7 @@ func _leaf_point_world(book: PDFBook, point: Vector2, with_rest: bool = false) -
 				xy = fold_pt - fn * (d - PI * r)
 				z += 2.0 * r
 	return book.to_global(book._flop.bend_over(
-		leaf.position + Vector3(xy.x, xy.y, z), book._turn_direction, book._leaf_lift, leaf.position.z))
+		leaf.position + Vector3(xy.x, xy.y, z), book._turn_direction, book._leaf_lift, leaf.position.z, after_lift))
 
 
 ## A book with a LOT of pages: 400, a 2 cm block, opened in the middle. Everything

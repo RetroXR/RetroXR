@@ -637,6 +637,22 @@ func fan_params(dir: int, k: int) -> Vector4:
 	return fan_params_at(dir, fan_delta(dir, k))
 
 
+## Distance out from the gutter over which a sheet leaves its block's bend for its
+## own (paper.gdshader's BIND_SPREAD): every sheet of a half comes into the
+## binding on the block's bend, so there it is ordered by height alone.
+const BIND_SPREAD := 0.02
+## The gutter's half-width, which s is measured past (PDFBook sets it).
+var gutter_gap := 0.00175
+
+
+## `sheet`'s bend at `s` out from the book's middle, blended from `block`'s at
+## the binding (paper.gdshader does the same per vertex).
+func bound(sheet: Vector4, block: Vector4, s: float) -> Vector4:
+	if block == Vector4.ZERO:
+		return sheet
+	return block.lerp(sheet, smoothstep(0.0, BIND_SPREAD, s - gutter_gap))
+
+
 ## A loose leaf `d` up off this half's block, wherever it is in the fan.
 func fan_params_at(dir: int, d: float) -> Vector4:
 	var i := _i(dir)
@@ -720,8 +736,8 @@ static func hinge_len_at(z: float) -> float:
 func _bend_over_sz(s: float, z: float, own_dir: int) -> Vector3:
 	var hl := hinge_len_at(z)
 	if s >= 0.0:
-		return bend_sz(s, z, turn_params(own_dir), hl)
-	var far := bend_sz(-s, z, ride_params(-own_dir), hl)
+		return bend_sz(s, z, bound(turn_params(own_dir), params(own_dir), s), hl)
+	var far := bend_sz(-s, z, bound(ride_params(-own_dir), params(-own_dir), -s), hl)
 	return Vector3(-far.x, far.y, -far.z)
 
 
@@ -735,10 +751,13 @@ func _bend_over_sz(s: float, z: float, own_dir: int) -> Vector3:
 ## arc, which gave the high parts of the sheet only a fraction of the lift; the
 ## "leaf's frame" was then not a frame at all, and the fold solver wanted curls
 ## starting 6 cm behind the binding.
-func bend_over(point: Vector3, own_dir: int, lift: float = 0.0, pivot_z: float = 0.0) -> Vector3:
+## `after_lift` is a height added once the hinge has turned the point (the gutter
+## dive of a page on its hinge, which paper.gdshader applies there).
+func bend_over(point: Vector3, own_dir: int, lift: float = 0.0, pivot_z: float = 0.0,
+		after_lift: float = 0.0) -> Vector3:
 	var d := 1.0 if own_dir > 0 else -1.0
 	var lifted := Vector2(d * point.x, point.z - pivot_z).rotated(lift)
-	var r := _bend_over_sz(lifted.x, lifted.y + pivot_z, own_dir)
+	var r := _bend_over_sz(lifted.x, lifted.y + pivot_z + after_lift, own_dir)
 	return Vector3(d * r.x, point.y, r.y)
 
 

@@ -442,13 +442,41 @@ before you blame the file.
   down to the same line, and no amount of per-case geometry kept them in order there: the
   turning page's widened hinge, the gutter dive and a tilt moving the fan each let the lower
   sheet through (the player: "still happening near the spine as I tilt the book down"). Each
-  sheet is drawn moved towards the eye by its place x `STACK_STEP` (0.3 mm), from the side its
-  half faces up; AWAY from the eye seen from underneath (so a page never shows through its own
-  block from below), nothing edge-on. Only `POSITION` moves: lighting, the bend and every CPU
+  sheet is drawn moved towards the eye by its place x `STACK_STEP` (0.5 mm ACROSS the paper:
+  along the eye ray that is divided by the view's cosine, `STACK_GRAZE` capping it, because at a
+  grazing look into the gutter 0.8 mm across was several mm along the ray and a flat nudge lost),
+  from the side its half faces up — "up" from the BLOCK's bend (`stack_own`/`stack_far`), never
+  the sheet's own, or a page taken off a fan 44° up disagreed with the leaf under it about which
+  side the eye was on; AWAY from the eye seen from underneath, nothing edge-on. A 20x boost at
+  the binding was tried and drew pages over the block's edges in a side view: the nudge must stay
+  below the gap to anything really in front, so the binding has to be right in GEOMETRY: Only `POSITION` moves: lighting, the bend and every CPU
   mirror of it are untouched, and depth is still written by the rasteriser (no early-z loss).
   **`POSITION` must be written on every path**: Godot draws nothing for a vertex of a shader
   that writes it elsewhere, and the covers (place 0) vanished while it was inside an `if`.
   The geometry still has to be right to within that margin; this only decides near-ties.
+- **The binding, in geometry** (found with `book_flop_probe --solid --pages=200`: flat
+  colour pages far apart, so a page where another should be is plain, and a thick block):
+  - **Every sheet of a half leaves the binding on its BLOCK's bend** and peels off it over
+    `BIND_SPREAD` (2 cm; `BookFlop.bound`, the shader mirrors it): there they are ordered by
+    height alone, which is the pile's order. On their own bends a page and the leaf under it, a
+    centimetre off the book's middle on a thick block, swung through each other by millimetres
+    (every bend pivots on the middle).
+  - **Columns are gathered toward the spine** (`spine_density`: 0.75 at rest, 0.5 on the turning
+    page; UV moves with the vertex). A loose leaf's 12 even columns (1.4 cm apart) drew the
+    binding's hinge, the gutter dive and the blend as one or two straight chords, up to ~3 mm off
+    the curve the CPU mirrors compute and off the turning page's 32 columns: the leaf came up
+    through the page in a band along the spine as a turn began (measured by lowering the leaves
+    3 mm: the band went). No CPU mirror changes; the shape is the same function of u.
+  - **A turning page dives into the gutter by the block it lies on**: its own block's while on
+    its own half (following its height as it comes down), the far block's as it falls over
+    (`_push_ride`). Kept from the half it left, a page falling over from a thick half plunged its
+    spine strip 9.6 mm into a far valley 0.2 mm deep: 15 mm through the leaves there.
+  - **On a page on its hinge the dive goes on AFTER the hinge** (`hinged_dive` in the shader,
+    `after_lift` in `BookFlop.bend_over`): turned with it, a page falling over swung its 9 mm
+    dive out sideways and landed it 3.6 mm from the spine, under the page it came down on.
+  - The oracles carry the shader's arc-length shift (half the dive, toward the spine) and skip
+    points within 3% of the page of the binding's pivot, where "above" has no meaning (a
+    millimetre is a radian there); `fan_lid/thick` turns a 400-page book by hand.
   `book_flop_probe --only=spine [--nostack]` films it close up (the tilt, S1-S2, is the only
   part where the two legs' frames line up: the turns are tweens on real time).
 

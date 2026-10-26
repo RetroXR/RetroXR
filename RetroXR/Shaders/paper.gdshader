@@ -78,7 +78,36 @@ uniform float flop_lift = 0.0;
 // two sheets are that close the one above is drawn above. Only POSITION moves:
 // lighting, the bend and the CPU's mirrors of it are untouched.
 uniform float stack_layer = 0.0;
-const float STACK_STEP = 0.0003;
+// How much of the mesh's columns to gather toward the spine edge (0 = as built,
+// evenly). Everything that bends a sheet hard is in its first two centimetres —
+// the binding's 12 mm hinge, the dive into the gutter, the blend off the block's
+// bend — and a loose leaf's 12 even columns drew that as one or two straight
+// chords, millimetres off the curve and off the turning page's (32 columns) over
+// it, so the leaf came up through the page at the spine. The texture follows the
+// vertex (UV moves with it); the shape is the same function of u, only sampled
+// where it curves.
+uniform float spine_density = 0.0;
+// The bend of the BLOCK of each half (this sheet's own and the far one), for which
+// way is up in the pile. From the sheet's own bend, a page taken off a fan 44
+// degrees up had its up turned so far from the leaf under it that at a grazing
+// view one was nudged towards the eye and the other away, and the leaf came
+// through the page. Every sheet on a half has to agree on up.
+uniform vec4 stack_own = vec4(0.0);
+uniform vec4 stack_far = vec4(0.0);
+// Moving along the eye ray changes depth only, never where on screen a sheet is
+// drawn. 0.3 mm a place left a page lifting off a 400-page book 0.69 mm under the
+// leaf below it, 3 cm from the spine (each sheet's bend pivots on the book's
+// middle, a centimetre below the top of a thick block). PDFBook.STACK_STEP must
+// match.
+const float STACK_STEP = 0.0005;
+const float STACK_GRAZE = 0.15;
+// Every sheet of a half leaves the binding on its BLOCK's bend and only peels away
+// from it over this far out from the gutter: there they are ordered by height
+// alone, which is the pile's order. Each on its own bend, a page and the leaf
+// under it, a centimetre off the book's middle on a thick block, swung through
+// each other by millimetres in the binding (every bend pivots on the middle).
+// BookFlop.BIND_SPREAD must match.
+const float BIND_SPREAD = 0.02;
 
 // Surface.
 uniform float gutter_ao : hint_range(0.0, 1.0) = 0.55;
@@ -100,6 +129,12 @@ const float PAPER_PI = 3.14159265;
 void vertex() {
 	float w = max(page_size.x, 1e-5);
 	float h = max(page_size.y, 1e-5);
+	if (spine_density != 0.0) {
+		float t = clamp(0.5 + spine_sign * VERTEX.x / w, 0.0, 1.0);
+		t += spine_density * (t * t - t);
+		VERTEX.x = spine_sign * (t - 0.5) * w;
+		UV.x = 0.5 + VERTEX.x / w;
+	}
 	float u = clamp(0.5 + spine_sign * VERTEX.x / w, 0.0, 1.0);
 	float v = clamp(0.5 + VERTEX.y / h, 0.0, 1.0);
 	v_u = u;
@@ -125,7 +160,13 @@ void vertex() {
 	dzdv *= rest_turn;
 	// Along the BOOK's +Z, not this mesh's: a cover turned 180 degrees about Y has
 	// its own +Z pointing down out of the book, and sagged INTO its block.
-	VERTEX.z += flop_z_sign * (gutter + sag + lift) * rest_turn;
+	// The dive into the gutter is not the sheet's shape but where the binding
+	// pulls its spine edge, straight down into the valley whichever way the page
+	// is turned: on a page on its hinge it goes on AFTER the hinge. Turned with it,
+	// a page falling over from a thick half swung its 9 mm dive out sideways and
+	// landed it 3.6 mm from the spine, under the page it came down on.
+	float hinged_dive = flop_lift != 0.0 ? gutter : 0.0;
+	VERTEX.z += flop_z_sign * ((gutter - hinged_dive) + (sag + lift) * rest_turn);
 
 	// Arc-length conservation: the sheet dipping into the gutter is longer than
 	// the flat span it covers, so a material point sits nearer the spine than
@@ -183,12 +224,19 @@ void vertex() {
 		float lift_c = cos(flop_lift);
 		float lift_s = sin(flop_lift);
 		float s_lifted = s * lift_c - z_new * lift_s;
-		z_new = flop_origin_z + s * lift_s + z_new * lift_c;
+		z_new = flop_origin_z + s * lift_s + z_new * lift_c + hinged_dive;
 		float side = s_lifted < 0.0 ? -1.0 : 1.0;
 		float s_new = abs(s_lifted);
-		float ang = flop_lift + side * paper_flop(s_new, z_new, side > 0.0 ? flop_own : flop_far,
+		float s_up = s_new;
+		float z_up = z_new;
+		up_ang = side * paper_flop(s_up, z_up, side > 0.0 ? stack_own : stack_far, FLOP_HINGE_LEN);
+		vec4 bend = side > 0.0 ? flop_own : flop_far;
+		vec4 block_bend = side > 0.0 ? stack_own : stack_far;
+		if (block_bend != vec4(0.0)) {
+			bend = mix(block_bend, bend, smoothstep(0.0, BIND_SPREAD, s_new - flop_gutter_gap));
+		}
+		float ang = flop_lift + side * paper_flop(s_new, z_new, bend,
 			flop_hinge_len(z_new, flop_cross));
-		up_ang = ang - flop_lift;
 		s_new *= side;
 		VERTEX.x = spine_sign * (s_new - 0.5 * w - flop_gutter_gap);
 		VERTEX.z = (z_new - flop_origin_z) * flop_z_sign;
@@ -209,8 +257,14 @@ void vertex() {
 	vec4 view_pos = MODELVIEW_MATRIX * vec4(VERTEX, 1.0);
 	vec3 up_view = normalize((MODELVIEW_MATRIX * vec4(up_model, 0.0)).xyz);
 	vec3 to_eye = -normalize(view_pos.xyz);
-	float facing = clamp(dot(up_view, to_eye) * 8.0, -1.0, 1.0);
-	view_pos.xyz += to_eye * (stack_layer * STACK_STEP * facing);
+	// A separation ACROSS the paper is that over the cosine of the view along the
+	// eye ray: at a grazing look into the gutter 0.8 mm across was several mm
+	// along it, and a flat nudge lost. So each place is worth STACK_STEP across
+	// the paper from any angle, up to STACK_GRAZE's limit, and nothing at all
+	// exactly edge-on (where the sign turns over) — negative from underneath.
+	float c = dot(up_view, to_eye);
+	float gain = c / (c * c + STACK_GRAZE * STACK_GRAZE);
+	view_pos.xyz += to_eye * (stack_layer * STACK_STEP * gain);
 	POSITION = PROJECTION_MATRIX * view_pos;
 }
 
