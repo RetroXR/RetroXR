@@ -2027,6 +2027,41 @@ func _group_odd() -> void:
 	_ok(xa < xb and absf((la.global_position.x - xa) - S.SLOT_TRAVEL) < 0.005 and absf((xb - lb.global_position.x) - S.SLOT_TRAVEL) < 0.005
 			and absf(la.global_position.x - lb.global_position.x) < 0.01,
 		"odd: each lever slides its half of the slot, and pushed to the ends they meet in the middle")
+	# Nothing overflows the case: pushed to the far ends each handle's dome is inside the walls, START stands ABOVE its lever (toward the screen, clear of the
+	# dome), all of it is on a deck that is deeper than an upright's with the apron out as far, and the rail runs under the carriages' whole travel.
+	a.show_state(1 << ControllerBindings.JOYPAD_LEFT)
+	b.show_state(1 << ControllerBindings.JOYPAD_RIGHT)
+	for i in 40:
+		a.tick(1.0 / 60.0)
+		b.tick(1.0 / 60.0)
+	var inner := float(_spec("panicprk")["width"]) - 0.04
+	var dome := ball_mesh.radius
+	var out_a := model.to_local(la.global_position).x
+	var out_b := model.to_local(lb.global_position).x
+	_ok(out_a < -0.25 and out_b > 0.25 and absf(out_a) + dome <= inner * 0.5 and absf(out_b) + dome <= inner * 0.5,
+		"slot: at the ends of the slot each handle is inside the walls (%.3f and %.3f m of %.3f, dome %.3f)" % [out_a, out_b, inner * 0.5, dome])
+	var rail := model.find_child("SlotRail", true, false) as MeshInstance3D
+	_ok(rail != null and (rail.mesh as BoxMesh).size.x >= 2.0 * (S.SLOT_TRAVEL * 2.0 + dome) and (rail.mesh as BoxMesh).size.x <= inner,
+		"slot: the rail runs under both carriages' whole travel and stops inside the case (%.2f m)" % ((rail.mesh as BoxMesh).size.x if rail != null else 0.0))
+	var plate := model.find_child("DeckPlate", true, false) as MeshInstance3D
+	var half_deck := (plate.mesh as BoxMesh).size.y * 0.5
+	var start_b := b.find_child("Start", true, false) as MeshInstance3D
+	var rim := (start_a.mesh as CylinderMesh).bottom_radius * 1.22
+	var clear := 1.0e9
+	var on_deck := true
+	for pair: Array in [[la, start_a], [lb, start_b]]:
+		var lever_y := (pair[0] as Node3D).position.y
+		var start_y := (pair[1] as Node3D).position.y
+		clear = minf(clear, start_y - rim - (lever_y + dome))
+		on_deck = on_deck and start_y + rim <= half_deck and lever_y - dome >= -half_deck + 0.03
+	_ok(clear >= 0.0 and on_deck,
+		"slot: START stands above each lever with %.1f cm to spare over the dome, and lever and START are both on the deck (half of it %.3f m)" % [clear * 100.0, half_deck])
+	var apron := model.find_child("Apron", true, false) as Node3D
+	var overhang := false
+	for box: AABB in model.get_meta(ArcadeCabinetBuilder.SOLID_BOXES_META, []):
+		overhang = overhang or (box.end.z >= 0.54 - 0.001 and box.position.z <= 0.47 + 0.001 and box.position.y >= 0.77)
+	_ok(half_deck * 2.0 >= 0.24 and apron != null and apron.position.z >= 0.52 and overhang,
+		"slot: the deck is deeper than the upright's 0.19 m (%.2f), the apron out with it (%.2f) and the overhang is solid" % [half_deck * 2.0, apron.position.z if apron != null else 0.0])
 	# Back to the cabinet's own form: nothing left over.
 	model.morph_to(model._base_spec)
 	await _wait(2)

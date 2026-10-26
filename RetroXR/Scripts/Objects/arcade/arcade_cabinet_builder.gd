@@ -25,6 +25,10 @@ const SIDE_T := 0.02
 ## Where a slot handle's dome centre stands above its carriage, in the carriage's frame (Panic Park): the hands' reach point
 ## (ArcadePanelHands.SlideGrab.handle).
 const SLOT_HANDLE_Z := 0.095
+## Where a slot's lever rail runs across the deck and where each START stands above it (the deck panel's own y, +Y toward the screen): the deck is 0.07 m deeper than
+## an upright's (ArcadeCabinetSpecs.SLOT_DECK_EXTRA), a hand's breadth of it in front of the lever and the START clear of the handle's dome.
+const SLOT_LEVER_Y := -0.035
+const SLOT_START_Y := 0.075
 ## The flange a button stands in: how proud of the plate it is, so a pressed cap sinks into it.
 const RIM_H := 0.005
 const TUBE_DEPTH := 0.07
@@ -96,6 +100,9 @@ func _init(spec: Dictionary, root: Node3D, bake: bool = false) -> void:
 	_top = root
 	_owner = root if bake else null
 	_sh = ArcadeCabinetSpecs.shapes()[str(_v.get("shape", "upright"))]
+	# A deck deeper than the shape's own (a slot's: Panic Park's levers with START above them).
+	if float(_v.get("deck_extra", 0.0)) > 0.0:
+		_sh = ArcadeCabinetSpecs.deepened(_sh, float(_v["deck_extra"]))
 	# The width is the cabinet's (a spec may keep it across forms), the shape the form's.
 	_w = float(_v.get("width", _sh["w"]))
 	_in_w = _w - 0.04
@@ -267,9 +274,13 @@ func _build_shell(cab: Node3D) -> void:
 		for sx in [-1.0, 1.0]:
 			ArcadeParts.box(_owner, cab, "LowerFace%s" % ("L" if sx < 0 else "R"), Vector3(cheek, 0.41, 0.02),
 				Vector3(sx * (door_w * 0.5 + cheek * 0.5), 0.295, 0.39), _body)
-	ArcadeParts.box(_owner, cab, "ApronUnder", Vector3(_in_w, 0.05, 0.07), Vector3(0, 0.785, 0.435), _body)
-	ArcadeParts.box(_owner, cab, "Apron", Vector3(_in_w, 0.12, 0.02), Vector3(0, 0.86, 0.46), _body)
-	ArcadeParts.box(_owner, cab, "ApronTrim", Vector3(_in_w, 0.012, 0.022), Vector3(0, 0.806, 0.462), _trim)
+	# The apron's face stands at the shape's `apron_z` (0.47 unless the deck was made deeper); the control panel overhangs the coin face as far.
+	var apron_z := float(_sh.get("apron_z", 0.47))
+	ArcadeParts.box(_owner, cab, "ApronUnder", Vector3(_in_w, 0.05, apron_z - 0.40), Vector3(0, 0.785, (0.40 + apron_z) * 0.5), _body)
+	ArcadeParts.box(_owner, cab, "Apron", Vector3(_in_w, 0.12, 0.02), Vector3(0, 0.86, apron_z - 0.01), _body)
+	ArcadeParts.box(_owner, cab, "ApronTrim", Vector3(_in_w, 0.012, 0.022), Vector3(0, 0.806, apron_z - 0.008), _trim)
+	if apron_z > 0.47 + 0.001:
+		solid_boxes.append(AABB(Vector3(-_w * 0.5, 0.78, 0.47), Vector3(_w, 0.14, apron_z - 0.47)))
 	if _sh.has("hood"):
 		_build_hood(cab, _sh["hood"])
 	# Marquee: a lit panel above the monitor, so it glows when the machine is on.
@@ -482,8 +493,9 @@ func _build_deck() -> void:
 	ArcadeParts.box(_owner, deck, "DeckPlate", Vector3(_in_w, depth, 0.012), Vector3(0, 0, -0.006), _dark)
 	# Two levers in ONE slot: the rail runs across the deck under both (Panic Park).
 	if not players.is_empty() and str((players[0] as Dictionary).get("kind", "")) == "slot":
-		ArcadeParts.box(_owner, deck, "SlotRail", Vector3(ArcadeCabinetSpecs.SLOT_TRAVEL * 4.0 + 0.06, 0.03, 0.004),
-			Vector3(0, 0.015, 0.002), ArcadeParts.mat(Color(0.01, 0.01, 0.012), 0.0, 0.9))
+		var rail_w := ArcadeCabinetSpecs.SLOT_TRAVEL * 4.0 + 0.10
+		ArcadeParts.box(_owner, deck, "SlotRail", Vector3(rail_w, 0.03, 0.004),
+			Vector3(0, SLOT_LEVER_Y, 0.002), ArcadeParts.mat(Color(0.01, 0.01, 0.012), 0.0, 0.9))
 
 	for i in players.size():
 		_build_player(deck, i, players[i])
@@ -550,7 +562,9 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 	elif kind == "slot":
 		# A lever in the slot (Panic Park): a carriage on the rail with an upright lever and a ball, red for player 1
 		# and blue for player 2, each in its own half and meeting the other's in the middle.
-		var carriage := ArcadeParts.node(_owner, mod, "Node3D", "SlidePivot", Vector3(float(spec["slot_x"]), 0.015, 0.0)) as Node3D
+		top = 0.115
+		bottom = -0.135
+		var carriage := ArcadeParts.node(_owner, mod, "Node3D", "SlidePivot", Vector3(float(spec["slot_x"]), SLOT_LEVER_Y, 0.0)) as Node3D
 		ArcadeParts.box(_owner, carriage, "CarriageBlock", Vector3(0.09, 0.06, 0.016), Vector3(0, 0, 0.008), _metal)
 		ArcadeParts.cylinder(_owner, carriage, "LeverShaft", 0.012, 0.07, Vector3(0, 0, 0.051), _metal, Vector3.BACK)
 		# The handle is a big flat dome, a button's size and more (9 cm across), red or blue: what a player slides along the slot.
@@ -570,8 +584,8 @@ func _build_player(deck: Node3D, index: int, spec: Dictionary) -> void:
 		var pos: Vector2 = bt["pos"]
 		_cap(mod, "Btn%d" % (k + 1), Vector3(pos.x, pos.y, 0.0), bt["radius"], BUTTON_COLORS[int(bt["color"])], 0.012)
 	if kind == "slot":
-		# Panic Park's START is a big round button in its player's colour, under the handle that player slides.
-		_cap(mod, "Start", Vector3(start_x, -0.07, 0.0), 0.028, _player_color(index), 0.014)
+		# Panic Park's START is a big round button in its player's colour, ABOVE the lever that player slides (toward the screen), out of its way.
+		_cap(mod, "Start", Vector3(start_x, SLOT_START_Y, 0.0), 0.028, _player_color(index), 0.014)
 	else:
 		_cap(mod, "Start", Vector3(start_x, -0.07, 0.0), 0.011, Color(0.92, 0.92, 0.92), 0.008)
 	var label := str(spec.get("label", ""))

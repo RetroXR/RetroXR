@@ -131,6 +131,22 @@ static func lengthened(shape: Dictionary, extra: float) -> Dictionary:
 	return out
 
 
+## `shape` with its control deck `extra` metres DEEPER toward the player: the apron's front (the silhouette's points at the deck's front z) and the deck's front edge
+## move out together, the glass, the marquee and the body behind them not at all (a slot's deck: Panic Park's two levers and the START above each).
+## `apron_z` says where the apron's face now is (ArcadeCabinetBuilder._build_shell hangs its boxes on it).
+static func deepened(shape: Dictionary, extra: float) -> Dictionary:
+	var out := shape.duplicate(true)
+	var a: Vector2 = shape.get("deck_a", Vector2(0.47, 0.92))
+	var outline: Array[Vector2] = []
+	for p: Vector2 in shape["profile"]:
+		outline.append(p + Vector2(extra, 0.0) if is_equal_approx(p.x, a.x) and p.y >= 0.79 else p)
+	out["profile"] = outline
+	out["deck_a"] = a + Vector2(extra, 0.0)
+	out["deck_b"] = shape.get("deck_b", Vector2(0.30, 1.00))
+	out["apron_z"] = a.x + extra
+	return out
+
+
 ## The shipped cabinets, by the name gen_arcade_cabinet.gd bakes them under (`--variant=`): the look
 ## (body, trim, marquee), the bay kind, a panel per player (`stick` with N buttons, `dial`, or `start`
 ## alone), the coin doors' x, and whether it has front pad sockets or guns in holsters.
@@ -224,6 +240,11 @@ static func row(xs: Array) -> Array:
 ## each the half of it that is its own).
 const HOLO_DEPTH := 0.30
 const SLOT_TRAVEL := 0.14
+## How far a lever's handle (a dome 4.5 cm in radius) and its carriage reach past the end of the carriage's travel: the body is as wide as the levers need
+## with it, or the handle at the end of the slot stood outside the case. A slot's deck is also deeper than the upright's (SLOT_DECK_EXTRA): START stands
+## ABOVE each lever (toward the screen) as Panic Park's did, and the lever below it has the deck's front edge a hand's breadth away.
+const SLOT_HANDLE_REACH := 0.05
+const SLOT_DECK_EXTRA := 0.07
 
 ## The most panels a deck takes (X-Men's six players), and the most coin doors on a coin face.
 const MAX_PANELS := 6
@@ -285,8 +306,8 @@ static func panel_extent(panel: Dictionary) -> Vector2:
 			left = minf(left, float(panel["wheel_x"]) - 0.15)
 			right = maxf(right, float(panel["wheel_x"]) + (0.25 if bool(panel.get("shifter", false)) else 0.15))
 		"slot":
-			left = minf(left, float(panel["slot_x"]) - SLOT_TRAVEL - 0.03)
-			right = maxf(right, float(panel["slot_x"]) + SLOT_TRAVEL + 0.03)
+			left = minf(left, float(panel["slot_x"]) - SLOT_TRAVEL - SLOT_HANDLE_REACH)
+			right = maxf(right, float(panel["slot_x"]) + SLOT_TRAVEL + SLOT_HANDLE_REACH)
 	for bt: Dictionary in panel.get("buttons", []):
 		var pos: Vector2 = bt["pos"]
 		var radius := float(bt["radius"])
@@ -624,6 +645,7 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 	spec.erase("bike")
 	spec.erase("cycle")
 	spec.erase("holo")
+	spec.erase("deck_extra")
 	spec.erase("socket_count")
 	var shape := base_shape
 	var players: int = clampi(profile.players, 1, MAX_PANELS)
@@ -672,8 +694,9 @@ static func for_game(base: Dictionary, profile: ArcadeGameProfile) -> Dictionary
 			var levers: Array = []
 			for i in clampi(players, 1, 2):
 				levers.append({"kind": "slot", "player": i, "slot_x": -SLOT_TRAVEL if i == 0 else SLOT_TRAVEL,
-					"start_x": -0.24 if i == 0 else 0.24, "buttons": []})
+					"start_x": -SLOT_TRAVEL if i == 0 else SLOT_TRAVEL, "buttons": []})
 			spec["players"] = levers
+			spec["deck_extra"] = SLOT_DECK_EXTRA
 		ArcadeGameProfile.FORM_STAND:
 			shape = "upright"
 			spec["players"] = [{"kind": "wheel", "wheel_x": 0.0, "start_x": -0.20, "player": 0,
@@ -807,7 +830,7 @@ static func _same_form(a: Dictionary, b: Dictionary) -> bool:
 	if str(a.get("shape", "upright")) != str(b.get("shape", "upright")):
 		return false
 	for key in ["players", "coins", "guns", "sockets", "socket_count", "gun_style", "gun_pedals", "cockpit", "bench",
-			"stage", "bike", "cycle", "holo", "screen"]:
+			"stage", "bike", "cycle", "holo", "screen", "deck_extra"]:
 		if not _same_value(a.get(key), b.get(key)):
 			return false
 	var wa := float(a.get("width", shapes()[str(a.get("shape", "upright"))]["w"]))

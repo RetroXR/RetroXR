@@ -86,14 +86,19 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
   rate, and `CENTERDELTA(0)` says the same of a key-driven one: it stays where it was left.
 - **The real cabinet** (research, medium; two summaries agree): two sideways-sliding levers, red for player 1 and blue for player 2, **in ONE slot across the front**.
   They collide when they meet (the game says "Push One Another!"); a one-player game parks the other lever at its end. A 33 or 50 inch screen (System 23). Each lever
-  ends in a big flat handle (the "two big buttons" of the reports: the handles themselves, with a big START under each; no photograph could be opened from the build machine,
-  so the handle's size and shape are an estimate).
+  ends in a big flat handle (the "two big buttons" of the reports: the handles themselves, with a big START ABOVE each, toward the screen; no photograph could be opened from
+  the build machine, so the handle's size and shape and where START stands are an estimate: START was under the lever until a player saw it hang off the deck's front edge).
 - **Built**: the tall body (the 33 inch class is the smaller of the two screens the cabinet had; the table's `m33`, `MONITOR_CLASS` in `gen_game_index.py`, so the glass is
   the tall one and the body is wider than the upright's, `ArcadeCabinetSpecs.class_shape`) with two panels, each a **`SlidePivot` carriage on a shared `SlotRail`** with a short
   shaft and a **flat dome 9 cm across** (`LeverBall`, `SLOT_HANDLE_Z` above the carriage: the point a hand takes) and a **big round START** in the player's colour, red and blue
   (`_player_color`), the slot travel `SLOT_TRAVEL` 14 cm either side of where each rests (player 1 in the left half, player 2 in the right: both reach the middle, neither
   passes it). The lever's position is the player's left stick X (an analog position, as `CENTERDELTA(0)` asks); each panel is its own player (own port, own START cap).
-  A one-player game gets one lever. The spec's panels are `{"kind": "slot", "slot_x", "start_x"}`; `panel_extent` counts the whole travel so a wider travel widens the body.
+  A one-player game gets one lever. The spec's panels are `{"kind": "slot", "slot_x", "start_x"}`; `panel_extent` counts the whole travel AND the handle's reach past it
+  (`SLOT_HANDLE_REACH`, 5 cm: the dome is 4.5 cm in radius, and at the end of the slot it stood outside the walls) so a wider travel widens the body.
+  **The deck is 7 cm deeper than an upright's** (the spec's `deck_extra`, `SLOT_DECK_EXTRA`; `ArcadeCabinetSpecs.deepened`: the apron and the deck's front edge move out together, the glass
+  and the body behind them do not, the apron's boxes hang on the shape's `apron_z`, and the overhang is a solid box): the rail runs at `SLOT_LEVER_Y`, a hand's breadth from the deck's front
+  edge, and each START stands above its lever's resting place at `SLOT_START_Y`, clear of the dome (`arcade_form_tests odd/` measures every one: the handles inside the walls at the ends
+  of the slot, START above and on the deck, the rail under the whole travel).
 - **VR hands**: the trigger on a lever's ball takes hold of it (`SLIDE_REACH` 5.5 cm) and it slides with the hand, 14 cm being all the way (`SlideGrab`).
 - **Not built**: the levers do not push each other; two hands can put both through the middle (the game reads two numbers).
 - Tests: `arcade_form_tests odd/`, `arcade_hand_tests slot/`; picture `--forms=panicprk`.
