@@ -79,8 +79,8 @@ more than one screen, 3 to 8 players are 1,345, **2,959 are alternating** (`a`: 
 
 - **MAME**: `namco/namcos23.cpp`, **NW** (does not run in 0.289). Controls: `JVS_ANALOG_INPUT1` `IPT_AD_STICK_X` 0..0xffff, centre 0x8000, **`PORT_CENTERDELTA(0)`**
   (lever 1), `JVS_ANALOG_INPUT2` the same for `PORT_PLAYER(2)` (lever 2); `JVS_PLAYER1`: START1, START2, and the operator's "Up Select", "Down Select", BUTTON1 "Enter".
-  The `-listxml` also files a `joy` `vertical2` and a nine-button `joy` for player 2: that is the operator bits and nothing a player works. `CENTERDELTA(0)` is why the
-  lever is a POSITION and not a rate: it stays where it is put.
+  The `-listxml` also files a `joy` `vertical2` and a nine-button `joy` for player 2: that is the operator bits and nothing a player works. A lever in a slot is a POSITION, not a
+  rate, and `CENTERDELTA(0)` says the same of a key-driven one: it stays where it was left.
 - **The real cabinet** (research, medium; two summaries agree): two sideways-sliding levers, red for player 1 and blue for player 2, **in ONE slot across the front**.
   They collide when they meet (the game says "Push One Another!"); a one-player game parks the other lever at its end. A 33 or 50 inch screen (System 23).
 - **Built**: the upright body with two panels, each a **`SlidePivot` carriage on a shared `SlotRail`** with an upright lever and a ball, red and blue
@@ -157,7 +157,7 @@ What each one is made of, so a new one can follow it. "Hands" is what a headset'
 | **alternating** | 2,959 | one panel, 1P, and a 2P START | the table's `a`; one coin door | |
 | **screens** | 356 | several screens side by side | the tube row; the frame holds them as one picture | |
 | **service** | 14,977 | TEST and SERVICE in the compartment opposite the power switch | `ArcadeServiceModule`, only where MAME says `<input service="yes">` | VRButtons |
-| `gun` | 275 (115) | guns in holsters, a pedal where the game had one (Time Crisis) | the wide body, a gun a light gun the game has (up to 3), START alone each | the hand takes the gun as any pickable |
+| `gun` | 275 (115) | guns in holsters, a pedal where the game had one (Time Crisis) | the wide body, one gun for each light gun the game has (up to 3), START alone each | the hand takes the gun as any pickable |
 | `gunm` | 45 (11) | a gun on a post | Operation Wolf's Uzi, Terminator 2, Beast Busters (3): fixed to the post, turning about its pivot | the hand turns it |
 | `rifle` | 51 (7) | one rifle on a taller post | Silent Scope, Golgo 13; see above | the hand turns it |
 | `race` | 315 (97) | a sit-down cockpit | the `racer` body, platform, seat, dash, wheel, two pedals, gear lever; a roof for the Model 3 twins (`ROOFED`) | wheel (clockwise is right), pedals under a finger, the lever |
