@@ -813,7 +813,11 @@ static func controller_of(plug: Variant) -> Node3D:
 		return null
 	var node := plug as Node
 	if node != null and node.has_method("get_controller"):
-		return node.get_controller() as Node3D
+		# A pad deleted while its plug still sits in the port leaves the plug holding a FREED controller, and a
+		# freed instance cannot be assigned to a typed variable: ask for it untyped, and keep it only if it is
+		# still there.
+		var held: Variant = node.get_controller()
+		return held as Node3D if is_instance_valid(held) else null
 	return node as Node3D
 
 

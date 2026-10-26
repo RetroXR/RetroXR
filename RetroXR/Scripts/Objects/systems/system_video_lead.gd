@@ -356,7 +356,13 @@ func _release_plug(port: XRToolsSnapZone, plug: CablePlug) -> void:
 ## socket is live again. Deliberately not awaited by the caller: the release has
 ## already happened, and this only reopens the socket behind it.
 func _reopen_port(port: XRToolsSnapZone) -> void:
+	# The machine can be on its way out (or already out of the tree) when a plug is pulled from it, and
+	# then there is no tree to wait on and no socket worth reopening.
+	if not is_instance_valid(_host) or not _host.is_inside_tree():
+		return
 	await _host.get_tree().physics_frame
+	if not is_instance_valid(_host) or not _host.is_inside_tree():
+		return
 	await _host.get_tree().physics_frame
 	if is_instance_valid(port):
 		port.enabled = true

@@ -163,7 +163,7 @@ func _test_gc_gba_cable() -> void:
 
 	# Which console's ports will take it. A GameCube lead is not a Wii lead, and
 	# the socket says so before anything electrical is decided.
-	_eq(gc_end.systemid, "gc", "the console end fits a GameCube")
+	_eq(gc_end.connector, Connectors.controller_port_of("gc"), "the console end fits a GameCube")
 
 	# Seating it announces a handheld to the core, the same way any pad announces
 	# itself: there is no separate step and nothing else to configure.
